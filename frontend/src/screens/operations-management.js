@@ -786,6 +786,12 @@ function opsManagementStylesHtml() {
     .ds-ops-mgmt-screen .ds-ops-tag--guide { background:#f5f3ff; border-color:#ddd6fe; color:#5b21b6; }
     .ds-ops-mgmt-screen .ds-ops-tag--warn { background:#fff7ed; border-color:#fed7aa; color:#9a3412; }
     .ds-ops-mgmt-screen .ds-ops-school-detail { margin-top:12px; border-top:1px solid #e2e8f0; padding-top:10px; }
+    .ds-ops-mgmt-screen .ds-ops-authority-school { border:1px solid #d8e5ee; border-radius:12px; background:#fff; margin:10px 12px; overflow:hidden; }
+    .ds-ops-mgmt-screen .ds-ops-authority-school__header { display:flex; flex-wrap:wrap; align-items:center; justify-content:space-between; gap:8px; padding:9px 12px; background:#f8fbfd; border-bottom:1px solid #e2e8f0; }
+    .ds-ops-mgmt-screen .ds-ops-authority-date { padding:10px 12px 12px; border-top:1px solid #eef2f7; }
+    .ds-ops-mgmt-screen .ds-ops-authority-date:first-of-type { border-top:0; }
+    .ds-ops-mgmt-screen .ds-ops-authority-date__title { display:inline-flex; align-items:center; gap:6px; margin:0 0 7px; padding:3px 9px; border-radius:999px; background:#eef6ff; color:#1e3a8a; font-size:12px; font-weight:800; }
+    .ds-ops-mgmt-screen .ds-ops-authority-date .ds-table-wrap { margin-top:0; }
   </style>`;
 }
 
@@ -1039,92 +1045,107 @@ function workshopsTabHtml(rows, state, stockMap, catalogRows = []) {
   </section>`;
 }
 
-function schoolsTabHtml(rows, state, directory = buildSchoolsDirectory([]), contactsIndex = new Map()) {
-  const ops = ensureOpsState(state);
-  const groups = new Map();
-  rows.forEach((row) => {
-    const authority = getActivityAuthorityName(row);
-    const school = getActivitySchoolDisplayNameClean(row);
-    const key = schoolGroupKey(row);
-    if (!groups.has(key)) {
-      groups.set(key, { key, authority, school, activities: 0, workshops: new Set(), instructors: new Set(), dates: new Set(), exceptions: 0, items: [] });
-    }
-    const bucket = groups.get(key);
-    bucket.activities += 1;
-    bucket.workshops.add(getActivityName(row));
-    const instructor = getActivityInstructorName(row);
-    if (instructor !== 'לא משויך') bucket.instructors.add(instructor);
-    getActivityScheduleDates(row).forEach((date) => bucket.dates.add(date));
-    const primaryDate = getActivityPrimaryDate(row);
-    if (primaryDate) bucket.dates.add(primaryDate);
-    if (isSummerOperationsException(row)) bucket.exceptions += 1;
-    bucket.items.push(row);
-  });
+function authorityScheduleEntryKey(entry = {}) {
+  const activity = entry.activity || {};
+  return [
+    activity.RowID, activity.row_id, activity.id, activity.activity_id, activity.uuid,
+    entry.date, entry.time, getActivityAuthorityName(activity), getActivitySchoolDisplayNameClean(activity),
+    getActivityInstructorName(activity), getActivityGradeLabel(activity), getActivityName(activity)
+  ].map((value) => String(value || '').trim()).filter(Boolean).join('|');
+}
 
-  const schoolList = Array.from(groups.values()).sort((a, b) => {
-    const authorityCmp = a.authority.localeCompare(b.authority, 'he');
+function sortAuthorityScheduleRows(scheduleRows = []) {
+  return scheduleRows.slice().sort((a, b) => {
+    const authorityCmp = getActivityAuthorityName(a.activity).localeCompare(getActivityAuthorityName(b.activity), 'he');
     if (authorityCmp !== 0) return authorityCmp;
-    const countCmp = b.activities - a.activities;
-    if (countCmp !== 0) return countCmp;
-    return a.school.localeCompare(b.school, 'he');
+    const schoolCmp = getActivitySchoolDisplayNameClean(a.activity).localeCompare(getActivitySchoolDisplayNameClean(b.activity), 'he');
+    if (schoolCmp !== 0) return schoolCmp;
+    const dateCmp = compareValues(a.date || '9999-99-99', b.date || '9999-99-99', 'asc');
+    if (dateCmp !== 0) return dateCmp;
+    const timeCmp = compareValues(a.time || '99:99', b.time || '99:99', 'asc');
+    if (timeCmp !== 0) return timeCmp;
+    const workshopCmp = getActivityName(a.activity).localeCompare(getActivityName(b.activity), 'he');
+    if (workshopCmp !== 0) return workshopCmp;
+    return getActivityInstructorName(a.activity).localeCompare(getActivityInstructorName(b.activity), 'he');
   });
+}
 
+function schoolsTabHtml(rows, state, directory = buildSchoolsDirectory([]), contactsIndex = new Map()) {
+  const scheduleRows = sortAuthorityScheduleRows(buildScheduleRows(rows, state, directory));
+  const seenEntries = new Set();
   const byAuthority = new Map();
-  schoolList.forEach((school) => {
-    if (!byAuthority.has(school.authority)) byAuthority.set(school.authority, []);
-    byAuthority.get(school.authority).push(school);
+
+  scheduleRows.forEach((entry) => {
+    const key = authorityScheduleEntryKey(entry);
+    if (seenEntries.has(key)) return;
+    seenEntries.add(key);
+
+    const activity = entry.activity;
+    const authority = getActivityAuthorityName(activity);
+    const school = getActivitySchoolDisplayNameClean(activity);
+    const date = entry.date || '';
+    if (!byAuthority.has(authority)) {
+      byAuthority.set(authority, { authority, schools: new Map(), activities: 0, instructors: new Set() });
+    }
+    const authorityGroup = byAuthority.get(authority);
+    authorityGroup.activities += 1;
+    const instructor = getActivityInstructorName(activity);
+    if (instructor !== 'לא משויך') authorityGroup.instructors.add(instructor);
+
+    if (!authorityGroup.schools.has(school)) {
+      authorityGroup.schools.set(school, { school, dates: new Map(), activities: 0, workshops: new Set(), instructors: new Set() });
+    }
+    const schoolGroup = authorityGroup.schools.get(school);
+    schoolGroup.activities += 1;
+    schoolGroup.workshops.add(getActivityName(activity));
+    if (instructor !== 'לא משויך') schoolGroup.instructors.add(instructor);
+
+    if (!schoolGroup.dates.has(date)) schoolGroup.dates.set(date, []);
+    schoolGroup.dates.get(date).push(entry);
   });
 
-  const authoritySections = Array.from(byAuthority.entries()).map(([authority, schools]) => {
-    const activityCount = schools.reduce((sum, school) => sum + school.activities, 0);
-    const instructors = new Set();
-    schools.forEach((school) => school.instructors.forEach((name) => instructors.add(name)));
-    const cards = schools.map((school) => {
-      const isOpen = ops.expandedSchool === school.key;
-      const sortedItems = school.items.slice().sort((a, b) => {
-        const dateCmp = compareValues(getDetailDateForActivity(a) || '9999-99-99', getDetailDateForActivity(b) || '9999-99-99', 'asc');
-        if (dateCmp !== 0) return dateCmp;
-        const timeCmp = compareValues(getDetailTimeForActivity(a) || '99:99', getDetailTimeForActivity(b) || '99:99', 'asc');
-        if (timeCmp !== 0) return timeCmp;
-        const workshopCmp = getActivityName(a).localeCompare(getActivityName(b), 'he');
-        if (workshopCmp !== 0) return workshopCmp;
-        return getActivityInstructorName(a).localeCompare(getActivityInstructorName(b), 'he');
-      });
-      const detailRows = sortedItems.map((row) => {
-        const date = getDetailDateForActivity(row);
-        return `<tr>
-          <td class="ds-ops-col--date">${escapeHtml(formatDateHe(date) || '—')}</td>
-          <td class="ds-ops-col--weekday">${escapeHtml(date ? formatDateHeWithWeekday(date).split(' · ')[0] : '—')}</td>
-          <td class="ds-ops-col--time">${escapeHtml(getDetailTimeForActivity(row) || '—')}</td>
-          <td class="ds-ops-col--activity">${escapeHtml(getActivityName(row))}</td>
-          <td class="ds-ops-col--instructor">${escapeHtml(getActivityInstructorName(row))}</td>
-          <td class="ds-ops-col--grade">${escapeHtml(getActivityGradeLabel(row) || '—')}</td>
-        </tr>`;
+  const authoritySections = Array.from(byAuthority.values()).map((authorityGroup) => {
+    const schools = Array.from(authorityGroup.schools.values()).sort((a, b) => a.school.localeCompare(b.school, 'he'));
+    const schoolBlocks = schools.map((schoolGroup) => {
+      const dateBlocks = Array.from(schoolGroup.dates.entries()).sort(([a], [b]) => compareValues(a || '9999-99-99', b || '9999-99-99', 'asc')).map(([date, entries]) => {
+        const sortedEntries = entries.slice().sort((a, b) => {
+          const timeCmp = compareValues(a.time || '99:99', b.time || '99:99', 'asc');
+          if (timeCmp !== 0) return timeCmp;
+          return getActivityName(a.activity).localeCompare(getActivityName(b.activity), 'he');
+        });
+        const rowsHtml = sortedEntries.map((entry) => {
+          const activity = entry.activity;
+          return `<tr>
+            <td class="ds-ops-col--date"><strong>${escapeHtml(formatDateHe(entry.date) || '—')}</strong></td>
+            <td class="ds-ops-col--weekday">${escapeHtml(entry.date ? formatDateHeWithWeekday(entry.date).split(' · ')[0] : '—')}</td>
+            <td class="ds-ops-col--time">${escapeHtml(entry.time || '—')}</td>
+            <td class="ds-ops-col--instructor">${escapeHtml(entry.instructor || '—')}</td>
+            <td class="ds-ops-col--grade">${escapeHtml(getActivityGradeLabel(activity) || '—')}</td>
+            <td class="ds-ops-col--activity">${escapeHtml(getActivityName(activity))}</td>
+          </tr>`;
+        }).join('');
+        return `<section class="ds-ops-authority-date">
+          <h4 class="ds-ops-authority-date__title">${escapeHtml(formatDateHe(date) || 'ללא תאריך')} · ${escapeHtml(date ? formatDateHeWithWeekday(date).split(' · ')[0] : '—')}</h4>
+          ${dsTableWrap(`<table class="ds-table ds-table--compact ds-ops-mgmt-data-table"><thead><tr><th>תאריך</th><th>יום</th><th>שעות</th><th>מדריך</th><th>כיתה</th><th>פעילות / סדנה</th></tr></thead><tbody>${rowsHtml}</tbody></table>`)}
+        </section>`;
       }).join('');
-      const detail = isOpen
-        ? `<div class="ds-ops-school-detail">${dsTableWrap(`<table class="ds-table ds-table--compact ds-ops-mgmt-data-table"><thead><tr><th>תאריך</th><th>יום</th><th>שעות</th><th>סדנה / פעילות</th><th>מדריך</th><th>כיתה</th></tr></thead><tbody>${detailRows}</tbody></table>`)}</div>`
-        : '';
-      const instructorsList = Array.from(school.instructors);
-      const workshopList = Array.from(school.workshops);
-      return `<article class="ds-ops-school-card">
-        <div class="ds-ops-school-card__top"><div>
-          <div class="ds-ops-school-card__title">${escapeHtml(school.school)}</div>
-          <div class="ds-ops-school-card__meta">
-            <span class="ds-ops-pill">${escapeHtml(school.authority)}</span><span class="ds-ops-pill">${school.activities} פעילויות</span><span class="ds-ops-pill">${school.workshops.size} סדנאות</span><span class="ds-ops-pill">${school.instructors.size} מדריכים</span>${school.exceptions ? `<span class="ds-ops-pill">${school.exceptions} חריגות</span>` : ''}
-          </div>
-          <div class="ds-ops-school-card__meta" style="margin-top:6px"><span class="ds-ops-pill">${escapeHtml(formatSchoolDateRange(Array.from(school.dates)))}</span></div>
-        </div><button type="button" class="ds-ops-school-card__toggle no-print" data-ops-school="${escapeHtml(school.key)}">${isOpen ? 'סגור' : 'פירוט'}</button></div>
-        ${detail}
+      return `<article class="ds-ops-authority-school">
+        <header class="ds-ops-authority-school__header">
+          <strong class="ds-ops-school-card__title">${escapeHtml(schoolGroup.school)}</strong>
+          <span class="ds-ops-schools-authority__stats"><span class="ds-ops-pill">${schoolGroup.activities} פעילויות</span><span class="ds-ops-pill">${schoolGroup.workshops.size} סדנאות</span><span class="ds-ops-pill">${schoolGroup.instructors.size} מדריכים</span><span class="ds-ops-pill">${schoolGroup.dates.size} תאריכים</span></span>
+        </header>
+        ${dateBlocks}
       </article>`;
     }).join('');
-    return `<section class="ds-ops-schools-authority"><header class="ds-ops-schools-authority__header"><strong>${escapeHtml(authority)}</strong><span class="ds-ops-schools-authority__stats"><span class="ds-ops-pill">${schools.length} בתי ספר / מסגרות</span><span class="ds-ops-pill">${activityCount} פעילויות</span><span class="ds-ops-pill">${instructors.size} מדריכים</span></span></header><div class="ds-ops-schools-grid">${cards}</div></section>`;
+    return `<section class="ds-ops-schools-authority"><header class="ds-ops-schools-authority__header"><strong>${escapeHtml(authorityGroup.authority)}</strong><span class="ds-ops-schools-authority__stats"><span class="ds-ops-pill">${schools.length} בתי ספר / מסגרות</span><span class="ds-ops-pill">${authorityGroup.activities} פעילויות</span><span class="ds-ops-pill">${authorityGroup.instructors.size} מדריכים</span></span></header>${schoolBlocks}</section>`;
   }).join('');
 
+  const schoolCount = Array.from(byAuthority.values()).reduce((sum, group) => sum + group.schools.size, 0);
   return `<section class="ds-ops-mgmt-panel" dir="rtl">
     ${compactSummaryLineHtml([
       { label: 'רשויות', value: byAuthority.size },
-      { label: 'בתי ספר / מסגרות', value: schoolList.length },
-      { label: 'פעילויות', value: rows.length },
+      { label: 'בתי ספר / מסגרות', value: schoolCount },
+      { label: 'פעילויות', value: seenEntries.size },
       { label: 'מדריכים', value: instructorOptions(rows).length }
     ])}
     ${authoritySections || dsEmptyState('לא נמצאו בתי ספר / מסגרות')}

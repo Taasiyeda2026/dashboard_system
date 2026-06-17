@@ -219,6 +219,23 @@ test('authorities tab groups schools and dated activities under each authority',
   assert.match(html, />02\/05\/2026</);
 });
 
+test('authorities tab renders schools, dates and activities in fixed grouped order', () => {
+  const state = baseState();
+  state.operationsManagement.tab = 'authorities';
+  const rows = [
+    { RowID: 'B-LATE', status: 'פתוח', authority: 'רשות ב', school: 'בית ספר ב', activity_name: 'פעילות מאוחרת', start_date: '2026-05-03', start_time: '11:00', end_time: '12:00', instructor_name: 'מיה', grade: 'ד' },
+    { RowID: 'A-LATE', status: 'פתוח', authority: 'רשות א', school: 'בית ספר ב', activity_name: 'פעילות שנייה', start_date: '2026-05-02', start_time: '10:00', end_time: '11:00', instructor_name: 'דני', grade: 'ב' },
+    { RowID: 'A-EARLY', status: 'פתוח', authority: 'רשות א', school: 'בית ספר א', activity_name: 'פעילות ראשונה', start_date: '2026-05-01', start_time: '08:00', end_time: '09:00', instructor_name: 'נועה', grade: 'א' }
+  ];
+  const html = operationsManagementScreen.render({ rows, workshopStockMap: new Map() }, { state });
+  assert.ok(html.indexOf('רשות א') < html.indexOf('רשות ב'));
+  assert.ok(html.indexOf('בית ספר א') < html.indexOf('בית ספר ב'));
+  assert.ok(html.indexOf('01/05/2026') < html.indexOf('02/05/2026'));
+  const groupedHtml = html.slice(html.indexOf('<article class="ds-ops-authority-school"'));
+  assert.match(groupedHtml, /<th>מדריך<\/th><th>כיתה<\/th><th>פעילות \/ סדנה<\/th>/);
+  assert.equal((groupedHtml.match(/פעילות ראשונה/g) || []).length, 1);
+});
+
 test('workshops inventory tab includes catalog workshops outside selected date range', () => {
   const state = baseState();
   state.operationsManagement.tab = 'workshops';
