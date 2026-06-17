@@ -607,6 +607,16 @@ function isWorkshopInventoryRequired(workshopName) {
   return !excluded.some((term) => name.includes(term));
 }
 
+function isWorkshopKindRow(row = {}) {
+  const kindText = [
+    row?.activity_type, row?.activity_kind, row?.activity_category, row?.activity_group,
+    row?.parent_value, row?.type, row?.category, row?.item_type, row?.product_type
+  ].map((value) => String(value || '').trim().toLowerCase()).filter(Boolean).join(' ');
+  if (/after\s*school|afterschool|אפטר|צהרון|course|קורס|תוכנית|תכנית/.test(kindText)) return false;
+  if (/workshop|סדנ/.test(kindText)) return true;
+  return kindText === '';
+}
+
 function formatStockCell(value) {
   if (value === null || value === undefined || value === '') return '<span class="ds-ops-mgmt-cell-muted">לא הוזן</span>';
   return escapeHtml(String(value));
@@ -637,9 +647,8 @@ function extractWorkshopCatalogRows(listsData, activityRows = []) {
     if (!['activity_names', 'activity_name', 'activities', 'activity', 'workshop_stock', 'workshop_inventory', 'inventory', 'stock'].includes(cat)) return;
     list.forEach((item) => {
       const row = item?._row && typeof item._row === 'object' ? item._row : item;
-      const typeText = String(row?.activity_type || row?.parent_value || row?.type || row?.category || '').toLowerCase();
       const isCatalog = ['activity_names', 'activity_name', 'activities', 'activity'].includes(cat);
-      if (isCatalog && typeText && !typeText.includes('workshop') && !String(typeText).includes('סדנ')) return;
+      if (isCatalog && !isWorkshopKindRow(row)) return;
       add({
         no: row?.activity_no || row?.workshop_no || row?.workshop_number || row?.item_no || row?.id || item?.value,
         name: row?.activity_name || row?.label_he || row?.workshop_name || row?.product_name || row?.item_name || item?.label || item?.value,
@@ -647,7 +656,10 @@ function extractWorkshopCatalogRows(listsData, activityRows = []) {
       });
     });
   });
-  activityRows.forEach((row) => add({ no: row?.activity_no || row?.workshop_no || '', name: getActivityName(row), stock: null }));
+  activityRows.forEach((row) => {
+    if (!isWorkshopKindRow(row)) return;
+    add({ no: row?.activity_no || row?.workshop_no || '', name: getActivityName(row), stock: null });
+  });
   return rows.sort((a, b) => compareValues(a.workshopNo || a.workshopName, b.workshopNo || b.workshopName, 'asc'));
 }
 
@@ -749,19 +761,16 @@ function opsManagementStylesHtml() {
     @media (max-width: 460px) { .ds-ops-mgmt-screen .ds-ops-mgmt-filters__grid { grid-template-columns:1fr; } }
     .ds-ops-mgmt-screen .ds-sort-indicator { display:inline-block; margin-inline-start:4px; font-size:10px; color:#0f8fa8; }
     .ds-ops-mgmt-screen .ds-ops-workshops-table-wrap { width:100%; }
-    .ds-ops-mgmt-screen .ds-ops-workshops-card { width:min(1100px, 100%); margin-inline-start:auto; margin-inline-end:auto; }
+    .ds-ops-mgmt-screen .ds-ops-workshops-card { width:min(935px, 100%); margin-inline-start:auto; margin-inline-end:auto; }
+    .ds-ops-mgmt-screen .ds-ops-workshops-table { table-layout:fixed; width:100%; }
     .ds-ops-mgmt-screen .ds-ops-workshops-table th,.ds-ops-mgmt-screen .ds-ops-workshops-table td { border:1px solid #94a3b8; }
     .ds-ops-mgmt-screen .ds-ops-workshops-table th { background:#dbeafe; color:#1e3a8a; font-weight:800; font-size:12px; }
-    .ds-ops-mgmt-screen .ds-ops-workshops-table td:nth-child(2),
-    .ds-ops-mgmt-screen .ds-ops-workshops-table td:nth-child(3),
-    .ds-ops-mgmt-screen .ds-ops-workshops-table td:nth-child(4),
-    .ds-ops-mgmt-screen .ds-ops-workshops-table td:nth-child(5) { text-align:center; }
+    .ds-ops-mgmt-screen .ds-ops-workshops-table th:nth-child(1),
+    .ds-ops-mgmt-screen .ds-ops-workshops-table td:nth-child(1) { width:90px; text-align:center; }
     .ds-ops-mgmt-screen .ds-ops-workshops-table th:nth-child(2),
-    .ds-ops-mgmt-screen .ds-ops-workshops-table th:nth-child(3),
-    .ds-ops-mgmt-screen .ds-ops-workshops-table th:nth-child(4),
-    .ds-ops-mgmt-screen .ds-ops-workshops-table th:nth-child(5) { text-align:center; }
-    .ds-ops-mgmt-screen .ds-ops-stock-input { width:64px; text-align:center; font-size:12px; padding:2px 4px; border:1px solid #94a3b8; border-radius:4px; background:#fff; }
-    .ds-ops-mgmt-screen .ds-ops-stock-input:focus { outline:2px solid #3b82f6; border-color:#3b82f6; }
+    .ds-ops-mgmt-screen .ds-ops-workshops-table td:nth-child(2) { width:335px; max-width:335px; text-align:right; white-space:normal; }
+    .ds-ops-mgmt-screen .ds-ops-workshops-table th:nth-child(n+3),
+    .ds-ops-mgmt-screen .ds-ops-workshops-table td:nth-child(n+3) { width:120px; text-align:center; }
     .ds-ops-mgmt-screen .ds-ops-schools-authority { margin-block:14px; border:1px solid #d8e5ee; border-radius:16px; background:#fff; overflow:hidden; }
     .ds-ops-mgmt-screen .ds-ops-schools-authority__header { display:flex; align-items:center; justify-content:space-between; gap:16px; padding:12px 16px; background:#eefaff; border-bottom:1px solid #d8e5ee; font-weight:700; }
     .ds-ops-mgmt-screen .ds-ops-schools-authority__stats,
@@ -962,8 +971,7 @@ function instructorsTabHtml(rows, state, data = {}, directory = buildSchoolsDire
 
 function workshopsTabHtml(rows, state, stockMap, catalogRows = []) {
   const ops = ensureOpsState(state);
-  const stockOverrides = ops.workshopStockOverrides || {};
-  const inventoryRows = rows.filter((row) => isWorkshopInventoryRequired(getActivityName(row)));
+  const inventoryRows = rows.filter((row) => isWorkshopKindRow(row) && isWorkshopInventoryRequired(getActivityName(row)));
   const metrics = sortByConfig(workshopMetricsRows(inventoryRows, stockMap, catalogRows), state, TAB_WORKSHOPS, {
     workshopNo: (row) => row.workshopNo || row.workshopName,
     workshopName: (row) => row.workshopName,
@@ -984,15 +992,11 @@ function workshopsTabHtml(rows, state, stockMap, catalogRows = []) {
         ${sortableTh(state, TAB_WORKSHOPS, 'activityCount', 'כמות משובצת')}
         ${sortableTh(state, TAB_WORKSHOPS, 'estimatedQuantity', 'כמות נדרשת')}
         <th class="ds-ops-col--stock-input">מלאי קיים</th>
-        <th>יתרה</th>
+        <th>יתרת מלאי</th>
       </tr></thead><tbody>${metrics.map((row) => {
-        const key = normalizeWorkshopKey(row.workshopName);
-        const override = stockOverrides[key];
-        const hasOverride = override !== undefined && override !== '' && Number.isFinite(Number(override));
         const defaultStock = row.stockQuantity ?? row.catalogStock;
         const hasDefaultStock = defaultStock !== null && defaultStock !== undefined && Number.isFinite(Number(defaultStock));
-        const shownStock = hasOverride ? Number(override) : (hasDefaultStock ? Number(defaultStock) : '');
-        const overrideVal = shownStock;
+        const shownStock = hasDefaultStock ? Number(defaultStock) : '';
         const requiredQuantity = row.actualQuantity !== null ? row.actualQuantity : row.estimatedQuantity;
         const gap = shownStock === '' ? null : Number(shownStock) - requiredQuantity;
         const gapHtml = gap === null
@@ -1003,7 +1007,7 @@ function workshopsTabHtml(rows, state, stockMap, catalogRows = []) {
           <td><button type="button" class="ds-link-btn" data-ops-workshop="${escapeHtml(row.workshopName)}">${escapeHtml(row.workshopName)}</button></td>
           <td>${row.activityCount}</td>
           <td>${row.estimatedQuantity}</td>
-          <td><input type="number" class="ds-ops-stock-input" data-ops-stock-input="${escapeHtml(row.workshopName)}" value="${overrideVal}" placeholder="לא הוזן" min="0"></td>
+          <td>${formatStockCell(shownStock)}</td>
           <td data-ops-workshop-gap="${escapeHtml(row.workshopName)}" data-estimated="${requiredQuantity}">${gapHtml}</td>
         </tr>`;
       }).join('')}</tbody></table>`)
@@ -1136,7 +1140,7 @@ function renderTab(rows, state, data, allPreparedRows = []) {
   if (ops.tab === TAB_AUTHORITIES || ops.tab === TAB_SCHOOLS) return schoolsTabHtml(rows, state, directory, contactsIndex);
   if (ops.tab === TAB_WORKSHOPS) {
     const catalogRows = extractWorkshopCatalogRows(data?.adminListsData, allPreparedRows);
-    return workshopsTabHtml(rows, state, stockMap, catalogRows);
+    return workshopsTabHtml(allPreparedRows, state, stockMap, catalogRows);
   }
   return instructorsTabHtml(rows, state, data, directory, contactsIndex);
 }
@@ -1235,31 +1239,6 @@ export const operationsManagementScreen = {
 
     root.querySelector('[data-ops-print]')?.addEventListener('click', () => printInstructorSchedule());
     root.querySelector('[data-ops-print-workshops]')?.addEventListener('click', () => printWorkshopsFromDom(root));
-
-    root.querySelectorAll('[data-ops-stock-input]').forEach((input) => {
-      input.addEventListener('input', (ev) => {
-        const name = input.getAttribute('data-ops-stock-input') || '';
-        const key = normalizeWorkshopKey(name);
-        const val = ev.target.value.trim();
-        ops.workshopStockOverrides = ops.workshopStockOverrides || {};
-        if (val === '') {
-          delete ops.workshopStockOverrides[key];
-        } else {
-          ops.workshopStockOverrides[key] = Number(val);
-        }
-        try { localStorage.setItem('operationsWorkshopStockOverrides', JSON.stringify(ops.workshopStockOverrides)); } catch { /* ignore */ }
-        const gapCell = root.querySelector(`[data-ops-workshop-gap="${name.replace(/"/g, '&quot;')}"]`);
-        if (gapCell) {
-          const estimated = Number(gapCell.getAttribute('data-estimated') || '0');
-          if (val === '') {
-            gapCell.innerHTML = '<span class="ds-ops-mgmt-cell-muted">—</span>';
-          } else {
-            const gap = Number(val) - estimated;
-            gapCell.innerHTML = `<span class="ds-ops-gap ${gap < 0 ? 'ds-ops-gap--shortage' : 'ds-ops-gap--ok'}">${gap}</span>`;
-          }
-        }
-      });
-    });
 
     root.querySelectorAll('[data-ops-workshop]').forEach((btn) => {
       btn.addEventListener('click', () => {

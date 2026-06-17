@@ -171,14 +171,36 @@ test('workshops tab shows inventory columns and print action', () => {
   const html = operationsManagementScreen.render({ rows, workshopStockMap: stockMap }, { state });
   assert.match(html, /כמות נדרשת/);
   assert.match(html, /מלאי קיים/);
-  assert.match(html, /יתרה/);
+  assert.match(html, /יתרת מלאי/);
   assert.match(html, /הדפס כמויות סדנאות/);
   assert.match(html, /ds-ops-gap--ok/);
   assert.match(html, />62</);
-  assert.match(html, /value="300"/);
+  assert.match(html, />300</);
+  assert.doesNotMatch(html, /<input[^>]*ds-ops-stock-input/);
 });
 
 
+test('workshops inventory tab excludes courses and after-school catalog rows', () => {
+  const state = baseState();
+  state.operationsManagement.tab = 'workshops';
+  const adminListsData = { categories: [{ category: 'activity_names', items: [
+    { value: '001', label: 'סדנה אמיתית', _row: { activity_no: '001', activity_name: 'סדנה אמיתית', parent_value: 'workshop', stock_quantity: 40 } },
+    { value: '002', label: 'קורס רובוטיקה', _row: { activity_no: '002', activity_name: 'קורס רובוטיקה', parent_value: 'course', stock_quantity: 40 } },
+    { value: '003', label: 'אפטר סקול מדעים', _row: { activity_no: '003', activity_name: 'אפטר סקול מדעים', parent_value: 'after_school', stock_quantity: 40 } }
+  ] }] };
+  const html = operationsManagementScreen.render({
+    rows: [
+      { RowID: 'W-1', status: 'פתוח', activity_name: 'סדנה אמיתית', activity_type: 'סדנה', start_date: '2026-04-10' },
+      { RowID: 'C-1', status: 'פתוח', activity_name: 'קורס רובוטיקה', activity_type: 'קורס', start_date: '2026-04-10' }
+    ],
+    workshopStockMap: buildWorkshopStockMapFromLists(adminListsData),
+    adminListsData
+  }, { state });
+  const tableHtml = html.slice(html.indexOf('<table class="ds-table ds-table--compact ds-table--interactive ds-ops-mgmt-data-table ds-ops-workshops-table"'));
+  assert.match(tableHtml, /סדנה אמיתית/);
+  assert.doesNotMatch(tableHtml, /קורס רובוטיקה/);
+  assert.doesNotMatch(tableHtml, /אפטר סקול מדעים/);
+});
 
 test('authorities tab groups schools and dated activities under each authority', () => {
   const state = baseState();
