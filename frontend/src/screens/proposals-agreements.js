@@ -2607,6 +2607,14 @@ export const proposalsAgreementsScreen = {
     setProposalPricingLookup(proposalActivityPricing);
     const proposalTemplateSections = Array.isArray(data?.proposalTemplateSections) ? data.proposalTemplateSections : [];
     const contactOptions = Array.isArray(data?.contactOptions) ? data.contactOptions : [];
+    // eslint-disable-next-line no-console
+    console.info('[proposal-authorities-debug]', {
+      totalContactOptions: contactOptions.length,
+      authoritiesCount: contactOptions.filter((c) => c._catalog_source === 'authorities').length,
+      firstAuthorities: contactOptions
+        .filter((c) => c._catalog_source === 'authorities')
+        .slice(0, 10)
+    });
     const rowWithCentralContact = (row) => {
       if (!row) return row;
       const contact = findContactForProposalRow(contactOptions, row);
