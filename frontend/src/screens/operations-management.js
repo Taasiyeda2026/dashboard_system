@@ -846,18 +846,17 @@ function opsManagementStylesHtml() {
     .ds-ops-mgmt-screen .ds-ops-school-detail { margin-top:12px; border-top:1px solid #e2e8f0; padding-top:10px; }
     .ds-ops-mgmt-screen .ds-ops-authority-school { border:1px solid #d8e5ee; border-radius:12px; background:#fff; margin:10px 12px; overflow:hidden; }
     .ds-ops-mgmt-screen .ds-ops-authority-school__header { display:flex; flex-wrap:wrap; align-items:center; justify-content:space-between; gap:8px; padding:9px 12px; background:#f8fbfd; border-bottom:1px solid #e2e8f0; }
-    .ds-ops-mgmt-screen .ds-ops-authority-date { padding:10px 12px 12px; border-top:1px solid #eef2f7; }
+    .ds-ops-mgmt-screen .ds-ops-authority-date { padding:10px 12px 14px; border-top:1px solid #eef2f7; display:flex; flex-direction:column; align-items:center; }
     .ds-ops-mgmt-screen .ds-ops-authority-date:first-of-type { border-top:0; }
-    .ds-ops-mgmt-screen .ds-ops-authority-date__title { display:inline-flex; align-items:center; gap:6px; margin:0 0 7px; padding:3px 9px; border-radius:999px; background:#eef6ff; color:#1e3a8a; font-size:12px; font-weight:800; }
-    .ds-ops-mgmt-screen .ds-ops-authority-date .ds-table-wrap { margin-top:0; }
-    .ds-ops-mgmt-screen .ds-ops-authorities-table { width:60%; margin:0 auto; table-layout:fixed; }
-    .ds-ops-mgmt-screen .ds-ops-authorities-table .ds-ops-col--date { width:12%; white-space:nowrap; }
-    .ds-ops-mgmt-screen .ds-ops-authorities-table .ds-ops-col--weekday { width:8%; white-space:nowrap; }
-    .ds-ops-mgmt-screen .ds-ops-authorities-table .ds-ops-col--time { width:12%; white-space:nowrap; text-align:center; }
-    .ds-ops-mgmt-screen .ds-ops-authorities-table .ds-ops-col--instructor { width:12%; white-space:normal; word-break:break-word; }
-    .ds-ops-mgmt-screen .ds-ops-authorities-table .ds-ops-col--grade { width:9%; text-align:center; white-space:nowrap; }
-    .ds-ops-mgmt-screen .ds-ops-authorities-table .ds-ops-col--activity { width:47%; white-space:normal; word-break:break-word; }
+    .ds-ops-mgmt-screen .ds-ops-authority-date__title { display:block; width:55%; max-width:55%; margin:0 0 6px; padding:4px 10px; border-radius:8px; background:#eef6ff; color:#1e3a8a; font-size:12px; font-weight:800; text-align:right; }
+    .ds-ops-mgmt-screen .ds-ops-authority-date .ds-table-wrap { width:55%; max-width:55%; margin-top:0; }
+    .ds-ops-mgmt-screen .ds-ops-authorities-table { width:100%; margin:0; table-layout:fixed; }
+    .ds-ops-mgmt-screen .ds-ops-authorities-table .ds-ops-col--time { width:20%; white-space:nowrap; text-align:center; }
+    .ds-ops-mgmt-screen .ds-ops-authorities-table .ds-ops-col--instructor { width:27%; white-space:normal; word-break:break-word; }
+    .ds-ops-mgmt-screen .ds-ops-authorities-table .ds-ops-col--grade { width:20%; text-align:center; white-space:nowrap; }
+    .ds-ops-mgmt-screen .ds-ops-authorities-table .ds-ops-col--activity { width:33%; white-space:normal; word-break:break-word; }
     .ds-ops-mgmt-screen .ds-ops-authorities-table th,.ds-ops-mgmt-screen .ds-ops-authorities-table td { padding-top:0.25rem; padding-bottom:0.25rem; padding-inline:0.35rem; }
+    @media print { .ds-ops-mgmt-screen .ds-ops-schools-authority:not(:first-child) { break-before:page; page-break-before:always; } .ds-ops-mgmt-screen .ds-ops-authority-date .ds-table-wrap { width:55%!important; max-width:55%!important; } .ds-ops-mgmt-screen .ds-ops-authority-date__title { width:55%!important; max-width:55%!important; } }
   </style>`;
 }
 
@@ -1003,7 +1002,7 @@ function printSchoolsSchedule() {
     return;
   }
   const { byAuthority, ops } = ctx;
-  const title = 'רשויות — סידור עבודה';
+  const title = 'רשויות — פעילויות קיץ';
   const dateRange = (ops?.dateFrom && ops?.dateTo)
     ? `טווח תאריכים: ${formatDateHe(ops.dateFrom)}–${formatDateHe(ops.dateTo)}`
     : '';
@@ -1043,29 +1042,29 @@ function printSchoolsSchedule() {
   const css = `
     body{direction:rtl;font-family:Assistant,Arial,sans-serif;margin:10px 14px;color:#111;background:#fff;font-size:11px;line-height:1.3}
     h1{margin:0 0 2px;font-size:14px;color:#0f172a}
-    .subtitle{margin:0 0 12px;color:#475569;font-size:10.5px}
-    .authority-section{margin-bottom:14px;}
-    .authority-header{font-size:12.5px;font-weight:800;color:#0369a1;border-bottom:2px solid #0369a1;margin-bottom:5px;padding-bottom:2px}
-    .authority-stats{font-size:10px;font-weight:400;color:#64748b}
-    .school-block{margin-bottom:8px;padding-right:6px}
-    .school-title{font-size:11px;font-weight:700;color:#1e293b;margin-bottom:3px;padding:1px 4px;background:#f1f5f9;border-right:3px solid #0369a1;break-after:avoid-page;page-break-after:avoid}
-    .date-block{margin-bottom:5px;}
-    .date-title{font-size:10px;color:#475569;font-weight:600;margin-bottom:2px}
-    .authorities-table{border-collapse:collapse;width:60%;max-width:60%;margin-inline:auto;table-layout:fixed}
+    .subtitle{margin:0 0 10px;color:#475569;font-size:10.5px}
+    .authority-section{margin-bottom:8px;}
+    .authority-section:not(:first-child){break-before:page;page-break-before:always;}
+    .authority-header{font-size:13px;font-weight:800;color:#0369a1;margin:0 auto 6px;padding:4px 10px;width:55%;max-width:55%;background:#eef6ff;border-right:4px solid #0369a1;border-radius:6px;}
+    .authority-stats{font-size:10px;font-weight:400;color:#64748b;margin-right:8px}
+    .school-block{margin-bottom:8px;}
+    .school-title{font-size:11px;font-weight:700;color:#1e293b;margin:0 auto 3px;padding:2px 8px;background:#f1f5f9;border-right:3px solid #94a3b8;width:55%;max-width:55%;break-after:avoid-page;page-break-after:avoid}
+    .date-block{display:block;width:55%;max-width:55%;margin:0 auto 6px;}
+    .date-title{font-size:10px;color:#475569;font-weight:700;margin-bottom:2px;text-align:right;break-after:avoid-page;page-break-after:avoid;}
+    .date-title+.authorities-table{break-before:avoid-page;page-break-before:avoid;}
+    .authorities-title-table-block{break-inside:avoid-page;page-break-inside:avoid}
+    .authorities-table{border-collapse:collapse;width:100%;table-layout:fixed}
     .authorities-table .col-time{width:20%;text-align:center}
-    .authorities-table .col-instructor{width:26.666%}
+    .authorities-table .col-instructor{width:27%}
     .authorities-table .col-class{width:20%;text-align:center}
-    .authorities-table .col-activity{width:33.333%}
+    .authorities-table .col-activity{width:33%}
     .authorities-table th,.authorities-table td{border:1px solid #cbd5e1;padding:2px 4px;text-align:right;font-size:9px;line-height:1.15;white-space:normal;word-break:break-word;overflow-wrap:anywhere}
     .authorities-table th{background:#e6f6fb;font-weight:700}
     .authorities-table tr:nth-child(even) td{background:#f8fafc}
-    .authorities-group-title{break-after:avoid-page;page-break-after:avoid}
-    .authorities-group-title+table,.authorities-group-title+.authorities-table{break-before:avoid-page;page-break-before:avoid}
-    .authorities-title-table-block{break-inside:avoid-page;page-break-inside:avoid}
     .authorities-table tr{break-inside:avoid-page;page-break-inside:avoid}
     .footer{margin-top:10px;font-size:11px;font-weight:700;color:#0f172a;text-align:center;border-top:1px solid #cbd5e1;padding-top:5px}
     @page{size:A4 portrait;margin:8mm}
-    @media print{body{margin:0}.authorities-table{width:60%!important;max-width:60%!important;margin-inline:auto!important;table-layout:fixed!important}.authorities-table .col-time{width:20%!important}.authorities-table .col-instructor{width:26.666%!important}.authorities-table .col-class{width:20%!important}.authorities-table .col-activity{width:33.333%!important}.authorities-table th,.authorities-table td{white-space:normal!important;word-break:break-word!important;overflow-wrap:anywhere!important;font-size:9px;padding:2px 4px;line-height:1.15}.authorities-group-title{break-after:avoid-page;page-break-after:avoid}.authorities-group-title+table,.authorities-group-title+.authorities-table{break-before:avoid-page;page-break-before:avoid}.authorities-title-table-block{break-inside:avoid-page;page-break-inside:avoid}.authorities-table tr{break-inside:avoid-page;page-break-inside:avoid}.school-title{break-after:avoid-page;page-break-after:avoid}.school-block .date-block:first-of-type{break-before:avoid-page;page-break-before:avoid}}
+    @media print{body{margin:0}.authority-section:not(:first-child){break-before:page;page-break-before:always;}.date-block{width:55%!important;max-width:55%!important;margin:0 auto 6px!important;display:block!important;}.authorities-table{width:100%!important;table-layout:fixed!important}.authorities-table .col-time{width:20%!important}.authorities-table .col-instructor{width:27%!important}.authorities-table .col-class{width:20%!important}.authorities-table .col-activity{width:33%!important}.authorities-table th,.authorities-table td{white-space:normal!important;word-break:break-word!important;overflow-wrap:anywhere!important;font-size:9px;padding:2px 4px;line-height:1.15}.date-title{break-after:avoid-page;page-break-after:avoid}.date-title+.authorities-table{break-before:avoid-page;page-break-before:avoid}.authorities-title-table-block{break-inside:avoid-page;page-break-inside:avoid}.authorities-table tr{break-inside:avoid-page;page-break-inside:avoid}.school-title{break-after:avoid-page;page-break-after:avoid}}
   `;
   const bodyHtml = `
     <h1>${escapeHtml(title)}</h1>
@@ -1470,17 +1469,16 @@ function schoolsTabHtml(rows, state, directory = buildSchoolsDirectory([]), cont
         const rowsHtml = sortedEntries.map((entry) => {
           const activity = entry.activity;
           return `<tr>
-            <td class="ds-ops-col--date"><strong>${escapeHtml(formatDateHe(entry.date) || '—')}</strong></td>
-            <td class="ds-ops-col--weekday">${escapeHtml(entry.date ? formatDateHeWithWeekday(entry.date).split(' · ')[0] : '—')}</td>
             <td class="ds-ops-col--time">${escapeHtml(entry.time || '—')}</td>
             <td class="ds-ops-col--instructor">${escapeHtml(entry.instructor || '—')}</td>
             <td class="ds-ops-col--grade">${escapeHtml(getActivityGradeLabel(activity) || '—')}</td>
             <td class="ds-ops-col--activity">${escapeHtml(getActivityName(activity))}</td>
           </tr>`;
         }).join('');
+        const dayLabel = date ? formatDateHeWithWeekday(date).split(' · ')[0] : '—';
         return `<section class="ds-ops-authority-date">
-          <h4 class="ds-ops-authority-date__title">${escapeHtml(formatDateHe(date) || 'ללא תאריך')} · ${escapeHtml(date ? formatDateHeWithWeekday(date).split(' · ')[0] : '—')}</h4>
-          ${dsTableWrap(`<table class="ds-table ds-table--compact ds-ops-mgmt-data-table ds-ops-authorities-table"><colgroup><col class="ds-ops-col--date"><col class="ds-ops-col--weekday"><col class="ds-ops-col--time"><col class="ds-ops-col--instructor"><col class="ds-ops-col--grade"><col class="ds-ops-col--activity"></colgroup><thead><tr><th class="ds-ops-col--date">תאריך</th><th class="ds-ops-col--weekday">יום</th><th class="ds-ops-col--time">שעות</th><th class="ds-ops-col--instructor">מדריך</th><th class="ds-ops-col--grade">כיתה</th><th class="ds-ops-col--activity">פעילות / סדנה</th></tr></thead><tbody>${rowsHtml}</tbody></table>`)}
+          <h4 class="ds-ops-authority-date__title">${escapeHtml(dayLabel)} · ${escapeHtml(formatDateHe(date) || 'ללא תאריך')}</h4>
+          ${dsTableWrap(`<table class="ds-table ds-table--compact ds-ops-mgmt-data-table ds-ops-authorities-table"><colgroup><col class="ds-ops-col--time"><col class="ds-ops-col--instructor"><col class="ds-ops-col--grade"><col class="ds-ops-col--activity"></colgroup><thead><tr><th class="ds-ops-col--time">שעות</th><th class="ds-ops-col--instructor">מדריך</th><th class="ds-ops-col--grade">כיתה</th><th class="ds-ops-col--activity">פעילות / סדנה</th></tr></thead><tbody>${rowsHtml}</tbody></table>`)}
         </section>`;
       }).join('');
       return `<article class="ds-ops-authority-school">
@@ -1500,7 +1498,7 @@ function schoolsTabHtml(rows, state, directory = buildSchoolsDirectory([]), cont
     <div class="ds-ops-mgmt-panel__toolbar no-print">
       <button type="button" class="ds-btn ds-btn--sm ds-btn--primary" data-ops-print-schools>הדפס רשויות</button>
     </div>
-    <div class="ds-ops-mgmt-print-header only-print"><h2>רשויות — סידור עבודה</h2><p>טווח תאריכים: ${escapeHtml(formatDateHe(ops.dateFrom))}–${escapeHtml(formatDateHe(ops.dateTo))}</p></div>
+    <div class="ds-ops-mgmt-print-header only-print"><h2>רשויות — פעילויות קיץ</h2><p>טווח תאריכים: ${escapeHtml(formatDateHe(ops.dateFrom))}–${escapeHtml(formatDateHe(ops.dateTo))}</p></div>
     ${compactSummaryLineHtml([
       { label: 'רשויות', value: byAuthority.size },
       { label: 'בתי ספר / מסגרות', value: schoolCount },
