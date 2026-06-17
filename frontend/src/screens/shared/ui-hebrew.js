@@ -295,6 +295,34 @@ export function hebrewInstructorsSourcesLabel(sources) {
   return arr.map(hebrewSheetLabel).join(', ') || 'כל הפעילויות';
 }
 
+
+function constraintFieldFromApiError(raw) {
+  const text = String(raw || '');
+  const duplicate = /Key \(([^)]+)\)=/i.exec(text);
+  if (duplicate?.[1]) return duplicate[1].split(',').map((v) => {
+    const field = v.trim();
+    const label = hebrewColumn(field);
+    return label && label !== 'שדה' ? `${label} (${field})` : field;
+  }).join(', ');
+  const constraint = /constraint ["']?([^"'|]+)["']?/i.exec(text);
+  if (constraint?.[1]) {
+    const name = constraint[1].trim();
+    const known = ['row_id', 'activity_no', 'source_row_id', 'activity_name', 'start_date', 'end_date'].find((field) => name.toLowerCase().includes(field));
+    if (known) {
+      const label = hebrewColumn(known);
+      return label && label !== 'שדה' ? `${label} (${known})` : known;
+    }
+    return name;
+  }
+  const column = /column ["']?([^"'| ]+)["']?/i.exec(text);
+  if (column?.[1]) {
+    const field = column[1].trim();
+    const label = hebrewColumn(field);
+    return label && label !== 'שדה' ? `${label} (${field})` : field;
+  }
+  return '';
+}
+
 /** Maps common API English errors to Hebrew; leaves Hebrew messages unchanged. */
 export function translateApiErrorForUser(message) {
   if (message === undefined || message === null || message === '') return API_ERROR_HE.server_error;
@@ -314,7 +342,10 @@ export function translateApiErrorForUser(message) {
   if (/\b(401|jwt|unauthorized)\b/.test(key)) return API_ERROR_HE.unauthorized;
   if (/\b403\b/.test(key) || key.includes('forbidden')) return API_ERROR_HE.forbidden;
   if (/\b404\b/.test(key) || key.includes('not found')) return API_ERROR_HE.not_found;
-  if (/\b409\b/.test(key) || key.includes('duplicate key') || key.includes('conflict')) return API_ERROR_HE.conflict;
+  if (/\b(409|23505|23503|23514|23502|23P01)\b/i.test(raw) || key.includes('duplicate key') || key.includes('violates unique constraint') || key.includes('violates check constraint') || key.includes('violates foreign key constraint') || key.includes('violates not-null constraint') || key.includes('conflict')) {
+    const field = constraintFieldFromApiError(raw);
+    return field ? `השמירה נכשלה בגלל מגבלת נתונים בשדה: ${field}` : API_ERROR_HE.conflict;
+  }
   if (/\b422\b/.test(key) || key.includes('invalid input') || key.includes('violates not-null') || key.includes('violates check')) return API_ERROR_HE.validation_error;
   if (key.includes('timeout') || key.includes('timed_out')) return API_ERROR_HE.timeout;
   if (/^5\d\d\b/.test(key) || /\b5\d\d\b/.test(key) || key.includes('internal')) return API_ERROR_HE.server_error;

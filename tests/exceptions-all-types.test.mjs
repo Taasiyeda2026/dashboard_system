@@ -439,8 +439,8 @@ test('exceptions screen dedupes duplicate exceptionInstances with the same RowID
   })));
   assert.equal(deduped.length, 3);
   const html = exceptionsScreen.render(data, { state: { listFilters: {}, clientSettings: {} } });
-  assert.equal((html.match(/data-card-action="exception:A1"/g) || []).length, 2, 'same activity with two exception types should render two cards');
-  assert.equal((html.match(/data-card-action="exception:B2"/g) || []).length, 1, 'duplicate same-type instances should render one card');
+  assert.equal((html.match(/data-card-action="exception:A1:/g) || []).length, 2, 'same activity with two exception types should render two cards with unique instance actions');
+  assert.equal((html.match(/data-card-action="exception:B2:/g) || []).length, 1, 'duplicate same-type instances should render one card');
   assert.equal((html.match(/data-exception-type="missing_instructor"/g) || []).length, 2);
   assert.doesNotMatch(html, /פעילויות \([2-9] רשומות\)/);
 });
