@@ -105,8 +105,32 @@ function fillPendingMinimum(form, dom, overrides = {}) {
   };
   set('input[name="client_authority"]', overrides.client_authority || 'רשות בדיקה');
   set('input[name="school_framework"]', overrides.school_framework || 'בית ספר בדיקה');
+  set('input[name="contact_source_authority_id"]', overrides.authority_id || 'auth-test');
+  set('input[name="contact_source_school_id"]', overrides.school_id || 'school-test');
+  set('input[name="contact_source_client_type"]', overrides.client_type || 'school');
   set('[name="activity_type_group"]', overrides.activity_type_group || 'קיץ תשפ״ו');
   fillLineItem(form, dom, overrides);
+}
+
+function setProposalCatalogIds(form, {
+  authority_id = 'auth-test',
+  school_id = 'school-test',
+  client_type = 'school'
+} = {}) {
+  const set = (name, value) => {
+    const el = form.querySelector(`input[name="${name}"]`);
+    if (el) el.value = value;
+  };
+  set('contact_source_authority_id', authority_id);
+  set('contact_source_school_id', school_id);
+  set('contact_source_client_type', client_type);
+}
+
+function selectClientResult(form, dom, query) {
+  const searchInput = form.querySelector('[data-pa-client-search-input]');
+  searchInput.value = query;
+  searchInput.dispatchEvent(new dom.window.Event('input', { bubbles: true }));
+  form.querySelector('[data-pa-client-result]')?.dispatchEvent(new dom.window.MouseEvent('click', { bubbles: true }));
 }
 
 const sampleRows = [
@@ -136,8 +160,81 @@ const sampleRows = [
   }
 ];
 
-const sampleContactOptions = [
+const sampleCatalogAuthorities = [
   {
+    _catalog_source: 'authorities',
+    client_type: 'authority',
+    client_name: 'רשות א',
+    authority_id: 'auth-a',
+    school_id: null,
+    authority: 'רשות א',
+    school: '',
+    authority_code: '101',
+    authority_type: 'עירייה',
+    district: 'מרכז',
+    contact_name: '',
+    contact_role: '',
+    phone: '',
+    email: '',
+    mobile: ''
+  },
+  {
+    _catalog_source: 'authorities',
+    client_type: 'authority',
+    client_name: 'רשות ב',
+    authority_id: 'auth-b',
+    school_id: null,
+    authority: 'רשות ב',
+    school: '',
+    authority_code: '102',
+    authority_type: 'מועצה',
+    district: 'דרום',
+    contact_name: '',
+    contact_role: '',
+    phone: '',
+    email: '',
+    mobile: ''
+  }
+];
+
+const sampleCatalogSchools = [
+  {
+    _catalog_source: 'schools',
+    client_type: 'school',
+    client_name: 'בית ספר א',
+    authority_id: 'auth-a',
+    school_id: 'school-a',
+    authority: 'רשות א',
+    school: 'בית ספר א',
+    semel_mosad: '11111',
+    contact_name: '',
+    contact_role: '',
+    phone: '',
+    email: '',
+    mobile: ''
+  },
+  {
+    _catalog_source: 'schools',
+    client_type: 'school',
+    client_name: 'מסגרת ב',
+    authority_id: 'auth-b',
+    school_id: 'school-b',
+    authority: 'רשות ב',
+    school: 'מסגרת ב',
+    semel_mosad: '22222',
+    contact_name: '',
+    contact_role: '',
+    phone: '',
+    email: '',
+    mobile: ''
+  }
+];
+
+const sampleContactRows = [
+  {
+    id: '1',
+    authority_id: 'auth-a',
+    school_id: 'school-a',
     authority: 'רשות א',
     school: 'בית ספר א',
     contact_name: 'דנה קשר',
@@ -146,6 +243,9 @@ const sampleContactOptions = [
     email: 'dana@example.com'
   },
   {
+    id: '2',
+    authority_id: 'auth-a',
+    school_id: 'school-a',
     authority: 'רשות א',
     school: 'בית ספר א',
     contact_name: 'מיכל כהן',
@@ -154,6 +254,9 @@ const sampleContactOptions = [
     email: 'michal@example.com'
   },
   {
+    id: '3',
+    authority_id: 'auth-b',
+    school_id: 'school-b',
     authority: 'רשות ב',
     school: 'מסגרת ב',
     contact_name: 'יוסי קשר',
@@ -162,6 +265,8 @@ const sampleContactOptions = [
     email: ''
   }
 ];
+
+const sampleContactOptions = [...sampleCatalogAuthorities, ...sampleCatalogSchools, ...sampleContactRows];
 
 test('screen authorization includes business development manager', () => {
   for (const role of ['domain_manager', 'operation_manager', 'admin', 'business_development_manager']) {
@@ -420,7 +525,7 @@ test('new proposal tab opens compact form with preview and role-aware primary ac
       assert.match(form.innerHTML, /אישור והפקת הצעה/);
       assert.doesNotMatch(form.innerHTML, /שליחה לאישור/);
       assert.match(form.innerHTML, /data-pa-client-search-input/);
-      assert.match(form.innerHTML, /הזנה ידנית/);
+      assert.match(form.innerHTML, /הוסף איש קשר ידנית/);
     }
   );
 });
@@ -468,10 +573,8 @@ test('new proposal editor renders two-pane A4 layout and live preview updates ke
       assert.match(form.querySelector('.pa-sidebar')?.textContent || '', /פרטי נמען/);
       assert.match(form.querySelector('.pa-sidebar')?.textContent || '', /פעילויות ומחירים/);
 
-      const searchInput = form.querySelector('[data-pa-client-search-input]');
-      searchInput.value = 'יוסי';
-      searchInput.dispatchEvent(new dom.window.Event('input', { bubbles: true }));
-      form.querySelector('[data-pa-client-result]')?.dispatchEvent(new dom.window.MouseEvent('click', { bubbles: true }));
+      selectClientResult(form, dom, 'רשות ב');
+      selectClientResult(form, dom, 'מסגרת');
       await delay(20);
 
       const typeInput = form.querySelector('[name="activity_type_group"]');
@@ -602,12 +705,10 @@ test('client selector auto-fills contact fields when existing client is chosen',
 
       const form = openNewProposalForm(root, dom);
       const typeSelect = form.querySelector('[data-pa-new-client-type]');
-      const searchInput = form.querySelector('[data-pa-client-search-input]');
       typeSelect.value = 'school';
       typeSelect.dispatchEvent(new dom.window.Event('change', { bubbles: true }));
-      searchInput.value = 'יוסי';
-      searchInput.dispatchEvent(new dom.window.Event('input', { bubbles: true }));
-      form.querySelector('[data-pa-client-result]')?.dispatchEvent(new dom.window.MouseEvent('click', { bubbles: true }));
+      selectClientResult(form, dom, 'רשות ב');
+      selectClientResult(form, dom, 'מסגרת');
 
       const authorityInput = form.querySelector('input[name="client_authority"]');
       const schoolInput = form.querySelector('input[name="school_framework"]');
@@ -618,6 +719,8 @@ test('client selector auto-fills contact fields when existing client is chosen',
       assert.equal(schoolInput.value, 'מסגרת ב', 'school should be filled');
       assert.equal(contactInput.value, 'יוסי קשר', 'contact_name should be auto-filled');
       assert.equal(phoneInput.value, '050-2222222', 'phone should be auto-filled');
+      assert.equal(form.querySelector('input[name="contact_source_authority_id"]').value, 'auth-b');
+      assert.equal(form.querySelector('input[name="contact_source_school_id"]').value, 'school-b');
       assert.equal(form.querySelector('[data-pa-client-results]').hidden, true, 'results should close after selection');
       assert.equal(form.querySelector('[data-pa-client-search-row]').hidden, true, 'search row should close after selection');
       assert.match(form.querySelector('[data-pa-client-card]').textContent, /נבחר:.*מסגרת ב.*רשות ב.*יוסי קשר/, 'clear selected-client summary should be shown');
@@ -625,7 +728,7 @@ test('client selector auto-fills contact fields when existing client is chosen',
   );
 });
 
-test('multiple contacts for same client shows contact picker dropdown', async () => {
+test('authority search shows only catalog authorities without contact details', async () => {
   await withJSDOM(
     proposalsAgreementsScreen.render({ rows: [], contactOptions: sampleContactOptions }, { state: stateFor('admin') }),
     (root, dom) => {
@@ -643,15 +746,40 @@ test('multiple contacts for same client shows contact picker dropdown', async ()
 
       const results = form.querySelector('[data-pa-client-results]');
       assert.ok(results, 'results host should exist');
-      assert.match(results.innerHTML, /דנה קשר/, 'first contact should be in results');
-      assert.match(results.innerHTML, /מיכל כהן/, 'second contact should be in results');
+      assert.match(results.innerHTML, /רשות א/, 'authority should be in results');
+      assert.doesNotMatch(results.innerHTML, /דנה קשר/, 'contacts should not appear in authority search');
+      assert.doesNotMatch(results.innerHTML, /050-1111111/, 'phone should not appear in authority search');
+      assert.doesNotMatch(results.innerHTML, /הוסף ידנית/, 'manual add should not appear for authority search');
+    }
+  );
+});
+
+test('multiple contacts for same client shows contact picker dropdown', async () => {
+  await withJSDOM(
+    proposalsAgreementsScreen.render({ rows: [], contactOptions: sampleContactOptions }, { state: stateFor('admin') }),
+    (root, dom) => {
+      proposalsAgreementsScreen.bind({
+        root,
+        data: { rows: [], activityNameOptions: [], contactOptions: sampleContactOptions },
+        state: stateFor('admin'),
+        api: {}
+      });
+
+      const form = openNewProposalForm(root, dom);
+      selectClientResult(form, dom, 'רשות א');
+      selectClientResult(form, dom, 'בית ספר');
+
+      const contactSelect = form.querySelector('[data-pa-contact-select]');
+      assert.ok(contactSelect, 'contact picker should appear when multiple contacts exist');
+      assert.match(contactSelect.innerHTML, /דנה קשר/, 'first contact should be in picker');
+      assert.match(contactSelect.innerHTML, /מיכל כהן/, 'second contact should be in picker');
     }
   );
 });
 
 test('contact picker fills fields and passes existing contact source on save', async () => {
   const savedPayloads = [];
-  const contacts = sampleContactOptions.map((contact, idx) => ({ ...contact, id: String(idx + 1) }));
+  const contacts = sampleContactRows;
   const mockApi = {
     addProposalAgreement: async (payload) => {
       savedPayloads.push({ ...payload });
@@ -660,22 +788,25 @@ test('contact picker fills fields and passes existing contact source on save', a
   };
 
   await withJSDOM(
-    proposalsAgreementsScreen.render({ rows: [], contactOptions: contacts }, { state: stateFor('admin') }),
+    proposalsAgreementsScreen.render({ rows: [], contactOptions: sampleContactOptions }, { state: stateFor('admin') }),
     async (root, dom) => {
       proposalsAgreementsScreen.bind({
         root,
-        data: { rows: [], activityNameOptions: [], contactOptions: contacts },
+        data: { rows: [], activityNameOptions: [], contactOptions: sampleContactOptions },
         state: stateFor('admin'),
         api: mockApi
       });
 
       const form = openNewProposalForm(root, dom);
-      const searchInput = form.querySelector('[data-pa-client-search-input]');
-      searchInput.value = 'מיכל';
-      searchInput.dispatchEvent(new dom.window.Event('input', { bubbles: true }));
+      selectClientResult(form, dom, 'רשות א');
+      selectClientResult(form, dom, 'בית ספר');
 
       const contact = contacts.find((c) => c.contact_name === 'מיכל כהן');
-      form.querySelector('[data-pa-client-result]')?.dispatchEvent(new dom.window.MouseEvent('click', { bubbles: true }));
+      const contactSelect = form.querySelector('[data-pa-contact-select]');
+      const option = [...contactSelect.options].find((entry) => entry.textContent.includes('מיכל כהן'));
+      assert.ok(option, 'picker should include מיכל כהן');
+      contactSelect.value = option.value;
+      contactSelect.dispatchEvent(new dom.window.Event('change', { bubbles: true }));
 
       assert.equal(form.querySelector('input[name="contact_name"]').value, 'מיכל כהן');
       assert.equal(form.querySelector('input[name="contact_source_id"]').value, contact.id);
@@ -694,30 +825,43 @@ test('contact picker fills fields and passes existing contact source on save', a
   );
 });
 
-test('new client toggle button shows hint and clears client selector', async () => {
+test('manual contact toggle appears when selected school has no contacts', async () => {
+  const catalogOnly = [
+    ...sampleCatalogAuthorities,
+    {
+      _catalog_source: 'schools',
+      client_type: 'school',
+      client_name: 'בית ספר ללא איש קשר',
+      authority_id: 'auth-b',
+      school_id: 'school-empty',
+      authority: 'רשות ב',
+      school: 'בית ספר ללא איש קשר',
+      semel_mosad: '99999',
+      contact_name: '',
+      contact_role: '',
+      phone: '',
+      email: '',
+      mobile: ''
+    }
+  ];
+
   await withJSDOM(
-    proposalsAgreementsScreen.render({ rows: [], contactOptions: sampleContactOptions }, { state: stateFor('admin') }),
+    proposalsAgreementsScreen.render({ rows: [], contactOptions: catalogOnly }, { state: stateFor('admin') }),
     (root, dom) => {
       proposalsAgreementsScreen.bind({
         root,
-        data: { rows: [], activityNameOptions: [], contactOptions: sampleContactOptions },
+        data: { rows: [], activityNameOptions: [], contactOptions: catalogOnly },
         state: stateFor('admin'),
         api: {}
       });
 
       const form = openNewProposalForm(root, dom);
-      const searchInput = form.querySelector('[data-pa-client-search-input]');
+      selectClientResult(form, dom, 'רשות ב');
+      selectClientResult(form, dom, 'ללא איש קשר');
 
-      // Pre-fill a search
-      searchInput.value = 'רשות ב';
-
-      // Click manual client toggle
-      form.querySelector('[data-pa-new-client-toggle]').dispatchEvent(new dom.window.MouseEvent('click', { bubbles: true }));
-
-      const hint = form.querySelector('[data-pa-new-client-hint]');
-      assert.equal(hint.hidden, false, 'hint should be visible after toggle');
-      assert.equal(searchInput.value, '', 'client search should be cleared');
-      assert.equal(form.dataset.paNewClient, 'yes', 'form should mark new client mode');
+      const addContactRow = form.querySelector('[data-pa-add-contact-row]');
+      assert.equal(addContactRow.hidden, false, 'manual contact row should appear when no contacts exist');
+      assert.match(addContactRow.textContent, /הוסף איש קשר ידנית/);
     }
   );
 });
@@ -790,8 +934,26 @@ test('pending flow preview has submit and back actions without draft save', asyn
   );
 });
 
-test('saving after new client toggle keeps manual contact fields in pending payload', async () => {
+test('saving manual contact keeps authority and school ids in pending payload', async () => {
   const savedPayloads = [];
+  const manualSchoolCatalog = [
+    ...sampleCatalogAuthorities,
+    {
+      _catalog_source: 'schools',
+      client_type: 'school',
+      client_name: 'בית ספר חדש',
+      authority_id: 'auth-b',
+      school_id: 'school-new',
+      authority: 'רשות ב',
+      school: 'בית ספר חדש',
+      semel_mosad: '33333',
+      contact_name: '',
+      contact_role: '',
+      phone: '',
+      email: '',
+      mobile: ''
+    }
+  ];
   const mockApi = {
     addProposalAgreement: async (payload) => {
       savedPayloads.push({ ...payload });
@@ -800,23 +962,22 @@ test('saving after new client toggle keeps manual contact fields in pending payl
   };
 
   await withJSDOM(
-    proposalsAgreementsScreen.render({ rows: [], contactOptions: sampleContactOptions }, { state: stateFor('admin') }),
+    proposalsAgreementsScreen.render({ rows: [], contactOptions: manualSchoolCatalog }, { state: stateFor('admin') }),
     async (root, dom) => {
       proposalsAgreementsScreen.bind({
         root,
-        data: { rows: [], activityNameOptions: [], contactOptions: sampleContactOptions },
+        data: { rows: [], activityNameOptions: [], contactOptions: manualSchoolCatalog },
         state: stateFor('admin'),
         api: mockApi
       });
 
       const form = openNewProposalForm(root, dom);
-      form.querySelector('[data-pa-new-client-toggle]').dispatchEvent(new dom.window.MouseEvent('click', { bubbles: true }));
+      selectClientResult(form, dom, 'רשות ב');
+      selectClientResult(form, dom, 'בית ספר חדש');
+      form.querySelector('[data-pa-add-contact-toggle]').dispatchEvent(new dom.window.MouseEvent('click', { bubbles: true }));
 
-      form.querySelector('input[name="client_authority"]').value = 'רשות חדשה';
-      form.querySelector('input[name="school_framework"]').value = 'בית ספר חדש';
-      form.querySelector('input[name="document_type"]').value = 'הצעת מחיר';
-      form.querySelector('[name="activity_type_group"]').value = 'קיץ תשפ״ו';
       form.querySelector('input[name="contact_name"]').value = 'שרון חדש';
+      form.querySelector('[name="activity_type_group"]').value = 'קיץ תשפ״ו';
       form.dataset.paPreviewSeen = 'yes';
       fillLineItem(form, dom);
 
@@ -826,7 +987,10 @@ test('saving after new client toggle keeps manual contact fields in pending payl
       assert.equal(savedPayloads.length, 1);
       assert.equal(savedPayloads[0].status, 'approved');
       assert.equal(savedPayloads[0].contact_name, 'שרון חדש', 'manual contact name should be saved');
-      assert.equal(savedPayloads[0]._contact_original.client_type, 'other', 'manual client source metadata should be preserved');
+      assert.equal(savedPayloads[0].authority_id, 'auth-b');
+      assert.equal(savedPayloads[0].school_id, 'school-new');
+      assert.equal(savedPayloads[0].client_authority, 'רשות ב');
+      assert.equal(savedPayloads[0].school_framework, 'בית ספר חדש');
     }
   );
 });
@@ -920,6 +1084,7 @@ test('multiple proposal item names are preserved on save', async () => {
 
       form.querySelector('input[name="client_authority"]').value = 'רשות ג';
       form.querySelector('input[name="school_framework"]').value = 'בית ספר ג';
+      setProposalCatalogIds(form);
       form.querySelector('input[name="document_type"]').value = 'הצעת מחיר';
       form.querySelector('[name="activity_type_group"]').value = 'קיץ תשפ״ו ושנת הלימודים תשפ״ז';
 
@@ -1191,6 +1356,7 @@ test('save includes items via saveProposalAgreementItems', async () => {
 
       form.querySelector('input[name="client_authority"]').value = 'רשות הבדיקה';
       form.querySelector('input[name="school_framework"]').value = 'בית ספר הבדיקה';
+      setProposalCatalogIds(form);
       form.querySelector('input[name="document_type"]').value = 'הצעת מחיר';
       form.querySelector('[name="activity_type_group"]').value = 'קיץ תשפ״ו';
 
@@ -1336,6 +1502,7 @@ test('proposal form opens as a gated stepper flow', async () => {
       authInput.dispatchEvent(new dom.window.Event('input', { bubbles: true }));
       schoolInput.value = 'בית ספר בדיקה';
       schoolInput.dispatchEvent(new dom.window.Event('input', { bubbles: true }));
+      setProposalCatalogIds(form);
 
       assert.equal(proposalStep.hidden, false, 'proposal step opens after required client fields');
       assert.equal(activityStep.hidden, false, 'activity step remains open while filling proposal type');
@@ -1510,6 +1677,7 @@ test('changing proposal type reloads relevant item areas and preview template', 
       const form = openNewProposalForm(root, dom);
       form.querySelector('input[name="client_authority"]').value = 'רשות הדוגמה';
       form.querySelector('input[name="school_framework"]').value = 'בית ספר הדוגמה';
+      setProposalCatalogIds(form);
       form.querySelector('input[name="contact_name"]').value = 'ישראל ישראלי';
       form.querySelector('input[name="contact_role"]').value = 'מנהל בית הספר';
 
@@ -2175,6 +2343,7 @@ test('proposal form has no catalog attach control and saves include_catalog fals
       await delay(20);
       const form = root.querySelector('[data-pa-form]');
       form.querySelector('input[name="client_authority"]').value = 'רשות הדוגמה';
+      setProposalCatalogIds(form, { school_id: '', client_type: 'authority' });
       form.querySelector('[name="activity_type_group"]').value = 'קיץ תשפ״ו';
       const pricingSelect = form.querySelector('[data-pa-pricing-select]');
       pricingSelect.selectedIndex = 1;
