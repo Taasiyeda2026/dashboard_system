@@ -12957,6 +12957,22 @@ select.ds-input {
   font-weight: 800;
 }
 
+.ds-nav-count-badge--proposals-pending {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  min-width: 1.35em;
+  height: 1.35em;
+  margin-inline-start: 0.35em;
+  padding: 0 0.42em;
+  border-radius: 999px;
+  background: #dc2626;
+  color: #fff;
+  font-size: 0.78em;
+  font-weight: 800;
+  vertical-align: middle;
+}
+
 /* Activities period tabs */
 .ds-activities-period-tabs {
   display: flex;

@@ -1,6 +1,9 @@
 import { escapeHtml } from './shared/html.js';
 import { dsCard, dsEmptyState, dsPageHeader, dsScreenStack, dsTableWrap } from './shared/layout.js';
 import { showToast } from './shared/toast.js';
+import { countPendingApprovedProposals, isProposalApprovedPendingSend } from './shared/proposals-pending-count.js';
+
+export { countPendingApprovedProposals, isProposalApprovedPendingSend };
 
 export const PROPOSALS_AGREEMENTS_ALLOWED_ROLES = new Set(['domain_manager', 'operation_manager', 'admin', 'business_development_manager']);
 export const PROPOSALS_AGREEMENTS_MANAGE_ROLES = new Set(['domain_manager', 'operation_manager', 'admin']);
@@ -27,6 +30,15 @@ const STATUS_ALIASES = { pending_approval: 'sent' };
 function normalizeProposalStatus(status) {
   const raw = text(status);
   return STATUS_ALIASES[raw] || raw;
+}
+
+function notifyPendingProposalsNav(rows) {
+  if (typeof document === 'undefined') return;
+  try {
+    document.dispatchEvent(new CustomEvent('app:proposals-pending-updated', {
+      detail: { rows: Array.isArray(rows) ? rows : [] }
+    }));
+  } catch { /* ignore */ }
 }
 
 const FIELD_LABELS = {
@@ -2374,6 +2386,7 @@ function replaceLocalRow(data, savedRow) {
   if (idx >= 0) rows[idx] = normalized;
   else rows.unshift(normalized);
   data.rows = dedupeById(sortRows(rows.map(normalizeProposalAgreementRow)));
+  notifyPendingProposalsNav(data.rows);
 }
 
 // ─── Catalog appendix PDF planning ─────────────────────────────────────────
@@ -2601,6 +2614,7 @@ export const proposalsAgreementsScreen = {
     data.rows = sortRows((Array.isArray(data.rows) ? data.rows : [])
       .map(normalizeProposalAgreementRow)
       .filter((r) => { const k = text(r.id); if (!k || seenIds.has(k)) return false; seenIds.add(k); return true; }));
+    notifyPendingProposalsNav(data.rows);
     const activityNameOptions = Array.from(new Set((Array.isArray(data?.activityNameOptions) ? data.activityNameOptions : []).map((v) => text(v)).filter(Boolean)));
     const proposalActivityPricing = Array.isArray(data?.proposalActivityPricing) ? data.proposalActivityPricing : [];
     setProposalGroupLookups(data, data.rows, proposalActivityPricing);
