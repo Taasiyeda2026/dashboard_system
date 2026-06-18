@@ -2463,6 +2463,42 @@ test('catalog appendix entries skip non-course activities even when they have Ge
   });
 });
 
+test('approved proposal preview does not fall back to internal row notes for customer remarks', async () => {
+  const internalImportNote = 'ייבוא ידני מקובץ Word: ראנה הצעה. סטטוס טיוטה. רשות מג׳דל שמס לפי אישור המשתמש. ללא בית ספר.';
+  const row = {
+    ...sampleRows[0],
+    id: '8b9b2b40-eb01-4ee7-8741-e6ae3bced85e',
+    client_authority: 'מג׳דל שמס',
+    school_framework: '',
+    status: 'approved',
+    approved_at: '2026-06-16T10:30:00.000Z',
+    notes: internalImportNote
+  };
+
+  const htmlWithoutNotesSection = proposalPreviewBodyHtml(row, [], [
+    { template_key: '', section_key: 'intro', section_title: 'פתיח', section_body: 'פתיח ללקוח.' },
+    { template_key: '', section_key: 'notes', section_title: 'הערות', section_body: '' }
+  ]);
+
+  await withJSDOM(htmlWithoutNotesSection, async (_root, dom) => {
+    const doc = dom.window.document.querySelector('.proposal-document');
+    assert.ok(doc);
+    assert.doesNotMatch(doc.textContent, /ייבוא ידני מקובץ Word/);
+    assert.doesNotMatch(doc.textContent, /ראנה הצעה/);
+  });
+
+  const customerNote = 'הערה ללקוח מתוך סעיף המסמך בלבד.';
+  const htmlWithTemplateNote = proposalPreviewBodyHtml(row, [], [
+    { template_key: '', section_key: 'notes', section_title: 'הערות', section_body: customerNote }
+  ]);
+
+  await withJSDOM(htmlWithTemplateNote, async (_root, dom) => {
+    const docText = dom.window.document.querySelector('.proposal-document')?.textContent || '';
+    assert.match(docText, /הערה ללקוח מתוך סעיף המסמך בלבד/);
+    assert.doesNotMatch(docText, /ייבוא ידני מקובץ Word/);
+  });
+});
+
 test('workshop proposal preview removes catalog wording and keeps prices only in cost table', async () => {
   const row = {
     ...sampleRows[0],

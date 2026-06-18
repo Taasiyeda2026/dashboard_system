@@ -1681,7 +1681,7 @@ export function proposalPreviewBodyHtml(row, items = [], templateSections = [], 
 
   const includeCatalog = false;
   const introText = sectionBody('intro');
-  const remarks = sectionBody('notes') || String(row.notes || '').replace(/\r\n?/g, '\n').trim();
+  const remarks = sectionBody('notes');
   const templateActivityIntro = filterCatalogContentFromBody(sectionBody('activity_intro'), false);
   const activityIntro = isSummerProposalGroup(activityTypeGroup)
     ? summerActivityProposalBody()
