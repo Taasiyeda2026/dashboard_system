@@ -251,11 +251,10 @@ function instrEmptyState(rows, filters) {
 
 function instrTabHtml(rows, filters) {
   const filtered = applyInstrFilters(rows, filters);
-  const countHtml = `<div class="ci-instr-count" dir="rtl">מדריכים: <strong>${filtered.length}</strong></div>`;
   const body = filtered.length === 0
     ? instrEmptyState(rows, filters)
     : `<div class="ci-person-grid">${filtered.map((r) => renderInstrCard(r)).join('')}</div>`;
-  return { filtered, body: `${countHtml}${body}` };
+  return { filtered, body };
 }
 
 /* ─── School contacts ─── */
@@ -362,8 +361,6 @@ function renderSchoolAccordion(schoolName, rows) {
   const contactsHtml = contactRows.map(schoolPersonHtml).filter(Boolean).join('');
   if (!profileHtml && !contactsHtml) return '';
 
-  const contactCount = contactRows.length + (profileHtml ? 1 : 0);
-  const countLabel = contactCount === 1 ? '1 איש קשר' : `${contactCount} אנשי קשר`;
   const semelMosad = rows.map((r) => textValue(r.semel_mosad)).find(Boolean);
   const metaHtml = semelMosad
     ? `<div class="sc-school-meta"><span class="sc-school-meta__label">סמל מוסד:</span> <span class="sc-school-meta__val">${escapeHtml(semelMosad)}</span></div>`
@@ -373,7 +370,6 @@ function renderSchoolAccordion(schoolName, rows) {
       <span class="sc-card__chevron" aria-hidden="true">›</span>
       <span class="sc-card__school-icon" aria-hidden="true">🏫</span>
       <span class="sc-card__name">${escapeHtml(schoolName)}</span>
-      <span class="sc-card__count">${escapeHtml(countLabel)}</span>
     </summary>
     <div class="sc-card__body">
       ${metaHtml}
@@ -404,27 +400,21 @@ function renderAuthorityAccordion(authority, bucket) {
   const otherPersonsHtml = otherValid.map(schoolPersonHtml).filter(Boolean).join('');
   if (!schoolsHtml && !authPersonsHtml && !otherPersonsHtml) return '';
 
-  const { schoolCount, contactCount } = countAuthorityBucket(bucket);
-  const badges = [
-    schoolCount > 0 ? `${schoolCount} בתי ספר` : '',
-    contactCount > 0 ? `${contactCount} אנשי קשר` : ''
-  ].filter(Boolean).join(' · ');
-
   const schoolsSection = schoolsHtml
     ? `<section class="sc-sub-group sc-sub-group--schools">
-        <div class="sc-sub-group__title"><span aria-hidden="true">🏫</span> בתי ספר <span class="sc-sub-group__count">${schoolCount}</span></div>
+        <div class="sc-sub-group__title"><span aria-hidden="true">🏫</span> בתי ספר</div>
         <div class="sc-school-grid">${schoolsHtml}</div>
       </section>`
     : '';
   const authoritySection = authPersonsHtml
     ? `<section class="sc-sub-group sc-sub-group--authority">
-        <div class="sc-sub-group__title"><span aria-hidden="true">🏛️</span> רשות <span class="sc-sub-group__count">${authValid.length}</span></div>
+        <div class="sc-sub-group__title"><span aria-hidden="true">🏛️</span> רשות</div>
         <div class="sc-contact-list sc-contact-list--grid">${authPersonsHtml}</div>
       </section>`
     : '';
   const otherSection = otherPersonsHtml
     ? `<section class="sc-sub-group sc-sub-group--other">
-        <div class="sc-sub-group__title"><span aria-hidden="true">📋</span> אחר <span class="sc-sub-group__count">${otherValid.length}</span></div>
+        <div class="sc-sub-group__title"><span aria-hidden="true">📋</span> אחר</div>
         <div class="sc-contact-list sc-contact-list--grid">${otherPersonsHtml}</div>
       </section>`
     : '';
@@ -435,7 +425,6 @@ function renderAuthorityAccordion(authority, bucket) {
       <span class="sc-authority-icon" aria-hidden="true">🏛️</span>
       <span class="sc-authority-name">${escapeHtml(authority)}</span>
       ${authorityCode ? `<span class="sc-authority-code">מספר רשות: ${escapeHtml(authorityCode)}</span>` : ''}
-      ${badges ? `<span class="sc-authority-badges">${escapeHtml(badges)}</span>` : ''}
     </summary>
     <div class="sc-authority-body">
       ${schoolsSection}${authoritySection}${otherSection}
@@ -546,14 +535,6 @@ function schoolTabHtml(rows, filters, activeLetter = '') {
     return { filtered, stats, body: contactEmptyState(rows, filters) };
   }
 
-  const summaryHtml = `<div class="sc-summary-bar contacts-summary-bar" dir="rtl">
-    <span class="sc-summary-bar__item">רשויות: <strong>${stats.authorities}</strong></span>
-    <span class="sc-summary-bar__sep" aria-hidden="true">·</span>
-    <span class="sc-summary-bar__item">בתי ספר: <strong>${stats.schools}</strong></span>
-    <span class="sc-summary-bar__sep" aria-hidden="true">·</span>
-    <span class="sc-summary-bar__item">אנשי קשר: <strong>${stats.contacts}</strong></span>
-  </div>`;
-
   const letterMap = new Map();
   authorityMap.forEach((bucket, authority) => {
     if (!countAuthorityBucket(bucket).schoolCount && !countAuthorityBucket(bucket).contactCount) return;
@@ -597,7 +578,7 @@ function schoolTabHtml(rows, filters, activeLetter = '') {
     ? '<div class="sc-alpha-hint" role="status">בחרו אות כדי להציג רשויות ואנשי קשר.</div>'
     : (sectionsHtml ? '' : '<div class="sc-alpha-hint" role="status">לא נמצאו רשויות באות שנבחרה.</div>');
 
-  return { filtered, stats, body: `${summaryHtml}${alphaBar}${initialHint}${sectionsHtml}` };
+  return { filtered, stats, body: `${alphaBar}${initialHint}${sectionsHtml}` };
 }
 
 /* ─── Screen ─── */
@@ -626,10 +607,9 @@ export const contactsScreen = {
     const canViewSchool = data?.can_view_schools     !== false;
     const tab     = state?.contactsTab || (canViewInstr ? 'instr' : 'school');
     const activeLetter = tab === 'school' ? String(state?.contactsAlphaLetter || '') : '';
-    const counts = contactTabCounts(instrRows, schoolRows, filters, activeLetter);
     const tabBtns = [
-      canViewInstr  && { key: 'instr',  label: `אנשי קשר מדריכים (${counts.instrCount})`  },
-      canViewSchool && { key: 'school', label: `לקוחות ואנשי קשר (${counts.schoolContacts})` }
+      canViewInstr  && { key: 'instr',  label: 'אנשי קשר מדריכים'  },
+      canViewSchool && { key: 'school', label: 'לקוחות ואנשי קשר' }
     ].filter(Boolean).map((t) =>
       `<button type="button" class="ds-chip--tab${tab === t.key ? ' is-active' : ''}" data-contacts-tab="${t.key}">${escapeHtml(t.label)}</button>`
     ).join('');
