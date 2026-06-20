@@ -1,6 +1,7 @@
 const AUTHORITIES_TAB_KEY = 'authorities';
 const SCHOOLS_TAB_KEY = 'schools';
 const SCHEDULE_TAB_KEY = 'instructors';
+const WORKSHOPS_TAB_KEY = 'workshops';
 const FIXED_PERIOD = 'summer_2026';
 const FIXED_FROM = '2026-06-15';
 const FIXED_TO = '2026-08-31';
@@ -21,12 +22,31 @@ function isScheduleView(root) {
   return getActiveOpsTab(root) === SCHEDULE_TAB_KEY;
 }
 
+function isInventoryView(root) {
+  const tab = getActiveOpsTab(root);
+  const activeText = String(root?.querySelector?.('.ds-ops-mgmt-tab.is-active')?.textContent || '').trim();
+  return tab === WORKSHOPS_TAB_KEY || activeText === 'ציוד ומלאי' || activeText === 'כמויות סדנאות';
+}
+
+function isTrainingView(root) {
+  const trainingTab = root?.querySelector?.('.ds-ops-mgmt-tab.is-active[data-ops-training-tab]');
+  const activeText = String(root?.querySelector?.('.ds-ops-mgmt-tab.is-active')?.textContent || '').trim();
+  return Boolean(trainingTab) || activeText === 'הכשרות קיץ';
+}
+
+function shouldHideFilters(root) {
+  return isInventoryView(root) || isTrainingView(root);
+}
+
 function ensureOperationsCleanupStyle() {
   if (document.getElementById('ops-authorities-cleanup-style')) return;
   const style = document.createElement('style');
   style.id = 'ops-authorities-cleanup-style';
   style.textContent = `
     .ds-ops-mgmt-screen .ds-filter-field--search {
+      display: none !important;
+    }
+    .ds-ops-mgmt-screen.ops-hide-filter-panel .ds-ops-mgmt-filters {
       display: none !important;
     }
     .ds-ops-mgmt-screen.ops-authorities-clean .ds-ops-mgmt-summary-line,
@@ -76,6 +96,7 @@ function cleanOperationsPage() {
   enforceFixedOperationsRange(root);
   root.classList.toggle('ops-authorities-clean', isAuthoritiesView(root));
   root.classList.toggle('ops-schedule-clean', isScheduleView(root));
+  root.classList.toggle('ops-hide-filter-panel', shouldHideFilters(root));
 }
 
 function scheduleOperationsCleanup() {
