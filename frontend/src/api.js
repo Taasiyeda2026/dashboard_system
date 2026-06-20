@@ -91,7 +91,7 @@ const DASHBOARD_ACTIVITY_COLUMNS = [
 ].join(',');
 const DASHBOARD_ACTIVITY_MIN_COLUMNS = 'row_id,activity_family,activity_manager,activity_name,authority,school,instructor_name,instructor_name_2,emp_id,emp_id_2,start_date,end_date,status,activity_type';
 const SETTINGS_BOOTSTRAP_COLUMNS = 'key,value,description';
-const LISTS_BOOTSTRAP_COLUMNS = 'category,value,label,group,item_value,item_label,val,display,is_active,active,category_order,sort_order';
+const LISTS_BOOTSTRAP_COLUMNS = 'category,value,label,active,category_order,sort_order';
 let settingsRowsCache = null;
 let settingsRowsPromise = null;
 let listsRowsCache = null;
@@ -1064,13 +1064,13 @@ async function readListsFromSupabase() {
     const rows = Array.isArray(result.data) ? result.data : [];
     const catMap = new Map();
     for (const row of rows) {
-      const cat = String(row.category || row.group || '').trim();
+      const cat = String(row.category || '').trim();
       if (!cat) continue;
-      const value = String(row.value ?? row.item_value ?? row.val ?? '').trim();
-      const label = String(row.label ?? row.item_label ?? row.display ?? value).trim() || value;
+      const value = String(row.value ?? '').trim();
+      const label = String(row.label ?? value).trim() || value;
       if (!value) continue;
       if (!catMap.has(cat)) catMap.set(cat, []);
-      catMap.get(cat).push({ label, value, _row: row, is_active: row.is_active, active: row.active });
+      catMap.get(cat).push({ label, value, _row: row, active: row.active });
     }
     const categories = [...catMap.entries()].map(([category, items]) => ({ category, items }));
     listsRowsCache = { categories, _source: 'supabase' };

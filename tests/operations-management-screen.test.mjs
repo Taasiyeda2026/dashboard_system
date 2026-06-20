@@ -333,6 +333,34 @@ test('authorities tab renders schools, dates and activities in fixed grouped ord
   assert.equal((groupedHtml.match(/פעילות ראשונה/g) || []).length, 1);
 });
 
+test('workshops inventory tab uses workshop_stock as inventory source without requiring matching activities', () => {
+  const state = baseState();
+  state.operationsManagement.tab = 'workshops';
+  state.operationsManagement.dateFrom = '2026-07-01';
+  state.operationsManagement.dateTo = '2026-07-31';
+  const adminListsData = { categories: [
+    { category: 'workshop_stock', items: [
+      { value: 'frog', label: 'פרוגי המקפצת', _row: { category: 'workshop_stock', value: 'frog', label: 'פרוגי המקפצת', active: true } },
+      { value: 'bird', label: 'ציפור שיווי משקל', _row: { category: 'workshop_stock', value: 'bird', label: 'ציפור שיווי משקל', active: true } },
+      { value: 'inactive', label: 'מלאי לא פעיל', _row: { category: 'workshop_stock', value: 'inactive', label: 'מלאי לא פעיל', active: false } }
+    ] },
+    { category: 'activity_names', items: [
+      { value: '001', label: 'פרוגי המקפצת', _row: { category: 'activity_names', value: '001', label: 'פרוגי המקפצת', active: true } }
+    ] }
+  ] };
+  const html = operationsManagementScreen.render({
+    rows: [
+      { RowID: 'FROG-1', status: 'פתוח', activity_name: 'פרוגי המקפצת', start_date: '2026-07-10', activity_season: 'summer_2026' }
+    ],
+    workshopStockMap: buildWorkshopStockMapFromLists(adminListsData),
+    adminListsData
+  }, { state });
+  assert.match(html, /מלאי סדנאות — קיץ 2026/);
+  assert.match(html, /פרוגי המקפצת/);
+  assert.match(html, /ציפור שיווי משקל/);
+  assert.doesNotMatch(html, /מלאי לא פעיל/);
+});
+
 test('workshops inventory tab includes catalog workshops outside selected date range', () => {
   const state = baseState();
   state.operationsManagement.tab = 'workshops';
