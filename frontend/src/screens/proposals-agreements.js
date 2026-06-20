@@ -736,14 +736,15 @@ function clientSearchHtml(_contactOptions, row = {}) {
 
 function contactPickerHtml(contactOptions, authority, school, selectedContactName, authorityId = null, schoolId = null) {
   const contacts = filterContactsForClient(contactOptions, { authorityId, schoolId });
-  if (contacts.length === 0) return '';
+  if (!authorityId || !schoolId) return '';
   const optionsHtml = ['<option value="">— בחרו איש קשר —</option>',
     ...contacts.map((c) => {
       const val = contactOptionKey(c);
       const contactName = text(c.contact_name);
       const label = c.contact_role ? `${contactName} (${text(c.contact_role)})` : contactName;
       return `<option value="${escapeHtml(val)}"${text(c.contact_name) === selectedContactName || val === selectedContactName ? ' selected' : ''}>${escapeHtml(label)}</option>`;
-    })
+    }),
+    '<option value="__pa_other_contact__">אחר</option>'
   ].join('');
   return `<label class="ds-pa-form-field"><span>איש קשר</span>
     <select class="ds-input ds-input--sm" data-pa-contact-select>${optionsHtml}</select>
@@ -2105,6 +2106,7 @@ function formHtml(mode, row = {}, activityNameOptions = [], contactOptions = [],
               <label class="ds-pa-form-field"><span>רשות</span><input type="text" class="ds-input ds-input--sm" data-pa-contact-ro-authority readonly tabindex="-1"></label>
               <label class="ds-pa-form-field"><span>בית ספר</span><input type="text" class="ds-input ds-input--sm" data-pa-contact-ro-school readonly tabindex="-1"></label>
             </div>
+            <input type="hidden" name="contact_selection_mode" value="">
             ${textField('contact_name', FIELD_LABELS.contact_name, row.contact_name, false)}
             ${textField('contact_role', FIELD_LABELS.contact_role, row.contact_role, false)}
             ${textField('phone', FIELD_LABELS.phone, row.phone, false)}
@@ -2329,6 +2331,7 @@ function payloadFromForm(form) {
   payload.authority_id = text(formData.get('contact_source_authority_id')) || null;
   payload.school_id = text(formData.get('contact_source_school_id')) || null;
   payload.client_type = text(formData.get('contact_source_client_type')) || (payload.school_id ? 'school' : 'authority');
+  payload._contact_selection_mode = text(formData.get('contact_selection_mode'));
   payload._contact_original = {
     id:           text(formData.get('contact_source_id')),
     client_type:  payload.client_type,
@@ -2361,7 +2364,11 @@ function validatePayload(payload, statusOverride) {
   if (!text(payload.school_id)) {
     errors.push('יש לבחור בית ספר מתוך רשימת בתי הספר של הרשות.');
   }
-  const hasManualContact = Boolean(text(payload.contact_name) || text(payload.phone) || text(payload.email));
+  const hasManualContact = Boolean(text(payload.contact_name) || text(payload.contact_role) || text(payload.phone) || text(payload.email));
+  const isOtherContact = text(payload._contact_selection_mode) === 'other';
+  if (isOtherContact && !text(payload.contact_name)) {
+    errors.push('יש להזין שם איש קשר חדש.');
+  }
   if (hasManualContact && !text(payload.contact_school_id)) {
     if (!text(payload.authority_id) || !text(payload.school_id)) {
       errors.push('ניתן להוסיף איש קשר רק לאחר בחירת רשות ובית ספר.');
@@ -2859,14 +2866,58 @@ export const proposalsAgreementsScreen = {
       if (host) host.innerHTML = contactSourceInputsHtml(contact || {});
     };
 
+    const setContactSelectionMode = (form, mode = '') => {
+      const input = form?.querySelector('input[name="contact_selection_mode"]');
+      if (input) input.value = mode;
+    };
+
+    const contactSourceFromForm = (form) => ({
+      id: '',
+      authority_id: text(form?.querySelector('input[name="contact_source_authority_id"]')?.value) || null,
+      school_id: text(form?.querySelector('input[name="contact_source_school_id"]')?.value) || null,
+      school_required: text(form?.querySelector('input[name="contact_source_school_required"]')?.value) || 'yes',
+      client_type: text(form?.querySelector('input[name="contact_source_client_type"]')?.value) || 'school',
+      client_name: text(form?.querySelector('input[name="contact_source_client_name"]')?.value),
+      authority: text(form?.querySelector('input[name="contact_source_authority"]')?.value),
+      school: text(form?.querySelector('input[name="contact_source_school"]')?.value),
+      contact_name: '',
+      contact_role: '',
+      phone: '',
+      mobile: '',
+      email: ''
+    });
+
+    const showManualContactFields = (form) => {
+      if (!form) return;
+      form.querySelectorAll('[data-pa-contact-manual-fields]').forEach((el) => { el.hidden = false; });
+      const roCtx = form.querySelector('[data-pa-contact-ro-ctx]');
+      if (roCtx) roCtx.hidden = false;
+      setContactSelectionMode(form, 'other');
+      setContactSource(form, contactSourceFromForm(form));
+      fillContactFields(form, {});
+      form.querySelector('input[name="contact_name"]')?.focus();
+    };
+
     const setupContactPicker = (container, form) => {
       const contactSelect = container?.querySelector?.('[data-pa-contact-select]');
       if (!contactSelect) return;
       contactSelect.addEventListener('change', () => {
         const key = contactSelect.value;
+        if (key === '__pa_other_contact__') {
+          lockClientFields(
+            form,
+            text(form.querySelector('input[name="contact_source_authority"]')?.value),
+            text(form.querySelector('input[name="contact_source_school"]')?.value),
+            '', '', '', '',
+            text(form.querySelector('input[name="contact_source_client_name"]')?.value)
+          );
+          showManualContactFields(form);
+          return;
+        }
         if (!key) return;
         const contact = contactOptions.find((c) => contactOptionKey(c) === key);
         if (contact) {
+          setContactSelectionMode(form, '');
           fillContactFields(form, contact);
           setContactSource(form, contact);
           lockClientFields(form, text(contact.authority), text(contact.school), text(contact.contact_name), text(contact.contact_role), text(contact.phone || contact.mobile || ''), text(contact.email || ''), text(contact.client_name) || text(contact.school) || text(contact.authority));
@@ -4308,10 +4359,7 @@ export const proposalsAgreementsScreen = {
         if (!form) return;
         const addContactRow = form.querySelector('[data-pa-add-contact-row]');
         if (addContactRow) addContactRow.hidden = true;
-        form.querySelectorAll('[data-pa-contact-manual-fields]').forEach((el) => { el.hidden = false; });
-        const roCtx = form.querySelector('[data-pa-contact-ro-ctx]');
-        if (roCtx) roCtx.hidden = false;
-        form.querySelector('input[name="contact_name"]')?.focus();
+        showManualContactFields(form);
         return;
       }
 
