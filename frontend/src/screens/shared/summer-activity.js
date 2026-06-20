@@ -40,8 +40,7 @@ export function isSummerActivity(activity = {}) {
   const rowId = String(activity?.row_id ?? activity?.RowID ?? activity?.id ?? '').trim().toLowerCase();
   const status = String(activity?.status || '').trim();
   const normalizedStatus = status.toLowerCase();
-  const season = normalizeActivitySeason(activity?.activity_season ?? activity?.activitySeason);
-  return (season === ACTIVITY_SEASON_SUMMER_2026 || rowId.startsWith(SUMMER_ROW_ID_PREFIX))
+  return rowId.startsWith(SUMMER_ROW_ID_PREFIX)
     && !EXCLUDED_SUMMER_STATUSES.has(status)
     && !EXCLUDED_SUMMER_STATUSES.has(normalizedStatus);
 }
