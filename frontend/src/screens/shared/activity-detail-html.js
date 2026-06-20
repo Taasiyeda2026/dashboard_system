@@ -364,14 +364,18 @@ function headerHtml(row, { mode = 'single', summaryDate = '', exportAction = tru
     `;
   }
   return `
-    <div class="activity-drawer__header">
+    <div class="activity-drawer__header activity-drawer__header--sticky">
       <div class="activity-drawer__header-top">
         <div class="activity-drawer__heading">
-          <span class="activity-drawer__pill">${escapeHtml(activityTypeLabel(row?.activity_type))}</span>
           <h2 class="activity-drawer__title">${escapeHtml(fallback(row?.activity_name))}</h2>
-          <div class="activity-drawer__meta">
+          <div class="activity-drawer__meta activity-drawer__meta--compact">
+            <span>${escapeHtml(activityTypeLabel(row?.activity_type))}</span>
+            <span class="activity-drawer__meta-sep" aria-hidden="true">·</span>
             <span class="activity-drawer__status">${escapeHtml(statusText(row?.status))}</span>
-            <span>${escapeHtml(fallback(row?.school))} · ${escapeHtml(fallback(row?.authority))}</span>
+            <span class="activity-drawer__meta-sep" aria-hidden="true">·</span>
+            <span>${escapeHtml(fallback(row?.school))}</span>
+            <span class="activity-drawer__meta-sep" aria-hidden="true">·</span>
+            <span>${escapeHtml(fallback(row?.authority))}</span>
           </div>
         </div>
         ${headerActionsHtml(exportAction)}
@@ -509,7 +513,7 @@ function blockExtraEditInfo(row, { settings = {} } = {}) {
   `;
 }
 
-function blockSupplementalView(row, { settings = {}, hideFunding = false, hideSeason = false } = {}) {
+function blockCentralInfo(row, { settings = {}, hideFunding = false } = {}) {
   const instructorLookup = buildInstructorLookup(settings);
   const instructor1Display = resolveActivityInstructorName(row) || resolveInstructorDisplayName(row.instructor_name, row.emp_id, instructorLookup);
   const instructor2Display = resolveActivityInstructorName(row, { secondary: true }) || resolveInstructorDisplayName(row.instructor_name_2, row.emp_id_2, instructorLookup);
@@ -523,19 +527,32 @@ function blockSupplementalView(row, { settings = {}, hideFunding = false, hideSe
       ? formatTimeRangeShort(row.start_time, row.end_time)
       : '—';
   const fundingDisplay = String(row.funding || '').trim() || '—';
-  const seasonDisplay = activitySeasonLabel(row.activity_season);
 
   return `
-    <section class="activity-drawer__section activity-drawer__section--supplemental" data-mode="view">
-      <h3 class="activity-drawer__section-title">מידע משלים</h3>
+    <section class="activity-drawer__section activity-drawer__section--central" data-mode="view" data-central-info-section>
+      <h3 class="activity-drawer__section-title">מידע מרכזי</h3>
       <div class="activity-drawer__grid activity-drawer__grid--three activity-drawer__view-grid">
         ${fieldViewOnly('מנהל פעילות', escapeHtml(managerFallback(row.activity_manager)))}
         ${fieldViewOnly(twoInstructors ? 'מדריך/ה 1' : 'מדריך/ה', escapeHtml(fallback(instructor1Display)))}
         ${twoInstructors ? fieldViewOnly('מדריך/ה 2', escapeHtml(fallback(instructor2Display))) : ''}
         ${fieldViewOnly('כיתה / קבוצה', escapeHtml(classLabel))}
         ${fieldViewOnly('שעות', escapeHtml(hoursLabel))}
-        ${hideSeason ? '' : fieldViewOnly('עונת פעילות', escapeHtml(seasonDisplay))}
         ${hideFunding ? '' : fieldViewOnly('מימון', escapeHtml(fundingDisplay))}
+      </div>
+    </section>
+  `;
+}
+
+function blockAdditionalSupplemental(row, { hideSeason = false } = {}) {
+  if (hideSeason) return '';
+  const seasonDisplay = activitySeasonLabel(row.activity_season);
+  const seasonValue = String(seasonDisplay || '').trim();
+  if (!seasonValue || seasonValue === '—') return '';
+  return `
+    <section class="activity-drawer__section activity-drawer__section--supplemental" data-mode="view">
+      <h3 class="activity-drawer__section-title">מידע משלים נוסף</h3>
+      <div class="activity-drawer__grid activity-drawer__grid--three activity-drawer__view-grid">
+        ${fieldViewOnly('עונת פעילות', escapeHtml(seasonDisplay))}
       </div>
     </section>
   `;
@@ -632,7 +649,7 @@ function blockDates(row, { canEdit = false, canDirectEdit = false, datesLoading 
       <section class="activity-drawer__section" data-dates-section${loadingAttr}>
         <div class="activity-drawer__section-head">
           <h3 class="activity-drawer__section-title">תאריך ושעות פעילות</h3>
-          ${canEdit ? `<button type="button" class="activity-drawer__action" data-action="start-edit" data-mode="view">✏️ ${canDirectEdit ? 'עריכה' : 'בקשת שינוי'}</button>` : ''}
+          ${canEdit ? `<button type="button" class="activity-drawer__action activity-drawer__action--subtle" data-action="start-edit" data-mode="view">${canDirectEdit ? 'עריכה' : 'בקשת שינוי'}</button>` : ''}
         </div>
         ${buildOneDayViewHtml(schedule, row, datesLoading)}
         <div class="activity-drawer__dates activity-drawer__dates--edit" data-mode="edit" data-meeting-dates-edit hidden>
@@ -710,7 +727,7 @@ function blockDates(row, { canEdit = false, canDirectEdit = false, datesLoading 
     <section class="activity-drawer__section" data-dates-section${loadingAttr}>
       <div class="activity-drawer__section-head">
         <h3 class="activity-drawer__section-title">${escapeHtml(progressTitle)}</h3>
-        ${canEdit ? `<button type="button" class="activity-drawer__action" data-action="start-edit" data-mode="view">✏️ ${canDirectEdit ? 'עריכה' : 'בקשת שינוי'}</button>` : ''}
+        ${canEdit ? `<button type="button" class="activity-drawer__action activity-drawer__action--subtle" data-action="start-edit" data-mode="view">${canDirectEdit ? 'עריכה' : 'בקשת שינוי'}</button>` : ''}
       </div>
       ${progressHtml}
       <div class="activity-drawer__dates activity-drawer__dates--edit" data-mode="edit" data-meeting-dates-edit hidden>
@@ -799,13 +816,14 @@ function blockPrivateNote(row, { privateNote = null, showPrivateNote = false } =
   ).trim();
 
   const viewPart = privateValue
-    ? `<div class="activity-drawer__view" data-mode="view">
-        <div class="activity-drawer__field">
-          <div class="activity-drawer__label">הערה תפעולית</div>
-          <div class="activity-drawer__value">${escapeHtml(privateValue)}</div>
-        </div>
-      </div>`
-    : '';
+    ? `<section class="activity-drawer__section activity-drawer__section--private-note" data-private-note-section>
+        <h3 class="activity-drawer__section-title">הערה תפעולית</h3>
+        <div class="activity-drawer__value activity-drawer__value--note" data-mode="view">${escapeHtml(privateValue)}</div>
+      </section>`
+    : `<div class="activity-drawer__compact-line" data-private-note-section data-mode="view">
+        <span class="activity-drawer__compact-label">הערה תפעולית:</span>
+        <span class="activity-drawer__compact-value">—</span>
+      </div>`;
 
   const editPart = `<div class="activity-drawer__edit" data-mode="edit" hidden>
     <div class="activity-drawer__field">
@@ -814,19 +832,18 @@ function blockPrivateNote(row, { privateNote = null, showPrivateNote = false } =
     </div>
   </div>`;
 
-  return `<section class="activity-drawer__section">${viewPart}${editPart}</section>`;
+  return `${viewPart}${editPart}`;
 }
 
 function blockNotes(row, { hidden = false } = {}) {
   if (hidden || !String(row?.notes || '').trim()) return '';
   return `
-    <section class="activity-drawer__section">
-      <h3 class="activity-drawer__section-title">📝</h3>
-      ${fieldViewEdit(
-        'הערות',
-        `${escapeHtml(fallback(row.notes))}`,
-        textareaHtml({ name: 'notes', value: String(row.notes || ''), rows: 2 })
-      )}
+    <section class="activity-drawer__section activity-drawer__section--notes" data-notes-section>
+      <h3 class="activity-drawer__section-title">הערות</h3>
+      <div class="activity-drawer__value activity-drawer__value--note" data-mode="view">${escapeHtml(fallback(row.notes))}</div>
+      <div class="activity-drawer__edit" data-mode="edit" hidden>
+        ${textareaHtml({ name: 'notes', value: String(row.notes || ''), rows: 2 })}
+      </div>
     </section>
   `;
 }
@@ -872,14 +889,15 @@ function singleForm(row, { settings = {}, privateNote = null, canEdit = false, c
       ${editReqBadge}
       <input type="hidden" name="activity_no" value="${escapeHtml(String(row.activity_no || ''))}" data-activity-no>
       <input type="hidden" name="_activity_idx" value="${idx}">
+      ${blockCentralInfo(row, { settings, hideFunding: hideFundingInView || instructorLimited })}
+      ${showDates ? blockDates(row, { canEdit, canDirectEdit, datesLoading }) : ''}
+      ${blockNotes(row, { hidden: instructorLimited })}
       ${blockPrivateNote(row, { privateNote, showPrivateNote })}
+      ${blockAdditionalSupplemental(row, { hideSeason: hideSeasonInView })}
       ${blockActivityDetails(row, { settings })}
       ${blockAssignment(row, { settings })}
       ${blockTeamTimes(row, { settings })}
-      ${showDates ? blockDates(row, { canEdit, canDirectEdit, datesLoading }) : ''}
       ${instructorLimited ? '' : blockExtraEditInfo(row, { settings })}
-      ${blockNotes(row, { hidden: instructorLimited })}
-      ${blockSupplementalView(row, { settings, hideFunding: hideFundingInView || instructorLimited, hideSeason: hideSeasonInView })}
       ${blockEditActions({ canEdit, canDirectEdit, canDeleteActivity })}
     </form>
   `;

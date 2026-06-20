@@ -1633,7 +1633,7 @@ export const activitiesScreen = {
                   <col class="ds-activities-col--hours">
                   <col class="ds-activities-col--notes">
                 </colgroup>
-                <thead><tr><th>תוכנית / סוג</th><th>רשות</th><th>בית ספר</th><th style="text-align:center">כיתה</th><th>מדריך</th><th style="text-align:center">תאריך פעילות</th><th style="text-align:center">שעות</th><th>הערות</th></tr></thead>`
+                <thead><tr><th>תוכנית / סוג</th><th>רשות</th><th>בית ספר</th><th style="text-align:center">כיתה</th><th class="ds-activities-col--instructor">מדריך</th><th style="text-align:center">תאריך פעילות</th><th style="text-align:center">שעות</th><th>הערות</th></tr></thead>`
       : `<colgroup>
                   <col class="ds-activities-col--program">
                   <col class="ds-activities-col--authority">
@@ -1644,7 +1644,7 @@ export const activitiesScreen = {
                   <col class="ds-activities-col--meetings">
                   <col class="ds-activities-col--notes">
                 </colgroup>
-                <thead><tr><th>תוכנית / סוג</th><th>רשות</th><th>בית ספר</th><th>מדריך</th><th>תאריך התחלה</th><th>תאריך סיום</th><th>המפגש הבא</th><th>הערות</th></tr></thead>`;
+                <thead><tr><th>תוכנית / סוג</th><th>רשות</th><th>בית ספר</th><th class="ds-activities-col--instructor">מדריך</th><th>תאריך התחלה</th><th>תאריך סיום</th><th>המפגש הבא</th><th>הערות</th></tr></thead>`;
     const tableSection =
       safeRows.length === 0
         ? dsEmptyState(isAllMode

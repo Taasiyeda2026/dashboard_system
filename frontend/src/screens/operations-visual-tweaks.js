@@ -14,6 +14,24 @@ function addOperationsVisualTweaksStyle() {
       background: color-mix(in srgb, var(--ds-accent, #0292b7) 12%, #ffffff) !important;
       color: var(--ds-accent, #0292b7) !important;
     }
+    #app .ds-activities-screen .ds-table--activities-list thead,
+    #app .ds-activities-screen .ds-table--activities-list thead tr,
+    #app .ds-activities-screen .ds-table--activities-list thead th {
+      position: sticky;
+      top: 0;
+      z-index: 40;
+    }
+    #app .ds-activities-screen .ds-table--activities-list thead th {
+      background: #eef8fb !important;
+      color: #0f172a !important;
+      font-weight: 800 !important;
+      box-shadow: inset 0 -1px 0 #b7d7e4, 0 2px 5px rgba(15, 23, 42, 0.08);
+      border-bottom: 1px solid #b7d7e4 !important;
+      vertical-align: middle;
+    }
+    #app .ds-activities-screen .ds-table-wrap:has(.ds-table--activities-list) {
+      overflow: visible;
+    }
     #app table thead,
     #app table thead tr,
     #app table thead th {
@@ -51,8 +69,14 @@ function addOperationsVisualTweaksStyle() {
     }
     #app.ds-activities-archive-mode .ds-table--activities-list thead th {
       height: 44px;
-      text-align: center;
       white-space: nowrap;
+    }
+    #app.ds-activities-archive-mode .ds-table--activities-list thead th:not(.ds-activities-col--instructor) {
+      text-align: center;
+    }
+    #app.ds-activities-archive-mode .ds-table--activities-list thead th.ds-activities-col--instructor,
+    #app.ds-activities-archive-mode .ds-table--activities-list td.ds-activities-col--instructor {
+      text-align: right !important;
     }
     #app.ds-activities-archive-mode .ds-table--activities-list tbody td:nth-child(1),
     #app.ds-activities-archive-mode .ds-table--activities-list thead th:nth-child(1) {
@@ -66,10 +90,6 @@ function addOperationsVisualTweaksStyle() {
     #app.ds-activities-archive-mode .ds-table--activities-list thead th:nth-child(3),
     #app.ds-activities-archive-mode .ds-table--activities-list tbody td:nth-child(4),
     #app.ds-activities-archive-mode .ds-table--activities-list thead th:nth-child(4),
-    #app.ds-activities-archive-mode .ds-table--activities-list tbody td:nth-child(5),
-    #app.ds-activities-archive-mode .ds-table--activities-list thead th:nth-child(5) {
-      text-align: right;
-    }
     #app.ds-activities-archive-mode .ds-table--activities-list tbody td:nth-child(5),
     #app.ds-activities-archive-mode .ds-table--activities-list thead th:nth-child(5) {
       text-align: right;
