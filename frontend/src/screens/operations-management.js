@@ -746,6 +746,10 @@ function activityMatchesOfficialWorkshop(activity = {}, workshop = {}) {
   return normalizeWorkshopKey(getActivityName(activity)) === normalizeWorkshopKey(workshop.workshopName);
 }
 
+function activityMatchesAnyOfficialWorkshop(activity = {}, catalogRows = []) {
+  return catalogRows.some((workshop) => activityMatchesOfficialWorkshop(activity, workshop));
+}
+
 function workshopMetricsRows(rows, stockMap, catalogRows = []) {
   const groups = new Map();
   catalogRows.forEach((catalog) => {
@@ -785,6 +789,9 @@ function workshopMetricsRows(rows, stockMap, catalogRows = []) {
     return {
       stockGroupKey: group.stockGroupKey,
       workshopNo: group.linkedWorkshops.map((workshop) => workshop.workshopNo).filter(Boolean).join(', '),
+      workshopNoDisplay: group.linkedWorkshops.length > 1
+        ? group.linkedWorkshops.map((workshop) => [workshop.workshopNo, workshop.workshopName].filter(Boolean).join(' - ')).filter(Boolean).join(', ')
+        : group.linkedWorkshops.map((workshop) => workshop.workshopNo).filter(Boolean).join(', '),
       workshopName: group.workshopName,
       linkedWorkshops: group.linkedWorkshops,
       activities: group.activities,
@@ -1198,10 +1205,7 @@ function workshopsTabHtml(rows, state, stockMap, catalogRows = []) {
     activityCount: (row) => row.activityCount,
     estimatedQuantity: (row) => row.estimatedQuantity,
   });
-  const metrics = allMetrics.filter((row) => {
-    const stock = row.stockQuantity !== null && row.stockQuantity !== undefined && Number.isFinite(Number(row.stockQuantity)) ? Number(row.stockQuantity) : 0;
-    return row.activityCount > 0 || stock > 0;
-  });
+  const metrics = allMetrics;
 
   const table = metrics.length
     ? dsTableWrap(`<table class="ds-table ds-table--compact ds-ops-mgmt-data-table ds-ops-workshops-table"><thead><tr>
@@ -1223,12 +1227,13 @@ function workshopsTabHtml(rows, state, stockMap, catalogRows = []) {
         const stockValue = Number.isFinite(Number(shownStock)) ? Number(shownStock) : 0;
         const usageValue = normalizeInventoryUsage(row.actualQuantity);
         const remainderHtml = formatInventoryRemainder(stockValue, usageValue);
-        return `<tr>
-          <td>${escapeHtml(row.workshopNo || '—')}</td>
+        const stockAttr = hasDefaultStock ? ` value="${escapeHtml(String(shownStock))}"` : '';
+        return `<tr data-ops-stock-group="${escapeHtml(row.stockGroupKey || '')}">
+          <td>${escapeHtml(row.workshopNoDisplay || row.workshopNo || '—')}</td>
           <td>${escapeHtml(row.workshopName)}</td>
           <td>${row.activityCount}</td>
           <td>${requiredQuantity}</td>
-          <td>${escapeHtml(stockDisplay)}</td>
+          <td><span${stockAttr}>${escapeHtml(stockDisplay)}</span></td>
           <td class="ds-ops-usage-cell">${usageHtml}</td>
           <td>${remainderHtml}</td>
         </tr>`;
@@ -1366,7 +1371,8 @@ function renderTab(rows, state, data, allPreparedRows = []) {
     const catalogRows = extractWorkshopCatalogRows(data?.adminListsData, allPreparedRows);
     const summerRows = allPreparedRows.filter((row) =>
       activityMatchesPeriod(row, ACTIVITY_SEASON_SUMMER_2026) &&
-      activityOverlapsDateRange(row, SUMMER_2026_FROM, SUMMER_2026_TO)
+      activityOverlapsDateRange(row, SUMMER_2026_FROM, SUMMER_2026_TO) &&
+      activityMatchesAnyOfficialWorkshop(row, catalogRows)
     );
     return workshopsTabHtml(summerRows, state, stockMap, catalogRows);
   }
@@ -1397,8 +1403,11 @@ export const operationsManagementScreen = {
     const baseRows = applyBaseFilters(prepared, state);
     const filteredRows = applyAllFilters(baseRows, state);
     const ops = ensureOpsState(state);
+    const filterRows = ops.tab === TAB_WORKSHOPS
+      ? baseRows.filter((row) => activityMatchesAnyOfficialWorkshop(row, extractWorkshopCatalogRows(data?.adminListsData, prepared)))
+      : baseRows;
     return `<div class="ds-screen-stack ds-ops-mgmt-screen">${opsManagementStylesHtml()}${dsPageHeader('ניהול תפעול')}
-      ${topFiltersHtml(baseRows, state)}
+      ${topFiltersHtml(filterRows, state)}
       ${tabsHtml(ops.tab)}
       <div class="ds-ops-mgmt-content">${renderTab(filteredRows, state, data, prepared)}</div>
       <p class="ds-muted ds-ops-mgmt-count no-print" dir="rtl">מציג ${filteredRows.length} פעילויות מתוך ${allRows.length}</p>
