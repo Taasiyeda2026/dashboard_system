@@ -673,12 +673,27 @@ function officialWorkshopStockGroupName(row = {}) {
   return String(row?.stock_group_name || row?.stock_item_name || row?.stock_label || row?.activity_name || '').trim();
 }
 
+function formatSignedNumberForRtl(value) {
+  const n = Number(value);
+  if (!Number.isFinite(n)) return '';
+  if (n < 0) return `<span dir="ltr">-${Math.abs(n)}</span>`;
+  return escapeHtml(String(n));
+}
+
 function formatGapCell(gap, hasStock) {
   if (!hasStock || gap === null || gap === undefined) return '<span class="ds-ops-mgmt-cell-muted">—</span>';
   const value = Number(gap);
   if (!Number.isFinite(value)) return '<span class="ds-ops-mgmt-cell-muted">—</span>';
   const tone = value < 0 ? 'ds-ops-gap--shortage' : 'ds-ops-gap--ok';
-  return `<span class="ds-ops-gap ${tone}">${escapeHtml(String(value))}</span>`;
+  return `<span class="ds-ops-gap ${tone}">${formatSignedNumberForRtl(value)}</span>`;
+}
+
+function formatInventoryRemainder(stockValue, usageValue) {
+  const stock = Number.isFinite(Number(stockValue)) ? Number(stockValue) : 0;
+  const usage = Number.isFinite(Number(usageValue)) ? Number(usageValue) : 0;
+  const remainder = stock - usage;
+  const tone = remainder < 0 ? 'ds-ops-gap--shortage' : 'ds-ops-gap--ok';
+  return `<span class="ds-ops-gap ${tone}">${formatSignedNumberForRtl(remainder)}</span>`;
 }
 
 function extractWorkshopCatalogRows(listsData, activityRows = []) {
@@ -850,7 +865,19 @@ function opsManagementStylesHtml() {
     .ds-ops-mgmt-screen .ds-ops-workshops-table-wrap { width:100%; }
     .ds-ops-mgmt-screen .ds-ops-workshops-card { width:min(790px, 85%); margin-inline-start:auto; margin-inline-end:auto; }
     .ds-ops-mgmt-screen .ds-ops-workshops-table { table-layout:fixed; width:100%; }
-    .ds-ops-mgmt-screen .ds-ops-workshops-table th,.ds-ops-mgmt-screen .ds-ops-workshops-table td { border:1px solid #94a3b8; padding:4px 6px; }
+    .ds-ops-mgmt-screen .ds-ops-workshops-table th,.ds-ops-mgmt-screen .ds-ops-workshops-table td { border:1px solid #94a3b8 !important; padding:4px 6px; }
+    .ds-ops-mgmt-screen .ds-ops-workshops-table tbody tr:hover td,
+    .ds-ops-mgmt-screen .ds-ops-workshops-table tbody tr:active td,
+    .ds-ops-mgmt-screen .ds-ops-workshops-table tbody tr:focus-visible td,
+    .ds-ops-mgmt-screen .ds-ops-workshops-table td:hover,
+    .ds-ops-mgmt-screen .ds-ops-workshops-table td:focus,
+    .ds-ops-mgmt-screen .ds-ops-workshops-table td:focus-within,
+    .ds-ops-mgmt-screen .ds-ops-workshops-table td:active { border:1px solid #94a3b8 !important; outline:none; box-shadow:none; }
+    .ds-ops-mgmt-screen .ds-ops-workshops-table .ds-ops-usage-cell:hover,
+    .ds-ops-mgmt-screen .ds-ops-workshops-table .ds-ops-usage-cell:focus,
+    .ds-ops-mgmt-screen .ds-ops-workshops-table .ds-ops-usage-cell:focus-within,
+    .ds-ops-mgmt-screen .ds-ops-workshops-table .ds-ops-usage-cell:active,
+    .ds-ops-mgmt-screen .ds-ops-workshops-table .ds-ops-usage-cell.ops-inventory-edited { border:1px solid #94a3b8 !important; box-shadow:none; }
     .ds-ops-mgmt-screen .ds-ops-workshops-table th { background:#dbeafe; color:#1e3a8a; font-weight:800; font-size:12px; }
     .ds-ops-mgmt-screen .ds-ops-workshops-table th:nth-child(1),
     .ds-ops-mgmt-screen .ds-ops-workshops-table td:nth-child(1) { width:76px; text-align:center; }
@@ -1409,9 +1436,8 @@ function workshopsTabHtml(rows, state, stockMap, catalogRows = [], distributions
         const usage = normalizeInventoryUsage(row.actualQuantity);
         const usageHtml = `<span class="ds-ops-usage-display">${usage}</span>`;
         const stockValue = Number.isFinite(Number(shownStock)) ? Number(shownStock) : 0;
-        const requiredValue = Number.isFinite(Number(requiredQuantity)) ? Number(requiredQuantity) : 0;
-        const remainder = stockValue - requiredValue;
-        const remainderHtml = `<span class="ds-ops-gap ${remainder < 0 ? 'ds-ops-gap--shortage' : 'ds-ops-gap--ok'}">${remainder}</span>`;
+        const usageValue = normalizeInventoryUsage(row.actualQuantity);
+        const remainderHtml = formatInventoryRemainder(stockValue, usageValue);
         return `<tr>
           <td>${escapeHtml(row.workshopNo || '—')}</td>
           <td>${escapeHtml(row.workshopName)}</td>

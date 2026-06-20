@@ -174,10 +174,34 @@ test('workshops tab shows inventory columns and print action', () => {
   assert.match(html, /יתרת מלאי/);
   assert.match(html, /הדפס כמויות סדנאות/);
   assert.match(html, /ds-ops-gap--ok/);
-  assert.match(html, />250</);
-  assert.match(html, />238</);
   assert.match(html, />50</);
+  assert.match(html, />238</);
+  assert.match(html, />62</);
   assert.match(html, />300</);
+});
+
+test('workshops inventory remainder uses existing stock minus usage', () => {
+  const state = baseState();
+  state.operationsManagement.tab = 'workshops';
+  const adminListsData = { categories: [{ category: 'activity_names', items: [
+    { value: '101', _row: { category: 'activity_names', type: 'workshop', activity_type: 'workshop', active: true, activity_no: '101', activity_name: 'סדנת חיובית', stock_quantity: 2500 } },
+    { value: '102', _row: { category: 'activity_names', type: 'workshop', activity_type: 'workshop', active: true, activity_no: '102', activity_name: 'סדנת אפס', stock_quantity: 100 } },
+    { value: '103', _row: { category: 'activity_names', type: 'workshop', activity_type: 'workshop', active: true, activity_no: '103', activity_name: 'סדנת חוסר', stock_quantity: 390 } }
+  ] }] };
+  const html = operationsManagementScreen.render({
+    rows: [
+      { RowID: 'P-1', status: 'פתוח', activity_name: 'סדנת חיובית', start_date: '2026-07-10', activity_season: 'summer_2026', activity_type: 'workshop', participants_count: 194 },
+      { RowID: 'Z-1', status: 'פתוח', activity_name: 'סדנת אפס', start_date: '2026-07-10', activity_season: 'summer_2026', activity_type: 'workshop', participants_count: 100 },
+      { RowID: 'N-1', status: 'פתוח', activity_name: 'סדנת חוסר', start_date: '2026-07-10', activity_season: 'summer_2026', activity_type: 'workshop', participants_count: 450 }
+    ],
+    workshopStockMap: buildWorkshopStockMapFromLists(adminListsData),
+    adminListsData
+  }, { state });
+  const tableHtml = html.slice(html.indexOf('<table class="ds-table ds-table--compact ds-table--interactive ds-ops-mgmt-data-table ds-ops-workshops-table"'));
+  assert.match(tableHtml, />2500<[^]*>194<[^]*>2306</);
+  assert.match(tableHtml, />100<[^]*>100<[^]*><span class="ds-ops-gap ds-ops-gap--ok">0<\/span>/);
+  assert.match(tableHtml, />390<[^]*>450<[^]*><span class="ds-ops-gap ds-ops-gap--shortage"><span dir="ltr">-60<\/span><\/span>/);
+  assert.match(html, /ds-ops-workshops-table td:active \{ border:1px solid #94a3b8 !important;/);
 });
 
 

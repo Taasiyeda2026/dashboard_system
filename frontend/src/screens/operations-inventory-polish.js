@@ -95,7 +95,15 @@ function addInventoryPolishStyle() {
     }
     .ds-ops-workshops-panel .ds-ops-usage-cell:hover {
       background: #f8fbfd !important;
-      box-shadow: inset 0 0 0 1px #cfe1ec;
+      border: 1px solid #94a3b8 !important;
+      box-shadow: none !important;
+    }
+    .ds-ops-workshops-panel .ds-ops-usage-cell:focus,
+    .ds-ops-workshops-panel .ds-ops-usage-cell:focus-within,
+    .ds-ops-workshops-panel .ds-ops-usage-cell:active {
+      border: 1px solid #94a3b8 !important;
+      box-shadow: none !important;
+      outline: none !important;
     }
     .ds-ops-workshops-panel .ds-ops-usage-display {
       display: block !important;
