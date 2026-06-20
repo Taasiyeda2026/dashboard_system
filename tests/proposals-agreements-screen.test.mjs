@@ -1096,6 +1096,7 @@ test('school principal from schools source appears in proposal contact picker', 
   );
 });
 
+test('manual contact toggle appears when selected school has no contacts', async () => {
   const catalogOnly = [
     ...sampleCatalogAuthorities,
     {
