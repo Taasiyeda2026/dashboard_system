@@ -1,4 +1,3 @@
-// Kept for backwards compatibility with older cached index.html files.
-// The old v2 implementation used a wide matrix with hardcoded guide names.
-// Load the clean list implementation instead.
-import './operations-summer-training-list.js?v=20260620-clean-list-1';
+// Backwards compatibility for older cached index.html files.
+// The active view is the clean workshop-by-instructor matrix.
+import './operations-summer-training-matrix.js?v=20260620-matrix-1';
