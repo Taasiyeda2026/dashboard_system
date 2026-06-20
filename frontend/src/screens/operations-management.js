@@ -774,11 +774,10 @@ function workshopMetricsRows(rows, stockMap, catalogRows = []) {
   return Array.from(groups.values()).map((group) => {
     const activityCount = group.activities.length;
     const estimatedQuantity = activityCount * WORKSHOP_ESTIMATE_PER_ACTIVITY;
-    let actualQuantity = null;
+    let actualQuantity = 0;
     group.activities.forEach((activity) => {
       const count = getActivityActualParticipantCount(activity);
-      if (count === null) return;
-      actualQuantity = (actualQuantity || 0) + count;
+      actualQuantity += count !== null ? count : 0;
     });
     const stock = group.stockQuantity !== null && group.stockQuantity !== undefined && Number.isFinite(Number(group.stockQuantity))
       ? Number(group.stockQuantity)
@@ -876,8 +875,7 @@ function opsManagementStylesHtml() {
     .ds-ops-mgmt-screen .ds-ops-workshops-table .ds-ops-usage-cell:hover,
     .ds-ops-mgmt-screen .ds-ops-workshops-table .ds-ops-usage-cell:focus,
     .ds-ops-mgmt-screen .ds-ops-workshops-table .ds-ops-usage-cell:focus-within,
-    .ds-ops-mgmt-screen .ds-ops-workshops-table .ds-ops-usage-cell:active,
-    .ds-ops-mgmt-screen .ds-ops-workshops-table .ds-ops-usage-cell.ops-inventory-edited { border:1px solid #94a3b8 !important; box-shadow:none; }
+    .ds-ops-mgmt-screen .ds-ops-workshops-table .ds-ops-usage-cell:active { border:1px solid #94a3b8 !important; box-shadow:none; }
     .ds-ops-mgmt-screen .ds-ops-workshops-table th { background:#dbeafe; color:#1e3a8a; font-weight:800; font-size:12px; }
     .ds-ops-mgmt-screen .ds-ops-workshops-table th:nth-child(1),
     .ds-ops-mgmt-screen .ds-ops-workshops-table td:nth-child(1) { width:76px; text-align:center; }
@@ -890,8 +888,6 @@ function opsManagementStylesHtml() {
     .ds-ops-mgmt-screen .ds-ops-dist-table th:nth-child(n+2),.ds-ops-mgmt-screen .ds-ops-dist-table td:nth-child(n+2) { text-align:center; width:90px; }
     .ds-ops-mgmt-screen .ds-ops-dist-table th:last-child,.ds-ops-mgmt-screen .ds-ops-dist-table td:last-child { width:60px; }
     .ds-ops-mgmt-screen .ds-ops-stock-cell { white-space:nowrap; }
-    .ds-ops-mgmt-screen .ds-ops-stock-edit-btn { background:none; border:1px solid #94a3b8; border-radius:4px; cursor:pointer; padding:1px 5px; font-size:11px; color:#475569; margin-inline-start:4px; line-height:1.4; vertical-align:middle; }
-    .ds-ops-mgmt-screen .ds-ops-stock-edit-btn:hover { background:#f1f5f9; color:#0369a1; }
     .ds-ops-mgmt-screen .ds-ops-stock-input { width:64px; text-align:center; font-size:12px; padding:2px 4px; border:1px solid #94a3b8; border-radius:4px; background:#fff; }
     .ds-ops-mgmt-screen .ds-ops-stock-save-btn { background:#0369a1; color:#fff; border:none; border-radius:4px; padding:2px 6px; cursor:pointer; font-size:11px; margin-inline-start:2px; }
     .ds-ops-mgmt-screen .ds-ops-stock-cancel-btn { background:#94a3b8; color:#fff; border:none; border-radius:4px; padding:2px 6px; cursor:pointer; font-size:11px; margin-inline-start:2px; }
@@ -928,7 +924,6 @@ function opsManagementStylesHtml() {
 
 let _schedulePrintContext = null;
 let _schoolsPrintContext = null;
-let _workshopsDistContext = null;
 
 function openOpsPrintWindow({ title = 'הדפסה', bodyHtml = '' } = {}) {
   const printWindow = window.open('', '_blank');
@@ -1148,216 +1143,6 @@ function printSchoolsSchedule() {
   setTimeout(() => printWindow.print(), 250);
 }
 
-async function saveWorkshopDistribution(stockGroupKey, instructorName, quantityReceived) {
-  if (!supabase) throw new Error('Supabase client is not configured');
-  const payload = {
-    stock_group_key: String(stockGroupKey || '').trim(),
-    instructor_name: String(instructorName || '').trim(),
-    quantity_received: quantityReceived !== null && Number.isFinite(Number(quantityReceived)) ? Number(quantityReceived) : null,
-    period_start: SUMMER_2026_FROM,
-    period_end: SUMMER_2026_TO,
-    updated_at: new Date().toISOString()
-  };
-  const { error } = await supabase.from('workshop_stock_distributions').upsert(payload, { onConflict: 'stock_group_key,instructor_name,period_start' });
-  if (error) throw error;
-}
-
-async function saveWorkshopDistributionWithNotes(stockGroupKey, instructorName, quantityReceived, notes = '') {
-  if (!supabase) throw new Error('Supabase client is not configured');
-  const payload = {
-    stock_group_key: String(stockGroupKey || '').trim(),
-    instructor_name: String(instructorName || '').trim(),
-    quantity_received: quantityReceived !== null && Number.isFinite(Number(quantityReceived)) ? Number(quantityReceived) : null,
-    period_start: SUMMER_2026_FROM,
-    period_end: SUMMER_2026_TO,
-    notes: String(notes || '').trim() || null,
-    updated_at: new Date().toISOString()
-  };
-  const { error } = await supabase.from('workshop_stock_distributions').upsert(payload, { onConflict: 'stock_group_key,instructor_name,period_start' });
-  if (error) throw error;
-}
-
-function openWorkshopDistModal(workshopName, rerender) {
-  const ctx = _workshopsDistContext;
-  if (!ctx) return;
-  const row = ctx.metrics.find((m) => m.workshopName === workshopName);
-  if (!row) return;
-
-  const instructorGroups = new Map();
-  (row.activities || []).forEach((activity) => {
-    const name = getActivityInstructorName(activity);
-    if (!name) return;
-    if (!instructorGroups.has(name)) instructorGroups.set(name, { name, count: 0 });
-    instructorGroups.get(name).count++;
-  });
-  const instructorList = Array.from(instructorGroups.values()).sort((a, b) => b.count - a.count);
-
-  const stockDisplay = row.stockQuantity !== null && row.stockQuantity !== undefined ? String(row.stockQuantity) : '—';
-
-  if (!document.getElementById('ds-ops-dist-modal-style')) {
-    const style = document.createElement('style');
-    style.id = 'ds-ops-dist-modal-style';
-    style.textContent = [
-      '.ds-dist-overlay{position:fixed;inset:0;background:rgba(0,0,0,.45);z-index:9000;display:flex;align-items:center;justify-content:center}',
-      '.ds-dist-modal{background:#fff;border-radius:12px;box-shadow:0 8px 32px rgba(0,0,0,.22);padding:20px 24px 16px;min-width:320px;max-width:560px;width:96vw;max-height:88vh;overflow-y:auto;direction:rtl;font-family:Assistant,Arial,sans-serif;font-size:13px;color:#111;position:relative}',
-      '.ds-dist-modal h3{margin:0 0 10px;font-size:15px;color:#0f172a;border-bottom:1px solid #e2e8f0;padding-bottom:8px;padding-left:28px}',
-      '.ds-dist-modal__info{font-size:12px;color:#475569;margin-bottom:8px}',
-      '.ds-dist-modal__summary{display:flex;gap:18px;background:#f1f5f9;border-radius:8px;padding:8px 12px;margin-bottom:12px;font-size:13px;flex-wrap:wrap}',
-      '.ds-dist-modal__summary b{color:#0f172a}',
-      '.ds-dist-modal__summary .ds-rem-shortage{color:#dc2626;font-weight:700}',
-      '.ds-dist-modal__summary .ds-rem-ok{color:#16a34a;font-weight:700}',
-      '.ds-dist-modal table{width:100%;border-collapse:collapse;font-size:12px}',
-      '.ds-dist-modal th,.ds-dist-modal td{border:1px solid #cbd5e1;padding:5px 7px;text-align:right}',
-      '.ds-dist-modal th{background:#dbeafe;color:#1e3a8a;font-weight:700}',
-      '.ds-dist-modal input[type=number]{width:68px;padding:3px 4px;border:1px solid #94a3b8;border-radius:4px;text-align:center;font-size:12px}',
-      '.ds-dist-modal input[type=text]{width:120px;padding:3px 4px;border:1px solid #94a3b8;border-radius:4px;font-size:12px}',
-      '.ds-dist-modal__footer{display:flex;gap:8px;justify-content:flex-start;margin-top:14px;border-top:1px solid #e2e8f0;padding-top:12px}',
-      '.ds-dist-modal__close-btn{position:absolute;top:14px;left:14px;background:none;border:none;font-size:18px;cursor:pointer;color:#64748b;line-height:1;padding:0 4px}',
-      '.ds-dist-modal__close-btn:hover{color:#111}'
-    ].join('');
-    document.head.appendChild(style);
-  }
-
-  const instrRowsHtml = instructorList.map((ig) => {
-    const dist = ctx.distributions.find((d) => d.stock_group_key === row.stockGroupKey && d.instructor_name === ig.name);
-    const qty = dist?.quantity_received !== null && dist?.quantity_received !== undefined ? String(dist.quantity_received) : '';
-    const notes = dist?.notes || '';
-    return `<tr>
-      <td>${escapeHtml(ig.name)}<small style="color:#94a3b8;margin-right:4px">(${ig.count} סדנאות)</small></td>
-      <td><input type="number" class="ds-dist-qty-input" data-instructor="${escapeHtml(ig.name)}" value="${escapeHtml(qty)}" min="0" placeholder="—"></td>
-      <td><input type="text" class="ds-dist-notes-input" data-instructor="${escapeHtml(ig.name)}" value="${escapeHtml(notes)}" placeholder="הערה..."></td>
-    </tr>`;
-  }).join('');
-
-  const calcUsage = () => {
-    let total = 0;
-    ctx.distributions.filter((d) => d.stock_group_key === row.stockGroupKey).forEach((d) => {
-      const v = Number(d.quantity_received);
-      if (Number.isFinite(v)) total += v;
-    });
-    return total;
-  };
-
-  const initUsage = calcUsage();
-  const initRemainder = row.stockQuantity !== null ? row.stockQuantity - initUsage : null;
-  const remClass = (v) => (v !== null && v < 0 ? 'ds-rem-shortage' : 'ds-rem-ok');
-
-  const overlay = document.createElement('div');
-  overlay.className = 'ds-dist-overlay';
-  overlay.innerHTML = `
-    <div class="ds-dist-modal">
-      <button type="button" class="ds-dist-modal__close-btn" title="סגור">✕</button>
-      <h3>עדכון שימוש מלאי לפי מדריכים</h3>
-      <div class="ds-dist-modal__info"><strong>${escapeHtml(row.workshopName)}</strong>${row.workshopNo ? ` · מס׳ ${escapeHtml(row.workshopNo)}` : ''}</div>
-      <div class="ds-dist-modal__summary">
-        <div>כמות מלאי: <b>${escapeHtml(stockDisplay)}</b></div>
-        <div>שימוש נוכחי: <b class="ds-dist-usage-sum">${initUsage}</b></div>
-        <div>יתרה: <b class="ds-dist-remainder ${remClass(initRemainder)}">${initRemainder !== null ? String(initRemainder) : '—'}</b></div>
-      </div>
-      <table>
-        <thead><tr><th>מדריך</th><th>כמות שחולקה</th><th>הערות</th></tr></thead>
-        <tbody>${instrRowsHtml || '<tr><td colspan="3" style="text-align:center;color:#94a3b8;padding:10px">לא נמצאו מדריכים בסדנאות אלה</td></tr>'}</tbody>
-      </table>
-      <div class="ds-dist-modal__footer">
-        <button type="button" class="ds-btn ds-btn--primary ds-dist-save-btn">שמירה</button>
-        <button type="button" class="ds-btn ds-dist-cancel-btn">ביטול</button>
-      </div>
-    </div>`;
-  document.body.appendChild(overlay);
-
-  function updateSummary() {
-    let total = 0;
-    overlay.querySelectorAll('.ds-dist-qty-input').forEach((inp) => {
-      const v = Number(inp.value);
-      if (Number.isFinite(v) && v >= 0) total += v;
-    });
-    overlay.querySelector('.ds-dist-usage-sum').textContent = String(total);
-    const rem = row.stockQuantity !== null ? row.stockQuantity - total : null;
-    const remEl = overlay.querySelector('.ds-dist-remainder');
-    remEl.textContent = rem !== null ? String(rem) : '—';
-    remEl.className = `ds-dist-remainder ${remClass(rem)}`;
-  }
-  overlay.querySelectorAll('.ds-dist-qty-input').forEach((inp) => inp.addEventListener('input', updateSummary));
-
-  function hasChanges() {
-    let changed = false;
-    overlay.querySelectorAll('.ds-dist-qty-input').forEach((inp) => {
-      const name = inp.getAttribute('data-instructor');
-      const dist = ctx.distributions.find((d) => d.stock_group_key === row.stockGroupKey && d.instructor_name === name);
-      const saved = dist?.quantity_received !== null && dist?.quantity_received !== undefined ? String(dist.quantity_received) : '';
-      if (inp.value !== saved) changed = true;
-    });
-    overlay.querySelectorAll('.ds-dist-notes-input').forEach((inp) => {
-      const name = inp.getAttribute('data-instructor');
-      const dist = ctx.distributions.find((d) => d.stock_group_key === row.stockGroupKey && d.instructor_name === name);
-      const saved = dist?.notes || '';
-      if (inp.value !== saved) changed = true;
-    });
-    return changed;
-  }
-
-  function closeModal() { overlay.remove(); }
-
-  function confirmClose() {
-    if (hasChanges() && !confirm('יש שינויים שלא נשמרו. לצאת בלי לשמור?')) return;
-    closeModal();
-  }
-
-  overlay.querySelector('.ds-dist-modal__close-btn').addEventListener('click', confirmClose);
-  overlay.querySelector('.ds-dist-cancel-btn').addEventListener('click', confirmClose);
-  overlay.addEventListener('click', (e) => { if (e.target === overlay) confirmClose(); });
-
-  const saveBtn = overlay.querySelector('.ds-dist-save-btn');
-  saveBtn.addEventListener('click', async () => {
-    saveBtn.disabled = true;
-    saveBtn.textContent = 'שומר...';
-    try {
-      const saves = [];
-      overlay.querySelectorAll('.ds-dist-qty-input').forEach((inp) => {
-        const instructorName = inp.getAttribute('data-instructor');
-        const notesInput = overlay.querySelector(`.ds-dist-notes-input[data-instructor="${CSS.escape(instructorName)}"]`);
-        const rawQty = inp.value.trim();
-        const qty = rawQty !== '' && Number.isFinite(Number(rawQty)) ? Number(rawQty) : null;
-        const notesVal = notesInput ? notesInput.value.trim() : '';
-        saves.push(
-          saveWorkshopDistributionWithNotes(row.stockGroupKey, instructorName, qty, notesVal).then(() => {
-            const idx = ctx.distributions.findIndex((d) => d.stock_group_key === row.stockGroupKey && d.instructor_name === instructorName);
-            const entry = { stock_group_key: row.stockGroupKey, instructor_name: instructorName, quantity_received: qty, notes: notesVal, period_start: SUMMER_2026_FROM };
-            if (idx >= 0) ctx.distributions[idx] = { ...ctx.distributions[idx], ...entry };
-            else ctx.distributions.push(entry);
-          })
-        );
-      });
-      await Promise.all(saves);
-      saveBtn.textContent = '✓ נשמר!';
-      setTimeout(() => { closeModal(); rerender?.(); }, 850);
-    } catch (err) {
-      console.error('[operations-management] Failed to save distributions:', err);
-      alert('שמירה נכשלה. יש לנסות שוב.');
-      saveBtn.disabled = false;
-      saveBtn.textContent = 'שמירה';
-    }
-  });
-}
-
-async function updateWorkshopStockGroup(stockGroupKey, stockQuantity) {
-  if (!supabase) throw new Error('Supabase client is not configured');
-  const cleanKey = String(stockGroupKey || '').trim();
-  const query = supabase
-    .from('lists')
-    .update({ stock_quantity: stockQuantity })
-    .eq('category', 'activity_names')
-    .eq('type', 'workshop')
-    .eq('activity_type', 'workshop');
-  if (cleanKey.startsWith('activity_')) {
-    query.eq('activity_no', cleanKey.replace(/^activity_/, ''));
-  } else {
-    query.eq('stock_group_key', cleanKey);
-  }
-  const { error } = await query;
-  if (error) throw error;
-}
-
 function instructorsTabHtml(rows, state, data = {}, directory = buildSchoolsDirectory([]), contactsIndex = new Map()) {
   const ops = ensureOpsState(state);
   const filters = ensureActivityListFilters(state, SCOPE);
@@ -1405,7 +1190,7 @@ function instructorsTabHtml(rows, state, data = {}, directory = buildSchoolsDire
   </section>`;
 }
 
-function workshopsTabHtml(rows, state, stockMap, catalogRows = [], distributions = []) {
+function workshopsTabHtml(rows, state, stockMap, catalogRows = []) {
   const ops = ensureOpsState(state);
   const allMetrics = sortByConfig(workshopMetricsRows(rows, stockMap, catalogRows), state, TAB_WORKSHOPS, {
     workshopNo: (row) => row.workshopNo || row.workshopName,
@@ -1419,7 +1204,7 @@ function workshopsTabHtml(rows, state, stockMap, catalogRows = [], distributions
   });
 
   const table = metrics.length
-    ? dsTableWrap(`<table class="ds-table ds-table--compact ds-table--interactive ds-ops-mgmt-data-table ds-ops-workshops-table"><thead><tr>
+    ? dsTableWrap(`<table class="ds-table ds-table--compact ds-ops-mgmt-data-table ds-ops-workshops-table"><thead><tr>
         ${sortableTh(state, TAB_WORKSHOPS, 'workshopNo', 'מס׳ / קבוצה')}
         ${sortableTh(state, TAB_WORKSHOPS, 'workshopName', 'שם פריט מלאי')}
         ${sortableTh(state, TAB_WORKSHOPS, 'activityCount', 'כמות סדנאות')}
@@ -1444,13 +1229,11 @@ function workshopsTabHtml(rows, state, stockMap, catalogRows = [], distributions
           <td>${row.activityCount}</td>
           <td>${requiredQuantity}</td>
           <td>${escapeHtml(stockDisplay)}</td>
-          <td class="ds-ops-usage-cell">${usageHtml}<button type="button" class="ds-ops-stock-edit-btn" data-ops-dist-edit="${escapeHtml(row.workshopName)}" title="ערוך חלוקת מלאי למדריכים">✎</button></td>
+          <td class="ds-ops-usage-cell">${usageHtml}</td>
           <td>${remainderHtml}</td>
         </tr>`;
       }).join('')}</tbody></table>`)
     : dsEmptyState('לא נמצאו סדנאות בתקופת הקיץ');
-
-  _workshopsDistContext = { metrics, distributions };
 
   return `<section class="ds-ops-mgmt-panel ds-ops-workshops-panel" dir="rtl">
     <div class="ds-ops-mgmt-panel__toolbar no-print">
@@ -1585,8 +1368,7 @@ function renderTab(rows, state, data, allPreparedRows = []) {
       activityMatchesPeriod(row, ACTIVITY_SEASON_SUMMER_2026) &&
       activityOverlapsDateRange(row, SUMMER_2026_FROM, SUMMER_2026_TO)
     );
-    const distributions = Array.isArray(data?.workshopDistributions) ? data.workshopDistributions : [];
-    return workshopsTabHtml(summerRows, state, stockMap, catalogRows, distributions);
+    return workshopsTabHtml(summerRows, state, stockMap, catalogRows);
   }
   return instructorsTabHtml(rows, state, data, directory, contactsIndex);
 }
@@ -1599,22 +1381,13 @@ export const operationsManagementScreen = {
       readOperationsSchoolsDirectory(),
       readContactsSchools()
     ]);
-    let workshopDistributions = [];
-    try {
-      const { data, error } = await supabase.from('workshop_stock_distributions').select('*');
-      if (error) throw error;
-      workshopDistributions = Array.isArray(data) ? data : [];
-    } catch (err) {
-      console.warn('[operations-management] Failed to load workshop_stock_distributions:', err);
-    }
     return {
       ...activities,
       schoolsDirectoryRows: schoolsDirectory.rows,
       schoolsDirectorySource: schoolsDirectory.source,
       workshopStockMap: buildWorkshopStockMapFromLists(lists),
       adminListsData: lists,
-      contactsSchoolsRows,
-      workshopDistributions
+      contactsSchoolsRows
     };
   },
   render(data, { state } = {}) {
@@ -1702,14 +1475,6 @@ export const operationsManagementScreen = {
     root.querySelector('[data-ops-print]')?.addEventListener('click', () => printInstructorSchedule());
     root.querySelector('[data-ops-print-workshops]')?.addEventListener('click', () => printWorkshopsFromDom(root));
     root.querySelector('[data-ops-print-schools]')?.addEventListener('click', () => printSchoolsSchedule());
-
-
-    root.querySelectorAll('[data-ops-dist-edit]').forEach((btn) => {
-      btn.addEventListener('click', () => {
-        const name = btn.getAttribute('data-ops-dist-edit') || '';
-        openWorkshopDistModal(name, rerender);
-      });
-    });
 
     root.querySelectorAll('[data-ops-school]').forEach((btn) => {
       btn.addEventListener('click', () => {

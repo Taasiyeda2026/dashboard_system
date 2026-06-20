@@ -174,6 +174,8 @@ test('workshops tab shows inventory columns and print action', () => {
   assert.match(html, /יתרת מלאי/);
   assert.match(html, /הדפס כמויות סדנאות/);
   assert.match(html, /ds-ops-gap--ok/);
+  assert.doesNotMatch(html, /data-ops-dist-edit/);
+  assert.doesNotMatch(html, /ds-ops-stock-edit-btn/);
   assert.match(html, />50</);
   assert.match(html, />238</);
   assert.match(html, />62</);
@@ -197,11 +199,46 @@ test('workshops inventory remainder uses existing stock minus usage', () => {
     workshopStockMap: buildWorkshopStockMapFromLists(adminListsData),
     adminListsData
   }, { state });
-  const tableHtml = html.slice(html.indexOf('<table class="ds-table ds-table--compact ds-table--interactive ds-ops-mgmt-data-table ds-ops-workshops-table"'));
+  const tableHtml = html.slice(html.indexOf('<table class="ds-table ds-table--compact ds-ops-mgmt-data-table ds-ops-workshops-table"'));
   assert.match(tableHtml, />2500<[^]*>194<[^]*>2306</);
   assert.match(tableHtml, />100<[^]*>100<[^]*><span class="ds-ops-gap ds-ops-gap--ok">0<\/span>/);
   assert.match(tableHtml, />390<[^]*>450<[^]*><span class="ds-ops-gap ds-ops-gap--shortage"><span dir="ltr">-60<\/span><\/span>/);
   assert.match(html, /ds-ops-workshops-table td:active \{ border:1px solid #94a3b8 !important;/);
+});
+
+test('workshops inventory usage is read-only and sums participants_count from activities', () => {
+  const state = baseState();
+  state.operationsManagement.tab = 'workshops';
+  const adminListsData = { categories: [{ category: 'activity_names', items: [
+    { value: '201', _row: { category: 'activity_names', type: 'workshop', activity_type: 'workshop', active: true, activity_no: '201', activity_name: 'סדנת סיכום', stock_quantity: 500 } }
+  ] }] };
+  const baseRows = [
+    { RowID: 'U-1', status: 'פתוח', activity_name: 'סדנת סיכום', start_date: '2026-07-10', activity_season: 'summer_2026', activity_type: 'workshop', participants_count: 80 },
+    { RowID: 'U-2', status: 'פתוח', activity_name: 'סדנת סיכום', start_date: '2026-07-11', activity_season: 'summer_2026', activity_type: 'workshop', participants_count: null },
+    { RowID: 'U-3', status: 'פתוח', activity_name: 'סדנת סיכום', start_date: '2026-07-12', activity_season: 'summer_2026', activity_type: 'workshop' }
+  ];
+  const html = operationsManagementScreen.render({
+    rows: baseRows,
+    workshopStockMap: buildWorkshopStockMapFromLists(adminListsData),
+    adminListsData
+  }, { state });
+  const tableHtml = html.slice(html.indexOf('<table class="ds-table ds-table--compact ds-ops-mgmt-data-table ds-ops-workshops-table"'));
+  assert.match(tableHtml, />3</);
+  assert.match(tableHtml, />75</);
+  assert.match(tableHtml, />80</);
+  assert.match(tableHtml, />420</);
+  assert.doesNotMatch(tableHtml, /data-ops-dist-edit/);
+  assert.doesNotMatch(tableHtml, /ds-ops-stock-edit-btn/);
+  assert.doesNotMatch(tableHtml, /role="button"/);
+
+  const updatedHtml = operationsManagementScreen.render({
+    rows: baseRows.map((row) => row.RowID === 'U-3' ? { ...row, participants_count: 40 } : row),
+    workshopStockMap: buildWorkshopStockMapFromLists(adminListsData),
+    adminListsData
+  }, { state });
+  const updatedTableHtml = updatedHtml.slice(updatedHtml.indexOf('<table class="ds-table ds-table--compact ds-ops-mgmt-data-table ds-ops-workshops-table"'));
+  assert.match(updatedTableHtml, />120</);
+  assert.match(updatedTableHtml, />380</);
 });
 
 
@@ -216,7 +253,7 @@ test('workshops inventory uses x25 required quantity and shows missing participa
     workshopStockMap: buildWorkshopStockMapFromLists(adminListsData),
     adminListsData
   }, { state });
-  const tableHtml = html.slice(html.indexOf('<table class="ds-table ds-table--compact ds-table--interactive ds-ops-mgmt-data-table ds-ops-workshops-table"'));
+  const tableHtml = html.slice(html.indexOf('<table class="ds-table ds-table--compact ds-ops-mgmt-data-table ds-ops-workshops-table"'));
   assert.match(tableHtml, />25</);
   assert.match(tableHtml, />0</);
   assert.doesNotMatch(tableHtml, /לא עודכן/);
@@ -241,7 +278,7 @@ test('workshops inventory tab excludes courses and after-school catalog rows', (
     workshopStockMap: buildWorkshopStockMapFromLists(adminListsData),
     adminListsData
   }, { state });
-  const tableHtml = html.slice(html.indexOf('<table class="ds-table ds-table--compact ds-table--interactive ds-ops-mgmt-data-table ds-ops-workshops-table"'));
+  const tableHtml = html.slice(html.indexOf('<table class="ds-table ds-table--compact ds-ops-mgmt-data-table ds-ops-workshops-table"'));
   assert.match(tableHtml, /סדנה אמיתית/);
   assert.doesNotMatch(tableHtml, /קורס רובוטיקה/);
   assert.doesNotMatch(tableHtml, /אפטר סקול מדעים/);
@@ -331,7 +368,7 @@ test('workshops inventory groups physical stock by stock_group_key', () => {
     workshopStockMap: buildWorkshopStockMapFromLists(adminListsData),
     adminListsData
   }, { state });
-  const tableHtml = html.slice(html.indexOf('<table class="ds-table ds-table--compact ds-table--interactive ds-ops-mgmt-data-table ds-ops-workshops-table"'));
+  const tableHtml = html.slice(html.indexOf('<table class="ds-table ds-table--compact ds-ops-mgmt-data-table ds-ops-workshops-table"'));
   assert.equal((tableHtml.match(/data-ops-stock-group="magic_box"/g) || []).length, 1);
   assert.match(tableHtml, /024 - קופת קסם/);
   assert.match(tableHtml, /029 - קופת קסם/);
