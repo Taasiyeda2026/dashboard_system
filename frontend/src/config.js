@@ -46,5 +46,5 @@ if (!resolvedUrl) {
 export const config = {
   apiUrl: resolvedUrl,
   DIAGNOSTICS_UI_ENABLED: false,
-  HOTFIX_VERSION: 'lists-bootstrap-fix-20260620-v5'
+  HOTFIX_VERSION: 'proposals-ui-overhaul-20260620-v1'
 };
