@@ -2104,7 +2104,9 @@ test('proposal preview renders recipient block before title without empty commas
   });
 });
 
-test('proposal preview uses updated central contact details when reopening', async () => {
+test('proposal preview preserves saved contact details and does not override with directory data', async () => {
+  // The contact saved on the proposal is the source of truth.
+  // A matching contact with updated role in the directory must NOT override the saved role.
   const row = {
     ...sampleRows[0],
     contact_name: 'דנה קשר',
@@ -2134,8 +2136,11 @@ test('proposal preview uses updated central contact details when reopening', asy
     await delay(20);
 
     const address = dom.window.document.querySelector('.pa-doc-address');
-    assert.match(address.textContent, /דנה קשר, מנהלת מעודכנת/);
-    assert.doesNotMatch(address.textContent, /תפקיד ישן|undefined|null|NaN/);
+    // Saved contact name must appear
+    assert.match(address.textContent, /דנה קשר/);
+    // Saved role (not the directory's updated role) must appear
+    assert.match(address.textContent, /תפקיד ישן/);
+    assert.doesNotMatch(address.textContent, /מנהלת מעודכנת|undefined|null|NaN/);
   });
 });
 
