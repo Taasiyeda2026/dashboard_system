@@ -1,6 +1,10 @@
 const AUTHORITIES_TAB_KEY = 'authorities';
 const SCHOOLS_TAB_KEY = 'schools';
-let authoritiesCleanupQueued = false;
+const FIXED_PERIOD = 'summer_2026';
+const FIXED_FROM = '2026-06-15';
+const FIXED_TO = '2026-08-31';
+let operationsCleanupQueued = false;
+let enforcingRange = false;
 
 function getActiveOpsTab(root) {
   const active = root?.querySelector?.('.ds-ops-mgmt-tab.is-active[data-ops-tab]');
@@ -12,12 +16,14 @@ function isAuthoritiesView(root) {
   return tab === AUTHORITIES_TAB_KEY || tab === SCHOOLS_TAB_KEY;
 }
 
-function ensureAuthoritiesCleanupStyle() {
+function ensureOperationsCleanupStyle() {
   if (document.getElementById('ops-authorities-cleanup-style')) return;
   const style = document.createElement('style');
   style.id = 'ops-authorities-cleanup-style';
   style.textContent = `
-    .ds-ops-mgmt-screen.ops-authorities-clean .ds-filter-field--search,
+    .ds-ops-mgmt-screen .ds-filter-field--search {
+      display: none !important;
+    }
     .ds-ops-mgmt-screen.ops-authorities-clean .ds-ops-mgmt-summary-line,
     .ds-ops-mgmt-screen.ops-authorities-clean .ds-ops-schools-authority__stats {
       display: none !important;
@@ -33,29 +39,52 @@ function resetHiddenSearch(root) {
   searchInput.dispatchEvent(new Event('input', { bubbles: true }));
 }
 
-function cleanAuthoritiesTab() {
-  const root = document.querySelector('.ds-ops-mgmt-screen');
-  if (!root) return;
-  ensureAuthoritiesCleanupStyle();
-  const active = isAuthoritiesView(root);
-  root.classList.toggle('ops-authorities-clean', active);
-  if (active) resetHiddenSearch(root);
+function setFieldValue(element, value) {
+  if (!element || element.value === value) return false;
+  element.value = value;
+  element.dispatchEvent(new Event('change', { bubbles: true }));
+  return true;
 }
 
-function scheduleAuthoritiesCleanup() {
-  if (authoritiesCleanupQueued) return;
-  authoritiesCleanupQueued = true;
+function enforceFixedOperationsRange(root) {
+  if (!root || enforcingRange) return;
+  enforcingRange = true;
+
+  const periodSelect = root.querySelector('[data-ops-period]');
+  if (periodSelect) {
+    const hasSummerOption = Array.from(periodSelect.options || []).some((option) => option.value === FIXED_PERIOD);
+    if (hasSummerOption) setFieldValue(periodSelect, FIXED_PERIOD);
+  }
+
+  setFieldValue(root.querySelector('[data-ops-date="from"]'), FIXED_FROM);
+  setFieldValue(root.querySelector('[data-ops-date="to"]'), FIXED_TO);
+
+  setTimeout(() => { enforcingRange = false; }, 0);
+}
+
+function cleanOperationsPage() {
+  const root = document.querySelector('.ds-ops-mgmt-screen');
+  if (!root) return;
+  ensureOperationsCleanupStyle();
+  resetHiddenSearch(root);
+  enforceFixedOperationsRange(root);
+  root.classList.toggle('ops-authorities-clean', isAuthoritiesView(root));
+}
+
+function scheduleOperationsCleanup() {
+  if (operationsCleanupQueued) return;
+  operationsCleanupQueued = true;
   setTimeout(() => {
-    authoritiesCleanupQueued = false;
-    cleanAuthoritiesTab();
+    operationsCleanupQueued = false;
+    cleanOperationsPage();
   }, 80);
 }
 
 if (typeof document !== 'undefined') {
   if (document.readyState === 'loading') {
-    document.addEventListener('DOMContentLoaded', scheduleAuthoritiesCleanup, { once: true });
+    document.addEventListener('DOMContentLoaded', scheduleOperationsCleanup, { once: true });
   } else {
-    scheduleAuthoritiesCleanup();
+    scheduleOperationsCleanup();
   }
-  new MutationObserver(scheduleAuthoritiesCleanup).observe(document.documentElement, { childList: true, subtree: true, attributes: true, attributeFilter: ['class', 'aria-pressed'] });
+  new MutationObserver(scheduleOperationsCleanup).observe(document.documentElement, { childList: true, subtree: true, attributes: true, attributeFilter: ['class', 'aria-pressed', 'value'] });
 }
