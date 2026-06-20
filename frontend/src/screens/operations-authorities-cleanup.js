@@ -66,10 +66,10 @@ function ensureOperationsCleanupStyle() {
 
       .ds-ops-mgmt-screen.ops-authorities-clean .ds-ops-authority-date .ds-table-wrap,
       .ds-ops-mgmt-screen.ops-authorities-clean .ds-table-wrap:has(.ds-ops-authorities-table) {
-        width: 100% !important;
-        max-width: 100% !important;
+        width: min(780px, 100%) !important;
+        max-width: 780px !important;
         overflow-x: visible !important;
-        margin-inline: 0 !important;
+        margin-inline: auto !important;
         box-sizing: border-box !important;
       }
 
@@ -92,13 +92,16 @@ function ensureOperationsCleanupStyle() {
       .ds-ops-mgmt-screen.ops-authorities-clean .ds-ops-authorities-table col.ds-ops-col--instructor,
       .ds-ops-mgmt-screen.ops-authorities-clean .ds-ops-authorities-table th.ds-ops-col--instructor,
       .ds-ops-mgmt-screen.ops-authorities-clean .ds-ops-authorities-table td.ds-ops-col--instructor {
-        width: 28% !important;
+        width: 26% !important;
+        white-space: nowrap !important;
+        overflow: hidden !important;
+        text-overflow: ellipsis !important;
       }
 
       .ds-ops-mgmt-screen.ops-authorities-clean .ds-ops-authorities-table col.ds-ops-col--grade,
       .ds-ops-mgmt-screen.ops-authorities-clean .ds-ops-authorities-table th.ds-ops-col--grade,
       .ds-ops-mgmt-screen.ops-authorities-clean .ds-ops-authorities-table td.ds-ops-col--grade {
-        width: 14% !important;
+        width: 12% !important;
         max-width: none !important;
         text-align: center !important;
         white-space: nowrap !important;
@@ -107,7 +110,7 @@ function ensureOperationsCleanupStyle() {
       .ds-ops-mgmt-screen.ops-authorities-clean .ds-ops-authorities-table col.ds-ops-col--activity,
       .ds-ops-mgmt-screen.ops-authorities-clean .ds-ops-authorities-table th.ds-ops-col--activity,
       .ds-ops-mgmt-screen.ops-authorities-clean .ds-ops-authorities-table td.ds-ops-col--activity {
-        width: 40% !important;
+        width: 44% !important;
         max-width: none !important;
         white-space: nowrap !important;
         overflow: hidden !important;
@@ -123,9 +126,9 @@ function ensureOperationsCleanupStyle() {
       }
 
       .ds-ops-mgmt-screen.ops-authorities-clean .ds-ops-authority-date__title {
-        width: 100% !important;
-        max-width: 100% !important;
-        margin-inline: 0 !important;
+        width: min(780px, 100%) !important;
+        max-width: 780px !important;
+        margin-inline: auto !important;
         text-align: center !important;
         box-sizing: border-box !important;
       }
