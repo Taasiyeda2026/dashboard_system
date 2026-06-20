@@ -58,6 +58,22 @@ function addOperationsVisualTweaksStyle() {
     #app.ds-activities-archive-mode .ds-table--activities-list thead th:nth-child(1) {
       width: 24%;
     }
+    #app.ds-activities-archive-mode .ds-table--activities-list tbody td:nth-child(1),
+    #app.ds-activities-archive-mode .ds-table--activities-list thead th:nth-child(1),
+    #app.ds-activities-archive-mode .ds-table--activities-list tbody td:nth-child(2),
+    #app.ds-activities-archive-mode .ds-table--activities-list thead th:nth-child(2),
+    #app.ds-activities-archive-mode .ds-table--activities-list tbody td:nth-child(3),
+    #app.ds-activities-archive-mode .ds-table--activities-list thead th:nth-child(3),
+    #app.ds-activities-archive-mode .ds-table--activities-list tbody td:nth-child(4),
+    #app.ds-activities-archive-mode .ds-table--activities-list thead th:nth-child(4),
+    #app.ds-activities-archive-mode .ds-table--activities-list tbody td:nth-child(5),
+    #app.ds-activities-archive-mode .ds-table--activities-list thead th:nth-child(5) {
+      text-align: right;
+    }
+    #app.ds-activities-archive-mode .ds-table--activities-list tbody td:nth-child(5),
+    #app.ds-activities-archive-mode .ds-table--activities-list thead th:nth-child(5) {
+      text-align: right;
+    }
     #app.ds-activities-archive-mode .ds-table--activities-list tbody td:nth-child(2),
     #app.ds-activities-archive-mode .ds-table--activities-list thead th:nth-child(2),
     #app.ds-activities-archive-mode .ds-table--activities-list tbody td:nth-child(3),

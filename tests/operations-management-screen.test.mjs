@@ -133,7 +133,7 @@ test('workshop quantity metrics use x25 estimate and stock gap rules', () => {
   assert.equal(withActual.estimatedQuantity, 250);
   assert.equal(withActual.actualQuantity, 238);
   assert.equal(withActual.stockQuantity, 300);
-  assert.equal(withActual.gap, 62);
+  assert.equal(withActual.gap, 50);
 
   const withoutActual = buildWorkshopQuantityMetrics({
     workshopName: 'אסטרונאוט על חוטים',
@@ -173,9 +173,9 @@ test('workshops tab shows inventory columns and print action', () => {
   assert.match(html, /יתרת מלאי/);
   assert.match(html, /הדפס כמויות סדנאות/);
   assert.match(html, /ds-ops-gap--ok/);
-  assert.match(html, />50</);
+  assert.match(html, />250</);
   assert.match(html, />238</);
-  assert.match(html, />62</);
+  assert.match(html, />50</);
   assert.match(html, />300</);
 });
 

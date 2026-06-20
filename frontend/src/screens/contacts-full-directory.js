@@ -13,6 +13,10 @@ let directoryPromise = null;
 let lastSearch = '';
 let activeLetter = '';
 let isRendering = false;
+let suppressEnhance = false;
+let listWrapRef = null;
+let cachedDirectoryData = null;
+let letterDelegationBound = false;
 
 const HEBREW_LETTERS = ['א','ב','ג','ד','ה','ו','ז','ח','ט','י','כ','ל','מ','נ','ס','ע','פ','צ','ק','ר','ש','ת'];
 
@@ -240,6 +244,8 @@ function ensureStyle() {
     .contacts-full-letter{min-width:34px;height:34px;border:1px solid #dbe6ee;border-radius:999px;background:#fff;color:#0f172a;font-weight:800;cursor:pointer}
     .contacts-full-letter:hover,.contacts-full-letter.is-active{background:var(--ds-accent,#0292b7);border-color:var(--ds-accent,#0292b7);color:#fff}
     .contacts-full-list{display:grid;gap:10px;width:min(920px,100%);margin:0 auto}
+    .contacts-list-wrap.contacts-list-wrap--directory{max-width:960px;margin-inline:auto}
+    .contacts-toolbar-row .ds-btn--contact-add{display:none!important}
     .cfd-authority{border:1px solid #dbe6ee;border-radius:16px;background:#fff;box-shadow:0 6px 18px rgba(15,23,42,.045);overflow:hidden}
     .cfd-authority[open]{border-color:rgba(2,146,183,.34);box-shadow:0 8px 22px rgba(2,146,183,.08)}
     .cfd-authority__head{cursor:pointer;list-style:none;display:flex;gap:10px;align-items:center;padding:12px 14px;background:#fff}
@@ -397,21 +403,35 @@ function firstHebrewLetter(value) {
   return normalized.charAt(0);
 }
 
+function bindLetterDelegation() {
+  if (letterDelegationBound) return;
+  letterDelegationBound = true;
+  document.addEventListener('click', (event) => {
+    const button = event.target?.closest?.('[data-contacts-letter]');
+    if (!button || !listWrapRef?.contains(button)) return;
+    event.preventDefault();
+    event.stopPropagation();
+    const letter = button.getAttribute('data-contacts-letter') || '';
+    activeLetter = activeLetter === letter ? '' : letter;
+    if (cachedDirectoryData && listWrapRef) {
+      renderDirectory(listWrapRef, cachedDirectoryData);
+    }
+  });
+}
+
 function alphabetHtml() {
   return `<div class="contacts-full-alphabet" dir="rtl" aria-label="בחירת אות">${HEBREW_LETTERS.map((letter) => `<button type="button" class="contacts-full-letter${activeLetter === letter ? ' is-active' : ''}" data-contacts-letter="${letter}" aria-pressed="${activeLetter === letter ? 'true' : 'false'}">${letter}</button>`).join('')}</div>`;
 }
 
 function bindLetterButtons(listWrap, data) {
-  listWrap.querySelectorAll('[data-contacts-letter]').forEach((button) => {
-    button.addEventListener('click', () => {
-      const letter = button.getAttribute('data-contacts-letter') || '';
-      activeLetter = activeLetter === letter ? '' : letter;
-      renderDirectory(listWrap, data);
-    });
-  });
+  void listWrap;
+  void data;
 }
 
 function renderDirectory(listWrap, data) {
+  cachedDirectoryData = data;
+  listWrapRef = listWrap;
+  bindLetterDelegation();
   const search = text(lastSearch);
   const filteredAuthorities = activeLetter
     ? data.authorities.filter((bucket) => firstHebrewLetter(bucket.authority_name) === activeLetter)
@@ -420,10 +440,17 @@ function renderDirectory(listWrap, data) {
   const listHtml = authoritiesForDisplay.map((bucket) => authorityHtml(bucket, search)).filter(Boolean).join('');
   const hasDirectoryRequest = Boolean(activeLetter || search);
   const emptyHtml = hasDirectoryRequest ? '<div class="cfd-empty">לא נמצאו תוצאות לחיפוש</div>' : '';
-  listWrap.innerHTML = `${alphabetHtml()}
+  const summaryHtml = `<div class="contacts-full-summary" dir="rtl">
+    <span class="contacts-full-summary__chip">רשויות: <strong>${data.authorityCount ?? data.authorities.length}</strong></span>
+    <span class="contacts-full-summary__chip">בתי ספר: <strong>${data.schoolCount ?? 0}</strong></span>
+    <span class="contacts-full-summary__chip">אנשי קשר: <strong>${data.contactCount ?? 0}</strong></span>
+  </div>`;
+  suppressEnhance = true;
+  listWrap.innerHTML = `${summaryHtml}${alphabetHtml()}
   <div class="contacts-full-list" dir="rtl">${listHtml || emptyHtml}</div>`;
   listWrap.setAttribute(ENHANCED_ATTR, 'yes');
-  bindLetterButtons(listWrap, data);
+  listWrap.classList.add('contacts-list-wrap--directory');
+  requestAnimationFrame(() => { suppressEnhance = false; });
 }
 
 function isSchoolContactsTabActive(root) {
@@ -483,6 +510,7 @@ async function enhanceContactsDirectory() {
 }
 
 function scheduleEnhance() {
+  if (suppressEnhance) return;
   if (scheduleEnhance._timer) window.clearTimeout(scheduleEnhance._timer);
   scheduleEnhance._timer = window.setTimeout(() => {
     enhanceContactsDirectory().catch(() => {});
@@ -499,7 +527,11 @@ if (typeof window !== 'undefined' && typeof document !== 'undefined') {
   window.addEventListener('popstate', scheduleEnhance);
   document.addEventListener('click', (event) => {
     const target = event.target;
-    if (target?.closest?.('[data-contacts-tab]')) scheduleEnhance();
+    if (target?.closest?.('[data-contacts-tab]')) {
+      activeLetter = '';
+      lastSearch = '';
+      scheduleEnhance();
+    }
   }, true);
   scheduleEnhance();
 }

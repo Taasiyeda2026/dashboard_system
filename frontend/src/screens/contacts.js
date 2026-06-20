@@ -378,7 +378,7 @@ function renderAuthorityAccordion(authority, bucket) {
     : '';
   const authoritySection = authPersonsHtml
     ? `<section class="sc-sub-group sc-sub-group--authority">
-        <div class="sc-sub-group__title"><span aria-hidden="true">🏛️</span> אנשי קשר ברשות <span class="sc-sub-group__count">${authValid.length}</span></div>
+        <div class="sc-sub-group__title"><span aria-hidden="true">🏛️</span> רשות <span class="sc-sub-group__count">${authValid.length}</span></div>
         <div class="sc-contact-list sc-contact-list--grid">${authPersonsHtml}</div>
       </section>`
     : '';

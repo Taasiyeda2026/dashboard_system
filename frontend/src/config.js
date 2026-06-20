@@ -46,5 +46,5 @@ if (!resolvedUrl) {
 export const config = {
   apiUrl: resolvedUrl,
   DIAGNOSTICS_UI_ENABLED: false,
-  HOTFIX_VERSION: 'contacts-full-directory-v1'
+  HOTFIX_VERSION: 'stabilization-fixes-20260620-v1'
 };

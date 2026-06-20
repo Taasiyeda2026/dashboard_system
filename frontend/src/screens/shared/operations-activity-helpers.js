@@ -211,22 +211,8 @@ export function getWorkshopStockQuantity(productName, stockMap) {
 }
 
 export function getActivityActualParticipantCount(activity) {
-  const fields = [
-    'participants_count',
-    'participant_count',
-    'students_count',
-    'student_count',
-    'num_participants',
-    'num_students',
-    'participants',
-    'students',
-    'total_participants',
-    'total_students'
-  ];
-  for (const field of fields) {
-    const n = parsePositiveNumber(activity?.[field]);
-    if (n !== null && n > 0) return n;
-  }
+  const n = parsePositiveNumber(activity?.participants_count);
+  if (n !== null && n > 0) return n;
   return null;
 }
 
@@ -249,8 +235,7 @@ export function buildWorkshopQuantityMetrics({ workshopName, activityCount, acti
   const stockQuantity = getWorkshopStockQuantity(workshopName, stockMap);
   let gap = null;
   if (stockQuantity !== null) {
-    const required = actualQuantity !== null ? actualQuantity : estimatedQuantity;
-    gap = stockQuantity - required;
+    gap = stockQuantity - estimatedQuantity;
   }
   return {
     workshopName: String(workshopName || '').trim(),

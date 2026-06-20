@@ -96,11 +96,10 @@ function renderKpiCard(k) {
 
 const ACTIVITY_TYPE_ORDER = [
   { key: 'course',       label: 'קורסים' },
-  { key: 'after_school', label: 'אפטרסקול' },
-  { key: 'tour',         label: 'סיורים' },
   { key: 'workshop',     label: 'סדנאות' },
-  { key: 'escape_room',  label: 'חדרי בריחה' },
-  { key: 'summer',       label: 'קיץ' }
+  { key: 'escape_room',  label: 'חדר בריחה' },
+  { key: 'tour',         label: 'סיורים' },
+  { key: 'after_school', label: 'אפטרסקול' }
 ];
 
 function renderStructuredSummary(summary, ym, byManager) {
@@ -221,7 +220,7 @@ const ALLOWED_KPI_ACTIONS = new Set([
 
 function filterKpiCards(cards, showOnlyNonzero) {
   const list = Array.isArray(cards) ? cards : [];
-  const allowed = list.filter((c) => c && c.action && ALLOWED_KPI_ACTIONS.has(c.action));
+  const allowed = list.filter((c) => c && c.action && ALLOWED_KPI_ACTIONS.has(c.action) && c.action !== 'kpi|summer' && c.id !== 'summer');
   if (!showOnlyNonzero) return allowed;
   return allowed.filter((c) => c.id === 'exceptions' || Number(c.value || 0) > 0);
 }

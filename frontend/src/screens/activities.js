@@ -737,6 +737,8 @@ function addActivityModalHtml(settings) {
         ${authorityField}
         ${schoolField}
 
+        <label class="ds-activity-add-field" data-participants-count-section hidden><span>מספר משתתפים מעודכן</span><input class="ds-input" name="participants_count" type="number" min="1" step="1" inputmode="numeric" data-participants-count-input></label>
+
         <p class="ds-activity-add-section">תאריכים ושעות</p>
         <label class="ds-activity-add-field ds-activity-add-field--compact"><span>שעת התחלה</span><select class="ds-input" name="start_time">${optionsHtml(TIME_OPTIONS)}</select></label>
         <label class="ds-activity-add-field ds-activity-add-field--compact"><span>שעת סיום</span><select class="ds-input" name="end_time">${optionsHtml(TIME_OPTIONS)}</select></label>
@@ -2526,6 +2528,19 @@ export const activitiesScreen = {
       if (!payload.end_date) {
         const lastDate = meetingDateValues.filter(Boolean).pop();
         payload.end_date = lastDate || payload.start_date || null;
+      }
+      const participantType = normalizeActivityTypeKey(selectedType || payload.activity_type);
+      if (participantType === 'workshop' || participantType === 'escape_room') {
+        const rawParticipants = get('participants_count');
+        if (rawParticipants) {
+          const n = Number(rawParticipants);
+          if (!Number.isInteger(n) || n <= 0) {
+            setAddActivityStatus(statusEl, 'מספר משתתפים מעודכן חייב להיות מספר שלם חיובי', { isError: true });
+            resetAddActivitySavingState(form, submitBtn);
+            return;
+          }
+          payload.participants_count = n;
+        }
       }
       activityAddDiagnostics = {
         date: isOneDay ? oneDayDate : String(meetingDateValues[0] || payload.start_date || '').trim(),
