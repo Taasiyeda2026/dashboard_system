@@ -277,7 +277,7 @@ export function activityMatchesPeriod(activity, periodKey) {
   const key = String(periodKey || 'all').trim();
   if (!key || key === 'all') return true;
   const season = normalizeActivitySeason(activity?.activity_season ?? activity?.activitySeason);
-  if (key === ACTIVITY_SEASON_SUMMER_2026) return isSummerActivity(activity);
+  if (key === ACTIVITY_SEASON_SUMMER_2026) return season === ACTIVITY_SEASON_SUMMER_2026 || isSummerActivity(activity);
   if (key === ACTIVITY_SEASON_SCHOOL_2027) return season === ACTIVITY_SEASON_SCHOOL_2027;
   if (key === 'school_2026') return season !== ACTIVITY_SEASON_SUMMER_2026 && season !== ACTIVITY_SEASON_SCHOOL_2027;
   return true;
@@ -313,7 +313,8 @@ export function activityOverlapsDateRange(activity, fromDate, toDate) {
 }
 
 export function isSummerOperationsException(activity) {
-  if (!isSummerActivity(activity)) return false;
+  const season = normalizeActivitySeason(activity?.activity_season ?? activity?.activitySeason);
+  if (season !== ACTIVITY_SEASON_SUMMER_2026 && !isSummerActivity(activity)) return false;
   const instructor = getActivityInstructorName(activity);
   const missingInstructor = instructor === 'לא משויך';
   const missingDate = !getActivityPrimaryDate(activity) && getActivityScheduleDates(activity).length === 0;
