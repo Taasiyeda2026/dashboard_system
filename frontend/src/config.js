@@ -46,5 +46,5 @@ if (!resolvedUrl) {
 export const config = {
   apiUrl: resolvedUrl,
   DIAGNOSTICS_UI_ENABLED: false,
-  HOTFIX_VERSION: 'proposal-signature-flow-v2'
+  HOTFIX_VERSION: 'activity-icons-cache-refresh-v1'
 };
