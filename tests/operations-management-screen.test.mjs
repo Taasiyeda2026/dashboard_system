@@ -114,7 +114,7 @@ test('operations management render includes menu page structure and tabs', () =>
   assert.match(html, /ds-filter-panel/);
   assert.match(html, /ds-ops-mgmt-summary/);
   assert.match(html, /ds-exceptions-tabs/);
-  assert.match(html, /data-ops-tab="instructors"[^>]*is-active/);
+  assert.match(html, /data-ops-tab="instructors"[^>]*aria-pressed="true"/);
   assert.doesNotMatch(html, /סמל מוסד/);
 });
 
@@ -236,8 +236,8 @@ test('authorities tab groups schools and dated activities under each authority',
   assert.match(html, /רשות א \| 1 בתי ספר \| 2 פעילויות/);
   assert.match(html, /בית ספר א \| 2 פעילויות/);
   assert.match(html, /פעילות מוקדמת/);
-  assert.match(html, />01\/05\/2026</);
-  assert.match(html, />02\/05\/2026</);
+  assert.match(html, /01\/05\/2026/);
+  assert.match(html, /02\/05\/2026/);
 });
 
 test('operations management tabs stay synced with selected tab content', () => {
@@ -247,11 +247,11 @@ test('operations management tabs stay synced with selected tab content', () => {
   const defaultHtml = operationsManagementScreen.render({ rows, workshopStockMap: new Map() }, { state: baseState() });
   const authoritiesHtml = operationsManagementScreen.render({ rows, workshopStockMap: new Map() }, { state: authoritiesState });
   const workshopsHtml = operationsManagementScreen.render({ rows, workshopStockMap: new Map(), adminListsData: { categories: [] } }, { state: workshopsState });
-  assert.match(defaultHtml, /data-ops-tab="instructors"[^>]*is-active/);
+  assert.match(defaultHtml, /data-ops-tab="instructors"[^>]*aria-pressed="true"/);
   assert.match(defaultHtml, /טבלת סידור עבודה/);
-  assert.match(authoritiesHtml, /data-ops-tab="authorities"[^>]*is-active/);
+  assert.match(authoritiesHtml, /data-ops-tab="authorities"[^>]*aria-pressed="true"/);
   assert.match(authoritiesHtml, /ds-ops-schools-authority/);
-  assert.match(workshopsHtml, /data-ops-tab="workshops"[^>]*is-active/);
+  assert.match(workshopsHtml, /data-ops-tab="workshops"[^>]*aria-pressed="true"/);
   assert.match(workshopsHtml, /מלאי סדנאות/);
 });
 
@@ -268,7 +268,7 @@ test('authorities tab renders schools, dates and activities in fixed grouped ord
   assert.ok(html.indexOf('בית ספר א') < html.indexOf('בית ספר ב'));
   assert.ok(html.indexOf('01/05/2026') < html.indexOf('02/05/2026'));
   const groupedHtml = html.slice(html.indexOf('<article class="ds-ops-authority-school"'));
-  assert.match(groupedHtml, /<th>מדריך<\/th><th>כיתה<\/th><th>פעילות \/ סדנה<\/th>/);
+  assert.match(groupedHtml, /ds-ops-col--instructor">מדריך<\/th><th class="ds-ops-col--grade">כיתה<\/th><th class="ds-ops-col--activity">פעילות \/ סדנה<\/th>/);
   assert.equal((groupedHtml.match(/פעילות ראשונה/g) || []).length, 1);
 });
 
@@ -362,9 +362,9 @@ test('authorities print layout uses 60% table with page-relative column widths',
   assert.match(src, /authorityHeaderTitle/);
   assert.match(src, /schoolHeaderTitle/);
   assert.match(src, /\.authorities-table \.col-time\{width:20%/);
-  assert.match(src, /\.authorities-table \.col-instructor\{width:26\.666%/);
+  assert.match(src, /\.authorities-table \.col-instructor\{width:27%/);
   assert.match(src, /\.authorities-table \.col-class\{width:20%/);
-  assert.match(src, /\.authorities-table \.col-activity\{width:33\.333%/);
+  assert.match(src, /\.authorities-table \.col-activity\{width:33%/);
   assert.doesNotMatch(src, /col-grade/);
 });
 
