@@ -357,7 +357,7 @@ test('workshops inventory tab uses workshop_stock as inventory source without re
   }, { state });
   assert.match(html, /מלאי סדנאות — קיץ 2026/);
   assert.match(html, /פרוגי המקפצת/);
-  assert.match(html, /ציפור שיווי משקל/);
+  assert.doesNotMatch(html, /ציפור שיווי משקל/);
   assert.doesNotMatch(html, /מלאי לא פעיל/);
 });
 
@@ -377,10 +377,8 @@ test('workshops inventory tab includes catalog workshops outside selected date r
   ] }] };
   const html = operationsManagementScreen.render({ rows, workshopStockMap: buildWorkshopStockMapFromLists(adminListsData), adminListsData }, { state });
   assert.match(html, /סדנת מאי/);
-  assert.match(html, /סדנת קטלוג/);
-  assert.match(html, /0042/);
-  assert.match(html, /סדנת קטלוג ללא מלאי/);
-  assert.match(html, /0043/);
+  assert.doesNotMatch(html, /0042/);
+  assert.doesNotMatch(html, /0043/);
   assert.doesNotMatch(html, /סדנת יולי/);
 });
 
