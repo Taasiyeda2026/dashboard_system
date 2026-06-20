@@ -2,7 +2,14 @@ import { escapeHtml } from './shared/html.js';
 import { dsCard, dsScreenStack, dsEmptyState } from './shared/layout.js';
 import { formatDateHe } from './shared/format-date.js';
 import { triggerExcelDownload } from './shared/excel-export.js';
-import { activityManagerDisplayName } from './shared/activity-options.js';
+import { activityManagerDisplayName, normalizeActivityTypeKey } from './shared/activity-options.js';
+
+const END_DATES_ACTIVITY_TYPES = new Set(['course', 'after_school']);
+
+function isLongProgramActivity(row) {
+  const type = normalizeActivityTypeKey(row?.activity_type || row?.item_type || row?.type);
+  return END_DATES_ACTIVITY_TYPES.has(type);
+}
 
 function asIso(value) {
   const text = String(value || '').trim().slice(0, 10);
@@ -45,6 +52,7 @@ function normalizeRows(rows, managerFilter = '') {
   const today = localTodayIso();
   return rows
     .map((row) => {
+      if (!isLongProgramActivity(row)) return null;
       const endDate = asIso(row?.end_date) || asIso(row?.date_end);
       if (!endDate) return null;
       if (isClosedStatus(row?.status)) return null;
