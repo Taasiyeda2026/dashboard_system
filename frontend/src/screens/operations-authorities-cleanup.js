@@ -50,7 +50,6 @@ function ensureOperationsCleanupStyle() {
       display: none !important;
     }
     .ds-ops-mgmt-screen.ops-authorities-clean .ds-ops-mgmt-summary-line,
-    .ds-ops-mgmt-screen.ops-authorities-clean .ds-ops-schools-authority__stats,
     .ds-ops-mgmt-screen.ops-schedule-clean .ds-ops-mgmt-summary-line {
       display: none !important;
     }

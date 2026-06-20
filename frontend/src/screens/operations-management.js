@@ -52,6 +52,30 @@ const TAB_SUMMER = 'summer';
 const TAB_WORKSHOPS = 'workshops';
 const TAB_AUTHORITIES = 'authorities';
 const TAB_SCHOOLS = 'schools';
+const SUMMER_TRAINING_SESSION_KEY = 'opsSummerTrainingActive';
+
+let _opsNeedsEntryReset = false;
+
+function resetOperationsManagementEntry(state) {
+  const ops = ensureOpsState(state);
+  ops.tab = TAB_INSTRUCTORS;
+  try { sessionStorage.removeItem(SUMMER_TRAINING_SESSION_KEY); } catch { /* ignore */ }
+}
+
+function bindOperationsManagementEntryReset() {
+  if (typeof document === 'undefined' || document.documentElement.dataset.opsMgmtEntryBound) return;
+  document.documentElement.dataset.opsMgmtEntryBound = '1';
+  document.addEventListener('click', (event) => {
+    const nav = event.target?.closest?.('[data-route]');
+    if (!nav) return;
+    if (nav.getAttribute('data-route') === 'operations-management') _opsNeedsEntryReset = true;
+  }, true);
+  document.addEventListener('app:navigate', (event) => {
+    if (event?.detail?.route === 'operations-management') _opsNeedsEntryReset = true;
+  });
+}
+
+bindOperationsManagementEntryReset();
 
 const SUMMER_2026_FROM = '2026-06-15';
 const SUMMER_2026_TO = '2026-09-01';
@@ -440,11 +464,27 @@ function topFiltersHtml(rows, state) {
   </section>`;
 }
 
+function authorityHeaderTitle(authority, schoolCount, activityCount) {
+  const schools = Number.isFinite(Number(schoolCount)) ? Number(schoolCount) : 0;
+  const activities = Number.isFinite(Number(activityCount)) ? Number(activityCount) : 0;
+  return `${authority} | ${schools} בתי ספר | ${activities} פעילויות`;
+}
+
+function schoolHeaderTitle(school, activityCount) {
+  const activities = Number.isFinite(Number(activityCount)) ? Number(activityCount) : 0;
+  return `${school} | ${activities} פעילויות`;
+}
+
+function normalizeInventoryUsage(value) {
+  const n = Number(value);
+  return Number.isFinite(n) ? n : 0;
+}
+
 function tabsHtml(activeTab) {
   const tabs = [
     [TAB_INSTRUCTORS, 'סידור עבודה'],
     [TAB_AUTHORITIES, 'רשויות'],
-    [TAB_WORKSHOPS, 'כמויות סדנאות']
+    [TAB_WORKSHOPS, 'ציוד ומלאי']
   ];
   return `<nav class="ds-exceptions-tabs ds-ops-mgmt-tabs no-print" aria-label="לשוניות ניהול תפעול" dir="rtl">
     ${tabs.map(([key, label]) => `<button type="button" class="ds-exceptions-tab ds-ops-mgmt-tab${activeTab === key ? ' is-active' : ''}" data-ops-tab="${escapeHtml(key)}" aria-pressed="${activeTab === key ? 'true' : 'false'}">${escapeHtml(label)}</button>`).join('')}
@@ -1028,12 +1068,12 @@ function printSchoolsSchedule() {
         </div>`;
       }).join('');
       return `<div class="school-block">
-        <div class="school-title authorities-group-title">${escapeHtml(schoolGroup.school)}</div>
+        <div class="school-title authorities-group-title">${escapeHtml(schoolHeaderTitle(schoolGroup.school, schoolGroup.activities))}</div>
         ${datesHtml}
       </div>`;
     }).join('');
     return `<div class="authority-section">
-      <div class="authority-header">${escapeHtml(authorityGroup.authority)} <span class="authority-stats">(${schools.length} בתי ספר · ${authorityGroup.activities} פעילויות)</span></div>
+      <div class="authority-header">${escapeHtml(authorityHeaderTitle(authorityGroup.authority, schools.length, authorityGroup.activities))}</div>
       ${schoolsHtml}
     </div>`;
   }).join('');
@@ -1366,11 +1406,8 @@ function workshopsTabHtml(rows, state, stockMap, catalogRows = [], distributions
         const shownStock = hasDefaultStock ? Number(defaultStock) : '';
         const stockDisplay = shownStock !== '' ? String(shownStock) : '—';
         const requiredQuantity = row.estimatedQuantity;
-        const hasActualUsage = row.actualQuantity !== null && row.actualQuantity !== undefined;
-        const usage = hasActualUsage ? Number(row.actualQuantity) : null;
-        const usageHtml = hasActualUsage
-          ? `<span class="ds-ops-usage-display">${usage}</span>`
-          : '<span class="ds-ops-usage-display ds-muted">לא עודכן</span>';
+        const usage = normalizeInventoryUsage(row.actualQuantity);
+        const usageHtml = `<span class="ds-ops-usage-display">${usage}</span>`;
         const stockValue = Number.isFinite(Number(shownStock)) ? Number(shownStock) : 0;
         const requiredValue = Number.isFinite(Number(requiredQuantity)) ? Number(requiredQuantity) : 0;
         const remainder = stockValue - requiredValue;
@@ -1484,13 +1521,12 @@ function schoolsTabHtml(rows, state, directory = buildSchoolsDirectory([]), cont
       }).join('');
       return `<article class="ds-ops-authority-school">
         <header class="ds-ops-authority-school__header">
-          <strong class="ds-ops-school-card__title">${escapeHtml(schoolGroup.school)}</strong>
-          <span class="ds-ops-schools-authority__stats"><span class="ds-ops-pill">סה״כ ${schoolGroup.activities} פעילויות</span><span class="ds-ops-pill">${schoolGroup.workshops.size} סדנאות</span><span class="ds-ops-pill">${schoolGroup.instructors.size} מדריכים</span><span class="ds-ops-pill">${schoolGroup.dates.size} תאריכים</span></span>
+          <strong class="ds-ops-school-card__title">${escapeHtml(schoolHeaderTitle(schoolGroup.school, schoolGroup.activities))}</strong>
         </header>
         ${dateBlocks}
       </article>`;
     }).join('');
-    return `<section class="ds-ops-schools-authority"><header class="ds-ops-schools-authority__header"><strong>${escapeHtml(authorityGroup.authority)}</strong><span class="ds-ops-schools-authority__stats"><span class="ds-ops-pill">${schools.length} בתי ספר</span><span class="ds-ops-pill">סה״כ ${authorityGroup.activities} פעילויות</span><span class="ds-ops-pill">${authorityGroup.instructors.size} מדריכים</span></span></header>${schoolBlocks}</section>`;
+    return `<section class="ds-ops-schools-authority"><header class="ds-ops-schools-authority__header"><strong>${escapeHtml(authorityHeaderTitle(authorityGroup.authority, schools.length, authorityGroup.activities))}</strong></header>${schoolBlocks}</section>`;
   }).join('');
 
   const schoolCount = Array.from(byAuthority.values()).reduce((sum, group) => sum + group.schools.size, 0);
@@ -1575,10 +1611,17 @@ export const operationsManagementScreen = {
     const ops = ensureOpsState(state);
     const filters = ensureActivityListFilters(state, SCOPE);
 
+    if (_opsNeedsEntryReset) {
+      _opsNeedsEntryReset = false;
+      resetOperationsManagementEntry(state);
+    }
+
     root.querySelectorAll('[data-ops-tab]').forEach((btn) => {
       btn.addEventListener('click', () => {
         ops.tab = btn.getAttribute('data-ops-tab') || TAB_INSTRUCTORS;
         if (ops.tab === TAB_SUMMER) ops.tab = TAB_INSTRUCTORS;
+        try { sessionStorage.removeItem(SUMMER_TRAINING_SESSION_KEY); } catch { /* ignore */ }
+        document.dispatchEvent(new CustomEvent('ops-mgmt-standard-tab', { detail: { tab: ops.tab } }));
         rerender?.();
       });
     });

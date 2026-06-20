@@ -46,5 +46,5 @@ if (!resolvedUrl) {
 export const config = {
   apiUrl: resolvedUrl,
   DIAGNOSTICS_UI_ENABLED: false,
-  HOTFIX_VERSION: 'contacts-unified-view-20260620-v1'
+  HOTFIX_VERSION: 'ops-management-fixes-20260620-v1'
 };
