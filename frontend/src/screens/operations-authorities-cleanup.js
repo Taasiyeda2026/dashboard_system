@@ -54,6 +54,101 @@ function ensureOperationsCleanupStyle() {
     .ds-ops-mgmt-screen.ops-schedule-clean .ds-ops-mgmt-summary-line {
       display: none !important;
     }
+
+    @media screen {
+      .ds-ops-mgmt-screen.ops-authorities-clean .ds-ops-schools-authority,
+      .ds-ops-mgmt-screen.ops-authorities-clean .ds-ops-authority-school,
+      .ds-ops-mgmt-screen.ops-authorities-clean .ds-ops-authority-date {
+        width: 100% !important;
+        max-width: 100% !important;
+        box-sizing: border-box !important;
+      }
+
+      .ds-ops-mgmt-screen.ops-authorities-clean .ds-ops-authority-date .ds-table-wrap,
+      .ds-ops-mgmt-screen.ops-authorities-clean .ds-table-wrap:has(.ds-ops-authorities-table) {
+        width: 100% !important;
+        max-width: 100% !important;
+        overflow-x: visible !important;
+        margin-inline: 0 !important;
+        box-sizing: border-box !important;
+      }
+
+      .ds-ops-mgmt-screen.ops-authorities-clean .ds-ops-authorities-table {
+        width: 100% !important;
+        min-width: 0 !important;
+        max-width: 100% !important;
+        table-layout: fixed !important;
+        border-collapse: collapse !important;
+      }
+
+      .ds-ops-mgmt-screen.ops-authorities-clean .ds-ops-authorities-table col.ds-ops-col--time,
+      .ds-ops-mgmt-screen.ops-authorities-clean .ds-ops-authorities-table th.ds-ops-col--time,
+      .ds-ops-mgmt-screen.ops-authorities-clean .ds-ops-authorities-table td.ds-ops-col--time {
+        width: 18% !important;
+        text-align: center !important;
+        white-space: nowrap !important;
+      }
+
+      .ds-ops-mgmt-screen.ops-authorities-clean .ds-ops-authorities-table col.ds-ops-col--instructor,
+      .ds-ops-mgmt-screen.ops-authorities-clean .ds-ops-authorities-table th.ds-ops-col--instructor,
+      .ds-ops-mgmt-screen.ops-authorities-clean .ds-ops-authorities-table td.ds-ops-col--instructor {
+        width: 28% !important;
+      }
+
+      .ds-ops-mgmt-screen.ops-authorities-clean .ds-ops-authorities-table col.ds-ops-col--grade,
+      .ds-ops-mgmt-screen.ops-authorities-clean .ds-ops-authorities-table th.ds-ops-col--grade,
+      .ds-ops-mgmt-screen.ops-authorities-clean .ds-ops-authorities-table td.ds-ops-col--grade {
+        width: 14% !important;
+        max-width: none !important;
+        text-align: center !important;
+        white-space: nowrap !important;
+      }
+
+      .ds-ops-mgmt-screen.ops-authorities-clean .ds-ops-authorities-table col.ds-ops-col--activity,
+      .ds-ops-mgmt-screen.ops-authorities-clean .ds-ops-authorities-table th.ds-ops-col--activity,
+      .ds-ops-mgmt-screen.ops-authorities-clean .ds-ops-authorities-table td.ds-ops-col--activity {
+        width: 40% !important;
+        max-width: none !important;
+        white-space: nowrap !important;
+        overflow: hidden !important;
+        text-overflow: ellipsis !important;
+      }
+
+      .ds-ops-mgmt-screen.ops-authorities-clean .ds-ops-authorities-table th,
+      .ds-ops-mgmt-screen.ops-authorities-clean .ds-ops-authorities-table td {
+        height: 34px !important;
+        padding: 6px 8px !important;
+        vertical-align: middle !important;
+        box-sizing: border-box !important;
+      }
+
+      .ds-ops-mgmt-screen.ops-authorities-clean .ds-ops-authority-date__title {
+        width: 100% !important;
+        max-width: 100% !important;
+        margin-inline: 0 !important;
+        text-align: center !important;
+        box-sizing: border-box !important;
+      }
+    }
+
+    @media print {
+      #app table thead,
+      #app table thead tr,
+      #app table thead th {
+        position: static !important;
+        top: auto !important;
+        z-index: auto !important;
+        box-shadow: none !important;
+      }
+
+      .ds-ops-mgmt-screen.ops-authorities-clean .ds-table-wrap,
+      .ds-ops-mgmt-screen.ops-authorities-clean .ds-ops-authorities-table {
+        overflow: visible !important;
+        width: 100% !important;
+        max-width: 100% !important;
+        min-width: 0 !important;
+      }
+    }
   `;
   document.head.appendChild(style);
 }
