@@ -38,7 +38,7 @@
   --ds-info: #1d4ed8;
   --ds-info-soft: #dbeafe;
 
-  --ds-surface-overlay: rgba(11, 13, 18, 0.58);
+  --ds-surface-overlay: rgba(11, 13, 18, 0.52);
   --ds-muted-bg: #eef2f7;
   --ds-muted-border: #d8e0ec;
 
@@ -7371,16 +7371,24 @@ select.ds-input {
 .activity-drawer__body {
   display: flex;
   flex-direction: column;
-  gap: 16px;
-  padding: 4px 0 8px;
+  gap: 8px;
+  padding: 0 0 8px;
 }
 
 .activity-drawer__header {
   background: var(--ds-surface);
   color: var(--ds-text);
-  padding: 16px 18px 14px;
-  margin: calc(-1 * var(--ds-space-4, 16px)) calc(-1 * var(--ds-space-4, 16px)) 12px;
+  padding: 12px 14px 10px;
+  margin: calc(-1 * var(--ds-space-4, 16px)) calc(-1 * var(--ds-space-4, 16px)) 8px;
   border-radius: 0;
+  border-bottom: 1px solid #e8eef6;
+}
+
+.activity-drawer__header--sticky {
+  position: sticky;
+  top: calc(-1 * var(--ds-space-4, 16px));
+  z-index: 12;
+  box-shadow: 0 1px 0 #e8eef6;
 }
 
 .activity-drawer__header-top {
@@ -7448,44 +7456,58 @@ select.ds-input {
 .activity-drawer__meta {
   display: flex;
   align-items: center;
-  gap: 8px;
+  gap: 6px;
   flex-wrap: wrap;
-  font-size: 0.78rem;
-  color: #94a3b8;
+  font-size: 0.74rem;
+  color: #64748b;
+  line-height: 1.35;
+}
+
+.activity-drawer__meta--compact {
+  gap: 4px;
+}
+
+.activity-drawer__meta-sep {
+  color: #cbd5e1;
+  font-weight: 400;
 }
 
 .activity-drawer__status {
   display: inline-flex;
   align-items: center;
   gap: 4px;
-  background: rgba(255, 255, 255, 0.07);
-  color: #94a3b8;
-  border: 1px solid rgba(255, 255, 255, 0.12);
-  border-radius: 999px;
-  padding: 1px 8px;
-  font-size: 0.65rem;
+  background: transparent;
+  color: #64748b;
+  border: 0;
+  border-radius: 0;
+  padding: 0;
+  font-size: inherit;
   font-weight: 500;
 }
 
 .activity-drawer__status::before {
   content: '';
-  width: 5px;
-  height: 5px;
+  width: 6px;
+  height: 6px;
   border-radius: 50%;
-  background: #4ade80;
-  opacity: 0.75;
+  background: #22c55e;
+  flex-shrink: 0;
 }
 
 .activity-drawer__section {
   background: #f8fafc;
   border: 1px solid #e8eef6;
-  border-radius: 12px;
-  padding: 12px 14px;
+  border-radius: 10px;
+  padding: 8px 10px;
 }
 
+.activity-drawer__section--central,
 .activity-drawer__section--edit-group,
-.activity-drawer__section--supplemental {
-  padding: 10px 12px;
+.activity-drawer__section--supplemental,
+.activity-drawer__section--notes,
+.activity-drawer__section--private-note,
+.activity-drawer__section--participants {
+  padding: 8px 10px;
 }
 
 .activity-drawer__section--actions {
@@ -7495,12 +7517,12 @@ select.ds-input {
 }
 
 .activity-drawer__section-title {
-  margin: 0 0 8px;
-  font-size: 0.72rem;
+  margin: 0 0 6px;
+  font-size: 0.7rem;
   font-weight: 800;
-  color: #64748b;
+  color: #475569;
   text-transform: uppercase;
-  letter-spacing: 0.07em;
+  letter-spacing: 0.06em;
 }
 
 .activity-drawer__section-head {
@@ -7508,7 +7530,7 @@ select.ds-input {
   align-items: center;
   justify-content: space-between;
   gap: 8px;
-  margin-bottom: 10px;
+  margin-bottom: 6px;
 }
 
 .activity-drawer__section-head .activity-drawer__section-title {
@@ -7591,18 +7613,45 @@ select.ds-input {
 }
 
 .activity-drawer__label {
-  font-size: 0.68rem;
+  font-size: 0.67rem;
   font-weight: 700;
-  color: #94a3b8;
+  color: #475569;
   text-transform: uppercase;
-  letter-spacing: 0.06em;
+  letter-spacing: 0.05em;
 }
 
 .activity-drawer__view {
-  font-size: 0.85rem;
+  font-size: 0.84rem;
   font-weight: 500;
   color: var(--ds-text-secondary);
-  min-height: 1.2em;
+  min-height: 0;
+}
+
+.activity-drawer__value--note {
+  font-size: 0.84rem;
+  font-weight: 500;
+  color: var(--ds-text-secondary);
+  line-height: 1.45;
+  margin: 0;
+  white-space: pre-wrap;
+}
+
+.activity-drawer__compact-line {
+  display: flex;
+  align-items: baseline;
+  gap: 6px;
+  padding: 2px 0;
+  font-size: 0.8rem;
+  color: #64748b;
+}
+
+.activity-drawer__compact-label {
+  font-weight: 700;
+  color: #475569;
+}
+
+.activity-drawer__compact-value {
+  color: var(--ds-text-secondary);
 }
 
 /* Until JS runs, keep edit UI out of layout (HTML also sets hidden on edit blocks) */
@@ -7795,14 +7844,28 @@ select.ds-input {
 }
 
 .activity-drawer__action {
-  border: 1.5px solid #c7d7f0;
+  border: 1px solid #d1ddef;
   background: #fff;
-  border-radius: 8px;
-  padding: 4px 12px;
-  font-size: 0.76rem;
+  border-radius: 6px;
+  padding: 2px 8px;
+  font-size: 0.68rem;
   font-weight: 600;
   color: var(--ds-accent);
   cursor: pointer;
+  line-height: 1.4;
+}
+
+.activity-drawer__action--subtle {
+  border-color: transparent;
+  background: transparent;
+  color: #64748b;
+  font-weight: 500;
+  padding: 2px 6px;
+}
+
+.activity-drawer__action--subtle:hover {
+  color: var(--ds-accent);
+  background: #f1f5f9;
 }
 
 .activity-drawer__action--primary {
@@ -7911,7 +7974,7 @@ select.ds-input {
 .activity-drawer__form {
   display: flex;
   flex-direction: column;
-  gap: 0;
+  gap: 8px;
   min-width: 0;
   max-width: 100%;
 }
@@ -8823,13 +8886,33 @@ select.ds-input {
   text-align: right;
 }
 
-.ds-table--activities-list th:nth-child(5),
-.ds-table--activities-list td:nth-child(5),
+.ds-table--activities-list th:nth-child(5):not(.ds-activities-col--instructor),
+.ds-table--activities-list td:nth-child(5):not(.ds-activities-col--instructor),
 .ds-table--activities-list th:nth-child(6),
 .ds-table--activities-list td:nth-child(6),
 .ds-table--activities-list th:nth-child(7),
 .ds-table--activities-list td:nth-child(7) {
   text-align: center;
+}
+
+.ds-table--activities-list th.ds-activities-col--instructor,
+.ds-table--activities-list td.ds-activities-col--instructor,
+.ds-table--activities-list .ds-activities-col--instructor .ds-activities-instructor-wrap,
+.ds-table--activities-list .ds-activities-col--instructor .ds-activities-instructor-name,
+.ds-table--activities-list .ds-activities-col--instructor .ds-activities-manager-line {
+  text-align: right;
+}
+
+.ds-activities-screen .ds-table-wrap:has(.ds-table--activities-list) {
+  overflow: visible;
+}
+
+.ds-activities-screen .ds-table--activities-list thead th {
+  position: sticky;
+  top: 0;
+  z-index: 8;
+  background: #f4f7fb !important;
+  box-shadow: inset 0 -1px 0 rgba(26, 51, 88, 0.12), 0 2px 4px rgba(15, 23, 42, 0.06);
 }
 
 .ds-activities-cell-ellipsis {

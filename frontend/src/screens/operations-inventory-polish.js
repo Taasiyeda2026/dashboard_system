@@ -170,7 +170,7 @@ function currentParticipantsCount(form) {
 
 function participantsDisplay(value) {
   const raw = String(value ?? '').trim();
-  return raw ? raw : 'לא עודכן';
+  return raw ? raw : '0';
 }
 
 function ensureDrawerParticipantsCount(form) {
@@ -182,19 +182,19 @@ function ensureDrawerParticipantsCount(form) {
       <h3 class="activity-drawer__section-title">קבוצה ומשתתפים</h3>
       <div class="activity-drawer__grid activity-drawer__grid--three activity-drawer__view-grid" data-mode="view">
         <div class="activity-drawer__field">
-          <div class="activity-drawer__label">מספר משתתפים מעודכן</div>
+          <div class="activity-drawer__label">מספר משתתפים</div>
           <div class="activity-drawer__value" data-participants-count-view>${escapeAttr(participantsDisplay(value))}</div>
         </div>
       </div>
       <div class="activity-drawer__details-edit-grid" data-mode="edit" hidden>
         <div class="activity-drawer__field">
-          <label class="activity-drawer__label">מספר משתתפים מעודכן</label>
+          <label class="activity-drawer__label">מספר משתתפים</label>
           <input class="ds-input" name="participants_count" type="number" min="1" step="1" inputmode="numeric" value="${escapeAttr(value)}" data-participants-count-input>
         </div>
       </div>
     </section>`;
   const section = template.content.firstElementChild;
-  const anchor = form.querySelector('[data-dates-section]') || form.querySelector('.activity-drawer__section--supplemental') || form.querySelector('.activity-drawer__section--actions');
+  const anchor = form.querySelector('[data-dates-section]') || form.querySelector('[data-central-info-section]');
   if (anchor?.parentNode) anchor.parentNode.insertBefore(section, anchor.nextSibling);
   else form.appendChild(section);
 }

@@ -1,7 +1,7 @@
 import { state, setSession, clearScreenDataCache } from './state.js';
 import { deletePersistedCacheByPrefixes } from './cache-persist.js';
 import { hebrewRole } from './screens/shared/ui-hebrew.js';
-import { cleanActivityManagerName, NO_ACTIVITY_MANAGER_LABEL, normalizeOneDayActivityType, resolveActivityInstructorName } from './screens/shared/activity-options.js';
+import { cleanActivityManagerName, getRosterUsers, NO_ACTIVITY_MANAGER_LABEL, normalizeOneDayActivityType, resolveActivityInstructorName, syncInstructorEmpFields, buildContactsInstructorLookup, resolveCanonicalInstructorPair } from './screens/shared/activity-options.js';
 import { EXCEPTION_TYPE_ORDER, normalizedExceptionTypes } from './screens/shared/exceptions-metrics.js';
 import { isSummerActivity, normalizeActivitySeason } from './screens/shared/summer-activity.js';
 import { supabase, supabaseConfig, waitForSupabaseAuthSession } from './supabase-client.js';
@@ -1169,6 +1169,7 @@ async function readInstructorsFromSupabase() {
     }
 
     const contacts = Array.isArray(contactsResult.data) ? contactsResult.data : [];
+    const contactsLookup = buildContactsInstructorLookup(contacts);
     contacts.forEach((contact) => {
       const empId = String(contact?.emp_id || contact?.employee_id || contact?.id || '').trim();
       const name = normalizeName(contact?.full_name || contact?.name || contact?.instructor_name || contact?.guide);
@@ -1181,8 +1182,8 @@ async function readInstructorsFromSupabase() {
 
     for (const row of activeRows) {
       const pairs = [
-        [row.emp_id, row.instructor_name || row.instructor || row.guide],
-        [row.emp_id_2, row.instructor_name_2]
+        resolveCanonicalInstructorPair(row.instructor_name || row.instructor || row.guide, row.emp_id, contactsLookup),
+        resolveCanonicalInstructorPair(row.instructor_name_2, row.emp_id_2, contactsLookup)
       ];
       const startDate = normalizeSupabaseDate(row.start_date);
       const endDate = normalizeSupabaseDate(row.end_date);
@@ -1191,8 +1192,9 @@ async function readInstructorsFromSupabase() {
       const school = String(row.school || '').trim();
       const activityName = String(row.activity_name || '').trim();
       const actType = rowActivityType(row);
-      for (const [id, name] of pairs) {
-        const stats = ensureStats(id || name, name || id);
+      for (const pair of pairs) {
+        if (!pair) continue;
+        const stats = ensureStats(pair.emp_id || pair.name, pair.name || pair.emp_id);
         if (!stats) continue;
         if (isProgramActivity(row)) stats.programs_count += 1;
         if (isOneDayActivity(row)) stats.one_day_count += 1;
@@ -3174,7 +3176,7 @@ function synchronizeStartDateAndFirstMeeting(payload = {}, existing = {}) {
 function sanitizeActivityPayloadForSupabase(payload = {}, { includeRowId = true } = {}) {
   const sanitized = {};
   const source = payload && typeof payload === 'object' ? payload : {};
-  const bigintFields = new Set(['activity_no', 'sessions', 'price', 'emp_id']);
+  const bigintFields = new Set(['activity_no', 'sessions', 'price', 'emp_id', 'emp_id_2']);
   const timeFields = new Set(['start_time', 'end_time']);
   const humanNameFields = new Set(['instructor_name', 'instructor_name_2', 'activity_manager', 'previous_activity_manager']);
   for (const [key, rawValue] of Object.entries(source)) {
@@ -3204,6 +3206,31 @@ function sanitizeActivityPayloadForSupabase(payload = {}, { includeRowId = true 
   return sanitized;
 }
 
+const INSTRUCTOR_SYNC_KEYS = [
+  'instructor_name',
+  'instructor_name_2',
+  'emp_id',
+  'emp_id_2'
+];
+
+function rosterFromClientSettings() {
+  return getRosterUsers(state?.clientSettings || {});
+}
+
+function applyInstructorEmpSync(source = {}, { strict = true } = {}) {
+  const payload = { ...(source || {}) };
+  const hasInstructorFields = INSTRUCTOR_SYNC_KEYS.some((key) => Object.prototype.hasOwnProperty.call(payload, key));
+  if (!hasInstructorFields) return payload;
+  const { changes, errors } = syncInstructorEmpFields(payload, rosterFromClientSettings(), { strict });
+  if (errors.length) {
+    const err = new Error(String(errors[0]?.code || 'instructor_sync_failed'));
+    err.code = errors[0]?.code || 'instructor_sync_failed';
+    err.field = errors[0]?.field || '';
+    throw err;
+  }
+  return changes;
+}
+
 async function saveActivitySchoolsForActivity(activityRow = {}, source = {}) {
   const activityId = activityRow?.id || activityRow?.activity_id || null;
   if (!activityId) return;
@@ -3222,7 +3249,7 @@ async function saveActivitySchoolsForActivity(activityRow = {}, source = {}) {
 }
 
 async function upsertActivityToSupabase(payload = {}) {
-  const act = payload?.activity || payload || {};
+  const act = applyInstructorEmpSync(payload?.activity || payload || {});
   const row = sanitizeActivityPayloadForSupabase(synchronizeStartDateAndFirstMeeting(sanitizeActivityPayload(act)), { includeRowId: true });
   const rawSchoolIds = Array.isArray(act.school_ids) ? act.school_ids.map((id) => String(id || '').trim()).filter(Boolean) : [];
   if (rawSchoolIds.length > 1 && !act.school_id) row.school_id = null;
@@ -3262,7 +3289,7 @@ async function updateActivityInSupabase(payload = {}) {
   const rowId = String(payload?.source_row_id || payload?.row_id || payload?.RowID || '').trim();
   const sourceSheet = String(payload?.source_sheet || 'activities').trim() || 'activities';
   if (!rowId) throw new Error('missing_row_id');
-  const rawChanges = mapMeetingDateFieldNamesToSupabase({ ...(payload?.changes || {}) });
+  const rawChanges = applyInstructorEmpSync({ ...(payload?.changes || {}) });
   let existingForNormalization = null;
   const needsExisting = Object.keys(rawChanges).some((key) => ['activity_type', 'item_type', 'activity_family', 'activity_name', 'start_date', 'end_date', 'date_1', 'status'].includes(key) || /^date_\d+$/.test(key));
   if (needsExisting) {
@@ -3274,7 +3301,7 @@ async function updateActivityInSupabase(payload = {}) {
     if (existingError) throw buildSupabaseMutationError('saveActivity', existingError, 'save_failed');
     existingForNormalization = existingRow || {};
   }
-  let normalizedChangesSource = synchronizeStartDateAndFirstMeeting(rawChanges, existingForNormalization || {});
+  let normalizedChangesSource = synchronizeStartDateAndFirstMeeting(mapMeetingDateFieldNamesToSupabase(rawChanges), existingForNormalization || {});
   if (existingForNormalization && oneDayTypeFromActivityFields(rawChanges.activity_type || existingForNormalization.activity_type, rawChanges.item_type || existingForNormalization.item_type)) {
     const normalizedFullRow = assertValidOneDayActivityRow(normalizeOneDayActivityForSave({ ...existingForNormalization, ...rawChanges }));
     normalizedChangesSource = { ...normalizedChangesSource };
@@ -4513,7 +4540,7 @@ export const api = {
     const rowId = String(requestPayload?.source_row_id || source_row_id || '').trim();
     const sourceSheet = String(requestPayload?.source_sheet || source_sheet || 'activities').trim() || 'activities';
     const rawChanges = requestPayload?.changes || changes || {};
-    const reducedChanges = Object.entries(rawChanges).reduce((acc, [key, value]) => {
+    const reducedChanges = Object.entries(applyInstructorEmpSync(rawChanges)).reduce((acc, [key, value]) => {
       if (value === undefined || value === null) return acc;
       const normalizedValue = String(value).trim();
       acc[key] = normalizedValue;
@@ -4610,13 +4637,13 @@ export const api = {
       const sourceRowId = String(reqRow?.source_row_id || '').trim();
       if (requestType === 'create_activity') {
         const requestedPayload = sanitizeActivityPayloadForSupabase(
-          synchronizeStartDateAndFirstMeeting(parseJsonishObject(reqRow?.requested_payload)),
+          synchronizeStartDateAndFirstMeeting(applyInstructorEmpSync(parseJsonishObject(reqRow?.requested_payload))),
           { includeRowId: true }
         );
         if (!Object.keys(requestedPayload).length) throw new Error('missing_create_activity_payload');
         await upsertActivityToSupabase({ activity: requestedPayload });
       } else {
-        const requestedValues = parseJsonishObject(reqRow?.requested_values);
+        const requestedValues = applyInstructorEmpSync(parseJsonishObject(reqRow?.requested_values));
         if (sourceRowId && requestedValues && Object.keys(requestedValues).length) {
           const sanitizedRequestedValues = sanitizeActivityPayloadForSupabase(
             mapMeetingDateFieldNamesToSupabase(requestedValues),

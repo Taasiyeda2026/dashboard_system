@@ -2,7 +2,7 @@ import { translateApiErrorForUser } from './ui-hebrew.js';
 import { showToast } from './toast.js';
 import { formatDateHe } from './format-date.js';
 import { escapeHtml } from './html.js';
-import { activityTypeMatches, humanDisplayText, normalizeActivityTypeKey, normalizeOneDayActivityType } from './activity-options.js';
+import { activityTypeMatches, getRosterUsers, humanDisplayText, instructorSyncErrorMessage, normalizeActivityTypeKey, normalizeOneDayActivityType, syncInstructorEmpFields } from './activity-options.js';
 import { state } from '../../state.js';
 
 function setEditMode(form, editing) {
@@ -368,6 +368,17 @@ export function bindActivityEditForm(contentRoot, {
         changes.participants_count = n;
       }
     }
+
+    const roster = getRosterUsers(state?.clientSettings || {});
+    const instructorSync = syncInstructorEmpFields(changes, roster, { strict: true });
+    if (instructorSync.errors.length) {
+      const firstError = instructorSync.errors[0];
+      const message = instructorSyncErrorMessage(firstError);
+      setStatus(statusEl, 'is-error', message);
+      showToast(message, 'error', 2600);
+      return;
+    }
+    Object.assign(changes, instructorSync.changes);
 
     try {
       if (!Object.keys(changes).length) {
