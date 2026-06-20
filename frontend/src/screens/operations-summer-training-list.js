@@ -76,6 +76,7 @@ function addStyles() {
     .ops-training-list__pill{display:inline-flex;align-items:center;border-radius:999px;border:1px solid #dbe7ef;background:#f8fbfd;color:#334155;padding:3px 9px;font-size:12px;font-weight:700;white-space:nowrap}
     .ops-training-list__pill--ok{background:#ecfdf5;border-color:#bbf7d0;color:#166534}
     .ops-training-list__pill--warn{background:#fff7ed;border-color:#fed7aa;color:#9a3412}
+    .ops-training-list__pill--info{background:#eff6ff;border-color:#bfdbfe;color:#1d4ed8}
     .ops-training-list__wrap{width:100%;overflow:auto;background:#fff;padding:0}
     .ops-training-list__table{border-collapse:collapse;width:100%;table-layout:fixed;font-size:13px;direction:rtl}
     .ops-training-list__table th,.ops-training-list__table td{border:1px solid #cbd5e1;padding:0 10px;text-align:right;vertical-align:middle;height:44px;line-height:44px;background:#fff;box-sizing:border-box;overflow:hidden}
@@ -122,46 +123,58 @@ async function readSummerActivities(from, to) {
 }
 
 function buildModel(activities, trainingRows) {
-  const trained = new Set();
+  const trained = new Map();
+  const pairs = new Map();
+
   (Array.isArray(trainingRows) ? trainingRows : []).forEach((row) => {
     const workshop = String(row?.workshop_name || '').trim();
     const instructor = String(row?.instructor_name || '').trim();
     if (!workshop || !isValidInstructorName(instructor)) return;
-    trained.add(pairKey(workshop, instructor));
+    const key = pairKey(workshop, instructor);
+    trained.set(key, { workshop, instructor });
+    pairs.set(key, { workshop, instructor, count: 0, hasTraining: true });
   });
 
-  const pairs = new Map();
   let assignmentCount = 0;
-
   (Array.isArray(activities) ? activities : []).forEach((activity) => {
     const workshop = getSystemWorkshopName(activity);
     if (!workshop) return;
     const instructors = getSystemInstructorNames(activity);
     instructors.forEach((instructor) => {
       const key = pairKey(workshop, instructor);
-      const current = pairs.get(key) || { workshop, instructor, count: 0 };
+      const trainedRow = trained.get(key);
+      const current = pairs.get(key) || {
+        workshop,
+        instructor,
+        count: 0,
+        hasTraining: Boolean(trainedRow)
+      };
+      current.workshop = trainedRow?.workshop || current.workshop || workshop;
+      current.instructor = trainedRow?.instructor || current.instructor || instructor;
+      current.hasTraining = current.hasTraining || Boolean(trainedRow);
       current.count += 1;
       pairs.set(key, current);
       assignmentCount += 1;
     });
   });
 
-  const rows = Array.from(pairs.values())
-    .map((row) => ({ ...row, hasTraining: trained.has(pairKey(row.workshop, row.instructor)) }))
-    .sort((a, b) => {
-      if (a.hasTraining !== b.hasTraining) return a.hasTraining ? 1 : -1;
-      const workshopCompare = a.workshop.localeCompare(b.workshop, 'he', { numeric: true });
-      if (workshopCompare !== 0) return workshopCompare;
-      return a.instructor.localeCompare(b.instructor, 'he', { numeric: true });
-    });
+  const rows = Array.from(pairs.values()).sort((a, b) => {
+    const groupA = !a.hasTraining ? 0 : (a.count > 0 ? 1 : 2);
+    const groupB = !b.hasTraining ? 0 : (b.count > 0 ? 1 : 2);
+    if (groupA !== groupB) return groupA - groupB;
+    const workshopCompare = a.workshop.localeCompare(b.workshop, 'he', { numeric: true });
+    if (workshopCompare !== 0) return workshopCompare;
+    return a.instructor.localeCompare(b.instructor, 'he', { numeric: true });
+  });
 
   return {
     rows,
     assignmentCount,
     pairCount: rows.length,
-    okCount: rows.filter((row) => row.hasTraining).length,
-    warnCount: rows.filter((row) => !row.hasTraining).length,
-    trainingCount: trained.size
+    trainedPairCount: trained.size,
+    assignedWithTrainingCount: rows.filter((row) => row.hasTraining && row.count > 0).length,
+    assignedWithoutTrainingCount: rows.filter((row) => !row.hasTraining && row.count > 0).length,
+    trainedAvailableCount: rows.filter((row) => row.hasTraining && row.count === 0).length
   };
 }
 
@@ -189,31 +202,31 @@ function modelHtml(model, from, to) {
             <col class="ops-training-list__col-count">
             <col class="ops-training-list__col-status">
           </colgroup>
-          <thead><tr><th>שם סדנה</th><th>שם מדריך</th><th>כמות שיבוצים</th><th>סטטוס הכשרה</th></tr></thead>
+          <thead><tr><th>שם סדנה</th><th>שם מדריך</th><th>שיבוצים בטווח</th><th>סטטוס הכשרה</th></tr></thead>
           <tbody>${rowsHtml}</tbody>
         </table>
       </div>`
-    : '<div class="ops-training-list__empty">לא נמצאו שיבוצים בטווח התאריכים שנבחר</div>';
+    : '<div class="ops-training-list__empty">לא נמצאו רשומות הכשרה או שיבוצים בטווח התאריכים שנבחר</div>';
 
   return `<section class="ops-training-list" dir="rtl">
     <header class="ops-training-list__header">
       <div>
         <h2 class="ops-training-list__title">הכשרות קיץ</h2>
-        <p class="ops-training-list__subtitle">תצוגה לפי שיבוצים בפועל בלבד. כל שורה היא זוג ייחודי של שם סדנה במערכת + שם מדריך במערכת. טווח: ${escapeHtml(from)} עד ${escapeHtml(to)}</p>
+        <p class="ops-training-list__subtitle">התצוגה מציגה את מאגר ההכשרות הכללי וגם את השיבוצים בטווח. שורה עם 0 שיבוצים משמעה שהמדריך כבר עבר הכשרה לסדנה וניתן לשקול לשבץ אותו לפעילות עתידית. טווח שיבוצים: ${escapeHtml(from)} עד ${escapeHtml(to)}</p>
       </div>
     </header>
     <div class="ops-training-list__summary">
-      <span class="ops-training-list__pill">${model.assignmentCount} שיבוצים שנבדקו</span>
-      <span class="ops-training-list__pill">${model.pairCount} צמדי סדנה-מדריך</span>
-      <span class="ops-training-list__pill ops-training-list__pill--ok">${model.okCount} עם הכשרה</span>
-      <span class="ops-training-list__pill ops-training-list__pill--warn">${model.warnCount} ללא הכשרה</span>
-      <span class="ops-training-list__pill">${model.trainingCount} רשומות הכשרה מאחורי הקלעים</span>
+      <span class="ops-training-list__pill ops-training-list__pill--info">${model.trainedPairCount} הכשרות כלליות</span>
+      <span class="ops-training-list__pill">${model.assignmentCount} שיבוצים בטווח</span>
+      <span class="ops-training-list__pill ops-training-list__pill--ok">${model.assignedWithTrainingCount} צמדים משובצים עם הכשרה</span>
+      <span class="ops-training-list__pill ops-training-list__pill--warn">${model.assignedWithoutTrainingCount} צמדים משובצים ללא הכשרה</span>
+      <span class="ops-training-list__pill">${model.trainedAvailableCount} צמדים מוכנים לשיבוץ עתידי</span>
     </div>
     ${tableHtml}
     <div class="ops-training-list__legend">
-      <span><strong class="ops-training-list__symbol ops-training-list__symbol--ok">✓</strong> משובץ וקיבל הכשרה</span>
-      <span><strong class="ops-training-list__symbol ops-training-list__symbol--warn">!</strong> משובץ ללא הכשרה</span>
-      <span>רשומות הכשרה שאינן משובצות בטווח התאריכים לא מוצגות בטבלה</span>
+      <span><strong class="ops-training-list__symbol ops-training-list__symbol--ok">✓</strong> קיבל הכשרה לסדנה גם אם כרגע לא משובץ</span>
+      <span><strong class="ops-training-list__symbol ops-training-list__symbol--warn">!</strong> משובץ בטווח אך לא מופיעה לו הכשרה לסדנה</span>
+      <span>0 בשיבוצים בטווח = הכשרה קיימת לשיבוץ עתידי</span>
     </div>
   </section>`;
 }
