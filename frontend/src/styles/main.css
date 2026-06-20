@@ -16812,3 +16812,83 @@ details[open] > .ds-fin-acc__summary::before { transform: rotate(90deg); }
     grid-column-start: 2;
   }
 }
+
+
+/* Targeted contacts compact alphabet-first hierarchy */
+.contacts-list-wrap {
+  max-width: 980px;
+  margin-inline: auto;
+  width: 100%;
+}
+.contacts-list-wrap .sc-alpha-bar {
+  justify-content: center;
+  gap: 6px;
+  padding: 10px 0 14px;
+}
+.contacts-list-wrap .sc-alpha-btn.is-empty {
+  opacity: 0.55;
+}
+.contacts-list-wrap .sc-alpha-hint {
+  text-align: center;
+  color: var(--ds-text-secondary);
+  background: var(--ds-surface-subtle);
+  border: 1px dashed var(--ds-border);
+  border-radius: 10px;
+  padding: 14px;
+  margin: 8px auto 0;
+  max-width: 520px;
+}
+.contacts-list-wrap .sc-auth-accordion-list {
+  max-width: 860px;
+  margin-inline: auto;
+}
+.contacts-list-wrap .sc-authority-head--accordion {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+.contacts-list-wrap .sc-authority-name {
+  flex: 0 1 auto;
+}
+.contacts-list-wrap .sc-authority-badges,
+.contacts-list-wrap .sc-authority-code {
+  margin-inline-start: 0;
+}
+.contacts-list-wrap .sc-school-grid,
+.contacts-list-wrap .sc-contact-list--grid {
+  grid-template-columns: repeat(auto-fill, minmax(240px, 1fr));
+}
+
+/* Targeted archive table alignment and balanced widths */
+.ds-table--archive th:nth-child(-n+5),
+.ds-table--archive td:nth-child(-n+5) {
+  text-align: right;
+}
+.ds-table--archive th:nth-child(6),
+.ds-table--archive th:nth-child(7),
+.ds-table--archive td:nth-child(6),
+.ds-table--archive td:nth-child(7) {
+  text-align: center;
+}
+.ds-table--archive col.ds-activities-col--program { width: 24%; }
+.ds-table--archive col.ds-activities-col--authority,
+.ds-table--archive col.ds-activities-col--school,
+.ds-table--archive col.ds-activities-col--instructor,
+.ds-table--archive col.ds-activities-col--manager,
+.ds-table--archive col.ds-activities-col--date { width: 12.666%; }
+
+/* Targeted instructors: spacious 4-column desktop grid */
+.instr-page .ci-list--instr-grid {
+  grid-template-columns: repeat(4, minmax(0, 1fr)) !important;
+  gap: 28px 30px !important;
+  padding: 18px !important;
+}
+@media (max-width: 1100px) {
+  .instr-page .ci-list--instr-grid { grid-template-columns: repeat(3, minmax(0, 1fr)) !important; }
+}
+@media (max-width: 760px) {
+  .instr-page .ci-list--instr-grid { grid-template-columns: repeat(2, minmax(0, 1fr)) !important; }
+}
+@media (max-width: 540px) {
+  .instr-page .ci-list--instr-grid { grid-template-columns: 1fr !important; }
+}
