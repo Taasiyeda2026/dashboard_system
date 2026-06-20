@@ -7,8 +7,7 @@ const KEY='opsSummerTrainingActive';
 const FROM='2026-06-15';
 const TO='2026-08-31';
 const RANGE_LABEL='15.6.26 עד 31.8.26';
-const ACTIVITY_COL_WIDTH=220;
-const GUIDE_COL_WIDTH=116;
+const ACTIVITY_COL_PERCENT=18;
 let queued=false,busy=false,token=0;
 const clean=(v)=>String(v||'').trim();
 const norm=(v)=>clean(v).replace(/[״"]/g,'').replace(/[׳']/g,'').replace(/[\u2010-\u2015]/g,'-').replace(/\s+/g,' ').toLowerCase();
@@ -27,10 +26,10 @@ function addStyle(){
   s.textContent=`
     .ops-trx{direction:rtl;background:#fff;border:1px solid #d8e5ee;border-radius:16px;overflow:hidden;width:min(1160px,96%);margin:0 auto;box-shadow:0 1px 2px rgba(15,23,42,.04)}
     .ops-trx-h{padding:14px 16px;background:#f8fbfd;border-bottom:1px solid #e2e8f0}.ops-trx-h h2{margin:0;font-size:18px;color:#0f172a}
-    .ops-trx-wrap{overflow:auto;max-height:70vh}.ops-trx table{border-collapse:collapse;table-layout:fixed;background:#fff;font-size:12px}.ops-trx th,.ops-trx td{border:1px solid #cbd5e1;height:44px;line-height:44px;padding:0;text-align:center;vertical-align:middle;box-sizing:border-box;overflow:hidden;background:#fff}.ops-trx th{background:#f1f5f9;font-weight:800;color:#111827}.ops-trx tr:nth-child(even) td{background:#f8fafc}
-    .ops-trx-workshop{position:sticky;right:0;z-index:2;width:${ACTIVITY_COL_WIDTH}px;min-width:${ACTIVITY_COL_WIDTH}px;max-width:${ACTIVITY_COL_WIDTH}px;text-align:right!important;padding-inline:10px!important;font-weight:800;color:#0f172a;background:#fff!important}.ops-trx th.ops-trx-workshop{z-index:4;text-align:right!important;background:#f1f5f9!important}.ops-trx-guide{width:${GUIDE_COL_WIDTH}px;min-width:${GUIDE_COL_WIDTH}px;max-width:${GUIDE_COL_WIDTH}px}.ops-trx-name{display:block;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;line-height:44px}
+    .ops-trx-wrap{overflow-y:auto;overflow-x:hidden;max-height:70vh;width:100%}.ops-trx table{border-collapse:collapse;table-layout:fixed;background:#fff;font-size:12px;width:100%}.ops-trx th,.ops-trx td{border:1px solid #cbd5e1;height:44px;line-height:44px;padding:0;text-align:center;vertical-align:middle;box-sizing:border-box;overflow:hidden;background:#fff}.ops-trx th{background:#f1f5f9;font-weight:800;color:#111827}.ops-trx tr:nth-child(even) td{background:#f8fafc}
+    .ops-trx-workshop{position:sticky;right:0;z-index:2;text-align:right!important;padding-inline:10px!important;font-weight:800;color:#0f172a;background:#fff!important}.ops-trx th.ops-trx-workshop{z-index:4;text-align:right!important;background:#f1f5f9!important}.ops-trx-guide{min-width:0}.ops-trx-name{display:block;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;line-height:44px}
     .ops-trx-mark{font-size:24px;font-weight:900;line-height:44px;display:inline-flex;width:100%;height:44px;align-items:center;justify-content:center}.ops-trx-ok{color:#16a34a}.ops-trx-warn{color:#ef4444}
-    .ops-trx-section td{height:34px;line-height:34px;background:#eaf7fb!important;color:#075985;font-weight:900;text-align:right!important;padding-inline:10px!important}.ops-trx-section .ops-trx-workshop{background:#eaf7fb!important}
+    .ops-trx-section td{height:38px;line-height:38px;background:#dff5fb!important;color:#075985;font-weight:900;text-align:right!important;padding-inline:14px!important;border-top:2px solid #38bdf8;border-bottom:2px solid #bae6fd}.ops-trx-section-title{position:static!important;text-align:right!important;background:#dff5fb!important}
     .ops-trx-legend{display:flex;gap:12px;flex-wrap:wrap;padding:10px 16px;color:#475569;font-size:12px;border-top:1px solid #e2e8f0;background:#f8fbfd}.ops-trx-msg{padding:20px;text-align:center;font-weight:700;color:#475569}.ops-trx-err{color:#b91c1c;background:#fef2f2}
   `;
   document.head.appendChild(s);
@@ -65,15 +64,19 @@ function cell(model,w,i){
   return '<td class="ops-trx-guide"></td>';
 }
 function rowHtml(model,w){return `<tr><td class="ops-trx-workshop" title="${escapeHtml(w)}"><span class="ops-trx-name">${escapeHtml(w)}</span></td>${model.instructors.map((i)=>cell(model,w,i)).join('')}</tr>`;}
-function sectionRow(title,count){return `<tr class="ops-trx-section"><td class="ops-trx-workshop">${escapeHtml(title)}</td><td colspan="${count}"></td></tr>`;}
+function sectionRow(title,count){return `<tr class="ops-trx-section"><td class="ops-trx-section-title" colspan="${count+1}">${escapeHtml(title)}</td></tr>`;}
+function colgroup(model){
+  const guideCount=Math.max(model.instructors.length,1);
+  const guidePercent=(100-ACTIVITY_COL_PERCENT)/guideCount;
+  return `<colgroup><col style="width:${ACTIVITY_COL_PERCENT}%">${model.instructors.map(()=>`<col style="width:${guidePercent}%">`).join('')}</colgroup>`;
+}
 function html(model){
   const rowsCount=model.workshops.length+model.escapeWorkshops.length;
-  const width=ACTIVITY_COL_WIDTH+model.instructors.length*GUIDE_COL_WIDTH;
   const head=`<tr><th class="ops-trx-workshop">שם הפעילות</th>${model.instructors.map((i)=>`<th class="ops-trx-guide" title="${escapeHtml(i)}"><span class="ops-trx-name">${escapeHtml(i)}</span></th>`).join('')}</tr>`;
   const regular=model.workshops.map((w)=>rowHtml(model,w)).join('');
   const escape=model.escapeWorkshops.length?sectionRow('חדרי בריחה',model.instructors.length)+model.escapeWorkshops.map((w)=>rowHtml(model,w)).join(''):'';
   const body=regular+escape;
-  const table=rowsCount&&model.instructors.length?`<div class="ops-trx-wrap"><table style="min-width:${width}px;width:${width}px"><thead>${head}</thead><tbody>${body}</tbody></table></div>`:'<div class="ops-trx-msg">לא נמצאו הכשרות או שיבוצים להצגה</div>';
+  const table=rowsCount&&model.instructors.length?`<div class="ops-trx-wrap"><table>${colgroup(model)}<thead>${head}</thead><tbody>${body}</tbody></table></div>`:'<div class="ops-trx-msg">לא נמצאו הכשרות או שיבוצים להצגה</div>';
   return `<section class="ops-trx" dir="rtl"><div class="ops-trx-h"><h2>הכשרות קיץ</h2></div>${table}<div class="ops-trx-legend"><span><strong class="ops-trx-mark ops-trx-ok">✓</strong> עבר הכשרה לסדנה</span><span><strong class="ops-trx-mark ops-trx-warn">!</strong> משובץ ללא הכשרה</span><span>תא ריק = אין הכשרה ואין שיבוץ בטווח</span></div></section>`;
 }
 function setActive(root,active){root?.querySelectorAll?.('.ds-ops-mgmt-tab').forEach((btn)=>{const mine=btn.hasAttribute('data-ops-training-tab');btn.classList.toggle('is-active',active&&mine);if(active||mine)btn.setAttribute('aria-pressed',active&&mine?'true':'false');});}
