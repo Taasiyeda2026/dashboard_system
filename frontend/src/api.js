@@ -85,11 +85,11 @@ const ACTIVITY_DIRECT_MANAGE_ROLES = new Set(['admin', 'operation_manager']);
 const ACTIVITY_REQUEST_ROLES = new Set(['activities_manager', 'instructor_manager', 'business_development_manager']);
 
 const DASHBOARD_ACTIVITY_COLUMNS = [
-  'row_id', 'id', 'activity_name', 'authority', 'school', 'guide_name', 'instructor_name', 'instructor_name_2',
-  'emp_id', 'emp_id_2', 'start_date', 'end_date', 'status', 'activity_type', 'district', 'region',
-  'activity_manager', 'activity_status', 'season', 'activity_season', 'date_start', 'date_end',
-  ...Array.from({ length: 35 }, (_, index) => `date_${index + 1}`)
+  'row_id', 'activity_family', 'activity_manager', 'activity_name', 'authority', 'school',
+  'instructor_name', 'instructor_name_2', 'emp_id', 'emp_id_2', 'start_date', 'end_date',
+  'status', 'activity_type', 'district', ...Array.from({ length: 35 }, (_, index) => `date_${index + 1}`)
 ].join(',');
+const DASHBOARD_ACTIVITY_MIN_COLUMNS = 'row_id,activity_family,activity_manager,activity_name,authority,school,instructor_name,instructor_name_2,emp_id,emp_id_2,start_date,end_date,status,activity_type';
 const SETTINGS_BOOTSTRAP_COLUMNS = 'key,value,description';
 const LISTS_BOOTSTRAP_COLUMNS = 'category,value,label,group,item_value,item_label,val,display,is_active,active,category_order,sort_order';
 let settingsRowsCache = null;
@@ -443,7 +443,8 @@ async function selectActivitiesByDateRangeFromSupabase({
   activityType = '',
   includeEndDate = false,
   select = '*',
-  overlapByStartEnd = false
+  overlapByStartEnd = false,
+  fallbackSelect = ''
 } = {}) {
   if (!supabase) return [];
   if (!/^\d{4}-\d{2}-\d{2}$/.test(String(startDate || '')) || !/^\d{4}-\d{2}-\d{2}$/.test(String(endDate || ''))) {
@@ -464,6 +465,17 @@ async function selectActivitiesByDateRangeFromSupabase({
       : query.eq('activity_type', normalizedType);
   }
   const result = await query;
+  if (result.error && fallbackSelect && isMissingSupabaseColumnError(result.error)) {
+    console.warn('[supabase][dashboard] activity column select failed; retrying minimal select', result.error);
+    return selectActivitiesByDateRangeFromSupabase({
+      startDate,
+      endDate,
+      activityType,
+      includeEndDate,
+      select: fallbackSelect,
+      overlapByStartEnd
+    });
+  }
   if (result.error) throw new Error(result.error.message || 'activities_date_range_read_failed');
   return (Array.isArray(result.data) ? result.data : []).map(normalizeActivityRow);
 }
@@ -1527,6 +1539,11 @@ async function readMonthFromSupabase(ym) {
  * Supabase errors, missing rows, invalid months, and payload debug errors return null so
  * callers never treat fabricated KPI=0 values as real dashboard data.
  */
+function isMissingSupabaseColumnError(error) {
+  const msg = String(error?.message || error?.details || error?.hint || error || '').toLowerCase();
+  return msg.includes('column') || msg.includes('schema cache') || msg.includes('could not find');
+}
+
 function warnDashboardSupabasePathFailed(reason, extra = {}) {
   try {
     console.warn('[supabase][dashboard] path failed', { reason: String(reason || 'unknown'), ...extra });
@@ -1545,7 +1562,8 @@ async function dashboardReadModelFromSupabase(month) {
       endDate: range.endDate,
       includeEndDate: true,
       select: DASHBOARD_ACTIVITY_COLUMNS,
-      overlapByStartEnd: true
+      overlapByStartEnd: true,
+      fallbackSelect: DASHBOARD_ACTIVITY_MIN_COLUMNS
     });
     // Open-only rows (not closed) — used for summary, instructor/manager stats, exceptions
     const openRows = allRangeRows.filter((row) => !isActivityInactive(row));
@@ -1685,8 +1703,59 @@ async function dashboardReadModelFromSupabase(month) {
     };
   } catch (err) {
     console.error('[supabase][dashboard] unexpected error:', err);
-    return null;
+    return emptyDashboardPayload(month, { error: String(err?.message || err) });
   }
+}
+
+function emptyDashboardPayload(month, debug = {}) {
+  const monthPrefix = String(month || '').slice(0, 7);
+  const totals = {
+    total_short_activities: 0,
+    total_long_activities: 0,
+    total_activities: 0,
+    total_instructors: 0,
+    total_course_endings_current_month: 0,
+    exceptions_count: 0
+  };
+  const summary = {
+    active_type_counts: {},
+    active_instructors: [],
+    active_instructors_count: 0,
+    ending_courses_current_month: 0,
+    missing_instructor_count: 0,
+    missing_district_count: 0,
+    missing_start_date_count: 0,
+    missing_end_date_count: 0,
+    missing_date_count: 0,
+    end_date_after_cutoff_count: 0,
+    end_date_passed_count: 0,
+    operational_gaps_count: 0,
+    operational_gaps_unique_count: 0,
+    operationalTotal: 0,
+    exceptions_count: 0,
+    totalExceptionRows: 0,
+    total_exception_rows: 0,
+    totalExceptionInstances: 0,
+    counts: {}
+  };
+  return {
+    month: /^\d{4}-\d{2}$/.test(monthPrefix) ? monthPrefix : '',
+    requested_month: month,
+    totals,
+    summary,
+    by_activity_manager: [],
+    activeTypeCounts: {},
+    totalTypeCounts: {},
+    exceptionCount: 0,
+    uniqueInstructorCount: 0,
+    courseEndings: 0,
+    kpi_cards: buildDashboardKpiCardsFromSupabase(totals, {}, 0, 0, 0),
+    cards: buildDashboardKpiCardsFromSupabase(totals, {}, 0, 0, 0),
+    rows: [],
+    no_data_message: 'אין נתונים לחודש זה',
+    _source: 'supabase',
+    _debug: { dashboard_partial_fallback: true, ...debug }
+  };
 }
 
 async function readEndDatesFromSupabase() {
