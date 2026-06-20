@@ -253,6 +253,167 @@ export function getRosterUsers(settings) {
     });
 }
 
+function normalizeInstructorLookupName(value) {
+  return humanDisplayText(value).toLowerCase();
+}
+
+export function buildInstructorNameToEmpMap(rosterUsers = []) {
+  const map = new Map();
+  const ambiguous = new Set();
+  for (const user of rosterUsers) {
+    const name = humanDisplayText(user?.name);
+    const empId = text(user?.emp_id);
+    if (!name) continue;
+    const key = normalizeInstructorLookupName(name);
+    if (map.has(key)) {
+      const prev = map.get(key);
+      if (prev !== empId) ambiguous.add(key);
+    } else {
+      map.set(key, empId);
+    }
+  }
+  return { map, ambiguous };
+}
+
+export function resolveEmpIdForInstructorName(name, rosterUsers = []) {
+  const cleanName = humanDisplayText(name);
+  if (!cleanName) return { emp_id: null, error: null };
+  const { map, ambiguous } = buildInstructorNameToEmpMap(rosterUsers);
+  const key = normalizeInstructorLookupName(cleanName);
+  if (ambiguous.has(key)) return { emp_id: null, error: 'instructor_name_ambiguous' };
+  if (!map.has(key)) return { emp_id: null, error: 'instructor_name_not_in_roster' };
+  const empId = text(map.get(key));
+  if (!empId) return { emp_id: null, error: 'instructor_missing_emp_id' };
+  return { emp_id: empId, error: null };
+}
+
+export function instructorSyncErrorMessage(error = {}) {
+  const messages = {
+    instructor_name_ambiguous: 'לא ניתן לשייך מדריך — יש יותר ממדריך אחד עם שם זה',
+    instructor_name_not_in_roster: 'יש לבחור מדריך מתוך הרשימה',
+    instructor_missing_emp_id: 'למדריך שנבחר אין מספר עובד — פנה למנהל המערכת',
+    instructor_emp_mismatch: 'שם המדריך ומספר העובד אינם תואמים'
+  };
+  return messages[error.code] || 'שגיאה בשיוך המדריך';
+}
+
+const INSTRUCTOR_FIELD_PAIRS = [
+  { nameKey: 'instructor_name', empKey: 'emp_id' },
+  { nameKey: 'instructor_name_2', empKey: 'emp_id_2' }
+];
+
+export function syncInstructorEmpFields(changes = {}, rosterUsers = [], { strict = true } = {}) {
+  const out = { ...(changes || {}) };
+  const errors = [];
+  for (const { nameKey, empKey } of INSTRUCTOR_FIELD_PAIRS) {
+    if (!Object.prototype.hasOwnProperty.call(changes, nameKey)) continue;
+    const nameValue = humanDisplayText(changes[nameKey]);
+    if (!nameValue) {
+      out[empKey] = null;
+      continue;
+    }
+    const { emp_id, error } = resolveEmpIdForInstructorName(nameValue, rosterUsers);
+    if (error && strict) {
+      errors.push({ field: nameKey, code: error });
+      continue;
+    }
+    out[empKey] = emp_id;
+  }
+  return { changes: out, errors };
+}
+
+export function buildContactsInstructorLookup(contacts = []) {
+  const byName = new Map();
+  const byEmpId = new Map();
+  for (const contact of contacts) {
+    const empId = text(contact?.emp_id || contact?.employee_id || contact?.id);
+    const name = humanDisplayText(
+      contact?.full_name || contact?.name || contact?.instructor_name || contact?.guide
+    );
+    if (empId) byEmpId.set(empId, { emp_id: empId, name });
+    if (name) byName.set(normalizeInstructorLookupName(name), { emp_id: empId, name });
+  }
+  return { byName, byEmpId };
+}
+
+export function resolveCanonicalInstructorPair(name, empId, lookup = {}) {
+  const cleanName = humanDisplayText(name);
+  const cleanEmpId = text(empId);
+  const byName = lookup?.byName instanceof Map ? lookup.byName : new Map();
+  const byEmpId = lookup?.byEmpId instanceof Map ? lookup.byEmpId : new Map();
+  if (!cleanName && !cleanEmpId) return null;
+
+  if (cleanName) {
+    const fromName = byName.get(normalizeInstructorLookupName(cleanName));
+    if (fromName?.emp_id) {
+      return { emp_id: fromName.emp_id, name: fromName.name || cleanName };
+    }
+    if (cleanEmpId) {
+      const fromEmp = byEmpId.get(cleanEmpId);
+      if (fromEmp?.name && normalizeInstructorLookupName(fromEmp.name) !== normalizeInstructorLookupName(cleanName)) {
+        return { emp_id: '', name: cleanName };
+      }
+      if (fromEmp?.emp_id) {
+        return { emp_id: fromEmp.emp_id, name: cleanName };
+      }
+    }
+    return { emp_id: cleanEmpId, name: cleanName };
+  }
+
+  const fromEmp = byEmpId.get(cleanEmpId);
+  return {
+    emp_id: cleanEmpId,
+    name: fromEmp?.name || cleanEmpId
+  };
+}
+
+export function validateActivityInstructorPair(name, empId, lookup = {}) {
+  const cleanName = humanDisplayText(name);
+  const cleanEmpId = text(empId);
+  if (!cleanName && !cleanEmpId) return { valid: true, emp_id: null, name: '' };
+  if (!cleanName) return { valid: true, emp_id: cleanEmpId || null, name: '' };
+
+  const byName = lookup?.byName instanceof Map ? lookup.byName : new Map();
+  const byEmpId = lookup?.byEmpId instanceof Map ? lookup.byEmpId : new Map();
+  const fromName = byName.get(normalizeInstructorLookupName(cleanName));
+
+  if (fromName?.emp_id) {
+    const valid = !cleanEmpId || cleanEmpId === fromName.emp_id;
+    return {
+      valid,
+      emp_id: fromName.emp_id,
+      name: fromName.name || cleanName,
+      error: valid ? null : 'instructor_emp_mismatch'
+    };
+  }
+
+  if (cleanEmpId) {
+    const fromEmp = byEmpId.get(cleanEmpId);
+    const valid = !fromEmp?.name || normalizeInstructorLookupName(fromEmp.name) === normalizeInstructorLookupName(cleanName);
+    return {
+      valid,
+      emp_id: valid ? cleanEmpId : null,
+      name: cleanName,
+      error: valid ? null : 'instructor_emp_mismatch'
+    };
+  }
+
+  return { valid: true, emp_id: null, name: cleanName, error: null };
+}
+
+export function validateActivityInstructors(row = {}, lookup = {}) {
+  const pairs = [
+    validateActivityInstructorPair(row.instructor_name, row.emp_id, lookup),
+    validateActivityInstructorPair(row.instructor_name_2, row.emp_id_2, lookup)
+  ];
+  const invalid = pairs.filter((pair) => pair.error);
+  return {
+    valid: !invalid.length,
+    errors: invalid.map((pair) => pair.error),
+    pairs
+  };
+}
+
 export function getManagerUsers(settings, { activeOnly = true } = {}) {
   const raw = Array.isArray(settings?.dropdown_options?.activities_manager_users)
     ? settings.dropdown_options.activities_manager_users

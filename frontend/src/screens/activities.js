@@ -34,7 +34,9 @@ import {
   getFilterOptionOverrides,
   cleanUnique,
   humanDisplayText,
+  instructorSyncErrorMessage,
   NO_ACTIVITY_MANAGER_LABEL,
+  resolveEmpIdForInstructorName,
   resolveGradeOptions
 } from './shared/activity-options.js';
 import { readActivitiesGapFromQuery, syncActivitiesGapQuery, isActivitiesGapQueryValue } from './shared/route-query.js';
@@ -2465,10 +2467,16 @@ export const activitiesScreen = {
         resetAddActivitySavingState(form, submitBtn);
         return;
       }
-      const pickEmp = (name) => {
-        const u = roster.find((r) => String(r?.name || '').trim() === name);
-        return String(u?.emp_id || '').trim();
-      };
+      const instructor1Name = humanDisplayText(get('instructor_name'));
+      const instructor2Name = humanDisplayText(get('instructor_name_2'));
+      const instructor1 = resolveEmpIdForInstructorName(instructor1Name, roster);
+      const instructor2 = resolveEmpIdForInstructorName(instructor2Name, roster);
+      for (const [name, result] of [[instructor1Name, instructor1], [instructor2Name, instructor2]]) {
+        if (!name || !result.error) continue;
+        setAddActivityStatus(statusEl, instructorSyncErrorMessage({ code: result.error }), { isError: true });
+        resetAddActivitySavingState(form, submitBtn);
+        return;
+      }
       const sessionsValue = get('sessions') || '1';
       const isOneDay = isOneDayActivityTypeValue(get('activity_type'));
       const oneDayDate = String(get('one_day_date') || get('start_date') || get('end_date') || '').trim();
@@ -2493,10 +2501,10 @@ export const activitiesScreen = {
         funding: get('funding'),
         start_time: get('start_time'),
         end_time: get('end_time'),
-        instructor_name: humanDisplayText(get('instructor_name')),
-        emp_id: pickEmp(get('instructor_name')),
-        instructor_name_2: humanDisplayText(get('instructor_name_2')),
-        emp_id_2: pickEmp(get('instructor_name_2')),
+        instructor_name: instructor1Name,
+        emp_id: instructor1.emp_id,
+        instructor_name_2: instructor2Name,
+        emp_id_2: instructor2.emp_id,
         start_date: isOneDay ? oneDayDate : get('start_date'),
         end_date: isOneDay ? oneDayDate || null : get('end_date') || null,
         status: 'פתוח',
