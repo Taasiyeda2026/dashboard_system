@@ -2493,53 +2493,36 @@ async function readProposalTemplateSectionsFromSupabase() {
 
 async function readContactsSchoolsForProposals() {
   try {
-    const directoryColumns = 'id,client_type,authority_id,authority_code,authority_name,authority_type,authority_district,school_id,semel_mosad,school_name,contact_name,contact_role,phone,mobile,email,active';
-    const legacyColumns = 'id,client_type,client_name,authority_id,school_id,semel_mosad,authority,school,contact_name,contact_role,phone,email,mobile';
-    const [catalog, contactsResult] = await Promise.all([
+    const [catalog, unifiedRows] = await Promise.all([
       readAuthoritySchoolCatalog(),
-      (async () => {
-        let { data, error } = await supabase
-          .from('contacts_directory_view')
-          .select(directoryColumns)
-          .order('authority_name', { ascending: true });
-        if (error) {
-          // eslint-disable-next-line no-console
-          console.warn('[supabase] Failed to load contacts_directory_view for proposals; falling back to contacts_schools:', error);
-          const fallback = await supabase
-            .from('contacts_schools')
-            .select(legacyColumns)
-            .order('authority', { ascending: true });
-          data = fallback.data;
-          error = fallback.error;
-        }
-        if (error) return [];
-        return (Array.isArray(data) ? data : []).map((c) => {
-          const authorityName = cleanProposalAgreementText(c.authority_name || c.authority || c.client_name);
-          const schoolName = cleanProposalAgreementText(c.school_name || c.school);
-          return {
-            id:           cleanProposalAgreementText(c.id),
-            client_type:  cleanProposalAgreementText(c.client_type),
-            client_name:  cleanProposalAgreementText(c.client_name) || schoolName || authorityName,
-            authority_id: c.authority_id ?? null,
-            school_id:    c.school_id ?? null,
-            semel_mosad:  cleanProposalAgreementText(c.semel_mosad),
-            authority_code: cleanProposalAgreementText(c.authority_code),
-            authority_type: cleanProposalAgreementText(c.authority_type),
-            authority_name: authorityName,
-            school_name:  schoolName,
-            district:     cleanProposalAgreementText(c.authority_district || c.district),
-            authority:    authorityName,
-            school:       schoolName,
-            contact_name: cleanProposalAgreementText(c.contact_name),
-            contact_role: cleanProposalAgreementText(c.contact_role),
-            phone:        cleanProposalAgreementText(c.phone || ''),
-            mobile:       cleanProposalAgreementText(c.mobile || ''),
-            email:        cleanProposalAgreementText(c.email || ''),
-            active:       c.active
-          };
-        }).filter((c) => c.authority_name || c.school_name || c.authority || c.school);
-      })()
+      readUnifiedContactsFromSupabase()
     ]);
+    const contactsResult = (Array.isArray(unifiedRows) ? unifiedRows : []).map((c) => {
+      const authorityName = cleanProposalAgreementText(c.authority_name || c.authority || c.client_name);
+      const schoolName = cleanProposalAgreementText(c.school_name || c.school);
+      return {
+        id:           cleanProposalAgreementText(c.source_id || c.id),
+        client_type:  cleanProposalAgreementText(c.client_type),
+        client_name:  cleanProposalAgreementText(c.client_name) || schoolName || authorityName,
+        authority_id: c.authority_id ?? null,
+        school_id:    c.school_id ?? null,
+        semel_mosad:  cleanProposalAgreementText(c.semel_mosad),
+        authority_code: cleanProposalAgreementText(c.authority_code),
+        authority_type: cleanProposalAgreementText(c.authority_type),
+        authority_name: authorityName,
+        school_name:  schoolName,
+        district:     cleanProposalAgreementText(c.district),
+        authority:    authorityName,
+        school:       schoolName,
+        contact_name: cleanProposalAgreementText(c.contact_name),
+        contact_role: cleanProposalAgreementText(c.contact_role),
+        phone:        cleanProposalAgreementText(c.phone || ''),
+        mobile:       cleanProposalAgreementText(c.mobile || ''),
+        email:        cleanProposalAgreementText(c.email || ''),
+        source_table: cleanProposalAgreementText(c.source_table),
+        active:       'yes'
+      };
+    }).filter((c) => c.authority_name || c.school_name || c.authority || c.school);
 
     // eslint-disable-next-line no-console
     console.info('[proposal-catalog-authorities]', {
