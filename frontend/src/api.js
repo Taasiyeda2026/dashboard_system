@@ -83,6 +83,44 @@ const API_TIMEOUT_MS_WRITE = 45000;
 const PERF_MAX_REQUESTS = 150;
 const ACTIVITY_DIRECT_MANAGE_ROLES = new Set(['admin', 'operation_manager']);
 const ACTIVITY_REQUEST_ROLES = new Set(['activities_manager', 'instructor_manager', 'business_development_manager']);
+
+const DASHBOARD_ACTIVITY_COLUMNS = [
+  'row_id', 'activity_family', 'activity_manager', 'activity_name', 'authority', 'school',
+  'instructor_name', 'instructor_name_2', 'emp_id', 'emp_id_2', 'start_date', 'end_date',
+  'status', 'activity_type', 'district', ...Array.from({ length: 35 }, (_, index) => `date_${index + 1}`)
+].join(',');
+const DASHBOARD_ACTIVITY_MIN_COLUMNS = 'row_id,activity_family,activity_manager,activity_name,authority,school,instructor_name,instructor_name_2,emp_id,emp_id_2,start_date,end_date,status,activity_type';
+const SETTINGS_BOOTSTRAP_COLUMNS = 'key,value,description';
+const LISTS_BOOTSTRAP_COLUMNS = 'category,value,label,group,item_value,item_label,val,display,is_active,active,category_order,sort_order';
+let settingsRowsCache = null;
+let settingsRowsPromise = null;
+let listsRowsCache = null;
+let listsRowsPromise = null;
+let instructorEmpIdsCache = null;
+let instructorEmpIdsPromise = null;
+
+function clearBootstrapReadCaches() {
+  settingsRowsCache = null;
+  settingsRowsPromise = null;
+  listsRowsCache = null;
+  listsRowsPromise = null;
+}
+
+async function readInstructorEmpIdsFromSupabase() {
+  if (!supabase) return [];
+  if (instructorEmpIdsCache) return instructorEmpIdsCache;
+  if (instructorEmpIdsPromise) return instructorEmpIdsPromise;
+  instructorEmpIdsPromise = (async () => {
+    const { data, error } = await supabase.from('contacts_instructors').select('emp_id');
+    if (error) {
+      console.warn('[supabase] contacts_instructors emp_id read failed:', error);
+      return [];
+    }
+    instructorEmpIdsCache = Array.isArray(data) ? data : [];
+    return instructorEmpIdsCache;
+  })().finally(() => { instructorEmpIdsPromise = null; });
+  return instructorEmpIdsPromise;
+}
 /** Logs direct heavy reads for performance diagnostics. */
 const HEAVY_GUARDED_READ_ACTIONS = new Set([
   'dashboardSnapshot',
@@ -404,7 +442,9 @@ async function selectActivitiesByDateRangeFromSupabase({
   endDate,
   activityType = '',
   includeEndDate = false,
-  select = '*'
+  select = '*',
+  overlapByStartEnd = false,
+  fallbackSelect = ''
 } = {}) {
   if (!supabase) return [];
   if (!/^\d{4}-\d{2}-\d{2}$/.test(String(startDate || '')) || !/^\d{4}-\d{2}-\d{2}$/.test(String(endDate || ''))) {
@@ -412,8 +452,12 @@ async function selectActivitiesByDateRangeFromSupabase({
   }
   let query = supabase
     .from('activities')
-    .select(select)
-    .or(buildDateRangeOrFilter(startDate, endDate, { includeEndDate }));
+    .select(select);
+  if (overlapByStartEnd) {
+    query = query.lte('start_date', endDate).gte('end_date', startDate);
+  } else {
+    query = query.or(buildDateRangeOrFilter(startDate, endDate, { includeEndDate }));
+  }
   const normalizedType = normalizeActivityTypeValue(activityType);
   if (normalizedType && normalizedType !== 'all') {
     query = normalizedType === 'course'
@@ -421,6 +465,17 @@ async function selectActivitiesByDateRangeFromSupabase({
       : query.eq('activity_type', normalizedType);
   }
   const result = await query;
+  if (result.error && fallbackSelect && isMissingSupabaseColumnError(result.error)) {
+    console.warn('[supabase][dashboard] activity column select failed; retrying minimal select', result.error);
+    return selectActivitiesByDateRangeFromSupabase({
+      startDate,
+      endDate,
+      activityType,
+      includeEndDate,
+      select: fallbackSelect,
+      overlapByStartEnd
+    });
+  }
   if (result.error) throw new Error(result.error.message || 'activities_date_range_read_failed');
   return (Array.isArray(result.data) ? result.data : []).map(normalizeActivityRow);
 }
@@ -990,10 +1045,13 @@ async function readInstructorContactsFromSupabase() {
  */
 async function readListsFromSupabase() {
   if (!supabase) return null;
+  if (listsRowsCache) return listsRowsCache;
+  if (listsRowsPromise) return listsRowsPromise;
+  listsRowsPromise = (async () => {
   try {
     const result = await supabase
       .from('lists')
-      .select('*')
+      .select(LISTS_BOOTSTRAP_COLUMNS)
       .order('category_order', { ascending: true, nullsFirst: false })
       .order('sort_order', { ascending: true, nullsFirst: false })
       .order('category', { ascending: true })
@@ -1015,12 +1073,17 @@ async function readListsFromSupabase() {
       catMap.get(cat).push({ label, value, _row: row, is_active: row.is_active, active: row.active });
     }
     const categories = [...catMap.entries()].map(([category, items]) => ({ category, items }));
-    return { categories, _source: 'supabase' };
+    listsRowsCache = { categories, _source: 'supabase' };
+    return listsRowsCache;
   } catch (error) {
     // eslint-disable-next-line no-console
     console.error('[supabase] Unexpected lists fetch error:', error);
     return null;
+  } finally {
+    listsRowsPromise = null;
   }
+  })();
+  return listsRowsPromise;
 }
 
 /**
@@ -1476,6 +1539,11 @@ async function readMonthFromSupabase(ym) {
  * Supabase errors, missing rows, invalid months, and payload debug errors return null so
  * callers never treat fabricated KPI=0 values as real dashboard data.
  */
+function isMissingSupabaseColumnError(error) {
+  const msg = String(error?.message || error?.details || error?.hint || error || '').toLowerCase();
+  return msg.includes('column') || msg.includes('schema cache') || msg.includes('could not find');
+}
+
 function warnDashboardSupabasePathFailed(reason, extra = {}) {
   try {
     console.warn('[supabase][dashboard] path failed', { reason: String(reason || 'unknown'), ...extra });
@@ -1492,7 +1560,10 @@ async function dashboardReadModelFromSupabase(month) {
     const allRangeRows = await selectActivitiesByDateRangeFromSupabase({
       startDate: range.startDate,
       endDate: range.endDate,
-      includeEndDate: true
+      includeEndDate: true,
+      select: DASHBOARD_ACTIVITY_COLUMNS,
+      overlapByStartEnd: true,
+      fallbackSelect: DASHBOARD_ACTIVITY_MIN_COLUMNS
     });
     // Open-only rows (not closed) — used for summary, instructor/manager stats, exceptions
     const openRows = allRangeRows.filter((row) => !isActivityInactive(row));
@@ -1509,12 +1580,12 @@ async function dashboardReadModelFromSupabase(month) {
       const activityType = rowActivityType(row);
       if (activityType) totalTypeCounts[activityType] = (totalTypeCounts[activityType] || 0) + 1;
     }
-    const summerKpiRows = (await selectActivitiesFromSupabase('*'))
+    totalTypeCounts.summer = new Set(allMonthRows
       .filter((row) => !isActivityInactive(row))
-      .filter(isSummerActivity);
-    totalTypeCounts.summer = new Set(summerKpiRows.map((row, index) => String(row?.RowID || row?.row_id || '').trim() || `summer:${index}`)).size;
+      .filter(isSummerActivity)
+      .map((row, index) => String(row?.RowID || row?.row_id || '').trim() || `summer:${index}`)).size;
 
-    const exceptionSummary = await readExceptionsFromSupabase({ month: monthPrefix });
+    const exceptionSummary = await readExceptionsFromSupabase({ month: monthPrefix, activityRows: allRangeRows });
     const exceptionError = exceptionSummary?.error || exceptionSummary?._debug?.error;
     if (!exceptionSummary || exceptionError) {
       warnDashboardSupabasePathFailed(exceptionError || 'exceptions_model_failed', { month: monthPrefix });
@@ -1632,8 +1703,59 @@ async function dashboardReadModelFromSupabase(month) {
     };
   } catch (err) {
     console.error('[supabase][dashboard] unexpected error:', err);
-    return null;
+    return emptyDashboardPayload(month, { error: String(err?.message || err) });
   }
+}
+
+function emptyDashboardPayload(month, debug = {}) {
+  const monthPrefix = String(month || '').slice(0, 7);
+  const totals = {
+    total_short_activities: 0,
+    total_long_activities: 0,
+    total_activities: 0,
+    total_instructors: 0,
+    total_course_endings_current_month: 0,
+    exceptions_count: 0
+  };
+  const summary = {
+    active_type_counts: {},
+    active_instructors: [],
+    active_instructors_count: 0,
+    ending_courses_current_month: 0,
+    missing_instructor_count: 0,
+    missing_district_count: 0,
+    missing_start_date_count: 0,
+    missing_end_date_count: 0,
+    missing_date_count: 0,
+    end_date_after_cutoff_count: 0,
+    end_date_passed_count: 0,
+    operational_gaps_count: 0,
+    operational_gaps_unique_count: 0,
+    operationalTotal: 0,
+    exceptions_count: 0,
+    totalExceptionRows: 0,
+    total_exception_rows: 0,
+    totalExceptionInstances: 0,
+    counts: {}
+  };
+  return {
+    month: /^\d{4}-\d{2}$/.test(monthPrefix) ? monthPrefix : '',
+    requested_month: month,
+    totals,
+    summary,
+    by_activity_manager: [],
+    activeTypeCounts: {},
+    totalTypeCounts: {},
+    exceptionCount: 0,
+    uniqueInstructorCount: 0,
+    courseEndings: 0,
+    kpi_cards: buildDashboardKpiCardsFromSupabase(totals, {}, 0, 0, 0),
+    cards: buildDashboardKpiCardsFromSupabase(totals, {}, 0, 0, 0),
+    rows: [],
+    no_data_message: 'אין נתונים לחודש זה',
+    _source: 'supabase',
+    _debug: { dashboard_partial_fallback: true, ...debug }
+  };
 }
 
 async function readEndDatesFromSupabase() {
@@ -1814,9 +1936,10 @@ async function readExceptionsFromSupabase(params = {}) {
   const currentYm = `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, '0')}`;
   const month = /^\d{4}-\d{2}$/.test(candidate) ? candidate : currentYm;
   try {
+    const suppliedActivityRows = Array.isArray(params?.activityRows) ? params.activityRows : null;
     const [activitiesResult, instrListResult, settingsRows] = await Promise.all([
-      supabase.from('activities').select('*'),
-      supabase.from('contacts_instructors').select('emp_id'),
+      suppliedActivityRows ? Promise.resolve({ data: suppliedActivityRows, error: null }) : supabase.from('activities').select(DASHBOARD_ACTIVITY_COLUMNS),
+      readInstructorEmpIdsFromSupabase().then((data) => ({ data, error: null })),
       readSettingsRowsFromSupabase().catch((error) => {
         warnLateEndDateThreshold('settings read failed', error?.message || error);
         return [];
@@ -2493,53 +2616,36 @@ async function readProposalTemplateSectionsFromSupabase() {
 
 async function readContactsSchoolsForProposals() {
   try {
-    const directoryColumns = 'id,client_type,authority_id,authority_code,authority_name,authority_type,authority_district,school_id,semel_mosad,school_name,contact_name,contact_role,phone,mobile,email,active';
-    const legacyColumns = 'id,client_type,client_name,authority_id,school_id,semel_mosad,authority,school,contact_name,contact_role,phone,email,mobile';
-    const [catalog, contactsResult] = await Promise.all([
+    const [catalog, unifiedRows] = await Promise.all([
       readAuthoritySchoolCatalog(),
-      (async () => {
-        let { data, error } = await supabase
-          .from('contacts_directory_view')
-          .select(directoryColumns)
-          .order('authority_name', { ascending: true });
-        if (error) {
-          // eslint-disable-next-line no-console
-          console.warn('[supabase] Failed to load contacts_directory_view for proposals; falling back to contacts_schools:', error);
-          const fallback = await supabase
-            .from('contacts_schools')
-            .select(legacyColumns)
-            .order('authority', { ascending: true });
-          data = fallback.data;
-          error = fallback.error;
-        }
-        if (error) return [];
-        return (Array.isArray(data) ? data : []).map((c) => {
-          const authorityName = cleanProposalAgreementText(c.authority_name || c.authority || c.client_name);
-          const schoolName = cleanProposalAgreementText(c.school_name || c.school);
-          return {
-            id:           cleanProposalAgreementText(c.id),
-            client_type:  cleanProposalAgreementText(c.client_type),
-            client_name:  cleanProposalAgreementText(c.client_name) || schoolName || authorityName,
-            authority_id: c.authority_id ?? null,
-            school_id:    c.school_id ?? null,
-            semel_mosad:  cleanProposalAgreementText(c.semel_mosad),
-            authority_code: cleanProposalAgreementText(c.authority_code),
-            authority_type: cleanProposalAgreementText(c.authority_type),
-            authority_name: authorityName,
-            school_name:  schoolName,
-            district:     cleanProposalAgreementText(c.authority_district || c.district),
-            authority:    authorityName,
-            school:       schoolName,
-            contact_name: cleanProposalAgreementText(c.contact_name),
-            contact_role: cleanProposalAgreementText(c.contact_role),
-            phone:        cleanProposalAgreementText(c.phone || ''),
-            mobile:       cleanProposalAgreementText(c.mobile || ''),
-            email:        cleanProposalAgreementText(c.email || ''),
-            active:       c.active
-          };
-        }).filter((c) => c.authority_name || c.school_name || c.authority || c.school);
-      })()
+      readUnifiedContactsFromSupabase()
     ]);
+    const contactsResult = (Array.isArray(unifiedRows) ? unifiedRows : []).map((c) => {
+      const authorityName = cleanProposalAgreementText(c.authority_name || c.authority || c.client_name);
+      const schoolName = cleanProposalAgreementText(c.school_name || c.school);
+      return {
+        id:           cleanProposalAgreementText(c.source_id || c.id),
+        client_type:  cleanProposalAgreementText(c.client_type),
+        client_name:  cleanProposalAgreementText(c.client_name) || schoolName || authorityName,
+        authority_id: c.authority_id ?? null,
+        school_id:    c.school_id ?? null,
+        semel_mosad:  cleanProposalAgreementText(c.semel_mosad),
+        authority_code: cleanProposalAgreementText(c.authority_code),
+        authority_type: cleanProposalAgreementText(c.authority_type),
+        authority_name: authorityName,
+        school_name:  schoolName,
+        district:     cleanProposalAgreementText(c.district),
+        authority:    authorityName,
+        school:       schoolName,
+        contact_name: cleanProposalAgreementText(c.contact_name),
+        contact_role: cleanProposalAgreementText(c.contact_role),
+        phone:        cleanProposalAgreementText(c.phone || ''),
+        mobile:       cleanProposalAgreementText(c.mobile || ''),
+        email:        cleanProposalAgreementText(c.email || ''),
+        source_table: cleanProposalAgreementText(c.source_table),
+        active:       'yes'
+      };
+    }).filter((c) => c.authority_name || c.school_name || c.authority || c.school);
 
     // eslint-disable-next-line no-console
     console.info('[proposal-catalog-authorities]', {
@@ -3604,17 +3710,24 @@ function buildEditRequestGroups(rows = [], canReview = false, activityByRowId = 
 }
 
 async function readSettingsRowsFromSupabase() {
+  if (settingsRowsCache) return settingsRowsCache;
+  if (settingsRowsPromise) return settingsRowsPromise;
+  settingsRowsPromise = (async () => {
   const { data, error } = await supabase
     .from('settings')
-    .select('*')
+    .select(SETTINGS_BOOTSTRAP_COLUMNS)
     .order('key', { ascending: true });
   if (error) throw new Error(error.message || 'settings_read_failed');
   const rows = Array.isArray(data) ? data : [];
-  return rows.map((r) => ({
+  settingsRowsCache = rows.map((r) => ({
     key: String(r?.key || ''),
     value: String(r?.value || ''),
     description: String(r?.description || '')
   }));
+  settingsRowsPromise = null;
+  return settingsRowsCache;
+  })().catch((error) => { settingsRowsPromise = null; throw error; });
+  return settingsRowsPromise;
 }
 
 
@@ -3889,14 +4002,10 @@ async function readCatalogProgramsFromSupabase() {
 }
 export const api = {
   login: async (user_id, entry_code) => {
-    const [{ userRow: user, profileRow }, listsData, settingsRows, catalog] = await Promise.all([
+    const [{ userRow: user, profileRow }, listsData, settingsRows] = await Promise.all([
       loginWithSupabaseAuth(user_id, entry_code),
       readListsFromSupabase().catch(() => null),
-      readSettingsRowsFromSupabase().catch(() => []),
-      readAuthoritySchoolCatalog().catch(() => ({
-        authorityLookup: buildAuthorityCatalogLookup([]),
-        schoolLookup: buildSchoolCatalogLookup([])
-      }))
+      readSettingsRowsFromSupabase().catch(() => [])
     ]);
     const token = makeSessionToken(user);
     const flat = flattenUserRow(user);
@@ -3927,29 +4036,19 @@ export const api = {
         manage_proposals_agreements: permissionFlagYes(flat.manage_proposals_agreements) || undefined
       },
       ...buildBootstrapFromUser(user, profileRow),
-      client_settings: mergeClientSettingsWithAuthoritySchoolCatalog(
-        buildClientSettingsFromLists(listsData, settingsRows),
-        buildAuthoritySchoolCatalogClientSettings(catalog.authorityLookup, catalog.schoolLookup)
-      )
+      client_settings: buildClientSettingsFromLists(listsData, settingsRows)
     };
   },
   bootstrap: async () => {
     await waitForSupabaseAuthSession();
-    const [{ userRow: user, profileRow }, listsData, settingsRows, catalog] = await Promise.all([
+    const [{ userRow: user, profileRow }, listsData, settingsRows] = await Promise.all([
       readCurrentUserBySession(),
       readListsFromSupabase().catch(() => null),
-      readSettingsRowsFromSupabase().catch(() => []),
-      readAuthoritySchoolCatalog().catch(() => ({
-        authorityLookup: buildAuthorityCatalogLookup([]),
-        schoolLookup: buildSchoolCatalogLookup([])
-      }))
+      readSettingsRowsFromSupabase().catch(() => [])
     ]);
     return {
       ...buildBootstrapFromUser(user, profileRow),
-      client_settings: mergeClientSettingsWithAuthoritySchoolCatalog(
-        buildClientSettingsFromLists(listsData, settingsRows),
-        buildAuthoritySchoolCatalogClientSettings(catalog.authorityLookup, catalog.schoolLookup)
-      )
+      client_settings: buildClientSettingsFromLists(listsData, settingsRows)
     };
   },
   dashboard: (filters) => api.dashboardReadModel(filters || {}),
@@ -4170,6 +4269,7 @@ export const api = {
       .from('settings')
       .upsert({ key, value, description: 'UI accent color' }, { onConflict: 'key' });
     if (error) throw new Error(error.message || 'client_setting_save_failed');
+    clearBootstrapReadCaches();
     return { ok: true, key, value };
   },
   adminSettings: async (payload) => {
@@ -4181,6 +4281,7 @@ export const api = {
         .from('settings')
         .upsert({ key, value, description }, { onConflict: 'key' });
       if (writeErr) throw new Error(writeErr.message || 'admin_settings_save_failed');
+      clearBootstrapReadCaches();
       clearScreenDataCache();
       deletePersistedCacheByPrefixes(['adminSettings', 'dashboard:', 'activities:', 'week:', 'month:']);
     }
