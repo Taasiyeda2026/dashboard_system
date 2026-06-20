@@ -35,6 +35,84 @@ function addOperationsVisualTweaksStyle() {
     #app table thead th:last-child {
       border-top-left-radius: 8px;
     }
+
+    #app.ds-activities-archive-mode .ds-table--activities-list {
+      width: 100% !important;
+      table-layout: fixed !important;
+      border-collapse: separate;
+      border-spacing: 0;
+    }
+    #app.ds-activities-archive-mode .ds-table--activities-list colgroup col:nth-child(7),
+    #app.ds-activities-archive-mode .ds-table--activities-list thead th:nth-child(7),
+    #app.ds-activities-archive-mode .ds-table--activities-list tbody td:nth-child(7) {
+      display: none !important;
+      width: 0 !important;
+      min-width: 0 !important;
+      max-width: 0 !important;
+      padding: 0 !important;
+      border: 0 !important;
+    }
+    #app.ds-activities-archive-mode .ds-table--activities-list th,
+    #app.ds-activities-archive-mode .ds-table--activities-list td {
+      height: 50px;
+      padding: 8px 10px;
+      vertical-align: middle;
+      box-sizing: border-box;
+    }
+    #app.ds-activities-archive-mode .ds-table--activities-list thead th {
+      height: 44px;
+      text-align: center;
+      white-space: nowrap;
+    }
+    #app.ds-activities-archive-mode .ds-table--activities-list tbody td:nth-child(1),
+    #app.ds-activities-archive-mode .ds-table--activities-list thead th:nth-child(1) {
+      width: 24%;
+    }
+    #app.ds-activities-archive-mode .ds-table--activities-list tbody td:nth-child(2),
+    #app.ds-activities-archive-mode .ds-table--activities-list thead th:nth-child(2),
+    #app.ds-activities-archive-mode .ds-table--activities-list tbody td:nth-child(3),
+    #app.ds-activities-archive-mode .ds-table--activities-list thead th:nth-child(3) {
+      width: 12%;
+    }
+    #app.ds-activities-archive-mode .ds-table--activities-list tbody td:nth-child(4),
+    #app.ds-activities-archive-mode .ds-table--activities-list thead th:nth-child(4) {
+      width: 16%;
+    }
+    #app.ds-activities-archive-mode .ds-table--activities-list tbody td:nth-child(5),
+    #app.ds-activities-archive-mode .ds-table--activities-list thead th:nth-child(5),
+    #app.ds-activities-archive-mode .ds-table--activities-list tbody td:nth-child(6),
+    #app.ds-activities-archive-mode .ds-table--activities-list thead th:nth-child(6) {
+      width: 10%;
+      text-align: center;
+    }
+    #app.ds-activities-archive-mode .ds-table--activities-list tbody td:nth-child(8),
+    #app.ds-activities-archive-mode .ds-table--activities-list thead th:nth-child(8) {
+      width: 16%;
+    }
+    #app.ds-activities-archive-mode .ds-table--activities-list .ds-activities-program-cell,
+    #app.ds-activities-archive-mode .ds-table--activities-list .ds-activities-instructor-wrap {
+      min-width: 0;
+    }
+    #app.ds-activities-archive-mode .ds-table--activities-list .ds-activities-program-name,
+    #app.ds-activities-archive-mode .ds-table--activities-list .ds-activities-cell-ellipsis,
+    #app.ds-activities-archive-mode .ds-table--activities-list .ds-activities-instructor-name,
+    #app.ds-activities-archive-mode .ds-table--activities-list .ds-activities-manager-line {
+      display: block;
+      overflow: hidden;
+      text-overflow: ellipsis;
+      white-space: nowrap;
+      max-width: 100%;
+    }
+    #app.ds-activities-archive-mode .ds-table--activities-list .ds-activities-program-name {
+      font-weight: 800;
+    }
+    #app.ds-activities-archive-mode .ds-table--activities-list .ds-activities-program-type,
+    #app.ds-activities-archive-mode .ds-table--activities-list .ds-activities-manager-line {
+      font-size: 11px;
+      color: #64748b;
+      line-height: 1.2;
+      margin-top: 2px;
+    }
   `;
   document.head.appendChild(style);
 }
@@ -46,9 +124,42 @@ function removeEmptyCellLegendText() {
   });
 }
 
+function textOf(el) {
+  return String(el?.textContent || '').replace(/\s+/g, ' ').trim();
+}
+
+function isVisibleElement(el) {
+  if (!el) return false;
+  const rect = el.getBoundingClientRect?.();
+  if (!rect) return true;
+  return rect.width > 0 && rect.height > 0;
+}
+
+function isActivitiesArchiveVisible() {
+  const app = document.getElementById('app');
+  if (!app || !app.querySelector('.ds-table--activities-list')) return false;
+  const activeCandidates = app.querySelectorAll(`
+    button.is-active,
+    button.active,
+    button[aria-pressed="true"],
+    .is-active,
+    .active,
+    [aria-selected="true"],
+    [data-active="true"]
+  `);
+  return Array.from(activeCandidates).some((el) => isVisibleElement(el) && textOf(el).includes('ארכיון'));
+}
+
+function setActivitiesArchiveMode() {
+  const app = document.getElementById('app');
+  if (!app) return;
+  app.classList.toggle('ds-activities-archive-mode', isActivitiesArchiveVisible());
+}
+
 function runOperationsVisualTweaks() {
   addOperationsVisualTweaksStyle();
   removeEmptyCellLegendText();
+  setActivitiesArchiveMode();
 }
 
 function scheduleOperationsVisualTweaks() {
@@ -61,5 +172,5 @@ if (typeof document !== 'undefined') {
   } else {
     scheduleOperationsVisualTweaks();
   }
-  new MutationObserver(scheduleOperationsVisualTweaks).observe(document.documentElement, { childList: true, subtree: true });
+  new MutationObserver(scheduleOperationsVisualTweaks).observe(document.documentElement, { childList: true, subtree: true, attributes: true, attributeFilter: ['class', 'aria-pressed', 'aria-selected', 'data-active'] });
 }
