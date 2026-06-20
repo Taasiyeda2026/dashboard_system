@@ -83,6 +83,44 @@ const API_TIMEOUT_MS_WRITE = 45000;
 const PERF_MAX_REQUESTS = 150;
 const ACTIVITY_DIRECT_MANAGE_ROLES = new Set(['admin', 'operation_manager']);
 const ACTIVITY_REQUEST_ROLES = new Set(['activities_manager', 'instructor_manager', 'business_development_manager']);
+
+const DASHBOARD_ACTIVITY_COLUMNS = [
+  'row_id', 'id', 'activity_name', 'authority', 'school', 'guide_name', 'instructor_name', 'instructor_name_2',
+  'emp_id', 'emp_id_2', 'start_date', 'end_date', 'status', 'activity_type', 'district', 'region',
+  'activity_manager', 'activity_status', 'season', 'activity_season', 'date_start', 'date_end',
+  ...Array.from({ length: 35 }, (_, index) => `date_${index + 1}`)
+].join(',');
+const SETTINGS_BOOTSTRAP_COLUMNS = 'key,value,description';
+const LISTS_BOOTSTRAP_COLUMNS = 'category,value,label,group,item_value,item_label,val,display,is_active,active,category_order,sort_order';
+let settingsRowsCache = null;
+let settingsRowsPromise = null;
+let listsRowsCache = null;
+let listsRowsPromise = null;
+let instructorEmpIdsCache = null;
+let instructorEmpIdsPromise = null;
+
+function clearBootstrapReadCaches() {
+  settingsRowsCache = null;
+  settingsRowsPromise = null;
+  listsRowsCache = null;
+  listsRowsPromise = null;
+}
+
+async function readInstructorEmpIdsFromSupabase() {
+  if (!supabase) return [];
+  if (instructorEmpIdsCache) return instructorEmpIdsCache;
+  if (instructorEmpIdsPromise) return instructorEmpIdsPromise;
+  instructorEmpIdsPromise = (async () => {
+    const { data, error } = await supabase.from('contacts_instructors').select('emp_id');
+    if (error) {
+      console.warn('[supabase] contacts_instructors emp_id read failed:', error);
+      return [];
+    }
+    instructorEmpIdsCache = Array.isArray(data) ? data : [];
+    return instructorEmpIdsCache;
+  })().finally(() => { instructorEmpIdsPromise = null; });
+  return instructorEmpIdsPromise;
+}
 /** Logs direct heavy reads for performance diagnostics. */
 const HEAVY_GUARDED_READ_ACTIONS = new Set([
   'dashboardSnapshot',
@@ -404,7 +442,8 @@ async function selectActivitiesByDateRangeFromSupabase({
   endDate,
   activityType = '',
   includeEndDate = false,
-  select = '*'
+  select = '*',
+  overlapByStartEnd = false
 } = {}) {
   if (!supabase) return [];
   if (!/^\d{4}-\d{2}-\d{2}$/.test(String(startDate || '')) || !/^\d{4}-\d{2}-\d{2}$/.test(String(endDate || ''))) {
@@ -412,8 +451,12 @@ async function selectActivitiesByDateRangeFromSupabase({
   }
   let query = supabase
     .from('activities')
-    .select(select)
-    .or(buildDateRangeOrFilter(startDate, endDate, { includeEndDate }));
+    .select(select);
+  if (overlapByStartEnd) {
+    query = query.lte('start_date', endDate).gte('end_date', startDate);
+  } else {
+    query = query.or(buildDateRangeOrFilter(startDate, endDate, { includeEndDate }));
+  }
   const normalizedType = normalizeActivityTypeValue(activityType);
   if (normalizedType && normalizedType !== 'all') {
     query = normalizedType === 'course'
@@ -990,10 +1033,13 @@ async function readInstructorContactsFromSupabase() {
  */
 async function readListsFromSupabase() {
   if (!supabase) return null;
+  if (listsRowsCache) return listsRowsCache;
+  if (listsRowsPromise) return listsRowsPromise;
+  listsRowsPromise = (async () => {
   try {
     const result = await supabase
       .from('lists')
-      .select('*')
+      .select(LISTS_BOOTSTRAP_COLUMNS)
       .order('category_order', { ascending: true, nullsFirst: false })
       .order('sort_order', { ascending: true, nullsFirst: false })
       .order('category', { ascending: true })
@@ -1015,12 +1061,17 @@ async function readListsFromSupabase() {
       catMap.get(cat).push({ label, value, _row: row, is_active: row.is_active, active: row.active });
     }
     const categories = [...catMap.entries()].map(([category, items]) => ({ category, items }));
-    return { categories, _source: 'supabase' };
+    listsRowsCache = { categories, _source: 'supabase' };
+    return listsRowsCache;
   } catch (error) {
     // eslint-disable-next-line no-console
     console.error('[supabase] Unexpected lists fetch error:', error);
     return null;
+  } finally {
+    listsRowsPromise = null;
   }
+  })();
+  return listsRowsPromise;
 }
 
 /**
@@ -1492,7 +1543,9 @@ async function dashboardReadModelFromSupabase(month) {
     const allRangeRows = await selectActivitiesByDateRangeFromSupabase({
       startDate: range.startDate,
       endDate: range.endDate,
-      includeEndDate: true
+      includeEndDate: true,
+      select: DASHBOARD_ACTIVITY_COLUMNS,
+      overlapByStartEnd: true
     });
     // Open-only rows (not closed) — used for summary, instructor/manager stats, exceptions
     const openRows = allRangeRows.filter((row) => !isActivityInactive(row));
@@ -1509,12 +1562,12 @@ async function dashboardReadModelFromSupabase(month) {
       const activityType = rowActivityType(row);
       if (activityType) totalTypeCounts[activityType] = (totalTypeCounts[activityType] || 0) + 1;
     }
-    const summerKpiRows = (await selectActivitiesFromSupabase('*'))
+    totalTypeCounts.summer = new Set(allMonthRows
       .filter((row) => !isActivityInactive(row))
-      .filter(isSummerActivity);
-    totalTypeCounts.summer = new Set(summerKpiRows.map((row, index) => String(row?.RowID || row?.row_id || '').trim() || `summer:${index}`)).size;
+      .filter(isSummerActivity)
+      .map((row, index) => String(row?.RowID || row?.row_id || '').trim() || `summer:${index}`)).size;
 
-    const exceptionSummary = await readExceptionsFromSupabase({ month: monthPrefix });
+    const exceptionSummary = await readExceptionsFromSupabase({ month: monthPrefix, activityRows: allRangeRows });
     const exceptionError = exceptionSummary?.error || exceptionSummary?._debug?.error;
     if (!exceptionSummary || exceptionError) {
       warnDashboardSupabasePathFailed(exceptionError || 'exceptions_model_failed', { month: monthPrefix });
@@ -1814,9 +1867,10 @@ async function readExceptionsFromSupabase(params = {}) {
   const currentYm = `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, '0')}`;
   const month = /^\d{4}-\d{2}$/.test(candidate) ? candidate : currentYm;
   try {
+    const suppliedActivityRows = Array.isArray(params?.activityRows) ? params.activityRows : null;
     const [activitiesResult, instrListResult, settingsRows] = await Promise.all([
-      supabase.from('activities').select('*'),
-      supabase.from('contacts_instructors').select('emp_id'),
+      suppliedActivityRows ? Promise.resolve({ data: suppliedActivityRows, error: null }) : supabase.from('activities').select(DASHBOARD_ACTIVITY_COLUMNS),
+      readInstructorEmpIdsFromSupabase().then((data) => ({ data, error: null })),
       readSettingsRowsFromSupabase().catch((error) => {
         warnLateEndDateThreshold('settings read failed', error?.message || error);
         return [];
@@ -3587,17 +3641,24 @@ function buildEditRequestGroups(rows = [], canReview = false, activityByRowId = 
 }
 
 async function readSettingsRowsFromSupabase() {
+  if (settingsRowsCache) return settingsRowsCache;
+  if (settingsRowsPromise) return settingsRowsPromise;
+  settingsRowsPromise = (async () => {
   const { data, error } = await supabase
     .from('settings')
-    .select('*')
+    .select(SETTINGS_BOOTSTRAP_COLUMNS)
     .order('key', { ascending: true });
   if (error) throw new Error(error.message || 'settings_read_failed');
   const rows = Array.isArray(data) ? data : [];
-  return rows.map((r) => ({
+  settingsRowsCache = rows.map((r) => ({
     key: String(r?.key || ''),
     value: String(r?.value || ''),
     description: String(r?.description || '')
   }));
+  settingsRowsPromise = null;
+  return settingsRowsCache;
+  })().catch((error) => { settingsRowsPromise = null; throw error; });
+  return settingsRowsPromise;
 }
 
 
@@ -3872,14 +3933,10 @@ async function readCatalogProgramsFromSupabase() {
 }
 export const api = {
   login: async (user_id, entry_code) => {
-    const [{ userRow: user, profileRow }, listsData, settingsRows, catalog] = await Promise.all([
+    const [{ userRow: user, profileRow }, listsData, settingsRows] = await Promise.all([
       loginWithSupabaseAuth(user_id, entry_code),
       readListsFromSupabase().catch(() => null),
-      readSettingsRowsFromSupabase().catch(() => []),
-      readAuthoritySchoolCatalog().catch(() => ({
-        authorityLookup: buildAuthorityCatalogLookup([]),
-        schoolLookup: buildSchoolCatalogLookup([])
-      }))
+      readSettingsRowsFromSupabase().catch(() => [])
     ]);
     const token = makeSessionToken(user);
     const flat = flattenUserRow(user);
@@ -3910,29 +3967,19 @@ export const api = {
         manage_proposals_agreements: permissionFlagYes(flat.manage_proposals_agreements) || undefined
       },
       ...buildBootstrapFromUser(user, profileRow),
-      client_settings: mergeClientSettingsWithAuthoritySchoolCatalog(
-        buildClientSettingsFromLists(listsData, settingsRows),
-        buildAuthoritySchoolCatalogClientSettings(catalog.authorityLookup, catalog.schoolLookup)
-      )
+      client_settings: buildClientSettingsFromLists(listsData, settingsRows)
     };
   },
   bootstrap: async () => {
     await waitForSupabaseAuthSession();
-    const [{ userRow: user, profileRow }, listsData, settingsRows, catalog] = await Promise.all([
+    const [{ userRow: user, profileRow }, listsData, settingsRows] = await Promise.all([
       readCurrentUserBySession(),
       readListsFromSupabase().catch(() => null),
-      readSettingsRowsFromSupabase().catch(() => []),
-      readAuthoritySchoolCatalog().catch(() => ({
-        authorityLookup: buildAuthorityCatalogLookup([]),
-        schoolLookup: buildSchoolCatalogLookup([])
-      }))
+      readSettingsRowsFromSupabase().catch(() => [])
     ]);
     return {
       ...buildBootstrapFromUser(user, profileRow),
-      client_settings: mergeClientSettingsWithAuthoritySchoolCatalog(
-        buildClientSettingsFromLists(listsData, settingsRows),
-        buildAuthoritySchoolCatalogClientSettings(catalog.authorityLookup, catalog.schoolLookup)
-      )
+      client_settings: buildClientSettingsFromLists(listsData, settingsRows)
     };
   },
   dashboard: (filters) => api.dashboardReadModel(filters || {}),
@@ -4153,6 +4200,7 @@ export const api = {
       .from('settings')
       .upsert({ key, value, description: 'UI accent color' }, { onConflict: 'key' });
     if (error) throw new Error(error.message || 'client_setting_save_failed');
+    clearBootstrapReadCaches();
     return { ok: true, key, value };
   },
   adminSettings: async (payload) => {
@@ -4164,6 +4212,7 @@ export const api = {
         .from('settings')
         .upsert({ key, value, description }, { onConflict: 'key' });
       if (writeErr) throw new Error(writeErr.message || 'admin_settings_save_failed');
+      clearBootstrapReadCaches();
       clearScreenDataCache();
       deletePersistedCacheByPrefixes(['adminSettings', 'dashboard:', 'activities:', 'week:', 'month:']);
     }
