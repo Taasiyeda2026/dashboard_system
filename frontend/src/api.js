@@ -1759,14 +1759,14 @@ function emptyDashboardPayload(month, debug = {}) {
 }
 
 async function readEndDatesFromSupabase() {
-  if (!supabase) return buildSupabaseErrorPayload({ rows: [] }, 'no_supabase_client');
+  if (!supabase) throw new Error('no_supabase_client');
   try {
     const rows = (await selectActivitiesFromSupabase('*'))
       .filter((row) => !isActivityInactive(row))
       .map((row) => ({ ...row, meeting_dates: getActivityDateColumns(row), date_cols: getActivityDateColumns(row) }));
     return { rows, _source: 'supabase' };
   } catch (error) {
-    return buildSupabaseErrorPayload({ rows: [] }, error);
+    throw new Error(error?.message || 'end_dates_supabase_failed');
   }
 }
 
@@ -1938,7 +1938,7 @@ async function readExceptionsFromSupabase(params = {}) {
   try {
     const suppliedActivityRows = Array.isArray(params?.activityRows) ? params.activityRows : null;
     const [activitiesResult, instrListResult, settingsRows] = await Promise.all([
-      suppliedActivityRows ? Promise.resolve({ data: suppliedActivityRows, error: null }) : supabase.from('activities').select(DASHBOARD_ACTIVITY_COLUMNS),
+      suppliedActivityRows ? Promise.resolve({ data: suppliedActivityRows, error: null }) : supabase.from('activities').select('*'),
       readInstructorEmpIdsFromSupabase().then((data) => ({ data, error: null })),
       readSettingsRowsFromSupabase().catch((error) => {
         warnLateEndDateThreshold('settings read failed', error?.message || error);
@@ -4081,7 +4081,7 @@ export const api = {
   archiveActivities: async () => {
     const data = await readArchiveActivitiesFromSupabase();
     if (data) return data;
-    return buildSupabaseErrorPayload({ rows: [] }, 'archive_supabase_failed');
+    throw new Error('archive_supabase_failed');
   },
   allActivities: async () => {
     const rows = await readAllActivitiesRowsSupabase();
@@ -4091,7 +4091,7 @@ export const api = {
     const resolvedFilters = filters || {};
     const supabaseData = await readActivitiesFromSupabase(resolvedFilters);
     if (supabaseData) return normalizeData(supabaseData);
-    return normalizeData(buildSupabaseErrorPayload({ rows: [] }, 'activities_supabase_failed', { filters: resolvedFilters }));
+    throw new Error('activities_supabase_failed');
   },
   activityLayoutStatuses: async (payload = {}) => {
     const role = String(state?.user?.role || '').trim();
