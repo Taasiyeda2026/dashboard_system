@@ -91,7 +91,7 @@ const DASHBOARD_ACTIVITY_COLUMNS = [
 ].join(',');
 const DASHBOARD_ACTIVITY_MIN_COLUMNS = 'row_id,activity_family,activity_manager,activity_name,authority,school,instructor_name,instructor_name_2,emp_id,emp_id_2,start_date,end_date,status,activity_type';
 const SETTINGS_BOOTSTRAP_COLUMNS = 'key,value,description';
-const LISTS_BOOTSTRAP_COLUMNS = 'category,value,label,active,category_order,sort_order';
+const LISTS_BOOTSTRAP_COLUMNS = 'category,value,label,active,category_order,sort_order,activity_no,activity_name,activity_type,type,stock_quantity,stock_group_key,stock_group_name';
 let settingsRowsCache = null;
 let settingsRowsPromise = null;
 let listsRowsCache = null;
