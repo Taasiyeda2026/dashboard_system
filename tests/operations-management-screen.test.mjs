@@ -399,8 +399,9 @@ test('workshops inventory groups physical stock by stock_group_key', () => {
   }, { state });
   const tableHtml = html.slice(html.indexOf('<table class="ds-table ds-table--compact ds-ops-mgmt-data-table ds-ops-workshops-table"'));
   assert.equal((tableHtml.match(/data-ops-stock-group="magic_box"/g) || []).length, 1);
-  assert.match(tableHtml, /024 - קופת קסם/);
-  assert.match(tableHtml, /029 - קופת קסם/);
+  assert.match(tableHtml, /024, 029/);
+  assert.doesNotMatch(tableHtml, /024 - קופת קסם/);
+  assert.doesNotMatch(tableHtml, /029 - קופת קסם/);
   assert.match(tableHtml, /value="390"/);
 });
 

@@ -807,9 +807,7 @@ function workshopMetricsRows(rows, stockMap, catalogRows = []) {
     return {
       stockGroupKey: group.stockGroupKey,
       workshopNo: group.linkedWorkshops.map((workshop) => workshop.workshopNo).filter(Boolean).join(', '),
-      workshopNoDisplay: group.linkedWorkshops.length > 1
-        ? group.linkedWorkshops.map((workshop) => [workshop.workshopNo, workshop.workshopName].filter(Boolean).join(' - ')).filter(Boolean).join(', ')
-        : group.linkedWorkshops.map((workshop) => workshop.workshopNo).filter(Boolean).join(', '),
+      workshopNoDisplay: group.linkedWorkshops.map((workshop) => workshop.workshopNo).filter(Boolean).join(', '),
       workshopName: group.workshopName,
       linkedWorkshops: group.linkedWorkshops,
       activities: group.activities,
