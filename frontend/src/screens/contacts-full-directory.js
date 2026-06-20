@@ -2,10 +2,7 @@ import { supabase, waitForSupabaseAuthSession } from '../supabase-client.js';
 import { escapeHtml } from './shared/html.js';
 
 const PAGE_SIZE = 1000;
-const CONTACTS_VIEW_TABLE = 'contacts_directory_view';
-const CONTACTS_FALLBACK_TABLE = 'contacts_schools';
-const AUTHORITIES_TABLE = 'authorities';
-const SCHOOLS_TABLE = 'schools';
+const CONTACTS_VIEW_TABLE = 'contacts_unified_view';
 const STYLE_ID = 'contacts-full-directory-style';
 const ENHANCED_ATTR = 'data-contacts-full-directory';
 
@@ -28,17 +25,21 @@ function key(value) {
   return text(value).toLowerCase().normalize('NFKC').replace(/[\u05F3\u05F4'"`´”“„״׳]/g, '').replace(/[\u2010-\u2015\u2212\-_/\\]+/g, ' ').replace(/\s+/g, ' ').trim();
 }
 
-function isActive(value) {
-  const raw = text(value).toLowerCase();
-  return raw !== 'no' && raw !== '0' && raw !== 'false';
+function isSchoolProfileRow(row) {
+  return text(row?.source_table) === 'schools';
 }
 
 function hasContact(row) {
+  if (isSchoolProfileRow(row)) {
+    return Boolean(text(row?.contact_name) || text(row?.phone) || text(row?.address));
+  }
   return Boolean(text(row?.contact_name) || text(row?.mobile || row?.phone) || text(row?.email));
 }
 
 function contactKey(row) {
   return [
+    text(row?.source_table),
+    text(row?.source_id),
     key(row?.authority_id || row?.authority_name || row?.authority),
     key(row?.school_id || row?.semel_mosad || row?.school_name || row?.school),
     key(row?.client_type),
@@ -63,51 +64,52 @@ async function readAll(table, columns, orderColumn) {
   return rows;
 }
 
-async function readContactsRows() {
-  try {
-    return await readAll(CONTACTS_VIEW_TABLE, '*', 'authority_name');
-  } catch (error) {
-    console.warn('[contacts-full-directory] contacts_directory_view failed, using contacts_schools fallback', error);
-    return readAll(CONTACTS_FALLBACK_TABLE, '*', 'authority');
-  }
+function normalizeUnifiedRow(row) {
+  const authorityName = text(row.authority_name || row.authority || row.client_name);
+  const schoolName = text(row.school_name || row.school);
+  return {
+    id: text(row.source_id),
+    source_table: text(row.source_table),
+    source_id: text(row.source_id),
+    client_type: text(row.client_type || (schoolName ? 'school' : 'authority')),
+    client_name: text(row.client_name),
+    authority_id: text(row.authority_id),
+    authority_name: authorityName,
+    authority_code: text(row.authority_code),
+    school_id: text(row.school_id),
+    semel_mosad: text(row.semel_mosad),
+    school_name: schoolName,
+    contact_name: text(row.contact_name),
+    contact_role: text(row.contact_role),
+    phone: text(row.phone),
+    mobile: text(row.mobile),
+    email: text(row.email),
+    address: text(row.address),
+    notes: text(row.notes),
+    city: text(row.city),
+    district: text(row.district),
+    contact_domain: text(row.contact_domain || row.client_type),
+    _raw: row
+  };
 }
 
 async function loadDirectory() {
   if (!supabase) throw new Error('supabase_not_available');
   await waitForSupabaseAuthSession({ timeoutMs: 8000 }).catch(() => null);
 
-  const [authoritiesRaw, schoolsRaw, contactsRaw] = await Promise.all([
-    readAll(AUTHORITIES_TABLE, 'id,authority_code,authority_name,authority_type,hp_number,long_name,district,active', 'authority_name'),
-    readAll(SCHOOLS_TABLE, 'id,semel_mosad,school_name,authority,authority_id,city,district,sector,principal_name,school_phone,institution_address,active', 'authority'),
-    readContactsRows()
-  ]);
-
-  const authorities = authoritiesRaw
-    .filter((row) => text(row.authority_name))
-    .map((row) => ({
-      id: text(row.id),
-      authority_code: text(row.authority_code),
-      authority_name: text(row.authority_name),
-      authority_type: text(row.authority_type),
-      district: text(row.district),
-      active: text(row.active) || 'yes'
-    }))
-    .sort((a, b) => a.authority_name.localeCompare(b.authority_name, 'he'));
-
-  const authorityById = new Map(authorities.map((row) => [text(row.id), row]));
-  const authorityByName = new Map(authorities.map((row) => [key(row.authority_name), row]));
+  const contactsRaw = await readAll(CONTACTS_VIEW_TABLE, '*', 'authority_name');
+  const contacts = contactsRaw.map(normalizeUnifiedRow).filter(hasContact);
 
   const buckets = new Map();
-  const ensureBucket = (authority) => {
-    const name = text(authority?.authority_name || authority?.authority || authority?.client_name) || '—';
-    const id = text(authority?.id || authority?.authority_id);
-    const bucketKey = id || key(name);
+  const ensureBucket = (authorityName, authorityCode = '', authorityId = '') => {
+    const name = text(authorityName) || '—';
+    const bucketKey = text(authorityId) || key(name);
     if (!buckets.has(bucketKey)) {
       buckets.set(bucketKey, {
         key: bucketKey,
-        authority_id: id,
+        authority_id: text(authorityId),
         authority_name: name,
-        authority_code: text(authority?.authority_code),
+        authority_code: text(authorityCode),
         schools: new Map(),
         authorityContacts: [],
         otherGroups: new Map(),
@@ -115,117 +117,58 @@ async function loadDirectory() {
       });
     }
     const bucket = buckets.get(bucketKey);
-    if (!bucket.authority_code && authority?.authority_code) bucket.authority_code = text(authority.authority_code);
-    if (!bucket.authority_id && id) bucket.authority_id = id;
+    if (!bucket.authority_code && authorityCode) bucket.authority_code = text(authorityCode);
+    if (!bucket.authority_id && authorityId) bucket.authority_id = text(authorityId);
     return bucket;
   };
 
-  authorities.forEach((authority) => ensureBucket(authority));
+  contacts.forEach((contact) => {
+    const bucket = ensureBucket(contact.authority_name, contact.authority_code, contact.authority_id);
+    const cKey = contactKey(contact);
+    if (bucket._contactKeys.has(cKey)) return;
+    bucket._contactKeys.add(cKey);
 
-  const resolveAuthority = (row = {}) => {
-    const authorityId = text(row.authority_id);
-    const authorityName = text(row.authority_name || row.authority || row.client_name);
-    return (authorityId && authorityById.get(authorityId)) || authorityByName.get(key(authorityName)) || {
-      id: authorityId,
-      authority_name: authorityName || '—',
-      authority_code: text(row.authority_code)
-    };
-  };
+    const domain = key(contact.contact_domain || contact.client_type);
+    const schoolName = text(contact.school_name);
 
-  const schools = schoolsRaw
-    .filter((row) => text(row.school_name) && isActive(row.active))
-    .map((row) => {
-      const authority = resolveAuthority(row);
-      return {
-        id: text(row.id),
-        semel_mosad: text(row.semel_mosad),
-        school_name: text(row.school_name),
-        authority_id: text(row.authority_id || authority.id),
-        authority_name: text(row.authority || authority.authority_name),
-        city: text(row.city),
-        district: text(row.district),
-        sector: text(row.sector),
-        contacts: []
-      };
-    })
-    .sort((a, b) => a.school_name.localeCompare(b.school_name, 'he'));
+    if (domain === 'school' || schoolName) {
+      const schoolKey = contact.school_id || contact.semel_mosad || `${key(bucket.authority_name)}|${key(schoolName)}`;
+      if (!bucket.schools.has(schoolKey)) {
+        bucket.schools.set(schoolKey, {
+          id: contact.school_id,
+          semel_mosad: contact.semel_mosad,
+          school_name: schoolName,
+          authority_id: contact.authority_id,
+          authority_name: bucket.authority_name,
+          city: contact.city,
+          district: contact.district,
+          profile: null,
+          contacts: []
+        });
+      }
+      const school = bucket.schools.get(schoolKey);
+      if (isSchoolProfileRow(contact)) school.profile = contact;
+      else school.contacts.push(contact);
+      return;
+    }
 
-  const schoolById = new Map();
-  const schoolBySemel = new Map();
-  const schoolByAuthorityName = new Map();
+    if (domain === 'authority' || !contact.client_name || key(contact.client_name) === key(bucket.authority_name)) {
+      bucket.authorityContacts.push(contact);
+      return;
+    }
 
-  schools.forEach((school) => {
-    const authority = resolveAuthority({ authority_id: school.authority_id, authority: school.authority_name });
-    const bucket = ensureBucket(authority);
-    const schoolKey = school.id || school.semel_mosad || `${key(bucket.authority_name)}|${key(school.school_name)}`;
-    if (!bucket.schools.has(schoolKey)) bucket.schools.set(schoolKey, { ...school, contacts: [] });
-    const storedSchool = bucket.schools.get(schoolKey);
-    if (school.id) schoolById.set(school.id, storedSchool);
-    if (school.semel_mosad) schoolBySemel.set(school.semel_mosad, storedSchool);
-    schoolByAuthorityName.set(`${key(bucket.authority_name)}|${key(school.school_name)}`, storedSchool);
-    schoolByAuthorityName.set(`${key(school.authority_name)}|${key(school.school_name)}`, storedSchool);
+    const groupName = contact.client_name || contact.school_name || 'אחר';
+    const groupKey = key(groupName);
+    if (!bucket.otherGroups.has(groupKey)) bucket.otherGroups.set(groupKey, { name: groupName, contacts: [] });
+    bucket.otherGroups.get(groupKey).contacts.push(contact);
   });
 
-  const normalizeContact = (row) => {
-    const authority = resolveAuthority(row);
-    return {
-      id: text(row.id),
-      client_type: text(row.client_type || (text(row.school_name || row.school) ? 'school' : 'authority')),
-      client_name: text(row.client_name),
-      authority_id: text(row.authority_id || authority.id),
-      authority_name: text(row.authority_name || row.authority || authority.authority_name),
-      authority_code: text(row.authority_code || authority.authority_code),
-      school_id: text(row.school_id),
-      semel_mosad: text(row.semel_mosad),
-      school_name: text(row.school_name || row.school),
-      contact_name: text(row.contact_name),
-      contact_role: text(row.contact_role),
-      phone: text(row.phone),
-      mobile: text(row.mobile),
-      email: text(row.email),
-      notes: text(row.notes),
-      active: text(row.active) || 'yes',
-      _raw: row
-    };
-  };
-
-  contactsRaw
-    .map(normalizeContact)
-    .filter((row) => hasContact(row) && isActive(row.active))
-    .forEach((contact) => {
-      const bucket = ensureBucket(resolveAuthority(contact));
-      const cKey = contactKey(contact);
-      if (bucket._contactKeys.has(cKey)) return;
-      bucket._contactKeys.add(cKey);
-      const type = key(contact.client_type);
-
-      if (type === 'school' || contact.school_id || contact.semel_mosad || contact.school_name) {
-        const school = (contact.school_id && schoolById.get(contact.school_id))
-          || (contact.semel_mosad && schoolBySemel.get(contact.semel_mosad))
-          || schoolByAuthorityName.get(`${key(bucket.authority_name)}|${key(contact.school_name)}`)
-          || schoolByAuthorityName.get(`${key(contact.authority_name)}|${key(contact.school_name)}`);
-        if (school) {
-          school.contacts.push(contact);
-          return;
-        }
-      }
-
-      if (type === 'authority' || !contact.client_name || key(contact.client_name) === key(bucket.authority_name)) {
-        bucket.authorityContacts.push(contact);
-        return;
-      }
-
-      const groupName = contact.client_name || contact.school_name || 'אחר';
-      const groupKey = key(groupName);
-      if (!bucket.otherGroups.has(groupKey)) bucket.otherGroups.set(groupKey, { name: groupName, contacts: [] });
-      bucket.otherGroups.get(groupKey).contacts.push(contact);
-    });
-
   const bucketsList = [...buckets.values()].sort((a, b) => a.authority_name.localeCompare(b.authority_name, 'he'));
+  const schoolCount = bucketsList.reduce((sum, bucket) => sum + bucket.schools.size, 0);
   return {
     authorities: bucketsList,
-    authorityCount: authorities.length,
-    schoolCount: schools.length,
+    authorityCount: bucketsList.length,
+    schoolCount,
     contactCount: bucketsList.reduce((sum, bucket) => sum + bucket._contactKeys.size, 0)
   };
 }
@@ -293,11 +236,12 @@ function highlight(value, search) {
 }
 
 function contactSearchText(contact) {
-  return [contact.contact_name, contact.contact_role, contact.phone, contact.mobile, contact.email, contact.notes].map(text).join(' ');
+  return [contact.contact_name, contact.contact_role, contact.phone, contact.mobile, contact.email, contact.notes, contact.address, contact.city, contact.district].map(text).join(' ');
 }
 
 function schoolSearchText(school) {
-  return [school.school_name, school.semel_mosad, school.city, school.district, ...school.contacts.map(contactSearchText)].map(text).join(' ');
+  const profileText = school.profile ? contactSearchText(school.profile) : '';
+  return [school.school_name, school.semel_mosad, school.city, school.district, profileText, ...school.contacts.map(contactSearchText)].map(text).join(' ');
 }
 
 function groupSearchText(group) {
@@ -310,26 +254,32 @@ function matches(value, search) {
 }
 
 function contactHtml(contact, search) {
-  const phoneValue = contact.mobile || contact.phone;
-  const phoneHtml = phoneValue ? `<a href="tel:${escapeHtml(phoneValue)}" dir="ltr">${highlight(phoneValue, search)}</a>` : '<span class="cfd-contact__muted">—</span>';
-  const emailHtml = contact.email ? `<a href="mailto:${escapeHtml(contact.email)}" dir="ltr">${highlight(contact.email, search)}</a>` : '<span class="cfd-contact__muted">—</span>';
+  const phoneValue = text(contact.mobile || contact.phone);
+  const phoneHtml = phoneValue ? `<a href="tel:${escapeHtml(phoneValue)}" dir="ltr">${highlight(phoneValue, search)}</a>` : '';
+  const emailHtml = text(contact.email) ? `<a href="mailto:${escapeHtml(contact.email)}" dir="ltr">${highlight(contact.email, search)}</a>` : '';
+  const roleHtml = text(contact.contact_role) ? `<div class="cfd-contact__muted">${highlight(contact.contact_role, search)}</div>` : '';
+  const addressHtml = text(contact.address) ? `<div class="cfd-contact__muted">${highlight([contact.address, contact.city, contact.district].filter(Boolean).join(', '), search)}</div>` : '';
+  const name = text(contact.contact_name) || (isSchoolProfileRow(contact) ? 'פרטי בית ספר' : '—');
   return `<article class="cfd-contact">
-    <div class="cfd-contact__name">${highlight(contact.contact_name || '—', search)}</div>
-    <div class="cfd-contact__muted">${highlight(contact.contact_role || '—', search)}</div>
+    <div class="cfd-contact__name">${highlight(name, search)}</div>
+    ${roleHtml}
     <div>${phoneHtml}</div>
-    <div>${emailHtml}</div>
+    <div>${emailHtml || addressHtml}</div>
   </article>`;
 }
 
 function schoolCardHtml(school, search) {
   const shouldOpen = Boolean(search && matches(schoolSearchText(school), search));
-  const contactCount = school.contacts.length;
+  const items = [];
+  if (school.profile) items.push(school.profile);
+  items.push(...school.contacts);
+  const contactCount = items.length;
   const contactsHtml = contactCount
-    ? `<div class="cfd-contact-grid">${school.contacts.map((contact) => contactHtml(contact, search)).join('')}</div>`
-    : '<div class="cfd-empty">אין אנשי קשר משויכים</div>';
+    ? `<div class="cfd-contact-grid">${items.map((contact) => contactHtml(contact, search)).join('')}</div>`
+    : '';
   const meta = [
     school.semel_mosad ? `סמל מוסד ${escapeHtml(school.semel_mosad)}` : '',
-    contactCount ? `${contactCount} אנשי קשר` : 'אין אנשי קשר'
+    contactCount ? `${contactCount} אנשי קשר` : ''
   ].filter(Boolean).join(' · ');
   return `<details class="cfd-card"${shouldOpen ? ' open' : ''}>
     <summary class="cfd-card__head">
@@ -423,11 +373,6 @@ function alphabetHtml() {
   return `<div class="contacts-full-alphabet" dir="rtl" aria-label="בחירת אות">${HEBREW_LETTERS.map((letter) => `<button type="button" class="contacts-full-letter${activeLetter === letter ? ' is-active' : ''}" data-contacts-letter="${letter}" aria-pressed="${activeLetter === letter ? 'true' : 'false'}">${letter}</button>`).join('')}</div>`;
 }
 
-function bindLetterButtons(listWrap, data) {
-  void listWrap;
-  void data;
-}
-
 function renderDirectory(listWrap, data) {
   cachedDirectoryData = data;
   listWrapRef = listWrap;
@@ -493,6 +438,7 @@ async function enhanceContactsDirectory() {
   });
 
   if (!directoryPromise) directoryPromise = loadDirectory();
+  else if (listWrap.getAttribute(ENHANCED_ATTR) !== 'yes') directoryPromise = loadDirectory();
   if (listWrap.getAttribute(ENHANCED_ATTR) !== 'yes') {
     listWrap.innerHTML = '<div class="ds-empty" dir="rtl">טוען את מאגר אנשי הקשר המלא…</div>';
   }
@@ -530,6 +476,7 @@ if (typeof window !== 'undefined' && typeof document !== 'undefined') {
     if (target?.closest?.('[data-contacts-tab]')) {
       activeLetter = '';
       lastSearch = '';
+      directoryPromise = null;
       scheduleEnhance();
     }
   }, true);

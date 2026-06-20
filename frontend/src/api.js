@@ -28,6 +28,7 @@ const MUTATING_ACTIONS = {
   addActivity: true,
   addContact: true,
   saveContact: true,
+  updateUnifiedContactRecord: true,
   submitEditRequest: true,
   submitCreateActivityRequest: true,
   reviewEditRequest: true,
@@ -426,6 +427,12 @@ async function selectActivitiesByDateRangeFromSupabase({
 
 const AUTHORITIES_CATALOG_COLUMNS = 'id,authority_name,authority_code,authority_type,hp_number,long_name,district,active';
 const SCHOOLS_CATALOG_COLUMNS = 'id,semel_mosad,school_name,authority,authority_id,district,city,active';
+const CONTACTS_UNIFIED_VIEW_COLUMNS = [
+  'contact_domain', 'client_type', 'client_name', 'authority_id', 'school_id', 'semel_mosad',
+  'authority_name', 'authority', 'school_name', 'school', 'contact_name', 'contact_role',
+  'phone', 'mobile', 'email', 'address', 'notes', 'authority_code', 'district', 'city',
+  'source_table', 'source_id'
+].join(',');
 
 function isCatalogActive(value) {
   if (value === false || value === 'no' || value === 0 || value === '0') return false;
@@ -835,9 +842,77 @@ function buildProposalClientSearchOptions(contactRows, authorityLookup, schoolLo
   return options;
 }
 
+function normalizeUnifiedContactRow(row) {
+  if (!row || typeof row !== 'object') return row;
+  const authorityName = normalizeCatalogText(row.authority_name || row.authority || row.client_name);
+  const schoolName = normalizeCatalogText(row.school_name || row.school);
+  return {
+    ...row,
+    authority_name: authorityName || null,
+    authority: authorityName || normalizeCatalogText(row.authority) || null,
+    school_name: schoolName || null,
+    school: schoolName || normalizeCatalogText(row.school) || null,
+    source_table: normalizeCatalogText(row.source_table) || null,
+    source_id: row.source_id != null ? String(row.source_id) : null,
+    contact_domain: normalizeCatalogText(row.contact_domain || row.client_type) || null
+  };
+}
+
+function compareUnifiedContactRows(a, b) {
+  const authCmp = normalizeCatalogText(a?.authority_name || a?.authority).localeCompare(
+    normalizeCatalogText(b?.authority_name || b?.authority),
+    'he'
+  );
+  if (authCmp !== 0) return authCmp;
+  const schoolCmp = normalizeCatalogText(a?.school_name || a?.school).localeCompare(
+    normalizeCatalogText(b?.school_name || b?.school),
+    'he'
+  );
+  if (schoolCmp !== 0) return schoolCmp;
+  const domainOrder = { school: 0, authority: 1, other: 2 };
+  const domainA = domainOrder[normalizeCatalogText(a?.contact_domain)] ?? 3;
+  const domainB = domainOrder[normalizeCatalogText(b?.contact_domain)] ?? 3;
+  if (domainA !== domainB) return domainA - domainB;
+  const sourceOrder = { schools: 0, contacts_schools: 1 };
+  const sourceA = sourceOrder[normalizeCatalogText(a?.source_table)] ?? 2;
+  const sourceB = sourceOrder[normalizeCatalogText(b?.source_table)] ?? 2;
+  if (sourceA !== sourceB) return sourceA - sourceB;
+  return normalizeCatalogText(a?.contact_name).localeCompare(normalizeCatalogText(b?.contact_name), 'he');
+}
+
 /**
- * Reads contacts_instructors + contacts_directory_view from Supabase.
- * Returns partial data when one source fails; contacts_directory_view falls back to contacts_schools.
+ * Reads general contacts from contacts_unified_view (contacts_schools + schools).
+ * Instructors are loaded separately via contacts_instructors.
+ *
+ * ⚠️ permissions table is intentionally excluded — login credentials must never be read client-side.
+ */
+async function readUnifiedContactsFromSupabase() {
+  if (!supabase) return [];
+  try {
+    const { data, error } = await supabase
+      .from('contacts_unified_view')
+      .select(CONTACTS_UNIFIED_VIEW_COLUMNS)
+      .order('authority_name', { ascending: true })
+      .order('school_name', { ascending: true })
+      .order('contact_domain', { ascending: true })
+      .order('contact_name', { ascending: true });
+    if (error) {
+      // eslint-disable-next-line no-console
+      console.warn('[supabase] Failed to load contacts_unified_view:', error);
+      return [];
+    }
+    return (Array.isArray(data) ? data : [])
+      .map(normalizeUnifiedContactRow)
+      .sort(compareUnifiedContactRows);
+  } catch (error) {
+    // eslint-disable-next-line no-console
+    console.warn('[supabase] Unexpected contacts_unified_view fetch error:', error);
+    return [];
+  }
+}
+
+/**
+ * Reads contacts_instructors + contacts_unified_view from Supabase.
  *
  * ⚠️ permissions table is intentionally excluded — login credentials must never be read client-side.
  */
@@ -854,38 +929,14 @@ async function readContactsFromSupabase() {
     return Array.isArray(result.data) ? result.data : [];
   };
 
-  const readSchoolContacts = async () => {
-    const viewResult = await supabase.from('contacts_directory_view').select('*');
-    if (!viewResult.error) return Array.isArray(viewResult.data) ? viewResult.data : [];
-
-    // eslint-disable-next-line no-console
-    console.warn('[supabase] Failed to load contacts_directory_view; falling back to contacts_schools:', viewResult.error);
-    const fallbackResult = await supabase.from('contacts_schools').select('*');
-    if (fallbackResult.error) {
-      // eslint-disable-next-line no-console
-      console.warn('[supabase] Failed to load contacts_schools fallback:', fallbackResult.error);
-      return [];
-    }
-    return Array.isArray(fallbackResult.data) ? fallbackResult.data : [];
-  };
-
   try {
-    const [instructor_rows, schoolRowsRaw, activityRows, catalog] = await Promise.all([
+    const [instructor_rows, schoolRowsRaw, catalog] = await Promise.all([
       readInstructors(),
-      readSchoolContacts(),
-      readAllActivitiesRowsSupabase().catch((error) => {
-        // eslint-disable-next-line no-console
-        console.warn('[supabase] Failed to load activities for contacts directory:', error);
-        return [];
-      }),
+      readUnifiedContactsFromSupabase(),
       readAuthoritySchoolCatalog()
     ]);
-    const school_rows = mergeActivityPlaceholdersIntoSchoolRows(
-      schoolRowsRaw,
-      activityRows,
-      catalog.authorityLookup,
-      catalog.schoolLookup
-    );
+    const school_rows = (Array.isArray(schoolRowsRaw) ? schoolRowsRaw : [])
+      .map((row) => enrichSchoolContactRow(row, catalog.authorityLookup, catalog.schoolLookup));
     return {
       instructor_rows,
       school_rows,
@@ -1881,6 +1932,7 @@ function invalidateScreenDataByAction(action) {
     savePermission: ['permissions'],
     addContact: ['contacts', 'instructor-contacts'],
     saveContact: ['contacts', 'instructor-contacts'],
+    updateUnifiedContactRecord: ['contacts', 'instructor-contacts'],
     saveSheetMapping: ['adminSettings', 'listSheets', 'dashboard:', 'activities:', 'week:', 'month:'],
     saveClientSetting: ['adminSettings', 'dashboard:', 'activities:', 'week:', 'month:'],
     addProposalAgreement: ['proposals-agreements'],
@@ -4433,6 +4485,57 @@ export const api = {
       return { ok: true };
     }
     throw new Error('invalid_contact_kind');
+  },
+  updateUnifiedContactRecord: async (payload) => {
+    const sourceTable = String(payload?.source_table || '').trim();
+    const sourceId = payload?.source_id != null ? String(payload.source_id).trim() : '';
+    const fields = payload?.fields && typeof payload.fields === 'object' ? payload.fields : {};
+    if (!sourceTable || !sourceId) throw new Error('missing_unified_contact_source');
+
+    const pickFields = (allowed) => {
+      const body = {};
+      for (const key of allowed) {
+        if (!Object.prototype.hasOwnProperty.call(fields, key)) continue;
+        const value = fields[key];
+        if (value === undefined) continue;
+        body[key] = typeof value === 'string' ? (value.trim() || null) : value;
+      }
+      return body;
+    };
+
+    if (sourceTable === 'contacts_schools') {
+      const updateBody = pickFields([
+        'client_type', 'client_name', 'authority_id', 'school_id', 'semel_mosad',
+        'authority', 'school', 'contact_name', 'contact_role',
+        'phone', 'mobile', 'email', 'address', 'notes'
+      ]);
+      if (!Object.keys(updateBody).length) throw new Error('no_fields_to_update');
+      const { data, error } = await supabase
+        .from('contacts_schools')
+        .update(updateBody)
+        .eq('id', sourceId)
+        .select()
+        .single();
+      if (error) throw new Error(error.message || 'update_unified_contact_failed');
+      return { ok: true, row: data, source_table: sourceTable, source_id: sourceId };
+    }
+
+    if (sourceTable === 'schools') {
+      const updateBody = pickFields([
+        'principal_name', 'school_phone', 'institution_address', 'city', 'district'
+      ]);
+      if (!Object.keys(updateBody).length) throw new Error('no_fields_to_update');
+      const { data, error } = await supabase
+        .from('schools')
+        .update(updateBody)
+        .eq('id', sourceId)
+        .select()
+        .single();
+      if (error) throw new Error(error.message || 'update_unified_contact_failed');
+      return { ok: true, row: data, source_table: sourceTable, source_id: sourceId };
+    }
+
+    throw new Error('invalid_unified_contact_source');
   },
   addProposalClient: async (payload) => {
     const clientType = String(payload.client_type || 'school').trim();
