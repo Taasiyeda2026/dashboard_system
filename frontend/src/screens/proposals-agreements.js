@@ -1891,7 +1891,9 @@ function contactMatchesProposalRow(contact = {}, row = {}) {
   const nameMatch = text(contact.contact_name) === text(row.contact_name);
   const emailMatch = text(contact.email) && text(contact.email) === text(row.email);
   const phoneMatch = text(contact.phone || contact.mobile || '') && text(contact.phone || contact.mobile || '') === text(row.phone);
-  return Boolean((emailMatch || phoneMatch || (authorityMatch && schoolMatch && nameMatch)) && (nameMatch || emailMatch || phoneMatch));
+  // Name must match; email/phone/authority+school provide additional confirmation.
+  // Never match solely by email or phone when names differ — prevents wrong-contact substitution.
+  return Boolean(nameMatch && (emailMatch || phoneMatch || (authorityMatch && schoolMatch)));
 }
 
 function findContactForProposalRow(contactOptions = [], row = {}) {
@@ -2051,7 +2053,9 @@ function formHtml(mode, row = {}, activityNameOptions = [], contactOptions = [],
   const initRole = text(row.contact_role);
   const initPhone = text(row.phone);
   const initEmail = text(row.email);
-  const initContactSource = findContactForProposalRow(contactOptions, row) || buildContactSourceFromRow(row);
+  // Prefer building from the saved row data — the chosen contact is source of truth.
+  // Only fall back to directory lookup when the row has no authority_id (very old rows).
+  const initContactSource = buildContactSourceFromRow(row) || findContactForProposalRow(contactOptions, row);
   const isLocked = !!initAuth;
   const initClientType = text(initContactSource?.client_type) || text(row.client_type) || 'school';
   const initAuthorityOnly = initClientType === 'authority';
@@ -2662,6 +2666,8 @@ export const proposalsAgreementsScreen = {
     });
     const rowWithCentralContact = (row) => {
       if (!row) return row;
+      // The contact saved on the proposal is the source of truth — never override it.
+      if (text(row.contact_name)) return row;
       const contact = findContactForProposalRow(contactOptions, row);
       if (!contact) return row;
       return {
