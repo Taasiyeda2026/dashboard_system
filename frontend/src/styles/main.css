@@ -9980,7 +9980,7 @@ select.ds-input {
 
 .instr-page .instr-stats {
   display: grid !important;
-  grid-template-columns: repeat(2, 1fr);
+  grid-template-columns: repeat(5, minmax(0, 1fr));
   gap: 4px;
   width: 100%;
   margin-inline-start: 0;
@@ -9990,7 +9990,7 @@ select.ds-input {
   display: flex;
   align-items: center;
   justify-content: center;
-  gap: 5px;
+  gap: 3px;
   height: 28px;
   min-height: unset;
   background: rgba(0,0,0,0.05);
@@ -16798,3 +16798,17 @@ details[open] > .ds-fin-acc__summary::before { transform: rotate(90deg); }
 }
 
 .pa-a4-page { position: relative; }
+
+@media (max-width: 420px) {
+  .instr-page .instr-stats {
+    grid-template-columns: repeat(6, minmax(0, 1fr));
+  }
+
+  .instr-page .instr-stat {
+    grid-column: span 2;
+  }
+
+  .instr-page .instr-stat:nth-child(4) {
+    grid-column-start: 2;
+  }
+}

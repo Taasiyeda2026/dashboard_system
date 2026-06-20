@@ -10,6 +10,7 @@ import {
   bindLocalFilters,
   splitVisibleRows
 } from './shared/activity-list-filters.js';
+import { activityTypeIconSvg } from './shared/activity-type-icons.js';
 
 const INSTRUCTORS_SCOPE = 'instructors';
 const INSTRUCTOR_FILTER_FIELDS = [{
@@ -172,22 +173,12 @@ export function buildInstructorActivityDetailsForMonth(allRows, { empId, instrNa
   return items;
 }
 
-function instructorTypeIcon(icon) {
-  const S = (d) => `<svg width="14" height="14" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">${d}</svg>`;
-  const map = {
-    book:        S('<path d="M3 2.5C4.5 2 6.5 2 8 3V14C6.5 13 4.5 13 3 13.5V2.5z"/><path d="M13 2.5C11.5 2 9.5 2 8 3V14C9.5 13 11.5 13 13 13.5V2.5z"/>'),
-    pin:         S('<path d="M8 1.5a4 4 0 0 1 4 4c0 4-4 9-4 9s-4-5-4-9a4 4 0 0 1 4-4z"/><circle cx="8" cy="5.5" r="1.4"/>'),
-    bulb:        S('<path d="M8 2a4 4 0 0 1 2.8 6.8L11 10H5l.2-1.2A4 4 0 0 1 8 2z"/><line x1="6.5" y1="12" x2="9.5" y2="12"/><line x1="7" y1="14" x2="9" y2="14"/>'),
-    schoolClock: S('<circle cx="8" cy="8" r="6"/><polyline points="8 4.5 8 8 10.5 9.5"/>'),
-  };
-  return map[icon] || '';
-}
-
 const TYPE_ITEMS = [
-  { keys: ['course', 'קורס', 'קורסים'],                                                  label: 'קורסים',    icon: 'book'        },
-  { keys: ['tour', 'סיור', 'סיורים'],                                                     label: 'סיורים',    icon: 'pin'         },
-  { keys: ['workshop', 'סדנה', 'סדנאות'],                                                 label: 'סדנאות',    icon: 'bulb'        },
-  { keys: ['after_school', 'after school', 'afterschool', 'חוג אפטרסקול', 'אפטרסקול'], label: 'אפטרסקול', icon: 'schoolClock' },
+  { keys: ['course', 'קורס', 'קורסים'], label: 'קורסים', icon: 'course' },
+  { keys: ['workshop', 'סדנה', 'סדנאות'], label: 'סדנאות', icon: 'workshop' },
+  { keys: ['escape_room', 'escape room', 'escape-room', 'חדר בריחה', 'חדרי בריחה'], label: 'חדרי בריחה', icon: 'escape_room' },
+  { keys: ['tour', 'סיור', 'סיורים'], label: 'סיורים', icon: 'tour' },
+  { keys: ['after_school', 'after school', 'afterschool', 'חוג אפטרסקול', 'אפטרסקול'], label: 'אפטרסקול', icon: 'after_school' },
 ];
 
 function renderInstructorRow(row) {
@@ -197,7 +188,7 @@ function renderInstructorRow(row) {
 
   const statCells = TYPE_ITEMS.map(({ keys, label, icon }) => {
     const count = keys.reduce((sum, key) => sum + Number(typeCounts[key] || 0), 0);
-    return `<span class="instr-stat" title="${escapeHtml(label)}" aria-label="${escapeHtml(label)}: ${count}"><span class="instr-stat__icon">${instructorTypeIcon(icon)}</span><span class="instr-stat__num${count === 0 ? ' is-zero' : ''}">${count}</span></span>`;
+    return `<span class="instr-stat" title="${escapeHtml(label)}" aria-label="${escapeHtml(label)}: ${count}"><span class="instr-stat__icon">${activityTypeIconSvg(icon, 14)}</span><span class="instr-stat__num${count === 0 ? ' is-zero' : ''}">${count}</span></span>`;
   }).join('');
 
   return `<article class="instr-card" data-instructor-item="${escapeHtml(empId)}">
