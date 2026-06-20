@@ -703,23 +703,16 @@ function extractWorkshopCatalogRows(listsData, activityRows = []) {
   const rows = [];
   const seen = new Set();
   const categories = Array.isArray(listsData?.categories) ? listsData.categories : [];
-  const activityNamesByKey = new Map();
-  const addNameMapping = (key, row = {}, item = {}) => {
-    const cleanKey = normalizeWorkshopKey(key);
-    if (!cleanKey || activityNamesByKey.has(cleanKey)) return;
-    activityNamesByKey.set(cleanKey, { row, item });
-  };
+  const workshopStockLookup = new Map();
   categories.forEach(({ category, items }) => {
     const cat = String(category || '').trim().toLowerCase();
-    if (cat !== 'activity_names') return;
+    if (cat !== 'workshop_stock') return;
     (Array.isArray(items) ? items : []).forEach((item) => {
       const row = item?._row && typeof item._row === 'object' ? item._row : item;
-      if (!isOfficialWorkshopListRow(row, cat) || row?.active === false || !isTruthyListValue(row?.active)) return;
-      addNameMapping(row?.activity_name, row, item);
-      addNameMapping(row?.label, row, item);
-      addNameMapping(row?.value, row, item);
-      addNameMapping(item?.label, row, item);
-      addNameMapping(item?.value, row, item);
+      if (row?.active === false || !isTruthyListValue(row?.active)) return;
+      const name = String(row?.label || item?.label || row?.value || item?.value || '').trim();
+      const key = normalizeWorkshopKey(name);
+      if (key && !workshopStockLookup.has(key)) workshopStockLookup.set(key, stockMapValue(row));
     });
   });
   const add = ({ no = '', name = '', stock = null, stockGroupKey = '', stockGroupName = '' } = {}) => {
@@ -738,39 +731,22 @@ function extractWorkshopCatalogRows(listsData, activityRows = []) {
   };
   categories.forEach(({ category, items }) => {
     const cat = String(category || '').trim().toLowerCase();
-    const list = Array.isArray(items) ? items : [];
-    if (cat !== 'workshop_stock') return;
-    list.forEach((item) => {
+    if (cat !== 'activity_names') return;
+    (Array.isArray(items) ? items : []).forEach((item) => {
       const row = item?._row && typeof item._row === 'object' ? item._row : item;
-      if (row?.active === false || !isTruthyListValue(row?.active)) return;
-      const name = String(row?.label || item?.label || row?.value || item?.value || '').trim();
-      const match = activityNamesByKey.get(normalizeWorkshopKey(name)) || activityNamesByKey.get(normalizeWorkshopKey(row?.value || item?.value));
+      if (!isOfficialWorkshopListRow(row, cat) || row?.active === false || !isTruthyListValue(row?.active)) return;
+      const name = row?.activity_name || row?.label || item?.label || row?.value || item?.value || '';
+      const stockKey = normalizeWorkshopKey(name);
+      const stock = workshopStockLookup.has(stockKey) ? workshopStockLookup.get(stockKey) : stockMapValue(row);
       add({
-        no: match?.row?.activity_no || row?.value || item?.value,
+        no: row?.activity_no || row?.value || item?.value,
         name,
-        stock: stockMapValue(row),
-        stockGroupKey: String(row?.value || item?.value || normalizeWorkshopKey(name)).trim(),
-        stockGroupName: name
+        stock,
+        stockGroupKey: officialWorkshopStockGroupKey(row),
+        stockGroupName: officialWorkshopStockGroupName(row)
       });
     });
   });
-  if (!rows.length) {
-    categories.forEach(({ category, items }) => {
-      const cat = String(category || '').trim().toLowerCase();
-      if (cat !== 'activity_names') return;
-      (Array.isArray(items) ? items : []).forEach((item) => {
-        const row = item?._row && typeof item._row === 'object' ? item._row : item;
-        if (!isOfficialWorkshopListRow(row, cat) || row?.active === false || !isTruthyListValue(row?.active)) return;
-        add({
-          no: row?.activity_no || row?.value || item?.value,
-          name: row?.activity_name || row?.label || item?.label || row?.value || item?.value,
-          stock: stockMapValue(row),
-          stockGroupKey: officialWorkshopStockGroupKey(row),
-          stockGroupName: officialWorkshopStockGroupName(row)
-        });
-      });
-    });
-  }
   return rows.sort((a, b) => compareValues(a.workshopNo || a.workshopName, b.workshopNo || b.workshopName, 'asc'));
 }
 
@@ -1247,7 +1223,7 @@ function workshopsTabHtml(rows, state, stockMap, catalogRows = []) {
     activityCount: (row) => row.activityCount,
     estimatedQuantity: (row) => row.estimatedQuantity,
   });
-  const metrics = allMetrics;
+  const metrics = allMetrics.filter((row) => row.activityCount !== 0 || row.estimatedQuantity !== 0 || row.actualQuantity !== 0);
 
   const table = metrics.length
     ? dsTableWrap(`<table class="ds-table ds-table--compact ds-ops-mgmt-data-table ds-ops-workshops-table"><thead><tr>
