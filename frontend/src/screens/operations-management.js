@@ -1358,7 +1358,7 @@ function workshopsTabHtml(rows, state, stockMap, catalogRows = [], distributions
         ${sortableTh(state, TAB_WORKSHOPS, 'workshopName', 'שם פריט מלאי')}
         ${sortableTh(state, TAB_WORKSHOPS, 'activityCount', 'כמות סדנאות')}
         ${sortableTh(state, TAB_WORKSHOPS, 'estimatedQuantity', 'כמות נדרשת')}
-        <th>כמות מלאי</th>
+        <th>מלאי קיים</th>
         <th>שימוש מלאי</th>
         <th>יתרת מלאי</th>
       </tr></thead><tbody>${metrics.map((row) => {
@@ -1366,11 +1366,13 @@ function workshopsTabHtml(rows, state, stockMap, catalogRows = [], distributions
         const hasDefaultStock = defaultStock !== null && defaultStock !== undefined && Number.isFinite(Number(defaultStock));
         const shownStock = hasDefaultStock ? Number(defaultStock) : '';
         const stockDisplay = shownStock !== '' ? String(shownStock) : '—';
-        const requiredQuantity = row.actualQuantity !== null ? row.actualQuantity : row.estimatedQuantity;
-        const usage = distributions
-          .filter(d => d.stock_group_key === row.stockGroupKey)
-          .reduce((sum, d) => sum + (Number.isFinite(Number(d.quantity_received)) ? Number(d.quantity_received) : 0), 0);
-        const remainder = shownStock !== '' ? Number(shownStock) - usage : null;
+        const requiredQuantity = row.estimatedQuantity;
+        const hasActualUsage = row.actualQuantity !== null && row.actualQuantity !== undefined;
+        const usage = hasActualUsage ? Number(row.actualQuantity) : null;
+        const usageHtml = hasActualUsage
+          ? `<span class="ds-ops-usage-display">${usage}</span>`
+          : '<span class="ds-ops-mgmt-cell-muted">לא עודכן</span>';
+        const remainder = shownStock !== '' && hasActualUsage ? Number(shownStock) - usage : null;
         const remainderHtml = remainder === null
           ? '<span class="ds-ops-mgmt-cell-muted">—</span>'
           : `<span class="ds-ops-gap ${remainder < 0 ? 'ds-ops-gap--shortage' : 'ds-ops-gap--ok'}">${remainder}</span>`;
@@ -1380,7 +1382,7 @@ function workshopsTabHtml(rows, state, stockMap, catalogRows = [], distributions
           <td>${row.activityCount}</td>
           <td>${requiredQuantity}</td>
           <td>${escapeHtml(stockDisplay)}</td>
-          <td class="ds-ops-usage-cell"><span class="ds-ops-usage-display">${usage}</span><button type="button" class="ds-ops-stock-edit-btn" data-ops-dist-edit="${escapeHtml(row.workshopName)}" title="ערוך חלוקת מלאי למדריכים">✎</button></td>
+          <td class="ds-ops-usage-cell">${usageHtml}<button type="button" class="ds-ops-stock-edit-btn" data-ops-dist-edit="${escapeHtml(row.workshopName)}" title="ערוך חלוקת מלאי למדריכים">✎</button></td>
           <td>${remainderHtml}</td>
         </tr>`;
       }).join('')}</tbody></table>`)
