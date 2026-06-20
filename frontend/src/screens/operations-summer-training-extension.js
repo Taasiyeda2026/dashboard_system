@@ -2,7 +2,6 @@ import { supabase } from '../supabase-client.js';
 import { escapeHtml } from './shared/html.js';
 import {
   getActivityName,
-  getActivityInstructorName,
   activityMatchesPeriod,
   activityOverlapsDateRange,
   isActivityDeleted
@@ -13,60 +12,6 @@ const SUMMER_TRAINING_TAB_KEY = 'summer-training';
 const STORAGE_KEY = 'operationsSummerTrainingTabActive';
 const SUMMER_FROM = '2026-06-15';
 const SUMMER_TO = '2026-09-01';
-
-const BASE_INSTRUCTORS = [
-  'הנאא',
-  'אילנה',
-  'אלדר',
-  'אלכס',
-  'אפרת',
-  'הילה',
-  'כרמית',
-  'קריית שמונה',
-  'אביב'
-];
-
-const BASE_WORKSHOPS = [
-  'עולם הביומימיקרי הקסום',
-  'אסטרונאוט על חוטים',
-  'קופת קסם',
-  'טיל ואסטרונאוט אוויר',
-  'הגיטרה שלי',
-  'מכונית מגנטית',
-  'שעון רובוט',
-  'ציפור שיווי משקל',
-  'מערכת השמש',
-  'פרוגי המקפצת',
-  'מעבורת חלל',
-  'נשכן מפרקים',
-  'קלידוסקופ',
-  'יוסי התוכי',
-  'צמידי שמש',
-  'טיל סופר נובה',
-  'כדור מולקולה'
-];
-
-const FALLBACK_TRAINED = [
-  ['עולם הביומימיקרי הקסום', 'אלכס'],
-  ['עולם הביומימיקרי הקסום', 'אפרת'],
-  ['עולם הביומימיקרי הקסום', 'הילה'],
-  ['עולם הביומימיקרי הקסום', 'כרמית'],
-  ['אסטרונאוט על חוטים', 'הילה'],
-  ['מכונית מגנטית', 'אלכס'],
-  ['מכונית מגנטית', 'אפרת'],
-  ['מכונית מגנטית', 'הילה'],
-  ['מכונית מגנטית', 'כרמית'],
-  ['פרוגי המקפצת', 'אלכס'],
-  ['פרוגי המקפצת', 'הילה'],
-  ['נשכן מפרקים', 'אלכס'],
-  ['נשכן מפרקים', 'הילה'],
-  ['קלידוסקופ', 'אלכס'],
-  ['קלידוסקופ', 'הילה'],
-  ['צמידי שמש', 'אלכס'],
-  ['צמידי שמש', 'הילה'],
-  ['כדור מולקולה', 'אלכס'],
-  ['כדור מולקולה', 'הילה']
-];
 
 let isRendering = false;
 let syncQueued = false;
@@ -91,18 +36,20 @@ function isValidInstructorName(name) {
   return Boolean(value) && value !== 'לא משויך' && value !== 'ללא שיוך' && value !== '-';
 }
 
-function resolveWorkshopName(activityName) {
-  const clean = String(activityName || '').trim();
-  if (!clean) return '';
-  const normalized = normalizeText(clean);
-  const matched = BASE_WORKSHOPS
-    .slice()
-    .sort((a, b) => b.length - a.length)
-    .find((workshop) => {
-      const key = normalizeText(workshop);
-      return normalized === key || normalized.includes(key) || key.includes(normalized);
-    });
-  return matched || clean;
+function uniqueSorted(values) {
+  return Array.from(new Set(values.map((value) => String(value || '').trim()).filter(Boolean)))
+    .sort((a, b) => a.localeCompare(b, 'he', { numeric: true }));
+}
+
+function getSystemWorkshopName(activity = {}) {
+  return String(getActivityName(activity) || activity.activity_name || activity.name || activity.title || '').trim();
+}
+
+function getSystemInstructorNames(activity = {}) {
+  return uniqueSorted([
+    activity?.instructor_name,
+    activity?.instructor_name_2
+  ].filter(isValidInstructorName));
 }
 
 function addToNestedCount(map, workshopName, instructorName) {
@@ -112,11 +59,6 @@ function addToNestedCount(map, workshopName, instructorName) {
   if (!map.has(workshopKey)) map.set(workshopKey, new Map());
   const instructors = map.get(workshopKey);
   instructors.set(instructorKey, (instructors.get(instructorKey) || 0) + 1);
-}
-
-function uniqueSorted(values) {
-  return Array.from(new Set(values.map((value) => String(value || '').trim()).filter(Boolean)))
-    .sort((a, b) => a.localeCompare(b, 'he', { numeric: true }));
 }
 
 function setSummerTrainingActive(root, active) {
@@ -147,9 +89,9 @@ function ensureSummerTrainingStyle() {
     .ds-ops-training-pill--ok{background:#ecfdf5;border-color:#bbf7d0;color:#166534}
     .ds-ops-training-wrap{width:100%;overflow:auto;background:#fff}
     .ds-ops-training-table{border-collapse:collapse;width:max-content;min-width:100%;table-layout:fixed;font-size:13px;direction:rtl}
-    .ds-ops-training-table th,.ds-ops-training-table td{border:1px solid #111827;padding:5px 7px;text-align:center;vertical-align:middle;min-width:92px;height:34px;background:#fff}
+    .ds-ops-training-table th,.ds-ops-training-table td{border:1px solid #111827;padding:5px 7px;text-align:center;vertical-align:middle;min-width:118px;height:34px;background:#fff}
     .ds-ops-training-table th{background:#f8fafc;color:#111827;font-weight:800;position:sticky;top:0;z-index:2}
-    .ds-ops-training-table th:first-child,.ds-ops-training-table td:first-child{position:sticky;right:0;z-index:3;min-width:230px;max-width:260px;text-align:right;font-weight:800;background:#fff}
+    .ds-ops-training-table th:first-child,.ds-ops-training-table td:first-child{position:sticky;right:0;z-index:3;min-width:260px;max-width:320px;text-align:right;font-weight:800;background:#fff}
     .ds-ops-training-table th:first-child{z-index:4;background:#f8fafc}
     .ds-ops-training-table tr:nth-child(odd) td:first-child{background:#fffbeb}
     .ds-ops-training-symbol{font-size:24px;line-height:1;font-weight:900;display:inline-flex;align-items:center;justify-content:center;min-width:22px;min-height:22px}
@@ -197,10 +139,13 @@ async function readSummerActivities(from, to) {
 }
 
 function buildTrainingSet(trainingRows) {
-  const trained = new Set(FALLBACK_TRAINED.map(([workshop, instructor]) => pairKey(workshop, instructor)));
+  const trained = new Set();
   (Array.isArray(trainingRows) ? trainingRows : []).forEach((row) => {
     if (row?.is_trained === false) return;
-    trained.add(pairKey(row?.workshop_name, row?.instructor_name));
+    const workshop = String(row?.workshop_name || '').trim();
+    const instructor = String(row?.instructor_name || '').trim();
+    if (!workshop || !isValidInstructorName(instructor)) return;
+    trained.add(pairKey(workshop, instructor));
   });
   return trained;
 }
@@ -208,25 +153,38 @@ function buildTrainingSet(trainingRows) {
 function buildMatrix({ activities, trainingRows }) {
   const trained = buildTrainingSet(trainingRows);
   const assigned = new Map();
-  const dynamicWorkshops = [];
-  const dynamicInstructors = [];
+  const systemWorkshops = [];
+  const systemInstructors = [];
+  const trainingWorkshops = [];
+  const trainingInstructors = [];
 
   activities.forEach((activity) => {
-    const instructor = getActivityInstructorName(activity);
-    if (!isValidInstructorName(instructor)) return;
-    const workshop = resolveWorkshopName(getActivityName(activity));
+    const workshop = getSystemWorkshopName(activity);
     if (!workshop) return;
-    addToNestedCount(assigned, workshop, instructor);
-    dynamicWorkshops.push(workshop);
-    dynamicInstructors.push(instructor);
+    const instructors = getSystemInstructorNames(activity);
+    if (!instructors.length) return;
+    systemWorkshops.push(workshop);
+    instructors.forEach((instructor) => {
+      addToNestedCount(assigned, workshop, instructor);
+      systemInstructors.push(instructor);
+    });
   });
 
-  const workshops = uniqueSorted([...BASE_WORKSHOPS, ...dynamicWorkshops]);
-  const instructors = uniqueSorted([...BASE_INSTRUCTORS, ...dynamicInstructors]);
+  (Array.isArray(trainingRows) ? trainingRows : []).forEach((row) => {
+    if (row?.is_trained === false) return;
+    const workshop = String(row?.workshop_name || '').trim();
+    const instructor = String(row?.instructor_name || '').trim();
+    if (workshop) trainingWorkshops.push(workshop);
+    if (isValidInstructorName(instructor)) trainingInstructors.push(instructor);
+  });
 
-  let okCount = 0;
-  let warningCount = 0;
+  const workshops = uniqueSorted([...systemWorkshops, ...trainingWorkshops]);
+  const instructors = uniqueSorted([...systemInstructors, ...trainingInstructors]);
+
+  let okPairCount = 0;
+  let warningPairCount = 0;
   let assignedCount = 0;
+  let assignedPairCount = 0;
 
   const rows = workshops.map((workshop) => {
     const assignedInstructors = assigned.get(normalizeText(workshop)) || new Map();
@@ -234,15 +192,25 @@ function buildMatrix({ activities, trainingRows }) {
       const count = assignedInstructors.get(normalizeText(instructor)) || 0;
       if (!count) return { status: 'empty', count: 0 };
       assignedCount += count;
+      assignedPairCount += 1;
       const hasTraining = trained.has(pairKey(workshop, instructor));
-      if (hasTraining) okCount += 1;
-      else warningCount += 1;
+      if (hasTraining) okPairCount += 1;
+      else warningPairCount += 1;
       return { status: hasTraining ? 'ok' : 'warning', count };
     });
     return { workshop, cells };
   });
 
-  return { workshops, instructors, rows, okCount, warningCount, assignedCount, trainingPairCount: trained.size };
+  return {
+    workshops,
+    instructors,
+    rows,
+    okPairCount,
+    warningPairCount,
+    assignedPairCount,
+    assignedCount,
+    trainingPairCount: trained.size
+  };
 }
 
 function statusCellHtml(cell, workshop, instructor) {
@@ -263,13 +231,14 @@ function matrixHtml(matrix, from, to) {
       <header class="ds-ops-training-header">
         <div>
           <h2 class="ds-ops-training-title">הכשרות קיץ</h2>
-          <p class="ds-ops-training-subtitle">סטטוס הכשרה לפי שיבוץ מדריכים לסדנאות קיץ. טווח: ${escapeHtml(from)} עד ${escapeHtml(to)}</p>
+          <p class="ds-ops-training-subtitle">סטטוס הכשרה לפי שיבוץ בפועל. שמות הסדנאות והמדריכים נלקחים מהמערכת. טווח: ${escapeHtml(from)} עד ${escapeHtml(to)}</p>
         </div>
       </header>
       <div class="ds-ops-training-summary">
         <span class="ds-ops-training-pill">${matrix.assignedCount} שיבוצים שנבדקו</span>
-        <span class="ds-ops-training-pill ds-ops-training-pill--ok">${matrix.okCount} משובצים עם הכשרה</span>
-        <span class="ds-ops-training-pill ds-ops-training-pill--warn">${matrix.warningCount} משובצים ללא הכשרה</span>
+        <span class="ds-ops-training-pill">${matrix.assignedPairCount} צמדי מדריך-סדנה</span>
+        <span class="ds-ops-training-pill ds-ops-training-pill--ok">${matrix.okPairCount} צמדים עם הכשרה</span>
+        <span class="ds-ops-training-pill ds-ops-training-pill--warn">${matrix.warningPairCount} צמדים ללא הכשרה</span>
         <span class="ds-ops-training-pill">${matrix.trainingPairCount} רשומות הכשרה מאחורי הקלעים</span>
       </div>
       <div class="ds-ops-training-wrap">
