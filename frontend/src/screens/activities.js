@@ -33,6 +33,7 @@ import {
   getManagerUsers,
   getFilterOptionOverrides,
   cleanUnique,
+  humanDisplayText,
   NO_ACTIVITY_MANAGER_LABEL,
   resolveGradeOptions
 } from './shared/activity-options.js';
@@ -121,7 +122,10 @@ function isInactiveActivityStatus(row = {}) {
 }
 
 function normalizedActivityStatus(row = {}) {
-  return String(row?.status || '').trim();
+  const status = String(row?.status || '').trim();
+  if (status === 'פעיל' || status.toLowerCase() === 'active' || status.toLowerCase() === 'open') return 'פתוח';
+  if (status.toLowerCase() === 'closed') return 'סגור';
+  return status;
 }
 
 function isDeletedActivity(row = {}) {
@@ -344,7 +348,7 @@ function logActivitiesAccess(state) {
 }
 
 function normalizeAdminSummaryText(value) {
-  return String(value == null ? '' : value).trim();
+  return humanDisplayText(value);
 }
 
 function normalizeAdminSummarySearchText(value) {
@@ -492,14 +496,14 @@ function parseLinkedSchoolsJson(row) {
 function getActivitySchoolNames(row) {
   const names = new Set();
   parseLinkedSchoolsJson(row).forEach((s) => {
-    const n = String(s?.school_name || '').trim();
+    const n = humanDisplayText(s?.school_name);
     if (n) names.add(n);
   });
-  const lsn = String(row?.linked_school_names || '').trim();
-  if (lsn) lsn.split(/\s*\+\s*|\s*[,،]\s*/).forEach((n) => { const t = n.trim(); if (t) names.add(t); });
-  const ssn = String(row?.single_school_name || '').trim();
+  const lsn = humanDisplayText(row?.linked_school_names);
+  if (lsn) lsn.split(/\s*\+\s*|\s*[,،]\s*/).forEach((n) => { const t = humanDisplayText(n); if (t) names.add(t); });
+  const ssn = humanDisplayText(row?.single_school_name);
   if (ssn) names.add(ssn);
-  const ls = String(row?.legacy_school || row?.school || '').trim();
+  const ls = humanDisplayText(row?.legacy_school || row?.school);
   if (ls) names.add(ls);
   return Array.from(names);
 }
@@ -510,19 +514,19 @@ function getActivitySchoolNames(row) {
  * אין לסנן לפי school_id — פעילות עם school טקסטואלי בלבד תוצג כרגיל.
  */
 function getActivitySchoolDisplayName(row) {
-  const lsn = String(row?.linked_school_names || '').trim();
+  const lsn = humanDisplayText(row?.linked_school_names);
   if (lsn) return lsn;
-  const ssn = String(row?.single_school_name || '').trim();
+  const ssn = humanDisplayText(row?.single_school_name);
   if (ssn) return ssn;
-  const ls = String(row?.school || row?.legacy_school || '').trim();
+  const ls = humanDisplayText(row?.school || row?.legacy_school);
   return ls || 'לא משויך';
 }
 
 const ACTIVITY_FILTER_FIELDS = [
   { key: 'activity_manager', label: 'מנהל פעילות', getValues: (row) => [activityManagerDisplayName(row?.activity_manager)] },
-  { key: 'instructor', label: 'מדריך', getValues: (row) => [row?.instructor_name, row?.instructor_name_2] },
-  { key: 'activity_name', label: 'תוכנית' },
-  { key: 'authority', label: 'רשות' },
+  { key: 'instructor', label: 'מדריך', getValues: (row) => [humanDisplayText(row?.instructor_name), humanDisplayText(row?.instructor_name_2)] },
+  { key: 'activity_name', label: 'תוכנית', getValues: (row) => [humanDisplayText(row?.activity_name)] },
+  { key: 'authority', label: 'רשות', getValues: (row) => [humanDisplayText(row?.authority)] },
   { key: 'funding', label: 'מימון' },
   { key: 'school', label: 'בית ספר', getValues: getActivitySchoolNames },
   { key: 'activity_type', label: 'סוג הפעילות', getOptionLabel: (value) => visibleActivityCategoryLabel(value) }
@@ -547,8 +551,8 @@ const ACTIVITY_SEARCH_FIELDS = [
 function activityInstructorMeta(row, opts = {}) {
   const hideEmpIds = !!opts.hideEmpIds;
   const instructorByEmpId = opts.instructorByEmpId || {};
-  const n1 = String(row?.instructor_name ?? row?.Instructor ?? row?.Employee ?? '').trim();
-  const n2 = String(row?.instructor_name_2 ?? row?.Instructor2 ?? row?.Employee2 ?? '').trim();
+  const n1 = humanDisplayText(row?.instructor_name ?? row?.Instructor ?? row?.Employee);
+  const n2 = humanDisplayText(row?.instructor_name_2 ?? row?.Instructor2 ?? row?.Employee2);
   const e1 = String(row?.emp_id ?? row?.EmployeeID ?? row?.employee_id ?? '').trim();
   const e2 = String(row?.emp_id_2 ?? row?.EmployeeID2 ?? row?.employee_id_2 ?? '').trim();
   const names = [
@@ -649,7 +653,7 @@ function mergeOptions(settings, keys) {
   keys.forEach((k) => {
     const arr = Array.isArray(map[k]) ? map[k] : [];
     arr.forEach((v) => {
-      const s = String(v || '').trim();
+      const s = humanDisplayText(v);
       if (!s || seen.has(s)) return;
       seen.add(s);
       out.push(s);
@@ -2430,10 +2434,10 @@ export const activitiesScreen = {
       const get = (k) => String(fd.get(k) || '').trim();
       const authorityCustom = get('authority_custom');
       const schoolCustom = get('school_custom');
-      const authorityValue = authorityCustom || get('authority');
-      const schoolValue = schoolCustom || get('school');
+      const authorityValue = humanDisplayText(authorityCustom || get('authority'));
+      const schoolValue = humanDisplayText(schoolCustom || get('school'));
       const selectedSchool = !schoolCustom ? schoolRecords.find((school) => {
-        const label = String(school?.name || school?.value || '').trim();
+        const label = humanDisplayText(school?.name || school?.value);
         return label && label === schoolValue;
       }) : null;
       const selectedName = get('activity_name');
@@ -2470,30 +2474,30 @@ export const activitiesScreen = {
       const payload = {
         source: isOneDay ? 'short' : 'long',
         activity_family: isOneDay ? 'one_day' : 'program',
-        activity_manager: get('activity_manager'),
+        activity_manager: humanDisplayText(get('activity_manager')),
         authority_id: String(selectedSchool?.authority_id || '').trim() || null,
         school_id: String(selectedSchool?.school_id || '').trim() || null,
-        authority: authorityValue || String(selectedSchool?.authority || '').trim(),
+        authority: authorityValue || humanDisplayText(selectedSchool?.authority),
         school: schoolValue,
         grade: get('grade'),
         class_group: get('class_group'),
         activity_type: selectedType || get('activity_type'),
         item_type: selectedType || get('activity_type'),
         activity_season: normalizeActivitySeason(get('activity_season')),
-        activity_name: selectedName,
+        activity_name: humanDisplayText(selectedName),
         activity_no: String(hit?.activity_no || get('activity_no') || ''),
         sessions: isOneDay ? '1' : sessionsValue,
         price: get('price'),
         funding: get('funding'),
         start_time: get('start_time'),
         end_time: get('end_time'),
-        instructor_name: get('instructor_name'),
+        instructor_name: humanDisplayText(get('instructor_name')),
         emp_id: pickEmp(get('instructor_name')),
-        instructor_name_2: get('instructor_name_2'),
+        instructor_name_2: humanDisplayText(get('instructor_name_2')),
         emp_id_2: pickEmp(get('instructor_name_2')),
         start_date: isOneDay ? oneDayDate : get('start_date'),
         end_date: isOneDay ? oneDayDate || null : get('end_date') || null,
-        status: isOneDay ? 'פתוח' : 'פעיל',
+        status: 'פתוח',
         notes: get('notes')
       };
       if (isOneDay) {

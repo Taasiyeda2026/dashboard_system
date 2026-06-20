@@ -2,7 +2,7 @@ import { translateApiErrorForUser } from './ui-hebrew.js';
 import { showToast } from './toast.js';
 import { formatDateHe } from './format-date.js';
 import { escapeHtml } from './html.js';
-import { activityTypeMatches, normalizeActivityTypeKey, normalizeOneDayActivityType } from './activity-options.js';
+import { activityTypeMatches, humanDisplayText, normalizeActivityTypeKey, normalizeOneDayActivityType } from './activity-options.js';
 import { state } from '../../state.js';
 
 function setEditMode(form, editing) {
@@ -22,6 +22,26 @@ function setStatus(statusEl, kind, text) {
   statusEl.textContent = text;
   statusEl.classList.remove('is-pending', 'is-error', 'is-success', 'is-warning');
   if (kind) statusEl.classList.add(kind);
+}
+
+const HUMAN_DISPLAY_FIELDS = new Set([
+  'instructor_name',
+  'instructor_name_2',
+  'activity_manager',
+  'previous_activity_manager',
+  'school',
+  'school_name',
+  'authority',
+  'activity_name',
+  'program_name',
+  'name',
+  'title'
+]);
+
+function normalizeActivityStatusForSave(value) {
+  const clean = String(value || '').trim();
+  if (clean === 'סגור' || clean.toLowerCase() === 'closed') return 'סגור';
+  return 'פתוח';
 }
 
 const GENERIC_ONE_DAY_ACTIVITY_NAMES = new Set(['סדנה', 'סדנאות', 'סיור', 'סיורים', 'חדר בריחה', 'חדרי בריחה']);
@@ -275,11 +295,18 @@ export function bindActivityEditForm(contentRoot, {
       if (el.closest('[hidden]')) return;
       const rawValue = el.value;
       if (rawValue === undefined || rawValue === null) return;
-      const nextValue = String(rawValue).trim();
+      const rawNextValue = String(rawValue).trim();
+      const nextValue = name === 'status'
+        ? normalizeActivityStatusForSave(rawNextValue)
+        : (HUMAN_DISPLAY_FIELDS.has(name) ? humanDisplayText(rawNextValue) : rawNextValue);
       const prevValue = String(initialValues[name] ?? '').trim();
       if (nextValue === prevValue) return;
       changes[name] = nextValue;
     });
+
+    if (String(form.dataset.originalStatus || '').trim() === 'פעיל' && !Object.prototype.hasOwnProperty.call(changes, 'status')) {
+      changes.status = 'פתוח';
+    }
 
     if (hasMeetingDatesChanged(form, initialValues)) {
       const snapshot = buildMeetingDatesSnapshot(form);
