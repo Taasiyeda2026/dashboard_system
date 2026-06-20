@@ -11,7 +11,10 @@ const ENHANCED_ATTR = 'data-contacts-full-directory';
 
 let directoryPromise = null;
 let lastSearch = '';
+let activeLetter = '';
 let isRendering = false;
+
+const HEBREW_LETTERS = ['א','ב','ג','ד','ה','ו','ז','ח','ט','י','כ','ל','מ','נ','ס','ע','פ','צ','ק','ר','ש','ת'];
 
 function text(value) {
   return String(value == null ? '' : value).trim();
@@ -233,16 +236,19 @@ function ensureStyle() {
     .contacts-full-search:focus{outline:2px solid rgba(2,146,183,.18);border-color:var(--ds-accent,#0292b7)}
     .contacts-full-summary{display:flex;flex-wrap:wrap;gap:8px;align-items:center;margin:0 0 14px;color:#334155;font-size:14px}
     .contacts-full-summary__chip{display:inline-flex;align-items:center;gap:4px;background:#f8fafc;border:1px solid #e2e8f0;border-radius:999px;padding:7px 12px;font-weight:700;color:#0f172a}
-    .contacts-full-list{display:grid;gap:10px}
+    .contacts-full-alphabet{display:flex;flex-wrap:wrap;justify-content:center;gap:8px;margin:0 auto 16px;max-width:760px}
+    .contacts-full-letter{min-width:34px;height:34px;border:1px solid #dbe6ee;border-radius:999px;background:#fff;color:#0f172a;font-weight:800;cursor:pointer}
+    .contacts-full-letter:hover,.contacts-full-letter.is-active{background:var(--ds-accent,#0292b7);border-color:var(--ds-accent,#0292b7);color:#fff}
+    .contacts-full-list{display:grid;gap:10px;width:min(920px,100%);margin:0 auto}
     .cfd-authority{border:1px solid #dbe6ee;border-radius:16px;background:#fff;box-shadow:0 6px 18px rgba(15,23,42,.045);overflow:hidden}
     .cfd-authority[open]{border-color:rgba(2,146,183,.34);box-shadow:0 8px 22px rgba(2,146,183,.08)}
-    .cfd-authority__head{cursor:pointer;list-style:none;display:grid;grid-template-columns:auto 1fr auto;gap:12px;align-items:center;padding:13px 16px;background:#fff}
+    .cfd-authority__head{cursor:pointer;list-style:none;display:flex;gap:10px;align-items:center;padding:12px 14px;background:#fff}
     .cfd-authority[open]>.cfd-authority__head{background:#f0fbff;border-bottom:1px solid #dbeafe}
     .cfd-authority__head::-webkit-details-marker,.cfd-card__head::-webkit-details-marker{display:none}
     .cfd-chevron{font-size:22px;line-height:1;color:#64748b;transform:rotate(180deg);transition:transform .18s ease}
     details[open]>.cfd-authority__head .cfd-chevron,details[open]>.cfd-card__head .cfd-chevron{transform:rotate(270deg)}
     .cfd-authority__name{font-weight:800;color:#0f172a;font-size:16px}
-    .cfd-authority__meta{display:flex;flex-wrap:wrap;gap:6px;justify-content:flex-end;color:#475569;font-size:12px}
+    .cfd-authority__meta{display:flex;flex-wrap:wrap;gap:6px;color:#475569;font-size:12px;margin-inline-start:8px}
     .cfd-pill{background:#f8fafc;border:1px solid #e2e8f0;border-radius:999px;padding:4px 8px;white-space:nowrap}
     .cfd-authority__body{padding:12px 14px 16px;display:grid;gap:12px;background:#fbfdff}
     .cfd-group{border-radius:14px;border:1px solid #e2e8f0;background:#fff;overflow:hidden}
@@ -264,7 +270,7 @@ function ensureStyle() {
     .cfd-contact a{color:var(--ds-accent,#0292b7);text-decoration:none;font-weight:600}
     .cfd-empty{color:#94a3b8;font-size:13px;padding:8px 2px}
     .cfd-match{background:#fff3b0;border-radius:4px;padding-inline:2px}
-    @media (max-width: 760px){.cfd-authority__head,.cfd-card__head{grid-template-columns:auto 1fr}.cfd-authority__meta,.cfd-card__meta{grid-column:2}.cfd-contact{grid-template-columns:1fr}.contacts-full-search{width:100%}}
+    @media (max-width: 760px){.cfd-authority__head{align-items:flex-start}.cfd-authority__meta{margin-inline-start:0}.cfd-card__head{grid-template-columns:auto 1fr}.cfd-card__meta{grid-column:2}.cfd-contact{grid-template-columns:1fr}.contacts-full-search{width:100%}}
   `;
   document.head.appendChild(style);
 }
@@ -355,7 +361,7 @@ function authorityHtml(bucket, search) {
 
   const shouldOpen = Boolean(search);
   const schoolsHtml = schools.length ? `<section class="cfd-group cfd-group--schools">
-    <div class="cfd-group__title"><span>בתי ספר / מסגרות</span><span class="cfd-group__count">${schools.length}</span></div>
+    <div class="cfd-group__title"><span>בתי ספר</span><span class="cfd-group__count">${schools.length}</span></div>
     <div class="cfd-items">${schools.map((school) => schoolCardHtml(school, search)).join('')}</div>
   </section>` : '';
 
@@ -370,7 +376,7 @@ function authorityHtml(bucket, search) {
   </section>` : '';
 
   const meta = [
-    `${schools.length} בתי ספר / מסגרות`,
+    `${schools.length} בתי ספר`,
     bucket.authorityContacts.length ? `${bucket.authorityContacts.length} אנשי קשר ברשות` : '',
     otherGroups.length ? `${otherGroups.length} אחרים` : '',
     bucket._contactKeys.size ? `${bucket._contactKeys.size} אנשי קשר` : ''
@@ -386,16 +392,38 @@ function authorityHtml(bucket, search) {
   </details>`;
 }
 
+function firstHebrewLetter(value) {
+  const normalized = key(value).replace(/^[^א-ת]+/, '');
+  return normalized.charAt(0);
+}
+
+function alphabetHtml() {
+  return `<div class="contacts-full-alphabet" dir="rtl" aria-label="בחירת אות">${HEBREW_LETTERS.map((letter) => `<button type="button" class="contacts-full-letter${activeLetter === letter ? ' is-active' : ''}" data-contacts-letter="${letter}" aria-pressed="${activeLetter === letter ? 'true' : 'false'}">${letter}</button>`).join('')}</div>`;
+}
+
+function bindLetterButtons(listWrap, data) {
+  listWrap.querySelectorAll('[data-contacts-letter]').forEach((button) => {
+    button.addEventListener('click', () => {
+      const letter = button.getAttribute('data-contacts-letter') || '';
+      activeLetter = activeLetter === letter ? '' : letter;
+      renderDirectory(listWrap, data);
+    });
+  });
+}
+
 function renderDirectory(listWrap, data) {
   const search = text(lastSearch);
-  const listHtml = data.authorities.map((bucket) => authorityHtml(bucket, search)).filter(Boolean).join('');
-  const emptyHtml = '<div class="cfd-empty">לא נמצאו תוצאות לחיפוש</div>';
-  listWrap.innerHTML = `<div class="contacts-full-summary" dir="rtl">
-    <span class="contacts-full-summary__chip"><strong>${data.authorityCount}</strong> רשויות</span>
-    <span class="contacts-full-summary__chip"><strong>${data.schoolCount}</strong> בתי ספר / מסגרות</span>
-  </div>
+  const filteredAuthorities = activeLetter
+    ? data.authorities.filter((bucket) => firstHebrewLetter(bucket.authority_name) === activeLetter)
+    : [];
+  const authoritiesForDisplay = search ? data.authorities : filteredAuthorities;
+  const listHtml = authoritiesForDisplay.map((bucket) => authorityHtml(bucket, search)).filter(Boolean).join('');
+  const hasDirectoryRequest = Boolean(activeLetter || search);
+  const emptyHtml = hasDirectoryRequest ? '<div class="cfd-empty">לא נמצאו תוצאות לחיפוש</div>' : '';
+  listWrap.innerHTML = `${alphabetHtml()}
   <div class="contacts-full-list" dir="rtl">${listHtml || emptyHtml}</div>`;
   listWrap.setAttribute(ENHANCED_ATTR, 'yes');
+  bindLetterButtons(listWrap, data);
 }
 
 function isSchoolContactsTabActive(root) {

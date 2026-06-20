@@ -25,7 +25,7 @@ const INSTR_SEARCH_FIELDS = [
 
 const SCHOOL_FILTER_FIELDS = [
   { key: 'authority', label: 'רשות' },
-  { key: 'school', label: 'בית ספר / מסגרת' },
+  { key: 'school', label: 'בית ספר' },
   { key: 'contact_role', label: 'תפקיד' }
 ];
 
@@ -366,13 +366,13 @@ function renderAuthorityAccordion(authority, bucket) {
 
   const { schoolCount, contactCount } = countAuthorityBucket(bucket);
   const badges = [
-    schoolCount > 0 ? `${schoolCount} בתי ספר / מסגרות` : '',
+    schoolCount > 0 ? `${schoolCount} בתי ספר` : '',
     contactCount > 0 ? `${contactCount} אנשי קשר` : ''
   ].filter(Boolean).join(' · ');
 
   const schoolsSection = schoolsHtml
     ? `<section class="sc-sub-group sc-sub-group--schools">
-        <div class="sc-sub-group__title"><span aria-hidden="true">🏫</span> בתי ספר / מסגרות <span class="sc-sub-group__count">${schoolCount}</span></div>
+        <div class="sc-sub-group__title"><span aria-hidden="true">🏫</span> בתי ספר <span class="sc-sub-group__count">${schoolCount}</span></div>
         <div class="sc-school-grid">${schoolsHtml}</div>
       </section>`
     : '';
@@ -490,7 +490,7 @@ function schoolTabHtml(rows, filters, activeLetter = '') {
   const summaryHtml = `<div class="sc-summary-bar contacts-summary-bar" dir="rtl">
     <span class="sc-summary-bar__item">רשויות: <strong>${stats.authorities}</strong></span>
     <span class="sc-summary-bar__sep" aria-hidden="true">·</span>
-    <span class="sc-summary-bar__item">בתי ספר / מסגרות: <strong>${stats.schools}</strong></span>
+    <span class="sc-summary-bar__item">בתי ספר: <strong>${stats.schools}</strong></span>
     <span class="sc-summary-bar__sep" aria-hidden="true">·</span>
     <span class="sc-summary-bar__item">אנשי קשר: <strong>${stats.contacts}</strong></span>
   </div>`;

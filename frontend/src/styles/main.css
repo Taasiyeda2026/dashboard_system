@@ -9922,12 +9922,12 @@ select.ds-input {
 }
 
 .instr-page .ci-list--instr-grid {
-  grid-template-columns: repeat(5, minmax(0, 1fr));
-  gap: 8px;
-  padding: 6px;
+  grid-template-columns: repeat(4, minmax(0, 1fr));
+  gap: 22px 24px;
+  padding: 14px;
 }
 
-@media (max-width: 900px) {
+@media (max-width: 1100px) {
   .instr-page .ci-list--instr-grid {
     grid-template-columns: repeat(3, minmax(0, 1fr));
   }
@@ -9942,7 +9942,7 @@ select.ds-input {
 .instr-page .ci-list--instr-grid .instr-summary-row,
 .instr-page .instr-card .instr-summary-row {
   min-height: unset;
-  padding: 8px 8px 7px;
+  padding: 12px 12px 11px;
   background: #f7f7f8;
   border: 1px solid #ddd;
   border-top: 3px solid #888;
