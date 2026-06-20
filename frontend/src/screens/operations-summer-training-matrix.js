@@ -25,13 +25,15 @@ function addStyle(){
   const s=document.createElement('style');
   s.id='ops-training-matrix-style';
   s.textContent=`
-    .ops-trx{direction:rtl;background:#fff;border:1px solid #d8e5ee;border-radius:16px;overflow:hidden;width:min(1160px,96%);margin:0 auto;box-shadow:0 1px 2px rgba(15,23,42,.04)}
-    .ops-trx-h{padding:14px 16px;background:#f8fbfd;border-bottom:1px solid #e2e8f0}.ops-trx-h h2{margin:0;font-size:18px;color:#0f172a}
-    .ops-trx-wrap{overflow-y:auto;overflow-x:hidden;max-height:70vh;width:100%}.ops-trx table{border-collapse:collapse;table-layout:fixed;background:#fff;font-size:12px;width:100%}.ops-trx th,.ops-trx td{border:1px solid #cbd5e1;padding:0;text-align:center;vertical-align:middle;box-sizing:border-box;overflow:hidden;background:#fff}.ops-trx th{height:44px;line-height:44px;background:#f1f5f9;font-weight:800;color:#111827}.ops-trx tbody td{height:38px;line-height:38px}.ops-trx thead th{position:sticky;top:0;z-index:5;box-shadow:0 2px 0 rgba(148,163,184,.32)}.ops-trx tr:nth-child(even) td{background:#f8fafc}
+    .ops-trx{direction:rtl;background:#fff;border:1px solid #d8e5ee;border-radius:16px;overflow:visible;width:min(1160px,96%);margin:0 auto;box-shadow:0 1px 2px rgba(15,23,42,.04)}
+    .ops-trx-h{display:flex;align-items:center;justify-content:space-between;gap:12px;padding:10px 14px;background:#f8fbfd;border-bottom:1px solid #e2e8f0;border-radius:16px 16px 0 0}.ops-trx-h h2{margin:0;font-size:18px;color:#0f172a;line-height:1.2}
+    .ops-trx-legend{display:inline-flex;align-items:center;gap:8px;flex-wrap:nowrap;margin-inline-start:auto;color:#475569;font-size:11px;white-space:nowrap}.ops-trx-legend span{display:inline-flex;align-items:center;gap:4px;border:1px solid #dbe7ef;border-radius:999px;background:#fff;padding:2px 8px;line-height:1.35}.ops-trx-legend .ops-trx-mark{width:auto;height:auto;font-size:15px;line-height:1}
+    .ops-trx-wrap{overflow:visible;max-height:none;width:100%}.ops-trx table{border-collapse:collapse;table-layout:fixed;background:#fff;font-size:12px;width:100%}.ops-trx th,.ops-trx td{border:1px solid #cbd5e1;padding:0;text-align:center;vertical-align:middle;box-sizing:border-box;overflow:hidden;background:#fff}.ops-trx th{height:44px;line-height:44px;background:#f1f5f9;font-weight:800;color:#111827}.ops-trx tbody td{height:38px;line-height:38px}.ops-trx thead th{position:sticky;top:0;z-index:5;background:#f1f5f9;box-shadow:0 2px 0 rgba(148,163,184,.32)}.ops-trx tr:nth-child(even) td{background:#f8fafc}
     .ops-trx-workshop{position:sticky;right:0;z-index:2;text-align:right!important;padding-inline:10px!important;font-weight:800;color:#0f172a;background:#fff!important}.ops-trx th.ops-trx-workshop{z-index:7;text-align:right!important;background:#f1f5f9!important}.ops-trx-guide{min-width:0}.ops-trx-name{display:block;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}.ops-trx tbody .ops-trx-name{line-height:38px}.ops-trx thead .ops-trx-name{line-height:44px}
     .ops-trx-mark{font-size:22px;font-weight:900;line-height:38px;display:inline-flex;width:100%;height:38px;align-items:center;justify-content:center}.ops-trx-ok{color:#16a34a}.ops-trx-warn{color:#ef4444}
     .ops-trx-section td{height:38px;line-height:38px;background:#dff5fb!important;color:#075985;font-weight:900;text-align:right!important;padding-inline:14px!important;border-top:4px solid var(--ds-accent,#0292b7)!important;border-bottom:2px solid var(--ds-accent,#0292b7)!important}.ops-trx-section-title{position:static!important;text-align:right!important;background:#dff5fb!important}
-    .ops-trx-legend{display:flex;gap:12px;flex-wrap:wrap;padding:10px 16px;color:#475569;font-size:12px;border-top:1px solid #e2e8f0;background:#f8fbfd}.ops-trx-msg{padding:20px;text-align:center;font-weight:700;color:#475569}.ops-trx-err{color:#b91c1c;background:#fef2f2}
+    .ops-trx-msg{padding:20px;text-align:center;font-weight:700;color:#475569}.ops-trx-err{color:#b91c1c;background:#fef2f2}
+    @media(max-width:900px){.ops-trx-h{align-items:flex-start;flex-direction:column}.ops-trx-legend{margin-inline-start:0;flex-wrap:wrap}.ops-trx{width:100%}}
   `;
   document.head.appendChild(s);
 }
@@ -72,6 +74,7 @@ function colgroup(model){
   const guidePercent=(100-ACTIVITY_COL_PERCENT)/guideCount;
   return `<colgroup><col style="width:${ACTIVITY_COL_PERCENT}%">${model.instructors.map(()=>`<col style="width:${guidePercent}%">`).join('')}</colgroup>`;
 }
+function legendHtml(){return '<div class="ops-trx-legend"><span><strong class="ops-trx-mark ops-trx-ok">✓</strong> הכשרה</span><span><strong class="ops-trx-mark ops-trx-warn">!</strong> שיבוץ ללא הכשרה</span></div>';}
 function html(model){
   const rowsCount=model.workshops.length+model.escapeWorkshops.length;
   const head=`<tr><th class="ops-trx-workshop">שם הפעילות</th>${model.instructors.map((i)=>`<th class="ops-trx-guide" title="${escapeHtml(i)}"><span class="ops-trx-name">${escapeHtml(i)}</span></th>`).join('')}</tr>`;
@@ -79,7 +82,7 @@ function html(model){
   const escape=model.escapeWorkshops.length?sectionRow('חדרי בריחה',model.instructors.length)+model.escapeWorkshops.map((w)=>rowHtml(model,w)).join(''):'';
   const body=regular+escape;
   const table=rowsCount&&model.instructors.length?`<div class="ops-trx-wrap"><table>${colgroup(model)}<thead>${head}</thead><tbody>${body}</tbody></table></div>`:'<div class="ops-trx-msg">לא נמצאו הכשרות או שיבוצים להצגה</div>';
-  return `<section class="ops-trx" dir="rtl"><div class="ops-trx-h"><h2>הכשרות קיץ</h2></div>${table}<div class="ops-trx-legend"><span><strong class="ops-trx-mark ops-trx-ok">✓</strong> עבר הכשרה לסדנה</span><span><strong class="ops-trx-mark ops-trx-warn">!</strong> משובץ ללא הכשרה</span></div></section>`;
+  return `<section class="ops-trx" dir="rtl"><div class="ops-trx-h"><h2>הכשרות קיץ</h2>${legendHtml()}</div>${table}</section>`;
 }
 function setActive(root,active){root?.querySelectorAll?.('.ds-ops-mgmt-tab').forEach((btn)=>{const mine=btn.hasAttribute('data-ops-training-tab');btn.classList.toggle('is-active',active&&mine);if(active||mine)btn.setAttribute('aria-pressed',active&&mine?'true':'false');});}
 async function render(root,force=false){
