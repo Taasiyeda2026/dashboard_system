@@ -41,6 +41,12 @@ function uniqueSorted(values) {
     .sort((a, b) => a.localeCompare(b, 'he', { numeric: true }));
 }
 
+function compareTrainingRows(a, b) {
+  const workshopCompare = String(a.workshop || '').localeCompare(String(b.workshop || ''), 'he', { numeric: true });
+  if (workshopCompare !== 0) return workshopCompare;
+  return String(a.instructor || '').localeCompare(String(b.instructor || ''), 'he', { numeric: true });
+}
+
 function getSystemWorkshopName(activity = {}) {
   return String(getActivityName(activity) || activity.activity_name || activity.name || activity.title || '').trim();
 }
@@ -50,15 +56,6 @@ function getSystemInstructorNames(activity = {}) {
     activity?.instructor_name,
     activity?.instructor_name_2
   ].filter(isValidInstructorName));
-}
-
-function addToNestedCount(map, workshopName, instructorName) {
-  const workshopKey = normalizeText(workshopName);
-  const instructorKey = normalizeText(instructorName);
-  if (!workshopKey || !instructorKey) return;
-  if (!map.has(workshopKey)) map.set(workshopKey, new Map());
-  const instructors = map.get(workshopKey);
-  instructors.set(instructorKey, (instructors.get(instructorKey) || 0) + 1);
 }
 
 function setSummerTrainingActive(root, active) {
@@ -87,20 +84,26 @@ function ensureSummerTrainingStyle() {
     .ds-ops-training-pill{display:inline-flex;align-items:center;border-radius:999px;border:1px solid #dbe7ef;background:#f8fbfd;color:#334155;padding:3px 9px;font-size:12px;font-weight:700;white-space:nowrap}
     .ds-ops-training-pill--warn{background:#fff7ed;border-color:#fed7aa;color:#9a3412}
     .ds-ops-training-pill--ok{background:#ecfdf5;border-color:#bbf7d0;color:#166534}
-    .ds-ops-training-wrap{width:100%;overflow:auto;background:#fff}
-    .ds-ops-training-table{border-collapse:collapse;width:max-content;min-width:100%;table-layout:fixed;font-size:13px;direction:rtl}
-    .ds-ops-training-table th,.ds-ops-training-table td{border:1px solid #111827;padding:5px 7px;text-align:center;vertical-align:middle;min-width:118px;height:34px;background:#fff}
-    .ds-ops-training-table th{background:#f8fafc;color:#111827;font-weight:800;position:sticky;top:0;z-index:2}
-    .ds-ops-training-table th:first-child,.ds-ops-training-table td:first-child{position:sticky;right:0;z-index:3;min-width:260px;max-width:320px;text-align:right;font-weight:800;background:#fff}
-    .ds-ops-training-table th:first-child{z-index:4;background:#f8fafc}
-    .ds-ops-training-table tr:nth-child(odd) td:first-child{background:#fffbeb}
-    .ds-ops-training-symbol{font-size:24px;line-height:1;font-weight:900;display:inline-flex;align-items:center;justify-content:center;min-width:22px;min-height:22px}
+    .ds-ops-training-wrap{width:100%;overflow:auto;background:#fff;padding:0}
+    .ds-ops-training-table{border-collapse:collapse;width:100%;table-layout:fixed;font-size:13px;direction:rtl}
+    .ds-ops-training-table th,.ds-ops-training-table td{border:1px solid #cbd5e1;padding:7px 8px;text-align:right;vertical-align:middle;height:42px;line-height:1.25;background:#fff;box-sizing:border-box}
+    .ds-ops-training-table th{background:#f8fafc;color:#111827;font-weight:800;text-align:center;white-space:nowrap}
+    .ds-ops-training-table tr:nth-child(even) td{background:#f8fafc}
+    .ds-ops-training-col--workshop,.ds-ops-training-col--instructor{width:35%}
+    .ds-ops-training-col--count{width:14%;text-align:center!important;white-space:nowrap}
+    .ds-ops-training-col--status{width:16%;text-align:center!important;white-space:nowrap}
+    .ds-ops-training-name{display:block;width:100%;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;font-weight:700;color:#0f172a}
+    .ds-ops-training-status{display:inline-flex;align-items:center;justify-content:center;gap:6px;border-radius:999px;padding:4px 10px;font-weight:800;font-size:12px;min-width:112px;box-sizing:border-box}
+    .ds-ops-training-status--ok{background:#ecfdf5;border:1px solid #bbf7d0;color:#166534}
+    .ds-ops-training-status--warn{background:#fef2f2;border:1px solid #fecaca;color:#b91c1c}
+    .ds-ops-training-symbol{font-size:18px;line-height:1;font-weight:900;display:inline-flex;align-items:center;justify-content:center;min-width:18px;min-height:18px}
     .ds-ops-training-symbol--ok{color:#16a34a}
     .ds-ops-training-symbol--warn{color:#ef4444}
-    .ds-ops-training-count{display:block;margin-top:1px;font-size:10px;color:#64748b;font-weight:600}
+    .ds-ops-training-count{font-weight:800;color:#334155;text-align:center;display:block}
     .ds-ops-training-legend{display:flex;gap:12px;flex-wrap:wrap;padding:10px 16px;color:#475569;font-size:12px;border-top:1px solid #e2e8f0;background:#f8fbfd}
-    .ds-ops-training-error,.ds-ops-training-loading{padding:20px 16px;color:#475569;font-weight:700;text-align:center}
+    .ds-ops-training-error,.ds-ops-training-loading,.ds-ops-training-empty{padding:20px 16px;color:#475569;font-weight:700;text-align:center}
     .ds-ops-training-error{color:#b91c1c;background:#fef2f2}
+    @media (max-width: 900px){.ds-ops-training-table{min-width:760px}.ds-ops-training-wrap{overflow-x:auto}}
   `;
   document.head.appendChild(style);
 }
@@ -150,107 +153,93 @@ function buildTrainingSet(trainingRows) {
   return trained;
 }
 
-function buildMatrix({ activities, trainingRows }) {
+function buildStatusRows({ activities, trainingRows }) {
   const trained = buildTrainingSet(trainingRows);
-  const assigned = new Map();
-  const systemWorkshops = [];
-  const systemInstructors = [];
-  const trainingWorkshops = [];
-  const trainingInstructors = [];
+  const assignedPairs = new Map();
+  let assignedCount = 0;
 
   activities.forEach((activity) => {
     const workshop = getSystemWorkshopName(activity);
     if (!workshop) return;
     const instructors = getSystemInstructorNames(activity);
     if (!instructors.length) return;
-    systemWorkshops.push(workshop);
     instructors.forEach((instructor) => {
-      addToNestedCount(assigned, workshop, instructor);
-      systemInstructors.push(instructor);
+      const key = pairKey(workshop, instructor);
+      const existing = assignedPairs.get(key) || { workshop, instructor, count: 0 };
+      existing.count += 1;
+      assignedPairs.set(key, existing);
+      assignedCount += 1;
     });
   });
 
-  (Array.isArray(trainingRows) ? trainingRows : []).forEach((row) => {
-    if (row?.is_trained === false) return;
-    const workshop = String(row?.workshop_name || '').trim();
-    const instructor = String(row?.instructor_name || '').trim();
-    if (workshop) trainingWorkshops.push(workshop);
-    if (isValidInstructorName(instructor)) trainingInstructors.push(instructor);
-  });
+  const rows = Array.from(assignedPairs.values()).map((row) => ({
+    ...row,
+    hasTraining: trained.has(pairKey(row.workshop, row.instructor))
+  })).sort(compareTrainingRows);
 
-  const workshops = uniqueSorted([...systemWorkshops, ...trainingWorkshops]);
-  const instructors = uniqueSorted([...systemInstructors, ...trainingInstructors]);
-
-  let okPairCount = 0;
-  let warningPairCount = 0;
-  let assignedCount = 0;
-  let assignedPairCount = 0;
-
-  const rows = workshops.map((workshop) => {
-    const assignedInstructors = assigned.get(normalizeText(workshop)) || new Map();
-    const cells = instructors.map((instructor) => {
-      const count = assignedInstructors.get(normalizeText(instructor)) || 0;
-      if (!count) return { status: 'empty', count: 0 };
-      assignedCount += count;
-      assignedPairCount += 1;
-      const hasTraining = trained.has(pairKey(workshop, instructor));
-      if (hasTraining) okPairCount += 1;
-      else warningPairCount += 1;
-      return { status: hasTraining ? 'ok' : 'warning', count };
-    });
-    return { workshop, cells };
-  });
+  const okPairCount = rows.filter((row) => row.hasTraining).length;
+  const warningPairCount = rows.length - okPairCount;
 
   return {
-    workshops,
-    instructors,
     rows,
     okPairCount,
     warningPairCount,
-    assignedPairCount,
+    assignedPairCount: rows.length,
     assignedCount,
     trainingPairCount: trained.size
   };
 }
 
-function statusCellHtml(cell, workshop, instructor) {
-  if (!cell || cell.status === 'empty') return '<td></td>';
-  if (cell.status === 'ok') {
-    const title = `${workshop} — ${instructor}: משובץ וקיבל הכשרה`;
-    return `<td title="${escapeHtml(title)}"><span class="ds-ops-training-symbol ds-ops-training-symbol--ok">✓</span>${cell.count > 1 ? `<span class="ds-ops-training-count">${cell.count} שיבוצים</span>` : ''}</td>`;
+function trainingStatusHtml(row) {
+  if (row.hasTraining) {
+    return `<span class="ds-ops-training-status ds-ops-training-status--ok"><span class="ds-ops-training-symbol ds-ops-training-symbol--ok">✓</span>קיבל הכשרה</span>`;
   }
-  const title = `${workshop} — ${instructor}: משובץ ללא הכשרה`;
-  return `<td title="${escapeHtml(title)}"><span class="ds-ops-training-symbol ds-ops-training-symbol--warn">!</span>${cell.count > 1 ? `<span class="ds-ops-training-count">${cell.count} שיבוצים</span>` : ''}</td>`;
+  return `<span class="ds-ops-training-status ds-ops-training-status--warn"><span class="ds-ops-training-symbol ds-ops-training-symbol--warn">!</span>ללא הכשרה</span>`;
 }
 
-function matrixHtml(matrix, from, to) {
-  const header = `<tr><th>סדנה</th>${matrix.instructors.map((name) => `<th>${escapeHtml(name)}</th>`).join('')}</tr>`;
-  const body = matrix.rows.map((row) => `<tr><td>${escapeHtml(row.workshop)}</td>${row.cells.map((cell, index) => statusCellHtml(cell, row.workshop, matrix.instructors[index])).join('')}</tr>`).join('');
+function statusRowsHtml(model, from, to) {
+  const body = model.rows.map((row) => `<tr>
+    <td class="ds-ops-training-col--workshop" title="${escapeHtml(row.workshop)}"><span class="ds-ops-training-name">${escapeHtml(row.workshop)}</span></td>
+    <td class="ds-ops-training-col--instructor" title="${escapeHtml(row.instructor)}"><span class="ds-ops-training-name">${escapeHtml(row.instructor)}</span></td>
+    <td class="ds-ops-training-col--count"><span class="ds-ops-training-count">${escapeHtml(String(row.count))}</span></td>
+    <td class="ds-ops-training-col--status">${trainingStatusHtml(row)}</td>
+  </tr>`).join('');
+
+  const table = model.rows.length
+    ? `<div class="ds-ops-training-wrap">
+        <table class="ds-ops-training-table" aria-label="טבלת סטטוס הכשרות קיץ">
+          <colgroup>
+            <col class="ds-ops-training-col--workshop">
+            <col class="ds-ops-training-col--instructor">
+            <col class="ds-ops-training-col--count">
+            <col class="ds-ops-training-col--status">
+          </colgroup>
+          <thead><tr><th>שם סדנה</th><th>שם מדריך</th><th>כמות שיבוצים</th><th>סטטוס הכשרה</th></tr></thead>
+          <tbody>${body}</tbody>
+        </table>
+      </div>`
+    : '<div class="ds-ops-training-empty">לא נמצאו שיבוצים בטווח התאריכים שנבחר</div>';
+
   return `<section class="ds-ops-mgmt-panel ds-ops-training-panel" dir="rtl">
     <div class="ds-ops-training-card">
       <header class="ds-ops-training-header">
         <div>
           <h2 class="ds-ops-training-title">הכשרות קיץ</h2>
-          <p class="ds-ops-training-subtitle">סטטוס הכשרה לפי שיבוץ בפועל. שמות הסדנאות והמדריכים נלקחים מהמערכת. טווח: ${escapeHtml(from)} עד ${escapeHtml(to)}</p>
+          <p class="ds-ops-training-subtitle">רשימה לפי שיבוצים בפועל במערכת בלבד. הבדיקה היא לפי זוג ייחודי: שם סדנה + שם מדריך. טווח: ${escapeHtml(from)} עד ${escapeHtml(to)}</p>
         </div>
       </header>
       <div class="ds-ops-training-summary">
-        <span class="ds-ops-training-pill">${matrix.assignedCount} שיבוצים שנבדקו</span>
-        <span class="ds-ops-training-pill">${matrix.assignedPairCount} צמדי מדריך-סדנה</span>
-        <span class="ds-ops-training-pill ds-ops-training-pill--ok">${matrix.okPairCount} צמדים עם הכשרה</span>
-        <span class="ds-ops-training-pill ds-ops-training-pill--warn">${matrix.warningPairCount} צמדים ללא הכשרה</span>
-        <span class="ds-ops-training-pill">${matrix.trainingPairCount} רשומות הכשרה מאחורי הקלעים</span>
+        <span class="ds-ops-training-pill">${model.assignedCount} שיבוצים שנבדקו</span>
+        <span class="ds-ops-training-pill">${model.assignedPairCount} צמדי מדריך-סדנה</span>
+        <span class="ds-ops-training-pill ds-ops-training-pill--ok">${model.okPairCount} צמדים עם הכשרה</span>
+        <span class="ds-ops-training-pill ds-ops-training-pill--warn">${model.warningPairCount} צמדים ללא הכשרה</span>
+        <span class="ds-ops-training-pill">${model.trainingPairCount} רשומות הכשרה מאחורי הקלעים</span>
       </div>
-      <div class="ds-ops-training-wrap">
-        <table class="ds-ops-training-table" aria-label="טבלת סטטוס הכשרות קיץ">
-          <thead>${header}</thead>
-          <tbody>${body}</tbody>
-        </table>
-      </div>
+      ${table}
       <div class="ds-ops-training-legend">
         <span><strong class="ds-ops-training-symbol ds-ops-training-symbol--ok">✓</strong> משובץ וקיבל הכשרה</span>
         <span><strong class="ds-ops-training-symbol ds-ops-training-symbol--warn">!</strong> משובץ ללא הכשרה</span>
-        <span>תא ריק = אין שיבוץ בטווח התאריכים</span>
+        <span>רשומות הכשרה שאינן משובצות בטווח התאריכים אינן מוצגות בטבלה</span>
       </div>
     </div>
   </section>`;
@@ -272,8 +261,8 @@ async function renderSummerTraining(root) {
       readTrainingRows()
     ]);
     if (token !== latestRenderToken) return;
-    const matrix = buildMatrix({ activities, trainingRows });
-    content.innerHTML = matrixHtml(matrix, from, to);
+    const model = buildStatusRows({ activities, trainingRows });
+    content.innerHTML = statusRowsHtml(model, from, to);
   } catch (error) {
     console.warn('[operations-summer-training] failed to render', error?.message || error);
     if (token !== latestRenderToken) return;
@@ -307,7 +296,11 @@ function syncSummerTrainingTab() {
   const root = document.querySelector('.ds-ops-mgmt-screen');
   if (!root) return;
   ensureSummerTrainingTab(root);
-  if (sessionStorage.getItem(STORAGE_KEY) === '1') renderSummerTraining(root);
+  if (sessionStorage.getItem(STORAGE_KEY) !== '1') return;
+  setSummerTrainingActive(root, true);
+  const content = root.querySelector('.ds-ops-mgmt-content');
+  if (content?.querySelector?.('.ds-ops-training-panel,.ds-ops-training-loading,.ds-ops-training-error')) return;
+  renderSummerTraining(root);
 }
 
 function scheduleSync() {
