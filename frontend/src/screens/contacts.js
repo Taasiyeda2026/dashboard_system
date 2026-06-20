@@ -29,24 +29,41 @@ const SCHOOL_FILTER_FIELDS = [
   { key: 'contact_role', label: 'תפקיד' }
 ];
 
+function textValue(value) {
+  const raw = String(value == null ? '' : value).trim();
+  if (!raw || raw === 'null' || raw === 'undefined') return '';
+  return raw;
+}
+
+function isSchoolProfileRow(row) {
+  return String(row?.source_table || '') === 'schools';
+}
+
 function isValidContact(row) {
+  if (isSchoolProfileRow(row)) {
+    return Boolean(
+      textValue(row?.contact_name)
+      || textValue(row?.mobile || row?.phone)
+      || textValue(row?.email)
+      || textValue(row?.address)
+    );
+  }
   return Boolean(
-    String(row?.contact_name || '').trim()
-    || String(row?.mobile || row?.phone || '').trim()
-    || String(row?.email || '').trim()
+    textValue(row?.contact_name)
+    || textValue(row?.mobile || row?.phone)
+    || textValue(row?.email)
   );
 }
 
-function isActivityWithoutContact(row) {
-  return String(row?._source || '') === 'activity_without_contact';
-}
-
 function hasSchoolDirectoryEntry(rows) {
-  return (Array.isArray(rows) ? rows : []).some((row) => isValidContact(row) || isActivityWithoutContact(row));
+  const list = Array.isArray(rows) ? rows : [];
+  return list.some((row) => isValidContact(row) || isSchoolProfileRow(row));
 }
 
 function contactDedupeKey(row) {
   return [
+    String(row?.source_table || '').trim(),
+    String(row?.source_id || '').trim(),
     String(row?.authority || row?.client_name || '').trim().toLowerCase(),
     String(row?.school || '').trim().toLowerCase(),
     String(row?.contact_name || '').trim().toLowerCase(),
@@ -91,8 +108,8 @@ function computeSchoolTabStats(authorityMap, activeLetter = '') {
 
     bucket.schools.forEach((schoolRows, schoolName) => {
       if (!String(schoolName || '').trim()) return;
-      const valid = schoolRows.filter(isValidContact);
-      if (!valid.length && !schoolRows.some(isActivityWithoutContact)) return;
+      const valid = schoolRows.filter((row) => isValidContact(row) || isSchoolProfileRow(row));
+      if (!valid.length) return;
       schools += 1;
       hasContent = true;
       valid.forEach((row) => contactKeys.add(contactDedupeKey(row)));
@@ -116,8 +133,8 @@ function countAuthorityBucket(bucket) {
 
   bucket.schools.forEach((schoolRows, schoolName) => {
     if (!String(schoolName || '').trim()) return;
-    const valid = schoolRows.filter(isValidContact);
-    if (!valid.length && !schoolRows.some(isActivityWithoutContact)) return;
+    const valid = schoolRows.filter((row) => isValidContact(row) || isSchoolProfileRow(row));
+    if (!valid.length) return;
     schoolCount += 1;
     valid.forEach((row) => contactKeys.add(contactDedupeKey(row)));
   });
@@ -243,29 +260,70 @@ function instrTabHtml(rows, filters) {
 
 /* ─── School contacts ─── */
 
+function editPayload(row) {
+  return {
+    source_table: row?.source_table || '',
+    source_id: row?.source_id || '',
+    authority: row?.authority,
+    school: row?.school,
+    contact_name: row?.contact_name
+  };
+}
+
+function fieldLine(label, value, { copy = false, copyLabel = '', dir = 'rtl' } = {}) {
+  const safe = textValue(value);
+  if (!safe) return '';
+  const valueHtml = copy
+    ? `<span class="ci-dv">${escapeHtml(safe)}</span>${copyBtn(safe, copyLabel)}`
+    : escapeHtml(safe);
+  return `<div class="sc-person__field sc-person__field--${escapeHtml(label)}" dir="${dir}"><span class="sc-person__field-label">${escapeHtml(label)}:</span> ${valueHtml}</div>`;
+}
+
 function schoolPersonHtml(row) {
-  const name = row.contact_name ? escapeHtml(String(row.contact_name)) : '—';
-  const role = row.contact_role ? escapeHtml(String(row.contact_role)) : '—';
-  const mobile = row.mobile || row.phone;
-  const phone = mobile ? escapeHtml(String(mobile)) : '—';
-  const email = row.email ? escapeHtml(String(row.email)) : '—';
+  const name = textValue(row.contact_name);
+  const role = textValue(row.contact_role);
+  const phone = textValue(row.mobile || row.phone);
+  const mobileOnly = textValue(row.mobile);
+  const email = textValue(row.email);
+  const address = textValue(row.address);
+  const notes = textValue(row.notes);
   if (!isValidContact(row)) return '';
 
-  const editBtn = actionBtn('edit-school', {
-    _row_index: row._row_index,
-    authority: row.authority,
-    school: row.school,
-    contact_name: row.contact_name
-  }, '✎');
+  const editBtn = actionBtn('edit-unified', editPayload(row), '✎');
 
   return `<article class="sc-person sc-person--compact">
     <div class="sc-person__top">
-      <div class="sc-person__name">${name}</div>
+      ${name ? `<div class="sc-person__name">${escapeHtml(name)}</div>` : ''}
       <span class="sc-person__actions">${editBtn}</span>
     </div>
-    <div class="sc-person__role">${role}</div>
-    <div class="sc-person__field sc-person__field--phone" dir="ltr">${phone}</div>
-    <div class="sc-person__field sc-person__field--email" dir="ltr">${email === '—' ? '—' : `<span class="ci-dv">${email}</span>${copyBtn(row.email, 'העתק מייל')}`}</div>
+    ${role ? `<div class="sc-person__role">${escapeHtml(role)}</div>` : ''}
+    ${fieldLine('טלפון', phone, { dir: 'ltr' })}
+    ${mobileOnly && mobileOnly !== phone ? fieldLine('נייד', mobileOnly, { dir: 'ltr' }) : ''}
+    ${fieldLine('מייל', email, { copy: true, copyLabel: 'העתק מייל', dir: 'ltr' })}
+    ${fieldLine('כתובת', address)}
+    ${fieldLine('הערות', notes)}
+  </article>`;
+}
+
+function schoolProfileHtml(row) {
+  if (!isSchoolProfileRow(row) || !isValidContact(row)) return '';
+  const editBtn = actionBtn('edit-unified', editPayload(row), '✎');
+  const name = textValue(row.contact_name);
+  const role = textValue(row.contact_role);
+  const phone = textValue(row.phone);
+  const address = textValue(row.address);
+  const city = textValue(row.city);
+  const district = textValue(row.district);
+  const addressLine = [address, city, district].filter(Boolean).join(', ');
+
+  return `<article class="sc-person sc-person--compact sc-person--school-profile">
+    <div class="sc-person__top">
+      ${name ? `<div class="sc-person__name">${escapeHtml(name)}</div>` : '<div class="sc-person__name">פרטי בית ספר</div>'}
+      <span class="sc-person__actions">${editBtn}</span>
+    </div>
+    ${role ? `<div class="sc-person__role">${escapeHtml(role)}</div>` : ''}
+    ${fieldLine('טלפון', phone, { dir: 'ltr' })}
+    ${fieldLine('כתובת', addressLine)}
   </article>`;
 }
 
@@ -279,14 +337,15 @@ function firstHebrewLetter(str) {
 function groupByAuthorityStructured(rows) {
   const authMap = new Map();
   for (const row of rows) {
-    const authority = String(row.authority || row.client_name || '').trim() || '—';
+    const authority = textValue(row.authority || row.authority_name || row.client_name) || '—';
     if (!authMap.has(authority)) authMap.set(authority, { schools: new Map(), authority: [], other: [] });
     const bucket = authMap.get(authority);
-    const clientType = String(row.client_type || '').trim();
-    const schoolName = String(row.school || '').trim();
-    if (clientType === 'other') {
+    const clientType = textValue(row.client_type).toLowerCase();
+    const contactDomain = textValue(row.contact_domain).toLowerCase();
+    const schoolName = textValue(row.school || row.school_name);
+    if (contactDomain === 'other' || clientType === 'other') {
       bucket.other.push(row);
-    } else if (schoolName && clientType !== 'authority') {
+    } else if (schoolName && (contactDomain === 'school' || clientType === 'school' || isSchoolProfileRow(row))) {
       if (!bucket.schools.has(schoolName)) bucket.schools.set(schoolName, []);
       bucket.schools.get(schoolName).push(row);
     } else {
@@ -296,35 +355,16 @@ function groupByAuthorityStructured(rows) {
   return new Map([...authMap.entries()].sort((a, b) => a[0].localeCompare(b[0], 'he')));
 }
 
-function schoolWithoutContactHtml(row, schoolName) {
-  const addBtn = actionBtn('add-school-prefill', {
-    client_type: 'school',
-    authority: row?.authority,
-    school: row?.school || schoolName,
-    authority_id: row?.authority_id,
-    school_id: row?.school_id,
-    semel_mosad: row?.semel_mosad
-  }, 'הוסף איש קשר');
-  return `<article class="sc-person sc-person--compact sc-person--empty-contact">
-    <div class="sc-person__top">
-      <div class="sc-person__name">אין עדיין איש קשר לבית הספר הזה</div>
-      <span class="sc-person__actions">${addBtn}</span>
-    </div>
-    <div class="sc-person__role">בית הספר מופיע בפעילויות במערכת</div>
-  </article>`;
-}
-
 function renderSchoolAccordion(schoolName, rows) {
-  const validRows = rows.filter(isValidContact);
-  const activityRows = rows.filter(isActivityWithoutContact);
-  const noContactRow = activityRows[0] || rows[0] || {};
-  const personsHtml = validRows.length
-    ? validRows.map(schoolPersonHtml).filter(Boolean).join('')
-    : schoolWithoutContactHtml(noContactRow, schoolName);
-  if (!personsHtml) return '';
-  const contactCount = validRows.length;
-  const countLabel = contactCount === 0 ? 'אין איש קשר' : (contactCount === 1 ? '1 איש קשר' : `${contactCount} אנשי קשר`);
-  const semelMosad = rows.map((r) => String(r.semel_mosad || '').trim()).find(Boolean);
+  const profileRow = rows.find(isSchoolProfileRow);
+  const contactRows = rows.filter((row) => !isSchoolProfileRow(row) && isValidContact(row));
+  const profileHtml = schoolProfileHtml(profileRow);
+  const contactsHtml = contactRows.map(schoolPersonHtml).filter(Boolean).join('');
+  if (!profileHtml && !contactsHtml) return '';
+
+  const contactCount = contactRows.length + (profileHtml ? 1 : 0);
+  const countLabel = contactCount === 1 ? '1 איש קשר' : `${contactCount} אנשי קשר`;
+  const semelMosad = rows.map((r) => textValue(r.semel_mosad)).find(Boolean);
   const metaHtml = semelMosad
     ? `<div class="sc-school-meta"><span class="sc-school-meta__label">סמל מוסד:</span> <span class="sc-school-meta__val">${escapeHtml(semelMosad)}</span></div>`
     : '';
@@ -337,7 +377,7 @@ function renderSchoolAccordion(schoolName, rows) {
     </summary>
     <div class="sc-card__body">
       ${metaHtml}
-      <div class="sc-contact-list sc-contact-list--grid">${personsHtml}</div>
+      <div class="sc-contact-list sc-contact-list--grid">${profileHtml}${contactsHtml}</div>
     </div>
   </details>`;
 }
@@ -436,10 +476,28 @@ function instructorFormHtml(row = {}, managerOptions = []) {
   `;
 }
 
+function schoolDetailsFormHtml(row = {}) {
+  return `
+    <div class="ds-perm-edit-form ds-contact-edit-form" dir="rtl">
+      <input type="hidden" name="source_table" value="schools">
+      <input type="hidden" name="source_id" value="${escapeHtml(String(row.source_id || ''))}">
+      <div class="ds-perm-field"><span class="ds-muted">בית ספר</span><input class="ds-input ds-input--sm" value="${escapeHtml(String(row.school_name || row.school || ''))}" readonly></div>
+      <div class="ds-perm-field"><span class="ds-muted">מנהל/ת בית ספר</span><input class="ds-input ds-input--sm" name="principal_name" value="${escapeHtml(String(row.contact_name || ''))}"></div>
+      <div class="ds-perm-field"><span class="ds-muted">טלפון</span><input class="ds-input ds-input--sm" name="school_phone" value="${escapeHtml(String(row.phone || ''))}"></div>
+      <div class="ds-perm-field"><span class="ds-muted">כתובת</span><input class="ds-input ds-input--sm" name="institution_address" value="${escapeHtml(String(row.address || ''))}"></div>
+      <div class="ds-perm-field"><span class="ds-muted">עיר / יישוב</span><input class="ds-input ds-input--sm" name="city" value="${escapeHtml(String(row.city || ''))}"></div>
+      <div class="ds-perm-field"><span class="ds-muted">מחוז</span><input class="ds-input ds-input--sm" name="district" value="${escapeHtml(String(row.district || ''))}"></div>
+      <p class="ds-muted" data-contact-form-status role="status"></p>
+    </div>
+  `;
+}
+
 function schoolFormHtml(row = {}) {
   const clientType = String(row.client_type || 'school');
   return `
     <div class="ds-perm-edit-form ds-contact-edit-form" dir="rtl">
+      <input type="hidden" name="source_table" value="contacts_schools">
+      <input type="hidden" name="source_id" value="${escapeHtml(String(row.source_id || row.id || ''))}">
       <div class="ds-perm-field"><span class="ds-muted">סוג לקוח</span>
         <select class="ds-input ds-input--sm" name="client_type" data-school-client-type>
           <option value="school"${clientType === 'school' ? ' selected' : ''}>בית ספר</option>
@@ -457,6 +515,7 @@ function schoolFormHtml(row = {}) {
       <div class="ds-perm-field"><span class="ds-muted">טלפון</span><input class="ds-input ds-input--sm" name="phone" value="${escapeHtml(String(row.phone || ''))}"></div>
       <div class="ds-perm-field"><span class="ds-muted">נייד</span><input class="ds-input ds-input--sm" name="mobile" value="${escapeHtml(String(row.mobile || ''))}"></div>
       <div class="ds-perm-field"><span class="ds-muted">אימייל</span><input class="ds-input ds-input--sm" name="email" value="${escapeHtml(String(row.email || ''))}"></div>
+      <div class="ds-perm-field"><span class="ds-muted">כתובת</span><input class="ds-input ds-input--sm" name="address" value="${escapeHtml(String(row.address || ''))}"></div>
       <div class="ds-perm-field"><span class="ds-muted">הערות</span><textarea class="ds-input ds-input--sm" name="notes" rows="2">${escapeHtml(String(row.notes || ''))}</textarea></div>
       <p class="ds-muted" data-contact-form-status role="status"></p>
     </div>
@@ -557,9 +616,10 @@ export const contactsScreen = {
     ]);
     prepareRowsForSearch(schoolRows, [
       'full_name', 'name', 'contact_name', 'emp_id', 'employee_id',
-      'mobile', 'phone', 'email', 'authority', 'school',
-      'role', 'contact_role', 'position', 'active', 'notes', 'address',
-      'instructor_name', 'activity_name', 'activity_type', 'client_type', 'client_name', 'authority_id', 'school_id', 'semel_mosad', 'authority_code'
+      'mobile', 'phone', 'email', 'authority', 'authority_name', 'school', 'school_name',
+      'role', 'contact_role', 'position', 'active', 'notes', 'address', 'city', 'district',
+      'instructor_name', 'activity_name', 'activity_type', 'client_type', 'client_name',
+      'authority_id', 'school_id', 'semel_mosad', 'authority_code', 'source_table', 'source_id', 'contact_domain'
     ]);
     const filters = ensureActivityListFilters(state, CONTACTS_SCOPE);
     const canViewInstr  = data?.can_view_instructors !== false;
@@ -724,6 +784,98 @@ export const contactsScreen = {
       };
     };
 
+    const findUnifiedRow = (payload = {}) => {
+      const sourceTable = String(payload.source_table || '').trim();
+      const sourceId = String(payload.source_id || '').trim();
+      if (sourceTable && sourceId) {
+        const hit = schoolRows.find((row) =>
+          String(row.source_table || '') === sourceTable &&
+          String(row.source_id || '') === sourceId
+        );
+        if (hit) return hit;
+      }
+      return schoolRows.find((row) =>
+        String(row.authority || '') === String(payload.authority || '') &&
+        String(row.school || '') === String(payload.school || '') &&
+        String(row.contact_name || '') === String(payload.contact_name || '')
+      ) || null;
+    };
+
+    const openUnifiedEditor = (row) => {
+      if (!ui || !row) return;
+      const isSchoolRecord = String(row.source_table || '') === 'schools';
+      ui.openModal({
+        title: isSchoolRecord ? 'עריכת פרטי בית ספר' : 'עריכת לקוח / איש קשר',
+        content: isSchoolRecord ? schoolDetailsFormHtml(row) : schoolFormHtml(row),
+        actions: `<button type="button" class="ds-btn ds-btn--primary" data-save-contact="unified">שמירה</button>
+                  <button type="button" class="ds-btn" data-ui-close-modal>ביטול</button>`
+      });
+      const saveBtn = document.querySelector('[data-save-contact="unified"]');
+      if (!saveBtn) return;
+      const modalEl = document.querySelector('.ds-modal__content');
+      const clientTypeSelectEl = modalEl?.querySelector('[data-school-client-type]');
+      const schoolFieldEl = modalEl?.querySelector('[data-school-field]');
+      clientTypeSelectEl?.addEventListener('change', () => {
+        if (schoolFieldEl) schoolFieldEl.hidden = clientTypeSelectEl.value === 'authority';
+      });
+      saveBtn.onclick = async () => {
+        const modal = document.querySelector('.ds-modal__content');
+        if (!modal) return;
+        const statusEl = modal.querySelector('[data-contact-form-status]');
+        const get = (name) => String(modal.querySelector(`[name="${name}"]`)?.value || '').trim();
+        const sourceTable = get('source_table');
+        const sourceId = get('source_id');
+        if (!sourceTable || !sourceId) {
+          if (statusEl) statusEl.textContent = 'חסר מזהה מקור לעריכה';
+          return;
+        }
+
+        let fields = {};
+        if (sourceTable === 'schools') {
+          fields = {
+            principal_name: get('principal_name'),
+            school_phone: get('school_phone'),
+            institution_address: get('institution_address'),
+            city: get('city'),
+            district: get('district')
+          };
+        } else {
+          const clientType = get('client_type') || 'school';
+          const authority = get('authority');
+          const school = clientType === 'authority' ? '' : get('school');
+          fields = {
+            client_type: clientType,
+            client_name: clientType === 'school' ? school : (clientType === 'authority' ? authority : (school || authority)),
+            authority_id: get('authority_id') || null,
+            school_id: clientType === 'school' ? (get('school_id') || null) : null,
+            semel_mosad: clientType === 'school' ? (get('semel_mosad') || null) : null,
+            authority,
+            school: school || null,
+            contact_name: get('contact_name'),
+            contact_role: get('contact_role'),
+            phone: get('phone'),
+            mobile: get('mobile'),
+            email: get('email'),
+            address: get('address'),
+            notes: get('notes')
+          };
+        }
+
+        try {
+          saveBtn.disabled = true;
+          if (statusEl) statusEl.textContent = 'שומר...';
+          await api.updateUnifiedContactRecord({ source_table: sourceTable, source_id: sourceId, fields });
+          showToast('✅ נשמר בהצלחה', 'success', 1800);
+          ui.closeModal();
+          rerender();
+        } catch (err) {
+          if (statusEl) statusEl.textContent = `שגיאה: ${String(err?.message || '')}`;
+        } finally {
+          saveBtn.disabled = false;
+        }
+      };
+    };
+
     const openSchoolEditor = (row, isCreate = false) => {
       if (!ui) return;
       const target = row || {};
@@ -805,7 +957,9 @@ export const contactsScreen = {
       schoolRows,
       decodePayload,
       openInstructorEditor,
-      openSchoolEditor
+      openSchoolEditor,
+      openUnifiedEditor,
+      findUnifiedRow
     };
     if (!root._contactsActionBound) {
       root._contactsActionBound = true;
@@ -835,14 +989,16 @@ export const contactsScreen = {
           if (hit) ctx.openInstructorEditor?.(hit, false);
           return;
         }
+        if (action === 'edit-unified') {
+          const payload = ctx.decodePayload?.(btn) || {};
+          const hit = ctx.findUnifiedRow?.(payload);
+          if (hit) ctx.openUnifiedEditor?.(hit);
+          return;
+        }
         if (action === 'edit-school') {
           const payload = ctx.decodePayload?.(btn) || {};
-          const hit = (ctx.schoolRows || []).find((r) =>
-            String(r.authority || '') === String(payload.authority || '') &&
-            String(r.school || '') === String(payload.school || '') &&
-            String(r.contact_name || '') === String(payload.contact_name || '')
-          ) || null;
-          if (hit) ctx.openSchoolEditor?.(hit, false);
+          const hit = ctx.findUnifiedRow?.(payload);
+          if (hit) ctx.openUnifiedEditor?.(hit);
         }
       });
     }
