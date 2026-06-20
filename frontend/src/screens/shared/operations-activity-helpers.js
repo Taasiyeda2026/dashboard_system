@@ -167,16 +167,20 @@ export function parseStockQuantityFromRow(row = {}) {
   return null;
 }
 
-const ACTIVITY_NAME_LIST_CATEGORIES = new Set([
-  'activity_names'
+const WORKSHOP_STOCK_LIST_CATEGORIES = new Set([
+  'workshop_stock'
 ]);
 
-function isOfficialWorkshopListRow(row = {}, category = '') {
+function isActivityNameWorkshopListRow(row = {}, category = '') {
   const cat = String(category || row?.category || '').trim().toLowerCase();
+  if (cat !== 'activity_names') return false;
   const type = String(row?.type || '').trim().toLowerCase();
   const activityType = String(row?.activity_type || '').trim().toLowerCase();
-  return cat === 'activity_names' && type === 'workshop' && activityType === 'workshop';
+  if (type && type !== 'workshop') return false;
+  if (activityType && activityType !== 'workshop') return false;
+  return true;
 }
+
 
 function addStockToMap(map, names, stock) {
   if (stock === null) return;
@@ -188,18 +192,34 @@ function addStockToMap(map, names, stock) {
 export function buildWorkshopStockMapFromLists(listsData) {
   const map = new Map();
   const categories = Array.isArray(listsData?.categories) ? listsData.categories : [];
+  let sawWorkshopStock = false;
   categories.forEach(({ category, items }) => {
     const cat = String(category || '').trim().toLowerCase();
-    if (!ACTIVITY_NAME_LIST_CATEGORIES.has(cat)) return;
+    if (!WORKSHOP_STOCK_LIST_CATEGORIES.has(cat)) return;
+    sawWorkshopStock = true;
     const list = Array.isArray(items) ? items : [];
     list.forEach((item) => {
       const row = item?._row && typeof item._row === 'object' ? item._row : item;
-      if (!isOfficialWorkshopListRow(row, cat)) return;
+      if (row?.active === false) return;
       const stock = parseStockQuantityFromRow(row);
       if (stock === null) return;
-      addStockToMap(map, [row?.activity_name, row?.label_he, item?.label], stock);
+      addStockToMap(map, [row?.label, row?.value, item?.label, item?.value], stock);
     });
   });
+  if (!sawWorkshopStock) {
+    categories.forEach(({ category, items }) => {
+      const cat = String(category || '').trim().toLowerCase();
+      if (cat !== 'activity_names') return;
+      const list = Array.isArray(items) ? items : [];
+      list.forEach((item) => {
+        const row = item?._row && typeof item._row === 'object' ? item._row : item;
+        if (!isActivityNameWorkshopListRow(row, cat) || row?.active === false) return;
+        const stock = parseStockQuantityFromRow(row);
+        if (stock === null) return;
+        addStockToMap(map, [row?.activity_name, row?.label, row?.value, item?.label, item?.value], stock);
+      });
+    });
+  }
   return map;
 }
 
