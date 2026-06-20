@@ -277,15 +277,12 @@ function schoolCardHtml(school, search) {
   const contactsHtml = contactCount
     ? `<div class="cfd-contact-grid">${items.map((contact) => contactHtml(contact, search)).join('')}</div>`
     : '';
-  const meta = [
-    school.semel_mosad ? `סמל מוסד ${escapeHtml(school.semel_mosad)}` : '',
-    contactCount ? `${contactCount} אנשי קשר` : ''
-  ].filter(Boolean).join(' · ');
+  const meta = school.semel_mosad ? `סמל מוסד ${escapeHtml(school.semel_mosad)}` : '';
   return `<details class="cfd-card"${shouldOpen ? ' open' : ''}>
     <summary class="cfd-card__head">
       <span class="cfd-chevron" aria-hidden="true">›</span>
       <span class="cfd-card__name">${highlight(school.school_name, search)}</span>
-      <span class="cfd-card__meta">${meta}</span>
+      ${meta ? `<span class="cfd-card__meta">${meta}</span>` : ''}
     </summary>
     <div class="cfd-card__body">${contactsHtml}</div>
   </details>`;
@@ -297,7 +294,6 @@ function otherCardHtml(group, search) {
     <summary class="cfd-card__head">
       <span class="cfd-chevron" aria-hidden="true">›</span>
       <span class="cfd-card__name">${highlight(group.name, search)}</span>
-      <span class="cfd-card__meta">${group.contacts.length} אנשי קשר</span>
     </summary>
     <div class="cfd-card__body"><div class="cfd-contact-grid">${group.contacts.map((contact) => contactHtml(contact, search)).join('')}</div></div>
   </details>`;
@@ -317,32 +313,24 @@ function authorityHtml(bucket, search) {
 
   const shouldOpen = Boolean(search);
   const schoolsHtml = schools.length ? `<section class="cfd-group cfd-group--schools">
-    <div class="cfd-group__title"><span>בתי ספר</span><span class="cfd-group__count">${schools.length}</span></div>
+    <div class="cfd-group__title"><span>בתי ספר</span></div>
     <div class="cfd-items">${schools.map((school) => schoolCardHtml(school, search)).join('')}</div>
   </section>` : '';
 
   const authorityContactsHtml = bucket.authorityContacts.length ? `<section class="cfd-group cfd-group--authority">
-    <div class="cfd-group__title"><span>רשות</span><span class="cfd-group__count">${bucket.authorityContacts.length}</span></div>
+    <div class="cfd-group__title"><span>רשות</span></div>
     <div class="cfd-items"><div class="cfd-contact-grid">${bucket.authorityContacts.map((contact) => contactHtml(contact, search)).join('')}</div></div>
   </section>` : '';
 
   const otherHtml = otherGroups.length ? `<section class="cfd-group cfd-group--other">
-    <div class="cfd-group__title"><span>אחר</span><span class="cfd-group__count">${otherGroups.length}</span></div>
+    <div class="cfd-group__title"><span>אחר</span></div>
     <div class="cfd-items">${otherGroups.map((group) => otherCardHtml(group, search)).join('')}</div>
   </section>` : '';
-
-  const meta = [
-    `${schools.length} בתי ספר`,
-    bucket.authorityContacts.length ? `${bucket.authorityContacts.length} אנשי קשר ברשות` : '',
-    otherGroups.length ? `${otherGroups.length} אחרים` : '',
-    bucket._contactKeys.size ? `${bucket._contactKeys.size} אנשי קשר` : ''
-  ].filter(Boolean);
 
   return `<details class="cfd-authority"${shouldOpen ? ' open' : ''}>
     <summary class="cfd-authority__head">
       <span class="cfd-chevron" aria-hidden="true">›</span>
       <span class="cfd-authority__name">${highlight(bucket.authority_name, search)}</span>
-      <span class="cfd-authority__meta">${meta.map((item) => `<span class="cfd-pill">${escapeHtml(item)}</span>`).join('')}</span>
     </summary>
     <div class="cfd-authority__body">${schoolsHtml}${authorityContactsHtml}${otherHtml || ''}</div>
   </details>`;
@@ -385,13 +373,8 @@ function renderDirectory(listWrap, data) {
   const listHtml = authoritiesForDisplay.map((bucket) => authorityHtml(bucket, search)).filter(Boolean).join('');
   const hasDirectoryRequest = Boolean(activeLetter || search);
   const emptyHtml = hasDirectoryRequest ? '<div class="cfd-empty">לא נמצאו תוצאות לחיפוש</div>' : '';
-  const summaryHtml = `<div class="contacts-full-summary" dir="rtl">
-    <span class="contacts-full-summary__chip">רשויות: <strong>${data.authorityCount ?? data.authorities.length}</strong></span>
-    <span class="contacts-full-summary__chip">בתי ספר: <strong>${data.schoolCount ?? 0}</strong></span>
-    <span class="contacts-full-summary__chip">אנשי קשר: <strong>${data.contactCount ?? 0}</strong></span>
-  </div>`;
   suppressEnhance = true;
-  listWrap.innerHTML = `${summaryHtml}${alphabetHtml()}
+  listWrap.innerHTML = `${alphabetHtml()}
   <div class="contacts-full-list" dir="rtl">${listHtml || emptyHtml}</div>`;
   listWrap.setAttribute(ENHANCED_ATTR, 'yes');
   listWrap.classList.add('contacts-list-wrap--directory');
