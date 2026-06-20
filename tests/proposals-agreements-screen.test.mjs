@@ -764,7 +764,7 @@ test('admin sees approve and return actions for pending proposals', async () => 
   );
 });
 
-test('client selector auto-fills contact fields when existing client is chosen', async () => {
+test('client selector fills school fields without auto-selecting contact', async () => {
   await withJSDOM(
     proposalsAgreementsScreen.render({ rows: [], contactOptions: sampleContactOptions }, { state: stateFor('admin') }),
     (root, dom) => {
@@ -783,16 +783,21 @@ test('client selector auto-fills contact fields when existing client is chosen',
       const schoolInput = form.querySelector('input[name="school_framework"]');
       const contactInput = form.querySelector('input[name="contact_name"]');
       const phoneInput = form.querySelector('input[name="phone"]');
+      const contactSelect = form.querySelector('[data-pa-contact-select]');
 
       assert.equal(authorityInput.value, 'רשות ב', 'authority should be filled');
       assert.equal(schoolInput.value, 'מסגרת ב', 'school should be filled');
-      assert.equal(contactInput.value, 'יוסי קשר', 'contact_name should be auto-filled');
-      assert.equal(phoneInput.value, '050-2222222', 'phone should be auto-filled');
+      assert.equal(contactInput.value, '', 'contact_name should stay empty until user selects');
+      assert.equal(phoneInput.value, '', 'phone should stay empty until user selects');
+      assert.ok(contactSelect, 'contact picker should appear even for a single contact');
+      assert.match(contactSelect.innerHTML, /יוסי קשר/, 'single contact should appear in picker');
+      assert.equal(contactSelect.value, '', 'contact picker should default to placeholder');
       assert.equal(form.querySelector('input[name="contact_source_authority_id"]').value, 'auth-b');
       assert.equal(form.querySelector('input[name="contact_source_school_id"]').value, 'school-b');
       assert.equal(form.querySelector('[data-pa-client-results]').hidden, true, 'results should close after selection');
       assert.equal(form.querySelector('[data-pa-client-search-row]').hidden, true, 'search row should close after selection');
-      assert.match(form.querySelector('[data-pa-client-card]').textContent, /נבחר:.*מסגרת ב.*רשות ב.*יוסי קשר/, 'clear selected-client summary should be shown');
+      assert.match(form.querySelector('[data-pa-client-card]').textContent, /נבחר:.*מסגרת ב.*רשות ב/, 'selected-client summary should show school and authority');
+      assert.doesNotMatch(form.querySelector('[data-pa-client-card]').textContent, /יוסי קשר/, 'contact should not appear in summary before selection');
     }
   );
 });
@@ -954,7 +959,7 @@ test('authority search shows only catalog authorities without contact details', 
   );
 });
 
-test('multiple contacts for same client shows contact picker dropdown', async () => {
+test('multiple contacts for same client shows contact picker dropdown without preselection', async () => {
   await withJSDOM(
     proposalsAgreementsScreen.render({ rows: [], contactOptions: sampleContactOptions }, { state: stateFor('admin') }),
     (root, dom) => {
@@ -971,8 +976,10 @@ test('multiple contacts for same client shows contact picker dropdown', async ()
 
       const contactSelect = form.querySelector('[data-pa-contact-select]');
       assert.ok(contactSelect, 'contact picker should appear when multiple contacts exist');
+      assert.equal(contactSelect.value, '', 'contact picker should default to placeholder');
       assert.match(contactSelect.innerHTML, /דנה קשר/, 'first contact should be in picker');
       assert.match(contactSelect.innerHTML, /מיכל כהן/, 'second contact should be in picker');
+      assert.equal(form.querySelector('input[name="contact_name"]').value, '', 'contact fields should stay empty until selection');
     }
   );
 });
@@ -1025,7 +1032,70 @@ test('contact picker fills fields and passes existing contact source on save', a
   );
 });
 
-test('manual contact toggle appears when selected school has no contacts', async () => {
+test('proposals contact loader uses contacts_unified_view and not directory fallback', async () => {
+  const apiSource = await readFile(API_FILE, 'utf8');
+  const loaderBlock = apiSource.match(/async function readContactsSchoolsForProposals\(\) \{[\s\S]*?\n\}/);
+  assert.ok(loaderBlock, 'readContactsSchoolsForProposals should exist');
+  assert.match(loaderBlock[0], /readUnifiedContactsFromSupabase\(\)/);
+  assert.doesNotMatch(loaderBlock[0], /contacts_directory_view/);
+  assert.doesNotMatch(loaderBlock[0], /contacts_schools/);
+});
+
+test('school principal from schools source appears in proposal contact picker', async () => {
+  const schoolOnlyContactOptions = [
+    ...sampleCatalogAuthorities,
+    {
+      _catalog_source: 'schools',
+      client_type: 'school',
+      client_name: 'בית ספר מנהל',
+      authority_id: 'auth-a',
+      school_id: 'school-principal',
+      authority: 'רשות א',
+      school: 'בית ספר מנהל',
+      school_name: 'בית ספר מנהל',
+      semel_mosad: '33333',
+      contact_name: '',
+      contact_role: '',
+      phone: '',
+      email: '',
+      mobile: ''
+    },
+    {
+      id: 'school-principal',
+      source_table: 'schools',
+      authority_id: 'auth-a',
+      school_id: 'school-principal',
+      authority: 'רשות א',
+      school: 'בית ספר מנהל',
+      contact_name: 'רחל מנהלת',
+      contact_role: 'מנהל/ת בית ספר',
+      phone: '03-1234567',
+      email: ''
+    }
+  ];
+
+  await withJSDOM(
+    proposalsAgreementsScreen.render({ rows: [], contactOptions: schoolOnlyContactOptions }, { state: stateFor('admin') }),
+    (root, dom) => {
+      proposalsAgreementsScreen.bind({
+        root,
+        data: { rows: [], activityNameOptions: [], contactOptions: schoolOnlyContactOptions },
+        state: stateFor('admin'),
+        api: {}
+      });
+
+      const form = openNewProposalForm(root, dom);
+      selectClientResult(form, dom, 'רשות א');
+      selectClientResult(form, dom, 'בית ספר מנהל');
+
+      const contactSelect = form.querySelector('[data-pa-contact-select]');
+      assert.ok(contactSelect, 'school principal contact should appear in picker');
+      assert.match(contactSelect.innerHTML, /רחל מנהלת/);
+      assert.equal(contactSelect.value, '', 'school principal should not be preselected');
+    }
+  );
+});
+
   const catalogOnly = [
     ...sampleCatalogAuthorities,
     {

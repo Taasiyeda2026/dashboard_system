@@ -736,7 +736,7 @@ function clientSearchHtml(_contactOptions, row = {}) {
 
 function contactPickerHtml(contactOptions, authority, school, selectedContactName, authorityId = null, schoolId = null) {
   const contacts = filterContactsForClient(contactOptions, { authorityId, schoolId });
-  if (contacts.length <= 1) return '';
+  if (contacts.length === 0) return '';
   const optionsHtml = ['<option value="">— בחרו איש קשר —</option>',
     ...contacts.map((c) => {
       const val = contactOptionKey(c);
@@ -2811,38 +2811,21 @@ export const proposalsAgreementsScreen = {
 
       setPanelOpen(form, 'contact', true);
 
-      if (contacts.length === 1) {
-        const contact = contacts[0];
-        fillContactFields(form, contact);
-        setContactSource(form, { ...baseSource, ...contact, id: contact.id });
-        if (pickerHost) pickerHost.innerHTML = '';
-        lockClientFields(
-          form,
+      fillContactFields(form, {});
+      setContactSource(form, baseSource);
+      if (pickerHost) {
+        pickerHost.innerHTML = contactPickerHtml(
+          contactOptions,
           authority,
           school,
-          text(contact.contact_name),
-          text(contact.contact_role),
-          text(contact.phone || contact.mobile || ''),
-          text(contact.email || ''),
-          clientName || school || authority
+          '',
+          authorityId,
+          schoolId || null
         );
-      } else {
-        fillContactFields(form, {});
-        setContactSource(form, baseSource);
-        if (pickerHost) {
-          pickerHost.innerHTML = contactPickerHtml(
-            contactOptions,
-            authority,
-            school,
-            '',
-            authorityId,
-            schoolId || null
-          );
-          if (pickerHost.children.length) setupContactPicker(pickerHost, form);
-        }
-        lockClientFields(form, authority, school, '', '', '', '', clientName || school || authority);
-        if (addContactRow) addContactRow.hidden = contacts.length > 0;
+        if (pickerHost.children.length) setupContactPicker(pickerHost, form);
       }
+      lockClientFields(form, authority, school, '', '', '', '', clientName || school || authority);
+      if (addContactRow) addContactRow.hidden = contacts.length > 0;
 
       const searchField = form.querySelector('[data-pa-client-search-field]');
       const schoolSearchPanel = form.querySelector('[data-pa-school-search-panel]');
