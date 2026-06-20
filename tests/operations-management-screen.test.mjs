@@ -344,12 +344,15 @@ test('workshops inventory tab includes catalog workshops outside selected date r
   ];
   const adminListsData = { categories: [{ category: 'activity_names', items: [
     { value: '001', label: 'סדנת מאי', _row: { category: 'activity_names', type: 'workshop', activity_type: 'workshop', active: true, activity_no: '001', activity_name: 'סדנת מאי', stock_quantity: 50 } },
-    { value: '0042', label: 'סדנת קטלוג', _row: { category: 'activity_names', type: 'workshop', activity_type: 'workshop', active: true, activity_no: '0042', activity_name: 'סדנת קטלוג', stock_quantity: 75 } }
+    { value: '0042', label: 'סדנת קטלוג', _row: { category: 'activity_names', type: 'workshop', activity_type: 'workshop', active: true, activity_no: '0042', activity_name: 'סדנת קטלוג', stock_quantity: 75 } },
+    { value: '0043', label: 'סדנת קטלוג ללא מלאי', _row: { category: 'activity_names', type: 'workshop', activity_type: 'workshop', active: true, activity_no: '0043', activity_name: 'סדנת קטלוג ללא מלאי', stock_quantity: 0 } }
   ] }] };
   const html = operationsManagementScreen.render({ rows, workshopStockMap: buildWorkshopStockMapFromLists(adminListsData), adminListsData }, { state });
   assert.match(html, /סדנת מאי/);
   assert.match(html, /סדנת קטלוג/);
   assert.match(html, /0042/);
+  assert.match(html, /סדנת קטלוג ללא מלאי/);
+  assert.match(html, /0043/);
   assert.doesNotMatch(html, /סדנת יולי/);
 });
 
