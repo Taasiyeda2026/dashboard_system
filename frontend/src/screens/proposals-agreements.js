@@ -549,7 +549,11 @@ function statusBadgeHtml(status) {
 function statusSelectHtml(row, enabled, canApprove = false) {
   const currentStatus = STATUS_OPTIONS.includes(normalizeProposalStatus(row?.status)) ? normalizeProposalStatus(row.status) : 'draft';
   if (currentStatus === 'sent') {
-    return statusBadgeHtml(currentStatus);
+    const badge = statusBadgeHtml(currentStatus);
+    if (!canApprove) return badge;
+    const approvalOptions = ['sent', 'approved'].map((s) => optionHtml(s, currentStatus, STATUS_LABELS[s] || s)).join('');
+    const disabled = enabled ? '' : ' disabled aria-disabled="true"';
+    return `${badge}<select class="ds-pa-status-select" data-pa-row-status data-pa-status-id="${escapeHtml(row?.id || '')}" data-pa-previous-status="${escapeHtml(currentStatus)}" aria-label="עדכון סטטוס הצעה"${disabled}>${approvalOptions}</select>`;
   }
   const selectableStatuses = canApprove ? STATUS_OPTIONS : STATUS_OPTIONS.filter((status) => status !== 'approved');
   const options = selectableStatuses.map((status) => optionHtml(status, currentStatus, STATUS_LABELS[status] || status)).join('');
@@ -612,6 +616,9 @@ export function proposalsAgreementsTableRowsHtml(rows, state) {
     }
     if (canManage && (status === 'approved' || isSent)) {
       actionBtns.push(`<button type="button" class="ds-btn ds-btn--xs ds-btn--ghost ds-pa-row-action" data-pa-clone-row="${escapeHtml(row.id)}" title="שכפול להצעה חדשה">שכפול</button>`);
+    }
+    if (isAdmin && isSent) {
+      actionBtns.push(`<button type="button" class="ds-btn ds-btn--xs ds-pa-row-action" data-pa-status-action="approved" data-pa-action-id="${escapeHtml(row.id)}" title="חתום ואשר">חתום ואשר</button>`);
     }
     if (isAdmin && (status === 'approved' || isSent)) {
       actionBtns.push(`<button type="button" class="ds-btn ds-btn--xs ds-btn--ghost ds-pa-row-action" data-pa-print="${escapeHtml(row.id)}" title="הדפסה">PDF</button>`);
@@ -2198,6 +2205,10 @@ function drawerActionButtons(row, state) {
     }
     buttons.push(`<button type="button" class="ds-btn ds-btn--sm ds-btn--ghost" data-pa-delete-row="${escapeHtml(row.id)}">מחיקה</button>`);
   }
+  if (isAdminRole && isSent) {
+    buttons.push(`<button type="button" class="ds-btn ds-btn--primary ds-btn--sm" data-pa-status-action="approved" data-pa-action-id="${escapeHtml(row.id)}">חתום ואשר</button>`);
+    buttons.push(`<button type="button" class="ds-btn ds-btn--sm ds-btn--ghost" data-pa-status-action="returned_for_changes" data-pa-action-id="${escapeHtml(row.id)}">החזרה לתיקון</button>`);
+  }
   if (isAdminRole && (status === 'approved' || isSent)) {
     buttons.push(`<button type="button" class="ds-btn ds-btn--sm ds-btn--primary" data-pa-print="${escapeHtml(row.id)}">הדפסה / שמירה כ-PDF</button>`);
     buttons.push(`<button type="button" class="ds-btn ds-btn--sm" data-pa-clone-row="${escapeHtml(row.id)}">שכפול להצעה חדשה</button>`);
@@ -2361,7 +2372,7 @@ function validatePayload(payload, statusOverride) {
   if (!text(payload.authority_id)) {
     errors.push('יש לבחור רשות מתוך רשימת הרשויות.');
   }
-  if (!text(payload.school_id)) {
+  if (!text(payload.school_id) && text(payload.client_type) !== 'authority') {
     errors.push('יש לבחור בית ספר מתוך רשימת בתי הספר של הרשות.');
   }
   const hasManualContact = Boolean(text(payload.contact_name) || text(payload.contact_role) || text(payload.phone) || text(payload.email));
@@ -4028,8 +4039,11 @@ export const proposalsAgreementsScreen = {
         if (!newStatus || !id) return;
         const currentActionRow = data.rows.find((r) => text(r.id) === id);
         if (currentActionRow && normalizeProposalStatus(text(currentActionRow.status)) === 'sent') {
-          showToast('הצעה שנשלחה נעולה ולא ניתן לשנות את סטטוסה.', 'error');
-          return;
+          const canActFromSent = (newStatus === 'approved' || newStatus === 'returned_for_changes') && canApproveProposalsAgreements(state);
+          if (!canActFromSent) {
+            showToast('הצעה שנשלחה נעולה ולא ניתן לשנות את סטטוסה.', 'error');
+            return;
+          }
         }
         if (newStatus === 'approved') {
           if (!canApproveProposalsAgreements(state)) {
