@@ -112,8 +112,12 @@ function text(value) {
   return String(value == null ? '' : value).trim();
 }
 
+export function humanDisplayText(value) {
+  return text(value).replace(/\u00A0/g, ' ').replace(/_/g, ' ').replace(/\s+/g, ' ').trim();
+}
+
 export function cleanActivityManagerName(value) {
-  const clean = text(value);
+  const clean = humanDisplayText(value);
   const upper = clean.toUpperCase();
   if (!clean || clean === 'ללא' || clean === 'ללא מנהל' || upper === 'NULL' || upper === 'UNDEFINED' || upper === 'NONE' || upper === 'N/A' || upper === 'UNASSIGNED' || clean === '-') return '';
   return clean;
@@ -186,10 +190,10 @@ export function getActivityCatalog(settings) {
   const seen = new Set();
   return rows
     .map((row) => ({
-      label: text(row?.label || row?.activity_name || row?.value),
-      label_he: text(row?.label_he || row?.label || row?.activity_name || row?.value),
-      value: text(row?.value || row?.activity_name || row?.label),
-      activity_name: text(row?.activity_name || row?.value || row?.label),
+      label: humanDisplayText(row?.label || row?.activity_name || row?.value),
+      label_he: humanDisplayText(row?.label_he || row?.label || row?.activity_name || row?.value),
+      value: humanDisplayText(row?.value || row?.activity_name || row?.label),
+      activity_name: humanDisplayText(row?.activity_name || row?.value || row?.label),
       activity_no: text(row?.activity_no),
       activity_type: normalizeActivityTypeKey(row?.activity_type || row?.parent_value || row?.type),
       parent_value: normalizeActivityTypeKey(row?.parent_value || row?.activity_type || row?.type),
@@ -240,7 +244,7 @@ export function getRosterUsers(settings) {
     : [];
   const seen = new Set();
   return raw
-    .map((user) => ({ name: text(user?.name), emp_id: text(user?.emp_id) }))
+    .map((user) => ({ name: humanDisplayText(user?.name), emp_id: text(user?.emp_id) }))
     .filter((user) => user.name)
     .filter((user) => {
       if (seen.has(user.name)) return false;

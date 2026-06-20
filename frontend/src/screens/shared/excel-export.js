@@ -1,6 +1,12 @@
 import { escapeHtml } from './html.js';
 import { formatDateHe, formatActivityDateColumnsHe } from './format-date.js';
-import { activityManagerDisplayName } from './activity-options.js';
+import { activityManagerDisplayName, humanDisplayText } from './activity-options.js';
+
+function activityStatusDisplay(status) {
+  const clean = String(status || '').trim();
+  if (clean === 'סגור' || clean.toLowerCase() === 'closed') return 'סגור';
+  return 'פתוח';
+}
 
 function safeFilePart(value, fallback = 'export') {
   const clean = String(value || fallback).replace(/[\\/?%*:|"<>]/g, '_').trim();
@@ -37,16 +43,16 @@ export function activityExportRow(row = {}) {
       : Array.from({ length: 35 }, (_, idx) => row[`date_${idx + 1}`] || row[`Date${idx + 1}`]).filter(Boolean);
   return {
     'מספר שורה': row.RowID || row.row_id || '',
-    'שם פעילות': row.activity_name || '',
+    'שם פעילות': humanDisplayText(row.activity_name),
     'סוג פעילות': row.activity_type || '',
-    'סטטוס': row.status || '',
-    'בית ספר': row.school || '',
-    'רשות': row.authority || '',
+    'סטטוס': activityStatusDisplay(row.status),
+    'בית ספר': humanDisplayText(row.school),
+    'רשות': humanDisplayText(row.authority),
     'שכבה': row.grade || '',
     'קבוצה / כיתה': row.class_group || '',
     'מנהל פעילות': activityManagerDisplayName(row.activity_manager),
-    'מדריך 1': row.instructor_name || row.emp_id || '',
-    'מדריך 2': row.instructor_name_2 || row.emp_id_2 || '',
+    'מדריך 1': humanDisplayText(row.instructor_name) || row.emp_id || '',
+    'מדריך 2': humanDisplayText(row.instructor_name_2) || row.emp_id_2 || '',
     'תאריך התחלה': formatDateHe(row.start_date) || row.start_date || '',
     'תאריך סיום': formatDateHe(row.end_date) || row.end_date || '',
     'תאריכי מפגשים': meetingDates.map((d) => formatDateHe(d) || d).join(', ') || formatActivityDateColumnsHe(row),

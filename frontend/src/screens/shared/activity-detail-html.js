@@ -1,6 +1,6 @@
 import { escapeHtml } from './html.js';
 import { formatDateHe, formatDateHeWithWeekday, formatTimeShort, formatTimeRangeShort, formatActivityDateColumnsHe } from './format-date.js';
-import { activityManagerDisplayName, activityTypeDisplayLabel, activityTypeMatches, cleanActivityManagerName, getManagerUsers, NO_ACTIVITY_MANAGER_LABEL, normalizeActivityTypeKey, normalizeOneDayActivityType, resolveActivityInstructorName, resolveGradeOptions } from './activity-options.js';
+import { activityManagerDisplayName, activityTypeDisplayLabel, activityTypeMatches, cleanActivityManagerName, getManagerUsers, humanDisplayText, NO_ACTIVITY_MANAGER_LABEL, normalizeActivityTypeKey, normalizeOneDayActivityType, resolveActivityInstructorName, resolveGradeOptions } from './activity-options.js';
 import { ACTIVITY_SEASON_OPTIONS, activitySeasonLabel, normalizeActivitySeason } from './summer-activity.js';
 
 const ONCE_TYPES = ['workshop', 'tour', 'escape_room'];
@@ -32,7 +32,7 @@ function activityNameLabel(type) {
 }
 
 function fallback(v) {
-  return String(v || '').trim() || '—';
+  return humanDisplayText(v) || '—';
 }
 
 function managerFallback(v) {
@@ -110,7 +110,7 @@ function buildInstructorLookup(settings) {
 }
 
 function resolveInstructorDisplayName(name, empId, lookup) {
-  const direct = String(name || '').trim();
+  const direct = humanDisplayText(name);
   if (direct) return direct;
   const emp = String(empId || '').trim();
   if (emp && lookup?.[emp]) return lookup[emp];
@@ -127,7 +127,7 @@ function normalizeActivityNameOptions(raw) {
       return;
     }
     if (o && typeof o === 'object') {
-      const label = String(o.label || o.activity_name || o.value || '').trim();
+      const label = humanDisplayText(o.label || o.activity_name || o.value);
       if (!label) return;
       out.push({
         label,
@@ -141,8 +141,17 @@ function normalizeActivityNameOptions(raw) {
 }
 
 function selectHtml({ name, value, options, klass = 'ds-input', placeholder = '—', attrs = '' }) {
-  const safeValue = normalizeActivityTypeKey(value) || String(value || '').trim();
-  const normalized = toOptions(options).map((option) => normalizeActivityTypeKey(option) || option);
+  const isActivityTypeField = name === 'activity_type' || name === 'item_type';
+  const safeValue = isActivityTypeField
+    ? (normalizeActivityTypeKey(value) || String(value || '').trim())
+    : (['authority', 'school', 'instructor_name', 'instructor_name_2', 'activity_manager', 'activity_name', 'program_name', 'name', 'title'].includes(name)
+      ? humanDisplayText(value)
+      : String(value || '').trim());
+  const normalized = toOptions(options).map((option) => {
+    if (isActivityTypeField) return normalizeActivityTypeKey(option) || option;
+    if (['authority', 'school', 'instructor_name', 'instructor_name_2', 'activity_manager', 'activity_name', 'program_name', 'name', 'title'].includes(name)) return humanDisplayText(option);
+    return option;
+  });
   const seen = new Set();
   const unique = normalized.filter((option) => {
     if (!option || seen.has(option)) return false;
@@ -154,7 +163,8 @@ function selectHtml({ name, value, options, klass = 'ds-input', placeholder = '�
     .concat(
       all.map((o) => {
         const selected = o === safeValue ? ' selected' : '';
-        return `<option value="${escapeHtml(o)}"${selected}>${escapeHtml(activityTypeDisplayLabel(o) || o)}</option>`;
+        const label = isActivityTypeField ? (activityTypeDisplayLabel(o) || o) : o;
+        return `<option value="${escapeHtml(o)}"${selected}>${escapeHtml(label)}</option>`;
       })
     )
     .join('');
@@ -210,7 +220,10 @@ function activitySeasonSelectHtml(settings = {}, selected = 'regular') {
 }
 
 function inputHtml({ name, value, type = 'text', klass = 'ds-input', attrs = '' }) {
-  return `<input class="${escapeHtml(klass)}" name="${escapeHtml(name)}" type="${escapeHtml(type)}" value="${escapeHtml(String(value || ''))}" ${attrs}>`;
+  const safeValue = ['authority', 'school', 'instructor_name', 'instructor_name_2', 'activity_manager', 'activity_name', 'program_name', 'name', 'title'].includes(name)
+    ? humanDisplayText(value)
+    : String(value || '');
+  return `<input class="${escapeHtml(klass)}" name="${escapeHtml(name)}" type="${escapeHtml(type)}" value="${escapeHtml(safeValue)}" ${attrs}>`;
 }
 
 function textareaHtml({ name, value, klass = 'ds-input', rows = 3, attrs = '' }) {
@@ -374,8 +387,8 @@ function blockActivityDetails(row, { settings = {} } = {}) {
     console.warn('[activity-edit] activity name options missing from client settings');
   }
   const isOneDay = Boolean(normalizeOneDayActivityType(activityType));
-  const statusOptions = isOneDay ? ['פתוח', 'סגור', 'נמחק'] : ['פעיל', 'סגור'];
-  const normalizedStatus = normStatus(row.status) === 'closed' ? 'סגור' : (isOneDay ? 'פתוח' : 'פעיל');
+  const statusOptions = ['פתוח', 'סגור'];
+  const normalizedStatus = normStatus(row.status) === 'closed' ? 'סגור' : 'פתוח';
 
   return `
     <section class="activity-drawer__section activity-drawer__section--edit-group" data-mode="edit" hidden>
@@ -392,7 +405,7 @@ function blockActivityDetails(row, { settings = {} } = {}) {
         )}
         ${fieldEditOnly(
           'סטטוס',
-          selectHtml({ name: 'status', value: normalizedStatus, options: statusOptions, placeholder: 'פעיל' })
+          selectHtml({ name: 'status', value: normalizedStatus, options: statusOptions, placeholder: 'פתוח' })
         )}
         ${fieldEditOnly(
           'עונת פעילות',
@@ -840,6 +853,7 @@ function singleForm(row, { settings = {}, privateNote = null, canEdit = false, c
       data-row-id="${escapeHtml(String(row.RowID || row.row_id || row.source_row_id || ''))}"
       data-can-direct-edit="${canDirectEdit ? 'yes' : 'no'}"
       data-can-request-edit="${canRequestEdit ? 'yes' : 'no'}"
+      data-original-status="${escapeHtml(String(row.status || ''))}"
       data-auto-end-date="${escapeHtml(computedEnd)}"
       data-is-once="${ONCE_TYPES.includes(activityType) ? 'yes' : 'no'}">
       ${editReqBadge}
