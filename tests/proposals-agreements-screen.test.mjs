@@ -649,6 +649,17 @@ test('new proposal editor renders two-pane A4 layout and live preview updates ke
       selectClientResult(form, dom, 'מסגרת');
       await delay(20);
 
+      // Select the single contact for מסגרת ב (יוסי קשר) from the contact picker
+      const contactPickerSelect = form.querySelector('[data-pa-contact-select]');
+      if (contactPickerSelect) {
+        const firstContact = Array.from(contactPickerSelect.options).find((o) => o.value && o.value !== '__pa_other_contact__');
+        if (firstContact) {
+          contactPickerSelect.value = firstContact.value;
+          contactPickerSelect.dispatchEvent(new dom.window.Event('change', { bubbles: true }));
+          await delay(20);
+        }
+      }
+
       const typeInput = form.querySelector('[name="activity_type_group"]');
       typeInput.value = 'קיץ תשפ״ו';
       typeInput.dispatchEvent(new dom.window.Event('change', { bubbles: true }));
@@ -767,7 +778,7 @@ test('admin sees approve and return actions for pending proposals', async () => 
 test('client selector fills school fields without auto-selecting contact', async () => {
   await withJSDOM(
     proposalsAgreementsScreen.render({ rows: [], contactOptions: sampleContactOptions }, { state: stateFor('admin') }),
-    (root, dom) => {
+    async (root, dom) => {
       proposalsAgreementsScreen.bind({
         root,
         data: { rows: [], activityNameOptions: [], contactOptions: sampleContactOptions },
@@ -798,6 +809,7 @@ test('client selector fills school fields without auto-selecting contact', async
       assert.equal(form.querySelector('[data-pa-client-search-row]').hidden, true, 'search row should close after selection');
       assert.match(form.querySelector('[data-pa-client-card]').textContent, /נבחר:.*מסגרת ב.*רשות ב/, 'selected-client summary should show school and authority');
       assert.doesNotMatch(form.querySelector('[data-pa-client-card]').textContent, /יוסי קשר/, 'contact should not appear in summary before selection');
+      await delay(20);
     }
   );
 });
@@ -826,7 +838,7 @@ test('new proposal form starts with authority search and has no client type fiel
 test('new proposal form hides contact panel until school is selected', async () => {
   await withJSDOM(
     proposalsAgreementsScreen.render({ rows: [], contactOptions: sampleContactOptions }, { state: stateFor('admin') }),
-    (root, dom) => {
+    async (root, dom) => {
       proposalsAgreementsScreen.bind({
         root,
         data: { rows: [], activityNameOptions: [], contactOptions: sampleContactOptions },
@@ -847,6 +859,7 @@ test('new proposal form hides contact panel until school is selected', async () 
 
       selectClientResult(form, dom, 'בית ספר');
       assert.equal(contactPanel.hidden, false, 'contact panel should appear after school selection');
+      await delay(20);
     }
   );
 });
