@@ -84,7 +84,26 @@ function html(model){
   const table=rowsCount&&model.instructors.length?`<div class="ops-trx-wrap"><table>${colgroup(model)}<thead>${head}</thead><tbody>${body}</tbody></table></div>`:'<div class="ops-trx-msg">לא נמצאו הכשרות או שיבוצים להצגה</div>';
   return `<section class="ops-trx" dir="rtl"><div class="ops-trx-h"><h2>הכשרות קיץ</h2>${legendHtml()}</div>${table}</section>`;
 }
-function setActive(root,active){root?.querySelectorAll?.('.ds-ops-mgmt-tab').forEach((btn)=>{const mine=btn.hasAttribute('data-ops-training-tab');btn.classList.toggle('is-active',active&&mine);if(active||mine)btn.setAttribute('aria-pressed',active&&mine?'true':'false');});}
+function setActive(root, active) {
+  const nav = root?.querySelector?.('.ds-ops-mgmt-tabs');
+  if (!nav) return;
+  nav.querySelectorAll('.ds-ops-mgmt-tab').forEach((btn) => {
+    const mine = btn.hasAttribute('data-ops-training-tab');
+    if (mine) {
+      btn.classList.toggle('is-active', active);
+      btn.setAttribute('aria-pressed', active ? 'true' : 'false');
+      return;
+    }
+    if (active) {
+      btn.classList.remove('is-active');
+      btn.setAttribute('aria-pressed', 'false');
+    }
+  });
+}
+function deactivateTrainingTab(root) {
+  try { sessionStorage.removeItem(KEY); } catch { /* ignore */ }
+  setActive(root, false);
+}
 async function render(root,force=false){
   if(!root||busy)return;
   const container=root.querySelector('.ds-ops-mgmt-content');
@@ -102,8 +121,8 @@ function ensureTab(){
   let button=nav.querySelector('[data-ops-training-tab]');
   if(!button){button=document.createElement('button');button.type='button';button.className='ds-exceptions-tab ds-ops-mgmt-tab';button.textContent='הכשרות קיץ';button.setAttribute('data-ops-training-tab','1');button.setAttribute('aria-pressed','false');nav.appendChild(button);}
   if(!button.dataset.opsTrainingBound){button.dataset.opsTrainingBound='1';button.addEventListener('click',()=>{sessionStorage.setItem(KEY,'1');render(root,true);});}
-  nav.querySelectorAll('[data-ops-tab]').forEach((b)=>{if(b.dataset.opsTrainingClearBound)return;b.dataset.opsTrainingClearBound='1';b.addEventListener('click',()=>sessionStorage.removeItem(KEY),{capture:true});});
-  if(sessionStorage.getItem(KEY)==='1'){setActive(root,true);render(root,false);}
+  nav.querySelectorAll('[data-ops-tab]').forEach((b)=>{if(b.dataset.opsTrainingClearBound)return;b.dataset.opsTrainingClearBound='1';b.addEventListener('click',()=>deactivateTrainingTab(root),{capture:true});});
+  if(typeof document!=='undefined'&&!document.documentElement.dataset.opsTrainingStdTabBound){document.documentElement.dataset.opsTrainingStdTabBound='1';document.addEventListener('ops-mgmt-standard-tab',()=>{const current=document.querySelector('.ds-ops-mgmt-screen');if(current)deactivateTrainingTab(current);});}
 }
 function schedule(){if(queued)return;queued=true;setTimeout(()=>{queued=false;ensureTab();},80);}
 if(typeof document!=='undefined'){
