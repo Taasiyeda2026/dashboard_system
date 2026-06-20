@@ -140,14 +140,6 @@ function ensureOperationsCleanupStyle() {
         z-index: auto !important;
         box-shadow: none !important;
       }
-
-      .ds-ops-mgmt-screen.ops-authorities-clean .ds-table-wrap,
-      .ds-ops-mgmt-screen.ops-authorities-clean .ds-ops-authorities-table {
-        overflow: visible !important;
-        width: 100% !important;
-        max-width: 100% !important;
-        min-width: 0 !important;
-      }
     }
   `;
   document.head.appendChild(style);
