@@ -1,5 +1,6 @@
 const AUTHORITIES_TAB_KEY = 'authorities';
 const SCHOOLS_TAB_KEY = 'schools';
+const SCHEDULE_TAB_KEY = 'instructors';
 const FIXED_PERIOD = 'summer_2026';
 const FIXED_FROM = '2026-06-15';
 const FIXED_TO = '2026-08-31';
@@ -16,6 +17,10 @@ function isAuthoritiesView(root) {
   return tab === AUTHORITIES_TAB_KEY || tab === SCHOOLS_TAB_KEY;
 }
 
+function isScheduleView(root) {
+  return getActiveOpsTab(root) === SCHEDULE_TAB_KEY;
+}
+
 function ensureOperationsCleanupStyle() {
   if (document.getElementById('ops-authorities-cleanup-style')) return;
   const style = document.createElement('style');
@@ -25,7 +30,8 @@ function ensureOperationsCleanupStyle() {
       display: none !important;
     }
     .ds-ops-mgmt-screen.ops-authorities-clean .ds-ops-mgmt-summary-line,
-    .ds-ops-mgmt-screen.ops-authorities-clean .ds-ops-schools-authority__stats {
+    .ds-ops-mgmt-screen.ops-authorities-clean .ds-ops-schools-authority__stats,
+    .ds-ops-mgmt-screen.ops-schedule-clean .ds-ops-mgmt-summary-line {
       display: none !important;
     }
   `;
@@ -69,6 +75,7 @@ function cleanOperationsPage() {
   resetHiddenSearch(root);
   enforceFixedOperationsRange(root);
   root.classList.toggle('ops-authorities-clean', isAuthoritiesView(root));
+  root.classList.toggle('ops-schedule-clean', isScheduleView(root));
 }
 
 function scheduleOperationsCleanup() {
