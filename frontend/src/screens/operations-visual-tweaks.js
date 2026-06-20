@@ -42,16 +42,6 @@ function addOperationsVisualTweaksStyle() {
       border-collapse: separate;
       border-spacing: 0;
     }
-    #app.ds-activities-archive-mode .ds-table--activities-list colgroup col:nth-child(7),
-    #app.ds-activities-archive-mode .ds-table--activities-list thead th:nth-child(7),
-    #app.ds-activities-archive-mode .ds-table--activities-list tbody td:nth-child(7) {
-      display: none !important;
-      width: 0 !important;
-      min-width: 0 !important;
-      max-width: 0 !important;
-      padding: 0 !important;
-      border: 0 !important;
-    }
     #app.ds-activities-archive-mode .ds-table--activities-list th,
     #app.ds-activities-archive-mode .ds-table--activities-list td {
       height: 50px;
@@ -78,16 +68,12 @@ function addOperationsVisualTweaksStyle() {
     #app.ds-activities-archive-mode .ds-table--activities-list thead th:nth-child(4) {
       width: 16%;
     }
-    #app.ds-activities-archive-mode .ds-table--activities-list tbody td:nth-child(5),
-    #app.ds-activities-archive-mode .ds-table--activities-list thead th:nth-child(5),
     #app.ds-activities-archive-mode .ds-table--activities-list tbody td:nth-child(6),
-    #app.ds-activities-archive-mode .ds-table--activities-list thead th:nth-child(6) {
+    #app.ds-activities-archive-mode .ds-table--activities-list thead th:nth-child(6),
+    #app.ds-activities-archive-mode .ds-table--activities-list tbody td:nth-child(7),
+    #app.ds-activities-archive-mode .ds-table--activities-list thead th:nth-child(7) {
       width: 10%;
       text-align: center;
-    }
-    #app.ds-activities-archive-mode .ds-table--activities-list tbody td:nth-child(8),
-    #app.ds-activities-archive-mode .ds-table--activities-list thead th:nth-child(8) {
-      width: 16%;
     }
     #app.ds-activities-archive-mode .ds-table--activities-list .ds-activities-program-cell,
     #app.ds-activities-archive-mode .ds-table--activities-list .ds-activities-instructor-wrap {

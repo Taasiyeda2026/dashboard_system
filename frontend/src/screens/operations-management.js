@@ -1371,11 +1371,11 @@ function workshopsTabHtml(rows, state, stockMap, catalogRows = [], distributions
         const usage = hasActualUsage ? Number(row.actualQuantity) : null;
         const usageHtml = hasActualUsage
           ? `<span class="ds-ops-usage-display">${usage}</span>`
-          : '<span class="ds-ops-mgmt-cell-muted">לא עודכן</span>';
-        const remainder = shownStock !== '' && hasActualUsage ? Number(shownStock) - usage : null;
-        const remainderHtml = remainder === null
-          ? '<span class="ds-ops-mgmt-cell-muted">—</span>'
-          : `<span class="ds-ops-gap ${remainder < 0 ? 'ds-ops-gap--shortage' : 'ds-ops-gap--ok'}">${remainder}</span>`;
+          : '<span class="ds-ops-usage-display">0</span>';
+        const stockValue = Number.isFinite(Number(shownStock)) ? Number(shownStock) : 0;
+        const usageValue = Number.isFinite(Number(usage)) ? Number(usage) : 0;
+        const remainder = stockValue - usageValue;
+        const remainderHtml = `<span class="ds-ops-gap ${remainder < 0 ? 'ds-ops-gap--shortage' : 'ds-ops-gap--ok'}">${remainder}</span>`;
         return `<tr>
           <td>${escapeHtml(row.workshopNo || '—')}</td>
           <td>${escapeHtml(row.workshopName)}</td>
@@ -1486,12 +1486,12 @@ function schoolsTabHtml(rows, state, directory = buildSchoolsDirectory([]), cont
       return `<article class="ds-ops-authority-school">
         <header class="ds-ops-authority-school__header">
           <strong class="ds-ops-school-card__title">${escapeHtml(schoolGroup.school)}</strong>
-          <span class="ds-ops-schools-authority__stats"><span class="ds-ops-pill">${schoolGroup.activities} פעילויות</span><span class="ds-ops-pill">${schoolGroup.workshops.size} סדנאות</span><span class="ds-ops-pill">${schoolGroup.instructors.size} מדריכים</span><span class="ds-ops-pill">${schoolGroup.dates.size} תאריכים</span></span>
+          <span class="ds-ops-schools-authority__stats"><span class="ds-ops-pill">סה״כ ${schoolGroup.activities} פעילויות</span><span class="ds-ops-pill">${schoolGroup.workshops.size} סדנאות</span><span class="ds-ops-pill">${schoolGroup.instructors.size} מדריכים</span><span class="ds-ops-pill">${schoolGroup.dates.size} תאריכים</span></span>
         </header>
         ${dateBlocks}
       </article>`;
     }).join('');
-    return `<section class="ds-ops-schools-authority"><header class="ds-ops-schools-authority__header"><strong>${escapeHtml(authorityGroup.authority)}</strong><span class="ds-ops-schools-authority__stats"><span class="ds-ops-pill">${schools.length} בתי ספר / מסגרות</span><span class="ds-ops-pill">${authorityGroup.activities} פעילויות</span><span class="ds-ops-pill">${authorityGroup.instructors.size} מדריכים</span></span></header>${schoolBlocks}</section>`;
+    return `<section class="ds-ops-schools-authority"><header class="ds-ops-schools-authority__header"><strong>${escapeHtml(authorityGroup.authority)}</strong><span class="ds-ops-schools-authority__stats"><span class="ds-ops-pill">${schools.length} בתי ספר</span><span class="ds-ops-pill">סה״כ ${authorityGroup.activities} פעילויות</span><span class="ds-ops-pill">${authorityGroup.instructors.size} מדריכים</span></span></header>${schoolBlocks}</section>`;
   }).join('');
 
   const schoolCount = Array.from(byAuthority.values()).reduce((sum, group) => sum + group.schools.size, 0);
@@ -1503,11 +1503,11 @@ function schoolsTabHtml(rows, state, directory = buildSchoolsDirectory([]), cont
     <div class="ds-ops-mgmt-print-header only-print"><h2>רשויות — פעילויות קיץ</h2><p>טווח תאריכים: ${escapeHtml(formatDateHe(ops.dateFrom))}–${escapeHtml(formatDateHe(ops.dateTo))}</p></div>
     ${compactSummaryLineHtml([
       { label: 'רשויות', value: byAuthority.size },
-      { label: 'בתי ספר / מסגרות', value: schoolCount },
+      { label: 'בתי ספר', value: schoolCount },
       { label: 'פעילויות', value: seenEntries.size },
       { label: 'מדריכים', value: instructorOptions(rows).length }
     ])}
-    ${authoritySections || dsEmptyState('לא נמצאו בתי ספר / מסגרות')}
+    ${authoritySections || dsEmptyState('לא נמצאו בתי ספר')}
   </section>`;
 }
 

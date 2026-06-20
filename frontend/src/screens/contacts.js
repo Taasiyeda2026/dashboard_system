@@ -503,21 +503,17 @@ function schoolTabHtml(rows, filters, activeLetter = '') {
     letterMap.get(letter).push(authority);
   });
 
-  const alphaBtns = [...letterMap.keys()].sort((a, b) => {
-    if (a === '#') return 1;
-    if (b === '#') return -1;
-    return a.localeCompare(b, 'he');
-  }).map((letter) =>
-    `<button type="button" class="sc-alpha-btn${activeLetter === letter ? ' is-active' : ''}" data-alpha-btn="${escapeHtml(letter)}" aria-expanded="${activeLetter === letter ? 'true' : 'false'}">${escapeHtml(letter)}</button>`
+  const availableLetters = new Set(letterMap.keys());
+  const alphaBtns = HE_ALPHA.map((letter) =>
+    `<button type="button" class="sc-alpha-btn${activeLetter === letter ? ' is-active' : ''}${availableLetters.has(letter) ? '' : ' is-empty'}" data-alpha-btn="${escapeHtml(letter)}" aria-expanded="${activeLetter === letter ? 'true' : 'false'}" title="${availableLetters.has(letter) ? '' : 'אין רשויות באות זו'}">${escapeHtml(letter)}</button>`
   ).join('');
-  const alphaBar = letterMap.size
-    ? `<div class="sc-alpha-bar sc-alpha-bar--compact" role="toolbar" aria-label="אלפון א-ת" dir="rtl">${alphaBtns}</div>`
-    : '';
+  const alphaBar = `<div class="sc-alpha-bar sc-alpha-bar--compact" role="toolbar" aria-label="אלפון א-ת" dir="rtl">${alphaBtns}</div>`;
 
   const letterSections = new Map();
   authorityMap.forEach((bucket, authority) => {
+    if (!activeLetter) return;
     const letter = firstHebrewLetter(authority);
-    if (activeLetter && letter !== activeLetter) return;
+    if (letter !== activeLetter) return;
     const authHtml = renderAuthorityAccordion(authority, bucket);
     if (!authHtml) return;
     if (!letterSections.has(letter)) letterSections.set(letter, '');
@@ -538,7 +534,11 @@ function schoolTabHtml(rows, filters, activeLetter = '') {
     </div>`;
   });
 
-  return { filtered, stats, body: `${summaryHtml}${alphaBar}${sectionsHtml}` };
+  const initialHint = !activeLetter
+    ? '<div class="sc-alpha-hint" role="status">בחרו אות כדי להציג רשויות ואנשי קשר.</div>'
+    : (sectionsHtml ? '' : '<div class="sc-alpha-hint" role="status">לא נמצאו רשויות באות שנבחרה.</div>');
+
+  return { filtered, stats, body: `${summaryHtml}${alphaBar}${initialHint}${sectionsHtml}` };
 }
 
 /* ─── Screen ─── */
