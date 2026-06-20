@@ -174,3 +174,7 @@ if (typeof document !== 'undefined') {
   }
   new MutationObserver(scheduleOperationsVisualTweaks).observe(document.documentElement, { childList: true, subtree: true, attributes: true, attributeFilter: ['class', 'aria-pressed', 'aria-selected', 'data-active'] });
 }
+
+import('./contacts-full-directory.js').catch((error) => {
+  console.warn('[contacts-full-directory] failed to load enhancement', error);
+});
