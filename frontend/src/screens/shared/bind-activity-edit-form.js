@@ -348,6 +348,27 @@ export function bindActivityEditForm(contentRoot, {
       if (String(changes.status || '').trim() === 'פעיל') changes.status = 'פתוח';
     }
 
+    const saveType = normalizeActivityTypeKey(
+      changes.activity_type || initialValues.activity_type || form.querySelector('[name="activity_type"]')?.value || ''
+    );
+    const supportsParticipants = saveType === 'workshop' || saveType === 'escape_room';
+    if (!supportsParticipants) {
+      delete changes.participants_count;
+    } else if (Object.prototype.hasOwnProperty.call(changes, 'participants_count')) {
+      const raw = changes.participants_count;
+      if (raw === '' || raw === null) {
+        changes.participants_count = null;
+      } else {
+        const n = Number(raw);
+        if (!Number.isInteger(n) || n <= 0) {
+          setStatus(statusEl, 'is-error', 'מספר משתתפים מעודכן חייב להיות מספר שלם חיובי');
+          showToast('מספר משתתפים מעודכן חייב להיות מספר שלם חיובי', 'error', 2600);
+          return;
+        }
+        changes.participants_count = n;
+      }
+    }
+
     try {
       if (!Object.keys(changes).length) {
         setStatus(statusEl, 'is-error', 'לא זוהו שינויים לשמירה');

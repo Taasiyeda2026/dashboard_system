@@ -1240,6 +1240,7 @@ function buildDashboardKpiCardsFromSupabase(totals, activeTypeCounts, exceptionC
   const typeCards = [
     { id: 'active_courses',      action: 'kpi|active_courses',      subtitle: 'קורסים',    key: 'course' },
     { id: 'active_workshops',    action: 'kpi|active_workshops',    subtitle: 'סדנאות',    key: 'workshop' },
+    { id: 'active_escape_room',  action: 'kpi|active_escape_room',  subtitle: 'חדר בריחה', key: 'escape_room' },
     { id: 'active_tours',        action: 'kpi|active_tours',        subtitle: 'סיורים',    key: 'tour' },
     { id: 'active_after_school', action: 'kpi|active_after_school', subtitle: 'אפטרסקול', key: 'after_school' },
   ].map(({ id, action, subtitle, key }) => ({
@@ -1249,7 +1250,6 @@ function buildDashboardKpiCardsFromSupabase(totals, activeTypeCounts, exceptionC
   }));
   return [
     ...typeCards,
-    { id: 'summer',      action: 'kpi|summer',      title: String(activeTypeCounts.summer || 0), subtitle: 'קיץ',            value: activeTypeCounts.summer || 0 },
     { id: 'endings',     action: 'kpi|endings',     title: String(courseEndings),         subtitle: 'סיומי קורסים',   value: courseEndings },
     { id: 'instructors', action: 'kpi|instructors', title: String(uniqueInstructorCount), subtitle: 'מדריכים משובצים החודש', value: uniqueInstructorCount },
     { id: 'exceptions',  action: 'kpi|exceptions',  title: String(exceptionCount),        subtitle: 'חריגות',          value: exceptionCount }
@@ -3078,7 +3078,8 @@ const ALLOWED_ACTIVITY_COLUMNS = new Set([
   'notes',
   'finance_status',
   'finance_notes',
-  'operations_private_notes'
+  'operations_private_notes',
+  'participants_count'
 ]);
 for (let i = 1; i <= 35; i++) ALLOWED_ACTIVITY_COLUMNS.add(`date_${i}`);
 
@@ -3184,6 +3185,13 @@ function sanitizeActivityPayloadForSupabase(payload = {}, { includeRowId = true 
       nextValue = normalizeDateFieldForSupabase(rawValue);
     } else if (key === 'activity_season') {
       nextValue = normalizeActivitySeason(rawValue);
+    } else if (key === 'participants_count') {
+      if (rawValue === '' || rawValue === null || rawValue === undefined) {
+        nextValue = null;
+      } else {
+        const n = Number(rawValue);
+        nextValue = Number.isInteger(n) && n > 0 ? n : null;
+      }
     } else if (bigintFields.has(key)) {
       nextValue = normalizeBigintFieldForSupabase(rawValue);
     } else if (timeFields.has(key)) {

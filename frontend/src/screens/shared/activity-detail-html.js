@@ -8,7 +8,7 @@ const ACTIVITY_EDIT_TYPE_ORDER = ['workshop', 'escape_room', 'tour', 'after_scho
 
 const ACTIVITY_TYPE_PILL_LABEL = {
   course: 'קורס',
-  after_school: 'חוג אפטרסקול',
+  after_school: 'אפטרסקול',
   workshop: 'סדנה',
   tour: 'סיור',
   escape_room: 'חדר בריחה',
@@ -66,6 +66,7 @@ function numericOrNull(value) {
 function normStatus(v) {
   const raw = String(v || '').trim().toLowerCase();
   if (raw === 'closed' || raw === 'סגור') return 'closed';
+  if (raw === 'פעיל' || raw === 'active' || raw === 'open' || raw === 'פתוח') return 'open';
   return 'open';
 }
 
@@ -457,8 +458,8 @@ function blockTeamTimes(row, { settings = {} } = {}) {
   const instructorLookup = buildInstructorLookup(settings);
   const instructor1Display = resolveActivityInstructorName(row) || resolveInstructorDisplayName(row.instructor_name, row.emp_id, instructorLookup);
   const instructor2Display = resolveActivityInstructorName(row, { secondary: true }) || resolveInstructorDisplayName(row.instructor_name_2, row.emp_id_2, instructorLookup);
-  const activityType = String(row.activity_type || '').trim();
-  const twoInstructors = activityType === 'workshop';
+  const activityType = normalizeActivityTypeKey(row.activity_type || row.item_type);
+  const twoInstructors = activityType === 'workshop' || activityType === 'escape_room';
   const instructorEditHtml = twoInstructors
     ? `<div class="activity-drawer__field-controls activity-drawer__field-controls--stacked">
         ${selectHtml({ name: 'instructor_name', value: instructor1Display, options: instructors })}
@@ -508,12 +509,12 @@ function blockExtraEditInfo(row, { settings = {} } = {}) {
   `;
 }
 
-function blockSupplementalView(row, { settings = {}, hideFunding = false } = {}) {
+function blockSupplementalView(row, { settings = {}, hideFunding = false, hideSeason = false } = {}) {
   const instructorLookup = buildInstructorLookup(settings);
   const instructor1Display = resolveActivityInstructorName(row) || resolveInstructorDisplayName(row.instructor_name, row.emp_id, instructorLookup);
   const instructor2Display = resolveActivityInstructorName(row, { secondary: true }) || resolveInstructorDisplayName(row.instructor_name_2, row.emp_id_2, instructorLookup);
-  const activityType = String(row.activity_type || '').trim();
-  const twoInstructors = activityType === 'workshop';
+  const activityType = normalizeActivityTypeKey(row.activity_type || row.item_type);
+  const twoInstructors = activityType === 'workshop' || activityType === 'escape_room';
   const gradeVal = String(row.grade || '').trim();
   const classGroupVal = String(row.class_group || '').trim();
   const classLabel = [gradeVal, classGroupVal].filter(Boolean).join(' / ') || '—';
@@ -533,7 +534,7 @@ function blockSupplementalView(row, { settings = {}, hideFunding = false } = {})
         ${twoInstructors ? fieldViewOnly('מדריך/ה 2', escapeHtml(fallback(instructor2Display))) : ''}
         ${fieldViewOnly('כיתה / קבוצה', escapeHtml(classLabel))}
         ${fieldViewOnly('שעות', escapeHtml(hoursLabel))}
-        ${fieldViewOnly('עונת פעילות', escapeHtml(seasonDisplay))}
+        ${hideSeason ? '' : fieldViewOnly('עונת פעילות', escapeHtml(seasonDisplay))}
         ${hideFunding ? '' : fieldViewOnly('מימון', escapeHtml(fundingDisplay))}
       </div>
     </section>
@@ -600,8 +601,11 @@ function buildOneDayViewHtml(schedule, row, datesLoading) {
 
 function blockDates(row, { canEdit = false, canDirectEdit = false, datesLoading = false } = {}) {
   const schedule = Array.isArray(row?.meeting_schedule) ? row.meeting_schedule : [];
-  const activityType = String(row.activity_type || '').trim();
+  const activityType = normalizeActivityTypeKey(row.activity_type || row.item_type);
   const isOnce = ONCE_TYPES.includes(activityType);
+  const isCourse = activityType === 'course';
+  const isAfterSchool = activityType === 'after_school';
+  if (!isOnce && !isCourse && !isAfterSchool) return '';
   const loadingAttr = datesLoading ? ' data-dates-loading="true"' : '';
 
   if (isOnce) {
@@ -701,10 +705,11 @@ function blockDates(row, { canEdit = false, canDirectEdit = false, datesLoading 
         ${viewChips}
       </div>`;
 
+  const progressTitle = isCourse ? 'התקדמות הקורס' : 'מפגשים ותאריכים';
   return `
     <section class="activity-drawer__section" data-dates-section${loadingAttr}>
       <div class="activity-drawer__section-head">
-        <h3 class="activity-drawer__section-title">מפגשים ותאריכים</h3>
+        <h3 class="activity-drawer__section-title">${escapeHtml(progressTitle)}</h3>
         ${canEdit ? `<button type="button" class="activity-drawer__action" data-action="start-edit" data-mode="view">✏️ ${canDirectEdit ? 'עריכה' : 'בקשת שינוי'}</button>` : ''}
       </div>
       ${progressHtml}
@@ -813,7 +818,7 @@ function blockPrivateNote(row, { privateNote = null, showPrivateNote = false } =
 }
 
 function blockNotes(row, { hidden = false } = {}) {
-  if (hidden) return '';
+  if (hidden || !String(row?.notes || '').trim()) return '';
   return `
     <section class="activity-drawer__section">
       <h3 class="activity-drawer__section-title">📝</h3>
@@ -836,7 +841,15 @@ function jsonAttr(value) {
 
 function singleForm(row, { settings = {}, privateNote = null, canEdit = false, canDirectEdit = false, canRequestEdit = false, canDeleteActivity = false, showPrivateNote = false, idx = 0, datesLoading = false, instructorLimited = false } = {}) {
   const computedEnd = autoEndDate(row);
-  const activityType = String(row.activity_type || '').trim();
+  const activityType = normalizeActivityTypeKey(row.activity_type || row.item_type);
+  const isCourse = activityType === 'course';
+  const isAfterSchool = activityType === 'after_school';
+  const isWorkshop = activityType === 'workshop';
+  const isEscapeRoom = activityType === 'escape_room';
+  const isTour = activityType === 'tour';
+  const showDates = isCourse || isAfterSchool || isWorkshop || isEscapeRoom || isTour;
+  const hideFundingInView = isCourse || isAfterSchool || isTour;
+  const hideSeasonInView = isWorkshop || isEscapeRoom || isTour;
   const editReqStatus = String(row.edit_request_status || '').trim();
   const editReqLabel =
     editReqStatus === 'pending' ? 'ממתין לאישור' :
@@ -863,10 +876,10 @@ function singleForm(row, { settings = {}, privateNote = null, canEdit = false, c
       ${blockActivityDetails(row, { settings })}
       ${blockAssignment(row, { settings })}
       ${blockTeamTimes(row, { settings })}
-      ${blockDates(row, { canEdit, canDirectEdit, datesLoading })}
+      ${showDates ? blockDates(row, { canEdit, canDirectEdit, datesLoading }) : ''}
       ${instructorLimited ? '' : blockExtraEditInfo(row, { settings })}
       ${blockNotes(row, { hidden: instructorLimited })}
-      ${blockSupplementalView(row, { settings, hideFunding: instructorLimited })}
+      ${blockSupplementalView(row, { settings, hideFunding: hideFundingInView || instructorLimited, hideSeason: hideSeasonInView })}
       ${blockEditActions({ canEdit, canDirectEdit, canDeleteActivity })}
     </form>
   `;

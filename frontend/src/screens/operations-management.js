@@ -725,7 +725,6 @@ function workshopMetricsRows(rows, stockMap, catalogRows = []) {
       if (count === null) return;
       actualQuantity = (actualQuantity || 0) + count;
     });
-    const required = actualQuantity !== null ? actualQuantity : estimatedQuantity;
     const stock = group.stockQuantity !== null && group.stockQuantity !== undefined && Number.isFinite(Number(group.stockQuantity))
       ? Number(group.stockQuantity)
       : null;
@@ -739,7 +738,7 @@ function workshopMetricsRows(rows, stockMap, catalogRows = []) {
       estimatedQuantity,
       actualQuantity,
       stockQuantity: stock,
-      gap: stock === null ? null : stock - required
+      gap: stock === null ? null : stock - estimatedQuantity
     };
   });
 }
@@ -1034,7 +1033,7 @@ function printSchoolsSchedule() {
       </div>`;
     }).join('');
     return `<div class="authority-section">
-      <div class="authority-header">${escapeHtml(authorityGroup.authority)} <span class="authority-stats">(${schools.length} מסגרות · ${authorityGroup.activities} פעילויות)</span></div>
+      <div class="authority-header">${escapeHtml(authorityGroup.authority)} <span class="authority-stats">(${schools.length} בתי ספר · ${authorityGroup.activities} פעילויות)</span></div>
       ${schoolsHtml}
     </div>`;
   }).join('');
@@ -1371,10 +1370,10 @@ function workshopsTabHtml(rows, state, stockMap, catalogRows = [], distributions
         const usage = hasActualUsage ? Number(row.actualQuantity) : null;
         const usageHtml = hasActualUsage
           ? `<span class="ds-ops-usage-display">${usage}</span>`
-          : '<span class="ds-ops-usage-display">0</span>';
+          : '<span class="ds-ops-usage-display ds-muted">לא עודכן</span>';
         const stockValue = Number.isFinite(Number(shownStock)) ? Number(shownStock) : 0;
-        const usageValue = Number.isFinite(Number(usage)) ? Number(usage) : 0;
-        const remainder = stockValue - usageValue;
+        const requiredValue = Number.isFinite(Number(requiredQuantity)) ? Number(requiredQuantity) : 0;
+        const remainder = stockValue - requiredValue;
         const remainderHtml = `<span class="ds-ops-gap ${remainder < 0 ? 'ds-ops-gap--shortage' : 'ds-ops-gap--ok'}">${remainder}</span>`;
         return `<tr>
           <td>${escapeHtml(row.workshopNo || '—')}</td>

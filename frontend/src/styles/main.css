@@ -8485,20 +8485,17 @@ select.ds-input {
 }
 
 .ci-list--instr-grid {
-  grid-template-columns: repeat(6, minmax(0, 1fr));
-  gap: 8px;
-  padding: 6px;
+  grid-template-columns: repeat(4, minmax(0, 1fr));
+  gap: 22px 24px;
+  padding: 14px;
 }
-@media (max-width: 1280px) {
-  .ci-list--instr-grid { grid-template-columns: repeat(5, minmax(0, 1fr)); }
+@media (max-width: 1100px) {
+  .ci-list--instr-grid { grid-template-columns: repeat(3, minmax(0, 1fr)); }
 }
-@media (max-width: 1000px) {
-  .ci-list--instr-grid { grid-template-columns: repeat(4, minmax(0, 1fr)); }
+@media (max-width: 760px) {
+  .ci-list--instr-grid { grid-template-columns: repeat(2, minmax(0, 1fr)); }
 }
-@media (max-width: 680px) {
-  .ci-list--instr-grid { grid-template-columns: repeat(2, minmax(280px, 320px)); }
-}
-@media (max-width: 420px) {
+@media (max-width: 540px) {
   .ci-list--instr-grid { grid-template-columns: 1fr; }
 }
 .instr-summary-row {
