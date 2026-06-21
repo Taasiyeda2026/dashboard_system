@@ -1,0 +1,2 @@
+-- No-op migration to retrigger Supabase protected-branch migration sync after aligning local migration history.
+-- Intentionally empty.
