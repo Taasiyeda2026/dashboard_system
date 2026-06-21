@@ -2856,3 +2856,45 @@ test('next_year template_name migration updates programs wording', async () => {
   assert.match(migration, /הצעת מחיר לתוכניות תעשיידע \| שנת הלימודים תשפ״ז/);
   assert.match(migration, /where template_key = 'next_year'/i);
 });
+
+const STABLE_COMMIT = '2c772f835cc19da52fd76528c0b19f667f23de79';
+const STABLE_DIRECTORY_COLUMNS = 'id,authority_id,authority_code,school_id,contact_school_id,authority_name,legacy_client_authority,contact_client_type,contact_client_name,school_name,legacy_school_framework,document_type,activity_type_group,proposal_date,activity_names,contact_name,contact_role,phone,email,notes,status,approval_note,total_amount,custom_document_sections,include_catalog,signature_meta,approved_by,approved_at,created_at,updated_at';
+
+test('rollback: proposals directory select fields match stable commit before emergency cleanup', async () => {
+  const apiSource = await readFile(API_FILE, 'utf8');
+  const columnsMatch = apiSource.match(/const PROPOSALS_AGREEMENTS_DIRECTORY_COLUMNS = '([^']+)'/);
+  assert.ok(columnsMatch, 'directory columns constant should be defined');
+  assert.equal(columnsMatch[1], STABLE_DIRECTORY_COLUMNS, `expected stable columns from ${STABLE_COMMIT}`);
+});
+
+test('rollback: view permission does not expose manage or approve row actions', () => {
+  const sentRow = { id: '22222222-2222-2222-2222-222222222222', status: 'sent', client_authority: 'רשות', school_framework: 'בית ספר' };
+  const viewState = { user: { role: 'authorized_user', view_proposals_agreements: 'yes' } };
+  const html = proposalsAgreementsScreen.render({ rows: [sentRow] }, { state: viewState });
+  assert.doesNotMatch(html, /data-pa-edit-row/);
+  assert.doesNotMatch(html, /חתום ואשר/);
+  assert.doesNotMatch(html, /אישור וחתימה/);
+});
+
+test('rollback: manage permission does not expose approve actions for non-admin', () => {
+  const sentRow = { id: '33333333-3333-3333-3333-333333333333', status: 'sent', client_authority: 'רשות', school_framework: 'בית ספר' };
+  const managerState = { user: { role: 'authorized_user', view_proposals_agreements: 'yes', manage_proposals_agreements: 'yes' } };
+  const html = proposalsAgreementsScreen.render({ rows: [sentRow] }, { state: managerState });
+  assert.doesNotMatch(html, /חתום ואשר/);
+  assert.doesNotMatch(html, /אישור וחתימה/);
+});
+
+test('rollback: approve permission exposes sign-and-approve for sent proposals', () => {
+  const sentRow = { id: '44444444-4444-4444-4444-444444444444', status: 'sent', client_authority: 'רשות', school_framework: 'בית ספר' };
+  const approverState = { user: { role: 'authorized_user', view_proposals_agreements: 'yes', approve_proposals_agreements: 'yes' } };
+  const html = proposalsAgreementsScreen.render({ rows: [sentRow] }, { state: approverState });
+  assert.match(html, /חתום ואשר/);
+});
+
+test('rollback: login session flags restore stable view/manage mapping without approve field', async () => {
+  const apiSource = await readFile(API_FILE, 'utf8');
+  assert.match(apiSource, /function proposalSessionUserFlagsFromFlatUser\(flat = \{\}\) \{[\s\S]*view_proposals_agreements: view \|\| undefined[\s\S]*manage_proposals_agreements: manage \|\| undefined[\s\S]*\}/);
+  assert.doesNotMatch(apiSource, /proposalSessionUserFlagsFromFlatUser[\s\S]*approve_proposals_agreements/);
+  assert.match(apiSource, /resolveActiveUserRowAfterAuth\(/, 'auth login resolver must remain intact');
+  assert.match(apiSource, /signInWithPassword\(/, 'Supabase Auth login must remain intact');
+});

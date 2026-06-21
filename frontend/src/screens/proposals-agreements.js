@@ -561,11 +561,9 @@ function statusSelectHtml(row, enabled, canApprove = false) {
   return `<select class="ds-pa-status-select" data-pa-row-status data-pa-status-id="${escapeHtml(row?.id || '')}" data-pa-previous-status="${escapeHtml(currentStatus)}" aria-label="עדכון סטטוס הצעה"${disabled}>${options}</select>`;
 }
 
-function detailRowsHtml(row, state = null) {
-  const canManage = state ? canManageProposalsAgreements(state) : false;
+function detailRowsHtml(row) {
   return FORM_FIELDS.map((key) => {
     if (['contact_name', 'contact_role', 'phone', 'email', 'document_type'].includes(key)) return '';
-    if (key === 'notes' && !canManage) return '';
     let displayValue;
     if (key === 'activity_names') {
       const items = (Array.isArray(row[key]) ? row[key] : []).map(text).filter(Boolean);
@@ -2238,8 +2236,7 @@ function drawerActionButtons(row, state) {
 
 function drawerHtml(row, activityNameOptions = [], state = null) {
   if (!row) return `<aside class="ds-pa-drawer" data-pa-drawer hidden></aside>`;
-  const canApprove = state ? canApproveProposalsAgreements(state) : false;
-  const approvalNoteHtml = canApprove && text(row.approval_note) ? `
+  const approvalNoteHtml = text(row.approval_note) ? `
     <div class="ds-pa-detail-row">
       <span class="ds-pa-detail-label">${escapeHtml(FIELD_LABELS.approval_note)}</span>
       <span class="ds-pa-detail-value">${escapeHtml(text(row.approval_note))}</span>
@@ -2273,7 +2270,7 @@ function drawerHtml(row, activityNameOptions = [], state = null) {
         <button type="button" class="ds-btn ds-btn--sm" data-pa-close-drawer aria-label="סגירת פרטי רשומה">✕</button>
       </header>
       <div class="ds-pa-drawer-status" style="margin:6px 0 8px">${statusBadgeHtml(row.status)}${customBadge}</div>
-      <div class="ds-pa-detail-grid">${detailRowsHtml(row, state)}</div>
+      <div class="ds-pa-detail-grid">${detailRowsHtml(row)}</div>
       ${totalHtml}
       ${approvalNoteHtml}
       ${contactDetailRowsHtml(row)}

@@ -3132,11 +3132,12 @@ function proposalPermissionFlagsFromFlatUser(flat = {}) {
 }
 
 function proposalSessionUserFlagsFromFlatUser(flat = {}) {
-  const flags = proposalPermissionFlagsFromFlatUser(flat);
-  if (!flags.view_proposals_agreements && permissionFlagYes(flat.manage_proposals_agreements)) {
-    flags.view_proposals_agreements = 'yes';
-  }
-  return flags;
+  const view = permissionFlagYes(flat.view_proposals_agreements) || permissionFlagYes(flat.manage_proposals_agreements);
+  const manage = permissionFlagYes(flat.manage_proposals_agreements);
+  return {
+    view_proposals_agreements: view || undefined,
+    manage_proposals_agreements: manage || undefined
+  };
 }
 
 function buildBootstrapFromUser(userRow, profileRow = null) {
