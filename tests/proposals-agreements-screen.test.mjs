@@ -1051,9 +1051,30 @@ test('proposals contact loader uses contacts_unified_view and not directory fall
   const apiSource = await readFile(API_FILE, 'utf8');
   const loaderBlock = apiSource.match(/async function readContactsSchoolsForProposals\(\) \{[\s\S]*?\n\}/);
   assert.ok(loaderBlock, 'readContactsSchoolsForProposals should exist');
-  assert.match(loaderBlock[0], /readUnifiedContactsFromSupabase\(\)/);
+  assert.match(loaderBlock[0], /readUnifiedContactsFromSupabase\(\{ requireAuth: true \}\)/);
   assert.doesNotMatch(loaderBlock[0], /contacts_directory_view/);
   assert.doesNotMatch(loaderBlock[0], /contacts_schools/);
+});
+
+
+
+test('proposals contact load error is shown in recipient/contact area', async () => {
+  await withJSDOM(
+    proposalsAgreementsScreen.render({ rows: [], contactOptions: [], contactOptionsError: 'contacts_unified_view_permission_denied' }, { state: stateFor('admin') }),
+    async (root, dom) => {
+      proposalsAgreementsScreen.bind({
+        root,
+        data: { rows: [], activityNameOptions: [], contactOptions: [], contactOptionsError: 'contacts_unified_view_permission_denied' },
+        state: stateFor('admin'),
+        api: {}
+      });
+      const form = openNewProposalForm(root, dom);
+      const sidebarText = form.querySelector('.pa-sidebar')?.textContent || '';
+      assert.match(sidebarText, /לא ניתן לטעון אנשי קשר/);
+      assert.match(sidebarText, /להתחבר מחדש/);
+      assert.ok(form.querySelector('[data-pa-contact-options-error]'), 'contact options error alert should be rendered');
+    }
+  );
 });
 
 test('school principal from schools source appears in proposal contact picker', async () => {
