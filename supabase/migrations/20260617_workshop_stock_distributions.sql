@@ -1,3 +1,8 @@
+-- ============================================================
+-- Combined migration section from: 20260617_workshop_stock_distributions.sql
+-- Original migration version prefix: 20260617
+-- ============================================================
+
 -- טבלת חלוקת מלאי למדריכים לפי סדנה
 -- להריץ ב-Supabase SQL Editor לפני שימוש בתכונת "כמות שקיבל מדריך"
 
@@ -31,3 +36,41 @@ CREATE POLICY "workshop_dist_all" ON workshop_stock_distributions
 
 -- אינדקס לחיפוש מהיר
 CREATE INDEX IF NOT EXISTS idx_wsd_stock_group ON workshop_stock_distributions (stock_group_key, period_start);
+
+
+-- ============================================================
+-- Combined migration section from: 20260617_workshop_stock_group_keys.sql
+-- Original migration version prefix: 20260617
+-- ============================================================
+
+-- הגדרת stock_group_key לסדנאות המשתמשות באותו מלאי פיזי
+-- יש להריץ ב-Supabase SQL Editor
+-- לפני הרצה: לוודא את ערכי activity_no המדויקים בטבלת lists
+
+-- 1. קופת קסם — סדנאות 024 ו-029
+UPDATE lists
+SET stock_group_key = 'kofet_kesem'
+WHERE category = 'activity_names'
+  AND type = 'workshop'
+  AND activity_no IN ('024', '029');
+
+-- 2. שעון רובוט — סדנאות 031 ו-032
+UPDATE lists
+SET stock_group_key = 'shaon_robot'
+WHERE category = 'activity_names'
+  AND type = 'workshop'
+  AND activity_no IN ('031', '032');
+
+-- אם יש סדנאות גיטרה נוספות עם אותו מלאי, להוסיף כאן:
+-- UPDATE lists
+-- SET stock_group_key = 'gitara'
+-- WHERE category = 'activity_names'
+--   AND type = 'workshop'
+--   AND activity_no IN ('XXX', 'YYY');
+
+-- לאחר הרצה: לבדוק שהעדכון בוצע
+SELECT activity_no, activity_name, stock_group_key, stock_quantity
+FROM lists
+WHERE category = 'activity_names'
+  AND type = 'workshop'
+ORDER BY stock_group_key, activity_no;
