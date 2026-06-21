@@ -1271,10 +1271,18 @@ function buildClientSettingsFromLists(listsData, settingsRows = [], instructorCo
     name:   normalizeHumanName(i.label || i.value),
     emp_id: String(i._row?.emp_id || i._row?.employee_id || '').trim()
   }));
-  const contactsInstructorUsers = (Array.isArray(instructorContactsRows) ? instructorContactsRows : []).map((row) => ({
-    name: normalizeHumanName(row?.full_name),
-    emp_id: String(row?.emp_id || '').trim()
-  })).filter((user) => user.name && user.emp_id);
+  const contactsInstructorUsers = (Array.isArray(instructorContactsRows) ? instructorContactsRows : [])
+    .filter((row) => isCatalogActive(row?.active))
+    .map((row) => {
+      const fullName = normalizeHumanName(row?.full_name);
+      return {
+        full_name: fullName,
+        name: fullName,
+        emp_id: String(row?.emp_id || '').trim(),
+        active: isCatalogActive(row?.active)
+      };
+    })
+    .filter((user) => user.full_name && user.emp_id);
 
   const activityNames = activityNameItems.map((i) => ({
     label:         i.label || i.value,

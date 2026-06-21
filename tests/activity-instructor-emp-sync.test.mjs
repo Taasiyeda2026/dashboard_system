@@ -169,7 +169,7 @@ test('activity with emp_id missing from contacts_instructors is blocked', () => 
   assert.equal(result.error, 'instructor_not_in_contacts');
 });
 
-test('valid instructor picker options exclude list entries missing from contacts_instructors', () => {
+test('valid instructor picker options prefer active contacts_instructors over legacy roster intersection', () => {
   const settings = {
     dropdown_options: {
       instructor_users: [
@@ -177,11 +177,14 @@ test('valid instructor picker options exclude list entries missing from contacts
         { name: 'אסאלה ברהום', emp_id: '1525' },
         { name: 'ללא עובד', emp_id: '' }
       ],
-      contacts_instructor_users: contacts.map((c) => ({ name: c.full_name, emp_id: c.emp_id }))
+      contacts_instructor_users: [
+        ...contacts.map((c) => ({ full_name: c.full_name, emp_id: c.emp_id, active: true })),
+        { full_name: 'מדריך לא פעיל', emp_id: '1700', active: false }
+      ]
     }
   };
   const result = getValidInstructorUsers(settings);
-  assert.deepEqual(result.map((user) => user.emp_id), ['1600']);
+  assert.deepEqual(result.map((user) => user.emp_id), ['1600', '1500', '1400']);
 });
 
 test('contacts validation does not fallback by instructor name', () => {
