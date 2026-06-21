@@ -284,9 +284,39 @@ revoke insert, update, delete on public.users from anon;
 revoke insert, update, delete on public.settings from anon;
 
 -- Keep browser reads explicit. entry_code is intentionally excluded from users column grants.
-revoke all on public.users from anon, authenticated;
-grant select (user_id, email, name, role, emp_id, is_active, permissions, created_at, updated_at)
-on public.users to anon, authenticated;
+-- The users table schema may differ between legacy databases / Preview branches, so grant only columns that exist.
+DO $$
+DECLARE
+  users_select_columns text;
+BEGIN
+  IF to_regclass('public.users') IS NULL THEN
+    RAISE NOTICE 'Table public.users does not exist — skipped users column grants';
+  ELSE
+    -- Safe compatibility: older branches may have users without emp_id.
+    ALTER TABLE public.users ADD COLUMN IF NOT EXISTS emp_id text;
+
+    REVOKE ALL ON public.users FROM anon, authenticated;
+
+    SELECT string_agg(quote_ident(column_name), ', ' ORDER BY array_position(
+      ARRAY['user_id', 'email', 'name', 'role', 'emp_id', 'is_active', 'permissions', 'created_at', 'updated_at'],
+      column_name
+    ))
+    INTO users_select_columns
+    FROM information_schema.columns
+    WHERE table_schema = 'public'
+      AND table_name = 'users'
+      AND column_name = ANY (
+        ARRAY['user_id', 'email', 'name', 'role', 'emp_id', 'is_active', 'permissions', 'created_at', 'updated_at']
+      );
+
+    IF users_select_columns IS NULL THEN
+      RAISE NOTICE 'No compatible public.users columns found — skipped users column grants';
+    ELSE
+      EXECUTE format('GRANT SELECT (%s) ON public.users TO anon, authenticated', users_select_columns);
+      RAISE NOTICE 'Granted SELECT on public.users columns: %', users_select_columns;
+    END IF;
+  END IF;
+END $$;
 
 revoke all on public.settings from anon, authenticated;
 grant select on public.settings to anon, authenticated;
