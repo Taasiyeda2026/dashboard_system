@@ -143,7 +143,10 @@ export function buildCompletionApprovals(rows = [], { instructor = '', dateMode 
       });
     });
   });
-  return Array.from(groups.values()).sort((a, b) => (a.date || '').localeCompare(b.date || '') || a.school.localeCompare(b.school, 'he'));
+  return Array.from(groups.values()).map((group) => ({
+    ...group,
+    activities: sortApprovalActivitiesByTime(group.activities)
+  })).sort((a, b) => (a.date || '').localeCompare(b.date || '') || a.school.localeCompare(b.school, 'he'));
 }
 
 export function approvalFileTitle(approval) {
@@ -180,12 +183,30 @@ export function formatApprovalTime(value) {
   return '';
 }
 
+export function sortApprovalActivitiesByTime(entries = []) {
+  return (Array.isArray(entries) ? entries : []).slice().sort((a, b) => {
+    const startA = formatApprovalTime(a?.start || (a?.time || '').split('-')[0]?.trim());
+    const startB = formatApprovalTime(b?.start || (b?.time || '').split('-')[0]?.trim());
+    if (startA && !startB) return -1;
+    if (!startA && startB) return 1;
+    if (startA !== startB) return startA.localeCompare(startB);
+
+    const endA = formatApprovalTime(a?.end || (a?.time || '').split('-')[1]?.trim());
+    const endB = formatApprovalTime(b?.end || (b?.time || '').split('-')[1]?.trim());
+    if (endA && !endB) return -1;
+    if (!endA && endB) return 1;
+    if (endA !== endB) return endA.localeCompare(endB);
+
+    return text(a?.name).localeCompare(text(b?.name), 'he');
+  });
+}
+
 function approvalLine(label) {
   return `<p><strong>${escapeHtml(label)}:</strong> <span class="approval-sign-line"></span></p>`;
 }
 
 export function completionApprovalDocumentHtml(approval) {
-  const rows = approval.activities.map((activity) => `<tr>
+  const rows = sortApprovalActivitiesByTime(approval.activities).map((activity) => `<tr>
     <td>${escapeHtml(activity.name)}</td>
     <td class="completion-approval-table__center">${escapeHtml(activity.grade)}</td>
     <td class="completion-approval-table__center">${escapeHtml(formatApprovalTime(activity.start || (activity.time || '').split('-')[0]?.trim()))}</td>

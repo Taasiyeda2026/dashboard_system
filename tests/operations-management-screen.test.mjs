@@ -18,7 +18,8 @@ import { operationsManagementScreen } from '../frontend/src/screens/operations-m
 import {
   completionApprovalDocumentHtml,
   completionApprovalPrintCss,
-  formatApprovalTime
+  formatApprovalTime,
+  sortApprovalActivitiesByTime
 } from '../frontend/src/screens/shared/activity-completion-approval-print.js';
 
 function baseState(overrides = {}) {
@@ -504,12 +505,23 @@ test('completion approval print document uses compact printable structure', () =
     address: 'רחוב 1',
     contact: { name: 'דנה כהן', role: 'רכזת', phone: '050-0000000', email: 'dana@example.test' },
     activities: [{
-      name: 'סדנת רובוטיקה',
+      name: 'פעילות מאוחרת',
+      grade: 'ד',
+      start: '',
+      end: '',
+      participants_count: 25
+    }, {
+      name: 'פעילות שנייה',
+      grade: 'ד',
+      start: '09:00:00',
+      end: '09:45:00'
+    }, {
+      name: 'פעילות ראשונה',
       type: 'workshop',
       grade: 'ד',
       group: 'קבוצה א',
       start: '08:30:00',
-      end: '13:00:00',
+      end: '09:00:00',
       notes: 'הערה',
       participants_count: 25
     }]
@@ -532,7 +544,10 @@ test('completion approval print document uses compact printable structure', () =
   assert.match(html, /<th>מספר משתתפים<\/th>/);
   assert.match(html, /<td class="completion-approval-table__manual"><\/td>/);
   assert.match(html, />08:30<\/td>/);
-  assert.match(html, />13:00<\/td>/);
+  assert.match(html, />09:45<\/td>/);
+  assert.doesNotMatch(html, /09:45:00/);
+  assert.ok(html.indexOf('פעילות ראשונה') < html.indexOf('פעילות שנייה'));
+  assert.ok(html.indexOf('פעילות שנייה') < html.indexOf('פעילות מאוחרת'));
   assert.match(html, /שם מלא/);
   assert.match(html, /תפקיד/);
   assert.match(html, /חתימה/);
@@ -568,6 +583,25 @@ test('completion approval time formatter and table width are print scoped', () =
   assert.match(completionApprovalPrintCss, /\.approval-sign-line\{display:inline-block;width:220px;border-bottom:1px solid #111827/);
   assert.match(completionApprovalPrintCss, /\.completion-approval-signature p\{margin:16px 0\}/);
   assert.match(completionApprovalPrintCss, /\.completion-approval-footer\{[^}]*font-size:10px;[^}]*color:#64748b/);
+});
+
+test('completion approval activities sort by start time, end time and name', () => {
+  const sorted = sortApprovalActivitiesByTime([
+    { name: 'ללא שעה', start: '', end: '' },
+    { name: 'ב פעילות', start: '09:00:00', end: '09:45:00' },
+    { name: 'א פעילות', start: '09:00:00', end: '09:45:00' },
+    { name: 'מוקדמת', start: '08:15:00', end: '09:00:00' },
+    { name: 'קצרה', start: '09:00:00', end: '09:30:00' },
+    { name: 'מתוך טווח', time: '10:15:00-11:00:00' }
+  ]);
+  assert.deepEqual(sorted.map((activity) => activity.name), [
+    'מוקדמת',
+    'קצרה',
+    'א פעילות',
+    'ב פעילות',
+    'מתוך טווח',
+    'ללא שעה'
+  ]);
 });
 
 test('operations management render shows text-school activities without school_id', () => {
