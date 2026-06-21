@@ -114,7 +114,9 @@ test('validateActivityInstructors accepts fully consistent instructor pairs', ()
 
 import {
   resolveInstructorSelectionByEmpId,
-  validateInstructorIdentityPayload
+  validateInstructorIdentityPayload,
+  getValidInstructorUsers,
+  validateInstructorBinding
 } from '../frontend/src/screens/shared/activity-options.js';
 
 test('add activity instructor selection uses selected emp_id canonical name', () => {
@@ -158,4 +160,38 @@ test('activity save guard allows activity without optional instructor', () => {
   }, roster);
   assert.equal(result.valid, true);
   assert.deepEqual(result.errors, []);
+});
+
+
+test('activity with emp_id missing from contacts_instructors is blocked', () => {
+  const result = validateInstructorBinding({ empId: '1525', instructorName: 'אסאלה ברהום' }, contacts);
+  assert.equal(result.valid, false);
+  assert.equal(result.error, 'instructor_not_in_contacts');
+});
+
+test('valid instructor picker options exclude list entries missing from contacts_instructors', () => {
+  const settings = {
+    dropdown_options: {
+      instructor_users: [
+        { name: 'אלכס זפקה', emp_id: '1600' },
+        { name: 'אסאלה ברהום', emp_id: '1525' },
+        { name: 'ללא עובד', emp_id: '' }
+      ],
+      contacts_instructor_users: contacts.map((c) => ({ name: c.full_name, emp_id: c.emp_id }))
+    }
+  };
+  const result = getValidInstructorUsers(settings);
+  assert.deepEqual(result.map((user) => user.emp_id), ['1600']);
+});
+
+test('contacts validation does not fallback by instructor name', () => {
+  const result = validateInstructorBinding({ empId: '1525', instructorName: 'אלכס זפקה' }, contacts);
+  assert.equal(result.valid, false);
+  assert.equal(result.error, 'instructor_not_in_contacts');
+});
+
+test('contacts validation does not auto-select another instructor by name', () => {
+  const result = validateInstructorBinding({ empId: '9999', instructorName: 'הילה הזן' }, contacts);
+  assert.equal(result.valid, false);
+  assert.equal(result.error, 'instructor_not_in_contacts');
 });

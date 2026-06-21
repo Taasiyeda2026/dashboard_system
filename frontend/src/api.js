@@ -1,7 +1,7 @@
 import { state, setSession, clearScreenDataCache } from './state.js';
 import { deletePersistedCacheByPrefixes } from './cache-persist.js';
 import { hebrewRole } from './screens/shared/ui-hebrew.js';
-import { cleanActivityManagerName, getRosterUsers, NO_ACTIVITY_MANAGER_LABEL, normalizeOneDayActivityType, resolveActivityInstructorName, syncInstructorEmpFields, buildContactsInstructorLookup, resolveCanonicalInstructorPair } from './screens/shared/activity-options.js';
+import { cleanActivityManagerName, getContactsInstructorUsers, getRosterUsers, NO_ACTIVITY_MANAGER_LABEL, normalizeOneDayActivityType, resolveActivityInstructorName, buildContactsInstructorLookup, resolveCanonicalInstructorPair, validateInstructorIdentityPayload } from './screens/shared/activity-options.js';
 import { EXCEPTION_TYPE_ORDER, normalizedExceptionTypes } from './screens/shared/exceptions-metrics.js';
 import { isSummerActivity, normalizeActivitySeason } from './screens/shared/summer-activity.js';
 import { supabase, supabaseConfig, waitForSupabaseAuthSession } from './supabase-client.js';
@@ -96,8 +96,8 @@ let settingsRowsCache = null;
 let settingsRowsPromise = null;
 let listsRowsCache = null;
 let listsRowsPromise = null;
-let instructorEmpIdsCache = null;
-let instructorEmpIdsPromise = null;
+let instructorContactsCache = null;
+let instructorContactsPromise = null;
 
 function clearBootstrapReadCaches() {
   settingsRowsCache = null;
@@ -106,20 +106,20 @@ function clearBootstrapReadCaches() {
   listsRowsPromise = null;
 }
 
-async function readInstructorEmpIdsFromSupabase() {
+async function readInstructorContactsRowsForBootstrap() {
   if (!supabase) return [];
-  if (instructorEmpIdsCache) return instructorEmpIdsCache;
-  if (instructorEmpIdsPromise) return instructorEmpIdsPromise;
-  instructorEmpIdsPromise = (async () => {
-    const { data, error } = await supabase.from('contacts_instructors').select('emp_id');
+  if (instructorContactsCache) return instructorContactsCache;
+  if (instructorContactsPromise) return instructorContactsPromise;
+  instructorContactsPromise = (async () => {
+    const { data, error } = await supabase.from('contacts_instructors').select('emp_id,full_name,name,active');
     if (error) {
-      console.warn('[supabase] contacts_instructors emp_id read failed:', error);
+      console.warn('[supabase] contacts_instructors read failed:', error);
       return [];
     }
-    instructorEmpIdsCache = Array.isArray(data) ? data : [];
-    return instructorEmpIdsCache;
-  })().finally(() => { instructorEmpIdsPromise = null; });
-  return instructorEmpIdsPromise;
+    instructorContactsCache = Array.isArray(data) ? data : [];
+    return instructorContactsCache;
+  })().finally(() => { instructorContactsPromise = null; });
+  return instructorContactsPromise;
 }
 /** Logs direct heavy reads for performance diagnostics. */
 const HEAVY_GUARDED_READ_ACTIONS = new Set([
@@ -1117,7 +1117,7 @@ async function readListsFromSupabase() {
  * activity-options.js and the add-activity form.
  * Handles many category name variants so the lists table can use any naming.
  */
-function buildClientSettingsFromLists(listsData, settingsRows = []) {
+function buildClientSettingsFromLists(listsData, settingsRows = [], instructorContactsRows = []) {
   const categories = Array.isArray(listsData?.categories) ? listsData.categories : [];
   const settingValue = (key) => {
     const row = (Array.isArray(settingsRows) ? settingsRows : []).find((item) => String(item?.key || '').trim() === key);
@@ -1160,6 +1160,10 @@ function buildClientSettingsFromLists(listsData, settingsRows = []) {
     name:   normalizeHumanName(i.label || i.value),
     emp_id: String(i._row?.emp_id || i._row?.employee_id || '').trim()
   }));
+  const contactsInstructorUsers = (Array.isArray(instructorContactsRows) ? instructorContactsRows : []).map((row) => ({
+    name: normalizeHumanName(row?.full_name || row?.name),
+    emp_id: String(row?.emp_id || '').trim()
+  })).filter((user) => user.name && user.emp_id);
 
   const activityNames = activityNameItems.map((i) => ({
     label:         i.label || i.value,
@@ -1232,6 +1236,7 @@ function buildClientSettingsFromLists(listsData, settingsRows = []) {
       instructor_name:          instructorUsers.map((u) => u.name),
       instructor_names:         instructorUsers.map((u) => u.name),
       instructor_users:         instructorUsers,
+      contacts_instructor_users: contactsInstructorUsers,
       activity_names:           activityNames,
       activity_season:          activitySeasonItems.map((item) => ({
         value: normalizeActivitySeason(item.value),
@@ -3411,29 +3416,43 @@ function sanitizeActivityPayloadForSupabase(payload = {}, { includeRowId = true 
   return sanitized;
 }
 
-const INSTRUCTOR_SYNC_KEYS = [
-  'instructor_name',
-  'instructor_name_2',
-  'emp_id',
-  'emp_id_2'
-];
-
-function rosterFromClientSettings() {
-  return getRosterUsers(state?.clientSettings || {});
+async function validateActivityInstructorBindingsOrThrow(payload = {}) {
+  const contactsRows = await readInstructorContactsRowsForBootstrap();
+  const contactsUsers = contactsRows
+    .map((row) => ({ emp_id: String(row?.emp_id || '').trim(), name: normalizeHumanName(row?.full_name || row?.name) }))
+    .filter((user) => user.emp_id && user.name);
+  const result = validateInstructorIdentityPayload(payload, contactsUsers);
+  if (!result.valid) {
+    const err = new Error('activity_instructor_not_in_contacts');
+    err.code = result.errors[0]?.code || 'activity_instructor_not_in_contacts';
+    err.field = result.errors[0]?.field || '';
+    throw err;
+  }
 }
 
 function applyInstructorEmpSync(source = {}, { strict = true } = {}) {
+  void strict;
   const payload = { ...(source || {}) };
-  const hasInstructorFields = INSTRUCTOR_SYNC_KEYS.some((key) => Object.prototype.hasOwnProperty.call(payload, key));
-  if (!hasInstructorFields) return payload;
-  const { changes, errors } = syncInstructorEmpFields(payload, rosterFromClientSettings(), { strict });
-  if (errors.length) {
-    const err = new Error(String(errors[0]?.code || 'instructor_sync_failed'));
-    err.code = errors[0]?.code || 'instructor_sync_failed';
-    err.field = errors[0]?.field || '';
-    throw err;
+  const pairs = [
+    { nameKey: 'instructor_name', empKey: 'emp_id' },
+    { nameKey: 'instructor_name_2', empKey: 'emp_id_2' }
+  ];
+  for (const { nameKey, empKey } of pairs) {
+    if (!Object.prototype.hasOwnProperty.call(payload, nameKey)) continue;
+    const nameValue = normalizeHumanName(payload[nameKey]);
+    const empId = String(payload[empKey] || '').trim();
+    if (!nameValue) {
+      payload[empKey] = null;
+      continue;
+    }
+    if (!empId) {
+      const err = new Error('instructor_missing_emp_id');
+      err.code = 'instructor_missing_emp_id';
+      err.field = nameKey;
+      throw err;
+    }
   }
-  return changes;
+  return payload;
 }
 
 async function saveActivitySchoolsForActivity(activityRow = {}, source = {}) {
@@ -3455,6 +3474,7 @@ async function saveActivitySchoolsForActivity(activityRow = {}, source = {}) {
 
 async function upsertActivityToSupabase(payload = {}) {
   const act = applyInstructorEmpSync(payload?.activity || payload || {});
+  await validateActivityInstructorBindingsOrThrow(act);
   const row = sanitizeActivityPayloadForSupabase(synchronizeStartDateAndFirstMeeting(sanitizeActivityPayload(act)), { includeRowId: true });
   const rawSchoolIds = Array.isArray(act.school_ids) ? act.school_ids.map((id) => String(id || '').trim()).filter(Boolean) : [];
   if (rawSchoolIds.length > 1 && !act.school_id) row.school_id = null;
@@ -3495,6 +3515,13 @@ async function updateActivityInSupabase(payload = {}) {
   const sourceSheet = String(payload?.source_sheet || 'activities').trim() || 'activities';
   if (!rowId) throw new Error('missing_row_id');
   const rawChanges = applyInstructorEmpSync({ ...(payload?.changes || {}) });
+  const { data: existingInstructorRow, error: existingInstructorError } = await supabase
+    .from('activities')
+    .select('instructor_name,instructor_name_2,emp_id,emp_id_2')
+    .eq('row_id', rowId)
+    .maybeSingle();
+  if (existingInstructorError) throw buildSupabaseMutationError('saveActivity', existingInstructorError, 'save_failed');
+  await validateActivityInstructorBindingsOrThrow({ ...(existingInstructorRow || {}), ...rawChanges });
   let existingForNormalization = null;
   const needsExisting = Object.keys(rawChanges).some((key) => ['activity_type', 'item_type', 'activity_family', 'activity_name', 'start_date', 'end_date', 'date_1', 'status'].includes(key) || /^date_\d+$/.test(key));
   if (needsExisting) {
@@ -4049,10 +4076,11 @@ async function readCatalogProgramsFromSupabase() {
 }
 export const api = {
   login: async (user_id, entry_code) => {
-    const [{ userRow: user, profileRow }, listsData, settingsRows] = await Promise.all([
+    const [{ userRow: user, profileRow }, listsData, settingsRows, instructorContactsRows] = await Promise.all([
       loginWithSupabaseAuth(user_id, entry_code),
       readListsFromSupabase().catch(() => null),
-      readSettingsRowsFromSupabase().catch(() => [])
+      readSettingsRowsFromSupabase().catch(() => []),
+      readInstructorContactsRowsForBootstrap().catch(() => [])
     ]);
     const token = makeSessionToken(user);
     const flat = flattenUserRow(user);
@@ -4083,19 +4111,20 @@ export const api = {
         manage_proposals_agreements: permissionFlagYes(flat.manage_proposals_agreements) || undefined
       },
       ...buildBootstrapFromUser(user, profileRow),
-      client_settings: buildClientSettingsFromLists(listsData, settingsRows)
+      client_settings: buildClientSettingsFromLists(listsData, settingsRows, instructorContactsRows)
     };
   },
   bootstrap: async () => {
     await waitForSupabaseAuthSession();
-    const [{ userRow: user, profileRow }, listsData, settingsRows] = await Promise.all([
+    const [{ userRow: user, profileRow }, listsData, settingsRows, instructorContactsRows] = await Promise.all([
       readCurrentUserBySession(),
       readListsFromSupabase().catch(() => null),
-      readSettingsRowsFromSupabase().catch(() => [])
+      readSettingsRowsFromSupabase().catch(() => []),
+      readInstructorContactsRowsForBootstrap().catch(() => [])
     ]);
     return {
       ...buildBootstrapFromUser(user, profileRow),
-      client_settings: buildClientSettingsFromLists(listsData, settingsRows)
+      client_settings: buildClientSettingsFromLists(listsData, settingsRows, instructorContactsRows)
     };
   },
   dashboard: (filters) => api.dashboardReadModel(filters || {}),
@@ -4791,7 +4820,15 @@ export const api = {
     const rowId = String(requestPayload?.source_row_id || source_row_id || '').trim();
     const sourceSheet = String(requestPayload?.source_sheet || source_sheet || 'activities').trim() || 'activities';
     const rawChanges = requestPayload?.changes || changes || {};
-    const reducedChanges = Object.entries(applyInstructorEmpSync(rawChanges)).reduce((acc, [key, value]) => {
+    const syncedChanges = applyInstructorEmpSync(rawChanges);
+    const { data: existingInstructorRow, error: existingInstructorError } = await supabase
+      .from('activities')
+      .select('instructor_name,instructor_name_2,emp_id,emp_id_2')
+      .eq('row_id', rowId)
+      .maybeSingle();
+    if (existingInstructorError) throw buildSupabaseMutationError('submitEditRequest', existingInstructorError, 'submit_edit_request_failed');
+    await validateActivityInstructorBindingsOrThrow({ ...(existingInstructorRow || {}), ...syncedChanges });
+    const reducedChanges = Object.entries(syncedChanges).reduce((acc, [key, value]) => {
       if (value === undefined || value === null) return acc;
       const normalizedValue = String(value).trim();
       acc[key] = normalizedValue;

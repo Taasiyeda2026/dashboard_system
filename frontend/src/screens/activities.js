@@ -26,6 +26,7 @@ import {
   getActivityCatalog,
   getActivityTypesByFamily,
   getRosterUsers,
+  getValidInstructorUsers,
   activityTypeDisplayLabel,
   activityTypeMatches,
   normalizeActivityTypeKey,
@@ -690,7 +691,7 @@ function instructorOptionsHtml(rosterUsers, selected = '', placeholder = '—') 
 function addActivityModalHtml(settings) {
   const allActivityNames = getActivityCatalog(settings);
   const allTypes = ADD_ACTIVITY_TYPE_ORDER.slice();
-  const rosterUsers = getRosterUsers(settings);
+  const rosterUsers = getValidInstructorUsers(settings);
   const managerRoleNames = getManagerUsers(settings);
   const fundingOptions = mergeOptions(settings, ['funding', 'fundings']);
   const gradeOptions = resolveGradeOptions(settings);
@@ -2486,7 +2487,7 @@ export const activitiesScreen = {
       const instructor1 = resolveInstructorSelectionByEmpId(selectedInstructorEmpId, roster);
       const instructor2 = resolveInstructorSelectionByEmpId(selectedInstructor2EmpId, roster);
       if (instructor1.error || instructor2.error) {
-        setAddActivityStatus(statusEl, INSTRUCTOR_IDENTITY_ERROR_MESSAGE, { isError: true });
+        setAddActivityStatus(statusEl, instructor1.error === 'instructor_not_in_contacts' || instructor2.error === 'instructor_not_in_contacts' ? 'לא ניתן לשמור: המדריך שנבחר לא קיים בטבלת המדריכים. יש לעדכן את רשימת המדריכים.' : INSTRUCTOR_IDENTITY_ERROR_MESSAGE, { isError: true });
         resetAddActivitySavingState(form, submitBtn);
         return;
       }
@@ -2636,7 +2637,7 @@ export const activitiesScreen = {
       }
       const instructorPayloadGuard = validateInstructorIdentityPayload(payload, roster);
       if (!instructorPayloadGuard.valid) {
-        setAddActivityStatus(statusEl, INSTRUCTOR_IDENTITY_ERROR_MESSAGE, { isError: true });
+        setAddActivityStatus(statusEl, 'לא ניתן לשמור: המדריך שנבחר לא קיים בטבלת המדריכים. יש לעדכן את רשימת המדריכים.', { isError: true });
         resetAddActivitySavingState(form, submitBtn);
         return;
       }

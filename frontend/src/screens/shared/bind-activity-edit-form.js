@@ -2,7 +2,7 @@ import { translateApiErrorForUser } from './ui-hebrew.js';
 import { showToast } from './toast.js';
 import { formatDateHe } from './format-date.js';
 import { escapeHtml } from './html.js';
-import { activityTypeMatches, getRosterUsers, humanDisplayText, INSTRUCTOR_IDENTITY_ERROR_MESSAGE, normalizeActivityTypeKey, normalizeOneDayActivityType, resolveInstructorSelectionByEmpId, validateInstructorIdentityPayload } from './activity-options.js';
+import { activityTypeMatches, getValidInstructorUsers, humanDisplayText, INSTRUCTOR_CONTACTS_MISSING_ERROR_MESSAGE, INSTRUCTOR_IDENTITY_ERROR_MESSAGE, normalizeActivityTypeKey, normalizeOneDayActivityType, resolveInstructorSelectionByEmpId, validateInstructorIdentityPayload } from './activity-options.js';
 import { state } from '../../state.js';
 
 function setEditMode(form, editing) {
@@ -369,7 +369,7 @@ export function bindActivityEditForm(contentRoot, {
       }
     }
 
-    const roster = getRosterUsers(state?.clientSettings || {});
+    const roster = getValidInstructorUsers(state?.clientSettings || {});
     const selectedInstructorEmpId = Object.prototype.hasOwnProperty.call(changes, 'emp_id')
       ? changes.emp_id
       : String(form.querySelector('[name="emp_id"]')?.value ?? initialValues.emp_id ?? '').trim();
@@ -379,8 +379,9 @@ export function bindActivityEditForm(contentRoot, {
     const instructor1 = resolveInstructorSelectionByEmpId(selectedInstructorEmpId, roster);
     const instructor2 = resolveInstructorSelectionByEmpId(selectedInstructor2EmpId, roster);
     if (instructor1.error || instructor2.error) {
-      setStatus(statusEl, 'is-error', INSTRUCTOR_IDENTITY_ERROR_MESSAGE);
-      showToast(INSTRUCTOR_IDENTITY_ERROR_MESSAGE, 'error', 2600);
+      const message = instructor1.error === 'instructor_not_in_contacts' || instructor2.error === 'instructor_not_in_contacts' ? INSTRUCTOR_CONTACTS_MISSING_ERROR_MESSAGE : INSTRUCTOR_IDENTITY_ERROR_MESSAGE;
+      setStatus(statusEl, 'is-error', message);
+      showToast(message, 'error', 2600);
       return;
     }
     if (Object.prototype.hasOwnProperty.call(changes, 'emp_id')) {
@@ -399,8 +400,8 @@ export function bindActivityEditForm(contentRoot, {
     };
     const instructorGuard = validateInstructorIdentityPayload(instructorGuardPayload, roster);
     if (!instructorGuard.valid) {
-      setStatus(statusEl, 'is-error', INSTRUCTOR_IDENTITY_ERROR_MESSAGE);
-      showToast(INSTRUCTOR_IDENTITY_ERROR_MESSAGE, 'error', 2600);
+      setStatus(statusEl, 'is-error', INSTRUCTOR_CONTACTS_MISSING_ERROR_MESSAGE);
+      showToast(INSTRUCTOR_CONTACTS_MISSING_ERROR_MESSAGE, 'error', 2600);
       return;
     }
 
