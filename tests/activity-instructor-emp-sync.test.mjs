@@ -111,3 +111,51 @@ test('validateActivityInstructors accepts fully consistent instructor pairs', ()
   assert.equal(result.valid, true);
   assert.deepEqual(result.errors, []);
 });
+
+import {
+  resolveInstructorSelectionByEmpId,
+  validateInstructorIdentityPayload
+} from '../frontend/src/screens/shared/activity-options.js';
+
+test('add activity instructor selection uses selected emp_id canonical name', () => {
+  const result = resolveInstructorSelectionByEmpId('1500', roster);
+  assert.equal(result.error, null);
+  assert.equal(result.emp_id, '1500');
+  assert.equal(result.name, 'הילה הזן');
+});
+
+test('add activity blocks duplicate instructor names with different emp_id values', () => {
+  const result = resolveInstructorSelectionByEmpId('2000', [
+    { name: 'שם זהה', emp_id: '2000' },
+    { name: 'שם זהה', emp_id: '2001' }
+  ]);
+  assert.equal(result.error, 'instructor_name_ambiguous');
+  assert.equal(result.emp_id, null);
+});
+
+test('add activity blocks instructor roster entries without emp_id', () => {
+  const result = resolveInstructorSelectionByEmpId('', [
+    { name: 'מדריך ללא עובד', emp_id: '' }
+  ], { optional: false });
+  assert.equal(result.error, 'instructor_missing_emp_id');
+});
+
+test('activity save guard rejects mismatched instructor_name and emp_id', () => {
+  const result = validateInstructorIdentityPayload({
+    instructor_name: 'אלכס זפקה',
+    emp_id: '1500'
+  }, roster);
+  assert.equal(result.valid, false);
+  assert.equal(result.errors[0].code, 'instructor_emp_mismatch');
+});
+
+test('activity save guard allows activity without optional instructor', () => {
+  const result = validateInstructorIdentityPayload({
+    instructor_name: '',
+    emp_id: '',
+    instructor_name_2: '',
+    emp_id_2: ''
+  }, roster);
+  assert.equal(result.valid, true);
+  assert.deepEqual(result.errors, []);
+});

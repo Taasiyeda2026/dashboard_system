@@ -2,7 +2,7 @@ import { translateApiErrorForUser } from './ui-hebrew.js';
 import { showToast } from './toast.js';
 import { formatDateHe } from './format-date.js';
 import { escapeHtml } from './html.js';
-import { activityTypeMatches, getRosterUsers, humanDisplayText, instructorSyncErrorMessage, normalizeActivityTypeKey, normalizeOneDayActivityType, syncInstructorEmpFields } from './activity-options.js';
+import { activityTypeMatches, getRosterUsers, humanDisplayText, INSTRUCTOR_IDENTITY_ERROR_MESSAGE, normalizeActivityTypeKey, normalizeOneDayActivityType, resolveInstructorSelectionByEmpId, validateInstructorIdentityPayload } from './activity-options.js';
 import { state } from '../../state.js';
 
 function setEditMode(form, editing) {
@@ -370,15 +370,39 @@ export function bindActivityEditForm(contentRoot, {
     }
 
     const roster = getRosterUsers(state?.clientSettings || {});
-    const instructorSync = syncInstructorEmpFields(changes, roster, { strict: true });
-    if (instructorSync.errors.length) {
-      const firstError = instructorSync.errors[0];
-      const message = instructorSyncErrorMessage(firstError);
-      setStatus(statusEl, 'is-error', message);
-      showToast(message, 'error', 2600);
+    const selectedInstructorEmpId = Object.prototype.hasOwnProperty.call(changes, 'emp_id')
+      ? changes.emp_id
+      : String(form.querySelector('[name="emp_id"]')?.value ?? initialValues.emp_id ?? '').trim();
+    const selectedInstructor2EmpId = Object.prototype.hasOwnProperty.call(changes, 'emp_id_2')
+      ? changes.emp_id_2
+      : String(form.querySelector('[name="emp_id_2"]')?.value ?? initialValues.emp_id_2 ?? '').trim();
+    const instructor1 = resolveInstructorSelectionByEmpId(selectedInstructorEmpId, roster);
+    const instructor2 = resolveInstructorSelectionByEmpId(selectedInstructor2EmpId, roster);
+    if (instructor1.error || instructor2.error) {
+      setStatus(statusEl, 'is-error', INSTRUCTOR_IDENTITY_ERROR_MESSAGE);
+      showToast(INSTRUCTOR_IDENTITY_ERROR_MESSAGE, 'error', 2600);
       return;
     }
-    Object.assign(changes, instructorSync.changes);
+    if (Object.prototype.hasOwnProperty.call(changes, 'emp_id')) {
+      changes.instructor_name = instructor1.name;
+      changes.emp_id = instructor1.emp_id;
+    }
+    if (Object.prototype.hasOwnProperty.call(changes, 'emp_id_2')) {
+      changes.instructor_name_2 = instructor2.name;
+      changes.emp_id_2 = instructor2.emp_id;
+    }
+    const instructorGuardPayload = {
+      instructor_name: Object.prototype.hasOwnProperty.call(changes, 'instructor_name') ? changes.instructor_name : initialValues.instructor_name,
+      emp_id: Object.prototype.hasOwnProperty.call(changes, 'emp_id') ? changes.emp_id : initialValues.emp_id,
+      instructor_name_2: Object.prototype.hasOwnProperty.call(changes, 'instructor_name_2') ? changes.instructor_name_2 : initialValues.instructor_name_2,
+      emp_id_2: Object.prototype.hasOwnProperty.call(changes, 'emp_id_2') ? changes.emp_id_2 : initialValues.emp_id_2
+    };
+    const instructorGuard = validateInstructorIdentityPayload(instructorGuardPayload, roster);
+    if (!instructorGuard.valid) {
+      setStatus(statusEl, 'is-error', INSTRUCTOR_IDENTITY_ERROR_MESSAGE);
+      showToast(INSTRUCTOR_IDENTITY_ERROR_MESSAGE, 'error', 2600);
+      return;
+    }
 
     try {
       if (!Object.keys(changes).length) {

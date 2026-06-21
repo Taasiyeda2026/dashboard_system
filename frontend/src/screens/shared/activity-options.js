@@ -247,10 +247,62 @@ export function getRosterUsers(settings) {
     .map((user) => ({ name: humanDisplayText(user?.name), emp_id: text(user?.emp_id) }))
     .filter((user) => user.name)
     .filter((user) => {
-      if (seen.has(user.name)) return false;
-      seen.add(user.name);
+      const key = `${user.emp_id}::${user.name}`;
+      if (seen.has(key)) return false;
+      seen.add(key);
       return true;
     });
+}
+
+export const INSTRUCTOR_IDENTITY_ERROR_MESSAGE = 'לא ניתן לשמור: שיוך המדריך אינו חד־משמעי. יש לבחור מדריך מתוך הרשימה.';
+
+function normalizeInstructorEmpId(value) {
+  return text(value);
+}
+
+export function findRosterInstructorByEmpId(empId, rosterUsers = []) {
+  const cleanEmpId = normalizeInstructorEmpId(empId);
+  if (!cleanEmpId) return null;
+  const matches = (Array.isArray(rosterUsers) ? rosterUsers : [])
+    .map((user) => ({ name: humanDisplayText(user?.name), emp_id: normalizeInstructorEmpId(user?.emp_id) }))
+    .filter((user) => user.emp_id === cleanEmpId && user.name);
+  if (matches.length !== 1) return null;
+  return matches[0];
+}
+
+export function resolveInstructorSelectionByEmpId(empId, rosterUsers = [], { optional = true } = {}) {
+  const cleanEmpId = normalizeInstructorEmpId(empId);
+  if (!cleanEmpId) {
+    return optional
+      ? { emp_id: null, name: '', error: null }
+      : { emp_id: null, name: '', error: 'instructor_missing_emp_id' };
+  }
+  const match = findRosterInstructorByEmpId(cleanEmpId, rosterUsers);
+  if (!match) return { emp_id: null, name: '', error: 'instructor_emp_id_not_in_roster' };
+  const sameNameEmpIds = new Set((Array.isArray(rosterUsers) ? rosterUsers : [])
+    .map((user) => ({ name: humanDisplayText(user?.name), emp_id: normalizeInstructorEmpId(user?.emp_id) }))
+    .filter((user) => user.name === match.name && user.emp_id)
+    .map((user) => user.emp_id));
+  if (sameNameEmpIds.size > 1) return { emp_id: null, name: '', error: 'instructor_name_ambiguous' };
+  return { emp_id: match.emp_id, name: match.name, error: null };
+}
+
+export function validateInstructorIdentityPayload(payload = {}, rosterUsers = []) {
+  const errors = [];
+  for (const { nameKey, empKey } of INSTRUCTOR_FIELD_PAIRS) {
+    const nameValue = humanDisplayText(payload?.[nameKey]);
+    const empId = normalizeInstructorEmpId(payload?.[empKey]);
+    if (nameValue && !empId) {
+      errors.push({ field: nameKey, code: 'instructor_missing_emp_id' });
+      continue;
+    }
+    if (!empId) continue;
+    const match = findRosterInstructorByEmpId(empId, rosterUsers);
+    if (!match || (nameValue && match.name !== nameValue)) {
+      errors.push({ field: nameKey, code: 'instructor_emp_mismatch' });
+    }
+  }
+  return { valid: !errors.length, errors };
 }
 
 function normalizeInstructorLookupName(value) {
@@ -292,7 +344,8 @@ export function instructorSyncErrorMessage(error = {}) {
     instructor_name_ambiguous: 'לא ניתן לשייך מדריך — יש יותר ממדריך אחד עם שם זה',
     instructor_name_not_in_roster: 'יש לבחור מדריך מתוך הרשימה',
     instructor_missing_emp_id: 'למדריך שנבחר אין מספר עובד — פנה למנהל המערכת',
-    instructor_emp_mismatch: 'שם המדריך ומספר העובד אינם תואמים'
+    instructor_emp_mismatch: 'שם המדריך ומספר העובד אינם תואמים',
+    instructor_emp_id_not_in_roster: INSTRUCTOR_IDENTITY_ERROR_MESSAGE
   };
   return messages[error.code] || 'שגיאה בשיוך המדריך';
 }

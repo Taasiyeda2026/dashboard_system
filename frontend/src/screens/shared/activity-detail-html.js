@@ -1,6 +1,6 @@
 import { escapeHtml } from './html.js';
 import { formatDateHe, formatDateHeWithWeekday, formatTimeShort, formatTimeRangeShort, formatActivityDateColumnsHe } from './format-date.js';
-import { activityManagerDisplayName, activityTypeDisplayLabel, activityTypeMatches, cleanActivityManagerName, getManagerUsers, humanDisplayText, NO_ACTIVITY_MANAGER_LABEL, normalizeActivityTypeKey, normalizeOneDayActivityType, resolveActivityInstructorName, resolveGradeOptions } from './activity-options.js';
+import { activityManagerDisplayName, activityTypeDisplayLabel, activityTypeMatches, cleanActivityManagerName, getManagerUsers, getRosterUsers, humanDisplayText, NO_ACTIVITY_MANAGER_LABEL, normalizeActivityTypeKey, normalizeOneDayActivityType, resolveActivityInstructorName, resolveGradeOptions } from './activity-options.js';
 import { ACTIVITY_SEASON_OPTIONS, activitySeasonLabel, normalizeActivitySeason } from './summer-activity.js';
 
 const ONCE_TYPES = ['workshop', 'tour', 'escape_room'];
@@ -139,6 +139,23 @@ function normalizeActivityNameOptions(raw) {
     }
   });
   return out;
+}
+
+function instructorSelectHtml({ name, value, rosterUsers, klass = 'ds-input', placeholder = '—', attrs = '' }) {
+  const safeValue = String(value || '').trim();
+  const seen = new Set();
+  const opts = [`<option value="">${escapeHtml(placeholder)}</option>`]
+    .concat((Array.isArray(rosterUsers) ? rosterUsers : [])
+      .map((u) => ({ name: humanDisplayText(u?.name), emp_id: String(u?.emp_id || '').trim() }))
+      .filter((u) => u.name && u.emp_id)
+      .filter((u) => {
+        if (seen.has(u.emp_id)) return false;
+        seen.add(u.emp_id);
+        return true;
+      })
+      .map((u) => `<option value="${escapeHtml(u.emp_id)}"${u.emp_id === safeValue ? ' selected' : ''}>${escapeHtml(u.name)}</option>`))
+    .join('');
+  return `<select class="${escapeHtml(klass)}" name="${escapeHtml(name)}" ${attrs}>${opts}</select>`;
 }
 
 function selectHtml({ name, value, options, klass = 'ds-input', placeholder = '—', attrs = '' }) {
@@ -458,18 +475,22 @@ function blockAssignment(row, { settings = {} } = {}) {
 function blockTeamTimes(row, { settings = {} } = {}) {
   const options = settings?.dropdown_options || {};
   const managers = getManagerUsers(settings || {});
-  const instructors = mergeListStrings(options, ['instructor_name', 'instructor_names']);
+  const rosterUsers = getRosterUsers(settings || {});
   const instructorLookup = buildInstructorLookup(settings);
   const instructor1Display = resolveActivityInstructorName(row) || resolveInstructorDisplayName(row.instructor_name, row.emp_id, instructorLookup);
   const instructor2Display = resolveActivityInstructorName(row, { secondary: true }) || resolveInstructorDisplayName(row.instructor_name_2, row.emp_id_2, instructorLookup);
+  const instructor1EmpId = String(row.emp_id || '').trim();
+  const instructor2EmpId = String(row.emp_id_2 || '').trim();
   const activityType = normalizeActivityTypeKey(row.activity_type || row.item_type);
   const twoInstructors = activityType === 'workshop' || activityType === 'escape_room';
   const instructorEditHtml = twoInstructors
     ? `<div class="activity-drawer__field-controls activity-drawer__field-controls--stacked">
-        ${selectHtml({ name: 'instructor_name', value: instructor1Display, options: instructors })}
-        ${selectHtml({ name: 'instructor_name_2', value: instructor2Display, options: instructors })}
+        <input type="hidden" name="instructor_name" value="${escapeHtml(instructor1Display)}">
+        <input type="hidden" name="instructor_name_2" value="${escapeHtml(instructor2Display)}">
+        ${instructorSelectHtml({ name: 'emp_id', value: instructor1EmpId, rosterUsers })}
+        ${instructorSelectHtml({ name: 'emp_id_2', value: instructor2EmpId, rosterUsers })}
       </div>`
-    : selectHtml({ name: 'instructor_name', value: instructor1Display, options: instructors });
+    : `<input type="hidden" name="instructor_name" value="${escapeHtml(instructor1Display)}">${instructorSelectHtml({ name: 'emp_id', value: instructor1EmpId, rosterUsers })}`;
 
   return `
     <section class="activity-drawer__section activity-drawer__section--edit-group" data-mode="edit" hidden>

@@ -46,5 +46,5 @@ if (!resolvedUrl) {
 export const config = {
   apiUrl: resolvedUrl,
   DIAGNOSTICS_UI_ENABLED: false,
-  HOTFIX_VERSION: 'fix-proposals-contacts-auth-session-20260621-v1'
+  HOTFIX_VERSION: 'fix-activity-add-instructor-identity-binding-20260621-v1'
 };
