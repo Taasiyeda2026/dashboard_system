@@ -7,14 +7,16 @@
 --   edit_requests            — edit-request workflow records
 --   operations_private_notes — private notes per activity row
 --
--- UNIQUE constraints added (idempotent DO blocks):
---   data_long(RowID)
---   data_short(RowID)
+-- UNIQUE constraints added safely:
+--   data_long(RowID)                      — only if table exists
+--   data_short(RowID)                     — only if table exists
 --   activity_meetings(source_row_id, meeting_no)
 --   edit_requests(request_id)
 --   operations_private_notes(source_sheet, source_row_id)
 --
--- Run in Supabase SQL Editor (admin / service-role).
+-- Safe for Supabase Preview:
+--   If legacy tables data_long / data_short do not exist, their UNIQUE blocks are skipped.
+--
 -- All blocks are idempotent — safe to re-run.
 -- ============================================================
 
@@ -38,20 +40,27 @@ BEGIN
     SELECT 1 FROM pg_index i
     JOIN pg_class t ON t.oid = i.indrelid
     JOIN pg_namespace n ON n.oid = t.relnamespace
-    WHERE n.nspname = 'public' AND t.relname = 'activity_meetings' AND i.indisunique
+    WHERE n.nspname = 'public'
+      AND t.relname = 'activity_meetings'
+      AND i.indisunique
       AND array_length(i.indkey, 1) = 2
       AND EXISTS (
         SELECT 1 FROM pg_attribute a
-        WHERE a.attrelid = t.oid AND a.attnum = ANY(i.indkey) AND a.attname = 'source_row_id'
+        WHERE a.attrelid = t.oid
+          AND a.attnum = ANY(i.indkey)
+          AND a.attname = 'source_row_id'
       )
       AND EXISTS (
         SELECT 1 FROM pg_attribute a
-        WHERE a.attrelid = t.oid AND a.attnum = ANY(i.indkey) AND a.attname = 'meeting_no'
+        WHERE a.attrelid = t.oid
+          AND a.attnum = ANY(i.indkey)
+          AND a.attname = 'meeting_no'
       )
   ) THEN
     ALTER TABLE public.activity_meetings
       ADD CONSTRAINT activity_meetings_source_row_id_meeting_no_key
         UNIQUE (source_row_id, meeting_no);
+
     RAISE NOTICE 'Created UNIQUE(source_row_id, meeting_no) on activity_meetings';
   ELSE
     RAISE NOTICE 'UNIQUE(source_row_id, meeting_no) on activity_meetings already exists — skipped';
@@ -93,12 +102,15 @@ BEGIN
     JOIN pg_class t ON t.oid = i.indrelid
     JOIN pg_namespace n ON n.oid = t.relnamespace
     JOIN pg_attribute a ON a.attrelid = t.oid AND a.attnum = ANY(i.indkey)
-    WHERE n.nspname = 'public' AND t.relname = 'edit_requests'
-      AND i.indisunique AND array_length(i.indkey, 1) = 1
+    WHERE n.nspname = 'public'
+      AND t.relname = 'edit_requests'
+      AND i.indisunique
+      AND array_length(i.indkey, 1) = 1
       AND a.attname = 'request_id'
   ) THEN
     ALTER TABLE public.edit_requests
       ADD CONSTRAINT edit_requests_request_id_key UNIQUE (request_id);
+
     RAISE NOTICE 'Created UNIQUE(request_id) on edit_requests';
   ELSE
     RAISE NOTICE 'UNIQUE(request_id) on edit_requests already exists — skipped';
@@ -126,20 +138,27 @@ BEGIN
     SELECT 1 FROM pg_index i
     JOIN pg_class t ON t.oid = i.indrelid
     JOIN pg_namespace n ON n.oid = t.relnamespace
-    WHERE n.nspname = 'public' AND t.relname = 'operations_private_notes' AND i.indisunique
+    WHERE n.nspname = 'public'
+      AND t.relname = 'operations_private_notes'
+      AND i.indisunique
       AND array_length(i.indkey, 1) = 2
       AND EXISTS (
         SELECT 1 FROM pg_attribute a
-        WHERE a.attrelid = t.oid AND a.attnum = ANY(i.indkey) AND a.attname = 'source_sheet'
+        WHERE a.attrelid = t.oid
+          AND a.attnum = ANY(i.indkey)
+          AND a.attname = 'source_sheet'
       )
       AND EXISTS (
         SELECT 1 FROM pg_attribute a
-        WHERE a.attrelid = t.oid AND a.attnum = ANY(i.indkey) AND a.attname = 'source_row_id'
+        WHERE a.attrelid = t.oid
+          AND a.attnum = ANY(i.indkey)
+          AND a.attname = 'source_row_id'
       )
   ) THEN
     ALTER TABLE public.operations_private_notes
       ADD CONSTRAINT operations_private_notes_source_sheet_source_row_id_key
         UNIQUE (source_sheet, source_row_id);
+
     RAISE NOTICE 'Created UNIQUE(source_sheet, source_row_id) on operations_private_notes';
   ELSE
     RAISE NOTICE 'UNIQUE(source_sheet, source_row_id) on operations_private_notes already exists — skipped';
@@ -149,29 +168,25 @@ END $$;
 
 -- ────────────────────────────────────────────────────────────
 -- 4. UNIQUE(RowID) on data_long
+-- Legacy table. Skip safely if the table does not exist.
 -- ────────────────────────────────────────────────────────────
--- Step 0 — preflight: detect duplicates
--- SELECT "RowID", COUNT(*) AS cnt FROM public.data_long
--- GROUP BY "RowID" HAVING COUNT(*) > 1 ORDER BY cnt DESC;
---
--- Cleanup if duplicates found (keep highest id):
--- DELETE FROM public.data_long WHERE id NOT IN (
---   SELECT MAX(id) FROM public.data_long GROUP BY "RowID"
--- );
-
 DO $$
 BEGIN
-  IF NOT EXISTS (
+  IF to_regclass('public.data_long') IS NULL THEN
+    RAISE NOTICE 'Table public.data_long does not exist — skipped UNIQUE(RowID)';
+  ELSIF NOT EXISTS (
     SELECT 1 FROM pg_index i
     JOIN pg_class t ON t.oid = i.indrelid
     JOIN pg_namespace n ON n.oid = t.relnamespace
     JOIN pg_attribute a ON a.attrelid = t.oid AND a.attnum = ANY(i.indkey)
-    WHERE n.nspname = 'public' AND t.relname = 'data_long'
-      AND i.indisunique AND array_length(i.indkey, 1) = 1
+    WHERE n.nspname = 'public'
+      AND t.relname = 'data_long'
+      AND i.indisunique
+      AND array_length(i.indkey, 1) = 1
       AND a.attname = 'RowID'
   ) THEN
-    ALTER TABLE public.data_long
-      ADD CONSTRAINT data_long_RowID_key UNIQUE ("RowID");
+    EXECUTE 'ALTER TABLE public.data_long ADD CONSTRAINT data_long_rowid_key UNIQUE ("RowID")';
+
     RAISE NOTICE 'Created UNIQUE(RowID) on data_long';
   ELSE
     RAISE NOTICE 'UNIQUE(RowID) on data_long already exists — skipped';
@@ -181,29 +196,25 @@ END $$;
 
 -- ────────────────────────────────────────────────────────────
 -- 5. UNIQUE(RowID) on data_short
+-- Legacy table. Skip safely if the table does not exist.
 -- ────────────────────────────────────────────────────────────
--- Step 0 — preflight: detect duplicates
--- SELECT "RowID", COUNT(*) AS cnt FROM public.data_short
--- GROUP BY "RowID" HAVING COUNT(*) > 1 ORDER BY cnt DESC;
---
--- Cleanup if duplicates found (keep highest id):
--- DELETE FROM public.data_short WHERE id NOT IN (
---   SELECT MAX(id) FROM public.data_short GROUP BY "RowID"
--- );
-
 DO $$
 BEGIN
-  IF NOT EXISTS (
+  IF to_regclass('public.data_short') IS NULL THEN
+    RAISE NOTICE 'Table public.data_short does not exist — skipped UNIQUE(RowID)';
+  ELSIF NOT EXISTS (
     SELECT 1 FROM pg_index i
     JOIN pg_class t ON t.oid = i.indrelid
     JOIN pg_namespace n ON n.oid = t.relnamespace
     JOIN pg_attribute a ON a.attrelid = t.oid AND a.attnum = ANY(i.indkey)
-    WHERE n.nspname = 'public' AND t.relname = 'data_short'
-      AND i.indisunique AND array_length(i.indkey, 1) = 1
+    WHERE n.nspname = 'public'
+      AND t.relname = 'data_short'
+      AND i.indisunique
+      AND array_length(i.indkey, 1) = 1
       AND a.attname = 'RowID'
   ) THEN
-    ALTER TABLE public.data_short
-      ADD CONSTRAINT data_short_RowID_key UNIQUE ("RowID");
+    EXECUTE 'ALTER TABLE public.data_short ADD CONSTRAINT data_short_rowid_key UNIQUE ("RowID")';
+
     RAISE NOTICE 'Created UNIQUE(RowID) on data_short';
   ELSE
     RAISE NOTICE 'UNIQUE(RowID) on data_short already exists — skipped';
