@@ -2943,6 +2943,7 @@ async function readProposalsAgreementsFromSupabase() {
 }
 
 const USER_PUBLIC_COLUMNS = 'user_id,email,name,role,emp_id,is_active,permissions';
+const USER_PUBLIC_COLUMNS_EXTENDED = `${USER_PUBLIC_COLUMNS},can_review_requests,view_proposals_agreements,manage_proposals_agreements,approve_proposals_agreements`;
 const PROFILE_PERSONAL_REPORTS_COLUMNS = 'id,is_active,can_access_personal_reports';
 const VALID_SUPABASE_ROLES = new Set(['admin', 'operation_manager', 'authorized_user', 'instructor', 'finance', 'activities_manager', 'domain_manager', 'instructor_manager', 'business_development_manager']);
 
@@ -3122,6 +3123,17 @@ function flattenUserRow(userRow = {}) {
   return flat;
 }
 
+function proposalPermissionFlagsFromFlatUser(flat = {}) {
+  const view = permissionFlagYes(flat.view_proposals_agreements) || permissionFlagYes(flat.manage_proposals_agreements);
+  const manage = permissionFlagYes(flat.manage_proposals_agreements);
+  const approve = permissionFlagYes(flat.approve_proposals_agreements);
+  return {
+    view_proposals_agreements: view ? 'yes' : undefined,
+    manage_proposals_agreements: manage ? 'yes' : undefined,
+    approve_proposals_agreements: approve ? 'yes' : undefined
+  };
+}
+
 function buildBootstrapFromUser(userRow, profileRow = null) {
   const flat = flattenUserRow(userRow);
   const role = normalizeSupabaseRole(flat.role);
@@ -3176,6 +3188,7 @@ function buildBootstrapFromUser(userRow, profileRow = null) {
     has_personal_reports_access: hasPersonalReportsAccess,
     has_personal_reports_manager: hasPersonalReportsManager,
     profile_is_active: profileRow?.is_active !== false,
+    ...proposalPermissionFlagsFromFlatUser(flat),
     profile: {
       full_name: flat.full_name,
       display_role2: flat.display_role2 || '',
@@ -3257,7 +3270,8 @@ async function loginWithSupabaseAuth(user_id, entry_code) {
 
   const { userRow, matchedBy } = await resolveActiveUserRowAfterAuth({
     supabase,
-    columns: USER_PUBLIC_COLUMNS,
+    baseColumns: USER_PUBLIC_COLUMNS,
+    extendedColumns: USER_PUBLIC_COLUMNS_EXTENDED,
     authEmail,
     username,
     authUserId
@@ -3304,7 +3318,8 @@ async function readCurrentUserBySession() {
   const username = String(state?.user?.user_id || state?.user?.username || '').trim().toLowerCase();
   const { userRow } = await resolveActiveUserRowAfterAuth({
     supabase,
-    columns: USER_PUBLIC_COLUMNS,
+    baseColumns: USER_PUBLIC_COLUMNS,
+    extendedColumns: USER_PUBLIC_COLUMNS_EXTENDED,
     authEmail,
     username,
     authUserId
@@ -4288,6 +4303,7 @@ export const api = {
     const token = makeSessionToken(user);
     const flat = flattenUserRow(user);
     const hasPersonalReportsAccess = profileCanAccessPersonalReports(profileRow);
+    const proposalFlags = proposalPermissionFlagsFromFlatUser(flat);
     return {
       token,
       user: {
@@ -4310,8 +4326,7 @@ export const api = {
         profile_is_active: profileRow?.is_active !== false,
         can_access_personal_reports: hasPersonalReportsAccess,
         personal_reports_manager: permissionFlagYes(flat.personal_reports_manager) ? 'yes' : 'no',
-        view_proposals_agreements: permissionFlagYes(flat.view_proposals_agreements) || permissionFlagYes(flat.manage_proposals_agreements) || undefined,
-        manage_proposals_agreements: permissionFlagYes(flat.manage_proposals_agreements) || undefined
+        ...proposalFlags
       },
       ...buildBootstrapFromUser(user, profileRow),
       client_settings: buildClientSettingsFromLists(listsData, settingsRows, instructorContactsRows)
@@ -5423,5 +5438,13 @@ export {
   sanitizeActivityPayload,
   sanitizeActivityPayloadForSupabase,
   normalizeOneDayActivityForSave,
-  canonicalOneDayActivityType
+  canonicalOneDayActivityType,
+  flattenUserRow,
+  buildBootstrapFromUser,
+  proposalPermissionFlagsFromFlatUser,
+  canUseProposalsAgreementsApi,
+  canManageProposalsAgreementsApi,
+  canApproveProposalsAgreementsApi,
+  USER_PUBLIC_COLUMNS,
+  USER_PUBLIC_COLUMNS_EXTENDED
 };

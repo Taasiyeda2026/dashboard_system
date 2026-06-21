@@ -119,6 +119,15 @@ test('USER_PUBLIC_COLUMNS selects granted users table fields only', async () => 
     'is_active',
     'permissions'
   ]);
+  assert.match(source, /USER_PUBLIC_COLUMNS_EXTENDED = `\$\{USER_PUBLIC_COLUMNS\},can_review_requests,view_proposals_agreements,manage_proposals_agreements,approve_proposals_agreements`/);
+});
+
+test('auth user resolver supports extended column fallback after auth', async () => {
+  const source = await readFile(RESOLVE_FILE, 'utf8');
+  assert.match(source, /AUTH_USER_PUBLIC_COLUMNS_EXTENDED/);
+  assert.match(source, /missingColumnError/);
+  assert.match(source, /schema cache/);
+  assert.match(source, /resolveActiveUserRowWithColumns/);
 });
 
 test('auth user resolver tries email before user_id and emp_id', async () => {

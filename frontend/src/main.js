@@ -970,7 +970,8 @@ function enforceProposalsAgreementsRoute() {
   if ((state.effectiveRoutes || []).includes('proposals-agreements')) return;
   const role = String(state.user.role || '').trim();
   const hasRole = PROPOSALS_AGREEMENTS_NAV_ROLES.has(role);
-  const hasFlag = state.user.view_proposals_agreements === true || state.user.manage_proposals_agreements === true;
+  const hasFlag = permissionEnabled(state.user.view_proposals_agreements)
+    || permissionEnabled(state.user.manage_proposals_agreements);
   if (hasRole || hasFlag) {
     state.effectiveRoutes = [...(state.effectiveRoutes || []), 'proposals-agreements'];
     state.routes = state.effectiveRoutes;
@@ -1661,6 +1662,15 @@ function applyBootstrapUserFlags(bootstrap) {
   state.user.profile_is_active = bootstrap.profile_is_active !== false;
   state.user.can_access_personal_reports = !!bootstrap.has_personal_reports_access;
   state.user.personal_reports_manager = !!bootstrap.has_personal_reports_manager;
+  if (bootstrap.view_proposals_agreements != null) {
+    state.user.view_proposals_agreements = bootstrap.view_proposals_agreements;
+  }
+  if (bootstrap.manage_proposals_agreements != null) {
+    state.user.manage_proposals_agreements = bootstrap.manage_proposals_agreements;
+  }
+  if (bootstrap.approve_proposals_agreements != null) {
+    state.user.approve_proposals_agreements = bootstrap.approve_proposals_agreements;
+  }
   if (hasActivitiesRouteAccess() && !state.effectiveRoutes.includes('activities')) {
     state.effectiveRoutes = [...state.effectiveRoutes, 'activities'];
     state.routes = state.effectiveRoutes;
