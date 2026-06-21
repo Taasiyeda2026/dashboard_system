@@ -2898,3 +2898,68 @@ test('rollback: login session flags restore stable view/manage mapping without a
   assert.match(apiSource, /resolveActiveUserRowAfterAuth\(/, 'auth login resolver must remain intact');
   assert.match(apiSource, /signInWithPassword\(/, 'Supabase Auth login must remain intact');
 });
+
+const {
+  setProposalGroupLookups,
+  resolveProposalTemplateKey,
+  filterTemplateSectionsForGroup,
+  documentSectionsEditorHtml,
+  itemsSummaryHtml
+} = await import('../frontend/src/screens/proposals-agreements.js');
+const {
+  buildProposalGroupHintsFromTemplateSections,
+  mergeProposalGroupLookups,
+  buildProposalGroupLookup
+} = await import('../frontend/src/api.js');
+
+const SAMPLE_TEMPLATE_SECTIONS = [
+  { template_key: 'summer', template_name: 'הצעת מחיר לפעילויות תעשיידע | קיץ תשפ״ו', activity_type_group: 'קיץ תשפ״ו', section_key: 'intro', section_title: 'פתיח', section_body: 'פתיח להצעה' },
+  { template_key: 'summer', template_name: 'הצעת מחיר לפעילויות תעשיידע | קיץ תשפ״ו', activity_type_group: 'קיץ תשפ״ו', section_key: 'payment_terms', section_title: 'תנאי תשלום', section_body: 'תנאי תשלום' }
+];
+
+test('template sections loader merges activity_type_group hints when groups are empty', () => {
+  const hints = buildProposalGroupHintsFromTemplateSections(SAMPLE_TEMPLATE_SECTIONS);
+  const merged = mergeProposalGroupLookups(buildProposalGroupLookup([], []), hints);
+  assert.equal(merged.aliasToKey.get('קיץ תשפ״ו'), 'summer');
+  assert.equal(merged.groupByKey.get('summer')?.template_key, 'summer');
+});
+
+test('alias activity type resolves to correct template_key from template sections', () => {
+  setProposalGroupLookups({ proposalTemplateSections: SAMPLE_TEMPLATE_SECTIONS }, [], []);
+  assert.equal(resolveProposalTemplateKey('קיץ תשפ״ו'), 'summer');
+  assert.equal(resolveProposalTemplateKey('summer'), 'summer');
+});
+
+test('document editor does not show missing-template alert when sections exist for alias activity type', () => {
+  setProposalGroupLookups({ proposalTemplateSections: SAMPLE_TEMPLATE_SECTIONS }, [], []);
+  const sections = filterTemplateSectionsForGroup(SAMPLE_TEMPLATE_SECTIONS, 'קיץ תשפ״ו');
+  const html = documentSectionsEditorHtml(sections, false);
+  assert.doesNotMatch(html, /לא נמצאה תבנית פעילה לסוג הצעה זה/);
+  assert.match(html, /פתיח להצעה/);
+  assert.match(html, /תנאי תשלום/);
+});
+
+test('items summary does not show missing-rows alert when active items exist', () => {
+  const html = itemsSummaryHtml([
+    { item_name: 'רובוטיקה', item_type: 'סדנה', quantity: 1, unit_price: 1200, total_price: 1200, proposal_group: 'summer' }
+  ]);
+  assert.doesNotMatch(html, /לא נשמרו שורות פעילות להצעה זו/);
+  assert.match(html, /רובוטיקה/);
+});
+
+test('readProposalsAgreementsFromSupabase waits for auth session and records loader debug', async () => {
+  const apiSource = await readFile(API_FILE, 'utf8');
+  assert.match(apiSource, /async function readProposalsAgreementsFromSupabase\(\) \{[\s\S]*await waitForSupabaseAuthSession\(\)/);
+  assert.match(apiSource, /proposal_loader: \{ \.\.\.lastProposalLoaderDebug \}/);
+  assert.match(apiSource, /mergeProposalGroupLookups\([\s\S]*buildProposalGroupHintsFromTemplateSections\(proposalTemplateSections\)/);
+});
+
+test('saveProposalAgreementItems keeps valid priced item rows in payload', async () => {
+  const apiSource = await readFile(API_FILE, 'utf8');
+  const saveBlock = apiSource.match(/saveProposalAgreementItems: async \(proposalId, items\) => \{[\s\S]*?\n  \},/);
+  assert.ok(saveBlock, 'saveProposalAgreementItems should exist');
+  assert.match(saveBlock[0], /filter\(\(i\) => cleanProposalAgreementText\(i\.item_name\) && !isProposalTestHoursItem\(i\)\)/);
+  assert.match(saveBlock[0], /item_name:/);
+  assert.match(saveBlock[0], /unit_price:/);
+  assert.match(saveBlock[0], /total_price:/);
+});
