@@ -68,7 +68,7 @@ async function main() {
       continue;
     }
 
-    const email = String(user.auth_email || '').trim() || `${userId}@taasiyeda.local`;
+    const email = String(user.auth_email || '').trim() || `${userId}@think.org.il`.toLowerCase();
     const password = String(user.entry_code || '').trim();
 
     if (!password) {

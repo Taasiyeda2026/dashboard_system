@@ -1,4 +1,4 @@
--- This migration was previously applied remotely in Supabase.
--- Added to align the local repository migration history with Supabase remote migration history.
--- No-op: this file intentionally does not change the database.
-
+-- No-op migration placeholder.
+-- This version exists in the remote Supabase migration history.
+-- Keep this file so local migration history matches the remote project.
+SELECT 1;

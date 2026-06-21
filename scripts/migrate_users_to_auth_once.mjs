@@ -15,7 +15,7 @@ function asText(value) {
 }
 
 function buildAuthEmail(userId) {
-  return `${asText(userId)}@taasiyeda.local`.toLowerCase();
+  return `${asText(userId)}@think.org.il`.toLowerCase();
 }
 
 async function listAllAuthUsers(supabase) {

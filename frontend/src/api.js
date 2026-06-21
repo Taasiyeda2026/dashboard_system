@@ -2941,7 +2941,7 @@ async function readProposalsAgreementsFromSupabase() {
   };
 }
 
-const USER_PUBLIC_COLUMNS = 'user_id,username,email,name,role,display_role,is_active,permissions,auth_user_id,can_review_requests,view_proposals_agreements,manage_proposals_agreements,approve_proposals_agreements';
+const USER_PUBLIC_COLUMNS = 'user_id,username,email,name,role,display_role,is_active,permissions,auth_user_id';
 const PROFILE_PERSONAL_REPORTS_COLUMNS = 'id,is_active,can_access_personal_reports';
 const VALID_SUPABASE_ROLES = new Set(['admin', 'operation_manager', 'authorized_user', 'instructor', 'finance', 'activities_manager', 'domain_manager', 'instructor_manager', 'business_development_manager']);
 
@@ -3098,7 +3098,7 @@ function flattenUserRow(userRow = {}) {
   const customDisplayRole = String(userRow.display_role || '').trim();
   const flat = {
     user_id: String(userRow.user_id || ''),
-    username: String(userRow.username || ''),
+    username: String(userRow.username || userRow.user_id || '').trim().toLowerCase(),
     full_name: String(userRow.name || ''),
     role,
     display_role: role,
