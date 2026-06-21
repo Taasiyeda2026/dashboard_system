@@ -26,6 +26,10 @@ function norm(value) {
   return text(value).replace(/[״"]/g, '').replace(/[׳']/g, '').replace(/\s+/g, ' ').toLowerCase();
 }
 
+function isOpenActivity(activity) {
+  return norm(activity?.status) === norm('פתוח');
+}
+
 function cleanSchoolName(activity) {
   const authority = getActivityAuthorityName(activity);
   const school = getActivitySchoolDisplayName(activity);
@@ -60,7 +64,9 @@ function getInstructorEntries(activity) {
 
 export function completionApprovalInstructorOptions(rows = []) {
   const names = new Set();
-  (Array.isArray(rows) ? rows : []).forEach((row) => getInstructorEntries(row).forEach((entry) => names.add(entry.name)));
+  (Array.isArray(rows) ? rows : [])
+    .filter(isOpenActivity)
+    .forEach((row) => getInstructorEntries(row).forEach((entry) => names.add(entry.name)));
   return Array.from(names).sort((a, b) => a.localeCompare(b, 'he'));
 }
 
@@ -106,6 +112,7 @@ export function buildCompletionApprovals(rows = [], { instructor = '', dateMode 
   const groups = new Map();
   const seen = new Set();
   (Array.isArray(rows) ? rows : []).forEach((activity) => {
+    if (!isOpenActivity(activity)) return;
     getInstructorEntries(activity).forEach((instructorEntry) => {
       if (instructorEntry.name !== selected) return;
       activityDates(activity).forEach((activityDate) => {
