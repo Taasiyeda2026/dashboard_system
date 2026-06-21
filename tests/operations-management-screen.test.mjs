@@ -123,6 +123,68 @@ test('operations management render includes menu page structure and tabs', () =>
   assert.doesNotMatch(html, /סמל מוסד/);
 });
 
+test('completion approval tab hides general operations filters and uses only approval filters', () => {
+  const state = baseState();
+  state.operationsManagement.tab = 'completion_approval';
+  state.operationsManagement.dateFrom = '2026-01-01';
+  state.operationsManagement.dateTo = '2026-01-31';
+  state.operationsManagement.completionApproval = {
+    instructor: 'הילה רוזן',
+    dateMode: 'range',
+    date: '',
+    dateFrom: '2026-07-10',
+    dateTo: '2026-07-11',
+    preview: true
+  };
+  state.listFilters['operations-management'] = {
+    q: '',
+    appliedQ: '',
+    status: 'פתוח',
+    authority: 'רשות שלא קיימת',
+    school: '',
+    instructor: '',
+    activity: '',
+    visibleCount: 200
+  };
+  const rows = [
+    { RowID: 'CA-1', status: 'פתוח', authority: 'רשות אחרת', school: 'בית ספר א', activity_name: 'פעילות א', start_date: '2026-07-10', start_time: '08:30:00', end_time: '09:30:00', instructor_name: 'הילה רוזן' },
+    { RowID: 'CA-2', status: 'פתוח', authority: 'רשות אחרת', school: 'בית ספר ב', activity_name: 'פעילות ב', start_date: '2026-07-11', start_time: '10:00:00', end_time: '11:00:00', instructor_name: 'הילה רוזן' },
+    { RowID: 'CA-3', status: 'פתוח', authority: 'רשות אחרת', school: 'בית ספר ג', activity_name: 'פעילות ג', start_date: '2026-07-10', instructor_name: 'מדריך אחר' }
+  ];
+  const html = operationsManagementScreen.render({ rows, workshopStockMap: new Map() }, { state });
+
+  assert.doesNotMatch(html, /סינון וחיפוש/);
+  assert.doesNotMatch(html, /data-ops-clear-filters/);
+  assert.doesNotMatch(html, /data-ops-filter="authority"/);
+  assert.doesNotMatch(html, /data-ops-search/);
+  assert.doesNotMatch(html, /מציג \d+ פעילויות מתוך/);
+  assert.match(html, /בחירת מדריך/);
+  assert.match(html, /בחירת תאריכים/);
+  assert.match(html, /בית ספר א/);
+  assert.match(html, /בית ספר ב/);
+  assert.doesNotMatch(html, /בית ספר ג/);
+  assert.match(html, /מס׳ פעילויות/);
+  assert.equal((html.match(/data-ops-approval-print-all/g) || []).length, 1);
+  assert.match(html, /נמצאו 2 אישורים להפקה מתוך 2 פעילויות של המדריך בטווח התאריכים/);
+});
+
+test('completion approval tab asks for instructor before showing approvals', () => {
+  const state = baseState();
+  state.operationsManagement.tab = 'completion_approval';
+  state.operationsManagement.completionApproval = {
+    instructor: '',
+    dateMode: 'all',
+    date: '',
+    dateFrom: '',
+    dateTo: '',
+    preview: false
+  };
+  const html = operationsManagementScreen.render({ rows: TEXT_SCHOOL_ROWS, workshopStockMap: new Map() }, { state });
+  assert.match(html, /בחרו מדריך כדי להציג אישורי ביצוע/);
+  assert.doesNotMatch(html, /סינון וחיפוש/);
+  assert.doesNotMatch(html, /data-ops-approval-print-all/);
+});
+
 test('workshop quantity metrics use x25 estimate and stock gap rules', () => {
   const stockMap = buildWorkshopStockMapFromLists({
     categories: [{
