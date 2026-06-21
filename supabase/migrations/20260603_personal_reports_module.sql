@@ -2,6 +2,11 @@
 -- Tables: profiles, personal_reports, declared_travel_entries, public_transport_entries, expense_entries, report_attachments
 -- Storage bucket: personal-report-attachments
 -- RLS policies enforced on all tables
+--
+-- This migration is intentionally idempotent for Supabase Preview / branch databases:
+-- every policy is dropped before being recreated so repeated or partially-applied runs do not fail.
+
+CREATE EXTENSION IF NOT EXISTS pgcrypto;
 
 -- ─────────────────────────────────────────────
 -- 1. profiles
@@ -17,6 +22,12 @@ CREATE TABLE IF NOT EXISTS public.profiles (
 );
 
 ALTER TABLE public.profiles ENABLE ROW LEVEL SECURITY;
+
+DROP POLICY IF EXISTS "profiles_select_own" ON public.profiles;
+DROP POLICY IF EXISTS "profiles_select_admin" ON public.profiles;
+DROP POLICY IF EXISTS "profiles_insert_own" ON public.profiles;
+DROP POLICY IF EXISTS "profiles_update_own" ON public.profiles;
+DROP POLICY IF EXISTS "profiles_update_admin" ON public.profiles;
 
 CREATE POLICY "profiles_select_own" ON public.profiles
   FOR SELECT USING (auth.uid() = id);
@@ -84,6 +95,12 @@ CREATE TABLE IF NOT EXISTS public.personal_reports (
 
 ALTER TABLE public.personal_reports ENABLE ROW LEVEL SECURITY;
 
+DROP POLICY IF EXISTS "reports_select_own" ON public.personal_reports;
+DROP POLICY IF EXISTS "reports_select_admin" ON public.personal_reports;
+DROP POLICY IF EXISTS "reports_insert_own" ON public.personal_reports;
+DROP POLICY IF EXISTS "reports_update_own_draft" ON public.personal_reports;
+DROP POLICY IF EXISTS "reports_update_admin" ON public.personal_reports;
+
 CREATE POLICY "reports_select_own" ON public.personal_reports
   FOR SELECT USING (auth.uid() = employee_id);
 
@@ -123,6 +140,13 @@ CREATE TABLE IF NOT EXISTS public.declared_travel_entries (
 );
 
 ALTER TABLE public.declared_travel_entries ENABLE ROW LEVEL SECURITY;
+
+DROP POLICY IF EXISTS "dte_select_own" ON public.declared_travel_entries;
+DROP POLICY IF EXISTS "dte_select_admin" ON public.declared_travel_entries;
+DROP POLICY IF EXISTS "dte_insert_own" ON public.declared_travel_entries;
+DROP POLICY IF EXISTS "dte_update_own_draft" ON public.declared_travel_entries;
+DROP POLICY IF EXISTS "dte_delete_own_draft" ON public.declared_travel_entries;
+DROP POLICY IF EXISTS "dte_admin_all" ON public.declared_travel_entries;
 
 CREATE POLICY "dte_select_own" ON public.declared_travel_entries
   FOR SELECT USING (auth.uid() = employee_id);
@@ -182,6 +206,13 @@ CREATE TABLE IF NOT EXISTS public.public_transport_entries (
 
 ALTER TABLE public.public_transport_entries ENABLE ROW LEVEL SECURITY;
 
+DROP POLICY IF EXISTS "pte_select_own" ON public.public_transport_entries;
+DROP POLICY IF EXISTS "pte_select_admin" ON public.public_transport_entries;
+DROP POLICY IF EXISTS "pte_insert_own" ON public.public_transport_entries;
+DROP POLICY IF EXISTS "pte_update_own_draft" ON public.public_transport_entries;
+DROP POLICY IF EXISTS "pte_delete_own_draft" ON public.public_transport_entries;
+DROP POLICY IF EXISTS "pte_admin_all" ON public.public_transport_entries;
+
 CREATE POLICY "pte_select_own" ON public.public_transport_entries
   FOR SELECT USING (auth.uid() = employee_id);
 
@@ -240,6 +271,13 @@ CREATE TABLE IF NOT EXISTS public.expense_entries (
 
 ALTER TABLE public.expense_entries ENABLE ROW LEVEL SECURITY;
 
+DROP POLICY IF EXISTS "ee_select_own" ON public.expense_entries;
+DROP POLICY IF EXISTS "ee_select_admin" ON public.expense_entries;
+DROP POLICY IF EXISTS "ee_insert_own" ON public.expense_entries;
+DROP POLICY IF EXISTS "ee_update_own_draft" ON public.expense_entries;
+DROP POLICY IF EXISTS "ee_delete_own_draft" ON public.expense_entries;
+DROP POLICY IF EXISTS "ee_admin_all" ON public.expense_entries;
+
 CREATE POLICY "ee_select_own" ON public.expense_entries
   FOR SELECT USING (auth.uid() = employee_id);
 
@@ -297,6 +335,12 @@ CREATE TABLE IF NOT EXISTS public.report_attachments (
 
 ALTER TABLE public.report_attachments ENABLE ROW LEVEL SECURITY;
 
+DROP POLICY IF EXISTS "ra_select_own" ON public.report_attachments;
+DROP POLICY IF EXISTS "ra_select_admin" ON public.report_attachments;
+DROP POLICY IF EXISTS "ra_insert_own" ON public.report_attachments;
+DROP POLICY IF EXISTS "ra_delete_own_draft" ON public.report_attachments;
+DROP POLICY IF EXISTS "ra_admin_all" ON public.report_attachments;
+
 CREATE POLICY "ra_select_own" ON public.report_attachments
   FOR SELECT USING (auth.uid() = employee_id);
 
@@ -341,6 +385,12 @@ VALUES (
   ARRAY['image/jpeg','image/png','image/webp','image/gif','application/pdf','image/heic','image/heif']
 )
 ON CONFLICT (id) DO NOTHING;
+
+DROP POLICY IF EXISTS "storage_insert_own" ON storage.objects;
+DROP POLICY IF EXISTS "storage_select_own" ON storage.objects;
+DROP POLICY IF EXISTS "storage_delete_own" ON storage.objects;
+DROP POLICY IF EXISTS "storage_select_admin" ON storage.objects;
+DROP POLICY IF EXISTS "storage_delete_admin" ON storage.objects;
 
 -- Employees can upload to their own folder: {user_id}/...
 CREATE POLICY "storage_insert_own" ON storage.objects
