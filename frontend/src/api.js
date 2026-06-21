@@ -493,6 +493,11 @@ async function selectActivitiesByDateRangeFromSupabase({
 
 const AUTHORITIES_CATALOG_COLUMNS = 'id,authority_name,authority_code,authority_type,hp_number,long_name,district,active';
 const SCHOOLS_CATALOG_COLUMNS = 'id,semel_mosad,school_name,authority,authority_id,district,city,active';
+const CONTACTS_INSTRUCTORS_SCREEN_COLUMNS = 'emp_id,full_name,mobile,email,address,employment_type,direct_manager,active,id';
+const CONTACTS_CATALOG_CACHE_TTL_MS = 10 * 60 * 1000;
+let authoritySchoolCatalogCache = null;
+let authoritySchoolCatalogInflight = null;
+
 const CONTACTS_UNIFIED_VIEW_COLUMNS = [
   'contact_domain', 'client_type', 'client_name', 'authority_id', 'school_id', 'semel_mosad',
   'authority_name', 'authority', 'school_name', 'school', 'contact_name', 'contact_role',
@@ -559,17 +564,48 @@ async function readSchoolsCatalogFromSupabase() {
   }
 }
 
-async function readAuthoritySchoolCatalog() {
-  const [authorities, schools] = await Promise.all([
-    readAuthoritiesCatalogFromSupabase(),
-    readSchoolsCatalogFromSupabase()
-  ]);
-  return {
-    authorities,
-    schools,
-    authorityLookup: buildAuthorityCatalogLookup(authorities),
-    schoolLookup: buildSchoolCatalogLookup(schools)
-  };
+async function readAuthoritySchoolCatalog({ forceRefresh = false, perf = null } = {}) {
+  const now = Date.now();
+  if (!forceRefresh && authoritySchoolCatalogCache && now - authoritySchoolCatalogCache.t < CONTACTS_CATALOG_CACHE_TTL_MS) {
+    if (perf) {
+      perf.authorities_count = authoritySchoolCatalogCache.data.authorities.length;
+      perf.schools_count = authoritySchoolCatalogCache.data.schools.length;
+      perf.catalog_cache_hit = true;
+      perf.authorities_ms = 0;
+      perf.schools_ms = 0;
+    }
+    return authoritySchoolCatalogCache.data;
+  }
+  if (!forceRefresh && authoritySchoolCatalogInflight) return authoritySchoolCatalogInflight;
+  const started = typeof performance !== 'undefined' ? performance.now() : Date.now();
+  authoritySchoolCatalogInflight = (async () => {
+    const authorityStarted = typeof performance !== 'undefined' ? performance.now() : Date.now();
+    const authoritiesPromise = readAuthoritiesCatalogFromSupabase().then((rows) => {
+      if (perf) perf.authorities_ms = Math.round((typeof performance !== 'undefined' ? performance.now() : Date.now()) - authorityStarted);
+      return rows;
+    });
+    const schoolStarted = typeof performance !== 'undefined' ? performance.now() : Date.now();
+    const schoolsPromise = readSchoolsCatalogFromSupabase().then((rows) => {
+      if (perf) perf.schools_ms = Math.round((typeof performance !== 'undefined' ? performance.now() : Date.now()) - schoolStarted);
+      return rows;
+    });
+    const [authorities, schools] = await Promise.all([authoritiesPromise, schoolsPromise]);
+    const data = {
+      authorities,
+      schools,
+      authorityLookup: buildAuthorityCatalogLookup(authorities),
+      schoolLookup: buildSchoolCatalogLookup(schools)
+    };
+    authoritySchoolCatalogCache = { data, t: Date.now() };
+    if (perf) {
+      perf.authorities_count = authorities.length;
+      perf.schools_count = schools.length;
+      perf.catalog_cache_hit = false;
+      perf.catalog_ms = Math.round((typeof performance !== 'undefined' ? performance.now() : Date.now()) - started);
+    }
+    return data;
+  })().finally(() => { authoritySchoolCatalogInflight = null; });
+  return authoritySchoolCatalogInflight;
 }
 
 function buildAuthorityCatalogLookup(authorities = []) {
@@ -1011,24 +1047,54 @@ async function readUnifiedContactsFromSupabase({ requireAuth = false } = {}) {
 async function readContactsFromSupabase() {
   if (!supabase) return null;
 
+  const perfStarted = typeof performance !== 'undefined' ? performance.now() : Date.now();
+  const perf = {
+    instructors_count: 0,
+    unified_count: 0,
+    authorities_count: 0,
+    schools_count: 0,
+    instructors_ms: 0,
+    unified_ms: 0,
+    authorities_ms: 0,
+    schools_ms: 0,
+    catalog_ms: 0,
+    catalog_cache_hit: false,
+    read_ms: 0
+  };
+
   const readInstructors = async () => {
-    const result = await supabase.from('contacts_instructors').select('*');
+    const started = typeof performance !== 'undefined' ? performance.now() : Date.now();
+    const result = await supabase.from('contacts_instructors').select(CONTACTS_INSTRUCTORS_SCREEN_COLUMNS);
+    perf.instructors_ms = Math.round((typeof performance !== 'undefined' ? performance.now() : Date.now()) - started);
     if (result.error) {
       // eslint-disable-next-line no-console
       console.warn('[supabase] Failed to load contacts_instructors:', result.error);
       return [];
     }
-    return Array.isArray(result.data) ? result.data : [];
+    const rows = Array.isArray(result.data) ? result.data : [];
+    perf.instructors_count = rows.length;
+    return rows;
+  };
+
+  const readUnified = async () => {
+    const started = typeof performance !== 'undefined' ? performance.now() : Date.now();
+    const rows = await readUnifiedContactsFromSupabase();
+    perf.unified_ms = Math.round((typeof performance !== 'undefined' ? performance.now() : Date.now()) - started);
+    perf.unified_count = Array.isArray(rows) ? rows.length : 0;
+    return rows;
   };
 
   try {
     const [instructor_rows, schoolRowsRaw, catalog] = await Promise.all([
       readInstructors(),
-      readUnifiedContactsFromSupabase(),
-      readAuthoritySchoolCatalog()
+      readUnified(),
+      readAuthoritySchoolCatalog({ perf })
     ]);
     const school_rows = (Array.isArray(schoolRowsRaw) ? schoolRowsRaw : [])
       .map((row) => enrichSchoolContactRow(row, catalog.authorityLookup, catalog.schoolLookup));
+    perf.read_ms = Math.round((typeof performance !== 'undefined' ? performance.now() : Date.now()) - perfStarted);
+    // eslint-disable-next-line no-console
+    console.info('[contacts-perf]', perf);
     return {
       instructor_rows,
       school_rows,
@@ -1036,9 +1102,13 @@ async function readContactsFromSupabase() {
       school_catalog: catalog.schools,
       can_view_instructors: true,
       can_view_schools: true,
-      _source: 'supabase'
+      _source: 'supabase',
+      _contacts_perf: perf
     };
   } catch (error) {
+    perf.read_ms = Math.round((typeof performance !== 'undefined' ? performance.now() : Date.now()) - perfStarted);
+    // eslint-disable-next-line no-console
+    console.info('[contacts-perf]', perf);
     // eslint-disable-next-line no-console
     console.warn('[supabase] Unexpected contacts fetch error:', error);
     return {
@@ -1046,7 +1116,8 @@ async function readContactsFromSupabase() {
       school_rows: [],
       can_view_instructors: true,
       can_view_schools: true,
-      _source: 'supabase'
+      _source: 'supabase',
+      _contacts_perf: perf
     };
   }
 }

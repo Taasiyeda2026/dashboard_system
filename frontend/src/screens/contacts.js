@@ -18,6 +18,26 @@ const AVATAR_COLORS = [
   '#f43f5e', '#a855f7'
 ];
 const CONTACTS_SCOPE = 'contacts';
+const CONTACTS_SEARCH_DEBOUNCE_MS = 350;
+const CONTACTS_SEARCH_PREP_CACHE = new WeakMap();
+
+function nowMs() {
+  return typeof performance !== 'undefined' ? performance.now() : Date.now();
+}
+
+function prepareContactsRowsForSearch(rows, fields) {
+  const list = Array.isArray(rows) ? rows : [];
+  let byFields = CONTACTS_SEARCH_PREP_CACHE.get(list);
+  const fieldsKey = Array.isArray(fields) ? fields.join('|') : '';
+  if (byFields?.has(fieldsKey)) return list;
+  prepareRowsForSearch(list, fields);
+  if (!byFields) {
+    byFields = new Set();
+    CONTACTS_SEARCH_PREP_CACHE.set(list, byFields);
+  }
+  byFields.add(fieldsKey);
+  return list;
+}
 
 const INSTR_SEARCH_FIELDS = [
   'full_name', 'mobile', 'email', 'contact_role', 'role', 'employment_type'
@@ -589,13 +609,14 @@ export const contactsScreen = {
   render(data, { state } = {}) {
     const instrRows  = Array.isArray(data?.instructor_rows) ? data.instructor_rows : [];
     const schoolRows = Array.isArray(data?.school_rows)     ? data.school_rows     : [];
-    prepareRowsForSearch(instrRows, [
+    const renderStarted = nowMs();
+    prepareContactsRowsForSearch(instrRows, [
       'full_name', 'name', 'contact_name', 'emp_id', 'employee_id',
       'mobile', 'phone', 'email', 'authority', 'school',
       'role', 'contact_role', 'employment_type', 'direct_manager', 'active',
       'notes', 'address', 'activity_name', 'activity_type'
     ]);
-    prepareRowsForSearch(schoolRows, [
+    prepareContactsRowsForSearch(schoolRows, [
       'full_name', 'name', 'contact_name', 'emp_id', 'employee_id',
       'mobile', 'phone', 'email', 'authority', 'authority_name', 'school', 'school_name',
       'role', 'contact_role', 'position', 'active', 'notes', 'address', 'city', 'district',
@@ -621,11 +642,11 @@ export const contactsScreen = {
       : filtersToolbarHtml(CONTACTS_SCOPE, schoolRows, state, {
         searchPlaceholder: 'חיפוש לפי שם / תפקיד / טלפון / מייל / רשות / מספר רשות / בית ספר / סמל מוסד…',
         filterFields: SCHOOL_FILTER_FIELDS,
-        dependent: true,
+        dependent: false,
         search: true
       });
 
-    return dsScreenStack(`
+    const html = dsScreenStack(`
       <div class="ds-chip-group contacts-tab-bar" dir="rtl">${tabBtns}</div>
       <div class="ds-screen-top-row contacts-toolbar-row">
         ${searchInput}
@@ -633,9 +654,25 @@ export const contactsScreen = {
       </div>
       <div class="contacts-list-wrap" dir="rtl">${listHtml}</div>
     `);
+    const renderMs = Math.round(nowMs() - renderStarted);
+    const basePerf = data?._contacts_perf || {};
+    basePerf.render_ms = renderMs;
+    // eslint-disable-next-line no-console
+    console.info('[contacts-perf]', {
+      instructors_count: instrRows.length,
+      unified_count: schoolRows.length,
+      authorities_count: basePerf.authorities_count || data?.authority_catalog?.length || 0,
+      schools_count: basePerf.schools_count || data?.school_catalog?.length || 0,
+      read_ms: basePerf.read_ms || 0,
+      render_ms: renderMs,
+      bind_ms: basePerf.bind_ms || 0,
+      total_ms: (basePerf.read_ms || 0) + renderMs + (basePerf.bind_ms || 0)
+    });
+    return html;
   },
 
   bind({ root, data, state, ui, rerender, api }) {
+    const bindStarted = nowMs();
     const instrRows = Array.isArray(data?.instructor_rows) ? data.instructor_rows : [];
     const schoolRows = Array.isArray(data?.school_rows) ? data.school_rows : [];
     const hideEmpIds = !!state?.clientSettings?.hide_emp_id_on_screens;
@@ -701,8 +738,22 @@ export const contactsScreen = {
     bindContactsListInteractions(root);
 
     bindLocalFilters(root, state, CONTACTS_SCOPE, rerender, {
-      debounceMs: 200,
+      debounceMs: CONTACTS_SEARCH_DEBOUNCE_MS,
       onClear: () => { state.contactsAlphaLetter = ''; }
+    });
+
+    const bindMs = Math.round(nowMs() - bindStarted);
+    const basePerf = data?._contacts_perf || {};
+    // eslint-disable-next-line no-console
+    console.info('[contacts-perf]', {
+      instructors_count: instrRows.length,
+      unified_count: schoolRows.length,
+      authorities_count: basePerf.authorities_count || data?.authority_catalog?.length || 0,
+      schools_count: basePerf.schools_count || data?.school_catalog?.length || 0,
+      read_ms: basePerf.read_ms || 0,
+      render_ms: basePerf.render_ms || 0,
+      bind_ms: bindMs,
+      total_ms: (basePerf.read_ms || 0) + (basePerf.render_ms || 0) + bindMs
     });
 
     const decodePayload = (node) => {

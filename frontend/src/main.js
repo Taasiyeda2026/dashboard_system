@@ -1241,7 +1241,7 @@ function maybePersistScreenCacheEntry(key, entry) {
 async function loadScreenDataWithCache(screen) {
   if (!screen.load) return {};
   const routeName = String(state.route || '');
-  const routePerfEnabled = routeName === 'dashboard' || routeName === 'activities' || routeName === 'week' || routeName === 'month';
+  const routePerfEnabled = routeName === 'dashboard' || routeName === 'activities' || routeName === 'week' || routeName === 'month' || routeName === 'contacts';
   const routePerfStart = routePerfEnabled ? (typeof performance !== 'undefined' ? performance.now() : Date.now()) : 0;
   const key = screenDataCacheKey();
   if (routeName === 'proposals-agreements') {
