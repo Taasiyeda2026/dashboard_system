@@ -47,10 +47,19 @@ import {
   sumOperationalQuantitiesFromActivities,
   WORKSHOP_ESTIMATE_PER_ACTIVITY
 } from './shared/operations-activity-helpers.js';
+import {
+  approvalFileTitle,
+  approvalsBatchTitle,
+  buildCompletionApprovals,
+  completionApprovalInstructorOptions,
+  completionApprovalPrintCss,
+  completionApprovalsPrintHtml
+} from './shared/activity-completion-approval-print.js';
 
 const SCOPE = 'operations-management';
 const TAB_INSTRUCTORS = 'instructors';
 const TAB_SUMMER = 'summer';
+const TAB_COMPLETION_APPROVAL = 'completion_approval';
 const TAB_WORKSHOPS = 'workshops';
 const TAB_AUTHORITIES = 'authorities';
 const TAB_SCHOOLS = 'schools';
@@ -153,6 +162,13 @@ function ensureOpsState(state = {}) {
     try { ops.workshopStockOverrides = JSON.parse(localStorage.getItem('operationsWorkshopStockOverrides') || '{}'); } catch { ops.workshopStockOverrides = {}; }
   }
   if (!ops.expandedSchool) ops.expandedSchool = '';
+  ops.completionApproval = ops.completionApproval || {};
+  if (!ops.completionApproval.instructor) ops.completionApproval.instructor = '';
+  if (!ops.completionApproval.dateMode) ops.completionApproval.dateMode = 'all';
+  if (!ops.completionApproval.date) ops.completionApproval.date = '';
+  if (!ops.completionApproval.dateFrom) ops.completionApproval.dateFrom = '';
+  if (!ops.completionApproval.dateTo) ops.completionApproval.dateTo = '';
+  if (!ops.completionApproval.preview) ops.completionApproval.preview = false;
   ops.sorts = ops.sorts || {};
   Object.entries(SORT_DEFAULTS).forEach(([tab, sort]) => {
     if (!ops.sorts[tab]) ops.sorts[tab] = { ...sort };
@@ -485,6 +501,7 @@ function normalizeInventoryUsage(value) {
 function tabsHtml(activeTab) {
   const tabs = [
     [TAB_INSTRUCTORS, 'סידור עבודה'],
+    [TAB_COMPLETION_APPROVAL, 'אישור ביצוע'],
     [TAB_AUTHORITIES, 'רשויות'],
     [TAB_WORKSHOPS, 'ציוד ומלאי']
   ];
@@ -508,7 +525,7 @@ function summaryKpiHtml(items = []) {
 function instructorOptions(rows) {
   const names = new Set();
   rows.forEach((row) => {
-    [row?.instructor_name, row?.instructor, row?.guide_name, row?.guide].forEach((value) => {
+    [row?.instructor_name, row?.instructor, row?.guide_name, row?.guide, row?.instructor_name_2, row?.instructor_2, row?.guide_name_2, row?.guide_2].forEach((value) => {
       const name = String(value || '').trim();
       if (isValidInstructorName(name)) names.add(name);
     });
@@ -1389,6 +1406,78 @@ function schoolsTabHtml(rows, state, directory = buildSchoolsDirectory([]), cont
   </section>`;
 }
 
+
+let _completionApprovalPrintContext = null;
+
+function printCompletionApprovals(approvals = [], title = 'אישור ביצוע פעילות') {
+  if (!approvals.length) {
+    alert('לא נמצאו פעילויות להפקת אישור ביצוע לפי הבחירה הנוכחית.');
+    return;
+  }
+  const safeTitle = title || 'אישור ביצוע פעילות';
+  try { document.title = safeTitle; } catch { /* ignore */ }
+  const printWindow = window.open('', '_blank');
+  if (!printWindow) { alert('הדפדפן חסם פתיחת חלון הדפסה. יש לאפשר חלונות קופצים לאתר.'); return; }
+  const html = `<!doctype html><html lang="he" dir="rtl"><head><meta charset="utf-8"><title>${escapeHtml(safeTitle)}</title><style>${completionApprovalPrintCss}</style></head><body>${completionApprovalsPrintHtml(approvals)}</body></html>`;
+  printWindow.document.open();
+  printWindow.document.write(html);
+  printWindow.document.close();
+  printWindow.focus();
+  setTimeout(() => printWindow.print(), 250);
+}
+
+function completionApprovalsForState(rows, state, directory, contactsIndex) {
+  const approvalState = ensureOpsState(state).completionApproval || {};
+  return buildCompletionApprovals(rows, {
+    instructor: approvalState.instructor,
+    dateMode: approvalState.dateMode,
+    date: approvalState.date,
+    dateFrom: approvalState.dateFrom,
+    dateTo: approvalState.dateTo,
+    directory,
+    contactsIndex
+  });
+}
+
+function completionApprovalTabHtml(rows, state, data = {}, directory = buildSchoolsDirectory([]), contactsIndex = new Map()) {
+  const ops = ensureOpsState(state);
+  const approvalState = ops.completionApproval;
+  const instructors = completionApprovalInstructorOptions(rows);
+  if (approvalState.instructor && !instructors.includes(approvalState.instructor)) approvalState.instructor = '';
+  const approvals = approvalState.preview ? completionApprovalsForState(rows, state, directory, contactsIndex) : [];
+  _completionApprovalPrintContext = { approvals, instructorName: approvalState.instructor || '' };
+  const previewRows = approvals.map((approval, index) => `<tr>
+    <td><strong>${escapeHtml(approval.instructorName)}</strong></td>
+    <td>${escapeHtml(formatDateHe(approval.date) || approval.date || '')}</td>
+    <td>${escapeHtml(approval.school || '')}</td>
+    <td>${escapeHtml(String(approval.activities.length))} ${approval.activities.length === 1 ? 'פעילות' : 'פעילויות'}</td>
+    <td class="no-print"><button type="button" class="ds-btn ds-btn--xs ds-btn--ghost" data-ops-approval-view="${index}">צפייה</button> <button type="button" class="ds-btn ds-btn--xs ds-btn--primary" data-ops-approval-print-one="${index}">הדפס אישור זה</button></td>
+  </tr>`).join('');
+  const preview = !approvalState.preview
+    ? dsEmptyState('בחרו מדריך ותאריכים ולחצו על "הצג אישורים".')
+    : approvals.length
+      ? dsTableWrap(`<table class="ds-table ds-table--compact ds-ops-completion-preview"><thead><tr><th>מדריך</th><th>תאריך</th><th>בית ספר</th><th>כמות</th><th class="no-print">פעולות</th></tr></thead><tbody>${previewRows}</tbody></table>`)
+      : dsEmptyState('לא נמצאו פעילויות להפקת אישור ביצוע לפי הבחירה הנוכחית.');
+  const dateFields = approvalState.dateMode === 'single'
+    ? `<label class="ds-filter-field"><span class="ds-filter-field__label">תאריך</span><input class="ds-input ds-input--sm" type="date" data-ops-approval-date value="${escapeHtml(approvalState.date || '')}"></label>`
+    : approvalState.dateMode === 'range'
+      ? `<label class="ds-filter-field"><span class="ds-filter-field__label">מתאריך</span><input class="ds-input ds-input--sm" type="date" data-ops-approval-date-from value="${escapeHtml(approvalState.dateFrom || '')}"></label><label class="ds-filter-field"><span class="ds-filter-field__label">עד תאריך</span><input class="ds-input ds-input--sm" type="date" data-ops-approval-date-to value="${escapeHtml(approvalState.dateTo || '')}"></label>`
+      : '';
+  return `<section class="ds-ops-mgmt-panel ds-ops-completion-panel" dir="rtl">
+    <div class="ds-filter-panel ds-ops-completion-filters no-print">
+      <h2 class="ds-filter-panel__title">אישור ביצוע</h2>
+      <div class="ds-filter-panel__grid ds-ops-mgmt-filters__grid">
+        <label class="ds-filter-field"><span class="ds-filter-field__label">בחירת מדריך</span><select class="ds-input ds-input--sm" data-ops-approval-instructor><option value="">בחרו מדריך/ה</option>${instructors.map((name) => `<option value="${escapeHtml(name)}"${name === approvalState.instructor ? ' selected' : ''}>${escapeHtml(name)}</option>`).join('')}</select></label>
+        <label class="ds-filter-field"><span class="ds-filter-field__label">בחירת תאריכים</span><select class="ds-input ds-input--sm" data-ops-approval-date-mode><option value="all"${approvalState.dateMode === 'all' ? ' selected' : ''}>כל התאריכים של המדריך</option><option value="single"${approvalState.dateMode === 'single' ? ' selected' : ''}>תאריך מסוים</option><option value="range"${approvalState.dateMode === 'range' ? ' selected' : ''}>טווח תאריכים</option></select></label>
+        ${dateFields}
+        <div class="ds-filter-panel__actions ds-ops-mgmt-filters__actions"><button type="button" class="ds-btn ds-btn--sm ds-btn--secondary" data-ops-approval-show>הצג אישורים</button><button type="button" class="ds-btn ds-btn--sm ds-btn--primary" data-ops-approval-print-all>הדפס אישורים</button></div>
+      </div>
+    </div>
+    <div class="ds-ops-mgmt-panel__toolbar no-print">${approvals.length ? `<button type="button" class="ds-btn ds-btn--sm ds-btn--primary" data-ops-approval-print-all>הדפס את כל האישורים</button>` : ''}</div>
+    ${dsCard({ title: 'אישורים שיופקו', badge: String(approvals.length), body: preview, padded: false })}
+  </section>`;
+}
+
 function renderTab(rows, state, data, allPreparedRows = []) {
   const ops = ensureOpsState(state);
   const stockMap = data?.workshopStockMap instanceof Map ? data.workshopStockMap : new Map();
@@ -1396,6 +1485,10 @@ function renderTab(rows, state, data, allPreparedRows = []) {
   const contactsIndex = buildContactsSchoolsIndex(data?.contactsSchoolsRows || []);
   if (ops.tab === TAB_SUMMER) ops.tab = TAB_INSTRUCTORS;
   if (ops.tab === TAB_AUTHORITIES || ops.tab === TAB_SCHOOLS) return schoolsTabHtml(rows, state, directory, contactsIndex);
+  if (ops.tab === TAB_COMPLETION_APPROVAL) {
+    const approvalRows = allPreparedRows.filter((row) => !isActivityDeleted(row));
+    return completionApprovalTabHtml(approvalRows, state, data, directory, contactsIndex);
+  }
   if (ops.tab === TAB_WORKSHOPS) {
     const catalogRows = extractWorkshopCatalogRows(data?.adminListsData, allPreparedRows);
     const summerRows = allPreparedRows.filter((row) =>
@@ -1513,6 +1606,35 @@ export const operationsManagementScreen = {
     root.querySelector('[data-ops-print]')?.addEventListener('click', () => printInstructorSchedule());
     root.querySelector('[data-ops-print-workshops]')?.addEventListener('click', () => printWorkshopsFromDom(root));
     root.querySelector('[data-ops-print-schools]')?.addEventListener('click', () => printSchoolsSchedule());
+
+    root.querySelector('[data-ops-approval-instructor]')?.addEventListener('change', (ev) => {
+      ops.completionApproval.instructor = ev.target.value || '';
+      ops.completionApproval.preview = false;
+      rerender?.();
+    });
+    root.querySelector('[data-ops-approval-date-mode]')?.addEventListener('change', (ev) => {
+      ops.completionApproval.dateMode = ev.target.value || 'all';
+      ops.completionApproval.preview = false;
+      rerender?.();
+    });
+    root.querySelector('[data-ops-approval-date]')?.addEventListener('change', (ev) => { ops.completionApproval.date = ev.target.value || ''; ops.completionApproval.preview = false; rerender?.(); });
+    root.querySelector('[data-ops-approval-date-from]')?.addEventListener('change', (ev) => { ops.completionApproval.dateFrom = ev.target.value || ''; ops.completionApproval.preview = false; rerender?.(); });
+    root.querySelector('[data-ops-approval-date-to]')?.addEventListener('change', (ev) => { ops.completionApproval.dateTo = ev.target.value || ''; ops.completionApproval.preview = false; rerender?.(); });
+    root.querySelector('[data-ops-approval-show]')?.addEventListener('click', () => {
+      if (!ops.completionApproval.instructor) { alert('יש לבחור מדריך/ה.'); return; }
+      ops.completionApproval.preview = true;
+      rerender?.();
+    });
+    root.querySelectorAll('[data-ops-approval-print-all]').forEach((btn) => btn.addEventListener('click', () => {
+      const approvals = _completionApprovalPrintContext?.approvals || [];
+      printCompletionApprovals(approvals, approvalsBatchTitle(approvals, _completionApprovalPrintContext?.instructorName || ops.completionApproval.instructor));
+    }));
+    root.querySelectorAll('[data-ops-approval-print-one],[data-ops-approval-view]').forEach((btn) => btn.addEventListener('click', () => {
+      const index = Number(btn.getAttribute('data-ops-approval-print-one') ?? btn.getAttribute('data-ops-approval-view'));
+      const approval = (_completionApprovalPrintContext?.approvals || [])[index];
+      if (!approval) return;
+      printCompletionApprovals([approval], approvalFileTitle(approval));
+    }));
 
     root.querySelectorAll('[data-ops-school]').forEach((btn) => {
       btn.addEventListener('click', () => {
