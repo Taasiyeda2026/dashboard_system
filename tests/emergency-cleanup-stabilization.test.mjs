@@ -31,8 +31,7 @@ test('frontend login uses Supabase Auth and not entry_code RPC', async () => {
   assert.doesNotMatch(api, /login_user_by_entry_code/);
 
   assert.match(pr, /signInWithPassword\(/);
-  assert.match(pr, /buildInternalAuthEmail\(login\)/);
-  assert.match(pr, /\.eq\('user_id', login\.toLowerCase\(\)\)/);
+  assert.match(pr, /resolveActiveUserRowAfterAuth/);
   assert.doesNotMatch(pr, /login_user_by_entry_code/);
   assert.doesNotMatch(pr, /verify_personal_reports_entry_code/);
 });

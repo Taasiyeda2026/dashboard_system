@@ -82,7 +82,8 @@ test('source keeps personal reports auth temporary and maps verified login to au
   assert.match(source, /buildInternalAuthEmail/);
   assert.match(source, /auth\.signInWithPassword/);
   assert.match(source, /const authUserId = authData\.user\.id/);
-  assert.match(source, /\.eq\('user_id', login\.toLowerCase\(\)\)/);
+  assert.match(source, /resolveActiveUserRowAfterAuth/);
+  assert.match(source, /auth_ok_user_row_not_found/);
   assert.match(source, /sameDashboardUser\(userRow, user\)/);
   assert.match(source, /assertEmployeeUuid\(employeeId\)/);
   assert.doesNotMatch(source, /login_user_by_entry_code/);
