@@ -43,6 +43,8 @@ import {
   buildActivitySearchText,
   buildWorkshopStockMapFromLists,
   getActivityActualParticipantCount,
+  getActivityOperationalQuantity,
+  sumOperationalQuantitiesFromActivities,
   WORKSHOP_ESTIMATE_PER_ACTIVITY
 } from './shared/operations-activity-helpers.js';
 
@@ -464,15 +466,17 @@ function topFiltersHtml(rows, state) {
   </section>`;
 }
 
-function authorityHeaderTitle(authority, schoolCount, activityCount) {
+function authorityHeaderTitle(authority, schoolCount, activityCount, quantityTotal = null) {
   const schools = Number.isFinite(Number(schoolCount)) ? Number(schoolCount) : 0;
   const activities = Number.isFinite(Number(activityCount)) ? Number(activityCount) : 0;
-  return `${authority} | ${schools} בתי ספר | ${activities} פעילויות`;
+  const quantity = Number.isFinite(Number(quantityTotal)) ? ` | ${Number(quantityTotal)} כמויות` : '';
+  return `${authority} | ${schools} בתי ספר | ${activities} פעילויות${quantity}`;
 }
 
-function schoolHeaderTitle(school, activityCount) {
+function schoolHeaderTitle(school, activityCount, quantityTotal = null) {
   const activities = Number.isFinite(Number(activityCount)) ? Number(activityCount) : 0;
-  return `${school} | ${activities} פעילויות`;
+  const quantity = Number.isFinite(Number(quantityTotal)) ? ` | ${Number(quantityTotal)} כמויות` : '';
+  return `${school} | ${activities} פעילויות${quantity}`;
 }
 
 function normalizeInventoryUsage(value) {
@@ -557,6 +561,7 @@ function scheduleSortValue(entry, key, directory) {
     date: entry.date || '',
     weekday: entry.date ? formatDateHeWithWeekday(entry.date).split(' · ')[0] : '',
     time: entry.time || '',
+    quantity: getActivityOperationalQuantity(activity),
     authority: getActivityAuthorityName(activity),
     school: getActivitySchoolDisplayNameClean(activity),
     instructor: entry.instructor || '',
@@ -594,7 +599,8 @@ function buildScheduleRows(rows, state, directory) {
         activity,
         instructor,
         time: getActivityTimeRange(activity),
-        hasTime: Boolean(getActivityTimeRange(activity))
+        hasTime: Boolean(getActivityTimeRange(activity)),
+        quantity: getActivityOperationalQuantity(activity)
       });
     });
   });
@@ -608,13 +614,15 @@ function compactSummaryLineHtml(items = []) {
 
 function tabOverviewSummary(rows, scheduleRows = []) {
   const workDays = uniqueSorted(scheduleRows.map((row) => row.date).filter(Boolean)).length;
-  const schools = uniqueSorted(rows.map(getActivitySchoolDisplayNameClean).filter((name) => name !== 'לא משויך'));
-  const authorities = uniqueSorted(rows.map(getActivityAuthorityName));
+  const schools = uniqueSorted(scheduleRows.map((row) => getActivitySchoolDisplayNameClean(row.activity)).filter((name) => name !== 'לא משויך'));
+  const authorities = uniqueSorted(scheduleRows.map((row) => getActivityAuthorityName(row.activity)));
+  const quantityTotal = sumOperationalQuantitiesFromActivities(scheduleRows.map((row) => row.activity));
   return compactSummaryLineHtml([
-    { label: 'פעילויות', value: rows.length },
-    { label: 'ימי עבודה', value: workDays },
+    { label: 'פעילויות', value: scheduleRows.length },
+    { label: 'סה״כ כמויות', value: quantityTotal },
     { label: 'בתי ספר', value: schools.length },
-    { label: 'רשויות', value: authorities.length }
+    { label: 'רשויות', value: authorities.length },
+    { label: 'ימי עבודה', value: workDays }
   ]);
 }
 
@@ -622,14 +630,16 @@ function instructorSummary(rows, state, scheduleRows) {
   const selected = String(ensureOpsState(state).instructor || '__all__').trim();
   if (selected === '__all__') return '';
   const workDays = uniqueSorted(scheduleRows.map((row) => row.date).filter(Boolean)).length;
-  const authorities = uniqueSorted(rows.map(getActivityAuthorityName));
-  const schools = uniqueSorted(rows.map(getActivitySchoolDisplayNameClean).filter((name) => name !== 'לא משויך'));
+  const authorities = uniqueSorted(scheduleRows.map((row) => getActivityAuthorityName(row.activity)));
+  const schools = uniqueSorted(scheduleRows.map((row) => getActivitySchoolDisplayNameClean(row.activity)).filter((name) => name !== 'לא משויך'));
+  const quantityTotal = sumOperationalQuantitiesFromActivities(scheduleRows.map((row) => row.activity));
   return compactSummaryLineHtml([
     { label: `מדריך: ${selected}`, value: '' },
-    { label: 'ימי עבודה', value: workDays },
-    { label: 'פעילויות', value: rows.length },
+    { label: 'פעילויות', value: scheduleRows.length },
+    { label: 'סה״כ כמויות', value: quantityTotal },
     { label: 'בתי ספר', value: schools.length },
-    { label: 'רשויות', value: authorities.length }
+    { label: 'רשויות', value: authorities.length },
+    { label: 'ימי עבודה', value: workDays }
   ]);
 }
 
@@ -993,6 +1003,7 @@ function buildGroupedScheduleHtml({ scheduleRows, state, selectedInstructorFilte
     ? `מדריך: ${selectedInstructorFilter}`
     : 'מדריך: כל המדריכים';
   const dateRange = `${formatDateHe(ops.dateFrom) || '—'}–${formatDateHe(ops.dateTo) || '—'}`;
+  const quantityTotal = sumOperationalQuantitiesFromActivities(scheduleRows.map((row) => row.activity));
 
   const blocks = groups.map((group) => {
     const dateLabel = group.date
@@ -1006,7 +1017,7 @@ function buildGroupedScheduleHtml({ scheduleRows, state, selectedInstructorFilte
     const activityRows = group.entries.map((entry) => {
       const a = entry.activity;
       const instrCell = showInstructor ? `<td>${escapeHtml(entry.instructor || '—')}</td>` : '';
-      return `<tr><td>${escapeHtml(entry.time || '—')}</td><td>${escapeHtml(getActivityName(a))}</td><td>${escapeHtml(getActivityGradeLabel(a) || '—')}</td>${instrCell}</tr>`;
+      return `<tr><td>${escapeHtml(entry.time || '—')}</td><td>${escapeHtml(getActivityName(a))}</td><td>${escapeHtml(String(entry.quantity))}</td><td>${escapeHtml(getActivityGradeLabel(a) || '—')}</td>${instrCell}</tr>`;
     }).join('');
     const tableClass = showInstructor ? 'pb-act has-instructor' : 'pb-act';
     return `<div class="pb">
@@ -1014,12 +1025,12 @@ function buildGroupedScheduleHtml({ scheduleRows, state, selectedInstructorFilte
         <span class="pb-date">${escapeHtml(dateLabel)}</span>
         <span class="pb-meta">${metaParts.map(escapeHtml).join(' | ')}</span>
       </div>
-      <table class="${tableClass}"><thead><tr><th>שעות</th><th>פעילות</th><th>כיתה</th>${instructorHeader}</tr></thead>
+      <table class="${tableClass}"><thead><tr><th>שעות</th><th>פעילות</th><th>כמות</th><th>כיתה</th>${instructorHeader}</tr></thead>
       <tbody>${activityRows}</tbody></table>
     </div>`;
   }).join('');
 
-  return `<div class="ops-print-page"><h1>שיבוץ פעילויות קיץ</h1><p class="subtitle">${escapeHtml(instructorLine)} | טווח תאריכים: ${escapeHtml(dateRange)}</p><div class="ops-print-grid">${blocks}</div><p class="footer">יש לוודא את קיום הפעילות מול איש הקשר בבית הספר לפחות 48 שעות לפני כל יום פעילות.</p></div>`;
+  return `<div class="ops-print-page"><h1>שיבוץ פעילויות קיץ</h1><p class="subtitle">${escapeHtml(instructorLine)} | טווח תאריכים: ${escapeHtml(dateRange)} | סה״כ כמויות: ${escapeHtml(String(quantityTotal))}</p><div class="ops-print-grid">${blocks}</div><p class="footer">יש לוודא את קיום הפעילות מול איש הקשר בבית הספר לפחות 48 שעות לפני כל יום פעילות.</p></div>`;
 }
 
 function printInstructorSchedule() {
@@ -1045,13 +1056,15 @@ function printInstructorSchedule() {
     .pb-act th,.pb-act td{border:1px solid #cbd5e1;padding:2px 4px;text-align:right;font-size:10px;line-height:1.2;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
     .pb-act th{background:#e6f6fb;font-weight:700}
     .pb-act tr:nth-child(even) td{background:#f8fafc}
-    .pb-act th:nth-child(1),.pb-act td:nth-child(1){width:28%;text-align:center}
-    .pb-act th:nth-child(2),.pb-act td:nth-child(2){width:52%}
-    .pb-act th:nth-child(3),.pb-act td:nth-child(3){width:20%;text-align:center}
-    .pb-act.has-instructor th:nth-child(1),.pb-act.has-instructor td:nth-child(1){width:24%;text-align:center}
-    .pb-act.has-instructor th:nth-child(2),.pb-act.has-instructor td:nth-child(2){width:42%}
-    .pb-act.has-instructor th:nth-child(3),.pb-act.has-instructor td:nth-child(3){width:14%;text-align:center}
-    .pb-act.has-instructor th:nth-child(4),.pb-act.has-instructor td:nth-child(4){width:20%}
+    .pb-act th:nth-child(1),.pb-act td:nth-child(1){width:25%;text-align:center}
+    .pb-act th:nth-child(2),.pb-act td:nth-child(2){width:43%}
+    .pb-act th:nth-child(3),.pb-act td:nth-child(3){width:12%;text-align:center}
+    .pb-act th:nth-child(4),.pb-act td:nth-child(4){width:20%;text-align:center}
+    .pb-act.has-instructor th:nth-child(1),.pb-act.has-instructor td:nth-child(1){width:22%;text-align:center}
+    .pb-act.has-instructor th:nth-child(2),.pb-act.has-instructor td:nth-child(2){width:34%}
+    .pb-act.has-instructor th:nth-child(3),.pb-act.has-instructor td:nth-child(3){width:11%;text-align:center}
+    .pb-act.has-instructor th:nth-child(4),.pb-act.has-instructor td:nth-child(4){width:13%;text-align:center}
+    .pb-act.has-instructor th:nth-child(5),.pb-act.has-instructor td:nth-child(5){width:20%}
     .footer{margin-top:10px;font-size:12px;font-weight:700;color:#0f172a;text-align:center;border-top:1px solid #cbd5e1;padding-top:6px}
     @page{size:A4 portrait;margin:8mm}
     @media print{body{margin:0}.pb{page-break-inside:avoid;break-inside:avoid}.pb-hdr{break-after:avoid;page-break-after:avoid}.pb-act{break-before:avoid;page-break-before:avoid;break-inside:auto;page-break-inside:auto}tr{break-inside:avoid;page-break-inside:avoid}}
@@ -1090,6 +1103,7 @@ function printSchoolsSchedule() {
   const dateRange = (ops?.dateFrom && ops?.dateTo)
     ? `טווח תאריכים: ${formatDateHe(ops.dateFrom)}–${formatDateHe(ops.dateTo)}`
     : '';
+  const quantityTotal = Array.from(byAuthority.values()).reduce((sum, group) => sum + group.quantityTotal, 0);
 
   const sectionsHtml = Array.from(byAuthority.values()).map((authorityGroup) => {
     const schools = Array.from(authorityGroup.schools.values()).sort((a, b) => a.school.localeCompare(b.school, 'he'));
@@ -1101,6 +1115,7 @@ function printSchoolsSchedule() {
           const activity = entry.activity;
           return `<tr>
             <td class="col-time">${escapeHtml(entry.time || '—')}</td>
+            <td class="col-quantity">${escapeHtml(String(entry.quantity))}</td>
             <td class="col-instructor">${escapeHtml(entry.instructor || '—')}</td>
             <td class="col-class">${escapeHtml(getActivityGradeLabel(activity) || '—')}</td>
             <td class="col-activity">${escapeHtml(getActivityName(activity))}</td>
@@ -1109,16 +1124,16 @@ function printSchoolsSchedule() {
         const dayLabel = date ? formatDateHeWithWeekday(date).split(' · ')[0] : '—';
         return `<div class="date-block authorities-title-table-block">
           <div class="date-title authorities-group-title">${escapeHtml(formatDateHe(date) || date)} · ${escapeHtml(dayLabel)}</div>
-          <table class="authorities-table"><colgroup><col class="col-time"><col class="col-instructor"><col class="col-class"><col class="col-activity"></colgroup><thead><tr><th class="col-time">שעות</th><th class="col-instructor">מדריך</th><th class="col-class">כיתה</th><th class="col-activity">פעילות / סדנה</th></tr></thead><tbody>${rowsHtml}</tbody></table>
+          <table class="authorities-table"><colgroup><col class="col-time"><col class="col-quantity"><col class="col-instructor"><col class="col-class"><col class="col-activity"></colgroup><thead><tr><th class="col-time">שעות</th><th class="col-quantity">כמות</th><th class="col-instructor">מדריך</th><th class="col-class">כיתה</th><th class="col-activity">פעילות / סדנה</th></tr></thead><tbody>${rowsHtml}</tbody></table>
         </div>`;
       }).join('');
       return `<div class="school-block">
-        <div class="school-title authorities-group-title">${escapeHtml(schoolHeaderTitle(schoolGroup.school, schoolGroup.activities))}</div>
+        <div class="school-title authorities-group-title">${escapeHtml(schoolHeaderTitle(schoolGroup.school, schoolGroup.activities, schoolGroup.quantityTotal))}</div>
         ${datesHtml}
       </div>`;
     }).join('');
     return `<div class="authority-section">
-      <div class="authority-header">${escapeHtml(authorityHeaderTitle(authorityGroup.authority, schools.length, authorityGroup.activities))}</div>
+      <div class="authority-header">${escapeHtml(authorityHeaderTitle(authorityGroup.authority, schools.length, authorityGroup.activities, authorityGroup.quantityTotal))}</div>
       ${schoolsHtml}
     </div>`;
   }).join('');
@@ -1138,21 +1153,22 @@ function printSchoolsSchedule() {
     .date-title+.authorities-table{break-before:avoid-page;page-break-before:avoid;}
     .authorities-title-table-block{break-inside:avoid-page;page-break-inside:avoid}
     .authorities-table{border-collapse:collapse;width:100%;table-layout:fixed}
-    .authorities-table .col-time{width:20%;text-align:center}
-    .authorities-table .col-instructor{width:27%}
-    .authorities-table .col-class{width:20%;text-align:center}
-    .authorities-table .col-activity{width:33%}
+    .authorities-table .col-time{width:18%;text-align:center}
+    .authorities-table .col-quantity{width:12%;text-align:center}
+    .authorities-table .col-instructor{width:24%}
+    .authorities-table .col-class{width:16%;text-align:center}
+    .authorities-table .col-activity{width:30%}
     .authorities-table th,.authorities-table td{border:1px solid #cbd5e1;padding:2px 4px;text-align:right;font-size:9px;line-height:1.15;white-space:normal;word-break:break-word;overflow-wrap:anywhere}
     .authorities-table th{background:#e6f6fb;font-weight:700}
     .authorities-table tr:nth-child(even) td{background:#f8fafc}
     .authorities-table tr{break-inside:avoid-page;page-break-inside:avoid}
     .footer{margin-top:10px;font-size:11px;font-weight:700;color:#0f172a;text-align:center;border-top:1px solid #cbd5e1;padding-top:5px}
     @page{size:A4 portrait;margin:8mm}
-    @media print{body{margin:0}.authority-section:not(:first-child){break-before:page;page-break-before:always;}.date-block{width:55%!important;max-width:55%!important;margin:0 auto 6px!important;display:block!important;}.authorities-table{width:100%!important;table-layout:fixed!important}.authorities-table .col-time{width:20%!important}.authorities-table .col-instructor{width:27%!important}.authorities-table .col-class{width:20%!important}.authorities-table .col-activity{width:33%!important}.authorities-table th,.authorities-table td{white-space:normal!important;word-break:break-word!important;overflow-wrap:anywhere!important;font-size:9px;padding:2px 4px;line-height:1.15}.date-title{break-after:avoid-page;page-break-after:avoid}.date-title+.authorities-table{break-before:avoid-page;page-break-before:avoid}.authorities-title-table-block{break-inside:avoid-page;page-break-inside:avoid}.authorities-table tr{break-inside:avoid-page;page-break-inside:avoid}.school-title{break-after:avoid-page;page-break-after:avoid}}
+    @media print{body{margin:0}.authority-section:not(:first-child){break-before:page;page-break-before:always;}.date-block{width:55%!important;max-width:55%!important;margin:0 auto 6px!important;display:block!important;}.authorities-table{width:100%!important;table-layout:fixed!important}.authorities-table .col-time{width:18%!important}.authorities-table .col-quantity{width:12%!important}.authorities-table .col-instructor{width:24%!important}.authorities-table .col-class{width:16%!important}.authorities-table .col-activity{width:30%!important}.authorities-table th,.authorities-table td{white-space:normal!important;word-break:break-word!important;overflow-wrap:anywhere!important;font-size:9px;padding:2px 4px;line-height:1.15}.date-title{break-after:avoid-page;page-break-after:avoid}.date-title+.authorities-table{break-before:avoid-page;page-break-before:avoid}.authorities-title-table-block{break-inside:avoid-page;page-break-inside:avoid}.authorities-table tr{break-inside:avoid-page;page-break-inside:avoid}.school-title{break-after:avoid-page;page-break-after:avoid}}
   `;
   const bodyHtml = `
     <h1>${escapeHtml(title)}</h1>
-    ${dateRange ? `<p class="subtitle">${escapeHtml(dateRange)}</p>` : ''}
+    ${dateRange ? `<p class="subtitle">${escapeHtml(dateRange)} | סה״כ כמויות: ${escapeHtml(String(quantityTotal))}</p>` : `<p class="subtitle">סה״כ כמויות: ${escapeHtml(String(quantityTotal))}</p>`}
     ${sectionsHtml}
     <div class="footer">הופק ממערכת ניהול הפעילויות</div>
   `;
@@ -1180,6 +1196,7 @@ function instructorsTabHtml(rows, state, data = {}, directory = buildSchoolsDire
       <td class="ds-ops-col--date"><strong>${escapeHtml(formatDateHe(entry.date) || '—')}</strong></td>
       <td class="ds-ops-col--weekday">${escapeHtml(entry.date ? formatDateHeWithWeekday(entry.date).split(' · ')[0] : '—')}</td>
       <td class="ds-ops-col--time">${escapeHtml(entry.time || '—')}</td>
+      <td class="ds-ops-col--quantity">${escapeHtml(String(entry.quantity))}</td>
       <td>${escapeHtml(getActivityAuthorityName(activity))}</td>
       <td class="ds-ops-col--school"><strong>${escapeHtml(getActivitySchoolDisplayNameClean(activity))}</strong></td>
       <td class="ds-ops-col--instructor">${escapeHtml(entry.instructor || '—')}</td>
@@ -1190,7 +1207,7 @@ function instructorsTabHtml(rows, state, data = {}, directory = buildSchoolsDire
 
   const table = scheduleRows.length
     ? dsTableWrap(`<table class="ds-table ds-table--compact ds-ops-mgmt-schedule"><thead><tr>
-        ${sortableTh(state, TAB_INSTRUCTORS, 'date', 'תאריך', 'ds-ops-col--date')}${sortableTh(state, TAB_INSTRUCTORS, 'weekday', 'יום', 'ds-ops-col--weekday')}${sortableTh(state, TAB_INSTRUCTORS, 'time', 'שעות', 'ds-ops-col--time')}${sortableTh(state, TAB_INSTRUCTORS, 'authority', 'רשות')}${sortableTh(state, TAB_INSTRUCTORS, 'school', 'בית ספר / מסגרת', 'ds-ops-col--school')}${sortableTh(state, TAB_INSTRUCTORS, 'instructor', 'מדריך', 'ds-ops-col--instructor')}${sortableTh(state, TAB_INSTRUCTORS, 'grade', 'כיתה', 'ds-ops-col--grade')}${sortableTh(state, TAB_INSTRUCTORS, 'activity', 'פעילות', 'ds-ops-col--activity')}
+        ${sortableTh(state, TAB_INSTRUCTORS, 'date', 'תאריך', 'ds-ops-col--date')}${sortableTh(state, TAB_INSTRUCTORS, 'weekday', 'יום', 'ds-ops-col--weekday')}${sortableTh(state, TAB_INSTRUCTORS, 'time', 'שעות', 'ds-ops-col--time')}${sortableTh(state, TAB_INSTRUCTORS, 'quantity', 'כמות', 'ds-ops-col--quantity')}${sortableTh(state, TAB_INSTRUCTORS, 'authority', 'רשות')}${sortableTh(state, TAB_INSTRUCTORS, 'school', 'בית ספר / מסגרת', 'ds-ops-col--school')}${sortableTh(state, TAB_INSTRUCTORS, 'instructor', 'מדריך', 'ds-ops-col--instructor')}${sortableTh(state, TAB_INSTRUCTORS, 'grade', 'כיתה', 'ds-ops-col--grade')}${sortableTh(state, TAB_INSTRUCTORS, 'activity', 'פעילות', 'ds-ops-col--activity')}
       </tr></thead><tbody>${tableRows}</tbody></table>`)
     : dsEmptyState('לא נמצאו פעילויות בטווח הנבחר');
 
@@ -1306,18 +1323,20 @@ function schoolsTabHtml(rows, state, directory = buildSchoolsDirectory([]), cont
     const school = getActivitySchoolDisplayNameClean(activity);
     const date = entry.date || '';
     if (!byAuthority.has(authority)) {
-      byAuthority.set(authority, { authority, schools: new Map(), activities: 0, instructors: new Set() });
+      byAuthority.set(authority, { authority, schools: new Map(), activities: 0, quantityTotal: 0, instructors: new Set() });
     }
     const authorityGroup = byAuthority.get(authority);
     authorityGroup.activities += 1;
+    authorityGroup.quantityTotal += entry.quantity;
     const instructor = getActivityInstructorName(activity);
     if (instructor !== 'לא משויך') authorityGroup.instructors.add(instructor);
 
     if (!authorityGroup.schools.has(school)) {
-      authorityGroup.schools.set(school, { school, dates: new Map(), activities: 0, workshops: new Set(), instructors: new Set() });
+      authorityGroup.schools.set(school, { school, dates: new Map(), activities: 0, quantityTotal: 0, workshops: new Set(), instructors: new Set() });
     }
     const schoolGroup = authorityGroup.schools.get(school);
     schoolGroup.activities += 1;
+    schoolGroup.quantityTotal += entry.quantity;
     schoolGroup.workshops.add(getActivityName(activity));
     if (instructor !== 'לא משויך') schoolGroup.instructors.add(instructor);
 
@@ -1338,6 +1357,7 @@ function schoolsTabHtml(rows, state, directory = buildSchoolsDirectory([]), cont
           const activity = entry.activity;
           return `<tr>
             <td class="ds-ops-col--time">${escapeHtml(entry.time || '—')}</td>
+            <td class="ds-ops-col--quantity">${escapeHtml(String(entry.quantity))}</td>
             <td class="ds-ops-col--instructor">${escapeHtml(entry.instructor || '—')}</td>
             <td class="ds-ops-col--grade">${escapeHtml(getActivityGradeLabel(activity) || '—')}</td>
             <td class="ds-ops-col--activity">${escapeHtml(getActivityName(activity))}</td>
@@ -1346,20 +1366,21 @@ function schoolsTabHtml(rows, state, directory = buildSchoolsDirectory([]), cont
         const dayLabel = date ? formatDateHeWithWeekday(date).split(' · ')[0] : '—';
         return `<section class="ds-ops-authority-date">
           <h4 class="ds-ops-authority-date__title">${escapeHtml(dayLabel)} · ${escapeHtml(formatDateHe(date) || 'ללא תאריך')}</h4>
-          ${dsTableWrap(`<table class="ds-table ds-table--compact ds-ops-mgmt-data-table ds-ops-authorities-table"><colgroup><col class="ds-ops-col--time"><col class="ds-ops-col--instructor"><col class="ds-ops-col--grade"><col class="ds-ops-col--activity"></colgroup><thead><tr><th class="ds-ops-col--time">שעות</th><th class="ds-ops-col--instructor">מדריך</th><th class="ds-ops-col--grade">כיתה</th><th class="ds-ops-col--activity">פעילות / סדנה</th></tr></thead><tbody>${rowsHtml}</tbody></table>`)}
+          ${dsTableWrap(`<table class="ds-table ds-table--compact ds-ops-mgmt-data-table ds-ops-authorities-table"><colgroup><col class="ds-ops-col--time"><col class="ds-ops-col--quantity"><col class="ds-ops-col--instructor"><col class="ds-ops-col--grade"><col class="ds-ops-col--activity"></colgroup><thead><tr><th class="ds-ops-col--time">שעות</th><th class="ds-ops-col--quantity">כמות</th><th class="ds-ops-col--instructor">מדריך</th><th class="ds-ops-col--grade">כיתה</th><th class="ds-ops-col--activity">פעילות / סדנה</th></tr></thead><tbody>${rowsHtml}</tbody></table>`)}
         </section>`;
       }).join('');
       return `<article class="ds-ops-authority-school">
         <header class="ds-ops-authority-school__header">
-          <strong class="ds-ops-school-card__title">${escapeHtml(schoolHeaderTitle(schoolGroup.school, schoolGroup.activities))}</strong>
+          <strong class="ds-ops-school-card__title">${escapeHtml(schoolHeaderTitle(schoolGroup.school, schoolGroup.activities, schoolGroup.quantityTotal))}</strong>
         </header>
         ${dateBlocks}
       </article>`;
     }).join('');
-    return `<section class="ds-ops-schools-authority"><header class="ds-ops-schools-authority__header"><strong>${escapeHtml(authorityHeaderTitle(authorityGroup.authority, schools.length, authorityGroup.activities))}</strong></header>${schoolBlocks}</section>`;
+    return `<section class="ds-ops-schools-authority"><header class="ds-ops-schools-authority__header"><strong>${escapeHtml(authorityHeaderTitle(authorityGroup.authority, schools.length, authorityGroup.activities, authorityGroup.quantityTotal))}</strong></header>${schoolBlocks}</section>`;
   }).join('');
 
   const schoolCount = Array.from(byAuthority.values()).reduce((sum, group) => sum + group.schools.size, 0);
+  const quantityTotal = Array.from(byAuthority.values()).reduce((sum, group) => sum + group.quantityTotal, 0);
   _schoolsPrintContext = { byAuthority, ops };
   return `<section class="ds-ops-mgmt-panel" dir="rtl">
     <div class="ds-ops-mgmt-panel__toolbar no-print">
@@ -1370,6 +1391,7 @@ function schoolsTabHtml(rows, state, directory = buildSchoolsDirectory([]), cont
       { label: 'רשויות', value: byAuthority.size },
       { label: 'בתי ספר', value: schoolCount },
       { label: 'פעילויות', value: seenEntries.size },
+      { label: 'סה״כ כמויות', value: quantityTotal },
       { label: 'מדריכים', value: instructorOptions(rows).length }
     ])}
     ${authoritySections || dsEmptyState('לא נמצאו בתי ספר')}
