@@ -188,7 +188,25 @@ test('manage permission does not automatically grant approve permission', () => 
   });
   assert.equal(flags.approve_proposals_agreements, undefined);
   assert.equal(flags.view_proposals_agreements, undefined);
-  assert.equal(proposalSessionUserFlagsFromFlatUser(flat).view_proposals_agreements, 'yes');
+  assert.equal(proposalSessionUserFlagsFromFlatUser(flat).view_proposals_agreements, true);
+});
+
+test('login session proposal flags match stable behavior without approve in session user', () => {
+  const userRow = {
+    user_id: 'approver-top',
+    role: 'authorized_user',
+    is_active: true,
+    permissions: {},
+    view_proposals_agreements: 'yes',
+    manage_proposals_agreements: 'yes',
+    approve_proposals_agreements: 'yes'
+  };
+  const flat = flattenUserRow(userRow);
+  const sessionFlags = proposalSessionUserFlagsFromFlatUser(flat);
+
+  assert.equal(sessionFlags.view_proposals_agreements, true);
+  assert.equal(sessionFlags.manage_proposals_agreements, true);
+  assert.equal(sessionFlags.approve_proposals_agreements, undefined);
 });
 
 test('top-level approve_proposals_agreements allows approval only when explicit', () => {
@@ -334,7 +352,11 @@ test('missing optional columns does not grant extra proposal access', () => {
   });
 });
 
-test('view-only drawer does not expose internal approval note or notes fields', () => {
+test('view-only user keeps stable drawer field rendering and no manage or approve actions', async () => {
+  const screenSource = await readFile(new URL('../frontend/src/screens/proposals-agreements.js', import.meta.url), 'utf8');
+  assert.doesNotMatch(screenSource, /if \(key === 'notes' && !canManage\) return '';/);
+  assert.match(screenSource, /const approvalNoteHtml = text\(row\.approval_note\) \? `/);
+
   const row = {
     id: '11111111-1111-1111-1111-111111111111',
     client_authority: 'רשות א',
@@ -342,14 +364,17 @@ test('view-only drawer does not expose internal approval note or notes fields', 
     activity_type_group: 'קיץ',
     proposal_date: '2026-01-01',
     activity_names: ['רובוטיקה'],
-    notes: 'internal note',
-    approval_note: 'approval internal',
+    notes: 'customer-facing note',
+    approval_note: 'approval note text',
     status: 'draft',
-    total_amount: 100
+    total_amount: 100,
+    approved_by: 'admin-user',
+    auth_user_id: '00000000-0000-4000-8000-000000000001'
   };
-  const viewState = { user: { role: 'authorized_user', view_proposals_agreements: 'yes' } };
+  const viewState = { user: { role: 'authorized_user', view_proposals_agreements: 'yes' }, effectiveRoutes: ['proposals-agreements'] };
   const html = proposalsAgreementsScreen.render({ rows: [row] }, { state: viewState });
-  const drawer = html.match(/<aside class="ds-pa-drawer"[\s\S]*?<\/aside>/)?.[0] || '';
-  assert.doesNotMatch(drawer, /internal note/);
-  assert.doesNotMatch(drawer, /approval internal/);
+  assert.doesNotMatch(html, /admin-user/);
+  assert.doesNotMatch(html, /00000000-0000-4000-8000-000000000001/);
+  assert.doesNotMatch(html, /data-pa-edit-row/);
+  assert.doesNotMatch(html, /חתום ואשר/);
 });
