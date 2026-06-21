@@ -13,6 +13,8 @@ import {
 } from './operations-activity-helpers.js';
 
 const BLANK = '________________';
+const ORG_NAME = 'עמותת תעשיידע – תעשייה למען חינוך מתקדם';
+const taasiyedaLogoSrc = new URL('../../../assets/logo1.png', import.meta.url).href;
 
 function text(value) {
   const clean = String(value ?? '').trim();
@@ -73,10 +75,6 @@ function findSchoolRows(activity, directory) {
   });
 }
 
-function schoolAddress(activity, directory) {
-  return text(activity?.school_address || activity?.address) || text(findSchoolRows(activity, directory)[0]?.address);
-}
-
 function schoolContact(activity, directory, contactsIndex) {
   const direct = {
     name: text(activity?.contact_name || activity?.school_contact_name),
@@ -126,27 +124,21 @@ export function buildCompletionApprovals(rows = [], { instructor = '', dateMode 
           groups.set(key, {
             id: key,
             instructorName: instructorEntry.name,
-            empId: instructorEntry.empId,
             date: activityDate,
             authority,
             school,
-            address: schoolAddress(activity, directory),
             contact: schoolContact(activity, directory, contactsIndex),
             activities: []
           });
         }
         const group = groups.get(key);
-        if (!group.address) group.address = schoolAddress(activity, directory);
         if (!group.contact.name && !group.contact.phone && !group.contact.email) group.contact = schoolContact(activity, directory, contactsIndex);
         group.activities.push({
           name: getActivityName(activity),
-          type: text(activity?.activity_type || activity?.type || activity?.program_type),
           grade: getActivityGradeLabel(activity),
-          group: text(activity?.class_name || activity?.group_name || activity?.class || activity?.group),
           time: getActivityTimeRange(activity),
           start: text(activity?.start_time || activity?.StartTime),
-          end: text(activity?.end_time || activity?.EndTime),
-          notes: text(activity?.notes || activity?.operations_private_notes || activity?.public_notes)
+          end: text(activity?.end_time || activity?.EndTime)
         });
       });
     });
@@ -172,24 +164,50 @@ function field(label, value) {
   return `<div><strong>${escapeHtml(label)}:</strong> ${value ? escapeHtml(value) : BLANK}</div>`;
 }
 
+export function formatApprovalTime(value) {
+  if (!value) return '';
+  if (value instanceof Date && !Number.isNaN(value.getTime())) {
+    return `${String(value.getHours()).padStart(2, '0')}:${String(value.getMinutes()).padStart(2, '0')}`;
+  }
+  const clean = text(value);
+  if (!clean) return '';
+  const timeMatch = clean.match(/(\d{1,2}):(\d{2})(?::\d{2}(?:\.\d+)?)?/);
+  if (timeMatch) return `${timeMatch[1].padStart(2, '0')}:${timeMatch[2]}`;
+  const date = new Date(clean);
+  if (!Number.isNaN(date.getTime())) {
+    return `${String(date.getHours()).padStart(2, '0')}:${String(date.getMinutes()).padStart(2, '0')}`;
+  }
+  return '';
+}
+
+function approvalLine(label, value = '') {
+  return `<p><strong>${escapeHtml(label)}:</strong> <span class="approval-fill-line">${escapeHtml(text(value))}</span></p>`;
+}
+
 export function completionApprovalDocumentHtml(approval) {
   const rows = approval.activities.map((activity) => `<tr>
-    <td>${escapeHtml(activity.name)}</td><td>${escapeHtml(activity.type)}</td><td>${escapeHtml(activity.grade)}</td><td>${escapeHtml(activity.group)}</td>
-    <td>${escapeHtml(activity.start || (activity.time || '').split('-')[0]?.trim() || '')}</td><td>${escapeHtml(activity.end || (activity.time || '').split('-')[1]?.trim() || '')}</td>
-    <td>${BLANK}</td><td>${escapeHtml(activity.notes)}</td>
+    <td>${escapeHtml(activity.name)}</td>
+    <td class="completion-approval-table__center">${escapeHtml(activity.grade)}</td>
+    <td class="completion-approval-table__center">${escapeHtml(formatApprovalTime(activity.start || (activity.time || '').split('-')[0]?.trim()))}</td>
+    <td class="completion-approval-table__center">${escapeHtml(formatApprovalTime(activity.end || (activity.time || '').split('-')[1]?.trim()))}</td>
+    <td class="completion-approval-table__manual">${BLANK}</td>
   </tr>`).join('');
+  const authorityLine = text(approval.authority) ? `<p class="completion-approval-authority">${escapeHtml(approval.authority)}</p>` : '';
   return `<article class="completion-approval-page" dir="rtl">
-    <header class="completion-approval-header"><h1>עמותת תעשיידע – תעשייה למען חינוך מתקדם</h1><h2>אישור ביצוע פעילות</h2></header>
+    <header class="completion-approval-header"><img class="completion-approval-logo" src="${escapeHtml(taasiyedaLogoSrc)}" alt="לוגו תעשיידע"><h1>אישור ביצוע פעילות</h1></header>
     <section class="completion-approval-details">
-      ${field('רשות', approval.authority)}${field('שם בית ספר', approval.school)}${field('כתובת בית ספר', approval.address)}${field('תאריך פעילות', formatDateHe(approval.date) || approval.date)}${field('שם מדריך/ה', approval.instructorName)}${field('מספר עובד', approval.empId)}
+      <div class="completion-approval-school"><strong>בית ספר:</strong> ${escapeHtml(approval.school || '')}${authorityLine}</div>
+      ${field('תאריך פעילות', formatDateHe(approval.date) || approval.date)}
+      ${field('מדריך/ה', approval.instructorName)}
     </section>
-    <section class="completion-approval-contact"><h3>פרטי איש קשר מטעם בית הספר</h3>
-      ${field('שם איש קשר', approval.contact.name)}${field('תפקיד', approval.contact.role)}${field('טלפון', approval.contact.phone)}${field('דוא״ל', approval.contact.email)}
-    </section>
-    <table class="completion-approval-table"><thead><tr><th>שם סדנה / פעילות</th><th>סוג פעילות</th><th>כיתה / שכבה</th><th>קבוצה</th><th>שעת התחלה</th><th>שעת סיום</th><th>מספר משתתפים</th><th>הערות</th></tr></thead><tbody>${rows}</tbody></table>
+    <table class="completion-approval-table approval-print-table"><thead><tr><th>שם סדנה / פעילות</th><th class="completion-approval-table__center">כיתה</th><th class="completion-approval-table__center">שעת התחלה</th><th class="completion-approval-table__center">שעת סיום</th><th>מספר משתתפים</th></tr></thead><tbody>${rows}</tbody></table>
     <section class="completion-approval-signature"><h3>אישור בית הספר</h3><p>אני מאשר/ת כי הפעילות המפורטת לעיל התקיימה בבית הספר בתאריך המצוין.</p>
-      <p>שם איש/אשת הקשר בבית הספר: _______________________</p><p>תפקיד: _______________________</p><p>חתימה: _______________________</p><p>חותמת בית הספר: _______________________</p><p>תאריך חתימה: _______________________</p><p>הערות בית הספר:</p><p>____________________________________________________</p><p>____________________________________________________</p>
+      ${approvalLine('שם מלא', approval.contact?.name)}
+      ${approvalLine('תפקיד', approval.contact?.role)}
+      ${approvalLine('חתימה')}
+      ${approvalLine('חותמת בית הספר')}
     </section>
+    <footer class="completion-approval-footer">${escapeHtml(ORG_NAME)}</footer>
   </article>`;
 }
 
@@ -199,11 +217,14 @@ export function completionApprovalsPrintHtml(approvals = []) {
 
 export const completionApprovalPrintCss = `
   body{direction:rtl;font-family:Assistant,Arial,sans-serif;margin:0;color:#111827;background:#fff;font-size:12px;line-height:1.45}
-  .completion-approval-page{box-sizing:border-box;min-height:277mm;padding:12mm;break-after:page;page-break-after:always;background:#fff}
+  .completion-approval-page{box-sizing:border-box;min-height:277mm;padding:12mm 12mm 10mm;break-after:page;page-break-after:always;background:#fff;display:flex;flex-direction:column}
   .completion-approval-page:last-child{break-after:auto;page-break-after:auto}
-  .completion-approval-header{text-align:center;border-bottom:1px solid #111827;padding-bottom:8px;margin-bottom:10px}.completion-approval-header h1{font-size:17px;margin:0 0 4px}.completion-approval-header h2{font-size:20px;margin:0}
-  .completion-approval-details,.completion-approval-contact{display:grid;grid-template-columns:1fr 1fr;gap:5px 18px;margin:9px 0}.completion-approval-contact h3,.completion-approval-signature h3{grid-column:1/-1;margin:0 0 3px;font-size:15px}
-  .completion-approval-table{width:100%;border-collapse:collapse;margin:10px 0;table-layout:fixed}.completion-approval-table th,.completion-approval-table td{border:1px solid #334155;padding:5px;text-align:right;vertical-align:top;word-break:break-word}.completion-approval-table th{background:#f1f5f9;font-weight:700}.completion-approval-table th:nth-child(7),.completion-approval-table td:nth-child(7){width:78px;text-align:center}
+  .completion-approval-header{position:relative;text-align:center;border-bottom:1px solid #111827;padding:0 28mm 8px;margin-bottom:10px;min-height:22mm}.completion-approval-header h1{font-size:20px;margin:0;padding-top:7mm}.completion-approval-logo{position:absolute;inset-inline-start:0;top:0;height:42px;max-height:20mm;width:auto;object-fit:contain}
+  .completion-approval-details{display:grid;grid-template-columns:1fr;gap:5px;margin:9px 0 14px}.completion-approval-school{font-size:14px}.completion-approval-authority{margin:2px 0 0;font-size:11px;color:#475569}
+  .completion-approval-signature h3{margin:0 0 3px;font-size:15px}
+  .completion-approval-table{border-collapse:collapse;margin:10px 0;table-layout:fixed}.approval-print-table{width:60%;margin-inline:auto}.completion-approval-table th,.completion-approval-table td{border:1px solid #334155;padding:5px;text-align:right;vertical-align:top;word-break:break-word}.completion-approval-table th{background:#f1f5f9;font-weight:700}.completion-approval-table__center{text-align:center!important}.completion-approval-table__manual{text-align:center;white-space:nowrap}
+  .approval-fill-line{display:inline-block;min-width:180px;border-bottom:1px solid #111827;min-height:1em}
   .completion-approval-signature{margin-top:12px;break-inside:avoid;page-break-inside:avoid}.completion-approval-signature p{margin:7px 0}
+  .completion-approval-footer{margin-top:auto;padding-top:8mm;text-align:center;font-size:10px;line-height:1.2;color:#64748b}
   @page{size:A4 portrait;margin:0}@media print{body{margin:0}.completion-approval-page{break-after:page;page-break-after:always}thead{display:table-header-group}tr{break-inside:avoid;page-break-inside:avoid}}
 `;
