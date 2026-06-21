@@ -1,6 +1,6 @@
 import { escapeHtml } from './html.js';
 import { formatDateHe, formatDateHeWithWeekday, formatTimeShort, formatTimeRangeShort, formatActivityDateColumnsHe } from './format-date.js';
-import { activityManagerDisplayName, activityTypeDisplayLabel, activityTypeMatches, cleanActivityManagerName, getManagerUsers, humanDisplayText, NO_ACTIVITY_MANAGER_LABEL, normalizeActivityTypeKey, normalizeOneDayActivityType, resolveActivityInstructorName, resolveGradeOptions } from './activity-options.js';
+import { activityManagerDisplayName, activityTypeDisplayLabel, activityTypeMatches, cleanActivityManagerName, getManagerUsers, getValidInstructorUsers, humanDisplayText, INVALID_ACTIVITY_INSTRUCTOR_STATUS, validateInstructorBinding, NO_ACTIVITY_MANAGER_LABEL, normalizeActivityTypeKey, normalizeOneDayActivityType, resolveActivityInstructorName, resolveGradeOptions } from './activity-options.js';
 import { ACTIVITY_SEASON_OPTIONS, activitySeasonLabel, normalizeActivitySeason } from './summer-activity.js';
 
 const ONCE_TYPES = ['workshop', 'tour', 'escape_room'];
@@ -118,6 +118,12 @@ function resolveInstructorDisplayName(name, empId, lookup) {
   return '';
 }
 
+function instructorViewDisplay(name, empId, contactsUsers) {
+  const result = validateInstructorBinding({ empId, instructorName: name }, contactsUsers);
+  if (!result.valid && (empId || name)) return INVALID_ACTIVITY_INSTRUCTOR_STATUS;
+  return result.name || name;
+}
+
 function normalizeActivityNameOptions(raw) {
   if (!Array.isArray(raw)) return [];
   const out = [];
@@ -139,6 +145,23 @@ function normalizeActivityNameOptions(raw) {
     }
   });
   return out;
+}
+
+function instructorSelectHtml({ name, value, rosterUsers, klass = 'ds-input', placeholder = '—', attrs = '' }) {
+  const safeValue = String(value || '').trim();
+  const seen = new Set();
+  const opts = [`<option value="">${escapeHtml(placeholder)}</option>`]
+    .concat((Array.isArray(rosterUsers) ? rosterUsers : [])
+      .map((u) => ({ name: humanDisplayText(u?.name), emp_id: String(u?.emp_id || '').trim() }))
+      .filter((u) => u.name && u.emp_id)
+      .filter((u) => {
+        if (seen.has(u.emp_id)) return false;
+        seen.add(u.emp_id);
+        return true;
+      })
+      .map((u) => `<option value="${escapeHtml(u.emp_id)}"${u.emp_id === safeValue ? ' selected' : ''}>${escapeHtml(u.name)}</option>`))
+    .join('');
+  return `<select class="${escapeHtml(klass)}" name="${escapeHtml(name)}" ${attrs}>${opts}</select>`;
 }
 
 function selectHtml({ name, value, options, klass = 'ds-input', placeholder = '—', attrs = '' }) {
@@ -458,18 +481,30 @@ function blockAssignment(row, { settings = {} } = {}) {
 function blockTeamTimes(row, { settings = {} } = {}) {
   const options = settings?.dropdown_options || {};
   const managers = getManagerUsers(settings || {});
-  const instructors = mergeListStrings(options, ['instructor_name', 'instructor_names']);
+  const rosterUsers = getValidInstructorUsers(settings || {});
   const instructorLookup = buildInstructorLookup(settings);
+  const contactsUsers = getValidInstructorUsers(settings || {});
   const instructor1Display = resolveActivityInstructorName(row) || resolveInstructorDisplayName(row.instructor_name, row.emp_id, instructorLookup);
   const instructor2Display = resolveActivityInstructorName(row, { secondary: true }) || resolveInstructorDisplayName(row.instructor_name_2, row.emp_id_2, instructorLookup);
+  const instructor1EmpId = String(row.emp_id || '').trim();
+  const instructor2EmpId = String(row.emp_id_2 || '').trim();
   const activityType = normalizeActivityTypeKey(row.activity_type || row.item_type);
   const twoInstructors = activityType === 'workshop' || activityType === 'escape_room';
+  const instructorBindingWarning = [
+    validateInstructorBinding({ empId: instructor1EmpId, instructorName: instructor1Display }, rosterUsers),
+    validateInstructorBinding({ empId: instructor2EmpId, instructorName: instructor2Display }, rosterUsers)
+  ].some((result) => !result.valid)
+    ? '<p class="ds-error-text">בפעילות זו קיים שיוך למדריך שאינו קיים בטבלת המדריכים. יש לבחור מדריך מחדש.</p>'
+    : '';
   const instructorEditHtml = twoInstructors
     ? `<div class="activity-drawer__field-controls activity-drawer__field-controls--stacked">
-        ${selectHtml({ name: 'instructor_name', value: instructor1Display, options: instructors })}
-        ${selectHtml({ name: 'instructor_name_2', value: instructor2Display, options: instructors })}
+        <input type="hidden" name="instructor_name" value="${escapeHtml(instructor1Display)}">
+        <input type="hidden" name="instructor_name_2" value="${escapeHtml(instructor2Display)}">
+        ${instructorSelectHtml({ name: 'emp_id', value: instructor1EmpId, rosterUsers })}
+        ${instructorSelectHtml({ name: 'emp_id_2', value: instructor2EmpId, rosterUsers })}
+        ${instructorBindingWarning}
       </div>`
-    : selectHtml({ name: 'instructor_name', value: instructor1Display, options: instructors });
+    : `<input type="hidden" name="instructor_name" value="${escapeHtml(instructor1Display)}">${instructorSelectHtml({ name: 'emp_id', value: instructor1EmpId, rosterUsers })}${instructorBindingWarning}`;
 
   return `
     <section class="activity-drawer__section activity-drawer__section--edit-group" data-mode="edit" hidden>
@@ -515,8 +550,9 @@ function blockExtraEditInfo(row, { settings = {} } = {}) {
 
 function blockCentralInfo(row, { settings = {}, hideFunding = false } = {}) {
   const instructorLookup = buildInstructorLookup(settings);
-  const instructor1Display = resolveActivityInstructorName(row) || resolveInstructorDisplayName(row.instructor_name, row.emp_id, instructorLookup);
-  const instructor2Display = resolveActivityInstructorName(row, { secondary: true }) || resolveInstructorDisplayName(row.instructor_name_2, row.emp_id_2, instructorLookup);
+  const contactsUsers = getValidInstructorUsers(settings || {});
+  const instructor1Display = instructorViewDisplay(resolveActivityInstructorName(row) || resolveInstructorDisplayName(row.instructor_name, row.emp_id, instructorLookup), row.emp_id, contactsUsers);
+  const instructor2Display = instructorViewDisplay(resolveActivityInstructorName(row, { secondary: true }) || resolveInstructorDisplayName(row.instructor_name_2, row.emp_id_2, instructorLookup), row.emp_id_2, contactsUsers);
   const activityType = normalizeActivityTypeKey(row.activity_type || row.item_type);
   const twoInstructors = activityType === 'workshop' || activityType === 'escape_room';
   const gradeVal = String(row.grade || '').trim();

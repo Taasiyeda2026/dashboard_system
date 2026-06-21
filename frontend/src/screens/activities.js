@@ -26,6 +26,7 @@ import {
   getActivityCatalog,
   getActivityTypesByFamily,
   getRosterUsers,
+  getValidInstructorUsers,
   activityTypeDisplayLabel,
   activityTypeMatches,
   normalizeActivityTypeKey,
@@ -34,9 +35,10 @@ import {
   getFilterOptionOverrides,
   cleanUnique,
   humanDisplayText,
-  instructorSyncErrorMessage,
+  INSTRUCTOR_IDENTITY_ERROR_MESSAGE,
   NO_ACTIVITY_MANAGER_LABEL,
-  resolveEmpIdForInstructorName,
+  resolveInstructorSelectionByEmpId,
+  validateInstructorIdentityPayload,
   resolveGradeOptions
 } from './shared/activity-options.js';
 import { readActivitiesGapFromQuery, syncActivitiesGapQuery, isActivitiesGapQueryValue } from './shared/route-query.js';
@@ -669,11 +671,27 @@ function datalistHtml(id, values) {
   return `<datalist id="${escapeHtml(id)}">${values.map((v) => `<option value="${escapeHtml(v)}">`).join('')}</datalist>`;
 }
 
+
+function instructorOptionsHtml(rosterUsers, selected = '', placeholder = '—') {
+  const safeSelected = String(selected || '').trim();
+  const valid = (Array.isArray(rosterUsers) ? rosterUsers : [])
+    .map((u) => ({ name: humanDisplayText(u?.name), emp_id: String(u?.emp_id || '').trim() }))
+    .filter((u) => u.name && u.emp_id);
+  const seen = new Set();
+  const unique = valid.filter((u) => {
+    if (seen.has(u.emp_id)) return false;
+    seen.add(u.emp_id);
+    return true;
+  });
+  return [`<option value="">${escapeHtml(placeholder)}</option>`]
+    .concat(unique.map((u) => `<option value="${escapeHtml(u.emp_id)}"${u.emp_id === safeSelected ? ' selected' : ''}>${escapeHtml(u.name)}</option>`))
+    .join('');
+}
+
 function addActivityModalHtml(settings) {
   const allActivityNames = getActivityCatalog(settings);
   const allTypes = ADD_ACTIVITY_TYPE_ORDER.slice();
-  const rosterUsers = getRosterUsers(settings);
-  const rosterNames = rosterUsers.map((u) => u.name);
+  const rosterUsers = getValidInstructorUsers(settings);
   const managerRoleNames = getManagerUsers(settings);
   const fundingOptions = mergeOptions(settings, ['funding', 'fundings']);
   const gradeOptions = resolveGradeOptions(settings);
@@ -683,7 +701,6 @@ function addActivityModalHtml(settings) {
   const managerOptions = managerRoleNames.length
     ? managerRoleNames
     : mergeOptions(settings, ['activity_manager', 'activity_managers']);
-  const instructorOptions = rosterNames.length ? rosterNames : mergeOptions(settings, ['instructor_name', 'instructor_names']);
   const initialType = '';
   const initialActivityNames = [];
   const sessionsList = Array.from({ length: 35 }, (_, i) => String(i + 1));
@@ -754,10 +771,8 @@ function addActivityModalHtml(settings) {
 
         <p class="ds-activity-add-section">צוות וניהול</p>
         <label class="ds-activity-add-field"><span>מנהל פעילות</span><select class="ds-input" name="activity_manager">${optionsHtml(managerOptions, '', NO_ACTIVITY_MANAGER_LABEL)}</select></label>
-        <label class="ds-activity-add-field"><span>מדריך/ה ראשי/ת</span><select class="ds-input" name="instructor_name" data-add-instructor>${optionsHtml(instructorOptions)}</select></label>
-        <input type="hidden" name="emp_id" value="">
-        <label class="ds-activity-add-field" data-field-instructor2><span>מדריך/ה נוסף/ת (אופציונלי)</span><select class="ds-input" name="instructor_name_2" data-add-instructor-2>${optionsHtml(instructorOptions)}</select></label>
-        <input type="hidden" name="emp_id_2" value="">
+        <label class="ds-activity-add-field"><span>מדריך/ה ראשי/ת</span><select class="ds-input" name="emp_id" data-add-instructor>${instructorOptionsHtml(rosterUsers)}</select></label>
+        <label class="ds-activity-add-field" data-field-instructor2><span>מדריך/ה נוסף/ת (אופציונלי)</span><select class="ds-input" name="emp_id_2" data-add-instructor-2>${instructorOptionsHtml(rosterUsers)}</select></label>
 
         <p class="ds-activity-add-section">הערות</p>
         <label class="ds-activity-add-field ds-activity-add-field--span2"><span>הערות</span><textarea class="ds-input" name="notes" rows="2"></textarea></label>
@@ -2467,16 +2482,23 @@ export const activitiesScreen = {
         resetAddActivitySavingState(form, submitBtn);
         return;
       }
-      const instructor1Name = humanDisplayText(get('instructor_name'));
-      const instructor2Name = humanDisplayText(get('instructor_name_2'));
-      const instructor1 = resolveEmpIdForInstructorName(instructor1Name, roster);
-      const instructor2 = resolveEmpIdForInstructorName(instructor2Name, roster);
-      for (const [name, result] of [[instructor1Name, instructor1], [instructor2Name, instructor2]]) {
-        if (!name || !result.error) continue;
-        setAddActivityStatus(statusEl, instructorSyncErrorMessage({ code: result.error }), { isError: true });
+      const selectedInstructorEmpId = get('emp_id');
+      const selectedInstructor2EmpId = get('emp_id_2');
+      const instructor1 = resolveInstructorSelectionByEmpId(selectedInstructorEmpId, roster);
+      const instructor2 = resolveInstructorSelectionByEmpId(selectedInstructor2EmpId, roster);
+      if (instructor1.error || instructor2.error) {
+        setAddActivityStatus(statusEl, instructor1.error === 'instructor_not_in_contacts' || instructor2.error === 'instructor_not_in_contacts' ? 'לא ניתן לשמור: המדריך שנבחר לא קיים בטבלת המדריכים. יש לעדכן את רשימת המדריכים.' : INSTRUCTOR_IDENTITY_ERROR_MESSAGE, { isError: true });
         resetAddActivitySavingState(form, submitBtn);
         return;
       }
+      const instructor1Name = instructor1.name;
+      const instructor2Name = instructor2.name;
+      console.info('[activity-add:instructor-selection]', {
+        selectedInstructorEmpId,
+        selectedInstructorName: instructor1Name,
+        selectedInstructor2EmpId,
+        selectedInstructor2Name: instructor2Name
+      });
       const sessionsValue = get('sessions') || '1';
       const isOneDay = isOneDayActivityTypeValue(get('activity_type'));
       const oneDayDate = String(get('one_day_date') || get('start_date') || get('end_date') || '').trim();
@@ -2610,6 +2632,12 @@ export const activitiesScreen = {
       }
       if (!String(payload.activity_no || '').trim()) {
         setAddActivityStatus(statusEl, 'לא ניתן לשמור: חסר מזהה פעילות מקור', { isError: true });
+        resetAddActivitySavingState(form, submitBtn);
+        return;
+      }
+      const instructorPayloadGuard = validateInstructorIdentityPayload(payload, roster);
+      if (!instructorPayloadGuard.valid) {
+        setAddActivityStatus(statusEl, 'לא ניתן לשמור: המדריך שנבחר לא קיים בטבלת המדריכים. יש לעדכן את רשימת המדריכים.', { isError: true });
         resetAddActivitySavingState(form, submitBtn);
         return;
       }

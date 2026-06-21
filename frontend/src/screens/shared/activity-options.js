@@ -247,10 +247,93 @@ export function getRosterUsers(settings) {
     .map((user) => ({ name: humanDisplayText(user?.name), emp_id: text(user?.emp_id) }))
     .filter((user) => user.name)
     .filter((user) => {
-      if (seen.has(user.name)) return false;
-      seen.add(user.name);
+      const key = `${user.emp_id}::${user.name}`;
+      if (seen.has(key)) return false;
+      seen.add(key);
       return true;
     });
+}
+
+export function getContactsInstructorUsers(settings) {
+  const raw = Array.isArray(settings?.dropdown_options?.contacts_instructor_users)
+    ? settings.dropdown_options.contacts_instructor_users
+    : [];
+  const seen = new Set();
+  return raw
+    .map((user) => ({ name: humanDisplayText(user?.name || user?.full_name), emp_id: text(user?.emp_id) }))
+    .filter((user) => user.name && user.emp_id)
+    .filter((user) => {
+      if (seen.has(user.emp_id)) return false;
+      seen.add(user.emp_id);
+      return true;
+    });
+}
+
+export function getValidInstructorUsers(settings) {
+  const roster = getRosterUsers(settings);
+  const contacts = getContactsInstructorUsers(settings);
+  if (!contacts.length) return [];
+  const rosterEmpIds = new Set(roster.map((user) => text(user.emp_id)).filter(Boolean));
+  return contacts.filter((contact) => rosterEmpIds.has(contact.emp_id));
+}
+
+export const INSTRUCTOR_IDENTITY_ERROR_MESSAGE = 'לא ניתן לשמור: שיוך המדריך אינו חד־משמעי. יש לבחור מדריך מתוך הרשימה.';
+export const INSTRUCTOR_CONTACTS_MISSING_ERROR_MESSAGE = 'לא ניתן לשמור: המדריך שנבחר לא קיים בטבלת המדריכים. יש לעדכן את רשימת המדריכים.';
+export const INVALID_ACTIVITY_INSTRUCTOR_STATUS = 'מדריך לא תקף / לא קיים במערכת';
+
+function normalizeInstructorEmpId(value) {
+  return text(value);
+}
+
+export function findRosterInstructorByEmpId(empId, rosterUsers = []) {
+  const cleanEmpId = normalizeInstructorEmpId(empId);
+  if (!cleanEmpId) return null;
+  const matches = (Array.isArray(rosterUsers) ? rosterUsers : [])
+    .map((user) => ({ name: humanDisplayText(user?.name), emp_id: normalizeInstructorEmpId(user?.emp_id) }))
+    .filter((user) => user.emp_id === cleanEmpId && user.name);
+  if (matches.length !== 1) return null;
+  return matches[0];
+}
+
+export function resolveInstructorSelectionByEmpId(empId, rosterUsers = [], { optional = true } = {}) {
+  const cleanEmpId = normalizeInstructorEmpId(empId);
+  if (!cleanEmpId) {
+    return optional
+      ? { emp_id: null, name: '', error: null }
+      : { emp_id: null, name: '', error: 'instructor_missing_emp_id' };
+  }
+  const match = findRosterInstructorByEmpId(cleanEmpId, rosterUsers);
+  if (!match) return { emp_id: null, name: '', error: 'instructor_not_in_contacts' };
+  const sameNameEmpIds = new Set((Array.isArray(rosterUsers) ? rosterUsers : [])
+    .map((user) => ({ name: humanDisplayText(user?.name), emp_id: normalizeInstructorEmpId(user?.emp_id) }))
+    .filter((user) => user.name === match.name && user.emp_id)
+    .map((user) => user.emp_id));
+  if (sameNameEmpIds.size > 1) return { emp_id: null, name: '', error: 'instructor_name_ambiguous' };
+  return { emp_id: match.emp_id, name: match.name, error: null };
+}
+
+export function validateInstructorBinding({ empId, instructorName } = {}, contactsUsers = []) {
+  const cleanEmpId = normalizeInstructorEmpId(empId);
+  const cleanName = humanDisplayText(instructorName);
+  if (!cleanEmpId && !cleanName) return { valid: true, emp_id: null, name: '', error: null };
+  if (!cleanEmpId) return { valid: false, emp_id: null, name: cleanName, error: 'instructor_missing_emp_id' };
+  const match = findRosterInstructorByEmpId(cleanEmpId, contactsUsers);
+  if (!match) return { valid: false, emp_id: cleanEmpId, name: cleanName, error: 'instructor_not_in_contacts' };
+  if (cleanName && cleanName !== match.name) {
+    return { valid: false, emp_id: cleanEmpId, name: match.name, error: 'instructor_emp_mismatch' };
+  }
+  return { valid: true, emp_id: match.emp_id, name: match.name, error: null };
+}
+
+export function validateInstructorIdentityPayload(payload = {}, rosterUsers = []) {
+  const errors = [];
+  for (const { nameKey, empKey } of INSTRUCTOR_FIELD_PAIRS) {
+    const nameValue = humanDisplayText(payload?.[nameKey]);
+    const empId = normalizeInstructorEmpId(payload?.[empKey]);
+    const result = validateInstructorBinding({ empId, instructorName: nameValue }, rosterUsers);
+    if (!result.valid) errors.push({ field: nameKey, code: result.error });
+  }
+  return { valid: !errors.length, errors };
 }
 
 function normalizeInstructorLookupName(value) {
@@ -292,7 +375,9 @@ export function instructorSyncErrorMessage(error = {}) {
     instructor_name_ambiguous: 'לא ניתן לשייך מדריך — יש יותר ממדריך אחד עם שם זה',
     instructor_name_not_in_roster: 'יש לבחור מדריך מתוך הרשימה',
     instructor_missing_emp_id: 'למדריך שנבחר אין מספר עובד — פנה למנהל המערכת',
-    instructor_emp_mismatch: 'שם המדריך ומספר העובד אינם תואמים'
+    instructor_emp_mismatch: 'שם המדריך ומספר העובד אינם תואמים',
+    instructor_emp_id_not_in_roster: INSTRUCTOR_IDENTITY_ERROR_MESSAGE,
+    instructor_not_in_contacts: INSTRUCTOR_CONTACTS_MISSING_ERROR_MESSAGE
   };
   return messages[error.code] || 'שגיאה בשיוך המדריך';
 }

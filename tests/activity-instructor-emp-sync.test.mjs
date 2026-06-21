@@ -111,3 +111,87 @@ test('validateActivityInstructors accepts fully consistent instructor pairs', ()
   assert.equal(result.valid, true);
   assert.deepEqual(result.errors, []);
 });
+
+import {
+  resolveInstructorSelectionByEmpId,
+  validateInstructorIdentityPayload,
+  getValidInstructorUsers,
+  validateInstructorBinding
+} from '../frontend/src/screens/shared/activity-options.js';
+
+test('add activity instructor selection uses selected emp_id canonical name', () => {
+  const result = resolveInstructorSelectionByEmpId('1500', roster);
+  assert.equal(result.error, null);
+  assert.equal(result.emp_id, '1500');
+  assert.equal(result.name, 'הילה הזן');
+});
+
+test('add activity blocks duplicate instructor names with different emp_id values', () => {
+  const result = resolveInstructorSelectionByEmpId('2000', [
+    { name: 'שם זהה', emp_id: '2000' },
+    { name: 'שם זהה', emp_id: '2001' }
+  ]);
+  assert.equal(result.error, 'instructor_name_ambiguous');
+  assert.equal(result.emp_id, null);
+});
+
+test('add activity blocks instructor roster entries without emp_id', () => {
+  const result = resolveInstructorSelectionByEmpId('', [
+    { name: 'מדריך ללא עובד', emp_id: '' }
+  ], { optional: false });
+  assert.equal(result.error, 'instructor_missing_emp_id');
+});
+
+test('activity save guard rejects mismatched instructor_name and emp_id', () => {
+  const result = validateInstructorIdentityPayload({
+    instructor_name: 'אלכס זפקה',
+    emp_id: '1500'
+  }, roster);
+  assert.equal(result.valid, false);
+  assert.equal(result.errors[0].code, 'instructor_emp_mismatch');
+});
+
+test('activity save guard allows activity without optional instructor', () => {
+  const result = validateInstructorIdentityPayload({
+    instructor_name: '',
+    emp_id: '',
+    instructor_name_2: '',
+    emp_id_2: ''
+  }, roster);
+  assert.equal(result.valid, true);
+  assert.deepEqual(result.errors, []);
+});
+
+
+test('activity with emp_id missing from contacts_instructors is blocked', () => {
+  const result = validateInstructorBinding({ empId: '1525', instructorName: 'אסאלה ברהום' }, contacts);
+  assert.equal(result.valid, false);
+  assert.equal(result.error, 'instructor_not_in_contacts');
+});
+
+test('valid instructor picker options exclude list entries missing from contacts_instructors', () => {
+  const settings = {
+    dropdown_options: {
+      instructor_users: [
+        { name: 'אלכס זפקה', emp_id: '1600' },
+        { name: 'אסאלה ברהום', emp_id: '1525' },
+        { name: 'ללא עובד', emp_id: '' }
+      ],
+      contacts_instructor_users: contacts.map((c) => ({ name: c.full_name, emp_id: c.emp_id }))
+    }
+  };
+  const result = getValidInstructorUsers(settings);
+  assert.deepEqual(result.map((user) => user.emp_id), ['1600']);
+});
+
+test('contacts validation does not fallback by instructor name', () => {
+  const result = validateInstructorBinding({ empId: '1525', instructorName: 'אלכס זפקה' }, contacts);
+  assert.equal(result.valid, false);
+  assert.equal(result.error, 'instructor_not_in_contacts');
+});
+
+test('contacts validation does not auto-select another instructor by name', () => {
+  const result = validateInstructorBinding({ empId: '9999', instructorName: 'הילה הזן' }, contacts);
+  assert.equal(result.valid, false);
+  assert.equal(result.error, 'instructor_not_in_contacts');
+});
