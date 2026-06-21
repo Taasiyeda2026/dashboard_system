@@ -375,8 +375,22 @@ END $$;
 -- for Supabase to allow the anon role to reach the RLS check at all.
 -- Safe to re-run (idempotent).
 
-GRANT SELECT, INSERT, UPDATE, DELETE ON public.data_long              TO anon, authenticated;
-GRANT SELECT, INSERT, UPDATE, DELETE ON public.data_short             TO anon, authenticated;
+DO $$
+BEGIN
+  IF to_regclass('public.data_long') IS NOT NULL THEN
+    EXECUTE 'GRANT SELECT, INSERT, UPDATE, DELETE ON public.data_long TO anon, authenticated';
+    RAISE NOTICE 'Granted access on public.data_long';
+  ELSE
+    RAISE NOTICE 'Table public.data_long does not exist — skipped grants';
+  END IF;
+
+  IF to_regclass('public.data_short') IS NOT NULL THEN
+    EXECUTE 'GRANT SELECT, INSERT, UPDATE, DELETE ON public.data_short TO anon, authenticated';
+    RAISE NOTICE 'Granted access on public.data_short';
+  ELSE
+    RAISE NOTICE 'Table public.data_short does not exist — skipped grants';
+  END IF;
+END $$;
 GRANT SELECT, INSERT, UPDATE, DELETE ON public.activity_meetings      TO anon, authenticated;
 GRANT SELECT, INSERT, UPDATE, DELETE ON public.contacts_instructors   TO anon, authenticated;
 GRANT SELECT, INSERT, UPDATE, DELETE ON public.contacts_schools       TO anon, authenticated;

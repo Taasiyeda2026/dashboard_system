@@ -263,8 +263,23 @@ grant select on public.dashboard_monthly_read_models to anon, authenticated;
 revoke insert, update, delete on public.dashboard_monthly_read_models from anon, authenticated;
 
 -- Undo the broad anon write grants from 20260505_grant_anon_all_tables.sql for sensitive/core data.
-revoke insert, update, delete on public.data_long from anon;
-revoke insert, update, delete on public.data_short from anon;
+DO $$
+BEGIN
+  IF to_regclass('public.data_long') IS NOT NULL THEN
+    EXECUTE 'REVOKE INSERT, UPDATE, DELETE ON public.data_long FROM anon';
+    RAISE NOTICE 'Revoked anon writes on public.data_long';
+  ELSE
+    RAISE NOTICE 'Table public.data_long does not exist — skipped anon write revoke';
+  END IF;
+
+  IF to_regclass('public.data_short') IS NOT NULL THEN
+    EXECUTE 'REVOKE INSERT, UPDATE, DELETE ON public.data_short FROM anon';
+    RAISE NOTICE 'Revoked anon writes on public.data_short';
+  ELSE
+    RAISE NOTICE 'Table public.data_short does not exist — skipped anon write revoke';
+  END IF;
+END $$;
+
 revoke insert, update, delete on public.users from anon;
 revoke insert, update, delete on public.settings from anon;
 
@@ -276,11 +291,25 @@ on public.users to anon, authenticated;
 revoke all on public.settings from anon, authenticated;
 grant select on public.settings to anon, authenticated;
 
--- Data tables are readable by the client screens but not writable with the anon key.
-grant select on public.data_long to anon, authenticated;
-grant select on public.data_short to anon, authenticated;
-revoke insert, update, delete on public.data_long from authenticated;
-revoke insert, update, delete on public.data_short from authenticated;
+-- Legacy data tables are optional. If present, they are readable by the client screens but not writable.
+DO $$
+BEGIN
+  IF to_regclass('public.data_long') IS NOT NULL THEN
+    EXECUTE 'GRANT SELECT ON public.data_long TO anon, authenticated';
+    EXECUTE 'REVOKE INSERT, UPDATE, DELETE ON public.data_long FROM authenticated';
+    RAISE NOTICE 'Applied read-only client grants on public.data_long';
+  ELSE
+    RAISE NOTICE 'Table public.data_long does not exist — skipped client grants';
+  END IF;
+
+  IF to_regclass('public.data_short') IS NOT NULL THEN
+    EXECUTE 'GRANT SELECT ON public.data_short TO anon, authenticated';
+    EXECUTE 'REVOKE INSERT, UPDATE, DELETE ON public.data_short FROM authenticated';
+    RAISE NOTICE 'Applied read-only client grants on public.data_short';
+  ELSE
+    RAISE NOTICE 'Table public.data_short does not exist — skipped client grants';
+  END IF;
+END $$;
 
 -- Replace permissive users write policies with read-only public access to active users.
 drop policy if exists users_insert_all on public.users;
