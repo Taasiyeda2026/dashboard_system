@@ -8,39 +8,41 @@ const CLIENT_FILE = new URL('../frontend/src/supabase-client.js', import.meta.ur
 const VITE_FILE = new URL('../vite.config.js', import.meta.url);
 const RESOLVE_FILE = new URL('../frontend/src/auth-user-resolve.js', import.meta.url);
 
-function createMockSupabase(responsesByColumn) {
+function filterKey(filters) {
+  return filters.map(([column, value]) => `${column}=${String(value).toLowerCase()}`).join('&');
+}
+
+function createMockSupabase(rowsByFilterKey) {
   return {
     from() {
       return {
         select() {
-          return {
-            eq(column) {
-              const value = arguments[1];
-              return {
-                eq() {
-                  return {
-                    async maybeSingle() {
-                      const row = responsesByColumn[column]?.[value] ?? null;
-                      return row ? { data: row, error: null } : { data: null, error: { message: 'not found' } };
-                    }
-                  };
-                }
-              };
+          const filters = [];
+          const builder = {
+            eq(column, value) {
+              filters.push([column, value]);
+              return builder;
+            },
+            async maybeSingle() {
+              const row = rowsByFilterKey[filterKey(filters)] ?? null;
+              return row ? { data: row, error: null } : { data: null, error: { message: 'not found' } };
             }
           };
+          return builder;
         }
       };
     }
   };
 }
 
-test('login uses Supabase Auth email domain and resolves users with email-first fallback', async () => {
+test('login uses Supabase Auth email domain and resolves users with strict auth fallback', async () => {
   const source = await readFile(API_FILE, 'utf8');
   const loginBlock = source.match(/async function loginWithSupabaseAuth[\s\S]*?^}/m);
   assert.ok(loginBlock, 'loginWithSupabaseAuth should exist');
   assert.match(loginBlock[0], /@think\.org\.il/);
   assert.match(loginBlock[0], /signInWithPassword\(/);
   assert.match(loginBlock[0], /resolveActiveUserRowAfterAuth\(/);
+  assert.match(loginBlock[0], /requireAuthUserMatch: true/);
   assert.match(loginBlock[0], /auth_ok_user_row_not_found/);
   assert.match(loginBlock[0], /userRow\.auth_user_id = authUserId/);
   assert.doesNotMatch(loginBlock[0], /login_user_by_entry_code/);
@@ -51,18 +53,13 @@ test('login uses Supabase Auth email domain and resolves users with email-first 
 test('resolveActiveUserRowAfterAuth finds idann by email when user_id differs', async () => {
   const authEmail = 'idann@think.org.il';
   const mockSupabase = createMockSupabase({
-    email: {
-      [authEmail]: {
-        user_id: '1234',
-        email: authEmail,
-        name: 'Idan N',
-        role: 'admin',
-        emp_id: '1234',
-        is_active: true
-      }
-    },
-    user_id: {
-      idann: null
+    [`is_active=true&email=${authEmail}`]: {
+      user_id: '1234',
+      email: authEmail,
+      name: 'Idan N',
+      role: 'admin',
+      emp_id: '1234',
+      is_active: true
     }
   });
 
@@ -81,16 +78,13 @@ test('resolveActiveUserRowAfterAuth finds idann by email when user_id differs', 
 test('resolveActiveUserRowAfterAuth falls back to user_id when email lookup misses', async () => {
   const authEmail = 'worker@think.org.il';
   const mockSupabase = createMockSupabase({
-    email: {},
-    user_id: {
-      worker: {
-        user_id: 'worker',
-        email: 'other@think.org.il',
-        name: 'Worker',
-        role: 'instructor',
-        emp_id: '9000',
-        is_active: true
-      }
+    [`is_active=true&user_id=worker`]: {
+      user_id: 'worker',
+      email: 'other@think.org.il',
+      name: 'Worker',
+      role: 'instructor',
+      emp_id: '9000',
+      is_active: true
     }
   });
 
@@ -119,27 +113,25 @@ test('USER_PUBLIC_COLUMNS selects granted users table fields only', async () => 
     'is_active',
     'permissions'
   ]);
-  assert.match(source, /USER_PUBLIC_COLUMNS_EXTENDED = `\$\{USER_PUBLIC_COLUMNS\},can_review_requests,view_proposals_agreements,manage_proposals_agreements,approve_proposals_agreements`/);
+  assert.match(source, /USER_PUBLIC_COLUMNS_EXTENDED = `\$\{USER_PUBLIC_COLUMNS\},auth_user_id,can_review_requests,view_proposals_agreements,manage_proposals_agreements,approve_proposals_agreements`/);
 });
 
-test('auth user resolver supports extended column fallback after auth', async () => {
+test('auth user resolver supports strict auth match before email fallback', async () => {
   const source = await readFile(RESOLVE_FILE, 'utf8');
   assert.match(source, /AUTH_USER_PUBLIC_COLUMNS_EXTENDED/);
-  assert.match(source, /missingColumnError/);
-  assert.match(source, /schema cache/);
-  assert.match(source, /resolveActiveUserRowWithColumns/);
+  assert.match(source, /requireAuthUserMatch/);
+  assert.match(source, /auth_user_id\+user_id/);
+  assert.match(source, /session_user_id/);
+  assert.match(source, /authUserIdMatchesRow/);
 });
 
-test('auth user resolver tries email before user_id and emp_id', async () => {
+test('auth user resolver tries auth_user_id before email fallback', async () => {
   const source = await readFile(RESOLVE_FILE, 'utf8');
-  const emailIndex = source.indexOf("['email', authEmail]");
-  const userIdIndex = source.indexOf("['user_id', username]");
-  const empIdIndex = source.indexOf("['emp_id', username]");
+  const authCompositeIndex = source.indexOf("matchedBy: 'auth_user_id+user_id'");
+  const emailIndex = source.indexOf("matchedBy: 'email'");
+  assert.ok(authCompositeIndex >= 0, 'auth_user_id+user_id lookup should exist');
   assert.ok(emailIndex >= 0, 'email lookup should exist');
-  assert.ok(userIdIndex >= 0, 'user_id lookup should exist');
-  assert.ok(empIdIndex >= 0, 'emp_id lookup should exist');
-  assert.ok(emailIndex < userIdIndex, 'email should be tried before user_id');
-  assert.ok(userIdIndex < empIdIndex, 'user_id should be tried before emp_id');
+  assert.ok(authCompositeIndex < emailIndex, 'auth_user_id should be tried before email');
 });
 
 test('supabase client prefers env vars and keeps production fallback when unset', async () => {

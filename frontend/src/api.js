@@ -2943,7 +2943,7 @@ async function readProposalsAgreementsFromSupabase() {
 }
 
 const USER_PUBLIC_COLUMNS = 'user_id,email,name,role,emp_id,is_active,permissions';
-const USER_PUBLIC_COLUMNS_EXTENDED = `${USER_PUBLIC_COLUMNS},can_review_requests,view_proposals_agreements,manage_proposals_agreements,approve_proposals_agreements`;
+const USER_PUBLIC_COLUMNS_EXTENDED = `${USER_PUBLIC_COLUMNS},auth_user_id,can_review_requests,view_proposals_agreements,manage_proposals_agreements,approve_proposals_agreements`;
 const PROFILE_PERSONAL_REPORTS_COLUMNS = 'id,is_active,can_access_personal_reports';
 const VALID_SUPABASE_ROLES = new Set(['admin', 'operation_manager', 'authorized_user', 'instructor', 'finance', 'activities_manager', 'domain_manager', 'instructor_manager', 'business_development_manager']);
 
@@ -3124,14 +3124,19 @@ function flattenUserRow(userRow = {}) {
 }
 
 function proposalPermissionFlagsFromFlatUser(flat = {}) {
-  const view = permissionFlagYes(flat.view_proposals_agreements) || permissionFlagYes(flat.manage_proposals_agreements);
-  const manage = permissionFlagYes(flat.manage_proposals_agreements);
-  const approve = permissionFlagYes(flat.approve_proposals_agreements);
   return {
-    view_proposals_agreements: view ? 'yes' : undefined,
-    manage_proposals_agreements: manage ? 'yes' : undefined,
-    approve_proposals_agreements: approve ? 'yes' : undefined
+    view_proposals_agreements: permissionFlagYes(flat.view_proposals_agreements) ? 'yes' : undefined,
+    manage_proposals_agreements: permissionFlagYes(flat.manage_proposals_agreements) ? 'yes' : undefined,
+    approve_proposals_agreements: permissionFlagYes(flat.approve_proposals_agreements) ? 'yes' : undefined
   };
+}
+
+function proposalSessionUserFlagsFromFlatUser(flat = {}) {
+  const flags = proposalPermissionFlagsFromFlatUser(flat);
+  if (!flags.view_proposals_agreements && permissionFlagYes(flat.manage_proposals_agreements)) {
+    flags.view_proposals_agreements = 'yes';
+  }
+  return flags;
 }
 
 function buildBootstrapFromUser(userRow, profileRow = null) {
@@ -3188,7 +3193,6 @@ function buildBootstrapFromUser(userRow, profileRow = null) {
     has_personal_reports_access: hasPersonalReportsAccess,
     has_personal_reports_manager: hasPersonalReportsManager,
     profile_is_active: profileRow?.is_active !== false,
-    ...proposalPermissionFlagsFromFlatUser(flat),
     profile: {
       full_name: flat.full_name,
       display_role2: flat.display_role2 || '',
@@ -3274,7 +3278,8 @@ async function loginWithSupabaseAuth(user_id, entry_code) {
     extendedColumns: USER_PUBLIC_COLUMNS_EXTENDED,
     authEmail,
     username,
-    authUserId
+    authUserId,
+    requireAuthUserMatch: true
   });
 
   if (!userRow) {
@@ -3314,18 +3319,18 @@ async function readCurrentUserBySession() {
   const session = await waitForSupabaseAuthSession();
   if (!session?.user?.id) throw new Error('unauthorized');
   const authUserId = session.user.id;
-  const authEmail = String(session.user.email || state?.user?.email || '').trim().toLowerCase();
-  const username = String(state?.user?.user_id || state?.user?.username || '').trim().toLowerCase();
+  const sessionUserId = String(state?.user?.user_id || '').trim();
+  if (!sessionUserId) throw new Error('unauthorized');
   const { userRow } = await resolveActiveUserRowAfterAuth({
     supabase,
     baseColumns: USER_PUBLIC_COLUMNS,
     extendedColumns: USER_PUBLIC_COLUMNS_EXTENDED,
-    authEmail,
-    username,
-    authUserId
+    sessionUserId,
+    authUserId,
+    requireAuthUserMatch: true
   });
   if (!userRow) throw new Error('unauthorized');
-  userRow.auth_user_id = authUserId;
+  userRow.auth_user_id = String(userRow.auth_user_id || authUserId || '').trim();
   const profileRow = await readPersonalReportsProfile(authUserId);
   return { userRow, profileRow };
 }
@@ -4303,7 +4308,7 @@ export const api = {
     const token = makeSessionToken(user);
     const flat = flattenUserRow(user);
     const hasPersonalReportsAccess = profileCanAccessPersonalReports(profileRow);
-    const proposalFlags = proposalPermissionFlagsFromFlatUser(flat);
+    const proposalFlags = proposalSessionUserFlagsFromFlatUser(flat);
     return {
       token,
       user: {
@@ -5442,6 +5447,7 @@ export {
   flattenUserRow,
   buildBootstrapFromUser,
   proposalPermissionFlagsFromFlatUser,
+  proposalSessionUserFlagsFromFlatUser,
   canUseProposalsAgreementsApi,
   canManageProposalsAgreementsApi,
   canApproveProposalsAgreementsApi,
