@@ -745,6 +745,14 @@ function clientSearchHtml(_contactOptions, row = {}) {
   </div>`;
 }
 
+
+const CONTACT_OPTIONS_LOAD_ERROR_MESSAGE = 'לא ניתן לטעון אנשי קשר. יש לרענן את הדף או להתחבר מחדש. אם הבעיה נמשכת, יש לבדוק הרשאות Supabase.';
+
+function contactOptionsLoadErrorHtml(contactOptionsError) {
+  if (!text(contactOptionsError)) return '';
+  return `<div class="ds-pa-inline-alert ds-pa-inline-alert--warning" data-pa-contact-options-error role="alert" style="margin:8px 0;padding:8px 10px;border:1px solid #f59e0b;border-radius:10px;background:#fffbeb;color:#92400e;font-size:0.82rem;line-height:1.45">${escapeHtml(CONTACT_OPTIONS_LOAD_ERROR_MESSAGE)}</div>`;
+}
+
 function contactPickerHtml(contactOptions, authority, school, selectedContactName, authorityId = null, schoolId = null, authorityOnly = false) {
   const contacts = filterContactsForClient(contactOptions, { authorityId, schoolId, authorityOnly });
   if (!authorityId) return '';
@@ -2042,7 +2050,7 @@ function catalogAttachHtml(row = {}) {
   </div>`;
 }
 
-function formHtml(mode, row = {}, activityNameOptions = [], contactOptions = [], items = [], pricingOptions = [], state = null) {
+function formHtml(mode, row = {}, activityNameOptions = [], contactOptions = [], items = [], pricingOptions = [], state = null, contactOptionsError = '') {
   const title = mode === 'edit' ? 'עריכת הצעת מחיר' : 'יצירת הצעת מחיר';
   const normalizedActivityGroup = normalizeProposalGroup(row.activity_type_group);
   const filteredPricing = filterPricingByProposalType(pricingOptions, normalizedActivityGroup);
@@ -2105,6 +2113,7 @@ function formHtml(mode, row = {}, activityNameOptions = [], contactOptions = [],
       <h4 class="pa-sidebar-section-title">פרטי נמען</h4>
       <div data-pa-step-panel="client">
         <div class="ds-pa-client-search-block" data-pa-client-search-row${isLocked ? ' hidden' : ''}>
+          ${contactOptionsLoadErrorHtml(contactOptionsError)}
           ${clientSearchHtml(contactOptions, row)}
         </div>
         <div data-pa-client-card${isLocked ? '' : ' hidden'}>${isLocked ? clientLockedBannerHtml(initAuth, initSchool, initContact, initRole, initPhone, initEmail, initClientName) : ''}</div>
@@ -2656,6 +2665,7 @@ export const proposalsAgreementsScreen = {
     setProposalPricingLookup(proposalActivityPricing);
     const proposalTemplateSections = Array.isArray(data?.proposalTemplateSections) ? data.proposalTemplateSections : [];
     const contactOptions = Array.isArray(data?.contactOptions) ? data.contactOptions : [];
+    const contactOptionsError = text(data?.contactOptionsError || data?._debug?.contacts_error || '');
     // eslint-disable-next-line no-console
     console.info('[proposal-authorities-debug]', {
       totalContactOptions: contactOptions.length,
@@ -3394,7 +3404,7 @@ export const proposalsAgreementsScreen = {
         } catch { items = []; }
       }
       formHost.hidden = false;
-      formHost.innerHTML = formHtml(mode, row, activityNameOptions, contactOptions, items, proposalActivityPricing, state);
+      formHost.innerHTML = formHtml(mode, row, activityNameOptions, contactOptions, items, proposalActivityPricing, state, contactOptionsError);
       setupTypeChangeHandler(formHost);
       setupClientSelector(formHost);
       setupActivityPickers(formHost);

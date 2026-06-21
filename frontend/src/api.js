@@ -941,8 +941,25 @@ function compareUnifiedContactRows(a, b) {
  *
  * ⚠️ permissions table is intentionally excluded — login credentials must never be read client-side.
  */
-async function readUnifiedContactsFromSupabase() {
+function isSupabasePermissionDeniedError(error) {
+  const haystack = [
+    error?.code,
+    error?.message,
+    error?.details,
+    error?.hint,
+    error?.name
+  ].map((value) => String(value || '').toLowerCase()).join(' ');
+  return haystack.includes('42501')
+    || haystack.includes('permission denied')
+    || haystack.includes('insufficient_privilege');
+}
+
+async function readUnifiedContactsFromSupabase({ requireAuth = false } = {}) {
   if (!supabase) return [];
+  if (requireAuth) {
+    const session = await waitForSupabaseAuthSession({ timeoutMs: 6000 });
+    if (!session?.user?.id) throw new Error('contacts_unified_view_requires_auth_session');
+  }
   try {
     const { data, error } = await supabase
       .from('contacts_unified_view')
@@ -954,6 +971,10 @@ async function readUnifiedContactsFromSupabase() {
     if (error) {
       // eslint-disable-next-line no-console
       console.warn('[supabase] Failed to load contacts_unified_view:', error);
+      if (requireAuth && isSupabasePermissionDeniedError(error)) {
+        throw new Error('contacts_unified_view_permission_denied');
+      }
+      if (requireAuth) throw new Error(error.message || 'contacts_unified_view_read_failed');
       return [];
     }
     return (Array.isArray(data) ? data : [])
@@ -962,6 +983,11 @@ async function readUnifiedContactsFromSupabase() {
   } catch (error) {
     // eslint-disable-next-line no-console
     console.warn('[supabase] Unexpected contacts_unified_view fetch error:', error);
+    if (requireAuth) {
+      if (error?.message === 'contacts_unified_view_permission_denied') throw error;
+      if (isSupabasePermissionDeniedError(error)) throw new Error('contacts_unified_view_permission_denied');
+      throw error;
+    }
     return [];
   }
 }
@@ -2618,7 +2644,7 @@ async function readContactsSchoolsForProposals() {
   try {
     const [catalog, unifiedRows] = await Promise.all([
       readAuthoritySchoolCatalog(),
-      readUnifiedContactsFromSupabase()
+      readUnifiedContactsFromSupabase({ requireAuth: true })
     ]);
     const contactsResult = (Array.isArray(unifiedRows) ? unifiedRows : []).map((c) => {
       const authorityName = cleanProposalAgreementText(c.authority_name || c.authority || c.client_name);
@@ -2663,15 +2689,29 @@ async function readContactsSchoolsForProposals() {
       sample: contactsResult?.slice(0, 5)
     });
 
-    return buildProposalClientSearchOptions(contactsResult, catalog.authorityLookup, catalog.schoolLookup);
-  } catch {
-    return [];
+    return {
+      contactOptions: buildProposalClientSearchOptions(contactsResult, catalog.authorityLookup, catalog.schoolLookup),
+      contactOptionsError: null,
+      _debug: { contacts_count: contactsResult.length }
+    };
+  } catch (error) {
+    const message = cleanProposalAgreementText(error?.message) || 'contacts_load_error';
+    const contactOptionsError = message === 'contacts_unified_view_requires_auth_session' || message === 'contacts_unified_view_permission_denied'
+      ? message
+      : 'contacts_load_error';
+    // eslint-disable-next-line no-console
+    console.warn('[supabase] Failed to load proposal contact options:', error);
+    return {
+      contactOptions: [],
+      contactOptionsError,
+      _debug: { contacts_error: contactOptionsError }
+    };
   }
 }
 
 async function readProposalsAgreementsFromSupabase() {
   assertCanUseProposalsAgreementsApi();
-  const [paResult, contactOptions, rawProposalActivityPricing, proposalTemplateSections, proposalActivityGroups, proposalGroupAliases] = await Promise.all([
+  const [paResult, contactsResult, rawProposalActivityPricing, proposalTemplateSections, proposalActivityGroups, proposalGroupAliases] = await Promise.all([
     supabase
       .from('proposals_agreements_directory_view')
       .select(PROPOSALS_AGREEMENTS_DIRECTORY_COLUMNS)
@@ -2686,6 +2726,8 @@ async function readProposalsAgreementsFromSupabase() {
     readProposalGroupAliasesFromSupabase()
   ]);
   if (paResult.error) throw new Error(paResult.error.message || 'proposals_agreements_read_failed');
+  const contactOptions = Array.isArray(contactsResult?.contactOptions) ? contactsResult.contactOptions : [];
+  const contactOptionsError = contactsResult?.contactOptionsError || null;
   // Group/alias normalization happens here in the loader so the frontend receives
   // logical group keys (e.g. summer/next_year/combined) instead of legacy Hebrew labels.
   proposalGroupLookupCache = buildProposalGroupLookup(proposalActivityGroups, proposalGroupAliases);
@@ -2695,10 +2737,15 @@ async function readProposalsAgreementsFromSupabase() {
     rows: (Array.isArray(paResult.data) ? paResult.data : []).map(normalizeProposalAgreementRow),
     activityNameOptions,
     contactOptions,
+    contactOptionsError,
     proposalActivityGroups,
     proposalGroupAliases,
     proposalActivityPricing,
     proposalTemplateSections,
+    _debug: {
+      ...(contactsResult?._debug || {}),
+      ...(contactOptionsError ? { contacts_error: contactOptionsError } : {})
+    },
     _source: 'supabase'
   };
 }
