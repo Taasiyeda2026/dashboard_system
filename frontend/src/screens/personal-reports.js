@@ -531,14 +531,14 @@ function buildInternalAuthEmail(employeeCode) {
 }
 
 function personalReportsLoginIdentifier(user) {
-  return String(user?.user_id || user?.username || user?.email || user?.work_email || user?.emp_id || user?.employee_id || '').trim();
+  return String(user?.username || user?.email || user?.work_email || user?.user_id || user?.emp_id || user?.employee_id || '').trim();
 }
 
 function sameDashboardUser(userRow, dashboardUser) {
   const expected = [dashboardUser?.user_id, dashboardUser?.username, dashboardUser?.email, dashboardUser?.work_email, dashboardUser?.emp_id, dashboardUser?.employee_id]
     .map((value) => String(value || '').trim().toLowerCase())
     .filter(Boolean);
-  const actual = [userRow?.user_id, userRow?.username, userRow?.email, userRow?.emp_id]
+  const actual = [userRow?.user_id, userRow?.email, userRow?.emp_id]
     .map((value) => String(value || '').trim().toLowerCase())
     .filter(Boolean);
   if (!expected.length || !actual.length) return false;
@@ -876,8 +876,8 @@ async function authenticateInternalEmployee(dashboardUser, accessCode) {
   const authUserId = authData.user.id;
   const { data: userRow, error: userError } = await supabase
     .from('users')
-    .select('user_id,username,email,name,role,display_role,emp_id,is_active,auth_user_id')
-    .eq('auth_user_id', authUserId)
+    .select('user_id,email,name,role,emp_id,is_active')
+    .eq('user_id', login.toLowerCase())
     .eq('is_active', true)
     .maybeSingle();
 
@@ -890,7 +890,7 @@ async function authenticateInternalEmployee(dashboardUser, accessCode) {
     email: String(userRow.email || authData.user.email || '').trim(),
     full_name: String(userRow.name || userRow.email || login).trim(),
     role: isAdminRole(userRow.role) ? 'admin' : 'employee',
-    display_role: String(userRow.display_role || userRow.role || '').trim(),
+    display_role: String(userRow.role || '').trim(),
     emp_id: String(userRow.emp_id || userRow.user_id || login).trim(),
     personal_reports_manager: permissionYes(user?.personal_reports_manager) ? 'yes' : 'no',
     can_manage_personal_reports: canManagePersonalReports(user)

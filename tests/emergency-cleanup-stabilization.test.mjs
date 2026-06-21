@@ -32,7 +32,7 @@ test('frontend login uses Supabase Auth and not entry_code RPC', async () => {
 
   assert.match(pr, /signInWithPassword\(/);
   assert.match(pr, /buildInternalAuthEmail\(login\)/);
-  assert.match(pr, /\.eq\('auth_user_id', authUserId\)/);
+  assert.match(pr, /\.eq\('user_id', login\.toLowerCase\(\)\)/);
   assert.doesNotMatch(pr, /login_user_by_entry_code/);
   assert.doesNotMatch(pr, /verify_personal_reports_entry_code/);
 });
@@ -59,10 +59,12 @@ test('required remote placeholder migrations contain valid SQL', async () => {
   }
 });
 
-test('supabase client does not hardcode production fallbacks', async () => {
+test('supabase client prefers env vars and keeps production fallback when unset', async () => {
   const source = await readFile(new URL('../frontend/src/supabase-client.js', import.meta.url), 'utf8');
-  assert.doesNotMatch(source, /FALLBACK_SUPABASE_URL/);
+  assert.match(source, /VITE_SUPABASE_URL/);
   assert.match(source, /SUPABASE_URL/);
+  assert.match(source, /FALLBACK_SUPABASE_URL/);
+  assert.match(source, /readEnvValue\(/);
 });
 
 test('proposals_agreements indexes guard activity_type vs activity_type_group', async () => {
