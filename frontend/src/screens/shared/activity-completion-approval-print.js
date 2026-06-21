@@ -33,7 +33,7 @@ function cleanSchoolName(activity) {
   const nSchool = norm(school);
   const nAuthority = norm(authority);
   if (nAuthority && nSchool.endsWith(nAuthority)) {
-    return school.replace(new RegExp(`\s*[-–,]?\s*${authority.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')}\s*$`), '').trim() || school;
+    return school.replace(new RegExp(String.raw`\s*[-–,]?\s*${authority.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')}\s*$`), '').trim() || school;
   }
   return school;
 }
