@@ -113,13 +113,16 @@ function renderStructuredSummary(summary, ym, byManager) {
   const endDatePassedCount = pickNumericFallback(counts, 'end_date_passed', summary?.end_date_passed_count);
   const exceptionsTotalField = getStrictNumericField(summary, 'totalExceptionInstances');
   const exceptionsTotalFallback = getStrictNumericField(summary, 'exceptions_count');
-  const exceptionsTotalResolved = exceptionsTotalField.ok
-    ? exceptionsTotalField.value
-    : (exceptionsTotalFallback.ok ? exceptionsTotalFallback.value : 0);
+  const exceptionsUnavailable = summary?.exceptions_unavailable === true;
+  const exceptionsTotalResolved = exceptionsUnavailable
+    ? 'לא זמין'
+    : (exceptionsTotalField.ok
+      ? exceptionsTotalField.value
+      : (exceptionsTotalFallback.ok ? exceptionsTotalFallback.value : 0));
 
   const endingCurrent = escapeHtml(String(endingCurrentField.ok ? endingCurrentField.value : 0));
   const operationalUniqueField = getStrictNumericField(summary, 'operational_gaps_unique_count');
-  const operationalUniqueCount = operationalUniqueField.ok ? operationalUniqueField.value : 0;
+  const operationalUniqueCount = exceptionsUnavailable ? 'לא זמין' : (operationalUniqueField.ok ? operationalUniqueField.value : 0);
   const missingInstructor = missingInstructorCount;
   const missingStartDate  = missingStartDateCount;
   const endDateAfterCutoff = escapeHtml(String(endDateAfterCutoffCount));
@@ -389,6 +392,9 @@ export const dashboardScreen = {
     }
     const kpiCards = filterKpiCards(_kpiSource, showOnly).map((card) => {
       if (card?.action !== 'kpi|exceptions') return card;
+      if (data?.exceptionsUnavailable === true || data?.summary?.exceptions_unavailable === true) {
+        return { ...card, value: 'לא זמין', title: 'לא זמין' };
+      }
       const totalExceptions =
         data?.summary?.totalExceptionInstances ??
         data?.summary?.exceptions_count ??

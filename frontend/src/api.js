@@ -466,7 +466,11 @@ async function selectActivitiesByDateRangeFromSupabase({
   }
   const result = await query;
   if (result.error && fallbackSelect && isMissingSupabaseColumnError(result.error)) {
-    console.warn('[supabase][dashboard] activity column select failed; retrying minimal select', result.error);
+    logDashboardSupabaseReadError('[supabase][dashboard] activities select failed; retrying minimal select', result.error, {
+      table: 'public.activities',
+      columns: select,
+      operation: 'select.activities_by_date_range'
+    });
     return selectActivitiesByDateRangeFromSupabase({
       startDate,
       endDate,
@@ -476,7 +480,14 @@ async function selectActivitiesByDateRangeFromSupabase({
       overlapByStartEnd
     });
   }
-  if (result.error) throw new Error(result.error.message || 'activities_date_range_read_failed');
+  if (result.error) {
+    const diagnostic = logDashboardSupabaseReadError('[supabase][dashboard] activities read failed', result.error, {
+      table: 'public.activities',
+      columns: select,
+      operation: 'select.activities_by_date_range'
+    });
+    throw new Error(`activities_date_range_read_failed: ${diagnostic.message}`);
+  }
   return (Array.isArray(result.data) ? result.data : []).map(normalizeActivityRow);
 }
 
@@ -1575,6 +1586,36 @@ function isMissingSupabaseColumnError(error) {
   return msg.includes('column') || msg.includes('schema cache') || msg.includes('could not find');
 }
 
+
+function describeSupabaseReadError(error, context = {}) {
+  const table = context.table || 'unknown_table';
+  const columns = context.columns || context.select || '*';
+  const operation = context.operation || 'select';
+  const message = String(error?.message || error || 'supabase_read_failed');
+  const details = String(error?.details || '').trim();
+  const hint = String(error?.hint || '').trim();
+  const code = String(error?.code || '').trim();
+  return {
+    table,
+    columns,
+    operation,
+    code: code || null,
+    message,
+    details: details || null,
+    hint: hint || null,
+    permission_hint: /permission|policy|rls|not authorized|denied/i.test(`${message} ${details} ${hint}`),
+    missing_column_hint: isMissingSupabaseColumnError(error)
+  };
+}
+
+function logDashboardSupabaseReadError(label, error, context = {}) {
+  const diagnostic = describeSupabaseReadError(error, context);
+  try {
+    console.error(label || '[supabase][dashboard] read failed', diagnostic);
+  } catch { /* ignore */ }
+  return diagnostic;
+}
+
 function warnDashboardSupabasePathFailed(reason, extra = {}) {
   try {
     console.warn('[supabase][dashboard] path failed', { reason: String(reason || 'unknown'), ...extra });
@@ -1618,12 +1659,16 @@ async function dashboardReadModelFromSupabase(month) {
 
     const exceptionSummary = await readExceptionsFromSupabase({ month: monthPrefix, activityRows: allRangeRows });
     const exceptionError = exceptionSummary?.error || exceptionSummary?._debug?.error;
-    if (!exceptionSummary || exceptionError) {
-      warnDashboardSupabasePathFailed(exceptionError || 'exceptions_model_failed', { month: monthPrefix });
-      throw new Error('dashboard_exceptions_model_failed');
+    const exceptionsUnavailable = !exceptionSummary || !!exceptionError;
+    if (exceptionsUnavailable) {
+      warnDashboardSupabasePathFailed(exceptionError || 'exceptions_model_failed', {
+        month: monthPrefix,
+        path: 'readExceptionsFromSupabase',
+        impact: 'dashboard_continues_without_exceptions'
+      });
     }
-    const exceptionCounts = exceptionSummary.counts || {};
-    const exceptionsByDistrict = exceptionSummary.byDistrict || exceptionSummary.byManager || {};
+    const exceptionCounts = exceptionsUnavailable ? {} : (exceptionSummary.counts || {});
+    const exceptionsByDistrict = exceptionsUnavailable ? {} : (exceptionSummary.byDistrict || exceptionSummary.byManager || {});
 
     // Active (open-only) summary data
     const instructorIds = new Set();
@@ -1682,14 +1727,14 @@ async function dashboardReadModelFromSupabase(month) {
       delete stats._instructors;
       return stats;
     });
-    const exceptionsCount = Number(exceptionSummary.uniqueExceptionActivities || exceptionSummary.totalExceptionRows || 0);
+    const exceptionsCount = exceptionsUnavailable ? null : Number(exceptionSummary.uniqueExceptionActivities || exceptionSummary.totalExceptionRows || 0);
     const totals = {
       total_short_activities: allMonthRows.filter(isOneDayActivity).length,
       total_long_activities: allMonthRows.filter(isProgramActivity).length,
       total_activities: allMonthRows.length,
       total_instructors: instructorIds.size,
       total_course_endings_current_month: endingRows.length,
-      exceptions_count: exceptionsCount
+      exceptions_count: exceptionsUnavailable ? null : exceptionsCount
     };
     const summary = {
       active_type_counts: activeTypeCounts,
@@ -1703,17 +1748,18 @@ async function dashboardReadModelFromSupabase(month) {
       missing_date_count: Number(exceptionCounts.missing_start_date || 0),
       end_date_after_cutoff_count: Number(exceptionCounts.end_date_after_cutoff || 0),
       end_date_passed_count: Number(exceptionCounts.end_date_passed || 0),
-      operational_gaps_count: exceptionsCount,
-      operational_gaps_unique_count: Number(exceptionSummary.uniqueExceptionActivities || exceptionSummary.totalExceptionRows || 0),
-      operationalTotal: exceptionsCount,
-      exceptions_count: exceptionsCount,
-      totalExceptionRows: Number(exceptionSummary.totalExceptionRows || 0),
-      total_exception_rows: Number(exceptionSummary.totalExceptionRows || 0),
-      totalExceptionInstances: exceptionsCount,
-      counts: exceptionCounts
+      operational_gaps_count: exceptionsUnavailable ? null : exceptionsCount,
+      operational_gaps_unique_count: exceptionsUnavailable ? null : Number(exceptionSummary.uniqueExceptionActivities || exceptionSummary.totalExceptionRows || 0),
+      operationalTotal: exceptionsUnavailable ? null : exceptionsCount,
+      exceptions_count: exceptionsUnavailable ? null : exceptionsCount,
+      totalExceptionRows: exceptionsUnavailable ? null : Number(exceptionSummary.totalExceptionRows || 0),
+      total_exception_rows: exceptionsUnavailable ? null : Number(exceptionSummary.totalExceptionRows || 0),
+      totalExceptionInstances: exceptionsUnavailable ? null : exceptionsCount,
+      counts: exceptionCounts,
+      exceptions_unavailable: exceptionsUnavailable
     };
     // KPI cards use totalTypeCounts (all month rows including closed)
-    const kpi_cards = buildDashboardKpiCardsFromSupabase(totals, totalTypeCounts, exceptionsCount, instructorIds.size, endingRows.length);
+    const kpi_cards = buildDashboardKpiCardsFromSupabase(totals, totalTypeCounts, exceptionsUnavailable ? 'לא זמין' : exceptionsCount, instructorIds.size, endingRows.length);
     const noData = allMonthRows.length === 0;
     return {
       month: monthPrefix,
@@ -1723,7 +1769,8 @@ async function dashboardReadModelFromSupabase(month) {
       by_activity_manager,
       activeTypeCounts,
       totalTypeCounts,
-      exceptionCount: exceptionsCount,
+      exceptionCount: exceptionsUnavailable ? null : exceptionsCount,
+      exceptionsUnavailable,
       uniqueInstructorCount: instructorIds.size,
       courseEndings: endingRows.length,
       kpi_cards,
@@ -1733,7 +1780,12 @@ async function dashboardReadModelFromSupabase(month) {
       _source: 'supabase'
     };
   } catch (err) {
-    console.error('[supabase][dashboard] unexpected error:', err);
+    console.error('[supabase][dashboard] unexpected error:', {
+      message: String(err?.message || err),
+      month,
+      required_activity_columns: DASHBOARD_ACTIVITY_COLUMNS,
+      source_tables: ['public.activities', 'public.contacts_instructors', 'public.settings']
+    });
     return emptyDashboardPayload(month, { error: String(err?.message || err) });
   }
 }
@@ -1960,6 +2012,27 @@ function buildExceptionsFromRows(activityRows = [], month = '') {
   return buildExceptionsModelFromRows(activityRows, month, { include_rows: true }).rows;
 }
 
+
+async function readInstructorEmpIdsFromSupabase() {
+  if (!supabase) return [];
+  const columns = 'emp_id,active';
+  const { data, error } = await supabase
+    .from('contacts_instructors')
+    .select(columns);
+  if (error) {
+    const diagnostic = logDashboardSupabaseReadError('[supabase][dashboard] contacts_instructors read failed', error, {
+      table: 'public.contacts_instructors',
+      columns,
+      operation: 'select.instructor_emp_ids_for_exceptions'
+    });
+    throw new Error(`contacts_instructors_read_failed: ${diagnostic.message}`);
+  }
+  return (Array.isArray(data) ? data : [])
+    .filter((row) => row?.active !== false && row?.active !== 'false' && row?.active !== 0 && row?.active !== '0')
+    .map((row) => ({ emp_id: nullStr(row?.emp_id) }))
+    .filter((row) => row.emp_id);
+}
+
 async function readExceptionsFromSupabase(params = {}) {
   if (!supabase) return buildSupabaseErrorPayload({ rows: [], totalExceptionRows: 0, totalExceptionInstances: 0 }, 'no_supabase_client');
   const candidate = String(params?.month || params?.ym || '').trim();
@@ -1972,6 +2045,11 @@ async function readExceptionsFromSupabase(params = {}) {
       suppliedActivityRows ? Promise.resolve({ data: suppliedActivityRows, error: null }) : supabase.from('activities').select('*'),
       readInstructorEmpIdsFromSupabase().then((data) => ({ data, error: null })),
       readSettingsRowsFromSupabase().catch((error) => {
+        logDashboardSupabaseReadError('[supabase][dashboard] settings read failed', error, {
+          table: 'public.settings',
+          columns: SETTINGS_BOOTSTRAP_COLUMNS,
+          operation: 'select.settings_for_exceptions'
+        });
         warnLateEndDateThreshold('settings read failed', error?.message || error);
         return [];
       })
