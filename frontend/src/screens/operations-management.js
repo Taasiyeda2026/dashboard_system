@@ -1446,6 +1446,16 @@ function completionApprovalTabHtml(rows, state, data = {}, directory = buildScho
   if (approvalState.instructor && !instructors.includes(approvalState.instructor)) approvalState.instructor = '';
   const approvals = approvalState.preview ? completionApprovalsForState(rows, state, directory, contactsIndex) : [];
   _completionApprovalPrintContext = { approvals, instructorName: approvalState.instructor || '' };
+  const approvalActivitiesCount = approvals.reduce((sum, approval) => sum + (Array.isArray(approval.activities) ? approval.activities.length : 0), 0);
+  const approvalSummary = !approvalState.instructor
+    ? 'בחרו מדריך כדי להציג אישורי ביצוע'
+    : approvalState.preview
+      ? approvals.length
+        ? approvals.length === 1
+          ? `נמצא אישור אחד להפקה מתוך ${approvalActivitiesCount} פעילויות של המדריך בטווח התאריכים`
+          : `נמצאו ${approvals.length} אישורים להפקה מתוך ${approvalActivitiesCount} פעילויות של המדריך בטווח התאריכים`
+        : 'לא נמצאו אישורים להפקה לפי הבחירה הנוכחית'
+      : 'בחרו תאריכים ולחצו על "הצג אישורים"';
   const previewRows = approvals.map((approval, index) => `<tr>
     <td><strong>${escapeHtml(approval.instructorName)}</strong></td>
     <td>${escapeHtml(formatDateHe(approval.date) || approval.date || '')}</td>
@@ -1454,10 +1464,10 @@ function completionApprovalTabHtml(rows, state, data = {}, directory = buildScho
     <td class="no-print"><button type="button" class="ds-btn ds-btn--xs ds-btn--ghost" data-ops-approval-view="${index}">צפייה</button> <button type="button" class="ds-btn ds-btn--xs ds-btn--primary" data-ops-approval-print-one="${index}">הדפס אישור זה</button></td>
   </tr>`).join('');
   const preview = !approvalState.preview
-    ? dsEmptyState('בחרו מדריך ותאריכים ולחצו על "הצג אישורים".')
+    ? dsEmptyState(!approvalState.instructor ? 'בחרו מדריך כדי להציג אישורי ביצוע' : 'בחרו תאריכים ולחצו על "הצג אישורים".')
     : approvals.length
-      ? dsTableWrap(`<table class="ds-table ds-table--compact ds-ops-completion-preview"><thead><tr><th>מדריך</th><th>תאריך</th><th>בית ספר</th><th>כמות</th><th class="no-print">פעולות</th></tr></thead><tbody>${previewRows}</tbody></table>`)
-      : dsEmptyState('לא נמצאו פעילויות להפקת אישור ביצוע לפי הבחירה הנוכחית.');
+      ? dsTableWrap(`<table class="ds-table ds-table--compact ds-ops-completion-preview"><thead><tr><th>מדריך</th><th>תאריך</th><th>בית ספר</th><th>מס׳ פעילויות</th><th class="no-print">פעולות</th></tr></thead><tbody>${previewRows}</tbody></table>`)
+      : dsEmptyState('לא נמצאו אישורים להפקה לפי הבחירה הנוכחית');
   const dateFields = approvalState.dateMode === 'single'
     ? `<label class="ds-filter-field"><span class="ds-filter-field__label">תאריך</span><input class="ds-input ds-input--sm" type="date" data-ops-approval-date value="${escapeHtml(approvalState.date || '')}"></label>`
     : approvalState.dateMode === 'range'
@@ -1470,11 +1480,12 @@ function completionApprovalTabHtml(rows, state, data = {}, directory = buildScho
         <label class="ds-filter-field"><span class="ds-filter-field__label">בחירת מדריך</span><select class="ds-input ds-input--sm" data-ops-approval-instructor><option value="">בחרו מדריך/ה</option>${instructors.map((name) => `<option value="${escapeHtml(name)}"${name === approvalState.instructor ? ' selected' : ''}>${escapeHtml(name)}</option>`).join('')}</select></label>
         <label class="ds-filter-field"><span class="ds-filter-field__label">בחירת תאריכים</span><select class="ds-input ds-input--sm" data-ops-approval-date-mode><option value="all"${approvalState.dateMode === 'all' ? ' selected' : ''}>כל התאריכים של המדריך</option><option value="single"${approvalState.dateMode === 'single' ? ' selected' : ''}>תאריך מסוים</option><option value="range"${approvalState.dateMode === 'range' ? ' selected' : ''}>טווח תאריכים</option></select></label>
         ${dateFields}
-        <div class="ds-filter-panel__actions ds-ops-mgmt-filters__actions"><button type="button" class="ds-btn ds-btn--sm ds-btn--secondary" data-ops-approval-show>הצג אישורים</button><button type="button" class="ds-btn ds-btn--sm ds-btn--primary" data-ops-approval-print-all>הדפס אישורים</button></div>
+        <div class="ds-filter-panel__actions ds-ops-mgmt-filters__actions"><button type="button" class="ds-btn ds-btn--sm ds-btn--secondary" data-ops-approval-show>הצג אישורים</button></div>
       </div>
     </div>
     <div class="ds-ops-mgmt-panel__toolbar no-print">${approvals.length ? `<button type="button" class="ds-btn ds-btn--sm ds-btn--primary" data-ops-approval-print-all>הדפס את כל האישורים</button>` : ''}</div>
     ${dsCard({ title: 'אישורים שיופקו', badge: String(approvals.length), body: preview, padded: false })}
+    <p class="ds-muted ds-ops-completion-summary no-print">${escapeHtml(approvalSummary)}</p>
   </section>`;
 }
 
@@ -1522,17 +1533,19 @@ export const operationsManagementScreen = {
     state = state || {};
     const allRows = Array.isArray(data?.rows) ? data.rows : [];
     const prepared = prepareRows(allRows);
-    const baseRows = applyBaseFilters(prepared, state);
-    const filteredRows = applyAllFilters(baseRows, state);
     const ops = ensureOpsState(state);
+    const isCompletionApprovalTab = ops.tab === TAB_COMPLETION_APPROVAL;
+    const baseRows = applyBaseFilters(prepared, state);
+    const filteredRows = isCompletionApprovalTab ? prepared : applyAllFilters(baseRows, state);
     const filterRows = ops.tab === TAB_WORKSHOPS
       ? baseRows.filter((row) => activityMatchesAnyOfficialWorkshop(row, extractWorkshopCatalogRows(data?.adminListsData, prepared)))
       : baseRows;
+    const activeRows = isCompletionApprovalTab ? prepared : filteredRows;
     return `<div class="ds-screen-stack ds-ops-mgmt-screen">${opsManagementStylesHtml()}${dsPageHeader('ניהול תפעול')}
-      ${topFiltersHtml(filterRows, state)}
+      ${isCompletionApprovalTab ? '' : topFiltersHtml(filterRows, state)}
       ${tabsHtml(ops.tab)}
-      <div class="ds-ops-mgmt-content">${renderTab(filteredRows, state, data, prepared)}</div>
-      <p class="ds-muted ds-ops-mgmt-count no-print" dir="rtl">מציג ${filteredRows.length} פעילויות מתוך ${allRows.length}</p>
+      <div class="ds-ops-mgmt-content">${renderTab(activeRows, state, data, prepared)}</div>
+      ${isCompletionApprovalTab ? '' : `<p class="ds-muted ds-ops-mgmt-count no-print" dir="rtl">מציג ${filteredRows.length} פעילויות מתוך ${allRows.length}</p>`}
     </div>`;
   },
   bind({ root, state, rerender }) {

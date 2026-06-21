@@ -18,7 +18,8 @@ import { operationsManagementScreen } from '../frontend/src/screens/operations-m
 import {
   completionApprovalDocumentHtml,
   completionApprovalPrintCss,
-  formatApprovalTime
+  formatApprovalTime,
+  sortApprovalActivitiesByTime
 } from '../frontend/src/screens/shared/activity-completion-approval-print.js';
 
 function baseState(overrides = {}) {
@@ -121,6 +122,68 @@ test('operations management render includes menu page structure and tabs', () =>
   assert.match(html, /ds-exceptions-tabs/);
   assert.match(html, /data-ops-tab="instructors"[^>]*aria-pressed="true"/);
   assert.doesNotMatch(html, /סמל מוסד/);
+});
+
+test('completion approval tab hides general operations filters and uses only approval filters', () => {
+  const state = baseState();
+  state.operationsManagement.tab = 'completion_approval';
+  state.operationsManagement.dateFrom = '2026-01-01';
+  state.operationsManagement.dateTo = '2026-01-31';
+  state.operationsManagement.completionApproval = {
+    instructor: 'הילה רוזן',
+    dateMode: 'range',
+    date: '',
+    dateFrom: '2026-07-10',
+    dateTo: '2026-07-11',
+    preview: true
+  };
+  state.listFilters['operations-management'] = {
+    q: '',
+    appliedQ: '',
+    status: 'פתוח',
+    authority: 'רשות שלא קיימת',
+    school: '',
+    instructor: '',
+    activity: '',
+    visibleCount: 200
+  };
+  const rows = [
+    { RowID: 'CA-1', status: 'פתוח', authority: 'רשות אחרת', school: 'בית ספר א', activity_name: 'פעילות א', start_date: '2026-07-10', start_time: '08:30:00', end_time: '09:30:00', instructor_name: 'הילה רוזן' },
+    { RowID: 'CA-2', status: 'פתוח', authority: 'רשות אחרת', school: 'בית ספר ב', activity_name: 'פעילות ב', start_date: '2026-07-11', start_time: '10:00:00', end_time: '11:00:00', instructor_name: 'הילה רוזן' },
+    { RowID: 'CA-3', status: 'פתוח', authority: 'רשות אחרת', school: 'בית ספר ג', activity_name: 'פעילות ג', start_date: '2026-07-10', instructor_name: 'מדריך אחר' }
+  ];
+  const html = operationsManagementScreen.render({ rows, workshopStockMap: new Map() }, { state });
+
+  assert.doesNotMatch(html, /סינון וחיפוש/);
+  assert.doesNotMatch(html, /data-ops-clear-filters/);
+  assert.doesNotMatch(html, /data-ops-filter="authority"/);
+  assert.doesNotMatch(html, /data-ops-search/);
+  assert.doesNotMatch(html, /מציג \d+ פעילויות מתוך/);
+  assert.match(html, /בחירת מדריך/);
+  assert.match(html, /בחירת תאריכים/);
+  assert.match(html, /בית ספר א/);
+  assert.match(html, /בית ספר ב/);
+  assert.doesNotMatch(html, /בית ספר ג/);
+  assert.match(html, /מס׳ פעילויות/);
+  assert.equal((html.match(/data-ops-approval-print-all/g) || []).length, 1);
+  assert.match(html, /נמצאו 2 אישורים להפקה מתוך 2 פעילויות של המדריך בטווח התאריכים/);
+});
+
+test('completion approval tab asks for instructor before showing approvals', () => {
+  const state = baseState();
+  state.operationsManagement.tab = 'completion_approval';
+  state.operationsManagement.completionApproval = {
+    instructor: '',
+    dateMode: 'all',
+    date: '',
+    dateFrom: '',
+    dateTo: '',
+    preview: false
+  };
+  const html = operationsManagementScreen.render({ rows: TEXT_SCHOOL_ROWS, workshopStockMap: new Map() }, { state });
+  assert.match(html, /בחרו מדריך כדי להציג אישורי ביצוע/);
+  assert.doesNotMatch(html, /סינון וחיפוש/);
+  assert.doesNotMatch(html, /data-ops-approval-print-all/);
 });
 
 test('workshop quantity metrics use x25 estimate and stock gap rules', () => {
@@ -442,12 +505,23 @@ test('completion approval print document uses compact printable structure', () =
     address: 'רחוב 1',
     contact: { name: 'דנה כהן', role: 'רכזת', phone: '050-0000000', email: 'dana@example.test' },
     activities: [{
-      name: 'סדנת רובוטיקה',
+      name: 'פעילות מאוחרת',
+      grade: 'ד',
+      start: '',
+      end: '',
+      participants_count: 25
+    }, {
+      name: 'פעילות שנייה',
+      grade: 'ד',
+      start: '09:00:00',
+      end: '09:45:00'
+    }, {
+      name: 'פעילות ראשונה',
       type: 'workshop',
       grade: 'ד',
       group: 'קבוצה א',
       start: '08:30:00',
-      end: '13:00:00',
+      end: '09:00:00',
       notes: 'הערה',
       participants_count: 25
     }]
@@ -460,20 +534,25 @@ test('completion approval print document uses compact printable structure', () =
   assert.doesNotMatch(headerHtml, /עמותת תעשיידע – תעשייה למען חינוך מתקדם/);
   assert.match(footerHtml, /עמותת תעשיידע – תעשייה למען חינוך מתקדם/);
   assert.match(html, /בית ספר רמבם/);
-  assert.match(html, /רשות לדוגמה/);
+  assert.match(html, /רשות: רשות לדוגמה/);
   assert.match(html, /הילה רוזן/);
+  assert.match(html, /<th>שם הפעילות<\/th>/);
+  assert.doesNotMatch(html, /שם סדנה \/ פעילות/);
   assert.match(html, /<th class="completion-approval-table__center">כיתה<\/th>/);
   assert.match(html, /<th class="completion-approval-table__center">שעת התחלה<\/th>/);
   assert.match(html, /<th class="completion-approval-table__center">שעת סיום<\/th>/);
   assert.match(html, /<th>מספר משתתפים<\/th>/);
+  assert.match(html, /<td class="completion-approval-table__manual"><\/td>/);
   assert.match(html, />08:30<\/td>/);
-  assert.match(html, />13:00<\/td>/);
+  assert.match(html, />09:45<\/td>/);
+  assert.doesNotMatch(html, /09:45:00/);
+  assert.ok(html.indexOf('פעילות ראשונה') < html.indexOf('פעילות שנייה'));
+  assert.ok(html.indexOf('פעילות שנייה') < html.indexOf('פעילות מאוחרת'));
   assert.match(html, /שם מלא/);
-  assert.match(html, /דנה כהן/);
   assert.match(html, /תפקיד/);
-  assert.match(html, /רכזת/);
   assert.match(html, /חתימה/);
   assert.match(html, /חותמת בית הספר/);
+  assert.doesNotMatch(html, /דנה כהן|רכזת/);
   assert.doesNotMatch(html, /מספר עובד/);
   assert.doesNotMatch(html, /1234/);
   assert.doesNotMatch(html, /כתובת בית ספר/);
@@ -493,9 +572,36 @@ test('completion approval time formatter and table width are print scoped', () =
   assert.equal(formatApprovalTime(''), '');
   assert.equal(formatApprovalTime(null), '');
   assert.match(completionApprovalPrintCss, /\.approval-print-table\{width:60%;margin-inline:auto\}/);
+  assert.match(completionApprovalPrintCss, /\.completion-approval-col-activity\{width:45%\}/);
+  assert.match(completionApprovalPrintCss, /\.completion-approval-col-grade\{width:10%\}/);
+  assert.match(completionApprovalPrintCss, /\.completion-approval-col-start\{width:13%\}/);
+  assert.match(completionApprovalPrintCss, /\.completion-approval-col-end\{width:13%\}/);
+  assert.match(completionApprovalPrintCss, /\.completion-approval-col-participants\{width:19%\}/);
+  assert.match(completionApprovalPrintCss, /\.completion-approval-table th\{[^}]*white-space:nowrap/);
   assert.match(completionApprovalPrintCss, /\.completion-approval-table__center\{text-align:center!important\}/);
-  assert.match(completionApprovalPrintCss, /\.completion-approval-logo\{[^}]*height:42px;max-height:20mm;width:auto;object-fit:contain/);
+  assert.match(completionApprovalPrintCss, /\.completion-approval-logo\{[^}]*inset-inline-end:0;top:0;height:42px;max-height:20mm;width:auto;object-fit:contain/);
+  assert.match(completionApprovalPrintCss, /\.approval-sign-line\{display:inline-block;width:220px;border-bottom:1px solid #111827/);
+  assert.match(completionApprovalPrintCss, /\.completion-approval-signature p\{margin:16px 0\}/);
   assert.match(completionApprovalPrintCss, /\.completion-approval-footer\{[^}]*font-size:10px;[^}]*color:#64748b/);
+});
+
+test('completion approval activities sort by start time, end time and name', () => {
+  const sorted = sortApprovalActivitiesByTime([
+    { name: 'ללא שעה', start: '', end: '' },
+    { name: 'ב פעילות', start: '09:00:00', end: '09:45:00' },
+    { name: 'א פעילות', start: '09:00:00', end: '09:45:00' },
+    { name: 'מוקדמת', start: '08:15:00', end: '09:00:00' },
+    { name: 'קצרה', start: '09:00:00', end: '09:30:00' },
+    { name: 'מתוך טווח', time: '10:15:00-11:00:00' }
+  ]);
+  assert.deepEqual(sorted.map((activity) => activity.name), [
+    'מוקדמת',
+    'קצרה',
+    'א פעילות',
+    'ב פעילות',
+    'מתוך טווח',
+    'ללא שעה'
+  ]);
 });
 
 test('operations management render shows text-school activities without school_id', () => {
