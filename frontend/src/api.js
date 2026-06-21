@@ -3272,21 +3272,41 @@ async function loginWithSupabaseAuth(user_id, entry_code) {
 
   const authUserId = authData.user.id;
 
-  const { userRow, matchedBy } = await resolveActiveUserRowAfterAuth({
+  try {
+    console.info('[login-auth-success]', { authEmail, username, authUserId });
+  } catch {
+    /* ignore */
+  }
+
+  const resolveResult = await resolveActiveUserRowAfterAuth({
     supabase,
     baseColumns: USER_PUBLIC_COLUMNS,
     extendedColumns: USER_PUBLIC_COLUMNS_EXTENDED,
     authEmail,
     username,
     authUserId,
+    loginMode: true,
     requireAuthUserMatch: true
   });
 
+  const { userRow, matchedBy, status, attempts, lastError, fallbackFrom } = resolveResult;
+
   if (!userRow) {
-    throwLoginError('auth_ok_user_row_not_found', {
+    const failureCode = status === 'permission_denied'
+      ? 'auth_ok_user_row_permission_denied'
+      : status === 'query_error'
+        ? 'auth_ok_user_row_query_error'
+        : status === 'multiple_matches'
+          ? 'auth_ok_user_row_multiple_matches'
+          : 'auth_ok_user_row_not_found';
+    throwLoginError(failureCode, {
       auth_user_id: authUserId,
       auth_email: authEmail,
-      username
+      username,
+      lookup_status: status || 'not_found',
+      fallback_from: fallbackFrom || null,
+      attempts: Array.isArray(attempts) ? attempts : [],
+      last_error: lastError || null
     });
   }
 

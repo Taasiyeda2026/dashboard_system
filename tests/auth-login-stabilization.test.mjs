@@ -42,7 +42,7 @@ test('login uses Supabase Auth email domain and resolves users with strict auth 
   assert.match(loginBlock[0], /@think\.org\.il/);
   assert.match(loginBlock[0], /signInWithPassword\(/);
   assert.match(loginBlock[0], /resolveActiveUserRowAfterAuth\(/);
-  assert.match(loginBlock[0], /requireAuthUserMatch: true/);
+  assert.match(loginBlock[0], /loginMode: true/);
   assert.match(loginBlock[0], /auth_ok_user_row_not_found/);
   assert.match(loginBlock[0], /userRow\.auth_user_id = authUserId/);
   assert.doesNotMatch(loginBlock[0], /login_user_by_entry_code/);
@@ -67,7 +67,8 @@ test('resolveActiveUserRowAfterAuth finds idann by email when user_id differs', 
     supabase: mockSupabase,
     authEmail,
     username: 'idann',
-    authUserId: '00000000-0000-4000-8000-000000000001'
+    authUserId: '00000000-0000-4000-8000-000000000001',
+    loginMode: true
   });
 
   assert.equal(matchedBy, 'email');
@@ -92,7 +93,8 @@ test('resolveActiveUserRowAfterAuth falls back to user_id when email lookup miss
     supabase: mockSupabase,
     authEmail,
     username: 'worker',
-    authUserId: '00000000-0000-4000-8000-000000000002'
+    authUserId: '00000000-0000-4000-8000-000000000002',
+    loginMode: true
   });
 
   assert.equal(matchedBy, 'user_id');
@@ -116,22 +118,24 @@ test('USER_PUBLIC_COLUMNS selects granted users table fields only', async () => 
   assert.match(source, /USER_PUBLIC_COLUMNS_EXTENDED = `\$\{USER_PUBLIC_COLUMNS\},auth_user_id,can_review_requests,view_proposals_agreements,manage_proposals_agreements,approve_proposals_agreements`/);
 });
 
-test('auth user resolver supports strict auth match before email fallback', async () => {
+test('auth user resolver supports login diagnostics and auth mismatch checks', async () => {
   const source = await readFile(RESOLVE_FILE, 'utf8');
   assert.match(source, /AUTH_USER_PUBLIC_COLUMNS_EXTENDED/);
   assert.match(source, /requireAuthUserMatch/);
-  assert.match(source, /auth_user_id\+user_id/);
-  assert.match(source, /session_user_id/);
-  assert.match(source, /authUserIdMatchesRow/);
+  assert.match(source, /loginMode/);
+  assert.match(source, /classifyUserLookupError/);
+  assert.match(source, /\[auth-user-resolve\]/);
 });
 
-test('auth user resolver tries auth_user_id before email fallback', async () => {
+test('auth user resolver tries email before auth_user_id in login mode', async () => {
   const source = await readFile(RESOLVE_FILE, 'utf8');
-  const authCompositeIndex = source.indexOf("matchedBy: 'auth_user_id+user_id'");
-  const emailIndex = source.indexOf("matchedBy: 'email'");
-  assert.ok(authCompositeIndex >= 0, 'auth_user_id+user_id lookup should exist');
-  assert.ok(emailIndex >= 0, 'email lookup should exist');
-  assert.ok(authCompositeIndex < emailIndex, 'auth_user_id should be tried before email');
+  const loginBlock = source.match(/if \(loginMode\) \{[\s\S]*?return attempts;/);
+  assert.ok(loginBlock, 'loginMode attempt block should exist');
+  const emailIndex = loginBlock[0].indexOf("matchedBy: 'email'");
+  const authIndex = loginBlock[0].indexOf("matchedBy: 'auth_user_id'");
+  assert.ok(emailIndex >= 0, 'email lookup should exist in login mode');
+  assert.ok(authIndex >= 0, 'auth_user_id lookup should exist in login mode');
+  assert.ok(emailIndex < authIndex, 'email should be tried before auth_user_id in login mode');
 });
 
 test('supabase client prefers env vars and keeps production fallback when unset', async () => {

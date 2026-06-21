@@ -292,6 +292,32 @@ test('resolveActiveUserRowAfterAuth falls back to base columns when optional col
   assert.deepEqual(userRow.permissions, { view_proposals_agreements: 'yes' });
 });
 
+test('proposals permissions remain available after email profile load', async () => {
+  const authEmail = 'viewer@think.org.il';
+  const mockSupabase = createMockSupabase({
+    [`is_active=true&email=${authEmail}`]: {
+      user_id: 'viewer',
+      email: authEmail,
+      role: 'authorized_user',
+      is_active: true,
+      permissions: { view_proposals_agreements: 'yes' }
+    }
+  });
+
+  const result = await resolveActiveUserRowAfterAuth({
+    supabase: mockSupabase,
+    authEmail,
+    username: 'viewer',
+    authUserId: '00000000-0000-4000-8000-000000000010',
+    loginMode: true
+  });
+
+  const flat = flattenUserRow(result.userRow);
+  withUser(flat, () => {
+    assert.equal(canUseProposalsAgreementsApi(), true);
+  });
+});
+
 test('missing optional columns does not grant extra proposal access', () => {
   const userRow = {
     user_id: 'login-user',
