@@ -1,5 +1,8 @@
 import { createClient } from '@supabase/supabase-js';
 
+const FALLBACK_SUPABASE_URL = 'https://szinlhjuwyiyszdpsdop.supabase.co';
+const FALLBACK_SUPABASE_PUBLISHABLE_KEY = 'sb_publishable_k0IbDJlgPA9KTVuDWrCyFw_Zsa5kZIM';
+
 const viteEnv = import.meta.env || {};
 
 function readEnvValue(...keys) {
@@ -14,13 +17,13 @@ const supabaseUrl = readEnvValue(
   'VITE_SUPABASE_URL',
   'NEXT_PUBLIC_SUPABASE_URL',
   'SUPABASE_URL'
-);
+) || FALLBACK_SUPABASE_URL;
 const supabaseAnonKey = readEnvValue(
   'VITE_SUPABASE_ANON_KEY',
   'NEXT_PUBLIC_SUPABASE_ANON_KEY',
   'SUPABASE_ANON_KEY',
   'SUPABASE_PUBLISHABLE_KEY'
-);
+) || FALLBACK_SUPABASE_PUBLISHABLE_KEY;
 
 let supabase = null;
 let authSessionWaitPromise = null;
@@ -30,14 +33,16 @@ if (supabaseUrl && supabaseAnonKey) {
 } else {
   // eslint-disable-next-line no-console
   console.error(
-    '[supabase] Missing configuration. Set VITE_SUPABASE_URL and VITE_SUPABASE_ANON_KEY (or SUPABASE_URL / SUPABASE_ANON_KEY for Preview integrations).'
+    '[supabase] Missing configuration. Expected VITE_SUPABASE_URL/VITE_SUPABASE_ANON_KEY or NEXT_PUBLIC_/SUPABASE_ aliases.'
   );
 }
 
 export const supabaseConfig = {
   url: supabaseUrl,
   hasAnonKey: Boolean(supabaseAnonKey),
-  isConfigured: Boolean(supabaseUrl && supabaseAnonKey)
+  isConfigured: Boolean(supabaseUrl && supabaseAnonKey),
+  usesFallbackUrl: supabaseUrl === FALLBACK_SUPABASE_URL,
+  usesFallbackAnonKey: supabaseAnonKey === FALLBACK_SUPABASE_PUBLISHABLE_KEY
 };
 
 export function resetSupabaseAuthSessionWait() {

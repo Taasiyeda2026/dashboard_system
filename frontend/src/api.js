@@ -2941,7 +2941,7 @@ async function readProposalsAgreementsFromSupabase() {
   };
 }
 
-const USER_PUBLIC_COLUMNS = 'user_id,username,email,name,role,display_role,is_active,permissions,auth_user_id';
+const USER_PUBLIC_COLUMNS = 'user_id,email,name,role,emp_id,is_active,permissions';
 const PROFILE_PERSONAL_REPORTS_COLUMNS = 'id,is_active,can_access_personal_reports';
 const VALID_SUPABASE_ROLES = new Set(['admin', 'operation_manager', 'authorized_user', 'instructor', 'finance', 'activities_manager', 'domain_manager', 'instructor_manager', 'business_development_manager']);
 
@@ -3257,14 +3257,15 @@ async function loginWithSupabaseAuth(user_id, entry_code) {
   const { data: userRow, error: profileError } = await supabase
     .from('users')
     .select(USER_PUBLIC_COLUMNS)
-    .eq('auth_user_id', authUserId)
-    .eq('username', username)
+    .eq('user_id', username)
     .eq('is_active', true)
     .single();
 
   if (profileError || !userRow) {
     throwLoginError('invalid_credentials', { auth_user_id: authUserId, message: String(profileError?.message || '') });
   }
+
+  userRow.auth_user_id = authUserId;
 
   assertValidLoginUserRow(userRow);
   const profileRow = await readPersonalReportsProfile(authUserId);

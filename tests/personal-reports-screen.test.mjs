@@ -82,14 +82,14 @@ test('source keeps personal reports auth temporary and maps verified login to au
   assert.match(source, /buildInternalAuthEmail/);
   assert.match(source, /auth\.signInWithPassword/);
   assert.match(source, /const authUserId = authData\.user\.id/);
-  assert.match(source, /\.eq\('auth_user_id', authUserId\)/);
+  assert.match(source, /\.eq\('user_id', login\.toLowerCase\(\)\)/);
   assert.match(source, /sameDashboardUser\(userRow, user\)/);
   assert.match(source, /assertEmployeeUuid\(employeeId\)/);
   assert.doesNotMatch(source, /login_user_by_entry_code/);
   assert.doesNotMatch(source, /verify_personal_reports_entry_code/);
   assert.doesNotMatch(source, /localStorage|sessionStorage/);
   assert.match(source, /אימות נוסף לדוחות אישיים/);
-  assert.match(source, /הקוד שהוזן אינו תקין\. יש לבדוק ולנסות שוב\./);
+  assert.match(source, /שם משתמש או סיסמה שגויים/);
   assert.doesNotMatch(source, /id="pr-email"|id="pr-pass"|מייל עבודה|שכחתי סיסמה/);
 });
 
@@ -235,6 +235,7 @@ test('internal login keeps access code as trimmed string and uses current dashbo
   assert.match(source, /const dashboardUser = dashboardUserForAuth\(\)/);
   assert.match(source, /authenticateInternalEmployee\(dashboardUser, accessCode\)/);
   assert.match(source, /personalReportsLoginIdentifier\(user\)/);
+  assert.match(source, /user\?\.username \|\| user\?\.email/);
   assert.match(source, /buildInternalAuthEmail\(login\)/);
   assert.match(source, /sameDashboardUser\(userRow, user\)/);
   assert.doesNotMatch(source, /Number\(fd\.get\('access_code'\)/);
