@@ -236,6 +236,17 @@ export function getActivityActualParticipantCount(activity) {
   return null;
 }
 
+export function getActivityOperationalQuantity(activity) {
+  const count = getActivityActualParticipantCount(activity);
+  return count !== null ? count : WORKSHOP_ESTIMATE_PER_ACTIVITY;
+}
+
+export function sumOperationalQuantitiesFromActivities(activities = []) {
+  return (Array.isArray(activities) ? activities : []).reduce((total, activity) => {
+    return total + getActivityOperationalQuantity(activity);
+  }, 0);
+}
+
 export function sumActivityParticipantCounts(activities = []) {
   let total = 0;
   let hasAny = false;
