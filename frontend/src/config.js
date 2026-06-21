@@ -46,5 +46,5 @@ if (!resolvedUrl) {
 export const config = {
   apiUrl: resolvedUrl,
   DIAGNOSTICS_UI_ENABLED: false,
-  HOTFIX_VERSION: 'proposals-ui-overhaul-20260620-v1'
+  HOTFIX_VERSION: 'proposals-footer-badge-fix-20260621-v1'
 };

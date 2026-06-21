@@ -310,7 +310,7 @@ test('proposals-agreements route is registered and role-gated in route definitio
   assert.doesNotMatch(apiSource, /instructor: \[[^\]]*'proposals-agreements'/);
 });
 
-test('pending approved proposals nav count includes approved unsigned sent excludes sent and cancelled', () => {
+test('pending approved proposals nav count includes only approved status rows', () => {
   const approved = { id: '1', status: 'approved' };
   const signed = { id: '2', status: 'draft', approved_at: '2026-06-01T10:00:00Z' };
   const signatureOnly = { id: '3', status: 'draft', signature_meta: { signature: { image: 'proposals/signature-idan-nahum.png' } } };
@@ -318,15 +318,17 @@ test('pending approved proposals nav count includes approved unsigned sent exclu
   const pendingAlias = { id: '5', status: 'pending_approval', approved_at: '2026-06-01T10:00:00Z' };
   const cancelled = { id: '6', status: 'cancelled', approved_at: '2026-06-01T10:00:00Z' };
   const draft = { id: '7', status: 'draft' };
+  const returned = { id: '8', status: 'returned_for_changes', approved_at: '2026-06-01T10:00:00Z' };
 
   assert.equal(isProposalApprovedPendingSend(approved), true);
-  assert.equal(isProposalApprovedPendingSend(signed), true);
-  assert.equal(isProposalApprovedPendingSend(signatureOnly), true);
+  assert.equal(isProposalApprovedPendingSend(signed), false);
+  assert.equal(isProposalApprovedPendingSend(signatureOnly), false);
   assert.equal(isProposalApprovedPendingSend(sent), false);
   assert.equal(isProposalApprovedPendingSend(pendingAlias), false);
   assert.equal(isProposalApprovedPendingSend(cancelled), false);
   assert.equal(isProposalApprovedPendingSend(draft), false);
-  assert.equal(countPendingApprovedProposals([approved, signed, sent, draft, signatureOnly]), 3);
+  assert.equal(isProposalApprovedPendingSend(returned), false);
+  assert.equal(countPendingApprovedProposals([approved, signed, sent, draft, signatureOnly, returned]), 1);
 });
 
 test('sidebar proposals pending badge is wired in main shell nav', async () => {

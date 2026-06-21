@@ -16624,6 +16624,14 @@ details[open] > .ds-fin-acc__summary::before { transform: rotate(90deg); }
   letter-spacing: 0;
   box-shadow: 0 4px 24px rgba(0, 0, 0, 0.15);
   border-radius: 0;
+  display: flex;
+  flex-direction: column;
+}
+.proposal-document.pa-document .proposal-document-body {
+  flex: 1 1 auto;
+  display: flex;
+  flex-direction: column;
+  min-height: 0;
 }
 .proposal-document.pa-document .proposal-document-content {
   max-width: none;
@@ -16767,14 +16775,12 @@ details[open] > .ds-fin-acc__summary::before { transform: rotate(90deg); }
   page-break-inside: avoid;
 }
 .pa-footer-signature .pa-blessing {
-  display: block;
-  width: max-content;
-  max-width: 100%;
-  margin: 0 0 10px auto;
   font-size: 12.5px;
-  text-align: right;
+  margin-bottom: 10px;
+  text-align: center;
 }
 .pa-signer-block {
+  margin-top: 4.4em;
   display: inline-flex;
   flex-direction: column;
   align-items: stretch;
@@ -16806,12 +16812,12 @@ details[open] > .ds-fin-acc__summary::before { transform: rotate(90deg); }
   margin: 0 0 6px;
 }
 .pa-page-footer {
-  margin-top: auto !important;
+  margin-top: auto;
   border-top: 1px solid #bbb;
-  padding: 8px 0 10px !important;
+  padding: 8px 0 10px;
   font-size: 10px;
   color: #666;
-  display: flex !important;
+  display: flex;
   align-items: center;
   justify-content: center;
   gap: 8px;
@@ -16837,6 +16843,14 @@ details[open] > .ds-fin-acc__summary::before { transform: rotate(90deg); }
     border-radius: 0 !important;
     font-size: 11.5px !important;
     line-height: 1.58 !important;
+    display: flex !important;
+    flex-direction: column !important;
+  }
+  .proposal-document.pa-document .proposal-document-body {
+    display: flex !important;
+    flex-direction: column !important;
+    flex: 1 1 auto !important;
+    padding: 0 !important;
   }
   .proposal-preview-area,
   .pa-preview-canvas { padding: 0 !important; }
@@ -16853,6 +16867,12 @@ details[open] > .ds-fin-acc__summary::before { transform: rotate(90deg); }
     position: relative !important;
     border-top: 1px solid #bbb !important;
     padding: 5px 0 7px !important;
+    display: flex !important;
+    align-items: center !important;
+    justify-content: center !important;
+    gap: 8px !important;
+    font-size: 10px !important;
+    color: #666 !important;
   }
   .pa-page-footer .pa-page-footer-logo { height: 18px !important; max-height: 18px !important; }
 }
