@@ -111,9 +111,9 @@ async function readInstructorContactsRowsForBootstrap() {
   if (instructorContactsCache) return instructorContactsCache;
   if (instructorContactsPromise) return instructorContactsPromise;
   instructorContactsPromise = (async () => {
-    const { data, error } = await supabase.from('contacts_instructors').select('emp_id,full_name,name,active');
+    const { data, error } = await supabase.from('contacts_instructors').select('emp_id,full_name,active');
     if (error) {
-      console.warn('[supabase] contacts_instructors read failed:', error);
+      console.error('[contacts][contacts_instructors] read failed', { columns: 'emp_id,full_name,active', code: error?.code, message: error?.message, error });
       return [];
     }
     instructorContactsCache = Array.isArray(data) ? data : [];
@@ -493,7 +493,7 @@ async function selectActivitiesByDateRangeFromSupabase({
 
 const AUTHORITIES_CATALOG_COLUMNS = 'id,authority_name,authority_code,authority_type,hp_number,long_name,district,active';
 const SCHOOLS_CATALOG_COLUMNS = 'id,semel_mosad,school_name,authority,authority_id,district,city,active';
-const CONTACTS_INSTRUCTORS_SCREEN_COLUMNS = 'emp_id,full_name,mobile,email,address,employment_type,direct_manager,active,id';
+const CONTACTS_INSTRUCTORS_SCREEN_COLUMNS = 'emp_id,full_name,mobile,email,address,employment_type,direct_manager,active';
 const CONTACTS_CATALOG_CACHE_TTL_MS = 10 * 60 * 1000;
 let authoritySchoolCatalogCache = null;
 let authoritySchoolCatalogInflight = null;
@@ -1001,16 +1001,39 @@ function isSupabasePermissionDeniedError(error) {
     || haystack.includes('insufficient_privilege');
 }
 
-async function readUnifiedContactsFromSupabase({ requireAuth = false } = {}) {
+async function readUnifiedContactsFromSupabase({ requireAuth = false, letter = '', search = '' } = {}) {
   if (!supabase) return [];
   if (requireAuth) {
     const session = await waitForSupabaseAuthSession({ timeoutMs: 6000 });
     if (!session?.user?.id) throw new Error('contacts_unified_view_requires_auth_session');
   }
   try {
-    const { data, error } = await supabase
+    let query = supabase
       .from('contacts_unified_view')
-      .select(CONTACTS_UNIFIED_VIEW_COLUMNS)
+      .select(CONTACTS_UNIFIED_VIEW_COLUMNS);
+    const safeLetter = String(letter || '').trim().replace(/[%,()]/g, '');
+    if (safeLetter) {
+      query = query.or(`authority_name.ilike.${safeLetter}%,authority.ilike.${safeLetter}%,client_name.ilike.${safeLetter}%`);
+    }
+    const safeSearch = String(search || '').trim().replace(/[%,()]/g, '');
+    if (safeSearch) {
+      const term = `%${safeSearch}%`;
+      query = query.or([
+        `client_name.ilike.${term}`,
+        `authority_name.ilike.${term}`,
+        `authority.ilike.${term}`,
+        `school_name.ilike.${term}`,
+        `school.ilike.${term}`,
+        `contact_name.ilike.${term}`,
+        `contact_role.ilike.${term}`,
+        `phone.ilike.${term}`,
+        `mobile.ilike.${term}`,
+        `email.ilike.${term}`,
+        `authority_code.ilike.${term}`,
+        `semel_mosad.ilike.${term}`
+      ].join(','));
+    }
+    const { data, error } = await query
       .order('authority_name', { ascending: true })
       .order('school_name', { ascending: true })
       .order('contact_domain', { ascending: true })
@@ -1044,7 +1067,7 @@ async function readUnifiedContactsFromSupabase({ requireAuth = false } = {}) {
  *
  * ⚠️ permissions table is intentionally excluded — login credentials must never be read client-side.
  */
-async function readContactsFromSupabase() {
+async function readContactsFromSupabase({ includeUnified = false, letter = '', search = '' } = {}) {
   if (!supabase) return null;
 
   const perfStarted = typeof performance !== 'undefined' ? performance.now() : Date.now();
@@ -1068,8 +1091,13 @@ async function readContactsFromSupabase() {
     perf.instructors_ms = Math.round((typeof performance !== 'undefined' ? performance.now() : Date.now()) - started);
     if (result.error) {
       // eslint-disable-next-line no-console
-      console.warn('[supabase] Failed to load contacts_instructors:', result.error);
-      return [];
+      console.error('[contacts][contacts_instructors] read failed', {
+        columns: CONTACTS_INSTRUCTORS_SCREEN_COLUMNS,
+        code: result.error?.code,
+        message: result.error?.message,
+        error: result.error
+      });
+      throw new Error(result.error.message || 'contacts_instructors_read_failed');
     }
     const rows = Array.isArray(result.data) ? result.data : [];
     perf.instructors_count = rows.length;
@@ -1078,7 +1106,7 @@ async function readContactsFromSupabase() {
 
   const readUnified = async () => {
     const started = typeof performance !== 'undefined' ? performance.now() : Date.now();
-    const rows = await readUnifiedContactsFromSupabase();
+    const rows = await readUnifiedContactsFromSupabase({ letter, search });
     perf.unified_ms = Math.round((typeof performance !== 'undefined' ? performance.now() : Date.now()) - started);
     perf.unified_count = Array.isArray(rows) ? rows.length : 0;
     return rows;
@@ -1087,8 +1115,8 @@ async function readContactsFromSupabase() {
   try {
     const [instructor_rows, schoolRowsRaw, catalog] = await Promise.all([
       readInstructors(),
-      readUnified(),
-      readAuthoritySchoolCatalog({ perf })
+      includeUnified ? readUnified() : Promise.resolve([]),
+      includeUnified ? readAuthoritySchoolCatalog({ perf }) : Promise.resolve({ authorities: [], schools: [], authorityLookup: new Map(), schoolLookup: new Map() })
     ]);
     const school_rows = (Array.isArray(schoolRowsRaw) ? schoolRowsRaw : [])
       .map((row) => enrichSchoolContactRow(row, catalog.authorityLookup, catalog.schoolLookup));
@@ -1116,6 +1144,7 @@ async function readContactsFromSupabase() {
       school_rows: [],
       can_view_instructors: true,
       can_view_schools: true,
+      instructors_load_error: true,
       _source: 'supabase',
       _contacts_perf: perf
     };
@@ -1129,7 +1158,7 @@ async function readContactsFromSupabase() {
 async function readInstructorContactsFromSupabase() {
   if (!supabase) return null;
   try {
-    const result = await supabase.from('contacts_instructors').select('*');
+    const result = await supabase.from('contacts_instructors').select(CONTACTS_INSTRUCTORS_SCREEN_COLUMNS);
     if (result.error) {
       // eslint-disable-next-line no-console
       console.error('[supabase] Failed to load contacts_instructors:', result.error);
@@ -1243,7 +1272,7 @@ function buildClientSettingsFromLists(listsData, settingsRows = [], instructorCo
     emp_id: String(i._row?.emp_id || i._row?.employee_id || '').trim()
   }));
   const contactsInstructorUsers = (Array.isArray(instructorContactsRows) ? instructorContactsRows : []).map((row) => ({
-    name: normalizeHumanName(row?.full_name || row?.name),
+    name: normalizeHumanName(row?.full_name),
     emp_id: String(row?.emp_id || '').trim()
   })).filter((user) => user.name && user.emp_id);
 
@@ -1341,7 +1370,7 @@ async function readInstructorsFromSupabase() {
   try {
     const [activityRows, contactsResult] = await Promise.all([
       selectActivitiesFromSupabase('*'),
-      supabase.from('contacts_instructors').select('*')
+      supabase.from('contacts_instructors').select(CONTACTS_INSTRUCTORS_SCREEN_COLUMNS)
     ]);
 
     if (contactsResult.error) {
@@ -1398,8 +1427,8 @@ async function readInstructorsFromSupabase() {
     const contacts = Array.isArray(contactsResult.data) ? contactsResult.data : [];
     const contactsLookup = buildContactsInstructorLookup(contacts);
     contacts.forEach((contact) => {
-      const empId = String(contact?.emp_id || contact?.employee_id || contact?.id || '').trim();
-      const name = normalizeName(contact?.full_name || contact?.name || contact?.instructor_name || contact?.guide);
+      const empId = String(contact?.emp_id || contact?.employee_id || '').trim();
+      const name = normalizeName(contact?.full_name || contact?.instructor_name || contact?.guide);
       const stats = ensureStats(empId || name, name || empId);
       if (stats) {
         if (empId) addAlias(empId, stats.emp_id);
@@ -3568,7 +3597,7 @@ function sanitizeActivityPayloadForSupabase(payload = {}, { includeRowId = true 
 async function validateActivityInstructorBindingsOrThrow(payload = {}) {
   const contactsRows = await readInstructorContactsRowsForBootstrap();
   const contactsUsers = contactsRows
-    .map((row) => ({ emp_id: String(row?.emp_id || '').trim(), name: normalizeHumanName(row?.full_name || row?.name) }))
+    .map((row) => ({ emp_id: String(row?.emp_id || '').trim(), name: normalizeHumanName(row?.full_name) }))
     .filter((user) => user.emp_id && user.name);
   const result = validateInstructorIdentityPayload(payload, contactsUsers);
   if (!result.valid) {
@@ -4387,8 +4416,8 @@ export const api = {
     if (supabaseData) return supabaseData;
     return buildSupabaseErrorPayload({ rows: [] }, 'instructor_contacts_supabase_failed');
   },
-  contacts: async () => {
-    const supabaseData = await readContactsFromSupabase();
+  contacts: async (params = {}) => {
+    const supabaseData = await readContactsFromSupabase(params || {});
     if (supabaseData) return supabaseData;
     return buildSupabaseErrorPayload({ instructor_rows: [], school_rows: [], can_view_instructors: true, can_view_schools: true }, 'contacts_supabase_failed');
   },

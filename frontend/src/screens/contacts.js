@@ -262,17 +262,18 @@ function contactEmptyState(rows, filters) {
   return dsEmptyState('לא נמצאו אנשי קשר');
 }
 
-function instrEmptyState(rows, filters) {
+function instrEmptyState(rows, filters, loadError = false) {
+  if (loadError) return dsEmptyState('לא ניתן לטעון מדריכים כרגע');
   if (Array.isArray(rows) && rows.length && hasActiveInstrFilters(filters)) {
     return dsEmptyState('לא נמצאו מדריכים לפי הסינון הנוכחי');
   }
   return dsEmptyState('לא נמצאו מדריכים');
 }
 
-function instrTabHtml(rows, filters) {
+function instrTabHtml(rows, filters, loadError = false) {
   const filtered = applyInstrFilters(rows, filters);
   const body = filtered.length === 0
-    ? instrEmptyState(rows, filters)
+    ? instrEmptyState(rows, filters, loadError)
     : `<div class="ci-person-grid">${filtered.map((r) => renderInstrCard(r)).join('')}</div>`;
   return { filtered, body };
 }
@@ -531,8 +532,8 @@ function schoolFormHtml(row = {}) {
   `;
 }
 
-function contactListHtml(tab, instrRows, schoolRows, filters, canViewInstr = true, canViewSchool = true, activeLetter = '') {
-  if (tab === 'instr' && canViewInstr) return instrTabHtml(instrRows, filters).body;
+function contactListHtml(tab, instrRows, schoolRows, filters, canViewInstr = true, canViewSchool = true, activeLetter = '', instructorsLoadError = false) {
+  if (tab === 'instr' && canViewInstr) return instrTabHtml(instrRows, filters, instructorsLoadError).body;
   if (tab === 'school' && canViewSchool) return schoolTabHtml(schoolRows, filters, activeLetter).body;
   return dsEmptyState('לא נמצאו אנשי קשר');
 }
@@ -551,10 +552,6 @@ function schoolTabHtml(rows, filters, activeLetter = '') {
   const authorityMap = groupByAuthorityStructured(filtered);
   const stats = computeSchoolTabStats(authorityMap, activeLetter);
 
-  if (!stats.authorities && !stats.contacts) {
-    return { filtered, stats, body: contactEmptyState(rows, filters) };
-  }
-
   const letterMap = new Map();
   authorityMap.forEach((bucket, authority) => {
     if (!countAuthorityBucket(bucket).schoolCount && !countAuthorityBucket(bucket).contactCount) return;
@@ -563,7 +560,7 @@ function schoolTabHtml(rows, filters, activeLetter = '') {
     letterMap.get(letter).push(authority);
   });
 
-  const availableLetters = new Set(letterMap.keys());
+  const availableLetters = activeLetter ? new Set(letterMap.keys()) : new Set(HE_ALPHA);
   const alphaBtns = HE_ALPHA.map((letter) =>
     `<button type="button" class="sc-alpha-btn${activeLetter === letter ? ' is-active' : ''}${availableLetters.has(letter) ? '' : ' is-empty'}" data-alpha-btn="${escapeHtml(letter)}" aria-expanded="${activeLetter === letter ? 'true' : 'false'}" title="${availableLetters.has(letter) ? '' : 'אין רשויות באות זו'}">${escapeHtml(letter)}</button>`
   ).join('');
@@ -604,20 +601,20 @@ function schoolTabHtml(rows, filters, activeLetter = '') {
 /* ─── Screen ─── */
 
 export const contactsScreen = {
-  load: ({ api }) => api.contacts(),
+  load: ({ api, state }) => api.contacts({ includeUnified: state?.contactsTab === 'school' && !!state?.contactsAlphaLetter, letter: state?.contactsAlphaLetter || '' }),
 
   render(data, { state } = {}) {
     const instrRows  = Array.isArray(data?.instructor_rows) ? data.instructor_rows : [];
     const schoolRows = Array.isArray(data?.school_rows)     ? data.school_rows     : [];
     const renderStarted = nowMs();
     prepareContactsRowsForSearch(instrRows, [
-      'full_name', 'name', 'contact_name', 'emp_id', 'employee_id',
+      'full_name', 'contact_name', 'emp_id', 'employee_id',
       'mobile', 'phone', 'email', 'authority', 'school',
       'role', 'contact_role', 'employment_type', 'direct_manager', 'active',
       'notes', 'address', 'activity_name', 'activity_type'
     ]);
     prepareContactsRowsForSearch(schoolRows, [
-      'full_name', 'name', 'contact_name', 'emp_id', 'employee_id',
+      'full_name', 'contact_name', 'emp_id', 'employee_id',
       'mobile', 'phone', 'email', 'authority', 'authority_name', 'school', 'school_name',
       'role', 'contact_role', 'position', 'active', 'notes', 'address', 'city', 'district',
       'instructor_name', 'activity_name', 'activity_type', 'client_type', 'client_name',
@@ -635,7 +632,7 @@ export const contactsScreen = {
       `<button type="button" class="ds-chip--tab${tab === t.key ? ' is-active' : ''}" data-contacts-tab="${t.key}">${escapeHtml(t.label)}</button>`
     ).join('');
 
-    const listHtml = contactListHtml(tab, instrRows, schoolRows, filters, canViewInstr, canViewSchool, activeLetter);
+    const listHtml = contactListHtml(tab, instrRows, schoolRows, filters, canViewInstr, canViewSchool, activeLetter, !!data?.instructors_load_error);
 
     const searchInput = tab === 'instr'
       ? instrToolbarHtml(CONTACTS_SCOPE, state)
@@ -679,9 +676,13 @@ export const contactsScreen = {
     const managerOptions = getManagerUsers(state?.clientSettings || {});
 
     root.querySelectorAll('[data-contacts-tab]').forEach((btn) => {
-      btn.addEventListener('click', () => {
+      btn.addEventListener('click', async () => {
         state.contactsTab = btn.dataset.contactsTab;
-        if (state.contactsTab !== 'school') state.contactsAlphaLetter = '';
+        if (state.contactsTab !== 'school') {
+          state.contactsAlphaLetter = '';
+          rerender();
+          return;
+        }
         rerender();
       });
     });
@@ -720,10 +721,16 @@ export const contactsScreen = {
       container.querySelectorAll('[data-alpha-btn]').forEach((btn) => {
         if (btn.dataset.alphaBound === 'yes') return;
         btn.dataset.alphaBound = 'yes';
-        btn.addEventListener('click', () => {
+        btn.addEventListener('click', async () => {
           const letter = btn.dataset.alphaBtn;
           const isOpen = state.contactsAlphaLetter === letter;
           state.contactsAlphaLetter = isOpen ? '' : letter;
+          if (state.contactsAlphaLetter) {
+            const next = await api.contacts({ includeUnified: true, letter: state.contactsAlphaLetter });
+            Object.assign(data, next, { _school_loaded: true });
+          } else {
+            data.school_rows = [];
+          }
           rerender();
         });
       });
@@ -769,7 +776,7 @@ export const contactsScreen = {
     const openInstructorEditor = (row, isCreate = false) => {
       if (!ui) return;
       const target = row || {};
-      const originalId = target.id != null ? target.id : null;
+      const originalEmpId = target.emp_id != null ? String(target.emp_id) : null;
       ui.openModal({
         title: isCreate ? 'הוספת איש קשר מדריך' : 'עריכת איש קשר מדריך',
         content: instructorFormHtml(target, managerOptions),
@@ -793,7 +800,7 @@ export const contactsScreen = {
           direct_manager: get('direct_manager'),
           active: get('active') || 'yes'
         };
-        if (!isCreate && originalId != null) payload.id = originalId;
+        if (!isCreate && originalEmpId != null) payload.emp_id = originalEmpId;
         if (!payload.emp_id) {
           if (statusEl) statusEl.textContent = 'יש להזין מזהה מדריך';
           return;

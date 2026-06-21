@@ -411,10 +411,8 @@ export function buildContactsInstructorLookup(contacts = []) {
   const byName = new Map();
   const byEmpId = new Map();
   for (const contact of contacts) {
-    const empId = text(contact?.emp_id || contact?.employee_id || contact?.id);
-    const name = humanDisplayText(
-      contact?.full_name || contact?.name || contact?.instructor_name || contact?.guide
-    );
+    const empId = text(contact?.emp_id || contact?.employee_id);
+    const name = humanDisplayText(contact?.full_name || contact?.instructor_name || contact?.guide);
     if (empId) byEmpId.set(empId, { emp_id: empId, name });
     if (name) byName.set(normalizeInstructorLookupName(name), { emp_id: empId, name });
   }
