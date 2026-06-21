@@ -1,2 +1,2 @@
--- Placeholder migration retained for Supabase version alignment.
-SELECT 'noop';
+-- No-op migration placeholder for Supabase history alignment.
+SELECT 1;
