@@ -1,6 +1,7 @@
 -- Keep public.users.role aligned with the role codes used by imported user data.
 -- instructor_manager is the canonical internal code; legacy manager_instructor values
 -- are migrated before the constraint is tightened.
+
 update public.users
 set role = 'instructor_manager'
 where role = 'manager_instructor';
@@ -18,13 +19,15 @@ alter table public.users
       'finance',
       'activities_manager',
       'domain_manager',
-      'instructor_manager'
+      'instructor_manager',
+      'business_development_manager'
     )
-  );
+  ) not valid;
 
 -- Login validates entry_code server-side and allows the same canonical role set
 -- as the users_role_check constraint.
 drop function if exists public.login_user_by_entry_code(text, text);
+
 create function public.login_user_by_entry_code(p_login text, p_entry_code text)
 returns table (
   status text,
@@ -73,7 +76,8 @@ as $$
           'finance',
           'activities_manager',
           'domain_manager',
-          'instructor_manager'
+          'instructor_manager',
+          'business_development_manager'
         ) then 'invalid_role'
         else 'ok'
       end as status
