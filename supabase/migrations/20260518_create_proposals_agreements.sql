@@ -1,11 +1,14 @@
 create extension if not exists pgcrypto;
 
+-- Base proposals/agreement table.
+-- The canonical column is activity_type_group. Older databases may still have activity_type;
+-- this migration normalizes the table safely before creating indexes.
 create table if not exists public.proposals_agreements (
   id uuid primary key default gen_random_uuid(),
-  client_authority text not null,
-  school_framework text not null,
-  document_type text not null,
-  activity_type text not null,
+  client_authority text not null default '',
+  school_framework text not null default '',
+  document_type text not null default '',
+  activity_type_group text not null default '',
   contact_name text not null default '',
   contact_role text not null default '',
   contact_phone text not null default '',
@@ -16,17 +19,122 @@ create table if not exists public.proposals_agreements (
   constraint proposals_agreements_client_authority_not_blank check (btrim(client_authority) <> ''),
   constraint proposals_agreements_school_framework_not_blank check (btrim(school_framework) <> ''),
   constraint proposals_agreements_document_type_not_blank check (btrim(document_type) <> ''),
-  constraint proposals_agreements_activity_type_not_blank check (btrim(activity_type) <> '')
+  constraint proposals_agreements_activity_type_group_not_blank check (btrim(activity_type_group) <> '')
 );
 
-create index if not exists proposals_agreements_default_sort_idx
-  on public.proposals_agreements (client_authority, school_framework, document_type, activity_type);
+-- Compatibility for existing databases / Preview branches created from older migrations.
+DO $$
+BEGIN
+  IF to_regclass('public.proposals_agreements') IS NULL THEN
+    RAISE NOTICE 'Table public.proposals_agreements does not exist — skipped compatibility normalization';
+
+  ELSE
+    ALTER TABLE public.proposals_agreements
+      ADD COLUMN IF NOT EXISTS client_authority text NOT NULL DEFAULT '',
+      ADD COLUMN IF NOT EXISTS school_framework text NOT NULL DEFAULT '',
+      ADD COLUMN IF NOT EXISTS document_type text NOT NULL DEFAULT '',
+      ADD COLUMN IF NOT EXISTS contact_name text NOT NULL DEFAULT '',
+      ADD COLUMN IF NOT EXISTS contact_role text NOT NULL DEFAULT '',
+      ADD COLUMN IF NOT EXISTS contact_phone text NOT NULL DEFAULT '',
+      ADD COLUMN IF NOT EXISTS contact_email text NOT NULL DEFAULT '',
+      ADD COLUMN IF NOT EXISTS notes text NOT NULL DEFAULT '',
+      ADD COLUMN IF NOT EXISTS created_at timestamptz NOT NULL DEFAULT now(),
+      ADD COLUMN IF NOT EXISTS updated_at timestamptz NOT NULL DEFAULT now();
+
+    IF EXISTS (
+      SELECT 1
+      FROM information_schema.columns
+      WHERE table_schema = 'public'
+        AND table_name = 'proposals_agreements'
+        AND column_name = 'activity_type'
+    ) AND NOT EXISTS (
+      SELECT 1
+      FROM information_schema.columns
+      WHERE table_schema = 'public'
+        AND table_name = 'proposals_agreements'
+        AND column_name = 'activity_type_group'
+    ) THEN
+      ALTER TABLE public.proposals_agreements
+        RENAME COLUMN activity_type TO activity_type_group;
+
+      RAISE NOTICE 'Renamed legacy activity_type to activity_type_group';
+    END IF;
+
+    IF NOT EXISTS (
+      SELECT 1
+      FROM information_schema.columns
+      WHERE table_schema = 'public'
+        AND table_name = 'proposals_agreements'
+        AND column_name = 'activity_type_group'
+    ) THEN
+      ALTER TABLE public.proposals_agreements
+        ADD COLUMN activity_type_group text NOT NULL DEFAULT '';
+
+      RAISE NOTICE 'Added missing activity_type_group column';
+    END IF;
+
+    ALTER TABLE public.proposals_agreements
+      DROP CONSTRAINT IF EXISTS proposals_agreements_activity_type_not_blank;
+
+    ALTER TABLE public.proposals_agreements
+      DROP CONSTRAINT IF EXISTS proposals_agreements_activity_type_group_not_blank;
+
+    ALTER TABLE public.proposals_agreements
+      ADD CONSTRAINT proposals_agreements_activity_type_group_not_blank
+        CHECK (btrim(activity_type_group) <> '') NOT VALID;
+  END IF;
+END $$;
+
+DO $$
+BEGIN
+  IF to_regclass('public.proposals_agreements') IS NULL THEN
+    RAISE NOTICE 'Table public.proposals_agreements does not exist — skipped proposals_agreements_default_sort_idx';
+
+  ELSIF EXISTS (
+    SELECT 1
+    FROM information_schema.columns
+    WHERE table_schema = 'public'
+      AND table_name = 'proposals_agreements'
+      AND column_name = 'activity_type_group'
+  ) THEN
+    EXECUTE '
+      create index if not exists proposals_agreements_default_sort_idx
+      on public.proposals_agreements (client_authority, school_framework, document_type, activity_type_group)
+    ';
+
+    EXECUTE '
+      create index if not exists proposals_agreements_activity_type_group_idx
+      on public.proposals_agreements (activity_type_group)
+    ';
+
+    RAISE NOTICE 'Created proposals_agreements indexes with activity_type_group';
+
+  ELSIF EXISTS (
+    SELECT 1
+    FROM information_schema.columns
+    WHERE table_schema = 'public'
+      AND table_name = 'proposals_agreements'
+      AND column_name = 'activity_type'
+  ) THEN
+    EXECUTE '
+      create index if not exists proposals_agreements_default_sort_idx
+      on public.proposals_agreements (client_authority, school_framework, document_type, activity_type)
+    ';
+
+    EXECUTE '
+      create index if not exists proposals_agreements_activity_type_idx
+      on public.proposals_agreements (activity_type)
+    ';
+
+    RAISE NOTICE 'Created proposals_agreements indexes with legacy activity_type';
+
+  ELSE
+    RAISE NOTICE 'Neither activity_type_group nor activity_type exists — skipped proposal sort indexes';
+  END IF;
+END $$;
 
 create index if not exists proposals_agreements_document_type_idx
   on public.proposals_agreements (document_type);
-
-create index if not exists proposals_agreements_activity_type_idx
-  on public.proposals_agreements (activity_type);
 
 create or replace function public.touch_proposals_agreements_updated_at()
 returns trigger
