@@ -98,6 +98,8 @@ const EMPTY_PROPOSAL_GROUP_LOOKUPS = Object.freeze({
   aliasToKey: new Map()
 });
 let proposalGroupLookups = EMPTY_PROPOSAL_GROUP_LOOKUPS;
+const COMBINED_TEMPLATE_GROUP_KEYS = Object.freeze(['summer', 'next_year']);
+let proposalTemplateSectionsLookup = [];
 
 function toArray(value) {
   if (Array.isArray(value)) return value;
@@ -139,13 +141,35 @@ function dataGroupAliasRows(data = {}) {
     : Array.isArray(data.proposal_group_aliases) ? data.proposal_group_aliases : [];
 }
 
+function collectTemplateSectionGroupHints(sections = []) {
+  const hints = [];
+  const seen = new Set();
+  (Array.isArray(sections) ? sections : []).forEach((section) => {
+    const templateKey = text(section.template_key);
+    const activityGroup = text(section.activity_type_group);
+    const templateName = text(section.template_name);
+    if (!templateKey || seen.has(templateKey)) return;
+    seen.add(templateKey);
+    hints.push({
+      group_key: templateKey,
+      display_name: templateName || activityGroup || templateKey,
+      template_key: templateKey,
+      included_group_keys: templateKey === 'combined' ? [...COMBINED_TEMPLATE_GROUP_KEYS] : [],
+      is_combined: templateKey === 'combined',
+      is_active: true
+    });
+  });
+  return hints;
+}
+
 function collectGroupRecords(data = {}, rows = [], pricingOptions = []) {
   const directGroups = [
     data.proposalActivityGroups,
     data.proposalGroups,
     data.activityTypeGroups,
-    data.proposal_activity_groups
-  ].find(Array.isArray) || [];
+    data.proposal_activity_groups,
+    collectTemplateSectionGroupHints(data.proposalTemplateSections || data.proposal_template_sections)
+  ].filter(Array.isArray).flat();
   const groups = [];
   const seen = new Set();
   // Names already covered by Supabase groups/aliases must not become standalone groups.
@@ -179,7 +203,10 @@ function collectGroupRecords(data = {}, rows = [], pricingOptions = []) {
 }
 
 function setProposalGroupLookups(data = {}, rows = [], pricingOptions = []) {
-  const groups = collectGroupRecords(data, rows, pricingOptions);
+  proposalTemplateSectionsLookup = Array.isArray(data?.proposalTemplateSections)
+    ? data.proposalTemplateSections
+    : Array.isArray(data?.proposal_template_sections) ? data.proposal_template_sections : [];
+  const groups = collectGroupRecords({ ...data, proposalTemplateSections: proposalTemplateSectionsLookup }, rows, pricingOptions);
   const groupByKey = new Map();
   const aliasToKey = new Map();
   groups.forEach((group) => {
@@ -194,6 +221,29 @@ function setProposalGroupLookups(data = {}, rows = [], pricingOptions = []) {
       const groupKey = text(aliasRow.group_key || aliasRow.target_group_key || aliasRow.proposal_group_key);
       if (alias && groupKey) aliasToKey.set(alias, groupKey);
     });
+  proposalTemplateSectionsLookup.forEach((section) => {
+    const templateKey = text(section.template_key);
+    const activityGroup = text(section.activity_type_group);
+    const templateName = text(section.template_name);
+    if (!templateKey) return;
+    if (!groupByKey.has(templateKey)) {
+      const normalized = normalizeProposalGroupRecord({
+        group_key: templateKey,
+        display_name: templateName || activityGroup || templateKey,
+        template_key: templateKey,
+        included_group_keys: templateKey === 'combined' ? [...COMBINED_TEMPLATE_GROUP_KEYS] : [],
+        is_combined: templateKey === 'combined',
+        is_active: true
+      });
+      if (normalized) {
+        groupByKey.set(templateKey, normalized);
+        groups.push(normalized);
+        aliasToKey.set(templateKey, templateKey);
+      }
+    }
+    if (activityGroup) aliasToKey.set(activityGroup, templateKey);
+    if (templateName) aliasToKey.set(templateName, templateKey);
+  });
   proposalGroupLookups = { groups, groupByKey, aliasToKey };
   return proposalGroupLookups;
 }
@@ -216,9 +266,30 @@ function proposalGroupDisplayName(value) {
   return meta?.display_name || raw;
 }
 
-function proposalGroupTemplateKey(value) {
+function resolveProposalTemplateKey(value) {
   const meta = proposalGroupMeta(value);
-  return text(meta?.template_key || normalizeProposalGroup(value));
+  const normalized = normalizeProposalGroup(value);
+  const resolved = text(meta?.template_key || normalized || value);
+  const sections = proposalTemplateSectionsLookup;
+  if (sections.some((section) => text(section.template_key) === resolved)) return resolved;
+  const raw = text(value);
+  const match = sections.find((section) => {
+    const templateKey = text(section.template_key);
+    const activityGroup = text(section.activity_type_group);
+    return activityGroup && (activityGroup === raw || activityGroup === normalized)
+      || templateKey && (templateKey === raw || templateKey === normalized);
+  });
+  return match ? text(match.template_key) : resolved;
+}
+
+function proposalGroupTemplateKey(value) {
+  return resolveProposalTemplateKey(value);
+}
+
+function filterTemplateSectionsForGroup(templateSections = [], activityTypeGroup = '') {
+  const templateKey = resolveProposalTemplateKey(activityTypeGroup);
+  return (Array.isArray(templateSections) ? templateSections : [])
+    .filter((section) => !text(section.template_key) || text(section.template_key) === templateKey);
 }
 
 function isCombinedProposalGroup(value) {
@@ -2600,6 +2671,15 @@ function ensureCatalogAppendixNotice(previewArea, row = {}, items = []) {
 }
 
 
+export {
+  setProposalGroupLookups,
+  resolveProposalTemplateKey,
+  proposalGroupTemplateKey,
+  filterTemplateSectionsForGroup,
+  documentSectionsEditorHtml,
+  itemsSummaryHtml
+};
+
 // ─── Screen ───────────────────────────────────────────────────────────────────
 
 export const proposalsAgreementsScreen = {
@@ -3249,8 +3329,7 @@ export const proposalsAgreementsScreen = {
         id: text(form.dataset.paId),
         proposal_date: payload.proposal_date || localDateInputValue()
       });
-      const templateKey = proposalGroupTemplateKey(row.activity_type_group);
-      const templateSections = proposalTemplateSections.filter((section) => text(section.template_key) === templateKey);
+      const templateSections = filterTemplateSectionsForGroup(proposalTemplateSections, row.activity_type_group);
       previewHost.innerHTML = proposalPreviewBodyHtml(row, payload._items || [], templateSections);
     };
 
@@ -3444,8 +3523,7 @@ export const proposalsAgreementsScreen = {
       const savedRow = data.rows.find((r) => text(r.id) === text(row.id));
       const mergedRow = savedRow ? { ...savedRow, ...row } : row;
       const freshRow = rowWithCentralContact(mergedRow);
-      const templateKey = proposalGroupTemplateKey(freshRow.activity_type_group);
-      const templateSections = proposalTemplateSections.filter((s) => text(s.template_key) === templateKey);
+      const templateSections = filterTemplateSectionsForGroup(proposalTemplateSections, freshRow.activity_type_group);
       document.getElementById('pa-preview-overlay')?.remove();
       const overlay = document.createElement('div');
       overlay.id = 'pa-preview-overlay';
@@ -3950,9 +4028,7 @@ export const proposalsAgreementsScreen = {
           showToast('הצעה שנשלחה נעולה ולא ניתן לערוך אותה.', 'error');
           return;
         }
-        const templateKey = proposalGroupTemplateKey(row.activity_type_group);
-        const loadedTemplateSections = proposalTemplateSections.filter((s) => text(s.template_key) === templateKey);
-        const templateSections = loadedTemplateSections;
+        const templateSections = filterTemplateSectionsForGroup(proposalTemplateSections, row.activity_type_group);
         const workingSections = resolveDocumentSections(row, templateSections).map((section) => ({
           section_key: text(section.section_key),
           section_title: text(section.section_title),
@@ -3979,9 +4055,7 @@ export const proposalsAgreementsScreen = {
         const row = data.rows.find((r) => text(r.id) === id);
         const wrap = docSaveBtn.closest('[data-pa-doc-edit-wrap]');
         if (!row || !wrap) return;
-        const templateKey = proposalGroupTemplateKey(row.activity_type_group);
-        const loadedTemplateSections = proposalTemplateSections.filter((s) => text(s.template_key) === templateKey);
-        const templateSections = loadedTemplateSections;
+        const templateSections = filterTemplateSectionsForGroup(proposalTemplateSections, row.activity_type_group);
         const sections = templateSections.map((section) => ({
           section_key: text(section.section_key),
           section_title: text(section.section_title),

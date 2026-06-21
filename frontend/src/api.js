@@ -2559,8 +2559,11 @@ async function readProposalActivityGroupsFromSupabase() {
       .select('group_key,display_name,template_key,included_group_keys,sort_order,is_active')
       .eq('is_active', true)
       .order('sort_order', { ascending: true });
-    if (error) return [];
-    return (Array.isArray(data) ? data : []).map((row) => ({
+    if (error) {
+      noteProposalRead('proposalActivityGroups', [], error);
+      return [];
+    }
+    const rows = (Array.isArray(data) ? data : []).map((row) => ({
       group_key:           cleanProposalAgreementText(row?.group_key),
       display_name:        cleanProposalAgreementText(row?.display_name),
       template_key:        cleanProposalAgreementText(row?.template_key) || cleanProposalAgreementText(row?.group_key),
@@ -2570,7 +2573,10 @@ async function readProposalActivityGroupsFromSupabase() {
       sort_order:          Number(row?.sort_order) || 0,
       is_active:           row?.is_active !== false
     })).filter((row) => row.group_key);
-  } catch {
+    noteProposalRead('proposalActivityGroups', rows, null);
+    return rows;
+  } catch (error) {
+    noteProposalRead('proposalActivityGroups', [], error);
     return [];
   }
 }
@@ -2581,13 +2587,19 @@ async function readProposalGroupAliasesFromSupabase() {
       .from('proposal_group_aliases')
       .select('alias_name,group_key,is_active')
       .eq('is_active', true);
-    if (error) return [];
-    return (Array.isArray(data) ? data : []).map((row) => ({
+    if (error) {
+      noteProposalRead('proposalGroupAliases', [], error);
+      return [];
+    }
+    const rows = (Array.isArray(data) ? data : []).map((row) => ({
       alias_name: cleanProposalAgreementText(row?.alias_name),
       group_key:  cleanProposalAgreementText(row?.group_key),
       is_active:  row?.is_active !== false
     })).filter((row) => row.alias_name && row.group_key);
-  } catch {
+    noteProposalRead('proposalGroupAliases', rows, null);
+    return rows;
+  } catch (error) {
+    noteProposalRead('proposalGroupAliases', [], error);
     return [];
   }
 }
@@ -2607,6 +2619,57 @@ function buildProposalGroupLookup(groups = [], aliases = []) {
   return { groups, aliases, aliasToKey, groupByKey };
 }
 
+const COMBINED_PROPOSAL_GROUP_KEYS = Object.freeze(['summer', 'next_year']);
+let lastProposalLoaderDebug = {};
+
+function noteProposalRead(name, rows, error) {
+  lastProposalLoaderDebug[name] = {
+    count: Array.isArray(rows) ? rows.length : 0,
+    error: error ? String(error?.message || error?.details || error) : null
+  };
+}
+
+function buildProposalGroupHintsFromTemplateSections(sections = []) {
+  const aliasToKey = new Map();
+  const groupByKey = new Map();
+  const groups = [];
+  (Array.isArray(sections) ? sections : []).forEach((section) => {
+    const templateKey = cleanProposalAgreementText(section?.template_key);
+    const activityGroup = cleanProposalAgreementText(section?.activity_type_group);
+    const templateName = cleanProposalAgreementText(section?.template_name);
+    if (!templateKey) return;
+    if (!groupByKey.has(templateKey)) {
+      const group = {
+        group_key: templateKey,
+        display_name: templateName || activityGroup || templateKey,
+        template_key: templateKey,
+        included_group_keys: templateKey === 'combined' ? [...COMBINED_PROPOSAL_GROUP_KEYS] : [],
+        sort_order: 0,
+        is_active: true
+      };
+      groupByKey.set(templateKey, group);
+      groups.push(group);
+      aliasToKey.set(templateKey, templateKey);
+    }
+    if (activityGroup) aliasToKey.set(activityGroup, templateKey);
+    if (templateName) aliasToKey.set(templateName, templateKey);
+  });
+  return { groups, aliases: [], aliasToKey, groupByKey };
+}
+
+function mergeProposalGroupLookups(primary = {}, hints = {}) {
+  const aliasToKey = new Map(hints.aliasToKey || []);
+  for (const [key, value] of (primary.aliasToKey || new Map())) aliasToKey.set(key, value);
+  const groupByKey = new Map(hints.groupByKey || []);
+  for (const [key, value] of (primary.groupByKey || new Map())) groupByKey.set(key, value);
+  return {
+    groups: [...groupByKey.values()],
+    aliases: Array.isArray(primary.aliases) ? primary.aliases : [],
+    aliasToKey,
+    groupByKey
+  };
+}
+
 function normalizeProposalGroupValue(value, groupLookup = proposalGroupLookupCache) {
   const raw = cleanProposalAgreementText(value);
   if (!raw) return '';
@@ -2615,11 +2678,15 @@ function normalizeProposalGroupValue(value, groupLookup = proposalGroupLookupCac
 
 async function getProposalGroupLookup() {
   if (proposalGroupLookupCache) return proposalGroupLookupCache;
-  const [groups, aliases] = await Promise.all([
+  const [groups, aliases, templateSections] = await Promise.all([
     readProposalActivityGroupsFromSupabase(),
-    readProposalGroupAliasesFromSupabase()
+    readProposalGroupAliasesFromSupabase(),
+    readProposalTemplateSectionsFromSupabase()
   ]);
-  proposalGroupLookupCache = buildProposalGroupLookup(groups, aliases);
+  proposalGroupLookupCache = mergeProposalGroupLookups(
+    buildProposalGroupLookup(groups, aliases),
+    buildProposalGroupHintsFromTemplateSections(templateSections)
+  );
   return proposalGroupLookupCache;
 }
 
@@ -2784,8 +2851,11 @@ async function readProposalActivityPricingFromSupabase() {
       .select('activity_no,activity_name,proposal_group,item_type,catalog_group,gefen_number,hours_count,meetings_count,unit_duration,unit_price,hourly_price,description_for_proposal,sort_order,pricing_key,parent_pricing_key,proposal_display_mode,is_bundle_parent')
       .eq('is_active_for_proposals', true)
       .order('sort_order', { ascending: true });
-    if (error) return [];
-    return (Array.isArray(data) ? data : []).map((row) => ({
+    if (error) {
+      noteProposalRead('proposalActivityPricing', [], error);
+      return [];
+    }
+    const rows = (Array.isArray(data) ? data : []).map((row) => ({
       activity_no:             cleanProposalAgreementText(row?.activity_no),
       activity_name:           cleanProposalAgreementText(row?.activity_name),
       proposal_group:          cleanProposalAgreementText(row?.proposal_group),
@@ -2804,7 +2874,10 @@ async function readProposalActivityPricingFromSupabase() {
       proposal_display_mode:   cleanProposalAgreementText(row?.proposal_display_mode) || 'single',
       is_bundle_parent:        Boolean(row?.is_bundle_parent)
     }));
-  } catch {
+    noteProposalRead('proposalActivityPricing', rows, null);
+    return rows;
+  } catch (error) {
+    noteProposalRead('proposalActivityPricing', [], error);
     return [];
   }
 }
@@ -2817,8 +2890,11 @@ async function readProposalTemplateSectionsFromSupabase() {
       .eq('is_active', true)
       .order('template_key', { ascending: true })
       .order('sort_order', { ascending: true });
-    if (error) return [];
-    return (Array.isArray(data) ? data : []).map((row) => ({
+    if (error) {
+      noteProposalRead('proposalTemplateSections', [], error);
+      return [];
+    }
+    const rows = (Array.isArray(data) ? data : []).map((row) => ({
       template_key: cleanProposalAgreementText(row?.template_key),
       template_name: cleanProposalAgreementText(row?.template_name),
       activity_type_group: cleanProposalAgreementText(row?.activity_type_group),
@@ -2827,7 +2903,10 @@ async function readProposalTemplateSectionsFromSupabase() {
       section_body: normalizeProposalAgreementMultilineText(row?.section_body),
       sort_order: Number(row?.sort_order) || 0
     }));
-  } catch {
+    noteProposalRead('proposalTemplateSections', rows, null);
+    return rows;
+  } catch (error) {
+    noteProposalRead('proposalTemplateSections', [], error);
     return [];
   }
 }
@@ -2903,6 +2982,8 @@ async function readContactsSchoolsForProposals() {
 
 async function readProposalsAgreementsFromSupabase() {
   assertCanUseProposalsAgreementsApi();
+  await waitForSupabaseAuthSession();
+  lastProposalLoaderDebug = {};
   const [paResult, contactsResult, rawProposalActivityPricing, proposalTemplateSections, proposalActivityGroups, proposalGroupAliases] = await Promise.all([
     supabase
       .from('proposals_agreements_directory_view')
@@ -2918,11 +2999,15 @@ async function readProposalsAgreementsFromSupabase() {
     readProposalGroupAliasesFromSupabase()
   ]);
   if (paResult.error) throw new Error(paResult.error.message || 'proposals_agreements_read_failed');
+  noteProposalRead('rows', Array.isArray(paResult.data) ? paResult.data : [], null);
   const contactOptions = Array.isArray(contactsResult?.contactOptions) ? contactsResult.contactOptions : [];
   const contactOptionsError = contactsResult?.contactOptionsError || null;
   // Group/alias normalization happens here in the loader so the frontend receives
   // logical group keys (e.g. summer/next_year/combined) instead of legacy Hebrew labels.
-  proposalGroupLookupCache = buildProposalGroupLookup(proposalActivityGroups, proposalGroupAliases);
+  proposalGroupLookupCache = mergeProposalGroupLookups(
+    buildProposalGroupLookup(proposalActivityGroups, proposalGroupAliases),
+    buildProposalGroupHintsFromTemplateSections(proposalTemplateSections)
+  );
   const proposalActivityPricing = enrichProposalPricingRows(rawProposalActivityPricing, proposalGroupLookupCache);
   const activityNameOptions = await readProposalActivityNamesFromSupabase();
   return {
@@ -2936,7 +3021,8 @@ async function readProposalsAgreementsFromSupabase() {
     proposalTemplateSections,
     _debug: {
       ...(contactsResult?._debug || {}),
-      ...(contactOptionsError ? { contacts_error: contactOptionsError } : {})
+      ...(contactOptionsError ? { contacts_error: contactOptionsError } : {}),
+      proposal_loader: { ...lastProposalLoaderDebug }
     },
     _source: 'supabase'
   };
@@ -5467,6 +5553,9 @@ export {
   canonicalOneDayActivityType,
   flattenUserRow,
   buildBootstrapFromUser,
+  buildProposalGroupLookup,
+  buildProposalGroupHintsFromTemplateSections,
+  mergeProposalGroupLookups,
   proposalPermissionFlagsFromFlatUser,
   proposalSessionUserFlagsFromFlatUser,
   canUseProposalsAgreementsApi,
