@@ -260,7 +260,12 @@ export function getContactsInstructorUsers(settings) {
     : [];
   const seen = new Set();
   return raw
-    .map((user) => ({ name: humanDisplayText(user?.name || user?.full_name), emp_id: text(user?.emp_id) }))
+    .filter((user) => !isExplicitlyInactive(user?.active))
+    .map((user) => {
+      const name = humanDisplayText(user?.full_name || user?.name);
+      const emp_id = text(user?.emp_id);
+      return { name, full_name: name, emp_id };
+    })
     .filter((user) => user.name && user.emp_id)
     .filter((user) => {
       if (seen.has(user.emp_id)) return false;
@@ -270,11 +275,11 @@ export function getContactsInstructorUsers(settings) {
 }
 
 export function getValidInstructorUsers(settings) {
-  const roster = getRosterUsers(settings);
   const contacts = getContactsInstructorUsers(settings);
-  if (!contacts.length) return [];
-  const rosterEmpIds = new Set(roster.map((user) => text(user.emp_id)).filter(Boolean));
-  return contacts.filter((contact) => rosterEmpIds.has(contact.emp_id));
+  if (contacts.length) return contacts;
+  return getRosterUsers(settings)
+    .filter((user) => user.name && user.emp_id)
+    .map((user) => ({ ...user, full_name: user.name }));
 }
 
 export const INSTRUCTOR_IDENTITY_ERROR_MESSAGE = 'לא ניתן לשמור: שיוך המדריך אינו חד־משמעי. יש לבחור מדריך מתוך הרשימה.';
