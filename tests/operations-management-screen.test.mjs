@@ -15,6 +15,11 @@ import {
   WORKSHOP_ESTIMATE_PER_ACTIVITY
 } from '../frontend/src/screens/shared/operations-activity-helpers.js';
 import { operationsManagementScreen } from '../frontend/src/screens/operations-management.js';
+import {
+  completionApprovalDocumentHtml,
+  completionApprovalPrintCss,
+  formatApprovalTime
+} from '../frontend/src/screens/shared/activity-completion-approval-print.js';
 
 function baseState(overrides = {}) {
   return {
@@ -425,6 +430,82 @@ test('operations management schedule shows HH:MM time range without seconds', ()
   const html = operationsManagementScreen.render({ rows, workshopStockMap: new Map() }, { state: baseState() });
   assert.match(html, />08:15-09:00</);
   assert.doesNotMatch(html, />08:15:00-09:00:00</);
+});
+
+test('completion approval print document uses compact printable structure', () => {
+  const html = completionApprovalDocumentHtml({
+    instructorName: 'הילה רוזן',
+    empId: '1234',
+    date: '2026-07-10',
+    authority: 'רשות לדוגמה',
+    school: 'בית ספר רמבם',
+    address: 'רחוב 1',
+    contact: { name: 'דנה כהן', role: 'רכזת', phone: '050-0000000', email: 'dana@example.test' },
+    activities: [{
+      name: 'סדנת רובוטיקה',
+      type: 'workshop',
+      grade: 'ד',
+      group: 'קבוצה א',
+      start: '08:30:00',
+      end: '13:00:00',
+      notes: 'הערה',
+      participants_count: 25
+    }]
+  });
+
+  assert.match(html, /אישור ביצוע פעילות/);
+  const headerHtml = html.match(/<header class="completion-approval-header">[\s\S]*?<\/header>/)?.[0] || '';
+  const footerHtml = html.match(/<footer class="completion-approval-footer">[\s\S]*?<\/footer>/)?.[0] || '';
+  assert.match(headerHtml, /<img class="completion-approval-logo"[^>]+alt="לוגו תעשיידע"/);
+  assert.doesNotMatch(headerHtml, /עמותת תעשיידע – תעשייה למען חינוך מתקדם/);
+  assert.match(footerHtml, /עמותת תעשיידע – תעשייה למען חינוך מתקדם/);
+  assert.match(html, /בית ספר רמבם/);
+  assert.match(html, /רשות: רשות לדוגמה/);
+  assert.match(html, /הילה רוזן/);
+  assert.match(html, /<th>שם הפעילות<\/th>/);
+  assert.doesNotMatch(html, /שם סדנה \/ פעילות/);
+  assert.match(html, /<th class="completion-approval-table__center">כיתה<\/th>/);
+  assert.match(html, /<th class="completion-approval-table__center">שעת התחלה<\/th>/);
+  assert.match(html, /<th class="completion-approval-table__center">שעת סיום<\/th>/);
+  assert.match(html, /<th>מספר משתתפים<\/th>/);
+  assert.match(html, /<td class="completion-approval-table__manual"><\/td>/);
+  assert.match(html, />08:30<\/td>/);
+  assert.match(html, />13:00<\/td>/);
+  assert.match(html, /שם מלא/);
+  assert.match(html, /תפקיד/);
+  assert.match(html, /חתימה/);
+  assert.match(html, /חותמת בית הספר/);
+  assert.doesNotMatch(html, /דנה כהן|רכזת/);
+  assert.doesNotMatch(html, /מספר עובד/);
+  assert.doesNotMatch(html, /1234/);
+  assert.doesNotMatch(html, /כתובת בית ספר/);
+  assert.doesNotMatch(html, /רחוב 1/);
+  assert.doesNotMatch(html, /סוג פעילות/);
+  assert.doesNotMatch(html, /כיתה \/ שכבה/);
+  assert.doesNotMatch(html, /קבוצה/);
+  assert.doesNotMatch(html, /הערות/);
+  assert.doesNotMatch(html, /טלפון|דוא״ל|050-0000000|dana@example\.test/);
+  assert.doesNotMatch(html, /חתימת מדריך/);
+  assert.doesNotMatch(html, />25</);
+});
+
+test('completion approval time formatter and table width are print scoped', () => {
+  assert.equal(formatApprovalTime('08:30:00'), '08:30');
+  assert.equal(formatApprovalTime('13:00'), '13:00');
+  assert.equal(formatApprovalTime(''), '');
+  assert.equal(formatApprovalTime(null), '');
+  assert.match(completionApprovalPrintCss, /\.approval-print-table\{width:60%;margin-inline:auto\}/);
+  assert.match(completionApprovalPrintCss, /\.completion-approval-col-activity\{width:45%\}/);
+  assert.match(completionApprovalPrintCss, /\.completion-approval-col-grade\{width:10%\}/);
+  assert.match(completionApprovalPrintCss, /\.completion-approval-col-start\{width:13%\}/);
+  assert.match(completionApprovalPrintCss, /\.completion-approval-col-end\{width:13%\}/);
+  assert.match(completionApprovalPrintCss, /\.completion-approval-col-participants\{width:19%\}/);
+  assert.match(completionApprovalPrintCss, /\.completion-approval-table th\{[^}]*white-space:nowrap/);
+  assert.match(completionApprovalPrintCss, /\.completion-approval-table__center\{text-align:center!important\}/);
+  assert.match(completionApprovalPrintCss, /\.completion-approval-logo\{[^}]*inset-inline-end:0;top:0;height:42px;max-height:20mm;width:auto;object-fit:contain/);
+  assert.match(completionApprovalPrintCss, /\.approval-sign-line\{display:inline-block;width:220px;border-bottom:1px solid #111827/);
+  assert.match(completionApprovalPrintCss, /\.completion-approval-signature p\{margin:16px 0\}/);
+  assert.match(completionApprovalPrintCss, /\.completion-approval-footer\{[^}]*font-size:10px;[^}]*color:#64748b/);
 });
 
 test('operations management render shows text-school activities without school_id', () => {
