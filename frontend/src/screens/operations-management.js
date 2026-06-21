@@ -466,17 +466,15 @@ function topFiltersHtml(rows, state) {
   </section>`;
 }
 
-function authorityHeaderTitle(authority, schoolCount, activityCount, quantityTotal = null) {
+function authorityHeaderTitle(authority, schoolCount, activityCount) {
   const schools = Number.isFinite(Number(schoolCount)) ? Number(schoolCount) : 0;
   const activities = Number.isFinite(Number(activityCount)) ? Number(activityCount) : 0;
-  const quantity = Number.isFinite(Number(quantityTotal)) ? ` | ${Number(quantityTotal)} כמויות` : '';
-  return `${authority} | ${schools} בתי ספר | ${activities} פעילויות${quantity}`;
+  return `${authority} | ${schools} בתי ספר | ${activities} פעילויות`;
 }
 
-function schoolHeaderTitle(school, activityCount, quantityTotal = null) {
+function schoolHeaderTitle(school, activityCount) {
   const activities = Number.isFinite(Number(activityCount)) ? Number(activityCount) : 0;
-  const quantity = Number.isFinite(Number(quantityTotal)) ? ` | ${Number(quantityTotal)} כמויות` : '';
-  return `${school} | ${activities} פעילויות${quantity}`;
+  return `${school} | ${activities} פעילויות`;
 }
 
 function normalizeInventoryUsage(value) {
@@ -1103,8 +1101,6 @@ function printSchoolsSchedule() {
   const dateRange = (ops?.dateFrom && ops?.dateTo)
     ? `טווח תאריכים: ${formatDateHe(ops.dateFrom)}–${formatDateHe(ops.dateTo)}`
     : '';
-  const quantityTotal = Array.from(byAuthority.values()).reduce((sum, group) => sum + group.quantityTotal, 0);
-
   const sectionsHtml = Array.from(byAuthority.values()).map((authorityGroup) => {
     const schools = Array.from(authorityGroup.schools.values()).sort((a, b) => a.school.localeCompare(b.school, 'he'));
     const schoolsHtml = schools.map((schoolGroup) => {
@@ -1115,7 +1111,6 @@ function printSchoolsSchedule() {
           const activity = entry.activity;
           return `<tr>
             <td class="col-time">${escapeHtml(entry.time || '—')}</td>
-            <td class="col-quantity">${escapeHtml(String(entry.quantity))}</td>
             <td class="col-instructor">${escapeHtml(entry.instructor || '—')}</td>
             <td class="col-class">${escapeHtml(getActivityGradeLabel(activity) || '—')}</td>
             <td class="col-activity">${escapeHtml(getActivityName(activity))}</td>
@@ -1124,7 +1119,7 @@ function printSchoolsSchedule() {
         const dayLabel = date ? formatDateHeWithWeekday(date).split(' · ')[0] : '—';
         return `<div class="date-block authorities-title-table-block">
           <div class="date-title authorities-group-title">${escapeHtml(formatDateHe(date) || date)} · ${escapeHtml(dayLabel)}</div>
-          <table class="authorities-table"><colgroup><col class="col-time"><col class="col-quantity"><col class="col-instructor"><col class="col-class"><col class="col-activity"></colgroup><thead><tr><th class="col-time">שעות</th><th class="col-quantity">כמות</th><th class="col-instructor">מדריך</th><th class="col-class">כיתה</th><th class="col-activity">פעילות / סדנה</th></tr></thead><tbody>${rowsHtml}</tbody></table>
+          <table class="authorities-table"><colgroup><col class="col-time"><col class="col-instructor"><col class="col-class"><col class="col-activity"></colgroup><thead><tr><th class="col-time">שעות</th><th class="col-instructor">מדריך</th><th class="col-class">כיתה</th><th class="col-activity">פעילות / סדנה</th></tr></thead><tbody>${rowsHtml}</tbody></table>
         </div>`;
       }).join('');
       return `<div class="school-block">
@@ -1153,22 +1148,21 @@ function printSchoolsSchedule() {
     .date-title+.authorities-table{break-before:avoid-page;page-break-before:avoid;}
     .authorities-title-table-block{break-inside:avoid-page;page-break-inside:avoid}
     .authorities-table{border-collapse:collapse;width:100%;table-layout:fixed}
-    .authorities-table .col-time{width:18%;text-align:center}
-    .authorities-table .col-quantity{width:12%;text-align:center}
-    .authorities-table .col-instructor{width:24%}
-    .authorities-table .col-class{width:16%;text-align:center}
-    .authorities-table .col-activity{width:30%}
+    .authorities-table .col-time{width:20%;text-align:center}
+    .authorities-table .col-instructor{width:27%}
+    .authorities-table .col-class{width:20%;text-align:center}
+    .authorities-table .col-activity{width:33%}
     .authorities-table th,.authorities-table td{border:1px solid #cbd5e1;padding:2px 4px;text-align:right;font-size:9px;line-height:1.15;white-space:normal;word-break:break-word;overflow-wrap:anywhere}
     .authorities-table th{background:#e6f6fb;font-weight:700}
     .authorities-table tr:nth-child(even) td{background:#f8fafc}
     .authorities-table tr{break-inside:avoid-page;page-break-inside:avoid}
     .footer{margin-top:10px;font-size:11px;font-weight:700;color:#0f172a;text-align:center;border-top:1px solid #cbd5e1;padding-top:5px}
     @page{size:A4 portrait;margin:8mm}
-    @media print{body{margin:0}.authority-section:not(:first-child){break-before:page;page-break-before:always;}.date-block{width:55%!important;max-width:55%!important;margin:0 auto 6px!important;display:block!important;}.authorities-table{width:100%!important;table-layout:fixed!important}.authorities-table .col-time{width:18%!important}.authorities-table .col-quantity{width:12%!important}.authorities-table .col-instructor{width:24%!important}.authorities-table .col-class{width:16%!important}.authorities-table .col-activity{width:30%!important}.authorities-table th,.authorities-table td{white-space:normal!important;word-break:break-word!important;overflow-wrap:anywhere!important;font-size:9px;padding:2px 4px;line-height:1.15}.date-title{break-after:avoid-page;page-break-after:avoid}.date-title+.authorities-table{break-before:avoid-page;page-break-before:avoid}.authorities-title-table-block{break-inside:avoid-page;page-break-inside:avoid}.authorities-table tr{break-inside:avoid-page;page-break-inside:avoid}.school-title{break-after:avoid-page;page-break-after:avoid}}
+    @media print{body{margin:0}.authority-section:not(:first-child){break-before:page;page-break-before:always;}.date-block{width:55%!important;max-width:55%!important;margin:0 auto 6px!important;display:block!important;}.authorities-table{width:100%!important;table-layout:fixed!important}.authorities-table .col-time{width:20%!important}.authorities-table .col-instructor{width:27%!important}.authorities-table .col-class{width:20%!important}.authorities-table .col-activity{width:33%!important}.authorities-table th,.authorities-table td{white-space:normal!important;word-break:break-word!important;overflow-wrap:anywhere!important;font-size:9px;padding:2px 4px;line-height:1.15}.date-title{break-after:avoid-page;page-break-after:avoid}.date-title+.authorities-table{break-before:avoid-page;page-break-before:avoid}.authorities-title-table-block{break-inside:avoid-page;page-break-inside:avoid}.authorities-table tr{break-inside:avoid-page;page-break-inside:avoid}.school-title{break-after:avoid-page;page-break-after:avoid}}
   `;
   const bodyHtml = `
     <h1>${escapeHtml(title)}</h1>
-    ${dateRange ? `<p class="subtitle">${escapeHtml(dateRange)} | סה״כ כמויות: ${escapeHtml(String(quantityTotal))}</p>` : `<p class="subtitle">סה״כ כמויות: ${escapeHtml(String(quantityTotal))}</p>`}
+    ${dateRange ? `<p class="subtitle">${escapeHtml(dateRange)}</p>` : ''}
     ${sectionsHtml}
     <div class="footer">הופק ממערכת ניהול הפעילויות</div>
   `;
@@ -1357,7 +1351,6 @@ function schoolsTabHtml(rows, state, directory = buildSchoolsDirectory([]), cont
           const activity = entry.activity;
           return `<tr>
             <td class="ds-ops-col--time">${escapeHtml(entry.time || '—')}</td>
-            <td class="ds-ops-col--quantity">${escapeHtml(String(entry.quantity))}</td>
             <td class="ds-ops-col--instructor">${escapeHtml(entry.instructor || '—')}</td>
             <td class="ds-ops-col--grade">${escapeHtml(getActivityGradeLabel(activity) || '—')}</td>
             <td class="ds-ops-col--activity">${escapeHtml(getActivityName(activity))}</td>
@@ -1366,7 +1359,7 @@ function schoolsTabHtml(rows, state, directory = buildSchoolsDirectory([]), cont
         const dayLabel = date ? formatDateHeWithWeekday(date).split(' · ')[0] : '—';
         return `<section class="ds-ops-authority-date">
           <h4 class="ds-ops-authority-date__title">${escapeHtml(dayLabel)} · ${escapeHtml(formatDateHe(date) || 'ללא תאריך')}</h4>
-          ${dsTableWrap(`<table class="ds-table ds-table--compact ds-ops-mgmt-data-table ds-ops-authorities-table"><colgroup><col class="ds-ops-col--time"><col class="ds-ops-col--quantity"><col class="ds-ops-col--instructor"><col class="ds-ops-col--grade"><col class="ds-ops-col--activity"></colgroup><thead><tr><th class="ds-ops-col--time">שעות</th><th class="ds-ops-col--quantity">כמות</th><th class="ds-ops-col--instructor">מדריך</th><th class="ds-ops-col--grade">כיתה</th><th class="ds-ops-col--activity">פעילות / סדנה</th></tr></thead><tbody>${rowsHtml}</tbody></table>`)}
+          ${dsTableWrap(`<table class="ds-table ds-table--compact ds-ops-mgmt-data-table ds-ops-authorities-table"><colgroup><col class="ds-ops-col--time"><col class="ds-ops-col--instructor"><col class="ds-ops-col--grade"><col class="ds-ops-col--activity"></colgroup><thead><tr><th class="ds-ops-col--time">שעות</th><th class="ds-ops-col--instructor">מדריך</th><th class="ds-ops-col--grade">כיתה</th><th class="ds-ops-col--activity">פעילות / סדנה</th></tr></thead><tbody>${rowsHtml}</tbody></table>`)}
         </section>`;
       }).join('');
       return `<article class="ds-ops-authority-school">
@@ -1380,7 +1373,6 @@ function schoolsTabHtml(rows, state, directory = buildSchoolsDirectory([]), cont
   }).join('');
 
   const schoolCount = Array.from(byAuthority.values()).reduce((sum, group) => sum + group.schools.size, 0);
-  const quantityTotal = Array.from(byAuthority.values()).reduce((sum, group) => sum + group.quantityTotal, 0);
   _schoolsPrintContext = { byAuthority, ops };
   return `<section class="ds-ops-mgmt-panel" dir="rtl">
     <div class="ds-ops-mgmt-panel__toolbar no-print">
@@ -1391,7 +1383,6 @@ function schoolsTabHtml(rows, state, directory = buildSchoolsDirectory([]), cont
       { label: 'רשויות', value: byAuthority.size },
       { label: 'בתי ספר', value: schoolCount },
       { label: 'פעילויות', value: seenEntries.size },
-      { label: 'סה״כ כמויות', value: quantityTotal },
       { label: 'מדריכים', value: instructorOptions(rows).length }
     ])}
     ${authoritySections || dsEmptyState('לא נמצאו בתי ספר')}
