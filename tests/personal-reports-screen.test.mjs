@@ -79,10 +79,14 @@ test('source keeps personal reports auth temporary and maps verified login to au
   assert.match(source, /function resetPersonalReportsAuth/);
   assert.match(source, /isPersonalReportsUnlocked = false/);
   assert.match(source, /function authenticateInternalEmployee/);
+  assert.match(source, /buildInternalAuthEmail/);
   assert.match(source, /auth\.signInWithPassword/);
-  assert.match(source, /const authUserId = firstUuid\(/);
-  assert.match(source, /user\?\.auth_user_id/);
+  assert.match(source, /const authUserId = authData\.user\.id/);
+  assert.match(source, /\.eq\('auth_user_id', authUserId\)/);
+  assert.match(source, /sameDashboardUser\(userRow, user\)/);
   assert.match(source, /assertEmployeeUuid\(employeeId\)/);
+  assert.doesNotMatch(source, /login_user_by_entry_code/);
+  assert.doesNotMatch(source, /verify_personal_reports_entry_code/);
   assert.doesNotMatch(source, /localStorage|sessionStorage/);
   assert.match(source, /אימות נוסף לדוחות אישיים/);
   assert.match(source, /הקוד שהוזן אינו תקין\. יש לבדוק ולנסות שוב\./);
@@ -230,7 +234,9 @@ test('internal login keeps access code as trimmed string and uses current dashbo
   assert.match(source, /normalizeAccessCode\(fd\.get\('access_code'\)\)/);
   assert.match(source, /const dashboardUser = dashboardUserForAuth\(\)/);
   assert.match(source, /authenticateInternalEmployee\(dashboardUser, accessCode\)/);
-  assert.match(source, /firstUuid\([\s\S]*user\?\.auth_user_id[\s\S]*user\?\.personal_reports_user_id[\s\S]*user\?\.supabase_user_id[\s\S]*user\?\.id/);
+  assert.match(source, /personalReportsLoginIdentifier\(user\)/);
+  assert.match(source, /buildInternalAuthEmail\(login\)/);
+  assert.match(source, /sameDashboardUser\(userRow, user\)/);
   assert.doesNotMatch(source, /Number\(fd\.get\('access_code'\)/);
 });
 

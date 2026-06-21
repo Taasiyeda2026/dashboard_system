@@ -525,6 +525,26 @@ function normalizeAccessCode(value) {
   return String(value).trim();
 }
 
+function buildInternalAuthEmail(employeeCode) {
+  const code = String(employeeCode || '').trim();
+  return code.includes('@') ? code : `${code}@think.org.il`;
+}
+
+function personalReportsLoginIdentifier(user) {
+  return String(user?.user_id || user?.username || user?.email || user?.work_email || user?.emp_id || user?.employee_id || '').trim();
+}
+
+function sameDashboardUser(userRow, dashboardUser) {
+  const expected = [dashboardUser?.user_id, dashboardUser?.username, dashboardUser?.email, dashboardUser?.work_email, dashboardUser?.emp_id, dashboardUser?.employee_id]
+    .map((value) => String(value || '').trim().toLowerCase())
+    .filter(Boolean);
+  const actual = [userRow?.user_id, userRow?.username, userRow?.email, userRow?.emp_id]
+    .map((value) => String(value || '').trim().toLowerCase())
+    .filter(Boolean);
+  if (!expected.length || !actual.length) return false;
+  return expected.some((value) => actual.includes(value));
+}
+
 function internalLoginErrorMessage(error) {
   const raw = String(error?.message || error?.code || error || '').trim();
   if (/missing_employee_uuid/i.test(raw)) {
@@ -837,56 +857,41 @@ function authUnavailableHtml(message = 'לא נמצא משתמש מחובר במ
 
 async function authenticateInternalEmployee(dashboardUser, accessCode) {
   const user = dashboardUser || dashboardUserForAuth();
-  const enteredCode = normalizeAccessCode(accessCode);
-  if (!enteredCode) {
+  const login = personalReportsLoginIdentifier(user);
+  const password = normalizeAccessCode(accessCode);
+  if (!login || !password) {
     throw new Error('invalid_credentials');
   }
 
-  // Step 1: resolve the Supabase auth email.
-  // Primary: wait for (or read) the existing Supabase session (persisted from previous login).
-  // Fallback: use the dashboard user's authenticated email — they already passed main-app auth.
-  const currentSession = await waitForSupabaseAuthSession({ timeoutMs: 3000 });
-  const sessionEmail = currentSession?.user?.email
-    || String(user?.email || user?.work_email || '').trim();
-  if (!sessionEmail) {
-    console.error('[personal-reports] could not resolve auth email — no Supabase session and no dashboard email');
-    throw new Error('invalid_credentials');
-  }
-
-  // Step 2: re-authenticate against Supabase Auth using the resolved email
-  // and the code the user typed. No DB tables, no entry_code column, no UUIDs.
-  const { error: authError } = await supabase.auth.signInWithPassword({
-    email: sessionEmail,
-    password: enteredCode
+  const { data: authData, error: authError } = await supabase.auth.signInWithPassword({
+    email: buildInternalAuthEmail(login),
+    password
   });
-  if (authError) {
+  if (authError || !authData?.user?.id) {
     throw new Error('invalid_credentials');
   }
 
-  // Reset the cached auth-session promise so that the next waitForSupabaseAuthSession()
-  // call (e.g. in fetchReportEligibleEmployees) gets a fresh promise that resolves with
-  // the newly-established session instead of a stale null from an earlier timeout.
   resetSupabaseAuthSessionWait();
 
-  // Step 3: the UUID for report queries comes exclusively from the
-  // already-authenticated dashboard session — never from the entered code.
-  const authUserId = firstUuid(
-    user?.auth_user_id,
-    user?.personal_reports_user_id,
-    user?.supabase_user_id,
-    user?.id
-  );
-  if (!isUuid(authUserId)) {
-    throw new Error('missing_employee_uuid');
+  const authUserId = authData.user.id;
+  const { data: userRow, error: userError } = await supabase
+    .from('users')
+    .select('user_id,username,email,name,role,display_role,emp_id,is_active,auth_user_id')
+    .eq('auth_user_id', authUserId)
+    .eq('is_active', true)
+    .maybeSingle();
+
+  if (userError || !userRow || !sameDashboardUser(userRow, user)) {
+    throw new Error('invalid_credentials');
   }
 
   const profile = {
     id: authUserId,
-    email: sessionEmail,
-    full_name: String(user?.full_name || sessionEmail).trim(),
-    role: isAdminRole(user?.display_role || user?.role) ? 'admin' : 'employee',
-    display_role: String(user?.display_role || user?.role || '').trim(),
-    emp_id: String(user?.emp_id || user?.employee_id || '').trim(),
+    email: String(userRow.email || authData.user.email || '').trim(),
+    full_name: String(userRow.name || userRow.email || login).trim(),
+    role: isAdminRole(userRow.role) ? 'admin' : 'employee',
+    display_role: String(userRow.display_role || userRow.role || '').trim(),
+    emp_id: String(userRow.emp_id || userRow.user_id || login).trim(),
     personal_reports_manager: permissionYes(user?.personal_reports_manager) ? 'yes' : 'no',
     can_manage_personal_reports: canManagePersonalReports(user)
   };
