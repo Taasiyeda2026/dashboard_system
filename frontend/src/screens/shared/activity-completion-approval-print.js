@@ -13,6 +13,8 @@ import {
 } from './operations-activity-helpers.js';
 
 const BLANK = '________________';
+const ORG_NAME = 'עמותת תעשיידע – תעשייה למען חינוך מתקדם';
+const taasiyedaLogoSrc = new URL('../../../assets/logo1.png', import.meta.url).href;
 
 function text(value) {
   const clean = String(value ?? '').trim();
@@ -192,7 +194,7 @@ export function completionApprovalDocumentHtml(approval) {
   </tr>`).join('');
   const authorityLine = text(approval.authority) ? `<p class="completion-approval-authority">${escapeHtml(approval.authority)}</p>` : '';
   return `<article class="completion-approval-page" dir="rtl">
-    <header class="completion-approval-header"><h1>אישור ביצוע פעילות</h1></header>
+    <header class="completion-approval-header"><img class="completion-approval-logo" src="${escapeHtml(taasiyedaLogoSrc)}" alt="לוגו תעשיידע"><h1>אישור ביצוע פעילות</h1></header>
     <section class="completion-approval-details">
       <div class="completion-approval-school"><strong>בית ספר:</strong> ${escapeHtml(approval.school || '')}${authorityLine}</div>
       ${field('תאריך פעילות', formatDateHe(approval.date) || approval.date)}
@@ -205,6 +207,7 @@ export function completionApprovalDocumentHtml(approval) {
       ${approvalLine('חתימה')}
       ${approvalLine('חותמת בית הספר')}
     </section>
+    <footer class="completion-approval-footer">${escapeHtml(ORG_NAME)}</footer>
   </article>`;
 }
 
@@ -214,13 +217,14 @@ export function completionApprovalsPrintHtml(approvals = []) {
 
 export const completionApprovalPrintCss = `
   body{direction:rtl;font-family:Assistant,Arial,sans-serif;margin:0;color:#111827;background:#fff;font-size:12px;line-height:1.45}
-  .completion-approval-page{box-sizing:border-box;min-height:277mm;padding:12mm;break-after:page;page-break-after:always;background:#fff}
+  .completion-approval-page{box-sizing:border-box;min-height:277mm;padding:12mm 12mm 10mm;break-after:page;page-break-after:always;background:#fff;display:flex;flex-direction:column}
   .completion-approval-page:last-child{break-after:auto;page-break-after:auto}
-  .completion-approval-header{text-align:center;border-bottom:1px solid #111827;padding-bottom:8px;margin-bottom:10px}.completion-approval-header h1{font-size:20px;margin:0}
+  .completion-approval-header{position:relative;text-align:center;border-bottom:1px solid #111827;padding:0 28mm 8px;margin-bottom:10px;min-height:22mm}.completion-approval-header h1{font-size:20px;margin:0;padding-top:7mm}.completion-approval-logo{position:absolute;inset-inline-start:0;top:0;height:42px;max-height:20mm;width:auto;object-fit:contain}
   .completion-approval-details{display:grid;grid-template-columns:1fr;gap:5px;margin:9px 0 14px}.completion-approval-school{font-size:14px}.completion-approval-authority{margin:2px 0 0;font-size:11px;color:#475569}
   .completion-approval-signature h3{margin:0 0 3px;font-size:15px}
   .completion-approval-table{border-collapse:collapse;margin:10px 0;table-layout:fixed}.approval-print-table{width:60%;margin-inline:auto}.completion-approval-table th,.completion-approval-table td{border:1px solid #334155;padding:5px;text-align:right;vertical-align:top;word-break:break-word}.completion-approval-table th{background:#f1f5f9;font-weight:700}.completion-approval-table__center{text-align:center!important}.completion-approval-table__manual{text-align:center;white-space:nowrap}
   .approval-fill-line{display:inline-block;min-width:180px;border-bottom:1px solid #111827;min-height:1em}
   .completion-approval-signature{margin-top:12px;break-inside:avoid;page-break-inside:avoid}.completion-approval-signature p{margin:7px 0}
+  .completion-approval-footer{margin-top:auto;padding-top:8mm;text-align:center;font-size:10px;line-height:1.2;color:#64748b}
   @page{size:A4 portrait;margin:0}@media print{body{margin:0}.completion-approval-page{break-after:page;page-break-after:always}thead{display:table-header-group}tr{break-inside:avoid;page-break-inside:avoid}}
 `;

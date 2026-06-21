@@ -454,6 +454,11 @@ test('completion approval print document uses compact printable structure', () =
   });
 
   assert.match(html, /אישור ביצוע פעילות/);
+  const headerHtml = html.match(/<header class="completion-approval-header">[\s\S]*?<\/header>/)?.[0] || '';
+  const footerHtml = html.match(/<footer class="completion-approval-footer">[\s\S]*?<\/footer>/)?.[0] || '';
+  assert.match(headerHtml, /<img class="completion-approval-logo"[^>]+alt="לוגו תעשיידע"/);
+  assert.doesNotMatch(headerHtml, /עמותת תעשיידע – תעשייה למען חינוך מתקדם/);
+  assert.match(footerHtml, /עמותת תעשיידע – תעשייה למען חינוך מתקדם/);
   assert.match(html, /בית ספר רמבם/);
   assert.match(html, /רשות לדוגמה/);
   assert.match(html, /הילה רוזן/);
@@ -489,6 +494,8 @@ test('completion approval time formatter and table width are print scoped', () =
   assert.equal(formatApprovalTime(null), '');
   assert.match(completionApprovalPrintCss, /\.approval-print-table\{width:60%;margin-inline:auto\}/);
   assert.match(completionApprovalPrintCss, /\.completion-approval-table__center\{text-align:center!important\}/);
+  assert.match(completionApprovalPrintCss, /\.completion-approval-logo\{[^}]*height:42px;max-height:20mm;width:auto;object-fit:contain/);
+  assert.match(completionApprovalPrintCss, /\.completion-approval-footer\{[^}]*font-size:10px;[^}]*color:#64748b/);
 });
 
 test('operations management render shows text-school activities without school_id', () => {
