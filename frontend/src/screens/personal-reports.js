@@ -11,6 +11,7 @@
  */
 
 import { supabase, waitForSupabaseAuthSession, resetSupabaseAuthSessionWait } from '../supabase-client.js';
+import { resolveActiveUserRowAfterAuth } from '../auth-user-resolve.js';
 import { escapeHtml } from './shared/html.js';
 import { dsPageHeader, dsEmptyState, dsStatusChip, dsScreenStack } from './shared/layout.js';
 
@@ -589,7 +590,13 @@ function friendlyPersonalReportsError(error, fallback = 'אירעה תקלה ב�
   if (/invalid input syntax for type uuid|uuid/i.test(raw)) {
     return 'פרטי ההתחברות אינם תקינים. יש לבדוק את קוד העובד ולנסות שוב.';
   }
-  if (/invalid_credentials|entry_code_mismatch|user_not_found|not_found/i.test(raw)) {
+  if (/invalid_credentials|entry_code_mismatch/i.test(raw)) {
+    return 'שם משתמש או סיסמה שגויים';
+  }
+  if (/auth_ok_user_row_not_found/i.test(raw)) {
+    return 'לא נמצא פרופיל משתמש במערכת. יש לפנות למנהל המערכת.';
+  }
+  if (/user_not_found|not_found/i.test(raw)) {
     return 'שם משתמש או סיסמה שגויים';
   }
   if (/missing_employee_uuid/i.test(raw)) {
@@ -874,14 +881,26 @@ async function authenticateInternalEmployee(dashboardUser, accessCode) {
   resetSupabaseAuthSessionWait();
 
   const authUserId = authData.user.id;
-  const { data: userRow, error: userError } = await supabase
-    .from('users')
-    .select('user_id,email,name,role,emp_id,is_active')
-    .eq('user_id', login.toLowerCase())
-    .eq('is_active', true)
-    .maybeSingle();
+  const authEmail = buildInternalAuthEmail(login).trim().toLowerCase();
+  const username = login.toLowerCase();
+  const { userRow } = await resolveActiveUserRowAfterAuth({
+    supabase,
+    columns: 'user_id,email,name,role,emp_id,is_active',
+    authEmail,
+    username,
+    authUserId
+  });
 
-  if (userError || !userRow || !sameDashboardUser(userRow, user)) {
+  if (!userRow || !sameDashboardUser(userRow, user)) {
+    if (!userRow) {
+      console.warn('[login-diagnostic]', {
+        code: 'auth_ok_user_row_not_found',
+        auth_user_id: authUserId,
+        auth_email: authEmail,
+        username
+      });
+      throw new Error('auth_ok_user_row_not_found');
+    }
     throw new Error('invalid_credentials');
   }
 

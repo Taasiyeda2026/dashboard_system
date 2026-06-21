@@ -239,6 +239,7 @@ const API_ERROR_HE = {
   missing_row_id: 'חסר מזהה פעילות לשמירה',
   'user_id is required': 'יש להזין מזהה משתמש',
   invalid_credentials: 'שם משתמש או סיסמה שגויים',
+  auth_ok_user_row_not_found: 'לא נמצא פרופיל משתמש במערכת. יש לפנות למנהל המערכת.',
   no_supabase_client: 'חיבור Supabase אינו מוגדר — פנה למנהל המערכת',
   missing_user_id_or_entry_code: 'יש להזין מזהה משתמש וקוד כניסה',
   user_not_found: 'המשתמש/ת לא נמצא/ה במערכת',

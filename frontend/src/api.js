@@ -4,6 +4,7 @@ import { hebrewRole } from './screens/shared/ui-hebrew.js';
 import { cleanActivityManagerName, getContactsInstructorUsers, getRosterUsers, NO_ACTIVITY_MANAGER_LABEL, normalizeOneDayActivityType, resolveActivityInstructorName, buildContactsInstructorLookup, resolveCanonicalInstructorPair, validateInstructorIdentityPayload } from './screens/shared/activity-options.js';
 import { EXCEPTION_TYPE_ORDER, normalizedExceptionTypes } from './screens/shared/exceptions-metrics.js';
 import { isSummerActivity, normalizeActivitySeason } from './screens/shared/summer-activity.js';
+import { resolveActiveUserRowAfterAuth } from './auth-user-resolve.js';
 import { supabase, supabaseConfig, waitForSupabaseAuthSession } from './supabase-client.js';
 import { isEmptyValue, nonEmptyString } from './utils/empty-value.js';
 import { permissionFlagYes, canEditDirect, canAddActivityDirect, canRequestEdit, canRequestCreateActivity, canReviewRequests } from './permissions.js';
@@ -3254,18 +3255,30 @@ async function loginWithSupabaseAuth(user_id, entry_code) {
 
   const authUserId = authData.user.id;
 
-  const { data: userRow, error: profileError } = await supabase
-    .from('users')
-    .select(USER_PUBLIC_COLUMNS)
-    .eq('user_id', username)
-    .eq('is_active', true)
-    .single();
+  const { userRow, matchedBy } = await resolveActiveUserRowAfterAuth({
+    supabase,
+    columns: USER_PUBLIC_COLUMNS,
+    authEmail,
+    username,
+    authUserId
+  });
 
-  if (profileError || !userRow) {
-    throwLoginError('invalid_credentials', { auth_user_id: authUserId, message: String(profileError?.message || '') });
+  if (!userRow) {
+    throwLoginError('auth_ok_user_row_not_found', {
+      auth_user_id: authUserId,
+      auth_email: authEmail,
+      username
+    });
   }
 
   userRow.auth_user_id = authUserId;
+  if (matchedBy) {
+    try {
+      console.info('[login-user-resolve]', { matchedBy, user_id: userRow.user_id, auth_email: authEmail });
+    } catch {
+      /* ignore */
+    }
+  }
 
   assertValidLoginUserRow(userRow);
   const profileRow = await readPersonalReportsProfile(authUserId);
@@ -3284,19 +3297,22 @@ function makeSessionToken(userRow) {
 
 async function readCurrentUserBySession() {
   if (!supabase) throw new Error('no_supabase_client');
-  const userId = String(state?.user?.user_id || '').trim();
-  if (!userId) throw new Error('unauthorized');
   const session = await waitForSupabaseAuthSession();
   if (!session?.user?.id) throw new Error('unauthorized');
-  const { data, error } = await supabase
-    .from('users')
-    .select(USER_PUBLIC_COLUMNS)
-    .eq('user_id', userId)
-    .single();
-  if (error || !data) throw new Error('unauthorized');
-  if (!data.is_active) throw new Error('unauthorized');
-  const profileRow = await readPersonalReportsProfile(data.auth_user_id);
-  return { userRow: data, profileRow };
+  const authUserId = session.user.id;
+  const authEmail = String(session.user.email || state?.user?.email || '').trim().toLowerCase();
+  const username = String(state?.user?.user_id || state?.user?.username || '').trim().toLowerCase();
+  const { userRow } = await resolveActiveUserRowAfterAuth({
+    supabase,
+    columns: USER_PUBLIC_COLUMNS,
+    authEmail,
+    username,
+    authUserId
+  });
+  if (!userRow) throw new Error('unauthorized');
+  userRow.auth_user_id = authUserId;
+  const profileRow = await readPersonalReportsProfile(authUserId);
+  return { userRow, profileRow };
 }
 
 function buildSupabaseMutationError(operation, error, fallback = 'server_error') {
