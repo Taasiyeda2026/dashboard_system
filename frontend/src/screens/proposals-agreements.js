@@ -1896,9 +1896,9 @@ function parseSectionBodyStructure(value, options = {}) {
 }
 
 
-function selectedCourseNamesText(items = [], row = {}, contextGroup = '') {
+function selectedCourseNamesList(items = [], row = {}, contextGroup = '') {
   const proposalGroup = normalizeProposalGroup(contextGroup || row.activity_type_group);
-  if (!isNextYearProposalGroup(proposalGroup) && !isNextYearProposalGroup(row.activity_type_group)) return '';
+  if (!isNextYearProposalGroup(proposalGroup) && !isNextYearProposalGroup(row.activity_type_group)) return [];
   const sourceItems = (Array.isArray(items) ? items : []).filter((item) => {
     if (isTestHoursItem(item) || text(item.proposal_display_mode) === 'bundle_child') return false;
     if (!publicActivityName(proposalField(item, 'item_name', 'itemName'))) return false;
@@ -1919,17 +1919,22 @@ function selectedCourseNamesText(items = [], row = {}, contextGroup = '') {
     seen.add(name);
     names.push(name);
   }
-  return names.join(', ');
+  return names;
 }
+
+const NEXT_YEAR_COURSES_INTRO_RE = /להלן הקורסים המוצעים לשנת הלימודים תשפ[״"']?ז\s*\./u;
 
 function nextYearActivityIntroWithCourseNames(body, row = {}, items = [], contextGroup = '') {
   const group = normalizeProposalGroup(contextGroup || row.activity_type_group);
   if (!isNextYearProposalGroup(group)) return body;
-  const courseNames = selectedCourseNamesText(items, row, contextGroup || group);
-  if (!courseNames) return body;
-  const courseLine = `הפעילויות המוצעות לשנת הלימודים: ${courseNames}`;
+  const courseNames = selectedCourseNamesList(items, row, contextGroup || group);
+  if (!courseNames.length) return body;
   const raw = normalizeMultilineText(body);
-  return raw ? `${raw}\n\n${courseLine}` : courseLine;
+  if (!raw || !NEXT_YEAR_COURSES_INTRO_RE.test(raw)) return body;
+  return raw.replace(
+    NEXT_YEAR_COURSES_INTRO_RE,
+    `להלן הקורסים המוצעים לשנת הלימודים תשפ״ז:\n${courseNames.join('\n')}`
+  );
 }
 
 function selectedCourseShortNamesText(row = {}, items = []) {
