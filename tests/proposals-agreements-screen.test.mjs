@@ -2920,6 +2920,8 @@ test('rollback: login session flags restore stable view/manage mapping without a
 
 const {
   setProposalGroupLookups,
+  proposalGroupOptions,
+  proposalTypeCardsHtml,
   resolveProposalTemplateKey,
   filterTemplateSectionsForGroup,
   documentSectionsEditorHtml,
@@ -3034,6 +3036,84 @@ test('save item extraction keeps rows with source pricing key even when name is 
     assert.equal(items[0].proposalGroup, 'summer');
   });
 });
+
+
+test('proposal type activity group selector renders exactly canonical display_name options and saves group_key', () => {
+  setProposalGroupLookups({
+    proposalActivityGroups: [
+      { group_key: 'next_year', display_name: 'תוכניות תשפ״ז', template_key: 'next_year', sort_order: 2, is_active: true },
+      { group_key: 'summer', display_name: 'קיץ תשפ״ו', template_key: 'summer', sort_order: 1, is_active: true },
+      { group_key: 'combined', display_name: 'קיץ תשפ״ו ותוכניות תשפ״ז', template_key: 'combined', included_group_keys: ['summer', 'next_year'], sort_order: 3, is_active: true }
+    ],
+    proposalGroupAliases: [
+      { alias_name: 'קיץ תשפ״ו', group_key: 'summer', is_active: true },
+      { alias_name: 'תוכניות תשפ״ז', group_key: 'next_year', is_active: true }
+    ],
+    proposalTemplateSections: [
+      { template_key: 'summer', section_key: 'intro', section_title: 'פתיח', section_body: 'פתיח קיץ' },
+      { template_key: 'next_year', section_key: 'intro', section_title: 'פתיח', section_body: 'פתיח שנה' },
+      { template_key: 'combined', section_key: 'intro', section_title: 'פתיח', section_body: 'פתיח משולב' }
+    ]
+  }, [
+    { activity_type_group: 'קיץ תשפ״ו' },
+    { activity_type_group: 'summer' },
+    { activity_type_group: 'תוכניות תשפ״ז' }
+  ], [{ proposal_group: 'alias-from-pricing' }]);
+
+  const options = proposalGroupOptions({
+    proposalActivityGroups: [
+      { group_key: 'next_year', display_name: 'תוכניות תשפ״ז', template_key: 'next_year', sort_order: 2, is_active: true },
+      { group_key: 'summer', display_name: 'קיץ תשפ״ו', template_key: 'summer', sort_order: 1, is_active: true },
+      { group_key: 'combined', display_name: 'קיץ תשפ״ו ותוכניות תשפ״ז', template_key: 'combined', included_group_keys: ['summer', 'next_year'], sort_order: 3, is_active: true }
+    ],
+    proposalGroupAliases: [
+      { alias_name: 'קיץ תשפ״ו', group_key: 'summer', is_active: true },
+      { alias_name: 'תוכניות תשפ״ז', group_key: 'next_year', is_active: true }
+    ]
+  }, [{ activity_type_group: 'קיץ תשפ״ו' }], [{ proposal_group: 'pricing-alias' }]);
+  assert.deepEqual(options, [
+    { value: 'summer', label: 'קיץ תשפ״ו' },
+    { value: 'next_year', label: 'תוכניות תשפ״ז' },
+    { value: 'combined', label: 'קיץ תשפ״ו ותוכניות תשפ״ז' }
+  ]);
+
+  const html = proposalTypeCardsHtml('קיץ תשפ״ו');
+  assert.equal((html.match(/data-pa-type-btn=/g) || []).length, 3);
+  assert.match(html, /data-pa-type-btn="summer"/);
+  assert.match(html, /value="summer"/);
+  assert.match(html, /קיץ תשפ״ו/);
+  assert.match(html, /תוכניות תשפ״ז/);
+  assert.match(html, /קיץ תשפ״ו ותוכניות תשפ״ז/);
+  assert.doesNotMatch(html, />summer</);
+  assert.doesNotMatch(html, />next_year</);
+  assert.doesNotMatch(html, />combined</);
+  assert.doesNotMatch(html, /pricing-alias/);
+});
+
+test('activity group alias resolves through group_key to template_key and matching sections', () => {
+  const sections = [
+    { template_key: 'summer_template', section_key: 'intro', section_title: 'פתיח', section_body: 'פתיח נמצא' }
+  ];
+  setProposalGroupLookups({
+    proposalActivityGroups: [{ group_key: 'summer', display_name: 'קיץ תשפ״ו', template_key: 'summer_template', sort_order: 1, is_active: true }],
+    proposalGroupAliases: [{ alias_name: 'פעילויות קיץ', group_key: 'summer', is_active: true }],
+    proposalTemplateSections: sections
+  }, [], []);
+  assert.equal(resolveProposalTemplateKey('פעילויות קיץ'), 'summer_template');
+  const matching = filterTemplateSectionsForGroup(sections, 'פעילויות קיץ');
+  assert.equal(matching.length, 1);
+  const html = documentSectionsEditorHtml(matching, false);
+  assert.doesNotMatch(html, /לא נמצאה תבנית פעילה לסוג הצעה זה/);
+  assert.match(html, /פתיח נמצא/);
+});
+
+test('proposal item loader uses production proposal_agreement_items columns and proposal_agreement_id filter', async () => {
+  const apiSource = await readFile(API_FILE, 'utf8');
+  assert.match(apiSource, /\.from\('proposal_agreement_items'\)[\s\S]*\.eq\('proposal_agreement_id', rowId\)/);
+  assert.match(apiSource, /proposal_agreement_id,item_name,item_type,gefen_number,meetings_count,hours_count,quantity,unit_price,total_price,description,hourly_price,source_pricing_key,proposal_display_mode,selected_bundle_items,activity_no,unit_duration,proposal_group,sort_order/);
+  assert.doesNotMatch(apiSource, /proposal_pricing_options/);
+});
+
 
 test('readProposalsAgreementsFromSupabase waits for auth session and records loader debug', async () => {
   const apiSource = await readFile(API_FILE, 'utf8');
