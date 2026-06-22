@@ -412,18 +412,7 @@ export function bindActivityEditForm(contentRoot, {
         return;
       }
 
-      const operation = canDirectEdit ? 'saveActivity' : 'submitEditRequest';
       const debugPayload = { source_sheet: sourceSheet, source_row_id: sourceRowId, changes };
-      // eslint-disable-next-line no-console
-      console.info('[activity-save:form-submit]', {
-        operation,
-        rawCanDirectEdit,
-        canDirectEdit,
-        source_sheet: sourceSheet,
-        source_row_id: sourceRowId,
-        changed_fields: Object.keys(changes),
-        changes
-      });
 
       if (!canDirectEdit && !canRequestEdit) {
         setStatus(statusEl, 'is-error', 'אין לך הרשאה לערוך פעילות זו');
@@ -440,7 +429,7 @@ export function bindActivityEditForm(contentRoot, {
 
       let requestResult = null;
       if (canDirectEdit) {
-        await api.saveActivity(debugPayload);
+        requestResult = await api.saveActivity(debugPayload);
       } else if (canRequestEdit) {
         requestResult = await api.submitEditRequest(debugPayload);
       } else {
@@ -464,7 +453,7 @@ export function bindActivityEditForm(contentRoot, {
       if (!canDirectEdit) {
         try { document.dispatchEvent(new CustomEvent('app:edit-requests-updated')); } catch (_) { /* ignore */ }
       }
-      if (canDirectEdit && typeof onRowSaved === 'function') onRowSaved({ sourceSheet, sourceRowId, changes, form });
+      if (canDirectEdit && typeof onRowSaved === 'function') onRowSaved({ sourceSheet, sourceRowId, changes, form, row: requestResult?.row || null });
       if (!canDirectEdit) {
         form.reset();
         updateMeetingWeekdays(form);
