@@ -2882,11 +2882,40 @@ async function readProposalActivityPricingFromSupabase() {
   }
 }
 
+function mapProposalTemplateSectionRow(row = {}) {
+  const templateKey = cleanProposalAgreementText(row?.template_key ?? row?.templateKey);
+  const templateName = cleanProposalAgreementText(row?.template_name ?? row?.templateName);
+  const activityTypeGroup = cleanProposalAgreementText(row?.activity_type_group ?? row?.activityTypeGroup);
+  const sectionKey = cleanProposalAgreementText(row?.section_key ?? row?.sectionKey);
+  const sectionTitle = cleanProposalAgreementText(row?.section_title ?? row?.sectionTitle);
+  const sectionBody = normalizeProposalAgreementMultilineText(row?.section_body ?? row?.sectionBody);
+  const sortOrder = Number(row?.sort_order ?? row?.sortOrder) || 0;
+  const isActive = row?.is_active ?? row?.isActive;
+  return {
+    templateKey,
+    templateName,
+    activityTypeGroup,
+    sectionKey,
+    sectionTitle,
+    sectionBody,
+    sortOrder,
+    isActive: isActive !== false,
+    template_key: templateKey,
+    template_name: templateName,
+    activity_type_group: activityTypeGroup,
+    section_key: sectionKey,
+    section_title: sectionTitle,
+    section_body: sectionBody,
+    sort_order: sortOrder,
+    is_active: isActive !== false
+  };
+}
+
 async function readProposalTemplateSectionsFromSupabase() {
   try {
     const { data, error } = await supabase
       .from('proposal_template_sections')
-      .select('template_key,template_name,activity_type_group,section_key,section_title,section_body,sort_order')
+      .select('template_key,template_name,activity_type_group,section_key,section_title,section_body,sort_order,is_active')
       .eq('is_active', true)
       .order('template_key', { ascending: true })
       .order('sort_order', { ascending: true });
@@ -2894,15 +2923,7 @@ async function readProposalTemplateSectionsFromSupabase() {
       noteProposalRead('proposalTemplateSections', [], error);
       return [];
     }
-    const rows = (Array.isArray(data) ? data : []).map((row) => ({
-      template_key: cleanProposalAgreementText(row?.template_key),
-      template_name: cleanProposalAgreementText(row?.template_name),
-      activity_type_group: cleanProposalAgreementText(row?.activity_type_group),
-      section_key: cleanProposalAgreementText(row?.section_key),
-      section_title: cleanProposalAgreementText(row?.section_title),
-      section_body: normalizeProposalAgreementMultilineText(row?.section_body),
-      sort_order: Number(row?.sort_order) || 0
-    }));
+    const rows = (Array.isArray(data) ? data : []).map(mapProposalTemplateSectionRow);
     noteProposalRead('proposalTemplateSections', rows, null);
     return rows;
   } catch (error) {
@@ -4793,28 +4814,62 @@ export const api = {
     if (error) throw new Error(error.message || 'items_read_failed');
     return (Array.isArray(data) ? data : []).map((item) => {
       let selectedBundleItems = [];
-      try { const parsed = Array.isArray(item.selected_bundle_items) ? item.selected_bundle_items : JSON.parse(item.selected_bundle_items || '[]'); selectedBundleItems = Array.isArray(parsed) ? parsed : []; } catch { selectedBundleItems = []; }
+      try { const parsed = Array.isArray(item.selected_bundle_items ?? item.selectedBundleItems) ? (item.selected_bundle_items ?? item.selectedBundleItems) : JSON.parse(item.selected_bundle_items ?? item.selectedBundleItems ?? '[]'); selectedBundleItems = Array.isArray(parsed) ? parsed : []; } catch { selectedBundleItems = []; }
+      const proposalAgreementId = cleanProposalAgreementText(item.proposal_agreement_id ?? item.proposalAgreementId ?? rowId);
+      const activityNo = cleanProposalAgreementText(item.activity_no ?? item.activityNo);
+      const itemName = cleanProposalAgreementText(item.item_name ?? item.itemName);
+      const itemType = cleanProposalAgreementText(item.item_type ?? item.itemType);
+      const gefenNumber = cleanProposalAgreementText(item.gefen_number ?? item.gefenNumber);
+      const meetingsCount = item.meetings_count != null ? Number(item.meetings_count) : (item.meetingsCount != null ? Number(item.meetingsCount) : null);
+      const hoursCount = item.hours_count != null ? Number(item.hours_count) : (item.hoursCount != null ? Number(item.hoursCount) : null);
+      const quantity = item.quantity != null ? Number(item.quantity) || 1 : 1;
+      const unitPrice = item.unit_price != null ? Number(item.unit_price) : (item.unitPrice != null ? Number(item.unitPrice) : null);
+      const hourlyPrice = item.hourly_price != null ? Number(item.hourly_price) : (item.hourlyPrice != null ? Number(item.hourlyPrice) : null);
+      const totalPrice = item.total_price != null ? Number(item.total_price) : (item.totalPrice != null ? Number(item.totalPrice) : null);
+      const description = cleanProposalAgreementText(item.description);
+      const unitDuration = cleanProposalAgreementText(item.unit_duration ?? item.unitDuration);
+      const proposalGroup = normalizeProposalGroupValue(item.proposal_group ?? item.proposalGroup, groupLookup);
+      const sortOrder = Number(item.sort_order ?? item.sortOrder) || 0;
+      const proposalDisplayMode = cleanProposalAgreementText(item.proposal_display_mode ?? item.proposalDisplayMode) || 'single';
+      const sourcePricingKey = cleanProposalAgreementText(item.source_pricing_key ?? item.sourcePricingKey);
       return {
         id:                    cleanProposalAgreementText(item.id),
-        activity_no:           cleanProposalAgreementText(item.activity_no),
-        pricing_activity_no:   cleanProposalAgreementText(item.activity_no),
-        item_name:             cleanProposalAgreementText(item.item_name),
-        item_type:             cleanProposalAgreementText(item.item_type),
-        gefen_number:          cleanProposalAgreementText(item.gefen_number),
-        meetings_count:        item.meetings_count != null ? Number(item.meetings_count) : null,
-        hours_count:           item.hours_count != null ? Number(item.hours_count) : null,
-        quantity:              item.quantity != null ? Number(item.quantity) || 1 : 1,
-        unit_price:            item.unit_price != null ? Number(item.unit_price) : null,
-        hourly_price:          item.hourly_price != null ? Number(item.hourly_price) : null,
-        total_price:           item.total_price != null ? Number(item.total_price) : null,
-        description:           cleanProposalAgreementText(item.description),
-        unit_duration:         cleanProposalAgreementText(item.unit_duration),
-        proposal_group:        normalizeProposalGroupValue(item.proposal_group, groupLookup),
-        group_key:             normalizeProposalGroupValue(item.proposal_group, groupLookup),
-        sort_order:            Number(item.sort_order) || 0,
-        proposal_display_mode: cleanProposalAgreementText(item.proposal_display_mode) || 'single',
-        source_pricing_key:    cleanProposalAgreementText(item.source_pricing_key),
-        pricing_key:           cleanProposalAgreementText(item.source_pricing_key),
+        proposalAgreementId,
+        activityNo,
+        itemName,
+        itemType,
+        gefenNumber,
+        meetingsCount,
+        hoursCount,
+        unitDuration,
+        unitPrice,
+        hourlyPrice,
+        totalPrice,
+        proposalGroup,
+        sortOrder,
+        proposalDisplayMode,
+        sourcePricingKey,
+        selectedBundleItems,
+        proposal_agreement_id: proposalAgreementId,
+        activity_no:           activityNo,
+        pricing_activity_no:   activityNo,
+        item_name:             itemName,
+        item_type:             itemType,
+        gefen_number:          gefenNumber,
+        meetings_count:        meetingsCount,
+        hours_count:           hoursCount,
+        quantity,
+        unit_price:            unitPrice,
+        hourly_price:          hourlyPrice,
+        total_price:           totalPrice,
+        description,
+        unit_duration:         unitDuration,
+        proposal_group:        proposalGroup,
+        group_key:             proposalGroup,
+        sort_order:            sortOrder,
+        proposal_display_mode: proposalDisplayMode,
+        source_pricing_key:    sourcePricingKey,
+        pricing_key:           sourcePricingKey,
         selected_bundle_items: selectedBundleItems
       };
     });
@@ -4877,29 +4932,37 @@ export const api = {
       .delete()
       .eq('proposal_agreement_id', rowId);
     if (delError) throw new Error(delError.message || 'items_delete_failed');
+    const hasMeaningfulProposalItemValue = (item = {}) => Boolean(
+      cleanProposalAgreementText(item.item_name ?? item.itemName) ||
+      cleanProposalAgreementText(item.source_pricing_key ?? item.sourcePricingKey) ||
+      cleanProposalAgreementText(item.pricing_key ?? item.pricingKey) ||
+      cleanProposalAgreementText(item.activity_no ?? item.activityNo) ||
+      cleanProposalAgreementText(item.proposal_group ?? item.proposalGroup ?? item.group_key ?? item.groupKey) ||
+      Number(item.quantity) || Number(item.unit_price ?? item.unitPrice) || Number(item.total_price ?? item.totalPrice)
+    );
     const validItems = (Array.isArray(items) ? items : [])
-      .filter((i) => cleanProposalAgreementText(i.item_name) && !isProposalTestHoursItem(i))
+      .filter((i) => hasMeaningfulProposalItemValue(i) && !isProposalTestHoursItem(i))
       .map((item, idx) => {
         let selectedBundleItems = [];
-        try { const parsed = Array.isArray(item.selected_bundle_items) ? item.selected_bundle_items : JSON.parse(item.selected_bundle_items || '[]'); selectedBundleItems = Array.isArray(parsed) ? parsed : []; } catch { selectedBundleItems = []; }
+        try { const parsed = Array.isArray(item.selected_bundle_items ?? item.selectedBundleItems) ? (item.selected_bundle_items ?? item.selectedBundleItems) : JSON.parse(item.selected_bundle_items ?? item.selectedBundleItems ?? '[]'); selectedBundleItems = Array.isArray(parsed) ? parsed : []; } catch { selectedBundleItems = []; }
         return {
           proposal_agreement_id: rowId,
-          activity_no:           cleanProposalAgreementText(item.activity_no || item.pricing_activity_no),
-          item_name:             cleanProposalAgreementText(item.item_name),
-          item_type:             cleanProposalAgreementText(item.item_type),
-          gefen_number:          cleanProposalAgreementText(item.gefen_number),
-          meetings_count:        item.meetings_count != null ? Number(item.meetings_count) || null : null,
-          hours_count:           item.hours_count != null ? Number(item.hours_count) || null : null,
+          activity_no:           cleanProposalAgreementText(item.activity_no ?? item.activityNo ?? item.pricing_activity_no ?? item.pricingActivityNo),
+          item_name:             cleanProposalAgreementText(item.item_name ?? item.itemName),
+          item_type:             cleanProposalAgreementText(item.item_type ?? item.itemType),
+          gefen_number:          cleanProposalAgreementText(item.gefen_number ?? item.gefenNumber),
+          meetings_count:        item.meetings_count != null ? Number(item.meetings_count) || null : (item.meetingsCount != null ? Number(item.meetingsCount) || null : null),
+          hours_count:           item.hours_count != null ? Number(item.hours_count) || null : (item.hoursCount != null ? Number(item.hoursCount) || null : null),
           quantity:              Number(item.quantity) || 1,
-          unit_price:            item.unit_price != null ? Number(item.unit_price) || null : null,
-          hourly_price:          item.hourly_price != null ? Number(item.hourly_price) || null : null,
-          total_price:           item.total_price != null ? Number(item.total_price) || null : null,
+          unit_price:            item.unit_price != null ? Number(item.unit_price) || null : (item.unitPrice != null ? Number(item.unitPrice) || null : null),
+          hourly_price:          item.hourly_price != null ? Number(item.hourly_price) || null : (item.hourlyPrice != null ? Number(item.hourlyPrice) || null : null),
+          total_price:           item.total_price != null ? Number(item.total_price) || null : (item.totalPrice != null ? Number(item.totalPrice) || null : null),
           description:           cleanProposalAgreementText(item.description),
-          unit_duration:         cleanProposalAgreementText(item.unit_duration),
-          proposal_group:        normalizeProposalGroupValue(item.proposal_group || item.group_key, groupLookup),
+          unit_duration:         cleanProposalAgreementText(item.unit_duration ?? item.unitDuration),
+          proposal_group:        normalizeProposalGroupValue(item.proposal_group ?? item.proposalGroup ?? item.group_key ?? item.groupKey, groupLookup),
           sort_order:            idx,
-          proposal_display_mode: cleanProposalAgreementText(item.proposal_display_mode) || 'single',
-          source_pricing_key:    cleanProposalAgreementText(item.source_pricing_key) || null,
+          proposal_display_mode: cleanProposalAgreementText(item.proposal_display_mode ?? item.proposalDisplayMode) || 'single',
+          source_pricing_key:    cleanProposalAgreementText(item.source_pricing_key ?? item.sourcePricingKey ?? item.pricing_key ?? item.pricingKey) || null,
           selected_bundle_items: selectedBundleItems
         };
       });

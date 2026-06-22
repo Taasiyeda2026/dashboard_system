@@ -101,6 +101,49 @@ let proposalGroupLookups = EMPTY_PROPOSAL_GROUP_LOOKUPS;
 const COMBINED_TEMPLATE_GROUP_KEYS = Object.freeze(['summer', 'next_year']);
 let proposalTemplateSectionsLookup = [];
 
+
+function proposalField(object = {}, snakeKey = '', camelKey = '') {
+  return object?.[camelKey] ?? object?.[snakeKey];
+}
+
+function proposalTextField(object = {}, snakeKey = '', camelKey = '') {
+  return text(proposalField(object, snakeKey, camelKey));
+}
+
+function normalizeTemplateSection(section = {}) {
+  const templateKey = proposalTextField(section, 'template_key', 'templateKey');
+  const templateName = proposalTextField(section, 'template_name', 'templateName');
+  const activityTypeGroup = proposalTextField(section, 'activity_type_group', 'activityTypeGroup');
+  const sectionKey = proposalTextField(section, 'section_key', 'sectionKey');
+  const sectionTitle = proposalTextField(section, 'section_title', 'sectionTitle');
+  const sectionBody = normalizeMultilineText(proposalField(section, 'section_body', 'sectionBody'));
+  const sortOrder = Number(proposalField(section, 'sort_order', 'sortOrder')) || 0;
+  const isActive = proposalField(section, 'is_active', 'isActive');
+  return {
+    ...section,
+    templateKey,
+    templateName,
+    activityTypeGroup,
+    sectionKey,
+    sectionTitle,
+    sectionBody,
+    sortOrder,
+    isActive: isActive !== false,
+    template_key: templateKey,
+    template_name: templateName,
+    activity_type_group: activityTypeGroup,
+    section_key: sectionKey,
+    section_title: sectionTitle,
+    section_body: sectionBody,
+    sort_order: sortOrder,
+    is_active: isActive !== false
+  };
+}
+
+function normalizeTemplateSections(sections = []) {
+  return (Array.isArray(sections) ? sections : []).map(normalizeTemplateSection);
+}
+
 function toArray(value) {
   if (Array.isArray(value)) return value;
   if (typeof value === 'string') {
@@ -145,9 +188,9 @@ function collectTemplateSectionGroupHints(sections = []) {
   const hints = [];
   const seen = new Set();
   (Array.isArray(sections) ? sections : []).forEach((section) => {
-    const templateKey = text(section.template_key);
-    const activityGroup = text(section.activity_type_group);
-    const templateName = text(section.template_name);
+    const templateKey = proposalTextField(section, 'template_key', 'templateKey');
+    const activityGroup = proposalTextField(section, 'activity_type_group', 'activityTypeGroup');
+    const templateName = proposalTextField(section, 'template_name', 'templateName');
     if (!templateKey || seen.has(templateKey)) return;
     seen.add(templateKey);
     hints.push({
@@ -203,9 +246,9 @@ function collectGroupRecords(data = {}, rows = [], pricingOptions = []) {
 }
 
 function setProposalGroupLookups(data = {}, rows = [], pricingOptions = []) {
-  proposalTemplateSectionsLookup = Array.isArray(data?.proposalTemplateSections)
+  proposalTemplateSectionsLookup = normalizeTemplateSections(Array.isArray(data?.proposalTemplateSections)
     ? data.proposalTemplateSections
-    : Array.isArray(data?.proposal_template_sections) ? data.proposal_template_sections : [];
+    : Array.isArray(data?.proposal_template_sections) ? data.proposal_template_sections : []);
   const groups = collectGroupRecords({ ...data, proposalTemplateSections: proposalTemplateSectionsLookup }, rows, pricingOptions);
   const groupByKey = new Map();
   const aliasToKey = new Map();
@@ -222,9 +265,9 @@ function setProposalGroupLookups(data = {}, rows = [], pricingOptions = []) {
       if (alias && groupKey) aliasToKey.set(alias, groupKey);
     });
   proposalTemplateSectionsLookup.forEach((section) => {
-    const templateKey = text(section.template_key);
-    const activityGroup = text(section.activity_type_group);
-    const templateName = text(section.template_name);
+    const templateKey = proposalTextField(section, 'template_key', 'templateKey');
+    const activityGroup = proposalTextField(section, 'activity_type_group', 'activityTypeGroup');
+    const templateName = proposalTextField(section, 'template_name', 'templateName');
     if (!templateKey) return;
     if (!groupByKey.has(templateKey)) {
       const normalized = normalizeProposalGroupRecord({
@@ -271,15 +314,15 @@ function resolveProposalTemplateKey(value) {
   const normalized = normalizeProposalGroup(value);
   const resolved = text(meta?.template_key || normalized || value);
   const sections = proposalTemplateSectionsLookup;
-  if (sections.some((section) => text(section.template_key) === resolved)) return resolved;
+  if (sections.some((section) => proposalTextField(section, 'template_key', 'templateKey') === resolved)) return resolved;
   const raw = text(value);
   const match = sections.find((section) => {
-    const templateKey = text(section.template_key);
-    const activityGroup = text(section.activity_type_group);
+    const templateKey = proposalTextField(section, 'template_key', 'templateKey');
+    const activityGroup = proposalTextField(section, 'activity_type_group', 'activityTypeGroup');
     return activityGroup && (activityGroup === raw || activityGroup === normalized)
       || templateKey && (templateKey === raw || templateKey === normalized);
   });
-  return match ? text(match.template_key) : resolved;
+  return match ? proposalTextField(match, 'template_key', 'templateKey') : resolved;
 }
 
 function proposalGroupTemplateKey(value) {
@@ -289,7 +332,7 @@ function proposalGroupTemplateKey(value) {
 function filterTemplateSectionsForGroup(templateSections = [], activityTypeGroup = '') {
   const templateKey = resolveProposalTemplateKey(activityTypeGroup);
   return (Array.isArray(templateSections) ? templateSections : [])
-    .filter((section) => !text(section.template_key) || text(section.template_key) === templateKey);
+    .filter((section) => !proposalTextField(section, 'template_key', 'templateKey') || proposalTextField(section, 'template_key', 'templateKey') === templateKey);
 }
 
 function isCombinedProposalGroup(value) {
@@ -416,11 +459,17 @@ function normalizeMultilineText(value) {
 }
 
 function normalizeDocumentSection(section = {}) {
+  const sectionKey = proposalTextField(section, 'section_key', 'sectionKey');
+  const sectionTitle = proposalTextField(section, 'section_title', 'sectionTitle');
+  const sectionBody = normalizeMultilineText(proposalField(section, 'section_body', 'sectionBody'));
   return {
     ...section,
-    section_key: text(section.section_key),
-    section_title: text(section.section_title),
-    section_body: normalizeMultilineText(section.section_body)
+    sectionKey,
+    sectionTitle,
+    sectionBody,
+    section_key: sectionKey,
+    section_title: sectionTitle,
+    section_body: sectionBody
   };
 }
 
@@ -996,7 +1045,7 @@ function itemBelongsToGroup(item = {}, groupKey = '') {
 
 function shouldShowGefenForItem(item = {}, contextGroup = '') {
   const group = normalizeProposalGroup(contextGroup || item.proposal_group || item.activity_type_group);
-  return Boolean(text(item.gefen_number)) && shouldShowGefenForGroup(group);
+  return Boolean(proposalTextField(item, 'gefen_number', 'gefenNumber')) && shouldShowGefenForGroup(group);
 }
 
 function paNumberOrNull(value) {
@@ -1018,7 +1067,7 @@ function buildInfoStripInnerHtml(item = {}, contextGroup = '') {
   const parts = [];
 
   // Gefen (annual / combined only)
-  const gefenNumber = showGefen ? text(item.gefen_number) : '';
+  const gefenNumber = showGefen ? proposalTextField(item, 'gefen_number', 'gefenNumber') : '';
   if (gefenNumber) parts.push(`גפ״ן ${escapeHtml(gefenNumber)}`);
 
   // Meetings / hours (always show if present)
@@ -1051,14 +1100,14 @@ function isSummerItemRowContext(contextGroup = '') {
 
 function itemRowHtml(item = {}, idx = 0, pricingOptions = [], options = {}) {
   const n = (v) => (v != null && v !== '' && !isNaN(Number(v))) ? escapeHtml(String(v)) : '';
-  const calcTotal = (Number(item.quantity) || 0) && (Number(item.unit_price) || 0)
-    ? String(((Number(item.quantity) || 0) * (Number(item.unit_price) || 0)).toFixed(2))
+  const calcTotal = (Number(proposalField(item, 'quantity', 'quantity')) || 0) && (Number(proposalField(item, 'unit_price', 'unitPrice')) || 0)
+    ? String(((Number(proposalField(item, 'quantity', 'quantity')) || 0) * (Number(proposalField(item, 'unit_price', 'unitPrice')) || 0)).toFixed(2))
     : n(item.total_price);
   const selectedPricingKey = text(item.pricing_option_key || item.pricing_activity_no || item.activity_no || item.pricing_activity_name || item.item_name);
   const pricingSelectOptionsHtml = buildPricingSelectOptionsHtml(pricingOptions, selectedPricingKey);
   const contextGroup = text(options.groupKey || item.proposal_group || '');
   const isSummerRow = isSummerItemRowContext(contextGroup);
-  const gefenValue = text(item.gefen_number);
+  const gefenValue = proposalTextField(item, 'gefen_number', 'gefenNumber');
   const hasActivity = Boolean(text(item.item_name));
   const infoStripHtml = !isSummerRow && hasActivity ? buildInfoStripInnerHtml(item, contextGroup) : '';
   const activitySelectLabel = isSummerRow ? 'פעילות' : 'בחירת פעילות / קורס';
@@ -1081,7 +1130,7 @@ function itemRowHtml(item = {}, idx = 0, pricingOptions = [], options = {}) {
       <summary class="ds-pa-item-extra-toggle">עריכה / הערות</summary>
       <div class="ds-pa-item-extra-body">
         <div class="ds-pa-item-grid ds-pa-item-grid--extras">
-          <label class="ds-pa-item-field ds-pa-item-field--type"><span>סוג פעילות</span><input class="ds-input ds-input--sm" name="item_type" value="${escapeHtml(item.item_type || '')}" list="pa-item-type-list" placeholder="סוג"></label>
+          <label class="ds-pa-item-field ds-pa-item-field--type"><span>סוג פעילות</span><input class="ds-input ds-input--sm" name="item_type" value="${escapeHtml(proposalField(item, 'item_type', 'itemType') || '')}" list="pa-item-type-list" placeholder="סוג"></label>
           <label class="ds-pa-item-field ds-pa-item-field--name"><span>שם פעילות / תוכנית</span><input class="ds-input ds-input--sm" name="item_name" value="${escapeHtml(item.item_name || '')}" placeholder="שם פעילות"></label>
           ${meetingsHoursFieldsHtml}
         </div>
@@ -1238,7 +1287,7 @@ function extractItemsFromForm(form) {
       || text(pricingRow?.proposal_group)
       || formGroup;
 
-    return {
+    const extracted = {
       activity_no:            fieldText('activity_no') || text(pricingRow?.activity_no),
       pricing_activity_no:    fieldText('activity_no') || text(pricingRow?.activity_no),
       pricing_option_key:     text(optionKey),
@@ -1259,23 +1308,56 @@ function extractItemsFromForm(form) {
       source_pricing_key:     fieldText('item_source_pricing_key') || text(pricingRow?.pricing_key),
       selected_bundle_items:  selectedBundleItems
     };
-  }).filter((item) => item.item_name && !isTestHoursItem(item));
+    return {
+      ...extracted,
+      activityNo: extracted.activity_no,
+      itemName: extracted.item_name,
+      itemType: extracted.item_type,
+      gefenNumber: extracted.gefen_number,
+      meetingsCount: extracted.meetings_count,
+      hoursCount: extracted.hours_count,
+      unitDuration: extracted.unit_duration,
+      unitPrice: extracted.unit_price,
+      hourlyPrice: extracted.hourly_price,
+      totalPrice: extracted.total_price,
+      proposalGroup: extracted.proposal_group,
+      sortOrder: extracted.sort_order,
+      proposalDisplayMode: extracted.proposal_display_mode,
+      sourcePricingKey: extracted.source_pricing_key,
+      selectedBundleItems: extracted.selected_bundle_items
+    };
+  }).filter((item) => hasMeaningfulProposalItemValue(item) && !isTestHoursItem(item));
+}
+
+function hasMeaningfulProposalItemValue(item = {}) {
+  return Boolean(
+    proposalTextField(item, 'item_name', 'itemName') ||
+    proposalTextField(item, 'source_pricing_key', 'sourcePricingKey') ||
+    proposalTextField(item, 'pricing_key', 'pricingKey') ||
+    proposalTextField(item, 'activity_no', 'activityNo') ||
+    proposalTextField(item, 'proposal_group', 'proposalGroup') ||
+    proposalTextField(item, 'group_key', 'groupKey') ||
+    Number(proposalField(item, 'quantity', 'quantity')) ||
+    Number(proposalField(item, 'unit_price', 'unitPrice')) ||
+    Number(proposalField(item, 'total_price', 'totalPrice'))
+  );
 }
 
 // ─── Items summary (drawer read-only) ────────────────────────────────────────
 
 function itemsSummaryHtml(items = []) {
-  if (!Array.isArray(items) || !items.length) {
+  const activeItems = (Array.isArray(items) ? items : []).filter(hasMeaningfulProposalItemValue);
+  if (!activeItems.length) {
     return '<p class="ds-pa-no-items-alert" role="alert" style="font-size:0.8rem;margin:4px 0;color:#b45309;background:#fffbeb;border:1px solid #fde68a;border-radius:8px;padding:6px 10px">לא נשמרו שורות פעילות להצעה זו</p>';
   }
-  const visibleSummaryItems = items.filter((item) => !isTestHoursItem(item));
+  const visibleSummaryItems = activeItems.filter((item) => !isTestHoursItem(item));
   const total = visibleSummaryItems.reduce((s, i) => {
-    const t = Number(i.total_price) || ((Number(i.quantity) || 1) * (Number(i.unit_price) || 0));
+    const t = Number(proposalField(i, 'total_price', 'totalPrice')) || ((Number(proposalField(i, 'quantity', 'quantity')) || 1) * (Number(proposalField(i, 'unit_price', 'unitPrice')) || 0));
     return s + t;
   }, 0);
   const rows = visibleSummaryItems.map((item) => {
-    const t = Number(item.total_price) || ((Number(item.quantity) || 1) * (Number(item.unit_price) || 0));
-    const bundleItems = Array.isArray(item.selected_bundle_items) ? item.selected_bundle_items : [];
+    const t = Number(proposalField(item, 'total_price', 'totalPrice')) || ((Number(proposalField(item, 'quantity', 'quantity')) || 1) * (Number(proposalField(item, 'unit_price', 'unitPrice')) || 0));
+    const bundleItems = Array.isArray(proposalField(item, 'selected_bundle_items', 'selectedBundleItems')) ? proposalField(item, 'selected_bundle_items', 'selectedBundleItems') : [];
     const bundleLinesList = bundleItems.map((bi) => {
       if (typeof bi === 'object') {
         const parts = [publicActivityName(bi.activity_name)].filter(Boolean);
@@ -1285,21 +1367,21 @@ function itemsSummaryHtml(items = []) {
       return publicActivityName(bi);
     }).filter(Boolean);
     const details = [
-      text(item.gefen_number) ? `גפ״ן: ${text(item.gefen_number)}` : '',
-      text(item.meetings_count) ? `מפגשים: ${text(item.meetings_count)}` : '',
-      text(item.hours_count) ? `שעות: ${text(item.hours_count)}` : '',
-      text(item.unit_duration) ? `משך: ${text(item.unit_duration)}` : '',
-      text(item.proposal_group) ? `קבוצה: ${proposalGroupDisplayName(item.proposal_group)}` : '',
+      proposalTextField(item, 'gefen_number', 'gefenNumber') ? `גפ״ן: ${proposalTextField(item, 'gefen_number', 'gefenNumber')}` : '',
+      proposalTextField(item, 'meetings_count', 'meetingsCount') ? `מפגשים: ${proposalTextField(item, 'meetings_count', 'meetingsCount')}` : '',
+      proposalTextField(item, 'hours_count', 'hoursCount') ? `שעות: ${proposalTextField(item, 'hours_count', 'hoursCount')}` : '',
+      proposalTextField(item, 'unit_duration', 'unitDuration') ? `משך: ${proposalTextField(item, 'unit_duration', 'unitDuration')}` : '',
+      proposalTextField(item, 'proposal_group', 'proposalGroup') ? `קבוצה: ${proposalGroupDisplayName(proposalTextField(item, 'proposal_group', 'proposalGroup'))}` : '',
       !bundleLinesList.length ? cleanCustomerText(item.description) : ''
     ].filter(Boolean).join(' | ');
     const bundleDetailHtml = bundleLinesList.length
       ? `<ul class="ds-pa-summary-bundle-list">${bundleLinesList.map((l) => `<li>${escapeHtml(l)}</li>`).join('')}</ul>`
       : '';
     return `<tr>
-      <td>${escapeHtml(publicActivityName(item.item_name) || '')}${details ? `<div class="ds-muted" style="font-size:0.72rem">${escapeHtml(details)}</div>` : ''}${bundleDetailHtml}</td>
-      <td>${escapeHtml(item.item_type || '')}</td>
-      <td>${item.quantity != null ? item.quantity : ''}</td>
-      <td>${item.unit_price != null ? `${formatCurrency(item.unit_price)} ₪` : ''}</td>
+      <td>${escapeHtml(publicActivityName(proposalField(item, 'item_name', 'itemName')) || '')}${details ? `<div class="ds-muted" style="font-size:0.72rem">${escapeHtml(details)}</div>` : ''}${bundleDetailHtml}</td>
+      <td>${escapeHtml(proposalField(item, 'item_type', 'itemType') || '')}</td>
+      <td>${proposalField(item, 'quantity', 'quantity') != null ? proposalField(item, 'quantity', 'quantity') : ''}</td>
+      <td>${proposalField(item, 'unit_price', 'unitPrice') != null ? `${formatCurrency(proposalField(item, 'unit_price', 'unitPrice'))} ₪` : ''}</td>
       <td>${t ? `${formatCurrency(t)} ₪` : ''}</td>
     </tr>`;
   }).join('');
@@ -1316,7 +1398,7 @@ function itemsSummaryHtml(items = []) {
 // ─── Preview document ─────────────────────────────────────────────────────────
 
 function templateBodyText(section) {
-  return normalizeMultilineText(section?.section_body);
+  return normalizeMultilineText(proposalField(section, 'section_body', 'sectionBody'));
 }
 
 // Document title must come from Supabase data (template_name on proposal_template_sections),
@@ -1344,10 +1426,10 @@ function sectionHeadingText(rawTitle, fallback = '') {
 }
 
 function proposalLineHtml(item = {}, _options = {}) {
-  const itemName = publicActivityName(item.item_name);
+  const itemName = publicActivityName(proposalField(item, 'item_name', 'itemName'));
   if (!itemName) return '';
 
-  const bundleItems = Array.isArray(item.selected_bundle_items) ? item.selected_bundle_items : [];
+  const bundleItems = Array.isArray(proposalField(item, 'selected_bundle_items', 'selectedBundleItems')) ? proposalField(item, 'selected_bundle_items', 'selectedBundleItems') : [];
   if (bundleItems.length && (item.proposal_display_mode === 'bundle_parent' || item.is_bundle_parent)) {
     const subLines = bundleItems.map((bi) => {
       const name = typeof bi === 'object' ? publicActivityName(bi.activity_name) : publicActivityName(bi);
@@ -1367,7 +1449,7 @@ function proposalItemsListHtml(items = [], options = {}) {
 }
 
 function isDiscountItem(item = {}) {
-  return text(item.item_name) === 'הנחה' || Number(item.total_price) < 0 || Number(item.unit_price) < 0;
+  return text(item.item_name) === 'הנחה' || Number(proposalField(item, 'total_price', 'totalPrice')) < 0 || Number(proposalField(item, 'unit_price', 'unitPrice')) < 0;
 }
 
 function costTableRowData(name, quantity, unitPrice, total) {
@@ -1382,12 +1464,12 @@ function costTableRowData(name, quantity, unitPrice, total) {
 }
 
 function costTableRowsFromItem(item = {}) {
-  const bundleItems = Array.isArray(item.selected_bundle_items) ? item.selected_bundle_items : [];
+  const bundleItems = Array.isArray(proposalField(item, 'selected_bundle_items', 'selectedBundleItems')) ? proposalField(item, 'selected_bundle_items', 'selectedBundleItems') : [];
   const displayMode = text(item.proposal_display_mode);
   const isBundleParent = displayMode === 'bundle_parent' || item.is_bundle_parent;
 
   if (isBundleParent && bundleItems.length) {
-    const parentQuantity = Number(item.quantity) || 1;
+    const parentQuantity = Number(proposalField(item, 'quantity', 'quantity')) || 1;
     const childRows = bundleItems.map((bundleItem) => {
       const name = publicActivityName(typeof bundleItem === 'object' ? bundleItem.activity_name : bundleItem);
       const unitPrice = numberValue(typeof bundleItem === 'object' ? bundleItem.unit_price : null);
@@ -1398,8 +1480,8 @@ function costTableRowsFromItem(item = {}) {
     if (childRows.length) return childRows;
   }
 
-  const name = publicActivityName(item.item_name);
-  const quantity = Number(item.quantity) || 1;
+  const name = publicActivityName(proposalField(item, 'item_name', 'itemName'));
+  const quantity = Number(proposalField(item, 'quantity', 'quantity')) || 1;
   const unitPrice = numberValue(item.unit_price);
   const total = numberValue(item.total_price) ?? (unitPrice != null ? quantity * unitPrice : null);
   const row = costTableRowData(name, quantity, unitPrice, total);
@@ -1437,10 +1519,10 @@ function proposalCostTableHtml(items = []) {
 
 function proposalDiscountSummaryHtml(items = []) {
   const allItems = Array.isArray(items) ? items : [];
-  const discount = Math.abs(allItems.filter(isDiscountItem).reduce((sum, item) => sum + (Number(item.total_price) || Number(item.unit_price) || 0), 0));
+  const discount = Math.abs(allItems.filter(isDiscountItem).reduce((sum, item) => sum + (Number(proposalField(item, 'total_price', 'totalPrice')) || Number(proposalField(item, 'unit_price', 'unitPrice')) || 0), 0));
   if (!discount) return '';
   const subtotal = allItems.filter((item) => !isDiscountItem(item)).reduce((sum, item) => {
-    const quantity = Number(item.quantity) || 1;
+    const quantity = Number(proposalField(item, 'quantity', 'quantity')) || 1;
     const unitPrice = numberValue(item.unit_price);
     const total = numberValue(item.total_price) ?? (unitPrice != null ? quantity * unitPrice : 0);
     return sum + (Number(total) || 0);
@@ -1456,7 +1538,7 @@ function proposalDiscountSummaryHtml(items = []) {
 }
 
 function itemQuantity(item = {}) {
-  return Number(item.quantity) || 1;
+  return Number(proposalField(item, 'quantity', 'quantity')) || 1;
 }
 
 function itemQuantityTotal(item = {}) {
@@ -1473,7 +1555,7 @@ function proposalItemDetailsTableHtml(items = [], contextGroup = '') {
   const rows = visibleItems.map((item) => {
     const hasCourseRowData = Boolean(
       text(item.item_name)
-      || text(item.gefen_number)
+      || proposalTextField(item, 'gefen_number', 'gefenNumber')
       || item.meetings_count != null
       || item.hours_count != null
       || item.hourly_price != null
@@ -1484,8 +1566,8 @@ function proposalItemDetailsTableHtml(items = [], contextGroup = '') {
     const quantity = itemQuantity(item);
     const quantityTotal = itemQuantityTotal(item);
     const cells = [
-      { value: publicActivityName(item.item_name) },
-      { value: shouldShowGefenForItem(item, contextGroup) ? text(item.gefen_number) : '' },
+      { value: publicActivityName(proposalField(item, 'item_name', 'itemName')) },
+      { value: shouldShowGefenForItem(item, contextGroup) ? proposalTextField(item, 'gefen_number', 'gefenNumber') : '' },
       { value: item.meetings_count != null ? formatCurrency(item.meetings_count) : '' },
       { value: formatCurrency(quantity) },
       { value: item.hours_count != null ? formatCurrency(item.hours_count) : '' },
@@ -1673,16 +1755,16 @@ function resolveDocumentSections(row, templateSections = []) {
   const fromSupabase = Array.isArray(templateSections) ? templateSections : [];
   let source = custom.length ? custom : fromSupabase;
   if (custom.length) {
-    const customKeys = new Set(custom.map((section) => text(section.section_key)));
+    const customKeys = new Set(custom.map((section) => proposalTextField(section, 'section_key', 'sectionKey')));
     if (!customKeys.has('signature')) {
       const templateSignature = fromSupabase.find((section) =>
-        text(section.section_key) === 'signature' && text(section.section_body));
+        proposalTextField(section, 'section_key', 'sectionKey') === 'signature' && text(section.section_body));
       if (templateSignature) source = [...source, templateSignature];
     }
   }
   return source
     .map(normalizeDocumentSection)
-    .filter((section) => text(section.section_key) || text(section.section_title) || text(section.section_body));
+    .filter((section) => proposalTextField(section, 'section_key', 'sectionKey') || proposalTextField(section, 'section_title', 'sectionTitle') || text(section.section_body));
 }
 
 function documentSectionsEditorHtml(sections = [], isCustom = false) {
@@ -1696,8 +1778,8 @@ function documentSectionsEditorHtml(sections = [], isCustom = false) {
     : `<p class="ds-pa-doc-indicator ds-pa-doc-indicator--template">עריכת סעיפי מסמך מתוך Supabase</p>`;
   const rows = sections.map((section, idx) => `
     <label class="ds-pa-form-field ds-pa-form-field--wide">
-      <span>${escapeHtml(text(section.section_title) || text(section.section_key) || `סעיף ${idx + 1}`)}</span>
-      <textarea class="ds-input ds-input--sm" rows="4" data-pa-doc-body="${escapeHtml(text(section.section_key))}">${escapeHtml(String(section.section_body || ''))}</textarea>
+      <span>${escapeHtml(proposalTextField(section, 'section_title', 'sectionTitle') || proposalTextField(section, 'section_key', 'sectionKey') || `סעיף ${idx + 1}`)}</span>
+      <textarea class="ds-input ds-input--sm" rows="4" data-pa-doc-body="${escapeHtml(proposalTextField(section, 'section_key', 'sectionKey'))}">${escapeHtml(String(proposalField(section, 'section_body', 'sectionBody') || ''))}</textarea>
     </label>`).join('');
   return `<div class="ds-pa-doc-editor" data-pa-doc-editor>${indicator}${rows}</div>`;
 }
@@ -1763,10 +1845,10 @@ export function proposalPreviewBodyHtml(row, items = [], templateSections = [], 
   // Date comes only from the proposal row — no "today" fallback in customer documents.
   const dateDisplay = formatDateDisplay(row.proposal_date);
   const sourceTemplateSections = Array.isArray(templateSections)
-    ? templateSections.filter((section) => !text(section.template_key) || text(section.template_key) === templateKey)
+    ? templateSections.filter((section) => !proposalTextField(section, 'template_key', 'templateKey') || proposalTextField(section, 'template_key', 'templateKey') === templateKey)
     : [];
   const sectionsSource = resolveDocumentSections(row, sourceTemplateSections);
-  const byKey = new Map(sectionsSource.map((section) => [text(section.section_key), section]));
+  const byKey = new Map(sectionsSource.map((section) => [proposalTextField(section, 'section_key', 'sectionKey'), section]));
   const sectionBody = (key) => applyProposalTemplatePlaceholders(templateBodyText(byKey.get(key)), row, items);
   const sectionTitle = (key) => text(byKey.get(key)?.section_title);
 
@@ -2165,7 +2247,7 @@ function formHtml(mode, row = {}, activityNameOptions = [], contactOptions = [],
   });
   const initialTemplateKey = proposalGroupTemplateKey(normalizedActivityGroup);
   const initialTemplateSections = resolveDocumentSections(row, [])
-    .filter((section) => !text(section.template_key) || text(section.template_key) === initialTemplateKey);
+    .filter((section) => !proposalTextField(section, 'template_key', 'templateKey') || proposalTextField(section, 'template_key', 'templateKey') === initialTemplateKey);
   const initialPreviewHtml = proposalPreviewBodyHtml(initialPreviewRow, items, initialTemplateSections);
 
   return `<form class="ds-pa-form ds-pa-form--compact pa-editor" data-pa-form data-pa-mode="${escapeHtml(mode)}" data-pa-id="${escapeHtml(row.id || '')}" data-pa-original-type="${escapeHtml(normalizedActivityGroup)}" dir="rtl">
@@ -2409,7 +2491,7 @@ function payloadFromForm(form) {
   payload.document_type = 'הצעת מחיר';
   payload.include_catalog = false;
   const items = filterItemsByProposalType(extractItemsFromForm(form), payload.activity_type_group);
-  const subtotal = items.reduce((s, i) => s + Math.max(Number(i.total_price) || ((Number(i.quantity) || 0) * (Number(i.unit_price) || 0)), 0), 0);
+  const subtotal = items.reduce((s, i) => s + Math.max(Number(proposalField(i, 'total_price', 'totalPrice')) || ((Number(proposalField(i, 'quantity', 'quantity')) || 0) * (Number(proposalField(i, 'unit_price', 'unitPrice')) || 0)), 0), 0);
   const discountType = text(form.querySelector('[data-pa-discount-type]')?.value) || 'amount';
   const discountValue = Number(form.querySelector('[data-pa-discount-value]')?.value) || 0;
   const discountAmount = discountType === 'percent' ? subtotal * (Math.min(discountValue, 100) / 100) : Math.min(discountValue, subtotal);
@@ -2424,7 +2506,7 @@ function payloadFromForm(form) {
   }
   const itemNames = Array.from(new Set(items.map((i) => text(i.item_name)).filter((name) => name && name !== 'הנחה')));
   if (itemNames.length) payload.activity_names = itemNames;
-  payload.total_amount = items.reduce((s, i) => s + (Number(i.total_price) || ((Number(i.quantity) || 0) * (Number(i.unit_price) || 0))), 0) || null;
+  payload.total_amount = items.reduce((s, i) => s + (Number(proposalField(i, 'total_price', 'totalPrice')) || ((Number(proposalField(i, 'quantity', 'quantity')) || 0) * (Number(proposalField(i, 'unit_price', 'unitPrice')) || 0))), 0) || null;
   payload._items = items;
   payload.authority_id = text(formData.get('contact_source_authority_id')) || null;
   payload.client_type = text(formData.get('contact_source_client_type')) || (text(formData.get('contact_source_school_id')) ? 'school' : 'authority');
@@ -2677,7 +2759,8 @@ export {
   proposalGroupTemplateKey,
   filterTemplateSectionsForGroup,
   documentSectionsEditorHtml,
-  itemsSummaryHtml
+  itemsSummaryHtml,
+  extractItemsFromForm
 };
 
 // ─── Screen ───────────────────────────────────────────────────────────────────
@@ -2743,7 +2826,7 @@ export const proposalsAgreementsScreen = {
     const proposalActivityPricing = Array.isArray(data?.proposalActivityPricing) ? data.proposalActivityPricing : [];
     setProposalGroupLookups(data, data.rows, proposalActivityPricing);
     setProposalPricingLookup(proposalActivityPricing);
-    const proposalTemplateSections = Array.isArray(data?.proposalTemplateSections) ? data.proposalTemplateSections : [];
+    const proposalTemplateSections = normalizeTemplateSections(Array.isArray(data?.proposalTemplateSections) ? data.proposalTemplateSections : []);
     const contactOptions = Array.isArray(data?.contactOptions) ? data.contactOptions : [];
     const contactOptionsError = text(data?.contactOptionsError || data?._debug?.contacts_error || '');
     // eslint-disable-next-line no-console
@@ -2792,7 +2875,7 @@ export const proposalsAgreementsScreen = {
       const clientDone = Boolean(text(form?.querySelector('[name="client_authority"]')?.value));
       const proposalDone = clientDone && Boolean(text(form?.querySelector('[name="activity_type_group"]')?.value));
       const items = proposalDone ? extractItemsFromForm(form) : [];
-      const activityDone = proposalDone && items.some((item) => text(item.item_name) && (Number(item.total_price) > 0 || ((Number(item.quantity) || 0) * (Number(item.unit_price) || 0)) > 0));
+      const activityDone = proposalDone && items.some((item) => text(item.item_name) && (Number(proposalField(item, 'total_price', 'totalPrice')) > 0 || ((Number(proposalField(item, 'quantity', 'quantity')) || 0) * (Number(proposalField(item, 'unit_price', 'unitPrice')) || 0)) > 0));
       return { client: clientDone, proposal: proposalDone, activity: activityDone, summary: activityDone };
     };
     const setPanelOpen = (form, key, open) => {
@@ -4030,8 +4113,8 @@ export const proposalsAgreementsScreen = {
         }
         const templateSections = filterTemplateSectionsForGroup(proposalTemplateSections, row.activity_type_group);
         const workingSections = resolveDocumentSections(row, templateSections).map((section) => ({
-          section_key: text(section.section_key),
-          section_title: text(section.section_title),
+          section_key: proposalTextField(section, 'section_key', 'sectionKey'),
+          section_title: proposalTextField(section, 'section_title', 'sectionTitle'),
           section_body: normalizeMultilineText(section.section_body)
         }));
         const host = root.querySelector('[data-pa-inline-form]');
@@ -4057,9 +4140,9 @@ export const proposalsAgreementsScreen = {
         if (!row || !wrap) return;
         const templateSections = filterTemplateSectionsForGroup(proposalTemplateSections, row.activity_type_group);
         const sections = templateSections.map((section) => ({
-          section_key: text(section.section_key),
-          section_title: text(section.section_title),
-          section_body: normalizeMultilineText(Array.from(wrap.querySelectorAll('[data-pa-doc-body]')).find((el) => text(el.dataset.paDocBody) === text(section.section_key))?.value)
+          section_key: proposalTextField(section, 'section_key', 'sectionKey'),
+          section_title: proposalTextField(section, 'section_title', 'sectionTitle'),
+          section_body: normalizeMultilineText(Array.from(wrap.querySelectorAll('[data-pa-doc-body]')).find((el) => text(el.dataset.paDocBody) === proposalTextField(section, 'section_key', 'sectionKey'))?.value)
         }));
         const result = typeof api.saveProposalAgreementCustomDocumentSections === 'function'
           ? await api.saveProposalAgreementCustomDocumentSections(id, sections)
