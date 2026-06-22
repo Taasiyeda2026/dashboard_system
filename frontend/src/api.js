@@ -5325,8 +5325,17 @@ export const api = {
     if (existingInstructorError) throw buildSupabaseMutationError('submitEditRequest', existingInstructorError, 'submit_edit_request_failed');
     await validateActivityInstructorBindingsOrThrow({ ...(existingInstructorRow || {}), ...syncedChanges });
     const reducedChanges = Object.entries(syncedChanges).reduce((acc, [key, value]) => {
-      if (value === undefined || value === null) return acc;
+      if (value === undefined) return acc;
+      const isDateField = key === 'start_date' || key === 'end_date' || /^date_\d+$/.test(key) || /^meeting_date_\d+$/.test(key);
+      if (value === null) {
+        if (isDateField) acc[key] = null;
+        return acc;
+      }
       const normalizedValue = String(value).trim();
+      if (!normalizedValue && isDateField) {
+        acc[key] = null;
+        return acc;
+      }
       acc[key] = normalizedValue;
       return acc;
     }, {});

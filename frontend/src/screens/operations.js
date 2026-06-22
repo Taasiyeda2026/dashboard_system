@@ -109,11 +109,11 @@ export const operationsScreen = {
         ui,
         clearScreenDataCache,
         rerender,
-        onRowSaved: ({ sourceRowId, changes }) => {
+        onRowSaved: ({ sourceRowId, changes, row }) => {
           const cached = detailCache.get(sourceRowId);
-          if (cached) Object.assign(cached, changes || {});
+          if (cached) Object.assign(cached, row || changes || {});
           const hit = rowById.get(String(sourceRowId));
-          if (hit) Object.assign(hit, changes || {});
+          if (hit) Object.assign(hit, row || changes || {});
         }
       });
     }
