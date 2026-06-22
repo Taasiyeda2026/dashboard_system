@@ -2857,6 +2857,17 @@ test('next_year template_name migration updates programs wording', async () => {
   assert.match(migration, /where template_key = 'next_year'/i);
 });
 
+test('exact proposal templates multiline migration is not a no-op when stable SQL exists', async () => {
+  const migration = await readFile(
+    new URL('../supabase/migrations/20260530151253_exact_proposal_templates_multiline.sql', import.meta.url),
+    'utf8'
+  );
+  assert.doesNotMatch(migration, /^[\s\S]*SELECT\s+1\s*;\s*$/i);
+  assert.match(migration, /insert into public\.proposal_template_sections/i);
+  assert.match(migration, /template_key IN \('summer', 'next_year', 'combined'\)/i);
+  assert.match(migration, /\$body\$[\s\S]*\$body\$/);
+});
+
 const STABLE_COMMIT = '2c772f835cc19da52fd76528c0b19f667f23de79';
 const STABLE_DIRECTORY_COLUMNS = 'id,authority_id,authority_code,school_id,contact_school_id,authority_name,legacy_client_authority,contact_client_type,contact_client_name,school_name,legacy_school_framework,document_type,activity_type_group,proposal_date,activity_names,contact_name,contact_role,phone,email,notes,status,approval_note,total_amount,custom_document_sections,include_catalog,signature_meta,approved_by,approved_at,created_at,updated_at';
 
