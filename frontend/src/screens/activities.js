@@ -1986,11 +1986,11 @@ export const activitiesScreen = {
         ui,
         clearScreenDataCache,
         rerender,
-        onRowSaved: ({ sourceSheet, sourceRowId, changes }) => {
-          patchLocalRowFromSave({ sourceRowId, changes });
+        onRowSaved: ({ sourceSheet, sourceRowId, changes, row }) => {
+          patchLocalRowFromSave({ sourceRowId, changes: row || changes });
           const key = `activityDetail:${sourceSheet || ''}:${sourceRowId || ''}`;
           const entry = state?.screenDataCache?.[key];
-          if (entry?.data && typeof entry.data === 'object') Object.assign(entry.data, changes || {});
+          if (entry?.data && typeof entry.data === 'object') Object.assign(entry.data, row || changes || {});
         },
         onSaveSuccess: async ({ sourceSheet, sourceRowId, contentRoot }) => {
           try {

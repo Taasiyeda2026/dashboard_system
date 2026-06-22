@@ -46,5 +46,5 @@ if (!resolvedUrl) {
 export const config = {
   apiUrl: resolvedUrl,
   DIAGNOSTICS_UI_ENABLED: false,
-  HOTFIX_VERSION: 'block-invalid-activity-instructor-emp-id-20260621-v1'
+  HOTFIX_VERSION: 'activity-date-save-proof-20260622-v1'
 };

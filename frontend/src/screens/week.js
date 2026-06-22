@@ -199,10 +199,10 @@ function putCachedActivityDetail(row, fullRow, s) {
     s.screenDataCache[activityDetailCacheKey(row)] = { data: fullRow, t: Date.now() };
   }
 }
-function patchCachedActivityDetail({ sourceSheet, sourceRowId, changes }, s) {
+function patchCachedActivityDetail({ sourceSheet, sourceRowId, changes, row }, s) {
   const key = `activityDetail:${sourceSheet || ''}:${sourceRowId || ''}`;
   const entry = s?.screenDataCache?.[key];
-  if (entry?.data && typeof entry.data === 'object') Object.assign(entry.data, changes || {});
+  if (entry?.data && typeof entry.data === 'object') Object.assign(entry.data, row || changes || {});
 }
 
 export const weekScreen = {

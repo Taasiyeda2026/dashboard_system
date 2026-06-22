@@ -236,6 +236,7 @@ const API_ERROR_HE = {
   delete_activity_not_confirmed: 'הפעילות לא נמחקה. ייתכן שאין הרשאה או שהפעילות לא נמצאה.',
   submit_edit_request_failed: 'שליחת בקשת העריכה נכשלה — פנו למנהל המערכת',
   save_failed: 'שמירת הפעילות נכשלה — פנו למנהל המערכת',
+  activity_date_db_verify_failed: 'השמירה נכשלה: התאריך לא נשמר בפועל',
   missing_row_id: 'חסר מזהה פעילות לשמירה',
   'user_id is required': 'יש להזין מזהה משתמש',
   invalid_credentials: 'שם משתמש או סיסמה שגויים',

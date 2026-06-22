@@ -3905,6 +3905,16 @@ async function upsertActivityToSupabase(payload = {}) {
 }
 
 
+function activityDateSelectColumns() {
+  return ['row_id', 'start_date', 'end_date', ...Array.from({ length: 35 }, (_, idx) => `date_${idx + 1}`)].join(',');
+}
+
+function pickActivityDateProofRow(row = {}) {
+  const out = { row_id: row?.row_id || '', start_date: row?.start_date || '', end_date: row?.end_date || '' };
+  for (let i = 1; i <= 35; i++) out[`date_${i}`] = row?.[`date_${i}`] || '';
+  return out;
+}
+
 function assertSupabaseActivityUpdateApplied(operation, requestedChanges = {}, returnedRow = {}) {
   if (!returnedRow || typeof returnedRow !== 'object') {
     const err = new Error('activity_update_no_row_returned');
@@ -3949,7 +3959,8 @@ async function updateActivityInSupabase(payload = {}) {
     if (existingError) throw buildSupabaseMutationError('saveActivity', existingError, 'save_failed');
     existingForNormalization = existingRow || {};
   }
-  let normalizedChangesSource = synchronizeStartDateAndFirstMeeting(mapMeetingDateFieldNamesToSupabase(rawChanges), existingForNormalization || {});
+  const mappedChanges = mapMeetingDateFieldNamesToSupabase(rawChanges);
+  let normalizedChangesSource = synchronizeStartDateAndFirstMeeting(mappedChanges, existingForNormalization || {});
   if (existingForNormalization && oneDayTypeFromActivityFields(rawChanges.activity_type || existingForNormalization.activity_type, rawChanges.item_type || existingForNormalization.item_type)) {
     const normalizedFullRow = assertValidOneDayActivityRow(normalizeOneDayActivityForSave({ ...existingForNormalization, ...rawChanges }));
     normalizedChangesSource = { ...normalizedChangesSource };
@@ -3960,7 +3971,14 @@ async function updateActivityInSupabase(payload = {}) {
       normalizedChangesSource.activity_name = normalizedFullRow.activity_name;
     }
   }
-  const changes = sanitizeActivityPayloadForSupabase(normalizedChangesSource, { includeRowId: false });
+  const sanitizedChanges = sanitizeActivityPayloadForSupabase(normalizedChangesSource, { includeRowId: false });
+  console.info('[activity-date-save-proof:mapped]', {
+    rowId,
+    rawChanges,
+    mappedChanges,
+    sanitizedChanges
+  });
+  const changes = sanitizedChanges;
   const hasMeetingDateChange = Object.keys(changes).some((k) => /^date_\d+$/.test(k));
   const hasExplicitEndDate = Object.prototype.hasOwnProperty.call(changes, 'end_date');
   if (hasMeetingDateChange && !hasExplicitEndDate) {
@@ -4005,6 +4023,7 @@ async function updateActivityInSupabase(payload = {}) {
     throw duplicateRowIdError;
   }
   logActivityMutationDebug('request', 'saveActivity', debugPayload, { table: 'activities' });
+  console.info('[activity-date-save-proof:before-update]', { rowId, changes });
   const { data, error } = await supabase
     .from('activities')
     .update(changes)
@@ -4042,14 +4061,25 @@ async function updateActivityInSupabase(payload = {}) {
     console.error('[activity-save-error]', { operation: 'saveActivity', table: 'activities', payload: debugPayload, error: notFound });
     throw notFound;
   }
+  const { data: freshDbRow, error: freshDbError } = await supabase
+    .from('activities')
+    .select(activityDateSelectColumns())
+    .eq('row_id', rowId)
+    .maybeSingle();
+  if (freshDbError) throw buildSupabaseMutationError('saveActivity', freshDbError, 'save_failed');
+  const proofRow = pickActivityDateProofRow(freshDbRow || {});
+  console.info('[activity-date-save-proof:final-db-row]', proofRow);
   try {
-    assertSupabaseActivityUpdateApplied('saveActivity', changes, data);
+    assertSupabaseActivityUpdateApplied('saveActivity', changes, freshDbRow || {});
   } catch (verifyError) {
+    const dbVerifyError = new Error('activity_date_db_verify_failed');
+    dbVerifyError.code = 'activity_date_db_verify_failed';
+    dbVerifyError.cause = verifyError;
     // eslint-disable-next-line no-console
-    console.error('[activity-save-error]', { operation: 'saveActivity', table: 'activities', payload: debugPayload, returned_row: data, error: verifyError });
-    throw verifyError;
+    console.error('[activity-save-error]', { operation: 'saveActivity', table: 'activities', payload: debugPayload, returned_row: data, final_db_row: proofRow, error: dbVerifyError });
+    throw dbVerifyError;
   }
-  const normalized = normalizeActivityRow(data || {});
+  const normalized = normalizeActivityRow({ ...(data || {}), ...(freshDbRow || {}) });
   logActivityMutationDebug('success', 'saveActivity', debugPayload, { table: 'activities', returned_row_id: normalized.row_id });
   return { ok: true, RowID: rowId, row_id: rowId, source_sheet: 'activities', row: normalized };
 }
