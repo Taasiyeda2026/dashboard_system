@@ -1044,6 +1044,10 @@ function isSummerProposalGroup(value = '') {
   return isSummerKindText(groupKindText(value));
 }
 
+function isNextYearProposalGroup(value = '') {
+  return proposalGroupTemplateKey(value) === 'next_year';
+}
+
 function isWorkshopKindText(value = '') {
   return /סדנ|workshop|stem|חלל/.test(value);
 }
@@ -1708,8 +1712,18 @@ function itemQuantityTotal(item = {}) {
 
 function proposalItemDetailsTableHtml(items = [], contextGroup = '') {
   if (!isCourseKindText(groupKindText(contextGroup))) return '';
+  const isNextYearTable = isNextYearProposalGroup(contextGroup);
+  const tableClass = `pa-item-details-table pa-activities-table${isNextYearTable ? ' pa-next-year-course-table' : ''}`;
   const visibleItems = (Array.isArray(items) ? items : []).filter((item) =>
     !isTestHoursItem(item) && text(item.proposal_display_mode) !== 'bundle_child');
+  let totalMeetings = 0;
+  let hasMeetings = false;
+  let totalQuantity = 0;
+  let hasQuantity = false;
+  let totalHours = 0;
+  let hasHours = false;
+  let totalPrice = 0;
+  let hasTotalPrice = false;
   const rows = visibleItems.map((item) => {
     const hasCourseRowData = Boolean(
       text(item.item_name)
@@ -1723,6 +1737,22 @@ function proposalItemDetailsTableHtml(items = [], contextGroup = '') {
     if (!hasCourseRowData) return '';
     const quantity = itemQuantity(item);
     const quantityTotal = itemQuantityTotal(item);
+    if (item.meetings_count != null) {
+      hasMeetings = true;
+      totalMeetings += Number(item.meetings_count) || 0;
+    }
+    if (quantity) {
+      hasQuantity = true;
+      totalQuantity += quantity;
+    }
+    if (item.hours_count != null) {
+      hasHours = true;
+      totalHours += Number(item.hours_count) || 0;
+    }
+    if (quantityTotal != null) {
+      hasTotalPrice = true;
+      totalPrice += quantityTotal;
+    }
     const cells = [
       { value: publicActivityName(proposalField(item, 'item_name', 'itemName')) },
       { value: shouldShowGefenForItem(item, contextGroup) ? proposalTextField(item, 'gefen_number', 'gefenNumber') : '' },
@@ -1736,9 +1766,20 @@ function proposalItemDetailsTableHtml(items = [], contextGroup = '') {
     return `<tr>${cells.map((cell) => `<td>${cell.html ? (cell.value || '') : escapeHtml(cell.value || '')}</td>`).join('')}</tr>`;
   }).filter(Boolean);
   if (!rows.length) return '';
-  return `<table class="pa-item-details-table pa-activities-table">
+  const footerCells = [
+    { value: 'סה״כ' },
+    { value: '' },
+    { value: hasMeetings ? formatCurrency(totalMeetings) : '' },
+    { value: hasQuantity ? formatCurrency(totalQuantity) : '' },
+    { value: hasHours ? formatCurrency(totalHours) : '' },
+    { value: '' },
+    { value: hasTotalPrice ? currencyAmountHtml(totalPrice) : '', html: true }
+  ];
+  const footerRow = `<tr>${footerCells.map((cell) => `<td>${cell.html ? (cell.value || '') : escapeHtml(cell.value || '')}</td>`).join('')}</tr>`;
+  return `<table class="${tableClass}">
     <thead><tr><th>קורס / תוכנית</th><th>מס׳ גפ״ן</th><th>מפגשים</th><th>קבוצות</th><th>שעות</th><th>מחיר לשעה</th><th>סה״כ</th></tr></thead>
     <tbody>${rows.join('')}</tbody>
+    <tfoot>${footerRow}</tfoot>
   </table>`;
 }
 
@@ -1854,6 +1895,42 @@ function parseSectionBodyStructure(value, options = {}) {
   return groups;
 }
 
+
+function selectedCourseNamesText(items = [], row = {}, contextGroup = '') {
+  const proposalGroup = normalizeProposalGroup(contextGroup || row.activity_type_group);
+  if (!isNextYearProposalGroup(proposalGroup) && !isNextYearProposalGroup(row.activity_type_group)) return '';
+  const sourceItems = (Array.isArray(items) ? items : []).filter((item) => {
+    if (isTestHoursItem(item) || text(item.proposal_display_mode) === 'bundle_child') return false;
+    if (!publicActivityName(proposalField(item, 'item_name', 'itemName'))) return false;
+    if (isCombinedProposalGroup(row.activity_type_group) && contextGroup) {
+      if (!itemBelongsToGroup(item, contextGroup)) return false;
+      const itemGroup = normalizeProposalGroup(item.proposal_group || item.activity_type_group);
+      const itemKind = itemKindText(item);
+      if (isSummerKindText(itemKind) || isWorkshopKindText(itemKind)) return false;
+      return isCourseKindText(groupKindText(itemGroup)) || isCourseKindText(itemKind) || itemCatalogKind(item) === 'course';
+    }
+    return true;
+  });
+  const seen = new Set();
+  const names = [];
+  for (const item of sourceItems) {
+    const name = publicActivityName(proposalField(item, 'item_name', 'itemName'));
+    if (!name || seen.has(name)) continue;
+    seen.add(name);
+    names.push(name);
+  }
+  return names.join(', ');
+}
+
+function nextYearActivityIntroWithCourseNames(body, row = {}, items = [], contextGroup = '') {
+  const group = normalizeProposalGroup(contextGroup || row.activity_type_group);
+  if (!isNextYearProposalGroup(group)) return body;
+  const courseNames = selectedCourseNamesText(items, row, contextGroup || group);
+  if (!courseNames) return body;
+  const courseLine = `הפעילויות המוצעות לשנת הלימודים: ${courseNames}`;
+  const raw = normalizeMultilineText(body);
+  return raw ? `${raw}\n\n${courseLine}` : courseLine;
+}
 
 function selectedCourseShortNamesText(row = {}, items = []) {
   const proposalGroup = normalizeProposalGroup(row.activity_type_group);
@@ -2014,7 +2091,9 @@ export function proposalPreviewBodyHtml(row, items = [], templateSections = [], 
   const templateActivityIntro = filterCatalogContentFromBody(sectionBody('activity_intro'), false);
   const activityIntro = isSummerProposalGroup(activityTypeGroup)
     ? summerActivityProposalBody()
-    : templateActivityIntro;
+    : isNextYearProposalGroup(activityTypeGroup)
+      ? nextYearActivityIntroWithCourseNames(templateActivityIntro, row, items)
+      : templateActivityIntro;
 
   const renderActivitySection = (heading, body) => {
     const bodyHtml = body ? sectionBodyHtml(body) : '';
@@ -2030,8 +2109,11 @@ export function proposalPreviewBodyHtml(row, items = [], templateSections = [], 
       const candidateKeys = [`activity_intro_${groupKey}`, `${groupKey}_activity_intro`];
       const key = candidateKeys.find((candidate) => byKey.has(candidate)) || candidateKeys[0];
       const body = filterCatalogContentFromBody(sectionBody(key), includeCatalog);
+      const introBody = isNextYearProposalGroup(groupKey)
+        ? nextYearActivityIntroWithCourseNames(body, row, items, groupKey)
+        : body;
       const heading = sectionTitle(key) || proposalGroupDisplayName(groupKey);
-      const section = renderActivitySection(heading, body);
+      const section = renderActivitySection(heading, introBody);
       if (section) sections.push(section);
     });
     if (!sections.length) {

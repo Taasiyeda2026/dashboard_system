@@ -2429,6 +2429,118 @@ test('course item details table keeps a row when only name and pricing fields ex
   });
 });
 
+test('next_year proposal preview appends selected course names after school-year intro', async () => {
+  const row = {
+    ...sampleRows[0],
+    id: 'next-year-course-names-row',
+    activity_type_group: 'שנת הלימודים תשפ״ז',
+    proposal_date: '2026-06-01'
+  };
+  const items = [
+    { item_name: 'ביומימיקרי', item_type: 'קורס', proposal_group: 'שנת הלימודים תשפ״ז', quantity: 1, unit_price: 1000, total_price: 1000 },
+    { item_name: 'טכנולוגיות החלל', item_type: 'קורס', proposal_group: 'שנת הלימודים תשפ״ז', quantity: 1, unit_price: 2000, total_price: 2000 }
+  ];
+  const templateSections = [
+    { template_key: 'next_year', section_key: 'activity_intro', section_title: 'הפעילות המוצעת', section_body: 'להלן הקורסים המוצעים לשנת הלימודים תשפ״ז.' }
+  ];
+
+  await withJSDOM(proposalPreviewBodyHtml(row, items, templateSections), async (_root, dom) => {
+    const docText = dom.window.document.querySelector('.proposal-document')?.textContent || '';
+    assert.match(docText, /הפעילויות המוצעות לשנת הלימודים: ביומימיקרי, טכנולוגיות החלל/);
+  });
+});
+
+test('next_year course names sentence deduplicates item names and skips test-hour rows', async () => {
+  const row = {
+    ...sampleRows[0],
+    activity_type_group: 'next_year',
+    proposal_date: '2026-06-01'
+  };
+  const items = [
+    { item_name: 'ביומימיקרי', item_type: 'קורס', proposal_group: 'next_year', quantity: 1, unit_price: 1000, total_price: 1000 },
+    { itemName: 'ביומימיקרי', item_type: 'קורס', proposal_group: 'next_year', quantity: 1, unit_price: 1000, total_price: 1000 },
+    { item_name: 'שעות בדיקה', item_type: 'קורס', proposal_group: 'next_year', quantity: 1, unit_price: 0, total_price: 0 }
+  ];
+
+  await withJSDOM(proposalPreviewBodyHtml(row, items, []), async (_root, dom) => {
+    const docText = dom.window.document.querySelector('.proposal-document')?.textContent || '';
+    assert.match(docText, /הפעילויות המוצעות לשנת הלימודים: ביומימיקרי/);
+    assert.doesNotMatch(docText, /הפעילויות המוצעות לשנת הלימודים:\s*$/);
+    assert.doesNotMatch(docText, /שעות בדיקה/);
+    const namesMatch = docText.match(/הפעילויות המוצעות לשנת הלימודים: ([^\n]+)/);
+    assert.ok(namesMatch);
+    assert.equal(namesMatch[1].split(',').map((part) => part.trim()).filter(Boolean).length, 1);
+  });
+});
+
+test('next_year proposal without course names keeps intro text without empty colon', async () => {
+  const row = {
+    ...sampleRows[0],
+    activity_type_group: 'שנת הלימודים תשפ״ז',
+    proposal_date: '2026-06-01'
+  };
+  const items = [
+    { item_name: '', item_type: 'קורס', proposal_group: 'שנת הלימודים תשפ״ז', quantity: 1, unit_price: 1000, total_price: 1000 },
+    { item_name: 'שעות בדיקה', item_type: 'קורס', proposal_group: 'שנת הלימודים תשפ״ז', quantity: 1, unit_price: 0, total_price: 0 }
+  ];
+  const templateSections = [
+    { template_key: 'next_year', section_key: 'activity_intro', section_title: 'הפעילות המוצעת', section_body: 'להלן הקורסים המוצעים לשנת הלימודים תשפ״ז.' }
+  ];
+
+  await withJSDOM(proposalPreviewBodyHtml(row, items, templateSections), async (_root, dom) => {
+    const docText = dom.window.document.querySelector('.proposal-document')?.textContent || '';
+    assert.doesNotMatch(docText, /הפעילויות המוצעות לשנת הלימודים:/);
+    assert.match(docText, /להלן הקורסים המוצעים לשנת הלימודים תשפ״ז/);
+  });
+});
+
+test('next_year course table renders total row and print-specific column classes', async () => {
+  const row = {
+    ...sampleRows[0],
+    activity_type_group: 'שנת הלימודים תשפ״ז',
+    proposal_date: '2026-06-01'
+  };
+  const items = [
+    {
+      item_name: 'ביומימיקרי',
+      item_type: 'קורס',
+      proposal_group: 'שנת הלימודים תשפ״ז',
+      meetings_count: 8,
+      quantity: 2,
+      hours_count: 16,
+      unit_price: 7500,
+      total_price: 15000
+    },
+    {
+      item_name: 'טכנולוגיות החלל',
+      item_type: 'קורס',
+      proposal_group: 'שנת הלימודים תשפ״ז',
+      meetings_count: 6,
+      quantity: 1,
+      hours_count: 12,
+      unit_price: 6000,
+      total_price: 6000
+    }
+  ];
+
+  await withJSDOM(proposalPreviewBodyHtml(row, items, []), async (_root, dom) => {
+    const courseTable = dom.window.document.querySelector('.pa-item-details-table.pa-next-year-course-table');
+    assert.ok(courseTable, 'next_year course table should render with scoped class');
+    const footerCells = [...courseTable.querySelectorAll('tfoot td')].map((td) => td.textContent.trim());
+    assert.equal(footerCells[0], 'סה״כ');
+    assert.equal(footerCells[2], '14');
+    assert.equal(footerCells[3], '3');
+    assert.equal(footerCells[4], '28');
+    assert.match(footerCells[6], /^21,000\s*₪$/);
+    assert.equal(courseTable.querySelectorAll('tfoot tr').length, 1, 'total row should not be duplicated');
+  });
+
+  const css = await readFile(new URL('../frontend/src/styles/main.css', import.meta.url), 'utf8');
+  assert.match(css, /\.proposal-document \.pa-item-details-table\.pa-next-year-course-table th:first-child/);
+  assert.match(css, /\.proposal-document \.pa-item-details-table\.pa-next-year-course-table th:not\(:first-child\)/);
+  assert.match(css, /@media print[\s\S]*\.pa-item-details-table\.pa-next-year-course-table/);
+});
+
 test('print flow does not prompt for or embed catalog appendices', async () => {
   const row = {
     ...sampleRows[0],
