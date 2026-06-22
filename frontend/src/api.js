@@ -2503,7 +2503,7 @@ function normalizeProposalContactPhone(value) {
 const PA_STATUS_LABELS = {
   draft:                'טיוטה',
   sent:                 'נשלח',
-  pending_approval:     'נשלח',
+  pending_approval:     'ממתין לאישור',
   returned_for_changes: 'הוחזר לתיקון',
   approved:             'מאושר',
   cancelled:            'בוטל'
@@ -2511,7 +2511,6 @@ const PA_STATUS_LABELS = {
 
 function statusForDb(status) {
   const value = String(status || '').trim();
-  if (value === 'sent') return 'pending_approval';
   return value || 'draft';
 }
 
@@ -2582,7 +2581,7 @@ function normalizeProposalAgreementRow(row = {}) {
       }))
       : [],
     include_catalog:     row.include_catalog === true || row.include_catalog === 'yes',
-    signature_meta:      (row.signature_meta && typeof row.signature_meta === 'object' && !Array.isArray(row.signature_meta)) ? row.signature_meta : null,
+    signature_meta:      (row.signature_meta && typeof row.signature_meta === 'object' && !Array.isArray(row.signature_meta)) ? row.signature_meta : {},
     approved_by:         cleanProposalAgreementText(row.approved_by),
     approved_at:         cleanProposalAgreementText(row.approved_at),
     created_at:          cleanProposalAgreementText(row.created_at),
@@ -5075,13 +5074,20 @@ export const api = {
       .from('proposals_agreements').select('status').eq('id', rowId).single();
     if (!currentRowError && currentRow) {
       const cs = cleanProposalAgreementText(currentRow.status);
-      if (cs === 'sent' || cs === 'pending_approval') throw new Error('הצעה שנשלחה נעולה ולא ניתן לשנות את סטטוסה.');
+      if (cs === 'sent' && cleanStatus !== 'draft') throw new Error('הצעה שנשלחה נעולה ולא ניתן לשנות את סטטוסה.');
     }
     const patch = { status: statusForDb(cleanStatus), approval_note: cleanProposalAgreementText(approvalNote) };
     if (cleanStatus === 'approved') {
+      patch.status = 'sent';
       patch.approved_by = state?.user?.auth_user_id || state?.user?.user_id || state?.user?.id || null;
       patch.approved_at = new Date().toISOString();
-      if (signatureMeta && typeof signatureMeta === 'object') patch.signature_meta = signatureMeta;
+      patch.signature_meta = (signatureMeta && typeof signatureMeta === 'object' && !Array.isArray(signatureMeta)) ? signatureMeta : {};
+    }
+    if (cleanStatus === 'draft') {
+      patch.signature_meta = {};
+      patch.approved_by = null;
+      patch.approved_at = null;
+      patch.approval_note = '';
     }
     const { data, error } = await supabase
       .from('proposals_agreements')
