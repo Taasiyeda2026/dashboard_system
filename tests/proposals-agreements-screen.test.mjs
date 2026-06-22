@@ -2857,14 +2857,22 @@ test('next_year template_name migration updates programs wording', async () => {
   assert.match(migration, /where template_key = 'next_year'/i);
 });
 
-test('exact proposal templates multiline migration is not a no-op when stable SQL exists', async () => {
+test('exact timestamp proposal templates multiline migration matches stable SQL and is not a no-op', async () => {
   const migration = await readFile(
     new URL('../supabase/migrations/20260530151253_exact_proposal_templates_multiline.sql', import.meta.url),
     'utf8'
   );
+  const stableMigration = await readFile(
+    new URL('../supabase/migrations/20260530_exact_proposal_templates_multiline.sql', import.meta.url),
+    'utf8'
+  );
+  assert.equal(migration, stableMigration);
   assert.doesNotMatch(migration, /^[\s\S]*SELECT\s+1\s*;\s*$/i);
   assert.match(migration, /insert into public\.proposal_template_sections/i);
   assert.match(migration, /template_key IN \('summer', 'next_year', 'combined'\)/i);
+  assert.match(migration, /'summer'/);
+  assert.match(migration, /'next_year'/);
+  assert.match(migration, /'combined'/);
   assert.match(migration, /\$body\$[\s\S]*\$body\$/);
 });
 
