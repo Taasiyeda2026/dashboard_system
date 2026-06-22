@@ -101,3 +101,21 @@ test('personal reports policies use drop before create in access migration', asy
   assert.match(sql, /DROP POLICY IF EXISTS "reports_select_own" ON public\.personal_reports;/);
   assert.match(sql, /CREATE POLICY "reports_select_own" ON public\.personal_reports/);
 });
+
+test('authenticated users profile grant migration avoids anon and write privileges', async () => {
+  const sql = await readFile(
+    new URL('../supabase/migrations/20260622_grant_authenticated_users_profile_select.sql', import.meta.url),
+    'utf8'
+  );
+  const normalized = sql.toLowerCase();
+
+  assert.match(normalized, /grant select/);
+  assert.match(normalized, /on table public\.users/);
+  assert.match(normalized, /to authenticated/);
+  assert.match(normalized, /information_schema\.columns/);
+  assert.doesNotMatch(normalized, /\bto\s+anon\b/);
+  assert.doesNotMatch(normalized, /grant all/);
+  assert.doesNotMatch(normalized, /grant insert/);
+  assert.doesNotMatch(normalized, /grant update/);
+  assert.doesNotMatch(normalized, /grant delete/);
+});

@@ -165,6 +165,24 @@ test('optional stabilize/reconcile migrations were removed', async () => {
   );
 });
 
+test('authenticated users profile SELECT grant migration is safe and minimal', async () => {
+  const migrationPath = new URL('../supabase/migrations/20260622_grant_authenticated_users_profile_select.sql', import.meta.url);
+  const sql = await readFile(migrationPath, 'utf8');
+  const normalized = sql.toLowerCase();
+
+  assert.match(normalized, /grant usage on schema public to authenticated/);
+  assert.match(normalized, /grant select/);
+  assert.match(normalized, /on table public\.users/);
+  assert.match(normalized, /to authenticated/);
+  assert.match(normalized, /information_schema\.columns/);
+
+  assert.doesNotMatch(normalized, /\bto\s+anon\b/);
+  assert.doesNotMatch(normalized, /grant all/);
+  assert.doesNotMatch(normalized, /grant insert/);
+  assert.doesNotMatch(normalized, /grant update/);
+  assert.doesNotMatch(normalized, /grant delete/);
+});
+
 test('restored migrations contain real SQL; true placeholders remain no-ops', async () => {
   const restored = [
     '../supabase/migrations/20260530151253_exact_proposal_templates_multiline.sql',
