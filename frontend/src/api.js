@@ -2932,7 +2932,6 @@ async function readProposalTemplateSectionsFromSupabase() {
       .from('proposal_template_sections')
       .select('template_key,template_name,activity_type_group,section_key,section_title,section_body,sort_order,is_active')
       .eq('is_active', true)
-      .order('template_key', { ascending: true })
       .order('sort_order', { ascending: true });
     if (error) {
       noteProposalRead('proposalTemplateSections', [], error);
