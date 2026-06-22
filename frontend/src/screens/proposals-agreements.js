@@ -564,7 +564,7 @@ function normalizeDocumentSection(section = {}) {
 }
 
 function normalizeSearch(value) {
-  return text(value).toLowerCase();
+  return text(value).toLowerCase().normalize('NFKC');
 }
 
 export function buildProposalsAgreementsSearchText(row = {}) {
@@ -3088,7 +3088,7 @@ export const proposalsAgreementsScreen = {
     setProposalPricingLookup(proposalActivityPricing);
     const proposalTemplateSections = normalizeTemplateSections(Array.isArray(data?.proposalTemplateSections) ? data.proposalTemplateSections : []);
     const contactOptions = Array.isArray(data?.contactOptions) ? data.contactOptions : [];
-    const contactOptionsError = text(data?.contactOptionsError || data?._debug?.contacts_error || '');
+    const contactOptionsError = text(data?.contactOptionsError || '');
     const proposalLoaderDebug = data?._debug?.proposal_loader || {};
     const proposalLoaderError = (key) => proposalLoaderDebug?.[key]?.errorDetails || proposalLoaderDebug?.[key]?.error || null;
     // eslint-disable-next-line no-console

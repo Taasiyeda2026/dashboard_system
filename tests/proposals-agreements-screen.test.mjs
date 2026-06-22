@@ -1069,8 +1069,21 @@ test('proposals contact loader uses contacts_unified_view and not directory fall
   const loaderBlock = apiSource.match(/async function readContactsSchoolsForProposals\(\) \{[\s\S]*?\n\}/);
   assert.ok(loaderBlock, 'readContactsSchoolsForProposals should exist');
   assert.match(loaderBlock[0], /readUnifiedContactsFromSupabase\(\{ requireAuth: true \}\)/);
+  assert.match(loaderBlock[0], /readAuthoritySchoolCatalog\(\)/);
+  assert.match(loaderBlock[0], /catalog_fallback:\s*'schools_only'/);
+  assert.doesNotMatch(loaderBlock[0], /Promise\.all\(\[[\s\S]*readAuthoritySchoolCatalog[\s\S]*readUnifiedContactsFromSupabase/);
   assert.doesNotMatch(loaderBlock[0], /contacts_directory_view/);
   assert.doesNotMatch(loaderBlock[0], /contacts_schools/);
+});
+
+test('proposals contact loader keeps schools catalog when unified contacts fail', async () => {
+  const apiSource = await readFile(API_FILE, 'utf8');
+  assert.match(apiSource, /hasActiveProposalCatalogSchools/);
+  assert.match(apiSource, /contactOptionsError:\s*null[\s\S]*catalog_fallback:\s*'schools_only'/);
+  assert.doesNotMatch(
+    apiSource.match(/async function readContactsSchoolsForProposals\(\) \{[\s\S]*?\n\}/)?.[0] || '',
+    /contactsLoadError[\s\S]*contactOptions:\s*\[\]/
+  );
 });
 
 
@@ -1090,6 +1103,63 @@ test('proposals contact load error is shown in recipient/contact area', async ()
       assert.match(sidebarText, /לא ניתן לטעון אנשי קשר/);
       assert.match(sidebarText, /להתחבר מחדש/);
       assert.ok(form.querySelector('[data-pa-contact-options-error]'), 'contact options error alert should be rendered');
+    }
+  );
+});
+
+test('school catalog remains searchable when contacts load fails but schools catalog is available', async () => {
+  const schoolOnlyAfterContactsFailure = [
+    ...sampleCatalogAuthorities,
+    {
+      _catalog_source: 'schools',
+      client_type: 'school',
+      client_name: 'בית  ספר   ללא איש קשר',
+      authority_id: 'auth-a',
+      school_id: 'school-no-contact',
+      authority_name: 'רשות א',
+      authority: 'רשות א',
+      school_name: 'בית  ספר   ללא איש קשר',
+      school: 'בית  ספר   ללא איש קשר',
+      semel_mosad: '44444',
+      contact_name: '',
+      contact_role: '',
+      phone: '',
+      email: '',
+      mobile: ''
+    }
+  ];
+
+  await withJSDOM(
+    proposalsAgreementsScreen.render({
+      rows: [],
+      contactOptions: schoolOnlyAfterContactsFailure,
+      contactOptionsError: null,
+      _debug: { contacts_error: 'contacts_unified_view_permission_denied', catalog_fallback: 'schools_only' }
+    }, { state: stateFor('admin') }),
+    (root, dom) => {
+      proposalsAgreementsScreen.bind({
+        root,
+        data: {
+          rows: [],
+          activityNameOptions: [],
+          contactOptions: schoolOnlyAfterContactsFailure,
+          contactOptionsError: null,
+          _debug: { contacts_error: 'contacts_unified_view_permission_denied', catalog_fallback: 'schools_only' }
+        },
+        state: stateFor('admin'),
+        api: {}
+      });
+
+      const form = openNewProposalForm(root, dom);
+      assert.equal(form.querySelector('[data-pa-contact-options-error]'), null, 'internal contacts failure should not block school search UI');
+      selectClientResult(form, dom, 'רשות א');
+      const schoolSearchInput = form.querySelector('[data-pa-school-search-input]');
+      schoolSearchInput.value = '  ללא   איש  ';
+      schoolSearchInput.dispatchEvent(new dom.window.Event('input', { bubbles: true }));
+      const schoolResults = form.querySelector('[data-pa-school-results]');
+      assert.match(schoolResults.textContent, /ללא איש קשר/);
+      selectClientResult(form, dom, 'ללא איש');
+      assert.equal(form.querySelector('input[name="school_framework"]').value, 'בית ספר ללא איש קשר');
     }
   );
 });

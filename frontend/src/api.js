@@ -2975,73 +2975,142 @@ async function readProposalTemplateSectionsFromSupabase() {
   }
 }
 
-async function readContactsSchoolsForProposals() {
-  try {
-    const [catalog, unifiedRows] = await Promise.all([
-      readAuthoritySchoolCatalog(),
-      readUnifiedContactsFromSupabase({ requireAuth: true })
-    ]);
-    const contactsResult = (Array.isArray(unifiedRows) ? unifiedRows : []).map((c) => {
-      const authorityName = cleanProposalAgreementText(c.authority_name || c.authority || c.client_name);
-      const schoolName = cleanProposalAgreementText(c.school_name || c.school);
-      return {
-        id:           cleanProposalAgreementText(c.source_id || c.id),
-        client_type:  cleanProposalAgreementText(c.client_type),
-        client_name:  cleanProposalAgreementText(c.client_name) || schoolName || authorityName,
-        authority_id: c.authority_id ?? null,
-        school_id:    c.school_id ?? null,
-        semel_mosad:  cleanProposalAgreementText(c.semel_mosad),
-        authority_code: cleanProposalAgreementText(c.authority_code),
-        authority_type: cleanProposalAgreementText(c.authority_type),
-        authority_name: authorityName,
-        school_name:  schoolName,
-        district:     cleanProposalAgreementText(c.district),
-        authority:    authorityName,
-        school:       schoolName,
-        contact_name: cleanProposalAgreementText(c.contact_name),
-        contact_role: cleanProposalAgreementText(c.contact_role),
-        phone:        cleanProposalAgreementText(c.phone || ''),
-        mobile:       cleanProposalAgreementText(c.mobile || ''),
-        email:        cleanProposalAgreementText(c.email || ''),
-        source_table: cleanProposalAgreementText(c.source_table),
-        active:       'yes'
-      };
-    }).filter((c) => c.authority_name || c.school_name || c.authority || c.school);
-
-    // eslint-disable-next-line no-console
-    console.info('[proposal-catalog-authorities]', {
-      count: catalog.authorities?.length,
-      sample: catalog.authorities?.slice(0, 5)
-    });
-    // eslint-disable-next-line no-console
-    console.info('[proposal-catalog-schools]', {
-      count: catalog.schools?.length,
-      sample: catalog.schools?.slice(0, 5)
-    });
-    // eslint-disable-next-line no-console
-    console.info('[proposal-contact-options]', {
-      count: contactsResult?.length,
-      sample: contactsResult?.slice(0, 5)
-    });
-
+function mapUnifiedContactsForProposals(unifiedRows) {
+  return (Array.isArray(unifiedRows) ? unifiedRows : []).map((c) => {
+    const authorityName = cleanProposalAgreementText(c.authority_name || c.authority || c.client_name);
+    const schoolName = cleanProposalAgreementText(c.school_name || c.school);
     return {
-      contactOptions: buildProposalClientSearchOptions(contactsResult, catalog.authorityLookup, catalog.schoolLookup),
-      contactOptionsError: null,
-      _debug: { contacts_count: contactsResult.length }
+      id:           cleanProposalAgreementText(c.source_id || c.id),
+      client_type:  cleanProposalAgreementText(c.client_type),
+      client_name:  cleanProposalAgreementText(c.client_name) || schoolName || authorityName,
+      authority_id: c.authority_id ?? null,
+      school_id:    c.school_id ?? null,
+      semel_mosad:  cleanProposalAgreementText(c.semel_mosad),
+      authority_code: cleanProposalAgreementText(c.authority_code),
+      authority_type: cleanProposalAgreementText(c.authority_type),
+      authority_name: authorityName,
+      school_name:  schoolName,
+      district:     cleanProposalAgreementText(c.district),
+      authority:    authorityName,
+      school:       schoolName,
+      contact_name: cleanProposalAgreementText(c.contact_name),
+      contact_role: cleanProposalAgreementText(c.contact_role),
+      phone:        cleanProposalAgreementText(c.phone || ''),
+      mobile:       cleanProposalAgreementText(c.mobile || ''),
+      email:        cleanProposalAgreementText(c.email || ''),
+      source_table: cleanProposalAgreementText(c.source_table),
+      active:       'yes'
     };
+  }).filter((c) => c.authority_name || c.school_name || c.authority || c.school);
+}
+
+function resolveProposalContactsLoadError(error) {
+  const message = cleanProposalAgreementText(error?.message) || 'contacts_load_error';
+  return message === 'contacts_unified_view_requires_auth_session' || message === 'contacts_unified_view_permission_denied'
+    ? message
+    : 'contacts_load_error';
+}
+
+function hasActiveProposalCatalogSchools(catalog) {
+  return Array.isArray(catalog?.schoolLookup?.list)
+    && catalog.schoolLookup.list.some((school) => isCatalogActive(school.active) && school.school_name);
+}
+
+async function readContactsSchoolsForProposals() {
+  let catalog = {
+    authorities: [],
+    schools: [],
+    authorityLookup: { list: [], byId: new Map(), byName: new Map() },
+    schoolLookup: { list: [], byId: new Map(), bySemel: new Map(), byAuthoritySchool: new Map() }
+  };
+  let catalogError = null;
+  try {
+    catalog = await readAuthoritySchoolCatalog();
   } catch (error) {
-    const message = cleanProposalAgreementText(error?.message) || 'contacts_load_error';
-    const contactOptionsError = message === 'contacts_unified_view_requires_auth_session' || message === 'contacts_unified_view_permission_denied'
-      ? message
-      : 'contacts_load_error';
+    catalogError = error;
     // eslint-disable-next-line no-console
-    console.warn('[supabase] Failed to load proposal contact options:', error);
+    console.warn('[supabase] Failed to load proposal authority/school catalog:', error);
+  }
+
+  let unifiedRows = [];
+  let contactsLoadError = null;
+  try {
+    unifiedRows = await readUnifiedContactsFromSupabase({ requireAuth: true });
+  } catch (error) {
+    contactsLoadError = resolveProposalContactsLoadError(error);
+    // eslint-disable-next-line no-console
+    console.warn('[supabase] Failed to load proposal unified contacts:', error);
+  }
+
+  const contactsResult = mapUnifiedContactsForProposals(unifiedRows);
+  const catalogHasSchools = hasActiveProposalCatalogSchools(catalog);
+  const contactOptions = buildProposalClientSearchOptions(
+    contactsResult,
+    catalog.authorityLookup,
+    catalog.schoolLookup
+  );
+
+  // eslint-disable-next-line no-console
+  console.info('[proposal-catalog-authorities]', {
+    count: catalog.authorities?.length,
+    sample: catalog.authorities?.slice(0, 5)
+  });
+  // eslint-disable-next-line no-console
+  console.info('[proposal-catalog-schools]', {
+    count: catalog.schools?.length,
+    sample: catalog.schools?.slice(0, 5)
+  });
+  // eslint-disable-next-line no-console
+  console.info('[proposal-contact-options]', {
+    count: contactsResult?.length,
+    catalog_options_count: contactOptions.length,
+    sample: contactsResult?.slice(0, 5)
+  });
+
+  if (contactsLoadError) {
+    if (catalogHasSchools) {
+      // eslint-disable-next-line no-console
+      console.warn('[supabase] Proposal contacts failed; continuing with schools catalog only:', contactsLoadError);
+      return {
+        contactOptions,
+        contactOptionsError: null,
+        _debug: {
+          contacts_error: contactsLoadError,
+          contacts_count: contactsResult.length,
+          catalog_schools_count: catalog.schools?.length ?? 0,
+          catalog_fallback: 'schools_only'
+        }
+      };
+    }
     return {
-      contactOptions: [],
-      contactOptionsError,
-      _debug: { contacts_error: contactOptionsError }
+      contactOptions: contactOptions.length ? contactOptions : [],
+      contactOptionsError: contactsLoadError,
+      _debug: {
+        contacts_error: contactsLoadError,
+        catalog_error: cleanProposalAgreementText(catalogError?.message) || null
+      }
     };
   }
+
+  if (catalogError && !catalogHasSchools) {
+    const catalogMessage = cleanProposalAgreementText(catalogError?.message) || 'catalog_load_error';
+    // eslint-disable-next-line no-console
+    console.warn('[supabase] Proposal catalog failed; using contacts only:', catalogError);
+    return {
+      contactOptions,
+      contactOptionsError: contactsResult.length ? null : catalogMessage,
+      _debug: {
+        contacts_count: contactsResult.length,
+        catalog_error: catalogMessage
+      }
+    };
+  }
+
+  return {
+    contactOptions,
+    contactOptionsError: null,
+    _debug: { contacts_count: contactsResult.length }
+  };
 }
 
 async function readProposalsAgreementsFromSupabase() {
