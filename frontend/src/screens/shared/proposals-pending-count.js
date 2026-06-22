@@ -1,12 +1,9 @@
-const STATUS_ALIASES = { pending_approval: 'sent' };
-
 function text(value) {
   return String(value == null ? '' : value).replace(/\s+/g, ' ').trim();
 }
 
 function normalizeProposalStatus(status) {
-  const raw = text(status);
-  return STATUS_ALIASES[raw] || raw;
+  return text(status);
 }
 
 export function isProposalApprovedPendingSend(row) {
