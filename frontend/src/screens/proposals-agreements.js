@@ -987,7 +987,7 @@ function contactPickerHtml(contactOptions, authority, school, selectedContactNam
     '<option value="__pa_other_contact__">אחר</option>'
   ].join('');
   const noContacts = contacts.length === 0;
-  return `${schoolDetailsPanelHtml(resolvedSchoolMeta)}
+  return `
     <label class="ds-pa-form-field"><span>איש קשר</span>
       <select class="ds-input ds-input--sm" data-pa-contact-select>${optionsHtml}</select>
     </label>
@@ -2302,6 +2302,21 @@ function findSchoolCatalogContact(contactOptions = [], { authorityId = null, sch
     && (!authorityName || catalogAuthorityName(contact) === authorityName)) || null;
 }
 
+
+function defaultContactFromSchoolMeta(schoolMeta = {}) {
+  const principalName = text(schoolMeta.principal_name || schoolMeta.contact_name);
+  if (!principalName) return null;
+  return {
+    ...schoolMeta,
+    id: '',
+    contact_name: principalName,
+    contact_role: 'מנהל/ת',
+    phone: text(schoolMeta.phone) || text(schoolMeta.school_phone || schoolMeta.mobile || ''),
+    mobile: text(schoolMeta.mobile),
+    email: text(schoolMeta.email)
+  };
+}
+
 function schoolDetailsLines(contact = {}) {
   return [
     catalogSchoolName(contact) ? ['בית ספר', catalogSchoolName(contact)] : null,
@@ -3380,6 +3395,7 @@ export const proposalsAgreementsScreen = {
         school
       }) || {};
       const pickerHost = form.querySelector('[data-pa-contact-picker-host]');
+      const defaultContact = isAuthorityOnly ? null : defaultContactFromSchoolMeta(catalogSchool);
       const baseSource = {
         authority_id: authorityId || null,
         school_id: isAuthorityOnly ? null : (schoolId || null),
@@ -3389,16 +3405,17 @@ export const proposalsAgreementsScreen = {
         client_name: clientName || school || authority,
         authority,
         school: isAuthorityOnly ? '' : school,
-        contact_name: '',
-        contact_role: '',
-        phone: '',
-        mobile: '',
-        email: ''
+        contact_name: text(defaultContact?.contact_name),
+        contact_role: text(defaultContact?.contact_role),
+        phone: text(defaultContact?.phone),
+        mobile: text(defaultContact?.mobile),
+        email: text(defaultContact?.email)
       };
 
       setPanelOpen(form, 'contact', true);
 
-      fillContactFields(form, {});
+      fillContactFields(form, baseSource);
+      setContactSelectionMode(form, 'school_principal_default');
       setContactSource(form, baseSource);
       if (pickerHost) {
         pickerHost.innerHTML = contactPickerHtml(
@@ -3415,7 +3432,17 @@ export const proposalsAgreementsScreen = {
         const noContacts = pickerHost.querySelector('[data-pa-contact-picker-state]')?.dataset?.paNoContacts === 'yes';
         setAddContactRowState(form, { visible: !isAuthorityOnly && Boolean(schoolId) && noContacts, showNoContactNote: noContacts });
       }
-      lockClientFields(form, authority, isAuthorityOnly ? '' : school, '', '', '', '', clientName || school || authority, catalogSchool);
+      lockClientFields(
+        form,
+        authority,
+        isAuthorityOnly ? '' : school,
+        text(defaultContact?.contact_name),
+        text(defaultContact?.contact_role),
+        text(defaultContact?.phone),
+        text(defaultContact?.email),
+        clientName || school || authority,
+        catalogSchool
+      );
 
       const searchField = form.querySelector('[data-pa-client-search-field]');
       const schoolSearchPanel = form.querySelector('[data-pa-school-search-panel]');
