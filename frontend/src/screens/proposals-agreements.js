@@ -91,6 +91,12 @@ function text(value) {
   return String(value == null ? '' : value).replace(/\s+/g, ' ').trim();
 }
 
+function normalizeHebrewQuoteVariants(value) {
+  return text(value)
+    .replace(/[״"]/g, '\'')
+    .replace(/[׳`]/g, '\'');
+}
+
 
 const EMPTY_PROPOSAL_GROUP_LOOKUPS = Object.freeze({
   groups: [],
@@ -101,18 +107,20 @@ let proposalGroupLookups = EMPTY_PROPOSAL_GROUP_LOOKUPS;
 const COMBINED_TEMPLATE_GROUP_KEYS = Object.freeze(['summer', 'next_year']);
 
 const PROPOSAL_GROUP_DISPLAY_FALLBACKS = Object.freeze({
-  summer: 'קיץ תשפ״ו',
-  next_year: 'תוכניות תשפ״ז',
-  combined: 'קיץ תשפ״ו ותוכניות תשפ״ז'
+  summer: 'פעילויות קיץ',
+  next_year: 'שנה הבאה',
+  combined: 'הצעה משולבת'
 });
 const PROPOSAL_GROUP_LEGACY_ALIASES = Object.freeze({
   'קיץ תשפ״ו': 'summer',
   'פעילויות קיץ': 'summer',
   'שנת הלימודים תשפ״ז': 'next_year',
   'תוכניות תשפ״ז': 'next_year',
+  'שנה הבאה': 'next_year',
   'הצעה משולבת': 'combined',
   'קיץ תשפ״ו ושנת הלימודים תשפ״ז': 'combined',
-  'קיץ תשפ״ו ותוכניות תשפ״ז': 'combined'
+  'קיץ תשפ״ו ותוכניות תשפ״ז': 'combined',
+  'קיץ תשפ״ו + תשפ״ז': 'combined'
 });
 
 function proposalGroupSafeDisplayName(groupKey = '', displayName = '') {
@@ -285,15 +293,17 @@ function setProposalGroupLookups(data = {}, rows = [], pricingOptions = []) {
   groups.forEach((group) => {
     groupByKey.set(group.group_key, group);
     aliasToKey.set(group.group_key, group.group_key);
+    aliasToKey.set(normalizeHebrewQuoteVariants(group.group_key), group.group_key);
     aliasToKey.set(group.display_name, group.group_key);
-    if (group.template_key) aliasToKey.set(group.template_key, group.group_key);
-    group.aliases.forEach((alias) => aliasToKey.set(alias, group.group_key));
+    aliasToKey.set(normalizeHebrewQuoteVariants(group.display_name), group.group_key);
+    if (group.template_key) { aliasToKey.set(group.template_key, group.group_key); aliasToKey.set(normalizeHebrewQuoteVariants(group.template_key), group.group_key); }
+    group.aliases.forEach((alias) => { aliasToKey.set(alias, group.group_key); aliasToKey.set(normalizeHebrewQuoteVariants(alias), group.group_key); });
   });
   dataGroupAliasRows(data)
     .forEach((aliasRow) => {
       const alias = text(aliasRow.alias_name || aliasRow.alias || aliasRow.name || aliasRow.value);
       const groupKey = text(aliasRow.group_key || aliasRow.target_group_key || aliasRow.proposal_group_key);
-      if (alias && groupKey) aliasToKey.set(alias, groupKey);
+      if (alias && groupKey) { aliasToKey.set(alias, groupKey); aliasToKey.set(normalizeHebrewQuoteVariants(alias), groupKey); }
     });
   proposalTemplateSectionsLookup.forEach((section) => {
     const templateKey = proposalTextField(section, 'template_key', 'templateKey');
@@ -315,17 +325,54 @@ function setProposalGroupLookups(data = {}, rows = [], pricingOptions = []) {
         aliasToKey.set(templateKey, templateKey);
       }
     }
-    if (activityGroup) aliasToKey.set(activityGroup, templateKey);
-    if (templateName) aliasToKey.set(templateName, templateKey);
+    if (activityGroup) { aliasToKey.set(activityGroup, templateKey); aliasToKey.set(normalizeHebrewQuoteVariants(activityGroup), templateKey); }
+    if (templateName) { aliasToKey.set(templateName, templateKey); aliasToKey.set(normalizeHebrewQuoteVariants(templateName), templateKey); }
   });
   proposalGroupLookups = { groups, groupByKey, aliasToKey };
   return proposalGroupLookups;
 }
 
+export function resolveProposalGroupKey(value, proposalActivityGroups = proposalGroupLookups.groups, proposalGroupAliases = []) {
+  const raw = text(value);
+  if (!raw) return '';
+  if (Object.prototype.hasOwnProperty.call(PROPOSAL_GROUP_DISPLAY_FALLBACKS, raw)) return raw;
+  const normalizedRaw = normalizeHebrewQuoteVariants(raw);
+  const groups = Array.isArray(proposalActivityGroups) ? proposalActivityGroups : [];
+  const aliases = Array.isArray(proposalGroupAliases) ? proposalGroupAliases : [];
+  const direct = new Map();
+  groups.forEach((record, idx) => {
+    const group = record?.group_key ? normalizeProposalGroupRecord(record, idx) : record;
+    const groupKey = text(group?.group_key || group?.groupKey);
+    if (!groupKey) return;
+    [groupKey, group?.display_name, group?.displayName, group?.template_key, group?.templateKey, ...(Array.isArray(group?.aliases) ? group.aliases : [])]
+      .map(text).filter(Boolean).forEach((alias) => {
+        direct.set(alias, groupKey);
+        direct.set(normalizeHebrewQuoteVariants(alias), groupKey);
+      });
+  });
+  aliases.forEach((aliasRow) => {
+    const alias = text(aliasRow.alias_name || aliasRow.alias || aliasRow.name || aliasRow.value);
+    const groupKey = text(aliasRow.group_key || aliasRow.target_group_key || aliasRow.proposal_group_key);
+    if (!alias || !groupKey) return;
+    direct.set(alias, groupKey);
+    direct.set(normalizeHebrewQuoteVariants(alias), groupKey);
+  });
+  Object.entries(PROPOSAL_GROUP_LEGACY_ALIASES).forEach(([alias, groupKey]) => {
+    direct.set(alias, groupKey);
+    direct.set(normalizeHebrewQuoteVariants(alias), groupKey);
+  });
+  return direct.get(raw) || direct.get(normalizedRaw) || raw;
+}
+
 function normalizeProposalGroup(value) {
   const raw = text(value);
   if (!raw) return '';
-  return proposalGroupLookups.aliasToKey.get(raw) || PROPOSAL_GROUP_LEGACY_ALIASES[raw] || raw;
+  const legacyResolved = resolveProposalGroupKey(raw, proposalGroupLookups.groups, []);
+  return legacyResolved !== raw
+    ? legacyResolved
+    : proposalGroupLookups.aliasToKey.get(raw)
+      || proposalGroupLookups.aliasToKey.get(normalizeHebrewQuoteVariants(raw))
+      || raw;
 }
 
 function proposalGroupMeta(value) {
@@ -1137,6 +1184,7 @@ function isSummerItemRowContext(contextGroup = '') {
 }
 
 function itemRowHtml(item = {}, idx = 0, pricingOptions = [], options = {}) {
+  item = normalizeProposalItemRow(item, options.groupKey || '');
   const n = (v) => (v != null && v !== '' && !isNaN(Number(v))) ? escapeHtml(String(v)) : '';
   const calcTotal = (Number(proposalField(item, 'quantity', 'quantity')) || 0) && (Number(proposalField(item, 'unit_price', 'unitPrice')) || 0)
     ? String(((Number(proposalField(item, 'quantity', 'quantity')) || 0) * (Number(proposalField(item, 'unit_price', 'unitPrice')) || 0)).toFixed(2))
@@ -1215,6 +1263,7 @@ function activityTypeFilterHtml(pricingOptions) {
 }
 
 function itemsEditorHtml(items = [], pricingOptions = [], activityTypeGroup = '') {
+  items = (Array.isArray(items) ? items : []).map((item) => normalizeProposalItemRow(item, activityTypeGroup));
   const normalizedGroup = normalizeProposalGroup(activityTypeGroup);
   const filterHtml = isSummerProposalGroup(normalizedGroup) ? '' : activityTypeFilterHtml(pricingOptions);
   const footer = `<datalist id="pa-item-type-list">${itemTypeOptions(pricingOptions).map((v) => `<option value="${escapeHtml(v)}">`).join('')}</datalist>
@@ -1237,7 +1286,8 @@ function itemsEditorHtml(items = [], pricingOptions = [], activityTypeGroup = ''
     </div>`;
   }
 
-  const rowsHtml = (Array.isArray(items) ? items : []).map((item, idx) => itemRowHtml({ ...item, proposal_group: item.proposal_group || normalizedGroup }, idx, pricingOptions, { groupKey: normalizedGroup })).join('');
+  const editableItems = (Array.isArray(items) && items.length) ? items : (pricingOptions.length ? [{ proposal_group: normalizedGroup, quantity: 1 }] : []);
+  const rowsHtml = editableItems.map((item, idx) => itemRowHtml({ ...item, proposal_group: item.proposal_group || normalizedGroup }, idx, pricingOptions, { groupKey: normalizedGroup })).join('');
   return `<div class="ds-pa-items-section">
     <div class="ds-pa-items-header">
       <span style="font-size:0.76rem;color:var(--ds-color-text-muted,#64748b);font-weight:600">שורות הצעה</span>
@@ -1367,6 +1417,70 @@ function extractItemsFromForm(form) {
   }).filter((item) => hasMeaningfulProposalItemValue(item) && !isTestHoursItem(item));
 }
 
+function normalizeProposalItemRow(item = {}, fallbackGroup = '') {
+  let selectedBundleItems = proposalField(item, 'selected_bundle_items', 'selectedBundleItems');
+  if (typeof selectedBundleItems === 'string') {
+    try { selectedBundleItems = JSON.parse(selectedBundleItems); } catch { selectedBundleItems = []; }
+  }
+  if (!Array.isArray(selectedBundleItems)) selectedBundleItems = [];
+  const proposalGroup = normalizeProposalGroup(proposalField(item, 'proposal_group', 'proposalGroup') || proposalField(item, 'group_key', 'groupKey') || fallbackGroup);
+  const normalized = {
+    ...item,
+    proposal_agreement_id: proposalField(item, 'proposal_agreement_id', 'proposalAgreementId') || '',
+    item_name: proposalField(item, 'item_name', 'itemName') || '',
+    item_type: proposalField(item, 'item_type', 'itemType') || '',
+    gefen_number: proposalField(item, 'gefen_number', 'gefenNumber') || '',
+    meetings_count: proposalField(item, 'meetings_count', 'meetingsCount'),
+    hours_count: proposalField(item, 'hours_count', 'hoursCount'),
+    quantity: proposalField(item, 'quantity', 'quantity'),
+    unit_price: proposalField(item, 'unit_price', 'unitPrice'),
+    total_price: proposalField(item, 'total_price', 'totalPrice'),
+    description: proposalField(item, 'description', 'description') || '',
+    hourly_price: proposalField(item, 'hourly_price', 'hourlyPrice'),
+    source_pricing_key: proposalField(item, 'source_pricing_key', 'sourcePricingKey') || '',
+    proposal_display_mode: proposalField(item, 'proposal_display_mode', 'proposalDisplayMode') || 'single',
+    selected_bundle_items: selectedBundleItems,
+    activity_no: proposalField(item, 'activity_no', 'activityNo') || '',
+    unit_duration: proposalField(item, 'unit_duration', 'unitDuration') || '',
+    proposal_group: proposalGroup,
+    group_key: proposalGroup,
+    sort_order: proposalField(item, 'sort_order', 'sortOrder') ?? 0
+  };
+  return {
+    ...normalized,
+    proposalAgreementId: normalized.proposal_agreement_id,
+    itemName: normalized.item_name,
+    itemType: normalized.item_type,
+    gefenNumber: normalized.gefen_number,
+    meetingsCount: normalized.meetings_count,
+    hoursCount: normalized.hours_count,
+    unitPrice: normalized.unit_price,
+    totalPrice: normalized.total_price,
+    hourlyPrice: normalized.hourly_price,
+    sourcePricingKey: normalized.source_pricing_key,
+    proposalDisplayMode: normalized.proposal_display_mode,
+    selectedBundleItems: normalized.selected_bundle_items,
+    activityNo: normalized.activity_no,
+    unitDuration: normalized.unit_duration,
+    proposalGroup: normalized.proposal_group,
+    sortOrder: normalized.sort_order
+  };
+}
+
+function parseProposalItemsJsonFallback(row = {}) {
+  const raw = row.items_json ?? row.itemsJson;
+  if (!raw) return [];
+  try {
+    const parsed = typeof raw === 'string' ? JSON.parse(raw) : raw;
+    return (Array.isArray(parsed) ? parsed : []).map((item) => normalizeProposalItemRow(item, row.activity_type_group));
+  } catch { return []; }
+}
+
+function proposalItemsWithFallback(items = [], row = {}) {
+  const normalizedItems = (Array.isArray(items) ? items : []).map((item) => normalizeProposalItemRow(item, row.activity_type_group));
+  return normalizedItems.length ? normalizedItems : parseProposalItemsJsonFallback(row);
+}
+
 function hasMeaningfulProposalItemValue(item = {}) {
   return Boolean(
     proposalTextField(item, 'item_name', 'itemName') ||
@@ -1384,6 +1498,7 @@ function hasMeaningfulProposalItemValue(item = {}) {
 // ─── Items summary (drawer read-only) ────────────────────────────────────────
 
 function itemsSummaryHtml(items = []) {
+  items = (Array.isArray(items) ? items : []).map((item) => normalizeProposalItemRow(item));
   const activeItems = (Array.isArray(items) ? items : []).filter(hasMeaningfulProposalItemValue);
   if (!activeItems.length) {
     return '<p class="ds-pa-no-items-alert" role="alert" style="font-size:0.8rem;margin:4px 0;color:#b45309;background:#fffbeb;border:1px solid #fde68a;border-radius:8px;padding:6px 10px">לא נשמרו שורות פעילות להצעה זו</p>';
@@ -2008,7 +2123,12 @@ function pricingMatchesGroup(row, activityTypeGroup) {
     if (!children.length) return true;
     return children.some((groupKey) => itemBelongsToGroup(row, groupKey));
   }
-  return itemBelongsToGroup(row, normalizedGroup);
+  if (itemBelongsToGroup(row, normalizedGroup)) return true;
+  const rowGroup = text(row.proposal_group || row.activity_type_group);
+  const rowGroupNormalized = normalizeProposalGroup(rowGroup);
+  return rowGroupNormalized === normalizedGroup
+    || rowGroup === activityTypeGroup
+    || normalizeHebrewQuoteVariants(rowGroup) === normalizeHebrewQuoteVariants(activityTypeGroup);
 }
 
 function filterPricingByProposalType(pricingOptions, activityTypeGroup) {
@@ -2793,6 +2913,9 @@ function ensureCatalogAppendixNotice(previewArea, row = {}, items = []) {
 
 export {
   setProposalGroupLookups,
+  normalizeProposalItemRow,
+  parseProposalItemsJsonFallback,
+  proposalItemsWithFallback,
   resolveProposalTemplateKey,
   proposalGroupTemplateKey,
   filterTemplateSectionsForGroup,
@@ -3603,6 +3726,7 @@ export const proposalsAgreementsScreen = {
           }
         } catch { items = []; }
       }
+      items = proposalItemsWithFallback(items, row);
       formHost.hidden = false;
       formHost.innerHTML = formHtml(mode, row, activityNameOptions, contactOptions, items, proposalActivityPricing, state, contactOptionsError);
       setupTypeChangeHandler(formHost);
@@ -3644,6 +3768,7 @@ export const proposalsAgreementsScreen = {
       const savedRow = data.rows.find((r) => text(r.id) === text(row.id));
       const mergedRow = savedRow ? { ...savedRow, ...row } : row;
       const freshRow = rowWithCentralContact(mergedRow);
+      items = proposalItemsWithFallback(items, freshRow);
       const templateSections = filterTemplateSectionsForGroup(proposalTemplateSections, freshRow.activity_type_group);
       document.getElementById('pa-preview-overlay')?.remove();
       const overlay = document.createElement('div');
@@ -4100,7 +4225,7 @@ export const proposalsAgreementsScreen = {
           const itemsHost = newDrawer?.querySelector('[data-pa-drawer-items]');
           if (itemsHost && text(row.id) && typeof api.readProposalAgreementItems === 'function') {
             try {
-              const items = await api.readProposalAgreementItems(text(row.id));
+              const items = proposalItemsWithFallback(await api.readProposalAgreementItems(text(row.id)), row);
               if (itemsHost.isConnected) itemsHost.innerHTML = itemsSummaryHtml(items);
             } catch { if (itemsHost.isConnected) itemsHost.innerHTML = ''; }
           } else if (itemsHost) {
@@ -4228,7 +4353,7 @@ export const proposalsAgreementsScreen = {
           }
         } catch { items = []; }
         previewBtn.disabled = false;
-        await openPreview(row, items);
+        await openPreview(row, proposalItemsWithFallback(items, row));
         // Mark preview seen on any open form for this record
         root.querySelectorAll(`[data-pa-form][data-pa-id="${id}"]`).forEach((f) => { f.dataset.paPreviewSeen = 'yes'; });
         return;
@@ -4248,7 +4373,7 @@ export const proposalsAgreementsScreen = {
           }
         } catch { items = []; }
         printBtn.disabled = false;
-        await openPreview(row, items);
+        await openPreview(row, proposalItemsWithFallback(items, row));
         return;
       }
 

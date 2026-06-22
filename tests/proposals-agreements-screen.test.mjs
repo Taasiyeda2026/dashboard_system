@@ -2926,6 +2926,7 @@ const {
   filterTemplateSectionsForGroup,
   documentSectionsEditorHtml,
   itemsSummaryHtml,
+  proposalItemsWithFallback,
   extractItemsFromForm
 } = await import('../frontend/src/screens/proposals-agreements.js');
 const {
@@ -3130,4 +3131,50 @@ test('saveProposalAgreementItems keeps valid priced item rows in payload', async
   assert.match(saveBlock[0], /item_name:/);
   assert.match(saveBlock[0], /unit_price:/);
   assert.match(saveBlock[0], /total_price:/);
+});
+
+test('upgraded selector fallback shows Hebrew display labels only, not internal group keys', () => {
+  setProposalGroupLookups({
+    proposalActivityGroups: [
+      { group_key: 'summer', template_key: 'summer', sort_order: 1, is_active: true },
+      { group_key: 'next_year', template_key: 'next_year', sort_order: 2, is_active: true },
+      { group_key: 'combined', template_key: 'combined', included_group_keys: ['summer', 'next_year'], sort_order: 3, is_active: true }
+    ]
+  }, [], []);
+  const html = proposalTypeCardsHtml('summer');
+  assert.match(html, />פעילויות קיץ</);
+  assert.match(html, />שנה הבאה</);
+  assert.match(html, />הצעה משולבת</);
+  assert.doesNotMatch(html, />summer</);
+  assert.doesNotMatch(html, />next_year</);
+  assert.doesNotMatch(html, />combined</);
+});
+
+test('legacy activity_type_group values resolve to canonical keys for summer and next_year templates', () => {
+  const sections = [
+    { template_key: 'summer', section_key: 'intro', section_title: 'פתיח קיץ', section_body: 'תוכן קיץ' },
+    { template_key: 'next_year', section_key: 'intro', section_title: 'פתיח שנה', section_body: 'תוכן שנה' }
+  ];
+  setProposalGroupLookups({
+    proposalActivityGroups: [
+      { group_key: 'summer', display_name: 'פעילויות קיץ', template_key: 'summer' },
+      { group_key: 'next_year', display_name: 'שנה הבאה', template_key: 'next_year' }
+    ],
+    proposalTemplateSections: sections
+  }, [], []);
+  assert.equal(resolveProposalTemplateKey('קיץ תשפ״ו'), 'summer');
+  assert.equal(resolveProposalTemplateKey('תוכניות תשפ״ז'), 'next_year');
+  assert.match(documentSectionsEditorHtml(filterTemplateSectionsForGroup(sections, 'קיץ תשפ״ו'), false), /תוכן קיץ/);
+  assert.match(documentSectionsEditorHtml(filterTemplateSectionsForGroup(sections, 'תוכניות תשפ״ז'), false), /תוכן שנה/);
+});
+
+test('items_json fallback normalizes and renders rows when proposalAgreementItems is empty', () => {
+  setProposalGroupLookups({ proposalActivityGroups: [{ group_key: 'next_year', display_name: 'שנה הבאה', template_key: 'next_year' }] }, [], []);
+  const row = { activity_type_group: 'תוכניות תשפ״ז', items_json: JSON.stringify([{ item_name: 'קורס חלל', proposal_group: 'שנה הבאה', quantity: 1, unit_price: 900, total_price: 900 }]) };
+  const items = proposalItemsWithFallback([], row);
+  assert.equal(items.length, 1);
+  assert.equal(items[0].proposalGroup, 'next_year');
+  const html = itemsSummaryHtml(items);
+  assert.match(html, /קורס חלל/);
+  assert.doesNotMatch(html, /לא נשמרו שורות פעילות להצעה זו/);
 });
