@@ -2857,14 +2857,22 @@ test('next_year template_name migration updates programs wording', async () => {
   assert.match(migration, /where template_key = 'next_year'/i);
 });
 
-test('exact proposal templates multiline migration is not a no-op when stable SQL exists', async () => {
+test('exact timestamp proposal templates multiline migration matches stable SQL and is not a no-op', async () => {
   const migration = await readFile(
     new URL('../supabase/migrations/20260530151253_exact_proposal_templates_multiline.sql', import.meta.url),
     'utf8'
   );
+  const stableMigration = await readFile(
+    new URL('../supabase/migrations/20260530_exact_proposal_templates_multiline.sql', import.meta.url),
+    'utf8'
+  );
+  assert.equal(migration, stableMigration);
   assert.doesNotMatch(migration, /^[\s\S]*SELECT\s+1\s*;\s*$/i);
   assert.match(migration, /insert into public\.proposal_template_sections/i);
   assert.match(migration, /template_key IN \('summer', 'next_year', 'combined'\)/i);
+  assert.match(migration, /'summer'/);
+  assert.match(migration, /'next_year'/);
+  assert.match(migration, /'combined'/);
   assert.match(migration, /\$body\$[\s\S]*\$body\$/);
 });
 
@@ -2915,7 +2923,8 @@ const {
   resolveProposalTemplateKey,
   filterTemplateSectionsForGroup,
   documentSectionsEditorHtml,
-  itemsSummaryHtml
+  itemsSummaryHtml,
+  extractItemsFromForm
 } = await import('../frontend/src/screens/proposals-agreements.js');
 const {
   buildProposalGroupHintsFromTemplateSections,
@@ -2958,6 +2967,74 @@ test('items summary does not show missing-rows alert when active items exist', (
   assert.match(html, /רובוטיקה/);
 });
 
+
+test('production-shaped template section rows are normalized to camelCase payload fields', async () => {
+  const apiSource = await readFile(API_FILE, 'utf8');
+  assert.match(apiSource, /function mapProposalTemplateSectionRow/);
+  assert.match(apiSource, /template_key,template_name,activity_type_group,section_key,section_title,section_body,sort_order,is_active/);
+  assert.match(apiSource, /templateKey/);
+  assert.match(apiSource, /activityTypeGroup/);
+  assert.match(apiSource, /sectionKey/);
+  assert.match(apiSource, /sectionTitle/);
+  assert.match(apiSource, /sectionBody/);
+  assert.match(apiSource, /sortOrder/);
+  assert.match(apiSource, /isActive/);
+});
+
+test('combined production Hebrew alias resolves and renders combined template sections', () => {
+  const sections = [
+    { templateKey: 'combined', activityTypeGroup: 'קיץ תשפ״ו ושנת הלימודים תשפ״ז', sectionKey: 'intro', sectionTitle: 'פתיח משולב', sectionBody: 'טקסט משולב', sortOrder: 10, isActive: true }
+  ];
+  setProposalGroupLookups({
+    proposalTemplateSections: sections,
+    proposalActivityGroups: [{ group_key: 'combined', display_name: 'משולב', template_key: 'combined' }],
+    proposalGroupAliases: [{ alias_name: 'קיץ תשפ״ו ושנת הלימודים תשפ״ז', group_key: 'combined' }]
+  }, [], []);
+  assert.equal(resolveProposalTemplateKey('קיץ תשפ״ו ושנת הלימודים תשפ״ז'), 'combined');
+  const html = documentSectionsEditorHtml(filterTemplateSectionsForGroup(sections, 'קיץ תשפ״ו ושנת הלימודים תשפ״ז'), false);
+  assert.doesNotMatch(html, /לא נמצאה תבנית פעילה לסוג הצעה זה/);
+  assert.match(html, /פתיח משולב/);
+});
+
+test('production-shaped saved proposal item rows render instead of missing-items alert', () => {
+  const html = itemsSummaryHtml([
+    {
+      proposalAgreementId: 'proposal-1',
+      itemName: 'סדנת רובוטיקה',
+      itemType: 'סדנה',
+      quantity: 2,
+      unitPrice: 500,
+      totalPrice: 1000,
+      sourcePricingKey: 'robotics-workshop',
+      proposalGroup: 'summer',
+      sortOrder: 1
+    }
+  ]);
+  assert.doesNotMatch(html, /לא נשמרו שורות פעילות להצעה זו/);
+  assert.match(html, /סדנת רובוטיקה/);
+});
+
+test('save item extraction keeps rows with source pricing key even when name is filled from pricing', async () => {
+  setProposalGroupLookups({ proposalActivityGroups: [{ group_key: 'summer', display_name: 'קיץ תשפ״ו', template_key: 'summer' }] }, [], []);
+  await withJSDOM(`<form data-pa-form>
+    <select name="activity_type_group"><option value="summer" selected>summer</option></select>
+    <article data-pa-item-row data-pa-row-group="summer">
+      <input name="item_name" value="">
+      <input name="item_source_pricing_key" value="pricing-1">
+      <input name="proposal_group" value="summer">
+      <input name="quantity" value="1">
+      <input name="unit_price" value="100">
+      <input data-pa-item-total name="total_price" value="100">
+      <input name="item_selected_bundle_items" value="[]">
+    </article>
+  </form>`, async (root) => {
+    const items = extractItemsFromForm(root.querySelector('[data-pa-form]'));
+    assert.equal(items.length, 1);
+    assert.equal(items[0].sourcePricingKey, 'pricing-1');
+    assert.equal(items[0].proposalGroup, 'summer');
+  });
+});
+
 test('readProposalsAgreementsFromSupabase waits for auth session and records loader debug', async () => {
   const apiSource = await readFile(API_FILE, 'utf8');
   assert.match(apiSource, /async function readProposalsAgreementsFromSupabase\(\) \{[\s\S]*await waitForSupabaseAuthSession\(\)/);
@@ -2969,7 +3046,7 @@ test('saveProposalAgreementItems keeps valid priced item rows in payload', async
   const apiSource = await readFile(API_FILE, 'utf8');
   const saveBlock = apiSource.match(/saveProposalAgreementItems: async \(proposalId, items\) => \{[\s\S]*?\n  \},/);
   assert.ok(saveBlock, 'saveProposalAgreementItems should exist');
-  assert.match(saveBlock[0], /filter\(\(i\) => cleanProposalAgreementText\(i\.item_name\) && !isProposalTestHoursItem\(i\)\)/);
+  assert.match(saveBlock[0], /hasMeaningfulProposalItemValue/);
   assert.match(saveBlock[0], /item_name:/);
   assert.match(saveBlock[0], /unit_price:/);
   assert.match(saveBlock[0], /total_price:/);
