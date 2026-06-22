@@ -1365,6 +1365,59 @@ test('status badge is rendered in table rows with correct labels', () => {
   assert.doesNotMatch(html, /נחתם/);
 });
 
+test('statusForDb maps UI sent to pending_approval for DB writes', async () => {
+  const { statusForDb } = await import('../frontend/src/api.js');
+  assert.equal(statusForDb('sent'), 'pending_approval');
+  assert.equal(statusForDb('draft'), 'draft');
+  assert.equal(statusForDb('returned_for_changes'), 'returned_for_changes');
+  assert.equal(statusForDb('approved'), 'approved');
+  assert.equal(statusForDb('cancelled'), 'cancelled');
+  assert.equal(statusForDb('pending_approval'), 'pending_approval');
+  assert.equal(statusForDb(''), 'draft');
+});
+
+test('proposal save DB payload never contains status sent', async () => {
+  const { sanitizeProposalAgreementPayload } = await import('../frontend/src/api.js');
+  const { state } = await import('../frontend/src/state.js');
+  const previousUser = state.user;
+  state.user = { role: 'admin' };
+  const emptyLookup = { aliasToKey: new Map(), groupByKey: new Map() };
+  const basePayload = {
+    client_authority: 'רשות בדיקה',
+    school_framework: 'בית ספר בדיקה',
+    document_type: 'הצעת מחיר',
+    activity_type_group: 'summer'
+  };
+  try {
+    for (const uiStatus of ['draft', 'sent', 'returned_for_changes', 'approved', 'cancelled', 'pending_approval']) {
+      const dbPayload = sanitizeProposalAgreementPayload({ ...basePayload, status: uiStatus }, emptyLookup);
+      assert.notEqual(dbPayload.status, 'sent', `UI status ${uiStatus} must not write sent to DB`);
+      if (uiStatus === 'sent') assert.equal(dbPayload.status, 'pending_approval');
+      if (uiStatus === 'draft') assert.equal(dbPayload.status, 'draft');
+      if (uiStatus === 'returned_for_changes') assert.equal(dbPayload.status, 'returned_for_changes');
+      if (uiStatus === 'approved') assert.equal(dbPayload.status, 'approved');
+      if (uiStatus === 'cancelled') assert.equal(dbPayload.status, 'cancelled');
+    }
+  } finally {
+    state.user = previousUser;
+  }
+});
+
+test('reading pending_approval from DB still displays נשלח in UI', () => {
+  const pendingRow = { ...sampleRows[0], status: 'pending_approval' };
+  const html = proposalsAgreementsScreen.render({ rows: [pendingRow] }, { state: stateFor('admin') });
+  assert.match(html, /נשלח/);
+});
+
+test('updateProposalAgreementStatus uses statusForDb before Supabase write', async () => {
+  const apiSource = await readFile(API_FILE, 'utf8');
+  assert.match(apiSource, /const patch = \{ status: statusForDb\(cleanStatus\), approval_note:/);
+  assert.doesNotMatch(
+    apiSource,
+    /sanitizeProposalAgreementPayload[\s\S]*pending_approval \? 'sent'/
+  );
+});
+
 test('multiple proposal item names are preserved on save', async () => {
   const savedPayloads = [];
   const mockApi = {
