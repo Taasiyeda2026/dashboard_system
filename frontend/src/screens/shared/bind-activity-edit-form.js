@@ -412,6 +412,20 @@ export function bindActivityEditForm(contentRoot, {
         return;
       }
 
+      const meetingSnapshot = buildMeetingDatesSnapshot(form);
+      const rowId = sourceRowId;
+      const rawChanges = { ...changes };
+      const dateNamedFields = Array.from(form.querySelectorAll('[name]'))
+        .map((el) => el.getAttribute('name'))
+        .filter((name) => name === 'start_date' || name === 'end_date' || /^date(_|$)|^date_\d+$/.test(name || '') || /^meeting_date_\d+$/.test(name || ''));
+      console.info('[activity-date-save-proof:form]', {
+        rowId,
+        rawChanges,
+        meetingSnapshot,
+        initialValues,
+        dateNamedFields
+      });
+
       const debugPayload = { source_sheet: sourceSheet, source_row_id: sourceRowId, changes };
 
       if (!canDirectEdit && !canRequestEdit) {
@@ -452,6 +466,20 @@ export function bindActivityEditForm(contentRoot, {
       );
       if (!canDirectEdit) {
         try { document.dispatchEvent(new CustomEvent('app:edit-requests-updated')); } catch (_) { /* ignore */ }
+      }
+      if (canDirectEdit && requestResult?.row) {
+        clearScreenDataCache?.();
+        const finalRow = requestResult.row;
+        console.info('[activity-date-save-proof:final-db-row]', {
+          row_id: finalRow.row_id || finalRow.RowID || sourceRowId,
+          start_date: finalRow.start_date || '',
+          end_date: finalRow.end_date || '',
+          date_1: finalRow.date_1 || '',
+          date_2: finalRow.date_2 || '',
+          date_3: finalRow.date_3 || '',
+          date_4: finalRow.date_4 || '',
+          date_5: finalRow.date_5 || ''
+        });
       }
       if (canDirectEdit && typeof onRowSaved === 'function') onRowSaved({ sourceSheet, sourceRowId, changes, form, row: requestResult?.row || null });
       if (!canDirectEdit) {
