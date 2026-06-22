@@ -165,16 +165,25 @@ test('optional stabilize/reconcile migrations were removed', async () => {
   );
 });
 
-test('placeholder migrations use valid no-op SQL for Supabase Preview', async () => {
-  const files = [
+test('restored migrations contain real SQL; true placeholders remain no-ops', async () => {
+  const restored = [
+    '../supabase/migrations/20260530151253_exact_proposal_templates_multiline.sql',
+    '../supabase/migrations/20260606210608_personal_reports_employee_travel_rates.sql',
+    '../supabase/migrations/20260620155322_add_participants_count_to_activities.sql'
+  ];
+  for (const rel of restored) {
+    const sql = await readFile(new URL(rel, import.meta.url), 'utf8');
+    assert.doesNotMatch(sql, /^[\s\S]*SELECT\s+1\s*;\s*$/i, `${rel} should not be a no-op`);
+  }
+
+  const placeholders = [
     '../supabase/migrations/20260614224918_grant_proposals_agreements_directory_view_select.sql',
     '../supabase/migrations/20260617214409_grant_workshop_stock_distributions_client_access.sql',
-    '../supabase/migrations/20260620155322_add_participants_count_to_activities.sql',
     '../supabase/migrations/20260614224924_grant_proposals_agreements_directory_view_dependencies.sql',
     '../supabase/migrations/20260614224709_add_proposal_directory_compat_aliases.sql'
   ];
 
-  for (const rel of files) {
+  for (const rel of placeholders) {
     const sql = await readFile(new URL(rel, import.meta.url), 'utf8');
     assert.match(sql, /SELECT\s+1\s*;/i, `${rel} should contain SELECT 1; no-op`);
   }
