@@ -515,6 +515,24 @@ function normalizeCatalogText(value) {
   return String(value == null ? '' : value).trim();
 }
 
+const SUPABASE_CATALOG_PAGE_SIZE = 1000;
+
+async function readSupabaseCatalogPages({ table, columns, applyOrder, pageSize = SUPABASE_CATALOG_PAGE_SIZE }) {
+  const rows = [];
+  for (let from = 0; ; from += pageSize) {
+    const to = from + pageSize - 1;
+    let query = supabase
+      .from(table)
+      .select(columns);
+    if (typeof applyOrder === 'function') query = applyOrder(query);
+    const { data, error } = await query.range(from, to);
+    if (error) return { data: rows, error, pageIndex: Math.floor(from / pageSize) };
+    const pageRows = Array.isArray(data) ? data : [];
+    rows.push(...pageRows);
+    if (pageRows.length < pageSize) return { data: rows, error: null, pageIndex: Math.floor(from / pageSize) };
+  }
+}
+
 async function readAuthoritiesCatalogFromSupabase() {
   if (!supabase) return [];
   const columnSets = [
@@ -525,17 +543,19 @@ async function readAuthoritiesCatalogFromSupabase() {
   ];
   for (const columns of columnSets) {
     try {
-      const { data, error } = await supabase
-        .from('authorities')
-        .select(columns)
-        .order('authority_name', { ascending: true });
+      const { data, error, pageIndex } = await readSupabaseCatalogPages({
+        table: 'authorities',
+        columns,
+        applyOrder: (query) => query.order('authority_name', { ascending: true })
+      });
       if (error) {
         // eslint-disable-next-line no-console
-        console.warn('[supabase] Failed to load authorities with columns', columns, error);
+        console.warn('[supabase] Failed to load authorities with columns', columns, { pageIndex, error });
         continue;
       }
-      if (Array.isArray(data) && data.length) return data;
-      if (Array.isArray(data)) return data;
+      // eslint-disable-next-line no-console
+      console.info('[supabase][catalog]', { authorities_count_loaded: Array.isArray(data) ? data.length : 0 });
+      return Array.isArray(data) ? data : [];
     } catch (error) {
       // eslint-disable-next-line no-console
       console.warn('[supabase] Unexpected authorities fetch error:', error);
@@ -553,16 +573,20 @@ async function readSchoolsCatalogFromSupabase() {
   ];
   for (const columns of columnSets) {
     try {
-      const { data, error } = await supabase
-        .from('schools')
-        .select(columns)
-        .order('authority', { ascending: true })
-        .order('school_name', { ascending: true });
+      const { data, error, pageIndex } = await readSupabaseCatalogPages({
+        table: 'schools',
+        columns,
+        applyOrder: (query) => query
+          .order('authority', { ascending: true })
+          .order('school_name', { ascending: true })
+      });
       if (error) {
         // eslint-disable-next-line no-console
-        console.warn('[supabase] Failed to load schools with columns', columns, error);
+        console.warn('[supabase] Failed to load schools with columns', columns, { pageIndex, error });
         continue;
       }
+      // eslint-disable-next-line no-console
+      console.info('[supabase][catalog]', { schools_count_loaded: Array.isArray(data) ? data.length : 0 });
       return Array.isArray(data) ? data : [];
     } catch (error) {
       // eslint-disable-next-line no-console
