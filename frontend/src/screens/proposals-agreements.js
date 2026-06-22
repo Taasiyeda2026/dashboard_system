@@ -1777,6 +1777,15 @@ function proposalItemDetailsTableHtml(items = [], contextGroup = '') {
   ];
   const footerRow = `<tr>${footerCells.map((cell) => `<td>${cell.html ? (cell.value || '') : escapeHtml(cell.value || '')}</td>`).join('')}</tr>`;
   return `<table class="${tableClass}">
+    <colgroup>
+      <col class="pa-course-col">
+      <col class="pa-gefen-col">
+      <col class="pa-meetings-col">
+      <col class="pa-groups-col">
+      <col class="pa-hours-col">
+      <col class="pa-hourly-price-col">
+      <col class="pa-total-price-col">
+    </colgroup>
     <thead><tr><th>קורס / תוכנית</th><th>מס׳ גפ״ן</th><th>מפגשים</th><th>קבוצות</th><th>שעות</th><th>מחיר לשעה</th><th>סה״כ</th></tr></thead>
     <tbody>${rows.join('')}</tbody>
     <tfoot>${footerRow}</tfoot>
