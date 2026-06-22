@@ -99,6 +99,28 @@ const EMPTY_PROPOSAL_GROUP_LOOKUPS = Object.freeze({
 });
 let proposalGroupLookups = EMPTY_PROPOSAL_GROUP_LOOKUPS;
 const COMBINED_TEMPLATE_GROUP_KEYS = Object.freeze(['summer', 'next_year']);
+
+const PROPOSAL_GROUP_DISPLAY_FALLBACKS = Object.freeze({
+  summer: 'קיץ תשפ״ו',
+  next_year: 'תוכניות תשפ״ז',
+  combined: 'קיץ תשפ״ו ותוכניות תשפ״ז'
+});
+const PROPOSAL_GROUP_LEGACY_ALIASES = Object.freeze({
+  'קיץ תשפ״ו': 'summer',
+  'פעילויות קיץ': 'summer',
+  'שנת הלימודים תשפ״ז': 'next_year',
+  'תוכניות תשפ״ז': 'next_year',
+  'הצעה משולבת': 'combined',
+  'קיץ תשפ״ו ושנת הלימודים תשפ״ז': 'combined',
+  'קיץ תשפ״ו ותוכניות תשפ״ז': 'combined'
+});
+
+function proposalGroupSafeDisplayName(groupKey = '', displayName = '') {
+  const key = text(groupKey);
+  const label = text(displayName);
+  if (label && label !== key) return label;
+  return PROPOSAL_GROUP_DISPLAY_FALLBACKS[key] || label || key;
+}
 let proposalTemplateSectionsLookup = [];
 
 
@@ -157,23 +179,31 @@ function toArray(value) {
 }
 
 function normalizeProposalGroupRecord(record = {}, fallbackIndex = 0) {
-  const groupKey = text(record.group_key || record.key || record.value || record.id || record.display_name || record.name || record.label);
+  const groupKey = text(record.group_key || record.groupKey || record.key || record.value || record.id);
   if (!groupKey) return null;
-  const displayName = text(record.display_name || record.name || record.label || record.title || groupKey);
-  const templateKey = text(record.template_key || record.template || record.document_template_key || groupKey);
+  const displayName = proposalGroupSafeDisplayName(groupKey, record.display_name || record.displayName || record.name || record.label || record.title);
+  const templateKey = text(record.template_key || record.templateKey || record.template || record.document_template_key || groupKey);
   const aliases = toArray(record.aliases || record.alias_names || record.legacy_names || record.old_names);
-  const includedGroupKeys = toArray(record.included_group_keys || record.child_group_keys || record.child_groups || record.includes)
+  const includedGroupKeys = toArray(record.included_group_keys || record.includedGroupKeys || record.child_group_keys || record.child_groups || record.includes)
     .map(text).filter(Boolean);
+  const sortOrder = Number(record.sort_order ?? record.sortOrder ?? record.order ?? fallbackIndex + 1) || fallbackIndex + 1;
+  const isActive = record.is_active ?? record.isActive;
   return {
     ...record,
     group_key: groupKey,
+    groupKey,
     display_name: displayName,
+    displayName,
     template_key: templateKey,
-    sort_order: Number(record.sort_order ?? record.order ?? fallbackIndex + 1) || fallbackIndex + 1,
-    is_active: record.is_active !== false,
+    templateKey,
+    sort_order: sortOrder,
+    sortOrder,
+    is_active: isActive !== false,
+    isActive: isActive !== false,
     is_combined: record.is_combined === true || record.allows_multiple_groups === true || includedGroupKeys.length > 0,
     show_gefen: record.show_gefen !== false,
     included_group_keys: includedGroupKeys,
+    includedGroupKeys,
     aliases: aliases.filter(Boolean)
   };
 }
@@ -206,13 +236,10 @@ function collectTemplateSectionGroupHints(sections = []) {
 }
 
 function collectGroupRecords(data = {}, rows = [], pricingOptions = []) {
-  const directGroups = [
-    data.proposalActivityGroups,
-    data.proposalGroups,
-    data.activityTypeGroups,
-    data.proposal_activity_groups,
-    collectTemplateSectionGroupHints(data.proposalTemplateSections || data.proposal_template_sections)
-  ].filter(Array.isArray).flat();
+  const canonicalActivityGroups = [data.proposalActivityGroups, data.proposal_activity_groups].filter(Array.isArray).flat();
+  const directGroups = canonicalActivityGroups.length
+    ? canonicalActivityGroups
+    : [data.proposalGroups, data.activityTypeGroups, collectTemplateSectionGroupHints(data.proposalTemplateSections || data.proposal_template_sections)].filter(Array.isArray).flat();
   const groups = [];
   const seen = new Set();
   // Names already covered by Supabase groups/aliases must not become standalone groups.
@@ -239,8 +266,10 @@ function collectGroupRecords(data = {}, rows = [], pricingOptions = []) {
     addGroup({ group_key: raw, display_name: raw, template_key: raw, is_active: true }, groups.length);
   };
 
-  (Array.isArray(rows) ? rows : []).forEach((row) => addRawGroup(row.activity_type_group || row.proposal_group));
-  (Array.isArray(pricingOptions) ? pricingOptions : []).forEach((row) => addRawGroup(row.proposal_group || row.activity_type_group));
+  if (!canonicalActivityGroups.length) {
+    (Array.isArray(rows) ? rows : []).forEach((row) => addRawGroup(row.activity_type_group || row.proposal_group));
+    (Array.isArray(pricingOptions) ? pricingOptions : []).forEach((row) => addRawGroup(row.proposal_group || row.activity_type_group));
+  }
 
   return groups.filter((group) => group.is_active).sort((a, b) => a.sort_order - b.sort_order || a.display_name.localeCompare(b.display_name, 'he'));
 }
@@ -249,6 +278,7 @@ function setProposalGroupLookups(data = {}, rows = [], pricingOptions = []) {
   proposalTemplateSectionsLookup = normalizeTemplateSections(Array.isArray(data?.proposalTemplateSections)
     ? data.proposalTemplateSections
     : Array.isArray(data?.proposal_template_sections) ? data.proposal_template_sections : []);
+  const canonicalActivityGroups = [data.proposalActivityGroups, data.proposal_activity_groups].filter(Array.isArray).flat();
   const groups = collectGroupRecords({ ...data, proposalTemplateSections: proposalTemplateSectionsLookup }, rows, pricingOptions);
   const groupByKey = new Map();
   const aliasToKey = new Map();
@@ -256,6 +286,7 @@ function setProposalGroupLookups(data = {}, rows = [], pricingOptions = []) {
     groupByKey.set(group.group_key, group);
     aliasToKey.set(group.group_key, group.group_key);
     aliasToKey.set(group.display_name, group.group_key);
+    if (group.template_key) aliasToKey.set(group.template_key, group.group_key);
     group.aliases.forEach((alias) => aliasToKey.set(alias, group.group_key));
   });
   dataGroupAliasRows(data)
@@ -269,7 +300,7 @@ function setProposalGroupLookups(data = {}, rows = [], pricingOptions = []) {
     const activityGroup = proposalTextField(section, 'activity_type_group', 'activityTypeGroup');
     const templateName = proposalTextField(section, 'template_name', 'templateName');
     if (!templateKey) return;
-    if (!groupByKey.has(templateKey)) {
+    if (!canonicalActivityGroups.length && !groupByKey.has(templateKey)) {
       const normalized = normalizeProposalGroupRecord({
         group_key: templateKey,
         display_name: templateName || activityGroup || templateKey,
@@ -294,12 +325,19 @@ function setProposalGroupLookups(data = {}, rows = [], pricingOptions = []) {
 function normalizeProposalGroup(value) {
   const raw = text(value);
   if (!raw) return '';
-  return proposalGroupLookups.aliasToKey.get(raw) || raw;
+  return proposalGroupLookups.aliasToKey.get(raw) || PROPOSAL_GROUP_LEGACY_ALIASES[raw] || raw;
 }
 
 function proposalGroupMeta(value) {
   const key = normalizeProposalGroup(value);
-  return proposalGroupLookups.groupByKey.get(key) || null;
+  return proposalGroupLookups.groupByKey.get(key)
+    || (PROPOSAL_GROUP_DISPLAY_FALLBACKS[key] ? normalizeProposalGroupRecord({
+      group_key: key,
+      display_name: PROPOSAL_GROUP_DISPLAY_FALLBACKS[key],
+      template_key: key,
+      included_group_keys: key === 'combined' ? [...COMBINED_TEMPLATE_GROUP_KEYS] : [],
+      is_active: true
+    }) : null);
 }
 
 function proposalGroupDisplayName(value) {
@@ -352,7 +390,7 @@ function shouldShowGefenForGroup(value) {
   return meta?.show_gefen !== false;
 }
 
-function proposalGroupOptions(data = {}, rows = [], pricingOptions = []) {
+export function proposalGroupOptions(data = {}, rows = [], pricingOptions = []) {
   const lookups = setProposalGroupLookups(data, rows, pricingOptions);
   return lookups.groups.map((group) => ({ value: group.group_key, label: group.display_name }));
 }
@@ -2110,7 +2148,7 @@ function showValidationNotice(form, errors, isPending) {
   if (errorEl) errorEl.textContent = '';
 }
 
-function proposalTypeCardsHtml(selected) {
+export function proposalTypeCardsHtml(selected) {
   const normalizedSelected = normalizeProposalGroup(selected);
   const options = proposalGroupLookups.groups;
   if (!options.length) {

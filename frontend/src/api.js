@@ -2563,16 +2563,31 @@ async function readProposalActivityGroupsFromSupabase() {
       noteProposalRead('proposalActivityGroups', [], error);
       return [];
     }
-    const rows = (Array.isArray(data) ? data : []).map((row) => ({
-      group_key:           cleanProposalAgreementText(row?.group_key),
-      display_name:        cleanProposalAgreementText(row?.display_name),
-      template_key:        cleanProposalAgreementText(row?.template_key) || cleanProposalAgreementText(row?.group_key),
-      included_group_keys: Array.isArray(row?.included_group_keys)
+    const rows = (Array.isArray(data) ? data : []).map((row) => {
+      const groupKey = cleanProposalAgreementText(row?.group_key);
+      const displayName = cleanProposalAgreementText(row?.display_name);
+      const templateKey = cleanProposalAgreementText(row?.template_key) || groupKey;
+      const includedGroupKeys = Array.isArray(row?.included_group_keys)
         ? row.included_group_keys.map(cleanProposalAgreementText).filter(Boolean)
-        : [],
-      sort_order:          Number(row?.sort_order) || 0,
-      is_active:           row?.is_active !== false
-    })).filter((row) => row.group_key);
+        : [];
+      const sortOrder = Number(row?.sort_order) || 0;
+      const isActive = row?.is_active !== false;
+      return {
+        ...row,
+        group_key: groupKey,
+        display_name: displayName,
+        template_key: templateKey,
+        included_group_keys: includedGroupKeys,
+        sort_order: sortOrder,
+        is_active: isActive,
+        groupKey,
+        displayName,
+        templateKey,
+        includedGroupKeys,
+        sortOrder,
+        isActive
+      };
+    }).filter((row) => row.group_key);
     noteProposalRead('proposalActivityGroups', rows, null);
     return rows;
   } catch (error) {
@@ -4808,7 +4823,7 @@ export const api = {
     const groupLookup = await getProposalGroupLookup();
     const { data, error } = await supabase
       .from('proposal_agreement_items')
-      .select('id,activity_no,item_name,item_type,gefen_number,meetings_count,hours_count,quantity,unit_duration,unit_price,hourly_price,total_price,description,proposal_group,sort_order,proposal_display_mode,source_pricing_key,selected_bundle_items')
+      .select('id,proposal_agreement_id,item_name,item_type,gefen_number,meetings_count,hours_count,quantity,unit_price,total_price,description,hourly_price,source_pricing_key,proposal_display_mode,selected_bundle_items,activity_no,unit_duration,proposal_group,sort_order')
       .eq('proposal_agreement_id', rowId)
       .order('sort_order', { ascending: true });
     if (error) throw new Error(error.message || 'items_read_failed');
