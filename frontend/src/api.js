@@ -2468,6 +2468,12 @@ const PA_STATUS_LABELS = {
   cancelled:            'בוטל'
 };
 
+function statusForDb(status) {
+  const value = String(status || '').trim();
+  if (value === 'sent') return 'pending_approval';
+  return value || 'draft';
+}
+
 function buildProposalAgreementSearchText(row = {}) {
   const activityNames = Array.isArray(row.activity_names) ? row.activity_names.join(' ') : '';
   const statusLabel = PA_STATUS_LABELS[cleanProposalAgreementText(row.status)] || cleanProposalAgreementText(row.status);
@@ -2777,7 +2783,7 @@ function sanitizeProposalAgreementPayload(payload = {}, groupLookup = proposalGr
     phone:               cleanProposalAgreementText(payload.phone),
     email:               cleanProposalAgreementText(payload.email),
     notes:               parseActivityNamesFromNotes(payload.notes).notes,
-    status:              PA_VALID_STATUSES_SET.has(rawStatus) ? (rawStatus === 'pending_approval' ? 'sent' : rawStatus) : 'draft',
+    status:              statusForDb(PA_VALID_STATUSES_SET.has(rawStatus) ? rawStatus : 'draft'),
     approval_note:       cleanProposalAgreementText(payload.approval_note),
     total_amount:        payload.total_amount != null ? Number(payload.total_amount) || null : null,
     custom_document_sections: Array.isArray(payload.custom_document_sections) ? payload.custom_document_sections : [],
@@ -4823,7 +4829,7 @@ export const api = {
       const cs = cleanProposalAgreementText(currentRow.status);
       if (cs === 'sent' || cs === 'pending_approval') throw new Error('הצעה שנשלחה נעולה ולא ניתן לשנות את סטטוסה.');
     }
-    const patch = { status: cleanStatus, approval_note: cleanProposalAgreementText(approvalNote) };
+    const patch = { status: statusForDb(cleanStatus), approval_note: cleanProposalAgreementText(approvalNote) };
     if (cleanStatus === 'approved') {
       patch.approved_by = state?.user?.auth_user_id || state?.user?.user_id || state?.user?.id || null;
       patch.approved_at = new Date().toISOString();
@@ -5661,6 +5667,8 @@ export {
   canUseProposalsAgreementsApi,
   canManageProposalsAgreementsApi,
   canApproveProposalsAgreementsApi,
+  statusForDb,
+  sanitizeProposalAgreementPayload,
   USER_PUBLIC_COLUMNS,
   USER_PUBLIC_COLUMNS_EXTENDED
 };
