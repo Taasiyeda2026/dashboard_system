@@ -3904,6 +3904,28 @@ async function upsertActivityToSupabase(payload = {}) {
   return { RowID: normalized.RowID, row_id: normalized.row_id, source_sheet: 'activities', row: normalized };
 }
 
+
+function assertSupabaseActivityUpdateApplied(operation, requestedChanges = {}, returnedRow = {}) {
+  if (!returnedRow || typeof returnedRow !== 'object') {
+    const err = new Error('activity_update_no_row_returned');
+    err.operation = operation;
+    throw err;
+  }
+  for (const [key, expectedRaw] of Object.entries(requestedChanges || {})) {
+    if (!(key === 'start_date' || key === 'end_date' || /^date_\d+$/.test(key))) continue;
+    const expected = normalizeDateFieldForSupabase(expectedRaw) || '';
+    const actual = normalizeDateFieldForSupabase(returnedRow[key]) || '';
+    if (expected !== actual) {
+      const err = new Error(`activity_date_update_not_applied:${key}`);
+      err.operation = operation;
+      err.field = key;
+      err.expected = expected;
+      err.actual = actual;
+      throw err;
+    }
+  }
+}
+
 async function updateActivityInSupabase(payload = {}) {
   const rowId = String(payload?.source_row_id || payload?.row_id || payload?.RowID || '').trim();
   const sourceSheet = String(payload?.source_sheet || 'activities').trim() || 'activities';
@@ -3987,7 +4009,7 @@ async function updateActivityInSupabase(payload = {}) {
     .from('activities')
     .update(changes)
     .eq('row_id', rowId)
-    .select('row_id')
+    .select('*')
     .maybeSingle();
   if (error) {
     const authContext = await buildActivityMutationAuthContext();
@@ -4020,8 +4042,16 @@ async function updateActivityInSupabase(payload = {}) {
     console.error('[activity-save-error]', { operation: 'saveActivity', table: 'activities', payload: debugPayload, error: notFound });
     throw notFound;
   }
-  logActivityMutationDebug('success', 'saveActivity', debugPayload, { table: 'activities' });
-  return { ok: true, RowID: rowId, row_id: rowId, source_sheet: 'activities' };
+  try {
+    assertSupabaseActivityUpdateApplied('saveActivity', changes, data);
+  } catch (verifyError) {
+    // eslint-disable-next-line no-console
+    console.error('[activity-save-error]', { operation: 'saveActivity', table: 'activities', payload: debugPayload, returned_row: data, error: verifyError });
+    throw verifyError;
+  }
+  const normalized = normalizeActivityRow(data || {});
+  logActivityMutationDebug('success', 'saveActivity', debugPayload, { table: 'activities', returned_row_id: normalized.row_id });
+  return { ok: true, RowID: rowId, row_id: rowId, source_sheet: 'activities', row: normalized };
 }
 
 async function readActivityDetailFromSupabase(source_row_id, source_sheet) {
