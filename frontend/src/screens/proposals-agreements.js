@@ -395,12 +395,14 @@ function proposalGroupDisplayName(value) {
 }
 
 function resolveProposalTemplateKey(value) {
+  const raw = text(value);
+  const sections = proposalTemplateSectionsLookup;
+  if (raw && sections.some((section) => proposalTextField(section, 'template_key', 'templateKey') === raw)) return raw;
   const meta = proposalGroupMeta(value);
   const normalized = normalizeProposalGroup(value);
+  if (normalized && sections.some((section) => proposalTextField(section, 'template_key', 'templateKey') === normalized)) return normalized;
   const resolved = text(meta?.template_key || normalized || value);
-  const sections = proposalTemplateSectionsLookup;
   if (sections.some((section) => proposalTextField(section, 'template_key', 'templateKey') === resolved)) return resolved;
-  const raw = text(value);
   const match = sections.find((section) => {
     const templateKey = proposalTextField(section, 'template_key', 'templateKey');
     const activityGroup = proposalTextField(section, 'activity_type_group', 'activityTypeGroup');
@@ -415,9 +417,12 @@ function proposalGroupTemplateKey(value) {
 }
 
 function filterTemplateSectionsForGroup(templateSections = [], activityTypeGroup = '') {
-  const templateKey = resolveProposalTemplateKey(activityTypeGroup);
+  const selectedGroupKey = normalizeProposalGroup(activityTypeGroup);
+  const resolvedTemplateKey = resolveProposalTemplateKey(activityTypeGroup);
+  const templateKey = resolvedTemplateKey || selectedGroupKey;
   return (Array.isArray(templateSections) ? templateSections : [])
-    .filter((section) => !proposalTextField(section, 'template_key', 'templateKey') || proposalTextField(section, 'template_key', 'templateKey') === templateKey);
+    .filter((section) => proposalTextField(section, 'template_key', 'templateKey') === templateKey)
+    .sort((a, b) => Number(proposalField(a, 'sort_order', 'sortOrder') || 0) - Number(proposalField(b, 'sort_order', 'sortOrder') || 0));
 }
 
 function isCombinedProposalGroup(value) {
@@ -1997,9 +2002,7 @@ export function proposalPreviewBodyHtml(row, items = [], templateSections = [], 
   const templateKey = proposalGroupTemplateKey(activityTypeGroup);
   // Date comes only from the proposal row — no "today" fallback in customer documents.
   const dateDisplay = formatDateDisplay(row.proposal_date);
-  const sourceTemplateSections = Array.isArray(templateSections)
-    ? templateSections.filter((section) => !proposalTextField(section, 'template_key', 'templateKey') || proposalTextField(section, 'template_key', 'templateKey') === templateKey)
-    : [];
+  const sourceTemplateSections = filterTemplateSectionsForGroup(templateSections, templateKey);
   const sectionsSource = resolveDocumentSections(row, sourceTemplateSections);
   const byKey = new Map(sectionsSource.map((section) => [proposalTextField(section, 'section_key', 'sectionKey'), section]));
   const sectionBody = (key) => applyProposalTemplatePlaceholders(templateBodyText(byKey.get(key)), row, items);

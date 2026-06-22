@@ -3178,3 +3178,79 @@ test('items_json fallback normalizes and renders rows when proposalAgreementItem
   assert.match(html, /קורס חלל/);
   assert.doesNotMatch(html, /לא נשמרו שורות פעילות להצעה זו/);
 });
+
+const PROPOSAL_TEMPLATE_SECTIONS_ROWS_FIXTURE = [
+  ...['intro','activity_intro','taasiyeda_responsibility','school_responsibility','payment_terms','cancellation_terms','notes','signature'].map((key, idx) => ({
+    template_key: 'summer', template_name: 'פעילויות קיץ', activity_type_group: idx === 1 ? 'not-a-filter-value' : 'summer-context', section_key: key, section_title: `summer ${key}`, section_body: `summer body ${key}`, sort_order: idx + 1, is_active: true
+  })),
+  ...['intro','activity_intro','taasiyeda_responsibility','school_responsibility','payment_terms','cancellation_terms','notes','signature'].map((key, idx) => ({
+    template_key: 'next_year', template_name: 'שנה הבאה', activity_type_group: idx === 1 ? 'not-a-filter-value' : 'next-year-context', section_key: key, section_title: `next_year ${key}`, section_body: `next_year body ${key}`, sort_order: idx + 1, is_active: true
+  })),
+  ...['intro','summer_activity_intro','next_year_activity_intro','taasiyeda_responsibility','school_responsibility','payment_terms','cancellation_terms','notes','signature'].map((key, idx) => ({
+    template_key: 'combined', template_name: 'הצעה משולבת', activity_type_group: idx === 1 ? 'summer-context' : idx === 2 ? 'next-year-context' : 'combined-context', section_key: key, section_title: `combined ${key}`, section_body: `combined body ${key}`, sort_order: idx + 1, is_active: true
+  }))
+];
+
+function templateSectionKeys(sections) {
+  return sections.map((section) => section.section_key || section.sectionKey);
+}
+
+test('proposal template sections fixture has summer 8 next_year 8 combined 9 rows from proposal_template_sections_rows', () => {
+  const counts = PROPOSAL_TEMPLATE_SECTIONS_ROWS_FIXTURE.reduce((acc, row) => {
+    acc[row.template_key] = (acc[row.template_key] || 0) + 1;
+    return acc;
+  }, {});
+  assert.deepEqual(counts, { summer: 8, next_year: 8, combined: 9 });
+});
+
+test('proposal template sections matching by template_key renders summer 8 and no missing-template warning', () => {
+  setProposalGroupLookups({
+    proposalActivityGroups: [{ group_key: 'summer', display_name: 'פעילויות קיץ', template_key: 'summer', sort_order: 1, is_active: true }],
+    proposalTemplateSections: PROPOSAL_TEMPLATE_SECTIONS_ROWS_FIXTURE
+  }, [], []);
+  const sections = filterTemplateSectionsForGroup(PROPOSAL_TEMPLATE_SECTIONS_ROWS_FIXTURE, 'summer');
+  assert.equal(sections.length, 8);
+  assert.deepEqual(templateSectionKeys(sections), ['intro','activity_intro','taasiyeda_responsibility','school_responsibility','payment_terms','cancellation_terms','notes','signature']);
+  const html = documentSectionsEditorHtml(sections, false);
+  assert.doesNotMatch(html, /לא נמצאה תבנית פעילה לסוג הצעה זה/);
+});
+
+test('proposal template sections matching by template_key renders next_year 8 and no missing-template warning', () => {
+  setProposalGroupLookups({
+    proposalActivityGroups: [{ group_key: 'next_year', display_name: 'שנה הבאה', template_key: 'next_year', sort_order: 2, is_active: true }],
+    proposalTemplateSections: PROPOSAL_TEMPLATE_SECTIONS_ROWS_FIXTURE
+  }, [], []);
+  const sections = filterTemplateSectionsForGroup(PROPOSAL_TEMPLATE_SECTIONS_ROWS_FIXTURE, 'next_year');
+  assert.equal(sections.length, 8);
+  assert.deepEqual(templateSectionKeys(sections), ['intro','activity_intro','taasiyeda_responsibility','school_responsibility','payment_terms','cancellation_terms','notes','signature']);
+  const html = documentSectionsEditorHtml(sections, false);
+  assert.doesNotMatch(html, /לא נמצאה תבנית פעילה לסוג הצעה זה/);
+});
+
+test('proposal template sections matching by template_key renders combined 9 with both activity intro rows and no missing-template warning', () => {
+  setProposalGroupLookups({
+    proposalActivityGroups: [{ group_key: 'combined', display_name: 'הצעה משולבת', template_key: 'combined', included_group_keys: ['summer', 'next_year'], sort_order: 3, is_active: true }],
+    proposalTemplateSections: PROPOSAL_TEMPLATE_SECTIONS_ROWS_FIXTURE
+  }, [], []);
+  const sections = filterTemplateSectionsForGroup(PROPOSAL_TEMPLATE_SECTIONS_ROWS_FIXTURE, 'combined');
+  assert.equal(sections.length, 9);
+  assert.deepEqual(templateSectionKeys(sections), ['intro','summer_activity_intro','next_year_activity_intro','taasiyeda_responsibility','school_responsibility','payment_terms','cancellation_terms','notes','signature']);
+  assert.ok(templateSectionKeys(sections).includes('summer_activity_intro'));
+  assert.ok(templateSectionKeys(sections).includes('next_year_activity_intro'));
+  const html = documentSectionsEditorHtml(sections, false);
+  assert.doesNotMatch(html, /לא נמצאה תבנית פעילה לסוג הצעה זה/);
+});
+
+test('proposal template sections matching uses template_key only not activity_type_group and follows sort_order', () => {
+  const scrambled = [
+    { template_key: 'summer', activity_type_group: 'wrong-context', section_key: 'second', section_title: 'Second', section_body: 'Second', sort_order: 2, is_active: true },
+    { template_key: 'combined', activity_type_group: 'summer', section_key: 'combined-only', section_title: 'Combined', section_body: 'Combined', sort_order: 1, is_active: true },
+    { template_key: 'summer', activity_type_group: 'also-wrong-context', section_key: 'first', section_title: 'First', section_body: 'First', sort_order: 1, is_active: true }
+  ];
+  setProposalGroupLookups({
+    proposalActivityGroups: [{ group_key: 'summer', display_name: 'פעילויות קיץ', template_key: 'summer', sort_order: 1, is_active: true }],
+    proposalTemplateSections: scrambled
+  }, [], []);
+  const sections = filterTemplateSectionsForGroup(scrambled, 'summer');
+  assert.deepEqual(templateSectionKeys(sections), ['first', 'second']);
+});
