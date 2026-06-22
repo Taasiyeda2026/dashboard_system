@@ -363,6 +363,7 @@ test('role update migration allows business development manager for login and pr
 
 
 test('proposal approval UI is limited to admin or approve permission users', async () => {
+  const pendingRow = { ...sampleRows[0], status: 'pending_approval' };
   const sentRow = { ...sampleRows[0], status: 'sent' };
   const draftRow = { ...sampleRows[0], status: 'draft' };
   const regularManager = stateFor('operation_manager');
@@ -371,17 +372,20 @@ test('proposal approval UI is limited to admin or approve permission users', asy
   privilegedManager.user.manage_proposals_agreements = true;
   privilegedManager.user.approve_proposals_agreements = true;
 
-  const regularHtml = proposalsAgreementsScreen.render({ rows: [sentRow] }, { state: regularManager });
+  const regularHtml = proposalsAgreementsScreen.render({ rows: [pendingRow] }, { state: regularManager });
   assert.doesNotMatch(regularHtml, /חתום ואשר/, 'unprivileged manager should not see sign-and-approve action');
   const regularTable = regularHtml.match(/<tbody data-pa-table-body>[\s\S]*?<\/tbody>/)?.[0] || '';
   assert.doesNotMatch(regularTable, /<option value="approved"/, 'unprivileged manager should not be able to select approved status');
 
   const privilegedDraftHtml = proposalsAgreementsScreen.render({ rows: [draftRow] }, { state: privilegedManager });
-  assert.doesNotMatch(privilegedDraftHtml, /חתום ואשר/, 'privileged user should only see sign-and-approve for sent proposals');
+  assert.doesNotMatch(privilegedDraftHtml, /חתום ואשר/, 'privileged user should only see sign-and-approve for pending approval proposals');
+
+  const privilegedPendingHtml = proposalsAgreementsScreen.render({ rows: [pendingRow] }, { state: privilegedManager });
+  assert.match(privilegedPendingHtml, /חתום ואשר/, 'approve permission should reveal sign-and-approve for pending approval proposals');
 
   const privilegedSentHtml = proposalsAgreementsScreen.render({ rows: [sentRow] }, { state: privilegedManager });
-  assert.match(privilegedSentHtml, /חתום ואשר/, 'approve permission should reveal sign-and-approve for sent proposals');
-  const privilegedTable = privilegedSentHtml.match(/<tbody data-pa-table-body>[\s\S]*?<\/tbody>/)?.[0] || '';
+  assert.doesNotMatch(privilegedSentHtml, /חתום ואשר/, 'sent proposals are final and should not expose sign-and-approve');
+  const privilegedTable = privilegedPendingHtml.match(/<tbody data-pa-table-body>[\s\S]*?<\/tbody>/)?.[0] || '';
   assert.match(privilegedTable, /<option value="approved"/, 'approve permission should allow selecting approved status');
 });
 
@@ -724,15 +728,28 @@ test('non-admin manager submits proposals for approval instead of approving dire
 
 test('approved proposals render flow signature block inside the document', () => {
   const savedSignatureMeta = { signature: { image: 'proposals/signature-idan-nahum.png' } };
+  const approvalFields = {
+    approved_by: 'idan-nahum',
+    approved_at: '2026-06-16T10:30:00.000Z',
+    signature_meta: savedSignatureMeta
+  };
   const draftHtml = proposalPreviewBodyHtml({ ...sampleRows[0], status: 'draft' }, [], []);
+  const pendingHtml = proposalPreviewBodyHtml({ ...sampleRows[0], status: 'pending_approval', ...approvalFields }, [], []);
   const sentHtml = proposalPreviewBodyHtml({ ...sampleRows[0], status: 'sent' }, [], []);
-  // Approved row with signature_meta (signature is stored on approval)
-  const approvedHtml = proposalPreviewBodyHtml({ ...sampleRows[0], status: 'approved', approved_at: '2026-06-16T10:30:00.000Z', signature_meta: savedSignatureMeta }, [], []);
-  // Sent row that was previously approved — signature_meta persists even after status change
-  const sentAfterApprovalHtml = proposalPreviewBodyHtml({ ...sampleRows[0], status: 'sent', approved_at: '2026-06-16T10:30:00.000Z', signature_meta: savedSignatureMeta }, [], []);
+  const approvedMissingByHtml = proposalPreviewBodyHtml({ ...sampleRows[0], status: 'approved', approved_at: approvalFields.approved_at, signature_meta: savedSignatureMeta }, [], []);
+  const approvedMissingAtHtml = proposalPreviewBodyHtml({ ...sampleRows[0], status: 'approved', approved_by: approvalFields.approved_by, signature_meta: savedSignatureMeta }, [], []);
+  const approvedMissingMetaHtml = proposalPreviewBodyHtml({ ...sampleRows[0], status: 'approved', approved_by: approvalFields.approved_by, approved_at: approvalFields.approved_at }, [], []);
+  // Approved row with full approval metadata (signature is stored on approval)
+  const approvedHtml = proposalPreviewBodyHtml({ ...sampleRows[0], status: 'approved', ...approvalFields }, [], []);
+  // Sent row that was previously approved — full signature metadata persists even after status change
+  const sentAfterApprovalHtml = proposalPreviewBodyHtml({ ...sampleRows[0], status: 'sent', ...approvalFields }, [], []);
 
   assert.doesNotMatch(draftHtml, /signature-idan-nahum\.png/);
+  assert.doesNotMatch(pendingHtml, /signature-idan-nahum\.png/);
   assert.doesNotMatch(sentHtml, /signature-idan-nahum\.png/);
+  assert.doesNotMatch(approvedMissingByHtml, /signature-idan-nahum\.png/);
+  assert.doesNotMatch(approvedMissingAtHtml, /signature-idan-nahum\.png/);
+  assert.doesNotMatch(approvedMissingMetaHtml, /signature-idan-nahum\.png/);
   assert.doesNotMatch(draftHtml, /אושר בתאריך/);
   assert.doesNotMatch(sentHtml, /אושר בתאריך/);
   assert.doesNotMatch(approvedHtml, /אושר בתאריך/);
@@ -1403,10 +1420,10 @@ test('proposal save DB payload never contains status sent', async () => {
   }
 });
 
-test('reading pending_approval from DB still displays נשלח in UI', () => {
+test('reading pending_approval from DB displays awaiting approval in UI', () => {
   const pendingRow = { ...sampleRows[0], status: 'pending_approval' };
   const html = proposalsAgreementsScreen.render({ rows: [pendingRow] }, { state: stateFor('admin') });
-  assert.match(html, /נשלח/);
+  assert.match(html, /ממתין לאישור/);
 });
 
 test('updateProposalAgreementStatus uses statusForDb before Supabase write', async () => {
@@ -1530,7 +1547,7 @@ test('status constants exported and complete', () => {
   }
   assert.ok(STATUS_OPTIONS.includes('draft'));
   assert.ok(STATUS_OPTIONS.includes('sent'));
-  assert.ok(STATUS_LABELS.pending_approval, 'legacy pending_approval rows should still have a label');
+  assert.equal(STATUS_LABELS.pending_approval, 'ממתין לאישור', 'pending_approval rows should display awaiting approval');
   assert.ok(STATUS_OPTIONS.includes('approved'));
   assert.ok(STATUS_OPTIONS.includes('cancelled'));
   assert.ok(STATUS_OPTIONS.includes('returned_for_changes'));
@@ -3087,11 +3104,14 @@ test('rollback: manage permission does not expose approve actions for non-admin'
   assert.doesNotMatch(html, /אישור וחתימה/);
 });
 
-test('rollback: approve permission exposes sign-and-approve for sent proposals', () => {
-  const sentRow = { id: '44444444-4444-4444-4444-444444444444', status: 'sent', client_authority: 'רשות', school_framework: 'בית ספר' };
+test('rollback: approve permission exposes sign-and-approve only for pending approval proposals', () => {
+  const pendingRow = { id: '44444444-4444-4444-4444-444444444444', status: 'pending_approval', client_authority: 'רשות', school_framework: 'בית ספר' };
+  const sentRow = { ...pendingRow, id: '55555555-5555-5555-5555-555555555555', status: 'sent' };
   const approverState = { user: { role: 'authorized_user', view_proposals_agreements: 'yes', approve_proposals_agreements: 'yes' } };
-  const html = proposalsAgreementsScreen.render({ rows: [sentRow] }, { state: approverState });
-  assert.match(html, /חתום ואשר/);
+  const pendingHtml = proposalsAgreementsScreen.render({ rows: [pendingRow] }, { state: approverState });
+  assert.match(pendingHtml, /חתום ואשר/);
+  const sentHtml = proposalsAgreementsScreen.render({ rows: [sentRow] }, { state: approverState });
+  assert.doesNotMatch(sentHtml, /חתום ואשר/);
 });
 
 test('rollback: login session flags restore stable view/manage mapping without approve field', async () => {
