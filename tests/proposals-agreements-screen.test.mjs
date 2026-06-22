@@ -3254,3 +3254,56 @@ test('proposal template sections matching uses template_key only not activity_ty
   const sections = filterTemplateSectionsForGroup(scrambled, 'summer');
   assert.deepEqual(templateSectionKeys(sections), ['first', 'second']);
 });
+
+test('proposal loaders do not reference removed proposal_pricing_options table', async () => {
+  const apiSource = await readFile(API_FILE, 'utf8');
+  const screenSource = await readFile(SCREEN_FILE, 'utf8');
+  assert.doesNotMatch(apiSource, /proposal_pricing_options/);
+  assert.doesNotMatch(screenSource, /proposal_pricing_options/);
+});
+
+test('activity pricing loader uses proposal_activity_pricing with production columns', async () => {
+  const apiSource = await readFile(API_FILE, 'utf8');
+  assert.match(apiSource, /function readProposalActivityPricingFromSupabase\(\)[\s\S]*\.from\('proposal_activity_pricing'\)/);
+  assert.match(apiSource, /activity_name,activity_no,proposal_group,item_type,gefen_number,hours_count,meetings_count,unit_duration,unit_price,hourly_price,description_short,description_for_proposal,is_active_for_proposals,sort_order,pricing_key,parent_pricing_key,proposal_display_mode,proposal_bundle_label,is_bundle_parent/);
+  assert.match(apiSource, /\.eq\('is_active_for_proposals', true\)[\s\S]*\.order\('sort_order', \{ ascending: true \}\)/);
+});
+
+test('template sections loader logs and throws query errors instead of empty array fallback', async () => {
+  const apiSource = await readFile(API_FILE, 'utf8');
+  const block = apiSource.match(/async function readProposalTemplateSectionsFromSupabase\(\) \{[\s\S]*?\n\}/)?.[0] || '';
+  assert.match(block, /throwProposalLoadError\('templateSectionsError', 'proposal_template_sections', error\)/);
+  assert.doesNotMatch(block, /return \[\];/);
+});
+
+test('activity pricing loader logs and throws query errors instead of empty array fallback', async () => {
+  const apiSource = await readFile(API_FILE, 'utf8');
+  const block = apiSource.match(/async function readProposalActivityPricingFromSupabase\(\) \{[\s\S]*?\n\}/)?.[0] || '';
+  assert.match(block, /throwProposalLoadError\('activityPricingError', 'proposal_activity_pricing', error\)/);
+  assert.doesNotMatch(block, /return \[\];/);
+});
+
+test('proposal load diagnostics include permission and RLS errors distinctly', async () => {
+  const apiSource = await readFile(API_FILE, 'utf8');
+  const screenSource = await readFile(SCREEN_FILE, 'utf8');
+  assert.match(apiSource, /console\.error\('\[proposal-load-error\]'/);
+  assert.match(apiSource, /console\.error\('\[proposal-permission-error\]'/);
+  assert.match(apiSource, /isSupabasePermissionDeniedError\(error\)/);
+  assert.match(screenSource, /console\.info\('\[proposal-load-debug\]'/);
+  assert.match(screenSource, /templateSectionsCount/);
+  assert.match(screenSource, /activityPricingCount/);
+});
+
+test('missing-template warning is not shown when matching template sections exist', () => {
+  const sections = [{ template_key: 'summer', section_key: 'intro', section_title: 'פתיח', section_body: 'תוכן', is_active: true }];
+  setProposalGroupLookups({ proposalTemplateSections: sections }, [], []);
+  const html = documentSectionsEditorHtml(filterTemplateSectionsForGroup(sections, 'summer'), false);
+  assert.doesNotMatch(html, /לא נמצאה תבנית פעילה לסוג הצעה זה/);
+  assert.match(html, /תוכן/);
+});
+
+test('missing item rows warning is not shown when agreement items exist', () => {
+  const html = itemsSummaryHtml([{ item_name: 'פעילות', quantity: 1, unit_price: 100, total_price: 100 }]);
+  assert.doesNotMatch(html, /לא נוספו שורות/);
+  assert.match(html, /פעילות/);
+});

@@ -2559,10 +2559,7 @@ async function readProposalActivityGroupsFromSupabase() {
       .select('group_key,display_name,template_key,included_group_keys,sort_order,is_active')
       .eq('is_active', true)
       .order('sort_order', { ascending: true });
-    if (error) {
-      noteProposalRead('proposalActivityGroups', [], error);
-      return [];
-    }
+    if (error) throwProposalLoadError('activityGroupsError', 'proposal_activity_groups', error);
     const rows = (Array.isArray(data) ? data : []).map((row) => {
       const groupKey = cleanProposalAgreementText(row?.group_key);
       const displayName = cleanProposalAgreementText(row?.display_name);
@@ -2591,8 +2588,7 @@ async function readProposalActivityGroupsFromSupabase() {
     noteProposalRead('proposalActivityGroups', rows, null);
     return rows;
   } catch (error) {
-    noteProposalRead('proposalActivityGroups', [], error);
-    return [];
+    throwProposalLoadError('activityGroupsError', 'proposal_activity_groups', error);
   }
 }
 
@@ -2602,10 +2598,7 @@ async function readProposalGroupAliasesFromSupabase() {
       .from('proposal_group_aliases')
       .select('alias_name,group_key,is_active')
       .eq('is_active', true);
-    if (error) {
-      noteProposalRead('proposalGroupAliases', [], error);
-      return [];
-    }
+    if (error) throwProposalLoadError('groupAliasesError', 'proposal_group_aliases', error);
     const rows = (Array.isArray(data) ? data : []).map((row) => ({
       alias_name: cleanProposalAgreementText(row?.alias_name),
       group_key:  cleanProposalAgreementText(row?.group_key),
@@ -2614,8 +2607,7 @@ async function readProposalGroupAliasesFromSupabase() {
     noteProposalRead('proposalGroupAliases', rows, null);
     return rows;
   } catch (error) {
-    noteProposalRead('proposalGroupAliases', [], error);
-    return [];
+    throwProposalLoadError('groupAliasesError', 'proposal_group_aliases', error);
   }
 }
 
@@ -2637,11 +2629,48 @@ function buildProposalGroupLookup(groups = [], aliases = []) {
 const COMBINED_PROPOSAL_GROUP_KEYS = Object.freeze(['summer', 'next_year']);
 let lastProposalLoaderDebug = {};
 
+function proposalSupabaseErrorDetails(error) {
+  if (!error) return null;
+  return {
+    code: error?.code || null,
+    message: String(error?.message || error || 'unknown_error'),
+    details: error?.details || null,
+    hint: error?.hint || null
+  };
+}
+
+function logProposalLoadError(label, table, error) {
+  const details = proposalSupabaseErrorDetails(error);
+  if (!details) return;
+  // eslint-disable-next-line no-console
+  console.error('[proposal-load-error]', { label, table, ...details });
+  if (isSupabasePermissionDeniedError(error)) {
+    // eslint-disable-next-line no-console
+    console.error('[proposal-permission-error]', { label, table, ...details });
+  }
+}
+
 function noteProposalRead(name, rows, error) {
+  const details = proposalSupabaseErrorDetails(error);
   lastProposalLoaderDebug[name] = {
     count: Array.isArray(rows) ? rows.length : 0,
-    error: error ? String(error?.message || error?.details || error) : null
+    error: details ? details.message : null,
+    errorDetails: details
   };
+}
+
+function throwProposalLoadError(label, table, error) {
+  logProposalLoadError(label, table, error);
+  noteProposalRead(label, null, error);
+  const details = proposalSupabaseErrorDetails(error);
+  const wrapped = new Error(details?.message || `${table}_read_failed`);
+  wrapped.code = details?.code || error?.code;
+  wrapped.details = details?.details || error?.details;
+  wrapped.hint = details?.hint || error?.hint;
+  wrapped.table = table;
+  wrapped.label = label;
+  wrapped.isPermissionError = isSupabasePermissionDeniedError(error);
+  throw wrapped;
 }
 
 function buildProposalGroupHintsFromTemplateSections(sections = []) {
@@ -2863,37 +2892,35 @@ async function readProposalActivityPricingFromSupabase() {
   try {
     const { data, error } = await supabase
       .from('proposal_activity_pricing')
-      .select('activity_no,activity_name,proposal_group,item_type,catalog_group,gefen_number,hours_count,meetings_count,unit_duration,unit_price,hourly_price,description_for_proposal,sort_order,pricing_key,parent_pricing_key,proposal_display_mode,is_bundle_parent')
+      .select('activity_name,activity_no,proposal_group,item_type,gefen_number,hours_count,meetings_count,unit_duration,unit_price,hourly_price,description_short,description_for_proposal,is_active_for_proposals,sort_order,pricing_key,parent_pricing_key,proposal_display_mode,proposal_bundle_label,is_bundle_parent')
       .eq('is_active_for_proposals', true)
       .order('sort_order', { ascending: true });
-    if (error) {
-      noteProposalRead('proposalActivityPricing', [], error);
-      return [];
-    }
+    if (error) throwProposalLoadError('activityPricingError', 'proposal_activity_pricing', error);
     const rows = (Array.isArray(data) ? data : []).map((row) => ({
       activity_no:             cleanProposalAgreementText(row?.activity_no),
       activity_name:           cleanProposalAgreementText(row?.activity_name),
       proposal_group:          cleanProposalAgreementText(row?.proposal_group),
       item_type:               cleanProposalAgreementText(row?.item_type),
-      catalog_group:           cleanProposalAgreementText(row?.catalog_group),
       gefen_number:            cleanProposalAgreementText(row?.gefen_number),
       hours_count:             row?.hours_count != null ? Number(row.hours_count) || null : null,
       meetings_count:          row?.meetings_count != null ? Number(row.meetings_count) || null : null,
       unit_duration:           cleanProposalAgreementText(row?.unit_duration),
       unit_price:              row?.unit_price != null ? Number(row.unit_price) || null : null,
       hourly_price:            row?.hourly_price != null ? Number(row.hourly_price) : null,
+      description_short:        cleanProposalAgreementText(row?.description_short),
       description_for_proposal: cleanProposalAgreementText(row?.description_for_proposal),
+      is_active_for_proposals:  row?.is_active_for_proposals !== false,
       sort_order:              Number(row?.sort_order) || 0,
       pricing_key:             cleanProposalAgreementText(row?.pricing_key),
       parent_pricing_key:      cleanProposalAgreementText(row?.parent_pricing_key),
       proposal_display_mode:   cleanProposalAgreementText(row?.proposal_display_mode) || 'single',
+      proposal_bundle_label:   cleanProposalAgreementText(row?.proposal_bundle_label),
       is_bundle_parent:        Boolean(row?.is_bundle_parent)
     }));
     noteProposalRead('proposalActivityPricing', rows, null);
     return rows;
   } catch (error) {
-    noteProposalRead('proposalActivityPricing', [], error);
-    return [];
+    throwProposalLoadError('activityPricingError', 'proposal_activity_pricing', error);
   }
 }
 
@@ -2933,16 +2960,12 @@ async function readProposalTemplateSectionsFromSupabase() {
       .select('template_key,template_name,activity_type_group,section_key,section_title,section_body,sort_order,is_active')
       .eq('is_active', true)
       .order('sort_order', { ascending: true });
-    if (error) {
-      noteProposalRead('proposalTemplateSections', [], error);
-      return [];
-    }
+    if (error) throwProposalLoadError('templateSectionsError', 'proposal_template_sections', error);
     const rows = (Array.isArray(data) ? data : []).map(mapProposalTemplateSectionRow);
     noteProposalRead('proposalTemplateSections', rows, null);
     return rows;
   } catch (error) {
-    noteProposalRead('proposalTemplateSections', [], error);
-    return [];
+    throwProposalLoadError('templateSectionsError', 'proposal_template_sections', error);
   }
 }
 
@@ -4825,7 +4848,7 @@ export const api = {
       .select('id,proposal_agreement_id,item_name,item_type,gefen_number,meetings_count,hours_count,quantity,unit_price,total_price,description,hourly_price,source_pricing_key,proposal_display_mode,selected_bundle_items,activity_no,unit_duration,proposal_group,sort_order')
       .eq('proposal_agreement_id', rowId)
       .order('sort_order', { ascending: true });
-    if (error) throw new Error(error.message || 'items_read_failed');
+    if (error) throwProposalLoadError('agreementItemsError', 'proposal_agreement_items', error);
     return (Array.isArray(data) ? data : []).map((item) => {
       let selectedBundleItems = [];
       try { const parsed = Array.isArray(item.selected_bundle_items ?? item.selectedBundleItems) ? (item.selected_bundle_items ?? item.selectedBundleItems) : JSON.parse(item.selected_bundle_items ?? item.selectedBundleItems ?? '[]'); selectedBundleItems = Array.isArray(parsed) ? parsed : []; } catch { selectedBundleItems = []; }

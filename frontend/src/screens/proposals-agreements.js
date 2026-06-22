@@ -2993,6 +2993,23 @@ export const proposalsAgreementsScreen = {
     const proposalTemplateSections = normalizeTemplateSections(Array.isArray(data?.proposalTemplateSections) ? data.proposalTemplateSections : []);
     const contactOptions = Array.isArray(data?.contactOptions) ? data.contactOptions : [];
     const contactOptionsError = text(data?.contactOptionsError || data?._debug?.contacts_error || '');
+    const proposalLoaderDebug = data?._debug?.proposal_loader || {};
+    const proposalLoaderError = (key) => proposalLoaderDebug?.[key]?.errorDetails || proposalLoaderDebug?.[key]?.error || null;
+    // eslint-disable-next-line no-console
+    console.info('[proposal-load-debug]', {
+      templateSectionsCount: proposalTemplateSections.length,
+      agreementItemsCount: Array.isArray(data?.proposalAgreementItems) ? data.proposalAgreementItems.length : 0,
+      activityGroupsCount: Array.isArray(data?.proposalActivityGroups) ? data.proposalActivityGroups.length : 0,
+      groupAliasesCount: Array.isArray(data?.proposalGroupAliases) ? data.proposalGroupAliases.length : 0,
+      activityPricingCount: proposalActivityPricing.length,
+      proposalsCount: data.rows.length,
+      directoryRowsCount: proposalLoaderDebug?.rows?.count ?? data.rows.length,
+      templateSectionsError: proposalLoaderError('templateSectionsError') || proposalLoaderError('proposalTemplateSections'),
+      agreementItemsError: proposalLoaderError('agreementItemsError') || null,
+      activityGroupsError: proposalLoaderError('activityGroupsError') || proposalLoaderError('proposalActivityGroups'),
+      groupAliasesError: proposalLoaderError('groupAliasesError') || proposalLoaderError('proposalGroupAliases'),
+      activityPricingError: proposalLoaderError('activityPricingError') || proposalLoaderError('proposalActivityPricing')
+    });
     // eslint-disable-next-line no-console
     console.info('[proposal-authorities-debug]', {
       totalContactOptions: contactOptions.length,
