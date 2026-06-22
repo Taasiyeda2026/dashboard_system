@@ -595,6 +595,10 @@ export function normalizeProposalAgreementRow(row = {}) {
     school_framework:    text(row.school_framework),
     authority_code:      text(row.authority_code),
     semel_mosad:         text(row.semel_mosad),
+    principal_name:      text(row.principal_name),
+    school_phone:        text(row.school_phone),
+    school_address:      text(row.school_address || row.institution_address),
+    city:                text(row.city),
     document_type:       text(row.document_type) || 'הצעת מחיר',
     activity_type_group: normalizeProposalGroup(rawGroup),
     proposal_date:       text(row.proposal_date),
@@ -963,10 +967,16 @@ function contactOptionsLoadErrorHtml(contactOptionsError) {
   return `<div class="ds-pa-inline-alert ds-pa-inline-alert--warning" data-pa-contact-options-error role="alert" style="margin:8px 0;padding:8px 10px;border:1px solid #f59e0b;border-radius:10px;background:#fffbeb;color:#92400e;font-size:0.82rem;line-height:1.45">${escapeHtml(CONTACT_OPTIONS_LOAD_ERROR_MESSAGE)}</div>`;
 }
 
-function contactPickerHtml(contactOptions, authority, school, selectedContactName, authorityId = null, schoolId = null, authorityOnly = false) {
+function contactPickerHtml(contactOptions, authority, school, selectedContactName, authorityId = null, schoolId = null, authorityOnly = false, schoolMeta = null) {
   const contacts = filterContactsForClient(contactOptions, { authorityId, schoolId, authorityOnly });
   if (!authorityId) return '';
   if (!authorityOnly && !schoolId) return '';
+  const resolvedSchoolMeta = schoolMeta || findSchoolCatalogContact(contactOptions, {
+    authorityId,
+    schoolId,
+    authority,
+    school
+  }) || {};
   const optionsHtml = ['<option value="">— בחרו איש קשר —</option>',
     ...contacts.map((c) => {
       const val = contactOptionKey(c);
@@ -976,9 +986,12 @@ function contactPickerHtml(contactOptions, authority, school, selectedContactNam
     }),
     '<option value="__pa_other_contact__">אחר</option>'
   ].join('');
-  return `<label class="ds-pa-form-field"><span>איש קשר</span>
-    <select class="ds-input ds-input--sm" data-pa-contact-select>${optionsHtml}</select>
-  </label>`;
+  const noContacts = contacts.length === 0;
+  return `${schoolDetailsPanelHtml(resolvedSchoolMeta)}
+    <label class="ds-pa-form-field"><span>איש קשר</span>
+      <select class="ds-input ds-input--sm" data-pa-contact-select>${optionsHtml}</select>
+    </label>
+    <span data-pa-contact-picker-state data-pa-no-contacts="${noContacts ? 'yes' : 'no'}" hidden></span>`;
 }
 
 function contactOptionKey(contact = {}) {
@@ -2276,7 +2289,64 @@ function templateIndicatorHtml(group) {
   return `<p class="ds-pa-template-indicator" data-pa-template-indicator hidden></p>`;
 }
 
-function clientLockedBannerHtml(auth, school, contactName, contactRole, phone, email, clientName = '') {
+function findSchoolCatalogContact(contactOptions = [], { authorityId = null, schoolId = null, authority = '', school = '' } = {}) {
+  const options = Array.isArray(contactOptions) ? contactOptions : [];
+  const byId = options.find((contact) => contact._catalog_source === 'schools'
+    && catalogIdMatch(contact.school_id, schoolId)
+    && (!authorityId || catalogIdMatch(contact.authority_id, authorityId)));
+  if (byId) return byId;
+  const schoolName = catalogSchoolName({ school, school_name: school });
+  const authorityName = catalogAuthorityName({ authority, authority_name: authority });
+  return options.find((contact) => contact._catalog_source === 'schools'
+    && catalogSchoolName(contact) === schoolName
+    && (!authorityName || catalogAuthorityName(contact) === authorityName)) || null;
+}
+
+function schoolDetailsLines(contact = {}) {
+  return [
+    catalogSchoolName(contact) ? ['בית ספר', catalogSchoolName(contact)] : null,
+    catalogAuthorityName(contact) ? ['רשות', catalogAuthorityName(contact)] : null,
+    text(contact.semel_mosad) ? ['סמל מוסד', text(contact.semel_mosad)] : null,
+    text(contact.principal_name || contact.contact_name) ? ['מנהל/ת', text(contact.principal_name || contact.contact_name)] : null,
+    text(contact.school_phone || contact.phone || contact.mobile) ? ['טלפון', text(contact.school_phone || contact.phone || contact.mobile)] : null,
+    text(contact.school_address || contact.address || contact.institution_address) ? ['כתובת', text(contact.school_address || contact.address || contact.institution_address)] : null,
+    text(contact.city) ? ['עיר', text(contact.city)] : null
+  ].filter(Boolean);
+}
+
+function schoolDetailsPanelHtml(contact = {}) {
+  const lines = schoolDetailsLines(contact);
+  if (!lines.length) return '';
+  return `<div class="ds-pa-school-details" data-pa-school-details>
+    ${lines.map(([label, value]) => `<span class="ds-pa-client-locked-detail"><strong>${escapeHtml(label)}:</strong> ${escapeHtml(value)}</span>`).join('')}
+  </div>`;
+}
+
+function enrichProposalRowFromContactOptions(row = {}, contactOptions = []) {
+  if (!row || typeof row !== 'object') return row;
+  const authorityName = text(row.client_authority);
+  const schoolName = text(row.school_framework);
+  const schoolContact = findSchoolCatalogContact(contactOptions, {
+    authorityId: row.authority_id,
+    schoolId: row.school_id,
+    authority: authorityName,
+    school: schoolName
+  });
+  if (!schoolContact) return row;
+  return {
+    ...row,
+    client_type: text(row.client_type) || 'school',
+    authority_id: row.authority_id ?? schoolContact.authority_id ?? null,
+    school_id: row.school_id ?? schoolContact.school_id ?? null,
+    semel_mosad: text(row.semel_mosad) || text(schoolContact.semel_mosad),
+    principal_name: text(row.principal_name) || text(schoolContact.principal_name || schoolContact.contact_name),
+    school_phone: text(row.school_phone) || text(schoolContact.school_phone || schoolContact.phone || schoolContact.mobile),
+    school_address: text(row.school_address) || text(schoolContact.school_address || schoolContact.address || schoolContact.institution_address),
+    city: text(row.city) || text(schoolContact.city)
+  };
+}
+
+function clientLockedBannerHtml(auth, school, contactName, contactRole, phone, email, clientName = '', schoolMeta = null) {
   if (!auth && !clientName) return '';
   const displayName = clientName || school || auth;
   const summaryParts = [
@@ -2285,7 +2355,8 @@ function clientLockedBannerHtml(auth, school, contactName, contactRole, phone, e
     contactName || ''
   ].filter(Boolean);
   const details = [
-    school && school !== displayName ? ['בית ספר', school] : null,
+    ...(schoolMeta ? schoolDetailsLines(schoolMeta) : []),
+    !schoolMeta && school && school !== displayName ? ['בית ספר', school] : null,
     contactName ? ['איש קשר', contactName] : null,
     contactRole ? ['תפקיד', contactRole] : null,
     phone ? ['טלפון', phone] : null,
@@ -2325,6 +2396,7 @@ function buildContactSourceFromRow(row = {}) {
     id:           text(row.contact_school_id) || null,
     authority_id: row.authority_id,
     school_id:    row.school_id || null,
+    semel_mosad:  text(row.semel_mosad),
     client_type:  text(row.client_type) || (row.school_id ? 'school' : 'authority'),
     client_name:  school || text(row.client_authority),
     authority:    text(row.client_authority),
@@ -2343,6 +2415,7 @@ function contactSourceInputsHtml(contact = {}) {
     <input type="hidden" name="contact_source_id" value="${escapeHtml(text(source.id))}">
     <input type="hidden" name="contact_source_authority_id" value="${escapeHtml(text(source.authority_id))}">
     <input type="hidden" name="contact_source_school_id" value="${escapeHtml(text(source.school_id))}">
+    <input type="hidden" name="contact_source_semel_mosad" value="${escapeHtml(text(source.semel_mosad))}">
     <input type="hidden" name="contact_source_school_required" value="${escapeHtml(text(source.school_required))}">
     <input type="hidden" name="contact_source_client_type" value="${escapeHtml(text(source.client_type))}">
     <input type="hidden" name="contact_source_client_name" value="${escapeHtml(text(source.client_name))}">
@@ -2462,6 +2535,7 @@ function catalogAttachHtml(row = {}) {
 
 function formHtml(mode, row = {}, activityNameOptions = [], contactOptions = [], items = [], pricingOptions = [], state = null, contactOptionsError = '') {
   const title = mode === 'edit' ? 'עריכת הצעת מחיר' : 'יצירת הצעת מחיר';
+  row = enrichProposalRowFromContactOptions(row, contactOptions);
   const normalizedActivityGroup = normalizeProposalGroup(row.activity_type_group);
   const filteredPricing = filterPricingByProposalType(pricingOptions, normalizedActivityGroup);
   const currentStatus = STATUS_OPTIONS.includes(normalizeProposalStatus(row.status)) ? normalizeProposalStatus(row.status) : 'draft';
@@ -2479,6 +2553,12 @@ function formHtml(mode, row = {}, activityNameOptions = [], contactOptions = [],
   const initAuthorityOnly = initClientType === 'authority';
   const initSchoolId = text(initContactSource?.school_id) || text(row.school_id);
   const initAuthorityId = text(initContactSource?.authority_id) || text(row.authority_id) || null;
+  const initSchoolMeta = findSchoolCatalogContact(contactOptions, {
+    authorityId: initAuthorityId,
+    schoolId: initSchoolId,
+    authority: initAuth,
+    school: initSchool
+  }) || row;
   const contactPanelVisible = isLocked && (initAuthorityOnly ? Boolean(initAuthorityId) : Boolean(initSchoolId));
   const initPickerHtml = contactPanelVisible ? contactPickerHtml(
     contactOptions,
@@ -2487,7 +2567,8 @@ function formHtml(mode, row = {}, activityNameOptions = [], contactOptions = [],
     initContact,
     initAuthorityId,
     initAuthorityOnly ? null : (initSchoolId || null),
-    initAuthorityOnly
+    initAuthorityOnly,
+    initSchoolMeta
   ) : '';
   const initClientName = text(initContactSource?.client_name) || initSchool || initAuth;
   const proposalDate = mode === 'add' ? (text(row.proposal_date) || localDateInputValue()) : text(row.proposal_date);
@@ -2526,7 +2607,7 @@ function formHtml(mode, row = {}, activityNameOptions = [], contactOptions = [],
           ${contactOptionsLoadErrorHtml(contactOptionsError)}
           ${clientSearchHtml(contactOptions, row)}
         </div>
-        <div data-pa-client-card${isLocked ? '' : ' hidden'}>${isLocked ? clientLockedBannerHtml(initAuth, initSchool, initContact, initRole, initPhone, initEmail, initClientName) : ''}</div>
+        <div data-pa-client-card${isLocked ? '' : ' hidden'}>${isLocked ? clientLockedBannerHtml(initAuth, initSchool, initContact, initRole, initPhone, initEmail, initClientName, initSchoolMeta) : ''}</div>
         <div class="ds-pa-client-hidden-values" data-pa-client-fields hidden>
           ${hiddenField('client_authority', row.client_authority)}
           ${hiddenField('school_framework', row.school_framework)}
@@ -2546,6 +2627,10 @@ function formHtml(mode, row = {}, activityNameOptions = [], contactOptions = [],
             ${textField('contact_role', FIELD_LABELS.contact_role, row.contact_role, false)}
             ${textField('phone', FIELD_LABELS.phone, row.phone, false)}
             ${textField('email', FIELD_LABELS.email, row.email, false)}
+          </div>
+          <div data-pa-add-contact-row hidden>
+            <p class="ds-pa-add-contact-note" data-pa-no-contact-note hidden>לא נבחר איש קשר</p>
+            <button type="button" class="ds-btn ds-btn--xs ds-btn--ghost" data-pa-add-contact-toggle>הוסף איש קשר ידנית</button>
           </div>
         </div>
       </div>
@@ -2767,6 +2852,7 @@ function payloadFromForm(form) {
   payload._items = items;
   payload.authority_id = text(formData.get('contact_source_authority_id')) || null;
   payload.client_type = text(formData.get('contact_source_client_type')) || (text(formData.get('contact_source_school_id')) ? 'school' : 'authority');
+  payload.semel_mosad = text(formData.get('contact_source_semel_mosad')) || null;
   const schoolRequired = text(formData.get('contact_source_school_required'));
   payload._school_required = schoolRequired === 'no' ? 'no' : 'yes';
   const isAuthorityOnlyPayload = payload.client_type === 'authority';
@@ -2778,6 +2864,7 @@ function payloadFromForm(form) {
     client_type:  payload.client_type,
     authority_id: text(formData.get('contact_source_authority_id')) || null,
     school_id:    text(formData.get('contact_source_school_id')) || null,
+    semel_mosad:  text(formData.get('contact_source_semel_mosad')) || null,
     client_name:  text(formData.get('contact_source_client_name')),
     authority:    text(formData.get('contact_source_authority')),
     school:       text(formData.get('contact_source_school')),
@@ -3116,20 +3203,21 @@ export const proposalsAgreementsScreen = {
     });
     const rowWithCentralContact = (row) => {
       if (!row) return row;
+      const enriched = enrichProposalRowFromContactOptions(row, contactOptions);
       // The contact saved on the proposal is the source of truth — never override it.
-      if (text(row.contact_name)) return row;
-      const contact = findContactForProposalRow(contactOptions, row);
-      if (!contact) return row;
+      if (text(enriched.contact_name)) return enriched;
+      const contact = findContactForProposalRow(contactOptions, enriched);
+      if (!contact) return enriched;
       return {
-        ...row,
-        client_name:      text(contact.client_name) || row.client_name || text(contact.school) || text(contact.authority),
-        client_type:      text(contact.client_type) || row.client_type,
-        client_authority: text(contact.authority) || row.client_authority,
-        school_framework: text(contact.school) || row.school_framework,
-        contact_name:     text(contact.contact_name) || row.contact_name,
-        contact_role:     text(contact.contact_role) || row.contact_role,
-        phone:            text(contact.phone || contact.mobile || '') || row.phone,
-        email:            text(contact.email) || row.email
+        ...enriched,
+        client_name:      text(contact.client_name) || enriched.client_name || text(contact.school) || text(contact.authority),
+        client_type:      text(contact.client_type) || enriched.client_type,
+        client_authority: text(contact.authority) || enriched.client_authority,
+        school_framework: text(contact.school) || enriched.school_framework,
+        contact_name:     text(contact.contact_name) || enriched.contact_name,
+        contact_role:     text(contact.contact_role) || enriched.contact_role,
+        phone:            text(contact.phone || contact.mobile || '') || enriched.phone,
+        email:            text(contact.email) || enriched.email
       };
     };
     let debounceTimer = null;
@@ -3230,12 +3318,19 @@ export const proposalsAgreementsScreen = {
     };
 
     // ── Client lock / unlock helpers ──────────────────────────────────────────
-    const lockClientFields = (form, auth, school, cName, cRole, phone, email, clientName = '') => {
+    const setAddContactRowState = (form, { visible = false, showNoContactNote = false } = {}) => {
+      const addContactRowEl = form?.querySelector('[data-pa-add-contact-row]');
+      const noContactNote = form?.querySelector('[data-pa-no-contact-note]');
+      if (addContactRowEl) addContactRowEl.hidden = !visible;
+      if (noContactNote) noContactNote.hidden = !showNoContactNote;
+    };
+
+    const lockClientFields = (form, auth, school, cName, cRole, phone, email, clientName = '', schoolMeta = null) => {
       const cardEl = form?.querySelector('[data-pa-client-card]');
       const fieldsEl = form?.querySelector('[data-pa-client-fields]');
       const searchRow = form?.querySelector('[data-pa-client-search-row]');
       const results = form?.querySelector('[data-pa-client-results]');
-      if (cardEl) { cardEl.innerHTML = clientLockedBannerHtml(auth, school, cName, cRole, phone, email, clientName); cardEl.hidden = false; }
+      if (cardEl) { cardEl.innerHTML = clientLockedBannerHtml(auth, school, cName, cRole, phone, email, clientName, schoolMeta); cardEl.hidden = false; }
       if (fieldsEl) fieldsEl.hidden = true;
       if (searchRow) searchRow.hidden = true;
       if (results) { results.hidden = true; results.innerHTML = ''; }
@@ -3268,7 +3363,9 @@ export const proposalsAgreementsScreen = {
         authorityId = '',
         schoolId = '',
         clientType = 'school',
-        clientName = ''
+        clientName = '',
+        semel_mosad = '',
+        schoolMeta = null
       } = ctx;
       const isAuthorityOnly = clientType === 'authority';
       const authInput = form.querySelector('input[name="client_authority"]');
@@ -3276,10 +3373,17 @@ export const proposalsAgreementsScreen = {
       if (authInput) authInput.value = authority;
       if (schoolInput) schoolInput.value = school;
 
+      const catalogSchool = schoolMeta || findSchoolCatalogContact(contactOptions, {
+        authorityId,
+        schoolId,
+        authority,
+        school
+      }) || {};
       const pickerHost = form.querySelector('[data-pa-contact-picker-host]');
       const baseSource = {
         authority_id: authorityId || null,
         school_id: isAuthorityOnly ? null : (schoolId || null),
+        semel_mosad: isAuthorityOnly ? '' : (text(semel_mosad) || text(catalogSchool.semel_mosad)),
         school_required: isAuthorityOnly ? 'no' : 'yes',
         client_type: clientType,
         client_name: clientName || school || authority,
@@ -3304,11 +3408,14 @@ export const proposalsAgreementsScreen = {
           '',
           authorityId,
           isAuthorityOnly ? null : (schoolId || null),
-          isAuthorityOnly
+          isAuthorityOnly,
+          catalogSchool
         );
         if (pickerHost.children.length) setupContactPicker(pickerHost, form);
+        const noContacts = pickerHost.querySelector('[data-pa-contact-picker-state]')?.dataset?.paNoContacts === 'yes';
+        setAddContactRowState(form, { visible: !isAuthorityOnly && Boolean(schoolId) && noContacts, showNoContactNote: noContacts });
       }
-      lockClientFields(form, authority, isAuthorityOnly ? '' : school, '', '', '', '', clientName || school || authority);
+      lockClientFields(form, authority, isAuthorityOnly ? '' : school, '', '', '', '', clientName || school || authority, catalogSchool);
 
       const searchField = form.querySelector('[data-pa-client-search-field]');
       const schoolSearchPanel = form.querySelector('[data-pa-school-search-panel]');
@@ -3351,6 +3458,7 @@ export const proposalsAgreementsScreen = {
       id: '',
       authority_id: text(form?.querySelector('input[name="contact_source_authority_id"]')?.value) || null,
       school_id: text(form?.querySelector('input[name="contact_source_school_id"]')?.value) || null,
+      semel_mosad: text(form?.querySelector('input[name="contact_source_semel_mosad"]')?.value) || null,
       school_required: text(form?.querySelector('input[name="contact_source_school_required"]')?.value) || 'yes',
       client_type: text(form?.querySelector('input[name="contact_source_client_type"]')?.value) || 'school',
       client_name: text(form?.querySelector('input[name="contact_source_client_name"]')?.value),
@@ -3396,7 +3504,8 @@ export const proposalsAgreementsScreen = {
           setContactSelectionMode(form, '');
           fillContactFields(form, contact);
           setContactSource(form, contact);
-          lockClientFields(form, text(contact.authority), text(contact.school), text(contact.contact_name), text(contact.contact_role), text(contact.phone || contact.mobile || ''), text(contact.email || ''), text(contact.client_name) || text(contact.school) || text(contact.authority));
+          setAddContactRowState(form, { visible: false, showNoContactNote: false });
+          lockClientFields(form, text(contact.authority), text(contact.school), text(contact.contact_name), text(contact.contact_role), text(contact.phone || contact.mobile || ''), text(contact.email || ''), text(contact.client_name) || text(contact.school) || text(contact.authority), contact);
           if (form) setTimeout(() => calcGrandTotal(form), 0);
         }
       }, { signal });
@@ -3612,7 +3721,9 @@ export const proposalsAgreementsScreen = {
           authorityId,
           schoolId,
           clientType: 'school',
-          clientName: school
+          clientName: school,
+          semel_mosad: text(contact.semel_mosad),
+          schoolMeta: contact
         });
       }
     };
@@ -3830,6 +3941,7 @@ export const proposalsAgreementsScreen = {
 
     const openForm = async (mode, row = {}, preloadedItems = []) => {
       if (!formHost) return;
+      row = enrichProposalRowFromContactOptions(row, contactOptions);
       // Switch to the "new" tab panel so formHost is visible (add and edit share the
       // same full-width work area).
       setFormTabLabel(mode);
@@ -4760,6 +4872,20 @@ export const proposalsAgreementsScreen = {
           if (drawerErrEl) drawerErrEl.textContent = `שגיאה בשכפול: ${err?.message || err}`;
           else window.alert(`שגיאה בשכפול: ${err?.message || err}`);
         }
+        return;
+      }
+
+      if (event.target.closest?.('[data-pa-add-contact-toggle]')) {
+        const form = event.target.closest('[data-pa-form]');
+        if (!form) return;
+        lockClientFields(
+          form,
+          text(form.querySelector('input[name="contact_source_authority"]')?.value),
+          text(form.querySelector('input[name="contact_source_school"]')?.value),
+          '', '', '', '',
+          text(form.querySelector('input[name="contact_source_client_name"]')?.value)
+        );
+        showManualContactFields(form);
         return;
       }
 

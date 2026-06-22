@@ -493,7 +493,7 @@ async function selectActivitiesByDateRangeFromSupabase({
 }
 
 const AUTHORITIES_CATALOG_COLUMNS = 'id,authority_name,authority_code,authority_type,hp_number,long_name,district,active';
-const SCHOOLS_CATALOG_COLUMNS = 'id,semel_mosad,school_name,authority,authority_id,district,city,active';
+const SCHOOLS_CATALOG_COLUMNS = 'id,semel_mosad,school_name,authority,authority_id,district,city,principal_name,school_phone,institution_address,active';
 const CONTACTS_INSTRUCTORS_SCREEN_COLUMNS = 'emp_id,full_name,mobile,email,address,employment_type,direct_manager,active';
 const CONTACTS_CATALOG_CACHE_TTL_MS = 10 * 60 * 1000;
 let authoritySchoolCatalogCache = null;
@@ -546,23 +546,30 @@ async function readAuthoritiesCatalogFromSupabase() {
 
 async function readSchoolsCatalogFromSupabase() {
   if (!supabase) return [];
-  try {
-    const { data, error } = await supabase
-      .from('schools')
-      .select(SCHOOLS_CATALOG_COLUMNS)
-      .order('authority', { ascending: true })
-      .order('school_name', { ascending: true });
-    if (error) {
+  const columnSets = [
+    SCHOOLS_CATALOG_COLUMNS,
+    'id,semel_mosad,school_name,authority,authority_id,district,city,active',
+    'id,semel_mosad,school_name,authority,authority_id,active'
+  ];
+  for (const columns of columnSets) {
+    try {
+      const { data, error } = await supabase
+        .from('schools')
+        .select(columns)
+        .order('authority', { ascending: true })
+        .order('school_name', { ascending: true });
+      if (error) {
+        // eslint-disable-next-line no-console
+        console.warn('[supabase] Failed to load schools with columns', columns, error);
+        continue;
+      }
+      return Array.isArray(data) ? data : [];
+    } catch (error) {
       // eslint-disable-next-line no-console
-      console.warn('[supabase] Failed to load schools:', error);
-      return [];
+      console.warn('[supabase] Unexpected schools fetch error:', error);
     }
-    return Array.isArray(data) ? data : [];
-  } catch (error) {
-    // eslint-disable-next-line no-console
-    console.warn('[supabase] Unexpected schools fetch error:', error);
-    return [];
   }
+  return [];
 }
 
 async function readAuthoritySchoolCatalog({ forceRefresh = false, perf = null } = {}) {
@@ -656,6 +663,9 @@ function buildSchoolCatalogLookup(schools = []) {
       authority_id: authority_id || null,
       district: normalizeCatalogText(row.district),
       city: normalizeCatalogText(row.city),
+      principal_name: normalizeCatalogText(row.principal_name),
+      school_phone: normalizeCatalogText(row.school_phone),
+      institution_address: normalizeCatalogText(row.institution_address),
       active: normalizeCatalogText(row.active) || 'yes'
     };
     if (!school_name && !id) continue;
@@ -717,7 +727,11 @@ function enrichSchoolContactRow(row, authorityLookup, schoolLookup) {
     semel_mosad: normalizeCatalogText(row.semel_mosad) || schoolMeta?.semel_mosad || null,
     authority_code: normalizeCatalogText(row.authority_code) || authorityMeta?.authority_code || null,
     authority_type: normalizeCatalogText(row.authority_type) || authorityMeta?.authority_type || null,
-    district: normalizeCatalogText(row.district || row.authority_district || row.school_district) || authorityMeta?.district || null,
+    district: normalizeCatalogText(row.district || row.authority_district || row.school_district) || authorityMeta?.district || schoolMeta?.district || null,
+    city: normalizeCatalogText(row.city) || schoolMeta?.city || null,
+    principal_name: normalizeCatalogText(row.principal_name) || schoolMeta?.principal_name || null,
+    school_phone: normalizeCatalogText(row.school_phone || row.phone) || schoolMeta?.school_phone || null,
+    school_address: normalizeCatalogText(row.school_address || row.address || row.institution_address) || schoolMeta?.institution_address || null,
     authority_name: authorityName || authorityMeta?.authority_name || schoolMeta?.authority || row.authority_name || null,
     school_name: schoolName || schoolMeta?.school_name || row.school_name || null,
     authority: authorityName || authorityMeta?.authority_name || schoolMeta?.authority || row.authority,
@@ -933,9 +947,12 @@ function buildProposalClientSearchOptions(contactRows, authorityLookup, schoolLo
       authority_code: authorityMeta?.authority_code || '',
       district: school.district || authorityMeta?.district || '',
       city: school.city || '',
-      contact_name: '',
-      contact_role: '',
-      phone: '',
+      principal_name: school.principal_name || '',
+      school_phone: school.school_phone || '',
+      school_address: school.institution_address || '',
+      contact_name: school.principal_name || '',
+      contact_role: school.principal_name ? 'מנהל/ת' : '',
+      phone: school.school_phone || '',
       email: '',
       mobile: '',
       _catalog_source: 'schools'
@@ -2834,6 +2851,57 @@ function proposalContactMatches(existing = {}, next = {}, original = {}) {
   return Boolean(existingAuthority && nextAuthority && existingAuthority === nextAuthority);
 }
 
+async function resolveProposalSchoolCatalogIds(payload = {}, catalog = null) {
+  const clientType = cleanProposalAgreementText(payload.client_type) || (payload.school_id ? 'school' : 'authority');
+  if (clientType !== 'school') {
+    return {
+      authority_id: payload.authority_id || null,
+      school_id: null,
+      semel_mosad: null
+    };
+  }
+  let authority_id = payload.authority_id || null;
+  let school_id = payload.school_id || null;
+  let semel_mosad = cleanProposalAgreementText(payload.semel_mosad) || null;
+  const schoolLookup = catalog?.schoolLookup || (await readAuthoritySchoolCatalog()).schoolLookup;
+  const schoolMeta = resolveSchoolCatalogEntry(schoolLookup, {
+    school_id,
+    semel_mosad,
+    school: cleanProposalAgreementText(payload.school_framework || payload.school_name || payload.school),
+    authority: cleanProposalAgreementText(payload.client_authority || payload.authority_name || payload.authority)
+  });
+  if (schoolMeta) {
+    school_id = school_id || schoolMeta.id || null;
+    authority_id = authority_id || schoolMeta.authority_id || null;
+    semel_mosad = semel_mosad || schoolMeta.semel_mosad || null;
+  }
+  return { authority_id, school_id, semel_mosad };
+}
+
+function enrichProposalAgreementRowFromCatalog(row = {}, catalog = null) {
+  if (!row || typeof row !== 'object') return row;
+  const schoolLookup = catalog?.schoolLookup;
+  if (!schoolLookup) return row;
+  const schoolMeta = resolveSchoolCatalogEntry(schoolLookup, {
+    school_id: row.school_id,
+    semel_mosad: row.semel_mosad,
+    school: cleanProposalAgreementText(row.school_framework || row.school_name || row.school),
+    authority: cleanProposalAgreementText(row.client_authority || row.authority_name || row.authority)
+  });
+  if (!schoolMeta) return row;
+  return {
+    ...row,
+    client_type: cleanProposalAgreementText(row.client_type) || (row.school_id || schoolMeta.id ? 'school' : row.client_type),
+    authority_id: row.authority_id ?? schoolMeta.authority_id ?? null,
+    school_id: row.school_id ?? schoolMeta.id ?? null,
+    semel_mosad: cleanProposalAgreementText(row.semel_mosad) || schoolMeta.semel_mosad || null,
+    principal_name: cleanProposalAgreementText(row.principal_name) || schoolMeta.principal_name || null,
+    school_phone: cleanProposalAgreementText(row.school_phone) || schoolMeta.school_phone || null,
+    school_address: cleanProposalAgreementText(row.school_address || row.institution_address) || schoolMeta.institution_address || null,
+    city: cleanProposalAgreementText(row.city) || schoolMeta.city || null
+  };
+}
+
 async function ensureContactSchoolFromProposal(payload = {}) {
   const orig = (payload?._contact_original && typeof payload._contact_original === 'object')
     ? payload._contact_original
@@ -2841,23 +2909,28 @@ async function ensureContactSchoolFromProposal(payload = {}) {
   const authority = cleanProposalAgreementText(payload.client_authority);
   const school = cleanProposalAgreementText(payload.school_framework);
   if (!authority) return null;
-  const clientType = cleanProposalAgreementText(orig.client_type) || (school && school !== authority ? 'school' : 'authority');
+  const resolvedSchool = await resolveProposalSchoolCatalogIds(payload);
+  const clientType = cleanProposalAgreementText(orig.client_type) || cleanProposalAgreementText(payload.client_type) || (resolvedSchool.school_id || school ? 'school' : 'authority');
   const clientName = cleanProposalAgreementText(orig.client_name) || (clientType === 'school' ? school : authority);
+  const rpcArgs = {
+    p_client_type:   clientType,
+    p_client_name:   clientName || authority,
+    p_authority:     authority,
+    p_school:        school || null,
+    p_contact_name:  cleanProposalAgreementText(payload.contact_name) || null,
+    p_contact_role:  cleanProposalAgreementText(payload.contact_role) || null,
+    p_phone:         cleanProposalAgreementText(payload.phone) || null,
+    p_mobile:        cleanProposalAgreementText(orig.mobile) || null,
+    p_email:         cleanProposalAgreementText(payload.email) || null,
+    p_address:       null,
+    p_notes:         cleanProposalAgreementText(payload.notes) || null
+  };
+  if (resolvedSchool.school_id) rpcArgs.p_school_id = resolvedSchool.school_id;
+  if (resolvedSchool.authority_id) rpcArgs.p_authority_id = resolvedSchool.authority_id;
+  if (resolvedSchool.semel_mosad) rpcArgs.p_semel_mosad = resolvedSchool.semel_mosad;
   const { data: contactSchoolId, error } = await supabase.rpc(
     'ensure_contact_school_from_proposal',
-    {
-      p_client_type:   clientType,
-      p_client_name:   clientName || authority,
-      p_authority:     authority,
-      p_school:        school || null,
-      p_contact_name:  cleanProposalAgreementText(payload.contact_name) || null,
-      p_contact_role:  cleanProposalAgreementText(payload.contact_role) || null,
-      p_phone:         cleanProposalAgreementText(payload.phone) || null,
-      p_mobile:        cleanProposalAgreementText(orig.mobile) || null,
-      p_email:         cleanProposalAgreementText(payload.email) || null,
-      p_address:       null,
-      p_notes:         cleanProposalAgreementText(payload.notes) || null
-    }
+    rpcArgs
   );
   if (error) throw new Error(error.message || 'ensure_contact_school_failed');
   return contactSchoolId ?? null;
@@ -3135,6 +3208,12 @@ async function readProposalsAgreementsFromSupabase() {
   noteProposalRead('rows', Array.isArray(paResult.data) ? paResult.data : [], null);
   const contactOptions = Array.isArray(contactsResult?.contactOptions) ? contactsResult.contactOptions : [];
   const contactOptionsError = contactsResult?.contactOptionsError || null;
+  let proposalCatalog = null;
+  try {
+    proposalCatalog = await readAuthoritySchoolCatalog();
+  } catch {
+    proposalCatalog = null;
+  }
   // Group/alias normalization happens here in the loader so the frontend receives
   // logical group keys (e.g. summer/next_year/combined) instead of legacy Hebrew labels.
   proposalGroupLookupCache = mergeProposalGroupLookups(
@@ -3144,7 +3223,9 @@ async function readProposalsAgreementsFromSupabase() {
   const proposalActivityPricing = enrichProposalPricingRows(rawProposalActivityPricing, proposalGroupLookupCache);
   const activityNameOptions = await readProposalActivityNamesFromSupabase();
   return {
-    rows: (Array.isArray(paResult.data) ? paResult.data : []).map(normalizeProposalAgreementRow),
+    rows: (Array.isArray(paResult.data) ? paResult.data : [])
+      .map(normalizeProposalAgreementRow)
+      .map((row) => enrichProposalAgreementRowFromCatalog(row, proposalCatalog)),
     activityNameOptions,
     contactOptions,
     contactOptionsError,
@@ -4010,6 +4091,7 @@ async function updateActivityInSupabase(payload = {}) {
   const sourceSheet = String(payload?.source_sheet || 'activities').trim() || 'activities';
   if (!rowId) throw new Error('missing_row_id');
   const rawChanges = applyInstructorEmpSync({ ...(payload?.changes || {}) });
+  const mappedChanges = mapMeetingDateFieldNamesToSupabase(rawChanges);
   const { data: existingInstructorRow, error: existingInstructorError } = await supabase
     .from('activities')
     .select('instructor_name,instructor_name_2,emp_id,emp_id_2')
@@ -4018,7 +4100,7 @@ async function updateActivityInSupabase(payload = {}) {
   if (existingInstructorError) throw buildSupabaseMutationError('saveActivity', existingInstructorError, 'save_failed');
   await validateActivityInstructorBindingsOrThrow({ ...(existingInstructorRow || {}), ...rawChanges });
   let existingForNormalization = null;
-  const needsExisting = Object.keys(rawChanges).some((key) => ['activity_type', 'item_type', 'activity_family', 'activity_name', 'start_date', 'end_date', 'date_1', 'status'].includes(key) || /^date_\d+$/.test(key));
+  const needsExisting = Object.keys(mappedChanges).some((key) => ['activity_type', 'item_type', 'activity_family', 'activity_name', 'start_date', 'end_date', 'date_1', 'status'].includes(key) || /^date_\d+$/.test(key));
   if (needsExisting) {
     const { data: existingRow, error: existingError } = await supabase
       .from('activities')
@@ -4028,15 +4110,14 @@ async function updateActivityInSupabase(payload = {}) {
     if (existingError) throw buildSupabaseMutationError('saveActivity', existingError, 'save_failed');
     existingForNormalization = existingRow || {};
   }
-  const mappedChanges = mapMeetingDateFieldNamesToSupabase(rawChanges);
   let normalizedChangesSource = synchronizeStartDateAndFirstMeeting(mappedChanges, existingForNormalization || {});
-  if (existingForNormalization && oneDayTypeFromActivityFields(rawChanges.activity_type || existingForNormalization.activity_type, rawChanges.item_type || existingForNormalization.item_type)) {
-    const normalizedFullRow = assertValidOneDayActivityRow(normalizeOneDayActivityForSave({ ...existingForNormalization, ...rawChanges }));
+  if (existingForNormalization && oneDayTypeFromActivityFields(mappedChanges.activity_type || existingForNormalization.activity_type, mappedChanges.item_type || existingForNormalization.item_type)) {
+    const normalizedFullRow = assertValidOneDayActivityRow(normalizeOneDayActivityForSave({ ...existingForNormalization, ...mappedChanges }));
     normalizedChangesSource = { ...normalizedChangesSource };
     ['activity_family', 'activity_type', 'item_type', 'status', 'start_date', 'end_date', 'date_1'].forEach((key) => {
       normalizedChangesSource[key] = normalizedFullRow[key];
     });
-    if (Object.prototype.hasOwnProperty.call(rawChanges, 'activity_name')) {
+    if (Object.prototype.hasOwnProperty.call(mappedChanges, 'activity_name')) {
       normalizedChangesSource.activity_name = normalizedFullRow.activity_name;
     }
   }
@@ -4895,9 +4976,16 @@ export const api = {
   addProposalAgreement: async (payload) => {
     assertCanManageProposalsAgreementsApi();
     const groupLookup = await getProposalGroupLookup();
-    const insert = sanitizeProposalAgreementPayload(payload, groupLookup);
+    const catalog = await readAuthoritySchoolCatalog();
+    const resolvedSchool = await resolveProposalSchoolCatalogIds(payload, catalog);
+    const enrichedPayload = {
+      ...payload,
+      ...resolvedSchool,
+      client_type: cleanProposalAgreementText(payload.client_type) || (resolvedSchool.school_id ? 'school' : 'authority')
+    };
+    const insert = sanitizeProposalAgreementPayload(enrichedPayload, groupLookup);
     if (!insert.contact_school_id) {
-      const contactSchoolId = await ensureContactSchoolFromProposal({ ...insert, _contact_original: payload?._contact_original });
+      const contactSchoolId = await ensureContactSchoolFromProposal({ ...insert, _contact_original: enrichedPayload?._contact_original });
       if (contactSchoolId != null) insert.contact_school_id = contactSchoolId;
     }
     const { data, error } = await supabase
@@ -4919,9 +5007,16 @@ export const api = {
       if (cs === 'sent' || cs === 'pending_approval') throw new Error('הצעה שנשלחה נעולה ולא ניתן לערוך אותה.');
     }
     const groupLookup = await getProposalGroupLookup();
-    const patch = sanitizeProposalAgreementPayload(payload, groupLookup);
+    const catalog = await readAuthoritySchoolCatalog();
+    const resolvedSchool = await resolveProposalSchoolCatalogIds(payload, catalog);
+    const enrichedPayload = {
+      ...payload,
+      ...resolvedSchool,
+      client_type: cleanProposalAgreementText(payload.client_type) || (resolvedSchool.school_id ? 'school' : 'authority')
+    };
+    const patch = sanitizeProposalAgreementPayload(enrichedPayload, groupLookup);
     if (!patch.contact_school_id) {
-      const contactSchoolId = await ensureContactSchoolFromProposal({ ...patch, _contact_original: payload?._contact_original });
+      const contactSchoolId = await ensureContactSchoolFromProposal({ ...patch, _contact_original: enrichedPayload?._contact_original });
       if (contactSchoolId != null) patch.contact_school_id = contactSchoolId;
     }
     const { data, error } = await supabase
