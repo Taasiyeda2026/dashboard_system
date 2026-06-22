@@ -825,6 +825,12 @@ export function patchDrawerDatesSection(sectionEl, datesData) {
     if (dateEl) dateEl.textContent = dateVal ? formatDateHe(dateVal) : '—';
     const weekdayEl = sectionEl.querySelector('[data-oneday-weekday-display]');
     if (weekdayEl) weekdayEl.textContent = dateVal ? fmtWeekdayShort(dateVal) : '—';
+    const oneDayInput = sectionEl.querySelector('[data-meeting-dates-edit] input[data-meeting-idx="0"]');
+    if (oneDayInput) oneDayInput.value = dateVal;
+    const form = sectionEl.closest('[data-drawer-form]');
+    if (form && typeof form._refreshInitialValues === 'function') {
+      form._refreshInitialValues();
+    }
     sectionEl.removeAttribute('data-dates-loading');
     return;
   }
@@ -849,6 +855,18 @@ export function patchDrawerDatesSection(sectionEl, datesData) {
 
   const chipsDiv = sectionEl.querySelector('[data-dates-view-chips]');
   if (chipsDiv) chipsDiv.innerHTML = buildDateChipsHtml(schedule, false);
+
+  const editGrid = sectionEl.querySelector('[data-meeting-dates-edit]');
+  if (editGrid) {
+    schedule.forEach((item, index) => {
+      const input = editGrid.querySelector(`input[data-meeting-idx="${index}"]`);
+      if (input) input.value = String(item?.date || '').trim();
+    });
+    const form = sectionEl.closest('[data-drawer-form]');
+    if (form && typeof form._refreshInitialValues === 'function') {
+      form._refreshInitialValues();
+    }
+  }
 
   sectionEl.removeAttribute('data-dates-loading');
 }

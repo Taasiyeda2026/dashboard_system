@@ -225,14 +225,25 @@ function updateMoreDatesToggle(form) {
   syncMeetingRemoveButtons(form);
 }
 
-function buildMeetingDatesSnapshot(form) {
+function readMeetingDatePickerValues(form) {
+  const values = Array.from({ length: 35 }, () => '');
   const pickers = Array.from(form.querySelectorAll('[data-meeting-dates-edit] input[data-meeting-idx]')).sort(
     (a, b) => Number(a.dataset.meetingIdx) - Number(b.dataset.meetingIdx)
   );
-  const dates = pickers
-    .map((picker) => String(picker?.value || '').trim())
-    .filter((value) => value);
-  const normalized = Array.from({ length: 35 }, (_, idx) => String(dates[idx] || '').trim());
+  pickers.forEach((picker) => {
+    const idx = Number(picker.dataset.meetingIdx);
+    if (!Number.isFinite(idx) || idx < 0 || idx >= 35) return;
+    values[idx] = String(picker?.value || '').trim();
+  });
+  return values;
+}
+
+function initialMeetingDateValue(initialValues = {}, index = 0) {
+  return String(initialValues[`meeting_date_${index}`] ?? initialValues[`date_${index + 1}`] ?? '').trim();
+}
+
+function buildMeetingDatesSnapshot(form) {
+  const normalized = readMeetingDatePickerValues(form);
   let endDate = '';
   normalized.forEach((value) => {
     if (/^\d{4}-\d{2}-\d{2}$/.test(value)) endDate = value;
@@ -242,13 +253,82 @@ function buildMeetingDatesSnapshot(form) {
 }
 
 function hasMeetingDatesChanged(form, initialValues = {}) {
-  const { dates } = buildMeetingDatesSnapshot(form);
+  const dates = readMeetingDatePickerValues(form);
   for (let i = 0; i < 35; i++) {
-    const current = String(dates[i] || '').trim();
-    const prev = String(initialValues[`meeting_date_${i}`] ?? initialValues[`date_${i + 1}`] ?? '').trim();
-    if (current !== prev) return true;
+    if (String(dates[i] || '').trim() !== initialMeetingDateValue(initialValues, i)) return true;
   }
   return false;
+}
+
+function captureFormInitialValues(form) {
+  const initialValues = {};
+  form.querySelectorAll('[name]').forEach((el) => {
+    const name = el.getAttribute('name');
+    if (!name || name.startsWith('_')) return;
+    initialValues[name] = String(el.value ?? '').trim();
+  });
+  for (let i = 0; i < 35; i++) {
+    const meetingKey = `meeting_date_${i}`;
+    const dateKey = `date_${i + 1}`;
+    if (initialValues[meetingKey] && !initialValues[dateKey]) {
+      initialValues[dateKey] = initialValues[meetingKey];
+    } else if (!initialValues[meetingKey] && initialValues[dateKey]) {
+      initialValues[meetingKey] = initialValues[dateKey];
+    }
+  }
+  form._initialValues = initialValues;
+  return initialValues;
+}
+
+function normalizeStoredMeetingDate(value) {
+  const clean = String(value ?? '').trim();
+  const match = /^(\d{4}-\d{2}-\d{2})/.exec(clean);
+  return match ? match[1] : '';
+}
+
+function verifyMeetingDateChangesApplied(changes, row = {}) {
+  for (const [key, sentRaw] of Object.entries(changes || {})) {
+    const match = /^meeting_date_(\d+)$/.exec(key);
+    if (!match) continue;
+    const dateKey = `date_${Number(match[1]) + 1}`;
+    const expected = sentRaw === null || sentRaw === '' ? '' : normalizeStoredMeetingDate(sentRaw);
+    const actual = normalizeStoredMeetingDate(row[dateKey]);
+    if (expected !== actual) {
+      const err = new Error('activity_date_db_verify_failed');
+      err.code = 'activity_date_db_verify_failed';
+      err.field = dateKey;
+      err.expected = expected;
+      err.actual = actual;
+      throw err;
+    }
+  }
+}
+
+function collectMeetingDateChanges(form, initialValues = {}, changes = {}) {
+  const pickerValues = readMeetingDatePickerValues(form);
+  const isOnce = form.dataset.isOnce === 'yes';
+  let prevEndDate = '';
+  for (let j = 34; j >= 0; j--) {
+    const value = initialMeetingDateValue(initialValues, j);
+    if (/^\d{4}-\d{2}-\d{2}$/.test(value)) {
+      prevEndDate = value;
+      break;
+    }
+  }
+
+  for (let i = 0; i < 35; i++) {
+    const current = String(pickerValues[i] || '').trim();
+    const prev = initialMeetingDateValue(initialValues, i);
+    if (current !== prev) {
+      changes[`meeting_date_${i}`] = current ? current : null;
+    }
+  }
+
+  const snapshot = buildMeetingDatesSnapshot(form);
+  const computedEndDate = isOnce ? snapshot.startDate : snapshot.endDate;
+  if (computedEndDate && computedEndDate !== prevEndDate) {
+    changes.end_date = computedEndDate;
+  }
 }
 
 export function bindActivityEditForm(contentRoot, {
@@ -292,6 +372,7 @@ export function bindActivityEditForm(contentRoot, {
     form.querySelectorAll('[name]').forEach((el) => {
       const name = el.getAttribute('name');
       if (!name || name.startsWith('_')) return;
+      if (/^meeting_date_\d+$/.test(name) || /^meeting_performed_\d+$/.test(name)) return;
       if (el.closest('[hidden]')) return;
       const rawValue = el.value;
       if (rawValue === undefined || rawValue === null) return;
@@ -308,30 +389,7 @@ export function bindActivityEditForm(contentRoot, {
       changes.status = 'פתוח';
     }
 
-    if (hasMeetingDatesChanged(form, initialValues)) {
-      const snapshot = buildMeetingDatesSnapshot(form);
-      const isOnce = form.dataset.isOnce === 'yes';
-
-      for (let i = 0; i < 35; i++) {
-        const current = String(snapshot.dates[i] || '').trim();
-        const prev = String(initialValues[`meeting_date_${i}`] ?? initialValues[`date_${i + 1}`] ?? '').trim();
-        if (current !== prev) {
-          changes[`meeting_date_${i}`] = current;
-        }
-      }
-
-      const prevEndDate = (() => {
-        for (let j = 34; j >= 0; j--) {
-          const v = String(initialValues[`meeting_date_${j}`] ?? initialValues[`date_${j + 1}`] ?? '').trim();
-          if (/^\d{4}-\d{2}-\d{2}$/.test(v)) return v;
-        }
-        return '';
-      })();
-      const computedEndDate = isOnce ? snapshot.startDate : snapshot.endDate;
-      if (computedEndDate && computedEndDate !== prevEndDate) {
-        changes.end_date = computedEndDate;
-      }
-    }
+    collectMeetingDateChanges(form, initialValues, changes);
 
     if (!validateActivityTypeAndName(form, statusEl)) return;
 
@@ -444,6 +502,10 @@ export function bindActivityEditForm(contentRoot, {
       let requestResult = null;
       if (canDirectEdit) {
         requestResult = await api.saveActivity(debugPayload);
+        if (!requestResult?.row) {
+          throw new Error('activity_update_no_row_returned');
+        }
+        verifyMeetingDateChangesApplied(changes, requestResult.row);
       } else if (canRequestEdit) {
         requestResult = await api.submitEditRequest(debugPayload);
       } else {
@@ -530,6 +592,7 @@ export function bindActivityEditForm(contentRoot, {
 
       if (ev.target.closest('[data-action="start-edit"]')) {
         setEditMode(form, true);
+        captureFormInitialValues(form);
         const nameSel = form.querySelector('[data-role="activity-name-select"]');
         if (nameSel && nameSel.options.length < 2) {
           // eslint-disable-next-line no-console
@@ -632,13 +695,8 @@ export function bindActivityEditForm(contentRoot, {
     const nameSel = form.querySelector('[data-role="activity-name-select"]');
     if (nameSel) nameSel.disabled = !normalizeActivityTypeKey(typeEl?.value);
     syncActivityNoFromName(form);
-    const initialValues = {};
-    form.querySelectorAll('[name]').forEach((el) => {
-      const name = el.getAttribute('name');
-      if (!name || name.startsWith('_')) return;
-      initialValues[name] = String(el.value ?? '').trim();
-    });
-    form._initialValues = initialValues;
+    captureFormInitialValues(form);
+    form._refreshInitialValues = () => captureFormInitialValues(form);
 
     form.addEventListener(
       'change',
