@@ -12134,11 +12134,11 @@ select.ds-input {
 }
 .proposal-document .pa-item-details-table.pa-next-year-course-table th:first-child,
 .proposal-document .pa-item-details-table.pa-next-year-course-table td:first-child {
-  width: 14.2857%;
+  width: 34%;
 }
 .proposal-document .pa-item-details-table.pa-next-year-course-table th:not(:first-child),
 .proposal-document .pa-item-details-table.pa-next-year-course-table td:not(:first-child) {
-  width: 14.2857%;
+  width: 11%;
 }
 .pa-item-details-table th:nth-child(5),
 .pa-item-details-table td:nth-child(5),
@@ -15586,11 +15586,11 @@ details[open] > .ds-fin-acc__summary::before { transform: rotate(90deg); }
   }
   .proposal-document .pa-item-details-table.pa-next-year-course-table th:first-child,
   .proposal-document .pa-item-details-table.pa-next-year-course-table td:first-child {
-    width: 14.2857% !important;
+    width: 34% !important;
   }
   .proposal-document .pa-item-details-table.pa-next-year-course-table th:not(:first-child),
   .proposal-document .pa-item-details-table.pa-next-year-course-table td:not(:first-child) {
-    width: 14.2857% !important;
+    width: 11% !important;
   }
 }
 
@@ -17132,18 +17132,18 @@ details[open] > .ds-fin-acc__summary::before { transform: rotate(90deg); }
   }
 
   .proposal-document .pa-item-details-table.pa-next-year-course-table { width: 85% !important; max-width: none !important; margin-inline: auto !important; }
-  .proposal-document .pa-item-details-table.pa-next-year-course-table .pa-course-col,
+  .proposal-document .pa-item-details-table.pa-next-year-course-table .pa-course-col { width: 34%; }
   .proposal-document .pa-item-details-table.pa-next-year-course-table .pa-gefen-col,
   .proposal-document .pa-item-details-table.pa-next-year-course-table .pa-meetings-col,
   .proposal-document .pa-item-details-table.pa-next-year-course-table .pa-groups-col,
   .proposal-document .pa-item-details-table.pa-next-year-course-table .pa-hours-col,
   .proposal-document .pa-item-details-table.pa-next-year-course-table .pa-hourly-price-col,
-  .proposal-document .pa-item-details-table.pa-next-year-course-table .pa-total-price-col { width: 14.2857%; }
+  .proposal-document .pa-item-details-table.pa-next-year-course-table .pa-total-price-col { width: 11%; }
 
   .proposal-document .pa-item-details-table.pa-next-year-course-table th:first-child,
-  .proposal-document .pa-item-details-table.pa-next-year-course-table td:first-child { width: 14.2857% !important; }
+  .proposal-document .pa-item-details-table.pa-next-year-course-table td:first-child { width: 34% !important; }
   .proposal-document .pa-item-details-table.pa-next-year-course-table th:not(:first-child),
-  .proposal-document .pa-item-details-table.pa-next-year-course-table td:not(:first-child) { width: 14.2857% !important; }
+  .proposal-document .pa-item-details-table.pa-next-year-course-table td:not(:first-child) { width: 11% !important; }
 
   .pa-footer-signature {
     margin-top: 18px !important;

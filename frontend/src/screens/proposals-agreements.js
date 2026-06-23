@@ -1875,16 +1875,17 @@ function proposalItemDetailsTableHtml(items = [], contextGroup = '') {
   const nextYearTableStyle = isNextYearTable
     ? ' style="width:85%;margin-inline:auto;table-layout:fixed;"'
     : '';
-  const nextYearColStyle = isNextYearTable ? ' style="width:14.2857%"' : '';
+  const nextYearFirstColStyle = isNextYearTable ? ' style="width:34%"' : '';
+  const nextYearOtherColStyle = isNextYearTable ? ' style="width:11%"' : '';
   return `<table class="${tableClass}"${nextYearTableStyle}>
     <colgroup>
-      <col class="pa-course-col"${nextYearColStyle}>
-      <col class="pa-gefen-col"${nextYearColStyle}>
-      <col class="pa-meetings-col"${nextYearColStyle}>
-      <col class="pa-groups-col"${nextYearColStyle}>
-      <col class="pa-hours-col"${nextYearColStyle}>
-      <col class="pa-hourly-price-col"${nextYearColStyle}>
-      <col class="pa-total-price-col"${nextYearColStyle}>
+      <col class="pa-course-col"${nextYearFirstColStyle}>
+      <col class="pa-gefen-col"${nextYearOtherColStyle}>
+      <col class="pa-meetings-col"${nextYearOtherColStyle}>
+      <col class="pa-groups-col"${nextYearOtherColStyle}>
+      <col class="pa-hours-col"${nextYearOtherColStyle}>
+      <col class="pa-hourly-price-col"${nextYearOtherColStyle}>
+      <col class="pa-total-price-col"${nextYearOtherColStyle}>
     </colgroup>
     <thead><tr><th>קורס / תוכנית</th><th>מס׳ גפ״ן</th><th>מפגשים</th><th>קבוצות</th><th>שעות</th><th>מחיר לשעה</th><th>סה״כ</th></tr></thead>
     <tbody>${rows.join('')}</tbody>
