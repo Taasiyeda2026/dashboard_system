@@ -2677,8 +2677,7 @@ function formHtml(mode, row = {}, activityNameOptions = [], contactOptions = [],
       </div>
     </div>
 
-    <div class="ds-pa-form-type-panel" data-pa-step-panel="proposal">
-      <h4 class="pa-sidebar-section-title">סוג ותאריך הצעה</h4>
+    <div class="ds-pa-form-type-panel" data-pa-step-panel="proposal" style="padding-top:4px">
       <div class="ds-pa-type-meta-grid">
         <div class="ds-pa-form-field">
           ${proposalTypeCardsHtml(normalizedActivityGroup)}
