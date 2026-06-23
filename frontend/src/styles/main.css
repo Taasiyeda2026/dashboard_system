@@ -17933,3 +17933,25 @@ details[open] > .ds-fin-acc__summary::before { transform: rotate(90deg); }
     break-inside: avoid !important;
   }
 }
+
+/* Summer + next-year: reduce line spacing globally — screen */
+.proposal-document.pa-document--summer,
+.proposal-document.pa-document--next-year {
+  line-height: 1.3 !important;
+}
+.proposal-document.pa-document--summer *,
+.proposal-document.pa-document--next-year * {
+  line-height: 1.3 !important;
+}
+
+/* Summer + next-year: reduce line spacing globally — print */
+@media print {
+  .proposal-document.pa-document--summer,
+  .proposal-document.pa-document--next-year {
+    line-height: 1.3 !important;
+  }
+  .proposal-document.pa-document--summer *,
+  .proposal-document.pa-document--next-year * {
+    line-height: 1.3 !important;
+  }
+}
