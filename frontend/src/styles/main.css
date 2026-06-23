@@ -17445,7 +17445,7 @@ details[open] > .ds-fin-acc__summary::before { transform: rotate(90deg); }
     display: block !important;
     position: fixed !important;
     top: 2mm !important;
-    left: 12mm !important;
+    left: 150mm !important;
     right: auto !important;
     width: auto !important;
     max-width: 34mm !important;
