@@ -85,17 +85,11 @@ function initialActivityPeriodTab() {
     month: '2-digit',
     day: '2-digit'
   }).formatToParts(now);
-<<<<<<< HEAD
   const byType = Object.fromEntries(parts.map(p => [p.type, p.value]));
   const today = `${byType.year}-${byType.month}-${byType.day}`;
   return today >= ACTIVITY_PERIOD_SUMMER_2026_DEFAULT_FROM
     ? 'summer_2026'
     : 'school_2026';
-=======
-  const byType = Object.fromEntries(parts.map((part) => [part.type, part.value]));
-  const today = `${byType.year}-${byType.month}-${byType.day}`;
-  return today >= ACTIVITY_PERIOD_SUMMER_2026_DEFAULT_FROM ? 'summer_2026' : 'school_2026';
->>>>>>> 1b741e927d6d6466ccd68f527142e531f889d6f0
 }
 
 const _initStoredUser = normalizeStoredUserFlags(JSON.parse(localStorage.getItem('dashboard_user') || 'null'));
