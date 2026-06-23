@@ -12080,17 +12080,19 @@ select.ds-input {
 }
 
 .pa-cost-table.pa-summer-cost-table {
-  width: 100% !important;
-  max-width: 100%;
-  margin: 8px 0 10px !important;
+  width: 90%;
+  max-width: 90%;
+  margin: 8px auto 10px !important;
   table-layout: fixed;
 }
-.pa-cost-table.pa-summer-cost-table .pa-activity-col { width: 43%; }
-.pa-cost-table.pa-summer-cost-table .pa-quantity-col,
-.pa-cost-table.pa-summer-cost-table .pa-unit-price-col,
-.pa-cost-table.pa-summer-cost-table .pa-total-col { width: 19%; }
+.pa-cost-table.pa-summer-cost-table .pa-activity-col { width: 55%; }
+.pa-cost-table.pa-summer-cost-table .pa-quantity-col { width: 12%; }
+.pa-cost-table.pa-summer-cost-table .pa-unit-price-col { width: 16%; }
+.pa-cost-table.pa-summer-cost-table .pa-total-col { width: 17%; }
+.pa-cost-table.pa-summer-cost-table th,
+.pa-cost-table.pa-summer-cost-table td { text-align: center; vertical-align: middle; }
 .pa-cost-table.pa-summer-cost-table th:first-child,
-.pa-cost-table.pa-summer-cost-table td:first-child { width: auto; }
+.pa-cost-table.pa-summer-cost-table td:first-child { text-align: right; width: auto; }
 .pa-cost-table.pa-summer-cost-table th:nth-child(2),
 .pa-cost-table.pa-summer-cost-table td:nth-child(2),
 .pa-cost-table.pa-summer-cost-table th:nth-child(3),
@@ -17272,15 +17274,19 @@ details[open] > .ds-fin-acc__summary::before { transform: rotate(90deg); }
 
 @media print {
   .proposal-document .pa-cost-table.pa-summer-cost-table {
-    width: 70% !important;
-    max-width: 70% !important;
+    width: 90% !important;
+    max-width: 90% !important;
     margin: 8px auto 10px !important;
     table-layout: fixed !important;
   }
-  .proposal-document .pa-cost-table.pa-summer-cost-table .pa-activity-col { width: 43% !important; }
-  .proposal-document .pa-cost-table.pa-summer-cost-table .pa-quantity-col { width: 18% !important; }
-  .proposal-document .pa-cost-table.pa-summer-cost-table .pa-unit-price-col { width: 19.5% !important; }
-  .proposal-document .pa-cost-table.pa-summer-cost-table .pa-total-col { width: 19.5% !important; }
+  .proposal-document .pa-cost-table.pa-summer-cost-table .pa-activity-col { width: 55% !important; }
+  .proposal-document .pa-cost-table.pa-summer-cost-table .pa-quantity-col { width: 12% !important; }
+  .proposal-document .pa-cost-table.pa-summer-cost-table .pa-unit-price-col { width: 16% !important; }
+  .proposal-document .pa-cost-table.pa-summer-cost-table .pa-total-col { width: 17% !important; }
+  .proposal-document .pa-cost-table.pa-summer-cost-table th,
+  .proposal-document .pa-cost-table.pa-summer-cost-table td { text-align: center !important; vertical-align: middle !important; }
+  .proposal-document .pa-cost-table.pa-summer-cost-table th:first-child,
+  .proposal-document .pa-cost-table.pa-summer-cost-table td:first-child { text-align: right !important; }
 }
 
 
@@ -17393,10 +17399,10 @@ details[open] > .ds-fin-acc__summary::before { transform: rotate(90deg); }
 .proposal-document .pa-item-details-table.pa-next-year-course-table .pa-total-price-col { width: 12.333%; }
 .proposal-document .pa-item-details-table.pa-next-year-course-table th:not(:first-child),
 .proposal-document .pa-item-details-table.pa-next-year-course-table td:not(:first-child) { text-align: center !important; }
-.proposal-document .pa-cost-table.pa-summer-cost-table .pa-activity-col { width: 43%; }
-.proposal-document .pa-cost-table.pa-summer-cost-table .pa-quantity-col,
-.proposal-document .pa-cost-table.pa-summer-cost-table .pa-unit-price-col,
-.proposal-document .pa-cost-table.pa-summer-cost-table .pa-total-col { width: 19%; }
+.proposal-document .pa-cost-table.pa-summer-cost-table .pa-activity-col { width: 55%; }
+.proposal-document .pa-cost-table.pa-summer-cost-table .pa-quantity-col { width: 12%; }
+.proposal-document .pa-cost-table.pa-summer-cost-table .pa-unit-price-col { width: 16%; }
+.proposal-document .pa-cost-table.pa-summer-cost-table .pa-total-col { width: 17%; }
 @media print {
   .proposal-document .pa-section { margin: 6px 0 6px !important; }
   .proposal-document .pa-section-heading { margin: 6px 0 4px !important; }
@@ -17419,10 +17425,10 @@ details[open] > .ds-fin-acc__summary::before { transform: rotate(90deg); }
   .proposal-document .pa-item-details-table.pa-next-year-course-table .pa-hours-col,
   .proposal-document .pa-item-details-table.pa-next-year-course-table .pa-hourly-price-col,
   .proposal-document .pa-item-details-table.pa-next-year-course-table .pa-total-price-col { width: 12.333% !important; }
-  .proposal-document .pa-cost-table.pa-summer-cost-table .pa-activity-col { width: 43% !important; }
-  .proposal-document .pa-cost-table.pa-summer-cost-table .pa-quantity-col { width: 18% !important; }
-  .proposal-document .pa-cost-table.pa-summer-cost-table .pa-unit-price-col { width: 19.5% !important; }
-  .proposal-document .pa-cost-table.pa-summer-cost-table .pa-total-col { width: 19.5% !important; }
+  .proposal-document .pa-cost-table.pa-summer-cost-table .pa-activity-col { width: 55% !important; }
+  .proposal-document .pa-cost-table.pa-summer-cost-table .pa-quantity-col { width: 12% !important; }
+  .proposal-document .pa-cost-table.pa-summer-cost-table .pa-unit-price-col { width: 16% !important; }
+  .proposal-document .pa-cost-table.pa-summer-cost-table .pa-total-col { width: 17% !important; }
 }
 @media print {
   .proposal-document.pa-document {
@@ -17851,13 +17857,13 @@ details[open] > .ds-fin-acc__summary::before { transform: rotate(90deg); }
   margin-top: 0 !important;
 }
 
-/* Summer cost table: stable LTR currency in price columns */
+/* Summer cost table: stable LTR currency in price columns — centered with LTR direction */
 .proposal-document .pa-cost-table.pa-summer-cost-table th:nth-child(3),
 .proposal-document .pa-cost-table.pa-summer-cost-table td:nth-child(3),
 .proposal-document .pa-cost-table.pa-summer-cost-table th:nth-child(4),
 .proposal-document .pa-cost-table.pa-summer-cost-table td:nth-child(4),
 .proposal-document .pa-cost-table.pa-summer-cost-table tfoot td:last-child {
-  text-align: left !important;
+  text-align: center !important;
   direction: ltr !important;
   unicode-bidi: isolate !important;
 }
