@@ -5027,7 +5027,7 @@ export const api = {
       .from('proposals_agreements').select('status').eq('id', rowId).single();
     if (!currentRowError && currentRow) {
       const cs = cleanProposalAgreementText(currentRow.status);
-      if (cs === 'sent' || cs === 'pending_approval') throw new Error('הצעה שנשלחה נעולה ולא ניתן לערוך אותה.');
+      if (cs === 'sent') throw new Error('הצעה שנשלחה נעולה ולא ניתן לערוך אותה.');
     }
     const groupLookup = await getProposalGroupLookup();
     const catalog = await readAuthoritySchoolCatalog();
@@ -5071,14 +5071,21 @@ export const api = {
     if (!PA_VALID_STATUSES_SET.has(cleanStatus)) throw new Error('invalid_proposal_agreement_status');
     if (cleanStatus === 'approved' && !canApproveProposalsAgreementsApi()) throw new Error('proposals_agreements_approval_forbidden');
     const { data: currentRow, error: currentRowError } = await supabase
-      .from('proposals_agreements').select('status').eq('id', rowId).single();
+      .from('proposals_agreements').select('status,signature_meta,approved_by,approved_at').eq('id', rowId).single();
     if (!currentRowError && currentRow) {
       const cs = cleanProposalAgreementText(currentRow.status);
       if (cs === 'sent' && cleanStatus !== 'draft') throw new Error('הצעה שנשלחה נעולה ולא ניתן לשנות את סטטוסה.');
+      if (cleanStatus === 'sent') {
+        const meta = currentRow.signature_meta && typeof currentRow.signature_meta === 'object' ? currentRow.signature_meta : {};
+        const signatureImage = cleanProposalAgreementText(meta?.signature?.image || meta?.image);
+        if (cs !== 'approved' || !signatureImage || !cleanProposalAgreementText(currentRow.approved_by) || !cleanProposalAgreementText(currentRow.approved_at)) {
+          throw new Error('ניתן לסמן כנשלח רק הצעה מאושרת וחתומה.');
+        }
+      }
     }
     const patch = { status: statusForDb(cleanStatus), approval_note: cleanProposalAgreementText(approvalNote) };
     if (cleanStatus === 'approved') {
-      patch.status = 'sent';
+      patch.status = 'approved';
       patch.approved_by = state?.user?.auth_user_id || state?.user?.user_id || state?.user?.id || null;
       patch.approved_at = new Date().toISOString();
       patch.signature_meta = (signatureMeta && typeof signatureMeta === 'object' && !Array.isArray(signatureMeta)) ? signatureMeta : {};
@@ -5197,7 +5204,7 @@ export const api = {
       .from('proposals_agreements').select('status').eq('id', rowId).single();
     if (!currentRowError && currentRow) {
       const cs = cleanProposalAgreementText(currentRow.status);
-      if (cs === 'sent' || cs === 'pending_approval') throw new Error('הצעה שנשלחה נעולה ולא ניתן לערוך אותה.');
+      if (cs === 'sent') throw new Error('הצעה שנשלחה נעולה ולא ניתן לערוך אותה.');
     }
     const cleanSections = (Array.isArray(sections) ? sections : []).map((section) => ({
       section_key: cleanProposalAgreementText(section?.section_key),
@@ -5221,7 +5228,7 @@ export const api = {
       .from('proposals_agreements').select('status').eq('id', rowId).single();
     if (!currentRowError && currentRow) {
       const cs = cleanProposalAgreementText(currentRow.status);
-      if (cs === 'sent' || cs === 'pending_approval') throw new Error('הצעה שנשלחה נעולה ולא ניתן לערוך את פריטיה.');
+      if (cs === 'sent') throw new Error('הצעה שנשלחה נעולה ולא ניתן לערוך את פריטיה.');
     }
     const groupLookup = await getProposalGroupLookup();
     const { error: delError } = await supabase
