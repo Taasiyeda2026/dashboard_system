@@ -39,6 +39,8 @@ const OLD_SUMMER_PAYMENT_TERMS = 'חשבונית לתשלום תונפק עם ת
 const OLD_SUMMER_PAYMENT_TERMS_INLINE = 'חשבונית לתשלום תונפק עם תחילת הסדנה. תנאי התשלום: שוטף + 30 ממועד הנפקת החשבונית.';
 const OLD_SUMMER_PAYMENT_TERMS_INVOICE_ONLY = 'חשבונית לתשלום תונפק עם תחילת הסדנה.';
 const NEW_SUMMER_PAYMENT_TERMS = 'התמורה נקבעה בהתאם למספר המשתתפים הנקוב בהצעת המחיר. כל משתתף נוסף מעבר למספר זה יחויב בתוספת של 25 ש״ח.\nחשבונית לתשלום תונפק עם תחילת הפעילות. תנאי התשלום: שוטף + 30 ממועד הנפקת החשבונית.';
+const OLD_SUMMER_SPACE_REQUIREMENT_SENTENCE = 'העמדת מרחב מתאים לסדנה, הכולל מקרן, לוח וחיבור תקין לאינטרנט, ככל שנדרש לפי אופי הסדנה';
+const NEW_SUMMER_SPACE_REQUIREMENT_SENTENCE = 'העמדת מרחב מתאים לסדנה, הכולל מקרן, לוח וחיבור תקין לאינטרנט.';
 
 export const STATUS_OPTIONS = ['draft', 'pending_approval', 'returned_for_changes', 'approved', 'sent', 'cancelled'];
 export const STATUS_LABELS = {
@@ -135,7 +137,8 @@ function applyFocusedProposalTextUpdates(body, templateKey = '') {
     return normalizedBody
       .replaceAll(OLD_SUMMER_PAYMENT_TERMS, NEW_SUMMER_PAYMENT_TERMS)
       .replaceAll(OLD_SUMMER_PAYMENT_TERMS_INLINE, NEW_SUMMER_PAYMENT_TERMS)
-      .replaceAll(OLD_SUMMER_PAYMENT_TERMS_INVOICE_ONLY, NEW_SUMMER_PAYMENT_TERMS);
+      .replaceAll(OLD_SUMMER_PAYMENT_TERMS_INVOICE_ONLY, NEW_SUMMER_PAYMENT_TERMS)
+      .replaceAll(OLD_SUMMER_SPACE_REQUIREMENT_SENTENCE, NEW_SUMMER_SPACE_REQUIREMENT_SENTENCE);
   }
   if (key !== 'next_year' && key !== 'combined') return normalizedBody;
   return normalizedBody
@@ -1311,7 +1314,7 @@ function itemRowHtml(item = {}, idx = 0, pricingOptions = [], options = {}) {
   return `<article class="ds-pa-item-card ds-pa-item-row${isSummerRow ? ' ds-pa-item-row--summer' : ''}" data-pa-item-row data-pa-item-idx="${idx}" data-pa-row-group="${escapeHtml(contextGroup)}"${isSummerRow ? ' data-pa-summer-row' : ''}>
     <div class="ds-pa-item-quick-row" style="display:grid;grid-template-columns:minmax(0,1fr) 96px;gap:8px;align-items:end">
       <label class="ds-pa-item-field ds-pa-item-field--select ds-pa-item-field--select-no-label"><select class="ds-input ds-input--sm" name="pricing_activity_name" data-pa-pricing-select>${pricingSelectOptionsHtml}</select></label>
-      <label class="ds-pa-item-field ds-pa-item-field--qty"><span>כמות</span><input class="ds-input ds-input--sm" type="number" name="quantity" value="${n(item.quantity) || '1'}" min="0" step="any" data-pa-item-qty></label>
+      <label class="ds-pa-item-field ds-pa-item-field--qty"><input class="ds-input ds-input--sm" type="number" name="quantity" value="${n(item.quantity) || '1'}" min="0" step="any" data-pa-item-qty aria-label="כמות"></label>
     </div>
     <div class="ds-pa-bundle-prompt" data-pa-bundle-prompt hidden></div>
     <details class="ds-pa-item-extra" data-pa-item-details>
@@ -1917,7 +1920,7 @@ function costsIntroBody(row = {}, items = []) {
     return '';
   }
   if (templateKey === 'summer' || isSummerProposalGroup(row.activity_type_group)) {
-    return SUMMER_COST_TABLE_INTRO;
+    return '';
   }
   if (isCourseKindText(groupText)) {
     return visibleCount === 1
@@ -2170,7 +2173,9 @@ function documentSectionsEditorHtml(sections = [], isCustom = false) {
 
 function buildProposalDocumentHtml({ dateDisplay, documentTitle, row, introText, sections, orgResponsibility, schoolResponsibility, paymentTerms, changesCancellation, remarks, signatureHtml, sectionLinesHtml: sectionLines }) {
   const title = text(documentTitle);
-  const documentModifierClass = isNextYearProposalGroup(row?.activity_type_group) ? ' pa-document--next-year' : '';
+  const isNextYear = isNextYearProposalGroup(row?.activity_type_group);
+  const isSummerDocument = isSummerProposalGroup(row?.activity_type_group);
+  const documentModifierClass = `${isNextYear ? ' pa-document--next-year' : ''}${isSummerDocument ? ' pa-document--summer' : ''}`;
   return `
     <div class="proposal-document pa-document pa-a4-page${documentModifierClass}" dir="rtl">
       <img
@@ -2217,7 +2222,7 @@ function buildProposalDocumentHtml({ dateDisplay, documentTitle, row, introText,
           decoding="async"
           onerror="this.style.display='none';"
         >
-        <span><strong>תעשיידע</strong> — תעשייה למען חינוך מתקדם (ע״ר) &nbsp;|&nbsp; www.think.org.il</span>
+        <span>תעשיידע — תעשייה למען חינוך מתקדם (ע״ר) &nbsp;|&nbsp; <span dir="ltr">www.think.org.il</span></span>
       </div>
     </div>`;
 }
@@ -2303,7 +2308,7 @@ export function proposalPreviewBodyHtml(row, items = [], templateSections = [], 
     ? proposalItemDetailsTableHtml(items, activityTypeGroup)
     : proposalCostTableHtml(items, { isSummer: isSummerProposalGroup(activityTypeGroup) });
   const costsIntro = costsIntroBody(row, items);
-  const costTableBlock = (costsIntro || costTableHtml)
+  const costTableBlock = costTableHtml
     ? `<div class="pa-cost-table-block">${costsIntro ? `<p class="pa-costs-intro-heading">${escapeHtml(costsIntro)}</p>` : ''}${costTableHtml}</div>`
     : '';
   const paymentTerms = (paymentTermsBody || costTableBlock)
@@ -2591,12 +2596,12 @@ export function proposalTypeCardsHtml(selected) {
   const normalizedSelected = normalizeProposalGroup(selected);
   const options = proposalGroupLookups.groups;
   if (!options.length) {
-    return `<div class="ds-pa-type-chips" data-pa-type-cards style="display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:6px;margin-top:4px"></div><input type="hidden" name="activity_type_group" value="${escapeHtml(normalizedSelected)}" data-pa-type-hidden>`;
+    return `<div class="ds-pa-type-chips" data-pa-type-cards style="display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:4px;margin:0"></div><input type="hidden" name="activity_type_group" value="${escapeHtml(normalizedSelected)}" data-pa-type-hidden>`;
   }
-  return `<div class="ds-pa-type-chips" data-pa-type-cards style="display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:6px;margin-top:4px">
+  return `<div class="ds-pa-type-chips" data-pa-type-cards style="display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:4px;margin:0">
     ${options.map((opt) => {
       const isSel = normalizedSelected === opt.group_key;
-      return `<button type="button" class="ds-pa-type-card${isSel ? ' is-selected' : ''}" data-pa-type-btn="${escapeHtml(opt.group_key)}" style="width:100%;min-height:30px;padding:4px 6px;border-radius:12px;border:1.5px solid ${isSel ? '#6366f1' : '#d1d5db'};background:${isSel ? '#eef2ff' : '#f9fafb'};color:${isSel ? '#4f46e5' : '#374151'};font-weight:${isSel ? '600' : '400'};font-size:0.8rem;cursor:pointer;text-align:center;line-height:1.25;transition:all .15s">${escapeHtml(opt.display_name)}</button>`;
+      return `<button type="button" class="ds-pa-type-card${isSel ? ' is-selected' : ''}" data-pa-type-btn="${escapeHtml(opt.group_key)}" style="width:100%;min-height:auto;padding:4px 6px;border-radius:12px;border:1.5px solid ${isSel ? '#6366f1' : '#d1d5db'};background:${isSel ? '#eef2ff' : '#f9fafb'};color:${isSel ? '#4f46e5' : '#374151'};font-weight:${isSel ? '600' : '400'};font-size:0.8rem;cursor:pointer;text-align:center;line-height:1.2;transition:all .15s">${escapeHtml(opt.display_name)}</button>`;
     }).join('')}
   </div><input type="hidden" name="activity_type_group" value="${escapeHtml(normalizedSelected)}" data-pa-type-hidden>`;
 }
@@ -2798,7 +2803,6 @@ function formHtml(mode, row = {}, activityNameOptions = [], contactOptions = [],
     </div>
 
     <div class="ds-pa-form-bottom-panel" data-pa-step-panel="summary">
-      <h4 class="pa-sidebar-section-title">סיכום והפקה</h4>
       <details class="ds-pa-notes-details"${text(row.notes) ? ' open' : ''}>
         <summary class="ds-pa-notes-summary">הערות</summary>
         <label class="ds-pa-form-field ds-pa-form-field--wide"><span>${escapeHtml(FIELD_LABELS.notes)}</span><textarea class="ds-input ds-input--sm ds-pa-notes-input" name="notes" rows="3">${escapeHtml(text(row.notes))}</textarea></label>

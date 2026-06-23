@@ -17781,3 +17781,122 @@ details[open] > .ds-fin-acc__summary::before { transform: rotate(90deg); }
     text-align: left !important;
   }
 }
+
+/* ── Proposals-agreements focused UI/print fixes (Jun 2026) ── */
+
+/* Sidebar: compact proposal type chips */
+.pa-sidebar .ds-pa-type-chips {
+  margin-block: 0 !important;
+}
+.pa-sidebar .ds-pa-type-row:empty,
+.pa-sidebar .ds-pa-type-row [hidden] {
+  margin: 0 !important;
+}
+
+/* Org intro: side padding in preview and print */
+.proposal-document .pa-org-intro {
+  padding-inline: 3mm !important;
+  box-sizing: border-box;
+}
+
+/* Recipient block: two-line gap after "לכבוד:" */
+.proposal-document .pa-doc-address .pa-label-to {
+  margin-bottom: 2.4em !important;
+}
+
+/* Next-year course table: 85% width */
+.proposal-document.pa-document--next-year .pa-next-year-course-table {
+  width: 85% !important;
+  margin-inline: auto !important;
+  table-layout: fixed !important;
+}
+.proposal-document.pa-document--next-year .pa-next-year-course-table col {
+  width: 14.2857% !important;
+}
+.proposal-document.pa-document--next-year .pa-next-year-course-table th,
+.proposal-document.pa-document--next-year .pa-next-year-course-table td {
+  overflow-wrap: anywhere;
+}
+
+/* Summer proposal: hide divider, tighten header-to-recipient spacing */
+.proposal-document.pa-document--summer .pa-doc-divider.pa-divider {
+  display: none !important;
+}
+.proposal-document.pa-document--summer .proposal-document-header.pa-page-header {
+  margin-bottom: 4mm !important;
+}
+.proposal-document.pa-document--summer .pa-doc-address.pa-to-block {
+  margin-top: 0 !important;
+}
+
+/* Summer cost table: stable LTR currency in price columns */
+.proposal-document .pa-cost-table.pa-summer-cost-table th:nth-child(3),
+.proposal-document .pa-cost-table.pa-summer-cost-table td:nth-child(3),
+.proposal-document .pa-cost-table.pa-summer-cost-table th:nth-child(4),
+.proposal-document .pa-cost-table.pa-summer-cost-table td:nth-child(4),
+.proposal-document .pa-cost-table.pa-summer-cost-table tfoot td:last-child {
+  text-align: left !important;
+  direction: ltr !important;
+  unicode-bidi: isolate !important;
+}
+
+/* Unified A4 footer for all proposal types */
+.proposal-document.pa-document .proposal-document-content {
+  padding-bottom: 14mm;
+}
+.proposal-document.pa-document .pa-page-footer {
+  margin-top: auto;
+  font-size: 9pt;
+  line-height: 1.2;
+  gap: 6px;
+}
+
+@media print {
+  .proposal-document .pa-org-intro {
+    padding-inline: 4mm !important;
+  }
+
+  .proposal-document.pa-document--summer .proposal-document-header.pa-page-header {
+    margin-bottom: 4mm !important;
+  }
+  .proposal-document.pa-document--summer .pa-doc-address.pa-to-block {
+    margin-top: 0 !important;
+  }
+
+  .proposal-document.pa-document--next-year .pa-next-year-course-table {
+    width: 85% !important;
+    margin-inline: auto !important;
+    table-layout: fixed !important;
+  }
+  .proposal-document.pa-document--next-year .pa-next-year-course-table col {
+    width: 14.2857% !important;
+  }
+  .proposal-document.pa-document--next-year .pa-next-year-course-table th,
+  .proposal-document.pa-document--next-year .pa-next-year-course-table td {
+    overflow-wrap: anywhere;
+  }
+
+  .proposal-document.pa-document .proposal-document-content {
+    padding-bottom: 14mm !important;
+  }
+
+  .proposal-document.pa-document .pa-page-footer {
+    position: fixed !important;
+    left: 12mm !important;
+    right: 12mm !important;
+    bottom: 6mm !important;
+    height: auto !important;
+    min-height: 0 !important;
+    max-height: none !important;
+    display: flex !important;
+    align-items: center !important;
+    justify-content: center !important;
+    gap: 6px !important;
+    font-size: 9pt !important;
+    line-height: 1.2 !important;
+    background: #fff !important;
+    z-index: 20 !important;
+    margin-top: 0 !important;
+    padding: 0 !important;
+  }
+}
