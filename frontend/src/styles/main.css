@@ -11352,6 +11352,7 @@ select.ds-input {
 .ds-pa-item-field { display: grid; gap: 3px; min-width: 0; }
 .ds-pa-item-field span { font-size: 0.71rem; color: var(--ds-color-text-muted, #64748b); }
 .ds-pa-item-field--select { width: min(100%, 520px); }
+.ds-pa-item-field--select-no-label { gap: 0; }
 .ds-pa-item-field--name { min-width: 220px; }
 .ds-pa-item-field--type { min-width: 110px; }
 .ds-pa-item-field--gefen { max-width: 120px; }
@@ -16412,7 +16413,17 @@ details[open] > .ds-fin-acc__summary::before { transform: rotate(90deg); }
   gap: 16px;
 }
 .pa-sidebar .ds-pa-form-activities-panel {
-  margin-bottom: 14px;
+  margin-bottom: 8px;
+}
+.pa-sidebar .ds-pa-form-activities-panel .pa-sidebar-section-title {
+  margin-bottom: 4px;
+  padding-bottom: 3px;
+}
+.pa-sidebar .ds-pa-items-section {
+  margin: 2px 0 0;
+}
+.pa-sidebar .ds-pa-items-list {
+  gap: 4px;
 }
 .pa-sidebar [data-pa-step-panel="client"],
 .pa-sidebar [data-pa-step-panel="contact"] {
@@ -16467,10 +16478,11 @@ details[open] > .ds-fin-acc__summary::before { transform: rotate(90deg); }
   box-shadow: 0 0 0 1px rgba(26, 45, 74, 0.18) inset;
 }
 .pa-sidebar .ds-pa-item-card {
-  padding: 7px;
-  margin: 6px 0;
-  border-radius: 12px;
+  padding: 5px 8px;
+  margin: 3px 0;
+  border-radius: 10px;
   min-height: 0;
+  gap: 4px;
 }
 .pa-sidebar .ds-pa-form-type-panel {
   padding: 8px 10px;
@@ -16482,8 +16494,14 @@ details[open] > .ds-fin-acc__summary::before { transform: rotate(90deg); }
 .pa-sidebar .ds-pa-item-quick-row {
   display: grid;
   grid-template-columns: minmax(0, 1fr) 96px;
-  gap: 8px;
+  gap: 6px;
   align-items: end;
+}
+.pa-sidebar .ds-pa-item-card .ds-input,
+.pa-sidebar .ds-pa-item-card select {
+  min-height: 34px;
+  padding: 5px 8px;
+  font-size: 0.8rem;
 }
 .pa-sidebar .ds-pa-item-quick-row .ds-pa-item-field--select {
   grid-column: auto;
@@ -16578,7 +16596,8 @@ details[open] > .ds-fin-acc__summary::before { transform: rotate(90deg); }
 .pa-sidebar .ds-pa-items-header {
   flex-direction: column;
   align-items: stretch;
-  gap: 8px;
+  gap: 4px;
+  margin-bottom: 3px;
 }
 .pa-sidebar .ds-pa-activity-type-filter {
   width: 100%;
