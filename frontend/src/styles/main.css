@@ -12085,9 +12085,9 @@ select.ds-input {
   margin: 8px auto 10px !important;
   table-layout: fixed;
 }
-.pa-cost-table.pa-summer-cost-table .pa-activity-col { width: 55%; }
-.pa-cost-table.pa-summer-cost-table .pa-quantity-col { width: 12%; }
-.pa-cost-table.pa-summer-cost-table .pa-unit-price-col { width: 16%; }
+.pa-cost-table.pa-summer-cost-table .pa-activity-col { width: 49%; }
+.pa-cost-table.pa-summer-cost-table .pa-quantity-col { width: 17%; }
+.pa-cost-table.pa-summer-cost-table .pa-unit-price-col { width: 17%; }
 .pa-cost-table.pa-summer-cost-table .pa-total-col { width: 17%; }
 .pa-cost-table.pa-summer-cost-table th,
 .pa-cost-table.pa-summer-cost-table td { text-align: center; vertical-align: middle; }
@@ -17282,10 +17282,10 @@ details[open] > .ds-fin-acc__summary::before { transform: rotate(90deg); }
     margin: 8px auto 10px !important;
     table-layout: fixed !important;
   }
-  .proposal-document .pa-cost-table.pa-summer-cost-table .pa-activity-col { width: 55% !important; }
-  .proposal-document .pa-cost-table.pa-summer-cost-table .pa-quantity-col { width: 15% !important; }
-  .proposal-document .pa-cost-table.pa-summer-cost-table .pa-unit-price-col { width: 15% !important; }
-  .proposal-document .pa-cost-table.pa-summer-cost-table .pa-total-col { width: 15% !important; }
+  .proposal-document .pa-cost-table.pa-summer-cost-table .pa-activity-col { width: 49% !important; }
+  .proposal-document .pa-cost-table.pa-summer-cost-table .pa-quantity-col { width: 17% !important; }
+  .proposal-document .pa-cost-table.pa-summer-cost-table .pa-unit-price-col { width: 17% !important; }
+  .proposal-document .pa-cost-table.pa-summer-cost-table .pa-total-col { width: 17% !important; }
   .proposal-document .pa-cost-table.pa-summer-cost-table th,
   .proposal-document .pa-cost-table.pa-summer-cost-table td { text-align: center !important; vertical-align: middle !important; }
   .proposal-document .pa-cost-table.pa-summer-cost-table th:first-child,
@@ -17402,9 +17402,9 @@ details[open] > .ds-fin-acc__summary::before { transform: rotate(90deg); }
 .proposal-document .pa-item-details-table.pa-next-year-course-table .pa-total-price-col { width: 12.333%; }
 .proposal-document .pa-item-details-table.pa-next-year-course-table th:not(:first-child),
 .proposal-document .pa-item-details-table.pa-next-year-course-table td:not(:first-child) { text-align: center !important; }
-.proposal-document .pa-cost-table.pa-summer-cost-table .pa-activity-col { width: 55%; }
-.proposal-document .pa-cost-table.pa-summer-cost-table .pa-quantity-col { width: 12%; }
-.proposal-document .pa-cost-table.pa-summer-cost-table .pa-unit-price-col { width: 16%; }
+.proposal-document .pa-cost-table.pa-summer-cost-table .pa-activity-col { width: 49%; }
+.proposal-document .pa-cost-table.pa-summer-cost-table .pa-quantity-col { width: 17%; }
+.proposal-document .pa-cost-table.pa-summer-cost-table .pa-unit-price-col { width: 17%; }
 .proposal-document .pa-cost-table.pa-summer-cost-table .pa-total-col { width: 17%; }
 @media print {
   .proposal-document .pa-section { margin: 6px 0 6px !important; }
@@ -17428,10 +17428,10 @@ details[open] > .ds-fin-acc__summary::before { transform: rotate(90deg); }
   .proposal-document .pa-item-details-table.pa-next-year-course-table .pa-hours-col,
   .proposal-document .pa-item-details-table.pa-next-year-course-table .pa-hourly-price-col,
   .proposal-document .pa-item-details-table.pa-next-year-course-table .pa-total-price-col { width: 12.333% !important; }
-  .proposal-document .pa-cost-table.pa-summer-cost-table .pa-activity-col { width: 55% !important; }
-  .proposal-document .pa-cost-table.pa-summer-cost-table .pa-quantity-col { width: 15% !important; }
-  .proposal-document .pa-cost-table.pa-summer-cost-table .pa-unit-price-col { width: 15% !important; }
-  .proposal-document .pa-cost-table.pa-summer-cost-table .pa-total-col { width: 15% !important; }
+  .proposal-document .pa-cost-table.pa-summer-cost-table .pa-activity-col { width: 49% !important; }
+  .proposal-document .pa-cost-table.pa-summer-cost-table .pa-quantity-col { width: 17% !important; }
+  .proposal-document .pa-cost-table.pa-summer-cost-table .pa-unit-price-col { width: 17% !important; }
+  .proposal-document .pa-cost-table.pa-summer-cost-table .pa-total-col { width: 17% !important; }
 }
 @media print {
   .proposal-document.pa-document {
