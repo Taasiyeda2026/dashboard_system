@@ -17393,3 +17393,205 @@ details[open] > .ds-fin-acc__summary::before { transform: rotate(90deg); }
     flex-direction: column !important;
   }
 }
+
+/* Proposal print fixed page chrome: repeat logo/header and footer on each printed A4 page. */
+@media print {
+  @page {
+    size: A4 portrait;
+    margin: 22mm 12mm 22mm 12mm;
+  }
+
+  .proposal-document.pa-a4-page,
+  .proposal-document.pa-document {
+    width: auto !important;
+    max-width: none !important;
+    min-height: auto !important;
+    height: auto !important;
+    margin: 0 !important;
+    padding: 0 !important;
+    box-shadow: none !important;
+    background: #fff !important;
+    position: static !important;
+    display: block !important;
+  }
+
+  .proposal-document-body,
+  .proposal-document-content,
+  .proposal-document.pa-document .proposal-document-body,
+  .proposal-document.pa-document .proposal-document-content {
+    display: block !important;
+    width: 100% !important;
+    max-width: none !important;
+    height: auto !important;
+    min-height: 0 !important;
+    max-height: none !important;
+    padding: 0 !important;
+    overflow: visible !important;
+  }
+
+  .pa-page-header,
+  .proposal-document-header {
+    position: fixed !important;
+    top: 6mm !important;
+    right: 12mm !important;
+    left: 12mm !important;
+    height: 12mm !important;
+    min-height: 12mm !important;
+    max-height: 12mm !important;
+    margin: 0 !important;
+    padding: 0 !important;
+    display: flex !important;
+    align-items: center !important;
+    justify-content: flex-start !important;
+    background: #fff !important;
+    z-index: 9999 !important;
+    break-inside: avoid !important;
+    page-break-inside: avoid !important;
+    text-align: left !important;
+  }
+
+  .pa-page-header img,
+  .proposal-document-header img,
+  .proposal-logo,
+  .pa-logo {
+    height: auto !important;
+    max-height: 10mm !important;
+    width: auto !important;
+    max-width: 50mm !important;
+    object-fit: contain !important;
+  }
+
+  .pa-page-footer {
+    position: fixed !important;
+    right: 12mm !important;
+    left: 12mm !important;
+    bottom: 6mm !important;
+    height: 12mm !important;
+    min-height: 12mm !important;
+    max-height: 12mm !important;
+    margin: 0 !important;
+    padding: 0 !important;
+    border-top: 1px solid #bbb !important;
+    display: flex !important;
+    align-items: center !important;
+    justify-content: center !important;
+    gap: 8px !important;
+    background: #fff !important;
+    z-index: 9999 !important;
+    break-inside: avoid !important;
+    page-break-inside: avoid !important;
+  }
+
+  .pa-page-footer .pa-page-footer-logo,
+  .pa-page-footer-logo {
+    height: auto !important;
+    max-height: 8mm !important;
+    width: auto !important;
+    max-width: 28mm !important;
+    object-fit: contain !important;
+  }
+}
+
+
+/* Focused real proposal template adjustments for preview and print. */
+.proposal-document .pa-logo-area .proposal-logo {
+  height: 54px;
+  max-height: 54px;
+}
+
+.proposal-document .pa-next-year-cancellation-terms .pa-section-body,
+.proposal-document .pa-summer-cancellation-terms .pa-section-body {
+  font-size: 10.45px;
+}
+
+@media print {
+  .proposal-document .pa-logo-area .proposal-logo,
+  .proposal-document .pa-page-header img,
+  .proposal-document .proposal-document-header img,
+  .proposal-document .proposal-logo,
+  .proposal-document .pa-logo {
+    height: auto !important;
+    max-height: 9.5mm !important;
+  }
+
+  .proposal-document .pa-next-year-cancellation-terms .pa-section-body,
+  .proposal-document .pa-summer-cancellation-terms .pa-section-body {
+    font-size: 11.25px !important;
+  }
+}
+
+/* Compact proposal editor sidebar recipient/contact spacing only. */
+.pa-sidebar .ds-pa-form-meta-panel,
+.pa-sidebar .ds-pa-form-type-panel {
+  padding: 8px 10px;
+  margin-bottom: 8px;
+}
+
+.pa-sidebar .ds-pa-form-meta-panel,
+.pa-sidebar [data-pa-step-panel="client"],
+.pa-sidebar [data-pa-step-panel="contact"],
+.pa-sidebar .ds-pa-form-grid {
+  gap: 6px;
+}
+
+.pa-sidebar .pa-sidebar-section-title {
+  margin-bottom: 6px;
+  padding-bottom: 4px;
+}
+
+.pa-sidebar .ds-pa-client-locked {
+  padding: 8px 10px;
+  margin-bottom: 0;
+  gap: 8px;
+}
+
+.pa-sidebar .ds-pa-client-locked-body {
+  gap: 2px;
+}
+
+.pa-sidebar .ds-pa-client-locked-name,
+.pa-sidebar .ds-pa-client-locked-state {
+  margin: 0;
+}
+
+.pa-sidebar .ds-pa-client-locked-name {
+  font-size: 0.86rem;
+  font-weight: 800;
+  color: #0f172a;
+}
+
+.pa-sidebar .ds-pa-client-locked-state {
+  font-size: 0.76rem;
+  color: #64748b;
+}
+
+.pa-sidebar .ds-pa-contact-select-field {
+  gap: 0;
+}
+
+.pa-sidebar [data-pa-add-contact-row] {
+  gap: 3px;
+  padding: 2px 0 0;
+  margin: 0;
+}
+
+.pa-sidebar .ds-pa-add-contact-note {
+  margin: 0;
+  line-height: 1.25;
+}
+
+.pa-sidebar .ds-pa-form-type-panel .ds-pa-type-meta-grid,
+.pa-sidebar .ds-pa-type-cards {
+  gap: 4px;
+}
+
+.pa-sidebar .ds-pa-form-type-panel {
+  padding-top: 6px;
+  margin-bottom: 6px;
+}
+
+.pa-sidebar .ds-pa-type-row,
+.pa-sidebar .ds-pa-template-mode {
+  margin-top: 0;
+  margin-bottom: 0;
+}
