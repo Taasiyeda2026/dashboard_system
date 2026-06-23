@@ -1102,6 +1102,17 @@ function isSummerProposalGroup(value = '') {
   return isSummerKindText(groupKindText(value));
 }
 
+const SUMMER_GENERAL_DEFINITION_ORDER = [
+  'סדנאות תכלס',
+  'סדנאות STEM',
+  'חדרי בריחה'
+];
+
+function summerGeneralDefinitionIndex(row = {}) {
+  const normalizedName = normalizedKindText(publicActivityLabelFromRow(row) || row.activity_name || row.item_name);
+  return SUMMER_GENERAL_DEFINITION_ORDER.findIndex((name) => normalizedName === normalizedKindText(name));
+}
+
 function isNextYearProposalGroup(value = '') {
   return proposalGroupTemplateKey(value) === 'next_year';
 }
@@ -1250,6 +1261,21 @@ function isSummerItemRowContext(contextGroup = '') {
   return isSummerProposalGroup(contextGroup);
 }
 
+function sortSummerPricingOptions(pricingOptions = []) {
+  return [...(Array.isArray(pricingOptions) ? pricingOptions : [])].sort((a, b) => {
+    const aGeneralIndex = summerGeneralDefinitionIndex(a);
+    const bGeneralIndex = summerGeneralDefinitionIndex(b);
+    if (aGeneralIndex !== -1 || bGeneralIndex !== -1) {
+      if (aGeneralIndex === -1) return 1;
+      if (bGeneralIndex === -1) return -1;
+      return aGeneralIndex - bGeneralIndex;
+    }
+    const sortDiff = numberValue(a.sort_order) - numberValue(b.sort_order);
+    if (Number.isFinite(sortDiff) && sortDiff !== 0) return sortDiff;
+    return text(publicActivityLabelFromRow(a) || a.activity_name).localeCompare(text(publicActivityLabelFromRow(b) || b.activity_name), 'he');
+  });
+}
+
 function itemRowHtml(item = {}, idx = 0, pricingOptions = [], options = {}) {
   item = normalizeProposalItemRow(item, options.groupKey || '');
   const n = (v) => (v != null && v !== '' && !isNaN(Number(v))) ? escapeHtml(String(v)) : '';
@@ -1265,7 +1291,7 @@ function itemRowHtml(item = {}, idx = 0, pricingOptions = [], options = {}) {
   const selectedName = text(item.item_name) || 'בחרו פעילות';
   const selectedType = text(proposalField(item, 'item_type', 'itemType'));
   const typeBadgeHtml = selectedType ? `<span class="ds-pa-item-type-badge" style="font-size:0.72rem;border:1px solid #e5e7eb;border-radius:999px;padding:1px 6px;color:#64748b;background:#f8fafc">${escapeHtml(selectedType)}</span>` : '';
-  const activitySelectLabel = isSummerRow ? 'פעילות' : 'בחירת פעילות / קורס';
+  const activitySelectLabel = isSummerRow ? 'בחר פעילות מהרשימה' : 'בחירת פעילות / קורס';
   const meetingsHoursFieldsHtml = isSummerRow
     ? `<input type="hidden" name="meetings_count" value="${n(item.meetings_count)}">
     <input type="hidden" name="hours_count" value="${n(item.hours_count)}">`
@@ -2256,6 +2282,9 @@ function pricingMatchesGroup(row, activityTypeGroup) {
   if (isTestHoursItem(row)) return false;
   const normalizedGroup = normalizeProposalGroup(activityTypeGroup);
   if (!normalizedGroup) return true;
+  if (isSummerProposalGroup(normalizedGroup)) {
+    return itemBelongsToGroup(row, normalizedGroup) || isSummerKindText(itemKindText(row));
+  }
   if (isCombinedProposalGroup(normalizedGroup)) {
     const children = includedProposalGroups(normalizedGroup);
     if (!children.length) return true;
@@ -2270,7 +2299,8 @@ function pricingMatchesGroup(row, activityTypeGroup) {
 }
 
 function filterPricingByProposalType(pricingOptions, activityTypeGroup) {
-  return (Array.isArray(pricingOptions) ? pricingOptions : []).filter((row) => pricingMatchesGroup(row, activityTypeGroup));
+  const filtered = (Array.isArray(pricingOptions) ? pricingOptions : []).filter((row) => pricingMatchesGroup(row, activityTypeGroup));
+  return isSummerProposalGroup(activityTypeGroup) ? sortSummerPricingOptions(filtered) : filtered;
 }
 
 function filterPricingByActivityType(pricing, activityType) {
