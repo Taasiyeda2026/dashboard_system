@@ -17451,11 +17451,13 @@ details[open] > .ds-fin-acc__summary::before { transform: rotate(90deg); }
   }
 }
 
-/* Proposal print fixed page chrome: repeat logo via pa-print-fixed-logo on each printed A4 page. */
+/* Proposal print fixed page chrome: repeat logo via pa-print-fixed-logo on each printed A4 page.
+   @page margin-top: 22mm ensures ALL pages (incl. overflow pages 2+) start content below the
+   fixed logo (top:2mm, max-height:18mm → logo bottom ≈ 20mm from paper edge). */
 @media print {
   @page {
     size: A4 portrait;
-    margin: 4mm 12mm 22mm 12mm;
+    margin: 22mm 12mm 22mm 12mm;
   }
 
   .proposal-document.pa-a4-page,
@@ -17466,7 +17468,7 @@ details[open] > .ds-fin-acc__summary::before { transform: rotate(90deg); }
     height: auto !important;
     margin: 0 !important;
     padding: 0 !important;
-    padding-top: 17mm !important;
+    padding-top: 2mm !important;
     box-shadow: none !important;
     background: #fff !important;
     position: static !important;
