@@ -751,7 +751,8 @@ function currencyAmountHtml(num) {
   const value = Number(num);
   const formatted = formatCurrency(Math.abs(value));
   const prefix = value < 0 ? '-' : '';
-  return `<span class="pa-currency-amount" dir="ltr">${escapeHtml(`${prefix}${formatted}`)}\u00a0₪</span>`;
+  const display = `${prefix}${formatted}\u00a0₪`;
+  return `<span class="pa-currency-amount money-amount" dir="ltr">${escapeHtml(display)}</span>`;
 }
 
 function sortRows(rows) {
