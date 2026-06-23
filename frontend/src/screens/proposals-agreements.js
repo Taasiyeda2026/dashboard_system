@@ -37,6 +37,7 @@ const OLD_PAYMENT_SENTENCE = 'התשלום עבור הקורס יחולק לשנ
 const NEW_PAYMENT_SENTENCE = 'התשלום עבור הקורס יחולק לשתי חשבוניות: הראשונה תונפק עם תחילת הקורס והשנייה לאחר השלמת מחצית מהיקפו.';
 const OLD_SUMMER_PAYMENT_TERMS = 'חשבונית לתשלום תונפק עם תחילת הסדנה.\nתנאי התשלום: שוטף + 30 ממועד הנפקת החשבונית.';
 const OLD_SUMMER_PAYMENT_TERMS_INLINE = 'חשבונית לתשלום תונפק עם תחילת הסדנה. תנאי התשלום: שוטף + 30 ממועד הנפקת החשבונית.';
+const OLD_SUMMER_PAYMENT_TERMS_INVOICE_ONLY = 'חשבונית לתשלום תונפק עם תחילת הסדנה.';
 const NEW_SUMMER_PAYMENT_TERMS = 'התמורה נקבעה בהתאם למספר המשתתפים הנקוב בהצעת המחיר. כל משתתף נוסף מעבר למספר זה יחויב בתוספת של 25 ש״ח.\nחשבונית לתשלום תונפק עם תחילת הפעילות. תנאי התשלום: שוטף + 30 ממועד הנפקת החשבונית.';
 
 export const STATUS_OPTIONS = ['draft', 'pending_approval', 'returned_for_changes', 'approved', 'sent', 'cancelled'];
@@ -133,7 +134,8 @@ function applyFocusedProposalTextUpdates(body, templateKey = '') {
   if (key === 'summer') {
     return normalizedBody
       .replaceAll(OLD_SUMMER_PAYMENT_TERMS, NEW_SUMMER_PAYMENT_TERMS)
-      .replaceAll(OLD_SUMMER_PAYMENT_TERMS_INLINE, NEW_SUMMER_PAYMENT_TERMS);
+      .replaceAll(OLD_SUMMER_PAYMENT_TERMS_INLINE, NEW_SUMMER_PAYMENT_TERMS)
+      .replaceAll(OLD_SUMMER_PAYMENT_TERMS_INVOICE_ONLY, NEW_SUMMER_PAYMENT_TERMS);
   }
   if (key !== 'next_year' && key !== 'combined') return normalizedBody;
   return normalizedBody

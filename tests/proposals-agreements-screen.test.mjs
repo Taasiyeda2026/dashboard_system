@@ -2416,6 +2416,12 @@ test('summer proposal preview keeps prices out of activity section and expands b
     assert.doesNotMatch(activitySection.textContent, /₪|לשעה|מחיר לקבוצה|סדנאות STEM/);
     assert.doesNotMatch(activitySection.textContent, /רוטוקופטר|פרפרטוס/);
     assert.doesNotMatch(doc.textContent, /מצורף להצעה/);
+    const paymentItems = Array.from(paymentSection.querySelectorAll('.pa-proposal-list li')).map((item) => item.textContent.trim());
+    assert.deepEqual(paymentItems, [
+      'התמורה נקבעה בהתאם למספר המשתתפים הנקוב בהצעת המחיר. כל משתתף נוסף מעבר למספר זה יחויב בתוספת של 25 ש״ח.',
+      'חשבונית לתשלום תונפק עם תחילת הפעילות. תנאי התשלום: שוטף + 30 ממועד הנפקת החשבונית.'
+    ]);
+    assert.doesNotMatch(paymentSection.textContent, /חשבונית לתשלום תונפק עם תחילת הסדנה/);
     assert.ok(costTable, 'cost table should render in payment section');
     const tableText = costTable.textContent;
     assert.match(tableText, /רוטוקופטר/);
