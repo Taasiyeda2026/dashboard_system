@@ -2518,7 +2518,8 @@ test('course preview renders the course item details table instead of the worksh
     assert.ok(headers.includes('מס׳ גפ״ן'));
     assert.ok(headers.includes('מפגשים'));
     assert.ok(headers.includes('מחיר לשעה'));
-    assert.ok(courseTable.textContent.includes('סודות הבינה המלאכותית'));
+    assert.ok(courseTable.textContent.includes('בינה מלאכותית'));
+    assert.ok(!courseTable.textContent.includes('סודות הבינה המלאכותית'));
     assert.ok(!headers.includes('פעילות'));
     assert.ok(!headers.includes('מחיר יחידה'));
     assert.ok(!headers.includes('סה״כ שורה'));
