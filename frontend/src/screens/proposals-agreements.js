@@ -996,7 +996,7 @@ function contactPickerHtml(contactOptions, authority, school, selectedContactNam
   ].join('');
   const noContacts = contacts.length === 0;
   return `
-    <label class="ds-pa-form-field"><span>איש קשר</span>
+    <label class="ds-pa-form-field"><span>בחירה</span>
       <select class="ds-input ds-input--sm" data-pa-contact-select>${optionsHtml}</select>
     </label>
     <span data-pa-contact-picker-state data-pa-no-contacts="${noContacts ? 'yes' : 'no'}" hidden></span>`;
@@ -1225,7 +1225,9 @@ function itemRowHtml(item = {}, idx = 0, pricingOptions = [], options = {}) {
   const isSummerRow = isSummerItemRowContext(contextGroup);
   const gefenValue = proposalTextField(item, 'gefen_number', 'gefenNumber');
   const hasActivity = Boolean(text(item.item_name));
-  const infoStripHtml = !isSummerRow && hasActivity ? buildInfoStripInnerHtml(item, contextGroup) : '';
+  const selectedName = text(item.item_name) || 'בחרו פעילות';
+  const selectedType = text(proposalField(item, 'item_type', 'itemType'));
+  const typeBadgeHtml = selectedType ? `<span class="ds-pa-item-type-badge" style="font-size:0.72rem;border:1px solid #e5e7eb;border-radius:999px;padding:1px 6px;color:#64748b;background:#f8fafc">${escapeHtml(selectedType)}</span>` : '';
   const activitySelectLabel = isSummerRow ? 'פעילות' : 'בחירת פעילות / קורס';
   const meetingsHoursFieldsHtml = isSummerRow
     ? `<input type="hidden" name="meetings_count" value="${n(item.meetings_count)}">
@@ -1233,26 +1235,26 @@ function itemRowHtml(item = {}, idx = 0, pricingOptions = [], options = {}) {
     : `<label class="ds-pa-item-field"><span>מפגשים</span><input class="ds-input ds-input--sm" type="number" name="meetings_count" value="${n(item.meetings_count)}" min="0" step="1" placeholder="—"></label>
           <label class="ds-pa-item-field"><span>שעות</span><input class="ds-input ds-input--sm" type="number" name="hours_count" value="${n(item.hours_count)}" min="0" step="0.5" placeholder="—"></label>`;
   return `<article class="ds-pa-item-card ds-pa-item-row${isSummerRow ? ' ds-pa-item-row--summer' : ''}" data-pa-item-row data-pa-item-idx="${idx}" data-pa-row-group="${escapeHtml(contextGroup)}"${isSummerRow ? ' data-pa-summer-row' : ''}>
-    <div class="ds-pa-item-quick-row">
+    <div class="ds-pa-item-quick-row" style="display:grid;grid-template-columns:minmax(0,1fr) 86px auto;gap:6px;align-items:end">
       <label class="ds-pa-item-field ds-pa-item-field--select"><span>${activitySelectLabel}</span><select class="ds-input ds-input--sm" name="pricing_activity_name" data-pa-pricing-select>${pricingSelectOptionsHtml}</select></label>
       <label class="ds-pa-item-field ds-pa-item-field--qty"><span>כמות קבוצות</span><input class="ds-input ds-input--sm" type="number" name="quantity" value="${n(item.quantity) || '1'}" min="0" step="any" data-pa-item-qty></label>
-      <label class="ds-pa-item-field ds-pa-item-field--price"><span>מחיר יחידה</span><input class="ds-input ds-input--sm" type="number" name="unit_price" value="${n(item.unit_price)}" min="0" step="any" data-pa-item-price></label>
-      <label class="ds-pa-item-field ds-pa-item-field--total ds-pa-line-total"><span>סה״כ שורה</span><output data-pa-item-total-display>${calcTotal ? `${formatCurrency(calcTotal)} ₪` : '0 ₪'}</output><input type="hidden" name="total_price" value="${calcTotal}" data-pa-item-total></label>
-      <button type="button" class="ds-btn ds-btn--xs ds-btn--ghost ds-pa-item-remove" data-pa-remove-item aria-label="הסר שורה">✕ הסר</button>
+      <span class="ds-pa-item-compact-name" title="${escapeHtml(selectedName)}" style="display:none">${escapeHtml(selectedName)} ${typeBadgeHtml}</span>
     </div>
     <div class="ds-pa-bundle-prompt" data-pa-bundle-prompt hidden></div>
-    <div class="ds-pa-item-info-strip" data-pa-item-info-strip${!isSummerRow && hasActivity ? '' : ' hidden'}>${infoStripHtml}</div>
     <details class="ds-pa-item-extra" data-pa-item-details>
-      <summary class="ds-pa-item-extra-toggle">עריכה / הערות</summary>
+      <summary class="ds-pa-item-extra-toggle">עריכה</summary>
       <div class="ds-pa-item-extra-body">
         <div class="ds-pa-item-grid ds-pa-item-grid--extras">
-          <label class="ds-pa-item-field ds-pa-item-field--type"><span>סוג פעילות</span><input class="ds-input ds-input--sm" name="item_type" value="${escapeHtml(proposalField(item, 'item_type', 'itemType') || '')}" list="pa-item-type-list" placeholder="סוג"></label>
           <label class="ds-pa-item-field ds-pa-item-field--name"><span>שם פעילות / תוכנית</span><input class="ds-input ds-input--sm" name="item_name" value="${escapeHtml(item.item_name || '')}" placeholder="שם פעילות"></label>
           ${meetingsHoursFieldsHtml}
+          <label class="ds-pa-item-field ds-pa-item-field--price"><span>מחיר יחידה</span><input class="ds-input ds-input--sm" type="number" name="unit_price" value="${n(item.unit_price)}" min="0" step="any" data-pa-item-price></label>
+          <label class="ds-pa-item-field ds-pa-item-field--total ds-pa-line-total"><span>סה״כ שורה</span><output data-pa-item-total-display>${calcTotal ? `${formatCurrency(calcTotal)} ₪` : '0 ₪'}</output><input type="hidden" name="total_price" value="${calcTotal}" data-pa-item-total></label>
         </div>
         <label class="ds-pa-item-field ds-pa-item-field--full"><span>הערות או התאמות</span><textarea class="ds-input ds-input--sm" name="description" rows="2" placeholder="תיאור קצר, אם נדרש">${escapeHtml(item.description || '')}</textarea></label>
+        <button type="button" class="ds-btn ds-btn--xs ds-btn--ghost ds-pa-item-remove" data-pa-remove-item aria-label="הסר שורה">✕ הסר</button>
       </div>
     </details>
+    <input type="hidden" name="item_type" value="${escapeHtml(proposalField(item, 'item_type', 'itemType') || '')}">
     <input type="hidden" name="activity_no" value="${escapeHtml(item.activity_no || item.pricing_activity_no || '')}">
     <input type="hidden" name="pricing_option_key" value="${escapeHtml(item.pricing_option_key || '')}">
     <input type="hidden" name="bundle_pricing_key" value="${escapeHtml(item.bundle_pricing_key || item.pricing_key || item.source_pricing_key || '')}">
@@ -1279,19 +1281,6 @@ function combinedItemsSectionHtml(label, groupKey, items, pricingOptions, idxOff
   </div>`;
 }
 
-function activityTypeFilterHtml(pricingOptions) {
-  const types = [...new Set((Array.isArray(pricingOptions) ? pricingOptions : [])
-    .filter((r) => text(r.item_type) && text(r.proposal_display_mode) !== 'bundle_child')
-    .map((r) => text(r.item_type)))].sort((a, b) => a.localeCompare(b, 'he'));
-  if (!types.length) return '';
-  const opts = ['<option value="">כל סוגי הפעילות</option>',
-    ...types.map((t) => `<option value="${escapeHtml(t)}">${escapeHtml(t)}</option>`)
-  ].join('');
-  return `<label class="ds-pa-activity-type-filter"><span style="font-size:0.75rem;white-space:nowrap">סוג פעילות:</span>
-    <select class="ds-input ds-input--sm" data-pa-activity-type-filter>${opts}</select>
-  </label>`;
-}
-
 function itemsEditorHtml(items = [], pricingOptions = [], activityTypeGroup = '') {
   const hasProposalType = Boolean(normalizeProposalGroup(activityTypeGroup));
   if (!hasProposalType) {
@@ -1302,7 +1291,6 @@ function itemsEditorHtml(items = [], pricingOptions = [], activityTypeGroup = ''
   }
   items = (Array.isArray(items) ? items : []).map((item) => normalizeProposalItemRow(item, activityTypeGroup));
   const normalizedGroup = normalizeProposalGroup(activityTypeGroup);
-  const filterHtml = isSummerProposalGroup(normalizedGroup) ? '' : activityTypeFilterHtml(pricingOptions);
   const footer = `<datalist id="pa-item-type-list">${itemTypeOptions(pricingOptions).map((v) => `<option value="${escapeHtml(v)}">`).join('')}</datalist>
     <div class="ds-pa-items-total-row">סה״כ כללי: <strong data-pa-grand-total></strong></div>`;
 
@@ -1317,7 +1305,6 @@ function itemsEditorHtml(items = [], pricingOptions = [], activityTypeGroup = ''
       return sectionHtml;
     }).join('');
     return `<div class="ds-pa-items-section ds-pa-items-combined">
-      <div class="ds-pa-items-header">${filterHtml}</div>
       ${sections}
       ${footer}
     </div>`;
@@ -1327,8 +1314,6 @@ function itemsEditorHtml(items = [], pricingOptions = [], activityTypeGroup = ''
   const rowsHtml = editableItems.map((item, idx) => itemRowHtml({ ...item, proposal_group: item.proposal_group || normalizedGroup }, idx, pricingOptions, { groupKey: normalizedGroup })).join('');
   return `<div class="ds-pa-items-section">
     <div class="ds-pa-items-header">
-      <span style="font-size:0.76rem;color:var(--ds-color-text-muted,#64748b);font-weight:600">שורות הצעה</span>
-      ${filterHtml}
       <button type="button" class="ds-btn ds-btn--xs" data-pa-add-item>+ הוסף שורה</button>
     </div>
     <div class="ds-pa-items-list" data-pa-items-body>${rowsHtml}</div>
@@ -2325,7 +2310,7 @@ function defaultContactFromSchoolMeta(schoolMeta = {}) {
     ...schoolMeta,
     id: '',
     contact_name: principalName,
-    contact_role: 'מנהל/ת',
+    contact_role: 'מנהל/ת בית הספר',
     phone: text(schoolMeta.phone) || text(schoolMeta.school_phone || schoolMeta.mobile || ''),
     mobile: text(schoolMeta.mobile),
     email: text(schoolMeta.email)
@@ -2381,14 +2366,14 @@ function clientLockedBannerHtml(auth, school, contactName, contactRole, phone, e
   const displayName = clientName || school || auth;
   const summaryParts = [
     displayName,
-    auth && auth !== displayName ? auth : '',
-    contactName || ''
+    auth && auth !== displayName ? auth : ''
   ].filter(Boolean);
+  const displayContactRole = contactRole === 'מנהל/ת' ? 'מנהל/ת בית הספר' : contactRole;
   const details = [
     ...(schoolMeta ? schoolDetailsLines(schoolMeta) : []),
     !schoolMeta && school && school !== displayName ? ['בית ספר', school] : null,
-    contactName ? ['איש קשר', contactName] : null,
-    contactRole ? ['תפקיד', contactRole] : null,
+    contactName && !schoolMeta ? ['שם', contactName] : null,
+    displayContactRole ? ['תפקיד', displayContactRole] : null,
     phone ? ['טלפון', phone] : null,
     email ? ['דוא״ל', email] : null
   ].filter(Boolean);
@@ -2474,12 +2459,12 @@ export function proposalTypeCardsHtml(selected) {
   const normalizedSelected = normalizeProposalGroup(selected);
   const options = proposalGroupLookups.groups;
   if (!options.length) {
-    return `<div class="ds-pa-type-chips" data-pa-type-cards style="display:flex;flex-wrap:wrap;gap:6px;margin-top:4px"></div><input type="hidden" name="activity_type_group" value="${escapeHtml(normalizedSelected)}" data-pa-type-hidden>`;
+    return `<div class="ds-pa-type-chips" data-pa-type-cards style="display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:6px;margin-top:4px"></div><input type="hidden" name="activity_type_group" value="${escapeHtml(normalizedSelected)}" data-pa-type-hidden>`;
   }
-  return `<div class="ds-pa-type-chips" data-pa-type-cards style="display:flex;flex-wrap:wrap;gap:6px;margin-top:4px">
+  return `<div class="ds-pa-type-chips" data-pa-type-cards style="display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:6px;margin-top:4px">
     ${options.map((opt) => {
       const isSel = normalizedSelected === opt.group_key;
-      return `<button type="button" class="ds-pa-type-card${isSel ? ' is-selected' : ''}" data-pa-type-btn="${escapeHtml(opt.group_key)}" style="padding:5px 16px;border-radius:20px;border:1.5px solid ${isSel ? '#6366f1' : '#d1d5db'};background:${isSel ? '#eef2ff' : '#f9fafb'};color:${isSel ? '#4f46e5' : '#374151'};font-weight:${isSel ? '600' : '400'};font-size:0.85rem;cursor:pointer;white-space:nowrap;line-height:1.6;transition:all .15s">${escapeHtml(opt.display_name)}</button>`;
+      return `<button type="button" class="ds-pa-type-card${isSel ? ' is-selected' : ''}" data-pa-type-btn="${escapeHtml(opt.group_key)}" style="width:100%;min-height:30px;padding:4px 6px;border-radius:12px;border:1.5px solid ${isSel ? '#6366f1' : '#d1d5db'};background:${isSel ? '#eef2ff' : '#f9fafb'};color:${isSel ? '#4f46e5' : '#374151'};font-weight:${isSel ? '600' : '400'};font-size:0.8rem;cursor:pointer;text-align:center;line-height:1.25;transition:all .15s">${escapeHtml(opt.display_name)}</button>`;
     }).join('')}
   </div><input type="hidden" name="activity_type_group" value="${escapeHtml(normalizedSelected)}" data-pa-type-hidden>`;
 }
@@ -2670,7 +2655,6 @@ function formHtml(mode, row = {}, activityNameOptions = [], contactOptions = [],
       <h4 class="pa-sidebar-section-title">סוג ותאריך הצעה</h4>
       <div class="ds-pa-type-meta-grid">
         <div class="ds-pa-form-field">
-          <span>${escapeHtml(FIELD_LABELS.activity_type_group)} *</span>
           ${proposalTypeCardsHtml(normalizedActivityGroup)}
         </div>
         <div class="ds-pa-type-meta-aux">
