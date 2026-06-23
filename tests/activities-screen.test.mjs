@@ -995,3 +995,55 @@ test('activity add validation clears saving state and does not show duplicate in
     globalThis.FormData = previousFormData;
   }
 });
+
+test('activity layout drawer keeps saved sent statuses and includes undated summer activities', async () => {
+  const previousWindow = globalThis.window;
+  const previousDocument = globalThis.document;
+  const previousAbortController = globalThis.AbortController;
+  const dom = new JSDOM('<main id="root"></main><section class="ds-drawer__content"></section>', { url: 'https://example.test/dashboard?route=activities' });
+  globalThis.window = dom.window;
+  globalThis.document = dom.window.document;
+  globalThis.AbortController = dom.window.AbortController;
+  try {
+    const state = baseState();
+    state.activityPeriodTab = 'summer_2026';
+    state.activitiesMonthYm = '2026-08';
+    const data = {
+      rows: [
+        { RowID: 'SUMMER-SENT', activity_name: 'פעילות שנשלחה', activity_type: 'workshop', authority: 'רשות א', school: 'בית ספר א', start_date: '2026-07-10', status: 'פעיל', activity_season: 'summer_2026', start_time: '09:00', end_time: '10:00', grade: 'ד', instructor_name: 'מדריך א' },
+        { RowID: 'SUMMER-UNDATED', activity_name: 'פעילות קיץ ללא חודש מדויק', activity_type: 'workshop', authority: 'רשות ב', school: 'בית ספר ב', start_date: '', status: 'פעיל', activity_season: 'summer_2026', start_time: '11:00', end_time: '12:00', grade: 'ה', instructor_name: 'מדריך ב' },
+        { RowID: 'SCHOOL-REGULAR', activity_name: 'פעילות רגילה', activity_type: 'workshop', authority: 'רשות ג', school: 'בית ספר ג', start_date: '2026-06-10', status: 'פעיל', activity_season: 'regular', start_time: '11:00', end_time: '12:00', grade: 'ו', instructor_name: 'מדריך ג' }
+      ]
+    };
+    const api = {
+      activityLayoutStatuses: async () => ({ rows: [{ season: 'summer_2026', authority: 'רשות א', school: 'בית ספר א', sent: 'sent', sent_at: '2026-06-01T10:00:00.000Z', sent_by: 'בודק' }] })
+    };
+    const root = dom.window.document.querySelector('#root');
+    root.innerHTML = activitiesScreen.render(data, { state });
+    activitiesScreen.bind({
+      root,
+      data,
+      state,
+      rerender: () => {},
+      api,
+      ui: { openDrawer({ content }) { dom.window.document.querySelector('.ds-drawer__content').innerHTML = content; }, bindInteractiveCards() {} }
+    });
+
+    root.querySelector('[data-activity-layout-list]').click();
+    await new Promise((resolve) => setTimeout(resolve, 0));
+
+    const drawerText = dom.window.document.querySelector('.ds-drawer__content').textContent;
+    assert.match(drawerText, /בית ספר א/);
+    assert.match(drawerText, /נשלח/);
+    assert.match(drawerText, /בית ספר ב/);
+    assert.match(drawerText, /לא נשלח/);
+    assert.doesNotMatch(drawerText, /בית ספר ג/);
+  } finally {
+    if (previousWindow === undefined) delete globalThis.window;
+    else globalThis.window = previousWindow;
+    if (previousDocument === undefined) delete globalThis.document;
+    else globalThis.document = previousDocument;
+    if (previousAbortController === undefined) delete globalThis.AbortController;
+    else globalThis.AbortController = previousAbortController;
+  }
+});
