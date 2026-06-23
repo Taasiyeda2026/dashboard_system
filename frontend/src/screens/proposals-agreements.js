@@ -17,7 +17,7 @@ const PROPOSAL_SIGNATURE_IMAGE = 'proposals/signature-idan-nahum.png';
 const DEFAULT_SIGNATURE_META = Object.freeze({ image: PROPOSAL_SIGNATURE_IMAGE });
 const DEFAULT_SIGNER_NAME = 'עידן נחום, סמנכ״ל כספים ותפעול';
 
-export const STATUS_OPTIONS = ['draft', 'pending_approval', 'sent', 'returned_for_changes', 'cancelled'];
+export const STATUS_OPTIONS = ['draft', 'pending_approval', 'returned_for_changes', 'approved', 'sent', 'cancelled'];
 export const STATUS_LABELS = {
   draft:                'טיוטה',
   sent:                 'נשלח',
@@ -648,7 +648,7 @@ function signatureSectionHtml(_signatureBody = '', row = {}, options = {}) {
   const status = normalizeProposalStatus(row.status);
   const meta = normalizeSignatureMeta(row.signature_meta || row.approval_meta);
   const hasSavedSignature = Boolean(text(meta?.signature?.image));
-  const showSignatureImage = status === 'sent' && (hasSavedSignature || options.showSignatureImage === true);
+  const showSignatureImage = (status === 'approved' || status === 'sent') && (hasSavedSignature || options.showSignatureImage === true);
   const img = text(meta?.signature?.image) || PROPOSAL_SIGNATURE_IMAGE;
   const imageHtml = showSignatureImage
     ? `<img class="pa-signature-image" src="${PUBLIC_BASE}${escapeHtml(img)}" alt="חתימת עידן נחום" loading="eager" decoding="async" onerror="this.style.display='none';">`
@@ -679,6 +679,14 @@ function normalizeSignatureMeta(value) {
   if (!source || typeof source !== 'object') return null;
   const image = text(source.image) || PROPOSAL_SIGNATURE_IMAGE;
   return { signature: { image } };
+}
+
+function proposalHasSavedApprovalSignature(row = {}) {
+  const meta = normalizeSignatureMeta(row.signature_meta || row.approval_meta);
+  return normalizeProposalStatus(row.status) === 'approved'
+    && Boolean(text(meta?.signature?.image))
+    && Boolean(text(row.approved_by))
+    && Boolean(text(row.approved_at));
 }
 
 function defaultSignatureMeta() {
@@ -764,7 +772,7 @@ function statusSelectHtml(row, enabled, canApprove = false) {
   if (currentStatus === 'sent') {
     return statusBadgeHtml(currentStatus);
   }
-  const selectableStatuses = STATUS_OPTIONS;
+  const selectableStatuses = STATUS_OPTIONS.filter((status) => canApprove || (status !== 'approved' && status !== 'sent'));
   const options = selectableStatuses.map((status) => optionHtml(status, currentStatus, STATUS_LABELS[status] || status)).join('');
   const disabled = enabled ? '' : ' disabled aria-disabled="true"';
   return `<select class="ds-pa-status-select" data-pa-row-status data-pa-status-id="${escapeHtml(row?.id || '')}" data-pa-previous-status="${escapeHtml(currentStatus)}" aria-label="עדכון סטטוס הצעה"${disabled}>${options}</select>`;
@@ -827,7 +835,10 @@ export function proposalsAgreementsTableRowsHtml(rows, state) {
       actionBtns.push(`<button type="button" class="ds-btn ds-btn--xs ds-btn--ghost ds-pa-row-action" data-pa-clone-row="${escapeHtml(row.id)}" title="שכפול להצעה חדשה">שכפול</button>`);
     }
     if (isAdmin && status === 'pending_approval') {
-      actionBtns.push(`<button type="button" class="ds-btn ds-btn--xs ds-pa-row-action" data-pa-status-action="approved" data-pa-action-id="${escapeHtml(row.id)}" title="אישור">אישור</button>`);
+      actionBtns.push(`<button type="button" class="ds-btn ds-btn--xs ds-pa-row-action" data-pa-status-action="approved" data-pa-action-id="${escapeHtml(row.id)}" title="אישור וחתימה">אישור וחתימה</button>`);
+    }
+    if (isAdmin && proposalHasSavedApprovalSignature(row)) {
+      actionBtns.push(`<button type="button" class="ds-btn ds-btn--xs ds-pa-row-action" data-pa-status-action="sent" data-pa-action-id="${escapeHtml(row.id)}" title="סימון כנשלח">סימון כנשלח</button>`);
     }
     if (isAdmin && (status === 'approved' || isSent)) {
       actionBtns.push(`<button type="button" class="ds-btn ds-btn--xs ds-btn--ghost ds-pa-row-action" data-pa-print="${escapeHtml(row.id)}" title="הדפסה">PDF</button>`);
@@ -2729,8 +2740,11 @@ function drawerActionButtons(row, state) {
     buttons.push(`<button type="button" class="ds-btn ds-btn--sm ds-btn--ghost" data-pa-delete-row="${escapeHtml(row.id)}">מחיקה</button>`);
   }
   if (isAdminRole && status === 'pending_approval') {
-    buttons.push(`<button type="button" class="ds-btn ds-btn--primary ds-btn--sm" data-pa-status-action="approved" data-pa-action-id="${escapeHtml(row.id)}">אישור</button>`);
+    buttons.push(`<button type="button" class="ds-btn ds-btn--primary ds-btn--sm" data-pa-status-action="approved" data-pa-action-id="${escapeHtml(row.id)}">אישור וחתימה</button>`);
     buttons.push(`<button type="button" class="ds-btn ds-btn--sm ds-btn--ghost" data-pa-status-action="returned_for_changes" data-pa-action-id="${escapeHtml(row.id)}">החזרה לתיקון</button>`);
+  }
+  if (isAdminRole && proposalHasSavedApprovalSignature(row)) {
+    buttons.push(`<button type="button" class="ds-btn ds-btn--sm ds-btn--primary" data-pa-status-action="sent" data-pa-action-id="${escapeHtml(row.id)}">סימון כנשלח</button>`);
   }
   if (isAdminRole && (status === 'approved' || isSent)) {
     buttons.push(`<button type="button" class="ds-btn ds-btn--sm ds-btn--primary" data-pa-print="${escapeHtml(row.id)}">הדפסה / שמירה כ-PDF</button>`);
@@ -4072,9 +4086,9 @@ export const proposalsAgreementsScreen = {
         try {
           const signatureMeta = readSignatureMeta();
           const result = await api.updateProposalAgreementStatus(text(freshRow.id), 'approved', '', signatureMeta);
-          replaceLocalRow(data, result?.row || { ...freshRow, status: 'sent', approval_note: '', signature_meta: signatureMeta });
+          replaceLocalRow(data, result?.row || { ...freshRow, status: 'approved', approval_note: '', signature_meta: signatureMeta });
           refreshTable();
-          const approvedRow = data.rows.find((item) => text(item.id) === text(freshRow.id)) || { ...freshRow, status: 'sent', signature_meta: signatureMeta };
+          const approvedRow = data.rows.find((item) => text(item.id) === text(freshRow.id)) || { ...freshRow, status: 'approved', signature_meta: signatureMeta };
           overlay.querySelector('.proposal-preview-area').innerHTML = proposalPreviewBodyHtml(approvedRow, items, templateSections, { showSignatureImage: true });
           btn.remove();
           showToast('ההצעה אושרה ונחתמה', 'success');
@@ -4243,7 +4257,7 @@ export const proposalsAgreementsScreen = {
               rowStatusSelect.disabled = true;
               try {
                 const result = await api.updateProposalAgreementStatus(id, 'approved', '', signatureMeta);
-                replaceLocalRow(data, result?.row || { id, status: 'sent', approval_note: '', signature_meta: signatureMeta });
+                replaceLocalRow(data, result?.row || { id, status: 'approved', approval_note: '', signature_meta: signatureMeta });
                 refreshTable();
                 closeOverlay?.();
                 showToast('ההצעה אושרה ונחתמה', 'success');
@@ -4656,7 +4670,7 @@ export const proposalsAgreementsScreen = {
               statusActionBtn.disabled = true;
               try {
                 const result = await api.updateProposalAgreementStatus(id, 'approved', '', signatureMeta);
-                replaceLocalRow(data, result?.row || { id, status: 'sent', approval_note: '', signature_meta: signatureMeta });
+                replaceLocalRow(data, result?.row || { id, status: 'approved', approval_note: '', signature_meta: signatureMeta });
                 refreshTable();
                 const updated = data.rows.find((item) => text(item.id) === id);
                 const drawer = root.querySelector('[data-pa-drawer]');
