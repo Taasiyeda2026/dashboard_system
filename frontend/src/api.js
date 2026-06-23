@@ -2822,7 +2822,7 @@ function sanitizeProposalAgreementPayload(payload = {}, groupLookup = proposalGr
   const row = {
     authority_id:        uuidOrNull(payload.authority_id),
     school_id:           clientType === 'school' ? uuidOrNull(payload.school_id) : null,
-    contact_school_id:   uuidOrNull(payload.contact_school_id),
+    contact_school_id:   payload.contact_school_id != null ? (Number.isInteger(Number(payload.contact_school_id)) && Number(payload.contact_school_id) > 0 ? Number(payload.contact_school_id) : null) : null,
     client_authority:    clientAuthority,
     school_framework:    schoolFramework,
     document_type:       cleanProposalAgreementText(payload.document_type) || 'הצעת מחיר',

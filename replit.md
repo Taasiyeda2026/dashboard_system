@@ -38,11 +38,15 @@ Preserve: RTL, Hebrew, dark shell + light panels. Communication with user: Hebre
 | `settings` | App config / sheet mappings ⚠️ SQL pending |
 
 ## ⚠️ Pending manual step — run in Supabase SQL editor
-Two migration files must be applied before login works:
+Migration files to apply (in order):
 - `supabase/migrations/20260505_users_auth_bootstrap.sql`
 - `supabase/migrations/20260505_settings_admin_config.sql`
+- `supabase/migrations/20260622150000_ensure_contact_school_from_proposal_school_ids.sql`
+- `supabase/migrations/20260617_fix_contact_school_id_coalesce_type.sql`  ← **תיקון COALESCE bigint/uuid**
 
-After applying: seed `users` table with existing users (user_id, entry_code, role, name).
+After applying 20260505 files: seed `users` table with existing users (user_id, entry_code, role, name).
+
+**מה עושה 20260617:** מוסיף עמודות `authority_id uuid`, `school_id uuid`, `semel_mosad text` ל-`contacts_schools`; משנה `proposals_agreements.contact_school_id` מ-uuid ל-bigint; מחדש את `proposals_agreements_directory_view` ללא קונפליקט בין bigint ל-uuid.
 
 ## API status — all Supabase-only
 - **Auth**: `login`, `bootstrap` → `users` table

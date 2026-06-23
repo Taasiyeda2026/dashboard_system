@@ -1,0 +1,87 @@
+ריפליט, אחרי התיקון האחרון עדיין יש שגיאה בשמירה:
+
+COALESCE types bigint and uuid cannot be matched
+
+זה תיקון המשך ממוקד בלבד.
+לא לפתוח טיפול מחדש בכל מנגנון הצעות המחיר.
+לא לבצע refactor.
+לא לשנות עיצוב.
+לא להריץ legacy suite מלא.
+
+המשמעות:
+יש SQL / migration / view / RPC שבו נעשה COALESCE בין שדה bigint לבין שדה uuid.
+זה אסור ב-Postgres.
+
+המטרה:
+לאתר ולתקן רק את המקום שבו מערבבים bigint ו-uuid ב-COALESCE, בעיקר סביב הצעות מחיר, approved_by, auth_user_id, user_id, created_by, school_id, authority_id או contact_school_id.
+
+חיפוש ממוקד בלבד:
+להריץ:
+
+rg -n "COALESCE|coalesce" supabase frontend/src/api.js frontend/src/screens/proposals-agreements.js
+rg -n "approved_by|auth_user_id|user_id|created_by|authority_id|school_id|contact_school_id" supabase/migrations supabase/*.sql frontend/src/api.js
+
+לא לסרוק את כל הריפו אם אין צורך.
+
+כללי תיקון:
+1. אסור לעשות:
+   COALESCE(auth_user_id, user_id)
+   אם auth_user_id הוא uuid ו-user_id הוא bigint.
+
+2. אסור לעשות:
+   COALESCE(uuid_column, bigint_column)
+
+3. אם השדה הסופי הוא uuid:
+   להשתמש רק בערכי uuid.
+   לדוגמה:
+   COALESCE(auth_user_id, NULL::uuid)
+
+4. אם צריך fallback לתצוגה בלבד:
+   להמיר את שני הצדדים לטקסט:
+   COALESCE(auth_user_id::text, user_id::text)
+
+5. אם השדה הוא approved_by:
+   הוא חייב להישאר uuid.
+   לכן approved_by יקבל רק auth_user_id תקין או NULL.
+   לא לבצע fallback ל-user_id.
+
+6. אם צריך לשמור שם מאשר או מספר עובד:
+   לשמור בתוך signature_meta, למשל:
+   signature_meta.signer_name
+   signature_meta.signer_user_id
+   ולא בתוך approved_by.
+
+7. אם הבעיה ב-view כמו proposals_agreements_directory_view:
+   לא להחזיר עמודה אחת שמערבבת uuid ו-bigint.
+   להפריד:
+   approved_by uuid
+   approved_by_user_id bigint/text אם צריך
+   approved_by_name text אם צריך
+
+8. אם הבעיה ב-RPC:
+   לוודא שכל פרמטר uuid מקבל uuid בלבד או NULL.
+   לא להעביר user_id מספרי לפרמטר uuid.
+
+בדיקה נדרשת:
+- להריץ את ה-SQL / migration הרלוונטי בלי שגיאת COALESCE.
+- לבדוק שמירה רגילה של הצעת מחיר.
+- לבדוק שליחה לאישור.
+- לבדוק אישור וחתימה עם משתמש שה-user_id שלו 537.
+- לוודא שאין:
+  invalid input syntax for type uuid: "537"
+- לוודא שאין:
+  COALESCE types bigint and uuid cannot be matched
+
+בדיקות ממוקדות:
+- node --check frontend/src/api.js
+- node --check frontend/src/screens/proposals-agreements.js אם השתנה
+- node --test tests/proposals-agreements-screen.test.mjs אם רלוונטי
+- לא להריץ test:all:legacy
+
+בסיום להחזיר:
+- איפה נמצא ה-COALESCE הבעייתי
+- מה היו שני הטיפוסים שהתערבבו
+- מה שונה
+- האם נוסף migration
+- האם צריך להריץ SQL ידנית ב-Supabase
+- אילו בדיקות הורצו
