@@ -11011,8 +11011,8 @@ select.ds-input {
 .ds-pa-form-section {
   border: 1px solid var(--ds-border, #e2e8f0);
   border-radius: 14px;
-  padding: 16px;
-  margin-bottom: 14px;
+  padding: 10px 12px;
+  margin-bottom: 8px;
   background: var(--ds-surface, #fff);
   box-shadow: var(--ds-shadow-xs, 0 1px 2px rgba(15, 23, 42, 0.04));
 }
@@ -16318,7 +16318,7 @@ details[open] > .ds-fin-acc__summary::before { transform: rotate(90deg); }
 .pa-sidebar .ds-pa-type-row {
   display: grid;
   grid-template-columns: minmax(0, 1fr);
-  gap: 12px;
+  gap: 6px;
   align-items: stretch;
 }
 .pa-sidebar .ds-pa-type-meta-grid > .ds-pa-form-field {
@@ -16331,8 +16331,8 @@ details[open] > .ds-fin-acc__summary::before { transform: rotate(90deg); }
 .pa-sidebar .ds-pa-client-search-block {
   display: flex;
   flex-direction: column;
-  gap: 10px;
-  margin-bottom: 4px;
+  gap: 6px;
+  margin-bottom: 2px;
 }
 .pa-sidebar .ds-pa-client-search {
   position: relative;
@@ -16365,8 +16365,8 @@ details[open] > .ds-fin-acc__summary::before { transform: rotate(90deg); }
 }
 
 .pa-sidebar-heading {
-  margin: 0 0 16px;
-  padding-bottom: 12px;
+  margin: 0 0 8px;
+  padding-bottom: 8px;
   border-bottom: 2px solid #1a2d4a;
   color: #1a2d4a;
   text-align: right;
@@ -16389,8 +16389,8 @@ details[open] > .ds-fin-acc__summary::before { transform: rotate(90deg); }
   direction: rtl;
 }
 .pa-sidebar-section-title {
-  margin: 0 0 12px;
-  padding-bottom: 6px;
+  margin: 0 0 6px;
+  padding-bottom: 4px;
   border-bottom: 1px solid #c8d0dc;
 }
 .pa-sidebar .ds-pa-form-meta-panel,
@@ -16404,13 +16404,13 @@ details[open] > .ds-fin-acc__summary::before { transform: rotate(90deg); }
 .pa-sidebar .ds-pa-form-type-panel,
 .pa-sidebar .ds-pa-form-bottom-panel {
   background: #f7f9fc;
-  padding: 12px;
-  margin-bottom: 12px;
+  padding: 10px;
+  margin-bottom: 8px;
   border-radius: 12px;
 }
 .pa-sidebar .ds-pa-form-meta-panel {
   display: grid;
-  gap: 16px;
+  gap: 8px;
 }
 .pa-sidebar .ds-pa-form-activities-panel {
   margin-bottom: 8px;
@@ -16428,7 +16428,7 @@ details[open] > .ds-fin-acc__summary::before { transform: rotate(90deg); }
 .pa-sidebar [data-pa-step-panel="client"],
 .pa-sidebar [data-pa-step-panel="contact"] {
   display: grid;
-  gap: 12px;
+  gap: 6px;
 }
 .pa-sidebar .ds-pa-new-client-hint {
   display: flex;
