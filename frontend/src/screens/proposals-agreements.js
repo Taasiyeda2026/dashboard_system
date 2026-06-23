@@ -1889,21 +1889,40 @@ function summerActivityProposalBody() {
   return 'ההצעה כוללת פעילויות מותאמות להפעלה בין התאריכים 1.7.26–30.7.26.\nכל פעילות נמשכת 45 דקות ומיועדת לקבוצה של עד 25 משתתפים.\nבסדנאות כל משתתף מכין תוצר אישי ולוקח אותו איתו בסיום הפעילות.';
 }
 
+const SUMMER_COST_TABLE_INTRO = 'פירוט הפעילויות והעלויות:';
+
+function stripTableIntroFromPaymentTermsBody(body, templateKey = '') {
+  const key = proposalGroupTemplateKey(templateKey) || normalizeProposalGroup(templateKey);
+  if (key !== 'summer' && key !== 'next_year') return body;
+  const raw = normalizeMultilineText(body);
+  if (!raw) return body;
+  const filtered = raw.split('\n').filter((line) => {
+    const cleaned = line.replace(/^\s*(?:-|•|·|)\s+/, '').trim();
+    if (!cleaned) return true;
+    if (/^להלן\s+פירוט\s+העלויות:?$/u.test(cleaned)) return false;
+    if (/^להלן\s+פירוט\s+הפעילויות\s+והעלויות:?$/u.test(cleaned)) return false;
+    if (/^פירוט\s+הפעילויות\s+והעלויות\s+מוצג/u.test(cleaned)) return false;
+    return true;
+  });
+  return filtered.join('\n').trim();
+}
+
 function costsIntroBody(row = {}, items = []) {
+  const templateKey = proposalGroupTemplateKey(row.activity_type_group);
   const groupText = groupKindText(row.activity_type_group);
   const visibleCount = (Array.isArray(items) ? items : []).filter((item) =>
     !isTestHoursItem(item) && text(item.proposal_display_mode) !== 'bundle_child' && text(item.item_name)
   ).length;
-  if (isNextYearProposalGroup(row.activity_type_group)) {
-    return 'להלן פירוט העלויות:';
+  if (templateKey === 'next_year' || isNextYearProposalGroup(row.activity_type_group)) {
+    return '';
+  }
+  if (templateKey === 'summer' || isSummerProposalGroup(row.activity_type_group)) {
+    return SUMMER_COST_TABLE_INTRO;
   }
   if (isCourseKindText(groupText)) {
     return visibleCount === 1
       ? 'להלן פירוט הקורס והעלות הכלולה בהצעה.'
       : 'להלן פירוט הקורסים והעלויות הכלולות בהצעה.';
-  }
-  if (isSummerProposalGroup(row.activity_type_group)) {
-    return 'פירוט הפעילויות והעלויות:';
   }
   return visibleCount ? 'פירוט הפעילויות והעלויות מוצג בטבלת העלויות שלהלן.' : '';
 }
@@ -2257,7 +2276,7 @@ export function proposalPreviewBodyHtml(row, items = [], templateSections = [], 
 
   // Payment section: general terms text comes from Supabase, while the price
   // breakdown is always built dynamically from proposal_agreement_items.
-  const paymentTermsBody = sectionBody('payment_terms');
+  const paymentTermsBody = stripTableIntroFromPaymentTermsBody(sectionBody('payment_terms'), templateKey);
   const proposalKind = proposalActivityKind(row, items);
   const costTableHtml = proposalKind === 'course'
     ? proposalItemDetailsTableHtml(items, activityTypeGroup)
