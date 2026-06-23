@@ -17227,16 +17227,16 @@ details[open] > .ds-fin-acc__summary::before { transform: rotate(90deg); }
 }
 
 @media print {
-  .pa-cost-table.pa-summer-cost-table {
-    width: 100% !important;
-    max-width: 100% !important;
-    margin: 8px 0 10px !important;
+  .proposal-document .pa-cost-table.pa-summer-cost-table {
+    width: 70% !important;
+    max-width: 70% !important;
+    margin: 8px auto 10px !important;
     table-layout: fixed !important;
   }
-  .pa-cost-table.pa-summer-cost-table .pa-activity-col { width: 43% !important; }
-  .pa-cost-table.pa-summer-cost-table .pa-quantity-col,
-  .pa-cost-table.pa-summer-cost-table .pa-unit-price-col,
-  .pa-cost-table.pa-summer-cost-table .pa-total-col { width: 19% !important; }
+  .proposal-document .pa-cost-table.pa-summer-cost-table .pa-activity-col { width: 43% !important; }
+  .proposal-document .pa-cost-table.pa-summer-cost-table .pa-quantity-col { width: 18% !important; }
+  .proposal-document .pa-cost-table.pa-summer-cost-table .pa-unit-price-col { width: 19.5% !important; }
+  .proposal-document .pa-cost-table.pa-summer-cost-table .pa-total-col { width: 19.5% !important; }
 }
 
 
@@ -17376,9 +17376,9 @@ details[open] > .ds-fin-acc__summary::before { transform: rotate(90deg); }
   .proposal-document .pa-item-details-table.pa-next-year-course-table .pa-hourly-price-col,
   .proposal-document .pa-item-details-table.pa-next-year-course-table .pa-total-price-col { width: 12.333% !important; }
   .proposal-document .pa-cost-table.pa-summer-cost-table .pa-activity-col { width: 43% !important; }
-  .proposal-document .pa-cost-table.pa-summer-cost-table .pa-quantity-col,
-  .proposal-document .pa-cost-table.pa-summer-cost-table .pa-unit-price-col,
-  .proposal-document .pa-cost-table.pa-summer-cost-table .pa-total-col { width: 19% !important; }
+  .proposal-document .pa-cost-table.pa-summer-cost-table .pa-quantity-col { width: 18% !important; }
+  .proposal-document .pa-cost-table.pa-summer-cost-table .pa-unit-price-col { width: 19.5% !important; }
+  .proposal-document .pa-cost-table.pa-summer-cost-table .pa-total-col { width: 19.5% !important; }
 }
 @media print {
   .proposal-document.pa-document {
