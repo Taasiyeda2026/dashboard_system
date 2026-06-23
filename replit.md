@@ -8,6 +8,36 @@ Preserve: RTL, Hebrew, dark shell + light panels. Communication with user: Hebre
 - SW cache bump: edit `CACHE_VERSION` in `frontend/sw.js` after any JS/CSS change.
 - **Current versions**: SW v785 (frontend/sw.js + dist/sw.js)
 
+## User preferences
+
+### כלל SW/CACHE — חובה בכל תיקון Frontend
+בכל שינוי בקבצים הבאים (או דומים להם), חובה לבצע בסיום:
+1. `sed -i 's/CACHE_VERSION = NNN/CACHE_VERSION = NNN+1/' frontend/sw.js`
+2. `cd frontend && npm run build`
+3. `cp frontend/sw.js dist/sw.js`
+4. לעדכן "Current versions" ב-replit.md
+5. להפעיל מחדש את workflow "Start application"
+
+**קבצים שמחייבים cache bump:**
+- `frontend/src/screens/*.js`
+- `frontend/src/styles/*.css`
+- `frontend/src/api.js`
+- `frontend/src/main.js`
+- `frontend/src/config.js`
+- כל קובץ UI / layout / CSS / תבנית שנטענת בדפדפן
+
+**קבצים שלא מחייבים cache bump:**
+- README / MD בלבד
+- tests בלבד
+- migrations SQL בלבד
+- קבצי שרת שאינם נטענים בדפדפן
+
+**בסיום כל תיקון Frontend לדווח:**
+- האם עודכן SW/CACHE (גרסה לפני → אחרי)
+- האם הורץ build
+- אילו קבצי dist השתנו
+- האם צריך hard refresh (Ctrl+Shift+R)
+
 ## Key identifiers
 - Supabase URL: `https://szinlhjuwyiyszdpsdop.supabase.co` (anon key in `frontend/src/supabase-client.js`)
 - GAS URL in `frontend/src/config.js` — **legacy, no longer used**
