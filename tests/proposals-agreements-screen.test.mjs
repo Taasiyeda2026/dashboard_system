@@ -1505,6 +1505,40 @@ test('updateProposalAgreementStatus uses statusForDb before Supabase write', asy
   );
 });
 
+test('proposal UUID fields reject numeric business ids and approval uses only auth UUID', async () => {
+  const { sanitizeProposalAgreementPayload, isValidUuid, uuidOrNull } = await import('../frontend/src/api.js');
+  const { state } = await import('../frontend/src/state.js');
+  const previousUser = state.user;
+  state.user = { role: 'admin', user_id: '537', auth_user_id: '' };
+  const emptyLookup = { aliasToKey: new Map(), groupByKey: new Map() };
+  try {
+    assert.equal(isValidUuid('537'), false);
+    assert.equal(uuidOrNull('537'), null);
+    assert.equal(uuidOrNull('550e8400-e29b-41d4-a716-446655440000'), '550e8400-e29b-41d4-a716-446655440000');
+    const dbPayload = sanitizeProposalAgreementPayload({
+      client_authority: 'רשות בדיקה',
+      school_framework: 'בית ספר בדיקה',
+      document_type: 'הצעת מחיר',
+      activity_type_group: 'summer',
+      authority_id: '537',
+      school_id: '537',
+      contact_school_id: '537',
+      status: 'pending_approval'
+    }, emptyLookup);
+    assert.equal(dbPayload.authority_id, null);
+    assert.equal(dbPayload.school_id, null);
+    assert.equal(dbPayload.contact_school_id, null);
+  } finally {
+    state.user = previousUser;
+  }
+
+  const apiSource = await readFile(API_FILE, 'utf8');
+  assert.match(apiSource, /patch\.approved_by = uuidOrNull\(state\?\.user\?\.auth_user_id\)/);
+  assert.doesNotMatch(apiSource, /approved_by = state\?\.user\?\.auth_user_id \|\| state\?\.user\?\.user_id/);
+  assert.match(apiSource, /patch\.status = 'approved'/);
+});
+
+
 test('multiple proposal item names are preserved on save', async () => {
   const savedPayloads = [];
   const mockApi = {
@@ -3580,4 +3614,12 @@ test('missing item rows warning is not shown when agreement items exist', () => 
   const html = itemsSummaryHtml([{ item_name: 'פעילות', quantity: 1, unit_price: 100, total_price: 100 }]);
   assert.doesNotMatch(html, /לא נוספו שורות/);
   assert.match(html, /פעילות/);
+});
+
+test('new proposal locks activity rows until activity_type_group is selected', async () => {
+  const source = await readFile(SCREEN_FILE, 'utf8');
+  assert.match(source, /יש לבחור קודם סוג הצעה/);
+  assert.match(source, /data-pa-add-item disabled aria-disabled="true"/);
+  assert.match(source, /if \(!normalizeProposalGroup\(currentType\)\) return/);
+  assert.match(source, /filterItemsByProposalType\(extractItemsFromForm\(form\), newType\)/);
 });

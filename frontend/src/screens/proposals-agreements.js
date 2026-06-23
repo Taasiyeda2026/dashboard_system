@@ -885,8 +885,9 @@ function hiddenField(key, value) {
   return `<input type="hidden" name="${key}" value="${escapeHtml(value || '')}">`;
 }
 
-function activityPickerHtml(value, activityNameOptions) {
+function activityPickerHtml(value, activityNameOptions, activityTypeGroup = '') {
   const selectedValues = Array.isArray(value) ? value.map(text).filter(Boolean) : text(value).split(',').map(text).filter(Boolean);
+  const hasProposalType = Boolean(normalizeProposalGroup(activityTypeGroup));
   const allOptions = Array.from(new Set([...activityNameOptions, ...selectedValues])).filter(Boolean).sort((a, b) => a.localeCompare(b, 'he'));
   const label = FIELD_LABELS.activity_names;
   if (!allOptions.length) {
@@ -900,7 +901,8 @@ function activityPickerHtml(value, activityNameOptions) {
   return `<div class="ds-pa-form-field ds-pa-form-field--wide">
     <span class="ds-pa-field-label">${escapeHtml(label)}</span>
     <div class="ds-pa-activity-picker" data-pa-activity-picker data-required="no">
-      <button type="button" class="ds-input ds-input--sm ds-pa-activity-trigger" data-pa-activity-toggle aria-expanded="false">בחרו פעילויות</button>
+      <button type="button" class="ds-input ds-input--sm ds-pa-activity-trigger" data-pa-activity-toggle aria-expanded="false"${hasProposalType ? '' : ' disabled aria-disabled="true"'}>${hasProposalType ? 'בחרו פעילויות' : 'יש לבחור קודם סוג הצעה'}</button>
+      <p class="ds-muted ds-pa-activity-lock-note" data-pa-activity-lock-note${hasProposalType ? ' hidden' : ''} style="font-size:0.8rem;margin:2px 0">יש לבחור קודם סוג הצעה</p>
       <div class="ds-pa-activity-chips" data-pa-activity-chips></div>
       <div class="ds-pa-activity-dropdown" data-pa-activity-dropdown hidden>
         <input class="ds-input ds-input--sm ds-pa-activity-search" data-pa-activity-search placeholder="חיפוש פעילות..." autocomplete="off">
@@ -1291,6 +1293,13 @@ function activityTypeFilterHtml(pricingOptions) {
 }
 
 function itemsEditorHtml(items = [], pricingOptions = [], activityTypeGroup = '') {
+  const hasProposalType = Boolean(normalizeProposalGroup(activityTypeGroup));
+  if (!hasProposalType) {
+    return `<div class="ds-pa-items-section ds-pa-items-section--locked" data-pa-items-locked>
+      <p class="ds-muted" style="font-size:0.85rem;margin:0">יש לבחור קודם סוג הצעה</p>
+      <button type="button" class="ds-btn ds-btn--xs" data-pa-add-item disabled aria-disabled="true">+ הוסף שורה</button>
+    </div>`;
+  }
   items = (Array.isArray(items) ? items : []).map((item) => normalizeProposalItemRow(item, activityTypeGroup));
   const normalizedGroup = normalizeProposalGroup(activityTypeGroup);
   const filterHtml = isSummerProposalGroup(normalizedGroup) ? '' : activityTypeFilterHtml(pricingOptions);
@@ -3571,6 +3580,7 @@ export const proposalsAgreementsScreen = {
           if (trigger) trigger.textContent = selected.length ? `${selected.length} פעילויות נבחרו` : 'בחרו פעילויות';
         };
         trigger?.addEventListener('click', () => {
+          if (trigger.disabled || trigger.getAttribute('aria-disabled') === 'true') return;
           if (!dropdown) return;
           dropdown.hidden = !dropdown.hidden;
           trigger.setAttribute('aria-expanded', dropdown.hidden ? 'false' : 'true');
@@ -4778,6 +4788,7 @@ export const proposalsAgreementsScreen = {
       const addItemBtn = event.target.closest?.('[data-pa-add-item]');
       if (addItemBtn) {
         const form = addItemBtn.closest('[data-pa-form]');
+        if (addItemBtn.disabled || addItemBtn.getAttribute('aria-disabled') === 'true') return;
         const groupKey = text(addItemBtn.dataset.paAddItemGroup);
         const groupSection = groupKey ? form?.querySelector(`[data-pa-items-group="${groupKey}"]`) : null;
         const tbody = groupSection?.querySelector('[data-pa-items-body]') || form?.querySelector('[data-pa-items-body]');
@@ -4785,6 +4796,7 @@ export const proposalsAgreementsScreen = {
         const idx = form ? form.querySelectorAll('[data-pa-item-row]').length : 0;
         const tmp = document.createElement('div');
         const currentType = text(form?.querySelector('[name="activity_type_group"]')?.value);
+        if (!normalizeProposalGroup(currentType)) return;
         const rowGroup = groupKey || currentType;
         const selectedActivityType = text(form?.querySelector('[data-pa-activity-type-filter]')?.value);
         const basePricing = filterPricingByProposalType(proposalActivityPricing, rowGroup || currentType);
