@@ -17122,7 +17122,7 @@ details[open] > .ds-fin-acc__summary::before { transform: rotate(90deg); }
     margin-top: 18px !important;
     padding-top: 0 !important;
   }
-  .pa-signer-block { margin-top: 12px !important; }
+  .pa-signer-block { margin-top: 2.4em !important; }
   .pa-page-footer {
     margin-top: 18px !important;
     position: static !important;
@@ -17729,7 +17729,7 @@ details[open] > .ds-fin-acc__summary::before { transform: rotate(90deg); }
     margin-top: 10px !important;
   }
   .proposal-document.pa-document--next-year .pa-signer-block {
-    margin-top: 8px !important;
+    margin-top: 2.4em !important;
   }
   .proposal-document.pa-document--next-year .pa-footer-signature .pa-blessing {
     margin-bottom: 6px !important;
@@ -17799,9 +17799,9 @@ details[open] > .ds-fin-acc__summary::before { transform: rotate(90deg); }
   box-sizing: border-box;
 }
 
-/* Recipient block: two-line gap after "לכבוד:" */
+/* Recipient block: minimal gap after "לכבוד:" */
 .proposal-document .pa-doc-address .pa-label-to {
-  margin-bottom: 2.4em !important;
+  margin-bottom: 0.1em !important;
 }
 
 /* Next-year course table: 85% width */
