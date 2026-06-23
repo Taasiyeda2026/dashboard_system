@@ -17720,3 +17720,11 @@ details[open] > .ds-fin-acc__summary::before { transform: rotate(90deg); }
     max-height: 72px !important;
   }
 }
+
+/* Taasiyeda org intro: centered in print/PDF only (all proposal types). */
+@media print {
+  .proposal-document .pa-org-intro,
+  .proposal-document .pa-org-intro p {
+    text-align: center !important;
+  }
+}

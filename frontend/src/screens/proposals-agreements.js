@@ -2158,7 +2158,7 @@ function buildProposalDocumentHtml({ dateDisplay, documentTitle, row, introText,
       <div class="proposal-document-body">
         <div class="proposal-document-content">
           ${title ? `<h1 class="pa-doc-subject pa-doc-title">${escapeHtml(title)}</h1>` : ''}
-          ${introText ? sectionLines(introText, { className: 'pa-doc-intro pa-intro-text' }) : ''}
+          ${introText ? sectionLines(introText, { className: 'pa-doc-intro pa-intro-text pa-org-intro' }) : ''}
           ${sections.join('')}
           ${orgResponsibility}
           ${schoolResponsibility}
