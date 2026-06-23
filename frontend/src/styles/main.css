@@ -17402,7 +17402,7 @@ details[open] > .ds-fin-acc__summary::before { transform: rotate(90deg); }
 @media print {
   @page {
     size: A4 portrait;
-    margin: 30mm 12mm 22mm 12mm;
+    margin: 4mm 12mm 22mm 12mm;
   }
 
   .proposal-document.pa-a4-page,
@@ -17413,6 +17413,7 @@ details[open] > .ds-fin-acc__summary::before { transform: rotate(90deg); }
     height: auto !important;
     margin: 0 !important;
     padding: 0 !important;
+    padding-top: 22mm !important;
     box-shadow: none !important;
     background: #fff !important;
     position: static !important;
@@ -17438,16 +17439,17 @@ details[open] > .ds-fin-acc__summary::before { transform: rotate(90deg); }
     display: none !important;
   }
 
-  /* Fixed print-only logo — replaces the header, appears on every printed page */
+  /* Fixed print-only logo — top: 2mm from physical paper edge
+     (@page margin-top is only 4mm, so top: 2mm = 6mm from paper top) */
   .pa-print-fixed-logo {
     display: block !important;
     position: fixed !important;
-    top: 0 !important;
+    top: 2mm !important;
     left: 12mm !important;
     right: auto !important;
     width: auto !important;
     max-width: 34mm !important;
-    max-height: 14mm !important;
+    max-height: 18mm !important;
     height: auto !important;
     object-fit: contain !important;
     z-index: 9999 !important;
