@@ -17492,3 +17492,30 @@ details[open] > .ds-fin-acc__summary::before { transform: rotate(90deg); }
   }
 }
 
+
+/* Focused real proposal template adjustments for preview and print. */
+.proposal-document .pa-logo-area .proposal-logo {
+  height: 54px;
+  max-height: 54px;
+}
+
+.proposal-document .pa-next-year-cancellation-terms .pa-section-body,
+.proposal-document .pa-summer-cancellation-terms .pa-section-body {
+  font-size: 10.45px;
+}
+
+@media print {
+  .proposal-document .pa-logo-area .proposal-logo,
+  .proposal-document .pa-page-header img,
+  .proposal-document .proposal-document-header img,
+  .proposal-document .proposal-logo,
+  .proposal-document .pa-logo {
+    height: auto !important;
+    max-height: 9.5mm !important;
+  }
+
+  .proposal-document .pa-next-year-cancellation-terms .pa-section-body,
+  .proposal-document .pa-summer-cancellation-terms .pa-section-body {
+    font-size: 11.25px !important;
+  }
+}

@@ -32,7 +32,7 @@ const COURSE_SHORT_NAMES_BY_GEFEN = Object.freeze({
   '52279': 'אופק לתעשייה'
 });
 const OLD_CANCELLATION_SENTENCE = 'במקרה של הפסקת הקורס ביוזמת בית הספר, ייגבה תשלום מלא עבור המפגשים שהתקיימו בפועל וכן 10% מעלות יתרת המפגשים שלא התקיימו.';
-const NEW_CANCELLATION_SENTENCE = 'בביטול הקורס ביוזמת המזמין, ייגבה תשלום מלא על מפגשים שהתקיימו ו-10% מעלות יתרת המפגשים שלא התקיימו.';
+const NEW_CANCELLATION_SENTENCE = 'ביטול הקורס ביוזמת המזמין, ייגבה תשלום מלא על מפגשים שהתקיימו ו-10% מעלות יתרת המפגשים שלא התקיימו.';
 const OLD_PAYMENT_SENTENCE = 'התשלום עבור הקורס יחולק לשני חלקים: חשבונית ראשונה תונפק עם תחילת הקורס. חשבונית שנייה תונפק לאחר השלמת מחצית מהיקף הקורס.';
 const NEW_PAYMENT_SENTENCE = 'התשלום עבור הקורס יחולק לשתי חשבוניות: הראשונה תונפק עם תחילת הקורס והשנייה לאחר השלמת מחצית מהיקפו.';
 const OLD_SUMMER_PAYMENT_TERMS = 'חשבונית לתשלום תונפק עם תחילת הסדנה.\nתנאי התשלום: שוטף + 30 ממועד הנפקת החשבונית.';
@@ -1639,18 +1639,27 @@ function templateBodyText(section) {
 
 // Document title must come from Supabase data (template_name on proposal_template_sections),
 // never from a generic hardcoded fallback.
+function focusedProposalTitle(title, templateKey = '') {
+  const normalizedTitle = text(title);
+  const key = proposalGroupTemplateKey(templateKey || normalizeProposalGroup(templateKey)) || normalizeProposalGroup(templateKey);
+  if (key !== 'next_year') return normalizedTitle;
+  return normalizedTitle
+    .replace('הצעת מחיר לקורסי תעשיידע | שנת הלימודים תשפ״ז', 'הצעת מחיר לתוכניות תעשיידע | תשפ״ז')
+    .replace('הצעת מחיר לתוכניות תעשיידע | שנת הלימודים תשפ״ז', 'הצעת מחיר לתוכניות תעשיידע | תשפ״ז');
+}
+
 function proposalTitle(row, templateSections = []) {
+  const templateKey = proposalGroupTemplateKey(normalizeProposalGroup(row.activity_type_group));
   const fromRow = text(row.proposal_title || row.document_title || row.title);
-  if (fromRow) return fromRow;
+  if (fromRow) return focusedProposalTitle(fromRow, templateKey);
   const fromTemplate = (Array.isArray(templateSections) ? templateSections : [])
     .map((section) => text(section?.template_name))
     .find(Boolean);
-  if (fromTemplate) return fromTemplate;
+  if (fromTemplate) return focusedProposalTitle(fromTemplate, templateKey);
   const meta = proposalGroupMeta(row.activity_type_group);
   // Last resort is the row's own document_type column (a DB value), never a hardcoded literal.
-  return text(meta?.document_title || meta?.proposal_title || meta?.title) || text(row.document_type) || '';
+  return focusedProposalTitle(text(meta?.document_title || meta?.proposal_title || meta?.title) || text(row.document_type) || '', templateKey);
 }
-
 function sectionBodyHtml(value, options = {}) {
   return renderSectionBodyHtml(value, options);
 }
@@ -2016,19 +2025,18 @@ function selectedCourseNamesList(items = [], row = {}, contextGroup = '') {
   return names;
 }
 
-const NEXT_YEAR_COURSES_INTRO_RE = /להלן הקורסים המוצעים לשנת הלימודים תשפ[״"']?ז\s*\./u;
+const NEXT_YEAR_COURSES_INTRO_RE = /להלן הקורסים המוצעים לשנת הלימודים תשפ[״"']?ז\s*[.:]/u;
 
 function nextYearActivityIntroWithCourseNames(body, row = {}, items = [], contextGroup = '') {
   const group = normalizeProposalGroup(contextGroup || row.activity_type_group);
   if (!isNextYearProposalGroup(group)) return body;
   const courseNames = selectedCourseNamesList(items, row, contextGroup || group);
-  if (!courseNames.length) return body;
   const raw = normalizeMultilineText(body);
   if (!raw || !NEXT_YEAR_COURSES_INTRO_RE.test(raw)) return body;
-  return raw.replace(
-    NEXT_YEAR_COURSES_INTRO_RE,
-    `להלן הקורסים המוצעים לשנת הלימודים תשפ״ז:\n${courseNames.join('\n')}`
-  );
+  const replacement = courseNames.length
+    ? `להלן הקורסים המוצעים לשנת הלימודים תשפ״ז:\n${courseNames.join('\n')}`
+    : 'להלן הקורסים המוצעים לשנת הלימודים תשפ״ז:';
+  return raw.replace(NEXT_YEAR_COURSES_INTRO_RE, replacement);
 }
 
 function selectedCourseShortNamesText(row = {}, items = []) {
@@ -2234,7 +2242,8 @@ export function proposalPreviewBodyHtml(row, items = [], templateSections = [], 
   const renderSectionFromSupabase = (key, options = {}) => {
     const body = sectionBody(key);
     if (!body) return '';
-    return sectionHtml(sectionTitle(key) || '', body, '', options);
+    const { className = '', ...bodyOptions } = options;
+    return sectionHtml(sectionTitle(key) || '', body, className, bodyOptions);
   };
 
   // Payment section: general terms text comes from Supabase, while the price
@@ -2253,6 +2262,11 @@ export function proposalPreviewBodyHtml(row, items = [], templateSections = [], 
     : '';
 
   const signatureHtml = signatureSectionHtml(sectionBody('signature'), row, renderOptions);
+  const cancellationClass = isNextYearProposalGroup(activityTypeGroup)
+    ? 'pa-next-year-cancellation-terms'
+    : isSummerProposalGroup(activityTypeGroup)
+      ? 'pa-summer-cancellation-terms'
+      : '';
 
   return buildProposalDocumentHtml({
     dateDisplay,
@@ -2263,7 +2277,7 @@ export function proposalPreviewBodyHtml(row, items = [], templateSections = [], 
     orgResponsibility: renderSectionFromSupabase('taasiyeda_responsibility', { alwaysBullet: true }),
     schoolResponsibility: renderSectionFromSupabase('school_responsibility', { alwaysBullet: true }),
     paymentTerms,
-    changesCancellation: renderSectionFromSupabase('cancellation_terms', { alwaysBullet: true }),
+    changesCancellation: renderSectionFromSupabase('cancellation_terms', { alwaysBullet: true, className: cancellationClass }),
     remarks: `${remarks ? sectionHtml(sectionTitle('notes') || '', remarks) : ''}${catalogAppendixNoticeHtml(row, items)}`,
     signatureHtml,
     sectionLinesHtml,
