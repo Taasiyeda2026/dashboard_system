@@ -1964,7 +1964,7 @@ function recipientBlockHtml(row = {}) {
   const recipientLinesHtml = lines.join('\n    ');
   return `<div class="pa-doc-address pa-to-block" style="margin:0 0 6mm 0;">
   <p class="pa-label-to" style="margin:0;"><strong>לכבוד:</strong></p>
-  ${recipientLinesHtml ? `<div class="pa-recipient-lines" style="margin-top:1.8em;">${recipientLinesHtml}</div>` : ''}
+  ${recipientLinesHtml ? `<div class="pa-recipient-lines" style="margin-top:0.2em;">${recipientLinesHtml}</div>` : ''}
 </div>`;
 }
 
