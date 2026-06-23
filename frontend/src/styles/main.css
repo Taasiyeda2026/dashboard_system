@@ -12052,7 +12052,7 @@ select.ds-input {
 .pa-cost-table th,
 .pa-cost-table td {
   border: 1px solid #c5d0dc;
-  padding: 3pt 5pt;
+  padding: 2pt 4pt;
   text-align: right;
   vertical-align: top;
 }
@@ -12116,7 +12116,7 @@ select.ds-input {
 .pa-item-details-table th,
 .pa-item-details-table td {
   border: 1px solid #d5dee8;
-  padding: 3pt 5pt;
+  padding: 2pt 4pt;
   text-align: right;
   vertical-align: top;
 }
@@ -16775,8 +16775,8 @@ details[open] > .ds-fin-acc__summary::before { transform: rotate(90deg); }
   direction: ltr !important;
 }
 .pa-logo-area .proposal-logo {
-  height: 58px;
-  max-height: 58px;
+  height: 48px;
+  max-height: 48px;
   max-width: 220px;
   width: auto;
   display: inline-block;
@@ -16817,14 +16817,14 @@ details[open] > .ds-fin-acc__summary::before { transform: rotate(90deg); }
   font-size: 14px;
   font-weight: 700;
   text-decoration: underline;
-  margin: 0 0 5px;
+  margin: 0 0 2px;
   color: #1a2d4a;
   line-height: 1.45;
 }
 .pa-intro-text {
   font-size: 11.2px;
   line-height: 1.5;
-  margin: 0 0 5px;
+  margin: 0 0 2px;
   text-align: center;
 }
 .pa-section { margin: 5px 0 4px; }
@@ -16976,7 +16976,7 @@ details[open] > .ds-fin-acc__summary::before { transform: rotate(90deg); }
   .proposal-preview-area,
   .pa-preview-canvas { padding: 0 !important; }
   .pa-page-header { text-align: left !important; }
-  .pa-logo-area .proposal-logo { height: 58px !important; max-height: 58px !important; }
+  .pa-logo-area .proposal-logo { height: 48px !important; max-height: 48px !important; }
   .pa-activities-table { page-break-inside: auto; width: auto !important; }
   .pa-activities-table tr { page-break-inside: avoid; }
   .pa-activities-table thead { display: table-header-group; }
@@ -17059,18 +17059,21 @@ details[open] > .ds-fin-acc__summary::before { transform: rotate(90deg); }
   .pa-to-block,
   .pa-section-text,
   .pa-intro-text,
-  .proposal-document .pa-proposal-list li,
+  .proposal-document .pa-proposal-list li {
+    font-size: 12px !important;
+    line-height: 1.45 !important;
+  }
   .pa-cost-table,
   .pa-item-details-table,
   .pa-activities-table {
-    font-size: 12px !important;
-    line-height: 1.45 !important;
+    font-size: 11px !important;
+    line-height: 1.35 !important;
   }
 
   .pa-doc-title {
     font-size: 16px !important;
     line-height: 1.35 !important;
-    margin: 6px 0 10px !important;
+    margin: 4px 0 4px !important;
   }
 
   .pa-section-heading,
@@ -17125,7 +17128,7 @@ details[open] > .ds-fin-acc__summary::before { transform: rotate(90deg); }
   .pa-item-details-table td,
   .pa-activities-table th,
   .pa-activities-table td {
-    padding: 5px 7px !important;
+    padding: 3px 5px !important;
     white-space: normal !important;
     overflow-wrap: anywhere !important;
     vertical-align: top !important;
@@ -17691,7 +17694,7 @@ details[open] > .ds-fin-acc__summary::before { transform: rotate(90deg); }
   margin-bottom: 0 !important;
 }
 .proposal-document.pa-document--next-year .pa-to-block {
-  margin-top: -2px !important;
+  margin-top: -10px !important;
   margin-bottom: 0 !important;
 }
 .proposal-document.pa-document--next-year .pa-section-heading,
@@ -17855,7 +17858,7 @@ details[open] > .ds-fin-acc__summary::before { transform: rotate(90deg); }
 
 /* Summer proposal: tighten header-to-recipient spacing */
 .proposal-document.pa-document--summer .proposal-document-header.pa-page-header {
-  margin-bottom: 4mm !important;
+  margin-bottom: 1mm !important;
 }
 .proposal-document.pa-document--summer .pa-doc-address.pa-to-block {
   margin-top: 0 !important;
@@ -17889,7 +17892,7 @@ details[open] > .ds-fin-acc__summary::before { transform: rotate(90deg); }
   }
 
   .proposal-document.pa-document--summer .proposal-document-header.pa-page-header {
-    margin-bottom: 4mm !important;
+    margin-bottom: 1mm !important;
   }
   .proposal-document.pa-document--summer .pa-doc-address.pa-to-block {
     margin-top: 0 !important;

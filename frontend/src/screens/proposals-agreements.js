@@ -2203,7 +2203,7 @@ function buildProposalDocumentHtml({ dateDisplay, documentTitle, row, introText,
         aria-hidden="true"
         onerror="this.style.display='none';"
       >
-      <div class="proposal-document-header pa-page-header"${isSummerDocument ? ' style="margin-bottom:4mm;"' : ''}>
+      <div class="proposal-document-header pa-page-header"${isSummerDocument ? ' style="margin-bottom:1mm;"' : ''}>
         <div class="proposal-header-brand pa-logo-area">
           <img
             src="${PUBLIC_BASE}proposals/proposal-header-logo.png"
