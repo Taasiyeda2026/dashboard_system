@@ -1872,15 +1872,19 @@ function proposalItemDetailsTableHtml(items = [], contextGroup = '') {
         ];
         return `<tr>${footerCells.map((cell) => `<td>${cell.html ? (cell.value || '') : escapeHtml(cell.value || '')}</td>`).join('')}</tr>`;
       })();
-  return `<table class="${tableClass}">
+  const nextYearTableStyle = isNextYearTable
+    ? ' style="width:85%;margin-inline:auto;table-layout:fixed;"'
+    : '';
+  const nextYearColStyle = isNextYearTable ? ' style="width:14.2857%"' : '';
+  return `<table class="${tableClass}"${nextYearTableStyle}>
     <colgroup>
-      <col class="pa-course-col">
-      <col class="pa-gefen-col">
-      <col class="pa-meetings-col">
-      <col class="pa-groups-col">
-      <col class="pa-hours-col">
-      <col class="pa-hourly-price-col">
-      <col class="pa-total-price-col">
+      <col class="pa-course-col"${nextYearColStyle}>
+      <col class="pa-gefen-col"${nextYearColStyle}>
+      <col class="pa-meetings-col"${nextYearColStyle}>
+      <col class="pa-groups-col"${nextYearColStyle}>
+      <col class="pa-hours-col"${nextYearColStyle}>
+      <col class="pa-hourly-price-col"${nextYearColStyle}>
+      <col class="pa-total-price-col"${nextYearColStyle}>
     </colgroup>
     <thead><tr><th>קורס / תוכנית</th><th>מס׳ גפ״ן</th><th>מפגשים</th><th>קבוצות</th><th>שעות</th><th>מחיר לשעה</th><th>סה״כ</th></tr></thead>
     <tbody>${rows.join('')}</tbody>
@@ -1957,10 +1961,11 @@ function recipientBlockHtml(row = {}) {
   const contactLine = contactParts.length ? `<p>${contactParts.join(', ')}</p>` : '';
   const orgLine = recipientLineHtml(schoolName, authorityName);
   const lines = [contactLine, orgLine].filter(Boolean);
-  return `<div class="pa-doc-address pa-to-block">
-    <p class="pa-label-to"><strong>לכבוד:</strong></p>
-    ${lines.join('\n    ')}
-  </div>`;
+  const recipientLinesHtml = lines.join('\n    ');
+  return `<div class="pa-doc-address pa-to-block" style="margin:0 0 6mm 0;">
+  <p class="pa-label-to" style="margin:0;"><strong>לכבוד:</strong></p>
+  ${recipientLinesHtml ? `<div class="pa-recipient-lines" style="margin-top:1.8em;">${recipientLinesHtml}</div>` : ''}
+</div>`;
 }
 
 function proposalRecipientFileLabel(row = {}) {
@@ -2177,7 +2182,19 @@ function buildProposalDocumentHtml({ dateDisplay, documentTitle, row, introText,
   const isSummerDocument = isSummerProposalGroup(row?.activity_type_group);
   const documentModifierClass = `${isNextYear ? ' pa-document--next-year' : ''}${isSummerDocument ? ' pa-document--summer' : ''}`;
   return `
-    <div class="proposal-document pa-document pa-a4-page${documentModifierClass}" dir="rtl">
+    <div class="proposal-document pa-document pa-a4-page${documentModifierClass}" dir="rtl" style="position:relative;min-height:277mm;box-sizing:border-box;padding-bottom:18mm;">
+      <style>
+        .pa-org-intro {
+          padding-inline: 4mm !important;
+          box-sizing: border-box !important;
+        }
+        @media print {
+          .pa-org-intro {
+            padding-inline: 4mm !important;
+            box-sizing: border-box !important;
+          }
+        }
+      </style>
       <img
         src="${PUBLIC_BASE}proposals/proposal-header-logo.png"
         alt=""
@@ -2185,7 +2202,7 @@ function buildProposalDocumentHtml({ dateDisplay, documentTitle, row, introText,
         aria-hidden="true"
         onerror="this.style.display='none';"
       >
-      <div class="proposal-document-header pa-page-header">
+      <div class="proposal-document-header pa-page-header"${isSummerDocument ? ' style="margin-bottom:4mm;"' : ''}>
         <div class="proposal-header-brand pa-logo-area">
           <img
             src="${PUBLIC_BASE}proposals/proposal-header-logo.png"
@@ -2198,7 +2215,7 @@ function buildProposalDocumentHtml({ dateDisplay, documentTitle, row, introText,
         </div>
       </div>
       ${recipientBlockHtml(row)}
-      <hr class="pa-doc-divider pa-divider">
+      ${isSummerDocument ? '' : '<hr class="pa-doc-divider pa-divider">'}
       ${dateDisplay ? `<div class="pa-doc-date pa-date-area">${escapeHtml(dateDisplay)}</div>` : ''}
       <div class="proposal-document-body">
         <div class="proposal-document-content">
@@ -2213,16 +2230,8 @@ function buildProposalDocumentHtml({ dateDisplay, documentTitle, row, introText,
           ${signatureHtml}
         </div>
       </div>
-      <div class="pa-page-footer">
-        <img
-          src="${PUBLIC_BASE}proposals/logo.png"
-          alt="לוגו תחתון תעשיידע"
-          class="pa-page-footer-logo"
-          loading="lazy"
-          decoding="async"
-          onerror="this.style.display='none';"
-        >
-        <span>תעשיידע — תעשייה למען חינוך מתקדם (ע״ר) &nbsp;|&nbsp; <span dir="ltr">www.think.org.il</span></span>
+      <div class="pa-page-footer" style="position:absolute;left:12mm;right:12mm;bottom:6mm;text-align:center;font-size:9pt;line-height:1.2;border-top:1px solid #d1d5db;padding-top:2mm;background:#fff;">
+        <span>תעשיידע — תעשייה למען חינוך מתקדם (ע״ר) | <span dir="ltr">www.think.org.il</span></span>
       </div>
     </div>`;
 }

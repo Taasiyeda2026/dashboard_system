@@ -1,0 +1,247 @@
+You are an execution-only coding agent.
+
+Your task is to APPLY the fixes below EXACTLY as specified.
+Do not explain. Do not summarize. Do not skip steps.
+
+########################################
+STRICT RULES (MUST FOLLOW)
+########################################
+- DO NOT change business logic or calculations.
+- DO NOT refactor existing code.
+- DO NOT modify permissions / statuses / saving logic.
+- DO NOT return "done" unless ALL checks pass.
+- DO NOT rely on CSS-only fixes when HTML change is required.
+- DO NOT add empty elements.
+
+########################################
+FILES TO MODIFY
+########################################
+frontend/src/screens/proposals-agreements.js
+frontend/src/screens/activities.js
+frontend/src/state.js
+
+########################################
+TASK 1 — FIX "לכבוד" BLOCK
+########################################
+
+Locate: recipientBlockHtml
+
+REPLACE the return block with EXACT structure:
+
+const recipientLinesHtml = lines.join('\n    ');
+
+return `<div class="pa-doc-address pa-to-block" style="margin:0 0 6mm 0;">
+  <p class="pa-label-to" style="margin:0;"><strong>לכבוד:</strong></p>
+  ${recipientLinesHtml ? `<div class="pa-recipient-lines" style="margin-top:1.8em;">${recipientLinesHtml}</div>` : ''}
+</div>`;
+
+Rules:
+- No empty div when no recipient.
+- No large margin under label.
+- Spacing only if recipient exists.
+
+########################################
+TASK 2 — REMOVE BLUE LINE IN SUMMER
+########################################
+
+Locate:
+<hr class="pa-doc-divider pa-divider">
+
+Replace with:
+
+${isSummerDocument ? '' : '<hr class="pa-doc-divider pa-divider">'}
+
+########################################
+TASK 3 — FOOTER FIX
+########################################
+
+REMOVE logo image from footer.
+
+REPLACE footer with:
+
+<div class="pa-page-footer" style="position:absolute;left:12mm;right:12mm;bottom:6mm;text-align:center;font-size:9pt;line-height:1.2;border-top:1px solid #d1d5db;padding-top:2mm;background:#fff;">
+  <span>תעשיידע — תעשייה למען חינוך מתקדם (ע״ר) | <span dir="ltr">www.think.org.il</span></span>
+</div>
+
+########################################
+TASK 4 — ROOT DOCUMENT FIX
+########################################
+
+Locate main container:
+
+<div class="proposal-document ...">
+
+CHANGE to:
+
+<div class="proposal-document pa-document pa-a4-page${documentModifierClass}" 
+dir="rtl"
+style="position:relative;min-height:277mm;box-sizing:border-box;padding-bottom:18mm;">
+
+########################################
+TASK 5 — NEXT YEAR TABLE WIDTH
+########################################
+
+Inside proposalItemDetailsTableHtml:
+
+ADD:
+
+const nextYearTableStyle = isNextYearTable
+  ? ' style="width:85%;margin-inline:auto;table-layout:fixed;"'
+  : '';
+
+Then apply:
+
+<table class="${tableClass}"${nextYearTableStyle}>
+
+For COLGROUP:
+
+const nextYearColStyle = isNextYearTable ? ' style="width:14.2857%"' : '';
+
+Apply to ALL columns.
+
+########################################
+TASK 6 — HEADER SPACING (SUMMER)
+########################################
+
+ADD:
+
+const headerStyle = isSummerDocument
+  ? ' style="margin-bottom:4mm;"'
+  : '';
+
+Apply to header:
+
+<div class="proposal-document-header pa-page-header"${headerStyle}>
+
+########################################
+TASK 7 — INTRO PADDING
+########################################
+
+Inject style INSIDE the document HTML:
+
+<style>
+  .pa-org-intro {
+    padding-inline: 4mm !important;
+    box-sizing: border-box !important;
+  }
+  @media print {
+    .pa-org-intro {
+      padding-inline: 4mm !important;
+      box-sizing: border-box !important;
+    }
+  }
+</style>
+
+########################################
+TASK 8 — DEFAULT TAB (DATE LOGIC)
+########################################
+
+FILE: activities.js
+
+REMOVE constant:
+const DEFAULT_ACTIVITY_PERIOD_TAB = 'school_2026';
+
+ADD:
+
+const SUMMER_2026_DEFAULT_FROM = '2026-06-28';
+
+function todayYmdForActivityDefaults() {
+  const now = new Date();
+  const parts = new Intl.DateTimeFormat('en-CA', {
+    timeZone: 'Asia/Jerusalem',
+    year: 'numeric',
+    month: '2-digit',
+    day: '2-digit'
+  }).formatToParts(now);
+  const byType = Object.fromEntries(parts.map(p => [p.type, p.value]));
+  return `${byType.year}-${byType.month}-${byType.day}`;
+}
+
+function defaultActivityPeriodTab() {
+  return todayYmdForActivityDefaults() >= SUMMER_2026_DEFAULT_FROM
+    ? 'summer_2026'
+    : 'school_2026';
+}
+
+UPDATE normalizeActivityPeriodTab:
+
+function normalizeActivityPeriodTab(value) {
+  const key = String(value || '').trim();
+  if (key === ALL_ACTIVITIES_TAB_KEY) return key;
+  return ACTIVITY_PERIOD_TABS.some(tab => tab.key === key)
+    ? key
+    : defaultActivityPeriodTab();
+}
+
+########################################
+TASK 9 — INITIAL STATE FIX
+########################################
+
+FILE: state.js
+
+REPLACE:
+
+activityPeriodTab: 'school_2026',
+
+WITH:
+
+const ACTIVITY_PERIOD_SUMMER_2026_DEFAULT_FROM = '2026-06-28';
+
+function initialActivityPeriodTab() {
+  const now = new Date();
+  const parts = new Intl.DateTimeFormat('en-CA', {
+    timeZone: 'Asia/Jerusalem',
+    year: 'numeric',
+    month: '2-digit',
+    day: '2-digit'
+  }).formatToParts(now);
+  const byType = Object.fromEntries(parts.map(p => [p.type, p.value]));
+  const today = `${byType.year}-${byType.month}-${byType.day}`;
+
+  return today >= ACTIVITY_PERIOD_SUMMER_2026_DEFAULT_FROM
+    ? 'summer_2026'
+    : 'school_2026';
+}
+
+activityPeriodTab: initialActivityPeriodTab(),
+
+########################################
+FINAL VALIDATION (MANDATORY)
+########################################
+
+Run:
+node --check frontend/src/screens/proposals-agreements.js
+node --check frontend/src/screens/activities.js
+node --check frontend/src/state.js
+
+Manual verification REQUIRED:
+
+1. Proposal (Next Year):
+   - Table width = 85%, centered
+   - Footer = text only
+   - Proper spacing under "לכבוד"
+
+2. Chrome Print Preview / Save as PDF:
+   - Footer pinned to bottom
+   - No layout breaks
+
+3. Summer Proposal:
+   - NO blue divider
+   - header spacing reduced
+   - footer correct
+
+4. Activities screen:
+   - Before 2026-06-28 → school_2026
+   - From 2026-06-28 → summer_2026
+   - Manual selection NOT overridden
+
+########################################
+OUTPUT FORMAT
+########################################
+
+Return ONLY:
+1. List of modified files
+2. Code diffs (before → after)
+3. Confirmation of all validation checks
+
+DO NOT return explanations.

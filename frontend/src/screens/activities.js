@@ -65,7 +65,25 @@ const ACTIVITY_PERIOD_TABS = [
   { key: 'school_2027', label: 'תשפ״ז / 2027', start: '2026-09-01', end: '2027-06-30' },
   { key: 'archive', label: 'ארכיון', archive: true }
 ];
-const DEFAULT_ACTIVITY_PERIOD_TAB = 'school_2026';
+const SUMMER_2026_DEFAULT_FROM = '2026-06-28';
+
+function todayYmdForActivityDefaults() {
+  const now = new Date();
+  const parts = new Intl.DateTimeFormat('en-CA', {
+    timeZone: 'Asia/Jerusalem',
+    year: 'numeric',
+    month: '2-digit',
+    day: '2-digit'
+  }).formatToParts(now);
+  const byType = Object.fromEntries(parts.map(p => [p.type, p.value]));
+  return `${byType.year}-${byType.month}-${byType.day}`;
+}
+
+function defaultActivityPeriodTab() {
+  return todayYmdForActivityDefaults() >= SUMMER_2026_DEFAULT_FROM
+    ? 'summer_2026'
+    : 'school_2026';
+}
 const INACTIVE_ACTIVITY_STATUSES = new Set(['סגור', 'נמחק', 'בוטל', 'closed', 'deleted', 'inactive', 'cancelled', 'canceled']);
 const ACTIVITY_LAYOUT_SEASON = 'summer_2026';
 const ACTIVITIES_ACCESS_ROLES = new Set([
@@ -104,7 +122,7 @@ function canOpenCreateActivity(state) {
 function normalizeActivityPeriodTab(value) {
   const key = String(value || '').trim();
   if (key === ALL_ACTIVITIES_TAB_KEY) return key;
-  return ACTIVITY_PERIOD_TABS.some((tab) => tab.key === key) ? key : DEFAULT_ACTIVITY_PERIOD_TAB;
+  return ACTIVITY_PERIOD_TABS.some((tab) => tab.key === key) ? key : defaultActivityPeriodTab();
 }
 
 function isAllActivitiesMode(state = {}) {
