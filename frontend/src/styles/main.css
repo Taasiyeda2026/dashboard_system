@@ -17393,3 +17393,102 @@ details[open] > .ds-fin-acc__summary::before { transform: rotate(90deg); }
     flex-direction: column !important;
   }
 }
+
+/* Proposal print fixed page chrome: repeat logo/header and footer on each printed A4 page. */
+@media print {
+  @page {
+    size: A4 portrait;
+    margin: 22mm 12mm 22mm 12mm;
+  }
+
+  .proposal-document.pa-a4-page,
+  .proposal-document.pa-document {
+    width: auto !important;
+    max-width: none !important;
+    min-height: auto !important;
+    height: auto !important;
+    margin: 0 !important;
+    padding: 0 !important;
+    box-shadow: none !important;
+    background: #fff !important;
+    position: static !important;
+    display: block !important;
+  }
+
+  .proposal-document-body,
+  .proposal-document-content,
+  .proposal-document.pa-document .proposal-document-body,
+  .proposal-document.pa-document .proposal-document-content {
+    display: block !important;
+    width: 100% !important;
+    max-width: none !important;
+    height: auto !important;
+    min-height: 0 !important;
+    max-height: none !important;
+    padding: 0 !important;
+    overflow: visible !important;
+  }
+
+  .pa-page-header,
+  .proposal-document-header {
+    position: fixed !important;
+    top: 6mm !important;
+    right: 12mm !important;
+    left: 12mm !important;
+    height: 12mm !important;
+    min-height: 12mm !important;
+    max-height: 12mm !important;
+    margin: 0 !important;
+    padding: 0 !important;
+    display: flex !important;
+    align-items: center !important;
+    justify-content: flex-start !important;
+    background: #fff !important;
+    z-index: 9999 !important;
+    break-inside: avoid !important;
+    page-break-inside: avoid !important;
+    text-align: left !important;
+  }
+
+  .pa-page-header img,
+  .proposal-document-header img,
+  .proposal-logo,
+  .pa-logo {
+    height: auto !important;
+    max-height: 10mm !important;
+    width: auto !important;
+    max-width: 50mm !important;
+    object-fit: contain !important;
+  }
+
+  .pa-page-footer {
+    position: fixed !important;
+    right: 12mm !important;
+    left: 12mm !important;
+    bottom: 6mm !important;
+    height: 12mm !important;
+    min-height: 12mm !important;
+    max-height: 12mm !important;
+    margin: 0 !important;
+    padding: 0 !important;
+    border-top: 1px solid #bbb !important;
+    display: flex !important;
+    align-items: center !important;
+    justify-content: center !important;
+    gap: 8px !important;
+    background: #fff !important;
+    z-index: 9999 !important;
+    break-inside: avoid !important;
+    page-break-inside: avoid !important;
+  }
+
+  .pa-page-footer .pa-page-footer-logo,
+  .pa-page-footer-logo {
+    height: auto !important;
+    max-height: 8mm !important;
+    width: auto !important;
+    max-width: 28mm !important;
+    object-fit: contain !important;
+  }
+}
+
