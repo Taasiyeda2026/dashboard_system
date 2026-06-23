@@ -16043,6 +16043,7 @@ details[open] > .ds-fin-acc__summary::before { transform: rotate(90deg); }
   direction: rtl !important;
   max-width: none !important;
   margin-inline: 0 !important;
+  margin-bottom: 3mm !important;
   gap: 8px !important;
 }
 .proposal-header-brand {
@@ -17121,6 +17122,9 @@ details[open] > .ds-fin-acc__summary::before { transform: rotate(90deg); }
   .pa-footer-signature {
     margin-top: 18px !important;
     padding-top: 0 !important;
+    break-inside: avoid !important;
+    page-break-inside: avoid !important;
+    break-before: avoid !important;
   }
   .pa-signer-block { margin-top: 2.4em !important; }
   .pa-page-footer {
@@ -17432,7 +17436,7 @@ details[open] > .ds-fin-acc__summary::before { transform: rotate(90deg); }
     height: auto !important;
     margin: 0 !important;
     padding: 0 !important;
-    padding-top: 22mm !important;
+    padding-top: 17mm !important;
     box-shadow: none !important;
     background: #fff !important;
     position: static !important;
