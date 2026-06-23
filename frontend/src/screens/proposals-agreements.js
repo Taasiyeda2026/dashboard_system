@@ -754,7 +754,7 @@ function currencyAmountHtml(num) {
   const value = Number(num);
   const formatted = formatCurrency(Math.abs(value));
   const prefix = value < 0 ? '-' : '';
-  const display = `${prefix}${formatted}\u00a0₪`;
+  const display = `₪\u00a0${prefix}${formatted}`;
   return `<span class="pa-currency-amount money-amount" dir="ltr">${escapeHtml(display)}</span>`;
 }
 
@@ -905,7 +905,7 @@ export function proposalsAgreementsTableRowsHtml(rows, state) {
       <td>${escapeHtml(proposalGroupDisplayName(row.activity_type_group) || '—')}</td>
       <td>${escapeHtml(formatDateDisplay(row.proposal_date) || '')}</td>
       <td>${statusSelectHtml(row, canManage, isAdmin)}</td>
-      <td>${row.total_amount != null ? `${escapeHtml(formatCurrency(row.total_amount))} ₪` : ''}</td>
+      <td>${row.total_amount != null ? `₪ ${escapeHtml(formatCurrency(row.total_amount))}` : ''}</td>
       <td class="ds-pa-actions-cell">${actionBtns.join('')}</td>
     </tr>`;
   }).join('');
@@ -1257,15 +1257,15 @@ function buildInfoStripInnerHtml(item = {}, contextGroup = '') {
   // Hourly price (annual / combined only)
   if (showGefen) {
     const hourlyPrice = numVal(item.hourly_price);
-    if (hourlyPrice != null && hourlyPrice > 0) parts.push(`${formatCurrency(hourlyPrice)} ₪ לשעה`);
+    if (hourlyPrice != null && hourlyPrice > 0) parts.push(`₪ ${formatCurrency(hourlyPrice)} לשעה`);
   }
 
   // Unit price
   const unitPrice = numVal(item.unit_price);
   if (unitPrice != null && unitPrice > 0) {
     parts.push(showGefen
-      ? `מחיר לקבוצה ${formatCurrency(unitPrice)} ₪`
-      : `${formatCurrency(unitPrice)} ₪`);
+      ? `מחיר לקבוצה ₪ ${formatCurrency(unitPrice)}`
+      : `₪ ${formatCurrency(unitPrice)}`);
   }
 
   if (!parts.length) return '';
@@ -1324,7 +1324,7 @@ function itemRowHtml(item = {}, idx = 0, pricingOptions = [], options = {}) {
           <label class="ds-pa-item-field ds-pa-item-field--name"><span>שם פעילות / תוכנית</span><input class="ds-input ds-input--sm" name="item_name" value="${escapeHtml(item.item_name || '')}" placeholder="שם פעילות"></label>
           ${meetingsHoursFieldsHtml}
           <label class="ds-pa-item-field ds-pa-item-field--price"><span>מחיר יחידה</span><input class="ds-input ds-input--sm" type="number" name="unit_price" value="${n(item.unit_price)}" min="0" step="any" data-pa-item-price></label>
-          <label class="ds-pa-item-field ds-pa-item-field--total ds-pa-line-total"><span>סה״כ שורה</span><output data-pa-item-total-display>${calcTotal ? `${formatCurrency(calcTotal)} ₪` : '0 ₪'}</output><input type="hidden" name="total_price" value="${calcTotal}" data-pa-item-total></label>
+          <label class="ds-pa-item-field ds-pa-item-field--total ds-pa-line-total"><span>סה״כ שורה</span><output data-pa-item-total-display>${calcTotal ? `₪ ${formatCurrency(calcTotal)}` : '₪ 0'}</output><input type="hidden" name="total_price" value="${calcTotal}" data-pa-item-total></label>
         </div>
         <label class="ds-pa-item-field ds-pa-item-field--full"><span>הערות או התאמות</span><textarea class="ds-input ds-input--sm" name="description" rows="2" placeholder="תיאור קצר, אם נדרש">${escapeHtml(item.description || '')}</textarea></label>
         <button type="button" class="ds-btn ds-btn--xs ds-btn--ghost ds-pa-item-remove" data-pa-remove-item aria-label="הסר שורה">✕ הסר</button>
@@ -1408,7 +1408,7 @@ function proposalSummaryHtml(totalAmount) {
     <div class="ds-pa-summary-bar ds-pa-summary-bar--compact">
       <div class="ds-pa-summary-pill ds-pa-summary-pill--total">
         <span class="ds-pa-summary-label">סה״כ לתשלום</span>
-        <strong class="ds-pa-summary-value ds-pa-summary-total-val" data-pa-summary-total>${initialTotal ? `${formatCurrency(initialTotal)} ₪` : '0 ₪'}</strong>
+        <strong class="ds-pa-summary-value ds-pa-summary-total-val" data-pa-summary-total>${initialTotal ? `₪ ${formatCurrency(initialTotal)}` : '₪ 0'}</strong>
       </div>
       <button type="button" class="ds-btn ds-btn--xs ds-btn--ghost" data-pa-discount-toggle>+ הנחה / הערות</button>
     </div>
@@ -1602,7 +1602,7 @@ function itemsSummaryHtml(items = []) {
     const bundleLinesList = bundleItems.map((bi) => {
       if (typeof bi === 'object') {
         const parts = [publicActivityName(bi.activity_name)].filter(Boolean);
-        if (bi.unit_price != null && bi.unit_price !== '') parts.push(`${formatCurrency(Number(bi.unit_price))} ₪`);
+        if (bi.unit_price != null && bi.unit_price !== '') parts.push(`₪ ${formatCurrency(Number(bi.unit_price))}`);
         return parts.join(' — ');
       }
       return publicActivityName(bi);
@@ -1622,8 +1622,8 @@ function itemsSummaryHtml(items = []) {
       <td>${escapeHtml(publicActivityName(proposalField(item, 'item_name', 'itemName')) || '')}${details ? `<div class="ds-muted" style="font-size:0.72rem">${escapeHtml(details)}</div>` : ''}${bundleDetailHtml}</td>
       <td>${escapeHtml(proposalField(item, 'item_type', 'itemType') || '')}</td>
       <td>${proposalField(item, 'quantity', 'quantity') != null ? proposalField(item, 'quantity', 'quantity') : ''}</td>
-      <td>${proposalField(item, 'unit_price', 'unitPrice') != null ? `${formatCurrency(proposalField(item, 'unit_price', 'unitPrice'))} ₪` : ''}</td>
-      <td>${t ? `${formatCurrency(t)} ₪` : ''}</td>
+      <td>${proposalField(item, 'unit_price', 'unitPrice') != null ? `₪ ${formatCurrency(proposalField(item, 'unit_price', 'unitPrice'))}` : ''}</td>
+      <td>${t ? `₪ ${formatCurrency(t)}` : ''}</td>
     </tr>`;
   }).join('');
   return `<div class="ds-pa-items-summary">
@@ -1632,7 +1632,7 @@ function itemsSummaryHtml(items = []) {
       <thead><tr><th>פעילות ופרטים</th><th>סוג</th><th>כמות</th><th>מחיר יח׳</th><th>סה״כ</th></tr></thead>
       <tbody>${rows}</tbody>
     </table>
-    <p style="font-size:0.83rem;margin:4px 0;text-align:start">סה״כ: <strong>${formatCurrency(total)} ₪</strong></p>
+    <p style="font-size:0.83rem;margin:4px 0;text-align:start">סה״כ: <strong>₪ ${formatCurrency(total)}</strong></p>
   </div>`;
 }
 
@@ -2421,7 +2421,7 @@ function buildPricingSelectOptionsHtml(pricingOptions, selectedPricingKey) {
     const labelParts = [
       name,
       isBundleParent ? 'הגדרה כוללת' : text(row.item_type),
-      price != null && price > 0 ? `${formatCurrency(price)} ₪` : ''
+      price != null && price > 0 ? `₪ ${formatCurrency(price)}` : ''
     ].filter(Boolean);
     return `<option value="${escapeHtml(value)}"${legacySelected ? ' selected' : ''}${isBundleParent ? ' data-bundle-parent="1"' : ''}>${escapeHtml(labelParts.join(' — '))}</option>`;
   })].join('');
@@ -2895,7 +2895,7 @@ function drawerHtml(row, activityNameOptions = [], state = null) {
   const totalHtml = row.total_amount != null ? `
     <div class="ds-pa-detail-row">
       <span class="ds-pa-detail-label">סה״כ</span>
-      <span class="ds-pa-detail-value"><strong>${formatCurrency(row.total_amount)} ₪</strong></span>
+      <span class="ds-pa-detail-value"><strong>₪ ${formatCurrency(row.total_amount)}</strong></span>
     </div>` : '';
   const hasCustomSections = Array.isArray(row.custom_document_sections) && row.custom_document_sections.length > 0;
   const customBadge = hasCustomSections
@@ -3984,7 +3984,7 @@ export const proposalsAgreementsScreen = {
       const totalDisplay = rowEl.querySelector('[data-pa-item-total-display]');
       const total = qty && price ? qty * price : 0;
       if (totalInput) totalInput.value = total ? total.toFixed(2) : '';
-      if (totalDisplay) totalDisplay.textContent = total ? `${formatCurrency(total)} ₪` : '';
+      if (totalDisplay) totalDisplay.textContent = total ? `₪ ${formatCurrency(total)}` : '';
       return total;
     };
 
@@ -3996,14 +3996,14 @@ export const proposalsAgreementsScreen = {
       const discount = discountType === 'percent' ? subtotal * (Math.min(discountValue, 100) / 100) : Math.min(discountValue, subtotal);
       const sum = Math.max(subtotal - discount, 0);
       const el = container.querySelector('[data-pa-grand-total]');
-      if (el) el.textContent = sum ? `${formatCurrency(sum)} ₪` : '0 ₪';
+      if (el) el.textContent = sum ? `₪ ${formatCurrency(sum)}` : '₪ 0';
       const subtotalEl = container.querySelector('[data-pa-summary-subtotal]');
-      if (subtotalEl) subtotalEl.textContent = subtotal ? `${formatCurrency(subtotal)} ₪` : '0 ₪';
+      if (subtotalEl) subtotalEl.textContent = subtotal ? `₪ ${formatCurrency(subtotal)}` : '₪ 0';
       const discountEl = container.querySelector('[data-pa-summary-discount]');
-      if (discountEl) discountEl.textContent = discount ? `-${formatCurrency(discount)} ₪` : '0 ₪';
+      if (discountEl) discountEl.textContent = discount ? `-₪ ${formatCurrency(discount)}` : '₪ 0';
       container.querySelectorAll('[data-pa-summary-discount-row]').forEach((el) => { el.hidden = discount <= 0; });
       const summaryEl = container.querySelector('[data-pa-summary-total]');
-      if (summaryEl) summaryEl.textContent = sum ? `${formatCurrency(sum)} ₪` : '0 ₪';
+      if (summaryEl) summaryEl.textContent = sum ? `₪ ${formatCurrency(sum)}` : '₪ 0';
       // Update summary card fields
       const form = container.closest?.('[data-pa-form]') || (container.matches?.('[data-pa-form]') ? container : null);
       if (form) {
@@ -4074,7 +4074,7 @@ export const proposalsAgreementsScreen = {
       const selected = selectedBundleChildren(itemRow);
       const sum = selected.reduce((acc, child) => acc + (numberValue(child.unit_price) || 0), 0);
       summary.textContent = selected.length
-        ? `${selected.length} פעילויות נבחרו${sum ? ` | ${formatCurrency(sum)} ₪` : ''}`
+        ? `${selected.length} פעילויות נבחרו${sum ? ` | ₪ ${formatCurrency(sum)}` : ''}`
         : 'לא נבחרו פעילויות לפירוט';
     };
 
@@ -4517,7 +4517,7 @@ export const proposalsAgreementsScreen = {
               return `<label class="ds-pa-bundle-child-card">
                 <input type="checkbox" name="bundle_child_sel" value="${escapeHtml(childName)}" data-pa-bundle-child-check data-bundle-child-idx="${ci}" data-child-json="${escapeHtml(JSON.stringify(childData))}">
                 <span class="ds-pa-bundle-child-name">${escapeHtml(childName)}</span>
-                <span class="ds-pa-bundle-child-price">${unitPrice != null && unitPrice > 0 ? `${escapeHtml(formatCurrency(unitPrice))} ₪` : '—'}</span>
+                <span class="ds-pa-bundle-child-price">${unitPrice != null && unitPrice > 0 ? `₪ ${escapeHtml(formatCurrency(unitPrice))}` : '—'}</span>
               </label>`;
             }).join('')
           : '<p class="ds-pa-bundle-empty">אין פריטי פירוט מוגדרים עבור הגדרה זו</p>';
