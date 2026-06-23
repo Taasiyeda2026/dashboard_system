@@ -75,6 +75,21 @@ function normalizeStoredUserFlags(user) {
   };
 }
 
+const ACTIVITY_PERIOD_SUMMER_2026_DEFAULT_FROM = '2026-06-28';
+
+function initialActivityPeriodTab() {
+  const now = new Date();
+  const parts = new Intl.DateTimeFormat('en-CA', {
+    timeZone: 'Asia/Jerusalem',
+    year: 'numeric',
+    month: '2-digit',
+    day: '2-digit'
+  }).formatToParts(now);
+  const byType = Object.fromEntries(parts.map((part) => [part.type, part.value]));
+  const today = `${byType.year}-${byType.month}-${byType.day}`;
+  return today >= ACTIVITY_PERIOD_SUMMER_2026_DEFAULT_FROM ? 'summer_2026' : 'school_2026';
+}
+
 const _initStoredUser = normalizeStoredUserFlags(JSON.parse(localStorage.getItem('dashboard_user') || 'null'));
 const _initCalKey = calendarMonthSessionKey(_initStoredUser?.user_id);
 const _initMonthYm = (_initCalKey && sessionStorage.getItem(_initCalKey)) || '';
@@ -87,7 +102,7 @@ export const state = {
   routes: [],
   effectiveRoutes: [],
   activityTab: 'all',
-  activityPeriodTab: 'school_2026',
+  activityPeriodTab: initialActivityPeriodTab(),
   activityFinanceStatus: '',
   activityQuickFamily: '',
   activityQuickManager: '',
