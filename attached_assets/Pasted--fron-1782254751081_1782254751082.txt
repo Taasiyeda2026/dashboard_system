@@ -1,0 +1,84 @@
+צריך לתקן נקודתית את ההפרדה במסך חריגות בין חריגות כלליות לבין חריגות קיץ.
+
+בדקתי את הקוד:
+- frontend/src/screens/exceptions.js כבר עושה split דרך splitRowsByExceptionTab.
+- הפיצול מתבסס על isSummerActivity(row).
+- כלומר הבעיה אינה במבנה הטאבים אלא בזיהוי פעילות קיץ.
+
+הבעיה:
+ב־frontend/src/screens/shared/summer-activity.js הפונקציה isSummerActivity מזהה פעילות קיץ רק לפי:
+row_id / RowID / id שמתחיל ב־summer_
+
+אבל בנתוני Supabase פעילות קיץ יכולה להיות מסומנת גם כך:
+activity_season = summer_2026
+או activitySeason = summer_2026
+
+לכן פעילויות קיץ שמזוהות לפי activity_season לא מזוהות כקיץ ונכנסות בטעות לטאב “חריגות כלליות”.
+
+יש לתקן רק את הלוגיקה, לא לשנות Supabase ולא להריץ SQL.
+
+קובץ לתיקון:
+frontend/src/screens/shared/summer-activity.js
+
+להחליף את isSummerActivity כך שתזהה קיץ אם מתקיים אחד מאלה:
+1. normalizeActivitySeason(activity.activity_season ?? activity.activitySeason) === ACTIVITY_SEASON_SUMMER_2026
+או
+2. row_id / RowID / id מתחיל ב־summer_
+
+ובנוסף לא לכלול סטטוסים סגורים/מבוטלים/מחוקים:
+- נמחק
+- סגור
+- בוטל
+- deleted
+- closed
+- cancelled
+- canceled
+
+דוגמה ליישום:
+
+export function isSummerActivity(activity = {}) {
+  const rowId = String(activity?.row_id ?? activity?.RowID ?? activity?.id ?? '').trim().toLowerCase();
+  const status = String(activity?.status || '').trim();
+  const normalizedStatus = status.toLowerCase();
+  const season = normalizeActivitySeason(activity?.activity_season ?? activity?.activitySeason);
+
+  const isExcludedStatus =
+    EXCLUDED_SUMMER_STATUSES.has(status) ||
+    EXCLUDED_SUMMER_STATUSES.has(normalizedStatus);
+
+  const isSummer =
+    season === ACTIVITY_SEASON_SUMMER_2026 ||
+    rowId.startsWith(SUMMER_ROW_ID_PREFIX);
+
+  return isSummer && !isExcludedStatus;
+}
+
+ולעדכן את EXCLUDED_SUMMER_STATUSES כך שיכלול גם:
+'סגור', 'closed'
+
+חשוב:
+לא להרחיב את סוגי חריגות הקיץ.
+ב־frontend/src/screens/shared/exceptions-metrics.js כבר מוגדר שחריגות קיץ הן רק:
+- missing_instructor
+- missing_start_date
+
+המטרה עכשיו היא רק:
+1. שפעילות קיץ לא תופיע בחריגות כלליות.
+2. שבטאב “חריגות קיץ 2026” יופיעו רק פעילויות קיץ.
+3. שהזיהוי יעבוד גם לפי activity_season = summer_2026 ולא רק לפי row_id שמתחיל ב־summer_.
+
+להוסיף/לעדכן בדיקות:
+1. פעילות עם activity_season: 'summer_2026' ו־row_id רגיל מזוהה כקיץ.
+2. פעילות עם row_id שמתחיל ב־summer_ מזוהה כקיץ גם בלי activity_season.
+3. פעילות קיץ בסטטוס 'סגור' לא מזוהה כפעילות קיץ פעילה.
+4. פעילות קיץ בסטטוס 'נמחק' לא מזוהה כפעילות קיץ פעילה.
+5. במסך exceptions:
+   - פעילות קיץ עם חריגה לא מופיעה בטאב general.
+   - אותה פעילות כן מופיעה בטאב summer_dates.
+   - פעילות רגילה עם חריגה לא מופיעה בטאב summer_dates.
+
+בסיום להחזיר:
+1. אילו קבצים שונו.
+2. מה הייתה הסיבה המדויקת לתקלה.
+3. האם הבדיקות עברו.
+4. האם נדרש לעדכן גרסת HOTFIX_VERSION / Service Worker כדי לנקות cache.
