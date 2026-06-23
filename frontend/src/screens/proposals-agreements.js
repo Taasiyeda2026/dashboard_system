@@ -2737,11 +2737,6 @@ function formHtml(mode, row = {}, activityNameOptions = [], contactOptions = [],
   const initialPreviewHtml = proposalPreviewBodyHtml(initialPreviewRow, items, initialTemplateSections);
 
   return `<form class="ds-pa-form ds-pa-form--compact pa-editor" data-pa-form data-pa-mode="${escapeHtml(mode)}" data-pa-id="${escapeHtml(row.id || '')}" data-pa-original-type="${escapeHtml(normalizedActivityGroup)}" dir="rtl">
-    <div class="ds-pa-form-header">
-      <h3 class="ds-pa-form-title">${escapeHtml(title)}</h3>
-      <button type="button" class="ds-btn ds-btn--sm ds-btn--ghost" data-pa-cancel-form>ביטול</button>
-    </div>
-
     <div class="pa-editor-workspace">
       <aside class="pa-sidebar" aria-label="עריכת פרטי הצעת מחיר">
         <div class="pa-sidebar-heading">
