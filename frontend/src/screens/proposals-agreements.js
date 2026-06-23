@@ -1042,9 +1042,9 @@ function contactPickerHtml(contactOptions, authority, school, selectedContactNam
   ].join('');
   const noContacts = contacts.length === 0;
   return `
-    <label class="ds-pa-form-field"><span>בחירה</span>
-      <select class="ds-input ds-input--sm" data-pa-contact-select>${optionsHtml}</select>
-    </label>
+    <div class="ds-pa-form-field ds-pa-contact-select-field">
+      <select class="ds-input ds-input--sm" data-pa-contact-select aria-label="איש קשר">${optionsHtml}</select>
+    </div>
     <span data-pa-contact-picker-state data-pa-no-contacts="${noContacts ? 'yes' : 'no'}" hidden></span>`;
 }
 
@@ -2455,23 +2455,15 @@ function enrichProposalRowFromContactOptions(row = {}, contactOptions = []) {
 function clientLockedBannerHtml(auth, school, contactName, contactRole, phone, email, clientName = '', schoolMeta = null) {
   if (!auth && !clientName) return '';
   const displayName = clientName || school || auth;
-  const summaryParts = [
-    displayName,
-    auth && auth !== displayName ? auth : ''
-  ].filter(Boolean);
-  const displayContactRole = normalizeContactRoleDisplay(contactRole);
-  const details = [
-    ...(schoolMeta ? schoolDetailsLines(schoolMeta) : []),
-    !schoolMeta && school && school !== displayName ? ['בית ספר', school] : null,
-    contactName && !schoolMeta ? ['שם', contactName] : null,
-    displayContactRole ? ['תפקיד', displayContactRole] : null,
-    phone ? ['טלפון', phone] : null,
-    email ? ['דוא״ל', email] : null
+  const city = text(schoolMeta?.city);
+  const secondaryParts = [
+    auth && auth !== displayName ? auth : '',
+    city && city !== auth && city !== displayName ? city : ''
   ].filter(Boolean);
   return `<div class="ds-pa-client-locked">
     <div class="ds-pa-client-locked-body">
-      ${summaryParts.length ? `<p class="ds-pa-client-locked-state">נבחר: ${escapeHtml(summaryParts.join(' — '))}</p>` : ''}
-      ${details.map(([label, value]) => `<span class="ds-pa-client-locked-detail"><strong>${escapeHtml(label)}:</strong> ${escapeHtml(value)}</span>`).join('')}
+      <p class="ds-pa-client-locked-name">${escapeHtml(displayName)}</p>
+      ${secondaryParts.length ? `<p class="ds-pa-client-locked-state">${escapeHtml(secondaryParts.join(' / '))}</p>` : ''}
     </div>
     <div class="ds-pa-client-locked-actions">
       <button type="button" class="ds-btn ds-btn--xs ds-btn--ghost" data-pa-unlock-client>שינוי</button>

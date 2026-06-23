@@ -17519,3 +17519,79 @@ details[open] > .ds-fin-acc__summary::before { transform: rotate(90deg); }
     font-size: 11.25px !important;
   }
 }
+
+/* Compact proposal editor sidebar recipient/contact spacing only. */
+.pa-sidebar .ds-pa-form-meta-panel,
+.pa-sidebar .ds-pa-form-type-panel {
+  padding: 8px 10px;
+  margin-bottom: 8px;
+}
+
+.pa-sidebar .ds-pa-form-meta-panel,
+.pa-sidebar [data-pa-step-panel="client"],
+.pa-sidebar [data-pa-step-panel="contact"],
+.pa-sidebar .ds-pa-form-grid {
+  gap: 6px;
+}
+
+.pa-sidebar .pa-sidebar-section-title {
+  margin-bottom: 6px;
+  padding-bottom: 4px;
+}
+
+.pa-sidebar .ds-pa-client-locked {
+  padding: 8px 10px;
+  margin-bottom: 0;
+  gap: 8px;
+}
+
+.pa-sidebar .ds-pa-client-locked-body {
+  gap: 2px;
+}
+
+.pa-sidebar .ds-pa-client-locked-name,
+.pa-sidebar .ds-pa-client-locked-state {
+  margin: 0;
+}
+
+.pa-sidebar .ds-pa-client-locked-name {
+  font-size: 0.86rem;
+  font-weight: 800;
+  color: #0f172a;
+}
+
+.pa-sidebar .ds-pa-client-locked-state {
+  font-size: 0.76rem;
+  color: #64748b;
+}
+
+.pa-sidebar .ds-pa-contact-select-field {
+  gap: 0;
+}
+
+.pa-sidebar [data-pa-add-contact-row] {
+  gap: 3px;
+  padding: 2px 0 0;
+  margin: 0;
+}
+
+.pa-sidebar .ds-pa-add-contact-note {
+  margin: 0;
+  line-height: 1.25;
+}
+
+.pa-sidebar .ds-pa-form-type-panel .ds-pa-type-meta-grid,
+.pa-sidebar .ds-pa-type-cards {
+  gap: 4px;
+}
+
+.pa-sidebar .ds-pa-form-type-panel {
+  padding-top: 6px;
+  margin-bottom: 6px;
+}
+
+.pa-sidebar .ds-pa-type-row,
+.pa-sidebar .ds-pa-template-mode {
+  margin-top: 0;
+  margin-bottom: 0;
+}
