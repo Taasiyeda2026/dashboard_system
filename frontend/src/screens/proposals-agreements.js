@@ -1872,7 +1872,7 @@ function recipientBlockHtml(row = {}) {
   const schoolName = safeVal(row.school_framework) || safeVal(row.school_name);
   const authorityName = safeVal(row.client_authority) || safeVal(row.authority_name);
   const contactName = safeVal(row.contact_name);
-  const contactRole = safeVal(row.contact_role);
+  const contactRole = normalizeContactRoleDisplay(safeVal(row.contact_role));
   const contactParts = [];
   if (contactName) contactParts.push(`<strong>${escapeHtml(contactName)}</strong>`);
   if (contactRole && contactRole !== contactName) contactParts.push(escapeHtml(contactRole));
