@@ -1883,6 +1883,9 @@ function costsIntroBody(row = {}, items = []) {
   const visibleCount = (Array.isArray(items) ? items : []).filter((item) =>
     !isTestHoursItem(item) && text(item.proposal_display_mode) !== 'bundle_child' && text(item.item_name)
   ).length;
+  if (isNextYearProposalGroup(row.activity_type_group)) {
+    return 'להלן פירוט העלויות:';
+  }
   if (isCourseKindText(groupText)) {
     return visibleCount === 1
       ? 'להלן פירוט הקורס והעלות הכלולה בהצעה.'
