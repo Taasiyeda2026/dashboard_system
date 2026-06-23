@@ -17156,6 +17156,8 @@ details[open] > .ds-fin-acc__summary::before { transform: rotate(90deg); }
   .pa-page-footer {
     margin-top: 18px !important;
     position: static !important;
+    break-before: avoid !important;
+    break-inside: avoid !important;
   }
 }
 
@@ -17451,13 +17453,11 @@ details[open] > .ds-fin-acc__summary::before { transform: rotate(90deg); }
   }
 }
 
-/* Proposal print fixed page chrome: repeat logo via pa-print-fixed-logo on each printed A4 page.
-   @page margin-top: 22mm ensures ALL pages (incl. overflow pages 2+) start content below the
-   fixed logo (top:2mm, max-height:18mm → logo bottom ≈ 20mm from paper edge). */
+/* Proposal print page chrome: logo only on page 1 via pa-print-fixed-logo (position:absolute). */
 @media print {
   @page {
     size: A4 portrait;
-    margin: 22mm 12mm 22mm 12mm;
+    margin: 4mm 12mm 22mm 12mm;
   }
 
   .proposal-document.pa-a4-page,
@@ -17468,10 +17468,10 @@ details[open] > .ds-fin-acc__summary::before { transform: rotate(90deg); }
     height: auto !important;
     margin: 0 !important;
     padding: 0 !important;
-    padding-top: 2mm !important;
+    padding-top: 17mm !important;
     box-shadow: none !important;
     background: #fff !important;
-    position: static !important;
+    position: relative !important;
     display: block !important;
   }
 
@@ -17494,13 +17494,12 @@ details[open] > .ds-fin-acc__summary::before { transform: rotate(90deg); }
     display: none !important;
   }
 
-  /* Fixed print-only logo — top: 2mm from physical paper edge
-     (@page margin-top is only 4mm, so top: 2mm = 6mm from paper top) */
+  /* Logo — absolute so it appears only on page 1, not on overflow pages */
   .pa-print-fixed-logo {
     display: block !important;
-    position: fixed !important;
-    top: 2mm !important;
-    right: 150mm !important;
+    position: absolute !important;
+    top: -14mm !important;
+    right: 0 !important;
     left: auto !important;
     width: auto !important;
     max-width: 34mm !important;
