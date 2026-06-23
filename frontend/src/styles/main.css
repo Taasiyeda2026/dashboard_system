@@ -17818,10 +17818,7 @@ details[open] > .ds-fin-acc__summary::before { transform: rotate(90deg); }
   overflow-wrap: anywhere;
 }
 
-/* Summer proposal: hide divider, tighten header-to-recipient spacing */
-.proposal-document.pa-document--summer .pa-doc-divider.pa-divider {
-  display: none !important;
-}
+/* Summer proposal: tighten header-to-recipient spacing */
 .proposal-document.pa-document--summer .proposal-document-header.pa-page-header {
   margin-bottom: 4mm !important;
 }

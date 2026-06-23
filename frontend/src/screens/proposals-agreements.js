@@ -2215,7 +2215,7 @@ function buildProposalDocumentHtml({ dateDisplay, documentTitle, row, introText,
         </div>
       </div>
       ${recipientBlockHtml(row)}
-      ${isSummerDocument ? '' : '<hr class="pa-doc-divider pa-divider">'}
+      <hr class="pa-doc-divider pa-divider">
       ${dateDisplay ? `<div class="pa-doc-date pa-date-area">${escapeHtml(dateDisplay)}</div>` : ''}
       <div class="proposal-document-body">
         <div class="proposal-document-content">
