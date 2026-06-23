@@ -1961,6 +1961,27 @@ function recipientBlockHtml(row = {}) {
   </div>`;
 }
 
+function proposalRecipientFileLabel(row = {}) {
+  const safeVal = (v) => { const s = text(v); return (s === 'undefined' || s === 'null') ? '' : s; };
+  return safeVal(row.school_framework)
+    || safeVal(row.school_name)
+    || safeVal(row.client_authority)
+    || safeVal(row.authority_name);
+}
+
+function sanitizeProposalPdfFileLabel(value = '') {
+  return String(value || '')
+    .replace(/[\\/:*?"<>|]/g, '_')
+    .replace(/[\u0000-\u001f]/g, '')
+    .replace(/\s+/g, ' ')
+    .trim();
+}
+
+function proposalPdfDocumentTitle(row = {}) {
+  const label = sanitizeProposalPdfFileLabel(proposalRecipientFileLabel(row));
+  return label ? `הצעת מחיר - ${label}` : 'הצעת מחיר';
+}
+
 function parseSectionBodyStructure(value, options = {}) {
   const { alwaysBullet = false } = options;
   const raw = normalizeMultilineText(value).replace(/[ \t]*שורה\s+חדשה\s*:?\s*/gi, '\n');
@@ -3235,7 +3256,10 @@ export {
   filterTemplateSectionsForGroup,
   documentSectionsEditorHtml,
   itemsSummaryHtml,
-  extractItemsFromForm
+  extractItemsFromForm,
+  proposalPdfDocumentTitle,
+  sanitizeProposalPdfFileLabel,
+  proposalRecipientFileLabel
 };
 
 // ─── Screen ───────────────────────────────────────────────────────────────────
@@ -4175,13 +4199,20 @@ export const proposalsAgreementsScreen = {
         </div>`;
       document.body.appendChild(overlay);
       document.body.classList.add('is-print-preview');
+      const previousDocumentTitle = document.title;
+      document.title = proposalPdfDocumentTitle(freshRow);
       const readSignatureMeta = () => defaultSignatureMeta();
       if (options.form) options.form.dataset.paPreviewSeen = 'yes';
       const printButton = overlay.querySelector('#pa-print-btn');
       printButton?.addEventListener('click', () => {
+        document.title = proposalPdfDocumentTitle(freshRow);
         window.print();
       });
-      const closeOverlay = () => { overlay.remove(); document.body.classList.remove('is-print-preview'); };
+      const closeOverlay = () => {
+        overlay.remove();
+        document.body.classList.remove('is-print-preview');
+        document.title = previousDocumentTitle;
+      };
       overlay.querySelector('#pa-preview-close')?.addEventListener('click', closeOverlay);
       overlay.querySelector('#pa-signature-cancel')?.addEventListener('click', closeOverlay);
       overlay.querySelector('#pa-signature-confirm')?.addEventListener('click', () => options.onSignatureConfirm?.(readSignatureMeta(), closeOverlay));
