@@ -1718,7 +1718,7 @@ function costTableRowsFromItem(item = {}) {
 // Customer-facing price breakdown, built only from saved proposal_agreement_items.
 // Rows without a real price are never shown. Selected bundle children become billed
 // rows; the parent row is omitted when children carry the actual prices.
-function proposalCostTableHtml(items = []) {
+function proposalCostTableHtml(items = [], options = {}) {
   const billedItems = (Array.isArray(items) ? items : []).filter((item) =>
     !isTestHoursItem(item) && text(item.proposal_display_mode) !== 'bundle_child');
   const rows = billedItems.flatMap((item) => costTableRowsFromItem(item));
@@ -1730,8 +1730,12 @@ function proposalCostTableHtml(items = []) {
     ? `<tr><td colspan="3">סה״כ לפני הנחה</td><td>${currencyAmountHtml(subtotal)}</td></tr>
        <tr><td colspan="3">הנחה</td><td>${currencyAmountHtml(-discount)}</td></tr>`
     : '';
-  return `<table class="pa-cost-table pa-activities-table">
-    <thead><tr><th>פעילות</th><th>כמות</th><th>מחיר יחידה</th><th>סה״כ שורה</th></tr></thead>
+  const tableClass = `pa-cost-table pa-activities-table${options.isSummer ? ' pa-summer-cost-table' : ''}`;
+  const totalHeader = options.isSummer ? 'סה״כ' : 'סה״כ שורה';
+  const colgroupHtml = options.isSummer ? '<colgroup><col class="pa-activity-col"><col class="pa-quantity-col"><col class="pa-unit-price-col"><col class="pa-total-col"></colgroup>' : '';
+  return `<table class="${tableClass}">
+    ${colgroupHtml}
+    <thead><tr><th>פעילות</th><th>כמות</th><th>מחיר יחידה</th><th>${totalHeader}</th></tr></thead>
     <tbody>${rows.map((row) => `<tr>
         <td>${escapeHtml(row.name)}</td>
         <td>${escapeHtml(formatCurrency(row.quantity))}</td>
@@ -1872,7 +1876,7 @@ function costsIntroBody(row = {}, items = []) {
       : 'להלן פירוט הקורסים והעלויות הכלולות בהצעה.';
   }
   if (isSummerProposalGroup(row.activity_type_group)) {
-    return 'פירוט הפעילויות והעלויות מוצג בטבלת העלויות שלהלן.';
+    return 'פירוט הפעילויות והעלויות:';
   }
   return visibleCount ? 'פירוט הפעילויות והעלויות מוצג בטבלת העלויות שלהלן.' : '';
 }
@@ -2222,7 +2226,7 @@ export function proposalPreviewBodyHtml(row, items = [], templateSections = [], 
   const proposalKind = proposalActivityKind(row, items);
   const costTableHtml = proposalKind === 'course'
     ? proposalItemDetailsTableHtml(items, activityTypeGroup)
-    : proposalCostTableHtml(items);
+    : proposalCostTableHtml(items, { isSummer: isSummerProposalGroup(activityTypeGroup) });
   const costsIntro = costsIntroBody(row, items);
   const costTableBlock = (costsIntro || costTableHtml)
     ? `<div class="pa-cost-table-block">${costsIntro ? `<p class="pa-costs-intro-heading">${escapeHtml(costsIntro)}</p>` : ''}${costTableHtml}</div>`
