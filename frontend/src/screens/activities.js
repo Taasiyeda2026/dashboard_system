@@ -75,7 +75,11 @@ function todayYmdForActivityDefaults() {
     month: '2-digit',
     day: '2-digit'
   }).formatToParts(now);
+<<<<<<< HEAD
   const byType = Object.fromEntries(parts.map(p => [p.type, p.value]));
+=======
+  const byType = Object.fromEntries(parts.map((part) => [part.type, part.value]));
+>>>>>>> 1b741e927d6d6466ccd68f527142e531f889d6f0
   return `${byType.year}-${byType.month}-${byType.day}`;
 }
 
