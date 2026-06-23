@@ -17,6 +17,25 @@ const PROPOSAL_SIGNATURE_IMAGE = 'proposals/signature-idan-nahum.png';
 const DEFAULT_SIGNATURE_META = Object.freeze({ image: PROPOSAL_SIGNATURE_IMAGE });
 const DEFAULT_SIGNER_NAME = 'עידן נחום, סמנכ״ל כספים ותפעול';
 
+const COURSE_SHORT_NAMES_BY_GEFEN = Object.freeze({
+  '6089': 'ביומימיקרי',
+  '57651': 'טכנולוגיות החלל',
+  '67867': 'מנהיגות ירוקה',
+  '27342': 'משחקי קופסה',
+  '53828': 'ביומימיקרי לחטיבה',
+  '9545': 'בינה מלאכותית',
+  '57646': 'השמיים אינם הגבול',
+  '53819': 'יישומי הבינה המלאכותית',
+  '67861': 'פורצות דרך',
+  '960': 'יזמות פרימיום',
+  '46091': 'רוקחים עולם',
+  '52279': 'אופק לתעשייה'
+});
+const OLD_CANCELLATION_SENTENCE = 'במקרה של הפסקת הקורס ביוזמת בית הספר, ייגבה תשלום מלא עבור המפגשים שהתקיימו בפועל וכן 10% מעלות יתרת המפגשים שלא התקיימו.';
+const NEW_CANCELLATION_SENTENCE = 'בביטול הקורס ביוזמת המזמין, ייגבה תשלום מלא על מפגשים שהתקיימו ו-10% מעלות יתרת המפגשים שלא התקיימו.';
+const OLD_PAYMENT_SENTENCE = 'התשלום עבור הקורס יחולק לשני חלקים: חשבונית ראשונה תונפק עם תחילת הקורס. חשבונית שנייה תונפק לאחר השלמת מחצית מהיקף הקורס.';
+const NEW_PAYMENT_SENTENCE = 'התשלום עבור הקורס יחולק לשתי חשבוניות: הראשונה תונפק עם תחילת הקורס והשנייה לאחר השלמת מחצית מהיקפו.';
+
 export const STATUS_OPTIONS = ['draft', 'pending_approval', 'returned_for_changes', 'approved', 'sent', 'cancelled'];
 export const STATUS_LABELS = {
   draft:                'טיוטה',
@@ -93,6 +112,24 @@ function normalizeHebrewQuoteVariants(value) {
   return text(value)
     .replace(/[״"]/g, '\'')
     .replace(/[׳`]/g, '\'');
+}
+
+function normalizeContactRoleDisplay(value) {
+  const role = text(value);
+  return role === 'מנהל/ת' ? 'מנהל/ת בית הספר' : role;
+}
+
+function courseShortNameForItem(item = {}) {
+  const gefen = text(proposalTextField(item, 'gefen_number', 'gefenNumber') || item.activity_no).replace(/\D/g, '');
+  return COURSE_SHORT_NAMES_BY_GEFEN[gefen] || publicActivityName(proposalField(item, 'item_name', 'itemName'));
+}
+
+function applyFocusedProposalTextUpdates(body, templateKey = '') {
+  const key = proposalGroupTemplateKey(templateKey || normalizeProposalGroup(templateKey)) || normalizeProposalGroup(templateKey);
+  if (key !== 'next_year' && key !== 'combined') return body;
+  return normalizeMultilineText(body)
+    .replaceAll(OLD_CANCELLATION_SENTENCE, NEW_CANCELLATION_SENTENCE)
+    .replaceAll(OLD_PAYMENT_SENTENCE, NEW_PAYMENT_SENTENCE);
 }
 
 
@@ -1235,11 +1272,11 @@ function itemRowHtml(item = {}, idx = 0, pricingOptions = [], options = {}) {
     : `<label class="ds-pa-item-field"><span>מפגשים</span><input class="ds-input ds-input--sm" type="number" name="meetings_count" value="${n(item.meetings_count)}" min="0" step="1" placeholder="—"></label>
           <label class="ds-pa-item-field"><span>שעות</span><input class="ds-input ds-input--sm" type="number" name="hours_count" value="${n(item.hours_count)}" min="0" step="0.5" placeholder="—"></label>`;
   return `<article class="ds-pa-item-card ds-pa-item-row${isSummerRow ? ' ds-pa-item-row--summer' : ''}" data-pa-item-row data-pa-item-idx="${idx}" data-pa-row-group="${escapeHtml(contextGroup)}"${isSummerRow ? ' data-pa-summer-row' : ''}>
-    <div class="ds-pa-item-quick-row" style="display:grid;grid-template-columns:minmax(0,1fr) 86px auto;gap:6px;align-items:end">
+    <div class="ds-pa-item-quick-row" style="display:grid;grid-template-columns:minmax(0,1fr) 76px;gap:6px;align-items:end">
       <label class="ds-pa-item-field ds-pa-item-field--select"><span>${activitySelectLabel}</span><select class="ds-input ds-input--sm" name="pricing_activity_name" data-pa-pricing-select>${pricingSelectOptionsHtml}</select></label>
-      <label class="ds-pa-item-field ds-pa-item-field--qty"><span>כמות קבוצות</span><input class="ds-input ds-input--sm" type="number" name="quantity" value="${n(item.quantity) || '1'}" min="0" step="any" data-pa-item-qty></label>
-      <span class="ds-pa-item-compact-name" title="${escapeHtml(selectedName)}" style="display:none">${escapeHtml(selectedName)} ${typeBadgeHtml}</span>
+      <label class="ds-pa-item-field ds-pa-item-field--qty"><span>כמות</span><input class="ds-input ds-input--sm" type="number" name="quantity" value="${n(item.quantity) || '1'}" min="0" step="any" data-pa-item-qty></label>
     </div>
+    <div class="ds-pa-item-compact-summary"><span class="ds-pa-item-compact-name" data-pa-item-compact-name title="${escapeHtml(selectedName)}">${escapeHtml(selectedName)} ${typeBadgeHtml}</span><span class="ds-pa-item-compact-qty" data-pa-item-compact-qty>כמות: ${n(item.quantity) || '1'}</span></div>
     <div class="ds-pa-bundle-prompt" data-pa-bundle-prompt hidden></div>
     <details class="ds-pa-item-extra" data-pa-item-details>
       <summary class="ds-pa-item-extra-toggle">עריכה</summary>
@@ -1326,21 +1363,12 @@ function proposalSummaryHtml(totalAmount) {
   return `<section class="ds-pa-summary" aria-label="סיכום הצעה">
     <span style="display:none" data-pa-summary-client></span>
     <span style="display:none" data-pa-summary-type></span>
-    <div class="ds-pa-summary-bar">
-      <div class="ds-pa-summary-pill">
-        <span class="ds-pa-summary-label">פעילויות</span>
-        <strong class="ds-pa-summary-value" data-pa-summary-count>—</strong>
-      </div>
-      <div class="ds-pa-summary-pill" data-pa-summary-discount-row hidden>
-        <span class="ds-pa-summary-label">לפני הנחה</span>
-        <strong class="ds-pa-summary-value" data-pa-summary-subtotal>0 ₪</strong>
-      </div>
-      <div class="ds-pa-summary-pill" data-pa-summary-discount-row hidden>
-        <span class="ds-pa-summary-label">הנחה</span>
-        <strong class="ds-pa-summary-value" data-pa-summary-discount>0 ₪</strong>
-      </div>
+    <span style="display:none" data-pa-summary-count></span>
+    <span style="display:none" data-pa-summary-subtotal></span>
+    <span style="display:none" data-pa-summary-discount></span>
+    <div class="ds-pa-summary-bar ds-pa-summary-bar--compact">
       <div class="ds-pa-summary-pill ds-pa-summary-pill--total">
-        <span class="ds-pa-summary-label">לתשלום</span>
+        <span class="ds-pa-summary-label">סה״כ לתשלום</span>
         <strong class="ds-pa-summary-value ds-pa-summary-total-val" data-pa-summary-total>${initialTotal ? `${formatCurrency(initialTotal)} ₪` : '0 ₪'}</strong>
       </div>
       <button type="button" class="ds-btn ds-btn--xs ds-btn--ghost" data-pa-discount-toggle>+ הנחה / הערות</button>
@@ -1354,7 +1382,6 @@ function proposalSummaryHtml(totalAmount) {
     </div>
   </section>`;
 }
-
 const PROPOSAL_DISPLAY_MODES = new Set(['single', 'bundle_parent', 'bundle_child']);
 
 function extractItemsFromForm(form) {
@@ -1767,7 +1794,7 @@ function proposalItemDetailsTableHtml(items = [], contextGroup = '') {
       totalPrice += quantityTotal;
     }
     const cells = [
-      { value: publicActivityName(proposalField(item, 'item_name', 'itemName')) },
+      { value: courseShortNameForItem(item) },
       { value: shouldShowGefenForItem(item, contextGroup) ? proposalTextField(item, 'gefen_number', 'gefenNumber') : '' },
       { value: item.meetings_count != null ? formatCurrency(item.meetings_count) : '' },
       { value: formatCurrency(quantity) },
@@ -2109,7 +2136,7 @@ export function proposalPreviewBodyHtml(row, items = [], templateSections = [], 
   const sourceTemplateSections = filterTemplateSectionsForGroup(templateSections, templateKey);
   const sectionsSource = resolveDocumentSections(row, sourceTemplateSections);
   const byKey = new Map(sectionsSource.map((section) => [proposalTextField(section, 'section_key', 'sectionKey'), section]));
-  const sectionBody = (key) => applyProposalTemplatePlaceholders(templateBodyText(byKey.get(key)), row, items);
+  const sectionBody = (key) => applyProposalTemplatePlaceholders(applyFocusedProposalTextUpdates(templateBodyText(byKey.get(key)), templateKey), row, items);
   const sectionTitle = (key) => text(byKey.get(key)?.section_title);
 
   const includeCatalog = false;
@@ -2368,7 +2395,7 @@ function clientLockedBannerHtml(auth, school, contactName, contactRole, phone, e
     displayName,
     auth && auth !== displayName ? auth : ''
   ].filter(Boolean);
-  const displayContactRole = contactRole === 'מנהל/ת' ? 'מנהל/ת בית הספר' : contactRole;
+  const displayContactRole = normalizeContactRoleDisplay(contactRole);
   const details = [
     ...(schoolMeta ? schoolDetailsLines(schoolMeta) : []),
     !schoolMeta && school && school !== displayName ? ['בית ספר', school] : null,
@@ -2638,8 +2665,8 @@ function formHtml(mode, row = {}, activityNameOptions = [], contactOptions = [],
               <label class="ds-pa-form-field"><span>בית ספר</span><input type="text" class="ds-input ds-input--sm" data-pa-contact-ro-school readonly tabindex="-1"></label>
             </div>
             <input type="hidden" name="contact_selection_mode" value="">
-            ${textField('contact_name', FIELD_LABELS.contact_name, row.contact_name, false)}
-            ${textField('contact_role', FIELD_LABELS.contact_role, row.contact_role, false)}
+            ${textField('contact_name', 'שם', row.contact_name, false)}
+            ${textField('contact_role', FIELD_LABELS.contact_role, normalizeContactRoleDisplay(row.contact_role), false)}
             ${textField('phone', FIELD_LABELS.phone, row.phone, false)}
             ${textField('email', FIELD_LABELS.email, row.email, false)}
           </div>
@@ -3149,10 +3176,10 @@ export const proposalsAgreementsScreen = {
       <section class="ds-pa-screen" data-pa-screen dir="rtl">
         <style>
           .ds-pa-screen-tab{border-radius:10px 10px 0 0;transition:background .15s,color .15s,border-color .15s}.ds-pa-screen-tab:hover{background:rgba(14,165,233,.08)}
-          .ds-pa-form{max-width:1080px;margin-inline:auto}.ds-pa-form .ds-pa-form-grid{max-width:100%}.ds-pa-item-card{border:1px solid #dbe7f3;border-radius:14px;background:#fff;padding:14px;margin:10px 0;box-shadow:0 1px 3px rgba(15,23,42,.04)}
-          .ds-pa-item-quick-row{display:grid;grid-template-columns:minmax(260px,1fr) 110px 130px 130px auto;gap:10px;align-items:end}.ds-pa-item-field span{display:block;font-size:.74rem;color:#64748b;margin-bottom:4px;font-weight:600}.ds-pa-line-total output{min-height:34px;display:flex;align-items:center;justify-content:center;border:1px solid #dbe7f3;border-radius:10px;background:#f8fbff;font-weight:700;color:#0f766e}.ds-pa-items-total-row{margin-top:10px;padding:10px 12px;border-radius:12px;background:#eef8ff;font-size:.9rem}.ds-pa-items-total-row strong{color:#0369a1}
+          .ds-pa-form{max-width:1080px;margin-inline:auto}.pa-editor-workspace{display:grid;grid-template-columns:minmax(0,1fr) 400px;gap:16px;align-items:start}.pa-sidebar{width:400px;max-width:100%}.pa-preview{min-width:0}.ds-pa-form .ds-pa-form-grid{max-width:100%}.ds-pa-item-card{border:1px solid #dbe7f3;border-radius:14px;background:#fff;padding:8px;margin:8px 0;box-shadow:0 1px 3px rgba(15,23,42,.04)}
+          .ds-pa-item-quick-row{display:grid;grid-template-columns:minmax(0,1fr) 76px;gap:6px;align-items:end}.ds-pa-item-compact-summary{display:flex;align-items:center;justify-content:space-between;gap:8px;margin-top:6px;font-size:.78rem;color:#475569}.ds-pa-item-compact-name{min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}.ds-pa-item-extra{margin-top:6px}.ds-pa-item-extra-toggle{cursor:pointer;color:#2563eb;font-size:.78rem}.ds-pa-type-chips{grid-template-columns:repeat(3,minmax(0,1fr))}.ds-pa-type-card{min-height:28px!important;padding:3px 5px!important;font-size:.76rem!important}.ds-pa-summary-bar--compact{display:flex;align-items:center;gap:8px;justify-content:space-between}.ds-pa-summary-bar--compact .ds-pa-summary-pill{flex:1}.ds-pa-item-field--select select{overflow:hidden;text-overflow:ellipsis}.ds-pa-item-field span{display:block;font-size:.74rem;color:#64748b;margin-bottom:4px;font-weight:600}.ds-pa-line-total output{min-height:34px;display:flex;align-items:center;justify-content:center;border:1px solid #dbe7f3;border-radius:10px;background:#f8fbff;font-weight:700;color:#0f766e}.ds-pa-items-total-row{margin-top:10px;padding:10px 12px;border-radius:12px;background:#eef8ff;font-size:.9rem}.ds-pa-items-total-row strong{color:#0369a1}
           .ds-pa-bundle-prompt{margin-top:12px}.ds-pa-bundle-panel{border:1px solid #b7e0f5;background:#f8fdff;border-radius:14px;padding:12px}.ds-pa-bundle-head{display:flex;justify-content:space-between;gap:10px;align-items:center;margin-bottom:6px}.ds-pa-bundle-head strong{font-size:.9rem;color:#0f172a}.ds-pa-bundle-head span,.ds-pa-bundle-help,.ds-pa-bundle-empty{font-size:.78rem;color:#64748b}.ds-pa-bundle-grid{display:grid;grid-template-columns:repeat(auto-fit,minmax(220px,1fr));gap:8px;margin-top:10px}.ds-pa-bundle-child-card{display:grid;grid-template-columns:auto 1fr auto;align-items:center;gap:8px;border:1px solid #dbe7f3;border-radius:12px;background:#fff;padding:9px 10px;cursor:pointer;min-height:42px}.ds-pa-bundle-child-card:hover{border-color:#38bdf8;background:#f0f9ff}.ds-pa-bundle-child-card:has(input:checked){border-color:#0ea5e9;background:#e0f2fe;box-shadow:0 0 0 1px #0ea5e9 inset}.ds-pa-bundle-child-name{font-size:.82rem;color:#0f172a;line-height:1.25}.ds-pa-bundle-child-price{font-size:.8rem;font-weight:700;color:#0f766e;white-space:nowrap}.ds-pa-bundle-footer{display:flex;justify-content:space-between;align-items:center;gap:10px;margin-top:10px;flex-wrap:wrap}.ds-pa-bundle-actions{display:flex;gap:6px}.ds-pa-bundle-selection-summary{font-size:.78rem;color:#0369a1;font-weight:700}.ds-pa-summary-bundle-list{margin:4px 0 0;padding-right:16px;font-size:.72rem}.ds-pa-items-summary-table{width:100%;border-collapse:collapse;font-size:.78rem}.ds-pa-items-summary-table th,.ds-pa-items-summary-table td{border-bottom:1px solid #e5eef6;padding:6px;text-align:right}.ds-pa-items-summary-table th{color:#64748b;font-weight:700;background:#f8fbff}
-          @media (max-width:900px){.ds-pa-item-quick-row{grid-template-columns:1fr 1fr}.ds-pa-item-field--select,.ds-pa-line-total{grid-column:1/-1}.ds-pa-bundle-grid{grid-template-columns:1fr}}
+          @media (max-width:900px){.pa-editor-workspace{grid-template-columns:1fr}.pa-sidebar{width:auto}.ds-pa-item-quick-row{grid-template-columns:1fr 76px}.ds-pa-bundle-grid{grid-template-columns:1fr}}@media (max-width:520px){.ds-pa-type-chips{grid-template-columns:repeat(2,minmax(0,1fr))}.ds-pa-item-quick-row{grid-template-columns:1fr}}@media print{.pa-sidebar,.pa-preview-toolbar,.no-print{display:none!important}.pa-editor-workspace{display:block}.pa-preview{display:block}}
         </style>
         <div class="ds-pa-screen-tabs" data-pa-screen-tabs style="display:flex;gap:4px;border-bottom:2px solid var(--ds-border,#e5e7eb);margin-bottom:12px">
           <button type="button" class="ds-pa-screen-tab is-active" data-pa-tab="records" style="padding:6px 16px;border:none;background:none;cursor:pointer;font-weight:600;border-bottom:2px solid transparent;margin-bottom:-2px;color:inherit;font-size:0.9rem">📋 רשומות</button>
@@ -4194,6 +4221,8 @@ export const proposalsAgreementsScreen = {
 
       const updateRowHourlyPrice = () => {
         if (!itemRow) return;
+        const compactQty = itemRow.querySelector('[data-pa-item-compact-qty]');
+        if (compactQty) compactQty.textContent = `כמות: ${text(itemRow.querySelector('[data-pa-item-qty]')?.value) || '1'}`;
         const priceEl = itemRow.querySelector('[data-pa-item-price]');
         const hoursEl = itemRow.querySelector('[name="hours_count"]');
         const hourlyEl = itemRow.querySelector('[name="hourly_price"]');
@@ -4411,6 +4440,13 @@ export const proposalsAgreementsScreen = {
       setValue('item_display_mode', 'single');
       setValue('item_source_pricing_key', text(picked.pricing_key) || '');
       setValue('item_selected_bundle_items', '[]');
+      const compactName = itemRow.querySelector('[data-pa-item-compact-name]');
+      if (compactName) {
+        compactName.textContent = publicActivityName(picked.activity_name) || 'בחרו פעילות';
+        compactName.title = publicActivityName(picked.activity_name) || '';
+      }
+      const compactQty = itemRow.querySelector('[data-pa-item-compact-qty]');
+      if (compactQty) compactQty.textContent = `כמות: ${text(itemRow.querySelector('[data-pa-item-qty]')?.value) || '1'}`;
       const rowGroup = text(itemRow.dataset.paRowGroup || picked.proposal_group);
       const infoStrip = itemRow.querySelector('[data-pa-item-info-strip]');
       if (infoStrip && !itemRow.hasAttribute('data-pa-summer-row')) {
@@ -4782,9 +4818,8 @@ export const proposalsAgreementsScreen = {
         const currentType = text(form?.querySelector('[name="activity_type_group"]')?.value);
         if (!normalizeProposalGroup(currentType)) return;
         const rowGroup = groupKey || currentType;
-        const selectedActivityType = text(form?.querySelector('[data-pa-activity-type-filter]')?.value);
         const basePricing = filterPricingByProposalType(proposalActivityPricing, rowGroup || currentType);
-        const rowPricing = filterPricingByActivityType(basePricing, selectedActivityType);
+        const rowPricing = basePricing;
         tmp.innerHTML = itemRowHtml({ proposal_group: rowGroup }, idx, rowPricing, { groupKey: rowGroup });
         tbody.appendChild(tmp.firstElementChild);
         if (form) calcGrandTotal(form);
