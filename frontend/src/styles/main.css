@@ -16060,9 +16060,9 @@ details[open] > .ds-fin-acc__summary::before { transform: rotate(90deg); }
 /* ── Screen ── */
 .proposal-document-header {
   flex-direction: column !important;
-  align-items: flex-end !important;  /* RTL flex-end = ימין פיזי */
+  align-items: flex-start !important;  /* RTL flex-start = שמאל פיזי */
   justify-content: flex-start !important;
-  direction: rtl !important;
+  direction: ltr !important;
   max-width: none !important;
   margin-inline: 0 !important;
   margin-bottom: 3mm !important;
@@ -17502,8 +17502,8 @@ details[open] > .ds-fin-acc__summary::before { transform: rotate(90deg); }
     display: block !important;
     position: absolute !important;
     top: 0 !important;
-    right: 0 !important;
-    left: auto !important;
+    left: 0 !important;
+    right: auto !important;
     width: auto !important;
     max-width: 34mm !important;
     max-height: 18mm !important;
