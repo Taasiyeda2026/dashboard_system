@@ -16927,8 +16927,8 @@ details[open] > .ds-fin-acc__summary::before { transform: rotate(90deg); }
   display: block;
   align-self: center;
   width: auto;
-  max-width: 140px;
-  max-height: 64px;
+  max-width: 175px;
+  max-height: 80px;
   object-fit: contain;
   margin: 0 0 6px;
 }
@@ -17719,8 +17719,8 @@ details[open] > .ds-fin-acc__summary::before { transform: rotate(90deg); }
   margin-top: 2.5em;
 }
 .proposal-document.pa-document--next-year .pa-footer-signature .pa-signature-image {
-  max-width: 158px;
-  max-height: 72px;
+  max-width: 195px;
+  max-height: 90px;
 }
 
 @media print {
@@ -17771,8 +17771,8 @@ details[open] > .ds-fin-acc__summary::before { transform: rotate(90deg); }
     margin-bottom: 6px !important;
   }
   .proposal-document.pa-document--next-year .pa-footer-signature .pa-signature-image {
-    max-width: 158px !important;
-    max-height: 72px !important;
+    max-width: 195px !important;
+    max-height: 90px !important;
   }
 }
 
