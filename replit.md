@@ -6,7 +6,7 @@ Preserve: RTL, Hebrew, dark shell + light panels. Communication with user: Hebre
 ## Runtime
 - Static server: `npx serve dist -l 5000` (workflow: "Start application")
 - SW cache bump: edit `CACHE_VERSION` in `frontend/sw.js` after any JS/CSS change.
-- **Current versions**: SW v894 (frontend/sw.js + dist/sw.js)
+- **Current versions**: SW v895 (frontend/sw.js + dist/sw.js)
 
 ## User preferences
 

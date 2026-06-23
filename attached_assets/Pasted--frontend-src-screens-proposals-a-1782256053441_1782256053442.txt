@@ -1,0 +1,120 @@
+משימה: תיקון טבלת העלויות בהצעת קיץ בהדפסה ובתצוגה
+
+קובץ לבדיקה:
+frontend/src/screens/proposals-agreements.js
+
+צריך לתקן את טבלת העלויות בהצעת קיץ בלבד.
+
+הכוונה לטבלה שבה מופיעות העמודות:
+שם הפעילות / כמות / מחיר / סה״כ
+או כל וריאציה דומה של טבלת קיץ.
+
+דרישות:
+
+1. להקטין את רוחב הטבלה הכוללת של הצעת קיץ בעוד 10%
+אם היום הטבלה בקיץ היא ברוחב 100%, להוריד ל־90%.
+אם כבר יש רוחב מוגדר אחר, להקטין אותו ב־10% יחסית.
+
+לדוגמה:
+.pa-summer-cost-table {
+  width: 90%;
+  margin-inline: auto;
+}
+
+היישום חייב לחול גם בתצוגה המקדימה וגם בהדפסה / Save as PDF.
+
+2. להקטין את רוחב עמודות:
+- מחיר
+- כמות
+- סה״כ
+
+העמודות האלה צריכות להיות צרות יותר, כי הן מכילות מספרים קצרים בלבד.
+
+3. את יתרת הרוחב לתת לעמודת "שם הפעילות"
+עמודת שם הפעילות צריכה להיות הרחבה ביותר.
+
+כיוון מומלץ ל־colgroup של טבלת קיץ:
+- שם הפעילות: 55%
+- כמות: 12%
+- מחיר: 16%
+- סה״כ: 17%
+
+אפשר להתאים מעט לפי מבנה הטבלה בפועל, אבל העיקר:
+מחיר / כמות / סה״כ יהיו צרות יותר, ושם הפעילות רחבה יותר.
+
+4. יישור תוכן בטבלת קיץ
+כל העמודות, כולל הכותרות, צריכות להיות מיושרות לאמצע, חוץ מעמודת "שם הפעילות".
+
+כלומר:
+- th ו־td בכל העמודות: text-align:center
+- th ו־td של שם הפעילות בלבד: text-align:right
+
+5. התיקון חייב לעבוד גם בהדפסה
+להוסיף את אותם כללים גם בתוך:
+
+@media print {
+  ...
+}
+
+או לוודא שה־CSS הקיים חל גם ב־Print Preview.
+
+דוגמה לכיוון CSS:
+
+.pa-summer-cost-table {
+  width: 90% !important;
+  margin-inline: auto !important;
+  table-layout: fixed !important;
+}
+
+.pa-summer-cost-table th,
+.pa-summer-cost-table td {
+  text-align: center !important;
+  vertical-align: middle !important;
+}
+
+.pa-summer-cost-table th:first-child,
+.pa-summer-cost-table td:first-child {
+  text-align: right !important;
+}
+
+@media print {
+  .pa-summer-cost-table {
+    width: 90% !important;
+    margin-inline: auto !important;
+    table-layout: fixed !important;
+  }
+
+  .pa-summer-cost-table th,
+  .pa-summer-cost-table td {
+    text-align: center !important;
+    vertical-align: middle !important;
+  }
+
+  .pa-summer-cost-table th:first-child,
+  .pa-summer-cost-table td:first-child {
+    text-align: right !important;
+  }
+}
+
+אם הטבלה נוצרת דרך colgroup, להגדיר רוחבים ישירות ב־colgroup של טבלת קיץ:
+- activity/name: 55%
+- quantity: 12%
+- unit price / price: 16%
+- total: 17%
+
+חשוב:
+- התיקון הוא להצעת קיץ בלבד.
+- לא לשנות את טבלת שנה הבאה.
+- לא לשנות סכומים.
+- לא לשנות חישובים.
+- לא לשנות שמירה.
+- לא לשנות טקסטים.
+- לא לשנות פוטר או חתימה.
+
+בדיקות:
+1. לפתוח הצעת קיץ בתצוגה מקדימה.
+2. לוודא שטבלת העלויות צרה יותר ב־10%.
+3. לוודא שעמודות מחיר / כמות / סה״כ צרות יותר.
+4. לוודא שכל הכותרות והתאים מיושרים לאמצע.
+5. לוודא שרק שם הפעילות מיושר לימין.
+6. לבדוק גם ב־Chrome Print Preview / Save as PDF.

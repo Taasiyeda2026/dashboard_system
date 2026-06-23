@@ -12032,6 +12032,15 @@ select.ds-input {
   page-break-inside: avoid;
 }
 .pa-cost-section .pa-section-body p { margin-bottom: 2pt; }
+/* אחריות תעשיידע / אחריות בית הספר — line-height מוקטן */
+.pa-responsibility-org .pa-section-body,
+.pa-responsibility-school .pa-section-body { line-height: 1.25; }
+.pa-responsibility-org .pa-section-body p,
+.pa-responsibility-org .pa-section-body li,
+.pa-responsibility-school .pa-section-body p,
+.pa-responsibility-school .pa-section-body li { line-height: 1.25; }
+/* שינויים, ביטולים והתאמות — פונט מוקטן ב-0.5pt */
+.pa-cancellations-section .pa-section-body { font-size: 8.5pt; }
 .pa-cost-table {
   width: 100%;
   max-width: 100%;
@@ -12488,6 +12497,15 @@ select.ds-input {
     break-inside: avoid !important;
     page-break-inside: avoid !important;
   }
+  /* אחריות תעשיידע / אחריות בית הספר — print line-height מוקטן */
+  .pa-responsibility-org .pa-section-body,
+  .pa-responsibility-school .pa-section-body { line-height: 1.25 !important; }
+  .pa-responsibility-org .pa-section-body p,
+  .pa-responsibility-org .pa-section-body li,
+  .pa-responsibility-school .pa-section-body p,
+  .pa-responsibility-school .pa-section-body li { line-height: 1.25 !important; }
+  /* שינויים, ביטולים והתאמות — print font-size מוקטן ב-0.5pt */
+  .pa-cancellations-section .pa-section-body { font-size: 8.5pt !important; }
   .proposal-document .pa-section-body ul li,
   .proposal-document .pa-doc-intro ul li {
     position: relative !important;
