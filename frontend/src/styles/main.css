@@ -17442,7 +17442,7 @@ details[open] > .ds-fin-acc__summary::before { transform: rotate(90deg); }
   .pa-print-fixed-logo {
     display: block !important;
     position: fixed !important;
-    top: 8mm !important;
+    top: 4mm !important;
     left: 12mm !important;
     right: auto !important;
     width: auto !important;
