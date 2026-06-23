@@ -866,8 +866,11 @@ function repairHebrewMojibake(value) {
 }
 
 function shellUserDisplayName() {
-  const fn = repairHebrewMojibake(state.user?.full_name).trim();
-  return escapeHtml(fn || 'משתמש');
+  const user = state.user || {};
+  const displayName = [user.full_name, user.name, user.email, user.auth_email]
+    .map((value) => repairHebrewMojibake(value).trim())
+    .find(Boolean);
+  return escapeHtml(displayName || 'משתמש');
 }
 
 
@@ -949,13 +952,18 @@ function updateExceptionNavCount() {
 }
 
 function shellUserRoleLine() {
-  const r2 = repairHebrewMojibake(state.user?.display_role2).trim();
-  if (r2) return escapeHtml(r2);
-  const sheetLabel = repairHebrewMojibake(state.user?.display_role_label).trim();
-  const code = String(state.user?.role || '').trim();
+  const user = state.user || {};
+  const code = String(user.role || '').trim();
+  const rawDisplayRole = repairHebrewMojibake(user.display_role).trim();
+  if (rawDisplayRole && (!code || rawDisplayRole.toLowerCase() !== code.toLowerCase())) {
+    return escapeHtml(rawDisplayRole);
+  }
+  const sheetLabel = repairHebrewMojibake(user.display_role_label).trim();
   if (sheetLabel && (!code || sheetLabel.toLowerCase() !== code.toLowerCase())) {
     return escapeHtml(sheetLabel);
   }
+  const r2 = repairHebrewMojibake(user.display_role2).trim();
+  if (r2) return escapeHtml(r2);
   return escapeHtml(repairHebrewMojibake(hebrewRole(code)));
 }
 
