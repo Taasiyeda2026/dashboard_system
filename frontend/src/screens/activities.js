@@ -1251,24 +1251,39 @@ function writeLocalActivityLayoutStatus(row) {
   }
 }
 
+function normalizeActivityLayoutSent(value) {
+  if (value === true || value === 1) return true;
+  const raw = cleanText(value).toLowerCase();
+  return raw === 'true' || raw === 'yes' || raw === '1' || raw === 'sent' || raw === 'נשלח';
+}
+
+function normalizeActivityLayoutStatusRow(row = {}) {
+  return {
+    ...row,
+    season: cleanText(row.season || ACTIVITY_LAYOUT_SEASON) || ACTIVITY_LAYOUT_SEASON,
+    authority: cleanText(row.authority),
+    school: cleanText(row.school),
+    sent: normalizeActivityLayoutSent(row.sent),
+    sent_at: row.sent_at || '',
+    sent_by: cleanText(row.sent_by)
+  };
+}
+
 function activityLayoutStatusesMap(rows = []) {
   const map = new Map();
   (Array.isArray(rows) ? rows : []).forEach((row) => {
-    const key = activityLayoutStatusKey(row);
-    if (key) map.set(key, row);
+    const normalized = normalizeActivityLayoutStatusRow(row);
+    const key = activityLayoutStatusKey(normalized);
+    if (key) map.set(key, normalized);
   });
   return map;
 }
 
 function readyActivityLayoutSchools(rows = [], statuses = []) {
   const groups = new Map();
-  const authoritySchoolsWithIncompleteRows = new Set();
   (Array.isArray(rows) ? rows : []).forEach((row) => {
     const authority = cleanText(row.authority);
     const school = cleanText(row.school);
-    if (authority && school && !isActivityLayoutRowComplete(row)) {
-      authoritySchoolsWithIncompleteRows.add(activityLayoutStatusKey({ authority, school }));
-    }
     if (!authority || !school) return;
     const key = activityLayoutStatusKey({ authority, school });
     if (!groups.has(key)) groups.set(key, { season: ACTIVITY_LAYOUT_SEASON, authority, school, rows: [], dates: [] });
@@ -1279,7 +1294,7 @@ function readyActivityLayoutSchools(rows = [], statuses = []) {
   });
   const statusMap = activityLayoutStatusesMap(statuses);
   return [...groups.values()]
-    .filter((group) => group.rows.length && !authoritySchoolsWithIncompleteRows.has(activityLayoutStatusKey(group)) && group.rows.every(isActivityLayoutRowComplete))
+    .filter((group) => group.rows.length)
     .map((group) => ({
       ...group,
       count: group.rows.length,
