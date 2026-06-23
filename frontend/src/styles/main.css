@@ -16186,14 +16186,14 @@ details[open] > .ds-fin-acc__summary::before { transform: rotate(90deg); }
   display: grid;
   grid-template-columns: minmax(0, var(--pa-sidebar-width)) minmax(0, 1fr);
   gap: 18px;
-  align-items: start;
+  align-items: stretch;
   min-width: 0;
+  height: calc(100vh - 100px);
+  overflow: hidden;
 }
 .pa-sidebar {
-  position: sticky;
-  top: 76px;
-  align-self: start;
-  overflow: visible;
+  overflow-y: auto;
+  overflow-x: hidden;
   min-width: 0;
   width: 100%;
   max-width: var(--pa-sidebar-width);
@@ -16634,6 +16634,9 @@ details[open] > .ds-fin-acc__summary::before { transform: rotate(90deg); }
   border-radius: 22px;
   background: radial-gradient(circle at top, #eef7ff 0%, #e2e8f0 42%, #d7dee8 100%);
   border: 1px solid #d6e0eb;
+  overflow-y: auto;
+  height: 100%;
+  box-sizing: border-box;
 }
 .pa-preview-toolbar {
   display: flex;
