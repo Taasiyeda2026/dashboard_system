@@ -17493,12 +17493,8 @@ details[open] > .ds-fin-acc__summary::before { transform: rotate(90deg); }
 }
 
 
-/* Focused real proposal template adjustments for preview and print. */
-.proposal-document .pa-logo-area .proposal-logo {
-  height: 54px;
-  max-height: 54px;
-}
-
+/* Focused real proposal template adjustments for print only.
+   Keep preview logo/header sizing controlled by the base proposal header rules above. */
 .proposal-document .pa-next-year-cancellation-terms .pa-section-body,
 .proposal-document .pa-summer-cancellation-terms .pa-section-body {
   font-size: 10.45px;
