@@ -17322,19 +17322,19 @@ details[open] > .ds-fin-acc__summary::before { transform: rotate(90deg); }
 
 
 /* Focused proposal print/PDF table and spacing cleanup. */
-.proposal-document .pa-section { margin: 8px 0 10px; }
-.proposal-document .pa-section-heading { margin: 8px 0 6px !important; }
+.proposal-document .pa-section { margin: 6px 0 6px; }
+.proposal-document .pa-section-heading { margin: 6px 0 4px !important; }
 .proposal-document .pa-section-text p,
 .proposal-document .pa-section-body p,
-.proposal-document .pa-doc-intro p { margin: 0 0 8px !important; }
+.proposal-document .pa-doc-intro p { margin: 0 0 4px !important; }
 .proposal-document .pa-section-body ul,
 .proposal-document .pa-section-body ol,
 .proposal-document .pa-doc-intro ul,
 .proposal-document .pa-doc-intro ol,
-.proposal-document .pa-proposal-list { margin: 4px 0 9px !important; }
+.proposal-document .pa-proposal-list { margin: 2px 0 4px !important; }
 .proposal-document .pa-section-body li,
 .proposal-document .pa-doc-intro li,
-.proposal-document .pa-proposal-list li { margin-bottom: 4px !important; }
+.proposal-document .pa-proposal-list li { margin-bottom: 2px !important; }
 .proposal-document .pa-page-footer { margin-top: auto; padding-top: 8px; }
 .proposal-document .pa-item-details-table.pa-next-year-course-table .pa-course-col { width: 26%; }
 .proposal-document .pa-item-details-table.pa-next-year-course-table .pa-gefen-col,
@@ -17350,19 +17350,19 @@ details[open] > .ds-fin-acc__summary::before { transform: rotate(90deg); }
 .proposal-document .pa-cost-table.pa-summer-cost-table .pa-unit-price-col,
 .proposal-document .pa-cost-table.pa-summer-cost-table .pa-total-col { width: 19%; }
 @media print {
-  .proposal-document .pa-section { margin: 0 0 12px !important; }
-  .proposal-document .pa-section-heading { margin: 8px 0 7px !important; }
+  .proposal-document .pa-section { margin: 6px 0 6px !important; }
+  .proposal-document .pa-section-heading { margin: 6px 0 4px !important; }
   .proposal-document .pa-section-text p,
   .proposal-document .pa-section-body p,
-  .proposal-document .pa-doc-intro p { margin: 0 0 9px !important; }
+  .proposal-document .pa-doc-intro p { margin: 0 0 4px !important; }
   .proposal-document .pa-section-body ul,
   .proposal-document .pa-section-body ol,
   .proposal-document .pa-doc-intro ul,
   .proposal-document .pa-doc-intro ol,
-  .proposal-document .pa-proposal-list { margin: 4px 0 10px !important; }
+  .proposal-document .pa-proposal-list { margin: 2px 0 4px !important; }
   .proposal-document .pa-section-body li,
   .proposal-document .pa-doc-intro li,
-  .proposal-document .pa-proposal-list li { margin-bottom: 5px !important; }
+  .proposal-document .pa-proposal-list li { margin-bottom: 2px !important; }
   .proposal-document .pa-page-footer { margin-top: auto !important; padding-top: 8px !important; position: static !important; }
   .proposal-document .pa-item-details-table.pa-next-year-course-table .pa-course-col { width: 26% !important; }
   .proposal-document .pa-item-details-table.pa-next-year-course-table .pa-gefen-col,
