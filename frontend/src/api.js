@@ -2792,6 +2792,17 @@ function enrichProposalPricingRows(rows = [], groupLookup = proposalGroupLookupC
   });
 }
 
+
+export function isValidUuid(value) {
+  const raw = cleanProposalAgreementText(value);
+  return /^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i.test(raw);
+}
+
+export function uuidOrNull(value) {
+  const raw = cleanProposalAgreementText(value);
+  return isValidUuid(raw) ? raw : null;
+}
+
 function assertProposalAgreementApprovalPayloadAllowed(payload = {}) {
   const requestedStatus = cleanProposalAgreementText(payload.status);
   const touchesApprovalField = Object.keys(payload || {}).some((key) => PROPOSALS_AGREEMENTS_APPROVAL_COLUMNS.has(key));
@@ -2809,9 +2820,9 @@ function sanitizeProposalAgreementPayload(payload = {}, groupLookup = proposalGr
   const clientAuthority = cleanProposalAgreementText(payload.client_authority || payload.authority_name || payload.authority);
   const schoolFramework = cleanProposalAgreementText(payload.school_framework || payload.school_name || payload.school) || (clientType === 'other' ? cleanProposalAgreementText(payload.client_name) : clientAuthority);
   const row = {
-    authority_id:        payload.authority_id || null,
-    school_id:           clientType === 'school' ? (payload.school_id || null) : null,
-    contact_school_id:   payload.contact_school_id || null,
+    authority_id:        uuidOrNull(payload.authority_id),
+    school_id:           clientType === 'school' ? uuidOrNull(payload.school_id) : null,
+    contact_school_id:   uuidOrNull(payload.contact_school_id),
     client_authority:    clientAuthority,
     school_framework:    schoolFramework,
     document_type:       cleanProposalAgreementText(payload.document_type) || 'הצעת מחיר',
@@ -2878,14 +2889,14 @@ async function resolveProposalSchoolCatalogIds(payload = {}, catalog = null) {
   const clientType = cleanProposalAgreementText(payload.client_type) || (payload.school_id ? 'school' : 'authority');
   if (clientType !== 'school') {
     return {
-      authority_id: payload.authority_id || null,
+      authority_id: uuidOrNull(payload.authority_id),
       school_id: null,
       semel_mosad: null
     };
   }
-  let authority_id = payload.authority_id || null;
-  let school_id = payload.school_id || null;
-  let semel_mosad = cleanProposalAgreementText(payload.semel_mosad) || null;
+  let authority_id = uuidOrNull(payload.authority_id);
+  let school_id = uuidOrNull(payload.school_id);
+  let semel_mosad = cleanProposalAgreementText(payload.semel_mosad) || (!uuidOrNull(payload.school_id) ? cleanProposalAgreementText(payload.school_id) : null) || null;
   const schoolLookup = catalog?.schoolLookup || (await readAuthoritySchoolCatalog()).schoolLookup;
   const schoolMeta = resolveSchoolCatalogEntry(schoolLookup, {
     school_id,
@@ -2894,8 +2905,8 @@ async function resolveProposalSchoolCatalogIds(payload = {}, catalog = null) {
     authority: cleanProposalAgreementText(payload.client_authority || payload.authority_name || payload.authority)
   });
   if (schoolMeta) {
-    school_id = school_id || schoolMeta.id || null;
-    authority_id = authority_id || schoolMeta.authority_id || null;
+    school_id = school_id || uuidOrNull(schoolMeta.id);
+    authority_id = authority_id || uuidOrNull(schoolMeta.authority_id);
     semel_mosad = semel_mosad || schoolMeta.semel_mosad || null;
   }
   return { authority_id, school_id, semel_mosad };
@@ -2948,8 +2959,8 @@ async function ensureContactSchoolFromProposal(payload = {}) {
     p_address:       null,
     p_notes:         cleanProposalAgreementText(payload.notes) || null
   };
-  if (resolvedSchool.school_id) rpcArgs.p_school_id = resolvedSchool.school_id;
-  if (resolvedSchool.authority_id) rpcArgs.p_authority_id = resolvedSchool.authority_id;
+  if (uuidOrNull(resolvedSchool.school_id)) rpcArgs.p_school_id = uuidOrNull(resolvedSchool.school_id);
+  if (uuidOrNull(resolvedSchool.authority_id)) rpcArgs.p_authority_id = uuidOrNull(resolvedSchool.authority_id);
   if (resolvedSchool.semel_mosad) rpcArgs.p_semel_mosad = resolvedSchool.semel_mosad;
   const { data: contactSchoolId, error } = await supabase.rpc(
     'ensure_contact_school_from_proposal',
@@ -5078,7 +5089,7 @@ export const api = {
       if (cleanStatus === 'sent') {
         const meta = currentRow.signature_meta && typeof currentRow.signature_meta === 'object' ? currentRow.signature_meta : {};
         const signatureImage = cleanProposalAgreementText(meta?.signature?.image || meta?.image);
-        if (cs !== 'approved' || !signatureImage || !cleanProposalAgreementText(currentRow.approved_by) || !cleanProposalAgreementText(currentRow.approved_at)) {
+        if (cs !== 'approved' || !signatureImage || !cleanProposalAgreementText(currentRow.approved_at)) {
           throw new Error('ניתן לסמן כנשלח רק הצעה מאושרת וחתומה.');
         }
       }
@@ -5086,7 +5097,7 @@ export const api = {
     const patch = { status: statusForDb(cleanStatus), approval_note: cleanProposalAgreementText(approvalNote) };
     if (cleanStatus === 'approved') {
       patch.status = 'approved';
-      patch.approved_by = state?.user?.auth_user_id || state?.user?.user_id || state?.user?.id || null;
+      patch.approved_by = uuidOrNull(state?.user?.auth_user_id);
       patch.approved_at = new Date().toISOString();
       patch.signature_meta = (signatureMeta && typeof signatureMeta === 'object' && !Array.isArray(signatureMeta)) ? signatureMeta : {};
     }
