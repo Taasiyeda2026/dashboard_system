@@ -11352,6 +11352,7 @@ select.ds-input {
 .ds-pa-item-field { display: grid; gap: 3px; min-width: 0; }
 .ds-pa-item-field span { font-size: 0.71rem; color: var(--ds-color-text-muted, #64748b); }
 .ds-pa-item-field--select { width: min(100%, 520px); }
+.ds-pa-item-field--select-no-label { gap: 0; }
 .ds-pa-item-field--name { min-width: 220px; }
 .ds-pa-item-field--type { min-width: 110px; }
 .ds-pa-item-field--gefen { max-width: 120px; }
@@ -16412,7 +16413,17 @@ details[open] > .ds-fin-acc__summary::before { transform: rotate(90deg); }
   gap: 16px;
 }
 .pa-sidebar .ds-pa-form-activities-panel {
-  margin-bottom: 14px;
+  margin-bottom: 8px;
+}
+.pa-sidebar .ds-pa-form-activities-panel .pa-sidebar-section-title {
+  margin-bottom: 4px;
+  padding-bottom: 3px;
+}
+.pa-sidebar .ds-pa-items-section {
+  margin: 2px 0 0;
+}
+.pa-sidebar .ds-pa-items-list {
+  gap: 4px;
 }
 .pa-sidebar [data-pa-step-panel="client"],
 .pa-sidebar [data-pa-step-panel="contact"] {
@@ -16467,10 +16478,11 @@ details[open] > .ds-fin-acc__summary::before { transform: rotate(90deg); }
   box-shadow: 0 0 0 1px rgba(26, 45, 74, 0.18) inset;
 }
 .pa-sidebar .ds-pa-item-card {
-  padding: 7px;
-  margin: 6px 0;
-  border-radius: 12px;
+  padding: 5px 8px;
+  margin: 3px 0;
+  border-radius: 10px;
   min-height: 0;
+  gap: 4px;
 }
 .pa-sidebar .ds-pa-form-type-panel {
   padding: 8px 10px;
@@ -16482,8 +16494,14 @@ details[open] > .ds-fin-acc__summary::before { transform: rotate(90deg); }
 .pa-sidebar .ds-pa-item-quick-row {
   display: grid;
   grid-template-columns: minmax(0, 1fr) 96px;
-  gap: 8px;
+  gap: 6px;
   align-items: end;
+}
+.pa-sidebar .ds-pa-item-card .ds-input,
+.pa-sidebar .ds-pa-item-card select {
+  min-height: 34px;
+  padding: 5px 8px;
+  font-size: 0.8rem;
 }
 .pa-sidebar .ds-pa-item-quick-row .ds-pa-item-field--select {
   grid-column: auto;
@@ -16578,7 +16596,8 @@ details[open] > .ds-fin-acc__summary::before { transform: rotate(90deg); }
 .pa-sidebar .ds-pa-items-header {
   flex-direction: column;
   align-items: stretch;
-  gap: 8px;
+  gap: 4px;
+  margin-bottom: 3px;
 }
 .pa-sidebar .ds-pa-activity-type-filter {
   width: 100%;
@@ -17227,16 +17246,16 @@ details[open] > .ds-fin-acc__summary::before { transform: rotate(90deg); }
 }
 
 @media print {
-  .pa-cost-table.pa-summer-cost-table {
-    width: 100% !important;
-    max-width: 100% !important;
-    margin: 8px 0 10px !important;
+  .proposal-document .pa-cost-table.pa-summer-cost-table {
+    width: 70% !important;
+    max-width: 70% !important;
+    margin: 8px auto 10px !important;
     table-layout: fixed !important;
   }
-  .pa-cost-table.pa-summer-cost-table .pa-activity-col { width: 43% !important; }
-  .pa-cost-table.pa-summer-cost-table .pa-quantity-col,
-  .pa-cost-table.pa-summer-cost-table .pa-unit-price-col,
-  .pa-cost-table.pa-summer-cost-table .pa-total-col { width: 19% !important; }
+  .proposal-document .pa-cost-table.pa-summer-cost-table .pa-activity-col { width: 43% !important; }
+  .proposal-document .pa-cost-table.pa-summer-cost-table .pa-quantity-col { width: 18% !important; }
+  .proposal-document .pa-cost-table.pa-summer-cost-table .pa-unit-price-col { width: 19.5% !important; }
+  .proposal-document .pa-cost-table.pa-summer-cost-table .pa-total-col { width: 19.5% !important; }
 }
 
 
@@ -17376,9 +17395,9 @@ details[open] > .ds-fin-acc__summary::before { transform: rotate(90deg); }
   .proposal-document .pa-item-details-table.pa-next-year-course-table .pa-hourly-price-col,
   .proposal-document .pa-item-details-table.pa-next-year-course-table .pa-total-price-col { width: 12.333% !important; }
   .proposal-document .pa-cost-table.pa-summer-cost-table .pa-activity-col { width: 43% !important; }
-  .proposal-document .pa-cost-table.pa-summer-cost-table .pa-quantity-col,
-  .proposal-document .pa-cost-table.pa-summer-cost-table .pa-unit-price-col,
-  .proposal-document .pa-cost-table.pa-summer-cost-table .pa-total-col { width: 19% !important; }
+  .proposal-document .pa-cost-table.pa-summer-cost-table .pa-quantity-col { width: 18% !important; }
+  .proposal-document .pa-cost-table.pa-summer-cost-table .pa-unit-price-col { width: 19.5% !important; }
+  .proposal-document .pa-cost-table.pa-summer-cost-table .pa-total-col { width: 19.5% !important; }
 }
 @media print {
   .proposal-document.pa-document {
@@ -17627,4 +17646,138 @@ details[open] > .ds-fin-acc__summary::before { transform: rotate(90deg); }
 .pa-sidebar .ds-pa-template-mode {
   margin-top: 0;
   margin-bottom: 0;
+}
+
+/* Next-year proposal: preview/print layout polish (scoped — summer/combined unchanged). */
+.proposal-document.pa-document--next-year {
+  padding-top: 18px;
+}
+.proposal-document.pa-document--next-year .pa-page-header {
+  margin-bottom: 0 !important;
+}
+.proposal-document.pa-document--next-year .pa-to-block {
+  margin-top: -2px !important;
+  margin-bottom: 0 !important;
+}
+.proposal-document.pa-document--next-year .pa-section-heading,
+.proposal-document.pa-document--next-year .pa-section h3,
+.proposal-document.pa-document--next-year .pa-costs-intro-heading {
+  border: 0 !important;
+  border-bottom: none !important;
+  text-decoration: none !important;
+  padding-bottom: 0 !important;
+  box-shadow: none !important;
+}
+.proposal-document.pa-document--next-year .pa-next-year-cancellation-terms .pa-section-body {
+  font-size: 9.95px;
+  line-height: 1.42;
+}
+.proposal-document.pa-document--next-year .pa-item-details-table.pa-next-year-course-table {
+  font-size: 9.7px !important;
+}
+.proposal-document.pa-document--next-year .pa-item-details-table.pa-next-year-course-table th,
+.proposal-document.pa-document--next-year .pa-item-details-table.pa-next-year-course-table td {
+  padding: 2px 10px !important;
+}
+.proposal-document.pa-document--next-year .pa-signer-block {
+  margin-top: 2.5em;
+}
+.proposal-document.pa-document--next-year .pa-footer-signature .pa-signature-image {
+  max-width: 158px;
+  max-height: 72px;
+}
+
+@media print {
+  .proposal-document.pa-document.pa-document--next-year {
+    padding-top: 17mm !important;
+    min-height: 0 !important;
+  }
+  .proposal-document.pa-document--next-year .pa-doc-address.pa-to-block {
+    margin-bottom: 2mm !important;
+  }
+  .proposal-document.pa-document--next-year .pa-section-heading,
+  .proposal-document.pa-document--next-year .pa-section h3,
+  .proposal-document.pa-document--next-year .pa-costs-intro-heading {
+    border: 0 !important;
+    border-bottom: none !important;
+    text-decoration: none !important;
+    padding-bottom: 0 !important;
+    box-shadow: none !important;
+  }
+  .proposal-document.pa-document--next-year .pa-next-year-cancellation-terms .pa-section-body {
+    font-size: 10.75px !important;
+    line-height: 1.4 !important;
+  }
+  .proposal-document.pa-document--next-year .pa-item-details-table.pa-next-year-course-table {
+    font-size: 11.5px !important;
+  }
+  .proposal-document.pa-document--next-year .pa-item-details-table.pa-next-year-course-table th,
+  .proposal-document.pa-document--next-year .pa-item-details-table.pa-next-year-course-table td {
+    padding: 3px 5px !important;
+  }
+  .proposal-document.pa-document--next-year .pa-section,
+  .proposal-document.pa-document--next-year .pa-cost-section,
+  .proposal-document.pa-document--next-year .pa-cost-table-block {
+    break-inside: auto !important;
+    page-break-inside: auto !important;
+  }
+  .proposal-document.pa-document--next-year .pa-footer-signature {
+    break-inside: avoid !important;
+    page-break-inside: avoid !important;
+    break-before: auto !important;
+    page-break-before: auto !important;
+    margin-top: 10px !important;
+  }
+  .proposal-document.pa-document--next-year .pa-signer-block {
+    margin-top: 8px !important;
+  }
+  .proposal-document.pa-document--next-year .pa-footer-signature .pa-blessing {
+    margin-bottom: 6px !important;
+  }
+  .proposal-document.pa-document--next-year .pa-footer-signature .pa-signature-image {
+    max-width: 158px !important;
+    max-height: 72px !important;
+  }
+}
+
+/* Taasiyeda org intro: centered in print/PDF only (all proposal types). */
+@media print {
+  .proposal-document .pa-org-intro,
+  .proposal-document .pa-org-intro p {
+    text-align: center !important;
+  }
+}
+
+/* Proposal currency amounts: number before ₪, stable in RTL preview/print. */
+.proposal-document .pa-currency-amount,
+.proposal-document .money-amount {
+  direction: ltr;
+  unicode-bidi: isolate;
+  display: inline-block;
+  white-space: nowrap;
+  text-align: left;
+}
+.proposal-document .pa-cost-table td:has(.pa-currency-amount),
+.proposal-document .pa-item-details-table td:has(.pa-currency-amount),
+.proposal-document .pa-activities-table td:has(.pa-currency-amount) {
+  direction: ltr;
+  unicode-bidi: isolate;
+  text-align: left;
+}
+@media print {
+  .proposal-document .pa-currency-amount,
+  .proposal-document .money-amount {
+    direction: ltr !important;
+    unicode-bidi: isolate !important;
+    display: inline-block !important;
+    white-space: nowrap !important;
+    text-align: left !important;
+  }
+  .proposal-document .pa-cost-table td:has(.pa-currency-amount),
+  .proposal-document .pa-item-details-table td:has(.pa-currency-amount),
+  .proposal-document .pa-activities-table td:has(.pa-currency-amount) {
+    direction: ltr !important;
+    unicode-bidi: isolate !important;
+    text-align: left !important;
+  }
 }

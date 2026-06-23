@@ -751,7 +751,8 @@ function currencyAmountHtml(num) {
   const value = Number(num);
   const formatted = formatCurrency(Math.abs(value));
   const prefix = value < 0 ? '-' : '';
-  return `<span class="pa-currency-amount" dir="ltr">${escapeHtml(`${prefix}${formatted}`)}\u00a0₪</span>`;
+  const display = `${prefix}${formatted}\u00a0₪`;
+  return `<span class="pa-currency-amount money-amount" dir="ltr">${escapeHtml(display)}</span>`;
 }
 
 function sortRows(rows) {
@@ -1302,7 +1303,6 @@ function itemRowHtml(item = {}, idx = 0, pricingOptions = [], options = {}) {
   const selectedName = text(item.item_name) || 'בחרו פעילות';
   const selectedType = text(proposalField(item, 'item_type', 'itemType'));
   const typeBadgeHtml = selectedType ? `<span class="ds-pa-item-type-badge" style="font-size:0.72rem;border:1px solid #e5e7eb;border-radius:999px;padding:1px 6px;color:#64748b;background:#f8fafc">${escapeHtml(selectedType)}</span>` : '';
-  const activitySelectLabel = isSummerRow ? 'בחר פעילות מהרשימה' : 'בחירת פעילות / קורס';
   const meetingsHoursFieldsHtml = isSummerRow
     ? `<input type="hidden" name="meetings_count" value="${n(item.meetings_count)}">
     <input type="hidden" name="hours_count" value="${n(item.hours_count)}">`
@@ -1310,7 +1310,7 @@ function itemRowHtml(item = {}, idx = 0, pricingOptions = [], options = {}) {
           <label class="ds-pa-item-field"><span>שעות</span><input class="ds-input ds-input--sm" type="number" name="hours_count" value="${n(item.hours_count)}" min="0" step="0.5" placeholder="—"></label>`;
   return `<article class="ds-pa-item-card ds-pa-item-row${isSummerRow ? ' ds-pa-item-row--summer' : ''}" data-pa-item-row data-pa-item-idx="${idx}" data-pa-row-group="${escapeHtml(contextGroup)}"${isSummerRow ? ' data-pa-summer-row' : ''}>
     <div class="ds-pa-item-quick-row" style="display:grid;grid-template-columns:minmax(0,1fr) 96px;gap:8px;align-items:end">
-      <label class="ds-pa-item-field ds-pa-item-field--select"><span>${activitySelectLabel}</span><select class="ds-input ds-input--sm" name="pricing_activity_name" data-pa-pricing-select>${pricingSelectOptionsHtml}</select></label>
+      <label class="ds-pa-item-field ds-pa-item-field--select ds-pa-item-field--select-no-label"><select class="ds-input ds-input--sm" name="pricing_activity_name" data-pa-pricing-select>${pricingSelectOptionsHtml}</select></label>
       <label class="ds-pa-item-field ds-pa-item-field--qty"><span>כמות</span><input class="ds-input ds-input--sm" type="number" name="quantity" value="${n(item.quantity) || '1'}" min="0" step="any" data-pa-item-qty></label>
     </div>
     <div class="ds-pa-bundle-prompt" data-pa-bundle-prompt hidden></div>
@@ -1889,21 +1889,40 @@ function summerActivityProposalBody() {
   return 'ההצעה כוללת פעילויות מותאמות להפעלה בין התאריכים 1.7.26–30.7.26.\nכל פעילות נמשכת 45 דקות ומיועדת לקבוצה של עד 25 משתתפים.\nבסדנאות כל משתתף מכין תוצר אישי ולוקח אותו איתו בסיום הפעילות.';
 }
 
+const SUMMER_COST_TABLE_INTRO = 'פירוט הפעילויות והעלויות:';
+
+function stripTableIntroFromPaymentTermsBody(body, templateKey = '') {
+  const key = proposalGroupTemplateKey(templateKey) || normalizeProposalGroup(templateKey);
+  if (key !== 'summer' && key !== 'next_year') return body;
+  const raw = normalizeMultilineText(body);
+  if (!raw) return body;
+  const filtered = raw.split('\n').filter((line) => {
+    const cleaned = line.replace(/^\s*(?:-|•|·|)\s+/, '').trim();
+    if (!cleaned) return true;
+    if (/^להלן\s+פירוט\s+העלויות:?$/u.test(cleaned)) return false;
+    if (/^להלן\s+פירוט\s+הפעילויות\s+והעלויות:?$/u.test(cleaned)) return false;
+    if (/^פירוט\s+הפעילויות\s+והעלויות\s+מוצג/u.test(cleaned)) return false;
+    return true;
+  });
+  return filtered.join('\n').trim();
+}
+
 function costsIntroBody(row = {}, items = []) {
+  const templateKey = proposalGroupTemplateKey(row.activity_type_group);
   const groupText = groupKindText(row.activity_type_group);
   const visibleCount = (Array.isArray(items) ? items : []).filter((item) =>
     !isTestHoursItem(item) && text(item.proposal_display_mode) !== 'bundle_child' && text(item.item_name)
   ).length;
-  if (isNextYearProposalGroup(row.activity_type_group)) {
-    return 'להלן פירוט העלויות:';
+  if (templateKey === 'next_year' || isNextYearProposalGroup(row.activity_type_group)) {
+    return '';
+  }
+  if (templateKey === 'summer' || isSummerProposalGroup(row.activity_type_group)) {
+    return SUMMER_COST_TABLE_INTRO;
   }
   if (isCourseKindText(groupText)) {
     return visibleCount === 1
       ? 'להלן פירוט הקורס והעלות הכלולה בהצעה.'
       : 'להלן פירוט הקורסים והעלויות הכלולות בהצעה.';
-  }
-  if (isSummerProposalGroup(row.activity_type_group)) {
-    return 'פירוט הפעילויות והעלויות:';
   }
   return visibleCount ? 'פירוט הפעילויות והעלויות מוצג בטבלת העלויות שלהלן.' : '';
 }
@@ -1939,6 +1958,27 @@ function recipientBlockHtml(row = {}) {
     <p class="pa-label-to"><strong>לכבוד:</strong></p>
     ${lines.join('\n    ')}
   </div>`;
+}
+
+function proposalRecipientFileLabel(row = {}) {
+  const safeVal = (v) => { const s = text(v); return (s === 'undefined' || s === 'null') ? '' : s; };
+  return safeVal(row.school_framework)
+    || safeVal(row.school_name)
+    || safeVal(row.client_authority)
+    || safeVal(row.authority_name);
+}
+
+function sanitizeProposalPdfFileLabel(value = '') {
+  return String(value || '')
+    .replace(/[\\/:*?"<>|]/g, '_')
+    .replace(/[\u0000-\u001f]/g, '')
+    .replace(/\s+/g, ' ')
+    .trim();
+}
+
+function proposalPdfDocumentTitle(row = {}) {
+  const label = sanitizeProposalPdfFileLabel(proposalRecipientFileLabel(row));
+  return label ? `הצעת מחיר - ${label}` : 'הצעת מחיר';
 }
 
 function parseSectionBodyStructure(value, options = {}) {
@@ -2158,7 +2198,7 @@ function buildProposalDocumentHtml({ dateDisplay, documentTitle, row, introText,
       <div class="proposal-document-body">
         <div class="proposal-document-content">
           ${title ? `<h1 class="pa-doc-subject pa-doc-title">${escapeHtml(title)}</h1>` : ''}
-          ${introText ? sectionLines(introText, { className: 'pa-doc-intro pa-intro-text' }) : ''}
+          ${introText ? sectionLines(introText, { className: 'pa-doc-intro pa-intro-text pa-org-intro' }) : ''}
           ${sections.join('')}
           ${orgResponsibility}
           ${schoolResponsibility}
@@ -2257,7 +2297,7 @@ export function proposalPreviewBodyHtml(row, items = [], templateSections = [], 
 
   // Payment section: general terms text comes from Supabase, while the price
   // breakdown is always built dynamically from proposal_agreement_items.
-  const paymentTermsBody = sectionBody('payment_terms');
+  const paymentTermsBody = stripTableIntroFromPaymentTermsBody(sectionBody('payment_terms'), templateKey);
   const proposalKind = proposalActivityKind(row, items);
   const costTableHtml = proposalKind === 'course'
     ? proposalItemDetailsTableHtml(items, activityTypeGroup)
@@ -2696,11 +2736,6 @@ function formHtml(mode, row = {}, activityNameOptions = [], contactOptions = [],
   const initialPreviewHtml = proposalPreviewBodyHtml(initialPreviewRow, items, initialTemplateSections);
 
   return `<form class="ds-pa-form ds-pa-form--compact pa-editor" data-pa-form data-pa-mode="${escapeHtml(mode)}" data-pa-id="${escapeHtml(row.id || '')}" data-pa-original-type="${escapeHtml(normalizedActivityGroup)}" dir="rtl">
-    <div class="ds-pa-form-header">
-      <h3 class="ds-pa-form-title">${escapeHtml(title)}</h3>
-      <button type="button" class="ds-btn ds-btn--sm ds-btn--ghost" data-pa-cancel-form>ביטול</button>
-    </div>
-
     <div class="pa-editor-workspace">
       <aside class="pa-sidebar" aria-label="עריכת פרטי הצעת מחיר">
         <div class="pa-sidebar-heading">
@@ -3215,7 +3250,10 @@ export {
   filterTemplateSectionsForGroup,
   documentSectionsEditorHtml,
   itemsSummaryHtml,
-  extractItemsFromForm
+  extractItemsFromForm,
+  proposalPdfDocumentTitle,
+  sanitizeProposalPdfFileLabel,
+  proposalRecipientFileLabel
 };
 
 // ─── Screen ───────────────────────────────────────────────────────────────────
@@ -3240,8 +3278,8 @@ export const proposalsAgreementsScreen = {
       <section class="ds-pa-screen" data-pa-screen dir="rtl">
         <style>
           .ds-pa-screen-tab{border-radius:10px 10px 0 0;transition:background .15s,color .15s,border-color .15s}.ds-pa-screen-tab:hover{background:rgba(14,165,233,.08)}
-          .ds-pa-form{max-width:1080px;margin-inline:auto}.ds-pa-form .ds-pa-form-grid{max-width:100%}.ds-pa-item-card{border:1px solid #dbe7f3;border-radius:12px;background:#fff;padding:7px;margin:6px 0;box-shadow:0 1px 3px rgba(15,23,42,.04)}
-          .ds-pa-item-quick-row{display:grid;grid-template-columns:minmax(0,1fr) 96px;gap:8px;align-items:end}.ds-pa-item-extra{margin-top:6px}.ds-pa-item-extra-toggle{cursor:pointer;color:#2563eb;font-size:.78rem}.ds-pa-type-chips{grid-template-columns:repeat(3,minmax(0,1fr))}.ds-pa-type-card{min-height:28px!important;padding:3px 5px!important;font-size:.76rem!important}.ds-pa-summary-bar--compact{display:flex;align-items:center;gap:8px;justify-content:space-between}.ds-pa-summary-bar--compact .ds-pa-summary-pill{flex:1}.ds-pa-item-field--select select{overflow:hidden;text-overflow:ellipsis}.ds-pa-item-field span{display:block;font-size:.74rem;color:#64748b;margin-bottom:4px;font-weight:600}.ds-pa-line-total output{min-height:34px;display:flex;align-items:center;justify-content:center;border:1px solid #dbe7f3;border-radius:10px;background:#f8fbff;font-weight:700;color:#0f766e}.ds-pa-items-total-row{margin-top:10px;padding:10px 12px;border-radius:12px;background:#eef8ff;font-size:.9rem}.ds-pa-items-total-row strong{color:#0369a1}
+          .ds-pa-form{max-width:1080px;margin-inline:auto}.ds-pa-form .ds-pa-form-grid{max-width:100%}.ds-pa-item-card{border:1px solid #dbe7f3;border-radius:10px;background:#fff;padding:5px 8px;margin:3px 0;box-shadow:0 1px 3px rgba(15,23,42,.04)}
+          .ds-pa-item-quick-row{display:grid;grid-template-columns:minmax(0,1fr) 96px;gap:6px;align-items:end}.ds-pa-item-extra{margin-top:4px}.ds-pa-item-extra-toggle{cursor:pointer;color:#2563eb;font-size:.78rem}.ds-pa-type-chips{grid-template-columns:repeat(3,minmax(0,1fr))}.ds-pa-type-card{min-height:28px!important;padding:3px 5px!important;font-size:.76rem!important}.ds-pa-summary-bar--compact{display:flex;align-items:center;gap:8px;justify-content:space-between}.ds-pa-summary-bar--compact .ds-pa-summary-pill{flex:1}.ds-pa-item-field--select select{overflow:hidden;text-overflow:ellipsis}.ds-pa-item-field--select-no-label{gap:0}.ds-pa-item-field span{display:block;font-size:.74rem;color:#64748b;margin-bottom:3px;font-weight:600}.ds-pa-line-total output{min-height:34px;display:flex;align-items:center;justify-content:center;border:1px solid #dbe7f3;border-radius:10px;background:#f8fbff;font-weight:700;color:#0f766e}.ds-pa-items-total-row{margin-top:10px;padding:10px 12px;border-radius:12px;background:#eef8ff;font-size:.9rem}.ds-pa-items-total-row strong{color:#0369a1}
           .ds-pa-bundle-prompt{margin-top:12px}.ds-pa-bundle-panel{border:1px solid #b7e0f5;background:#f8fdff;border-radius:14px;padding:12px}.ds-pa-bundle-head{display:flex;justify-content:space-between;gap:10px;align-items:center;margin-bottom:6px}.ds-pa-bundle-head strong{font-size:.9rem;color:#0f172a}.ds-pa-bundle-head span,.ds-pa-bundle-help,.ds-pa-bundle-empty{font-size:.78rem;color:#64748b}.ds-pa-bundle-grid{display:grid;grid-template-columns:repeat(auto-fit,minmax(220px,1fr));gap:8px;margin-top:10px}.ds-pa-bundle-child-card{display:grid;grid-template-columns:auto 1fr auto;align-items:center;gap:8px;border:1px solid #dbe7f3;border-radius:12px;background:#fff;padding:9px 10px;cursor:pointer;min-height:42px}.ds-pa-bundle-child-card:hover{border-color:#38bdf8;background:#f0f9ff}.ds-pa-bundle-child-card:has(input:checked){border-color:#0ea5e9;background:#e0f2fe;box-shadow:0 0 0 1px #0ea5e9 inset}.ds-pa-bundle-child-name{font-size:.82rem;color:#0f172a;line-height:1.25}.ds-pa-bundle-child-price{font-size:.8rem;font-weight:700;color:#0f766e;white-space:nowrap}.ds-pa-bundle-footer{display:flex;justify-content:space-between;align-items:center;gap:10px;margin-top:10px;flex-wrap:wrap}.ds-pa-bundle-actions{display:flex;gap:6px}.ds-pa-bundle-selection-summary{font-size:.78rem;color:#0369a1;font-weight:700}.ds-pa-summary-bundle-list{margin:4px 0 0;padding-right:16px;font-size:.72rem}.ds-pa-items-summary-table{width:100%;border-collapse:collapse;font-size:.78rem}.ds-pa-items-summary-table th,.ds-pa-items-summary-table td{border-bottom:1px solid #e5eef6;padding:6px;text-align:right}.ds-pa-items-summary-table th{color:#64748b;font-weight:700;background:#f8fbff}
           @media (max-width:900px){.ds-pa-bundle-grid{grid-template-columns:1fr}}@media (max-width:640px){.ds-pa-type-chips{grid-template-columns:repeat(2,minmax(0,1fr))}.ds-pa-item-quick-row{grid-template-columns:1fr}}
         </style>
@@ -4155,13 +4193,20 @@ export const proposalsAgreementsScreen = {
         </div>`;
       document.body.appendChild(overlay);
       document.body.classList.add('is-print-preview');
+      const previousDocumentTitle = document.title;
+      document.title = proposalPdfDocumentTitle(freshRow);
       const readSignatureMeta = () => defaultSignatureMeta();
       if (options.form) options.form.dataset.paPreviewSeen = 'yes';
       const printButton = overlay.querySelector('#pa-print-btn');
       printButton?.addEventListener('click', () => {
+        document.title = proposalPdfDocumentTitle(freshRow);
         window.print();
       });
-      const closeOverlay = () => { overlay.remove(); document.body.classList.remove('is-print-preview'); };
+      const closeOverlay = () => {
+        overlay.remove();
+        document.body.classList.remove('is-print-preview');
+        document.title = previousDocumentTitle;
+      };
       overlay.querySelector('#pa-preview-close')?.addEventListener('click', closeOverlay);
       overlay.querySelector('#pa-signature-cancel')?.addEventListener('click', closeOverlay);
       overlay.querySelector('#pa-signature-confirm')?.addEventListener('click', () => options.onSignatureConfirm?.(readSignatureMeta(), closeOverlay));
