@@ -2131,6 +2131,13 @@ function buildProposalDocumentHtml({ dateDisplay, documentTitle, row, introText,
   const documentModifierClass = isNextYearProposalGroup(row?.activity_type_group) ? ' pa-document--next-year' : '';
   return `
     <div class="proposal-document pa-document pa-a4-page${documentModifierClass}" dir="rtl">
+      <img
+        src="${PUBLIC_BASE}proposals/proposal-header-logo.png"
+        alt=""
+        class="pa-print-fixed-logo"
+        aria-hidden="true"
+        onerror="this.style.display='none';"
+      >
       <div class="proposal-document-header pa-page-header">
         <div class="proposal-header-brand pa-logo-area">
           <img

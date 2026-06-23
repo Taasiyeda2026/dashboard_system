@@ -1,0 +1,267 @@
+לתקן רגרסיה נקודתית בהדפסה / Save as PDF של הצעות מחיר.
+
+הבעיה:
+בתצוגת Print / Save as PDF בלבד, החלק העליון של ההצעה נשבר:
+
+* הלוגו קטן מדי וממוקם לא נכון.
+* בלוק “לכבוד” מופיע בצורה לא תקינה.
+* הלוגו ו”לכבוד” מתנהגים כאילו נדבקו או נדחקו לאזור העליון.
+* זה קרה בעקבות שינוי קודם שבו ניסית להפוך את הלוגו / header לקבוע בהדפסה.
+
+חשוב:
+לא לשנות תוכן.
+לא לשנות טבלאות.
+לא לשנות מחירים.
+לא לשנות חישובים.
+לא לשנות Supabase.
+לא לשנות סטטוסים.
+לא לשנות שמירה.
+לא לבצע refactor.
+לא לשנות את חלון העריכה בצד.
+לטפל רק בלוגו ובלוק “לכבוד” בהדפסה / PDF.
+
+## אבחון מדויק
+
+ב־buildProposalDocumentHtml המבנה כרגע הוא:
+
+1. `proposal-document-header pa-page-header`
+   שבתוכו נמצא רק הלוגו.
+
+2. מיד אחריו:
+   `recipientBlockHtml(row)`
+   שמייצר את בלוק “לכבוד”.
+
+כלומר “לכבוד” אינו חלק מה־header. הוא בלוק נפרד:
+`pa-doc-address pa-to-block`.
+
+לכן אם הופכים את:
+`pa-page-header`
+או
+`proposal-document-header`
+
+ל־`position: fixed` בהדפסה, הוא יוצא מהזרימה הרגילה, ואז בלוק “לכבוד” מטפס למעלה ונראה שבור.
+
+## פתרון נדרש
+
+לא להשתמש ב־header הרגיל כ־fixed בצורה שמשנה את הזרימה של “לכבוד”.
+
+במקום זה:
+
+### 1. להשאיר את בלוק “לכבוד” בזרימת המסמך
+
+בלוק:
+`pa-doc-address pa-to-block`
+
+חייב להישאר חלק מהתוכן הרגיל של העמוד הראשון.
+
+לא להפוך אותו ל־fixed.
+לא למקם אותו absolute.
+לא להכניס אותו לתוך header fixed.
+לא לגרום לו להופיע בכל עמוד.
+
+בהדפסה הוא צריך להישאר:
+
+* בצד ימין העליון של תוכן העמוד
+* מתחת לאזור הלוגו
+* עם ריווח נקי
+* לא דבוק ללוגו
+* לא חתוך
+* לא מטפס למעלה
+
+### 2. הלוגו בהדפסה בלבד
+
+אם רוצים שהלוגו יחזור בכל עמוד בהדפסה, לא להשתמש ב־header הרגיל שמוציא את “לכבוד” מהזרימה.
+
+הפתרון המועדף:
+להוסיף אלמנט לוגו נפרד להדפסה בלבד, למשל:
+
+```html
+<img
+  src="${PUBLIC_BASE}proposals/proposal-header-logo.png"
+  alt=""
+  class="pa-print-fixed-logo"
+  aria-hidden="true"
+>
+```
+
+להוסיף אותו בתוך `buildProposalDocumentHtml`, אבל לא במקום הלוגו הרגיל.
+
+הלוגו הרגיל:
+`proposal-document-header / proposal-logo`
+יישאר עבור Preview רגיל.
+
+הלוגו החדש:
+`pa-print-fixed-logo`
+יופיע רק בהדפסה.
+
+### 3. CSS נדרש
+
+להוסיף / לתקן CSS כך:
+
+```css
+/* במסך רגיל: לוגו ההדפסה מוסתר */
+.pa-print-fixed-logo {
+  display: none;
+}
+
+@media print {
+  @page {
+    size: A4;
+    margin: 30mm 12mm 22mm 12mm;
+  }
+
+  /* לא לתת למסמך עצמו לשנות scale או להידחס */
+  .proposal-document.pa-a4-page {
+    width: auto !important;
+    min-height: auto !important;
+    height: auto !important;
+    margin: 0 !important;
+    padding: 0 !important;
+    box-shadow: none !important;
+    background: #fff !important;
+    position: static !important;
+    display: block !important;
+    transform: none !important;
+    zoom: 1 !important;
+  }
+
+  /* להסתיר את ההדר הרגיל רק בהדפסה, כדי שלא תהיה כפילות לוגו */
+  .proposal-document-header.pa-page-header {
+    display: none !important;
+  }
+
+  /* לוגו קבוע להדפסה בלבד */
+  .pa-print-fixed-logo {
+    display: block !important;
+    position: fixed !important;
+    top: 8mm;
+    left: 12mm;
+    right: auto;
+    width: 34mm;
+    max-height: 14mm;
+    object-fit: contain;
+    z-index: 9999;
+  }
+
+  /* בלוק לכבוד נשאר בזרימה רגילה */
+  .pa-doc-address.pa-to-block {
+    position: static !important;
+    width: 58mm;
+    max-width: 58mm;
+    margin-right: 0 !important;
+    margin-left: auto !important;
+    margin-top: 0 !important;
+    margin-bottom: 4mm !important;
+    text-align: right !important;
+    line-height: 1.25;
+  }
+
+  .pa-doc-address.pa-to-block p {
+    margin: 0 0 1mm 0 !important;
+    padding: 0 !important;
+  }
+
+  .pa-doc-address .pa-label-to {
+    margin: 0 0 1mm 0 !important;
+  }
+
+  .pa-doc-divider.pa-divider {
+    margin: 3mm 0 2mm 0 !important;
+  }
+
+  .pa-doc-date.pa-date-area {
+    margin: 0 0 3mm 0 !important;
+  }
+
+  .proposal-document-body,
+  .proposal-document-content {
+    overflow: visible !important;
+  }
+}
+```
+
+## מה להסיר / לבדוק
+
+לחפש ולהסיר כל כלל שגורם לבעיה:
+
+```bash
+rg -n "proposal-document-header|pa-page-header|proposal-logo|pa-print-fixed-logo|pa-doc-address|pa-to-block|position: fixed|@media print" frontend/src/screens/proposals-agreements.js frontend/src/styles/main.css
+```
+
+במיוחד לבדוק:
+
+* אם `pa-page-header` קיבל `position: fixed` — לא להשתמש בו כך.
+* אם `proposal-document-header` קיבל `position: fixed` — להסיר או להחליף בשיטת `pa-print-fixed-logo`.
+* אם `proposal-logo` הוקטן גלובלית — להחזיר.
+* אם יש CSS מחוץ ל־`@media print` שמשפיע על הלוגו — לא לגעת בתצוגה הרגילה.
+* אם יש `transform`, `zoom`, או `scale` בהדפסה — להסיר כדי שהמסמך לא יתעוות.
+
+## כלל מחייב
+
+Preview רגיל:
+
+* להשתמש בלוגו הרגיל.
+* לא לשנות את החלק העליון.
+* לא להפעיל `pa-print-fixed-logo`.
+
+Print / Save as PDF:
+
+* להסתיר את ההדר הרגיל כדי שלא תהיה כפילות.
+* להציג `pa-print-fixed-logo` קבוע בראש העמוד.
+* להשאיר את “לכבוד” בזרימה הרגילה, מתחת לאזור הלוגו.
+* לשמור מספיק `@page margin-top` כדי שהתוכן לא יעלה על הלוגו.
+
+## בדיקות חובה
+
+לא לסכם שהמשימה בוצעה בלי לבדוק בפועל.
+
+לבדוק:
+
+1. הצעת מחיר מסוג שנה הבאה.
+2. הצעת מחיר מסוג פעילויות קיץ.
+3. Preview רגיל במסך.
+4. Print Preview.
+5. Save as PDF.
+6. לוודא שהלוגו ב־Preview רגיל לא השתנה.
+7. לוודא שבהדפסה הלוגו מופיע בחלק העליון, בגודל סביר, בצד שמאל.
+8. לוודא שבלוק “לכבוד” מופיע בצד ימין, מסודר, לא דבוק ללוגו ולא חתוך.
+9. לוודא שהקו שמתחת ל”לכבוד” / הדיביידר לא נדחף למקום לא נכון.
+10. לוודא שבעמוד שני הלוגו מופיע שוב אם זה נדרש.
+11. לוודא שבעמוד שני לא מופיע “לכבוד” שוב.
+12. לוודא שהתוכן לא עולה על הלוגו.
+13. לוודא שהפוטר לא נפגע.
+14. לוודא שאין שינוי בטבלאות או בתוכן.
+
+## בדיקות טכניות
+
+להריץ:
+
+```bash
+node --check frontend/src/screens/proposals-agreements.js
+```
+
+אם שונה קובץ JS נוסף, להריץ `node --check` גם עליו.
+
+אם שונה frontend:
+
+* לעדכן SW/CACHE לפי הנהוג בריפו.
+* לבנות dist לפי הנהוג בריפו.
+
+לא להריץ:
+
+```bash
+npm run test:all:legacy
+```
+
+## בסיום להחזיר
+
+* מה גרם ללוגו ול־“לכבוד” להישבר בהדפסה.
+* האם `pa-page-header` כבר לא משמש כ־fixed שמוציא את “לכבוד” מהזרימה.
+* האם נוסף `pa-print-fixed-logo`.
+* מה גודל הלוגו בהדפסה.
+* מה `@page margin-top`.
+* האם “לכבוד” נשאר בזרימה רגילה.
+* האם נבדק Save as PDF בפועל.
+* האם נבדק מסמך של שני עמודים.
+* האם עודכן SW/CACHE.
+* אילו בדיקות הורצו.

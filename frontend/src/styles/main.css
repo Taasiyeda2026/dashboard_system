@@ -16709,6 +16709,10 @@ details[open] > .ds-fin-acc__summary::before { transform: rotate(90deg); }
   max-width: none;
   width: 100%;
 }
+.pa-print-fixed-logo {
+  display: none;
+}
+
 .pa-page-header {
   display: block !important;
   min-height: 0 !important;
@@ -17394,11 +17398,11 @@ details[open] > .ds-fin-acc__summary::before { transform: rotate(90deg); }
   }
 }
 
-/* Proposal print fixed page chrome: repeat logo/header and footer on each printed A4 page. */
+/* Proposal print fixed page chrome: repeat logo via pa-print-fixed-logo on each printed A4 page. */
 @media print {
   @page {
     size: A4 portrait;
-    margin: 22mm 12mm 22mm 12mm;
+    margin: 30mm 12mm 22mm 12mm;
   }
 
   .proposal-document.pa-a4-page,
@@ -17429,8 +17433,41 @@ details[open] > .ds-fin-acc__summary::before { transform: rotate(90deg); }
     overflow: visible !important;
   }
 
-  .pa-page-header,
-  .proposal-document-header {
+  /* Hide the regular proposal header — pa-print-fixed-logo takes over in print */
+  .proposal-document .proposal-document-header.pa-page-header {
+    display: none !important;
+  }
+
+  /* Fixed print-only logo — replaces the header, appears on every printed page */
+  .pa-print-fixed-logo {
+    display: block !important;
+    position: fixed !important;
+    top: 8mm !important;
+    left: 12mm !important;
+    right: auto !important;
+    width: auto !important;
+    max-width: 34mm !important;
+    max-height: 14mm !important;
+    height: auto !important;
+    object-fit: contain !important;
+    z-index: 9999 !important;
+  }
+
+  /* "לכבוד" block stays in normal document flow — never fixed/absolute */
+  .pa-doc-address.pa-to-block {
+    position: static !important;
+    width: 58mm !important;
+    max-width: 58mm !important;
+    margin-right: 0 !important;
+    margin-left: auto !important;
+    margin-top: 0 !important;
+    margin-bottom: 4mm !important;
+    text-align: right !important;
+    line-height: 1.25 !important;
+  }
+
+  /* pa-page-header for non-proposal screens keeps fixed treatment */
+  .pa-page-header:not(.proposal-document-header) {
     position: fixed !important;
     top: 6mm !important;
     right: 12mm !important;
@@ -17450,9 +17487,7 @@ details[open] > .ds-fin-acc__summary::before { transform: rotate(90deg); }
     text-align: left !important;
   }
 
-  .pa-page-header img,
-  .proposal-document-header img,
-  .proposal-logo,
+  .pa-page-header:not(.proposal-document-header) img,
   .pa-logo {
     height: auto !important;
     max-height: 10mm !important;
