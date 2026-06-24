@@ -16901,7 +16901,7 @@ details[open] > .ds-fin-acc__summary::before { transform: rotate(90deg); }
   text-align: center;
 }
 .pa-signer-block {
-  margin-top: 4.4em;
+  margin-top: 0.5em;
   display: inline-flex;
   flex-direction: column;
   align-items: stretch;
@@ -16930,7 +16930,7 @@ details[open] > .ds-fin-acc__summary::before { transform: rotate(90deg); }
   max-width: 175px;
   max-height: 80px;
   object-fit: contain;
-  margin: 0 0 6px;
+  margin: 0 0 2px;
 }
 .pa-page-footer {
   margin-top: auto;
@@ -17155,7 +17155,7 @@ details[open] > .ds-fin-acc__summary::before { transform: rotate(90deg); }
     page-break-inside: avoid !important;
     break-before: avoid !important;
   }
-  .pa-signer-block { margin-top: 2.4em !important; }
+  .pa-signer-block { margin-top: 0.5em !important; }
   .pa-page-footer {
     margin-top: 18px !important;
     position: static !important;
@@ -17718,7 +17718,7 @@ details[open] > .ds-fin-acc__summary::before { transform: rotate(90deg); }
   padding: 2px 10px !important;
 }
 .proposal-document.pa-document--next-year .pa-signer-block {
-  margin-top: 2.5em;
+  margin-top: 0.5em;
 }
 .proposal-document.pa-document--next-year .pa-footer-signature .pa-signature-image {
   max-width: 195px;
@@ -17767,7 +17767,7 @@ details[open] > .ds-fin-acc__summary::before { transform: rotate(90deg); }
     margin-top: 10px !important;
   }
   .proposal-document.pa-document--next-year .pa-signer-block {
-    margin-top: 2.4em !important;
+    margin-top: 0.5em !important;
   }
   .proposal-document.pa-document--next-year .pa-footer-signature .pa-blessing {
     margin-bottom: 6px !important;
