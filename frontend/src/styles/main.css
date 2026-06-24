@@ -16897,7 +16897,7 @@ details[open] > .ds-fin-acc__summary::before { transform: rotate(90deg); }
 }
 .pa-footer-signature .pa-blessing {
   font-size: 12.5px;
-  margin-bottom: 10px;
+  margin-bottom: 3px;
   text-align: center;
 }
 .pa-signer-block {
@@ -17770,7 +17770,7 @@ details[open] > .ds-fin-acc__summary::before { transform: rotate(90deg); }
     margin-top: 0.5em !important;
   }
   .proposal-document.pa-document--next-year .pa-footer-signature .pa-blessing {
-    margin-bottom: 6px !important;
+    margin-bottom: 3px !important;
   }
   .proposal-document.pa-document--next-year .pa-footer-signature .pa-signature-image {
     max-width: 195px !important;
