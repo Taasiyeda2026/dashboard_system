@@ -1,7 +1,7 @@
 import { supabase } from './supabase-client.js';
 
-export const AUTH_USER_PUBLIC_COLUMNS = 'user_id,email,name,full_name,role,display_role,emp_id,is_active,permissions';
-export const AUTH_USER_PUBLIC_COLUMNS_EXTENDED = `${AUTH_USER_PUBLIC_COLUMNS},display_role_label,display_role2,auth_user_id,can_review_requests,view_proposals_agreements,manage_proposals_agreements,approve_proposals_agreements`;
+export const AUTH_USER_PUBLIC_COLUMNS = 'user_id,username,email,name,full_name,role,display_role,emp_id,is_active,permissions';
+export const AUTH_USER_PUBLIC_COLUMNS_EXTENDED = `${AUTH_USER_PUBLIC_COLUMNS},auth_user_id,can_review_requests,view_proposals_agreements,manage_proposals_agreements,approve_proposals_agreements`;
 
 function lookupLog(event, payload = {}) {
   try {
@@ -80,27 +80,29 @@ function buildLookupAttempts(options = {}, columns = '') {
   }
 
   if (loginMode) {
-    if (authEmail) attempts.push({ matchedBy: 'email', filters: [['email', authEmail]] });
+    if (canUseAuthUserId && authUserId) {
+      attempts.push({ matchedBy: 'auth_user_id', filters: [['auth_user_id', authUserId]] });
+    }
     if (username) {
+      attempts.push({ matchedBy: 'username', filters: [['username', username]] });
       attempts.push({ matchedBy: 'user_id', filters: [['user_id', username]] });
       attempts.push({ matchedBy: 'emp_id', filters: [['emp_id', username]] });
     }
-    if (canUseAuthUserId && authUserId) {
-      attempts.push({ matchedBy: 'auth_user_id', filters: [['auth_user_id', authUserId]] });
-      if (username) {
-        attempts.push({ matchedBy: 'auth_user_id+user_id', filters: [['auth_user_id', authUserId], ['user_id', username]] });
-      }
+    if (authEmail) attempts.push({ matchedBy: 'email', filters: [['email', authEmail]] });
+    if (canUseAuthUserId && authUserId && username) {
+      attempts.push({ matchedBy: 'auth_user_id+username', filters: [['auth_user_id', authUserId], ['username', username]] });
     }
     return attempts;
   }
 
-  if (canUseAuthUserId && authUserId && username) {
-    attempts.push({ matchedBy: 'auth_user_id+user_id', filters: [['auth_user_id', authUserId], ['user_id', username]] });
-  }
   if (canUseAuthUserId && authUserId) {
     attempts.push({ matchedBy: 'auth_user_id', filters: [['auth_user_id', authUserId]] });
   }
+  if (canUseAuthUserId && authUserId && username) {
+    attempts.push({ matchedBy: 'auth_user_id+username', filters: [['auth_user_id', authUserId], ['username', username]] });
+  }
   if (username) {
+    attempts.push({ matchedBy: 'username', filters: [['username', username]] });
     attempts.push({ matchedBy: 'user_id', filters: [['user_id', username]] });
     attempts.push({ matchedBy: 'emp_id', filters: [['emp_id', username]] });
   }

@@ -531,15 +531,52 @@ function buildInternalAuthEmail(employeeCode) {
   return code.includes('@') ? code : `${code}@think.org.il`;
 }
 
+function isNumericLoginIdentifier(value) {
+  return /^\d+$/.test(String(value || '').trim());
+}
+
+function emailLocalPart(email) {
+  const normalized = String(email || '').trim();
+  if (!normalized.includes('@')) return '';
+  return normalized.split('@')[0].trim();
+}
+
 function personalReportsLoginIdentifier(user) {
-  return String(user?.username || user?.email || user?.work_email || user?.user_id || user?.emp_id || user?.employee_id || '').trim();
+  const username = String(user?.username || '').trim();
+  const userId = String(user?.user_id || '').trim();
+  if (username && username.toLowerCase() !== userId.toLowerCase()) return username;
+  if (username && !isNumericLoginIdentifier(username)) return username;
+
+  for (const emailField of [user?.email, user?.work_email, user?.auth_email]) {
+    const local = emailLocalPart(emailField);
+    if (local && !isNumericLoginIdentifier(local)) return local;
+  }
+
+  const empId = String(user?.emp_id || user?.employee_id || '').trim();
+  if (empId && empId.toLowerCase() !== userId.toLowerCase() && !isNumericLoginIdentifier(empId)) return empId;
+
+  return username || '';
+}
+
+function dashboardAuthUserId(user) {
+  return String(user?.auth_user_id || user?.personal_reports_user_id || user?.supabase_user_id || '').trim();
 }
 
 function sameDashboardUser(userRow, dashboardUser) {
-  const expected = [dashboardUser?.user_id, dashboardUser?.username, dashboardUser?.email, dashboardUser?.work_email, dashboardUser?.emp_id, dashboardUser?.employee_id]
+  if (!userRow || !dashboardUser) return false;
+
+  const rowAuthId = String(userRow.auth_user_id || '').trim();
+  const dashAuthId = dashboardAuthUserId(dashboardUser);
+  if (rowAuthId && dashAuthId && rowAuthId === dashAuthId) return true;
+
+  const rowUsername = String(userRow.username || '').trim().toLowerCase();
+  const dashUsername = String(dashboardUser.username || '').trim().toLowerCase();
+  if (rowUsername && dashUsername && rowUsername === dashUsername) return true;
+
+  const expected = [dashboardUser.username, dashboardUser.email, dashboardUser.work_email, dashboardUser.emp_id, dashboardUser.employee_id]
     .map((value) => String(value || '').trim().toLowerCase())
     .filter(Boolean);
-  const actual = [userRow?.user_id, userRow?.email, userRow?.emp_id]
+  const actual = [userRow.username, userRow.email, userRow.emp_id]
     .map((value) => String(value || '').trim().toLowerCase())
     .filter(Boolean);
   if (!expected.length || !actual.length) return false;
@@ -894,10 +931,12 @@ async function authenticateInternalEmployee(dashboardUser, accessCode) {
   const username = login.toLowerCase();
   const { userRow } = await resolveActiveUserRowAfterAuth({
     supabase,
-    columns: 'user_id,email,name,role,emp_id,is_active',
+    columns: 'user_id,username,email,name,role,emp_id,is_active,auth_user_id',
     authEmail,
     username,
-    authUserId
+    authUserId,
+    loginMode: true,
+    requireAuthUserMatch: true
   });
 
   if (!userRow || !sameDashboardUser(userRow, user)) {

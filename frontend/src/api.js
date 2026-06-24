@@ -3276,8 +3276,8 @@ async function readProposalsAgreementsFromSupabase() {
   };
 }
 
-const USER_PUBLIC_COLUMNS = 'user_id,email,name,full_name,role,display_role,emp_id,is_active,permissions';
-const USER_PUBLIC_COLUMNS_EXTENDED = `${USER_PUBLIC_COLUMNS},display_role_label,display_role2,auth_user_id,can_review_requests,view_proposals_agreements,manage_proposals_agreements,approve_proposals_agreements`;
+const USER_PUBLIC_COLUMNS = 'user_id,username,email,name,full_name,role,display_role,emp_id,is_active,permissions';
+const USER_PUBLIC_COLUMNS_EXTENDED = `${USER_PUBLIC_COLUMNS},auth_user_id,can_review_requests,view_proposals_agreements,manage_proposals_agreements,approve_proposals_agreements`;
 const PROFILE_PERSONAL_REPORTS_COLUMNS = 'id,is_active,can_access_personal_reports';
 const VALID_SUPABASE_ROLES = new Set(['admin', 'operation_manager', 'authorized_user', 'instructor', 'finance', 'activities_manager', 'domain_manager', 'instructor_manager', 'business_development_manager']);
 
@@ -3436,7 +3436,7 @@ function flattenUserRow(userRow = {}) {
   const displayRole2 = String(userRow.display_role2 || permissions.display_role2 || '').trim();
   const flat = {
     user_id: String(userRow.user_id || ''),
-    username: String(userRow.username || userRow.user_id || '').trim().toLowerCase(),
+    username: String(userRow.username || '').trim().toLowerCase() || String(userRow.user_id || '').trim().toLowerCase(),
     email: String(userRow.email || '').trim(),
     auth_email: String(userRow.auth_email || '').trim(),
     name: String(userRow.name || '').trim(),
@@ -3535,6 +3535,7 @@ function buildBootstrapFromUser(userRow, profileRow = null) {
     profile_is_active: profileRow?.is_active !== false,
     profile: {
       full_name: flat.full_name,
+      username: flat.username,
       display_role2: flat.display_role2 || '',
       display_role_label: flat.display_role_label || hebrewRole(role)
     },
@@ -3680,12 +3681,14 @@ async function readCurrentUserBySession() {
   if (!session?.user?.id) throw new Error('unauthorized');
   const authUserId = session.user.id;
   const sessionUserId = String(state?.user?.user_id || '').trim();
-  if (!sessionUserId) throw new Error('unauthorized');
+  const sessionUsername = String(state?.user?.username || '').trim();
+  if (!sessionUserId && !sessionUsername) throw new Error('unauthorized');
   const { userRow } = await resolveActiveUserRowAfterAuth({
     supabase,
     baseColumns: USER_PUBLIC_COLUMNS,
     extendedColumns: USER_PUBLIC_COLUMNS_EXTENDED,
     sessionUserId,
+    username: sessionUsername,
     authUserId,
     requireAuthUserMatch: true
   });

@@ -108,9 +108,12 @@ test('USER_PUBLIC_COLUMNS selects granted users table fields only', async () => 
   const columns = match[1].split(',');
   assert.deepEqual(columns, [
     'user_id',
+    'username',
     'email',
     'name',
+    'full_name',
     'role',
+    'display_role',
     'emp_id',
     'is_active',
     'permissions'
@@ -127,15 +130,18 @@ test('auth user resolver supports login diagnostics and auth mismatch checks', a
   assert.match(source, /\[auth-user-resolve\]/);
 });
 
-test('auth user resolver tries email before auth_user_id in login mode', async () => {
+test('auth user resolver prioritizes auth_user_id and username in login mode', async () => {
   const source = await readFile(RESOLVE_FILE, 'utf8');
   const loginBlock = source.match(/if \(loginMode\) \{[\s\S]*?return attempts;/);
   assert.ok(loginBlock, 'loginMode attempt block should exist');
-  const emailIndex = loginBlock[0].indexOf("matchedBy: 'email'");
   const authIndex = loginBlock[0].indexOf("matchedBy: 'auth_user_id'");
-  assert.ok(emailIndex >= 0, 'email lookup should exist in login mode');
+  const usernameIndex = loginBlock[0].indexOf("matchedBy: 'username'");
+  const emailIndex = loginBlock[0].indexOf("matchedBy: 'email'");
   assert.ok(authIndex >= 0, 'auth_user_id lookup should exist in login mode');
-  assert.ok(emailIndex < authIndex, 'email should be tried before auth_user_id in login mode');
+  assert.ok(usernameIndex >= 0, 'username lookup should exist in login mode');
+  assert.ok(emailIndex >= 0, 'email lookup should exist in login mode');
+  assert.ok(authIndex < emailIndex, 'auth_user_id should be tried before email in login mode');
+  assert.ok(usernameIndex < emailIndex, 'username should be tried before email in login mode');
 });
 
 test('supabase client prefers env vars and keeps production fallback when unset', async () => {
