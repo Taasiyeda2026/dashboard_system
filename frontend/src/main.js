@@ -1656,6 +1656,8 @@ function applyBootstrapUserFlags(bootstrap) {
   if (!bootstrap?.profile || !state.user) return;
   const fn = bootstrap.profile.full_name != null ? String(bootstrap.profile.full_name).trim() : '';
   if (fn) state.user.full_name = fn;
+  const un = bootstrap.profile.username != null ? String(bootstrap.profile.username).trim() : '';
+  if (un) state.user.username = un;
   state.user.display_role2 =
     bootstrap.profile.display_role2 != null ? String(bootstrap.profile.display_role2) : '';
   if (bootstrap.profile.display_role_label != null) {

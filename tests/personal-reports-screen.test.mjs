@@ -236,7 +236,9 @@ test('internal login keeps access code as trimmed string and uses current dashbo
   assert.match(source, /const dashboardUser = dashboardUserForAuth\(\)/);
   assert.match(source, /authenticateInternalEmployee\(dashboardUser, accessCode\)/);
   assert.match(source, /personalReportsLoginIdentifier\(user\)/);
-  assert.match(source, /user\?\.username \|\| user\?\.email/);
+  assert.match(source, /user\?\.username/);
+  assert.match(source, /isNumericLoginIdentifier/);
+  assert.match(source, /dashboardAuthUserId/);
   assert.match(source, /buildInternalAuthEmail\(login\)/);
   assert.match(source, /sameDashboardUser\(userRow, user\)/);
   assert.doesNotMatch(source, /Number\(fd\.get\('access_code'\)/);
