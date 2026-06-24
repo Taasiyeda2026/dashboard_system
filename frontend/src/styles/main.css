@@ -17916,7 +17916,10 @@ details[open] > .ds-fin-acc__summary::before { transform: rotate(90deg); }
   }
 
   .proposal-document.pa-document .pa-page-footer {
-    position: static !important;
+    position: fixed !important;
+    left: 12mm !important;
+    right: 12mm !important;
+    bottom: 4mm !important;
     height: auto !important;
     min-height: 0 !important;
     max-height: none !important;
@@ -17928,9 +17931,15 @@ details[open] > .ds-fin-acc__summary::before { transform: rotate(90deg); }
     line-height: 1.2 !important;
     background: #fff !important;
     margin-top: 0 !important;
-    padding: 0 !important;
+    padding: 2px 0 !important;
+    border-top: 1px solid #d1d5db !important;
+    z-index: 100 !important;
+  }
+  .proposal-document.pa-document .pa-footer-signature {
     break-before: avoid !important;
     break-inside: avoid !important;
+    page-break-before: avoid !important;
+    page-break-inside: avoid !important;
   }
 }
 

@@ -3,7 +3,7 @@
  * App shell, JS and CSS: network-first so a normal reload can pick up a new deploy.
  * API-like requests: network only, never cached. Bump CACHE_VERSION after deploy to drop old caches.
  */
-const CACHE_VERSION = 910;
+const CACHE_VERSION = 911;
 const CACHE_PREFIX = 'dashboard-static-v';
 const CACHE_NAME = `${CACHE_PREFIX}${CACHE_VERSION}`;
 
@@ -67,7 +67,7 @@ const PRECACHE_URLS = [
   "./assets/pwa/icon-72.png",
   "./assets/pwa/icon-96.png",
   "./assets/pwa/icon-maskable-512.png",
-  "./assets/style-DrXq7TJG.css",
+  "./assets/style-Be-CEp6Q.css",
   "./catalog/appendices/27342.pdf",
   "./catalog/appendices/46091.pdf",
   "./catalog/appendices/52279.pdf",
