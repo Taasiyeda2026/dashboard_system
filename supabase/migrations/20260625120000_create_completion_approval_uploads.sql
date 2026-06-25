@@ -37,7 +37,7 @@ on public.activity_completion_approval_uploads
 for select
 using (
   instructor_emp_id = (select emp_id from public.users where auth_user_id = auth.uid() limit 1)
-  or exists (select 1 from public.users where auth_user_id = auth.uid() and role in ('admin', 'operation_manager'))
+  or exists (select 1 from public.users where auth_user_id = auth.uid() and role in ('admin', 'operation_manager', 'domain_manager'))
 );
 
 drop policy if exists activity_completion_approval_uploads_insert_own on public.activity_completion_approval_uploads;
@@ -65,6 +65,18 @@ using (
   bucket_id = 'completion-approvals'
   and (
     split_part(name, '/', 1) = (select emp_id from public.users where auth_user_id = auth.uid() limit 1)
-    or exists (select 1 from public.users where auth_user_id = auth.uid() and role in ('admin', 'operation_manager'))
+    or exists (select 1 from public.users where auth_user_id = auth.uid() and role in ('admin', 'operation_manager', 'domain_manager'))
   )
 );
+
+
+-- Ensure the pilot instructor Itamar Yohai can log in through the existing users table.
+insert into public.users (user_id, username, name, full_name, role, display_role, emp_id, is_active)
+values ('1527', '1527', 'איתמר יוחאי', 'איתמר יוחאי', 'instructor', 'instructor', '1527', true)
+on conflict (user_id) do update set
+  role = 'instructor',
+  display_role = 'instructor',
+  emp_id = '1527',
+  is_active = true,
+  name = coalesce(nullif(public.users.name, ''), excluded.name),
+  full_name = coalesce(nullif(public.users.full_name, ''), excluded.full_name);

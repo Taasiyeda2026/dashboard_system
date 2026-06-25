@@ -46,7 +46,8 @@ const MUTATING_ACTIONS = {
   updateProposalAgreementStatus: true,
   deleteProposalAgreement: true,
   saveProposalAgreementItems: true,
-  uploadCompletionApproval: true
+  uploadCompletionApproval: true,
+  reviewCompletionApprovalUpload: true
   ,saveActivityLayoutStatus: true
   ,deleteActivity: true
 };
@@ -68,6 +69,7 @@ const READ_ACTIONS = {
   endDates: true,
   myData: true,
   completionApprovalUploads: true,
+  completionApprovalSignedUrl: true,
   operations: true,
   operationsDetail: true,
   editRequests: true,
@@ -85,6 +87,17 @@ const API_TIMEOUT_MS_READ = 20000;
 const API_TIMEOUT_MS_WRITE = 45000;
 const PERF_MAX_REQUESTS = 150;
 const ACTIVITY_DIRECT_MANAGE_ROLES = new Set(['admin', 'operation_manager']);
+const ACTIVE_INSTRUCTOR_EMP_IDS = new Set(['1525', '1527', '1502', '1507', '1509', '1500', '1503', '1511']);
+
+function currentUserIdentityValues() {
+  const user = state?.user || {};
+  return [user.emp_id, user.employee_id, user.user_id].map((v) => String(v || '').trim()).filter(Boolean);
+}
+
+function isActiveInstructorPilotUser(user = state?.user || {}) {
+  return [user.emp_id, user.employee_id, user.user_id].map((v) => String(v || '').trim()).some((id) => ACTIVE_INSTRUCTOR_EMP_IDS.has(id));
+}
+
 const ACTIVITY_REQUEST_ROLES = new Set(['activities_manager', 'instructor_manager', 'business_development_manager']);
 
 const DASHBOARD_ACTIVITY_COLUMNS = [
@@ -3552,7 +3565,7 @@ function buildBootstrapFromUser(userRow, profileRow = null) {
 
 function getInstructorIdentitySet() {
   const user = state?.user || {};
-  const values = [user.emp_id, user.user_id].map((v) => String(v || '').trim()).filter(Boolean);
+  const values = currentUserIdentityValues();
   return new Set(values);
 }
 
@@ -4926,14 +4939,38 @@ export const api = {
       .from('activity_completion_approval_uploads')
       .select('*')
       .order('uploaded_at', { ascending: false });
-    if (role === 'instructor') query.eq('instructor_emp_id', String(state?.user?.emp_id || '').trim());
+    if (role === 'instructor') {
+      if (!isActiveInstructorPilotUser()) return { rows: [], _source: 'supabase' };
+      query.in('instructor_emp_id', currentUserIdentityValues());
+    }
     const { data, error } = await query;
     if (error) throw new Error(error.message || 'completion_approval_uploads_read_failed');
     return { rows: Array.isArray(data) ? data : [], _source: 'supabase' };
   },
+  completionApprovalSignedUrl: async ({ filePath, download = false } = {}) => {
+    const path = String(filePath || '').trim();
+    if (!path) throw new Error('missing_file_path');
+    const { data, error } = await supabase.storage
+      .from('completion-approvals')
+      .createSignedUrl(path, 60 * 5, download ? { download: true } : undefined);
+    if (error) throw new Error(error.message || 'completion_approval_signed_url_failed');
+    return { signedUrl: data?.signedUrl || '' };
+  },
+  reviewCompletionApprovalUpload: async ({ id, status, reviewNote = '' } = {}) => {
+    const role = String(state?.user?.role || '').trim();
+    if (!['admin', 'operation_manager', 'domain_manager'].includes(role)) throw new Error('completion_approval_review_forbidden');
+    const nextStatus = String(status || '').trim();
+    if (!['approved', 'rejected'].includes(nextStatus)) throw new Error('invalid_completion_approval_status');
+    const reviewer = String(state?.user?.full_name || state?.user?.username || state?.user?.user_id || '').trim();
+    const payload = { status: nextStatus, reviewed_by: reviewer, reviewed_at: new Date().toISOString(), review_note: String(reviewNote || '').trim() };
+    const { data, error } = await supabase.from('activity_completion_approval_uploads').update(payload).eq('id', id).select('*').single();
+    if (error) throw new Error(error.message || 'completion_approval_review_failed');
+    return { row: data, _source: 'supabase' };
+  },
   uploadCompletionApproval: async ({ approval, file, instructorEmpId, instructorName } = {}) => {
-    const empId = String(instructorEmpId || state?.user?.emp_id || '').trim();
+    const empId = String(instructorEmpId || state?.user?.emp_id || state?.user?.user_id || '').trim();
     if (!empId) throw new Error('חסר מזהה עובד למדריך.');
+    if (String(state?.user?.role || '').trim() === 'instructor' && !isActiveInstructorPilotUser()) throw new Error('תצוגת מדריך אינה פעילה למשתמש זה.');
     if (!completionApprovalUploadAllowedFile(file)) throw new Error('ניתן להעלות PDF, JPG, JPEG או PNG בלבד.');
     const filePath = completionApprovalUploadPath({ approval, file, instructorEmpId: empId });
     const upload = await supabase.storage.from('completion-approvals').upload(filePath, file, { contentType: file.type || undefined, upsert: false });

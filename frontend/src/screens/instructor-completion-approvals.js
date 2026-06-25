@@ -16,16 +16,21 @@ function currentInstructorName(state) {
   const user = state?.user || {};
   return text(user.full_name || user.name || user.username || user.email || '');
 }
-function currentEmpId(state) { return text(state?.user?.emp_id || state?.user?.employee_id || ''); }
-function assignedToCurrentInstructor(row, empId) {
-  if (!empId) return false;
-  return text(row?.emp_id) === empId || text(row?.emp_id_2) === empId;
+function currentIdentityValues(state) {
+  const user = state?.user || {};
+  return [user.emp_id, user.employee_id, user.user_id].map(text).filter(Boolean);
 }
-function instructorNameForRows(rows, empId, fallback) {
-  const hit = (Array.isArray(rows) ? rows : []).find((row) => assignedToCurrentInstructor(row, empId));
+function currentEmpId(state) { return currentIdentityValues(state)[0] || ''; }
+function assignedToCurrentInstructor(row, ids) {
+  const values = Array.isArray(ids) ? ids : [ids];
+  if (!values.length) return false;
+  return values.includes(text(row?.emp_id)) || values.includes(text(row?.emp_id_2));
+}
+function instructorNameForRows(rows, ids, fallback) {
+  const hit = (Array.isArray(rows) ? rows : []).find((row) => assignedToCurrentInstructor(row, ids));
   if (!hit) return fallback;
-  if (text(hit.emp_id) === empId) return text(hit.instructor_name || hit.instructor || fallback);
-  if (text(hit.emp_id_2) === empId) return text(hit.instructor_name_2 || hit.instructor_2 || fallback);
+  if (ids.includes(text(hit.emp_id))) return text(hit.instructor_name || hit.instructor || fallback);
+  if (ids.includes(text(hit.emp_id_2))) return text(hit.instructor_name_2 || hit.instructor_2 || fallback);
   return fallback;
 }
 function uploadKey(approval) {
@@ -65,9 +70,9 @@ export const instructorCompletionApprovalsScreen = {
     return { rows: myData?.rows || [], uploads: uploads?.rows || [] };
   },
   render(data, { state } = {}) {
-    const empId = currentEmpId(state);
-    const rows = (Array.isArray(data?.rows) ? data.rows : []).filter((row) => assignedToCurrentInstructor(row, empId));
-    const instructorName = instructorNameForRows(rows, empId, currentInstructorName(state));
+    const ids = currentIdentityValues(state);
+    const rows = (Array.isArray(data?.rows) ? data.rows : []).filter((row) => assignedToCurrentInstructor(row, ids));
+    const instructorName = instructorNameForRows(rows, ids, currentInstructorName(state));
     const approvals = buildCompletionApprovals(rows, { instructor: instructorName, dateMode: 'all' });
     const uploadMap = uploadsByApproval(data?.uploads || []);
     printContext = approvals;

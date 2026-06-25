@@ -683,8 +683,12 @@ function navDisabledRoutesSet(settings = state.clientSettings) {
   return new Set(Array.isArray(list) ? list : []);
 }
 
+const ACTIVE_INSTRUCTOR_EMP_IDS = new Set(['1525', '1527', '1502', '1507', '1509', '1500', '1503', '1511']);
+function isActiveInstructorPilotUser(user = state?.user || {}) {
+  return [user.emp_id, user.employee_id, user.user_id].map((v) => String(v || '').trim()).some((id) => ACTIVE_INSTRUCTOR_EMP_IDS.has(id));
+}
 function instructorOnlyRoutes() {
-  return ['my-data', 'instructor-completion-approvals'];
+  return isActiveInstructorPilotUser() ? ['my-data', 'instructor-completion-approvals'] : [];
 }
 
 function applySettingsToRoutes(routes, settings = state.clientSettings) {
