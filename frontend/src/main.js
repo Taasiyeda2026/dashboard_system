@@ -1006,7 +1006,7 @@ function shell(content) {
   const contextualSet = navContextualRoutesSet();
   const isAdminUser = state?.user?.role === 'admin';
   // לאדמין: הנתונים שלי — מוסתר לחלוטין; הרשאות — בסרגל בלבד
-  const adminSidebarExclude = isAdminUser ? new Set(['my-data']) : new Set();
+  const adminSidebarExclude = isAdminUser && !isActiveInstructorPilotUser() ? new Set(['my-data']) : new Set();
   const nav = effectiveRoutes()
     .filter((route) =>
       !hiddenSet.has(route) &&
@@ -1030,7 +1030,7 @@ function shell(content) {
   const systemName = escapeHtml(systemNameDisplay());
 
   const HEADER_ALWAYS_EXCLUDE = new Set(['instructor-contacts', 'proposals-agreements', 'week', 'month']);
-  const adminHeaderExclude = isAdminUser ? new Set(['operations', 'my-data', 'permissions']) : new Set();
+  const adminHeaderExclude = isAdminUser ? new Set(['operations', ...(isActiveInstructorPilotUser() ? [] : ['my-data']), 'permissions']) : new Set();
   const headerNavHtml = headerNavGridHtml({
     route: state.route,
     routes: effectiveRoutes().filter((r) => !adminHeaderExclude.has(r) && !HEADER_ALWAYS_EXCLUDE.has(r))

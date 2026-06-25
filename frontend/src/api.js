@@ -3292,10 +3292,18 @@ async function readProposalsAgreementsFromSupabase() {
   };
 }
 
-const USER_PUBLIC_COLUMNS = 'user_id,username,email,name,full_name,role,display_role,emp_id,is_active,permissions';
+const USER_PUBLIC_COLUMNS = 'user_id,username,email,name,full_name,role,display_role,display_role2,emp_id,is_active,permissions';
 const USER_PUBLIC_COLUMNS_EXTENDED = `${USER_PUBLIC_COLUMNS},auth_user_id,can_review_requests,view_proposals_agreements,manage_proposals_agreements,approve_proposals_agreements`;
 const PROFILE_PERSONAL_REPORTS_COLUMNS = 'id,is_active,can_access_personal_reports';
 const VALID_SUPABASE_ROLES = new Set(['admin', 'operation_manager', 'authorized_user', 'instructor', 'finance', 'activities_manager', 'domain_manager', 'instructor_manager', 'business_development_manager']);
+
+
+const KNOWN_INSTRUCTOR_EMP_IDS = new Set(['1525', '1527', '1502', '1507', '1509', '1500', '1503', '1511']);
+function isKnownInstructorIdentity(user = {}) {
+  return [user.emp_id, user.employee_id, user.user_id, user.username]
+    .map((value) => String(value || '').trim())
+    .some((id) => KNOWN_INSTRUCTOR_EMP_IDS.has(id));
+}
 
 const SUPABASE_ROLE_ROUTES = {
   admin: ['dashboard', 'activities', 'archive', 'catalog', 'invitations', 'proposals-agreements', 'week', 'month', 'exceptions', 'instructors', 'instructor-contacts', 'contacts', 'end-dates', 'edit-requests', 'permissions', 'admin-home', 'admin-settings', 'admin-lists', 'finance', 'operations-management', 'certificates'],
@@ -3461,7 +3469,7 @@ function flattenUserRow(userRow = {}) {
     display_role: role,
     display_role_label: displayRoleLabel || hebrewRole(role),
     display_role2: displayRole2,
-    emp_id: String(userRow.user_id || ''),
+    emp_id: String(userRow.emp_id || userRow.user_id || ''),
     auth_user_id: String(userRow.auth_user_id || ''),
     active: userRow.is_active ? 'yes' : 'no',
     ...permissions
@@ -3541,6 +3549,11 @@ function buildBootstrapFromUser(userRow, profileRow = null) {
   }
   if (permissionFlagYes(flat.view_operations_management) && !allowedRoutes.includes('operations-management')) {
     allowedRoutes.push('operations-management');
+  }
+  if (isKnownInstructorIdentity(flat)) {
+    for (const route of ['my-data', 'instructor-completion-approvals']) {
+      if (!allowedRoutes.includes(route)) allowedRoutes.push(route);
+    }
   }
   return {
     routes: [...allowedRoutes],
@@ -3685,7 +3698,7 @@ function makeSessionToken(userRow) {
   const claims = {
     uid: String(userRow.user_id || ''),
     role: normalizeSupabaseRole(userRow.role),
-    emp_id: String(userRow.user_id || ''),
+    emp_id: String(userRow.emp_id || userRow.user_id || ''),
     name: String(userRow.name || '')
   };
   return `sb.${btoa(unescape(encodeURIComponent(JSON.stringify(claims))))}.session`;

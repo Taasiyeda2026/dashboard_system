@@ -1,6 +1,6 @@
 import { supabase } from './supabase-client.js';
 
-export const AUTH_USER_PUBLIC_COLUMNS = 'user_id,username,email,name,full_name,role,display_role,emp_id,is_active,permissions';
+export const AUTH_USER_PUBLIC_COLUMNS = 'user_id,username,email,name,full_name,role,display_role,display_role2,emp_id,is_active,permissions';
 export const AUTH_USER_PUBLIC_COLUMNS_EXTENDED = `${AUTH_USER_PUBLIC_COLUMNS},auth_user_id,can_review_requests,view_proposals_agreements,manage_proposals_agreements,approve_proposals_agreements`;
 
 function lookupLog(event, payload = {}) {
