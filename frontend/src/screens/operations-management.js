@@ -24,6 +24,7 @@ import {
   getActivitySchoolDisplayName,
   hasActivitySchoolOrFrame,
   getActivityInstructorName,
+  getActivityInstructorNames,
   isValidInstructorName,
   getActivityPrimaryDate,
   getActivityScheduleDates,
@@ -102,9 +103,7 @@ const FILTER_FIELDS = [
   { key: 'authority', label: 'רשות', getValues: (row) => [getActivityAuthorityName(row)] },
   { key: 'school', label: 'בית ספר / מסגרת', getValues: getActivitySchoolNames },
   { key: 'instructor', label: 'מדריך', getValues: (row) => {
-    const names = [row?.instructor_name, row?.instructor, row?.guide_name, row?.guide]
-      .map((value) => String(value || '').trim())
-      .filter(isValidInstructorName);
+    const names = getActivityInstructorNames(row).filter(isValidInstructorName);
     return names.length ? names : [];
   } },
   { key: 'activity_name', label: 'שם סדנה / פעילות', getValues: (row) => [getActivityName(row)] },
@@ -604,18 +603,21 @@ function buildScheduleRows(rows, state, directory) {
   const selectedInstructor = String(ops.instructor || '__all__').trim();
   const schedule = [];
   rows.forEach((activity) => {
-    const instructor = getActivityInstructorName(activity);
-    if (selectedInstructor !== '__all__' && instructor !== selectedInstructor) return;
-    const dates = activityDatesInRange(activity, ops.dateFrom, ops.dateTo);
-    const targetDates = dates.length ? dates : (getActivityPrimaryDate(activity) ? [getActivityPrimaryDate(activity)] : ['']);
-    targetDates.forEach((date) => {
-      schedule.push({
-        date,
-        activity,
-        instructor,
-        time: getActivityTimeRange(activity),
-        hasTime: Boolean(getActivityTimeRange(activity)),
-        quantity: getActivityOperationalQuantity(activity)
+    const instructors = getActivityInstructorNames(activity);
+    const targetInstructors = instructors.length ? instructors : ['לא משויך'];
+    targetInstructors.forEach((instructor) => {
+      if (selectedInstructor !== '__all__' && instructor !== selectedInstructor) return;
+      const dates = activityDatesInRange(activity, ops.dateFrom, ops.dateTo);
+      const targetDates = dates.length ? dates : (getActivityPrimaryDate(activity) ? [getActivityPrimaryDate(activity)] : ['']);
+      targetDates.forEach((date) => {
+        schedule.push({
+          date,
+          activity,
+          instructor,
+          time: getActivityTimeRange(activity),
+          hasTime: Boolean(getActivityTimeRange(activity)),
+          quantity: getActivityOperationalQuantity(activity)
+        });
       });
     });
   });
@@ -1222,7 +1224,7 @@ function instructorsTabHtml(rows, state, data = {}, directory = buildSchoolsDire
       </tr></thead><tbody>${tableRows}</tbody></table>`)
     : dsEmptyState('לא נמצאו פעילויות בטווח הנבחר');
 
-  const instructorRows = selectedInstructorFilter ? rows.filter((row) => getActivityInstructorName(row) === selectedInstructorFilter) : rows;
+  const instructorRows = selectedInstructorFilter ? rows.filter((row) => getActivityInstructorNames(row).includes(selectedInstructorFilter)) : rows;
   const activeSummary = selectedInstructorFilter ? instructorSummary(instructorRows, state, scheduleRows) : tabOverviewSummary(rows, scheduleRows);
   const directoryNote = '';
 
@@ -1339,7 +1341,7 @@ function schoolsTabHtml(rows, state, directory = buildSchoolsDirectory([]), cont
     const authorityGroup = byAuthority.get(authority);
     authorityGroup.activities += 1;
     authorityGroup.quantityTotal += entry.quantity;
-    const instructor = getActivityInstructorName(activity);
+    const instructor = entry.instructor || getActivityInstructorName(activity);
     if (instructor !== 'לא משויך') authorityGroup.instructors.add(instructor);
 
     if (!authorityGroup.schools.has(school)) {
@@ -1663,6 +1665,7 @@ export {
   getActivitySchoolDisplayName,
   hasActivitySchoolOrFrame,
   getActivityInstructorName,
+  getActivityInstructorNames,
   getActivityPrimaryDate,
   getActivitySchoolNames,
   parseLinkedSchoolsJson
