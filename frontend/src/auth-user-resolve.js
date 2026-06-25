@@ -80,17 +80,22 @@ function buildLookupAttempts(options = {}, columns = '') {
   }
 
   if (loginMode) {
-    if (canUseAuthUserId && authUserId) {
-      attempts.push({ matchedBy: 'auth_user_id', filters: [['auth_user_id', authUserId]] });
-    }
+    // Preserve the original username-based login semantics first.
+    // Numeric employee/user-id login is an instructor fallback and must not
+    // preempt an admin/manager row whose username matches the submitted login.
     if (username) {
       attempts.push({ matchedBy: 'username', filters: [['username', username]] });
+    }
+    if (username) {
       attempts.push({ matchedBy: 'user_id', filters: [['user_id', username]] });
       attempts.push({ matchedBy: 'emp_id', filters: [['emp_id', username]] });
     }
     if (authEmail) attempts.push({ matchedBy: 'email', filters: [['email', authEmail]] });
     if (canUseAuthUserId && authUserId && username) {
       attempts.push({ matchedBy: 'auth_user_id+username', filters: [['auth_user_id', authUserId], ['username', username]] });
+    }
+    if (canUseAuthUserId && authUserId) {
+      attempts.push({ matchedBy: 'auth_user_id', filters: [['auth_user_id', authUserId]] });
     }
     return attempts;
   }

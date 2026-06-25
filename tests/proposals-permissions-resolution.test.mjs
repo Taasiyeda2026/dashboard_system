@@ -225,12 +225,13 @@ test('top-level approve_proposals_agreements allows approval only when explicit'
   });
 });
 
-test('resolveActiveUserRowAfterAuth prefers auth_user_id match before email fallback', async () => {
+test('resolveActiveUserRowAfterAuth login mode prefers username match before auth/email fallback', async () => {
   const authUserId = '00000000-0000-4000-8000-000000000001';
   const authEmail = 'idann@think.org.il';
   const mockSupabase = createMockSupabase({
-    [`is_active=true&auth_user_id=${authUserId.toLowerCase()}&user_id=idann`]: {
-      user_id: '1234',
+    'is_active=true&username=idann': {
+      user_id: '8000',
+      username: 'idann',
       email: authEmail,
       auth_user_id: authUserId,
       role: 'admin',
@@ -252,11 +253,12 @@ test('resolveActiveUserRowAfterAuth prefers auth_user_id match before email fall
     authEmail,
     username: 'idann',
     authUserId,
+    loginMode: true,
     requireAuthUserMatch: true
   });
 
-  assert.equal(matchedBy, 'auth_user_id+user_id');
-  assert.equal(userRow.user_id, '1234');
+  assert.equal(matchedBy, 'username');
+  assert.equal(userRow.user_id, '8000');
   assert.equal(userRow.role, 'admin');
 });
 

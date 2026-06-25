@@ -114,6 +114,7 @@ test('USER_PUBLIC_COLUMNS selects granted users table fields only', async () => 
     'full_name',
     'role',
     'display_role',
+    'display_role2',
     'emp_id',
     'is_active',
     'permissions'
@@ -130,18 +131,89 @@ test('auth user resolver supports login diagnostics and auth mismatch checks', a
   assert.match(source, /\[auth-user-resolve\]/);
 });
 
-test('auth user resolver prioritizes auth_user_id and username in login mode', async () => {
+test('auth user resolver prioritizes username before id fallbacks in login mode', async () => {
   const source = await readFile(RESOLVE_FILE, 'utf8');
   const loginBlock = source.match(/if \(loginMode\) \{[\s\S]*?return attempts;/);
   assert.ok(loginBlock, 'loginMode attempt block should exist');
   const authIndex = loginBlock[0].indexOf("matchedBy: 'auth_user_id'");
   const usernameIndex = loginBlock[0].indexOf("matchedBy: 'username'");
   const emailIndex = loginBlock[0].indexOf("matchedBy: 'email'");
-  assert.ok(authIndex >= 0, 'auth_user_id lookup should exist in login mode');
+  const userIdIndex = loginBlock[0].indexOf("matchedBy: 'user_id'");
+  const empIdIndex = loginBlock[0].indexOf("matchedBy: 'emp_id'");
+  assert.ok(authIndex >= 0, 'auth_user_id lookup should still exist in login mode');
   assert.ok(usernameIndex >= 0, 'username lookup should exist in login mode');
+  assert.ok(userIdIndex >= 0, 'user_id fallback should exist in login mode');
+  assert.ok(empIdIndex >= 0, 'emp_id fallback should exist in login mode');
   assert.ok(emailIndex >= 0, 'email lookup should exist in login mode');
-  assert.ok(authIndex < emailIndex, 'auth_user_id should be tried before email in login mode');
-  assert.ok(usernameIndex < emailIndex, 'username should be tried before email in login mode');
+  assert.ok(usernameIndex < userIdIndex, 'username should be tried before user_id in login mode');
+  assert.ok(userIdIndex < empIdIndex, 'user_id should be tried before emp_id in login mode');
+  assert.ok(empIdIndex < emailIndex, 'employee id fallback should be tried before email in login mode');
+  assert.ok(emailIndex < authIndex, 'auth_user_id should be a final compatibility fallback in login mode');
+});
+
+
+test('login resolver keeps idann admin username match before employee/auth fallbacks', async () => {
+  const authEmail = 'idann@think.org.il';
+  const authUserId = '00000000-0000-4000-8000-000000000001';
+  const mockSupabase = createMockSupabase({
+    'is_active=true&username=idann': {
+      user_id: '8000',
+      username: 'idann',
+      email: authEmail,
+      auth_user_id: authUserId,
+      role: 'admin',
+      emp_id: '8000',
+      is_active: true
+    },
+    [`is_active=true&auth_user_id=${authUserId.toLowerCase()}`]: {
+      user_id: '1502',
+      username: '1502',
+      email: authEmail,
+      auth_user_id: authUserId,
+      role: 'instructor',
+      emp_id: '1502',
+      is_active: true
+    }
+  });
+
+  const { userRow, matchedBy } = await resolveActiveUserRowAfterAuth({
+    supabase: mockSupabase,
+    authEmail,
+    username: 'idann',
+    authUserId,
+    loginMode: true,
+    requireAuthUserMatch: true
+  });
+
+  assert.equal(matchedBy, 'username');
+  assert.equal(userRow.user_id, '8000');
+  assert.equal(userRow.role, 'admin');
+});
+
+test('login resolver supports instructor employee-number login after username misses', async () => {
+  const mockSupabase = createMockSupabase({
+    'is_active=true&emp_id=1502': {
+      user_id: 'u-eldar',
+      username: 'eldar',
+      email: '1502@think.org.il',
+      role: 'instructor',
+      emp_id: '1502',
+      is_active: true
+    }
+  });
+
+  const { userRow, matchedBy } = await resolveActiveUserRowAfterAuth({
+    supabase: mockSupabase,
+    authEmail: '1502@think.org.il',
+    username: '1502',
+    authUserId: '00000000-0000-4000-8000-000000000150',
+    loginMode: true,
+    requireAuthUserMatch: true
+  });
+
+  assert.equal(matchedBy, 'emp_id');
+  assert.equal(userRow.role, 'instructor');
+  assert.equal(userRow.emp_id, '1502');
 });
 
 test('supabase client prefers env vars and keeps production fallback when unset', async () => {
