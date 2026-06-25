@@ -635,10 +635,10 @@ function tabOverviewSummary(rows, scheduleRows = []) {
   const workDays = uniqueSorted(scheduleRows.map((row) => row.date).filter(Boolean)).length;
   const schools = uniqueSorted(scheduleRows.map((row) => getActivitySchoolDisplayNameClean(row.activity)).filter((name) => name !== 'לא משויך'));
   const authorities = uniqueSorted(scheduleRows.map((row) => getActivityAuthorityName(row.activity)));
-  const quantityTotal = sumOperationalQuantitiesFromActivities(scheduleRows.map((row) => row.activity));
+  const studentTotal = sumScheduleStudentCounts(scheduleRows);
   return compactSummaryLineHtml([
     { label: 'פעילויות', value: scheduleRows.length },
-    { label: 'סה״כ כמויות', value: quantityTotal },
+    { label: 'סה״כ תלמידים', value: studentTotal },
     { label: 'בתי ספר', value: schools.length },
     { label: 'רשויות', value: authorities.length },
     { label: 'ימי עבודה', value: workDays }
@@ -651,11 +651,11 @@ function instructorSummary(rows, state, scheduleRows) {
   const workDays = uniqueSorted(scheduleRows.map((row) => row.date).filter(Boolean)).length;
   const authorities = uniqueSorted(scheduleRows.map((row) => getActivityAuthorityName(row.activity)));
   const schools = uniqueSorted(scheduleRows.map((row) => getActivitySchoolDisplayNameClean(row.activity)).filter((name) => name !== 'לא משויך'));
-  const quantityTotal = sumOperationalQuantitiesFromActivities(scheduleRows.map((row) => row.activity));
+  const studentTotal = sumScheduleStudentCounts(scheduleRows);
   return compactSummaryLineHtml([
     { label: `מדריך: ${selected}`, value: '' },
     { label: 'פעילויות', value: scheduleRows.length },
-    { label: 'סה״כ כמויות', value: quantityTotal },
+    { label: 'סה״כ תלמידים', value: studentTotal },
     { label: 'בתי ספר', value: schools.length },
     { label: 'רשויות', value: authorities.length },
     { label: 'ימי עבודה', value: workDays }
