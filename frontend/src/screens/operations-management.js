@@ -1451,6 +1451,28 @@ function completionApprovalsForState(rows, state, directory, contactsIndex) {
   });
 }
 
+
+function completionApprovalUploadKey(approval) {
+  const normalize = (value) => String(value || '').trim().replace(/[״"]/g, '').replace(/[׳']/g, '').replace(/\s+/g, ' ').toLowerCase();
+  return `${String(approval?.date || '').trim()}|${normalize(approval?.authority)}|${normalize(approval?.school)}|${normalize(approval?.instructorName)}`;
+}
+function completionApprovalUploadMap(rows = []) {
+  const normalize = (value) => String(value || '').trim().replace(/[״"]/g, '').replace(/[׳']/g, '').replace(/\s+/g, ' ').toLowerCase();
+  const map = new Map();
+  (Array.isArray(rows) ? rows : []).forEach((row) => {
+    const key = `${String(row?.activity_date || '').trim()}|${normalize(row?.authority)}|${normalize(row?.school)}|${normalize(row?.instructor_name)}`;
+    if (!map.has(key)) map.set(key, row);
+  });
+  return map;
+}
+function completionApprovalUploadStatusLabel(upload) {
+  const status = String(upload?.status || '').trim();
+  if (status === 'approved') return 'אושר';
+  if (status === 'rejected') return 'נדחה';
+  if (status === 'uploaded' || upload?.file_path) return 'הועלה';
+  return 'טרם הועלה';
+}
+
 function completionApprovalTabHtml(rows, state, data = {}, directory = buildSchoolsDirectory([]), contactsIndex = new Map()) {
   const ops = ensureOpsState(state);
   const approvalState = ops.completionApproval;
@@ -1468,17 +1490,22 @@ function completionApprovalTabHtml(rows, state, data = {}, directory = buildScho
           : `נמצאו ${approvals.length} אישורים להפקה מתוך ${approvalActivitiesCount} פעילויות של המדריך בטווח התאריכים`
         : 'לא נמצאו אישורים להפקה לפי הבחירה הנוכחית'
       : 'בחרו תאריכים ולחצו על "הצג אישורים"';
-  const previewRows = approvals.map((approval, index) => `<tr>
+  const uploadMap = completionApprovalUploadMap(data?.completionApprovalUploads || []);
+  const previewRows = approvals.map((approval, index) => {
+    const upload = uploadMap.get(completionApprovalUploadKey(approval));
+    return `<tr>
     <td><strong>${escapeHtml(approval.instructorName)}</strong></td>
     <td>${escapeHtml(formatDateHe(approval.date) || approval.date || '')}</td>
     <td>${escapeHtml(approval.school || '')}</td>
     <td>${escapeHtml(String(approval.activities.length))} ${approval.activities.length === 1 ? 'פעילות' : 'פעילויות'}</td>
+    <td>${escapeHtml(completionApprovalUploadStatusLabel(upload))}${upload?.instructor_name ? `<br><small>${escapeHtml(upload.instructor_name)}</small>` : ''}</td>
     <td class="no-print"><button type="button" class="ds-btn ds-btn--xs ds-btn--ghost" data-ops-approval-view="${index}">צפייה</button> <button type="button" class="ds-btn ds-btn--xs ds-btn--primary" data-ops-approval-print-one="${index}">הדפס אישור זה</button></td>
-  </tr>`).join('');
+  </tr>`;
+  }).join('');
   const preview = !approvalState.preview
     ? dsEmptyState(!approvalState.instructor ? 'בחרו מדריך כדי להציג אישורי ביצוע' : 'בחרו תאריכים ולחצו על "הצג אישורים".')
     : approvals.length
-      ? dsTableWrap(`<table class="ds-table ds-table--compact ds-ops-completion-preview"><thead><tr><th>מדריך</th><th>תאריך</th><th>בית ספר</th><th>מס׳ פעילויות</th><th class="no-print">פעולות</th></tr></thead><tbody>${previewRows}</tbody></table>`)
+      ? dsTableWrap(`<table class="ds-table ds-table--compact ds-ops-completion-preview"><thead><tr><th>מדריך</th><th>תאריך</th><th>בית ספר</th><th>מס׳ פעילויות</th><th>סטטוס העלאה</th><th class="no-print">פעולות</th></tr></thead><tbody>${previewRows}</tbody></table>`)
       : dsEmptyState('לא נמצאו אישורים להפקה לפי הבחירה הנוכחית');
   const dateFields = approvalState.dateMode === 'single'
     ? `<label class="ds-filter-field"><span class="ds-filter-field__label">תאריך</span><input class="ds-input ds-input--sm" type="date" data-ops-approval-date value="${escapeHtml(approvalState.date || '')}"></label>`
@@ -1526,11 +1553,12 @@ function renderTab(rows, state, data, allPreparedRows = []) {
 
 export const operationsManagementScreen = {
   load: async ({ api }) => {
-    const [activities, lists, schoolsDirectory, contactsSchoolsRows] = await Promise.all([
+    const [activities, lists, schoolsDirectory, contactsSchoolsRows, completionApprovalUploads] = await Promise.all([
       api.allActivities(),
       api.adminLists().catch(() => ({ categories: [] })),
       readOperationsSchoolsDirectory(),
-      readContactsSchools()
+      readContactsSchools(),
+      api.completionApprovalUploads().catch(() => ({ rows: [] }))
     ]);
     return {
       ...activities,
@@ -1538,7 +1566,8 @@ export const operationsManagementScreen = {
       schoolsDirectorySource: schoolsDirectory.source,
       workshopStockMap: buildWorkshopStockMapFromLists(lists),
       adminListsData: lists,
-      contactsSchoolsRows
+      contactsSchoolsRows,
+      completionApprovalUploads: completionApprovalUploads?.rows || []
     };
   },
   render(data, { state } = {}) {

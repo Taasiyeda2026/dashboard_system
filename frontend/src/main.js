@@ -541,7 +541,8 @@ const screenLabels = {
   'instructor-contacts': 'אנשי קשר מדריכים',
   contacts: 'אנשי קשר',
   'end-dates': 'תאריכי סיום',
-  'my-data': 'הנתונים שלי',
+  'my-data': 'הפעילויות שלי',
+  'instructor-completion-approvals': 'אישורי ביצוע',
   'edit-requests': 'אישורים',
   permissions: 'הרשאות',
   'admin-home': 'בית — ניהול',
@@ -625,6 +626,7 @@ const screenLoaders = {
   contacts: () => import('./screens/contacts.js').then((m) => m.contactsScreen),
   'end-dates': () => import('./screens/end-dates.js').then((m) => m.endDatesScreen),
   'my-data': () => import('./screens/my-data.js').then((m) => m.myDataScreen),
+  'instructor-completion-approvals': () => import('./screens/instructor-completion-approvals.js').then((m) => m.instructorCompletionApprovalsScreen),
   'edit-requests': () => import('./screens/edit-requests.js').then((m) => m.editRequestsScreen),
   permissions: () => import('./screens/permissions.js').then((m) => m.permissionsScreen),
   'admin-home': () => import('./screens/admin-home.js').then((m) => m.adminHomeScreen),
@@ -681,7 +683,12 @@ function navDisabledRoutesSet(settings = state.clientSettings) {
   return new Set(Array.isArray(list) ? list : []);
 }
 
+function instructorOnlyRoutes() {
+  return ['my-data', 'instructor-completion-approvals'];
+}
+
 function applySettingsToRoutes(routes, settings = state.clientSettings) {
+  if (String(state?.user?.role || '').trim() === 'instructor') return instructorOnlyRoutes();
   if (SUPABASE_READONLY_CUTOVER) {
     const seen = new Set();
     return SUPABASE_READONLY_ROUTES.filter((route) => {

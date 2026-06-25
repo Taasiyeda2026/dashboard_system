@@ -45,7 +45,8 @@ const MUTATING_ACTIONS = {
   updateProposalAgreement: true,
   updateProposalAgreementStatus: true,
   deleteProposalAgreement: true,
-  saveProposalAgreementItems: true
+  saveProposalAgreementItems: true,
+  uploadCompletionApproval: true
   ,saveActivityLayoutStatus: true
   ,deleteActivity: true
 };
@@ -66,6 +67,7 @@ const READ_ACTIONS = {
   contacts: true,
   endDates: true,
   myData: true,
+  completionApprovalUploads: true,
   operations: true,
   operationsDetail: true,
   editRequests: true,
@@ -3290,7 +3292,7 @@ const SUPABASE_ROLE_ROUTES = {
   domain_manager: ['dashboard', 'activities', 'archive', 'catalog', 'invitations', 'proposals-agreements', 'week', 'month', 'exceptions', 'instructors', 'instructor-contacts', 'contacts', 'end-dates', 'certificates'],
   business_development_manager: ['dashboard', 'activities', 'archive', 'proposals-agreements', 'catalog', 'invitations', 'week', 'month', 'exceptions', 'instructors', 'instructor-contacts', 'contacts', 'end-dates', 'edit-requests', 'certificates'],
   instructor_manager: ['dashboard', 'activities', 'archive', 'catalog', 'invitations', 'week', 'month', 'exceptions', 'instructors', 'instructor-contacts', 'contacts', 'end-dates', 'edit-requests', 'certificates'],
-  instructor: ['my-data', 'week', 'month']
+  instructor: ['my-data', 'instructor-completion-approvals']
 };
 
 function normalizeRoleAlias(role) {
@@ -4311,6 +4313,22 @@ async function readAllActivitiesRowsSupabase() {
   return selectActivitiesFromSupabase('*');
 }
 
+
+function completionApprovalUploadAllowedFile(file) {
+  const name = String(file?.name || '').toLowerCase();
+  const type = String(file?.type || '').toLowerCase();
+  return ['application/pdf', 'image/jpeg', 'image/png'].includes(type) || /\.(pdf|jpe?g|png)$/.test(name);
+}
+
+function completionApprovalUploadPath({ approval, file, instructorEmpId }) {
+  const safeEmp = String(instructorEmpId || 'instructor').replace(/[^\w.-]+/g, '_');
+  const safeDate = String(approval?.date || 'date').replace(/[^\w.-]+/g, '_');
+  const safeSchool = String(approval?.school || 'school').replace(/[^\p{L}\p{N}_.-]+/gu, '_').slice(0, 80) || 'school';
+  const safeName = String(file?.name || 'approval').replace(/[^\p{L}\p{N}_.-]+/gu, '_').slice(-120);
+  const unique = `${Date.now()}-${Math.random().toString(36).slice(2, 8)}`;
+  return `${safeEmp}/${safeDate}/${safeSchool}/${unique}-${safeName}`;
+}
+
 function filterOperationsRows(rows, params = {}) {
   const q = String(params?.search || '').trim().toLowerCase();
   const activityType = String(params?.activity_type || '').trim();
@@ -4900,6 +4918,43 @@ export const api = {
       return isInstructorAssignedRow(row, idsSet);
     });
     return { rows, _source: 'supabase' };
+  },
+
+  completionApprovalUploads: async () => {
+    const role = String(state?.user?.role || '').trim();
+    const query = supabase
+      .from('activity_completion_approval_uploads')
+      .select('*')
+      .order('uploaded_at', { ascending: false });
+    if (role === 'instructor') query.eq('instructor_emp_id', String(state?.user?.emp_id || '').trim());
+    const { data, error } = await query;
+    if (error) throw new Error(error.message || 'completion_approval_uploads_read_failed');
+    return { rows: Array.isArray(data) ? data : [], _source: 'supabase' };
+  },
+  uploadCompletionApproval: async ({ approval, file, instructorEmpId, instructorName } = {}) => {
+    const empId = String(instructorEmpId || state?.user?.emp_id || '').trim();
+    if (!empId) throw new Error('חסר מזהה עובד למדריך.');
+    if (!completionApprovalUploadAllowedFile(file)) throw new Error('ניתן להעלות PDF, JPG, JPEG או PNG בלבד.');
+    const filePath = completionApprovalUploadPath({ approval, file, instructorEmpId: empId });
+    const upload = await supabase.storage.from('completion-approvals').upload(filePath, file, { contentType: file.type || undefined, upsert: false });
+    if (upload.error) throw new Error(upload.error.message || 'completion_approval_storage_upload_failed');
+    const row = {
+      activity_row_id: String((approval?.activities || []).map((a) => a.rowId).filter(Boolean).join(',') || approval?.id || ''),
+      activity_date: approval?.date || null,
+      instructor_emp_id: empId,
+      instructor_name: String(instructorName || approval?.instructorName || '').trim(),
+      authority: String(approval?.authority || '').trim(),
+      school: String(approval?.school || '').trim(),
+      file_path: filePath,
+      file_name: String(file?.name || '').trim(),
+      mime_type: String(file?.type || '').trim(),
+      file_size: Number(file?.size || 0),
+      uploaded_by_user_id: String(state?.user?.user_id || state?.user?.auth_user_id || '').trim(),
+      status: 'uploaded'
+    };
+    const { data, error } = await supabase.from('activity_completion_approval_uploads').insert(row).select('*').single();
+    if (error) throw new Error(error.message || 'completion_approval_upload_record_failed');
+    return { row: data, _source: 'supabase' };
   },
   operations: async (params = {}) => {
     const allRows = await readAllActivitiesRowsSupabase();
