@@ -389,6 +389,26 @@ test('proposal approval UI is limited to admin or approve permission users', asy
   assert.match(privilegedTable, /<option value="approved"/, 'approve permission should allow selecting approved status');
 });
 
+test('proposal managers can mark approved signed proposals as sent without approve permission', () => {
+  const approvedSignedRow = {
+    ...sampleRows[0],
+    status: 'approved',
+    approved_by: 'admin-user',
+    approved_at: '2026-06-16T10:30:00.000Z',
+    signature_meta: { signature: { image: 'proposals/signature-idan-nahum.png' } }
+  };
+  const managerState = stateFor('operation_manager');
+  managerState.user.manage_proposals_agreements = true;
+
+  const html = proposalsAgreementsScreen.render({ rows: [approvedSignedRow] }, { state: managerState });
+  const tableBody = html.match(/<tbody data-pa-table-body>[\s\S]*?<\/tbody>/)?.[0] || '';
+
+  assert.match(tableBody, /data-pa-status-action="sent"/, 'manager should see mark-as-sent table action for signed approved proposals');
+  assert.match(tableBody, /<option value="sent"/, 'manager should be able to select sent for an approved proposal');
+  assert.doesNotMatch(tableBody, /<option value="approved"/, 'manager without approve permission should not be able to select approved');
+  assert.doesNotMatch(html, /אישור וחתימה/, 'manager without approve permission should not see sign-and-approve action');
+});
+
 test('unprivileged users cannot open signature mode or save signature from forged approve actions', async () => {
   const sentRow = { ...sampleRows[0], status: 'sent' };
   const managerState = stateFor('operation_manager');

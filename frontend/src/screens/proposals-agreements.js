@@ -824,7 +824,11 @@ function statusSelectHtml(row, enabled, canApprove = false) {
   if (currentStatus === 'sent') {
     return statusBadgeHtml(currentStatus);
   }
-  const selectableStatuses = STATUS_OPTIONS.filter((status) => canApprove || (status !== 'approved' && status !== 'sent'));
+  const selectableStatuses = STATUS_OPTIONS.filter((status) => {
+    if (status === 'approved') return canApprove;
+    if (status === 'sent') return enabled && currentStatus === 'approved';
+    return true;
+  });
   const options = selectableStatuses.map((status) => optionHtml(status, currentStatus, STATUS_LABELS[status] || status)).join('');
   const disabled = enabled ? '' : ' disabled aria-disabled="true"';
   return `<select class="ds-pa-status-select" data-pa-row-status data-pa-status-id="${escapeHtml(row?.id || '')}" data-pa-previous-status="${escapeHtml(currentStatus)}" aria-label="עדכון סטטוס הצעה"${disabled}>${options}</select>`;
@@ -889,7 +893,7 @@ export function proposalsAgreementsTableRowsHtml(rows, state) {
     if (isAdmin && status === 'pending_approval') {
       actionBtns.push(`<button type="button" class="ds-btn ds-btn--xs ds-pa-row-action" data-pa-status-action="approved" data-pa-action-id="${escapeHtml(row.id)}" title="אישור וחתימה">אישור וחתימה</button>`);
     }
-    if (isAdmin && proposalHasSavedApprovalSignature(row)) {
+    if (canManage && proposalHasSavedApprovalSignature(row)) {
       actionBtns.push(`<button type="button" class="ds-btn ds-btn--xs ds-pa-row-action" data-pa-status-action="sent" data-pa-action-id="${escapeHtml(row.id)}" title="סימון כנשלח">סימון כנשלח</button>`);
     }
     if (isAdmin && (status === 'approved' || isSent)) {
@@ -2876,7 +2880,7 @@ function drawerActionButtons(row, state) {
     buttons.push(`<button type="button" class="ds-btn ds-btn--primary ds-btn--sm" data-pa-status-action="approved" data-pa-action-id="${escapeHtml(row.id)}">אישור וחתימה</button>`);
     buttons.push(`<button type="button" class="ds-btn ds-btn--sm ds-btn--ghost" data-pa-status-action="returned_for_changes" data-pa-action-id="${escapeHtml(row.id)}">החזרה לתיקון</button>`);
   }
-  if (isAdminRole && proposalHasSavedApprovalSignature(row)) {
+  if (canManage && proposalHasSavedApprovalSignature(row)) {
     buttons.push(`<button type="button" class="ds-btn ds-btn--sm ds-btn--primary" data-pa-status-action="sent" data-pa-action-id="${escapeHtml(row.id)}">סימון כנשלח</button>`);
   }
   if (isAdminRole && (status === 'approved' || isSent)) {
