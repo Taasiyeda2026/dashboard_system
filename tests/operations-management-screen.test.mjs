@@ -248,6 +248,37 @@ test('completion approval tab hides general operations filters and uses only app
   assert.match(html, /נמצאו 2 אישורים להפקה מתוך 2 פעילויות של המדריך בטווח התאריכים/);
 });
 
+test('completion approval tab defaults to summer 2026 season and date range', () => {
+  const state = baseState();
+  state.operationsManagement.tab = 'completion_approval';
+  state.operationsManagement.completionApproval = {
+    instructor: 'הילה רוזן',
+    dateMode: 'all',
+    date: '',
+    dateFrom: '',
+    dateTo: '',
+    preview: true
+  };
+  const rows = [
+    { RowID: 'SUMMER-START', status: 'פתוח', authority: 'רשות א', school: 'בית ספר קיץ', activity_name: 'קיץ פתיחה', start_date: '2026-07-01', activity_season: 'summer_2026', instructor_name: 'הילה רוזן' },
+    { RowID: 'SUMMER-END', status: 'פתוח', authority: 'רשות א', school: 'בית ספר קיץ', activity_name: 'קיץ סיום', start_date: '2026-08-31', activity_season: 'summer_2026', instructor_name: 'הילה רוזן' },
+    { RowID: 'OLD-2025', status: 'פתוח', authority: 'רשות א', school: 'בית ספר ישן', activity_name: 'פעילות 2025', start_date: '2025-11-03', activity_season: 'summer_2026', instructor_name: 'הילה רוזן' },
+    { RowID: 'OUTSIDE-FUTURE', status: 'פתוח', authority: 'רשות א', school: 'בית ספר עתידי', activity_name: 'פעילות סתיו', start_date: '2026-09-01', activity_season: 'summer_2026', instructor_name: 'הילה רוזן' },
+    { RowID: 'REGULAR-JULY', status: 'פתוח', authority: 'רשות א', school: 'בית ספר רגיל', activity_name: 'פעילות רגילה', start_date: '2026-07-15', activity_season: 'regular', instructor_name: 'הילה רוזן' }
+  ];
+
+  const html = operationsManagementScreen.render({ rows, workshopStockMap: new Map() }, { state });
+
+  assert.match(html, /בית ספר קיץ/);
+  assert.match(html, /01\/07\/2026/);
+  assert.match(html, /31\/08\/2026/);
+  assert.doesNotMatch(html, /03\/11\/2025/);
+  assert.doesNotMatch(html, /בית ספר ישן/);
+  assert.doesNotMatch(html, /בית ספר עתידי/);
+  assert.doesNotMatch(html, /בית ספר רגיל/);
+  assert.match(html, /נמצאו 2 אישורים להפקה מתוך 2 פעילויות של המדריך בטווח התאריכים/);
+});
+
 test('completion approval tab asks for instructor before showing approvals', () => {
   const state = baseState();
   state.operationsManagement.tab = 'completion_approval';
