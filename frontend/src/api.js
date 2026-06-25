@@ -3630,8 +3630,8 @@ async function loginWithSupabaseAuth(user_id, entry_code) {
   const code = String(entry_code || '').trim();
   if (!uid || !code) throwLoginError('missing_user_id_or_entry_code');
 
-  const username = uid.toLowerCase();
-  const authEmail = `${username}@think.org.il`;
+  const loginUsername = uid.toLowerCase();
+  const authEmail = `${loginUsername}@think.org.il`;
 
   const { data: authData, error: authError } = await supabase.auth.signInWithPassword({
     email: authEmail,
@@ -3645,7 +3645,7 @@ async function loginWithSupabaseAuth(user_id, entry_code) {
   const authUserId = authData.user.id;
 
   try {
-    console.info('[login-auth-success]', { authEmail, username, authUserId });
+    console.info('[login-auth-success]', { authEmail, loginUsername, authUserId });
   } catch {
     /* ignore */
   }
@@ -3655,7 +3655,7 @@ async function loginWithSupabaseAuth(user_id, entry_code) {
     baseColumns: USER_PUBLIC_COLUMNS,
     extendedColumns: USER_PUBLIC_COLUMNS_EXTENDED,
     authEmail,
-    username,
+    username: loginUsername,
     authUserId,
     loginMode: true,
     requireAuthUserMatch: true
@@ -3674,7 +3674,7 @@ async function loginWithSupabaseAuth(user_id, entry_code) {
     throwLoginError(failureCode, {
       auth_user_id: authUserId,
       auth_email: authEmail,
-      username,
+      username: loginUsername,
       lookup_status: status || 'not_found',
       fallback_from: fallbackFrom || null,
       attempts: Array.isArray(attempts) ? attempts : [],
@@ -3685,7 +3685,7 @@ async function loginWithSupabaseAuth(user_id, entry_code) {
   userRow.auth_user_id = authUserId;
   if (matchedBy) {
     try {
-      console.info('[login-user-resolve]', { matchedBy, user_id: userRow.user_id, auth_email: authEmail });
+      console.info('[login-user-resolve]', { matchedBy, username: loginUsername, user_id: userRow.user_id, auth_email: authEmail });
     } catch {
       /* ignore */
     }
