@@ -51,12 +51,22 @@ export function hasActivitySchoolOrFrame(activity) {
   return false;
 }
 
-export function getActivityInstructorName(activity) {
-  for (const field of ['instructor_name', 'instructor', 'guide_name', 'guide']) {
+const ACTIVITY_INSTRUCTOR_FIELDS = ['instructor_name', 'instructor', 'guide_name', 'guide', 'instructor_name_2', 'instructor_2', 'guide_name_2', 'guide_2'];
+
+export function getActivityInstructorNames(activity) {
+  const names = [];
+  const seen = new Set();
+  ACTIVITY_INSTRUCTOR_FIELDS.forEach((field) => {
     const value = String(activity?.[field] || '').trim();
-    if (value && !INVALID_INSTRUCTOR_NAMES.has(value)) return value;
-  }
-  return 'לא משויך';
+    if (!value || INVALID_INSTRUCTOR_NAMES.has(value) || seen.has(value)) return;
+    seen.add(value);
+    names.push(value);
+  });
+  return names;
+}
+
+export function getActivityInstructorName(activity) {
+  return getActivityInstructorNames(activity)[0] || 'לא משויך';
 }
 
 export function isValidInstructorName(name) {
@@ -364,11 +374,15 @@ export function buildActivitySearchText(activity) {
     getActivityName(activity),
     getActivityAuthorityName(activity),
     getActivityDistrict(activity),
-    getActivityInstructorName(activity),
+    ...getActivityInstructorNames(activity),
     activity?.instructor_name,
     activity?.instructor,
     activity?.guide_name,
     activity?.guide,
+    activity?.instructor_name_2,
+    activity?.instructor_2,
+    activity?.guide_name_2,
+    activity?.guide_2,
     activity?.authority,
     activity?.legacy_authority,
     activity?.authority_name,

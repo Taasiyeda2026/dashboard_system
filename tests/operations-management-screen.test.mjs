@@ -5,6 +5,7 @@ import {
   getActivitySchoolDisplayName,
   hasActivitySchoolOrFrame,
   getActivityInstructorName,
+  getActivityInstructorNames,
   getActivityPrimaryDate,
   getActivitySchoolNames,
   getActivityTimeRange,
@@ -69,6 +70,37 @@ test('getActivityInstructorName priority and invalid names', () => {
   assert.equal(getActivityInstructorName({ guide_name: 'גיא' }), 'גיא');
   assert.equal(getActivityInstructorName({ instructor_name: 'לא משויך' }), 'לא משויך');
   assert.equal(getActivityInstructorName({}), 'לא משויך');
+});
+
+test('getActivityInstructorNames includes secondary instructor fields', () => {
+  assert.deepEqual(getActivityInstructorNames({
+    instructor_name: 'אבי',
+    guide: 'אבי',
+    instructor_name_2: 'אפרת אוחיון',
+    guide_2: 'לא משויך'
+  }), ['אבי', 'אפרת אוחיון']);
+});
+
+test('operations management instructor filter and schedule include secondary instructors', () => {
+  const state = baseState();
+  state.operationsManagement.period = 'summer_2026';
+  state.operationsManagement.dateFrom = '2026-07-01';
+  state.operationsManagement.dateTo = '2026-08-31';
+  state.listFilters['operations-management'].instructor = 'אפרת אוחיון';
+  const rows = [{
+    RowID: 'TAMIR-1',
+    status: 'פתוח',
+    activity_season: 'summer_2026',
+    authority: 'תמיר',
+    school: 'מסגרת תמיר',
+    activity_name: 'תמיר - חדר בריחה קווסט',
+    start_date: '2026-07-15',
+    instructor_name: 'מדריך ראשון',
+    instructor_name_2: 'אפרת אוחיון'
+  }];
+  const html = operationsManagementScreen.render({ rows, workshopStockMap: new Map() }, { state });
+  assert.match(html, /תמיר - חדר בריחה קווסט/);
+  assert.match(html, /אפרת אוחיון/);
 });
 
 test('getActivityPrimaryDate uses start_date and meeting dates', () => {
