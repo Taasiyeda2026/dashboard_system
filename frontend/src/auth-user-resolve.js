@@ -122,10 +122,12 @@ async function fetchActiveUserRowByFilters(client, columns, filters = [], attemp
   if (!client || !Array.isArray(filters) || !filters.length) {
     return { userRow: null, missingColumnError: false, permissionError: false, multipleMatches: false };
   }
+  const filterMap = Object.fromEntries(filters);
   lookupLog('attempt_start', {
     matchedBy: attemptMeta.matchedBy || '',
+    username: String(filterMap.username || '').trim() || null,
     columns,
-    filters: Object.fromEntries(filters)
+    filters: filterMap
   });
   let query = client.from('users').select(columns).eq('is_active', true);
   for (const [column, value] of filters) {
@@ -154,6 +156,8 @@ async function fetchActiveUserRowByFilters(client, columns, filters = [], attemp
   }
   lookupLog('attempt_result', {
     matchedBy: attemptMeta.matchedBy || '',
+    username: String(filterMap.username || data?.username || '').trim() || null,
+    result: data ? { user_id: data.user_id || null } : null,
     dataCount: data ? 1 : 0,
     user_id: data?.user_id || null
   });
