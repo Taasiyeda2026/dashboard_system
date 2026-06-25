@@ -156,6 +156,53 @@ test('operations management render includes menu page structure and tabs', () =>
   assert.doesNotMatch(html, /סמל מוסד/);
 });
 
+test('work schedule shows only student count column without quantity fallback', async () => {
+  const rows = [
+    {
+      RowID: 'SCHED-1',
+      status: 'פתוח',
+      authority: 'רשות א',
+      school: 'בית ספר א',
+      activity_name: 'פעילות עם משתתפים',
+      start_date: '2026-07-10',
+      start_time: '08:00',
+      end_time: '09:00',
+      instructor_name: 'דני',
+      grade: 'א',
+      participants_count: 18
+    },
+    {
+      RowID: 'SCHED-2',
+      status: 'פתוח',
+      authority: 'רשות א',
+      school: 'בית ספר א',
+      activity_name: 'פעילות ללא משתתפים',
+      start_date: '2026-07-11',
+      start_time: '10:00',
+      end_time: '11:00',
+      instructor_name: 'דני',
+      grade: 'ב'
+    }
+  ];
+  const html = operationsManagementScreen.render({ rows, workshopStockMap: new Map() }, { state: baseState() });
+  const scheduleHtml = html.match(/<div class="ds-ops-schedule-wrap">[\s\S]*?<p class="ds-ops-mgmt-print-footer/)?.[0] || '';
+
+  assert.match(scheduleHtml, />מס׳ תלמידים/);
+  assert.doesNotMatch(scheduleHtml, />כמות</);
+  assert.doesNotMatch(scheduleHtml, /ds-ops-col--quantity/);
+  assert.match(scheduleHtml, /<td class="ds-ops-col--student-count">18<\/td>/);
+  assert.match(scheduleHtml, /<td class="ds-ops-col--student-count">—<\/td>/);
+  assert.doesNotMatch(scheduleHtml, /<td class="ds-ops-col--student-count">25<\/td>/);
+  assert.match(html, /18 סה״כ תלמידים/);
+  assert.doesNotMatch(html, /סה״כ כמויות/);
+
+  const source = await readFile(new URL('../frontend/src/screens/operations-management.js', import.meta.url), 'utf8');
+  assert.doesNotMatch(source, /<th>כמות<\/th>/);
+  assert.doesNotMatch(source, /sortableTh\(state, TAB_INSTRUCTORS, 'quantity', 'כמות'/);
+  assert.match(source, /<th>שעות<\/th><th>פעילות<\/th><th>מס׳ תלמידים<\/th><th>כיתה<\/th>\$\{instructorHeader\}/);
+  assert.doesNotMatch(source, /<td class="ds-ops-col--quantity">/);
+});
+
 test('completion approval tab hides general operations filters and uses only approval filters', () => {
   const state = baseState();
   state.operationsManagement.tab = 'completion_approval';
