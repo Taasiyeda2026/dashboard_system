@@ -576,6 +576,7 @@ function scheduleSortValue(entry, key, directory) {
     weekday: entry.date ? formatDateHeWithWeekday(entry.date).split(' · ')[0] : '',
     time: entry.time || '',
     quantity: getActivityOperationalQuantity(activity),
+    studentCount: entry.studentCount ?? getActivityActualParticipantCount(activity),
     authority: getActivityAuthorityName(activity),
     school: getActivitySchoolDisplayNameClean(activity),
     instructor: entry.instructor || '',
@@ -616,7 +617,8 @@ function buildScheduleRows(rows, state, directory) {
           instructor,
           time: getActivityTimeRange(activity),
           hasTime: Boolean(getActivityTimeRange(activity)),
-          quantity: getActivityOperationalQuantity(activity)
+          quantity: getActivityOperationalQuantity(activity),
+          studentCount: getActivityActualParticipantCount(activity)
         });
       });
     });
@@ -995,6 +997,13 @@ function openOpsPrintWindow({ title = 'הדפסה', bodyHtml = '' } = {}) {
   setTimeout(() => printWindow.print(), 250);
 }
 
+function sumScheduleStudentCounts(scheduleRows = []) {
+  return scheduleRows.reduce((total, entry) => {
+    const count = entry?.studentCount ?? null;
+    return count !== null && Number.isFinite(Number(count)) ? total + Number(count) : total;
+  }, 0);
+}
+
 function buildGroupedScheduleHtml({ scheduleRows, state, selectedInstructorFilter, directory, contactsIndex }) {
   if (!scheduleRows || !scheduleRows.length) return '<p>אין פעילויות להדפסה.</p>';
   const ops = ensureOpsState(state);
@@ -1020,7 +1029,7 @@ function buildGroupedScheduleHtml({ scheduleRows, state, selectedInstructorFilte
     ? `מדריך: ${selectedInstructorFilter}`
     : 'מדריך: כל המדריכים';
   const dateRange = `${formatDateHe(ops.dateFrom) || '—'}–${formatDateHe(ops.dateTo) || '—'}`;
-  const quantityTotal = sumOperationalQuantitiesFromActivities(scheduleRows.map((row) => row.activity));
+  const studentTotal = sumScheduleStudentCounts(scheduleRows);
 
   const blocks = groups.map((group) => {
     const dateLabel = group.date
@@ -1033,10 +1042,9 @@ function buildGroupedScheduleHtml({ scheduleRows, state, selectedInstructorFilte
     const instructorHeader = showInstructor ? '<th>מדריך</th>' : '';
     const activityRows = group.entries.map((entry) => {
       const a = entry.activity;
-      const studentCount = getActivityActualParticipantCount(a);
       const instrCell = showInstructor ? `<td>${escapeHtml(entry.instructor || '—')}</td>` : '';
-      const studentCountLabel = studentCount !== null ? String(studentCount) : '—';
-      return `<tr><td>${escapeHtml(entry.time || '—')}</td><td>${escapeHtml(getActivityName(a))}</td><td>${escapeHtml(String(entry.quantity))}</td><td>${escapeHtml(studentCountLabel)}</td><td>${escapeHtml(getActivityGradeLabel(a) || '—')}</td>${instrCell}</tr>`;
+      const studentCountLabel = entry.studentCount !== null ? String(entry.studentCount) : '—';
+      return `<tr><td>${escapeHtml(entry.time || '—')}</td><td>${escapeHtml(getActivityName(a))}</td><td>${escapeHtml(studentCountLabel)}</td><td>${escapeHtml(getActivityGradeLabel(a) || '—')}</td>${instrCell}</tr>`;
     }).join('');
     const tableClass = showInstructor ? 'pb-act has-instructor' : 'pb-act';
     return `<div class="pb">
@@ -1044,12 +1052,12 @@ function buildGroupedScheduleHtml({ scheduleRows, state, selectedInstructorFilte
         <span class="pb-date">${escapeHtml(dateLabel)}</span>
         <span class="pb-meta">${metaParts.map(escapeHtml).join(' | ')}</span>
       </div>
-      <table class="${tableClass}"><thead><tr><th>שעות</th><th>פעילות</th><th>כמות</th><th>מס׳ תלמידים</th><th>כיתה</th>${instructorHeader}</tr></thead>
+      <table class="${tableClass}"><thead><tr><th>שעות</th><th>פעילות</th><th>מס׳ תלמידים</th><th>כיתה</th>${instructorHeader}</tr></thead>
       <tbody>${activityRows}</tbody></table>
     </div>`;
   }).join('');
 
-  return `<div class="ops-print-page"><h1>שיבוץ פעילויות קיץ</h1><p class="subtitle">${escapeHtml(instructorLine)} | טווח תאריכים: ${escapeHtml(dateRange)} | סה״כ כמויות: ${escapeHtml(String(quantityTotal))}</p><div class="ops-print-grid">${blocks}</div><p class="footer">יש לוודא את קיום הפעילות מול איש הקשר בבית הספר לפחות 48 שעות לפני כל יום פעילות.</p></div>`;
+  return `<div class="ops-print-page"><h1>שיבוץ פעילויות קיץ</h1><p class="subtitle">${escapeHtml(instructorLine)} | טווח תאריכים: ${escapeHtml(dateRange)} | סה״כ תלמידים: ${escapeHtml(String(studentTotal))}</p><div class="ops-print-grid">${blocks}</div><p class="footer">יש לוודא את קיום הפעילות מול איש הקשר בבית הספר לפחות 48 שעות לפני כל יום פעילות.</p></div>`;
 }
 
 function printInstructorSchedule() {
@@ -1075,17 +1083,15 @@ function printInstructorSchedule() {
     .pb-act th,.pb-act td{border:1px solid #cbd5e1;padding:2px 4px;text-align:right;font-size:10px;line-height:1.2;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
     .pb-act th{background:#e6f6fb;font-weight:700}
     .pb-act tr:nth-child(even) td{background:#f8fafc}
-    .pb-act th:nth-child(1),.pb-act td:nth-child(1){width:22%;text-align:center}
-    .pb-act th:nth-child(2),.pb-act td:nth-child(2){width:38%}
-    .pb-act th:nth-child(3),.pb-act td:nth-child(3){width:10%;text-align:center}
-    .pb-act th:nth-child(4),.pb-act td:nth-child(4){width:12%;text-align:center}
-    .pb-act th:nth-child(5),.pb-act td:nth-child(5){width:18%;text-align:center}
-    .pb-act.has-instructor th:nth-child(1),.pb-act.has-instructor td:nth-child(1){width:19%;text-align:center}
-    .pb-act.has-instructor th:nth-child(2),.pb-act.has-instructor td:nth-child(2){width:30%}
-    .pb-act.has-instructor th:nth-child(3),.pb-act.has-instructor td:nth-child(3){width:9%;text-align:center}
-    .pb-act.has-instructor th:nth-child(4),.pb-act.has-instructor td:nth-child(4){width:11%;text-align:center}
-    .pb-act.has-instructor th:nth-child(5),.pb-act.has-instructor td:nth-child(5){width:12%;text-align:center}
-    .pb-act.has-instructor th:nth-child(6),.pb-act.has-instructor td:nth-child(6){width:19%}
+    .pb-act th:nth-child(1),.pb-act td:nth-child(1){width:24%;text-align:center}
+    .pb-act th:nth-child(2),.pb-act td:nth-child(2){width:42%}
+    .pb-act th:nth-child(3),.pb-act td:nth-child(3){width:14%;text-align:center}
+    .pb-act th:nth-child(4),.pb-act td:nth-child(4){width:20%;text-align:center}
+    .pb-act.has-instructor th:nth-child(1),.pb-act.has-instructor td:nth-child(1){width:20%;text-align:center}
+    .pb-act.has-instructor th:nth-child(2),.pb-act.has-instructor td:nth-child(2){width:34%}
+    .pb-act.has-instructor th:nth-child(3),.pb-act.has-instructor td:nth-child(3){width:13%;text-align:center}
+    .pb-act.has-instructor th:nth-child(4),.pb-act.has-instructor td:nth-child(4){width:13%;text-align:center}
+    .pb-act.has-instructor th:nth-child(5),.pb-act.has-instructor td:nth-child(5){width:20%}
     .footer{margin-top:10px;font-size:12px;font-weight:700;color:#0f172a;text-align:center;border-top:1px solid #cbd5e1;padding-top:6px}
     @page{size:A4 portrait;margin:8mm}
     @media print{body{margin:0}.pb{page-break-inside:avoid;break-inside:avoid}.pb-hdr{break-after:avoid;page-break-after:avoid}.pb-act{break-before:avoid;page-break-before:avoid;break-inside:auto;page-break-inside:auto}tr{break-inside:avoid;page-break-inside:avoid}}
@@ -1213,7 +1219,7 @@ function instructorsTabHtml(rows, state, data = {}, directory = buildSchoolsDire
       <td class="ds-ops-col--date"><strong>${escapeHtml(formatDateHe(entry.date) || '—')}</strong></td>
       <td class="ds-ops-col--weekday">${escapeHtml(entry.date ? formatDateHeWithWeekday(entry.date).split(' · ')[0] : '—')}</td>
       <td class="ds-ops-col--time">${escapeHtml(entry.time || '—')}</td>
-      <td class="ds-ops-col--quantity">${escapeHtml(String(entry.quantity))}</td>
+      <td class="ds-ops-col--student-count">${escapeHtml(entry.studentCount !== null ? String(entry.studentCount) : '—')}</td>
       <td>${escapeHtml(getActivityAuthorityName(activity))}</td>
       <td class="ds-ops-col--school"><strong>${escapeHtml(getActivitySchoolDisplayNameClean(activity))}</strong></td>
       <td class="ds-ops-col--instructor">${escapeHtml(entry.instructor || '—')}</td>
@@ -1224,7 +1230,7 @@ function instructorsTabHtml(rows, state, data = {}, directory = buildSchoolsDire
 
   const table = scheduleRows.length
     ? dsTableWrap(`<table class="ds-table ds-table--compact ds-ops-mgmt-schedule"><thead><tr>
-        ${sortableTh(state, TAB_INSTRUCTORS, 'date', 'תאריך', 'ds-ops-col--date')}${sortableTh(state, TAB_INSTRUCTORS, 'weekday', 'יום', 'ds-ops-col--weekday')}${sortableTh(state, TAB_INSTRUCTORS, 'time', 'שעות', 'ds-ops-col--time')}${sortableTh(state, TAB_INSTRUCTORS, 'quantity', 'כמות', 'ds-ops-col--quantity')}${sortableTh(state, TAB_INSTRUCTORS, 'authority', 'רשות')}${sortableTh(state, TAB_INSTRUCTORS, 'school', 'בית ספר / מסגרת', 'ds-ops-col--school')}${sortableTh(state, TAB_INSTRUCTORS, 'instructor', 'מדריך', 'ds-ops-col--instructor')}${sortableTh(state, TAB_INSTRUCTORS, 'grade', 'כיתה', 'ds-ops-col--grade')}${sortableTh(state, TAB_INSTRUCTORS, 'activity', 'פעילות', 'ds-ops-col--activity')}
+        ${sortableTh(state, TAB_INSTRUCTORS, 'date', 'תאריך', 'ds-ops-col--date')}${sortableTh(state, TAB_INSTRUCTORS, 'weekday', 'יום', 'ds-ops-col--weekday')}${sortableTh(state, TAB_INSTRUCTORS, 'time', 'שעות', 'ds-ops-col--time')}${sortableTh(state, TAB_INSTRUCTORS, 'studentCount', 'מס׳ תלמידים', 'ds-ops-col--student-count')}${sortableTh(state, TAB_INSTRUCTORS, 'authority', 'רשות')}${sortableTh(state, TAB_INSTRUCTORS, 'school', 'בית ספר / מסגרת', 'ds-ops-col--school')}${sortableTh(state, TAB_INSTRUCTORS, 'instructor', 'מדריך', 'ds-ops-col--instructor')}${sortableTh(state, TAB_INSTRUCTORS, 'grade', 'כיתה', 'ds-ops-col--grade')}${sortableTh(state, TAB_INSTRUCTORS, 'activity', 'פעילות', 'ds-ops-col--activity')}
       </tr></thead><tbody>${tableRows}</tbody></table>`)
     : dsEmptyState('לא נמצאו פעילויות בטווח הנבחר');
 
