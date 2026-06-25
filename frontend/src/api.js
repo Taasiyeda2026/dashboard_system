@@ -3300,6 +3300,8 @@ const VALID_SUPABASE_ROLES = new Set(['admin', 'operation_manager', 'authorized_
 
 const KNOWN_INSTRUCTOR_EMP_IDS = new Set(['1525', '1527', '1502', '1507', '1509', '1500', '1503', '1511']);
 function isKnownInstructorIdentity(user = {}) {
+  const role = normalizeRoleAlias(user?.role || user?.display_role).toLowerCase();
+  if (role !== 'instructor') return false;
   return [user.emp_id, user.employee_id, user.user_id, user.username]
     .map((value) => String(value || '').trim())
     .some((id) => KNOWN_INSTRUCTOR_EMP_IDS.has(id));
