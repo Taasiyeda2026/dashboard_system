@@ -227,9 +227,9 @@ test('completion approval tab hides general operations filters and uses only app
     visibleCount: 200
   };
   const rows = [
-    { RowID: 'CA-1', status: 'פתוח', authority: 'רשות אחרת', school: 'בית ספר א', activity_name: 'פעילות א', start_date: '2026-07-10', start_time: '08:30:00', end_time: '09:30:00', instructor_name: 'הילה רוזן' },
-    { RowID: 'CA-2', status: 'פתוח', authority: 'רשות אחרת', school: 'בית ספר ב', activity_name: 'פעילות ב', start_date: '2026-07-11', start_time: '10:00:00', end_time: '11:00:00', instructor_name: 'הילה רוזן' },
-    { RowID: 'CA-3', status: 'פתוח', authority: 'רשות אחרת', school: 'בית ספר ג', activity_name: 'פעילות ג', start_date: '2026-07-10', instructor_name: 'מדריך אחר' }
+    { RowID: 'CA-1', status: 'פתוח', authority: 'רשות אחרת', school: 'בית ספר א', activity_name: 'פעילות א', start_date: '2026-07-10', start_time: '08:30:00', end_time: '09:30:00', activity_season: 'summer_2026', instructor_name: 'הילה רוזן' },
+    { RowID: 'CA-2', status: 'פתוח', authority: 'רשות אחרת', school: 'בית ספר ב', activity_name: 'פעילות ב', start_date: '2026-07-11', start_time: '10:00:00', end_time: '11:00:00', activity_season: 'summer_2026', instructor_name: 'הילה רוזן' },
+    { RowID: 'CA-3', status: 'פתוח', authority: 'רשות אחרת', school: 'בית ספר ג', activity_name: 'פעילות ג', start_date: '2026-07-10', activity_season: 'summer_2026', instructor_name: 'מדריך אחר' }
   ];
   const html = operationsManagementScreen.render({ rows, workshopStockMap: new Map() }, { state });
 
@@ -238,14 +238,20 @@ test('completion approval tab hides general operations filters and uses only app
   assert.doesNotMatch(html, /data-ops-filter="authority"/);
   assert.doesNotMatch(html, /data-ops-search/);
   assert.doesNotMatch(html, /מציג \d+ פעילויות מתוך/);
-  assert.match(html, /בחירת מדריך/);
-  assert.match(html, /בחירת תאריכים/);
+  assert.match(html, /בקרת אישורי ביצוע לקיץ 2026/);
+  assert.match(html, /data-ops-completion-subtab="approvals"/);
+  assert.match(html, /data-ops-completion-subtab="contacts"/);
+  assert.doesNotMatch(html, /בחירת מדריך/);
+  assert.doesNotMatch(html, /בחירת תאריכים/);
   assert.match(html, /בית ספר א/);
   assert.match(html, /בית ספר ב/);
   assert.doesNotMatch(html, /בית ספר ג/);
-  assert.match(html, /מס׳ פעילויות/);
+  assert.match(html, /צפייה באישור/);
+  assert.match(html, /אין קובץ חתום/);
+  assert.doesNotMatch(html, /מס׳ פעילויות/);
+  assert.doesNotMatch(html, /אחראי קשר מול בית הספר/);
   assert.equal((html.match(/data-ops-approval-print-all/g) || []).length, 1);
-  assert.match(html, /נמצאו 2 אישורים להפקה מתוך 2 פעילויות של המדריך בטווח התאריכים/);
+  assert.match(html, /סה״כ אישורים נדרשים/);
 });
 
 test('completion approval tab defaults to summer 2026 season and date range', () => {
@@ -276,10 +282,10 @@ test('completion approval tab defaults to summer 2026 season and date range', ()
   assert.doesNotMatch(html, /בית ספר ישן/);
   assert.doesNotMatch(html, /בית ספר עתידי/);
   assert.doesNotMatch(html, /בית ספר רגיל/);
-  assert.match(html, /נמצאו 2 אישורים להפקה מתוך 2 פעילויות של המדריך בטווח התאריכים/);
+  assert.match(html, /סה״כ אישורים נדרשים/);
 });
 
-test('completion approval tab asks for instructor before showing approvals', () => {
+test('completion approval tab defaults to approvals subtab without legacy instructor prompt', () => {
   const state = baseState();
   state.operationsManagement.tab = 'completion_approval';
   state.operationsManagement.completionApproval = {
@@ -291,9 +297,11 @@ test('completion approval tab asks for instructor before showing approvals', () 
     preview: false
   };
   const html = operationsManagementScreen.render({ rows: TEXT_SCHOOL_ROWS, workshopStockMap: new Map() }, { state });
-  assert.match(html, /בחרו מדריך כדי להציג אישורי ביצוע/);
+  assert.match(html, /בקרת אישורי ביצוע לקיץ 2026/);
+  assert.match(html, /data-ops-completion-subtab="approvals"/);
+  assert.match(html, /לא נמצאו אישורי ביצוע בטווח הנוכחי/);
+  assert.doesNotMatch(html, /בחרו מדריך כדי להציג אישורי ביצוע/);
   assert.doesNotMatch(html, /סינון וחיפוש/);
-  assert.doesNotMatch(html, /data-ops-approval-print-all/);
 });
 
 test('workshop quantity metrics use x25 estimate and stock gap rules', () => {

@@ -172,6 +172,7 @@ function ensureOpsState(state = {}) {
   if (!ops.completionApproval.dateFrom) ops.completionApproval.dateFrom = '';
   if (!ops.completionApproval.dateTo) ops.completionApproval.dateTo = '';
   if (!ops.completionApproval.preview) ops.completionApproval.preview = false;
+  if (!ops.completionApproval.subtab) ops.completionApproval.subtab = 'approvals';
   ops.sorts = ops.sorts || {};
   Object.entries(SORT_DEFAULTS).forEach(([tab, sort]) => {
     if (!ops.sorts[tab]) ops.sorts[tab] = { ...sort };
@@ -1541,17 +1542,14 @@ function hasActivitySeasonColumn(rows = []) {
   ));
 }
 
-function isCompletionApprovalSummerActivity(row, requireSeason = false) {
-  if (requireSeason) {
-    const season = normalizeActivitySeason(row?.activity_season ?? row?.activitySeason);
-    if (season !== ACTIVITY_SEASON_SUMMER_2026) return false;
-  }
+function isCompletionApprovalSummerActivity(row) {
+  const season = normalizeActivitySeason(row?.activity_season ?? row?.activitySeason);
+  if (season !== ACTIVITY_SEASON_SUMMER_2026) return false;
   return activityDatesInRange(row, COMPLETION_APPROVAL_SUMMER_FROM, COMPLETION_APPROVAL_SUMMER_TO).length > 0;
 }
 
 function completionApprovalSummerRows(rows = []) {
-  const requireSeason = hasActivitySeasonColumn(rows);
-  return (Array.isArray(rows) ? rows : []).filter((row) => isCompletionApprovalSummerActivity(row, requireSeason));
+  return (Array.isArray(rows) ? rows : []).filter((row) => isCompletionApprovalSummerActivity(row));
 }
 
 function completionApprovalTabHtml(rows, state, data = {}, directory = buildSchoolsDirectory([]), contactsIndex = new Map()) {
@@ -1569,7 +1567,7 @@ function completionApprovalTabHtml(rows, state, data = {}, directory = buildScho
     approved: items.filter((item) => item.upload?.status === 'approved').length,
     rejected: items.filter((item) => item.upload?.status === 'rejected').length
   };
-  const legacySummaryText = approvalState.instructor && approvals.length ? `נמצאו ${approvals.length} אישורים להפקה מתוך ${approvals.reduce((sum, approval) => sum + (approval.activities?.length || 0), 0)} פעילויות של המדריך בטווח התאריכים` : 'בחרו מדריך כדי להציג אישורי ביצוע';
+  const activeSubtab = approvalState.subtab === 'contacts' ? 'contacts' : 'approvals';
   const summary = summaryKpiHtml([
     { label: 'סה״כ אישורים נדרשים', value: stats.total },
     { label: 'הועלו', value: stats.uploaded, tone: 'ok' },
@@ -1584,9 +1582,9 @@ function completionApprovalTabHtml(rows, state, data = {}, directory = buildScho
       <td class="ds-table-cell-truncate">${escapeHtml(approval.instructorName || '')}</td>
       <td class="ds-table-cell-wrap">${escapeHtml(approval.school || '')}</td>
       <td class="ds-table-cell-truncate">${escapeHtml(completionApprovalUploadStatusLabel(upload))}</td>
-      <td class="ds-ops-completion-actions no-print">${hasFile
-        ? `<button type="button" class="ds-btn ds-btn--xs ds-btn--ghost" data-ops-upload-view="${escapeHtml(upload.id)}">צפייה</button> <button type="button" class="ds-btn ds-btn--xs ds-btn--ghost" data-ops-upload-download="${escapeHtml(upload.id)}">הורדה</button> <button type="button" class="ds-btn ds-btn--xs ds-btn--primary" data-ops-upload-approve="${escapeHtml(upload.id)}">אישור</button> <button type="button" class="ds-btn ds-btn--xs ds-btn--danger" data-ops-upload-reject="${escapeHtml(upload.id)}">דחייה</button>`
-        : '<span class="ds-chip ds-chip--neutral ds-ops-no-file-chip">אין קובץ</span>'}</td>
+      <td class="ds-ops-completion-actions no-print"><button type="button" class="ds-btn ds-btn--xs ds-btn--ghost" data-ops-approval-view="${index}">צפייה באישור</button> ${hasFile
+        ? `<button type="button" class="ds-btn ds-btn--xs ds-btn--ghost" data-ops-upload-view="${escapeHtml(upload.id)}">צפייה בקובץ חתום</button> <button type="button" class="ds-btn ds-btn--xs ds-btn--ghost" data-ops-upload-download="${escapeHtml(upload.id)}">הורדה</button> <button type="button" class="ds-btn ds-btn--xs ds-btn--primary" data-ops-upload-approve="${escapeHtml(upload.id)}">אישור</button> <button type="button" class="ds-btn ds-btn--xs ds-btn--danger" data-ops-upload-reject="${escapeHtml(upload.id)}">דחייה</button>`
+        : '<span class="ds-chip ds-chip--neutral ds-ops-no-file-chip">אין קובץ חתום</span>'}</td>
     </tr>`;
   }).join('');
   _completionApprovalPrintContext = { approvals, uploads: data?.completionApprovalUploads || [] };
@@ -1594,11 +1592,15 @@ function completionApprovalTabHtml(rows, state, data = {}, directory = buildScho
   const table = items.length
     ? dsTableWrap(`<table class="ds-table ds-table--compact ds-ops-completion-preview"><colgroup><col class="ds-ops-completion-col--date"><col class="ds-ops-completion-col--instructor"><col class="ds-ops-completion-col--school"><col class="ds-ops-completion-col--status"><col class="ds-ops-completion-col--actions no-print"></colgroup><thead><tr><th>תאריך</th><th>מדריך</th><th>בית ספר / מסגרת</th><th>סטטוס אישור</th><th class="no-print">פעולות</th></tr></thead><tbody>${body}</tbody></table>`)
     : dsEmptyState('לא נמצאו אישורי ביצוע בטווח הנוכחי');
+  const subtabs = `<div class="ds-ops-completion-subtabs no-print" role="tablist" aria-label="תתי לשוניות אישורי ביצוע"><button type="button" class="ds-btn ds-btn--sm ${activeSubtab === 'approvals' ? 'ds-btn--primary' : 'ds-btn--ghost'}" data-ops-completion-subtab="approvals" role="tab" aria-selected="${activeSubtab === 'approvals' ? 'true' : 'false'}">אישורי ביצוע</button><button type="button" class="ds-btn ds-btn--sm ${activeSubtab === 'contacts' ? 'ds-btn--primary' : 'ds-btn--ghost'}" data-ops-completion-subtab="contacts" role="tab" aria-selected="${activeSubtab === 'contacts' ? 'true' : 'false'}">אחראי קשר</button></div>`;
+  const activePanel = activeSubtab === 'contacts'
+    ? opsContactGroupsHtml(contactRows, data?.contactResponsiblesRows || []) || dsEmptyState('לא נמצאו אחראי קשר בטווח הנוכחי')
+    : `<div class="ds-ops-completion-approvals-card">${dsCard({ title: 'אישורי ביצוע', body: table, padded: false })}</div>`;
   return `<section class="ds-ops-mgmt-panel ds-ops-completion-panel" dir="rtl">
-    <span class="sr-only">בחירת מדריך בחירת תאריכים מס׳ פעילויות ${escapeHtml(legacySummaryText)}</span>${approvalState.instructor ? '<button type="button" class="sr-only" data-ops-approval-print-all>הדפסה</button>' : ''}
+    <button type="button" class="sr-only" data-ops-approval-print-all>הדפסה</button>
     ${summary}
-    <div class="ds-ops-completion-approvals-card">${dsCard({ title: 'אישורי ביצוע', badge: String(items.length), body: table, padded: false })}</div>
-    ${opsContactGroupsHtml(contactRows, data?.contactResponsiblesRows || [])}
+    ${subtabs}
+    ${activePanel}
   </section>`;
 }
 
@@ -1658,7 +1660,7 @@ export const operationsManagementScreen = {
       ? baseRows.filter((row) => activityMatchesAnyOfficialWorkshop(row, extractWorkshopCatalogRows(data?.adminListsData, prepared)))
       : baseRows;
     const activeRows = isCompletionApprovalTab ? baseRows : filteredRows;
-    return `<div class="ds-screen-stack ds-ops-mgmt-screen">${opsManagementStylesHtml()}${dsPageHeader('ניהול תפעול')}
+    return `<div class="ds-screen-stack ds-ops-mgmt-screen">${opsManagementStylesHtml()}${dsPageHeader(isCompletionApprovalTab ? 'בקרת אישורי ביצוע לקיץ 2026' : 'ניהול תפעול')}
       ${isCompletionApprovalTab ? '' : topFiltersHtml(filterRows, state)}
       ${tabsHtml(ops.tab)}
       <div class="ds-ops-mgmt-content">${renderTab(activeRows, state, data, prepared)}</div>
@@ -1682,6 +1684,13 @@ export const operationsManagementScreen = {
         if (ops.tab === TAB_SUMMER) ops.tab = TAB_INSTRUCTORS;
         try { sessionStorage.removeItem(SUMMER_TRAINING_SESSION_KEY); } catch { /* ignore */ }
         document.dispatchEvent(new CustomEvent('ops-mgmt-standard-tab', { detail: { tab: ops.tab } }));
+        rerender?.();
+      });
+    });
+
+    root.querySelectorAll('[data-ops-completion-subtab]').forEach((btn) => {
+      btn.addEventListener('click', () => {
+        ops.completionApproval.subtab = btn.getAttribute('data-ops-completion-subtab') || 'approvals';
         rerender?.();
       });
     });
