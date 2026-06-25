@@ -1033,8 +1033,10 @@ function buildGroupedScheduleHtml({ scheduleRows, state, selectedInstructorFilte
     const instructorHeader = showInstructor ? '<th>מדריך</th>' : '';
     const activityRows = group.entries.map((entry) => {
       const a = entry.activity;
+      const studentCount = getActivityActualParticipantCount(a);
       const instrCell = showInstructor ? `<td>${escapeHtml(entry.instructor || '—')}</td>` : '';
-      return `<tr><td>${escapeHtml(entry.time || '—')}</td><td>${escapeHtml(getActivityName(a))}</td><td>${escapeHtml(String(entry.quantity))}</td><td>${escapeHtml(getActivityGradeLabel(a) || '—')}</td>${instrCell}</tr>`;
+      const studentCountLabel = studentCount !== null ? String(studentCount) : '—';
+      return `<tr><td>${escapeHtml(entry.time || '—')}</td><td>${escapeHtml(getActivityName(a))}</td><td>${escapeHtml(String(entry.quantity))}</td><td>${escapeHtml(studentCountLabel)}</td><td>${escapeHtml(getActivityGradeLabel(a) || '—')}</td>${instrCell}</tr>`;
     }).join('');
     const tableClass = showInstructor ? 'pb-act has-instructor' : 'pb-act';
     return `<div class="pb">
@@ -1042,7 +1044,7 @@ function buildGroupedScheduleHtml({ scheduleRows, state, selectedInstructorFilte
         <span class="pb-date">${escapeHtml(dateLabel)}</span>
         <span class="pb-meta">${metaParts.map(escapeHtml).join(' | ')}</span>
       </div>
-      <table class="${tableClass}"><thead><tr><th>שעות</th><th>פעילות</th><th>כמות</th><th>כיתה</th>${instructorHeader}</tr></thead>
+      <table class="${tableClass}"><thead><tr><th>שעות</th><th>פעילות</th><th>כמות</th><th>מס׳ תלמידים</th><th>כיתה</th>${instructorHeader}</tr></thead>
       <tbody>${activityRows}</tbody></table>
     </div>`;
   }).join('');
@@ -1073,15 +1075,17 @@ function printInstructorSchedule() {
     .pb-act th,.pb-act td{border:1px solid #cbd5e1;padding:2px 4px;text-align:right;font-size:10px;line-height:1.2;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
     .pb-act th{background:#e6f6fb;font-weight:700}
     .pb-act tr:nth-child(even) td{background:#f8fafc}
-    .pb-act th:nth-child(1),.pb-act td:nth-child(1){width:25%;text-align:center}
-    .pb-act th:nth-child(2),.pb-act td:nth-child(2){width:43%}
-    .pb-act th:nth-child(3),.pb-act td:nth-child(3){width:12%;text-align:center}
-    .pb-act th:nth-child(4),.pb-act td:nth-child(4){width:20%;text-align:center}
-    .pb-act.has-instructor th:nth-child(1),.pb-act.has-instructor td:nth-child(1){width:22%;text-align:center}
-    .pb-act.has-instructor th:nth-child(2),.pb-act.has-instructor td:nth-child(2){width:34%}
-    .pb-act.has-instructor th:nth-child(3),.pb-act.has-instructor td:nth-child(3){width:11%;text-align:center}
-    .pb-act.has-instructor th:nth-child(4),.pb-act.has-instructor td:nth-child(4){width:13%;text-align:center}
-    .pb-act.has-instructor th:nth-child(5),.pb-act.has-instructor td:nth-child(5){width:20%}
+    .pb-act th:nth-child(1),.pb-act td:nth-child(1){width:22%;text-align:center}
+    .pb-act th:nth-child(2),.pb-act td:nth-child(2){width:38%}
+    .pb-act th:nth-child(3),.pb-act td:nth-child(3){width:10%;text-align:center}
+    .pb-act th:nth-child(4),.pb-act td:nth-child(4){width:12%;text-align:center}
+    .pb-act th:nth-child(5),.pb-act td:nth-child(5){width:18%;text-align:center}
+    .pb-act.has-instructor th:nth-child(1),.pb-act.has-instructor td:nth-child(1){width:19%;text-align:center}
+    .pb-act.has-instructor th:nth-child(2),.pb-act.has-instructor td:nth-child(2){width:30%}
+    .pb-act.has-instructor th:nth-child(3),.pb-act.has-instructor td:nth-child(3){width:9%;text-align:center}
+    .pb-act.has-instructor th:nth-child(4),.pb-act.has-instructor td:nth-child(4){width:11%;text-align:center}
+    .pb-act.has-instructor th:nth-child(5),.pb-act.has-instructor td:nth-child(5){width:12%;text-align:center}
+    .pb-act.has-instructor th:nth-child(6),.pb-act.has-instructor td:nth-child(6){width:19%}
     .footer{margin-top:10px;font-size:12px;font-weight:700;color:#0f172a;text-align:center;border-top:1px solid #cbd5e1;padding-top:6px}
     @page{size:A4 portrait;margin:8mm}
     @media print{body{margin:0}.pb{page-break-inside:avoid;break-inside:avoid}.pb-hdr{break-after:avoid;page-break-after:avoid}.pb-act{break-before:avoid;page-break-before:avoid;break-inside:auto;page-break-inside:auto}tr{break-inside:avoid;page-break-inside:avoid}}
