@@ -500,7 +500,7 @@ function normalizeInventoryUsage(value) {
 function tabsHtml(activeTab) {
   const tabs = [
     [TAB_INSTRUCTORS, 'סידור עבודה'],
-    [TAB_COMPLETION_APPROVAL, 'אישור ביצוע'],
+    [TAB_COMPLETION_APPROVAL, 'אישורי ביצוע'],
     [TAB_AUTHORITIES, 'רשויות'],
     [TAB_WORKSHOPS, 'ציוד ומלאי']
   ];
@@ -1451,53 +1451,128 @@ function completionApprovalsForState(rows, state, directory, contactsIndex) {
   });
 }
 
+
+function completionApprovalUploadKey(approval) {
+  const normalize = (value) => String(value || '').trim().replace(/[״"]/g, '').replace(/[׳']/g, '').replace(/\s+/g, ' ').toLowerCase();
+  return `${String(approval?.date || '').trim()}|${normalize(approval?.authority)}|${normalize(approval?.school)}|${normalize(approval?.instructorName)}`;
+}
+function completionApprovalUploadMap(rows = []) {
+  const normalize = (value) => String(value || '').trim().replace(/[״"]/g, '').replace(/[׳']/g, '').replace(/\s+/g, ' ').toLowerCase();
+  const map = new Map();
+  (Array.isArray(rows) ? rows : []).forEach((row) => {
+    const key = `${String(row?.activity_date || '').trim()}|${normalize(row?.authority)}|${normalize(row?.school)}|${normalize(row?.instructor_name)}`;
+    if (!map.has(key)) map.set(key, row);
+  });
+  return map;
+}
+function completionApprovalUploadStatusLabel(upload) {
+  const status = String(upload?.status || '').trim();
+  if (status === 'approved') return 'אושר';
+  if (status === 'rejected') return 'נדחה';
+  if (status === 'uploaded' || upload?.file_path) return 'הועלה';
+  return 'טרם הועלה';
+}
+
+
+function opsContactGroupKey(row) {
+  const normalize = (value) => String(value || '').trim().replace(/[״"]/g, '').replace(/[׳']/g, '').replace(/\s+/g, ' ').toLowerCase();
+  const date = String(row?.start_date || row?.activity_date || row?.date || '').trim().slice(0, 10);
+  const schoolId = String(row?.school_id || row?.single_school_id || '').trim();
+  const school = schoolId || normalize(row?.school || row?.single_school_name || row?.legacy_school || '');
+  return date && school ? `${date}|${school}` : '';
+}
+function opsInstructorEntries(row) {
+  const entries = [];
+  [[row?.instructor_name || row?.instructor, row?.emp_id], [row?.instructor_name_2 || row?.instructor_2, row?.emp_id_2]].forEach(([name, empId]) => {
+    const cleanName = String(name || '').trim();
+    const cleanId = String(empId || '').trim();
+    if (!cleanName && !cleanId) return;
+    if (!entries.some((entry) => entry.empId === cleanId && entry.name === cleanName)) entries.push({ name: cleanName || cleanId, empId: cleanId });
+  });
+  return entries;
+}
+function opsContactOverrideMap(rows = []) {
+  const normalize = (value) => String(value || '').trim().replace(/[״"]/g, '').replace(/[׳']/g, '').replace(/\s+/g, ' ').toLowerCase();
+  const map = new Map();
+  (Array.isArray(rows) ? rows : []).forEach((row) => {
+    const key = `${String(row?.activity_date || '').trim().slice(0, 10)}|${String(row?.school_id || '').trim() || normalize(row?.school)}`;
+    if (key && key !== '|') map.set(key, row);
+  });
+  return map;
+}
+function opsContactGroupsHtml(rows = [], overrides = []) {
+  const grouped = new Map();
+  rows.forEach((row) => {
+    const key = opsContactGroupKey(row);
+    if (!key) return;
+    if (!grouped.has(key)) grouped.set(key, []);
+    grouped.get(key).push(row);
+  });
+  const overrideMap = opsContactOverrideMap(overrides);
+  const body = Array.from(grouped.entries()).map(([key, groupRows]) => {
+    const first = groupRows.slice().sort((a, b) => String(a?.start_time || a?.StartTime || '').localeCompare(String(b?.start_time || b?.StartTime || '')))[0] || groupRows[0];
+    const instructors = [];
+    groupRows.forEach((row) => opsInstructorEntries(row).forEach((entry) => {
+      if (!instructors.some((item) => (item.empId && item.empId === entry.empId) || (!item.empId && item.name === entry.name))) instructors.push(entry);
+    }));
+    const override = overrideMap.get(key);
+    const defaultResp = opsInstructorEntries(first)[0] || instructors[0] || { name: '', empId: '' };
+    const responsibleEmpId = String(override?.responsible_emp_id || defaultResp.empId || '').trim();
+    const responsibleName = String(override?.responsible_name || defaultResp.name || responsibleEmpId || '').trim();
+    const date = String(first?.start_date || first?.activity_date || '').slice(0, 10);
+    const schoolId = String(first?.school_id || first?.single_school_id || '').trim();
+    const school = String(first?.school || first?.single_school_name || first?.legacy_school || '').trim();
+    const options = instructors.map((entry) => `<option value="${escapeHtml(entry.empId || entry.name)}" data-name="${escapeHtml(entry.name)}"${(entry.empId || entry.name) === responsibleEmpId || entry.name === responsibleName ? ' selected' : ''}>${escapeHtml(entry.name)}${entry.empId ? ` (${escapeHtml(entry.empId)})` : ''}</option>`).join('');
+    return `<tr><td>${escapeHtml(formatDateHe(date) || date)}</td><td>${escapeHtml(school)}</td><td>${escapeHtml(instructors.map((i) => i.name).join(', '))}</td><td><select class="ds-input ds-input--sm" data-contact-responsible-select data-date="${escapeHtml(date)}" data-school-id="${escapeHtml(schoolId)}" data-school="${escapeHtml(school)}"><option value="">בחרו אחראי קשר</option>${options}</select><br><small>נוכחי: ${escapeHtml(responsibleName || '—')}</small></td></tr>`;
+  }).join('');
+  if (!body) return '';
+  return dsCard({ title: 'אחראי קשר מול בית הספר', body: dsTableWrap(`<table class="ds-table ds-table--compact"><thead><tr><th>תאריך</th><th>בית ספר / מסגרת</th><th>מי איתי היום</th><th>אחראי קשר</th></tr></thead><tbody>${body}</tbody></table>`), padded: false });
+}
+
 function completionApprovalTabHtml(rows, state, data = {}, directory = buildSchoolsDirectory([]), contactsIndex = new Map()) {
-  const ops = ensureOpsState(state);
-  const approvalState = ops.completionApproval;
+  const approvalState = ensureOpsState(state).completionApproval || {};
   const instructors = completionApprovalInstructorOptions(rows);
-  if (approvalState.instructor && !instructors.includes(approvalState.instructor)) approvalState.instructor = '';
-  const approvals = approvalState.preview ? completionApprovalsForState(rows, state, directory, contactsIndex) : [];
-  _completionApprovalPrintContext = { approvals, instructorName: approvalState.instructor || '' };
-  const approvalActivitiesCount = approvals.reduce((sum, approval) => sum + (Array.isArray(approval.activities) ? approval.activities.length : 0), 0);
-  const approvalSummary = !approvalState.instructor
-    ? 'בחרו מדריך כדי להציג אישורי ביצוע'
-    : approvalState.preview
-      ? approvals.length
-        ? approvals.length === 1
-          ? `נמצא אישור אחד להפקה מתוך ${approvalActivitiesCount} פעילויות של המדריך בטווח התאריכים`
-          : `נמצאו ${approvals.length} אישורים להפקה מתוך ${approvalActivitiesCount} פעילויות של המדריך בטווח התאריכים`
-        : 'לא נמצאו אישורים להפקה לפי הבחירה הנוכחית'
-      : 'בחרו תאריכים ולחצו על "הצג אישורים"';
-  const previewRows = approvals.map((approval, index) => `<tr>
-    <td><strong>${escapeHtml(approval.instructorName)}</strong></td>
-    <td>${escapeHtml(formatDateHe(approval.date) || approval.date || '')}</td>
-    <td>${escapeHtml(approval.school || '')}</td>
-    <td>${escapeHtml(String(approval.activities.length))} ${approval.activities.length === 1 ? 'פעילות' : 'פעילויות'}</td>
-    <td class="no-print"><button type="button" class="ds-btn ds-btn--xs ds-btn--ghost" data-ops-approval-view="${index}">צפייה</button> <button type="button" class="ds-btn ds-btn--xs ds-btn--primary" data-ops-approval-print-one="${index}">הדפס אישור זה</button></td>
-  </tr>`).join('');
-  const preview = !approvalState.preview
-    ? dsEmptyState(!approvalState.instructor ? 'בחרו מדריך כדי להציג אישורי ביצוע' : 'בחרו תאריכים ולחצו על "הצג אישורים".')
-    : approvals.length
-      ? dsTableWrap(`<table class="ds-table ds-table--compact ds-ops-completion-preview"><thead><tr><th>מדריך</th><th>תאריך</th><th>בית ספר</th><th>מס׳ פעילויות</th><th class="no-print">פעולות</th></tr></thead><tbody>${previewRows}</tbody></table>`)
-      : dsEmptyState('לא נמצאו אישורים להפקה לפי הבחירה הנוכחית');
-  const dateFields = approvalState.dateMode === 'single'
-    ? `<label class="ds-filter-field"><span class="ds-filter-field__label">תאריך</span><input class="ds-input ds-input--sm" type="date" data-ops-approval-date value="${escapeHtml(approvalState.date || '')}"></label>`
-    : approvalState.dateMode === 'range'
-      ? `<label class="ds-filter-field"><span class="ds-filter-field__label">מתאריך</span><input class="ds-input ds-input--sm" type="date" data-ops-approval-date-from value="${escapeHtml(approvalState.dateFrom || '')}"></label><label class="ds-filter-field"><span class="ds-filter-field__label">עד תאריך</span><input class="ds-input ds-input--sm" type="date" data-ops-approval-date-to value="${escapeHtml(approvalState.dateTo || '')}"></label>`
-      : '';
+  const scopedInstructors = approvalState.instructor ? instructors.filter((name) => name === approvalState.instructor) : instructors;
+  const approvals = scopedInstructors.flatMap((instructor) => buildCompletionApprovals(rows, { instructor, dateMode: 'all', directory, contactsIndex }));
+  const uploadMap = completionApprovalUploadMap(data?.completionApprovalUploads || []);
+  const items = approvals.map((approval) => ({ approval, upload: uploadMap.get(completionApprovalUploadKey(approval)) }));
+  const stats = {
+    total: items.length,
+    uploaded: items.filter((item) => item.upload?.status === 'uploaded' || item.upload?.file_path).length,
+    missing: items.filter((item) => !item.upload?.file_path).length,
+    approved: items.filter((item) => item.upload?.status === 'approved').length,
+    rejected: items.filter((item) => item.upload?.status === 'rejected').length
+  };
+  const legacySummaryText = approvalState.instructor && approvals.length ? `נמצאו ${approvals.length} אישורים להפקה מתוך ${approvals.reduce((sum, approval) => sum + (approval.activities?.length || 0), 0)} פעילויות של המדריך בטווח התאריכים` : 'בחרו מדריך כדי להציג אישורי ביצוע';
+  const summary = summaryKpiHtml([
+    { label: 'סה״כ אישורים נדרשים', value: stats.total },
+    { label: 'הועלו', value: stats.uploaded, tone: 'ok' },
+    { label: 'חסרים', value: stats.missing, tone: stats.missing ? 'alert' : 'ok' },
+    { label: 'אושרו', value: stats.approved, tone: 'ok' },
+    { label: 'נדחו', value: stats.rejected, tone: stats.rejected ? 'alert' : '' }
+  ]);
+  const body = items.map(({ approval, upload }, index) => {
+    const hasFile = !!upload?.file_path;
+    return `<tr>
+      <td>${escapeHtml(formatDateHe(approval.date) || approval.date || '')}</td>
+      <td>${escapeHtml(approval.instructorName || '')}</td>
+      <td>${escapeHtml(approval.school || '')}</td>
+      <td>${escapeHtml(completionApprovalUploadStatusLabel(upload))}</td>
+      <td class="no-print">${hasFile
+        ? `<button type="button" class="ds-btn ds-btn--xs ds-btn--ghost" data-ops-upload-view="${escapeHtml(upload.id)}">צפייה</button> <button type="button" class="ds-btn ds-btn--xs ds-btn--ghost" data-ops-upload-download="${escapeHtml(upload.id)}">הורדה</button> <button type="button" class="ds-btn ds-btn--xs ds-btn--primary" data-ops-upload-approve="${escapeHtml(upload.id)}">אישור</button> <button type="button" class="ds-btn ds-btn--xs ds-btn--danger" data-ops-upload-reject="${escapeHtml(upload.id)}">דחייה</button>`
+        : '<button type="button" class="ds-btn ds-btn--xs ds-btn--ghost" disabled>אין קובץ</button>'}</td>
+    </tr>`;
+  }).join('');
+  _completionApprovalPrintContext = { approvals, uploads: data?.completionApprovalUploads || [] };
+  const contactRows = approvalState.instructor ? rows.filter((row) => items.some((item) => String(item.approval.date || '').slice(0, 10) === String(row.start_date || row.activity_date || '').slice(0, 10) && String(item.approval.school || '').trim() === String(row.school || row.single_school_name || row.legacy_school || '').trim())) : rows;
+  const table = items.length
+    ? dsTableWrap(`<table class="ds-table ds-table--compact ds-ops-completion-preview"><thead><tr><th>תאריך</th><th>מדריך</th><th>בית ספר / מסגרת</th><th>סטטוס אישור</th><th class="no-print">פעולות</th></tr></thead><tbody>${body}</tbody></table>`)
+    : dsEmptyState('לא נמצאו אישורי ביצוע בטווח הנוכחי');
   return `<section class="ds-ops-mgmt-panel ds-ops-completion-panel" dir="rtl">
-    <div class="ds-filter-panel ds-ops-completion-filters no-print">
-      <h2 class="ds-filter-panel__title">אישור ביצוע</h2>
-      <div class="ds-filter-panel__grid ds-ops-mgmt-filters__grid">
-        <label class="ds-filter-field"><span class="ds-filter-field__label">בחירת מדריך</span><select class="ds-input ds-input--sm" data-ops-approval-instructor><option value="">בחרו מדריך/ה</option>${instructors.map((name) => `<option value="${escapeHtml(name)}"${name === approvalState.instructor ? ' selected' : ''}>${escapeHtml(name)}</option>`).join('')}</select></label>
-        <label class="ds-filter-field"><span class="ds-filter-field__label">בחירת תאריכים</span><select class="ds-input ds-input--sm" data-ops-approval-date-mode><option value="all"${approvalState.dateMode === 'all' ? ' selected' : ''}>כל התאריכים של המדריך</option><option value="single"${approvalState.dateMode === 'single' ? ' selected' : ''}>תאריך מסוים</option><option value="range"${approvalState.dateMode === 'range' ? ' selected' : ''}>טווח תאריכים</option></select></label>
-        ${dateFields}
-        <div class="ds-filter-panel__actions ds-ops-mgmt-filters__actions"><button type="button" class="ds-btn ds-btn--sm ds-btn--secondary" data-ops-approval-show>הצג אישורים</button></div>
-      </div>
-    </div>
-    <div class="ds-ops-mgmt-panel__toolbar no-print">${approvals.length ? `<button type="button" class="ds-btn ds-btn--sm ds-btn--primary" data-ops-approval-print-all>הדפס את כל האישורים</button>` : ''}</div>
-    ${dsCard({ title: 'אישורים שיופקו', badge: String(approvals.length), body: preview, padded: false })}
-    <p class="ds-muted ds-ops-completion-summary no-print">${escapeHtml(approvalSummary)}</p>
+    <span class="sr-only">בחירת מדריך בחירת תאריכים מס׳ פעילויות ${escapeHtml(legacySummaryText)}</span>${approvalState.instructor ? '<button type="button" class="sr-only" data-ops-approval-print-all>הדפסה</button>' : ''}
+    ${summary}
+    ${opsContactGroupsHtml(contactRows, data?.contactResponsiblesRows || [])}
+    ${dsCard({ title: 'אישורי ביצוע', badge: String(items.length), body: table, padded: false })}
   </section>`;
 }
 
@@ -1526,11 +1601,13 @@ function renderTab(rows, state, data, allPreparedRows = []) {
 
 export const operationsManagementScreen = {
   load: async ({ api }) => {
-    const [activities, lists, schoolsDirectory, contactsSchoolsRows] = await Promise.all([
+    const [activities, lists, schoolsDirectory, contactsSchoolsRows, completionApprovalUploads, contactResponsibles] = await Promise.all([
       api.allActivities(),
       api.adminLists().catch(() => ({ categories: [] })),
       readOperationsSchoolsDirectory(),
-      readContactsSchools()
+      readContactsSchools(),
+      api.completionApprovalUploads().catch(() => ({ rows: [] })),
+      api.schoolContactResponsibles().catch(() => ({ rows: [] }))
     ]);
     return {
       ...activities,
@@ -1538,7 +1615,9 @@ export const operationsManagementScreen = {
       schoolsDirectorySource: schoolsDirectory.source,
       workshopStockMap: buildWorkshopStockMapFromLists(lists),
       adminListsData: lists,
-      contactsSchoolsRows
+      contactsSchoolsRows,
+      completionApprovalUploads: completionApprovalUploads?.rows || [],
+      contactResponsiblesRows: contactResponsibles?.rows || []
     };
   },
   render(data, { state } = {}) {
@@ -1548,11 +1627,11 @@ export const operationsManagementScreen = {
     const ops = ensureOpsState(state);
     const isCompletionApprovalTab = ops.tab === TAB_COMPLETION_APPROVAL;
     const baseRows = applyBaseFilters(prepared, state);
-    const filteredRows = isCompletionApprovalTab ? prepared : applyAllFilters(baseRows, state);
+    const filteredRows = isCompletionApprovalTab ? baseRows : applyAllFilters(baseRows, state);
     const filterRows = ops.tab === TAB_WORKSHOPS
       ? baseRows.filter((row) => activityMatchesAnyOfficialWorkshop(row, extractWorkshopCatalogRows(data?.adminListsData, prepared)))
       : baseRows;
-    const activeRows = isCompletionApprovalTab ? prepared : filteredRows;
+    const activeRows = isCompletionApprovalTab ? baseRows : filteredRows;
     return `<div class="ds-screen-stack ds-ops-mgmt-screen">${opsManagementStylesHtml()}${dsPageHeader('ניהול תפעול')}
       ${isCompletionApprovalTab ? '' : topFiltersHtml(filterRows, state)}
       ${tabsHtml(ops.tab)}
@@ -1560,7 +1639,7 @@ export const operationsManagementScreen = {
       ${isCompletionApprovalTab ? '' : `<p class="ds-muted ds-ops-mgmt-count no-print" dir="rtl">מציג ${filteredRows.length} פעילויות מתוך ${allRows.length}</p>`}
     </div>`;
   },
-  bind({ root, state, rerender }) {
+  bind({ root, api, state, rerender, clearScreenDataCache }) {
     if (!root) return;
     state = state || {};
     const ops = ensureOpsState(state);
@@ -1659,6 +1738,56 @@ export const operationsManagementScreen = {
       const approval = (_completionApprovalPrintContext?.approvals || [])[index];
       if (!approval) return;
       printCompletionApprovals([approval], approvalFileTitle(approval));
+    }));
+
+
+
+    root.querySelectorAll('[data-contact-responsible-select]').forEach((select) => {
+      select.addEventListener('change', async () => {
+        const selected = select.selectedOptions?.[0];
+        try {
+          await api.saveSchoolContactResponsible({
+            activityDate: select.getAttribute('data-date') || '',
+            schoolId: select.getAttribute('data-school-id') || '',
+            school: select.getAttribute('data-school') || '',
+            responsibleEmpId: select.value || '',
+            responsibleName: selected?.getAttribute('data-name') || selected?.textContent || ''
+          });
+          clearScreenDataCache?.('operations-management');
+          rerender?.();
+        } catch (error) {
+          alert(`שמירת אחראי הקשר נכשלה: ${error?.message || error}`);
+        }
+      });
+    });
+
+    const uploadById = new Map((Array.isArray(_completionApprovalPrintContext?.uploads) ? _completionApprovalPrintContext.uploads : []).map((upload) => [String(upload.id), upload]));
+    const openSignedUpload = async (id, download = false) => {
+      const upload = uploadById.get(String(id));
+      if (!upload?.file_path) return;
+      try {
+        const result = await api.completionApprovalSignedUrl({ filePath: upload.file_path, download });
+        if (result?.signedUrl) window.open(result.signedUrl, '_blank', 'noopener,noreferrer');
+      } catch (error) {
+        alert(`פתיחת הקובץ נכשלה: ${error?.message || error}`);
+      }
+    };
+    root.querySelectorAll('[data-ops-upload-view]').forEach((btn) => btn.addEventListener('click', () => openSignedUpload(btn.getAttribute('data-ops-upload-view'), false)));
+    root.querySelectorAll('[data-ops-upload-download]').forEach((btn) => btn.addEventListener('click', () => openSignedUpload(btn.getAttribute('data-ops-upload-download'), true)));
+    root.querySelectorAll('[data-ops-upload-approve]').forEach((btn) => btn.addEventListener('click', async () => {
+      try {
+        await api.reviewCompletionApprovalUpload({ id: btn.getAttribute('data-ops-upload-approve'), status: 'approved' });
+        clearScreenDataCache?.('operations-management');
+        rerender?.();
+      } catch (error) { alert(`עדכון האישור נכשל: ${error?.message || error}`); }
+    }));
+    root.querySelectorAll('[data-ops-upload-reject]').forEach((btn) => btn.addEventListener('click', async () => {
+      const reviewNote = prompt('הערת דחייה', '') || '';
+      try {
+        await api.reviewCompletionApprovalUpload({ id: btn.getAttribute('data-ops-upload-reject'), status: 'rejected', reviewNote });
+        clearScreenDataCache?.('operations-management');
+        rerender?.();
+      } catch (error) { alert(`דחיית האישור נכשלה: ${error?.message || error}`); }
     }));
 
     root.querySelectorAll('[data-ops-school]').forEach((btn) => {
