@@ -80,3 +80,38 @@ on conflict (user_id) do update set
   is_active = true,
   name = coalesce(nullif(public.users.name, ''), excluded.name),
   full_name = coalesce(nullif(public.users.full_name, ''), excluded.full_name);
+
+-- Manual override for the school contact responsible per activity date + school/frame.
+create table if not exists public.activity_school_contact_responsibles (
+  id uuid primary key default gen_random_uuid(),
+  activity_date date not null,
+  school_id text not null default '',
+  school text not null default '',
+  responsible_emp_id text not null,
+  responsible_name text,
+  updated_by text,
+  updated_at timestamptz not null default now(),
+  constraint activity_school_contact_responsibles_target_check check (school_id <> '' or school <> '')
+);
+
+create unique index if not exists activity_school_contact_responsibles_date_school_id_uidx
+  on public.activity_school_contact_responsibles (activity_date, school_id)
+  where school_id <> '';
+create unique index if not exists activity_school_contact_responsibles_date_school_uidx
+  on public.activity_school_contact_responsibles (activity_date, school)
+  where school_id = '';
+
+alter table public.activity_school_contact_responsibles enable row level security;
+
+drop policy if exists activity_school_contact_responsibles_select_authenticated on public.activity_school_contact_responsibles;
+create policy activity_school_contact_responsibles_select_authenticated
+on public.activity_school_contact_responsibles
+for select
+using (auth.role() = 'authenticated');
+
+drop policy if exists activity_school_contact_responsibles_upsert_ops on public.activity_school_contact_responsibles;
+create policy activity_school_contact_responsibles_upsert_ops
+on public.activity_school_contact_responsibles
+for all
+using (exists (select 1 from public.users where auth_user_id = auth.uid() and role in ('admin', 'operation_manager', 'domain_manager')))
+with check (exists (select 1 from public.users where auth_user_id = auth.uid() and role in ('admin', 'operation_manager', 'domain_manager')));

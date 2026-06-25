@@ -20,6 +20,20 @@ function weekdayNameHe(value) {
   return Number.isNaN(d.getTime()) ? '' : (WEEKDAYS_HE[d.getDay()] || '');
 }
 
+
+function contactTeamGroupsHtml(groups = [], userEmpId = '') {
+  const items = (Array.isArray(groups) ? groups : []).map((group) => {
+    const instructors = (Array.isArray(group.instructors) ? group.instructors : []).map((i) => i.name || i.empId).filter(Boolean).join(', ') || '—';
+    const isResponsible = userEmpId && String(group.responsibleEmpId || '').trim() === userEmpId;
+    const message = isResponsible
+      ? 'את/ה אחראי/ת ליצור קשר עם בית הספר ולעדכן את שאר הצוות.'
+      : `אחראי הקשר הוא ${group.responsibleName || '—'} — יש לתאם דרכו ולא לפנות בנפרד לבית הספר.`;
+    return `<li class="ds-contact-team-card"><strong>${escapeHtml(formatDateHe(group.activity_date) || group.activity_date || '')} · ${escapeHtml(group.school || '')}</strong><br><span>מי איתי היום: ${escapeHtml(instructors)}</span><br><span>${escapeHtml(message)}</span></li>`;
+  }).join('');
+  if (!items) return '';
+  return dsCard({ title: 'מי איתי היום', body: `<ul class="ds-contact-team-list">${items}</ul>`, padded: true });
+}
+
 function displayCellValue(row, column) {
   if (column === 'activity_day') return weekdayNameHe(row?.start_date || row?.activity_date || '') || '—';
   if (column === 'activity_hours') {
@@ -92,6 +106,7 @@ export const myDataScreen = {
 
     return dsScreenStack(`
       ${dsPageHeader('הפעילויות שלי', 'הפעילויות שבהן את/ה משובץ/ת כמדריך/ה')}
+      ${contactTeamGroupsHtml(data?.teamGroups || [], userEmpId)}
       ${preparedRows.length ? dsPageListToolsBar({ searchPlaceholder: 'חיפוש בפעילויות שלי…', filterLabel: 'סוג פעילות', filters: typeFilters }) : ''}
       ${dsCard({
         title: 'הפעילויות שלי',

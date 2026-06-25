@@ -1473,6 +1473,62 @@ function completionApprovalUploadStatusLabel(upload) {
   return 'טרם הועלה';
 }
 
+
+function opsContactGroupKey(row) {
+  const normalize = (value) => String(value || '').trim().replace(/[״"]/g, '').replace(/[׳']/g, '').replace(/\s+/g, ' ').toLowerCase();
+  const date = String(row?.start_date || row?.activity_date || row?.date || '').trim().slice(0, 10);
+  const schoolId = String(row?.school_id || row?.single_school_id || '').trim();
+  const school = schoolId || normalize(row?.school || row?.single_school_name || row?.legacy_school || '');
+  return date && school ? `${date}|${school}` : '';
+}
+function opsInstructorEntries(row) {
+  const entries = [];
+  [[row?.instructor_name || row?.instructor, row?.emp_id], [row?.instructor_name_2 || row?.instructor_2, row?.emp_id_2]].forEach(([name, empId]) => {
+    const cleanName = String(name || '').trim();
+    const cleanId = String(empId || '').trim();
+    if (!cleanName && !cleanId) return;
+    if (!entries.some((entry) => entry.empId === cleanId && entry.name === cleanName)) entries.push({ name: cleanName || cleanId, empId: cleanId });
+  });
+  return entries;
+}
+function opsContactOverrideMap(rows = []) {
+  const normalize = (value) => String(value || '').trim().replace(/[״"]/g, '').replace(/[׳']/g, '').replace(/\s+/g, ' ').toLowerCase();
+  const map = new Map();
+  (Array.isArray(rows) ? rows : []).forEach((row) => {
+    const key = `${String(row?.activity_date || '').trim().slice(0, 10)}|${String(row?.school_id || '').trim() || normalize(row?.school)}`;
+    if (key && key !== '|') map.set(key, row);
+  });
+  return map;
+}
+function opsContactGroupsHtml(rows = [], overrides = []) {
+  const grouped = new Map();
+  rows.forEach((row) => {
+    const key = opsContactGroupKey(row);
+    if (!key) return;
+    if (!grouped.has(key)) grouped.set(key, []);
+    grouped.get(key).push(row);
+  });
+  const overrideMap = opsContactOverrideMap(overrides);
+  const body = Array.from(grouped.entries()).map(([key, groupRows]) => {
+    const first = groupRows.slice().sort((a, b) => String(a?.start_time || a?.StartTime || '').localeCompare(String(b?.start_time || b?.StartTime || '')))[0] || groupRows[0];
+    const instructors = [];
+    groupRows.forEach((row) => opsInstructorEntries(row).forEach((entry) => {
+      if (!instructors.some((item) => (item.empId && item.empId === entry.empId) || (!item.empId && item.name === entry.name))) instructors.push(entry);
+    }));
+    const override = overrideMap.get(key);
+    const defaultResp = opsInstructorEntries(first)[0] || instructors[0] || { name: '', empId: '' };
+    const responsibleEmpId = String(override?.responsible_emp_id || defaultResp.empId || '').trim();
+    const responsibleName = String(override?.responsible_name || defaultResp.name || responsibleEmpId || '').trim();
+    const date = String(first?.start_date || first?.activity_date || '').slice(0, 10);
+    const schoolId = String(first?.school_id || first?.single_school_id || '').trim();
+    const school = String(first?.school || first?.single_school_name || first?.legacy_school || '').trim();
+    const options = instructors.map((entry) => `<option value="${escapeHtml(entry.empId || entry.name)}" data-name="${escapeHtml(entry.name)}"${(entry.empId || entry.name) === responsibleEmpId || entry.name === responsibleName ? ' selected' : ''}>${escapeHtml(entry.name)}${entry.empId ? ` (${escapeHtml(entry.empId)})` : ''}</option>`).join('');
+    return `<tr><td>${escapeHtml(formatDateHe(date) || date)}</td><td>${escapeHtml(school)}</td><td>${escapeHtml(instructors.map((i) => i.name).join(', '))}</td><td><select class="ds-input ds-input--sm" data-contact-responsible-select data-date="${escapeHtml(date)}" data-school-id="${escapeHtml(schoolId)}" data-school="${escapeHtml(school)}"><option value="">בחרו אחראי קשר</option>${options}</select><br><small>נוכחי: ${escapeHtml(responsibleName || '—')}</small></td></tr>`;
+  }).join('');
+  if (!body) return '';
+  return dsCard({ title: 'אחראי קשר מול בית הספר', body: dsTableWrap(`<table class="ds-table ds-table--compact"><thead><tr><th>תאריך</th><th>בית ספר / מסגרת</th><th>מי איתי היום</th><th>אחראי קשר</th></tr></thead><tbody>${body}</tbody></table>`), padded: false });
+}
+
 function completionApprovalTabHtml(rows, state, data = {}, directory = buildSchoolsDirectory([]), contactsIndex = new Map()) {
   const approvalState = ensureOpsState(state).completionApproval || {};
   const instructors = completionApprovalInstructorOptions(rows);
@@ -1508,12 +1564,14 @@ function completionApprovalTabHtml(rows, state, data = {}, directory = buildScho
     </tr>`;
   }).join('');
   _completionApprovalPrintContext = { approvals, uploads: data?.completionApprovalUploads || [] };
+  const contactRows = approvalState.instructor ? rows.filter((row) => items.some((item) => String(item.approval.date || '').slice(0, 10) === String(row.start_date || row.activity_date || '').slice(0, 10) && String(item.approval.school || '').trim() === String(row.school || row.single_school_name || row.legacy_school || '').trim())) : rows;
   const table = items.length
     ? dsTableWrap(`<table class="ds-table ds-table--compact ds-ops-completion-preview"><thead><tr><th>תאריך</th><th>מדריך</th><th>בית ספר / מסגרת</th><th>סטטוס אישור</th><th class="no-print">פעולות</th></tr></thead><tbody>${body}</tbody></table>`)
     : dsEmptyState('לא נמצאו אישורי ביצוע בטווח הנוכחי');
   return `<section class="ds-ops-mgmt-panel ds-ops-completion-panel" dir="rtl">
     <span class="sr-only">בחירת מדריך בחירת תאריכים מס׳ פעילויות ${escapeHtml(legacySummaryText)}</span>${approvalState.instructor ? '<button type="button" class="sr-only" data-ops-approval-print-all>הדפסה</button>' : ''}
     ${summary}
+    ${opsContactGroupsHtml(contactRows, data?.contactResponsiblesRows || [])}
     ${dsCard({ title: 'אישורי ביצוע', badge: String(items.length), body: table, padded: false })}
   </section>`;
 }
@@ -1543,12 +1601,13 @@ function renderTab(rows, state, data, allPreparedRows = []) {
 
 export const operationsManagementScreen = {
   load: async ({ api }) => {
-    const [activities, lists, schoolsDirectory, contactsSchoolsRows, completionApprovalUploads] = await Promise.all([
+    const [activities, lists, schoolsDirectory, contactsSchoolsRows, completionApprovalUploads, contactResponsibles] = await Promise.all([
       api.allActivities(),
       api.adminLists().catch(() => ({ categories: [] })),
       readOperationsSchoolsDirectory(),
       readContactsSchools(),
-      api.completionApprovalUploads().catch(() => ({ rows: [] }))
+      api.completionApprovalUploads().catch(() => ({ rows: [] })),
+      api.schoolContactResponsibles().catch(() => ({ rows: [] }))
     ]);
     return {
       ...activities,
@@ -1557,7 +1616,8 @@ export const operationsManagementScreen = {
       workshopStockMap: buildWorkshopStockMapFromLists(lists),
       adminListsData: lists,
       contactsSchoolsRows,
-      completionApprovalUploads: completionApprovalUploads?.rows || []
+      completionApprovalUploads: completionApprovalUploads?.rows || [],
+      contactResponsiblesRows: contactResponsibles?.rows || []
     };
   },
   render(data, { state } = {}) {
@@ -1680,6 +1740,26 @@ export const operationsManagementScreen = {
       printCompletionApprovals([approval], approvalFileTitle(approval));
     }));
 
+
+
+    root.querySelectorAll('[data-contact-responsible-select]').forEach((select) => {
+      select.addEventListener('change', async () => {
+        const selected = select.selectedOptions?.[0];
+        try {
+          await api.saveSchoolContactResponsible({
+            activityDate: select.getAttribute('data-date') || '',
+            schoolId: select.getAttribute('data-school-id') || '',
+            school: select.getAttribute('data-school') || '',
+            responsibleEmpId: select.value || '',
+            responsibleName: selected?.getAttribute('data-name') || selected?.textContent || ''
+          });
+          clearScreenDataCache?.('operations-management');
+          rerender?.();
+        } catch (error) {
+          alert(`שמירת אחראי הקשר נכשלה: ${error?.message || error}`);
+        }
+      });
+    });
 
     const uploadById = new Map((Array.isArray(_completionApprovalPrintContext?.uploads) ? _completionApprovalPrintContext.uploads : []).map((upload) => [String(upload.id), upload]));
     const openSignedUpload = async (id, download = false) => {

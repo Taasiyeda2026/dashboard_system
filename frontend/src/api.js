@@ -47,7 +47,8 @@ const MUTATING_ACTIONS = {
   deleteProposalAgreement: true,
   saveProposalAgreementItems: true,
   uploadCompletionApproval: true,
-  reviewCompletionApprovalUpload: true
+  reviewCompletionApprovalUpload: true,
+  saveSchoolContactResponsible: true
   ,saveActivityLayoutStatus: true
   ,deleteActivity: true
 };
@@ -4322,6 +4323,67 @@ async function readActivityDatesFromSupabase(source_row_id, source_sheet) {
   };
 }
 
+
+function normalizeContactGroupText(value) {
+  return String(value || '').trim().replace(/[״"]/g, '').replace(/[׳']/g, '').replace(/\s+/g, ' ').toLowerCase();
+}
+function activityContactGroupKey(row) {
+  const date = String(row?.start_date || row?.activity_date || row?.date || row?.date_1 || '').trim().slice(0, 10);
+  const schoolId = String(row?.school_id || row?.single_school_id || '').trim();
+  const school = schoolId || normalizeContactGroupText(row?.school || row?.single_school_name || row?.legacy_school || '');
+  return date && school ? `${date}|${school}` : '';
+}
+function activityInstructorEntries(row) {
+  const entries = [];
+  const add = (name, empId) => {
+    const cleanName = String(name || '').trim();
+    const cleanId = String(empId || '').trim();
+    if (!cleanName && !cleanId) return;
+    if (entries.some((entry) => entry.empId === cleanId && entry.name === cleanName)) return;
+    entries.push({ name: cleanName || cleanId, empId: cleanId });
+  };
+  add(row?.instructor_name || row?.instructor, row?.emp_id);
+  add(row?.instructor_name_2 || row?.instructor_2, row?.emp_id_2);
+  return entries;
+}
+async function readSchoolContactResponsiblesRows() {
+  const { data, error } = await supabase.from('activity_school_contact_responsibles').select('*');
+  if (error) return [];
+  return Array.isArray(data) ? data : [];
+}
+function contactResponsibleOverrideMap(rows = []) {
+  const map = new Map();
+  rows.forEach((row) => {
+    const key = `${String(row?.activity_date || '').trim().slice(0, 10)}|${String(row?.school_id || '').trim() || normalizeContactGroupText(row?.school)}`;
+    if (key && key !== '|') map.set(key, row);
+  });
+  return map;
+}
+function buildInstructorTeamGroups(allRows, ownRows, overrides = []) {
+  const ownKeys = new Set(ownRows.map(activityContactGroupKey).filter(Boolean));
+  const grouped = new Map();
+  allRows.forEach((row) => {
+    const key = activityContactGroupKey(row);
+    if (!ownKeys.has(key)) return;
+    if (!grouped.has(key)) grouped.set(key, []);
+    grouped.get(key).push(row);
+  });
+  const overrideMap = contactResponsibleOverrideMap(overrides);
+  return Array.from(grouped.entries()).map(([key, rows]) => {
+    const first = rows.slice().sort((a, b) => String(a?.start_time || a?.StartTime || '').localeCompare(String(b?.start_time || b?.StartTime || '')))[0] || rows[0];
+    const instructors = [];
+    rows.forEach((row) => activityInstructorEntries(row).forEach((entry) => {
+      if (!instructors.some((item) => (item.empId && item.empId === entry.empId) || (!item.empId && item.name === entry.name))) instructors.push(entry);
+    }));
+    const override = overrideMap.get(key);
+    const defaultResp = activityInstructorEntries(first)[0] || instructors[0] || { name: '', empId: '' };
+    const responsibleEmpId = String(override?.responsible_emp_id || defaultResp.empId || '').trim();
+    const responsibleName = String(override?.responsible_name || defaultResp.name || responsibleEmpId || '').trim();
+    const [activity_date] = key.split('|');
+    return { key, activity_date, school_id: String(first?.school_id || first?.single_school_id || '').trim(), school: String(first?.school || first?.single_school_name || first?.legacy_school || '').trim(), instructors, responsibleEmpId, responsibleName };
+  });
+}
+
 async function readAllActivitiesRowsSupabase() {
   return selectActivitiesFromSupabase('*');
 }
@@ -4924,15 +4986,43 @@ export const api = {
   endDates: () => readEndDatesFromSupabase(),
   getCatalogPrograms: () => readCatalogProgramsFromSupabase(),
   myData: async () => {
-    const allRows = await readAllActivitiesRowsSupabase();
+    const [allRows, contactResponsibles] = await Promise.all([readAllActivitiesRowsSupabase(), readSchoolContactResponsiblesRows()]);
     const idsSet = getInstructorIdentitySet();
     const rows = allRows.filter((row) => {
       if (isActivityClosed(row)) return false;
       return isInstructorAssignedRow(row, idsSet);
     });
-    return { rows, _source: 'supabase' };
+    return { rows, teamGroups: buildInstructorTeamGroups(allRows.filter((row) => !isActivityClosed(row)), rows, contactResponsibles), _source: 'supabase' };
   },
 
+
+  schoolContactResponsibles: async () => {
+    const rows = await readSchoolContactResponsiblesRows();
+    return { rows, _source: 'supabase' };
+  },
+  saveSchoolContactResponsible: async ({ activityDate, schoolId = '', school = '', responsibleEmpId = '', responsibleName = '' } = {}) => {
+    const role = String(state?.user?.role || '').trim();
+    if (!['admin', 'operation_manager', 'domain_manager'].includes(role)) throw new Error('school_contact_responsible_forbidden');
+    const row = {
+      activity_date: String(activityDate || '').slice(0, 10),
+      school_id: String(schoolId || '').trim(),
+      school: String(school || '').trim(),
+      responsible_emp_id: String(responsibleEmpId || '').trim(),
+      responsible_name: String(responsibleName || '').trim(),
+      updated_by: String(state?.user?.user_id || state?.user?.username || '').trim(),
+      updated_at: new Date().toISOString()
+    };
+    let existingQuery = supabase.from('activity_school_contact_responsibles').select('id').eq('activity_date', row.activity_date).limit(1);
+    existingQuery = row.school_id ? existingQuery.eq('school_id', row.school_id) : existingQuery.eq('school', row.school).eq('school_id', '');
+    const existing = await existingQuery.maybeSingle();
+    if (existing.error) throw new Error(existing.error.message || 'school_contact_responsible_read_failed');
+    const request = existing.data?.id
+      ? supabase.from('activity_school_contact_responsibles').update(row).eq('id', existing.data.id).select('*').single()
+      : supabase.from('activity_school_contact_responsibles').insert(row).select('*').single();
+    const { data, error } = await request;
+    if (error) throw new Error(error.message || 'school_contact_responsible_save_failed');
+    return { row: data, _source: 'supabase' };
+  },
   completionApprovalUploads: async () => {
     const role = String(state?.user?.role || '').trim();
     const query = supabase
