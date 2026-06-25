@@ -16,7 +16,8 @@ import {
 } from './shared/activity-list-filters.js';
 import {
   ACTIVITY_SEASON_SUMMER_2026,
-  ACTIVITY_SEASON_SCHOOL_2027
+  ACTIVITY_SEASON_SCHOOL_2027,
+  normalizeActivitySeason
 } from './shared/summer-activity.js';
 import {
   parseLinkedSchoolsJson,
@@ -65,6 +66,9 @@ const TAB_WORKSHOPS = 'workshops';
 const TAB_AUTHORITIES = 'authorities';
 const TAB_SCHOOLS = 'schools';
 const SUMMER_TRAINING_SESSION_KEY = 'opsSummerTrainingActive';
+const COMPLETION_APPROVAL_SUMMER_FROM = '2026-07-01';
+const COMPLETION_APPROVAL_SUMMER_TO = '2026-08-31';
+
 
 let _opsNeedsEntryReset = false;
 
@@ -1529,11 +1533,33 @@ function opsContactGroupsHtml(rows = [], overrides = []) {
   return `<div class="ds-ops-contact-responsible-card">${dsCard({ title: 'אחראי קשר מול בית הספר', body: dsTableWrap(`<table class="ds-table ds-table--compact ds-ops-contact-responsible-table"><colgroup><col class="ds-ops-contact-col--date"><col class="ds-ops-contact-col--school"><col class="ds-ops-contact-col--team"><col class="ds-ops-contact-col--responsible"></colgroup><thead><tr><th>תאריך</th><th>בית ספר / מסגרת</th><th>מי איתי היום</th><th>אחראי קשר</th></tr></thead><tbody>${body}</tbody></table>`), padded: false })}</div>`;
 }
 
+function hasActivitySeasonColumn(rows = []) {
+  return (Array.isArray(rows) ? rows : []).some((row) => (
+    row && Object.prototype.hasOwnProperty.call(row, 'activity_season')
+  ) || (
+    row && Object.prototype.hasOwnProperty.call(row, 'activitySeason')
+  ));
+}
+
+function isCompletionApprovalSummerActivity(row, requireSeason = false) {
+  if (requireSeason) {
+    const season = normalizeActivitySeason(row?.activity_season ?? row?.activitySeason);
+    if (season !== ACTIVITY_SEASON_SUMMER_2026) return false;
+  }
+  return activityDatesInRange(row, COMPLETION_APPROVAL_SUMMER_FROM, COMPLETION_APPROVAL_SUMMER_TO).length > 0;
+}
+
+function completionApprovalSummerRows(rows = []) {
+  const requireSeason = hasActivitySeasonColumn(rows);
+  return (Array.isArray(rows) ? rows : []).filter((row) => isCompletionApprovalSummerActivity(row, requireSeason));
+}
+
 function completionApprovalTabHtml(rows, state, data = {}, directory = buildSchoolsDirectory([]), contactsIndex = new Map()) {
   const approvalState = ensureOpsState(state).completionApproval || {};
-  const instructors = completionApprovalInstructorOptions(rows);
+  const summerRows = completionApprovalSummerRows(rows);
+  const instructors = completionApprovalInstructorOptions(summerRows);
   const scopedInstructors = approvalState.instructor ? instructors.filter((name) => name === approvalState.instructor) : instructors;
-  const approvals = scopedInstructors.flatMap((instructor) => buildCompletionApprovals(rows, { instructor, dateMode: 'all', directory, contactsIndex }));
+  const approvals = scopedInstructors.flatMap((instructor) => buildCompletionApprovals(summerRows, { instructor, dateMode: 'range', dateFrom: COMPLETION_APPROVAL_SUMMER_FROM, dateTo: COMPLETION_APPROVAL_SUMMER_TO, directory, contactsIndex }));
   const uploadMap = completionApprovalUploadMap(data?.completionApprovalUploads || []);
   const items = approvals.map((approval) => ({ approval, upload: uploadMap.get(completionApprovalUploadKey(approval)) }));
   const stats = {
@@ -1564,7 +1590,7 @@ function completionApprovalTabHtml(rows, state, data = {}, directory = buildScho
     </tr>`;
   }).join('');
   _completionApprovalPrintContext = { approvals, uploads: data?.completionApprovalUploads || [] };
-  const contactRows = approvalState.instructor ? rows.filter((row) => items.some((item) => String(item.approval.date || '').slice(0, 10) === String(row.start_date || row.activity_date || '').slice(0, 10) && String(item.approval.school || '').trim() === String(row.school || row.single_school_name || row.legacy_school || '').trim())) : rows;
+  const contactRows = approvalState.instructor ? summerRows.filter((row) => items.some((item) => String(item.approval.date || '').slice(0, 10) === String(row.start_date || row.activity_date || '').slice(0, 10) && String(item.approval.school || '').trim() === String(row.school || row.single_school_name || row.legacy_school || '').trim())) : summerRows;
   const table = items.length
     ? dsTableWrap(`<table class="ds-table ds-table--compact ds-ops-completion-preview"><thead><tr><th>תאריך</th><th>מדריך</th><th>בית ספר / מסגרת</th><th>סטטוס אישור</th><th class="no-print">פעולות</th></tr></thead><tbody>${body}</tbody></table>`)
     : dsEmptyState('לא נמצאו אישורי ביצוע בטווח הנוכחי');
