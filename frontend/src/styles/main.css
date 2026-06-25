@@ -15926,9 +15926,16 @@ details[open] > .ds-fin-acc__summary::before { transform: rotate(90deg); }
   gap: 1rem;
 }
 
+.ds-ops-completion-subtabs {
+  display: flex;
+  justify-content: center;
+  gap: 0.5rem;
+  flex-wrap: wrap;
+}
+
 .ds-ops-completion-approvals-card {
   width: 100%;
-  max-width: 900px;
+  max-width: 820px;
   margin-inline: auto;
 }
 
@@ -15943,7 +15950,7 @@ details[open] > .ds-fin-acc__summary::before { transform: rotate(90deg); }
 
 .ds-ops-completion-approvals-card .ds-table-wrap {
   width: 100%;
-  max-width: 900px;
+  max-width: 820px;
   margin-inline: auto;
 }
 
@@ -15965,11 +15972,11 @@ details[open] > .ds-fin-acc__summary::before { transform: rotate(90deg); }
 }
 
 .ds-ops-completion-col--status {
-  width: 140px;
+  width: 130px;
 }
 
 .ds-ops-completion-col--actions {
-  width: 160px;
+  width: 190px;
 }
 
 .ds-ops-completion-preview th,
@@ -16009,13 +16016,13 @@ details[open] > .ds-fin-acc__summary::before { transform: rotate(90deg); }
 
 .ds-ops-contact-responsible-card {
   width: 100%;
-  max-width: 900px;
+  max-width: 820px;
   margin-inline: auto;
 }
 
 .ds-ops-contact-responsible-card .ds-table-wrap {
   width: 100%;
-  max-width: 900px;
+  max-width: 820px;
   margin-inline: auto;
 }
 
