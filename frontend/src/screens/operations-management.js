@@ -1527,7 +1527,7 @@ function opsContactGroupsHtml(rows = [], overrides = []) {
     const schoolId = String(first?.school_id || first?.single_school_id || '').trim();
     const school = String(first?.school || first?.single_school_name || first?.legacy_school || '').trim();
     const options = instructors.map((entry) => `<option value="${escapeHtml(entry.empId || entry.name)}" data-name="${escapeHtml(entry.name)}"${(entry.empId || entry.name) === responsibleEmpId || entry.name === responsibleName ? ' selected' : ''}>${escapeHtml(entry.name)}${entry.empId ? ` (${escapeHtml(entry.empId)})` : ''}</option>`).join('');
-    return `<tr><td>${escapeHtml(formatDateHe(date) || date)}</td><td>${escapeHtml(school)}</td><td>${escapeHtml(instructors.map((i) => i.name).join(', '))}</td><td><select class="ds-input ds-input--sm ds-ops-contact-responsible-select" data-contact-responsible-select data-date="${escapeHtml(date)}" data-school-id="${escapeHtml(schoolId)}" data-school="${escapeHtml(school)}"><option value="">בחרו אחראי קשר</option>${options}</select></td></tr>`;
+    return `<tr><td class="ds-table-cell-truncate">${escapeHtml(formatDateHe(date) || date)}</td><td class="ds-table-cell-wrap">${escapeHtml(school)}</td><td class="ds-table-cell-wrap">${escapeHtml(instructors.map((i) => i.name).join(', '))}</td><td><select class="ds-input ds-input--sm ds-ops-contact-responsible-select" data-contact-responsible-select data-date="${escapeHtml(date)}" data-school-id="${escapeHtml(schoolId)}" data-school="${escapeHtml(school)}"><option value="">בחרו אחראי קשר</option>${options}</select></td></tr>`;
   }).join('');
   if (!body) return '';
   return `<div class="ds-ops-contact-responsible-card">${dsCard({ title: 'אחראי קשר מול בית הספר', body: dsTableWrap(`<table class="ds-table ds-table--compact ds-ops-contact-responsible-table"><colgroup><col class="ds-ops-contact-col--date"><col class="ds-ops-contact-col--school"><col class="ds-ops-contact-col--team"><col class="ds-ops-contact-col--responsible"></colgroup><thead><tr><th>תאריך</th><th>בית ספר / מסגרת</th><th>מי איתי היום</th><th>אחראי קשר</th></tr></thead><tbody>${body}</tbody></table>`), padded: false })}</div>`;
@@ -1580,25 +1580,25 @@ function completionApprovalTabHtml(rows, state, data = {}, directory = buildScho
   const body = items.map(({ approval, upload }, index) => {
     const hasFile = !!upload?.file_path;
     return `<tr>
-      <td>${escapeHtml(formatDateHe(approval.date) || approval.date || '')}</td>
-      <td>${escapeHtml(approval.instructorName || '')}</td>
-      <td>${escapeHtml(approval.school || '')}</td>
-      <td>${escapeHtml(completionApprovalUploadStatusLabel(upload))}</td>
-      <td class="no-print">${hasFile
+      <td class="ds-table-cell-truncate">${escapeHtml(formatDateHe(approval.date) || approval.date || '')}</td>
+      <td class="ds-table-cell-truncate">${escapeHtml(approval.instructorName || '')}</td>
+      <td class="ds-table-cell-wrap">${escapeHtml(approval.school || '')}</td>
+      <td class="ds-table-cell-truncate">${escapeHtml(completionApprovalUploadStatusLabel(upload))}</td>
+      <td class="ds-ops-completion-actions no-print">${hasFile
         ? `<button type="button" class="ds-btn ds-btn--xs ds-btn--ghost" data-ops-upload-view="${escapeHtml(upload.id)}">צפייה</button> <button type="button" class="ds-btn ds-btn--xs ds-btn--ghost" data-ops-upload-download="${escapeHtml(upload.id)}">הורדה</button> <button type="button" class="ds-btn ds-btn--xs ds-btn--primary" data-ops-upload-approve="${escapeHtml(upload.id)}">אישור</button> <button type="button" class="ds-btn ds-btn--xs ds-btn--danger" data-ops-upload-reject="${escapeHtml(upload.id)}">דחייה</button>`
-        : '<button type="button" class="ds-btn ds-btn--xs ds-btn--ghost" disabled>אין קובץ</button>'}</td>
+        : '<span class="ds-chip ds-chip--neutral ds-ops-no-file-chip">אין קובץ</span>'}</td>
     </tr>`;
   }).join('');
   _completionApprovalPrintContext = { approvals, uploads: data?.completionApprovalUploads || [] };
   const contactRows = approvalState.instructor ? summerRows.filter((row) => items.some((item) => String(item.approval.date || '').slice(0, 10) === String(row.start_date || row.activity_date || '').slice(0, 10) && String(item.approval.school || '').trim() === String(row.school || row.single_school_name || row.legacy_school || '').trim())) : summerRows;
   const table = items.length
-    ? dsTableWrap(`<table class="ds-table ds-table--compact ds-ops-completion-preview"><thead><tr><th>תאריך</th><th>מדריך</th><th>בית ספר / מסגרת</th><th>סטטוס אישור</th><th class="no-print">פעולות</th></tr></thead><tbody>${body}</tbody></table>`)
+    ? dsTableWrap(`<table class="ds-table ds-table--compact ds-ops-completion-preview"><colgroup><col class="ds-ops-completion-col--date"><col class="ds-ops-completion-col--instructor"><col class="ds-ops-completion-col--school"><col class="ds-ops-completion-col--status"><col class="ds-ops-completion-col--actions no-print"></colgroup><thead><tr><th>תאריך</th><th>מדריך</th><th>בית ספר / מסגרת</th><th>סטטוס אישור</th><th class="no-print">פעולות</th></tr></thead><tbody>${body}</tbody></table>`)
     : dsEmptyState('לא נמצאו אישורי ביצוע בטווח הנוכחי');
   return `<section class="ds-ops-mgmt-panel ds-ops-completion-panel" dir="rtl">
     <span class="sr-only">בחירת מדריך בחירת תאריכים מס׳ פעילויות ${escapeHtml(legacySummaryText)}</span>${approvalState.instructor ? '<button type="button" class="sr-only" data-ops-approval-print-all>הדפסה</button>' : ''}
     ${summary}
+    <div class="ds-ops-completion-approvals-card">${dsCard({ title: 'אישורי ביצוע', badge: String(items.length), body: table, padded: false })}</div>
     ${opsContactGroupsHtml(contactRows, data?.contactResponsiblesRows || [])}
-    ${dsCard({ title: 'אישורי ביצוע', badge: String(items.length), body: table, padded: false })}
   </section>`;
 }
 

@@ -15922,6 +15922,91 @@ details[open] > .ds-fin-acc__summary::before { transform: rotate(90deg); }
   overflow-x: auto;
 }
 
+.ds-ops-completion-panel {
+  gap: 1rem;
+}
+
+.ds-ops-completion-approvals-card {
+  width: 100%;
+  max-width: 900px;
+  margin-inline: auto;
+}
+
+.ds-ops-completion-approvals-card .ds-card__head {
+  padding-block: 0.75rem;
+}
+
+.ds-ops-completion-approvals-card .ds-card__title {
+  font-size: 1.08rem;
+  font-weight: 800;
+}
+
+.ds-ops-completion-approvals-card .ds-table-wrap {
+  width: 100%;
+  max-width: 900px;
+  margin-inline: auto;
+}
+
+.ds-ops-completion-preview {
+  width: 100%;
+  table-layout: fixed;
+}
+
+.ds-ops-completion-col--date {
+  width: 110px;
+}
+
+.ds-ops-completion-col--instructor {
+  width: 170px;
+}
+
+.ds-ops-completion-col--school {
+  width: 220px;
+}
+
+.ds-ops-completion-col--status {
+  width: 140px;
+}
+
+.ds-ops-completion-col--actions {
+  width: 160px;
+}
+
+.ds-ops-completion-preview th,
+.ds-ops-completion-preview td,
+.ds-ops-contact-responsible-table th,
+.ds-ops-contact-responsible-table td {
+  overflow: hidden;
+}
+
+.ds-table-cell-truncate {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.ds-table-cell-wrap {
+  overflow-wrap: anywhere;
+  word-break: normal;
+}
+
+.ds-ops-completion-actions {
+  white-space: normal;
+}
+
+.ds-ops-completion-actions .ds-btn {
+  min-height: 26px;
+  padding-inline: 0.38rem;
+  margin: 0.08rem;
+}
+
+.ds-ops-no-file-chip {
+  min-height: 24px;
+  min-width: 0;
+  padding: 0.15rem 0.45rem;
+  font-size: 0.72rem;
+}
+
 .ds-ops-contact-responsible-card {
   width: 100%;
   max-width: 900px;
