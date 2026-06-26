@@ -16456,7 +16456,7 @@ details[open] > .ds-fin-acc__summary::before { transform: rotate(90deg); }
 
 .ds-ops-completion-approvals-card {
   width: 100%;
-  max-width: 836px;
+  max-width: 1120px;
   margin-inline: auto;
 }
 
@@ -16471,7 +16471,7 @@ details[open] > .ds-fin-acc__summary::before { transform: rotate(90deg); }
 
 .ds-ops-completion-approvals-card .ds-table-wrap {
   width: 100%;
-  max-width: 836px;
+  max-width: 1120px;
   margin-inline: auto;
 }
 
