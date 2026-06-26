@@ -171,7 +171,8 @@ export function sanitizeFileTitle(value) {
 }
 
 function field(label, value) {
-  return `<div><strong>${escapeHtml(label)}:</strong> ${value ? escapeHtml(value) : BLANK}</div>`;
+  const displayValue = value ? escapeHtml(value) : BLANK;
+  return `<div class="completion-approval-detail-row" data-print-text="${escapeHtml(`${label}: ${value || BLANK}`)}"><strong>${escapeHtml(label)}:</strong> <span>${displayValue}</span></div>`;
 }
 
 export function formatApprovalTime(value) {
@@ -221,11 +222,11 @@ export function completionApprovalDocumentHtml(approval) {
     <td class="completion-approval-table__center">${escapeHtml(formatApprovalTime(activity.end || (activity.time || '').split('-')[1]?.trim()))}</td>
     <td class="completion-approval-table__manual"></td>
   </tr>`).join('');
-  const authorityLine = text(approval.authority) ? `<div class="completion-approval-authority">רשות: ${escapeHtml(approval.authority)}</div>` : '';
+  const authorityLine = text(approval.authority) ? field('רשות', approval.authority) : '';
   return `<article class="completion-approval-page" dir="rtl">
     <header class="completion-approval-header"><img class="completion-approval-logo" src="${escapeHtml(taasiyedaLogoSrc)}" alt="לוגו תעשיידע"><h1>אישור ביצוע פעילות</h1></header>
     <section class="completion-approval-details">
-      <div class="completion-approval-school"><strong>בית ספר:</strong> ${escapeHtml(approval.school || '')}</div>
+      ${field('בית ספר', approval.school)}
       ${authorityLine}
       ${field('תאריך פעילות', formatDateHe(approval.date) || approval.date)}
       ${field('מדריך/ה', approval.instructorName)}
@@ -250,11 +251,11 @@ export const completionApprovalPrintCss = `
   .completion-approval-page{box-sizing:border-box;min-height:277mm;padding:12mm 12mm 10mm;break-after:page;page-break-after:always;background:#fff;display:flex;flex-direction:column}
   .completion-approval-page:last-child{break-after:auto;page-break-after:auto}
   .completion-approval-header{position:relative;text-align:center;border-bottom:1px solid #111827;padding:0 28mm 8px;margin-bottom:10px;min-height:22mm}.completion-approval-header h1{font-size:20px;margin:0;padding-top:7mm}.completion-approval-logo{position:absolute;inset-inline-end:0;top:0;height:42px;max-height:20mm;width:auto;object-fit:contain}
-  .completion-approval-details{display:grid;grid-template-columns:1fr;gap:5px;margin:9px 0 14px}.completion-approval-details strong{font-weight:700}.completion-approval-school,.completion-approval-authority{font-size:14px;color:#111827}
+  .completion-approval-details{display:grid;grid-template-columns:1fr;gap:6px;margin:9px 0 14px;text-align:right;font-size:14px;color:#111827}.completion-approval-detail-row{font-size:14px;font-weight:400;line-height:1.45}.completion-approval-details strong{font-weight:700}.completion-approval-detail-row span{font-weight:400}
   .completion-approval-signature h3{margin:0 0 3px;font-size:15px}
-  .completion-approval-table{border-collapse:collapse;margin:10px 0;table-layout:fixed}.approval-print-table{width:60%;margin-inline:auto}.completion-approval-col-activity{width:39%}.completion-approval-col-grade{width:12%}.completion-approval-col-start{width:15%}.completion-approval-col-end{width:15%}.completion-approval-col-participants{width:19%}.completion-approval-col-grade,.completion-approval-table td:nth-child(2),.completion-approval-table th:nth-child(2){white-space:normal;overflow-wrap:normal;word-break:keep-all}.completion-approval-table th,.completion-approval-table td{border:.5pt solid #cbd5e1;padding:4px 5px;text-align:right;vertical-align:middle;word-break:normal;overflow-wrap:anywhere}.completion-approval-table th{background:#f8fafc;font-weight:700;font-size:10.5px;line-height:1.25;white-space:nowrap;text-align:center;color:#111827}.completion-approval-table th:first-child,.completion-approval-table td:first-child{text-align:right}.completion-approval-table td{font-size:11.2px;line-height:1.35}.completion-approval-table__center{text-align:center!important}.completion-approval-table__manual{text-align:center;white-space:nowrap}
-  .approval-sign-line{display:inline-block;width:220px;border-bottom:1px solid #111827;min-height:1em}
-  .completion-approval-signature{margin-top:14px;break-inside:avoid;page-break-inside:avoid}.completion-approval-signature p{margin:16px 0}.completion-approval-signature-summary{margin:12px 0 16px}.completion-approval-signature-line{margin:14px 0}.completion-approval-signature-line--double-after{margin-bottom:32px}
+  .completion-approval-table{border-collapse:collapse;margin:10px 0;table-layout:fixed}.approval-print-table{width:60%;margin-inline:auto}.completion-approval-col-activity{width:45%}.completion-approval-col-grade{width:10%}.completion-approval-col-start{width:13%}.completion-approval-col-end{width:13%}.completion-approval-col-participants{width:19%}.completion-approval-col-grade,.completion-approval-table td:nth-child(2),.completion-approval-table th:nth-child(2){white-space:normal;overflow-wrap:normal;word-break:keep-all}.completion-approval-table th,.completion-approval-table td{border:.5pt solid #cbd5e1;padding:4px 5px;text-align:right;vertical-align:middle;word-break:normal;overflow-wrap:anywhere}.completion-approval-table th{background:#f8fafc;font-weight:700;font-size:10.5px;line-height:1.25;white-space:nowrap;text-align:center;color:#111827}.completion-approval-table th:first-child,.completion-approval-table td:first-child{text-align:right}.completion-approval-table td{font-size:11.2px;line-height:1.35}.completion-approval-table__center{text-align:center!important}.completion-approval-table__manual{text-align:center;white-space:nowrap}
+  .approval-sign-line{display:inline-block;width:220px;border-bottom:1px solid #111827;min-height:1.35em}
+  .completion-approval-signature{margin-top:16px;break-inside:avoid;page-break-inside:avoid}.completion-approval-signature p{margin:16px 0}.completion-approval-signature-summary{margin:12px 0 18px}.completion-approval-signature-line{margin:16px 0}.completion-approval-signature-line--double-after{margin-bottom:40px}
   .completion-approval-footer{margin-top:auto;padding-top:8mm;text-align:center;font-size:10px;line-height:1.2;color:#64748b}
   @page{size:A4 portrait;margin:0}@media print{body{margin:0}.completion-approval-page{break-after:page;page-break-after:always}thead{display:table-header-group}tr{break-inside:avoid;page-break-inside:avoid}}
 `;
