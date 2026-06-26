@@ -769,6 +769,16 @@ function isWorkshopInventoryRequired(workshopName) {
   return !excluded.some((term) => name.includes(term));
 }
 
+function isTamirActivity(row) {
+  const fields = [
+    row?.authority_name, row?.legacy_authority, row?.authority,
+    row?.single_school_name, row?.school, row?.legacy_school, row?.linked_school_names,
+    row?.activity_name, row?.name, row?.title, row?.program_name,
+    row?.notes, row?.project, row?.source, row?.customer, row?.client
+  ];
+  return fields.some((f) => String(f || '').includes('תמיר'));
+}
+
 function isOfficialWorkshopListRow(row = {}, category = '') {
   const cat = String(category || row?.category || '').trim().toLowerCase();
   if (cat !== 'activity_names') return false;
@@ -1959,6 +1969,7 @@ function renderTab(rows, state, data, allPreparedRows = []) {
   if (ops.tab === TAB_WORKSHOPS) {
     const catalogRows = extractWorkshopCatalogRows(data?.adminListsData, allPreparedRows);
     const workshopRows = rows.filter((row) =>
+      !isTamirActivity(row) &&
       activityMatchesAnyOfficialWorkshop(row, catalogRows) &&
       activityOverlapsDateRange(row, WORKSHOPS_SUMMER_FROM, WORKSHOPS_SUMMER_TO)
     );

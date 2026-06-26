@@ -42,7 +42,7 @@ const PRECACHE_URLS = [
   "./assets/favicon-32.png",
   "./assets/favicon-D0Y9bj5H.ico",
   "./assets/favicon.ico",
-  "./assets/index-CmeayP8V.js",
+  "./assets/index-CEdzLoV1.js",
   "./assets/invitations/backgrounds/.gitkeep",
   "./assets/invitations/backgrounds/background-1.png",
   "./assets/invitations/backgrounds/background-2.png",
