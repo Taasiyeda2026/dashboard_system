@@ -10,6 +10,28 @@ import {
 
 let printContext = [];
 
+const COMPLETION_APPROVAL_SUMMER_FROM = '2026-06-20';
+const COMPLETION_APPROVAL_SUMMER_TO = '2026-08-31';
+
+function normalizeCompletionApprovalType(value) {
+  return String(value || '').trim().replace(/[״"]/g, '').replace(/[׳']/g, '').replace(/[\s_-]+/g, ' ').toLowerCase();
+}
+function isIncludedCompletionApprovalActivityType(row) {
+  return [row?.activity_type, row?.item_type, row?.type, row?.activityType, row?.activity_name, row?.activityName].some((value) => {
+    const normalized = normalizeCompletionApprovalType(value);
+    return normalized === 'workshop' || normalized === 'escape room' || normalized === 'סדנה' || normalized === 'סדנאות' || normalized === 'חדר בריחה' || normalized === 'חדרי בריחה';
+  });
+}
+function activityDateInCompletionApprovalSummer(row) {
+  const raw = text(row?.start_date || row?.activity_date || row?.date || '');
+  const date = raw.slice(0, 10);
+  return /^\d{4}-\d{2}-\d{2}$/.test(date) && date >= COMPLETION_APPROVAL_SUMMER_FROM && date <= COMPLETION_APPROVAL_SUMMER_TO;
+}
+function isSummerCompletionApprovalRow(row) {
+  return isIncludedCompletionApprovalActivityType(row) && activityDateInCompletionApprovalSummer(row);
+}
+
+
 function text(value) { return String(value ?? '').trim(); }
 function norm(value) { return text(value).replace(/[״"]/g, '').replace(/[׳']/g, '').replace(/\s+/g, ' ').toLowerCase(); }
 function currentInstructorName(state) {
@@ -71,9 +93,9 @@ export const instructorCompletionApprovalsScreen = {
   },
   render(data, { state } = {}) {
     const ids = currentIdentityValues(state);
-    const rows = (Array.isArray(data?.rows) ? data.rows : []).filter((row) => assignedToCurrentInstructor(row, ids));
+    const rows = (Array.isArray(data?.rows) ? data.rows : []).filter((row) => assignedToCurrentInstructor(row, ids) && isSummerCompletionApprovalRow(row));
     const instructorName = instructorNameForRows(rows, ids, currentInstructorName(state));
-    const approvals = buildCompletionApprovals(rows, { instructor: instructorName, dateMode: 'all' });
+    const approvals = buildCompletionApprovals(rows, { instructor: instructorName, dateMode: 'range', dateFrom: COMPLETION_APPROVAL_SUMMER_FROM, dateTo: COMPLETION_APPROVAL_SUMMER_TO });
     const uploadMap = uploadsByApproval(data?.uploads || []);
     printContext = approvals;
     const body = approvals.map((approval, index) => {

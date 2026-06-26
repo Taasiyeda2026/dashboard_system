@@ -227,9 +227,9 @@ test('completion approval tab hides general operations filters and uses only app
     visibleCount: 200
   };
   const rows = [
-    { RowID: 'CA-1', status: 'פתוח', authority: 'רשות אחרת', school: 'בית ספר א', activity_name: 'פעילות א', start_date: '2026-07-10', start_time: '08:30:00', end_time: '09:30:00', activity_season: 'summer_2026', instructor_name: 'הילה רוזן' },
-    { RowID: 'CA-2', status: 'פתוח', authority: 'רשות אחרת', school: 'בית ספר ב', activity_name: 'פעילות ב', start_date: '2026-07-11', start_time: '10:00:00', end_time: '11:00:00', activity_season: 'summer_2026', instructor_name: 'הילה רוזן' },
-    { RowID: 'CA-3', status: 'פתוח', authority: 'רשות אחרת', school: 'בית ספר ג', activity_name: 'פעילות ג', start_date: '2026-07-10', activity_season: 'summer_2026', instructor_name: 'מדריך אחר' }
+    { RowID: 'CA-1', status: 'פתוח', authority: 'רשות אחרת', school: 'בית ספר א', activity_type: 'סדנה', activity_name: 'פעילות א', start_date: '2026-07-10', start_time: '08:30:00', end_time: '09:30:00', activity_season: 'summer_2026', instructor_name: 'הילה רוזן' },
+    { RowID: 'CA-2', status: 'פתוח', authority: 'רשות אחרת', school: 'בית ספר ב', activity_type: 'חדר בריחה', activity_name: 'פעילות ב', start_date: '2026-07-11', start_time: '10:00:00', end_time: '11:00:00', activity_season: 'summer_2026', instructor_name: 'הילה רוזן' },
+    { RowID: 'CA-3', status: 'פתוח', authority: 'רשות אחרת', school: 'בית ספר ג', activity_type: 'סדנה', activity_name: 'פעילות ג', start_date: '2026-07-10', activity_season: 'summer_2026', instructor_name: 'מדריך אחר' }
   ];
   const html = operationsManagementScreen.render({ rows, workshopStockMap: new Map() }, { state });
 
@@ -251,7 +251,9 @@ test('completion approval tab hides general operations filters and uses only app
   assert.doesNotMatch(html, /מס׳ פעילויות/);
   assert.doesNotMatch(html, /אחראי קשר מול בית הספר/);
   assert.equal((html.match(/data-ops-approval-print-all/g) || []).length, 1);
-  assert.match(html, /סה״כ אישורים נדרשים/);
+  assert.match(html, /עד היום:/);
+  assert.match(html, /לכל תקופת הקיץ:/);
+  assert.doesNotMatch(html, /סה״כ אישורים נדרשים/);
 });
 
 test('completion approval tab defaults to summer 2026 season and date range', () => {
@@ -266,11 +268,11 @@ test('completion approval tab defaults to summer 2026 season and date range', ()
     preview: true
   };
   const rows = [
-    { RowID: 'SUMMER-START', status: 'פתוח', authority: 'רשות א', school: 'בית ספר קיץ', activity_name: 'קיץ פתיחה', start_date: '2026-07-01', activity_season: 'summer_2026', instructor_name: 'הילה רוזן' },
-    { RowID: 'SUMMER-END', status: 'פתוח', authority: 'רשות א', school: 'בית ספר קיץ', activity_name: 'קיץ סיום', start_date: '2026-08-31', activity_season: 'summer_2026', instructor_name: 'הילה רוזן' },
-    { RowID: 'OLD-2025', status: 'פתוח', authority: 'רשות א', school: 'בית ספר ישן', activity_name: 'פעילות 2025', start_date: '2025-11-03', activity_season: 'summer_2026', instructor_name: 'הילה רוזן' },
-    { RowID: 'OUTSIDE-FUTURE', status: 'פתוח', authority: 'רשות א', school: 'בית ספר עתידי', activity_name: 'פעילות סתיו', start_date: '2026-09-01', activity_season: 'summer_2026', instructor_name: 'הילה רוזן' },
-    { RowID: 'REGULAR-JULY', status: 'פתוח', authority: 'רשות א', school: 'בית ספר רגיל', activity_name: 'פעילות רגילה', start_date: '2026-07-15', activity_season: 'regular', instructor_name: 'הילה רוזן' }
+    { RowID: 'SUMMER-START', status: 'פתוח', authority: 'רשות א', school: 'בית ספר קיץ', activity_type: 'סדנה', activity_name: 'קיץ פתיחה', start_date: '2026-07-01', activity_season: 'summer_2026', instructor_name: 'הילה רוזן' },
+    { RowID: 'SUMMER-END', status: 'פתוח', authority: 'רשות א', school: 'בית ספר קיץ', activity_type: 'חדרי בריחה', activity_name: 'קיץ סיום', start_date: '2026-08-31', activity_season: 'summer_2026', instructor_name: 'הילה רוזן' },
+    { RowID: 'OLD-2025', status: 'פתוח', authority: 'רשות א', school: 'בית ספר ישן', activity_type: 'סדנה', activity_name: 'פעילות 2025', start_date: '2025-11-03', activity_season: 'summer_2026', instructor_name: 'הילה רוזן' },
+    { RowID: 'OUTSIDE-FUTURE', status: 'פתוח', authority: 'רשות א', school: 'בית ספר עתידי', activity_type: 'סדנה', activity_name: 'פעילות סתיו', start_date: '2026-09-01', activity_season: 'summer_2026', instructor_name: 'הילה רוזן' },
+    { RowID: 'REGULAR-JULY', status: 'פתוח', authority: 'רשות א', school: 'בית ספר רגיל', activity_type: 'סדנה', activity_name: 'פעילות רגילה', start_date: '2026-07-15', activity_season: 'regular', instructor_name: 'הילה רוזן' }
   ];
 
   const html = operationsManagementScreen.render({ rows, workshopStockMap: new Map() }, { state });
@@ -282,7 +284,36 @@ test('completion approval tab defaults to summer 2026 season and date range', ()
   assert.doesNotMatch(html, /בית ספר ישן/);
   assert.doesNotMatch(html, /בית ספר עתידי/);
   assert.doesNotMatch(html, /בית ספר רגיל/);
-  assert.match(html, /סה״כ אישורים נדרשים/);
+  assert.match(html, /לכל תקופת הקיץ:/);
+  assert.doesNotMatch(html, /סה״כ אישורים נדרשים/);
+});
+
+
+test('completion approval tab includes only summer workshops and escape rooms and supports selected date filter', () => {
+  const state = baseState();
+  state.operationsManagement.tab = 'completion_approval';
+  state.operationsManagement.completionApproval = { instructor: 'הילה רוזן', selectedDate: '2026-07-10' };
+  const rows = [
+    { RowID: 'BEFORE', status: 'פתוח', authority: 'רשות א', school: 'לפני', activity_type: 'סדנה', activity_name: 'סדנה', start_date: '2026-06-19', activity_season: 'summer_2026', instructor_name: 'הילה רוזן' },
+    { RowID: 'START', status: 'פתוח', authority: 'רשות א', school: 'תחילת קיץ', activity_type: 'סדנאות', activity_name: 'סדנה', start_date: '2026-06-20', activity_season: 'summer_2026', instructor_name: 'הילה רוזן' },
+    { RowID: 'SELECTED', status: 'פתוח', authority: 'רשות א', school: 'נבחר', activity_type: 'חדר בריחה', activity_name: 'חדר בריחה', start_date: '2026-07-10', activity_season: 'summer_2026', instructor_name: 'הילה רוזן' },
+    { RowID: 'END', status: 'פתוח', authority: 'רשות א', school: 'סוף קיץ', activity_type: 'escape_room', activity_name: 'חדר בריחה', start_date: '2026-08-31', activity_season: 'summer_2026', instructor_name: 'הילה רוזן' },
+    { RowID: 'AFTER', status: 'פתוח', authority: 'רשות א', school: 'אחרי', activity_type: 'סדנה', activity_name: 'סדנה', start_date: '2026-09-01', activity_season: 'summer_2026', instructor_name: 'הילה רוזן' },
+    { RowID: 'COURSE', status: 'פתוח', authority: 'רשות א', school: 'קורס', activity_type: 'course', activity_name: 'קורס', start_date: '2026-07-10', activity_season: 'summer_2026', instructor_name: 'הילה רוזן' },
+    { RowID: 'GEFEN', status: 'פתוח', authority: 'רשות א', school: 'גפן', activity_type: 'גפ״ן', activity_name: 'גפ״ן', start_date: '2026-07-10', activity_season: 'summer_2026', instructor_name: 'הילה רוזן' }
+  ];
+  const html = operationsManagementScreen.render({ rows, workshopStockMap: new Map() }, { state });
+  assert.match(html, /מסונן לתאריך: 10\/07\/2026/);
+  assert.match(html, /נבחר/);
+  assert.doesNotMatch(html, /תחילת קיץ/);
+  assert.doesNotMatch(html, /סוף קיץ/);
+  assert.doesNotMatch(html, /לפני/);
+  assert.doesNotMatch(html, /אחרי/);
+  assert.doesNotMatch(html, /קורס/);
+  assert.doesNotMatch(html, /גפן/);
+  assert.match(html, /min="2026-06-20"/);
+  assert.match(html, /max="2026-08-31"/);
+  assert.match(html, /הצג את כל תקופת הקיץ/);
 });
 
 test('completion approval tab defaults to approvals subtab without legacy instructor prompt', () => {

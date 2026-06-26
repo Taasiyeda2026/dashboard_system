@@ -66,7 +66,7 @@ const TAB_WORKSHOPS = 'workshops';
 const TAB_AUTHORITIES = 'authorities';
 const TAB_SCHOOLS = 'schools';
 const SUMMER_TRAINING_SESSION_KEY = 'opsSummerTrainingActive';
-const COMPLETION_APPROVAL_SUMMER_FROM = '2026-07-01';
+const COMPLETION_APPROVAL_SUMMER_FROM = '2026-06-20';
 const COMPLETION_APPROVAL_SUMMER_TO = '2026-08-31';
 
 
@@ -1580,6 +1580,35 @@ function opsContactGroupsHtml(rows = [], overrides = [], uploadMap = new Map()) 
   return `<div class="ds-ops-contact-responsible-card">${dsCard({ title: 'אחראי קשר מול בית הספר', body: dsTableWrap(`<table class="ds-table ds-table--compact ds-ops-contact-responsible-table"><colgroup><col class="ds-ops-contact-col--date"><col class="ds-ops-contact-col--school"><col class="ds-ops-contact-col--team"><col class="ds-ops-contact-col--responsible"></colgroup><thead><tr><th>תאריך</th><th>בית ספר / מסגרת</th><th>מי איתי היום</th><th>אחראי קשר</th></tr></thead><tbody>${body}</tbody></table>`), padded: false })}</div>`;
 }
 
+
+function normalizeCompletionApprovalType(value) {
+  return String(value || '').trim().replace(/[״"]/g, '').replace(/[׳']/g, '').replace(/[\s_-]+/g, ' ').toLowerCase();
+}
+
+function isCompletionApprovalIncludedActivityType(row) {
+  const values = [row?.activity_type, row?.item_type, row?.type, row?.activityType, row?.activity_name, row?.activityName];
+  return values.some((value) => {
+    const normalized = normalizeCompletionApprovalType(value);
+    return normalized === 'workshop'
+      || normalized === 'escape room'
+      || normalized === 'סדנה'
+      || normalized === 'סדנאות'
+      || normalized === 'חדר בריחה'
+      || normalized === 'חדרי בריחה';
+  });
+}
+
+function clampCompletionApprovalDate(value) {
+  const date = String(value || '').trim().slice(0, 10);
+  if (!/^\d{4}-\d{2}-\d{2}$/.test(date)) return '';
+  if (date < COMPLETION_APPROVAL_SUMMER_FROM || date > COMPLETION_APPROVAL_SUMMER_TO) return '';
+  return date;
+}
+
+function completionApprovalCountUploaded(items = []) {
+  return items.filter((item) => item.upload?.status === 'uploaded' || item.upload?.status === 'approved' || item.upload?.file_path).length;
+}
+
 function hasActivitySeasonColumn(rows = []) {
   return (Array.isArray(rows) ? rows : []).some((row) => (
     row && Object.prototype.hasOwnProperty.call(row, 'activity_season')
@@ -1591,6 +1620,7 @@ function hasActivitySeasonColumn(rows = []) {
 function isCompletionApprovalSummerActivity(row) {
   const season = normalizeActivitySeason(row?.activity_season ?? row?.activitySeason);
   if (season !== ACTIVITY_SEASON_SUMMER_2026) return false;
+  if (!isCompletionApprovalIncludedActivityType(row)) return false;
   return activityDatesInRange(row, COMPLETION_APPROVAL_SUMMER_FROM, COMPLETION_APPROVAL_SUMMER_TO).length > 0;
 }
 
@@ -1601,26 +1631,23 @@ function completionApprovalSummerRows(rows = []) {
 function completionApprovalTabHtml(rows, state, data = {}, directory = buildSchoolsDirectory([]), contactsIndex = new Map()) {
   const approvalState = ensureOpsState(state).completionApproval || {};
   const summerRows = completionApprovalSummerRows(rows);
+  const selectedDate = clampCompletionApprovalDate(approvalState.selectedDate || approvalState.date);
   const instructors = completionApprovalInstructorOptions(summerRows);
   const scopedInstructors = approvalState.instructor ? instructors.filter((name) => name === approvalState.instructor) : instructors;
   const approvals = scopedInstructors.flatMap((instructor) => buildCompletionApprovals(summerRows, { instructor, dateMode: 'range', dateFrom: COMPLETION_APPROVAL_SUMMER_FROM, dateTo: COMPLETION_APPROVAL_SUMMER_TO, directory, contactsIndex }));
   const uploadMap = completionApprovalUploadMap(data?.completionApprovalUploads || []);
   const todayIso = localTodayIso();
-  const items = approvals.map((approval, originalIndex) => ({ approval, upload: uploadMap.get(completionApprovalUploadKey(approval)), originalIndex })).sort((a, b) => compareCompletionApprovalWorkItems(a, b, todayIso));
-  const stats = {
-    total: items.length,
-    uploaded: items.filter((item) => item.upload?.status === 'uploaded' || item.upload?.file_path).length,
-    missing: items.filter((item) => !item.upload?.file_path).length,
-    approved: items.filter((item) => item.upload?.status === 'approved').length,
-    rejected: items.filter((item) => item.upload?.status === 'rejected').length
-  };
+  const allItems = approvals.map((approval, originalIndex) => ({ approval, upload: uploadMap.get(completionApprovalUploadKey(approval)), originalIndex })).sort((a, b) => compareCompletionApprovalWorkItems(a, b, todayIso));
+  const items = selectedDate ? allItems.filter((item) => String(item.approval?.date || '').slice(0, 10) === selectedDate) : allItems;
+  const effectiveTodayIso = todayIso < COMPLETION_APPROVAL_SUMMER_FROM ? '' : (todayIso > COMPLETION_APPROVAL_SUMMER_TO ? COMPLETION_APPROVAL_SUMMER_TO : todayIso);
+  const throughTodayItems = effectiveTodayIso ? allItems.filter((item) => String(item.approval?.date || '').slice(0, 10) <= effectiveTodayIso) : [];
+  const selectedDateItems = selectedDate ? allItems.filter((item) => String(item.approval?.date || '').slice(0, 10) === selectedDate) : [];
+  const summaryHtml = `<div class="ds-ops-completion-summary" dir="rtl"><h2>אישורי ביצוע</h2><div><strong>עד היום:</strong><br>הועלו ${completionApprovalCountUploaded(throughTodayItems)} מתוך ${throughTodayItems.length} אישורים נדרשים</div><div><strong>לכל תקופת הקיץ:</strong><br>הועלו ${completionApprovalCountUploaded(allItems)} מתוך ${allItems.length} אישורים נדרשים</div></div>`;
+  const selectedDateHtml = selectedDate ? `<div class="ds-ops-completion-selected-date" dir="rtl"><strong>מסונן לתאריך: ${escapeHtml(formatDateHe(selectedDate) || selectedDate)}</strong><br><span>בתאריך זה: הועלו ${completionApprovalCountUploaded(selectedDateItems)} מתוך ${selectedDateItems.length} אישורים נדרשים</span></div>` : '';
+  const dateFilterHtml = `<div class="ds-ops-completion-date-filter no-print" dir="rtl"><label><span>סינון לפי תאריך פעילות בתקופת הקיץ</span><input class="ds-input ds-input--sm" type="date" min="${COMPLETION_APPROVAL_SUMMER_FROM}" max="${COMPLETION_APPROVAL_SUMMER_TO}" value="${escapeHtml(selectedDate)}" data-ops-completion-date-filter></label><button type="button" class="ds-btn ds-btn--sm ds-btn--ghost" data-ops-completion-date-clear>הצג את כל תקופת הקיץ</button></div>`;
+
   const activeSubtab = approvalState.subtab === 'contacts' ? 'contacts' : 'approvals';
-  const summary = summaryKpiHtml([
-    { label: 'סה״כ אישורים נדרשים', value: stats.total },
-    { label: 'הועלו', value: stats.uploaded, tone: 'ok' },
-    { label: 'חסרים', value: stats.missing, tone: stats.missing ? 'alert' : 'ok' },
-    { label: 'אושרו', value: stats.approved, tone: 'ok' }
-  ]);
+
   const body = items.map(({ approval, upload, originalIndex }) => {
     const hasFile = !!upload?.file_path;
     const highlightToday = String(approval.date || '').slice(0, 10) === todayIso && !completionApprovalIsHandled(upload);
@@ -1648,7 +1675,9 @@ function completionApprovalTabHtml(rows, state, data = {}, directory = buildScho
     ? opsContactGroupsHtml(contactRows, data?.contactResponsiblesRows || [], uploadMap) || dsEmptyState('לא נמצאו אחראי קשר בטווח הנוכחי')
     : `<div class="ds-ops-completion-approvals-card">${dsCard({ title: 'אישורי ביצוע', body: table, padded: false })}</div>`;
   return `<section class="ds-ops-mgmt-panel ds-ops-completion-panel" dir="rtl">
-    ${summary}
+    ${summaryHtml}
+    ${dateFilterHtml}
+    ${selectedDateHtml}
     ${printToolbar}
     ${subtabs}
     ${activePanel}
@@ -1744,6 +1773,15 @@ export const operationsManagementScreen = {
         ops.completionApproval.subtab = btn.getAttribute('data-ops-completion-subtab') || 'approvals';
         rerender?.();
       });
+    });
+
+    root.querySelector('[data-ops-completion-date-filter]')?.addEventListener('change', (ev) => {
+      ops.completionApproval.selectedDate = clampCompletionApprovalDate(ev.target.value || '');
+      rerender?.();
+    });
+    root.querySelector('[data-ops-completion-date-clear]')?.addEventListener('click', () => {
+      ops.completionApproval.selectedDate = '';
+      rerender?.();
     });
 
     root.querySelector('[data-ops-period]')?.addEventListener('change', (ev) => {
