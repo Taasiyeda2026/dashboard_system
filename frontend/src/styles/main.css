@@ -8340,12 +8340,15 @@ select.ds-input {
 }
 
 .activity-drawer__view-footer__btn {
-  min-width: auto !important;
+  min-width: 64px !important;
   width: auto !important;
-  padding: 6px 14px !important;
-  font-size: 0.82rem !important;
+  padding: 4px 8px !important;
+  font-size: 0.75rem !important;
   font-weight: 600 !important;
-  border-radius: 10px !important;
+  line-height: 1 !important;
+  min-height: 24px !important;
+  height: 26px !important;
+  border-radius: 8px !important;
 }
 
 /* ─── Once-dates section: clean date chip, no section title in view ─── */
@@ -8378,28 +8381,33 @@ select.ds-input {
   margin-bottom: 14px;
 }
 
-/* Bigger progress count */
+/* Progress meta row: balanced, no oversized percentage */
 .activity-drawer__section--course-dates .activity-drawer__progress-meta {
-  font-size: 0.95rem !important;
-  font-weight: 800 !important;
-  color: #0f172a !important;
-  margin-bottom: 10px !important;
-  gap: 8px !important;
+  display: flex !important;
+  align-items: center !important;
+  gap: 12px !important;
+  font-size: 0.82rem !important;
+  font-weight: 600 !important;
+  color: #334155 !important;
+  margin-bottom: 0 !important;
+  white-space: nowrap;
 }
 
 /* First span = "X מתוך Y מפגשים" */
 [data-dates-progress-meta] span:first-child {
-  font-size: 0.95rem;
-  font-weight: 700;
-  color: #1e293b;
+  font-size: 0.82rem;
+  font-weight: 600;
+  color: #334155;
+  white-space: nowrap;
 }
 
-/* Second span = percentage - make it stand out */
+/* Second span = percentage - distinct but not dominant */
 [data-dates-progress-meta] span:last-child {
-  font-size: 1.05rem;
-  font-weight: 900;
+  font-size: 0.85rem;
+  font-weight: 700;
   color: #6366f1;
-  margin-inline-start: auto;
+  margin-inline-start: 0;
+  white-space: nowrap;
 }
 
 /* Taller progress bar */
@@ -8413,34 +8421,41 @@ select.ds-input {
   background: linear-gradient(90deg, #6366f1, #22c55e) !important;
 }
 
-/* End date: compact inline, not a big card */
+/* End date: compact inline */
 .activity-drawer__section--course-dates .activity-drawer__end-date {
   display: flex;
   flex-direction: row;
   align-items: center;
-  justify-content: flex-end;
-  gap: 6px;
-  padding: 8px 0 2px !important;
+  justify-content: flex-start;
+  gap: 4px;
+  padding: 0 !important;
   background: transparent !important;
   border: none !important;
   border-radius: 0 !important;
-  margin-top: 6px;
-  font-size: 0.78rem;
+  margin-top: 0;
+  font-size: 0.82rem;
   color: #64748b;
+  white-space: nowrap;
 }
 
 .activity-drawer__section--course-dates .activity-drawer__end-date__label {
-  font-size: 0.72rem !important;
+  font-size: 0.82rem !important;
   font-weight: 600 !important;
   color: #64748b !important;
   text-transform: none !important;
   letter-spacing: 0 !important;
+  white-space: nowrap;
+}
+
+.activity-drawer__section--course-dates .activity-drawer__end-date__label::after {
+  content: ":";
 }
 
 .activity-drawer__section--course-dates .activity-drawer__end-date strong {
-  font-size: 0.85rem !important;
+  font-size: 0.82rem !important;
   font-weight: 700 !important;
   color: #0f172a !important;
+  white-space: nowrap;
 }
 
 /* ─── Notes: hide empty card in view mode ─── */
@@ -8498,7 +8513,59 @@ select.ds-input {
 }
 
 .activity-view-card__grid {
-  gap: 14px 20px !important;
+  gap: 10px 12px !important;
+}
+
+/* Each field in once-type card gets its own box */
+.activity-view-card--once .activity-view-field {
+  background: #f8fafc;
+  border: 1px solid #e2e8f0;
+  border-radius: 10px;
+  padding: 10px 12px;
+}
+
+/* ─── Once dates row: date chip + participants side by side ─── */
+.activity-drawer__once-dates-row {
+  display: flex;
+  flex-direction: row;
+  gap: 12px;
+  align-items: stretch;
+}
+
+.activity-drawer__once-dates-row .activity-drawer__section--once-dates {
+  flex: 1 1 0;
+}
+
+.activity-drawer__once-dates-row .activity-drawer__section--participants {
+  flex: 1 1 0;
+  padding: 10px 14px;
+}
+
+/* Participants section in once-row: show as matching box */
+.activity-drawer__once-dates-row .activity-drawer__section--participants .activity-drawer__field {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+}
+
+.activity-drawer__once-dates-row .activity-drawer__section--participants .activity-drawer__label {
+  font-size: 0.72rem;
+  font-weight: 700;
+  color: #94a3b8;
+  text-transform: uppercase;
+  letter-spacing: 0.07em;
+}
+
+.activity-drawer__once-dates-row .activity-drawer__section--participants .activity-drawer__value {
+  font-size: 0.82rem;
+  font-weight: 600;
+  color: #1e293b;
+}
+
+@media (max-width: 480px) {
+  .activity-drawer__once-dates-row {
+    flex-direction: column;
+  }
 }
 
 /* ——— End dates screen ——— */
@@ -16514,23 +16581,27 @@ details[open] > .ds-fin-acc__summary::before { transform: rotate(90deg); }
 }
 
 .ds-ops-completion-col--date {
+  width: 100px;
+}
+
+.ds-ops-completion-col--authority {
   width: 110px;
 }
 
 .ds-ops-completion-col--instructor {
-  width: 170px;
+  width: 150px;
 }
 
 .ds-ops-completion-col--school {
-  width: 220px;
+  width: 150px;
 }
 
 .ds-ops-completion-col--status {
-  width: 130px;
+  width: 120px;
 }
 
 .ds-ops-completion-col--actions {
-  width: 206px;
+  width: 120px;
 }
 
 .ds-ops-completion-preview th,
@@ -16551,14 +16622,44 @@ details[open] > .ds-fin-acc__summary::before { transform: rotate(90deg); }
   word-break: normal;
 }
 
+/* School column: truncate long names within completion table */
+.ds-ops-completion-preview td.ds-table-cell-wrap {
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  overflow-wrap: unset;
+  word-break: normal;
+}
+
 .ds-ops-completion-actions {
-  white-space: normal;
+  white-space: nowrap;
+  text-align: center;
 }
 
 .ds-ops-completion-actions .ds-btn {
   min-height: 26px;
   padding-inline: 0.38rem;
   margin: 0.08rem;
+}
+
+.ds-ops-icon-btn {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 26px;
+  height: 26px;
+  padding: 0;
+  border: none;
+  background: none;
+  border-radius: 6px;
+  cursor: pointer;
+  font-size: 0.9rem;
+  line-height: 1;
+  transition: background 0.15s;
+}
+
+.ds-ops-icon-btn:hover {
+  background: var(--ds-muted-bg, #f1f5f9);
 }
 
 .ds-ops-no-file-chip {
