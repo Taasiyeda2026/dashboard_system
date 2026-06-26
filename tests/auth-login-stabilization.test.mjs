@@ -119,7 +119,7 @@ test('USER_PUBLIC_COLUMNS selects granted users table fields only', async () => 
     'is_active',
     'permissions'
   ]);
-  assert.match(source, /USER_PUBLIC_COLUMNS_EXTENDED = `\$\{USER_PUBLIC_COLUMNS\},auth_user_id,can_review_requests,view_proposals_agreements,manage_proposals_agreements,approve_proposals_agreements`/);
+  assert.match(source, /USER_PUBLIC_COLUMNS_EXTENDED = `\$\{USER_PUBLIC_COLUMNS\},auth_user_id,auth_email,can_review_requests,view_proposals_agreements,manage_proposals_agreements,approve_proposals_agreements`/);
 });
 
 test('auth user resolver supports login diagnostics and auth mismatch checks', async () => {
@@ -147,8 +147,12 @@ test('auth user resolver prioritizes username before id fallbacks in login mode'
   assert.ok(emailIndex >= 0, 'email lookup should exist in login mode');
   assert.ok(usernameIndex < userIdIndex, 'username should be tried before user_id in login mode');
   assert.ok(userIdIndex < empIdIndex, 'user_id should be tried before emp_id in login mode');
-  assert.ok(empIdIndex < emailIndex, 'employee id fallback should be tried before email in login mode');
-  assert.ok(emailIndex < authIndex, 'auth_user_id should be a final compatibility fallback in login mode');
+  const authEmailIndex = loginBlock[0].indexOf("matchedBy: 'auth_email'");
+  assert.ok(authEmailIndex >= 0, 'auth_email lookup should exist in login mode');
+  assert.ok(usernameIndex < authIndex, 'username should still be tried before auth identity fallbacks');
+  assert.ok(authIndex < authEmailIndex, 'auth_user_id should be tried before auth_email in auth-first fallback mode');
+  assert.ok(authEmailIndex < emailIndex, 'auth_email should be tried before legacy email fallback');
+  assert.ok(emailIndex < userIdIndex, 'auth email fallback should be tried before user_id in auth login mode');
 });
 
 

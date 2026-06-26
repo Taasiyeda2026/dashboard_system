@@ -3293,7 +3293,7 @@ async function readProposalsAgreementsFromSupabase() {
 }
 
 const USER_PUBLIC_COLUMNS = 'user_id,username,email,name,full_name,role,display_role,display_role2,emp_id,is_active,permissions';
-const USER_PUBLIC_COLUMNS_EXTENDED = `${USER_PUBLIC_COLUMNS},auth_user_id,can_review_requests,view_proposals_agreements,manage_proposals_agreements,approve_proposals_agreements`;
+const USER_PUBLIC_COLUMNS_EXTENDED = `${USER_PUBLIC_COLUMNS},auth_user_id,auth_email,can_review_requests,view_proposals_agreements,manage_proposals_agreements,approve_proposals_agreements`;
 const PROFILE_PERSONAL_REPORTS_COLUMNS = 'id,is_active,can_access_personal_reports';
 const VALID_SUPABASE_ROLES = new Set(['admin', 'operation_manager', 'authorized_user', 'instructor', 'finance', 'activities_manager', 'domain_manager', 'instructor_manager', 'business_development_manager']);
 
@@ -3630,11 +3630,11 @@ async function loginWithSupabaseAuth(user_id, entry_code) {
   const code = String(entry_code || '').trim();
   if (!uid || !code) throwLoginError('missing_user_id_or_entry_code');
 
-  const username = uid.toLowerCase();
-  const authEmail = `${username}@think.org.il`;
+  const loginUsername = uid.toLowerCase();
+  const loginAuthEmail = `${loginUsername}@think.org.il`;
 
   const { data: authData, error: authError } = await supabase.auth.signInWithPassword({
-    email: authEmail,
+    email: loginAuthEmail,
     password: code
   });
 
@@ -3643,9 +3643,10 @@ async function loginWithSupabaseAuth(user_id, entry_code) {
   }
 
   const authUserId = authData.user.id;
+  const authEmail = String(authData.user.email || loginAuthEmail).trim().toLowerCase();
 
   try {
-    console.info('[login-auth-success]', { authEmail, username, authUserId });
+    console.info('[login-auth-success]', { authEmail, loginAuthEmail, loginUsername, authUserId });
   } catch {
     /* ignore */
   }
@@ -3655,7 +3656,7 @@ async function loginWithSupabaseAuth(user_id, entry_code) {
     baseColumns: USER_PUBLIC_COLUMNS,
     extendedColumns: USER_PUBLIC_COLUMNS_EXTENDED,
     authEmail,
-    username,
+    username: loginUsername,
     authUserId,
     loginMode: true,
     requireAuthUserMatch: true
@@ -3674,7 +3675,7 @@ async function loginWithSupabaseAuth(user_id, entry_code) {
     throwLoginError(failureCode, {
       auth_user_id: authUserId,
       auth_email: authEmail,
-      username,
+      username: loginUsername,
       lookup_status: status || 'not_found',
       fallback_from: fallbackFrom || null,
       attempts: Array.isArray(attempts) ? attempts : [],
@@ -3685,7 +3686,7 @@ async function loginWithSupabaseAuth(user_id, entry_code) {
   userRow.auth_user_id = authUserId;
   if (matchedBy) {
     try {
-      console.info('[login-user-resolve]', { matchedBy, user_id: userRow.user_id, auth_email: authEmail });
+      console.info('[login-user-resolve]', { matchedBy, username: loginUsername, user_id: userRow.user_id, auth_email: authEmail });
     } catch {
       /* ignore */
     }
