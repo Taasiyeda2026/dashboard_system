@@ -1535,7 +1535,7 @@ function workshopInstructorDetailHtml(row) {
     <td>${formatGapCell(item.balance, true)}</td>
     <td>${workshopStatusText(item.status)}</td>
   </tr>`).join('');
-  return `<tr class="ds-ops-workshop-detail-row"><td colspan="8"><div class="ds-ops-workshop-detail">
+  return `<tr class="ds-ops-workshop-detail-row"><td colspan="7"><div class="ds-ops-workshop-detail">
     <strong>פירוט לפי מדריך — ${escapeHtml(row.workshopName)}</strong>
     <table class="ds-table ds-table--compact ds-ops-dist-table"><thead><tr><th>מדריך</th><th>קיבל</th><th>נדרש לפי פעילויות</th><th>יתרה אצל מדריך</th><th>סטטוס פעולה</th></tr></thead><tbody>${body}</tbody></table>
   </div></td></tr>`;
@@ -1549,7 +1549,7 @@ function workshopsTabHtml(rows, state, stockMap, catalogRows = [], distributions
     activityCount: (row) => row.activityCount,
     estimatedQuantity: (row) => row.requiredQuantity,
   });
-  const metrics = allMetrics.filter((row) => row.activityCount !== 0 || row.requiredQuantity !== 0 || row.deliveredQuantity !== 0);
+  const metrics = allMetrics.filter((row) => (row.stockQuantity !== null && Number(row.stockQuantity) > 0) || row.requiredQuantity !== 0 || row.deliveredQuantity !== 0);
   const table = metrics.length
     ? dsTableWrap(`<table class="ds-table ds-table--compact ds-ops-mgmt-data-table ds-ops-workshops-table"><colgroup><col class="ds-ops-workshop-col--no"><col class="ds-ops-workshop-col--name"><col class="ds-ops-workshop-col--metric"><col class="ds-ops-workshop-col--metric"><col class="ds-ops-workshop-col--metric"><col class="ds-ops-workshop-col--metric"><col class="ds-ops-workshop-col--metric"></colgroup><thead><tr>
         ${sortableTh(state, TAB_WORKSHOPS, 'workshopNo', 'מספר סדנה')}
