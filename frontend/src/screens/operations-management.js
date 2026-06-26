@@ -96,6 +96,9 @@ bindOperationsManagementEntryReset();
 const SUMMER_2026_FROM = '2026-06-15';
 const SUMMER_2026_TO = '2026-09-01';
 
+const WORKSHOPS_SUMMER_FROM = '2026-06-15';
+const WORKSHOPS_SUMMER_TO = '2026-08-30';
+
 const PERIOD_OPTIONS = [
   { value: ACTIVITY_SEASON_SUMMER_2026, label: 'קיץ 2026' },
   { value: 'school_2026', label: 'תשפ״ו / 2026' },
@@ -1530,7 +1533,7 @@ function workshopInstructorDetailHtml(row) {
 
 function workshopsTabHtml(rows, state, stockMap, catalogRows = [], distributions = []) {
   const ops = ensureOpsState(state);
-  const allMetrics = sortByConfig(workshopMetricsRows(rows, stockMap, catalogRows, distributions, { from: ops.dateFrom, to: ops.dateTo }), state, TAB_WORKSHOPS, {
+  const allMetrics = sortByConfig(workshopMetricsRows(rows, stockMap, catalogRows, distributions, { from: WORKSHOPS_SUMMER_FROM, to: WORKSHOPS_SUMMER_TO }), state, TAB_WORKSHOPS, {
     workshopNo: (row) => row.workshopNo || row.workshopName,
     workshopName: (row) => row.workshopName,
     activityCount: (row) => row.activityCount,
@@ -1565,7 +1568,7 @@ function workshopsTabHtml(rows, state, stockMap, catalogRows = [], distributions
     <div class="ds-ops-mgmt-panel__toolbar no-print">
       <button type="button" class="ds-btn ds-btn--sm ds-btn--primary" data-ops-print-workshops>הדפס מלאי סדנאות</button>
     </div>
-    <div class="ds-ops-mgmt-print-header only-print"><h2>מלאי סדנאות</h2><p>טווח: ${escapeHtml(formatDateHe(ops.dateFrom))} – ${escapeHtml(formatDateHe(ops.dateTo))}</p></div>
+    <div class="ds-ops-mgmt-print-header only-print"><h2>מלאי סדנאות</h2><p>טווח קיץ: ${escapeHtml(formatDateHe(WORKSHOPS_SUMMER_FROM))} – ${escapeHtml(formatDateHe(WORKSHOPS_SUMMER_TO))}</p></div>
     <div class="ds-ops-workshops-card">${dsCard({ title: 'מלאי סדנאות', badge: String(metrics.length), body: `<div class="ds-ops-workshops-table-wrap">${table}</div>`, padded: false })}</div>
   </section>`;
 }
@@ -1955,7 +1958,10 @@ function renderTab(rows, state, data, allPreparedRows = []) {
   }
   if (ops.tab === TAB_WORKSHOPS) {
     const catalogRows = extractWorkshopCatalogRows(data?.adminListsData, allPreparedRows);
-    const workshopRows = rows.filter((row) => activityMatchesAnyOfficialWorkshop(row, catalogRows));
+    const workshopRows = rows.filter((row) =>
+      activityMatchesAnyOfficialWorkshop(row, catalogRows) &&
+      activityOverlapsDateRange(row, WORKSHOPS_SUMMER_FROM, WORKSHOPS_SUMMER_TO)
+    );
     return workshopsTabHtml(workshopRows, state, stockMap, catalogRows, data?.workshopStockDistributions || []);
   }
   return instructorsTabHtml(rows, state, data, directory, contactsIndex);
