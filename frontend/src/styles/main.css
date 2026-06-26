@@ -15926,6 +15926,56 @@ details[open] > .ds-fin-acc__summary::before { transform: rotate(90deg); }
   gap: 1rem;
 }
 
+.ds-ops-completion-panel .ds-ops-mgmt-summary {
+  display: flex;
+  flex-wrap: wrap;
+  justify-content: center;
+}
+
+.ds-ops-completion-panel .ds-ops-mgmt-summary__card {
+  flex: 0 1 150px;
+  width: clamp(130px, 15vw, 170px);
+}
+
+.ds-ops-approval-print-toolbar {
+  display: inline-flex;
+  align-items: end;
+  justify-content: center;
+  gap: 0.5rem;
+  flex-wrap: wrap;
+  justify-self: center;
+}
+
+.ds-ops-approval-print-filter {
+  display: grid;
+  gap: 0.18rem;
+  min-width: 150px;
+  font-size: 0.74rem;
+  color: var(--ds-text-muted);
+}
+
+.ds-ops-approval-print-filter select {
+  min-width: 150px;
+}
+
+.ds-ops-approval-print-btn {
+  width: auto;
+  min-width: 5.5rem;
+  align-self: end;
+}
+
+.ds-ops-work-today-row {
+  background: color-mix(in srgb, #38bdf8 10%, var(--ds-surface));
+  box-shadow: inset -3px 0 0 color-mix(in srgb, #0284c7 55%, transparent);
+}
+
+.ds-ops-today-chip {
+  margin-inline-start: 0.3rem;
+  padding: 0.08rem 0.32rem;
+  font-size: 0.62rem;
+  vertical-align: middle;
+}
+
 .ds-ops-completion-subtabs {
   display: flex;
   justify-content: center;
