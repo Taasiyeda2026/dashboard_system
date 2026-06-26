@@ -95,7 +95,7 @@ test('USER_PUBLIC_COLUMNS keeps base columns and extended list adds compatibilit
   assert.equal(baseMatch[1], AUTH_USER_PUBLIC_COLUMNS);
   assert.equal(
     AUTH_USER_PUBLIC_COLUMNS_EXTENDED,
-    `${AUTH_USER_PUBLIC_COLUMNS},auth_user_id,can_review_requests,view_proposals_agreements,manage_proposals_agreements,approve_proposals_agreements`
+    `${AUTH_USER_PUBLIC_COLUMNS},auth_user_id,auth_email,can_review_requests,view_proposals_agreements,manage_proposals_agreements,approve_proposals_agreements`
   );
 });
 

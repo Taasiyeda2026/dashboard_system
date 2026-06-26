@@ -1,7 +1,7 @@
 import { supabase } from './supabase-client.js';
 
 export const AUTH_USER_PUBLIC_COLUMNS = 'user_id,username,email,name,full_name,role,display_role,display_role2,emp_id,is_active,permissions';
-export const AUTH_USER_PUBLIC_COLUMNS_EXTENDED = `${AUTH_USER_PUBLIC_COLUMNS},auth_user_id,can_review_requests,view_proposals_agreements,manage_proposals_agreements,approve_proposals_agreements`;
+export const AUTH_USER_PUBLIC_COLUMNS_EXTENDED = `${AUTH_USER_PUBLIC_COLUMNS},auth_user_id,auth_email,can_review_requests,view_proposals_agreements,manage_proposals_agreements,approve_proposals_agreements`;
 
 function lookupLog(event, payload = {}) {
   try {
@@ -86,16 +86,19 @@ function buildLookupAttempts(options = {}, columns = '') {
     if (username) {
       attempts.push({ matchedBy: 'username', filters: [['username', username]] });
     }
-    if (username) {
-      attempts.push({ matchedBy: 'user_id', filters: [['user_id', username]] });
-      attempts.push({ matchedBy: 'emp_id', filters: [['emp_id', username]] });
-    }
-    if (authEmail) attempts.push({ matchedBy: 'email', filters: [['email', authEmail]] });
     if (canUseAuthUserId && authUserId && username) {
       attempts.push({ matchedBy: 'auth_user_id+username', filters: [['auth_user_id', authUserId], ['username', username]] });
     }
     if (canUseAuthUserId && authUserId) {
       attempts.push({ matchedBy: 'auth_user_id', filters: [['auth_user_id', authUserId]] });
+    }
+    if (authEmail) {
+      attempts.push({ matchedBy: 'auth_email', filters: [['auth_email', authEmail]] });
+      attempts.push({ matchedBy: 'email', filters: [['email', authEmail]] });
+    }
+    if (username) {
+      attempts.push({ matchedBy: 'user_id', filters: [['user_id', username]] });
+      attempts.push({ matchedBy: 'emp_id', filters: [['emp_id', username]] });
     }
     return attempts;
   }
@@ -111,7 +114,10 @@ function buildLookupAttempts(options = {}, columns = '') {
     attempts.push({ matchedBy: 'user_id', filters: [['user_id', username]] });
     attempts.push({ matchedBy: 'emp_id', filters: [['emp_id', username]] });
   }
-  if (authEmail) attempts.push({ matchedBy: 'email', filters: [['email', authEmail]] });
+  if (authEmail) {
+    attempts.push({ matchedBy: 'auth_email', filters: [['auth_email', authEmail]] });
+    attempts.push({ matchedBy: 'email', filters: [['email', authEmail]] });
+  }
   if (sessionUserId) {
     attempts.unshift({ matchedBy: 'session_user_id', filters: [['user_id', sessionUserId]] });
   }

@@ -3293,7 +3293,7 @@ async function readProposalsAgreementsFromSupabase() {
 }
 
 const USER_PUBLIC_COLUMNS = 'user_id,username,email,name,full_name,role,display_role,display_role2,emp_id,is_active,permissions';
-const USER_PUBLIC_COLUMNS_EXTENDED = `${USER_PUBLIC_COLUMNS},auth_user_id,can_review_requests,view_proposals_agreements,manage_proposals_agreements,approve_proposals_agreements`;
+const USER_PUBLIC_COLUMNS_EXTENDED = `${USER_PUBLIC_COLUMNS},auth_user_id,auth_email,can_review_requests,view_proposals_agreements,manage_proposals_agreements,approve_proposals_agreements`;
 const PROFILE_PERSONAL_REPORTS_COLUMNS = 'id,is_active,can_access_personal_reports';
 const VALID_SUPABASE_ROLES = new Set(['admin', 'operation_manager', 'authorized_user', 'instructor', 'finance', 'activities_manager', 'domain_manager', 'instructor_manager', 'business_development_manager']);
 
@@ -3631,10 +3631,10 @@ async function loginWithSupabaseAuth(user_id, entry_code) {
   if (!uid || !code) throwLoginError('missing_user_id_or_entry_code');
 
   const loginUsername = uid.toLowerCase();
-  const authEmail = `${loginUsername}@think.org.il`;
+  const loginAuthEmail = `${loginUsername}@think.org.il`;
 
   const { data: authData, error: authError } = await supabase.auth.signInWithPassword({
-    email: authEmail,
+    email: loginAuthEmail,
     password: code
   });
 
@@ -3643,9 +3643,10 @@ async function loginWithSupabaseAuth(user_id, entry_code) {
   }
 
   const authUserId = authData.user.id;
+  const authEmail = String(authData.user.email || loginAuthEmail).trim().toLowerCase();
 
   try {
-    console.info('[login-auth-success]', { authEmail, loginUsername, authUserId });
+    console.info('[login-auth-success]', { authEmail, loginAuthEmail, loginUsername, authUserId });
   } catch {
     /* ignore */
   }
