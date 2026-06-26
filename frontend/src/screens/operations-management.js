@@ -2132,13 +2132,13 @@ function completionApprovalTabHtml(rows, state, data = {}, directory = buildScho
       ? `<select class="ds-input ds-input--sm ds-ops-contact-responsible-select" data-contact-responsible-select data-date="${escapeHtml(contactCtx.date)}" data-school-id="${escapeHtml(contactCtx.schoolId)}" data-school="${escapeHtml(contactCtx.school)}"><option value="">בחרו</option>${contactCtx.options}</select>`
       : '<span class="ds-muted">—</span>';
     return `<tr${highlightToday ? ' class="ds-ops-work-today-row"' : ''}>
+      <td class="ds-table-cell-truncate">${completionApprovalUploadStatusChip(upload)}</td>
       <td class="ds-table-cell-truncate" style="text-align:center">${escapeHtml(formatDateHe(approval.date) || approval.date || '')}${todayChip}</td>
       <td class="ds-table-cell-truncate">${escapeHtml(approval.authority || '—')}</td>
       <td class="ds-table-cell-truncate">${escapeHtml(approval.instructorName || '')}</td>
       <td class="ds-table-cell-wrap">${escapeHtml(approval.school || '')}</td>
       <td class="ds-ops-completion-col-who-cell ds-table-cell-wrap">${whoIsWithMe}</td>
       <td class="ds-ops-completion-col-contact-cell">${contactDropdown}</td>
-      <td class="ds-table-cell-truncate">${completionApprovalUploadStatusChip(upload)}</td>
       <td class="ds-ops-completion-actions-cell no-print"><div class="ds-ops-completion-actions"><button type="button" class="ds-ops-icon-btn" data-ops-approval-view="${displayIndex}" title="צפייה באישור" aria-label="צפייה באישור">👁</button>${!hasFile
         ? ` <button type="button" class="ds-ops-icon-btn ds-ops-icon-btn--add" data-ops-approval-upload="${displayIndex}" title="הוספת אישור פעילות חתום" aria-label="הוספת אישור פעילות חתום">＋</button>`
         : ` <button type="button" class="ds-ops-icon-btn" data-ops-upload-view="${escapeHtml(upload.id)}" title="צפייה בקובץ חתום" aria-label="צפייה בקובץ חתום">📋</button> <button type="button" class="ds-ops-icon-btn" data-ops-upload-download="${escapeHtml(upload.id)}" title="הורדה" aria-label="הורדה">⬇</button>${canReview
@@ -2149,7 +2149,7 @@ function completionApprovalTabHtml(rows, state, data = {}, directory = buildScho
   _completionApprovalPrintContext = { approvals: items.map((item) => item.approval), uploads: data?.completionApprovalUploads || [] };
   const contactRows = (selectedDate || selectedPrintInstructor || approvalState.instructor || selectedAuthority) ? summerRows.filter((row) => items.some((item) => String(item.approval.date || '').slice(0, 10) === String(row.start_date || row.activity_date || '').slice(0, 10) && String(item.approval.school || '').trim() === String(row.school || row.single_school_name || row.legacy_school || '').trim())) : summerRows;
   const table = items.length
-    ? dsTableWrap(`<table class="ds-table ds-table--compact ds-ops-completion-preview"><colgroup><col class="ds-ops-completion-col--date"><col class="ds-ops-completion-col--authority"><col class="ds-ops-completion-col--instructor"><col class="ds-ops-completion-col--school"><col class="ds-ops-completion-col--who"><col class="ds-ops-completion-col--contact"><col class="ds-ops-completion-col--status"><col class="ds-ops-completion-col--actions no-print"></colgroup><thead><tr><th style="text-align:center">תאריך</th><th>רשות</th><th>מדריך</th><th>בית ספר</th><th>מי איתי היום</th><th>אחראי קשר</th><th>סטטוס אישור</th><th class="no-print" style="text-align:center">פעולות</th></tr></thead><tbody>${body}</tbody></table>`)
+    ? dsTableWrap(`<table class="ds-table ds-table--compact ds-ops-completion-preview"><colgroup><col class="ds-ops-completion-col--status"><col class="ds-ops-completion-col--date"><col class="ds-ops-completion-col--authority"><col class="ds-ops-completion-col--instructor"><col class="ds-ops-completion-col--school"><col class="ds-ops-completion-col--who"><col class="ds-ops-completion-col--contact"><col class="ds-ops-completion-col--actions no-print"></colgroup><thead><tr><th>סטטוס אישור</th><th style="text-align:center">תאריך</th><th>רשות</th><th>מדריך</th><th>בית ספר</th><th>מי איתי היום</th><th>אחראי קשר</th><th class="no-print" style="text-align:center">פעולות</th></tr></thead><tbody>${body}</tbody></table>`)
     : dsEmptyState('לא נמצאו אישורי ביצוע בטווח הנוכחי');
   const activePanel = `<div class="ds-ops-completion-approvals-card">${dsCard({ body: table, padded: false })}</div>`;
   return `<section class="ds-ops-mgmt-panel ds-ops-completion-panel" dir="rtl">
