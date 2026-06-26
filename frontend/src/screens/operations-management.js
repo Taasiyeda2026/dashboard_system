@@ -1288,9 +1288,13 @@ function buildGroupedScheduleHtml({ scheduleRows, state, selectedInstructorFilte
     const contactsHtml = contactRowsHtml ? `<section class="pb-contacts"><h3>פרטי קשר ואימות פעילות</h3><table><thead><tr><th>בית ספר</th><th>כתובת</th><th>איש קשר</th><th>טלפון</th></tr></thead><tbody>${contactRowsHtml}</tbody></table></section>` : '';
     const groupDateStr = group.date || '';
     const groupSchoolNorm = normalizePrintContactMatchText(group.school);
+    const groupSchoolIds = new Set((group.entries || []).map((entry) => activitySchoolIdForPrint(entry.activity)).filter(Boolean));
     const teamSet = new Set();
     (allRows || []).forEach((activity) => {
-      if (normalizePrintContactMatchText(getActivitySchoolDisplayNameClean(activity)) !== groupSchoolNorm) return;
+      const actSchoolId = activitySchoolIdForPrint(activity);
+      const schoolMatch = (actSchoolId && groupSchoolIds.has(actSchoolId))
+        || normalizePrintContactMatchText(getActivitySchoolDisplayNameClean(activity)) === groupSchoolNorm;
+      if (!schoolMatch) return;
       const dates = activityDatesInRange(activity, ops.dateFrom, ops.dateTo);
       const primary = getActivityPrimaryDate(activity);
       const actDates = dates.length ? dates : (primary ? [primary] : []);
@@ -1299,7 +1303,10 @@ function buildGroupedScheduleHtml({ scheduleRows, state, selectedInstructorFilte
     });
     const teamList = [...teamSet].filter(Boolean);
     const teamText = teamList.length ? teamList.join(', ') : 'ללא מדריכים';
-    const responsibleName = (contactRows.length && contactRows[0].responsibleName) ? contactRows[0].responsibleName : 'לא הוגדר';
+    const overrideMap = opsContactOverrideMap(contactResponsiblesRows);
+    const overrideKey = [...groupSchoolIds].map((id) => overrideMap.get(`${groupDateStr}|${id}`)).find(Boolean)
+      || overrideMap.get(`${groupDateStr}|${normalizePrintContactMatchText(group.school).replace(/[״"׳']/g, '').replace(/\s+/g, ' ').toLowerCase()}`);
+    const responsibleName = String(overrideKey?.responsible_name || (contactRows.length && contactRows[0].responsibleName) || teamList[0] || '').trim() || 'לא הוגדר';
     const teamHtml = `<div class="pb-team"><strong>מי איתי היום:</strong> ${escapeHtml(teamText)}</div><div class="pb-team"><strong>האחראי לאישור קיום הפעילות מול איש הקשר בבית הספר הוא:</strong> ${escapeHtml(responsibleName)}</div>`;
     return `<div class="pb">
       <div class="pb-hdr">
@@ -1472,13 +1479,13 @@ function printSchoolsSchedule() {
   setTimeout(() => printWindow.print(), 250);
 }
 
-function instructorsTabHtml(rows, state, data = {}, directory = buildSchoolsDirectory([]), contactsIndex = new Map()) {
+function instructorsTabHtml(rows, state, data = {}, directory = buildSchoolsDirectory([]), contactsIndex = new Map(), allPreparedRows = []) {
   const ops = ensureOpsState(state);
   const filters = ensureActivityListFilters(state, SCOPE);
   const scheduleRows = buildScheduleRows(rows, state, directory);
   const selectedInstructorFilter = String(filters.instructor || '').trim();
   const printTitle = selectedInstructorFilter ? selectedInstructorFilter : 'כל המדריכים';
-  _schedulePrintContext = { scheduleRows, state, selectedInstructorFilter, directory, contactsIndex, printContacts: data?.instructorSchedulePrintContactsRows || [], contactResponsiblesRows: data?.contactResponsiblesRows || [], allRows: rows };
+  _schedulePrintContext = { scheduleRows, state, selectedInstructorFilter, directory, contactsIndex, printContacts: data?.instructorSchedulePrintContactsRows || [], contactResponsiblesRows: data?.contactResponsiblesRows || [], allRows: allPreparedRows.length ? allPreparedRows : rows };
 
   const tableRows = scheduleRows.map((entry) => {
     const activity = entry.activity;
@@ -1975,7 +1982,7 @@ function renderTab(rows, state, data, allPreparedRows = []) {
     );
     return workshopsTabHtml(workshopRows, state, stockMap, catalogRows, data?.workshopStockDistributions || []);
   }
-  return instructorsTabHtml(rows, state, data, directory, contactsIndex);
+  return instructorsTabHtml(rows, state, data, directory, contactsIndex, allPreparedRows);
 }
 
 export const operationsManagementScreen = {
