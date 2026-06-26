@@ -188,34 +188,44 @@ async function main() {
     const authEmail = existingAuthEmail || buildAuthEmail(username);
 
     try {
-      let authUser = existingAuthUserId ? authById.get(existingAuthUserId) : null;
-      if (!authUser) authUser = authByEmail.get(authEmail.toLowerCase()) || null;
-
       let action;
+      let authUserId;
 
-      if (authUser) {
-        await restPut(supabaseUrl, serviceKey, `/auth/v1/admin/users/${authUser.id}`, { password });
+      if (existingAuthUserId) {
+        // יש auth_user_id — עדכון סיסמה ישיר בלי חיפוש
+        await restPut(supabaseUrl, serviceKey, `/auth/v1/admin/users/${existingAuthUserId}`, { password });
+        authUserId = existingAuthUserId;
         action = 'updated';
         updated += 1;
       } else {
-        const created_user = await restPost(supabaseUrl, serviceKey, '/auth/v1/admin/users', {
-          email: authEmail,
-          password,
-          email_confirm: true,
-          user_metadata: { employee_id: userId || empId, full_name: fullName, role: 'instructor' }
-        });
-        authUser = created_user;
-        authByEmail.set(authEmail.toLowerCase(), authUser);
-        authById.set(authUser.id, authUser);
-        action = 'created';
-        created += 1;
+        // אין auth_user_id — חיפוש לפי email, ואם לא קיים — יצירה
+        const emailKey = authEmail.toLowerCase();
+        let authUser = authByEmail.get(emailKey) || null;
+        if (authUser) {
+          await restPut(supabaseUrl, serviceKey, `/auth/v1/admin/users/${authUser.id}`, { password });
+          authUserId = authUser.id;
+          action = 'updated';
+          updated += 1;
+        } else {
+          const newAuthEmail = buildAuthEmail(username);
+          authUser = await restPost(supabaseUrl, serviceKey, '/auth/v1/admin/users', {
+            email: newAuthEmail,
+            password,
+            email_confirm: true,
+            user_metadata: { employee_id: userId || empId, full_name: fullName, role: 'instructor' }
+          });
+          authUserId = authUser.id;
+          authByEmail.set(newAuthEmail.toLowerCase(), authUser);
+          action = 'created';
+          created += 1;
+        }
       }
 
       // עדכון public.users
       await restPatch(
         supabaseUrl, serviceKey,
         '/rest/v1/users',
-        { auth_user_id: authUser.id, auth_email: authEmail, migrated_to_auth: true, is_active: true },
+        { auth_user_id: authUserId, auth_email: authEmail, migrated_to_auth: true, is_active: true },
         `?user_id=eq.${encodeURIComponent(userId || empId)}`
       );
 
@@ -231,7 +241,7 @@ async function main() {
         /* entry_code עלול לא לאפשר null — מדלגים */
       }
 
-      console.log(JSON.stringify({ ok: true, action, emp_id: empId, auth_email: authEmail, auth_user_id: authUser.id }));
+      console.log(JSON.stringify({ ok: true, action, emp_id: empId, auth_email: authEmail, auth_user_id: authUserId }));
     } catch (error) {
       failed += 1;
       console.error(JSON.stringify({ ok: false, action: 'failed', emp_id: empId, auth_email: authEmail, error: error?.message || String(error) }));
