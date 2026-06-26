@@ -1197,7 +1197,7 @@ function opsManagementStylesHtml() {
     .ds-ops-mgmt-screen .ds-ops-completion-summary__title { appearance:none; border:0; background:transparent; color:#0f172a; margin:0; padding:0 0 1px; font:inherit; font-size:17px; line-height:1.25; font-weight:800; cursor:pointer; border-bottom:1px dashed transparent; white-space:nowrap; }
     .ds-ops-mgmt-screen .ds-ops-completion-summary__title:hover,
     .ds-ops-mgmt-screen .ds-ops-completion-summary__title:focus-visible { color:#0f8fa8; border-bottom-color:#8bd3df; outline:none; }
-    .ds-ops-mgmt-screen .ds-ops-completion-summary-popover { position:absolute; inset-block-start:calc(100% + 8px); inset-inline-start:0; z-index:5; width:min(360px, 100%); box-sizing:border-box; padding:12px 14px; border:1px solid #d8e5ee; border-radius:14px; background:#fff; box-shadow:0 14px 30px rgba(15,23,42,0.14); color:#334155; font-size:14px; line-height:1.5; }
+    .ds-ops-mgmt-screen .ds-ops-completion-summary-popover { position:absolute; inset-block-start:calc(100% + 8px); inset-inline-start:auto; inset-inline-end:0; z-index:5; width:320px; max-width:min(90vw, 320px); box-sizing:border-box; padding:10px 14px; border:1px solid #d8e5ee; border-radius:14px; background:#fff; box-shadow:0 14px 30px rgba(15,23,42,0.14); color:#334155; font-size:13px; line-height:1.45; }
     .ds-ops-mgmt-screen .ds-ops-completion-summary-popover p { margin:0; }
     .ds-ops-mgmt-screen .ds-ops-completion-summary-popover p + p { margin-top:4px; }
     .ds-ops-mgmt-screen .ds-ops-completion-control-row { display:flex; flex-wrap:wrap; align-items:center; justify-content:flex-start; gap:6px; width:100%; }
@@ -1213,8 +1213,8 @@ function opsManagementStylesHtml() {
     .ds-ops-mgmt-screen .ds-ops-completion-approvals-card { width:100%; margin:0; box-sizing:border-box; }
     .ds-ops-mgmt-screen .ds-ops-completion-approvals-card .ds-card { width:100%; margin:0; box-sizing:border-box; overflow:hidden; border-radius:16px; }
     .ds-ops-mgmt-screen .ds-ops-completion-approvals-card .ds-card__body { padding:8px 10px 10px; }
-    .ds-ops-mgmt-screen .ds-ops-completion-approvals-card .ds-table-wrap { width:100%; max-width:100%; box-sizing:border-box; overflow-x:hidden; }
-    .ds-ops-mgmt-screen .ds-ops-completion-preview { width:100%; table-layout:fixed; }
+    .ds-ops-mgmt-screen .ds-ops-completion-approvals-card .ds-table-wrap { width:100%; max-width:100%; box-sizing:border-box; overflow-x:auto; }
+    .ds-ops-mgmt-screen .ds-ops-completion-preview { min-width:102%; width:102%; table-layout:fixed; }
     .ds-ops-mgmt-screen .ds-ops-completion-preview th,.ds-ops-mgmt-screen .ds-ops-completion-preview td { padding:7px 8px; }
     .ds-ops-mgmt-screen .ds-ops-completion-preview th:first-child,.ds-ops-mgmt-screen .ds-ops-completion-preview td:first-child { padding-inline-start:10px; padding-inline-end:10px; white-space:nowrap; text-align:center; }
     .ds-ops-mgmt-screen .ds-ops-completion-col--date { width:108px; text-align:center; }
@@ -1222,7 +1222,7 @@ function opsManagementStylesHtml() {
     .ds-ops-mgmt-screen .ds-ops-completion-col--instructor { width:140px; }
     .ds-ops-mgmt-screen .ds-ops-completion-col--school { width:auto; }
     .ds-ops-mgmt-screen .ds-ops-completion-col--status { width:100px; }
-    .ds-ops-mgmt-screen .ds-ops-completion-col--actions { width:181px; text-align:center; }
+    .ds-ops-mgmt-screen .ds-ops-completion-col--actions { width:201px; text-align:center; }
     .ds-ops-mgmt-screen .ds-ops-completion-actions { display:flex; flex-wrap:wrap; justify-content:center; gap:4px; white-space:normal; }
     .ds-ops-mgmt-screen .ds-ops-completion-actions .ds-ops-icon-btn { flex:0 0 26px; }
     .ds-ops-mgmt-screen .ds-btn--success{background:#16a34a;color:#fff;border-color:#15803d}
@@ -1647,7 +1647,11 @@ function workshopsTabHtml(rows, state, stockMap, catalogRows = [], distributions
           <td>${formatSignedNumberForRtl(row.deliveredQuantity)}</td>
           <td>${formatDeliveryGapCell(row.deliveryGap)}</td>
         </tr>`;
-        return mainRow + (isExpanded ? workshopInstructorDetailHtml(row) : '');
+        const detailHtml = workshopInstructorDetailHtml(row).replace(
+          'class="ds-ops-workshop-detail-row"',
+          `class="ds-ops-workshop-detail-row" data-workshop-detail="${escapeHtml(row.stockGroupKey || '')}"${isExpanded ? '' : ' hidden'}`
+        );
+        return mainRow + detailHtml;
       }).join('')}</tbody></table>`)
     : dsEmptyState('לא נמצאו סדנאות בטווח הנבחר');
 
@@ -2284,19 +2288,45 @@ export const operationsManagementScreen = {
     root.querySelector('[data-ops-print-workshops]')?.addEventListener('click', () => printWorkshopsFromDom(root));
     root.querySelector('[data-ops-print-schools]')?.addEventListener('click', () => printSchoolsSchedule());
 
-    root.querySelectorAll('[data-ops-workshop-toggle]').forEach((row) => {
-      const toggle = () => {
-        const key = row.getAttribute('data-ops-workshop-toggle') || '';
-        ops.expandedWorkshop = ops.expandedWorkshop === key ? '' : key;
-        rerender?.();
+    const workshopsWrap = root.querySelector('.ds-ops-workshops-table-wrap');
+    if (workshopsWrap) {
+      const handleWorkshopToggle = (toggleRow) => {
+        const key = toggleRow.getAttribute('data-ops-workshop-toggle') || '';
+        const tbody = toggleRow.closest('tbody');
+        if (!tbody) return;
+        const isExpanded = toggleRow.getAttribute('aria-expanded') === 'true';
+        const newExpanded = !isExpanded;
+        // Close other expanded rows
+        if (newExpanded) {
+          Array.from(tbody.querySelectorAll('[data-ops-workshop-toggle][aria-expanded="true"]')).forEach((r) => {
+            if (r === toggleRow) return;
+            r.classList.remove('ds-ops-row--expanded');
+            r.setAttribute('aria-expanded', 'false');
+            const prevKey = r.getAttribute('data-ops-workshop-toggle') || '';
+            Array.from(tbody.querySelectorAll('[data-workshop-detail]')).forEach((d) => {
+              if (d.getAttribute('data-workshop-detail') === prevKey) d.hidden = true;
+            });
+          });
+        }
+        toggleRow.classList.toggle('ds-ops-row--expanded', newExpanded);
+        toggleRow.setAttribute('aria-expanded', String(newExpanded));
+        ops.expandedWorkshop = newExpanded ? key : '';
+        Array.from(tbody.querySelectorAll('[data-workshop-detail]')).forEach((d) => {
+          if (d.getAttribute('data-workshop-detail') === key) d.hidden = !newExpanded;
+        });
       };
-      row.addEventListener('click', toggle);
-      row.addEventListener('keydown', (event) => {
+      workshopsWrap.addEventListener('click', (event) => {
+        const toggleRow = event.target.closest('[data-ops-workshop-toggle]');
+        if (toggleRow) handleWorkshopToggle(toggleRow);
+      });
+      workshopsWrap.addEventListener('keydown', (event) => {
+        const toggleRow = event.target.closest('[data-ops-workshop-toggle]');
+        if (!toggleRow) return;
         if (event.key !== 'Enter' && event.key !== ' ') return;
         event.preventDefault();
-        toggle();
+        handleWorkshopToggle(toggleRow);
       });
-    });
+    }
 
     root.querySelector('[data-ops-approval-instructor]')?.addEventListener('change', (ev) => {
       ops.completionApproval.instructor = ev.target.value || '';

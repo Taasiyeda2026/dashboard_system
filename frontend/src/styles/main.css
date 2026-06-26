@@ -8316,7 +8316,162 @@ select.ds-input {
 /* Body spacing */
 .activity-drawer__body {
   gap: 10px !important;
-  padding: 4px 0 16px !important;
+  padding: 4px 0 0 !important;
+}
+
+/* ─── View-mode footer with sticky edit button ─── */
+.activity-drawer__view-footer {
+  position: sticky;
+  bottom: 0;
+  background: rgba(255, 255, 255, 0.97);
+  backdrop-filter: blur(8px);
+  -webkit-backdrop-filter: blur(8px);
+  border-top: 1px solid #e2e8f0;
+  padding: 12px 16px 16px;
+  display: flex;
+  justify-content: flex-start;
+  gap: 8px;
+  z-index: 11;
+  margin-inline: -16px;
+}
+
+.activity-drawer__view-footer__btn {
+  min-width: 120px;
+  padding: 9px 20px !important;
+  font-size: 0.88rem !important;
+  font-weight: 700 !important;
+  border-radius: 10px !important;
+}
+
+/* ─── Once-dates section: clean date chip, no section title in view ─── */
+.activity-drawer__section--once-dates {
+  background: #f8fafc;
+  border: 1px solid #e2e8f0;
+  border-radius: 12px;
+  padding: 10px 14px;
+}
+
+.activity-drawer__section--once-dates .activity-drawer__oneday-info {
+  margin: 0;
+}
+
+.activity-drawer__section--once-dates .activity-drawer__date-chip {
+  font-size: 0.82rem !important;
+  font-weight: 600 !important;
+  padding: 9px 12px !important;
+}
+
+/* ─── Course/AfterSchool dates: prominent progress ─── */
+.activity-drawer__section--course-dates {
+  background: #fff;
+  border: 1px solid #dde4ef;
+  border-radius: 14px;
+  padding: 16px 18px;
+}
+
+.activity-drawer__section--course-dates .activity-drawer__section-head {
+  margin-bottom: 14px;
+}
+
+/* Bigger progress count */
+.activity-drawer__section--course-dates .activity-drawer__progress-meta {
+  font-size: 0.95rem !important;
+  font-weight: 800 !important;
+  color: #0f172a !important;
+  margin-bottom: 10px !important;
+  gap: 8px !important;
+}
+
+/* First span = "X מתוך Y מפגשים" */
+[data-dates-progress-meta] span:first-child {
+  font-size: 0.95rem;
+  font-weight: 700;
+  color: #1e293b;
+}
+
+/* Second span = percentage - make it stand out */
+[data-dates-progress-meta] span:last-child {
+  font-size: 1.05rem;
+  font-weight: 900;
+  color: #6366f1;
+  margin-inline-start: auto;
+}
+
+/* Taller progress bar */
+.activity-drawer__section--course-dates .activity-drawer__progress-track {
+  height: 12px !important;
+  border-radius: 999px !important;
+  background: #e8eef6 !important;
+}
+
+.activity-drawer__section--course-dates .activity-drawer__progress-fill {
+  background: linear-gradient(90deg, #6366f1, #22c55e) !important;
+}
+
+/* End date: compact inline, not a big card */
+.activity-drawer__section--course-dates .activity-drawer__end-date {
+  display: flex;
+  flex-direction: row;
+  align-items: center;
+  justify-content: flex-end;
+  gap: 6px;
+  padding: 8px 0 2px !important;
+  background: transparent !important;
+  border: none !important;
+  border-radius: 0 !important;
+  margin-top: 6px;
+  font-size: 0.78rem;
+  color: #64748b;
+}
+
+.activity-drawer__section--course-dates .activity-drawer__end-date__label {
+  font-size: 0.72rem !important;
+  font-weight: 600 !important;
+  color: #64748b !important;
+  text-transform: none !important;
+  letter-spacing: 0 !important;
+}
+
+.activity-drawer__section--course-dates .activity-drawer__end-date strong {
+  font-size: 0.85rem !important;
+  font-weight: 700 !important;
+  color: #0f172a !important;
+}
+
+/* ─── Notes: hide empty card in view mode ─── */
+.activity-drawer__form[data-editing="no"] .activity-view-notes--empty {
+  display: none !important;
+}
+
+/* ─── Progress row: column layout on mobile ─── */
+.activity-drawer__section--course-dates .activity-drawer__progress-row {
+  display: flex;
+  flex-direction: column;
+  gap: 0;
+  margin-bottom: 10px;
+}
+
+/* Date chips grid in course section */
+.activity-drawer__section--course-dates .activity-drawer__dates--view {
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 6px;
+  margin-top: 10px;
+  margin-bottom: 0;
+}
+
+@media (max-width: 480px) {
+  .activity-drawer__section--course-dates .activity-drawer__dates--view {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+}
+
+/* ─── View card: more compact and professional ─── */
+.activity-view-card {
+  padding: 16px 18px !important;
+}
+
+.activity-view-card__grid {
+  gap: 14px 20px !important;
 }
 
 /* ——— End dates screen ——— */

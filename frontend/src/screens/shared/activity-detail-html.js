@@ -770,10 +770,9 @@ function blockDates(row, { canEdit = false, canDirectEdit = false, datesLoading 
       </div>
     `;
     return `
-      <section class="activity-drawer__section" data-dates-section${loadingAttr}>
-        <div class="activity-drawer__section-head">
+      <section class="activity-drawer__section activity-drawer__section--once-dates" data-dates-section${loadingAttr}>
+        <div class="activity-drawer__section-head" data-mode="edit" hidden>
           <h3 class="activity-drawer__section-title">מועד הפעילות</h3>
-          ${canEdit ? `<button type="button" class="activity-drawer__action activity-drawer__action--subtle" data-action="start-edit" data-mode="view">${canDirectEdit ? 'עריכה' : 'בקשת שינוי'}</button>` : ''}
         </div>
         ${buildOneDayViewHtml(schedule, row, datesLoading)}
         <div class="activity-drawer__dates activity-drawer__dates--edit" data-mode="edit" data-meeting-dates-edit hidden>
@@ -849,10 +848,9 @@ function blockDates(row, { canEdit = false, canDirectEdit = false, datesLoading 
 
   const progressTitle = isCourse ? 'התקדמות הקורס' : 'מפגשים ותאריכים';
   return `
-    <section class="activity-drawer__section" data-dates-section${loadingAttr}>
+    <section class="activity-drawer__section activity-drawer__section--course-dates" data-dates-section${loadingAttr}>
       <div class="activity-drawer__section-head">
         <h3 class="activity-drawer__section-title">${escapeHtml(progressTitle)}</h3>
-        ${canEdit ? `<button type="button" class="activity-drawer__action activity-drawer__action--subtle" data-action="start-edit" data-mode="view">${canDirectEdit ? 'עריכה' : 'בקשת שינוי'}</button>` : ''}
       </div>
       ${progressHtml}
       <div class="activity-drawer__dates activity-drawer__dates--edit" data-mode="edit" data-meeting-dates-edit hidden>
@@ -867,6 +865,16 @@ function blockDates(row, { canEdit = false, canDirectEdit = false, datesLoading 
   `;
 }
 
+
+function blockViewFooter({ canEdit = false, canDirectEdit = false } = {}) {
+  if (!canEdit) return '';
+  const label = canDirectEdit ? 'עריכה' : 'בקשת שינוי';
+  return `
+    <div class="activity-drawer__view-footer" data-mode="view">
+      <button type="button" class="activity-drawer__action activity-drawer__action--primary activity-drawer__view-footer__btn" data-action="start-edit">✏ ${escapeHtml(label)}</button>
+    </div>
+  `;
+}
 
 function blockEditActions({ canEdit = false, canDirectEdit = false, canDeleteActivity = false } = {}) {
   if (!canEdit && !canDeleteActivity) return '';
@@ -957,11 +965,14 @@ function blockPrivateNote(row, { privateNote = null, showPrivateNote = false } =
       ? privateNote
       : (row.operations_private_notes ?? row.private_note ?? '')
   ).trim();
+  const hasNote = Boolean(privateValue);
 
-  const viewPart = `<section class="activity-drawer__section activity-view-notes activity-view-notes--private" data-private-note-section>
-      <span class="activity-view-notes__label">הערה תפעולית</span>
-      <div class="activity-view-notes__text" data-mode="view">${escapeHtml(privateValue)}</div>
-    </section>`;
+  const viewPart = hasNote
+    ? `<section class="activity-drawer__section activity-view-notes activity-view-notes--private" data-private-note-section>
+        <span class="activity-view-notes__label">הערה תפעולית</span>
+        <div class="activity-view-notes__text" data-mode="view">${escapeHtml(privateValue)}</div>
+      </section>`
+    : `<div data-private-note-section></div>`;
 
   const editPart = `<div class="activity-drawer__edit" data-mode="edit" hidden>
     <div class="activity-drawer__field">
@@ -976,11 +987,13 @@ function blockPrivateNote(row, { privateNote = null, showPrivateNote = false } =
 function blockNotes(row, { hidden = false } = {}) {
   if (hidden) return '';
   const notesVal = String(row?.notes || '').trim();
+  const hasNote = Boolean(notesVal);
   return `
-    <section class="activity-drawer__section activity-view-notes" data-notes-section>
-      <span class="activity-view-notes__label">הערה</span>
-      <div class="activity-view-notes__text" data-mode="view">${escapeHtml(notesVal)}</div>
+    <section class="activity-drawer__section activity-view-notes${hasNote ? '' : ' activity-view-notes--empty'}" data-notes-section>
+      ${hasNote ? `<span class="activity-view-notes__label">הערה</span>
+      <div class="activity-view-notes__text" data-mode="view">${escapeHtml(notesVal)}</div>` : ''}
       <div class="activity-drawer__edit" data-mode="edit" hidden>
+        <div class="activity-view-notes__label">הערה</div>
         ${textareaHtml({ name: 'notes', value: notesVal, rows: 2 })}
       </div>
     </section>
@@ -1040,6 +1053,7 @@ function singleForm(row, { settings = {}, privateNote = null, canEdit = false, c
       ${blockTeamTimes(row, { settings })}
       ${instructorLimited ? '' : blockExtraEditInfo(row, { settings })}
       ${blockEditActions({ canEdit, canDirectEdit, canDeleteActivity })}
+      ${blockViewFooter({ canEdit, canDirectEdit })}
     </form>
   `;
 }
