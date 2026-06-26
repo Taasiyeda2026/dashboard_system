@@ -220,6 +220,27 @@ test('login resolver supports instructor employee-number login after username mi
   assert.equal(userRow.emp_id, '1502');
 });
 
+
+test('idann auth email repair migration only updates the pinned admin row', async () => {
+  const migrationPath = new URL('../supabase/migrations/20260626090000_repair_idann_auth_email.sql', import.meta.url);
+  const sql = await readFile(migrationPath, 'utf8');
+  const normalized = sql.toLowerCase();
+
+  assert.match(normalized, /update public\.users/);
+  assert.match(normalized, /set auth_email = 'idann@think\.org\.il'/);
+  assert.match(normalized, /where username = 'idann'/);
+  assert.match(normalized, /and user_id = '8000'/);
+  assert.match(normalized, /and role = 'admin'/);
+  assert.match(normalized, /and is_active = true/);
+  assert.match(normalized, /and auth_user_id = 'e9ca304a-4e66-4774-830e-14f1318c4908'/);
+  assert.match(normalized, /auth_email is distinct from 'idann@think\.org\.il'/);
+  const setClause = normalized.match(/set[\s\S]*?where/)?.[0] || '';
+  assert.doesNotMatch(setClause, /user_id\s*=/);
+  assert.doesNotMatch(setClause, /username\s*=/);
+  assert.doesNotMatch(setClause, /role\s*=/);
+  assert.doesNotMatch(setClause, /auth_user_id\s*=/);
+});
+
 test('supabase client prefers env vars and keeps production fallback when unset', async () => {
   const source = await readFile(CLIENT_FILE, 'utf8');
   assert.match(source, /VITE_SUPABASE_URL/);
