@@ -16625,6 +16625,38 @@ details[open] > .ds-fin-acc__summary::before { transform: rotate(90deg); }
   text-align: center;
 }
 
+.ds-ops-mgmt-screen .ds-ops-completion-col--date {
+  width: 10%;
+}
+
+.ds-ops-mgmt-screen .ds-ops-completion-col--authority {
+  width: 10%;
+}
+
+.ds-ops-mgmt-screen .ds-ops-completion-col--instructor {
+  width: 10%;
+}
+
+.ds-ops-mgmt-screen .ds-ops-completion-col--school {
+  width: 10%;
+}
+
+.ds-ops-mgmt-screen .ds-ops-completion-col--who {
+  width: 22%;
+}
+
+.ds-ops-mgmt-screen .ds-ops-completion-col--contact {
+  width: 12%;
+}
+
+.ds-ops-mgmt-screen .ds-ops-completion-col--status {
+  width: 10%;
+}
+
+.ds-ops-mgmt-screen .ds-ops-completion-col--actions {
+  width: 16%;
+}
+
 .ds-ops-completion-col-contact-cell select {
   width: 100%;
   max-width: 145px;
