@@ -1,0 +1,97 @@
+תודה על הבדיקה. ההנחיה היא כן להשתמש בערכים הנוכחיים בקובץ כבסיס, ולא להחזיר לערכים הקודמים של 31%, 20% וכו'.
+
+כלומר:
+הבסיס הנוכחי הוא:
+- רוחב הטבלה: 60%
+- שם הפעילות: 41.22%
+- כיתה: 13.26%
+- שעת התחלה: 13.26%
+- שעת סיום: 13.26%
+- מספר משתתפים: 19%
+
+אבל עכשיו יש לבצע את השינוי הבא:
+
+קובץ:
+frontend/src/screens/shared/activity-completion-approval-print.js
+
+בתוך:
+completionApprovalPrintCss
+
+1. רוחב הטבלה
+לעדכן את רוחב הטבלה הכולל ל־65% ולהשאיר אותה ממורכזת:
+
+.approval-print-table{width:75%;margin-inline:auto}
+
+הערה:
+margin-inline:auto הוא רק הרווח החיצוני שממרכז את הטבלה בעמוד.
+לא מחשבים אותו כחלק מרוחב העמודות ולא משנים אותו.
+
+2. רוחב העמודות
+לעדכן את העמודות כך שסך הכול יהיה 100%:
+
+.completion-approval-col-activity{width:32%}
+.completion-approval-col-grade{width:15%}
+.completion-approval-col-start{width:17%}
+.completion-approval-col-end{width:17%}
+.completion-approval-col-participants{width:19%}
+
+כלומר:
+- שם הפעילות: 32%
+- כיתה: 15%
+- שעת התחלה: 17%
+- שעת סיום: 17%
+- מספר משתתפים: 19%
+
+3. קווי חתימה
+בנוסף, לתקן את קווי החתימה כפי שהיה אמור להיות:
+כרגע הקו כהה מדי:
+border-bottom: 1px solid #111827
+
+יש להפוך אותו לבהיר יותר ולהגדיל את המרווחים בין שורות החתימה.
+
+לעדכן רק את ה-CSS הרלוונטי לקווי חתימה:
+
+.approval-sign-line{
+  display:inline-block;
+  width:240px;
+  border-bottom:1px solid #9ca3af;
+  min-height:1.6em;
+}
+
+.completion-approval-signature p{
+  margin:22px 0;
+}
+
+.completion-approval-signature-line{
+  margin:22px 0;
+}
+
+.completion-approval-signature-line--double-after{
+  margin-bottom:56px;
+}
+
+4. לא לשנות שום דבר אחר
+לא לשנות:
+- HTML
+- לוגיקה
+- נתונים
+- חלון ההדפסה
+- טבלת המסך
+- CSS גלובלי
+- פונקציות printCompletionApprovals
+- פונקציות instructor-completion-approvals
+- כל דבר שלא קשור לרוחב טבלת ההדפסה ולקווי החתימה
+
+5. Service Worker / Cache
+כן לעדכן CACHE_VERSION / service worker אחרי השינוי.
+לאחר מכן יש לבצע Ctrl+Shift+R לפני בדיקת PDF כדי לוודא שהדפדפן לא מגיש v912 או גרסה ישנה.
+
+6. בדיקה לאחר שינוי
+לאחר התיקון לבדוק Print Preview בפועל ולדווח:
+- שהטבלה באמת מופיעה ברוחב 65%.
+- שהעמודות השתנו בפועל לפי 32/15/17/17/19.
+- שהטבלה עדיין ממורכזת.
+- שקווי החתימה בהירים יותר.
+- שיש יותר רווח אנכי בין שורות החתימה.
+- שהכול עדיין נכנס בעמוד A4 לאורך.
+- מה גרסת ה-CACHE_VERSION החדשה.
