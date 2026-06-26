@@ -16301,7 +16301,7 @@ details[open] > .ds-fin-acc__summary::before { transform: rotate(90deg); }
 
 .ds-ops-completion-approvals-card {
   width: 100%;
-  max-width: 820px;
+  max-width: 836px;
   margin-inline: auto;
 }
 
@@ -16316,7 +16316,7 @@ details[open] > .ds-fin-acc__summary::before { transform: rotate(90deg); }
 
 .ds-ops-completion-approvals-card .ds-table-wrap {
   width: 100%;
-  max-width: 820px;
+  max-width: 836px;
   margin-inline: auto;
 }
 
@@ -16342,7 +16342,7 @@ details[open] > .ds-fin-acc__summary::before { transform: rotate(90deg); }
 }
 
 .ds-ops-completion-col--actions {
-  width: 190px;
+  width: 206px;
 }
 
 .ds-ops-completion-preview th,

@@ -2055,7 +2055,7 @@ function completionApprovalTabHtml(rows, state, data = {}, directory = buildScho
     : '';
   const titleBar = `<div class="ds-ops-completion-title-bar no-print" dir="rtl">
     <header class="ds-ops-completion-summary"><button type="button" class="ds-ops-completion-summary__title" aria-haspopup="dialog" aria-expanded="${approvalState.summaryOpen ? 'true' : 'false'}" data-ops-completion-summary-toggle>אישורי ביצוע</button>${summaryPopoverHtml}</header>
-    <div class="ds-ops-completion-control-row ds-ops-completion-filter-toolbar ds-ops-approval-print-toolbar">${dateFilterHtml}${authoritySelectHtml}${printInstructorSelect}<button type="button" class="ds-btn ds-btn--sm ds-btn--primary ds-ops-approval-print-btn" data-ops-approval-print-all>הדפסה</button>${downloadBtnHtml}</div>
+    <div class="ds-ops-completion-control-row ds-ops-completion-filter-toolbar ds-ops-approval-print-toolbar">${dateFilterHtml}${authoritySelectHtml}${printInstructorSelect}<button type="button" class="ds-btn ds-btn--sm ds-btn--ghost" data-ops-completion-clear-filters title="ניקוי סינונים">✕ ניקוי</button><button type="button" class="ds-btn ds-btn--sm ds-btn--primary ds-ops-approval-print-btn" data-ops-approval-print-all>הדפסה</button>${downloadBtnHtml}</div>
   </div>`;
   const body = items.map(({ approval, upload }, displayIndex) => {
     const hasFile = !!upload?.file_path;
@@ -2196,6 +2196,13 @@ export const operationsManagementScreen = {
     });
     root.querySelector('[data-ops-completion-date-clear]')?.addEventListener('click', () => {
       ops.completionApproval.selectedDate = '';
+      rerender?.();
+    });
+    root.querySelector('[data-ops-completion-clear-filters]')?.addEventListener('click', () => {
+      ops.completionApproval.selectedDate = '';
+      ops.completionApproval.date = '';
+      ops.completionApproval.selectedAuthority = '';
+      ops.completionApproval.printInstructor = '';
       rerender?.();
     });
 
