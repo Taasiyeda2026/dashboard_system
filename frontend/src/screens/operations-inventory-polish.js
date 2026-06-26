@@ -145,9 +145,14 @@ function ensureDrawerParticipantsCount(form) {
       </div>
     </section>`;
   const section = template.content.firstElementChild;
-  const anchor = form.querySelector('[data-dates-section]') || form.querySelector('[data-central-info-section]');
-  if (anchor?.parentNode) anchor.parentNode.insertBefore(section, anchor.nextSibling);
-  else form.appendChild(section);
+  const onceDatesRow = form.querySelector('[data-once-dates-row]');
+  if (onceDatesRow) {
+    onceDatesRow.appendChild(section);
+  } else {
+    const anchor = form.querySelector('[data-dates-section]') || form.querySelector('[data-central-info-section]');
+    if (anchor?.parentNode) anchor.parentNode.insertBefore(section, anchor.nextSibling);
+    else form.appendChild(section);
+  }
 }
 
 function ensureGenericParticipantsCount(form) {

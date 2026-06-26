@@ -1045,7 +1045,9 @@ function singleForm(row, { settings = {}, privateNote = null, canEdit = false, c
       ${isOnce
         ? blockViewOnce(row, { settings, hideFunding: hideFundingInView || instructorLimited })
         : blockViewCourse(row, { settings })}
-      ${showDates ? blockDates(row, { canEdit, canDirectEdit, datesLoading }) : ''}
+      ${isOnce && showDates
+        ? `<div class="activity-drawer__once-dates-row" data-once-dates-row>${blockDates(row, { canEdit, canDirectEdit, datesLoading })}</div>`
+        : (showDates ? blockDates(row, { canEdit, canDirectEdit, datesLoading }) : '')}
       ${blockNotes(row, { hidden: instructorLimited })}
       ${blockPrivateNote(row, { privateNote, showPrivateNote })}
       ${blockActivityDetails(row, { settings })}

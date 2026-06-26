@@ -8513,7 +8513,59 @@ select.ds-input {
 }
 
 .activity-view-card__grid {
-  gap: 14px 20px !important;
+  gap: 10px 12px !important;
+}
+
+/* Each field in once-type card gets its own box */
+.activity-view-card--once .activity-view-field {
+  background: #f8fafc;
+  border: 1px solid #e2e8f0;
+  border-radius: 10px;
+  padding: 10px 12px;
+}
+
+/* ─── Once dates row: date chip + participants side by side ─── */
+.activity-drawer__once-dates-row {
+  display: flex;
+  flex-direction: row;
+  gap: 12px;
+  align-items: stretch;
+}
+
+.activity-drawer__once-dates-row .activity-drawer__section--once-dates {
+  flex: 1 1 0;
+}
+
+.activity-drawer__once-dates-row .activity-drawer__section--participants {
+  flex: 1 1 0;
+  padding: 10px 14px;
+}
+
+/* Participants section in once-row: show as matching box */
+.activity-drawer__once-dates-row .activity-drawer__section--participants .activity-drawer__field {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+}
+
+.activity-drawer__once-dates-row .activity-drawer__section--participants .activity-drawer__label {
+  font-size: 0.72rem;
+  font-weight: 700;
+  color: #94a3b8;
+  text-transform: uppercase;
+  letter-spacing: 0.07em;
+}
+
+.activity-drawer__once-dates-row .activity-drawer__section--participants .activity-drawer__value {
+  font-size: 0.82rem;
+  font-weight: 600;
+  color: #1e293b;
+}
+
+@media (max-width: 480px) {
+  .activity-drawer__once-dates-row {
+    flex-direction: column;
+  }
 }
 
 /* ——— End dates screen ——— */
