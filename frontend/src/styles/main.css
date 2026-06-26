@@ -15880,6 +15880,10 @@ details[open] > .ds-fin-acc__summary::before { transform: rotate(90deg); }
   color: #b45309;
 }
 
+.ds-ops-gap--over {
+  color: #78716c;
+}
+
 .ds-ops-mgmt-tags {
   display: inline-flex;
   flex-wrap: wrap;

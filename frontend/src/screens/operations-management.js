@@ -802,6 +802,13 @@ function formatGapCell(gap, hasStock) {
   return `<span class="ds-ops-gap ${tone}">${formatSignedNumberForRtl(value)}</span>`;
 }
 
+function formatDeliveryGapCell(gap) {
+  const value = Number(gap);
+  if (!Number.isFinite(value)) return '<span class="ds-ops-mgmt-cell-muted">—</span>';
+  const tone = value > 0 ? 'ds-ops-gap--shortage' : value === 0 ? 'ds-ops-gap--ok' : 'ds-ops-gap--over';
+  return `<span class="ds-ops-gap ${tone}">${formatSignedNumberForRtl(value)}</span>`;
+}
+
 function formatInventoryRemainder(stockValue, usageValue) {
   const stock = Number.isFinite(Number(stockValue)) ? Number(stockValue) : 0;
   const usage = Number.isFinite(Number(usageValue)) ? Number(usageValue) : 0;
@@ -989,6 +996,7 @@ function workshopMetricsRows(rows, stockMap, catalogRows = [], distributions = [
     const deliveredQuantity = groupDistributions.reduce((total, dist) => total + distributionQuantity(dist), 0);
     const warehouseBalance = stock === null ? null : stock - deliveredQuantity;
     const expectedBalance = stock === null ? null : stock - requiredQuantity;
+    const deliveryGap = requiredQuantity - deliveredQuantity;
     const row = {
       stockGroupKey: group.stockGroupKey,
       workshopNo: group.linkedWorkshops.map((workshop) => workshop.workshopNo).filter(Boolean).join(', '),
@@ -1004,6 +1012,7 @@ function workshopMetricsRows(rows, stockMap, catalogRows = [], distributions = [
       deliveredQuantity,
       warehouseBalance,
       expectedBalance,
+      deliveryGap,
       activitiesWithoutParticipants,
       instructorRows,
       gap: expectedBalance
@@ -1103,8 +1112,6 @@ function opsManagementStylesHtml() {
     .ds-ops-mgmt-screen .ds-ops-workshops-table td:nth-child(2) { text-align:right; white-space:normal; line-height:1.35; }
     .ds-ops-mgmt-screen .ds-ops-workshops-table th:nth-child(n+3),
     .ds-ops-mgmt-screen .ds-ops-workshops-table td:nth-child(n+3) { text-align:center; white-space:nowrap; }
-    .ds-ops-mgmt-screen .ds-ops-workshops-table th:nth-child(8),
-    .ds-ops-mgmt-screen .ds-ops-workshops-table td:nth-child(8) { text-align:right; }
     .ds-ops-mgmt-screen .ds-ops-workshop-status-text { font-weight:700; background:transparent; border:0; padding:0; white-space:normal; }
     .ds-ops-mgmt-screen .ds-ops-workshop-status-text--success { color:#15803d; }
     .ds-ops-mgmt-screen .ds-ops-workshop-status-text--danger { color:#b91c1c; }
@@ -1531,26 +1538,24 @@ function workshopsTabHtml(rows, state, stockMap, catalogRows = [], distributions
   });
   const metrics = allMetrics.filter((row) => row.activityCount !== 0 || row.requiredQuantity !== 0 || row.deliveredQuantity !== 0);
   const table = metrics.length
-    ? dsTableWrap(`<table class="ds-table ds-table--compact ds-ops-mgmt-data-table ds-ops-workshops-table"><colgroup><col class="ds-ops-workshop-col--no"><col class="ds-ops-workshop-col--name"><col class="ds-ops-workshop-col--metric"><col class="ds-ops-workshop-col--metric"><col class="ds-ops-workshop-col--metric"><col class="ds-ops-workshop-col--metric"><col class="ds-ops-workshop-col--metric"><col class="ds-ops-workshop-col--status"></colgroup><thead><tr>
-        ${sortableTh(state, TAB_WORKSHOPS, 'workshopNo', 'מס׳ / קבוצה')}
-        ${sortableTh(state, TAB_WORKSHOPS, 'workshopName', 'שם הסדנה / פריט מלאי')}
+    ? dsTableWrap(`<table class="ds-table ds-table--compact ds-ops-mgmt-data-table ds-ops-workshops-table"><colgroup><col class="ds-ops-workshop-col--no"><col class="ds-ops-workshop-col--name"><col class="ds-ops-workshop-col--metric"><col class="ds-ops-workshop-col--metric"><col class="ds-ops-workshop-col--metric"><col class="ds-ops-workshop-col--metric"><col class="ds-ops-workshop-col--metric"></colgroup><thead><tr>
+        ${sortableTh(state, TAB_WORKSHOPS, 'workshopNo', 'מספר סדנה')}
+        ${sortableTh(state, TAB_WORKSHOPS, 'workshopName', 'שם הפעילות')}
         <th>מלאי כולל</th>
+        ${sortableTh(state, TAB_WORKSHOPS, 'estimatedQuantity', 'מלאי נדרש')}
+        <th>סטטוס מלאי</th>
         <th>נמסר למדריכים</th>
-        <th>יתרה במחסן</th>
-        ${sortableTh(state, TAB_WORKSHOPS, 'estimatedQuantity', 'נדרש לפי פעילויות')}
-        <th>יתרה צפויה</th>
-        <th>סטטוס פעולה</th>
+        <th>פער למסירה</th>
       </tr></thead><tbody>${metrics.map((row) => {
         const isExpanded = ops.expandedWorkshop === row.stockGroupKey;
         const mainRow = `<tr class="${isExpanded ? 'ds-ops-row--expanded' : ''}" data-ops-workshop-toggle="${escapeHtml(row.stockGroupKey || '')}" tabindex="0" role="button" aria-expanded="${isExpanded ? 'true' : 'false'}">
           <td>${escapeHtml(row.workshopNoDisplay || row.workshopNo || row.stockGroupKey || '—')}</td>
           <td>${escapeHtml(row.workshopName)}${row.activitiesWithoutParticipants ? ` <span class="ds-ops-estimate-mark" title="חלק מהחישוב מבוסס על ברירת מחדל ${WORKSHOP_ESTIMATE_PER_ACTIVITY} משתתפים">≈</span>` : ''}</td>
           <td>${row.stockQuantity === null ? '<span class="ds-ops-mgmt-cell-muted">—</span>' : formatSignedNumberForRtl(row.stockQuantity)}</td>
-          <td>${formatSignedNumberForRtl(row.deliveredQuantity)}</td>
-          <td>${row.warehouseBalance === null ? '<span class="ds-ops-mgmt-cell-muted">—</span>' : formatGapCell(row.warehouseBalance, true)}</td>
           <td>${formatSignedNumberForRtl(row.requiredQuantity)}</td>
           <td>${row.expectedBalance === null ? '<span class="ds-ops-mgmt-cell-muted">—</span>' : formatGapCell(row.expectedBalance, true)}</td>
-          <td>${workshopStatusText(row.status)}</td>
+          <td>${formatSignedNumberForRtl(row.deliveredQuantity)}</td>
+          <td>${formatDeliveryGapCell(row.deliveryGap)}</td>
         </tr>`;
         return mainRow + (isExpanded ? workshopInstructorDetailHtml(row) : '');
       }).join('')}</tbody></table>`)
