@@ -889,9 +889,22 @@ function stockMapValue(row = {}) {
   return null;
 }
 
+function normalizeActivityNo(no) {
+  const s = String(no || '').trim();
+  if (!s) return '';
+  const n = parseInt(s, 10);
+  return Number.isFinite(n) && n > 0 ? String(n) : s;
+}
+
 function activityMatchesOfficialWorkshop(activity = {}, workshop = {}) {
   const activityNo = String(activity?.activity_no || activity?.workshop_no || '').trim();
-  if (activityNo && workshop.workshopNo && activityNo === workshop.workshopNo) return true;
+  const workshopNo = String(workshop.workshopNo || '').trim();
+  if (activityNo && workshopNo) {
+    if (activityNo === workshopNo) return true;
+    const normA = normalizeActivityNo(activityNo);
+    const normW = normalizeActivityNo(workshopNo);
+    if (normA && normA === normW) return true;
+  }
   return normalizeWorkshopKey(getActivityName(activity)) === normalizeWorkshopKey(workshop.workshopName);
 }
 
@@ -1986,7 +1999,8 @@ function renderTab(rows, state, data, allPreparedRows = []) {
   }
   if (ops.tab === TAB_WORKSHOPS) {
     const catalogRows = extractWorkshopCatalogRows(data?.adminListsData, allPreparedRows);
-    const workshopRows = rows.filter((row) =>
+    const sourceRows = allPreparedRows.length ? allPreparedRows : rows;
+    const workshopRows = sourceRows.filter((row) =>
       !isTamirActivity(row) &&
       activityMatchesAnyOfficialWorkshop(row, catalogRows) &&
       activityOverlapsDateRange(row, WORKSHOPS_SUMMER_FROM, WORKSHOPS_SUMMER_TO)
