@@ -1218,16 +1218,16 @@ function opsManagementStylesHtml() {
     .ds-ops-mgmt-screen .ds-ops-completion-preview th { white-space:nowrap; vertical-align:middle; text-align:right; }
     .ds-ops-mgmt-screen .ds-ops-completion-preview th,.ds-ops-mgmt-screen .ds-ops-completion-preview td { padding:7px 8px; vertical-align:middle; }
     .ds-ops-mgmt-screen .ds-ops-completion-preview th:first-child,.ds-ops-mgmt-screen .ds-ops-completion-preview td:first-child { padding-inline-start:10px; padding-inline-end:10px; white-space:nowrap; }
-    .ds-ops-mgmt-screen .ds-ops-completion-col--date { width:105px; }
-    .ds-ops-mgmt-screen .ds-ops-completion-col--authority { width:120px; text-align:right; }
-    .ds-ops-mgmt-screen .ds-ops-completion-col--instructor { width:135px; text-align:right; }
-    .ds-ops-mgmt-screen .ds-ops-completion-col--school { width:200px; text-align:right; }
-    .ds-ops-mgmt-screen .ds-ops-completion-col--who { width:220px; text-align:right; }
-    .ds-ops-mgmt-screen .ds-ops-completion-col--contact { width:155px; text-align:right; }
+    .ds-ops-mgmt-screen .ds-ops-completion-col--date { width:10%; }
+    .ds-ops-mgmt-screen .ds-ops-completion-col--authority { width:10%; text-align:right; }
+    .ds-ops-mgmt-screen .ds-ops-completion-col--instructor { width:10%; text-align:right; }
+    .ds-ops-mgmt-screen .ds-ops-completion-col--school { width:10%; text-align:right; }
+    .ds-ops-mgmt-screen .ds-ops-completion-col--who { width:22%; text-align:right; }
+    .ds-ops-mgmt-screen .ds-ops-completion-col--contact { width:12%; text-align:right; }
     .ds-ops-mgmt-screen .ds-ops-completion-col-contact-cell { text-align:right; }
-    .ds-ops-mgmt-screen .ds-ops-completion-col-contact-cell select { width:100%; max-width:150px; text-align:right; direction:rtl; }
-    .ds-ops-mgmt-screen .ds-ops-completion-col--status { width:105px; text-align:right; }
-    .ds-ops-mgmt-screen .ds-ops-completion-col--actions { width:190px; text-align:center; }
+    .ds-ops-mgmt-screen .ds-ops-completion-col-contact-cell select { width:100%; max-width:100%; box-sizing:border-box; text-align:right; direction:rtl; }
+    .ds-ops-mgmt-screen .ds-ops-completion-col--status { width:10%; text-align:right; }
+    .ds-ops-mgmt-screen .ds-ops-completion-col--actions { width:16%; text-align:center; }
     .ds-ops-mgmt-screen .ds-ops-completion-col-who-cell { white-space:normal; line-height:1.35; }
     .ds-ops-mgmt-screen .ds-ops-completion-actions-cell { text-align:center; vertical-align:middle; white-space:nowrap; }
     .ds-ops-mgmt-screen .ds-ops-completion-actions { display:inline-flex; align-items:center; justify-content:center; gap:4px; flex-wrap:nowrap; white-space:nowrap; }
