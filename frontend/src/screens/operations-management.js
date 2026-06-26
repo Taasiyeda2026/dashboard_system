@@ -129,6 +129,14 @@ function isoToday() {
   return new Date().toISOString().slice(0, 10);
 }
 
+function localTodayIso() {
+  const now = new Date();
+  const year = now.getFullYear();
+  const month = String(now.getMonth() + 1).padStart(2, '0');
+  const day = String(now.getDate()).padStart(2, '0');
+  return `${year}-${month}-${day}`;
+}
+
 function addDaysIso(iso, days) {
   const date = new Date(`${iso}T12:00:00`);
   date.setDate(date.getDate() + days);
@@ -173,6 +181,7 @@ function ensureOpsState(state = {}) {
   if (!ops.completionApproval.dateTo) ops.completionApproval.dateTo = '';
   if (!ops.completionApproval.preview) ops.completionApproval.preview = false;
   if (!ops.completionApproval.subtab) ops.completionApproval.subtab = 'approvals';
+  if (!ops.completionApproval.printInstructor) ops.completionApproval.printInstructor = '';
   ops.sorts = ops.sorts || {};
   Object.entries(SORT_DEFAULTS).forEach(([tab, sort]) => {
     if (!ops.sorts[tab]) ops.sorts[tab] = { ...sort };
@@ -1457,6 +1466,38 @@ function completionApprovalsForState(rows, state, directory, contactsIndex) {
 }
 
 
+
+function completionApprovalIsHandled(upload) {
+  const status = String(upload?.status || '').trim();
+  return !!upload?.file_path || status === 'uploaded' || status === 'approved';
+}
+
+function completionApprovalSortBucket(dateIso, handled, todayIso = localTodayIso()) {
+  const date = String(dateIso || '').slice(0, 10);
+  if (!handled && date === todayIso) return 0;
+  if (!handled && date > todayIso) return 1;
+  if (handled) return 2;
+  return 3;
+}
+
+function compareCompletionApprovalWorkItems(a, b, todayIso = localTodayIso()) {
+  const dateA = String(a?.approval?.date || '').slice(0, 10);
+  const dateB = String(b?.approval?.date || '').slice(0, 10);
+  const handledA = completionApprovalIsHandled(a?.upload);
+  const handledB = completionApprovalIsHandled(b?.upload);
+  const bucketA = completionApprovalSortBucket(dateA, handledA, todayIso);
+  const bucketB = completionApprovalSortBucket(dateB, handledB, todayIso);
+  if (bucketA !== bucketB) return bucketA - bucketB;
+  const dateCompare = dateA.localeCompare(dateB);
+  if (dateCompare) return dateCompare;
+  return String(a?.approval?.instructorName || '').localeCompare(String(b?.approval?.instructorName || ''), 'he', { numeric: true })
+    || String(a?.approval?.school || '').localeCompare(String(b?.approval?.school || ''), 'he', { numeric: true });
+}
+
+function completionApprovalPrintInstructorOptions(approvals = []) {
+  return uniqueSorted((Array.isArray(approvals) ? approvals : []).map((approval) => approval?.instructorName).filter(isValidInstructorName));
+}
+
 function completionApprovalUploadKey(approval) {
   const normalize = (value) => String(value || '').trim().replace(/[״"]/g, '').replace(/[׳']/g, '').replace(/\s+/g, ' ').toLowerCase();
   return `${String(approval?.date || '').trim()}|${normalize(approval?.authority)}|${normalize(approval?.school)}|${normalize(approval?.instructorName)}`;
@@ -1505,7 +1546,7 @@ function opsContactOverrideMap(rows = []) {
   });
   return map;
 }
-function opsContactGroupsHtml(rows = [], overrides = []) {
+function opsContactGroupsHtml(rows = [], overrides = [], uploadMap = new Map()) {
   const grouped = new Map();
   rows.forEach((row) => {
     const key = opsContactGroupKey(row);
@@ -1514,6 +1555,7 @@ function opsContactGroupsHtml(rows = [], overrides = []) {
     grouped.get(key).push(row);
   });
   const overrideMap = opsContactOverrideMap(overrides);
+  const todayIso = localTodayIso();
   const body = Array.from(grouped.entries()).map(([key, groupRows]) => {
     const first = groupRows.slice().sort((a, b) => String(a?.start_time || a?.StartTime || '').localeCompare(String(b?.start_time || b?.StartTime || '')))[0] || groupRows[0];
     const instructors = [];
@@ -1528,8 +1570,12 @@ function opsContactGroupsHtml(rows = [], overrides = []) {
     const schoolId = String(first?.school_id || first?.single_school_id || '').trim();
     const school = String(first?.school || first?.single_school_name || first?.legacy_school || '').trim();
     const options = instructors.map((entry) => `<option value="${escapeHtml(entry.empId || entry.name)}" data-name="${escapeHtml(entry.name)}"${(entry.empId || entry.name) === responsibleEmpId || entry.name === responsibleName ? ' selected' : ''}>${escapeHtml(entry.name)}${entry.empId ? ` (${escapeHtml(entry.empId)})` : ''}</option>`).join('');
-    return `<tr><td class="ds-table-cell-truncate">${escapeHtml(formatDateHe(date) || date)}</td><td class="ds-table-cell-wrap">${escapeHtml(school)}</td><td class="ds-table-cell-wrap">${escapeHtml(instructors.map((i) => i.name).join(', '))}</td><td><select class="ds-input ds-input--sm ds-ops-contact-responsible-select" data-contact-responsible-select data-date="${escapeHtml(date)}" data-school-id="${escapeHtml(schoolId)}" data-school="${escapeHtml(school)}"><option value="">בחרו אחראי קשר</option>${options}</select></td></tr>`;
-  }).join('');
+    const handled = groupRows.some((row) => opsInstructorEntries(row).some((entry) => Array.from(uploadMap.values()).some((upload) => String(upload?.activity_date || '').trim().slice(0, 10) === date && normalizeOpsText(upload?.school) === normalizeOpsText(school) && normalizeOpsText(upload?.instructor_name) === normalizeOpsText(entry.name) && completionApprovalIsHandled(upload))));
+    const highlightToday = date === todayIso && !handled;
+    const rowClass = highlightToday ? ' class="ds-ops-work-today-row"' : '';
+    const todayChip = highlightToday ? ' <span class="ds-chip ds-chip--info ds-ops-today-chip">TODAY</span>' : '';
+    return { date, school, html: `<tr${rowClass}><td class="ds-table-cell-truncate">${escapeHtml(formatDateHe(date) || date)}${todayChip}</td><td class="ds-table-cell-wrap">${escapeHtml(school)}</td><td class="ds-table-cell-wrap">${escapeHtml(instructors.map((i) => i.name).join(', '))}</td><td><select class="ds-input ds-input--sm ds-ops-contact-responsible-select" data-contact-responsible-select data-date="${escapeHtml(date)}" data-school-id="${escapeHtml(schoolId)}" data-school="${escapeHtml(school)}"><option value="">בחרו אחראי קשר</option>${options}</select></td></tr>`, bucket: completionApprovalSortBucket(date, handled, todayIso) };
+  }).sort((a, b) => (a.bucket - b.bucket) || a.date.localeCompare(b.date) || a.school.localeCompare(b.school, 'he', { numeric: true })).map((item) => item.html).join('');
   if (!body) return '';
   return `<div class="ds-ops-contact-responsible-card">${dsCard({ title: 'אחראי קשר מול בית הספר', body: dsTableWrap(`<table class="ds-table ds-table--compact ds-ops-contact-responsible-table"><colgroup><col class="ds-ops-contact-col--date"><col class="ds-ops-contact-col--school"><col class="ds-ops-contact-col--team"><col class="ds-ops-contact-col--responsible"></colgroup><thead><tr><th>תאריך</th><th>בית ספר / מסגרת</th><th>מי איתי היום</th><th>אחראי קשר</th></tr></thead><tbody>${body}</tbody></table>`), padded: false })}</div>`;
 }
@@ -1559,7 +1605,8 @@ function completionApprovalTabHtml(rows, state, data = {}, directory = buildScho
   const scopedInstructors = approvalState.instructor ? instructors.filter((name) => name === approvalState.instructor) : instructors;
   const approvals = scopedInstructors.flatMap((instructor) => buildCompletionApprovals(summerRows, { instructor, dateMode: 'range', dateFrom: COMPLETION_APPROVAL_SUMMER_FROM, dateTo: COMPLETION_APPROVAL_SUMMER_TO, directory, contactsIndex }));
   const uploadMap = completionApprovalUploadMap(data?.completionApprovalUploads || []);
-  const items = approvals.map((approval) => ({ approval, upload: uploadMap.get(completionApprovalUploadKey(approval)) }));
+  const todayIso = localTodayIso();
+  const items = approvals.map((approval, originalIndex) => ({ approval, upload: uploadMap.get(completionApprovalUploadKey(approval)), originalIndex })).sort((a, b) => compareCompletionApprovalWorkItems(a, b, todayIso));
   const stats = {
     total: items.length,
     uploaded: items.filter((item) => item.upload?.status === 'uploaded' || item.upload?.file_path).length,
@@ -1572,21 +1619,25 @@ function completionApprovalTabHtml(rows, state, data = {}, directory = buildScho
     { label: 'סה״כ אישורים נדרשים', value: stats.total },
     { label: 'הועלו', value: stats.uploaded, tone: 'ok' },
     { label: 'חסרים', value: stats.missing, tone: stats.missing ? 'alert' : 'ok' },
-    { label: 'אושרו', value: stats.approved, tone: 'ok' },
-    { label: 'נדחו', value: stats.rejected, tone: stats.rejected ? 'alert' : '' }
+    { label: 'אושרו', value: stats.approved, tone: 'ok' }
   ]);
-  const body = items.map(({ approval, upload }, index) => {
+  const body = items.map(({ approval, upload, originalIndex }) => {
     const hasFile = !!upload?.file_path;
-    return `<tr>
-      <td class="ds-table-cell-truncate">${escapeHtml(formatDateHe(approval.date) || approval.date || '')}</td>
+    const highlightToday = String(approval.date || '').slice(0, 10) === todayIso && !completionApprovalIsHandled(upload);
+    const todayChip = highlightToday ? ' <span class="ds-chip ds-chip--info ds-ops-today-chip">TODAY</span>' : '';
+    return `<tr${highlightToday ? ' class="ds-ops-work-today-row"' : ''}>
+      <td class="ds-table-cell-truncate">${escapeHtml(formatDateHe(approval.date) || approval.date || '')}${todayChip}</td>
       <td class="ds-table-cell-truncate">${escapeHtml(approval.instructorName || '')}</td>
       <td class="ds-table-cell-wrap">${escapeHtml(approval.school || '')}</td>
       <td class="ds-table-cell-truncate">${escapeHtml(completionApprovalUploadStatusLabel(upload))}</td>
-      <td class="ds-ops-completion-actions no-print"><button type="button" class="ds-btn ds-btn--xs ds-btn--ghost" data-ops-approval-view="${index}">צפייה באישור</button> ${hasFile
+      <td class="ds-ops-completion-actions no-print"><button type="button" class="ds-btn ds-btn--xs ds-btn--ghost" data-ops-approval-view="${originalIndex}">צפייה באישור</button> ${hasFile
         ? `<button type="button" class="ds-btn ds-btn--xs ds-btn--ghost" data-ops-upload-view="${escapeHtml(upload.id)}">צפייה בקובץ חתום</button> <button type="button" class="ds-btn ds-btn--xs ds-btn--ghost" data-ops-upload-download="${escapeHtml(upload.id)}">הורדה</button> <button type="button" class="ds-btn ds-btn--xs ds-btn--primary" data-ops-upload-approve="${escapeHtml(upload.id)}">אישור</button> <button type="button" class="ds-btn ds-btn--xs ds-btn--danger" data-ops-upload-reject="${escapeHtml(upload.id)}">דחייה</button>`
         : '<span class="ds-chip ds-chip--neutral ds-ops-no-file-chip">אין קובץ חתום</span>'}</td>
     </tr>`;
   }).join('');
+  const printInstructorOptions = completionApprovalPrintInstructorOptions(approvals);
+  const printInstructorSelect = `<label class="ds-ops-approval-print-filter"><span>סינון מדריך</span><select class="ds-input ds-input--sm" data-ops-approval-print-instructor><option value="">כל המדריכים</option>${printInstructorOptions.map((name) => `<option value="${escapeHtml(name)}"${approvalState.printInstructor === name ? ' selected' : ''}>${escapeHtml(name)}</option>`).join('')}</select></label>`;
+  const printToolbar = `<div class="ds-ops-approval-print-toolbar no-print">${printInstructorSelect}<button type="button" class="ds-btn ds-btn--sm ds-btn--primary ds-ops-approval-print-btn" data-ops-approval-print-all>הדפסה</button></div>`;
   _completionApprovalPrintContext = { approvals, uploads: data?.completionApprovalUploads || [] };
   const contactRows = approvalState.instructor ? summerRows.filter((row) => items.some((item) => String(item.approval.date || '').slice(0, 10) === String(row.start_date || row.activity_date || '').slice(0, 10) && String(item.approval.school || '').trim() === String(row.school || row.single_school_name || row.legacy_school || '').trim())) : summerRows;
   const table = items.length
@@ -1594,11 +1645,11 @@ function completionApprovalTabHtml(rows, state, data = {}, directory = buildScho
     : dsEmptyState('לא נמצאו אישורי ביצוע בטווח הנוכחי');
   const subtabs = `<div class="ds-ops-completion-subtabs no-print" role="tablist" aria-label="תתי לשוניות אישורי ביצוע"><button type="button" class="ds-btn ds-btn--sm ${activeSubtab === 'approvals' ? 'ds-btn--primary' : 'ds-btn--ghost'}" data-ops-completion-subtab="approvals" role="tab" aria-selected="${activeSubtab === 'approvals' ? 'true' : 'false'}">אישורי ביצוע</button><button type="button" class="ds-btn ds-btn--sm ${activeSubtab === 'contacts' ? 'ds-btn--primary' : 'ds-btn--ghost'}" data-ops-completion-subtab="contacts" role="tab" aria-selected="${activeSubtab === 'contacts' ? 'true' : 'false'}">אחראי קשר</button></div>`;
   const activePanel = activeSubtab === 'contacts'
-    ? opsContactGroupsHtml(contactRows, data?.contactResponsiblesRows || []) || dsEmptyState('לא נמצאו אחראי קשר בטווח הנוכחי')
+    ? opsContactGroupsHtml(contactRows, data?.contactResponsiblesRows || [], uploadMap) || dsEmptyState('לא נמצאו אחראי קשר בטווח הנוכחי')
     : `<div class="ds-ops-completion-approvals-card">${dsCard({ title: 'אישורי ביצוע', body: table, padded: false })}</div>`;
   return `<section class="ds-ops-mgmt-panel ds-ops-completion-panel" dir="rtl">
-    <button type="button" class="sr-only" data-ops-approval-print-all>הדפסה</button>
     ${summary}
+    ${printToolbar}
     ${subtabs}
     ${activePanel}
   </section>`;
@@ -1764,9 +1815,13 @@ export const operationsManagementScreen = {
       ops.completionApproval.preview = true;
       rerender?.();
     });
+    root.querySelector('[data-ops-approval-print-instructor]')?.addEventListener('change', (ev) => {
+      ops.completionApproval.printInstructor = ev.target.value || '';
+    });
     root.querySelectorAll('[data-ops-approval-print-all]').forEach((btn) => btn.addEventListener('click', () => {
-      const approvals = _completionApprovalPrintContext?.approvals || [];
-      printCompletionApprovals(approvals, approvalsBatchTitle(approvals, _completionApprovalPrintContext?.instructorName || ops.completionApproval.instructor));
+      const selectedInstructor = ops.completionApproval.printInstructor || root.querySelector('[data-ops-approval-print-instructor]')?.value || '';
+      const approvals = (_completionApprovalPrintContext?.approvals || []).filter((approval) => !selectedInstructor || approval?.instructorName === selectedInstructor);
+      printCompletionApprovals(approvals, approvalsBatchTitle(approvals, selectedInstructor || 'כל המדריכים'));
     }));
     root.querySelectorAll('[data-ops-approval-print-one],[data-ops-approval-view]').forEach((btn) => btn.addEventListener('click', () => {
       const index = Number(btn.getAttribute('data-ops-approval-print-one') ?? btn.getAttribute('data-ops-approval-view'));
