@@ -1100,10 +1100,12 @@ function opsManagementStylesHtml() {
     @media (max-width: 460px) { .ds-ops-mgmt-screen .ds-ops-mgmt-filters__grid { grid-template-columns:1fr; } }
     .ds-ops-mgmt-screen .ds-sort-indicator { display:inline-block; margin-inline-start:4px; font-size:10px; color:#0f8fa8; }
     .ds-ops-mgmt-screen .ds-ops-workshops-table-wrap { width:100%; }
-    .ds-ops-mgmt-screen .ds-ops-workshops-card { width:min(1180px, 96%); margin-inline-start:auto; margin-inline-end:auto; }
+    .ds-ops-mgmt-screen .ds-ops-workshops-card { width:min(960px, 82%); margin-inline-start:auto; margin-inline-end:auto; }
     .ds-ops-mgmt-screen .ds-ops-workshops-table { table-layout:fixed; width:100%; }
     .ds-ops-mgmt-screen .ds-ops-workshops-table th,.ds-ops-mgmt-screen .ds-ops-workshops-table td { border:1px solid #94a3b8 !important; padding:6px 8px; }
-    .ds-ops-mgmt-screen .ds-ops-workshops-table tbody tr:hover td,
+    .ds-ops-mgmt-screen .ds-ops-workshops-table tbody tr { cursor:pointer; }
+    .ds-ops-mgmt-screen .ds-ops-workshops-table tbody tr:hover td { background:color-mix(in srgb,#dbeafe 18%,#fff) !important; border:1px solid #94a3b8 !important; }
+    .ds-ops-mgmt-screen .ds-ops-workshops-table tbody tr:hover td:nth-child(2) { text-decoration:underline; text-underline-offset:2px; }
     .ds-ops-mgmt-screen .ds-ops-workshops-table tbody tr:active td,
     .ds-ops-mgmt-screen .ds-ops-workshops-table tbody tr:focus-visible td,
     .ds-ops-mgmt-screen .ds-ops-workshops-table td:hover,
@@ -1114,10 +1116,10 @@ function opsManagementStylesHtml() {
     .ds-ops-mgmt-screen .ds-ops-workshops-table .ds-ops-usage-cell:focus,
     .ds-ops-mgmt-screen .ds-ops-workshops-table .ds-ops-usage-cell:focus-within,
     .ds-ops-mgmt-screen .ds-ops-workshops-table .ds-ops-usage-cell:active { border:1px solid #94a3b8 !important; box-shadow:none; }
-    .ds-ops-mgmt-screen .ds-ops-workshops-table th { background:#dbeafe; color:#1e3a8a; font-weight:800; font-size:12px; }
+    .ds-ops-mgmt-screen .ds-ops-workshops-table th { background:#fff; color:#1e3a8a; font-weight:800; font-size:12px; border-bottom:2px solid #3b82f6 !important; }
     .ds-ops-mgmt-screen .ds-ops-workshop-col--no { width:10%; }
-    .ds-ops-mgmt-screen .ds-ops-workshop-col--name { width:24%; }
-    .ds-ops-mgmt-screen .ds-ops-workshop-col--metric { width:9.42%; }
+    .ds-ops-mgmt-screen .ds-ops-workshop-col--name { width:14%; }
+    .ds-ops-mgmt-screen .ds-ops-workshop-col--metric { width:10.6%; }
     .ds-ops-mgmt-screen .ds-ops-workshop-col--status { width:10.5%; }
     .ds-ops-mgmt-screen .ds-ops-workshops-table th:nth-child(1),
     .ds-ops-mgmt-screen .ds-ops-workshops-table td:nth-child(1) { text-align:center; }
@@ -1136,9 +1138,11 @@ function opsManagementStylesHtml() {
     .ds-ops-mgmt-screen .ds-ops-dist-input { width:72px; text-align:center; font-size:12px; padding:2px 4px; border:1px solid #94a3b8; border-radius:4px; background:#fff; }
     .ds-ops-mgmt-screen .ds-ops-workshop-detail { background:#f8fafc; border:1px solid #dbeafe; border-radius:12px; padding:10px; }
     .ds-ops-mgmt-screen .ds-ops-workshop-detail-row > td { white-space:normal!important; text-align:right!important; }
-    .ds-ops-mgmt-screen .ds-ops-dist-table { table-layout:fixed; margin-top:8px; }
-    .ds-ops-mgmt-screen .ds-ops-dist-table th:nth-child(n+2),.ds-ops-mgmt-screen .ds-ops-dist-table td:nth-child(n+2) { text-align:center; white-space:nowrap; }
-    .ds-ops-mgmt-screen .ds-ops-dist-table th:last-child,.ds-ops-mgmt-screen .ds-ops-dist-table td:last-child { text-align:right; }
+    .ds-ops-mgmt-screen .ds-ops-dist-table { table-layout:fixed; margin-top:8px; width:80%; }
+    .ds-ops-mgmt-screen .ds-ops-dist-table th { background:#fff; font-weight:700; border-bottom:2px solid #93c5fd !important; }
+    .ds-ops-mgmt-screen .ds-ops-dist-table th:nth-child(1),.ds-ops-mgmt-screen .ds-ops-dist-table td:nth-child(1) { text-align:right; width:33%; }
+    .ds-ops-mgmt-screen .ds-ops-dist-table th:nth-child(n+2),.ds-ops-mgmt-screen .ds-ops-dist-table td:nth-child(n+2) { text-align:center; white-space:nowrap; width:17%; }
+    .ds-ops-mgmt-screen .ds-ops-dist-table th:last-child,.ds-ops-mgmt-screen .ds-ops-dist-table td:last-child { text-align:right; width:16%; }
     .ds-ops-mgmt-screen .ds-ops-estimate-mark { color:#9a3412; font-weight:800; }
     .ds-ops-mgmt-screen .ds-ops-stock-cell { white-space:nowrap; }
     .ds-ops-mgmt-screen .ds-ops-stock-input { width:64px; text-align:center; font-size:12px; padding:2px 4px; border:1px solid #94a3b8; border-radius:4px; background:#fff; }
