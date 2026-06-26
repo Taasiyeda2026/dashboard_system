@@ -54,6 +54,14 @@ function fieldViewCard(label, val) {
   </div>`;
 }
 
+function viewField(label, value) {
+  const displayVal = String(value || '').trim();
+  return `<div class="activity-view-field">
+    <span class="activity-view-field__label">${escapeHtml(label)}</span>
+    <span class="activity-view-field__value">${escapeHtml(displayVal)}</span>
+  </div>`;
+}
+
 function todayStr() {
   const d = new Date();
   const mm = String(d.getMonth() + 1).padStart(2, '0');
@@ -598,14 +606,14 @@ function blockViewOnce(row, { settings = {}, hideFunding = false } = {}) {
   const fundingDisplay = String(row.funding || '').trim();
 
   return `
-    <section class="activity-drawer__section activity-drawer__card activity-drawer__card--once" data-mode="view" data-central-info-section>
-      <div class="activity-drawer__card-grid">
-        ${fieldViewCard('מנהל פעילות', viewMgr(row.activity_manager))}
-        ${fieldViewCard('מדריך/ה 1', viewVal(instr1))}
-        ${fieldViewCard('מדריך/ה 2', viewVal(instr2))}
-        ${fieldViewCard('כיתה / קבוצה', classLabel)}
-        ${fieldViewCard('שעות', hoursLabel)}
-        ${hideFunding ? '' : fieldViewCard('מימון', fundingDisplay)}
+    <section class="activity-view-card activity-view-card--once" data-mode="view" data-central-info-section>
+      <div class="activity-view-card__grid">
+        ${viewField('מנהל פעילות', viewMgr(row.activity_manager))}
+        ${viewField('מדריך/ה 1', viewVal(instr1))}
+        ${viewField('מדריך/ה 2', viewVal(instr2))}
+        ${viewField('כיתה / קבוצה', classLabel)}
+        ${viewField('שעות', hoursLabel)}
+        ${hideFunding ? '' : viewField('מימון', fundingDisplay)}
       </div>
     </section>
   `;
@@ -626,12 +634,12 @@ function blockViewCourse(row, { settings = {} } = {}) {
     : '';
 
   return `
-    <section class="activity-drawer__section activity-drawer__card activity-drawer__card--course" data-mode="view" data-central-info-section>
-      <div class="activity-drawer__card-grid">
-        ${fieldViewCard('מנהל פעילות', viewMgr(row.activity_manager))}
-        ${fieldViewCard('מדריך/ה', viewVal(instr1))}
-        ${fieldViewCard('כיתה / קבוצה', classLabel)}
-        ${fieldViewCard('שעות', hoursLabel)}
+    <section class="activity-view-card activity-view-card--course" data-mode="view" data-central-info-section>
+      <div class="activity-view-card__grid">
+        ${viewField('מנהל פעילות', viewMgr(row.activity_manager))}
+        ${viewField('מדריך/ה', viewVal(instr1))}
+        ${viewField('כיתה / קבוצה', classLabel)}
+        ${viewField('שעות', hoursLabel)}
       </div>
     </section>
   `;
@@ -709,7 +717,7 @@ function buildDateChipsHtml(schedule, isOnce) {
         </div>
       `;
     })
-    .join('') || '<div class="activity-drawer__date-chip">—</div>';
+    .join('') || '';
 }
 
 function buildOneDayViewHtml(schedule, row, datesLoading) {
@@ -807,14 +815,15 @@ function blockDates(row, { canEdit = false, canDirectEdit = false, datesLoading 
     ? `<div class="activity-drawer__progress-row" data-mode="view"><div class="activity-drawer__progress" data-dates-progress>
         <div class="activity-drawer__progress-meta" data-dates-progress-meta>
           <span class="ds-muted">טוען תאריכי מפגשים...</span>
+          <span></span>
         </div>
         <div class="activity-drawer__progress-track">
           <div class="activity-drawer__progress-fill" style="width:0%"></div>
         </div>
       </div>
       <div class="activity-drawer__end-date">
-        <span>🏁 תאריך סיום</span>
-        <strong data-computed-end-display>—</strong>
+        <span class="activity-drawer__end-date__label">תאריך סיום</span>
+        <strong data-computed-end-display></strong>
       </div>
       </div>
       <div class="activity-drawer__dates activity-drawer__dates--view" data-mode="view" data-dates-view-chips>
@@ -830,8 +839,8 @@ function blockDates(row, { canEdit = false, canDirectEdit = false, datesLoading 
         </div>
       </div>
       <div class="activity-drawer__end-date">
-        <span>🏁 תאריך סיום</span>
-        <strong data-computed-end-display>${escapeHtml(formatDateHeWithWeekday(computedEnd) || '—')}</strong>
+        <span class="activity-drawer__end-date__label">תאריך סיום</span>
+        <strong data-computed-end-display>${escapeHtml(formatDateHeWithWeekday(computedEnd) || '')}</strong>
       </div>
       </div>
       <div class="activity-drawer__dates activity-drawer__dates--view" data-mode="view" data-dates-view-chips>
@@ -892,9 +901,9 @@ export function patchDrawerDatesSection(sectionEl, datesData) {
     const firstMeeting = schedule[0] || {};
     const dateVal = String(firstMeeting?.date || '').trim();
     const dateEl = sectionEl.querySelector('[data-oneday-date-display]');
-    if (dateEl) dateEl.textContent = dateVal ? formatDateHe(dateVal) : '—';
+    if (dateEl) dateEl.textContent = dateVal ? formatDateHe(dateVal) : '';
     const weekdayEl = sectionEl.querySelector('[data-oneday-weekday-display]');
-    if (weekdayEl) weekdayEl.textContent = dateVal ? fmtWeekdayShort(dateVal) : '—';
+    if (weekdayEl) weekdayEl.textContent = dateVal ? fmtWeekdayShort(dateVal) : '';
     const oneDayInput = sectionEl.querySelector('[data-meeting-dates-edit] input[data-meeting-idx="0"]');
     if (oneDayInput) oneDayInput.value = dateVal;
     const form = sectionEl.closest('[data-drawer-form]');
@@ -921,7 +930,7 @@ export function patchDrawerDatesSection(sectionEl, datesData) {
   if (progressFill) progressFill.style.width = `${progressPct}%`;
 
   const endDisplay = sectionEl.querySelector('[data-computed-end-display]');
-  if (endDisplay) endDisplay.textContent = formatDateHeWithWeekday(computedEnd) || '—';
+  if (endDisplay) endDisplay.textContent = formatDateHeWithWeekday(computedEnd) || '';
 
   const chipsDiv = sectionEl.querySelector('[data-dates-view-chips]');
   if (chipsDiv) chipsDiv.innerHTML = buildDateChipsHtml(schedule, false);
@@ -949,9 +958,9 @@ function blockPrivateNote(row, { privateNote = null, showPrivateNote = false } =
       : (row.operations_private_notes ?? row.private_note ?? '')
   ).trim();
 
-  const viewPart = `<section class="activity-drawer__section activity-drawer__section--private-note" data-private-note-section>
-      <h3 class="activity-drawer__section-title">הערה תפעולית</h3>
-      <div class="activity-drawer__value--note activity-drawer__value--notes-view" data-mode="view">${escapeHtml(privateValue)}</div>
+  const viewPart = `<section class="activity-drawer__section activity-view-notes activity-view-notes--private" data-private-note-section>
+      <span class="activity-view-notes__label">הערה תפעולית</span>
+      <div class="activity-view-notes__text" data-mode="view">${escapeHtml(privateValue)}</div>
     </section>`;
 
   const editPart = `<div class="activity-drawer__edit" data-mode="edit" hidden>
@@ -968,9 +977,9 @@ function blockNotes(row, { hidden = false } = {}) {
   if (hidden) return '';
   const notesVal = String(row?.notes || '').trim();
   return `
-    <section class="activity-drawer__section activity-drawer__section--notes" data-notes-section>
-      <h3 class="activity-drawer__section-title">הערה</h3>
-      <div class="activity-drawer__value--note activity-drawer__value--notes-view" data-mode="view">${escapeHtml(notesVal)}</div>
+    <section class="activity-drawer__section activity-view-notes" data-notes-section>
+      <span class="activity-view-notes__label">הערה</span>
+      <div class="activity-view-notes__text" data-mode="view">${escapeHtml(notesVal)}</div>
       <div class="activity-drawer__edit" data-mode="edit" hidden>
         ${textareaHtml({ name: 'notes', value: notesVal, rows: 2 })}
       </div>

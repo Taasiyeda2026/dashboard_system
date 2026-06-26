@@ -8113,6 +8113,212 @@ select.ds-input {
   border-style: dashed;
 }
 
+/* ─── Professional view-mode cards ──────────────────────────── */
+
+.activity-view-card {
+  background: #fff;
+  border: 1px solid #dde4ef;
+  border-radius: 14px;
+  padding: 18px 20px;
+  box-shadow: 0 2px 10px rgba(0, 0, 0, 0.06), 0 1px 3px rgba(0, 0, 0, 0.04);
+}
+
+.activity-view-card--once {
+  border-top: 3px solid #6366f1;
+}
+
+.activity-view-card--course {
+  border-top: 3px solid #22c55e;
+}
+
+.activity-view-card__grid {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 18px 24px;
+}
+
+@media (max-width: 560px) {
+  .activity-view-card__grid {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+}
+
+@media (max-width: 320px) {
+  .activity-view-card__grid {
+    grid-template-columns: minmax(0, 1fr);
+  }
+}
+
+.activity-view-field {
+  display: flex;
+  flex-direction: column;
+  gap: 5px;
+  min-width: 0;
+}
+
+.activity-view-field__label {
+  font-size: 0.62rem;
+  font-weight: 700;
+  color: #94a3b8;
+  text-transform: uppercase;
+  letter-spacing: 0.08em;
+  line-height: 1;
+}
+
+.activity-view-field__value {
+  font-size: 0.9rem;
+  font-weight: 600;
+  color: #1e293b;
+  line-height: 1.35;
+  min-height: 20px;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+/* Notes sections — unified clean style */
+.activity-view-notes {
+  background: #fff;
+  border: 1px solid #dde4ef;
+  border-radius: 12px;
+  padding: 14px 16px;
+}
+
+.activity-view-notes__label {
+  display: block;
+  font-size: 0.62rem;
+  font-weight: 700;
+  color: #94a3b8;
+  text-transform: uppercase;
+  letter-spacing: 0.08em;
+  margin-bottom: 6px;
+}
+
+.activity-view-notes__text {
+  font-size: 0.86rem;
+  font-weight: 400;
+  color: #334155;
+  line-height: 1.5;
+  white-space: pre-wrap;
+  min-height: 18px;
+}
+
+.activity-view-notes--private {
+  border-color: #e9d5ff;
+  background: #faf5ff;
+}
+
+.activity-view-notes--private .activity-view-notes__label {
+  color: #7c3aed;
+}
+
+/* Better header */
+.activity-drawer__header {
+  background: linear-gradient(135deg, #f8fafc 0%, #ffffff 100%);
+  border-bottom: 1px solid #e2e8f0;
+}
+
+.activity-drawer__title {
+  font-size: 1.2rem !important;
+  font-weight: 800 !important;
+  color: #0f172a;
+  line-height: 1.25 !important;
+}
+
+/* Crisper meta-tags */
+.activity-drawer__meta-tag {
+  font-size: 0.66rem !important;
+  font-weight: 600 !important;
+  padding: 2px 10px !important;
+  border-radius: 999px !important;
+}
+
+/* Better dates section for course */
+.activity-drawer__section[data-dates-section] {
+  background: #fff;
+  border: 1px solid #dde4ef;
+  border-radius: 14px;
+  padding: 16px 18px;
+}
+
+.activity-drawer__section-title {
+  font-size: 0.68rem !important;
+  font-weight: 800 !important;
+  color: #475569 !important;
+  text-transform: uppercase !important;
+  letter-spacing: 0.06em !important;
+  margin: 0 0 12px !important;
+}
+
+.activity-drawer__section-head .activity-drawer__section-title {
+  margin: 0 !important;
+}
+
+/* Progress bar improvements */
+.activity-drawer__progress-track {
+  height: 9px !important;
+  background: #e8eef6 !important;
+}
+
+.activity-drawer__progress-fill {
+  background: linear-gradient(90deg, #6366f1, #22c55e) !important;
+}
+
+.activity-drawer__progress-meta {
+  font-size: 0.78rem !important;
+  font-weight: 700 !important;
+  color: #334155 !important;
+  margin-bottom: 7px !important;
+}
+
+/* End date block */
+.activity-drawer__end-date {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-end;
+  gap: 3px;
+  padding: 10px 14px;
+  background: #f0f9ff;
+  border: 1px solid #bae6fd;
+  border-radius: 10px;
+}
+
+.activity-drawer__end-date__label {
+  font-size: 0.62rem;
+  font-weight: 700;
+  color: #0369a1;
+  text-transform: uppercase;
+  letter-spacing: 0.07em;
+}
+
+.activity-drawer__end-date strong {
+  font-size: 0.95rem !important;
+  font-weight: 700 !important;
+  color: #0f172a !important;
+}
+
+/* Date chips improvements */
+.activity-drawer__date-chip {
+  background: #f8fafc !important;
+  border: 1px solid #e2e8f0 !important;
+  border-radius: 8px !important;
+  padding: 7px 10px !important;
+  font-size: 0.73rem !important;
+  font-weight: 500 !important;
+  color: #475569 !important;
+}
+
+.activity-drawer__date-chip.is-done {
+  background: #f0fdf4 !important;
+  border-color: #86efac !important;
+  color: #15803d !important;
+}
+
+/* Body spacing */
+.activity-drawer__body {
+  gap: 10px !important;
+  padding: 4px 0 16px !important;
+}
+
 /* ——— End dates screen ——— */
 .ds-end-dates-screen {
   max-width: min(100%, 1100px);
