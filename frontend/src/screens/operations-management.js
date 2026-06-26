@@ -1215,17 +1215,18 @@ function opsManagementStylesHtml() {
     .ds-ops-mgmt-screen .ds-ops-completion-approvals-card .ds-card__body { padding:8px 10px 10px; }
     .ds-ops-mgmt-screen .ds-ops-completion-approvals-card .ds-table-wrap { width:100%; max-width:100%; box-sizing:border-box; overflow-x:hidden; }
     .ds-ops-mgmt-screen .ds-ops-completion-preview { width:100%; min-width:0; table-layout:fixed; }
-    .ds-ops-mgmt-screen .ds-ops-completion-preview th { white-space:nowrap; text-align:center; vertical-align:middle; }
+    .ds-ops-mgmt-screen .ds-ops-completion-preview th { white-space:nowrap; vertical-align:middle; text-align:right; }
     .ds-ops-mgmt-screen .ds-ops-completion-preview th,.ds-ops-mgmt-screen .ds-ops-completion-preview td { padding:7px 8px; vertical-align:middle; }
-    .ds-ops-mgmt-screen .ds-ops-completion-preview th:first-child,.ds-ops-mgmt-screen .ds-ops-completion-preview td:first-child { padding-inline-start:10px; padding-inline-end:10px; white-space:nowrap; text-align:center; }
-    .ds-ops-mgmt-screen .ds-ops-completion-col--date { width:105px; text-align:center; }
-    .ds-ops-mgmt-screen .ds-ops-completion-col--authority { width:120px; }
-    .ds-ops-mgmt-screen .ds-ops-completion-col--instructor { width:135px; }
-    .ds-ops-mgmt-screen .ds-ops-completion-col--school { width:200px; }
-    .ds-ops-mgmt-screen .ds-ops-completion-col--who { width:220px; }
-    .ds-ops-mgmt-screen .ds-ops-completion-col--contact { width:155px; }
-    .ds-ops-mgmt-screen .ds-ops-completion-col-contact-cell select { width:100%; max-width:150px; }
-    .ds-ops-mgmt-screen .ds-ops-completion-col--status { width:105px; }
+    .ds-ops-mgmt-screen .ds-ops-completion-preview th:first-child,.ds-ops-mgmt-screen .ds-ops-completion-preview td:first-child { padding-inline-start:10px; padding-inline-end:10px; white-space:nowrap; }
+    .ds-ops-mgmt-screen .ds-ops-completion-col--date { width:105px; }
+    .ds-ops-mgmt-screen .ds-ops-completion-col--authority { width:120px; text-align:right; }
+    .ds-ops-mgmt-screen .ds-ops-completion-col--instructor { width:135px; text-align:right; }
+    .ds-ops-mgmt-screen .ds-ops-completion-col--school { width:200px; text-align:right; }
+    .ds-ops-mgmt-screen .ds-ops-completion-col--who { width:220px; text-align:right; }
+    .ds-ops-mgmt-screen .ds-ops-completion-col--contact { width:155px; text-align:right; }
+    .ds-ops-mgmt-screen .ds-ops-completion-col-contact-cell { text-align:right; }
+    .ds-ops-mgmt-screen .ds-ops-completion-col-contact-cell select { width:100%; max-width:150px; text-align:right; direction:rtl; }
+    .ds-ops-mgmt-screen .ds-ops-completion-col--status { width:105px; text-align:right; }
     .ds-ops-mgmt-screen .ds-ops-completion-col--actions { width:190px; text-align:center; }
     .ds-ops-mgmt-screen .ds-ops-completion-col-who-cell { white-space:normal; line-height:1.35; }
     .ds-ops-mgmt-screen .ds-ops-completion-actions-cell { text-align:center; vertical-align:middle; white-space:nowrap; }

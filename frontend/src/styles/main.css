@@ -16641,7 +16641,25 @@ details[open] > .ds-fin-acc__summary::before { transform: rotate(90deg); }
 
 .ds-ops-completion-preview th {
   white-space: nowrap;
-  text-align: center;
+  text-align: right;
+}
+
+.ds-ops-completion-col--authority,
+.ds-ops-completion-col--instructor,
+.ds-ops-completion-col--school,
+.ds-ops-completion-col--who,
+.ds-ops-completion-col--contact,
+.ds-ops-completion-col--status {
+  text-align: right;
+}
+
+.ds-ops-completion-col-contact-cell {
+  text-align: right;
+}
+
+.ds-ops-completion-col-contact-cell select {
+  text-align: right;
+  direction: rtl;
 }
 
 .ds-table-cell-truncate {
