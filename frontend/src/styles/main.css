@@ -8010,6 +8010,109 @@ select.ds-input {
   display: none;
 }
 
+/* ── Activity drawer: professional view cards ── */
+
+.activity-drawer__value {
+  font-size: 0.85rem;
+  font-weight: 500;
+  color: var(--ds-text-secondary);
+}
+
+.activity-drawer__value--notes-view {
+  min-height: 18px;
+}
+
+/* Meta tags in header */
+.activity-drawer__meta--tags {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 4px;
+  margin-top: 3px;
+}
+
+.activity-drawer__meta-tag {
+  display: inline-flex;
+  align-items: center;
+  background: #f1f5f9;
+  color: #475569;
+  border: 1px solid #e2e8f0;
+  border-radius: 999px;
+  padding: 2px 9px;
+  font-size: 0.67rem;
+  font-weight: 600;
+}
+
+.activity-drawer__meta-tag--open {
+  background: #f0fdf4;
+  color: #15803d;
+  border-color: #bbf7d0;
+}
+
+.activity-drawer__meta-tag--closed {
+  background: #fef2f2;
+  color: #b91c1c;
+  border-color: #fecaca;
+}
+
+/* Professional info card — shared base */
+.activity-drawer__card {
+  background: #fff;
+  border: 1px solid #e2e8f0;
+  border-radius: 12px;
+  padding: 12px 14px;
+  box-shadow: 0 1px 3px rgba(0, 0, 0, 0.04);
+}
+
+/* Once-type card (workshop / tour / escape_room) */
+.activity-drawer__card--once {
+  border-top: 3px solid #6366f1;
+}
+
+/* Course / after_school card */
+.activity-drawer__card--course {
+  border-top: 3px solid #22c55e;
+}
+
+/* Field grid inside cards */
+.activity-drawer__card-grid {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 12px 16px;
+}
+
+@media (max-width: 560px) {
+  .activity-drawer__card-grid {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+}
+
+@media (max-width: 320px) {
+  .activity-drawer__card-grid {
+    grid-template-columns: minmax(0, 1fr);
+  }
+}
+
+/* Field value inside card uses the view style */
+.activity-drawer__card .activity-drawer__view {
+  font-size: 0.88rem;
+  font-weight: 600;
+  color: #1e293b;
+  min-height: 16px;
+}
+
+/* One-day date display */
+.activity-drawer__oneday-info {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+  margin-bottom: 2px;
+}
+
+.activity-drawer__date-chip--empty {
+  opacity: 0.35;
+  border-style: dashed;
+}
+
 /* ——— End dates screen ——— */
 .ds-end-dates-screen {
   max-width: min(100%, 1100px);
