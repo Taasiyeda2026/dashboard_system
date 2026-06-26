@@ -134,6 +134,7 @@ export function buildCompletionApprovals(rows = [], { instructor = '', dateMode 
             date: activityDate,
             authority,
             school,
+            schoolId: text(activity?.school_id || activity?.single_school_id),
             contact: schoolContact(activity, directory, contactsIndex),
             activities: []
           });

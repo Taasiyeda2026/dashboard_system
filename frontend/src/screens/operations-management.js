@@ -1190,14 +1190,14 @@ function opsManagementStylesHtml() {
     .ds-ops-mgmt-screen .ds-ops-authorities-table .ds-ops-col--activity { width:33%; white-space:normal; word-break:break-word; }
     .ds-ops-mgmt-screen .ds-ops-authorities-table th,.ds-ops-mgmt-screen .ds-ops-authorities-table td { padding-top:0.25rem; padding-bottom:0.25rem; padding-inline:0.35rem; }
     .ds-ops-mgmt-screen .ds-ops-completion-panel { display:flex; justify-content:center; width:100%; }
-    .ds-ops-mgmt-screen .ds-ops-completion-workspace { width:min(100%,1030px); max-width:100%; margin-inline:auto; display:flex; flex-direction:column; gap:8px; align-items:stretch; box-sizing:border-box; padding-inline:12px; }
+    .ds-ops-mgmt-screen .ds-ops-completion-workspace { width:min(100%,1280px); max-width:100%; margin-inline:auto; display:flex; flex-direction:column; gap:8px; align-items:stretch; box-sizing:border-box; padding-inline:12px; }
     .ds-ops-mgmt-screen .ds-ops-completion-control-card { width:100%; box-sizing:border-box; display:flex; flex-direction:column; align-items:flex-start; gap:6px; padding:8px 14px 8px; border:1px solid #d8e5ee; border-radius:14px; background:#f8fbfd; box-shadow:0 1px 2px rgba(15,23,42,0.04); }
     .ds-ops-mgmt-screen .ds-ops-completion-title-bar { display:flex; flex-direction:row; align-items:center; gap:10px; flex-wrap:nowrap; width:100%; min-width:0; }
     .ds-ops-mgmt-screen .ds-ops-completion-summary { position:relative; flex:0 0 auto; text-align:right; color:#0f172a; }
     .ds-ops-mgmt-screen .ds-ops-completion-summary__title { appearance:none; border:0; background:transparent; color:#0f172a; margin:0; padding:0 0 1px; font:inherit; font-size:17px; line-height:1.25; font-weight:800; cursor:pointer; border-bottom:1px dashed transparent; white-space:nowrap; }
     .ds-ops-mgmt-screen .ds-ops-completion-summary__title:hover,
     .ds-ops-mgmt-screen .ds-ops-completion-summary__title:focus-visible { color:#0f8fa8; border-bottom-color:#8bd3df; outline:none; }
-    .ds-ops-mgmt-screen .ds-ops-completion-summary-popover { position:absolute; inset-block-start:calc(100% + 8px); inset-inline-start:auto; inset-inline-end:0; z-index:5; width:320px; max-width:min(90vw, 320px); box-sizing:border-box; padding:10px 14px; border:1px solid #d8e5ee; border-radius:14px; background:#fff; box-shadow:0 14px 30px rgba(15,23,42,0.14); color:#334155; font-size:13px; line-height:1.45; }
+    .ds-ops-mgmt-screen .ds-ops-completion-summary-popover { position:absolute; inset-block-start:calc(100% + 8px); inset-inline-start:0; inset-inline-end:auto; z-index:5; width:320px; max-width:min(90vw, 320px); box-sizing:border-box; padding:10px 14px; border:1px solid #d8e5ee; border-radius:14px; background:#fff; box-shadow:0 14px 30px rgba(15,23,42,0.14); color:#334155; font-size:13px; line-height:1.45; }
     .ds-ops-mgmt-screen .ds-ops-completion-summary-popover p { margin:0; }
     .ds-ops-mgmt-screen .ds-ops-completion-summary-popover p + p { margin-top:4px; }
     .ds-ops-mgmt-screen .ds-ops-completion-control-row { display:flex; flex-wrap:wrap; align-items:center; justify-content:flex-start; gap:6px; width:100%; }
@@ -1213,16 +1213,20 @@ function opsManagementStylesHtml() {
     .ds-ops-mgmt-screen .ds-ops-completion-approvals-card { width:100%; margin:0; box-sizing:border-box; }
     .ds-ops-mgmt-screen .ds-ops-completion-approvals-card .ds-card { width:100%; margin:0; box-sizing:border-box; overflow:hidden; border-radius:16px; }
     .ds-ops-mgmt-screen .ds-ops-completion-approvals-card .ds-card__body { padding:8px 10px 10px; }
-    .ds-ops-mgmt-screen .ds-ops-completion-approvals-card .ds-table-wrap { width:100%; max-width:100%; box-sizing:border-box; overflow-x:auto; }
-    .ds-ops-mgmt-screen .ds-ops-completion-preview { min-width:102%; width:102%; table-layout:fixed; }
+    .ds-ops-mgmt-screen .ds-ops-completion-approvals-card .ds-table-wrap { width:100%; max-width:100%; box-sizing:border-box; overflow-x:hidden; }
+    .ds-ops-mgmt-screen .ds-ops-completion-preview { width:100%; min-width:0; table-layout:fixed; }
+    .ds-ops-mgmt-screen .ds-ops-completion-preview th { white-space:nowrap; text-align:center; }
     .ds-ops-mgmt-screen .ds-ops-completion-preview th,.ds-ops-mgmt-screen .ds-ops-completion-preview td { padding:7px 8px; }
     .ds-ops-mgmt-screen .ds-ops-completion-preview th:first-child,.ds-ops-mgmt-screen .ds-ops-completion-preview td:first-child { padding-inline-start:10px; padding-inline-end:10px; white-space:nowrap; text-align:center; }
-    .ds-ops-mgmt-screen .ds-ops-completion-col--date { width:108px; text-align:center; }
+    .ds-ops-mgmt-screen .ds-ops-completion-col--date { width:105px; text-align:center; }
     .ds-ops-mgmt-screen .ds-ops-completion-col--authority { width:120px; }
-    .ds-ops-mgmt-screen .ds-ops-completion-col--instructor { width:140px; }
-    .ds-ops-mgmt-screen .ds-ops-completion-col--school { width:auto; }
-    .ds-ops-mgmt-screen .ds-ops-completion-col--status { width:100px; }
-    .ds-ops-mgmt-screen .ds-ops-completion-col--actions { width:201px; text-align:center; }
+    .ds-ops-mgmt-screen .ds-ops-completion-col--instructor { width:135px; }
+    .ds-ops-mgmt-screen .ds-ops-completion-col--school { width:170px; }
+    .ds-ops-mgmt-screen .ds-ops-completion-col--who { width:220px; }
+    .ds-ops-mgmt-screen .ds-ops-completion-col--contact { width:190px; }
+    .ds-ops-mgmt-screen .ds-ops-completion-col--status { width:105px; }
+    .ds-ops-mgmt-screen .ds-ops-completion-col--actions { width:190px; text-align:center; }
+    .ds-ops-mgmt-screen .ds-ops-completion-col-who-cell { white-space:normal; line-height:1.35; }
     .ds-ops-mgmt-screen .ds-ops-completion-actions { display:flex; flex-wrap:wrap; justify-content:center; gap:4px; white-space:normal; }
     .ds-ops-mgmt-screen .ds-ops-completion-actions .ds-ops-icon-btn { flex:0 0 26px; }
     .ds-ops-mgmt-screen .ds-btn--success{background:#16a34a;color:#fff;border-color:#15803d}
@@ -1254,6 +1258,7 @@ function opsManagementStylesHtml() {
       .ds-ops-mgmt-screen .ds-ops-approval-print-filter { width:100%; align-items:flex-start; }
       .ds-ops-mgmt-screen .ds-ops-completion-date-filter input[type="date"],
       .ds-ops-mgmt-screen .ds-ops-approval-print-filter select { width:min(100%, 220px); }
+      .ds-ops-mgmt-screen .ds-ops-completion-approvals-card .ds-table-wrap { overflow-x:auto; }
     }
     @media print { .ds-ops-mgmt-screen .ds-ops-schools-authority:not(:first-child) { break-before:page; page-break-before:always; } .ds-ops-mgmt-screen .ds-ops-authority-date .ds-table-wrap { width:55%!important; max-width:55%!important; } .ds-ops-mgmt-screen .ds-ops-authority-date__title { width:55%!important; max-width:55%!important; } }
   </style>`;
@@ -1968,7 +1973,9 @@ function buildContactContextMap(allRows, overrides) {
     const responsibleEmpId = String(override?.responsible_emp_id || defaultResp.empId || '').trim();
     const responsibleName = String(override?.responsible_name || defaultResp.name || responsibleEmpId || '').trim();
     const options = instructors.map((entry) => `<option value="${escapeHtml(entry.empId || entry.name)}" data-name="${escapeHtml(entry.name)}"${(entry.empId || entry.name) === responsibleEmpId || entry.name === responsibleName ? ' selected' : ''}>${escapeHtml(entry.name)}${entry.empId ? ` (${escapeHtml(entry.empId)})` : ''}</option>`).join('');
-    result.set(key, { instructors, responsibleEmpId, responsibleName, date, schoolId, school, options });
+    const ctx = { instructors, responsibleEmpId, responsibleName, date, schoolId, school, options };
+    result.set(key, ctx);
+    if (schoolId && !result.has(`${date}|${schoolId}`)) result.set(`${date}|${schoolId}`, ctx);
   });
   return result;
 }
@@ -2095,8 +2102,12 @@ function completionApprovalTabHtml(rows, state, data = {}, directory = buildScho
     const hasFile = !!upload?.file_path;
     const highlightToday = String(approval.date || '').slice(0, 10) === todayIso && !completionApprovalIsHandled(upload);
     const todayChip = highlightToday ? ' <span class="ds-chip ds-chip--info ds-ops-today-chip">TODAY</span>' : '';
-    const contactKey = `${String(approval.date || '').slice(0, 10)}|${normalizeOpsText(approval.school || '')}`;
-    const contactCtx = contactContextMap.get(contactKey);
+    const approvalDate = String(approval.date || '').slice(0, 10);
+    const approvalSchoolId = String(approval.schoolId || '').trim();
+    const contactKey = approvalSchoolId
+      ? (`${approvalDate}|${approvalSchoolId}`)
+      : (`${approvalDate}|${normalizeOpsText(approval.school || '')}`);
+    const contactCtx = contactContextMap.get(contactKey) || contactContextMap.get(`${approvalDate}|${normalizeOpsText(approval.school || '')}`);
     const whoIsWithMe = contactCtx && contactCtx.instructors.length ? escapeHtml(contactCtx.instructors.map((i) => i.name).join(', ')) : '—';
     const contactDropdown = contactCtx
       ? `<select class="ds-input ds-input--sm ds-ops-contact-responsible-select" data-contact-responsible-select data-date="${escapeHtml(contactCtx.date)}" data-school-id="${escapeHtml(contactCtx.schoolId)}" data-school="${escapeHtml(contactCtx.school)}"><option value="">בחרו</option>${contactCtx.options}</select>`
