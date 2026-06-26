@@ -131,7 +131,6 @@ function ensureDrawerParticipantsCount(form) {
   const template = document.createElement('template');
   template.innerHTML = `
     <section class="activity-drawer__section activity-drawer__section--participants" data-participants-count-section>
-      <h3 class="activity-drawer__section-title">קבוצה ומשתתפים</h3>
       <div class="activity-drawer__grid activity-drawer__grid--three activity-drawer__view-grid" data-mode="view">
         <div class="activity-drawer__field">
           <div class="activity-drawer__label">מספר משתתפים</div>

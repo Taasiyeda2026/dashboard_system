@@ -8307,6 +8307,10 @@ select.ds-input {
   color: #475569 !important;
 }
 
+.activity-drawer__date-chip span {
+  white-space: nowrap;
+}
+
 .activity-drawer__date-chip.is-done {
   background: #f0fdf4 !important;
   border-color: #86efac !important;
@@ -8336,10 +8340,11 @@ select.ds-input {
 }
 
 .activity-drawer__view-footer__btn {
-  min-width: 120px;
-  padding: 9px 20px !important;
-  font-size: 0.88rem !important;
-  font-weight: 700 !important;
+  min-width: auto !important;
+  width: auto !important;
+  padding: 6px 14px !important;
+  font-size: 0.82rem !important;
+  font-weight: 600 !important;
   border-radius: 10px !important;
 }
 
@@ -8443,12 +8448,34 @@ select.ds-input {
   display: none !important;
 }
 
-/* ─── Progress row: column layout on mobile ─── */
+/* ─── Progress row: meta + end-date on one row, bar below ─── */
 .activity-drawer__section--course-dates .activity-drawer__progress-row {
-  display: flex;
-  flex-direction: column;
-  gap: 0;
+  display: grid;
+  grid-template-areas:
+    "meta end-date"
+    "bar  bar";
+  grid-template-columns: 1fr auto;
+  gap: 6px 12px;
   margin-bottom: 10px;
+  align-items: center;
+}
+
+.activity-drawer__section--course-dates .activity-drawer__progress {
+  display: contents;
+}
+
+.activity-drawer__section--course-dates [data-dates-progress-meta] {
+  grid-area: meta;
+}
+
+.activity-drawer__section--course-dates .activity-drawer__progress-track {
+  grid-area: bar;
+}
+
+.activity-drawer__section--course-dates .activity-drawer__end-date {
+  grid-area: end-date;
+  white-space: nowrap;
+  margin-top: 0 !important;
 }
 
 /* Date chips grid in course section */
