@@ -432,6 +432,57 @@ test('workshops tab shows inventory columns and print action', () => {
   assert.match(html, />300</);
 });
 
+
+test('workshops inventory shows plain text status and flags negative warehouse balance', () => {
+  const state = baseState();
+  state.operationsManagement.tab = 'workshops';
+  const adminListsData = { categories: [{ category: 'activity_names', items: [
+    { value: '030', _row: { category: 'activity_names', type: 'workshop', activity_type: 'workshop', active: true, activity_no: '030', activity_name: 'חללית בראשית', stock_group_key: 'beresheet', stock_quantity: 0 } }
+  ] }] };
+  const html = operationsManagementScreen.render({
+    rows: [],
+    workshopStockMap: buildWorkshopStockMapFromLists(adminListsData),
+    adminListsData,
+    workshopStockDistributions: [
+      { stock_group_key: 'beresheet', instructor_name: 'דני', quantity_received: 120, distribution_date: '2026-07-10' }
+    ]
+  }, { state });
+  const tableHtml = html.slice(html.indexOf('<table class="ds-table ds-table--compact ds-ops-mgmt-data-table ds-ops-workshops-table"'));
+
+  assert.doesNotMatch(html, /החישוב מבוסס על טווח התאריכים שנבחר/);
+  assert.doesNotMatch(html, /טווח חישוב:/);
+  assert.match(tableHtml, /חללית בראשית/);
+  assert.match(tableHtml, />0<[^]*>120<[^]*><span class="ds-ops-gap ds-ops-gap--shortage"><span dir="ltr">-120<\/span><\/span>/);
+  assert.match(tableHtml, /ds-ops-workshop-status-text ds-ops-workshop-status-text--inventory-fix">נדרש תיקון מלאי<\/span>/);
+  assert.doesNotMatch(tableHtml, /ds-status[^>]*>נדרש תיקון מלאי/);
+  assert.doesNotMatch(tableHtml, />תקין<\/span>/);
+});
+
+test('workshops inventory status priority keeps required order and balanced widths', () => {
+  const state = baseState();
+  state.operationsManagement.tab = 'workshops';
+  const adminListsData = { categories: [{ category: 'activity_names', items: [
+    { value: '040', _row: { category: 'activity_names', type: 'workshop', activity_type: 'workshop', active: true, activity_no: '040', activity_name: 'סדנת הזמנה', stock_group_key: 'order_needed', stock_quantity: 10 } },
+    { value: '041', _row: { category: 'activity_names', type: 'workshop', activity_type: 'workshop', active: true, activity_no: '041', activity_name: 'סדנת העברה', stock_group_key: 'transfer_needed', stock_quantity: 100 } }
+  ] }] };
+  const html = operationsManagementScreen.render({
+    rows: [
+      { RowID: 'ORD-1', status: 'פתוח', activity_name: 'סדנת הזמנה', start_date: '2026-07-10', activity_season: 'summer_2026', activity_type: 'workshop', participants_count: 25, instructor_name: 'דני' },
+      { RowID: 'TR-1', status: 'פתוח', activity_name: 'סדנת העברה', start_date: '2026-07-10', activity_season: 'summer_2026', activity_type: 'workshop', participants_count: 25, instructor_name: 'נועה' }
+    ],
+    workshopStockMap: buildWorkshopStockMapFromLists(adminListsData),
+    adminListsData,
+    workshopStockDistributions: [
+      { stock_group_key: 'transfer_needed', instructor_name: 'מחסן', quantity_received: 50, distribution_date: '2026-07-10' }
+    ]
+  }, { state });
+
+  assert.match(html, /ds-ops-workshop-col--name"><col class="ds-ops-workshop-col--metric"><col class="ds-ops-workshop-col--metric"><col class="ds-ops-workshop-col--metric"><col class="ds-ops-workshop-col--metric"><col class="ds-ops-workshop-col--metric"><col class="ds-ops-workshop-col--status"/);
+  assert.match(html, /ds-ops-workshops-table th:nth-child\(8\),\n    \.ds-ops-mgmt-screen \.ds-ops-workshops-table td:nth-child\(8\) \{ text-align:right; \}/);
+  assert.match(html, /ds-ops-workshop-status-text--danger">נדרש להזמין<\/span>/);
+  assert.match(html, /ds-ops-workshop-status-text--info">להעביר מהמחסן<\/span>/);
+});
+
 test('workshops inventory remainder uses existing stock minus usage', () => {
   const state = baseState();
   state.operationsManagement.tab = 'workshops';
