@@ -46,3 +46,8 @@ publicDir = "."
 [postMerge]
 path = "scripts/post-merge.sh"
 timeoutMs = 30000
+
+[userenv]
+
+[userenv.shared]
+SUPABASE_URL = "https://szinlhjuwyiyszdpsdop.supabase.co"

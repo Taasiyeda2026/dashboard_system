@@ -2,20 +2,20 @@
  * set-instructor-auth-passwords.mjs
  *
  * עדכון / יצירת סיסמאות Supabase Auth למדריכים פעילים.
+ * משתמש ב-REST API ישיר (ללא WebSocket / Realtime).
  *
  * שימוש:
- *   SUPABASE_URL=... SUPABASE_SERVICE_ROLE_KEY=... INSTRUCTOR_PASSWORDS_JSON='[...]' \
  *   node scripts/set-instructor-auth-passwords.mjs
  *
- * INSTRUCTOR_PASSWORDS_JSON — מערך JSON בפורמט:
- *   [{ "emp_id": "1500", "password": "..." }, ...]
+ * Secrets נדרשים (מ-Replit Secrets):
+ *   SUPABASE_URL
+ *   SUPABASE_SERVICE_ROLE_KEY
+ *   INSTRUCTOR_PASSWORDS_JSON  — [{ "emp_id": "...", "full_name": "...", "password": "..." }]
  *
- * הסקריפט לא מדפיס סיסמאות ללוגים ולא שומר אותן בקובץ.
- * SERVICE_ROLE_KEY אסור ב-frontend; להריץ רק מקומית / Replit shell.
+ * לא מדפיס סיסמאות. SERVICE_ROLE_KEY לא ב-frontend.
  */
 
 import process from 'node:process';
-import { createClient } from '@supabase/supabase-js';
 
 const MIN_PASSWORD_LENGTH = 4;
 
@@ -40,12 +40,74 @@ function validatePassword(password, empId) {
   return null;
 }
 
-async function listAllAuthUsers(supabase) {
+async function restGet(baseUrl, serviceKey, path, params = {}) {
+  const url = new URL(`${baseUrl}${path}`);
+  Object.entries(params).forEach(([k, v]) => url.searchParams.set(k, v));
+  const res = await fetch(url.toString(), {
+    headers: {
+      apikey: serviceKey,
+      Authorization: `Bearer ${serviceKey}`,
+      'Content-Type': 'application/json'
+    }
+  });
+  const body = await res.json();
+  if (!res.ok) throw new Error(body?.message || body?.error || `HTTP ${res.status}`);
+  return body;
+}
+
+async function restPost(baseUrl, serviceKey, path, data) {
+  const res = await fetch(`${baseUrl}${path}`, {
+    method: 'POST',
+    headers: {
+      apikey: serviceKey,
+      Authorization: `Bearer ${serviceKey}`,
+      'Content-Type': 'application/json'
+    },
+    body: JSON.stringify(data)
+  });
+  const body = await res.json();
+  if (!res.ok) throw new Error(body?.message || body?.error || `HTTP ${res.status}`);
+  return body;
+}
+
+async function restPut(baseUrl, serviceKey, path, data) {
+  const res = await fetch(`${baseUrl}${path}`, {
+    method: 'PUT',
+    headers: {
+      apikey: serviceKey,
+      Authorization: `Bearer ${serviceKey}`,
+      'Content-Type': 'application/json'
+    },
+    body: JSON.stringify(data)
+  });
+  const body = await res.json();
+  if (!res.ok) throw new Error(body?.message || body?.error || `HTTP ${res.status}`);
+  return body;
+}
+
+async function restPatch(baseUrl, serviceKey, path, data, filter = '') {
+  const url = `${baseUrl}${path}${filter}`;
+  const res = await fetch(url, {
+    method: 'PATCH',
+    headers: {
+      apikey: serviceKey,
+      Authorization: `Bearer ${serviceKey}`,
+      'Content-Type': 'application/json',
+      Prefer: 'return=minimal'
+    },
+    body: JSON.stringify(data)
+  });
+  if (!res.ok) {
+    const body = await res.json().catch(() => ({}));
+    throw new Error(body?.message || body?.error || `HTTP ${res.status}`);
+  }
+}
+
+async function listAllAuthUsers(baseUrl, serviceKey) {
   const out = [];
   let page = 1;
   while (true) {
-    const { data, error } = await supabase.auth.admin.listUsers({ page, perPage: 1000 });
-    if (error) throw error;
+    const data = await restGet(baseUrl, serviceKey, '/auth/v1/admin/users', { page, per_page: 1000 });
     const users = data?.users || [];
     out.push(...users);
     if (users.length < 1000) break;
@@ -56,7 +118,7 @@ async function listAllAuthUsers(supabase) {
 
 async function main() {
   const supabaseUrl = requireEnv('SUPABASE_URL');
-  const supabaseServiceRoleKey = requireEnv('SUPABASE_SERVICE_ROLE_KEY');
+  const serviceKey = requireEnv('SUPABASE_SERVICE_ROLE_KEY');
   const passwordsJson = requireEnv('INSTRUCTOR_PASSWORDS_JSON');
 
   let passwordEntries;
@@ -65,49 +127,51 @@ async function main() {
   } catch {
     throw new Error('INSTRUCTOR_PASSWORDS_JSON אינו JSON תקין');
   }
-
   if (!Array.isArray(passwordEntries) || passwordEntries.length === 0) {
     throw new Error('INSTRUCTOR_PASSWORDS_JSON חייב להיות מערך לא ריק');
   }
 
-  const supabase = createClient(supabaseUrl, supabaseServiceRoleKey, {
-    auth: { persistSession: false, autoRefreshToken: false }
-  });
-
-  const { data: usersRows, error: usersError } = await supabase
-    .from('users')
-    .select('user_id, emp_id, username, full_name, role, is_active, auth_user_id, auth_email, migrated_to_auth')
-    .eq('role', 'instructor')
-    .eq('is_active', true);
-
-  if (usersError) throw usersError;
-
-  const authUsers = await listAllAuthUsers(supabase);
-  const authByEmail = new Map(
-    authUsers.filter((u) => u.email).map((u) => [String(u.email).toLowerCase(), u])
+  // שליפת כל המדריכים הפעילים מ-public.users
+  const usersRows = await restGet(
+    supabaseUrl, serviceKey,
+    '/rest/v1/users',
+    { select: 'user_id,emp_id,username,full_name,role,is_active,auth_user_id,auth_email,migrated_to_auth' }
   );
+
+  // שליפת כל Auth users
+  const authUsers = await listAllAuthUsers(supabaseUrl, serviceKey);
+  const authByEmail = new Map(authUsers.filter((u) => u.email).map((u) => [String(u.email).toLowerCase(), u]));
   const authById = new Map(authUsers.map((u) => [u.id, u]));
 
-  let created = 0;
-  let updated = 0;
-  let skipped = 0;
-  let failed = 0;
+  // בדיקת אילנה 1506
+  const ilana = (Array.isArray(usersRows) ? usersRows : []).find((r) =>
+    asText(r.emp_id) === '1506' || asText(r.user_id) === '1506' || asText(r.username) === '1506'
+  );
+  console.log(JSON.stringify({
+    check: 'ilana_1506',
+    found: Boolean(ilana),
+    role: ilana?.role || null,
+    is_active: ilana?.is_active ?? null,
+    auth_email: ilana?.auth_email || null,
+    has_auth_user_id: Boolean(ilana?.auth_user_id)
+  }));
+
+  let created = 0, updated = 0, skipped = 0, failed = 0;
 
   for (const entry of passwordEntries) {
     const empId = asText(entry?.emp_id);
     const password = asText(entry?.password);
+    const fullNameInput = asText(entry?.full_name);
 
-    const validationError = validatePassword(password, empId);
-    if (validationError) {
+    const validErr = validatePassword(password, empId);
+    if (validErr) {
       skipped += 1;
-      console.log(JSON.stringify({ ok: false, action: 'skipped', reason: validationError, emp_id: empId }));
+      console.log(JSON.stringify({ ok: false, action: 'skipped', reason: validErr, emp_id: empId }));
       continue;
     }
 
-    const userRow = (usersRows || []).find((row) =>
-      asText(row.emp_id) === empId ||
-      asText(row.user_id) === empId ||
-      asText(row.username) === empId
+    const userRow = (Array.isArray(usersRows) ? usersRows : []).find((r) =>
+      asText(r.emp_id) === empId || asText(r.user_id) === empId || asText(r.username) === empId
     );
 
     if (!userRow) {
@@ -118,10 +182,9 @@ async function main() {
 
     const userId = asText(userRow.user_id);
     const username = asText(userRow.username) || empId;
-    const fullName = asText(userRow.full_name);
+    const fullName = asText(userRow.full_name) || fullNameInput;
     const existingAuthEmail = asText(userRow.auth_email);
     const existingAuthUserId = asText(userRow.auth_user_id);
-
     const authEmail = existingAuthEmail || buildAuthEmail(username);
 
     try {
@@ -131,44 +194,41 @@ async function main() {
       let action;
 
       if (authUser) {
-        const { error: updateError } = await supabase.auth.admin.updateUserById(authUser.id, { password });
-        if (updateError) throw updateError;
+        await restPut(supabaseUrl, serviceKey, `/auth/v1/admin/users/${authUser.id}`, { password });
         action = 'updated';
         updated += 1;
       } else {
-        const { data: createdData, error: createError } = await supabase.auth.admin.createUser({
+        const created_user = await restPost(supabaseUrl, serviceKey, '/auth/v1/admin/users', {
           email: authEmail,
           password,
           email_confirm: true,
           user_metadata: { employee_id: userId || empId, full_name: fullName, role: 'instructor' }
         });
-        if (createError) throw createError;
-        authUser = createdData.user;
+        authUser = created_user;
         authByEmail.set(authEmail.toLowerCase(), authUser);
         authById.set(authUser.id, authUser);
         action = 'created';
         created += 1;
       }
 
-      const patch = {
-        auth_user_id: authUser.id,
-        auth_email: authEmail,
-        migrated_to_auth: true
-      };
+      // עדכון public.users
+      await restPatch(
+        supabaseUrl, serviceKey,
+        '/rest/v1/users',
+        { auth_user_id: authUser.id, auth_email: authEmail, migrated_to_auth: true, is_active: true },
+        `?user_id=eq.${encodeURIComponent(userId || empId)}`
+      );
 
-      const { error: patchError } = await supabase
-        .from('users')
-        .update(patch)
-        .eq('user_id', userId || empId);
-
-      if (patchError) {
-        console.log(JSON.stringify({ ok: false, action: 'auth_ok_but_db_update_failed', emp_id: empId, auth_email: authEmail, error: patchError.message }));
-      } else {
-        try {
-          await supabase.from('users').update({ entry_code: null }).eq('user_id', userId || empId);
-        } catch {
-          /* entry_code עלול לא לאפשר null — מדלגים בשקט */
-        }
+      // ניקוי entry_code (אם אפשר)
+      try {
+        await restPatch(
+          supabaseUrl, serviceKey,
+          '/rest/v1/users',
+          { entry_code: null },
+          `?user_id=eq.${encodeURIComponent(userId || empId)}`
+        );
+      } catch {
+        /* entry_code עלול לא לאפשר null — מדלגים */
       }
 
       console.log(JSON.stringify({ ok: true, action, emp_id: empId, auth_email: authEmail, auth_user_id: authUser.id }));
@@ -184,7 +244,8 @@ async function main() {
     created,
     updated,
     skipped,
-    failed
+    failed,
+    active_instructor_emp_ids_hardcoded_list: 'REMOVED — access now from public.users role+is_active'
   }));
 
   if (failed > 0) process.exit(1);
