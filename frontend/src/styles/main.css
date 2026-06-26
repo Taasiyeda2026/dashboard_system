@@ -16605,11 +16605,11 @@ details[open] > .ds-fin-acc__summary::before { transform: rotate(90deg); }
 }
 
 .ds-ops-completion-col--school {
-  width: 130px;
+  width: 170px;
 }
 
 .ds-ops-completion-col--who {
-  width: 160px;
+  width: 220px;
 }
 
 .ds-ops-completion-col--contact {
@@ -16621,7 +16621,8 @@ details[open] > .ds-fin-acc__summary::before { transform: rotate(90deg); }
 }
 
 .ds-ops-completion-col--actions {
-  width: 110px;
+  width: 190px;
+  text-align: center;
 }
 
 .ds-ops-completion-col-contact-cell select {
@@ -16635,6 +16636,12 @@ details[open] > .ds-fin-acc__summary::before { transform: rotate(90deg); }
 .ds-ops-contact-responsible-table th,
 .ds-ops-contact-responsible-table td {
   overflow: hidden;
+  vertical-align: middle;
+}
+
+.ds-ops-completion-preview th {
+  white-space: nowrap;
+  text-align: center;
 }
 
 .ds-table-cell-truncate {
@@ -16657,9 +16664,19 @@ details[open] > .ds-fin-acc__summary::before { transform: rotate(90deg); }
   word-break: normal;
 }
 
-.ds-ops-completion-actions {
-  white-space: nowrap;
+.ds-ops-completion-actions-cell {
   text-align: center;
+  vertical-align: middle;
+  white-space: nowrap;
+}
+
+.ds-ops-completion-actions {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 4px;
+  flex-wrap: nowrap;
+  white-space: nowrap;
 }
 
 .ds-ops-completion-actions .ds-btn {
