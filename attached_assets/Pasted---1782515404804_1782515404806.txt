@@ -1,0 +1,130 @@
+ריפליט, בצע תיקון אבטחתי למנגנון התחברות המדריכים.
+
+המטרה:
+לא להשתמש יותר בסיסמאות/קודי כניסה שמבוססים על entry_code גלוי בטבלת public.users.
+לא לשים סיסמאות בהארד־קוד בקוד.
+לא לשמור סיסמאות בקבצי frontend.
+לא להכניס סיסמאות ל-GitHub.
+
+המצב הקיים:
+המערכת מתחברת דרך Supabase Auth עם:
+username@think.org.il
+והערך שמוקלד בשדה "קוד כניסה" נשלח כ-password.
+
+בנוסף קיימים סקריפטי מיגרציה שבהם entry_code מתוך public.users שימש כסיסמה ראשונית ל-Supabase Auth.
+זה לא מספיק מאובטח וצריך לנקות את זה.
+
+בצע את העדכון הבא:
+
+1. ליצור סקריפט שרת מאובטח חדש:
+scripts/set-instructor-auth-passwords.mjs
+
+הסקריפט ירוץ רק מקומית/ב-Replit עם:
+SUPABASE_URL
+SUPABASE_SERVICE_ROLE_KEY
+
+אסור להשתמש ב-SERVICE_ROLE_KEY ב-frontend.
+
+2. הסקריפט יקבל רשימת סיסמאות דרך משתנה סביבה בלבד, למשל:
+
+INSTRUCTOR_PASSWORDS_JSON
+
+בפורמט:
+
+[
+  { "emp_id": "1500", "password": "סיסמה-חזקה-כאן" },
+  { "emp_id": "1502", "password": "סיסמה-חזקה-כאן" }
+]
+
+לא לשמור את ה-JSON הזה בקובץ Git.
+לא להדפיס את הסיסמאות ללוגים.
+לא להעלות אותו ל-GitHub.
+
+3. עבור כל מדריך:
+- למצוא ב-public.users משתמש פעיל:
+  role = 'instructor'
+  is_active = true
+  emp_id = emp_id או user_id = emp_id או username = emp_id
+- לקבוע את auth_email לפי הערך הקיים ב-users.auth_email אם קיים.
+- אם אין auth_email להשתמש ב:
+  username@think.org.il
+  ואם אין username אז:
+  emp_id@think.org.il
+
+4. אם קיים משתמש Supabase Auth:
+- לעדכן לו סיסמה באמצעות Admin API:
+  supabase.auth.admin.updateUserById(auth_user_id, { password })
+
+5. אם לא קיים משתמש Supabase Auth:
+- ליצור משתמש Auth חדש:
+  email: auth_email
+  password: password
+  email_confirm: true
+  user_metadata:
+    employee_id
+    full_name
+    role: instructor
+
+6. לאחר יצירה/עדכון:
+לעדכן public.users:
+- auth_user_id
+- auth_email
+- migrated_to_auth = true
+- is_active = true
+
+7. לנקות שימוש ב-entry_code:
+לאחר שמדריך עודכן בהצלחה, אם אפשר מבחינת הסכמה:
+- לאפס entry_code ל-null או לערך ריק.
+אם העמודה לא מאפשרת null, להשאיר אבל לוודא שה-frontend לא בוחר אותה ולא משתמש בה.
+
+8. להוסיף הגנות:
+- סיסמה ריקה אסורה.
+- סיסמה קצרה מדי אסורה.
+- סיסמה זהה למספר עובד אסורה.
+- לא להדפיס סיסמאות בלוגים.
+- להדפיס רק:
+  emp_id
+  auth_email
+  action: created / updated / skipped / failed
+
+9. לבדוק שמסך ההתחברות ממשיך לעבוד כך:
+שם משתמש: מספר עובד / username
+סיסמה: הסיסמה שהוגדרה עכשיו ב-Supabase Auth
+
+10. לעדכן את הטקסט במסך ההתחברות:
+במקום "קוד כניסה"
+לכתוב:
+"סיסמה / קוד כניסה"
+
+או:
+"סיסמה"
+
+כדי שלא יחשבו שזה קוד זמני מתוך users.entry_code.
+
+11. חשוב מאוד:
+לא לשבור התחברות של מנהלים קיימים.
+לא לשנות מנגנון כניסה של admin / operation_manager.
+השינוי מיועד לאפשר למדריכים פעילים להתחבר עם סיסמה מוגדרת ב-Supabase Auth.
+
+12. לאחר מכן לבדוק מדריך אחד לדוגמה:
+- כניסה עם emp_id
+- סיסמה שהוגדרה
+- הגעה למסכים:
+  הנתונים שלי
+  אישורי ביצוע למדריך
+
+13. אם קיימת עדיין רשימה קשיחה ACTIVE_INSTRUCTOR_EMP_IDS:
+לא להשתמש בה כמקור יחיד להרשאת התחברות.
+ההרשאה צריכה להגיע מהטבלאות:
+public.users:
+  role='instructor'
+  is_active=true
+ובמידת הצורך:
+contacts_instructors.active=true
+
+לאחר ביצוע, להציג לי סיכום:
+- כמה מדריכים עודכנו
+- כמה נוצרו ב-Auth
+- כמה כבר היו קיימים
+- מי נכשל ולמה
+בלי להציג סיסמאות.

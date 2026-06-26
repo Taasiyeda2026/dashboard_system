@@ -1,0 +1,113 @@
+ריפליט, בצע עדכון אבטחתי ומלא להתחברות מדריכים.
+
+אני רוצה לקבוע סיסמה אישית לכל מדריך דרך Supabase Auth בלבד.
+
+חשוב מאוד:
+לא להכניס סיסמאות לקוד.
+לא להכניס סיסמאות ל-GitHub.
+לא לשמור סיסמאות ב-frontend.
+לא להדפיס סיסמאות בלוגים.
+לא להשתמש בסיסמאות hard-coded.
+
+הסיסמאות יוזנו דרך Replit Secrets בלבד.
+
+יש ליצור Secret בשם:
+INSTRUCTOR_PASSWORDS_JSON
+
+הערך של ה-Secret הוא JSON Array במבנה:
+[
+  { "emp_id": "1502", "full_name": "שם מדריך", "password": "סיסמה" }
+]
+
+צור סקריפט חדש:
+scripts/set-instructor-auth-passwords.mjs
+
+הסקריפט צריך:
+1. לקרוא את:
+   SUPABASE_URL
+   SUPABASE_SERVICE_ROLE_KEY
+   INSTRUCTOR_PASSWORDS_JSON
+
+2. עבור כל מדריך ב-INSTRUCTOR_PASSWORDS_JSON:
+   - למצוא רשומה ב-public.users לפי:
+     emp_id = emp_id
+     או user_id = emp_id
+     או username = emp_id
+   - לוודא role='instructor'
+   - לוודא is_active=true
+   - אם אין רשומת users, ליצור או להחזיר שגיאה ברורה לפי החלטה בטוחה.
+
+3. לקבוע auth_email:
+   - אם יש users.auth_email להשתמש בו.
+   - אם אין, להשתמש ב:
+     emp_id@think.org.il
+
+4. לבדוק אם יש כבר users.auth_user_id:
+   - אם כן, לעדכן סיסמה דרך:
+     supabase.auth.admin.updateUserById(auth_user_id, { password })
+
+5. אם אין auth_user_id:
+   - לבדוק אם קיים Auth user לפי email.
+   - אם קיים, להשתמש בו ולעדכן סיסמה.
+   - אם לא קיים, ליצור Auth user חדש:
+     email: auth_email
+     password: password
+     email_confirm: true
+     user_metadata:
+       employee_id: emp_id
+       full_name
+       role: instructor
+
+6. לאחר הצלחה, לעדכן public.users:
+   auth_user_id
+   auth_email
+   migrated_to_auth = true
+   is_active = true
+
+7. אם אפשר, לנקות entry_code לאחר הצלחה:
+   entry_code = null
+   ואם העמודה לא מאפשרת null, להשאיר אבל לוודא שלא משתמשים בה יותר להתחברות.
+
+8. להוסיף בדיקות אבטחה:
+   - סיסמה ריקה אסורה.
+   - סיסמה חייבת להיות לפחות 4 תווים.
+   - לא להדפיס סיסמה בלוגים.
+   - בלוג להציג רק:
+     emp_id
+     full_name
+     auth_email
+     action: created / updated / skipped / failed
+     reason אם נכשל.
+
+9. להסיר תלות ברשימה הקשיחה:
+   ACTIVE_INSTRUCTOR_EMP_IDS
+
+במקום זה, מדריך יורשה להיכנס למסכי מדריך אם:
+public.users.role = 'instructor'
+public.users.is_active = true
+ובמידת האפשר גם:
+contacts_instructors.active = true
+
+10. לוודא שגם אילנה טיטייבסקי emp_id=1506 יכולה להתחבר אם היא קיימת כפעילה בטבלאות.
+
+11. לעדכן את מסך ההתחברות:
+במקום placeholder/text:
+"קוד כניסה"
+לכתוב:
+"סיסמה / קוד כניסה"
+
+או אם אפשר:
+"סיסמה"
+
+12. לא לשבור התחברות מנהלים קיימים.
+admin / operation_manager / domain_manager צריכים להמשיך להתחבר בדיוק כמו קודם.
+
+13. לאחר הרצה, להחזיר סיכום בלי סיסמאות:
+- כמה מדריכים עודכנו
+- כמה נוצרו ב-Auth
+- כמה כבר היו קיימים
+- מי נכשל ולמה
+- האם entry_code נוקה
+- האם הוסרה התלות ב-ACTIVE_INSTRUCTOR_EMP_IDS
+
+14. בסיום לבצע commit/deploy ולעדכן Service Worker + Cache.
