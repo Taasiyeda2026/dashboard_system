@@ -1275,6 +1275,10 @@ function buildGroupedScheduleHtml({ scheduleRows, state, selectedInstructorFilte
       group.authority ? `רשות: ${group.authority}` : '',
       group.school ? `בית ספר: ${group.school}` : ''
     ].filter(Boolean);
+    const metaHtml = [
+      group.authority ? `<strong>רשות:</strong> ${escapeHtml(group.authority)}` : '',
+      group.school ? `<strong>בית ספר:</strong> ${escapeHtml(group.school)}` : ''
+    ].filter(Boolean).join(' | ');
     const instructorHeader = showInstructor ? '<th>מדריך</th>' : '';
     const activityRows = group.entries.map((entry) => {
       const a = entry.activity;
@@ -1307,13 +1311,13 @@ function buildGroupedScheduleHtml({ scheduleRows, state, selectedInstructorFilte
     const overrideKey = [...groupSchoolIds].map((id) => overrideMap.get(`${groupDateStr}|${id}`)).find(Boolean)
       || overrideMap.get(`${groupDateStr}|${normalizePrintContactMatchText(group.school).replace(/[״"׳']/g, '').replace(/\s+/g, ' ').toLowerCase()}`);
     const responsibleName = String(overrideKey?.responsible_name || (contactRows.length && contactRows[0].responsibleName) || teamList[0] || '').trim() || 'לא הוגדר';
-    const teamHtml = `<div class="pb-team"><strong>מי איתי היום:</strong> ${escapeHtml(teamText)}</div><div class="pb-team"><strong>האחראי לאישור קיום הפעילות מול איש הקשר בבית הספר הוא:</strong> ${escapeHtml(responsibleName)}</div>`;
+    const teamHtml = `<div class="pb-team-block"><div class="pb-team"><strong>מי איתי היום:</strong> ${escapeHtml(teamText)}</div><div class="pb-team"><strong>האחראי לאישור קיום הפעילות מול איש הקשר בבית הספר הוא:</strong> ${escapeHtml(responsibleName)}</div></div>`;
     return `<div class="pb">
       <div class="pb-hdr">
         <span class="pb-date">${escapeHtml(dateLabel)}</span>
-        <span class="pb-meta">${metaParts.map(escapeHtml).join(' | ')}</span>
+        <span class="pb-meta">${metaHtml}</span>
       </div>
-      <table class="${tableClass}"><thead><tr><th>שעות</th><th>פעילות</th><th>מס׳ תלמידים</th><th>כיתה</th>${instructorHeader}</tr></thead>
+      <table class="${tableClass}"><thead><tr><th>שעות</th><th>פעילות</th><th>משתתפים</th><th>כיתה</th>${instructorHeader}</tr></thead>
       <tbody>${activityRows}</tbody></table>
       ${contactsHtml}
       ${teamHtml}
@@ -1338,17 +1342,18 @@ function printInstructorSchedule() {
     h1{margin:0 0 2px;font-size:14px;color:#0f172a}.subtitle{margin:0 0 14px;color:#475569;font-size:10.5px}
     .ops-print-grid{display:grid;grid-template-columns:1fr 1fr;gap:6px 8px;align-items:start}
     .pb{border:1px solid #cfd8dc;padding:5px 6px;page-break-inside:avoid;break-inside:avoid}
-    .pb-hdr{margin-bottom:3px;break-after:avoid;page-break-after:avoid}
-    .pb-date{font-weight:700;font-size:11px;color:#0369a1;margin-left:4px}
-    .pb-meta{font-size:11px;font-weight:700;color:#1e293b;display:block;line-height:1.3;margin-top:1px;text-align:center}
+    .pb-hdr{margin-bottom:5px;break-after:avoid;page-break-after:avoid;text-align:right}
+    .pb-date{font-weight:800;font-size:13px;color:#1d4ed8;display:block;text-align:right;margin-bottom:2px}
+    .pb-meta{font-size:10px;font-weight:400;color:#334155;display:block;line-height:1.4;margin-top:2px;text-align:right}
+    .pb-meta strong{font-weight:700;color:#0f172a}
     table{border-collapse:collapse;margin:0}
     .pb-act{width:100%;border-collapse:collapse;table-layout:fixed;break-before:avoid;page-break-before:avoid;break-inside:auto;page-break-inside:auto}
     .pb-act th,.pb-act td{border:1px solid #cbd5e1;padding:2px 4px;text-align:right;font-size:10px;line-height:1.2;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
     .pb-act th{background:#e6f6fb;font-weight:700}
-    .pb-contacts{margin-top:4px;break-before:avoid;page-break-before:avoid}
-    .pb-contacts h3{margin:0 0 2px;font-size:9.5px;color:#0f172a}
+    .pb-contacts{margin-top:5px;break-before:avoid;page-break-before:avoid}
+    .pb-contacts h3{margin:0 0 3px;font-size:10px;font-weight:800;color:#0f172a}
     .pb-contacts table{width:100%;table-layout:fixed;border-collapse:collapse}
-    .pb-contacts th,.pb-contacts td{border:1px solid #d7dee8;padding:1px 3px;text-align:right;font-size:8.5px;line-height:1.15;white-space:normal;overflow-wrap:anywhere}
+    .pb-contacts th,.pb-contacts td{border:1px solid #d7dee8;padding:2px 5px;text-align:right;font-size:9px;line-height:1.25;white-space:normal;overflow-wrap:anywhere}
     .pb-contacts th{background:#f1f5f9;font-weight:700}
     .pb-contacts th:nth-child(1),.pb-contacts td:nth-child(1){width:20%}
     .pb-contacts th:nth-child(2),.pb-contacts td:nth-child(2){width:38%}
@@ -1365,10 +1370,12 @@ function printInstructorSchedule() {
     .pb-act.has-instructor th:nth-child(4),.pb-act.has-instructor td:nth-child(4){width:13%;text-align:center}
     .pb-act.has-instructor th:nth-child(5),.pb-act.has-instructor td:nth-child(5){width:20%}
     .footer{margin-top:10px;font-size:12px;font-weight:700;color:#0f172a;text-align:center;border-top:1px solid #cbd5e1;padding-top:6px}
-    .pb-team{font-size:8.5px;line-height:1.3;margin-top:3px;color:#1e293b}
-    .pb-team strong{font-weight:700}
+    .pb-team-block{margin-top:6px;background:#f8fafc;border:1px solid #e2e8f0;border-radius:4px;padding:4px 7px;break-before:avoid;page-break-before:avoid}
+    .pb-team{font-size:9px;line-height:1.6;color:#1e293b}
+    .pb-team+.pb-team{margin-top:1px}
+    .pb-team strong{font-weight:700;color:#0f172a}
     @page{size:A4 portrait;margin:8mm}
-    @media print{body{margin:0}.pb{page-break-inside:avoid;break-inside:avoid}.pb-hdr{break-after:avoid;page-break-after:avoid}.pb-act,.pb-contacts,.pb-team{break-before:avoid;page-break-before:avoid;break-inside:auto;page-break-inside:auto}tr{break-inside:avoid;page-break-inside:avoid}}
+    @media print{body{margin:0}.pb{page-break-inside:avoid;break-inside:avoid}.pb-hdr{break-after:avoid;page-break-after:avoid}.pb-act,.pb-contacts,.pb-team-block{break-before:avoid;page-break-before:avoid;break-inside:auto;page-break-inside:auto}tr{break-inside:avoid;page-break-inside:avoid}}
   `;
   const bodyHtml = buildGroupedScheduleHtml(ctx);
   const printWindow = window.open('', '_blank');
