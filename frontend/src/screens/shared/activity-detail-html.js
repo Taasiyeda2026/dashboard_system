@@ -39,6 +39,21 @@ function managerFallback(v) {
   return activityManagerDisplayName(v);
 }
 
+function viewVal(v) {
+  return humanDisplayText(v) || '';
+}
+
+function viewMgr(v) {
+  return activityManagerDisplayName(v) || '';
+}
+
+function fieldViewCard(label, val) {
+  return `<div class="activity-drawer__field">
+    <div class="activity-drawer__label">${escapeHtml(label)}</div>
+    <div class="activity-drawer__view">${escapeHtml(String(val || ''))}</div>
+  </div>`;
+}
+
 function todayStr() {
   const d = new Date();
   const mm = String(d.getMonth() + 1).padStart(2, '0');
@@ -386,25 +401,30 @@ function headerHtml(row, { mode = 'single', summaryDate = '', exportAction = tru
       </div>
     `;
   }
-  return `
-    <div class="activity-drawer__header activity-drawer__header--sticky">
-      <div class="activity-drawer__header-top">
-        <div class="activity-drawer__heading">
-          <h2 class="activity-drawer__title">${escapeHtml(fallback(row?.activity_name))}</h2>
-          <div class="activity-drawer__meta activity-drawer__meta--compact">
-            <span>${escapeHtml(activityTypeLabel(row?.activity_type))}</span>
-            <span class="activity-drawer__meta-sep" aria-hidden="true">·</span>
-            <span class="activity-drawer__status">${escapeHtml(statusText(row?.status))}</span>
-            <span class="activity-drawer__meta-sep" aria-hidden="true">·</span>
-            <span>${escapeHtml(fallback(row?.school))}</span>
-            <span class="activity-drawer__meta-sep" aria-hidden="true">·</span>
-            <span>${escapeHtml(fallback(row?.authority))}</span>
+  {
+    const typeTag = activityTypeLabel(row?.activity_type);
+    const statusVal = statusText(row?.status);
+    const schoolVal = humanDisplayText(row?.school) || '';
+    const authorityVal = humanDisplayText(row?.authority) || '';
+    const isOpen = normStatus(row?.status) !== 'closed';
+    const metaTags = [
+      typeTag ? `<span class="activity-drawer__meta-tag">${escapeHtml(typeTag)}</span>` : '',
+      statusVal ? `<span class="activity-drawer__meta-tag activity-drawer__meta-tag--status${isOpen ? ' activity-drawer__meta-tag--open' : ' activity-drawer__meta-tag--closed'}">${escapeHtml(statusVal)}</span>` : '',
+      authorityVal ? `<span class="activity-drawer__meta-tag">${escapeHtml(authorityVal)}</span>` : '',
+      schoolVal ? `<span class="activity-drawer__meta-tag">${escapeHtml(schoolVal)}</span>` : '',
+    ].filter(Boolean).join('');
+    return `
+      <div class="activity-drawer__header activity-drawer__header--sticky">
+        <div class="activity-drawer__header-top">
+          <div class="activity-drawer__heading">
+            <h2 class="activity-drawer__title">${escapeHtml(fallback(row?.activity_name))}</h2>
+            <div class="activity-drawer__meta activity-drawer__meta--tags">${metaTags}</div>
           </div>
+          ${headerActionsHtml(exportAction)}
         </div>
-        ${headerActionsHtml(exportAction)}
       </div>
-    </div>
-  `;
+    `;
+  }
 }
 
 function blockActivityDetails(row, { settings = {} } = {}) {
@@ -558,6 +578,65 @@ function blockExtraEditInfo(row, { settings = {} } = {}) {
   `;
 }
 
+function blockViewOnce(row, { settings = {}, hideFunding = false } = {}) {
+  const instructorLookup = buildInstructorLookup(settings);
+  const contactsUsers = getValidInstructorUsers(settings || {});
+  const instr1 = instructorViewDisplay(
+    resolveActivityInstructorName(row) || resolveInstructorDisplayName(row.instructor_name, row.emp_id, instructorLookup),
+    row.emp_id, contactsUsers
+  );
+  const instr2 = instructorViewDisplay(
+    resolveActivityInstructorName(row, { secondary: true }) || resolveInstructorDisplayName(row.instructor_name_2, row.emp_id_2, instructorLookup),
+    row.emp_id_2, contactsUsers
+  );
+  const gradeVal = String(row.grade || '').trim();
+  const classGroupVal = String(row.class_group || '').trim();
+  const classLabel = [gradeVal, classGroupVal].filter(Boolean).join(' / ');
+  const hoursLabel = (String(row.start_time || '').trim() && String(row.end_time || '').trim())
+    ? formatTimeRangeShort(row.start_time, row.end_time)
+    : '';
+  const fundingDisplay = String(row.funding || '').trim();
+
+  return `
+    <section class="activity-drawer__section activity-drawer__card activity-drawer__card--once" data-mode="view" data-central-info-section>
+      <div class="activity-drawer__card-grid">
+        ${fieldViewCard('מנהל פעילות', viewMgr(row.activity_manager))}
+        ${fieldViewCard('מדריך/ה 1', viewVal(instr1))}
+        ${fieldViewCard('מדריך/ה 2', viewVal(instr2))}
+        ${fieldViewCard('כיתה / קבוצה', classLabel)}
+        ${fieldViewCard('שעות', hoursLabel)}
+        ${hideFunding ? '' : fieldViewCard('מימון', fundingDisplay)}
+      </div>
+    </section>
+  `;
+}
+
+function blockViewCourse(row, { settings = {} } = {}) {
+  const instructorLookup = buildInstructorLookup(settings);
+  const contactsUsers = getValidInstructorUsers(settings || {});
+  const instr1 = instructorViewDisplay(
+    resolveActivityInstructorName(row) || resolveInstructorDisplayName(row.instructor_name, row.emp_id, instructorLookup),
+    row.emp_id, contactsUsers
+  );
+  const gradeVal = String(row.grade || '').trim();
+  const classGroupVal = String(row.class_group || '').trim();
+  const classLabel = [gradeVal, classGroupVal].filter(Boolean).join(' / ');
+  const hoursLabel = (String(row.start_time || '').trim() && String(row.end_time || '').trim())
+    ? formatTimeRangeShort(row.start_time, row.end_time)
+    : '';
+
+  return `
+    <section class="activity-drawer__section activity-drawer__card activity-drawer__card--course" data-mode="view" data-central-info-section>
+      <div class="activity-drawer__card-grid">
+        ${fieldViewCard('מנהל פעילות', viewMgr(row.activity_manager))}
+        ${fieldViewCard('מדריך/ה', viewVal(instr1))}
+        ${fieldViewCard('כיתה / קבוצה', classLabel)}
+        ${fieldViewCard('שעות', hoursLabel)}
+      </div>
+    </section>
+  `;
+}
+
 function blockCentralInfo(row, { settings = {}, hideFunding = false } = {}) {
   const instructorLookup = buildInstructorLookup(settings);
   const contactsUsers = getValidInstructorUsers(settings || {});
@@ -641,24 +720,15 @@ function buildOneDayViewHtml(schedule, row, datesLoading) {
   }
   const firstMeeting = schedule[0] || {};
   const dateVal = String(firstMeeting?.date || '').trim();
-  const dateDisplay = dateVal ? formatDateHe(dateVal) : '—';
-  const weekdayDisplay = dateVal ? fmtWeekdayShort(dateVal) : '—';
-  const timeRange = (String(row.start_time || '').trim() && String(row.end_time || '').trim())
-    ? formatTimeRangeShort(row.start_time, row.end_time)
-    : '—';
+  const dateDisplay = dateVal ? formatDateHe(dateVal) : '';
+  const weekdayDisplay = dateVal ? fmtWeekdayShort(dateVal) : '';
   return `<div class="activity-drawer__oneday-info" data-mode="view" data-dates-view-chips>
-    <div class="activity-drawer__field">
-      <div class="activity-drawer__label">תאריך הפעילות</div>
-      <div class="activity-drawer__value" data-oneday-date-display>${escapeHtml(dateDisplay)}</div>
-    </div>
-    <div class="activity-drawer__field">
-      <div class="activity-drawer__label">יום בשבוע</div>
-      <div class="activity-drawer__value" data-oneday-weekday-display>${escapeHtml(weekdayDisplay)}</div>
-    </div>
-    <div class="activity-drawer__field">
-      <div class="activity-drawer__label">שעות הפעילות</div>
-      <div class="activity-drawer__value">${escapeHtml(timeRange)}</div>
-    </div>
+    ${dateDisplay || weekdayDisplay ? `<div class="activity-drawer__date-chip">
+      <span data-oneday-date-display>${escapeHtml(dateDisplay)}</span>
+      ${weekdayDisplay ? `<span class="activity-drawer__weekday" data-oneday-weekday-display>${escapeHtml(weekdayDisplay)}</span>` : `<span data-oneday-weekday-display></span>`}
+    </div>` : `<div class="activity-drawer__date-chip activity-drawer__date-chip--empty">
+      <span data-oneday-date-display></span><span data-oneday-weekday-display></span>
+    </div>`}
   </div>`;
 }
 
@@ -694,7 +764,7 @@ function blockDates(row, { canEdit = false, canDirectEdit = false, datesLoading 
     return `
       <section class="activity-drawer__section" data-dates-section${loadingAttr}>
         <div class="activity-drawer__section-head">
-          <h3 class="activity-drawer__section-title">תאריך ושעות פעילות</h3>
+          <h3 class="activity-drawer__section-title">מועד הפעילות</h3>
           ${canEdit ? `<button type="button" class="activity-drawer__action activity-drawer__action--subtle" data-action="start-edit" data-mode="view">${canDirectEdit ? 'עריכה' : 'בקשת שינוי'}</button>` : ''}
         </div>
         ${buildOneDayViewHtml(schedule, row, datesLoading)}
@@ -879,15 +949,10 @@ function blockPrivateNote(row, { privateNote = null, showPrivateNote = false } =
       : (row.operations_private_notes ?? row.private_note ?? '')
   ).trim();
 
-  const viewPart = privateValue
-    ? `<section class="activity-drawer__section activity-drawer__section--private-note" data-private-note-section>
-        <h3 class="activity-drawer__section-title">הערה תפעולית</h3>
-        <div class="activity-drawer__value activity-drawer__value--note" data-mode="view">${escapeHtml(privateValue)}</div>
-      </section>`
-    : `<div class="activity-drawer__compact-line" data-private-note-section data-mode="view">
-        <span class="activity-drawer__compact-label">הערה תפעולית:</span>
-        <span class="activity-drawer__compact-value">—</span>
-      </div>`;
+  const viewPart = `<section class="activity-drawer__section activity-drawer__section--private-note" data-private-note-section>
+      <h3 class="activity-drawer__section-title">הערה תפעולית</h3>
+      <div class="activity-drawer__value--note activity-drawer__value--notes-view" data-mode="view">${escapeHtml(privateValue)}</div>
+    </section>`;
 
   const editPart = `<div class="activity-drawer__edit" data-mode="edit" hidden>
     <div class="activity-drawer__field">
@@ -900,13 +965,14 @@ function blockPrivateNote(row, { privateNote = null, showPrivateNote = false } =
 }
 
 function blockNotes(row, { hidden = false } = {}) {
-  if (hidden || !String(row?.notes || '').trim()) return '';
+  if (hidden) return '';
+  const notesVal = String(row?.notes || '').trim();
   return `
     <section class="activity-drawer__section activity-drawer__section--notes" data-notes-section>
-      <h3 class="activity-drawer__section-title">הערות</h3>
-      <div class="activity-drawer__value activity-drawer__value--note" data-mode="view">${escapeHtml(fallback(row.notes))}</div>
+      <h3 class="activity-drawer__section-title">הערה</h3>
+      <div class="activity-drawer__value--note activity-drawer__value--notes-view" data-mode="view">${escapeHtml(notesVal)}</div>
       <div class="activity-drawer__edit" data-mode="edit" hidden>
-        ${textareaHtml({ name: 'notes', value: String(row.notes || ''), rows: 2 })}
+        ${textareaHtml({ name: 'notes', value: notesVal, rows: 2 })}
       </div>
     </section>
   `;
@@ -953,11 +1019,12 @@ function singleForm(row, { settings = {}, privateNote = null, canEdit = false, c
       ${editReqBadge}
       <input type="hidden" name="activity_no" value="${escapeHtml(String(row.activity_no || ''))}" data-activity-no>
       <input type="hidden" name="_activity_idx" value="${idx}">
-      ${blockCentralInfo(row, { settings, hideFunding: hideFundingInView || instructorLimited })}
+      ${isOnce
+        ? blockViewOnce(row, { settings, hideFunding: hideFundingInView || instructorLimited })
+        : blockViewCourse(row, { settings })}
       ${showDates ? blockDates(row, { canEdit, canDirectEdit, datesLoading }) : ''}
       ${blockNotes(row, { hidden: instructorLimited })}
       ${blockPrivateNote(row, { privateNote, showPrivateNote })}
-      ${blockAdditionalSupplemental(row, { hideSeason: hideSeasonInView })}
       ${blockActivityDetails(row, { settings })}
       ${blockAssignment(row, { settings })}
       ${blockTeamTimes(row, { settings })}
