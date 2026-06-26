@@ -80,6 +80,7 @@ const READ_ACTIONS = {
   adminSettings: true,
   adminLists: true,
   workshopStockDistributions: true,
+  instructorSchedulePrintContacts: true,
   listSheets: true,
   israaProgramTracking: true,
   israaSimulatorEntries: true,
@@ -4368,6 +4369,15 @@ async function readSchoolContactResponsiblesRows() {
   if (error) return [];
   return Array.isArray(data) ? data : [];
 }
+async function readInstructorSchedulePrintContactsRows() {
+  // This table is print-only and must not be treated as the source of truth for school contacts or activity data.
+  const { data, error } = await supabase
+    .from('instructor_schedule_print_contacts')
+    .select('id,season,external_key,authority,school,contact_name,contact_phone,school_address,city_or_authority,active,source_note,notes')
+    .eq('active', true);
+  if (error) return [];
+  return Array.isArray(data) ? data : [];
+}
 function contactResponsibleOverrideMap(rows = []) {
   const map = new Map();
   rows.forEach((row) => {
@@ -5015,6 +5025,10 @@ export const api = {
 
   schoolContactResponsibles: async () => {
     const rows = await readSchoolContactResponsiblesRows();
+    return { rows, _source: 'supabase' };
+  },
+  instructorSchedulePrintContacts: async () => {
+    const rows = await readInstructorSchedulePrintContactsRows();
     return { rows, _source: 'supabase' };
   },
   saveSchoolContactResponsible: async ({ activityDate, schoolId = '', school = '', responsibleEmpId = '', responsibleName = '' } = {}) => {

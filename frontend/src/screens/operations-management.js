@@ -640,6 +640,74 @@ function buildScheduleRows(rows, state, directory) {
   return sortScheduleRows(schedule, state, directory);
 }
 
+
+function normalizePrintContactMatchText(value) {
+  return String(value || '')
+    .trim()
+    .replace(/[״"]/g, '"')
+    .replace(/[׳']/g, "'")
+    .replace(/[\u2010-\u2015־]/g, '-')
+    .replace(/\s+/g, ' ')
+    .toLowerCase();
+}
+
+function loosePrintContactMatchText(value) {
+  return normalizePrintContactMatchText(value)
+    .replace(/["'`´]/g, '')
+    .replace(/[-–—־]/g, '')
+    .replace(/\b(בית ספר|ביהס|בי"ס|מקיף|חטיבת ביניים|חטיבה|יסודי)\b/g, '')
+    .replace(/\s+/g, '')
+    .trim();
+}
+
+function activitySchoolIdForPrint(activity = {}) {
+  return String(activity?.school_id || activity?.single_school_id || activity?.single_semel_mosad || '').trim();
+}
+
+function buildPrintContactRowsForGroup(group, printContacts = [], contactResponsibles = []) {
+  const authority = group?.authority || '';
+  const schools = uniqueSorted((group?.entries || []).map((entry) => getActivitySchoolDisplayNameClean(entry.activity)).filter(Boolean));
+  return schools.map((school) => {
+    const contact = findInstructorSchedulePrintContact(printContacts, { authority, school });
+    const responsible = findPrintContactResponsible(contactResponsibles, group?.entries || [], group?.date || '', school);
+    return {
+      school,
+      address: contact?.school_address || '',
+      contactName: contact?.contact_name || '',
+      contactPhone: contact?.contact_phone || '',
+      responsibleName: responsible?.responsible_name || ''
+    };
+  });
+}
+
+function findInstructorSchedulePrintContact(printContacts = [], { authority = '', school = '' } = {}) {
+  const authNorm = normalizePrintContactMatchText(authority);
+  const schoolNorm = normalizePrintContactMatchText(school);
+  const schoolLoose = loosePrintContactMatchText(school);
+  const activeRows = (Array.isArray(printContacts) ? printContacts : []).filter((row) => row?.active !== false);
+  return activeRows.find((row) => normalizePrintContactMatchText(row?.authority) === authNorm && normalizePrintContactMatchText(row?.school) === schoolNorm)
+    || activeRows.find((row) => normalizePrintContactMatchText(row?.authority) === authNorm && loosePrintContactMatchText(row?.school) === schoolLoose)
+    || activeRows.find((row) => loosePrintContactMatchText(row?.school) === schoolLoose)
+    || null;
+}
+
+function findPrintContactResponsible(contactResponsibles = [], entries = [], date = '', school = '') {
+  const activityDate = String(date || '').slice(0, 10);
+  const schoolNorm = normalizePrintContactMatchText(school);
+  const schoolLoose = loosePrintContactMatchText(school);
+  const ids = new Set((entries || []).map((entry) => activitySchoolIdForPrint(entry.activity)).filter(Boolean));
+  const rows = (Array.isArray(contactResponsibles) ? contactResponsibles : []).filter((row) => String(row?.activity_date || '').slice(0, 10) === activityDate);
+  return rows.find((row) => ids.has(String(row?.school_id || '').trim()))
+    || rows.find((row) => normalizePrintContactMatchText(row?.school) === schoolNorm)
+    || rows.find((row) => loosePrintContactMatchText(row?.school) === schoolLoose)
+    || null;
+}
+
+function printContactFallback(value) {
+  const text = String(value || '').trim();
+  return text || '—';
+}
+
 function compactSummaryLineHtml(items = []) {
   const text = items.filter((item) => item?.value !== undefined && item?.value !== null).map((item) => `${item.value} ${item.label}`).join(' · ');
   return text ? `<div class="ds-ops-mgmt-summary-line" dir="rtl">${escapeHtml(text)}</div>` : '';
@@ -1152,7 +1220,7 @@ function sumScheduleStudentCounts(scheduleRows = []) {
   }, 0);
 }
 
-function buildGroupedScheduleHtml({ scheduleRows, state, selectedInstructorFilter, directory, contactsIndex }) {
+function buildGroupedScheduleHtml({ scheduleRows, state, selectedInstructorFilter, directory, contactsIndex, printContacts = [], contactResponsiblesRows = [] }) {
   if (!scheduleRows || !scheduleRows.length) return '<p>אין פעילויות להדפסה.</p>';
   const ops = ensureOpsState(state);
   const showInstructor = !selectedInstructorFilter;
@@ -1195,6 +1263,9 @@ function buildGroupedScheduleHtml({ scheduleRows, state, selectedInstructorFilte
       return `<tr><td>${escapeHtml(entry.time || '—')}</td><td>${escapeHtml(getActivityName(a))}</td><td>${escapeHtml(studentCountLabel)}</td><td>${escapeHtml(getActivityGradeLabel(a) || '—')}</td>${instrCell}</tr>`;
     }).join('');
     const tableClass = showInstructor ? 'pb-act has-instructor' : 'pb-act';
+    const contactRows = buildPrintContactRowsForGroup(group, printContacts, contactResponsiblesRows);
+    const contactRowsHtml = contactRows.map((row) => `<tr><td>${escapeHtml(printContactFallback(row.school))}</td><td>${escapeHtml(printContactFallback(row.address))}</td><td>${escapeHtml(printContactFallback(row.contactName))}</td><td>${escapeHtml(printContactFallback(row.contactPhone))}</td><td>${escapeHtml(row.responsibleName || 'לא הוגדר')}</td></tr>`).join('');
+    const contactsHtml = contactRowsHtml ? `<section class="pb-contacts"><h3>פרטי קשר ואימות פעילות</h3><table><thead><tr><th>בית ספר</th><th>כתובת</th><th>איש קשר</th><th>טלפון</th><th>אחראי קשר מטעם תעשיידע</th></tr></thead><tbody>${contactRowsHtml}</tbody></table></section>` : '';
     return `<div class="pb">
       <div class="pb-hdr">
         <span class="pb-date">${escapeHtml(dateLabel)}</span>
@@ -1202,6 +1273,7 @@ function buildGroupedScheduleHtml({ scheduleRows, state, selectedInstructorFilte
       </div>
       <table class="${tableClass}"><thead><tr><th>שעות</th><th>פעילות</th><th>מס׳ תלמידים</th><th>כיתה</th>${instructorHeader}</tr></thead>
       <tbody>${activityRows}</tbody></table>
+      ${contactsHtml}
     </div>`;
   }).join('');
 
@@ -1230,6 +1302,11 @@ function printInstructorSchedule() {
     .pb-act{width:100%;border-collapse:collapse;table-layout:fixed;break-before:avoid;page-break-before:avoid;break-inside:auto;page-break-inside:auto}
     .pb-act th,.pb-act td{border:1px solid #cbd5e1;padding:2px 4px;text-align:right;font-size:10px;line-height:1.2;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
     .pb-act th{background:#e6f6fb;font-weight:700}
+    .pb-contacts{margin-top:4px;break-before:avoid;page-break-before:avoid}
+    .pb-contacts h3{margin:0 0 2px;font-size:9.5px;color:#0f172a}
+    .pb-contacts table{width:100%;table-layout:fixed;border-collapse:collapse}
+    .pb-contacts th,.pb-contacts td{border:1px solid #d7dee8;padding:1px 3px;text-align:right;font-size:8.5px;line-height:1.15;white-space:normal;overflow-wrap:anywhere}
+    .pb-contacts th{background:#f1f5f9;font-weight:700}
     .pb-act tr:nth-child(even) td{background:#f8fafc}
     .pb-act th:nth-child(1),.pb-act td:nth-child(1){width:24%;text-align:center}
     .pb-act th:nth-child(2),.pb-act td:nth-child(2){width:42%}
@@ -1242,7 +1319,7 @@ function printInstructorSchedule() {
     .pb-act.has-instructor th:nth-child(5),.pb-act.has-instructor td:nth-child(5){width:20%}
     .footer{margin-top:10px;font-size:12px;font-weight:700;color:#0f172a;text-align:center;border-top:1px solid #cbd5e1;padding-top:6px}
     @page{size:A4 portrait;margin:8mm}
-    @media print{body{margin:0}.pb{page-break-inside:avoid;break-inside:avoid}.pb-hdr{break-after:avoid;page-break-after:avoid}.pb-act{break-before:avoid;page-break-before:avoid;break-inside:auto;page-break-inside:auto}tr{break-inside:avoid;page-break-inside:avoid}}
+    @media print{body{margin:0}.pb{page-break-inside:avoid;break-inside:avoid}.pb-hdr{break-after:avoid;page-break-after:avoid}.pb-act,.pb-contacts{break-before:avoid;page-break-before:avoid;break-inside:auto;page-break-inside:auto}tr{break-inside:avoid;page-break-inside:avoid}}
   `;
   const bodyHtml = buildGroupedScheduleHtml(ctx);
   const printWindow = window.open('', '_blank');
@@ -1359,7 +1436,7 @@ function instructorsTabHtml(rows, state, data = {}, directory = buildSchoolsDire
   const scheduleRows = buildScheduleRows(rows, state, directory);
   const selectedInstructorFilter = String(filters.instructor || '').trim();
   const printTitle = selectedInstructorFilter ? selectedInstructorFilter : 'כל המדריכים';
-  _schedulePrintContext = { scheduleRows, state, selectedInstructorFilter, directory, contactsIndex };
+  _schedulePrintContext = { scheduleRows, state, selectedInstructorFilter, directory, contactsIndex, printContacts: data?.instructorSchedulePrintContactsRows || [], contactResponsiblesRows: data?.contactResponsiblesRows || [] };
 
   const tableRows = scheduleRows.map((entry) => {
     const activity = entry.activity;
@@ -1859,14 +1936,15 @@ function renderTab(rows, state, data, allPreparedRows = []) {
 
 export const operationsManagementScreen = {
   load: async ({ api }) => {
-    const [activities, lists, schoolsDirectory, contactsSchoolsRows, completionApprovalUploads, contactResponsibles, workshopStockDistributions] = await Promise.all([
+    const [activities, lists, schoolsDirectory, contactsSchoolsRows, completionApprovalUploads, contactResponsibles, workshopStockDistributions, instructorSchedulePrintContacts] = await Promise.all([
       api.allActivities(),
       api.adminLists().catch(() => ({ categories: [] })),
       readOperationsSchoolsDirectory(),
       readContactsSchools(),
       api.completionApprovalUploads().catch(() => ({ rows: [] })),
       api.schoolContactResponsibles().catch(() => ({ rows: [] })),
-      api.workshopStockDistributions ? api.workshopStockDistributions().catch(() => ({ rows: [] })) : Promise.resolve({ rows: [] })
+      api.workshopStockDistributions ? api.workshopStockDistributions().catch(() => ({ rows: [] })) : Promise.resolve({ rows: [] }),
+      api.instructorSchedulePrintContacts ? api.instructorSchedulePrintContacts().catch(() => ({ rows: [] })) : Promise.resolve({ rows: [] })
     ]);
     return {
       ...activities,
@@ -1877,7 +1955,8 @@ export const operationsManagementScreen = {
       contactsSchoolsRows,
       completionApprovalUploads: completionApprovalUploads?.rows || [],
       contactResponsiblesRows: contactResponsibles?.rows || [],
-      workshopStockDistributions: workshopStockDistributions?.rows || []
+      workshopStockDistributions: workshopStockDistributions?.rows || [],
+      instructorSchedulePrintContactsRows: instructorSchedulePrintContacts?.rows || []
     };
   },
   render(data, { state } = {}) {
