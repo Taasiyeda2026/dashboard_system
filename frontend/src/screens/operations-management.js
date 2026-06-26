@@ -1221,9 +1221,10 @@ function opsManagementStylesHtml() {
     .ds-ops-mgmt-screen .ds-ops-completion-col--date { width:105px; text-align:center; }
     .ds-ops-mgmt-screen .ds-ops-completion-col--authority { width:120px; }
     .ds-ops-mgmt-screen .ds-ops-completion-col--instructor { width:135px; }
-    .ds-ops-mgmt-screen .ds-ops-completion-col--school { width:170px; }
+    .ds-ops-mgmt-screen .ds-ops-completion-col--school { width:200px; }
     .ds-ops-mgmt-screen .ds-ops-completion-col--who { width:220px; }
-    .ds-ops-mgmt-screen .ds-ops-completion-col--contact { width:190px; }
+    .ds-ops-mgmt-screen .ds-ops-completion-col--contact { width:155px; }
+    .ds-ops-mgmt-screen .ds-ops-completion-col-contact-cell select { width:100%; max-width:150px; }
     .ds-ops-mgmt-screen .ds-ops-completion-col--status { width:105px; }
     .ds-ops-mgmt-screen .ds-ops-completion-col--actions { width:190px; text-align:center; }
     .ds-ops-mgmt-screen .ds-ops-completion-col-who-cell { white-space:normal; line-height:1.35; }
@@ -1972,7 +1973,7 @@ function buildContactContextMap(allRows, overrides) {
     const defaultResp = opsInstructorEntries(first)[0] || instructors[0] || { name: '', empId: '' };
     const responsibleEmpId = String(override?.responsible_emp_id || defaultResp.empId || '').trim();
     const responsibleName = String(override?.responsible_name || defaultResp.name || responsibleEmpId || '').trim();
-    const options = instructors.map((entry) => `<option value="${escapeHtml(entry.empId || entry.name)}" data-name="${escapeHtml(entry.name)}"${(entry.empId || entry.name) === responsibleEmpId || entry.name === responsibleName ? ' selected' : ''}>${escapeHtml(entry.name)}${entry.empId ? ` (${escapeHtml(entry.empId)})` : ''}</option>`).join('');
+    const options = instructors.map((entry) => `<option value="${escapeHtml(entry.empId || entry.name)}" data-name="${escapeHtml(entry.name)}"${(entry.empId || entry.name) === responsibleEmpId || entry.name === responsibleName ? ' selected' : ''}>${escapeHtml(entry.name)}</option>`).join('');
     const ctx = { instructors, responsibleEmpId, responsibleName, date, schoolId, school, options };
     result.set(key, ctx);
     if (schoolId && !result.has(`${date}|${schoolId}`)) result.set(`${date}|${schoolId}`, ctx);
@@ -2002,7 +2003,7 @@ function opsContactGroupsHtml(rows = [], overrides = [], uploadMap = new Map()) 
     const date = String(first?.start_date || first?.activity_date || '').slice(0, 10);
     const schoolId = String(first?.school_id || first?.single_school_id || '').trim();
     const school = String(first?.school || first?.single_school_name || first?.legacy_school || '').trim();
-    const options = instructors.map((entry) => `<option value="${escapeHtml(entry.empId || entry.name)}" data-name="${escapeHtml(entry.name)}"${(entry.empId || entry.name) === responsibleEmpId || entry.name === responsibleName ? ' selected' : ''}>${escapeHtml(entry.name)}${entry.empId ? ` (${escapeHtml(entry.empId)})` : ''}</option>`).join('');
+    const options = instructors.map((entry) => `<option value="${escapeHtml(entry.empId || entry.name)}" data-name="${escapeHtml(entry.name)}"${(entry.empId || entry.name) === responsibleEmpId || entry.name === responsibleName ? ' selected' : ''}>${escapeHtml(entry.name)}</option>`).join('');
     const handled = groupRows.some((row) => opsInstructorEntries(row).some((entry) => Array.from(uploadMap.values()).some((upload) => String(upload?.activity_date || '').trim().slice(0, 10) === date && normalizeOpsText(upload?.school) === normalizeOpsText(school) && normalizeOpsText(upload?.instructor_name) === normalizeOpsText(entry.name) && completionApprovalIsHandled(upload))));
     const highlightToday = date === todayIso && !handled;
     const rowClass = highlightToday ? ' class="ds-ops-work-today-row"' : '';
