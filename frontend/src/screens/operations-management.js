@@ -1264,8 +1264,8 @@ function buildGroupedScheduleHtml({ scheduleRows, state, selectedInstructorFilte
     }).join('');
     const tableClass = showInstructor ? 'pb-act has-instructor' : 'pb-act';
     const contactRows = buildPrintContactRowsForGroup(group, printContacts, contactResponsiblesRows);
-    const contactRowsHtml = contactRows.map((row) => `<tr><td>${escapeHtml(printContactFallback(row.school))}</td><td>${escapeHtml(printContactFallback(row.address))}</td><td>${escapeHtml(printContactFallback(row.contactName))}</td><td>${escapeHtml(printContactFallback(row.contactPhone))}</td><td>${escapeHtml(row.responsibleName || 'לא הוגדר')}</td></tr>`).join('');
-    const contactsHtml = contactRowsHtml ? `<section class="pb-contacts"><h3>פרטי קשר ואימות פעילות</h3><table><thead><tr><th>בית ספר</th><th>כתובת</th><th>איש קשר</th><th>טלפון</th><th>אחראי קשר מטעם תעשיידע</th></tr></thead><tbody>${contactRowsHtml}</tbody></table></section>` : '';
+    const contactRowsHtml = contactRows.map((row) => `<tr><td>${escapeHtml(printContactFallback(row.school))}</td><td>${escapeHtml(printContactFallback(row.address))}</td><td>${escapeHtml(printContactFallback(row.contactName))}</td><td>${escapeHtml(printContactFallback(row.contactPhone))}</td></tr>`).join('');
+    const contactsHtml = contactRowsHtml ? `<section class="pb-contacts"><h3>פרטי קשר ואימות פעילות</h3><table><thead><tr><th>בית ספר</th><th>כתובת</th><th>איש קשר</th><th>טלפון</th></tr></thead><tbody>${contactRowsHtml}</tbody></table></section>` : '';
     return `<div class="pb">
       <div class="pb-hdr">
         <span class="pb-date">${escapeHtml(dateLabel)}</span>
@@ -1307,6 +1307,10 @@ function printInstructorSchedule() {
     .pb-contacts table{width:100%;table-layout:fixed;border-collapse:collapse}
     .pb-contacts th,.pb-contacts td{border:1px solid #d7dee8;padding:1px 3px;text-align:right;font-size:8.5px;line-height:1.15;white-space:normal;overflow-wrap:anywhere}
     .pb-contacts th{background:#f1f5f9;font-weight:700}
+    .pb-contacts th:nth-child(1),.pb-contacts td:nth-child(1){width:20%}
+    .pb-contacts th:nth-child(2),.pb-contacts td:nth-child(2){width:38%}
+    .pb-contacts th:nth-child(3),.pb-contacts td:nth-child(3){width:24%}
+    .pb-contacts th:nth-child(4),.pb-contacts td:nth-child(4){width:18%}
     .pb-act tr:nth-child(even) td{background:#f8fafc}
     .pb-act th:nth-child(1),.pb-act td:nth-child(1){width:24%;text-align:center}
     .pb-act th:nth-child(2),.pb-act td:nth-child(2){width:42%}
