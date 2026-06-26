@@ -989,6 +989,7 @@ function jsonAttr(value) {
 function singleForm(row, { settings = {}, privateNote = null, canEdit = false, canDirectEdit = false, canRequestEdit = false, canDeleteActivity = false, showPrivateNote = false, idx = 0, datesLoading = false, instructorLimited = false } = {}) {
   const computedEnd = autoEndDate(row);
   const activityType = normalizeActivityTypeKey(row.activity_type || row.item_type);
+  const isOnce = ONCE_TYPES.includes(activityType);
   const isCourse = activityType === 'course';
   const isAfterSchool = activityType === 'after_school';
   const isWorkshop = activityType === 'workshop';
