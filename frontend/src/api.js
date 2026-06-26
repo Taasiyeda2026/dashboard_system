@@ -79,6 +79,7 @@ const READ_ACTIONS = {
   activityLayoutStatuses: true,
   adminSettings: true,
   adminLists: true,
+  workshopStockDistributions: true,
   listSheets: true,
   israaProgramTracking: true,
   israaSimulatorEntries: true,
@@ -108,7 +109,7 @@ const DASHBOARD_ACTIVITY_COLUMNS = [
 ].join(',');
 const DASHBOARD_ACTIVITY_MIN_COLUMNS = 'row_id,activity_family,activity_manager,activity_name,authority,school,instructor_name,instructor_name_2,emp_id,emp_id_2,start_date,end_date,status,activity_type';
 const SETTINGS_BOOTSTRAP_COLUMNS = 'key,value,description';
-const LISTS_BOOTSTRAP_COLUMNS = 'category,value,label,active,category_order,sort_order,activity_no,activity_name,activity_type,type,stock_quantity,stock_group_key';
+const LISTS_BOOTSTRAP_COLUMNS = 'category,value,label,active,category_order,sort_order,activity_no,activity_name,activity_type,type,stock_quantity,stock_group_key,stock_group_name,stock_item_name,stock_label';
 let settingsRowsCache = null;
 let settingsRowsPromise = null;
 let listsRowsCache = null;
@@ -5213,6 +5214,14 @@ export const api = {
     const supabaseData = await readListsFromSupabase();
     if (supabaseData) return supabaseData;
     return buildSupabaseErrorPayload({ categories: [] }, 'admin_lists_supabase_failed');
+  },
+
+  workshopStockDistributions: async () => {
+    const { data, error } = await supabase
+      .from('workshop_stock_distributions')
+      .select('*');
+    if (error) throw new Error(error.message || 'workshop_stock_distributions_read_failed');
+    return { rows: Array.isArray(data) ? data : [], _source: 'supabase' };
   },
   addProposalAgreement: async (payload) => {
     assertCanManageProposalsAgreementsApi();

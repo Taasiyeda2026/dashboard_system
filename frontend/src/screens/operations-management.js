@@ -811,7 +811,64 @@ function activityMatchesAnyOfficialWorkshop(activity = {}, catalogRows = []) {
   return catalogRows.some((workshop) => activityMatchesOfficialWorkshop(activity, workshop));
 }
 
-function workshopMetricsRows(rows, stockMap, catalogRows = []) {
+function distributionStockGroupKey(row = {}) {
+  return String(row?.stock_group_key || row?.stockGroupKey || row?.workshop_stock_group_key || row?.activity_no || '').trim();
+}
+
+function distributionInstructorName(row = {}) {
+  return String(row?.instructor_name || row?.instructor || row?.guide_name || row?.guide || row?.recipient_name || row?.employee_name || '').trim() || 'לא משויך';
+}
+
+
+function distributionDate(row = {}) {
+  for (const field of ['distribution_date', 'received_date', 'date', 'created_at']) {
+    const raw = String(row?.[field] || '').trim();
+    const iso = raw.match(/^(\d{4}-\d{2}-\d{2})/);
+    if (iso) return iso[1];
+  }
+  return '';
+}
+
+function distributionInDateRange(row = {}, dateFrom = '', dateTo = '') {
+  const date = distributionDate(row);
+  if (!date) return true;
+  if (dateFrom && date < dateFrom) return false;
+  if (dateTo && date > dateTo) return false;
+  return true;
+}
+
+function distributionQuantity(row = {}) {
+  for (const field of ['quantity_received', 'quantity', 'qty', 'amount']) {
+    const value = row?.[field];
+    if (value !== undefined && value !== '' && Number.isFinite(Number(value))) return Number(value);
+  }
+  return 0;
+}
+
+function workshopDistributionRowsForGroup(distributions = [], groupKey = '') {
+  const key = String(groupKey || '').trim();
+  return (Array.isArray(distributions) ? distributions : []).filter((row) => distributionStockGroupKey(row) === key);
+}
+
+function workshopInstructorStatus({ received, required }) {
+  if (required > 0 && received <= 0) return { label: 'לא קיבל מלאי', tone: 'danger' };
+  if (received > 0 && required <= 0) return { label: 'קיבל ללא פעילות', tone: 'warning' };
+  if (received < required) return { label: 'חסר אצל מדריך', tone: 'danger' };
+  if (received > required) return { label: 'עודף אצל מדריך', tone: 'info' };
+  return { label: 'תקין', tone: 'success' };
+}
+
+function workshopMainStatus(row) {
+  if (row.stockQuantity === null || row.stockQuantity === undefined) return { label: 'חסר נתון', tone: 'warning' };
+  if (row.requiredQuantity > row.stockQuantity) return { label: 'נדרש להזמין', tone: 'danger' };
+  const hasShortage = row.instructorRows.some((item) => item.balance < 0);
+  if (!hasShortage) return { label: 'תקין', tone: 'success' };
+  if (row.warehouseBalance > 0) return { label: 'להעביר מהמחסן', tone: 'info' };
+  if (row.instructorRows.some((item) => item.balance > 0)) return { label: 'נדרש ניוד בין מדריכים', tone: 'warning' };
+  return { label: 'חסר נתון', tone: 'warning' };
+}
+
+function workshopMetricsRows(rows, stockMap, catalogRows = [], distributions = [], dateRange = {}) {
   const groups = new Map();
   catalogRows.forEach((catalog) => {
     const key = catalog.stockGroupKey || `activity_${catalog.workshopNo || normalizeWorkshopKey(catalog.workshopName)}`;
@@ -838,16 +895,32 @@ function workshopMetricsRows(rows, stockMap, catalogRows = []) {
 
   return Array.from(groups.values()).map((group) => {
     const activityCount = group.activities.length;
-    const estimatedQuantity = activityCount * WORKSHOP_ESTIMATE_PER_ACTIVITY;
-    let actualQuantity = 0;
-    group.activities.forEach((activity) => {
-      const count = getActivityActualParticipantCount(activity);
-      actualQuantity += count !== null ? count : 0;
-    });
+    const requiredQuantity = sumOperationalQuantitiesFromActivities(group.activities);
+    const activitiesWithoutParticipants = group.activities.filter((activity) => getActivityActualParticipantCount(activity) === null).length;
     const stock = group.stockQuantity !== null && group.stockQuantity !== undefined && Number.isFinite(Number(group.stockQuantity))
       ? Number(group.stockQuantity)
       : null;
-    return {
+    const groupDistributions = workshopDistributionRowsForGroup(distributions, group.stockGroupKey).filter((dist) => distributionInDateRange(dist, dateRange.from, dateRange.to));
+    const instructorMap = new Map();
+    const ensureInstructor = (name) => {
+      const key = String(name || '').trim() || 'לא משויך';
+      if (!instructorMap.has(key)) instructorMap.set(key, { instructor: key, received: 0, required: 0 });
+      return instructorMap.get(key);
+    };
+    groupDistributions.forEach((dist) => {
+      ensureInstructor(distributionInstructorName(dist)).received += distributionQuantity(dist);
+    });
+    group.activities.forEach((activity) => {
+      ensureInstructor(getActivityInstructorName(activity)).required += getActivityOperationalQuantity(activity);
+    });
+    const instructorRows = Array.from(instructorMap.values()).map((item) => {
+      const balance = item.received - item.required;
+      return { ...item, balance, status: workshopInstructorStatus(item) };
+    }).sort((a, b) => a.instructor.localeCompare(b.instructor, 'he'));
+    const deliveredQuantity = groupDistributions.reduce((total, dist) => total + distributionQuantity(dist), 0);
+    const warehouseBalance = stock === null ? null : stock - deliveredQuantity;
+    const expectedBalance = stock === null ? null : stock - requiredQuantity;
+    const row = {
       stockGroupKey: group.stockGroupKey,
       workshopNo: group.linkedWorkshops.map((workshop) => workshop.workshopNo).filter(Boolean).join(', '),
       workshopNoDisplay: group.linkedWorkshops.map((workshop) => workshop.workshopNo).filter(Boolean).join(', '),
@@ -855,11 +928,19 @@ function workshopMetricsRows(rows, stockMap, catalogRows = []) {
       linkedWorkshops: group.linkedWorkshops,
       activities: group.activities,
       activityCount,
-      estimatedQuantity,
-      actualQuantity,
+      estimatedQuantity: requiredQuantity,
+      requiredQuantity,
+      actualQuantity: requiredQuantity,
       stockQuantity: stock,
-      gap: stock === null ? null : stock - estimatedQuantity
+      deliveredQuantity,
+      warehouseBalance,
+      expectedBalance,
+      activitiesWithoutParticipants,
+      instructorRows,
+      gap: expectedBalance
     };
+    row.status = workshopMainStatus(row);
+    return row;
   });
 }
 
@@ -928,9 +1009,12 @@ function opsManagementStylesHtml() {
     @media (max-width: 460px) { .ds-ops-mgmt-screen .ds-ops-mgmt-filters__grid { grid-template-columns:1fr; } }
     .ds-ops-mgmt-screen .ds-sort-indicator { display:inline-block; margin-inline-start:4px; font-size:10px; color:#0f8fa8; }
     .ds-ops-mgmt-screen .ds-ops-workshops-table-wrap { width:100%; }
-    .ds-ops-mgmt-screen .ds-ops-workshops-card { width:min(790px, 85%); margin-inline-start:auto; margin-inline-end:auto; }
+    .ds-ops-mgmt-screen .ds-ops-workshops-card { width:min(1180px, 96%); margin-inline-start:auto; margin-inline-end:auto; }
+    .ds-ops-mgmt-screen .ds-ops-workshops-context { width:min(1180px, 96%); margin:0 auto 10px; border:1px solid #dbeafe; background:#f8fbff; border-radius:12px; padding:10px 14px; color:#334155; font-size:13px; }
+    .ds-ops-mgmt-screen .ds-ops-workshops-context p { margin:2px 0; }
+    .ds-ops-mgmt-screen .ds-ops-workshops-note--warn { color:#9a3412; }
     .ds-ops-mgmt-screen .ds-ops-workshops-table { table-layout:fixed; width:100%; }
-    .ds-ops-mgmt-screen .ds-ops-workshops-table th,.ds-ops-mgmt-screen .ds-ops-workshops-table td { border:1px solid #94a3b8 !important; padding:4px 6px; }
+    .ds-ops-mgmt-screen .ds-ops-workshops-table th,.ds-ops-mgmt-screen .ds-ops-workshops-table td { border:1px solid #94a3b8 !important; padding:6px 8px; }
     .ds-ops-mgmt-screen .ds-ops-workshops-table tbody tr:hover td,
     .ds-ops-mgmt-screen .ds-ops-workshops-table tbody tr:active td,
     .ds-ops-mgmt-screen .ds-ops-workshops-table tbody tr:focus-visible td,
@@ -943,16 +1027,21 @@ function opsManagementStylesHtml() {
     .ds-ops-mgmt-screen .ds-ops-workshops-table .ds-ops-usage-cell:focus-within,
     .ds-ops-mgmt-screen .ds-ops-workshops-table .ds-ops-usage-cell:active { border:1px solid #94a3b8 !important; box-shadow:none; }
     .ds-ops-mgmt-screen .ds-ops-workshops-table th { background:#dbeafe; color:#1e3a8a; font-weight:800; font-size:12px; }
+    .ds-ops-mgmt-screen .ds-ops-workshop-col--no { width:10%; }
+    .ds-ops-mgmt-screen .ds-ops-workshop-col--name { width:24%; }
     .ds-ops-mgmt-screen .ds-ops-workshops-table th:nth-child(1),
-    .ds-ops-mgmt-screen .ds-ops-workshops-table td:nth-child(1) { width:76px; text-align:center; }
+    .ds-ops-mgmt-screen .ds-ops-workshops-table td:nth-child(1) { text-align:center; }
     .ds-ops-mgmt-screen .ds-ops-workshops-table th:nth-child(2),
-    .ds-ops-mgmt-screen .ds-ops-workshops-table td:nth-child(2) { text-align:right; white-space:normal; }
+    .ds-ops-mgmt-screen .ds-ops-workshops-table td:nth-child(2) { text-align:right; white-space:normal; line-height:1.35; }
     .ds-ops-mgmt-screen .ds-ops-workshops-table th:nth-child(n+3),
-    .ds-ops-mgmt-screen .ds-ops-workshops-table td:nth-child(n+3) { width:80px; text-align:center; }
+    .ds-ops-mgmt-screen .ds-ops-workshops-table td:nth-child(n+3) { text-align:center; white-space:nowrap; }
     .ds-ops-mgmt-screen .ds-ops-row--expanded td { background:color-mix(in srgb,#dbeafe 25%,#fff)!important; }
     .ds-ops-mgmt-screen .ds-ops-dist-input { width:72px; text-align:center; font-size:12px; padding:2px 4px; border:1px solid #94a3b8; border-radius:4px; background:#fff; }
-    .ds-ops-mgmt-screen .ds-ops-dist-table th:nth-child(n+2),.ds-ops-mgmt-screen .ds-ops-dist-table td:nth-child(n+2) { text-align:center; width:90px; }
-    .ds-ops-mgmt-screen .ds-ops-dist-table th:last-child,.ds-ops-mgmt-screen .ds-ops-dist-table td:last-child { width:60px; }
+    .ds-ops-mgmt-screen .ds-ops-workshop-detail { background:#f8fafc; border:1px solid #dbeafe; border-radius:12px; padding:10px; }
+    .ds-ops-mgmt-screen .ds-ops-workshop-detail-row > td { white-space:normal!important; text-align:right!important; }
+    .ds-ops-mgmt-screen .ds-ops-dist-table { table-layout:fixed; margin-top:8px; }
+    .ds-ops-mgmt-screen .ds-ops-dist-table th:nth-child(n+2),.ds-ops-mgmt-screen .ds-ops-dist-table td:nth-child(n+2) { text-align:center; white-space:nowrap; }
+    .ds-ops-mgmt-screen .ds-ops-estimate-mark { color:#9a3412; font-weight:800; }
     .ds-ops-mgmt-screen .ds-ops-stock-cell { white-space:nowrap; }
     .ds-ops-mgmt-screen .ds-ops-stock-input { width:64px; text-align:center; font-size:12px; padding:2px 4px; border:1px solid #94a3b8; border-radius:4px; background:#fff; }
     .ds-ops-mgmt-screen .ds-ops-stock-save-btn { background:#0369a1; color:#fff; border:none; border-radius:4px; padding:2px 6px; cursor:pointer; font-size:11px; margin-inline-start:2px; }
@@ -1267,55 +1356,70 @@ function instructorsTabHtml(rows, state, data = {}, directory = buildSchoolsDire
   </section>`;
 }
 
-function workshopsTabHtml(rows, state, stockMap, catalogRows = []) {
+function workshopStatusChip(status) {
+  return dsStatusChip(status?.label || '—', status?.tone || 'neutral');
+}
+
+function workshopInstructorDetailHtml(row) {
+  if (!row.instructorRows.length) return `<tr class="ds-ops-workshop-detail-row"><td colspan="8">${dsEmptyState('אין נתוני מדריכים או חלוקות בטווח הנוכחי')}</td></tr>`;
+  const body = row.instructorRows.map((item) => `<tr>
+    <td>${escapeHtml(item.instructor)}</td>
+    <td>${formatSignedNumberForRtl(item.received)}</td>
+    <td>${formatSignedNumberForRtl(item.required)}</td>
+    <td>${formatGapCell(item.balance, true)}</td>
+    <td>${workshopStatusChip(item.status)}</td>
+  </tr>`).join('');
+  return `<tr class="ds-ops-workshop-detail-row"><td colspan="8"><div class="ds-ops-workshop-detail">
+    <strong>פירוט לפי מדריך — ${escapeHtml(row.workshopName)}</strong>
+    <table class="ds-table ds-table--compact ds-ops-dist-table"><thead><tr><th>מדריך</th><th>קיבל</th><th>נדרש לפי פעילויות</th><th>יתרה אצל מדריך</th><th>סטטוס פעולה</th></tr></thead><tbody>${body}</tbody></table>
+  </div></td></tr>`;
+}
+
+function workshopsTabHtml(rows, state, stockMap, catalogRows = [], distributions = []) {
   const ops = ensureOpsState(state);
-  const allMetrics = sortByConfig(workshopMetricsRows(rows, stockMap, catalogRows), state, TAB_WORKSHOPS, {
+  const allMetrics = sortByConfig(workshopMetricsRows(rows, stockMap, catalogRows, distributions, { from: ops.dateFrom, to: ops.dateTo }), state, TAB_WORKSHOPS, {
     workshopNo: (row) => row.workshopNo || row.workshopName,
     workshopName: (row) => row.workshopName,
     activityCount: (row) => row.activityCount,
-    estimatedQuantity: (row) => row.estimatedQuantity,
+    estimatedQuantity: (row) => row.requiredQuantity,
   });
-  const metrics = allMetrics.filter((row) => row.activityCount !== 0 || row.estimatedQuantity !== 0 || row.actualQuantity !== 0);
-
+  const metrics = allMetrics.filter((row) => row.activityCount !== 0 || row.requiredQuantity !== 0 || row.deliveredQuantity !== 0);
+  const estimatedActivities = metrics.reduce((total, row) => total + row.activitiesWithoutParticipants, 0);
+  const totalActivities = metrics.reduce((total, row) => total + row.activityCount, 0);
   const table = metrics.length
-    ? dsTableWrap(`<table class="ds-table ds-table--compact ds-ops-mgmt-data-table ds-ops-workshops-table"><thead><tr>
+    ? dsTableWrap(`<table class="ds-table ds-table--compact ds-ops-mgmt-data-table ds-ops-workshops-table"><colgroup><col class="ds-ops-workshop-col--no"><col class="ds-ops-workshop-col--name"><col><col><col><col><col><col></colgroup><thead><tr>
         ${sortableTh(state, TAB_WORKSHOPS, 'workshopNo', 'מס׳ / קבוצה')}
-        ${sortableTh(state, TAB_WORKSHOPS, 'workshopName', 'שם פריט מלאי')}
-        ${sortableTh(state, TAB_WORKSHOPS, 'activityCount', 'כמות סדנאות')}
-        ${sortableTh(state, TAB_WORKSHOPS, 'estimatedQuantity', 'כמות נדרשת')}
-        <th>מלאי קיים</th>
-        <th>שימוש מלאי</th>
-        <th>יתרת מלאי</th>
+        ${sortableTh(state, TAB_WORKSHOPS, 'workshopName', 'שם הסדנה / פריט מלאי')}
+        <th>מלאי כולל</th>
+        <th>נמסר למדריכים</th>
+        <th>יתרה במחסן</th>
+        ${sortableTh(state, TAB_WORKSHOPS, 'estimatedQuantity', 'נדרש לפי פעילויות')}
+        <th>יתרה צפויה</th>
+        <th>סטטוס פעולה</th>
       </tr></thead><tbody>${metrics.map((row) => {
-        const defaultStock = row.stockQuantity ?? row.catalogStock;
-        const hasDefaultStock = defaultStock !== null && defaultStock !== undefined && Number.isFinite(Number(defaultStock));
-        const shownStock = hasDefaultStock ? Number(defaultStock) : '';
-        const stockDisplay = shownStock !== '' ? String(shownStock) : '—';
-        const requiredQuantity = row.estimatedQuantity;
-        const usage = normalizeInventoryUsage(row.actualQuantity);
-        const usageHtml = `<span class="ds-ops-usage-display">${usage}</span>`;
-        const stockValue = Number.isFinite(Number(shownStock)) ? Number(shownStock) : 0;
-        const usageValue = normalizeInventoryUsage(row.actualQuantity);
-        const remainderHtml = formatInventoryRemainder(stockValue, usageValue);
-        const stockAttr = hasDefaultStock ? ` value="${escapeHtml(String(shownStock))}"` : '';
-        return `<tr data-ops-stock-group="${escapeHtml(row.stockGroupKey || '')}">
-          <td>${escapeHtml(row.workshopNoDisplay || row.workshopNo || '—')}</td>
-          <td>${escapeHtml(row.workshopName)}</td>
-          <td>${row.activityCount}</td>
-          <td>${requiredQuantity}</td>
-          <td><span${stockAttr}>${escapeHtml(stockDisplay)}</span></td>
-          <td class="ds-ops-usage-cell">${usageHtml}</td>
-          <td>${remainderHtml}</td>
+        const isExpanded = ops.expandedWorkshop === row.stockGroupKey;
+        const mainRow = `<tr class="${isExpanded ? 'ds-ops-row--expanded' : ''}" data-ops-workshop-toggle="${escapeHtml(row.stockGroupKey || '')}" tabindex="0" role="button" aria-expanded="${isExpanded ? 'true' : 'false'}">
+          <td>${escapeHtml(row.workshopNoDisplay || row.workshopNo || row.stockGroupKey || '—')}</td>
+          <td>${escapeHtml(row.workshopName)}${row.activitiesWithoutParticipants ? ` <span class="ds-ops-estimate-mark" title="חלק מהחישוב מבוסס על ברירת מחדל ${WORKSHOP_ESTIMATE_PER_ACTIVITY} משתתפים">≈</span>` : ''}</td>
+          <td>${row.stockQuantity === null ? '<span class="ds-ops-mgmt-cell-muted">—</span>' : formatSignedNumberForRtl(row.stockQuantity)}</td>
+          <td>${formatSignedNumberForRtl(row.deliveredQuantity)}</td>
+          <td>${row.warehouseBalance === null ? '<span class="ds-ops-mgmt-cell-muted">—</span>' : formatGapCell(row.warehouseBalance, true)}</td>
+          <td>${formatSignedNumberForRtl(row.requiredQuantity)}</td>
+          <td>${row.expectedBalance === null ? '<span class="ds-ops-mgmt-cell-muted">—</span>' : formatGapCell(row.expectedBalance, true)}</td>
+          <td>${workshopStatusChip(row.status)}</td>
         </tr>`;
+        return mainRow + (isExpanded ? workshopInstructorDetailHtml(row) : '');
       }).join('')}</tbody></table>`)
-    : dsEmptyState('לא נמצאו סדנאות בתקופת הקיץ');
+    : dsEmptyState('לא נמצאו סדנאות בטווח הנבחר');
 
+  const estimateNote = estimatedActivities ? `<p class="ds-ops-workshops-note ds-ops-workshops-note--warn">חלק מהחישוב מבוסס על ברירת מחדל ${WORKSHOP_ESTIMATE_PER_ACTIVITY} משתתפים.</p>` : '';
   return `<section class="ds-ops-mgmt-panel ds-ops-workshops-panel" dir="rtl">
+    <div class="ds-ops-workshops-context"><p>החישוב מבוסס על טווח התאריכים שנבחר ועל נתוני הפעילויות והמלאי המעודכנים במערכת בזמן הצפייה.</p><p>טווח חישוב: ${escapeHtml(formatDateHe(ops.dateFrom))}–${escapeHtml(formatDateHe(ops.dateTo))} · פעילויות שנכללו: ${totalActivities}</p>${estimateNote}</div>
     <div class="ds-ops-mgmt-panel__toolbar no-print">
-      <button type="button" class="ds-btn ds-btn--sm ds-btn--primary" data-ops-print-workshops>הדפס כמויות סדנאות</button>
+      <button type="button" class="ds-btn ds-btn--sm ds-btn--primary" data-ops-print-workshops>הדפס מלאי סדנאות</button>
     </div>
-    <div class="ds-ops-mgmt-print-header only-print"><h2>מלאי סדנאות — קיץ 2026</h2><p>טווח: ${SUMMER_2026_FROM} – ${SUMMER_2026_TO}</p></div>
-    <div class="ds-ops-workshops-card">${dsCard({ title: `מלאי סדנאות — קיץ 2026`, badge: String(metrics.length), body: `<div class="ds-ops-workshops-table-wrap">${table}</div>`, padded: false })}</div>
+    <div class="ds-ops-mgmt-print-header only-print"><h2>מלאי סדנאות</h2><p>טווח: ${escapeHtml(formatDateHe(ops.dateFrom))} – ${escapeHtml(formatDateHe(ops.dateTo))}</p></div>
+    <div class="ds-ops-workshops-card">${dsCard({ title: 'מלאי סדנאות', badge: String(metrics.length), body: `<div class="ds-ops-workshops-table-wrap">${table}</div>`, padded: false })}</div>
   </section>`;
 }
 
@@ -1697,25 +1801,22 @@ function renderTab(rows, state, data, allPreparedRows = []) {
   }
   if (ops.tab === TAB_WORKSHOPS) {
     const catalogRows = extractWorkshopCatalogRows(data?.adminListsData, allPreparedRows);
-    const summerRows = allPreparedRows.filter((row) =>
-      activityMatchesPeriod(row, ACTIVITY_SEASON_SUMMER_2026) &&
-      activityOverlapsDateRange(row, SUMMER_2026_FROM, SUMMER_2026_TO) &&
-      activityMatchesAnyOfficialWorkshop(row, catalogRows)
-    );
-    return workshopsTabHtml(summerRows, state, stockMap, catalogRows);
+    const workshopRows = rows.filter((row) => activityMatchesAnyOfficialWorkshop(row, catalogRows));
+    return workshopsTabHtml(workshopRows, state, stockMap, catalogRows, data?.workshopStockDistributions || []);
   }
   return instructorsTabHtml(rows, state, data, directory, contactsIndex);
 }
 
 export const operationsManagementScreen = {
   load: async ({ api }) => {
-    const [activities, lists, schoolsDirectory, contactsSchoolsRows, completionApprovalUploads, contactResponsibles] = await Promise.all([
+    const [activities, lists, schoolsDirectory, contactsSchoolsRows, completionApprovalUploads, contactResponsibles, workshopStockDistributions] = await Promise.all([
       api.allActivities(),
       api.adminLists().catch(() => ({ categories: [] })),
       readOperationsSchoolsDirectory(),
       readContactsSchools(),
       api.completionApprovalUploads().catch(() => ({ rows: [] })),
-      api.schoolContactResponsibles().catch(() => ({ rows: [] }))
+      api.schoolContactResponsibles().catch(() => ({ rows: [] })),
+      api.workshopStockDistributions ? api.workshopStockDistributions().catch(() => ({ rows: [] })) : Promise.resolve({ rows: [] })
     ]);
     return {
       ...activities,
@@ -1725,7 +1826,8 @@ export const operationsManagementScreen = {
       adminListsData: lists,
       contactsSchoolsRows,
       completionApprovalUploads: completionApprovalUploads?.rows || [],
-      contactResponsiblesRows: contactResponsibles?.rows || []
+      contactResponsiblesRows: contactResponsibles?.rows || [],
+      workshopStockDistributions: workshopStockDistributions?.rows || []
     };
   },
   render(data, { state } = {}) {
@@ -1834,6 +1936,20 @@ export const operationsManagementScreen = {
     root.querySelector('[data-ops-print]')?.addEventListener('click', () => printInstructorSchedule());
     root.querySelector('[data-ops-print-workshops]')?.addEventListener('click', () => printWorkshopsFromDom(root));
     root.querySelector('[data-ops-print-schools]')?.addEventListener('click', () => printSchoolsSchedule());
+
+    root.querySelectorAll('[data-ops-workshop-toggle]').forEach((row) => {
+      const toggle = () => {
+        const key = row.getAttribute('data-ops-workshop-toggle') || '';
+        ops.expandedWorkshop = ops.expandedWorkshop === key ? '' : key;
+        rerender?.();
+      };
+      row.addEventListener('click', toggle);
+      row.addEventListener('keydown', (event) => {
+        if (event.key !== 'Enter' && event.key !== ' ') return;
+        event.preventDefault();
+        toggle();
+      });
+    });
 
     root.querySelector('[data-ops-approval-instructor]')?.addEventListener('change', (ev) => {
       ops.completionApproval.instructor = ev.target.value || '';
