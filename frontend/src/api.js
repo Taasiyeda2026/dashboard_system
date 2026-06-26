@@ -4423,12 +4423,14 @@ function completionApprovalUploadAllowedFile(file) {
 }
 
 function completionApprovalUploadPath({ approval, file, instructorEmpId }) {
-  const safeEmp = String(instructorEmpId || 'instructor').replace(/[^\w.-]+/g, '_');
-  const safeDate = String(approval?.date || 'date').replace(/[^\w.-]+/g, '_');
-  const safeSchool = String(approval?.school || 'school').replace(/[^\p{L}\p{N}_.-]+/gu, '_').slice(0, 80) || 'school';
-  const safeName = String(file?.name || 'approval').replace(/[^\p{L}\p{N}_.-]+/gu, '_').slice(-120);
-  const unique = `${Date.now()}-${Math.random().toString(36).slice(2, 8)}`;
-  return `${safeEmp}/${safeDate}/${safeSchool}/${unique}-${safeName}`;
+  const userId = String(instructorEmpId || 'u').replace(/[^a-zA-Z0-9]/g, '-').replace(/-+/g, '-').replace(/^-|-$/g, '') || 'u';
+  const rowId = String((Array.isArray(approval?.activities) ? approval.activities : []).map((a) => a?.rowId).filter(Boolean)[0] || '').replace(/[^a-zA-Z0-9]/g, '-').replace(/-+/g, '-').replace(/^-|-$/g, '');
+  const date = String(approval?.date || '').slice(0, 10).replace(/[^0-9]/g, '') || 'nd';
+  const segment = rowId ? `row-${rowId}` : `d-${date}`;
+  const ext = (String(file?.name || '').split('.').pop().toLowerCase().replace(/[^a-z0-9]/g, '') || 'bin').slice(0, 5);
+  const ts = Date.now();
+  const rand = Math.random().toString(36).slice(2, 8);
+  return `${userId}/${segment}/${ts}-${rand}.${ext}`;
 }
 
 function filterOperationsRows(rows, params = {}) {
