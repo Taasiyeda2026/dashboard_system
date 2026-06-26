@@ -16514,23 +16514,27 @@ details[open] > .ds-fin-acc__summary::before { transform: rotate(90deg); }
 }
 
 .ds-ops-completion-col--date {
+  width: 100px;
+}
+
+.ds-ops-completion-col--authority {
   width: 110px;
 }
 
 .ds-ops-completion-col--instructor {
-  width: 170px;
+  width: 150px;
 }
 
 .ds-ops-completion-col--school {
-  width: 220px;
+  width: 150px;
 }
 
 .ds-ops-completion-col--status {
-  width: 130px;
+  width: 120px;
 }
 
 .ds-ops-completion-col--actions {
-  width: 206px;
+  width: 120px;
 }
 
 .ds-ops-completion-preview th,
@@ -16551,14 +16555,44 @@ details[open] > .ds-fin-acc__summary::before { transform: rotate(90deg); }
   word-break: normal;
 }
 
+/* School column: truncate long names within completion table */
+.ds-ops-completion-preview td.ds-table-cell-wrap {
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  overflow-wrap: unset;
+  word-break: normal;
+}
+
 .ds-ops-completion-actions {
-  white-space: normal;
+  white-space: nowrap;
+  text-align: center;
 }
 
 .ds-ops-completion-actions .ds-btn {
   min-height: 26px;
   padding-inline: 0.38rem;
   margin: 0.08rem;
+}
+
+.ds-ops-icon-btn {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 26px;
+  height: 26px;
+  padding: 0;
+  border: none;
+  background: none;
+  border-radius: 6px;
+  cursor: pointer;
+  font-size: 0.9rem;
+  line-height: 1;
+  transition: background 0.15s;
+}
+
+.ds-ops-icon-btn:hover {
+  background: var(--ds-muted-bg, #f1f5f9);
 }
 
 .ds-ops-no-file-chip {
