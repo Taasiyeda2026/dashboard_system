@@ -1359,18 +1359,18 @@ function printInstructorSchedule() {
     .pb-contacts table{width:100%;table-layout:fixed;border-collapse:collapse}
     .pb-contacts th,.pb-contacts td{border:1px solid #d7dee8;padding:2px 5px;text-align:right;font-size:9px;line-height:1.25;white-space:normal;overflow-wrap:anywhere}
     .pb-contacts th{background:#f1f5f9;font-weight:700}
-    .pb-contacts th:nth-child(1),.pb-contacts td:nth-child(1){width:20%}
-    .pb-contacts th:nth-child(2),.pb-contacts td:nth-child(2){width:38%}
-    .pb-contacts th:nth-child(3),.pb-contacts td:nth-child(3){width:24%}
-    .pb-contacts th:nth-child(4),.pb-contacts td:nth-child(4){width:18%}
+    .pb-contacts th:nth-child(1),.pb-contacts td:nth-child(1){width:19%}
+    .pb-contacts th:nth-child(2),.pb-contacts td:nth-child(2){width:35.5%}
+    .pb-contacts th:nth-child(3),.pb-contacts td:nth-child(3){width:23.5%}
+    .pb-contacts th:nth-child(4),.pb-contacts td:nth-child(4){width:22%}
     .pb-act tr:nth-child(even) td{background:#f8fafc}
-    .pb-act th:nth-child(1),.pb-act td:nth-child(1){width:24%;text-align:center}
-    .pb-act th:nth-child(2),.pb-act td:nth-child(2){width:42%}
-    .pb-act th:nth-child(3),.pb-act td:nth-child(3){width:14%;text-align:center}
+    .pb-act th:nth-child(1),.pb-act td:nth-child(1){width:23%;text-align:center}
+    .pb-act th:nth-child(2),.pb-act td:nth-child(2){width:40.5%}
+    .pb-act th:nth-child(3),.pb-act td:nth-child(3){width:16.5%;text-align:center}
     .pb-act th:nth-child(4),.pb-act td:nth-child(4){width:20%;text-align:center}
-    .pb-act.has-instructor th:nth-child(1),.pb-act.has-instructor td:nth-child(1){width:20%;text-align:center}
-    .pb-act.has-instructor th:nth-child(2),.pb-act.has-instructor td:nth-child(2){width:34%}
-    .pb-act.has-instructor th:nth-child(3),.pb-act.has-instructor td:nth-child(3){width:13%;text-align:center}
+    .pb-act.has-instructor th:nth-child(1),.pb-act.has-instructor td:nth-child(1){width:19%;text-align:center}
+    .pb-act.has-instructor th:nth-child(2),.pb-act.has-instructor td:nth-child(2){width:32.5%}
+    .pb-act.has-instructor th:nth-child(3),.pb-act.has-instructor td:nth-child(3){width:15.5%;text-align:center}
     .pb-act.has-instructor th:nth-child(4),.pb-act.has-instructor td:nth-child(4){width:13%;text-align:center}
     .pb-act.has-instructor th:nth-child(5),.pb-act.has-instructor td:nth-child(5){width:20%}
     .footer{margin-top:10px;font-size:12px;font-weight:700;color:#0f172a;text-align:center;border-top:1px solid #cbd5e1;padding-top:6px}
