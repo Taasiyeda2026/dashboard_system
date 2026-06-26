@@ -1189,7 +1189,7 @@ function opsManagementStylesHtml() {
     .ds-ops-mgmt-screen .ds-ops-authorities-table .ds-ops-col--activity { width:33%; white-space:normal; word-break:break-word; }
     .ds-ops-mgmt-screen .ds-ops-authorities-table th,.ds-ops-mgmt-screen .ds-ops-authorities-table td { padding-top:0.25rem; padding-bottom:0.25rem; padding-inline:0.35rem; }
     .ds-ops-mgmt-screen .ds-ops-completion-panel { display:flex; justify-content:center; width:100%; }
-    .ds-ops-mgmt-screen .ds-ops-completion-workspace { width:max-content; max-width:100%; margin-inline:auto; display:flex; flex-direction:column; gap:10px; align-items:stretch; box-sizing:border-box; }
+    .ds-ops-mgmt-screen .ds-ops-completion-workspace { width:min(100%,980px); max-width:100%; margin-inline:auto; display:flex; flex-direction:column; gap:10px; align-items:stretch; box-sizing:border-box; padding-inline:12px; }
     .ds-ops-mgmt-screen .ds-ops-completion-control-card { width:100%; box-sizing:border-box; display:flex; flex-direction:column; align-items:flex-start; gap:10px; padding:14px 16px 12px; border:1px solid #d8e5ee; border-radius:16px; background:#f8fbfd; box-shadow:0 1px 2px rgba(15,23,42,0.04); }
     .ds-ops-mgmt-screen .ds-ops-completion-summary { width:100%; text-align:right; color:#0f172a; }
     .ds-ops-mgmt-screen .ds-ops-completion-summary { position:relative; }
@@ -1210,9 +1210,19 @@ function opsManagementStylesHtml() {
     .ds-ops-mgmt-screen .ds-ops-completion-subtabs { display:flex; flex-wrap:wrap; justify-content:flex-start; gap:6px; width:100%; padding-top:4px; border-top:1px solid #e2e8f0; }
     .ds-ops-mgmt-screen .ds-ops-completion-subtabs .ds-btn { border-radius:999px; }
     .ds-ops-mgmt-screen .ds-ops-completion-approvals-card { width:100%; margin:0; box-sizing:border-box; }
-    .ds-ops-mgmt-screen .ds-ops-completion-approvals-card .ds-card { width:100%; margin:0; box-sizing:border-box; }
-    .ds-ops-mgmt-screen .ds-ops-completion-approvals-card .ds-table-wrap { width:max-content; max-width:100%; box-sizing:border-box; }
-    .ds-ops-mgmt-screen .ds-ops-completion-preview { width:100%; }
+    .ds-ops-mgmt-screen .ds-ops-completion-approvals-card .ds-card { width:100%; margin:0; box-sizing:border-box; overflow:hidden; border-radius:16px; }
+    .ds-ops-mgmt-screen .ds-ops-completion-approvals-card .ds-card__body { padding:8px 10px 10px; }
+    .ds-ops-mgmt-screen .ds-ops-completion-approvals-card .ds-table-wrap { width:100%; max-width:100%; box-sizing:border-box; overflow-x:hidden; }
+    .ds-ops-mgmt-screen .ds-ops-completion-preview { width:100%; table-layout:fixed; }
+    .ds-ops-mgmt-screen .ds-ops-completion-preview th,.ds-ops-mgmt-screen .ds-ops-completion-preview td { padding:8px 10px; }
+    .ds-ops-mgmt-screen .ds-ops-completion-preview th:first-child,.ds-ops-mgmt-screen .ds-ops-completion-preview td:first-child { padding-inline-start:14px; padding-inline-end:14px; white-space:nowrap; }
+    .ds-ops-mgmt-screen .ds-ops-completion-col--date { width:118px; }
+    .ds-ops-mgmt-screen .ds-ops-completion-col--instructor { width:150px; }
+    .ds-ops-mgmt-screen .ds-ops-completion-col--school { width:auto; }
+    .ds-ops-mgmt-screen .ds-ops-completion-col--status { width:110px; }
+    .ds-ops-mgmt-screen .ds-ops-completion-col--actions { width:176px; }
+    .ds-ops-mgmt-screen .ds-ops-completion-actions { display:flex; flex-wrap:wrap; justify-content:center; gap:4px; white-space:normal; }
+    .ds-ops-mgmt-screen .ds-ops-completion-actions .ds-ops-icon-btn { flex:0 0 26px; }
     .ds-ops-mgmt-screen .ds-btn--success{background:#16a34a;color:#fff;border-color:#15803d}
     .ds-ops-mgmt-screen .ds-btn--success:hover{background:#15803d}
     .ds-ops-mgmt-screen .ds-ops-icon-btn{display:inline-flex;align-items:center;justify-content:center;width:26px;height:26px;padding:0;border:1px solid #cbd5e1;border-radius:6px;background:#f8fafc;cursor:pointer;font-size:13px;line-height:1;color:#334155;vertical-align:middle}
@@ -1244,6 +1254,20 @@ function opsManagementStylesHtml() {
     }
     @media print { .ds-ops-mgmt-screen .ds-ops-schools-authority:not(:first-child) { break-before:page; page-break-before:always; } .ds-ops-mgmt-screen .ds-ops-authority-date .ds-table-wrap { width:55%!important; max-width:55%!important; } .ds-ops-mgmt-screen .ds-ops-authority-date__title { width:55%!important; max-width:55%!important; } }
   </style>`;
+}
+
+function showOpsToast(msg, durationMs = 2500) {
+  const el = document.createElement('div');
+  el.setAttribute('role', 'status');
+  el.setAttribute('aria-live', 'polite');
+  el.style.cssText = 'position:fixed;inset-block-end:28px;inset-inline-start:50%;transform:translateX(-50%);z-index:9999;background:#1e293b;color:#f1f5f9;padding:10px 22px;border-radius:999px;font-size:14px;font-weight:600;box-shadow:0 6px 24px rgba(15,23,42,0.22);white-space:nowrap;pointer-events:none;opacity:0;transition:opacity .18s';
+  el.textContent = msg;
+  document.body.appendChild(el);
+  requestAnimationFrame(() => { el.style.opacity = '1'; });
+  setTimeout(() => {
+    el.style.opacity = '0';
+    setTimeout(() => { el.remove(); }, 200);
+  }, durationMs);
 }
 
 let _schedulePrintContext = null;
@@ -2248,6 +2272,7 @@ export const operationsManagementScreen = {
         btn.textContent = '…';
         try {
           await api.uploadCompletionApproval({ approval, file, instructorName: approval.instructorName });
+          showOpsToast('הקובץ הועלה בהצלחה ✓');
           clearScreenDataCache?.('operations-management');
           rerender?.();
         } catch (error) {
@@ -2302,6 +2327,7 @@ export const operationsManagementScreen = {
     root.querySelectorAll('[data-ops-upload-approve]').forEach((btn) => btn.addEventListener('click', async () => {
       try {
         await api.reviewCompletionApprovalUpload({ id: btn.getAttribute('data-ops-upload-approve'), status: 'approved' });
+        showOpsToast('האישור סומן כמאושר ✓');
         clearScreenDataCache?.('operations-management');
         rerender?.();
       } catch (error) { alert(`עדכון האישור נכשל: ${error?.message || error}`); }
@@ -2310,6 +2336,7 @@ export const operationsManagementScreen = {
       const reviewNote = prompt('הערת דחייה', '') || '';
       try {
         await api.reviewCompletionApprovalUpload({ id: btn.getAttribute('data-ops-upload-reject'), status: 'rejected', reviewNote });
+        showOpsToast('האישור נדחה');
         clearScreenDataCache?.('operations-management');
         rerender?.();
       } catch (error) { alert(`דחיית האישור נכשלה: ${error?.message || error}`); }

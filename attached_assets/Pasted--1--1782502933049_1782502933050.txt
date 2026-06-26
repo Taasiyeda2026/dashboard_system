@@ -1,0 +1,132 @@
+בצע תיקון נקודתי בלשונית:
+ניהול תפעול > אישורי ביצוע
+
+1. הסבר/שימור האייקונים:
+לא להסיר את האייקונים שנוספו לאחר העלאת קובץ.
+האייקונים תקינים:
+👁 צפייה באישור
+＋ העלאת אישור חתום
+📋 צפייה בקובץ החתום שהועלה
+⬇ הורדה
+✓ אישור קבלה
+✕ דחייה
+
+אבל יש לוודא שלכל אייקון יש title ו־aria-label ברורים.
+
+2. להוסיף הודעת אישור נעלמת לאחר פעולות:
+לאחר העלאת קובץ בהצלחה להציג הודעת toast נעלמת:
+"הקובץ הועלה בהצלחה"
+
+לאחר אישור קבלה:
+"האישור סומן כמאושר"
+
+לאחר דחייה:
+"האישור נדחה"
+
+ההודעה צריכה להופיע ל־2–3 שניות ולהיעלם לבד.
+לא להשתמש ב־alert להצלחה. alert רק לשגיאות.
+
+3. תיקון גלילה וריפוד בטבלת אישורי ביצוע:
+כיום אחרי העלאת קובץ מתווספים אייקונים לעמודת הפעולות והטבלה מתרחבת ונוצרת גלילה אופקית.
+יש לתקן CSS נקודתית עבור:
+.ds-ops-completion-preview
+.ds-ops-completion-approvals-card
+.ds-ops-completion-actions
+.ds-ops-completion-col--date
+.ds-ops-completion-col--actions
+
+הדרישות:
+- הטבלה לא תיצור גלילה אופקית בעמוד רגיל בדסקטופ.
+- עמודת התאריך לא תהיה צמודה לקצה.
+- להוסיף ריפוד פנימי לתאים ולמסגרת הטבלה.
+- להגדיר table-layout: fixed לטבלת אישורי ביצוע.
+- להגדיר רוחב ברור לעמודת התאריך.
+- להגדיר רוחב ברור לעמודת הפעולות.
+- אם אין מספיק מקום, האייקונים בעמודת הפעולות יכולים לרדת לשורה שנייה בתוך התא במקום לפתוח גלילה.
+- לא לבצע שינוי גלובלי לכל הטבלאות במערכת. רק לטבלת אישורי ביצוע בלשונית ניהול תפעול.
+
+CSS מוצע:
+
+.ds-ops-mgmt-screen .ds-ops-completion-workspace {
+  width: min(100%, 980px);
+  max-width: 100%;
+  padding-inline: 12px;
+}
+
+.ds-ops-mgmt-screen .ds-ops-completion-approvals-card .ds-card {
+  overflow: hidden;
+  border-radius: 16px;
+}
+
+.ds-ops-mgmt-screen .ds-ops-completion-approvals-card .ds-card__body {
+  padding: 8px 10px 10px;
+}
+
+.ds-ops-mgmt-screen .ds-ops-completion-approvals-card .ds-table-wrap {
+  width: 100%;
+  max-width: 100%;
+  overflow-x: hidden;
+}
+
+.ds-ops-mgmt-screen .ds-ops-completion-preview {
+  width: 100%;
+  table-layout: fixed;
+}
+
+.ds-ops-mgmt-screen .ds-ops-completion-preview th,
+.ds-ops-mgmt-screen .ds-ops-completion-preview td {
+  padding: 8px 10px;
+}
+
+.ds-ops-mgmt-screen .ds-ops-completion-col--date {
+  width: 118px;
+}
+
+.ds-ops-mgmt-screen .ds-ops-completion-col--instructor {
+  width: 150px;
+}
+
+.ds-ops-mgmt-screen .ds-ops-completion-col--school {
+  width: auto;
+}
+
+.ds-ops-mgmt-screen .ds-ops-completion-col--status {
+  width: 110px;
+}
+
+.ds-ops-mgmt-screen .ds-ops-completion-col--actions {
+  width: 176px;
+}
+
+.ds-ops-mgmt-screen .ds-ops-completion-preview th:first-child,
+.ds-ops-mgmt-screen .ds-ops-completion-preview td:first-child {
+  padding-inline-start: 14px;
+  padding-inline-end: 14px;
+  white-space: nowrap;
+}
+
+.ds-ops-mgmt-screen .ds-ops-completion-actions {
+  display: flex;
+  flex-wrap: wrap;
+  justify-content: center;
+  gap: 4px;
+  white-space: normal;
+}
+
+.ds-ops-mgmt-screen .ds-ops-completion-actions .ds-ops-icon-btn {
+  flex: 0 0 26px;
+}
+
+4. להוסיף פונקציית toast מקומית אם אין במערכת toast קיים.
+לא להכניס ספרייה חדשה.
+
+5. בסיום:
+- להריץ בדיקה עם העלאת PDF / JPG / PNG.
+- לוודא שמופיעה הודעת הצלחה נעלמת.
+- לוודא שהסטטוס הופך ל"הועלה".
+- לוודא שהאייקונים מופיעים.
+- לוודא שאין גלילה אופקית בעמוד.
+- לוודא שעמודת התאריך מרווחת ולא צמודה לקצה.
+
+6. לאחר התיקון:
+לבצע build/deploy ולעדכן Service Worker + Cache Version כדי שהשינוי ייטען בפועל.
