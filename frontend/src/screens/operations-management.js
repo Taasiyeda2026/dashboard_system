@@ -1277,7 +1277,7 @@ function buildGroupedScheduleHtml({ scheduleRows, state, selectedInstructorFilte
     </div>`;
   }).join('');
 
-  return `<div class="ops-print-page"><h1>שיבוץ פעילויות קיץ</h1><p class="subtitle">${escapeHtml(instructorLine)} | טווח תאריכים: ${escapeHtml(dateRange)} | סה״כ תלמידים: ${escapeHtml(String(studentTotal))}</p><div class="ops-print-grid">${blocks}</div><p class="footer">יש לוודא את קיום הפעילות מול איש הקשר בבית הספר לפחות 48 שעות לפני כל יום פעילות.</p></div>`;
+  return `<div class="ops-print-page"><h1>שיבוץ פעילויות קיץ</h1><p class="subtitle">${escapeHtml(instructorLine)}</p><div class="ops-print-grid">${blocks}</div><p class="footer">יש לוודא את קיום הפעילות מול איש הקשר בבית הספר לפחות 48 שעות לפני כל יום פעילות.</p></div>`;
 }
 
 function printInstructorSchedule() {
