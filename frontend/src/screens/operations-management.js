@@ -1974,7 +1974,10 @@ function buildContactContextMap(allRows, overrides) {
     grouped.get(key).rows.push(row);
   });
   const overrideMap = opsContactOverrideMap(overrides);
-  const result = new Map();
+  const instrKey = (entry) => entry.empId || entry.name;
+
+  // Pass 1: collect group metadata and instructors, sorted stably by key
+  const groupData = [];
   grouped.forEach(({ rows: groupRows, schoolId, school }, key) => {
     const first = groupRows.slice().sort((a, b) => String(a?.start_time || a?.StartTime || '').localeCompare(String(b?.start_time || b?.StartTime || '')))[0] || groupRows[0];
     const instructors = [];
@@ -1984,10 +1987,45 @@ function buildContactContextMap(allRows, overrides) {
     const date = String(first?.start_date || first?.activity_date || '').slice(0, 10);
     const overrideKey = schoolId ? `${date}|${schoolId}` : `${date}|${normalizeOpsText(school)}`;
     const override = overrideMap.get(overrideKey) || overrideMap.get(`${date}|${normalizeOpsText(school)}`);
-    const defaultResp = opsInstructorEntries(first)[0] || instructors[0] || { name: '', empId: '' };
-    const responsibleEmpId = String(override?.responsible_emp_id || defaultResp.empId || '').trim();
-    const responsibleName = String(override?.responsible_name || defaultResp.name || responsibleEmpId || '').trim();
-    const options = instructors.map((entry) => `<option value="${escapeHtml(entry.empId || entry.name)}" data-name="${escapeHtml(entry.name)}"${(entry.empId || entry.name) === responsibleEmpId || entry.name === responsibleName ? ' selected' : ''}>${escapeHtml(entry.name)}</option>`).join('');
+    groupData.push({ key, date, schoolId, school, instructors, override });
+  });
+  groupData.sort((a, b) => a.key.localeCompare(b.key));
+
+  // Pass 2: init load counter for all known instructors
+  const loadCounter = new Map();
+  const incr = (k) => loadCounter.set(k, (loadCounter.get(k) || 0) + 1);
+  groupData.forEach(({ instructors }) => instructors.forEach((e) => { if (!loadCounter.has(instrKey(e))) loadCounter.set(instrKey(e), 0); }));
+
+  // Pass 3: count manual overrides into load, then auto-assign the rest (stable, lowest-load)
+  const assignments = new Map();
+  groupData.forEach(({ key, instructors, override }) => {
+    if (override) {
+      const responsibleEmpId = String(override.responsible_emp_id || '').trim();
+      const responsibleName = String(override.responsible_name || responsibleEmpId || '').trim();
+      const matched = instructors.find((e) => (e.empId && e.empId === responsibleEmpId) || e.name === responsibleName || e.name === responsibleEmpId);
+      incr(matched ? instrKey(matched) : (responsibleEmpId || responsibleName));
+      assignments.set(key, { responsibleEmpId, responsibleName });
+      return;
+    }
+    if (!instructors.length) { assignments.set(key, { responsibleEmpId: '', responsibleName: '' }); return; }
+    let best = instructors[0];
+    for (let i = 1; i < instructors.length; i++) {
+      if ((loadCounter.get(instrKey(instructors[i])) || 0) < (loadCounter.get(instrKey(best)) || 0)) best = instructors[i];
+    }
+    incr(instrKey(best));
+    assignments.set(key, { responsibleEmpId: best.empId || '', responsibleName: best.name || best.empId || '' });
+  });
+
+  // Pass 4: build result — options show final load count per instructor
+  const result = new Map();
+  groupData.forEach(({ key, date, schoolId, school, instructors }) => {
+    const { responsibleEmpId, responsibleName } = assignments.get(key);
+    const options = instructors.map((entry) => {
+      const cnt = loadCounter.get(instrKey(entry)) || 0;
+      const label = cnt > 0 ? `${entry.name} (${cnt})` : entry.name;
+      const isSelected = (entry.empId && entry.empId === responsibleEmpId) || entry.name === responsibleName;
+      return `<option value="${escapeHtml(entry.empId || entry.name)}" data-name="${escapeHtml(entry.name)}"${isSelected ? ' selected' : ''}>${escapeHtml(label)}</option>`;
+    }).join('');
     const ctx = { instructors, responsibleEmpId, responsibleName, date, schoolId, school, options };
     result.set(key, ctx);
     if (schoolId && !result.has(`${date}|${schoolId}`)) result.set(`${date}|${schoolId}`, ctx);
@@ -2002,22 +2040,19 @@ function opsContactGroupsHtml(rows = [], overrides = [], uploadMap = new Map()) 
     if (!grouped.has(key)) grouped.set(key, []);
     grouped.get(key).push(row);
   });
-  const overrideMap = opsContactOverrideMap(overrides);
   const todayIso = localTodayIso();
+  const ctxMap = buildContactContextMap(rows, overrides);
   const body = Array.from(grouped.entries()).map(([key, groupRows]) => {
     const first = groupRows.slice().sort((a, b) => String(a?.start_time || a?.StartTime || '').localeCompare(String(b?.start_time || b?.StartTime || '')))[0] || groupRows[0];
-    const instructors = [];
-    groupRows.forEach((row) => opsInstructorEntries(row).forEach((entry) => {
-      if (!instructors.some((item) => (item.empId && item.empId === entry.empId) || (!item.empId && item.name === entry.name))) instructors.push(entry);
-    }));
-    const override = overrideMap.get(key);
-    const defaultResp = opsInstructorEntries(first)[0] || instructors[0] || { name: '', empId: '' };
-    const responsibleEmpId = String(override?.responsible_emp_id || defaultResp.empId || '').trim();
-    const responsibleName = String(override?.responsible_name || defaultResp.name || responsibleEmpId || '').trim();
     const date = String(first?.start_date || first?.activity_date || '').slice(0, 10);
-    const schoolId = String(first?.school_id || first?.single_school_id || '').trim();
     const school = String(first?.school || first?.single_school_name || first?.legacy_school || '').trim();
-    const options = instructors.map((entry) => `<option value="${escapeHtml(entry.empId || entry.name)}" data-name="${escapeHtml(entry.name)}"${(entry.empId || entry.name) === responsibleEmpId || entry.name === responsibleName ? ' selected' : ''}>${escapeHtml(entry.name)}</option>`).join('');
+    const schoolId = String(first?.school_id || first?.single_school_id || '').trim();
+    const ctxKey = `${date}|${normalizeOpsText(school)}`;
+    const ctx = ctxMap.get(ctxKey) || ctxMap.get(`${date}|${schoolId}`);
+    const instructors = ctx?.instructors || [];
+    const responsibleEmpId = ctx?.responsibleEmpId || '';
+    const responsibleName = ctx?.responsibleName || '';
+    const options = ctx?.options || '';
     const handled = groupRows.some((row) => opsInstructorEntries(row).some((entry) => Array.from(uploadMap.values()).some((upload) => String(upload?.activity_date || '').trim().slice(0, 10) === date && normalizeOpsText(upload?.school) === normalizeOpsText(school) && normalizeOpsText(upload?.instructor_name) === normalizeOpsText(entry.name) && completionApprovalIsHandled(upload))));
     const highlightToday = date === todayIso && !handled;
     const rowClass = highlightToday ? ' class="ds-ops-work-today-row"' : '';
