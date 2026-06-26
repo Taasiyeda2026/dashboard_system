@@ -16454,6 +16454,12 @@ details[open] > .ds-fin-acc__summary::before { transform: rotate(90deg); }
   flex-wrap: wrap;
 }
 
+.ds-ops-completion-title-bar {
+  width: 100%;
+  max-width: 1120px;
+  margin-inline: auto;
+}
+
 .ds-ops-completion-approvals-card {
   width: 100%;
   max-width: 1120px;
