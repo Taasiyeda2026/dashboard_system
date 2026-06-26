@@ -1213,6 +1213,23 @@ function opsManagementStylesHtml() {
     .ds-ops-mgmt-screen .ds-ops-completion-approvals-card .ds-card { width:100%; margin:0; box-sizing:border-box; }
     .ds-ops-mgmt-screen .ds-ops-completion-approvals-card .ds-table-wrap { width:max-content; max-width:100%; box-sizing:border-box; }
     .ds-ops-mgmt-screen .ds-ops-completion-preview { width:100%; }
+    .ds-ops-mgmt-screen .ds-btn--success{background:#16a34a;color:#fff;border-color:#15803d}
+    .ds-ops-mgmt-screen .ds-btn--success:hover{background:#15803d}
+    .ds-ops-mgmt-screen .ds-ops-icon-btn{display:inline-flex;align-items:center;justify-content:center;width:26px;height:26px;padding:0;border:1px solid #cbd5e1;border-radius:6px;background:#f8fafc;cursor:pointer;font-size:13px;line-height:1;color:#334155;vertical-align:middle}
+    .ds-ops-mgmt-screen .ds-ops-icon-btn:hover{background:#e2e8f0;border-color:#94a3b8}
+    .ds-ops-mgmt-screen .ds-ops-icon-btn--muted{cursor:default;opacity:0.45;border-style:dashed;pointer-events:none}
+    .ds-ops-mgmt-screen .ds-ops-icon-btn--approve{background:#dcfce7;border-color:#86efac;color:#166534}
+    .ds-ops-mgmt-screen .ds-ops-icon-btn--approve:hover{background:#bbf7d0}
+    .ds-ops-mgmt-screen .ds-ops-icon-btn--reject{background:#fee2e2;border-color:#fca5a5;color:#991b1b}
+    .ds-ops-mgmt-screen .ds-ops-icon-btn--reject:hover{background:#fecaca}
+    .ds-ops-mgmt-screen .ds-ops-approval-add-dialog{padding:0;border:1px solid #d8e5ee;border-radius:16px;box-shadow:0 14px 40px rgba(15,23,42,0.18);max-width:520px;width:92vw}
+    .ds-ops-mgmt-screen .ds-ops-approval-add-dialog::backdrop{background:rgba(0,0,0,0.35)}
+    .ds-ops-mgmt-screen .ds-ops-approval-add-dialog__inner{padding:20px 22px 18px;display:flex;flex-direction:column;gap:14px;direction:rtl}
+    .ds-ops-mgmt-screen .ds-ops-approval-add-dialog__title{margin:0;font-size:17px;font-weight:800;color:#0f172a}
+    .ds-ops-mgmt-screen .ds-ops-approval-add-dialog__hint{margin:0;font-size:13px;color:#475569}
+    .ds-ops-mgmt-screen .ds-ops-approval-add-dialog__label{display:flex;flex-direction:column;gap:5px;font-size:13px;font-weight:700;color:#334155}
+    .ds-ops-mgmt-screen .ds-ops-approval-add-dialog__label select{width:100%}
+    .ds-ops-mgmt-screen .ds-ops-approval-add-dialog__actions{display:flex;gap:8px;justify-content:flex-start}
     @media (max-width: 640px) {
       .ds-ops-mgmt-screen .ds-ops-completion-workspace { width:100%; }
       .ds-ops-mgmt-screen .ds-ops-completion-control-card { padding:12px; }
@@ -1956,14 +1973,21 @@ function completionApprovalTabHtml(rows, state, data = {}, directory = buildScho
       <td class="ds-table-cell-truncate">${escapeHtml(approval.instructorName || '')}</td>
       <td class="ds-table-cell-wrap">${escapeHtml(approval.school || '')}</td>
       <td class="ds-table-cell-truncate">${escapeHtml(completionApprovalUploadStatusLabel(upload))}</td>
-      <td class="ds-ops-completion-actions no-print"><button type="button" class="ds-btn ds-btn--xs ds-btn--ghost" data-ops-approval-view="${displayIndex}">צפייה באישור</button> ${hasFile
-        ? `<button type="button" class="ds-btn ds-btn--xs ds-btn--ghost" data-ops-upload-view="${escapeHtml(upload.id)}">צפייה בקובץ חתום</button> <button type="button" class="ds-btn ds-btn--xs ds-btn--ghost" data-ops-upload-download="${escapeHtml(upload.id)}">הורדה</button> <button type="button" class="ds-btn ds-btn--xs ds-btn--primary" data-ops-upload-approve="${escapeHtml(upload.id)}">אישור</button> <button type="button" class="ds-btn ds-btn--xs ds-btn--danger" data-ops-upload-reject="${escapeHtml(upload.id)}">דחייה</button>`
-        : '<span class="ds-chip ds-chip--neutral ds-ops-no-file-chip">אין קובץ חתום</span>'}</td>
+      <td class="ds-ops-completion-actions no-print"><button type="button" class="ds-ops-icon-btn" data-ops-approval-view="${displayIndex}" title="צפייה באישור" aria-label="צפייה באישור">👁</button> ${hasFile
+        ? `<button type="button" class="ds-ops-icon-btn" data-ops-upload-view="${escapeHtml(upload.id)}" title="צפייה בקובץ חתום" aria-label="צפייה בקובץ חתום">📋</button> <button type="button" class="ds-ops-icon-btn" data-ops-upload-download="${escapeHtml(upload.id)}" title="הורדה" aria-label="הורדה">⬇</button> <button type="button" class="ds-ops-icon-btn ds-ops-icon-btn--approve" data-ops-upload-approve="${escapeHtml(upload.id)}" title="אישור קבלה" aria-label="אישור קבלה">✓</button> <button type="button" class="ds-ops-icon-btn ds-ops-icon-btn--reject" data-ops-upload-reject="${escapeHtml(upload.id)}" title="דחייה" aria-label="דחייה">✕</button>`
+        : '<span class="ds-ops-icon-btn ds-ops-icon-btn--muted" title="אין קובץ חתום" aria-label="אין קובץ חתום">📄</span>'}</td>
     </tr>`;
   }).join('');
   const printInstructorOptions = completionApprovalPrintInstructorOptions(approvals);
   const printInstructorSelect = `<label class="ds-ops-approval-print-filter"><select class="ds-input ds-input--sm" aria-label="סינון מדריך" data-ops-approval-print-instructor><option value="">כל המדריכים</option>${printInstructorOptions.map((name) => `<option value="${escapeHtml(name)}"${approvalState.printInstructor === name ? ' selected' : ''}>${escapeHtml(name)}</option>`).join('')}</select></label>`;
-  const printToolbar = `<div class="ds-ops-completion-control-row ds-ops-completion-filter-toolbar ds-ops-approval-print-toolbar no-print" dir="rtl">${dateFilterHtml}${printInstructorSelect}<button type="button" class="ds-btn ds-btn--sm ds-btn--primary ds-ops-approval-print-btn" data-ops-approval-print-all>הדפסה</button></div>`;
+  const addApprovalSelectOptions = allItems.map(({ approval, upload }, index) => {
+    const hasFile = !!upload?.file_path;
+    const dateLabel = formatDateHe(approval.date) || approval.date || '';
+    const label = [dateLabel, approval.instructorName, approval.school].filter(Boolean).join(' | ');
+    return `<option value="${index}">${escapeHtml(label)}${hasFile ? ' ✓' : ''}</option>`;
+  }).join('');
+  const addApprovalDialog = `<dialog class="ds-ops-approval-add-dialog" data-ops-approval-add-dialog><div class="ds-ops-approval-add-dialog__inner"><h3 class="ds-ops-approval-add-dialog__title">הוספת / צפייה באישור ביצוע</h3><p class="ds-ops-approval-add-dialog__hint">בחר פעילות כדי לצפות ולהדפיס את טופס אישור הביצוע שלה.</p><label class="ds-ops-approval-add-dialog__label">פעילות<select class="ds-input ds-input--sm" data-ops-approval-add-select><option value="">— בחר פעילות —</option>${addApprovalSelectOptions}</select></label><div class="ds-ops-approval-add-dialog__actions"><button type="button" class="ds-btn ds-btn--sm ds-btn--primary" data-ops-approval-add-open>פתח / הדפס אישור</button><button type="button" class="ds-btn ds-btn--sm ds-btn--ghost" data-ops-approval-add-close>סגור</button></div></div></dialog>`;
+  const printToolbar = `<div class="ds-ops-completion-control-row ds-ops-completion-filter-toolbar ds-ops-approval-print-toolbar no-print" dir="rtl">${dateFilterHtml}${printInstructorSelect}<button type="button" class="ds-btn ds-btn--sm ds-btn--primary ds-ops-approval-print-btn" data-ops-approval-print-all>הדפסה</button><button type="button" class="ds-btn ds-btn--sm ds-btn--success" data-ops-approval-add>＋ הוספת אישור</button></div>${addApprovalDialog}`;
   _completionApprovalPrintContext = { approvals: items.map((item) => item.approval), uploads: data?.completionApprovalUploads || [] };
   const contactRows = (selectedDate || selectedPrintInstructor || approvalState.instructor) ? summerRows.filter((row) => items.some((item) => String(item.approval.date || '').slice(0, 10) === String(row.start_date || row.activity_date || '').slice(0, 10) && String(item.approval.school || '').trim() === String(row.school || row.single_school_name || row.legacy_school || '').trim())) : summerRows;
   const table = items.length
@@ -1972,7 +1996,7 @@ function completionApprovalTabHtml(rows, state, data = {}, directory = buildScho
   const subtabs = `<div class="ds-ops-completion-subtabs no-print" role="tablist" aria-label="תתי לשוניות אישורי ביצוע"><button type="button" class="ds-btn ds-btn--sm ${activeSubtab === 'approvals' ? 'ds-btn--primary' : 'ds-btn--ghost'}" data-ops-completion-subtab="approvals" role="tab" aria-selected="${activeSubtab === 'approvals' ? 'true' : 'false'}">אישורי ביצוע</button><button type="button" class="ds-btn ds-btn--sm ${activeSubtab === 'contacts' ? 'ds-btn--primary' : 'ds-btn--ghost'}" data-ops-completion-subtab="contacts" role="tab" aria-selected="${activeSubtab === 'contacts' ? 'true' : 'false'}">אחראי קשר</button></div>`;
   const activePanel = activeSubtab === 'contacts'
     ? opsContactGroupsHtml(contactRows, data?.contactResponsiblesRows || [], uploadMap) || dsEmptyState('לא נמצאו אחראי קשר בטווח הנוכחי')
-    : `<div class="ds-ops-completion-approvals-card">${dsCard({ title: 'אישורי ביצוע', body: table, padded: false })}</div>`;
+    : `<div class="ds-ops-completion-approvals-card">${dsCard({ body: table, padded: false })}</div>`;
   return `<section class="ds-ops-mgmt-panel ds-ops-completion-panel" dir="rtl">
     <div class="ds-ops-completion-workspace">
       <div class="ds-ops-completion-control-card no-print">
@@ -2210,6 +2234,20 @@ export const operationsManagementScreen = {
       const approvals = _completionApprovalPrintContext?.approvals || [];
       printCompletionApprovals(approvals, approvalsBatchTitle(approvals, selectedInstructor || 'כל המדריכים'));
     }));
+    root.querySelector('[data-ops-approval-add]')?.addEventListener('click', () => {
+      root.querySelector('[data-ops-approval-add-dialog]')?.showModal?.();
+    });
+    root.querySelector('[data-ops-approval-add-close]')?.addEventListener('click', () => {
+      root.querySelector('[data-ops-approval-add-dialog]')?.close?.();
+    });
+    root.querySelector('[data-ops-approval-add-open]')?.addEventListener('click', () => {
+      const select = root.querySelector('[data-ops-approval-add-select]');
+      if (!select?.value) { select?.focus(); return; }
+      const approval = (_completionApprovalPrintContext?.approvals || [])[Number(select.value)];
+      if (!approval) return;
+      root.querySelector('[data-ops-approval-add-dialog]')?.close?.();
+      printCompletionApprovals([approval], approvalFileTitle(approval));
+    });
     root.querySelectorAll('[data-ops-approval-print-one],[data-ops-approval-view]').forEach((btn) => btn.addEventListener('click', () => {
       const index = Number(btn.getAttribute('data-ops-approval-print-one') ?? btn.getAttribute('data-ops-approval-view'));
       const approval = (_completionApprovalPrintContext?.approvals || [])[index];
