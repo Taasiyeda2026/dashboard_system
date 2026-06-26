@@ -1094,12 +1094,13 @@ function opsManagementStylesHtml() {
     .ds-ops-mgmt-screen .ds-ops-completion-summary-popover { position:absolute; inset-block-start:calc(100% + 8px); inset-inline-start:0; z-index:5; width:min(360px, 100%); box-sizing:border-box; padding:12px 14px; border:1px solid #d8e5ee; border-radius:14px; background:#fff; box-shadow:0 14px 30px rgba(15,23,42,0.14); color:#334155; font-size:14px; line-height:1.5; }
     .ds-ops-mgmt-screen .ds-ops-completion-summary-popover p { margin:0; }
     .ds-ops-mgmt-screen .ds-ops-completion-summary-popover p + p { margin-top:4px; }
-    .ds-ops-mgmt-screen .ds-ops-completion-control-row { display:flex; flex-wrap:wrap; align-items:end; justify-content:flex-start; gap:8px; width:100%; }
+    .ds-ops-mgmt-screen .ds-ops-completion-control-row { display:flex; flex-wrap:wrap; align-items:center; justify-content:flex-start; gap:8px; width:100%; }
     .ds-ops-mgmt-screen .ds-ops-completion-control-row label,
-    .ds-ops-mgmt-screen .ds-ops-approval-print-filter { display:flex; flex-wrap:wrap; align-items:center; justify-content:flex-start; gap:8px; margin:0; font-weight:700; color:#334155; }
-    .ds-ops-mgmt-screen .ds-ops-completion-date-filter input[type="date"] { width:155px; min-width:155px; }
-    .ds-ops-mgmt-screen .ds-ops-approval-print-filter select { width:180px; min-width:160px; max-width:220px; }
+    .ds-ops-mgmt-screen .ds-ops-approval-print-filter { display:flex; flex-wrap:nowrap; align-items:center; justify-content:flex-start; gap:8px; margin:0; font-weight:700; color:#334155; }
+    .ds-ops-mgmt-screen .ds-ops-completion-date-filter input[type="date"] { width:145px; min-width:145px; }
+    .ds-ops-mgmt-screen .ds-ops-approval-print-filter select { width:150px; min-width:140px; max-width:180px; }
     .ds-ops-mgmt-screen .ds-ops-completion-control-row .ds-btn { flex:0 0 auto; width:auto; min-width:0; white-space:nowrap; }
+    .ds-ops-mgmt-screen .ds-ops-completion-filter-toolbar { flex-wrap:nowrap; }
     .ds-ops-mgmt-screen .ds-ops-completion-selected-date { width:100%; margin:0; padding:8px 10px; border:1px solid #dbeafe; border-radius:10px; background:#eff6ff; color:#1e3a8a; font-size:13px; line-height:1.45; text-align:right; }
     .ds-ops-mgmt-screen .ds-ops-completion-subtabs { display:flex; flex-wrap:wrap; justify-content:flex-start; gap:6px; width:100%; padding-top:4px; border-top:1px solid #e2e8f0; }
     .ds-ops-mgmt-screen .ds-ops-completion-subtabs .ds-btn { border-radius:999px; }
@@ -1111,6 +1112,7 @@ function opsManagementStylesHtml() {
       .ds-ops-mgmt-screen .ds-ops-completion-workspace { width:100%; }
       .ds-ops-mgmt-screen .ds-ops-completion-control-card { padding:12px; }
       .ds-ops-mgmt-screen .ds-ops-completion-control-row { align-items:stretch; }
+      .ds-ops-mgmt-screen .ds-ops-completion-filter-toolbar { flex-wrap:wrap; }
       .ds-ops-mgmt-screen .ds-ops-completion-control-row label,
       .ds-ops-mgmt-screen .ds-ops-approval-print-filter { width:100%; align-items:flex-start; }
       .ds-ops-mgmt-screen .ds-ops-completion-date-filter input[type="date"],
@@ -1793,7 +1795,7 @@ function completionApprovalTabHtml(rows, state, data = {}, directory = buildScho
   const summaryPopoverHtml = approvalState.summaryOpen ? `<div class="ds-ops-completion-summary-popover" role="dialog" aria-label="סיכום אישורי ביצוע" data-ops-completion-summary-popover><p><strong>עד היום:</strong> הועלו ${completionApprovalCountUploaded(throughTodayItems)} מתוך ${throughTodayItems.length} אישורים נדרשים</p><p><strong>לכל תקופת הקיץ:</strong> הועלו ${completionApprovalCountUploaded(allItems)} מתוך ${allItems.length} אישורים נדרשים</p></div>` : '';
   const summaryHtml = `<header class="ds-ops-completion-summary" dir="rtl"><button type="button" class="ds-ops-completion-summary__title" aria-haspopup="dialog" aria-expanded="${approvalState.summaryOpen ? 'true' : 'false'}" data-ops-completion-summary-toggle>אישורי ביצוע</button>${summaryPopoverHtml}</header>`;
   const selectedDateHtml = selectedDate ? `<div class="ds-ops-completion-selected-date" dir="rtl"><strong>מסונן לתאריך: ${escapeHtml(formatDateHe(selectedDate) || selectedDate)}</strong><br><span>בתאריך זה: הועלו ${completionApprovalCountUploaded(selectedDateItems)} מתוך ${selectedDateItems.length} אישורים נדרשים</span></div>` : '';
-  const dateFilterHtml = `<div class="ds-ops-completion-control-row ds-ops-completion-date-filter no-print" dir="rtl"><label><span>סינון</span><input class="ds-input ds-input--sm" type="date" min="${COMPLETION_APPROVAL_SUMMER_FROM}" max="${COMPLETION_APPROVAL_SUMMER_TO}" value="${escapeHtml(selectedDate)}" data-ops-completion-date-filter></label><button type="button" class="ds-btn ds-btn--sm ds-btn--ghost" data-ops-completion-date-clear>הצג את כל תקופת הקיץ</button></div>`;
+  const dateFilterHtml = `<label class="ds-ops-completion-date-filter"><span>סינון</span><input class="ds-input ds-input--sm" type="date" min="${COMPLETION_APPROVAL_SUMMER_FROM}" max="${COMPLETION_APPROVAL_SUMMER_TO}" value="${escapeHtml(selectedDate)}" data-ops-completion-date-filter></label><button type="button" class="ds-btn ds-btn--sm ds-btn--ghost" data-ops-completion-date-clear>כל התאריכים</button>`;
 
   const activeSubtab = approvalState.subtab === 'contacts' ? 'contacts' : 'approvals';
 
@@ -1813,7 +1815,7 @@ function completionApprovalTabHtml(rows, state, data = {}, directory = buildScho
   }).join('');
   const printInstructorOptions = completionApprovalPrintInstructorOptions(approvals);
   const printInstructorSelect = `<label class="ds-ops-approval-print-filter"><select class="ds-input ds-input--sm" aria-label="סינון מדריך" data-ops-approval-print-instructor><option value="">כל המדריכים</option>${printInstructorOptions.map((name) => `<option value="${escapeHtml(name)}"${approvalState.printInstructor === name ? ' selected' : ''}>${escapeHtml(name)}</option>`).join('')}</select></label>`;
-  const printToolbar = `<div class="ds-ops-completion-control-row ds-ops-approval-print-toolbar no-print">${printInstructorSelect}<button type="button" class="ds-btn ds-btn--sm ds-btn--primary ds-ops-approval-print-btn" data-ops-approval-print-all>הדפסה</button></div>`;
+  const printToolbar = `<div class="ds-ops-completion-control-row ds-ops-completion-filter-toolbar ds-ops-approval-print-toolbar no-print" dir="rtl">${dateFilterHtml}${printInstructorSelect}<button type="button" class="ds-btn ds-btn--sm ds-btn--primary ds-ops-approval-print-btn" data-ops-approval-print-all>הדפסה</button></div>`;
   _completionApprovalPrintContext = { approvals: items.map((item) => item.approval), uploads: data?.completionApprovalUploads || [] };
   const contactRows = (selectedDate || selectedPrintInstructor || approvalState.instructor) ? summerRows.filter((row) => items.some((item) => String(item.approval.date || '').slice(0, 10) === String(row.start_date || row.activity_date || '').slice(0, 10) && String(item.approval.school || '').trim() === String(row.school || row.single_school_name || row.legacy_school || '').trim())) : summerRows;
   const table = items.length
@@ -1827,9 +1829,8 @@ function completionApprovalTabHtml(rows, state, data = {}, directory = buildScho
     <div class="ds-ops-completion-workspace">
       <div class="ds-ops-completion-control-card no-print">
         ${summaryHtml}
-        ${dateFilterHtml}
-        ${selectedDateHtml}
         ${printToolbar}
+        ${selectedDateHtml}
         ${subtabs}
       </div>
       ${activePanel}
