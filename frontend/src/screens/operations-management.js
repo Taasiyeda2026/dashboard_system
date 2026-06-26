@@ -1399,7 +1399,14 @@ function buildGroupedScheduleHtml({ scheduleRows, state, selectedInstructorFilte
     </div>`;
   }).join('');
 
-  return `<div class="ops-print-page"><h1>שיבוץ פעילויות קיץ</h1><p class="subtitle">${escapeHtml(instructorLine)}</p><div class="ops-print-grid">${blocks}</div><p class="footer">יש לוודא את קיום הפעילות מול איש הקשר בבית הספר לפחות 48 שעות לפני כל יום פעילות.</p></div>`;
+  const contactNotice = `<div class="contact-notice">
+  <h2 class="contact-notice__title">אחראי קשר מול בית הספר</h2>
+  <p>במקרים שבהם מוגדר אחראי קשר לבית הספר, תפקידו הוא לוודא את קיום הפעילות מול איש הקשר בבית הספר לפחות 48 שעות לפני יום הפעילות.</p>
+  <p>אחראי הקשר ישלח תזכורת לאיש הקשר בבית הספר ויברר האם חלו שינויים מהעדכון האחרון שנמסר בתיאום, כגון שינוי בשעות, במיקום, במספר המשתתפים או בצרכים לוגיסטיים.</p>
+  <p>לאחר האימות, אחראי הקשר יעדכן את כלל המדריכים המשובצים לאותו יום פעילות בפרטים המעודכנים.</p>
+  <p class="contact-notice__emphasis">חשוב להדגיש: תפקיד אחראי הקשר אינו מחליף את אישור הביצוע.<br>כל מדריך נדרש להחתים אישור ביצוע ספציפי עבור הפעילות שביצע, בהתאם לשיבוץ ולנהלי הדיווח.</p>
+</div>`;
+  return `<div class="ops-print-page"><h1>שיבוץ פעילויות קיץ</h1><p class="subtitle">${escapeHtml(instructorLine)}</p>${contactNotice}<div class="ops-print-grid">${blocks}</div><p class="footer">יש לוודא את קיום הפעילות מול איש הקשר בבית הספר לפחות 48 שעות לפני כל יום פעילות.</p></div>`;
 }
 
 function printInstructorSchedule() {
@@ -1445,6 +1452,11 @@ function printInstructorSchedule() {
     .pb-act.has-instructor th:nth-child(4),.pb-act.has-instructor td:nth-child(4){width:13%;text-align:center}
     .pb-act.has-instructor th:nth-child(5),.pb-act.has-instructor td:nth-child(5){width:20%}
     .footer{margin-top:10px;font-size:12px;font-weight:700;color:#0f172a;text-align:center;border-top:1px solid #cbd5e1;padding-top:6px}
+    .contact-notice{direction:rtl;text-align:right;border:1px solid #b6c7d4;border-radius:4px;background:#f7fafc;padding:8px 12px;margin:8px 0 14px;break-inside:avoid;page-break-inside:avoid}
+    .contact-notice__title{margin:0 0 6px;font-size:12px;font-weight:800;color:#0f172a}
+    .contact-notice p{margin:0 0 5px;font-size:10.5px;line-height:1.5;color:#1e293b}
+    .contact-notice p:last-child{margin-bottom:0}
+    .contact-notice__emphasis{font-weight:700;color:#0f172a!important}
     .pb-team-block{margin-top:6px;background:#f8fafc;border:1px solid #e2e8f0;border-radius:4px;padding:4px 7px;break-before:avoid;page-break-before:avoid}
     .pb-team{font-size:9px;line-height:1.6;color:#1e293b}
     .pb-team+.pb-team{margin-top:1px}
