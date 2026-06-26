@@ -1074,7 +1074,7 @@ function opsManagementStylesHtml() {
     .ds-ops-mgmt-screen .ds-ops-authorities-table .ds-ops-col--activity { width:33%; white-space:normal; word-break:break-word; }
     .ds-ops-mgmt-screen .ds-ops-authorities-table th,.ds-ops-mgmt-screen .ds-ops-authorities-table td { padding-top:0.25rem; padding-bottom:0.25rem; padding-inline:0.35rem; }
     .ds-ops-mgmt-screen .ds-ops-completion-panel { display:flex; justify-content:center; width:100%; }
-    .ds-ops-mgmt-screen .ds-ops-completion-workspace { width:min(100%, 1000px); max-width:1000px; display:flex; flex-direction:column; gap:10px; align-items:stretch; box-sizing:border-box; }
+    .ds-ops-mgmt-screen .ds-ops-completion-workspace { width:max-content; max-width:100%; margin-inline:auto; display:flex; flex-direction:column; gap:10px; align-items:stretch; box-sizing:border-box; }
     .ds-ops-mgmt-screen .ds-ops-completion-control-card { width:100%; box-sizing:border-box; display:flex; flex-direction:column; align-items:flex-start; gap:10px; padding:14px 16px 12px; border:1px solid #d8e5ee; border-radius:16px; background:#f8fbfd; box-shadow:0 1px 2px rgba(15,23,42,0.04); }
     .ds-ops-mgmt-screen .ds-ops-completion-summary { width:100%; text-align:right; color:#0f172a; }
     .ds-ops-mgmt-screen .ds-ops-completion-summary { position:relative; }
@@ -1093,9 +1093,9 @@ function opsManagementStylesHtml() {
     .ds-ops-mgmt-screen .ds-ops-completion-selected-date { width:100%; margin:0; padding:8px 10px; border:1px solid #dbeafe; border-radius:10px; background:#eff6ff; color:#1e3a8a; font-size:13px; line-height:1.45; text-align:right; }
     .ds-ops-mgmt-screen .ds-ops-completion-subtabs { display:flex; flex-wrap:wrap; justify-content:flex-start; gap:6px; width:100%; padding-top:4px; border-top:1px solid #e2e8f0; }
     .ds-ops-mgmt-screen .ds-ops-completion-subtabs .ds-btn { border-radius:999px; }
-    .ds-ops-mgmt-screen .ds-ops-completion-approvals-card { width:100%; margin:0; }
-    .ds-ops-mgmt-screen .ds-ops-completion-approvals-card .ds-card { margin:0; }
-    .ds-ops-mgmt-screen .ds-ops-completion-approvals-card .ds-table-wrap,
+    .ds-ops-mgmt-screen .ds-ops-completion-approvals-card { width:100%; margin:0; box-sizing:border-box; }
+    .ds-ops-mgmt-screen .ds-ops-completion-approvals-card .ds-card { width:100%; margin:0; box-sizing:border-box; }
+    .ds-ops-mgmt-screen .ds-ops-completion-approvals-card .ds-table-wrap { width:max-content; max-width:100%; box-sizing:border-box; }
     .ds-ops-mgmt-screen .ds-ops-completion-preview { width:100%; }
     @media (max-width: 640px) {
       .ds-ops-mgmt-screen .ds-ops-completion-workspace { width:100%; }
@@ -1756,6 +1756,7 @@ function hasActivitySeasonColumn(rows = []) {
 
 function isCompletionApprovalSummerActivity(row) {
   const season = normalizeActivitySeason(row?.activity_season ?? row?.activitySeason);
+  if (isActivityDeleted(row)) return false;
   if (season !== ACTIVITY_SEASON_SUMMER_2026) return false;
   if (!isCompletionApprovalIncludedActivityType(row)) return false;
   return activityDatesInRange(row, COMPLETION_APPROVAL_SUMMER_FROM, COMPLETION_APPROVAL_SUMMER_TO).length > 0;

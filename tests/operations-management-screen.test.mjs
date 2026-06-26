@@ -17,7 +17,9 @@ import {
 } from '../frontend/src/screens/shared/operations-activity-helpers.js';
 import { operationsManagementScreen } from '../frontend/src/screens/operations-management.js';
 import {
+  buildCompletionApprovals,
   completionApprovalDocumentHtml,
+  completionApprovalInstructorOptions,
   completionApprovalPrintCss,
   formatApprovalTime,
   sortApprovalActivitiesByTime
@@ -314,6 +316,37 @@ test('completion approval tab includes only summer workshops and escape rooms an
   assert.match(html, /min="2026-06-20"/);
   assert.match(html, /max="2026-08-31"/);
   assert.match(html, /הצג את כל תקופת הקיץ/);
+});
+
+
+test('completion approval includes closed summer activities and excludes deleted activities consistently', () => {
+  const state = baseState();
+  state.operationsManagement.tab = 'completion_approval';
+  state.operationsManagement.completionApproval = { instructor: 'הילה רוזן', selectedDate: '2026-07-10', summaryOpen: true };
+  const rows = [
+    { RowID: 'OPEN', status: 'פתוח', authority: 'רשות א', school: 'פתוח', activity_type: 'סדנה', activity_name: 'סדנה פתוחה', start_date: '2026-07-10', activity_season: 'summer_2026', instructor_name: 'הילה רוזן' },
+    { RowID: 'CLOSED', status: 'סגור', authority: 'רשות א', school: 'סגור', activity_type: 'חדר בריחה', activity_name: 'חדר סגור', start_date: '2026-07-10', activity_season: 'summer_2026', instructor_name: 'הילה רוזן' },
+    { RowID: 'DELETED', status: 'נמחק', authority: 'רשות א', school: 'נמחק', activity_type: 'סדנה', activity_name: 'סדנה נמחקה', start_date: '2026-07-10', activity_season: 'summer_2026', instructor_name: 'הילה רוזן' }
+  ];
+
+  assert.deepEqual(completionApprovalInstructorOptions(rows), ['הילה רוזן']);
+  const approvals = buildCompletionApprovals(rows, { instructor: 'הילה רוזן', dateMode: 'range', dateFrom: '2026-06-20', dateTo: '2026-08-31' });
+  assert.equal(approvals.length, 2);
+  assert.deepEqual(approvals.map((approval) => approval.school).sort((a, b) => a.localeCompare(b, 'he')), ['סגור', 'פתוח']);
+
+  const html = operationsManagementScreen.render({ rows, workshopStockMap: new Map() }, { state });
+  assert.match(html, /פתוח/);
+  assert.match(html, /סגור/);
+  assert.doesNotMatch(html, /נמחק/);
+  assert.match(html, /בתאריך זה: הועלו 0 מתוך 2 אישורים נדרשים/);
+  assert.match(html, /לכל תקופת הקיץ:<\/strong> הועלו 0 מתוך 2 אישורים נדרשים/);
+});
+
+test('completion approval workspace uses table-driven max-content width instead of fixed width', async () => {
+  const source = await readFile(new URL('../frontend/src/screens/operations-management.js', import.meta.url), 'utf8');
+  assert.match(source, /\.ds-ops-mgmt-screen \.ds-ops-completion-workspace \{ width:max-content; max-width:100%; margin-inline:auto;/);
+  assert.match(source, /\.ds-ops-mgmt-screen \.ds-ops-completion-approvals-card \.ds-table-wrap \{ width:max-content; max-width:100%;/);
+  assert.doesNotMatch(source, /ds-ops-completion-workspace \{ width:min\(100%, 1000px\); max-width:1000px;/);
 });
 
 test('completion approval tab defaults to approvals subtab without legacy instructor prompt', () => {
