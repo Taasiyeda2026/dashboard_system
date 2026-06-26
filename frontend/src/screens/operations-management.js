@@ -1220,7 +1220,7 @@ function sumScheduleStudentCounts(scheduleRows = []) {
   }, 0);
 }
 
-function buildGroupedScheduleHtml({ scheduleRows, state, selectedInstructorFilter, directory, contactsIndex, printContacts = [], contactResponsiblesRows = [] }) {
+function buildGroupedScheduleHtml({ scheduleRows, state, selectedInstructorFilter, directory, contactsIndex, printContacts = [], contactResponsiblesRows = [], allRows = [] }) {
   if (!scheduleRows || !scheduleRows.length) return '<p>אין פעילויות להדפסה.</p>';
   const ops = ensureOpsState(state);
   const showInstructor = !selectedInstructorFilter;
@@ -1266,6 +1266,21 @@ function buildGroupedScheduleHtml({ scheduleRows, state, selectedInstructorFilte
     const contactRows = buildPrintContactRowsForGroup(group, printContacts, contactResponsiblesRows);
     const contactRowsHtml = contactRows.map((row) => `<tr><td>${escapeHtml(printContactFallback(row.school))}</td><td>${escapeHtml(printContactFallback(row.address))}</td><td>${escapeHtml(printContactFallback(row.contactName))}</td><td>${escapeHtml(printContactFallback(row.contactPhone))}</td></tr>`).join('');
     const contactsHtml = contactRowsHtml ? `<section class="pb-contacts"><h3>פרטי קשר ואימות פעילות</h3><table><thead><tr><th>בית ספר</th><th>כתובת</th><th>איש קשר</th><th>טלפון</th></tr></thead><tbody>${contactRowsHtml}</tbody></table></section>` : '';
+    const groupDateStr = group.date || '';
+    const groupSchoolNorm = normalizePrintContactMatchText(group.school);
+    const teamSet = new Set();
+    (allRows || []).forEach((activity) => {
+      if (normalizePrintContactMatchText(getActivitySchoolDisplayNameClean(activity)) !== groupSchoolNorm) return;
+      const dates = activityDatesInRange(activity, ops.dateFrom, ops.dateTo);
+      const primary = getActivityPrimaryDate(activity);
+      const actDates = dates.length ? dates : (primary ? [primary] : []);
+      if (!actDates.includes(groupDateStr)) return;
+      getActivityInstructorNames(activity).forEach((name) => { if (name) teamSet.add(name); });
+    });
+    const teamList = [...teamSet].filter(Boolean);
+    const teamText = teamList.length ? teamList.join(', ') : 'ללא מדריכים';
+    const responsibleName = (contactRows.length && contactRows[0].responsibleName) ? contactRows[0].responsibleName : 'לא הוגדר';
+    const teamHtml = `<div class="pb-team"><strong>מי איתי היום:</strong> ${escapeHtml(teamText)}</div><div class="pb-team"><strong>האחראי לאישור קיום הפעילות מול איש הקשר בבית הספר הוא:</strong> ${escapeHtml(responsibleName)}</div>`;
     return `<div class="pb">
       <div class="pb-hdr">
         <span class="pb-date">${escapeHtml(dateLabel)}</span>
@@ -1274,6 +1289,7 @@ function buildGroupedScheduleHtml({ scheduleRows, state, selectedInstructorFilte
       <table class="${tableClass}"><thead><tr><th>שעות</th><th>פעילות</th><th>מס׳ תלמידים</th><th>כיתה</th>${instructorHeader}</tr></thead>
       <tbody>${activityRows}</tbody></table>
       ${contactsHtml}
+      ${teamHtml}
     </div>`;
   }).join('');
 
@@ -1322,8 +1338,10 @@ function printInstructorSchedule() {
     .pb-act.has-instructor th:nth-child(4),.pb-act.has-instructor td:nth-child(4){width:13%;text-align:center}
     .pb-act.has-instructor th:nth-child(5),.pb-act.has-instructor td:nth-child(5){width:20%}
     .footer{margin-top:10px;font-size:12px;font-weight:700;color:#0f172a;text-align:center;border-top:1px solid #cbd5e1;padding-top:6px}
+    .pb-team{font-size:8.5px;line-height:1.3;margin-top:3px;color:#1e293b}
+    .pb-team strong{font-weight:700}
     @page{size:A4 portrait;margin:8mm}
-    @media print{body{margin:0}.pb{page-break-inside:avoid;break-inside:avoid}.pb-hdr{break-after:avoid;page-break-after:avoid}.pb-act,.pb-contacts{break-before:avoid;page-break-before:avoid;break-inside:auto;page-break-inside:auto}tr{break-inside:avoid;page-break-inside:avoid}}
+    @media print{body{margin:0}.pb{page-break-inside:avoid;break-inside:avoid}.pb-hdr{break-after:avoid;page-break-after:avoid}.pb-act,.pb-contacts,.pb-team{break-before:avoid;page-break-before:avoid;break-inside:auto;page-break-inside:auto}tr{break-inside:avoid;page-break-inside:avoid}}
   `;
   const bodyHtml = buildGroupedScheduleHtml(ctx);
   const printWindow = window.open('', '_blank');
@@ -1440,7 +1458,7 @@ function instructorsTabHtml(rows, state, data = {}, directory = buildSchoolsDire
   const scheduleRows = buildScheduleRows(rows, state, directory);
   const selectedInstructorFilter = String(filters.instructor || '').trim();
   const printTitle = selectedInstructorFilter ? selectedInstructorFilter : 'כל המדריכים';
-  _schedulePrintContext = { scheduleRows, state, selectedInstructorFilter, directory, contactsIndex, printContacts: data?.instructorSchedulePrintContactsRows || [], contactResponsiblesRows: data?.contactResponsiblesRows || [] };
+  _schedulePrintContext = { scheduleRows, state, selectedInstructorFilter, directory, contactsIndex, printContacts: data?.instructorSchedulePrintContactsRows || [], contactResponsiblesRows: data?.contactResponsiblesRows || [], allRows: rows };
 
   const tableRows = scheduleRows.map((entry) => {
     const activity = entry.activity;
