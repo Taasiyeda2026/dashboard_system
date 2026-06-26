@@ -17,7 +17,7 @@
 import process from 'node:process';
 import { createClient } from '@supabase/supabase-js';
 
-const MIN_PASSWORD_LENGTH = 8;
+const MIN_PASSWORD_LENGTH = 4;
 
 function requireEnv(name) {
   const value = process.env[name];
