@@ -16550,13 +16550,13 @@ details[open] > .ds-fin-acc__summary::before { transform: rotate(90deg); }
 
 .ds-ops-completion-title-bar {
   width: 100%;
-  max-width: 1120px;
+  max-width: 1280px;
   margin-inline: auto;
 }
 
 .ds-ops-completion-approvals-card {
   width: 100%;
-  max-width: 1120px;
+  max-width: 1280px;
   margin-inline: auto;
 }
 
@@ -16571,7 +16571,7 @@ details[open] > .ds-fin-acc__summary::before { transform: rotate(90deg); }
 
 .ds-ops-completion-approvals-card .ds-table-wrap {
   width: 100%;
-  max-width: 1120px;
+  max-width: 1280px;
   margin-inline: auto;
 }
 
@@ -16581,27 +16581,41 @@ details[open] > .ds-fin-acc__summary::before { transform: rotate(90deg); }
 }
 
 .ds-ops-completion-col--date {
-  width: 100px;
+  width: 90px;
 }
 
 .ds-ops-completion-col--authority {
-  width: 110px;
+  width: 100px;
 }
 
 .ds-ops-completion-col--instructor {
-  width: 150px;
+  width: 130px;
 }
 
 .ds-ops-completion-col--school {
+  width: 130px;
+}
+
+.ds-ops-completion-col--who {
+  width: 160px;
+}
+
+.ds-ops-completion-col--contact {
   width: 150px;
 }
 
 .ds-ops-completion-col--status {
-  width: 120px;
+  width: 110px;
 }
 
 .ds-ops-completion-col--actions {
-  width: 120px;
+  width: 110px;
+}
+
+.ds-ops-completion-col-contact-cell select {
+  width: 100%;
+  max-width: 145px;
+  font-size: 0.72rem;
 }
 
 .ds-ops-completion-preview th,
