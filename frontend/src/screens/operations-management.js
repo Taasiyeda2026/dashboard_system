@@ -1216,8 +1216,9 @@ function opsManagementStylesHtml() {
     .ds-ops-mgmt-screen .ds-ops-completion-approvals-card .ds-table-wrap { width:100%; max-width:100%; box-sizing:border-box; overflow-x:hidden; }
     .ds-ops-mgmt-screen .ds-ops-completion-preview { width:100%; min-width:0; table-layout:fixed; }
     .ds-ops-mgmt-screen .ds-ops-completion-preview th { white-space:nowrap; vertical-align:middle; text-align:right; }
-    .ds-ops-mgmt-screen .ds-ops-completion-preview th,.ds-ops-mgmt-screen .ds-ops-completion-preview td { padding:7px 8px; vertical-align:middle; }
+    .ds-ops-mgmt-screen .ds-ops-completion-preview th,.ds-ops-mgmt-screen .ds-ops-completion-preview td { padding:5px 8px; line-height:1.25; vertical-align:middle; }
     .ds-ops-mgmt-screen .ds-ops-completion-preview th:first-child,.ds-ops-mgmt-screen .ds-ops-completion-preview td:first-child { padding-inline-start:10px; padding-inline-end:10px; white-space:nowrap; }
+    .ds-ops-mgmt-screen .ds-ops-completion-preview tbody tr { height:42px; }
     .ds-ops-mgmt-screen .ds-ops-completion-col--date { width:10%; }
     .ds-ops-mgmt-screen .ds-ops-completion-col--authority { width:10%; text-align:right; }
     .ds-ops-mgmt-screen .ds-ops-completion-col--instructor { width:10%; text-align:right; }
@@ -1225,13 +1226,16 @@ function opsManagementStylesHtml() {
     .ds-ops-mgmt-screen .ds-ops-completion-col--who { width:22%; text-align:right; }
     .ds-ops-mgmt-screen .ds-ops-completion-col--contact { width:12%; text-align:right; }
     .ds-ops-mgmt-screen .ds-ops-completion-col-contact-cell { text-align:right; }
-    .ds-ops-mgmt-screen .ds-ops-completion-col-contact-cell select { width:100%; max-width:100%; box-sizing:border-box; text-align:right; direction:rtl; }
+    .ds-ops-mgmt-screen .ds-ops-completion-col-contact-cell select { width:100%; max-width:100%; box-sizing:border-box; text-align:right; direction:rtl; height:30px; min-height:30px; padding-top:3px; padding-bottom:3px; }
     .ds-ops-mgmt-screen .ds-ops-completion-col--status { width:10%; text-align:right; }
     .ds-ops-mgmt-screen .ds-ops-completion-col--actions { width:16%; text-align:center; }
     .ds-ops-mgmt-screen .ds-ops-completion-col-who-cell { white-space:normal; line-height:1.35; }
     .ds-ops-mgmt-screen .ds-ops-completion-actions-cell { text-align:center; vertical-align:middle; white-space:nowrap; }
     .ds-ops-mgmt-screen .ds-ops-completion-actions { display:inline-flex; align-items:center; justify-content:center; gap:4px; flex-wrap:nowrap; white-space:nowrap; }
-    .ds-ops-mgmt-screen .ds-ops-completion-actions .ds-ops-icon-btn { flex:0 0 26px; }
+    .ds-ops-mgmt-screen .ds-ops-completion-actions .ds-ops-icon-btn { flex:0 0 24px; width:24px; height:24px; font-size:12px; }
+    .ds-ops-mgmt-screen .ds-ops-status-approved { display:inline-flex; align-items:center; justify-content:center; gap:4px; padding:3px 8px; border-radius:999px; background:#dcfce7; border:1px solid #86efac; color:#166534; font-weight:800; font-size:12px; line-height:1.2; white-space:nowrap; }
+    .ds-ops-mgmt-screen .ds-ops-status-rejected { display:inline-flex; align-items:center; justify-content:center; gap:4px; padding:3px 8px; border-radius:999px; background:#fee2e2; border:1px solid #fca5a5; color:#991b1b; font-weight:700; font-size:12px; line-height:1.2; white-space:nowrap; }
+    .ds-ops-mgmt-screen .ds-ops-status-uploaded { display:inline-flex; align-items:center; justify-content:center; gap:4px; padding:3px 8px; border-radius:999px; background:#dbeafe; border:1px solid #93c5fd; color:#1e40af; font-weight:600; font-size:12px; line-height:1.2; white-space:nowrap; }
     .ds-ops-mgmt-screen .ds-btn--success{background:#16a34a;color:#fff;border-color:#15803d}
     .ds-ops-mgmt-screen .ds-btn--success:hover{background:#15803d}
     .ds-ops-mgmt-screen .ds-ops-icon-btn{display:inline-flex;align-items:center;justify-content:center;width:26px;height:26px;padding:0;border:1px solid #cbd5e1;border-radius:6px;background:#f8fafc;cursor:pointer;font-size:13px;line-height:1;color:#334155;vertical-align:middle}
@@ -1872,6 +1876,14 @@ function completionApprovalUploadStatusLabel(upload) {
   return 'טרם הועלה';
 }
 
+function completionApprovalUploadStatusChip(upload) {
+  const status = String(upload?.status || '').trim();
+  if (status === 'approved') return '<span class="ds-ops-status-approved">✓ אושר</span>';
+  if (status === 'rejected') return '<span class="ds-ops-status-rejected">✕ נדחה</span>';
+  if (status === 'uploaded' || upload?.file_path) return '<span class="ds-ops-status-uploaded">↑ הועלה</span>';
+  return '<span class="ds-muted">טרם הועלה</span>';
+}
+
 
 const _crc32Table = (() => { const t = new Uint32Array(256); for (let i = 0; i < 256; i++) { let c = i; for (let j = 0; j < 8; j++) c = c & 1 ? 0xEDB88320 ^ (c >>> 1) : c >>> 1; t[i] = c; } return t; })();
 function _crc32(data) { let c = 0xFFFFFFFF; for (let i = 0; i < data.length; i++) c = _crc32Table[(c ^ data[i]) & 0xFF] ^ (c >>> 8); return (c ^ 0xFFFFFFFF) >>> 0; }
@@ -2126,7 +2138,7 @@ function completionApprovalTabHtml(rows, state, data = {}, directory = buildScho
       <td class="ds-table-cell-wrap">${escapeHtml(approval.school || '')}</td>
       <td class="ds-ops-completion-col-who-cell ds-table-cell-wrap">${whoIsWithMe}</td>
       <td class="ds-ops-completion-col-contact-cell">${contactDropdown}</td>
-      <td class="ds-table-cell-truncate">${escapeHtml(completionApprovalUploadStatusLabel(upload))}</td>
+      <td class="ds-table-cell-truncate">${completionApprovalUploadStatusChip(upload)}</td>
       <td class="ds-ops-completion-actions-cell no-print"><div class="ds-ops-completion-actions"><button type="button" class="ds-ops-icon-btn" data-ops-approval-view="${displayIndex}" title="צפייה באישור" aria-label="צפייה באישור">👁</button>${!hasFile
         ? ` <button type="button" class="ds-ops-icon-btn ds-ops-icon-btn--add" data-ops-approval-upload="${displayIndex}" title="הוספת אישור פעילות חתום" aria-label="הוספת אישור פעילות חתום">＋</button>`
         : ` <button type="button" class="ds-ops-icon-btn" data-ops-upload-view="${escapeHtml(upload.id)}" title="צפייה בקובץ חתום" aria-label="צפייה בקובץ חתום">📋</button> <button type="button" class="ds-ops-icon-btn" data-ops-upload-download="${escapeHtml(upload.id)}" title="הורדה" aria-label="הורדה">⬇</button>${canReview
