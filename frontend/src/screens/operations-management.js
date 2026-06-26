@@ -859,13 +859,14 @@ function workshopInstructorStatus({ received, required }) {
 }
 
 function workshopMainStatus(row) {
-  if (row.stockQuantity === null || row.stockQuantity === undefined) return { label: 'חסר נתון', tone: 'warning' };
+  if (row.stockQuantity === null || row.stockQuantity === undefined) return { label: 'חסר נתון', tone: 'muted' };
+  if (row.warehouseBalance < 0) return { label: 'נדרש תיקון מלאי', tone: 'inventory-fix' };
   if (row.requiredQuantity > row.stockQuantity) return { label: 'נדרש להזמין', tone: 'danger' };
   const hasShortage = row.instructorRows.some((item) => item.balance < 0);
-  if (!hasShortage) return { label: 'תקין', tone: 'success' };
-  if (row.warehouseBalance > 0) return { label: 'להעביר מהמחסן', tone: 'info' };
-  if (row.instructorRows.some((item) => item.balance > 0)) return { label: 'נדרש ניוד בין מדריכים', tone: 'warning' };
-  return { label: 'חסר נתון', tone: 'warning' };
+  if (hasShortage && row.warehouseBalance > 0) return { label: 'להעביר מהמחסן', tone: 'info' };
+  if (hasShortage && row.instructorRows.some((item) => item.balance > 0)) return { label: 'נדרש ניוד', tone: 'warning' };
+  if (hasShortage) return { label: 'חסר נתון', tone: 'muted' };
+  return { label: 'תקין', tone: 'success' };
 }
 
 function workshopMetricsRows(rows, stockMap, catalogRows = [], distributions = [], dateRange = {}) {
@@ -1010,9 +1011,6 @@ function opsManagementStylesHtml() {
     .ds-ops-mgmt-screen .ds-sort-indicator { display:inline-block; margin-inline-start:4px; font-size:10px; color:#0f8fa8; }
     .ds-ops-mgmt-screen .ds-ops-workshops-table-wrap { width:100%; }
     .ds-ops-mgmt-screen .ds-ops-workshops-card { width:min(1180px, 96%); margin-inline-start:auto; margin-inline-end:auto; }
-    .ds-ops-mgmt-screen .ds-ops-workshops-context { width:min(1180px, 96%); margin:0 auto 10px; border:1px solid #dbeafe; background:#f8fbff; border-radius:12px; padding:10px 14px; color:#334155; font-size:13px; }
-    .ds-ops-mgmt-screen .ds-ops-workshops-context p { margin:2px 0; }
-    .ds-ops-mgmt-screen .ds-ops-workshops-note--warn { color:#9a3412; }
     .ds-ops-mgmt-screen .ds-ops-workshops-table { table-layout:fixed; width:100%; }
     .ds-ops-mgmt-screen .ds-ops-workshops-table th,.ds-ops-mgmt-screen .ds-ops-workshops-table td { border:1px solid #94a3b8 !important; padding:6px 8px; }
     .ds-ops-mgmt-screen .ds-ops-workshops-table tbody tr:hover td,
@@ -1029,18 +1027,30 @@ function opsManagementStylesHtml() {
     .ds-ops-mgmt-screen .ds-ops-workshops-table th { background:#dbeafe; color:#1e3a8a; font-weight:800; font-size:12px; }
     .ds-ops-mgmt-screen .ds-ops-workshop-col--no { width:10%; }
     .ds-ops-mgmt-screen .ds-ops-workshop-col--name { width:24%; }
+    .ds-ops-mgmt-screen .ds-ops-workshop-col--metric { width:9.42%; }
+    .ds-ops-mgmt-screen .ds-ops-workshop-col--status { width:10.5%; }
     .ds-ops-mgmt-screen .ds-ops-workshops-table th:nth-child(1),
     .ds-ops-mgmt-screen .ds-ops-workshops-table td:nth-child(1) { text-align:center; }
     .ds-ops-mgmt-screen .ds-ops-workshops-table th:nth-child(2),
     .ds-ops-mgmt-screen .ds-ops-workshops-table td:nth-child(2) { text-align:right; white-space:normal; line-height:1.35; }
     .ds-ops-mgmt-screen .ds-ops-workshops-table th:nth-child(n+3),
     .ds-ops-mgmt-screen .ds-ops-workshops-table td:nth-child(n+3) { text-align:center; white-space:nowrap; }
+    .ds-ops-mgmt-screen .ds-ops-workshops-table th:nth-child(8),
+    .ds-ops-mgmt-screen .ds-ops-workshops-table td:nth-child(8) { text-align:right; }
+    .ds-ops-mgmt-screen .ds-ops-workshop-status-text { font-weight:700; background:transparent; border:0; padding:0; white-space:normal; }
+    .ds-ops-mgmt-screen .ds-ops-workshop-status-text--success { color:#15803d; }
+    .ds-ops-mgmt-screen .ds-ops-workshop-status-text--danger { color:#b91c1c; }
+    .ds-ops-mgmt-screen .ds-ops-workshop-status-text--info { color:#1d4ed8; }
+    .ds-ops-mgmt-screen .ds-ops-workshop-status-text--warning { color:#c2410c; }
+    .ds-ops-mgmt-screen .ds-ops-workshop-status-text--inventory-fix { color:#9a3412; }
+    .ds-ops-mgmt-screen .ds-ops-workshop-status-text--muted { color:#64748b; }
     .ds-ops-mgmt-screen .ds-ops-row--expanded td { background:color-mix(in srgb,#dbeafe 25%,#fff)!important; }
     .ds-ops-mgmt-screen .ds-ops-dist-input { width:72px; text-align:center; font-size:12px; padding:2px 4px; border:1px solid #94a3b8; border-radius:4px; background:#fff; }
     .ds-ops-mgmt-screen .ds-ops-workshop-detail { background:#f8fafc; border:1px solid #dbeafe; border-radius:12px; padding:10px; }
     .ds-ops-mgmt-screen .ds-ops-workshop-detail-row > td { white-space:normal!important; text-align:right!important; }
     .ds-ops-mgmt-screen .ds-ops-dist-table { table-layout:fixed; margin-top:8px; }
     .ds-ops-mgmt-screen .ds-ops-dist-table th:nth-child(n+2),.ds-ops-mgmt-screen .ds-ops-dist-table td:nth-child(n+2) { text-align:center; white-space:nowrap; }
+    .ds-ops-mgmt-screen .ds-ops-dist-table th:last-child,.ds-ops-mgmt-screen .ds-ops-dist-table td:last-child { text-align:right; }
     .ds-ops-mgmt-screen .ds-ops-estimate-mark { color:#9a3412; font-weight:800; }
     .ds-ops-mgmt-screen .ds-ops-stock-cell { white-space:nowrap; }
     .ds-ops-mgmt-screen .ds-ops-stock-input { width:64px; text-align:center; font-size:12px; padding:2px 4px; border:1px solid #94a3b8; border-radius:4px; background:#fff; }
@@ -1074,7 +1084,7 @@ function opsManagementStylesHtml() {
     .ds-ops-mgmt-screen .ds-ops-authorities-table .ds-ops-col--activity { width:33%; white-space:normal; word-break:break-word; }
     .ds-ops-mgmt-screen .ds-ops-authorities-table th,.ds-ops-mgmt-screen .ds-ops-authorities-table td { padding-top:0.25rem; padding-bottom:0.25rem; padding-inline:0.35rem; }
     .ds-ops-mgmt-screen .ds-ops-completion-panel { display:flex; justify-content:center; width:100%; }
-    .ds-ops-mgmt-screen .ds-ops-completion-workspace { width:min(100%, 1000px); max-width:1000px; display:flex; flex-direction:column; gap:10px; align-items:stretch; box-sizing:border-box; }
+    .ds-ops-mgmt-screen .ds-ops-completion-workspace { width:max-content; max-width:100%; margin-inline:auto; display:flex; flex-direction:column; gap:10px; align-items:stretch; box-sizing:border-box; }
     .ds-ops-mgmt-screen .ds-ops-completion-control-card { width:100%; box-sizing:border-box; display:flex; flex-direction:column; align-items:flex-start; gap:10px; padding:14px 16px 12px; border:1px solid #d8e5ee; border-radius:16px; background:#f8fbfd; box-shadow:0 1px 2px rgba(15,23,42,0.04); }
     .ds-ops-mgmt-screen .ds-ops-completion-summary { width:100%; text-align:right; color:#0f172a; }
     .ds-ops-mgmt-screen .ds-ops-completion-summary { position:relative; }
@@ -1093,9 +1103,9 @@ function opsManagementStylesHtml() {
     .ds-ops-mgmt-screen .ds-ops-completion-selected-date { width:100%; margin:0; padding:8px 10px; border:1px solid #dbeafe; border-radius:10px; background:#eff6ff; color:#1e3a8a; font-size:13px; line-height:1.45; text-align:right; }
     .ds-ops-mgmt-screen .ds-ops-completion-subtabs { display:flex; flex-wrap:wrap; justify-content:flex-start; gap:6px; width:100%; padding-top:4px; border-top:1px solid #e2e8f0; }
     .ds-ops-mgmt-screen .ds-ops-completion-subtabs .ds-btn { border-radius:999px; }
-    .ds-ops-mgmt-screen .ds-ops-completion-approvals-card { width:100%; margin:0; }
-    .ds-ops-mgmt-screen .ds-ops-completion-approvals-card .ds-card { margin:0; }
-    .ds-ops-mgmt-screen .ds-ops-completion-approvals-card .ds-table-wrap,
+    .ds-ops-mgmt-screen .ds-ops-completion-approvals-card { width:100%; margin:0; box-sizing:border-box; }
+    .ds-ops-mgmt-screen .ds-ops-completion-approvals-card .ds-card { width:100%; margin:0; box-sizing:border-box; }
+    .ds-ops-mgmt-screen .ds-ops-completion-approvals-card .ds-table-wrap { width:max-content; max-width:100%; box-sizing:border-box; }
     .ds-ops-mgmt-screen .ds-ops-completion-preview { width:100%; }
     @media (max-width: 640px) {
       .ds-ops-mgmt-screen .ds-ops-completion-workspace { width:100%; }
@@ -1389,8 +1399,10 @@ function instructorsTabHtml(rows, state, data = {}, directory = buildSchoolsDire
   </section>`;
 }
 
-function workshopStatusChip(status) {
-  return dsStatusChip(status?.label || '—', status?.tone || 'neutral');
+function workshopStatusText(status) {
+  const label = status?.label || '—';
+  const tone = String(status?.tone || 'muted').replace(/[^a-z0-9_-]/gi, '');
+  return `<span class="ds-ops-workshop-status-text ds-ops-workshop-status-text--${escapeHtml(tone)}">${escapeHtml(label)}</span>`;
 }
 
 function workshopInstructorDetailHtml(row) {
@@ -1400,7 +1412,7 @@ function workshopInstructorDetailHtml(row) {
     <td>${formatSignedNumberForRtl(item.received)}</td>
     <td>${formatSignedNumberForRtl(item.required)}</td>
     <td>${formatGapCell(item.balance, true)}</td>
-    <td>${workshopStatusChip(item.status)}</td>
+    <td>${workshopStatusText(item.status)}</td>
   </tr>`).join('');
   return `<tr class="ds-ops-workshop-detail-row"><td colspan="8"><div class="ds-ops-workshop-detail">
     <strong>פירוט לפי מדריך — ${escapeHtml(row.workshopName)}</strong>
@@ -1417,10 +1429,8 @@ function workshopsTabHtml(rows, state, stockMap, catalogRows = [], distributions
     estimatedQuantity: (row) => row.requiredQuantity,
   });
   const metrics = allMetrics.filter((row) => row.activityCount !== 0 || row.requiredQuantity !== 0 || row.deliveredQuantity !== 0);
-  const estimatedActivities = metrics.reduce((total, row) => total + row.activitiesWithoutParticipants, 0);
-  const totalActivities = metrics.reduce((total, row) => total + row.activityCount, 0);
   const table = metrics.length
-    ? dsTableWrap(`<table class="ds-table ds-table--compact ds-ops-mgmt-data-table ds-ops-workshops-table"><colgroup><col class="ds-ops-workshop-col--no"><col class="ds-ops-workshop-col--name"><col><col><col><col><col><col></colgroup><thead><tr>
+    ? dsTableWrap(`<table class="ds-table ds-table--compact ds-ops-mgmt-data-table ds-ops-workshops-table"><colgroup><col class="ds-ops-workshop-col--no"><col class="ds-ops-workshop-col--name"><col class="ds-ops-workshop-col--metric"><col class="ds-ops-workshop-col--metric"><col class="ds-ops-workshop-col--metric"><col class="ds-ops-workshop-col--metric"><col class="ds-ops-workshop-col--metric"><col class="ds-ops-workshop-col--status"></colgroup><thead><tr>
         ${sortableTh(state, TAB_WORKSHOPS, 'workshopNo', 'מס׳ / קבוצה')}
         ${sortableTh(state, TAB_WORKSHOPS, 'workshopName', 'שם הסדנה / פריט מלאי')}
         <th>מלאי כולל</th>
@@ -1439,15 +1449,13 @@ function workshopsTabHtml(rows, state, stockMap, catalogRows = [], distributions
           <td>${row.warehouseBalance === null ? '<span class="ds-ops-mgmt-cell-muted">—</span>' : formatGapCell(row.warehouseBalance, true)}</td>
           <td>${formatSignedNumberForRtl(row.requiredQuantity)}</td>
           <td>${row.expectedBalance === null ? '<span class="ds-ops-mgmt-cell-muted">—</span>' : formatGapCell(row.expectedBalance, true)}</td>
-          <td>${workshopStatusChip(row.status)}</td>
+          <td>${workshopStatusText(row.status)}</td>
         </tr>`;
         return mainRow + (isExpanded ? workshopInstructorDetailHtml(row) : '');
       }).join('')}</tbody></table>`)
     : dsEmptyState('לא נמצאו סדנאות בטווח הנבחר');
 
-  const estimateNote = estimatedActivities ? `<p class="ds-ops-workshops-note ds-ops-workshops-note--warn">חלק מהחישוב מבוסס על ברירת מחדל ${WORKSHOP_ESTIMATE_PER_ACTIVITY} משתתפים.</p>` : '';
   return `<section class="ds-ops-mgmt-panel ds-ops-workshops-panel" dir="rtl">
-    <div class="ds-ops-workshops-context"><p>החישוב מבוסס על טווח התאריכים שנבחר ועל נתוני הפעילויות והמלאי המעודכנים במערכת בזמן הצפייה.</p><p>טווח חישוב: ${escapeHtml(formatDateHe(ops.dateFrom))}–${escapeHtml(formatDateHe(ops.dateTo))} · פעילויות שנכללו: ${totalActivities}</p>${estimateNote}</div>
     <div class="ds-ops-mgmt-panel__toolbar no-print">
       <button type="button" class="ds-btn ds-btn--sm ds-btn--primary" data-ops-print-workshops>הדפס מלאי סדנאות</button>
     </div>
@@ -1756,6 +1764,7 @@ function hasActivitySeasonColumn(rows = []) {
 
 function isCompletionApprovalSummerActivity(row) {
   const season = normalizeActivitySeason(row?.activity_season ?? row?.activitySeason);
+  if (isActivityDeleted(row)) return false;
   if (season !== ACTIVITY_SEASON_SUMMER_2026) return false;
   if (!isCompletionApprovalIncludedActivityType(row)) return false;
   return activityDatesInRange(row, COMPLETION_APPROVAL_SUMMER_FROM, COMPLETION_APPROVAL_SUMMER_TO).length > 0;
