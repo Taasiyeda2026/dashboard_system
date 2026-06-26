@@ -9,7 +9,7 @@ import {
   dsEmptyState
 } from './shared/layout.js';
 import { dsPageListToolsBar, bindPageListTools } from './shared/page-list-tools.js';
-import { activityRowDetailHtml } from './shared/activity-detail-html.js';
+import { activityDetailHtml, activityHours, assignedToCurrentInstructor, completionStatusFromUpload, contactGroupsByDateSchool, currentInstructorIds, groupForRow, isResponsibleForGroup, isoDate, statusChipHtml, text } from './instructor-utils.js';
 
 
 const WEEKDAYS_HE = ['יום א׳', 'יום ב׳', 'יום ג׳', 'יום ד׳', 'יום ה׳', 'יום ו׳', 'יום ש׳'];
@@ -61,13 +61,11 @@ export const myDataScreen = {
     const userEmpId = String(state?.user?.emp_id || state?.user?.employee_id || '').trim();
     const rowsAll = Array.isArray(data?.rows) ? data.rows : [];
     const rows = rowsAll.filter((row) => {
-      const e1 = String(row?.emp_id || '').trim();
-      const e2 = String(row?.emp_id_2 || '').trim();
-      if (!userEmpId) return true;
-      return e1 === userEmpId || e2 === userEmpId;
+      return assignedToCurrentInstructor(row, currentInstructorIds(state));
     });
     void hideRowId;
     const columns = ['start_date', 'activity_day', 'activity_hours', 'authority', 'school', 'grade', 'activity_name', 'participants_count', 'completion_approval_status'];
+    const teamMap = contactGroupsByDateSchool(data?.teamGroups || []);
     const preparedRows = rows.map((row) => {
       const isPrimary = userEmpId && String(row?.emp_id || '').trim() === userEmpId;
       const peer = isPrimary ? String(row?.instructor_name_2 || '').trim() : String(row?.instructor_name || '').trim();
@@ -80,6 +78,9 @@ export const myDataScreen = {
 
     const body = preparedRows.map((row) => {
       const rawType = String(row.activity_type || '').trim();
+      const status = completionStatusFromUpload(null, row);
+      const rowMonth = String(row?.start_date || row?.activity_date || '').slice(0, 7);
+      const responsible = isResponsibleForGroup(groupForRow(row, teamMap), currentInstructorIds(state));
       const searchHay = columns
         .map((column) => {
           const val = displayCellValue(row, column);
@@ -87,9 +88,10 @@ export const myDataScreen = {
         })
         .join(' ');
       return `
-      <tr class="ds-data-row" data-list-item data-search="${escapeHtml(searchHay)}" data-filter="${escapeHtml(rawType)}" data-row-id="${escapeHtml(row.RowID)}" role="button" tabindex="0">${columns
+      <tr class="ds-data-row" data-list-item data-search="${escapeHtml(searchHay)}" data-filter="${escapeHtml(rawType)}" data-status="${escapeHtml(status.key)}" data-month="${escapeHtml(rowMonth)}" data-responsible="${responsible ? 'yes' : 'no'}" data-row-id="${escapeHtml(row.RowID)}" role="button" tabindex="0">${columns
         .map((column) => {
           const val = displayCellValue(row, column);
+          if (column === 'completion_approval_status') return `<td>${statusChipHtml(status)}</td>`;
           return `<td>${escapeHtml(val)}</td>`;
         })
         .join('')}</tr>
@@ -98,32 +100,42 @@ export const myDataScreen = {
 
     const tableBlock =
       preparedRows.length === 0
-        ? dsEmptyState('לא נמצאו רשומות')
+        ? dsEmptyState('אין פעילויות להצגה בתקופה שנבחרה')
         : dsTableWrap(`<table class="ds-table ds-table--interactive ds-table--ops">
-            <thead><tr>${columns.map((column) => `<th data-col="${escapeHtml(column)}">${escapeHtml(hebrewColumn(column))}</th>`).join('')}</tr></thead>
+            <thead><tr>${columns.map((column) => { const labels = { start_date: 'תאריך', activity_day: 'יום', activity_hours: 'שעות', authority: 'רשות', school: 'בית ספר', grade: 'שכבה', activity_name: 'שם פעילות', participants_count: 'משתתפים', completion_approval_status: 'סטטוס' }; return `<th data-col="${escapeHtml(column)}">${escapeHtml(labels[column] || hebrewColumn(column))}</th>`; }).join('')}</tr></thead>
             <tbody>${body.join('')}</tbody>
           </table>`);
 
     return dsScreenStack(`
-      ${dsPageHeader('הפעילויות שלי', 'הפעילויות שבהן את/ה משובץ/ת כמדריך/ה')}
+      <section class="instructor-area instructor-area--table">${dsPageHeader('הפעילויות שלי', 'כל הפעילויות שמשויכות אליך')}
       ${contactTeamGroupsHtml(data?.teamGroups || [], userEmpId)}
       ${preparedRows.length ? dsPageListToolsBar({ searchPlaceholder: 'חיפוש בפעילויות שלי…', filterLabel: 'סוג פעילות', filters: typeFilters }) : ''}
-      ${dsCard({
+      <div class="instr-filter-bar"><input class="ds-input" data-instr-search placeholder="חיפוש לפי בית ספר / פעילות / רשות"><input class="ds-input" type="month" data-instr-month><select class="ds-input" data-instr-status><option value="">כל הסטטוסים</option><option value="missing">טרם הועלה</option><option value="uploaded">הועלה לבדיקה</option><option value="approved">אושר</option><option value="rejected">נדחה</option></select><label class="instr-check"><input type="checkbox" data-instr-responsible> אני אחראי קשר</label></div>${dsCard({
         title: 'הפעילויות שלי',
         body: tableBlock,
         padded: preparedRows.length === 0
-      })}
+      })}</section>
     `);
   },
   bind({ root, data, ui, state, rerender, clearScreenDataCache }) {
     bindPageListTools(root);
+    const applyInstructorFilters = () => {
+      const q = String(root.querySelector('[data-instr-search]')?.value || '').trim().toLowerCase();
+      const m = String(root.querySelector('[data-instr-month]')?.value || '').trim();
+      const st = String(root.querySelector('[data-instr-status]')?.value || '').trim();
+      const resp = !!root.querySelector('[data-instr-responsible]')?.checked;
+      root.querySelectorAll('[data-list-item]').forEach((tr) => {
+        const ok = (!q || String(tr.dataset.search || '').toLowerCase().includes(q)) && (!m || tr.dataset.month === m) && (!st || tr.dataset.status === st) && (!resp || tr.dataset.responsible === 'yes');
+        tr.hidden = !ok;
+      });
+    };
+    root.querySelectorAll('[data-instr-search],[data-instr-month],[data-instr-status],[data-instr-responsible]').forEach((el) => el.addEventListener('input', applyInstructorFilters));
     const userEmpId = String(state?.user?.emp_id || state?.user?.employee_id || '').trim();
     const rows = (Array.isArray(data?.rows) ? data.rows : []).filter((row) => {
       if (!userEmpId) return true;
-      const e1 = String(row?.emp_id || '').trim();
-      const e2 = String(row?.emp_id_2 || '').trim();
-      return e1 === userEmpId || e2 === userEmpId;
+      return assignedToCurrentInstructor(row, currentInstructorIds(state));
     });
+    const teamMap = contactGroupsByDateSchool(data?.teamGroups || []);
     const rowById = new Map(rows.map((row) => [String(row.RowID), row]));
 
     root.querySelectorAll('.ds-data-row').forEach((rowNode) => {
@@ -131,13 +143,7 @@ export const myDataScreen = {
         const rowId = rowNode.dataset.rowId;
         const hit = rowById.get(String(rowId));
         if (!hit || !ui) return;
-        const hideEmpIds = !!state?.clientSettings?.hide_emp_id_on_screens;
-        const hideRowId = !!state?.clientSettings?.hide_row_id_in_ui;
-        const hideActivityNo = !!state?.clientSettings?.hide_activity_no_on_screens;
-        ui.openDrawer({
-          title: hideRowId ? 'פירוט פעילות' : `פירוט ${hit.RowID}`,
-          content: activityRowDetailHtml(hit, { privateNote: null, hideEmpIds, hideRowId, hideActivityNo, hideFunding: true, hideNotes: true })
-        });
+        ui.openDrawer({ title: 'פירוט פעילות', content: activityDetailHtml(hit, { ids: currentInstructorIds(state), teamMap }) });
       });
       rowNode.addEventListener('keydown', (event) => {
         if (event.key === 'Enter' || event.key === ' ') {
@@ -152,13 +158,7 @@ export const myDataScreen = {
       const rowId = action.slice('mydata:'.length);
       const hit = rowById.get(String(rowId));
       if (!hit) return;
-      const hideEmpIds = !!state?.clientSettings?.hide_emp_id_on_screens;
-      const hideRowId = !!state?.clientSettings?.hide_row_id_in_ui;
-      const hideActivityNo = !!state?.clientSettings?.hide_activity_no_on_screens;
-      ui.openDrawer({
-        title: hideRowId ? 'פירוט פעילות' : `פירוט ${hit.RowID}`,
-        content: activityRowDetailHtml(hit, { privateNote: null, hideEmpIds, hideRowId, hideActivityNo, hideFunding: true, hideNotes: true })
-      });
+      ui.openDrawer({ title: 'פירוט פעילות', content: activityDetailHtml(hit, { ids: currentInstructorIds(state), teamMap }) });
     });
   }
 };

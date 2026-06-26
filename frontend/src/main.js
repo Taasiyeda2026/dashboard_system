@@ -541,6 +541,7 @@ const screenLabels = {
   'instructor-contacts': 'אנשי קשר מדריכים',
   contacts: 'אנשי קשר',
   'end-dates': 'תאריכי סיום',
+  'instructor-calendar': 'לוח שנה',
   'my-data': 'הפעילויות שלי',
   'instructor-completion-approvals': 'אישורי ביצוע',
   'edit-requests': 'אישורים',
@@ -625,6 +626,7 @@ const screenLoaders = {
   'instructor-contacts': () => import('./screens/instructor-contacts.js').then((m) => m.instructorContactsScreen),
   contacts: () => import('./screens/contacts.js').then((m) => m.contactsScreen),
   'end-dates': () => import('./screens/end-dates.js').then((m) => m.endDatesScreen),
+  'instructor-calendar': () => import('./screens/instructor-calendar.js').then((m) => m.instructorCalendarScreen),
   'my-data': () => import('./screens/my-data.js').then((m) => m.myDataScreen),
   'instructor-completion-approvals': () => import('./screens/instructor-completion-approvals.js').then((m) => m.instructorCompletionApprovalsScreen),
   'edit-requests': () => import('./screens/edit-requests.js').then((m) => m.editRequestsScreen),
@@ -688,7 +690,7 @@ function isActiveInstructorPilotUser(user = state?.user || {}) {
   return [user.emp_id, user.employee_id, user.user_id].map((v) => String(v || '').trim()).some((id) => ACTIVE_INSTRUCTOR_EMP_IDS.has(id));
 }
 function instructorOnlyRoutes() {
-  return isActiveInstructorPilotUser() ? ['my-data', 'instructor-completion-approvals'] : [];
+  return ['instructor-calendar', 'my-data', 'instructor-completion-approvals'];
 }
 
 function applySettingsToRoutes(routes, settings = state.clientSettings) {
@@ -1005,6 +1007,7 @@ function shell(content) {
   const hiddenSet = navSidebarHiddenRoutesSet();
   const contextualSet = navContextualRoutesSet();
   const isAdminUser = state?.user?.role === 'admin';
+  const isInstructorUser = String(state?.user?.role || '').trim() === 'instructor';
   // לאדמין: הנתונים שלי — מוסתר לחלוטין; הרשאות — בסרגל בלבד
   const adminSidebarExclude = isAdminUser && !isActiveInstructorPilotUser() ? new Set(['my-data']) : new Set();
   const nav = effectiveRoutes()
@@ -1040,7 +1043,7 @@ function shell(content) {
   return `
     <div class="app-shell${drawerClass} route-${escapeHtml(String(state.route || ''))}" data-current-route="${escapeHtml(String(state.route || ''))}" dir="rtl">
       <button type="button" class="shell-backdrop" data-mobile-close aria-label="סגירת תפריט"></button>
-      <aside class="shell-sidebar" aria-label="ניווט ראשי" id="mobileNavDrawer" aria-hidden="${drawerHidden}">
+      <aside class="shell-sidebar${isInstructorUser ? ' shell-sidebar--instructor' : ''}" aria-label="ניווט ראשי" id="mobileNavDrawer" aria-hidden="${drawerHidden}">
         <div class="shell-sidebar__mobile-head">
           <span class="shell-sidebar__mobile-brand">${systemName}</span>
           <button type="button" class="shell-close-btn" data-mobile-close aria-label="סגירת תפריט">✕</button>
