@@ -66,13 +66,14 @@ function uploadsByApproval(uploads = []) {
   });
   return map;
 }
-function statusLabel(upload) {
+function statusInfo(upload) {
   const status = text(upload?.status);
-  if (status === 'approved') return 'אושר';
-  if (status === 'rejected') return 'נדחה';
-  if (status === 'uploaded' || upload?.file_path) return 'הועלה';
-  return 'טרם הועלה';
+  if (status === 'approved') return { key: 'approved', label: 'אושר' };
+  if (status === 'rejected') return { key: 'rejected', label: 'נדחה' };
+  if (status === 'uploaded' || upload?.file_path) return { key: 'uploaded', label: 'הועלה לבדיקה' };
+  return { key: 'missing', label: 'טרם הועלה' };
 }
+function statusChip(upload) { const st = statusInfo(upload); return `<span class="instr-status instr-status--${st.key}">${escapeHtml(st.label)}</span>`; }
 function printApprovals(approvals, title) {
   if (!approvals?.length) return;
   const safeTitle = title || 'אישור ביצוע';
@@ -98,23 +99,25 @@ export const instructorCompletionApprovalsScreen = {
     const approvals = buildCompletionApprovals(rows, { instructor: instructorName, dateMode: 'range', dateFrom: COMPLETION_APPROVAL_SUMMER_FROM, dateTo: COMPLETION_APPROVAL_SUMMER_TO });
     const uploadMap = uploadsByApproval(data?.uploads || []);
     printContext = approvals;
+    const statusCounts = { missing: 0, uploaded: 0, approved: 0, rejected: 0 };
+    approvals.forEach((approval) => { const st = statusInfo(uploadMap.get(uploadKey(approval))).key; statusCounts[st] = (statusCounts[st] || 0) + 1; });
     const body = approvals.map((approval, index) => {
       const upload = uploadMap.get(uploadKey(approval));
-      const activities = approval.activities.map((activity) => escapeHtml(activity.name)).join('<br>');
+      const activities = approval.activities.map((activity) => `<div class="instr-approval-activity">${escapeHtml(activity.name)}${activity.grade ? ` · ${escapeHtml(activity.grade)}` : ''}</div>`).join('');
       return `<tr>
         <td>${escapeHtml(formatDateHe(approval.date) || approval.date || '')}</td>
         <td>${escapeHtml(approval.authority || '')}</td>
         <td>${escapeHtml(approval.school || '')}</td>
         <td>${activities}</td>
         <td><button type="button" class="ds-btn ds-btn--xs ds-btn--primary" data-approval-print="${index}">צפייה / הדפסה</button></td>
-        <td><label class="ds-btn ds-btn--xs ds-btn--secondary">העלאת אישור חתום<input class="sr-only" type="file" accept=".pdf,.jpg,.jpeg,.png,application/pdf,image/jpeg,image/png" data-approval-upload="${index}"></label></td>
-        <td>${escapeHtml(statusLabel(upload))}${upload?.file_name ? `<br><small>${escapeHtml(upload.file_name)}</small>` : ''}</td>
+        <td><label class="ds-btn ds-btn--xs ds-btn--secondary">בחירת קובץ / העלאה<input class="sr-only" type="file" accept=".pdf,.jpg,.jpeg,.png,application/pdf,image/jpeg,image/png" data-approval-upload="${index}"></label></td>
+        <td>${statusChip(upload)}${upload?.file_name ? `<br><small>${escapeHtml(upload.file_name)}</small>` : ''}${upload?.review_note ? `<div class="instr-reject-note">${escapeHtml(upload.review_note)}</div>` : ''}</td>
       </tr>`;
     }).join('');
     const table = approvals.length
       ? dsTableWrap(`<table class="ds-table ds-table--compact"><thead><tr><th>תאריך</th><th>רשות</th><th>בית ספר</th><th>רשימת פעילויות</th><th>צפייה / הדפסה</th><th>העלאה</th><th>סטטוס העלאה</th></tr></thead><tbody>${body}</tbody></table>`)
       : dsEmptyState('לא נמצאו אישורי ביצוע אישיים להפקה');
-    return dsScreenStack(`${dsPageHeader('אישורי ביצוע', 'אישורי ביצוע אישיים לפי הפעילויות שלך')}${dsCard({ title: 'האישורים שלי', badge: String(approvals.length), body: table, padded: false })}`);
+    return dsScreenStack(`<section class="instructor-area instructor-area--approvals">${dsPageHeader('אישורי ביצוע', 'העלאת אישורי ביצוע אישיים לפי הפעילויות שלך')}<div class="instr-summary-grid"><article class="instr-summary-card"><strong>${statusCounts.missing}</strong><small>ממתינים להעלאה</small></article><article class="instr-summary-card"><strong>${statusCounts.uploaded}</strong><small>הועלו לבדיקה</small></article><article class="instr-summary-card"><strong>${statusCounts.approved}</strong><small>אושרו</small></article><article class="instr-summary-card"><strong>${statusCounts.rejected}</strong><small>נדחו</small></article></div>${dsCard({ title: 'האישורים שלי', badge: String(approvals.length), body: table, padded: false })}</section>`);
   },
   bind({ root, api, state, rerender, clearScreenDataCache }) {
     root.querySelectorAll('[data-approval-print]').forEach((btn) => btn.addEventListener('click', () => {

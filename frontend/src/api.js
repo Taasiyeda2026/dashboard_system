@@ -3318,7 +3318,7 @@ const SUPABASE_ROLE_ROUTES = {
   domain_manager: ['dashboard', 'activities', 'archive', 'catalog', 'invitations', 'proposals-agreements', 'week', 'month', 'exceptions', 'instructors', 'instructor-contacts', 'contacts', 'end-dates', 'certificates'],
   business_development_manager: ['dashboard', 'activities', 'archive', 'proposals-agreements', 'catalog', 'invitations', 'week', 'month', 'exceptions', 'instructors', 'instructor-contacts', 'contacts', 'end-dates', 'edit-requests', 'certificates'],
   instructor_manager: ['dashboard', 'activities', 'archive', 'catalog', 'invitations', 'week', 'month', 'exceptions', 'instructors', 'instructor-contacts', 'contacts', 'end-dates', 'edit-requests', 'certificates'],
-  instructor: ['my-data', 'instructor-completion-approvals']
+  instructor: ['instructor-calendar', 'my-data', 'instructor-completion-approvals']
 };
 
 function normalizeRoleAlias(role) {
@@ -3555,7 +3555,7 @@ function buildBootstrapFromUser(userRow, profileRow = null) {
     allowedRoutes.push('operations-management');
   }
   if (isKnownInstructorIdentity(flat)) {
-    for (const route of ['my-data', 'instructor-completion-approvals']) {
+    for (const route of ['instructor-calendar', 'my-data', 'instructor-completion-approvals']) {
       if (!allowedRoutes.includes(route)) allowedRoutes.push(route);
     }
   }
