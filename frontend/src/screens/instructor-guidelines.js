@@ -175,20 +175,30 @@ function bindModalActions(ui) {
 export const instructorGuidelinesScreen = {
   load: async () => ({}),
   render() {
-    const reminder = REMINDER_ITEMS.map((item) => `<div class="procedures-intro-item">${escapeHtml(item)}</div>`).join('');
+    const reminder = REMINDER_ITEMS.map((item) => {
+      const itemText = escapeHtml(item);
+      if (item === 'לוודא אישור צילום') {
+        return `<div class="procedures-intro-item procedures-intro-item--photo">
+          <span>${itemText}</span>
+          <a
+            href="./forms/photo-consent-form.pdf"
+            download
+            class="instr-guidelines__pdf-download"
+            aria-label="הורדת אישור צילום ופרסום"
+            title="הורדת אישור צילום ופרסום"
+          >
+            <span aria-hidden="true">📄</span>
+          </a>
+        </div>`;
+      }
+      return `<div class="procedures-intro-item">${itemText}</div>`;
+    }).join('');
     return dsScreenStack(`
       <section class="instructor-area instructor-guidelines">
         ${dsPageHeader(PAGE_TITLE)}
         <div class="instr-guidelines__strip" aria-label="תזכורת לפני פעילות">
           <p class="instr-guidelines__strip-title">לפני כל פעילות</p>
           <div class="procedures-intro-grid" role="list">${reminder}</div>
-          <a
-            href="./forms/photo-consent-form.pdf"
-            download
-            class="instr-guidelines__pdf-download"
-          >
-            📄 הורדת אישור צילום ופרסום
-          </a>
         </div>
         <div class="instr-guidelines__grid" role="list" aria-label="נושאי נהלים">${SECTIONS.map(cardHtml).join('')}</div>
       </section>
