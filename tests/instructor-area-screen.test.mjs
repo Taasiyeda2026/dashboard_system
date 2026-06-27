@@ -268,6 +268,16 @@ test('completion approvals includes mobile card list alongside desktop table', (
   const html = instructorCompletionApprovalsScreen.render({ rows: [row], uploads: [] }, { state });
   assert.match(html, /instr-approvals-desktop/);
   assert.match(html, /instr-approvals-mobile/);
+  assert.match(html, /execution-approvals-table-wrapper/);
+  assert.match(html, /execution-approvals-mobile-cards/);
   assert.match(html, /instr-approval-card/);
   assert.match(html, /ds-table--instr-approvals2/);
+});
+
+test('completion approval mobile cards are hidden on desktop CSS', () => {
+  const css = readFileSync(new URL('../frontend/src/styles/main.css', import.meta.url), 'utf8');
+  assert.match(css, /\.execution-approvals-table-wrapper,\.approvals-table-wrapper\{display:block\}/);
+  assert.match(css, /\.execution-approvals-mobile-cards,\.approvals-mobile-cards\{display:none\}/);
+  assert.match(css, /\.instr-approvals-mobile\.instr-approval-cards\{display:none\}/);
+  assert.match(css, /@media \(max-width:768px\)\{[\s\S]*\.execution-approvals-table-wrapper,\.approvals-table-wrapper\{display:none!important\}[\s\S]*\.execution-approvals-mobile-cards,\.approvals-mobile-cards\{display:block!important\}/);
 });
