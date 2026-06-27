@@ -4,6 +4,7 @@ import { JSDOM } from 'jsdom';
 import { readFileSync } from 'node:fs';
 import { instructorCalendarScreen } from '../frontend/src/screens/instructor-calendar.js';
 import { myDataScreen } from '../frontend/src/screens/my-data.js';
+import { instructorGuidelinesScreen } from '../frontend/src/screens/instructor-guidelines.js';
 import { instructorCompletionApprovalsScreen } from '../frontend/src/screens/instructor-completion-approvals.js';
 import { resolveInstructorApprovalForRow, openInstructorApprovalForActivity } from '../frontend/src/screens/instructor-utils.js';
 
@@ -19,8 +20,8 @@ test('instructor route source defaults to calendar and keeps admin routes separa
   const main = readFileSync(new URL('../frontend/src/main.js', import.meta.url), 'utf8');
   const api = readFileSync(new URL('../frontend/src/api.js', import.meta.url), 'utf8');
   assert.match(main, /'instructor-calendar': 'לוח שנה'/);
-  assert.match(main, /return \['instructor-calendar', 'my-data', 'instructor-completion-approvals'\]/);
-  assert.match(api, /instructor: \['instructor-calendar', 'my-data', 'instructor-completion-approvals'\]/);
+  assert.match(main, /return \['instructor-calendar', 'my-data', 'instructor-completion-approvals', 'instructor-guidelines'\]/);
+  assert.match(api, /instructor: \['instructor-calendar', 'my-data', 'instructor-completion-approvals', 'instructor-guidelines'\]/);
   assert.match(api, /admin: \['dashboard', 'activities'/);
 });
 
@@ -47,6 +48,9 @@ test('my activities table has instructor filters and real column labels', () => 
   assert.match(html, /הפעילויות שלי/);
   assert.match(html, /חיפוש לפי בית ספר \/ פעילות \/ רשות/);
   assert.match(html, /תאריך/);
+  assert.match(html, /instr-table-row/);
+  assert.match(html, /data-row-detail/);
+  assert.match(html, /data-row-print/);
   assert.doesNotMatch(html, />שדה</);
 });
 
@@ -144,5 +148,32 @@ test('my activities daily filter, today, and clear buttons update visible rows',
   } finally {
     delete globalThis.document;
     delete globalThis.sessionStorage;
+  }
+});
+
+test('instructor guidelines screen renders compact accordion topics', () => {
+  const html = instructorGuidelinesScreen.render({}, { state });
+  assert.match(html, /נהלים למדריכי הקיץ/);
+  assert.match(html, /לפני כל פעילות/);
+  assert.match(html, /לפני יום הפעילות/);
+  assert.match(html, /התנהלות מקצועית מול הקייטנה/);
+  assert.match(html, /<details[^>]*open[^>]*>[\s\S]*לפני יום הפעילות/);
+  assert.match(html, /data-guidelines-go-approvals/);
+});
+
+test('instructor guidelines approval link navigates to completion approvals tab', () => {
+  const html = instructorGuidelinesScreen.render({}, { state });
+  const dom = new JSDOM(`<main id="root">${html}</main><nav><button class="shell-nav__btn" data-route="instructor-completion-approvals"></button></nav>`, { url: 'https://example.test/' });
+  const root = dom.window.document.querySelector('#root');
+  const navBtn = dom.window.document.querySelector('[data-route="instructor-completion-approvals"]');
+  let clicked = false;
+  navBtn.addEventListener('click', () => { clicked = true; });
+  globalThis.document = dom.window.document;
+  try {
+    instructorGuidelinesScreen.bind({ root });
+    root.querySelector('[data-guidelines-go-approvals]').click();
+    assert.equal(clicked, true);
+  } finally {
+    delete globalThis.document;
   }
 });

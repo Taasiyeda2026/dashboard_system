@@ -544,6 +544,7 @@ const screenLabels = {
   'instructor-calendar': 'לוח שנה',
   'my-data': 'הפעילויות שלי',
   'instructor-completion-approvals': 'אישורי ביצוע',
+  'instructor-guidelines': 'נהלים',
   'edit-requests': 'אישורים',
   permissions: 'הרשאות',
   'admin-home': 'בית — ניהול',
@@ -629,6 +630,7 @@ const screenLoaders = {
   'instructor-calendar': () => import('./screens/instructor-calendar.js').then((m) => m.instructorCalendarScreen),
   'my-data': () => import('./screens/my-data.js').then((m) => m.myDataScreen),
   'instructor-completion-approvals': () => import('./screens/instructor-completion-approvals.js').then((m) => m.instructorCompletionApprovalsScreen),
+  'instructor-guidelines': () => import('./screens/instructor-guidelines.js').then((m) => m.instructorGuidelinesScreen),
   'edit-requests': () => import('./screens/edit-requests.js').then((m) => m.editRequestsScreen),
   permissions: () => import('./screens/permissions.js').then((m) => m.permissionsScreen),
   'admin-home': () => import('./screens/admin-home.js').then((m) => m.adminHomeScreen),
@@ -690,7 +692,7 @@ function isActiveInstructorPilotUser(user = state?.user || {}) {
   return [user.emp_id, user.employee_id, user.user_id].map((v) => String(v || '').trim()).some((id) => ACTIVE_INSTRUCTOR_EMP_IDS.has(id));
 }
 function instructorOnlyRoutes() {
-  return ['instructor-calendar', 'my-data', 'instructor-completion-approvals'];
+  return ['instructor-calendar', 'my-data', 'instructor-completion-approvals', 'instructor-guidelines'];
 }
 
 function applySettingsToRoutes(routes, settings = state.clientSettings) {
