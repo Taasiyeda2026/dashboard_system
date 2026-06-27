@@ -169,10 +169,16 @@ test('my activities daily filter, today, and clear buttons update visible rows',
   }
 });
 
-test('instructor guidelines screen renders summer 2026 title and eight topic cards', () => {
+test('instructor guidelines screen renders summer 2026 title, intro grid, and eight topic cards', () => {
   const html = instructorGuidelinesScreen.render({}, { state });
   assert.match(html, /נהלי עבודה חשובים – קיץ 2026/);
   assert.match(html, /instr-guidelines__strip/);
+  assert.match(html, /procedures-intro-grid/);
+  assert.match(html, /procedures-intro-item/);
+  assert.doesNotMatch(html, /instr-guidelines__checklist/);
+  assert.match(html, /לוודא איש קשר/);
+  assert.match(html, /להחתים ולהעלות אישור חתום/);
+  assert.equal((html.match(/procedures-intro-item/g) || []).length, 9);
   assert.match(html, /instr-guidelines__grid/);
   assert.match(html, /data-guideline-id="before-day"/);
   assert.match(html, /data-guideline-id="conduct"/);
