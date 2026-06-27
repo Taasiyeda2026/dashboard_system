@@ -6,13 +6,13 @@ const PAGE_TITLE = 'נהלי עבודה חשובים – קיץ 2026';
 const REMINDER_ITEMS = [
   'לוודא שעות ומיקום',
   'לוודא איש קשר',
-  'לוודא ציוד נדרש',
-  'לבדוק תקינות ציוד',
+  'לוודא אישור צילום',
+  'לוודא ציוד תקין',
   'להגיע 15 דקות לפני',
   'להתארגן לפני התחלה',
   'להנחות בצורה ברורה',
   'להתנהל בכבוד ובסבלנות',
-  'להחתים ולהעלות אישור חתום'
+  'להחתים ולהעלות אישור ביצוע'
 ];
 
 const SECTIONS = [
@@ -182,6 +182,13 @@ export const instructorGuidelinesScreen = {
         <div class="instr-guidelines__strip" aria-label="תזכורת לפני פעילות">
           <p class="instr-guidelines__strip-title">לפני כל פעילות</p>
           <div class="procedures-intro-grid" role="list">${reminder}</div>
+          <a
+            href="./forms/photo-consent-form.pdf"
+            download
+            class="instr-guidelines__pdf-download"
+          >
+            📄 הורדת אישור צילום ופרסום
+          </a>
         </div>
         <div class="instr-guidelines__grid" role="list" aria-label="נושאי נהלים">${SECTIONS.map(cardHtml).join('')}</div>
       </section>

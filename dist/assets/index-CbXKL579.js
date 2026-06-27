@@ -1665,6 +1665,13 @@ ${E}`}class De extends Error{constructor({message:e,code:n,cause:s,name:i}){var 
         <td class="iac-school">${p(_.school||"")}</td>
         <td class="iac-count">${p(l(E.length))}</td>
         <td class="iac-upload">${$}${k}</td>
+          <a
+            href="./forms/photo-consent-form.pdf"
+            download
+            class="instr-guidelines__pdf-download"
+          >
+            📄 הורדת אישור צילום ופרסום
+          </a>
         <td class="iac-status">${yA(A)}</td>
         <td class="iac-action"><button type="button" class="ds-btn ds-btn--xs ds-btn--secondary instr-btn-print" data-approval-key="${S}" title="הדפסה">הדפסה</button></td>
       </tr>`,card:XN(_,A,S,E,k,b)}}),d=u.map(_=>_.table).join(""),m=u.map(_=>_.card).join(""),h=r.length?`<div class="instr-approvals-dual"><div class="instr-approvals-desktop execution-approvals-table-wrapper approvals-table-wrapper">${ks(`<table class="ds-table ds-table--instr-approvals2"><colgroup><col class="iac-date"><col class="iac-school"><col class="iac-count"><col class="iac-upload"><col class="iac-status"><col class="iac-action"></colgroup><thead><tr><th>תאריך</th><th>בית ספר</th><th>כמות פעילויות</th><th>אישור ביצוע</th><th>סטטוס</th><th>פעולה</th></tr></thead><tbody>${d}</tbody></table>`)}</div><div class="instr-approvals-mobile instr-approval-cards execution-approvals-mobile-cards approvals-mobile-cards">${m}</div></div>`:fe("לא נמצאו אישורי ביצוע אישיים להפקה"),f=`<div class="instr-summary-grid instr-summary-grid--4">
