@@ -18965,6 +18965,7 @@ details[open] > .ds-fin-acc__summary::before { transform: rotate(90deg); }
 .instr-btn-upload{font-size:11px;padding:3px 8px;min-height:26px}
 .instr-upload-label{cursor:pointer}
 .instr-upload-controls{display:inline-flex;align-items:center;gap:4px;flex-wrap:nowrap;max-width:100%}
+.instr-file-input-hidden{display:none}
 .instr-pending-file{font-size:11px;color:#2b6cb0;max-width:72px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;line-height:1.2}
 .instr-btn-pick{height:26px;min-height:26px;padding:3px 7px;font-size:11px;border-radius:7px;line-height:1}
 .instr-btn-plus{width:26px;height:26px;min-height:26px;padding:0;font-size:16px;font-weight:800;border-radius:7px;line-height:1;display:inline-flex;align-items:center;justify-content:center}
