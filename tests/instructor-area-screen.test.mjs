@@ -106,3 +106,43 @@ test('shared activity print helper returns the same grouped approval calendar an
     delete globalThis.document;
   }
 });
+
+test('my activities uses status-first columns and daily date filtering controls', () => {
+  const html = myDataScreen.render({ rows: [row], teamGroups }, { state });
+  assert.match(html, /<th class="instr-col-completion-approval-status">סטטוס<\/th><th class="instr-col-start-date">תאריך<\/th>/);
+  assert.match(html, /type="date" data-instr-date/);
+  assert.doesNotMatch(html, /type="month" data-instr-month/);
+  assert.match(html, /data-instr-today/);
+  assert.match(html, /data-instr-clear/);
+  assert.match(html, /data-row-print/);
+  assert.match(html, /data-row-upload/);
+});
+
+test('my activities daily filter, today, and clear buttons update visible rows', () => {
+  const todayIso = new Date().toISOString().slice(0, 10);
+  const todayRow = { ...row, RowID: 'today-row', start_date: todayIso, activity_date: todayIso, school: 'היום' };
+  const otherRow = { ...row, RowID: 'other-row', start_date: '2026-06-22', activity_date: '2026-06-22', school: 'מחר' };
+  const html = myDataScreen.render({ rows: [todayRow, otherRow], teamGroups }, { state });
+  const dom = new JSDOM(`<main id="root">${html}</main>`, { url: 'https://example.test/' });
+  const root = dom.window.document.querySelector('#root');
+  globalThis.document = dom.window.document;
+  globalThis.sessionStorage = dom.window.sessionStorage;
+  try {
+    myDataScreen.bind({ root, data: { rows: [todayRow, otherRow], teamGroups }, ui: { openDrawer() {} }, state });
+    const rows = [...root.querySelectorAll('[data-list-item]')];
+    root.querySelector('[data-instr-date]').value = '2026-06-22';
+    root.querySelector('[data-instr-date]').dispatchEvent(new dom.window.Event('input', { bubbles: true }));
+    assert.equal(rows.find((tr) => tr.dataset.rowId === 'today-row').hidden, true);
+    assert.equal(rows.find((tr) => tr.dataset.rowId === 'other-row').hidden, false);
+    root.querySelector('[data-instr-today]').click();
+    assert.equal(root.querySelector('[data-instr-date]').value, todayIso);
+    assert.equal(rows.find((tr) => tr.dataset.rowId === 'today-row').hidden, false);
+    assert.equal(rows.find((tr) => tr.dataset.rowId === 'other-row').hidden, true);
+    root.querySelector('[data-instr-clear]').click();
+    assert.equal(root.querySelector('[data-instr-date]').value, '');
+    assert.equal(rows.every((tr) => tr.hidden === false), true);
+  } finally {
+    delete globalThis.document;
+    delete globalThis.sessionStorage;
+  }
+});

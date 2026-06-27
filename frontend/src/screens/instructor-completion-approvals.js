@@ -8,6 +8,7 @@ import {
 } from './shared/activity-completion-approval-print.js';
 
 let approvalsByKey = new Map();
+let pendingUploadTargetKey = '';
 
 const COMPLETION_APPROVAL_SUMMER_FROM = '2026-06-20';
 const COMPLETION_APPROVAL_SUMMER_TO = '2026-08-31';
@@ -56,6 +57,15 @@ function instructorNameForRows(rows, ids, fallback) {
 function uploadKey(approval) {
   return `${text(approval?.date)}|${norm(approval?.authority)}|${norm(approval?.school)}`;
 }
+function readPendingUploadTargetKey() {
+  try {
+    const raw = sessionStorage.getItem('instructor_completion_approval_target');
+    const target = raw ? JSON.parse(raw) : null;
+    return target ? `${text(target.date)}|${norm(target.authority)}|${norm(target.school)}` : '';
+  } catch {
+    return '';
+  }
+}
 
 function approvalStableKey(approval) {
   return [approval?.instructorName, approval?.date, approval?.authority, approval?.school].map((part) => norm(part)).join('|');
@@ -95,6 +105,7 @@ export const instructorCompletionApprovalsScreen = {
     const instructorName = instructorNameForRows(allAssignedRows, ids, currentInstructorName(state));
     const approvals = buildCompletionApprovals(rows, { instructor: instructorName, dateMode: 'range', dateFrom: COMPLETION_APPROVAL_SUMMER_FROM, dateTo: COMPLETION_APPROVAL_SUMMER_TO });
     const uploadMap = uploadsByApproval(data?.uploads || []);
+    pendingUploadTargetKey = readPendingUploadTargetKey();
 
     approvalsByKey = new Map(approvals.map((approval) => [approvalStableKey(approval), approval]));
 
@@ -116,7 +127,8 @@ export const instructorCompletionApprovalsScreen = {
       const safeKey = escapeHtml(approvalStableKey(approval));
       const uploadBtn = `<label class="instr-upload-label" title="בחרו קובץ PDF / JPG / PNG להעלאה"><span class="ds-btn ds-btn--xs ds-btn--primary instr-btn-upload">${hasFile ? 'החלף' : 'העלה'}</span><input class="sr-only" type="file" accept=".pdf,.jpg,.jpeg,.png,application/pdf,image/jpeg,image/png" data-upload-key="${safeKey}"></label>`;
       const reviewNote = upload?.review_note ? `<div class="instr-reject-note">${escapeHtml(upload.review_note)}</div>` : '';
-      return `<tr>
+      const targetClass = pendingUploadTargetKey && uploadKey(approval) === pendingUploadTargetKey ? ' class="instr-approval-target" data-approval-target="true"' : '';
+      return `<tr${targetClass}>
         <td class="iac-date">${escapeHtml(formatDateHe(approval.date) || approval.date || '')}</td>
         <td class="iac-school">${escapeHtml(approval.school || '')}</td>
         <td class="iac-count">${escapeHtml(actCountLabel(acts.length))}</td>
@@ -144,6 +156,11 @@ export const instructorCompletionApprovalsScreen = {
     </section>`);
   },
   bind({ root, api, state, rerender, clearScreenDataCache }) {
+    const targetRow = root.querySelector('[data-approval-target="true"]');
+    if (targetRow) {
+      targetRow.scrollIntoView?.({ block: 'center', behavior: 'smooth' });
+      targetRow.querySelector('[data-upload-key]')?.focus?.();
+    }
     root.querySelectorAll('[data-approval-key]').forEach((btn) => {
       btn.addEventListener('click', () => {
         try {
