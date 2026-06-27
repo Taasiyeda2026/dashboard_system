@@ -247,6 +247,26 @@ export function completionApprovalsPrintHtml(approvals = []) {
   return approvals.map(completionApprovalDocumentHtml).join('');
 }
 
+export function openApprovalPrintWindow(approvals = [], title = '') {
+  if (!Array.isArray(approvals) || !approvals.length) {
+    alert('לא ניתן לפתוח את אישור הביצוע. חסרים נתונים לפעילות זו.');
+    return;
+  }
+  try {
+    const safeTitle = text(title) || 'אישור ביצוע';
+    const html = `<!doctype html><html lang="he" dir="rtl"><head><meta charset="utf-8"><title>${escapeHtml(safeTitle)}</title><style>${completionApprovalPrintCss}</style></head><body>${completionApprovalsPrintHtml(approvals)}</body></html>`;
+    const win = window.open('', '_blank', 'noopener,noreferrer');
+    if (!win) { alert('לא ניתן לפתוח חלון הדפסה. יש לאפשר חלונות קופצים בדפדפן.'); return; }
+    win.document.open();
+    win.document.write(html);
+    win.document.close();
+    win.focus();
+    setTimeout(() => { try { win.print(); } catch { /* ignore */ } }, 300);
+  } catch (err) {
+    alert(`שגיאה בפתיחת אישור הביצוע: ${err?.message || 'שגיאה לא ידועה'}`);
+  }
+}
+
 export const completionApprovalPrintCss = `
   body{direction:rtl;font-family:Assistant,Arial,sans-serif;margin:0;color:#111827;background:#fff;font-size:12px;line-height:1.45}
   .completion-approval-page{box-sizing:border-box;min-height:277mm;padding:12mm 12mm 10mm;break-after:page;page-break-after:always;background:#fff;display:flex;flex-direction:column}

@@ -4,11 +4,10 @@ import { dsPageHeader, dsCard, dsScreenStack, dsTableWrap, dsEmptyState } from '
 import {
   approvalFileTitle,
   buildCompletionApprovals,
-  completionApprovalPrintCss,
-  completionApprovalsPrintHtml
+  openApprovalPrintWindow
 } from './shared/activity-completion-approval-print.js';
 
-let printContext = [];
+let approvalsByKey = new Map();
 
 const COMPLETION_APPROVAL_SUMMER_FROM = '2026-06-20';
 const COMPLETION_APPROVAL_SUMMER_TO = '2026-08-31';
@@ -77,29 +76,6 @@ function statusChip(upload) {
   return `<span class="instr-status instr-status--${st.key}">${escapeHtml(st.label)}</span>`;
 }
 
-function printApprovals(approvals, title) {
-  if (!approvals?.length) {
-    alert('לא ניתן לפתוח את אישור הביצוע. חסרים נתונים לפעילות זו.');
-    return;
-  }
-  try {
-    const safeTitle = title || 'אישור ביצוע';
-    const html = `<!doctype html><html lang="he" dir="rtl"><head><meta charset="utf-8"><title>${escapeHtml(safeTitle)}</title><style>${completionApprovalPrintCss}</style></head><body>${completionApprovalsPrintHtml(approvals)}</body></html>`;
-    const win = window.open('', '_blank', 'noopener,noreferrer');
-    if (!win) {
-      alert('לא ניתן לפתוח חלון הדפסה. יש לאפשר חלונות קופצים בדפדפן.');
-      return;
-    }
-    win.document.open();
-    win.document.write(html);
-    win.document.close();
-    win.focus();
-    setTimeout(() => { try { win.print(); } catch { /* ignore */ } }, 300);
-  } catch (err) {
-    alert(`שגיאה בפתיחת אישור הביצוע: ${err?.message || 'שגיאה לא ידועה'}`);
-  }
-}
-
 export const instructorCompletionApprovalsScreen = {
   load: async ({ api }) => {
     const [myData, uploads] = await Promise.all([
@@ -110,11 +86,13 @@ export const instructorCompletionApprovalsScreen = {
   },
   render(data, { state } = {}) {
     const ids = currentIdentityValues(state);
-    const rows = (Array.isArray(data?.rows) ? data.rows : []).filter((row) => assignedToCurrentInstructor(row, ids) && isSummerCompletionApprovalRow(row));
-    const instructorName = instructorNameForRows(rows, ids, currentInstructorName(state));
+    const allAssignedRows = (Array.isArray(data?.rows) ? data.rows : []).filter((row) => assignedToCurrentInstructor(row, ids));
+    const rows = allAssignedRows.filter(isSummerCompletionApprovalRow);
+    const instructorName = instructorNameForRows(allAssignedRows, ids, currentInstructorName(state));
     const approvals = buildCompletionApprovals(rows, { instructor: instructorName, dateMode: 'range', dateFrom: COMPLETION_APPROVAL_SUMMER_FROM, dateTo: COMPLETION_APPROVAL_SUMMER_TO });
     const uploadMap = uploadsByApproval(data?.uploads || []);
-    printContext = approvals;
+
+    approvalsByKey = new Map(approvals.map((a) => [a.id, a]));
 
     const statusCounts = { missing: 0, uploaded: 0, approved: 0, rejected: 0 };
     approvals.forEach((approval) => {
@@ -123,7 +101,7 @@ export const instructorCompletionApprovalsScreen = {
     });
 
     const actCountLabel = (n) => n === 1 ? 'פעילות אחת' : `${n} פעילויות`;
-    const body = approvals.map((approval, index) => {
+    const body = approvals.map((approval) => {
       const upload = uploadMap.get(uploadKey(approval));
       const acts = approval.activities || [];
       const hasFile = !!(upload?.file_path || upload?.file_name);
@@ -131,7 +109,8 @@ export const instructorCompletionApprovalsScreen = {
       const fileState = hasFile
         ? `<span class="instr-file-state instr-file-state--has">📎 ${fileName}</span>`
         : `<span class="instr-file-state instr-file-state--none">לא הועלה</span>`;
-      const uploadBtn = `<label class="instr-upload-label" title="בחרו קובץ PDF / JPG / PNG להעלאה"><span class="ds-btn ds-btn--xs ds-btn--primary instr-btn-upload">${hasFile ? 'החלף' : 'העלה'}</span><input class="sr-only" type="file" accept=".pdf,.jpg,.jpeg,.png,application/pdf,image/jpeg,image/png" data-approval-upload="${index}"></label>`;
+      const safeKey = escapeHtml(approval.id);
+      const uploadBtn = `<label class="instr-upload-label" title="בחרו קובץ PDF / JPG / PNG להעלאה"><span class="ds-btn ds-btn--xs ds-btn--primary instr-btn-upload">${hasFile ? 'החלף' : 'העלה'}</span><input class="sr-only" type="file" accept=".pdf,.jpg,.jpeg,.png,application/pdf,image/jpeg,image/png" data-upload-key="${safeKey}"></label>`;
       const reviewNote = upload?.review_note ? `<div class="instr-reject-note">${escapeHtml(upload.review_note)}</div>` : '';
       return `<tr>
         <td class="iac-date">${escapeHtml(formatDateHe(approval.date) || approval.date || '')}</td>
@@ -139,7 +118,7 @@ export const instructorCompletionApprovalsScreen = {
         <td class="iac-count">${escapeHtml(actCountLabel(acts.length))}</td>
         <td class="iac-upload">${fileState}${uploadBtn}${reviewNote}</td>
         <td class="iac-status">${statusChip(upload)}</td>
-        <td class="iac-action"><button type="button" class="ds-btn ds-btn--xs ds-btn--secondary" data-approval-print="${index}">צפייה / הדפסה</button></td>
+        <td class="iac-action"><button type="button" class="ds-btn ds-btn--xs ds-btn--secondary" data-approval-key="${safeKey}">צפייה / הדפסה</button></td>
       </tr>`;
     }).join('');
 
@@ -161,27 +140,27 @@ export const instructorCompletionApprovalsScreen = {
     </section>`);
   },
   bind({ root, api, state, rerender, clearScreenDataCache }) {
-    root.querySelectorAll('[data-approval-print]').forEach((btn) => {
+    root.querySelectorAll('[data-approval-key]').forEach((btn) => {
       btn.addEventListener('click', () => {
         try {
-          const index = Number(btn.getAttribute('data-approval-print'));
-          const approval = printContext[index];
+          const key = btn.getAttribute('data-approval-key');
+          const approval = approvalsByKey.get(key);
           if (!approval) {
             alert('לא ניתן לפתוח את אישור הביצוע. חסרים נתונים לפעילות זו.');
             return;
           }
-          printApprovals([approval], approvalFileTitle(approval));
+          openApprovalPrintWindow([approval], approvalFileTitle(approval));
         } catch (err) {
           alert(`שגיאה בפתיחת אישור הביצוע: ${err?.message || 'שגיאה לא ידועה'}`);
         }
       });
     });
 
-    root.querySelectorAll('[data-approval-upload]').forEach((input) => {
+    root.querySelectorAll('[data-upload-key]').forEach((input) => {
       input.addEventListener('change', async () => {
         try {
-          const index = Number(input.getAttribute('data-approval-upload'));
-          const approval = printContext[index];
+          const key = input.getAttribute('data-upload-key');
+          const approval = approvalsByKey.get(key);
           const file = input.files?.[0];
           if (!approval || !file) return;
           await api.uploadCompletionApproval({

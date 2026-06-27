@@ -1,6 +1,6 @@
 import { escapeHtml } from './shared/html.js';
 import { formatDateHe, formatTimeShort } from './shared/format-date.js';
-import { buildCompletionApprovals, completionApprovalPrintCss, completionApprovalsPrintHtml, approvalFileTitle } from './shared/activity-completion-approval-print.js';
+import { buildCompletionApprovals, openApprovalPrintWindow, approvalFileTitle } from './shared/activity-completion-approval-print.js';
 
 export const WEEKDAYS_HE = ['יום א׳', 'יום ב׳', 'יום ג׳', 'יום ד׳', 'יום ה׳', 'יום ו׳', 'יום ש׳'];
 export const WEEKDAY_SHORT_HE = ['א׳', 'ב׳', 'ג׳', 'ד׳', 'ה׳', 'ו׳', 'ש׳'];
@@ -77,19 +77,8 @@ export function activityDetailHtml(row, { ids = [], teamMap = new Map(), upload 
 export function printSingleActivity(row, instructorName = '') {
   try {
     const approvals = buildCompletionApprovals([row], { instructor: instructorName });
-    if (!approvals?.length) {
-      alert('לא ניתן לפתוח את אישור הביצוע. חסרים נתונים לפעילות זו.');
-      return;
-    }
-    const title = approvalFileTitle(approvals[0]) || 'אישור ביצוע';
-    const html = `<!doctype html><html lang="he" dir="rtl"><head><meta charset="utf-8"><title>${escapeHtml(title)}</title><style>${completionApprovalPrintCss}</style></head><body>${completionApprovalsPrintHtml(approvals)}</body></html>`;
-    const win = window.open('', '_blank', 'noopener,noreferrer');
-    if (!win) { alert('לא ניתן לפתוח חלון הדפסה. יש לאפשר חלונות קופצים בדפדפן.'); return; }
-    win.document.open();
-    win.document.write(html);
-    win.document.close();
-    win.focus();
-    setTimeout(() => { try { win.print(); } catch { /* ignore */ } }, 300);
+    const title = approvals[0] ? approvalFileTitle(approvals[0]) : '';
+    openApprovalPrintWindow(approvals, title);
   } catch (err) {
     alert(`שגיאה בפתיחת אישור הביצוע: ${err?.message || 'שגיאה לא ידועה'}`);
   }
