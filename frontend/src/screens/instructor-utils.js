@@ -98,7 +98,9 @@ export function printSingleActivity(row, instructorName = '') {
 export function bindActivityDetailActions(contentNode, { ui, row, state } = {}) {
   if (!contentNode) return;
   contentNode.querySelector('[data-instr-print-current]')?.addEventListener('click', () => {
-    printSingleActivity(row, currentInstructorName(state));
+    const nameFromRow = instructorNameForRow(row, currentInstructorIds(state), '');
+    const instructorName = nameFromRow || currentInstructorName(state);
+    printSingleActivity(row, instructorName);
   });
   contentNode.querySelector('[data-instr-nav-approvals]')?.addEventListener('click', () => {
     try { ui?.closeDrawer(); } catch { /* ignore */ }
