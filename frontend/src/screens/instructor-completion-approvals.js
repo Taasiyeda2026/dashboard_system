@@ -122,29 +122,32 @@ export const instructorCompletionApprovalsScreen = {
       statusCounts[st] = (statusCounts[st] || 0) + 1;
     });
 
+    const MAX_ACTIVITIES_VISIBLE = 2;
     const body = approvals.map((approval, index) => {
       const upload = uploadMap.get(uploadKey(approval));
-      const activities = approval.activities.map((activity) =>
-        `<div class="instr-approval-activity">${escapeHtml(activity.name)}${activity.grade ? ` · ${escapeHtml(activity.grade)}` : ''}</div>`
+      const acts = approval.activities || [];
+      const visibleActs = acts.slice(0, MAX_ACTIVITIES_VISIBLE).map((a) =>
+        `<div class="instr-approval-activity">${escapeHtml(a.name)}${a.grade ? ` · ${escapeHtml(a.grade)}` : ''}</div>`
       ).join('');
+      const moreCount = acts.length - MAX_ACTIVITIES_VISIBLE;
+      const moreHtml = moreCount > 0 ? `<div class="instr-approval-more">+ עוד ${moreCount}</div>` : '';
       return `<tr>
-        <td>${escapeHtml(formatDateHe(approval.date) || approval.date || '')}</td>
-        <td>${escapeHtml(approval.authority || '')}</td>
-        <td>${escapeHtml(approval.school || '')}</td>
-        <td>${activities}</td>
-        <td><button type="button" class="ds-btn ds-btn--xs ds-btn--secondary" data-approval-print="${index}">צפייה / הדפסה</button></td>
-        <td>
+        <td class="instr-col-date">${escapeHtml(formatDateHe(approval.date) || approval.date || '')}</td>
+        <td class="instr-col-school">${escapeHtml(approval.school || '')}</td>
+        <td class="instr-col-acts">${visibleActs}${moreHtml}</td>
+        <td class="instr-col-print"><button type="button" class="ds-btn ds-btn--xs ds-btn--secondary" data-approval-print="${index}">צפייה / הדפסה</button></td>
+        <td class="instr-col-upload">
           <label class="instr-upload-label">
-            <span class="ds-btn ds-btn--xs ds-btn--primary">בחירת קובץ / העלאה</span>
+            <span class="ds-btn ds-btn--xs ds-btn--primary">העלאה</span>
             <input class="sr-only" type="file" accept=".pdf,.jpg,.jpeg,.png,application/pdf,image/jpeg,image/png" data-approval-upload="${index}">
           </label>
         </td>
-        <td>${statusChip(upload)}${upload?.file_name ? `<small class="instr-upload-name">${escapeHtml(upload.file_name)}</small>` : ''}${upload?.review_note ? `<div class="instr-reject-note">${escapeHtml(upload.review_note)}</div>` : ''}</td>
+        <td class="instr-col-status">${statusChip(upload)}${upload?.file_name ? `<small class="instr-upload-name">${escapeHtml(upload.file_name)}</small>` : ''}${upload?.review_note ? `<div class="instr-reject-note">${escapeHtml(upload.review_note)}</div>` : ''}</td>
       </tr>`;
     }).join('');
 
     const table = approvals.length
-      ? dsTableWrap(`<table class="ds-table ds-table--compact"><thead><tr><th>תאריך</th><th>רשות</th><th>בית ספר</th><th>פעילויות</th><th>צפייה / הדפסה</th><th>העלאה</th><th>סטטוס</th></tr></thead><tbody>${body}</tbody></table>`)
+      ? dsTableWrap(`<table class="ds-table ds-table--compact ds-table--instr-approvals"><colgroup><col class="instr-col-date"><col class="instr-col-school"><col class="instr-col-acts"><col class="instr-col-print"><col class="instr-col-upload"><col class="instr-col-status"></colgroup><thead><tr><th>תאריך</th><th>בית ספר</th><th>פעילויות</th><th>צפייה / הדפסה</th><th>העלאה</th><th>סטטוס</th></tr></thead><tbody>${body}</tbody></table>`)
       : dsEmptyState('לא נמצאו אישורי ביצוע אישיים להפקה');
 
     const summaryCards = `<div class="instr-summary-grid instr-summary-grid--4">

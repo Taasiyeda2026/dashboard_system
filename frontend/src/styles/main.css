@@ -18922,3 +18922,27 @@ details[open] > .ds-fin-acc__summary::before { transform: rotate(90deg); }
 .instr-upload-name{font-size:11px}
 .shell-sidebar--instructor .shell-nav__btn{font-size:13px;min-height:34px}
 .shell-sidebar--instructor .shell-sidebar__user-role{font-size:11px}
+/* ── Instructor compact list table ── */
+.ds-table--instr-list{table-layout:fixed;width:100%}
+.ds-table--instr-list col.instr-col-start-date{width:11%}
+.ds-table--instr-list col.instr-col-activity-hours{width:11%}
+.ds-table--instr-list col.instr-col-school{width:18%}
+.ds-table--instr-list col.instr-col-grade{width:9%}
+.ds-table--instr-list col.instr-col-activity-name{width:29%}
+.ds-table--instr-list col.instr-col-completion-approval-status{width:13%}
+.ds-table--instr-list col.instr-col-action{width:9%}
+.ds-table--instr-list td,.ds-table--instr-list th{overflow:hidden;text-overflow:ellipsis;white-space:nowrap;max-width:0}
+.ds-table--instr-list td.instr-col-status,.ds-table--instr-list td.instr-col-action{white-space:normal;overflow:visible}
+.ds-table--instr-list tbody tr{height:36px}
+.instr-row-detail-btn{opacity:.7;font-size:11px;padding:3px 7px}
+.instr-table-row:hover .instr-row-detail-btn{opacity:1}
+/* ── Instructor approvals compact table ── */
+.ds-table--instr-approvals{table-layout:fixed;width:100%}
+.ds-table--instr-approvals col.instr-col-date{width:12%}
+.ds-table--instr-approvals col.instr-col-school{width:20%}
+.ds-table--instr-approvals col.instr-col-acts{width:26%}
+.ds-table--instr-approvals col.instr-col-print{width:16%}
+.ds-table--instr-approvals col.instr-col-upload{width:13%}
+.ds-table--instr-approvals col.instr-col-status{width:13%}
+.ds-table--instr-approvals td{vertical-align:top;padding:7px 10px}
+.instr-approval-more{font-size:11px;color:#5b6b7a;margin-top:2px;font-style:italic}
