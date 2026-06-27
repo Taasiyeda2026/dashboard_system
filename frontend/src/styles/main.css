@@ -18936,13 +18936,24 @@ details[open] > .ds-fin-acc__summary::before { transform: rotate(90deg); }
 .ds-table--instr-list tbody tr{height:36px}
 .instr-row-detail-btn{opacity:.7;font-size:11px;padding:3px 7px}
 .instr-table-row:hover .instr-row-detail-btn{opacity:1}
-/* ── Instructor approvals compact table ── */
-.ds-table--instr-approvals{table-layout:fixed;width:100%}
-.ds-table--instr-approvals col.instr-col-date{width:12%}
-.ds-table--instr-approvals col.instr-col-school{width:20%}
-.ds-table--instr-approvals col.instr-col-acts{width:26%}
-.ds-table--instr-approvals col.instr-col-print{width:16%}
-.ds-table--instr-approvals col.instr-col-upload{width:13%}
-.ds-table--instr-approvals col.instr-col-status{width:13%}
-.ds-table--instr-approvals td{vertical-align:top;padding:7px 10px}
-.instr-approval-more{font-size:11px;color:#5b6b7a;margin-top:2px;font-style:italic}
+/* ── Instructor approvals compact table (v2) ── */
+.ds-table--instr-approvals2{table-layout:fixed;width:100%;font-size:12px}
+.ds-table--instr-approvals2 th{font-size:12px;padding:5px 6px;line-height:1.25}
+.ds-table--instr-approvals2 td{font-size:12px;padding:4px 6px;line-height:1.25;vertical-align:middle;overflow:hidden}
+.ds-table--instr-approvals2 tbody tr{height:38px}
+.ds-table--instr-approvals2 col.iac-date{width:13%}
+.ds-table--instr-approvals2 col.iac-school{width:22%}
+.ds-table--instr-approvals2 col.iac-count{width:13%}
+.ds-table--instr-approvals2 col.iac-upload{width:22%}
+.ds-table--instr-approvals2 col.iac-status{width:14%}
+.ds-table--instr-approvals2 col.iac-action{width:16%}
+.ds-table--instr-approvals2 td.iac-school{white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.ds-table--instr-approvals2 td.iac-count{white-space:nowrap;color:#4a5568}
+.ds-table--instr-approvals2 td.iac-upload{white-space:nowrap}
+.instr-file-state{display:block;font-size:11px;margin-bottom:3px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;max-width:100%}
+.instr-file-state--none{color:#8a9ab5}
+.instr-file-state--has{color:#2b6cb0}
+.instr-btn-upload{font-size:11px;padding:3px 8px;min-height:26px}
+.instr-upload-label{cursor:pointer}
+.instr-reject-note{font-size:11px;color:#c53030;margin-top:2px}
+.instr-upload-name{font-size:11px;display:block}
