@@ -18935,13 +18935,19 @@ details[open] > .ds-fin-acc__summary::before { transform: rotate(90deg); }
 .ds-table--instr-list{table-layout:fixed;width:100%}
 .ds-table--instr-list col.instr-col-start-date{width:11%}
 .ds-table--instr-list col.instr-col-activity-hours{width:11%}
-.ds-table--instr-list col.instr-col-school{width:18%}
-.ds-table--instr-list col.instr-col-grade{width:9%}
-.ds-table--instr-list col.instr-col-activity-name{width:29%}
+.ds-table--instr-list col.instr-col-school{width:16%}
+.ds-table--instr-list col.instr-col-school-contact{width:14%}
+.ds-table--instr-list col.instr-col-grade{width:8%}
+.ds-table--instr-list col.instr-col-activity-name{width:24%}
 .ds-table--instr-list col.instr-col-completion-approval-status{width:13%}
 .ds-table--instr-list col.instr-col-action{width:9%}
 .ds-table--instr-list td,.ds-table--instr-list th{overflow:hidden;text-overflow:ellipsis;white-space:nowrap;max-width:0}
 .ds-table--instr-list td.instr-col-status,.ds-table--instr-list td.instr-col-action{white-space:normal;overflow:visible}
+.ds-table--instr-list td.instr-col-school-contact{white-space:normal;text-align:center}
+.instr-table-contact{display:flex;flex-direction:column;align-items:center;justify-content:center;gap:1px;line-height:1.15}
+.instr-table-contact strong,.instr-table-contact span{display:block;max-width:100%;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.instr-table-contact strong{font-size:11.5px;color:#102a43}
+.instr-table-contact span{font-size:11px;color:#5b6b7a}
 .ds-table--instr-list tbody tr{height:36px}
 .instr-row-detail-btn{opacity:.7;font-size:11px;padding:3px 7px}
 .instr-table-row:hover .instr-row-detail-btn{opacity:1}
@@ -19048,9 +19054,10 @@ details[open] > .ds-fin-acc__summary::before { transform: rotate(90deg); }
 .ds-table--instr-list col.instr-col-completion-approval-status{width:13%}
 .ds-table--instr-list col.instr-col-start-date{width:12%}
 .ds-table--instr-list col.instr-col-activity-hours{width:13%}
-.ds-table--instr-list col.instr-col-school{width:18%}
-.ds-table--instr-list col.instr-col-grade{width:8%}
-.ds-table--instr-list col.instr-col-activity-name{width:24%}
+.ds-table--instr-list col.instr-col-school{width:15%}
+.ds-table--instr-list col.instr-col-school-contact{width:13%}
+.ds-table--instr-list col.instr-col-grade{width:7%}
+.ds-table--instr-list col.instr-col-activity-name{width:20%}
 .ds-table--instr-list col.instr-col-action{width:8%}
 .ds-table--instr-list td,.ds-table--instr-list th{font-size:11.5px;padding:4px 6px;line-height:1.2;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;max-width:0}
 .ds-table--instr-list tbody tr{height:32px}
@@ -19155,6 +19162,9 @@ details[open] > .ds-fin-acc__summary::before { transform: rotate(90deg); }
 .instr-activity-list-card__fields{display:grid;grid-template-columns:1fr 1fr;gap:6px 10px;margin-bottom:8px}
 .instr-activity-list-card__field span{display:block;font-size:11px;color:#5b6b7a;font-weight:700}
 .instr-activity-list-card__field strong{display:block;font-size:12px;color:#102a43;margin-top:2px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.instr-activity-list-card__field--contact{text-align:center}
+.instr-activity-list-card__field--contact .instr-contact-box__title{display:block;font-size:11px;color:#5b6b7a;font-weight:700}
+.instr-activity-list-card__field--contact strong{margin-top:2px}
 .instr-activity-list-card .instr-row-action-btn{height:34px;min-height:34px;padding:6px 10px;font-size:12px;border-radius:8px}
 .instr-approval-card__fields{margin:0 0 8px;padding:0;display:grid;gap:6px}
 .instr-approval-card__field{display:flex;align-items:baseline;justify-content:space-between;gap:8px;margin:0}
