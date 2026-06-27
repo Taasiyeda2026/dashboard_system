@@ -208,7 +208,9 @@ test('instructor guidelines cards open modal with close and approval navigation'
     const ui = createSharedInteractionLayer();
     instructorGuidelinesScreen.bind({ root, ui });
     root.querySelector('[data-guideline-id="during"]').click();
+    const modal = dom.window.document.querySelector('.ds-modal');
     const modalContent = dom.window.document.querySelector('.ds-modal__content');
+    assert.equal(modal.classList.contains('ds-modal--guidelines'), true);
     assert.match(modalContent.innerHTML, /יש לשמור על יחס מכבד, סבלני ומקצועי\./);
     assert.match(dom.window.document.querySelector('.ds-modal__title').textContent, /3\. 🎯 במהלך הפעילות/);
     assert.equal(dom.window.document.querySelector('.ds-ui-layer').classList.contains('is-modal-open'), true);
