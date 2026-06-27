@@ -101,7 +101,7 @@ function uploadControlsHtml(approval, upload, safeKey) {
   return `<div class="instr-upload-controls" data-upload-controls="${safeKey}">
     <span class="instr-pending-file" data-pending-name="${safeKey}" hidden></span>
     <button type="button" class="ds-btn ds-btn--xs ds-btn--secondary instr-btn-pick" data-pick-key="${safeKey}">בחר</button>
-    <input class="sr-only" type="file" accept=".pdf,.jpg,.jpeg,.png,application/pdf,image/jpeg,image/png" data-pick-input="${safeKey}">
+    <input class="instr-file-input-hidden" type="file" accept=".pdf,.jpg,.jpeg,.png,application/pdf,image/jpeg,image/png" data-pick-input="${safeKey}">
     <button type="button" class="ds-btn ds-btn--xs ds-btn--primary instr-btn-plus" data-upload-submit="${safeKey}" title="העלאת אישור ביצוע" aria-label="העלאת אישור ביצוע">+</button>
   </div>`;
 }
