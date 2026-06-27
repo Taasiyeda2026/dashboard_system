@@ -177,36 +177,51 @@ test('instructor guidelines screen renders compact strip and topic grid', () => 
   assert.match(html, /לפני כל פעילות/);
   assert.match(html, /לוודא שעות ומיקום/);
   assert.match(html, /instr-guidelines__grid/);
-  assert.match(html, /instr-guidelines__card is-active/);
   assert.match(html, /data-guideline-id="before-day"/);
-  assert.match(html, /instr-guidelines__detail/);
   assert.match(html, /לפני יום הפעילות/);
   assert.match(html, /התנהלות מקצועית/);
   assert.match(html, /data-guideline-id="approval"/);
+  assert.doesNotMatch(html, /data-guideline-detail/);
   assert.doesNotMatch(html, /<details/);
   assert.doesNotMatch(html, /instr-guidelines__accordion/);
   assert.doesNotMatch(html, /instr-guidelines__reminder/);
   assert.doesNotMatch(html, /נהלי עבודה להפעלה מקצועית, בטוחה ומסודרת/);
 });
 
-test('instructor guidelines grid switches detail panel and approval link navigates', () => {
+test('instructor guidelines cards open modal with close and approval navigation', async () => {
   const html = instructorGuidelinesScreen.render({}, { state });
-  const dom = new JSDOM(`<main id="root">${html}</main><nav><button class="shell-nav__btn" data-route="instructor-completion-approvals"></button></nav>`, { url: 'https://example.test/' });
+  const dom = new JSDOM(`<main id="root">${html}</main><nav><button class="shell-nav__btn" data-route="instructor-completion-approvals"></button></nav><div id="ds-shared-ui-layer" class="ds-ui-layer" dir="rtl">
+    <div class="ds-ui-backdrop" data-ui-close-all hidden></div>
+    <section class="ds-modal" aria-hidden="true" role="dialog" aria-modal="true">
+      <header class="ds-modal__header"><h2 class="ds-modal__title"></h2><button type="button" data-ui-close-modal>✕</button></header>
+      <div class="ds-modal__content"></div>
+      <footer class="ds-modal__footer" hidden></footer>
+    </section>
+  </div>`, { url: 'https://example.test/' });
   const root = dom.window.document.querySelector('#root');
   const navBtn = dom.window.document.querySelector('[data-route="instructor-completion-approvals"]');
   let clicked = false;
   navBtn.addEventListener('click', () => { clicked = true; });
   globalThis.document = dom.window.document;
+  globalThis.window = dom.window;
+  globalThis.Element = dom.window.Element;
   try {
-    instructorGuidelinesScreen.bind({ root });
+    const { createSharedInteractionLayer } = await import('../frontend/src/screens/shared/interactions.js');
+    const ui = createSharedInteractionLayer();
+    instructorGuidelinesScreen.bind({ root, ui });
     root.querySelector('[data-guideline-id="during"]').click();
-    assert.match(root.querySelector('[data-guideline-detail]').innerHTML, /במהלך הפעילות/);
-    assert.doesNotMatch(root.querySelector('[data-guideline-detail]').innerHTML, /לפני יום הפעילות/);
-    assert.equal(root.querySelector('[data-guideline-id="during"]').classList.contains('is-active'), true);
+    const modalContent = dom.window.document.querySelector('.ds-modal__content');
+    assert.match(modalContent.innerHTML, /במהלך הפעילות|יחס מכבד/);
+    assert.equal(dom.window.document.querySelector('.ds-ui-layer').classList.contains('is-modal-open'), true);
+    dom.window.document.querySelector('[data-ui-close-modal]').click();
+    assert.equal(dom.window.document.querySelector('.ds-ui-layer').classList.contains('is-modal-open'), false);
     root.querySelector('[data-guideline-id="approval"]').click();
-    root.querySelector('[data-guidelines-go-approvals]').click();
+    dom.window.document.querySelector('[data-guidelines-go-approvals]').click();
     assert.equal(clicked, true);
+    assert.equal(dom.window.document.querySelector('.ds-ui-layer').classList.contains('is-modal-open'), false);
   } finally {
     delete globalThis.document;
+    delete globalThis.window;
+    delete globalThis.Element;
   }
 });
