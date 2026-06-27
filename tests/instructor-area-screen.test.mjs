@@ -188,11 +188,15 @@ test('instructor guidelines screen renders summer 2026 title and eight topic car
 
 test('guidelines modal uses compact centered width scoped to ds-modal--guidelines', () => {
   const css = readFileSync(new URL('../frontend/src/styles/main.css', import.meta.url), 'utf8');
-  assert.match(css, /\.ds-modal\.ds-modal--guidelines\{[^}]*width:min\(92vw,680px\)/);
-  assert.match(css, /\.ds-modal\.ds-modal--guidelines\{[^}]*max-width:680px/);
+  assert.match(css, /\.ds-modal\.ds-modal--guidelines\{[^}]*width:min\(84vw,520px\)/);
+  assert.match(css, /\.ds-modal\.ds-modal--guidelines\{[^}]*max-width:520px/);
   assert.match(css, /\.ds-modal\.ds-modal--guidelines\{[^}]*transform:translate\(-50%,calc\(-50% \+ 16px\)\)/);
+  assert.match(css, /\.ds-ui-layer\.is-modal-open \.ds-modal\.ds-modal--guidelines\{[^}]*width:min\(84vw,520px\)!important/);
+  assert.match(css, /\.ds-ui-layer\.is-modal-open \.ds-modal\.ds-modal--guidelines\{[^}]*max-width:520px!important/);
   assert.match(css, /\.ds-ui-layer\.is-modal-open \.ds-modal\.ds-modal--guidelines\{[^}]*transform:translate\(-50%,-50%\)!important/);
-  assert.doesNotMatch(css, /max-width:768px\)[^}]*\.ds-modal\.ds-modal--guidelines\{width:calc\(100% - 24px\)/);
+  assert.match(css, /@media \(max-width:600px\)\{[^}]*\.ds-modal\.ds-modal--guidelines[^}]*width:calc\(100vw - 24px\)!important/);
+  assert.doesNotMatch(css, /ds-modal--guidelines[^}]*max-width:680px/);
+  assert.doesNotMatch(css, /ds-modal--guidelines[^}]*max-width:720px/);
 });
 
 test('instructor guidelines cards open modal with close and approval navigation', async () => {
