@@ -166,21 +166,27 @@ test('my activities daily filter, today, and clear buttons update visible rows',
   }
 });
 
-test('instructor guidelines screen renders compact strip and accordion topics', () => {
+test('instructor guidelines screen renders compact strip and topic grid', () => {
   const html = instructorGuidelinesScreen.render({}, { state });
   assert.match(html, /נהלים למדריכי הקיץ/);
   assert.match(html, /כללי עבודה קצרים להפעלה מקצועית/);
   assert.match(html, /instr-guidelines__strip/);
   assert.match(html, /לפני כל פעילות/);
+  assert.match(html, /לוודא שעות ומיקום/);
+  assert.match(html, /instr-guidelines__grid/);
+  assert.match(html, /instr-guidelines__card is-active/);
+  assert.match(html, /data-guideline-id="before-day"/);
+  assert.match(html, /instr-guidelines__detail/);
   assert.match(html, /לפני יום הפעילות/);
-  assert.match(html, /התנהלות מקצועית מול הקייטנה/);
-  assert.match(html, /<details[^>]*open[^>]*>[\s\S]*לפני יום הפעילות/);
-  assert.match(html, /data-guidelines-go-approvals/);
+  assert.match(html, /התנהלות מקצועית/);
+  assert.match(html, /data-guideline-id="approval"/);
+  assert.doesNotMatch(html, /<details/);
+  assert.doesNotMatch(html, /instr-guidelines__accordion/);
   assert.doesNotMatch(html, /instr-guidelines__reminder/);
   assert.doesNotMatch(html, /נהלי עבודה להפעלה מקצועית, בטוחה ומסודרת/);
 });
 
-test('instructor guidelines approval link navigates to completion approvals tab', () => {
+test('instructor guidelines grid switches detail panel and approval link navigates', () => {
   const html = instructorGuidelinesScreen.render({}, { state });
   const dom = new JSDOM(`<main id="root">${html}</main><nav><button class="shell-nav__btn" data-route="instructor-completion-approvals"></button></nav>`, { url: 'https://example.test/' });
   const root = dom.window.document.querySelector('#root');
@@ -190,6 +196,11 @@ test('instructor guidelines approval link navigates to completion approvals tab'
   globalThis.document = dom.window.document;
   try {
     instructorGuidelinesScreen.bind({ root });
+    root.querySelector('[data-guideline-id="during"]').click();
+    assert.match(root.querySelector('[data-guideline-detail]').innerHTML, /במהלך הפעילות/);
+    assert.doesNotMatch(root.querySelector('[data-guideline-detail]').innerHTML, /לפני יום הפעילות/);
+    assert.equal(root.querySelector('[data-guideline-id="during"]').classList.contains('is-active'), true);
+    root.querySelector('[data-guideline-id="approval"]').click();
     root.querySelector('[data-guidelines-go-approvals]').click();
     assert.equal(clicked, true);
   } finally {
