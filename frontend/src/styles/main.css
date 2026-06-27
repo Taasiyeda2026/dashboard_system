@@ -19008,3 +19008,24 @@ details[open] > .ds-fin-acc__summary::before { transform: rotate(90deg); }
 .instr-calendar-day .instr-day-count{max-width:100%}
 .route-my-data .instructor-area{max-width:960px;margin-inline:auto;width:100%}
 .route-instructor-completion-approvals .instructor-area{max-width:840px;margin-inline:auto;width:100%}
+
+/* Compact instructor calendar page only */
+.route-instructor-calendar .shell-main{padding:10px 12px;overflow-x:hidden;box-sizing:border-box;max-width:100%}
+.route-instructor-calendar .instructor-area{width:100%;max-width:100%;box-sizing:border-box;overflow-x:hidden;gap:8px}
+.route-instructor-calendar .instructor-area .ds-page-header{width:min(100%,920px);margin:0 auto 0;padding:6px 10px;box-sizing:border-box;border-radius:12px}
+.route-instructor-calendar .instructor-area .ds-page-header__title{font-size:17px;line-height:1.2;margin:0}
+.route-instructor-calendar .instructor-area .ds-page-header__subtitle{font-size:11px;line-height:1.2;margin:0}
+.route-instructor-calendar .instructor-calendar-inner{width:100%;max-width:100%;box-sizing:border-box;overflow-x:hidden;padding:0;margin:0 auto}
+.route-instructor-calendar .instr-calendar-card{width:min(100%,920px);max-width:100%;box-sizing:border-box;margin:0 auto;padding:8px;border:1px solid #cfeaf2;border-radius:14px;box-shadow:0 4px 14px rgba(16,42,67,.08);overflow-x:hidden}
+.route-instructor-calendar .instr-calendar-toolbar{gap:6px;margin-bottom:5px;padding-bottom:5px}
+.route-instructor-calendar .instr-calendar-toolbar h2{font-size:17px;line-height:1.2}
+.route-instructor-calendar .instr-calendar-toolbar div{gap:5px}
+.route-instructor-calendar .instr-calendar-toolbar .ds-btn{height:25px;min-height:25px;font-size:11px;padding:3px 7px;line-height:1.1}
+.route-instructor-calendar .instr-weekdays,.route-instructor-calendar .instr-calendar-grid{display:grid;grid-template-columns:repeat(7,minmax(0,1fr));width:100%;max-width:100%;gap:4px;box-sizing:border-box}
+.route-instructor-calendar .instr-weekdays span{font-size:10.5px;line-height:1.2}
+.route-instructor-calendar .instr-calendar-day{min-height:60px;padding:4px 5px;gap:3px;border-radius:8px;box-sizing:border-box;max-width:100%}
+.route-instructor-calendar .instr-calendar-day strong{font-size:11.5px;line-height:1.1}
+.route-instructor-calendar .instr-calendar-day div{gap:3px}
+.route-instructor-calendar .instr-day-count,.route-instructor-calendar .instr-calendar-day .instr-status{font-size:9.5px;padding:1px 5px;line-height:1.1}
+.route-instructor-calendar .instr-calendar-day.is-today{border:2px solid #22afcb;background:#eaf9fc;box-shadow:inset 0 0 0 1px rgba(34,175,203,.18)}
+@media (max-width:900px){.route-instructor-calendar .shell-main{padding:8px 6px}.route-instructor-calendar .instr-calendar-card{width:100%;padding:6px}.route-instructor-calendar .instr-calendar-day{min-height:52px;padding:3px 4px}.route-instructor-calendar .instr-calendar-toolbar{align-items:flex-start;flex-direction:column}}

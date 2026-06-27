@@ -255,13 +255,19 @@ export function openApprovalPrintWindow(approvals = [], title = '') {
   try {
     const safeTitle = text(title) || 'אישור ביצוע';
     const html = `<!doctype html><html lang="he" dir="rtl"><head><meta charset="utf-8"><title>${escapeHtml(safeTitle)}</title><style>${completionApprovalPrintCss}</style></head><body>${completionApprovalsPrintHtml(approvals)}</body></html>`;
-    const win = window.open('', '_blank', 'noopener,noreferrer');
+    const win = window.open('', '_blank');
     if (!win) { alert('לא ניתן לפתוח חלון הדפסה. יש לאפשר חלונות קופצים בדפדפן.'); return; }
-    win.document.open();
-    win.document.write(html);
-    win.document.close();
-    win.focus();
-    setTimeout(() => { try { win.print(); } catch { /* ignore */ } }, 300);
+    try {
+      win.document.open();
+      win.document.write(html);
+      win.document.close();
+      win.focus();
+      setTimeout(() => { try { win.print(); } catch { /* ignore */ } }, 300);
+    } catch (writeErr) {
+      try { win.close(); } catch { /* ignore */ }
+      alert('אירעה תקלה בטעינת אישור הביצוע להדפסה.');
+      console.error('Failed to render completion approval print window', writeErr);
+    }
   } catch (err) {
     alert(`שגיאה בפתיחת אישור הביצוע: ${err?.message || 'שגיאה לא ידועה'}`);
   }
