@@ -72,7 +72,7 @@ export function activityDetailHtml(row, { ids = [], teamMap = new Map(), upload 
     ['מי איתי היום', instructors.length ? instructors.join('<br>') : (peer || 'אין מדריך נוסף')],
     ['אחראי קשר', `${escapeHtml(responsible)}${mineResponsible ? ' ' + statusChipHtml({ key: 'contact', label: 'אני אחראי קשר' }) : ''}`]
   ];
-  return `<div class="instr-detail">${mineResponsible ? '<div class="instr-contact-note"><strong>אתה אחראי קשר</strong><br>יש לוודא את קיום הפעילות מול איש הקשר בבית הספר לפחות 48 שעות לפני יום הפעילות ולעדכן את שאר הצוות.</div>' : ''}<div class="instr-detail-grid">${fields.map(([k, v]) => `<div class="instr-info-row"><span>${escapeHtml(k)}</span><strong>${typeof v === 'string' && v.includes('<') ? v : escapeHtml(v)}</strong></div>`).join('')}</div><div class="instr-detail-actions"><button class="ds-btn ds-btn--sm ds-btn--secondary" data-instr-print-current>צפייה / הדפסה</button><button class="ds-btn ds-btn--sm ds-btn--primary" data-instr-nav-approvals>העלאת אישור ביצוע</button><button class="ds-btn ds-btn--sm ds-btn--ghost" data-ui-close-drawer>סגור</button></div></div>`;
+  return `<div class="instr-detail">${mineResponsible ? '<div class="instr-contact-note"><strong>אתה אחראי קשר</strong><br>יש לוודא את קיום הפעילות מול איש הקשר בבית הספר לפחות 48 שעות לפני יום הפעילות ולעדכן את שאר הצוות.</div>' : ''}<div class="instr-detail-grid">${fields.map(([k, v]) => `<div class="instr-info-row"><span>${escapeHtml(k)}</span><strong>${typeof v === 'string' && v.includes('<') ? v : escapeHtml(v)}</strong></div>`).join('')}</div><div class="instr-detail-actions"><button class="ds-btn ds-btn--sm ds-btn--ghost" data-ui-close-drawer>סגור</button></div></div>`;
 }
 
 function approvalMatchesRow(approval, row, instructorName = '') {
@@ -143,15 +143,6 @@ export function printSingleActivity(row, instructorName = '', allInstructorRows 
   }
 }
 
-export function bindActivityDetailActions(contentNode, { ui, row, state, rows = [], allInstructorRows = [] } = {}) {
-  if (!contentNode) return;
-  contentNode.querySelector('[data-instr-print-current]')?.addEventListener('click', () => {
-    openInstructorApprovalForActivity(row, { state, allInstructorRows: allInstructorRows.length ? allInstructorRows : rows });
-  });
-  contentNode.querySelector('[data-instr-nav-approvals]')?.addEventListener('click', () => {
-    try { ui?.closeDrawer(); } catch { /* ignore */ }
-    setTimeout(() => {
-      document.querySelector('.shell-nav__btn[data-route="instructor-completion-approvals"]')?.click();
-    }, 80);
-  });
+export function bindActivityDetailActions() {
+  /* Activity detail drawer is info-only; upload/print live on אישורי ביצוע tab. */
 }

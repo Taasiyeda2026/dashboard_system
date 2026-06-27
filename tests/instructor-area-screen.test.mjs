@@ -6,7 +6,7 @@ import { instructorCalendarScreen } from '../frontend/src/screens/instructor-cal
 import { myDataScreen } from '../frontend/src/screens/my-data.js';
 import { instructorGuidelinesScreen } from '../frontend/src/screens/instructor-guidelines.js';
 import { instructorCompletionApprovalsScreen } from '../frontend/src/screens/instructor-completion-approvals.js';
-import { resolveInstructorApprovalForRow, openInstructorApprovalForActivity } from '../frontend/src/screens/instructor-utils.js';
+import { resolveInstructorApprovalForRow, openInstructorApprovalForActivity, activityDetailHtml, contactGroupsByDateSchool } from '../frontend/src/screens/instructor-utils.js';
 
 const row = {
   RowID: 'r1', start_date: '2026-06-21', activity_date: '2026-06-21', start_time: '08:00', end_time: '08:45',
@@ -43,22 +43,28 @@ test('calendar renders activity days and opens day then activity detail drawers'
   assert.match(opened.at(-1).content, /מי איתי היום/);
 });
 
-test('my activities table has instructor filters and real column labels', () => {
+test('my activities table has instructor filters and detail-only row action', () => {
   const html = myDataScreen.render({ rows: [row], teamGroups }, { state });
   assert.match(html, /הפעילויות שלי/);
   assert.match(html, /חיפוש לפי בית ספר \/ פעילות \/ רשות/);
   assert.match(html, /תאריך/);
   assert.match(html, /instr-table-row/);
   assert.match(html, /data-row-detail/);
-  assert.match(html, /data-row-print/);
+  assert.match(html, /<th class="instr-col-action">פעולה<\/th>/);
+  assert.doesNotMatch(html, /data-row-print/);
+  assert.doesNotMatch(html, /data-row-upload/);
   assert.doesNotMatch(html, />שדה</);
 });
 
-test('completion approvals page keeps upload controls compact and status chips visible', () => {
+test('completion approvals page keeps upload controls compact with pick and plus buttons', () => {
   const html = instructorCompletionApprovalsScreen.render({ rows: [row], uploads: [] }, { state });
   assert.match(html, /ממתינים להעלאה/);
-  assert.match(html, /title="בחרו קובץ PDF \/ JPG \/ PNG להעלאה"/);
+  assert.match(html, /instr-btn-pick/);
+  assert.match(html, /instr-btn-plus/);
+  assert.match(html, /title="העלאת אישור ביצוע"/);
   assert.match(html, /instr-status--missing/);
+  assert.doesNotMatch(html, /לא נבחר קובץ/);
+  assert.doesNotMatch(html, /data-upload-key/);
 });
 
 
@@ -76,7 +82,7 @@ test('activity detail print resolves the full instructor approval group instead 
 });
 
 
-test('my activities detail print uses the shared approval resolver with all instructor rows', () => {
+test('my activities detail drawer uses shared bind hook', () => {
   const source = readFileSync(new URL('../frontend/src/screens/my-data.js', import.meta.url), 'utf8');
   assert.match(source, /bindActivityDetailActions\(contentNode, \{ ui, row: hit, rows, allInstructorRows: rows, teamMap, state \}\)/);
 });
@@ -111,15 +117,24 @@ test('shared activity print helper returns the same grouped approval calendar an
   }
 });
 
-test('my activities uses status-first columns and daily date filtering controls', () => {
+test('my activities uses status-first columns and detail-only actions', () => {
   const html = myDataScreen.render({ rows: [row], teamGroups }, { state });
   assert.match(html, /<th class="instr-col-completion-approval-status">סטטוס<\/th><th class="instr-col-start-date">תאריך<\/th>/);
   assert.match(html, /type="date" data-instr-date/);
   assert.doesNotMatch(html, /type="month" data-instr-month/);
   assert.match(html, /data-instr-today/);
   assert.match(html, /data-instr-clear/);
-  assert.match(html, /data-row-print/);
-  assert.match(html, /data-row-upload/);
+  assert.doesNotMatch(html, /data-row-print/);
+  assert.doesNotMatch(html, /data-row-upload/);
+});
+
+test('activity detail drawer is info-only without upload or print actions', () => {
+  const html = activityDetailHtml(row, { ids: ['1525'], teamMap: contactGroupsByDateSchool(teamGroups) });
+  assert.match(html, /סטטוס אישור ביצוע/);
+  assert.match(html, /data-ui-close-drawer/);
+  assert.doesNotMatch(html, /data-instr-print-current/);
+  assert.doesNotMatch(html, /data-instr-nav-approvals/);
+  assert.doesNotMatch(html, /העלאת אישור ביצוע/);
 });
 
 test('my activities daily filter, today, and clear buttons update visible rows', () => {

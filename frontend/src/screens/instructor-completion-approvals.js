@@ -85,6 +85,26 @@ function statusInfo(upload) {
   if (status === 'uploaded' || upload?.file_path) return { key: 'uploaded', label: 'הועלה לבדיקה' };
   return { key: 'missing', label: 'טרם הועלה' };
 }
+function truncateFileName(name, max = 20) {
+  const raw = String(name || '').trim();
+  if (!raw) return '';
+  if (raw.length <= max) return raw;
+  return `…${raw.slice(-(max - 1))}`;
+}
+function uploadControlsHtml(approval, upload, safeKey) {
+  const st = statusInfo(upload).key;
+  const hasFile = !!(upload?.file_path || upload?.file_name);
+  if (hasFile && st !== 'rejected') {
+    const fileName = truncateFileName(upload?.file_name || 'קובץ מועלה');
+    return `<span class="instr-file-state instr-file-state--has" title="${escapeHtml(upload?.file_name || '')}">📎 ${escapeHtml(fileName)}</span>`;
+  }
+  return `<div class="instr-upload-controls" data-upload-controls="${safeKey}">
+    <span class="instr-pending-file" data-pending-name="${safeKey}" hidden></span>
+    <button type="button" class="ds-btn ds-btn--xs ds-btn--secondary instr-btn-pick" data-pick-key="${safeKey}">בחר</button>
+    <input class="sr-only" type="file" accept=".pdf,.jpg,.jpeg,.png,application/pdf,image/jpeg,image/png" data-pick-input="${safeKey}">
+    <button type="button" class="ds-btn ds-btn--xs ds-btn--primary instr-btn-plus" data-upload-submit="${safeKey}" title="העלאת אישור ביצוע" aria-label="העלאת אישור ביצוע">+</button>
+  </div>`;
+}
 function statusChip(upload) {
   const st = statusInfo(upload);
   return `<span class="instr-status instr-status--${st.key}">${escapeHtml(st.label)}</span>`;
@@ -119,22 +139,17 @@ export const instructorCompletionApprovalsScreen = {
     const body = approvals.map((approval) => {
       const upload = uploadMap.get(uploadKey(approval));
       const acts = approval.activities || [];
-      const hasFile = !!(upload?.file_path || upload?.file_name);
-      const fileName = upload?.file_name ? escapeHtml(String(upload.file_name).slice(-22)) : '';
-      const fileState = hasFile
-        ? `<span class="instr-file-state instr-file-state--has">📎 ${fileName}</span>`
-        : '';
       const safeKey = escapeHtml(approvalStableKey(approval));
-      const uploadBtn = `<label class="instr-upload-label" title="בחרו קובץ PDF / JPG / PNG להעלאה"><span class="ds-btn ds-btn--xs ds-btn--primary instr-btn-upload">${hasFile ? 'החלף' : 'העלה'}</span><input class="sr-only" type="file" accept=".pdf,.jpg,.jpeg,.png,application/pdf,image/jpeg,image/png" data-upload-key="${safeKey}"></label>`;
+      const uploadCell = uploadControlsHtml(approval, upload, safeKey);
       const reviewNote = upload?.review_note ? `<div class="instr-reject-note">${escapeHtml(upload.review_note)}</div>` : '';
       const targetClass = pendingUploadTargetKey && uploadKey(approval) === pendingUploadTargetKey ? ' class="instr-approval-target" data-approval-target="true"' : '';
       return `<tr${targetClass}>
         <td class="iac-date">${escapeHtml(formatDateHe(approval.date) || approval.date || '')}</td>
         <td class="iac-school">${escapeHtml(approval.school || '')}</td>
         <td class="iac-count">${escapeHtml(actCountLabel(acts.length))}</td>
-        <td class="iac-upload">${fileState}${uploadBtn}${reviewNote}</td>
+        <td class="iac-upload">${uploadCell}${reviewNote}</td>
         <td class="iac-status">${statusChip(upload)}</td>
-        <td class="iac-action"><button type="button" class="ds-btn ds-btn--xs ds-btn--secondary" data-approval-key="${safeKey}">צפייה / הדפסה</button></td>
+        <td class="iac-action"><button type="button" class="ds-btn ds-btn--xs ds-btn--secondary instr-btn-print" data-approval-key="${safeKey}" title="הדפסה">הדפסה</button></td>
       </tr>`;
     }).join('');
 
@@ -156,10 +171,12 @@ export const instructorCompletionApprovalsScreen = {
     </section>`);
   },
   bind({ root, api, state, rerender, clearScreenDataCache }) {
+    const pendingFiles = new Map();
     const targetRow = root.querySelector('[data-approval-target="true"]');
     if (targetRow) {
       targetRow.scrollIntoView?.({ block: 'center', behavior: 'smooth' });
-      targetRow.querySelector('[data-upload-key]')?.focus?.();
+      targetRow.querySelector('[data-pick-key]')?.focus?.();
+      try { sessionStorage.removeItem('instructor_completion_approval_target'); } catch { /* ignore */ }
     }
     root.querySelectorAll('[data-approval-key]').forEach((btn) => {
       btn.addEventListener('click', () => {
@@ -177,25 +194,51 @@ export const instructorCompletionApprovalsScreen = {
       });
     });
 
-    root.querySelectorAll('[data-upload-key]').forEach((input) => {
-      input.addEventListener('change', async () => {
+    root.querySelectorAll('[data-pick-key]').forEach((btn) => {
+      btn.addEventListener('click', () => {
+        const key = btn.getAttribute('data-pick-key');
+        root.querySelector(`[data-pick-input="${key}"]`)?.click();
+      });
+    });
+
+    root.querySelectorAll('[data-pick-input]').forEach((input) => {
+      input.addEventListener('change', () => {
+        const key = input.getAttribute('data-pick-input');
+        const file = input.files?.[0];
+        if (!key || !file) return;
+        pendingFiles.set(key, file);
+        const nameEl = root.querySelector(`[data-pending-name="${key}"]`);
+        if (nameEl) {
+          const short = truncateFileName(file.name);
+          nameEl.textContent = short;
+          nameEl.title = file.name;
+          nameEl.hidden = false;
+        }
+      });
+    });
+
+    root.querySelectorAll('[data-upload-submit]').forEach((btn) => {
+      btn.addEventListener('click', async () => {
+        const key = btn.getAttribute('data-upload-submit');
+        const approval = approvalsByKey.get(key);
+        const file = pendingFiles.get(key);
+        if (!file) {
+          alert('יש לבחור קובץ לפני העלאה');
+          return;
+        }
+        if (!approval) return;
         try {
-          const key = input.getAttribute('data-upload-key');
-          const approval = approvalsByKey.get(key);
-          const file = input.files?.[0];
-          if (!approval || !file) return;
           await api.uploadCompletionApproval({
             approval,
             file,
             instructorEmpId: currentEmpId(state),
             instructorName: approval.instructorName || currentInstructorName(state)
           });
+          pendingFiles.delete(key);
           clearScreenDataCache?.('instructor-completion-approvals');
           rerender?.();
         } catch (error) {
           alert(`העלאת הקובץ נכשלה: ${error?.message || error}`);
-        } finally {
-          input.value = '';
         }
       });
     });

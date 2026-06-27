@@ -104,7 +104,7 @@ const SECTIONS = [
 function sectionHtml(section) {
   const list = section.items.map((item) => `<li>${escapeHtml(item)}</li>`).join('');
   const approvalLink = section.showApprovalLink
-    ? '<p class="instr-guidelines__link-row"><button type="button" class="ds-btn ds-btn--sm ds-btn--secondary" data-guidelines-go-approvals>מעבר לאישורי ביצוע</button></p>'
+    ? '<p class="instr-guidelines__link-row"><button type="button" class="ds-btn ds-btn--xs ds-btn--secondary" data-guidelines-go-approvals>מעבר לאישורי ביצוע</button></p>'
     : '';
   return `<details class="instr-guidelines__section" id="instr-guidelines-${escapeHtml(section.id)}"${section.open ? ' open' : ''}>
     <summary class="instr-guidelines__summary">${escapeHtml(section.title)}</summary>
