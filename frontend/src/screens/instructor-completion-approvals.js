@@ -108,7 +108,7 @@ export const instructorCompletionApprovalsScreen = {
       const fileName = upload?.file_name ? escapeHtml(String(upload.file_name).slice(-22)) : '';
       const fileState = hasFile
         ? `<span class="instr-file-state instr-file-state--has">📎 ${fileName}</span>`
-        : `<span class="instr-file-state instr-file-state--none">לא הועלה</span>`;
+        : '';
       const safeKey = escapeHtml(approval.id);
       const uploadBtn = `<label class="instr-upload-label" title="בחרו קובץ PDF / JPG / PNG להעלאה"><span class="ds-btn ds-btn--xs ds-btn--primary instr-btn-upload">${hasFile ? 'החלף' : 'העלה'}</span><input class="sr-only" type="file" accept=".pdf,.jpg,.jpeg,.png,application/pdf,image/jpeg,image/png" data-upload-key="${safeKey}"></label>`;
       const reviewNote = upload?.review_note ? `<div class="instr-reject-note">${escapeHtml(upload.review_note)}</div>` : '';

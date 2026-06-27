@@ -19006,5 +19006,5 @@ details[open] > .ds-fin-acc__summary::before { transform: rotate(90deg); }
 .instr-calendar-day strong{display:block;font-size:12px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
 .instr-calendar-day .instr-status{max-width:100%;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
 .instr-calendar-day .instr-day-count{max-width:100%}
-.route-my-data .instructor-area{max-width:1080px;margin-inline:auto;width:100%}
-.route-instructor-completion-approvals .instructor-area{max-width:980px;margin-inline:auto;width:100%}
+.route-my-data .instructor-area{max-width:960px;margin-inline:auto;width:100%}
+.route-instructor-completion-approvals .instructor-area{max-width:840px;margin-inline:auto;width:100%}
