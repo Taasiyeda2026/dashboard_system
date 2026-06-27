@@ -1133,6 +1133,23 @@ function normalizeMyDataContactText(value) {
   return String(value == null ? '' : value).trim().replace(/[״"]/g, '').replace(/[׳']/g, '').replace(/\s+/g, ' ').toLowerCase();
 }
 
+async function readMyDataSummerPrintContactRows() {
+  if (!supabase) return [];
+  try {
+    const { data, error } = await supabase
+      .from('instructor_schedule_print_contacts')
+      .select('season, authority, school, contact_name, contact_phone, active')
+      .eq('season', 'summer_2026')
+      .eq('active', true)
+      .limit(10000);
+    if (error) throw error;
+    return Array.isArray(data) ? data : [];
+  } catch (err) {
+    console.warn('[my-data] instructor_schedule_print_contacts read failed', err?.message || err);
+    return [];
+  }
+}
+
 async function readMyDataContactsSchoolsRows() {
   if (!supabase) return [];
   try {
@@ -1146,6 +1163,22 @@ async function readMyDataContactsSchoolsRows() {
     console.warn('[my-data] contacts_schools read failed', err?.message || err);
     return [];
   }
+}
+
+
+function buildMyDataSummerPrintContactsIndex(rows = []) {
+  const index = new Map();
+  (Array.isArray(rows) ? rows : []).forEach((row) => {
+    if (String(row?.season || '').trim() !== 'summer_2026' || row?.active !== true) return;
+    const name = String(row?.contact_name || '').trim();
+    const phone = String(row?.contact_phone || '').trim();
+    if (!name && !phone) return;
+    const key = `${normalizeMyDataContactText(row?.authority || '')}|${normalizeMyDataContactText(row?.school || '')}`;
+    if (key === '|') return;
+    if (!index.has(key)) index.set(key, []);
+    index.get(key).push({ name, phone, role: '' });
+  });
+  return index;
 }
 
 function buildMyDataContactsIndex(rows = []) {
@@ -1198,21 +1231,29 @@ function firstMyDataContact(options = []) {
   return { name: '', phone: '', role: '' };
 }
 
-function enrichRowsWithSchoolContact(rows = [], contactsIndex = new Map(), schoolsIndex = new Map()) {
+function enrichRowsWithSchoolContact(rows = [], contactsIndex = new Map(), schoolsIndex = new Map(), summerPrintContactsIndex = new Map()) {
   return (Array.isArray(rows) ? rows : []).map((row) => {
     const options = [];
     const add = (name, phone = '', role = '') => {
       if (!String(name || '').trim() && !String(phone || '').trim()) return;
       options.push({ name: String(name || '').trim(), phone: String(phone || '').trim(), role: String(role || '').trim() });
     };
-    add(getActivityContactName(row), getActivityContactPhone(row));
-    const schoolId = String(row?.school_id || row?.single_school_id || '').trim();
-    if (schoolId) (schoolsIndex.get(`id|${schoolId}`) || []).forEach((c) => add(c.name, c.phone, c.role));
     const authorityKey = normalizeMyDataContactText(getActivityAuthorityName(row));
-    getActivitySchoolNames(row).forEach((schoolName) => {
+    const schoolId = String(row?.school_id || row?.single_school_id || '').trim();
+    const schoolNames = getActivitySchoolNames(row);
+    schoolNames.forEach((schoolName) => {
+      const key = `${authorityKey}|${normalizeMyDataContactText(schoolName)}`;
+      (summerPrintContactsIndex.get(key) || []).forEach((c) => add(c.name, c.phone, c.role));
+    });
+    add(getActivityContactName(row), getActivityContactPhone(row));
+    schoolNames.forEach((schoolName) => {
+      const key = `${authorityKey}|${normalizeMyDataContactText(schoolName)}`;
+      (contactsIndex.get(key) || []).forEach((c) => add(c.name, c.phone, c.role));
+    });
+    if (schoolId) (schoolsIndex.get(`id|${schoolId}`) || []).forEach((c) => add(c.name, c.phone, c.role));
+    schoolNames.forEach((schoolName) => {
       const key = `${authorityKey}|${normalizeMyDataContactText(schoolName)}`;
       (schoolsIndex.get(key) || []).forEach((c) => add(c.name, c.phone, c.role));
-      (contactsIndex.get(key) || []).forEach((c) => add(c.name, c.phone, c.role));
     });
     if (authorityKey) (contactsIndex.get(`${authorityKey}|`) || []).forEach((c) => add(c.name, c.phone, c.role));
     const contact = firstMyDataContact(options);
@@ -5113,17 +5154,19 @@ export const api = {
   endDates: () => readEndDatesFromSupabase(),
   getCatalogPrograms: () => readCatalogProgramsFromSupabase(),
   myData: async () => {
-    const [allRows, contactResponsibles, contactsSchoolsRows, schoolsRows] = await Promise.all([
+    const [allRows, contactResponsibles, summerPrintContactRows, contactsSchoolsRows, schoolsRows] = await Promise.all([
       readAllActivitiesRowsSupabase(),
       readSchoolContactResponsiblesRows(),
+      readMyDataSummerPrintContactRows(),
       readMyDataContactsSchoolsRows(),
       readSchoolsCatalogFromSupabase()
     ]);
     const idsSet = getInstructorIdentitySet();
     const openRows = allRows.filter((row) => !isActivityClosed(row));
+    const summerPrintContactsIndex = buildMyDataSummerPrintContactsIndex(summerPrintContactRows);
     const contactsIndex = buildMyDataContactsIndex(contactsSchoolsRows);
     const schoolsIndex = buildMyDataSchoolsContactIndex(schoolsRows);
-    const rows = enrichRowsWithSchoolContact(openRows.filter((row) => isInstructorAssignedRow(row, idsSet)), contactsIndex, schoolsIndex);
+    const rows = enrichRowsWithSchoolContact(openRows.filter((row) => isInstructorAssignedRow(row, idsSet)), contactsIndex, schoolsIndex, summerPrintContactsIndex);
     return { rows, teamGroups: buildInstructorTeamGroups(openRows, rows, contactResponsibles), _source: 'supabase' };
   },
 
