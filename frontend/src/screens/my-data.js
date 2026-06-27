@@ -28,6 +28,29 @@ function buildSearchHaystack(row) {
   ].join(' ');
 }
 
+function rowMeta(row, userEmpId, teamMap, state) {
+  const rawType = String(row.activity_type || '').trim();
+  const status = completionStatusFromUpload(null, row);
+  const rowDate = String(row?.start_date || row?.activity_date || '').slice(0, 10);
+  const responsible = isResponsibleForGroup(groupForRow(row, teamMap), currentInstructorIds(state));
+  const searchHay = buildSearchHaystack(row);
+  return { rawType, status, rowDate, responsible, searchHay };
+}
+
+function activityCardHtml(row, meta) {
+  return `<article class="instr-activity-list-card" data-list-item data-search="${escapeHtml(meta.searchHay)}" data-filter="${escapeHtml(meta.rawType)}" data-status="${escapeHtml(meta.status.key)}" data-date="${escapeHtml(meta.rowDate)}" data-responsible="${meta.responsible ? 'yes' : 'no'}" data-row-id="${escapeHtml(row.RowID)}">
+    <div class="instr-activity-list-card__status">${statusChipHtml(meta.status)}</div>
+    <div class="instr-activity-list-card__fields">
+      <div class="instr-activity-list-card__field"><span>תאריך</span><strong>${escapeHtml(cellValue(row, 'start_date'))}</strong></div>
+      <div class="instr-activity-list-card__field"><span>שעות</span><strong>${escapeHtml(cellValue(row, 'activity_hours'))}</strong></div>
+      <div class="instr-activity-list-card__field"><span>בית ספר</span><strong>${escapeHtml(cellValue(row, 'school'))}</strong></div>
+      <div class="instr-activity-list-card__field"><span>שם פעילות</span><strong>${escapeHtml(cellValue(row, 'activity_name'))}</strong></div>
+      <div class="instr-activity-list-card__field"><span>שכבה</span><strong>${escapeHtml(cellValue(row, 'grade'))}</strong></div>
+    </div>
+    <button type="button" class="ds-btn ds-btn--xs ds-btn--ghost instr-row-action-btn" data-row-detail>פירוט</button>
+  </article>`;
+}
+
 export const myDataScreen = {
   load: ({ api }) => api.myData(),
   render(data, { state } = {}) {
@@ -42,42 +65,42 @@ export const myDataScreen = {
     });
 
     const body = preparedRows.map((row) => {
-      const rawType = String(row.activity_type || '').trim();
-      const status = completionStatusFromUpload(null, row);
-      const rowDate = String(row?.start_date || row?.activity_date || '').slice(0, 10);
-      const responsible = isResponsibleForGroup(groupForRow(row, teamMap), currentInstructorIds(state));
-      const searchHay = buildSearchHaystack(row);
+      const meta = rowMeta(row, userEmpId, teamMap, state);
       const cells = VISIBLE_COLS.map((col) => {
-        if (col === 'completion_approval_status') return `<td class="instr-col-status">${statusChipHtml(status)}</td>`;
+        if (col === 'completion_approval_status') return `<td class="instr-col-status">${statusChipHtml(meta.status)}</td>`;
         return `<td class="instr-col-${col.replace(/_/g, '-')}">${escapeHtml(cellValue(row, col))}</td>`;
       }).join('');
-      return `<tr class="ds-data-row instr-table-row" data-list-item data-search="${escapeHtml(searchHay)}" data-filter="${escapeHtml(rawType)}" data-status="${escapeHtml(status.key)}" data-date="${escapeHtml(rowDate)}" data-responsible="${responsible ? 'yes' : 'no'}" data-row-id="${escapeHtml(row.RowID)}" role="button" tabindex="0">${cells}<td class="instr-col-action"><div class="instr-row-actions"><button type="button" class="ds-btn ds-btn--xs ds-btn--ghost instr-row-action-btn" data-row-detail>פירוט</button></div></td></tr>`;
-    });
+      return `<tr class="ds-data-row instr-table-row" data-list-item data-search="${escapeHtml(meta.searchHay)}" data-filter="${escapeHtml(meta.rawType)}" data-status="${escapeHtml(meta.status.key)}" data-date="${escapeHtml(meta.rowDate)}" data-responsible="${meta.responsible ? 'yes' : 'no'}" data-row-id="${escapeHtml(row.RowID)}" role="button" tabindex="0">${cells}<td class="instr-col-action"><div class="instr-row-actions"><button type="button" class="ds-btn ds-btn--xs ds-btn--ghost instr-row-action-btn" data-row-detail>פירוט</button></div></td></tr>`;
+    }).join('');
+
+    const cards = preparedRows.map((row) => activityCardHtml(row, rowMeta(row, userEmpId, teamMap, state))).join('');
 
     const thead = `<thead><tr>${VISIBLE_COLS.map((col) => `<th class="instr-col-${col.replace(/_/g, '-')}">${escapeHtml(COL_LABELS[col] || col)}</th>`).join('')}<th class="instr-col-action">פעולה</th></tr></thead>`;
 
-    const tableBlock = preparedRows.length === 0
+    const listBlock = preparedRows.length === 0
       ? dsEmptyState('אין פעילויות להצגה')
-      : dsTableWrap(`<table class="ds-table ds-table--interactive ds-table--instr-list"><colgroup><col class="instr-col-completion-approval-status"><col class="instr-col-start-date"><col class="instr-col-activity-hours"><col class="instr-col-school"><col class="instr-col-grade"><col class="instr-col-activity-name"><col class="instr-col-action"></colgroup>${thead}<tbody>${body.join('')}</tbody></table>`);
+      : `<div class="instr-list-dual"><div class="instr-list-desktop">${dsTableWrap(`<table class="ds-table ds-table--interactive ds-table--instr-list"><colgroup><col class="instr-col-completion-approval-status"><col class="instr-col-start-date"><col class="instr-col-activity-hours"><col class="instr-col-school"><col class="instr-col-grade"><col class="instr-col-activity-name"><col class="instr-col-action"></colgroup>${thead}<tbody>${body}</tbody></table>`)}</div><div class="instr-list-mobile instr-activity-cards">${cards}</div></div>`;
 
     return dsScreenStack(`
       <section class="instructor-area instructor-area--table">
         ${dsPageHeader('הפעילויות שלי', 'כל הפעילויות שמשויכות אליך')}
         <div class="instr-filter-bar">
-          <input class="ds-input" data-instr-search placeholder="חיפוש לפי בית ספר / פעילות / רשות">
-          <input class="ds-input" type="date" data-instr-date aria-label="תאריך פעילות">
-          <select class="ds-input" data-instr-status>
+          <input class="ds-input instr-filter-search" data-instr-search placeholder="חיפוש לפי בית ספר / פעילות / רשות">
+          <input class="ds-input instr-filter-date" type="date" data-instr-date aria-label="תאריך פעילות">
+          <select class="ds-input instr-filter-status" data-instr-status>
             <option value="">כל הסטטוסים</option>
             <option value="missing">טרם הועלה</option>
             <option value="uploaded">הועלה לבדיקה</option>
             <option value="approved">אושר</option>
             <option value="rejected">נדחה</option>
           </select>
-          <label class="instr-check"><input type="checkbox" data-instr-responsible> אני אחראי קשר</label>
-          <button type="button" class="ds-btn ds-btn--sm ds-btn--secondary instr-filter-btn" data-instr-today>היום</button>
-          <button type="button" class="ds-btn ds-btn--sm ds-btn--ghost instr-filter-btn" data-instr-clear>ניקוי</button>
+          <label class="instr-check instr-filter-responsible"><input type="checkbox" data-instr-responsible> אני אחראי קשר</label>
+          <div class="instr-filter-actions">
+            <button type="button" class="ds-btn ds-btn--sm ds-btn--secondary instr-filter-btn" data-instr-today>היום</button>
+            <button type="button" class="ds-btn ds-btn--sm ds-btn--ghost instr-filter-btn" data-instr-clear>ניקוי</button>
+          </div>
         </div>
-        ${dsCard({ title: 'הפעילויות שלי', badge: String(preparedRows.length), body: tableBlock, padded: preparedRows.length === 0 })}
+        ${dsCard({ title: 'הפעילויות שלי', badge: String(preparedRows.length), body: listBlock, padded: preparedRows.length === 0 })}
       </section>
     `);
   },
@@ -127,7 +150,7 @@ export const myDataScreen = {
       }
     };
 
-    root.querySelectorAll('.instr-table-row').forEach((rowNode) => {
+    root.querySelectorAll('.instr-table-row, .instr-activity-list-card').forEach((rowNode) => {
       rowNode.addEventListener('click', (event) => {
         if (event.target.closest('[data-row-detail]')) return;
         const hit = rowById.get(String(rowNode.dataset.rowId));

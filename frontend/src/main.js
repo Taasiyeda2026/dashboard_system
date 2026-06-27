@@ -695,6 +695,20 @@ function instructorOnlyRoutes() {
   return ['instructor-calendar', 'my-data', 'instructor-completion-approvals', 'instructor-guidelines'];
 }
 
+const INSTRUCTOR_MOBILE_NAV = [
+  { route: 'instructor-calendar', short: 'לוח שנה', icon: '📅' },
+  { route: 'my-data', short: 'פעילויות', icon: '📋' },
+  { route: 'instructor-completion-approvals', short: 'אישורים', icon: '✍️' },
+  { route: 'instructor-guidelines', short: 'נהלים', icon: '📖' }
+];
+
+function instructorBottomNavHtml(currentRoute) {
+  const buttons = INSTRUCTOR_MOBILE_NAV.map(({ route, short, icon }) =>
+    `<button type="button" class="instructor-bottom-nav__btn${route === currentRoute ? ' is-active' : ''}" data-route="${route}" aria-label="${escapeHtml(screenLabels[route] || short)}"><span class="instructor-bottom-nav__icon" aria-hidden="true">${icon}</span><span class="instructor-bottom-nav__label">${escapeHtml(short)}</span></button>`
+  ).join('');
+  return `<nav class="instructor-bottom-nav" aria-label="ניווט מדריך">${buttons}</nav>`;
+}
+
 function applySettingsToRoutes(routes, settings = state.clientSettings) {
   if (String(state?.user?.role || '').trim() === 'instructor') return instructorOnlyRoutes();
   if (SUPABASE_READONLY_CUTOVER) {
@@ -1041,9 +1055,13 @@ function shell(content) {
     routes: effectiveRoutes().filter((r) => !adminHeaderExclude.has(r) && !HEADER_ALWAYS_EXCLUDE.has(r))
   }, { exceptions: exceptionsNavCount(), editRequests: Number(state.openEditRequestsCount) || 0 });
   const headerTechHtml = '';
+  const instructorMobileHeader = isInstructorUser
+    ? `<div class="shell-top__instr-meta"><span class="shell-top__instr-user">${displayName}</span><button type="button" class="shell-logout-btn shell-logout-btn--mobile" aria-label="התנתקות" title="התנתקות"><span aria-hidden="true">⏻</span></button></div>`
+    : '';
+  const instructorBottomNav = isInstructorUser ? instructorBottomNavHtml(state.route) : '';
 
   return `
-    <div class="app-shell${drawerClass} route-${escapeHtml(String(state.route || ''))}" data-current-route="${escapeHtml(String(state.route || ''))}" dir="rtl">
+    <div class="app-shell${drawerClass}${isInstructorUser ? ' app-shell--instructor' : ''} route-${escapeHtml(String(state.route || ''))}" data-current-route="${escapeHtml(String(state.route || ''))}" dir="rtl">
       <button type="button" class="shell-backdrop" data-mobile-close aria-label="סגירת תפריט"></button>
       <aside class="shell-sidebar${isInstructorUser ? ' shell-sidebar--instructor' : ''}" aria-label="ניווט ראשי" id="mobileNavDrawer" aria-hidden="${drawerHidden}">
         <div class="shell-sidebar__mobile-head">
@@ -1094,6 +1112,7 @@ function shell(content) {
           </div>
           ${headerNavHtml}
           <div class="shell-top__end">
+            ${instructorMobileHeader}
             ${headerTechHtml}
           </div>
         </header>
@@ -1101,6 +1120,7 @@ function shell(content) {
           <div id="screenRoot" class="screen-root">${content}</div>
         </div>
       </div>
+      ${instructorBottomNav}
     </div>
   `;
 }
@@ -1509,6 +1529,7 @@ function updateNavActiveClasses() {
   document.body.classList.toggle('pref-narrow-boxes', !!state?.clientSettings?.narrow_boxes_preferred);
   document.body.classList.toggle('pref-emoji-ui', !!state?.clientSettings?.prefer_emoji_over_wide_boxes);
   document.body.classList.toggle('pref-hebrew-only', !!state?.clientSettings?.hebrew_only_headers);
+  document.body.classList.toggle('is-instructor-user', String(state?.user?.role || '').trim() === 'instructor');
   document.title = systemNameRaw();
 }
 
@@ -2073,13 +2094,17 @@ function bindShell() {
   applyGlobalAccent(accentNameFromStorage(state.clientSettings));
   bindAccentPickerOnce();
 
-  document.getElementById('logoutBtn')?.addEventListener('click', () => {
+  const handleLogout = () => {
     ui.closeAll();
     clearStorageCache();
     hasMountedAuthenticatedShell = false;
     setSession(null);
     localStorage.removeItem('dashboard_routes');
     render();
+  };
+  document.getElementById('logoutBtn')?.addEventListener('click', handleLogout);
+  document.querySelectorAll('.shell-logout-btn--mobile').forEach((btn) => {
+    btn.addEventListener('click', handleLogout);
   });
 }
 

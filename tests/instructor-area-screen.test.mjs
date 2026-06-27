@@ -226,3 +226,35 @@ test('instructor guidelines cards open modal with close and approval navigation'
     delete globalThis.Element;
   }
 });
+
+test('instructor shell includes bottom navigation for mobile', () => {
+  const main = readFileSync(new URL('../frontend/src/main.js', import.meta.url), 'utf8');
+  assert.match(main, /instructorBottomNavHtml/);
+  assert.match(main, /instructor-bottom-nav/);
+  assert.match(main, /app-shell--instructor/);
+  assert.match(main, /is-instructor-user/);
+});
+
+test('calendar renders mobile day list alongside desktop grid', () => {
+  const html = instructorCalendarScreen.render({ rows: [row], teamGroups, uploads: [] }, { state });
+  assert.match(html, /instr-calendar-desktop/);
+  assert.match(html, /instr-calendar-mobile/);
+  assert.match(html, /instr-cal-mobile-list/);
+  assert.match(html, /data-calendar-day="2026-06-21"/);
+});
+
+test('my activities includes mobile card list alongside desktop table', () => {
+  const html = myDataScreen.render({ rows: [row], teamGroups }, { state });
+  assert.match(html, /instr-list-desktop/);
+  assert.match(html, /instr-list-mobile/);
+  assert.match(html, /instr-activity-list-card/);
+  assert.match(html, /instr-table-row/);
+});
+
+test('completion approvals includes mobile card list alongside desktop table', () => {
+  const html = instructorCompletionApprovalsScreen.render({ rows: [row], uploads: [] }, { state });
+  assert.match(html, /instr-approvals-desktop/);
+  assert.match(html, /instr-approvals-mobile/);
+  assert.match(html, /instr-approval-card/);
+  assert.match(html, /ds-table--instr-approvals2/);
+});

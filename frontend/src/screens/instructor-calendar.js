@@ -34,6 +34,48 @@ function dayCell(date, rows, uMap, inMonth) {
   return `<button type="button" class="instr-calendar-day ${inMonth ? '' : 'is-muted'} ${dayRows.length ? 'has-activity' : ''} ${isToday ? 'is-today' : ''}" data-calendar-day="${escapeHtml(iso)}" ${disabledAttr}>${todayBadge}<strong>${date.getDate()}</strong><div>${tags.slice(0,2).join('')}</div></button>`;
 }
 
+function mobileDayCardHtml(iso, dayRows, uMap) {
+  const todayIso = toIso(new Date());
+  const isToday = iso === todayIso;
+  const statuses = new Set(dayRows.map((r) => completionStatusFromUpload(uploadFor(r, uMap), r).key));
+  const statusTags = [];
+  if (statuses.has('missing')) statusTags.push(statusChipHtml({ key: 'missing', label: 'חסר אישור' }));
+  else if (statuses.has('rejected')) statusTags.push(statusChipHtml({ key: 'rejected', label: 'נדחה' }));
+  else if (statuses.has('uploaded')) statusTags.push(statusChipHtml({ key: 'uploaded', label: 'הועלה' }));
+  else if (statuses.has('approved')) statusTags.push(statusChipHtml({ key: 'approved', label: 'אושר' }));
+  if (dayRows.some((r) => isResponsibleForGroup(groupForRow(r, teamMap), currentIds))) {
+    statusTags.push(statusChipHtml({ key: 'contact', label: 'אחראי קשר' }));
+  }
+  const countLabel = dayRows.length === 1 ? 'פעילות אחת' : `${dayRows.length} פעילויות`;
+  return `<button type="button" class="instr-cal-mobile-day${isToday ? ' is-today' : ''}" data-calendar-day="${escapeHtml(iso)}">
+    <div class="instr-cal-mobile-day__head">
+      <strong>${escapeHtml(formatDateHe(iso) || iso)}</strong>
+      ${isToday ? '<span class="instr-today-badge">היום</span>' : ''}
+    </div>
+    <div class="instr-cal-mobile-day__meta">
+      <span class="instr-cal-mobile-day__weekday">${escapeHtml(weekdayNameHe(iso))}</span>
+      <span class="instr-cal-mobile-day__count">${escapeHtml(countLabel)}</span>
+    </div>
+    <div class="instr-cal-mobile-day__tags">${statusTags.join('')}</div>
+  </button>`;
+}
+
+function mobileDayListHtml(rows, uMap, d) {
+  const monthRows = rowsForMonth(rows, d);
+  const dayMap = new Map();
+  monthRows.forEach((row) => {
+    const iso = isoDate(row.start_date || row.activity_date);
+    if (!iso) return;
+    if (!dayMap.has(iso)) dayMap.set(iso, []);
+    dayMap.get(iso).push(row);
+  });
+  const sortedDays = [...dayMap.keys()].sort();
+  if (!sortedDays.length) {
+    return '<p class="instr-cal-mobile-empty">אין פעילויות בחודש זה</p>';
+  }
+  return `<div class="instr-cal-mobile-list">${sortedDays.map((iso) => mobileDayCardHtml(iso, dayMap.get(iso), uMap)).join('')}</div>`;
+}
+
 function calendarHtml(rows, uMap, d) {
   const first = monthStart(d);
   const start = new Date(first);
@@ -44,7 +86,10 @@ function calendarHtml(rows, uMap, d) {
     cur.setDate(start.getDate() + i);
     cells.push(dayCell(cur, rows, uMap, cur.getMonth() === d.getMonth()));
   }
-  return `<div class="instructor-calendar-inner"><section class="instr-calendar-card"><div class="instr-calendar-toolbar"><h2>${escapeHtml(monthTitle(d))}</h2><div><button class="ds-btn ds-btn--sm ds-btn--secondary" data-cal-prev>חודש קודם</button><button class="ds-btn ds-btn--sm ds-btn--ghost" data-cal-today>היום</button><button class="ds-btn ds-btn--sm ds-btn--secondary" data-cal-next>חודש הבא</button></div></div><div class="instr-weekdays">${WEEKDAY_SHORT_HE.map((w)=>`<span>${w}</span>`).join('')}</div><div class="instr-calendar-grid">${cells.join('')}</div></section></div>`;
+  const toolbar = `<div class="instr-calendar-toolbar"><h2>${escapeHtml(monthTitle(d))}</h2><div><button class="ds-btn ds-btn--sm ds-btn--secondary" data-cal-prev>חודש קודם</button><button class="ds-btn ds-btn--sm ds-btn--ghost" data-cal-today>היום</button><button class="ds-btn ds-btn--sm ds-btn--secondary" data-cal-next>חודש הבא</button></div></div>`;
+  const desktopGrid = `<div class="instr-calendar-desktop"><div class="instr-weekdays">${WEEKDAY_SHORT_HE.map((w)=>`<span>${w}</span>`).join('')}</div><div class="instr-calendar-grid">${cells.join('')}</div></div>`;
+  const mobileList = `<div class="instr-calendar-mobile">${mobileDayListHtml(rows, uMap, d)}</div>`;
+  return `<div class="instructor-calendar-inner"><section class="instr-calendar-card">${toolbar}${desktopGrid}${mobileList}</section></div>`;
 }
 
 function dayDrawerHtml(iso, rows, uMap) {
