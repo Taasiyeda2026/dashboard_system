@@ -179,7 +179,7 @@ export const instructorGuidelinesScreen = {
       const itemText = escapeHtml(item);
       if (item === 'לוודא אישור צילום') {
         return `<div class="procedures-intro-item procedures-intro-item--photo">
-          <span>${itemText}</span>
+          <span class="procedures-intro-item__text">${itemText}</span>
           <a
             href="./forms/photo-consent-form.pdf"
             download
@@ -187,7 +187,11 @@ export const instructorGuidelinesScreen = {
             aria-label="הורדת אישור צילום ופרסום"
             title="הורדת אישור צילום ופרסום"
           >
-            <span aria-hidden="true">📄</span>
+            <svg class="instr-guidelines__pdf-icon" viewBox="0 0 24 24" width="18" height="18" aria-hidden="true" focusable="false">
+              <path d="M7 3.75h6.1L17.25 7.9v12.35H7V3.75Z" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linejoin="round"/>
+              <path d="M13 3.75V8h4.25" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linejoin="round"/>
+              <path d="M12 10.5v5.2m0 0 2.15-2.15M12 15.7l-2.15-2.15" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"/>
+            </svg>
           </a>
         </div>`;
       }

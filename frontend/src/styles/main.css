@@ -19097,8 +19097,9 @@ details[open] > .ds-fin-acc__summary::before { transform: rotate(90deg); }
 .procedures-intro-grid{display:grid;grid-template-columns:repeat(3,1fr);gap:10px 14px;direction:rtl}
 .procedures-intro-item{min-height:42px;padding:10px 14px;border-radius:12px;border:1px solid #d8f0f6;background:#f5fcfe;color:#1f2f46;font-size:14px;font-weight:600;display:flex;align-items:center;justify-content:center;text-align:center;line-height:1.35;box-sizing:border-box}
 .procedures-intro-item--photo{gap:8px;flex-wrap:nowrap;white-space:nowrap}
-.procedures-intro-item--photo span:first-child{min-width:0;overflow:hidden;text-overflow:ellipsis}
+.procedures-intro-item__text{min-width:0;overflow:hidden;text-overflow:ellipsis}
 .instr-guidelines__pdf-download{display:inline-flex;align-items:center;justify-content:center;flex:0 0 auto;width:32px;height:32px;min-width:32px;min-height:32px;padding:0;border-radius:10px;background:#fff;color:#0f8faa;font-size:16px;font-weight:800;text-decoration:none;border:2px solid #18aeca;cursor:pointer;white-space:nowrap;box-sizing:border-box;box-shadow:0 2px 7px rgba(24,174,202,.14);transition:background .15s ease,border-color .15s ease,box-shadow .15s ease,transform .15s ease,color .15s ease}
+.instr-guidelines__pdf-icon{display:block;width:18px;height:18px}
 .instr-guidelines__pdf-download:hover{background:#e8f9fc;border-color:#0f8faa;color:#08758d;box-shadow:0 4px 12px rgba(24,174,202,.24);transform:translateY(-1px)}
 .instr-guidelines__pdf-download:focus-visible{outline:2px solid #102a43;outline-offset:2px}
 .instr-guidelines__grid{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:11px;margin-top:2px}

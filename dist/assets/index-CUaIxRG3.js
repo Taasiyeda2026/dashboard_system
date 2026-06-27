@@ -1660,8 +1660,12 @@ ${E}`}class De extends Error{constructor({message:e,code:n,cause:s,name:i}){var 
     <dl class="instr-approval-card__fields">
       <div class="instr-approval-card__field"><dt>תאריך</dt><dd>${p(Tt(t.date)||t.date||"")}</dd></div>
       <div class="instr-approval-card__field"><dt>בית ספר</dt><dd>${p(t.school||"")}</dd></div>
-      <div class="instr-approval-card__field"><dt>פעילויות</dt><dd>${p(r)}</dd></div>
-    </dl>
+          <span class="procedures-intro-item__text">${n}</span>
+            <svg class="instr-guidelines__pdf-icon" viewBox="0 0 24 24" width="18" height="18" aria-hidden="true" focusable="false">
+              <path d="M7 3.75h6.1L17.25 7.9v12.35H7V3.75Z" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linejoin="round"/>
+              <path d="M13 3.75V8h4.25" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linejoin="round"/>
+              <path d="M12 10.5v5.2m0 0 2.15-2.15M12 15.7l-2.15-2.15" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"/>
+            </svg>
     <div class="instr-approval-card__file"><span class="instr-approval-card__file-label">קובץ:</span>${o}${i}</div>
     <div class="instr-approval-card__action"><button type="button" class="ds-btn ds-btn--xs ds-btn--secondary instr-btn-print" data-approval-key="${n}" title="הדפסה">הדפסה</button></div>
   </article>`}const ZN={load:async({api:t})=>{const[e,n]=await Promise.all([t.myData(),t.completionApprovalUploads().catch(()=>({rows:[]}))]);return{rows:(e==null?void 0:e.rows)||[],uploads:(n==null?void 0:n.rows)||[]}},render(t,{state:e}={}){const n=hA(e),s=(Array.isArray(t==null?void 0:t.rows)?t.rows:[]).filter(_=>fA(_,n)),i=s.filter(GN),a=YN(s,n,Jv(e)),r=eA(i,{instructor:a,dateMode:"range",dateFrom:pA,dateTo:mA}),o=QN((t==null?void 0:t.uploads)||[]);cp=JN(),op=new Map(r.map(_=>[Qv(_),_]));const c={missing:0,uploaded:0,approved:0,rejected:0};r.forEach(_=>{const A=xf(o.get(lp(_))).key;c[A]=(c[A]||0)+1});const l=_=>_===1?"פעילות אחת":`${_} פעילויות`,u=r.map(_=>{const A=o.get(lp(_)),E=_.activities||[],S=p(Qv(_)),$=gA(_,A,S),k=A!=null&&A.review_note?`<div class="instr-reject-note">${p(A.review_note)}</div>`:"",b=cp&&lp(_)===cp;return{table:`<tr${b?' class="instr-approval-target" data-approval-target="true"':""}>
