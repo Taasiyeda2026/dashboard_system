@@ -1,6 +1,7 @@
 import { escapeHtml } from './shared/html.js';
 import { formatDateHe, formatTimeShort } from './shared/format-date.js';
 import { buildCompletionApprovals, openApprovalPrintWindow, approvalFileTitle } from './shared/activity-completion-approval-print.js';
+import { getActivityAuthorityName, getActivitySchoolDisplayName, getActivitySchoolNames } from './shared/operations-activity-helpers.js';
 
 export const WEEKDAYS_HE = ['יום א׳', 'יום ב׳', 'יום ג׳', 'יום ד׳', 'יום ה׳', 'יום ו׳', 'יום ש׳'];
 export const WEEKDAY_SHORT_HE = ['א׳', 'ב׳', 'ג׳', 'ד׳', 'ה׳', 'ו׳', 'ש׳'];
@@ -74,22 +75,49 @@ export function activityDetailHtml(row, { ids = [], teamMap = new Map(), upload 
   return `<div class="instr-detail">${mineResponsible ? '<div class="instr-contact-note"><strong>אתה אחראי קשר</strong><br>יש לוודא את קיום הפעילות מול איש הקשר בבית הספר לפחות 48 שעות לפני יום הפעילות ולעדכן את שאר הצוות.</div>' : ''}<div class="instr-detail-grid">${fields.map(([k, v]) => `<div class="instr-info-row"><span>${escapeHtml(k)}</span><strong>${typeof v === 'string' && v.includes('<') ? v : escapeHtml(v)}</strong></div>`).join('')}</div><div class="instr-detail-actions"><button class="ds-btn ds-btn--sm ds-btn--secondary" data-instr-print-current>צפייה / הדפסה</button><button class="ds-btn ds-btn--sm ds-btn--primary" data-instr-nav-approvals>העלאת אישור ביצוע</button><button class="ds-btn ds-btn--sm ds-btn--ghost" data-ui-close-drawer>סגור</button></div></div>`;
 }
 
-export function printSingleActivity(row, instructorName = '') {
+function approvalMatchesRow(approval, row, instructorName = '') {
+  if (!approval || !row) return false;
+  const rowDate = isoDate(row?.start_date || row?.activity_date || row?.date || row?.date_1);
+  if (rowDate && approval.date !== rowDate) return false;
+
+  const rowAuthority = getActivityAuthorityName(row);
+  if (rowAuthority && rowAuthority !== 'לא משויך' && norm(approval.authority) !== norm(rowAuthority)) return false;
+
+  const rowSchools = [getActivitySchoolDisplayName(row), ...getActivitySchoolNames(row)]
+    .map((school) => norm(school))
+    .filter((school) => school && school !== norm('לא משויך'));
+  if (rowSchools.length && !rowSchools.some((school) => norm(approval.school) === school || school.endsWith(norm(approval.school)) || norm(approval.school).endsWith(school))) return false;
+
+  return !instructorName || norm(approval.instructorName) === norm(instructorName);
+}
+
+export function resolveInstructorApprovalForRow(row, allInstructorRows = [], instructorName = '') {
+  const scopedRows = Array.isArray(allInstructorRows) && allInstructorRows.length ? allInstructorRows : [row];
+  const selectedInstructor = text(instructorName);
+  if (!row || !selectedInstructor) return null;
+  const approvals = buildCompletionApprovals(scopedRows, { instructor: selectedInstructor });
+  return approvals.find((approval) => approvalMatchesRow(approval, row, selectedInstructor)) || null;
+}
+
+export function printSingleActivity(row, instructorName = '', allInstructorRows = []) {
   try {
-    const approvals = buildCompletionApprovals([row], { instructor: instructorName });
-    const title = approvals[0] ? approvalFileTitle(approvals[0]) : '';
-    openApprovalPrintWindow(approvals, title);
+    const approval = resolveInstructorApprovalForRow(row, allInstructorRows, instructorName);
+    if (!approval) {
+      openApprovalPrintWindow([], '');
+      return;
+    }
+    openApprovalPrintWindow([approval], approvalFileTitle(approval));
   } catch (err) {
     alert(`שגיאה בפתיחת אישור הביצוע: ${err?.message || 'שגיאה לא ידועה'}`);
   }
 }
 
-export function bindActivityDetailActions(contentNode, { ui, row, state } = {}) {
+export function bindActivityDetailActions(contentNode, { ui, row, state, allInstructorRows = [] } = {}) {
   if (!contentNode) return;
   contentNode.querySelector('[data-instr-print-current]')?.addEventListener('click', () => {
     const nameFromRow = instructorNameForRow(row, currentInstructorIds(state), '');
     const instructorName = nameFromRow || currentInstructorName(state);
-    printSingleActivity(row, instructorName);
+    printSingleActivity(row, instructorName, allInstructorRows);
   });
   contentNode.querySelector('[data-instr-nav-approvals]')?.addEventListener('click', () => {
     try { ui?.closeDrawer(); } catch { /* ignore */ }

@@ -102,7 +102,7 @@ export const instructorCalendarScreen = {
           title: 'פירוט פעילות',
           content: activityDetailHtml(row, { ids: currentIds, teamMap, upload: uploadFor(row, uMap) }),
           onOpen: (contentNode) => {
-            bindActivityDetailActions(contentNode, { ui, row, state });
+            bindActivityDetailActions(contentNode, { ui, row, state, allInstructorRows: renderRows });
           }
         });
       } catch (err) {

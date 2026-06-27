@@ -56,6 +56,10 @@ function instructorNameForRows(rows, ids, fallback) {
 function uploadKey(approval) {
   return `${text(approval?.date)}|${norm(approval?.authority)}|${norm(approval?.school)}`;
 }
+
+function approvalStableKey(approval) {
+  return [approval?.instructorName, approval?.date, approval?.authority, approval?.school].map((part) => norm(part)).join('|');
+}
 function uploadsByApproval(uploads = []) {
   const map = new Map();
   (Array.isArray(uploads) ? uploads : []).forEach((upload) => {
@@ -92,7 +96,7 @@ export const instructorCompletionApprovalsScreen = {
     const approvals = buildCompletionApprovals(rows, { instructor: instructorName, dateMode: 'range', dateFrom: COMPLETION_APPROVAL_SUMMER_FROM, dateTo: COMPLETION_APPROVAL_SUMMER_TO });
     const uploadMap = uploadsByApproval(data?.uploads || []);
 
-    approvalsByKey = new Map(approvals.map((a) => [a.id, a]));
+    approvalsByKey = new Map(approvals.map((approval) => [approvalStableKey(approval), approval]));
 
     const statusCounts = { missing: 0, uploaded: 0, approved: 0, rejected: 0 };
     approvals.forEach((approval) => {
@@ -109,7 +113,7 @@ export const instructorCompletionApprovalsScreen = {
       const fileState = hasFile
         ? `<span class="instr-file-state instr-file-state--has">📎 ${fileName}</span>`
         : '';
-      const safeKey = escapeHtml(approval.id);
+      const safeKey = escapeHtml(approvalStableKey(approval));
       const uploadBtn = `<label class="instr-upload-label" title="בחרו קובץ PDF / JPG / PNG להעלאה"><span class="ds-btn ds-btn--xs ds-btn--primary instr-btn-upload">${hasFile ? 'החלף' : 'העלה'}</span><input class="sr-only" type="file" accept=".pdf,.jpg,.jpeg,.png,application/pdf,image/jpeg,image/png" data-upload-key="${safeKey}"></label>`;
       const reviewNote = upload?.review_note ? `<div class="instr-reject-note">${escapeHtml(upload.review_note)}</div>` : '';
       return `<tr>
