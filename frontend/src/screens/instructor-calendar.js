@@ -18,6 +18,8 @@ function uploadFor(row, map) { return map.get(`${isoDate(row.start_date || row.a
 
 function dayCell(date, rows, uMap, inMonth) {
   const iso = toIso(date);
+  const todayIso = toIso(new Date());
+  const isToday = iso === todayIso;
   const dayRows = rows.filter((r) => isoDate(r.start_date || r.activity_date) === iso);
   const tags = [];
   if (dayRows.length) tags.push(`<span class="instr-day-count">${dayRows.length} פעילויות</span>`);
@@ -27,7 +29,9 @@ function dayCell(date, rows, uMap, inMonth) {
   else if (statuses.has('uploaded')) tags.push(statusChipHtml({ key: 'uploaded', label: 'הועלה' }));
   else if (statuses.has('approved')) tags.push(statusChipHtml({ key: 'approved', label: 'אושר' }));
   if (dayRows.some((r) => isResponsibleForGroup(groupForRow(r, teamMap), currentIds))) tags.push(statusChipHtml({ key: 'contact', label: 'אחראי קשר' }));
-  return `<button type="button" class="instr-calendar-day ${inMonth ? '' : 'is-muted'} ${dayRows.length ? 'has-activity' : ''}" data-calendar-day="${escapeHtml(iso)}" ${dayRows.length ? '' : 'disabled'}><strong>${date.getDate()}</strong><div>${tags.slice(0,2).join('')}</div></button>`;
+  const todayBadge = isToday ? '<span class="instr-today-badge">היום</span>' : '';
+  const disabledAttr = dayRows.length || isToday ? '' : 'disabled';
+  return `<button type="button" class="instr-calendar-day ${inMonth ? '' : 'is-muted'} ${dayRows.length ? 'has-activity' : ''} ${isToday ? 'is-today' : ''}" data-calendar-day="${escapeHtml(iso)}" ${disabledAttr}>${todayBadge}<strong>${date.getDate()}</strong><div>${tags.slice(0,2).join('')}</div></button>`;
 }
 
 function calendarHtml(rows, uMap, d) {

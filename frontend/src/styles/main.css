@@ -18919,6 +18919,10 @@ details[open] > .ds-fin-acc__summary::before { transform: rotate(90deg); }
 .instr-calendar-day strong{font-size:12px}
 .instr-day-count{font-size:10px;padding:2px 6px}
 .instr-calendar-day .instr-status{font-size:10px;padding:2px 5px}
+/* ── Today highlight ── */
+.instr-calendar-day.is-today{border:2px solid #22afcb;background:linear-gradient(160deg,#eaf9fc,#f5fdff);box-shadow:0 0 0 3px rgba(34,175,203,.13),0 4px 14px rgba(16,42,67,.10)}
+.instr-calendar-day.is-today strong{font-weight:900;color:#0b6a82}
+.instr-today-badge{display:inline-block;font-size:9px;font-weight:900;background:#22afcb;color:#fff;border-radius:999px;padding:1px 6px;margin-bottom:3px;letter-spacing:.02em;line-height:1.5}
 .instr-filter-bar{padding:12px;gap:8px}
 .instr-filter-bar .ds-input{font-size:12px;height:32px;padding:4px 8px}
 .instr-check{font-size:12px}
