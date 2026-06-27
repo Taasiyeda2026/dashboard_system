@@ -3,8 +3,8 @@ import { formatDateHe, formatTimeShort } from './shared/format-date.js';
 import { dsPageHeader, dsCard, dsScreenStack, dsTableWrap, dsEmptyState } from './shared/layout.js';
 import { activityDetailHtml, assignedToCurrentInstructor, bindActivityDetailActions, completionStatusFromUpload, contactGroupsByDateSchool, currentInstructorIds, groupForRow, isResponsibleForGroup, statusChipHtml } from './instructor-utils.js';
 
-const VISIBLE_COLS = ['completion_approval_status', 'start_date', 'activity_hours', 'school', 'school_contact', 'grade', 'activity_name'];
-const COL_LABELS = { start_date: 'תאריך', activity_hours: 'שעות', school: 'בית ספר', school_contact: 'איש קשר', grade: 'שכבה', activity_name: 'שם פעילות', completion_approval_status: 'סטטוס' };
+const VISIBLE_COLS = ['completion_approval_status', 'start_date', 'activity_hours', 'school', 'grade', 'activity_name'];
+const COL_LABELS = { start_date: 'תאריך', activity_hours: 'שעות', school: 'בית ספר', grade: 'שכבה', activity_name: 'שם פעילות', completion_approval_status: 'סטטוס' };
 
 function cellValue(row, column) {
   if (column === 'activity_hours') {
@@ -15,11 +15,6 @@ function cellValue(row, column) {
   if (column === 'start_date') return formatDateHe(String(row?.start_date || row?.activity_date || '')) || '—';
   if (column === 'activity_name') return String(row?.activity_name || row?.activity || '').trim() || '—';
   if (column === 'school') return String(row?.school || '').trim() || '—';
-  if (column === 'school_contact') {
-    const name = String(row?.school_contact_name || '').trim() || 'לא עודכן';
-    const phone = String(row?.school_contact_phone || '').trim() || 'לא עודכן';
-    return `${name}\n${phone}`;
-  }
   if (column === 'grade') return String(row?.grade || '').trim() || '—';
   if (column === 'completion_approval_status') return row?.completion_approval_status || 'טרם הועלה';
   return String(row?.[column] ?? '').trim();
@@ -42,12 +37,6 @@ function rowMeta(row, userEmpId, teamMap, state) {
   return { rawType, status, rowDate, responsible, searchHay };
 }
 
-function schoolContactHtml(row) {
-  const name = String(row?.school_contact_name || '').trim() || 'לא עודכן';
-  const phone = String(row?.school_contact_phone || '').trim() || 'לא עודכן';
-  return `<span class="instr-contact-box__title">איש קשר</span><strong>${escapeHtml(name)}</strong><strong>${escapeHtml(phone)}</strong>`;
-}
-
 function activityCardHtml(row, meta) {
   return `<article class="instr-activity-list-card" data-list-item data-search="${escapeHtml(meta.searchHay)}" data-filter="${escapeHtml(meta.rawType)}" data-status="${escapeHtml(meta.status.key)}" data-date="${escapeHtml(meta.rowDate)}" data-responsible="${meta.responsible ? 'yes' : 'no'}" data-row-id="${escapeHtml(row.RowID)}">
     <div class="instr-activity-list-card__status">${statusChipHtml(meta.status)}</div>
@@ -55,7 +44,6 @@ function activityCardHtml(row, meta) {
       <div class="instr-activity-list-card__field"><span>תאריך</span><strong>${escapeHtml(cellValue(row, 'start_date'))}</strong></div>
       <div class="instr-activity-list-card__field"><span>שעות</span><strong>${escapeHtml(cellValue(row, 'activity_hours'))}</strong></div>
       <div class="instr-activity-list-card__field"><span>בית ספר</span><strong>${escapeHtml(cellValue(row, 'school'))}</strong></div>
-      <div class="instr-activity-list-card__field instr-activity-list-card__field--contact">${schoolContactHtml(row)}</div>
       <div class="instr-activity-list-card__field"><span>שם פעילות</span><strong>${escapeHtml(cellValue(row, 'activity_name'))}</strong></div>
       <div class="instr-activity-list-card__field"><span>שכבה</span><strong>${escapeHtml(cellValue(row, 'grade'))}</strong></div>
     </div>
@@ -80,7 +68,6 @@ export const myDataScreen = {
       const meta = rowMeta(row, userEmpId, teamMap, state);
       const cells = VISIBLE_COLS.map((col) => {
         if (col === 'completion_approval_status') return `<td class="instr-col-status">${statusChipHtml(meta.status)}</td>`;
-        if (col === 'school_contact') return `<td class="instr-col-school-contact"><div class="instr-table-contact"><strong>${escapeHtml(String(row?.school_contact_name || '').trim() || 'לא עודכן')}</strong><span>${escapeHtml(String(row?.school_contact_phone || '').trim() || 'לא עודכן')}</span></div></td>`;
         return `<td class="instr-col-${col.replace(/_/g, '-')}">${escapeHtml(cellValue(row, col))}</td>`;
       }).join('');
       return `<tr class="ds-data-row instr-table-row" data-list-item data-search="${escapeHtml(meta.searchHay)}" data-filter="${escapeHtml(meta.rawType)}" data-status="${escapeHtml(meta.status.key)}" data-date="${escapeHtml(meta.rowDate)}" data-responsible="${meta.responsible ? 'yes' : 'no'}" data-row-id="${escapeHtml(row.RowID)}" role="button" tabindex="0">${cells}<td class="instr-col-action"><div class="instr-row-actions"><button type="button" class="ds-btn ds-btn--xs ds-btn--ghost instr-row-action-btn" data-row-detail>פירוט</button></div></td></tr>`;
@@ -92,7 +79,7 @@ export const myDataScreen = {
 
     const listBlock = preparedRows.length === 0
       ? dsEmptyState('אין פעילויות להצגה')
-      : `<div class="instr-list-dual"><div class="instr-list-desktop activities-table-wrapper">${dsTableWrap(`<table class="ds-table ds-table--interactive ds-table--instr-list"><colgroup><col class="instr-col-completion-approval-status"><col class="instr-col-start-date"><col class="instr-col-activity-hours"><col class="instr-col-school"><col class="instr-col-school-contact"><col class="instr-col-grade"><col class="instr-col-activity-name"><col class="instr-col-action"></colgroup>${thead}<tbody>${body}</tbody></table>`)}</div><div class="instr-list-mobile instr-activity-cards activities-mobile-cards">${cards}</div></div>`;
+      : `<div class="instr-list-dual"><div class="instr-list-desktop activities-table-wrapper">${dsTableWrap(`<table class="ds-table ds-table--interactive ds-table--instr-list"><colgroup><col class="instr-col-completion-approval-status"><col class="instr-col-start-date"><col class="instr-col-activity-hours"><col class="instr-col-school"><col class="instr-col-grade"><col class="instr-col-activity-name"><col class="instr-col-action"></colgroup>${thead}<tbody>${body}</tbody></table>`)}</div><div class="instr-list-mobile instr-activity-cards activities-mobile-cards">${cards}</div></div>`;
 
     return dsScreenStack(`
       <section class="instructor-area instructor-area--table">
