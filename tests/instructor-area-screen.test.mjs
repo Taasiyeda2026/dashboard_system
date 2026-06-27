@@ -186,6 +186,15 @@ test('instructor guidelines screen renders summer 2026 title and eight topic car
   assert.doesNotMatch(html, /נהלים למדריכי הקיץ/);
 });
 
+test('guidelines modal uses compact centered width scoped to ds-modal--guidelines', () => {
+  const css = readFileSync(new URL('../frontend/src/styles/main.css', import.meta.url), 'utf8');
+  assert.match(css, /\.ds-modal\.ds-modal--guidelines\{[^}]*width:min\(92vw,680px\)/);
+  assert.match(css, /\.ds-modal\.ds-modal--guidelines\{[^}]*max-width:680px/);
+  assert.match(css, /\.ds-modal\.ds-modal--guidelines\{[^}]*transform:translate\(-50%,calc\(-50% \+ 16px\)\)/);
+  assert.match(css, /\.ds-ui-layer\.is-modal-open \.ds-modal\.ds-modal--guidelines\{[^}]*transform:translate\(-50%,-50%\)!important/);
+  assert.doesNotMatch(css, /max-width:768px\)[^}]*\.ds-modal\.ds-modal--guidelines\{width:calc\(100% - 24px\)/);
+});
+
 test('instructor guidelines cards open modal with close and approval navigation', async () => {
   const html = instructorGuidelinesScreen.render({}, { state });
   const dom = new JSDOM(`<main id="root">${html}</main><nav><button class="shell-nav__btn" data-route="instructor-completion-approvals"></button></nav><div id="ds-shared-ui-layer" class="ds-ui-layer" dir="rtl">
