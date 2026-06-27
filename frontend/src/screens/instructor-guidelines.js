@@ -182,6 +182,13 @@ export const instructorGuidelinesScreen = {
         <div class="instr-guidelines__strip" aria-label="תזכורת לפני פעילות">
           <p class="instr-guidelines__strip-title">לפני כל פעילות</p>
           <div class="procedures-intro-grid" role="list">${reminder}</div>
+          <a
+            href="./forms/photo-consent-form.pdf"
+            download
+            class="instr-guidelines__pdf-download"
+          >
+            📄 הורדת אישור צילום ופרסום
+          </a>
         </div>
         <div class="instr-guidelines__grid" role="list" aria-label="נושאי נהלים">${SECTIONS.map(cardHtml).join('')}</div>
       </section>
