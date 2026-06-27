@@ -166,14 +166,18 @@ test('my activities daily filter, today, and clear buttons update visible rows',
   }
 });
 
-test('instructor guidelines screen renders compact accordion topics', () => {
+test('instructor guidelines screen renders compact strip and accordion topics', () => {
   const html = instructorGuidelinesScreen.render({}, { state });
   assert.match(html, /נהלים למדריכי הקיץ/);
+  assert.match(html, /כללי עבודה קצרים להפעלה מקצועית/);
+  assert.match(html, /instr-guidelines__strip/);
   assert.match(html, /לפני כל פעילות/);
   assert.match(html, /לפני יום הפעילות/);
   assert.match(html, /התנהלות מקצועית מול הקייטנה/);
   assert.match(html, /<details[^>]*open[^>]*>[\s\S]*לפני יום הפעילות/);
   assert.match(html, /data-guidelines-go-approvals/);
+  assert.doesNotMatch(html, /instr-guidelines__reminder/);
+  assert.doesNotMatch(html, /נהלי עבודה להפעלה מקצועית, בטוחה ומסודרת/);
 });
 
 test('instructor guidelines approval link navigates to completion approvals tab', () => {
