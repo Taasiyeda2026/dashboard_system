@@ -79,7 +79,7 @@ export const myDataScreen = {
 
     const listBlock = preparedRows.length === 0
       ? dsEmptyState('אין פעילויות להצגה')
-      : `<div class="instr-list-dual"><div class="instr-list-desktop">${dsTableWrap(`<table class="ds-table ds-table--interactive ds-table--instr-list"><colgroup><col class="instr-col-completion-approval-status"><col class="instr-col-start-date"><col class="instr-col-activity-hours"><col class="instr-col-school"><col class="instr-col-grade"><col class="instr-col-activity-name"><col class="instr-col-action"></colgroup>${thead}<tbody>${body}</tbody></table>`)}</div><div class="instr-list-mobile instr-activity-cards">${cards}</div></div>`;
+      : `<div class="instr-list-dual"><div class="instr-list-desktop activities-table-wrapper">${dsTableWrap(`<table class="ds-table ds-table--interactive ds-table--instr-list"><colgroup><col class="instr-col-completion-approval-status"><col class="instr-col-start-date"><col class="instr-col-activity-hours"><col class="instr-col-school"><col class="instr-col-grade"><col class="instr-col-activity-name"><col class="instr-col-action"></colgroup>${thead}<tbody>${body}</tbody></table>`)}</div><div class="instr-list-mobile instr-activity-cards activities-mobile-cards">${cards}</div></div>`;
 
     return dsScreenStack(`
       <section class="instructor-area instructor-area--table">
