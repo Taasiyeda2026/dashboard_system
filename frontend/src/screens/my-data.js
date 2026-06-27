@@ -1,7 +1,7 @@
 import { escapeHtml } from './shared/html.js';
 import { formatDateHe, formatTimeShort } from './shared/format-date.js';
 import { dsPageHeader, dsCard, dsScreenStack, dsTableWrap, dsEmptyState } from './shared/layout.js';
-import { activityDetailHtml, assignedToCurrentInstructor, bindActivityDetailActions, completionStatusFromUpload, contactGroupsByDateSchool, currentInstructorIds, groupForRow, isResponsibleForGroup, openInstructorApprovalForActivity, statusChipHtml } from './instructor-utils.js';
+import { activityDetailHtml, assignedToCurrentInstructor, bindActivityDetailActions, completionStatusFromUpload, contactGroupsByDateSchool, currentInstructorIds, groupForRow, isResponsibleForGroup, statusChipHtml } from './instructor-utils.js';
 
 const VISIBLE_COLS = ['completion_approval_status', 'start_date', 'activity_hours', 'school', 'grade', 'activity_name'];
 const COL_LABELS = { start_date: 'תאריך', activity_hours: 'שעות', school: 'בית ספר', grade: 'שכבה', activity_name: 'שם פעילות', completion_approval_status: 'סטטוס' };
@@ -51,10 +51,10 @@ export const myDataScreen = {
         if (col === 'completion_approval_status') return `<td class="instr-col-status">${statusChipHtml(status)}</td>`;
         return `<td class="instr-col-${col.replace(/_/g, '-')}">${escapeHtml(cellValue(row, col))}</td>`;
       }).join('');
-      return `<tr class="ds-data-row instr-table-row" data-list-item data-search="${escapeHtml(searchHay)}" data-filter="${escapeHtml(rawType)}" data-status="${escapeHtml(status.key)}" data-date="${escapeHtml(rowDate)}" data-responsible="${responsible ? 'yes' : 'no'}" data-row-id="${escapeHtml(row.RowID)}" role="button" tabindex="0">${cells}<td class="instr-col-action"><div class="instr-row-actions"><button type="button" class="ds-btn ds-btn--xs ds-btn--ghost instr-row-action-btn" data-row-detail>פירוט</button><button type="button" class="ds-btn ds-btn--xs ds-btn--secondary instr-row-action-btn" data-row-print>הדפסה</button><button type="button" class="ds-btn ds-btn--xs ds-btn--primary instr-row-action-btn" data-row-upload>העלאה</button></div></td></tr>`;
+      return `<tr class="ds-data-row instr-table-row" data-list-item data-search="${escapeHtml(searchHay)}" data-filter="${escapeHtml(rawType)}" data-status="${escapeHtml(status.key)}" data-date="${escapeHtml(rowDate)}" data-responsible="${responsible ? 'yes' : 'no'}" data-row-id="${escapeHtml(row.RowID)}" role="button" tabindex="0">${cells}<td class="instr-col-action"><div class="instr-row-actions"><button type="button" class="ds-btn ds-btn--xs ds-btn--ghost instr-row-action-btn" data-row-detail>פירוט</button></div></td></tr>`;
     });
 
-    const thead = `<thead><tr>${VISIBLE_COLS.map((col) => `<th class="instr-col-${col.replace(/_/g, '-')}">${escapeHtml(COL_LABELS[col] || col)}</th>`).join('')}<th class="instr-col-action"></th></tr></thead>`;
+    const thead = `<thead><tr>${VISIBLE_COLS.map((col) => `<th class="instr-col-${col.replace(/_/g, '-')}">${escapeHtml(COL_LABELS[col] || col)}</th>`).join('')}<th class="instr-col-action">פעולה</th></tr></thead>`;
 
     const tableBlock = preparedRows.length === 0
       ? dsEmptyState('אין פעילויות להצגה')
@@ -129,7 +129,7 @@ export const myDataScreen = {
 
     root.querySelectorAll('.instr-table-row').forEach((rowNode) => {
       rowNode.addEventListener('click', (event) => {
-        if (event.target.closest('[data-row-detail],[data-row-print],[data-row-upload]')) return;
+        if (event.target.closest('[data-row-detail]')) return;
         const hit = rowById.get(String(rowNode.dataset.rowId));
         if (hit) openActivityDetail(hit);
       });
@@ -142,27 +142,6 @@ export const myDataScreen = {
           event.stopPropagation();
           const hit = rowById.get(String(rowNode.dataset.rowId));
           if (hit) openActivityDetail(hit);
-        });
-      }
-      const printBtn = rowNode.querySelector('[data-row-print]');
-      if (printBtn) {
-        printBtn.addEventListener('click', (event) => {
-          event.stopPropagation();
-          const hit = rowById.get(String(rowNode.dataset.rowId));
-          if (hit) openInstructorApprovalForActivity(hit, { state, allInstructorRows: rows });
-        });
-      }
-      const uploadBtn = rowNode.querySelector('[data-row-upload]');
-      if (uploadBtn) {
-        uploadBtn.addEventListener('click', (event) => {
-          event.stopPropagation();
-          const hit = rowById.get(String(rowNode.dataset.rowId));
-          if (!hit) return;
-          try {
-            const target = { date: String(hit?.start_date || hit?.activity_date || '').slice(0, 10), authority: String(hit?.authority || '').trim(), school: String(hit?.school || '').trim() };
-            sessionStorage.setItem('instructor_completion_approval_target', JSON.stringify(target));
-          } catch { /* ignore */ }
-          document.querySelector('.shell-nav__btn[data-route="instructor-completion-approvals"]')?.click();
         });
       }
     });

@@ -1,12 +1,15 @@
 import { escapeHtml } from './shared/html.js';
 import { dsPageHeader, dsScreenStack } from './shared/layout.js';
 
+const PAGE_SUBTITLE = 'כללי עבודה קצרים להפעלה מקצועית, בטוחה ומסודרת של פעילויות הקיץ.';
+
+/** Short checklist only — full detail lives in accordion sections below. */
 const REMINDER_ITEMS = [
-  'לוודא שעות ומיקום 48 שעות מראש',
-  'לוודא ציוד וחומרי הדרכה',
-  'להגיע 15 דקות לפני תחילת הפעילות',
-  'להחתים אישור ביצוע בסיום',
-  'להעלות צילום חתום למערכת'
+  'שעות ומיקום — אימות 48 שעות מראש',
+  'ציוד וחומרי הדרכה מוכנים',
+  'הגעה 15 דק׳ לפני ההתחלה',
+  'חתימה על אישור ביצוע',
+  'העלאת צילום חתום למערכת'
 ];
 
 const SECTIONS = [
@@ -104,7 +107,7 @@ const SECTIONS = [
 function sectionHtml(section) {
   const list = section.items.map((item) => `<li>${escapeHtml(item)}</li>`).join('');
   const approvalLink = section.showApprovalLink
-    ? '<p class="instr-guidelines__link-row"><button type="button" class="ds-btn ds-btn--sm ds-btn--secondary" data-guidelines-go-approvals>מעבר לאישורי ביצוע</button></p>'
+    ? '<p class="instr-guidelines__link-row"><button type="button" class="ds-btn ds-btn--xs ds-btn--primary" data-guidelines-go-approvals>מעבר לאישורי ביצוע</button></p>'
     : '';
   return `<details class="instr-guidelines__section" id="instr-guidelines-${escapeHtml(section.id)}"${section.open ? ' open' : ''}>
     <summary class="instr-guidelines__summary">${escapeHtml(section.title)}</summary>
@@ -121,11 +124,11 @@ export const instructorGuidelinesScreen = {
     const reminder = REMINDER_ITEMS.map((item) => `<li>${escapeHtml(item)}</li>`).join('');
     return dsScreenStack(`
       <section class="instructor-area instructor-guidelines">
-        ${dsPageHeader('נהלים למדריכי הקיץ', 'נהלי עבודה להפעלה מקצועית, בטוחה ומסודרת של פעילויות הקיץ.')}
-        <article class="instr-guidelines__reminder" aria-label="תזכורת לפני פעילות">
-          <h2 class="instr-guidelines__reminder-title">לפני כל פעילות</h2>
+        ${dsPageHeader('נהלים למדריכי הקיץ', PAGE_SUBTITLE)}
+        <div class="instr-guidelines__strip" aria-label="תזכורת לפני פעילות">
+          <p class="instr-guidelines__strip-title">לפני כל פעילות</p>
           <ul class="instr-guidelines__checklist">${reminder}</ul>
-        </article>
+        </div>
         <div class="instr-guidelines__accordion">${SECTIONS.map(sectionHtml).join('')}</div>
       </section>
     `);
