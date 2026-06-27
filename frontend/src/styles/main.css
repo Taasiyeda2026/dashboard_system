@@ -19094,9 +19094,8 @@ details[open] > .ds-fin-acc__summary::before { transform: rotate(90deg); }
 .route-instructor-guidelines .instructor-guidelines .ds-page-header__subtitle{font-size:12px;line-height:1.35;margin:0;color:#5b6b7a}
 .instr-guidelines__strip{background:#f3fbfd;border:1px solid #d6eef5;border-radius:12px;padding:6px 10px;box-shadow:none}
 .instr-guidelines__strip-title{margin:0 0 4px;font-size:12px;font-weight:800;color:#1ba8c4;line-height:1.2}
-.instr-guidelines__checklist{margin:0;padding:0;list-style:none;display:grid;gap:3px 10px;grid-template-columns:repeat(2,minmax(0,1fr))}
-.instr-guidelines__checklist li{position:relative;padding-inline-start:18px;font-size:12px;line-height:1.35;color:#102a43}
-.instr-guidelines__checklist li::before{content:"✓";position:absolute;inset-inline-start:0;color:#22afcb;font-weight:900;font-size:11px}
+.procedures-intro-grid{display:grid;grid-template-columns:repeat(3,1fr);gap:10px 14px;direction:rtl}
+.procedures-intro-item{min-height:42px;padding:10px 14px;border-radius:12px;border:1px solid #d8f0f6;background:#f5fcfe;color:#1f2f46;font-size:14px;font-weight:600;display:flex;align-items:center;justify-content:center;text-align:center;line-height:1.35;box-sizing:border-box}
 .instr-guidelines__grid{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:11px;margin-top:2px}
 .instr-guidelines__card{position:relative;display:flex;align-items:center;justify-content:center;width:100%;min-height:82px;padding:12px 54px 12px 54px;border:1px solid #d6eef5;border-radius:14px;background:#fff;box-shadow:0 2px 6px rgba(16,42,67,.03);cursor:pointer;text-align:center;transition:border-color .15s ease,background .15s ease,box-shadow .15s ease}
 .instr-guidelines__card:hover{border-color:#22afcb;background:#f7fdff;box-shadow:0 4px 12px rgba(16,42,67,.06)}
@@ -19123,8 +19122,9 @@ details[open] > .ds-fin-acc__summary::before { transform: rotate(90deg); }
 .ds-modal.ds-modal--guidelines .instr-guidelines__list li{overflow-wrap:anywhere;margin-bottom:3px}
 @media (min-width:960px){.ds-ui-layer.is-modal-open .ds-modal.ds-modal--guidelines{width:min(84vw,520px)!important;max-width:520px!important}}
 @media (max-width:600px){.ds-modal.ds-modal--guidelines,.ds-ui-layer.is-modal-open .ds-modal.ds-modal--guidelines{width:calc(100vw - 24px)!important;max-width:none!important}}
-@media (max-width:900px){.route-instructor-guidelines .instructor-guidelines{max-width:100%}.route-instructor-guidelines .shell-main{padding:8px 6px}.instr-guidelines__checklist{grid-template-columns:1fr}}
+@media (max-width:900px){.route-instructor-guidelines .instructor-guidelines{max-width:100%}.route-instructor-guidelines .shell-main{padding:8px 6px}.procedures-intro-grid{grid-template-columns:repeat(2,1fr)}}
 @media (max-width:700px){.instr-guidelines__grid{grid-template-columns:1fr;gap:8px}.instr-guidelines__card{min-height:74px;padding:10px 48px 10px 48px}.instr-guidelines__card-title{font-size:14px}.instr-guidelines__card-summary{font-size:11px}}
+@media (max-width:560px){.procedures-intro-grid{grid-template-columns:1fr}}
 @media (max-width:768px){.ds-modal.ds-modal--guidelines .ds-icon-btn{width:36px;height:36px;min-height:36px;font-size:18px}.ds-modal.ds-modal--guidelines .ds-modal__footer .ds-btn{min-height:36px;height:36px;padding:6px 12px;font-size:14px}}
 
 /* ── Instructor mobile adaptation (role=instructor, scoped) ── */

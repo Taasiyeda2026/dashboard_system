@@ -5,10 +5,14 @@ const PAGE_TITLE = 'נהלי עבודה חשובים – קיץ 2026';
 
 const REMINDER_ITEMS = [
   'לוודא שעות ומיקום',
-  'לוודא ציוד',
+  'לוודא איש קשר',
+  'לוודא ציוד נדרש',
+  'לבדוק תקינות ציוד',
   'להגיע 15 דקות לפני',
-  'להחתים אישור ביצוע',
-  'להעלות צילום חתום'
+  'להתארגן לפני התחלה',
+  'להנחות בצורה ברורה',
+  'להתנהל בכבוד ובסבלנות',
+  'להחתים ולהעלות אישור חתום'
 ];
 
 const SECTIONS = [
@@ -171,13 +175,13 @@ function bindModalActions(ui) {
 export const instructorGuidelinesScreen = {
   load: async () => ({}),
   render() {
-    const reminder = REMINDER_ITEMS.map((item) => `<li>${escapeHtml(item)}</li>`).join('');
+    const reminder = REMINDER_ITEMS.map((item) => `<div class="procedures-intro-item">${escapeHtml(item)}</div>`).join('');
     return dsScreenStack(`
       <section class="instructor-area instructor-guidelines">
         ${dsPageHeader(PAGE_TITLE)}
         <div class="instr-guidelines__strip" aria-label="תזכורת לפני פעילות">
           <p class="instr-guidelines__strip-title">לפני כל פעילות</p>
-          <ul class="instr-guidelines__checklist">${reminder}</ul>
+          <div class="procedures-intro-grid" role="list">${reminder}</div>
         </div>
         <div class="instr-guidelines__grid" role="list" aria-label="נושאי נהלים">${SECTIONS.map(cardHtml).join('')}</div>
       </section>
