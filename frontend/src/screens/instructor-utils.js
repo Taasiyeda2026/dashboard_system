@@ -1,5 +1,6 @@
 import { escapeHtml } from './shared/html.js';
 import { formatDateHe, formatTimeShort } from './shared/format-date.js';
+import { buildCompletionApprovals, completionApprovalPrintCss, completionApprovalsPrintHtml, approvalFileTitle } from './shared/activity-completion-approval-print.js';
 
 export const WEEKDAYS_HE = ['יום א׳', 'יום ב׳', 'יום ג׳', 'יום ד׳', 'יום ה׳', 'יום ו׳', 'יום ש׳'];
 export const WEEKDAY_SHORT_HE = ['א׳', 'ב׳', 'ג׳', 'ד׳', 'ה׳', 'ו׳', 'ש׳'];
@@ -48,6 +49,7 @@ export function contactGroupsByDateSchool(groups = []) {
 export function groupForRow(row, teamMap) { return teamMap?.get(`${isoDate(row?.start_date || row?.activity_date)}|${norm(row?.school)}`) || null; }
 export function isResponsibleForGroup(group, ids) { return !!group && (Array.isArray(ids) ? ids : [ids]).includes(text(group.responsibleEmpId)); }
 export function rowTitle(row) { return text(row?.activity_name || row?.activity || row?.activity_type || 'פעילות'); }
+
 export function activityDetailHtml(row, { ids = [], teamMap = new Map(), upload = null } = {}) {
   const group = groupForRow(row, teamMap);
   const status = completionStatusFromUpload(upload, row);
@@ -55,12 +57,53 @@ export function activityDetailHtml(row, { ids = [], teamMap = new Map(), upload 
     .map((i) => text(i.name || i.empId)).filter(Boolean);
   const responsible = text(group?.responsibleName || '—');
   const mineResponsible = isResponsibleForGroup(group, ids);
+  const peer = peerNameForRow(row, ids);
   const fields = [
-    ['שם פעילות', rowTitle(row)], ['תאריך', formatDateHe(isoDate(row?.start_date || row?.activity_date)) || isoDate(row?.start_date || row?.activity_date) || '—'],
-    ['יום', weekdayNameHe(row?.start_date || row?.activity_date) || '—'], ['שעות', activityHours(row)], ['רשות', text(row?.authority) || '—'],
-    ['בית ספר', text(row?.school) || '—'], ['שכבה / קבוצה', text(row?.grade || row?.group_name) || '—'], ['מספר משתתפים', participants(row)],
-    ['סטטוס העלאת אישור ביצוע', statusChipHtml(status)], ['מי איתי היום', instructors.length ? instructors.join('<br>') : (peerNameForRow(row, ids) || 'אין מדריך נוסף')],
-    ['אחראי קשר', `${escapeHtml(responsible)} ${mineResponsible ? statusChipHtml({ key: 'contact', label: 'אתה אחראי קשר' }) : ''}`]
+    ['שם פעילות', rowTitle(row)],
+    ['תאריך', formatDateHe(isoDate(row?.start_date || row?.activity_date)) || isoDate(row?.start_date || row?.activity_date) || '—'],
+    ['יום', weekdayNameHe(row?.start_date || row?.activity_date) || '—'],
+    ['שעות', activityHours(row)],
+    ['רשות', text(row?.authority) || '—'],
+    ['בית ספר', text(row?.school) || '—'],
+    ['שכבה / קבוצה', text(row?.grade || row?.group_name) || '—'],
+    ['מספר משתתפים', participants(row)],
+    ['סטטוס אישור ביצוע', statusChipHtml(status)],
+    ['מי איתי היום', instructors.length ? instructors.join('<br>') : (peer || 'אין מדריך נוסף')],
+    ['אחראי קשר', `${escapeHtml(responsible)}${mineResponsible ? ' ' + statusChipHtml({ key: 'contact', label: 'אני אחראי קשר' }) : ''}`]
   ];
-  return `<div class="instr-detail"><div class="instr-detail-grid">${fields.map(([k, v]) => `<div class="instr-info-row"><span>${escapeHtml(k)}</span><strong>${typeof v === 'string' && v.includes('<') ? v : escapeHtml(v)}</strong></div>`).join('')}</div>${mineResponsible ? '<div class="instr-contact-note"><strong>אתה אחראי קשר</strong><br>יש לוודא את קיום הפעילות מול איש הקשר בבית הספר לפחות 48 שעות לפני יום הפעילות ולעדכן את שאר הצוות.</div>' : ''}<div class="instr-detail-actions"><button class="ds-btn ds-btn--sm ds-btn--secondary" data-instr-print-current>צפייה / הדפסה</button><button class="ds-btn ds-btn--sm ds-btn--primary" data-route="instructor-completion-approvals">העלאת אישור ביצוע</button><button class="ds-btn ds-btn--sm ds-btn--ghost" data-drawer-close>סגור</button></div></div>`;
+  return `<div class="instr-detail">${mineResponsible ? '<div class="instr-contact-note"><strong>אתה אחראי קשר</strong><br>יש לוודא את קיום הפעילות מול איש הקשר בבית הספר לפחות 48 שעות לפני יום הפעילות ולעדכן את שאר הצוות.</div>' : ''}<div class="instr-detail-grid">${fields.map(([k, v]) => `<div class="instr-info-row"><span>${escapeHtml(k)}</span><strong>${typeof v === 'string' && v.includes('<') ? v : escapeHtml(v)}</strong></div>`).join('')}</div><div class="instr-detail-actions"><button class="ds-btn ds-btn--sm ds-btn--secondary" data-instr-print-current>צפייה / הדפסה</button><button class="ds-btn ds-btn--sm ds-btn--primary" data-instr-nav-approvals>העלאת אישור ביצוע</button><button class="ds-btn ds-btn--sm ds-btn--ghost" data-ui-close-drawer>סגור</button></div></div>`;
+}
+
+export function printSingleActivity(row, instructorName = '') {
+  try {
+    const approvals = buildCompletionApprovals([row], { instructor: instructorName });
+    if (!approvals?.length) {
+      alert('לא ניתן לפתוח את אישור הביצוע. חסרים נתונים לפעילות זו.');
+      return;
+    }
+    const title = approvalFileTitle(approvals[0]) || 'אישור ביצוע';
+    const html = `<!doctype html><html lang="he" dir="rtl"><head><meta charset="utf-8"><title>${escapeHtml(title)}</title><style>${completionApprovalPrintCss}</style></head><body>${completionApprovalsPrintHtml(approvals)}</body></html>`;
+    const win = window.open('', '_blank', 'noopener,noreferrer');
+    if (!win) { alert('לא ניתן לפתוח חלון הדפסה. יש לאפשר חלונות קופצים בדפדפן.'); return; }
+    win.document.open();
+    win.document.write(html);
+    win.document.close();
+    win.focus();
+    setTimeout(() => { try { win.print(); } catch { /* ignore */ } }, 300);
+  } catch (err) {
+    alert(`שגיאה בפתיחת אישור הביצוע: ${err?.message || 'שגיאה לא ידועה'}`);
+  }
+}
+
+export function bindActivityDetailActions(contentNode, { ui, row, state } = {}) {
+  if (!contentNode) return;
+  contentNode.querySelector('[data-instr-print-current]')?.addEventListener('click', () => {
+    printSingleActivity(row, currentInstructorName(state));
+  });
+  contentNode.querySelector('[data-instr-nav-approvals]')?.addEventListener('click', () => {
+    try { ui?.closeDrawer(); } catch { /* ignore */ }
+    setTimeout(() => {
+      document.querySelector('.shell-nav__btn[data-route="instructor-completion-approvals"]')?.click();
+    }, 80);
+  });
 }

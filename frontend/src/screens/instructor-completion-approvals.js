@@ -23,14 +23,13 @@ function isIncludedCompletionApprovalActivityType(row) {
   });
 }
 function activityDateInCompletionApprovalSummer(row) {
-  const raw = text(row?.start_date || row?.activity_date || row?.date || '');
+  const raw = String(row?.start_date || row?.activity_date || row?.date || '').trim();
   const date = raw.slice(0, 10);
   return /^\d{4}-\d{2}-\d{2}$/.test(date) && date >= COMPLETION_APPROVAL_SUMMER_FROM && date <= COMPLETION_APPROVAL_SUMMER_TO;
 }
 function isSummerCompletionApprovalRow(row) {
   return isIncludedCompletionApprovalActivityType(row) && activityDateInCompletionApprovalSummer(row);
 }
-
 
 function text(value) { return String(value ?? '').trim(); }
 function norm(value) { return text(value).replace(/[״"]/g, '').replace(/[׳']/g, '').replace(/\s+/g, ' ').toLowerCase(); }
@@ -73,15 +72,32 @@ function statusInfo(upload) {
   if (status === 'uploaded' || upload?.file_path) return { key: 'uploaded', label: 'הועלה לבדיקה' };
   return { key: 'missing', label: 'טרם הועלה' };
 }
-function statusChip(upload) { const st = statusInfo(upload); return `<span class="instr-status instr-status--${st.key}">${escapeHtml(st.label)}</span>`; }
+function statusChip(upload) {
+  const st = statusInfo(upload);
+  return `<span class="instr-status instr-status--${st.key}">${escapeHtml(st.label)}</span>`;
+}
+
 function printApprovals(approvals, title) {
-  if (!approvals?.length) return;
-  const safeTitle = title || 'אישור ביצוע';
-  const html = `<!doctype html><html lang="he" dir="rtl"><head><meta charset="utf-8"><title>${escapeHtml(safeTitle)}</title><style>${completionApprovalPrintCss}</style></head><body>${completionApprovalsPrintHtml(approvals)}</body></html>`;
-  const win = window.open('', '_blank', 'noopener,noreferrer');
-  if (!win) { alert('לא ניתן לפתוח חלון הדפסה. יש לאפשר חלונות קופצים.'); return; }
-  win.document.open(); win.document.write(html); win.document.close(); win.focus();
-  setTimeout(() => { try { win.print(); } catch { /* ignore */ } }, 250);
+  if (!approvals?.length) {
+    alert('לא ניתן לפתוח את אישור הביצוע. חסרים נתונים לפעילות זו.');
+    return;
+  }
+  try {
+    const safeTitle = title || 'אישור ביצוע';
+    const html = `<!doctype html><html lang="he" dir="rtl"><head><meta charset="utf-8"><title>${escapeHtml(safeTitle)}</title><style>${completionApprovalPrintCss}</style></head><body>${completionApprovalsPrintHtml(approvals)}</body></html>`;
+    const win = window.open('', '_blank', 'noopener,noreferrer');
+    if (!win) {
+      alert('לא ניתן לפתוח חלון הדפסה. יש לאפשר חלונות קופצים בדפדפן.');
+      return;
+    }
+    win.document.open();
+    win.document.write(html);
+    win.document.close();
+    win.focus();
+    setTimeout(() => { try { win.print(); } catch { /* ignore */ } }, 300);
+  } catch (err) {
+    alert(`שגיאה בפתיחת אישור הביצוע: ${err?.message || 'שגיאה לא ידועה'}`);
+  }
 }
 
 export const instructorCompletionApprovalsScreen = {
@@ -99,44 +115,89 @@ export const instructorCompletionApprovalsScreen = {
     const approvals = buildCompletionApprovals(rows, { instructor: instructorName, dateMode: 'range', dateFrom: COMPLETION_APPROVAL_SUMMER_FROM, dateTo: COMPLETION_APPROVAL_SUMMER_TO });
     const uploadMap = uploadsByApproval(data?.uploads || []);
     printContext = approvals;
+
     const statusCounts = { missing: 0, uploaded: 0, approved: 0, rejected: 0 };
-    approvals.forEach((approval) => { const st = statusInfo(uploadMap.get(uploadKey(approval))).key; statusCounts[st] = (statusCounts[st] || 0) + 1; });
+    approvals.forEach((approval) => {
+      const st = statusInfo(uploadMap.get(uploadKey(approval))).key;
+      statusCounts[st] = (statusCounts[st] || 0) + 1;
+    });
+
     const body = approvals.map((approval, index) => {
       const upload = uploadMap.get(uploadKey(approval));
-      const activities = approval.activities.map((activity) => `<div class="instr-approval-activity">${escapeHtml(activity.name)}${activity.grade ? ` · ${escapeHtml(activity.grade)}` : ''}</div>`).join('');
+      const activities = approval.activities.map((activity) =>
+        `<div class="instr-approval-activity">${escapeHtml(activity.name)}${activity.grade ? ` · ${escapeHtml(activity.grade)}` : ''}</div>`
+      ).join('');
       return `<tr>
         <td>${escapeHtml(formatDateHe(approval.date) || approval.date || '')}</td>
         <td>${escapeHtml(approval.authority || '')}</td>
         <td>${escapeHtml(approval.school || '')}</td>
         <td>${activities}</td>
-        <td><button type="button" class="ds-btn ds-btn--xs ds-btn--primary" data-approval-print="${index}">צפייה / הדפסה</button></td>
-        <td><label class="ds-btn ds-btn--xs ds-btn--secondary">בחירת קובץ / העלאה<input class="sr-only" type="file" accept=".pdf,.jpg,.jpeg,.png,application/pdf,image/jpeg,image/png" data-approval-upload="${index}"></label></td>
-        <td>${statusChip(upload)}${upload?.file_name ? `<br><small>${escapeHtml(upload.file_name)}</small>` : ''}${upload?.review_note ? `<div class="instr-reject-note">${escapeHtml(upload.review_note)}</div>` : ''}</td>
+        <td><button type="button" class="ds-btn ds-btn--xs ds-btn--secondary" data-approval-print="${index}">צפייה / הדפסה</button></td>
+        <td>
+          <label class="instr-upload-label">
+            <span class="ds-btn ds-btn--xs ds-btn--primary">בחירת קובץ / העלאה</span>
+            <input class="sr-only" type="file" accept=".pdf,.jpg,.jpeg,.png,application/pdf,image/jpeg,image/png" data-approval-upload="${index}">
+          </label>
+        </td>
+        <td>${statusChip(upload)}${upload?.file_name ? `<small class="instr-upload-name">${escapeHtml(upload.file_name)}</small>` : ''}${upload?.review_note ? `<div class="instr-reject-note">${escapeHtml(upload.review_note)}</div>` : ''}</td>
       </tr>`;
     }).join('');
+
     const table = approvals.length
-      ? dsTableWrap(`<table class="ds-table ds-table--compact"><thead><tr><th>תאריך</th><th>רשות</th><th>בית ספר</th><th>רשימת פעילויות</th><th>צפייה / הדפסה</th><th>העלאה</th><th>סטטוס העלאה</th></tr></thead><tbody>${body}</tbody></table>`)
+      ? dsTableWrap(`<table class="ds-table ds-table--compact"><thead><tr><th>תאריך</th><th>רשות</th><th>בית ספר</th><th>פעילויות</th><th>צפייה / הדפסה</th><th>העלאה</th><th>סטטוס</th></tr></thead><tbody>${body}</tbody></table>`)
       : dsEmptyState('לא נמצאו אישורי ביצוע אישיים להפקה');
-    return dsScreenStack(`<section class="instructor-area instructor-area--approvals">${dsPageHeader('אישורי ביצוע', 'העלאת אישורי ביצוע אישיים לפי הפעילויות שלך')}<div class="instr-summary-grid"><article class="instr-summary-card"><strong>${statusCounts.missing}</strong><small>ממתינים להעלאה</small></article><article class="instr-summary-card"><strong>${statusCounts.uploaded}</strong><small>הועלו לבדיקה</small></article><article class="instr-summary-card"><strong>${statusCounts.approved}</strong><small>אושרו</small></article><article class="instr-summary-card"><strong>${statusCounts.rejected}</strong><small>נדחו</small></article></div>${dsCard({ title: 'האישורים שלי', badge: String(approvals.length), body: table, padded: false })}</section>`);
+
+    const summaryCards = `<div class="instr-summary-grid instr-summary-grid--4">
+      <article class="instr-summary-card"><strong>${statusCounts.missing}</strong><small>ממתינים להעלאה</small></article>
+      <article class="instr-summary-card instr-summary-card--uploaded"><strong>${statusCounts.uploaded}</strong><small>הועלו לבדיקה</small></article>
+      <article class="instr-summary-card instr-summary-card--approved"><strong>${statusCounts.approved}</strong><small>אושרו</small></article>
+      <article class="instr-summary-card instr-summary-card--rejected"><strong>${statusCounts.rejected}</strong><small>נדחו</small></article>
+    </div>`;
+
+    return dsScreenStack(`<section class="instructor-area instructor-area--approvals">
+      ${dsPageHeader('אישורי ביצוע', 'העלאת אישורי ביצוע אישיים לפי הפעילויות שלך')}
+      ${summaryCards}
+      ${dsCard({ title: 'האישורים שלי', badge: String(approvals.length), body: table, padded: false })}
+    </section>`);
   },
   bind({ root, api, state, rerender, clearScreenDataCache }) {
-    root.querySelectorAll('[data-approval-print]').forEach((btn) => btn.addEventListener('click', () => {
-      const approval = printContext[Number(btn.getAttribute('data-approval-print'))];
-      if (approval) printApprovals([approval], approvalFileTitle(approval));
-    }));
-    root.querySelectorAll('[data-approval-upload]').forEach((input) => input.addEventListener('change', async () => {
-      const approval = printContext[Number(input.getAttribute('data-approval-upload'))];
-      const file = input.files?.[0];
-      if (!approval || !file) return;
-      try {
-        await api.uploadCompletionApproval({ approval, file, instructorEmpId: currentEmpId(state), instructorName: approval.instructorName || currentInstructorName(state) });
-        clearScreenDataCache?.('instructor-completion-approvals');
-        rerender?.();
-      } catch (error) {
-        alert(`העלאת הקובץ נכשלה: ${error?.message || error}`);
-      } finally {
-        input.value = '';
-      }
-    }));
+    root.querySelectorAll('[data-approval-print]').forEach((btn) => {
+      btn.addEventListener('click', () => {
+        try {
+          const index = Number(btn.getAttribute('data-approval-print'));
+          const approval = printContext[index];
+          if (!approval) {
+            alert('לא ניתן לפתוח את אישור הביצוע. חסרים נתונים לפעילות זו.');
+            return;
+          }
+          printApprovals([approval], approvalFileTitle(approval));
+        } catch (err) {
+          alert(`שגיאה בפתיחת אישור הביצוע: ${err?.message || 'שגיאה לא ידועה'}`);
+        }
+      });
+    });
+
+    root.querySelectorAll('[data-approval-upload]').forEach((input) => {
+      input.addEventListener('change', async () => {
+        try {
+          const index = Number(input.getAttribute('data-approval-upload'));
+          const approval = printContext[index];
+          const file = input.files?.[0];
+          if (!approval || !file) return;
+          await api.uploadCompletionApproval({
+            approval,
+            file,
+            instructorEmpId: currentEmpId(state),
+            instructorName: approval.instructorName || currentInstructorName(state)
+          });
+          clearScreenDataCache?.('instructor-completion-approvals');
+          rerender?.();
+        } catch (error) {
+          alert(`העלאת הקובץ נכשלה: ${error?.message || error}`);
+        } finally {
+          input.value = '';
+        }
+      });
+    });
   }
 };
