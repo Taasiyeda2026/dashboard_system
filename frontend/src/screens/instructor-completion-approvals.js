@@ -110,6 +110,21 @@ function statusChip(upload) {
   return `<span class="instr-status instr-status--${st.key}">${escapeHtml(st.label)}</span>`;
 }
 
+function approvalCardHtml(approval, upload, safeKey, acts, reviewNote, targetClass) {
+  const actCountLabel = acts.length === 1 ? 'פעילות אחת' : `${acts.length} פעילויות`;
+  const uploadCell = uploadControlsHtml(approval, upload, safeKey);
+  return `<article class="instr-approval-card${targetClass ? ' instr-approval-target' : ''}"${targetClass ? ' data-approval-target="true"' : ''}>
+    <div class="instr-approval-card__status">${statusChip(upload)}</div>
+    <dl class="instr-approval-card__fields">
+      <div class="instr-approval-card__field"><dt>תאריך</dt><dd>${escapeHtml(formatDateHe(approval.date) || approval.date || '')}</dd></div>
+      <div class="instr-approval-card__field"><dt>בית ספר</dt><dd>${escapeHtml(approval.school || '')}</dd></div>
+      <div class="instr-approval-card__field"><dt>פעילויות</dt><dd>${escapeHtml(actCountLabel)}</dd></div>
+    </dl>
+    <div class="instr-approval-card__file"><span class="instr-approval-card__file-label">קובץ:</span>${uploadCell}${reviewNote}</div>
+    <div class="instr-approval-card__action"><button type="button" class="ds-btn ds-btn--xs ds-btn--secondary instr-btn-print" data-approval-key="${safeKey}" title="הדפסה">הדפסה</button></div>
+  </article>`;
+}
+
 export const instructorCompletionApprovalsScreen = {
   load: async ({ api }) => {
     const [myData, uploads] = await Promise.all([
@@ -136,25 +151,33 @@ export const instructorCompletionApprovalsScreen = {
     });
 
     const actCountLabel = (n) => n === 1 ? 'פעילות אחת' : `${n} פעילויות`;
-    const body = approvals.map((approval) => {
+    const mappedApprovals = approvals.map((approval) => {
       const upload = uploadMap.get(uploadKey(approval));
       const acts = approval.activities || [];
       const safeKey = escapeHtml(approvalStableKey(approval));
       const uploadCell = uploadControlsHtml(approval, upload, safeKey);
       const reviewNote = upload?.review_note ? `<div class="instr-reject-note">${escapeHtml(upload.review_note)}</div>` : '';
-      const targetClass = pendingUploadTargetKey && uploadKey(approval) === pendingUploadTargetKey ? ' class="instr-approval-target" data-approval-target="true"' : '';
-      return `<tr${targetClass}>
+      const isTarget = pendingUploadTargetKey && uploadKey(approval) === pendingUploadTargetKey;
+      const targetClass = isTarget ? ' instr-approval-target' : '';
+      const targetAttr = isTarget ? ' class="instr-approval-target" data-approval-target="true"' : '';
+      return {
+        table: `<tr${targetAttr}>
         <td class="iac-date">${escapeHtml(formatDateHe(approval.date) || approval.date || '')}</td>
         <td class="iac-school">${escapeHtml(approval.school || '')}</td>
         <td class="iac-count">${escapeHtml(actCountLabel(acts.length))}</td>
         <td class="iac-upload">${uploadCell}${reviewNote}</td>
         <td class="iac-status">${statusChip(upload)}</td>
         <td class="iac-action"><button type="button" class="ds-btn ds-btn--xs ds-btn--secondary instr-btn-print" data-approval-key="${safeKey}" title="הדפסה">הדפסה</button></td>
-      </tr>`;
-    }).join('');
+      </tr>`,
+        card: approvalCardHtml(approval, upload, safeKey, acts, reviewNote, isTarget)
+      };
+    });
 
-    const table = approvals.length
-      ? dsTableWrap(`<table class="ds-table ds-table--instr-approvals2"><colgroup><col class="iac-date"><col class="iac-school"><col class="iac-count"><col class="iac-upload"><col class="iac-status"><col class="iac-action"></colgroup><thead><tr><th>תאריך</th><th>בית ספר</th><th>כמות פעילויות</th><th>אישור ביצוע</th><th>סטטוס</th><th>פעולה</th></tr></thead><tbody>${body}</tbody></table>`)
+    const tableBody = mappedApprovals.map((row) => row.table).join('');
+    const cardBody = mappedApprovals.map((row) => row.card).join('');
+
+    const listBlock = approvals.length
+      ? `<div class="instr-approvals-dual"><div class="instr-approvals-desktop">${dsTableWrap(`<table class="ds-table ds-table--instr-approvals2"><colgroup><col class="iac-date"><col class="iac-school"><col class="iac-count"><col class="iac-upload"><col class="iac-status"><col class="iac-action"></colgroup><thead><tr><th>תאריך</th><th>בית ספר</th><th>כמות פעילויות</th><th>אישור ביצוע</th><th>סטטוס</th><th>פעולה</th></tr></thead><tbody>${tableBody}</tbody></table>`)}</div><div class="instr-approvals-mobile instr-approval-cards">${cardBody}</div></div>`
       : dsEmptyState('לא נמצאו אישורי ביצוע אישיים להפקה');
 
     const summaryCards = `<div class="instr-summary-grid instr-summary-grid--4">
@@ -167,7 +190,7 @@ export const instructorCompletionApprovalsScreen = {
     return dsScreenStack(`<section class="instructor-area instructor-area--approvals">
       ${dsPageHeader('אישורי ביצוע', 'העלאת אישורי ביצוע אישיים לפי הפעילויות שלך')}
       ${summaryCards}
-      ${dsCard({ title: 'האישורים שלי', badge: String(approvals.length), body: table, padded: false })}
+      ${dsCard({ title: 'האישורים שלי', badge: String(approvals.length), body: listBlock, padded: false })}
     </section>`);
   },
   bind({ root, api, state, rerender, clearScreenDataCache }) {

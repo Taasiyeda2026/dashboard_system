@@ -19120,3 +19120,99 @@ details[open] > .ds-fin-acc__summary::before { transform: rotate(90deg); }
 .ds-modal.ds-modal--guidelines .instr-guidelines__list li{overflow-wrap:anywhere}
 @media (max-width:900px){.route-instructor-guidelines .instructor-guidelines{max-width:100%}.route-instructor-guidelines .shell-main{padding:8px 6px}.instr-guidelines__checklist{grid-template-columns:1fr}}
 @media (max-width:700px){.instr-guidelines__grid{grid-template-columns:1fr;gap:8px}.instr-guidelines__card{min-height:74px;padding:9px 10px}.instr-guidelines__card-title{font-size:12.5px}.instr-guidelines__card-summary{font-size:11px}.ds-modal.ds-modal--guidelines{width:min(92vw,680px);max-width:680px;inset-inline:auto;left:50%;right:auto;transform:translateX(-50%) translateY(108%)}.ds-ui-layer.is-modal-open .ds-modal.ds-modal--guidelines{transform:translateX(-50%) translateY(0)}}
+
+/* ── Instructor mobile adaptation (role=instructor, scoped) ── */
+.instructor-bottom-nav{display:none}
+.shell-top__instr-meta{display:none;align-items:center;gap:8px}
+.shell-top__instr-user{font-size:12px;font-weight:700;color:var(--ds-shell-text);max-width:120px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.shell-logout-btn--mobile{width:36px;height:36px;min-height:36px;padding:0;border-radius:10px;border:1px solid var(--ds-shell-border);background:transparent;color:var(--ds-shell-text);display:inline-flex;align-items:center;justify-content:center;font-size:16px;line-height:1}
+.instr-list-desktop,.instr-approvals-desktop{display:block}
+.instr-list-mobile,.instr-approvals-mobile,.instr-calendar-mobile{display:none}
+.instr-calendar-desktop{display:block}
+.instr-list-dual,.instr-approvals-dual{box-sizing:border-box;max-width:100%;overflow-x:hidden}
+.instr-activity-cards,.instr-approval-cards{display:flex;flex-direction:column;gap:10px;padding:10px;box-sizing:border-box;max-width:100%}
+.instr-activity-list-card,.instr-approval-card{background:#fff;border:1px solid #cfeaf2;border-radius:12px;padding:10px 12px;font-size:12px;line-height:1.35;box-sizing:border-box;max-width:100%;overflow:hidden}
+.instr-activity-list-card__status,.instr-approval-card__status{margin-bottom:8px}
+.instr-activity-list-card__fields{display:grid;grid-template-columns:1fr 1fr;gap:6px 10px;margin-bottom:8px}
+.instr-activity-list-card__field span{display:block;font-size:11px;color:#5b6b7a;font-weight:700}
+.instr-activity-list-card__field strong{display:block;font-size:12px;color:#102a43;margin-top:2px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.instr-activity-list-card .instr-row-action-btn{height:34px;min-height:34px;padding:6px 10px;font-size:12px;border-radius:8px}
+.instr-approval-card__fields{margin:0 0 8px;padding:0;display:grid;gap:6px}
+.instr-approval-card__field{display:flex;align-items:baseline;justify-content:space-between;gap:8px;margin:0}
+.instr-approval-card__field dt{margin:0;font-size:11px;color:#5b6b7a;font-weight:700}
+.instr-approval-card__field dd{margin:0;font-size:12px;color:#102a43;font-weight:700;text-align:left;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.instr-approval-card__file{display:flex;align-items:center;flex-wrap:wrap;gap:6px;margin-bottom:8px}
+.instr-approval-card__file-label{font-size:11px;color:#5b6b7a;font-weight:700}
+.instr-approval-card__action .instr-btn-print{height:34px;min-height:34px;padding:6px 10px;font-size:12px;border-radius:8px}
+.instr-cal-mobile-list{display:flex;flex-direction:column;gap:8px;padding:4px 0;box-sizing:border-box;max-width:100%}
+.instr-cal-mobile-day{width:100%;text-align:right;background:#fff;border:1px solid #d6eef5;border-radius:12px;padding:10px 12px;cursor:pointer;color:#102a43;box-sizing:border-box;max-width:100%}
+.instr-cal-mobile-day.is-today{border-color:#22afcb;background:linear-gradient(160deg,#eaf9fc,#f5fdff);box-shadow:0 0 0 2px rgba(34,175,203,.12)}
+.instr-cal-mobile-day__head{display:flex;align-items:center;justify-content:space-between;gap:8px;margin-bottom:4px}
+.instr-cal-mobile-day__head strong{font-size:13px;font-weight:800}
+.instr-cal-mobile-day__meta{display:flex;align-items:center;justify-content:space-between;gap:8px;font-size:12px;color:#5b6b7a;margin-bottom:6px}
+.instr-cal-mobile-day__tags{display:flex;flex-wrap:wrap;gap:4px}
+.instr-cal-mobile-empty{margin:8px 0;color:#5b6b7a;font-size:12px;text-align:center}
+.instr-filter-actions{display:flex;gap:8px;align-items:center}
+
+@media (max-width:900px){
+  .app-shell--instructor .shell-main{padding-bottom:0}
+  .instructor-area .instr-filter-bar{grid-template-columns:1fr 1fr}
+  .instructor-area .instr-filter-search{grid-column:1/-1}
+  .instructor-area .instr-filter-responsible{grid-column:1/-1}
+  .instructor-area .instr-filter-actions{grid-column:1/-1}
+}
+
+@media (max-width:768px){
+  .app-shell--instructor .shell-sidebar{display:none!important}
+  .app-shell--instructor .shell-backdrop{display:none!important}
+  .app-shell--instructor .shell-menu-btn{display:none!important}
+  .app-shell--instructor .shell-top{padding:8px 12px;min-height:44px}
+  .app-shell--instructor .shell-top__instr-meta{display:flex}
+  .app-shell--instructor .shell-main{padding:8px 10px 72px;box-sizing:border-box;max-width:100%;overflow-x:hidden}
+  .app-shell--instructor .shell-stage{max-width:100%;overflow-x:hidden}
+  .app-shell--instructor .screen-root{max-width:100%;overflow-x:hidden}
+  .instructor-bottom-nav{display:flex;position:fixed;inset-inline:0;bottom:0;z-index:40;background:#073b4c;border-top:1px solid rgba(255,255,255,.14);padding:6px 8px calc(6px + env(safe-area-inset-bottom,0px));gap:4px;box-shadow:0 -8px 24px rgba(7,59,76,.18);box-sizing:border-box;max-width:100%}
+  .instructor-bottom-nav__btn{flex:1;display:flex;flex-direction:column;align-items:center;justify-content:center;gap:2px;min-height:48px;padding:4px 2px;border:0;border-radius:10px;background:transparent;color:rgba(255,255,255,.78);font-size:10px;font-weight:800;line-height:1.2;cursor:pointer}
+  .instructor-bottom-nav__btn.is-active{background:#1ba8c4;color:#fff;box-shadow:0 4px 12px rgba(34,175,203,.28)}
+  .instructor-bottom-nav__icon{font-size:16px;line-height:1}
+  .instructor-bottom-nav__label{max-width:100%;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+  .instr-list-desktop,.instr-approvals-desktop,.instr-calendar-desktop{display:none!important}
+  .instr-list-mobile,.instr-approvals-mobile,.instr-calendar-mobile{display:block!important}
+  .instructor-area .ds-table-wrap{overflow-x:hidden!important}
+  .instructor-area .instr-filter-bar{grid-template-columns:1fr;padding:10px}
+  .instructor-area .instr-filter-date{max-width:100%}
+  .instructor-area .instr-filter-btn{min-height:36px;height:36px;padding:6px 12px;font-size:12px}
+  .instructor-area .instr-filter-bar .ds-input{min-height:36px;height:36px;font-size:13px}
+  .instructor-area .ds-btn{min-height:36px}
+  .instructor-area .ds-btn--xs{min-height:34px;height:34px;padding:6px 10px;font-size:12px}
+  .instr-btn-plus{width:34px;height:34px;min-height:34px;min-width:34px;font-size:18px}
+  .instr-btn-pick,.instr-btn-print{min-height:34px;height:34px;padding:6px 10px;font-size:12px}
+  .instr-activity-list-card__fields{grid-template-columns:1fr}
+  .instr-detail-grid{grid-template-columns:1fr!important}
+  .instr-activity-card{align-items:stretch;flex-direction:column;gap:8px}
+  .instr-activity-card .ds-btn{align-self:flex-start;min-height:34px}
+  .instr-calendar-toolbar{align-items:flex-start;flex-direction:column;gap:8px}
+  .instr-calendar-toolbar .ds-btn{min-height:34px;height:34px;padding:6px 10px;font-size:12px}
+  .ds-modal.ds-modal--guidelines{width:calc(100% - 24px)!important;max-width:none!important;max-height:80vh!important;inset-inline:12px!important;left:12px!important;right:12px!important;transform:translateY(108%)!important;border-radius:14px}
+  .ds-ui-layer.is-modal-open .ds-modal.ds-modal--guidelines{transform:translateY(0)!important}
+  .ds-modal.ds-modal--guidelines .ds-modal__content{max-height:calc(80vh - 100px);padding:10px;font-size:13px}
+  .ds-modal.ds-modal--guidelines .ds-modal__footer .ds-btn{min-height:36px;height:36px;padding:6px 12px;font-size:12px}
+  .ds-modal.ds-modal--guidelines .ds-icon-btn{width:36px;height:36px;min-height:36px;font-size:18px}
+  body.is-instructor-user .ds-ui-layer.is-drawer-open .ds-drawer{width:calc(100% - 24px);max-width:none;inset-inline:12px;inset-inline-end:12px;top:auto;bottom:12px;max-height:80vh;border-radius:16px;border-inline-start:0;box-shadow:0 12px 36px rgba(16,42,67,.18);transform:translateY(0)!important;opacity:1}
+  body.is-instructor-user .ds-drawer{transform:translateY(108%)!important;inset-inline-end:12px;width:calc(100% - 24px)}
+  body.is-instructor-user .ds-drawer__content{padding:12px;font-size:13px}
+  body.is-instructor-user .ds-drawer__header{padding:10px 12px}
+  body.is-instructor-user .ds-icon-btn{width:36px;height:36px;min-height:36px;font-size:18px}
+  body.is-instructor-user .instr-detail-actions .ds-btn{min-height:36px;height:36px;padding:6px 12px;font-size:12px}
+}
+
+@media (max-width:480px){
+  .app-shell--instructor .shell-main{padding:6px 8px 68px}
+  .instr-activity-list-card,.instr-approval-card{padding:8px 10px;border-radius:10px}
+  .instr-guidelines__grid{grid-template-columns:1fr!important;gap:8px}
+  .instr-guidelines__card{min-height:68px;padding:8px 10px}
+  .instr-summary-grid{grid-template-columns:1fr!important}
+  .instructor-bottom-nav__label{font-size:9px}
+  .shell-top__instr-user{max-width:96px;font-size:11px}
+  .instr-filter-actions .instr-filter-btn{flex:1}
+}
