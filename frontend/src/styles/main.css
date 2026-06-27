@@ -19110,16 +19110,20 @@ details[open] > .ds-fin-acc__summary::before { transform: rotate(90deg); }
 .instr-guidelines__list{margin:0;padding-inline-start:15px;color:#334155;font-size:12px;line-height:1.5}
 .instr-guidelines__list li{margin-bottom:4px}
 .instr-guidelines__list li:last-child{margin-bottom:0}
-.ds-modal.ds-modal--guidelines{width:min(92vw,680px);max-width:680px;max-height:75vh;border:1px solid #9eddea;border-radius:16px;box-shadow:0 12px 36px rgba(16,42,67,.14);box-sizing:border-box;overflow-x:hidden}
-.ds-ui-layer.is-modal-open .ds-modal.ds-modal--guidelines{width:min(92vw,680px);max-width:680px}
-.ds-modal.ds-modal--guidelines .ds-modal__header{padding:8px 10px;border-bottom:1px solid #d6eef5;background:#fafdfe}
-.ds-modal.ds-modal--guidelines .ds-modal__title{font-size:17px;font-weight:800;color:#102a43;line-height:1.3}
-.ds-modal.ds-modal--guidelines .ds-modal__content{padding:8px 10px;font-size:12px;line-height:1.55;max-height:calc(75vh - 108px);overflow-y:auto;overflow-x:hidden;overscroll-behavior:contain;word-break:break-word}
-.ds-modal.ds-modal--guidelines .ds-modal__footer{display:flex;flex-wrap:wrap;gap:6px;justify-content:flex-start;padding:8px 10px;border-top:1px solid #d6eef5;background:#fff}
-.ds-modal.ds-modal--guidelines .ds-modal__footer .ds-btn{height:26px;min-height:26px;padding:3px 9px;font-size:11px;border-radius:7px}
-.ds-modal.ds-modal--guidelines .instr-guidelines__list li{overflow-wrap:anywhere}
+.ds-modal.ds-modal--guidelines{position:fixed;inset:auto;left:50%;top:50%;right:auto;bottom:auto;width:min(92vw,680px);max-width:680px;max-height:75vh;transform:translate(-50%,calc(-50% + 16px));opacity:0;border:1px solid #9eddea;border-radius:16px;box-shadow:0 12px 36px rgba(16,42,67,.14);box-sizing:border-box;overflow-x:hidden}
+.ds-ui-layer.is-modal-open .ds-modal.ds-modal--guidelines{width:min(92vw,680px)!important;max-width:680px!important;transform:translate(-50%,-50%)!important;opacity:1}
+.ds-modal.ds-modal--guidelines .ds-modal__header{padding:8px 12px;border-bottom:1px solid #d6eef5;background:#fafdfe}
+.ds-modal.ds-modal--guidelines .ds-modal__title{font-size:16px;font-weight:800;color:#102a43;line-height:1.35}
+.ds-modal.ds-modal--guidelines .ds-modal__content{padding:8px 12px;font-size:12px;line-height:1.5;max-height:calc(75vh - 92px);overflow-y:auto;overflow-x:hidden;overscroll-behavior:contain;word-break:break-word}
+.ds-modal.ds-modal--guidelines .ds-modal__footer{display:flex;flex-wrap:wrap;gap:6px;justify-content:flex-start;padding:8px 12px;border-top:1px solid #d6eef5;background:#fff}
+.ds-modal.ds-modal--guidelines .ds-modal__footer .ds-btn{height:28px;min-height:28px;padding:4px 10px;font-size:11px;border-radius:7px}
+.ds-modal.ds-modal--guidelines .ds-icon-btn{width:32px;height:32px;min-height:32px;font-size:16px}
+.ds-modal.ds-modal--guidelines .instr-guidelines__list{margin:0;padding-inline-start:14px}
+.ds-modal.ds-modal--guidelines .instr-guidelines__list li{overflow-wrap:anywhere;margin-bottom:3px}
+@media (min-width:960px){.ds-ui-layer.is-modal-open .ds-modal.ds-modal--guidelines{width:min(92vw,680px)!important;max-width:680px!important}}
 @media (max-width:900px){.route-instructor-guidelines .instructor-guidelines{max-width:100%}.route-instructor-guidelines .shell-main{padding:8px 6px}.instr-guidelines__checklist{grid-template-columns:1fr}}
-@media (max-width:700px){.instr-guidelines__grid{grid-template-columns:1fr;gap:8px}.instr-guidelines__card{min-height:74px;padding:9px 10px}.instr-guidelines__card-title{font-size:12.5px}.instr-guidelines__card-summary{font-size:11px}.ds-modal.ds-modal--guidelines{width:min(92vw,680px);max-width:680px;inset-inline:auto;left:50%;right:auto;transform:translateX(-50%) translateY(108%)}.ds-ui-layer.is-modal-open .ds-modal.ds-modal--guidelines{transform:translateX(-50%) translateY(0)}}
+@media (max-width:700px){.instr-guidelines__grid{grid-template-columns:1fr;gap:8px}.instr-guidelines__card{min-height:74px;padding:9px 10px}.instr-guidelines__card-title{font-size:12.5px}.instr-guidelines__card-summary{font-size:11px}}
+@media (max-width:768px){.ds-modal.ds-modal--guidelines .ds-icon-btn{width:36px;height:36px;min-height:36px;font-size:18px}.ds-modal.ds-modal--guidelines .ds-modal__footer .ds-btn{min-height:36px;height:36px;padding:6px 12px;font-size:12px}}
 
 /* ── Instructor mobile adaptation (role=instructor, scoped) ── */
 .instructor-bottom-nav{display:none}
@@ -19193,11 +19197,6 @@ details[open] > .ds-fin-acc__summary::before { transform: rotate(90deg); }
   .instr-activity-card .ds-btn{align-self:flex-start;min-height:34px}
   .instr-calendar-toolbar{align-items:flex-start;flex-direction:column;gap:8px}
   .instr-calendar-toolbar .ds-btn{min-height:34px;height:34px;padding:6px 10px;font-size:12px}
-  .ds-modal.ds-modal--guidelines{width:calc(100% - 24px)!important;max-width:none!important;max-height:80vh!important;inset-inline:12px!important;left:12px!important;right:12px!important;transform:translateY(108%)!important;border-radius:14px}
-  .ds-ui-layer.is-modal-open .ds-modal.ds-modal--guidelines{transform:translateY(0)!important}
-  .ds-modal.ds-modal--guidelines .ds-modal__content{max-height:calc(80vh - 100px);padding:10px;font-size:13px}
-  .ds-modal.ds-modal--guidelines .ds-modal__footer .ds-btn{min-height:36px;height:36px;padding:6px 12px;font-size:12px}
-  .ds-modal.ds-modal--guidelines .ds-icon-btn{width:36px;height:36px;min-height:36px;font-size:18px}
   body.is-instructor-user .ds-ui-layer.is-drawer-open .ds-drawer{width:calc(100% - 24px);max-width:none;inset-inline:12px;inset-inline-end:12px;top:auto;bottom:12px;max-height:80vh;border-radius:16px;border-inline-start:0;box-shadow:0 12px 36px rgba(16,42,67,.18);transform:translateY(0)!important;opacity:1}
   body.is-instructor-user .ds-drawer{transform:translateY(108%)!important;inset-inline-end:12px;width:calc(100% - 24px)}
   body.is-instructor-user .ds-drawer__content{padding:12px;font-size:13px}
