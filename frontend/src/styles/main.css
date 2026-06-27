@@ -18880,3 +18880,45 @@ details[open] > .ds-fin-acc__summary::before { transform: rotate(90deg); }
 .instr-upload-label{display:inline-flex;align-items:center;cursor:pointer}
 .instr-upload-name{display:block;margin-top:4px;color:#5b6b7a;font-size:11px;word-break:break-all}
 .instr-detail{display:flex;flex-direction:column;gap:12px}.instr-contact-note{order:-1}
+/* ── Instructor compact typography (role=instructor only) ── */
+.instructor-area{font-size:13px;line-height:1.35}
+.instructor-area .ds-page-header__title{font-size:18px;font-weight:800;margin-bottom:2px}
+.instructor-area .ds-page-header__subtitle{font-size:12px;margin-top:0}
+.instructor-area .ds-card__head{padding:10px 16px}
+.instructor-area .ds-card__head .ds-card__title{font-size:14px}
+.instructor-area .ds-card__badge{font-size:11px}
+.instructor-area .ds-table thead th{font-size:12px;font-weight:700;padding:6px 10px}
+.instructor-area .ds-table tbody td{font-size:12px;line-height:1.3;padding:7px 10px}
+.instructor-area .ds-table--ops th,.instructor-area .ds-table--ops td{font-size:12px}
+.instr-summary-card strong{font-size:20px}
+.instr-summary-card small{font-size:11px;margin-top:4px}
+.instr-summary-card{padding:12px 14px}
+.instr-summary-grid{gap:10px}
+.instr-info-row{padding:8px 10px;border-radius:10px}
+.instr-info-row span{font-size:11px}
+.instr-info-row strong{font-size:13px;margin-top:3px}
+.instr-detail-grid{gap:8px}
+.instr-contact-note{padding:9px 12px;font-size:12px;border-radius:10px}
+.instr-detail-actions{margin-top:10px;gap:6px}
+.instr-detail-actions .ds-btn{font-size:12px;padding:5px 10px;min-height:30px;height:auto;line-height:1.3}
+.instr-activity-card{padding:9px 11px;margin:5px 0;border-radius:11px}
+.instr-activity-card strong{font-size:12px}
+.instr-activity-card small{font-size:11px;margin:2px 0}
+.instr-day-drawer{gap:10px}
+.instr-day-drawer h3{font-size:13px;margin:6px 0 4px}
+.instr-status{font-size:11px;padding:2px 7px}
+.instr-day-count{font-size:10px;padding:2px 6px}
+.instr-calendar-toolbar h2{font-size:17px}
+.instr-calendar-toolbar{margin-bottom:10px}
+.instr-calendar-toolbar .ds-btn{font-size:11px;padding:4px 9px;min-height:26px;height:auto}
+.instr-calendar-day strong{font-size:13px}
+.instr-calendar-day{gap:5px;padding:8px}
+.instr-calendar-card{padding:13px}
+.instr-filter-bar{padding:12px;gap:8px}
+.instr-filter-bar .ds-input{font-size:12px;height:32px;padding:4px 8px}
+.instr-check{font-size:12px}
+.instr-approval-activity{font-size:12px;padding:1px 0}
+.instr-reject-note{font-size:11px}
+.instr-upload-name{font-size:11px}
+.shell-sidebar--instructor .shell-nav__btn{font-size:13px;min-height:34px}
+.shell-sidebar--instructor .shell-sidebar__user-role{font-size:11px}
