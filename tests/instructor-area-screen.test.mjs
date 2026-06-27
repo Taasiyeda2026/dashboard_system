@@ -169,23 +169,21 @@ test('my activities daily filter, today, and clear buttons update visible rows',
   }
 });
 
-test('instructor guidelines screen renders compact strip and topic grid', () => {
+test('instructor guidelines screen renders summer 2026 title and eight topic cards', () => {
   const html = instructorGuidelinesScreen.render({}, { state });
-  assert.match(html, /נהלים למדריכי הקיץ/);
-  assert.match(html, /כללי עבודה קצרים להפעלה מקצועית/);
+  assert.match(html, /נהלי עבודה חשובים – קיץ 2026/);
   assert.match(html, /instr-guidelines__strip/);
-  assert.match(html, /לפני כל פעילות/);
-  assert.match(html, /לוודא שעות ומיקום/);
   assert.match(html, /instr-guidelines__grid/);
   assert.match(html, /data-guideline-id="before-day"/);
+  assert.match(html, /data-guideline-id="conduct"/);
   assert.match(html, /לפני יום הפעילות/);
-  assert.match(html, /התנהלות מקצועית/);
+  assert.match(html, /הגעה, התארגנות ואיחורים/);
+  assert.match(html, /אירועים חריגים ואישורים/);
   assert.match(html, /data-guideline-id="approval"/);
+  assert.equal((html.match(/data-guideline-id="/g) || []).length, 8);
   assert.doesNotMatch(html, /data-guideline-detail/);
   assert.doesNotMatch(html, /<details/);
-  assert.doesNotMatch(html, /instr-guidelines__accordion/);
-  assert.doesNotMatch(html, /instr-guidelines__reminder/);
-  assert.doesNotMatch(html, /נהלי עבודה להפעלה מקצועית, בטוחה ומסודרת/);
+  assert.doesNotMatch(html, /נהלים למדריכי הקיץ/);
 });
 
 test('instructor guidelines cards open modal with close and approval navigation', async () => {
@@ -211,7 +209,8 @@ test('instructor guidelines cards open modal with close and approval navigation'
     instructorGuidelinesScreen.bind({ root, ui });
     root.querySelector('[data-guideline-id="during"]').click();
     const modalContent = dom.window.document.querySelector('.ds-modal__content');
-    assert.match(modalContent.innerHTML, /במהלך הפעילות|יחס מכבד/);
+    assert.match(modalContent.innerHTML, /יש לשמור על יחס מכבד, סבלני ומקצועי\./);
+    assert.match(dom.window.document.querySelector('.ds-modal__title').textContent, /3\. 🎯 במהלך הפעילות/);
     assert.equal(dom.window.document.querySelector('.ds-ui-layer').classList.contains('is-modal-open'), true);
     dom.window.document.querySelector('[data-ui-close-modal]').click();
     assert.equal(dom.window.document.querySelector('.ds-ui-layer').classList.contains('is-modal-open'), false);
