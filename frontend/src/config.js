@@ -46,5 +46,5 @@ if (!resolvedUrl) {
 export const config = {
   apiUrl: resolvedUrl,
   DIAGNOSTICS_UI_ENABLED: false,
-  HOTFIX_VERSION: 'activity-date-save-proof-20260622-v1'
+  HOTFIX_VERSION: 'guidelines-card-centering-20260627-v1'
 };
