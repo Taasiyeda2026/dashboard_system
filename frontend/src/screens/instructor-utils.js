@@ -51,6 +51,12 @@ export function groupForRow(row, teamMap) { return teamMap?.get(`${isoDate(row?.
 export function isResponsibleForGroup(group, ids) { return !!group && (Array.isArray(ids) ? ids : [ids]).includes(text(group.responsibleEmpId)); }
 export function rowTitle(row) { return text(row?.activity_name || row?.activity || row?.activity_type || 'פעילות'); }
 
+function schoolContactDetailHtml(row) {
+  const name = text(row?.school_contact_name) || 'לא עודכן';
+  const phone = text(row?.school_contact_phone) || 'לא עודכן';
+  return `${escapeHtml(name)}<br>${escapeHtml(phone)}`;
+}
+
 export function activityDetailHtml(row, { ids = [], teamMap = new Map(), upload = null } = {}) {
   const group = groupForRow(row, teamMap);
   const status = completionStatusFromUpload(upload, row);
@@ -66,6 +72,7 @@ export function activityDetailHtml(row, { ids = [], teamMap = new Map(), upload 
     ['שעות', activityHours(row)],
     ['רשות', text(row?.authority) || '—'],
     ['בית ספר', text(row?.school) || '—'],
+    ['איש קשר בבית הספר', schoolContactDetailHtml(row)],
     ['שכבה / קבוצה', text(row?.grade || row?.group_name) || '—'],
     ['מספר משתתפים', participants(row)],
     ['סטטוס אישור ביצוע', statusChipHtml(status)],
