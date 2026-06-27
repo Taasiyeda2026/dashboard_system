@@ -1641,7 +1641,7 @@ ${E}`}class De extends Error{constructor({message:e,code:n,cause:s,name:i}){var 
           <label class="instr-check instr-filter-responsible"><input type="checkbox" data-instr-responsible> אני אחראי קשר</label>
           <div class="instr-filter-actions">
             <button type="button" class="ds-btn ds-btn--sm ds-btn--secondary instr-filter-btn" data-instr-today>היום</button>
-            <button type="button" class="ds-btn ds-btn--sm ds-btn--ghost instr-filter-btn" data-instr-clear>ניקוי</button>
+      </tr>`,card:XN(_,A,S,E,k,b)}}),d=u.map(_=>_.table).join(""),m=u.map(_=>_.card).join(""),h=r.length?`<div class="instr-approvals-dual"><div class="instr-approvals-desktop execution-approvals-table-wrapper approvals-table-wrapper">${ks(`<table class="ds-table ds-table--instr-approvals2"><colgroup><col class="iac-date"><col class="iac-school"><col class="iac-count"><col class="iac-upload"><col class="iac-status"><col class="iac-action"></colgroup><thead><tr><th>תאריך</th><th>בית ספר</th><th>כמות פעילויות</th><th>אישור ביצוע</th><th>סטטוס</th><th>פעולה</th></tr></thead><tbody>${d}</tbody></table>`)}</div><div class="instr-approvals-mobile instr-approval-cards execution-approvals-mobile-cards approvals-mobile-cards">${m}</div></div>`:fe("לא נמצאו אישורי ביצוע אישיים להפקה"),f=`<div class="instr-summary-grid instr-summary-grid--4">
           </div>
         </div>
         ${qe({title:"הפעילויות שלי",badge:String(r.length),body:u,padded:r.length===0})}
