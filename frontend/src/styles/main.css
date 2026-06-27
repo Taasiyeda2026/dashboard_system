@@ -19029,3 +19029,36 @@ details[open] > .ds-fin-acc__summary::before { transform: rotate(90deg); }
 .route-instructor-calendar .instr-day-count,.route-instructor-calendar .instr-calendar-day .instr-status{font-size:9.5px;padding:1px 5px;line-height:1.1}
 .route-instructor-calendar .instr-calendar-day.is-today{border:2px solid #22afcb;background:#eaf9fc;box-shadow:inset 0 0 0 1px rgba(34,175,203,.18)}
 @media (max-width:900px){.route-instructor-calendar .shell-main{padding:8px 6px}.route-instructor-calendar .instr-calendar-card{width:100%;padding:6px}.route-instructor-calendar .instr-calendar-day{min-height:52px;padding:3px 4px}.route-instructor-calendar .instr-calendar-toolbar{align-items:flex-start;flex-direction:column}}
+
+/* Instructor My Activities compact daily workflow */
+.instructor-area--table{max-width:980px;margin-inline:auto;width:100%;gap:10px}
+.instructor-area--table .instr-filter-bar{max-width:980px;width:100%;margin-inline:auto;grid-template-columns:minmax(180px,1.6fr) 138px 142px auto auto auto;padding:10px 12px;border-radius:14px;gap:8px;box-sizing:border-box}
+.instructor-area--table .instr-filter-bar .ds-input{height:30px;font-size:12px;padding:3px 8px}
+.instructor-area--table .instr-check{font-size:12px;white-space:nowrap}
+.instructor-area--table .instr-filter-btn{height:28px;min-height:28px;padding:3px 8px;font-size:11px;border-radius:7px}
+.instructor-area--table .ds-card{max-width:980px;margin-inline:auto;width:100%}
+.instructor-area--table .ds-table-wrap{max-width:980px;margin-inline:auto;overflow-x:hidden}
+.ds-table--instr-list{table-layout:fixed;width:100%}
+.ds-table--instr-list col.instr-col-completion-approval-status{width:13%}
+.ds-table--instr-list col.instr-col-start-date{width:12%}
+.ds-table--instr-list col.instr-col-activity-hours{width:13%}
+.ds-table--instr-list col.instr-col-school{width:18%}
+.ds-table--instr-list col.instr-col-grade{width:8%}
+.ds-table--instr-list col.instr-col-activity-name{width:24%}
+.ds-table--instr-list col.instr-col-action{width:12%}
+.ds-table--instr-list td,.ds-table--instr-list th{font-size:11.5px;padding:4px 6px;line-height:1.2;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;max-width:0}
+.ds-table--instr-list tbody tr{height:32px}
+.ds-table--instr-list td.instr-col-status{white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.ds-table--instr-list .instr-status{font-size:10.5px;padding:2px 7px;border-radius:999px;line-height:1.15}
+.ds-table--instr-list td.instr-col-action{white-space:normal;overflow:visible;max-width:none}
+.instr-row-actions{display:flex;gap:4px;align-items:center;justify-content:flex-start;flex-wrap:nowrap}
+.instr-row-action-btn{height:26px;min-height:26px;padding:3px 7px;font-size:11px;border-radius:7px;line-height:1}
+.instr-row-action-btn[data-row-upload]{padding-inline:6px}
+.instr-detail{font-size:12px;gap:8px}
+.instr-detail-grid{gap:6px}
+.instr-info-row{border-radius:10px;padding:7px 9px}
+.instr-info-row span{font-size:11px}
+.instr-info-row strong{font-size:12px;margin-top:2px}
+.instr-detail-actions .ds-btn{height:28px;min-height:28px;padding:4px 9px;font-size:11px;border-radius:7px}
+.instr-approval-target{outline:2px solid #22afcb;outline-offset:-2px;background:#eef9fc!important}
+@media (max-width:900px){.instructor-area--table{max-width:100%}.instructor-area--table .instr-filter-bar{grid-template-columns:1fr 1fr}.instructor-area--table .instr-check{grid-column:1/-1}.instructor-area--table .ds-table-wrap{overflow-x:auto}.instr-row-actions{flex-wrap:wrap}.ds-table--instr-list col.instr-col-action{width:18%}}
