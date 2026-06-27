@@ -2,7 +2,6 @@ import { escapeHtml } from './shared/html.js';
 import { dsPageHeader, dsScreenStack } from './shared/layout.js';
 
 const PAGE_SUBTITLE = 'כללי עבודה קצרים להפעלה מקצועית, בטוחה ומסודרת של פעילויות הקיץ.';
-const DEFAULT_SECTION_ID = 'before-day';
 
 const REMINDER_ITEMS = [
   'לוודא שעות ומיקום',
@@ -123,19 +122,24 @@ function sectionById(id) {
   return SECTIONS.find((section) => section.id === id) || SECTIONS[0];
 }
 
-function detailHtml(section) {
+function modalContentHtml(section) {
   const list = section.items.map((item) => `<li>${escapeHtml(item)}</li>`).join('');
-  const approvalLink = section.showApprovalLink
-    ? '<p class="instr-guidelines__link-row"><button type="button" class="ds-btn ds-btn--xs ds-btn--primary" data-guidelines-go-approvals>מעבר לאישורי ביצוע</button></p>'
-    : '';
-  return `<h3 class="instr-guidelines__detail-title">${escapeHtml(section.title)}</h3>
-    <ul class="instr-guidelines__list">${list}</ul>
-    ${approvalLink}`;
+  return `<ul class="instr-guidelines__list">${list}</ul>`;
 }
 
-function cardHtml(section, activeId) {
-  const active = section.id === activeId;
-  return `<button type="button" class="instr-guidelines__card${active ? ' is-active' : ''}" data-guideline-id="${escapeHtml(section.id)}" aria-pressed="${active ? 'true' : 'false'}">
+function modalActionsHtml(section) {
+  const approvalLink = section.showApprovalLink
+    ? '<button type="button" class="ds-btn ds-btn--xs ds-btn--primary" data-guidelines-go-approvals>מעבר לאישורי ביצוע</button>'
+    : '';
+  return `${approvalLink}<button type="button" class="ds-btn ds-btn--xs ds-btn--secondary" data-ui-close-modal>סגור</button>`;
+}
+
+function modalTitle(section) {
+  return `${section.icon} ${section.title}`;
+}
+
+function cardHtml(section) {
+  return `<button type="button" class="instr-guidelines__card" data-guideline-id="${escapeHtml(section.id)}" aria-haspopup="dialog">
     <span class="instr-guidelines__card-icon" aria-hidden="true">${section.icon}</span>
     <span class="instr-guidelines__card-body">
       <strong class="instr-guidelines__card-title">${escapeHtml(section.title)}</strong>
@@ -145,8 +149,9 @@ function cardHtml(section, activeId) {
   </button>`;
 }
 
-function bindApprovalLink(root) {
-  root.querySelector('[data-guidelines-go-approvals]')?.addEventListener('click', () => {
+function bindModalActions(ui) {
+  document.querySelector('[data-guidelines-go-approvals]')?.addEventListener('click', () => {
+    ui?.closeModal?.();
     document.querySelector('.shell-nav__btn[data-route="instructor-completion-approvals"]')?.click();
   }, { once: true });
 }
@@ -155,7 +160,6 @@ export const instructorGuidelinesScreen = {
   load: async () => ({}),
   render() {
     const reminder = REMINDER_ITEMS.map((item) => `<li>${escapeHtml(item)}</li>`).join('');
-    const defaultSection = sectionById(DEFAULT_SECTION_ID);
     return dsScreenStack(`
       <section class="instructor-area instructor-guidelines">
         ${dsPageHeader('נהלים למדריכי הקיץ', PAGE_SUBTITLE)}
@@ -163,33 +167,28 @@ export const instructorGuidelinesScreen = {
           <p class="instr-guidelines__strip-title">לפני כל פעילות</p>
           <ul class="instr-guidelines__checklist">${reminder}</ul>
         </div>
-        <div class="instr-guidelines__grid" role="tablist" aria-label="נושאי נהלים">${SECTIONS.map((section) => cardHtml(section, DEFAULT_SECTION_ID)).join('')}</div>
-        <div class="instr-guidelines__detail" data-guideline-detail role="tabpanel" aria-live="polite">${detailHtml(defaultSection)}</div>
+        <div class="instr-guidelines__grid" role="list" aria-label="נושאי נהלים">${SECTIONS.map(cardHtml).join('')}</div>
       </section>
     `);
   },
-  bind({ root }) {
-    const detail = root.querySelector('[data-guideline-detail]');
-    const cards = [...root.querySelectorAll('[data-guideline-id]')];
+  bind({ root, ui }) {
+    if (!ui) return;
 
-    function showSection(id) {
+    function openGuidelineModal(id) {
       const section = sectionById(id);
-      if (!section || !detail) return;
-      cards.forEach((card) => {
-        const active = card.getAttribute('data-guideline-id') === id;
-        card.classList.toggle('is-active', active);
-        card.setAttribute('aria-pressed', active ? 'true' : 'false');
+      if (!section) return;
+      ui.openModal({
+        title: modalTitle(section),
+        content: modalContentHtml(section),
+        actions: modalActionsHtml(section)
       });
-      detail.innerHTML = detailHtml(section);
-      bindApprovalLink(root);
+      bindModalActions(ui);
     }
 
-    cards.forEach((card) => {
+    root.querySelectorAll('[data-guideline-id]').forEach((card) => {
       card.addEventListener('click', () => {
-        showSection(card.getAttribute('data-guideline-id'));
+        openGuidelineModal(card.getAttribute('data-guideline-id'));
       });
     });
-
-    bindApprovalLink(root);
   }
 };
