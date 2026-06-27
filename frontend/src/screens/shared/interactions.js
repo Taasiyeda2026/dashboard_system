@@ -220,7 +220,14 @@ export function createSharedInteractionLayer() {
     }
   }
 
-  function openModal({ title = '', content = '', actions = '', onClose } = {}) {
+  function clearModalVariant(modal) {
+    if (!modal) return;
+    const variant = modal.dataset.modalVariant || '';
+    if (variant) modal.classList.remove(variant);
+    delete modal.dataset.modalVariant;
+  }
+
+  function openModal({ title = '', content = '', actions = '', onClose, modalClass = '' } = {}) {
     if (!String(content || '').trim() && !String(actions || '').trim() && !title) {
       if (typeof console !== 'undefined') {
         console.warn('[openModal] Blocked: called with no content, no actions, and no title.', new Error().stack);
@@ -233,6 +240,13 @@ export function createSharedInteractionLayer() {
     const contentNode = root.querySelector('.ds-modal__content');
     const footerNode = root.querySelector('.ds-modal__footer');
     if (!modal || !titleNode || !contentNode || !footerNode) return;
+
+    clearModalVariant(modal);
+    const variant = String(modalClass || '').trim();
+    if (variant) {
+      modal.classList.add(variant);
+      modal.dataset.modalVariant = variant;
+    }
 
     if (drawerOpen) closeDrawer();
 
@@ -266,6 +280,7 @@ export function createSharedInteractionLayer() {
 
     modalOpen = false;
     modal.setAttribute('aria-hidden', 'true');
+    clearModalVariant(modal);
 
     const cb = onModalClose;
     onModalClose = null;

@@ -190,7 +190,8 @@ export const instructorGuidelinesScreen = {
       ui.openModal({
         title: modalTitle(section),
         content: modalContentHtml(section),
-        actions: modalActionsHtml(section)
+        actions: modalActionsHtml(section),
+        modalClass: 'ds-modal--guidelines'
       });
       bindModalActions(ui);
     }
