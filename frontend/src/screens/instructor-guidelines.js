@@ -175,20 +175,34 @@ function bindModalActions(ui) {
 export const instructorGuidelinesScreen = {
   load: async () => ({}),
   render() {
-    const reminder = REMINDER_ITEMS.map((item) => `<div class="procedures-intro-item">${escapeHtml(item)}</div>`).join('');
+    const reminder = REMINDER_ITEMS.map((item) => {
+      const itemText = escapeHtml(item);
+      if (item === 'לוודא אישור צילום') {
+        return `<div class="procedures-intro-item procedures-intro-item--photo">
+          <span class="procedures-intro-item__text">${itemText}</span>
+          <a
+            href="./forms/photo-consent-form.pdf"
+            download
+            class="instr-guidelines__pdf-download"
+            aria-label="הורדת אישור צילום ופרסום"
+            title="הורדת אישור צילום ופרסום"
+          >
+            <svg class="instr-guidelines__pdf-icon" viewBox="0 0 24 24" width="18" height="18" aria-hidden="true" focusable="false">
+              <path d="M7 3.75h6.1L17.25 7.9v12.35H7V3.75Z" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linejoin="round"/>
+              <path d="M13 3.75V8h4.25" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linejoin="round"/>
+              <path d="M12 10.5v5.2m0 0 2.15-2.15M12 15.7l-2.15-2.15" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"/>
+            </svg>
+          </a>
+        </div>`;
+      }
+      return `<div class="procedures-intro-item">${itemText}</div>`;
+    }).join('');
     return dsScreenStack(`
       <section class="instructor-area instructor-guidelines">
         ${dsPageHeader(PAGE_TITLE)}
         <div class="instr-guidelines__strip" aria-label="תזכורת לפני פעילות">
           <p class="instr-guidelines__strip-title">לפני כל פעילות</p>
           <div class="procedures-intro-grid" role="list">${reminder}</div>
-          <a
-            href="./forms/photo-consent-form.pdf"
-            download
-            class="instr-guidelines__pdf-download"
-          >
-            📄 הורדת אישור צילום ופרסום
-          </a>
         </div>
         <div class="instr-guidelines__grid" role="list" aria-label="נושאי נהלים">${SECTIONS.map(cardHtml).join('')}</div>
       </section>
