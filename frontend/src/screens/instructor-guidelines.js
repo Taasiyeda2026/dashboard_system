@@ -150,8 +150,8 @@ function modalTitle(section) {
 
 function cardHtml(section) {
   return `<button type="button" class="instr-guidelines__card" data-guideline-id="${escapeHtml(section.id)}" aria-haspopup="dialog">
+    <span class="instr-guidelines__card-num" aria-hidden="true">${section.number}</span>
     <span class="instr-guidelines__card-center">
-      <span class="instr-guidelines__card-num" aria-hidden="true">${section.number}</span>
       <span class="instr-guidelines__card-icon" aria-hidden="true">${section.icon}</span>
       <span class="instr-guidelines__card-body">
         <strong class="instr-guidelines__card-title">${escapeHtml(section.title)}</strong>
