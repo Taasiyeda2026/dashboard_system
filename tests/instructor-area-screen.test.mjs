@@ -61,10 +61,13 @@ test('completion approvals page keeps upload controls compact with pick and plus
   assert.match(html, /ממתינים להעלאה/);
   assert.match(html, /instr-btn-pick/);
   assert.match(html, /instr-btn-plus/);
+  assert.match(html, /instr-file-input-hidden/);
   assert.match(html, /title="העלאת אישור ביצוע"/);
   assert.match(html, /instr-status--missing/);
   assert.doesNotMatch(html, /לא נבחר קובץ/);
+  assert.doesNotMatch(html, /בחירת קובץ/);
   assert.doesNotMatch(html, /data-upload-key/);
+  assert.doesNotMatch(html, />העלאה</);
 });
 
 
