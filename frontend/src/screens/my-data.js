@@ -115,7 +115,7 @@ export const myDataScreen = {
           title: 'פירוט פעילות',
           content: activityDetailHtml(hit, { ids: currentInstructorIds(state), teamMap }),
           onOpen: (contentNode) => {
-            bindActivityDetailActions(contentNode, { ui, row: hit, state, allInstructorRows: rows });
+            bindActivityDetailActions(contentNode, { ui, row: hit, rows, allInstructorRows: rows, teamMap, state });
           }
         });
       } catch (err) {

@@ -5,7 +5,7 @@ import { readFileSync } from 'node:fs';
 import { instructorCalendarScreen } from '../frontend/src/screens/instructor-calendar.js';
 import { myDataScreen } from '../frontend/src/screens/my-data.js';
 import { instructorCompletionApprovalsScreen } from '../frontend/src/screens/instructor-completion-approvals.js';
-import { resolveInstructorApprovalForRow } from '../frontend/src/screens/instructor-utils.js';
+import { resolveInstructorApprovalForRow, openInstructorApprovalForActivity } from '../frontend/src/screens/instructor-utils.js';
 
 const row = {
   RowID: 'r1', start_date: '2026-06-21', activity_date: '2026-06-21', start_time: '08:00', end_time: '08:45',
@@ -69,4 +69,40 @@ test('activity detail print resolves the full instructor approval group instead 
   assert.equal(approval?.date, '2026-06-21');
   assert.equal(approval?.school, 'מגנים');
   assert.deepEqual(approval.activities.map((activity) => activity.name), ['פעילות בוקר', 'פעילות המשך']);
+});
+
+
+test('my activities detail print uses the shared approval resolver with all instructor rows', () => {
+  const source = readFileSync(new URL('../frontend/src/screens/my-data.js', import.meta.url), 'utf8');
+  assert.match(source, /bindActivityDetailActions\(contentNode, \{ ui, row: hit, rows, allInstructorRows: rows, teamMap, state \}\)/);
+});
+
+test('shared approval resolver falls back from profile name to activity instructor name', () => {
+  const first = { ...row, RowID: 'r1', activity_name: 'פעילות בוקר', start_time: '08:00', end_time: '09:00' };
+  const second = { ...row, RowID: 'r2', activity_name: 'פעילות המשך', start_time: '09:15', end_time: '10:15' };
+
+  const approval = resolveInstructorApprovalForRow(first, [first, second], 'שם משתמש שונה');
+
+  assert.equal(approval?.instructorName, 'אייל יוחאי');
+  assert.deepEqual(approval.activities.map((activity) => activity.name), ['פעילות בוקר', 'פעילות המשך']);
+});
+
+test('shared activity print helper returns the same grouped approval calendar and my activities use', () => {
+  const first = { ...row, RowID: 'r1', activity_name: 'פעילות בוקר', start_time: '08:00', end_time: '09:00' };
+  const second = { ...row, RowID: 'r2', activity_name: 'פעילות המשך', start_time: '09:15', end_time: '10:15' };
+  const dom = new JSDOM('<!doctype html><body></body>', { url: 'https://example.test/' });
+  const alerts = [];
+  globalThis.window = { open: () => null };
+  globalThis.alert = (message) => alerts.push(message);
+  globalThis.document = dom.window.document;
+  try {
+    const approval = openInstructorApprovalForActivity(first, { state: { user: { emp_id: '1525', full_name: 'שם משתמש שונה' } }, allInstructorRows: [first, second] });
+    assert.equal(approval?.school, 'מגנים');
+    assert.deepEqual(approval.activities.map((activity) => activity.name), ['פעילות בוקר', 'פעילות המשך']);
+    assert.deepEqual(alerts, ['לא ניתן לפתוח חלון הדפסה. יש לאפשר חלונות קופצים בדפדפן.']);
+  } finally {
+    delete globalThis.window;
+    delete globalThis.alert;
+    delete globalThis.document;
+  }
 });

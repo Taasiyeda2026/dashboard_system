@@ -91,12 +91,43 @@ function approvalMatchesRow(approval, row, instructorName = '') {
   return !instructorName || norm(approval.instructorName) === norm(instructorName);
 }
 
+function instructorNamesForActivity(row, preferredName = '') {
+  return [
+    preferredName,
+    row?.instructor_name,
+    row?.instructor,
+    row?.guide_name,
+    row?.guide,
+    row?.instructor_name_2,
+    row?.instructor_2,
+    row?.guide_name_2,
+    row?.guide_2
+  ].map(text).filter((name, index, names) => name && names.findIndex((other) => norm(other) === norm(name)) === index);
+}
+
 export function resolveInstructorApprovalForRow(row, allInstructorRows = [], instructorName = '') {
   const scopedRows = Array.isArray(allInstructorRows) && allInstructorRows.length ? allInstructorRows : [row];
-  const selectedInstructor = text(instructorName);
-  if (!row || !selectedInstructor) return null;
-  const approvals = buildCompletionApprovals(scopedRows, { instructor: selectedInstructor });
-  return approvals.find((approval) => approvalMatchesRow(approval, row, selectedInstructor)) || null;
+  if (!row) return null;
+  for (const selectedInstructor of instructorNamesForActivity(row, instructorName)) {
+    const approvals = buildCompletionApprovals(scopedRows, { instructor: selectedInstructor });
+    const exact = approvals.find((approval) => approvalMatchesRow(approval, row, selectedInstructor));
+    if (exact) return exact;
+    const sameActivityGroup = approvals.find((approval) => approvalMatchesRow(approval, row, ''));
+    if (sameActivityGroup) return sameActivityGroup;
+  }
+  return null;
+}
+
+export function openInstructorApprovalForActivity(row, { instructorName = '', allInstructorRows = [], state = null } = {}) {
+  const nameFromRow = instructorName || instructorNameForRow(row, currentInstructorIds(state), '');
+  const selectedInstructor = nameFromRow || currentInstructorName(state);
+  const approval = resolveInstructorApprovalForRow(row, allInstructorRows, selectedInstructor);
+  if (!approval) {
+    openApprovalPrintWindow([], '');
+    return null;
+  }
+  openApprovalPrintWindow([approval], approvalFileTitle(approval));
+  return approval;
 }
 
 export function printSingleActivity(row, instructorName = '', allInstructorRows = []) {
@@ -112,12 +143,10 @@ export function printSingleActivity(row, instructorName = '', allInstructorRows 
   }
 }
 
-export function bindActivityDetailActions(contentNode, { ui, row, state, allInstructorRows = [] } = {}) {
+export function bindActivityDetailActions(contentNode, { ui, row, state, rows = [], allInstructorRows = [] } = {}) {
   if (!contentNode) return;
   contentNode.querySelector('[data-instr-print-current]')?.addEventListener('click', () => {
-    const nameFromRow = instructorNameForRow(row, currentInstructorIds(state), '');
-    const instructorName = nameFromRow || currentInstructorName(state);
-    printSingleActivity(row, instructorName, allInstructorRows);
+    openInstructorApprovalForActivity(row, { state, allInstructorRows: allInstructorRows.length ? allInstructorRows : rows });
   });
   contentNode.querySelector('[data-instr-nav-approvals]')?.addEventListener('click', () => {
     try { ui?.closeDrawer(); } catch { /* ignore */ }
