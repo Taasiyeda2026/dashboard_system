@@ -131,6 +131,43 @@ test('my activities uses status-first columns and detail-only actions', () => {
   assert.doesNotMatch(html, /data-row-upload/);
 });
 
+
+test('activity detail hides who-with-me section when current instructor is assigned alone', () => {
+  const soloRow = { ...row, emp_id_2: '', instructor_name_2: '' };
+  const soloGroups = [{
+    activity_date: '2026-06-21',
+    school: 'מגנים',
+    responsibleEmpId: '1525',
+    responsibleName: 'אייל יוחאי',
+    instructors: [{ name: 'אייל יוחאי', empId: '1525' }]
+  }];
+
+  const html = activityDetailHtml(soloRow, { ids: ['1525'], teamMap: contactGroupsByDateSchool(soloGroups) });
+
+  assert.doesNotMatch(html, /מי איתי היום/);
+  assert.doesNotMatch(html, /אין מדריך נוסף/);
+  assert.doesNotMatch(html, /משובץ\/ת לבד לפעילות זו/);
+});
+
+test('activity detail lists only additional instructors with available contact details', () => {
+  const detailedGroups = [{
+    activity_date: '2026-06-21',
+    school: 'מגנים',
+    responsibleEmpId: '1525',
+    responsibleName: 'אייל יוחאי',
+    instructors: [
+      { name: 'אייל יוחאי', empId: '1525', phone: '050-1111111', role: 'מדריך' },
+      { name: 'הילה רוזן', empId: '1502', phone: '050-2222222', role: 'מדריכה מובילה' }
+    ]
+  }];
+
+  const html = activityDetailHtml(row, { ids: ['1525'], teamMap: contactGroupsByDateSchool(detailedGroups) });
+
+  assert.match(html, /מי איתי היום/);
+  assert.match(html, /הילה רוזן · 050-2222222 · מדריכה מובילה/);
+  assert.doesNotMatch(html, /אייל יוחאי · 050-1111111 · מדריך/);
+});
+
 test('activity detail drawer is info-only without upload or print actions', () => {
   const html = activityDetailHtml(row, { ids: ['1525'], teamMap: contactGroupsByDateSchool(teamGroups) });
   assert.match(html, /סטטוס אישור ביצוע/);
@@ -177,8 +214,8 @@ test('instructor guidelines screen renders summer 2026 title, intro grid, and ei
   assert.match(html, /procedures-intro-item/);
   assert.doesNotMatch(html, /instr-guidelines__checklist/);
   assert.match(html, /לוודא איש קשר/);
-  assert.match(html, /להחתים ולהעלות אישור חתום/);
-  assert.equal((html.match(/procedures-intro-item/g) || []).length, 9);
+  assert.match(html, /להחתים ולהעלות אישור ביצוע/);
+  assert.equal((html.match(/class="procedures-intro-item(?:"| )/g) || []).length, 9);
   assert.match(html, /instr-guidelines__grid/);
   assert.match(html, /data-guideline-id="before-day"/);
   assert.match(html, /data-guideline-id="conduct"/);
