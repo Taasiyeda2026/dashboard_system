@@ -57,14 +57,45 @@ function schoolContactDetailHtml(row) {
   return `${escapeHtml(name)}<br>${escapeHtml(phone)}`;
 }
 
+function instructorEntriesForRow(row) {
+  const entries = [];
+  const add = (name, empId, phone, role) => {
+    const entry = { name: text(name), empId: text(empId), phone: text(phone), role: text(role) };
+    if (!entry.name && !entry.empId) return;
+    if (entries.some((item) => (entry.empId && item.empId === entry.empId) || (!entry.empId && item.name && item.name === entry.name))) return;
+    entries.push(entry);
+  };
+  add(row?.instructor_name || row?.instructor || row?.guide_name || row?.guide, row?.emp_id, row?.instructor_phone || row?.phone, row?.instructor_role || row?.role);
+  add(row?.instructor_name_2 || row?.instructor_2 || row?.guide_name_2 || row?.guide_2, row?.emp_id_2, row?.instructor_phone_2 || row?.phone_2, row?.instructor_role_2 || row?.role_2);
+  return entries;
+}
+
+function isCurrentInstructorEntry(entry, ids) {
+  const idList = Array.isArray(ids) ? ids.map(text).filter(Boolean) : [text(ids)].filter(Boolean);
+  return !!entry?.empId && idList.includes(entry.empId);
+}
+
+function peerInstructorsHtml(row, ids) {
+  const assignedInstructors = instructorEntriesForRow(row);
+  const currentAssignedCount = assignedInstructors.filter((entry) => isCurrentInstructorEntry(entry, ids)).length;
+  if (assignedInstructors.length <= 1 && currentAssignedCount) return '';
+
+  const peers = assignedInstructors.filter((entry) => !isCurrentInstructorEntry(entry, ids));
+  if (!peers.length) return '';
+
+  return peers.map((entry) => {
+    const name = entry.name || entry.empId;
+    const details = [entry.phone, entry.role].filter(Boolean).map((value) => `<small>${escapeHtml(value)}</small>`).join('');
+    return `<span class="instr-peer-card"><strong>${escapeHtml(name)}</strong>${details}</span>`;
+  }).join('');
+}
+
 export function activityDetailHtml(row, { ids = [], teamMap = new Map(), upload = null } = {}) {
   const group = groupForRow(row, teamMap);
   const status = completionStatusFromUpload(upload, row);
-  const instructors = (Array.isArray(group?.instructors) ? group.instructors : [])
-    .map((i) => text(i.name || i.empId)).filter(Boolean);
   const responsible = text(group?.responsibleName || '—');
   const mineResponsible = isResponsibleForGroup(group, ids);
-  const peer = peerNameForRow(row, ids);
+  const peersHtml = peerInstructorsHtml(row, ids);
   const fields = [
     ['שם פעילות', rowTitle(row)],
     ['תאריך', formatDateHe(isoDate(row?.start_date || row?.activity_date)) || isoDate(row?.start_date || row?.activity_date) || '—'],
@@ -76,9 +107,9 @@ export function activityDetailHtml(row, { ids = [], teamMap = new Map(), upload 
     ['שכבה / קבוצה', text(row?.grade || row?.group_name) || '—'],
     ['מספר משתתפים', participants(row)],
     ['סטטוס אישור ביצוע', statusChipHtml(status)],
-    ['מי איתי היום', instructors.length ? instructors.join('<br>') : (peer || 'אין מדריך נוסף')],
+    peersHtml ? ['מי נמצא איתי', peersHtml] : null,
     ['אחראי קשר', `${escapeHtml(responsible)}${mineResponsible ? ' ' + statusChipHtml({ key: 'contact', label: 'אני אחראי קשר' }) : ''}`]
-  ];
+  ].filter(Boolean);
   return `<div class="instr-detail">${mineResponsible ? '<div class="instr-contact-note"><strong>אתה אחראי קשר</strong><br>יש לוודא את קיום הפעילות מול איש הקשר בבית הספר לפחות 48 שעות לפני יום הפעילות ולעדכן את שאר הצוות.</div>' : ''}<div class="instr-detail-grid">${fields.map(([k, v]) => `<div class="instr-info-row"><span>${escapeHtml(k)}</span><strong>${typeof v === 'string' && v.includes('<') ? v : escapeHtml(v)}</strong></div>`).join('')}</div><div class="instr-detail-actions"><button class="ds-btn ds-btn--sm ds-btn--ghost" data-ui-close-drawer>סגור</button></div></div>`;
 }
 
