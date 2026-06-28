@@ -466,3 +466,25 @@ test('finance personal reports manager does not get admin role in profile mappin
   assert.match(source, /can_manage_personal_reports: canManage/);
   assert.match(source, /role = isAdminRole\(displayRole\) \? 'admin' : 'employee'/);
 });
+
+test('final all-employees salary PDF keeps employee pages focused and single summarized', async () => {
+  const source = await readFile(new URL('../frontend/src/screens/personal-reports.js', import.meta.url), 'utf8');
+  const printSection = source.match(/function buildPersonalReportPrintSection[\s\S]*?function splitTravelEntries/)?.[0] || '';
+
+  assert.match(printSection, /דוח אישי לשכר —/);
+  assert.match(printSection, /שם העובד/);
+  assert.match(printSection, /חודש הדיווח/);
+  assert.match(printSection, /תקופת דיווח/);
+  assert.match(printSection, /סטטוס/);
+  assert.doesNotMatch(printSection, /תאריך הגשה/);
+  assert.doesNotMatch(printSection, /תאריך אישור \/ אישור לשכר/);
+  assert.doesNotMatch(printSection, /תאריך הפקה/);
+  assert.doesNotMatch(printSection, /uploaded_at/);
+  assert.doesNotMatch(printSection, /<h2>קבצים מצורפים<\/h2>/);
+  assert.doesNotMatch(printSection, /סיכום מה שאושר/);
+  assert.match(printSection, /סיכום מאושר לתשלום/);
+  assert.match(printSection, /שם הגורם המאשר: <strong>עידן נחום<\/strong>/);
+  assert.match(printSection, /תפקיד: <strong>סמנכ״ל כספים ותפעול<\/strong>/);
+  assert.match(printSection, /authorizedApprovalDate = formatDateTime\(report\.authorized_approved_at \|\| report\.approved_at \|\| report\.paid_at\)/);
+  assert.match(printSection, /תאריך ושעת אישור: <strong>\$\{escapeHtml\(authorizedApprovalDate\)\}<\/strong>/);
+});
