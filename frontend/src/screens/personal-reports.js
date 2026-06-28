@@ -1,4 +1,4 @@
-﻿/**
+/**
  * Personal Reports Screen — דוחות אישיים
  *
  * Digital monthly salary report form, based on the Excel format "דיווח שכר אישי".
@@ -1507,11 +1507,22 @@ function rowsToPrintTable(headers, rows, emptyColspan, tableClass = '', colgroup
 
 const PRINT_KM_TRAVEL_COLGROUP = '<colgroup><col class="print-col-date"><col class="print-col-place"><col class="print-col-place"><col class="print-col-detail"><col class="print-col-km"><col class="print-col-money"></colgroup>';
 const PRINT_PUBLIC_TRANSPORT_COLGROUP = '<colgroup><col class="print-col-date"><col class="print-col-place"><col class="print-col-place"><col class="print-col-detail"><col class="print-col-money"></colgroup>';
+const SALARY_APPROVED_REPORT_STATUSES = new Set(['approved', 'paid']);
 
+function isSalaryApprovedReport(report = {}) {
+  return SALARY_APPROVED_REPORT_STATUSES.has(String(report?.status || '').trim());
+}
+
+function formatDateTime(value) {
+  if (!value) return '—';
+  const date = new Date(value);
+  if (Number.isNaN(date.getTime())) return fmtDate(String(value).slice(0, 10));
+  return date.toLocaleString('he-IL');
+}
 
 function personalReportPrintStyles() {
   return `
-    *{box-sizing:border-box}body{font-family:Arial,'Assistant',sans-serif;margin:24px;color:#0f172a;direction:rtl;background:#fff}h1{font-size:22px;margin:0 0 12px}h2{font-size:15px;margin:22px 0 8px}h3{font-size:13px;margin:14px 0 6px;color:#1e293b}.meta,.summary{display:grid;grid-template-columns:repeat(2,minmax(150px,1fr));gap:8px;max-width:760px}.box{border:1px solid #cbd5e1;border-radius:8px;padding:10px;background:#f8fafc;min-height:58px;display:flex;flex-direction:column;align-items:center;justify-content:center;text-align:center;overflow-wrap:anywhere}.box--total{background:#ecfeff;border-color:#67e8f9}.label{display:block;font-size:11px;color:#64748b}.value{font-weight:700;line-height:1.35}.employee-page{break-after:page;page-break-after:always;padding-bottom:10mm}.employee-page:last-child{break-after:auto;page-break-after:auto}.section-card{border:1px solid #e2e8f0;border-radius:10px;padding:12px 14px;margin-top:12px;break-inside:avoid-page;page-break-inside:avoid;overflow:hidden}.section-card h2:first-child{display:block;margin:-12px -14px 10px;padding:10px 14px 8px;line-height:1.35;text-align:right;direction:rtl;background:#f8fafc;border-bottom:1px solid #e2e8f0;font-size:14px;font-weight:700;color:#1e293b}.print-actions{margin-bottom:14px}.print-total{font-weight:700;background:#f8fafc}.financial-summary{border:2px solid #0f766e;background:#f0fdfa}.financial-summary h2{color:#0f766e;background:#dcfce7;border-bottom-color:#6ee7b7}.summary-note{font-size:12px;color:#475569;margin:6px 0 0}table{width:100%;border-collapse:collapse;margin-top:6px;font-size:12px;table-layout:fixed}th,td{border:1px solid #cbd5e1;padding:6px 8px;text-align:right;vertical-align:middle;overflow-wrap:anywhere;word-break:normal;max-width:0}th{background:#e2e8f0}.print-col-date{width:14%}.print-col-place{width:18%}.print-col-detail{width:30%}.print-col-km{width:10%}.print-col-money{width:10%}.print-table--public .print-col-detail{width:32%}.print-table--public .print-col-money{width:18%}.print-table--travel td:nth-child(1),.print-table--travel th:nth-child(1),.print-table--travel td:nth-child(5),.print-table--travel th:nth-child(5),.print-table--travel td:nth-child(6),.print-table--travel th:nth-child(6),.print-table--public td:nth-child(1),.print-table--public th:nth-child(1),.print-table--public td:nth-child(5),.print-table--public th:nth-child(5){white-space:nowrap;overflow-wrap:normal}.print-table--travel td:nth-child(4),.print-table--public td:nth-child(4){white-space:normal;overflow-wrap:anywhere}.empty{text-align:center;color:#64748b}.num{text-align:left;direction:ltr;white-space:nowrap}.muted{color:#64748b}@media print{.print-actions{display:none}body{margin:12mm}.employee-page{min-height:260mm}table{page-break-inside:auto}tr{page-break-inside:avoid;break-inside:avoid}.section-card{break-inside:avoid-page;page-break-inside:avoid}}
+    @page{size:A4;margin:12mm}*{box-sizing:border-box}body{font-family:Arial,'Assistant',sans-serif;margin:24px;color:#0f172a;direction:rtl;background:#fff;font-size:12px;line-height:1.35}h1{font-size:22px;margin:0 0 12px}h2{font-size:15px;margin:16px 0 8px}h3{font-size:13px;margin:12px 0 6px;color:#1e293b}.meta,.summary{display:grid;grid-template-columns:repeat(2,minmax(140px,1fr));gap:6px;max-width:100%}.box{border:1px solid #cbd5e1;border-radius:8px;padding:8px;background:#f8fafc;min-height:50px;display:flex;flex-direction:column;align-items:center;justify-content:center;text-align:center;overflow-wrap:anywhere}.box--total{background:#ecfeff;border-color:#67e8f9}.label{display:block;font-size:10px;color:#64748b}.value{font-weight:700;line-height:1.3}.employee-page{break-before:page;page-break-before:always;padding-bottom:8mm}.employee-page:first-of-type{break-before:auto;page-break-before:auto}.section-card{border:1px solid #e2e8f0;border-radius:10px;padding:10px 12px;margin-top:10px;break-inside:auto;page-break-inside:auto;overflow:hidden}.section-card h2:first-child{display:block;margin:-10px -12px 8px;padding:8px 12px 7px;line-height:1.35;text-align:right;direction:rtl;background:#f8fafc;border-bottom:1px solid #e2e8f0;font-size:14px;font-weight:700;color:#1e293b}.print-actions{margin-bottom:14px}.print-total{font-weight:700;background:#f8fafc}.financial-summary{border:2px solid #0f766e;background:#f0fdfa}.financial-summary h2{color:#0f766e;background:#dcfce7;border-bottom-color:#6ee7b7}.summary-note{font-size:11px;color:#475569;margin:6px 0 0}.cover-page{break-after:page;page-break-after:always}.cover-note{border:1px solid #bae6fd;background:#f0f9ff;border-radius:10px;padding:10px;margin:8px 0 12px}.print-totals-grid{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:6px;margin:10px 0}.signature-box{border:1px solid #94a3b8;border-radius:10px;padding:12px;background:#fff}.signature-text{font-weight:700;margin:0 0 8px}.notes-box{white-space:pre-wrap}.attachment-table .print-col-detail{width:34%}table{width:100%;border-collapse:collapse;margin-top:6px;font-size:11px;table-layout:fixed}th,td{border:1px solid #cbd5e1;padding:5px 6px;text-align:right;vertical-align:top;overflow-wrap:anywhere;word-break:normal;max-width:0}th{background:#e2e8f0}.print-col-date{width:14%}.print-col-place{width:18%}.print-col-detail{width:30%}.print-col-km{width:10%}.print-col-money{width:10%}.print-table--public .print-col-detail{width:32%}.print-table--public .print-col-money{width:18%}.print-table--travel td:nth-child(1),.print-table--travel th:nth-child(1),.print-table--travel td:nth-child(5),.print-table--travel th:nth-child(5),.print-table--travel td:nth-child(6),.print-table--travel th:nth-child(6),.print-table--public td:nth-child(1),.print-table--public th:nth-child(1),.print-table--public td:nth-child(5),.print-table--public th:nth-child(5){white-space:nowrap;overflow-wrap:normal}.print-table--travel td:nth-child(4),.print-table--public td:nth-child(4){white-space:normal;overflow-wrap:anywhere}.empty{text-align:center;color:#64748b}.num{text-align:left;direction:ltr;white-space:nowrap}.muted{color:#64748b}@media print{.print-actions{display:none}body{margin:0;-webkit-print-color-adjust:exact;print-color-adjust:exact}table{page-break-inside:auto}tr{page-break-inside:avoid;break-inside:avoid}.section-card h2{break-after:avoid;page-break-after:avoid}.box,.signature-box{break-inside:avoid;page-break-inside:avoid}}
   `;
 }
 
@@ -1537,40 +1548,59 @@ function buildPersonalReportPrintSection({ report, profile, travel = [], expense
   const expenseRows = expenses.map((r) => {
     const attachment = attachmentForEntry(attachments, 'expense_entry_id', r.id);
     const attachmentStatus = expenseAttachmentStatus(r, attachment);
-    return `<tr><td>${fmtDate(r.expense_date)}</td><td>${escapeHtml(r.description || '')}</td><td class="num">₪${fmt(r.amount)}</td><td>${escapeHtml(attachmentStatus.label)}</td><td>${escapeHtml(r.notes || '')}</td></tr>`;
+    const type = r.document_type === 'receipt' ? 'קבלה' : r.document_type === 'invoice' ? 'חשבונית' : (r.document_type || 'אחר');
+    return `<tr><td>${fmtDate(r.expense_date)}</td><td>${escapeHtml(r.description || '')}</td><td>${escapeHtml(type)}</td><td class="num">₪${fmt(r.amount)}</td><td>${escapeHtml(attachment?.file_name || attachmentStatus.label)}</td></tr>`;
   });
   const absenceRows = absences.map((r) => {
     const attachment = attachmentForEntry(attachments, 'absence_entry_id', r.id);
     const attachmentStatus = absenceAttachmentStatus(r, attachment);
-    return `<tr><td>${escapeHtml(absenceLabel(r.absence_type))}</td><td>${fmtDate(r.start_date)}</td><td>${fmtDate(r.end_date)}</td><td class="num">${fmtNum(calculatedAbsenceDays(r))}</td><td>${escapeHtml(attachmentStatus.label)}</td><td>${escapeHtml(r.notes || '')}</td></tr>`;
+    return `<tr><td>${escapeHtml(absenceLabel(r.absence_type))}</td><td>${fmtDate(r.start_date)}</td><td>${fmtDate(r.end_date)}</td><td class="num">${fmtNum(calculatedAbsenceDays(r))}</td><td>${escapeHtml(attachment?.file_name || attachmentStatus.label)}</td><td>${escapeHtml(r.notes || '')}</td></tr>`;
   });
+  const attachmentRows = attachments.map((a) => {
+    const linked = a.expense_entry_id ? 'הוצאה' : a.absence_entry_id ? 'היעדרות' : a.travel_entry_id ? 'נסיעה' : 'כללי';
+    return `<tr><td>${escapeHtml(a.file_name || '—')}</td><td>${escapeHtml(a.mime_type || a.file_type || '—')}</td><td>${escapeHtml(linked)}</td><td>${formatDateTime(a.uploaded_at)}</td></tr>`;
+  });
+  const employeeNotes = String(report.employee_notes || report.notes || '').trim();
+  const adminNotes = String(report.finance_notes || report.manager_notes || report.correction_note || '').trim();
+  const signatureName = String(report.signature_full_name || employeeName || '').trim() || '—';
+  const signatureDate = formatDateTime(report.signature_confirmed_at || report.submitted_at);
 
   return `<section class="employee-page">
     <h1>דוח אישי לשכר — ${escapeHtml(employeeName)}</h1>
     <section class="meta" aria-label="פרטי דיווח כלליים">
       <div class="box"><span class="label">שם העובד</span><span class="value">${escapeHtml(employeeName)}</span></div>
       <div class="box"><span class="label">חודש הדיווח</span><span class="value">${escapeHtml(monthLabel(report.report_month, report.report_year))}</span></div>
-      <div class="box"><span class="label">תקופת הדיווח עד ה־25</span><span class="value">${escapeHtml(reportPeriod.label)}</span></div>
+      <div class="box"><span class="label">תקופת דיווח</span><span class="value">${escapeHtml(reportPeriod.label)}</span></div>
       <div class="box"><span class="label">סטטוס</span><span class="value">${escapeHtml(statusLabel)}</span></div>
+      <div class="box"><span class="label">תאריך הגשה</span><span class="value">${formatDateTime(report.submitted_at)}</span></div>
+      <div class="box"><span class="label">תאריך אישור / אישור לשכר</span><span class="value">${formatDateTime(report.approved_at || report.paid_at)}</span></div>
       <div class="box"><span class="label">תאריך הפקה</span><span class="value">${escapeHtml(generatedAt)}</span></div>
     </section>
-    <section class="section-card"><h2>שכר / שעות / החזרים</h2><section class="summary">
-      <div class="box"><span class="label">סה״כ שעות / ימי עבודה</span><span class="value">${escapeHtml(workDaysLabel)}</span></div>
-      <div class="box"><span class="label">סה״כ החזר הוצאות</span><span class="value">₪${fmt(totalExpenses)}</span></div>
-      <div class="box"><span class="label">סה״כ ימי היעדרות</span><span class="value">${fmtNum(totalAbsenceDays)}</span></div>
-      <div class="box"><span class="label">חופש / מחלה / הצהרה</span><span class="value">${fmtNum(totalVacationDays)} / ${fmtNum(totalSickDays)} / ${fmtNum(totalDeclarationDays)}</span></div>
+    <section class="section-card"><h2>סיכום מה שאושר</h2><section class="summary">
+      <div class="box"><span class="label">ימי עבודה / שכר</span><span class="value">${escapeHtml(workDaysLabel)}</span></div>
+      <div class="box"><span class="label">ימי חופש</span><span class="value">${fmtNum(totalVacationDays)}</span></div>
+      <div class="box"><span class="label">ימי מחלה</span><span class="value">${fmtNum(totalSickDays)}</span></div>
+      <div class="box"><span class="label">ימי הצהרה / היעדרות</span><span class="value">${fmtNum(totalDeclarationDays)} / ${fmtNum(totalAbsenceDays)}</span></div>
+      <div class="box"><span class="label">סה״כ נסיעות לפי ק״מ</span><span class="value">₪${fmt(totalKmTravel)}</span></div>
+      <div class="box"><span class="label">סה״כ ק״מ</span><span class="value">${fmtNum(totalKmTravelKm)}</span></div>
+      <div class="box"><span class="label">סה״כ תחבורה ציבורית</span><span class="value">₪${fmt(totalPublicTransport)}</span></div>
+      <div class="box"><span class="label">סה״כ הוצאות</span><span class="value">₪${fmt(totalExpenses)}</span></div>
+      <div class="box box--total"><span class="label">סה״כ החזר / לתשלום</span><span class="value">₪${fmt(totalPayable)}</span></div>
     </section></section>
-    <section class="section-card"><h2>פירוט הוצאות</h2>${rowsToPrintTable(['תאריך','פירוט','סכום','אסמכתא','הערות'], expenseRows, 5)}</section>
-    <section class="section-card"><h2>נסיעות לפי ק״מ</h2>${rowsToPrintTable(['תאריך','ממקום','למקום','פירוט','ק״מ','סכום'], [...kmTravelRows, `<tr class="print-total"><td colspan="4">סה״כ נסיעות לפי ק״מ</td><td class="num">${fmtNum(totalKmTravelKm)}</td><td class="num">₪${fmt(totalKmTravel)}</td></tr>`], 6, 'print-table--travel', PRINT_KM_TRAVEL_COLGROUP)}</section>
-    <section class="section-card"><h2>תחבורה ציבורית</h2>${rowsToPrintTable(['תאריך','ממקום','למקום','פירוט','סכום'], [...publicTransportRows, `<tr class="print-total"><td colspan="4">סה״כ תחבורה ציבורית</td><td class="num">₪${fmt(totalPublicTransport)}</td></tr>`], 5, 'print-table--public', PRINT_PUBLIC_TRANSPORT_COLGROUP)}</section>
+    <section class="section-card"><h2>נסיעות לפי ק״מ</h2>${rowsToPrintTable(['תאריך','מוצא','יעד','פירוט','ק״מ','סכום'], [...kmTravelRows, `<tr class="print-total"><td colspan="4">סה״כ נסיעות לפי ק״מ</td><td class="num">${fmtNum(totalKmTravelKm)}</td><td class="num">₪${fmt(totalKmTravel)}</td></tr>`], 6, 'print-table--travel', PRINT_KM_TRAVEL_COLGROUP)}</section>
+    <section class="section-card"><h2>תחבורה ציבורית</h2>${rowsToPrintTable(['תאריך','מוצא','יעד','פירוט','סכום'], [...publicTransportRows, `<tr class="print-total"><td colspan="4">סה״כ תחבורה ציבורית</td><td class="num">₪${fmt(totalPublicTransport)}</td></tr>`], 5, 'print-table--public', PRINT_PUBLIC_TRANSPORT_COLGROUP)}</section>
+    <section class="section-card"><h2>הוצאות</h2>${rowsToPrintTable(['תאריך','פירוט','סוג','סכום','אסמכתא / קובץ'], expenseRows, 5)}</section>
     <section class="section-card"><h2>היעדרויות / ימים</h2>${rowsToPrintTable(['סוג','מתאריך','עד תאריך','ימים','אסמכתא','הערות'], absenceRows, 6)}</section>
+    <section class="section-card"><h2>קבצים מצורפים</h2>${rowsToPrintTable(['שם קובץ','סוג','שייך לדיווח','תאריך העלאה'], attachmentRows, 4, 'attachment-table')}</section>
+    <section class="section-card"><h2>הערות</h2><div class="notes-box"><strong>הערות עובד:</strong> ${escapeHtml(employeeNotes || 'אין')}<br><strong>הערות מנהל / כספים:</strong> ${escapeHtml(adminNotes || 'אין')}</div></section>
     <section class="section-card financial-summary"><h2>סיכום כולל לתשלום</h2><section class="summary">
       <div class="box"><span class="label">סה״כ ק״מ</span><span class="value">${fmtNum(totalKmTravelKm)}</span></div>
       <div class="box"><span class="label">סה״כ תשלום עבור ק״מ</span><span class="value">₪${fmt(totalKmTravel)}</span></div>
       <div class="box"><span class="label">סה״כ תחבורה ציבורית</span><span class="value">₪${fmt(totalPublicTransport)}</span></div>
       <div class="box"><span class="label">סה״כ החזר הוצאות</span><span class="value">₪${fmt(totalExpenses)}</span></div>
-      <div class="box box--total"><span class="label">סה״כ כולל לתשלום</span><span class="value">₪${fmt(totalPayable)}</span></div>
+      <div class="box box--total"><span class="label">סה״כ החזרים לכל הדוח</span><span class="value">₪${fmt(totalPayable)}</span></div>
     </section><p class="summary-note">הסיכום משתמש באותם נתוני נסיעות, תחבורה ציבורית והוצאות של הדוח האישי.</p></section>
+    <section class="section-card"><h2>חתימת עובד</h2><div class="signature-box"><p class="signature-text">אני מאשר/ת כי הפרטים שדווחו על ידי נכונים ומלאים.</p><div>שם העובד שחתם: <strong>${escapeHtml(signatureName)}</strong></div><div>תאריך ושעת חתימה: <strong>${escapeHtml(signatureDate)}</strong></div></div></section>
   </section>`;
 }
 
@@ -1608,27 +1638,79 @@ async function openMonthlyReportPdf(reportId, forcedStatus = 'אושר לשכר'
   printWindow.document.close();
 }
 
+function buildAllEmployeesCoverPage({ monthValue, generatedAt, items }) {
+  const totals = items.reduce((acc, item) => {
+    acc.km += item.totalKmTravelKm;
+    acc.kmPay += item.totalKmTravel;
+    acc.publicTransport += item.totalPublicTransport;
+    acc.expenses += item.totalExpenses;
+    acc.payable += item.totalPayable;
+    return acc;
+  }, { km: 0, kmPay: 0, publicTransport: 0, expenses: 0, payable: 0 });
+  const rows = items.map((item, index) => `<tr><td>${escapeHtml(item.employeeName)}</td><td>${escapeHtml(item.statusLabel)}</td><td class="num">₪${fmt(item.totalKmTravel)}</td><td class="num">₪${fmt(item.totalPublicTransport)}</td><td class="num">₪${fmt(item.totalExpenses)}</td><td class="num">₪${fmt(item.totalPayable)}</td><td class="num">${index + 2}</td></tr>`);
+  return `<section class="cover-page">
+    <h1>דוח מסכם חודשי לשכר</h1>
+    <section class="meta">
+      <div class="box"><span class="label">חודש דיווח</span><span class="value">${escapeHtml(monthValue)}</span></div>
+      <div class="box"><span class="label">תאריך ושעת הפקה</span><span class="value">${escapeHtml(generatedAt)}</span></div>
+      <div class="box"><span class="label">מספר עובדים שנכללים בדוח</span><span class="value">${items.length}</span></div>
+    </section>
+    <p class="cover-note">הדוח כולל רק דוחות שאושרו לשכר / אושרו סופית. דוחות פתוחים, דוחות שהוגשו לבדיקה, דוחות שהוחזרו לתיקון ודוחות לא מאושרים אינם נכללים ב-PDF זה.</p>
+    <section class="section-card"><h2>מקרא מנהלים</h2>${rowsToPrintTable(['עובד','סטטוס','נסיעות לפי ק״מ','תחבורה ציבורית','הוצאות','סה״כ החזרים','עמוד בדוח'], rows, 7)}</section>
+    <section class="section-card financial-summary"><h2>סיכום כללי</h2><div class="print-totals-grid">
+      <div class="box"><span class="label">סה״כ עובדים</span><span class="value">${items.length}</span></div>
+      <div class="box"><span class="label">סה״כ ק״מ</span><span class="value">${fmtNum(totals.km)}</span></div>
+      <div class="box"><span class="label">סה״כ תשלום נסיעות לפי ק״מ</span><span class="value">₪${fmt(totals.kmPay)}</span></div>
+      <div class="box"><span class="label">סה״כ תחבורה ציבורית</span><span class="value">₪${fmt(totals.publicTransport)}</span></div>
+      <div class="box"><span class="label">סה״כ הוצאות</span><span class="value">₪${fmt(totals.expenses)}</span></div>
+      <div class="box box--total"><span class="label">סה״כ החזרים לכל העובדים</span><span class="value">₪${fmt(totals.payable)}</span></div>
+    </div></section>
+  </section>`;
+}
+
 async function openAllEmployeesMonthlyReportsPdf(rows, monthValue) {
-  const printableRows = (rows || []).filter((row) => String(row.reportId || row.report?.id || '').trim());
+  const printableRows = (rows || []).filter((row) => String(row.reportId || row.report?.id || '').trim() && isSalaryApprovedReport(row.report || { status: row.manageStatus }));
   if (!printableRows.length) {
-    showToast('אין דוחות עובדים להדפסה עבור הסינון הנוכחי', 'info');
+    showToast('אין דוחות שאושרו לשכר / אושרו סופית להדפסה עבור הסינון הנוכחי', 'info');
     return;
   }
   const sections = [];
+  const coverItems = [];
   for (const row of printableRows) {
     const reportId = String(row.reportId || row.report?.id || '').trim();
     const report = await loadReportRow(reportId, { force: true });
+    if (!isSalaryApprovedReport(report)) continue;
     const [profile, bundle] = await Promise.all([
       loadEmployeeProfile(report.employee_id, { force: true }),
       loadReportBundle(reportId, { force: true })
     ]);
+    const { kmTravel, publicTransport } = splitTravelEntries(bundle.travel || []);
+    const totalKmTravelKm = sumTravelKm(kmTravel);
+    const totalKmTravel = sumTravelAmount(kmTravel);
+    const totalPublicTransport = sumTravelAmount(publicTransport);
+    const totalExpenses = (bundle.expenses || []).reduce((sum, expense) => sum + Number(expense.amount || 0), 0);
+    const totalPayable = totalKmTravel + totalPublicTransport + totalExpenses;
+    coverItems.push({
+      employeeName: profile?.full_name || profile?.email || '—',
+      statusLabel: STATUS_LABELS[report.status] || report.status || '—',
+      totalKmTravelKm,
+      totalKmTravel,
+      totalPublicTransport,
+      totalExpenses,
+      totalPayable
+    });
     sections.push(buildPersonalReportPrintSection({ report, profile, ...bundle, forcedStatus: STATUS_LABELS[report.status] || report.status || '' }));
   }
-  const title = `דוח מסכם לכל העובדים - ${monthValue}`;
+  if (!sections.length) {
+    showToast('אין דוחות שאושרו לשכר / אושרו סופית להדפסה עבור הסינון הנוכחי', 'info');
+    return;
+  }
+  const generatedAt = new Date().toLocaleString('he-IL');
+  const title = `דוח מסכם חודשי לשכר - ${monthValue}`;
   const html = `<!doctype html><html lang="he" dir="rtl"><head><meta charset="utf-8"><title>${escapeHtml(title)}</title>
     <style>${personalReportPrintStyles()}</style></head><body>
     <div class="print-actions"><button onclick="window.print()">הדפסה / שמירה כ-PDF</button></div>
-    <h1>דוח מסכם לכל העובדים — ${escapeHtml(monthValue)}</h1>
+    ${buildAllEmployeesCoverPage({ monthValue, generatedAt, items: coverItems })}
     ${sections.join('')}
     <script>window.addEventListener('load',()=>setTimeout(()=>window.print(),250));</script>
     </body></html>`;
