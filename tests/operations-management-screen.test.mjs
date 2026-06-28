@@ -9,6 +9,8 @@ import {
   getActivityPrimaryDate,
   getActivitySchoolNames,
   getActivityTimeRange,
+  getActivityAuthorityName,
+  KIRYAT_MOSHE_REHOVOT_AUTHORITY,
   isSummerOperationsException,
   buildWorkshopStockMapFromLists,
   buildWorkshopQuantityMetrics,
@@ -118,6 +120,33 @@ test('getActivityTimeRange formats HH:MM:SS to HH:MM for display and print', () 
   assert.equal(getActivityTimeRange({ start_time: '09:00', end_time: '12:30' }), '09:00-12:30');
   assert.equal(getActivityTimeRange({ start_time: '08:15:00' }), '08:15');
   assert.equal(getActivityTimeRange({}), '');
+});
+
+test('operations management treats Shavit as Kiryat Moshe Rehovot authority', () => {
+  const rows = [
+    { RowID: 'REH-1', status: 'פתוח', authority: 'רחובות', school: 'בית ספר אחר', activity_name: 'פעילות רחובות', start_date: '2026-03-01', instructor_name: 'דני' },
+    { RowID: 'SHAVIT-1', status: 'פתוח', authority: 'רחובות', school: 'שביט', activity_name: 'פעילות שביט', start_date: '2026-03-02', instructor_name: 'דני' }
+  ];
+
+  assert.equal(getActivityAuthorityName(rows[1]), KIRYAT_MOSHE_REHOVOT_AUTHORITY);
+
+  const rehovotState = baseState({
+    operationsManagement: { ...baseState().operationsManagement, tab: 'authorities' },
+    listFilters: { 'operations-management': { q: '', appliedQ: '', status: 'פתוח', visibleCount: 200, authority: 'רחובות' } }
+  });
+  const rehovotHtml = operationsManagementScreen.render({ rows, workshopStockMap: new Map() }, { state: rehovotState });
+  assert.match(rehovotHtml, /פעילות רחובות/);
+  assert.doesNotMatch(rehovotHtml, /פעילות שביט/);
+  assert.doesNotMatch(rehovotHtml, /שביט \|/);
+
+  const kiryatMosheState = baseState({
+    operationsManagement: { ...baseState().operationsManagement, tab: 'authorities' },
+    listFilters: { 'operations-management': { q: '', appliedQ: '', status: 'פתוח', visibleCount: 200, authority: KIRYAT_MOSHE_REHOVOT_AUTHORITY } }
+  });
+  const kiryatMosheHtml = operationsManagementScreen.render({ rows, workshopStockMap: new Map() }, { state: kiryatMosheState });
+  assert.match(kiryatMosheHtml, /פעילות שביט/);
+  assert.match(kiryatMosheHtml, /קריית משה \(רחובות\) \| 1 בתי ספר \| 1 פעילויות/);
+  assert.doesNotMatch(kiryatMosheHtml, /פעילות רחובות/);
 });
 
 test('multi-school activity names are searchable and displayed', () => {
