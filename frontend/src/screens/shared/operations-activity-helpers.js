@@ -3,6 +3,8 @@ import { isSummerActivity, normalizeActivitySeason, ACTIVITY_SEASON_SUMMER_2026,
 
 const INVALID_INSTRUCTOR_NAMES = new Set(['-', 'לא משויך', 'ללא שיוך']);
 
+export const KIRYAT_MOSHE_REHOVOT_AUTHORITY = 'קריית משה (רחובות)';
+
 export function parseLinkedSchoolsJson(row) {
   const raw = row?.linked_schools_json;
   if (Array.isArray(raw)) return raw;
@@ -103,13 +105,28 @@ export function getActivityScheduleDates(activity) {
   return primary ? [primary] : [];
 }
 
+function normalizeOpsAuthorityText(value) {
+  return String(value || '')
+    .trim()
+    .replace(/[״"]/g, '')
+    .replace(/[׳']/g, '')
+    .replace(/\s+/g, ' ')
+    .toLowerCase();
+}
+
+function isShavitSchool(activity) {
+  return getActivitySchoolNames(activity).some((name) => normalizeOpsAuthorityText(name) === normalizeOpsAuthorityText('שביט'));
+}
+
 export function getActivityAuthorityName(activity) {
-  return String(
+  const authority = String(
     activity?.authority_name ||
     activity?.legacy_authority ||
     activity?.authority ||
     ''
-  ).trim() || 'לא משויך';
+  ).trim();
+  if (isShavitSchool(activity)) return KIRYAT_MOSHE_REHOVOT_AUTHORITY;
+  return authority || 'לא משויך';
 }
 
 export function getActivityDistrict(activity) {
