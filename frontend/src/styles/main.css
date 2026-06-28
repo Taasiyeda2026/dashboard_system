@@ -19247,3 +19247,118 @@ details[open] > .ds-fin-acc__summary::before { transform: rotate(90deg); }
 .instr-peer-card+ .instr-peer-card{margin-inline-start:10px;padding-inline-start:10px;border-inline-start:1px solid #d6eef5}
 .instr-peer-card>strong{font-size:12px;color:#102a43}
 .instr-peer-card>small{font-size:11px;color:#5b6b7a;font-weight:700}
+
+/* Personal reports — focused summary/travel overflow fixes */
+.pr-report-detail-body *,
+.pr-report-form * {
+  box-sizing: border-box;
+}
+.pr-summary-bar,
+.pr-meta-grid,
+.pr-report-identity,
+.pr-my-report-summary,
+.pr-my-report-card__meta {
+  align-items: stretch;
+}
+.pr-sum-item,
+.pr-id-item,
+.pr-meta-item,
+.pr-my-report-summary__item,
+.pr-my-report-card__meta-item,
+.pr-section-metric {
+  min-width: 0;
+  min-height: 58px;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  text-align: center;
+  padding: 10px 12px;
+  overflow: hidden;
+  overflow-wrap: anywhere;
+  word-break: normal;
+}
+.pr-sum-label,
+.pr-sum-value,
+.pr-id-label,
+.pr-id-item strong,
+.pr-meta-label,
+.pr-meta-item strong,
+.pr-my-report-summary__label,
+.pr-my-report-summary__value,
+.pr-section-metric__label,
+.pr-section-metric__value {
+  max-width: 100%;
+  white-space: normal;
+  line-height: 1.3;
+  overflow-wrap: anywhere;
+}
+.pr-sum-value,
+.pr-id-item strong,
+.pr-meta-item strong,
+.pr-my-report-summary__value,
+.pr-section-metric__value {
+  font-size: clamp(0.82rem, 1.8vw, 0.95rem);
+}
+.pr-travel-split {
+  display: grid;
+  gap: 14px;
+  padding-bottom: 2px;
+}
+.pr-travel-group {
+  min-width: 0;
+}
+.pr-travel-group__head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 10px;
+  flex-wrap: wrap;
+  margin: 0 14px 8px;
+  padding: 8px 10px;
+  border: 1px solid #dce4ed;
+  border-radius: 10px;
+  background: #f8fafc;
+}
+.pr-travel-group__head h3,
+.pr-admin-subtitle {
+  margin: 0;
+  color: #0f172a;
+  font-size: 0.9rem;
+  font-weight: 850;
+}
+.pr-travel-group__head span {
+  color: #334155;
+  font-size: 0.8rem;
+  font-weight: 800;
+  overflow-wrap: anywhere;
+}
+.pr-travel-group .pr-entries-table-wrap {
+  margin-top: 0;
+}
+.pr-admin-subtitle {
+  margin: 10px 0 6px;
+}
+.pr-report-detail-body .pr-data-table th,
+.pr-report-detail-body .pr-data-table td,
+.pr-report-form .pr-data-table th,
+.pr-report-form .pr-data-table td {
+  overflow-wrap: anywhere;
+  word-break: normal;
+  vertical-align: middle;
+}
+@media (max-width: 760px) {
+  .pr-sum-item,
+  .pr-id-item,
+  .pr-meta-item,
+  .pr-my-report-summary__item,
+  .pr-my-report-card__meta-item,
+  .pr-section-metric {
+    min-height: 54px;
+    padding: 9px 10px;
+  }
+  .pr-travel-group__head {
+    align-items: stretch;
+    flex-direction: column;
+  }
+}

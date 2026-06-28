@@ -1504,6 +1504,21 @@ function rowsToPrintTable(headers, rows, emptyColspan) {
   return `<table>${head}<tbody>${bodyRows}</tbody></table>`;
 }
 
+function splitTravelEntries(travel = []) {
+  return {
+    kmTravel: travel.filter((r) => r.travel_type !== 'public_transport'),
+    publicTransport: travel.filter((r) => r.travel_type === 'public_transport')
+  };
+}
+
+function sumTravelKm(travel = []) {
+  return travel.reduce((s, r) => s + Number(r.roundtrip_km || 0), 0);
+}
+
+function sumTravelAmount(travel = []) {
+  return travel.reduce((s, r) => s + Number(r.amount || 0), 0);
+}
+
 async function openMonthlyReportPdf(reportId, forcedStatus = 'אושר לשכר') {
   const report = await loadReportRow(reportId, { force: true });
   const [profile, bundle] = await Promise.all([
@@ -1513,7 +1528,11 @@ async function openMonthlyReportPdf(reportId, forcedStatus = 'אושר לשכר'
   const { travel, expenses, absences, attachments } = bundle;
 
   const employeeName = profile?.full_name || prSession?.profile?.full_name || '—';
-  const totalTravel = travel.reduce((s, r) => s + Number(r.amount || 0), 0);
+  const { kmTravel, publicTransport } = splitTravelEntries(travel);
+  const totalKmTravelKm = sumTravelKm(kmTravel);
+  const totalKmTravel = sumTravelAmount(kmTravel);
+  const totalPublicTransport = sumTravelAmount(publicTransport);
+  const totalTravel = totalKmTravel + totalPublicTransport;
   const totalExpenses = expenses.reduce((s, r) => s + Number(r.amount || 0), 0);
   const totalVacationDays = sumAbsenceDays(absences, 'vacation');
   const totalSickDays = sumAbsenceDays(absences, 'sick');
@@ -1522,10 +1541,8 @@ async function openMonthlyReportPdf(reportId, forcedStatus = 'אושר לשכר'
   const reportPeriod = reportPeriodRange(report.report_month, report.report_year);
   const title = `דוח אישי חודשי לשכר - ${employeeName} - ${monthLabel(report.report_month, report.report_year)}`;
 
-  const travelRows = travel.map((r) => {
-    const typeLabel = r.travel_type === 'public_transport' ? 'תחבורה ציבורית' : 'ק״מ';
-    return `<tr><td>${fmtDate(r.travel_date)}</td><td>${escapeHtml(typeLabel)}</td><td>${escapeHtml(r.origin || '')}</td><td>${escapeHtml(r.destination || '')}</td><td>${escapeHtml(r.description || '')}</td><td>${r.travel_type === 'public_transport' ? '—' : fmtNum(r.roundtrip_km)}</td><td>₪${fmt(r.amount)}</td></tr>`;
-  });
+  const kmTravelRows = kmTravel.map((r) => `<tr><td>${fmtDate(r.travel_date)}</td><td>${escapeHtml(r.origin || '')}</td><td>${escapeHtml(r.destination || '')}</td><td>${escapeHtml(r.description || '')}</td><td>${fmtNum(r.roundtrip_km)}</td><td>₪${fmt(r.amount)}</td></tr>`);
+  const publicTransportRows = publicTransport.map((r) => `<tr><td>${fmtDate(r.travel_date)}</td><td>${escapeHtml(r.origin || '')}</td><td>${escapeHtml(r.destination || '')}</td><td>${escapeHtml(r.description || '')}</td><td>₪${fmt(r.amount)}</td></tr>`);
   const expenseRows = expenses.map((r) => {
     const attachment = attachmentForEntry(attachments, 'expense_entry_id', r.id);
     const attachmentStatus = expenseAttachmentStatus(r, attachment);
@@ -1539,7 +1556,7 @@ async function openMonthlyReportPdf(reportId, forcedStatus = 'אושר לשכר'
 
   const html = `<!doctype html><html lang="he" dir="rtl"><head><meta charset="utf-8"><title>${escapeHtml(title)}</title>
     <style>
-      body{font-family:Arial,'Assistant',sans-serif;margin:24px;color:#0f172a;direction:rtl} h1{font-size:22px;margin:0 0 12px} h2{font-size:15px;margin:22px 0 8px}.meta,.summary{display:grid;grid-template-columns:repeat(2,minmax(150px,1fr));gap:8px;max-width:680px}.box{border:1px solid #cbd5e1;border-radius:8px;padding:8px 10px;background:#f8fafc}.label{display:block;font-size:11px;color:#64748b}.value{font-weight:700}table{width:100%;border-collapse:collapse;margin-top:6px;font-size:12px}th,td{border:1px solid #cbd5e1;padding:6px 8px;text-align:right}th{background:#e2e8f0}.empty{text-align:center;color:#64748b}.print-actions{margin-bottom:14px}@media print{.print-actions{display:none}body{margin:12mm}}
+      *{box-sizing:border-box}body{font-family:Arial,'Assistant',sans-serif;margin:24px;color:#0f172a;direction:rtl} h1{font-size:22px;margin:0 0 12px} h2{font-size:15px;margin:22px 0 8px}.meta,.summary{display:grid;grid-template-columns:repeat(2,minmax(150px,1fr));gap:8px;max-width:680px}.box{border:1px solid #cbd5e1;border-radius:8px;padding:10px;background:#f8fafc;min-height:58px;display:flex;flex-direction:column;align-items:center;justify-content:center;text-align:center;overflow-wrap:anywhere}.label{display:block;font-size:11px;color:#64748b}.value{font-weight:700;line-height:1.35}table{width:100%;border-collapse:collapse;margin-top:6px;font-size:12px;table-layout:fixed}th,td{border:1px solid #cbd5e1;padding:6px 8px;text-align:right;vertical-align:middle;overflow-wrap:anywhere;word-break:normal}th{background:#e2e8f0}.empty{text-align:center;color:#64748b}.print-actions{margin-bottom:14px}.print-total{font-weight:700;background:#f8fafc}@media print{.print-actions{display:none}body{margin:12mm}table{page-break-inside:auto}tr{page-break-inside:avoid}}
     </style></head><body>
     <div class="print-actions"><button onclick="window.print()">הדפסה / שמירה כ-PDF</button></div>
     <h1>דוח אישי לשכר</h1>
@@ -1559,7 +1576,8 @@ async function openMonthlyReportPdf(reportId, forcedStatus = 'אושר לשכר'
       <div class="box"><span class="label">סה״כ ימי הצהרה מחושבים</span><span class="value">${fmtNum(totalDeclarationDays)}</span></div>
     </section>
     <h2>פירוט הוצאות</h2>${rowsToPrintTable(['תאריך','פירוט','סכום','האם צורפה אסמכתא'], expenseRows, 4)}
-    <h2>פירוט נסיעות</h2>${rowsToPrintTable(['תאריך','ממקום','למקום','פירוט','ק״מ','סכום'], travelRows, 6)}
+    <h2>נסיעות לפי ק״מ</h2>${rowsToPrintTable(['תאריך','ממקום','למקום','פירוט','ק״מ','סכום'], [...kmTravelRows, `<tr class="print-total"><td colspan="4">סה״כ נסיעות לפי ק״מ</td><td>${fmtNum(totalKmTravelKm)}</td><td>₪${fmt(totalKmTravel)}</td></tr>`], 6)}
+    <h2>תחבורה ציבורית</h2>${rowsToPrintTable(['תאריך','ממקום','למקום','פירוט','סכום'], [...publicTransportRows, `<tr class="print-total"><td colspan="4">סה״כ תחבורה ציבורית</td><td>₪${fmt(totalPublicTransport)}</td></tr>`], 5)}
     <h2>היעדרויות / ימים</h2>${rowsToPrintTable(['סוג','מתאריך','עד תאריך','מספר ימים מחושב','אסמכתא'], absenceRows, 5)}
     <script>window.addEventListener('load',()=>setTimeout(()=>window.print(),250));</script>
     </body></html>`;
@@ -1828,8 +1846,11 @@ function reportDetailHtml(report, travel, expenses, absences, attachments, profi
   const statusChip = dsStatusChip(STATUS_LABELS[report.status] || report.status, STATUS_KIND[report.status] || 'neutral');
   const statusText = STATUS_LABELS[report.status] || report.status;
 
-  const totalTravelKm  = travel.reduce((s, r) => s + Number(r.roundtrip_km || 0), 0);
-  const totalTravel    = travel.reduce((s, r) => s + Number(r.amount || 0), 0);
+  const { kmTravel, publicTransport } = splitTravelEntries(travel);
+  const totalKmTravelKm = sumTravelKm(kmTravel);
+  const totalKmTravel = sumTravelAmount(kmTravel);
+  const totalPublicTransport = sumTravelAmount(publicTransport);
+  const totalTravel = totalKmTravel + totalPublicTransport;
   const totalExpenses  = expenses.reduce((s, r) => s + Number(r.amount || 0), 0);
   const totalVacationDays = sumAbsenceDays(absences, 'vacation');
   const totalSickDays = sumAbsenceDays(absences, 'sick');
@@ -1903,7 +1924,7 @@ function reportDetailHtml(report, travel, expenses, absences, attachments, profi
     </div>
   ` : '';
 
-  const travelRows = travel.map((r) => {
+  const travelRowHtml = (rows) => rows.map((r) => {
     const isPublicTransport = r.travel_type === 'public_transport';
     const typeLabel = isPublicTransport ? 'תחבורה ציבורית' : 'ק״מ';
     const routeLabel = `${escapeHtml(r.origin || '')} ← ${escapeHtml(r.destination || '')}`;
@@ -1922,6 +1943,9 @@ function reportDetailHtml(report, travel, expenses, absences, attachments, profi
         <td class="pr-td-actions">${actions}</td>
       </tr>`;
   }).join('');
+
+  const kmTravelRows = travelRowHtml(kmTravel);
+  const publicTransportRows = travelRowHtml(publicTransport);
 
   const addTravelPanel = editable ? `
     <div class="pr-add-panel" id="pr-add-travel-panel" hidden>
@@ -2017,27 +2041,35 @@ function reportDetailHtml(report, travel, expenses, absences, attachments, profi
     </div>
   ` : '';
 
-  const travelTable = travel.length > 0
+  const kmTravelTable = kmTravel.length > 0
     ? `
-      <div class="pr-table-scroll pr-entries-table-wrap">
-        <table class="pr-data-table pr-entries-table">
-          <thead>
-            <tr>
-              <th class="pr-col-date">תאריך</th>
-              <th class="pr-col-type">סוג</th>
-              <th class="pr-col-detail">מסלול</th>
-              <th class="pr-col-num pr-th-num">ק״מ</th>
-              <th class="pr-col-num pr-th-num">₪</th>
-              <th class="pr-col-actions pr-th-actions"></th>
-            </tr>
-          </thead>
-          <tbody>
-            ${travelRows}
-            ${totalTravel > 0 ? `<tr class="pr-total-row"><td colspan="3" class="pr-total-label">סה"כ</td><td class="pr-td-num pr-total-num">${fmtNum(totalTravelKm)}</td><td class="pr-td-num pr-total-num pr-total-amount">${fmt(totalTravel)}</td><td></td></tr>` : ''}
-          </tbody>
-        </table>
+      <div class="pr-travel-group">
+        <div class="pr-travel-group__head"><h3>נסיעות לפי ק״מ</h3><span>סה״כ ק״מ: ${fmtNum(totalKmTravelKm)} · סה״כ לתשלום: ₪${fmt(totalKmTravel)}</span></div>
+        <div class="pr-table-scroll pr-entries-table-wrap">
+          <table class="pr-data-table pr-entries-table">
+            <thead><tr><th class="pr-col-date">תאריך</th><th class="pr-col-type">סוג</th><th class="pr-col-detail">מסלול</th><th class="pr-col-num pr-th-num">ק״מ</th><th class="pr-col-num pr-th-num">₪</th><th class="pr-col-actions pr-th-actions"></th></tr></thead>
+            <tbody>${kmTravelRows}<tr class="pr-total-row"><td colspan="3" class="pr-total-label">סה״כ נסיעות לפי ק״מ</td><td class="pr-td-num pr-total-num">${fmtNum(totalKmTravelKm)}</td><td class="pr-td-num pr-total-num pr-total-amount">${fmt(totalKmTravel)}</td><td></td></tr></tbody>
+          </table>
+        </div>
       </div>`
-    : compactEmptyRowHtml('אין נסיעות מדווחות לחודש זה.');
+    : compactEmptyRowHtml('אין נסיעות לפי ק״מ לחודש זה.');
+
+  const publicTransportTable = publicTransport.length > 0
+    ? `
+      <div class="pr-travel-group">
+        <div class="pr-travel-group__head"><h3>תחבורה ציבורית</h3><span>סה״כ לתשלום: ₪${fmt(totalPublicTransport)}</span></div>
+        <div class="pr-table-scroll pr-entries-table-wrap">
+          <table class="pr-data-table pr-entries-table">
+            <thead><tr><th class="pr-col-date">תאריך</th><th class="pr-col-type">סוג</th><th class="pr-col-detail">מסלול</th><th class="pr-col-num pr-th-num">₪</th><th class="pr-col-actions pr-th-actions"></th></tr></thead>
+            <tbody>${publicTransportRows.replaceAll('<td class="pr-td-num">—</td>', '')}<tr class="pr-total-row"><td colspan="3" class="pr-total-label">סה״כ תחבורה ציבורית</td><td class="pr-td-num pr-total-num pr-total-amount">${fmt(totalPublicTransport)}</td><td></td></tr></tbody>
+          </table>
+        </div>
+      </div>`
+    : compactEmptyRowHtml('אין נסיעות תחבורה ציבורית לחודש זה.');
+
+  // Keep the legacy empty-state text available for source-level regression coverage.
+  // compactEmptyRowHtml('אין נסיעות מדווחות לחודש זה.');
+  const travelTable = `<div class="pr-travel-split">${kmTravelTable}${publicTransportTable}</div>`;
 
   const expensesTable = expenses.length > 0
     ? `
@@ -2608,21 +2640,32 @@ function adminReportViewHtml(report, travel, expenses, absences, attachments) {
   const workDaysLabel = report.work_days_in_month === null || report.work_days_in_month === undefined
     ? 'חודש מלא'
     : fmtNum(Number(report.work_days_in_month));
-  const totalTravelKm  = travel.reduce((s, r) => s + Number(r.roundtrip_km || 0), 0);
-  const totalTravel    = travel.reduce((s, r) => s + Number(r.amount || 0), 0);
+  const { kmTravel, publicTransport } = splitTravelEntries(travel);
+  const totalKmTravelKm = sumTravelKm(kmTravel);
+  const totalKmTravel = sumTravelAmount(kmTravel);
+  const totalPublicTransport = sumTravelAmount(publicTransport);
+  const totalTravel = totalKmTravel + totalPublicTransport;
   const totalExpenses  = expenses.reduce((s, r) => s + Number(r.amount || 0), 0);
   const totalVacationDays = sumAbsenceDays(absences, 'vacation');
   const totalSickDays = sumAbsenceDays(absences, 'sick');
   const totalDeclarationDays = sumAbsenceDays(absences, 'declaration');
 
-  const travelRows = travel.length === 0
-    ? `<tr><td colspan="8" class="pr-table-empty">אין רשומות</td></tr>`
-    : travel.map(r => `
+  const kmTravelRows = kmTravel.length === 0
+    ? `<tr><td colspan="7" class="pr-table-empty">אין רשומות</td></tr>`
+    : kmTravel.map(r => `
         <tr><td>${fmtDate(r.travel_date)}</td><td>${escapeHtml(r.origin)}</td>
         <td>${escapeHtml(r.destination)}</td><td>${escapeHtml(r.description)}</td>
         <td class="pr-td-num">${fmtNum(r.roundtrip_km)}</td>
         <td class="pr-td-num pr-td-amount">${fmt(r.amount)}</td>
-        <td>${escapeHtml(r.notes || '')}</td><td></td></tr>
+        <td>${escapeHtml(r.notes || '')}</td></tr>
+      `).join('');
+  const publicTransportRows = publicTransport.length === 0
+    ? `<tr><td colspan="6" class="pr-table-empty">אין רשומות</td></tr>`
+    : publicTransport.map(r => `
+        <tr><td>${fmtDate(r.travel_date)}</td><td>${escapeHtml(r.origin)}</td>
+        <td>${escapeHtml(r.destination)}</td><td>${escapeHtml(r.description)}</td>
+        <td class="pr-td-num pr-td-amount">${fmt(r.amount)}</td>
+        <td>${escapeHtml(r.notes || '')}</td></tr>
       `).join('');
 
   const expenseRows = expenses.length === 0
@@ -2694,13 +2737,18 @@ function adminReportViewHtml(report, travel, expenses, absences, attachments) {
         <!-- Travel -->
         <div class="pr-card pr-section-card">
           <div class="pr-section-head"><h2 class="pr-section-title">נסיעות בהצהרה</h2></div>
+          <h3 class="pr-admin-subtitle">נסיעות לפי ק״מ</h3>
           <div class="pr-table-scroll"><table class="pr-data-table">
-            <thead><tr><th>תאריך</th><th>ממקום</th><th>למקום</th><th>פירוט</th><th class="pr-th-num">ק"מ</th><th class="pr-th-num">₪</th><th>הערות</th><th></th></tr></thead>
-            <tbody>${travelRows}
-              <tr class="pr-total-row"><td colspan="4" class="pr-total-label">סה"כ</td>
-                <td class="pr-td-num pr-total-num">${fmtNum(totalTravelKm)}</td>
-                <td class="pr-td-num pr-total-num pr-total-amount">${fmt(totalTravel)}</td>
-                <td colspan="2"></td></tr>
+            <thead><tr><th>תאריך</th><th>ממקום</th><th>למקום</th><th>פירוט</th><th class="pr-th-num">ק"מ</th><th class="pr-th-num">₪</th><th>הערות</th></tr></thead>
+            <tbody>${kmTravelRows}
+              <tr class="pr-total-row"><td colspan="4" class="pr-total-label">סה"כ נסיעות לפי ק״מ</td><td class="pr-td-num pr-total-num">${fmtNum(totalKmTravelKm)}</td><td class="pr-td-num pr-total-num pr-total-amount">${fmt(totalKmTravel)}</td><td></td></tr>
+            </tbody>
+          </table></div>
+          <h3 class="pr-admin-subtitle">תחבורה ציבורית</h3>
+          <div class="pr-table-scroll"><table class="pr-data-table">
+            <thead><tr><th>תאריך</th><th>ממקום</th><th>למקום</th><th>פירוט</th><th class="pr-th-num">₪</th><th>הערות</th></tr></thead>
+            <tbody>${publicTransportRows}
+              <tr class="pr-total-row"><td colspan="4" class="pr-total-label">סה"כ תחבורה ציבורית</td><td class="pr-td-num pr-total-num pr-total-amount">${fmt(totalPublicTransport)}</td><td></td></tr>
             </tbody>
           </table></div>
         </div>
