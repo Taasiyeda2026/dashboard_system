@@ -19405,12 +19405,19 @@ details[open] > .ds-fin-acc__summary::before { transform: rotate(90deg); }
   font-weight: 700;
   color: #1e293b;
 }
-.pr-screen--management .pr-admin-subtitle {
+.pr-screen--management .pr-admin-subtitle,
+.pr-report-form .pr-admin-subtitle {
   margin: 12px 16px 8px;
   padding: 8px 10px;
   border: 1px solid #dce4ed;
   border-radius: 10px;
   background: #f8fafc;
+  display: flex;
+  align-items: center;
+  min-height: 38px;
+  direction: rtl;
+  text-align: right;
+  line-height: 1.35;
 }
 .pr-admin-filters--compact {
   grid-template-columns: minmax(160px, 190px) minmax(160px, 190px) minmax(360px, 1fr);
