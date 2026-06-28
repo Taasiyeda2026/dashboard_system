@@ -46,5 +46,5 @@ if (!resolvedUrl) {
 export const config = {
   apiUrl: resolvedUrl,
   DIAGNOSTICS_UI_ENABLED: false,
-  HOTFIX_VERSION: 'guidelines-card-centering-20260627-v1'
+  HOTFIX_VERSION: 'instructor-peers-calendar-cache-20260628-v1'
 };
