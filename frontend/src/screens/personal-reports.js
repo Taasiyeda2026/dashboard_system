@@ -1542,7 +1542,6 @@ function buildPersonalReportPrintSection({ report, profile, travel = [], expense
   const reportPeriod = reportPeriodRange(report.report_month, report.report_year);
   const workDaysLabel = report.work_days_in_month === null || report.work_days_in_month === undefined ? 'חודש מלא' : fmtNum(Number(report.work_days_in_month));
   const statusLabel = forcedStatus || STATUS_LABELS[report.status] || report.status || '—';
-  const generatedAt = new Date().toLocaleString('he-IL');
   const kmTravelRows = kmTravel.map((r) => `<tr><td>${fmtDate(r.travel_date)}</td><td>${escapeHtml(r.origin || '')}</td><td>${escapeHtml(r.destination || '')}</td><td>${escapeHtml(r.description || '')}</td><td class="num">${fmtNum(r.roundtrip_km)}</td><td class="num">₪${fmt(r.amount)}</td></tr>`);
   const publicTransportRows = publicTransport.map((r) => `<tr><td>${fmtDate(r.travel_date)}</td><td>${escapeHtml(r.origin || '')}</td><td>${escapeHtml(r.destination || '')}</td><td>${escapeHtml(r.description || '')}</td><td class="num">₪${fmt(r.amount)}</td></tr>`);
   const expenseRows = expenses.map((r) => {
@@ -1556,14 +1555,11 @@ function buildPersonalReportPrintSection({ report, profile, travel = [], expense
     const attachmentStatus = absenceAttachmentStatus(r, attachment);
     return `<tr><td>${escapeHtml(absenceLabel(r.absence_type))}</td><td>${fmtDate(r.start_date)}</td><td>${fmtDate(r.end_date)}</td><td class="num">${fmtNum(calculatedAbsenceDays(r))}</td><td>${escapeHtml(attachment?.file_name || attachmentStatus.label)}</td><td>${escapeHtml(r.notes || '')}</td></tr>`;
   });
-  const attachmentRows = attachments.map((a) => {
-    const linked = a.expense_entry_id ? 'הוצאה' : a.absence_entry_id ? 'היעדרות' : a.travel_entry_id ? 'נסיעה' : 'כללי';
-    return `<tr><td>${escapeHtml(a.file_name || '—')}</td><td>${escapeHtml(a.mime_type || a.file_type || '—')}</td><td>${escapeHtml(linked)}</td><td>${formatDateTime(a.uploaded_at)}</td></tr>`;
-  });
   const employeeNotes = String(report.employee_notes || report.notes || '').trim();
   const adminNotes = String(report.finance_notes || report.manager_notes || report.correction_note || '').trim();
   const signatureName = String(report.signature_full_name || employeeName || '').trim() || '—';
   const signatureDate = formatDateTime(report.signature_confirmed_at || report.submitted_at);
+  const authorizedApprovalDate = formatDateTime(report.authorized_approved_at || report.approved_at || report.paid_at);
 
   return `<section class="employee-page">
     <h1>דוח אישי לשכר — ${escapeHtml(employeeName)}</h1>
@@ -1572,35 +1568,24 @@ function buildPersonalReportPrintSection({ report, profile, travel = [], expense
       <div class="box"><span class="label">חודש הדיווח</span><span class="value">${escapeHtml(monthLabel(report.report_month, report.report_year))}</span></div>
       <div class="box"><span class="label">תקופת דיווח</span><span class="value">${escapeHtml(reportPeriod.label)}</span></div>
       <div class="box"><span class="label">סטטוס</span><span class="value">${escapeHtml(statusLabel)}</span></div>
-      <div class="box"><span class="label">תאריך הגשה</span><span class="value">${formatDateTime(report.submitted_at)}</span></div>
-      <div class="box"><span class="label">תאריך אישור / אישור לשכר</span><span class="value">${formatDateTime(report.approved_at || report.paid_at)}</span></div>
-      <div class="box"><span class="label">תאריך הפקה</span><span class="value">${escapeHtml(generatedAt)}</span></div>
     </section>
-    <section class="section-card"><h2>סיכום מה שאושר</h2><section class="summary">
-      <div class="box"><span class="label">ימי עבודה / שכר</span><span class="value">${escapeHtml(workDaysLabel)}</span></div>
-      <div class="box"><span class="label">ימי חופש</span><span class="value">${fmtNum(totalVacationDays)}</span></div>
-      <div class="box"><span class="label">ימי מחלה</span><span class="value">${fmtNum(totalSickDays)}</span></div>
-      <div class="box"><span class="label">ימי הצהרה / היעדרות</span><span class="value">${fmtNum(totalDeclarationDays)} / ${fmtNum(totalAbsenceDays)}</span></div>
-      <div class="box"><span class="label">סה״כ נסיעות לפי ק״מ</span><span class="value">₪${fmt(totalKmTravel)}</span></div>
-      <div class="box"><span class="label">סה״כ ק״מ</span><span class="value">${fmtNum(totalKmTravelKm)}</span></div>
-      <div class="box"><span class="label">סה״כ תחבורה ציבורית</span><span class="value">₪${fmt(totalPublicTransport)}</span></div>
-      <div class="box"><span class="label">סה״כ הוצאות</span><span class="value">₪${fmt(totalExpenses)}</span></div>
-      <div class="box box--total"><span class="label">סה״כ החזר / לתשלום</span><span class="value">₪${fmt(totalPayable)}</span></div>
-    </section></section>
     <section class="section-card"><h2>נסיעות לפי ק״מ</h2>${rowsToPrintTable(['תאריך','מוצא','יעד','פירוט','ק״מ','סכום'], [...kmTravelRows, `<tr class="print-total"><td colspan="4">סה״כ נסיעות לפי ק״מ</td><td class="num">${fmtNum(totalKmTravelKm)}</td><td class="num">₪${fmt(totalKmTravel)}</td></tr>`], 6, 'print-table--travel', PRINT_KM_TRAVEL_COLGROUP)}</section>
     <section class="section-card"><h2>תחבורה ציבורית</h2>${rowsToPrintTable(['תאריך','מוצא','יעד','פירוט','סכום'], [...publicTransportRows, `<tr class="print-total"><td colspan="4">סה״כ תחבורה ציבורית</td><td class="num">₪${fmt(totalPublicTransport)}</td></tr>`], 5, 'print-table--public', PRINT_PUBLIC_TRANSPORT_COLGROUP)}</section>
     <section class="section-card"><h2>הוצאות</h2>${rowsToPrintTable(['תאריך','פירוט','סוג','סכום','אסמכתא / קובץ'], expenseRows, 5)}</section>
     <section class="section-card"><h2>היעדרויות / ימים</h2>${rowsToPrintTable(['סוג','מתאריך','עד תאריך','ימים','אסמכתא','הערות'], absenceRows, 6)}</section>
-    <section class="section-card"><h2>קבצים מצורפים</h2>${rowsToPrintTable(['שם קובץ','סוג','שייך לדיווח','תאריך העלאה'], attachmentRows, 4, 'attachment-table')}</section>
     <section class="section-card"><h2>הערות</h2><div class="notes-box"><strong>הערות עובד:</strong> ${escapeHtml(employeeNotes || 'אין')}<br><strong>הערות מנהל / כספים:</strong> ${escapeHtml(adminNotes || 'אין')}</div></section>
-    <section class="section-card financial-summary"><h2>סיכום כולל לתשלום</h2><section class="summary">
+    <section class="section-card financial-summary"><h2>סיכום מאושר לתשלום</h2><section class="summary">
       <div class="box"><span class="label">סה״כ ק״מ</span><span class="value">${fmtNum(totalKmTravelKm)}</span></div>
       <div class="box"><span class="label">סה״כ תשלום עבור ק״מ</span><span class="value">₪${fmt(totalKmTravel)}</span></div>
       <div class="box"><span class="label">סה״כ תחבורה ציבורית</span><span class="value">₪${fmt(totalPublicTransport)}</span></div>
       <div class="box"><span class="label">סה״כ החזר הוצאות</span><span class="value">₪${fmt(totalExpenses)}</span></div>
+      <div class="box"><span class="label">ימי עבודה / שכר</span><span class="value">${escapeHtml(workDaysLabel)}</span></div>
+      <div class="box"><span class="label">ימי חופש</span><span class="value">${fmtNum(totalVacationDays)}</span></div>
+      <div class="box"><span class="label">ימי מחלה</span><span class="value">${fmtNum(totalSickDays)}</span></div>
+      <div class="box"><span class="label">ימי הצהרה / היעדרות</span><span class="value">${fmtNum(totalDeclarationDays)} / ${fmtNum(totalAbsenceDays)}</span></div>
       <div class="box box--total"><span class="label">סה״כ החזרים לכל הדוח</span><span class="value">₪${fmt(totalPayable)}</span></div>
     </section><p class="summary-note">הסיכום משתמש באותם נתוני נסיעות, תחבורה ציבורית והוצאות של הדוח האישי.</p></section>
-    <section class="section-card"><h2>אישורים</h2><div class="signature-box signature-grid"><div class="signature-block"><p class="signature-text">אישור העובד:</p><p class="signature-text">אני מאשר/ת כי הפרטים שדווחו על ידי נכונים ומלאים.</p><div>שם העובד שחתם: <strong>${escapeHtml(signatureName)}</strong></div><div>תאריך ושעת חתימה: <strong>${escapeHtml(signatureDate)}</strong></div></div><div class="signature-block"><p class="signature-text">אישור גורם מוסמך:</p><p class="signature-text">אני מאשר כי בדקתי את הנתונים והדוחות וכי הם מאושרים להמשך טיפול שכר / החזרים.</p><div>שם הגורם המאשר: <strong>עידן נחום</strong></div><div>תפקיד: <strong>סמנכ״ל כספים ותפעול</strong></div></div></div></section>
+    <section class="section-card"><h2>אישורים</h2><div class="signature-box signature-grid"><div class="signature-block"><p class="signature-text">אישור העובד:</p><p class="signature-text">אני מאשר/ת כי הפרטים שדווחו על ידי נכונים ומלאים.</p><div>שם העובד שחתם: <strong>${escapeHtml(signatureName)}</strong></div><div>תאריך ושעת חתימה: <strong>${escapeHtml(signatureDate)}</strong></div></div><div class="signature-block"><p class="signature-text">אישור גורם מוסמך:</p><p class="signature-text">אני מאשר כי בדקתי את הנתונים והדוחות וכי הם מאושרים להמשך טיפול שכר / החזרים.</p><div>שם הגורם המאשר: <strong>עידן נחום</strong></div><div>תפקיד: <strong>סמנכ״ל כספים ותפעול</strong></div><div>תאריך ושעת אישור: <strong>${escapeHtml(authorizedApprovalDate)}</strong></div></div></div></section>
   </section>`;
 }
 
