@@ -1496,17 +1496,22 @@ function downloadAdminReportsCsv(rows, monthValue) {
 }
 
 
-function rowsToPrintTable(headers, rows, emptyColspan) {
+function rowsToPrintTable(headers, rows, emptyColspan, tableClass = '', colgroup = '') {
+  const classAttr = tableClass ? ` class="${escapeHtml(tableClass)}"` : '';
   const head = `<thead><tr>${headers.map((h) => `<th>${escapeHtml(h)}</th>`).join('')}</tr></thead>`;
   const bodyRows = rows.length
     ? rows.join('')
     : `<tr><td colspan="${emptyColspan}" class="empty">אין רשומות</td></tr>`;
-  return `<table>${head}<tbody>${bodyRows}</tbody></table>`;
+  return `<table${classAttr}>${colgroup}${head}<tbody>${bodyRows}</tbody></table>`;
 }
+
+const PRINT_KM_TRAVEL_COLGROUP = '<colgroup><col class="print-col-date"><col class="print-col-place"><col class="print-col-place"><col class="print-col-detail"><col class="print-col-km"><col class="print-col-money"></colgroup>';
+const PRINT_PUBLIC_TRANSPORT_COLGROUP = '<colgroup><col class="print-col-date"><col class="print-col-place"><col class="print-col-place"><col class="print-col-detail"><col class="print-col-money"></colgroup>';
+
 
 function personalReportPrintStyles() {
   return `
-    *{box-sizing:border-box}body{font-family:Arial,'Assistant',sans-serif;margin:24px;color:#0f172a;direction:rtl;background:#fff}h1{font-size:22px;margin:0 0 12px}h2{font-size:15px;margin:22px 0 8px}h3{font-size:13px;margin:14px 0 6px;color:#1e293b}.meta,.summary{display:grid;grid-template-columns:repeat(2,minmax(150px,1fr));gap:8px;max-width:760px}.box{border:1px solid #cbd5e1;border-radius:8px;padding:10px;background:#f8fafc;min-height:58px;display:flex;flex-direction:column;align-items:center;justify-content:center;text-align:center;overflow-wrap:anywhere}.box--total{background:#ecfeff;border-color:#67e8f9}.label{display:block;font-size:11px;color:#64748b}.value{font-weight:700;line-height:1.35}.employee-page{break-after:page;page-break-after:always;padding-bottom:10mm}.employee-page:last-child{break-after:auto;page-break-after:auto}.section-card{border:1px solid #e2e8f0;border-radius:10px;padding:10px 12px;margin-top:12px;break-inside:avoid-page;page-break-inside:avoid}.section-card h2:first-child{margin-top:0}.print-actions{margin-bottom:14px}.print-total{font-weight:700;background:#f8fafc}.financial-summary{border:2px solid #0f766e;background:#f0fdfa}.financial-summary h2{margin-top:0;color:#0f766e}.summary-note{font-size:12px;color:#475569;margin:6px 0 0}table{width:100%;border-collapse:collapse;margin-top:6px;font-size:12px;table-layout:fixed}th,td{border:1px solid #cbd5e1;padding:6px 8px;text-align:right;vertical-align:middle;overflow-wrap:anywhere;word-break:normal;max-width:0}th{background:#e2e8f0}.empty{text-align:center;color:#64748b}.num{text-align:left;direction:ltr;white-space:nowrap}.muted{color:#64748b}@media print{.print-actions{display:none}body{margin:12mm}.employee-page{min-height:260mm}table{page-break-inside:auto}tr{page-break-inside:avoid;break-inside:avoid}.section-card{break-inside:avoid-page;page-break-inside:avoid}}
+    *{box-sizing:border-box}body{font-family:Arial,'Assistant',sans-serif;margin:24px;color:#0f172a;direction:rtl;background:#fff}h1{font-size:22px;margin:0 0 12px}h2{font-size:15px;margin:22px 0 8px}h3{font-size:13px;margin:14px 0 6px;color:#1e293b}.meta,.summary{display:grid;grid-template-columns:repeat(2,minmax(150px,1fr));gap:8px;max-width:760px}.box{border:1px solid #cbd5e1;border-radius:8px;padding:10px;background:#f8fafc;min-height:58px;display:flex;flex-direction:column;align-items:center;justify-content:center;text-align:center;overflow-wrap:anywhere}.box--total{background:#ecfeff;border-color:#67e8f9}.label{display:block;font-size:11px;color:#64748b}.value{font-weight:700;line-height:1.35}.employee-page{break-after:page;page-break-after:always;padding-bottom:10mm}.employee-page:last-child{break-after:auto;page-break-after:auto}.section-card{border:1px solid #e2e8f0;border-radius:10px;padding:12px 14px;margin-top:12px;break-inside:avoid-page;page-break-inside:avoid;overflow:hidden}.section-card h2:first-child{display:block;margin:0 0 10px;padding:0;line-height:1.35;text-align:right;direction:rtl}.print-actions{margin-bottom:14px}.print-total{font-weight:700;background:#f8fafc}.financial-summary{border:2px solid #0f766e;background:#f0fdfa}.financial-summary h2{margin-top:0;color:#0f766e}.summary-note{font-size:12px;color:#475569;margin:6px 0 0}table{width:100%;border-collapse:collapse;margin-top:6px;font-size:12px;table-layout:fixed}th,td{border:1px solid #cbd5e1;padding:6px 8px;text-align:right;vertical-align:middle;overflow-wrap:anywhere;word-break:normal;max-width:0}th{background:#e2e8f0}.print-col-date{width:14%}.print-col-place{width:18%}.print-col-detail{width:30%}.print-col-km{width:10%}.print-col-money{width:10%}.print-table--public .print-col-detail{width:32%}.print-table--public .print-col-money{width:18%}.print-table--travel td:nth-child(1),.print-table--travel th:nth-child(1),.print-table--travel td:nth-child(5),.print-table--travel th:nth-child(5),.print-table--travel td:nth-child(6),.print-table--travel th:nth-child(6),.print-table--public td:nth-child(1),.print-table--public th:nth-child(1),.print-table--public td:nth-child(5),.print-table--public th:nth-child(5){white-space:nowrap;overflow-wrap:normal}.print-table--travel td:nth-child(4),.print-table--public td:nth-child(4){white-space:normal;overflow-wrap:anywhere}.empty{text-align:center;color:#64748b}.num{text-align:left;direction:ltr;white-space:nowrap}.muted{color:#64748b}@media print{.print-actions{display:none}body{margin:12mm}.employee-page{min-height:260mm}table{page-break-inside:auto}tr{page-break-inside:avoid;break-inside:avoid}.section-card{break-inside:avoid-page;page-break-inside:avoid}}
   `;
 }
 
@@ -1527,8 +1532,8 @@ function buildPersonalReportPrintSection({ report, profile, travel = [], expense
   const workDaysLabel = report.work_days_in_month === null || report.work_days_in_month === undefined ? 'חודש מלא' : fmtNum(Number(report.work_days_in_month));
   const statusLabel = forcedStatus || STATUS_LABELS[report.status] || report.status || '—';
   const generatedAt = new Date().toLocaleString('he-IL');
-  const kmTravelRows = kmTravel.map((r) => `<tr><td>${fmtDate(r.travel_date)}</td><td>${escapeHtml(r.origin || '')}</td><td>${escapeHtml(r.destination || '')}</td><td>${escapeHtml(r.description || '')}</td><td class="num">${fmtNum(r.roundtrip_km)}</td><td class="num">₪${fmt(r.amount)}</td><td>${escapeHtml(r.notes || '')}</td></tr>`);
-  const publicTransportRows = publicTransport.map((r) => `<tr><td>${fmtDate(r.travel_date)}</td><td>${escapeHtml(r.origin || '')}</td><td>${escapeHtml(r.destination || '')}</td><td>${escapeHtml(r.description || '')}</td><td class="num">₪${fmt(r.amount)}</td><td>${escapeHtml(r.notes || '')}</td></tr>`);
+  const kmTravelRows = kmTravel.map((r) => `<tr><td>${fmtDate(r.travel_date)}</td><td>${escapeHtml(r.origin || '')}</td><td>${escapeHtml(r.destination || '')}</td><td>${escapeHtml(r.description || '')}</td><td class="num">${fmtNum(r.roundtrip_km)}</td><td class="num">₪${fmt(r.amount)}</td></tr>`);
+  const publicTransportRows = publicTransport.map((r) => `<tr><td>${fmtDate(r.travel_date)}</td><td>${escapeHtml(r.origin || '')}</td><td>${escapeHtml(r.destination || '')}</td><td>${escapeHtml(r.description || '')}</td><td class="num">₪${fmt(r.amount)}</td></tr>`);
   const expenseRows = expenses.map((r) => {
     const attachment = attachmentForEntry(attachments, 'expense_entry_id', r.id);
     const attachmentStatus = expenseAttachmentStatus(r, attachment);
@@ -1556,8 +1561,8 @@ function buildPersonalReportPrintSection({ report, profile, travel = [], expense
       <div class="box"><span class="label">חופש / מחלה / הצהרה</span><span class="value">${fmtNum(totalVacationDays)} / ${fmtNum(totalSickDays)} / ${fmtNum(totalDeclarationDays)}</span></div>
     </section></section>
     <section class="section-card"><h2>פירוט הוצאות</h2>${rowsToPrintTable(['תאריך','פירוט','סכום','אסמכתא','הערות'], expenseRows, 5)}</section>
-    <section class="section-card"><h2>נסיעות לפי ק״מ</h2>${rowsToPrintTable(['תאריך','ממקום','למקום','פירוט','ק״מ','סכום','הערות'], [...kmTravelRows, `<tr class="print-total"><td colspan="4">סה״כ נסיעות לפי ק״מ</td><td class="num">${fmtNum(totalKmTravelKm)}</td><td class="num">₪${fmt(totalKmTravel)}</td><td></td></tr>`], 7)}</section>
-    <section class="section-card"><h2>תחבורה ציבורית</h2>${rowsToPrintTable(['תאריך','ממקום','למקום','פירוט','סכום','הערות'], [...publicTransportRows, `<tr class="print-total"><td colspan="4">סה״כ תחבורה ציבורית</td><td class="num">₪${fmt(totalPublicTransport)}</td><td></td></tr>`], 6)}</section>
+    <section class="section-card"><h2>נסיעות לפי ק״מ</h2>${rowsToPrintTable(['תאריך','ממקום','למקום','פירוט','ק״מ','סכום'], [...kmTravelRows, `<tr class="print-total"><td colspan="4">סה״כ נסיעות לפי ק״מ</td><td class="num">${fmtNum(totalKmTravelKm)}</td><td class="num">₪${fmt(totalKmTravel)}</td></tr>`], 6, 'print-table--travel', PRINT_KM_TRAVEL_COLGROUP)}</section>
+    <section class="section-card"><h2>תחבורה ציבורית</h2>${rowsToPrintTable(['תאריך','ממקום','למקום','פירוט','סכום'], [...publicTransportRows, `<tr class="print-total"><td colspan="4">סה״כ תחבורה ציבורית</td><td class="num">₪${fmt(totalPublicTransport)}</td></tr>`], 5, 'print-table--public', PRINT_PUBLIC_TRANSPORT_COLGROUP)}</section>
     <section class="section-card"><h2>היעדרויות / ימים</h2>${rowsToPrintTable(['סוג','מתאריך','עד תאריך','ימים','אסמכתא','הערות'], absenceRows, 6)}</section>
     <section class="section-card financial-summary"><h2>סיכום כולל לתשלום</h2><section class="summary">
       <div class="box"><span class="label">סה״כ ק״מ</span><span class="value">${fmtNum(totalKmTravelKm)}</span></div>
@@ -2092,7 +2097,8 @@ function reportDetailHtml(report, travel, expenses, absences, attachments, profi
       <div class="pr-travel-group">
         <div class="pr-travel-group__head"><h3>נסיעות לפי ק״מ</h3><span>סה״כ ק״מ: ${fmtNum(totalKmTravelKm)} · סה״כ לתשלום: ₪${fmt(totalKmTravel)}</span></div>
         <div class="pr-table-scroll pr-entries-table-wrap">
-          <table class="pr-data-table pr-entries-table">
+          <table class="pr-data-table pr-entries-table pr-fixed-travel-table pr-fixed-travel-table--km">
+            <colgroup><col class="pr-col-date"><col class="pr-col-type"><col class="pr-col-detail"><col class="pr-col-km"><col class="pr-col-money"><col class="pr-col-actions"></colgroup>
             <thead><tr><th class="pr-col-date">תאריך</th><th class="pr-col-type">סוג</th><th class="pr-col-detail">מסלול</th><th class="pr-col-num pr-th-num">ק״מ</th><th class="pr-col-num pr-th-num">₪</th><th class="pr-col-actions pr-th-actions"></th></tr></thead>
             <tbody>${kmTravelRows}<tr class="pr-total-row"><td colspan="3" class="pr-total-label">סה״כ נסיעות לפי ק״מ</td><td class="pr-td-num pr-total-num">${fmtNum(totalKmTravelKm)}</td><td class="pr-td-num pr-total-num pr-total-amount">${fmt(totalKmTravel)}</td><td></td></tr></tbody>
           </table>
@@ -2105,7 +2111,8 @@ function reportDetailHtml(report, travel, expenses, absences, attachments, profi
       <div class="pr-travel-group">
         <div class="pr-travel-group__head"><h3>תחבורה ציבורית</h3><span>סה״כ לתשלום: ₪${fmt(totalPublicTransport)}</span></div>
         <div class="pr-table-scroll pr-entries-table-wrap">
-          <table class="pr-data-table pr-entries-table">
+          <table class="pr-data-table pr-entries-table pr-fixed-travel-table pr-fixed-travel-table--public">
+            <colgroup><col class="pr-col-date"><col class="pr-col-type"><col class="pr-col-detail"><col class="pr-col-money"><col class="pr-col-actions"></colgroup>
             <thead><tr><th class="pr-col-date">תאריך</th><th class="pr-col-type">סוג</th><th class="pr-col-detail">מסלול</th><th class="pr-col-num pr-th-num">₪</th><th class="pr-col-actions pr-th-actions"></th></tr></thead>
             <tbody>${publicTransportRows.replaceAll('<td class="pr-td-num">—</td>', '')}<tr class="pr-total-row"><td colspan="3" class="pr-total-label">סה״כ תחבורה ציבורית</td><td class="pr-td-num pr-total-num pr-total-amount">${fmt(totalPublicTransport)}</td><td></td></tr></tbody>
           </table>
@@ -2383,9 +2390,11 @@ function employeeReportsManagementHtml(rows, filters = _prLastAdminFilters) {
               ${manageStatusOptionsHtml(filters.status || '')}
             </select>
           </label>
-          <button class="pr-btn pr-btn--ghost pr-btn--sm" data-pr-action="clear-admin-filters" type="button">נקה סינון</button>
-          <button class="pr-btn pr-btn--secondary pr-btn--sm" data-pr-action="export-admin-table" type="button">${escapeHtml(adminExportButtonLabel(filters.status || ''))}</button>
-          <button class="pr-btn pr-btn--primary pr-btn--sm" data-pr-action="print-admin-reports-pdf" type="button">PDF מסכם לכל העובדים</button>
+          <div class="pr-admin-report-actions" aria-label="פעולות דוחות מסכמים">
+            <button class="pr-btn pr-btn--secondary pr-btn--sm" data-pr-action="export-admin-table" type="button">${escapeHtml(adminExportButtonLabel(filters.status || ''))}</button>
+            <button class="pr-btn pr-btn--ghost pr-btn--sm" data-pr-action="clear-admin-filters" type="button">נקה סינון</button>
+            <button class="pr-btn pr-btn--primary pr-btn--sm" data-pr-action="print-admin-reports-pdf" type="button">PDF מסכם לכל העובדים</button>
+          </div>
         </div>
         ${rows.length === 0 ? dsEmptyState('אין עובדים להצגה לחודש הנבחר') : `
           <div class="pr-table-scroll">
@@ -2698,21 +2707,19 @@ function adminReportViewHtml(report, travel, expenses, absences, attachments) {
   const totalDeclarationDays = sumAbsenceDays(absences, 'declaration');
 
   const kmTravelRows = kmTravel.length === 0
-    ? `<tr><td colspan="7" class="pr-table-empty">אין רשומות</td></tr>`
+    ? `<tr><td colspan="6" class="pr-table-empty">אין רשומות</td></tr>`
     : kmTravel.map(r => `
         <tr><td>${fmtDate(r.travel_date)}</td><td>${escapeHtml(r.origin)}</td>
         <td>${escapeHtml(r.destination)}</td><td>${escapeHtml(r.description)}</td>
         <td class="pr-td-num">${fmtNum(r.roundtrip_km)}</td>
-        <td class="pr-td-num pr-td-amount">${fmt(r.amount)}</td>
-        <td>${escapeHtml(r.notes || '')}</td></tr>
+        <td class="pr-td-num pr-td-amount">${fmt(r.amount)}</td></tr>
       `).join('');
   const publicTransportRows = publicTransport.length === 0
-    ? `<tr><td colspan="6" class="pr-table-empty">אין רשומות</td></tr>`
+    ? `<tr><td colspan="5" class="pr-table-empty">אין רשומות</td></tr>`
     : publicTransport.map(r => `
         <tr><td>${fmtDate(r.travel_date)}</td><td>${escapeHtml(r.origin)}</td>
         <td>${escapeHtml(r.destination)}</td><td>${escapeHtml(r.description)}</td>
-        <td class="pr-td-num pr-td-amount">${fmt(r.amount)}</td>
-        <td>${escapeHtml(r.notes || '')}</td></tr>
+        <td class="pr-td-num pr-td-amount">${fmt(r.amount)}</td></tr>
       `).join('');
 
   const expenseRows = expenses.length === 0
@@ -2785,17 +2792,19 @@ function adminReportViewHtml(report, travel, expenses, absences, attachments) {
         <div class="pr-card pr-section-card">
           <div class="pr-section-head"><h2 class="pr-section-title">נסיעות בהצהרה</h2></div>
           <h3 class="pr-admin-subtitle">נסיעות לפי ק״מ</h3>
-          <div class="pr-table-scroll"><table class="pr-data-table">
-            <thead><tr><th>תאריך</th><th>ממקום</th><th>למקום</th><th>פירוט</th><th class="pr-th-num">ק"מ</th><th class="pr-th-num">₪</th><th>הערות</th></tr></thead>
+          <div class="pr-table-scroll"><table class="pr-data-table pr-fixed-travel-table pr-fixed-travel-table--km">
+            <colgroup><col class="pr-col-date"><col class="pr-col-place"><col class="pr-col-place"><col class="pr-col-detail"><col class="pr-col-km"><col class="pr-col-money"></colgroup>
+            <thead><tr><th>תאריך</th><th>ממקום</th><th>למקום</th><th>פירוט</th><th class="pr-th-num">ק"מ</th><th class="pr-th-num">₪</th></tr></thead>
             <tbody>${kmTravelRows}
-              <tr class="pr-total-row"><td colspan="4" class="pr-total-label">סה"כ נסיעות לפי ק״מ</td><td class="pr-td-num pr-total-num">${fmtNum(totalKmTravelKm)}</td><td class="pr-td-num pr-total-num pr-total-amount">${fmt(totalKmTravel)}</td><td></td></tr>
+              <tr class="pr-total-row"><td colspan="4" class="pr-total-label">סה"כ נסיעות לפי ק״מ</td><td class="pr-td-num pr-total-num">${fmtNum(totalKmTravelKm)}</td><td class="pr-td-num pr-total-num pr-total-amount">${fmt(totalKmTravel)}</td></tr>
             </tbody>
           </table></div>
           <h3 class="pr-admin-subtitle">תחבורה ציבורית</h3>
-          <div class="pr-table-scroll"><table class="pr-data-table">
-            <thead><tr><th>תאריך</th><th>ממקום</th><th>למקום</th><th>פירוט</th><th class="pr-th-num">₪</th><th>הערות</th></tr></thead>
+          <div class="pr-table-scroll"><table class="pr-data-table pr-fixed-travel-table pr-fixed-travel-table--public">
+            <colgroup><col class="pr-col-date"><col class="pr-col-place"><col class="pr-col-place"><col class="pr-col-detail"><col class="pr-col-money"></colgroup>
+            <thead><tr><th>תאריך</th><th>ממקום</th><th>למקום</th><th>פירוט</th><th class="pr-th-num">₪</th></tr></thead>
             <tbody>${publicTransportRows}
-              <tr class="pr-total-row"><td colspan="4" class="pr-total-label">סה"כ תחבורה ציבורית</td><td class="pr-td-num pr-total-num pr-total-amount">${fmt(totalPublicTransport)}</td><td></td></tr>
+              <tr class="pr-total-row"><td colspan="4" class="pr-total-label">סה"כ תחבורה ציבורית</td><td class="pr-td-num pr-total-num pr-total-amount">${fmt(totalPublicTransport)}</td></tr>
             </tbody>
           </table></div>
         </div>
