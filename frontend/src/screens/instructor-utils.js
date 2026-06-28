@@ -57,14 +57,42 @@ function schoolContactDetailHtml(row) {
   return `${escapeHtml(name)}<br>${escapeHtml(phone)}`;
 }
 
+function instructorTeamLineHtml(instructor) {
+  const parts = [
+    text(instructor?.name || instructor?.full_name || instructor?.instructor_name || instructor?.empId),
+    text(instructor?.phone || instructor?.mobile || instructor?.telephone),
+    text(instructor?.role || instructor?.contact_role || instructor?.position)
+  ].filter(Boolean);
+  return parts.length ? escapeHtml(parts.join(' · ')) : '';
+}
+
+function coInstructorHtml(row, group, ids) {
+  const currentIds = Array.isArray(ids) ? ids.map(text).filter(Boolean) : [text(ids)].filter(Boolean);
+  const currentName = norm(instructorNameForRow(row, currentIds, ''));
+  const currentIdSet = new Set(currentIds);
+  const source = Array.isArray(group?.instructors) ? group.instructors : [];
+  const coInstructors = source.filter((instructor) => {
+    const empId = text(instructor?.empId || instructor?.emp_id || instructor?.employee_id || instructor?.id);
+    const name = norm(instructor?.name || instructor?.full_name || instructor?.instructor_name || '');
+    if (empId && currentIdSet.has(empId)) return false;
+    if (!empId && currentName && name === currentName) return false;
+    return !!instructorTeamLineHtml(instructor);
+  });
+
+  if (source.length > 1 && coInstructors.length) {
+    return coInstructors.map(instructorTeamLineHtml).filter(Boolean).join('<br>');
+  }
+
+  const peer = peerNameForRow(row, currentIds);
+  return source.length === 0 && peer ? escapeHtml(peer) : '';
+}
+
 export function activityDetailHtml(row, { ids = [], teamMap = new Map(), upload = null } = {}) {
   const group = groupForRow(row, teamMap);
   const status = completionStatusFromUpload(upload, row);
-  const instructors = (Array.isArray(group?.instructors) ? group.instructors : [])
-    .map((i) => text(i.name || i.empId)).filter(Boolean);
   const responsible = text(group?.responsibleName || '—');
   const mineResponsible = isResponsibleForGroup(group, ids);
-  const peer = peerNameForRow(row, ids);
+  const teamHtml = coInstructorHtml(row, group, ids);
   const fields = [
     ['שם פעילות', rowTitle(row)],
     ['תאריך', formatDateHe(isoDate(row?.start_date || row?.activity_date)) || isoDate(row?.start_date || row?.activity_date) || '—'],
@@ -76,7 +104,7 @@ export function activityDetailHtml(row, { ids = [], teamMap = new Map(), upload 
     ['שכבה / קבוצה', text(row?.grade || row?.group_name) || '—'],
     ['מספר משתתפים', participants(row)],
     ['סטטוס אישור ביצוע', statusChipHtml(status)],
-    ['מי איתי היום', instructors.length ? instructors.join('<br>') : (peer || 'אין מדריך נוסף')],
+    ...(teamHtml ? [['מי איתי היום', teamHtml]] : []),
     ['אחראי קשר', `${escapeHtml(responsible)}${mineResponsible ? ' ' + statusChipHtml({ key: 'contact', label: 'אני אחראי קשר' }) : ''}`]
   ];
   return `<div class="instr-detail">${mineResponsible ? '<div class="instr-contact-note"><strong>אתה אחראי קשר</strong><br>יש לוודא את קיום הפעילות מול איש הקשר בבית הספר לפחות 48 שעות לפני יום הפעילות ולעדכן את שאר הצוות.</div>' : ''}<div class="instr-detail-grid">${fields.map(([k, v]) => `<div class="instr-info-row"><span>${escapeHtml(k)}</span><strong>${typeof v === 'string' && v.includes('<') ? v : escapeHtml(v)}</strong></div>`).join('')}</div><div class="instr-detail-actions"><button class="ds-btn ds-btn--sm ds-btn--ghost" data-ui-close-drawer>סגור</button></div></div>`;
