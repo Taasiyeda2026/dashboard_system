@@ -91,7 +91,7 @@ const API_TIMEOUT_MS_READ = 20000;
 const API_TIMEOUT_MS_WRITE = 45000;
 const PERF_MAX_REQUESTS = 150;
 const ACTIVITY_DIRECT_MANAGE_ROLES = new Set(['admin', 'operation_manager']);
-const ACTIVE_INSTRUCTOR_EMP_IDS = new Set(['1525', '1527', '1502', '1507', '1509', '1500', '1503', '1511']);
+const ACTIVE_INSTRUCTOR_EMP_IDS = new Set(['1525', '1506', '1527', '1502', '1507', '1509', '1515', '1503', '1511']);
 
 function currentUserIdentityValues() {
   const user = state?.user || {};
@@ -3439,7 +3439,7 @@ const PROFILE_PERSONAL_REPORTS_COLUMNS = 'id,is_active,can_access_personal_repor
 const VALID_SUPABASE_ROLES = new Set(['admin', 'operation_manager', 'authorized_user', 'instructor', 'finance', 'activities_manager', 'domain_manager', 'instructor_manager', 'business_development_manager']);
 
 
-const KNOWN_INSTRUCTOR_EMP_IDS = new Set(['1525', '1527', '1502', '1507', '1509', '1500', '1503', '1511']);
+const KNOWN_INSTRUCTOR_EMP_IDS = new Set(['1525', '1506', '1527', '1502', '1507', '1509', '1515', '1503', '1511']);
 function isKnownInstructorIdentity(user = {}) {
   const role = normalizeRoleAlias(user?.role || user?.display_role).toLowerCase();
   if (role !== 'instructor') return false;
@@ -3765,77 +3765,68 @@ function filterCalendarPayloadForInstructor(payload) {
   return payload;
 }
 
-async function loginWithSupabaseAuth(user_id, entry_code) {
+async function loginWithSupabaseAuth(username, password) {
   if (!supabase) throwLoginError('no_supabase_client');
-  const uid = String(user_id || '').trim();
-  const code = String(entry_code || '').trim();
-  if (!uid || !code) throwLoginError('missing_user_id_or_entry_code');
+  const submittedUsername = String(username || '').trim();
+  const submittedPassword = String(password || '').trim();
+  if (!submittedUsername || !submittedPassword) throwLoginError('missing_user_id_or_entry_code');
 
-  const loginUsername = uid.toLowerCase();
-  const loginAuthEmail = `${loginUsername}@think.org.il`;
+  const loginUsername = submittedUsername.toLowerCase();
+  const { data: instructorRow, error: instructorLookupError } = await supabase
+    .from('users')
+    .select(USER_PUBLIC_COLUMNS_EXTENDED)
+    .eq('role', 'instructor')
+    .eq('is_active', true)
+    .eq('username', loginUsername)
+    .maybeSingle();
+
+  if (instructorLookupError) {
+    throwLoginError('users_query_failed', {
+      username: loginUsername,
+      message: String(instructorLookupError?.message || '')
+    });
+  }
+
+  if (!instructorRow) {
+    throwLoginError('inactive_or_missing_instructor_username', { username: loginUsername });
+  }
+
+  const loginAuthEmail = String(instructorRow.auth_email || '').trim().toLowerCase();
+  if (!loginAuthEmail) {
+    throwLoginError('auth_ok_user_row_not_found', { username: loginUsername, reason: 'missing_auth_email' });
+  }
 
   const { data: authData, error: authError } = await supabase.auth.signInWithPassword({
     email: loginAuthEmail,
-    password: code
+    password: submittedPassword
   });
 
   if (authError || !authData?.user) {
-    throwLoginError('invalid_credentials', { login: uid, message: String(authError?.message || '') });
+    throwLoginError('invalid_credentials', { login: submittedUsername, message: String(authError?.message || '') });
   }
 
-  const authUserId = authData.user.id;
-  const authEmail = String(authData.user.email || loginAuthEmail).trim().toLowerCase();
+  const authUserId = String(authData.user.id || '').trim();
+  const rowAuthUserId = String(instructorRow.auth_user_id || '').trim();
+  if (!authUserId || !rowAuthUserId || authUserId !== rowAuthUserId) {
+    throwLoginError('auth_ok_user_row_not_found', {
+      username: loginUsername,
+      auth_user_id: authUserId,
+      row_auth_user_id: rowAuthUserId,
+      reason: 'auth_user_id_mismatch'
+    });
+  }
 
   try {
-    console.info('[login-auth-success]', { authEmail, loginAuthEmail, loginUsername, authUserId });
+    console.info('[login-auth-success]', { authEmail: loginAuthEmail, loginUsername, authUserId });
+    console.info('[login-user-resolve]', { matchedBy: 'username', username: loginUsername, user_id: instructorRow.user_id, auth_email: loginAuthEmail });
   } catch {
     /* ignore */
   }
 
-  const resolveResult = await resolveActiveUserRowAfterAuth({
-    supabase,
-    baseColumns: USER_PUBLIC_COLUMNS,
-    extendedColumns: USER_PUBLIC_COLUMNS_EXTENDED,
-    authEmail,
-    username: loginUsername,
-    authUserId,
-    loginMode: true,
-    requireAuthUserMatch: true
-  });
-
-  const { userRow, matchedBy, status, attempts, lastError, fallbackFrom } = resolveResult;
-
-  if (!userRow) {
-    const failureCode = status === 'permission_denied'
-      ? 'auth_ok_user_row_permission_denied'
-      : status === 'query_error'
-        ? 'auth_ok_user_row_query_error'
-        : status === 'multiple_matches'
-          ? 'auth_ok_user_row_multiple_matches'
-          : 'auth_ok_user_row_not_found';
-    throwLoginError(failureCode, {
-      auth_user_id: authUserId,
-      auth_email: authEmail,
-      username: loginUsername,
-      lookup_status: status || 'not_found',
-      fallback_from: fallbackFrom || null,
-      attempts: Array.isArray(attempts) ? attempts : [],
-      last_error: lastError || null
-    });
-  }
-
-  userRow.auth_user_id = authUserId;
-  if (matchedBy) {
-    try {
-      console.info('[login-user-resolve]', { matchedBy, username: loginUsername, user_id: userRow.user_id, auth_email: authEmail });
-    } catch {
-      /* ignore */
-    }
-  }
-
-  assertValidLoginUserRow(userRow);
+  instructorRow.auth_user_id = authUserId;
+  assertValidLoginUserRow(instructorRow);
   const profileRow = await readPersonalReportsProfile(authUserId);
-  return { userRow, profileRow };
+  return { userRow: instructorRow, profileRow };
 }
 
 function makeSessionToken(userRow) {
