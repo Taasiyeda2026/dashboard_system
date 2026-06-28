@@ -3772,26 +3772,26 @@ async function loginWithSupabaseAuth(username, password) {
   if (!submittedUsername || !submittedPassword) throwLoginError('missing_user_id_or_entry_code');
 
   const loginUsername = submittedUsername.toLowerCase();
-  const { data: instructorRow, error: instructorLookupError } = await supabase
+  const { data: userRow, error: userLookupError } = await supabase
     .from('users')
     .select(USER_PUBLIC_COLUMNS_EXTENDED)
-    .eq('role', 'instructor')
-    .eq('is_active', true)
     .eq('username', loginUsername)
+    .eq('is_active', true)
+    .eq('migrated_to_auth', true)
     .maybeSingle();
 
-  if (instructorLookupError) {
+  if (userLookupError) {
     throwLoginError('users_query_failed', {
       username: loginUsername,
-      message: String(instructorLookupError?.message || '')
+      message: String(userLookupError?.message || '')
     });
   }
 
-  if (!instructorRow) {
-    throwLoginError('inactive_or_missing_instructor_username', { username: loginUsername });
+  if (!userRow) {
+    throwLoginError('inactive_or_missing_username', { username: loginUsername });
   }
 
-  const loginAuthEmail = String(instructorRow.auth_email || '').trim().toLowerCase();
+  const loginAuthEmail = String(userRow.auth_email || '').trim().toLowerCase();
   if (!loginAuthEmail) {
     throwLoginError('auth_ok_user_row_not_found', { username: loginUsername, reason: 'missing_auth_email' });
   }
@@ -3806,7 +3806,7 @@ async function loginWithSupabaseAuth(username, password) {
   }
 
   const authUserId = String(authData.user.id || '').trim();
-  const rowAuthUserId = String(instructorRow.auth_user_id || '').trim();
+  const rowAuthUserId = String(userRow.auth_user_id || '').trim();
   if (!authUserId || !rowAuthUserId || authUserId !== rowAuthUserId) {
     throwLoginError('auth_ok_user_row_not_found', {
       username: loginUsername,
@@ -3818,15 +3818,15 @@ async function loginWithSupabaseAuth(username, password) {
 
   try {
     console.info('[login-auth-success]', { authEmail: loginAuthEmail, loginUsername, authUserId });
-    console.info('[login-user-resolve]', { matchedBy: 'username', username: loginUsername, user_id: instructorRow.user_id, auth_email: loginAuthEmail });
+    console.info('[login-user-resolve]', { matchedBy: 'username', username: loginUsername, user_id: userRow.user_id, auth_email: loginAuthEmail });
   } catch {
     /* ignore */
   }
 
-  instructorRow.auth_user_id = authUserId;
-  assertValidLoginUserRow(instructorRow);
+  userRow.auth_user_id = authUserId;
+  assertValidLoginUserRow(userRow);
   const profileRow = await readPersonalReportsProfile(authUserId);
-  return { userRow: instructorRow, profileRow };
+  return { userRow, profileRow };
 }
 
 function makeSessionToken(userRow) {
