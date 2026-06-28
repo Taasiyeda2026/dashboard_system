@@ -19362,3 +19362,93 @@ details[open] > .ds-fin-acc__summary::before { transform: rotate(90deg); }
     flex-direction: column;
   }
 }
+
+/* Personal reports: aligned section headers, grouped report actions and fixed travel columns */
+.pr-report-detail-body .pr-section-card,
+.pr-screen--management .pr-section-card {
+  overflow: hidden;
+}
+.pr-report-detail-body .pr-section-head,
+.pr-screen--management .pr-section-head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  padding: 12px 16px;
+  min-height: 46px;
+  line-height: 1.35;
+  direction: rtl;
+  text-align: right;
+  border-bottom: 1px solid #e2e8f0;
+  background: #fff;
+}
+.pr-report-detail-body .pr-section-title,
+.pr-screen--management .pr-section-title,
+.pr-admin-subtitle,
+.pr-travel-group__head h3 {
+  margin: 0;
+  padding: 0;
+  line-height: 1.35;
+  text-align: right;
+  direction: rtl;
+}
+.pr-screen--management .pr-admin-subtitle {
+  margin: 12px 16px 8px;
+  padding: 8px 10px;
+  border: 1px solid #dce4ed;
+  border-radius: 10px;
+  background: #f8fafc;
+}
+.pr-admin-filters--compact {
+  grid-template-columns: minmax(160px, 190px) minmax(160px, 190px) minmax(360px, 1fr);
+}
+.pr-admin-report-actions {
+  display: flex;
+  align-items: end;
+  justify-content: flex-start;
+  gap: 10px;
+  flex-wrap: wrap;
+  direction: rtl;
+}
+.pr-admin-report-actions .pr-btn {
+  min-width: 138px;
+  max-width: none;
+}
+.pr-fixed-travel-table,
+.pr-entries-table-wrap .pr-entries-table.pr-fixed-travel-table {
+  width: 100%;
+  table-layout: fixed;
+}
+.pr-fixed-travel-table .pr-col-date { width: 13%; }
+.pr-fixed-travel-table .pr-col-place { width: 17%; }
+.pr-fixed-travel-table .pr-col-detail { width: 31%; }
+.pr-fixed-travel-table .pr-col-km { width: 10%; }
+.pr-fixed-travel-table .pr-col-money { width: 12%; }
+.pr-fixed-travel-table--public .pr-col-detail { width: 34%; }
+.pr-fixed-travel-table--public .pr-col-money { width: 19%; }
+.pr-fixed-travel-table th,
+.pr-fixed-travel-table td {
+  overflow-wrap: normal;
+  word-break: normal;
+}
+.pr-fixed-travel-table th:nth-child(1),
+.pr-fixed-travel-table td:nth-child(1),
+.pr-fixed-travel-table .pr-th-num,
+.pr-fixed-travel-table .pr-td-num,
+.pr-fixed-travel-table .pr-td-amount {
+  white-space: nowrap;
+}
+.pr-fixed-travel-table th:nth-child(4),
+.pr-fixed-travel-table td:nth-child(4) {
+  white-space: normal;
+  overflow-wrap: anywhere;
+}
+@media (max-width: 760px) {
+  .pr-admin-filters--compact { grid-template-columns: 1fr; }
+  .pr-admin-report-actions .pr-btn { flex: 1 1 100%; }
+}
+.pr-fixed-travel-table .pr-col-detail,
+.pr-fixed-travel-table td:nth-child(3) {
+  white-space: normal;
+  overflow-wrap: anywhere;
+}
