@@ -10,7 +10,7 @@
  * Secrets נדרשים (מ-Replit Secrets):
  *   SUPABASE_URL
  *   SUPABASE_SERVICE_ROLE_KEY
- *   INSTRUCTOR_PASSWORDS_JSON  — [{ "emp_id": "...", "full_name": "...", "password": "..." }]
+ *   INSTRUCTOR_PASSWORDS_JSON  — [{ "emp_id": "...", "full_name": "...", "password": "..." }] או [{ "full_name": "...", "username": "...", "password": "..." }]
  *
  * לא מדפיס סיסמאות. SERVICE_ROLE_KEY לא ב-frontend.
  */
@@ -29,15 +29,61 @@ function asText(value) {
   return value === null || value === undefined ? '' : String(value).trim();
 }
 
-function buildAuthEmail(usernameOrEmpId) {
-  return `${asText(usernameOrEmpId).toLowerCase()}@think.org.il`;
+function normalizeKey(value) {
+  return asText(value).toLowerCase();
 }
 
-function validatePassword(password, empId) {
+function buildAuthEmail(usernameOrEmpId) {
+  return `${normalizeKey(usernameOrEmpId)}@think.org.il`;
+}
+
+function validatePassword(password, identifier) {
   if (!password || !String(password).trim()) return 'empty_password';
   if (String(password).length < MIN_PASSWORD_LENGTH) return `too_short_min_${MIN_PASSWORD_LENGTH}`;
-  if (String(password).trim() === String(empId).trim()) return 'password_equals_emp_id';
+  if (identifier && String(password).trim() === String(identifier).trim()) return 'password_equals_identifier';
   return null;
+}
+
+function normalizeEntry(entry) {
+  const empId = asText(entry?.emp_id);
+  const username = asText(entry?.username) || empId;
+  const fullName = asText(entry?.full_name);
+  const password = asText(entry?.password);
+  if (!username) return { error: 'missing_username_or_emp_id', empId, username, fullName };
+  if (!fullName) return { error: 'missing_full_name', empId, username, fullName };
+  const passwordError = validatePassword(password, empId || username);
+  if (passwordError) return { error: passwordError, empId, username, fullName };
+  return { empId, username, fullName, password, authEmail: buildAuthEmail(username) };
+}
+
+function buildUserIndexes(rows) {
+  const byFullName = new Map();
+  const byUsername = new Map();
+  const byAuthEmail = new Map();
+  const byEmpId = new Map();
+  const byUserId = new Map();
+  for (const row of Array.isArray(rows) ? rows : []) {
+    const fullName = normalizeKey(row.full_name || row.name);
+    const username = normalizeKey(row.username);
+    const authEmail = normalizeKey(row.auth_email);
+    const empId = normalizeKey(row.emp_id);
+    const userId = normalizeKey(row.user_id);
+    if (fullName && !byFullName.has(fullName)) byFullName.set(fullName, row);
+    if (username && !byUsername.has(username)) byUsername.set(username, row);
+    if (authEmail && !byAuthEmail.has(authEmail)) byAuthEmail.set(authEmail, row);
+    if (empId && !byEmpId.has(empId)) byEmpId.set(empId, row);
+    if (userId && !byUserId.has(userId)) byUserId.set(userId, row);
+  }
+  return { byFullName, byUsername, byAuthEmail, byEmpId, byUserId };
+}
+
+function findUserRow(indexes, entry) {
+  return indexes.byFullName.get(normalizeKey(entry.fullName))
+    || indexes.byUsername.get(normalizeKey(entry.username))
+    || indexes.byAuthEmail.get(normalizeKey(entry.authEmail))
+    || (entry.empId ? indexes.byEmpId.get(normalizeKey(entry.empId)) : null)
+    || (entry.empId ? indexes.byUserId.get(normalizeKey(entry.empId)) : null)
+    || null;
 }
 
 async function restGet(baseUrl, serviceKey, path, params = {}) {
@@ -55,13 +101,14 @@ async function restGet(baseUrl, serviceKey, path, params = {}) {
   return body;
 }
 
-async function restPost(baseUrl, serviceKey, path, data) {
+async function restPost(baseUrl, serviceKey, path, data, extraHeaders = {}) {
   const res = await fetch(`${baseUrl}${path}`, {
     method: 'POST',
     headers: {
       apikey: serviceKey,
       Authorization: `Bearer ${serviceKey}`,
-      'Content-Type': 'application/json'
+      'Content-Type': 'application/json',
+      ...extraHeaders
     },
     body: JSON.stringify(data)
   });
@@ -85,7 +132,7 @@ async function restPut(baseUrl, serviceKey, path, data) {
   return body;
 }
 
-async function restPatch(baseUrl, serviceKey, path, data, filter = '') {
+async function restPatch(baseUrl, serviceKey, path, data, filter = '', extraHeaders = {}) {
   const url = `${baseUrl}${path}${filter}`;
   const res = await fetch(url, {
     method: 'PATCH',
@@ -93,7 +140,8 @@ async function restPatch(baseUrl, serviceKey, path, data, filter = '') {
       apikey: serviceKey,
       Authorization: `Bearer ${serviceKey}`,
       'Content-Type': 'application/json',
-      Prefer: 'return=minimal'
+      Prefer: 'return=minimal',
+      ...extraHeaders
     },
     body: JSON.stringify(data)
   });
@@ -101,6 +149,20 @@ async function restPatch(baseUrl, serviceKey, path, data, filter = '') {
     const body = await res.json().catch(() => ({}));
     throw new Error(body?.message || body?.error || `HTTP ${res.status}`);
   }
+}
+
+async function signInWithPassword(baseUrl, apiKey, email, password) {
+  const res = await fetch(`${baseUrl}/auth/v1/token?grant_type=password`, {
+    method: 'POST',
+    headers: {
+      apikey: apiKey,
+      'Content-Type': 'application/json'
+    },
+    body: JSON.stringify({ email, password })
+  });
+  const body = await res.json().catch(() => ({}));
+  if (!res.ok) throw new Error(body?.error_description || body?.msg || body?.message || body?.error || `HTTP ${res.status}`);
+  return body;
 }
 
 async function listAllAuthUsers(baseUrl, serviceKey) {
@@ -120,6 +182,8 @@ async function main() {
   const supabaseUrl = requireEnv('SUPABASE_URL');
   const serviceKey = requireEnv('SUPABASE_SERVICE_ROLE_KEY');
   const passwordsJson = requireEnv('INSTRUCTOR_PASSWORDS_JSON');
+  const verifyLogins = ['1', 'true', 'yes'].includes(normalizeKey(process.env.VERIFY_INSTRUCTOR_LOGINS));
+  const authSignInKey = asText(process.env.SUPABASE_ANON_KEY) || serviceKey;
 
   let passwordEntries;
   try {
@@ -131,133 +195,105 @@ async function main() {
     throw new Error('INSTRUCTOR_PASSWORDS_JSON חייב להיות מערך לא ריק');
   }
 
-  // שליפת כל המדריכים הפעילים מ-public.users
   const usersRows = await restGet(
     supabaseUrl, serviceKey,
     '/rest/v1/users',
-    { select: 'user_id,emp_id,username,full_name,role,is_active,auth_user_id,auth_email,migrated_to_auth' }
+    { select: 'user_id,emp_id,username,name,full_name,role,display_role,is_active,auth_user_id,auth_email,migrated_to_auth' }
   );
 
-  // שליפת כל Auth users
   const authUsers = await listAllAuthUsers(supabaseUrl, serviceKey);
-  const authByEmail = new Map(authUsers.filter((u) => u.email).map((u) => [String(u.email).toLowerCase(), u]));
+  const authByEmail = new Map(authUsers.filter((u) => u.email).map((u) => [normalizeKey(u.email), u]));
   const authById = new Map(authUsers.map((u) => [u.id, u]));
+  const userIndexes = buildUserIndexes(usersRows);
 
-  // בדיקת אילנה 1506
-  const ilana = (Array.isArray(usersRows) ? usersRows : []).find((r) =>
-    asText(r.emp_id) === '1506' || asText(r.user_id) === '1506' || asText(r.username) === '1506'
-  );
-  console.log(JSON.stringify({
-    check: 'ilana_1506',
-    found: Boolean(ilana),
-    role: ilana?.role || null,
-    is_active: ilana?.is_active ?? null,
-    auth_email: ilana?.auth_email || null,
-    has_auth_user_id: Boolean(ilana?.auth_user_id)
-  }));
+  let created = 0, updated = 0, skipped = 0, failed = 0, verified = 0;
 
-  let created = 0, updated = 0, skipped = 0, failed = 0;
-
-  for (const entry of passwordEntries) {
-    const empId = asText(entry?.emp_id);
-    const password = asText(entry?.password);
-    const fullNameInput = asText(entry?.full_name);
-
-    const validErr = validatePassword(password, empId);
-    if (validErr) {
+  for (const rawEntry of passwordEntries) {
+    const entry = normalizeEntry(rawEntry);
+    if (entry.error) {
       skipped += 1;
-      console.log(JSON.stringify({ ok: false, action: 'skipped', reason: validErr, emp_id: empId }));
+      console.log(JSON.stringify({ ok: false, action: 'skipped', reason: entry.error, username: entry.username || null, full_name: entry.fullName || null }));
       continue;
     }
 
-    const userRow = (Array.isArray(usersRows) ? usersRows : []).find((r) =>
-      asText(r.emp_id) === empId || asText(r.user_id) === empId || asText(r.username) === empId
-    );
-
-    if (!userRow) {
-      skipped += 1;
-      console.log(JSON.stringify({ ok: false, action: 'skipped', reason: 'instructor_not_found_or_inactive', emp_id: empId }));
-      continue;
-    }
-
-    const userId = asText(userRow.user_id);
-    const username = asText(userRow.username) || empId;
-    const fullName = asText(userRow.full_name) || fullNameInput;
-    const existingAuthEmail = asText(userRow.auth_email);
-    const existingAuthUserId = asText(userRow.auth_user_id);
-    const authEmail = existingAuthEmail || buildAuthEmail(username);
+    let userRow = findUserRow(userIndexes, entry);
+    const publicUserAction = userRow ? 'updated' : 'created';
+    const existingAuthUserId = asText(userRow?.auth_user_id);
+    const existingAuthUser = existingAuthUserId ? authById.get(existingAuthUserId) : null;
+    const existingEmailAuthUser = authByEmail.get(normalizeKey(entry.authEmail)) || null;
+    let authUser = existingAuthUser || existingEmailAuthUser || null;
+    const publicUserId = asText(userRow?.user_id) || entry.empId || entry.username;
+    const preservedEmpId = asText(userRow?.emp_id) || entry.empId || null;
 
     try {
-      let action;
-      let authUserId;
-
-      if (existingAuthUserId) {
-        // יש auth_user_id — עדכון סיסמה ישיר בלי חיפוש
-        await restPut(supabaseUrl, serviceKey, `/auth/v1/admin/users/${existingAuthUserId}`, { password });
-        authUserId = existingAuthUserId;
-        action = 'updated';
+      let authAction = 'updated';
+      if (authUser) {
+        authUser = await restPut(supabaseUrl, serviceKey, `/auth/v1/admin/users/${authUser.id}`, {
+          email: entry.authEmail,
+          password: entry.password,
+          email_confirm: true,
+          user_metadata: { employee_id: preservedEmpId || publicUserId, full_name: entry.fullName, role: 'instructor', username: entry.username }
+        });
         updated += 1;
       } else {
-        // אין auth_user_id — חיפוש לפי email, ואם לא קיים — יצירה
-        const emailKey = authEmail.toLowerCase();
-        let authUser = authByEmail.get(emailKey) || null;
-        if (authUser) {
-          await restPut(supabaseUrl, serviceKey, `/auth/v1/admin/users/${authUser.id}`, { password });
-          authUserId = authUser.id;
-          action = 'updated';
-          updated += 1;
-        } else {
-          const newAuthEmail = buildAuthEmail(username);
-          authUser = await restPost(supabaseUrl, serviceKey, '/auth/v1/admin/users', {
-            email: newAuthEmail,
-            password,
-            email_confirm: true,
-            user_metadata: { employee_id: userId || empId, full_name: fullName, role: 'instructor' }
-          });
-          authUserId = authUser.id;
-          authByEmail.set(newAuthEmail.toLowerCase(), authUser);
-          action = 'created';
-          created += 1;
-        }
+        authUser = await restPost(supabaseUrl, serviceKey, '/auth/v1/admin/users', {
+          email: entry.authEmail,
+          password: entry.password,
+          email_confirm: true,
+          user_metadata: { employee_id: preservedEmpId || publicUserId, full_name: entry.fullName, role: 'instructor', username: entry.username }
+        });
+        authAction = 'created';
+        created += 1;
+      }
+      authByEmail.set(normalizeKey(entry.authEmail), authUser);
+      authById.set(authUser.id, authUser);
+
+      const publicPayload = {
+        username: entry.username,
+        name: entry.fullName,
+        full_name: entry.fullName,
+        auth_email: entry.authEmail,
+        role: 'instructor',
+        display_role: 'instructor',
+        is_active: true,
+        migrated_to_auth: true,
+        auth_user_id: authUser.id
+      };
+      if (preservedEmpId) publicPayload.emp_id = preservedEmpId;
+
+      if (userRow) {
+        await restPatch(supabaseUrl, serviceKey, '/rest/v1/users', publicPayload, `?user_id=eq.${encodeURIComponent(publicUserId)}`);
+      } else {
+        userRow = await restPost(supabaseUrl, serviceKey, '/rest/v1/users', { user_id: publicUserId, ...publicPayload }, { Prefer: 'return=representation' });
       }
 
-      // עדכון public.users
-      await restPatch(
-        supabaseUrl, serviceKey,
-        '/rest/v1/users',
-        { auth_user_id: authUserId, auth_email: authEmail, migrated_to_auth: true, is_active: true },
-        `?user_id=eq.${encodeURIComponent(userId || empId)}`
-      );
-
-      // ניקוי entry_code (אם אפשר)
       try {
-        await restPatch(
-          supabaseUrl, serviceKey,
-          '/rest/v1/users',
-          { entry_code: null },
-          `?user_id=eq.${encodeURIComponent(userId || empId)}`
-        );
+        await restPatch(supabaseUrl, serviceKey, '/rest/v1/users', { entry_code: null }, `?user_id=eq.${encodeURIComponent(publicUserId)}`);
       } catch {
-        /* entry_code עלול לא לאפשר null — מדלגים */
+        /* entry_code may be absent or non-nullable — skip without failing the secure auth sync. */
       }
 
-      console.log(JSON.stringify({ ok: true, action, emp_id: empId, auth_email: authEmail, auth_user_id: authUserId }));
+      if (verifyLogins) {
+        await signInWithPassword(supabaseUrl, authSignInKey, entry.authEmail, entry.password);
+        verified += 1;
+      }
+
+      console.log(JSON.stringify({
+        ok: true,
+        action: authAction,
+        username: entry.username,
+        full_name: entry.fullName,
+        public_user: publicUserAction,
+        has_auth_user_id: Boolean(authUser.id),
+        login_verified: verifyLogins ? true : undefined
+      }));
     } catch (error) {
       failed += 1;
-      console.error(JSON.stringify({ ok: false, action: 'failed', emp_id: empId, auth_email: authEmail, error: error?.message || String(error) }));
+      console.error(JSON.stringify({ ok: false, action: 'failed', username: entry.username, full_name: entry.fullName, error: error?.message || String(error) }));
     }
   }
 
-  console.log(JSON.stringify({
-    ok: failed === 0,
-    total_in_input: passwordEntries.length,
-    created,
-    updated,
-    skipped,
-    failed,
-    active_instructor_emp_ids_hardcoded_list: 'REMOVED — access now from public.users role+is_active'
-  }));
-
+  console.log(JSON.stringify({ ok: failed === 0, total_in_input: passwordEntries.length, created, updated, skipped, failed, verified }));
   if (failed > 0) process.exit(1);
 }
 
