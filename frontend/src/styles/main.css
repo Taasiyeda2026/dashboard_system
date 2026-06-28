@@ -19241,3 +19241,9 @@ details[open] > .ds-fin-acc__summary::before { transform: rotate(90deg); }
   .shell-top__instr-user{max-width:96px;font-size:11px}
   .instr-filter-actions .instr-filter-btn{flex:1}
 }
+
+/* Compact peer instructors inside instructor activity detail drawer */
+.instr-peer-card{display:inline-flex;flex-direction:column;gap:2px;margin:2px 0;padding:4px 0;line-height:1.25}
+.instr-peer-card+ .instr-peer-card{margin-inline-start:10px;padding-inline-start:10px;border-inline-start:1px solid #d6eef5}
+.instr-peer-card>strong{font-size:12px;color:#102a43}
+.instr-peer-card>small{font-size:11px;color:#5b6b7a;font-weight:700}
