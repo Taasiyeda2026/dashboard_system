@@ -240,6 +240,7 @@ const API_ERROR_HE = {
   missing_row_id: 'חסר מזהה פעילות לשמירה',
   'user_id is required': 'יש להזין מזהה משתמש',
   invalid_credentials: 'שם משתמש או סיסמה שגויים',
+  inactive_or_missing_instructor_username: 'שם משתמש לא פעיל או לא קיים.',
   auth_ok_user_row_not_found: 'לא נמצא פרופיל משתמש במערכת. יש לפנות למנהל המערכת.',
   auth_ok_user_row_permission_denied: 'ההתחברות הצליחה, אך אין הרשאת קריאה לפרופיל המשתמש. יש לפנות למנהל המערכת.',
   auth_ok_user_row_query_error: 'ההתחברות הצליחה, אך בדיקת פרופיל המשתמש נכשלה. נסו שוב או פנו למנהל המערכת.',
