@@ -3772,13 +3772,8 @@ async function loginWithSupabaseAuth(username, password) {
   if (!submittedUsername || !submittedPassword) throwLoginError('missing_user_id_or_entry_code');
 
   const loginUsername = submittedUsername.toLowerCase();
-  const { data: userRow, error: userLookupError } = await supabase
-    .from('users')
-    .select(USER_PUBLIC_COLUMNS_EXTENDED)
-    .eq('username', loginUsername)
-    .eq('is_active', true)
-    .eq('migrated_to_auth', true)
-    .maybeSingle();
+  const { data: loginLookupRows, error: userLookupError } = await supabase
+    .rpc('lookup_login_user_by_username', { p_username: loginUsername });
 
   if (userLookupError) {
     throwLoginError('users_query_failed', {
@@ -3787,11 +3782,18 @@ async function loginWithSupabaseAuth(username, password) {
     });
   }
 
-  if (!userRow) {
+  const loginLookupList = Array.isArray(loginLookupRows)
+    ? loginLookupRows
+    : loginLookupRows
+      ? [loginLookupRows]
+      : [];
+  const loginUser = loginLookupList[0] || null;
+
+  if (!loginUser) {
     throwLoginError('inactive_or_missing_username', { username: loginUsername });
   }
 
-  const loginAuthEmail = String(userRow.auth_email || '').trim().toLowerCase();
+  const loginAuthEmail = String(loginUser.auth_email || '').trim().toLowerCase();
   if (!loginAuthEmail) {
     throwLoginError('auth_ok_user_row_not_found', { username: loginUsername, reason: 'missing_auth_email' });
   }
@@ -3806,7 +3808,7 @@ async function loginWithSupabaseAuth(username, password) {
   }
 
   const authUserId = String(authData.user.id || '').trim();
-  const rowAuthUserId = String(userRow.auth_user_id || '').trim();
+  const rowAuthUserId = String(loginUser.auth_user_id || '').trim();
   if (!authUserId || !rowAuthUserId || authUserId !== rowAuthUserId) {
     throwLoginError('auth_ok_user_row_not_found', {
       username: loginUsername,
@@ -3816,9 +3818,36 @@ async function loginWithSupabaseAuth(username, password) {
     });
   }
 
+  const { userRow, matchedBy, status } = await resolveActiveUserRowAfterAuth({
+    supabase,
+    baseColumns: USER_PUBLIC_COLUMNS,
+    extendedColumns: USER_PUBLIC_COLUMNS_EXTENDED,
+    username: loginUsername,
+    authEmail: loginAuthEmail,
+    authUserId,
+    loginMode: true,
+    requireAuthUserMatch: true
+  });
+
+  if (!userRow) {
+    const postAuthProfileError = status === 'permission_denied'
+      ? 'auth_ok_user_row_permission_denied'
+      : status === 'query_error'
+        ? 'auth_ok_user_row_query_error'
+        : status === 'multiple_matches'
+          ? 'auth_ok_user_row_multiple_matches'
+          : 'auth_ok_user_row_not_found';
+    throwLoginError(postAuthProfileError, {
+      username: loginUsername,
+      auth_user_id: authUserId,
+      reason: 'post_auth_user_row_not_found',
+      status
+    });
+  }
+
   try {
     console.info('[login-auth-success]', { authEmail: loginAuthEmail, loginUsername, authUserId });
-    console.info('[login-user-resolve]', { matchedBy: 'username', username: loginUsername, user_id: userRow.user_id, auth_email: loginAuthEmail });
+    console.info('[login-user-resolve]', { matchedBy, username: loginUsername, user_id: userRow.user_id, auth_email: loginAuthEmail });
   } catch {
     /* ignore */
   }

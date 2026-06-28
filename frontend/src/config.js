@@ -46,5 +46,5 @@ if (!resolvedUrl) {
 export const config = {
   apiUrl: resolvedUrl,
   DIAGNOSTICS_UI_ENABLED: false,
-  HOTFIX_VERSION: 'instructor-peers-calendar-cache-20260628-v1'
+  HOTFIX_VERSION: 'secure-login-username-rpc-20260628-v1'
 };
