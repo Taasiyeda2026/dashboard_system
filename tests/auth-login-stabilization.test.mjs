@@ -39,7 +39,9 @@ test('login uses Supabase Auth email domain and resolves users with strict auth 
   const source = await readFile(API_FILE, 'utf8');
   const loginBlock = source.match(/async function loginWithSupabaseAuth[\s\S]*?^}/m);
   assert.ok(loginBlock, 'loginWithSupabaseAuth should exist');
-  assert.match(loginBlock[0], /@think\.org\.il/);
+  assert.match(loginBlock[0], /lookup_login_user_by_username/);
+  assert.match(loginBlock[0], /loginUser\.auth_email/);
+  assert.doesNotMatch(loginBlock[0], /`\$\{[^`]*username[^`]*}\@think\.org\.il`/);
   assert.match(loginBlock[0], /signInWithPassword\(/);
   assert.match(loginBlock[0], /resolveActiveUserRowAfterAuth\(/);
   assert.match(loginBlock[0], /loginMode: true/);
