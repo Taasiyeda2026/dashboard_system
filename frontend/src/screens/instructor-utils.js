@@ -1,7 +1,7 @@
 import { escapeHtml } from './shared/html.js';
 import { formatDateHe, formatTimeShort } from './shared/format-date.js';
 import { buildCompletionApprovals, openApprovalPrintWindow, approvalFileTitle } from './shared/activity-completion-approval-print.js';
-import { getActivityAuthorityName, getActivitySchoolDisplayName, getActivitySchoolNames } from './shared/operations-activity-helpers.js';
+import { getActivityAuthorityName, getActivityInstructorNames, getActivitySchoolDisplayName, getActivitySchoolNames } from './shared/operations-activity-helpers.js';
 
 export const WEEKDAYS_HE = ['יום א׳', 'יום ב׳', 'יום ג׳', 'יום ד׳', 'יום ה׳', 'יום ו׳', 'יום ש׳'];
 export const WEEKDAY_SHORT_HE = ['א׳', 'ב׳', 'ג׳', 'ד׳', 'ה׳', 'ו׳', 'ש׳'];
@@ -57,16 +57,29 @@ function schoolContactDetailHtml(row) {
   return `${escapeHtml(name)}<br>${escapeHtml(phone)}`;
 }
 
-function instructorEntriesForRow(row) {
+function instructorEntriesForRow(row, group = null) {
   const entries = [];
   const add = (name, empId, phone, role) => {
     const entry = { name: text(name), empId: text(empId), phone: text(phone), role: text(role) };
     if (!entry.name && !entry.empId) return;
-    if (entries.some((item) => (entry.empId && item.empId === entry.empId) || (!entry.empId && item.name && item.name === entry.name))) return;
+    const normalizedName = norm(entry.name);
+    const existing = entries.find((item) => (entry.empId && item.empId === entry.empId) || (normalizedName && norm(item.name) === normalizedName));
+    if (existing) {
+      existing.name = existing.name || entry.name;
+      existing.empId = existing.empId || entry.empId;
+      existing.phone = existing.phone || entry.phone;
+      existing.role = existing.role || entry.role;
+      return;
+    }
     entries.push(entry);
   };
-  add(row?.instructor_name || row?.instructor || row?.guide_name || row?.guide, row?.emp_id, row?.instructor_phone || row?.phone, row?.instructor_role || row?.role);
-  add(row?.instructor_name_2 || row?.instructor_2 || row?.guide_name_2 || row?.guide_2, row?.emp_id_2, row?.instructor_phone_2 || row?.phone_2, row?.instructor_role_2 || row?.role_2);
+  const rowNames = getActivityInstructorNames(row);
+  add(rowNames[0] || row?.instructor_name || row?.instructor || row?.guide_name || row?.guide, row?.emp_id, row?.instructor_phone || row?.phone, row?.instructor_role || row?.role);
+  add(rowNames[1] || row?.instructor_name_2 || row?.instructor_2 || row?.guide_name_2 || row?.guide_2, row?.emp_id_2, row?.instructor_phone_2 || row?.phone_2, row?.instructor_role_2 || row?.role_2);
+  (Array.isArray(group?.instructors) ? group.instructors : []).forEach((instructor) => {
+    if (typeof instructor === 'string') add(instructor, '', '', '');
+    else add(instructor?.name || instructor?.full_name, instructor?.empId || instructor?.emp_id || instructor?.employee_id, instructor?.phone || instructor?.mobile, instructor?.role);
+  });
   return entries;
 }
 
@@ -75,18 +88,17 @@ function isCurrentInstructorEntry(entry, ids) {
   return !!entry?.empId && idList.includes(entry.empId);
 }
 
-function peerInstructorsHtml(row, ids) {
-  const assignedInstructors = instructorEntriesForRow(row);
+function peerInstructorsHtml(row, ids, group = null) {
+  const assignedInstructors = instructorEntriesForRow(row, group);
   const currentAssignedCount = assignedInstructors.filter((entry) => isCurrentInstructorEntry(entry, ids)).length;
-  if (assignedInstructors.length <= 1 && currentAssignedCount) return '';
-
   const peers = assignedInstructors.filter((entry) => !isCurrentInstructorEntry(entry, ids));
+  if (!peers.length && currentAssignedCount) return '<span class="instr-peer-solo">את/ה משובץ/ת לבד בפעילות זו</span>';
   if (!peers.length) return '';
 
   return peers.map((entry) => {
     const name = entry.name || entry.empId;
-    const details = [entry.phone, entry.role].filter(Boolean).map((value) => `<small>${escapeHtml(value)}</small>`).join('');
-    return `<span class="instr-peer-card"><strong>${escapeHtml(name)}</strong>${details}</span>`;
+    const detailsText = [entry.phone, entry.role].filter(Boolean).join(' · ');
+    return `<span class="instr-peer-card"><strong>${escapeHtml(name)}</strong>${detailsText ? `<small>${escapeHtml(detailsText)}</small>` : ''}</span>`;
   }).join('');
 }
 
@@ -95,7 +107,7 @@ export function activityDetailHtml(row, { ids = [], teamMap = new Map(), upload 
   const status = completionStatusFromUpload(upload, row);
   const responsible = text(group?.responsibleName || '—');
   const mineResponsible = isResponsibleForGroup(group, ids);
-  const peersHtml = peerInstructorsHtml(row, ids);
+  const peersHtml = peerInstructorsHtml(row, ids, group);
   const fields = [
     ['שם פעילות', rowTitle(row)],
     ['תאריך', formatDateHe(isoDate(row?.start_date || row?.activity_date)) || isoDate(row?.start_date || row?.activity_date) || '—'],

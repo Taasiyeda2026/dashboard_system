@@ -40,7 +40,7 @@ test('calendar renders activity days and opens day then activity detail drawers'
   assert.match(drawer.innerHTML, /אתה אחראי קשר ביום זה/);
   drawer.querySelector('[data-activity-detail="r1"]').click();
   assert.equal(opened.at(-1).title, 'פירוט פעילות');
-  assert.match(opened.at(-1).content, /מי איתי היום/);
+  assert.match(opened.at(-1).content, /מי נמצא איתי/g);
 });
 
 test('my activities table has instructor filters and detail-only row action', () => {
@@ -132,7 +132,7 @@ test('my activities uses status-first columns and detail-only actions', () => {
 });
 
 
-test('activity detail hides who-with-me section when current instructor is assigned alone', () => {
+test('activity detail shows compact solo message when current instructor is assigned alone', () => {
   const soloRow = { ...row, emp_id_2: '', instructor_name_2: '' };
   const soloGroups = [{
     activity_date: '2026-06-21',
@@ -144,9 +144,9 @@ test('activity detail hides who-with-me section when current instructor is assig
 
   const html = activityDetailHtml(soloRow, { ids: ['1525'], teamMap: contactGroupsByDateSchool(soloGroups) });
 
-  assert.doesNotMatch(html, /מי איתי היום/);
+  assert.match(html, /מי נמצא איתי/);
+  assert.match(html, /את\/ה משובץ\/ת לבד בפעילות זו/);
   assert.doesNotMatch(html, /אין מדריך נוסף/);
-  assert.doesNotMatch(html, /משובץ\/ת לבד לפעילות זו/);
 });
 
 test('activity detail lists only additional instructors with available contact details', () => {
@@ -163,9 +163,9 @@ test('activity detail lists only additional instructors with available contact d
 
   const html = activityDetailHtml(row, { ids: ['1525'], teamMap: contactGroupsByDateSchool(detailedGroups) });
 
-  assert.match(html, /מי איתי היום/);
-  assert.match(html, /הילה רוזן · 050-2222222 · מדריכה מובילה/);
-  assert.doesNotMatch(html, /אייל יוחאי · 050-1111111 · מדריך/);
+  assert.match(html, /מי נמצא איתי/);
+  assert.match(html, /הילה רוזן[\s\S]*050-2222222 · מדריכה מובילה/);
+  assert.doesNotMatch(html, /אייל יוחאי[\s\S]*050-1111111 · מדריך/);
 });
 
 test('activity detail drawer is info-only without upload or print actions', () => {

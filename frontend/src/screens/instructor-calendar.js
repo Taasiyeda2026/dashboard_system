@@ -4,6 +4,7 @@ import { dsPageHeader, dsScreenStack } from './shared/layout.js';
 import { activityDetailHtml, activityHours, assignedToCurrentInstructor, bindActivityDetailActions, completionStatusFromUpload, contactGroupsByDateSchool, currentInstructorIds, currentInstructorName, groupForRow, isResponsibleForGroup, isoDate, monthKey, parseLocalDate, participants, rowTitle, statusChipHtml, text, WEEKDAY_SHORT_HE, weekdayNameHe } from './instructor-utils.js';
 
 let selectedMonth = new Date();
+let selectedMonthWasChosen = false;
 let renderRows = [];
 let teamMap = new Map();
 let currentIds = [];
@@ -116,6 +117,8 @@ function dayDrawerHtml(iso, rows, uMap) {
 
 export const instructorCalendarScreen = {
   load: async ({ api }) => {
+    selectedMonth = new Date();
+    selectedMonthWasChosen = false;
     const [myData, uploads] = await Promise.all([
       api.myData(),
       api.completionApprovalUploads().catch(() => ({ rows: [] }))
@@ -123,6 +126,7 @@ export const instructorCalendarScreen = {
     return { rows: myData?.rows || [], teamGroups: myData?.teamGroups || [], uploads: uploads?.rows || [] };
   },
   render(data, { state } = {}) {
+    if (!selectedMonthWasChosen) selectedMonth = new Date();
     currentIds = currentInstructorIds(state);
     teamMap = contactGroupsByDateSchool(data?.teamGroups || []);
     renderRows = (Array.isArray(data?.rows) ? data.rows : []).filter((r) => assignedToCurrentInstructor(r, currentIds));
@@ -136,9 +140,9 @@ export const instructorCalendarScreen = {
     teamMap = contactGroupsByDateSchool(data?.teamGroups || []);
     const uMap = uploadMap(data?.uploads || []);
 
-    root.querySelector('[data-cal-prev]')?.addEventListener('click', () => { selectedMonth = addMonths(selectedMonth, -1); rerender?.(); });
-    root.querySelector('[data-cal-next]')?.addEventListener('click', () => { selectedMonth = addMonths(selectedMonth, 1); rerender?.(); });
-    root.querySelector('[data-cal-today]')?.addEventListener('click', () => { selectedMonth = new Date(); rerender?.(); });
+    root.querySelector('[data-cal-prev]')?.addEventListener('click', () => { selectedMonth = addMonths(selectedMonth, -1); selectedMonthWasChosen = true; rerender?.(); });
+    root.querySelector('[data-cal-next]')?.addEventListener('click', () => { selectedMonth = addMonths(selectedMonth, 1); selectedMonthWasChosen = true; rerender?.(); });
+    root.querySelector('[data-cal-today]')?.addEventListener('click', () => { selectedMonth = new Date(); selectedMonthWasChosen = true; rerender?.(); });
 
     const openActivityDetail = (row) => {
       if (!row || !ui) return;
