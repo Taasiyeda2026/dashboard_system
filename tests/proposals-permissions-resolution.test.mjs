@@ -118,6 +118,23 @@ test('user with no proposal permissions cannot access proposals interface', () =
   assert.equal(canAccessProposalsAgreements({ user: flat, effectiveRoutes: bootstrap.routes }), false);
 });
 
+
+test('flattenUserRow separates display username from internal login fallback', () => {
+  const flat = flattenUserRow({
+    user_id: '1525',
+    username: '',
+    email: 'internal@example.com',
+    auth_email: 'auth@example.com',
+    role: 'authorized_user',
+    is_active: true
+  });
+
+  assert.equal(flat.username, 'לא הוגדר');
+  assert.equal(flat.username_display, 'לא הוגדר');
+  assert.equal(flat.username_for_login, '1525');
+  assert.equal(flat.full_name, '');
+});
+
 test('flattenUserRow preserves JSONB permissions and top-level columns override JSON values', () => {
   const flat = flattenUserRow({
     user_id: 'u1',
