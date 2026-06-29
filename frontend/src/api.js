@@ -5252,7 +5252,13 @@ export const api = {
     const { data, error } = await supabase.storage
       .from('completion-approvals')
       .createSignedUrl(path, 60 * 5, download ? { download: true } : undefined);
-    if (error) throw new Error(error.message || 'completion_approval_signed_url_failed');
+    if (error) {
+      const message = String(error.message || '').trim();
+      if (/object not found/i.test(message)) {
+        throw new Error('הקובץ לא נמצא באחסון. יש לבדוק את נתיב הקובץ מול הרשומה.');
+      }
+      throw new Error(message || 'completion_approval_signed_url_failed');
+    }
     return { signedUrl: data?.signedUrl || '' };
   },
   reviewCompletionApprovalUpload: async ({ id, status, reviewNote = '' } = {}) => {

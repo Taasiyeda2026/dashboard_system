@@ -230,7 +230,11 @@ export const instructorCompletionApprovalsScreen = {
           if (!signedUrl) throw new Error('missing_signed_url');
           window.open(signedUrl, '_blank', 'noopener');
         } catch (error) {
-          alert(`פתיחת הקובץ נכשלה: ${error?.message || error}`);
+          const message = String(error?.message || error || '').trim();
+          const displayMessage = /object not found/i.test(message)
+            ? 'הקובץ לא נמצא באחסון. יש לבדוק את נתיב הקובץ מול הרשומה.'
+            : (message || 'שגיאה לא ידועה');
+          alert(`פתיחת הקובץ נכשלה: ${displayMessage}`);
         }
       });
     });
