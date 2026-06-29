@@ -223,6 +223,37 @@ test('login resolver supports instructor employee-number login after username mi
 });
 
 
+
+test('login lookup migration syncs auth emails and matches username before user_id before emp_id', async () => {
+  const migrationPath = new URL('../supabase/migrations/20260629120000_sync_auth_email_and_login_lookup_ids.sql', import.meta.url);
+  const sql = await readFile(migrationPath, 'utf8');
+  const normalized = sql.toLowerCase();
+
+  assert.match(normalized, /update public\.users as u/);
+  assert.match(normalized, /set auth_email = au\.email/);
+  assert.match(normalized, /from auth\.users as au/);
+  assert.match(normalized, /u\.is_active = true/);
+  assert.match(normalized, /u\.auth_user_id = au\.id/);
+  assert.match(normalized, /u\.auth_email is distinct from au\.email/);
+
+  const updateClause = normalized.match(/update public\.users as u[\s\S]*?drop function/)?.[0] || '';
+  const setClause = updateClause.match(/set[\s\S]*?from auth\.users as au/)?.[0] || '';
+  assert.doesNotMatch(setClause, /user_id\s*=/);
+  assert.doesNotMatch(setClause, /username\s*=/);
+  assert.doesNotMatch(setClause, /role\s*=/);
+  assert.doesNotMatch(setClause, /auth_user_id\s*=/);
+
+  assert.match(normalized, /lower\(btrim\(u\.username::text\)\) = input\.login_key/);
+  assert.match(normalized, /lower\(btrim\(u\.user_id::text\)\) = input\.login_key/);
+  assert.match(normalized, /lower\(btrim\(u\.emp_id::text\)\) = input\.login_key/);
+  assert.match(normalized, /when lower\(btrim\(u\.username::text\)\) = input\.login_key then 1/);
+  assert.match(normalized, /when lower\(btrim\(u\.user_id::text\)\) = input\.login_key then 2/);
+  assert.match(normalized, /when lower\(btrim\(u\.emp_id::text\)\) = input\.login_key then 3/);
+  assert.match(normalized, /lookup_login_user_by_username\('6000'\)/);
+  assert.match(normalized, /lookup_login_user_by_username\('edenc'\)/);
+  assert.match(normalized, /u\.user_id in \('6000', '1500'\)/);
+});
+
 test('idann auth email repair migration only updates the pinned admin row', async () => {
   const migrationPath = new URL('../supabase/migrations/20260626090000_repair_idann_auth_email.sql', import.meta.url);
   const sql = await readFile(migrationPath, 'utf8');
