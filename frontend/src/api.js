@@ -5508,6 +5508,7 @@ export const api = {
       client_type: cleanProposalAgreementText(payload.client_type) || (resolvedSchool.school_id ? 'school' : 'authority')
     };
     const patch = sanitizeProposalAgreementPayload(enrichedPayload, groupLookup);
+    patch.updated_at = new Date().toISOString();
     if (!patch.contact_school_id) {
       const contactSchoolId = await ensureContactSchoolFromProposal({ ...patch, _contact_original: enrichedPayload?._contact_original });
       if (contactSchoolId != null) patch.contact_school_id = contactSchoolId;
@@ -5553,7 +5554,7 @@ export const api = {
         }
       }
     }
-    const patch = { status: statusForDb(cleanStatus), approval_note: cleanProposalAgreementText(approvalNote) };
+    const patch = { status: statusForDb(cleanStatus), approval_note: cleanProposalAgreementText(approvalNote), updated_at: new Date().toISOString() };
     if (cleanStatus === 'approved') {
       patch.status = 'approved';
       patch.approved_by = uuidOrNull(state?.user?.auth_user_id);

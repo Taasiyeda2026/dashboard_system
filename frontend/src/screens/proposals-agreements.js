@@ -765,12 +765,9 @@ function currencyAmountHtml(num) {
 
 function sortRows(rows) {
   return [...(Array.isArray(rows) ? rows : [])].sort((a, b) => {
-    const dateA = text(a.proposal_date) || '';
-    const dateB = text(b.proposal_date) || '';
-    if (dateB !== dateA) return dateB.localeCompare(dateA);
-    const tsA = text(a.updated_at) || text(a.created_at) || '';
-    const tsB = text(b.updated_at) || text(b.created_at) || '';
-    return tsB.localeCompare(tsA);
+    const dateA = new Date(text(a.updated_at) || text(a.created_at) || text(a.proposal_date) || 0);
+    const dateB = new Date(text(b.updated_at) || text(b.created_at) || text(b.proposal_date) || 0);
+    return dateB - dateA;
   });
 }
 
@@ -4455,7 +4452,7 @@ export const proposalsAgreementsScreen = {
               rowStatusSelect.disabled = true;
               try {
                 const result = await api.updateProposalAgreementStatus(id, 'approved', '', signatureMeta);
-                replaceLocalRow(data, result?.row || { id, status: 'approved', approval_note: '', signature_meta: signatureMeta });
+                replaceLocalRow(data, result?.row || { id, status: 'approved', approval_note: '', signature_meta: signatureMeta, updated_at: new Date().toISOString() });
                 refreshTable();
                 closeOverlay?.();
                 showToast('ההצעה אושרה ונחתמה', 'success');
@@ -4471,7 +4468,7 @@ export const proposalsAgreementsScreen = {
         rowStatusSelect.disabled = true;
         try {
           const result = await api.updateProposalAgreementStatus(id, newStatus, '');
-          replaceLocalRow(data, result?.row || { id, status: newStatus, approval_note: '' });
+          replaceLocalRow(data, result?.row || { id, status: newStatus, approval_note: '', updated_at: new Date().toISOString() });
           refreshTable();
           showToast('סטטוס ההצעה עודכן בהצלחה', 'success');
         } catch (err) {
@@ -4875,7 +4872,7 @@ export const proposalsAgreementsScreen = {
               statusActionBtn.disabled = true;
               try {
                 const result = await api.updateProposalAgreementStatus(id, 'approved', '', signatureMeta);
-                replaceLocalRow(data, result?.row || { id, status: 'approved', approval_note: '', signature_meta: signatureMeta });
+                replaceLocalRow(data, result?.row || { id, status: 'approved', approval_note: '', signature_meta: signatureMeta, updated_at: new Date().toISOString() });
                 refreshTable();
                 const updated = data.rows.find((item) => text(item.id) === id);
                 const drawer = root.querySelector('[data-pa-drawer]');
@@ -4910,7 +4907,7 @@ export const proposalsAgreementsScreen = {
         statusActionBtn.disabled = true;
         try {
           const result = await api.updateProposalAgreementStatus(id, newStatus, '');
-          replaceLocalRow(data, result?.row || { id, status: newStatus, approval_note: '' });
+          replaceLocalRow(data, result?.row || { id, status: newStatus, approval_note: '', updated_at: new Date().toISOString() });
           refreshTable();
           const updated = data.rows.find((item) => text(item.id) === id);
           const drawer = root.querySelector('[data-pa-drawer]');
@@ -4933,7 +4930,7 @@ export const proposalsAgreementsScreen = {
         returnConfirmBtn.disabled = true;
         try {
           const result = await api.updateProposalAgreementStatus(id, 'returned_for_changes', note);
-          replaceLocalRow(data, result?.row || { id, status: 'returned_for_changes', approval_note: note });
+          replaceLocalRow(data, result?.row || { id, status: 'returned_for_changes', approval_note: note, updated_at: new Date().toISOString() });
           refreshTable();
           const updated = data.rows.find((item) => text(item.id) === id);
           const drawer = root.querySelector('[data-pa-drawer]');
