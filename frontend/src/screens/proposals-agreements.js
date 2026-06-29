@@ -2768,8 +2768,8 @@ function formHtml(mode, row = {}, activityNameOptions = [], contactOptions = [],
   const proposalDate = mode === 'add' ? (text(row.proposal_date) || localDateInputValue()) : text(row.proposal_date);
   const hasCustomSections = Array.isArray(row.custom_document_sections) && row.custom_document_sections.length > 0;
   const canApproveDirectly = canApproveProposalsAgreements(state);
-  const primaryActionLabel = 'שליחה לאישור';
-  const primaryActionStatus = 'pending_approval';
+  const primaryActionLabel = canApproveDirectly ? 'אישור וחתימה' : 'שליחה לאישור';
+  const primaryActionStatus = canApproveDirectly ? 'approved' : 'pending_approval';
 
   const initialPreviewRow = normalizeProposalAgreementRow({
     ...row,
@@ -4297,7 +4297,7 @@ export const proposalsAgreementsScreen = {
 
 
     // ── Save ──────────────────────────────────────────────────────────────────
-    const saveForm = async (form, statusOverride) => {
+    const saveForm = async (form, statusOverride, signatureMeta = null) => {
       const errorEl = form.querySelector('[data-pa-form-error]');
       if (form.dataset.saving === 'yes') return;
       form.dataset.saving = 'yes';
@@ -4307,6 +4307,7 @@ export const proposalsAgreementsScreen = {
       // Always set status explicitly — 'draft' is the safe default
       const targetStatus = statusOverride || 'draft';
       payload.status = targetStatus;
+      if (signatureMeta && typeof signatureMeta === 'object') payload.signature_meta = signatureMeta;
       const isPending = targetStatus === 'sent' || targetStatus === 'pending_approval';
 
       const validationErrors = validatePayload(payload, targetStatus);
@@ -5014,17 +5015,37 @@ export const proposalsAgreementsScreen = {
         const form = savePendingBtn.closest('[data-pa-form]');
         if (!form) return;
         const targetStatus = text(savePendingBtn.dataset.paTargetStatus) || 'sent';
-        if (form.dataset.paPreviewSeen !== 'yes') {
+        const submitLabel = targetStatus === 'approved' ? 'אישור וחתימה' : 'שליחה לאישור';
+        const payload = payloadFromForm(form);
+        const tempRow = { ...payload, id: text(form.dataset.paId) || '' };
+        const items = payload._items || [];
+        if (targetStatus === 'approved') {
+          // Admin flow — always show preview with signature mode; save only after signing
+          form.dataset.paPreviewSeen = 'yes';
+          try {
+            await openPreview(tempRow, items, {
+              form,
+              signatureMode: true,
+              onSignatureConfirm: async (signatureMeta, closeOverlay) => {
+                try {
+                  await saveForm(form, 'approved', signatureMeta);
+                  closeOverlay?.();
+                } catch (e) {
+                  console.warn('[PA] saveForm error (approved flow):', e);
+                }
+              }
+            });
+          } catch (e) {
+            console.warn('[PA] openPreview error (approved flow):', e);
+          }
+        } else if (form.dataset.paPreviewSeen !== 'yes') {
           // Preview not yet seen — open it automatically with a submit button inside
-          const payload = payloadFromForm(form);
-          const tempRow = { ...payload, id: text(form.dataset.paId) || '' };
-          const items = payload._items || [];
           form.dataset.paPreviewSeen = 'yes'; // mark immediately
           try {
             await openPreview(tempRow, items, {
               form,
               onSubmit: async () => { await saveForm(form, targetStatus); },
-              submitLabel: 'שליחה לאישור'
+              submitLabel
             });
           } catch (e) {
             console.warn('[PA] openPreview error (pending flow):', e);
