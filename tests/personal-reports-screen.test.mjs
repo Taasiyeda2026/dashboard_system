@@ -467,6 +467,21 @@ test('finance personal reports manager does not get admin role in profile mappin
   assert.match(source, /role = isAdminRole\(displayRole\) \? 'admin' : 'employee'/);
 });
 
+
+test('all-employees salary PDF cover includes compact expense and workday summaries', async () => {
+  const source = await readFile(new URL('../frontend/src/screens/personal-reports.js', import.meta.url), 'utf8');
+  const coverSection = source.match(/function buildAllEmployeesCoverPage[\s\S]*?async function openAllEmployeesMonthlyReportsPdf/)?.[0] || '';
+
+  assert.match(coverSection, /דוח הוצאות מסכם חודשי לשכר/);
+  assert.match(coverSection, /'סה״כ ק״מ'/);
+  assert.match(coverSection, /'סה״כ לתשלום'/);
+  assert.match(coverSection, /print-summary-table/);
+  assert.match(coverSection, /print-col-status/);
+  assert.doesNotMatch(coverSection, /<h2>סיכום כללי<\/h2>/);
+  assert.match(coverSection, /<h2>סיכום ימי עבודה<\/h2>/);
+  assert.match(coverSection, /'סטטוס חודש'/);
+});
+
 test('final all-employees salary PDF keeps employee pages focused and single summarized', async () => {
   const source = await readFile(new URL('../frontend/src/screens/personal-reports.js', import.meta.url), 'utf8');
   const printSection = source.match(/function buildPersonalReportPrintSection[\s\S]*?function splitTravelEntries/)?.[0] || '';
