@@ -11006,7 +11006,7 @@ select.ds-input {
 }
 
 .ds-pa-drawer-panel {
-  width: clamp(420px, 34vw, 560px);
+  width: clamp(458px, 36vw, 598px);
   height: 100%;
   overflow: hidden;
   display: flex;
