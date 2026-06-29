@@ -1499,10 +1499,20 @@ function printSchoolsSchedule() {
     ? `טווח תאריכים: ${formatDateHe(ops.dateFrom)}–${formatDateHe(ops.dateTo)}`
     : '';
   const sectionsHtml = Array.from(byAuthority.values()).map((authorityGroup) => {
-    const schools = Array.from(authorityGroup.schools.values()).sort((a, b) => a.school.localeCompare(b.school, 'he'));
-    const schoolsHtml = schools.map((schoolGroup) => {
-      const dates = Array.from(schoolGroup.dates.entries()).sort(([a], [b]) => compareDatesAsc(a, b));
-      const datesHtml = dates.map(([date, entries]) => {
+    // Build date → school → entries (new order: authority > date > school > entries)
+    const dateMap = new Map();
+    for (const schoolGroup of authorityGroup.schools.values()) {
+      for (const [date, entries] of schoolGroup.dates.entries()) {
+        if (!dateMap.has(date)) dateMap.set(date, new Map());
+        const schoolMap = dateMap.get(date);
+        if (!schoolMap.has(schoolGroup.school)) schoolMap.set(schoolGroup.school, []);
+        schoolMap.get(schoolGroup.school).push(...entries);
+      }
+    }
+    const sortedDates = Array.from(dateMap.entries()).sort(([a], [b]) => compareDatesAsc(a, b));
+    const datesHtml = sortedDates.map(([date, schoolMap]) => {
+      const sortedSchools = Array.from(schoolMap.entries()).sort(([a], [b]) => a.localeCompare(b, 'he'));
+      const schoolBlocksHtml = sortedSchools.map(([school, entries]) => {
         const sorted = entries.slice().sort((a, b) => {
           const timeCmp = compareValues(a.time || '99:99', b.time || '99:99', 'asc');
           if (timeCmp !== 0) return timeCmp;
@@ -1519,20 +1529,23 @@ function printSchoolsSchedule() {
             <td class="col-activity">${escapeHtml(getActivityName(activity))}</td>
           </tr>`;
         }).join('');
-        const dayLabel = date ? formatDateHeWithWeekday(date).split(' · ')[0] : '—';
-        return `<div class="date-block authorities-title-table-block">
-          <div class="date-title authorities-group-title">${escapeHtml(formatDateHe(date) || date)} · ${escapeHtml(dayLabel)}</div>
-          <table class="authorities-table"><colgroup><col class="col-time"><col class="col-instructor"><col class="col-class"><col class="col-activity"></colgroup><thead><tr><th class="col-time">שעות</th><th class="col-instructor">מדריך</th><th class="col-class">כיתה</th><th class="col-activity">פעילות / סדנה</th></tr></thead><tbody>${rowsHtml}</tbody></table>
+        return `<div class="school-block">
+          <div class="school-title authorities-group-title">${escapeHtml(school)}</div>
+          <div class="date-block authorities-title-table-block">
+            <table class="authorities-table"><colgroup><col class="col-time"><col class="col-instructor"><col class="col-class"><col class="col-activity"></colgroup><thead><tr><th class="col-time">שעות</th><th class="col-instructor">מדריך</th><th class="col-class">כיתה</th><th class="col-activity">פעילות / סדנה</th></tr></thead><tbody>${rowsHtml}</tbody></table>
+          </div>
         </div>`;
       }).join('');
-      return `<div class="school-block">
-        <div class="school-title authorities-group-title">${escapeHtml(schoolHeaderTitle(schoolGroup.school, schoolGroup.activities, schoolGroup.quantityTotal))}</div>
-        ${datesHtml}
+      const dayLabel = date ? formatDateHeWithWeekday(date).split(' · ')[0] : '—';
+      return `<div class="date-section">
+        <div class="date-title authorities-group-title">${escapeHtml(formatDateHe(date) || date)} · ${escapeHtml(dayLabel)}</div>
+        ${schoolBlocksHtml}
       </div>`;
     }).join('');
+    const schools = Array.from(authorityGroup.schools.values());
     return `<div class="authority-section">
       <div class="authority-header">${escapeHtml(authorityHeaderTitle(authorityGroup.authority, schools.length, authorityGroup.activities, authorityGroup.quantityTotal))}</div>
-      ${schoolsHtml}
+      ${datesHtml}
     </div>`;
   }).join('');
 
@@ -1544,11 +1557,11 @@ function printSchoolsSchedule() {
     .authority-section:not(:first-child){break-before:page;page-break-before:always;}
     .authority-header{font-size:13px;font-weight:800;color:#0369a1;margin:0 auto 6px;padding:4px 10px;width:55%;max-width:55%;background:#eef6ff;border-right:4px solid #0369a1;border-radius:6px;}
     .authority-stats{font-size:10px;font-weight:400;color:#64748b;margin-right:8px}
-    .school-block{margin-bottom:8px;}
-    .school-title{font-size:11px;font-weight:700;color:#1e293b;margin:0 auto 3px;padding:2px 8px;background:#f1f5f9;border-right:3px solid #94a3b8;width:55%;max-width:55%;break-after:avoid-page;page-break-after:avoid}
-    .date-block{display:block;width:55%;max-width:55%;margin:0 auto 6px;}
-    .date-title{font-size:10px;color:#475569;font-weight:700;margin-bottom:2px;text-align:right;break-after:avoid-page;page-break-after:avoid;}
-    .date-title+.authorities-table{break-before:avoid-page;page-break-before:avoid;}
+    .date-section{margin-bottom:10px;}
+    .date-title{font-size:11.5px;font-weight:800;color:#0369a1;margin:0 auto 5px;padding:3px 10px;background:#dbeafe;border-right:4px solid #2563eb;border-radius:4px;width:70%;max-width:70%;text-align:right;break-after:avoid-page;page-break-after:avoid;}
+    .school-block{margin-bottom:6px;}
+    .school-title{font-size:10.5px;font-weight:700;color:#1e293b;margin:0 auto 2px;padding:2px 8px;background:#f1f5f9;border-right:3px solid #94a3b8;width:55%;max-width:55%;break-after:avoid-page;page-break-after:avoid}
+    .date-block{display:block;width:55%;max-width:55%;margin:0 auto 4px;}
     .authorities-title-table-block{break-inside:avoid-page;page-break-inside:avoid}
     .authorities-table{border-collapse:collapse;width:100%;table-layout:fixed}
     .authorities-table .col-time{width:20%;text-align:center}
@@ -1561,7 +1574,7 @@ function printSchoolsSchedule() {
     .authorities-table tr{break-inside:avoid-page;page-break-inside:avoid}
     .footer{margin-top:10px;font-size:11px;font-weight:700;color:#0f172a;text-align:center;border-top:1px solid #cbd5e1;padding-top:5px}
     @page{size:A4 portrait;margin:8mm}
-    @media print{body{margin:0}.authority-section:not(:first-child){break-before:page;page-break-before:always;}.date-block{width:55%!important;max-width:55%!important;margin:0 auto 6px!important;display:block!important;}.authorities-table{width:100%!important;table-layout:fixed!important}.authorities-table .col-time{width:20%!important}.authorities-table .col-instructor{width:27%!important}.authorities-table .col-class{width:20%!important}.authorities-table .col-activity{width:33%!important}.authorities-table th,.authorities-table td{white-space:normal!important;word-break:break-word!important;overflow-wrap:anywhere!important;font-size:9px;padding:2px 4px;line-height:1.15}.date-title{break-after:avoid-page;page-break-after:avoid}.date-title+.authorities-table{break-before:avoid-page;page-break-before:avoid}.authorities-title-table-block{break-inside:avoid-page;page-break-inside:avoid}.authorities-table tr{break-inside:avoid-page;page-break-inside:avoid}.school-title{break-after:avoid-page;page-break-after:avoid}}
+    @media print{body{margin:0}.authority-section:not(:first-child){break-before:page;page-break-before:always;}.date-section{margin-bottom:8px!important;}.date-title{width:70%!important;max-width:70%!important;break-after:avoid-page;page-break-after:avoid}.school-title{break-after:avoid-page;page-break-after:avoid}.date-block{width:55%!important;max-width:55%!important;margin:0 auto 4px!important;display:block!important;}.authorities-table{width:100%!important;table-layout:fixed!important}.authorities-table .col-time{width:20%!important}.authorities-table .col-instructor{width:27%!important}.authorities-table .col-class{width:20%!important}.authorities-table .col-activity{width:33%!important}.authorities-table th,.authorities-table td{white-space:normal!important;word-break:break-word!important;overflow-wrap:anywhere!important;font-size:9px;padding:2px 4px;line-height:1.15}.authorities-title-table-block{break-inside:avoid-page;page-break-inside:avoid}.authorities-table tr{break-inside:avoid-page;page-break-inside:avoid}}
   `;
   const bodyHtml = `
     <h1>${escapeHtml(title)}</h1>
