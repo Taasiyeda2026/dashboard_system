@@ -76,13 +76,14 @@ const FIELD_LABELS = {
   email:               'דוא״ל',
   notes:               'הערות',
   status:              'סטטוס',
-  approval_note:       'הערת אישור'
+  approval_note:       'הערת אישור',
+  proposal_domain:     'תחום'
 };
 
 const REQUIRED_FIELDS_DRAFT = ['client_authority', 'activity_type_group'];
 const REQUIRED_FIELDS_PENDING = ['client_authority', 'activity_type_group', 'proposal_date'];
 const FORM_FIELDS = [
-  'client_authority', 'school_framework', 'document_type', 'activity_type_group',
+  'client_authority', 'school_framework', 'document_type', 'activity_type_group', 'proposal_domain',
   'proposal_date', 'activity_names', 'contact_name', 'contact_role', 'phone', 'email', 'notes'
 ];
 
@@ -620,6 +621,7 @@ export function buildProposalsAgreementsSearchText(row = {}) {
   return [
     row.id, row.client_name, row.client_authority, row.school_framework, row.authority_code, row.semel_mosad,
     row.document_type,
+    row.proposal_domain,
     row.activity_type_group, proposalGroupDisplayName(row.activity_type_group),
     Array.isArray(row.activity_names) ? row.activity_names.join(' ') : row.activity_names,
     row.notes, row.contact_name, row.contact_role, row.phone, row.email,
@@ -633,6 +635,8 @@ function normalizeActivityNames(value) {
 
 export function normalizeProposalAgreementRow(row = {}) {
   const rawGroup = text(row.activity_type_group);
+  let rawStatus = text(row.status);
+  if (rawStatus === 'draft' && (text(row.approved_at) || normalizeSignatureMeta(row.signature_meta || row.approval_meta))) rawStatus = 'approved';
   const normalized = {
     id:                  text(row.id),
     client_name:         text(row.client_name),
@@ -650,6 +654,7 @@ export function normalizeProposalAgreementRow(row = {}) {
     city:                text(row.city),
     document_type:       text(row.document_type) || 'הצעת מחיר',
     activity_type_group: normalizeProposalGroup(rawGroup),
+    proposal_domain:     text(row.proposal_domain).toUpperCase() === 'N' ? 'N' : 'A',
     proposal_date:       text(row.proposal_date),
     activity_names:      normalizeActivityNames(row.activity_names),
     contact_name:        text(row.contact_name),
@@ -657,7 +662,7 @@ export function normalizeProposalAgreementRow(row = {}) {
     phone:               text(row.phone),
     email:               text(row.email),
     notes:               text(row.notes),
-    status:              (new Set(['draft', 'sent', 'pending_approval', 'returned_for_changes', 'approved', 'cancelled'])).has(text(row.status)) ? text(row.status) : 'draft',
+    status:              (new Set(['draft', 'sent', 'pending_approval', 'returned_for_changes', 'approved', 'cancelled'])).has(rawStatus) ? rawStatus : 'draft',
     approval_note:       text(row.approval_note),
     total_amount:        row.total_amount != null ? Number(row.total_amount) || null : null,
     custom_document_sections: Array.isArray(row.custom_document_sections) ? row.custom_document_sections.map(normalizeDocumentSection) : [],
@@ -836,7 +841,7 @@ function statusSelectHtml(row, enabled, canApprove = false) {
 
 function detailRowsHtml(row) {
   return FORM_FIELDS.map((key) => {
-    if (['contact_name', 'contact_role', 'phone', 'email', 'document_type'].includes(key)) return '';
+    if (['contact_name', 'contact_role', 'phone', 'email', 'document_type', 'proposal_domain'].includes(key)) return '';
     let displayValue;
     if (key === 'activity_names') {
       const items = (Array.isArray(row[key]) ? row[key] : []).map(text).filter(Boolean);
@@ -875,7 +880,7 @@ function contactDetailRowsHtml(row = {}) {
 
 export function proposalsAgreementsTableRowsHtml(rows, state) {
   if (!rows.length) {
-    return `<tr class="ds-pa-empty-row"><td colspan="7">אין רשומות להצגה</td></tr>`;
+    return `<tr class="ds-pa-empty-row"><td colspan="8">אין רשומות להצגה</td></tr>`;
   }
   const canManage = canManageProposalsAgreements(state);
   const isAdmin = canApproveProposalsAgreements(state);
@@ -907,6 +912,7 @@ export function proposalsAgreementsTableRowsHtml(rows, state) {
       <td>${escapeHtml(row.client_name || row.client_authority || '—')}</td>
       <td>${escapeHtml(row.school_framework || '—')}</td>
       <td>${escapeHtml(proposalGroupDisplayName(row.activity_type_group) || '—')}</td>
+      <td>${escapeHtml(row.proposal_domain || 'A')}</td>
       <td>${escapeHtml(formatDateDisplay(row.proposal_date) || '')}</td>
       <td>${statusSelectHtml(row, canManage, isAdmin)}</td>
       <td>${row.total_amount != null ? `₪ ${escapeHtml(formatCurrency(row.total_amount))}` : ''}</td>
@@ -918,7 +924,7 @@ export function proposalsAgreementsTableRowsHtml(rows, state) {
 function tableHtml(rows, state) {
   return dsTableWrap(`
     <table class="ds-table ds-pa-table" data-pa-table>
-      <thead><tr><th>רשות / מועצה / עירייה</th><th>בית ספר / מסגרת</th><th>סוג הצעה</th><th>תאריך הצעה</th><th>סטטוס</th><th>סה״כ</th><th>פעולות</th></tr></thead>
+      <thead><tr><th>רשות / מועצה / עירייה</th><th>בית ספר / מסגרת</th><th>סוג הצעה</th><th>תחום</th><th>תאריך הצעה</th><th>סטטוס</th><th>סה״כ</th><th>פעולות</th></tr></thead>
       <tbody data-pa-table-body>${proposalsAgreementsTableRowsHtml(rows, state)}</tbody>
     </table>
   `);
@@ -2803,7 +2809,7 @@ function formHtml(mode, row = {}, activityNameOptions = [], contactOptions = [],
           ${proposalTypeCardsHtml(normalizedActivityGroup)}
         </div>
         <div class="ds-pa-type-meta-aux">
-          ${mode === 'edit' ? `<label class="ds-pa-form-field"><span>${escapeHtml(FIELD_LABELS.proposal_date)}</span><input class="ds-input ds-input--sm" type="date" name="proposal_date" value="${escapeHtml(proposalDate)}"></label>` : `<input type="hidden" name="proposal_date" value="${escapeHtml(proposalDate)}">`}
+          ${mode === 'edit' ? `<label class="ds-pa-form-field"><span>${escapeHtml(FIELD_LABELS.proposal_date)}</span><input class="ds-input ds-input--sm" type="date" name="proposal_date" value="${escapeHtml(proposalDate)}"></label><label class="ds-pa-form-field"><span>${escapeHtml(FIELD_LABELS.proposal_domain)}</span><select class="ds-input ds-input--sm" name="proposal_domain">${optionHtml('A', row.proposal_domain || 'A', 'A')}${optionHtml('N', row.proposal_domain || 'A', 'N')}</select></label>` : `<input type="hidden" name="proposal_date" value="${escapeHtml(proposalDate)}">`}
           <input type="hidden" name="document_type" value="${escapeHtml(text(row.document_type) || 'הצעת מחיר')}">
         </div>
       </div>
