@@ -1753,13 +1753,19 @@ function costTableRowsFromItem(item = {}) {
 // Rows without a real price are never shown. Selected bundle children become billed
 // rows; the parent row is omitted when children carry the actual prices.
 function proposalCostTableHtml(items = [], options = {}) {
-  const billedItems = (Array.isArray(items) ? items : []).filter((item) =>
+  const allBilledItems = (Array.isArray(items) ? items : []).filter((item) =>
     !isTestHoursItem(item) && text(item.proposal_display_mode) !== 'bundle_child');
-  const rows = billedItems.flatMap((item) => costTableRowsFromItem(item));
+  const regularItems = allBilledItems.filter((item) => !isDiscountItem(item));
+  const rows = regularItems.flatMap((item) => costTableRowsFromItem(item));
   if (!rows.length) return '';
-  const subtotal = rows.filter((row) => row.total > 0).reduce((sum, row) => sum + row.total, 0);
-  const discount = Math.abs(rows.filter((row) => row.total < 0).reduce((sum, row) => sum + row.total, 0));
-  const grandTotal = rows.reduce((sum, row) => sum + row.total, 0);
+  const subtotal = rows.reduce((sum, row) => sum + row.total, 0);
+  const discount = Math.abs(allBilledItems.filter(isDiscountItem).reduce((sum, item) => {
+    const quantity = Number(proposalField(item, 'quantity', 'quantity')) || 1;
+    const unitPrice = numberValue(item.unit_price);
+    const total = numberValue(item.total_price) ?? (unitPrice != null ? quantity * unitPrice : null);
+    return sum + (Number(total) || 0);
+  }, 0));
+  const grandTotal = Math.max(subtotal - discount, 0);
   const discountFooter = discount > 0
     ? `<tr><td colspan="3">סה״כ לפני הנחה</td><td>${currencyAmountHtml(subtotal)}</td></tr>
        <tr><td colspan="3">הנחה</td><td>${currencyAmountHtml(-discount)}</td></tr>`
@@ -1817,8 +1823,15 @@ function proposalItemDetailsTableHtml(items = [], contextGroup = '') {
   if (!isCourseKindText(groupKindText(contextGroup))) return '';
   const isNextYearTable = isNextYearProposalGroup(contextGroup);
   const tableClass = `pa-item-details-table pa-activities-table${isNextYearTable ? ' pa-next-year-course-table' : ''}`;
-  const visibleItems = (Array.isArray(items) ? items : []).filter((item) =>
+  const allVisibleItems = (Array.isArray(items) ? items : []).filter((item) =>
     !isTestHoursItem(item) && text(item.proposal_display_mode) !== 'bundle_child');
+  const visibleItems = allVisibleItems.filter((item) => !isDiscountItem(item));
+  const discountAmount = Math.abs(allVisibleItems.filter(isDiscountItem).reduce((sum, item) => {
+    const quantity = Number(proposalField(item, 'quantity', 'quantity')) || 1;
+    const unitPrice = numberValue(item.unit_price);
+    const total = numberValue(item.total_price) ?? (unitPrice != null ? quantity * unitPrice : null);
+    return sum + (Number(total) || 0);
+  }, 0));
   let totalMeetings = 0;
   let hasMeetings = false;
   let totalQuantity = 0;
@@ -1869,11 +1882,17 @@ function proposalItemDetailsTableHtml(items = [], contextGroup = '') {
     return `<tr>${cells.map((cell) => `<td>${cell.html ? (cell.value || '') : escapeHtml(cell.value || '')}</td>`).join('')}</tr>`;
   }).filter(Boolean);
   if (!rows.length) return '';
+  const payablePrice = discountAmount > 0 ? Math.max(totalPrice - discountAmount, 0) : null;
   const footerRow = isNextYearTable
-    ? `<tr class="pa-course-total-row"><td colspan="6">סה״כ לתשלום</td><td>${hasTotalPrice ? currencyAmountHtml(totalPrice) : ''}</td></tr>`
+    ? (discountAmount > 0
+        ? `<tr class="pa-course-total-row"><td colspan="6">סה״כ לפני הנחה</td><td>${hasTotalPrice ? currencyAmountHtml(totalPrice) : ''}</td></tr>
+           <tr class="pa-course-total-row"><td colspan="6">הנחה</td><td>${currencyAmountHtml(-discountAmount)}</td></tr>
+           <tr class="pa-course-total-row"><td colspan="6">סה״כ לתשלום</td><td>${hasTotalPrice ? currencyAmountHtml(payablePrice) : ''}</td></tr>`
+        : `<tr class="pa-course-total-row"><td colspan="6">סה״כ לתשלום</td><td>${hasTotalPrice ? currencyAmountHtml(totalPrice) : ''}</td></tr>`)
     : (() => {
+        const totalLabel = discountAmount > 0 ? 'סה״כ לפני הנחה' : 'סה״כ';
         const footerCells = [
-          { value: 'סה״כ' },
+          { value: totalLabel },
           { value: '' },
           { value: hasMeetings ? formatCurrency(totalMeetings) : '' },
           { value: hasQuantity ? formatCurrency(totalQuantity) : '' },
@@ -1881,7 +1900,13 @@ function proposalItemDetailsTableHtml(items = [], contextGroup = '') {
           { value: '' },
           { value: hasTotalPrice ? currencyAmountHtml(totalPrice) : '', html: true }
         ];
-        return `<tr>${footerCells.map((cell) => `<td>${cell.html ? (cell.value || '') : escapeHtml(cell.value || '')}</td>`).join('')}</tr>`;
+        const summaryRow = `<tr>${footerCells.map((cell) => `<td>${cell.html ? (cell.value || '') : escapeHtml(cell.value || '')}</td>`).join('')}</tr>`;
+        if (discountAmount > 0) {
+          return summaryRow
+            + `<tr><td>הנחה</td><td></td><td></td><td></td><td></td><td></td><td>${currencyAmountHtml(-discountAmount)}</td></tr>`
+            + `<tr><td>סה״כ לתשלום</td><td></td><td></td><td></td><td></td><td></td><td>${hasTotalPrice ? currencyAmountHtml(payablePrice) : ''}</td></tr>`;
+        }
+        return summaryRow;
       })();
   const nextYearTableStyle = isNextYearTable
     ? ' style="width:85%;margin-inline:auto;table-layout:fixed;"'
