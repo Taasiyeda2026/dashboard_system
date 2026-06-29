@@ -6,7 +6,7 @@ Preserve: RTL, Hebrew, dark shell + light panels. Communication with user: Hebre
 ## Runtime
 - Static server: `npx serve dist -l 5000` (workflow: "Start application")
 - SW cache bump: edit `CACHE_VERSION` in `frontend/sw.js` after any JS/CSS change.
-- **Current versions**: SW v1022 (frontend/sw.js + dist/sw.js)
+- **Current versions**: SW v1023 (frontend/sw.js + dist/sw.js)
 
 
 ## User preferences
@@ -74,6 +74,7 @@ Migration files to apply (in order):
 - `supabase/migrations/20260505_settings_admin_config.sql`
 - `supabase/migrations/20260622150000_ensure_contact_school_from_proposal_school_ids.sql`
 - `supabase/migrations/20260617_fix_contact_school_id_coalesce_type.sql`  ← **תיקון COALESCE bigint/uuid**
+- `supabase/migrations/20260629200000_admin_permissions_rls.sql`  ← **RLS לניהול הרשאות: INSERT/UPDATE/DELETE על users + UPDATE profiles ע"י admin**
 
 After applying 20260505 files: seed `users` table with existing users (user_id, entry_code, role, name).
 

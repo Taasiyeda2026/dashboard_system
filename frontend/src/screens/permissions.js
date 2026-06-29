@@ -324,9 +324,16 @@ export const permissionsScreen = {
             <tbody>${rowPairs}</tbody>
           </table></div>`;
 
+    const addUserBtn = isAdmin
+      ? `<div style="margin:8px 0 12px;display:flex;justify-content:flex-end;">
+           <button type="button" class="ds-btn ds-btn--primary" data-open-add-user>+ הוסף משתמש</button>
+         </div>`
+      : '';
+
     return dsScreenStack(`
       <section class="ds-perm-screen">
         ${dsPageHeader('משתמשים והרשאות', '')}
+        ${addUserBtn}
         ${tableHtml}
       </section>
     `);
@@ -488,6 +495,60 @@ export const permissionsScreen = {
         const userId = btn.dataset.userId;
         const row = safeRows.find((r) => String(r.user_id) === String(userId));
         openEditModal(row);
+      });
+    });
+
+    root.querySelectorAll('[data-open-add-user]').forEach((btn) => {
+      btn.addEventListener('click', (e) => {
+        e.stopPropagation();
+        if (!ui) return;
+        const roleDefaults = data?.roleDefaults || null;
+        const contentHtml = buildAddUserDrawerHtml(roleDefaults);
+        ui.openModal({
+          title: 'הוספת משתמש חדש',
+          content: contentHtml,
+          onClose: () => {}
+        });
+        requestAnimationFrame(() => {
+          const modalContent = document.querySelector('.ds-modal__content');
+          if (!modalContent) return;
+          const statusEl = modalContent.querySelector('.ds-perm-save-status');
+          const submitBtn = modalContent.querySelector('[data-add-user-submit]');
+          const roleSelect = modalContent.querySelector('#new-display-role');
+          const rolePreview = modalContent.querySelector('[data-role-preview]');
+          if (roleSelect && rolePreview) {
+            roleSelect.addEventListener('change', () => {
+              rolePreview.innerHTML = buildRolePreviewHtml(roleSelect.value, roleDefaults);
+            });
+          }
+          if (!submitBtn) return;
+          submitBtn.addEventListener('click', async () => {
+            const userId = String(modalContent.querySelector('#new-user-id')?.value || '').trim();
+            const fullName = String(modalContent.querySelector('#new-full-name')?.value || '').trim();
+            const entryCode = String(modalContent.querySelector('#new-entry-code')?.value || '').trim();
+            const role = String(roleSelect?.value || 'instructor').trim();
+            if (!userId) {
+              if (statusEl) statusEl.textContent = 'יש להזין מזהה משתמש';
+              return;
+            }
+            submitBtn.classList.add('is-loading');
+            submitBtn.disabled = true;
+            if (statusEl) statusEl.textContent = '';
+            try {
+              await api.addUser({ user_id: userId, full_name: fullName, entry_code: entryCode, role });
+              if (statusEl) statusEl.textContent = 'המשתמש נוסף בהצלחה';
+              submitBtn.disabled = false;
+              submitBtn.classList.remove('is-loading');
+              clearScreenDataCache?.();
+              if (typeof rerender === 'function') await rerender();
+              showToast(`המשתמש "${fullName || userId}" נוסף בהצלחה`, 'success');
+            } catch (error) {
+              if (statusEl) statusEl.textContent = translateApiErrorForUser(error?.message);
+              submitBtn.classList.remove('is-loading');
+              submitBtn.disabled = false;
+            }
+          });
+        });
       });
     });
   }
