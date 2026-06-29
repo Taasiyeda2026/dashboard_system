@@ -3598,16 +3598,20 @@ function parsePermissions(raw) {
 function flattenUserRow(userRow = {}) {
   const permissions = parsePermissions(userRow?.permissions);
   const role = normalizeSupabaseRole(userRow.role);
+  const usernameDisplay = String(userRow.username || '').trim().toLowerCase() || 'לא הוגדר';
+  const usernameForLogin = String(userRow.username || '').trim().toLowerCase() || String(userRow.user_id || '').trim().toLowerCase();
   const customDisplayRole = String(userRow.display_role || '').trim();
   const displayRoleLabel = String(userRow.display_role_label || customDisplayRole || '').trim();
   const displayRole2 = String(userRow.display_role2 || permissions.display_role2 || '').trim();
   const flat = {
     user_id: String(userRow.user_id || ''),
-    username: String(userRow.username || '').trim().toLowerCase() || String(userRow.user_id || '').trim().toLowerCase(),
+    username: usernameDisplay,
+    username_display: usernameDisplay,
+    username_for_login: usernameForLogin,
     email: String(userRow.email || '').trim(),
     auth_email: String(userRow.auth_email || '').trim(),
     name: String(userRow.name || '').trim(),
-    full_name: String(userRow.full_name || userRow.name || userRow.email || userRow.auth_email || ''),
+    full_name: String(userRow.full_name || userRow.name || ''),
     role,
     display_role: role,
     display_role_label: displayRoleLabel || hebrewRole(role),
@@ -3685,7 +3689,7 @@ function buildBootstrapFromUser(userRow, profileRow = null) {
     });
   }
   // Israa management tab — requires view_israa_management=yes AND (the esraaa username or admin role).
-  const isIsraaUser = String(flat.username || '').trim().toLowerCase() === 'esraaa';
+  const isIsraaUser = String(flat.username_for_login || '').trim().toLowerCase() === 'esraaa';
   const isAdminRole = role === 'admin';
   if ((isIsraaUser || isAdminRole) && permissionFlagYes(flat.view_israa_management)) {
     if (!allowedRoutes.includes('israa-management')) allowedRoutes.push('israa-management');
@@ -5017,7 +5021,9 @@ export const api = {
       token,
       user: {
         user_id: flat.user_id,
-        username: flat.username,
+        username: flat.username_display,
+        username_display: flat.username_display,
+        username_for_login: flat.username_for_login,
         email: String(flat.email || user.email || '').trim(),
         auth_email: String(flat.auth_email || '').trim(),
         role: flat.role,

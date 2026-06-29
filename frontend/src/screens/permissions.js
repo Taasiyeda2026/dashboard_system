@@ -228,6 +228,7 @@ function renderUserRow(row, canEdit, isAdmin, currentUserId, adminCount) {
   const isActive = String(row.active || '').toLowerCase() === 'yes';
   const activeLabel = isActive ? 'פעיל/ה' : 'לא פעיל/ה';
   const isSelf = String(row.user_id) === String(currentUserId);
+  const usernameDisplay = String(row.username_display || row.username || '').trim() || 'לא הוגדר';
   const employeeCode = row.user_id ? escapeHtml(String(row.user_id)) : '—';
 
   const editBtn = canEdit
@@ -251,6 +252,7 @@ function renderUserRow(row, canEdit, isAdmin, currentUserId, adminCount) {
 
   return `<tr class="ds-perm-row" data-perm-user="${uid}">
     <td style="font-weight:600;">${escapeHtml(row.full_name || uid)}</td>
+    <td>${escapeHtml(usernameDisplay)}</td>
     <td class="ds-muted">${employeeCode}</td>
     <td>${escapeHtml(label)}</td>
     <td>${escapeHtml(activeLabel)}</td>
@@ -318,7 +320,7 @@ export const permissionsScreen = {
       safeRows.length === 0
         ? dsEmptyState('לא נמצאו שורות הרשאה')
         : `<div class="ds-table-wrap ds-perm-table-wrap" dir="rtl"><table class="ds-table ds-perm-table">
-            <thead><tr><th>שם</th><th>קוד עובד</th><th>תפקיד</th><th>סטטוס</th><th style="text-align:start;">פעולות</th></tr></thead>
+            <thead><tr><th>שם</th><th>שם משתמש</th><th>קוד עובד</th><th>תפקיד</th><th>סטטוס</th><th style="text-align:start;">פעולות</th></tr></thead>
             <tbody>${rowPairs}</tbody>
           </table></div>`;
 
