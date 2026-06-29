@@ -5179,7 +5179,7 @@ export const api = {
   },
   endDates: () => readEndDatesFromSupabase(),
   getCatalogPrograms: () => readCatalogProgramsFromSupabase(),
-  myData: async () => {
+  myData: async (params = {}) => {
     const [allRows, contactResponsibles, summerPrintContactRows, contactsSchoolsRows, schoolsRows] = await Promise.all([
       readAllActivitiesRowsSupabase(),
       readSchoolContactResponsiblesRows(),
@@ -5188,7 +5188,10 @@ export const api = {
       readSchoolsCatalogFromSupabase()
     ]);
     const idsSet = getInstructorIdentitySet();
-    const openRows = allRows.filter((row) => !isActivityClosed(row));
+    const includeClosedForApprovals = Boolean(params?.includeClosedForApprovals);
+    const openRows = includeClosedForApprovals
+      ? allRows.filter((row) => !isActivityDeleted(row) && !isActivityCancelled(row))
+      : allRows.filter((row) => !isActivityClosed(row));
     const summerPrintContactsIndex = buildMyDataSummerPrintContactsIndex(summerPrintContactRows);
     const contactsIndex = buildMyDataContactsIndex(contactsSchoolsRows);
     const schoolsIndex = buildMyDataSchoolsContactIndex(schoolsRows);

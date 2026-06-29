@@ -56,6 +56,44 @@ test('my activities table has instructor filters and detail-only row action', ()
   assert.doesNotMatch(html, />שדה</);
 });
 
+
+
+test('completion approvals load requests rows with closed activities included', async () => {
+  const calls = [];
+  const data = await instructorCompletionApprovalsScreen.load({
+    api: {
+      myData: async (params) => {
+        calls.push(params);
+        return { rows: [row] };
+      },
+      completionApprovalUploads: async () => ({ rows: [] })
+    }
+  });
+
+  assert.deepEqual(calls, [{ includeClosedForApprovals: true }]);
+  assert.deepEqual(data.rows, [row]);
+});
+
+test('completion approvals keeps closed summer workshop printable and shows existing upload', () => {
+  const closedRow = { ...row, status: 'סגור' };
+  const upload = {
+    activity_date: '2026-06-21',
+    authority: 'קריית שמונה',
+    school: 'מגנים',
+    status: 'uploaded',
+    file_path: 'completion-approvals/1525/r1/file.pdf',
+    file_name: 'signed-approval.pdf'
+  };
+
+  const html = instructorCompletionApprovalsScreen.render({ rows: [closedRow], uploads: [upload] }, { state });
+
+  assert.match(html, /signed-approval\.pdf/);
+  assert.match(html, /instr-status--uploaded/);
+  assert.match(html, /data-approval-key=/);
+  assert.match(html, />הדפסה</);
+  assert.doesNotMatch(html, /לא נמצאו אישורי ביצוע/);
+});
+
 test('completion approvals page keeps upload controls compact with pick and plus buttons', () => {
   const html = instructorCompletionApprovalsScreen.render({ rows: [row], uploads: [] }, { state });
   assert.match(html, /ממתינים להעלאה/);
