@@ -909,10 +909,10 @@ export function proposalsAgreementsTableRowsHtml(rows, state) {
     }
     return `
     <tr data-pa-row-id="${escapeHtml(row.id)}" tabindex="0">
+      <td class="ds-pa-domain-col">${escapeHtml(row.proposal_domain || 'A')}</td>
       <td>${escapeHtml(row.client_name || row.client_authority || '—')}</td>
       <td>${escapeHtml(row.school_framework || '—')}</td>
       <td>${escapeHtml(proposalGroupDisplayName(row.activity_type_group) || '—')}</td>
-      <td>${escapeHtml(row.proposal_domain || 'A')}</td>
       <td>${escapeHtml(formatDateDisplay(row.proposal_date) || '')}</td>
       <td>${statusSelectHtml(row, canManage, isAdmin)}</td>
       <td>${row.total_amount != null ? `₪ ${escapeHtml(formatCurrency(row.total_amount))}` : ''}</td>
@@ -924,7 +924,7 @@ export function proposalsAgreementsTableRowsHtml(rows, state) {
 function tableHtml(rows, state) {
   return dsTableWrap(`
     <table class="ds-table ds-pa-table" data-pa-table>
-      <thead><tr><th>רשות / מועצה / עירייה</th><th>בית ספר / מסגרת</th><th>סוג הצעה</th><th>תחום</th><th>תאריך הצעה</th><th>סטטוס</th><th>סה״כ</th><th>פעולות</th></tr></thead>
+      <thead><tr><th class="ds-pa-domain-col">תחום</th><th>רשות / מועצה / עירייה</th><th>בית ספר / מסגרת</th><th>סוג הצעה</th><th>תאריך הצעה</th><th>סטטוס</th><th>סה״כ</th><th class="ds-pa-actions-col">פעולות</th></tr></thead>
       <tbody data-pa-table-body>${proposalsAgreementsTableRowsHtml(rows, state)}</tbody>
     </table>
   `);

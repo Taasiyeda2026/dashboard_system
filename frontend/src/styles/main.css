@@ -10894,13 +10894,37 @@ select.ds-input {
   box-shadow: var(--ds-shadow-xs);
 }
 
-.ds-pa-table thead th:nth-child(1) { width: 18%; }
 .ds-pa-table thead th:nth-child(2) { width: 18%; }
 .ds-pa-table thead th:nth-child(3) { width: 16%; }
-.ds-pa-table thead th:nth-child(4) { width: 11%; }
-.ds-pa-table thead th:nth-child(5) { width: 12%; }
+.ds-pa-table thead th:nth-child(4) { width: 14%; }
+.ds-pa-table thead th:nth-child(5) { width: 10%; }
 .ds-pa-table thead th:nth-child(6) { width: 10%; }
-.ds-pa-table thead th:nth-child(7) { width: 15%; }
+.ds-pa-table thead th:nth-child(7) { width: 8%; }
+
+.ds-pa-domain-col {
+  width: 52px;
+  min-width: 52px;
+  max-width: 52px;
+  text-align: center;
+  white-space: nowrap;
+  padding-inline: 4px !important;
+}
+
+.ds-pa-actions-col,
+.ds-pa-actions-cell {
+  min-width: 220px;
+  width: 220px;
+  white-space: nowrap;
+}
+
+.ds-pa-actions-cell {
+  text-align: right;
+}
+
+.ds-pa-actions-cell .ds-pa-row-action {
+  margin-inline: 2px;
+  white-space: nowrap;
+}
 
 .ds-pa-table th {
   font-weight: 700;

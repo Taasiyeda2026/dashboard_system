@@ -1,0 +1,98 @@
+בצע תיקון ממוקד בקובץ:
+frontend/src/screens/proposals-agreements.js
+
+לא לשנות לוגיקת הרשאות, לא לשנות סטטוסים ולא לבנות מחדש את הכפתורים.
+
+מה שקיים כרגע:
+בפונקציה proposalsAgreementsTableRowsHtml הכפתורים כבר קיימים בתוך actionBtns:
+- צפייה
+- עריכה
+- שכפול
+- אישור וחתימה
+- סימון כנשלח
+- PDF
+- מחיקה
+
+לכן לא למחוק ולא להחליף את actionBtns.
+
+הבעיה:
+עמודת "תחום" נוספה באמצע הטבלה אחרי "סוג הצעה".
+עמודת "פעולות" קיימת כעמודה אחרונה אבל נדחקת מחוץ לאזור הנראה בגלל רוחב הטבלה / RTL.
+
+דרישות תיקון:
+
+1. להעביר את עמודת "תחום" להיות העמודה הראשונה בטבלה.
+
+ב-tableHtml לשנות את סדר הכותרות לסדר הזה:
+תחום | רשות / מועצה / עירייה | בית ספר / מסגרת | סוג הצעה | תאריך הצעה | סטטוס | סה״כ | פעולות
+
+כלומר במקום:
+רשות / מועצה / עירייה | בית ספר / מסגרת | סוג הצעה | תחום | תאריך הצעה | סטטוס | סה״כ | פעולות
+
+2. ב-proposalsAgreementsTableRowsHtml לשנות את סדר ה-td בהתאם:
+קודם:
+<td class="ds-pa-domain-cell">A/N</td>
+אחר כך:
+רשות
+בית ספר
+סוג הצעה
+תאריך
+סטטוס
+סה״כ
+פעולות
+
+3. להוסיף class לעמודת תחום:
+ב-th:
+<th class="ds-pa-domain-col">תחום</th>
+
+ב-td:
+<td class="ds-pa-domain-col">${escapeHtml(row.proposal_domain || 'A')}</td>
+
+4. להגדיר CSS צר לעמודת תחום בתוך ה-style של המסך:
+.ds-pa-domain-col{
+  width:52px;
+  min-width:52px;
+  max-width:52px;
+  text-align:center;
+  white-space:nowrap;
+  padding-inline:4px!important;
+}
+
+5. להוסיף class לעמודת פעולות:
+ב-th:
+<th class="ds-pa-actions-col">פעולות</th>
+
+ב-td כבר קיים:
+<td class="ds-pa-actions-cell">...</td>
+להשאיר אותו.
+
+6. להגדיר CSS לעמודת פעולות כדי שלא תיעלם:
+.ds-pa-actions-col,
+.ds-pa-actions-cell{
+  min-width:220px;
+  width:220px;
+  white-space:nowrap;
+}
+
+.ds-pa-actions-cell{
+  text-align:right;
+}
+
+.ds-pa-actions-cell .ds-pa-row-action{
+  margin-inline:2px;
+  white-space:nowrap;
+}
+
+7. אם הטבלה רחבה מדי, לא להסתיר את עמודת פעולות.
+להשאיר גלילה אופקית דרך מעטפת הטבלה הקיימת במקום לחתוך עמודות.
+
+8. לוודא שה-colspan בשורת אין רשומות נשאר 8 כי יש עדיין 8 עמודות.
+
+בדיקות חובה:
+- תחום מופיע ראשון.
+- עמודת תחום צרה מאוד.
+- הכפתורים חוזרים להופיע במסך.
+- צפייה ועריכה מופיעים לפי ההרשאות הקיימות.
+- אין שינוי בלוגיקת סטטוסים.
+- אין שינוי במסמך PDF או בתצוגה מקדימה.
+- לעדכן Service Worker ו-Cache בסיום.
