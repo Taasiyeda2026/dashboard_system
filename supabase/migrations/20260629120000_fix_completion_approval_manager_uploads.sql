@@ -8,7 +8,7 @@ create policy activity_completion_approval_uploads_select_own_or_ops
 on public.activity_completion_approval_uploads
 for select
 using (
-  instructor_emp_id = (select emp_id from public.users where auth_user_id = auth.uid() limit 1)
+  instructor_emp_id = (select emp_id::text from public.users where auth_user_id = auth.uid() limit 1)
   or exists (
     select 1 from public.users
     where auth_user_id = auth.uid()
@@ -22,7 +22,7 @@ create policy activity_completion_approval_uploads_insert_own_or_manager_for_ins
 on public.activity_completion_approval_uploads
 for insert
 with check (
-  instructor_emp_id = (select emp_id from public.users where auth_user_id = auth.uid() limit 1)
+  instructor_emp_id = (select emp_id::text from public.users where auth_user_id = auth.uid() limit 1)
   or exists (
     select 1 from public.users
     where auth_user_id = auth.uid()
@@ -38,7 +38,7 @@ for insert
 with check (
   bucket_id = 'completion-approvals'
   and (
-    split_part(name, '/', 1) = (select emp_id from public.users where auth_user_id = auth.uid() limit 1)
+    split_part(name, '/', 1) = (select emp_id::text from public.users where auth_user_id = auth.uid() limit 1)
     or exists (
       select 1 from public.users
       where auth_user_id = auth.uid()
@@ -54,7 +54,7 @@ for select
 using (
   bucket_id = 'completion-approvals'
   and (
-    split_part(name, '/', 1) = (select emp_id from public.users where auth_user_id = auth.uid() limit 1)
+    split_part(name, '/', 1) = (select emp_id::text from public.users where auth_user_id = auth.uid() limit 1)
     or exists (
       select 1 from public.users
       where auth_user_id = auth.uid()
@@ -69,14 +69,14 @@ with instructor_directory as (
     emp_id
   from (
     select lower(regexp_replace(trim(coalesce(full_name, name, username, '')), '\s+', ' ', 'g')) as normalized_name,
-           nullif(trim(emp_id), '') as emp_id
+           nullif(trim(emp_id::text), '') as emp_id
     from public.users
-    where nullif(trim(emp_id), '') is not null
+    where nullif(trim(emp_id::text), '') is not null
     union all
     select lower(regexp_replace(trim(coalesce(full_name, '')), '\s+', ' ', 'g')) as normalized_name,
-           nullif(trim(emp_id), '') as emp_id
+           nullif(trim(emp_id::text), '') as emp_id
     from public.contacts_instructors
-    where nullif(trim(emp_id), '') is not null
+    where nullif(trim(emp_id::text), '') is not null
   ) candidates
   where normalized_name <> '' and emp_id is not null
   order by normalized_name, emp_id
