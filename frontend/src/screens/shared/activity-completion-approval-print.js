@@ -131,6 +131,7 @@ export function buildCompletionApprovals(rows = [], { instructor = '', dateMode 
           groups.set(key, {
             id: key,
             instructorName: instructorEntry.name,
+            instructorEmpId: instructorEntry.empId,
             date: activityDate,
             authority,
             school,
@@ -146,7 +147,10 @@ export function buildCompletionApprovals(rows = [], { instructor = '', dateMode 
           grade: getActivityGradeLabel(activity),
           time: getActivityTimeRange(activity),
           start: text(activity?.start_time || activity?.StartTime),
-          end: text(activity?.end_time || activity?.EndTime)
+          end: text(activity?.end_time || activity?.EndTime),
+          rowId: text(activity?.row_id || activity?.rowId || activity?.RowID || activity?.id || activity?.activity_id || activity?.uuid),
+          row_id: text(activity?.row_id || activity?.rowId || activity?.RowID || activity?.id || activity?.activity_id || activity?.uuid),
+          RowID: text(activity?.RowID || activity?.row_id || activity?.rowId || activity?.id || activity?.activity_id || activity?.uuid)
         });
       });
     });
