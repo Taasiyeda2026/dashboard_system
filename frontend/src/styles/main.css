@@ -18971,6 +18971,7 @@ details[open] > .ds-fin-acc__summary::before { transform: rotate(90deg); }
 .ds-table--instr-approvals2 td.iac-school{white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
 .ds-table--instr-approvals2 td.iac-count{white-space:nowrap;color:#4a5568}
 .ds-table--instr-approvals2 td.iac-upload{white-space:nowrap}
+.instr-file-row{display:inline-flex;align-items:center;gap:5px;max-width:100%;white-space:nowrap}
 .instr-file-state{display:block;font-size:11px;margin-bottom:3px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;max-width:100%}
 .instr-file-state--none{color:#8a9ab5}
 .instr-file-state--has{color:#2b6cb0}
@@ -18982,6 +18983,7 @@ details[open] > .ds-fin-acc__summary::before { transform: rotate(90deg); }
 .instr-btn-pick{height:26px;min-height:26px;padding:3px 7px;font-size:11px;border-radius:7px;line-height:1}
 .instr-btn-plus{width:26px;height:26px;min-height:26px;padding:0;font-size:16px;font-weight:800;border-radius:7px;line-height:1;display:inline-flex;align-items:center;justify-content:center}
 .instr-btn-print{height:26px;min-height:26px;padding:3px 7px;font-size:11px;border-radius:7px;line-height:1}
+.instr-btn-view{height:24px;min-height:24px;padding:2px 6px;font-size:11px;border-radius:7px;line-height:1;white-space:nowrap;flex:0 0 auto}
 .instr-reject-note{font-size:11px;color:#c53030;margin-top:2px}
 .instr-upload-name{font-size:11px;display:block}
 /* ── Instructor global compact pass (v962) ── */
