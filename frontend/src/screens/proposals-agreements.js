@@ -1616,25 +1616,31 @@ function itemsSummaryHtml(items = []) {
     const t = Number(proposalField(i, 'total_price', 'totalPrice')) || ((Number(proposalField(i, 'quantity', 'quantity')) || 1) * (Number(proposalField(i, 'unit_price', 'unitPrice')) || 0));
     return s + t;
   }, 0);
-  const rows = visibleSummaryItems.map((item) => {
+  const chip = (label, val) => val != null && val !== ''
+    ? `<span class="ds-pa-item-meta-chip"><span class="ds-pa-info-label">${escapeHtml(label)}</span> <span style="white-space:nowrap">${escapeHtml(String(val))}</span></span>`
+    : '';
+  const priceChip = (label, amount) => amount
+    ? `<span class="ds-pa-item-meta-chip"><span class="ds-pa-info-label">${escapeHtml(label)}</span> <span style="white-space:nowrap">₪ ${escapeHtml(formatCurrency(amount))}</span></span>`
+    : '';
+  const cards = visibleSummaryItems.map((item) => {
     const t = Number(proposalField(item, 'total_price', 'totalPrice')) || ((Number(proposalField(item, 'quantity', 'quantity')) || 1) * (Number(proposalField(item, 'unit_price', 'unitPrice')) || 0));
     const manualNote = cleanCustomerText(text(item.course_note || item.manual_note || ''));
-    const noteHtml = manualNote ? `<div class="ds-muted" style="font-size:0.72rem">${escapeHtml(manualNote)}</div>` : '';
-    return `<tr>
-      <td>${escapeHtml(publicActivityName(proposalField(item, 'item_name', 'itemName')) || '')}${noteHtml}</td>
-      <td>${escapeHtml(proposalField(item, 'item_type', 'itemType') || '')}</td>
-      <td>${proposalField(item, 'quantity', 'quantity') != null ? proposalField(item, 'quantity', 'quantity') : ''}</td>
-      <td>${proposalField(item, 'unit_price', 'unitPrice') != null ? `₪ ${formatCurrency(proposalField(item, 'unit_price', 'unitPrice'))}` : ''}</td>
-      <td>${t ? `₪ ${formatCurrency(t)}` : ''}</td>
-    </tr>`;
+    const noteHtml = manualNote ? `<div class="ds-muted" style="font-size:0.72rem;margin-top:2px">${escapeHtml(manualNote)}</div>` : '';
+    const meta = [
+      chip('סוג', proposalField(item, 'item_type', 'itemType')),
+      chip('כמות', proposalField(item, 'quantity', 'quantity') != null ? proposalField(item, 'quantity', 'quantity') : null),
+      priceChip('מחיר יח׳', proposalField(item, 'unit_price', 'unitPrice') != null ? Number(proposalField(item, 'unit_price', 'unitPrice')) : 0),
+      priceChip('סה״כ', t)
+    ].filter(Boolean).join('');
+    return `<div class="ds-pa-item-card">
+      <div class="ds-pa-item-card-name">${escapeHtml(publicActivityName(proposalField(item, 'item_name', 'itemName')) || '')}${noteHtml}</div>
+      ${meta ? `<div class="ds-pa-item-card-meta">${meta}</div>` : ''}
+    </div>`;
   }).join('');
   return `<div class="ds-pa-items-summary">
-    <h4 style="font-size:0.82rem;margin:8px 0 4px;font-weight:600">שורות הצעה</h4>
-    <table class="ds-pa-items-summary-table">
-      <thead><tr><th>פעילות ופרטים</th><th>סוג</th><th>כמות</th><th>מחיר יח׳</th><th>סה״כ</th></tr></thead>
-      <tbody>${rows}</tbody>
-    </table>
-    <p style="font-size:0.83rem;margin:4px 0;text-align:start">סה״כ: <strong>₪ ${formatCurrency(total)}</strong></p>
+    <h4 class="ds-pa-card-title" style="margin-bottom:8px">שורות הצעה</h4>
+    <div class="ds-pa-item-cards">${cards}</div>
+    <div class="ds-pa-items-total">סה״כ לתשלום: <strong style="white-space:nowrap">₪ ${formatCurrency(total)}</strong></div>
   </div>`;
 }
 
@@ -2935,47 +2941,76 @@ function drawerActionButtons(row, state) {
 
 function drawerHtml(row, activityNameOptions = [], state = null) {
   if (!row) return `<aside class="ds-pa-drawer" data-pa-drawer hidden></aside>`;
-  const approvalNoteHtml = text(row.approval_note) ? `
-    <div class="ds-pa-detail-row">
-      <span class="ds-pa-detail-label">${escapeHtml(FIELD_LABELS.approval_note)}</span>
-      <span class="ds-pa-detail-value">${escapeHtml(text(row.approval_note))}</span>
-    </div>` : '';
-  const totalHtml = row.total_amount != null ? `
-    <div class="ds-pa-detail-row">
-      <span class="ds-pa-detail-label">סה״כ</span>
-      <span class="ds-pa-detail-value"><strong>₪ ${formatCurrency(row.total_amount)}</strong></span>
-    </div>` : '';
+
   const hasCustomSections = Array.isArray(row.custom_document_sections) && row.custom_document_sections.length > 0;
   const customBadge = hasCustomSections
-    ? `<span class="ds-pa-badge" title="המסמך הזה כולל עריכה מותאמת אישית" style="display:inline-block;padding:1px 7px;border-radius:10px;font-size:0.75rem;background:#6366f1;color:#fff;margin-right:4px">מסמך מותאם</span>`
+    ? `<span class="ds-pa-badge" title="המסמך הזה כולל עריכה מותאמת אישית" style="display:inline-block;padding:1px 7px;border-radius:10px;font-size:0.75rem;background:#6366f1;color:#fff">מסמך מותאם</span>`
     : '';
 
   const clientDisplayName = text(row.client_name) || text(row.school_framework) || text(row.client_authority) || '—';
-  const schoolLine = text(row.school_framework) && text(row.school_framework) !== clientDisplayName
-    ? `<p class="ds-muted" style="font-size:0.78rem;margin:2px 0 0">${escapeHtml(row.school_framework)}</p>`
+  const schoolSub = text(row.school_framework) && text(row.school_framework) !== clientDisplayName
+    ? `<p class="ds-pa-drawer-sub">${escapeHtml(row.school_framework)}</p>` : '';
+  const authSub = text(row.client_authority) && text(row.client_authority) !== clientDisplayName && text(row.client_authority) !== text(row.school_framework)
+    ? `<p class="ds-pa-drawer-sub">רשות: ${escapeHtml(row.client_authority)}</p>` : '';
+
+  // ── פרטי הצעה card ──
+  const infoCell = (label, value, wide = false) => value
+    ? `<div class="ds-pa-info-cell${wide ? ' ds-pa-info-cell--wide' : ''}"><span class="ds-pa-info-label">${escapeHtml(label)}</span><span>${escapeHtml(value)}</span></div>`
     : '';
-  const authLine = text(row.client_authority) && text(row.client_authority) !== clientDisplayName && text(row.client_authority) !== text(row.school_framework)
-    ? `<p class="ds-muted" style="font-size:0.78rem;margin:1px 0 0">רשות: ${escapeHtml(row.client_authority)}</p>`
-    : '';
-  const proposalIdHtml = '';
+  const infoCardRows = [
+    infoCell('סוג הצעה', proposalGroupDisplayName(row.activity_type_group)),
+    infoCell('תאריך הצעה', formatDateDisplay(row.proposal_date)),
+    infoCell('תחום', text(row.proposal_domain)),
+    row.total_amount != null
+      ? `<div class="ds-pa-info-cell"><span class="ds-pa-info-label">סה״כ</span><span style="white-space:nowrap;font-weight:700">₪ ${escapeHtml(formatCurrency(row.total_amount))}</span></div>`
+      : '',
+    infoCell('הערת אישור', text(row.approval_note), true),
+    infoCell('הערות', text(row.notes), true)
+  ].filter(Boolean).join('');
+
+  // ── פעילויות card ──
+  const activityNames = (Array.isArray(row.activity_names) ? row.activity_names : []).map(text).filter(Boolean);
+  const activitiesCard = activityNames.length
+    ? `<div class="ds-pa-info-card">
+        <h4 class="ds-pa-card-title">פעילויות</h4>
+        <div class="ds-pa-activity-tags">${activityNames.map((n) => `<span class="ds-pa-activity-tag">${escapeHtml(n)}</span>`).join('')}</div>
+      </div>` : '';
+
+  // ── פרטי קשר card ──
+  const contactFields = [
+    infoCell('איש קשר', text(row.contact_name)),
+    infoCell('תפקיד', text(row.contact_role)),
+    infoCell('טלפון', text(row.phone)),
+    infoCell('דוא״ל', text(row.email))
+  ].filter(Boolean).join('');
+  const contactCard = contactFields
+    ? `<div class="ds-pa-info-card">
+        <h4 class="ds-pa-card-title">פרטי קשר</h4>
+        <div class="ds-pa-info-grid">${contactFields}</div>
+      </div>` : '';
+
   return `<aside class="ds-pa-drawer" data-pa-drawer data-pa-drawer-id="${escapeHtml(row.id)}" aria-live="polite" dir="rtl">
     <div class="ds-pa-drawer-panel">
       <header class="ds-pa-drawer-head">
-        <div>
-          ${proposalIdHtml}
-          <h3 style="margin:0">${escapeHtml(clientDisplayName)}</h3>
-          ${schoolLine}${authLine}
+        <div class="ds-pa-drawer-head-info">
+          <h3 class="ds-pa-drawer-name">${escapeHtml(clientDisplayName)}</h3>
+          ${schoolSub}${authSub}
         </div>
-        <button type="button" class="ds-btn ds-btn--sm" data-pa-close-drawer aria-label="סגירת פרטי רשומה">✕</button>
+        <button type="button" class="ds-btn ds-btn--xs ds-btn--ghost" data-pa-close-drawer aria-label="סגירת פרטי רשומה" style="flex-shrink:0;font-size:1rem;padding:2px 8px">✕</button>
       </header>
-      <div class="ds-pa-drawer-status" style="margin:6px 0 8px">${statusBadgeHtml(row.status)}${customBadge}</div>
-      <div class="ds-pa-detail-grid">${detailRowsHtml(row)}</div>
-      ${totalHtml}
-      ${approvalNoteHtml}
-      ${contactDetailRowsHtml(row)}
-      <div data-pa-drawer-items style="margin:8px 0"><span class="ds-muted" style="font-size:0.8rem">טוען שורות הצעה...</span></div>
-      <div class="ds-pa-drawer-actions">${drawerActionButtons(row, state)}</div>
-      <p class="ds-pa-form-error" data-pa-drawer-error role="alert" style="color:#dc2626;font-size:0.8rem;margin-top:4px"></p>
+      <div class="ds-pa-drawer-action-bar">
+        <span class="ds-pa-drawer-badges">${statusBadgeHtml(row.status)}${customBadge ? '&ensp;' + customBadge : ''}</span>
+        <span class="ds-pa-drawer-icon-btns">${drawerActionButtons(row, state)}</span>
+      </div>
+      <div class="ds-pa-drawer-body">
+        <div class="ds-pa-info-card">
+          <div class="ds-pa-info-grid">${infoCardRows}</div>
+        </div>
+        ${activitiesCard}
+        ${contactCard}
+        <div data-pa-drawer-items><span class="ds-muted" style="font-size:0.8rem">טוען שורות הצעה...</span></div>
+      </div>
+      <p class="ds-pa-form-error" data-pa-drawer-error role="alert" style="color:#dc2626;font-size:0.8rem;padding:4px 16px 0"></p>
       <div data-pa-inline-form></div>
     </div>
   </aside>`;
