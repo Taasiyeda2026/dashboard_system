@@ -1317,16 +1317,27 @@ function itemRowHtml(item = {}, idx = 0, pricingOptions = [], options = {}) {
   const selectedName = text(item.item_name) || 'בחרו פעילות';
   const selectedType = text(proposalField(item, 'item_type', 'itemType'));
   const typeBadgeHtml = selectedType ? `<span class="ds-pa-item-type-badge" style="font-size:0.72rem;border:1px solid #e5e7eb;border-radius:999px;padding:1px 6px;color:#64748b;background:#f8fafc">${escapeHtml(selectedType)}</span>` : '';
+  const isNextYearRow = !isSummerRow && isNextYearProposalGroup(contextGroup);
+  const hasExistingNote = isNextYearRow && Boolean(text(item.description || ''));
   const meetingsHoursFieldsHtml = isSummerRow
     ? `<input type="hidden" name="meetings_count" value="${n(item.meetings_count)}">
     <input type="hidden" name="hours_count" value="${n(item.hours_count)}">`
     : `<label class="ds-pa-item-field"><span>מפגשים</span><input class="ds-input ds-input--sm" type="number" name="meetings_count" value="${n(item.meetings_count)}" min="0" step="1" placeholder="—"></label>
           <label class="ds-pa-item-field"><span>שעות</span><input class="ds-input ds-input--sm" type="number" name="hours_count" value="${n(item.hours_count)}" min="0" step="0.5" placeholder="—"></label>`;
+  const nextYearNoteHtml = isNextYearRow ? `
+    <details class="ds-pa-note-details"${hasExistingNote ? ' open' : ''} data-pa-note-details>
+      <summary class="ds-pa-note-summary" title="הערה לתוכנית">
+        <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M11 5H6a2 2 0 0 0-2 2v11a2 2 0 0 0 2 2h11a2 2 0 0 0 2-2v-5"/><path d="M18.5 2.5a2.121 2.121 0 0 1 3 3L12 15l-4 1 1-4 9.5-9.5z"/></svg>
+        <span class="ds-pa-note-label">הערה לתוכנית</span>${hasExistingNote ? '<span class="ds-pa-note-dot" aria-hidden="true"></span>' : ''}
+      </summary>
+      <textarea class="ds-input ds-input--sm ds-pa-note-textarea" name="description" rows="2" placeholder="הערה לתוכנית">${escapeHtml(item.description || '')}</textarea>
+    </details>` : '';
   return `<article class="ds-pa-item-card ds-pa-item-row${isSummerRow ? ' ds-pa-item-row--summer' : ''}" data-pa-item-row data-pa-item-idx="${idx}" data-pa-row-group="${escapeHtml(contextGroup)}"${isSummerRow ? ' data-pa-summer-row' : ''}>
     <div class="ds-pa-item-quick-row" style="display:grid;grid-template-columns:minmax(0,1fr) 96px;gap:8px;align-items:end">
       <label class="ds-pa-item-field ds-pa-item-field--select ds-pa-item-field--select-no-label"><select class="ds-input ds-input--sm" name="pricing_activity_name" data-pa-pricing-select>${pricingSelectOptionsHtml}</select></label>
       <label class="ds-pa-item-field ds-pa-item-field--qty"><input class="ds-input ds-input--sm" type="number" name="quantity" value="${n(item.quantity) || '1'}" min="0" step="any" data-pa-item-qty aria-label="כמות"></label>
     </div>
+    ${nextYearNoteHtml}
     <div class="ds-pa-bundle-prompt" data-pa-bundle-prompt hidden></div>
     <details class="ds-pa-item-extra" data-pa-item-details>
       <summary class="ds-pa-item-extra-toggle">עריכה</summary>
@@ -1337,7 +1348,7 @@ function itemRowHtml(item = {}, idx = 0, pricingOptions = [], options = {}) {
           <label class="ds-pa-item-field ds-pa-item-field--price"><span>מחיר יחידה</span><input class="ds-input ds-input--sm" type="number" name="unit_price" value="${n(item.unit_price)}" min="0" step="any" data-pa-item-price></label>
           <label class="ds-pa-item-field ds-pa-item-field--total ds-pa-line-total"><span>סה״כ שורה</span><output data-pa-item-total-display>${calcTotal ? `₪ ${formatCurrency(calcTotal)}` : '₪ 0'}</output><input type="hidden" name="total_price" value="${calcTotal}" data-pa-item-total></label>
         </div>
-        <label class="ds-pa-item-field ds-pa-item-field--full"><span>הערות או התאמות</span><textarea class="ds-input ds-input--sm" name="description" rows="2" placeholder="תיאור קצר, אם נדרש">${escapeHtml(item.description || '')}</textarea></label>
+        ${isNextYearRow ? '' : `<label class="ds-pa-item-field ds-pa-item-field--full"><span>הערות או התאמות</span><textarea class="ds-input ds-input--sm" name="description" rows="2" placeholder="תיאור קצר, אם נדרש">${escapeHtml(item.description || '')}</textarea></label>`}
         <button type="button" class="ds-btn ds-btn--xs ds-btn--ghost ds-pa-item-remove" data-pa-remove-item aria-label="הסר שורה">✕ הסר</button>
       </div>
     </details>
@@ -1869,8 +1880,13 @@ function proposalItemDetailsTableHtml(items = [], contextGroup = '') {
       hasTotalPrice = true;
       totalPrice += quantityTotal;
     }
+    const courseName = courseShortNameForItem(item);
+    const courseNote = isNextYearTable ? cleanCustomerText(text(item.description || '')) : '';
+    const courseCellHtml = courseNote
+      ? `<div class="pa-course-name">${escapeHtml(courseName)}</div><div class="pa-course-note">${escapeHtml(courseNote)}</div>`
+      : escapeHtml(courseName);
     const cells = [
-      { value: courseShortNameForItem(item) },
+      { value: courseCellHtml, html: true },
       { value: shouldShowGefenForItem(item, contextGroup) ? proposalTextField(item, 'gefen_number', 'gefenNumber') : '' },
       { value: item.meetings_count != null ? formatCurrency(item.meetings_count) : '' },
       { value: formatCurrency(quantity) },

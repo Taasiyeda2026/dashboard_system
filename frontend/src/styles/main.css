@@ -12759,6 +12759,66 @@ select.ds-input {
   text-align: left;
   white-space: nowrap;
 }
+
+.pa-course-name {
+  font-weight: 600;
+}
+
+.pa-course-note {
+  margin-top: 2px;
+  font-size: 0.82em;
+  line-height: 1.35;
+  color: #475569;
+  font-weight: 400;
+}
+
+.ds-pa-note-details {
+  margin-top: 4px;
+}
+
+.ds-pa-note-summary {
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+  cursor: pointer;
+  font-size: 0.8rem;
+  color: #64748b;
+  padding: 2px 6px;
+  border-radius: 6px;
+  user-select: none;
+  list-style: none;
+}
+
+.ds-pa-note-summary::-webkit-details-marker { display: none; }
+
+.ds-pa-note-details[open] .ds-pa-note-summary,
+.ds-pa-note-summary:hover {
+  color: #0369a1;
+  background: #f0f9ff;
+}
+
+.ds-pa-note-dot {
+  display: inline-block;
+  width: 6px;
+  height: 6px;
+  border-radius: 50%;
+  background: #0ea5e9;
+  flex-shrink: 0;
+}
+
+.ds-pa-note-textarea {
+  display: block;
+  width: 100%;
+  margin-top: 4px;
+  box-sizing: border-box;
+}
+
+@media print {
+  .pa-course-note {
+    color: #475569;
+    font-size: 0.82em;
+  }
+}
 .pa-cost-bundle-detail {
   margin: 2pt 0 0;
   padding-inline-start: 12pt;
