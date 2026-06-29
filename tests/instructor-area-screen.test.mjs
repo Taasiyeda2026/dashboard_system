@@ -109,6 +109,72 @@ test('completion approvals page keeps upload controls compact with pick and plus
 });
 
 
+test('completion approvals shows and opens view button for existing instructor upload', async () => {
+  const upload = {
+    activity_date: '2026-06-21',
+    authority: 'קריית שמונה',
+    school: 'מגנים',
+    status: 'uploaded',
+    file_path: 'completion-approvals/1525/r1/file.pdf',
+    file_name: 'signed-approval.pdf'
+  };
+  const html = instructorCompletionApprovalsScreen.render({ rows: [row], uploads: [upload] }, { state });
+  assert.match(html, /signed-approval\.pdf/);
+  assert.match(html, /data-view-file-path="completion-approvals\/1525\/r1\/file\.pdf"/);
+  assert.match(html, />👁 צפייה<\/button>/);
+
+  const dom = new JSDOM(`<main id="root">${html}</main>`, { url: 'https://example.test/' });
+  const root = dom.window.document.querySelector('#root');
+  const calls = [];
+  const opened = [];
+  const previousWindow = globalThis.window;
+  const previousAlert = globalThis.alert;
+  globalThis.window = dom.window;
+  globalThis.alert = () => {};
+  dom.window.open = (...args) => opened.push(args);
+  try {
+    instructorCompletionApprovalsScreen.bind({
+      root,
+      api: {
+        completionApprovalSignedUrl: async (params) => {
+          calls.push(params);
+          return { signedUrl: 'https://files.example.test/signed.pdf' };
+        }
+      },
+      state,
+      rerender() {},
+      clearScreenDataCache() {}
+    });
+    root.querySelector('[data-view-file-path]').click();
+    await new Promise((resolve) => setTimeout(resolve, 0));
+  } finally {
+    globalThis.window = previousWindow;
+    globalThis.alert = previousAlert;
+  }
+
+  assert.deepEqual(calls, [{ filePath: 'completion-approvals/1525/r1/file.pdf' }]);
+  assert.deepEqual(opened, [['https://files.example.test/signed.pdf', '_blank', 'noopener']]);
+});
+
+test('completion approvals hides view button without file path and keeps rejected upload controls', () => {
+  const uploadWithoutPath = {
+    activity_date: '2026-06-21',
+    authority: 'קריית שמונה',
+    school: 'מגנים',
+    status: 'uploaded',
+    file_name: 'manager-upload.pdf'
+  };
+  const htmlWithoutPath = instructorCompletionApprovalsScreen.render({ rows: [row], uploads: [uploadWithoutPath] }, { state });
+  assert.match(htmlWithoutPath, /manager-upload\.pdf/);
+  assert.doesNotMatch(htmlWithoutPath, /data-view-file-path/);
+
+  const rejectedUpload = { ...uploadWithoutPath, status: 'rejected', file_path: 'completion-approvals/1525/r1/rejected.pdf' };
+  const rejectedHtml = instructorCompletionApprovalsScreen.render({ rows: [row], uploads: [rejectedUpload] }, { state });
+  assert.match(rejectedHtml, /instr-btn-pick/);
+  assert.match(rejectedHtml, /instr-btn-plus/);
+  assert.doesNotMatch(rejectedHtml, /data-view-file-path/);
+});
+
 test('activity detail print resolves the full instructor approval group instead of a single row', () => {
   const first = { ...row, RowID: 'r1', activity_name: 'פעילות בוקר', start_time: '08:00', end_time: '09:00' };
   const second = { ...row, RowID: 'r2', activity_name: 'פעילות המשך', start_time: '09:15', end_time: '10:15' };

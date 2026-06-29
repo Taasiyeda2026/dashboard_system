@@ -96,7 +96,10 @@ function uploadControlsHtml(approval, upload, safeKey) {
   const hasFile = !!(upload?.file_path || upload?.file_name);
   if (hasFile && st !== 'rejected') {
     const fileName = truncateFileName(upload?.file_name || 'קובץ מועלה');
-    return `<span class="instr-file-state instr-file-state--has" title="${escapeHtml(upload?.file_name || '')}">📎 ${escapeHtml(fileName)}</span>`;
+    const viewButton = upload?.file_path
+      ? `<button type="button" class="ds-btn ds-btn--xs ds-btn--secondary instr-btn-view" data-view-file-path="${escapeHtml(upload.file_path)}" title="צפייה בקובץ" aria-label="צפייה בקובץ">👁 צפייה</button>`
+      : '';
+    return `<span class="instr-file-row"><span class="instr-file-state instr-file-state--has" title="${escapeHtml(upload?.file_name || '')}">📎 ${escapeHtml(fileName)}</span>${viewButton}</span>`;
   }
   return `<div class="instr-upload-controls" data-upload-controls="${safeKey}">
     <span class="instr-pending-file" data-pending-name="${safeKey}" hidden></span>
@@ -213,6 +216,21 @@ export const instructorCompletionApprovalsScreen = {
           openApprovalPrintWindow([approval], approvalFileTitle(approval));
         } catch (err) {
           alert(`שגיאה בפתיחת אישור הביצוע: ${err?.message || 'שגיאה לא ידועה'}`);
+        }
+      });
+    });
+
+    root.querySelectorAll('[data-view-file-path]').forEach((btn) => {
+      btn.addEventListener('click', async () => {
+        const filePath = btn.getAttribute('data-view-file-path');
+        if (!filePath) return;
+        try {
+          const result = await api.completionApprovalSignedUrl({ filePath });
+          const signedUrl = result?.signedUrl || '';
+          if (!signedUrl) throw new Error('missing_signed_url');
+          window.open(signedUrl, '_blank', 'noopener');
+        } catch (error) {
+          alert(`פתיחת הקובץ נכשלה: ${error?.message || error}`);
         }
       });
     });
