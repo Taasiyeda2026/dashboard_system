@@ -128,7 +128,7 @@ function approvalCardHtml(approval, upload, safeKey, acts, reviewNote, targetCla
 export const instructorCompletionApprovalsScreen = {
   load: async ({ api }) => {
     const [myData, uploads] = await Promise.all([
-      api.myData(),
+      api.myData({ includeClosedForApprovals: true }),
       api.completionApprovalUploads().catch(() => ({ rows: [] }))
     ]);
     return { rows: myData?.rows || [], uploads: uploads?.rows || [] };
