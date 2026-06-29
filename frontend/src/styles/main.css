@@ -10898,7 +10898,7 @@ select.ds-input {
   width: 56px;
   min-width: 56px;
   max-width: 56px;
-  text-align: center;
+  text-align: center !important;
   white-space: nowrap;
   padding-inline: 4px !important;
 }
