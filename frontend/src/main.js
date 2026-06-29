@@ -545,6 +545,7 @@ const screenLabels = {
   'my-data': 'הפעילויות שלי',
   'instructor-completion-approvals': 'אישורי ביצוע',
   'instructor-guidelines': 'נהלים',
+  attendance: 'נוכחות',
   'edit-requests': 'אישורים',
   permissions: 'הרשאות',
   'admin-home': 'בית — ניהול',
@@ -699,13 +700,17 @@ const INSTRUCTOR_MOBILE_NAV = [
   { route: 'instructor-calendar', short: 'לוח שנה', icon: '📅' },
   { route: 'my-data', short: 'פעילויות', icon: '📋' },
   { route: 'instructor-completion-approvals', short: 'אישורים', icon: '✍️' },
-  { route: 'instructor-guidelines', short: 'נהלים', icon: '📖' }
+  { route: 'instructor-guidelines', short: 'נהלים', icon: '📖' },
+  { route: null, short: 'נוכחות', icon: '✅', externalUrl: 'https://taasiyeda2026.github.io/attendance/' }
 ];
 
 function instructorBottomNavHtml(currentRoute) {
-  const buttons = INSTRUCTOR_MOBILE_NAV.map(({ route, short, icon }) =>
-    `<button type="button" class="instructor-bottom-nav__btn${route === currentRoute ? ' is-active' : ''}" data-route="${route}" aria-label="${escapeHtml(screenLabels[route] || short)}"><span class="instructor-bottom-nav__icon" aria-hidden="true">${icon}</span><span class="instructor-bottom-nav__label">${escapeHtml(short)}</span></button>`
-  ).join('');
+  const buttons = INSTRUCTOR_MOBILE_NAV.map(({ route, short, icon, externalUrl }) => {
+    if (externalUrl) {
+      return `<button type="button" class="instructor-bottom-nav__btn" data-external-url="${escapeHtml(externalUrl)}" aria-label="${escapeHtml(short)}"><span class="instructor-bottom-nav__icon" aria-hidden="true">${icon}</span><span class="instructor-bottom-nav__label">${escapeHtml(short)}</span></button>`;
+    }
+    return `<button type="button" class="instructor-bottom-nav__btn${route === currentRoute ? ' is-active' : ''}" data-route="${route}" aria-label="${escapeHtml(screenLabels[route] || short)}"><span class="instructor-bottom-nav__icon" aria-hidden="true">${icon}</span><span class="instructor-bottom-nav__label">${escapeHtml(short)}</span></button>`;
+  }).join('');
   return `<nav class="instructor-bottom-nav" aria-label="ניווט מדריך">${buttons}</nav>`;
 }
 
@@ -1039,6 +1044,9 @@ function shell(content) {
         `<button type="button" class="shell-nav__btn ${route === state.route ? 'is-active' : ''}" data-route="${route}">${navLabelHtmlForRoute(route)}</button>`
     )
     .join('');
+  const attendanceNavBtn = isInstructorUser
+    ? `<button type="button" class="shell-nav__btn" data-external-url="https://taasiyeda2026.github.io/attendance/">✅ נוכחות</button>`
+    : '';
 
   const displayName = shellUserDisplayName();
   const roleLine = shellUserRoleLine();
@@ -1076,7 +1084,7 @@ function shell(content) {
           </div>
         </div>
         <hr class="shell-sidebar__divider" />
-        <nav class="shell-nav">${nav}</nav>
+        <nav class="shell-nav">${nav}${attendanceNavBtn}</nav>
         <div class="shell-sidebar__footer" dir="rtl">
           <div class="ds-accent-picker-wrap" data-accent-picker-wrap>
             <button type="button" class="ds-accent-picker-btn" data-accent-picker-btn aria-label="צבע ממשק" title="צבע ממשק"></button>
@@ -2079,6 +2087,12 @@ function bindShell() {
   document.querySelectorAll('[data-route]').forEach((button) => {
     button.addEventListener('click', () => {
       navigateToRoute(button.dataset.route);
+    });
+  });
+
+  document.querySelectorAll('[data-external-url]').forEach((button) => {
+    button.addEventListener('click', () => {
+      window.location.href = button.dataset.externalUrl;
     });
   });
 

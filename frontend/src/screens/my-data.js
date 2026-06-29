@@ -28,6 +28,23 @@ function buildSearchHaystack(row) {
   ].join(' ');
 }
 
+function sortActivitiesChronologically(rows) {
+  return [...rows].sort((a, b) => {
+    const dateA = String(a?.start_date || a?.activity_date || '').slice(0, 10);
+    const dateB = String(b?.start_date || b?.activity_date || '').slice(0, 10);
+    if (!dateA && !dateB) return 0;
+    if (!dateA) return 1;
+    if (!dateB) return -1;
+    if (dateA !== dateB) return dateA < dateB ? -1 : 1;
+    const timeA = String(a?.start_time || a?.StartTime || '').trim();
+    const timeB = String(b?.start_time || b?.StartTime || '').trim();
+    if (!timeA && !timeB) return 0;
+    if (!timeA) return 1;
+    if (!timeB) return -1;
+    return timeA < timeB ? -1 : 1;
+  });
+}
+
 function rowMeta(row, userEmpId, teamMap, state) {
   const rawType = String(row.activity_type || '').trim();
   const status = completionStatusFromUpload(null, row);
@@ -58,11 +75,11 @@ export const myDataScreen = {
     const rowsAll = Array.isArray(data?.rows) ? data.rows : [];
     const rows = rowsAll.filter((row) => assignedToCurrentInstructor(row, currentInstructorIds(state)));
     const teamMap = contactGroupsByDateSchool(data?.teamGroups || []);
-    const preparedRows = rows.map((row) => {
+    const preparedRows = sortActivitiesChronologically(rows.map((row) => {
       const isPrimary = userEmpId && String(row?.emp_id || '').trim() === userEmpId;
       const peer = isPrimary ? String(row?.instructor_name_2 || '').trim() : String(row?.instructor_name || '').trim();
       return { ...row, peer_instructor: peer || 'אין מדריך נוסף' };
-    });
+    }));
 
     const body = preparedRows.map((row) => {
       const meta = rowMeta(row, userEmpId, teamMap, state);
