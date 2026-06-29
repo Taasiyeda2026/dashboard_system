@@ -1501,9 +1501,15 @@ function printSchoolsSchedule() {
   const sectionsHtml = Array.from(byAuthority.values()).map((authorityGroup) => {
     const schools = Array.from(authorityGroup.schools.values()).sort((a, b) => a.school.localeCompare(b.school, 'he'));
     const schoolsHtml = schools.map((schoolGroup) => {
-      const dates = Array.from(schoolGroup.dates.entries()).sort(([a], [b]) => compareValues(a || '9999', b || '9999', 'asc'));
+      const dates = Array.from(schoolGroup.dates.entries()).sort(([a], [b]) => compareDatesAsc(a, b));
       const datesHtml = dates.map(([date, entries]) => {
-        const sorted = entries.slice().sort((a, b) => compareValues(a.time || '99:99', b.time || '99:99', 'asc'));
+        const sorted = entries.slice().sort((a, b) => {
+          const timeCmp = compareValues(a.time || '99:99', b.time || '99:99', 'asc');
+          if (timeCmp !== 0) return timeCmp;
+          const instrCmp = (a.instructor || '').localeCompare(b.instructor || '', 'he');
+          if (instrCmp !== 0) return instrCmp;
+          return getActivityName(a.activity).localeCompare(getActivityName(b.activity), 'he');
+        });
         const rowsHtml = sorted.map((entry) => {
           const activity = entry.activity;
           return `<tr>
@@ -1697,13 +1703,19 @@ function authorityScheduleEntryKey(entry = {}) {
   ].map((value) => String(value || '').trim()).filter(Boolean).join('|');
 }
 
+function compareDatesAsc(a, b) {
+  const da = (a && String(a).slice(0, 10)) || '9999-99-99';
+  const db = (b && String(b).slice(0, 10)) || '9999-99-99';
+  return da < db ? -1 : da > db ? 1 : 0;
+}
+
 function sortAuthorityScheduleRows(scheduleRows = []) {
   return scheduleRows.slice().sort((a, b) => {
     const authorityCmp = getActivityAuthorityName(a.activity).localeCompare(getActivityAuthorityName(b.activity), 'he');
     if (authorityCmp !== 0) return authorityCmp;
     const schoolCmp = getActivitySchoolDisplayNameClean(a.activity).localeCompare(getActivitySchoolDisplayNameClean(b.activity), 'he');
     if (schoolCmp !== 0) return schoolCmp;
-    const dateCmp = compareValues(a.date || '9999-99-99', b.date || '9999-99-99', 'asc');
+    const dateCmp = compareDatesAsc(a.date, b.date);
     if (dateCmp !== 0) return dateCmp;
     const timeCmp = compareValues(a.time || '99:99', b.time || '99:99', 'asc');
     if (timeCmp !== 0) return timeCmp;
@@ -1753,10 +1765,14 @@ function schoolsTabHtml(rows, state, directory = buildSchoolsDirectory([]), cont
   const authoritySections = Array.from(byAuthority.values()).map((authorityGroup) => {
     const schools = Array.from(authorityGroup.schools.values()).sort((a, b) => a.school.localeCompare(b.school, 'he'));
     const schoolBlocks = schools.map((schoolGroup) => {
-      const dateBlocks = Array.from(schoolGroup.dates.entries()).sort(([a], [b]) => compareValues(a || '9999-99-99', b || '9999-99-99', 'asc')).map(([date, entries]) => {
+      const dateBlocks = Array.from(schoolGroup.dates.entries()).sort(([a], [b]) => compareDatesAsc(a, b)).map(([date, entries]) => {
         const sortedEntries = entries.slice().sort((a, b) => {
           const timeCmp = compareValues(a.time || '99:99', b.time || '99:99', 'asc');
           if (timeCmp !== 0) return timeCmp;
+          const schoolCmp = getActivitySchoolDisplayNameClean(a.activity).localeCompare(getActivitySchoolDisplayNameClean(b.activity), 'he');
+          if (schoolCmp !== 0) return schoolCmp;
+          const instrCmp = (a.instructor || '').localeCompare(b.instructor || '', 'he');
+          if (instrCmp !== 0) return instrCmp;
           return getActivityName(a.activity).localeCompare(getActivityName(b.activity), 'he');
         });
         const rowsHtml = sortedEntries.map((entry) => {
