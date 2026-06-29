@@ -2565,13 +2565,13 @@ function normalizeData(data) {
 
 const PROPOSALS_AGREEMENTS_ALLOWED_ROLES = new Set(['domain_manager', 'operation_manager', 'admin', 'business_development_manager']);
 const PROPOSALS_AGREEMENTS_MANAGE_ROLES = new Set(['domain_manager', 'operation_manager', 'admin']);
-const PROPOSALS_AGREEMENTS_COLUMNS = 'id,authority_id,school_id,contact_school_id,client_authority,school_framework,document_type,activity_type_group,proposal_date,activity_names,contact_name,contact_role,phone,email,notes,status,approval_note,total_amount,custom_document_sections,include_catalog,signature_meta,approved_by,approved_at,created_at,updated_at';
-const PROPOSALS_AGREEMENTS_DIRECTORY_COLUMNS = 'id,authority_id,authority_code,school_id,contact_school_id,authority_name,legacy_client_authority,contact_client_type,contact_client_name,school_name,legacy_school_framework,document_type,activity_type_group,proposal_date,activity_names,contact_name,contact_role,phone,email,notes,status,approval_note,total_amount,custom_document_sections,include_catalog,signature_meta,approved_by,approved_at,created_at,updated_at';
+const PROPOSALS_AGREEMENTS_COLUMNS = 'id,authority_id,school_id,contact_school_id,client_authority,school_framework,document_type,activity_type_group,proposal_domain,proposal_date,activity_names,contact_name,contact_role,phone,email,notes,status,approval_note,total_amount,custom_document_sections,include_catalog,signature_meta,approved_by,approved_at,created_at,updated_at';
+const PROPOSALS_AGREEMENTS_DIRECTORY_COLUMNS = 'id,authority_id,authority_code,school_id,contact_school_id,authority_name,legacy_client_authority,contact_client_type,contact_client_name,school_name,legacy_school_framework,document_type,activity_type_group,proposal_domain,proposal_date,activity_names,contact_name,contact_role,phone,email,notes,status,approval_note,total_amount,custom_document_sections,include_catalog,signature_meta,approved_by,approved_at,created_at,updated_at';
 const PROPOSALS_AGREEMENTS_WRITABLE_COLUMNS = new Set([
   'authority_id', 'school_id', 'contact_school_id', 'client_authority', 'school_framework',
   'document_type', 'activity_type_group', 'proposal_date', 'activity_names', 'contact_name',
   'contact_role', 'phone', 'email', 'notes', 'status', 'approval_note', 'total_amount',
-  'custom_document_sections', 'include_catalog'
+  'custom_document_sections', 'include_catalog', 'proposal_domain'
 ]);
 const PROPOSALS_AGREEMENTS_APPROVAL_COLUMNS = new Set(['approved_by', 'approved_at', 'signature_position', 'signature_meta']);
 const PA_ACTIVITY_NAMES_MARKER = '\u001ePA_ACTIVITY_NAMES:';
@@ -2672,6 +2672,18 @@ function statusForDb(status) {
   return value || 'draft';
 }
 
+function proposalDomainForCurrentUser() {
+  const user = state?.user || {};
+  const userId = cleanProposalAgreementText(user.user_id || user.emp_id || user.employee_id);
+  const username = cleanProposalAgreementText(user.username_for_login || user.username || user.username_display).toLowerCase();
+  return userId === '3030' || username === 'esraaa' ? 'N' : 'A';
+}
+
+function normalizeProposalDomain(value, fallback = proposalDomainForCurrentUser()) {
+  const domain = cleanProposalAgreementText(value).toUpperCase();
+  return domain === 'N' ? 'N' : domain === 'A' ? 'A' : fallback;
+}
+
 function buildProposalAgreementSearchText(row = {}) {
   const activityNames = Array.isArray(row.activity_names) ? row.activity_names.join(' ') : '';
   const statusLabel = PA_STATUS_LABELS[cleanProposalAgreementText(row.status)] || cleanProposalAgreementText(row.status);
@@ -2701,7 +2713,8 @@ function normalizeProposalAgreementActivityNames(value) {
 function normalizeProposalAgreementRow(row = {}) {
   const parsedNotes = parseActivityNamesFromNotes(row.notes);
   const PA_VALID_STATUSES = new Set(['draft', 'sent', 'pending_approval', 'returned_for_changes', 'approved', 'cancelled']);
-  const rawStatus = cleanProposalAgreementText(row.status);
+  let rawStatus = cleanProposalAgreementText(row.status);
+  if (rawStatus === 'draft' && (cleanProposalAgreementText(row.approved_at) || (row.signature_meta && Object.keys(row.signature_meta || {}).length))) rawStatus = 'approved';
   const authorityName = cleanProposalAgreementText(row.client_authority || row.authority_name || row.legacy_client_authority || row.authority);
   const schoolFramework = cleanProposalAgreementText(row.school_framework || row.school_name || row.contact_client_name || row.legacy_school_framework || row.school);
   const normalized = {
@@ -2718,6 +2731,7 @@ function normalizeProposalAgreementRow(row = {}) {
     school_framework:    schoolFramework || authorityName,
     document_type:       cleanProposalAgreementText(row.document_type),
     activity_type_group: normalizeProposalGroupValue(row.activity_type_group),
+    proposal_domain:     normalizeProposalDomain(row.proposal_domain, 'A'),
     proposal_date:       cleanProposalAgreementText(row.proposal_date),
     activity_names:      normalizeProposalAgreementActivityNames(
       Array.isArray(row.activity_names) && row.activity_names.length
@@ -2985,6 +2999,7 @@ function sanitizeProposalAgreementPayload(payload = {}, groupLookup = proposalGr
     school_framework:    schoolFramework,
     document_type:       cleanProposalAgreementText(payload.document_type) || 'הצעת מחיר',
     activity_type_group: normalizeProposalGroupValue(rawGroup, groupLookup),
+    proposal_domain:     normalizeProposalDomain(payload.proposal_domain),
     proposal_date:       cleanProposalAgreementText(payload.proposal_date) || null,
     activity_names:      activity_names,
     contact_name:        cleanProposalAgreementText(payload.contact_name),
@@ -3001,6 +3016,9 @@ function sanitizeProposalAgreementPayload(payload = {}, groupLookup = proposalGr
   const requiredKeys = clientType === 'other'
     ? ['school_framework', 'document_type', 'activity_type_group']
     : ['client_authority', 'document_type', 'activity_type_group'];
+  if (row.status === 'draft') {
+    row.approval_note = '';
+  }
   const missing = requiredKeys.filter((key) => !row[key]);
   if (missing.length) throw new Error(`missing_required_fields:${missing.join(',')}`);
   return Object.fromEntries(
