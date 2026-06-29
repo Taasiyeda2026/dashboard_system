@@ -546,6 +546,7 @@ const screenLabels = {
   'instructor-completion-approvals': 'אישורי ביצוע',
   'instructor-guidelines': 'נהלים',
   attendance: 'נוכחות',
+  workshops: 'סדנאות',
   'edit-requests': 'אישורים',
   permissions: 'הרשאות',
   'admin-home': 'בית — ניהול',
@@ -701,11 +702,15 @@ const INSTRUCTOR_MOBILE_NAV = [
   { route: 'my-data', short: 'פעילויות', icon: '📋' },
   { route: 'instructor-completion-approvals', short: 'אישורים', icon: '✍️' },
   { route: 'instructor-guidelines', short: 'נהלים', icon: '📖' },
-  { route: null, short: 'נוכחות', icon: '✅', externalUrl: 'https://taasiyeda2026.github.io/attendance/' }
+  { route: null, short: 'נוכחות', icon: '✅', externalUrl: 'https://taasiyeda2026.github.io/attendance/' },
+  { route: null, short: 'סדנאות', icon: '📂', externalUrlBlank: 'https://drive.google.com/drive/folders/1qINdcwLXTSmQND6pE_ojjJ18TUuY8UB1?usp=drive_link' }
 ];
 
 function instructorBottomNavHtml(currentRoute) {
-  const buttons = INSTRUCTOR_MOBILE_NAV.map(({ route, short, icon, externalUrl }) => {
+  const buttons = INSTRUCTOR_MOBILE_NAV.map(({ route, short, icon, externalUrl, externalUrlBlank }) => {
+    if (externalUrlBlank) {
+      return `<button type="button" class="instructor-bottom-nav__btn" data-external-url-blank="${escapeHtml(externalUrlBlank)}" aria-label="${escapeHtml(short)}"><span class="instructor-bottom-nav__icon" aria-hidden="true">${icon}</span><span class="instructor-bottom-nav__label">${escapeHtml(short)}</span></button>`;
+    }
     if (externalUrl) {
       return `<button type="button" class="instructor-bottom-nav__btn" data-external-url="${escapeHtml(externalUrl)}" aria-label="${escapeHtml(short)}"><span class="instructor-bottom-nav__icon" aria-hidden="true">${icon}</span><span class="instructor-bottom-nav__label">${escapeHtml(short)}</span></button>`;
     }
@@ -1045,7 +1050,7 @@ function shell(content) {
     )
     .join('');
   const attendanceNavBtn = isInstructorUser
-    ? `<button type="button" class="shell-nav__btn" data-external-url="https://taasiyeda2026.github.io/attendance/">✅ נוכחות</button>`
+    ? `<button type="button" class="shell-nav__btn" data-external-url="https://taasiyeda2026.github.io/attendance/">✅ נוכחות</button><button type="button" class="shell-nav__btn" data-external-url-blank="https://drive.google.com/drive/folders/1qINdcwLXTSmQND6pE_ojjJ18TUuY8UB1?usp=drive_link">📂 סדנאות</button>`
     : '';
 
   const displayName = shellUserDisplayName();
@@ -2093,6 +2098,12 @@ function bindShell() {
   document.querySelectorAll('[data-external-url]').forEach((button) => {
     button.addEventListener('click', () => {
       window.location.href = button.dataset.externalUrl;
+    });
+  });
+
+  document.querySelectorAll('[data-external-url-blank]').forEach((button) => {
+    button.addEventListener('click', () => {
+      window.open(button.dataset.externalUrlBlank, '_blank', 'noopener,noreferrer');
     });
   });
 
