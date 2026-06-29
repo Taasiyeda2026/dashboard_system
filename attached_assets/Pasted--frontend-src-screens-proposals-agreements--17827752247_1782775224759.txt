@@ -1,0 +1,75 @@
+צריך לתקן את זרימת יצירת הצעת מחיר עבור אדמין.
+
+בקובץ:
+frontend/src/screens/proposals-agreements.js
+
+הבעיה:
+בטופס יצירת הצעת מחיר מחושב:
+canApproveDirectly = canApproveProposalsAgreements(state)
+
+אבל בפועל הוא לא משמש. הכפתור הראשי מוגדר תמיד:
+primaryActionLabel = 'שליחה לאישור'
+primaryActionStatus = 'pending_approval'
+
+לכן גם אדמין שמכין הצעת מחיר מקבל בסוף "שליחה לאישור", למרות שהוא עצמו בעל הרשאת אישור.
+
+הדרישה:
+אם המשתמש הוא אדמין / בעל הרשאת אישור הצעות:
+canApproveProposalsAgreements(state) === true
+
+אז לא להציג לו "שליחה לאישור".
+
+במקום זה הכפתור הראשי צריך להיות:
+"אישור וחתימה"
+
+והפעולה צריכה להוביל לסטטוס:
+approved
+
+אבל חשוב:
+אישור הצעה חייב לכלול חתימה, כמו בזרימה הקיימת של שינוי סטטוס ל-approved.
+לא לשמור הצעה כ-approved בלי חתימה.
+
+התנהגות נדרשת:
+1. משתמש רגיל / מנהל ללא הרשאת אישור:
+   כפתור ראשי = "שליחה לאישור"
+   סטטוס יעד = pending_approval
+
+2. אדמין / בעל הרשאת אישור:
+   כפתור ראשי = "אישור וחתימה"
+   סטטוס יעד = approved
+   לאחר תצוגה מקדימה, לפתוח את זרימת החתימה
+   לשמור את ההצעה כ-approved רק אחרי אישור החתימה
+
+מקומות לתיקון:
+1. באזור שבו מוגדרים:
+   primaryActionLabel
+   primaryActionStatus
+
+צריך להפוך את זה לתנאי לפי canApproveDirectly.
+
+לדוגמה:
+const primaryActionLabel = canApproveDirectly ? 'אישור וחתימה' : 'שליחה לאישור';
+const primaryActionStatus = canApproveDirectly ? 'approved' : 'pending_approval';
+
+2. ב-handler של data-pa-save-pending:
+לא להעביר תמיד:
+submitLabel: 'שליחה לאישור'
+
+אלא להשתמש בטקסט לפי targetStatus / canApproveDirectly:
+approved => "אישור וחתימה"
+pending_approval => "שליחה לאישור"
+
+3. כאשר targetStatus === 'approved':
+לא לקרוא ישירות ל-saveForm(form, 'approved') בלי חתימה.
+צריך להשתמש באותה לוגיקת חתימה קיימת של openPreview עם signatureMode / onSignatureConfirm, או לשמור קודם טיוטה ואז לאשר ולחתום.
+
+בדיקות:
+1. משתמש אדמין יוצר הצעת מחיר חדשה.
+2. הכפתור הראשי מציג "אישור וחתימה" ולא "שליחה לאישור".
+3. אחרי תצוגה מקדימה אדמין מאשר וחותם.
+4. ההצעה נשמרת בסטטוס approved עם חתימה.
+5. משתמש לא אדמין עדיין רואה "שליחה לאישור".
+6. הצעה שנשלחה לאישור נשארת pending_approval ולא approved.
+7. לא לשבור את זרימת אישור קיימת מרשומות / חלון עזר.
+
+בסיום לעדכן Service Worker ו־Cache.

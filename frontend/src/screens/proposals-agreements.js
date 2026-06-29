@@ -2887,33 +2887,48 @@ function drawerActionButtons(row, state) {
   const canManage = canManageProposalsAgreements(state);
   const buttons = [];
 
-  buttons.push(`<button type="button" class="ds-btn ds-btn--sm" data-pa-preview="${escapeHtml(row.id)}">תצוגה מקדימה</button>`);
+  const iconBtn = (attrs, title, svgInner, extraClass = '') =>
+    `<button type="button" class="ds-btn ds-btn--xs ds-btn--ghost ds-pa-row-action ds-pa-row-action--icon${extraClass ? ' ' + extraClass : ''}" title="${escapeHtml(title)}" aria-label="${escapeHtml(title)}" ${attrs}><svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">${svgInner}</svg></button>`;
+
+  const EYE   = '<path d="M1 12s4-8 11-8 11 8 11 8-4 8-11 8-11-8-11-8z"/><circle cx="12" cy="12" r="3"/>';
+  const PENCIL = '<path d="M11 4H4a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2v-7"/><path d="M18.5 2.5a2.121 2.121 0 0 1 3 3L12 15l-4 1 1-4 9.5-9.5z"/>';
+  const DOC   = '<path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><polyline points="14 2 14 8 20 8"/><line x1="16" y1="13" x2="8" y2="13"/><line x1="16" y1="17" x2="8" y2="17"/>';
+  const SEND  = '<line x1="22" y1="2" x2="11" y2="13"/><polygon points="22 2 15 22 11 13 2 9 22 2"/>';
+  const XCIRC = '<circle cx="12" cy="12" r="10"/><line x1="15" y1="9" x2="9" y2="15"/><line x1="9" y1="9" x2="15" y2="15"/>';
+  const TRASH = '<polyline points="3 6 5 6 21 6"/><path d="M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6m3 0V4a1 1 0 0 1 1-1h4a1 1 0 0 1 1 1v2"/>';
+  const CHECK = '<polyline points="20 6 9 17 4 12"/>';
+  const UNDO  = '<polyline points="9 14 4 9 9 4"/><path d="M20 20v-7a4 4 0 0 0-4-4H4"/>';
+  const SENT  = '<path d="M22 11.08V12a10 10 0 1 1-5.93-9.14"/><polyline points="22 4 12 14.01 9 11.01"/>';
+  const PRINT = '<polyline points="6 9 6 2 18 2 18 9"/><path d="M6 18H4a2 2 0 0 1-2-2v-5a2 2 0 0 1 2-2h16a2 2 0 0 1 2 2v5a2 2 0 0 1-2 2h-2"/><rect x="6" y="14" width="12" height="8"/>';
+  const CLONE = '<rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/>';
+
+  buttons.push(iconBtn(`data-pa-preview="${escapeHtml(row.id)}"`, 'תצוגה מקדימה', EYE));
 
   if (!isSent && canManage && (['draft', 'returned_for_changes'].includes(status) || (isAdminRole && status !== 'approved'))) {
-    buttons.push(`<button type="button" class="ds-btn ds-btn--primary ds-btn--sm" data-pa-edit-row="${escapeHtml(row.id)}">עריכה</button>`);
+    buttons.push(iconBtn(`data-pa-edit-row="${escapeHtml(row.id)}"`, 'עריכה', PENCIL));
   }
   if (!isSent && canManage && ['draft', 'returned_for_changes'].includes(status)) {
-    buttons.push(`<button type="button" class="ds-btn ds-btn--sm" data-pa-edit-document="${escapeHtml(row.id)}">עריכת מסמך</button>`);
+    buttons.push(iconBtn(`data-pa-edit-document="${escapeHtml(row.id)}"`, 'עריכת מסמך', DOC));
   }
   if (!isSent && canManage && ['draft', 'returned_for_changes'].includes(status) && !isAdminRole) {
-    buttons.push(`<button type="button" class="ds-btn ds-btn--sm" data-pa-status-action="pending_approval" data-pa-action-id="${escapeHtml(row.id)}">שליחה לאישור</button>`);
+    buttons.push(iconBtn(`data-pa-status-action="pending_approval" data-pa-action-id="${escapeHtml(row.id)}"`, 'שליחה לאישור', SEND));
   }
   if (isAdminRole) {
     if (!isSent && !['cancelled', 'approved'].includes(status)) {
-      buttons.push(`<button type="button" class="ds-btn ds-btn--sm ds-btn--ghost" data-pa-status-action="cancelled" data-pa-action-id="${escapeHtml(row.id)}">ביטול</button>`);
+      buttons.push(iconBtn(`data-pa-status-action="cancelled" data-pa-action-id="${escapeHtml(row.id)}"`, 'ביטול', XCIRC));
     }
-    buttons.push(`<button type="button" class="ds-btn ds-btn--sm ds-btn--ghost" data-pa-delete-row="${escapeHtml(row.id)}">מחיקה</button>`);
+    buttons.push(iconBtn(`data-pa-delete-row="${escapeHtml(row.id)}"`, 'מחיקה', TRASH, 'ds-pa-row-action--danger'));
   }
   if (isAdminRole && status === 'pending_approval') {
-    buttons.push(`<button type="button" class="ds-btn ds-btn--primary ds-btn--sm" data-pa-status-action="approved" data-pa-action-id="${escapeHtml(row.id)}">אישור וחתימה</button>`);
-    buttons.push(`<button type="button" class="ds-btn ds-btn--sm ds-btn--ghost" data-pa-status-action="returned_for_changes" data-pa-action-id="${escapeHtml(row.id)}">החזרה לתיקון</button>`);
+    buttons.push(iconBtn(`data-pa-status-action="approved" data-pa-action-id="${escapeHtml(row.id)}"`, 'אישור וחתימה', CHECK));
+    buttons.push(iconBtn(`data-pa-status-action="returned_for_changes" data-pa-action-id="${escapeHtml(row.id)}"`, 'החזרה לתיקון', UNDO));
   }
   if (canManage && proposalHasSavedApprovalSignature(row)) {
-    buttons.push(`<button type="button" class="ds-btn ds-btn--sm ds-btn--primary" data-pa-status-action="sent" data-pa-action-id="${escapeHtml(row.id)}">סימון כנשלח</button>`);
+    buttons.push(iconBtn(`data-pa-status-action="sent" data-pa-action-id="${escapeHtml(row.id)}"`, 'סימון כנשלח', SENT));
   }
   if (isAdminRole && (status === 'approved' || isSent)) {
-    buttons.push(`<button type="button" class="ds-btn ds-btn--sm ds-btn--primary" data-pa-print="${escapeHtml(row.id)}">הדפסה / שמירה כ-PDF</button>`);
-    buttons.push(`<button type="button" class="ds-btn ds-btn--sm" data-pa-clone-row="${escapeHtml(row.id)}">שכפול להצעה חדשה</button>`);
+    buttons.push(iconBtn(`data-pa-print="${escapeHtml(row.id)}"`, 'הדפסה / שמירה כ-PDF', PRINT));
+    buttons.push(iconBtn(`data-pa-clone-row="${escapeHtml(row.id)}"`, 'שכפול להצעה חדשה', CLONE));
   }
   return buttons.join('');
 }

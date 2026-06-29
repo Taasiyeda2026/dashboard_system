@@ -11034,8 +11034,10 @@ select.ds-input {
 .ds-pa-drawer-actions {
   display: flex;
   align-items: center;
-  justify-content: space-between;
-  gap: 8px;
+  justify-content: flex-start;
+  gap: 4px;
+  flex-wrap: wrap;
+  margin-top: 10px;
 }
 
 .ds-pa-drawer-head h3,
