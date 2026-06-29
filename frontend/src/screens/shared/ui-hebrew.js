@@ -73,8 +73,8 @@ export function financeStatusVariant(value) {
 /** חריגות: עוצמת chip לפי סוג */
 export function exceptionTypeVariant(exceptionType) {
   const k = String(exceptionType || '').trim();
-  if (k === 'end_date_after_cutoff' || k === 'end_date_passed') return 'danger';
-  if (k === 'missing_instructor' || k === 'missing_start_date') return 'warning';
+  if (k === 'end_date_after_cutoff' || k === 'end_date_passed' || k === 'summer_ended_open') return 'danger';
+  if (k === 'missing_instructor' || k === 'missing_start_date' || k === 'missing_completion_approval') return 'warning';
   return 'neutral';
 }
 
@@ -84,7 +84,9 @@ export const HEBREW_EXCEPTION_TYPE = {
   missing_start_date:       'ללא תאריך התחלה',
   missing_end_date:         'ללא תאריך סיום',
   end_date_after_cutoff:    'תאריך סיום מאוחר',
-  end_date_passed:          'הסתיימה ולא נסגרה'
+  end_date_passed:          'הסתיימה ולא נסגרה',
+  summer_ended_open:        'הפעילות הסתיימה אך הסטטוס לא נסגר',
+  missing_completion_approval: 'חסר אישור ביצוע'
 };
 
 export function hebrewExceptionType(value) {

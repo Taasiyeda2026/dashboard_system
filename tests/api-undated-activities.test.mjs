@@ -99,7 +99,7 @@ test('activity_season defaults to regular and isSummerActivity uses summer row_i
   assert.equal(activeCourse({ activity_season: '' }).activity_season, 'regular');
   assert.equal(isSummerActivity(activeCourse({ RowID: 'summer_001', activity_season: '', start_date: '' })), true);
   assert.equal(isSummerActivity(activeCourse({ row_id: 'summer_002', activity_season: 'regular', start_date: '2026-06-30' })), true);
-  assert.equal(isSummerActivity(activeCourse({ RowID: 'A-1', activity_season: 'summer_2026', start_date: '2026-07-01' })), false);
+  assert.equal(isSummerActivity(activeCourse({ RowID: 'A-1', activity_season: 'summer_2026', start_date: '2026-07-01' })), true);
   assert.equal(isSummerActivity(activeCourse({ RowID: 'summer_003', status: 'בוטל' })), false);
   assert.equal(isSummerActivity(activeCourse({ RowID: 'summer_004', status: 'נמחק' })), false);
 });
@@ -167,4 +167,71 @@ test('allActivities export path reads all activities without applying month/date
   assert.ok(match, 'allActivities block should be present before the following API endpoint');
   assert.match(match[0], /const rows = await readAllActivitiesRowsSupabase\(\);/);
   assert.doesNotMatch(match[0], /rowMatchesActivitiesFilters|activityHasDateInRange|filters/);
+});
+
+test('ended open summer workshop appears with status and completion approval exceptions', () => {
+  const row = activeCourse({
+    RowID: 'SUMMER-ENDED-OPEN',
+    activity_type: 'workshop',
+    item_type: 'workshop',
+    activity_season: 'summer_2026',
+    status: 'פתוח',
+    start_date: '2026-06-20',
+    end_date: '2026-06-20',
+    date_1: '2026-06-20',
+    school: 'בית ספר קיץ',
+    instructor_name: 'מדריך קיץ'
+  });
+
+  const model = buildExceptionsModelFromRows([row], '2026-07', { include_rows: true });
+  assert.equal(model.totalExceptionRows, 1);
+  assert.deepEqual(model.rows[0].exception_types.sort(), ['missing_completion_approval', 'summer_ended_open'].sort());
+});
+
+test('ended summer escape room with missing approval appears even when status is closed', () => {
+  const row = activeCourse({
+    RowID: 'SUMMER-CLOSED-MISSING-APPROVAL',
+    activity_type: 'escape_room',
+    item_type: 'escape_room',
+    activity_season: 'summer_2026',
+    status: 'סגור',
+    start_date: '2026-06-21',
+    end_date: '2026-06-21',
+    date_1: '2026-06-21',
+    school: 'בית ספר קיץ',
+    instructor_name: 'מדריך קיץ'
+  });
+
+  const model = buildExceptionsModelFromRows([row], '2026-07', { include_rows: true });
+  assert.equal(model.totalExceptionRows, 1);
+  assert.deepEqual(model.rows[0].exception_types, ['missing_completion_approval']);
+});
+
+test('ended summer activity with closed status and uploaded completion approval is not an exception', () => {
+  const row = activeCourse({
+    RowID: 'SUMMER-CLOSED-APPROVED',
+    activity_type: 'workshop',
+    item_type: 'workshop',
+    activity_season: 'summer_2026',
+    status: 'בוצע',
+    start_date: '2026-06-22',
+    end_date: '2026-06-22',
+    date_1: '2026-06-22',
+    school: 'בית ספר קיץ',
+    instructor_name: 'מדריך קיץ'
+  });
+
+  const model = buildExceptionsModelFromRows([row], '2026-07', {
+    include_rows: true,
+    completionApprovalUploads: [{
+      activity_row_id: 'SUMMER-CLOSED-APPROVED',
+      activity_date: '2026-06-22',
+      school: 'בית ספר קיץ',
+      instructor_name: 'מדריך קיץ',
+      file_path: 'signed/approval.pdf',
+      status: 'uploaded'
+    }]
+  });
+  assert.equal(model.totalExceptionRows, 0);
+  assert.equal(model.rows.length, 0);
 });

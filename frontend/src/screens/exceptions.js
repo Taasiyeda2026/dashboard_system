@@ -53,9 +53,10 @@ function exceptionCardTone(row, fallbackTone = 'other') {
   const type = normalizedExceptionTypes(row)[0] || fallbackTone;
   if (type === 'missing_start_date') return 'waiting-date';
   if (type === 'missing_end_date') return 'date-range';
-  if (type === 'end_date_passed') return 'ended-open';
+  if (type === 'end_date_passed' || type === 'summer_ended_open') return 'ended-open';
   if (type === 'end_date_after_cutoff') return 'end-date-sync';
   if (type === 'missing_instructor') return 'missing-instructor';
+  if (type === 'missing_completion_approval') return 'waiting-date';
   if (type === 'missing_district') return 'missing-assignment';
   return 'other';
 }
@@ -63,9 +64,10 @@ function exceptionCardTone(row, fallbackTone = 'other') {
 function exceptionGroupKey(type) {
   if (type === 'missing_start_date') return 'waiting-date';
   if (type === 'missing_end_date') return 'date-range';
-  if (type === 'end_date_passed') return 'ended-open';
+  if (type === 'end_date_passed' || type === 'summer_ended_open') return 'ended-open';
   if (type === 'end_date_after_cutoff') return 'end-date-sync';
   if (type === 'missing_instructor') return 'missing-instructor';
+  if (type === 'missing_completion_approval') return 'waiting-date';
   if (type === 'missing_district') return 'missing-assignment';
   return 'other';
 }
@@ -126,7 +128,7 @@ function splitRowsByExceptionTab(rows = []) {
   const general = [];
   const summerDates = [];
   for (const row of Array.isArray(rows) ? rows : []) {
-    if (isSummerActivity(row)) {
+    if (isSummerActivity(row) || String(row?.activity_season || row?.activitySeason || '').trim() === 'summer_2026') {
       summerDates.push(row);
     } else {
       general.push(row);
@@ -324,7 +326,7 @@ export const exceptionsScreen = {
       <section class="ds-exceptions-screen__section"><h2 class="ds-section-title ds-exceptions-screen__title">חריגות</h2></section>
       ${(() => { try { return sessionStorage.getItem('ds_exceptions_save_notice') === '1'; } catch { return false; } })() ? `<div class="ds-exceptions-save-notice" role="status" dir="rtl"><strong>הפעילות נשמרה בהצלחה.</strong> החריגה תוקנה ולכן הפעילות הוסרה ממסך החריגות. <button type="button" class="ds-btn ds-btn--sm" data-exception-go-activities>מעבר למסך פעילויות</button></div>` : ''}
       ${exceptionTabsHtml(activeTab, { general: uniqueExceptionActivityCount(tabRows.general), summerDates: uniqueExceptionActivityCount(tabRows.summerDates) })}
-      ${activeTab === EXCEPTIONS_TAB_SUMMER_DATES ? '<p class="ds-exceptions-tab-note">כאן מוצגות פעילויות קיץ 2026 עם חריגות: חסר מדריך או חסר תאריך פעילות. פעילויות סגורות ונמחקות אינן נכללות.</p>' : ''}
+      ${activeTab === EXCEPTIONS_TAB_SUMMER_DATES ? '<p class="ds-exceptions-tab-note">כאן מוצגות פעילויות קיץ 2026 עם חריגות: חסר מדריך, חסר תאריך פעילות, פעילות שהסתיימה והסטטוס לא נסגר, או חסר אישור ביצוע. פעילויות שנמחקו או בוטלו אינן נכללות.</p>' : ''}
       ${exceptionsSummaryHtml(visibleRows)}
       ${!hasAnyRows ? `<section class="ds-exceptions-screen__section">${dsEmptyState(emptyText)}</section>` : groups.map((group) => `<section class="ds-exceptions-screen__section">${exceptionGroupCard(group)}</section>`).join('')}
       </div>

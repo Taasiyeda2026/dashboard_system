@@ -2268,19 +2268,108 @@ function rowExceptionTypesFromActivity(row, opts = {}) {
   return types;
 }
 
+
+function isSummerCompletionTrackedActivity(row = {}) {
+  const season = String(row?.activity_season || row?.activitySeason || '').trim();
+  if (season !== 'summer_2026') return false;
+  const type = normalizeActivityTypeValue(row?.activity_type || row?.item_type || '');
+  return type === 'workshop' || type === 'escape_room';
+}
+
+function latestActivityDateForSummer(row = {}) {
+  const dates = [
+    firstNormalizedDate(row?.end_date, row?.date_end),
+    firstNormalizedDate(row?.start_date, row?.date_start),
+    firstNormalizedDate(row?.date_1, row?.Date1),
+    latestMeetingDateFromActivity(row)
+  ].filter(Boolean);
+  return dates.length ? dates.reduce((max, value) => (value > max ? value : max), '') : '';
+}
+
+function isSummerActivityEnded(row = {}, today = todayLocalIsoDate()) {
+  const latest = latestActivityDateForSummer(row);
+  return !!latest && latest < today;
+}
+
+function isSummerActivityClosedStatus(row = {}) {
+  const status = String(row?.status || '').trim().toLowerCase();
+  return ['בוצע', 'הושלם', 'סגור', 'נסגר', 'done', 'completed', 'closed'].includes(status);
+}
+
+function normalizeApprovalText(value) {
+  return String(value || '').trim().replace(/[״"]/g, '').replace(/[׳']/g, '').replace(/\s+/g, ' ').toLowerCase();
+}
+
+function approvalUploadMatchesActivity(upload = {}, row = {}) {
+  const rowId = String(row?.RowID || row?.row_id || row?.id || '').trim();
+  const uploadRowIds = String(upload?.activity_row_id || upload?.activity_id || '').split(',').map((value) => value.trim()).filter(Boolean);
+  if (rowId && uploadRowIds.includes(rowId)) return true;
+
+  const rowDate = firstNormalizedDate(row?.start_date, row?.activity_date, row?.date, row?.date_1, row?.Date1);
+  const uploadDate = firstNormalizedDate(upload?.activity_date, upload?.date);
+  if (rowDate && uploadDate && rowDate !== uploadDate) return false;
+
+  const rowSchool = normalizeApprovalText(row?.school || row?.single_school_name || row?.legacy_school);
+  const uploadSchool = normalizeApprovalText(upload?.school);
+  if (rowSchool && uploadSchool && rowSchool !== uploadSchool && !rowSchool.endsWith(uploadSchool) && !uploadSchool.endsWith(rowSchool)) return false;
+
+  const uploadInstructor = normalizeApprovalText(upload?.instructor_name);
+  if (uploadInstructor) {
+    const rowInstructors = [
+      resolveActivityInstructorName(row),
+      resolveActivityInstructorName(row, { secondary: true }),
+      row?.instructor_name,
+      row?.instructor_name_2,
+      row?.instructor,
+      row?.instructor_2,
+      row?.guide_name,
+      row?.guide_name_2
+    ].map(normalizeApprovalText).filter(Boolean);
+    if (rowInstructors.length && !rowInstructors.includes(uploadInstructor)) return false;
+  }
+
+  return !!(rowDate && uploadDate && rowSchool && uploadSchool);
+}
+
+function hasCompletionApprovalForActivity(row = {}, approvalUploads = []) {
+  if (row?.has_completion_approval === true || row?.has_completion_approval === 'true' || row?.has_completion_approval === 'yes') return true;
+  const status = String(row?.completion_approval_status || '').trim().toLowerCase();
+  if (['approved', 'uploaded', 'אושר', 'הועלה'].includes(status)) return true;
+  return (Array.isArray(approvalUploads) ? approvalUploads : []).some((upload) => {
+    const uploadStatus = String(upload?.status || '').trim().toLowerCase();
+    if (uploadStatus === 'rejected' || uploadStatus === 'נדחה') return false;
+    return !!upload?.file_path && approvalUploadMatchesActivity(upload, row);
+  });
+}
+
+function summerCompletionExceptionTypes(row = {}, opts = {}) {
+  if (!isSummerCompletionTrackedActivity(row)) return [];
+  if (isActivityDeleted(row) || isActivityCancelled(row)) return [];
+  if (!isSummerActivityEnded(row)) return [];
+  const types = [];
+  if (!isSummerActivityClosedStatus(row)) types.push('summer_ended_open');
+  if (!hasCompletionApprovalForActivity(row, opts.completionApprovalUploads)) types.push('missing_completion_approval');
+  return types;
+}
+
 function getActivityExceptions(activityRows = [], month = '', opts = {}) {
   const knownInstructorIds = opts.knownInstructorIds; // Set<string> | undefined
   const rows = [];
   const instances = [];
   for (const row of activityRows) {
-    if (isActivityInactive(row)) continue;
+    if (isActivityDeleted(row) || isActivityCancelled(row)) continue;
+    if (isActivityInactive(row) && !isSummerCompletionTrackedActivity(row)) continue;
     if (!activityOverlapsMonthForExceptions(row, month)) continue;
-    const types = normalizedExceptionTypes({
-      ...row,
-      exception_types: rowExceptionTypesFromActivity(row, {
+    const rawTypes = [
+      ...(isActivityClosed(row) ? [] : rowExceptionTypesFromActivity(row, {
         knownInstructorIds,
         lateEndDateThreshold: opts.lateEndDateThreshold
-      })
+      })),
+      ...summerCompletionExceptionTypes(row, opts)
+    ];
+    const types = normalizedExceptionTypes({
+      ...row,
+      exception_types: rawTypes
     });
     if (!types.length) continue;
     const uniqueTypes = [...new Set(types)];
@@ -2367,9 +2456,10 @@ async function readExceptionsFromSupabase(params = {}) {
   const month = /^\d{4}-\d{2}$/.test(candidate) ? candidate : currentYm;
   try {
     const suppliedActivityRows = Array.isArray(params?.activityRows) ? params.activityRows : null;
-    const [activitiesResult, instrListResult, settingsRows] = await Promise.all([
+    const [activitiesResult, instrListResult, approvalsResult, settingsRows] = await Promise.all([
       suppliedActivityRows ? Promise.resolve({ data: suppliedActivityRows, error: null }) : supabase.from('activities').select('*'),
       readInstructorEmpIdsFromSupabase().then((data) => ({ data, error: null })),
+      supabase.from('activity_completion_approval_uploads').select('*').then(({ data, error }) => ({ data: error ? [] : data, error })),
       readSettingsRowsFromSupabase().catch((error) => {
         logDashboardSupabaseReadError('[supabase][dashboard] settings read failed', error, {
           table: 'public.settings',
@@ -2395,7 +2485,8 @@ async function readExceptionsFromSupabase(params = {}) {
     const exceptionSummary = buildExceptionsModelFromRows(allRows, month, {
       include_rows: true,
       knownInstructorIds: knownInstructorIds.size > 0 ? knownInstructorIds : undefined,
-      lateEndDateThreshold
+      lateEndDateThreshold,
+      completionApprovalUploads: Array.isArray(approvalsResult.data) ? approvalsResult.data : []
     });
     const undatedRows = allRows
       .filter((row) => !isActivityInactive(row))
