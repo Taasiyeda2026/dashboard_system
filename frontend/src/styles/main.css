@@ -15655,6 +15655,14 @@ details[open] > .ds-fin-acc__summary::before { transform: rotate(90deg); }
 .pr-admin-table--management .pr-td-status .ds-status-chip {
   font-weight: 700;
 }
+.pr-admin-table--management th,
+.pr-admin-table--management td { text-align: center; }
+.pr-admin-table--management th:first-child,
+.pr-admin-table--management td:first-child { text-align: right; }
+.pr-admin-table--management .pr-actions-cell {
+  justify-content: center;
+  display: flex;
+}
 .pr-admin-detail-actions {
   display: flex;
   flex-wrap: wrap;
