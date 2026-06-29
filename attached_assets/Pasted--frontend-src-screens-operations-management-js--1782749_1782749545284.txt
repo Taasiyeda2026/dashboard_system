@@ -1,0 +1,101 @@
+תיקון ממוקד בהדפסת "רשויות" בלבד.
+
+קובץ:
+frontend/src/screens/operations-management.js
+
+מיקום:
+function printSchoolsSchedule()
+
+לא לשנות:
+- לא לשנות את הסדר הכללי של ההדפסה.
+- הסדר הנכון נשאר:
+  רשות > תאריך > בית ספר > פעילויות
+- לא לשנות סינונים.
+- לא לשנות לשוניות אחרות.
+- לא לשנות סידור עבודה, אישורי ביצוע או ציוד ומלאי.
+
+הבעיה:
+הכותרות בהדפסה לא יושבות נכון אחת ביחס לשנייה.
+כרגע:
+- date-title ברוחב 70%
+- school-title ברוחב 55%
+- date-block / table ברוחב 55%
+
+זה יוצר חוסר יישור בין כותרת התאריך, כותרת בית הספר והטבלה.
+
+דרישות עיצוב:
+1. כל בלוק פנימי בתוך רשות צריך להיות באותו רוחב:
+   - date-title
+   - school-title
+   - date-block
+   - authorities-table
+
+2. להגדיר רוחב אחיד, למשל 70%, לכל אלה:
+   .date-title
+   .school-title
+   .date-block
+
+3. לחלופין, עדיף להגדיר משתנה CSS:
+   --authority-print-content-width: 70%;
+
+ואז:
+.date-title,
+.school-title,
+.date-block {
+  width: var(--authority-print-content-width);
+  max-width: var(--authority-print-content-width);
+  margin-inline: auto;
+  box-sizing: border-box;
+}
+
+4. הטבלה עצמה תישאר:
+.authorities-table {
+  width: 100%;
+}
+
+5. ב-@media print לוודא שגם שם אין 55% שנשאר:
+.date-title,
+.school-title,
+.date-block {
+  width: var(--authority-print-content-width) !important;
+  max-width: var(--authority-print-content-width) !important;
+}
+
+דרישת תוכן:
+כמו שיש סיכום בכותרת הרשות, צריך להוסיף סיכום בכותרת כל בית ספר.
+
+המצב הנוכחי:
+כותרת בית הספר היא רק:
+${school}
+
+צריך לשנות ל:
+שם בית ספר | X פעילויות
+
+כאשר X הוא מספר הרשומות / entries של אותו בית ספר באותו תאריך.
+
+במקום:
+<div class="school-title authorities-group-title">${escapeHtml(school)}</div>
+
+להשתמש במשהו בסגנון:
+const schoolActivityCount = sorted.length;
+const schoolTitle = `${school} | ${schoolActivityCount} פעילויות`;
+
+ואז:
+<div class="school-title authorities-group-title">${escapeHtml(schoolTitle)}</div>
+
+אם יש פעילות אחת:
+`${school} | פעילות אחת`
+
+אם יש יותר מפעילות אחת:
+`${school} | ${schoolActivityCount} פעילויות`
+
+בדיקות חובה:
+1. הדפסת רשויות עדיין מסודרת לפי:
+   רשות > תאריך > בית ספר > פעילויות.
+2. כותרת התאריך, כותרת בית הספר והטבלה מיושרות באותו רוחב.
+3. אין מצב שכותרת תאריך רחבה יותר מהטבלה.
+4. בכל בית ספר מופיע סיכום:
+   שם בית ספר | X פעילויות
+5. מספר הפעילויות בבית הספר תואם למספר השורות בטבלה שמתחתיו.
+6. סיכום הרשות נשאר כמו היום.
+7. לעדכן Service Worker ו-Cache בסיום.

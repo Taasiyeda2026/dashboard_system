@@ -1529,8 +1529,10 @@ function printSchoolsSchedule() {
             <td class="col-activity">${escapeHtml(getActivityName(activity))}</td>
           </tr>`;
         }).join('');
+        const schoolActivityCount = sorted.length;
+        const schoolLabel = schoolActivityCount === 1 ? `${school} | פעילות אחת` : `${school} | ${schoolActivityCount} פעילויות`;
         return `<div class="school-block">
-          <div class="school-title authorities-group-title">${escapeHtml(school)}</div>
+          <div class="school-title authorities-group-title">${escapeHtml(schoolLabel)}</div>
           <div class="date-block authorities-title-table-block">
             <table class="authorities-table"><colgroup><col class="col-time"><col class="col-instructor"><col class="col-class"><col class="col-activity"></colgroup><thead><tr><th class="col-time">שעות</th><th class="col-instructor">מדריך</th><th class="col-class">כיתה</th><th class="col-activity">פעילות / סדנה</th></tr></thead><tbody>${rowsHtml}</tbody></table>
           </div>
@@ -1560,8 +1562,8 @@ function printSchoolsSchedule() {
     .date-section{margin-bottom:10px;}
     .date-title{font-size:11.5px;font-weight:800;color:#0369a1;margin:0 auto 5px;padding:3px 10px;background:#dbeafe;border-right:4px solid #2563eb;border-radius:4px;width:70%;max-width:70%;text-align:right;break-after:avoid-page;page-break-after:avoid;}
     .school-block{margin-bottom:6px;}
-    .school-title{font-size:10.5px;font-weight:700;color:#1e293b;margin:0 auto 2px;padding:2px 8px;background:#f1f5f9;border-right:3px solid #94a3b8;width:55%;max-width:55%;break-after:avoid-page;page-break-after:avoid}
-    .date-block{display:block;width:55%;max-width:55%;margin:0 auto 4px;}
+    .school-title{font-size:10.5px;font-weight:700;color:#1e293b;margin:0 auto 2px;padding:2px 8px;background:#f1f5f9;border-right:3px solid #94a3b8;width:70%;max-width:70%;break-after:avoid-page;page-break-after:avoid}
+    .date-block{display:block;width:70%;max-width:70%;margin:0 auto 4px;}
     .authorities-title-table-block{break-inside:avoid-page;page-break-inside:avoid}
     .authorities-table{border-collapse:collapse;width:100%;table-layout:fixed}
     .authorities-table .col-time{width:20%;text-align:center}
@@ -1574,7 +1576,7 @@ function printSchoolsSchedule() {
     .authorities-table tr{break-inside:avoid-page;page-break-inside:avoid}
     .footer{margin-top:10px;font-size:11px;font-weight:700;color:#0f172a;text-align:center;border-top:1px solid #cbd5e1;padding-top:5px}
     @page{size:A4 portrait;margin:8mm}
-    @media print{body{margin:0}.authority-section:not(:first-child){break-before:page;page-break-before:always;}.date-section{margin-bottom:8px!important;}.date-title{width:70%!important;max-width:70%!important;break-after:avoid-page;page-break-after:avoid}.school-title{break-after:avoid-page;page-break-after:avoid}.date-block{width:55%!important;max-width:55%!important;margin:0 auto 4px!important;display:block!important;}.authorities-table{width:100%!important;table-layout:fixed!important}.authorities-table .col-time{width:20%!important}.authorities-table .col-instructor{width:27%!important}.authorities-table .col-class{width:20%!important}.authorities-table .col-activity{width:33%!important}.authorities-table th,.authorities-table td{white-space:normal!important;word-break:break-word!important;overflow-wrap:anywhere!important;font-size:9px;padding:2px 4px;line-height:1.15}.authorities-title-table-block{break-inside:avoid-page;page-break-inside:avoid}.authorities-table tr{break-inside:avoid-page;page-break-inside:avoid}}
+    @media print{body{margin:0}.authority-section:not(:first-child){break-before:page;page-break-before:always;}.date-section{margin-bottom:8px!important;}.date-title{width:70%!important;max-width:70%!important;break-after:avoid-page;page-break-after:avoid}.school-title{width:70%!important;max-width:70%!important;break-after:avoid-page;page-break-after:avoid}.date-block{width:70%!important;max-width:70%!important;margin:0 auto 4px!important;display:block!important;}.authorities-table{width:100%!important;table-layout:fixed!important}.authorities-table .col-time{width:20%!important}.authorities-table .col-instructor{width:27%!important}.authorities-table .col-class{width:20%!important}.authorities-table .col-activity{width:33%!important}.authorities-table th,.authorities-table td{white-space:normal!important;word-break:break-word!important;overflow-wrap:anywhere!important;font-size:9px;padding:2px 4px;line-height:1.15}.authorities-title-table-block{break-inside:avoid-page;page-break-inside:avoid}.authorities-table tr{break-inside:avoid-page;page-break-inside:avoid}}
   `;
   const bodyHtml = `
     <h1>${escapeHtml(title)}</h1>
