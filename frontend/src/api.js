@@ -430,6 +430,24 @@ function activityHasDateInMonth(row, monthPrefix) {
   return activityHasDateInRange(row, range.startDate, range.endDate);
 }
 
+/**
+ * Dashboard-specific: returns true only if start_date, end_date, or any meeting date (date_1..date_35)
+ * falls within the month. Does NOT use overlap fallback — matches the logic of activityOccursInSelectedMonth
+ * in activities.js so dashboard counts agree with the activities screen.
+ */
+function activityHasDatePointInMonth(row, monthPrefix) {
+  const range = monthDateRange(monthPrefix);
+  if (!range) return false;
+  const { startDate, endDate } = range;
+  const meetingDates = getActivityDateColumns(row);
+  const start = firstNormalizedDate(row?.start_date, row?.date_start);
+  const end   = firstNormalizedDate(row?.end_date,   row?.date_end);
+  const allDates = [...meetingDates];
+  if (start) allDates.push(start);
+  if (end)   allDates.push(end);
+  return allDates.length > 0 && allDates.some((d) => d >= startDate && d <= endDate);
+}
+
 async function selectActivitiesFromSupabase(select = '*') {
   const result = await supabase.from('activities').select(select);
   if (result.error) throw new Error(result.error.message || 'activities_read_failed');
@@ -1947,12 +1965,12 @@ async function dashboardReadModelFromSupabase(month) {
     });
     // Open-only rows (not closed) — used for summary, instructor/manager stats, exceptions
     const openRows = allRangeRows.filter((row) => !isActivityInactive(row));
-    // Open-only rows that have a date in this month — for summary data
-    const monthRows = openRows.filter((row) => activityHasDateInMonth(row, monthPrefix));
-    // All rows (open + closed) in this month — for KPI type counts
-    const allMonthRows = allRangeRows.filter((row) => activityHasDateInMonth(row, monthPrefix));
-    // Course endings: courses whose end_date is this month (open + closed = completed courses)
-    const endingRows = allRangeRows.filter((row) => rowActivityType(row) === 'course' && String(row?.end_date || '').slice(0, 7) === monthPrefix);
+    // Open-only rows that have a specific date (start/end/meeting) in this month — matches activities screen
+    const monthRows = openRows.filter((row) => activityHasDatePointInMonth(row, monthPrefix));
+    // All rows (open + closed) with a specific date in this month — for KPI base counts
+    const allMonthRows = allRangeRows.filter((row) => activityHasDatePointInMonth(row, monthPrefix));
+    // Course/afterschool endings: open activities of that type whose end_date falls in this month
+    const endingRows = openRows.filter((row) => (rowActivityType(row) === 'course' || rowActivityType(row) === 'after_school') && String(row?.end_date || '').slice(0, 7) === monthPrefix);
 
     // KPI type counts — includes all activities (open + closed) for the full monthly picture
     const totalTypeCounts = {};
@@ -2066,8 +2084,8 @@ async function dashboardReadModelFromSupabase(month) {
       counts: exceptionCounts,
       exceptions_unavailable: exceptionsUnavailable
     };
-    // KPI cards use totalTypeCounts (all month rows including closed)
-    const kpi_cards = buildDashboardKpiCardsFromSupabase(totals, totalTypeCounts, exceptionsUnavailable ? 'לא זמין' : exceptionsCount, instructorIds.size, endingRows.length);
+    // KPI cards use activeTypeCounts (open-only rows with a specific date in this month)
+    const kpi_cards = buildDashboardKpiCardsFromSupabase(totals, activeTypeCounts, exceptionsUnavailable ? 'לא זמין' : exceptionsCount, instructorIds.size, endingRows.length);
     const noData = allMonthRows.length === 0;
     return {
       month: monthPrefix,
