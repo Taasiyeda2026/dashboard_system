@@ -328,6 +328,21 @@ function buildContactsSchoolsIndex(rows = []) {
   return index;
 }
 
+function buildSummerPrintContactsIndex(rows = []) {
+  const index = new Map();
+  (Array.isArray(rows) ? rows : []).forEach((row) => {
+    if (String(row?.season || '').trim() !== 'summer_2026' || row?.active === false) return;
+    const name = String(row?.contact_name || '').trim();
+    const phone = String(row?.contact_phone || '').trim();
+    if (!name && !phone) return;
+    const key = `${normalizeOpsText(row?.authority || '')}|${normalizeOpsText(row?.school || '')}`;
+    if (key === '|') return;
+    if (!index.has(key)) index.set(key, []);
+    index.get(key).push({ name, phone, contact_name: name, contact_phone: phone, school_address: String(row?.school_address || '').trim(), city_or_authority: String(row?.city_or_authority || '').trim() });
+  });
+  return index;
+}
+
 function buildSchoolsDirectory(rows = []) {
   const list = (Array.isArray(rows) ? rows : []).map(normalizeSchoolRow);
   const byId = new Map();
@@ -392,6 +407,7 @@ function getActivityAddressResolved(activity, directory) {
 }
 
 function getActivityContactOptions(activity, directory, contactsIndex) {
+  const isSummerAct = String(activity?.activity_season ?? activity?.activitySeason ?? '').trim() === 'summer_2026';
   const options = [];
   const add = (name, phone = '', role = '') => {
     const cleanName = String(name || '').trim();
@@ -404,12 +420,12 @@ function getActivityContactOptions(activity, directory, contactsIndex) {
     const label = cleanPhone ? `${cleanName}${roleSuffix} — ${cleanPhone}` : `${cleanName}${roleSuffix}`;
     options.push({ key, name: cleanName, phone: cleanPhone, role: cleanRole, label });
   };
-  // 1. מהפעילות עצמה
-  add(getActivityContactName(activity), getActivityContactPhone(activity));
-  // 2. מספריית בתי הספר (מנהל + טלפון)
-  findSchoolsForActivity(activity, directory).forEach((row) => add(row.principal_name, row.school_phone));
-  // 3. מ-contacts_schools — לפי רשות + בית ספר
-  if (contactsIndex instanceof Map) {
+  // 1. מהפעילות עצמה (לא לפעילות קיץ)
+  if (!isSummerAct) add(getActivityContactName(activity), getActivityContactPhone(activity));
+  // 2. מספריית בתי הספר (מנהל + טלפון) — לא לפעילות קיץ
+  if (!isSummerAct) findSchoolsForActivity(activity, directory).forEach((row) => add(row.principal_name, row.school_phone));
+  // 3. מ-contacts_schools — לפי רשות + בית ספר (לא לפעילות קיץ)
+  if (!isSummerAct && contactsIndex instanceof Map) {
     const authorityKey = getActivityAuthorityKey(activity);
     getActivitySchoolNames(activity).forEach((schoolName) => {
       const key = `${authorityKey}|${normalizeOpsText(schoolName)}`;
@@ -1852,7 +1868,7 @@ function printCompletionApprovals(approvals = [], title = 'אישור ביצוע
   setTimeout(() => printWindow.print(), 250);
 }
 
-function completionApprovalsForState(rows, state, directory, contactsIndex) {
+function completionApprovalsForState(rows, state, directory, contactsIndex, summerPrintContactsIndex = new Map()) {
   const approvalState = ensureOpsState(state).completionApproval || {};
   return buildCompletionApprovals(rows, {
     instructor: approvalState.instructor,
@@ -1861,7 +1877,8 @@ function completionApprovalsForState(rows, state, directory, contactsIndex) {
     dateFrom: approvalState.dateFrom,
     dateTo: approvalState.dateTo,
     directory,
-    contactsIndex
+    contactsIndex,
+    summerPrintContactsIndex
   });
 }
 
@@ -2155,7 +2172,7 @@ function completionApprovalSummerRows(rows = []) {
   return (Array.isArray(rows) ? rows : []).filter((row) => isCompletionApprovalSummerActivity(row));
 }
 
-function completionApprovalTabHtml(rows, state, data = {}, directory = buildSchoolsDirectory([]), contactsIndex = new Map()) {
+function completionApprovalTabHtml(rows, state, data = {}, directory = buildSchoolsDirectory([]), contactsIndex = new Map(), summerPrintContactsIndex = new Map()) {
   const approvalState = ensureOpsState(state).completionApproval || {};
   const userRole = String(state?.user?.role || '').trim();
   const isManager = COMPLETION_APPROVAL_MANAGER_ROLES.has(userRole);
@@ -2163,7 +2180,7 @@ function completionApprovalTabHtml(rows, state, data = {}, directory = buildScho
   const selectedDate = clampCompletionApprovalDate(approvalState.selectedDate || approvalState.date);
   const instructors = completionApprovalInstructorOptions(summerRows);
   const scopedInstructors = approvalState.instructor ? instructors.filter((name) => name === approvalState.instructor) : instructors;
-  const approvals = scopedInstructors.flatMap((instructor) => buildCompletionApprovals(summerRows, { instructor, dateMode: 'range', dateFrom: COMPLETION_APPROVAL_SUMMER_FROM, dateTo: COMPLETION_APPROVAL_SUMMER_TO, directory, contactsIndex }));
+  const approvals = scopedInstructors.flatMap((instructor) => buildCompletionApprovals(summerRows, { instructor, dateMode: 'range', dateFrom: COMPLETION_APPROVAL_SUMMER_FROM, dateTo: COMPLETION_APPROVAL_SUMMER_TO, directory, contactsIndex, summerPrintContactsIndex }));
   const uploadMap = completionApprovalUploadMap(data?.completionApprovalUploads || []);
   const todayIso = localTodayIso();
   const allItems = approvals.map((approval, originalIndex) => ({ approval, upload: uploadMap.get(completionApprovalUploadKey(approval)), originalIndex })).sort((a, b) => compareCompletionApprovalWorkItems(a, b, todayIso));
@@ -2246,11 +2263,12 @@ function renderTab(rows, state, data, allPreparedRows = []) {
   const stockMap = data?.workshopStockMap instanceof Map ? data.workshopStockMap : new Map();
   const directory = buildSchoolsDirectory(data?.schoolsDirectoryRows || []);
   const contactsIndex = buildContactsSchoolsIndex(data?.contactsSchoolsRows || []);
+  const summerPrintContactsIndex = buildSummerPrintContactsIndex(data?.instructorSchedulePrintContactsRows || []);
   if (ops.tab === TAB_SUMMER) ops.tab = TAB_INSTRUCTORS;
   if (ops.tab === TAB_AUTHORITIES || ops.tab === TAB_SCHOOLS) return schoolsTabHtml(rows, state, directory, contactsIndex);
   if (ops.tab === TAB_COMPLETION_APPROVAL) {
     const approvalRows = allPreparedRows.filter((row) => !isActivityDeleted(row));
-    return completionApprovalTabHtml(approvalRows, state, data, directory, contactsIndex);
+    return completionApprovalTabHtml(approvalRows, state, data, directory, contactsIndex, summerPrintContactsIndex);
   }
   if (ops.tab === TAB_WORKSHOPS) {
     const catalogRows = extractWorkshopCatalogRows(data?.adminListsData, allPreparedRows);

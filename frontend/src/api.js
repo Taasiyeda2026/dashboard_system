@@ -1157,7 +1157,7 @@ async function readMyDataSummerPrintContactRows() {
   try {
     const { data, error } = await supabase
       .from('instructor_schedule_print_contacts')
-      .select('season, authority, school, contact_name, contact_phone, active')
+      .select('season, authority, school, contact_name, contact_phone, school_address, city_or_authority, active')
       .eq('season', 'summer_2026')
       .eq('active', true)
       .limit(10000);
@@ -1195,7 +1195,7 @@ function buildMyDataSummerPrintContactsIndex(rows = []) {
     const key = `${normalizeMyDataContactText(row?.authority || '')}|${normalizeMyDataContactText(row?.school || '')}`;
     if (key === '|') return;
     if (!index.has(key)) index.set(key, []);
-    index.get(key).push({ name, phone, role: '' });
+    index.get(key).push({ name, phone, role: '', school_address: String(row?.school_address || '').trim(), city_or_authority: String(row?.city_or_authority || '').trim() });
   });
   return index;
 }
@@ -1252,6 +1252,7 @@ function firstMyDataContact(options = []) {
 
 function enrichRowsWithSchoolContact(rows = [], contactsIndex = new Map(), schoolsIndex = new Map(), summerPrintContactsIndex = new Map()) {
   return (Array.isArray(rows) ? rows : []).map((row) => {
+    const isSummerRow = String(row?.activity_season ?? row?.activitySeason ?? '').trim() === 'summer_2026';
     const options = [];
     const add = (name, phone = '', role = '') => {
       if (!String(name || '').trim() && !String(phone || '').trim()) return;
@@ -1264,20 +1265,34 @@ function enrichRowsWithSchoolContact(rows = [], contactsIndex = new Map(), schoo
       const key = `${authorityKey}|${normalizeMyDataContactText(schoolName)}`;
       (summerPrintContactsIndex.get(key) || []).forEach((c) => add(c.name, c.phone, c.role));
     });
-    add(getActivityContactName(row), getActivityContactPhone(row));
-    schoolNames.forEach((schoolName) => {
-      const key = `${authorityKey}|${normalizeMyDataContactText(schoolName)}`;
-      (contactsIndex.get(key) || []).forEach((c) => add(c.name, c.phone, c.role));
-    });
-    if (schoolId) (schoolsIndex.get(`id|${schoolId}`) || []).forEach((c) => add(c.name, c.phone, c.role));
-    schoolNames.forEach((schoolName) => {
-      const key = `${authorityKey}|${normalizeMyDataContactText(schoolName)}`;
-      (schoolsIndex.get(key) || []).forEach((c) => add(c.name, c.phone, c.role));
-    });
-    if (authorityKey) (contactsIndex.get(`${authorityKey}|`) || []).forEach((c) => add(c.name, c.phone, c.role));
+    if (!isSummerRow) {
+      add(getActivityContactName(row), getActivityContactPhone(row));
+      schoolNames.forEach((schoolName) => {
+        const key = `${authorityKey}|${normalizeMyDataContactText(schoolName)}`;
+        (contactsIndex.get(key) || []).forEach((c) => add(c.name, c.phone, c.role));
+      });
+      if (schoolId) (schoolsIndex.get(`id|${schoolId}`) || []).forEach((c) => add(c.name, c.phone, c.role));
+      schoolNames.forEach((schoolName) => {
+        const key = `${authorityKey}|${normalizeMyDataContactText(schoolName)}`;
+        (schoolsIndex.get(key) || []).forEach((c) => add(c.name, c.phone, c.role));
+      });
+      if (authorityKey) (contactsIndex.get(`${authorityKey}|`) || []).forEach((c) => add(c.name, c.phone, c.role));
+    }
     const contact = firstMyDataContact(options);
+    let summerExtra = {};
+    if (isSummerRow) {
+      for (const schoolName of schoolNames) {
+        const key = `${authorityKey}|${normalizeMyDataContactText(schoolName)}`;
+        const entries = summerPrintContactsIndex.get(key) || [];
+        if (entries.length) {
+          summerExtra = { school_address: entries[0].school_address || '', city_or_authority: entries[0].city_or_authority || '' };
+          break;
+        }
+      }
+    }
     return {
       ...row,
+      ...summerExtra,
       school_contact_name: contact.name,
       school_contact_phone: contact.phone,
       school_contact_role: contact.role

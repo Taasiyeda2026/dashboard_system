@@ -81,7 +81,23 @@ function findSchoolRows(activity, directory) {
   });
 }
 
-function schoolContact(activity, directory, contactsIndex) {
+function schoolContact(activity, directory, contactsIndex, summerPrintContactsIndex = new Map()) {
+  const isSummer = String(activity?.activity_season ?? activity?.activitySeason ?? '').trim() === 'summer_2026';
+  if (isSummer) {
+    const enrichedName = text(activity?.school_contact_name);
+    const enrichedPhone = text(activity?.school_contact_phone);
+    if (enrichedName || enrichedPhone) {
+      return { name: enrichedName, role: text(activity?.school_contact_role), phone: enrichedPhone, email: '' };
+    }
+    if (summerPrintContactsIndex instanceof Map) {
+      const authorityKey = norm(getActivityAuthorityName(activity));
+      for (const schoolName of getActivitySchoolNames(activity)) {
+        const entries = summerPrintContactsIndex.get(`${authorityKey}|${norm(schoolName)}`) || [];
+        if (entries.length) return { name: text(entries[0].name || entries[0].contact_name), role: '', phone: text(entries[0].phone || entries[0].contact_phone), email: '' };
+      }
+    }
+    return { name: '', role: '', phone: '', email: '' };
+  }
   const direct = {
     name: text(activity?.contact_name || activity?.school_contact_name),
     role: text(activity?.contact_role || activity?.school_contact_role),
@@ -106,7 +122,7 @@ function rowKey(activity, date, instructorName) {
   return [activity?.id, activity?.activity_id, activity?.uuid, activity?.RowID, date, instructorName, getActivityName(activity), getActivityTimeRange(activity)].map(text).join('|');
 }
 
-export function buildCompletionApprovals(rows = [], { instructor = '', dateMode = 'all', date = '', dateFrom = '', dateTo = '', directory = {}, contactsIndex = new Map() } = {}) {
+export function buildCompletionApprovals(rows = [], { instructor = '', dateMode = 'all', date = '', dateFrom = '', dateTo = '', directory = {}, contactsIndex = new Map(), summerPrintContactsIndex = new Map() } = {}) {
   const selected = text(instructor);
   if (!selected) return [];
   const groups = new Map();
@@ -136,12 +152,12 @@ export function buildCompletionApprovals(rows = [], { instructor = '', dateMode 
             authority,
             school,
             schoolId: text(activity?.school_id || activity?.single_school_id),
-            contact: schoolContact(activity, directory, contactsIndex),
+            contact: schoolContact(activity, directory, contactsIndex, summerPrintContactsIndex),
             activities: []
           });
         }
         const group = groups.get(key);
-        if (!group.contact.name && !group.contact.phone && !group.contact.email) group.contact = schoolContact(activity, directory, contactsIndex);
+        if (!group.contact.name && !group.contact.phone && !group.contact.email) group.contact = schoolContact(activity, directory, contactsIndex, summerPrintContactsIndex);
         group.activities.push({
           name: getActivityName(activity),
           grade: getActivityGradeLabel(activity),
