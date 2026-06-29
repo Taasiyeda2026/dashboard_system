@@ -1618,28 +1618,10 @@ function itemsSummaryHtml(items = []) {
   }, 0);
   const rows = visibleSummaryItems.map((item) => {
     const t = Number(proposalField(item, 'total_price', 'totalPrice')) || ((Number(proposalField(item, 'quantity', 'quantity')) || 1) * (Number(proposalField(item, 'unit_price', 'unitPrice')) || 0));
-    const bundleItems = Array.isArray(proposalField(item, 'selected_bundle_items', 'selectedBundleItems')) ? proposalField(item, 'selected_bundle_items', 'selectedBundleItems') : [];
-    const bundleLinesList = bundleItems.map((bi) => {
-      if (typeof bi === 'object') {
-        const parts = [publicActivityName(bi.activity_name)].filter(Boolean);
-        if (bi.unit_price != null && bi.unit_price !== '') parts.push(`₪ ${formatCurrency(Number(bi.unit_price))}`);
-        return parts.join(' — ');
-      }
-      return publicActivityName(bi);
-    }).filter(Boolean);
-    const details = [
-      proposalTextField(item, 'gefen_number', 'gefenNumber') ? `גפ״ן: ${proposalTextField(item, 'gefen_number', 'gefenNumber')}` : '',
-      proposalTextField(item, 'meetings_count', 'meetingsCount') ? `מפגשים: ${proposalTextField(item, 'meetings_count', 'meetingsCount')}` : '',
-      proposalTextField(item, 'hours_count', 'hoursCount') ? `שעות: ${proposalTextField(item, 'hours_count', 'hoursCount')}` : '',
-      proposalTextField(item, 'unit_duration', 'unitDuration') ? `משך: ${proposalTextField(item, 'unit_duration', 'unitDuration')}` : '',
-      proposalTextField(item, 'proposal_group', 'proposalGroup') ? `קבוצה: ${proposalGroupDisplayName(proposalTextField(item, 'proposal_group', 'proposalGroup'))}` : '',
-      !bundleLinesList.length ? cleanCustomerText(item.description) : ''
-    ].filter(Boolean).join(' | ');
-    const bundleDetailHtml = bundleLinesList.length
-      ? `<ul class="ds-pa-summary-bundle-list">${bundleLinesList.map((l) => `<li>${escapeHtml(l)}</li>`).join('')}</ul>`
-      : '';
+    const manualNote = cleanCustomerText(text(item.course_note || item.manual_note || ''));
+    const noteHtml = manualNote ? `<div class="ds-muted" style="font-size:0.72rem">${escapeHtml(manualNote)}</div>` : '';
     return `<tr>
-      <td>${escapeHtml(publicActivityName(proposalField(item, 'item_name', 'itemName')) || '')}${details ? `<div class="ds-muted" style="font-size:0.72rem">${escapeHtml(details)}</div>` : ''}${bundleDetailHtml}</td>
+      <td>${escapeHtml(publicActivityName(proposalField(item, 'item_name', 'itemName')) || '')}${noteHtml}</td>
       <td>${escapeHtml(proposalField(item, 'item_type', 'itemType') || '')}</td>
       <td>${proposalField(item, 'quantity', 'quantity') != null ? proposalField(item, 'quantity', 'quantity') : ''}</td>
       <td>${proposalField(item, 'unit_price', 'unitPrice') != null ? `₪ ${formatCurrency(proposalField(item, 'unit_price', 'unitPrice'))}` : ''}</td>
