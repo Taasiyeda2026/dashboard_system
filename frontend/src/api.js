@@ -91,7 +91,7 @@ const API_TIMEOUT_MS_READ = 20000;
 const API_TIMEOUT_MS_WRITE = 45000;
 const PERF_MAX_REQUESTS = 150;
 const ACTIVITY_DIRECT_MANAGE_ROLES = new Set(['admin', 'operation_manager']);
-const ACTIVE_INSTRUCTOR_EMP_IDS = new Set(['1525', '1506', '1527', '1502', '1507', '1509', '1515', '1503', '1511']);
+const ACTIVE_INSTRUCTOR_EMP_IDS = new Set(['1525', '1506', '1527', '1502', '1507', '1509', '1515', '1500', '1503', '1511']);
 
 function currentUserIdentityValues() {
   const user = state?.user || {};
@@ -103,6 +103,7 @@ function isActiveInstructorPilotUser(user = state?.user || {}) {
 }
 
 const ACTIVITY_REQUEST_ROLES = new Set(['activities_manager', 'instructor_manager', 'business_development_manager']);
+const COMPLETION_APPROVAL_MANAGER_ROLES = new Set(['admin', 'operation_manager', 'domain_manager', 'activities_manager', 'instructor_manager']);
 
 const DASHBOARD_ACTIVITY_COLUMNS = [
   'row_id', 'activity_family', 'activity_manager', 'activity_name', 'authority', 'school',
@@ -5266,9 +5267,18 @@ export const api = {
     return { row: data, _source: 'supabase' };
   },
   uploadCompletionApproval: async ({ approval, file, instructorEmpId, instructorName } = {}) => {
-    const empId = String(instructorEmpId || state?.user?.emp_id || state?.user?.user_id || '').trim();
+    const role = String(state?.user?.role || '').trim();
+    const ownEmpIds = currentUserIdentityValues();
+    const requestedEmpId = String(instructorEmpId || approval?.instructorEmpId || '').trim();
+    const fallbackOwnEmpId = String(state?.user?.emp_id || state?.user?.user_id || '').trim();
+    let empId = requestedEmpId || fallbackOwnEmpId;
     if (!empId) throw new Error('חסר מזהה עובד למדריך.');
-    if (String(state?.user?.role || '').trim() === 'instructor' && !isActiveInstructorPilotUser()) throw new Error('תצוגת מדריך אינה פעילה למשתמש זה.');
+    if (role === 'instructor') {
+      if (!isActiveInstructorPilotUser()) throw new Error('תצוגת מדריך אינה פעילה למשתמש זה.');
+      if (!ownEmpIds.includes(empId)) throw new Error('מדריך יכול להעלות אישור ביצוע רק עבור עצמו.');
+    } else if (requestedEmpId && !COMPLETION_APPROVAL_MANAGER_ROLES.has(role)) {
+      throw new Error('אין הרשאה להעלות אישור ביצוע עבור מדריך אחר.');
+    }
     if (!completionApprovalUploadAllowedFile(file)) throw new Error('ניתן להעלות PDF, JPG, JPEG או PNG בלבד.');
     const filePath = completionApprovalUploadPath({ approval, file, instructorEmpId: empId });
     const upload = await supabase.storage.from('completion-approvals').upload(filePath, file, { contentType: file.type || undefined, upsert: false });

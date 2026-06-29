@@ -353,8 +353,8 @@ test('completion approval includes closed summer activities and excludes deleted
   state.operationsManagement.tab = 'completion_approval';
   state.operationsManagement.completionApproval = { instructor: 'הילה רוזן', selectedDate: '2026-07-10', summaryOpen: true };
   const rows = [
-    { RowID: 'OPEN', status: 'פתוח', authority: 'רשות א', school: 'פתוח', activity_type: 'סדנה', activity_name: 'סדנה פתוחה', start_date: '2026-07-10', activity_season: 'summer_2026', instructor_name: 'הילה רוזן' },
-    { RowID: 'CLOSED', status: 'סגור', authority: 'רשות א', school: 'סגור', activity_type: 'חדר בריחה', activity_name: 'חדר סגור', start_date: '2026-07-10', activity_season: 'summer_2026', instructor_name: 'הילה רוזן' },
+    { RowID: 'OPEN', status: 'פתוח', authority: 'רשות א', school: 'פתוח', activity_type: 'סדנה', activity_name: 'סדנה פתוחה', start_date: '2026-07-10', activity_season: 'summer_2026', instructor_name: 'הילה רוזן', emp_id: '1500' },
+    { RowID: 'CLOSED', status: 'סגור', authority: 'רשות א', school: 'סגור', activity_type: 'חדר בריחה', activity_name: 'חדר סגור', start_date: '2026-07-10', activity_season: 'summer_2026', instructor_name: 'הילה רוזן', emp_id: '1500' },
     { RowID: 'DELETED', status: 'נמחק', authority: 'רשות א', school: 'נמחק', activity_type: 'סדנה', activity_name: 'סדנה נמחקה', start_date: '2026-07-10', activity_season: 'summer_2026', instructor_name: 'הילה רוזן' }
   ];
 
@@ -362,6 +362,8 @@ test('completion approval includes closed summer activities and excludes deleted
   const approvals = buildCompletionApprovals(rows, { instructor: 'הילה רוזן', dateMode: 'range', dateFrom: '2026-06-20', dateTo: '2026-08-31' });
   assert.equal(approvals.length, 2);
   assert.deepEqual(approvals.map((approval) => approval.school).sort((a, b) => a.localeCompare(b, 'he')), ['סגור', 'פתוח']);
+  assert.deepEqual(approvals.map((approval) => approval.instructorEmpId), ['1500', '1500']);
+  assert.deepEqual(approvals.flatMap((approval) => approval.activities.map((activity) => activity.rowId)).sort(), ['CLOSED', 'OPEN']);
 
   const html = operationsManagementScreen.render({ rows, workshopStockMap: new Map() }, { state });
   assert.match(html, /פתוח/);

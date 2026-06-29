@@ -2540,7 +2540,12 @@ export const operationsManagementScreen = {
         const origText = btn.textContent;
         btn.textContent = '…';
         try {
-          await api.uploadCompletionApproval({ approval, file, instructorName: approval.instructorName });
+          await api.uploadCompletionApproval({
+            approval,
+            file,
+            instructorName: approval.instructorName,
+            instructorEmpId: approval.instructorEmpId
+          });
           showOpsToast('הקובץ הועלה בהצלחה ✓');
           clearScreenDataCache?.('operations-management');
           rerender?.();
