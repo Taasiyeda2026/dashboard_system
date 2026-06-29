@@ -888,24 +888,24 @@ export function proposalsAgreementsTableRowsHtml(rows, state) {
     const status = text(row.status || 'draft');
     const isSent = normalizeProposalStatus(status) === 'sent';
     const actionBtns = [];
-    actionBtns.push(`<button type="button" class="ds-btn ds-btn--xs ds-btn--ghost ds-pa-row-action" data-pa-preview="${escapeHtml(row.id)}" title="תצוגה מקדימה">צפייה</button>`);
+    actionBtns.push(`<button type="button" class="ds-btn ds-btn--xs ds-btn--ghost ds-pa-row-action ds-pa-row-action--icon" data-pa-preview="${escapeHtml(row.id)}" title="תצוגה מקדימה"><svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M1 12s4-8 11-8 11 8 11 8-4 8-11 8-11-8-11-8z"/><circle cx="12" cy="12" r="3"/></svg></button>`);
     if (!isSent && canManage && (['draft', 'returned_for_changes'].includes(status) || (isAdmin && status !== 'approved'))) {
-      actionBtns.push(`<button type="button" class="ds-btn ds-btn--xs ds-pa-row-action" data-pa-edit-row="${escapeHtml(row.id)}" title="עריכה">עריכה</button>`);
+      actionBtns.push(`<button type="button" class="ds-btn ds-btn--xs ds-pa-row-action ds-pa-row-action--icon" data-pa-edit-row="${escapeHtml(row.id)}" title="עריכה"><svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M11 4H4a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2v-7"/><path d="M18.5 2.5a2.121 2.121 0 0 1 3 3L12 15l-4 1 1-4 9.5-9.5z"/></svg></button>`);
     }
     if (canManage && (status === 'approved' || isSent)) {
-      actionBtns.push(`<button type="button" class="ds-btn ds-btn--xs ds-btn--ghost ds-pa-row-action" data-pa-clone-row="${escapeHtml(row.id)}" title="שכפול להצעה חדשה">שכפול</button>`);
+      actionBtns.push(`<button type="button" class="ds-btn ds-btn--xs ds-btn--ghost ds-pa-row-action ds-pa-row-action--icon" data-pa-clone-row="${escapeHtml(row.id)}" title="שכפול להצעה חדשה"><svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button>`);
     }
     if (isAdmin && status === 'pending_approval') {
-      actionBtns.push(`<button type="button" class="ds-btn ds-btn--xs ds-pa-row-action" data-pa-status-action="approved" data-pa-action-id="${escapeHtml(row.id)}" title="אישור וחתימה">אישור וחתימה</button>`);
+      actionBtns.push(`<button type="button" class="ds-btn ds-btn--xs ds-pa-row-action ds-pa-row-action--icon" data-pa-status-action="approved" data-pa-action-id="${escapeHtml(row.id)}" title="אישור וחתימה"><svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M22 11.08V12a10 10 0 1 1-5.93-9.14"/><polyline points="22 4 12 14.01 9 11.01"/></svg></button>`);
     }
     if (canManage && proposalHasSavedApprovalSignature(row)) {
-      actionBtns.push(`<button type="button" class="ds-btn ds-btn--xs ds-pa-row-action" data-pa-status-action="sent" data-pa-action-id="${escapeHtml(row.id)}" title="סימון כנשלח">סימון כנשלח</button>`);
+      actionBtns.push(`<button type="button" class="ds-btn ds-btn--xs ds-pa-row-action ds-pa-row-action--icon" data-pa-status-action="sent" data-pa-action-id="${escapeHtml(row.id)}" title="סימון כנשלח"><svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><line x1="22" y1="2" x2="11" y2="13"/><polygon points="22 2 15 22 11 13 2 9 22 2"/></svg></button>`);
     }
     if (isAdmin && (status === 'approved' || isSent)) {
-      actionBtns.push(`<button type="button" class="ds-btn ds-btn--xs ds-btn--ghost ds-pa-row-action" data-pa-print="${escapeHtml(row.id)}" title="הדפסה">PDF</button>`);
+      actionBtns.push(`<button type="button" class="ds-btn ds-btn--xs ds-btn--ghost ds-pa-row-action ds-pa-row-action--icon" data-pa-print="${escapeHtml(row.id)}" title="PDF"><svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><polyline points="14 2 14 8 20 8"/><line x1="16" y1="13" x2="8" y2="13"/><line x1="16" y1="17" x2="8" y2="17"/></svg></button>`);
     }
     if (isAdmin) {
-      actionBtns.push(`<button type="button" class="ds-btn ds-btn--xs ds-btn--ghost ds-pa-row-action ds-pa-row-action--danger" data-pa-delete-row="${escapeHtml(row.id)}" title="מחיקה">מחיקה</button>`);
+      actionBtns.push(`<button type="button" class="ds-btn ds-btn--xs ds-btn--ghost ds-pa-row-action ds-pa-row-action--icon ds-pa-row-action--danger" data-pa-delete-row="${escapeHtml(row.id)}" title="מחיקה"><svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><polyline points="3 6 5 6 21 6"/><path d="M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6m3 0V4a1 1 0 0 1 1-1h4a1 1 0 0 1 1 1v2"/></svg></button>`);
     }
     return `
     <tr data-pa-row-id="${escapeHtml(row.id)}" tabindex="0">
@@ -913,10 +913,10 @@ export function proposalsAgreementsTableRowsHtml(rows, state) {
       <td>${escapeHtml(row.client_name || row.client_authority || '—')}</td>
       <td>${escapeHtml(row.school_framework || '—')}</td>
       <td>${escapeHtml(proposalGroupDisplayName(row.activity_type_group) || '—')}</td>
-      <td>${escapeHtml(formatDateDisplay(row.proposal_date) || '')}</td>
+      <td style="text-align:center">${escapeHtml(formatDateDisplay(row.proposal_date) || '')}</td>
       <td>${statusSelectHtml(row, canManage, isAdmin)}</td>
-      <td>${row.total_amount != null ? `₪ ${escapeHtml(formatCurrency(row.total_amount))}` : ''}</td>
-      <td class="ds-pa-actions-cell">${actionBtns.join('')}</td>
+      <td style="text-align:center">${row.total_amount != null ? `₪ ${escapeHtml(formatCurrency(row.total_amount))}` : ''}</td>
+      <td class="ds-pa-actions-cell"><div class="ds-pa-actions-inner">${actionBtns.join('')}</div></td>
     </tr>`;
   }).join('');
 }
@@ -924,7 +924,8 @@ export function proposalsAgreementsTableRowsHtml(rows, state) {
 function tableHtml(rows, state) {
   return dsTableWrap(`
     <table class="ds-table ds-pa-table" data-pa-table>
-      <thead><tr><th class="ds-pa-domain-col">תחום</th><th>רשות / מועצה / עירייה</th><th>בית ספר / מסגרת</th><th>סוג הצעה</th><th>תאריך הצעה</th><th>סטטוס</th><th>סה״כ</th><th class="ds-pa-actions-col">פעולות</th></tr></thead>
+      <colgroup><col style="width:56px"><col style="width:15%"><col style="width:18%"><col style="width:14%"><col style="width:11%"><col style="width:11%"><col style="width:10%"><col style="width:220px"></colgroup>
+      <thead><tr><th class="ds-pa-domain-col">תחום</th><th>רשות / מועצה / עירייה</th><th>בית ספר / מסגרת</th><th>סוג הצעה</th><th style="text-align:center">תאריך הצעה</th><th style="text-align:center">סטטוס</th><th style="text-align:center">סה״כ</th><th class="ds-pa-actions-col">פעולות</th></tr></thead>
       <tbody data-pa-table-body>${proposalsAgreementsTableRowsHtml(rows, state)}</tbody>
     </table>
   `);
