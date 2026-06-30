@@ -845,6 +845,9 @@ function statusSelectHtml(row, enabled, canApprove = false) {
   if (currentStatus === 'sent') {
     return statusBadgeHtml(currentStatus);
   }
+  if (currentStatus === 'cancelled') {
+    return statusBadgeHtml(currentStatus);
+  }
   const selectableStatuses = STATUS_OPTIONS.filter((status) => {
     if (status === 'approved') return canApprove;
     if (status === 'sent') return enabled && currentStatus === 'approved';
@@ -4932,7 +4935,12 @@ export const proposalsAgreementsScreen = {
         const id = text(statusActionBtn.dataset.paActionId);
         if (!newStatus || !id) return;
         const currentActionRow = data.rows.find((r) => text(r.id) === id);
-        if (currentActionRow && normalizeProposalStatus(text(currentActionRow.status)) === 'sent') {
+        const currentActionStatus = normalizeProposalStatus(currentActionRow?.status);
+        if (currentActionStatus === 'cancelled') {
+          showToast('הצעה שבוטלה נעולה. ניתן למחוק אותה או לשכפל להצעה חדשה.', 'error');
+          return;
+        }
+        if (currentActionRow && currentActionStatus === 'sent') {
           const canActFromSent = (newStatus === 'draft') && canApproveProposalsAgreements(state);
           if (!canActFromSent) {
             showToast('הצעה שנשלחה נעולה ולא ניתן לשנות את סטטוסה.', 'error');

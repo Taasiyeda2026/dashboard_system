@@ -5672,7 +5672,8 @@ export const api = {
     const { data: currentRow, error: currentRowError } = await supabase
       .from('proposals_agreements').select('status,signature_meta,approved_by,approved_at').eq('id', rowId).single();
     if (!currentRowError && currentRow) {
-      const cs = cleanProposalAgreementText(currentRow.status);
+      const cs = normalizeProposalAgreementStatusForDb(currentRow.status);
+      if (cs === 'cancelled') throw new Error('הצעה שבוטלה נעולה. ניתן למחוק אותה או לשכפל להצעה חדשה.');
       if (cs === 'sent' && cleanStatus !== 'draft') throw new Error('הצעה שנשלחה נעולה ולא ניתן לשנות את סטטוסה.');
       if (cleanStatus === 'sent') {
         const meta = currentRow.signature_meta && typeof currentRow.signature_meta === 'object' ? currentRow.signature_meta : {};
