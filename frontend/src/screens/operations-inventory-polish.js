@@ -1,5 +1,3 @@
-import { api } from '../api.js';
-import { supabase } from '../supabase-client.js';
 import { normalizeOneDayActivityType } from './shared/activity-options.js';
 
 const PARTICIPANTS_FIELD = 'participants_count';
@@ -11,72 +9,6 @@ function normalizeParticipantActivityType(value) {
 
 function supportsParticipantsCount(value) {
   return PARTICIPANT_ACTIVITY_TYPES.has(normalizeParticipantActivityType(value));
-}
-
-function cleanParticipantsCount(value) {
-  const raw = String(value ?? '').trim();
-  if (!raw) return null;
-  if (!/^\d+$/.test(raw)) throw new Error('participants_count_must_be_positive_integer');
-  const n = Number(raw);
-  if (!Number.isInteger(n) || n <= 0) throw new Error('participants_count_must_be_positive_integer');
-  return n;
-}
-
-function stripParticipantsCount(obj = {}) {
-  const copy = { ...(obj || {}) };
-  delete copy[PARTICIPANTS_FIELD];
-  return copy;
-}
-
-async function saveParticipantsCountByRowId(rowId, participantsCount) {
-  const safeRowId = String(rowId || '').trim();
-  if (!safeRowId || !supabase) return;
-  const { error } = await supabase
-    .from('activities')
-    .update({ participants_count: participantsCount })
-    .eq('row_id', safeRowId);
-  if (error) throw error;
-}
-
-function patchParticipantsCountApi() {
-  if (!api || api.__participantsCountPatchApplied) return;
-  api.__participantsCountPatchApplied = true;
-
-  const originalSaveActivity = typeof api.saveActivity === 'function' ? api.saveActivity.bind(api) : null;
-  if (originalSaveActivity) {
-    api.saveActivity = async (payload = {}) => {
-      const changes = payload?.changes && typeof payload.changes === 'object' ? payload.changes : {};
-      if (!Object.prototype.hasOwnProperty.call(changes, PARTICIPANTS_FIELD)) return originalSaveActivity(payload);
-      const participantsCount = cleanParticipantsCount(changes[PARTICIPANTS_FIELD]);
-      const nextChanges = stripParticipantsCount(changes);
-      let result = { ok: true };
-      if (Object.keys(nextChanges).length) {
-        result = await originalSaveActivity({ ...payload, changes: nextChanges });
-      }
-      await saveParticipantsCountByRowId(payload?.source_row_id || payload?.row_id || payload?.RowID, participantsCount);
-      return result;
-    };
-  }
-
-  const originalAddActivity = typeof api.addActivity === 'function' ? api.addActivity.bind(api) : null;
-  if (originalAddActivity) {
-    api.addActivity = async (payload = {}) => {
-      const activity = payload?.activity && typeof payload.activity === 'object' ? payload.activity : payload;
-      const activityType = normalizeParticipantActivityType(activity?.activity_type || activity?.item_type);
-      const hasParticipantsCount = Object.prototype.hasOwnProperty.call(activity || {}, PARTICIPANTS_FIELD);
-      const participantsCount = hasParticipantsCount && supportsParticipantsCount(activityType)
-        ? cleanParticipantsCount(activity[PARTICIPANTS_FIELD])
-        : null;
-      const cleanActivity = stripParticipantsCount(activity);
-      const result = await originalAddActivity(payload?.activity ? { ...payload, activity: cleanActivity } : cleanActivity);
-      if (hasParticipantsCount && supportsParticipantsCount(activityType)) {
-        const rowId = result?.row_id || result?.RowID || cleanActivity?.row_id || cleanActivity?.RowID;
-        await saveParticipantsCountByRowId(rowId, participantsCount);
-        if (result?.row) result.row.participants_count = participantsCount;
-      }
-      return result;
-    };
-  }
 }
 
 function addInventoryPolishStyle() {
@@ -220,7 +152,6 @@ function renameInventoryTab() {
 
 function runInventoryPolish() {
   addInventoryPolishStyle();
-  patchParticipantsCountApi();
   bindParticipantsCountUi();
   renameInventoryTab();
 }
