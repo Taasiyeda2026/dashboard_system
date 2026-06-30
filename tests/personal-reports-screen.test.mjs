@@ -369,11 +369,16 @@ test('management screen lists all report-eligible employees with simplified admi
   assert.match(source, /Object\.entries\(STATUS_LABELS\)/);
   assert.match(source, /submitted:\s*'הוגש לבדיקה'/);
   assert.match(source, /needs_correction:\s*'הוחזר לתיקון'/);
-  assert.match(source, /paid:\s*'שולם \/ טופל לשכר'/);
+  assert.match(source, /paid:\s*'הועבר לתשלום'/);
   assert.match(source, /function deriveAdminManageStatus/);
   assert.doesNotMatch(source, /ADMIN_MANAGE_STATUS_META[\s\S]{0,400}בטיפול העובד/);
   assert.match(source, /data-pr-action="admin-manage-report"/);
   assert.match(source, /צפייה וניהול/);
+  assert.match(source, /data-pr-action="transfer-approved-to-payment"/);
+  assert.match(source, /העבר מאושרים לתשלום/);
+  assert.match(source, /function collectApprovedReportsForPayment/);
+  assert.match(source, /function adminTransferApprovedReportsToPayment/);
+  assert.match(source, /\.eq\('status', 'approved'\)/);
   assert.match(source, /id="pr-filter-month"/);
   assert.match(source, /pr-input--month-compact/);
   assert.match(source, /buildMyReportsMonthOptions\(monthValue\)/);
