@@ -853,7 +853,7 @@ test('client selector fills school fields without auto-selecting contact', async
   );
 });
 
-test('new proposal form starts with authority search and has no client type field', async () => {
+test('new proposal form starts with school recipient type and authority search', async () => {
   await withJSDOM(
     proposalsAgreementsScreen.render({ rows: [], contactOptions: sampleContactOptions }, { state: stateFor('admin') }),
     (root, dom) => {
@@ -865,14 +865,17 @@ test('new proposal form starts with authority search and has no client type fiel
       });
 
       const form = openNewProposalForm(root, dom);
-      assert.equal(form.querySelector('[data-pa-new-client-type]'), null, 'client type dropdown should be removed');
-      assert.doesNotMatch(form.innerHTML, /סוג גורם/);
+      assert.equal(form.querySelector('input[name="client_type_selector"]:checked')?.value, 'school');
+      assert.match(form.innerHTML, /בית ספר/);
+      assert.match(form.innerHTML, /רשות/);
+      assert.match(form.innerHTML, /גורם אחר/);
       assert.match(form.innerHTML, /data-pa-client-search-input/);
       assert.equal(form.querySelector('[data-pa-client-search-label]')?.textContent, 'רשות');
       assert.doesNotMatch(form.innerHTML, /הוסף ידנית/);
     }
   );
 });
+
 
 test('new proposal form hides contact panel until school is selected', async () => {
   await withJSDOM(
@@ -1507,6 +1510,44 @@ test('proposal save DB payload preserves valid status values', async () => {
   } finally {
     state.user = previousUser;
   }
+});
+
+
+
+test('proposal preview for other recipient does not render empty authority or school labels', () => {
+  const html = proposalPreviewBodyHtml({
+    client_type: 'other',
+    client_authority: '',
+    school_framework: 'עמותת בדיקה',
+    document_type: 'הצעת מחיר',
+    activity_type_group: 'summer',
+    proposal_date: '2026-06-30',
+    status: 'approved'
+  }, [], []);
+  assert.match(html, /עמותת בדיקה/);
+  assert.doesNotMatch(html, /רשות:\s*—/);
+  assert.doesNotMatch(html, /בית ספר:\s*—/);
+});
+
+test('proposal DB payload for other recipient keeps client name in school_framework only', async () => {
+  const { sanitizeProposalAgreementPayload } = await import('../frontend/src/api.js');
+  const emptyLookup = { aliasToKey: new Map(), groupByKey: new Map() };
+  const dbPayload = sanitizeProposalAgreementPayload({
+    client_type: 'other',
+    client_authority: '',
+    school_framework: 'עמותת בדיקה',
+    document_type: 'הצעת מחיר',
+    activity_type_group: 'summer',
+    authority_id: '550e8400-e29b-41d4-a716-446655440000',
+    school_id: '550e8400-e29b-41d4-a716-446655440001',
+    contact_school_id: '537',
+    status: 'draft'
+  }, emptyLookup);
+  assert.equal(dbPayload.client_authority, '');
+  assert.equal(dbPayload.school_framework, 'עמותת בדיקה');
+  assert.equal(dbPayload.authority_id, null);
+  assert.equal(dbPayload.school_id, null);
+  assert.equal(dbPayload.contact_school_id, null);
 });
 
 test('reading pending_approval from DB displays awaiting approval in UI', () => {

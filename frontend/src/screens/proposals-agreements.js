@@ -965,8 +965,8 @@ export function proposalsAgreementsTableRowsHtml(rows, state) {
     return `
     <tr data-pa-row-id="${escapeHtml(row.id)}" tabindex="0">
       <td class="ds-pa-domain-col">${escapeHtml(row.proposal_domain || 'Y')}</td>
-      <td>${escapeHtml(row.client_name || row.client_authority || '—')}</td>
-      <td>${escapeHtml(row.school_framework || '—')}</td>
+      <td>${escapeHtml(row.client_name || row.client_authority || row.school_framework || '—')}</td>
+      <td>${inferProposalClientType(row) === 'other' ? '' : escapeHtml(row.school_framework || '—')}</td>
       <td>${escapeHtml(proposalGroupDisplayName(row.activity_type_group) || '—')}</td>
       <td style="text-align:center">${escapeHtml(formatDateDisplay(row.proposal_date) || '')}</td>
       <td>${statusSelectHtml(row, canManage, isAdmin, state)}</td>
@@ -1057,6 +1057,27 @@ function catalogAuthorityName(row = {}) {
 
 function catalogSchoolName(row = {}) {
   return text(row.school_name || row.school || row.client_name);
+}
+
+
+function inferProposalClientType(row = {}) {
+  if (text(row.school_id)) return 'school';
+  if (text(row.authority_id) && !text(row.school_id)) return 'authority';
+  if (text(row.client_type) === 'other') return 'other';
+  if (!text(row.authority_id) && !text(row.school_id) && !text(row.client_authority) && text(row.school_framework)) return 'other';
+  return 'school';
+}
+
+function clientTypeSelectorHtml(selected = 'school') {
+  const value = ['school', 'authority', 'other'].includes(text(selected)) ? text(selected) : 'school';
+  const options = [
+    ['school', 'בית ספר'],
+    ['authority', 'רשות'],
+    ['other', 'גורם אחר']
+  ];
+  return `<div class="ds-pa-recipient-type" data-pa-recipient-type role="radiogroup" aria-label="סוג נמען">
+    ${options.map(([key, label]) => `<label class="ds-pa-recipient-type-option"><input type="radio" name="client_type_selector" value="${key}"${value === key ? ' checked' : ''}> <span>${escapeHtml(label)}</span></label>`).join('')}
+  </div>`;
 }
 
 function clientSearchHtml(_contactOptions, row = {}) {
@@ -2622,7 +2643,7 @@ function clientLockedBannerHtml(auth, school, contactName, contactRole, phone, e
   ].filter(Boolean);
   return `<div class="ds-pa-client-locked">
     <div class="ds-pa-client-locked-body">
-      <p class="ds-pa-client-locked-name">${escapeHtml(displayName)}</p>
+      <p class="ds-pa-client-locked-name">נבחר: ${escapeHtml(displayName)}</p>
       ${secondaryParts.length ? `<p class="ds-pa-client-locked-state">${escapeHtml(secondaryParts.join(' / '))}</p>` : ''}
     </div>
     <div class="ds-pa-client-locked-actions">
@@ -2648,6 +2669,14 @@ function findContactForProposalRow(contactOptions = [], row = {}) {
 }
 
 function buildContactSourceFromRow(row = {}) {
+  const inferredClientType = inferProposalClientType(row);
+  if (inferredClientType === 'other') {
+    return {
+      id: null, authority_id: null, school_id: null, semel_mosad: null, school_required: 'no',
+      client_type: 'other', client_name: text(row.school_framework), authority: '', school: text(row.school_framework),
+      contact_name: text(row.contact_name), contact_role: text(row.contact_role), phone: text(row.phone), email: text(row.email), mobile: ''
+    };
+  }
   if (!row.authority_id) return null;
   const school = text(row.school_framework) !== text(row.client_authority) ? text(row.school_framework) : '';
   return {
@@ -2807,8 +2836,9 @@ function formHtml(mode, row = {}, activityNameOptions = [], contactOptions = [],
   // Only fall back to directory lookup when the row has no authority_id (very old rows).
   const initContactSource = buildContactSourceFromRow(row) || findContactForProposalRow(contactOptions, row);
   const isLocked = !!initAuth;
-  const initClientType = text(initContactSource?.client_type) || text(row.client_type) || 'school';
+  const initClientType = text(initContactSource?.client_type) || text(row.client_type) || inferProposalClientType(row);
   const initAuthorityOnly = initClientType === 'authority';
+  const initOther = initClientType === 'other';
   const initSchoolId = text(initContactSource?.school_id) || text(row.school_id);
   const initAuthorityId = text(initContactSource?.authority_id) || text(row.authority_id) || null;
   const initSchoolMeta = findSchoolCatalogContact(contactOptions, {
@@ -2817,7 +2847,7 @@ function formHtml(mode, row = {}, activityNameOptions = [], contactOptions = [],
     authority: initAuth,
     school: initSchool
   }) || row;
-  const contactPanelVisible = isLocked && (initAuthorityOnly ? Boolean(initAuthorityId) : Boolean(initSchoolId));
+  const contactPanelVisible = initOther || (isLocked && (initAuthorityOnly ? Boolean(initAuthorityId) : Boolean(initSchoolId)));
   const initPickerHtml = contactPanelVisible ? contactPickerHtml(
     contactOptions,
     initAuth,
@@ -2859,8 +2889,10 @@ function formHtml(mode, row = {}, activityNameOptions = [], contactOptions = [],
       <h4 class="pa-sidebar-section-title">פרטי נמען</h4>
       <div data-pa-step-panel="client">
         <div class="ds-pa-client-search-block" data-pa-client-search-row${isLocked ? ' hidden' : ''}>
+          ${clientTypeSelectorHtml(initClientType)}
           ${contactOptionsLoadErrorHtml(contactOptionsError)}
           ${clientSearchHtml(contactOptions, row)}
+          <label class="ds-pa-form-field ds-pa-other-client-field" data-pa-other-client-field${initOther ? '' : ' hidden'}><span>שם הגורם / הלקוח</span><input class="ds-input ds-input--sm" name="other_client_name" value="${escapeHtml(initOther ? initSchool : '')}" placeholder="שם הגורם / הלקוח"></label>
         </div>
         <div data-pa-client-card${isLocked ? '' : ' hidden'}>${isLocked ? clientLockedBannerHtml(initAuth, initSchool, initContact, initRole, initPhone, initEmail, initClientName, initSchoolMeta) : ''}</div>
         <div class="ds-pa-client-hidden-values" data-pa-client-fields hidden>
@@ -3015,9 +3047,10 @@ function drawerHtml(row, activityNameOptions = [], state = null) {
     : '';
 
   const clientDisplayName = text(row.client_name) || text(row.school_framework) || text(row.client_authority) || '—';
-  const schoolSub = text(row.school_framework) && text(row.school_framework) !== clientDisplayName
+  const drawerClientType = inferProposalClientType(row);
+  const schoolSub = drawerClientType !== 'other' && text(row.school_framework) && text(row.school_framework) !== clientDisplayName
     ? `<p class="ds-pa-drawer-sub">${escapeHtml(row.school_framework)}</p>` : '';
-  const authSub = text(row.client_authority) && text(row.client_authority) !== clientDisplayName && text(row.client_authority) !== text(row.school_framework)
+  const authSub = drawerClientType !== 'other' && text(row.client_authority) && text(row.client_authority) !== clientDisplayName && text(row.client_authority) !== text(row.school_framework)
     ? `<p class="ds-pa-drawer-sub">רשות: ${escapeHtml(row.client_authority)}</p>` : '';
 
   // ── compact metadata strip ──
@@ -3170,14 +3203,25 @@ function payloadFromForm(form) {
   if (itemNames.length) payload.activity_names = itemNames;
   payload.total_amount = items.reduce((s, i) => s + (Number(proposalField(i, 'total_price', 'totalPrice')) || ((Number(proposalField(i, 'quantity', 'quantity')) || 0) * (Number(proposalField(i, 'unit_price', 'unitPrice')) || 0))), 0) || null;
   payload._items = items;
-  payload.authority_id = text(formData.get('contact_source_authority_id')) || null;
-  payload.client_type = text(formData.get('contact_source_client_type')) || (text(formData.get('contact_source_school_id')) ? 'school' : 'authority');
-  payload.semel_mosad = text(formData.get('contact_source_semel_mosad')) || null;
-  const schoolRequired = text(formData.get('contact_source_school_required'));
-  payload._school_required = schoolRequired === 'no' ? 'no' : 'yes';
-  const isAuthorityOnlyPayload = payload.client_type === 'authority';
-  payload.school_id = isAuthorityOnlyPayload ? null : (text(formData.get('contact_source_school_id')) || null);
-  payload.contact_school_id = isAuthorityOnlyPayload ? null : (text(formData.get('contact_source_id')) || null);
+  const selectedClientType = text(formData.get('client_type_selector')) || text(formData.get('contact_source_client_type')) || (text(formData.get('contact_source_school_id')) ? 'school' : 'authority');
+  payload.client_type = ['school', 'authority', 'other'].includes(selectedClientType) ? selectedClientType : 'school';
+  if (payload.client_type === 'other') {
+    payload.school_framework = text(formData.get('other_client_name')) || payload.school_framework;
+    payload.client_authority = '';
+    payload.authority_id = null;
+    payload.school_id = null;
+    payload.contact_school_id = null;
+    payload.semel_mosad = null;
+    payload._school_required = 'no';
+  } else {
+    payload.authority_id = text(formData.get('contact_source_authority_id')) || null;
+    payload.semel_mosad = text(formData.get('contact_source_semel_mosad')) || null;
+    const schoolRequired = text(formData.get('contact_source_school_required'));
+    payload._school_required = schoolRequired === 'no' ? 'no' : 'yes';
+    const isAuthorityOnlyPayload = payload.client_type === 'authority';
+    payload.school_id = isAuthorityOnlyPayload ? null : (text(formData.get('contact_source_school_id')) || null);
+    payload.contact_school_id = isAuthorityOnlyPayload ? null : (text(formData.get('contact_source_id')) || null);
+  }
   payload._contact_selection_mode = text(formData.get('contact_selection_mode'));
   payload._contact_original = {
     id:           text(formData.get('contact_source_id')),
@@ -3206,12 +3250,18 @@ function validatePayload(payload, statusOverride) {
   const missing = requiredFields.filter((key) => !text(payload[key]));
   const errors = missing.map((key) => FIELD_LABELS[key] || key);
 
-  if (!text(payload.authority_id)) {
-    errors.push('יש לבחור רשות מתוך רשימת הרשויות.');
-  }
-  const isAuthorityOnlyProposal = text(payload.client_type) === 'authority';
-  if (!text(payload.school_id) && !isAuthorityOnlyProposal) {
-    errors.push('יש לבחור בית ספר מתוך רשימת בתי הספר של הרשות, או לבחור "ללא בית ספר — הצעה לרשות".');
+  const clientType = text(payload.client_type) || 'school';
+  const isOtherProposal = clientType === 'other';
+  const isAuthorityOnlyProposal = clientType === 'authority';
+  if (isOtherProposal) {
+    if (!text(payload.school_framework)) errors.push('שם הגורם / הלקוח');
+  } else {
+    if (!text(payload.authority_id)) {
+      errors.push('יש לבחור רשות מתוך רשימת הרשויות.');
+    }
+    if (!text(payload.school_id) && !isAuthorityOnlyProposal) {
+      errors.push('יש לבחור בית ספר מתוך רשימת בתי הספר של הרשות, או לבחור "ללא בית ספר — הצעה לרשות".');
+    }
   }
   const hasManualContact = Boolean(text(payload.contact_name) || text(payload.contact_role) || text(payload.phone) || text(payload.email));
   const isOtherContact = text(payload._contact_selection_mode) === 'other';
@@ -3219,7 +3269,7 @@ function validatePayload(payload, statusOverride) {
     errors.push('יש להזין שם איש קשר חדש.');
   }
   if (hasManualContact && !text(payload.contact_school_id)) {
-    if (!text(payload.authority_id) || (!isAuthorityOnlyProposal && !text(payload.school_id))) {
+    if (!isOtherProposal && (!text(payload.authority_id) || (!isAuthorityOnlyProposal && !text(payload.school_id)))) {
       errors.push('ניתן להוסיף איש קשר רק לאחר בחירת רשות ובית ספר.');
     }
   }
@@ -4102,10 +4152,69 @@ export const proposalsAgreementsScreen = {
       });
     };
 
+
+    const applyRecipientTypeMode = (form) => {
+      if (!form) return;
+      const selected = text(form.querySelector('input[name="client_type_selector"]:checked')?.value) || 'school';
+      const searchWrap = form.querySelector('[data-pa-client-search-wrap]');
+      const otherField = form.querySelector('[data-pa-other-client-field]');
+      const card = form.querySelector('[data-pa-client-card]');
+      const contactPanel = form.querySelector('[data-pa-step-panel="contact"]');
+      const pickerHost = form.querySelector('[data-pa-contact-picker-host]');
+      if (selected === 'other') {
+        if (searchWrap) searchWrap.hidden = true;
+        if (card) { card.hidden = true; card.innerHTML = ''; }
+        if (otherField) otherField.hidden = false;
+        if (pickerHost) pickerHost.innerHTML = '';
+        if (contactPanel) contactPanel.hidden = false;
+        form.querySelectorAll('[data-pa-contact-manual-fields]').forEach((el) => { el.hidden = false; });
+        const roCtx = form.querySelector('[data-pa-contact-ro-ctx]');
+        if (roCtx) roCtx.hidden = true;
+        setContactSelectionMode(form, 'other');
+        setContactSource(form, {
+          authority_id: null,
+          school_id: null,
+          school_required: 'no',
+          client_type: 'other',
+          client_name: text(form.querySelector('[name="other_client_name"]')?.value),
+          authority: '',
+          school: text(form.querySelector('[name="other_client_name"]')?.value)
+        });
+      } else {
+        if (searchWrap) searchWrap.hidden = false;
+        if (otherField) otherField.hidden = true;
+        const locked = card && !card.hidden && card.children.length > 0;
+        if (!locked && contactPanel) contactPanel.hidden = true;
+      }
+      calcGrandTotal(form);
+      updateProposalStepper(form);
+    };
+
+    const setupRecipientTypeSelector = (form) => {
+      if (!form || form.dataset.paRecipientTypeBound === 'yes') return;
+      form.dataset.paRecipientTypeBound = 'yes';
+      form.querySelectorAll('input[name="client_type_selector"]').forEach((input) => {
+        input.addEventListener('change', () => applyRecipientTypeMode(form), { signal });
+      });
+      form.querySelector('[name="other_client_name"]')?.addEventListener('input', () => {
+        const selected = text(form.querySelector('input[name="client_type_selector"]:checked')?.value);
+        if (selected !== 'other') return;
+        const value = text(form.querySelector('[name="other_client_name"]')?.value);
+        const schoolInput = form.querySelector('input[name="school_framework"]');
+        const authInput = form.querySelector('input[name="client_authority"]');
+        if (schoolInput) schoolInput.value = value;
+        if (authInput) authInput.value = '';
+        setContactSource(form, { authority_id: null, school_id: null, school_required: 'no', client_type: 'other', client_name: value, authority: '', school: value });
+        calcGrandTotal(form);
+      }, { signal });
+      applyRecipientTypeMode(form);
+    };
+
     const setupClientSelector = (container) => {
       const form = container?.querySelector?.('[data-pa-form]') || container?.closest?.('[data-pa-form]') || (container?.matches?.('[data-pa-form]') ? container : null);
       if (!form || form.dataset.paClientSearchBound === 'yes') return;
       form.dataset.paClientSearchBound = 'yes';
+      setupRecipientTypeSelector(form);
       applyClientSearchMode(form);
       // Init contact area for forms already locked on mount (edit mode)
       const initCard = form.querySelector('[data-pa-client-card]');

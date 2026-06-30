@@ -3182,10 +3182,10 @@ function sanitizeProposalAgreementPayload(payload = {}, groupLookup = proposalGr
   const clientAuthority = cleanProposalAgreementText(payload.client_authority || payload.authority_name || payload.authority);
   const schoolFramework = cleanProposalAgreementText(payload.school_framework || payload.school_name || payload.school) || (clientType === 'other' ? cleanProposalAgreementText(payload.client_name) : clientAuthority);
   const row = {
-    authority_id:        uuidOrNull(payload.authority_id),
+    authority_id:        clientType === 'other' ? null : uuidOrNull(payload.authority_id),
     school_id:           clientType === 'school' ? uuidOrNull(payload.school_id) : null,
-    contact_school_id:   payload.contact_school_id != null ? (Number.isInteger(Number(payload.contact_school_id)) && Number(payload.contact_school_id) > 0 ? Number(payload.contact_school_id) : null) : null,
-    client_authority:    clientAuthority,
+    contact_school_id:   clientType === 'other' ? null : (payload.contact_school_id != null ? (Number.isInteger(Number(payload.contact_school_id)) && Number(payload.contact_school_id) > 0 ? Number(payload.contact_school_id) : null) : null),
+    client_authority:    clientType === 'other' ? '' : clientAuthority,
     school_framework:    schoolFramework,
     document_type:       cleanProposalAgreementText(payload.document_type) || 'הצעת מחיר',
     activity_type_group: normalizeProposalGroupValue(rawGroup, groupLookup),
@@ -5653,7 +5653,7 @@ export const api = {
       client_type: cleanProposalAgreementText(payload.client_type) || (resolvedSchool.school_id ? 'school' : 'authority')
     };
     const insert = sanitizeProposalAgreementPayload(enrichedPayload, groupLookup);
-    if (!insert.contact_school_id) {
+    if (enrichedPayload.client_type !== 'other' && !insert.contact_school_id) {
       const contactSchoolId = await ensureContactSchoolFromProposal({ ...insert, _contact_original: enrichedPayload?._contact_original });
       if (contactSchoolId != null) insert.contact_school_id = contactSchoolId;
     }
@@ -5685,7 +5685,7 @@ export const api = {
     };
     const patch = sanitizeProposalAgreementPayload(enrichedPayload, groupLookup);
     patch.updated_at = new Date().toISOString();
-    if (!patch.contact_school_id) {
+    if (enrichedPayload.client_type !== 'other' && !patch.contact_school_id) {
       const contactSchoolId = await ensureContactSchoolFromProposal({ ...patch, _contact_original: enrichedPayload?._contact_original });
       if (contactSchoolId != null) patch.contact_school_id = contactSchoolId;
     }
