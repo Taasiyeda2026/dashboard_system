@@ -1183,10 +1183,10 @@ function opsManagementStylesHtml() {
     @media (max-width: 720px) { .ds-ops-mgmt-screen .ds-ops-mgmt-filters__grid { grid-template-columns:repeat(2,minmax(0,1fr)); } .ds-ops-mgmt-screen .ds-filter-field--search { grid-column:1 / -1; } }
     @media (max-width: 460px) { .ds-ops-mgmt-screen .ds-ops-mgmt-filters__grid { grid-template-columns:1fr; } }
     .ds-ops-mgmt-screen .ds-sort-indicator { display:inline-block; margin-inline-start:4px; font-size:10px; color:#0f8fa8; }
-    .ds-ops-mgmt-screen .ds-ops-workshops-table-wrap { width:75%; max-width:75%; overflow-x:hidden; box-sizing:border-box; }
-    .ds-ops-mgmt-screen .ds-ops-workshops-card { width:75%; max-width:75%; box-sizing:border-box; }
+    .ds-ops-mgmt-screen .ds-ops-workshops-table-wrap { width:100%; max-width:100%; overflow-x:hidden; box-sizing:border-box; }
+    .ds-ops-mgmt-screen .ds-ops-workshops-card { width:100%; max-width:100%; box-sizing:border-box; }
     .ds-ops-mgmt-screen .ds-ops-workshops-card .ds-card__body { width:100%; max-width:100%; box-sizing:border-box; overflow-x:hidden; }
-    .ds-ops-mgmt-screen .ds-ops-workshops-table { table-layout:fixed; width:100%; max-width:100%; }
+    .ds-ops-mgmt-screen .ds-ops-workshops-table { table-layout:fixed; width:100%; max-width:100%; border-collapse:collapse; }
     .ds-ops-mgmt-screen .ds-ops-workshops-table th,.ds-ops-mgmt-screen .ds-ops-workshops-table td { border:1px solid #94a3b8 !important; padding:6px 8px; text-align:center; vertical-align:middle; overflow:hidden; text-overflow:ellipsis; white-space:nowrap; }
     .ds-ops-mgmt-screen .ds-ops-workshops-table tbody tr { cursor:pointer; transition:background 0.12s ease; }
     .ds-ops-mgmt-screen .ds-ops-workshops-table tbody tr.ds-ops-workshop-detail-row { cursor:default; }
@@ -1205,9 +1205,11 @@ function opsManagementStylesHtml() {
     .ds-ops-mgmt-screen .ds-ops-workshops-table .ds-ops-usage-cell:active { border:1px solid #94a3b8 !important; box-shadow:none; }
     .ds-ops-mgmt-screen .ds-ops-workshops-table th { background:#fff; color:#1e3a8a; font-weight:800; font-size:12px; border-bottom:2px solid #3b82f6 !important; }
     /* workshops table — semantic column classes (set on both th and td) */
-    .ds-ops-mgmt-screen .ds-ops-workshop-col--no { width:60px; text-align:center; }
-    .ds-ops-mgmt-screen .ds-ops-workshop-col--name { width:170px; text-align:right; line-height:1.35; overflow:hidden; text-overflow:ellipsis; }
-    .ds-ops-mgmt-screen .ds-ops-workshop-col--metric { width:70px; text-align:center; }
+    .ds-ops-mgmt-screen .ds-ops-workshop-col--no { width:90px; text-align:center; }
+    .ds-ops-mgmt-screen .ds-ops-workshop-col--name { text-align:right; line-height:1.35; overflow:hidden; text-overflow:ellipsis; }
+    .ds-ops-mgmt-screen .ds-ops-workshop-col--metric { width:100px; text-align:center; }
+    .ds-ops-mgmt-screen .ds-ops-workshops-table col:nth-child(5) { width:90px; }
+    .ds-ops-mgmt-screen .ds-ops-workshops-table col:nth-child(6) { width:110px; }
     /* hover underline on name col via semantic class */
     .ds-ops-mgmt-screen .ds-ops-workshops-table tbody tr:hover td.ds-ops-workshop-col--name { text-decoration:underline; text-underline-offset:2px; }
     .ds-ops-mgmt-screen .ds-ops-workshop-status-text { font-weight:700; background:transparent; border:0; padding:0; white-space:nowrap; }
