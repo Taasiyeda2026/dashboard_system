@@ -1,0 +1,84 @@
+להוסיף בעמוד:
+ניהול תפעול > ציוד ומלאי > מלאי סדנאות
+
+עמודה חדשה בטבלה הראשית בשם:
+כמות שהשתמשו
+
+המשמעות:
+זו הכמות שכבר נוצלה בפועל מתוך המלאי, לפי מספר המשתתפים בסדנאות שהתקיימו והן בסטטוס “סגור”.
+
+חשוב:
+לא לשנות חישובים קיימים של מלאי נדרש / פער / נמסר למדריכים בשלב הזה.
+רק להוסיף עמודת תצוגה חדשה.
+
+הקבצים הרלוונטיים:
+frontend/src/screens/operations-management.js
+frontend/src/screens/shared/operations-activity-helpers.js
+
+כבר קיימת פונקציה:
+getActivityRequiredInventoryQuantity(activity)
+
+היא מחזירה את participants_count אם יש מספר משתתפים תקין, ואם אין משתתפים היא מחזירה 0. להשתמש בה כדי לחשב את הכמות שהשתמשו.
+
+הלוגיקה:
+בפונקציה workshopMetricsRows
+להוסיף לכל row שדה חדש:
+
+usedQuantity
+
+החישוב:
+לסנן מתוך group.activities רק פעילויות שהסטטוס שלהן הוא “סגור”.
+ואז לסכום את getActivityRequiredInventoryQuantity(activity).
+
+דוגמה:
+
+const usedActivities = group.activities.filter((activity) =>
+  String(activity?.status || '').trim() === 'סגור'
+);
+
+const usedQuantity = sumRequiredInventoryQuantitiesFromActivities(usedActivities);
+
+ואז להוסיף ל-row:
+usedQuantity,
+
+בטבלה הראשית:
+להוסיף עמודה חדשה אחרי “מלאי נדרש” ולפני “פער”:
+
+מספר סדנה | שם הפעילות | מלאי כולל | מלאי נדרש | כמות שהשתמשו | פער | נמסר למדריכים
+
+צריך לעדכן:
+1. colgroup — להוסיף col נוסף.
+2. thead — להוסיף th:
+כמות שהשתמשו
+3. tbody — להוסיף td:
+formatSignedNumberForRtl(row.usedQuantity)
+4. colspan של שורת הפירוט — לשנות מ-6 ל-7, כי יש עכשיו 7 עמודות.
+5. אם יש הדפסה של הטבלה, לוודא שגם שם העמודה מופיעה נכון.
+
+מיון:
+אפשר להוסיף גם sort key:
+usedQuantity: (row) => row.usedQuantity
+
+CSS:
+כדי שהטבלה לא תתרחב יותר מדי:
+- להשאיר עמודות מספריות ברוחב צר.
+- אפשר להקטין את ds-ops-workshop-col--metric ל-60px או 64px.
+- עמודת שם הפעילות יכולה להישאר 160px.
+- אם צריך, להקטין padding ל-4px 5px.
+
+לא לשנות:
+- מלאי כולל
+- מלאי נדרש
+- פער
+- נמסר למדריכים
+- חלוקה למדריכים
+- נתוני Supabase
+
+הערה חשובה:
+“כמות שהשתמשו” היא רק לפי פעילויות סגורות. פעילות פתוחה או עתידית לא נספרת בעמודה הזאת גם אם יש בה participants_count.
+
+בסיום:
+לעדכן Service Worker / Cache:
+frontend/sw.js
+להעלות CACHE_VERSION בעוד 1
+ולעדכן גרסת v ב-index.html כדי שהשינוי ייטען בפועל.

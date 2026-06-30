@@ -1037,6 +1037,8 @@ function workshopMetricsRows(activitiesRowsForRequiredInventory, stockMap, catal
   return Array.from(groups.values()).map((group) => {
     const activityCount = group.activities.length;
     const requiredQuantity = sumRequiredInventoryQuantitiesFromActivities(group.activities);
+    const usedActivities = group.activities.filter((activity) => String(activity?.status || '').trim() === 'סגור');
+    const usedQuantity = sumRequiredInventoryQuantitiesFromActivities(usedActivities);
     const activitiesWithoutParticipants = group.activities.filter((activity) => getActivityActualParticipantCount(activity) === null).length;
     const stock = group.stockQuantity !== null && group.stockQuantity !== undefined && Number.isFinite(Number(group.stockQuantity))
       ? Number(group.stockQuantity)
@@ -1101,6 +1103,7 @@ function workshopMetricsRows(activitiesRowsForRequiredInventory, stockMap, catal
       warehouseBalance,
       expectedBalance,
       deliveryGap,
+      usedQuantity,
       activitiesWithoutParticipants,
       instructorRows,
       stockLocationRows: stockLocationSummaryRows,
@@ -1785,7 +1788,7 @@ function workshopInstructorDetailHtml(row) {
       <td class="ds-ops-dist-col--status">${workshopStatusText(item.status)}</td>
     </tr>`).join('')
     : `<tr><td colspan="5">${dsEmptyState('אין נתוני מדריכים או חלוקות בטווח הנוכחי')}</td></tr>`;
-  return `<tr class="ds-ops-workshop-detail-row"><td colspan="6"><div class="ds-ops-workshop-detail">
+  return `<tr class="ds-ops-workshop-detail-row"><td colspan="7"><div class="ds-ops-workshop-detail">
     <strong>פירוט סדנה — ${escapeHtml(row.workshopName)}</strong>
     ${locationLine ? `<div class="ds-ops-workshop-detail__locations-line"><span class="ds-ops-workshop-detail__loc-label">מיקום:</span> ${locationLine}</div>` : ''}
     <div class="ds-ops-workshop-detail__instructors-wrap">
@@ -1802,14 +1805,16 @@ function workshopsTabHtml(activitiesRowsForRequiredInventory, state, stockMap, c
     workshopName: (row) => row.workshopName,
     activityCount: (row) => row.activityCount,
     estimatedQuantity: (row) => row.requiredQuantity,
+    usedQuantity: (row) => row.usedQuantity,
   });
   const metrics = allMetrics.filter((row) => (row.stockQuantity !== null && Number(row.stockQuantity) > 0) || row.requiredQuantity !== 0 || row.deliveredQuantity !== 0);
   const table = metrics.length
-    ? dsTableWrap(`<table class="ds-table ds-table--compact ds-ops-mgmt-data-table ds-ops-workshops-table"><colgroup><col class="ds-ops-workshop-col--no"><col class="ds-ops-workshop-col--name"><col class="ds-ops-workshop-col--metric"><col class="ds-ops-workshop-col--metric"><col class="ds-ops-workshop-col--metric"><col class="ds-ops-workshop-col--metric"></colgroup><thead><tr>
+    ? dsTableWrap(`<table class="ds-table ds-table--compact ds-ops-mgmt-data-table ds-ops-workshops-table"><colgroup><col class="ds-ops-workshop-col--no"><col class="ds-ops-workshop-col--name"><col class="ds-ops-workshop-col--metric"><col class="ds-ops-workshop-col--metric"><col class="ds-ops-workshop-col--metric"><col class="ds-ops-workshop-col--metric"><col class="ds-ops-workshop-col--metric"></colgroup><thead><tr>
         ${sortableTh(state, TAB_WORKSHOPS, 'workshopNo', 'מספר סדנה', 'ds-ops-workshop-col--no')}
         ${sortableTh(state, TAB_WORKSHOPS, 'workshopName', 'שם הפעילות', 'ds-ops-workshop-col--name')}
         <th class="ds-ops-workshop-col--metric">מלאי כולל</th>
         ${sortableTh(state, TAB_WORKSHOPS, 'estimatedQuantity', 'מלאי נדרש', 'ds-ops-workshop-col--metric')}
+        ${sortableTh(state, TAB_WORKSHOPS, 'usedQuantity', 'כמות שהשתמשו', 'ds-ops-workshop-col--metric')}
         <th class="ds-ops-workshop-col--metric">פער</th>
         <th class="ds-ops-workshop-col--metric">נמסר למדריכים</th>
       </tr></thead><tbody>${metrics.map((row) => {
@@ -1819,6 +1824,7 @@ function workshopsTabHtml(activitiesRowsForRequiredInventory, state, stockMap, c
           <td class="ds-ops-workshop-col--name">${escapeHtml(row.workshopName)}${row.activitiesWithoutParticipants ? ` <span class="ds-ops-estimate-mark" title="חסר מספר משתתפים ב-${row.activitiesWithoutParticipants} פעילויות; הן חושבו כ-0 במלאי נדרש">!</span>` : ''}</td>
           <td class="ds-ops-workshop-col--metric">${row.stockQuantity === null ? '<span class="ds-ops-mgmt-cell-muted">—</span>' : formatSignedNumberForRtl(row.stockQuantity)}</td>
           <td class="ds-ops-workshop-col--metric">${formatSignedNumberForRtl(row.requiredQuantity)}</td>
+          <td class="ds-ops-workshop-col--metric">${formatSignedNumberForRtl(row.usedQuantity)}</td>
           <td class="ds-ops-workshop-col--metric">${row.expectedBalance === null ? '<span class="ds-ops-mgmt-cell-muted">—</span>' : formatGapCell(row.expectedBalance, true)}</td>
           <td class="ds-ops-workshop-col--metric">${formatSignedNumberForRtl(row.deliveredQuantity)}</td>
         </tr>`;
