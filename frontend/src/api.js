@@ -2823,7 +2823,9 @@ function proposalDomainForCurrentUser() {
 
 function normalizeProposalDomain(value, fallback = proposalDomainForCurrentUser()) {
   const domain = cleanProposalAgreementText(value).toUpperCase();
-  return domain === 'E' ? 'E' : domain === 'Y' ? 'Y' : fallback;
+  if (domain === 'E' || domain === 'N') return 'E';
+  if (domain === 'Y' || domain === 'A') return 'Y';
+  return fallback;
 }
 
 function buildProposalAgreementSearchText(row = {}) {
