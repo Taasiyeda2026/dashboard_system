@@ -822,9 +822,40 @@ test('workshops instructor detail requires participants_count for every assigned
     workshopStockMap: buildWorkshopStockMapFromLists(adminListsData),
     adminListsData
   }, { state });
-  const detailHtml = html.slice(html.indexOf('פירוט לפי מדריך'));
+  const detailHtml = html.slice(html.indexOf('פירוט סדנה'));
   assert.match(detailHtml, /דני[^]*>0<[^]*>25<[^]*><span class="ds-ops-gap ds-ops-gap--shortage"><span dir="ltr">-25<\/span><\/span>/);
   assert.match(detailHtml, /נועה[^]*>0<[^]*>25<[^]*><span class="ds-ops-gap ds-ops-gap--shortage"><span dir="ltr">-25<\/span><\/span>/);
+});
+
+
+test('workshops inventory separates stock locations from instructor delivery totals and details', () => {
+  const state = baseState();
+  state.operationsManagement.tab = 'workshops';
+  state.operationsManagement.expandedWorkshop = 'activity_9';
+  const adminListsData = { categories: [{ category: 'activity_names', items: [
+    { value: '009', _row: { category: 'activity_names', type: 'workshop', activity_type: 'workshop', active: true, activity_no: '009', activity_name: 'סדנת מלאי', stock_quantity: 100 } }
+  ] }] };
+  const html = operationsManagementScreen.render({
+    rows: [
+      { RowID: 'STOCK-1', status: 'פתוח', activity_no: '009', activity_name: 'סדנת מלאי', start_date: '2026-07-01', activity_season: 'summer_2026', activity_type: 'workshop', participants_count: 25, instructor_name: 'דני' }
+    ],
+    workshopStockMap: buildWorkshopStockMapFromLists(adminListsData),
+    adminListsData,
+    workshopStockDistributions: [
+      { stock_group_key: 'activity_9', instructor_name: 'מלאי עידן', quantity_received: 40, distribution_date: '2026-07-01' },
+      { stock_group_key: 'activity_9', instructor_name: 'מלאי הילה', quantity_received: 15, distribution_date: '2026-07-01' },
+      { stock_group_key: 'activity_9', instructor_name: 'דני', quantity_received: 20, distribution_date: '2026-07-01' }
+    ]
+  }, { state });
+  const mainRowHtml = html.slice(html.indexOf('data-ops-stock-group="activity_9"'), html.indexOf('</tr>', html.indexOf('data-ops-stock-group="activity_9"')));
+  const detailHtml = html.slice(html.indexOf('פירוט סדנה'));
+
+  assert.match(mainRowHtml, />100</);
+  assert.match(mainRowHtml, />25</);
+  assert.match(mainRowHtml, />20</);
+  assert.match(detailHtml, /מלאי במיקומים[^]*מלאי עידן[^]*>40<[^]*מלאי הילה[^]*>15<[^]*סה״כ במיקומים[^]*>55</);
+  assert.match(detailHtml, /חלוקה למדריכים[^]*דני[^]*>20<[^]*>25</);
+  assert.doesNotMatch(detailHtml.slice(detailHtml.indexOf('חלוקה למדריכים')), /מלאי עידן|מלאי הילה/);
 });
 
 test('actual participant count only uses existing activity fields', () => {
