@@ -299,7 +299,7 @@ export function sumActivityParticipantCounts(activities = []) {
 
 export function buildWorkshopQuantityMetrics({ workshopName, activityCount, activities = [], stockMap } = {}) {
   const count = Number(activityCount || 0);
-  const estimatedQuantity = count * WORKSHOP_ESTIMATE_PER_ACTIVITY;
+  const estimatedQuantity = sumRequiredInventoryQuantitiesFromActivities(activities);
   const actualQuantity = sumActivityParticipantCounts(activities);
   const stockQuantity = getWorkshopStockQuantity(workshopName, stockMap);
   let gap = null;

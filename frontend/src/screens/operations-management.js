@@ -796,6 +796,11 @@ function isTamirActivity(row) {
   return fields.some((f) => String(f || '').includes('תמיר'));
 }
 
+function isOpenOrClosedActivity(row) {
+  const status = String(row?.status || '').trim();
+  return status === 'פתוח' || status === 'סגור';
+}
+
 function isOfficialWorkshopListRow(row = {}, category = '') {
   const cat = String(category || row?.category || '').trim().toLowerCase();
   if (cat !== 'activity_names') return false;
@@ -808,9 +813,19 @@ function isOfficialWorkshopListRow(row = {}, category = '') {
 
 function officialWorkshopStockGroupKey(row = {}) {
   const rawGroup = String(row?.stock_group_key || '').trim();
-  if (rawGroup) return rawGroup;
+  if (rawGroup) return canonicalStockGroupKey(rawGroup);
   const activityNo = String(row?.activity_no || '').trim();
-  return activityNo ? `activity_${activityNo}` : normalizeWorkshopKey(row?.activity_name);
+  return activityNo ? canonicalStockGroupKey(`activity_${activityNo}`) : normalizeWorkshopKey(row?.activity_name);
+}
+
+function canonicalStockGroupKey(value) {
+  const raw = String(value || '').trim();
+  if (!raw) return '';
+  const activityMatch = raw.match(/^activity_0*(\d+)$/i);
+  if (activityMatch) return `activity_${Number(activityMatch[1])}`;
+  const numericMatch = raw.match(/^0*(\d+)$/);
+  if (numericMatch) return `activity_${Number(numericMatch[1])}`;
+  return raw;
 }
 
 function officialWorkshopStockGroupName(row = {}) {
@@ -866,14 +881,15 @@ function extractWorkshopCatalogRows(listsData, activityRows = []) {
   const add = ({ no = '', name = '', stock = null, stockGroupKey = '', stockGroupName = '' } = {}) => {
     const cleanName = String(name || '').trim();
     if (!cleanName || !isWorkshopInventoryRequired(cleanName)) return;
-    const key = `${String(stockGroupKey || '').trim()}|${String(no || '').trim()}|${normalizeWorkshopKey(cleanName)}`;
+    const canonicalGroupKey = canonicalStockGroupKey(stockGroupKey);
+    const key = `${canonicalGroupKey}|${String(no || '').trim()}|${normalizeWorkshopKey(cleanName)}`;
     if (seen.has(key)) return;
     seen.add(key);
     rows.push({
       workshopNo: String(no || '').trim(),
       workshopName: cleanName,
       stockQuantity: stock,
-      stockGroupKey: String(stockGroupKey || '').trim(),
+      stockGroupKey: canonicalGroupKey,
       stockGroupName: String(stockGroupName || cleanName).trim()
     });
   };
@@ -930,7 +946,7 @@ function activityMatchesAnyOfficialWorkshop(activity = {}, catalogRows = []) {
 }
 
 function distributionStockGroupKey(row = {}) {
-  return String(row?.stock_group_key || row?.stockGroupKey || row?.workshop_stock_group_key || row?.activity_no || '').trim();
+  return canonicalStockGroupKey(row?.stock_group_key || row?.stockGroupKey || row?.workshop_stock_group_key || row?.activity_no || '');
 }
 
 function distributionInstructorName(row = {}) {
@@ -964,7 +980,7 @@ function distributionQuantity(row = {}) {
 }
 
 function workshopDistributionRowsForGroup(distributions = [], groupKey = '') {
-  const key = String(groupKey || '').trim();
+  const key = canonicalStockGroupKey(groupKey);
   return (Array.isArray(distributions) ? distributions : []).filter((row) => distributionStockGroupKey(row) === key);
 }
 
@@ -990,7 +1006,7 @@ function workshopMainStatus(row) {
 function workshopMetricsRows(activitiesRowsForRequiredInventory, stockMap, catalogRows = [], workshopStockDistributions = [], dateRange = {}) {
   const groups = new Map();
   catalogRows.forEach((catalog) => {
-    const key = catalog.stockGroupKey || `activity_${catalog.workshopNo || normalizeWorkshopKey(catalog.workshopName)}`;
+    const key = canonicalStockGroupKey(catalog.stockGroupKey || `activity_${catalog.workshopNo || normalizeWorkshopKey(catalog.workshopName)}`);
     if (!groups.has(key)) {
       groups.set(key, {
         stockGroupKey: key,
@@ -1032,7 +1048,12 @@ function workshopMetricsRows(activitiesRowsForRequiredInventory, stockMap, catal
       ensureInstructor(distributionInstructorName(dist)).received += distributionQuantity(dist);
     });
     group.activities.forEach((activity) => {
-      ensureInstructor(getActivityInstructorName(activity)).required += getActivityRequiredInventoryQuantity(activity);
+      const requiredQuantity = getActivityRequiredInventoryQuantity(activity);
+      const instructors = getActivityInstructorNames(activity);
+      const names = instructors.length ? instructors : ['לא משויך'];
+      names.forEach((name) => {
+        ensureInstructor(name).required += requiredQuantity;
+      });
     });
     const instructorRows = Array.from(instructorMap.values()).map((item) => {
       const balance = item.received - item.required;
@@ -1744,7 +1765,7 @@ function workshopsTabHtml(activitiesRowsForRequiredInventory, state, stockMap, c
         <th class="ds-ops-workshop-col--metric">פער למסירה</th>
       </tr></thead><tbody>${metrics.map((row) => {
         const isExpanded = ops.expandedWorkshop === row.stockGroupKey;
-        const mainRow = `<tr class="${isExpanded ? 'ds-ops-row--expanded' : ''}" data-ops-workshop-toggle="${escapeHtml(row.stockGroupKey || '')}" tabindex="0" role="button" aria-expanded="${isExpanded ? 'true' : 'false'}">
+        const mainRow = `<tr class="${isExpanded ? 'ds-ops-row--expanded' : ''}" data-ops-workshop-toggle="${escapeHtml(row.stockGroupKey || '')}" data-ops-stock-group="${escapeHtml(row.stockGroupKey || '')}" tabindex="0" role="button" aria-expanded="${isExpanded ? 'true' : 'false'}">
           <td class="ds-ops-workshop-col--no">${escapeHtml(row.workshopNoDisplay || row.workshopNo || row.stockGroupKey || '—')}</td>
           <td class="ds-ops-workshop-col--name">${escapeHtml(row.workshopName)}${row.activitiesWithoutParticipants ? ` <span class="ds-ops-estimate-mark" title="חסר מספר משתתפים ב-${row.activitiesWithoutParticipants} פעילויות; הן חושבו כ-0 במלאי נדרש">!</span>` : ''}</td>
           <td class="ds-ops-workshop-col--metric">${row.stockQuantity === null ? '<span class="ds-ops-mgmt-cell-muted">—</span>' : formatSignedNumberForRtl(row.stockQuantity)}</td>
@@ -2317,8 +2338,8 @@ function renderTab(rows, state, data, allPreparedRows = []) {
   }
   if (ops.tab === TAB_WORKSHOPS) {
     const catalogRows = extractWorkshopCatalogRows(data?.adminListsData, allPreparedRows);
-    const activitiesRowsForRequiredInventory = rows.filter((row) =>
-      !isActivityDeleted(row) &&
+    const activitiesRowsForRequiredInventory = allPreparedRows.filter((row) =>
+      isOpenOrClosedActivity(row) &&
       !isTamirActivity(row) &&
       activityMatchesAnyOfficialWorkshop(row, catalogRows) &&
       activityOverlapsDateRange(row, WORKSHOPS_SUMMER_FROM, WORKSHOPS_SUMMER_TO)
