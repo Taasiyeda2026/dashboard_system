@@ -1,0 +1,99 @@
+בקובץ frontend/src/screens/operations-management.js
+בתוך opsManagementStylesHtml
+לתקן רק CSS של מלאי סדנאות.
+
+דרישה ראשית:
+טבלת "מלאי סדנאות" תהיה ברוחב 70% מאזור התוכן, מיושרת לימין, ללא גלילה אופקית וללא מרכוז.
+
+CSS נדרש:
+
+.ds-ops-mgmt-screen .ds-ops-workshops-card {
+  width: 70%;
+  max-width: 70%;
+  margin-right: 0;
+  margin-left: auto;
+  box-sizing: border-box;
+}
+
+.ds-ops-mgmt-screen .ds-ops-workshops-table-wrap {
+  width: 100%;
+  max-width: 100%;
+  overflow-x: hidden;
+  box-sizing: border-box;
+}
+
+.ds-ops-mgmt-screen .ds-ops-workshops-table {
+  width: 100%;
+  table-layout: fixed;
+  border-collapse: collapse;
+}
+
+.ds-ops-mgmt-screen .ds-ops-workshops-table th,
+.ds-ops-mgmt-screen .ds-ops-workshops-table td {
+  padding: 5px 6px;
+  font-size: 12px;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  text-align: center;
+}
+
+.ds-ops-mgmt-screen .ds-ops-workshop-col--no {
+  width: 75px !important;
+  max-width: 75px !important;
+}
+
+.ds-ops-mgmt-screen .ds-ops-workshop-col--name {
+  width: 160px !important;
+  max-width: 160px !important;
+  text-align: right !important;
+}
+
+.ds-ops-mgmt-screen .ds-ops-workshop-col--metric {
+  width: 70px !important;
+  max-width: 70px !important;
+  text-align: center !important;
+}
+
+.ds-ops-mgmt-screen .ds-ops-workshops-table col:nth-child(6) {
+  width: 70px !important;
+}
+
+טבלת "מלאי במיקומים":
+.ds-ops-mgmt-screen .ds-ops-dist-table--locations .ds-ops-dist-col--location {
+  width: 120px !important;
+  max-width: 130px !important;
+  text-align: right !important;
+}
+
+.ds-ops-mgmt-screen .ds-ops-dist-table--locations .ds-ops-dist-col--quantity {
+  width: 40px !important;
+  max-width: 55px !important;
+  text-align: center !important;
+}
+
+טבלת "חלוקה למדריכים":
+.ds-ops-mgmt-screen .ds-ops-dist-table--instructors .ds-ops-dist-col--instructor {
+  width: 120px !important;
+  max-width: 130px !important;
+  text-align: right !important;
+}
+
+.ds-ops-mgmt-screen .ds-ops-dist-table--instructors .ds-ops-dist-col--number {
+  width: 40px !important;
+  max-width: 55px !important;
+  text-align: center !important;
+}
+
+.ds-ops-mgmt-screen .ds-ops-dist-table--instructors .ds-ops-dist-col--status {
+  width: 40px !important;
+  max-width: 55px !important;
+  text-align: center !important;
+}
+
+חשוב:
+לא להשתמש ב-width: fit-content או max-content.
+לא למרכז את הכרטיס.
+לא לפתוח overflow-x.
+לא לשנות לוגיקה.
+בסיום לעדכן CACHE_VERSION ו-Service Worker.

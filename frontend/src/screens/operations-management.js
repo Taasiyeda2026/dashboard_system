@@ -1183,11 +1183,11 @@ function opsManagementStylesHtml() {
     @media (max-width: 720px) { .ds-ops-mgmt-screen .ds-ops-mgmt-filters__grid { grid-template-columns:repeat(2,minmax(0,1fr)); } .ds-ops-mgmt-screen .ds-filter-field--search { grid-column:1 / -1; } }
     @media (max-width: 460px) { .ds-ops-mgmt-screen .ds-ops-mgmt-filters__grid { grid-template-columns:1fr; } }
     .ds-ops-mgmt-screen .ds-sort-indicator { display:inline-block; margin-inline-start:4px; font-size:10px; color:#0f8fa8; }
+    .ds-ops-mgmt-screen .ds-ops-workshops-card { width:70%; max-width:70%; margin-right:0; margin-left:auto; box-sizing:border-box; }
     .ds-ops-mgmt-screen .ds-ops-workshops-table-wrap { width:100%; max-width:100%; overflow-x:hidden; box-sizing:border-box; }
-    .ds-ops-mgmt-screen .ds-ops-workshops-card { width:100%; max-width:100%; box-sizing:border-box; }
     .ds-ops-mgmt-screen .ds-ops-workshops-card .ds-card__body { width:100%; max-width:100%; box-sizing:border-box; overflow-x:hidden; }
-    .ds-ops-mgmt-screen .ds-ops-workshops-table { table-layout:fixed; width:100%; max-width:100%; border-collapse:collapse; }
-    .ds-ops-mgmt-screen .ds-ops-workshops-table th,.ds-ops-mgmt-screen .ds-ops-workshops-table td { border:1px solid #94a3b8 !important; padding:6px 8px; text-align:center; vertical-align:middle; overflow:hidden; text-overflow:ellipsis; white-space:nowrap; }
+    .ds-ops-mgmt-screen .ds-ops-workshops-table { width:100%; table-layout:fixed; border-collapse:collapse; }
+    .ds-ops-mgmt-screen .ds-ops-workshops-table th,.ds-ops-mgmt-screen .ds-ops-workshops-table td { border:1px solid #94a3b8 !important; padding:5px 6px; font-size:12px; text-align:center; vertical-align:middle; overflow:hidden; text-overflow:ellipsis; white-space:nowrap; }
     .ds-ops-mgmt-screen .ds-ops-workshops-table tbody tr { cursor:pointer; transition:background 0.12s ease; }
     .ds-ops-mgmt-screen .ds-ops-workshops-table tbody tr.ds-ops-workshop-detail-row { cursor:default; }
     .ds-ops-mgmt-screen .ds-ops-workshops-table tbody tr:hover td { background:color-mix(in srgb,#dbeafe 18%,#fff) !important; border:1px solid #94a3b8 !important; }
@@ -1205,11 +1205,10 @@ function opsManagementStylesHtml() {
     .ds-ops-mgmt-screen .ds-ops-workshops-table .ds-ops-usage-cell:active { border:1px solid #94a3b8 !important; box-shadow:none; }
     .ds-ops-mgmt-screen .ds-ops-workshops-table th { background:#fff; color:#1e3a8a; font-weight:800; font-size:12px; border-bottom:2px solid #3b82f6 !important; }
     /* workshops table — semantic column classes (set on both th and td) */
-    .ds-ops-mgmt-screen .ds-ops-workshop-col--no { width:90px; text-align:center; }
-    .ds-ops-mgmt-screen .ds-ops-workshop-col--name { text-align:right; line-height:1.35; overflow:hidden; text-overflow:ellipsis; }
-    .ds-ops-mgmt-screen .ds-ops-workshop-col--metric { width:100px; text-align:center; }
-    .ds-ops-mgmt-screen .ds-ops-workshops-table col:nth-child(5) { width:90px; }
-    .ds-ops-mgmt-screen .ds-ops-workshops-table col:nth-child(6) { width:110px; }
+    .ds-ops-mgmt-screen .ds-ops-workshop-col--no { width:75px !important; max-width:75px !important; text-align:center; }
+    .ds-ops-mgmt-screen .ds-ops-workshop-col--name { width:160px !important; max-width:160px !important; text-align:right !important; line-height:1.35; overflow:hidden; text-overflow:ellipsis; }
+    .ds-ops-mgmt-screen .ds-ops-workshop-col--metric { width:70px !important; max-width:70px !important; text-align:center !important; }
+    .ds-ops-mgmt-screen .ds-ops-workshops-table col:nth-child(6) { width:70px !important; }
     /* hover underline on name col via semantic class */
     .ds-ops-mgmt-screen .ds-ops-workshops-table tbody tr:hover td.ds-ops-workshop-col--name { text-decoration:underline; text-underline-offset:2px; }
     .ds-ops-mgmt-screen .ds-ops-workshop-status-text { font-weight:700; background:transparent; border:0; padding:0; white-space:nowrap; }
@@ -1233,11 +1232,11 @@ function opsManagementStylesHtml() {
     .ds-ops-mgmt-screen .ds-ops-dist-table th,
     .ds-ops-mgmt-screen .ds-ops-dist-table td { padding:4px 6px; box-sizing:border-box; white-space:nowrap; overflow:hidden; text-overflow:ellipsis; }
     /* dist-table — semantic column classes */
-    .ds-ops-mgmt-screen .ds-ops-dist-table--locations .ds-ops-dist-col--location { text-align:right; width:120px; max-width:130px; }
-    .ds-ops-mgmt-screen .ds-ops-dist-table--locations .ds-ops-dist-col--quantity { text-align:center; width:40px; max-width:55px; }
-    .ds-ops-mgmt-screen .ds-ops-dist-table--instructors .ds-ops-dist-col--instructor { text-align:right; width:120px; max-width:130px; }
-    .ds-ops-mgmt-screen .ds-ops-dist-table--instructors .ds-ops-dist-col--number { text-align:center; width:40px; max-width:55px; }
-    .ds-ops-mgmt-screen .ds-ops-dist-table--instructors .ds-ops-dist-col--status { text-align:center; width:40px; max-width:55px; white-space:nowrap; line-height:1.2; }
+    .ds-ops-mgmt-screen .ds-ops-dist-table--locations .ds-ops-dist-col--location { text-align:right !important; width:120px !important; max-width:130px !important; }
+    .ds-ops-mgmt-screen .ds-ops-dist-table--locations .ds-ops-dist-col--quantity { text-align:center !important; width:40px !important; max-width:55px !important; }
+    .ds-ops-mgmt-screen .ds-ops-dist-table--instructors .ds-ops-dist-col--instructor { text-align:right !important; width:120px !important; max-width:130px !important; }
+    .ds-ops-mgmt-screen .ds-ops-dist-table--instructors .ds-ops-dist-col--number { text-align:center !important; width:40px !important; max-width:55px !important; }
+    .ds-ops-mgmt-screen .ds-ops-dist-table--instructors .ds-ops-dist-col--status { text-align:center !important; width:40px !important; max-width:55px !important; white-space:nowrap; line-height:1.2; }
     .ds-ops-mgmt-screen .ds-ops-estimate-mark { color:#9a3412; font-weight:800; }
     .ds-ops-mgmt-screen .ds-ops-stock-cell { white-space:nowrap; }
     .ds-ops-mgmt-screen .ds-ops-stock-input { width:64px; text-align:center; font-size:12px; padding:2px 4px; border:1px solid #94a3b8; border-radius:4px; background:#fff; }
