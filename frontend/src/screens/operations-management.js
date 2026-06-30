@@ -46,8 +46,8 @@ import {
   buildWorkshopStockMapFromLists,
   getActivityActualParticipantCount,
   getActivityOperationalQuantity,
-  sumOperationalQuantitiesFromActivities,
-  WORKSHOP_ESTIMATE_PER_ACTIVITY
+  getActivityRequiredInventoryQuantity,
+  sumRequiredInventoryQuantitiesFromActivities
 } from './shared/operations-activity-helpers.js';
 import {
   approvalFileTitle,
@@ -1015,7 +1015,7 @@ function workshopMetricsRows(activitiesRowsForRequiredInventory, stockMap, catal
 
   return Array.from(groups.values()).map((group) => {
     const activityCount = group.activities.length;
-    const requiredQuantity = sumOperationalQuantitiesFromActivities(group.activities);
+    const requiredQuantity = sumRequiredInventoryQuantitiesFromActivities(group.activities);
     const activitiesWithoutParticipants = group.activities.filter((activity) => getActivityActualParticipantCount(activity) === null).length;
     const stock = group.stockQuantity !== null && group.stockQuantity !== undefined && Number.isFinite(Number(group.stockQuantity))
       ? Number(group.stockQuantity)
@@ -1032,7 +1032,7 @@ function workshopMetricsRows(activitiesRowsForRequiredInventory, stockMap, catal
       ensureInstructor(distributionInstructorName(dist)).received += distributionQuantity(dist);
     });
     group.activities.forEach((activity) => {
-      ensureInstructor(getActivityInstructorName(activity)).required += getActivityOperationalQuantity(activity);
+      ensureInstructor(getActivityInstructorName(activity)).required += getActivityRequiredInventoryQuantity(activity);
     });
     const instructorRows = Array.from(instructorMap.values()).map((item) => {
       const balance = item.received - item.required;
@@ -1746,7 +1746,7 @@ function workshopsTabHtml(activitiesRowsForRequiredInventory, state, stockMap, c
         const isExpanded = ops.expandedWorkshop === row.stockGroupKey;
         const mainRow = `<tr class="${isExpanded ? 'ds-ops-row--expanded' : ''}" data-ops-workshop-toggle="${escapeHtml(row.stockGroupKey || '')}" tabindex="0" role="button" aria-expanded="${isExpanded ? 'true' : 'false'}">
           <td class="ds-ops-workshop-col--no">${escapeHtml(row.workshopNoDisplay || row.workshopNo || row.stockGroupKey || '—')}</td>
-          <td class="ds-ops-workshop-col--name">${escapeHtml(row.workshopName)}${row.activitiesWithoutParticipants ? ` <span class="ds-ops-estimate-mark" title="חלק מהחישוב מבוסס על ברירת מחדל ${WORKSHOP_ESTIMATE_PER_ACTIVITY} משתתפים">≈</span>` : ''}</td>
+          <td class="ds-ops-workshop-col--name">${escapeHtml(row.workshopName)}${row.activitiesWithoutParticipants ? ` <span class="ds-ops-estimate-mark" title="חסר מספר משתתפים ב-${row.activitiesWithoutParticipants} פעילויות; הן חושבו כ-0 במלאי נדרש">!</span>` : ''}</td>
           <td class="ds-ops-workshop-col--metric">${row.stockQuantity === null ? '<span class="ds-ops-mgmt-cell-muted">—</span>' : formatSignedNumberForRtl(row.stockQuantity)}</td>
           <td class="ds-ops-workshop-col--metric">${formatSignedNumberForRtl(row.requiredQuantity)}</td>
           <td class="ds-ops-workshop-col--metric">${row.expectedBalance === null ? '<span class="ds-ops-mgmt-cell-muted">—</span>' : formatGapCell(row.expectedBalance, true)}</td>

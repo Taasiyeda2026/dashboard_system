@@ -268,6 +268,17 @@ export function getActivityOperationalQuantity(activity) {
   return count !== null ? count : WORKSHOP_ESTIMATE_PER_ACTIVITY;
 }
 
+export function getActivityRequiredInventoryQuantity(activity) {
+  const count = getActivityActualParticipantCount(activity);
+  return count !== null ? count : 0;
+}
+
+export function sumRequiredInventoryQuantitiesFromActivities(activities = []) {
+  return (Array.isArray(activities) ? activities : []).reduce((total, activity) => {
+    return total + getActivityRequiredInventoryQuantity(activity);
+  }, 0);
+}
+
 export function sumOperationalQuantitiesFromActivities(activities = []) {
   return (Array.isArray(activities) ? activities : []).reduce((total, activity) => {
     return total + getActivityOperationalQuantity(activity);
