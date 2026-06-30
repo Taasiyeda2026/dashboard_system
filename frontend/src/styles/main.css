@@ -10905,8 +10905,8 @@ select.ds-input {
 
 .ds-pa-actions-col,
 .ds-pa-actions-cell {
-  width: 220px;
-  min-width: 220px;
+  width: 120px;
+  min-width: 90px;
   white-space: nowrap;
 }
 
@@ -10919,8 +10919,33 @@ select.ds-input {
   display: flex;
   align-items: center;
   justify-content: center;
-  gap: 3px;
+  gap: 6px;
   flex-wrap: nowrap;
+}
+
+.ds-pa-col-center {
+  text-align: center !important;
+  vertical-align: middle;
+}
+
+.ds-pa-table td:nth-child(4),
+.ds-pa-table td:nth-child(5),
+.ds-pa-table td:nth-child(6),
+.ds-pa-table td:nth-child(7) {
+  text-align: center;
+  vertical-align: middle;
+}
+
+.ds-pa-table td:nth-child(6) select,
+.ds-pa-table td:nth-child(6) .ds-pa-status-select,
+.ds-pa-table td:nth-child(6) .ds-pa-status-pill {
+  margin-inline: auto;
+  display: block;
+}
+
+.ds-pa-table td:nth-child(7) {
+  white-space: nowrap;
+  font-variant-numeric: tabular-nums;
 }
 
 .ds-pa-row-action--icon {
