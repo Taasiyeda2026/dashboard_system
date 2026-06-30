@@ -1220,24 +1220,28 @@ function opsManagementStylesHtml() {
     .ds-ops-mgmt-screen .ds-ops-workshop-status-text--muted { color:#64748b; }
     .ds-ops-mgmt-screen .ds-ops-row--expanded td { background:color-mix(in srgb,#dbeafe 25%,#fff)!important; }
     .ds-ops-mgmt-screen .ds-ops-dist-input { width:72px; text-align:center; font-size:12px; padding:2px 4px; border:1px solid #94a3b8; border-radius:4px; background:#fff; }
-    .ds-ops-mgmt-screen .ds-ops-workshop-detail-row > td { padding:0 !important; border:none !important; background:transparent !important; box-sizing:border-box; }
-    .ds-ops-mgmt-screen .ds-ops-workshop-detail { display:block; background:#f1f5f9; border:1.5px solid #bfdbfe; border-radius:12px; padding:12px 16px; margin:6px 4px; box-sizing:border-box; }
-    .ds-ops-mgmt-screen .ds-ops-workshop-detail > strong { display:block; font-size:13px; font-weight:800; color:#1e3a8a; margin-bottom:10px; padding-bottom:6px; border-bottom:1px solid #bfdbfe; }
-    .ds-ops-mgmt-screen .ds-ops-workshop-detail__tables { display:grid; grid-template-columns:1fr 1fr; gap:16px; align-items:start; width:100%; box-sizing:border-box; }
-    .ds-ops-mgmt-screen .ds-ops-workshop-detail__box { min-width:0; width:100%; box-sizing:border-box; background:#fff; border:1px solid #e2e8f0; border-radius:8px; padding:8px; display:flex; flex-direction:column; }
-    .ds-ops-mgmt-screen .ds-ops-workshop-detail__box table { width:100%; table-layout:fixed; }
-    .ds-ops-mgmt-screen .ds-ops-workshop-detail__table-title { display:block; font-weight:800; color:#1e3a8a; font-size:12px; margin-bottom:6px; padding-bottom:4px; border-bottom:1px solid #dbeafe; }
-    .ds-ops-mgmt-screen .ds-ops-dist-table { table-layout:fixed; margin-top:0; width:100%; max-width:100%; font-size:12px; direction:rtl; box-sizing:border-box; }
+    /* === detail row TD — ביטול מוחלט של כל מגבלות הטבלה החיצונית === */
+    .ds-ops-mgmt-screen .ds-ops-workshops-table tr.ds-ops-workshop-detail-row > td { padding:0 !important; border:none !important; border-top:1px solid #dbeafe !important; background:transparent !important; overflow:visible !important; white-space:normal !important; height:auto !important; text-align:right !important; vertical-align:top !important; box-sizing:border-box !important; }
+    /* detail container */
+    .ds-ops-mgmt-screen .ds-ops-workshop-detail { display:block; background:#f1f5f9; border:1.5px solid #bfdbfe; border-radius:12px; padding:12px 16px; margin:4px 2px 6px; box-sizing:border-box; overflow:visible; }
+    .ds-ops-mgmt-screen .ds-ops-workshop-detail > strong { display:block; font-size:13px; font-weight:800; color:#1e3a8a; margin-bottom:10px; padding-bottom:6px; border-bottom:1px solid #bfdbfe; white-space:normal; }
+    /* grid שתי טבלאות */
+    .ds-ops-mgmt-screen .ds-ops-workshop-detail__tables { display:grid; grid-template-columns:1fr 1fr; gap:16px; align-items:start; width:100%; box-sizing:border-box; overflow:visible; }
+    .ds-ops-mgmt-screen .ds-ops-workshop-detail__box { min-width:0; width:100%; box-sizing:border-box; background:#fff; border:1px solid #e2e8f0; border-radius:8px; padding:8px; display:flex; flex-direction:column; overflow:visible; }
+    .ds-ops-mgmt-screen .ds-ops-workshop-detail__box table { width:100% !important; table-layout:fixed !important; }
+    .ds-ops-mgmt-screen .ds-ops-workshop-detail__table-title { display:block; font-weight:800; color:#1e3a8a; font-size:12px; margin-bottom:6px; padding-bottom:4px; border-bottom:1px solid #dbeafe; white-space:normal; }
+    /* dist-table — ביטול cascade מהטבלה החיצונית */
+    .ds-ops-mgmt-screen .ds-ops-workshops-table .ds-ops-dist-table { table-layout:fixed !important; width:100% !important; font-size:11px !important; direction:rtl; box-sizing:border-box; border-collapse:collapse; }
+    .ds-ops-mgmt-screen .ds-ops-workshops-table .ds-ops-dist-table th,
+    .ds-ops-mgmt-screen .ds-ops-workshops-table .ds-ops-dist-table td { overflow:visible !important; white-space:normal !important; text-overflow:clip !important; padding:3px 4px !important; font-size:11px !important; vertical-align:middle !important; border:1px solid #e2e8f0 !important; box-sizing:border-box !important; }
+    .ds-ops-mgmt-screen .ds-ops-workshops-table .ds-ops-dist-table th { background:#f8fafc !important; font-weight:700 !important; color:#1e3a8a !important; border-bottom:2px solid #93c5fd !important; text-align:center !important; }
     @media (max-width: 720px) { .ds-ops-mgmt-screen .ds-ops-workshop-detail__tables { grid-template-columns:1fr; } }
-    .ds-ops-mgmt-screen .ds-ops-dist-table th { background:#fff; font-weight:700; border-bottom:2px solid #93c5fd !important; }
-    .ds-ops-mgmt-screen .ds-ops-dist-table th,
-    .ds-ops-mgmt-screen .ds-ops-dist-table td { padding:3px 4px; font-size:11px; box-sizing:border-box; white-space:nowrap; overflow:hidden; text-overflow:ellipsis; }
-    /* dist-table — עמודת שם: auto (ממלאת את הנותר); עמודות מספר: פיקסלים קבועים */
+    /* dist-table — עמודת שם: auto; עמודות מספר: פיקסלים קבועים */
     .ds-ops-mgmt-screen .ds-ops-dist-table--locations .ds-ops-dist-col--location { text-align:right !important; width:auto !important; }
     .ds-ops-mgmt-screen .ds-ops-dist-table--locations .ds-ops-dist-col--quantity { text-align:center !important; width:44px !important; }
     .ds-ops-mgmt-screen .ds-ops-dist-table--instructors .ds-ops-dist-col--instructor { text-align:right !important; width:auto !important; }
     .ds-ops-mgmt-screen .ds-ops-dist-table--instructors .ds-ops-dist-col--number { text-align:center !important; width:36px !important; }
-    .ds-ops-mgmt-screen .ds-ops-dist-table--instructors .ds-ops-dist-col--status { text-align:center !important; width:52px !important; white-space:nowrap; line-height:1.2; }
+    .ds-ops-mgmt-screen .ds-ops-dist-table--instructors .ds-ops-dist-col--status { text-align:center !important; width:52px !important; line-height:1.2; }
     .ds-ops-mgmt-screen .ds-ops-estimate-mark { color:#9a3412; font-weight:800; }
     .ds-ops-mgmt-screen .ds-ops-stock-cell { white-space:nowrap; }
     .ds-ops-mgmt-screen .ds-ops-stock-input { width:64px; text-align:center; font-size:12px; padding:2px 4px; border:1px solid #94a3b8; border-radius:4px; background:#fff; }
