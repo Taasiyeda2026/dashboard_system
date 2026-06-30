@@ -689,6 +689,8 @@ export function normalizeProposalAgreementRow(row = {}) {
     created_at:          text(row.created_at),
     approved_by:         text(row.approved_by),
     approved_at:         text(row.approved_at),
+    sent_by:             text(row.sent_by),
+    sent_at:             text(row.sent_at),
     updated_at:          text(row.updated_at)
   };
   normalized._searchText = buildProposalsAgreementsSearchText(normalized);

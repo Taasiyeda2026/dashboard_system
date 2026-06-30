@@ -2898,7 +2898,7 @@ function normalizeProposalAgreementRow(row = {}) {
     signature_meta:      (row.signature_meta && typeof row.signature_meta === 'object' && !Array.isArray(row.signature_meta)) ? row.signature_meta : {},
     approved_by:         cleanProposalAgreementText(row.approved_by),
     approved_at:         cleanProposalAgreementText(row.approved_at),
-    sent_by:             firstNameOnly(row.sent_by),
+    sent_by:             cleanProposalAgreementText(row.sent_by),
     sent_at:             cleanProposalAgreementText(row.sent_at),
     created_at:          cleanProposalAgreementText(row.created_at),
     updated_at:          cleanProposalAgreementText(row.updated_at)
