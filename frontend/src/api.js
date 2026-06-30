@@ -3037,6 +3037,35 @@ function buildProposalGroupLookup(groups = [], aliases = []) {
 const COMBINED_PROPOSAL_GROUP_KEYS = Object.freeze(['summer', 'next_year']);
 let lastProposalLoaderDebug = {};
 
+
+function numericListIdOrNull(value) {
+  if (value == null || value === '') return null;
+  if (typeof value === 'object') return null;
+  const listId = Number(value);
+  return Number.isSafeInteger(listId) && listId > 0 ? listId : null;
+}
+
+function withSafeNumericListId(payload = {}) {
+  const row = { ...payload };
+  const raw = row.list_id ?? row.listId;
+  const listId = numericListIdOrNull(raw);
+  // Temporary diagnostics for the list_id bigint save issue.
+  // eslint-disable-next-line no-console
+  console.info('[list-id-save-debug]', { list_id: raw, type: typeof raw, numeric_list_id: listId });
+  delete row.listId;
+  if (raw == null || raw === '') {
+    delete row.list_id;
+  } else if (listId != null) {
+    row.list_id = listId;
+  } else {
+    delete row.list_id;
+  }
+  delete row.id;
+  delete row.label;
+  delete row.value;
+  return row;
+}
+
 function proposalSupabaseErrorDetails(error) {
   if (!error) return null;
   return {
@@ -4955,13 +4984,13 @@ async function readCatalogProgramsFromSupabase() {
   const [listsRes, detailsRes, pricingRes, syllabusRes] = await Promise.all([
     supabase
       .from('lists')
-      .select('activity_no,activity_name,label_he,label,type,activity_type,audience_level,target_grades,gefen_number,sort_order,category,active')
+      .select('list_id,activity_no,activity_name,label_he,label,type,activity_type,audience_level,target_grades,gefen_number,sort_order,category,active')
       .eq('category', 'activity_names')
       .eq('active', true)
       .order('sort_order', { ascending: true }),
     supabase
       .from('catalog_program_details')
-      .select('activity_no,gefen_number,catalog_title,catalog_subtitle,opening_line,domain,target_grades,grades,audience_level,catalog_section,scope,session_duration,item_type,core_idea,short_description,goals,program_flow,participants_receive,student_develops,school_value,final_outcome,is_active_for_catalog')
+      .select('list_id,activity_no,gefen_number,catalog_title,catalog_subtitle,opening_line,domain,target_grades,grades,audience_level,catalog_section,scope,session_duration,item_type,core_idea,short_description,goals,program_flow,participants_receive,student_develops,school_value,final_outcome,is_active_for_catalog')
       .eq('is_active_for_catalog', true),
     supabase
       .from('proposal_activity_pricing')
@@ -5098,6 +5127,7 @@ async function readCatalogProgramsFromSupabase() {
     const activityNo = cleanCatalogText(details.activity_no) || key;
     const gefenNumber = cleanCatalogText(details.gefen_number) || activityNo;
     const row = lookupListRow(activityNo, gefenNumber);
+    const listId = numericListIdOrNull(details.list_id ?? row.list_id);
     const pricingRowsForProgram = pricingByNo.get(activityNo) || pricingByNo.get(gefenNumber) || [];
     const primaryPricing = pricingRowsForProgram[0] || {};
     const targetGrades = details.target_grades || details.grades || row.target_grades || '';
@@ -5111,6 +5141,8 @@ async function readCatalogProgramsFromSupabase() {
       ...primaryPricing,
       ...details,
       activity_no: activityNo,
+      list_id: listId,
+      listId,
       pricing_options: pricingRowsForProgram,
       proposal_pricing_rows: pricingRowsForProgram,
       catalog_source: 'catalog_program_details',
@@ -5907,7 +5939,9 @@ export const api = {
       .map((item, idx) => {
         let selectedBundleItems = [];
         try { const parsed = Array.isArray(item.selected_bundle_items ?? item.selectedBundleItems) ? (item.selected_bundle_items ?? item.selectedBundleItems) : JSON.parse(item.selected_bundle_items ?? item.selectedBundleItems ?? '[]'); selectedBundleItems = Array.isArray(parsed) ? parsed : []; } catch { selectedBundleItems = []; }
-        return {
+        const rawListId = item.list_id ?? item.listId;
+        const safeListId = numericListIdOrNull(rawListId);
+        const row = withSafeNumericListId({
           proposal_agreement_id: rowId,
           activity_no:           cleanProposalAgreementText(item.activity_no ?? item.activityNo ?? item.pricing_activity_no ?? item.pricingActivityNo),
           item_name:             cleanProposalAgreementText(item.item_name ?? item.itemName),
@@ -5925,8 +5959,13 @@ export const api = {
           sort_order:            idx,
           proposal_display_mode: cleanProposalAgreementText(item.proposal_display_mode ?? item.proposalDisplayMode) || 'single',
           source_pricing_key:    cleanProposalAgreementText(item.source_pricing_key ?? item.sourcePricingKey ?? item.pricing_key ?? item.pricingKey) || null,
-          selected_bundle_items: selectedBundleItems
-        };
+          selected_bundle_items: selectedBundleItems,
+          list_id: rawListId
+        });
+        if (rawListId != null && rawListId !== '' && safeListId == null) {
+          throw new Error('list_id חייב להיות מספר תקין');
+        }
+        return row;
       });
     if (!validItems.length) return { ok: true, items: [] };
     const { data, error } = await supabase

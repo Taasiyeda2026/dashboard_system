@@ -1434,6 +1434,7 @@ function itemRowHtml(item = {}, idx = 0, pricingOptions = [], options = {}) {
     <input type="hidden" name="bundle_pricing_key" value="${escapeHtml(item.bundle_pricing_key || item.pricing_key || item.source_pricing_key || '')}">
     <input type="hidden" name="item_display_mode" value="${escapeHtml(item.proposal_display_mode || 'single')}">
     <input type="hidden" name="item_source_pricing_key" value="${escapeHtml(item.source_pricing_key || item.pricing_key || '')}">
+    <input type="hidden" name="list_id" value="${escapeHtml(item.list_id || item.listId || '')}">
     <input type="hidden" name="item_selected_bundle_items" value="${escapeHtml(Array.isArray(item.selected_bundle_items) ? JSON.stringify(item.selected_bundle_items) : (item.selected_bundle_items || '[]'))}">
     <input type="hidden" name="gefen_number" value="${escapeHtml(gefenValue)}">
     <input type="hidden" name="gefen_number_display" value="${escapeHtml(gefenValue)}">
@@ -1581,6 +1582,7 @@ function extractItemsFromForm(form) {
       sort_order:             rowIdx,
       proposal_display_mode:  displayMode,
       source_pricing_key:     fieldText('item_source_pricing_key') || text(pricingRow?.pricing_key),
+      list_id:                fieldText('list_id') || text(pricingRow?.list_id),
       selected_bundle_items:  selectedBundleItems
     };
     return {
@@ -1599,6 +1601,7 @@ function extractItemsFromForm(form) {
       sortOrder: extracted.sort_order,
       proposalDisplayMode: extracted.proposal_display_mode,
       sourcePricingKey: extracted.source_pricing_key,
+      listId: extracted.list_id,
       selectedBundleItems: extracted.selected_bundle_items
     };
   }).filter((item) => hasMeaningfulProposalItemValue(item) && !isTestHoursItem(item));
@@ -1625,6 +1628,7 @@ function normalizeProposalItemRow(item = {}, fallbackGroup = '') {
     description: proposalField(item, 'description', 'description') || '',
     hourly_price: proposalField(item, 'hourly_price', 'hourlyPrice'),
     source_pricing_key: proposalField(item, 'source_pricing_key', 'sourcePricingKey') || '',
+    list_id: proposalField(item, 'list_id', 'listId') || '',
     proposal_display_mode: proposalField(item, 'proposal_display_mode', 'proposalDisplayMode') || 'single',
     selected_bundle_items: selectedBundleItems,
     activity_no: proposalField(item, 'activity_no', 'activityNo') || '',
@@ -1645,6 +1649,7 @@ function normalizeProposalItemRow(item = {}, fallbackGroup = '') {
     totalPrice: normalized.total_price,
     hourlyPrice: normalized.hourly_price,
     sourcePricingKey: normalized.source_pricing_key,
+    listId: normalized.list_id,
     proposalDisplayMode: normalized.proposal_display_mode,
     selectedBundleItems: normalized.selected_bundle_items,
     activityNo: normalized.activity_no,
