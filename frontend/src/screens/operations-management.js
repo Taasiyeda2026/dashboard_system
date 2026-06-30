@@ -1771,10 +1771,10 @@ function workshopStatusText(status) {
 }
 
 function workshopInstructorDetailHtml(row) {
-  const locationItems = (row.stockLocationRows || []).filter((item) => !/סה.?כ/.test(item.location || ''));
+  const locationItems = (row.stockLocationRows || []).filter((item) => !/סה.?כ/.test(item.location || '') && Number(item.quantity) > 0);
   const locationLine = locationItems.length
     ? locationItems.map((item) => `${escapeHtml(item.location)} (${formatSignedNumberForRtl(item.quantity)})`).join(', ')
-    : '—';
+    : '';
   const instructorsBody = row.instructorRows.length
     ? row.instructorRows.map((item) => `<tr>
       <td class="ds-ops-dist-col--instructor">${escapeHtml(item.instructor)}</td>
@@ -1786,7 +1786,7 @@ function workshopInstructorDetailHtml(row) {
     : `<tr><td colspan="5">${dsEmptyState('אין נתוני מדריכים או חלוקות בטווח הנוכחי')}</td></tr>`;
   return `<tr class="ds-ops-workshop-detail-row"><td colspan="6"><div class="ds-ops-workshop-detail">
     <strong>פירוט סדנה — ${escapeHtml(row.workshopName)}</strong>
-    <div class="ds-ops-workshop-detail__locations-line"><span class="ds-ops-workshop-detail__loc-label">מיקום:</span> ${locationLine}</div>
+    ${locationLine ? `<div class="ds-ops-workshop-detail__locations-line"><span class="ds-ops-workshop-detail__loc-label">מיקום:</span> ${locationLine}</div>` : ''}
     <div class="ds-ops-workshop-detail__instructors-wrap">
       <span class="ds-ops-workshop-detail__table-title">חלוקה למדריכים</span>
       <table class="ds-table ds-table--compact ds-ops-dist-table ds-ops-dist-table--instructors"><colgroup><col class="ds-ops-dist-col--instructor"><col class="ds-ops-dist-col--number"><col class="ds-ops-dist-col--number"><col class="ds-ops-dist-col--number"><col class="ds-ops-dist-col--status"></colgroup><thead><tr><th class="ds-ops-dist-col--instructor">מדריך</th><th class="ds-ops-dist-col--number">קיבל</th><th class="ds-ops-dist-col--number">נדרש</th><th class="ds-ops-dist-col--number">יתרה</th><th class="ds-ops-dist-col--status">סטטוס</th></tr></thead><tbody>${instructorsBody}</tbody></table>
