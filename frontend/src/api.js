@@ -2907,6 +2907,50 @@ function normalizeProposalAgreementRow(row = {}) {
   return normalized;
 }
 
+
+function hasProposalAgreementSignature(row = {}) {
+  const meta = row.signature_meta && typeof row.signature_meta === 'object' ? row.signature_meta : {};
+  return Boolean(cleanProposalAgreementText(meta?.signature?.image || meta?.image));
+}
+
+function canTransitionProposalAgreementStatus(currentRow = {}, cleanStatus = '') {
+  const currentStatus = normalizeProposalAgreementStatusForDb(currentRow.status || 'draft');
+  const targetStatus = normalizeProposalAgreementStatusForDb(cleanStatus);
+  if (currentStatus === 'sent') throw new Error('הצעה שנשלחה נעולה ולא ניתן לשנות את סטטוסה.');
+  if (currentStatus === 'cancelled') throw new Error('הצעה שבוטלה נעולה. ניתן למחוק אותה או לשכפל להצעה חדשה.');
+  if (targetStatus === currentStatus) return true;
+  if (targetStatus === 'approved') {
+    if (!canApproveProposalsAgreementsApi()) throw new Error('proposals_agreements_approval_forbidden');
+    if (currentStatus !== 'pending_approval') throw new Error('ניתן לאשר רק הצעה שממתינה לאישור.');
+    return true;
+  }
+  if (targetStatus === 'returned_for_changes') {
+    if (!canApproveProposalsAgreementsApi()) throw new Error('proposals_agreements_approval_forbidden');
+    if (currentStatus !== 'pending_approval') throw new Error('ניתן להחזיר לתיקון רק הצעה שממתינה לאישור.');
+    return true;
+  }
+  if (targetStatus === 'sent') {
+    if (currentStatus !== 'approved' || !hasProposalAgreementSignature(currentRow) || !cleanProposalAgreementText(currentRow.approved_at)) {
+      throw new Error('ניתן לסמן כנשלח רק הצעה מאושרת וחתומה.');
+    }
+    return true;
+  }
+  if (targetStatus === 'cancelled') {
+    if (!canApproveProposalsAgreementsApi()) throw new Error('proposals_agreements_approval_forbidden');
+    if (!['draft', 'pending_approval', 'returned_for_changes'].includes(currentStatus)) throw new Error('לא ניתן לבטל הצעה בסטטוס הנוכחי.');
+    return true;
+  }
+  if (targetStatus === 'pending_approval') {
+    if (!['draft', 'returned_for_changes'].includes(currentStatus)) throw new Error('ניתן לשלוח לאישור רק טיוטה או הצעה שהוחזרה לתיקון.');
+    return true;
+  }
+  if (targetStatus === 'draft') {
+    if (currentStatus !== 'returned_for_changes') throw new Error('ניתן להחזיר לטיוטה רק הצעה שהוחזרה לתיקון.');
+    return true;
+  }
+  throw new Error('invalid_proposal_agreement_status_transition');
+}
+
 const PA_VALID_STATUSES_SET = new Set(['draft', 'sent', 'pending_approval', 'returned_for_changes', 'approved', 'cancelled']);
 
 // Proposal group definitions and legacy-name aliases are business data and live in Supabase
@@ -5678,18 +5722,8 @@ export const api = {
     if (cleanStatus === 'approved' && !canApproveProposalsAgreementsApi()) throw new Error('proposals_agreements_approval_forbidden');
     const { data: currentRow, error: currentRowError } = await supabase
       .from('proposals_agreements').select('status,signature_meta,approved_by,approved_at').eq('id', rowId).single();
-    if (!currentRowError && currentRow) {
-      const cs = normalizeProposalAgreementStatusForDb(currentRow.status);
-      if (cs === 'cancelled') throw new Error('הצעה שבוטלה נעולה. ניתן למחוק אותה או לשכפל להצעה חדשה.');
-      if (cs === 'sent' && cleanStatus !== 'draft') throw new Error('הצעה שנשלחה נעולה ולא ניתן לשנות את סטטוסה.');
-      if (cleanStatus === 'sent') {
-        const meta = currentRow.signature_meta && typeof currentRow.signature_meta === 'object' ? currentRow.signature_meta : {};
-        const signatureImage = cleanProposalAgreementText(meta?.signature?.image || meta?.image);
-        if (cs !== 'approved' || !signatureImage || !cleanProposalAgreementText(currentRow.approved_at)) {
-          throw new Error('ניתן לסמן כנשלח רק הצעה מאושרת וחתומה.');
-        }
-      }
-    }
+    if (currentRowError || !currentRow) throw new Error('proposals_agreement_not_found');
+    canTransitionProposalAgreementStatus(currentRow, cleanStatus);
     const patch = { status: statusForDb(cleanStatus), approval_note: cleanProposalAgreementText(approvalNote), updated_at: new Date().toISOString() };
     if (cleanStatus === 'approved') {
       patch.status = 'approved';

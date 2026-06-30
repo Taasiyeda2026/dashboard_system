@@ -3650,3 +3650,55 @@ test('new proposal locks activity rows until activity_type_group is selected', a
   assert.match(source, /if \(!normalizeProposalGroup\(currentType\)\) return/);
   assert.match(source, /filterItemsByProposalType\(extractItemsFromForm\(form\), newType\)/);
 });
+
+test('package 2 workflow locks status actions by role and status', () => {
+  const manager = stateFor('operation_manager');
+  manager.user.manage_proposals_agreements = true;
+  const approver = stateFor('operation_manager');
+  approver.user.manage_proposals_agreements = true;
+  approver.user.approve_proposals_agreements = true;
+  const signed = { image: 'proposals/signature-idan-nahum.png' };
+
+  const draftHtml = proposalsAgreementsScreen.render({ rows: [{ ...sampleRows[0], status: 'draft' }] }, { state: manager });
+  assert.match(draftHtml, /data-pa-edit-row=/, 'draft proposals are editable by managers');
+  assert.match(draftHtml, /data-pa-delete-row=/, 'draft proposals are deletable by managers');
+  assert.doesNotMatch(draftHtml, /data-pa-print=/, 'draft proposals cannot be printed to PDF');
+  assert.match(draftHtml, /<option value="pending_approval"/, 'draft proposals can be submitted for approval');
+
+  const pendingManagerHtml = proposalsAgreementsScreen.render({ rows: [{ ...sampleRows[0], status: 'pending_approval' }] }, { state: manager });
+  const pendingManagerRow = pendingManagerHtml.match(/<tbody data-pa-table-body>[\s\S]*?<\/tbody>/)?.[0] || '';
+  assert.doesNotMatch(pendingManagerRow, /data-pa-edit-row=/, 'pending proposals are locked for regular managers');
+  assert.doesNotMatch(pendingManagerRow, /<option value="approved"/, 'regular managers cannot approve pending proposals');
+
+  const pendingApproverHtml = proposalsAgreementsScreen.render({ rows: [{ ...sampleRows[0], status: 'pending_approval' }] }, { state: approver });
+  const pendingApproverRow = pendingApproverHtml.match(/<tbody data-pa-table-body>[\s\S]*?<\/tbody>/)?.[0] || '';
+  assert.match(pendingApproverRow, /<option value="approved"/, 'approvers can approve pending proposals');
+  assert.match(pendingApproverRow, /<option value="returned_for_changes"/, 'approvers can return pending proposals for correction');
+  assert.match(pendingApproverRow, /<option value="cancelled"/, 'approvers can cancel pending proposals');
+
+  const returnedHtml = proposalsAgreementsScreen.render({ rows: [{ ...sampleRows[0], status: 'returned_for_changes' }] }, { state: manager });
+  assert.match(returnedHtml, /data-pa-edit-row=/, 'returned proposals are editable by managers');
+  assert.match(returnedHtml.match(/<tbody data-pa-table-body>[\s\S]*?<\/tbody>/)?.[0] || '', /<option value="pending_approval"/, 'returned proposals can be resubmitted');
+
+  const approvedHtml = proposalsAgreementsScreen.render({ rows: [{ ...sampleRows[0], status: 'approved', signature_meta: signed, approved_by: '11111111-1111-4111-8111-111111111111', approved_at: '2026-06-30T10:00:00.000Z' }] }, { state: manager });
+  assert.doesNotMatch(approvedHtml, /data-pa-edit-row=/, 'approved proposals are locked for editing');
+  assert.match(approvedHtml, /data-pa-print=/, 'approved proposals can be printed to PDF');
+  assert.match(approvedHtml, /data-pa-status-action="sent"/, 'approved signed proposals can be marked sent');
+
+  const sentHtml = proposalsAgreementsScreen.render({ rows: [{ ...sampleRows[0], status: 'sent', signature_meta: signed, approved_by: '11111111-1111-4111-8111-111111111111', approved_at: '2026-06-30T10:00:00.000Z' }] }, { state: manager });
+  assert.doesNotMatch(sentHtml, /data-pa-edit-row=|data-pa-delete-row=|data-pa-status-action="sent"/, 'sent proposals are terminal and locked from edit/delete/status changes');
+  assert.match(sentHtml, /data-pa-print=/, 'sent proposals can be printed to PDF');
+
+  const cancelledHtml = proposalsAgreementsScreen.render({ rows: [{ ...sampleRows[0], status: 'cancelled' }] }, { state: manager });
+  assert.doesNotMatch(cancelledHtml, /data-pa-edit-row=|data-pa-print=/, 'cancelled proposals are locked from edit and PDF');
+  assert.match(cancelledHtml, /data-pa-delete-row=/, 'cancelled proposals can be deleted');
+});
+
+test('package 2 status API validates terminal states and sent metadata source', async () => {
+  const apiSource = await readFile(new URL('../frontend/src/api.js', import.meta.url), 'utf8');
+  assert.match(apiSource, /if \(currentStatus === 'sent'\) throw new Error\('הצעה שנשלחה נעולה/);
+  assert.match(apiSource, /if \(currentStatus === 'cancelled'\) throw new Error\('הצעה שבוטלה נעולה/);
+  assert.match(apiSource, /targetStatus === 'sent'[\s\S]*currentStatus !== 'approved'[\s\S]*approved_at/);
+  assert.match(apiSource, /patch\.sent_by = senderName;/, 'sent_by is written only when marking sent');
+  assert.match(apiSource, /patch\.sent_at = new Date\(\)\.toISOString\(\);/, 'sent_at is written when marking sent');
+});

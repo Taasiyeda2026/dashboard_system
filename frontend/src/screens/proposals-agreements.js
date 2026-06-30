@@ -842,21 +842,48 @@ function statusBadgeHtml(status) {
   return `<span class="ds-pa-badge" style="display:inline-block;padding:1px 7px;border-radius:10px;font-size:0.78rem;background:${color};color:#fff;white-space:nowrap">${escapeHtml(label)}</span>`;
 }
 
-function statusSelectHtml(row, enabled, canApprove = false) {
+
+function canTransitionProposalStatus(row, nextStatus, state) {
+  const currentStatus = normalizeProposalStatus(row?.status || 'draft');
+  const targetStatus = normalizeProposalStatus(nextStatus);
+  const canManage = canManageProposalsAgreements(state);
+  const canApprove = canApproveProposalsAgreements(state);
+  if (!canManage || !STATUS_OPTIONS.includes(targetStatus)) return false;
+  if (currentStatus === 'sent' || currentStatus === 'cancelled') return false;
+  if (targetStatus === currentStatus) return true;
+  if (targetStatus === 'approved') return canApprove && currentStatus === 'pending_approval';
+  if (targetStatus === 'returned_for_changes') return canApprove && currentStatus === 'pending_approval';
+  if (targetStatus === 'sent') return currentStatus === 'approved' && proposalHasSavedApprovalSignature(row);
+  if (targetStatus === 'cancelled') return canApprove && ['draft', 'pending_approval', 'returned_for_changes'].includes(currentStatus);
+  if (targetStatus === 'pending_approval') return ['draft', 'returned_for_changes'].includes(currentStatus);
+  if (targetStatus === 'draft') return currentStatus === 'returned_for_changes';
+  return false;
+}
+
+function isProposalEditable(row, state) {
+  return canManageProposalsAgreements(state) && ['draft', 'returned_for_changes'].includes(normalizeProposalStatus(row?.status || 'draft'));
+}
+
+function canDeleteProposal(row, state) {
+  return canManageProposalsAgreements(state) && ['draft', 'cancelled'].includes(normalizeProposalStatus(row?.status || 'draft'));
+}
+
+function canGenerateProposalPdf(row, state) {
+  return canManageProposalsAgreements(state) && ['approved', 'sent'].includes(normalizeProposalStatus(row?.status || 'draft'));
+}
+
+function statusSelectHtml(row, enabled, canApprove = false, state = null) {
   const currentStatus = STATUS_OPTIONS.includes(normalizeProposalStatus(row?.status)) ? normalizeProposalStatus(row.status) : 'draft';
-  if (currentStatus === 'sent') {
+  if (!enabled || currentStatus === 'sent' || currentStatus === 'cancelled') {
     return statusBadgeHtml(currentStatus);
   }
-  if (currentStatus === 'cancelled') {
-    return statusBadgeHtml(currentStatus);
-  }
-  const selectableStatuses = STATUS_OPTIONS.filter((status) => {
-    if (status === 'approved') return canApprove;
-    if (status === 'sent') return enabled && currentStatus === 'approved';
-    return true;
-  });
+  const effectiveState = state || { user: { role: canApprove ? 'admin' : 'operation_manager', manage_proposals_agreements: enabled, approve_proposals_agreements: canApprove } };
+  const selectableStatuses = currentStatus === 'approved' && !canApprove
+    ? STATUS_OPTIONS.filter((status) => status !== currentStatus && canTransitionProposalStatus(row, status, effectiveState))
+    : STATUS_OPTIONS.filter((status) => status === currentStatus || canTransitionProposalStatus(row, status, effectiveState));
   const options = selectableStatuses.map((status) => optionHtml(status, currentStatus, STATUS_LABELS[status] || status)).join('');
   const disabled = enabled ? '' : ' disabled aria-disabled="true"';
+  if (selectableStatuses.length <= 1 && !(currentStatus === 'approved' && selectableStatuses[0] === 'sent')) return statusBadgeHtml(currentStatus);
   return `<select class="ds-pa-status-select" data-pa-row-status data-pa-status-id="${escapeHtml(row?.id || '')}" data-pa-previous-status="${escapeHtml(currentStatus)}" aria-label="עדכון סטטוס הצעה"${disabled}>${options}</select>`;
 }
 
@@ -910,22 +937,22 @@ export function proposalsAgreementsTableRowsHtml(rows, state) {
     const isSent = status === 'sent';
     const actionBtns = [];
     actionBtns.push(`<button type="button" class="ds-btn ds-btn--xs ds-btn--ghost ds-pa-row-action ds-pa-row-action--icon" data-pa-preview="${escapeHtml(row.id)}" title="תצוגה מקדימה"><svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M1 12s4-8 11-8 11 8 11 8-4 8-11 8-11-8-11-8z"/><circle cx="12" cy="12" r="3"/></svg></button>`);
-    if (!isSent && canManage && (['draft', 'returned_for_changes'].includes(status) || (isAdmin && status !== 'approved'))) {
+    if (isProposalEditable(row, state)) {
       actionBtns.push(`<button type="button" class="ds-btn ds-btn--xs ds-pa-row-action ds-pa-row-action--icon" data-pa-edit-row="${escapeHtml(row.id)}" title="עריכה"><svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M11 4H4a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2v-7"/><path d="M18.5 2.5a2.121 2.121 0 0 1 3 3L12 15l-4 1 1-4 9.5-9.5z"/></svg></button>`);
     }
     if (canManage && (status === 'approved' || isSent)) {
       actionBtns.push(`<button type="button" class="ds-btn ds-btn--xs ds-btn--ghost ds-pa-row-action ds-pa-row-action--icon" data-pa-clone-row="${escapeHtml(row.id)}" title="שכפול להצעה חדשה"><svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button>`);
     }
     if (isAdmin && status === 'pending_approval') {
-      actionBtns.push(`<button type="button" class="ds-btn ds-btn--xs ds-pa-row-action ds-pa-row-action--icon" data-pa-status-action="approved" data-pa-action-id="${escapeHtml(row.id)}" title="אישור וחתימה"><svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M22 11.08V12a10 10 0 1 1-5.93-9.14"/><polyline points="22 4 12 14.01 9 11.01"/></svg></button>`);
+      actionBtns.push(`<button type="button" class="ds-btn ds-btn--xs ds-pa-row-action ds-pa-row-action--icon" data-pa-status-action="approved" data-pa-action-id="${escapeHtml(row.id)}" title="חתום ואשר"><svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M22 11.08V12a10 10 0 1 1-5.93-9.14"/><polyline points="22 4 12 14.01 9 11.01"/></svg></button>`);
     }
-    if (canManage && proposalHasSavedApprovalSignature(row)) {
+    if (canTransitionProposalStatus(row, 'sent', state)) {
       actionBtns.push(`<button type="button" class="ds-btn ds-btn--xs ds-pa-row-action ds-pa-row-action--icon" data-pa-status-action="sent" data-pa-action-id="${escapeHtml(row.id)}" title="סימון כנשלח"><svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><line x1="22" y1="2" x2="11" y2="13"/><polygon points="22 2 15 22 11 13 2 9 22 2"/></svg></button>`);
     }
-    if (isAdmin && (status === 'approved' || isSent)) {
+    if (canGenerateProposalPdf(row, state)) {
       actionBtns.push(`<button type="button" class="ds-btn ds-btn--xs ds-btn--ghost ds-pa-row-action ds-pa-row-action--icon" data-pa-print="${escapeHtml(row.id)}" title="PDF"><svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><polyline points="14 2 14 8 20 8"/><line x1="16" y1="13" x2="8" y2="13"/><line x1="16" y1="17" x2="8" y2="17"/></svg></button>`);
     }
-    if (canManage && ['draft', 'cancelled'].includes(normalizeProposalStatus(status))) {
+    if (canDeleteProposal(row, state)) {
       actionBtns.push(`<button type="button" class="ds-btn ds-btn--xs ds-btn--ghost ds-pa-row-action ds-pa-row-action--icon ds-pa-row-action--danger" data-pa-delete-row="${escapeHtml(row.id)}" title="מחיקה"><svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><polyline points="3 6 5 6 21 6"/><path d="M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6m3 0V4a1 1 0 0 1 1-1h4a1 1 0 0 1 1 1v2"/></svg></button>`);
     }
     return `
@@ -935,7 +962,7 @@ export function proposalsAgreementsTableRowsHtml(rows, state) {
       <td>${escapeHtml(row.school_framework || '—')}</td>
       <td>${escapeHtml(proposalGroupDisplayName(row.activity_type_group) || '—')}</td>
       <td style="text-align:center">${escapeHtml(formatDateDisplay(row.proposal_date) || '')}</td>
-      <td>${statusSelectHtml(row, canManage, isAdmin)}</td>
+      <td>${statusSelectHtml(row, canManage, isAdmin, state)}</td>
       <td style="text-align:center">${row.total_amount != null ? `₪ ${escapeHtml(formatCurrency(row.total_amount))}` : ''}</td>
       <td class="ds-pa-actions-cell"><div class="ds-pa-actions-inner">${actionBtns.join('')}</div></td>
     </tr>`;
@@ -2800,7 +2827,7 @@ function formHtml(mode, row = {}, activityNameOptions = [], contactOptions = [],
   const rowNormalizedStatus = normalizeProposalStatus(text(row.status));
   const rowIsAlreadyApproved = rowNormalizedStatus === 'approved' || rowNormalizedStatus === 'sent' || proposalHasSavedApprovalSignature(row);
   const canApproveDirectly = canApproveProposalsAgreements(state) && !rowIsAlreadyApproved;
-  const primaryActionLabel = canApproveDirectly ? 'אישור וחתימה' : 'שליחה לאישור';
+  const primaryActionLabel = canApproveDirectly ? 'חתום ואשר' : 'שליחה לאישור';
   const primaryActionStatus = canApproveDirectly ? 'approved' : 'pending_approval';
 
   const initialPreviewRow = normalizeProposalAgreementRow({
@@ -2936,7 +2963,7 @@ function drawerActionButtons(row, state) {
 
   buttons.push(iconBtn(`data-pa-preview="${escapeHtml(row.id)}"`, 'תצוגה מקדימה', EYE));
 
-  if (!isSent && canManage && (['draft', 'returned_for_changes'].includes(status) || (isAdminRole && status !== 'approved'))) {
+  if (isProposalEditable(row, state)) {
     buttons.push(iconBtn(`data-pa-edit-row="${escapeHtml(row.id)}"`, 'עריכה', PENCIL));
   }
   if (!isSent && canManage && ['draft', 'returned_for_changes'].includes(status)) {
@@ -2950,17 +2977,17 @@ function drawerActionButtons(row, state) {
       buttons.push(iconBtn(`data-pa-status-action="cancelled" data-pa-action-id="${escapeHtml(row.id)}"`, 'ביטול', XCIRC));
     }
   }
-  if (canManage && ['draft', 'cancelled'].includes(normalizeProposalStatus(status))) {
+  if (canDeleteProposal(row, state)) {
     buttons.push(iconBtn(`data-pa-delete-row="${escapeHtml(row.id)}"`, 'מחיקה', TRASH, 'ds-pa-row-action--danger'));
   }
   if (isAdminRole && status === 'pending_approval') {
-    buttons.push(iconBtn(`data-pa-status-action="approved" data-pa-action-id="${escapeHtml(row.id)}"`, 'אישור וחתימה', CHECK));
+    buttons.push(iconBtn(`data-pa-status-action="approved" data-pa-action-id="${escapeHtml(row.id)}"`, 'חתום ואשר', CHECK));
     buttons.push(iconBtn(`data-pa-status-action="returned_for_changes" data-pa-action-id="${escapeHtml(row.id)}"`, 'החזרה לתיקון', UNDO));
   }
-  if (canManage && proposalHasSavedApprovalSignature(row)) {
+  if (canTransitionProposalStatus(row, 'sent', state)) {
     buttons.push(iconBtn(`data-pa-status-action="sent" data-pa-action-id="${escapeHtml(row.id)}"`, 'סימון כנשלח', SENT));
   }
-  if (isAdminRole && (status === 'approved' || isSent)) {
+  if (canGenerateProposalPdf(row, state)) {
     buttons.push(iconBtn(`data-pa-print="${escapeHtml(row.id)}"`, 'הדפסה / שמירה כ-PDF', PRINT));
     buttons.push(iconBtn(`data-pa-clone-row="${escapeHtml(row.id)}"`, 'שכפול להצעה חדשה', CLONE));
   }
@@ -4949,12 +4976,9 @@ export const proposalsAgreementsScreen = {
           showToast('הצעה שבוטלה נעולה. ניתן למחוק אותה או לשכפל להצעה חדשה.', 'error');
           return;
         }
-        if (currentActionRow && currentActionStatus === 'sent') {
-          const canActFromSent = (newStatus === 'draft') && canApproveProposalsAgreements(state);
-          if (!canActFromSent) {
-            showToast('הצעה שנשלחה נעולה ולא ניתן לשנות את סטטוסה.', 'error');
-            return;
-          }
+        if (!currentActionRow || !canTransitionProposalStatus(currentActionRow, newStatus, state)) {
+          showToast('אין הרשאה או שהמעבר אינו מותר בסטטוס הנוכחי.', 'error');
+          return;
         }
         if (newStatus === 'approved') {
           if (!canApproveProposalsAgreements(state)) {
@@ -5115,7 +5139,7 @@ export const proposalsAgreementsScreen = {
         const form = savePendingBtn.closest('[data-pa-form]');
         if (!form) return;
         const targetStatus = text(savePendingBtn.dataset.paTargetStatus) || 'sent';
-        const submitLabel = targetStatus === 'approved' ? 'אישור וחתימה' : 'שליחה לאישור';
+        const submitLabel = targetStatus === 'approved' ? 'חתום ואשר' : 'שליחה לאישור';
         const payload = payloadFromForm(form);
         const tempRow = { ...payload, id: text(form.dataset.paId) || '' };
         const items = payload._items || [];
