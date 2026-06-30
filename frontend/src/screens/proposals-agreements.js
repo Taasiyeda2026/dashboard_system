@@ -776,6 +776,7 @@ function rowMatches(row, filters) {
   if (q && !normalizeSearch(row._searchText).includes(q)) return false;
   if (filters.activity_type_group && normalizeProposalGroup(row.activity_type_group) !== normalizeProposalGroup(filters.activity_type_group)) return false;
   if (filters.status && normalizeProposalStatus(row.status) !== filters.status) return false;
+  if (filters.proposal_domain && (row.proposal_domain || 'A') !== filters.proposal_domain) return false;
   return true;
 }
 
@@ -3045,7 +3046,8 @@ function currentFilters(root) {
   return {
     q:                   root.querySelector('[data-pa-search]')?.value || '',
     activity_type_group: root.querySelector('[data-pa-filter="activity_type_group"]')?.value || '',
-    status:              root.querySelector('[data-pa-filter="status"]')?.value || ''
+    status:              root.querySelector('[data-pa-filter="status"]')?.value || '',
+    proposal_domain:     root.querySelector('[data-pa-filter="proposal_domain"]')?.value || ''
   };
 }
 
@@ -3396,6 +3398,7 @@ export const proposalsAgreementsScreen = {
             <label class="ds-pa-search"><span>חיפוש</span><input class="ds-input ds-input--sm" data-pa-search placeholder="חיפוש מקומי" autocomplete="off"></label>
             ${filterSelectHtml('activity_type_group', 'סוג הצעה', proposalGroupFilterOptions)}
             ${statusFilterHtml()}
+            <label class="ds-pa-filter"><span>תחום</span><select class="ds-input ds-input--sm" data-pa-filter="proposal_domain"><option value="">הכול</option><option value="A">A</option><option value="N">N</option></select></label>
           </div>
           <div class="ds-pa-local-status" aria-live="polite">מציג <strong data-pa-results-count>${rows.length}</strong> רשומות</div>
           ${dsCard({ title: 'רשומות', padded: false, body: `<div class="ds-pa-records-shell" data-pa-table-region>${tableHtml(rows, state)}</div>` })}
