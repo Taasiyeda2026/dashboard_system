@@ -87,7 +87,8 @@ function ensureSummerTrainingStyle() {
     .ds-ops-training-wrap{width:100%;overflow:auto;background:#fff;padding:0}
     .ds-ops-training-table{border-collapse:collapse;width:100%;table-layout:fixed;font-size:13px;direction:rtl}
     .ds-ops-training-table th,.ds-ops-training-table td{border:1px solid #cbd5e1;padding:7px 8px;text-align:right;vertical-align:middle;height:42px;line-height:1.25;background:#fff;box-sizing:border-box}
-    .ds-ops-training-table th{background:#f8fafc;color:#111827;font-weight:800;text-align:center;white-space:nowrap}
+    .ds-ops-training-table th{background:#f8fafc;color:#111827;font-weight:800;text-align:right;white-space:nowrap}
+    .ds-ops-training-table th:nth-child(3),.ds-ops-training-table th:nth-child(4){text-align:center}
     .ds-ops-training-table tr:nth-child(even) td{background:#f8fafc}
     .ds-ops-training-col--workshop,.ds-ops-training-col--instructor{width:35%}
     .ds-ops-training-col--count{width:14%;text-align:center!important;white-space:nowrap}

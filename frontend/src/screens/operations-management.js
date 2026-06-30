@@ -1133,8 +1133,10 @@ function opsManagementStylesHtml() {
     .ds-ops-mgmt-screen .ds-ops-workshops-card { width:min(960px, 82%); margin-inline-start:auto; margin-inline-end:auto; }
     .ds-ops-mgmt-screen .ds-ops-workshops-table { table-layout:fixed; width:100%; }
     .ds-ops-mgmt-screen .ds-ops-workshops-table th,.ds-ops-mgmt-screen .ds-ops-workshops-table td { border:1px solid #94a3b8 !important; padding:6px 8px; }
-    .ds-ops-mgmt-screen .ds-ops-workshops-table tbody tr { cursor:pointer; }
+    .ds-ops-mgmt-screen .ds-ops-workshops-table tbody tr { cursor:pointer; transition:background 0.12s ease; }
+    .ds-ops-mgmt-screen .ds-ops-workshops-table tbody tr.ds-ops-workshop-detail-row { cursor:default; }
     .ds-ops-mgmt-screen .ds-ops-workshops-table tbody tr:hover td { background:color-mix(in srgb,#dbeafe 18%,#fff) !important; border:1px solid #94a3b8 !important; }
+    .ds-ops-mgmt-screen .ds-ops-workshops-table tbody tr.ds-ops-workshop-detail-row:hover td { background:transparent !important; }
     .ds-ops-mgmt-screen .ds-ops-workshops-table tbody tr:hover td:nth-child(2) { text-decoration:underline; text-underline-offset:2px; }
     .ds-ops-mgmt-screen .ds-ops-workshops-table tbody tr:active td,
     .ds-ops-mgmt-screen .ds-ops-workshops-table tbody tr:focus-visible td,
@@ -1168,7 +1170,8 @@ function opsManagementStylesHtml() {
     .ds-ops-mgmt-screen .ds-ops-dist-input { width:72px; text-align:center; font-size:12px; padding:2px 4px; border:1px solid #94a3b8; border-radius:4px; background:#fff; }
     .ds-ops-mgmt-screen .ds-ops-workshop-detail { background:#f8fafc; border:1px solid #dbeafe; border-radius:12px; padding:10px; }
     .ds-ops-mgmt-screen .ds-ops-workshop-detail-row > td { white-space:normal!important; text-align:right!important; }
-    .ds-ops-mgmt-screen .ds-ops-dist-table { table-layout:fixed; margin-top:8px; width:80%; }
+    .ds-ops-mgmt-screen .ds-ops-dist-table { table-layout:fixed; margin-top:8px; width:80%; direction:rtl; }
+    @media (max-width: 720px) { .ds-ops-mgmt-screen .ds-ops-dist-table { width:100%; } }
     .ds-ops-mgmt-screen .ds-ops-dist-table th { background:#fff; font-weight:700; border-bottom:2px solid #93c5fd !important; }
     .ds-ops-mgmt-screen .ds-ops-dist-table th:nth-child(1),.ds-ops-mgmt-screen .ds-ops-dist-table td:nth-child(1) { text-align:right; width:33%; }
     .ds-ops-mgmt-screen .ds-ops-dist-table th:nth-child(n+2),.ds-ops-mgmt-screen .ds-ops-dist-table td:nth-child(n+2) { text-align:center; white-space:nowrap; width:17%; }
