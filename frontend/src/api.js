@@ -2582,7 +2582,7 @@ async function syncContactToSupabase(kind, row, origIdentity) {
 
 function invalidateScreenDataByAction(action) {
   const targetedMutations = {
-    saveActivity: ['activities:', 'activityDetail:', 'activityDates:', 'archive', 'archiveDetail:', 'archiveDates:', 'week:', 'month:', 'dashboard:', 'exceptions:', 'end-dates'],
+    saveActivity: ['activities:', 'activityDetail:', 'activityDates:', 'archive', 'archiveDetail:', 'archiveDates:', 'week:', 'month:', 'dashboard:', 'exceptions:', 'end-dates', 'operations-management'],
     addActivity: ['activities:', 'activityDetail:', 'activityDates:', 'week:', 'month:', 'dashboard:', 'exceptions:', 'end-dates'],
     deleteActivity: ['activities:', 'activityDetail:', 'activityDates:', 'week:', 'month:', 'dashboard:', 'archive', 'end-dates', 'exceptions:'],
     submitEditRequest: ['activities:', 'edit-requests'],

@@ -531,6 +531,10 @@ export function bindActivityEditForm(contentRoot, {
       }
       if (canDirectEdit && requestResult?.row) {
         clearScreenDataCache?.();
+        if (Object.prototype.hasOwnProperty.call(changes, 'participants_count')) {
+          clearScreenDataCache?.('activities');
+          clearScreenDataCache?.('operations-management');
+        }
         const finalRow = requestResult.row;
         console.info('[activity-date-save-proof:final-db-row]', {
           row_id: finalRow.row_id || finalRow.RowID || sourceRowId,
