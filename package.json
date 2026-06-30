@@ -13,6 +13,7 @@
     "check:changed": "node scripts/check_changed.mjs",
     "check:frontend": "node scripts/check_changed.mjs --frontend",
     "check:build": "npm run build",
+    "check:pwa": "node --test tests/service-worker-pwa-cache.test.mjs",
     "build:workbook": "node scripts/build_system_dashboard_workbook.mjs",
     "sync:sheet-to-supabase:once": "node scripts/sync_supabase_from_sheets_once.mjs",
     "migrate:users-to-auth:once": "node scripts/migrate_users_to_auth_once.mjs",

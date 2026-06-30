@@ -75,10 +75,14 @@ npx serve dist -l 5000
 
 ## Service Worker
 
-אחרי כל שינוי ב-JS/CSS:
-1. העלו את `CACHE_VERSION` ב-`frontend/sw.js`
-2. הריצו `npm run build`
-3. פרסו את `dist/`
+`dist/` הוא מקור האמת להרצה ולפריסה. אין להגיש את root כאתר production, כי זה עלול לעקוף את פלט ה-build ולחשוף קבצים לא מעודכנים.
+
+אחרי כל שינוי ב-JS/CSS/Service Worker:
+1. העלו את `CACHE_VERSION` ב-`frontend/sw.js` בלבד.
+2. הריצו `npm run build`.
+3. פרסו את `dist/`.
+
+Root `sw.js` הוא entry בלבד שטוען את המימוש המרכזי מ-`frontend/sw.js`; אין להוסיף לו גרסת cache נפרדת.
 
 ---
 
