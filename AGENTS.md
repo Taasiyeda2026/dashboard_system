@@ -1,4 +1,17 @@
-# Agent Testing Policy
+# Agent Work Scope and Testing Policy
+
+## Work-scope policy
+
+Keep the working context small. For every task, inspect and edit only the files directly relevant to the requested change.
+
+- Do not scan `attached_assets/` unless the task explicitly asks about attached/pasted assets, screenshots, or imported user files.
+- Do not scan `dist/` unless the task is specifically about build output, deploy output, generated assets, or Service Worker deployment verification.
+- Do not perform broad refactors. Avoid aesthetic-only rewrites, unrelated cleanup, or cross-project restructuring unless explicitly requested.
+- Do not read archive, generated, pasted, or bulk asset folders during normal feature/bug tasks. Prefer `docs/PROJECT_MAP.md`, `rg --files`, and targeted file opens.
+- Treat `node_modules/`, `dist/`, `attached_assets/`, `artifacts/`, large public catalogs, and generated files as out-of-scope by default.
+- When touching Service Worker or cache logic, verify that bulky/static archives are not added to precache lists.
+
+## Agent Testing Policy
 
 Do not run the full legacy test suite by default.
 
@@ -14,8 +27,8 @@ Default verification for Cursor/Codex tasks:
 Legacy full suite:
 
 - `npm run test:all:legacy` runs all `tests/*.test.mjs`.
+- Do not run `npm run test:all:legacy` unless the user explicitly asks for a full suite or the task is specifically about repairing the legacy suite.
 - This suite may include known failing or historical tests that are not part of regular task verification.
-- Only run it when the user explicitly asks for a full suite or when the task is specifically about repairing the legacy suite.
 
 Reporting:
 
