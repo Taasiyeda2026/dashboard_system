@@ -11173,6 +11173,23 @@ select.ds-input {
   text-overflow: ellipsis;
 }
 
+.ds-pa-drawer-sent-by {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  margin-top: 10px;
+  padding-top: 8px;
+  border-top: 1px solid var(--ds-color-border-subtle, #e5e7eb);
+  color: var(--ds-color-text-muted, #64748b);
+  font-size: 0.78rem;
+}
+
+.ds-pa-drawer-sent-by strong {
+  color: var(--ds-color-text, #111827);
+  font-size: 0.82rem;
+  font-weight: 700;
+}
+
 @media (max-width: 480px) {
   .ds-pa-drawer-meta-grid {
     grid-template-columns: repeat(2, minmax(0, 1fr));
