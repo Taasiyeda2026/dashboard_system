@@ -1224,21 +1224,19 @@ function opsManagementStylesHtml() {
     .ds-ops-mgmt-screen .ds-ops-workshops-table tr.ds-ops-workshop-detail-row > td { padding:0 !important; border:none !important; border-top:1px solid #dbeafe !important; background:transparent !important; overflow:visible !important; white-space:normal !important; height:auto !important; text-align:right !important; vertical-align:top !important; box-sizing:border-box !important; }
     /* detail container */
     .ds-ops-mgmt-screen .ds-ops-workshop-detail { display:block; background:#f1f5f9; border:1.5px solid #bfdbfe; border-radius:12px; padding:12px 16px; margin:4px 2px 6px; box-sizing:border-box; overflow:visible; }
-    .ds-ops-mgmt-screen .ds-ops-workshop-detail > strong { display:block; font-size:13px; font-weight:800; color:#1e3a8a; margin-bottom:10px; padding-bottom:6px; border-bottom:1px solid #bfdbfe; white-space:normal; }
-    /* grid שתי טבלאות */
-    .ds-ops-mgmt-screen .ds-ops-workshop-detail__tables { display:grid; grid-template-columns:1fr 1fr; gap:16px; align-items:start; width:100%; box-sizing:border-box; overflow:visible; }
-    .ds-ops-mgmt-screen .ds-ops-workshop-detail__box { min-width:0; width:100%; box-sizing:border-box; background:#fff; border:1px solid #e2e8f0; border-radius:8px; padding:8px; display:flex; flex-direction:column; overflow:visible; }
-    .ds-ops-mgmt-screen .ds-ops-workshop-detail__box table { width:100% !important; table-layout:fixed !important; }
+    .ds-ops-mgmt-screen .ds-ops-workshop-detail > strong { display:block; font-size:13px; font-weight:800; color:#1e3a8a; margin-bottom:8px; padding-bottom:6px; border-bottom:1px solid #bfdbfe; white-space:normal; }
+    /* שורת מיקומים — טקסט בשורה אחת */
+    .ds-ops-mgmt-screen .ds-ops-workshop-detail__locations-line { font-size:12px; color:#334155; margin-bottom:10px; white-space:normal; line-height:1.5; }
+    .ds-ops-mgmt-screen .ds-ops-workshop-detail__loc-label { font-weight:700; color:#1e3a8a; }
+    /* טבלת מדריכים — wrapper ותוכן */
+    .ds-ops-mgmt-screen .ds-ops-workshop-detail__instructors-wrap { background:#fff; border:1px solid #e2e8f0; border-radius:8px; padding:8px; box-sizing:border-box; overflow:visible; }
     .ds-ops-mgmt-screen .ds-ops-workshop-detail__table-title { display:block; font-weight:800; color:#1e3a8a; font-size:12px; margin-bottom:6px; padding-bottom:4px; border-bottom:1px solid #dbeafe; white-space:normal; }
     /* dist-table — ביטול cascade מהטבלה החיצונית */
     .ds-ops-mgmt-screen .ds-ops-workshops-table .ds-ops-dist-table { table-layout:fixed !important; width:100% !important; font-size:11px !important; direction:rtl; box-sizing:border-box; border-collapse:collapse; }
     .ds-ops-mgmt-screen .ds-ops-workshops-table .ds-ops-dist-table th,
     .ds-ops-mgmt-screen .ds-ops-workshops-table .ds-ops-dist-table td { overflow:visible !important; white-space:normal !important; text-overflow:clip !important; padding:3px 4px !important; font-size:11px !important; vertical-align:middle !important; border:1px solid #e2e8f0 !important; box-sizing:border-box !important; }
     .ds-ops-mgmt-screen .ds-ops-workshops-table .ds-ops-dist-table th { background:#f8fafc !important; font-weight:700 !important; color:#1e3a8a !important; border-bottom:2px solid #93c5fd !important; text-align:center !important; }
-    @media (max-width: 720px) { .ds-ops-mgmt-screen .ds-ops-workshop-detail__tables { grid-template-columns:1fr; } }
-    /* dist-table — עמודת שם: auto; עמודות מספר: פיקסלים קבועים */
-    .ds-ops-mgmt-screen .ds-ops-dist-table--locations .ds-ops-dist-col--location { text-align:right !important; width:auto !important; }
-    .ds-ops-mgmt-screen .ds-ops-dist-table--locations .ds-ops-dist-col--quantity { text-align:center !important; width:44px !important; }
+    /* dist-table instructors — עמודת מדריך: auto; שאר: פיקסלים קבועים */
     .ds-ops-mgmt-screen .ds-ops-dist-table--instructors .ds-ops-dist-col--instructor { text-align:right !important; width:auto !important; }
     .ds-ops-mgmt-screen .ds-ops-dist-table--instructors .ds-ops-dist-col--number { text-align:center !important; width:36px !important; }
     .ds-ops-mgmt-screen .ds-ops-dist-table--instructors .ds-ops-dist-col--status { text-align:center !important; width:52px !important; line-height:1.2; }
@@ -1770,10 +1768,10 @@ function workshopStatusText(status) {
 }
 
 function workshopInstructorDetailHtml(row) {
-  const locationBody = (row.stockLocationRows || []).map((item) => `<tr>
-    <td class="ds-ops-dist-col--location">${escapeHtml(item.location)}</td>
-    <td class="ds-ops-dist-col--quantity">${formatSignedNumberForRtl(item.quantity)}</td>
-  </tr>`).join('');
+  const locationItems = (row.stockLocationRows || []);
+  const locationLine = locationItems.length
+    ? locationItems.map((item) => `${escapeHtml(item.location)} (${formatSignedNumberForRtl(item.quantity)})`).join(', ')
+    : '—';
   const instructorsBody = row.instructorRows.length
     ? row.instructorRows.map((item) => `<tr>
       <td class="ds-ops-dist-col--instructor">${escapeHtml(item.instructor)}</td>
@@ -1785,9 +1783,10 @@ function workshopInstructorDetailHtml(row) {
     : `<tr><td colspan="5">${dsEmptyState('אין נתוני מדריכים או חלוקות בטווח הנוכחי')}</td></tr>`;
   return `<tr class="ds-ops-workshop-detail-row"><td colspan="6"><div class="ds-ops-workshop-detail">
     <strong>פירוט סדנה — ${escapeHtml(row.workshopName)}</strong>
-    <div class="ds-ops-workshop-detail__tables">
-      <div class="ds-ops-workshop-detail__box ds-ops-workshop-detail__box--locations"><span class="ds-ops-workshop-detail__table-title">מלאי במיקומים</span><table class="ds-table ds-table--compact ds-ops-dist-table ds-ops-dist-table--locations"><colgroup><col class="ds-ops-dist-col--location"><col class="ds-ops-dist-col--quantity"></colgroup><thead><tr><th class="ds-ops-dist-col--location">מיקום</th><th class="ds-ops-dist-col--quantity">כמות</th></tr></thead><tbody>${locationBody}</tbody></table></div>
-      <div class="ds-ops-workshop-detail__box ds-ops-workshop-detail__box--instructors"><span class="ds-ops-workshop-detail__table-title">חלוקה למדריכים</span><table class="ds-table ds-table--compact ds-ops-dist-table ds-ops-dist-table--instructors"><colgroup><col class="ds-ops-dist-col--instructor"><col class="ds-ops-dist-col--number"><col class="ds-ops-dist-col--number"><col class="ds-ops-dist-col--number"><col class="ds-ops-dist-col--status"></colgroup><thead><tr><th class="ds-ops-dist-col--instructor">מדריך</th><th class="ds-ops-dist-col--number">קיבל</th><th class="ds-ops-dist-col--number">נדרש</th><th class="ds-ops-dist-col--number">יתרה</th><th class="ds-ops-dist-col--status">סטטוס</th></tr></thead><tbody>${instructorsBody}</tbody></table></div>
+    <div class="ds-ops-workshop-detail__locations-line"><span class="ds-ops-workshop-detail__loc-label">מיקום:</span> ${locationLine}</div>
+    <div class="ds-ops-workshop-detail__instructors-wrap">
+      <span class="ds-ops-workshop-detail__table-title">חלוקה למדריכים</span>
+      <table class="ds-table ds-table--compact ds-ops-dist-table ds-ops-dist-table--instructors"><colgroup><col class="ds-ops-dist-col--instructor"><col class="ds-ops-dist-col--number"><col class="ds-ops-dist-col--number"><col class="ds-ops-dist-col--number"><col class="ds-ops-dist-col--status"></colgroup><thead><tr><th class="ds-ops-dist-col--instructor">מדריך</th><th class="ds-ops-dist-col--number">קיבל</th><th class="ds-ops-dist-col--number">נדרש</th><th class="ds-ops-dist-col--number">יתרה</th><th class="ds-ops-dist-col--status">סטטוס</th></tr></thead><tbody>${instructorsBody}</tbody></table>
     </div>
   </div></td></tr>`;
 }
