@@ -11134,9 +11134,16 @@ select.ds-input {
 }
 
 /* ── Drawer proposal meta grid (סוג / תאריך / תחום / נשלח ע״י) ── */
+.ds-pa-info-card--proposal-meta {
+  width: 100%;
+  padding: 14px 12px;
+  box-sizing: border-box;
+}
+
 .ds-pa-info-grid--proposal-meta {
   display: grid;
   width: 100%;
+  box-sizing: border-box;
   align-items: stretch;
   gap: 0;
 }
@@ -11151,7 +11158,7 @@ select.ds-input {
 
 .ds-pa-info-grid--proposal-meta .ds-pa-info-cell {
   min-width: 0;
-  padding: 0 10px;
+  padding: 0 8px;
   text-align: center;
   display: flex;
   flex-direction: column;
@@ -11163,28 +11170,32 @@ select.ds-input {
   border-right: 1px solid #e5e7eb;
 }
 
-.ds-pa-info-grid--proposal-meta .ds-pa-info-label {
-  display: block;
-  width: 100%;
-  text-align: center;
-  margin-bottom: 4px;
-  font-size: 0.76rem;
-  font-weight: 700;
-  color: #64748b;
-  white-space: nowrap;
-}
-
+.ds-pa-info-grid--proposal-meta .ds-pa-info-label,
 .ds-pa-info-grid--proposal-meta .ds-pa-info-value {
   display: block;
   width: 100%;
   text-align: center;
-  font-size: 0.92rem;
+  direction: rtl;
+}
+
+.ds-pa-info-grid--proposal-meta .ds-pa-info-label {
+  margin-bottom: 4px;
+  font-size: 0.75rem;
+  font-weight: 700;
+  color: #64748b;
+  white-space: nowrap;
+  overflow: visible;
+  text-overflow: clip;
+}
+
+.ds-pa-info-grid--proposal-meta .ds-pa-info-value {
+  font-size: 0.9rem;
   font-weight: 800;
   color: #0f172a;
   line-height: 1.35;
   white-space: nowrap;
-  overflow: hidden;
-  text-overflow: ellipsis;
+  overflow: visible;
+  text-overflow: clip;
 }
 
 /* ── Info cards ── */
