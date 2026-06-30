@@ -7,7 +7,7 @@
  *
  * Roles:
  *   employee — sees only their own reports
- *   manager  — admin or personal_reports_manager=yes: sees all reports, can approve / return / mark paid
+ *   manager  — admin or personal_reports_manager=yes: sees all reports, can approve / return / transfer to payment
  */
 
 import { supabase, waitForSupabaseAuthSession, resetSupabaseAuthSessionWait } from '../supabase-client.js';
@@ -63,7 +63,7 @@ const STATUS_LABELS = {
   reviewed:         'הוגש לבדיקה',
   needs_correction: 'הוחזר לתיקון',
   approved:         'אושר',
-  paid:             'שולם / טופל לשכר'
+  paid:             'הועבר לתשלום'
 };
 
 const STATUS_KIND = {
@@ -81,7 +81,7 @@ const MY_REPORT_STATUS_META = {
   submitted:        { label: 'הוגש לבדיקה', kind: 'warning' },
   needs_correction: { label: 'הוחזר לתיקון', kind: 'danger' },
   approved:         { label: 'אושר', kind: 'success' },
-  paid:             { label: 'שולם / טופל לשכר', kind: 'success' }
+  paid:             { label: 'הועבר לתשלום', kind: 'success' }
 };
 
 const ADMIN_MANAGE_STATUS_META = Object.fromEntries(
@@ -257,6 +257,27 @@ function readAdminFilters(root) {
 
 function adminFiltersChanged(next, prev = _prLastAdminFilters) {
   return next.month !== prev.month || next.status !== prev.status;
+}
+
+function nextAdminMonthFilterValue(value) {
+  const { month, year } = parseMonthFilterValue(value || defaultMonthFilterValue());
+  const nextMonth = month >= 12 ? 1 : month + 1;
+  const nextYear = month >= 12 ? year + 1 : year;
+  return clampAdminMonthFilterValue(myReportsMonthValue(nextMonth, nextYear));
+}
+
+function collectApprovedReportsForPayment(rows = []) {
+  return (rows || []).reduce((summary, row) => {
+    const reportId = String(row.reportId || row.report?.id || '').trim();
+    if (!reportId) return summary;
+    const status = String(row.reportStatus || row.report?.status || '').trim();
+    if (status === 'approved') {
+      summary.approvedIds.push(reportId);
+    } else {
+      summary.notApprovedCount += 1;
+    }
+    return summary;
+  }, { approvedIds: [], notApprovedCount: 0 });
 }
 
 function reportHasActivity(report, totals = {}) {
@@ -671,7 +692,7 @@ function friendlyPersonalReportsError(error, fallback = 'אירעה תקלה ב�
     return 'חובה להזין הודעה לעובד בעת החזרה לתיקון.';
   }
   if (/report_paid_not_returnable/i.test(raw)) {
-    return 'דוח ששולם / טופל לשכר לא ניתן להחזיר לתיקון.';
+    return 'דוח שהועבר לתשלום לא ניתן להחזיר לתיקון.';
   }
   if (/report_status_not_returnable/i.test(raw)) {
     return 'ניתן להחזיר לתיקון רק דוח שהוגש לבדיקה או אושר.';
@@ -1124,6 +1145,22 @@ async function submitReport(reportId, signatureFullName) {
 
 async function adminUpdateReport(reportId, fields) {
   const { error } = await supabase.from('personal_reports').update(fields).eq('id', reportId);
+  if (error) throw error;
+}
+
+async function adminTransferApprovedReportsToPayment(reportIds) {
+  const ids = (reportIds || []).map((id) => String(id || '').trim()).filter(Boolean);
+  if (!ids.length) return;
+  const now = new Date().toISOString();
+  const { error } = await supabase
+    .from('personal_reports')
+    .update({
+      status: 'paid',
+      paid_at: now,
+      updated_at: now
+    })
+    .in('id', ids)
+    .eq('status', 'approved');
   if (error) throw error;
 }
 
@@ -2493,6 +2530,7 @@ function employeeReportsManagementHtml(rows, filters = _prLastAdminFilters) {
             <button class="pr-btn pr-btn--secondary pr-btn--sm" data-pr-action="export-admin-table" type="button">${escapeHtml(adminExportButtonLabel(filters.status || ''))}</button>
             <button class="pr-btn pr-btn--ghost pr-btn--sm" data-pr-action="clear-admin-filters" type="button">נקה סינון</button>
             <button class="pr-btn pr-btn--primary pr-btn--sm" data-pr-action="print-admin-reports-pdf" type="button">PDF מסכם לכל העובדים</button>
+            <button class="pr-btn pr-btn--primary pr-btn--sm" data-pr-action="transfer-approved-to-payment" type="button">העבר מאושרים לתשלום</button>
           </div>
         </div>
         ${rows.length === 0 ? dsEmptyState('אין עובדים להצגה לחודש הנבחר') : `
@@ -2952,7 +2990,7 @@ function adminReportViewHtml(report, travel, expenses, absences, attachments) {
             <button class="pr-btn pr-btn--warning" data-pr-action="admin-return" data-report-id="${escapeHtml(report.id)}">↩ החזרה לתיקון</button>
           ` : ''}
           ${report.status === 'approved' ? `
-            <button class="pr-btn pr-btn--primary" data-pr-action="admin-mark-paid" data-report-id="${escapeHtml(report.id)}">₪ סמן כשולם</button>
+            <button class="pr-btn pr-btn--primary" data-pr-action="admin-mark-paid" data-report-id="${escapeHtml(report.id)}">₪ סמן כהועבר לתשלום</button>
           ` : ''}
         </div>
       </div>
@@ -3587,6 +3625,33 @@ function bindEmployeeReportsManagement(root) {
       return;
     }
 
+    if (action === 'transfer-approved-to-payment') {
+      try {
+        const filters = readAdminFilters(root);
+        const monthValue = clampAdminMonthFilterValue(filters.month || defaultMonthFilterValue());
+        const { month, year } = parseMonthFilterValue(monthValue);
+        const rows = await loadEmployeeReportsManagementList({ ...filters, month: monthValue }, { force: false });
+        const { approvedIds, notApprovedCount } = collectApprovedReportsForPayment(rows);
+        if (!approvedIds.length) {
+          showToast('אין דוחות מאושרים להעברה לתשלום בחודש זה', 'info');
+          return;
+        }
+        const approvedCount = approvedIds.length;
+        const message = `להעביר לתשלום את כל הדוחות המאושרים של חודש ${monthLabel(month, year)}?\nיועברו לתשלום: ${approvedCount}\nלא יועברו כי אינם מאושרים: ${notApprovedCount}`;
+        if (!confirm(message)) return;
+        await adminTransferApprovedReportsToPayment(approvedIds);
+        showToast(`הועברו לתשלום ${approvedCount} דוחות מאושרים`, 'success');
+        _prLastAdminFilters = {
+          ...filters,
+          month: nextAdminMonthFilterValue(monthValue)
+        };
+        await rerender(root, _dashboardUser, { forceReload: true });
+      } catch (err) {
+        showToast(friendlyPersonalReportsError(err, 'אירעה תקלה בהעברת הדוחות לתשלום. יש לנסות שוב.'), 'danger');
+      }
+      return;
+    }
+
     if (action === 'admin-manage-report') {
       const row = btn.closest('.pr-admin-report-row');
       const resolvedReportId = String(btn.dataset.reportId || row?.dataset?.reportId || '').trim();
@@ -3650,10 +3715,10 @@ function bindAdminReportView(root) {
       return;
     }
     if (action === 'admin-mark-paid' && reportId) {
-      if (!confirm('לסמן כשולם?')) return;
+      if (!confirm('לסמן כהועבר לתשלום?')) return;
       try {
         await adminUpdateReport(reportId, { status: 'paid', paid_at: new Date().toISOString() });
-        showToast('סומן כשולם', 'success');
+        showToast('הדוח הועבר לתשלום', 'success');
         await safeOpenReportDetail(root, reportId, true, { forceReload: true });
       } catch (err) { showToast(friendlyPersonalReportsError(err), 'danger'); }
       return;
