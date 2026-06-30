@@ -4310,6 +4310,12 @@ export const proposalsAgreementsScreen = {
       document.title = proposalPdfDocumentTitle(freshRow);
       const readSignatureMeta = () => defaultSignatureMeta();
       if (options.form) options.form.dataset.paPreviewSeen = 'yes';
+      if (options.autoPrint) {
+        requestAnimationFrame(() => setTimeout(() => {
+          document.title = proposalPdfDocumentTitle(freshRow);
+          window.print();
+        }, 150));
+      }
       const printButton = overlay.querySelector('#pa-print-btn');
       printButton?.addEventListener('click', () => {
         document.title = proposalPdfDocumentTitle(freshRow);
@@ -4895,7 +4901,7 @@ export const proposalsAgreementsScreen = {
           }
         } catch { items = []; }
         printBtn.disabled = false;
-        await openPreview(row, proposalItemsWithFallback(items, row));
+        await openPreview(row, proposalItemsWithFallback(items, row), { autoPrint: true });
         return;
       }
 
