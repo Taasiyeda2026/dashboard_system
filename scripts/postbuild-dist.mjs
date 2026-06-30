@@ -8,12 +8,10 @@ import {
   existsSync,
   mkdirSync,
   readFileSync,
-  readdirSync,
-  statSync,
   unlinkSync,
   writeFileSync
 } from 'node:fs';
-import { join, relative } from 'node:path';
+import { join } from 'node:path';
 import { fileURLToPath } from 'node:url';
 
 const __dirname = fileURLToPath(new URL('.', import.meta.url));
@@ -37,16 +35,15 @@ function collectAssetRefs(html, base) {
   return out;
 }
 
-function walkFiles(dir, base = dir) {
-  const files = [];
-  if (!existsSync(dir)) return files;
-  for (const name of readdirSync(dir)) {
-    const full = join(dir, name);
-    const st = statSync(full);
-    if (st.isDirectory()) files.push(...walkFiles(full, base));
-    else files.push('/' + relative(base, full).replace(/\\/g, '/'));
-  }
-  return files;
+function shouldPrecachePath(path) {
+  const p = path.toLowerCase();
+  if (p.includes('/attached_assets/')) return false;
+  if (p.includes('/dist/')) return false;
+  if (p.includes('/tests/')) return false;
+  if (p.includes('/archive') || p.includes('/mock') || p.includes('/debug')) return false;
+  if (p.includes('/reports/') || p.includes('/personal-reports')) return false;
+  if (/\.(?:pdf|csv|xlsx)(?:$|[?#])/.test(p)) return false;
+  return true;
 }
 
 if (!existsSync(join(dist, 'index.html'))) {
@@ -113,13 +110,8 @@ writeFileSync(join(dist, 'index.html'), html);
 
 const precache = new Set(['./index.html', './manifest.json']);
 for (const u of collectAssetRefs(html, viteBaseRaw)) {
-  precache.add('.' + u);
-}
-for (const u of walkFiles(join(dist, 'assets'))) {
-  precache.add('./assets' + u);
-}
-for (const u of walkFiles(join(dist, 'catalog'))) {
-  precache.add('./catalog' + u);
+  const path = '.' + u;
+  if (shouldPrecachePath(path)) precache.add(path);
 }
 
 let sw = readFileSync(join(root, 'frontend', 'sw.js'), 'utf8');
