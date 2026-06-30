@@ -3007,7 +3007,10 @@ function drawerHtml(row, activityNameOptions = [], state = null) {
     infoCell('הערת אישור', text(row.approval_note), true),
     infoCell('הערות', text(row.notes), true)
   ].filter(Boolean).join('');
-  const infoCardRows = metaRow + (extraRows ? `<div class="ds-pa-info-grid" style="margin-top:8px">${extraRows}</div>` : '');
+  const infoCardRows = `
+    ${metaRow}
+    ${extraRows ? `<div class="ds-pa-info-grid ds-pa-info-grid--extra" style="margin-top:8px">${extraRows}</div>` : ''}
+  `;
 
   // ── פעילויות card ──
   const activityNames = (Array.isArray(row.activity_names) ? row.activity_names : []).map(text).filter(Boolean);
@@ -3044,8 +3047,8 @@ function drawerHtml(row, activityNameOptions = [], state = null) {
         <span class="ds-pa-drawer-icon-btns">${drawerActionButtons(row, state)}</span>
       </div>
       <div class="ds-pa-drawer-body">
-        <div class="ds-pa-info-card">
-          <div class="ds-pa-info-grid">${infoCardRows}</div>
+        <div class="ds-pa-info-card ds-pa-info-card--proposal-meta">
+          ${infoCardRows}
         </div>
         <div data-pa-activities-fallback>${activitiesCard}</div>
         ${contactCard}
