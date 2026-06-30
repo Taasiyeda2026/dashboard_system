@@ -3064,7 +3064,7 @@ function drawerHtml(row, activityNameOptions = [], state = null) {
     metaChip('תחום', normalizeProposalDomain(row.proposal_domain)),
     metaChip('תאריך', formatDateDisplay(row.proposal_date)),
     showSentBy ? metaChip('נשלח ע״י', drawerSentBy) : '',
-    showSentBy && text(row.sent_at) ? metaChip('נשלח', formatDateDisplay(row.sent_at)) : ''
+    showSentBy && text(row.sent_at) ? metaChip('תאריך שליחה', formatDateDisplay(row.sent_at)) : ''
   ].filter(Boolean).join('');
   const metaStrip = metaStripChips
     ? `<div class="ds-pa-meta-strip" dir="rtl">${metaStripChips}</div>`
