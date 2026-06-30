@@ -28,7 +28,7 @@ outputType = "webview"
 
 [[workflows.workflow.tasks]]
 task = "shell.exec"
-args = "npx --yes serve dist -l 5000 --no-clipboard"
+args = "npm run build && npx --yes serve dist -l 5000 --no-clipboard"
 waitForPort = 5000
 
 [[ports]]
@@ -41,7 +41,8 @@ externalPort = 3000
 
 [deployment]
 deploymentTarget = "static"
-publicDir = "."
+build = "npm run build"
+publicDir = "dist"
 
 [postMerge]
 path = "scripts/post-merge.sh"
