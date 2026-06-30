@@ -11133,66 +11133,57 @@ select.ds-input {
   gap: 10px;
 }
 
-/* ── Drawer meta 3-col grid (סוג / תאריך / תחום) ── */
-.ds-pa-drawer-meta-grid {
+/* ── Drawer proposal meta grid (סוג / תאריך / תחום / נשלח ע״י) ── */
+.ds-pa-info-grid--proposal-meta {
   display: grid;
-  grid-template-columns: minmax(130px, 1.4fr) minmax(100px, 1fr) minmax(45px, 0.5fr);
-  column-gap: 18px;
-  row-gap: 8px;
-  align-items: start;
+  gap: 0;
+  align-items: stretch;
 }
 
-.ds-pa-drawer-meta-item {
+.ds-pa-info-grid--proposal-meta.ds-pa-info-grid--three {
+  grid-template-columns: 1.3fr 1fr 0.7fr;
+}
+
+.ds-pa-info-grid--proposal-meta.ds-pa-info-grid--four {
+  grid-template-columns: 1.25fr 1fr 0.6fr 0.9fr;
+}
+
+.ds-pa-info-grid--proposal-meta .ds-pa-info-cell {
   min-width: 0;
-  padding-inline: 6px;
+  padding: 0 10px;
+  text-align: center;
+  border-right: 1px solid #e5e7eb;
 }
 
-.ds-pa-drawer-meta-item + .ds-pa-drawer-meta-item {
-  border-inline-end: 1px solid var(--ds-color-border-subtle, #e5e7eb);
+.ds-pa-info-grid--proposal-meta .ds-pa-info-cell:first-child {
+  border-right: 0;
 }
 
-.ds-pa-drawer-meta-label {
+.ds-pa-info-grid--proposal-meta .ds-pa-info-label {
   display: block;
-  font-size: 0.72rem;
-  color: var(--ds-color-text-muted, #64748b);
-  font-weight: 600;
-  text-transform: uppercase;
-  letter-spacing: 0.02em;
   margin-bottom: 4px;
+  font-size: 0.76rem;
+  font-weight: 700;
+  color: #64748b;
   white-space: nowrap;
 }
 
-.ds-pa-drawer-meta-value {
+.ds-pa-info-grid--proposal-meta .ds-pa-info-value {
   display: block;
-  font-size: 0.88rem;
-  color: var(--ds-color-text, #111827);
-  font-weight: 700;
-  line-height: 1.3;
+  font-size: 0.92rem;
+  font-weight: 800;
+  color: #0f172a;
+  line-height: 1.35;
   white-space: nowrap;
   overflow: hidden;
   text-overflow: ellipsis;
 }
 
-.ds-pa-drawer-sent-by {
-  display: flex;
-  align-items: center;
-  gap: 6px;
-  margin-top: 10px;
-  padding-top: 8px;
-  border-top: 1px solid var(--ds-color-border-subtle, #e5e7eb);
-  color: var(--ds-color-text-muted, #64748b);
-  font-size: 0.78rem;
-}
-
-.ds-pa-drawer-sent-by strong {
-  color: var(--ds-color-text, #111827);
-  font-size: 0.82rem;
-  font-weight: 700;
-}
-
 @media (max-width: 480px) {
-  .ds-pa-drawer-meta-grid {
+  .ds-pa-info-grid--proposal-meta.ds-pa-info-grid--three,
+  .ds-pa-info-grid--proposal-meta.ds-pa-info-grid--four {
     grid-template-columns: repeat(2, minmax(0, 1fr));
+    row-gap: 8px;
   }
 }
 
