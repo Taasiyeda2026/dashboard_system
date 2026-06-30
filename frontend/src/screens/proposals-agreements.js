@@ -2970,9 +2970,6 @@ function drawerHtml(row, activityNameOptions = [], state = null) {
     infoCell('סוג הצעה', proposalGroupDisplayName(row.activity_type_group)),
     infoCell('תאריך הצעה', formatDateDisplay(row.proposal_date)),
     infoCell('תחום', text(row.proposal_domain)),
-    row.total_amount != null
-      ? `<div class="ds-pa-info-cell"><span class="ds-pa-info-label">סה״כ</span><span style="white-space:nowrap;font-weight:700">₪ ${escapeHtml(formatCurrency(row.total_amount))}</span></div>`
-      : '',
     infoCell('הערת אישור', text(row.approval_note), true),
     infoCell('הערות', text(row.notes), true)
   ].filter(Boolean).join('');
@@ -3015,7 +3012,7 @@ function drawerHtml(row, activityNameOptions = [], state = null) {
         <div class="ds-pa-info-card">
           <div class="ds-pa-info-grid">${infoCardRows}</div>
         </div>
-        ${activitiesCard}
+        <div data-pa-activities-fallback>${activitiesCard}</div>
         ${contactCard}
         <div data-pa-drawer-items><span class="ds-muted" style="font-size:0.8rem">טוען שורות הצעה...</span></div>
       </div>
@@ -4740,7 +4737,12 @@ export const proposalsAgreementsScreen = {
           if (itemsHost && text(row.id) && typeof api.readProposalAgreementItems === 'function') {
             try {
               const items = proposalItemsWithFallback(await api.readProposalAgreementItems(text(row.id)), row);
-              if (itemsHost.isConnected) itemsHost.innerHTML = itemsSummaryHtml(items);
+              if (itemsHost.isConnected) {
+                itemsHost.innerHTML = itemsSummaryHtml(items);
+                const hasActiveItems = (Array.isArray(items) ? items : []).filter(hasMeaningfulProposalItemValue).filter((i) => !isTestHoursItem(i)).length > 0;
+                const fallback = newDrawer?.querySelector('[data-pa-activities-fallback]');
+                if (fallback && hasActiveItems) fallback.hidden = true;
+              }
             } catch { if (itemsHost.isConnected) itemsHost.innerHTML = ''; }
           } else if (itemsHost) {
             itemsHost.innerHTML = '';
