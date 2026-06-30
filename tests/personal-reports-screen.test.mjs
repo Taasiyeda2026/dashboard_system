@@ -187,15 +187,14 @@ test('personal reports entry tables use compact fit-content layout', async () =>
   assert.match(css, /\.pr-entries-table-wrap\s*\{[^}]*border:\s*1px solid/);
 });
 
-test('service worker cache version bumped for personal reports deploy', async () => {
+test('personal reports deploy keeps service worker version source in frontend implementation', async () => {
   const frontendSw = await readFile(new URL('../frontend/sw.js', import.meta.url), 'utf8');
   const rootSw = await readFile(new URL('../sw.js', import.meta.url), 'utf8');
   const css = await readFile(new URL('../frontend/src/styles/main.css', import.meta.url), 'utf8');
 
-  const frontendMatch = frontendSw.match(/const CACHE_VERSION = (\d+);/);
-  const rootMatch = rootSw.match(/const SW_ENTRY_VERSION = (\d+);/);
-  assert.ok(frontendMatch && rootMatch, 'service worker files should expose version constants');
-  assert.equal(frontendMatch[1], rootMatch[1], 'root and frontend SW versions should match');
+  assert.match(frontendSw, /const CACHE_VERSION = \d+;/, 'frontend service worker should expose the single manual cache version');
+  assert.doesNotMatch(rootSw, /SW_ENTRY_VERSION/, 'root sw.js is a shim and must not define a legacy entry version');
+  assert.doesNotMatch(rootSw, /\bCACHE_VERSION\b\s*=/, 'root sw.js must not define a separate cache version');
   assert.match(css, /\.pr-input--month-compact/);
 });
 
