@@ -1107,13 +1107,20 @@ function opsManagementStylesHtml() {
     .ds-ops-mgmt-screen .ds-ops-col--date,
     .ds-ops-mgmt-screen .ds-ops-col--weekday,
     .ds-ops-mgmt-screen .ds-ops-col--time { white-space: nowrap; }
+    /* semantic column alignment — numeric/short → center; named text → right */
+    .ds-ops-mgmt-screen .ds-ops-col--date,
+    .ds-ops-mgmt-screen .ds-ops-col--weekday,
     .ds-ops-mgmt-screen .ds-ops-col--time,
-    .ds-ops-mgmt-screen .ds-ops-col--time th { text-align: center; }
+    .ds-ops-mgmt-screen .ds-ops-col--grade,
+    .ds-ops-mgmt-screen .ds-ops-col--student-count { text-align: center; }
+    .ds-ops-mgmt-screen .ds-ops-col--school,
+    .ds-ops-mgmt-screen .ds-ops-col--instructor,
+    .ds-ops-mgmt-screen .ds-ops-col--activity { text-align: right; }
     .ds-ops-mgmt-screen .ds-ops-sortable-th { cursor:pointer; user-select:none; white-space:nowrap; background:#e6f6fb; color:#0f172a; font-weight:700; border:0; }
-    .ds-ops-mgmt-screen .ds-ops-sortable-th.ds-ops-col--time { text-align: center; }
     .ds-ops-mgmt-screen .ds-ops-col--school,
     .ds-ops-mgmt-screen .ds-ops-col--activity { max-width:220px; overflow:hidden; text-overflow:ellipsis; white-space:nowrap; }
-    .ds-ops-mgmt-screen .ds-ops-col--grade { width:70px; max-width:70px; white-space:nowrap; overflow:hidden; text-overflow:ellipsis; text-align:center; }
+    .ds-ops-mgmt-screen .ds-ops-col--grade { width:70px; max-width:70px; white-space:nowrap; overflow:hidden; text-overflow:ellipsis; }
+    .ds-ops-mgmt-screen .ds-ops-col--student-count { width:68px; max-width:80px; white-space:nowrap; }
     .ds-ops-mgmt-screen .ds-ops-schedule-wrap,
     .ds-ops-mgmt-screen .ds-ops-schedule-wrap .ds-table-wrap,
     .ds-ops-mgmt-screen .ds-ops-mgmt-schedule { width:100%; }
@@ -1133,8 +1140,10 @@ function opsManagementStylesHtml() {
     .ds-ops-mgmt-screen .ds-ops-workshops-card { width:min(960px, 82%); margin-inline-start:auto; margin-inline-end:auto; }
     .ds-ops-mgmt-screen .ds-ops-workshops-table { table-layout:fixed; width:100%; }
     .ds-ops-mgmt-screen .ds-ops-workshops-table th,.ds-ops-mgmt-screen .ds-ops-workshops-table td { border:1px solid #94a3b8 !important; padding:6px 8px; }
-    .ds-ops-mgmt-screen .ds-ops-workshops-table tbody tr { cursor:pointer; }
+    .ds-ops-mgmt-screen .ds-ops-workshops-table tbody tr { cursor:pointer; transition:background 0.12s ease; }
+    .ds-ops-mgmt-screen .ds-ops-workshops-table tbody tr.ds-ops-workshop-detail-row { cursor:default; }
     .ds-ops-mgmt-screen .ds-ops-workshops-table tbody tr:hover td { background:color-mix(in srgb,#dbeafe 18%,#fff) !important; border:1px solid #94a3b8 !important; }
+    .ds-ops-mgmt-screen .ds-ops-workshops-table tbody tr.ds-ops-workshop-detail-row:hover td { background:transparent !important; }
     .ds-ops-mgmt-screen .ds-ops-workshops-table tbody tr:hover td:nth-child(2) { text-decoration:underline; text-underline-offset:2px; }
     .ds-ops-mgmt-screen .ds-ops-workshops-table tbody tr:active td,
     .ds-ops-mgmt-screen .ds-ops-workshops-table tbody tr:focus-visible td,
@@ -1147,16 +1156,12 @@ function opsManagementStylesHtml() {
     .ds-ops-mgmt-screen .ds-ops-workshops-table .ds-ops-usage-cell:focus-within,
     .ds-ops-mgmt-screen .ds-ops-workshops-table .ds-ops-usage-cell:active { border:1px solid #94a3b8 !important; box-shadow:none; }
     .ds-ops-mgmt-screen .ds-ops-workshops-table th { background:#fff; color:#1e3a8a; font-weight:800; font-size:12px; border-bottom:2px solid #3b82f6 !important; }
-    .ds-ops-mgmt-screen .ds-ops-workshop-col--no { width:10%; }
-    .ds-ops-mgmt-screen .ds-ops-workshop-col--name { width:14%; }
-    .ds-ops-mgmt-screen .ds-ops-workshop-col--metric { width:10.6%; }
-    .ds-ops-mgmt-screen .ds-ops-workshop-col--status { width:10.5%; }
-    .ds-ops-mgmt-screen .ds-ops-workshops-table th:nth-child(1),
-    .ds-ops-mgmt-screen .ds-ops-workshops-table td:nth-child(1) { text-align:center; }
-    .ds-ops-mgmt-screen .ds-ops-workshops-table th:nth-child(2),
-    .ds-ops-mgmt-screen .ds-ops-workshops-table td:nth-child(2) { text-align:right; white-space:normal; line-height:1.35; }
-    .ds-ops-mgmt-screen .ds-ops-workshops-table th:nth-child(n+3),
-    .ds-ops-mgmt-screen .ds-ops-workshops-table td:nth-child(n+3) { text-align:center; white-space:nowrap; }
+    /* workshops table — semantic column classes (set on both th and td) */
+    .ds-ops-mgmt-screen .ds-ops-workshop-col--no { width:9%; text-align:center; white-space:nowrap; }
+    .ds-ops-mgmt-screen .ds-ops-workshop-col--name { width:16%; text-align:right; white-space:normal; line-height:1.35; }
+    .ds-ops-mgmt-screen .ds-ops-workshop-col--metric { width:10.6%; text-align:center; white-space:nowrap; }
+    /* hover underline on name col via semantic class */
+    .ds-ops-mgmt-screen .ds-ops-workshops-table tbody tr:hover td.ds-ops-workshop-col--name { text-decoration:underline; text-underline-offset:2px; }
     .ds-ops-mgmt-screen .ds-ops-workshop-status-text { font-weight:700; background:transparent; border:0; padding:0; white-space:normal; }
     .ds-ops-mgmt-screen .ds-ops-workshop-status-text--success { color:#15803d; }
     .ds-ops-mgmt-screen .ds-ops-workshop-status-text--danger { color:#b91c1c; }
@@ -1168,11 +1173,13 @@ function opsManagementStylesHtml() {
     .ds-ops-mgmt-screen .ds-ops-dist-input { width:72px; text-align:center; font-size:12px; padding:2px 4px; border:1px solid #94a3b8; border-radius:4px; background:#fff; }
     .ds-ops-mgmt-screen .ds-ops-workshop-detail { background:#f8fafc; border:1px solid #dbeafe; border-radius:12px; padding:10px; }
     .ds-ops-mgmt-screen .ds-ops-workshop-detail-row > td { white-space:normal!important; text-align:right!important; }
-    .ds-ops-mgmt-screen .ds-ops-dist-table { table-layout:fixed; margin-top:8px; width:80%; }
+    .ds-ops-mgmt-screen .ds-ops-dist-table { table-layout:fixed; margin-top:8px; width:80%; direction:rtl; }
+    @media (max-width: 720px) { .ds-ops-mgmt-screen .ds-ops-dist-table { width:100%; } }
     .ds-ops-mgmt-screen .ds-ops-dist-table th { background:#fff; font-weight:700; border-bottom:2px solid #93c5fd !important; }
-    .ds-ops-mgmt-screen .ds-ops-dist-table th:nth-child(1),.ds-ops-mgmt-screen .ds-ops-dist-table td:nth-child(1) { text-align:right; width:33%; }
-    .ds-ops-mgmt-screen .ds-ops-dist-table th:nth-child(n+2),.ds-ops-mgmt-screen .ds-ops-dist-table td:nth-child(n+2) { text-align:center; white-space:nowrap; width:17%; }
-    .ds-ops-mgmt-screen .ds-ops-dist-table th:last-child,.ds-ops-mgmt-screen .ds-ops-dist-table td:last-child { text-align:right; width:16%; }
+    /* dist-table — semantic column classes */
+    .ds-ops-mgmt-screen .ds-ops-dist-col--instructor { text-align:right; width:33%; }
+    .ds-ops-mgmt-screen .ds-ops-dist-col--number { text-align:center; white-space:nowrap; width:16%; }
+    .ds-ops-mgmt-screen .ds-ops-dist-col--status { text-align:center; width:18%; }
     .ds-ops-mgmt-screen .ds-ops-estimate-mark { color:#9a3412; font-weight:800; }
     .ds-ops-mgmt-screen .ds-ops-stock-cell { white-space:nowrap; }
     .ds-ops-mgmt-screen .ds-ops-stock-input { width:64px; text-align:center; font-size:12px; padding:2px 4px; border:1px solid #94a3b8; border-radius:4px; background:#fff; }
@@ -1235,16 +1242,17 @@ function opsManagementStylesHtml() {
     .ds-ops-mgmt-screen .ds-ops-completion-preview th,.ds-ops-mgmt-screen .ds-ops-completion-preview td { padding:5px 8px; line-height:1.25; vertical-align:middle; }
     .ds-ops-mgmt-screen .ds-ops-completion-preview th:first-child,.ds-ops-mgmt-screen .ds-ops-completion-preview td:first-child { padding-inline-start:10px; padding-inline-end:10px; white-space:nowrap; }
     .ds-ops-mgmt-screen .ds-ops-completion-preview tbody tr { height:42px; }
-    .ds-ops-mgmt-screen .ds-ops-completion-col--date { width:10%; }
+    /* completion approvals — semantic column alignment */
+    .ds-ops-mgmt-screen .ds-ops-completion-col--status { width:9%; text-align:center; }
+    .ds-ops-mgmt-screen .ds-ops-completion-col--date { width:9%; text-align:center; white-space:nowrap; }
     .ds-ops-mgmt-screen .ds-ops-completion-col--authority { width:10%; text-align:right; }
     .ds-ops-mgmt-screen .ds-ops-completion-col--instructor { width:10%; text-align:right; }
-    .ds-ops-mgmt-screen .ds-ops-completion-col--school { width:10%; text-align:right; }
-    .ds-ops-mgmt-screen .ds-ops-completion-col--who { width:22%; text-align:right; }
+    .ds-ops-mgmt-screen .ds-ops-completion-col--school { width:12%; text-align:right; }
+    .ds-ops-mgmt-screen .ds-ops-completion-col--who { width:20%; text-align:right; }
     .ds-ops-mgmt-screen .ds-ops-completion-col--contact { width:12%; text-align:right; }
+    .ds-ops-mgmt-screen .ds-ops-completion-col--actions { width:14%; text-align:center; }
     .ds-ops-mgmt-screen .ds-ops-completion-col-contact-cell { text-align:right; }
     .ds-ops-mgmt-screen .ds-ops-completion-col-contact-cell select { width:100%; max-width:100%; box-sizing:border-box; text-align:right; direction:rtl; height:30px; min-height:30px; padding-top:3px; padding-bottom:3px; }
-    .ds-ops-mgmt-screen .ds-ops-completion-col--status { width:10%; text-align:right; }
-    .ds-ops-mgmt-screen .ds-ops-completion-col--actions { width:16%; text-align:center; }
     .ds-ops-mgmt-screen .ds-ops-completion-col-who-cell { white-space:normal; line-height:1.35; }
     .ds-ops-mgmt-screen .ds-ops-completion-actions-cell { text-align:center; vertical-align:middle; white-space:nowrap; }
     .ds-ops-mgmt-screen .ds-ops-completion-actions { display:inline-flex; align-items:center; justify-content:center; gap:4px; flex-wrap:nowrap; white-space:nowrap; }
@@ -1283,7 +1291,42 @@ function opsManagementStylesHtml() {
       .ds-ops-mgmt-screen .ds-ops-approval-print-filter select { width:min(100%, 220px); }
       .ds-ops-mgmt-screen .ds-ops-completion-approvals-card .ds-table-wrap { overflow-x:auto; }
     }
-    @media print { .ds-ops-mgmt-screen .ds-ops-schools-authority:not(:first-child) { break-before:page; page-break-before:always; } .ds-ops-mgmt-screen .ds-ops-authority-date .ds-table-wrap { width:55%!important; max-width:55%!important; } .ds-ops-mgmt-screen .ds-ops-authority-date__title { width:55%!important; max-width:55%!important; } }
+    @media print {
+      .ds-ops-mgmt-screen .ds-ops-schools-authority:not(:first-child) { break-before:page; page-break-before:always; }
+      .ds-ops-mgmt-screen .ds-ops-authority-date .ds-table-wrap { width:55%!important; max-width:55%!important; }
+      .ds-ops-mgmt-screen .ds-ops-authority-date__title { width:55%!important; max-width:55%!important; }
+      /* print — preserve semantic column alignment */
+      .ds-ops-mgmt-screen .ds-ops-col--date,
+      .ds-ops-mgmt-screen .ds-ops-col--weekday,
+      .ds-ops-mgmt-screen .ds-ops-col--time,
+      .ds-ops-mgmt-screen .ds-ops-col--grade,
+      .ds-ops-mgmt-screen .ds-ops-col--student-count,
+      .ds-ops-mgmt-screen .ds-ops-workshop-col--no,
+      .ds-ops-mgmt-screen .ds-ops-workshop-col--metric,
+      .ds-ops-mgmt-screen .ds-ops-dist-col--number,
+      .ds-ops-mgmt-screen .ds-ops-dist-col--status,
+      .ds-ops-mgmt-screen .ds-ops-completion-col--status,
+      .ds-ops-mgmt-screen .ds-ops-completion-col--date,
+      .ds-ops-mgmt-screen .ds-ops-completion-col--actions { text-align:center !important; }
+      .ds-ops-mgmt-screen .ds-ops-col--school,
+      .ds-ops-mgmt-screen .ds-ops-col--instructor,
+      .ds-ops-mgmt-screen .ds-ops-col--activity,
+      .ds-ops-mgmt-screen .ds-ops-workshop-col--name,
+      .ds-ops-mgmt-screen .ds-ops-dist-col--instructor,
+      .ds-ops-mgmt-screen .ds-ops-completion-col--authority,
+      .ds-ops-mgmt-screen .ds-ops-completion-col--instructor,
+      .ds-ops-mgmt-screen .ds-ops-completion-col--school,
+      .ds-ops-mgmt-screen .ds-ops-completion-col--who,
+      .ds-ops-mgmt-screen .ds-ops-completion-col--contact { text-align:right !important; }
+      /* print — no row break inside table rows */
+      .ds-ops-mgmt-screen table tr { break-inside:avoid; page-break-inside:avoid; }
+      /* print — hide action buttons */
+      .ds-ops-mgmt-screen .ds-ops-completion-col--actions,
+      .ds-ops-mgmt-screen .ds-ops-completion-actions-cell { display:none !important; }
+      /* print — compact table widths */
+      .ds-ops-mgmt-screen .ds-ops-dist-table { width:100% !important; }
+      .ds-ops-mgmt-screen .ds-ops-workshops-card { width:100% !important; }
+    }
   </style>`;
 }
 
@@ -1667,15 +1710,15 @@ function workshopStatusText(status) {
 function workshopInstructorDetailHtml(row) {
   if (!row.instructorRows.length) return `<tr class="ds-ops-workshop-detail-row"><td colspan="8">${dsEmptyState('אין נתוני מדריכים או חלוקות בטווח הנוכחי')}</td></tr>`;
   const body = row.instructorRows.map((item) => `<tr>
-    <td>${escapeHtml(item.instructor)}</td>
-    <td>${formatSignedNumberForRtl(item.received)}</td>
-    <td>${formatSignedNumberForRtl(item.required)}</td>
-    <td>${formatGapCell(item.balance, true)}</td>
-    <td>${workshopStatusText(item.status)}</td>
+    <td class="ds-ops-dist-col--instructor">${escapeHtml(item.instructor)}</td>
+    <td class="ds-ops-dist-col--number">${formatSignedNumberForRtl(item.received)}</td>
+    <td class="ds-ops-dist-col--number">${formatSignedNumberForRtl(item.required)}</td>
+    <td class="ds-ops-dist-col--number">${formatGapCell(item.balance, true)}</td>
+    <td class="ds-ops-dist-col--status">${workshopStatusText(item.status)}</td>
   </tr>`).join('');
   return `<tr class="ds-ops-workshop-detail-row"><td colspan="7"><div class="ds-ops-workshop-detail">
     <strong>פירוט לפי מדריך — ${escapeHtml(row.workshopName)}</strong>
-    <table class="ds-table ds-table--compact ds-ops-dist-table"><thead><tr><th>מדריך</th><th>קיבל</th><th>נדרש לפי פעילויות</th><th>יתרה אצל מדריך</th><th>סטטוס פעולה</th></tr></thead><tbody>${body}</tbody></table>
+    <table class="ds-table ds-table--compact ds-ops-dist-table"><thead><tr><th class="ds-ops-dist-col--instructor">מדריך</th><th class="ds-ops-dist-col--number">קיבל</th><th class="ds-ops-dist-col--number">נדרש לפי פעילויות</th><th class="ds-ops-dist-col--number">יתרה אצל מדריך</th><th class="ds-ops-dist-col--status">סטטוס פעולה</th></tr></thead><tbody>${body}</tbody></table>
   </div></td></tr>`;
 }
 
@@ -1690,23 +1733,23 @@ function workshopsTabHtml(rows, state, stockMap, catalogRows = [], distributions
   const metrics = allMetrics.filter((row) => (row.stockQuantity !== null && Number(row.stockQuantity) > 0) || row.requiredQuantity !== 0 || row.deliveredQuantity !== 0);
   const table = metrics.length
     ? dsTableWrap(`<table class="ds-table ds-table--compact ds-ops-mgmt-data-table ds-ops-workshops-table"><colgroup><col class="ds-ops-workshop-col--no"><col class="ds-ops-workshop-col--name"><col class="ds-ops-workshop-col--metric"><col class="ds-ops-workshop-col--metric"><col class="ds-ops-workshop-col--metric"><col class="ds-ops-workshop-col--metric"><col class="ds-ops-workshop-col--metric"></colgroup><thead><tr>
-        ${sortableTh(state, TAB_WORKSHOPS, 'workshopNo', 'מספר סדנה')}
-        ${sortableTh(state, TAB_WORKSHOPS, 'workshopName', 'שם הפעילות')}
-        <th>מלאי כולל</th>
-        ${sortableTh(state, TAB_WORKSHOPS, 'estimatedQuantity', 'מלאי נדרש')}
-        <th>סטטוס מלאי</th>
-        <th>נמסר למדריכים</th>
-        <th>פער למסירה</th>
+        ${sortableTh(state, TAB_WORKSHOPS, 'workshopNo', 'מספר סדנה', 'ds-ops-workshop-col--no')}
+        ${sortableTh(state, TAB_WORKSHOPS, 'workshopName', 'שם הפעילות', 'ds-ops-workshop-col--name')}
+        <th class="ds-ops-workshop-col--metric">מלאי כולל</th>
+        ${sortableTh(state, TAB_WORKSHOPS, 'estimatedQuantity', 'מלאי נדרש', 'ds-ops-workshop-col--metric')}
+        <th class="ds-ops-workshop-col--metric">סטטוס מלאי</th>
+        <th class="ds-ops-workshop-col--metric">נמסר למדריכים</th>
+        <th class="ds-ops-workshop-col--metric">פער למסירה</th>
       </tr></thead><tbody>${metrics.map((row) => {
         const isExpanded = ops.expandedWorkshop === row.stockGroupKey;
         const mainRow = `<tr class="${isExpanded ? 'ds-ops-row--expanded' : ''}" data-ops-workshop-toggle="${escapeHtml(row.stockGroupKey || '')}" tabindex="0" role="button" aria-expanded="${isExpanded ? 'true' : 'false'}">
-          <td>${escapeHtml(row.workshopNoDisplay || row.workshopNo || row.stockGroupKey || '—')}</td>
-          <td>${escapeHtml(row.workshopName)}${row.activitiesWithoutParticipants ? ` <span class="ds-ops-estimate-mark" title="חלק מהחישוב מבוסס על ברירת מחדל ${WORKSHOP_ESTIMATE_PER_ACTIVITY} משתתפים">≈</span>` : ''}</td>
-          <td>${row.stockQuantity === null ? '<span class="ds-ops-mgmt-cell-muted">—</span>' : formatSignedNumberForRtl(row.stockQuantity)}</td>
-          <td>${formatSignedNumberForRtl(row.requiredQuantity)}</td>
-          <td>${row.expectedBalance === null ? '<span class="ds-ops-mgmt-cell-muted">—</span>' : formatGapCell(row.expectedBalance, true)}</td>
-          <td>${formatSignedNumberForRtl(row.deliveredQuantity)}</td>
-          <td>${formatDeliveryGapCell(row.deliveryGap)}</td>
+          <td class="ds-ops-workshop-col--no">${escapeHtml(row.workshopNoDisplay || row.workshopNo || row.stockGroupKey || '—')}</td>
+          <td class="ds-ops-workshop-col--name">${escapeHtml(row.workshopName)}${row.activitiesWithoutParticipants ? ` <span class="ds-ops-estimate-mark" title="חלק מהחישוב מבוסס על ברירת מחדל ${WORKSHOP_ESTIMATE_PER_ACTIVITY} משתתפים">≈</span>` : ''}</td>
+          <td class="ds-ops-workshop-col--metric">${row.stockQuantity === null ? '<span class="ds-ops-mgmt-cell-muted">—</span>' : formatSignedNumberForRtl(row.stockQuantity)}</td>
+          <td class="ds-ops-workshop-col--metric">${formatSignedNumberForRtl(row.requiredQuantity)}</td>
+          <td class="ds-ops-workshop-col--metric">${row.expectedBalance === null ? '<span class="ds-ops-mgmt-cell-muted">—</span>' : formatGapCell(row.expectedBalance, true)}</td>
+          <td class="ds-ops-workshop-col--metric">${formatSignedNumberForRtl(row.deliveredQuantity)}</td>
+          <td class="ds-ops-workshop-col--metric">${formatDeliveryGapCell(row.deliveryGap)}</td>
         </tr>`;
         const detailHtml = workshopInstructorDetailHtml(row).replace(
           'class="ds-ops-workshop-detail-row"',
@@ -2227,14 +2270,14 @@ function completionApprovalTabHtml(rows, state, data = {}, directory = buildScho
       ? `<select class="ds-input ds-input--sm ds-ops-contact-responsible-select" data-contact-responsible-select data-date="${escapeHtml(contactCtx.date)}" data-school-id="${escapeHtml(contactCtx.schoolId)}" data-school="${escapeHtml(contactCtx.school)}"><option value="">בחרו</option>${contactCtx.options}</select>`
       : '<span class="ds-muted">—</span>';
     return `<tr${highlightToday ? ' class="ds-ops-work-today-row"' : ''}>
-      <td class="ds-table-cell-truncate">${completionApprovalUploadStatusChip(upload)}</td>
-      <td class="ds-table-cell-truncate" style="text-align:center">${escapeHtml(formatDateHe(approval.date) || approval.date || '')}${todayChip}</td>
-      <td class="ds-table-cell-truncate">${escapeHtml(approval.authority || '—')}</td>
-      <td class="ds-table-cell-truncate">${escapeHtml(approval.instructorName || '')}</td>
-      <td class="ds-table-cell-wrap">${escapeHtml(approval.school || '')}</td>
-      <td class="ds-ops-completion-col-who-cell ds-table-cell-wrap">${whoIsWithMe}</td>
-      <td class="ds-ops-completion-col-contact-cell">${contactDropdown}</td>
-      <td class="ds-ops-completion-actions-cell no-print"><div class="ds-ops-completion-actions"><button type="button" class="ds-ops-icon-btn" data-ops-approval-view="${displayIndex}" title="צפייה באישור" aria-label="צפייה באישור">👁</button>${!hasFile
+      <td class="ds-ops-completion-col--status ds-table-cell-truncate">${completionApprovalUploadStatusChip(upload)}</td>
+      <td class="ds-ops-completion-col--date ds-table-cell-truncate">${escapeHtml(formatDateHe(approval.date) || approval.date || '')}${todayChip}</td>
+      <td class="ds-ops-completion-col--authority ds-table-cell-truncate">${escapeHtml(approval.authority || '—')}</td>
+      <td class="ds-ops-completion-col--instructor ds-table-cell-truncate">${escapeHtml(approval.instructorName || '')}</td>
+      <td class="ds-ops-completion-col--school ds-table-cell-wrap">${escapeHtml(approval.school || '')}</td>
+      <td class="ds-ops-completion-col--who ds-ops-completion-col-who-cell ds-table-cell-wrap">${whoIsWithMe}</td>
+      <td class="ds-ops-completion-col--contact ds-ops-completion-col-contact-cell">${contactDropdown}</td>
+      <td class="ds-ops-completion-col--actions ds-ops-completion-actions-cell no-print"><div class="ds-ops-completion-actions"><button type="button" class="ds-ops-icon-btn" data-ops-approval-view="${displayIndex}" title="צפייה באישור" aria-label="צפייה באישור">👁</button>${!hasFile
         ? ` <button type="button" class="ds-ops-icon-btn ds-ops-icon-btn--add" data-ops-approval-upload="${displayIndex}" title="הוספת אישור פעילות חתום" aria-label="הוספת אישור פעילות חתום">＋</button>`
         : ` <button type="button" class="ds-ops-icon-btn" data-ops-upload-view="${escapeHtml(upload.id)}" title="צפייה בקובץ חתום" aria-label="צפייה בקובץ חתום">📋</button> <button type="button" class="ds-ops-icon-btn" data-ops-upload-download="${escapeHtml(upload.id)}" title="הורדה" aria-label="הורדה">⬇</button>${canReview
           ? ` <button type="button" class="ds-ops-icon-btn ds-ops-icon-btn--approve" data-ops-upload-approve="${escapeHtml(upload.id)}" title="אישור קבלה" aria-label="אישור קבלה">✓</button> <button type="button" class="ds-ops-icon-btn ds-ops-icon-btn--reject" data-ops-upload-reject="${escapeHtml(upload.id)}" title="דחייה" aria-label="דחייה">✕</button>`
@@ -2244,7 +2287,7 @@ function completionApprovalTabHtml(rows, state, data = {}, directory = buildScho
   _completionApprovalPrintContext = { approvals: items.map((item) => item.approval), uploads: data?.completionApprovalUploads || [] };
   const contactRows = (selectedDate || selectedPrintInstructor || approvalState.instructor || selectedAuthority) ? summerRows.filter((row) => items.some((item) => String(item.approval.date || '').slice(0, 10) === String(row.start_date || row.activity_date || '').slice(0, 10) && String(item.approval.school || '').trim() === String(row.school || row.single_school_name || row.legacy_school || '').trim())) : summerRows;
   const table = items.length
-    ? dsTableWrap(`<table class="ds-table ds-table--compact ds-ops-completion-preview"><colgroup><col class="ds-ops-completion-col--status"><col class="ds-ops-completion-col--date"><col class="ds-ops-completion-col--authority"><col class="ds-ops-completion-col--instructor"><col class="ds-ops-completion-col--school"><col class="ds-ops-completion-col--who"><col class="ds-ops-completion-col--contact"><col class="ds-ops-completion-col--actions no-print"></colgroup><thead><tr><th>סטטוס אישור</th><th style="text-align:center">תאריך</th><th>רשות</th><th>מדריך</th><th>בית ספר</th><th>מי איתי היום</th><th>אחראי קשר</th><th class="no-print" style="text-align:center">פעולות</th></tr></thead><tbody>${body}</tbody></table>`)
+    ? dsTableWrap(`<table class="ds-table ds-table--compact ds-ops-completion-preview"><colgroup><col class="ds-ops-completion-col--status"><col class="ds-ops-completion-col--date"><col class="ds-ops-completion-col--authority"><col class="ds-ops-completion-col--instructor"><col class="ds-ops-completion-col--school"><col class="ds-ops-completion-col--who"><col class="ds-ops-completion-col--contact"><col class="ds-ops-completion-col--actions no-print"></colgroup><thead><tr><th class="ds-ops-completion-col--status">סטטוס אישור</th><th class="ds-ops-completion-col--date">תאריך</th><th class="ds-ops-completion-col--authority">רשות</th><th class="ds-ops-completion-col--instructor">מדריך</th><th class="ds-ops-completion-col--school">בית ספר</th><th class="ds-ops-completion-col--who">מי איתי היום</th><th class="ds-ops-completion-col--contact">אחראי קשר</th><th class="ds-ops-completion-col--actions no-print">פעולות</th></tr></thead><tbody>${body}</tbody></table>`)
     : dsEmptyState('לא נמצאו אישורי ביצוע בטווח הנוכחי');
   const activePanel = `<div class="ds-ops-completion-approvals-card">${dsCard({ body: table, padded: false })}</div>`;
   return `<section class="ds-ops-mgmt-panel ds-ops-completion-panel" dir="rtl">
