@@ -15,6 +15,8 @@ import {
   buildWorkshopStockMapFromLists,
   buildWorkshopQuantityMetrics,
   getActivityActualParticipantCount,
+  getActivityRequiredInventoryQuantity,
+  sumRequiredInventoryQuantitiesFromActivities,
   WORKSHOP_ESTIMATE_PER_ACTIVITY
 } from '../frontend/src/screens/shared/operations-activity-helpers.js';
 import { operationsManagementScreen } from '../frontend/src/screens/operations-management.js';
@@ -556,8 +558,9 @@ test('workshops inventory usage is read-only and sums participants_count from ac
   }, { state });
   const tableHtml = html.slice(html.indexOf('<table class="ds-table ds-table--compact ds-ops-mgmt-data-table ds-ops-workshops-table"'));
   assert.match(tableHtml, />3</);
-  assert.match(tableHtml, />75</);
   assert.match(tableHtml, />80</);
+  assert.match(tableHtml, /חסר מספר משתתפים ב-2 פעילויות/);
+  assert.doesNotMatch(tableHtml, />75</);
   assert.match(tableHtml, />420</);
   assert.doesNotMatch(tableHtml, /data-ops-dist-edit/);
   assert.doesNotMatch(tableHtml, /ds-ops-stock-edit-btn/);
@@ -574,7 +577,7 @@ test('workshops inventory usage is read-only and sums participants_count from ac
 });
 
 
-test('workshops inventory uses x25 required quantity and shows missing participant counts as zero', () => {
+test('workshops inventory treats missing participant counts as zero and warns', () => {
   const state = baseState();
   state.operationsManagement.tab = 'workshops';
   const adminListsData = { categories: [{ category: 'activity_names', items: [{ value: '002', _row: { category: 'activity_names', type: 'workshop', activity_type: 'workshop', active: true, activity_no: '002', activity_name: 'אסטרונאוט על חוטים', stock_quantity: 150 } }] }] };
@@ -586,13 +589,53 @@ test('workshops inventory uses x25 required quantity and shows missing participa
     adminListsData
   }, { state });
   const tableHtml = html.slice(html.indexOf('<table class="ds-table ds-table--compact ds-ops-mgmt-data-table ds-ops-workshops-table"'));
-  assert.match(tableHtml, />25</);
   assert.match(tableHtml, />0</);
-  assert.doesNotMatch(tableHtml, /לא עודכן/);
+  assert.match(tableHtml, /חסר מספר משתתפים ב-1 פעילויות/);
+  assert.doesNotMatch(tableHtml, />25</);
+  assert.doesNotMatch(tableHtml, /ברירת מחדל/);
   assert.doesNotMatch(tableHtml, /NaN/);
-  assert.doesNotMatch(tableHtml, />150<[^]*>25<[^]*>125</);
+  assert.match(tableHtml, />150<[^]*>0<[^]*>150</);
 });
 
+
+
+
+test('required inventory helper sums only positive participants_count and never falls back to estimate', () => {
+  assert.equal(getActivityRequiredInventoryQuantity({ participants_count: 30 }), 30);
+  assert.equal(sumRequiredInventoryQuantitiesFromActivities([{ participants_count: 20 }, { participants_count: 35 }]), 55);
+  assert.equal(getActivityRequiredInventoryQuantity({ activity_name: 'סדנה ללא משתתפים' }), 0);
+  assert.equal(getActivityRequiredInventoryQuantity({ participants_count: 0 }), 0);
+  assert.equal(getActivityRequiredInventoryQuantity({ participants_count: '' }), 0);
+  assert.equal(WORKSHOP_ESTIMATE_PER_ACTIVITY, 25);
+});
+
+test('workshops required inventory matches participants_count from DB examples and deduplicates instructors', () => {
+  const state = baseState();
+  state.operationsManagement.tab = 'workshops';
+  const adminListsData = { categories: [{ category: 'activity_names', items: [
+    { value: '011', _row: { category: 'activity_names', type: 'workshop', activity_type: 'workshop', active: true, activity_no: '011', activity_name: 'גשר לאונרדו', stock_quantity: 1000 } },
+    { value: '012', _row: { category: 'activity_names', type: 'workshop', activity_type: 'workshop', active: true, activity_no: '012', activity_name: 'מכונית מגנטית', stock_quantity: 1000 } },
+    { value: '024', _row: { category: 'activity_names', type: 'workshop', activity_type: 'workshop', active: true, activity_no: '024', activity_name: 'קופת קסם', stock_quantity: 1000 } },
+    { value: '050', _row: { category: 'activity_names', type: 'workshop', activity_type: 'workshop', active: true, activity_no: '050', activity_name: 'חדר בריחה קווסט', stock_quantity: 1000 } }
+  ] }] };
+  const html = operationsManagementScreen.render({
+    rows: [
+      { RowID: 'LEO-1', status: 'פתוח', activity_name: 'גשר לאונרדו', start_date: '2026-07-10', activity_season: 'summer_2026', activity_type: 'workshop', participants_count: 117, instructor_name: 'דני', instructor_name_2: 'דני' },
+      { RowID: 'MAG-1', status: 'פתוח', activity_name: 'מכונית מגנטית', start_date: '2026-07-10', activity_season: 'summer_2026', activity_type: 'workshop', participants_count: 384, instructor_name: 'נועה' },
+      { RowID: 'BOX-1', status: 'פתוח', activity_name: 'קופת קסם', start_date: '2026-07-10', activity_season: 'summer_2026', activity_type: 'workshop', participants_count: 401, instructor_name: 'הילה' },
+      { RowID: 'QUEST-1', status: 'פתוח', activity_name: 'חדר בריחה קווסט', start_date: '2026-07-10', activity_season: 'summer_2026', activity_type: 'workshop', participants_count: 600, instructor_name: 'תמיר' }
+    ],
+    workshopStockMap: buildWorkshopStockMapFromLists(adminListsData),
+    adminListsData
+  }, { state });
+  const tableHtml = html.slice(html.indexOf('<table class="ds-table ds-table--compact ds-ops-mgmt-data-table ds-ops-workshops-table"'));
+  assert.match(tableHtml, /גשר לאונרדו[^]*>117</);
+  assert.match(tableHtml, /מכונית מגנטית[^]*>384</);
+  assert.match(tableHtml, /קופת קסם[^]*>401</);
+  assert.match(tableHtml, /חדר בריחה קווסט[^]*>600</);
+  assert.equal((html.match(/LEO-1/g) || []).length, 0);
+  assert.equal(getActivityInstructorNames({ instructor_name: 'דני', instructor_name_2: 'דני' }).length, 1);
+});
 
 test('workshops inventory tab excludes courses and after-school catalog rows', () => {
   const state = baseState();
