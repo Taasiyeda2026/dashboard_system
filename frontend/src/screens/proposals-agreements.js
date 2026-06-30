@@ -964,7 +964,7 @@ export function proposalsAgreementsTableRowsHtml(rows, state) {
       <td>${escapeHtml(row.school_framework || '—')}</td>
       <td>${escapeHtml(proposalGroupDisplayName(row.activity_type_group) || '—')}</td>
       <td style="text-align:center">${escapeHtml(formatDateDisplay(row.proposal_date) || '')}</td>
-      <td>${statusSelectHtml(row, canManage, isAdmin, state)}${status === 'sent' && text(row.sent_by) ? `<div class="ds-pa-sent-meta">נשלח ע״י ${escapeHtml(text(row.sent_by))}${text(row.sent_at) ? ` · תאריך שליחה ${escapeHtml(formatDateDisplay(row.sent_at))}` : ''}</div>` : ''}</td>
+      <td>${statusSelectHtml(row, canManage, isAdmin, state)}</td>
       <td style="text-align:center">${row.total_amount != null ? `₪ ${escapeHtml(formatCurrency(row.total_amount))}` : ''}</td>
       <td class="ds-pa-actions-cell"><div class="ds-pa-actions-inner">${actionBtns.join('')}</div></td>
     </tr>`;

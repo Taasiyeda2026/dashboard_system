@@ -11151,37 +11151,34 @@ select.ds-input {
 }
 
 .ds-pa-info-grid--proposal-meta {
-  display: grid;
+  display: flex;
+  flex-wrap: wrap;
   width: 100%;
   box-sizing: border-box;
-  align-items: stretch;
+  direction: rtl;
   gap: 0;
 }
 
-.ds-pa-info-grid--proposal-meta.ds-pa-info-grid--three {
-  grid-template-columns: repeat(3, minmax(0, 1fr));
-}
-
-.ds-pa-info-grid--proposal-meta.ds-pa-info-grid--four {
-  grid-template-columns: repeat(4, minmax(0, 1fr));
-}
-
-.ds-pa-info-grid--proposal-meta.ds-pa-info-grid--five {
-  grid-template-columns: repeat(5, minmax(0, 1fr));
+.ds-pa-info-grid--proposal-meta.ds-pa-info-grid--three .ds-pa-info-cell,
+.ds-pa-info-grid--proposal-meta.ds-pa-info-grid--four .ds-pa-info-cell,
+.ds-pa-info-grid--proposal-meta.ds-pa-info-grid--five .ds-pa-info-cell {
+  flex: 1 1 120px;
 }
 
 .ds-pa-info-grid--proposal-meta .ds-pa-info-cell {
-  min-width: 0;
-  padding: 0 8px;
+  min-width: 100px;
+  padding: 8px;
   text-align: center;
   display: flex;
   flex-direction: column;
   align-items: center;
-  justify-content: center;
+  justify-content: flex-start;
+  box-sizing: border-box;
+  border-right: 1px solid #e5e7eb;
 }
 
-.ds-pa-info-grid--proposal-meta .ds-pa-info-cell:not(:first-child) {
-  border-right: 1px solid #e5e7eb;
+.ds-pa-info-grid--proposal-meta .ds-pa-info-cell:last-child {
+  border-right: none;
 }
 
 .ds-pa-info-grid--proposal-meta .ds-pa-info-label,
@@ -11190,6 +11187,7 @@ select.ds-input {
   width: 100%;
   text-align: center;
   direction: rtl;
+  word-break: break-word;
 }
 
 .ds-pa-info-grid--proposal-meta .ds-pa-info-label {
@@ -11197,9 +11195,7 @@ select.ds-input {
   font-size: 0.75rem;
   font-weight: 700;
   color: #64748b;
-  white-space: nowrap;
-  overflow: visible;
-  text-overflow: clip;
+  white-space: normal;
 }
 
 .ds-pa-info-grid--proposal-meta .ds-pa-info-value {
@@ -11207,9 +11203,7 @@ select.ds-input {
   font-weight: 800;
   color: #0f172a;
   line-height: 1.35;
-  white-space: nowrap;
-  overflow: visible;
-  text-overflow: clip;
+  white-space: normal;
 }
 
 /* ── Info cards ── */
