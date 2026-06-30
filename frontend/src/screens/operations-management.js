@@ -1238,8 +1238,11 @@ function opsManagementStylesHtml() {
     .ds-ops-mgmt-screen .ds-ops-workshops-table .ds-ops-dist-table th { background:#f8fafc !important; font-weight:700 !important; color:#1e3a8a !important; border-bottom:2px solid #93c5fd !important; text-align:center !important; }
     /* dist-table instructors — עמודת מדריך: auto; שאר: פיקסלים קבועים */
     .ds-ops-mgmt-screen .ds-ops-dist-table--instructors .ds-ops-dist-col--instructor { text-align:right !important; width:auto !important; }
-    .ds-ops-mgmt-screen .ds-ops-dist-table--instructors .ds-ops-dist-col--number { text-align:center !important; width:36px !important; }
-    .ds-ops-mgmt-screen .ds-ops-dist-table--instructors .ds-ops-dist-col--status { text-align:center !important; width:52px !important; line-height:1.2; }
+    .ds-ops-mgmt-screen .ds-ops-dist-table--instructors .ds-ops-dist-col--number { text-align:center !important; width:38px !important; }
+    .ds-ops-mgmt-screen .ds-ops-dist-table--instructors .ds-ops-dist-col--status { text-align:center !important; width:115px !important; white-space:normal !important; overflow-wrap:anywhere !important; word-break:normal !important; line-height:1.3; }
+    .ds-ops-mgmt-screen .ds-ops-dist-table--instructors td.ds-ops-dist-col--status,
+    .ds-ops-mgmt-screen .ds-ops-dist-table--instructors th.ds-ops-dist-col--status { white-space:normal !important; overflow:visible !important; text-overflow:clip !important; }
+    .ds-ops-mgmt-screen .ds-ops-workshop-status-text { white-space:normal !important; overflow-wrap:anywhere; word-break:normal; }
     .ds-ops-mgmt-screen .ds-ops-estimate-mark { color:#9a3412; font-weight:800; }
     .ds-ops-mgmt-screen .ds-ops-stock-cell { white-space:nowrap; }
     .ds-ops-mgmt-screen .ds-ops-stock-input { width:64px; text-align:center; font-size:12px; padding:2px 4px; border:1px solid #94a3b8; border-radius:4px; background:#fff; }
@@ -1768,7 +1771,7 @@ function workshopStatusText(status) {
 }
 
 function workshopInstructorDetailHtml(row) {
-  const locationItems = (row.stockLocationRows || []);
+  const locationItems = (row.stockLocationRows || []).filter((item) => !/סה.?כ/.test(item.location || ''));
   const locationLine = locationItems.length
     ? locationItems.map((item) => `${escapeHtml(item.location)} (${formatSignedNumberForRtl(item.quantity)})`).join(', ')
     : '—';
