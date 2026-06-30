@@ -987,7 +987,7 @@ function workshopMainStatus(row) {
   return { label: 'תקין', tone: 'success' };
 }
 
-function workshopMetricsRows(rows, stockMap, catalogRows = [], distributions = [], dateRange = {}) {
+function workshopMetricsRows(activitiesRowsForRequiredInventory, stockMap, catalogRows = [], workshopStockDistributions = [], dateRange = {}) {
   const groups = new Map();
   catalogRows.forEach((catalog) => {
     const key = catalog.stockGroupKey || `activity_${catalog.workshopNo || normalizeWorkshopKey(catalog.workshopName)}`;
@@ -1005,7 +1005,8 @@ function workshopMetricsRows(rows, stockMap, catalogRows = [], distributions = [
     if (group.stockQuantity === null || group.stockQuantity === undefined) group.stockQuantity = catalog.stockQuantity;
   });
 
-  rows.forEach((row) => {
+  const activityRows = Array.isArray(activitiesRowsForRequiredInventory) ? activitiesRowsForRequiredInventory : [];
+  activityRows.forEach((row) => {
     groups.forEach((group) => {
       if (!group.linkedWorkshops.some((workshop) => activityMatchesOfficialWorkshop(row, workshop))) return;
       group.activities.push(row);
@@ -1019,7 +1020,8 @@ function workshopMetricsRows(rows, stockMap, catalogRows = [], distributions = [
     const stock = group.stockQuantity !== null && group.stockQuantity !== undefined && Number.isFinite(Number(group.stockQuantity))
       ? Number(group.stockQuantity)
       : null;
-    const groupDistributions = workshopDistributionRowsForGroup(distributions, group.stockGroupKey).filter((dist) => distributionInDateRange(dist, dateRange.from, dateRange.to));
+    const groupDistributions = workshopDistributionRowsForGroup(workshopStockDistributions, group.stockGroupKey)
+      .filter((dist) => distributionInDateRange(dist, dateRange.from, dateRange.to));
     const instructorMap = new Map();
     const ensureInstructor = (name) => {
       const key = String(name || '').trim() || 'לא משויך';
@@ -1722,9 +1724,9 @@ function workshopInstructorDetailHtml(row) {
   </div></td></tr>`;
 }
 
-function workshopsTabHtml(rows, state, stockMap, catalogRows = [], distributions = []) {
+function workshopsTabHtml(activitiesRowsForRequiredInventory, state, stockMap, catalogRows = [], workshopStockDistributions = []) {
   const ops = ensureOpsState(state);
-  const allMetrics = sortByConfig(workshopMetricsRows(rows, stockMap, catalogRows, distributions, { from: WORKSHOPS_SUMMER_FROM, to: WORKSHOPS_SUMMER_TO }), state, TAB_WORKSHOPS, {
+  const allMetrics = sortByConfig(workshopMetricsRows(activitiesRowsForRequiredInventory, stockMap, catalogRows, workshopStockDistributions, { from: WORKSHOPS_SUMMER_FROM, to: WORKSHOPS_SUMMER_TO }), state, TAB_WORKSHOPS, {
     workshopNo: (row) => row.workshopNo || row.workshopName,
     workshopName: (row) => row.workshopName,
     activityCount: (row) => row.activityCount,
@@ -2315,14 +2317,14 @@ function renderTab(rows, state, data, allPreparedRows = []) {
   }
   if (ops.tab === TAB_WORKSHOPS) {
     const catalogRows = extractWorkshopCatalogRows(data?.adminListsData, allPreparedRows);
-    const sourceRows = allPreparedRows.length ? allPreparedRows : rows;
-    const workshopRows = sourceRows.filter((row) =>
+    const activitiesRowsForRequiredInventory = rows.filter((row) =>
       !isActivityDeleted(row) &&
       !isTamirActivity(row) &&
       activityMatchesAnyOfficialWorkshop(row, catalogRows) &&
       activityOverlapsDateRange(row, WORKSHOPS_SUMMER_FROM, WORKSHOPS_SUMMER_TO)
     );
-    return workshopsTabHtml(workshopRows, state, stockMap, catalogRows, data?.workshopStockDistributions || []);
+    const workshopStockDistributions = data?.workshopStockDistributions || [];
+    return workshopsTabHtml(activitiesRowsForRequiredInventory, state, stockMap, catalogRows, workshopStockDistributions);
   }
   return instructorsTabHtml(rows, state, data, directory, contactsIndex, allPreparedRows);
 }

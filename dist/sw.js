@@ -4,7 +4,7 @@
  * API-like requests: network only, never cached. Bump CACHE_VERSION after deploy to drop old caches.
  * CACHE_VERSION is the single manual SW/cache version source; /sw.js imports this file without its own version.
  */
-const CACHE_VERSION = 1052;
+const CACHE_VERSION = 1063;
 const CACHE_PREFIX = 'dashboard-static-v';
 const CACHE_NAME = `${CACHE_PREFIX}${CACHE_VERSION}`;
 
@@ -12,8 +12,8 @@ const CACHE_NAME = `${CACHE_PREFIX}${CACHE_VERSION}`;
 const PRECACHE_URLS = [
   "./assets/apple-touch-icon-DZF9rhdV.png",
   "./assets/favicon-D0Y9bj5H.ico",
-  "./assets/index-DQo638L0.js",
-  "./assets/style-CIqEoYrj.css",
+  "./assets/index-C8oXxVPA.js",
+  "./assets/style-C0Nr1WKm.css",
   "./index.html",
   "./manifest.json"
 ];
@@ -43,6 +43,7 @@ function isBlockedCachePath(url) {
   if (p.includes('/attached_assets/')) return true;
   if (p.includes('/dist/')) return true;
   if (p.includes('/tests/')) return true;
+  if (p.includes('/docs/prompts/')) return true;
   if (p.includes('/archive') || p.includes('/mock') || p.includes('/debug')) return true;
   if (p.includes('/reports/') || p.includes('/personal-reports')) return true;
   if (/\.(?:pdf|csv|xlsx)(?:$|[?#])/.test(p)) return true;
