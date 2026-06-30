@@ -1219,10 +1219,11 @@ function opsManagementStylesHtml() {
     .ds-ops-mgmt-screen .ds-ops-workshop-status-text--muted { color:#64748b; }
     .ds-ops-mgmt-screen .ds-ops-row--expanded td { background:color-mix(in srgb,#dbeafe 25%,#fff)!important; }
     .ds-ops-mgmt-screen .ds-ops-dist-input { width:72px; text-align:center; font-size:12px; padding:2px 4px; border:1px solid #94a3b8; border-radius:4px; background:#fff; }
-    .ds-ops-mgmt-screen .ds-ops-workshop-detail { background:#f8fafc; border:1px solid #dbeafe; border-radius:12px; padding:8px; width:100%; max-width:100%; box-sizing:border-box; overflow-x:hidden; }
-    .ds-ops-mgmt-screen .ds-ops-workshop-detail-row > td { text-align:right!important; padding:6px 8px!important; max-width:100%; box-sizing:border-box; overflow:hidden; }
-    .ds-ops-mgmt-screen .ds-ops-workshop-detail__tables { display:grid; grid-template-columns:1fr 1fr; gap:10px; align-items:start; margin-top:8px; width:100%; max-width:100%; box-sizing:border-box; }
-    .ds-ops-mgmt-screen .ds-ops-workshop-detail__box { min-width:0; width:100%; max-width:100%; box-sizing:border-box; overflow-x:hidden; }
+    .ds-ops-mgmt-screen .ds-ops-workshop-detail { display:block; background:#f8fafc; border:1px solid #dbeafe; border-radius:12px; padding:8px; width:100%; box-sizing:border-box; }
+    .ds-ops-mgmt-screen .ds-ops-workshop-detail-row > td { padding:6px 8px!important; width:100%; box-sizing:border-box; }
+    .ds-ops-mgmt-screen .ds-ops-workshop-detail__tables { display:grid; grid-template-columns:1fr 1fr; gap:16px; align-items:start; margin-top:8px; width:100%; box-sizing:border-box; }
+    .ds-ops-mgmt-screen .ds-ops-workshop-detail__box { min-width:0; width:100%; box-sizing:border-box; }
+    .ds-ops-mgmt-screen .ds-ops-workshop-detail__box table { width:100%; table-layout:fixed; }
     .ds-ops-mgmt-screen .ds-ops-workshop-detail__table-title { display:block; font-weight:800; color:#1e3a8a; margin-bottom:4px; }
     .ds-ops-mgmt-screen .ds-ops-dist-table { table-layout:fixed; margin-top:0; width:100%; max-width:100%; font-size:12px; direction:rtl; box-sizing:border-box; }
     @media (max-width: 720px) { .ds-ops-mgmt-screen .ds-ops-workshop-detail__tables { grid-template-columns:1fr; } }
