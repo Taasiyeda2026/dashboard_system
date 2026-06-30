@@ -1232,12 +1232,12 @@ function opsManagementStylesHtml() {
     .ds-ops-mgmt-screen .ds-ops-dist-table th { background:#fff; font-weight:700; border-bottom:2px solid #93c5fd !important; }
     .ds-ops-mgmt-screen .ds-ops-dist-table th,
     .ds-ops-mgmt-screen .ds-ops-dist-table td { padding:3px 4px; font-size:11px; box-sizing:border-box; white-space:nowrap; overflow:hidden; text-overflow:ellipsis; }
-    /* dist-table — semantic column classes */
-    .ds-ops-mgmt-screen .ds-ops-dist-table--locations .ds-ops-dist-col--location { text-align:right !important; width:120px !important; max-width:130px !important; }
-    .ds-ops-mgmt-screen .ds-ops-dist-table--locations .ds-ops-dist-col--quantity { text-align:center !important; width:40px !important; max-width:55px !important; }
-    .ds-ops-mgmt-screen .ds-ops-dist-table--instructors .ds-ops-dist-col--instructor { text-align:right !important; width:120px !important; max-width:130px !important; }
-    .ds-ops-mgmt-screen .ds-ops-dist-table--instructors .ds-ops-dist-col--number { text-align:center !important; width:40px !important; max-width:55px !important; }
-    .ds-ops-mgmt-screen .ds-ops-dist-table--instructors .ds-ops-dist-col--status { text-align:center !important; width:40px !important; max-width:55px !important; white-space:nowrap; line-height:1.2; }
+    /* dist-table — semantic column classes (percentages = self-contained per table) */
+    .ds-ops-mgmt-screen .ds-ops-dist-table--locations .ds-ops-dist-col--location { text-align:right !important; width:25% !important; }
+    .ds-ops-mgmt-screen .ds-ops-dist-table--locations .ds-ops-dist-col--quantity { text-align:center !important; width:5% !important; }
+    .ds-ops-mgmt-screen .ds-ops-dist-table--instructors .ds-ops-dist-col--instructor { text-align:right !important; width:25% !important; }
+    .ds-ops-mgmt-screen .ds-ops-dist-table--instructors .ds-ops-dist-col--number { text-align:center !important; width:10% !important; }
+    .ds-ops-mgmt-screen .ds-ops-dist-table--instructors .ds-ops-dist-col--status { text-align:center !important; width:20% !important; white-space:nowrap; line-height:1.2; }
     .ds-ops-mgmt-screen .ds-ops-estimate-mark { color:#9a3412; font-weight:800; }
     .ds-ops-mgmt-screen .ds-ops-stock-cell { white-space:nowrap; }
     .ds-ops-mgmt-screen .ds-ops-stock-input { width:64px; text-align:center; font-size:12px; padding:2px 4px; border:1px solid #94a3b8; border-radius:4px; background:#fff; }
