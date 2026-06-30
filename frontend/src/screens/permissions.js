@@ -17,10 +17,14 @@ const KEY_PERM_FLAGS = [
   'view_catalog',
   'view_orders',
   'view_proposals',
+  'view_proposals_agreements',
+  'manage_proposals_agreements',
+  'approve_proposals_agreements',
   'view_israa_management',
   'view_operations_management',
   'finance_access',
-  'can_access_personal_reports'
+  'can_access_personal_reports',
+  'personal_reports_manager'
 ];
 
 const PERMISSION_ROLE_OPTIONS = [

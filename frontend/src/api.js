@@ -3657,13 +3657,13 @@ function isKnownInstructorIdentity(user = {}) {
 
 const SUPABASE_ROLE_ROUTES = {
   admin: ['dashboard', 'activities', 'archive', 'catalog', 'invitations', 'proposals-agreements', 'week', 'month', 'exceptions', 'instructors', 'instructor-contacts', 'contacts', 'end-dates', 'edit-requests', 'permissions', 'admin-home', 'admin-settings', 'admin-lists', 'finance', 'operations-management', 'certificates'],
-  operation_manager: ['dashboard', 'activities', 'archive', 'catalog', 'invitations', 'proposals-agreements', 'week', 'month', 'exceptions', 'instructors', 'instructor-contacts', 'contacts', 'end-dates', 'edit-requests', 'operations-management', 'certificates'],
+  operation_manager: ['dashboard', 'activities', 'archive', 'catalog', 'invitations', 'proposals-agreements', 'week', 'month', 'exceptions', 'instructors', 'instructor-contacts', 'contacts', 'end-dates', 'edit-requests', 'permissions', 'operations-management', 'certificates'],
   authorized_user: ['dashboard', 'activities', 'archive', 'week', 'month', 'exceptions', 'instructors', 'instructor-contacts', 'contacts', 'end-dates', 'certificates'],
-  finance: ['dashboard', 'activities', 'archive', 'catalog', 'invitations', 'week', 'month', 'exceptions', 'instructors', 'instructor-contacts', 'contacts', 'end-dates', 'edit-requests', 'certificates'],
-  activities_manager: ['dashboard', 'activities', 'archive', 'catalog', 'invitations', 'week', 'month', 'exceptions', 'instructors', 'instructor-contacts', 'contacts', 'end-dates', 'edit-requests', 'operations-management', 'certificates'],
+  finance: ['dashboard', 'activities', 'archive', 'catalog', 'orders', 'week', 'month', 'exceptions', 'instructors', 'instructor-contacts', 'contacts', 'end-dates', 'edit-requests', 'certificates'],
+  activities_manager: ['dashboard', 'activities', 'archive', 'catalog', 'orders', 'week', 'month', 'exceptions', 'instructors', 'instructor-contacts', 'contacts', 'end-dates', 'edit-requests', 'operations-management', 'certificates'],
   domain_manager: ['dashboard', 'activities', 'archive', 'catalog', 'invitations', 'proposals-agreements', 'week', 'month', 'exceptions', 'instructors', 'instructor-contacts', 'contacts', 'end-dates', 'certificates'],
   business_development_manager: ['dashboard', 'activities', 'archive', 'proposals-agreements', 'catalog', 'invitations', 'week', 'month', 'exceptions', 'instructors', 'instructor-contacts', 'contacts', 'end-dates', 'edit-requests', 'certificates'],
-  instructor_manager: ['dashboard', 'activities', 'archive', 'catalog', 'invitations', 'week', 'month', 'exceptions', 'instructors', 'instructor-contacts', 'contacts', 'end-dates', 'edit-requests', 'certificates'],
+  instructor_manager: ['dashboard', 'activities', 'archive', 'catalog', 'orders', 'week', 'month', 'exceptions', 'instructors', 'instructor-contacts', 'contacts', 'end-dates', 'edit-requests', 'certificates'],
   instructor: ['instructor-calendar', 'my-data', 'instructor-completion-approvals', 'instructor-guidelines']
 };
 
@@ -3864,7 +3864,7 @@ function buildBootstrapFromUser(userRow, profileRow = null) {
   const isBusinessDevelopmentManager = role === 'business_development_manager';
   const canDirectManageActivities = canEditDirect(flat);
   const canAddActivities = canAddActivityDirect(flat);
-  const canRequestActivities = canRequestEdit(flat);
+  const canRequestEdit = canSubmitActivityRequestsUser(flat);
   const hasFinanceAccess = isBusinessDevelopmentManager ? false : (role === 'finance' || permissionFlagYes(parsePermissions(userRow?.permissions).finance_access) || permissionFlagYes(parsePermissions(userRow?.permissions).view_finance));
   const financeIdx = allowedRoutes.indexOf('finance');
   if (hasFinanceAccess && financeIdx === -1) allowedRoutes.push('finance');
@@ -3878,8 +3878,8 @@ function buildBootstrapFromUser(userRow, profileRow = null) {
     permissionFlagYes(flat.view_proposals_agreements) ||
     permissionFlagYes(flat.manage_proposals_agreements)
   ) { if (!allowedRoutes.includes('proposals-agreements')) allowedRoutes.push('proposals-agreements'); }
-  const canReviewRequests = canReviewEditRequestsUser(flat);
-  const canViewEditRequests = canReviewRequests || canRequestActivities || permissionFlagYes(flat.view_edit_requests) || allowedRoutes.includes('edit-requests');
+  const canReviewRequests = canDirectManageActivities;
+  const canViewEditRequests = canReviewRequests || canRequestEdit || permissionFlagYes(flat.view_edit_requests) || allowedRoutes.includes('edit-requests');
   if (canViewEditRequests && !allowedRoutes.includes('edit-requests')) {
     allowedRoutes.push('edit-requests');
   }
@@ -3889,8 +3889,12 @@ function buildBootstrapFromUser(userRow, profileRow = null) {
   if (hasPersonalReportsAccess && personalReportsIdx === -1) allowedRoutes.push('personal-reports');
   if (!hasPersonalReportsAccess && personalReportsIdx >= 0) allowedRoutes.splice(personalReportsIdx, 1);
   // General admin routes are only for role=admin, never for feature-specific flags.
+  // operation_manager retains access to the permissions screen for user management.
   if (role !== 'admin') {
-    ['admin-home', 'admin-settings', 'admin-lists', 'permissions'].forEach((route) => {
+    const adminOnlyRoutes = role === 'operation_manager'
+      ? ['admin-home', 'admin-settings', 'admin-lists']
+      : ['admin-home', 'admin-settings', 'admin-lists', 'permissions'];
+    adminOnlyRoutes.forEach((route) => {
       const idx = allowedRoutes.indexOf(route);
       if (idx >= 0) allowedRoutes.splice(idx, 1);
     });
@@ -3924,7 +3928,7 @@ function buildBootstrapFromUser(userRow, profileRow = null) {
     },
     can_add_activity: canAddActivities,
     can_edit_direct: canDirectManageActivities,
-    can_request_edit: canRequestActivities,
+    can_request_edit: canRequestEdit,
     can_request_create_activity: canRequestCreateActivity(flat),
     can_review_requests: canReviewRequests,
     client_settings: {}
