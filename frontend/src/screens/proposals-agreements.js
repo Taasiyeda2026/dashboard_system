@@ -2773,7 +2773,9 @@ function formHtml(mode, row = {}, activityNameOptions = [], contactOptions = [],
   const initClientName = text(initContactSource?.client_name) || initSchool || initAuth;
   const proposalDate = mode === 'add' ? (text(row.proposal_date) || localDateInputValue()) : text(row.proposal_date);
   const hasCustomSections = Array.isArray(row.custom_document_sections) && row.custom_document_sections.length > 0;
-  const canApproveDirectly = canApproveProposalsAgreements(state);
+  const rowNormalizedStatus = normalizeProposalStatus(text(row.status));
+  const rowIsAlreadyApproved = rowNormalizedStatus === 'approved' || rowNormalizedStatus === 'sent' || proposalHasSavedApprovalSignature(row);
+  const canApproveDirectly = canApproveProposalsAgreements(state) && !rowIsAlreadyApproved;
   const primaryActionLabel = canApproveDirectly ? 'אישור וחתימה' : 'שליחה לאישור';
   const primaryActionStatus = canApproveDirectly ? 'approved' : 'pending_approval';
 
@@ -2946,6 +2948,12 @@ function drawerHtml(row, activityNameOptions = [], state = null) {
   const customBadge = hasCustomSections
     ? `<span class="ds-pa-badge" title="המסמך הזה כולל עריכה מותאמת אישית" style="display:inline-block;padding:1px 7px;border-radius:10px;font-size:0.75rem;background:#6366f1;color:#fff">מסמך מותאם</span>`
     : '';
+  const drawerRowStatus = normalizeProposalStatus(text(row.status));
+  const drawerIsApprovedOrSent = drawerRowStatus === 'approved' || drawerRowStatus === 'sent';
+  const drawerHasSig = proposalHasSavedApprovalSignature(row);
+  const signedBadge = (drawerIsApprovedOrSent || drawerHasSig)
+    ? `<span style="display:inline-flex;align-items:center;gap:3px;padding:1px 7px;border-radius:10px;font-size:0.75rem;background:#d1fae5;color:#065f46;border:1px solid #6ee7b7">✓ מאושר וחתום</span>`
+    : '';
 
   const clientDisplayName = text(row.client_name) || text(row.school_framework) || text(row.client_authority) || '—';
   const schoolSub = text(row.school_framework) && text(row.school_framework) !== clientDisplayName
@@ -2999,7 +3007,7 @@ function drawerHtml(row, activityNameOptions = [], state = null) {
         <button type="button" class="ds-btn ds-btn--xs ds-btn--ghost" data-pa-close-drawer aria-label="סגירת פרטי רשומה" style="flex-shrink:0;font-size:1rem;padding:2px 8px">✕</button>
       </header>
       <div class="ds-pa-drawer-action-bar">
-        <span class="ds-pa-drawer-badges">${statusBadgeHtml(row.status)}${customBadge ? '&ensp;' + customBadge : ''}</span>
+        <span class="ds-pa-drawer-badges">${statusBadgeHtml(row.status)}${signedBadge ? '&ensp;' + signedBadge : ''}${customBadge ? '&ensp;' + customBadge : ''}</span>
         <span class="ds-pa-drawer-icon-btns">${drawerActionButtons(row, state)}</span>
       </div>
       <div class="ds-pa-drawer-body">
@@ -4261,7 +4269,10 @@ export const proposalsAgreementsScreen = {
       const clientLabel = [freshRow.client_authority, freshRow.school_framework].filter(Boolean).map(escapeHtml).join(' — ');
       const saveBtnHtml = '';
       const signingMode = options.signatureMode === true;
-      const canApproveFromPreview = !signingMode && canApproveProposalsAgreements(state) && normalizeProposalStatus(freshRow.status) !== 'approved' && text(freshRow.id);
+      const freshNormalizedStatus = normalizeProposalStatus(freshRow.status);
+      const freshIsApprovedOrSent = freshNormalizedStatus === 'approved' || freshNormalizedStatus === 'sent';
+      const freshHasSavedSig = proposalHasSavedApprovalSignature(freshRow);
+      const canApproveFromPreview = !signingMode && !freshIsApprovedOrSent && !freshHasSavedSig && canApproveProposalsAgreements(state) && text(freshRow.id);
       const submitBtnHtml = options.onSubmit ? `<button type="button" class="ds-btn ds-btn--primary ds-btn--sm no-print" id="pa-preview-submit">${escapeHtml(options.submitLabel || 'שליחה לאישור')}</button>` : '';
       const approvePreviewBtnHtml = canApproveFromPreview ? '<button type="button" class="ds-btn ds-btn--primary ds-btn--sm no-print" id="pa-preview-approve-sign">אישור וחתימה</button>' : '';
       const hasCustomSections = Array.isArray(freshRow.custom_document_sections) && freshRow.custom_document_sections.length > 0;
