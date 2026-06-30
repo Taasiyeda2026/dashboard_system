@@ -11101,6 +11101,43 @@ select.ds-input {
   gap: 10px;
 }
 
+/* ── Drawer meta 3-col grid (סוג / תאריך / תחום) ── */
+.ds-pa-drawer-meta-grid {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 10px;
+  align-items: start;
+}
+
+.ds-pa-drawer-meta-item {
+  min-width: 0;
+  text-align: center;
+}
+
+.ds-pa-drawer-meta-label {
+  font-size: 0.7rem;
+  color: var(--ds-color-text-muted, #64748b);
+  font-weight: 600;
+  text-transform: uppercase;
+  letter-spacing: 0.02em;
+  margin-bottom: 3px;
+}
+
+.ds-pa-drawer-meta-value {
+  font-size: 0.88rem;
+  color: var(--ds-color-text, #111827);
+  font-weight: 600;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+@media (max-width: 480px) {
+  .ds-pa-drawer-meta-grid {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+}
+
 /* ── Info cards ── */
 .ds-pa-info-card {
   border: 1px solid var(--ds-color-border, #e5e7eb);

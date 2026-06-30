@@ -2966,13 +2966,19 @@ function drawerHtml(row, activityNameOptions = [], state = null) {
   const infoCell = (label, value, wide = false) => value
     ? `<div class="ds-pa-info-cell${wide ? ' ds-pa-info-cell--wide' : ''}"><span class="ds-pa-info-label">${escapeHtml(label)}</span><span>${escapeHtml(value)}</span></div>`
     : '';
-  const infoCardRows = [
-    infoCell('סוג הצעה', proposalGroupDisplayName(row.activity_type_group)),
-    infoCell('תאריך הצעה', formatDateDisplay(row.proposal_date)),
-    infoCell('תחום', text(row.proposal_domain)),
+  const metaCell = (label, value) => value
+    ? `<div class="ds-pa-drawer-meta-item"><div class="ds-pa-drawer-meta-label">${escapeHtml(label)}</div><div class="ds-pa-drawer-meta-value">${escapeHtml(value)}</div></div>`
+    : `<div class="ds-pa-drawer-meta-item"></div>`;
+  const metaRow = `<div class="ds-pa-drawer-meta-grid">
+    ${metaCell('סוג הצעה', proposalGroupDisplayName(row.activity_type_group))}
+    ${metaCell('תאריך הצעה', formatDateDisplay(row.proposal_date))}
+    ${metaCell('תחום', text(row.proposal_domain))}
+  </div>`;
+  const extraRows = [
     infoCell('הערת אישור', text(row.approval_note), true),
     infoCell('הערות', text(row.notes), true)
   ].filter(Boolean).join('');
+  const infoCardRows = metaRow + (extraRows ? `<div class="ds-pa-info-grid" style="margin-top:8px">${extraRows}</div>` : '');
 
   // ── פעילויות card ──
   const activityNames = (Array.isArray(row.activity_names) ? row.activity_names : []).map(text).filter(Boolean);
