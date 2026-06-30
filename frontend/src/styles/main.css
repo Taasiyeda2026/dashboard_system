@@ -10956,9 +10956,9 @@ select.ds-input {
 }
 
 .ds-pa-row-action--icon {
-  width: 32px;
-  height: 32px;
-  min-width: 32px;
+  width: 28px;
+  height: 28px;
+  min-width: 28px;
   display: inline-flex;
   align-items: center;
   justify-content: center;
@@ -10996,6 +10996,16 @@ select.ds-input {
 .ds-pa-table tbody tr:focus {
   background: var(--ds-color-surface-hover, rgba(37, 99, 235, 0.06));
   outline: none;
+}
+
+
+.ds-pa-sent-meta {
+  margin-top: 3px;
+  font-size: 0.72rem;
+  color: var(--ds-color-text-muted, #64748b);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
 }
 
 .ds-pa-badge--sent {
@@ -11154,6 +11164,10 @@ select.ds-input {
 
 .ds-pa-info-grid--proposal-meta.ds-pa-info-grid--four {
   grid-template-columns: repeat(4, minmax(0, 1fr));
+}
+
+.ds-pa-info-grid--proposal-meta.ds-pa-info-grid--five {
+  grid-template-columns: repeat(5, minmax(0, 1fr));
 }
 
 .ds-pa-info-grid--proposal-meta .ds-pa-info-cell {

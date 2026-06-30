@@ -1472,9 +1472,9 @@ test('status badge is rendered in table rows with correct labels', () => {
   assert.doesNotMatch(html, /נחתם/);
 });
 
-test('statusForDb maps UI sent to pending_approval for DB writes', async () => {
+test('statusForDb preserves terminal sent for explicit status transitions', async () => {
   const { statusForDb } = await import('../frontend/src/api.js');
-  assert.equal(statusForDb('sent'), 'pending_approval');
+  assert.equal(statusForDb('sent'), 'sent');
   assert.equal(statusForDb('draft'), 'draft');
   assert.equal(statusForDb('returned_for_changes'), 'returned_for_changes');
   assert.equal(statusForDb('approved'), 'approved');
@@ -1483,7 +1483,7 @@ test('statusForDb maps UI sent to pending_approval for DB writes', async () => {
   assert.equal(statusForDb(''), 'draft');
 });
 
-test('proposal save DB payload never contains status sent', async () => {
+test('proposal save DB payload preserves valid status values', async () => {
   const { sanitizeProposalAgreementPayload } = await import('../frontend/src/api.js');
   const { state } = await import('../frontend/src/state.js');
   const previousUser = state.user;
@@ -1498,8 +1498,7 @@ test('proposal save DB payload never contains status sent', async () => {
   try {
     for (const uiStatus of ['draft', 'sent', 'returned_for_changes', 'approved', 'cancelled', 'pending_approval']) {
       const dbPayload = sanitizeProposalAgreementPayload({ ...basePayload, status: uiStatus }, emptyLookup);
-      assert.notEqual(dbPayload.status, 'sent', `UI status ${uiStatus} must not write sent to DB`);
-      if (uiStatus === 'sent') assert.equal(dbPayload.status, 'pending_approval');
+      if (uiStatus === 'sent') assert.equal(dbPayload.status, 'sent');
       if (uiStatus === 'draft') assert.equal(dbPayload.status, 'draft');
       if (uiStatus === 'returned_for_changes') assert.equal(dbPayload.status, 'returned_for_changes');
       if (uiStatus === 'approved') assert.equal(dbPayload.status, 'approved');
@@ -3211,7 +3210,7 @@ test('exact timestamp proposal templates multiline migration matches stable SQL 
 });
 
 const STABLE_COMMIT = '2c772f835cc19da52fd76528c0b19f667f23de79';
-const STABLE_DIRECTORY_COLUMNS = 'id,authority_id,authority_code,school_id,contact_school_id,authority_name,legacy_client_authority,contact_client_type,contact_client_name,school_name,legacy_school_framework,document_type,activity_type_group,proposal_date,activity_names,contact_name,contact_role,phone,email,notes,status,approval_note,total_amount,custom_document_sections,include_catalog,signature_meta,approved_by,approved_at,created_at,updated_at';
+const STABLE_DIRECTORY_COLUMNS = 'id,authority_id,authority_code,school_id,contact_school_id,authority_name,legacy_client_authority,contact_client_type,contact_client_name,school_name,legacy_school_framework,document_type,activity_type_group,proposal_domain,proposal_date,activity_names,contact_name,contact_role,phone,email,notes,status,approval_note,total_amount,custom_document_sections,include_catalog,signature_meta,approved_by,approved_at,sent_by,sent_at,created_at,updated_at';
 
 test('rollback: proposals directory select fields match stable commit before emergency cleanup', async () => {
   const apiSource = await readFile(API_FILE, 'utf8');
@@ -3694,6 +3693,19 @@ test('package 2 workflow locks status actions by role and status', () => {
   const cancelledHtml = proposalsAgreementsScreen.render({ rows: [{ ...sampleRows[0], status: 'cancelled' }] }, { state: manager });
   assert.doesNotMatch(cancelledHtml, /data-pa-edit-row=|data-pa-print=/, 'cancelled proposals are locked from edit and PDF');
   assert.match(cancelledHtml, /data-pa-delete-row=/, 'cancelled proposals can be deleted');
+});
+
+
+
+test('sent metadata is displayed only when present on sent proposals', () => {
+  const manager = stateFor('operation_manager');
+  const withoutSender = proposalsAgreementsScreen.render({ rows: [{ ...sampleRows[0], status: 'sent' }] }, { state: manager });
+  assert.doesNotMatch(withoutSender, /נשלח ע״י/, 'missing sent_by should not render an empty sent-by field');
+
+  const withSender = proposalsAgreementsScreen.render({ rows: [{ ...sampleRows[0], status: 'sent', sent_by: 'דנה', sent_at: '2026-06-30T10:00:00.000Z' }] }, { state: manager });
+  assert.match(withSender, /נשלח ע״י/, 'sent_by label should render when metadata exists');
+  assert.match(withSender, /דנה/, 'sent_by value should render when metadata exists');
+  assert.match(withSender, /תאריך שליחה/, 'sent_at label should render with sent metadata');
 });
 
 test('package 2 status API validates terminal states and sent metadata source', async () => {
