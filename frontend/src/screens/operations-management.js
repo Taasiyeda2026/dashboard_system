@@ -1237,7 +1237,7 @@ function opsManagementStylesHtml() {
     .ds-ops-mgmt-screen .ds-ops-workshops-table .ds-ops-dist-table td { overflow:visible !important; white-space:normal !important; text-overflow:clip !important; padding:3px 4px !important; font-size:11px !important; vertical-align:middle !important; border:1px solid #e2e8f0 !important; box-sizing:border-box !important; }
     .ds-ops-mgmt-screen .ds-ops-workshops-table .ds-ops-dist-table th { background:#f8fafc !important; font-weight:700 !important; color:#1e3a8a !important; border-bottom:2px solid #93c5fd !important; text-align:center !important; }
     /* dist-table instructors — עמודת מדריך: auto; שאר: פיקסלים קבועים */
-    .ds-ops-mgmt-screen .ds-ops-dist-table--instructors { width:85% !important; margin:0 auto !important; }
+    .ds-ops-mgmt-screen .ds-ops-dist-table--instructors { width:50% !important; margin:0 auto !important; }
     .ds-ops-mgmt-screen .ds-ops-dist-table--instructors .ds-ops-dist-col--instructor { text-align:right !important; width:auto !important; }
     .ds-ops-mgmt-screen .ds-ops-dist-table--instructors .ds-ops-dist-col--number { text-align:center !important; width:70px !important; }
     .ds-ops-mgmt-screen .ds-ops-dist-table--instructors .ds-ops-dist-col--status { text-align:center !important; width:150px !important; white-space:normal !important; overflow-wrap:anywhere !important; word-break:normal !important; line-height:1.3; }
