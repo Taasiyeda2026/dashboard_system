@@ -97,3 +97,14 @@ Cache only app-shell files and small, necessary runtime assets. Large PDFs, past
 - `docs/prompts/` — archived prompts; out of normal context.
 - `tests/` — focused verification files; read/run only the relevant test for the task.
 - `frontend/public/catalog/` — large public catalog assets and PDFs; read only for catalog tasks and avoid broad precache.
+
+## Cleanup candidates — do not delete yet
+
+These areas are mapped as future cleanup/archive candidates only. Do not delete, move, or bulk-open them during normal work without a specific task that requires it.
+
+- `attached_assets/` — pasted/imported task files and screenshots; keep out of normal context and consider future archive policy.
+- `docs/prompts/` — historical prompt/task text; keep out of normal context unless prompt history is explicitly requested.
+- `artifacts/` — generated or sandbox artifacts; candidate for future archive/cleanup review.
+- `prototypes/` — standalone experiments and prototypes; candidate for future archive/cleanup review.
+- `frontend/public/catalog/appendices/` — likely large public appendices/PDF material; keep out of app-shell cache/precache and review only for catalog-specific work.
+- Public PDF/Excel/CSV assets, where present under public/catalog-style areas — keep out of cache/precache and review later at folder level before any cleanup decision.

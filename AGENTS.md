@@ -9,7 +9,10 @@ Keep the working context small. For every task, inspect and edit only the files 
 - Do not perform broad refactors. Avoid aesthetic-only rewrites, unrelated cleanup, or cross-project restructuring unless explicitly requested.
 - Do not read archive, generated, pasted, or bulk asset folders during normal feature/bug tasks. Prefer `docs/PROJECT_MAP.md`, `rg --files`, and targeted file opens.
 - Treat `node_modules/`, `dist/`, `attached_assets/`, `artifacts/`, large public catalogs, and generated files as out-of-scope by default.
-- When touching Service Worker or cache logic, verify that bulky/static archives are not added to precache lists.
+- When touching Service Worker or cache logic, verify that bulky/static archives are not added to cache/precache lists.
+- The only manual cache version source is `CACHE_VERSION` in `frontend/sw.js`; root `sw.js` must remain an entry shim only and must not define `SW_ENTRY_VERSION` or any separate manual version.
+- Do not restore local Service Worker registrations in catalog pages; the root `sw.js` entry controls the deployed scope.
+- Never add PDF, CSV, XLSX, `attached_assets/`, `dist/`, `tests/`, `docs/prompts/`, archive, mock, or debug paths to Service Worker cache/precache lists.
 
 ## Agent Testing Policy
 
@@ -20,7 +23,7 @@ Default verification for Cursor/Codex tasks:
 - For changed JavaScript files, run `npm run check:changed` or `node --check <changed-file>` on the files touched by the task.
 - For a changed screen, run only the relevant screen test file when it exists, for example `node --test tests/proposals-agreements-screen.test.mjs`.
 - For frontend, build, Service Worker, or `dist` changes, run `npm run check:build`.
-- When Service Worker files change, verify the cache version is bumped consistently in both `frontend/sw.js` and root `sw.js`.
+- When Service Worker files change, bump/verify `CACHE_VERSION` in `frontend/sw.js` only; root `sw.js` has no manual version.
 - For proposal-template changes, run syntax checks plus the focused proposal multiline/template tests only.
 - Do not run unrelated backend or legacy tests for frontend-only changes.
 
