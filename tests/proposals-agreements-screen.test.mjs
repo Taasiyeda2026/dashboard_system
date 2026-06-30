@@ -3738,15 +3738,25 @@ test('package 2 workflow locks status actions by role and status', () => {
 
 
 
-test('sent metadata is displayed only when present on sent proposals', () => {
+test('sent metadata stays out of table status and appears only in drawer metadata', async () => {
   const manager = stateFor('operation_manager');
+  const sentRow = { ...sampleRows[0], status: 'sent', sent_by: 'דנה', sent_at: '2026-06-30T10:00:00.000Z' };
   const withoutSender = proposalsAgreementsScreen.render({ rows: [{ ...sampleRows[0], status: 'sent' }] }, { state: manager });
   assert.doesNotMatch(withoutSender, /נשלח ע״י/, 'missing sent_by should not render an empty sent-by field');
 
-  const withSender = proposalsAgreementsScreen.render({ rows: [{ ...sampleRows[0], status: 'sent', sent_by: 'דנה', sent_at: '2026-06-30T10:00:00.000Z' }] }, { state: manager });
-  assert.match(withSender, /נשלח ע״י/, 'sent_by label should render when metadata exists');
-  assert.match(withSender, /דנה/, 'sent_by value should render when metadata exists');
-  assert.match(withSender, /תאריך שליחה/, 'sent_at label should render with sent metadata');
+  const withSender = proposalsAgreementsScreen.render({ rows: [sentRow] }, { state: manager });
+  const tableBody = withSender.match(/<tbody data-pa-table-body>[\s\S]*?<\/tbody>/)?.[0] || '';
+  assert.match(tableBody, /✓ נשלח/, 'table status should keep the clean sent badge');
+  assert.doesNotMatch(tableBody, /נשלח ע״י|דנה|תאריך שליחה|2026-06-30/, 'table status cell should not include sent metadata');
+
+  await withJSDOM(withSender, async (root) => {
+    proposalsAgreementsScreen.bind({ root, data: { rows: [sentRow], activityNameOptions: [] }, state: manager, api: { readProposalAgreementItems: async () => [] } });
+    root.querySelector('[data-pa-row-id]')?.dispatchEvent(new root.ownerDocument.defaultView.MouseEvent('click', { bubbles: true }));
+    const drawer = root.querySelector('[data-pa-drawer]');
+    assert.match(drawer?.innerHTML || '', /נשלח ע״י/, 'drawer should render sent_by label when metadata exists');
+    assert.match(drawer?.innerHTML || '', /דנה/, 'drawer should render sent_by value when metadata exists');
+    assert.match(drawer?.innerHTML || '', /תאריך שליחה/, 'drawer should render sent_at label with sent metadata');
+  });
 });
 
 test('package 2 status API validates terminal states and sent metadata source', async () => {
