@@ -15,17 +15,15 @@ async function read(path) {
   return readFile(path, 'utf8');
 }
 
-test('service worker entry and implementation use the same bumped cache version', async () => {
+test('service worker entry imports the implementation without a second manual version', async () => {
   const rootSw = await read(ROOT_SW_FILE);
   const frontendSw = await read(FRONTEND_SW_FILE);
-  const entryVersion = rootSw.match(/const SW_ENTRY_VERSION = (\d+);/);
   const cacheVersion = frontendSw.match(/const CACHE_VERSION = (\d+);/);
 
-  assert.ok(entryVersion, 'root service worker should expose an entry version');
+  assert.doesNotMatch(rootSw, /SW_ENTRY_VERSION/, 'root service worker should not require a second manual version');
   assert.ok(cacheVersion, 'frontend service worker should expose a cache version');
-  assert.equal(entryVersion[1], cacheVersion[1], 'entry import query should bust to the same SW version as the cache');
   assert.ok(Number(cacheVersion[1]) >= 355, 'cache version should be bumped past the previous v354 cache');
-  assert.match(rootSw, /frontend\/sw\.js\?v=\$\{SW_ENTRY_VERSION\}/, 'root SW import should include a version query');
+  assert.match(rootSw, /importScripts\(new URL\('frontend\/sw\.js', self\.location\)\.href\);/, 'root SW should import the central implementation directly');
 });
 
 test('service worker removes old dashboard caches during install and activate', async () => {
@@ -52,7 +50,7 @@ test('service worker fetches app shell and manifest fresh after deploy', async (
   assert.match(frontendSw, /new Request\(url, \{ cache: 'reload' \}\)/, 'precache should bypass the browser HTTP cache');
   assert.match(frontendSw, /new Request\(request, \{ cache: 'no-store' \}\)/, 'network-first requests should bypass stale browser cache');
   assert.match(frontendSw, /\|\| isManifestUrl\(url\)/, 'manifest should use the network-first path');
-  assert.match(frontendSw, /if \(isApiLikeUrl\(url\)\) \{[\s\S]*event\.respondWith\(fetch\(request\)\)/, 'API-like requests should remain network-only');
+  assert.match(frontendSw, /if \(isApiLikeUrl\(url\) \|\| isBlockedCachePath\(url\)\) \{[\s\S]*event\.respondWith\(fetch\(request\)\)/, 'API-like and blocked requests should remain network-only');
 });
 
 test('PWA manifest and icon files still point to existing dashboard assets', async () => {
