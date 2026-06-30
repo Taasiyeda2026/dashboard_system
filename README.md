@@ -16,7 +16,9 @@
 
 ---
 
-## הרצה מקומית
+## הרצה מקומית ופריסה
+
+מקור האמת להרצה ולפריסה הוא פלט ה-build בתיקיית `dist/`. אין להגיש את ה-root ישירות כאתר הייצור.
 
 ```bash
 npm install
@@ -24,7 +26,7 @@ npm run build
 npx serve dist -l 5000
 ```
 
-או השתמשו ב-workflow **"Start application"** ב-Replit.
+ב-Replit, workflow **"Start application"** מריץ `npm run build` ואז מגיש את `dist/`. גם Static Deployment מוגדר להריץ `npm run build` ולפרסם את `dist/`, כדי למנוע מצב שבו קוד המקור התעדכן אבל האתר מציג פלט build ישן או קבצים מה-root.
 
 ---
 
