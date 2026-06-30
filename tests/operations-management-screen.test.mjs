@@ -401,7 +401,7 @@ test('completion approval tab defaults to approvals subtab without legacy instru
   assert.doesNotMatch(html, /סינון וחיפוש/);
 });
 
-test('workshop quantity metrics use x25 estimate and stock gap rules', () => {
+test('workshop quantity metrics use participants_count for required inventory and stock gap rules', () => {
   const stockMap = buildWorkshopStockMapFromLists({
     categories: [{
       category: 'activity_names',
@@ -414,10 +414,10 @@ test('workshop quantity metrics use x25 estimate and stock gap rules', () => {
     activities: [{ participants_count: 120 }, { participants_count: 118 }],
     stockMap
   });
-  assert.equal(withActual.estimatedQuantity, 250);
+  assert.equal(withActual.estimatedQuantity, 238);
   assert.equal(withActual.actualQuantity, 238);
   assert.equal(withActual.stockQuantity, 300);
-  assert.equal(withActual.gap, 50);
+  assert.equal(withActual.gap, 62);
 
   const withoutActual = buildWorkshopQuantityMetrics({
     workshopName: 'אסטרונאוט על חוטים',
@@ -427,9 +427,9 @@ test('workshop quantity metrics use x25 estimate and stock gap rules', () => {
       categories: [{ category: 'activity_names', items: [{ value: '002', _row: { category: 'activity_names', type: 'workshop', activity_type: 'workshop', active: true, activity_no: '002', activity_name: 'אסטרונאוט על חוטים', stock_quantity: 150 } }] }]
     })
   });
-  assert.equal(withoutActual.estimatedQuantity, 200);
+  assert.equal(withoutActual.estimatedQuantity, 0);
   assert.equal(withoutActual.actualQuantity, null);
-  assert.equal(withoutActual.gap, -50);
+  assert.equal(withoutActual.gap, 150);
 
   const noStock = buildWorkshopQuantityMetrics({
     workshopName: 'צמידי שמש',
@@ -437,7 +437,7 @@ test('workshop quantity metrics use x25 estimate and stock gap rules', () => {
     activities: [],
     stockMap: new Map()
   });
-  assert.equal(noStock.estimatedQuantity, 300);
+  assert.equal(noStock.estimatedQuantity, 0);
   assert.equal(noStock.stockQuantity, null);
   assert.equal(noStock.gap, null);
 });
@@ -777,7 +777,54 @@ test('workshops inventory groups physical stock by stock_group_key', () => {
   assert.match(tableHtml, /024, 029/);
   assert.doesNotMatch(tableHtml, /024 - קופת קסם/);
   assert.doesNotMatch(tableHtml, /029 - קופת קסם/);
-  assert.match(tableHtml, /value="390"/);
+  assert.match(tableHtml, />390</);
+});
+
+test('workshops inventory uses all prepared open and closed rows with canonical numeric stock group keys', () => {
+  const state = baseState();
+  state.operationsManagement.tab = 'workshops';
+  state.activityList = { status: 'פתוח' };
+  const adminListsData = { categories: [{ category: 'activity_names', items: [
+    { value: '008', _row: { category: 'activity_names', type: 'workshop', activity_type: 'workshop', active: true, activity_no: '008', activity_name: 'סדנת קנונית', stock_group_key: '008', stock_quantity: 200 } }
+  ] }] };
+  const html = operationsManagementScreen.render({
+    rows: [
+      { RowID: 'CAN-OPEN', status: 'פתוח', activity_no: '8', activity_name: 'סדנת קנונית', start_date: '2026-07-01', activity_season: 'summer_2026', activity_type: 'workshop', participants_count: 30, instructor_name: 'דני' },
+      { RowID: 'CAN-CLOSED', status: 'סגור', activity_no: 'activity_008', activity_name: 'סדנת קנונית', start_date: '2026-07-02', activity_season: 'summer_2026', activity_type: 'workshop', participants_count: 40, instructor_name: 'נועה' },
+      { RowID: 'CAN-CANCEL', status: 'מבוטל', activity_no: '8', activity_name: 'סדנת קנונית', start_date: '2026-07-03', activity_season: 'summer_2026', activity_type: 'workshop', participants_count: 90, instructor_name: 'הילה' },
+      { RowID: 'CAN-TAMIR', status: 'פתוח', activity_no: '8', activity_name: 'סדנת קנונית תמיר', start_date: '2026-07-04', activity_season: 'summer_2026', activity_type: 'workshop', participants_count: 80, instructor_name: 'תמיר' }
+    ],
+    workshopStockMap: buildWorkshopStockMapFromLists(adminListsData),
+    adminListsData,
+    workshopStockDistributions: [
+      { stock_group_key: 'activity_8', instructor_name: 'דני', quantity_received: 30, distribution_date: '2026-07-01' },
+      { stock_group_key: '8', instructor_name: 'נועה', quantity_received: 40, distribution_date: '2026-07-02' }
+    ]
+  }, { state });
+  const tableHtml = html.slice(html.indexOf('<table class="ds-table ds-table--compact ds-ops-mgmt-data-table ds-ops-workshops-table"'));
+  assert.match(tableHtml, /data-ops-stock-group="activity_8"/);
+  assert.match(tableHtml, /סדנת קנונית[^]*>200<[^]*>70<[^]*>130<[^]*>70<[^]*><span class="ds-ops-gap ds-ops-gap--ok">0<\/span>/);
+  assert.doesNotMatch(tableHtml, />240</);
+  assert.doesNotMatch(tableHtml, /CAN-CANCEL|CAN-TAMIR/);
+});
+
+test('workshops instructor detail requires participants_count for every assigned instructor', () => {
+  const state = baseState();
+  state.operationsManagement.tab = 'workshops';
+  state.operationsManagement.expandedWorkshop = 'activity_9';
+  const adminListsData = { categories: [{ category: 'activity_names', items: [
+    { value: '009', _row: { category: 'activity_names', type: 'workshop', activity_type: 'workshop', active: true, activity_no: '009', activity_name: 'סדנת מדריכים', stock_quantity: 100 } }
+  ] }] };
+  const html = operationsManagementScreen.render({
+    rows: [
+      { RowID: 'MULTI-1', status: 'פתוח', activity_no: '009', activity_name: 'סדנת מדריכים', start_date: '2026-07-01', activity_season: 'summer_2026', activity_type: 'workshop', participants_count: 25, instructor_name: 'דני', instructor_name_2: 'נועה' }
+    ],
+    workshopStockMap: buildWorkshopStockMapFromLists(adminListsData),
+    adminListsData
+  }, { state });
+  const detailHtml = html.slice(html.indexOf('פירוט לפי מדריך'));
+  assert.match(detailHtml, /דני[^]*>0<[^]*>25<[^]*><span class="ds-ops-gap ds-ops-gap--shortage"><span dir="ltr">-25<\/span><\/span>/);
+  assert.match(detailHtml, /נועה[^]*>0<[^]*>25<[^]*><span class="ds-ops-gap ds-ops-gap--shortage"><span dir="ltr">-25<\/span><\/span>/);
 });
 
 test('actual participant count only uses existing activity fields', () => {
