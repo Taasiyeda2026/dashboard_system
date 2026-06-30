@@ -2818,12 +2818,12 @@ function proposalDomainForCurrentUser() {
   const user = state?.user || {};
   const userId = cleanProposalAgreementText(user.user_id || user.emp_id || user.employee_id);
   const username = cleanProposalAgreementText(user.username_for_login || user.username || user.username_display).toLowerCase();
-  return userId === '3030' || username === 'esraaa' ? 'N' : 'A';
+  return userId === '3030' || username === 'esraaa' ? 'E' : 'Y';
 }
 
 function normalizeProposalDomain(value, fallback = proposalDomainForCurrentUser()) {
   const domain = cleanProposalAgreementText(value).toUpperCase();
-  return domain === 'N' ? 'N' : domain === 'A' ? 'A' : fallback;
+  return domain === 'E' ? 'E' : domain === 'Y' ? 'Y' : fallback;
 }
 
 function buildProposalAgreementSearchText(row = {}) {
@@ -2873,7 +2873,7 @@ function normalizeProposalAgreementRow(row = {}) {
     school_framework:    schoolFramework || authorityName,
     document_type:       cleanProposalAgreementText(row.document_type),
     activity_type_group: normalizeProposalGroupValue(row.activity_type_group),
-    proposal_domain:     normalizeProposalDomain(row.proposal_domain, 'A'),
+    proposal_domain:     normalizeProposalDomain(row.proposal_domain, 'Y'),
     proposal_date:       cleanProposalAgreementText(row.proposal_date),
     activity_names:      normalizeProposalAgreementActivityNames(
       Array.isArray(row.activity_names) && row.activity_names.length

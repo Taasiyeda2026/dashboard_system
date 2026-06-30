@@ -672,7 +672,7 @@ export function normalizeProposalAgreementRow(row = {}) {
     city:                text(row.city),
     document_type:       text(row.document_type) || 'הצעת מחיר',
     activity_type_group: normalizeProposalGroup(rawGroup),
-    proposal_domain:     text(row.proposal_domain).toUpperCase() === 'N' ? 'N' : 'A',
+    proposal_domain:     text(row.proposal_domain).toUpperCase() === 'E' ? 'E' : 'Y',
     proposal_date:       text(row.proposal_date),
     activity_names:      normalizeActivityNames(row.activity_names),
     contact_name:        text(row.contact_name),
@@ -796,7 +796,7 @@ function rowMatches(row, filters) {
   if (q && !normalizeSearch(row._searchText).includes(q)) return false;
   if (filters.activity_type_group && normalizeProposalGroup(row.activity_type_group) !== normalizeProposalGroup(filters.activity_type_group)) return false;
   if (filters.status && normalizeProposalStatus(row.status) !== filters.status) return false;
-  if (filters.proposal_domain && (row.proposal_domain || 'A') !== filters.proposal_domain) return false;
+  if (filters.proposal_domain && (row.proposal_domain || 'Y') !== filters.proposal_domain) return false;
   return true;
 }
 
@@ -959,7 +959,7 @@ export function proposalsAgreementsTableRowsHtml(rows, state) {
     }
     return `
     <tr data-pa-row-id="${escapeHtml(row.id)}" tabindex="0">
-      <td class="ds-pa-domain-col">${escapeHtml(row.proposal_domain || 'A')}</td>
+      <td class="ds-pa-domain-col">${escapeHtml(row.proposal_domain || 'Y')}</td>
       <td>${escapeHtml(row.client_name || row.client_authority || '—')}</td>
       <td>${escapeHtml(row.school_framework || '—')}</td>
       <td>${escapeHtml(proposalGroupDisplayName(row.activity_type_group) || '—')}</td>
@@ -2892,7 +2892,7 @@ function formHtml(mode, row = {}, activityNameOptions = [], contactOptions = [],
           ${proposalTypeCardsHtml(normalizedActivityGroup)}
         </div>
         <div class="ds-pa-type-meta-aux">
-          ${mode === 'edit' ? `<label class="ds-pa-form-field"><span>${escapeHtml(FIELD_LABELS.proposal_date)}</span><input class="ds-input ds-input--sm" type="date" name="proposal_date" value="${escapeHtml(proposalDate)}"></label><label class="ds-pa-form-field"><span>${escapeHtml(FIELD_LABELS.proposal_domain)}</span><select class="ds-input ds-input--sm" name="proposal_domain">${optionHtml('A', row.proposal_domain || 'A', 'A')}${optionHtml('N', row.proposal_domain || 'A', 'N')}</select></label>` : `<input type="hidden" name="proposal_date" value="${escapeHtml(proposalDate)}">`}
+          ${mode === 'edit' ? `<label class="ds-pa-form-field"><span>${escapeHtml(FIELD_LABELS.proposal_date)}</span><input class="ds-input ds-input--sm" type="date" name="proposal_date" value="${escapeHtml(proposalDate)}"></label><label class="ds-pa-form-field"><span>${escapeHtml(FIELD_LABELS.proposal_domain)}</span><select class="ds-input ds-input--sm" name="proposal_domain">${optionHtml('Y', row.proposal_domain || 'Y', 'Y')}${optionHtml('E', row.proposal_domain || 'Y', 'E')}</select></label>` : `<input type="hidden" name="proposal_date" value="${escapeHtml(proposalDate)}">`}
           <input type="hidden" name="document_type" value="${escapeHtml(text(row.document_type) || 'הצעת מחיר')}">
         </div>
       </div>
@@ -3024,7 +3024,7 @@ function drawerHtml(row, activityNameOptions = [], state = null) {
   const metaItems = [
     infoCell('סוג הצעה', proposalGroupDisplayName(row.activity_type_group)),
     infoCell('תאריך הצעה', formatDateDisplay(row.proposal_date)),
-    infoCell('תחום', text(row.proposal_domain || 'A')),
+    infoCell('תחום', text(row.proposal_domain || 'Y')),
     showSentBy ? infoCell('נשלח ע״י', drawerSentBy) : '',
     showSentBy && text(row.sent_at) ? infoCell('תאריך שליחה', formatDateDisplay(row.sent_at)) : ''
   ].filter(Boolean).join('');
@@ -3461,7 +3461,7 @@ export const proposalsAgreementsScreen = {
             <label class="ds-pa-search"><span>חיפוש</span><input class="ds-input ds-input--sm" data-pa-search placeholder="חיפוש מקומי" autocomplete="off"></label>
             ${filterSelectHtml('activity_type_group', 'סוג הצעה', proposalGroupFilterOptions)}
             ${statusFilterHtml()}
-            <label class="ds-pa-filter"><span>תחום</span><select class="ds-input ds-input--sm" data-pa-filter="proposal_domain"><option value="">הכול</option><option value="A">A</option><option value="N">N</option></select></label>
+            <label class="ds-pa-filter"><span>תחום</span><select class="ds-input ds-input--sm" data-pa-filter="proposal_domain"><option value="">הכול</option><option value="Y">Y</option><option value="E">E</option></select></label>
           </div>
           <div class="ds-pa-local-status" aria-live="polite">מציג <strong data-pa-results-count>${rows.length}</strong> רשומות</div>
           ${dsCard({ title: 'רשומות', padded: false, body: `<div class="ds-pa-records-shell" data-pa-table-region>${tableHtml(rows, state)}</div>` })}
