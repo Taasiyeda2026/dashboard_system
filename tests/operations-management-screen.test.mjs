@@ -900,11 +900,12 @@ test('authorities print layout uses 60% table with page-relative column widths',
   assert.doesNotMatch(src, /col-grade/);
 });
 
-test('service worker cache versions are aligned', async () => {
+test('service worker keeps CACHE_VERSION only in frontend implementation', async () => {
   const frontendSw = await readFile(new URL('../frontend/sw.js', import.meta.url), 'utf8');
   const rootSw = await readFile(new URL('../sw.js', import.meta.url), 'utf8');
-  const frontendMatch = frontendSw.match(/CACHE_VERSION = (\d+)/);
-  const rootMatch = rootSw.match(/SW_ENTRY_VERSION = (\d+)/);
-  assert.ok(frontendMatch && rootMatch);
-  assert.equal(frontendMatch[1], rootMatch[1]);
+
+  assert.match(frontendSw, /const CACHE_VERSION = \d+;/);
+  assert.doesNotMatch(rootSw, /SW_ENTRY_VERSION/, 'root sw.js is a shim and must not define a legacy entry version');
+  assert.doesNotMatch(rootSw, /\bCACHE_VERSION\b\s*=/, 'root sw.js must not define a separate cache version');
+  assert.match(rootSw, /frontend\/sw\.js/, 'root sw.js should only load the frontend service worker implementation');
 });
