@@ -52,7 +52,25 @@ export const STATUS_LABELS = {
   cancelled:            'בוטל'
 };
 function normalizeProposalStatus(status) {
-  return text(status);
+  const raw = text(status);
+  const aliases = {
+    draft: 'draft',
+    'טיוטה': 'draft',
+    cancelled: 'cancelled',
+    canceled: 'cancelled',
+    'בוטל': 'cancelled',
+    'מבוטל': 'cancelled',
+    sent: 'sent',
+    'נשלח': 'sent',
+    pending_approval: 'pending_approval',
+    'ממתין לאישור': 'pending_approval',
+    returned_for_changes: 'returned_for_changes',
+    'הוחזר לתיקון': 'returned_for_changes',
+    approved: 'approved',
+    'מאושר': 'approved',
+    'מאושר וחתום': 'approved',
+  };
+  return aliases[raw] ?? raw;
 }
 
 function notifyPendingProposalsNav(rows) {
@@ -883,8 +901,8 @@ export function proposalsAgreementsTableRowsHtml(rows, state) {
   const canManage = canManageProposalsAgreements(state);
   const isAdmin = canApproveProposalsAgreements(state);
   return rows.map((row) => {
-    const status = text(row.status || 'draft');
-    const isSent = normalizeProposalStatus(status) === 'sent';
+    const status = normalizeProposalStatus(row.status || 'draft');
+    const isSent = status === 'sent';
     const actionBtns = [];
     actionBtns.push(`<button type="button" class="ds-btn ds-btn--xs ds-btn--ghost ds-pa-row-action ds-pa-row-action--icon" data-pa-preview="${escapeHtml(row.id)}" title="תצוגה מקדימה"><svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M1 12s4-8 11-8 11 8 11 8-4 8-11 8-11-8-11-8z"/><circle cx="12" cy="12" r="3"/></svg></button>`);
     if (!isSent && canManage && (['draft', 'returned_for_changes'].includes(status) || (isAdmin && status !== 'approved'))) {

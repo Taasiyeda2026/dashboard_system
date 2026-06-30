@@ -1,0 +1,116 @@
+צריך לתקן את מחיקת הצעות מחיר אחרי השינוי האחרון.
+
+הבעיה:
+הצעה שמוצגת במסך כ"טיוטה" לא נמחקת.
+בלחיצה על כפתור מחיקה מופיעה הודעה:
+"ניתן למחוק רק הצעה בטיוטה או הצעה שבוטלה"
+
+כלומר הבדיקה מזהה את הסטטוס לא נכון.
+
+הסיבה:
+הקוד בודק רק ערכים פנימיים באנגלית:
+draft
+cancelled
+
+אבל בפועל בחלק מהזרימה הסטטוס יכול להגיע כתווית בעברית:
+טיוטה
+בוטל
+מבוטל
+
+ולכן הבדיקה נכשלת למרות שההצעה באמת טיוטה.
+
+התיקון:
+לעדכן את normalizeProposalStatus כך שיתרגם גם תוויות בעברית לערכים הפנימיים.
+
+ב־frontend/src/screens/proposals-agreements.js:
+
+להחליף את normalizeProposalStatus הנוכחי בפונקציה חזקה יותר:
+
+function normalizeProposalStatus(status) {
+  const raw = text(status);
+  const aliases = {
+    draft: 'draft',
+    'טיוטה': 'draft',
+
+    cancelled: 'cancelled',
+    canceled: 'cancelled',
+    'בוטל': 'cancelled',
+    'מבוטל': 'cancelled',
+
+    sent: 'sent',
+    'נשלח': 'sent',
+
+    pending_approval: 'pending_approval',
+    'ממתין לאישור': 'pending_approval',
+
+    returned_for_changes: 'returned_for_changes',
+    'הוחזר לתיקון': 'returned_for_changes',
+
+    approved: 'approved',
+    'מאושר': 'approved',
+    'מאושר וחתום': 'approved'
+  };
+  return aliases[raw] || raw;
+}
+
+לאחר מכן:
+1. כל בדיקת מחיקה תשתמש רק ב־normalizeProposalStatus(row.status).
+2. כל בדיקת כפתורי פעולה תשתמש בסטטוס מנורמל, לא ב־row.status ישירות.
+3. בטבלת הרשומות:
+   const status = normalizeProposalStatus(row.status || 'draft');
+
+ולא:
+   const status = text(row.status || 'draft');
+
+4. ב־api.deleteProposalAgreement:
+גם שם לעדכן את בדיקת הסטטוס כך שתנרמל לפני הבדיקה.
+
+לדוגמה:
+
+const currentStatus = normalizeProposalAgreementStatusForDb(current.status);
+
+if (!['draft', 'cancelled'].includes(currentStatus)) {
+  throw new Error('ניתן למחוק רק הצעה בטיוטה או הצעה שבוטלה');
+}
+
+אם אין פונקציה קיימת ב־api.js, להוסיף helper קטן ליד פונקציות הסטטוס:
+
+function normalizeProposalAgreementStatusForDb(status) {
+  const raw = cleanProposalAgreementText(status);
+  const aliases = {
+    draft: 'draft',
+    'טיוטה': 'draft',
+    cancelled: 'cancelled',
+    canceled: 'cancelled',
+    'בוטל': 'cancelled',
+    'מבוטל': 'cancelled',
+    sent: 'sent',
+    'נשלח': 'sent',
+    pending_approval: 'pending_approval',
+    'ממתין לאישור': 'pending_approval',
+    returned_for_changes: 'returned_for_changes',
+    'הוחזר לתיקון': 'returned_for_changes',
+    approved: 'approved',
+    'מאושר': 'approved',
+    'מאושר וחתום': 'approved'
+  };
+  return aliases[raw] || raw;
+}
+
+חשוב:
+- לא לשנות את הערכים במסד אם הם כבר תקינים.
+- לא לעשות SQL בשביל זה.
+- זה תיקון קוד.
+- לא לשנות את עיצוב הטבלה עכשיו.
+- לא לגעת במגירת הצד עכשיו.
+- לתקן רק את זיהוי הסטטוס במחיקה ובכפתורי פעולה.
+
+בדיקות חובה:
+1. הצעה שמוצגת כטיוטה — כפתור מחיקה מופיע.
+2. לחיצה על מחיקה בטיוטה פותחת confirm רגיל.
+3. אחרי אישור ההצעה נמחקת ונעלמת מהטבלה.
+4. הצעה שמוצגת כבוטל / מבוטל — ניתנת למחיקה.
+5. הצעה נשלחה — לא מוצג כפתור מחיקה.
+6. הצעה מאושרת — לא מוצג כפתור מחיקה.
+7. לא מופיעה יותר ההודעה "ניתן למחוק רק..." עבור טיוטה אמיתית.
+8. לעדכן Service Worker ו־Cache בסיום.

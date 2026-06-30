@@ -2758,6 +2758,19 @@ function cleanProposalAgreementText(value) {
   return String(value == null ? '' : value).replace(/\s+/g, ' ').trim();
 }
 
+function normalizeProposalAgreementStatusForDb(status) {
+  const raw = cleanProposalAgreementText(status);
+  const aliases = {
+    draft: 'draft', 'טיוטה': 'draft',
+    cancelled: 'cancelled', canceled: 'cancelled', 'בוטל': 'cancelled', 'מבוטל': 'cancelled',
+    sent: 'sent', 'נשלח': 'sent',
+    pending_approval: 'pending_approval', 'ממתין לאישור': 'pending_approval',
+    returned_for_changes: 'returned_for_changes', 'הוחזר לתיקון': 'returned_for_changes',
+    approved: 'approved', 'מאושר': 'approved', 'מאושר וחתום': 'approved',
+  };
+  return aliases[raw] ?? raw;
+}
+
 function normalizeProposalAgreementMultilineText(value) {
   return String(value == null ? '' : value)
     .replace(/\r\n?/g, '\n')
@@ -5639,7 +5652,7 @@ export const api = {
       .eq('id', rowId)
       .single();
     if (fetchError || !current) throw new Error('proposals_agreement_not_found');
-    if (!['draft', 'cancelled'].includes(current.status)) {
+    if (!['draft', 'cancelled'].includes(normalizeProposalAgreementStatusForDb(current.status))) {
       throw new Error('ניתן למחוק רק הצעה בטיוטה או הצעה שבוטלה');
     }
     const { error } = await supabase
