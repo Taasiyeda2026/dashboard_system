@@ -1,0 +1,100 @@
+צריך לבצע תיקון עיצובי ממוקד בטבלת רשומות במסך הצעות מחיר.
+
+הכוונה לטבלה הראשית של רשומות הצעות המחיר בלבד.
+
+העמודות שצריך למרכז גם בכותרת וגם בתוכן:
+- סוג הצעה
+- תאריך הצעה
+- סטטוס
+- סה״כ
+- פעולות
+
+הדרישה:
+1. כותרת העמודה תהיה ממורכזת.
+2. הערכים בתוך כל תא יהיו ממורכזים.
+3. בעמודת סטטוס, גם ה-select / תג הסטטוס יהיה ממורכז בתוך התא.
+4. בעמודת פעולות, האייקונים יהיו ממורכזים בשורה ובמרווח אחיד.
+5. בעמודת סה״כ, הסכום יישאר בשורה אחת ולא יישבר.
+6. לבצע ריווח עמודות סימטרי יותר כך שהטבלה תיראה מסודרת ולא צפופה בצד אחד וריקה בצד אחר.
+
+הצעה לרוחבי עמודות:
+- תחום: צרה וקבועה
+- רשות / מועצה / עירייה: בינונית
+- בית ספר / מסגרת: רחבה יותר
+- סוג הצעה: בינונית
+- תאריך הצעה: צרה-בינונית
+- סטטוס: בינונית
+- סה״כ: צרה-בינונית
+- פעולות: צרה-בינונית
+
+CSS מומלץ:
+
+.ds-pa-table th:nth-child(4),
+.ds-pa-table th:nth-child(5),
+.ds-pa-table th:nth-child(6),
+.ds-pa-table th:nth-child(7),
+.ds-pa-table th:nth-child(8),
+.ds-pa-table td:nth-child(4),
+.ds-pa-table td:nth-child(5),
+.ds-pa-table td:nth-child(6),
+.ds-pa-table td:nth-child(7),
+.ds-pa-table td:nth-child(8) {
+  text-align: center;
+  vertical-align: middle;
+}
+
+.ds-pa-table td:nth-child(6) {
+  text-align: center;
+}
+
+.ds-pa-table td:nth-child(6) select,
+.ds-pa-table td:nth-child(6) .ds-pa-status-select,
+.ds-pa-table td:nth-child(6) .ds-pa-status-pill {
+  margin-inline: auto;
+}
+
+.ds-pa-table td:nth-child(7) {
+  white-space: nowrap;
+  font-variant-numeric: tabular-nums;
+}
+
+.ds-pa-table .ds-pa-actions-cell,
+.ds-pa-table .ds-pa-actions-inner {
+  text-align: center;
+  justify-content: center;
+  align-items: center;
+}
+
+.ds-pa-table .ds-pa-actions-inner {
+  display: flex;
+  gap: 6px;
+}
+
+אם יש colgroup / table-layout:
+להגדיר רוחבים מסודרים יותר, למשל:
+תחום 55px
+רשות 160px
+בית ספר 220px
+סוג הצעה 130px
+תאריך 120px
+סטטוס 130px
+סה״כ 110px
+פעולות 120px
+
+חשוב:
+- לא לשנות את סדר העמודות.
+- לא לשנות את הנתונים.
+- לא לשנות פעולות.
+- לא להשפיע על מגירת הצד.
+- לא להשפיע על PDF / תצוגה מקדימה.
+- רק יישור וריווח של הטבלה הראשית.
+
+בדיקות:
+1. כותרות סוג הצעה, תאריך הצעה, סטטוס, סה״כ ופעולות ממורכזות.
+2. הערכים באותן עמודות ממורכזים.
+3. הסכומים לא נשברים שורה.
+4. כפתורי הפעולות מיושרים למרכז.
+5. הטבלה נראית סימטרית ומסודרת יותר.
+6. אין שינוי במגירת הצד, PDF או יצירת הצעה.
+
+בסיום לעדכן Service Worker ו־Cache.

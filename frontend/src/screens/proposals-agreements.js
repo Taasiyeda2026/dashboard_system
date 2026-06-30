@@ -902,7 +902,7 @@ export function proposalsAgreementsTableRowsHtml(rows, state) {
     if (isAdmin && (status === 'approved' || isSent)) {
       actionBtns.push(`<button type="button" class="ds-btn ds-btn--xs ds-btn--ghost ds-pa-row-action ds-pa-row-action--icon" data-pa-print="${escapeHtml(row.id)}" title="PDF"><svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><polyline points="14 2 14 8 20 8"/><line x1="16" y1="13" x2="8" y2="13"/><line x1="16" y1="17" x2="8" y2="17"/></svg></button>`);
     }
-    if (isAdmin) {
+    if (canManage && ['draft', 'cancelled'].includes(normalizeProposalStatus(status))) {
       actionBtns.push(`<button type="button" class="ds-btn ds-btn--xs ds-btn--ghost ds-pa-row-action ds-pa-row-action--icon ds-pa-row-action--danger" data-pa-delete-row="${escapeHtml(row.id)}" title="מחיקה"><svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><polyline points="3 6 5 6 21 6"/><path d="M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6m3 0V4a1 1 0 0 1 1-1h4a1 1 0 0 1 1 1v2"/></svg></button>`);
     }
     return `
@@ -2926,6 +2926,8 @@ function drawerActionButtons(row, state) {
     if (!isSent && !['cancelled', 'approved'].includes(status)) {
       buttons.push(iconBtn(`data-pa-status-action="cancelled" data-pa-action-id="${escapeHtml(row.id)}"`, 'ביטול', XCIRC));
     }
+  }
+  if (canManage && ['draft', 'cancelled'].includes(normalizeProposalStatus(status))) {
     buttons.push(iconBtn(`data-pa-delete-row="${escapeHtml(row.id)}"`, 'מחיקה', TRASH, 'ds-pa-row-action--danger'));
   }
   if (isAdminRole && status === 'pending_approval') {
@@ -5124,6 +5126,10 @@ export const proposalsAgreementsScreen = {
         const id = text(deleteBtn.dataset.paDeleteRow);
         const row = data.rows.find((item) => text(item.id) === id);
         if (!row) return;
+        if (!['draft', 'cancelled'].includes(normalizeProposalStatus(row.status))) {
+          window.alert('ניתן למחוק רק הצעה בטיוטה או הצעה שבוטלה');
+          return;
+        }
         if (!window.confirm('למחוק את הצעת המחיר?')) return;
         deleteBtn.disabled = true;
         try {

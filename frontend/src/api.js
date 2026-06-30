@@ -5633,6 +5633,15 @@ export const api = {
     assertCanManageProposalsAgreementsApi();
     const rowId = cleanProposalAgreementText(id);
     if (!rowId) throw new Error('missing_proposal_agreement_id');
+    const { data: current, error: fetchError } = await supabase
+      .from('proposals_agreements')
+      .select('status')
+      .eq('id', rowId)
+      .single();
+    if (fetchError || !current) throw new Error('proposals_agreement_not_found');
+    if (!['draft', 'cancelled'].includes(current.status)) {
+      throw new Error('ניתן למחוק רק הצעה בטיוטה או הצעה שבוטלה');
+    }
     const { error } = await supabase
       .from('proposals_agreements')
       .delete()
