@@ -38,6 +38,19 @@ const CALENDAR_SEARCH_FIELDS = [
   'status'
 ];
 
+function activitySortKey(item) {
+  return [
+    String(item?.start_date || item?.activity_date || item?.date || '').slice(0, 10),
+    String(item?.start_time || item?.StartTime || '').trim(),
+    String(item?.school || '').trim(),
+    String(item?.activity_name || '').trim()
+  ].join('|');
+}
+
+function sortActivitiesChronologically(items = []) {
+  return (Array.isArray(items) ? items : []).slice().sort((a, b) => activitySortKey(a).localeCompare(activitySortKey(b), 'he'));
+}
+
 function localYmd() {
   const d = new Date();
   const y = d.getFullYear();
@@ -96,9 +109,8 @@ function weekRangeLabel(days) {
 }
 
 function weekDayItems(day, itemsById) {
-  if (Array.isArray(day?.items)) return day.items;
-  const ids = Array.isArray(day?.item_ids) ? day.item_ids : [];
-  return ids.map((id) => itemsById?.[id]).filter(Boolean);
+  const items = Array.isArray(day?.items) ? day.items : (Array.isArray(day?.item_ids) ? day.item_ids : []).map((id) => itemsById?.[id]).filter(Boolean);
+  return sortActivitiesChronologically(items);
 }
 
 function normalizeWeekResponseForRender(data) {
