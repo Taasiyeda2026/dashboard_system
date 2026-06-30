@@ -85,13 +85,15 @@ function ensureSummerTrainingStyle() {
     .ds-ops-training-pill--warn{background:#fff7ed;border-color:#fed7aa;color:#9a3412}
     .ds-ops-training-pill--ok{background:#ecfdf5;border-color:#bbf7d0;color:#166534}
     .ds-ops-training-wrap{width:100%;overflow:auto;background:#fff;padding:0}
-    .ds-ops-training-table{border-collapse:collapse;width:100%;table-layout:fixed;font-size:13px;direction:rtl}
+    .ds-ops-training-table{border-collapse:collapse;width:100%;max-width:880px;table-layout:fixed;font-size:13px;direction:rtl}
     .ds-ops-training-table th,.ds-ops-training-table td{border:1px solid #cbd5e1;padding:7px 8px;text-align:right;vertical-align:middle;height:42px;line-height:1.25;background:#fff;box-sizing:border-box}
-    .ds-ops-training-table th{background:#f8fafc;color:#111827;font-weight:800;text-align:center;white-space:nowrap}
+    .ds-ops-training-table th{background:#f8fafc;color:#111827;font-weight:800;text-align:right;white-space:nowrap}
+    .ds-ops-training-table th:nth-child(3),.ds-ops-training-table th:nth-child(4){text-align:center}
     .ds-ops-training-table tr:nth-child(even) td{background:#f8fafc}
     .ds-ops-training-col--workshop,.ds-ops-training-col--instructor{width:35%}
-    .ds-ops-training-col--count{width:14%;text-align:center!important;white-space:nowrap}
-    .ds-ops-training-col--status{width:16%;text-align:center!important;white-space:nowrap}
+    .ds-ops-training-col--count{width:13%;text-align:center!important;white-space:nowrap}
+    .ds-ops-training-col--status{width:17%;text-align:center!important;white-space:nowrap}
+    @media print{.ds-ops-training-table{max-width:100%;width:100%!important}.ds-ops-training-table th,.ds-ops-training-table td{height:auto;padding:4px 6px;font-size:11px}.ds-ops-training-table th.ds-ops-training-col--workshop,.ds-ops-training-table td.ds-ops-training-col--workshop,.ds-ops-training-table th.ds-ops-training-col--instructor,.ds-ops-training-table td.ds-ops-training-col--instructor{text-align:right!important}.ds-ops-training-table th:nth-child(3),.ds-ops-training-table td:nth-child(3),.ds-ops-training-table th:nth-child(4),.ds-ops-training-table td:nth-child(4){text-align:center!important}.ds-ops-training-table tr{break-inside:avoid;page-break-inside:avoid}}
     .ds-ops-training-name{display:block;width:100%;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;font-weight:700;color:#0f172a}
     .ds-ops-training-status{display:inline-flex;align-items:center;justify-content:center;gap:6px;border-radius:999px;padding:4px 10px;font-weight:800;font-size:12px;min-width:112px;box-sizing:border-box}
     .ds-ops-training-status--ok{background:#ecfdf5;border:1px solid #bbf7d0;color:#166534}
