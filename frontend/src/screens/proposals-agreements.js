@@ -2989,24 +2989,25 @@ function drawerHtml(row, activityNameOptions = [], state = null) {
 
   // ── פרטי הצעה card ──
   const infoCell = (label, value, wide = false) => value
-    ? `<div class="ds-pa-info-cell${wide ? ' ds-pa-info-cell--wide' : ''}"><span class="ds-pa-info-label">${escapeHtml(label)}</span><span>${escapeHtml(value)}</span></div>`
+    ? `<div class="ds-pa-info-cell${wide ? ' ds-pa-info-cell--wide' : ''}"><span class="ds-pa-info-label">${escapeHtml(label)}</span><span class="ds-pa-info-value">${escapeHtml(value)}</span></div>`
     : '';
-  const metaCell = (label, value) => value
-    ? `<div class="ds-pa-drawer-meta-item"><div class="ds-pa-drawer-meta-label">${escapeHtml(label)}</div><div class="ds-pa-drawer-meta-value">${escapeHtml(value)}</div></div>`
-    : `<div class="ds-pa-drawer-meta-item"></div>`;
-  const metaRow = `<div class="ds-pa-drawer-meta-grid">
-    ${metaCell('סוג הצעה', proposalGroupDisplayName(row.activity_type_group))}
-    ${metaCell('תאריך הצעה', formatDateDisplay(row.proposal_date))}
-    ${metaCell('תחום', text(row.proposal_domain))}
-  </div>`;
-  const sentByRow = drawerRowStatus === 'sent' && text(row.sent_by)
-    ? `<div class="ds-pa-drawer-sent-by"><span>נשלח ע״י</span><strong>${escapeHtml(text(row.sent_by))}</strong></div>`
-    : '';
+  const drawerSentBy = text(row.sent_by);
+  const showSentBy = drawerRowStatus === 'sent' && drawerSentBy;
+  const metaItems = [
+    infoCell('סוג הצעה', proposalGroupDisplayName(row.activity_type_group)),
+    infoCell('תאריך הצעה', formatDateDisplay(row.proposal_date)),
+    infoCell('תחום', text(row.proposal_domain || 'A')),
+    showSentBy ? infoCell('נשלח ע״י', drawerSentBy) : ''
+  ].filter(Boolean).join('');
+  const metaClass = showSentBy
+    ? 'ds-pa-info-grid ds-pa-info-grid--proposal-meta ds-pa-info-grid--four'
+    : 'ds-pa-info-grid ds-pa-info-grid--proposal-meta ds-pa-info-grid--three';
+  const metaRow = `<div class="${metaClass}">${metaItems}</div>`;
   const extraRows = [
     infoCell('הערת אישור', text(row.approval_note), true),
     infoCell('הערות', text(row.notes), true)
   ].filter(Boolean).join('');
-  const infoCardRows = metaRow + sentByRow + (extraRows ? `<div class="ds-pa-info-grid" style="margin-top:8px">${extraRows}</div>` : '');
+  const infoCardRows = metaRow + (extraRows ? `<div class="ds-pa-info-grid" style="margin-top:8px">${extraRows}</div>` : '');
 
   // ── פעילויות card ──
   const activityNames = (Array.isArray(row.activity_names) ? row.activity_names : []).map(text).filter(Boolean);
