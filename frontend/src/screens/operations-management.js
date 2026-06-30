@@ -1222,7 +1222,7 @@ function opsManagementStylesHtml() {
     .ds-ops-mgmt-screen .ds-ops-dist-input { width:72px; text-align:center; font-size:12px; padding:2px 4px; border:1px solid #94a3b8; border-radius:4px; background:#fff; }
     .ds-ops-mgmt-screen .ds-ops-workshop-detail { display:block; background:#f8fafc; border:1px solid #dbeafe; border-radius:12px; padding:8px; width:100%; box-sizing:border-box; }
     .ds-ops-mgmt-screen .ds-ops-workshop-detail-row > td { padding:6px 8px!important; width:100%; box-sizing:border-box; }
-    .ds-ops-mgmt-screen .ds-ops-workshop-detail__tables { display:grid; grid-template-columns:1fr 1fr; gap:16px; align-items:start; margin-top:8px; width:100%; box-sizing:border-box; }
+    .ds-ops-mgmt-screen .ds-ops-workshop-detail__tables { display:grid; grid-template-columns:0.38fr 0.62fr; gap:12px; align-items:start; margin-top:8px; width:100%; box-sizing:border-box; }
     .ds-ops-mgmt-screen .ds-ops-workshop-detail__box { min-width:0; width:100%; box-sizing:border-box; }
     .ds-ops-mgmt-screen .ds-ops-workshop-detail__box table { width:100%; table-layout:fixed; }
     .ds-ops-mgmt-screen .ds-ops-workshop-detail__table-title { display:block; font-weight:800; color:#1e3a8a; margin-bottom:4px; }
@@ -1230,7 +1230,7 @@ function opsManagementStylesHtml() {
     @media (max-width: 720px) { .ds-ops-mgmt-screen .ds-ops-workshop-detail__tables { grid-template-columns:1fr; } }
     .ds-ops-mgmt-screen .ds-ops-dist-table th { background:#fff; font-weight:700; border-bottom:2px solid #93c5fd !important; }
     .ds-ops-mgmt-screen .ds-ops-dist-table th,
-    .ds-ops-mgmt-screen .ds-ops-dist-table td { padding:4px 6px; box-sizing:border-box; white-space:nowrap; overflow:hidden; text-overflow:ellipsis; }
+    .ds-ops-mgmt-screen .ds-ops-dist-table td { padding:3px 4px; font-size:11px; box-sizing:border-box; white-space:nowrap; overflow:hidden; text-overflow:ellipsis; }
     /* dist-table — semantic column classes */
     .ds-ops-mgmt-screen .ds-ops-dist-table--locations .ds-ops-dist-col--location { text-align:right !important; width:120px !important; max-width:130px !important; }
     .ds-ops-mgmt-screen .ds-ops-dist-table--locations .ds-ops-dist-col--quantity { text-align:center !important; width:40px !important; max-width:55px !important; }
