@@ -17,7 +17,7 @@ export function activityHours(row) {
   const end = formatTimeShort(row?.end_time || row?.EndTime || '');
   return start && end ? `${start}–${end}` : (start || end || '—');
 }
-export function participants(row) { const v = row?.participants_count; return v === null || v === undefined || text(v) === '' ? '—' : text(v); }
+export function participants(row) { const v = row?.participants_count ?? row?.participants ?? row?.participant_count; return v === null || v === undefined || text(v) === '' ? '—' : text(v); }
 export function currentInstructorIds(state) { const u = state?.user || {}; return [u.emp_id, u.employee_id, u.user_id, u.username].map(text).filter(Boolean); }
 export function currentInstructorName(state) { const u = state?.user || {}; return text(u.full_name || u.name || u.username || u.email || ''); }
 export function assignedToCurrentInstructor(row, ids) { return (Array.isArray(ids) ? ids : [ids]).some((id) => id && (id === text(row?.emp_id) || id === text(row?.emp_id_2))); }
@@ -51,10 +51,31 @@ export function groupForRow(row, teamMap) { return teamMap?.get(`${isoDate(row?.
 export function isResponsibleForGroup(group, ids) { return !!group && (Array.isArray(ids) ? ids : [ids]).includes(text(group.responsibleEmpId)); }
 export function rowTitle(row) { return text(row?.activity_name || row?.activity || row?.activity_type || 'פעילות'); }
 
+export function photoApprovalStatus(row) {
+  const raw = [row?.photo_approval, row?.photo_consent, row?.photo_consent_status, row?.photo_permission, row?.media_consent, row?.has_photo_approval]
+    .map(text)
+    .find(Boolean) || '';
+  const normalized = norm(raw);
+  if (row?.has_photo_approval === true || ['yes', 'true', '1', 'approved', 'אושר', 'יש', 'קיים', 'מאושר'].includes(normalized)) {
+    return { key: 'approved', label: 'יש אישור צילום' };
+  }
+  if (row?.has_photo_approval === false || ['no', 'false', '0', 'missing', 'אין', 'חסר', 'לא'].includes(normalized)) {
+    return { key: 'missing', label: 'אין אישור צילום' };
+  }
+  return { key: 'missing', label: 'לא עודכן אישור צילום' };
+}
+
+function cleanDetailValue(value) {
+  const cleaned = text(value);
+  return cleaned && cleaned !== '—' && cleaned !== 'לא עודכן' ? cleaned : '';
+}
+
 function schoolContactDetailHtml(row) {
-  const name = text(row?.school_contact_name) || 'לא עודכן';
-  const phone = text(row?.school_contact_phone) || 'לא עודכן';
-  return `${escapeHtml(name)}<br>${escapeHtml(phone)}`;
+  const name = cleanDetailValue(row?.school_contact_name || row?.contact_name);
+  const phone = cleanDetailValue(row?.school_contact_phone || row?.contact_phone || row?.mobile || row?.phone);
+  const role = cleanDetailValue(row?.school_contact_role || row?.contact_role);
+  const parts = [name, role, phone].filter(Boolean);
+  return parts.length ? parts.map(escapeHtml).join('<br>') : '';
 }
 
 function instructorEntriesForRow(row, group = null) {
@@ -105,24 +126,26 @@ function peerInstructorsHtml(row, ids, group = null) {
 export function activityDetailHtml(row, { ids = [], teamMap = new Map(), upload = null } = {}) {
   const group = groupForRow(row, teamMap);
   const status = completionStatusFromUpload(upload, row);
-  const responsible = text(group?.responsibleName || '—');
+  const responsible = cleanDetailValue(group?.responsibleName);
   const mineResponsible = isResponsibleForGroup(group, ids);
   const peersHtml = peerInstructorsHtml(row, ids, group);
+  const photoStatus = photoApprovalStatus(row);
+  const contactHtml = schoolContactDetailHtml(row);
   const fields = [
     ['שם פעילות', rowTitle(row)],
     ['תאריך', formatDateHe(isoDate(row?.start_date || row?.activity_date)) || isoDate(row?.start_date || row?.activity_date) || '—'],
-    ['יום', weekdayNameHe(row?.start_date || row?.activity_date) || '—'],
     ['שעות', activityHours(row)],
-    ['רשות', text(row?.authority) || '—'],
     ['בית ספר', text(row?.school) || '—'],
-    ['איש קשר בבית הספר', schoolContactDetailHtml(row)],
+    ['סוג פעילות', text(row?.activity_type || row?.type || row?.item_type) || '—'],
     ['שכבה / קבוצה', text(row?.grade || row?.group_name) || '—'],
     ['מספר משתתפים', participants(row)],
-    ['סטטוס אישור ביצוע', statusChipHtml(status)],
-    peersHtml ? ['מי נמצא איתי', peersHtml] : null,
-    ['אחראי קשר', `${escapeHtml(responsible)}${mineResponsible ? ' ' + statusChipHtml({ key: 'contact', label: 'אני אחראי קשר' }) : ''}`]
+    contactHtml ? ['איש קשר בית ספר', contactHtml] : null,
+    ['אישור צילום', statusChipHtml(photoStatus)],
+    ['אישור ביצוע', statusChipHtml(status)],
+    peersHtml ? ['מי משובץ איתי', peersHtml] : null,
+    responsible ? ['אחראי קשר', `${escapeHtml(responsible)}${mineResponsible ? ' ' + statusChipHtml({ key: 'contact', label: 'אני אחראי קשר' }) : ''}`] : null
   ].filter(Boolean);
-  return `<div class="instr-detail">${mineResponsible ? '<div class="instr-contact-note"><strong>אתה אחראי קשר</strong><br>יש לוודא את קיום הפעילות מול איש הקשר בבית הספר לפחות 48 שעות לפני יום הפעילות ולעדכן את שאר הצוות.</div>' : ''}<div class="instr-detail-grid">${fields.map(([k, v]) => `<div class="instr-info-row"><span>${escapeHtml(k)}</span><strong>${typeof v === 'string' && v.includes('<') ? v : escapeHtml(v)}</strong></div>`).join('')}</div><div class="instr-detail-actions"><button class="ds-btn ds-btn--sm ds-btn--ghost" data-ui-close-drawer>סגור</button></div></div>`;
+  return `<div class="instr-detail">${mineResponsible ? '<div class="instr-contact-note"><strong>את/ה אחראי/ת קשר</strong><br>יש לוודא את קיום הפעילות מול איש הקשר בבית הספר ולעדכן את שאר הצוות.</div>' : ''}<div class="instr-detail-grid">${fields.map(([k, v]) => `<div class="instr-info-row"><span>${escapeHtml(k)}</span><strong>${typeof v === 'string' && v.includes('<') ? v : escapeHtml(v)}</strong></div>`).join('')}</div><div class="instr-detail-actions"><button class="ds-btn ds-btn--sm ds-btn--secondary" data-instr-print-approval>הדפסת אישור</button><button class="ds-btn ds-btn--sm ds-btn--primary" data-instr-upload-approval>העלאת אישור</button><button class="ds-btn ds-btn--sm ds-btn--ghost" data-ui-close-drawer>סגור</button></div></div>`;
 }
 
 function approvalMatchesRow(approval, row, instructorName = '') {
@@ -193,6 +216,16 @@ export function printSingleActivity(row, instructorName = '', allInstructorRows 
   }
 }
 
-export function bindActivityDetailActions() {
-  /* Activity detail drawer is info-only; upload/print live on אישורי ביצוע tab. */
+export function bindActivityDetailActions(contentNode, { row, state, allInstructorRows = [] } = {}) {
+  contentNode?.querySelector('[data-instr-print-approval]')?.addEventListener('click', () => {
+    openInstructorApprovalForActivity(row, { state, allInstructorRows });
+  });
+  contentNode?.querySelector('[data-instr-upload-approval]')?.addEventListener('click', () => {
+    const approval = resolveInstructorApprovalForRow(row, allInstructorRows, instructorNameForRow(row, currentInstructorIds(state), '') || currentInstructorName(state));
+    if (approval) {
+      try { sessionStorage.setItem('instructor_completion_approval_target', JSON.stringify({ date: approval.date, authority: approval.authority, school: approval.school })); } catch { /* ignore */ }
+    }
+    document.dispatchEvent(new CustomEvent('app:navigate', { detail: { route: 'instructor-completion-approvals' } }));
+    document.querySelector('.shell-nav__btn[data-route="instructor-completion-approvals"]')?.click();
+  });
 }

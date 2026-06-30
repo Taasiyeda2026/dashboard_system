@@ -56,6 +56,19 @@ const HEBREW_MONTHS = [
 /** כותרות ימים — עמודה ראשונה = יום ראשון (תואם ל־getDay()). */
 const HEBREW_WEEKDAY_SHORT = ['א׳', 'ב׳', 'ג׳', 'ד׳', 'ה׳', 'ו׳', 'ש׳'];
 
+function activitySortKey(item) {
+  return [
+    String(item?.start_date || item?.activity_date || item?.date || '').slice(0, 10),
+    String(item?.start_time || item?.StartTime || '').trim(),
+    String(item?.school || '').trim(),
+    String(item?.activity_name || '').trim()
+  ].join('|');
+}
+
+function sortActivitiesChronologically(items = []) {
+  return (Array.isArray(items) ? items : []).slice().sort((a, b) => activitySortKey(a).localeCompare(activitySortKey(b), 'he'));
+}
+
 function localYmd() {
   const d = new Date();
   const y = d.getFullYear();
@@ -101,9 +114,8 @@ function cellMapFromCells(cells) {
 }
 
 function monthCellItems(cell, itemsById) {
-  if (Array.isArray(cell?.items)) return cell.items;
-  const ids = Array.isArray(cell?.item_ids) ? cell.item_ids : [];
-  return ids.map((id) => itemsById?.[id]).filter(Boolean);
+  const items = Array.isArray(cell?.items) ? cell.items : (Array.isArray(cell?.item_ids) ? cell.item_ids : []).map((id) => itemsById?.[id]).filter(Boolean);
+  return sortActivitiesChronologically(items);
 }
 
 function padDayKey(y, mo, dayNum) {
