@@ -2689,8 +2689,8 @@ function normalizeData(data) {
 
 const PROPOSALS_AGREEMENTS_ALLOWED_ROLES = new Set(['domain_manager', 'operation_manager', 'admin', 'business_development_manager']);
 const PROPOSALS_AGREEMENTS_MANAGE_ROLES = new Set(['domain_manager', 'operation_manager', 'admin']);
-const PROPOSALS_AGREEMENTS_COLUMNS = 'id,authority_id,school_id,contact_school_id,client_authority,school_framework,document_type,activity_type_group,proposal_domain,proposal_date,activity_names,contact_name,contact_role,phone,email,notes,status,approval_note,total_amount,custom_document_sections,include_catalog,signature_meta,approved_by,approved_at,created_at,updated_at';
-const PROPOSALS_AGREEMENTS_DIRECTORY_COLUMNS = 'id,authority_id,authority_code,school_id,contact_school_id,authority_name,legacy_client_authority,contact_client_type,contact_client_name,school_name,legacy_school_framework,document_type,activity_type_group,proposal_domain,proposal_date,activity_names,contact_name,contact_role,phone,email,notes,status,approval_note,total_amount,custom_document_sections,include_catalog,signature_meta,approved_by,approved_at,created_at,updated_at';
+const PROPOSALS_AGREEMENTS_COLUMNS = 'id,authority_id,school_id,contact_school_id,client_authority,school_framework,document_type,activity_type_group,proposal_domain,proposal_date,activity_names,contact_name,contact_role,phone,email,notes,status,approval_note,total_amount,custom_document_sections,include_catalog,signature_meta,approved_by,approved_at,sent_by,sent_at,created_at,updated_at';
+const PROPOSALS_AGREEMENTS_DIRECTORY_COLUMNS = 'id,authority_id,authority_code,school_id,contact_school_id,authority_name,legacy_client_authority,contact_client_type,contact_client_name,school_name,legacy_school_framework,document_type,activity_type_group,proposal_domain,proposal_date,activity_names,contact_name,contact_role,phone,email,notes,status,approval_note,total_amount,custom_document_sections,include_catalog,signature_meta,approved_by,approved_at,sent_by,sent_at,created_at,updated_at';
 const PROPOSALS_AGREEMENTS_WRITABLE_COLUMNS = new Set([
   'authority_id', 'school_id', 'contact_school_id', 'client_authority', 'school_framework',
   'document_type', 'activity_type_group', 'proposal_date', 'activity_names', 'contact_name',
@@ -2756,6 +2756,11 @@ function assertCanManageProposalsAgreementsApi() {
 
 function cleanProposalAgreementText(value) {
   return String(value == null ? '' : value).replace(/\s+/g, ' ').trim();
+}
+
+function firstNameOnly(value) {
+  const clean = cleanProposalAgreementText(value);
+  return clean.split(/\s+/).filter(Boolean)[0] || clean;
 }
 
 function normalizeProposalAgreementStatusForDb(status) {
@@ -2893,6 +2898,8 @@ function normalizeProposalAgreementRow(row = {}) {
     signature_meta:      (row.signature_meta && typeof row.signature_meta === 'object' && !Array.isArray(row.signature_meta)) ? row.signature_meta : {},
     approved_by:         cleanProposalAgreementText(row.approved_by),
     approved_at:         cleanProposalAgreementText(row.approved_at),
+    sent_by:             firstNameOnly(row.sent_by),
+    sent_at:             cleanProposalAgreementText(row.sent_at),
     created_at:          cleanProposalAgreementText(row.created_at),
     updated_at:          cleanProposalAgreementText(row.updated_at)
   };
@@ -5689,6 +5696,17 @@ export const api = {
       patch.approved_by = uuidOrNull(state?.user?.auth_user_id);
       patch.approved_at = new Date().toISOString();
       patch.signature_meta = (signatureMeta && typeof signatureMeta === 'object' && !Array.isArray(signatureMeta)) ? signatureMeta : {};
+    }
+    if (cleanStatus === 'sent') {
+      const senderName = firstNameOnly(
+        state?.user?.full_name ||
+        state?.user?.name ||
+        state?.user?.username ||
+        state?.user?.user_id ||
+        ''
+      );
+      patch.sent_by = senderName;
+      patch.sent_at = new Date().toISOString();
     }
     if (cleanStatus === 'draft') {
       patch.signature_meta = {};

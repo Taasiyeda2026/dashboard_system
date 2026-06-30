@@ -2997,11 +2997,14 @@ function drawerHtml(row, activityNameOptions = [], state = null) {
     ${metaCell('תאריך הצעה', formatDateDisplay(row.proposal_date))}
     ${metaCell('תחום', text(row.proposal_domain))}
   </div>`;
+  const sentByRow = drawerRowStatus === 'sent' && text(row.sent_by)
+    ? `<div class="ds-pa-drawer-sent-by"><span>נשלח ע״י</span><strong>${escapeHtml(text(row.sent_by))}</strong></div>`
+    : '';
   const extraRows = [
     infoCell('הערת אישור', text(row.approval_note), true),
     infoCell('הערות', text(row.notes), true)
   ].filter(Boolean).join('');
-  const infoCardRows = metaRow + (extraRows ? `<div class="ds-pa-info-grid" style="margin-top:8px">${extraRows}</div>` : '');
+  const infoCardRows = metaRow + sentByRow + (extraRows ? `<div class="ds-pa-info-grid" style="margin-top:8px">${extraRows}</div>` : '');
 
   // ── פעילויות card ──
   const activityNames = (Array.isArray(row.activity_names) ? row.activity_names : []).map(text).filter(Boolean);
