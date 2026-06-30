@@ -794,7 +794,7 @@ export const invitationsScreen = {
           ${opening}
           <div class="c-box c-details-box">
             <div class="c-details-top">
-              ${date ? `<div class="c-info-row">⚙️ <strong>${date.day}</strong></div>` : ''}
+              ${date ? `<div class="c-info-row">🗓️ <strong>${date.day}</strong></div>` : ''}
               ${date ? `<div class="c-info-row">📅 <strong>${date.date}</strong></div>` : ''}
               ${time ? `<div class="c-info-row">⏰ <strong>${esc(time)}</strong></div>` : ''}
             </div>

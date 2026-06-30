@@ -295,6 +295,7 @@ function ensureStyles() {
   s.textContent = `
 /* ─ Screen & grid ─ */
 .cert-screen{padding:var(--ds-space-4,16px);direction:rtl}
+.cert-screen__header{margin-bottom:4px}
 .cert-screen__title{font-size:1.25rem;font-weight:700;color:var(--ds-text-primary,#111);margin:0}
 .cert-cards-grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(170px,210px));gap:14px;margin-top:16px}
 /* ─ Card ─ */
@@ -373,6 +374,7 @@ export const certificatesScreen = {
   load() { return Promise.resolve({}); },
 
   render(_data, _ctx) {
+    ensureStyles();
     return `
 <div class="cert-screen">
   <div class="cert-screen__header">
