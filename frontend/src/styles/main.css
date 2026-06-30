@@ -10905,9 +10905,10 @@ select.ds-input {
 
 .ds-pa-actions-col,
 .ds-pa-actions-cell {
-  width: 120px;
-  min-width: 90px;
+  width: 160px;
+  min-width: 120px;
   white-space: nowrap;
+  text-align: center;
 }
 
 .ds-pa-actions-cell {
@@ -10921,6 +10922,12 @@ select.ds-input {
   justify-content: center;
   gap: 6px;
   flex-wrap: nowrap;
+}
+
+.ds-pa-table td:nth-child(3) {
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
 }
 
 .ds-pa-col-center {

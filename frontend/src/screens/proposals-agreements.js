@@ -940,7 +940,7 @@ export function proposalsAgreementsTableRowsHtml(rows, state) {
 function tableHtml(rows, state) {
   return dsTableWrap(`
     <table class="ds-table ds-pa-table" data-pa-table>
-      <colgroup><col style="width:55px"><col style="width:160px"><col style="width:220px"><col style="width:130px"><col style="width:120px"><col style="width:130px"><col style="width:110px"><col style="width:120px"></colgroup>
+      <colgroup><col style="width:55px"><col style="width:160px"><col style="width:180px"><col style="width:130px"><col style="width:120px"><col style="width:130px"><col style="width:110px"><col style="width:160px"></colgroup>
       <thead><tr><th class="ds-pa-domain-col">תחום</th><th>רשות / מועצה / עירייה</th><th>בית ספר / מסגרת</th><th class="ds-pa-col-center">סוג הצעה</th><th class="ds-pa-col-center">תאריך הצעה</th><th class="ds-pa-col-center">סטטוס</th><th class="ds-pa-col-center">סה״כ</th><th class="ds-pa-actions-col ds-pa-col-center">פעולות</th></tr></thead>
       <tbody data-pa-table-body>${proposalsAgreementsTableRowsHtml(rows, state)}</tbody>
     </table>
