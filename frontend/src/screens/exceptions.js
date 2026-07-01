@@ -24,6 +24,17 @@ import { showToast } from './shared/toast.js';
 const EXCEPTIONS_SCOPE = 'exceptions';
 const EXCEPTIONS_TAB_GENERAL = 'general';
 const EXCEPTIONS_TAB_SUMMER_DATES = 'summer_dates';
+const SUMMER_EXCEPTIONS_DEFAULT_FROM = '2026-06-15';
+const SUMMER_EXCEPTIONS_DEFAULT_TO = '2026-09-01';
+
+function isSummerExceptionsDefaultPeriod() {
+  const now = new Date();
+  const year = now.getFullYear();
+  const month = String(now.getMonth() + 1).padStart(2, '0');
+  const day = String(now.getDate()).padStart(2, '0');
+  const today = `${year}-${month}-${day}`;
+  return today >= SUMMER_EXCEPTIONS_DEFAULT_FROM && today <= SUMMER_EXCEPTIONS_DEFAULT_TO;
+}
 
 const HEBREW_MONTHS = ['ינואר','פברואר','מרץ','אפריל','מאי','יוני','יולי','אוגוסט','ספטמבר','אוקטובר','נובמבר','דצמבר'];
 function hebrewMonthLabel(ym) {
@@ -292,7 +303,13 @@ export const exceptionsScreen = {
     prepareRowsForSearch(allRows, ['RowID', 'activity_name', 'activity_manager', 'authority', 'school', 'funding', 'exception_type', 'exception_types']);
     const filteredRows = applyLocalFilters(allRows, filterState, { filterFields: EXCEPTION_FILTER_FIELDS });
     const tabRows = splitRowsByExceptionTab(filteredRows);
-    const activeTab = state?.exceptionsTab === EXCEPTIONS_TAB_SUMMER_DATES ? EXCEPTIONS_TAB_SUMMER_DATES : EXCEPTIONS_TAB_GENERAL;
+    const savedTab = state?.exceptionsTab;
+    const defaultTab = isSummerExceptionsDefaultPeriod()
+      ? EXCEPTIONS_TAB_SUMMER_DATES
+      : EXCEPTIONS_TAB_GENERAL;
+    const activeTab = savedTab === EXCEPTIONS_TAB_SUMMER_DATES || savedTab === EXCEPTIONS_TAB_GENERAL
+      ? savedTab
+      : defaultTab;
     const visibleRows = activeTab === EXCEPTIONS_TAB_SUMMER_DATES ? tabRows.summerDates : tabRows.general;
     const hideRowId = !!state?.clientSettings?.hide_row_id_in_ui;
     const toolbarHtml = filtersToolbarHtml(EXCEPTIONS_SCOPE, allRows, state, {

@@ -133,6 +133,27 @@ export function getActivityDistrict(activity) {
   return String(activity?.authority_district || activity?.district || '').trim() || 'ללא מחוז / לא משויך';
 }
 
+export function isTamirCompletionApprovalActivity(activity) {
+  const fields = [
+    activity?.authority_name,
+    activity?.legacy_authority,
+    activity?.authority,
+    activity?.single_school_name,
+    activity?.school,
+    activity?.legacy_school,
+    activity?.linked_school_names,
+    activity?.activity_name,
+    activity?.name,
+    activity?.title,
+    activity?.program_name,
+    activity?.notes,
+    activity?.project,
+    activity?.customer,
+    activity?.client
+  ];
+  return fields.some((value) => String(value || '').includes('תמיר'));
+}
+
 export function getActivityName(activity) {
   return String(activity?.activity_name || activity?.name || activity?.title || activity?.program_name || '').trim() || 'ללא שם';
 }

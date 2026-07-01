@@ -9,7 +9,8 @@ import {
   getActivitySchoolNames,
   getActivityTimeRange,
   getActivityGradeLabel,
-  isValidInstructorName
+  isValidInstructorName,
+  isTamirCompletionApprovalActivity
 } from './operations-activity-helpers.js';
 
 const BLANK = '________________';
@@ -27,7 +28,9 @@ function norm(value) {
 }
 
 function isDeletedActivity(activity) {
-  return norm(activity?.status) === norm('נמחק');
+  const status = norm(activity?.status);
+  // Cancelled activities never happened and shouldn't require a completion approval either.
+  return status === norm('נמחק') || status === norm('בוטל');
 }
 
 function cleanSchoolName(activity) {
@@ -129,7 +132,12 @@ export function buildCompletionApprovals(rows = [], { instructor = '', dateMode 
   const seen = new Set();
   (Array.isArray(rows) ? rows : []).forEach((activity) => {
     if (isDeletedActivity(activity)) return;
-    getInstructorEntries(activity).forEach((instructorEntry) => {
+    const instructorEntries = getInstructorEntries(activity);
+    // Tamir activities get their own approval track even with a single instructor filled in so far
+    // (the activity still requires a second instructor); the group is keyed by date+authority+school,
+    // never by instructor name, so the approval doesn't split per instructor.
+    const isTamirTeam = isTamirCompletionApprovalActivity(activity);
+    instructorEntries.forEach((instructorEntry) => {
       if (instructorEntry.name !== selected) return;
       activityDates(activity).forEach((activityDate) => {
         if (dateMode === 'single' && date && activityDate !== date) return;
@@ -142,12 +150,16 @@ export function buildCompletionApprovals(rows = [], { instructor = '', dateMode 
         seen.add(unique);
         const authority = getActivityAuthorityName(activity);
         const school = cleanSchoolName(activity);
-        const key = `${norm(instructorEntry.name)}|${activityDate}|${norm(authority)}|${norm(school)}`;
+        const key = isTamirTeam
+          ? `tamir|${activityDate}|${norm(authority)}|${norm(school)}`
+          : `${norm(instructorEntry.name)}|${activityDate}|${norm(authority)}|${norm(school)}`;
         if (!groups.has(key)) {
           groups.set(key, {
             id: key,
-            instructorName: instructorEntry.name,
+            instructorName: isTamirTeam ? instructorEntries.map((entry) => entry.name).join(' + ') : instructorEntry.name,
+            instructorNames: isTamirTeam ? instructorEntries.map((entry) => entry.name) : [instructorEntry.name],
             instructorEmpId: instructorEntry.empId,
+            isTamirTeamApproval: isTamirTeam,
             date: activityDate,
             authority,
             school,
@@ -236,23 +248,36 @@ function approvalLine(label, extraClass = '') {
 }
 
 export function completionApprovalDocumentHtml(approval) {
+  const isTamir = !!approval.isTamirTeamApproval;
   const rows = sortApprovalActivitiesByTime(approval.activities).map((activity) => `<tr>
     <td>${escapeHtml(activity.name)}</td>
     <td class="completion-approval-table__center">${escapeHtml(activity.grade)}</td>
     <td class="completion-approval-table__center">${escapeHtml(formatApprovalTime(activity.start || (activity.time || '').split('-')[0]?.trim()))}</td>
-    <td class="completion-approval-table__center">${escapeHtml(formatApprovalTime(activity.end || (activity.time || '').split('-')[1]?.trim()))}</td>
-    <td class="completion-approval-table__manual"></td>
+    <td class="completion-approval-table__center">${escapeHtml(formatApprovalTime(activity.end || (activity.time || '').split('-')[1]?.trim()))}</td>${isTamir ? '' : `
+    <td class="completion-approval-table__manual"></td>`}
   </tr>`).join('');
   const authorityLine = text(approval.authority) ? field('רשות', approval.authority) : '';
+  // Tamir activities are tracked as a team, not by a single instructor: the printed form shows both
+  // instructor slots explicitly, with the second one flagged as unassigned rather than left blank.
+  const instructorFieldsHtml = isTamir
+    ? `${field('מדריך', (Array.isArray(approval.instructorNames) && approval.instructorNames[0]) || approval.instructorName)}
+      ${field('מדריך נוסף', (Array.isArray(approval.instructorNames) && approval.instructorNames[1]) || 'טרם שובץ')}`
+    : field('מדריך/ה', approval.instructorName);
+  // Without the participants column the four remaining columns need rebalanced (fixed) widths so the
+  // table still fills its printed width; the shared non-Tamir column classes are left untouched.
+  const colGroupHtml = isTamir
+    ? '<colgroup><col style="width:40%"><col style="width:19%"><col style="width:20%"><col style="width:21%"></colgroup>'
+    : '<colgroup><col class="completion-approval-col-activity"><col class="completion-approval-col-grade"><col class="completion-approval-col-start"><col class="completion-approval-col-end"><col class="completion-approval-col-participants"></colgroup>';
+  const participantsHeader = isTamir ? '' : '<th>מספר משתתפים</th>';
   return `<article class="completion-approval-page" dir="rtl">
     <header class="completion-approval-header"><img class="completion-approval-logo" src="${escapeHtml(taasiyedaLogoSrc)}" alt="לוגו תעשיידע"><h1>אישור ביצוע פעילות</h1></header>
     <section class="completion-approval-details">
       ${field('בית ספר', approval.school)}
       ${authorityLine}
       ${field('תאריך פעילות', formatDateHe(approval.date) || approval.date)}
-      ${field('מדריך/ה', approval.instructorName)}
+      ${instructorFieldsHtml}
     </section>
-    <table class="completion-approval-table approval-print-table"><colgroup><col class="completion-approval-col-activity"><col class="completion-approval-col-grade"><col class="completion-approval-col-start"><col class="completion-approval-col-end"><col class="completion-approval-col-participants"></colgroup><thead><tr><th>שם הפעילות</th><th class="completion-approval-table__center">כיתה</th><th class="completion-approval-table__center">שעת התחלה</th><th class="completion-approval-table__center">שעת סיום</th><th>מספר משתתפים</th></tr></thead><tbody>${rows}</tbody></table>
+    <table class="completion-approval-table approval-print-table">${colGroupHtml}<thead><tr><th>שם הפעילות</th><th class="completion-approval-table__center">כיתה</th><th class="completion-approval-table__center">שעת התחלה</th><th class="completion-approval-table__center">שעת סיום</th>${participantsHeader}</tr></thead><tbody>${rows}</tbody></table>
     <section class="completion-approval-signature"><h3>אישור בית הספר</h3><p class="completion-approval-signature-summary">אני מאשר/ת כי הפעילות המפורטת לעיל התקיימה בבית הספר בתאריך המצוין.</p>
       ${approvalLine('שם מלא')}
       ${approvalLine('תפקיד', 'completion-approval-signature-line--double-after')}
