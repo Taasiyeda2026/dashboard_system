@@ -78,11 +78,15 @@ function uploadsByApproval(uploads = []) {
   });
   return map;
 }
+function uploadStorageExists(upload) {
+  return !!upload?.file_path && upload.storage_exists !== false && text(upload?.storage_status) !== 'missing';
+}
 function statusInfo(upload) {
   const status = text(upload?.status);
+  if (upload?.file_path && !uploadStorageExists(upload)) return { key: 'missing', label: 'הקובץ חסר באחסון' };
   if (status === 'approved') return { key: 'approved', label: 'אושר' };
   if (status === 'rejected') return { key: 'rejected', label: 'נדחה' };
-  if (status === 'uploaded' || upload?.file_path) return { key: 'uploaded', label: 'הועלה לבדיקה' };
+  if (status === 'uploaded' || uploadStorageExists(upload)) return { key: 'uploaded', label: 'הועלה לבדיקה' };
   return { key: 'missing', label: 'טרם הועלה' };
 }
 function truncateFileName(name, max = 20) {
@@ -93,20 +97,26 @@ function truncateFileName(name, max = 20) {
 }
 function uploadControlsHtml(approval, upload, safeKey) {
   const st = statusInfo(upload).key;
-  const hasFile = !!(upload?.file_path || upload?.file_name);
-  if (hasFile && st !== 'rejected') {
-    const fileName = truncateFileName(upload?.file_name || 'קובץ מועלה');
-    const viewButton = upload?.file_path
-      ? `<button type="button" class="ds-btn ds-btn--xs ds-btn--secondary instr-btn-view" data-view-file-path="${escapeHtml(upload.file_path)}" title="צפייה בקובץ" aria-label="צפייה בקובץ">👁 צפייה</button>`
-      : '';
-    return `<span class="instr-file-row"><span class="instr-file-state instr-file-state--has" title="${escapeHtml(upload?.file_name || '')}">📎 ${escapeHtml(fileName)}</span>${viewButton}</span>`;
-  }
-  return `<div class="instr-upload-controls" data-upload-controls="${safeKey}">
+  const hasRecord = !!upload?.id;
+  const hasExistingFile = !!(upload?.file_path || upload?.file_name);
+  const storageExists = uploadStorageExists(upload);
+  const uploadId = escapeHtml(upload?.id || '');
+  const uploadControls = `<div class="instr-upload-controls" data-upload-controls="${safeKey}">
     <span class="instr-pending-file" data-pending-name="${safeKey}" hidden></span>
-    <button type="button" class="ds-btn ds-btn--xs ds-btn--secondary instr-btn-pick" data-pick-key="${safeKey}">בחר</button>
+    <button type="button" class="ds-btn ds-btn--xs ds-btn--secondary instr-btn-pick" data-pick-key="${safeKey}">${hasRecord ? 'בחר קובץ חדש' : 'בחר'}</button>
     <input class="instr-file-input-hidden" type="file" accept=".pdf,.jpg,.jpeg,.png,application/pdf,image/jpeg,image/png" data-pick-input="${safeKey}">
-    <button type="button" class="ds-btn ds-btn--xs ds-btn--primary instr-btn-plus" data-upload-submit="${safeKey}" title="העלאת אישור ביצוע" aria-label="העלאת אישור ביצוע">+</button>
+    <button type="button" class="ds-btn ds-btn--xs ds-btn--primary instr-btn-plus" data-upload-submit="${safeKey}" data-upload-id="${uploadId}" title="${hasRecord ? 'החלפת אישור ביצוע' : 'העלאת אישור ביצוע'}" aria-label="${hasRecord ? 'החלפת אישור ביצוע' : 'העלאת אישור ביצוע'}">${hasRecord ? 'החלף קובץ' : '+'}</button>
   </div>`;
+  if (hasExistingFile && st !== 'rejected') {
+    if (!storageExists) {
+      return `<span class="instr-file-row"><span class="instr-file-state instr-file-state--missing">⚠ הקובץ חסר באחסון</span>${uploadControls}</span>`;
+    }
+    const fileName = truncateFileName(upload?.file_name || 'קובץ מועלה');
+    const viewButton = `<button type="button" class="ds-btn ds-btn--xs ds-btn--secondary instr-btn-view" data-view-file-path="${escapeHtml(upload.file_path)}" title="צפייה בקובץ" aria-label="צפייה בקובץ">👁 צפייה</button>`;
+    const deleteButton = `<button type="button" class="ds-btn ds-btn--xs ds-btn--danger instr-btn-delete" data-delete-upload-id="${uploadId}" title="מחיקת קובץ" aria-label="מחיקת קובץ">מחק קובץ</button>`;
+    return `<span class="instr-file-row"><span class="instr-file-state instr-file-state--has" title="${escapeHtml(upload?.file_name || '')}">📎 ${escapeHtml(fileName)}</span>${viewButton}${uploadControls}${deleteButton}</span>`;
+  }
+  return uploadControls;
 }
 function statusChip(upload) {
   const st = statusInfo(upload);
@@ -239,6 +249,23 @@ export const instructorCompletionApprovalsScreen = {
       });
     });
 
+
+
+    root.querySelectorAll('[data-delete-upload-id]').forEach((btn) => {
+      btn.addEventListener('click', async () => {
+        const id = btn.getAttribute('data-delete-upload-id');
+        if (!id) return;
+        if (!confirm('האם למחוק את הקובץ? לאחר המחיקה יהיה ניתן להעלות קובץ חדש.')) return;
+        try {
+          await api.deleteCompletionApprovalUpload({ id });
+          clearScreenDataCache?.('instructor-completion-approvals');
+          rerender?.();
+        } catch (error) {
+          alert(`מחיקת הקובץ נכשלה: ${error?.message || error}`);
+        }
+      });
+    });
+
     root.querySelectorAll('[data-pick-key]').forEach((btn) => {
       btn.addEventListener('click', () => {
         const key = btn.getAttribute('data-pick-key');
@@ -273,12 +300,17 @@ export const instructorCompletionApprovalsScreen = {
         }
         if (!approval) return;
         try {
-          await api.uploadCompletionApproval({
-            approval,
-            file,
-            instructorEmpId: currentEmpId(state),
-            instructorName: approval.instructorName || currentInstructorName(state)
-          });
+          const uploadId = btn.getAttribute('data-upload-id') || '';
+          if (uploadId) {
+            await api.replaceCompletionApprovalUpload({ id: uploadId, file });
+          } else {
+            await api.uploadCompletionApproval({
+              approval,
+              file,
+              instructorEmpId: currentEmpId(state),
+              instructorName: approval.instructorName || currentInstructorName(state)
+            });
+          }
           pendingFiles.delete(key);
           clearScreenDataCache?.('instructor-completion-approvals');
           rerender?.();

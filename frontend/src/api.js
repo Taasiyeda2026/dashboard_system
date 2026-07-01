@@ -48,6 +48,8 @@ const MUTATING_ACTIONS = {
   deleteProposalAgreement: true,
   saveProposalAgreementItems: true,
   uploadCompletionApproval: true,
+  replaceCompletionApprovalUpload: true,
+  deleteCompletionApprovalUpload: true,
   reviewCompletionApprovalUpload: true,
   saveSchoolContactResponsible: true
   ,saveActivityLayoutStatus: true
@@ -2346,14 +2348,21 @@ function approvalUploadMatchesActivity(upload = {}, row = {}) {
   return !!(rowDate && uploadDate && rowSchool && uploadSchool);
 }
 
+function completionApprovalStorageExists(upload = {}) {
+  if (!upload?.file_path) return false;
+  if (upload.storage_exists === false || String(upload.storage_status || '').trim() === 'missing') return false;
+  return true;
+}
+
 function hasCompletionApprovalForActivity(row = {}, approvalUploads = []) {
-  if (row?.has_completion_approval === true || row?.has_completion_approval === 'true' || row?.has_completion_approval === 'yes') return true;
+  if ((row?.has_completion_approval === true || row?.has_completion_approval === 'true' || row?.has_completion_approval === 'yes') && row?.completion_approval_storage_exists !== false) return true;
+  const uploads = Array.isArray(approvalUploads) ? approvalUploads : [];
   const status = String(row?.completion_approval_status || '').trim().toLowerCase();
-  if (['approved', 'uploaded', 'אושר', 'הועלה'].includes(status)) return true;
-  return (Array.isArray(approvalUploads) ? approvalUploads : []).some((upload) => {
+  if (!uploads.length && ['approved', 'uploaded', 'אושר', 'הועלה'].includes(status) && row?.completion_approval_storage_exists !== false) return true;
+  return uploads.some((upload) => {
     const uploadStatus = String(upload?.status || '').trim().toLowerCase();
     if (uploadStatus === 'rejected' || uploadStatus === 'נדחה') return false;
-    return !!upload?.file_path && approvalUploadMatchesActivity(upload, row);
+    return completionApprovalStorageExists(upload) && approvalUploadMatchesActivity(upload, row);
   });
 }
 
@@ -5517,7 +5526,15 @@ export const api = {
     }
     const { data, error } = await query;
     if (error) throw new Error(error.message || 'completion_approval_uploads_read_failed');
-    return { rows: Array.isArray(data) ? data : [], _source: 'supabase' };
+    const rows = Array.isArray(data) ? data : [];
+    const rowsWithStorage = await Promise.all(rows.map(async (row) => {
+      const filePath = String(row?.file_path || '').trim();
+      if (!filePath) return { ...row, storage_exists: false, storage_status: 'missing' };
+      const signed = await supabase.storage.from('completion-approvals').createSignedUrl(filePath, 30);
+      const exists = !signed.error && !!signed.data?.signedUrl;
+      return { ...row, storage_exists: exists, storage_status: exists ? 'exists' : 'missing' };
+    }));
+    return { rows: rowsWithStorage, _source: 'supabase' };
   },
   completionApprovalSignedUrl: async ({ filePath, download = false } = {}) => {
     const path = String(filePath || '').trim();
@@ -5544,6 +5561,54 @@ export const api = {
     const { data, error } = await supabase.from('activity_completion_approval_uploads').update(payload).eq('id', id).select('*').single();
     if (error) throw new Error(error.message || 'completion_approval_review_failed');
     return { row: data, _source: 'supabase' };
+  },
+  deleteCompletionApprovalUpload: async ({ id } = {}) => {
+    const uploadId = String(id || '').trim();
+    if (!uploadId) throw new Error('missing_upload_id');
+    const existing = await supabase.from('activity_completion_approval_uploads').select('*').eq('id', uploadId).single();
+    if (existing.error) throw new Error(existing.error.message || 'completion_approval_upload_read_failed');
+    const filePath = String(existing.data?.file_path || '').trim();
+    if (filePath) {
+      const removed = await supabase.storage.from('completion-approvals').remove([filePath]);
+      if (removed.error) throw new Error(removed.error.message || 'completion_approval_storage_delete_failed');
+    }
+    const { error } = await supabase.from('activity_completion_approval_uploads').delete().eq('id', uploadId);
+    if (error) throw new Error(error.message || 'completion_approval_delete_failed');
+    return { ok: true, _source: 'supabase' };
+  },
+  replaceCompletionApprovalUpload: async ({ id, uploadId, file } = {}) => {
+    const targetId = String(uploadId || id || '').trim();
+    if (!targetId) throw new Error('missing_upload_id');
+    if (!completionApprovalUploadAllowedFile(file)) throw new Error('ניתן להעלות PDF, JPG, JPEG או PNG בלבד.');
+    const existing = await supabase.from('activity_completion_approval_uploads').select('*').eq('id', targetId).single();
+    if (existing.error) throw new Error(existing.error.message || 'completion_approval_upload_read_failed');
+    const oldPath = String(existing.data?.file_path || '').trim();
+    const approval = {
+      date: existing.data?.activity_date,
+      activities: String(existing.data?.activity_row_id || '').split(',').filter(Boolean).map((rowId) => ({ rowId }))
+    };
+    const filePath = completionApprovalUploadPath({ approval, file, instructorEmpId: existing.data?.instructor_emp_id });
+    const uploaded = await supabase.storage.from('completion-approvals').upload(filePath, file, { contentType: file.type || undefined, upsert: false });
+    if (uploaded.error) throw new Error(uploaded.error.message || 'completion_approval_storage_upload_failed');
+    const patch = {
+      file_path: filePath,
+      file_name: String(file?.name || '').trim(),
+      mime_type: String(file?.type || '').trim(),
+      file_size: Number(file?.size || 0),
+      uploaded_at: new Date().toISOString(),
+      uploaded_by_user_id: String(state?.user?.user_id || state?.user?.auth_user_id || '').trim(),
+      status: 'uploaded',
+      reviewed_by: null,
+      reviewed_at: null,
+      review_note: null
+    };
+    const { data, error } = await supabase.from('activity_completion_approval_uploads').update(patch).eq('id', targetId).select('*').single();
+    if (error) throw new Error(error.message || 'completion_approval_replace_record_failed');
+    if (oldPath && oldPath !== filePath) {
+      const removed = await supabase.storage.from('completion-approvals').remove([oldPath]);
+      if (removed.error) console.warn('[completion-approval-replace] failed to delete old file', removed.error);
+    }
+    return { row: { ...data, storage_exists: true, storage_status: 'exists' }, _source: 'supabase' };
   },
   uploadCompletionApproval: async ({ approval, file, instructorEmpId, instructorName } = {}) => {
     const role = String(state?.user?.role || '').trim();

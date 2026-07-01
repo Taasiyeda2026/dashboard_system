@@ -2004,9 +2004,12 @@ function completionApprovalsForState(rows, state, directory, contactsIndex, summ
 
 
 
+function completionApprovalStorageExists(upload) {
+  return !!upload?.file_path && upload.storage_exists !== false && String(upload?.storage_status || '').trim() !== 'missing';
+}
 function completionApprovalIsHandled(upload) {
   const status = String(upload?.status || '').trim();
-  return !!upload?.file_path || status === 'uploaded' || status === 'approved';
+  return completionApprovalStorageExists(upload) || (status === 'uploaded' || status === 'approved') && completionApprovalStorageExists(upload);
 }
 
 function completionApprovalSortBucket(dateIso, handled, todayIso = localTodayIso()) {
@@ -2050,17 +2053,19 @@ function completionApprovalUploadMap(rows = []) {
 }
 function completionApprovalUploadStatusLabel(upload) {
   const status = String(upload?.status || '').trim();
+  if (upload?.file_path && !completionApprovalStorageExists(upload)) return 'הקובץ חסר באחסון';
   if (status === 'approved') return 'אושר';
   if (status === 'rejected') return 'נדחה';
-  if (status === 'uploaded' || upload?.file_path) return 'הועלה';
+  if (status === 'uploaded' || completionApprovalStorageExists(upload)) return 'הועלה';
   return 'טרם הועלה';
 }
 
 function completionApprovalUploadStatusChip(upload) {
   const status = String(upload?.status || '').trim();
+  if (upload?.file_path && !completionApprovalStorageExists(upload)) return '<span class="ds-ops-status-rejected">⚠ הקובץ חסר באחסון</span>';
   if (status === 'approved') return '<span class="ds-ops-status-approved">✓ אושר</span>';
   if (status === 'rejected') return '<span class="ds-ops-status-rejected">✕ נדחה</span>';
-  if (status === 'uploaded' || upload?.file_path) return '<span class="ds-ops-status-uploaded">↑ הועלה</span>';
+  if (status === 'uploaded' || completionApprovalStorageExists(upload)) return '<span class="ds-ops-status-uploaded">↑ הועלה</span>';
   return '<span class="ds-muted">טרם הועלה</span>';
 }
 
@@ -2329,7 +2334,8 @@ function completionApprovalTabHtml(rows, state, data = {}, directory = buildScho
   </div>`;
   const contactContextMap = buildContactContextMap(summerRows, data?.contactResponsiblesRows || []);
   const body = items.map(({ approval, upload }, displayIndex) => {
-    const hasFile = !!upload?.file_path;
+    const hasFile = completionApprovalStorageExists(upload);
+    const hasUploadRecord = !!upload?.id;
     const uploadStatus = String(upload?.status || '').trim();
     const isApproved = uploadStatus === 'approved';
     const isRejected = uploadStatus === 'rejected';
@@ -2355,8 +2361,8 @@ function completionApprovalTabHtml(rows, state, data = {}, directory = buildScho
       <td class="ds-ops-completion-col--who ds-ops-completion-col-who-cell ds-table-cell-wrap">${whoIsWithMe}</td>
       <td class="ds-ops-completion-col--contact ds-ops-completion-col-contact-cell">${contactDropdown}</td>
       <td class="ds-ops-completion-col--actions ds-ops-completion-actions-cell no-print"><div class="ds-ops-completion-actions"><button type="button" class="ds-ops-icon-btn" data-ops-approval-view="${displayIndex}" title="צפייה באישור" aria-label="צפייה באישור">👁</button>${!hasFile
-        ? ` <button type="button" class="ds-ops-icon-btn ds-ops-icon-btn--add" data-ops-approval-upload="${displayIndex}" title="הוספת אישור פעילות חתום" aria-label="הוספת אישור פעילות חתום">＋</button>`
-        : ` <button type="button" class="ds-ops-icon-btn" data-ops-upload-view="${escapeHtml(upload.id)}" title="צפייה בקובץ חתום" aria-label="צפייה בקובץ חתום">📋</button> <button type="button" class="ds-ops-icon-btn" data-ops-upload-download="${escapeHtml(upload.id)}" title="הורדה" aria-label="הורדה">⬇</button>${canReview
+        ? ` <button type="button" class="ds-ops-icon-btn ds-ops-icon-btn--add" data-ops-approval-upload="${displayIndex}" title="${hasUploadRecord ? 'העלאה מחדש / החלפת קובץ' : 'הוספת אישור פעילות חתום'}" aria-label="${hasUploadRecord ? 'העלאה מחדש / החלפת קובץ' : 'הוספת אישור פעילות חתום'}">＋</button>${hasUploadRecord ? ` <button type="button" class="ds-ops-icon-btn ds-ops-icon-btn--reject" data-ops-upload-delete="${escapeHtml(upload.id)}" title="מחיקת רשומת הקובץ" aria-label="מחיקת רשומת הקובץ">🗑</button>` : ''}`
+        : ` <button type="button" class="ds-ops-icon-btn" data-ops-upload-view="${escapeHtml(upload.id)}" title="צפייה בקובץ חתום" aria-label="צפייה בקובץ חתום">📋</button> <button type="button" class="ds-ops-icon-btn" data-ops-upload-download="${escapeHtml(upload.id)}" title="הורדה" aria-label="הורדה">⬇</button> <button type="button" class="ds-ops-icon-btn ds-ops-icon-btn--add" data-ops-approval-upload="${displayIndex}" title="החלפת קובץ" aria-label="החלפת קובץ">↻</button> <button type="button" class="ds-ops-icon-btn ds-ops-icon-btn--reject" data-ops-upload-delete="${escapeHtml(upload.id)}" title="מחיקת קובץ" aria-label="מחיקת קובץ">🗑</button>${canReview
           ? ` <button type="button" class="ds-ops-icon-btn ds-ops-icon-btn--approve" data-ops-upload-approve="${escapeHtml(upload.id)}" title="אישור קבלה" aria-label="אישור קבלה">✓</button> <button type="button" class="ds-ops-icon-btn ds-ops-icon-btn--reject" data-ops-upload-reject="${escapeHtml(upload.id)}" title="דחייה" aria-label="דחייה">✕</button>`
           : ''}`}</div></td>
     </tr>`;
@@ -2709,12 +2715,18 @@ export const operationsManagementScreen = {
         const origText = btn.textContent;
         btn.textContent = '…';
         try {
-          await api.uploadCompletionApproval({
-            approval,
-            file,
-            instructorName: approval.instructorName,
-            instructorEmpId: approval.instructorEmpId
-          });
+          const uploadMap2 = completionApprovalUploadMap(_completionApprovalPrintContext?.uploads || []);
+          const existingUpload = uploadMap2.get(completionApprovalUploadKey(approval));
+          if (existingUpload?.id) {
+            await api.replaceCompletionApprovalUpload({ id: existingUpload.id, file });
+          } else {
+            await api.uploadCompletionApproval({
+              approval,
+              file,
+              instructorName: approval.instructorName,
+              instructorEmpId: approval.instructorEmpId
+            });
+          }
           showOpsToast('הקובץ הועלה בהצלחה ✓');
           clearScreenDataCache?.('operations-management');
           rerender?.();
@@ -2767,6 +2779,19 @@ export const operationsManagementScreen = {
     };
     root.querySelectorAll('[data-ops-upload-view]').forEach((btn) => btn.addEventListener('click', () => openSignedUpload(btn.getAttribute('data-ops-upload-view'), false)));
     root.querySelectorAll('[data-ops-upload-download]').forEach((btn) => btn.addEventListener('click', () => openSignedUpload(btn.getAttribute('data-ops-upload-download'), true)));
+
+    root.querySelectorAll('[data-ops-upload-delete]').forEach((btn) => btn.addEventListener('click', async () => {
+      const id = btn.getAttribute('data-ops-upload-delete');
+      if (!id) return;
+      if (!confirm('האם למחוק את הקובץ? לאחר המחיקה יהיה ניתן להעלות קובץ חדש.')) return;
+      try {
+        await api.deleteCompletionApprovalUpload({ id });
+        showOpsToast('הקובץ נמחק');
+        clearScreenDataCache?.('operations-management');
+        rerender?.();
+      } catch (error) { alert(`מחיקת הקובץ נכשלה: ${error?.message || error}`); }
+    }));
+
     root.querySelectorAll('[data-ops-upload-approve]').forEach((btn) => btn.addEventListener('click', async () => {
       try {
         await api.reviewCompletionApprovalUpload({ id: btn.getAttribute('data-ops-upload-approve'), status: 'approved' });
