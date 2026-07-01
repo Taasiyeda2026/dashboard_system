@@ -524,6 +524,47 @@ test('local search debounces 280ms and updates only table region and counter', a
   });
 });
 
+
+test('active filters are visible and approved domain Y proposals only disappear behind shown filters', async () => {
+  const rows = [
+    { ...sampleRows[0], id: 'approved-y-row', client_authority: 'רשות מאושרת', activity_type_group: 'פעילויות קיץ', status: 'approved', proposal_domain: 'Y' },
+    { ...sampleRows[1], id: 'draft-e-row', client_authority: 'רשות אחרת', activity_type_group: 'שנה הבאה', status: 'draft', proposal_domain: 'E' }
+  ];
+
+  await withJSDOM(proposalsAgreementsScreen.render({ rows }, { state: stateFor('admin') }), async (root, dom) => {
+    proposalsAgreementsScreen.bind({ root, data: { rows }, state: stateFor('admin'), api: {} });
+
+    assert.match(root.querySelector('[data-pa-table-region]').textContent, /רשות מאושרת/, 'approved Y proposal should render when no filter is active');
+    assert.match(root.querySelector('[data-pa-active-filters]').textContent, /אין פילטרים פעילים/, 'empty active filters state should be explicit');
+    assert.match(root.querySelector('.ds-card__head')?.textContent || '', /מציג 2 מתוך 2 הצעות/, 'table heading should show visible and total proposal counts');
+
+    const domainFilter = root.querySelector('[data-pa-filter="proposal_domain"]');
+    domainFilter.value = 'E';
+    domainFilter.dispatchEvent(new dom.window.Event('change', { bubbles: true }));
+
+    assert.doesNotMatch(root.querySelector('[data-pa-table-region]').textContent, /רשות מאושרת/, 'approved Y proposal may disappear only after an active domain filter');
+    assert.match(root.querySelector('[data-pa-active-filters]').textContent, /פילטרים פעילים/);
+    assert.match(root.querySelector('[data-pa-active-filters]').textContent, /תחום:\s*E/);
+    assert.match(root.querySelector('[data-pa-results-count]').textContent, /^1$/);
+    assert.match(root.querySelector('[data-pa-total-count]').textContent, /^2$/);
+
+    const statusFilter = root.querySelector('[data-pa-filter="status"]');
+    statusFilter.value = 'cancelled';
+    statusFilter.dispatchEvent(new dom.window.Event('change', { bubbles: true }));
+
+    assert.match(root.querySelector('[data-pa-results-count]').textContent, /^0$/);
+    assert.match(root.querySelector('[data-pa-filtered-empty-host]').textContent, /יש הצעות במערכת אך הן מוסתרות בגלל סינון פעיל/);
+    assert.match(root.querySelector('[data-pa-active-filters]').textContent, /סטטוס:\s*בוטל/);
+
+    root.querySelector('[data-pa-filtered-empty] [data-pa-clear-filters]').dispatchEvent(new dom.window.MouseEvent('click', { bubbles: true }));
+
+    assert.match(root.querySelector('[data-pa-table-region]').textContent, /רשות מאושרת/, 'clear filters should restore the approved Y proposal');
+    assert.match(root.querySelector('[data-pa-active-filters]').textContent, /אין פילטרים פעילים/);
+    assert.equal(root.querySelector('[data-pa-search]').value, '');
+    root.querySelectorAll('[data-pa-filter]').forEach((filter) => assert.equal(filter.value, ''));
+  });
+});
+
 test('screen and API source enforce authorization before API/Supabase calls', async () => {
   const screenSource = await readFile(SCREEN_FILE, 'utf8');
   const apiSource = await readFile(API_FILE, 'utf8');
