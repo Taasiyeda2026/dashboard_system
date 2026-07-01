@@ -1186,9 +1186,9 @@ function opsManagementStylesHtml() {
     @media (max-width: 460px) { .ds-ops-mgmt-screen .ds-ops-mgmt-filters__grid { grid-template-columns:1fr; } }
     .ds-ops-mgmt-screen .ds-sort-indicator { display:inline-block; margin-inline-start:4px; font-size:10px; color:#0f8fa8; }
     .ds-ops-mgmt-screen .ds-ops-workshops-card { width:70%; max-width:70%; margin:0 auto; box-sizing:border-box; }
-    .ds-ops-mgmt-screen .ds-ops-workshops-table-wrap { width:auto; max-width:100%; overflow-x:auto; box-sizing:border-box; }
-    .ds-ops-mgmt-screen .ds-ops-workshops-card .ds-card__body { width:auto; max-width:100%; box-sizing:border-box; overflow-x:auto; }
-    .ds-ops-mgmt-screen .ds-ops-workshops-table { width:max-content; max-width:100%; table-layout:fixed; border-collapse:collapse; margin-inline:auto; }
+    .ds-ops-mgmt-screen .ds-ops-workshops-table-wrap { width:100%; max-width:100%; overflow-x:auto; box-sizing:border-box; }
+    .ds-ops-mgmt-screen .ds-ops-workshops-card .ds-card__body { width:100%; max-width:100%; box-sizing:border-box; overflow-x:auto; }
+    .ds-ops-mgmt-screen .ds-ops-workshops-table { width:100%; min-width:620px; max-width:100%; table-layout:fixed; border-collapse:collapse; margin-inline:0; }
     .ds-ops-mgmt-screen .ds-ops-workshops-table th,.ds-ops-mgmt-screen .ds-ops-workshops-table td { border:1px solid #94a3b8 !important; padding:5px 6px; font-size:12px; text-align:center; vertical-align:middle; overflow:hidden; text-overflow:ellipsis; white-space:nowrap; }
     .ds-ops-mgmt-screen .ds-ops-workshops-table tbody tr { cursor:pointer; transition:background 0.12s ease; }
     .ds-ops-mgmt-screen .ds-ops-workshops-table tbody tr.ds-ops-workshop-detail-row { cursor:default; }
@@ -1207,11 +1207,10 @@ function opsManagementStylesHtml() {
     .ds-ops-mgmt-screen .ds-ops-workshops-table .ds-ops-usage-cell:active { border:1px solid #94a3b8 !important; box-shadow:none; }
     .ds-ops-mgmt-screen .ds-ops-workshops-table th { background:#fff; color:#1e3a8a; font-weight:800; font-size:12px; border-bottom:2px solid #3b82f6 !important; }
     /* workshops table — semantic column classes (set on both th and td) */
-    .ds-ops-mgmt-screen .ds-ops-workshop-col--no { width:75px !important; max-width:75px !important; text-align:center; }
-    .ds-ops-mgmt-screen .ds-ops-workshop-col--name { width:170px !important; max-width:170px !important; text-align:right !important; line-height:1.35; overflow:hidden; text-overflow:ellipsis; }
-    .ds-ops-mgmt-screen .ds-ops-workshop-col--metric { width:78px !important; max-width:78px !important; text-align:center !important; }
-    .ds-ops-mgmt-screen .ds-ops-workshop-col--status { width:120px !important; max-width:120px !important; text-align:center !important; white-space:normal !important; }
-    .ds-ops-mgmt-screen .ds-ops-workshops-table col:nth-child(6) { width:70px !important; }
+    .ds-ops-mgmt-screen .ds-ops-workshop-col--no { width:10% !important; max-width:90px !important; text-align:center; }
+    .ds-ops-mgmt-screen .ds-ops-workshop-col--name { width:24% !important; max-width:230px !important; text-align:right !important; line-height:1.35; overflow:hidden; text-overflow:ellipsis; }
+    .ds-ops-mgmt-screen .ds-ops-workshop-col--metric { width:13% !important; text-align:center !important; }
+    .ds-ops-mgmt-screen .ds-ops-workshop-col--status { width:14% !important; text-align:center !important; white-space:normal !important; }
     /* hover underline on name col via semantic class */
     .ds-ops-mgmt-screen .ds-ops-workshops-table tbody tr:hover td.ds-ops-workshop-col--name { text-decoration:underline; text-underline-offset:2px; }
     .ds-ops-mgmt-screen .ds-ops-workshop-status-text { font-weight:700; background:transparent; border:0; padding:0; white-space:nowrap; }
@@ -1239,11 +1238,11 @@ function opsManagementStylesHtml() {
     .ds-ops-mgmt-screen .ds-ops-workshops-table .ds-ops-dist-table th,
     .ds-ops-mgmt-screen .ds-ops-workshops-table .ds-ops-dist-table td { overflow:visible !important; white-space:normal !important; text-overflow:clip !important; padding:3px 4px !important; font-size:11px !important; vertical-align:middle !important; border:1px solid #e2e8f0 !important; box-sizing:border-box !important; }
     .ds-ops-mgmt-screen .ds-ops-workshops-table .ds-ops-dist-table th { background:#f8fafc !important; font-weight:700 !important; color:#1e3a8a !important; border-bottom:2px solid #93c5fd !important; text-align:center !important; }
-    /* dist-table instructors — עמודת מדריך: auto; שאר: פיקסלים קבועים */
-    .ds-ops-mgmt-screen .ds-ops-dist-table--instructors { width:50% !important; margin:0 auto !important; }
-    .ds-ops-mgmt-screen .ds-ops-dist-table--instructors .ds-ops-dist-col--instructor { text-align:right !important; width:auto !important; }
-    .ds-ops-mgmt-screen .ds-ops-dist-table--instructors .ds-ops-dist-col--number { text-align:center !important; width:70px !important; }
-    .ds-ops-mgmt-screen .ds-ops-dist-table--instructors .ds-ops-dist-col--status { text-align:center !important; width:150px !important; white-space:normal !important; overflow-wrap:anywhere !important; word-break:normal !important; line-height:1.3; }
+    /* dist-table instructors — compact balanced columns; instructor must not absorb free space */
+    .ds-ops-mgmt-screen .ds-ops-dist-table--instructors { width:440px !important; max-width:100% !important; margin:0 auto !important; }
+    .ds-ops-mgmt-screen .ds-ops-dist-table--instructors .ds-ops-dist-col--instructor { text-align:right !important; width:82px !important; max-width:82px !important; overflow:hidden !important; text-overflow:ellipsis !important; }
+    .ds-ops-mgmt-screen .ds-ops-dist-table--instructors .ds-ops-dist-col--number { text-align:center !important; width:88px !important; }
+    .ds-ops-mgmt-screen .ds-ops-dist-table--instructors .ds-ops-dist-col--status { text-align:center !important; width:92px !important; white-space:normal !important; overflow-wrap:anywhere !important; word-break:normal !important; line-height:1.3; }
     .ds-ops-mgmt-screen .ds-ops-dist-table--instructors td.ds-ops-dist-col--status,
     .ds-ops-mgmt-screen .ds-ops-dist-table--instructors th.ds-ops-dist-col--status { white-space:normal !important; overflow:visible !important; text-overflow:clip !important; }
     .ds-ops-mgmt-screen .ds-ops-workshop-status-text { white-space:normal !important; overflow-wrap:anywhere; word-break:normal; }
