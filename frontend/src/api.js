@@ -1159,7 +1159,7 @@ async function readMyDataSummerPrintContactRows() {
   try {
     const { data, error } = await supabase
       .from('instructor_schedule_print_contacts')
-      .select('season, authority, school, contact_name, contact_phone, school_address, city_or_authority, active')
+      .select('season, authority, school, contact_name, contact_phone, school_address, city_or_authority, active, contact_status, status')
       .eq('season', 'summer_2026')
       .eq('active', true)
       .limit(10000);
@@ -1197,7 +1197,14 @@ function buildMyDataSummerPrintContactsIndex(rows = []) {
     const key = `${normalizeMyDataContactText(row?.authority || '')}|${normalizeMyDataContactText(row?.school || '')}`;
     if (key === '|') return;
     if (!index.has(key)) index.set(key, []);
-    index.get(key).push({ name, phone, role: '', school_address: String(row?.school_address || '').trim(), city_or_authority: String(row?.city_or_authority || '').trim() });
+    index.get(key).push({
+      name,
+      phone,
+      role: '',
+      school_address: String(row?.summer_school_address || row?.school_address || '').trim(),
+      city_or_authority: String(row?.summer_contact_city_or_authority || row?.city_or_authority || '').trim(),
+      summer_contact_status: String(row?.summer_contact_status || row?.contact_status || row?.status || '').trim()
+    });
   });
   return index;
 }
@@ -1287,16 +1294,28 @@ function enrichRowsWithSchoolContact(rows = [], contactsIndex = new Map(), schoo
         const key = `${authorityKey}|${normalizeMyDataContactText(schoolName)}`;
         const entries = summerPrintContactsIndex.get(key) || [];
         if (entries.length) {
-          summerExtra = { school_address: entries[0].school_address || '', city_or_authority: entries[0].city_or_authority || '' };
+          summerExtra = {
+            contact_name: entries[0].name || '',
+            contact_phone: entries[0].phone || '',
+            school_contact_name: entries[0].name || '',
+            school_contact_phone: entries[0].phone || '',
+            school_address: entries[0].school_address || '',
+            city_or_authority: entries[0].city_or_authority || '',
+            summer_contact_name: entries[0].name || '',
+            summer_contact_phone: entries[0].phone || '',
+            summer_school_address: entries[0].school_address || '',
+            summer_contact_city_or_authority: entries[0].city_or_authority || '',
+            summer_contact_status: entries[0].summer_contact_status || ''
+          };
           break;
         }
       }
     }
     return {
       ...row,
-      ...summerExtra,
       school_contact_name: contact.name,
       school_contact_phone: contact.phone,
+      ...summerExtra,
       school_contact_role: contact.role
     };
   });
@@ -4817,10 +4836,10 @@ async function readSchoolContactResponsiblesRows() {
   return Array.isArray(data) ? data : [];
 }
 async function readInstructorSchedulePrintContactsRows() {
-  // This table is print-only and must not be treated as the source of truth for school contacts or activity data.
+  // Dedicated source for Summer 2026 workshop print/schedule contact details.
   const { data, error } = await supabase
     .from('instructor_schedule_print_contacts')
-    .select('id,season,external_key,authority,school,contact_name,contact_phone,school_address,city_or_authority,active,source_note,notes')
+    .select('id,season,external_key,authority,school,contact_name,contact_phone,school_address,city_or_authority,active,contact_status,status,source_note,notes')
     .eq('active', true);
   if (error) return [];
   return Array.isArray(data) ? data : [];

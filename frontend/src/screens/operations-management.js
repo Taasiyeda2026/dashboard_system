@@ -328,6 +328,10 @@ function buildContactsSchoolsIndex(rows = []) {
   return index;
 }
 
+function summerContactStatus(row = {}) {
+  return String(row?.summer_contact_status || row?.contact_status || row?.status || '').trim();
+}
+
 function buildSummerPrintContactsIndex(rows = []) {
   const index = new Map();
   (Array.isArray(rows) ? rows : []).forEach((row) => {
@@ -338,7 +342,15 @@ function buildSummerPrintContactsIndex(rows = []) {
     const key = `${normalizeOpsText(row?.authority || '')}|${normalizeOpsText(row?.school || '')}`;
     if (key === '|') return;
     if (!index.has(key)) index.set(key, []);
-    index.get(key).push({ name, phone, contact_name: name, contact_phone: phone, school_address: String(row?.school_address || '').trim(), city_or_authority: String(row?.city_or_authority || '').trim() });
+    index.get(key).push({
+      name,
+      phone,
+      contact_name: name,
+      contact_phone: phone,
+      school_address: String(row?.summer_school_address || row?.school_address || '').trim(),
+      city_or_authority: String(row?.summer_contact_city_or_authority || row?.city_or_authority || '').trim(),
+      summer_contact_status: summerContactStatus(row)
+    });
   });
   return index;
 }
@@ -401,13 +413,30 @@ function findSchoolsForActivity(activity, directory) {
   return uniqueSchoolRows(found);
 }
 
-function getActivityAddressResolved(activity, directory) {
+function getActivityAddressResolved(activity, directory, summerPrintContactsIndex = new Map()) {
+  const isSummerAct = normalizeActivitySeason(activity?.activity_season ?? activity?.activitySeason) === ACTIVITY_SEASON_SUMMER_2026;
+  if (isSummerAct) {
+    const entries = findSummerPrintContactsForActivity(activity, summerPrintContactsIndex);
+    const addresses = uniqueSorted(entries.map((row) => row.school_address).filter(Boolean));
+    return addresses.join('; ');
+  }
   const addresses = uniqueSorted(findSchoolsForActivity(activity, directory).map((row) => row.address));
   return addresses.join('; ');
 }
 
-function getActivityContactOptions(activity, directory, contactsIndex) {
-  const isSummerAct = String(activity?.activity_season ?? activity?.activitySeason ?? '').trim() === 'summer_2026';
+function findSummerPrintContactsForActivity(activity, summerPrintContactsIndex = new Map()) {
+  if (!(summerPrintContactsIndex instanceof Map)) return [];
+  const authorityKey = getActivityAuthorityKey(activity);
+  const results = [];
+  getActivitySchoolNames(activity).forEach((schoolName) => {
+    const key = `${authorityKey}|${normalizeOpsText(schoolName)}`;
+    (summerPrintContactsIndex.get(key) || []).forEach((entry) => results.push(entry));
+  });
+  return results;
+}
+
+function getActivityContactOptions(activity, directory, contactsIndex, summerPrintContactsIndex = new Map()) {
+  const isSummerAct = normalizeActivitySeason(activity?.activity_season ?? activity?.activitySeason) === ACTIVITY_SEASON_SUMMER_2026;
   const options = [];
   const add = (name, phone = '', role = '') => {
     const cleanName = String(name || '').trim();
@@ -420,12 +449,17 @@ function getActivityContactOptions(activity, directory, contactsIndex) {
     const label = cleanPhone ? `${cleanName}${roleSuffix} — ${cleanPhone}` : `${cleanName}${roleSuffix}`;
     options.push({ key, name: cleanName, phone: cleanPhone, role: cleanRole, label });
   };
-  // 1. מהפעילות עצמה (לא לפעילות קיץ)
-  if (!isSummerAct) add(getActivityContactName(activity), getActivityContactPhone(activity));
-  // 2. מספריית בתי הספר (מנהל + טלפון) — לא לפעילות קיץ
-  if (!isSummerAct) findSchoolsForActivity(activity, directory).forEach((row) => add(row.principal_name, row.school_phone));
-  // 3. מ-contacts_schools — לפי רשות + בית ספר (לא לפעילות קיץ)
-  if (!isSummerAct && contactsIndex instanceof Map) {
+  // 1. בקיץ 2026 — רק מטבלת אנשי הקשר הייעודית לקיץ, ללא fallback כללי
+  if (isSummerAct) {
+    findSummerPrintContactsForActivity(activity, summerPrintContactsIndex).forEach((c) => add(c.name || c.contact_name, c.phone || c.contact_phone, c.role || ''));
+    return options;
+  }
+  // 2. מהפעילות עצמה (לא לפעילות קיץ)
+  add(getActivityContactName(activity), getActivityContactPhone(activity));
+  // 3. מספריית בתי הספר (מנהל + טלפון) — לא לפעילות קיץ
+  findSchoolsForActivity(activity, directory).forEach((row) => add(row.principal_name, row.school_phone));
+  // 4. מ-contacts_schools — לפי רשות + בית ספר (לא לפעילות קיץ)
+  if (contactsIndex instanceof Map) {
     const authorityKey = getActivityAuthorityKey(activity);
     getActivitySchoolNames(activity).forEach((schoolName) => {
       const key = `${authorityKey}|${normalizeOpsText(schoolName)}`;
@@ -446,18 +480,18 @@ function getOpsActivityKey(activity = {}, date = '') {
     .join('|');
 }
 
-function getSelectedContact(state, activity, date, directory, contactsIndex) {
+function getSelectedContact(state, activity, date, directory, contactsIndex, summerPrintContactsIndex = new Map()) {
   const ops = ensureOpsState(state);
   ops.selectedContacts = ops.selectedContacts || {};
   const selectedKey = ops.selectedContacts[getOpsActivityKey(activity, date)] || '';
   if (!selectedKey) return null;
-  return getActivityContactOptions(activity, directory, contactsIndex).find((option) => option.key === selectedKey) || null;
+  return getActivityContactOptions(activity, directory, contactsIndex, summerPrintContactsIndex).find((option) => option.key === selectedKey) || null;
 }
 
-function contactSelectHtml(state, activity, date, directory, contactsIndex) {
+function contactSelectHtml(state, activity, date, directory, contactsIndex, summerPrintContactsIndex = new Map()) {
   const key = getOpsActivityKey(activity, date);
-  const selected = getSelectedContact(state, activity, date, directory, contactsIndex);
-  const options = getActivityContactOptions(activity, directory, contactsIndex);
+  const selected = getSelectedContact(state, activity, date, directory, contactsIndex, summerPrintContactsIndex);
+  const options = getActivityContactOptions(activity, directory, contactsIndex, summerPrintContactsIndex);
   return `<select class="ds-input ds-input--xs ds-ops-contact-select no-print" data-ops-contact-key="${escapeHtml(key)}">
     <option value="">ללא</option>
     ${options.map((option) => `<option value="${escapeHtml(option.key)}"${selected?.key === option.key ? ' selected' : ''}>${escapeHtml(option.label)}</option>`).join('')}
@@ -1884,7 +1918,7 @@ function sortAuthorityScheduleRows(scheduleRows = []) {
   });
 }
 
-function schoolsTabHtml(rows, state, directory = buildSchoolsDirectory([]), contactsIndex = new Map()) {
+function schoolsTabHtml(rows, state, directory = buildSchoolsDirectory([]), contactsIndex = new Map(), summerPrintContactsIndex = new Map()) {
   const ops = ensureOpsState(state);
   const scheduleRows = sortAuthorityScheduleRows(buildScheduleRows(rows, state, directory));
   const seenEntries = new Set();
@@ -2399,7 +2433,7 @@ function renderTab(rows, state, data, allPreparedRows = []) {
   const contactsIndex = buildContactsSchoolsIndex(data?.contactsSchoolsRows || []);
   const summerPrintContactsIndex = buildSummerPrintContactsIndex(data?.instructorSchedulePrintContactsRows || []);
   if (ops.tab === TAB_SUMMER) ops.tab = TAB_INSTRUCTORS;
-  if (ops.tab === TAB_AUTHORITIES || ops.tab === TAB_SCHOOLS) return schoolsTabHtml(rows, state, directory, contactsIndex);
+  if (ops.tab === TAB_AUTHORITIES || ops.tab === TAB_SCHOOLS) return schoolsTabHtml(rows, state, directory, contactsIndex, summerPrintContactsIndex);
   if (ops.tab === TAB_COMPLETION_APPROVAL) {
     const approvalRows = allPreparedRows.filter((row) => !isActivityDeleted(row));
     return completionApprovalTabHtml(approvalRows, state, data, directory, contactsIndex, summerPrintContactsIndex);
