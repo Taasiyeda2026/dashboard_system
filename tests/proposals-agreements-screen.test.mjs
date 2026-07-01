@@ -409,6 +409,97 @@ test('proposal managers can mark approved signed proposals as sent without appro
   assert.doesNotMatch(html, /אישור וחתימה/, 'manager without approve permission should not see sign-and-approve action');
 });
 
+test('approved proposal with signature and approved_at but no approved_by can still be marked as sent', async () => {
+  const approvedRow = {
+    ...sampleRows[0],
+    status: 'approved',
+    approved_by: null,
+    approved_at: '2026-06-16T10:30:00.000Z',
+    signature_meta: { signature: { image: 'proposals/signature-idan-nahum.png' } }
+  };
+  const adminState = stateFor('admin');
+  const html = proposalsAgreementsScreen.render({ rows: [approvedRow] }, { state: adminState });
+  const tableBody = html.match(/<tbody data-pa-table-body>[\s\S]*?<\/tbody>/)?.[0] || '';
+
+  assert.match(tableBody, /data-pa-status-action="sent"/, 'a missing approved_by audit field must not block the sent action');
+  assert.match(tableBody, /<option value="sent"/, 'sent must be selectable in the status dropdown');
+  assert.doesNotMatch(tableBody, /אשר וחתום מחדש/, 'a fully signed approval should not be treated as needing a re-sign');
+
+  await withJSDOM(html, async (root) => {
+    proposalsAgreementsScreen.bind({ root, data: { rows: [approvedRow] }, state: adminState, api: {} });
+    root.querySelector(`[data-pa-row-id="${approvedRow.id}"]`)?.click();
+    const drawer = root.querySelector('[data-pa-drawer]');
+    assert.ok(drawer?.querySelector('[data-pa-status-action="sent"]'), 'drawer should offer marking the proposal as sent');
+    assert.doesNotMatch(drawer?.textContent || '', /חסרה חתימה\/זמן אישור/, 'no missing-signature warning once signed with an approval timestamp');
+  });
+});
+
+test('approved proposal missing signature or approved_at blocks sent and surfaces a clear re-sign action', async () => {
+  const missingSignatureRow = {
+    ...sampleRows[0],
+    status: 'approved',
+    approved_by: null,
+    approved_at: '2026-06-16T10:30:00.000Z',
+    signature_meta: {}
+  };
+  const missingApprovedAtRow = {
+    ...sampleRows[1],
+    status: 'approved',
+    approved_by: '550e8400-e29b-41d4-a716-446655440000',
+    approved_at: '',
+    signature_meta: { signature: { image: 'proposals/signature-idan-nahum.png' } }
+  };
+  const adminState = stateFor('admin');
+
+  for (const row of [missingSignatureRow, missingApprovedAtRow]) {
+    const html = proposalsAgreementsScreen.render({ rows: [row] }, { state: adminState });
+    const tableBody = html.match(/<tbody data-pa-table-body>[\s\S]*?<\/tbody>/)?.[0] || '';
+    assert.doesNotMatch(tableBody, /data-pa-status-action="sent"/, `sent action must stay hidden for row ${row.id} until signature and approved_at are both present`);
+    assert.match(tableBody, /אשר וחתום מחדש/, 'admin must get an explicit re-sign action instead of a silent lock');
+
+    await withJSDOM(html, async (root) => {
+      proposalsAgreementsScreen.bind({ root, data: { rows: [row] }, state: adminState, api: {} });
+      root.querySelector(`[data-pa-row-id="${row.id}"]`)?.click();
+      const drawer = root.querySelector('[data-pa-drawer]');
+      assert.match(drawer?.textContent || '', /ההצעה מאושרת אך חסרה חתימה\/זמן אישור ולכן לא ניתן לסמן כנשלחה/, 'drawer should explain why sent is unavailable');
+      assert.equal(drawer?.querySelector('[data-pa-status-action="sent"]'), null, 'sent action must not render in the drawer');
+      const resignBtn = drawer?.querySelector('[data-pa-status-action="approved"]');
+      assert.ok(resignBtn, 'drawer action bar should offer to re-sign');
+      assert.match(resignBtn.getAttribute('title') || '', /אשר וחתום מחדש/);
+    });
+  }
+});
+
+test('after a new approval the sent action appears in the table without a page refresh', async () => {
+  const pendingRow = { ...sampleRows[0], status: 'pending_approval' };
+  const adminState = stateFor('admin');
+  const data = { rows: [pendingRow] };
+  await withJSDOM(
+    proposalsAgreementsScreen.render({ rows: [pendingRow] }, { state: adminState }),
+    async (root, dom) => {
+      proposalsAgreementsScreen.bind({ root, data, state: adminState, api: {} });
+      const tableBodyBefore = root.querySelector('[data-pa-table-body]')?.innerHTML || '';
+      assert.doesNotMatch(tableBodyBefore, /data-pa-status-action="sent"/, 'sent action should not exist before approval');
+
+      // Mirror what updateProposalAgreementStatus('approved', ...) returns: signature_meta and
+      // approved_at saved, but approved_by omitted because no valid auth UUID was resolvable.
+      data.rows = [{
+        ...pendingRow,
+        status: 'approved',
+        approved_at: '2026-07-01T09:00:00.000Z',
+        signature_meta: { signature: { image: 'proposals/signature-idan-nahum.png' } }
+      }];
+      // Re-uses the same refreshTable() path the real status-change handler calls after a successful update.
+      root.querySelector('[data-pa-search]')?.dispatchEvent(new dom.window.Event('input', { bubbles: true }));
+      await delay(120);
+      await delay(210);
+
+      const tableBodyAfter = root.querySelector('[data-pa-table-body]')?.innerHTML || '';
+      assert.match(tableBodyAfter, /data-pa-status-action="sent"/, 'sent action should appear immediately once signed and approved, without a page reload');
+    }
+  );
+});
+
 test('unprivileged users cannot open signature mode or save signature from forged approve actions', async () => {
   const sentRow = { ...sampleRows[0], status: 'sent' };
   const managerState = stateFor('operation_manager');
@@ -1638,7 +1729,9 @@ test('proposal UUID fields reject numeric business ids and approval uses only au
   }
 
   const apiSource = await readFile(API_FILE, 'utf8');
-  assert.match(apiSource, /patch\.approved_by = uuidOrNull\(state\?\.user\?\.auth_user_id\)/);
+  assert.match(apiSource, /let approvedByUuid = uuidOrNull\(state\?\.user\?\.auth_user_id\)/);
+  assert.match(apiSource, /approvedByUuid = uuidOrNull\(authData\?\.user\?\.id\)/, 'falls back to the Supabase Auth session user id when state has no valid auth_user_id');
+  assert.match(apiSource, /if \(approvedByUuid\) patch\.approved_by = approvedByUuid;/, 'approved_by is only set when a valid UUID was resolved');
   assert.doesNotMatch(apiSource, /approved_by = state\?\.user\?\.auth_user_id \|\| state\?\.user\?\.user_id/);
   assert.match(apiSource, /patch\.status = 'approved'/);
 });

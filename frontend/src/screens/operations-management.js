@@ -1242,9 +1242,9 @@ function opsManagementStylesHtml() {
     .ds-ops-mgmt-screen .ds-ops-workshops-table th { background:#fff; color:#1e3a8a; font-weight:800; font-size:12px; border-bottom:2px solid #3b82f6 !important; }
     /* workshops table — semantic column classes (set on both th and td) */
     .ds-ops-mgmt-screen .ds-ops-workshop-col--no { width:10% !important; max-width:90px !important; text-align:center; }
-    .ds-ops-mgmt-screen .ds-ops-workshop-col--name { width:24% !important; max-width:230px !important; text-align:right !important; line-height:1.35; overflow:hidden; text-overflow:ellipsis; }
-    .ds-ops-mgmt-screen .ds-ops-workshop-col--metric { width:13% !important; text-align:center !important; }
-    .ds-ops-mgmt-screen .ds-ops-workshop-col--status { width:14% !important; text-align:center !important; white-space:normal !important; }
+    .ds-ops-mgmt-screen .ds-ops-workshop-col--name { width:21% !important; max-width:230px !important; text-align:right !important; line-height:1.35; overflow:hidden; text-overflow:ellipsis; }
+    .ds-ops-mgmt-screen .ds-ops-workshop-col--metric { width:12% !important; text-align:center !important; }
+    .ds-ops-mgmt-screen .ds-ops-workshop-col--status { width:21% !important; text-align:center !important; white-space:normal !important; }
     /* hover underline on name col via semantic class */
     .ds-ops-mgmt-screen .ds-ops-workshops-table tbody tr:hover td.ds-ops-workshop-col--name { text-decoration:underline; text-underline-offset:2px; }
     .ds-ops-mgmt-screen .ds-ops-workshop-status-text { font-weight:700; background:transparent; border:0; padding:0; white-space:nowrap; }

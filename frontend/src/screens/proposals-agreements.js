@@ -689,7 +689,9 @@ export function normalizeProposalAgreementRow(row = {}) {
     total_amount:        row.total_amount != null ? Number(row.total_amount) || null : null,
     custom_document_sections: Array.isArray(row.custom_document_sections) ? row.custom_document_sections.map(normalizeDocumentSection) : [],
     include_catalog:     false,
-    signature_meta:      normalizeSignatureMeta(row.signature_meta || row.approval_meta),
+    // Kept raw (not normalizeSignatureMeta's display fallback) so proposalHasSavedApprovalSignature
+    // can tell a real saved signature apart from an approved row that never actually got signed.
+    signature_meta:      (row.signature_meta && typeof row.signature_meta === 'object' ? row.signature_meta : (row.approval_meta && typeof row.approval_meta === 'object' ? row.approval_meta : null)),
     created_at:          text(row.created_at),
     approved_by:         text(row.approved_by),
     approved_at:         text(row.approved_at),
@@ -762,10 +764,14 @@ function normalizeSignatureMeta(value) {
 }
 
 function proposalHasSavedApprovalSignature(row = {}) {
-  const meta = normalizeSignatureMeta(row.signature_meta || row.approval_meta);
+  // approved_by is an audit field only — a missing value must never block the sent transition.
+  // Checks the raw meta directly (mirroring api.js's hasProposalAgreementSignature) instead of
+  // normalizeSignatureMeta, which falls back to the default signature image for display purposes
+  // and would otherwise report an empty/never-signed signature_meta as a valid saved signature.
+  const meta = row.signature_meta || row.approval_meta;
+  const hasImage = Boolean(text(meta?.signature?.image || meta?.image));
   return normalizeProposalStatus(row.status) === 'approved'
-    && Boolean(text(meta?.signature?.image))
-    && Boolean(text(row.approved_by))
+    && hasImage
     && Boolean(text(row.approved_at));
 }
 
@@ -954,6 +960,9 @@ export function proposalsAgreementsTableRowsHtml(rows, state) {
       actionBtns.push(`<button type="button" class="ds-btn ds-btn--xs ds-pa-row-action ds-pa-row-action--icon" data-pa-status-action="approved" data-pa-action-id="${escapeHtml(row.id)}" title="חתום ואשר"><svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M22 11.08V12a10 10 0 1 1-5.93-9.14"/><polyline points="22 4 12 14.01 9 11.01"/></svg></button>`);
       actionBtns.push(`<button type="button" class="ds-btn ds-btn--xs ds-btn--ghost ds-pa-row-action ds-pa-row-action--icon" data-pa-status-action="returned_for_changes" data-pa-action-id="${escapeHtml(row.id)}" title="החזרה לתיקון"><svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><polyline points="9 14 4 9 9 4"/><path d="M20 20v-7a4 4 0 0 0-4-4H4"/></svg></button>`);
       actionBtns.push(`<button type="button" class="ds-btn ds-btn--xs ds-btn--ghost ds-pa-row-action ds-pa-row-action--icon ds-pa-row-action--danger" data-pa-status-action="cancelled" data-pa-action-id="${escapeHtml(row.id)}" title="ביטול"><svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><circle cx="12" cy="12" r="10"/><line x1="15" y1="9" x2="9" y2="15"/><line x1="9" y1="9" x2="15" y2="15"/></svg></button>`);
+    }
+    if (isAdmin && status === 'approved' && !proposalHasSavedApprovalSignature(row)) {
+      actionBtns.push(`<button type="button" class="ds-btn ds-btn--xs ds-pa-row-action ds-pa-row-action--icon" data-pa-status-action="approved" data-pa-action-id="${escapeHtml(row.id)}" title="אשר וחתום מחדש — ההצעה מאושרת אך חסרה חתימה/זמן אישור ולכן לא ניתן לסמן כנשלחה"><svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M22 11.08V12a10 10 0 1 1-5.93-9.14"/><polyline points="22 4 12 14.01 9 11.01"/></svg></button>`);
     }
     if (canTransitionProposalStatus(row, 'sent', state)) {
       actionBtns.push(`<button type="button" class="ds-btn ds-btn--xs ds-pa-row-action ds-pa-row-action--icon" data-pa-status-action="sent" data-pa-action-id="${escapeHtml(row.id)}" title="סימון כנשלח"><svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><line x1="22" y1="2" x2="11" y2="13"/><polygon points="22 2 15 22 11 13 2 9 22 2"/></svg></button>`);
@@ -3033,6 +3042,9 @@ function drawerActionButtons(row, state) {
     buttons.push(iconBtn(`data-pa-status-action="approved" data-pa-action-id="${escapeHtml(row.id)}"`, 'חתום ואשר', CHECK));
     buttons.push(iconBtn(`data-pa-status-action="returned_for_changes" data-pa-action-id="${escapeHtml(row.id)}"`, 'החזרה לתיקון', UNDO));
   }
+  if (isAdminRole && normalizeProposalStatus(status) === 'approved' && !proposalHasSavedApprovalSignature(row)) {
+    buttons.push(iconBtn(`data-pa-status-action="approved" data-pa-action-id="${escapeHtml(row.id)}"`, 'אשר וחתום מחדש', CHECK));
+  }
   if (canTransitionProposalStatus(row, 'sent', state)) {
     buttons.push(iconBtn(`data-pa-status-action="sent" data-pa-action-id="${escapeHtml(row.id)}"`, 'סימון כנשלח', SENT));
   }
@@ -3051,11 +3063,13 @@ function drawerHtml(row, activityNameOptions = [], state = null) {
     ? `<span class="ds-pa-badge" title="המסמך הזה כולל עריכה מותאמת אישית" style="display:inline-block;padding:1px 7px;border-radius:10px;font-size:0.75rem;background:#6366f1;color:#fff">מסמך מותאם</span>`
     : '';
   const drawerRowStatus = normalizeProposalStatus(text(row.status));
-  const drawerIsApprovedOrSent = drawerRowStatus === 'approved' || drawerRowStatus === 'sent';
   const drawerHasSig = proposalHasSavedApprovalSignature(row);
-  const signedBadge = (drawerIsApprovedOrSent || drawerHasSig)
+  const drawerNeedsResign = drawerRowStatus === 'approved' && !drawerHasSig;
+  const signedBadge = (drawerRowStatus === 'sent' || (drawerRowStatus === 'approved' && drawerHasSig))
     ? `<span style="display:inline-flex;align-items:center;gap:3px;padding:1px 7px;border-radius:10px;font-size:0.75rem;background:#d1fae5;color:#065f46;border:1px solid #6ee7b7">✓ מאושר וחתום</span>`
-    : '';
+    : drawerNeedsResign
+      ? `<span style="display:inline-flex;align-items:center;gap:3px;padding:1px 7px;border-radius:10px;font-size:0.75rem;background:#fef3c7;color:#92400e;border:1px solid #fde68a">ההצעה מאושרת אך חסרה חתימה/זמן אישור ולכן לא ניתן לסמן כנשלחה</span>`
+      : '';
 
   const clientDisplayName = text(row.client_name) || text(row.school_framework) || text(row.client_authority) || '—';
   const drawerClientType = inferProposalClientType(row);
