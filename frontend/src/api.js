@@ -2858,7 +2858,6 @@ function normalizeProposalAgreementRow(row = {}) {
   const parsedNotes = parseActivityNamesFromNotes(row.notes);
   const PA_VALID_STATUSES = new Set(['draft', 'sent', 'pending_approval', 'returned_for_changes', 'approved', 'cancelled']);
   let rawStatus = cleanProposalAgreementText(row.status);
-  if (rawStatus === 'draft' && (cleanProposalAgreementText(row.approved_at) || (row.signature_meta && Object.keys(row.signature_meta || {}).length))) rawStatus = 'approved';
   const authorityName = cleanProposalAgreementText(row.client_authority || row.authority_name || row.legacy_client_authority || row.authority);
   const schoolFramework = cleanProposalAgreementText(row.school_framework || row.school_name || row.contact_client_name || row.legacy_school_framework || row.school);
   const normalized = {
@@ -5786,6 +5785,7 @@ export const api = {
     if (!rowId) throw new Error('missing_proposal_agreement_id');
     if (!PA_VALID_STATUSES_SET.has(cleanStatus)) throw new Error('invalid_proposal_agreement_status');
     if (cleanStatus === 'approved' && !canApproveProposalsAgreementsApi()) throw new Error('proposals_agreements_approval_forbidden');
+    if (cleanStatus === 'approved' && !(signatureMeta && typeof signatureMeta === 'object' && !Array.isArray(signatureMeta) && Object.keys(signatureMeta).length)) throw new Error('נדרשת חתימה לפני אישור ההצעה.');
     const { data: currentRow, error: currentRowError } = await supabase
       .from('proposals_agreements').select('status,signature_meta,approved_by,approved_at').eq('id', rowId).single();
     if (currentRowError || !currentRow) throw new Error('proposals_agreement_not_found');
@@ -5830,7 +5830,7 @@ export const api = {
     const groupLookup = await getProposalGroupLookup();
     const { data, error } = await supabase
       .from('proposal_agreement_items')
-      .select('id,proposal_agreement_id,item_name,item_type,gefen_number,meetings_count,hours_count,quantity,unit_price,total_price,description,hourly_price,source_pricing_key,proposal_display_mode,selected_bundle_items,activity_no,unit_duration,proposal_group,sort_order')
+      .select('id,proposal_agreement_id,item_name,item_type,gefen_number,meetings_count,hours_count,quantity,unit_price,total_price,description,course_note,hourly_price,source_pricing_key,proposal_display_mode,selected_bundle_items,activity_no,unit_duration,proposal_group,sort_order')
       .eq('proposal_agreement_id', rowId)
       .order('sort_order', { ascending: true });
     if (error) throwProposalLoadError('agreementItemsError', 'proposal_agreement_items', error);
@@ -5849,6 +5849,7 @@ export const api = {
       const hourlyPrice = item.hourly_price != null ? Number(item.hourly_price) : (item.hourlyPrice != null ? Number(item.hourlyPrice) : null);
       const totalPrice = item.total_price != null ? Number(item.total_price) : (item.totalPrice != null ? Number(item.totalPrice) : null);
       const description = cleanProposalAgreementText(item.description);
+      const courseNote = cleanProposalAgreementText(item.course_note ?? item.courseNote ?? item.manual_note ?? item.manualNote);
       const unitDuration = cleanProposalAgreementText(item.unit_duration ?? item.unitDuration);
       const proposalGroup = normalizeProposalGroupValue(item.proposal_group ?? item.proposalGroup, groupLookup);
       const sortOrder = Number(item.sort_order ?? item.sortOrder) || 0;
@@ -5867,6 +5868,8 @@ export const api = {
         unitPrice,
         hourlyPrice,
         totalPrice,
+        courseNote,
+        manualNote: courseNote,
         proposalGroup,
         sortOrder,
         proposalDisplayMode,
@@ -5885,6 +5888,8 @@ export const api = {
         hourly_price:          hourlyPrice,
         total_price:           totalPrice,
         description,
+        course_note:           courseNote,
+        manual_note:           courseNote,
         unit_duration:         unitDuration,
         proposal_group:        proposalGroup,
         group_key:             proposalGroup,
@@ -5982,6 +5987,7 @@ export const api = {
           hourly_price:          item.hourly_price != null ? Number(item.hourly_price) || null : (item.hourlyPrice != null ? Number(item.hourlyPrice) || null : null),
           total_price:           item.total_price != null ? Number(item.total_price) || null : (item.totalPrice != null ? Number(item.totalPrice) || null : null),
           description:           cleanProposalAgreementText(item.description),
+          course_note:           cleanProposalAgreementText(item.course_note ?? item.courseNote ?? item.manual_note ?? item.manualNote) || null,
           unit_duration:         cleanProposalAgreementText(item.unit_duration ?? item.unitDuration),
           proposal_group:        normalizeProposalGroupValue(item.proposal_group ?? item.proposalGroup ?? item.group_key ?? item.groupKey, groupLookup),
           sort_order:            idx,

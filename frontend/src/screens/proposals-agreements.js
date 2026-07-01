@@ -659,7 +659,6 @@ function normalizeActivityNames(value) {
 export function normalizeProposalAgreementRow(row = {}) {
   const rawGroup = text(row.activity_type_group);
   let rawStatus = text(row.status);
-  if (rawStatus === 'draft' && (text(row.approved_at) || normalizeSignatureMeta(row.signature_meta || row.approval_meta))) rawStatus = 'approved';
   const normalized = {
     id:                  text(row.id),
     client_name:         text(row.client_name),
@@ -1626,6 +1625,8 @@ function normalizeProposalItemRow(item = {}, fallbackGroup = '') {
     unit_price: proposalField(item, 'unit_price', 'unitPrice'),
     total_price: proposalField(item, 'total_price', 'totalPrice'),
     description: proposalField(item, 'description', 'description') || '',
+    course_note: proposalField(item, 'course_note', 'courseNote') || proposalField(item, 'manual_note', 'manualNote') || '',
+    manual_note: proposalField(item, 'manual_note', 'manualNote') || proposalField(item, 'course_note', 'courseNote') || '',
     hourly_price: proposalField(item, 'hourly_price', 'hourlyPrice'),
     source_pricing_key: proposalField(item, 'source_pricing_key', 'sourcePricingKey') || '',
     list_id: proposalField(item, 'list_id', 'listId') || '',
@@ -1647,6 +1648,8 @@ function normalizeProposalItemRow(item = {}, fallbackGroup = '') {
     hoursCount: normalized.hours_count,
     unitPrice: normalized.unit_price,
     totalPrice: normalized.total_price,
+    courseNote: normalized.course_note,
+    manualNote: normalized.manual_note,
     hourlyPrice: normalized.hourly_price,
     sourcePricingKey: normalized.source_pricing_key,
     listId: normalized.list_id,

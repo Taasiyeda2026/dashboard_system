@@ -60,7 +60,7 @@ const MIGRATION_FILE = new URL('../supabase/migrations/20260518_create_proposals
 const ROLE_UPDATE_MIGRATION_FILE = new URL('../supabase/migrations/20260602_add_business_development_manager_role.sql', import.meta.url);
 const APPROVAL_GUARD_MIGRATION_FILE = new URL('../supabase/migrations/20260616_proposals_agreements_approval_guard.sql', import.meta.url);
 
-const { proposalsAgreementsScreen, canAccessProposalsAgreements, canManageProposalsAgreements, STATUS_LABELS, STATUS_OPTIONS, buildProposalCatalogPdfEntries, proposalPreviewBodyHtml, countPendingApprovedProposals, isProposalApprovedPendingSend } = await import('../frontend/src/screens/proposals-agreements.js');
+const { proposalsAgreementsScreen, canAccessProposalsAgreements, canManageProposalsAgreements, STATUS_LABELS, STATUS_OPTIONS, buildProposalCatalogPdfEntries, proposalPreviewBodyHtml, normalizeProposalAgreementRow, countPendingApprovedProposals, isProposalApprovedPendingSend, extractItemsFromForm } = await import('../frontend/src/screens/proposals-agreements.js');
 
 function stateFor(role) {
   return {
@@ -2983,6 +2983,87 @@ test('approved proposal preview does not fall back to internal row notes for cus
   });
 });
 
+
+
+test('course_note is saved, reloaded and rendered for customers under the course name only when filled', async () => {
+  const customerCourseNote = 'ההפעלה תותאם לקבוצת מצוינות ותכלול דגש על חקר ותוצר מסכם.';
+  const row = { ...sampleRows[0], status: 'draft', activity_type_group: 'next_year' };
+  const item = {
+    item_name: 'ביומימיקרי',
+    proposal_group: 'next_year',
+    quantity: 1,
+    unit_price: 1000,
+    total_price: 1000,
+    course_note: customerCourseNote
+  };
+
+  await withJSDOM(`<form data-pa-form>
+    <select name="activity_type_group"><option value="next_year" selected>next_year</option></select>
+    <article data-pa-item-row data-pa-row-group="next_year">
+      <input name="item_name" value="ביומימיקרי">
+      <input name="proposal_group" value="next_year">
+      <input name="quantity" value="1">
+      <input name="unit_price" value="1000">
+      <input data-pa-item-total name="total_price" value="1000">
+      <textarea name="course_note">${customerCourseNote}</textarea>
+      <input name="item_selected_bundle_items" value="[]">
+    </article>
+  </form>`, async (root) => {
+    const items = extractItemsFromForm(root.querySelector('[data-pa-form]'));
+    assert.equal(items[0].course_note, customerCourseNote, 'course_note should be part of the saved item payload');
+  });
+
+  const apiSource = await readFile(API_FILE, 'utf8');
+  assert.match(apiSource, /select\('id,proposal_agreement_id[\s\S]*description,course_note,hourly_price/, 'item loader should read course_note from proposal_agreement_items');
+  assert.match(apiSource, /course_note:\s+cleanProposalAgreementText\(item\.course_note/, 'item saver should write course_note to proposal_agreement_items');
+
+  const html = proposalPreviewBodyHtml(row, [item], []);
+  await withJSDOM(html, async (_root, dom) => {
+    const courseCell = dom.window.document.querySelector('.pa-course-name')?.parentElement;
+    assert.match(courseCell?.textContent || '', /ביומימיקרי/);
+    assert.match(courseCell?.textContent || '', /ההפעלה תותאם לקבוצת מצוינות/);
+  });
+});
+
+test('empty course_note creates no customer note label, blank row or extra course note markup', async () => {
+  const row = { ...sampleRows[0], status: 'draft', activity_type_group: 'next_year' };
+  const html = proposalPreviewBodyHtml(row, [{ item_name: 'רובוטיקה', proposal_group: 'next_year', quantity: 1, unit_price: 500, total_price: 500, course_note: '' }], []);
+  await withJSDOM(html, async (_root, dom) => {
+    const doc = dom.window.document.querySelector('.proposal-document');
+    assert.ok(doc);
+    assert.doesNotMatch(doc.innerHTML, /pa-course-note/);
+    assert.doesNotMatch(doc.textContent || '', /הערה/);
+    assert.doesNotMatch(doc.innerHTML, /<div class="pa-course-note">\s*<\/div>/);
+  });
+});
+
+test('internal notes and approval_note stay in staff drawer and out of customer preview', async () => {
+  const row = { ...sampleRows[0], status: 'returned_for_changes', notes: 'הערה פנימית לצוות', approval_note: 'נא לתקן כמות לפני שליחה' };
+  const screenHtml = proposalsAgreementsScreen.render({ rows: [row] }, { state: stateFor('admin') });
+  await withJSDOM(screenHtml, async (root) => {
+    proposalsAgreementsScreen.bind({ root, data: { rows: [row] }, state: stateFor('admin'), api: { readProposalAgreementItems: async () => [] } });
+    root.querySelector('[data-pa-row-id]')?.dispatchEvent(new root.ownerDocument.defaultView.MouseEvent('click', { bubbles: true }));
+    const drawerText = root.querySelector('[data-pa-drawer]')?.textContent || '';
+    assert.match(drawerText, /הערה פנימית לצוות/);
+    assert.match(drawerText, /נא לתקן כמות לפני שליחה/);
+  });
+  const previewHtml = proposalPreviewBodyHtml(row, [], [{ section_key: 'intro', section_title: 'פתיח', section_body: 'פתיח ללקוח' }]);
+  await withJSDOM(previewHtml, async (_root, dom) => {
+    const docText = dom.window.document.querySelector('.proposal-document')?.textContent || '';
+    assert.doesNotMatch(docText, /הערה פנימית לצוות/);
+    assert.doesNotMatch(docText, /נא לתקן כמות/);
+  });
+});
+
+test('draft proposal with old signature metadata remains draft in screen and api normalizers', async () => {
+  const row = { id: 'old-signature-draft', status: 'draft', approved_at: '2026-06-01T10:00:00Z', signature_meta: { signature: { image: 'proposals/signature-idan-nahum.png' } } };
+  assert.equal(normalizeProposalAgreementRow(row).status, 'draft');
+  const screenSource = await readFile(SCREEN_FILE, 'utf8');
+  const apiSource = await readFile(API_FILE, 'utf8');
+  assert.doesNotMatch(screenSource, /rawStatus === 'draft'[\s\S]{0,140}rawStatus = 'approved'/);
+  assert.doesNotMatch(apiSource, /rawStatus === 'draft'[\s\S]{0,180}rawStatus = 'approved'/);
+});
+
 test('workshop proposal preview removes catalog wording and keeps prices only in cost table', async () => {
   const row = {
     ...sampleRows[0],
@@ -3303,8 +3384,7 @@ const {
   filterTemplateSectionsForGroup,
   documentSectionsEditorHtml,
   itemsSummaryHtml,
-  proposalItemsWithFallback,
-  extractItemsFromForm
+  proposalItemsWithFallback
 } = await import('../frontend/src/screens/proposals-agreements.js');
 const {
   buildProposalGroupHintsFromTemplateSections,
@@ -3488,7 +3568,7 @@ test('activity group alias resolves through group_key to template_key and matchi
 test('proposal item loader uses production proposal_agreement_items columns and proposal_agreement_id filter', async () => {
   const apiSource = await readFile(API_FILE, 'utf8');
   assert.match(apiSource, /\.from\('proposal_agreement_items'\)[\s\S]*\.eq\('proposal_agreement_id', rowId\)/);
-  assert.match(apiSource, /proposal_agreement_id,item_name,item_type,gefen_number,meetings_count,hours_count,quantity,unit_price,total_price,description,hourly_price,source_pricing_key,proposal_display_mode,selected_bundle_items,activity_no,unit_duration,proposal_group,sort_order/);
+  assert.match(apiSource, /proposal_agreement_id,item_name,item_type,gefen_number,meetings_count,hours_count,quantity,unit_price,total_price,description,course_note,hourly_price,source_pricing_key,proposal_display_mode,selected_bundle_items,activity_no,unit_duration,proposal_group,sort_order/);
   assert.doesNotMatch(apiSource, /proposal_pricing_options/);
 });
 
