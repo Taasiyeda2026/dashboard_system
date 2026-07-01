@@ -47,7 +47,8 @@ import {
   getActivityActualParticipantCount,
   getActivityOperationalQuantity,
   getActivityRequiredInventoryQuantity,
-  sumRequiredInventoryQuantitiesFromActivities
+  sumRequiredInventoryQuantitiesFromActivities,
+  isTamirCompletionApprovalActivity
 } from './shared/operations-activity-helpers.js';
 import {
   approvalFileTitle,
@@ -186,6 +187,7 @@ function ensureOpsState(state = {}) {
   if (!ops.completionApproval.preview) ops.completionApproval.preview = false;
   if (!ops.completionApproval.subtab) ops.completionApproval.subtab = 'approvals';
   if (!ops.completionApproval.printInstructor) ops.completionApproval.printInstructor = '';
+  if (!ops.completionApproval.approvalType) ops.completionApproval.approvalType = '';
   ops.sorts = ops.sorts || {};
   Object.entries(SORT_DEFAULTS).forEach(([tab, sort]) => {
     if (!ops.sorts[tab]) ops.sorts[tab] = { ...sort };
@@ -1364,9 +1366,10 @@ function opsManagementStylesHtml() {
     .ds-ops-mgmt-screen .ds-ops-completion-col--status { width:9%; text-align:center; }
     .ds-ops-mgmt-screen .ds-ops-completion-col--date { width:9%; text-align:center; white-space:nowrap; }
     .ds-ops-mgmt-screen .ds-ops-completion-col--authority { width:10%; text-align:right; }
-    .ds-ops-mgmt-screen .ds-ops-completion-col--instructor { width:10%; text-align:right; }
+    .ds-ops-mgmt-screen .ds-ops-completion-col--type { width:8%; text-align:center; }
+    .ds-ops-mgmt-screen .ds-ops-completion-col--instructor { width:12%; text-align:right; }
     .ds-ops-mgmt-screen .ds-ops-completion-col--school { width:12%; text-align:right; }
-    .ds-ops-mgmt-screen .ds-ops-completion-col--who { width:20%; text-align:right; }
+    .ds-ops-mgmt-screen .ds-ops-completion-col--who { width:14%; text-align:right; }
     .ds-ops-mgmt-screen .ds-ops-completion-col--contact { width:12%; text-align:right; }
     .ds-ops-mgmt-screen .ds-ops-completion-col--actions { width:14%; text-align:center; }
     .ds-ops-mgmt-screen .ds-ops-completion-col-contact-cell { text-align:right; }
@@ -1425,6 +1428,7 @@ function opsManagementStylesHtml() {
       .ds-ops-mgmt-screen .ds-ops-dist-col--status,
       .ds-ops-mgmt-screen .ds-ops-completion-col--status,
       .ds-ops-mgmt-screen .ds-ops-completion-col--date,
+      .ds-ops-mgmt-screen .ds-ops-completion-col--type,
       .ds-ops-mgmt-screen .ds-ops-completion-col--actions { text-align:center !important; }
       .ds-ops-mgmt-screen .ds-ops-col--school,
       .ds-ops-mgmt-screen .ds-ops-col--instructor,
@@ -2102,8 +2106,25 @@ function completionApprovalPrintInstructorOptions(approvals = []) {
   return uniqueSorted((Array.isArray(approvals) ? approvals : []).map((approval) => approval?.instructorName).filter(isValidInstructorName));
 }
 
+// A Tamir team approval is grouped by date+authority+school (not by instructor), so building it once
+// per matching instructor can yield the same group twice; collapse those duplicates by id here.
+function dedupeCompletionApprovals(approvals = []) {
+  const seen = new Set();
+  const result = [];
+  (Array.isArray(approvals) ? approvals : []).forEach((approval) => {
+    const id = approval?.id;
+    if (id && seen.has(id)) return;
+    if (id) seen.add(id);
+    result.push(approval);
+  });
+  return result;
+}
+
 function completionApprovalUploadKey(approval) {
   const normalize = (value) => String(value || '').trim().replace(/[״"]/g, '').replace(/[׳']/g, '').replace(/\s+/g, ' ').toLowerCase();
+  if (approval?.isTamirTeamApproval) {
+    return `tamir|${String(approval?.date || '').trim()}|${normalize(approval?.authority)}|${normalize(approval?.school)}`;
+  }
   return `${String(approval?.date || '').trim()}|${normalize(approval?.authority)}|${normalize(approval?.school)}|${normalize(approval?.instructorName)}`;
 }
 function completionApprovalUploadMap(rows = []) {
@@ -2112,8 +2133,33 @@ function completionApprovalUploadMap(rows = []) {
   (Array.isArray(rows) ? rows : []).forEach((row) => {
     const key = `${String(row?.activity_date || '').trim()}|${normalize(row?.authority)}|${normalize(row?.school)}|${normalize(row?.instructor_name)}`;
     if (!map.has(key)) map.set(key, row);
+    // Tamir activities require two instructors but the upload is tracked per-activity, not per-uploader;
+    // whoever uploads (as recorded on authority/school) satisfies the shared team approval.
+    if (isTamirCompletionApprovalActivity(row)) {
+      const tamirKey = `tamir|${String(row?.activity_date || '').trim()}|${normalize(row?.authority)}|${normalize(row?.school)}`;
+      if (!map.has(tamirKey)) map.set(tamirKey, row);
+    }
+    // Also index by covered activity row ids so legacy uploads (recorded under a single instructor
+    // before this fix) can still be matched to the Tamir team approval that covers the same activity.
+    String(row?.activity_row_id || '').split(',').map((value) => value.trim()).filter(Boolean).forEach((rowId) => {
+      const rowIdKey = `tamir-row:${rowId}`;
+      if (!map.has(rowIdKey)) map.set(rowIdKey, row);
+    });
   });
   return map;
+}
+
+function completionApprovalLookupUpload(approval, uploadMap) {
+  const direct = uploadMap.get(completionApprovalUploadKey(approval));
+  if (direct || !approval?.isTamirTeamApproval) return direct;
+  const rowIds = (Array.isArray(approval?.activities) ? approval.activities : [])
+    .map((activity) => String(activity?.rowId || activity?.row_id || activity?.RowID || '').trim())
+    .filter(Boolean);
+  for (const rowId of rowIds) {
+    const hit = uploadMap.get(`tamir-row:${rowId}`);
+    if (hit) return hit;
+  }
+  return undefined;
 }
 function completionApprovalUploadStatusLabel(upload) {
   const status = String(upload?.status || '').trim();
@@ -2131,6 +2177,24 @@ function completionApprovalUploadStatusChip(upload) {
   if (status === 'rejected') return '<span class="ds-ops-status-rejected">✕ נדחה</span>';
   if (status === 'uploaded' || completionApprovalStorageExists(upload)) return '<span class="ds-ops-status-uploaded">↑ הועלה</span>';
   return '<span class="ds-muted">טרם הועלה</span>';
+}
+
+function completionApprovalTypeLabel(approval) {
+  return approval?.isTamirTeamApproval ? 'תמיר' : 'רגיל';
+}
+
+function completionApprovalTypeChip(approval) {
+  return approval?.isTamirTeamApproval
+    ? '<span class="ds-chip ds-chip--warn">תמיר</span>'
+    : '<span class="ds-chip ds-chip--neutral">רגיל</span>';
+}
+
+function completionApprovalInstructorCellHtml(approval) {
+  if (!approval?.isTamirTeamApproval) return escapeHtml(approval?.instructorName || '');
+  const names = Array.isArray(approval?.instructorNames) ? approval.instructorNames : [];
+  const primary = names[0] || approval?.instructorName || '—';
+  const secondary = names[1] || 'טרם שובץ';
+  return `<span class="ds-ops-completion-instructor-line">מדריך: ${escapeHtml(primary)}</span><br><span class="ds-ops-completion-instructor-line">מדריך נוסף: ${escapeHtml(secondary)}</span>`;
 }
 
 
@@ -2179,10 +2243,11 @@ function buildStoreZip(files) {
 function safeZipName(str) { return String(str || '').replace(/[^ -~-￿]/g, '').replace(/[/\\:*?"<>|]/g, '-').trim() || 'file'; }
 function completionApprovalZipFileName(approval, upload, index) {
   const date = String(approval?.date || '').slice(0, 10) || 'unknown';
-  const instructor = safeZipName(approval?.instructorName || '');
   const school = safeZipName(approval?.school || '');
   const ext = String(upload?.file_path || '').split('.').pop().toLowerCase().replace(/[^a-z0-9]/g, '') || 'pdf';
-  const base = [date, instructor, school].filter(Boolean).join('-');
+  const base = approval?.isTamirTeamApproval
+    ? ['תמיר', date, school].filter(Boolean).join('-')
+    : [date, safeZipName(approval?.instructorName || ''), school].filter(Boolean).join('-');
   return `${base || index}-${index + 1}.${ext}`;
 }
 
@@ -2369,15 +2434,17 @@ function completionApprovalTabHtml(rows, state, data = {}, directory = buildScho
   const selectedDate = clampCompletionApprovalDate(approvalState.selectedDate || approvalState.date);
   const instructors = completionApprovalInstructorOptions(summerRows);
   const scopedInstructors = approvalState.instructor ? instructors.filter((name) => name === approvalState.instructor) : instructors;
-  const approvals = scopedInstructors.flatMap((instructor) => buildCompletionApprovals(summerRows, { instructor, dateMode: 'range', dateFrom: COMPLETION_APPROVAL_SUMMER_FROM, dateTo: COMPLETION_APPROVAL_SUMMER_TO, directory, contactsIndex, summerPrintContactsIndex }));
+  const approvals = dedupeCompletionApprovals(scopedInstructors.flatMap((instructor) => buildCompletionApprovals(summerRows, { instructor, dateMode: 'range', dateFrom: COMPLETION_APPROVAL_SUMMER_FROM, dateTo: COMPLETION_APPROVAL_SUMMER_TO, directory, contactsIndex, summerPrintContactsIndex })));
   const uploadMap = completionApprovalUploadMap(data?.completionApprovalUploads || []);
   const todayIso = localTodayIso();
-  const allItems = approvals.map((approval, originalIndex) => ({ approval, upload: uploadMap.get(completionApprovalUploadKey(approval)), originalIndex })).sort((a, b) => compareCompletionApprovalWorkItems(a, b, todayIso));
+  const allItems = approvals.map((approval, originalIndex) => ({ approval, upload: completionApprovalLookupUpload(approval, uploadMap), originalIndex })).sort((a, b) => compareCompletionApprovalWorkItems(a, b, todayIso));
   const selectedPrintInstructor = String(approvalState.printInstructor || '').trim();
   const selectedAuthority = String(approvalState.selectedAuthority || '').trim();
+  const selectedApprovalType = String(approvalState.approvalType || '').trim();
   const dateFilteredItems = selectedDate ? allItems.filter((item) => String(item.approval?.date || '').slice(0, 10) === selectedDate) : allItems;
   const authorityFilteredItems = selectedAuthority ? dateFilteredItems.filter((item) => (item.approval?.authority || '') === selectedAuthority) : dateFilteredItems;
-  const items = selectedPrintInstructor ? authorityFilteredItems.filter((item) => item.approval?.instructorName === selectedPrintInstructor) : authorityFilteredItems;
+  const typeFilteredItems = selectedApprovalType ? authorityFilteredItems.filter((item) => (selectedApprovalType === 'tamir' ? !!item.approval?.isTamirTeamApproval : !item.approval?.isTamirTeamApproval)) : authorityFilteredItems;
+  const items = selectedPrintInstructor ? typeFilteredItems.filter((item) => item.approval?.instructorName === selectedPrintInstructor) : typeFilteredItems;
   const effectiveTodayIso = todayIso < COMPLETION_APPROVAL_SUMMER_FROM ? '' : (todayIso > COMPLETION_APPROVAL_SUMMER_TO ? COMPLETION_APPROVAL_SUMMER_TO : todayIso);
   const throughTodayItems = effectiveTodayIso ? allItems.filter((item) => String(item.approval?.date || '').slice(0, 10) <= effectiveTodayIso) : [];
   const selectedDateItems = selectedDate ? dateFilteredItems : [];
@@ -2386,6 +2453,7 @@ function completionApprovalTabHtml(rows, state, data = {}, directory = buildScho
   const dateFilterHtml = `<label class="ds-ops-completion-date-filter"><input class="ds-input ds-input--sm" type="date" min="${COMPLETION_APPROVAL_SUMMER_FROM}" max="${COMPLETION_APPROVAL_SUMMER_TO}" value="${escapeHtml(selectedDate)}" data-ops-completion-date-filter></label><button type="button" class="ds-btn ds-btn--sm ds-btn--ghost" data-ops-completion-date-clear>כל התאריכים</button>`;
   const authorityOptions = [...new Set(allItems.map((item) => item.approval?.authority || '').filter(Boolean))].sort((a, b) => a.localeCompare(b, 'he'));
   const authoritySelectHtml = `<label class="ds-ops-approval-print-filter"><select class="ds-input ds-input--sm" aria-label="סינון רשות" data-ops-completion-authority-filter><option value="">כל הרשויות</option>${authorityOptions.map((a) => `<option value="${escapeHtml(a)}"${selectedAuthority === a ? ' selected' : ''}>${escapeHtml(a)}</option>`).join('')}</select></label>`;
+  const typeSelectHtml = `<label class="ds-ops-approval-print-filter"><select class="ds-input ds-input--sm" aria-label="סינון סוג אישור" data-ops-completion-type-filter><option value=""${selectedApprovalType === '' ? ' selected' : ''}>כל האישורים</option><option value="regular"${selectedApprovalType === 'regular' ? ' selected' : ''}>רגילים</option><option value="tamir"${selectedApprovalType === 'tamir' ? ' selected' : ''}>תמיר</option></select></label>`;
   const activeSubtab = approvalState.subtab === 'contacts' ? 'contacts' : 'approvals';
   const printInstructorOptions = completionApprovalPrintInstructorOptions(approvals);
   const printInstructorSelect = `<label class="ds-ops-approval-print-filter"><select class="ds-input ds-input--sm" aria-label="סינון מדריך" data-ops-approval-print-instructor><option value="">כל המדריכים</option>${printInstructorOptions.map((name) => `<option value="${escapeHtml(name)}"${approvalState.printInstructor === name ? ' selected' : ''}>${escapeHtml(name)}</option>`).join('')}</select></label>`;
@@ -2394,7 +2462,7 @@ function completionApprovalTabHtml(rows, state, data = {}, directory = buildScho
     : '';
   const titleBar = `<div class="ds-ops-completion-title-bar no-print" dir="rtl">
     <header class="ds-ops-completion-summary"><button type="button" class="ds-ops-completion-summary__title" aria-haspopup="dialog" aria-expanded="${approvalState.summaryOpen ? 'true' : 'false'}" data-ops-completion-summary-toggle>אישורי ביצוע</button>${summaryPopoverHtml}</header>
-    <div class="ds-ops-completion-control-row ds-ops-completion-filter-toolbar ds-ops-approval-print-toolbar">${dateFilterHtml}${authoritySelectHtml}${printInstructorSelect}<button type="button" class="ds-btn ds-btn--sm ds-btn--ghost" data-ops-completion-clear-filters title="ניקוי סינונים">✕ ניקוי</button><button type="button" class="ds-btn ds-btn--sm ds-btn--primary ds-ops-approval-print-btn" data-ops-approval-print-all>הדפסה</button>${downloadBtnHtml}</div>
+    <div class="ds-ops-completion-control-row ds-ops-completion-filter-toolbar ds-ops-approval-print-toolbar">${dateFilterHtml}${authoritySelectHtml}${typeSelectHtml}${printInstructorSelect}<button type="button" class="ds-btn ds-btn--sm ds-btn--ghost" data-ops-completion-clear-filters title="ניקוי סינונים">✕ ניקוי</button><button type="button" class="ds-btn ds-btn--sm ds-btn--primary ds-ops-approval-print-btn" data-ops-approval-print-all>הדפסה</button>${downloadBtnHtml}</div>
   </div>`;
   const contactContextMap = buildContactContextMap(summerRows, data?.contactResponsiblesRows || []);
   const body = items.map(({ approval, upload }, displayIndex) => {
@@ -2420,7 +2488,8 @@ function completionApprovalTabHtml(rows, state, data = {}, directory = buildScho
       <td class="ds-ops-completion-col--status ds-table-cell-truncate">${completionApprovalUploadStatusChip(upload)}</td>
       <td class="ds-ops-completion-col--date ds-table-cell-truncate">${escapeHtml(formatDateHe(approval.date) || approval.date || '')}${todayChip}</td>
       <td class="ds-ops-completion-col--authority ds-table-cell-truncate">${escapeHtml(approval.authority || '—')}</td>
-      <td class="ds-ops-completion-col--instructor ds-table-cell-truncate">${escapeHtml(approval.instructorName || '')}</td>
+      <td class="ds-ops-completion-col--type ds-table-cell-truncate">${completionApprovalTypeChip(approval)}</td>
+      <td class="ds-ops-completion-col--instructor ds-table-cell-truncate">${completionApprovalInstructorCellHtml(approval)}</td>
       <td class="ds-ops-completion-col--school ds-table-cell-wrap">${escapeHtml(approval.school || '')}</td>
       <td class="ds-ops-completion-col--who ds-ops-completion-col-who-cell ds-table-cell-wrap">${whoIsWithMe}</td>
       <td class="ds-ops-completion-col--contact ds-ops-completion-col-contact-cell">${contactDropdown}</td>
@@ -2434,7 +2503,7 @@ function completionApprovalTabHtml(rows, state, data = {}, directory = buildScho
   _completionApprovalPrintContext = { approvals: items.map((item) => item.approval), uploads: data?.completionApprovalUploads || [] };
   const contactRows = (selectedDate || selectedPrintInstructor || approvalState.instructor || selectedAuthority) ? summerRows.filter((row) => items.some((item) => String(item.approval.date || '').slice(0, 10) === String(row.start_date || row.activity_date || '').slice(0, 10) && String(item.approval.school || '').trim() === String(row.school || row.single_school_name || row.legacy_school || '').trim())) : summerRows;
   const table = items.length
-    ? dsTableWrap(`<table class="ds-table ds-table--compact ds-ops-completion-preview"><colgroup><col class="ds-ops-completion-col--status"><col class="ds-ops-completion-col--date"><col class="ds-ops-completion-col--authority"><col class="ds-ops-completion-col--instructor"><col class="ds-ops-completion-col--school"><col class="ds-ops-completion-col--who"><col class="ds-ops-completion-col--contact"><col class="ds-ops-completion-col--actions no-print"></colgroup><thead><tr><th class="ds-ops-completion-col--status">סטטוס אישור</th><th class="ds-ops-completion-col--date">תאריך</th><th class="ds-ops-completion-col--authority">רשות</th><th class="ds-ops-completion-col--instructor">מדריך</th><th class="ds-ops-completion-col--school">בית ספר</th><th class="ds-ops-completion-col--who">מי איתי היום</th><th class="ds-ops-completion-col--contact">אחראי קשר</th><th class="ds-ops-completion-col--actions no-print">פעולות</th></tr></thead><tbody>${body}</tbody></table>`)
+    ? dsTableWrap(`<table class="ds-table ds-table--compact ds-ops-completion-preview"><colgroup><col class="ds-ops-completion-col--status"><col class="ds-ops-completion-col--date"><col class="ds-ops-completion-col--authority"><col class="ds-ops-completion-col--type"><col class="ds-ops-completion-col--instructor"><col class="ds-ops-completion-col--school"><col class="ds-ops-completion-col--who"><col class="ds-ops-completion-col--contact"><col class="ds-ops-completion-col--actions no-print"></colgroup><thead><tr><th class="ds-ops-completion-col--status">סטטוס אישור</th><th class="ds-ops-completion-col--date">תאריך</th><th class="ds-ops-completion-col--authority">רשות</th><th class="ds-ops-completion-col--type">סוג אישור</th><th class="ds-ops-completion-col--instructor">מדריך</th><th class="ds-ops-completion-col--school">בית ספר</th><th class="ds-ops-completion-col--who">מי איתי היום</th><th class="ds-ops-completion-col--contact">אחראי קשר</th><th class="ds-ops-completion-col--actions no-print">פעולות</th></tr></thead><tbody>${body}</tbody></table>`)
     : dsEmptyState('לא נמצאו אישורי ביצוע בטווח הנוכחי');
   const activePanel = `<div class="ds-ops-completion-approvals-card">${dsCard({ body: table, padded: false })}</div>`;
   return `<section class="ds-ops-mgmt-panel ds-ops-completion-panel" dir="rtl">
@@ -2559,6 +2628,11 @@ export const operationsManagementScreen = {
       ops.completionApproval.date = '';
       ops.completionApproval.selectedAuthority = '';
       ops.completionApproval.printInstructor = '';
+      ops.completionApproval.approvalType = '';
+      rerender?.();
+    });
+    root.querySelector('[data-ops-completion-type-filter]')?.addEventListener('change', (ev) => {
+      ops.completionApproval.approvalType = ev.target.value || '';
       rerender?.();
     });
 
@@ -2717,10 +2791,9 @@ export const operationsManagementScreen = {
       const uploadById = new Map(uploads.map((u) => [String(u.id), u]));
       const authorityName = ops.completionApproval.selectedAuthority || '';
       if (!authorityName) { alert('יש לבחור רשות לפני הורדת אישורים'); return; }
+      const uploadMap2 = completionApprovalUploadMap(uploads);
       const itemsWithFile = approvals.map((approval, i) => {
-        const key = completionApprovalUploadKey(approval);
-        const uploadMap2 = completionApprovalUploadMap(uploads);
-        const upload = uploadMap2.get(key);
+        const upload = completionApprovalLookupUpload(approval, uploadMap2);
         return upload?.file_path ? { approval, upload, index: i } : null;
       }).filter(Boolean);
       if (!itemsWithFile.length) { alert('לא נמצאו אישורים חתומים להורדה עבור הבחירה הנוכחית'); return; }
@@ -2783,7 +2856,7 @@ export const operationsManagementScreen = {
         btn.textContent = '…';
         try {
           const uploadMap2 = completionApprovalUploadMap(_completionApprovalPrintContext?.uploads || []);
-          const existingUpload = uploadMap2.get(completionApprovalUploadKey(approval));
+          const existingUpload = completionApprovalLookupUpload(approval, uploadMap2);
           if (existingUpload?.id) {
             await api.replaceCompletionApprovalUpload({ id: existingUpload.id, file });
           } else {
