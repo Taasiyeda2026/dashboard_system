@@ -28,7 +28,9 @@ function norm(value) {
 }
 
 function isDeletedActivity(activity) {
-  return norm(activity?.status) === norm('נמחק');
+  const status = norm(activity?.status);
+  // Cancelled activities never happened and shouldn't require a completion approval either.
+  return status === norm('נמחק') || status === norm('בוטל');
 }
 
 function cleanSchoolName(activity) {
