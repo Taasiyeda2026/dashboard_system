@@ -3152,9 +3152,13 @@ function dedupeById(rows) {
   });
 }
 
-function displayRows(data, filters = {}) {
+function allDisplayRows(data) {
   const rows = Array.isArray(data?.rows) ? data.rows : [];
-  return dedupeById(sortRows(rows)).filter((row) => rowMatches(row, filters));
+  return dedupeById(sortRows(rows));
+}
+
+function displayRows(data, filters = {}) {
+  return allDisplayRows(data).filter((row) => rowMatches(row, filters));
 }
 
 function currentFilters(root) {
@@ -3166,11 +3170,51 @@ function currentFilters(root) {
   };
 }
 
-export function updateProposalsAgreementsTableOnly(root, rows, state) {
+function activeFilters(filters = {}) {
+  return [
+    text(filters.q) ? { key: 'q', label: 'חיפוש', value: text(filters.q) } : null,
+    text(filters.activity_type_group) ? { key: 'activity_type_group', label: 'סוג הצעה', value: proposalGroupDisplayName(filters.activity_type_group) } : null,
+    text(filters.status) ? { key: 'status', label: 'סטטוס', value: STATUS_LABELS[normalizeProposalStatus(filters.status)] || filters.status } : null,
+    text(filters.proposal_domain) ? { key: 'proposal_domain', label: 'תחום', value: filters.proposal_domain } : null
+  ].filter(Boolean);
+}
+
+function activeFiltersHtml(filters = {}) {
+  const chips = activeFilters(filters);
+  const chipsHtml = chips.length
+    ? chips.map((chip) => `<span class="ds-pa-active-filter-chip" data-pa-active-filter="${escapeHtml(chip.key)}"><strong>${escapeHtml(chip.label)}:</strong> ${escapeHtml(chip.value)}</span>`).join('')
+    : '<span class="ds-pa-active-filter-empty">אין פילטרים פעילים</span>';
+  return `
+    <div class="ds-pa-active-filters" data-pa-active-filters aria-live="polite">
+      <div class="ds-pa-active-filters-head">
+        <strong>פילטרים פעילים</strong>
+        <button type="button" class="ds-btn ds-btn--sm ds-btn--ghost" data-pa-clear-filters>נקה סינון</button>
+      </div>
+      <div class="ds-pa-active-filter-chips" data-pa-active-filter-chips>${chipsHtml}</div>
+    </div>`;
+}
+
+function filteredOutMessageHtml(totalRows) {
+  if (!(Number(totalRows) > 0)) return '';
+  return `
+    <div class="ds-pa-filtered-empty" data-pa-filtered-empty role="status">
+      <p>יש הצעות במערכת אך הן מוסתרות בגלל סינון פעיל</p>
+      <button type="button" class="ds-btn ds-btn--sm ds-btn--primary" data-pa-clear-filters>נקה סינון</button>
+    </div>`;
+}
+
+export function updateProposalsAgreementsTableOnly(root, rows, state, options = {}) {
   const body = root?.querySelector('[data-pa-table-body]');
   const counter = root?.querySelector('[data-pa-results-count]');
+  const totalCounter = root?.querySelector('[data-pa-total-count]');
+  const activeHost = root?.querySelector('[data-pa-active-filters]');
+  const emptyHost = root?.querySelector('[data-pa-filtered-empty-host]');
+  const totalRows = Number(options.totalRows ?? rows.length);
   if (body) body.innerHTML = proposalsAgreementsTableRowsHtml(rows, state);
   if (counter) counter.textContent = String(rows.length);
+  if (totalCounter) totalCounter.textContent = String(totalRows);
+  if (activeHost) activeHost.outerHTML = activeFiltersHtml(options.filters || {});
+  if (emptyHost) emptyHost.innerHTML = rows.length === 0 && totalRows > 0 ? filteredOutMessageHtml(totalRows) : '';
 }
 
 
@@ -3507,6 +3551,7 @@ export const proposalsAgreementsScreen = {
     }
     setProposalGroupLookups(data, Array.isArray(data?.rows) ? data.rows : [], Array.isArray(data?.proposalActivityPricing) ? data.proposalActivityPricing : []);
     setProposalPricingLookup(Array.isArray(data?.proposalActivityPricing) ? data.proposalActivityPricing : []);
+    const totalRows = allDisplayRows(data).length;
     const rows = displayRows(data, {});
     const proposalGroupFilterOptions = proposalGroupOptions(data, Array.isArray(data?.rows) ? data.rows : [], Array.isArray(data?.proposalActivityPricing) ? data.proposalActivityPricing : []);
     const canManage = canManageProposalsAgreements(state);
@@ -3519,6 +3564,7 @@ export const proposalsAgreementsScreen = {
           .ds-pa-form{max-width:1080px;margin-inline:auto}.ds-pa-form .ds-pa-form-grid{max-width:100%}.ds-pa-item-card{border:1px solid #dbe7f3;border-radius:10px;background:#fff;padding:5px 8px;margin:3px 0;box-shadow:0 1px 3px rgba(15,23,42,.04)}
           .ds-pa-item-quick-row{display:grid;grid-template-columns:minmax(0,1fr) 96px;gap:6px;align-items:end}.ds-pa-item-extra{margin-top:4px}.ds-pa-item-extra-toggle{cursor:pointer;color:#2563eb;font-size:.78rem}.ds-pa-type-chips{grid-template-columns:repeat(2,minmax(0,1fr))}.ds-pa-type-card{min-height:28px!important;padding:3px 5px!important;font-size:.76rem!important}.ds-pa-summary-bar--compact{display:flex;align-items:center;gap:8px;justify-content:space-between}.ds-pa-summary-bar--compact .ds-pa-summary-pill{flex:1}.ds-pa-item-field--select select{overflow:hidden;text-overflow:ellipsis}.ds-pa-item-field--select-no-label{gap:0}.ds-pa-item-field span{display:block;font-size:.74rem;color:#64748b;margin-bottom:3px;font-weight:600}.ds-pa-line-total output{min-height:34px;display:flex;align-items:center;justify-content:center;border:1px solid #dbe7f3;border-radius:10px;background:#f8fbff;font-weight:700;color:#0f766e}.ds-pa-items-total-row{margin-top:10px;padding:10px 12px;border-radius:12px;background:#eef8ff;font-size:.9rem}.ds-pa-items-total-row strong{color:#0369a1}
           .ds-pa-bundle-prompt{margin-top:12px}.ds-pa-bundle-panel{border:1px solid #b7e0f5;background:#f8fdff;border-radius:14px;padding:12px}.ds-pa-bundle-head{display:flex;justify-content:space-between;gap:10px;align-items:center;margin-bottom:6px}.ds-pa-bundle-head strong{font-size:.9rem;color:#0f172a}.ds-pa-bundle-head span,.ds-pa-bundle-help,.ds-pa-bundle-empty{font-size:.78rem;color:#64748b}.ds-pa-bundle-grid{display:grid;grid-template-columns:repeat(auto-fit,minmax(220px,1fr));gap:8px;margin-top:10px}.ds-pa-bundle-child-card{display:grid;grid-template-columns:auto 1fr auto;align-items:center;gap:8px;border:1px solid #dbe7f3;border-radius:12px;background:#fff;padding:9px 10px;cursor:pointer;min-height:42px}.ds-pa-bundle-child-card:hover{border-color:#38bdf8;background:#f0f9ff}.ds-pa-bundle-child-card:has(input:checked){border-color:#0ea5e9;background:#e0f2fe;box-shadow:0 0 0 1px #0ea5e9 inset}.ds-pa-bundle-child-name{font-size:.82rem;color:#0f172a;line-height:1.25}.ds-pa-bundle-child-price{font-size:.8rem;font-weight:700;color:#0f766e;white-space:nowrap}.ds-pa-bundle-footer{display:flex;justify-content:space-between;align-items:center;gap:10px;margin-top:10px;flex-wrap:wrap}.ds-pa-bundle-actions{display:flex;gap:6px}.ds-pa-bundle-selection-summary{font-size:.78rem;color:#0369a1;font-weight:700}.ds-pa-summary-bundle-list{margin:4px 0 0;padding-right:16px;font-size:.72rem}.ds-pa-items-summary-table{width:100%;border-collapse:collapse;font-size:.78rem}.ds-pa-items-summary-table th,.ds-pa-items-summary-table td{border-bottom:1px solid #e5eef6;padding:6px;text-align:right}.ds-pa-items-summary-table th{color:#64748b;font-weight:700;background:#f8fbff}
+          .ds-pa-active-filters{border:1px solid #dbe7f3;background:#f8fbff;border-radius:14px;padding:10px 12px;margin:10px 0 12px}.ds-pa-active-filters-head{display:flex;justify-content:space-between;align-items:center;gap:10px;margin-bottom:8px}.ds-pa-active-filter-chips{display:flex;flex-wrap:wrap;gap:8px}.ds-pa-active-filter-chip{border:1px solid #bfdbfe;background:#eff6ff;color:#1e3a8a;border-radius:999px;padding:4px 10px;font-size:.82rem}.ds-pa-active-filter-empty{color:#64748b;font-size:.82rem}.ds-pa-filtered-empty{margin:12px;border:1px solid #fed7aa;background:#fff7ed;color:#9a3412;border-radius:12px;padding:14px;text-align:center}.ds-pa-filtered-empty p{margin:0 0 10px;font-weight:700}.ds-pa-records-title-count{font-size:.86rem;color:#64748b;font-weight:600;margin-inline-start:8px}
           @media (max-width:900px){.ds-pa-bundle-grid{grid-template-columns:1fr}}@media (max-width:640px){.ds-pa-type-chips{grid-template-columns:repeat(2,minmax(0,1fr))}.ds-pa-item-quick-row{grid-template-columns:1fr}}
         </style>
         <div class="ds-pa-screen-tabs" data-pa-screen-tabs style="display:flex;gap:4px;border-bottom:2px solid var(--ds-border,#e5e7eb);margin-bottom:12px">
@@ -3532,8 +3578,9 @@ export const proposalsAgreementsScreen = {
             ${statusFilterHtml()}
             <label class="ds-pa-filter"><span>תחום</span><select class="ds-input ds-input--sm" data-pa-filter="proposal_domain"><option value="">הכול</option><option value="Y">Y</option><option value="E">E</option></select></label>
           </div>
-          <div class="ds-pa-local-status" aria-live="polite">מציג <strong data-pa-results-count>${rows.length}</strong> רשומות</div>
-          ${dsCard({ title: 'רשומות', padded: false, body: `<div class="ds-pa-records-shell" data-pa-table-region>${tableHtml(rows, state)}</div>` })}
+          ${activeFiltersHtml({})}
+          <div class="ds-pa-local-status" aria-live="polite">מציג <strong data-pa-results-count>${rows.length}</strong> מתוך <strong data-pa-total-count>${totalRows}</strong> הצעות</div>
+          ${dsCard({ title: 'רשומות', badge: `מציג ${rows.length} מתוך ${totalRows} הצעות`, padded: false, body: `<div data-pa-filtered-empty-host></div><div class="ds-pa-records-shell" data-pa-table-region>${tableHtml(rows, state)}</div>` })}
           ${drawerHtml(null, [], state)}
         </div>
         <div data-pa-tab-panel="new" hidden>
@@ -3607,7 +3654,10 @@ export const proposalsAgreementsScreen = {
     };
     let debounceTimer = null;
 
-    const refreshTable = () => updateProposalsAgreementsTableOnly(root, displayRows(data, currentFilters(root)), state);
+    const refreshTable = () => {
+      const filters = currentFilters(root);
+      updateProposalsAgreementsTableOnly(root, displayRows(data, filters), state, { filters, totalRows: allDisplayRows(data).length });
+    };
     const debouncedRefresh = () => {
       clearTimeout(debounceTimer);
       debounceTimer = setTimeout(refreshTable, SEARCH_DEBOUNCE_MS);
@@ -3615,6 +3665,12 @@ export const proposalsAgreementsScreen = {
 
     root.querySelector('[data-pa-search]')?.addEventListener('input', debouncedRefresh, { signal });
     root.querySelectorAll('[data-pa-filter]').forEach((el) => el.addEventListener('change', refreshTable, { signal }));
+    root.addEventListener('click', (ev) => {
+      if (!ev.target?.closest?.('[data-pa-clear-filters]')) return;
+      clearTimeout(debounceTimer);
+      resetLocalFilters();
+      refreshTable();
+    }, { signal });
     
 
 
