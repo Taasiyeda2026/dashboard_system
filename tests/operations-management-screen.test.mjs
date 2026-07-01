@@ -600,6 +600,57 @@ test('workshops inventory treats missing participant counts as zero and warns', 
 
 
 
+test('workshops inventory expected balance subtracts closed usage from physical stock', () => {
+  const state = baseState();
+  state.operationsManagement.tab = 'workshops';
+  const adminListsData = { categories: [{ category: 'activity_names', items: [
+    { value: '777', _row: { category: 'activity_names', type: 'workshop', activity_type: 'workshop', active: true, activity_no: '777', activity_name: 'סדנת חישוב מלאי', stock_group_key: 'calc_stock' } }
+  ] }] };
+  const html = operationsManagementScreen.render({
+    rows: [
+      { RowID: 'CALC-CLOSED', status: 'סגור', activity_name: 'סדנת חישוב מלאי', start_date: '2026-07-10', activity_season: 'summer_2026', activity_type: 'workshop', participants_count: 64, instructor_name: 'דני' },
+      { RowID: 'CALC-OPEN', status: 'פתוח', activity_name: 'סדנת חישוב מלאי', start_date: '2026-07-11', activity_season: 'summer_2026', activity_type: 'workshop', participants_count: 49, instructor_name: 'דני' }
+    ],
+    workshopStockMap: buildWorkshopStockMapFromLists(adminListsData),
+    adminListsData,
+    workshopStockDistributions: [
+      { stock_group_key: 'calc_stock', instructor_name: 'מלאי עידן', quantity_received: 110, distribution_date: '2026-07-01' }
+    ]
+  }, { state });
+  const tableHtml = html.slice(html.indexOf('<table class="ds-table ds-table--compact ds-ops-mgmt-data-table ds-ops-workshops-table"'));
+
+  assert.match(tableHtml, /כמות קיימת/);
+  assert.match(tableHtml, /ניצול בפועל/);
+  assert.match(tableHtml, /צפי נדרש/);
+  assert.match(tableHtml, /יתרה צפויה/);
+  assert.match(tableHtml, /סדנת חישוב מלאי[^]*>110<[^]*>64<[^]*>49<[^]*><span class="ds-ops-gap ds-ops-gap--shortage"><span dir="ltr">-3<\/span><\/span>/);
+  assert.match(tableHtml, /ds-ops-workshop-status-text--danger">חסר מלאי<\/span>/);
+});
+
+test('workshops instructor detail balance subtracts closed usage from received stock', () => {
+  const state = baseState();
+  state.operationsManagement.tab = 'workshops';
+  state.operationsManagement.expandedWorkshop = 'instructor_calc';
+  const adminListsData = { categories: [{ category: 'activity_names', items: [
+    { value: '778', _row: { category: 'activity_names', type: 'workshop', activity_type: 'workshop', active: true, activity_no: '778', activity_name: 'סדנת מדריך', stock_group_key: 'instructor_calc' } }
+  ] }] };
+  const html = operationsManagementScreen.render({
+    rows: [
+      { RowID: 'INST-CLOSED', status: 'סגור', activity_name: 'סדנת מדריך', start_date: '2026-07-10', activity_season: 'summer_2026', activity_type: 'workshop', participants_count: 25, instructor_name: 'דני' },
+      { RowID: 'INST-OPEN', status: 'פתוח', activity_name: 'סדנת מדריך', start_date: '2026-07-11', activity_season: 'summer_2026', activity_type: 'workshop', participants_count: 49, instructor_name: 'דני' }
+    ],
+    workshopStockMap: buildWorkshopStockMapFromLists(adminListsData),
+    adminListsData,
+    workshopStockDistributions: [
+      { stock_group_key: 'instructor_calc', instructor_name: 'דני', quantity_received: 60, distribution_date: '2026-07-01' }
+    ]
+  }, { state });
+
+  assert.match(html, /<th class="ds-ops-dist-col--instructor">מדריך<\/th><th class="ds-ops-dist-col--number">כמות קיימת<\/th><th class="ds-ops-dist-col--number">ניצול בפועל<\/th><th class="ds-ops-dist-col--number">צפי נדרש<\/th><th class="ds-ops-dist-col--number">יתרה צפויה<\/th>/);
+  assert.match(html, /דני<\/td>\s*<td class="ds-ops-dist-col--number">60<\/td>\s*<td class="ds-ops-dist-col--number">25<\/td>\s*<td class="ds-ops-dist-col--number">49<\/td>\s*<td class="ds-ops-dist-col--number"><span class="ds-ops-gap ds-ops-gap--shortage"><span dir="ltr">-14<\/span><\/span><\/td>/);
+  assert.match(html, /\.ds-ops-mgmt-screen \.ds-ops-dist-table--locations \{ width:320px !important; max-width:100% !important; margin:0 auto !important; \}/);
+});
+
 test('required inventory helper sums only positive participants_count and never falls back to estimate', () => {
   assert.equal(getActivityRequiredInventoryQuantity({ participants_count: 30 }), 30);
   assert.equal(sumRequiredInventoryQuantitiesFromActivities([{ participants_count: 20 }, { participants_count: 35 }]), 55);
