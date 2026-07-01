@@ -535,16 +535,20 @@ test('active filters are visible and approved domain Y proposals only disappear 
     proposalsAgreementsScreen.bind({ root, data: { rows }, state: stateFor('admin'), api: {} });
 
     assert.match(root.querySelector('[data-pa-table-region]').textContent, /רשות מאושרת/, 'approved Y proposal should render when no filter is active');
-    assert.match(root.querySelector('[data-pa-active-filters]').textContent, /אין פילטרים פעילים/, 'empty active filters state should be explicit');
-    assert.match(root.querySelector('.ds-card__head')?.textContent || '', /מציג 2 מתוך 2 הצעות/, 'table heading should show visible and total proposal counts');
+    assert.equal(root.querySelector('[data-pa-active-filters]').hasAttribute('hidden'), true, 'active filters bar should be hidden when no filter is active');
+    assert.doesNotMatch(root.querySelector('[data-pa-active-filters]').textContent, /פילטרים פעילים/, 'no active-filters label should render when nothing is filtered');
+    assert.match(root.querySelector('.ds-pa-local-status')?.textContent || '', /מציג 2 מתוך 2 הצעות/, 'single status line should show visible and total proposal counts');
+    assert.doesNotMatch(root.querySelector('.ds-card__head')?.textContent || '', /מציג/, 'records card head should not duplicate the proposal count');
 
     const domainFilter = root.querySelector('[data-pa-filter="proposal_domain"]');
     domainFilter.value = 'E';
     domainFilter.dispatchEvent(new dom.window.Event('change', { bubbles: true }));
 
     assert.doesNotMatch(root.querySelector('[data-pa-table-region]').textContent, /רשות מאושרת/, 'approved Y proposal may disappear only after an active domain filter');
+    assert.equal(root.querySelector('[data-pa-active-filters]').hasAttribute('hidden'), false, 'active filters bar should be visible once a filter is active');
     assert.match(root.querySelector('[data-pa-active-filters]').textContent, /פילטרים פעילים/);
     assert.match(root.querySelector('[data-pa-active-filters]').textContent, /תחום:\s*E/);
+    assert.match(root.querySelector('[data-pa-active-filters] [data-pa-clear-filters]')?.textContent || '', /נקה סינון/, 'clear filters button should render next to the active filter chips');
     assert.match(root.querySelector('[data-pa-results-count]').textContent, /^1$/);
     assert.match(root.querySelector('[data-pa-total-count]').textContent, /^2$/);
 
@@ -559,7 +563,7 @@ test('active filters are visible and approved domain Y proposals only disappear 
     root.querySelector('[data-pa-filtered-empty] [data-pa-clear-filters]').dispatchEvent(new dom.window.MouseEvent('click', { bubbles: true }));
 
     assert.match(root.querySelector('[data-pa-table-region]').textContent, /רשות מאושרת/, 'clear filters should restore the approved Y proposal');
-    assert.match(root.querySelector('[data-pa-active-filters]').textContent, /אין פילטרים פעילים/);
+    assert.equal(root.querySelector('[data-pa-active-filters]').hasAttribute('hidden'), true, 'active filters bar should hide again once cleared');
     assert.equal(root.querySelector('[data-pa-search]').value, '');
     root.querySelectorAll('[data-pa-filter]').forEach((filter) => assert.equal(filter.value, ''));
   });
