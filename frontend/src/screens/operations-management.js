@@ -720,9 +720,10 @@ function activitySchoolIdForPrint(activity = {}) {
 
 function buildPrintContactRowsForGroup(group, printContacts = [], contactResponsibles = []) {
   const authority = group?.authority || '';
+  const date = group?.date || '';
   const schools = uniqueSorted((group?.entries || []).map((entry) => getActivitySchoolDisplayNameClean(entry.activity)).filter(Boolean));
   return schools.map((school) => {
-    const contact = findInstructorSchedulePrintContact(printContacts, { authority, school });
+    const contact = findInstructorSchedulePrintContact(printContacts, { authority, school, date });
     const responsible = findPrintContactResponsible(contactResponsibles, group?.entries || [], group?.date || '', school);
     return {
       school,
@@ -734,15 +735,26 @@ function buildPrintContactRowsForGroup(group, printContacts = [], contactRespons
   });
 }
 
-function findInstructorSchedulePrintContact(printContacts = [], { authority = '', school = '' } = {}) {
+function warnSummerPrintContactDev(payload) {
+  if (typeof import.meta === 'undefined' || !import.meta.env?.DEV) return;
+  console.warn('[schedule-print-contacts]', payload);
+}
+
+function findInstructorSchedulePrintContact(printContacts = [], { authority = '', school = '', date = '' } = {}) {
   const authNorm = normalizePrintContactMatchText(authority);
   const schoolNorm = normalizePrintContactMatchText(school);
   const schoolLoose = loosePrintContactMatchText(school);
   const activeRows = (Array.isArray(printContacts) ? printContacts : []).filter((row) => row?.active !== false);
-  return activeRows.find((row) => normalizePrintContactMatchText(row?.authority) === authNorm && normalizePrintContactMatchText(row?.school) === schoolNorm)
+  const match = activeRows.find((row) => normalizePrintContactMatchText(row?.authority) === authNorm && normalizePrintContactMatchText(row?.school) === schoolNorm)
     || activeRows.find((row) => normalizePrintContactMatchText(row?.authority) === authNorm && loosePrintContactMatchText(row?.school) === schoolLoose)
     || activeRows.find((row) => loosePrintContactMatchText(row?.school) === schoolLoose)
     || null;
+  if (!match) {
+    warnSummerPrintContactDev({ authority, school, date, reason: 'no_summer_print_contact_match' });
+  } else if (!String(match.contact_name || '').trim() || !String(match.contact_phone || '').trim()) {
+    warnSummerPrintContactDev({ authority, school, date, reason: 'empty_summer_print_contact' });
+  }
+  return match;
 }
 
 function findPrintContactResponsible(contactResponsibles = [], entries = [], date = '', school = '') {
@@ -1572,6 +1584,16 @@ function buildGroupedScheduleHtml({ scheduleRows, state, selectedInstructorFilte
   <p class="contact-notice__emphasis">חשוב להדגיש: תפקיד אחראי הקשר אינו מחליף את אישור הביצוע.<br>כל מדריך נדרש להחתים אישור ביצוע ספציפי עבור הפעילות שביצע, בהתאם לשיבוץ ולנהלי הדיווח.</p>
 </div>`;
   return `<div class="ops-print-page"><h1>שיבוץ פעילויות קיץ</h1><p class="subtitle">${escapeHtml(instructorLine)}</p>${contactNotice}<div class="ops-print-grid">${blocks}</div><p class="footer">יש לוודא את קיום הפעילות מול איש הקשר בבית הספר לפחות 48 שעות לפני כל יום פעילות.</p></div>`;
+}
+
+async function refreshSchedulePrintContactsBeforePrint(api) {
+  if (!_schedulePrintContext || typeof api?.instructorSchedulePrintContacts !== 'function') return;
+  try {
+    const fresh = await api.instructorSchedulePrintContacts();
+    if (_schedulePrintContext) _schedulePrintContext.printContacts = Array.isArray(fresh?.rows) ? fresh.rows : [];
+  } catch (err) {
+    warnSummerPrintContactDev({ reason: 'summer_print_contacts_refresh_failed', error: err?.message || String(err) });
+  }
 }
 
 function printInstructorSchedule() {
@@ -2614,7 +2636,10 @@ export const operationsManagementScreen = {
       });
     });
 
-    root.querySelector('[data-ops-print]')?.addEventListener('click', () => printInstructorSchedule());
+    root.querySelector('[data-ops-print]')?.addEventListener('click', async () => {
+      await refreshSchedulePrintContactsBeforePrint(api);
+      printInstructorSchedule();
+    });
     root.querySelector('[data-ops-print-workshops]')?.addEventListener('click', () => printWorkshopsFromDom(root));
     root.querySelector('[data-ops-print-schools]')?.addEventListener('click', () => printSchoolsSchedule());
 
