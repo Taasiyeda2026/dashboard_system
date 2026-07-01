@@ -5881,7 +5881,16 @@ export const api = {
     const patch = { status: statusForDb(cleanStatus), approval_note: cleanProposalAgreementText(approvalNote), updated_at: new Date().toISOString() };
     if (cleanStatus === 'approved') {
       patch.status = 'approved';
-      patch.approved_by = uuidOrNull(state?.user?.auth_user_id);
+      let approvedByUuid = uuidOrNull(state?.user?.auth_user_id);
+      if (!approvedByUuid && supabase) {
+        try {
+          const { data: authData } = await supabase.auth.getUser();
+          approvedByUuid = uuidOrNull(authData?.user?.id);
+        } catch {
+          /* ignore — approved_by is an audit field, not a gate on approval */
+        }
+      }
+      if (approvedByUuid) patch.approved_by = approvedByUuid;
       patch.approved_at = new Date().toISOString();
       patch.signature_meta = (signatureMeta && typeof signatureMeta === 'object' && !Array.isArray(signatureMeta)) ? signatureMeta : {};
     }
