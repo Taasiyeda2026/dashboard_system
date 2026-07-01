@@ -2931,7 +2931,8 @@ function canTransitionProposalAgreementStatus(currentRow = {}, cleanStatus = '')
   if (targetStatus === currentStatus) return true;
   if (targetStatus === 'approved') {
     if (!canApproveProposalsAgreementsApi()) throw new Error('proposals_agreements_approval_forbidden');
-    if (currentStatus !== 'pending_approval') throw new Error('ניתן לאשר רק הצעה שממתינה לאישור.');
+    const needsResign = currentStatus === 'approved' && (!hasProposalAgreementSignature(currentRow) || !cleanProposalAgreementText(currentRow.approved_at));
+    if (currentStatus !== 'pending_approval' && !needsResign) throw new Error('ניתן לאשר רק הצעה שממתינה לאישור או הצעה מאושרת ללא חתימה.');
     return true;
   }
   if (targetStatus === 'returned_for_changes') {
@@ -3205,8 +3206,11 @@ export function uuidOrNull(value) {
 function assertProposalAgreementApprovalPayloadAllowed(payload = {}) {
   const requestedStatus = cleanProposalAgreementText(payload.status);
   const touchesApprovalField = Object.keys(payload || {}).some((key) => PROPOSALS_AGREEMENTS_APPROVAL_COLUMNS.has(key));
-  if ((requestedStatus === 'approved' || touchesApprovalField) && !canApproveProposalsAgreementsApi()) {
-    throw new Error('proposals_agreements_approval_forbidden');
+  if (requestedStatus === 'approved') {
+    throw new Error('יש לאשר הצעות רק דרך updateProposalAgreementStatus.');
+  }
+  if (touchesApprovalField) {
+    throw new Error('יש לעדכן שדות אישור רק דרך updateProposalAgreementStatus.');
   }
 }
 
@@ -6019,11 +6023,6 @@ export const api = {
       if (cs === 'sent') throw new Error('הצעה שנשלחה נעולה ולא ניתן לערוך את פריטיה.');
     }
     const groupLookup = await getProposalGroupLookup();
-    const { error: delError } = await supabase
-      .from('proposal_agreement_items')
-      .delete()
-      .eq('proposal_agreement_id', rowId);
-    if (delError) throw new Error(delError.message || 'items_delete_failed');
     const hasMeaningfulProposalItemValue = (item = {}) => Boolean(
       cleanProposalAgreementText(item.item_name ?? item.itemName) ||
       cleanProposalAgreementText(item.source_pricing_key ?? item.sourcePricingKey) ||
@@ -6066,12 +6065,11 @@ export const api = {
         }
         return row;
       });
-    if (!validItems.length) return { ok: true, items: [] };
-    const { data, error } = await supabase
-      .from('proposal_agreement_items')
-      .insert(validItems)
-      .select('id,item_name,sort_order');
-    if (error) throw new Error(error.message || 'items_insert_failed');
+    const { data, error } = await supabase.rpc('save_proposal_agreement_items_atomic', {
+      p_proposal_id: rowId,
+      p_items: validItems
+    });
+    if (error) throw new Error(error.message || 'items_atomic_save_failed');
     return { ok: true, items: Array.isArray(data) ? data : [] };
   },
   addContact: async (payload) => {
