@@ -401,7 +401,7 @@ test('exceptions screen separates end_date_passed and end_date_after_cutoff into
 });
 
 test('exceptions screen group count uses unique activities and explains duplicate records', () => {
-  const state = { exceptionsListFilters: {}, activityListFilters: {}, clientSettings: {} };
+  const state = { exceptionsTab: 'general', exceptionsListFilters: {}, activityListFilters: {}, clientSettings: {} };
   const data = {
     month: '2026-05',
     rows: [
@@ -438,7 +438,7 @@ test('exceptions screen dedupes duplicate exceptionInstances with the same RowID
     exception_types: row.exception_types
   })));
   assert.equal(deduped.length, 3);
-  const html = exceptionsScreen.render(data, { state: { listFilters: {}, clientSettings: {} } });
+  const html = exceptionsScreen.render(data, { state: { exceptionsTab: 'general', listFilters: {}, clientSettings: {} } });
   assert.equal((html.match(/data-card-action="exception:A1:/g) || []).length, 2, 'same activity with two exception types should render two cards with unique instance actions');
   assert.equal((html.match(/data-card-action="exception:B2:/g) || []).length, 1, 'duplicate same-type instances should render one card');
   assert.equal((html.match(/data-exception-type="missing_instructor"/g) || []).length, 2);
@@ -446,7 +446,7 @@ test('exceptions screen dedupes duplicate exceptionInstances with the same RowID
 });
 
 test('exceptions screen totals, district sum, and rendered cards use the same exception instances', () => {
-  const state = { listFilters: {}, clientSettings: {} };
+  const state = { exceptionsTab: 'general', listFilters: {}, clientSettings: {} };
   const data = {
     month: '2026-05',
     rows: [
