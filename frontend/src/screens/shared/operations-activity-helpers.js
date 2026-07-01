@@ -326,15 +326,30 @@ export function getActivityGradeLabel(activity) {
   return String(activity?.grade || activity?.class_group || activity?.group || activity?.class || '').trim();
 }
 
+function summerContactValue(activity, ...fields) {
+  if (normalizeActivitySeason(activity?.activity_season ?? activity?.activitySeason) !== ACTIVITY_SEASON_SUMMER_2026) return null;
+  for (const field of fields) {
+    const value = String(activity?.[field] ?? '').trim();
+    if (value) return value;
+  }
+  return '';
+}
+
 export function getActivityAddress(activity) {
+  const summerAddress = summerContactValue(activity, 'summer_school_address', 'school_address');
+  if (summerAddress !== null) return summerAddress;
   return String(activity?.address || activity?.school_address || '').trim();
 }
 
 export function getActivityContactName(activity) {
+  const summerName = summerContactValue(activity, 'summer_contact_name', 'contact_name');
+  if (summerName !== null) return summerName;
   return String(activity?.contact_name || activity?.school_contact_name || '').trim();
 }
 
 export function getActivityContactPhone(activity) {
+  const summerPhone = summerContactValue(activity, 'summer_contact_phone', 'contact_phone');
+  if (summerPhone !== null) return summerPhone;
   return String(activity?.contact_phone || activity?.phone || activity?.mobile || '').trim();
 }
 
