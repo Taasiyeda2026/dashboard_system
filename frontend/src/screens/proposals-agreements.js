@@ -855,7 +855,10 @@ function canTransitionProposalStatus(row, nextStatus, state) {
   if (!canManage || !STATUS_OPTIONS.includes(targetStatus)) return false;
   if (currentStatus === 'sent' || currentStatus === 'cancelled') return false;
   if (targetStatus === currentStatus) return true;
-  if (targetStatus === 'approved') return canApprove && currentStatus === 'pending_approval';
+  if (targetStatus === 'approved') {
+    const needsResign = currentStatus === 'approved' && (!proposalHasSavedApprovalSignature(row) || !text(row?.approved_at));
+    return canApprove && (currentStatus === 'pending_approval' || needsResign);
+  }
   if (targetStatus === 'returned_for_changes') return canApprove && currentStatus === 'pending_approval';
   if (targetStatus === 'sent') return currentStatus === 'approved' && proposalHasSavedApprovalSignature(row) && Boolean(text(row?.approved_at));
   if (targetStatus === 'cancelled') return canApprove && ['draft', 'pending_approval', 'returned_for_changes'].includes(currentStatus);
@@ -2937,7 +2940,7 @@ function formHtml(mode, row = {}, activityNameOptions = [], contactOptions = [],
           ${proposalTypeCardsHtml(normalizedActivityGroup)}
         </div>
         <div class="ds-pa-type-meta-aux">
-          ${mode === 'edit' ? `<label class="ds-pa-form-field"><span>${escapeHtml(FIELD_LABELS.proposal_date)}</span><input class="ds-input ds-input--sm" type="date" name="proposal_date" value="${escapeHtml(proposalDate)}"></label><label class="ds-pa-form-field"><span>${escapeHtml(FIELD_LABELS.proposal_domain)}</span><select class="ds-input ds-input--sm" name="proposal_domain">${optionHtml('Y', row.proposal_domain || 'Y', 'Y')}${optionHtml('E', row.proposal_domain || 'Y', 'E')}</select></label>` : `<input type="hidden" name="proposal_date" value="${escapeHtml(proposalDate)}">`}
+          <label class="ds-pa-form-field"><span>${escapeHtml(FIELD_LABELS.proposal_date)}</span><input class="ds-input ds-input--sm" type="date" name="proposal_date" value="${escapeHtml(proposalDate)}"></label><label class="ds-pa-form-field"><span>${escapeHtml(FIELD_LABELS.proposal_domain)}: Y / E</span><select class="ds-input ds-input--sm" name="proposal_domain">${optionHtml('Y', row.proposal_domain || 'Y', 'Y')}${optionHtml('E', row.proposal_domain || 'Y', 'E')}</select></label>
           <input type="hidden" name="document_type" value="${escapeHtml(text(row.document_type) || 'הצעת מחיר')}">
         </div>
       </div>
@@ -4436,6 +4439,25 @@ export const proposalsAgreementsScreen = {
       });
     };
 
+    const resetLocalFilters = () => {
+      const search = root.querySelector('[data-pa-search]');
+      if (search) search.value = '';
+      root.querySelectorAll('[data-pa-filter]').forEach((filter) => { filter.value = ''; });
+    };
+
+    const highlightProposalRow = (id) => {
+      const rowId = text(id);
+      if (!rowId) return;
+      setTimeout(() => {
+        const row = root.querySelector(`[data-pa-row-id="${window.CSS?.escape ? window.CSS.escape(rowId) : rowId}"]`);
+        if (!row) return;
+        const previousBackground = row.style.backgroundColor;
+        row.style.backgroundColor = '#fef3c7';
+        row.scrollIntoView?.({ block: 'center', behavior: 'smooth' });
+        setTimeout(() => { row.style.backgroundColor = previousBackground; }, 3500);
+      }, 0);
+    };
+
     const closeForm = () => {
       if (!formHost) return;
       formHost.hidden = true;
@@ -4549,8 +4571,9 @@ export const proposalsAgreementsScreen = {
       const payload = payloadFromForm(form);
       // Always set status explicitly — 'draft' is the safe default
       const targetStatus = statusOverride || 'draft';
-      payload.status = targetStatus;
-      if (signatureMeta && typeof signatureMeta === 'object') payload.signature_meta = signatureMeta;
+      const approvingWithSignature = targetStatus === 'approved';
+      payload.status = approvingWithSignature ? 'pending_approval' : targetStatus;
+      if (signatureMeta && typeof signatureMeta === 'object' && !approvingWithSignature) payload.signature_meta = signatureMeta;
       const isPending = targetStatus === 'sent' || targetStatus === 'pending_approval';
 
       const validationErrors = validatePayload(payload, targetStatus);
@@ -4589,7 +4612,20 @@ export const proposalsAgreementsScreen = {
           console.debug('[PA_SAVE_ITEMS]', { savedId, activity_type_group: payload.activity_type_group, items });
           await api.saveProposalAgreementItems(savedId, items);
         }
-        replaceLocalRow(data, result?.row || { ...payload, id: savedId });
+        let finalRow = result?.row || { ...payload, id: savedId };
+        if (approvingWithSignature && savedId) {
+          const approval = await api.updateProposalAgreementStatus(savedId, 'approved', '', signatureMeta || defaultSignatureMeta());
+          finalRow = approval?.row || { ...finalRow, status: 'approved', signature_meta: signatureMeta || defaultSignatureMeta(), approved_at: new Date().toISOString() };
+          showToast('ההצעה אושרה ונחתמה', 'success');
+        } else if (targetStatus === 'pending_approval') {
+          showToast('ההצעה נשלחה לאישור ומופיעה תחת סטטוס ממתין לאישור', 'success');
+        } else if (targetStatus === 'draft') {
+          showToast('הטיוטה נשמרה בהצלחה', 'success');
+        }
+        replaceLocalRow(data, finalRow);
+        resetLocalFilters();
+        switchTab('records');
+        highlightProposalRow(savedId);
         refreshTable();
         closeForm();
         const drawer = root.querySelector('[data-pa-drawer]');
