@@ -3365,6 +3365,36 @@ async function ensureContactSchoolFromProposal(payload = {}) {
   return contactSchoolId ?? null;
 }
 
+async function resolveValidProposalContactSchoolId(value) {
+  const id = Number(value);
+  if (!Number.isInteger(id) || id <= 0) return null;
+  const { data, error } = await supabase
+    .from('contacts_schools')
+    .select('id')
+    .eq('id', id)
+    .maybeSingle();
+  if (error) throw new Error(error.message || 'contact_school_validation_failed');
+  return data?.id != null ? Number(data.id) : null;
+}
+
+function proposalRequiresValidContactSchool(payload = {}) {
+  const status = statusForDb(cleanProposalAgreementText(payload.status));
+  const clientType = cleanProposalAgreementText(payload.client_type);
+  return clientType !== 'other' && (status === 'pending_approval' || status === 'sent' || status === 'approved');
+}
+
+async function ensureValidProposalContactSchoolId(payload = {}) {
+  const existingId = await resolveValidProposalContactSchoolId(payload.contact_school_id);
+  if (existingId != null) return existingId;
+  const ensuredId = await ensureContactSchoolFromProposal(payload);
+  const validEnsuredId = await resolveValidProposalContactSchoolId(ensuredId);
+  if (validEnsuredId != null) return validEnsuredId;
+  if (proposalRequiresValidContactSchool(payload)) {
+    throw new Error('לא ניתן לשלוח לאישור לפני בחירת איש קשר/מוסד תקף.');
+  }
+  return null;
+}
+
 
 function isProposalTestHoursItem(item = {}) {
   const identity = [item.item_name, item.item_type, item.activity_name, item.description]
@@ -5685,9 +5715,8 @@ export const api = {
       client_type: cleanProposalAgreementText(payload.client_type) || (resolvedSchool.school_id ? 'school' : 'authority')
     };
     const insert = sanitizeProposalAgreementPayload(enrichedPayload, groupLookup);
-    if (enrichedPayload.client_type !== 'other' && !insert.contact_school_id) {
-      const contactSchoolId = await ensureContactSchoolFromProposal({ ...insert, _contact_original: enrichedPayload?._contact_original });
-      if (contactSchoolId != null) insert.contact_school_id = contactSchoolId;
+    if (enrichedPayload.client_type !== 'other') {
+      insert.contact_school_id = await ensureValidProposalContactSchoolId({ ...insert, _contact_original: enrichedPayload?._contact_original });
     }
     const { data, error } = await supabase
       .from('proposals_agreements')
@@ -5717,9 +5746,8 @@ export const api = {
     };
     const patch = sanitizeProposalAgreementPayload(enrichedPayload, groupLookup);
     patch.updated_at = new Date().toISOString();
-    if (enrichedPayload.client_type !== 'other' && !patch.contact_school_id) {
-      const contactSchoolId = await ensureContactSchoolFromProposal({ ...patch, _contact_original: enrichedPayload?._contact_original });
-      if (contactSchoolId != null) patch.contact_school_id = contactSchoolId;
+    if (enrichedPayload.client_type !== 'other') {
+      patch.contact_school_id = await ensureValidProposalContactSchoolId({ ...patch, _contact_original: enrichedPayload?._contact_original });
     }
     const { data, error } = await supabase
       .from('proposals_agreements')
