@@ -2294,6 +2294,9 @@ function costsIntroBody(row = {}, items = []) {
   if (templateKey === 'summer' || isSummerProposalGroup(row.activity_type_group)) {
     return '';
   }
+  if (isTourProposalGroup(row.activity_type_group)) {
+    return '';
+  }
   if (isCourseKindText(groupText)) {
     return visibleCount === 1
       ? 'להלן פירוט הקורס והעלות הכלולה בהצעה.'
