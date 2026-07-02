@@ -6066,11 +6066,21 @@ export const api = {
         try { const parsed = Array.isArray(item.selected_bundle_items ?? item.selectedBundleItems) ? (item.selected_bundle_items ?? item.selectedBundleItems) : JSON.parse(item.selected_bundle_items ?? item.selectedBundleItems ?? '[]'); selectedBundleItems = Array.isArray(parsed) ? parsed : []; } catch { selectedBundleItems = []; }
         const rawListId = item.list_id ?? item.listId;
         const safeListId = numericListIdOrNull(rawListId);
+        const itemName = cleanProposalAgreementText(item.item_name ?? item.itemName);
+        const proposalGroup = normalizeProposalGroupValue(
+          item.proposal_group ?? item.proposalGroup ?? item.group_key ?? item.groupKey,
+          groupLookup
+        );
+        const rawItemType = cleanProposalAgreementText(item.item_type ?? item.itemType);
+        const safeItemType =
+          rawItemType
+          || (/(סיור|tour)/i.test(`${proposalGroup} ${itemName}`) ? 'סיור' : '')
+          || 'פעילות';
         const row = withSafeNumericListId({
           proposal_agreement_id: rowId,
           activity_no:           cleanProposalAgreementText(item.activity_no ?? item.activityNo ?? item.pricing_activity_no ?? item.pricingActivityNo),
-          item_name:             cleanProposalAgreementText(item.item_name ?? item.itemName),
-          item_type:             cleanProposalAgreementText(item.item_type ?? item.itemType),
+          item_name:             itemName,
+          item_type:             safeItemType,
           gefen_number:          cleanProposalAgreementText(item.gefen_number ?? item.gefenNumber),
           meetings_count:        item.meetings_count != null ? Number(item.meetings_count) || null : (item.meetingsCount != null ? Number(item.meetingsCount) || null : null),
           hours_count:           item.hours_count != null ? Number(item.hours_count) || null : (item.hoursCount != null ? Number(item.hoursCount) || null : null),
@@ -6081,7 +6091,7 @@ export const api = {
           description:           cleanProposalAgreementText(item.description),
           course_note:           cleanProposalAgreementText(item.course_note ?? item.courseNote ?? item.manual_note ?? item.manualNote) || null,
           unit_duration:         cleanProposalAgreementText(item.unit_duration ?? item.unitDuration),
-          proposal_group:        normalizeProposalGroupValue(item.proposal_group ?? item.proposalGroup ?? item.group_key ?? item.groupKey, groupLookup),
+          proposal_group:        proposalGroup,
           sort_order:            idx,
           proposal_display_mode: cleanProposalAgreementText(item.proposal_display_mode ?? item.proposalDisplayMode) || 'single',
           source_pricing_key:    cleanProposalAgreementText(item.source_pricing_key ?? item.sourcePricingKey ?? item.pricing_key ?? item.pricingKey) || null,

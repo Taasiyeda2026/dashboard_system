@@ -1589,10 +1589,12 @@ function tourItemFromDetails(details = {}, fallback = {}) {
     quantity,
     total_price: total
   };
+  const tourItemType = text(fallback.item_type || fallback.itemType) || 'סיור';
   return normalizeProposalItemRow({
     ...fallback,
     item_name: TOUR_ACTIVITY_NAME,
-    item_type: text(fallback.item_type) || 'סיור',
+    item_type: tourItemType,
+    itemType: tourItemType,
     gefen_number: TOUR_GEFEN_NUMBER,
     quantity: quantity || 1,
     unit_price: unitPrice,
@@ -1719,7 +1721,9 @@ function extractItemsFromForm(form) {
       quantity: numberValue(get('tour_quantity')) ?? 1,
       total_price: numberValue(get('tour_total_price'))
     };
-    return [tourItemFromDetails(details)].filter(hasMeaningfulProposalItemValue);
+    return [tourItemFromDetails(details, { item_type: 'סיור', itemType: 'סיור' })]
+      .map((item) => ({ ...item, item_type: text(item.item_type || item.itemType) || 'סיור', itemType: text(item.item_type || item.itemType) || 'סיור' }))
+      .filter(hasMeaningfulProposalItemValue);
   }
   return Array.from(form.querySelectorAll('[data-pa-item-row]')).map((row, rowIdx) => {
     const rawBundleItems = text(row.querySelector('[name="item_selected_bundle_items"]')?.value) || '[]';

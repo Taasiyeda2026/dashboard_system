@@ -37,7 +37,7 @@ begin
     p_proposal_id,
     nullif(item->>'activity_no', ''),
     nullif(item->>'item_name', ''),
-    nullif(item->>'item_type', ''),
+    coalesce(nullif(item->>'item_type', ''), 'פעילות'),
     nullif(item->>'gefen_number', ''),
     nullif(item->>'meetings_count', '')::numeric,
     nullif(item->>'hours_count', '')::numeric,
