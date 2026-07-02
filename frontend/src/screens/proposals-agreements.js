@@ -205,6 +205,9 @@ const TOUR_TEMPLATE_KEY = 'tour';
 const TOUR_ACTIVITY_NAME = 'התנסות בתעשייה – סיור לימודי חווייתי';
 const TOUR_GEFEN_NUMBER = '13990';
 const TOUR_ACTIVITY_LINE = `${TOUR_ACTIVITY_NAME} – גפ״ן ${TOUR_GEFEN_NUMBER}`;
+const TOUR_INTRO_BODY = `תעשיידע היא עמותה חינוכית-טכנולוגית הפועלת לחיבור בין מערכת החינוך לבין התעשייה, החדשנות ועולמות התעסוקה. במסגרת פעילותה מובילה העמותה סיורים לימודיים-חווייתיים המאפשרים לתלמידים חשיפה לסביבות עבודה אמיתיות, לטכנולוגיות מתקדמות ולבעלי תפקידים מגוונים.
+
+הסיור מחבר בין הלמידה בבית הספר לבין היישום המעשי בשטח, מעודד סקרנות וחשיבה יזמית ומסייע לתלמידות ולתלמידים להיחשף לאפשרויות עתידיות בלימודים ובעולם העבודה. הסיור מותאם לשכבת הגיל, למגמות הלימוד, למטרות החינוכיות של בית הספר ולאופי הגוף המארח.`;
 const TOUR_ACTIVITY_INTRO_BODY = `להלן הפעילות המוצעת לשנת הלימודים תשפ״ז:
 ${TOUR_ACTIVITY_LINE}`;
 const TOUR_CANCELLATION_TERMS_BODY = `ביטול סיור בהתראה של פחות משני ימי עבודה יחויב כסיור שהתקיים בפועל.
@@ -759,7 +762,8 @@ function signatureSectionHtml(_signatureBody = '', row = {}, options = {}) {
 
   return `<div class="pa-footer-signature" aria-label="חתימה">
     <div class="pa-blessing">בברכה,</div>
-    <div class="pa-signer-block" style="margin-top:2.4em;">
+    <div class="pa-signature-spacer" aria-hidden="true"><br><br></div>
+    <div class="pa-signer-block">
       ${imageHtml}
       <div class="pa-signature-rule" aria-hidden="true"></div>
       <div class="pa-signer-name">${DEFAULT_SIGNER_NAME}</div>
@@ -2320,6 +2324,13 @@ function proposalRecipientLines(row = {}) {
     if (s.includes('ללא בית ספר') || s.includes('הצעה לרשות')) return '';
     return s;
   };
+  const recipientLine = (...values) => {
+    const parts = [];
+    values.map(safeVal).forEach((value) => {
+      if (value && !parts.includes(value)) parts.push(value);
+    });
+    return parts.join(', ');
+  };
   const clientType = ['school', 'authority', 'other'].includes(safeVal(row.client_type))
     ? safeVal(row.client_type)
     : inferProposalClientType(row);
@@ -2329,20 +2340,26 @@ function proposalRecipientLines(row = {}) {
   const otherName = schoolFramework || safeVal(row.client_name) || safeVal(row.other_client_name);
 
   if (clientType === 'authority') return [authorityName].filter(Boolean);
-  if (clientType === 'other') return [otherName].filter(Boolean);
-  return [schoolName, authorityName].filter(Boolean);
+  if (clientType === 'other') return [recipientLine(otherName, authorityName)].filter(Boolean);
+  return [recipientLine(schoolName, authorityName)].filter(Boolean);
 }
 
 function recipientBlockHtml(row = {}) {
-  const safeVal = (v) => { const s = text(v); return (s === 'undefined' || s === 'null') ? '' : s; };
+  const safeVal = (v) => { const s = text(v); return (!s || s === 'undefined' || s === 'null') ? '' : s; };
   const contactName = safeVal(row.contact_name);
   const contactRole = normalizeContactRoleDisplay(safeVal(row.contact_role));
+  const phone = safeVal(row.phone);
+  const email = safeVal(row.email);
   const contactParts = [];
   if (contactName) contactParts.push(`<strong>${escapeHtml(contactName)}</strong>`);
   if (contactRole && contactRole !== contactName) contactParts.push(escapeHtml(contactRole));
   const contactLine = contactParts.length ? `<p>${contactParts.join(', ')}</p>` : '';
+  const contactDetailParts = [];
+  if (phone) contactDetailParts.push(`טלפון: ${escapeHtml(phone)}`);
+  if (email) contactDetailParts.push(`דוא״ל: ${escapeHtml(email)}`);
+  const contactDetailsLine = contactDetailParts.length ? `<p>${contactDetailParts.join(' | ')}</p>` : '';
   const orgLines = proposalRecipientLines(row).map((line) => recipientLineHtml(line));
-  const lines = [contactLine, ...orgLines].filter(Boolean);
+  const lines = [contactLine, contactDetailsLine, ...orgLines].filter(Boolean);
   const recipientLinesHtml = lines.join('\n    ');
   return `<div class="pa-doc-address pa-to-block" style="margin:0 0 6mm 0;">
   <p class="pa-label-to" style="margin:0;"><strong>לכבוד:</strong></p>
@@ -2570,10 +2587,63 @@ function buildProposalDocumentHtml({ dateDisplay, documentTitle, row, introText,
           padding-inline: 4mm !important;
           box-sizing: border-box !important;
         }
+
+        .pa-tour-cost-table {
+          width: 85%;
+          max-width: 85%;
+          margin-inline: auto;
+          table-layout: fixed;
+          border-collapse: collapse;
+          direction: rtl;
+        }
+        .pa-tour-cost-table th,
+        .pa-tour-cost-table td {
+          box-sizing: border-box;
+          text-align: center;
+          vertical-align: middle;
+          white-space: normal;
+          overflow-wrap: anywhere;
+        }
+        .pa-tour-cost-table th:first-child,
+        .pa-tour-cost-table td:first-child {
+          text-align: right;
+        }
+        .pa-tour-cost-table .pa-currency-amount,
+        .pa-tour-cost-table .money-amount {
+          display: inline-block;
+          max-width: 100%;
+          white-space: nowrap;
+        }
+        .pa-tour-class-col { width: 24%; }
+        .pa-tour-students-col { width: 12%; }
+        .pa-tour-student-price-col { width: 14%; }
+        .pa-tour-guide-col { width: 13%; }
+        .pa-tour-transport-col { width: 13%; }
+        .pa-tour-quantity-col { width: 10%; }
+        .pa-tour-total-col { width: 14%; }
         @media print {
           .pa-org-intro {
             padding-inline: 4mm !important;
             box-sizing: border-box !important;
+          }
+          .pa-tour-cost-table {
+            width: 85% !important;
+            max-width: 85% !important;
+            margin-inline: auto !important;
+            table-layout: fixed !important;
+          }
+          .pa-tour-cost-table th,
+          .pa-tour-cost-table td {
+            padding: 2mm 1.5mm !important;
+            font-size: 8.5pt !important;
+            line-height: 1.25 !important;
+            white-space: normal !important;
+            overflow: hidden !important;
+            text-overflow: clip !important;
+          }
+          .pa-tour-cost-table .pa-currency-amount,
+          .pa-tour-cost-table .money-amount {
+            white-space: nowrap !important;
           }
         }
       </style>
@@ -2639,7 +2709,7 @@ export function proposalPreviewBodyHtml(row, items = [], templateSections = [], 
   const sectionTitle = (key) => text(byKey.get(key)?.section_title);
 
   const includeCatalog = false;
-  const introText = sectionBody('intro');
+  const introText = isTourProposalGroup(activityTypeGroup) ? TOUR_INTRO_BODY : sectionBody('intro');
   const remarks = sectionBody('notes');
   const templateActivityIntro = filterCatalogContentFromBody(sectionBody('activity_intro'), false);
   const activityIntro = isTourProposalGroup(activityTypeGroup)
