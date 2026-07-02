@@ -2939,6 +2939,60 @@ test('bundle parent cost table uses parent quantity in print preview', async () 
   });
 });
 
+
+test('tour proposal preview uses scoped 85 percent cost table and omits generic cost intro', () => {
+  const row = {
+    id: 'tour-preview-1',
+    activity_type_group: 'סיור',
+    proposal_date: '2026-07-01',
+    client_authority: 'עיריית בדיקה',
+    school_framework: 'בית ספר בדיקה',
+    contact_name: 'רחל כהן',
+    contact_role: 'רכזת'
+  };
+  const items = [{
+    item_name: 'סיור לימודי',
+    item_type: 'סיור',
+    proposal_group: 'סיור',
+    proposal_display_mode: 'tour_table',
+    details: {
+      kind: 'tour_table',
+      class_name: 'כיתה ח׳',
+      students_count: 30,
+      price_per_student: 50,
+      guide_cost: 400,
+      transport_cost: 800,
+      quantity: 2,
+      total_price: 5400
+    }
+  }];
+
+  const html = proposalPreviewBodyHtml(row, items, [
+    { template_key: 'tour', section_key: 'payment_terms', section_title: 'תמורה ותנאי תשלום', section_body: 'פירוט הפעילויות והעלויות מוצג בטבלת העלויות שלהלן.' },
+    { template_key: 'tour', section_key: 'signature', section_title: 'חתימה', section_body: 'עידן נחום, סמנכ״ל כספים ותפעול' }
+  ]);
+  const dom = new JSDOM(html);
+  const doc = dom.window.document;
+  const styleText = doc.querySelector('style')?.textContent || '';
+  const table = doc.querySelector('.pa-tour-cost-table');
+
+  assert.ok(table, 'tour cost table should still render');
+  assert.equal(table.querySelectorAll('colgroup col').length, 7);
+  assert.match(styleText, /\.pa-tour-cost-table\s*\{[^}]*width:\s*85%/s);
+  assert.match(styleText, /\.pa-tour-cost-table\s*\{[^}]*max-width:\s*85%/s);
+  assert.match(styleText, /\.pa-tour-cost-table\s*\{[^}]*margin-inline:\s*auto/s);
+  assert.match(styleText, /\.pa-tour-cost-table th,\s*\.pa-tour-cost-table td\s*\{[^}]*text-align:\s*center/s);
+  assert.match(styleText, /\.pa-tour-cost-table th:first-child,\s*\.pa-tour-cost-table td:first-child\s*\{[^}]*text-align:\s*right/s);
+  assert.match(styleText, /@media print[\s\S]*\.pa-tour-cost-table\s*\{[\s\S]*width:\s*85% !important/);
+  assert.match(styleText, /\.pa-tour-class-col\s*\{\s*width:\s*24%;\s*\}/);
+  assert.match(styleText, /\.pa-tour-total-col\s*\{\s*width:\s*14%;\s*\}/);
+  const docText = doc.documentElement.textContent || '';
+  assert.doesNotMatch(docText, /פירוט הפעילויות והעלויות מוצג בטבלת העלויות שלהלן\./);
+  assert.match(docText, /התשלום עבור הסיור יבוצע בהתאם לטבלה שלהלן:/);
+  assert.ok(doc.querySelector('.pa-signature-spacer'), 'signature spacer should render');
+  assert.equal(doc.querySelector('.pa-signature-spacer')?.querySelectorAll('br').length, 2);
+});
+
 test('catalog PDF appendices use fixed workshop/tour PDFs and specific selected course PDFs only', () => {
   const entries = buildProposalCatalogPdfEntries(
     { activity_type_group: 'הצעה משולבת' },
