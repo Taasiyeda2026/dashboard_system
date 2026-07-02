@@ -60,7 +60,7 @@ const MIGRATION_FILE = new URL('../supabase/migrations/20260518_create_proposals
 const ROLE_UPDATE_MIGRATION_FILE = new URL('../supabase/migrations/20260602_add_business_development_manager_role.sql', import.meta.url);
 const APPROVAL_GUARD_MIGRATION_FILE = new URL('../supabase/migrations/20260616_proposals_agreements_approval_guard.sql', import.meta.url);
 
-const { proposalsAgreementsScreen, canAccessProposalsAgreements, canManageProposalsAgreements, STATUS_LABELS, STATUS_OPTIONS, buildProposalCatalogPdfEntries, proposalPreviewBodyHtml, normalizeProposalAgreementRow, countPendingApprovedProposals, isProposalApprovedPendingSend, extractItemsFromForm, sortRows, calculateTourTotal, validatePayload, resetRecipientDependentFields } = await import('../frontend/src/screens/proposals-agreements.js');
+const { proposalsAgreementsScreen, canAccessProposalsAgreements, canManageProposalsAgreements, STATUS_LABELS, STATUS_OPTIONS, buildProposalCatalogPdfEntries, proposalPreviewBodyHtml, normalizeProposalAgreementRow, countPendingApprovedProposals, isProposalApprovedPendingSend, extractItemsFromForm, sortRows, calculateTourTotal, validatePayload, resetRecipientDependentFields, stepComplete } = await import('../frontend/src/screens/proposals-agreements.js');
 
 function stateFor(role) {
   return {
@@ -1050,6 +1050,8 @@ test('switching recipient type from school to authority clears school fields and
       assert.equal(form.querySelector('input[name="school_framework"]').value, '');
       assert.equal(form.querySelector('input[name="contact_source_school_id"]').value, '');
       assert.equal(form.querySelector('input[name="contact_source_id"]').value, '');
+      assert.equal(form.querySelector('[data-pa-school-search-panel]').hidden, true, 'school panel should hide after switching to authority');
+      assert.equal(form.querySelector('[data-pa-client-search-field-wrap]').hidden, false, 'authority search should be visible');
       const preview = previewText(form);
       assert.doesNotMatch(preview, /בית ספר א/);
       assert.doesNotMatch(preview, /מנהל\/ת בית הספר/);
@@ -1084,16 +1086,60 @@ test('switching recipient type from school to other clears authority and school 
       assert.equal(form.querySelector('input[name="contact_source_school_id"]').value, '');
       assert.equal(form.querySelector('input[name="contact_name"]').value, '');
       assert.equal(form.querySelector('input[name="contact_role"]').value, '');
+      assert.equal(form.querySelector('[data-pa-other-client-field]').hidden, false, 'other client name field should be visible');
+      assert.equal(form.querySelector('[data-pa-contact-manual-fields]').hidden, false, 'manual contact fields should be visible for other');
+      assert.equal(form.querySelector('[data-pa-contact-channels-fields]').hidden, false, 'contact channels should be visible for other');
+      assert.equal(form.querySelector('[data-pa-step-panel="contact"]').hidden, false, 'contact panel should be open for other');
 
       const otherName = 'עמותת בדיקה';
       form.querySelector('input[name="other_client_name"]').value = otherName;
       form.querySelector('input[name="other_client_name"]').dispatchEvent(new dom.window.Event('input', { bubbles: true }));
       await delay(20);
 
+      assert.equal(stepComplete(form).client, true, 'other recipient is complete without client_authority');
+
       const preview = previewText(form);
       assert.match(preview, new RegExp(otherName));
       assert.doesNotMatch(preview, /רשות א/);
       assert.doesNotMatch(preview, /בית ספר א/);
+    }
+  );
+});
+
+test('stepComplete returns clientDone per recipient type', async () => {
+  await withJSDOM(
+    proposalsAgreementsScreen.render({ rows: [], contactOptions: sampleContactOptions }, { state: stateFor('admin') }),
+    (root, dom) => {
+      proposalsAgreementsScreen.bind({
+        root,
+        data: { rows: [], activityNameOptions: [], contactOptions: sampleContactOptions },
+        state: stateFor('admin'),
+        api: {}
+      });
+
+      const form = openNewProposalForm(root, dom);
+
+      assert.equal(stepComplete(form).client, false, 'school starts incomplete');
+
+      setProposalCatalogIds(form, { authority_id: 'auth-a', school_id: '', client_type: 'school' });
+      assert.equal(stepComplete(form).client, false, 'school needs both authority and school ids');
+
+      setProposalCatalogIds(form, { authority_id: 'auth-a', school_id: 'school-a', client_type: 'school' });
+      assert.equal(stepComplete(form).client, true, 'school complete with authority and school ids');
+
+      selectRecipientType(form, dom, 'authority');
+      assert.equal(stepComplete(form).client, false, 'authority incomplete after reset');
+
+      setProposalCatalogIds(form, { authority_id: 'auth-a', school_id: '', client_type: 'authority' });
+      assert.equal(stepComplete(form).client, true, 'authority complete with authority id only');
+
+      selectRecipientType(form, dom, 'other');
+      assert.equal(stepComplete(form).client, false, 'other incomplete without name');
+
+      form.querySelector('input[name="other_client_name"]').value = 'גורם אחר';
+      form.querySelector('input[name="school_framework"]').value = 'גורם אחר';
+      form.querySelector('input[name="contact_source_client_type"]').value = 'other';
+      assert.equal(stepComplete(form).client, true, 'other complete with client name');
     }
   );
 });
