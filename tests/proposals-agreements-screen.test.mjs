@@ -1004,7 +1004,7 @@ test('new proposal form starts with school recipient type and authority search',
       assert.equal(form.querySelector('input[name="client_type_selector"]:checked')?.value, 'school');
       assert.match(form.innerHTML, /בית ספר/);
       assert.match(form.innerHTML, /רשות/);
-      assert.match(form.innerHTML, /גורם אחר/);
+      assert.match(form.innerHTML, />אחר</);
       assert.match(form.innerHTML, /data-pa-client-search-input/);
       assert.equal(form.querySelector('[data-pa-client-search-label]')?.textContent, 'רשות');
       assert.doesNotMatch(form.innerHTML, /הוסף ידנית/);
