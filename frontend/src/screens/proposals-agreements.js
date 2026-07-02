@@ -3928,15 +3928,22 @@ export const proposalsAgreementsScreen = {
 
       const searchField = form.querySelector('[data-pa-client-search-field]');
       const schoolSearchPanel = form.querySelector('[data-pa-school-search-panel]');
+      const input = form.querySelector('[data-pa-client-search-input]');
+      const schoolSearchInput = form.querySelector('[data-pa-school-search-input]');
+      const results = form.querySelector('[data-pa-client-results]');
+      const schoolResults = form.querySelector('[data-pa-school-results]');
       if (searchField) searchField.hidden = true;
       if (schoolSearchPanel) schoolSearchPanel.hidden = true;
-      const input = form.querySelector('[data-pa-client-search-input]');
-      const results = form.querySelector('[data-pa-client-results]');
       if (input) input.value = '';
+      if (schoolSearchInput) schoolSearchInput.value = '';
       if (results) { results.hidden = true; results.innerHTML = ''; }
+      if (schoolResults) { schoolResults.hidden = true; schoolResults.innerHTML = ''; }
+      setPanelOpen(form, 'contact', true);
       setTimeout(() => {
         calcGrandTotal(form);
         updateProposalStepper(form);
+        const contactSelect = form.querySelector('[data-pa-contact-select]');
+        if (contactSelect && !contactSelect.disabled) contactSelect.focus({ preventScroll: true });
       }, 0);
     };
     const fillContactFields = (form, contact) => {
