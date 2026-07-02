@@ -2337,14 +2337,22 @@ function proposalRecipientLines(row = {}) {
   const clientType = ['school', 'authority', 'other'].includes(safeVal(row.client_type))
     ? safeVal(row.client_type)
     : inferProposalClientType(row);
-  const schoolFramework = safeVal(row.school_framework);
-  const schoolName = schoolFramework || safeVal(row.school_name);
+  const schoolName = safeVal(row.school_framework) || safeVal(row.school_name);
   const authorityName = safeVal(row.client_authority) || safeVal(row.authority_name);
-  const otherName = schoolFramework || safeVal(row.client_name) || safeVal(row.other_client_name);
 
-  if (clientType === 'authority') return [authorityName].filter(Boolean);
-  if (clientType === 'other') return [recipientLine(otherName, authorityName)].filter(Boolean);
-  return [recipientLine(schoolName, authorityName)].filter(Boolean);
+  if (clientType === 'school') {
+    return [recipientLine(schoolName, authorityName)].filter(Boolean);
+  }
+
+  if (clientType === 'authority') {
+    return [authorityName].filter(Boolean);
+  }
+
+  if (clientType === 'other') {
+    return [];
+  }
+
+  return [];
 }
 
 function recipientBlockHtml(row = {}) {
