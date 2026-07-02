@@ -60,7 +60,7 @@ const MIGRATION_FILE = new URL('../supabase/migrations/20260518_create_proposals
 const ROLE_UPDATE_MIGRATION_FILE = new URL('../supabase/migrations/20260602_add_business_development_manager_role.sql', import.meta.url);
 const APPROVAL_GUARD_MIGRATION_FILE = new URL('../supabase/migrations/20260616_proposals_agreements_approval_guard.sql', import.meta.url);
 
-const { proposalsAgreementsScreen, canAccessProposalsAgreements, canManageProposalsAgreements, STATUS_LABELS, STATUS_OPTIONS, buildProposalCatalogPdfEntries, proposalPreviewBodyHtml, normalizeProposalAgreementRow, countPendingApprovedProposals, isProposalApprovedPendingSend, extractItemsFromForm, calculateTourTotal, validatePayload, resetRecipientDependentFields } = await import('../frontend/src/screens/proposals-agreements.js');
+const { proposalsAgreementsScreen, canAccessProposalsAgreements, canManageProposalsAgreements, STATUS_LABELS, STATUS_OPTIONS, buildProposalCatalogPdfEntries, proposalPreviewBodyHtml, normalizeProposalAgreementRow, countPendingApprovedProposals, isProposalApprovedPendingSend, extractItemsFromForm, sortRows, calculateTourTotal, validatePayload, resetRecipientDependentFields } = await import('../frontend/src/screens/proposals-agreements.js');
 
 function stateFor(role) {
   return {
@@ -1884,6 +1884,29 @@ test('proposal DB payload for other recipient keeps client name in school_framew
   assert.equal(dbPayload.authority_id, null);
   assert.equal(dbPayload.school_id, null);
   assert.equal(dbPayload.contact_school_id, null);
+});
+
+test('proposal records sort actionable statuses before sent even when sent was updated last', () => {
+  const rows = [
+    { id: 'sent-newest', status: 'sent', updated_at: '2026-07-02T12:00:00.000Z', client_authority: 'רשות נשלח' },
+    { id: 'pending-old', status: 'pending_approval', updated_at: '2026-06-01T12:00:00.000Z', client_authority: 'רשות ממתין' },
+    { id: 'approved-old', status: 'approved', updated_at: '2026-06-02T12:00:00.000Z', client_authority: 'רשות מאושר' },
+    { id: 'returned', status: 'returned_for_changes', updated_at: '2026-06-03T12:00:00.000Z', client_authority: 'רשות הוחזר' },
+    { id: 'draft', status: 'draft', updated_at: '2026-06-04T12:00:00.000Z', client_authority: 'רשות טיוטה' }
+  ];
+
+  const sorted = sortRows(rows);
+  assert.deepEqual(
+    sorted.map((row) => row.status),
+    ['pending_approval', 'approved', 'returned_for_changes', 'draft', 'sent']
+  );
+  assert.equal(sorted[0].id, 'pending-old');
+  assert.equal(sorted[1].id, 'approved-old');
+  assert.equal(sorted[sorted.length - 1].id, 'sent-newest');
+
+  const html = proposalsAgreementsScreen.render({ rows: sorted }, { state: stateFor('admin') });
+  const rowIds = [...html.matchAll(/data-pa-row-id="([^"]+)"/g)].map((match) => match[1]);
+  assert.deepEqual(rowIds, ['pending-old', 'approved-old', 'returned', 'draft', 'sent-newest']);
 });
 
 test('reading pending_approval from DB displays awaiting approval in UI', () => {

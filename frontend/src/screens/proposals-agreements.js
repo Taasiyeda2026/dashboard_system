@@ -814,11 +814,26 @@ function currencyAmountHtml(num) {
   return `<span class="pa-currency-amount money-amount" dir="ltr">${escapeHtml(display)}</span>`;
 }
 
+function proposalStatusSortPriority(row = {}) {
+  const status = normalizeProposalStatus(row?.status || 'draft');
+  if (status === 'pending_approval') return 0;
+  if (status === 'approved') return 1;
+  if (status === 'returned_for_changes') return 2;
+  if (status === 'draft') return 3;
+  if (status === 'sent') return 4;
+  if (status === 'cancelled') return 5;
+  return 9;
+}
+
+function proposalSortDate(row = {}) {
+  return new Date(text(row.updated_at) || text(row.created_at) || text(row.proposal_date) || 0).getTime() || 0;
+}
+
 function sortRows(rows) {
   return [...(Array.isArray(rows) ? rows : [])].sort((a, b) => {
-    const dateA = new Date(text(a.updated_at) || text(a.created_at) || text(a.proposal_date) || 0);
-    const dateB = new Date(text(b.updated_at) || text(b.created_at) || text(b.proposal_date) || 0);
-    return dateB - dateA;
+    const priorityDiff = proposalStatusSortPriority(a) - proposalStatusSortPriority(b);
+    if (priorityDiff !== 0) return priorityDiff;
+    return proposalSortDate(b) - proposalSortDate(a);
   });
 }
 
@@ -3890,6 +3905,8 @@ export {
   proposalPdfDocumentTitle,
   sanitizeProposalPdfFileLabel,
   proposalRecipientFileLabel,
+  sortRows,
+  proposalStatusSortPriority,
   calculateTourTotal,
   validatePayload,
   resetRecipientDependentFields
