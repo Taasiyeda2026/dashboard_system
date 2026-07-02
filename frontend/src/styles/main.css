@@ -20165,3 +20165,27 @@ details[open] > .ds-fin-acc__summary::before { transform: rotate(90deg); }
     line-height: 1.6 !important;
   }
 }
+
+/* Proposal tour editor: compact editable 2x3 field grid with computed total below. */
+.ds-pa-tour-fields-grid {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 8px 10px;
+  align-items: end;
+}
+
+.ds-pa-tour-total-field {
+  margin-top: 10px;
+}
+
+.ds-pa-tour-total-field input[readonly] {
+  background: #f8fafc;
+  color: #334155;
+  cursor: not-allowed;
+}
+
+@media (max-width: 640px) {
+  .ds-pa-tour-fields-grid {
+    grid-template-columns: 1fr;
+  }
+}

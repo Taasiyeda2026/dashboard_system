@@ -1235,6 +1235,24 @@ test('tour proposal live total follows quantity on full subtotal', async () => {
       typeInput.dispatchEvent(new dom.window.Event('change', { bubbles: true }));
       await delay(20);
       assert.ok(form.querySelector('[data-pa-tour-details]'), 'tour editor should render');
+      const tourGrid = form.querySelector('.ds-pa-tour-fields-grid[data-pa-tour-row]');
+      assert.ok(tourGrid, 'tour editable fields should render in a dedicated grid');
+      assert.deepEqual(
+        Array.from(tourGrid.querySelectorAll('input')).map((input) => input.name),
+        [
+          'tour_class_name',
+          'tour_students_count',
+          'tour_price_per_student',
+          'tour_guide_cost',
+          'tour_transport_cost',
+          'tour_quantity'
+        ]
+      );
+      const totalField = form.querySelector('.ds-pa-tour-total-field [data-pa-tour-total]');
+      assert.ok(totalField, 'tour total should render below the editable grid');
+      assert.equal(totalField.readOnly, true);
+      assert.equal(totalField.getAttribute('aria-readonly'), 'true');
+      assert.equal(tourGrid.contains(totalField), false, 'tour total should not be part of the 2x3 editable grid');
 
       const setTour = (selector, value) => {
         const el = form.querySelector(selector);

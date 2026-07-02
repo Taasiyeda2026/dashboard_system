@@ -1626,15 +1626,15 @@ function tourDetailsEditorHtml(items = []) {
   return `<div class="ds-pa-items-section ds-pa-tour-details" data-pa-tour-details>
     <div class="ds-pa-items-header"><span class="ds-pa-items-section-label">פרטי טבלת הסיור</span></div>
     <p class="ds-muted" style="font-size:0.8rem;margin:0 0 8px">הפעילות קבועה: ${escapeHtml(TOUR_ACTIVITY_LINE)}</p>
-    <div class="ds-pa-item-grid ds-pa-item-grid--extras" data-pa-tour-row>
+    <div class="ds-pa-tour-fields-grid" data-pa-tour-row>
       <label class="ds-pa-item-field"><span>כיתה</span><input class="ds-input ds-input--sm" name="tour_class_name" value="${escapeHtml(d.class_name)}"></label>
       <label class="ds-pa-item-field"><span>מספר תלמידים</span><input class="ds-input ds-input--sm" type="number" min="0" step="1" name="tour_students_count" value="${val(d.students_count)}" data-pa-tour-students></label>
       <label class="ds-pa-item-field"><span>מחיר לתלמיד</span><input class="ds-input ds-input--sm" type="number" min="0" step="any" name="tour_price_per_student" value="${val(d.price_per_student)}" data-pa-tour-price></label>
       <label class="ds-pa-item-field"><span>מדריך</span><input class="ds-input ds-input--sm" type="number" min="0" step="any" name="tour_guide_cost" value="${val(d.guide_cost)}" data-pa-tour-guide></label>
       <label class="ds-pa-item-field"><span>הסעה</span><input class="ds-input ds-input--sm" type="number" min="0" step="any" name="tour_transport_cost" value="${val(d.transport_cost)}" data-pa-tour-transport></label>
       <label class="ds-pa-item-field"><span>כמות</span><input class="ds-input ds-input--sm" type="number" min="0" step="any" name="tour_quantity" value="${val(d.quantity) || '1'}" data-pa-tour-quantity></label>
-      <label class="ds-pa-item-field"><span>סה״כ</span><input class="ds-input ds-input--sm" type="number" min="0" step="any" name="tour_total_price" value="${total}" data-pa-tour-total></label>
     </div>
+    <label class="ds-pa-item-field ds-pa-tour-total-field"><span>סה״כ</span><input class="ds-input ds-input--sm" type="number" min="0" step="any" name="tour_total_price" value="${total}" data-pa-tour-total readonly aria-readonly="true"></label>
     <div class="ds-pa-items-total-row">סה״כ כללי: <strong data-pa-grand-total>${total ? `₪ ${formatCurrency(total)}` : '₪ 0'}</strong></div>
   </div>`;
 }
