@@ -20086,3 +20086,82 @@ details[open] > .ds-fin-acc__summary::before { transform: rotate(90deg); }
   white-space: normal;
   overflow-wrap: anywhere;
 }
+
+/* Proposal recipient/print cleanup: hide non-print contact channels and remove text dividers. */
+.proposal-document.pa-document .pa-print-hidden-contact-details {
+  display: block;
+}
+
+.proposal-document.pa-document .pa-doc-divider,
+.proposal-document.pa-document .pa-divider,
+.proposal-document.pa-document hr {
+  display: none !important;
+  border: 0 !important;
+}
+
+.proposal-document.pa-document .pa-section,
+.proposal-document.pa-document .pa-section-body,
+.proposal-document.pa-document .pa-section-text,
+.proposal-document.pa-document .pa-section-body p,
+.proposal-document.pa-document .pa-proposal-list {
+  border-top: 0 !important;
+  border-bottom: 0 !important;
+}
+
+.proposal-document.pa-document .pa-section {
+  margin-block: 3.5mm;
+}
+
+.proposal-document.pa-document .pa-section-body p {
+  margin: 0 0 2.2mm 0 !important;
+  line-height: 1.65;
+}
+
+.proposal-document.pa-document .pa-section-body p:last-child {
+  margin-bottom: 0 !important;
+}
+
+.proposal-document.pa-document .pa-proposal-list {
+  margin-block: 2mm 3mm !important;
+}
+
+.proposal-document.pa-document .pa-proposal-list li {
+  margin-bottom: 1.2mm !important;
+  line-height: 1.6;
+}
+
+@media print {
+  .proposal-document.pa-document .pa-print-hidden-contact-details {
+    display: none !important;
+  }
+
+  .proposal-document.pa-document .pa-doc-divider,
+  .proposal-document.pa-document .pa-divider,
+  .proposal-document.pa-document hr {
+    display: none !important;
+    border: 0 !important;
+  }
+
+  .proposal-document.pa-document .pa-section,
+  .proposal-document.pa-document .pa-section-body,
+  .proposal-document.pa-document .pa-section-text,
+  .proposal-document.pa-document .pa-section-body p,
+  .proposal-document.pa-document .pa-proposal-list {
+    border-top: 0 !important;
+    border-bottom: 0 !important;
+  }
+
+  .proposal-document.pa-document .pa-section {
+    margin-block: 3.5mm !important;
+  }
+
+  .proposal-document.pa-document .pa-section-body p {
+    margin: 0 0 2.2mm 0 !important;
+    line-height: 1.65 !important;
+  }
+
+  .proposal-document.pa-document .pa-proposal-list li {
+    margin-bottom: 1.2mm !important;
+    line-height: 1.6 !important;
+  }
+}
