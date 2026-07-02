@@ -90,7 +90,7 @@ const FIELD_LABELS = {
   activity_names:      'שם הפעילויות',
   contact_name:        'איש קשר',
   contact_role:        'תפקיד',
-  phone:               'טלפון',
+  phone:               'נייד',
   email:               'דוא״ל',
   notes:               'הערות',
   status:              'סטטוס',
@@ -1084,9 +1084,10 @@ function clientTypeSelectorHtml(selected = 'school') {
   const options = [
     ['school', 'בית ספר'],
     ['authority', 'רשות'],
-    ['other', 'גורם אחר']
+    ['other', 'אחר']
   ];
-  return `<div class="ds-pa-recipient-type" data-pa-recipient-type role="radiogroup" aria-label="סוג נמען">
+  return `<span class="ds-pa-recipient-type-label">למי מיועדת ההצעה?</span>
+  <div class="ds-pa-recipient-type" data-pa-recipient-type role="radiogroup" aria-label="למי מיועדת ההצעה?">
     ${options.map(([key, label]) => `<label class="ds-pa-recipient-type-option"><input type="radio" name="client_type_selector" value="${key}"${value === key ? ' checked' : ''}> <span>${escapeHtml(label)}</span></label>`).join('')}
   </div>`;
 }
@@ -1110,7 +1111,7 @@ function clientSearchHtml(_contactOptions, row = {}) {
         <input class="ds-input ds-input--sm" type="search" data-pa-school-search-input value="${escapeHtml(hasSchool ? existingSchool : '')}" placeholder="חיפוש לפי שם בית ספר או סמל מוסד" autocomplete="off" aria-autocomplete="list">
       </label>
       <div class="ds-pa-client-results" data-pa-school-results hidden></div>
-      <div class="ds-pa-school-authority-only-row" style="margin-top:6px;padding-top:6px;border-top:1px solid #e5e7eb">
+      <div class="ds-pa-school-authority-only-row" style="margin-top:2px;padding-top:4px;border-top:1px solid #e5e7eb">
         <button type="button" class="ds-btn ds-btn--xs ds-btn--ghost" data-pa-authority-only style="font-size:0.8rem;color:#6366f1;border-color:#6366f1">ללא בית ספר — הצעה לרשות</button>
       </div>
     </div>
@@ -1150,6 +1151,19 @@ function contactPickerHtml(contactOptions, authority, school, selectedContactNam
       <select class="ds-input ds-input--sm" data-pa-contact-select aria-label="איש קשר">${optionsHtml}</select>
     </div>
     <span data-pa-contact-picker-state data-pa-no-contacts="${noContacts ? 'yes' : 'no'}" hidden></span>`;
+}
+
+const CONTACT_CHANNELS_HINT_MESSAGE = 'מומלץ להשלים מייל ונייד להמשך טיפול';
+
+function contactChannelsStatusHtml(hasEmail, hasMobile, fieldsOpen = false) {
+  const chip = (label, ok) => `<span class="ds-pa-contact-channel-chip${ok ? '' : ' is-missing'}">${escapeHtml(label)}: ${ok ? 'קיים' : 'חסר'}</span>`;
+  const missing = !hasEmail || !hasMobile;
+  return `<div class="ds-pa-contact-channels-row">
+      ${chip('דוא״ל', hasEmail)}
+      ${chip('נייד', hasMobile)}
+      ${fieldsOpen ? '' : '<button type="button" class="ds-btn ds-btn--xs ds-btn--ghost" data-pa-contact-channels-toggle>עדכון פרטי קשר</button>'}
+    </div>
+    ${missing ? `<p class="ds-pa-contact-channels-hint">${escapeHtml(CONTACT_CHANNELS_HINT_MESSAGE)}</p>` : ''}`;
 }
 
 function contactOptionKey(contact = {}) {
@@ -2732,7 +2746,8 @@ function contactSourceInputsHtml(contact = {}) {
     <input type="hidden" name="contact_source_role" value="${escapeHtml(text(source.contact_role))}">
     <input type="hidden" name="contact_source_phone" value="${escapeHtml(text(source.phone || source.mobile || ''))}">
     <input type="hidden" name="contact_source_mobile" value="${escapeHtml(text(source.mobile))}">
-    <input type="hidden" name="contact_source_email" value="${escapeHtml(text(source.email))}">`;
+    <input type="hidden" name="contact_source_email" value="${escapeHtml(text(source.email))}">
+    <input type="hidden" name="contact_source_table" value="${escapeHtml(text(source.source_table))}">`;
 }
 
 function showValidationNotice(form, errors, isPending) {
@@ -2868,6 +2883,7 @@ function formHtml(mode, row = {}, activityNameOptions = [], contactOptions = [],
     school: initSchool
   }) || row;
   const contactPanelVisible = initOther || (isLocked && (initAuthorityOnly ? Boolean(initAuthorityId) : Boolean(initSchoolId)));
+  const channelsStatusVisible = contactPanelVisible && Boolean(initContact);
   const initPickerHtml = contactPanelVisible ? contactPickerHtml(
     contactOptions,
     initAuth,
@@ -2932,8 +2948,13 @@ function formHtml(mode, row = {}, activityNameOptions = [], contactOptions = [],
             <input type="hidden" name="contact_selection_mode" value="">
             ${textField('contact_name', 'שם', row.contact_name, false)}
             ${textField('contact_role', FIELD_LABELS.contact_role, normalizeContactRoleDisplay(row.contact_role), false)}
-            ${textField('phone', FIELD_LABELS.phone, row.phone, false)}
-            ${textField('email', FIELD_LABELS.email, row.email, false)}
+          </div>
+          <div class="ds-pa-contact-channels" data-pa-contact-channels-wrap>
+            <div class="ds-pa-contact-channels-status" data-pa-contact-channels-status${channelsStatusVisible ? '' : ' hidden'}>${channelsStatusVisible ? contactChannelsStatusHtml(Boolean(initEmail), Boolean(initPhone), initOther) : ''}</div>
+            <div class="ds-pa-form-grid ds-pa-contact-channels-fields" data-pa-contact-channels-fields${initOther ? '' : ' hidden'}>
+              ${textField('phone', FIELD_LABELS.phone, row.phone, false)}
+              ${textField('email', FIELD_LABELS.email, row.email, false)}
+            </div>
           </div>
           <div data-pa-add-contact-row hidden>
             <p class="ds-pa-add-contact-note" data-pa-no-contact-note hidden>לא נבחר איש קשר</p>
@@ -3733,7 +3754,7 @@ export const proposalsAgreementsScreen = {
       const form = container?.closest?.('[data-pa-form]') || container?.querySelector?.('[data-pa-form]');
       if (!form || form.dataset.paStepperBound === 'yes') return;
       form.dataset.paStepperBound = 'yes';
-      form.addEventListener('input', () => { updateProposalStepper(form); calcGrandTotal(form); }, { signal });
+      form.addEventListener('input', () => { updateProposalStepper(form); calcGrandTotal(form); renderContactChannelsStatus(form); }, { signal });
       form.addEventListener('change', () => setTimeout(() => { updateProposalStepper(form); calcGrandTotal(form); }, 0), { signal });
       updateProposalStepper(form);
       setupCatalogAttach(form);
@@ -3795,6 +3816,9 @@ export const proposalsAgreementsScreen = {
       if (roSchoolEl) roSchoolEl.value = school;
       if (roCtx) roCtx.hidden = false;
       form?.querySelectorAll('[data-pa-contact-manual-fields]').forEach((el) => { el.hidden = true; });
+      const channelsFields = form?.querySelector('[data-pa-contact-channels-fields]');
+      if (channelsFields) channelsFields.hidden = true;
+      renderContactChannelsStatus(form);
     };
 
     const unlockClientFields = (form) => {
@@ -3807,6 +3831,10 @@ export const proposalsAgreementsScreen = {
       form?.querySelectorAll('[data-pa-contact-manual-fields]').forEach((el) => { el.hidden = true; });
       const roCtx = form?.querySelector('[data-pa-contact-ro-ctx]');
       if (roCtx) roCtx.hidden = true;
+      const channelsFields = form?.querySelector('[data-pa-contact-channels-fields]');
+      if (channelsFields) channelsFields.hidden = true;
+      const channelsStatus = form?.querySelector('[data-pa-contact-channels-status]');
+      if (channelsStatus) { channelsStatus.hidden = true; channelsStatus.innerHTML = ''; }
     };
 
     const applyContactSelectionAfterClient = (form, ctx = {}) => {
@@ -3901,18 +3929,80 @@ export const proposalsAgreementsScreen = {
       const map = {
         contact_name: text(contact.contact_name),
         contact_role: text(contact.contact_role),
-        phone:        text(contact.phone || contact.mobile || ''),
+        // Mobile is the central channel for follow-up; keep an existing landline
+        // as a fallback only, never drop it from the source record.
+        phone:        text(contact.mobile || contact.phone || ''),
         email:        text(contact.email || '')
       };
       for (const [name, value] of Object.entries(map)) {
         const input = form.querySelector(`input[name="${name}"]`);
         if (input) input.value = value;
       }
+      renderContactChannelsStatus(form);
     };
 
     const setContactSource = (form, contact = {}) => {
       const host = form?.querySelector('[data-pa-contact-source]');
       if (host) host.innerHTML = contactSourceInputsHtml(contact || {});
+    };
+
+    const renderContactChannelsStatus = (form) => {
+      const statusHost = form?.querySelector('[data-pa-contact-channels-status]');
+      if (!statusHost) return;
+      const contactName = text(form.querySelector('input[name="contact_name"]')?.value);
+      if (!contactName) {
+        statusHost.hidden = true;
+        statusHost.innerHTML = '';
+        return;
+      }
+      const hasEmail = Boolean(text(form.querySelector('input[name="email"]')?.value));
+      const hasMobile = Boolean(text(form.querySelector('input[name="phone"]')?.value));
+      const fieldsBlock = form.querySelector('[data-pa-contact-channels-fields]');
+      const fieldsOpen = Boolean(fieldsBlock && !fieldsBlock.hidden);
+      statusHost.hidden = false;
+      statusHost.innerHTML = contactChannelsStatusHtml(hasEmail, hasMobile, fieldsOpen);
+    };
+
+    const syncContactChannelsToSource = async (form) => {
+      renderContactChannelsStatus(form);
+      const sourceId = text(form?.querySelector('input[name="contact_source_id"]')?.value);
+      // A saved proposal only ever gets a non-empty contact_school_id from picking a
+      // real directory contact (never from the school-principal default or a manual
+      // "other" entry), so contacts_schools is a safe default when re-opening it for
+      // edit without a freshly-known source table.
+      const sourceTable = text(form?.querySelector('input[name="contact_source_table"]')?.value) || (sourceId ? 'contacts_schools' : '');
+      if (!sourceId || !sourceTable || typeof api.updateUnifiedContactRecord !== 'function') return;
+      const emailVal = text(form.querySelector('input[name="email"]')?.value);
+      const mobileVal = text(form.querySelector('input[name="phone"]')?.value);
+      try {
+        await api.updateUnifiedContactRecord({ source_table: sourceTable, source_id: sourceId, fields: { mobile: mobileVal, email: emailVal } });
+        const match = contactOptions.find((c) => text(c.id) === sourceId && text(c.source_table) === sourceTable);
+        if (match) { match.mobile = mobileVal; match.email = emailVal; }
+        showToast('פרטי הקשר עודכנו במקור', 'success', 1800);
+      } catch (err) {
+        // Best-effort sync only — never blocks saving the proposal itself.
+        // eslint-disable-next-line no-console
+        console.warn('[proposals-agreements] contact channel sync failed', err?.message || err);
+      }
+    };
+
+    const setupContactChannelsPanel = (form) => {
+      if (!form || form.dataset.paContactChannelsBound === 'yes') return;
+      form.dataset.paContactChannelsBound = 'yes';
+      form.addEventListener('click', (event) => {
+        const toggleBtn = event.target?.closest?.('[data-pa-contact-channels-toggle]');
+        if (!toggleBtn) return;
+        const fieldsBlock = form.querySelector('[data-pa-contact-channels-fields]');
+        if (fieldsBlock) fieldsBlock.hidden = false;
+        renderContactChannelsStatus(form);
+        fieldsBlock?.querySelector('input[name="phone"]')?.focus();
+      }, { signal });
+      form.addEventListener('change', (event) => {
+        const target = event.target;
+        if (!target?.closest?.('[data-pa-contact-channels-fields]')) return;
+        if (target.name !== 'phone' && target.name !== 'email') return;
+        syncContactChannelsToSource(form);
+      }, { signal });
     };
 
     const setContactSelectionMode = (form, mode = '') => {
@@ -3942,6 +4032,8 @@ export const proposalsAgreementsScreen = {
       form.querySelectorAll('[data-pa-contact-manual-fields]').forEach((el) => { el.hidden = false; });
       const roCtx = form.querySelector('[data-pa-contact-ro-ctx]');
       if (roCtx) roCtx.hidden = false;
+      const channelsFields = form.querySelector('[data-pa-contact-channels-fields]');
+      if (channelsFields) channelsFields.hidden = false;
       setContactSelectionMode(form, 'other');
       setContactSource(form, contactSourceFromForm(form));
       fillContactFields(form, {});
@@ -4250,6 +4342,8 @@ export const proposalsAgreementsScreen = {
         form.querySelectorAll('[data-pa-contact-manual-fields]').forEach((el) => { el.hidden = false; });
         const roCtx = form.querySelector('[data-pa-contact-ro-ctx]');
         if (roCtx) roCtx.hidden = true;
+        const channelsFields = form.querySelector('[data-pa-contact-channels-fields]');
+        if (channelsFields) channelsFields.hidden = false;
         setContactSelectionMode(form, 'other');
         setContactSource(form, {
           authority_id: null,
@@ -4260,11 +4354,18 @@ export const proposalsAgreementsScreen = {
           authority: '',
           school: text(form.querySelector('[name="other_client_name"]')?.value)
         });
+        renderContactChannelsStatus(form);
       } else {
         if (searchWrap) searchWrap.hidden = false;
         if (otherField) otherField.hidden = true;
         const locked = card && !card.hidden && card.children.length > 0;
         if (!locked && contactPanel) contactPanel.hidden = true;
+        if (!locked) {
+          const channelsFields = form.querySelector('[data-pa-contact-channels-fields]');
+          if (channelsFields) channelsFields.hidden = true;
+          const channelsStatus = form.querySelector('[data-pa-contact-channels-status]');
+          if (channelsStatus) { channelsStatus.hidden = true; channelsStatus.innerHTML = ''; }
+        }
       }
       calcGrandTotal(form);
       updateProposalStepper(form);
@@ -4295,6 +4396,7 @@ export const proposalsAgreementsScreen = {
       if (!form || form.dataset.paClientSearchBound === 'yes') return;
       form.dataset.paClientSearchBound = 'yes';
       setupRecipientTypeSelector(form);
+      setupContactChannelsPanel(form);
       applyClientSearchMode(form);
       // Init contact area for forms already locked on mount (edit mode)
       const initCard = form.querySelector('[data-pa-client-card]');
@@ -4307,6 +4409,7 @@ export const proposalsAgreementsScreen = {
         if (roSchoolInit) roSchoolInit.value = text(form.querySelector('input[name="school_framework"]')?.value || '');
         if (roCtxInit) roCtxInit.hidden = false;
       }
+      renderContactChannelsStatus(form);
       form.querySelector('[data-pa-client-search-input]')?.addEventListener('input', () => {
         renderClientResults(form, 'authority', form.querySelector('[data-pa-client-search-input]'), form.querySelector('[data-pa-client-results]'));
       }, { signal });
