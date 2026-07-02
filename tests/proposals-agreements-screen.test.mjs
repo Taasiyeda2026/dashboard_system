@@ -1896,17 +1896,66 @@ test('proposal save DB payload preserves valid status values', async () => {
 
 
 
-test('proposal preview for other recipient does not render empty authority or school labels', () => {
+test('proposal preview recipient block respects selected recipient type', async () => {
+  const baseRow = {
+    document_type: 'הצעת מחיר',
+    activity_type_group: 'summer',
+    proposal_date: '2026-06-30',
+    status: 'approved',
+    contact_name: 'דנה ישראלי',
+    contact_role: 'מנהלת',
+    phone: '050-1234567',
+    email: 'dana@example.com',
+    school_framework: 'בית ספר אופק',
+    client_authority: 'אשכול',
+    client_name: 'לקוח ישן'
+  };
+
+  const cases = [
+    {
+      client_type: 'school',
+      expectedLines: ['לכבוד:', 'דנה ישראלי, מנהלת', 'טלפון: 050-1234567 | דוא״ל: dana@example.com', 'בית ספר אופק, אשכול'],
+      absent: []
+    },
+    {
+      client_type: 'authority',
+      expectedLines: ['לכבוד:', 'דנה ישראלי, מנהלת', 'טלפון: 050-1234567 | דוא״ל: dana@example.com', 'אשכול'],
+      absent: ['בית ספר אופק', 'לקוח ישן']
+    },
+    {
+      client_type: 'other',
+      expectedLines: ['לכבוד:', 'דנה ישראלי, מנהלת', 'טלפון: 050-1234567 | דוא״ל: dana@example.com'],
+      absent: ['בית ספר אופק', 'אשכול', 'לקוח ישן']
+    }
+  ];
+
+  for (const entry of cases) {
+    await withJSDOM(proposalPreviewBodyHtml({ ...baseRow, client_type: entry.client_type }, [], []), async (_root, dom) => {
+      const address = dom.window.document.querySelector('.pa-doc-address');
+      assert.ok(address, `recipient block should render for ${entry.client_type}`);
+      assert.deepEqual(Array.from(address.querySelectorAll('p')).map((p) => p.textContent), entry.expectedLines);
+      for (const value of entry.absent) {
+        assert.doesNotMatch(address.textContent, new RegExp(value), `${value} should not render for ${entry.client_type}`);
+      }
+      assert.doesNotMatch(address.textContent, /undefined|null|,,|,\s*$/);
+    });
+  }
+});
+
+test('proposal preview for other recipient omits stale organization fields and empty labels', () => {
   const html = proposalPreviewBodyHtml({
     client_type: 'other',
-    client_authority: '',
+    client_authority: 'רשות ישנה',
     school_framework: 'עמותת בדיקה',
+    client_name: 'לקוח ישן',
+    contact_name: 'איש קשר',
     document_type: 'הצעת מחיר',
     activity_type_group: 'summer',
     proposal_date: '2026-06-30',
     status: 'approved'
   }, [], []);
-  assert.match(html, /עמותת בדיקה/);
+  assert.match(html, /איש קשר/);
+  assert.doesNotMatch(html, /עמותת בדיקה|רשות ישנה|לקוח ישן/);
   assert.doesNotMatch(html, /רשות:\s*—/);
   assert.doesNotMatch(html, /בית ספר:\s*—/);
 });
