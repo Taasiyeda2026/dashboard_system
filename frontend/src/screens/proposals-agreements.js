@@ -1541,6 +1541,15 @@ function parseTourDetails(item = {}) {
   return {};
 }
 
+function calculateTourTotal({ students, studentPrice, guide, transport, quantity } = {}) {
+  const studentsNum = Number(students) || 0;
+  const priceNum = Number(studentPrice) || 0;
+  const guideNum = Number(guide) || 0;
+  const transportNum = Number(transport) || 0;
+  const quantityNum = Number(quantity) || 1;
+  return ((studentsNum * priceNum) + guideNum + transportNum) * quantityNum;
+}
+
 function tourItemFromDetails(details = {}, fallback = {}) {
   const students = numberValue(details.students_count ?? details.studentsCount);
   const unitPrice = numberValue(details.price_per_student ?? details.pricePerStudent);
@@ -1548,7 +1557,7 @@ function tourItemFromDetails(details = {}, fallback = {}) {
   const guide = numberValue(details.guide_cost ?? details.guideCost);
   const transport = numberValue(details.transport_cost ?? details.transportCost);
   const autoTotal = (students != null && unitPrice != null)
-    ? (students * unitPrice * (quantity || 1)) + (guide || 0) + (transport || 0)
+    ? calculateTourTotal({ students, studentPrice: unitPrice, guide, transport, quantity })
     : null;
   const total = numberValue(details.total_price ?? details.totalPrice) ?? autoTotal;
   const payload = {
@@ -2011,7 +2020,15 @@ function tourCostTableHtml(items = []) {
     if (value == null || value === '') return '';
     return money ? currencyAmountHtml(value) : escapeHtml(formatCurrency(value));
   };
-  const total = numberValue(d.total_price) ?? numberValue(item.total_price);
+  const total = numberValue(d.total_price)
+    ?? calculateTourTotal({
+      students: d.students_count,
+      studentPrice: d.price_per_student,
+      guide: d.guide_cost,
+      transport: d.transport_cost,
+      quantity: d.quantity
+    })
+    ?? numberValue(item.total_price);
   return `<div class="pa-tour-payment-block">
     ${sectionBodyHtml('התשלום עבור הסיור יבוצע בהתאם לטבלה שלהלן:', { alwaysBullet: true })}
     <table class="pa-cost-table pa-activities-table pa-tour-cost-table">
@@ -2925,6 +2942,116 @@ function buildContactSourceFromRow(row = {}) {
   };
 }
 
+function emptyContactSourceForRecipientType(nextClientType, otherName = '') {
+  const type = ['school', 'authority', 'other'].includes(text(nextClientType)) ? text(nextClientType) : 'school';
+  if (type === 'other') {
+    const name = text(otherName);
+    return {
+      id: null, authority_id: null, school_id: null, semel_mosad: null,
+      school_required: 'no', client_type: 'other',
+      client_name: name, authority: '', school: name,
+      contact_name: '', contact_role: '', phone: '', mobile: '', email: '', source_table: ''
+    };
+  }
+  if (type === 'authority') {
+    return {
+      id: null, authority_id: null, school_id: null, semel_mosad: null,
+      school_required: 'no', client_type: 'authority',
+      client_name: '', authority: '', school: '',
+      contact_name: '', contact_role: '', phone: '', mobile: '', email: '', source_table: ''
+    };
+  }
+  return {
+    id: null, authority_id: null, school_id: null, semel_mosad: null,
+    school_required: 'yes', client_type: 'school',
+    client_name: '', authority: '', school: '',
+    contact_name: '', contact_role: '', phone: '', mobile: '', email: '', source_table: ''
+  };
+}
+
+function setContactSourceFields(form, contact = {}) {
+  const host = form?.querySelector('[data-pa-contact-source]');
+  if (host) host.innerHTML = contactSourceInputsHtml(contact || {});
+}
+
+function resetRecipientDependentFields(form, nextClientType) {
+  if (!form) return;
+  const type = ['school', 'authority', 'other'].includes(text(nextClientType)) ? text(nextClientType) : 'school';
+  const otherName = type === 'other' ? text(form.querySelector('[name="other_client_name"]')?.value) : '';
+
+  ['client_authority', 'school_framework', 'contact_name', 'contact_role', 'phone', 'email'].forEach((name) => {
+    const inp = form.querySelector(`input[name="${name}"]`);
+    if (inp) inp.value = '';
+  });
+  if (type !== 'other') {
+    const otherInput = form.querySelector('[name="other_client_name"]');
+    if (otherInput) otherInput.value = '';
+  }
+
+  const selectionModeInput = form.querySelector('input[name="contact_selection_mode"]');
+  if (selectionModeInput) selectionModeInput.value = type === 'other' ? 'other' : '';
+
+  const card = form.querySelector('[data-pa-client-card]');
+  if (card) { card.hidden = true; card.innerHTML = ''; }
+
+  const pickerHost = form.querySelector('[data-pa-contact-picker-host]');
+  if (pickerHost) pickerHost.innerHTML = '';
+
+  const roAuth = form.querySelector('[data-pa-contact-ro-authority]');
+  const roSchool = form.querySelector('[data-pa-contact-ro-school]');
+  if (roAuth) roAuth.value = '';
+  if (roSchool) roSchool.value = '';
+  const roCtx = form.querySelector('[data-pa-contact-ro-ctx]');
+  if (roCtx) roCtx.hidden = true;
+
+  form.querySelectorAll('[data-pa-contact-manual-fields]').forEach((el) => { el.hidden = type !== 'other'; });
+  const channelsFields = form.querySelector('[data-pa-contact-channels-fields]');
+  if (channelsFields) channelsFields.hidden = type !== 'other';
+  const channelsStatus = form.querySelector('[data-pa-contact-channels-status]');
+  if (channelsStatus) { channelsStatus.hidden = true; channelsStatus.innerHTML = ''; }
+
+  const addContactRow = form.querySelector('[data-pa-add-contact-row]');
+  if (addContactRow) addContactRow.hidden = true;
+  const noContactNote = form.querySelector('[data-pa-no-contact-note]');
+  if (noContactNote) noContactNote.hidden = true;
+
+  form.dataset.paSearchStep = 'authority';
+  delete form.dataset.paAuthorityId;
+  delete form.dataset.paAuthorityName;
+  delete form.dataset.paNewClient;
+
+  const searchField = form.querySelector('[data-pa-client-search-field]');
+  const schoolSearchPanel = form.querySelector('[data-pa-school-search-panel]');
+  const results = form.querySelector('[data-pa-client-results]');
+  const schoolResults = form.querySelector('[data-pa-school-results]');
+  if (type !== 'other') {
+    if (searchField) searchField.hidden = false;
+    if (schoolSearchPanel) schoolSearchPanel.hidden = true;
+  }
+  if (results) { results.hidden = true; results.innerHTML = ''; }
+  if (schoolResults) { schoolResults.hidden = true; schoolResults.innerHTML = ''; }
+  const searchInput = form.querySelector('[data-pa-client-search-input]');
+  const schoolSearchInput = form.querySelector('[data-pa-school-search-input]');
+  if (searchInput) searchInput.value = '';
+  if (schoolSearchInput) schoolSearchInput.value = '';
+
+  const contactPanel = form.querySelector('[data-pa-step-panel="contact"]');
+  if (contactPanel) contactPanel.hidden = type === 'other' ? false : true;
+
+  const clientFields = form.querySelector('[data-pa-client-fields]');
+  if (clientFields) clientFields.hidden = true;
+
+  const searchRow = form.querySelector('[data-pa-client-search-row]');
+  if (searchRow) searchRow.hidden = type === 'other';
+
+  if (type === 'other' && otherName) {
+    const schoolInput = form.querySelector('input[name="school_framework"]');
+    if (schoolInput) schoolInput.value = otherName;
+  }
+
+  setContactSourceFields(form, emptyContactSourceForRecipientType(type, otherName));
+}
+
 function contactSourceInputsHtml(contact = {}) {
   const source = contact || {};
   return `
@@ -3528,15 +3655,13 @@ function payloadFromForm(form) {
 function validatePayload(payload, statusOverride) {
   const targetStatus = statusOverride || payload.status || 'draft';
   const requiresCompleteProposal = targetStatus === 'sent' || targetStatus === 'pending_approval' || targetStatus === 'approved';
-  const requiredFields = requiresCompleteProposal
-    ? REQUIRED_FIELDS_PENDING
-    : REQUIRED_FIELDS_DRAFT;
-  const missing = requiredFields.filter((key) => !text(payload[key]));
-  const errors = missing.map((key) => FIELD_LABELS[key] || key);
-
   const clientType = text(payload.client_type) || 'school';
   const isOtherProposal = clientType === 'other';
   const isAuthorityOnlyProposal = clientType === 'authority';
+  const baseRequiredFields = requiresCompleteProposal ? REQUIRED_FIELDS_PENDING : REQUIRED_FIELDS_DRAFT;
+  const requiredFields = baseRequiredFields.filter((key) => !(isOtherProposal && key === 'client_authority'));
+  const missing = requiredFields.filter((key) => !text(payload[key]));
+  const errors = missing.map((key) => FIELD_LABELS[key] || key);
   if (isOtherProposal) {
     if (!text(payload.school_framework)) errors.push('שם הגורם / הלקוח');
   } else {
@@ -3764,7 +3889,10 @@ export {
   extractItemsFromForm,
   proposalPdfDocumentTitle,
   sanitizeProposalPdfFileLabel,
-  proposalRecipientFileLabel
+  proposalRecipientFileLabel,
+  calculateTourTotal,
+  validatePayload,
+  resetRecipientDependentFields
 };
 
 // ─── Screen ───────────────────────────────────────────────────────────────────
@@ -4144,8 +4272,7 @@ export const proposalsAgreementsScreen = {
     };
 
     const setContactSource = (form, contact = {}) => {
-      const host = form?.querySelector('[data-pa-contact-source]');
-      if (host) host.innerHTML = contactSourceInputsHtml(contact || {});
+      setContactSourceFields(form, contact || {});
     };
 
     const renderContactChannelsStatus = (form) => {
@@ -4548,57 +4675,54 @@ export const proposalsAgreementsScreen = {
     };
 
 
-    const applyRecipientTypeMode = (form) => {
+    const applyRecipientTypeMode = (form, { resetData = false } = {}) => {
       if (!form) return;
       const selected = text(form.querySelector('input[name="client_type_selector"]:checked')?.value) || 'school';
-      const searchWrap = form.querySelector('[data-pa-client-search-wrap]');
       const otherField = form.querySelector('[data-pa-other-client-field]');
-      const card = form.querySelector('[data-pa-client-card]');
       const contactPanel = form.querySelector('[data-pa-step-panel="contact"]');
-      const pickerHost = form.querySelector('[data-pa-contact-picker-host]');
+      const card = form.querySelector('[data-pa-client-card]');
+      const locked = card && !card.hidden && card.children.length > 0;
+
+      if (resetData) {
+        resetRecipientDependentFields(form, selected);
+      }
+
       if (selected === 'other') {
-        if (searchWrap) searchWrap.hidden = true;
-        if (card) { card.hidden = true; card.innerHTML = ''; }
         if (otherField) otherField.hidden = false;
-        if (pickerHost) pickerHost.innerHTML = '';
         if (contactPanel) contactPanel.hidden = false;
-        form.querySelectorAll('[data-pa-contact-manual-fields]').forEach((el) => { el.hidden = false; });
-        const roCtx = form.querySelector('[data-pa-contact-ro-ctx]');
-        if (roCtx) roCtx.hidden = true;
-        const channelsFields = form.querySelector('[data-pa-contact-channels-fields]');
-        if (channelsFields) channelsFields.hidden = false;
-        setContactSelectionMode(form, 'other');
-        setContactSource(form, {
-          authority_id: null,
-          school_id: null,
-          school_required: 'no',
-          client_type: 'other',
-          client_name: text(form.querySelector('[name="other_client_name"]')?.value),
-          authority: '',
-          school: text(form.querySelector('[name="other_client_name"]')?.value)
-        });
+        if (!resetData && !locked) {
+          form.querySelectorAll('[data-pa-contact-manual-fields]').forEach((el) => { el.hidden = false; });
+          const roCtx = form.querySelector('[data-pa-contact-ro-ctx]');
+          if (roCtx) roCtx.hidden = true;
+          const channelsFields = form.querySelector('[data-pa-contact-channels-fields]');
+          if (channelsFields) channelsFields.hidden = false;
+          setContactSelectionMode(form, 'other');
+        }
         renderContactChannelsStatus(form);
       } else {
-        if (searchWrap) searchWrap.hidden = false;
         if (otherField) otherField.hidden = true;
-        const locked = card && !card.hidden && card.children.length > 0;
-        if (!locked && contactPanel) contactPanel.hidden = true;
         if (!locked) {
-          const channelsFields = form.querySelector('[data-pa-contact-channels-fields]');
-          if (channelsFields) channelsFields.hidden = true;
-          const channelsStatus = form.querySelector('[data-pa-contact-channels-status]');
-          if (channelsStatus) { channelsStatus.hidden = true; channelsStatus.innerHTML = ''; }
+          if (contactPanel && resetData) contactPanel.hidden = true;
+          if (resetData) {
+            const channelsFields = form.querySelector('[data-pa-contact-channels-fields]');
+            if (channelsFields) channelsFields.hidden = true;
+            const channelsStatus = form.querySelector('[data-pa-contact-channels-status]');
+            if (channelsStatus) { channelsStatus.hidden = true; channelsStatus.innerHTML = ''; }
+          }
         }
+        applyClientSearchMode(form);
       }
+
       calcGrandTotal(form);
       updateProposalStepper(form);
+      if (resetData) updateLivePreview(form);
     };
 
     const setupRecipientTypeSelector = (form) => {
       if (!form || form.dataset.paRecipientTypeBound === 'yes') return;
       form.dataset.paRecipientTypeBound = 'yes';
       form.querySelectorAll('input[name="client_type_selector"]').forEach((input) => {
-        input.addEventListener('change', () => applyRecipientTypeMode(form), { signal });
+        input.addEventListener('change', () => applyRecipientTypeMode(form, { resetData: true }), { signal });
       });
       form.querySelector('[name="other_client_name"]')?.addEventListener('input', () => {
         const selected = text(form.querySelector('input[name="client_type_selector"]:checked')?.value);
@@ -4608,8 +4732,9 @@ export const proposalsAgreementsScreen = {
         const authInput = form.querySelector('input[name="client_authority"]');
         if (schoolInput) schoolInput.value = value;
         if (authInput) authInput.value = '';
-        setContactSource(form, { authority_id: null, school_id: null, school_required: 'no', client_type: 'other', client_name: value, authority: '', school: value });
+        setContactSourceFields(form, emptyContactSourceForRecipientType('other', value));
         calcGrandTotal(form);
+        updateLivePreview(form);
       }, { signal });
       applyRecipientTypeMode(form);
     };
@@ -4678,8 +4803,12 @@ export const proposalsAgreementsScreen = {
       const guide = n('[data-pa-tour-guide]') || 0;
       const transport = n('[data-pa-tour-transport]') || 0;
       const totalInput = details.querySelector('[data-pa-tour-total]');
-      const calculated = students != null && price != null ? (students * price * (quantity || 1)) + guide + transport : null;
-      if (calculated != null && totalInput && document.activeElement !== totalInput) totalInput.value = calculated ? calculated.toFixed(2) : '';
+      const calculated = (students != null && price != null)
+        ? calculateTourTotal({ students, studentPrice: price, guide, transport, quantity })
+        : null;
+      if (calculated != null && totalInput && document.activeElement !== totalInput) {
+        totalInput.value = calculated ? calculated.toFixed(2) : '';
+      }
       return numberValue(totalInput?.value) ?? calculated ?? 0;
     };
 

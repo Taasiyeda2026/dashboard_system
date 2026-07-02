@@ -60,7 +60,7 @@ const MIGRATION_FILE = new URL('../supabase/migrations/20260518_create_proposals
 const ROLE_UPDATE_MIGRATION_FILE = new URL('../supabase/migrations/20260602_add_business_development_manager_role.sql', import.meta.url);
 const APPROVAL_GUARD_MIGRATION_FILE = new URL('../supabase/migrations/20260616_proposals_agreements_approval_guard.sql', import.meta.url);
 
-const { proposalsAgreementsScreen, canAccessProposalsAgreements, canManageProposalsAgreements, STATUS_LABELS, STATUS_OPTIONS, buildProposalCatalogPdfEntries, proposalPreviewBodyHtml, normalizeProposalAgreementRow, countPendingApprovedProposals, isProposalApprovedPendingSend, extractItemsFromForm } = await import('../frontend/src/screens/proposals-agreements.js');
+const { proposalsAgreementsScreen, canAccessProposalsAgreements, canManageProposalsAgreements, STATUS_LABELS, STATUS_OPTIONS, buildProposalCatalogPdfEntries, proposalPreviewBodyHtml, normalizeProposalAgreementRow, countPendingApprovedProposals, isProposalApprovedPendingSend, extractItemsFromForm, calculateTourTotal, validatePayload, resetRecipientDependentFields } = await import('../frontend/src/screens/proposals-agreements.js');
 
 function stateFor(role) {
   return {
@@ -1008,6 +1008,206 @@ test('new proposal form starts with school recipient type and authority search',
       assert.match(form.innerHTML, /data-pa-client-search-input/);
       assert.equal(form.querySelector('[data-pa-client-search-label]')?.textContent, 'רשות');
       assert.doesNotMatch(form.innerHTML, /הוסף ידנית/);
+    }
+  );
+});
+
+
+function selectRecipientType(form, dom, type) {
+  const input = form.querySelector(`input[name="client_type_selector"][value="${type}"]`);
+  assert.ok(input, `recipient type radio ${type} should exist`);
+  input.checked = true;
+  input.dispatchEvent(new dom.window.Event('change', { bubbles: true }));
+}
+
+function previewText(form) {
+  return form.querySelector('[data-pa-live-preview]')?.textContent || '';
+}
+
+test('switching recipient type from school to authority clears school fields and preview', async () => {
+  await withJSDOM(
+    proposalsAgreementsScreen.render({ rows: [], contactOptions: sampleContactOptions }, { state: stateFor('admin') }),
+    async (root, dom) => {
+      proposalsAgreementsScreen.bind({
+        root,
+        data: { rows: [], activityNameOptions: [], contactOptions: sampleContactOptions },
+        state: stateFor('admin'),
+        api: {}
+      });
+
+      const form = openNewProposalForm(root, dom);
+      selectClientResult(form, dom, 'רשות א');
+      selectClientResult(form, dom, 'בית ספר');
+      await delay(20);
+
+      assert.equal(form.querySelector('input[name="school_framework"]').value, 'בית ספר א');
+      assert.equal(form.querySelector('input[name="contact_source_school_id"]').value, 'school-a');
+      assert.match(previewText(form), /בית ספר א/);
+
+      selectRecipientType(form, dom, 'authority');
+      await delay(20);
+
+      assert.equal(form.querySelector('input[name="school_framework"]').value, '');
+      assert.equal(form.querySelector('input[name="contact_source_school_id"]').value, '');
+      assert.equal(form.querySelector('input[name="contact_source_id"]').value, '');
+      const preview = previewText(form);
+      assert.doesNotMatch(preview, /בית ספר א/);
+      assert.doesNotMatch(preview, /מנהל\/ת בית הספר/);
+    }
+  );
+});
+
+test('switching recipient type from school to other clears authority and school preview data', async () => {
+  await withJSDOM(
+    proposalsAgreementsScreen.render({ rows: [], contactOptions: sampleContactOptions }, { state: stateFor('admin') }),
+    async (root, dom) => {
+      proposalsAgreementsScreen.bind({
+        root,
+        data: { rows: [], activityNameOptions: [], contactOptions: sampleContactOptions },
+        state: stateFor('admin'),
+        api: {}
+      });
+
+      const form = openNewProposalForm(root, dom);
+      selectClientResult(form, dom, 'רשות א');
+      selectClientResult(form, dom, 'בית ספר');
+      form.querySelector('input[name="contact_name"]').value = 'דנה קשר';
+      form.querySelector('input[name="contact_role"]').value = 'מנהלת';
+      await delay(20);
+
+      selectRecipientType(form, dom, 'other');
+      await delay(20);
+
+      assert.equal(form.querySelector('input[name="client_authority"]').value, '');
+      assert.equal(form.querySelector('input[name="contact_source_authority_id"]').value, '');
+      assert.equal(form.querySelector('input[name="school_framework"]').value, '');
+      assert.equal(form.querySelector('input[name="contact_source_school_id"]').value, '');
+      assert.equal(form.querySelector('input[name="contact_name"]').value, '');
+      assert.equal(form.querySelector('input[name="contact_role"]').value, '');
+
+      const otherName = 'עמותת בדיקה';
+      form.querySelector('input[name="other_client_name"]').value = otherName;
+      form.querySelector('input[name="other_client_name"]').dispatchEvent(new dom.window.Event('input', { bubbles: true }));
+      await delay(20);
+
+      const preview = previewText(form);
+      assert.match(preview, new RegExp(otherName));
+      assert.doesNotMatch(preview, /רשות א/);
+      assert.doesNotMatch(preview, /בית ספר א/);
+    }
+  );
+});
+
+test('validatePayload enforces recipient-specific requirements', () => {
+  const base = {
+    activity_type_group: 'קיץ תשפ״ו',
+    proposal_date: '2026-07-01',
+    status: 'pending_approval',
+    total_amount: 100,
+    _items: [{ item_name: 'סדנה', total_price: 100, quantity: 1, unit_price: 100 }]
+  };
+
+  const otherErrors = validatePayload({
+    ...base,
+    client_type: 'other',
+    client_authority: '',
+    school_framework: 'עמותת בדיקה',
+    authority_id: null,
+    school_id: null
+  });
+  assert.ok(!otherErrors.some((e) => /רשות/.test(e)), 'other proposal should not require authority');
+
+  const authorityErrors = validatePayload({
+    ...base,
+    client_type: 'authority',
+    client_authority: 'רשות בדיקה',
+    authority_id: 'auth-test',
+    school_id: null,
+    school_framework: ''
+  });
+  assert.ok(!authorityErrors.some((e) => /בית ספר/.test(e)), 'authority proposal should not require school');
+
+  const schoolErrors = validatePayload({
+    ...base,
+    client_type: 'school',
+    client_authority: 'רשות בדיקה',
+    authority_id: 'auth-test',
+    school_id: null,
+    school_framework: ''
+  });
+  assert.ok(schoolErrors.some((e) => /בית ספר/.test(e)), 'school proposal should require school');
+  assert.ok(!schoolErrors.some((e) => /יש לבחור רשות/.test(e)), 'school proposal with authority id should not require authority again');
+
+  const schoolMissingAuthorityErrors = validatePayload({
+    ...base,
+    client_type: 'school',
+    client_authority: '',
+    authority_id: null,
+    school_id: 'school-test',
+    school_framework: 'בית ספר'
+  });
+  assert.ok(schoolMissingAuthorityErrors.some((e) => /רשות/.test(e)), 'school proposal should require authority');
+});
+
+test('calculateTourTotal uses quantity on full subtotal and handles empty fields', () => {
+  assert.equal(calculateTourTotal({
+    students: 30,
+    studentPrice: 50,
+    guide: 400,
+    transport: 800,
+    quantity: 1
+  }), 2700);
+  assert.equal(calculateTourTotal({
+    students: 30,
+    studentPrice: 50,
+    guide: 400,
+    transport: 800,
+    quantity: 2
+  }), 5400);
+  assert.equal(Number.isNaN(calculateTourTotal({})), false);
+  assert.equal(calculateTourTotal({}), 0);
+});
+
+test('tour proposal live total follows quantity on full subtotal', async () => {
+  await withJSDOM(
+    proposalsAgreementsScreen.render({ rows: [], contactOptions: sampleContactOptions }, { state: stateFor('admin') }),
+    async (root, dom) => {
+      proposalsAgreementsScreen.bind({
+        root,
+        data: {
+          rows: [],
+          contactOptions: sampleContactOptions,
+          proposalActivityGroups: [{ group_key: 'סיור', display_name: 'סיור', template_key: 'tour' }]
+        },
+        state: stateFor('admin'),
+        api: {}
+      });
+
+      const form = openNewProposalForm(root, dom);
+      const typeInput = form.querySelector('[name="activity_type_group"]');
+      typeInput.value = 'סיור';
+      typeInput.dispatchEvent(new dom.window.Event('change', { bubbles: true }));
+      await delay(20);
+      assert.ok(form.querySelector('[data-pa-tour-details]'), 'tour editor should render');
+
+      const setTour = (selector, value) => {
+        const el = form.querySelector(selector);
+        if (el) {
+          el.value = value;
+          el.dispatchEvent(new dom.window.Event('input', { bubbles: true }));
+        }
+      };
+      setTour('[data-pa-tour-students]', '30');
+      setTour('[data-pa-tour-price]', '50');
+      setTour('[data-pa-tour-guide]', '400');
+      setTour('[data-pa-tour-transport]', '800');
+      setTour('[data-pa-tour-quantity]', '1');
+      await delay(20);
+      assert.equal(form.querySelector('[data-pa-tour-total]').value, '2700.00');
+
+      setTour('[data-pa-tour-quantity]', '2');
+      await delay(20);
+      assert.equal(form.querySelector('[data-pa-tour-total]').value, '5400.00');
     }
   );
 });
