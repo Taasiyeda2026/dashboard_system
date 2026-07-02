@@ -1626,15 +1626,15 @@ function tourDetailsEditorHtml(items = []) {
   return `<div class="ds-pa-items-section ds-pa-tour-details" data-pa-tour-details>
     <div class="ds-pa-items-header"><span class="ds-pa-items-section-label">פרטי טבלת הסיור</span></div>
     <p class="ds-muted" style="font-size:0.8rem;margin:0 0 8px">הפעילות קבועה: ${escapeHtml(TOUR_ACTIVITY_LINE)}</p>
-    <div class="ds-pa-item-grid ds-pa-item-grid--extras" data-pa-tour-row>
+    <div class="ds-pa-tour-fields-grid" data-pa-tour-row>
       <label class="ds-pa-item-field"><span>כיתה</span><input class="ds-input ds-input--sm" name="tour_class_name" value="${escapeHtml(d.class_name)}"></label>
       <label class="ds-pa-item-field"><span>מספר תלמידים</span><input class="ds-input ds-input--sm" type="number" min="0" step="1" name="tour_students_count" value="${val(d.students_count)}" data-pa-tour-students></label>
       <label class="ds-pa-item-field"><span>מחיר לתלמיד</span><input class="ds-input ds-input--sm" type="number" min="0" step="any" name="tour_price_per_student" value="${val(d.price_per_student)}" data-pa-tour-price></label>
       <label class="ds-pa-item-field"><span>מדריך</span><input class="ds-input ds-input--sm" type="number" min="0" step="any" name="tour_guide_cost" value="${val(d.guide_cost)}" data-pa-tour-guide></label>
       <label class="ds-pa-item-field"><span>הסעה</span><input class="ds-input ds-input--sm" type="number" min="0" step="any" name="tour_transport_cost" value="${val(d.transport_cost)}" data-pa-tour-transport></label>
       <label class="ds-pa-item-field"><span>כמות</span><input class="ds-input ds-input--sm" type="number" min="0" step="any" name="tour_quantity" value="${val(d.quantity) || '1'}" data-pa-tour-quantity></label>
-      <label class="ds-pa-item-field"><span>סה״כ</span><input class="ds-input ds-input--sm" type="number" min="0" step="any" name="tour_total_price" value="${total}" data-pa-tour-total></label>
     </div>
+    <label class="ds-pa-item-field ds-pa-tour-total-field"><span>סה״כ</span><input class="ds-input ds-input--sm" type="number" min="0" step="any" name="tour_total_price" value="${total}" data-pa-tour-total readonly aria-readonly="true"></label>
     <div class="ds-pa-items-total-row">סה״כ כללי: <strong data-pa-grand-total>${total ? `₪ ${formatCurrency(total)}` : '₪ 0'}</strong></div>
   </div>`;
 }
@@ -2368,7 +2368,7 @@ function recipientBlockHtml(row = {}) {
   const contactDetailParts = [];
   if (phone) contactDetailParts.push(`טלפון: ${escapeHtml(phone)}`);
   if (email) contactDetailParts.push(`דוא״ל: ${escapeHtml(email)}`);
-  const contactDetailsLine = contactDetailParts.length ? `<p>${contactDetailParts.join(' | ')}</p>` : '';
+  const contactDetailsLine = contactDetailParts.length ? `<p class="pa-contact-details pa-print-hidden-contact-details">${contactDetailParts.join(' | ')}</p>` : '';
   const orgLines = proposalRecipientLines(row).map((line) => recipientLineHtml(line));
   const lines = [contactLine, contactDetailsLine, ...orgLines].filter(Boolean);
   const recipientLinesHtml = lines.join('\n    ');
@@ -3024,7 +3024,7 @@ function buildContactSourceFromRow(row = {}) {
   if (inferredClientType === 'other') {
     return {
       id: null, authority_id: null, school_id: null, semel_mosad: null, school_required: 'no',
-      client_type: 'other', client_name: text(row.school_framework), authority: '', school: text(row.school_framework),
+      client_type: 'other', client_name: '', authority: '', school: '',
       contact_name: text(row.contact_name), contact_role: text(row.contact_role), phone: text(row.phone), email: text(row.email), mobile: ''
     };
   }
@@ -3050,11 +3050,10 @@ function buildContactSourceFromRow(row = {}) {
 function emptyContactSourceForRecipientType(nextClientType, otherName = '') {
   const type = ['school', 'authority', 'other'].includes(text(nextClientType)) ? text(nextClientType) : 'school';
   if (type === 'other') {
-    const name = text(otherName);
     return {
       id: null, authority_id: null, school_id: null, semel_mosad: null,
       school_required: 'no', client_type: 'other',
-      client_name: name, authority: '', school: name,
+      client_name: '', authority: '', school: '',
       contact_name: '', contact_role: '', phone: '', mobile: '', email: '', source_table: ''
     };
   }
@@ -3139,7 +3138,7 @@ function resetRecipientDependentFields(form, nextClientType) {
   if (schoolSearchInput) schoolSearchInput.value = '';
 
   const otherField = form.querySelector('[data-pa-other-client-field]');
-  if (otherField) otherField.hidden = type !== 'other';
+  if (otherField) otherField.hidden = true;
 
   const contactPanel = form.querySelector('[data-pa-step-panel="contact"]');
   if (contactPanel) contactPanel.hidden = type !== 'other';
@@ -3150,12 +3149,7 @@ function resetRecipientDependentFields(form, nextClientType) {
   const searchRow = form.querySelector('[data-pa-client-search-row]');
   if (searchRow) searchRow.hidden = false;
 
-  if (type === 'other' && otherName) {
-    const schoolInput = form.querySelector('input[name="school_framework"]');
-    if (schoolInput) schoolInput.value = otherName;
-  }
-
-  setContactSourceFields(form, emptyContactSourceForRecipientType(type, otherName));
+  setContactSourceFields(form, emptyContactSourceForRecipientType(type));
 }
 
 function stepComplete(form) {
@@ -3169,7 +3163,7 @@ function stepComplete(form) {
 
   let clientDone = false;
   if (clientType === 'other') {
-    clientDone = Boolean(otherName || schoolFramework);
+    clientDone = true;
   } else if (clientType === 'authority') {
     clientDone = Boolean(authorityId);
   } else {
@@ -3747,8 +3741,10 @@ function payloadFromForm(form) {
   const selectedClientType = text(formData.get('client_type_selector')) || text(formData.get('contact_source_client_type')) || (text(formData.get('contact_source_school_id')) ? 'school' : 'authority');
   payload.client_type = ['school', 'authority', 'other'].includes(selectedClientType) ? selectedClientType : 'school';
   if (payload.client_type === 'other') {
-    payload.school_framework = text(formData.get('other_client_name')) || payload.school_framework;
+    payload.school_framework = '';
     payload.client_authority = '';
+    payload.client_name = '';
+    payload.other_client_name = '';
     payload.authority_id = null;
     payload.school_id = null;
     payload.contact_school_id = null;
@@ -3789,12 +3785,10 @@ function validatePayload(payload, statusOverride) {
   const isOtherProposal = clientType === 'other';
   const isAuthorityOnlyProposal = clientType === 'authority';
   const baseRequiredFields = requiresCompleteProposal ? REQUIRED_FIELDS_PENDING : REQUIRED_FIELDS_DRAFT;
-  const requiredFields = baseRequiredFields.filter((key) => !(isOtherProposal && key === 'client_authority'));
+  const requiredFields = baseRequiredFields.filter((key) => !(isOtherProposal && ['client_authority', 'school_framework', 'other_client_name'].includes(key)));
   const missing = requiredFields.filter((key) => !text(payload[key]));
   const errors = missing.map((key) => FIELD_LABELS[key] || key);
-  if (isOtherProposal) {
-    if (!text(payload.school_framework)) errors.push('שם הגורם / הלקוח');
-  } else {
+  if (!isOtherProposal) {
     if (!text(payload.authority_id)) {
       errors.push('יש לבחור רשות מתוך רשימת הרשויות.');
     }
@@ -4834,7 +4828,7 @@ export const proposalsAgreementsScreen = {
         if (searchRow) searchRow.hidden = false;
         if (searchFieldWrap) searchFieldWrap.hidden = true;
         if (schoolSearchPanel) schoolSearchPanel.hidden = true;
-        if (otherField) otherField.hidden = false;
+        if (otherField) otherField.hidden = true;
         if (contactPanel) contactPanel.hidden = false;
         manualFields.forEach((el) => { el.hidden = false; });
         if (roCtx) roCtx.hidden = true;
@@ -4883,12 +4877,11 @@ export const proposalsAgreementsScreen = {
       form.querySelector('[name="other_client_name"]')?.addEventListener('input', () => {
         const selected = text(form.querySelector('input[name="client_type_selector"]:checked')?.value);
         if (selected !== 'other') return;
-        const value = text(form.querySelector('[name="other_client_name"]')?.value);
-        const schoolInput = form.querySelector('input[name="school_framework"]');
         const authInput = form.querySelector('input[name="client_authority"]');
-        if (schoolInput) schoolInput.value = value;
+        const schoolInput = form.querySelector('input[name="school_framework"]');
         if (authInput) authInput.value = '';
-        setContactSourceFields(form, emptyContactSourceForRecipientType('other', value));
+        if (schoolInput) schoolInput.value = '';
+        setContactSourceFields(form, emptyContactSourceForRecipientType('other'));
         calcGrandTotal(form);
         updateLivePreview(form);
       }, { signal });
