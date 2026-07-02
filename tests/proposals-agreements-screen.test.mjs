@@ -1184,7 +1184,9 @@ test('tour proposal live total follows quantity on full subtotal', async () => {
       });
 
       const form = openNewProposalForm(root, dom);
-      form.querySelector('[data-pa-type-btn="סיור"]')?.dispatchEvent(new dom.window.MouseEvent('click', { bubbles: true }));
+      const typeInput = form.querySelector('[name="activity_type_group"]');
+      typeInput.value = 'סיור';
+      typeInput.dispatchEvent(new dom.window.Event('change', { bubbles: true }));
       await delay(20);
       assert.ok(form.querySelector('[data-pa-tour-details]'), 'tour editor should render');
 
