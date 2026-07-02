@@ -12949,6 +12949,86 @@ select.ds-input {
 .pa-cost-table.pa-summer-cost-table td:nth-child(4) {
   width: auto;
 }
+
+.pa-tour-cost-table {
+  width: 100% !important;
+  max-width: 100%;
+  table-layout: fixed;
+  border-collapse: collapse;
+  direction: rtl;
+}
+
+.pa-tour-cost-table th,
+.pa-tour-cost-table td {
+  box-sizing: border-box;
+  text-align: center;
+  vertical-align: middle;
+  white-space: normal;
+  overflow-wrap: anywhere;
+}
+
+.pa-tour-cost-table th:first-child,
+.pa-tour-cost-table td:first-child {
+  text-align: right;
+}
+
+.pa-cost-table.pa-tour-cost-table th:nth-child(n),
+.pa-cost-table.pa-tour-cost-table td:nth-child(n) {
+  width: auto;
+  white-space: normal;
+  text-align: center;
+  direction: rtl;
+}
+
+.pa-cost-table.pa-tour-cost-table th:first-child,
+.pa-cost-table.pa-tour-cost-table td:first-child {
+  text-align: right;
+}
+
+.pa-cost-table.pa-tour-cost-table td:has(.pa-currency-amount),
+.pa-cost-table.pa-tour-cost-table td:has(.money-amount) {
+  text-align: center;
+}
+
+.pa-tour-cost-table .pa-currency-amount,
+.pa-tour-cost-table .money-amount {
+  display: inline-block;
+  max-width: 100%;
+  white-space: nowrap;
+}
+
+.pa-tour-class-col { width: 24%; }
+.pa-tour-students-col { width: 12%; }
+.pa-tour-student-price-col { width: 14%; }
+.pa-tour-guide-col { width: 13%; }
+.pa-tour-transport-col { width: 13%; }
+.pa-tour-quantity-col { width: 10%; }
+.pa-tour-total-col { width: 14%; }
+
+@media print {
+  .pa-tour-cost-table {
+    width: 100% !important;
+    max-width: 100% !important;
+    table-layout: fixed !important;
+    margin-inline: 0 !important;
+  }
+
+  .pa-tour-cost-table th,
+  .pa-tour-cost-table td {
+    padding: 2mm 1.5mm !important;
+    font-size: 8.5pt !important;
+    line-height: 1.25 !important;
+    white-space: normal !important;
+    overflow: hidden !important;
+    text-overflow: clip !important;
+  }
+
+  .pa-tour-cost-table .pa-currency-amount,
+  .pa-tour-cost-table .money-amount {
+    white-space: nowrap !important;
+  }
+}
+
 .pa-discount-summary-table td:last-child {
   text-align: left;
   direction: ltr;
@@ -16499,6 +16579,11 @@ details[open] > .ds-fin-acc__summary::before { transform: rotate(90deg); }
 
 @media print {
   .pa-cost-table { width: 90% !important; max-width: 168mm !important; margin-right: 0 !important; margin-left: auto !important; }
+  .pa-cost-table.pa-tour-cost-table {
+    width: 100% !important;
+    max-width: 100% !important;
+    margin-inline: 0 !important;
+  }
   .pa-item-details-table { width: 92% !important; max-width: 176mm !important; margin-left: auto !important; margin-right: auto !important; }
   .proposal-document .pa-item-details-table.pa-next-year-course-table {
     table-layout: fixed !important;
@@ -18234,6 +18319,28 @@ details[open] > .ds-fin-acc__summary::before { transform: rotate(90deg); }
   font-weight: 700;
   background: #f5f7fa !important;
 }
+
+.pa-cost-table.pa-activities-table.pa-tour-cost-table {
+  width: 100% !important;
+  max-width: 100%;
+  table-layout: fixed;
+  margin: 6px 0 8px !important;
+  align-self: stretch;
+}
+
+.pa-cost-table.pa-activities-table.pa-tour-cost-table th,
+.pa-cost-table.pa-activities-table.pa-tour-cost-table td {
+  white-space: normal;
+  overflow-wrap: anywhere;
+  vertical-align: middle;
+}
+
+.proposal-document .pa-cost-table.pa-tour-cost-table td:has(.pa-currency-amount),
+.proposal-document .pa-activities-table.pa-tour-cost-table td:has(.pa-currency-amount) {
+  direction: rtl;
+  text-align: center;
+}
+
 /* Footer signature: one in-flow block (blessing, image, rule, signer). */
 .pa-footer-signature {
   margin-top: 14px;
@@ -18324,6 +18431,13 @@ details[open] > .ds-fin-acc__summary::before { transform: rotate(90deg); }
   .pa-page-header { text-align: left !important; }
   .pa-logo-area .proposal-logo { height: 48px !important; max-height: 48px !important; }
   .pa-activities-table { page-break-inside: auto; width: auto !important; }
+  .pa-cost-table.pa-activities-table.pa-tour-cost-table,
+  .pa-tour-cost-table {
+    width: 100% !important;
+    max-width: 100% !important;
+    table-layout: fixed !important;
+    margin-inline: 0 !important;
+  }
   .pa-activities-table tr { page-break-inside: avoid; }
   .pa-activities-table thead { display: table-header-group; }
   .pa-activities-table tfoot { display: table-footer-group; }
@@ -18641,6 +18755,33 @@ details[open] > .ds-fin-acc__summary::before { transform: rotate(90deg); }
   .proposal-document .pa-cost-table.pa-summer-cost-table td { text-align: center !important; vertical-align: middle !important; }
   .proposal-document .pa-cost-table.pa-summer-cost-table th:first-child,
   .proposal-document .pa-cost-table.pa-summer-cost-table td:first-child { text-align: right !important; }
+
+  .proposal-document .pa-cost-table.pa-tour-cost-table,
+  .pa-cost-table.pa-tour-cost-table {
+    width: 100% !important;
+    max-width: 100% !important;
+    table-layout: fixed !important;
+    margin-inline: 0 !important;
+  }
+  .proposal-document .pa-cost-table.pa-tour-cost-table th,
+  .proposal-document .pa-cost-table.pa-tour-cost-table td,
+  .pa-cost-table.pa-tour-cost-table th,
+  .pa-cost-table.pa-tour-cost-table td {
+    padding: 2mm 1.5mm !important;
+    font-size: 8.5pt !important;
+    line-height: 1.25 !important;
+    white-space: normal !important;
+    overflow: hidden !important;
+    text-overflow: clip !important;
+    vertical-align: middle !important;
+    text-align: center !important;
+  }
+  .proposal-document .pa-cost-table.pa-tour-cost-table th:first-child,
+  .proposal-document .pa-cost-table.pa-tour-cost-table td:first-child,
+  .pa-cost-table.pa-tour-cost-table th:first-child,
+  .pa-cost-table.pa-tour-cost-table td:first-child {
+    text-align: right !important;
+  }
 }
 
 
@@ -19184,6 +19325,11 @@ details[open] > .ds-fin-acc__summary::before { transform: rotate(90deg); }
     direction: ltr !important;
     unicode-bidi: isolate !important;
     text-align: left !important;
+  }
+  .proposal-document .pa-cost-table.pa-tour-cost-table td:has(.pa-currency-amount),
+  .proposal-document .pa-activities-table.pa-tour-cost-table td:has(.pa-currency-amount) {
+    direction: rtl !important;
+    text-align: center !important;
   }
 }
 

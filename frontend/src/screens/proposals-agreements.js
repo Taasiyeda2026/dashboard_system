@@ -2047,6 +2047,15 @@ function tourCostTableHtml(items = []) {
   return `<div class="pa-tour-payment-block">
     ${sectionBodyHtml('התשלום עבור הסיור יבוצע בהתאם לטבלה שלהלן:', { alwaysBullet: true })}
     <table class="pa-cost-table pa-activities-table pa-tour-cost-table">
+      <colgroup>
+        <col class="pa-tour-class-col">
+        <col class="pa-tour-students-col">
+        <col class="pa-tour-student-price-col">
+        <col class="pa-tour-guide-col">
+        <col class="pa-tour-transport-col">
+        <col class="pa-tour-quantity-col">
+        <col class="pa-tour-total-col">
+      </colgroup>
       <thead><tr><th>כיתה</th><th>מספר תלמידים</th><th>מחיר לתלמיד</th><th>מדריך</th><th>הסעה</th><th>כמות</th><th>סה״כ</th></tr></thead>
       <tbody><tr>
         <td>${escapeHtml(d.class_name)}</td>
