@@ -177,7 +177,8 @@ const COMBINED_TEMPLATE_GROUP_KEYS = Object.freeze(['summer', 'next_year']);
 const PROPOSAL_GROUP_DISPLAY_FALLBACKS = Object.freeze({
   summer: 'פעילויות קיץ',
   next_year: 'שנה הבאה',
-  combined: 'הצעה משולבת'
+  combined: 'הצעה משולבת',
+  tour: 'סיור'
 });
 const PROPOSAL_GROUP_LEGACY_ALIASES = Object.freeze({
   'קיץ תשפ״ו': 'summer',
@@ -186,6 +187,7 @@ const PROPOSAL_GROUP_LEGACY_ALIASES = Object.freeze({
   'תוכניות תשפ״ז': 'next_year',
   'שנה הבאה': 'next_year',
   'הצעה משולבת': 'combined',
+  'סיור': 'tour',
   'קיץ תשפ״ו ושנת הלימודים תשפ״ז': 'combined',
   'קיץ תשפ״ו ותוכניות תשפ״ז': 'combined',
   'קיץ תשפ״ו + תשפ״ז': 'combined'
@@ -198,6 +200,25 @@ function proposalGroupSafeDisplayName(groupKey = '', displayName = '') {
   return PROPOSAL_GROUP_DISPLAY_FALLBACKS[key] || label || key;
 }
 let proposalTemplateSectionsLookup = [];
+
+const TOUR_TEMPLATE_KEY = 'tour';
+const TOUR_ACTIVITY_NAME = 'התנסות בתעשייה – סיור לימודי חווייתי';
+const TOUR_GEFEN_NUMBER = '13990';
+const TOUR_ACTIVITY_LINE = `${TOUR_ACTIVITY_NAME} – גפ״ן ${TOUR_GEFEN_NUMBER}`;
+const TOUR_ACTIVITY_INTRO_BODY = `להלן הפעילות המוצעת לשנת הלימודים תשפ״ז:
+${TOUR_ACTIVITY_LINE}`;
+const TOUR_CANCELLATION_TERMS_BODY = `ביטול סיור בהתראה של פחות משני ימי עבודה יחויב כסיור שהתקיים בפועל.
+
+שינוי מועד הסיור בשל הנחיות, מצב חירום או אילוצי הגוף המארח יתואם למועד חלופי מוסכם בין הצדדים.
+
+ככל שהסיור לא יתקיים במועדו, תעשיידע תפעל לתיאום מועד חלופי בהתאם לזמינות הצדדים.`;
+
+function isTourProposalGroup(value = '') {
+  const normalized = normalizeProposalGroup(value);
+  const key = proposalGroupTemplateKey(normalized) || normalized;
+  return key === TOUR_TEMPLATE_KEY || normalized === TOUR_TEMPLATE_KEY || text(value) === TOUR_TEMPLATE_KEY;
+}
+
 
 
 function proposalField(object = {}, snakeKey = '', camelKey = '') {
@@ -1097,20 +1118,24 @@ function clientSearchHtml(_contactOptions, row = {}) {
   const existingSchool = text(row.school_framework);
   const hasSchool = existingSchool && existingSchool !== existingAuthority;
   return `<div class="ds-pa-client-search" data-pa-client-search-wrap>
-    <label class="ds-pa-form-field ds-pa-form-field--client-search" data-pa-client-search-field>
-      <span data-pa-client-search-label>רשות</span>
-      <input class="ds-input ds-input--sm" type="search" data-pa-client-search-input value="${escapeHtml(existingAuthority)}" placeholder="חיפוש לפי שם רשות, קוד רשות או מחוז" autocomplete="off" aria-autocomplete="list">
-    </label>
-    <div class="ds-pa-client-results" data-pa-client-results hidden></div>
+    <div class="ds-pa-client-search-field-wrap" data-pa-client-search-field-wrap>
+      <label class="ds-pa-form-field ds-pa-form-field--client-search" data-pa-client-search-field>
+        <span data-pa-client-search-label>רשות</span>
+        <input class="ds-input ds-input--sm" type="search" data-pa-client-search-input value="${escapeHtml(existingAuthority)}" placeholder="חיפוש לפי שם רשות, קוד רשות או מחוז" autocomplete="off" aria-autocomplete="list">
+      </label>
+      <div class="ds-pa-client-results" data-pa-client-results hidden></div>
+    </div>
     <div class="ds-pa-school-search-panel" data-pa-school-search-panel hidden>
       <p class="ds-pa-school-step-text">רשות נבחרה: <strong data-pa-step-authority-name-school></strong>
         <button type="button" class="ds-btn ds-btn--xs ds-btn--ghost" data-pa-change-authority-step>שנה רשות</button>
       </p>
-      <label class="ds-pa-form-field ds-pa-form-field--client-search" data-pa-school-search-field>
-        <span>בית ספר / מסגרת</span>
-        <input class="ds-input ds-input--sm" type="search" data-pa-school-search-input value="${escapeHtml(hasSchool ? existingSchool : '')}" placeholder="חיפוש לפי שם בית ספר או סמל מוסד" autocomplete="off" aria-autocomplete="list">
-      </label>
-      <div class="ds-pa-client-results" data-pa-school-results hidden></div>
+      <div class="ds-pa-client-search-field-wrap" data-pa-school-search-field-wrap>
+        <label class="ds-pa-form-field ds-pa-form-field--client-search" data-pa-school-search-field>
+          <span>בית ספר / מסגרת</span>
+          <input class="ds-input ds-input--sm" type="search" data-pa-school-search-input value="${escapeHtml(hasSchool ? existingSchool : '')}" placeholder="חיפוש לפי שם בית ספר או סמל מוסד" autocomplete="off" aria-autocomplete="list">
+        </label>
+        <div class="ds-pa-client-results" data-pa-school-results hidden></div>
+      </div>
     </div>
   </div>`;
 }
@@ -1123,6 +1148,25 @@ function contactOptionsLoadErrorHtml(contactOptionsError) {
   return `<div class="ds-pa-inline-alert ds-pa-inline-alert--warning" data-pa-contact-options-error role="alert" style="margin:8px 0;padding:8px 10px;border:1px solid #f59e0b;border-radius:10px;background:#fffbeb;color:#92400e;font-size:0.82rem;line-height:1.45">${escapeHtml(CONTACT_OPTIONS_LOAD_ERROR_MESSAGE)}</div>`;
 }
 
+function dedupeContactPickerOptions(contacts = []) {
+  const seen = new Set();
+  const result = [];
+  contacts.forEach((contact) => {
+    const contactName = text(contact?.contact_name);
+    if (!contactName) return;
+    const key = [
+      normalizeHebrewQuoteVariants(contactName),
+      normalizeHebrewQuoteVariants(text(contact?.contact_role)),
+      text(contact?.email).toLowerCase(),
+      text(contact?.phone || contact?.mobile || '')
+    ].join('||');
+    if (seen.has(key)) return;
+    seen.add(key);
+    result.push(contact);
+  });
+  return result;
+}
+
 function contactPickerHtml(contactOptions, authority, school, selectedContactName, authorityId = null, schoolId = null, authorityOnly = false, schoolMeta = null) {
   const contacts = filterContactsForClient(contactOptions, { authorityId, schoolId, authorityOnly });
   if (!authorityId) return '';
@@ -1133,16 +1177,23 @@ function contactPickerHtml(contactOptions, authority, school, selectedContactNam
     authority,
     school
   }) || {};
+  const defaultContact = authorityOnly ? null : defaultContactFromSchoolMeta(resolvedSchoolMeta);
+  const selectedName = text(selectedContactName);
+  const pickerContacts = dedupeContactPickerOptions([
+    ...contacts,
+    ...(defaultContact ? [defaultContact] : [])
+  ]);
   const optionsHtml = ['<option value="">— בחרו איש קשר —</option>',
-    ...contacts.map((c) => {
+    ...pickerContacts.map((c) => {
       const val = contactOptionKey(c);
       const contactName = text(c.contact_name);
       const label = c.contact_role ? `${contactName} (${text(c.contact_role)})` : contactName;
-      return `<option value="${escapeHtml(val)}"${text(c.contact_name) === selectedContactName || val === selectedContactName ? ' selected' : ''}>${escapeHtml(label)}</option>`;
+      const contactPayload = encodeURIComponent(JSON.stringify(c));
+      return `<option value="${escapeHtml(val)}" data-pa-contact-option="${escapeHtml(contactPayload)}"${contactName === selectedName || val === selectedName ? ' selected' : ''}>${escapeHtml(label)}</option>`;
     }),
     '<option value="__pa_other_contact__">אחר</option>'
   ].join('');
-  const noContacts = contacts.length === 0;
+  const noContacts = pickerContacts.length === 0;
   return `
     <div class="ds-pa-form-field ds-pa-contact-select-field">
       <select class="ds-input ds-input--sm" data-pa-contact-select aria-label="איש קשר">${optionsHtml}</select>
@@ -1478,6 +1529,88 @@ function combinedItemsSectionHtml(label, groupKey, items, pricingOptions, idxOff
   </div>`;
 }
 
+
+function parseTourDetails(item = {}) {
+  const raw = proposalField(item, 'description', 'description');
+  if (raw && typeof raw === 'string') {
+    try {
+      const parsed = JSON.parse(raw);
+      if (parsed && typeof parsed === 'object' && parsed.kind === 'tour_table') return parsed;
+    } catch {}
+  }
+  return {};
+}
+
+function tourItemFromDetails(details = {}, fallback = {}) {
+  const students = numberValue(details.students_count ?? details.studentsCount);
+  const unitPrice = numberValue(details.price_per_student ?? details.pricePerStudent);
+  const quantity = numberValue(details.quantity) ?? 1;
+  const guide = numberValue(details.guide_cost ?? details.guideCost);
+  const transport = numberValue(details.transport_cost ?? details.transportCost);
+  const autoTotal = (students != null && unitPrice != null)
+    ? (students * unitPrice * (quantity || 1)) + (guide || 0) + (transport || 0)
+    : null;
+  const total = numberValue(details.total_price ?? details.totalPrice) ?? autoTotal;
+  const payload = {
+    kind: 'tour_table',
+    class_name: text(details.class_name ?? details.className),
+    students_count: students,
+    price_per_student: unitPrice,
+    guide_cost: guide,
+    transport_cost: transport,
+    quantity,
+    total_price: total
+  };
+  return normalizeProposalItemRow({
+    ...fallback,
+    item_name: TOUR_ACTIVITY_NAME,
+    item_type: text(fallback.item_type) || 'סיור',
+    gefen_number: TOUR_GEFEN_NUMBER,
+    quantity: quantity || 1,
+    unit_price: unitPrice,
+    total_price: total,
+    description: JSON.stringify(payload),
+    course_note: payload.class_name,
+    activity_no: text(fallback.activity_no),
+    proposal_group: TOUR_TEMPLATE_KEY,
+    proposal_display_mode: 'single'
+  }, TOUR_TEMPLATE_KEY);
+}
+
+function tourDetailsFromItem(item = {}) {
+  const parsed = parseTourDetails(item);
+  return {
+    class_name: text(parsed.class_name ?? parsed.className ?? item.course_note ?? item.manual_note),
+    students_count: numberValue(parsed.students_count ?? parsed.studentsCount),
+    price_per_student: numberValue(parsed.price_per_student ?? parsed.pricePerStudent ?? item.unit_price),
+    guide_cost: numberValue(parsed.guide_cost ?? parsed.guideCost),
+    transport_cost: numberValue(parsed.transport_cost ?? parsed.transportCost),
+    quantity: numberValue(parsed.quantity ?? item.quantity) ?? 1,
+    total_price: numberValue(parsed.total_price ?? parsed.totalPrice ?? item.total_price)
+  };
+}
+
+function tourDetailsEditorHtml(items = []) {
+  const source = (Array.isArray(items) ? items : []).find((item) => text(item.item_name) || text(item.description)) || {};
+  const d = tourDetailsFromItem(source);
+  const val = (v) => v != null && v !== '' && Number.isFinite(Number(v)) ? escapeHtml(String(v)) : '';
+  const total = val(d.total_price);
+  return `<div class="ds-pa-items-section ds-pa-tour-details" data-pa-tour-details>
+    <div class="ds-pa-items-header"><span class="ds-pa-items-section-label">פרטי טבלת הסיור</span></div>
+    <p class="ds-muted" style="font-size:0.8rem;margin:0 0 8px">הפעילות קבועה: ${escapeHtml(TOUR_ACTIVITY_LINE)}</p>
+    <div class="ds-pa-item-grid ds-pa-item-grid--extras" data-pa-tour-row>
+      <label class="ds-pa-item-field"><span>כיתה</span><input class="ds-input ds-input--sm" name="tour_class_name" value="${escapeHtml(d.class_name)}"></label>
+      <label class="ds-pa-item-field"><span>מספר תלמידים</span><input class="ds-input ds-input--sm" type="number" min="0" step="1" name="tour_students_count" value="${val(d.students_count)}" data-pa-tour-students></label>
+      <label class="ds-pa-item-field"><span>מחיר לתלמיד</span><input class="ds-input ds-input--sm" type="number" min="0" step="any" name="tour_price_per_student" value="${val(d.price_per_student)}" data-pa-tour-price></label>
+      <label class="ds-pa-item-field"><span>מדריך</span><input class="ds-input ds-input--sm" type="number" min="0" step="any" name="tour_guide_cost" value="${val(d.guide_cost)}" data-pa-tour-guide></label>
+      <label class="ds-pa-item-field"><span>הסעה</span><input class="ds-input ds-input--sm" type="number" min="0" step="any" name="tour_transport_cost" value="${val(d.transport_cost)}" data-pa-tour-transport></label>
+      <label class="ds-pa-item-field"><span>כמות</span><input class="ds-input ds-input--sm" type="number" min="0" step="any" name="tour_quantity" value="${val(d.quantity) || '1'}" data-pa-tour-quantity></label>
+      <label class="ds-pa-item-field"><span>סה״כ</span><input class="ds-input ds-input--sm" type="number" min="0" step="any" name="tour_total_price" value="${total}" data-pa-tour-total></label>
+    </div>
+    <div class="ds-pa-items-total-row">סה״כ כללי: <strong data-pa-grand-total>${total ? `₪ ${formatCurrency(total)}` : '₪ 0'}</strong></div>
+  </div>`;
+}
+
 function itemsEditorHtml(items = [], pricingOptions = [], activityTypeGroup = '') {
   const hasProposalType = Boolean(normalizeProposalGroup(activityTypeGroup));
   if (!hasProposalType) {
@@ -1488,6 +1621,7 @@ function itemsEditorHtml(items = [], pricingOptions = [], activityTypeGroup = ''
   }
   items = (Array.isArray(items) ? items : []).map((item) => normalizeProposalItemRow(item, activityTypeGroup));
   const normalizedGroup = normalizeProposalGroup(activityTypeGroup);
+  if (isTourProposalGroup(normalizedGroup)) return tourDetailsEditorHtml(items);
   const footer = `<datalist id="pa-item-type-list">${itemTypeOptions(pricingOptions).map((v) => `<option value="${escapeHtml(v)}">`).join('')}</datalist>
     <div class="ds-pa-items-total-row">סה״כ כללי: <strong data-pa-grand-total></strong></div>`;
 
@@ -1546,6 +1680,19 @@ const PROPOSAL_DISPLAY_MODES = new Set(['single', 'bundle_parent', 'bundle_child
 
 function extractItemsFromForm(form) {
   const formGroup = text(form.querySelector('[name="activity_type_group"]')?.value);
+  if (isTourProposalGroup(formGroup)) {
+    const get = (name) => form.querySelector(`[name="${name}"]`)?.value;
+    const details = {
+      class_name: text(get('tour_class_name')),
+      students_count: numberValue(get('tour_students_count')),
+      price_per_student: numberValue(get('tour_price_per_student')),
+      guide_cost: numberValue(get('tour_guide_cost')),
+      transport_cost: numberValue(get('tour_transport_cost')),
+      quantity: numberValue(get('tour_quantity')) ?? 1,
+      total_price: numberValue(get('tour_total_price'))
+    };
+    return [tourItemFromDetails(details)].filter(hasMeaningfulProposalItemValue);
+  }
   return Array.from(form.querySelectorAll('[data-pa-item-row]')).map((row, rowIdx) => {
     const rawBundleItems = text(row.querySelector('[name="item_selected_bundle_items"]')?.value) || '[]';
     let selectedBundleItems = [];
@@ -1854,6 +2001,33 @@ function costTableRowsFromItem(item = {}) {
   const total = numberValue(item.total_price) ?? (unitPrice != null ? quantity * unitPrice : null);
   const row = costTableRowData(name, quantity, unitPrice, total);
   return row ? [row] : [];
+}
+
+
+function tourCostTableHtml(items = []) {
+  const item = (Array.isArray(items) ? items : []).find((entry) => text(entry.item_name) || text(entry.description)) || {};
+  const d = tourDetailsFromItem(item);
+  const fmt = (value, money = false) => {
+    if (value == null || value === '') return '';
+    return money ? currencyAmountHtml(value) : escapeHtml(formatCurrency(value));
+  };
+  const total = numberValue(d.total_price) ?? numberValue(item.total_price);
+  return `<div class="pa-tour-payment-block">
+    ${sectionBodyHtml('התשלום עבור הסיור יבוצע בהתאם לטבלה שלהלן:', { alwaysBullet: true })}
+    <table class="pa-cost-table pa-activities-table pa-tour-cost-table">
+      <thead><tr><th>כיתה</th><th>מספר תלמידים</th><th>מחיר לתלמיד</th><th>מדריך</th><th>הסעה</th><th>כמות</th><th>סה״כ</th></tr></thead>
+      <tbody><tr>
+        <td>${escapeHtml(d.class_name)}</td>
+        <td>${fmt(d.students_count)}</td>
+        <td>${fmt(d.price_per_student, true)}</td>
+        <td>${fmt(d.guide_cost, true)}</td>
+        <td>${fmt(d.transport_cost, true)}</td>
+        <td>${fmt(d.quantity)}</td>
+        <td>${fmt(total, true)}</td>
+      </tr></tbody>
+    </table>
+    ${sectionBodyHtml('חשבונית לתשלום תונפק במעמד ביצוע הסיור. תנאי התשלום: שוטף + 15 ממועד הנפקתה.', { alwaysBullet: true })}
+  </div>`;
 }
 
 // Customer-facing price breakdown, built only from saved proposal_agreement_items.
@@ -2427,11 +2601,13 @@ export function proposalPreviewBodyHtml(row, items = [], templateSections = [], 
   const introText = sectionBody('intro');
   const remarks = sectionBody('notes');
   const templateActivityIntro = filterCatalogContentFromBody(sectionBody('activity_intro'), false);
-  const activityIntro = isSummerProposalGroup(activityTypeGroup)
-    ? summerActivityProposalBody()
-    : isNextYearProposalGroup(activityTypeGroup)
-      ? nextYearActivityIntroWithCourseNames(templateActivityIntro, row, items)
-      : templateActivityIntro;
+  const activityIntro = isTourProposalGroup(activityTypeGroup)
+    ? TOUR_ACTIVITY_INTRO_BODY
+    : isSummerProposalGroup(activityTypeGroup)
+      ? summerActivityProposalBody()
+      : isNextYearProposalGroup(activityTypeGroup)
+        ? nextYearActivityIntroWithCourseNames(templateActivityIntro, row, items)
+        : templateActivityIntro;
 
   const renderActivitySection = (heading, body) => {
     const bodyHtml = body ? sectionBodyHtml(body) : '';
@@ -2478,11 +2654,13 @@ export function proposalPreviewBodyHtml(row, items = [], templateSections = [], 
 
   // Payment section: general terms text comes from Supabase, while the price
   // breakdown is always built dynamically from proposal_agreement_items.
-  const paymentTermsBody = stripTableIntroFromPaymentTermsBody(sectionBody('payment_terms'), templateKey);
+  const paymentTermsBody = isTourProposalGroup(activityTypeGroup) ? '' : stripTableIntroFromPaymentTermsBody(sectionBody('payment_terms'), templateKey);
   const proposalKind = proposalActivityKind(row, items);
-  const costTableHtml = proposalKind === 'course'
-    ? proposalItemDetailsTableHtml(items, activityTypeGroup)
-    : proposalCostTableHtml(items, { isSummer: isSummerProposalGroup(activityTypeGroup) });
+  const costTableHtml = isTourProposalGroup(activityTypeGroup)
+    ? tourCostTableHtml(items)
+    : proposalKind === 'course'
+      ? proposalItemDetailsTableHtml(items, activityTypeGroup)
+      : proposalCostTableHtml(items, { isSummer: isSummerProposalGroup(activityTypeGroup) });
   const costsIntro = costsIntroBody(row, items);
   const costTableBlock = costTableHtml
     ? `<div class="pa-cost-table-block">${costsIntro ? `<p class="pa-costs-intro-heading">${escapeHtml(costsIntro)}</p>` : ''}${costTableHtml}</div>`
@@ -2507,7 +2685,9 @@ export function proposalPreviewBodyHtml(row, items = [], templateSections = [], 
     orgResponsibility: renderSectionFromSupabase('taasiyeda_responsibility', { alwaysBullet: true, className: 'pa-responsibility-org' }),
     schoolResponsibility: renderSectionFromSupabase('school_responsibility', { alwaysBullet: true, className: 'pa-responsibility-school' }),
     paymentTerms,
-    changesCancellation: renderSectionFromSupabase('cancellation_terms', { alwaysBullet: true, className: [cancellationClass, 'pa-cancellations-section'].filter(Boolean).join(' ') }),
+    changesCancellation: isTourProposalGroup(activityTypeGroup)
+      ? sectionHtml(sectionTitle('cancellation_terms') || 'שינויים, ביטולים והתאמות', TOUR_CANCELLATION_TERMS_BODY, 'pa-cancellations-section', { alwaysBullet: true })
+      : renderSectionFromSupabase('cancellation_terms', { alwaysBullet: true, className: [cancellationClass, 'pa-cancellations-section'].filter(Boolean).join(' ') }),
     remarks: `${remarks ? sectionHtml(sectionTitle('notes') || '', remarks) : ''}${catalogAppendixNoticeHtml(row, items)}`,
     signatureHtml,
     sectionLinesHtml,
@@ -4079,7 +4259,11 @@ export const proposalsAgreementsScreen = {
           return;
         }
         if (!key) return;
-        const contact = contactOptions.find((c) => contactOptionKey(c) === key);
+        let contact = contactOptions.find((c) => contactOptionKey(c) === key);
+        if (!contact) {
+          const encoded = contactSelect.selectedOptions?.[0]?.dataset?.paContactOption || '';
+          try { contact = encoded ? JSON.parse(decodeURIComponent(encoded)) : null; } catch { contact = null; }
+        }
         if (contact) {
           setContactSelectionMode(form, '');
           fillContactFields(form, contact);
@@ -4484,9 +4668,27 @@ export const proposalsAgreementsScreen = {
       return total;
     };
 
+    const calcTourTotal = (container) => {
+      const details = container.querySelector('[data-pa-tour-details]');
+      if (!details) return null;
+      const n = (selector) => numberValue(details.querySelector(selector)?.value);
+      const students = n('[data-pa-tour-students]');
+      const price = n('[data-pa-tour-price]');
+      const quantity = n('[data-pa-tour-quantity]') ?? 1;
+      const guide = n('[data-pa-tour-guide]') || 0;
+      const transport = n('[data-pa-tour-transport]') || 0;
+      const totalInput = details.querySelector('[data-pa-tour-total]');
+      const calculated = students != null && price != null ? (students * price * (quantity || 1)) + guide + transport : null;
+      if (calculated != null && totalInput && document.activeElement !== totalInput) totalInput.value = calculated ? calculated.toFixed(2) : '';
+      return numberValue(totalInput?.value) ?? calculated ?? 0;
+    };
+
     const calcGrandTotal = (container) => {
-      let subtotal = 0;
-      container.querySelectorAll('[data-pa-item-row]').forEach((rowEl) => { subtotal += calcItemRow(rowEl); });
+      let subtotal = calcTourTotal(container);
+      if (subtotal == null) {
+        subtotal = 0;
+        container.querySelectorAll('[data-pa-item-row]').forEach((rowEl) => { subtotal += calcItemRow(rowEl); });
+      }
       const discountType = text(container.querySelector('[data-pa-discount-type]')?.value) || 'amount';
       const discountValue = parseFloat(container.querySelector('[data-pa-discount-value]')?.value || '0') || 0;
       const discount = discountType === 'percent' ? subtotal * (Math.min(discountValue, 100) / 100) : Math.min(discountValue, subtotal);
