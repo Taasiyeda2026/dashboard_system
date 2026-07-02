@@ -762,7 +762,8 @@ function signatureSectionHtml(_signatureBody = '', row = {}, options = {}) {
 
   return `<div class="pa-footer-signature" aria-label="חתימה">
     <div class="pa-blessing">בברכה,</div>
-    <div class="pa-signer-block" style="margin-top:2.4em;">
+    <div class="pa-signature-spacer" aria-hidden="true"><br><br></div>
+    <div class="pa-signer-block">
       ${imageHtml}
       <div class="pa-signature-rule" aria-hidden="true"></div>
       <div class="pa-signer-name">${DEFAULT_SIGNER_NAME}</div>
