@@ -3185,6 +3185,22 @@ function normalizeProposalGroupValue(value, groupLookup = proposalGroupLookupCac
   return groupLookup?.aliasToKey?.get(raw) || raw;
 }
 
+function normalizeProposalActivityGroupForSave(value = '', groupLookup = proposalGroupLookupCache) {
+  const raw = cleanProposalAgreementText(value);
+  const normalized = normalizeProposalGroupValue(raw, groupLookup);
+
+  const haystack = `${raw} ${normalized}`;
+  if (
+    normalized === 'tour' ||
+    /(?:^|\s)tour(?:\s|$)/i.test(haystack) ||
+    /סיור|סיורים|סיור בתעשייה|התנסות בתעשייה|13990/u.test(haystack)
+  ) {
+    return 'tour';
+  }
+
+  return normalized;
+}
+
 async function getProposalGroupLookup() {
   if (proposalGroupLookupCache) return proposalGroupLookupCache;
   const [groups, aliases, templateSections] = await Promise.all([
@@ -3248,7 +3264,7 @@ function sanitizeProposalAgreementPayload(payload = {}, groupLookup = proposalGr
     client_authority:    clientType === 'other' ? '' : clientAuthority,
     school_framework:    schoolFramework,
     document_type:       cleanProposalAgreementText(payload.document_type) || 'הצעת מחיר',
-    activity_type_group: normalizeProposalGroupValue(rawGroup, groupLookup),
+    activity_type_group: normalizeProposalActivityGroupForSave(rawGroup, groupLookup),
     proposal_domain:     normalizeProposalDomain(payload.proposal_domain),
     proposal_date:       cleanProposalAgreementText(payload.proposal_date) || null,
     activity_names:      activity_names,

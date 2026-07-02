@@ -3724,6 +3724,10 @@ function payloadFromForm(form) {
   payload.status = text(formData.get('status')) || 'draft';
   payload.document_type = 'הצעת מחיר';
   payload.include_catalog = false;
+  payload.activity_type_group = normalizeProposalGroup(payload.activity_type_group);
+  if (isTourProposalGroup(payload.activity_type_group)) {
+    payload.activity_type_group = 'tour';
+  }
   const items = filterItemsByProposalType(extractItemsFromForm(form), payload.activity_type_group);
   const subtotal = items.reduce((s, i) => s + Math.max(Number(proposalField(i, 'total_price', 'totalPrice')) || ((Number(proposalField(i, 'quantity', 'quantity')) || 0) * (Number(proposalField(i, 'unit_price', 'unitPrice')) || 0)), 0), 0);
   const discountType = text(form.querySelector('[data-pa-discount-type]')?.value) || 'amount';
@@ -5298,6 +5302,11 @@ export const proposalsAgreementsScreen = {
         }
       }
       try {
+        console.info('[proposal-save-payload]', {
+          activity_type_group: payload.activity_type_group,
+          activity_names: payload.activity_names,
+          total_amount: payload.total_amount
+        });
         const result = mode === 'edit'
           ? await api.updateProposalAgreement(id, payload)
           : await api.addProposalAgreement(payload);
@@ -6095,6 +6104,11 @@ export const proposalsAgreementsScreen = {
             status: 'draft',
           };
           const cloneItems = sourceItems.map(({ id: _id, ...rest }) => rest);
+          console.info('[proposal-save-payload]', {
+            activity_type_group: clonePayload.activity_type_group,
+            activity_names: clonePayload.activity_names,
+            total_amount: clonePayload.total_amount
+          });
           const result = await api.addProposalAgreement(clonePayload);
           if (!result?.ok || !result?.row?.id) throw new Error('clone_failed');
           const newId = result.row.id;
