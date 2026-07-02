@@ -1118,20 +1118,24 @@ function clientSearchHtml(_contactOptions, row = {}) {
   const existingSchool = text(row.school_framework);
   const hasSchool = existingSchool && existingSchool !== existingAuthority;
   return `<div class="ds-pa-client-search" data-pa-client-search-wrap>
-    <label class="ds-pa-form-field ds-pa-form-field--client-search" data-pa-client-search-field>
-      <span data-pa-client-search-label>רשות</span>
-      <input class="ds-input ds-input--sm" type="search" data-pa-client-search-input value="${escapeHtml(existingAuthority)}" placeholder="חיפוש לפי שם רשות, קוד רשות או מחוז" autocomplete="off" aria-autocomplete="list">
-    </label>
-    <div class="ds-pa-client-results" data-pa-client-results hidden></div>
+    <div class="ds-pa-client-search-field-wrap" data-pa-client-search-field-wrap>
+      <label class="ds-pa-form-field ds-pa-form-field--client-search" data-pa-client-search-field>
+        <span data-pa-client-search-label>רשות</span>
+        <input class="ds-input ds-input--sm" type="search" data-pa-client-search-input value="${escapeHtml(existingAuthority)}" placeholder="חיפוש לפי שם רשות, קוד רשות או מחוז" autocomplete="off" aria-autocomplete="list">
+      </label>
+      <div class="ds-pa-client-results" data-pa-client-results hidden></div>
+    </div>
     <div class="ds-pa-school-search-panel" data-pa-school-search-panel hidden>
       <p class="ds-pa-school-step-text">רשות נבחרה: <strong data-pa-step-authority-name-school></strong>
         <button type="button" class="ds-btn ds-btn--xs ds-btn--ghost" data-pa-change-authority-step>שנה רשות</button>
       </p>
-      <label class="ds-pa-form-field ds-pa-form-field--client-search" data-pa-school-search-field>
-        <span>בית ספר / מסגרת</span>
-        <input class="ds-input ds-input--sm" type="search" data-pa-school-search-input value="${escapeHtml(hasSchool ? existingSchool : '')}" placeholder="חיפוש לפי שם בית ספר או סמל מוסד" autocomplete="off" aria-autocomplete="list">
-      </label>
-      <div class="ds-pa-client-results" data-pa-school-results hidden></div>
+      <div class="ds-pa-client-search-field-wrap" data-pa-school-search-field-wrap>
+        <label class="ds-pa-form-field ds-pa-form-field--client-search" data-pa-school-search-field>
+          <span>בית ספר / מסגרת</span>
+          <input class="ds-input ds-input--sm" type="search" data-pa-school-search-input value="${escapeHtml(hasSchool ? existingSchool : '')}" placeholder="חיפוש לפי שם בית ספר או סמל מוסד" autocomplete="off" aria-autocomplete="list">
+        </label>
+        <div class="ds-pa-client-results" data-pa-school-results hidden></div>
+      </div>
     </div>
   </div>`;
 }
@@ -1144,6 +1148,25 @@ function contactOptionsLoadErrorHtml(contactOptionsError) {
   return `<div class="ds-pa-inline-alert ds-pa-inline-alert--warning" data-pa-contact-options-error role="alert" style="margin:8px 0;padding:8px 10px;border:1px solid #f59e0b;border-radius:10px;background:#fffbeb;color:#92400e;font-size:0.82rem;line-height:1.45">${escapeHtml(CONTACT_OPTIONS_LOAD_ERROR_MESSAGE)}</div>`;
 }
 
+function dedupeContactPickerOptions(contacts = []) {
+  const seen = new Set();
+  const result = [];
+  contacts.forEach((contact) => {
+    const contactName = text(contact?.contact_name);
+    if (!contactName) return;
+    const key = [
+      normalizeHebrewQuoteVariants(contactName),
+      normalizeHebrewQuoteVariants(text(contact?.contact_role)),
+      text(contact?.email).toLowerCase(),
+      text(contact?.phone || contact?.mobile || '')
+    ].join('||');
+    if (seen.has(key)) return;
+    seen.add(key);
+    result.push(contact);
+  });
+  return result;
+}
+
 function contactPickerHtml(contactOptions, authority, school, selectedContactName, authorityId = null, schoolId = null, authorityOnly = false, schoolMeta = null) {
   const contacts = filterContactsForClient(contactOptions, { authorityId, schoolId, authorityOnly });
   if (!authorityId) return '';
@@ -1154,16 +1177,23 @@ function contactPickerHtml(contactOptions, authority, school, selectedContactNam
     authority,
     school
   }) || {};
+  const defaultContact = authorityOnly ? null : defaultContactFromSchoolMeta(resolvedSchoolMeta);
+  const selectedName = text(selectedContactName);
+  const pickerContacts = dedupeContactPickerOptions([
+    ...contacts,
+    ...(defaultContact ? [defaultContact] : [])
+  ]);
   const optionsHtml = ['<option value="">— בחרו איש קשר —</option>',
-    ...contacts.map((c) => {
+    ...pickerContacts.map((c) => {
       const val = contactOptionKey(c);
       const contactName = text(c.contact_name);
       const label = c.contact_role ? `${contactName} (${text(c.contact_role)})` : contactName;
-      return `<option value="${escapeHtml(val)}"${text(c.contact_name) === selectedContactName || val === selectedContactName ? ' selected' : ''}>${escapeHtml(label)}</option>`;
+      const contactPayload = encodeURIComponent(JSON.stringify(c));
+      return `<option value="${escapeHtml(val)}" data-pa-contact-option="${escapeHtml(contactPayload)}"${contactName === selectedName || val === selectedName ? ' selected' : ''}>${escapeHtml(label)}</option>`;
     }),
     '<option value="__pa_other_contact__">אחר</option>'
   ].join('');
-  const noContacts = contacts.length === 0;
+  const noContacts = pickerContacts.length === 0;
   return `
     <div class="ds-pa-form-field ds-pa-contact-select-field">
       <select class="ds-input ds-input--sm" data-pa-contact-select aria-label="איש קשר">${optionsHtml}</select>
@@ -4229,7 +4259,11 @@ export const proposalsAgreementsScreen = {
           return;
         }
         if (!key) return;
-        const contact = contactOptions.find((c) => contactOptionKey(c) === key);
+        let contact = contactOptions.find((c) => contactOptionKey(c) === key);
+        if (!contact) {
+          const encoded = contactSelect.selectedOptions?.[0]?.dataset?.paContactOption || '';
+          try { contact = encoded ? JSON.parse(decodeURIComponent(encoded)) : null; } catch { contact = null; }
+        }
         if (contact) {
           setContactSelectionMode(form, '');
           fillContactFields(form, contact);

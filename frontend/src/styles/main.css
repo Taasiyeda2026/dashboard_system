@@ -16563,12 +16563,16 @@ details[open] > .ds-fin-acc__summary::before { transform: rotate(90deg); }
 .ds-pa-client-search.is-manual-only [data-pa-client-results] {
   display: none;
 }
+.ds-pa-client-search-field-wrap {
+  position: relative;
+  min-width: 0;
+}
 .ds-pa-client-results {
   position: absolute;
-  z-index: 8;
+  z-index: 80;
   inset-inline-start: 0;
   inset-inline-end: 0;
-  top: calc(100% + 6px);
+  top: calc(100% + 4px);
   display: grid;
   gap: 4px;
   max-height: 280px;
@@ -17696,6 +17700,12 @@ details[open] > .ds-fin-acc__summary::before { transform: rotate(90deg); }
 .pa-sidebar .ds-pa-client-search {
   position: relative;
   gap: 6px;
+  overflow: visible;
+}
+.pa-sidebar .ds-pa-client-search-field-wrap,
+.pa-sidebar .ds-pa-school-search-panel {
+  min-width: 0;
+  max-width: 100%;
 }
 .pa-sidebar .ds-pa-client-manual-row {
   display: flex;
@@ -19008,6 +19018,7 @@ details[open] > .ds-fin-acc__summary::before { transform: rotate(90deg); }
 
 .pa-sidebar .ds-pa-client-results {
   gap: 2px;
+  z-index: 120;
   max-height: 200px;
   padding: 4px;
 }
