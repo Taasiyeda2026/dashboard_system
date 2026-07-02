@@ -1111,9 +1111,6 @@ function clientSearchHtml(_contactOptions, row = {}) {
         <input class="ds-input ds-input--sm" type="search" data-pa-school-search-input value="${escapeHtml(hasSchool ? existingSchool : '')}" placeholder="חיפוש לפי שם בית ספר או סמל מוסד" autocomplete="off" aria-autocomplete="list">
       </label>
       <div class="ds-pa-client-results" data-pa-school-results hidden></div>
-      <div class="ds-pa-school-authority-only-row" style="margin-top:2px;padding-top:4px;border-top:1px solid #e5e7eb">
-        <button type="button" class="ds-btn ds-btn--xs ds-btn--ghost" data-pa-authority-only style="font-size:0.8rem;color:#6366f1;border-color:#6366f1">ללא בית ספר — הצעה לרשות</button>
-      </div>
     </div>
   </div>`;
 }
@@ -2101,18 +2098,36 @@ function recipientLineHtml(...values) {
   return line ? `<p>${escapeHtml(line)}</p>` : '';
 }
 
+function proposalRecipientLines(row = {}) {
+  const safeVal = (v) => {
+    const s = text(v);
+    if (!s || s === 'undefined' || s === 'null') return '';
+    if (s.includes('ללא בית ספר') || s.includes('הצעה לרשות')) return '';
+    return s;
+  };
+  const clientType = ['school', 'authority', 'other'].includes(safeVal(row.client_type))
+    ? safeVal(row.client_type)
+    : inferProposalClientType(row);
+  const schoolFramework = safeVal(row.school_framework);
+  const schoolName = schoolFramework || safeVal(row.school_name);
+  const authorityName = safeVal(row.client_authority) || safeVal(row.authority_name);
+  const otherName = schoolFramework || safeVal(row.client_name) || safeVal(row.other_client_name);
+
+  if (clientType === 'authority') return [authorityName].filter(Boolean);
+  if (clientType === 'other') return [otherName].filter(Boolean);
+  return [schoolName, authorityName].filter(Boolean);
+}
+
 function recipientBlockHtml(row = {}) {
   const safeVal = (v) => { const s = text(v); return (s === 'undefined' || s === 'null') ? '' : s; };
-  const schoolName = safeVal(row.school_framework) || safeVal(row.school_name);
-  const authorityName = safeVal(row.client_authority) || safeVal(row.authority_name);
   const contactName = safeVal(row.contact_name);
   const contactRole = normalizeContactRoleDisplay(safeVal(row.contact_role));
   const contactParts = [];
   if (contactName) contactParts.push(`<strong>${escapeHtml(contactName)}</strong>`);
   if (contactRole && contactRole !== contactName) contactParts.push(escapeHtml(contactRole));
   const contactLine = contactParts.length ? `<p>${contactParts.join(', ')}</p>` : '';
-  const orgLine = recipientLineHtml(schoolName, authorityName);
-  const lines = [contactLine, orgLine].filter(Boolean);
+  const orgLines = proposalRecipientLines(row).map((line) => recipientLineHtml(line));
+  const lines = [contactLine, ...orgLines].filter(Boolean);
   const recipientLinesHtml = lines.join('\n    ');
   return `<div class="pa-doc-address pa-to-block" style="margin:0 0 6mm 0;">
   <p class="pa-label-to" style="margin:0;"><strong>לכבוד:</strong></p>
@@ -3349,7 +3364,7 @@ function validatePayload(payload, statusOverride) {
       errors.push('יש לבחור רשות מתוך רשימת הרשויות.');
     }
     if (!text(payload.school_id) && !isAuthorityOnlyProposal) {
-      errors.push('יש לבחור בית ספר מתוך רשימת בתי הספר של הרשות, או לבחור "ללא בית ספר — הצעה לרשות".');
+      errors.push('יש לבחור בית ספר מתוך רשימת בתי הספר של הרשות.');
     }
   }
   const hasManualContact = Boolean(text(payload.contact_name) || text(payload.contact_role) || text(payload.phone) || text(payload.email));
@@ -4262,7 +4277,24 @@ export const proposalsAgreementsScreen = {
       if (!form || !contact) return;
 
       if (step === 'authority') {
-        applyAuthoritySelection(form, contact);
+        const selectedType = text(form.querySelector('input[name="client_type_selector"]:checked')?.value) || 'school';
+        if (selectedType === 'authority') {
+          const authorityName = catalogAuthorityName(contact);
+          const authorityId = text(contact.authority_id) || '';
+          form.dataset.paAuthorityId = authorityId;
+          form.dataset.paAuthorityName = authorityName;
+          form.dataset.paNewClient = 'no';
+          applyContactSelectionAfterClient(form, {
+            authority: authorityName,
+            school: '',
+            authorityId,
+            schoolId: '',
+            clientType: 'authority',
+            clientName: authorityName
+          });
+        } else {
+          applyAuthoritySelection(form, contact);
+        }
         return;
       }
 
