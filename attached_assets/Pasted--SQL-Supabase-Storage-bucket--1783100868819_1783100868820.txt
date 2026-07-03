@@ -1,0 +1,169 @@
+תיקון המשך לאישורי צילום — קוד בלבד.
+
+רקע חשוב:
+ה־SQL כבר בוצע ב־Supabase.
+נוצר Storage bucket בשם:
+photo-approvals
+
+ה־bucket קיים ומוגדר:
+private
+max size 10MB
+allowed mime types:
+application/pdf
+image/jpeg
+image/png
+
+נוספו גם policies ל־Storage:
+SELECT
+INSERT
+UPDATE
+DELETE
+
+לכן לא לבצע שוב SQL.
+לא לגעת ב־Supabase.
+לא ליצור bucket נוסף.
+לא לשנות טבלאות.
+לא לשנות policies.
+לא לשנות RLS.
+
+המטרה:
+להשלים את תיקון אישורי הצילום במערכת כך שהעלאה / החלפה / צפייה יעבדו בפועל.
+
+קבצים רלוונטיים:
+frontend/src/screens/my-data.js
+frontend/src/screens/instructor-calendar.js
+frontend/src/screens/operations-management.js
+frontend/sw.js
+
+בעיה 1 — חסר api ב-my-data.js:
+בקובץ:
+frontend/src/screens/my-data.js
+
+במסך myDataScreen, בפונקציה bind, יש שימוש ב-api בתוך bindActivityDetailActions, אבל api לא מתקבל בחתימת bind.
+
+לתקן את החתימה ממצב דומה לזה:
+
+bind({ root, data, ui, state }) {
+
+למצב:
+
+bind({ root, data, ui, state, api }) {
+
+לא לשנות שום לוגיקה אחרת.
+
+בעיה 2 — חסר api ב-instructor-calendar.js:
+בקובץ:
+frontend/src/screens/instructor-calendar.js
+
+במסך instructorCalendarScreen, בפונקציה bind, יש שימוש ב-api בתוך bindActivityDetailActions, אבל api לא מתקבל בחתימת bind.
+
+לתקן את החתימה ממצב דומה לזה:
+
+bind({ root, data, ui, state, rerender }) {
+
+למצב:
+
+bind({ root, data, ui, state, api, rerender }) {
+
+לא לשנות שום לוגיקה אחרת.
+
+בעיה 3 — בממשק מנהלים אין אינדיקציה כשאין אף אישור צילום:
+בקובץ:
+frontend/src/screens/operations-management.js
+
+בפונקציה:
+photoApprovalIndicatorHtml
+
+כרגע אם אין photoUploads או שהמערך ריק, הפונקציה מחזירה מחרוזת ריקה.
+זה גורם לכך שבממשק מנהלים לא רואים בכלל מצב “לא הועלה”.
+
+צריך לשנות כך:
+גם אם אין בכלל רשומות photoApprovalUploads, עדיין להציג:
+📷 לא הועלה
+
+כלומר:
+לא להחזיר ריק רק בגלל שהמערך ריק.
+
+התנהגות רצויה:
+1. אם יש אישור צילום תואם עם file_path:
+   להציג:
+   📷 יש אישור צילום + כפתור עין לצפייה
+
+2. אם אין אישור צילום תואם:
+   להציג:
+   📷 לא הועלה
+
+חשוב:
+לא לשנות את מבנה הטבלה.
+לא לשנות את עמודות אישורי ביצוע.
+לא לשנות העלאת אישורי ביצוע.
+לא לשנות אישורי ביצוע רגילים.
+לא לשנות שמירה.
+לא לשנות Supabase.
+לא לשנות Storage.
+לא לשנות הרשאות.
+לא לבצע ריפקטורינג.
+
+שיפור התאמה מומלץ בתוך photoApprovalIndicatorHtml:
+כיום ההתאמה היא בעיקר לפי:
+instructor_name + school
+
+יש לשמור על זה כ-fallback, אבל להעדיף התאמה לפי:
+instructor_emp_id + school_id
+
+כאשר יש את הנתונים באישור וב-upload.
+
+סדר התאמה מומלץ:
+1. אם יש instructorEmpId וגם schoolId בשני הצדדים:
+   להתאים לפי instructor_emp_id + school_id.
+2. אחרת להתאים לפי instructor_name + school.
+3. להשתמש בנרמול טקסט קיים normalizeOpsText.
+
+לא לשבור תמיר:
+אם approval הוא אישור צוות / תמיר ויש כמה מדריכים, לא להציג אישור צילום שגוי.
+במקרה כזה:
+- לבדוק קודם את המדריך הראשי.
+- אם אין התאמה, אפשר לבדוק instructorNames אם קיימים.
+- לא להציג “יש אישור צילום” אם אין התאמה אמיתית.
+
+בדיקות חובה:
+1. להיכנס כמדריך למסך “הפעילויות שלי”.
+2. לפתוח פירוט פעילות.
+3. ללחוץ “העלאת אישור צילום”.
+4. לבחור קובץ PDF/JPG/PNG.
+5. לוודא שהקובץ עולה בלי שגיאת api is not defined.
+6. לוודא שאחרי ההעלאה מופיע “יש אישור צילום”.
+7. ללחוץ על אייקון העין ולוודא שהקובץ נפתח.
+8. להחליף קובץ ולוודא שהחלפה עובדת.
+
+9. להיכנס כמדריך למסך “לוח השנה שלי”.
+10. לפתוח פעילות.
+11. לוודא שגם שם העלאת אישור צילום עובדת בלי שגיאת api is not defined.
+
+12. להיכנס כמנהל:
+ניהול תפעול > אישורי ביצוע
+13. לוודא שבעמודת צוות הדרכה מוצג לכל שורה מצב צילום:
+   📷 יש אישור צילום
+   או
+   📷 לא הועלה
+14. לוודא שכאשר יש אישור צילום, כפתור העין פותח את הקובץ.
+15. לוודא שאישורי ביצוע רגילים עדיין עובדים:
+   העלאה
+   צפייה
+   הורדה
+   החלפה
+   מחיקה
+   אישור
+   דחייה
+
+להריץ בסיום:
+npm run check:frontend
+npm run check:pwa
+npm run check:build
+
+בסיום:
+לעדכן CACHE_VERSION בקובץ:
+frontend/sw.js
+
+זה תיקון קוד בלבד להשלמת אישורי צילום.
+לא לבצע שום שינוי נוסף מעבר למה שמפורט כאן.

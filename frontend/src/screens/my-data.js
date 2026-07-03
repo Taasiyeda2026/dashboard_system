@@ -129,7 +129,7 @@ export const myDataScreen = {
       </section>
     `);
   },
-  bind({ root, data, ui, state }) {
+  bind({ root, data, ui, state, api }) {
     const applyFilters = () => {
       const q = String(root.querySelector('[data-instr-search]')?.value || '').trim().toLowerCase();
       const selectedDate = String(root.querySelector('[data-instr-date]')?.value || '').trim();

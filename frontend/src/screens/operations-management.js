@@ -2213,19 +2213,33 @@ function completionApprovalInstructorCellHtml(approval) {
   return `<span class="ds-ops-completion-instructor-line">מדריך: ${escapeHtml(primary)}</span><br><span class="ds-ops-completion-instructor-line">מדריך נוסף: ${escapeHtml(secondary)}</span>`;
 }
 function photoApprovalIndicatorHtml(approval, photoUploads) {
-  if (!Array.isArray(photoUploads) || !photoUploads.length) return '';
+  const noUploadHtml = '<div class="ds-ops-photo-indicator ds-ops-photo-indicator--no">📷 לא הועלה</div>';
+  if (!Array.isArray(photoUploads)) return noUploadHtml;
+  const approvalEmpId = String(approval?.instructorEmpId || '').trim();
+  const approvalSchoolId = String(approval?.schoolId || '').trim();
   const instrName = normalizeOpsText(approval?.instructorName || '');
   const school = normalizeOpsText(approval?.school || '');
-  if (!instrName || !school) return '';
-  const found = photoUploads.find((u) => {
+  const instrNames = (approval?.isTamirTeamApproval && Array.isArray(approval?.instructorNames))
+    ? approval.instructorNames.map((n) => normalizeOpsText(n || '')).filter(Boolean)
+    : [];
+  const matchUpload = (u) => {
+    const uEmpId = String(u?.instructor_emp_id || '').trim();
+    const uSchoolId = String(u?.school_id || '').trim();
+    if (approvalEmpId && uEmpId && approvalSchoolId && uSchoolId) {
+      return uEmpId === approvalEmpId && uSchoolId === approvalSchoolId;
+    }
     const uName = normalizeOpsText(u?.instructor_name || '');
     const uSchool = normalizeOpsText(u?.school || '');
-    return uName === instrName && uSchool === school;
-  });
+    if (!instrName || !uSchool || uSchool !== school) return false;
+    if (uName === instrName) return true;
+    if (instrNames.length && instrNames.includes(uName)) return true;
+    return false;
+  };
+  const found = photoUploads.find(matchUpload);
   if (found?.file_path) {
     return `<div class="ds-ops-photo-indicator ds-ops-photo-indicator--has">📷 יש אישור צילום <button type="button" class="ds-ops-icon-btn" data-ops-photo-view="${escapeHtml(String(found.id))}" title="צפייה באישור צילום" aria-label="צפייה באישור צילום">👁</button></div>`;
   }
-  return '<div class="ds-ops-photo-indicator ds-ops-photo-indicator--no">📷 לא הועלה</div>';
+  return noUploadHtml;
 }
 
 function completionApprovalTeamCellHtml(approval, contactCtx) {

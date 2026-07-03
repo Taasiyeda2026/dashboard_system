@@ -134,7 +134,7 @@ export const instructorCalendarScreen = {
       `<section class="instructor-area">${dsPageHeader('לוח השנה שלי')}${calendarHtml(renderRows, uploadsArr, selectedMonth)}</section>`
     );
   },
-  bind({ root, data, ui, state, rerender }) {
+  bind({ root, data, ui, state, api, rerender }) {
     currentIds = currentInstructorIds(state);
     teamMap = contactGroupsByDateSchool(data?.teamGroups || []);
     const uploadsArr = data?.uploads || [];
