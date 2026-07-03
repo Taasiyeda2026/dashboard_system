@@ -84,7 +84,7 @@ function notifyPendingProposalsNav(rows) {
 
 const FIELD_LABELS = {
   client_authority:    'רשות / מועצה / עירייה',
-  school_framework:    'בית ספר / מסגרת',
+  school_framework:    'בית ספר',
   activity_type_group: 'סוג הצעה',
   proposal_date:       'תאריך הצעה',
   activity_names:      'שם הפעילויות',
@@ -1150,7 +1150,7 @@ function clientSearchHtml(_contactOptions, row = {}) {
       </p>
       <div class="ds-pa-client-search-field-wrap" data-pa-school-search-field-wrap>
         <label class="ds-pa-form-field ds-pa-form-field--client-search" data-pa-school-search-field>
-          <span>בית ספר / מסגרת</span>
+          <span>בית ספר</span>
           <input class="ds-input ds-input--sm" type="search" data-pa-school-search-input value="${escapeHtml(hasSchool ? existingSchool : '')}" placeholder="חיפוש לפי שם בית ספר או סמל מוסד" autocomplete="off" aria-autocomplete="list">
         </label>
         <div class="ds-pa-client-results" data-pa-school-results hidden></div>
@@ -2695,7 +2695,7 @@ function buildProposalDocumentHtml({ dateDisplay, documentTitle, row, introText,
   const isSummerDocument = isSummerProposalGroup(row?.activity_type_group);
   const documentModifierClass = `${isNextYear ? ' pa-document--next-year' : ''}${isSummerDocument ? ' pa-document--summer' : ''}`;
   return `
-    <div class="proposal-document pa-document pa-a4-page${documentModifierClass}" data-build="20260703c" dir="rtl" style="position:relative;min-height:277mm;box-sizing:border-box;padding-bottom:12mm;">
+    <div class="proposal-document pa-document pa-a4-page${documentModifierClass}" data-build="20260703c" dir="rtl" style="position:relative;box-sizing:border-box;">
       <style>
         .pa-org-intro {
           padding-inline: 4mm !important;
@@ -3819,6 +3819,10 @@ function payloadFromForm(form) {
     payload[key] = text(formData.get(key));
   });
   payload.status = text(formData.get('status')) || 'draft';
+  // Mirror the legacy phone/email fields into contact_phone/contact_email so both
+  // column sets stay in sync without introducing a second source of truth in the form.
+  payload.contact_phone = payload.phone;
+  payload.contact_email = payload.email;
   payload.document_type = 'הצעת מחיר';
   payload.include_catalog = false;
   payload.activity_type_group = normalizeProposalGroup(payload.activity_type_group);
@@ -4439,7 +4443,10 @@ export const proposalsAgreementsScreen = {
         school
       }) || {};
       const pickerHost = form.querySelector('[data-pa-contact-picker-host]');
-      const defaultContact = isAuthorityOnly ? null : defaultContactFromSchoolMeta(catalogSchool);
+      // Contact must never be auto-filled on client selection — the school/authority
+      // principal metadata is still offered as a pickable option inside contactPickerHtml,
+      // but it must not be pre-selected here.
+      const defaultContact = null;
       const baseSource = {
         authority_id: authorityId || null,
         school_id: isAuthorityOnly ? null : (schoolId || null),
@@ -4459,7 +4466,7 @@ export const proposalsAgreementsScreen = {
       setPanelOpen(form, 'contact', true);
 
       fillContactFields(form, baseSource);
-      setContactSelectionMode(form, 'school_principal_default');
+      setContactSelectionMode(form, '');
       setContactSource(form, baseSource);
       if (pickerHost) {
         pickerHost.innerHTML = contactPickerHtml(
@@ -4900,7 +4907,7 @@ export const proposalsAgreementsScreen = {
         return;
       }
       if (!matches.length) {
-        const stepLabel = step === 'school' ? 'בית ספר / מסגרת' : 'רשות';
+        const stepLabel = step === 'school' ? 'בית ספר' : 'רשות';
         resultsHost.innerHTML = `<p class="ds-pa-client-results-empty">לא נמצאה ${stepLabel} ברשימה. נסו שם אחר, שם מלא או קוד רשות.</p>`;
         resultsHost.hidden = false;
         return;
