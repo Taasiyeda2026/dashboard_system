@@ -1555,39 +1555,72 @@ function parseTourDetails(item = {}) {
   if (raw && typeof raw === 'string') {
     try {
       const parsed = JSON.parse(raw);
-      if (parsed && typeof parsed === 'object' && parsed.kind === 'tour_table') return parsed;
+      if (parsed && typeof parsed === 'object' && (parsed.kind === 'tour_table' || parsed.kind === 'tour_table_v2')) return parsed;
     } catch {}
   }
   return {};
 }
 
-function calculateTourTotal({ students, studentPrice, guide, transport, quantity } = {}) {
+const TOUR_COST_COMPONENT_OPTIONS = [
+  { component_type: 'guide', label: 'מדריך' },
+  { component_type: 'bus', label: 'הסעה אוטובוס' },
+  { component_type: 'minibus', label: 'הסעה מיניבוס' }
+];
+const TOUR_COST_COMPONENT_LABELS = new Map(TOUR_COST_COMPONENT_OPTIONS.map((entry) => [entry.component_type, entry.label]));
+
+function normalizeTourCostComponent(component = {}) {
+  const componentType = text(component.component_type ?? component.componentType) || 'custom';
+  const label = text(component.label) || TOUR_COST_COMPONENT_LABELS.get(componentType) || 'רכיב עלות';
+  const unitPrice = numberValue(component.unit_price ?? component.unitPrice ?? component.amount ?? component.price) ?? 0;
+  const quantity = numberValue(component.quantity) ?? 1;
+  const totalPrice = numberValue(component.total_price ?? component.totalPrice) ?? (unitPrice * quantity);
+  return { component_type: componentType, label, unit_price: unitPrice, quantity, total_price: totalPrice };
+}
+
+function tourCostComponentsFromDetails(details = {}) {
+  const existing = Array.isArray(details.cost_components ?? details.costComponents)
+    ? (details.cost_components ?? details.costComponents).map(normalizeTourCostComponent)
+    : [];
+  const guide = numberValue(details.guide_cost ?? details.guideCost);
+  const transport = numberValue(details.transport_cost ?? details.transportCost);
+  if (guide > 0 && !existing.some((c) => c.component_type === 'guide')) {
+    existing.push(normalizeTourCostComponent({ component_type: 'guide', label: 'מדריך', unit_price: guide, quantity: 1 }));
+  }
+  if (transport > 0 && !existing.some((c) => c.component_type === 'bus')) {
+    existing.push(normalizeTourCostComponent({ component_type: 'bus', label: 'הסעה', unit_price: transport, quantity: 1 }));
+  }
+  return existing.filter((c) => c.unit_price > 0 || c.quantity > 0 || text(c.label));
+}
+
+function calculateTourTotal({ students, studentPrice, quantity, costComponents, components, guide, transport } = {}) {
   const studentsNum = Number(students) || 0;
   const priceNum = Number(studentPrice) || 0;
-  const guideNum = Number(guide) || 0;
-  const transportNum = Number(transport) || 0;
   const quantityNum = Number(quantity) || 1;
-  return ((studentsNum * priceNum) + guideNum + transportNum) * quantityNum;
+  const studentsTotal = studentsNum * priceNum * quantityNum;
+  const componentList = Array.isArray(costComponents) ? costComponents : (Array.isArray(components) ? components : null);
+  const componentTotal = componentList
+    ? componentList.reduce((sum, component) => sum + (normalizeTourCostComponent(component).total_price || 0), 0)
+    : ((Number(guide) || 0) + (Number(transport) || 0));
+  return studentsTotal + componentTotal;
 }
 
 function tourItemFromDetails(details = {}, fallback = {}) {
   const students = numberValue(details.students_count ?? details.studentsCount);
   const unitPrice = numberValue(details.price_per_student ?? details.pricePerStudent);
   const quantity = numberValue(details.quantity) ?? 1;
-  const guide = numberValue(details.guide_cost ?? details.guideCost);
-  const transport = numberValue(details.transport_cost ?? details.transportCost);
-  const autoTotal = (students != null && unitPrice != null)
-    ? calculateTourTotal({ students, studentPrice: unitPrice, guide, transport, quantity })
-    : null;
+  const studentsTotal = numberValue(details.students_total ?? details.studentsTotal)
+    ?? ((students != null && unitPrice != null) ? students * unitPrice * quantity : 0);
+  const costComponents = tourCostComponentsFromDetails(details);
+  const autoTotal = calculateTourTotal({ students, studentPrice: unitPrice, quantity, costComponents });
   const total = numberValue(details.total_price ?? details.totalPrice) ?? autoTotal;
   const payload = {
-    kind: 'tour_table',
+    kind: 'tour_table_v2',
     class_name: text(details.class_name ?? details.className),
     students_count: students,
     price_per_student: unitPrice,
-    guide_cost: guide,
-    transport_cost: transport,
     quantity,
+    students_total: studentsTotal,
+    cost_components: costComponents,
     total_price: total
   };
   const tourItemType = text(fallback.item_type || fallback.itemType) || 'סיור';
@@ -1609,16 +1642,38 @@ function tourItemFromDetails(details = {}, fallback = {}) {
 }
 
 function tourDetailsFromItem(item = {}) {
-  const parsed = parseTourDetails(item);
+  const parsed = Object.keys(parseTourDetails(item)).length ? parseTourDetails(item) : (item.details || {});
+  const students = numberValue(parsed.students_count ?? parsed.studentsCount);
+  const unitPrice = numberValue(parsed.price_per_student ?? parsed.pricePerStudent ?? item.unit_price);
+  const quantity = numberValue(parsed.quantity ?? item.quantity) ?? 1;
+  const costComponents = tourCostComponentsFromDetails(parsed);
+  const studentsTotal = numberValue(parsed.students_total ?? parsed.studentsTotal)
+    ?? ((students != null && unitPrice != null) ? students * unitPrice * quantity : 0);
+  const total = numberValue(parsed.total_price ?? parsed.totalPrice ?? item.total_price)
+    ?? calculateTourTotal({ students, studentPrice: unitPrice, quantity, costComponents });
   return {
     class_name: text(parsed.class_name ?? parsed.className ?? item.course_note ?? item.manual_note),
-    students_count: numberValue(parsed.students_count ?? parsed.studentsCount),
-    price_per_student: numberValue(parsed.price_per_student ?? parsed.pricePerStudent ?? item.unit_price),
-    guide_cost: numberValue(parsed.guide_cost ?? parsed.guideCost),
-    transport_cost: numberValue(parsed.transport_cost ?? parsed.transportCost),
-    quantity: numberValue(parsed.quantity ?? item.quantity) ?? 1,
-    total_price: numberValue(parsed.total_price ?? parsed.totalPrice ?? item.total_price)
+    students_count: students,
+    price_per_student: unitPrice,
+    quantity,
+    students_total: studentsTotal,
+    cost_components: costComponents,
+    total_price: total
   };
+}
+
+function tourCostComponentEditorRowHtml(component = {}, idx = 0) {
+  const c = normalizeTourCostComponent(component);
+  const val = (v) => v != null && v !== '' && Number.isFinite(Number(v)) ? escapeHtml(String(v)) : '';
+  const options = TOUR_COST_COMPONENT_OPTIONS.map((option) => `<option value="${escapeHtml(option.component_type)}"${option.component_type === c.component_type ? ' selected' : ''}>${escapeHtml(option.label)}</option>`).join('');
+  return `<div class="ds-pa-tour-component-row" data-pa-tour-component-row>
+    <label class="ds-pa-item-field"><span>רכיב</span><select class="ds-input ds-input--sm" name="tour_component_type_${idx}" data-pa-tour-component-type>${options}</select></label>
+    <input type="hidden" name="tour_component_label_${idx}" value="${escapeHtml(c.label)}" data-pa-tour-component-label>
+    <label class="ds-pa-item-field"><span>סכום / מחיר יחידה</span><input class="ds-input ds-input--sm" type="number" min="0" step="any" name="tour_component_unit_price_${idx}" value="${val(c.unit_price)}" data-pa-tour-component-price></label>
+    <label class="ds-pa-item-field"><span>כמות</span><input class="ds-input ds-input--sm" type="number" min="0" step="any" name="tour_component_quantity_${idx}" value="${val(c.quantity) || '1'}" data-pa-tour-component-quantity></label>
+    <label class="ds-pa-item-field"><span>סה״כ</span><input class="ds-input ds-input--sm" type="number" min="0" step="any" name="tour_component_total_${idx}" value="${val(c.total_price)}" data-pa-tour-component-total readonly aria-readonly="true"></label>
+    <button type="button" class="ds-btn ds-btn--xs ds-btn--ghost" data-pa-remove-tour-component>מחיקה</button>
+  </div>`;
 }
 
 function tourDetailsEditorHtml(items = []) {
@@ -1633,11 +1688,14 @@ function tourDetailsEditorHtml(items = []) {
       <label class="ds-pa-item-field"><span>כיתה</span><input class="ds-input ds-input--sm" name="tour_class_name" value="${escapeHtml(d.class_name)}"></label>
       <label class="ds-pa-item-field"><span>מספר תלמידים</span><input class="ds-input ds-input--sm" type="number" min="0" step="1" name="tour_students_count" value="${val(d.students_count)}" data-pa-tour-students></label>
       <label class="ds-pa-item-field"><span>מחיר לתלמיד</span><input class="ds-input ds-input--sm" type="number" min="0" step="any" name="tour_price_per_student" value="${val(d.price_per_student)}" data-pa-tour-price></label>
-      <label class="ds-pa-item-field"><span>מדריך</span><input class="ds-input ds-input--sm" type="number" min="0" step="any" name="tour_guide_cost" value="${val(d.guide_cost)}" data-pa-tour-guide></label>
-      <label class="ds-pa-item-field"><span>הסעה</span><input class="ds-input ds-input--sm" type="number" min="0" step="any" name="tour_transport_cost" value="${val(d.transport_cost)}" data-pa-tour-transport></label>
       <label class="ds-pa-item-field"><span>כמות</span><input class="ds-input ds-input--sm" type="number" min="0" step="any" name="tour_quantity" value="${val(d.quantity) || '1'}" data-pa-tour-quantity></label>
     </div>
-    <label class="ds-pa-item-field ds-pa-tour-total-field"><span>סה״כ</span><input class="ds-input ds-input--sm" type="number" min="0" step="any" name="tour_total_price" value="${total}" data-pa-tour-total readonly aria-readonly="true"></label>
+    <label class="ds-pa-item-field ds-pa-tour-total-field"><span>סה״כ תלמידים</span><input class="ds-input ds-input--sm" type="number" min="0" step="any" name="tour_students_total" value="${val(d.students_total)}" data-pa-tour-students-total readonly aria-readonly="true"></label>
+    <div class="ds-pa-tour-components" data-pa-tour-components>
+      <div class="ds-pa-items-header"><span class="ds-pa-items-section-label">רכיבי עלות נוספים</span><button type="button" class="ds-btn ds-btn--xs" data-pa-add-tour-component>+ הוסף רכיב</button></div>
+      <div data-pa-tour-components-body>${d.cost_components.map((component, idx) => tourCostComponentEditorRowHtml(component, idx)).join('')}</div>
+    </div>
+    <input type="hidden" name="tour_total_price" value="${total}" data-pa-tour-total>
     <div class="ds-pa-items-total-row">סה״כ כללי: <strong data-pa-grand-total>${total ? `₪ ${formatCurrency(total)}` : '₪ 0'}</strong></div>
   </div>`;
 }
@@ -1713,13 +1771,20 @@ function extractItemsFromForm(form) {
   const formGroup = text(form.querySelector('[name="activity_type_group"]')?.value);
   if (isTourProposalGroup(formGroup)) {
     const get = (name) => form.querySelector(`[name="${name}"]`)?.value;
+    const cost_components = Array.from(form.querySelectorAll('[data-pa-tour-component-row]')).map((row) => {
+      const component_type = text(row.querySelector('[data-pa-tour-component-type]')?.value);
+      const label = TOUR_COST_COMPONENT_LABELS.get(component_type) || text(row.querySelector('[data-pa-tour-component-label]')?.value);
+      const unit_price = numberValue(row.querySelector('[data-pa-tour-component-price]')?.value) ?? 0;
+      const quantity = numberValue(row.querySelector('[data-pa-tour-component-quantity]')?.value) ?? 1;
+      return normalizeTourCostComponent({ component_type, label, unit_price, quantity });
+    }).filter((component) => component.unit_price > 0 || component.total_price > 0);
     const details = {
       class_name: text(get('tour_class_name')),
       students_count: numberValue(get('tour_students_count')),
       price_per_student: numberValue(get('tour_price_per_student')),
-      guide_cost: numberValue(get('tour_guide_cost')),
-      transport_cost: numberValue(get('tour_transport_cost')),
       quantity: numberValue(get('tour_quantity')) ?? 1,
+      students_total: numberValue(get('tour_students_total')),
+      cost_components,
       total_price: numberValue(get('tour_total_price'))
     };
     return [tourItemFromDetails(details, { item_type: 'סיור', itemType: 'סיור' })]
@@ -2038,21 +2103,24 @@ function costTableRowsFromItem(item = {}) {
 
 
 function tourCostTableHtml(items = []) {
-  const item = (Array.isArray(items) ? items : []).find((entry) => text(entry.item_name) || text(entry.description)) || {};
+  const item = (Array.isArray(items) ? items : []).find((entry) => text(entry.item_name) || text(entry.description) || entry.details) || {};
   const d = tourDetailsFromItem(item);
   const fmt = (value, money = false) => {
     if (value == null || value === '') return '';
     return money ? currencyAmountHtml(value) : escapeHtml(formatCurrency(value));
   };
   const total = numberValue(d.total_price)
-    ?? calculateTourTotal({
-      students: d.students_count,
-      studentPrice: d.price_per_student,
-      guide: d.guide_cost,
-      transport: d.transport_cost,
-      quantity: d.quantity
-    })
+    ?? calculateTourTotal({ students: d.students_count, studentPrice: d.price_per_student, quantity: d.quantity, costComponents: d.cost_components })
     ?? numberValue(item.total_price);
+  const componentsRows = (d.cost_components || []).map((component) => {
+    const c = normalizeTourCostComponent(component);
+    return `<tr><td>${escapeHtml(c.label)}</td><td>${fmt(c.unit_price, true)}</td><td>${fmt(c.quantity)}</td><td>${fmt(c.total_price, true)}</td></tr>`;
+  }).join('');
+  const componentsTable = componentsRows ? `<table class="pa-cost-table pa-activities-table pa-tour-components-table">
+      <colgroup><col><col><col><col></colgroup>
+      <thead><tr><th>רכיב</th><th>סכום</th><th>כמות</th><th>סה״כ</th></tr></thead>
+      <tbody>${componentsRows}</tbody>
+    </table>` : '';
   return `<div class="pa-tour-payment-block">
     ${sectionBodyHtml('התשלום עבור הסיור יבוצע בהתאם לטבלה שלהלן:', { alwaysBullet: true })}
     <table class="pa-cost-table pa-activities-table pa-tour-cost-table">
@@ -2060,22 +2128,20 @@ function tourCostTableHtml(items = []) {
         <col class="pa-tour-class-col">
         <col class="pa-tour-students-col">
         <col class="pa-tour-student-price-col">
-        <col class="pa-tour-guide-col">
-        <col class="pa-tour-transport-col">
         <col class="pa-tour-quantity-col">
         <col class="pa-tour-total-col">
       </colgroup>
-      <thead><tr><th>כיתה</th><th>מספר תלמידים</th><th>מחיר לתלמיד</th><th>מדריך</th><th>הסעה</th><th>כמות</th><th>סה״כ</th></tr></thead>
+      <thead><tr><th>כיתה</th><th>מספר תלמידים</th><th>מחיר לתלמיד</th><th>כמות</th><th>סה״כ</th></tr></thead>
       <tbody><tr>
         <td>${escapeHtml(d.class_name)}</td>
         <td>${fmt(d.students_count)}</td>
         <td>${fmt(d.price_per_student, true)}</td>
-        <td>${fmt(d.guide_cost, true)}</td>
-        <td>${fmt(d.transport_cost, true)}</td>
         <td>${fmt(d.quantity)}</td>
-        <td>${fmt(total, true)}</td>
+        <td>${fmt(d.students_total, true)}</td>
       </tr></tbody>
     </table>
+    ${componentsTable}
+    <div class="pa-tour-grand-total">סה״כ כללי: ${fmt(total, true)}</div>
     ${sectionBodyHtml('חשבונית לתשלום תונפק במעמד ביצוע הסיור. תנאי התשלום: שוטף + 15 ממועד הנפקתה.', { alwaysBullet: true })}
   </div>`;
 }
@@ -4978,16 +5044,26 @@ export const proposalsAgreementsScreen = {
       const students = n('[data-pa-tour-students]');
       const price = n('[data-pa-tour-price]');
       const quantity = n('[data-pa-tour-quantity]') ?? 1;
-      const guide = n('[data-pa-tour-guide]') || 0;
-      const transport = n('[data-pa-tour-transport]') || 0;
+      const studentsTotalInput = details.querySelector('[data-pa-tour-students-total]');
       const totalInput = details.querySelector('[data-pa-tour-total]');
-      const calculated = (students != null && price != null)
-        ? calculateTourTotal({ students, studentPrice: price, guide, transport, quantity })
-        : null;
-      if (calculated != null && totalInput && document.activeElement !== totalInput) {
-        totalInput.value = calculated ? calculated.toFixed(2) : '';
-      }
-      return numberValue(totalInput?.value) ?? calculated ?? 0;
+      const studentsTotal = (students != null && price != null) ? students * price * quantity : 0;
+      if (studentsTotalInput) studentsTotalInput.value = studentsTotal ? studentsTotal.toFixed(2) : '';
+      const costComponents = Array.from(details.querySelectorAll('[data-pa-tour-component-row]')).map((row) => {
+        const typeInput = row.querySelector('[data-pa-tour-component-type]');
+        const component_type = text(typeInput?.value);
+        const labelInput = row.querySelector('[data-pa-tour-component-label]');
+        const label = TOUR_COST_COMPONENT_LABELS.get(component_type) || text(labelInput?.value);
+        if (labelInput) labelInput.value = label;
+        const unit_price = numberValue(row.querySelector('[data-pa-tour-component-price]')?.value) ?? 0;
+        const componentQuantity = numberValue(row.querySelector('[data-pa-tour-component-quantity]')?.value) ?? 1;
+        const total_price = unit_price * componentQuantity;
+        const rowTotal = row.querySelector('[data-pa-tour-component-total]');
+        if (rowTotal) rowTotal.value = total_price ? total_price.toFixed(2) : '';
+        return { component_type, label, unit_price, quantity: componentQuantity, total_price };
+      });
+      const calculated = calculateTourTotal({ students, studentPrice: price, quantity, costComponents });
+      if (totalInput) totalInput.value = calculated ? calculated.toFixed(2) : '';
+      return calculated ?? 0;
     };
 
     const calcGrandTotal = (container) => {
@@ -5987,6 +6063,30 @@ export const proposalsAgreementsScreen = {
 
       // Items: add row
       const addItemBtn = event.target.closest?.('[data-pa-add-item]');
+      const addTourComponentBtn = event.target.closest?.('[data-pa-add-tour-component]');
+      if (addTourComponentBtn) {
+        const details = addTourComponentBtn.closest('[data-pa-tour-details]');
+        const form = addTourComponentBtn.closest('[data-pa-form]');
+        const body = details?.querySelector('[data-pa-tour-components-body]');
+        if (!body) return;
+        const idx = body.querySelectorAll('[data-pa-tour-component-row]').length;
+        const tmp = document.createElement('div');
+        tmp.innerHTML = tourCostComponentEditorRowHtml({ component_type: 'guide', label: 'מדריך', unit_price: 0, quantity: 1 }, idx);
+        body.appendChild(tmp.firstElementChild);
+        if (form) calcGrandTotal(form);
+        body.querySelector('[data-pa-tour-component-row]:last-child [data-pa-tour-component-price]')?.focus();
+        return;
+      }
+
+      const removeTourComponentBtn = event.target.closest?.('[data-pa-remove-tour-component]');
+      if (removeTourComponentBtn) {
+        const form = removeTourComponentBtn.closest('[data-pa-form]');
+        removeTourComponentBtn.closest('[data-pa-tour-component-row]')?.remove();
+        if (form) calcGrandTotal(form);
+        if (form) updateProposalStepper(form);
+        return;
+      }
+
       if (addItemBtn) {
         const form = addItemBtn.closest('[data-pa-form]');
         if (addItemBtn.disabled || addItemBtn.getAttribute('aria-disabled') === 'true') return;
