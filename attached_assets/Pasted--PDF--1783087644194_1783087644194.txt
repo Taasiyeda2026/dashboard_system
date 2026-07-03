@@ -1,0 +1,142 @@
+בדיקה ותיקון נקודתי בהדפסה / PDF של הצעת מחיר מסוג "שנה הבאה".
+
+הבעיה:
+בהדפסה של הצעת מחיר מסוג "שנה הבאה", החתימה ושם החותם עוברים לעמוד הבא למרות שנראה שיש מקום בעמוד הקודם.
+
+חשוב מאוד:
+לא לשנות את גודל תמונת החתימה.
+לא לשנות width של תמונת החתימה.
+לא לשנות height של תמונת החתימה.
+לא להקטין את החתימה.
+לא להגדיל את החתימה.
+לא להחליף את קובץ החתימה.
+לא לשנות את שם החותם.
+לא לשנות טקסטים במסמך.
+לא לשנות תבניות Supabase.
+לא לשנות הצעות קיימות.
+לא לשנות חישובים.
+לא לשנות טבלאות מחיר.
+לא לשנות API.
+לא לשנות שמירה.
+לא לבצע ריפקטורינג.
+
+הקובץ הרלוונטי:
+frontend/src/screens/proposals-agreements.js
+
+מטרת התיקון:
+לגרום לכך שבלוק החתימה, כולל:
+"בברכה,"
+תמונת החתימה
+קו החתימה
+שם החותם
+
+יישאר כיחידה אחת בהדפסה ולא יתפצל לעמוד הבא, בלי לשנות את גודל תמונת החתימה.
+
+בדיקה בקוד:
+לבדוק את:
+signatureSectionHtml
+buildProposalDocumentHtml
+CSS הפנימי של מסמך ההצעה / print
+
+הבעיה האפשרית:
+ב-signatureSectionHtml יש רווח כפוי באמצעות:
+<br><br>
+
+הרווח הזה עלול לגרום לדפדפן לחשב את בלוק החתימה כגבוה מדי ולהעביר אותו לעמוד הבא.
+
+שינוי מבוקש:
+1. לא לשנות את img.pa-signature-image ולא את המידות שלה.
+2. להחליף את הרווח הכפוי של <br><br> ברווח נשלט דרך CSS בלבד.
+3. להוסיף לחתימה כללי print שמונעים פיצול של הבלוק.
+4. להקטין רק מרווחים סביב החתימה והסעיפים האחרונים בהדפסה, בלי לשנות תוכן ובלי לשנות את גודל החתימה.
+
+מימוש מומלץ:
+
+ב-signatureSectionHtml:
+במקום:
+<div class="pa-signature-spacer" aria-hidden="true"><br><br></div>
+
+להשתמש במבנה נקי כמו:
+<div class="pa-signature-spacer" aria-hidden="true"></div>
+
+ולהוסיף CSS נקודתי:
+
+.pa-footer-signature {
+  break-inside: avoid;
+  page-break-inside: avoid;
+}
+
+.pa-signer-block {
+  display: inline-block;
+  break-inside: avoid;
+  page-break-inside: avoid;
+}
+
+.pa-signature-spacer {
+  height: 4mm;
+}
+
+חשוב:
+לא להוסיף CSS שמשנה את:
+.pa-signature-image width
+.pa-signature-image height
+.pa-signature-image max-width
+.pa-signature-image max-height
+
+ב-print בלבד להוסיף:
+@media print {
+  .pa-footer-signature {
+    break-inside: avoid !important;
+    page-break-inside: avoid !important;
+    margin-top: 3mm !important;
+  }
+
+  .pa-signer-block {
+    display: inline-block !important;
+    break-inside: avoid !important;
+    page-break-inside: avoid !important;
+  }
+
+  .pa-signature-spacer {
+    height: 3mm !important;
+  }
+
+  .pa-document--next-year .pa-cancellations-section {
+    margin-bottom: 2mm !important;
+  }
+
+  .pa-document--next-year .pa-section {
+    break-inside: auto;
+  }
+
+  .pa-document--next-year .pa-footer-signature {
+    margin-top: 2mm !important;
+  }
+}
+
+אפשר לשקול בזהירות:
+להקטין את padding-bottom של pa-a4-page במסמך הצעה מ-12mm ל-8mm רק אם ה-footer התחתון לא נפגע.
+לא לבצע זאת אם זה גורם להתנגשות עם ה-footer.
+
+בדיקות חובה:
+1. לפתוח הצעת מחיר מסוג "שנה הבאה".
+2. לבחור הצעה עם כמה קורסים / תוכניות כך שהחתימה קרובה לסוף העמוד.
+3. לפתוח תצוגה מקדימה.
+4. לבצע הדפסה / Save as PDF.
+5. לוודא שתמונת החתימה נשארת באותו גודל בדיוק.
+6. לוודא שהחתימה, הקו ושם החותם לא מתפצלים בין עמודים.
+7. לוודא שאין עמוד נוסף שנוצר רק בגלל החתימה.
+8. לוודא שה-footer התחתון לא עולה על התוכן.
+9. לוודא שהצעת קיץ, סיור והצעה משולבת לא נפגעו.
+10. לוודא שאין שינוי בטבלאות המחיר.
+
+להריץ בסיום:
+npm run check:frontend
+npm run check:pwa
+npm run check:build
+
+בסיום לעדכן:
+frontend/sw.js
+להעלות CACHE_VERSION.
+
+זה תיקון הדפסה / CSS בלבד. לא לבצע שום שינוי נוסף מעבר למה שמפורט כאן.
