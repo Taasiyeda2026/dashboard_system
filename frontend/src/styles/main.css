@@ -20496,4 +20496,45 @@ details[open] > .ds-fin-acc__summary::before { transform: rotate(90deg); }
   .proposal-document .pa-doc-intro li {
     margin-bottom: 1.5px !important;
   }
+
+  /* === Part G: proposal page top margin — 10mm, no extra space above logo === */
+  @page {
+    size: A4 portrait;
+    margin: 10mm 16mm;
+  }
+
+  /* === Part H: compact proposal-document-header — remove min-height, tighten spacing === */
+  .proposal-document .proposal-document-header.pa-page-header {
+    display: block !important;
+    min-height: 0 !important;
+    height: auto !important;
+    margin-top: 0 !important;
+    padding-top: 0 !important;
+    margin-bottom: 2mm !important;
+  }
+
+  .proposal-document .pa-logo-area,
+  .proposal-document .proposal-header-brand {
+    min-height: 0 !important;
+    margin: 0 !important;
+    padding: 0 !important;
+  }
+
+  .proposal-document .pa-logo-area .proposal-logo,
+  .proposal-document .proposal-logo {
+    max-height: 14mm !important;
+    width: auto !important;
+    height: auto !important;
+  }
+
+  /* pa-print-fixed-logo never used in print — hidden so it takes no space */
+  .pa-print-fixed-logo {
+    display: none !important;
+    visibility: hidden !important;
+    height: 0 !important;
+    width: 0 !important;
+    margin: 0 !important;
+    padding: 0 !important;
+    overflow: hidden !important;
+  }
 }
