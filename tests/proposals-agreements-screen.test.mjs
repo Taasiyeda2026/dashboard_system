@@ -1725,30 +1725,35 @@ test('proposal form has no draft save and admin primary action approves directly
 
 
 
-test('pending flow preview has submit and back actions without draft save', async () => {
-  await withJSDOM(
-    proposalsAgreementsScreen.render({ rows: [], contactOptions: [] }, { state: stateFor('admin') }),
-    async (root, dom) => {
-      proposalsAgreementsScreen.bind({
-        root,
-        data: { rows: [], activityNameOptions: [], contactOptions: [] },
-        state: stateFor('admin'),
-        api: {}
-      });
+test('pending flow send handler saves directly without requiring preview first', async () => {
+  const source = await readFile(SCREEN_FILE, 'utf8');
+  assert.match(source, /Preview is an optional helper only[\s\S]*await saveForm\(form, targetStatus\)/);
+  assert.doesNotMatch(source, /Preview not yet seen[\s\S]*openPreview\(tempRow, items, \{[\s\S]*onSubmit/);
+  assert.match(source, /showToast\('ההצעה נשמרה ונשלחה לאישור', 'success'\)/);
+});
 
-      const form = openNewProposalForm(root, dom);
-      fillPendingMinimum(form, dom, { item_name: 'סדנת רובוטיקה', unit_price: '650' });
-      form.dataset.paPreviewSeen = '';
-      form.querySelector('[data-pa-save-pending]').dispatchEvent(new dom.window.MouseEvent('click', { bubbles: true }));
-      await delay(20);
-
-      const overlay = dom.window.document.getElementById('pa-preview-overlay');
-      assert.ok(overlay, 'preview overlay should open before submit');
-      assert.match(overlay.textContent, /אישור והפקת הצעה/);
-      assert.match(overlay.textContent, /חזרה לעריכה/);
-      assert.doesNotMatch(overlay.textContent, /שמירת טיוטה/);
-    }
+test('manual course without gefen is blocked for non-admin and allowed for admin validation', () => {
+  const payload = {
+    client_type: 'school',
+    client_authority: 'רשות',
+    school_framework: 'בית ספר',
+    authority_id: 'auth-test',
+    school_id: 'school-test',
+    document_type: 'הצעת מחיר',
+    proposal_date: '2026-07-03',
+    activity_type_group: 'summer',
+    total_amount: 100,
+    _items: [{ item_name: 'קורס ידני חדש', quantity: 1, unit_price: 100, total_price: 100, proposal_group: 'summer' }]
+  };
+  assert.match(
+    validatePayload(payload, 'pending_approval', { canAddManualCourseWithoutGefen: false }).join(' | '),
+    /רק מנהל מערכת יכול להוסיף קורס חדש שאינו מהרשימה וללא מספר גפ״ן/
   );
+  assert.deepEqual(validatePayload(payload, 'pending_approval', { canAddManualCourseWithoutGefen: true }), []);
+  assert.deepEqual(validatePayload({
+    ...payload,
+    _items: [{ ...payload._items[0], source_pricing_key: 'price-1' }]
+  }, 'pending_approval', { canAddManualCourseWithoutGefen: false }), []);
 });
 
 test('saving manual contact keeps authority and school ids in pending payload', async () => {
