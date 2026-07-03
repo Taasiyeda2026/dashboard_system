@@ -2672,7 +2672,7 @@ function buildProposalDocumentHtml({ dateDisplay, documentTitle, row, introText,
   const isSummerDocument = isSummerProposalGroup(row?.activity_type_group);
   const documentModifierClass = `${isNextYear ? ' pa-document--next-year' : ''}${isSummerDocument ? ' pa-document--summer' : ''}`;
   return `
-    <div class="proposal-document pa-document pa-a4-page${documentModifierClass}" data-build="20260703" dir="rtl" style="position:relative;min-height:277mm;box-sizing:border-box;padding-bottom:12mm;">
+    <div class="proposal-document pa-document pa-a4-page${documentModifierClass}" data-build="20260703c" dir="rtl" style="position:relative;min-height:277mm;box-sizing:border-box;padding-bottom:12mm;">
       <style>
         .pa-org-intro {
           padding-inline: 4mm !important;
