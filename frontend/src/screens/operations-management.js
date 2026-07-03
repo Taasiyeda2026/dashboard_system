@@ -2618,7 +2618,7 @@ export const operationsManagementScreen = {
       ${isCompletionApprovalTab ? '' : `<p class="ds-muted ds-ops-mgmt-count no-print" dir="rtl">מציג ${filteredRows.length} פעילויות מתוך ${allRows.length}</p>`}
     </div>`;
   },
-  bind({ root, api, state, rerender, clearScreenDataCache }) {
+  bind({ root, data = {}, api, state, rerender, clearScreenDataCache }) {
     if (!root) return;
     state = state || {};
     const ops = ensureOpsState(state);
