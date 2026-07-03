@@ -1672,7 +1672,8 @@ function tourCostComponentEditorRowHtml(component = {}, idx = 0) {
     <label class="ds-pa-item-field"><span>סכום / מחיר יחידה</span><input class="ds-input ds-input--sm" type="number" min="0" step="any" name="tour_component_unit_price_${idx}" value="${val(c.unit_price)}" data-pa-tour-component-price></label>
     <label class="ds-pa-item-field"><span>כמות</span><input class="ds-input ds-input--sm" type="number" min="0" step="any" name="tour_component_quantity_${idx}" value="${val(c.quantity) || '1'}" data-pa-tour-component-quantity></label>
     <label class="ds-pa-item-field"><span>סה״כ</span><input class="ds-input ds-input--sm" type="number" min="0" step="any" name="tour_component_total_${idx}" value="${val(c.total_price)}" data-pa-tour-component-total readonly aria-readonly="true"></label>
-    <button type="button" class="ds-btn ds-btn--xs ds-btn--ghost" data-pa-remove-tour-component>מחיקה</button>
+    <div class="ds-pa-tour-component-delete-cell"><button type="button" class="ds-btn ds-btn--xs ds-btn--ghost" data-pa-remove-tour-component>מחיקה</button></div>
+    <span></span>
   </div>`;
 }
 
@@ -1689,14 +1690,14 @@ function tourDetailsEditorHtml(items = []) {
       <label class="ds-pa-item-field"><span>מספר תלמידים</span><input class="ds-input ds-input--sm" type="number" min="0" step="1" name="tour_students_count" value="${val(d.students_count)}" data-pa-tour-students></label>
       <label class="ds-pa-item-field"><span>מחיר לתלמיד</span><input class="ds-input ds-input--sm" type="number" min="0" step="any" name="tour_price_per_student" value="${val(d.price_per_student)}" data-pa-tour-price></label>
       <label class="ds-pa-item-field"><span>כמות</span><input class="ds-input ds-input--sm" type="number" min="0" step="any" name="tour_quantity" value="${val(d.quantity) || '1'}" data-pa-tour-quantity></label>
+      <label class="ds-pa-item-field"><span>סה״כ תלמידים</span><input class="ds-input ds-input--sm" type="number" min="0" step="any" name="tour_students_total" value="${val(d.students_total)}" data-pa-tour-students-total readonly aria-readonly="true"></label>
+      <div class="ds-pa-item-field ds-pa-tour-grand-total-field"><span>סה״כ כללי</span><strong class="ds-pa-tour-grand-total-display" data-pa-grand-total>${total ? `₪ ${formatCurrency(total)}` : '₪ 0'}</strong></div>
     </div>
-    <label class="ds-pa-item-field ds-pa-tour-total-field"><span>סה״כ תלמידים</span><input class="ds-input ds-input--sm" type="number" min="0" step="any" name="tour_students_total" value="${val(d.students_total)}" data-pa-tour-students-total readonly aria-readonly="true"></label>
+    <input type="hidden" name="tour_total_price" value="${total}" data-pa-tour-total>
     <div class="ds-pa-tour-components" data-pa-tour-components>
       <div class="ds-pa-items-header"><span class="ds-pa-items-section-label">רכיבי עלות נוספים</span><button type="button" class="ds-btn ds-btn--xs" data-pa-add-tour-component>+ הוסף רכיב</button></div>
       <div data-pa-tour-components-body>${d.cost_components.map((component, idx) => tourCostComponentEditorRowHtml(component, idx)).join('')}</div>
     </div>
-    <input type="hidden" name="tour_total_price" value="${total}" data-pa-tour-total>
-    <div class="ds-pa-items-total-row">סה״כ כללי: <strong data-pa-grand-total>${total ? `₪ ${formatCurrency(total)}` : '₪ 0'}</strong></div>
   </div>`;
 }
 
@@ -2112,15 +2113,28 @@ function tourCostTableHtml(items = []) {
   const total = numberValue(d.total_price)
     ?? calculateTourTotal({ students: d.students_count, studentPrice: d.price_per_student, quantity: d.quantity, costComponents: d.cost_components })
     ?? numberValue(item.total_price);
-  const componentsRows = (d.cost_components || []).map((component) => {
+  const mainRow = `<tr>
+    <td>${escapeHtml(d.class_name)}</td>
+    <td>${fmt(d.students_count)}</td>
+    <td>${fmt(d.price_per_student, true)}</td>
+    <td></td>
+    <td></td>
+    <td>${fmt(d.quantity)}</td>
+    <td>${fmt(d.students_total, true)}</td>
+  </tr>`;
+  const componentRows = (d.cost_components || []).map((component) => {
     const c = normalizeTourCostComponent(component);
-    return `<tr><td>${escapeHtml(c.label)}</td><td>${fmt(c.unit_price, true)}</td><td>${fmt(c.quantity)}</td><td>${fmt(c.total_price, true)}</td></tr>`;
+    const isGuide = c.component_type === 'guide';
+    const guideCell = isGuide ? fmt(c.unit_price, true) : '';
+    const transportCell = !isGuide ? fmt(c.unit_price, true) : '';
+    return `<tr>
+      <td></td><td></td><td></td>
+      <td>${guideCell}</td>
+      <td>${transportCell}</td>
+      <td>${fmt(c.quantity)}</td>
+      <td>${fmt(c.total_price, true)}</td>
+    </tr>`;
   }).join('');
-  const componentsTable = componentsRows ? `<table class="pa-cost-table pa-activities-table pa-tour-components-table">
-      <colgroup><col><col><col><col></colgroup>
-      <thead><tr><th>רכיב</th><th>סכום</th><th>כמות</th><th>סה״כ</th></tr></thead>
-      <tbody>${componentsRows}</tbody>
-    </table>` : '';
   return `<div class="pa-tour-payment-block">
     ${sectionBodyHtml('התשלום עבור הסיור יבוצע בהתאם לטבלה שלהלן:', { alwaysBullet: true })}
     <table class="pa-cost-table pa-activities-table pa-tour-cost-table">
@@ -2128,20 +2142,15 @@ function tourCostTableHtml(items = []) {
         <col class="pa-tour-class-col">
         <col class="pa-tour-students-col">
         <col class="pa-tour-student-price-col">
+        <col class="pa-tour-guide-col">
+        <col class="pa-tour-transport-col">
         <col class="pa-tour-quantity-col">
         <col class="pa-tour-total-col">
       </colgroup>
-      <thead><tr><th>כיתה</th><th>מספר תלמידים</th><th>מחיר לתלמיד</th><th>כמות</th><th>סה״כ</th></tr></thead>
-      <tbody><tr>
-        <td>${escapeHtml(d.class_name)}</td>
-        <td>${fmt(d.students_count)}</td>
-        <td>${fmt(d.price_per_student, true)}</td>
-        <td>${fmt(d.quantity)}</td>
-        <td>${fmt(d.students_total, true)}</td>
-      </tr></tbody>
+      <thead><tr><th>כיתה</th><th>מספר תלמידים</th><th>מחיר לתלמיד</th><th>מדריך</th><th>הסעה</th><th>כמות</th><th>סה״כ</th></tr></thead>
+      <tbody>${mainRow}${componentRows}</tbody>
+      <tfoot><tr><td colspan="6">סה״כ כללי</td><td>${fmt(total, true)}</td></tr></tfoot>
     </table>
-    ${componentsTable}
-    <div class="pa-tour-grand-total">סה״כ כללי: ${fmt(total, true)}</div>
     ${sectionBodyHtml('חשבונית לתשלום תונפק במעמד ביצוע הסיור. תנאי התשלום: שוטף + 15 ממועד הנפקתה.', { alwaysBullet: true })}
   </div>`;
 }

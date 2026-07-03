@@ -20173,16 +20173,53 @@ details[open] > .ds-fin-acc__summary::before { transform: rotate(90deg); }
 /* Proposal tour editor: compact editable 2x3 field grid with computed total below. */
 .ds-pa-tour-fields-grid {
   display: grid;
-  grid-template-columns: repeat(2, minmax(0, 1fr));
-  gap: 8px 10px;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 6px 8px;
   align-items: end;
+  margin-bottom: 10px;
 }
 
-.ds-pa-tour-total-field {
-  margin-top: 10px;
+.ds-pa-tour-grand-total-field {
+  display: grid;
+  gap: 3px;
 }
 
-.ds-pa-tour-total-field input[readonly] {
+.ds-pa-tour-grand-total-display {
+  display: flex;
+  align-items: center;
+  height: 30px;
+  font-size: 0.9rem;
+  font-weight: 600;
+  color: var(--ds-color-text, #1e293b);
+}
+
+.ds-pa-tour-component-row {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 6px 8px;
+  align-items: end;
+  padding: 8px 0;
+  border-bottom: 1px solid var(--ds-color-border, #e2e8f0);
+}
+
+.ds-pa-tour-component-row:last-child {
+  border-bottom: none;
+}
+
+.ds-pa-tour-component-delete-cell {
+  display: flex;
+  align-items: flex-end;
+  padding-bottom: 2px;
+}
+
+.ds-pa-tour-component-row [data-pa-tour-component-total] {
+  background: #f8fafc;
+  color: #334155;
+  cursor: not-allowed;
+}
+
+.ds-pa-tour-fields-grid input[readonly],
+.ds-pa-tour-fields-grid input[aria-readonly="true"] {
   background: #f8fafc;
   color: #334155;
   cursor: not-allowed;
@@ -20190,6 +20227,9 @@ details[open] > .ds-fin-acc__summary::before { transform: rotate(90deg); }
 
 @media (max-width: 640px) {
   .ds-pa-tour-fields-grid {
-    grid-template-columns: 1fr;
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+  .ds-pa-tour-component-row {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
   }
 }
