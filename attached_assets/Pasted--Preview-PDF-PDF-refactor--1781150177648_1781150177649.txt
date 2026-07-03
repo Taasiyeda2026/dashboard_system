@@ -39,7 +39,7 @@ frontend/
         57646.pdf
         57651.pdf
         6089.pdf
-        67861.pdf
+        3604.pdf
         67867.pdf
         9545.pdf
         960.pdf
