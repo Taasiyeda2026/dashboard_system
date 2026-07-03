@@ -47,6 +47,7 @@ npx serve dist -l 5000
 ├── dist/                       ← פלט ה-build (מוגש בייצור)
 ├── tests/                      ← Node test-runner (node --test tests/*.test.mjs)
 ├── supabase/migrations/        ← קבצי SQL להרצה ידנית ב-Supabase
+├── docs/proposal-print-layout.md ← הדפסת/PDF הצעות מחיר: מה לא להחזיר ואיך לבדוק
 └── OLD-GAS/                    ← ארכיב בלבד — קבצי Apps Script ישנים
 ```
 
