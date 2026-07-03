@@ -12,7 +12,7 @@ const CACHE_NAME = `${CACHE_PREFIX}${CACHE_VERSION}`;
 const PRECACHE_URLS = [
   "./assets/apple-touch-icon-DZF9rhdV.png",
   "./assets/favicon-D0Y9bj5H.ico",
-  "./assets/index-BYJ8ZFw-.js",
+  "./assets/index-DMh_0JzA.js",
   "./assets/style-BiBuyT5l.css",
   "./index.html",
   "./manifest.json"

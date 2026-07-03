@@ -113,7 +113,7 @@ function uploadControlsHtml(approval, upload, safeKey) {
     }
     const fileName = truncateFileName(upload?.file_name || 'קובץ מועלה');
     const viewButton = `<button type="button" class="ds-btn ds-btn--xs ds-btn--secondary instr-btn-view" data-view-file-path="${escapeHtml(upload.file_path)}" title="צפייה בקובץ" aria-label="צפייה בקובץ">👁</button>`;
-    const deleteButton = `<button type="button" class="ds-btn ds-btn--xs ds-btn--danger instr-btn-delete" data-delete-upload-id="${uploadId}" title="מחיקת קובץ" aria-label="מחיקת קובץ">מחק קובץ</button>`;
+    const deleteButton = `<button type="button" class="ds-btn ds-btn--xs ds-btn--danger instr-btn-delete" data-delete-upload-id="${uploadId}" title="מחיקת קובץ" aria-label="מחיקת קובץ">🗑</button>`;
     return `<span class="instr-file-row"><span class="instr-file-state instr-file-state--has" title="${escapeHtml(upload?.file_name || '')}">📎 ${escapeHtml(fileName)}</span>${viewButton}${uploadControls}${deleteButton}</span>`;
   }
   return uploadControls;
