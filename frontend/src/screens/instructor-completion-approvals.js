@@ -95,29 +95,31 @@ function truncateFileName(name, max = 20) {
   if (raw.length <= max) return raw;
   return `…${raw.slice(-(max - 1))}`;
 }
+
 function uploadControlsHtml(approval, upload, safeKey) {
   const st = statusInfo(upload).key;
-  const hasRecord = !!upload?.id;
   const hasExistingFile = !!(upload?.file_path || upload?.file_name);
   const storageExists = uploadStorageExists(upload);
   const uploadId = escapeHtml(upload?.id || '');
-  const uploadControls = `<div class="instr-upload-controls" data-upload-controls="${safeKey}">
-    <span class="instr-pending-file" data-pending-name="${safeKey}" hidden></span>
-    <button type="button" class="ds-btn ds-btn--xs ds-btn--secondary instr-btn-pick" data-pick-key="${safeKey}">${hasRecord ? 'חדש' : 'בחר'}</button>
-    <input class="instr-file-input-hidden" type="file" accept=".pdf,.jpg,.jpeg,.png,application/pdf,image/jpeg,image/png" data-pick-input="${safeKey}">
-    <button type="button" class="ds-btn ds-btn--xs ds-btn--primary instr-btn-plus" data-upload-submit="${safeKey}" data-upload-id="${uploadId}" title="${hasRecord ? 'החלפת אישור ביצוע' : 'העלאת אישור ביצוע'}" aria-label="${hasRecord ? 'החלפת אישור ביצוע' : 'העלאת אישור ביצוע'}">${hasRecord ? 'החלף' : '+'}</button>
-  </div>`;
+
+  const fileInput = `<input class="instr-file-input-hidden" type="file" accept=".pdf,.jpg,.jpeg,.png,application/pdf,image/jpeg,image/png" data-pick-input="${safeKey}" data-upload-id="${uploadId}">`;
+
   if (hasExistingFile && st !== 'rejected') {
     if (!storageExists) {
-      return `<span class="instr-file-row"><span class="instr-file-state instr-file-state--missing">⚠ הקובץ חסר באחסון</span>${uploadControls}</span>`;
+      const replaceBtn = `<button type="button" class="ds-btn ds-btn--xs ds-btn--primary instr-btn-pick" data-pick-key="${safeKey}" title="החלפת אישור ביצוע" aria-label="החלפת אישור ביצוע">החלף</button>`;
+      return `<span class="instr-file-row"><span class="instr-file-state instr-file-state--missing">⚠ הקובץ חסר באחסון</span>${replaceBtn}${fileInput}</span>`;
     }
     const fileName = truncateFileName(upload?.file_name || 'קובץ מועלה');
     const viewButton = `<button type="button" class="ds-btn ds-btn--xs ds-btn--secondary instr-btn-view" data-view-file-path="${escapeHtml(upload.file_path)}" title="צפייה בקובץ" aria-label="צפייה בקובץ">👁</button>`;
+    const replaceBtn = `<button type="button" class="ds-btn ds-btn--xs ds-btn--primary instr-btn-pick" data-pick-key="${safeKey}" title="החלפת אישור ביצוע" aria-label="החלפת אישור ביצוע">החלף</button>`;
     const deleteButton = `<button type="button" class="ds-btn ds-btn--xs ds-btn--danger instr-btn-delete" data-delete-upload-id="${uploadId}" title="מחיקת קובץ" aria-label="מחיקת קובץ">🗑</button>`;
-    return `<span class="instr-file-row"><span class="instr-file-state instr-file-state--has" title="${escapeHtml(upload?.file_name || '')}">📎 ${escapeHtml(fileName)}</span>${viewButton}${uploadControls}${deleteButton}</span>`;
+    return `<span class="instr-file-row"><span class="instr-file-state instr-file-state--has" title="${escapeHtml(upload?.file_name || '')}">📎 ${escapeHtml(fileName)}</span>${viewButton}${replaceBtn}${fileInput}${deleteButton}</span>`;
   }
-  return uploadControls;
+
+  const uploadBtn = `<button type="button" class="ds-btn ds-btn--xs ds-btn--primary instr-btn-pick" data-pick-key="${safeKey}" title="העלאת אישור ביצוע" aria-label="העלאת אישור ביצוע">העלה קובץ</button>`;
+  return `<div class="instr-upload-controls" data-upload-controls="${safeKey}">${uploadBtn}${fileInput}</div>`;
 }
+
 function statusChip(upload) {
   const st = statusInfo(upload);
   return `<span class="instr-status instr-status--${st.key}">${escapeHtml(st.label)}</span>`;
@@ -207,13 +209,13 @@ export const instructorCompletionApprovalsScreen = {
     </section>`);
   },
   bind({ root, api, state, rerender, clearScreenDataCache }) {
-    const pendingFiles = new Map();
     const targetRow = root.querySelector('[data-approval-target="true"]');
     if (targetRow) {
       targetRow.scrollIntoView?.({ block: 'center', behavior: 'smooth' });
       targetRow.querySelector('[data-pick-key]')?.focus?.();
       try { sessionStorage.removeItem('instructor_completion_approval_target'); } catch { /* ignore */ }
     }
+
     root.querySelectorAll('[data-approval-key]').forEach((btn) => {
       btn.addEventListener('click', () => {
         try {
@@ -249,8 +251,6 @@ export const instructorCompletionApprovalsScreen = {
       });
     });
 
-
-
     root.querySelectorAll('[data-delete-upload-id]').forEach((btn) => {
       btn.addEventListener('click', async () => {
         const id = btn.getAttribute('data-delete-upload-id');
@@ -274,33 +274,17 @@ export const instructorCompletionApprovalsScreen = {
     });
 
     root.querySelectorAll('[data-pick-input]').forEach((input) => {
-      input.addEventListener('change', () => {
+      input.addEventListener('change', async () => {
         const key = input.getAttribute('data-pick-input');
         const file = input.files?.[0];
         if (!key || !file) return;
-        pendingFiles.set(key, file);
-        const nameEl = root.querySelector(`[data-pending-name="${key}"]`);
-        if (nameEl) {
-          const short = truncateFileName(file.name);
-          nameEl.textContent = short;
-          nameEl.title = file.name;
-          nameEl.hidden = false;
-        }
-      });
-    });
-
-    root.querySelectorAll('[data-upload-submit]').forEach((btn) => {
-      btn.addEventListener('click', async () => {
-        const key = btn.getAttribute('data-upload-submit');
         const approval = approvalsByKey.get(key);
-        const file = pendingFiles.get(key);
-        if (!file) {
-          alert('יש לבחור קובץ לפני העלאה');
-          return;
-        }
         if (!approval) return;
+        const uploadId = input.getAttribute('data-upload-id') || '';
+        const pickBtn = root.querySelector(`[data-pick-key="${key}"]`);
+        const originalLabel = pickBtn?.textContent || '';
+        if (pickBtn) { pickBtn.disabled = true; pickBtn.textContent = 'מעלה...'; }
         try {
-          const uploadId = btn.getAttribute('data-upload-id') || '';
           if (uploadId) {
             await api.replaceCompletionApprovalUpload({ id: uploadId, file });
           } else {
@@ -311,10 +295,10 @@ export const instructorCompletionApprovalsScreen = {
               instructorName: approval.instructorName || currentInstructorName(state)
             });
           }
-          pendingFiles.delete(key);
           clearScreenDataCache?.('instructor-completion-approvals');
           rerender?.();
         } catch (error) {
+          if (pickBtn) { pickBtn.disabled = false; pickBtn.textContent = originalLabel; }
           alert(`העלאת הקובץ נכשלה: ${error?.message || error}`);
         }
       });
