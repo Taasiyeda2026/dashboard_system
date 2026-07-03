@@ -1195,26 +1195,33 @@ test('validatePayload enforces recipient-specific requirements', () => {
   assert.ok(schoolMissingAuthorityErrors.some((e) => /רשות/.test(e)), 'school proposal should require authority');
 });
 
-test('calculateTourTotal uses quantity on full subtotal and handles empty fields', () => {
+test('calculateTourTotal totals student rows and optional tour cost components separately', () => {
   assert.equal(calculateTourTotal({
     students: 30,
-    studentPrice: 50,
-    guide: 400,
-    transport: 800,
-    quantity: 1
-  }), 2700);
-  assert.equal(calculateTourTotal({
-    students: 30,
-    studentPrice: 50,
-    guide: 400,
-    transport: 800,
+    studentPrice: 150,
     quantity: 2
-  }), 5400);
+  }), 9000);
+  assert.equal(calculateTourTotal({
+    students: 30,
+    studentPrice: 150,
+    quantity: 2,
+    costComponents: [
+      { component_type: 'guide', unit_price: 400, quantity: 2 },
+      { component_type: 'bus', unit_price: 800, quantity: 1 },
+      { component_type: 'minibus', unit_price: 500, quantity: 3 }
+    ]
+  }), 12100);
+  assert.equal(calculateTourTotal({
+    students: 30,
+    studentPrice: 150,
+    quantity: 2,
+    costComponents: [{ component_type: 'guide', unit_price: 400, quantity: 2 }]
+  }), 9800, 'components that were not added should not be counted');
   assert.equal(Number.isNaN(calculateTourTotal({})), false);
   assert.equal(calculateTourTotal({}), 0);
 });
 
-test('tour proposal live total follows quantity on full subtotal', async () => {
+test('tour proposal live total separates student and additional cost components', async () => {
   await withJSDOM(
     proposalsAgreementsScreen.render({ rows: [], contactOptions: sampleContactOptions }, { state: stateFor('admin') }),
     async (root, dom) => {
@@ -1243,16 +1250,16 @@ test('tour proposal live total follows quantity on full subtotal', async () => {
           'tour_class_name',
           'tour_students_count',
           'tour_price_per_student',
-          'tour_guide_cost',
-          'tour_transport_cost',
           'tour_quantity'
         ]
       );
-      const totalField = form.querySelector('.ds-pa-tour-total-field [data-pa-tour-total]');
-      assert.ok(totalField, 'tour total should render below the editable grid');
-      assert.equal(totalField.readOnly, true);
-      assert.equal(totalField.getAttribute('aria-readonly'), 'true');
-      assert.equal(tourGrid.contains(totalField), false, 'tour total should not be part of the 2x3 editable grid');
+      const studentsTotalField = form.querySelector('.ds-pa-tour-total-field [data-pa-tour-students-total]');
+      const totalField = form.querySelector('[data-pa-tour-total]');
+      assert.ok(studentsTotalField, 'tour students total should render below the editable grid');
+      assert.ok(totalField, 'tour grand total hidden field should render');
+      assert.equal(studentsTotalField.readOnly, true);
+      assert.equal(studentsTotalField.getAttribute('aria-readonly'), 'true');
+      assert.equal(tourGrid.contains(studentsTotalField), false, 'tour total should not be part of the editable grid');
 
       const setTour = (selector, value) => {
         const el = form.querySelector(selector);
@@ -1262,20 +1269,58 @@ test('tour proposal live total follows quantity on full subtotal', async () => {
         }
       };
       setTour('[data-pa-tour-students]', '30');
-      setTour('[data-pa-tour-price]', '50');
-      setTour('[data-pa-tour-guide]', '400');
-      setTour('[data-pa-tour-transport]', '800');
-      setTour('[data-pa-tour-quantity]', '1');
-      await delay(20);
-      assert.equal(form.querySelector('[data-pa-tour-total]').value, '2700.00');
-
+      setTour('[data-pa-tour-price]', '150');
       setTour('[data-pa-tour-quantity]', '2');
       await delay(20);
-      assert.equal(form.querySelector('[data-pa-tour-total]').value, '5400.00');
+      assert.equal(form.querySelector('[data-pa-tour-students-total]').value, '9000.00');
+      assert.equal(form.querySelector('[data-pa-tour-total]').value, '9000.00');
+
+      const addButton = form.querySelector('[data-pa-add-tour-component]');
+      for (const [type, price, quantity] of [['guide', '400', '2'], ['bus', '800', '1'], ['minibus', '500', '3']]) {
+        addButton.click();
+        await delay(5);
+        const row = Array.from(form.querySelectorAll('[data-pa-tour-component-row]')).at(-1);
+        row.querySelector('[data-pa-tour-component-type]').value = type;
+        row.querySelector('[data-pa-tour-component-type]').dispatchEvent(new dom.window.Event('change', { bubbles: true }));
+        row.querySelector('[data-pa-tour-component-price]').value = price;
+        row.querySelector('[data-pa-tour-component-price]').dispatchEvent(new dom.window.Event('input', { bubbles: true }));
+        row.querySelector('[data-pa-tour-component-quantity]').value = quantity;
+        row.querySelector('[data-pa-tour-component-quantity]').dispatchEvent(new dom.window.Event('input', { bubbles: true }));
+      }
+      await delay(20);
+      assert.equal(form.querySelector('[data-pa-tour-total]').value, '12100.00');
+      form.querySelector('[data-pa-tour-component-row] [data-pa-remove-tour-component]').click();
+      await delay(20);
+      assert.equal(form.querySelector('[data-pa-tour-total]').value, '11300.00');
     }
   );
 });
 
+
+test('extractItemsFromForm saves tour_table_v2 with additional cost components', async () => {
+  await withJSDOM(`<form data-pa-form>
+    <input name="activity_type_group" value="סיור">
+    <input name="tour_class_name" value="כיתה ח׳">
+    <input name="tour_students_count" value="30">
+    <input name="tour_price_per_student" value="150">
+    <input name="tour_quantity" value="2">
+    <input name="tour_students_total" value="9000">
+    <input name="tour_total_price" value="9800">
+    <div data-pa-tour-component-row>
+      <select data-pa-tour-component-type><option value="guide" selected>מדריך</option></select>
+      <input data-pa-tour-component-price value="400">
+      <input data-pa-tour-component-quantity value="2">
+    </div>
+  </form>`, async (root) => {
+    const items = extractItemsFromForm(root.querySelector('[data-pa-form]'));
+    assert.equal(items.length, 1);
+    const details = JSON.parse(items[0].description);
+    assert.equal(details.kind, 'tour_table_v2');
+    assert.equal(details.students_total, 9000);
+    assert.equal(details.total_price, 9800);
+    assert.deepEqual(details.cost_components, [{ component_type: 'guide', label: 'מדריך', unit_price: 400, quantity: 2, total_price: 800 }]);
+  });
+});
 
 test('new proposal form hides contact panel until school is selected', async () => {
   await withJSDOM(
@@ -3028,14 +3073,18 @@ test('tour proposal preview uses scoped 85 percent cost table and omits generic 
     proposal_group: 'סיור',
     proposal_display_mode: 'tour_table',
     details: {
-      kind: 'tour_table',
+      kind: 'tour_table_v2',
       class_name: 'כיתה ח׳',
       students_count: 30,
       price_per_student: 50,
-      guide_cost: 400,
-      transport_cost: 800,
       quantity: 2,
-      total_price: 5400
+      students_total: 3000,
+      cost_components: [
+        { component_type: 'guide', label: 'מדריך', unit_price: 400, quantity: 2, total_price: 800 },
+        { component_type: 'bus', label: 'הסעה אוטובוס', unit_price: 800, quantity: 1, total_price: 800 },
+        { component_type: 'minibus', label: 'הסעה מיניבוס', unit_price: 500, quantity: 1, total_price: 500 }
+      ],
+      total_price: 5100
     }
   }];
 
@@ -3049,7 +3098,7 @@ test('tour proposal preview uses scoped 85 percent cost table and omits generic 
   const table = doc.querySelector('.pa-tour-cost-table');
 
   assert.ok(table, 'tour cost table should still render');
-  assert.equal(table.querySelectorAll('colgroup col').length, 7);
+  assert.equal(table.querySelectorAll('colgroup col').length, 5);
   assert.match(styleText, /\.pa-tour-cost-table\s*\{[^}]*width:\s*85%/s);
   assert.match(styleText, /\.pa-tour-cost-table\s*\{[^}]*max-width:\s*85%/s);
   assert.match(styleText, /\.pa-tour-cost-table\s*\{[^}]*margin-inline:\s*auto/s);
@@ -3061,8 +3110,44 @@ test('tour proposal preview uses scoped 85 percent cost table and omits generic 
   const docText = doc.documentElement.textContent || '';
   assert.doesNotMatch(docText, /פירוט הפעילויות והעלויות מוצג בטבלת העלויות שלהלן\./);
   assert.match(docText, /התשלום עבור הסיור יבוצע בהתאם לטבלה שלהלן:/);
+  const headers = Array.from(table.querySelectorAll('th')).map((th) => th.textContent.trim());
+  assert.deepEqual(headers, ['כיתה', 'מספר תלמידים', 'מחיר לתלמיד', 'כמות', 'סה״כ']);
+  assert.doesNotMatch(table.textContent || '', /מדריך|הסעה/);
+  const componentText = doc.querySelector('.pa-tour-components-table')?.textContent || '';
+  assert.match(componentText, /מדריך/);
+  assert.match(componentText, /הסעה אוטובוס/);
+  assert.match(componentText, /הסעה מיניבוס/);
+  assert.match(docText, /סה״כ כללי/);
   assert.ok(doc.querySelector('.pa-signature-spacer'), 'signature spacer should render');
   assert.equal(doc.querySelector('.pa-signature-spacer')?.querySelectorAll('br').length, 2);
+});
+
+test('legacy tour_table guide and transport are rendered as separate cost components', () => {
+  const row = { id: 'legacy-tour', activity_type_group: 'סיור', proposal_date: '2026-07-01', client_authority: 'עיריית בדיקה' };
+  const items = [{
+    item_name: 'סיור לימודי',
+    item_type: 'סיור',
+    proposal_group: 'סיור',
+    description: JSON.stringify({
+      kind: 'tour_table',
+      class_name: 'כיתה ז׳',
+      students_count: 30,
+      price_per_student: 150,
+      guide_cost: 400,
+      transport_cost: 800,
+      quantity: 2,
+      total_price: 10200
+    })
+  }];
+  const html = proposalPreviewBodyHtml(row, items, []);
+  const dom = new JSDOM(html);
+  const mainTable = dom.window.document.querySelector('.pa-tour-cost-table');
+  assert.deepEqual(Array.from(mainTable.querySelectorAll('th')).map((th) => th.textContent.trim()), ['כיתה', 'מספר תלמידים', 'מחיר לתלמיד', 'כמות', 'סה״כ']);
+  assert.doesNotMatch(mainTable.textContent || '', /מדריך|הסעה/);
+  const componentsText = dom.window.document.querySelector('.pa-tour-components-table')?.textContent || '';
+  assert.match(componentsText, /מדריך/);
+  assert.match(componentsText, /הסעה/);
+  assert.match(dom.window.document.documentElement.textContent || '', /סה״כ כללי/);
 });
 
 test('catalog PDF appendices use fixed workshop/tour PDFs and specific selected course PDFs only', () => {
