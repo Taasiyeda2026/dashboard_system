@@ -18355,12 +18355,14 @@ details[open] > .ds-fin-acc__summary::before { transform: rotate(90deg); }
 }
 .pa-signer-block {
   margin-top: 0.5em;
-  display: inline-flex;
+  display: inline-block;
   flex-direction: column;
   align-items: stretch;
   max-width: 100%;
   text-align: left;
   vertical-align: top;
+  break-inside: avoid;
+  page-break-inside: avoid;
 }
 .pa-signature-spacer {
   height: 4mm;
@@ -18611,7 +18613,7 @@ details[open] > .ds-fin-acc__summary::before { transform: rotate(90deg); }
   .proposal-document .pa-item-details-table.pa-next-year-course-table td:not(:first-child) { width: 11% !important; }
 
   .pa-footer-signature {
-    margin-top: 18px !important;
+    margin-top: 3mm !important;
     padding-top: 0 !important;
     break-inside: avoid !important;
     page-break-inside: avoid !important;
