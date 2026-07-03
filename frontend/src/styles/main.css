@@ -18957,7 +18957,6 @@ details[open] > .ds-fin-acc__summary::before { transform: rotate(90deg); }
     height: auto !important;
     margin: 0 !important;
     padding: 0 !important;
-    padding-top: 17mm !important;
     box-shadow: none !important;
     background: #fff !important;
     position: relative !important;
@@ -18978,24 +18977,15 @@ details[open] > .ds-fin-acc__summary::before { transform: rotate(90deg); }
     overflow: visible !important;
   }
 
-  /* Hide the regular proposal header — pa-print-fixed-logo takes over in print */
+  /* Show the regular proposal header in print */
   .proposal-document .proposal-document-header.pa-page-header {
-    display: none !important;
+    display: block !important;
+    margin-bottom: 4mm !important;
   }
 
-  /* Logo — absolute so it appears only on page 1, not on overflow pages */
+  /* pa-print-fixed-logo not used in print — regular header shown instead */
   .pa-print-fixed-logo {
-    display: block !important;
-    position: absolute !important;
-    top: 0 !important;
-    left: 0 !important;
-    right: auto !important;
-    width: auto !important;
-    max-width: 34mm !important;
-    max-height: 18mm !important;
-    height: auto !important;
-    object-fit: contain !important;
-    z-index: 9999 !important;
+    display: none !important;
   }
 
   /* "לכבוד" block stays in normal document flow — never fixed/absolute */
@@ -19087,7 +19077,10 @@ details[open] > .ds-fin-acc__summary::before { transform: rotate(90deg); }
   .proposal-document .proposal-logo,
   .proposal-document .pa-logo {
     height: auto !important;
-    max-height: 9.5mm !important;
+    max-height: 16mm !important;
+    width: auto !important;
+    max-width: 50mm !important;
+    object-fit: contain !important;
   }
 
   .proposal-document .pa-next-year-cancellation-terms .pa-section-body,
