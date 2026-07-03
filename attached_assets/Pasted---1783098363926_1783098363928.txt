@@ -1,0 +1,229 @@
+תיקון המשך להדפסת הצעות מחיר — לאחר בדיקה בפועל.
+
+המצב אחרי התיקון האחרון:
+החתימה עצמה כבר לא מתפצלת, אבל בהדפסה / Save as PDF נוצר עמוד 2 כמעט ריק:
+נשארות רק שתי שורות אחרונות של סעיף "שינויים, ביטולים והתאמות" ואז החתימה.
+
+זה לא תקין.
+
+המסקנה:
+לא צריך להוסיף עוד break-inside.
+הבעיה עכשיו היא שה-footer והמסמך מוגדרים בצורה שמייצרת שבירת עמוד מוקדמת:
+- יש footer עם inline style ו-position:absolute בתוך buildProposalDocumentHtml.
+- ב-CSS של print ה-footer הוחזר ל-position:fixed.
+- יש עדיין כללי print חופפים שמערבבים fixed / absolute / normal flow.
+- זה גורם ל-Chrome לשמור מקום בתחתית העמוד ולהעביר את סוף הסעיף לעמוד הבא.
+
+חשוב מאוד:
+לא לשנות Supabase.
+לא לשנות תבניות טקסט.
+לא לשנות חישובים.
+לא לשנות טבלאות מחיר.
+לא לשנות API.
+לא לשנות שמירה.
+לא לשנות לוגו.
+לא לשנות שם חותם.
+לא לבצע ריפקטורינג רחב.
+לא להקטין את כל המסמך.
+לא להוסיף עוד break-inside על סעיפים גדולים.
+
+כן להשאיר את הגדלת החתימה הקלה:
+max-width: 185px;
+max-height: 85px;
+width: auto;
+object-fit: contain;
+
+קבצים רלוונטיים:
+frontend/src/screens/proposals-agreements.js
+frontend/src/styles/main.css
+frontend/sw.js
+
+חלק א׳ — תיקון footer במסמך:
+ב-buildProposalDocumentHtml יש כרגע footer עם inline style, למשל:
+
+<div class="pa-page-footer" style="position:absolute;left:12mm;right:12mm;bottom:2mm;...">
+
+להחליף ל:
+
+<div class="pa-page-footer">
+
+כלומר להסיר לחלוטין את ה-inline style מה-footer.
+העיצוב של footer חייב להיות רק ב-CSS.
+
+חלק ב׳ — ביטול fixed footer בהדפסה של הצעות מחיר:
+בהצעות מחיר בלבד, לא להשתמש ב-footer fixed.
+ה-footer צריך להיות בזרימת המסמך, כדי שלא ידחוף שורות לעמוד הבא ולא ייצור עמוד כמעט ריק.
+
+ב-frontend/src/styles/main.css:
+לבטל/לדרוס כל כלל print שמגדיר:
+
+.proposal-document .pa-page-footer {
+  position: fixed
+}
+
+או:
+
+.proposal-document.pa-document .pa-page-footer {
+  position: fixed
+}
+
+במקום זה, בסוף הקובץ, להוסיף כלל final override:
+
+@media print {
+  .proposal-document .pa-page-footer,
+  .proposal-document.pa-document .pa-page-footer {
+    position: static !important;
+    right: auto !important;
+    left: auto !important;
+    bottom: auto !important;
+    height: auto !important;
+    min-height: 0 !important;
+    max-height: none !important;
+    margin: 6mm 0 0 !important;
+    padding: 1mm 0 0 !important;
+    border-top: 1px solid #bbb !important;
+    display: flex !important;
+    align-items: center !important;
+    justify-content: center !important;
+    background: #fff !important;
+    font-size: 8pt !important;
+    line-height: 1.2 !important;
+    z-index: auto !important;
+    break-inside: avoid !important;
+    page-break-inside: avoid !important;
+  }
+}
+
+חלק ג׳ — לתת לעמוד להישבר טבעית:
+בסוף הקובץ, בתוך @media print, להוסיף override ברור:
+
+@media print {
+  .proposal-document.pa-a4-page,
+  .proposal-document.pa-document {
+    width: auto !important;
+    max-width: none !important;
+    min-height: auto !important;
+    height: auto !important;
+    margin: 0 !important;
+    padding: 0 !important;
+    box-shadow: none !important;
+    background: #fff !important;
+    position: relative !important;
+    display: block !important;
+    overflow: visible !important;
+  }
+
+  .proposal-document-body,
+  .proposal-document-content,
+  .proposal-document.pa-document .proposal-document-body,
+  .proposal-document.pa-document .proposal-document-content {
+    display: block !important;
+    width: 100% !important;
+    max-width: none !important;
+    height: auto !important;
+    min-height: 0 !important;
+    max-height: none !important;
+    padding: 0 !important;
+    overflow: visible !important;
+  }
+}
+
+חלק ד׳ — לאפשר לסעיף הביטולים להישבר טבעית:
+לא להכריח pa-section שלם להישאר ביחד.
+
+להוסיף final override:
+
+@media print {
+  .proposal-document .pa-section,
+  .proposal-document .pa-cost-section,
+  .proposal-document .pa-cost-table-block,
+  .proposal-document .pa-next-year-cancellation-terms,
+  .proposal-document .pa-summer-cancellation-terms {
+    break-inside: auto !important;
+    page-break-inside: auto !important;
+  }
+
+  .proposal-document .pa-section-heading {
+    break-after: avoid !important;
+    page-break-after: avoid !important;
+  }
+}
+
+חלק ה׳ — החתימה נשארת יחד:
+להשאיר את החתימה כבלוק שלא מתפצל, אבל לא להכריח את כל הסעיף שלפניה לעבור יחד איתה.
+
+@media print {
+  .proposal-document .pa-footer-signature {
+    break-inside: avoid !important;
+    page-break-inside: avoid !important;
+    break-before: avoid !important;
+    page-break-before: avoid !important;
+    margin-top: 3mm !important;
+    padding-top: 0 !important;
+  }
+
+  .proposal-document .pa-signer-block {
+    display: inline-block !important;
+    break-inside: avoid !important;
+    page-break-inside: avoid !important;
+  }
+
+  .proposal-document .pa-signature-spacer {
+    height: 3mm !important;
+  }
+}
+
+חלק ו׳ — לצמצם מעט את סוף המסמך בלבד:
+כדי למנוע מצב של שתי שורות אחרונות בעמוד חדש, לצמצם רווחים בהדפסה בלבד:
+
+@media print {
+  .proposal-document .pa-section {
+    margin: 4px 0 4px !important;
+  }
+
+  .proposal-document .pa-section-heading {
+    margin: 4px 0 2px !important;
+  }
+
+  .proposal-document .pa-section-body p,
+  .proposal-document .pa-doc-intro p,
+  .proposal-document .pa-section-text p {
+    margin: 0 0 3px !important;
+  }
+
+  .proposal-document .pa-section-body ul,
+  .proposal-document .pa-section-body ol,
+  .proposal-document .pa-doc-intro ul,
+  .proposal-document .pa-doc-intro ol {
+    margin: 1px 0 3px !important;
+  }
+
+  .proposal-document .pa-section-body li,
+  .proposal-document .pa-doc-intro li {
+    margin-bottom: 1.5px !important;
+  }
+}
+
+בדיקות חובה:
+1. לפתוח את אותה הצעת מחיר מסוג "שנה הבאה" שיצרה עמוד 2 כמעט ריק.
+2. לבצע Save as PDF.
+3. לוודא שאין עמוד 2 כמעט ריק עם רק שתי שורות + חתימה.
+4. לוודא שה-footer לא עולה על תוכן.
+5. לוודא שהחתימה מעט גדולה יותר ולא מעוותת.
+6. לוודא שהחתימה, הקו ושם החותם נשארים יחד.
+7. לוודא שהלוגו לא השתנה.
+8. לוודא שהטבלה לא השתנתה.
+9. לבדוק גם הצעת קיץ.
+10. לבדוק גם הצעת סיור.
+11. לבדוק גם הצעה משולבת אם קיימת.
+
+להריץ בסיום:
+npm run check:frontend
+npm run check:pwa
+npm run check:build
+
+בסיום:
+להעלות CACHE_VERSION בקובץ:
+frontend/sw.js
+
+לא לבצע שינוי נוסף מעבר לתיקון ההדפסה של הצעות מחיר.

@@ -20395,3 +20395,105 @@ details[open] > .ds-fin-acc__summary::before { transform: rotate(90deg); }
     page-break-inside: auto !important;
   }
 }
+
+/* === FINAL PRINT OVERRIDE — proposal footer: static flow, sections break naturally === */
+@media print {
+  /* Part B: override all position:fixed on proposal footer → static in document flow */
+  .proposal-document .pa-page-footer,
+  .proposal-document.pa-document .pa-page-footer {
+    position: static !important;
+    right: auto !important;
+    left: auto !important;
+    bottom: auto !important;
+    height: auto !important;
+    min-height: 0 !important;
+    max-height: none !important;
+    margin: 6mm 0 0 !important;
+    padding: 1mm 0 0 !important;
+    border-top: 1px solid #bbb !important;
+    display: flex !important;
+    align-items: center !important;
+    justify-content: center !important;
+    background: #fff !important;
+    font-size: 8pt !important;
+    line-height: 1.2 !important;
+    z-index: auto !important;
+    break-inside: avoid !important;
+    page-break-inside: avoid !important;
+  }
+
+  /* Remove padding-bottom that was reserved for fixed footer */
+  .proposal-document.pa-document .proposal-document-content {
+    padding-bottom: 0 !important;
+  }
+
+  /* Part C: ensure document container allows natural pagination */
+  .proposal-document.pa-a4-page,
+  .proposal-document.pa-document {
+    overflow: visible !important;
+    min-height: auto !important;
+    height: auto !important;
+  }
+
+  /* Part D: allow sections to break naturally across pages */
+  .proposal-document .pa-section,
+  .proposal-document .pa-cost-section,
+  .proposal-document .pa-cost-table-block,
+  .proposal-document .pa-next-year-cancellation-terms,
+  .proposal-document .pa-summer-cancellation-terms {
+    break-inside: auto !important;
+    page-break-inside: auto !important;
+  }
+
+  .proposal-document .pa-section-heading {
+    break-after: avoid !important;
+    page-break-after: avoid !important;
+  }
+
+  /* Part E: keep signature block together */
+  .proposal-document .pa-footer-signature {
+    break-inside: avoid !important;
+    page-break-inside: avoid !important;
+    break-before: avoid !important;
+    page-break-before: avoid !important;
+    margin-top: 3mm !important;
+    padding-top: 0 !important;
+  }
+
+  .proposal-document .pa-signer-block {
+    display: inline-block !important;
+    break-inside: avoid !important;
+    page-break-inside: avoid !important;
+  }
+
+  .proposal-document .pa-signature-spacer {
+    height: 3mm !important;
+  }
+
+  /* Part F: tighten section spacing to reduce orphan lines */
+  .proposal-document .pa-section {
+    margin: 4px 0 4px !important;
+  }
+
+  .proposal-document .pa-section-heading {
+    margin: 4px 0 2px !important;
+  }
+
+  .proposal-document .pa-section-body p,
+  .proposal-document .pa-doc-intro p,
+  .proposal-document .pa-section-text p {
+    margin: 0 0 3px !important;
+  }
+
+  .proposal-document .pa-section-body ul,
+  .proposal-document .pa-section-body ol,
+  .proposal-document .pa-doc-intro ul,
+  .proposal-document .pa-doc-intro ol {
+    margin: 1px 0 3px !important;
+  }
+
+  .proposal-document .pa-section-body li,
+  .proposal-document .pa-doc-intro li {
+    margin-bottom: 1.5px !important;
+  }
+}
