@@ -1501,9 +1501,10 @@ function itemRowHtml(item = {}, idx = 0, pricingOptions = [], options = {}) {
       <textarea class="ds-input ds-input--sm ds-pa-note-textarea" name="course_note" rows="2" placeholder="הערה לתוכנית">${escapeHtml(item.course_note || item.manual_note || '')}</textarea>
     </details>` : '';
   return `<article class="ds-pa-item-card ds-pa-item-row${isSummerRow ? ' ds-pa-item-row--summer' : ''}" data-pa-item-row data-pa-item-idx="${idx}" data-pa-row-group="${escapeHtml(contextGroup)}"${isSummerRow ? ' data-pa-summer-row' : ''}>
-    <div class="ds-pa-item-quick-row" style="display:grid;grid-template-columns:minmax(0,1fr) 96px;gap:8px;align-items:end">
+    <div class="ds-pa-item-quick-row" style="display:grid;grid-template-columns:minmax(0,1fr) 96px 34px;gap:8px;align-items:end">
       <label class="ds-pa-item-field ds-pa-item-field--select ds-pa-item-field--select-no-label"><select class="ds-input ds-input--sm" name="pricing_activity_name" data-pa-pricing-select>${pricingSelectOptionsHtml}</select></label>
       <label class="ds-pa-item-field ds-pa-item-field--qty"><input class="ds-input ds-input--sm" type="number" name="quantity" value="${n(item.quantity) || '1'}" min="0" step="any" data-pa-item-qty aria-label="כמות"></label>
+      <button type="button" class="ds-btn ds-btn--xs ds-btn--ghost ds-pa-item-remove ds-pa-item-remove--quick" data-pa-remove-item aria-label="הסר שורה" title="מחיקת שורה"><svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><polyline points="3 6 5 6 21 6"/><path d="M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6m3 0V4a1 1 0 0 1 1-1h4a1 1 0 0 1 1 1v2"/></svg></button>
     </div>
     ${nextYearNoteHtml}
     <div class="ds-pa-bundle-prompt" data-pa-bundle-prompt hidden></div>
@@ -1517,7 +1518,7 @@ function itemRowHtml(item = {}, idx = 0, pricingOptions = [], options = {}) {
           <label class="ds-pa-item-field ds-pa-item-field--total ds-pa-line-total"><span>סה״כ שורה</span><output data-pa-item-total-display>${calcTotal ? `₪ ${formatCurrency(calcTotal)}` : '₪ 0'}</output><input type="hidden" name="total_price" value="${calcTotal}" data-pa-item-total></label>
         </div>
         ${isNextYearRow ? '' : `<label class="ds-pa-item-field ds-pa-item-field--full"><span>הערות או התאמות</span><textarea class="ds-input ds-input--sm" name="description" rows="2" placeholder="תיאור קצר, אם נדרש">${escapeHtml(item.description || '')}</textarea></label>`}
-        <button type="button" class="ds-btn ds-btn--xs ds-btn--ghost ds-pa-item-remove" data-pa-remove-item aria-label="הסר שורה">✕ הסר</button>
+        
       </div>
     </details>
     <input type="hidden" name="item_type" value="${escapeHtml(proposalField(item, 'item_type', 'itemType') || '')}">
@@ -3786,7 +3787,23 @@ function payloadFromForm(form) {
   return payload;
 }
 
-function validatePayload(payload, statusOverride) {
+function proposalItemHasCatalogIdentity(item = {}) {
+  return Boolean(
+    text(item.source_pricing_key || item.sourcePricingKey) ||
+    text(item.pricing_key || item.pricingKey) ||
+    text(item.pricing_option_key || item.pricingOptionKey) ||
+    text(item.activity_no || item.activityNo || item.pricing_activity_no || item.pricingActivityNo) ||
+    text(item.list_id || item.listId)
+  );
+}
+
+function isManualCourseWithoutGefen(item = {}) {
+  return Boolean(text(item.item_name || item.itemName))
+    && !text(item.gefen_number || item.gefenNumber)
+    && !proposalItemHasCatalogIdentity(item);
+}
+
+function validatePayload(payload, statusOverride, options = {}) {
   const targetStatus = statusOverride || payload.status || 'draft';
   const requiresCompleteProposal = targetStatus === 'sent' || targetStatus === 'pending_approval' || targetStatus === 'approved';
   const clientType = text(payload.client_type) || 'school';
@@ -3825,6 +3842,10 @@ function validatePayload(payload, statusOverride) {
     if (isCombinedProposalGroup(grp)) {
       const missingGroup = items.find((i) => !text(i.proposal_group));
       if (missingGroup) errors.push('שיוך קבוצה בכל שורה');
+    }
+    if (options.canAddManualCourseWithoutGefen === false) {
+      const manualCourseWithoutGefen = items.find(isManualCourseWithoutGefen);
+      if (manualCourseWithoutGefen) errors.push('רק מנהל מערכת יכול להוסיף קורס חדש שאינו מהרשימה וללא מספר גפ״ן.');
     }
   }
 
@@ -5275,7 +5296,7 @@ export const proposalsAgreementsScreen = {
       if (signatureMeta && typeof signatureMeta === 'object' && !approvingWithSignature) payload.signature_meta = signatureMeta;
       const isPending = targetStatus === 'sent' || targetStatus === 'pending_approval';
 
-      const validationErrors = validatePayload(payload, targetStatus);
+      const validationErrors = validatePayload(payload, targetStatus, { canAddManualCourseWithoutGefen: userRole(state) === 'admin' });
       // No preview check here — the pending button handler manages the preview flow
       if (validationErrors.length) {
         showValidationNotice(form, validationErrors, isPending);
@@ -5322,7 +5343,7 @@ export const proposalsAgreementsScreen = {
           finalRow = approval?.row || { ...finalRow, status: 'approved', signature_meta: signatureMeta || defaultSignatureMeta(), approved_at: new Date().toISOString() };
           showToast('ההצעה אושרה ונחתמה', 'success');
         } else if (targetStatus === 'pending_approval') {
-          showToast('ההצעה נשלחה לאישור ומופיעה תחת סטטוס ממתין לאישור', 'success');
+          showToast('ההצעה נשמרה ונשלחה לאישור', 'success');
         } else if (targetStatus === 'draft') {
           showToast('הטיוטה נשמרה בהצלחה', 'success');
         }
@@ -5993,9 +6014,21 @@ export const proposalsAgreementsScreen = {
       if (removeItemBtn) {
         const itemRow = removeItemBtn.closest('[data-pa-item-row]');
         const form = removeItemBtn.closest('[data-pa-form]');
+        const hasMeaningfulRowData = itemRow && [
+          '[name="item_name"]',
+          '[name="pricing_activity_name"]',
+          '[name="gefen_number"]',
+          '[name="unit_price"]',
+          '[name="total_price"]'
+        ].some((selector) => text(itemRow.querySelector(selector)?.value));
+        if (hasMeaningfulRowData) {
+          const ok = window.confirm?.('למחוק את השורה?') ?? true;
+          if (!ok) return;
+        }
         if (itemRow) itemRow.remove();
         if (form) calcGrandTotal(form);
         if (form) updateProposalStepper(form);
+        if (form) updateLivePreview(form);
         return;
       }
 
@@ -6027,19 +6060,10 @@ export const proposalsAgreementsScreen = {
           } catch (e) {
             console.warn('[PA] openPreview error (approved flow):', e);
           }
-        } else if (form.dataset.paPreviewSeen !== 'yes') {
-          // Preview not yet seen — open it automatically with a submit button inside
-          form.dataset.paPreviewSeen = 'yes'; // mark immediately
-          try {
-            await openPreview(tempRow, items, {
-              form,
-              onSubmit: async () => { await saveForm(form, targetStatus); },
-              submitLabel
-            });
-          } catch (e) {
-            console.warn('[PA] openPreview error (pending flow):', e);
-          }
         } else {
+          // Preview is an optional helper only. Sending for approval must persist immediately,
+          // regardless of whether the user opened the preview before clicking the primary action.
+          form.dataset.paPreviewSeen = 'yes';
           await saveForm(form, targetStatus);
         }
         return;
