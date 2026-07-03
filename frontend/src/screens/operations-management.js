@@ -1363,15 +1363,15 @@ function opsManagementStylesHtml() {
     .ds-ops-mgmt-screen .ds-ops-completion-preview th:first-child,.ds-ops-mgmt-screen .ds-ops-completion-preview td:first-child { padding-inline-start:10px; padding-inline-end:10px; white-space:nowrap; }
     .ds-ops-mgmt-screen .ds-ops-completion-preview tbody tr { height:42px; }
     /* completion approvals — semantic column alignment */
-    .ds-ops-mgmt-screen .ds-ops-completion-col--status { width:110px; text-align:center; }
-    .ds-ops-mgmt-screen .ds-ops-completion-col--date { width:105px; text-align:center; white-space:nowrap; }
-    .ds-ops-mgmt-screen .ds-ops-completion-col--authority { width:130px; text-align:right; }
-    .ds-ops-mgmt-screen .ds-ops-completion-col--school { width:170px; text-align:right; white-space:normal; overflow-wrap:break-word; }
+    .ds-ops-mgmt-screen .ds-ops-completion-col--status { width:100px; text-align:center; }
+    .ds-ops-mgmt-screen .ds-ops-completion-col--date { width:100px; text-align:center; white-space:nowrap; }
+    .ds-ops-mgmt-screen .ds-ops-completion-col--authority { width:105px; text-align:right; }
+    .ds-ops-mgmt-screen .ds-ops-completion-col--school { width:105px; text-align:right; white-space:normal; overflow-wrap:break-word; }
     .ds-ops-mgmt-screen .ds-ops-completion-col--type { width:100px; text-align:center; }
-    .ds-ops-mgmt-screen .ds-ops-completion-col--instructor { text-align:right; white-space:normal; overflow-wrap:break-word; }
-    .ds-ops-mgmt-screen .ds-ops-completion-col--contact { width:150px; text-align:right; }
+    .ds-ops-mgmt-screen .ds-ops-completion-col--instructor { width:120px; text-align:right; white-space:normal; overflow-wrap:break-word; }
+    .ds-ops-mgmt-screen .ds-ops-completion-col--contact { width:105px; text-align:right; }
     .ds-ops-mgmt-screen .ds-ops-completion-team-extra { display:block; font-size:0.78em; color:#64748b; margin-top:2px; }
-    .ds-ops-mgmt-screen .ds-ops-completion-col--actions { width:78px; text-align:center; }
+    .ds-ops-mgmt-screen .ds-ops-completion-col--actions { width:140px; text-align:center; }
     .ds-ops-mgmt-screen .ds-ops-completion-col-contact-cell { text-align:right; }
     .ds-ops-mgmt-screen .ds-ops-completion-col-contact-cell select { width:100%; max-width:100%; box-sizing:border-box; text-align:right; direction:rtl; height:30px; min-height:30px; padding-top:3px; padding-bottom:3px; }
     .ds-ops-mgmt-screen .ds-ops-completion-col-who-cell { white-space:normal; line-height:1.35; }

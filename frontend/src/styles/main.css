@@ -17156,19 +17156,19 @@ details[open] > .ds-fin-acc__summary::before { transform: rotate(90deg); }
 }
 
 .ds-ops-mgmt-screen .ds-ops-completion-col--date {
-  width: 10%;
+  width: 100px;
 }
 
 .ds-ops-mgmt-screen .ds-ops-completion-col--authority {
-  width: 10%;
+  width: 105px;
 }
 
 .ds-ops-mgmt-screen .ds-ops-completion-col--instructor {
-  width: 10%;
+  width: 120px;
 }
 
 .ds-ops-mgmt-screen .ds-ops-completion-col--school {
-  width: 10%;
+  width: 105px;
 }
 
 .ds-ops-mgmt-screen .ds-ops-completion-col--who {
@@ -17176,15 +17176,15 @@ details[open] > .ds-fin-acc__summary::before { transform: rotate(90deg); }
 }
 
 .ds-ops-mgmt-screen .ds-ops-completion-col--contact {
-  width: 12%;
+  width: 105px;
 }
 
 .ds-ops-mgmt-screen .ds-ops-completion-col--status {
-  width: 10%;
+  width: 100px;
 }
 
 .ds-ops-mgmt-screen .ds-ops-completion-col--actions {
-  width: 16%;
+  width: 140px;
 }
 
 .ds-ops-completion-col-contact-cell select {
