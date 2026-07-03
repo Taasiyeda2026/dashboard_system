@@ -18385,8 +18385,8 @@ details[open] > .ds-fin-acc__summary::before { transform: rotate(90deg); }
   display: block;
   align-self: center;
   width: auto;
-  max-width: 175px;
-  max-height: 80px;
+  max-width: 185px;
+  max-height: 85px;
   object-fit: contain;
   margin: 0 0 2px;
 }
@@ -20233,5 +20233,165 @@ details[open] > .ds-fin-acc__summary::before { transform: rotate(90deg); }
   }
   .ds-pa-tour-component-row {
     grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+}
+
+/* Proposal print/PDF final overrides: keep pagination stable for all proposal types. */
+@media print {
+  @page {
+    size: A4 portrait;
+    margin: 10mm 16mm 16mm;
+  }
+
+  .proposal-document.pa-a4-page,
+  .proposal-document.pa-document {
+    width: auto !important;
+    max-width: none !important;
+    min-height: auto !important;
+    height: auto !important;
+    margin: 0 !important;
+    padding: 0 !important;
+    box-shadow: none !important;
+    background: #fff !important;
+    position: relative !important;
+    display: block !important;
+    overflow: visible !important;
+  }
+
+  .proposal-document-body,
+  .proposal-document-content,
+  .proposal-document.pa-document .proposal-document-body,
+  .proposal-document.pa-document .proposal-document-content {
+    display: block !important;
+    width: 100% !important;
+    max-width: none !important;
+    height: auto !important;
+    min-height: 0 !important;
+    max-height: none !important;
+    padding: 0 !important;
+    overflow: visible !important;
+  }
+
+  .proposal-document .pa-section,
+  .proposal-document .pa-cost-section,
+  .proposal-document .pa-cost-table-block {
+    break-inside: auto !important;
+    page-break-inside: auto !important;
+    margin: 5px 0 5px !important;
+  }
+
+  .proposal-document .pa-section-heading {
+    break-after: avoid !important;
+    page-break-after: avoid !important;
+    margin: 5px 0 3px !important;
+  }
+
+  .proposal-document .pa-section-body p,
+  .proposal-document .pa-doc-intro p,
+  .proposal-document .pa-section-text p {
+    margin: 0 0 3px !important;
+  }
+
+  .proposal-document .pa-section-body ul,
+  .proposal-document .pa-section-body ol,
+  .proposal-document .pa-doc-intro ul,
+  .proposal-document .pa-doc-intro ol {
+    margin: 2px 0 4px !important;
+  }
+
+  .proposal-document .pa-section-body li,
+  .proposal-document .pa-doc-intro li {
+    margin-bottom: 2px !important;
+  }
+
+  .pa-cost-table,
+  .pa-item-details-table,
+  .pa-activities-table {
+    width: 100% !important;
+    max-width: 100% !important;
+    table-layout: fixed !important;
+    border-collapse: collapse !important;
+    page-break-inside: auto !important;
+  }
+
+  .pa-cost-table thead,
+  .pa-item-details-table thead,
+  .pa-activities-table thead {
+    display: table-header-group !important;
+  }
+
+  .pa-cost-table tfoot,
+  .pa-item-details-table tfoot,
+  .pa-activities-table tfoot {
+    display: table-footer-group !important;
+  }
+
+  .pa-cost-table tr,
+  .pa-item-details-table tr,
+  .pa-activities-table tr {
+    break-inside: avoid !important;
+    page-break-inside: avoid !important;
+  }
+
+  .pa-cost-table th,
+  .pa-cost-table td,
+  .pa-item-details-table th,
+  .pa-item-details-table td,
+  .pa-activities-table th,
+  .pa-activities-table td {
+    padding: 3px 5px !important;
+    white-space: normal !important;
+    overflow-wrap: anywhere !important;
+    vertical-align: middle !important;
+  }
+
+  .proposal-document .pa-footer-signature {
+    break-inside: avoid !important;
+    page-break-inside: avoid !important;
+    break-before: avoid !important;
+    margin-top: 3mm !important;
+    padding-top: 0 !important;
+  }
+
+  .proposal-document .pa-signer-block {
+    display: inline-block !important;
+    break-inside: avoid !important;
+    page-break-inside: avoid !important;
+  }
+
+  .proposal-document .pa-signature-spacer {
+    height: 3mm !important;
+  }
+
+  .proposal-document .pa-footer-signature .pa-signature-image {
+    width: auto !important;
+    max-width: 185px !important;
+    max-height: 85px !important;
+    object-fit: contain !important;
+  }
+
+  .proposal-document .pa-page-footer {
+    position: fixed !important;
+    right: 16mm !important;
+    left: 16mm !important;
+    bottom: 6mm !important;
+    height: 9mm !important;
+    min-height: 0 !important;
+    max-height: 9mm !important;
+    margin: 0 !important;
+    padding: 1mm 0 0 !important;
+    border-top: 1px solid #bbb !important;
+    display: flex !important;
+    align-items: center !important;
+    justify-content: center !important;
+    gap: 8px !important;
+    background: #fff !important;
+    font-size: 8pt !important;
+    line-height: 1.2 !important;
+    text-align: center !important;
+    color: #666 !important;
+    z-index: 10 !important;
+    break-inside: auto !important;
+    page-break-inside: auto !important;
   }
 }
