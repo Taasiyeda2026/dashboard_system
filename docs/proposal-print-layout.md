@@ -48,6 +48,41 @@ hadn't been proven to reproduce the bug on its own in testing, but it
 contradicts the "no flex on the main print document" rule below, so it was
 removed rather than left as a landmine for the next edit.
 
+## Second round: more of the same pattern, found scattered across the file
+
+The first fix (above) didn't fully resolve the bug — the same anti-patterns
+were duplicated in several other places in `main.css` that the first pass
+missed. A second, more exhaustive sweep found and neutralized, at every
+occurrence (not just the ones "already overridden by a later rule"):
+
+- `.proposal-document.pa-document .proposal-document-content { padding-bottom:
+  14mm !important; }` (base rule and its print duplicate) — artificial space
+  reserved at the bottom of the content box "for the footer", which can push
+  the tail of the content past the page boundary. Changed to `0`.
+- `.pa-page-footer { margin-top: auto; }` and several duplicates of it
+  (including one still marked `!important` inside an older `@media print`
+  block) — `margin-top: auto` only means something meaningful when the
+  footer's ancestor is a flex/grid container with a fixed height; once that's
+  gone it's a landmine that can resurface if flex ever gets reintroduced
+  upstream. Changed to a fixed `6px`.
+- `.pa-section, .pa-cost-section, .pa-cost-table-block, .pa-catalog-appendix-notice,
+  .pa-footer-signature, .pa-page-footer { break-inside: avoid; }` — a single
+  rule (without `!important`, so easy to miss when grepping for `!important`)
+  bundled small blocks (signature, footer — fine to avoid) together with large
+  ones (section, cost section, cost table block — must never avoid). Split
+  it: kept `avoid` only for `.pa-footer-signature` / `.pa-page-footer`,
+  removed it for the three large containers.
+- A bare `.pa-cost-table-block { break-inside: avoid; }` with no media query
+  and no `!important` at all, that was technically "already overridden" by
+  later `!important` rules but left as a landmine for the next unrelated
+  edit. Changed to `auto` directly instead of relying on the override chain.
+
+An `ABSOLUTE FINAL PRINT OVERRIDE` block was added as the literal last rule in
+the file, restating all of the above with maximum `!important` so no future
+edit inserted earlier in the file can quietly resurrect any of it. **Extend
+that block instead of adding new proposal print rules elsewhere in the
+file.**
+
 ## Do not reintroduce
 
 - `min-height: 297mm` (or any A4-height value) on `.proposal-document` /

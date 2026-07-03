@@ -12876,8 +12876,8 @@ select.ds-input {
   page-break-after: avoid;
 }
 .pa-cost-table-block {
-  break-inside: avoid;
-  page-break-inside: avoid;
+  break-inside: auto;
+  page-break-inside: auto;
 }
 .pa-cost-section .pa-section-body p { margin-bottom: 2pt; }
 /* אחריות תעשיידע / אחריות בית הספר — line-height מוקטן */
@@ -18131,8 +18131,8 @@ details[open] > .ds-fin-acc__summary::before { transform: rotate(90deg); }
   .pa-section-heading { page-break-after: avoid; }
   .pa-footer-signature { break-inside: avoid; page-break-inside: avoid; }
   .pa-page-footer {
-    margin-top: auto !important;
-    position: relative !important;
+    margin-top: 6px !important;
+    position: static !important;
     border-top: 1px solid #bbb !important;
     padding: 5px 0 7px !important;
     display: flex !important;
@@ -18229,10 +18229,10 @@ details[open] > .ds-fin-acc__summary::before { transform: rotate(90deg); }
     margin-top: 4px !important;
   }
 
-  .pa-section,
-  .pa-cost-section,
-  .pa-cost-table-block,
-  .pa-catalog-appendix-notice,
+  /* .pa-section/.pa-cost-section/.pa-cost-table-block/.pa-catalog-appendix-notice must NOT
+     get break-inside:avoid here — those wrap large chunks of the proposal body, and if one
+     doesn't fit the remaining page, Chrome pushes it whole to page 2. Only small blocks
+     (signature, footer) may avoid. See docs/proposal-print-layout.md. */
   .pa-footer-signature,
   .pa-page-footer {
     break-inside: avoid;
@@ -18568,7 +18568,7 @@ details[open] > .ds-fin-acc__summary::before { transform: rotate(90deg); }
 .proposal-document .pa-section-body li,
 .proposal-document .pa-doc-intro li,
 .proposal-document .pa-proposal-list li { margin-bottom: 2px !important; }
-.proposal-document .pa-page-footer { margin-top: auto; padding-top: 8px; }
+.proposal-document .pa-page-footer { margin-top: 6px; padding-top: 8px; }
 .proposal-document .pa-item-details-table.pa-next-year-course-table .pa-course-col { width: 26%; }
 .proposal-document .pa-item-details-table.pa-next-year-course-table .pa-gefen-col,
 .proposal-document .pa-item-details-table.pa-next-year-course-table .pa-meetings-col,
@@ -18596,7 +18596,7 @@ details[open] > .ds-fin-acc__summary::before { transform: rotate(90deg); }
   .proposal-document .pa-section-body li,
   .proposal-document .pa-doc-intro li,
   .proposal-document .pa-proposal-list li { margin-bottom: 2px !important; }
-  .proposal-document .pa-page-footer { margin-top: auto !important; padding-top: 8px !important; position: static !important; }
+  .proposal-document .pa-page-footer { margin-top: 6px !important; padding-top: 8px !important; position: static !important; }
   .proposal-document .pa-item-details-table.pa-next-year-course-table .pa-course-col { width: 26% !important; }
   .proposal-document .pa-item-details-table.pa-next-year-course-table .pa-gefen-col,
   .proposal-document .pa-item-details-table.pa-next-year-course-table .pa-meetings-col,
@@ -19057,12 +19057,15 @@ details[open] > .ds-fin-acc__summary::before { transform: rotate(90deg); }
   unicode-bidi: isolate !important;
 }
 
-/* Unified A4 footer for all proposal types */
+/* Unified A4 footer for all proposal types.
+   No padding-bottom / margin-top:auto here — those only make sense for a fixed-height
+   page with a footer pinned to the bottom, and reserve artificial space that can push
+   content to page 2. See docs/proposal-print-layout.md. */
 .proposal-document.pa-document .proposal-document-content {
-  padding-bottom: 14mm;
+  padding-bottom: 0;
 }
 .proposal-document.pa-document .pa-page-footer {
-  margin-top: auto;
+  margin-top: 6px;
   font-size: 9pt;
   line-height: 1.2;
   gap: 6px;
@@ -19094,11 +19097,13 @@ details[open] > .ds-fin-acc__summary::before { transform: rotate(90deg); }
   }
 
   .proposal-document.pa-document .proposal-document-content {
-    padding-bottom: 14mm !important;
+    padding-bottom: 0 !important;
   }
 
   .proposal-document.pa-document .pa-page-footer {
-    /* Static in document flow — see note above; fixed footers break natural pagination. */
+    /* Static in document flow — see note above; fixed footers break natural pagination.
+       No padding-bottom reservation and no margin-top:auto — both reserve artificial
+       space that can push the body to page 2. See docs/proposal-print-layout.md. */
     position: static !important;
     left: auto !important;
     right: auto !important;
@@ -20469,5 +20474,64 @@ details[open] > .ds-fin-acc__summary::before { transform: rotate(90deg); }
     white-space: normal !important;
     overflow-wrap: anywhere !important;
     vertical-align: middle !important;
+  }
+}
+
+/* ═══════════════════════════════════════════════════════════════════════
+   ABSOLUTE FINAL PRINT OVERRIDE — proposal document pagination.
+   This is the last word in the cascade on purpose: it wins over every rule
+   above regardless of source order or specificity games. Do not add any
+   proposal print rule after this block; extend this block instead.
+   Do not reintroduce on the main document / body / content:
+     - min-height / height for A4 (min-height:297mm and similar)
+     - display:flex
+     - padding-bottom / margin-bottom reservations for a footer
+   Do not reintroduce break-inside:avoid / page-break-inside:avoid on
+   .pa-section / .pa-cost-section / .pa-cost-table-block / .pa-section-body —
+   those wrap large chunks of the body; if a chunk doesn't fit the remaining
+   page, Chrome pushes it whole to the next page, leaving page 1 nearly
+   blank. Only small blocks (signature, a single table row) may avoid.
+   See docs/proposal-print-layout.md.
+   ═══════════════════════════════════════════════════════════════════════ */
+@media print {
+  .proposal-document.pa-document,
+  .proposal-document.pa-document .proposal-document-body,
+  .proposal-document.pa-document .proposal-document-content {
+    display: block !important;
+    height: auto !important;
+    min-height: 0 !important;
+    max-height: none !important;
+    padding-bottom: 0 !important;
+    margin-bottom: 0 !important;
+    overflow: visible !important;
+    break-before: auto !important;
+    break-after: auto !important;
+    break-inside: auto !important;
+    page-break-before: auto !important;
+    page-break-after: auto !important;
+    page-break-inside: auto !important;
+  }
+
+  .proposal-document .pa-section,
+  .proposal-document .pa-cost-section,
+  .proposal-document .pa-cost-table-block,
+  .proposal-document .pa-section-body {
+    break-inside: auto !important;
+    page-break-inside: auto !important;
+  }
+
+  .proposal-document .pa-page-footer {
+    position: static !important;
+    margin-top: 6px !important;
+    break-before: auto !important;
+    page-break-before: auto !important;
+    break-inside: auto !important;
+    page-break-inside: auto !important;
+  }
+
+  .proposal-document .pa-footer-signature,
+  .proposal-document .pa-signer-block {
+    break-inside: avoid !important;
+    page-break-inside: avoid !important;
   }
 }
