@@ -2631,7 +2631,11 @@ function invalidateScreenDataByAction(action) {
     updateProposalAgreement: ['proposals-agreements'],
     updateProposalAgreementStatus: ['proposals-agreements'],
     deleteProposalAgreement: ['proposals-agreements'],
-    saveProposalAgreementItems: ['proposals-agreements']
+    saveProposalAgreementItems: ['proposals-agreements'],
+    uploadCompletionApproval: ['instructor-completion-approvals', 'my-data', 'instructor-calendar'],
+    replaceCompletionApprovalUpload: ['instructor-completion-approvals', 'my-data', 'instructor-calendar'],
+    deleteCompletionApprovalUpload: ['instructor-completion-approvals', 'my-data', 'instructor-calendar'],
+    reviewCompletionApprovalUpload: ['instructor-completion-approvals', 'my-data', 'instructor-calendar']
   };
   const prefixes = targetedMutations[action];
   if (!prefixes || !prefixes.length) return;
