@@ -1,0 +1,116 @@
+בצע תיקון כללי לבלוק החתימה בכל הצעות המחיר.
+
+המטרה:
+בכל סוגי הצעות המחיר, החתימה, קו החתימה ושם החותם צריכים להישאר יחד כיחידה אחת בהדפסה / PDF ולא להתפצל לעמוד אחר.
+
+הבעיה:
+כיום בלוק החתימה עלול לעבור לעמוד הבא או להתפצל, בעיקר כאשר המסמך קרוב לסוף עמוד. זה קורה בגלל רווחים כפויים ומכיוון שאין הגדרת print שמונעת פיצול של החתימה.
+
+חשוב מאוד:
+לא לשנות את גודל תמונת החתימה.
+לא לשנות width של תמונת החתימה.
+לא לשנות height של תמונת החתימה.
+לא לשנות max-width של תמונת החתימה.
+לא לשנות max-height של תמונת החתימה.
+לא להחליף את קובץ החתימה.
+לא לשנות את שם החותם.
+לא לשנות טקסטים במסמך.
+לא לשנות תבניות Supabase.
+לא לשנות חישובים.
+לא לשנות טבלאות מחיר.
+לא לשנות API.
+לא לשנות שמירה.
+לא לבצע ריפקטורינג.
+לא לבצע שינוי ייעודי רק ל"שנה הבאה" אלא תיקון כללי לכל הצעות המחיר.
+
+הקובץ הרלוונטי:
+frontend/src/screens/proposals-agreements.js
+
+יש לבדוק ולתקן:
+1. signatureSectionHtml
+2. buildProposalDocumentHtml
+3. CSS הפנימי של מסמך ההצעה והדפסה
+
+שינוי HTML נדרש:
+ב-signatureSectionHtml למצוא את הרווח הכפוי:
+
+<div class="pa-signature-spacer" aria-hidden="true"><br><br></div>
+
+ולהחליף ל:
+
+<div class="pa-signature-spacer" aria-hidden="true"></div>
+
+לא לשנות שום דבר אחר במבנה החתימה.
+
+שינוי CSS כללי:
+להוסיף CSS כללי לבלוק החתימה כך שיחול על כל סוגי הצעות המחיר:
+
+.pa-footer-signature {
+  break-inside: avoid;
+  page-break-inside: avoid;
+}
+
+.pa-signer-block {
+  display: inline-block;
+  break-inside: avoid;
+  page-break-inside: avoid;
+}
+
+.pa-signature-spacer {
+  height: 4mm;
+}
+
+ב־@media print להוסיף:
+
+@media print {
+  .pa-footer-signature {
+    break-inside: avoid !important;
+    page-break-inside: avoid !important;
+    margin-top: 3mm !important;
+  }
+
+  .pa-signer-block {
+    display: inline-block !important;
+    break-inside: avoid !important;
+    page-break-inside: avoid !important;
+  }
+
+  .pa-signature-spacer {
+    height: 3mm !important;
+  }
+}
+
+חשוב:
+אסור להוסיף CSS שמשנה את:
+.pa-signature-image
+או כל width / height / max-width / max-height של תמונת החתימה.
+
+לא להוסיף כרגע שינוי padding-bottom כללי לכל המסמך.
+רק אם לאחר בדיקה עדיין יש מעבר עמוד מיותר, ניתן לשקול בנפרד הקטנת padding-bottom בזהירות ובאישור נפרד.
+
+בדיקות חובה:
+1. לפתוח הצעת מחיר מסוג "שנה הבאה".
+2. לבצע תצוגה מקדימה והדפסה / Save as PDF.
+3. לוודא שהחתימה, הקו ושם החותם נשארים יחד.
+4. לוודא שתמונת החתימה נשארה באותו גודל בדיוק.
+5. לפתוח הצעת מחיר מסוג "קיץ".
+6. לוודא שהחתימה לא מתפצלת.
+7. לפתוח הצעת מחיר מסוג "סיור".
+8. לוודא שהחתימה לא מתפצלת.
+9. לפתוח הצעת מחיר משולבת אם קיימת.
+10. לוודא שהחתימה לא מתפצלת.
+11. לוודא שלא נוצר עמוד ריק או עמוד נוסף בגלל החתימה.
+12. לוודא שה-footer התחתון לא עולה על התוכן.
+13. לוודא שטבלאות המחיר לא השתנו.
+14. לוודא שהטקסטים במסמך לא השתנו.
+
+להריץ בסיום:
+npm run check:frontend
+npm run check:pwa
+npm run check:build
+
+בסיום לעדכן:
+frontend/sw.js
+להעלות CACHE_VERSION.
+
+זה תיקון כללי של חתימה בהדפסה בלבד. לא לבצע שום שינוי נוסף מעבר למה שמפורט כאן.

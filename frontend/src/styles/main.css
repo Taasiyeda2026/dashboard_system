@@ -18362,6 +18362,9 @@ details[open] > .ds-fin-acc__summary::before { transform: rotate(90deg); }
   text-align: left;
   vertical-align: top;
 }
+.pa-signature-spacer {
+  height: 4mm;
+}
 .pa-signature-rule {
   display: block;
   width: 100%;
@@ -18614,7 +18617,13 @@ details[open] > .ds-fin-acc__summary::before { transform: rotate(90deg); }
     page-break-inside: avoid !important;
     break-before: avoid !important;
   }
-  .pa-signer-block { margin-top: 0.5em !important; }
+  .pa-signer-block {
+    display: inline-block !important;
+    margin-top: 0.5em !important;
+    break-inside: avoid !important;
+    page-break-inside: avoid !important;
+  }
+  .pa-signature-spacer { height: 3mm !important; }
   .pa-page-footer {
     margin-top: 18px !important;
     position: static !important;
@@ -19259,12 +19268,15 @@ details[open] > .ds-fin-acc__summary::before { transform: rotate(90deg); }
     break-inside: auto !important;
     page-break-inside: auto !important;
   }
+  .proposal-document.pa-document--next-year .pa-cancellations-section {
+    margin-bottom: 2mm !important;
+  }
   .proposal-document.pa-document--next-year .pa-footer-signature {
     break-inside: avoid !important;
     page-break-inside: avoid !important;
     break-before: auto !important;
     page-break-before: auto !important;
-    margin-top: 10px !important;
+    margin-top: 2mm !important;
   }
   .proposal-document.pa-document--next-year .pa-signer-block {
     margin-top: 0.5em !important;
