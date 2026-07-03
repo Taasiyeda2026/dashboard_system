@@ -123,13 +123,20 @@ function peerInstructorsHtml(row, ids, group = null) {
   }).join('');
 }
 
-export function activityDetailHtml(row, { ids = [], teamMap = new Map(), upload = null } = {}) {
+function photoApprovalSectionHtml(photoUpload) {
+  const fi = '<input type="file" accept=".pdf,.jpg,.jpeg,.png" style="display:none" data-instr-photo-file-input>';
+  if (photoUpload?.file_path) {
+    return `${statusChipHtml({ key: 'approved', label: 'יש אישור צילום' })} <button type="button" class="ds-btn ds-btn--xs ds-btn--ghost" data-instr-view-photo title="צפייה בקובץ">👁</button> <button type="button" class="ds-btn ds-btn--xs ds-btn--secondary" data-instr-replace-photo>החלף</button>${fi}`;
+  }
+  return `${statusChipHtml({ key: 'missing', label: 'לא הועלה אישור צילום' })} <button type="button" class="ds-btn ds-btn--xs ds-btn--primary" data-instr-upload-photo>העלאת אישור צילום</button>${fi}`;
+}
+
+export function activityDetailHtml(row, { ids = [], teamMap = new Map(), upload = null, photoUpload = null } = {}) {
   const group = groupForRow(row, teamMap);
   const status = completionStatusFromUpload(upload, row);
   const responsible = cleanDetailValue(group?.responsibleName);
   const mineResponsible = isResponsibleForGroup(group, ids);
   const peersHtml = peerInstructorsHtml(row, ids, group);
-  const photoStatus = photoApprovalStatus(row);
   const contactHtml = schoolContactDetailHtml(row);
   const fields = [
     ['שם פעילות', rowTitle(row)],
@@ -140,7 +147,7 @@ export function activityDetailHtml(row, { ids = [], teamMap = new Map(), upload 
     ['שכבה / קבוצה', text(row?.grade || row?.group_name) || '—'],
     ['מספר משתתפים', participants(row)],
     contactHtml ? ['איש קשר בית ספר', contactHtml] : null,
-    ['אישור צילום', statusChipHtml(photoStatus)],
+    ['אישור צילום', `<span data-instr-photo-section>${photoApprovalSectionHtml(photoUpload)}</span>`],
     ['אישור ביצוע', statusChipHtml(status)],
     peersHtml ? ['מי משובץ איתי', peersHtml] : null,
     responsible ? ['אחראי קשר', `${escapeHtml(responsible)}${mineResponsible ? ' ' + statusChipHtml({ key: 'contact', label: 'אני אחראי קשר' }) : ''}`] : null
@@ -204,6 +211,27 @@ export function findCompletionUploadForRow(row, uploads = []) {
   }) || null;
 }
 
+export function findPhotoUploadForRow(row, instructorEmpId, photoUploads = []) {
+  if (!instructorEmpId || !Array.isArray(photoUploads) || !photoUploads.length) return null;
+  const empIdNorm = norm(String(instructorEmpId));
+  const myUploads = photoUploads.filter((u) => norm(String(u?.instructor_emp_id || '')) === empIdNorm);
+  if (!myUploads.length) return null;
+  const rowSchoolId = text(row?.school_id || row?.contact_school_id || '');
+  if (rowSchoolId) {
+    const byId = myUploads.find((u) => text(u?.school_id || '') === rowSchoolId);
+    if (byId) return byId;
+  }
+  const rowSchool = norm(row?.school || row?.single_school_name || '');
+  const rowAuthority = norm(row?.authority || '');
+  if (!rowSchool) return null;
+  return myUploads.find((u) => {
+    const uSchool = norm(u?.school || '');
+    if (!uSchool || uSchool !== rowSchool) return false;
+    const uAuth = norm(u?.authority || '');
+    return !rowAuthority || !uAuth || uAuth === rowAuthority;
+  }) || null;
+}
+
 export function resolveInstructorApprovalForRow(row, allInstructorRows = [], instructorName = '') {
   const scopedRows = Array.isArray(allInstructorRows) && allInstructorRows.length ? allInstructorRows : [row];
   if (!row) return null;
@@ -242,7 +270,7 @@ export function printSingleActivity(row, instructorName = '', allInstructorRows 
   }
 }
 
-export function bindActivityDetailActions(contentNode, { row, state, allInstructorRows = [] } = {}) {
+export function bindActivityDetailActions(contentNode, { row, state, allInstructorRows = [], api = null, photoUpload = null } = {}) {
   contentNode?.querySelector('[data-instr-print-approval]')?.addEventListener('click', () => {
     openInstructorApprovalForActivity(row, { state, allInstructorRows });
   });
@@ -254,4 +282,51 @@ export function bindActivityDetailActions(contentNode, { row, state, allInstruct
     document.dispatchEvent(new CustomEvent('app:navigate', { detail: { route: 'instructor-completion-approvals' } }));
     document.querySelector('.shell-nav__btn[data-route="instructor-completion-approvals"]')?.click();
   });
+  const photoSection = contentNode?.querySelector('[data-instr-photo-section]');
+  if (photoSection && api) {
+    let currentPhotoUpload = photoUpload;
+    const bindPhotoSectionEvents = () => {
+      const fi = photoSection.querySelector('[data-instr-photo-file-input]');
+      photoSection.querySelector('[data-instr-upload-photo]')?.addEventListener('click', () => fi?.click());
+      photoSection.querySelector('[data-instr-replace-photo]')?.addEventListener('click', () => fi?.click());
+      photoSection.querySelector('[data-instr-view-photo]')?.addEventListener('click', async () => {
+        if (!currentPhotoUpload?.file_path) return;
+        try {
+          const res = await api.photoApprovalSignedUrl({ filePath: currentPhotoUpload.file_path });
+          if (res?.signedUrl) window.open(res.signedUrl, '_blank', 'noopener,noreferrer');
+        } catch (err) { alert('שגיאה בפתיחת קובץ אישור הצילום: ' + (err?.message || '')); }
+      });
+      fi?.addEventListener('change', async (ev) => {
+        const file = ev.target.files?.[0];
+        if (!file) return;
+        const instructorEmpId = currentInstructorIds(state)?.[0] || '';
+        if (!instructorEmpId) { alert('לא נמצא מזהה מדריך.'); return; }
+        const uploadBtn = photoSection.querySelector('[data-instr-upload-photo], [data-instr-replace-photo]');
+        const origText = uploadBtn?.textContent || '';
+        if (uploadBtn) { uploadBtn.disabled = true; uploadBtn.textContent = 'מעלה...'; }
+        try {
+          let result;
+          if (currentPhotoUpload?.id) {
+            result = await api.replacePhotoApproval({ id: currentPhotoUpload.id, file });
+          } else {
+            result = await api.uploadPhotoApproval({
+              instructorEmpId,
+              instructorName: currentInstructorName(state),
+              school: text(row?.school || ''),
+              authority: text(row?.authority || ''),
+              schoolId: text(row?.school_id || ''),
+              file
+            });
+          }
+          currentPhotoUpload = result?.row || null;
+          photoSection.innerHTML = photoApprovalSectionHtml(currentPhotoUpload);
+          bindPhotoSectionEvents();
+        } catch (err) {
+          alert('שגיאה בהעלאת אישור הצילום: ' + (err?.message || 'שגיאה לא ידועה'));
+          if (uploadBtn) { uploadBtn.disabled = false; uploadBtn.textContent = origText; }
+        }
+      });
+    };
+    bindPhotoSectionEvents();
+  }
 }

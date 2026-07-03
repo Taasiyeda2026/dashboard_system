@@ -1,7 +1,7 @@
 import { escapeHtml } from './shared/html.js';
 import { formatDateHe, formatTimeShort } from './shared/format-date.js';
 import { dsPageHeader, dsCard, dsScreenStack, dsTableWrap, dsEmptyState } from './shared/layout.js';
-import { activityDetailHtml, assignedToCurrentInstructor, bindActivityDetailActions, completionStatusFromUpload, contactGroupsByDateSchool, currentInstructorIds, findCompletionUploadForRow, groupForRow, isoDate, isResponsibleForGroup, norm, statusChipHtml } from './instructor-utils.js';
+import { activityDetailHtml, assignedToCurrentInstructor, bindActivityDetailActions, completionStatusFromUpload, contactGroupsByDateSchool, currentInstructorIds, findCompletionUploadForRow, findPhotoUploadForRow, groupForRow, isoDate, isResponsibleForGroup, norm, statusChipHtml } from './instructor-utils.js';
 
 const VISIBLE_COLS = ['completion_approval_status', 'start_date', 'activity_hours', 'school', 'grade', 'activity_name'];
 const COL_LABELS = { start_date: 'תאריך', activity_hours: 'שעות', school: 'בית ספר', grade: 'שכבה', activity_name: 'שם פעילות', completion_approval_status: 'סטטוס' };
@@ -70,11 +70,12 @@ function activityCardHtml(row, meta) {
 
 export const myDataScreen = {
   load: async ({ api }) => {
-    const [myData, uploads] = await Promise.all([
+    const [myData, uploads, photoUploads] = await Promise.all([
       api.myData(),
-      api.completionApprovalUploads().catch(() => ({ rows: [] }))
+      api.completionApprovalUploads().catch(() => ({ rows: [] })),
+      api.photoApprovalUploads ? api.photoApprovalUploads().catch(() => ({ rows: [] })) : Promise.resolve({ rows: [] })
     ]);
-    return { rows: myData?.rows || [], teamGroups: myData?.teamGroups || [], uploads: uploads?.rows || [] };
+    return { rows: myData?.rows || [], teamGroups: myData?.teamGroups || [], uploads: uploads?.rows || [], photoUploads: photoUploads?.rows || [] };
   },
   render(data, { state } = {}) {
     const userEmpId = String(state?.user?.emp_id || state?.user?.employee_id || '').trim();
@@ -157,16 +158,19 @@ export const myDataScreen = {
     const rows = (Array.isArray(data?.rows) ? data.rows : []).filter((row) => assignedToCurrentInstructor(row, currentInstructorIds(state)));
     const teamMap = contactGroupsByDateSchool(data?.teamGroups || []);
     const uploads = data?.uploads || [];
+    const photoUploads = data?.photoUploads || [];
+    const userEmpIdForPhoto = String(state?.user?.emp_id || state?.user?.employee_id || '').trim();
     const rowById = new Map(rows.map((row) => [String(row.RowID), row]));
 
     const openActivityDetail = (hit) => {
       if (!hit || !ui) return;
       try {
+        const photoUpload = findPhotoUploadForRow(hit, userEmpIdForPhoto, photoUploads);
         ui.openDrawer({
           title: 'פירוט פעילות',
-          content: activityDetailHtml(hit, { ids: currentInstructorIds(state), teamMap, upload: findCompletionUploadForRow(hit, uploads) }),
+          content: activityDetailHtml(hit, { ids: currentInstructorIds(state), teamMap, upload: findCompletionUploadForRow(hit, uploads), photoUpload }),
           onOpen: (contentNode) => {
-            bindActivityDetailActions(contentNode, { ui, row: hit, rows, allInstructorRows: rows, teamMap, state });
+            bindActivityDetailActions(contentNode, { ui, row: hit, rows, allInstructorRows: rows, teamMap, state, api, photoUpload });
           }
         });
       } catch (err) {

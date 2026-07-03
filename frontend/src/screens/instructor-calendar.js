@@ -1,7 +1,7 @@
 import { escapeHtml } from './shared/html.js';
 import { formatDateHe } from './shared/format-date.js';
 import { dsPageHeader, dsScreenStack } from './shared/layout.js';
-import { activityDetailHtml, activityHours, assignedToCurrentInstructor, bindActivityDetailActions, completionStatusFromUpload, contactGroupsByDateSchool, currentInstructorIds, currentInstructorName, findCompletionUploadForRow, groupForRow, isResponsibleForGroup, isoDate, monthKey, parseLocalDate, participants, rowTitle, statusChipHtml, text, WEEKDAY_SHORT_HE, weekdayNameHe } from './instructor-utils.js';
+import { activityDetailHtml, activityHours, assignedToCurrentInstructor, bindActivityDetailActions, completionStatusFromUpload, contactGroupsByDateSchool, currentInstructorIds, currentInstructorName, findCompletionUploadForRow, findPhotoUploadForRow, groupForRow, isResponsibleForGroup, isoDate, monthKey, parseLocalDate, participants, rowTitle, statusChipHtml, text, WEEKDAY_SHORT_HE, weekdayNameHe } from './instructor-utils.js';
 
 let selectedMonth = new Date();
 let selectedMonthWasChosen = false;
@@ -117,11 +117,12 @@ export const instructorCalendarScreen = {
   load: async ({ api }) => {
     selectedMonth = new Date();
     selectedMonthWasChosen = false;
-    const [myData, uploads] = await Promise.all([
+    const [myData, uploads, photoUploads] = await Promise.all([
       api.myData(),
-      api.completionApprovalUploads().catch(() => ({ rows: [] }))
+      api.completionApprovalUploads().catch(() => ({ rows: [] })),
+      api.photoApprovalUploads ? api.photoApprovalUploads().catch(() => ({ rows: [] })) : Promise.resolve({ rows: [] })
     ]);
-    return { rows: myData?.rows || [], teamGroups: myData?.teamGroups || [], uploads: uploads?.rows || [] };
+    return { rows: myData?.rows || [], teamGroups: myData?.teamGroups || [], uploads: uploads?.rows || [], photoUploads: photoUploads?.rows || [] };
   },
   render(data, { state } = {}) {
     if (!selectedMonthWasChosen) selectedMonth = new Date();
@@ -137,6 +138,8 @@ export const instructorCalendarScreen = {
     currentIds = currentInstructorIds(state);
     teamMap = contactGroupsByDateSchool(data?.teamGroups || []);
     const uploadsArr = data?.uploads || [];
+    const photoUploadsArr = data?.photoUploads || [];
+    const userEmpIdForPhoto = String(state?.user?.emp_id || state?.user?.employee_id || '').trim();
 
     root.querySelector('[data-cal-prev]')?.addEventListener('click', () => { selectedMonth = addMonths(selectedMonth, -1); selectedMonthWasChosen = true; rerender?.(); });
     root.querySelector('[data-cal-next]')?.addEventListener('click', () => { selectedMonth = addMonths(selectedMonth, 1); selectedMonthWasChosen = true; rerender?.(); });
@@ -145,11 +148,12 @@ export const instructorCalendarScreen = {
     const openActivityDetail = (row) => {
       if (!row || !ui) return;
       try {
+        const photoUpload = findPhotoUploadForRow(row, userEmpIdForPhoto, photoUploadsArr);
         ui.openDrawer({
           title: 'פירוט פעילות',
-          content: activityDetailHtml(row, { ids: currentIds, teamMap, upload: findCompletionUploadForRow(row, uploadsArr) }),
+          content: activityDetailHtml(row, { ids: currentIds, teamMap, upload: findCompletionUploadForRow(row, uploadsArr), photoUpload }),
           onOpen: (contentNode) => {
-            bindActivityDetailActions(contentNode, { ui, row, state, allInstructorRows: renderRows });
+            bindActivityDetailActions(contentNode, { ui, row, state, allInstructorRows: renderRows, api, photoUpload });
           }
         });
       } catch (err) {

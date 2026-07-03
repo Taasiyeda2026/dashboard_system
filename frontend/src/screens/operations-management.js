@@ -2196,6 +2196,22 @@ function completionApprovalInstructorCellHtml(approval) {
   const secondary = names[1] || 'טרם שובץ';
   return `<span class="ds-ops-completion-instructor-line">מדריך: ${escapeHtml(primary)}</span><br><span class="ds-ops-completion-instructor-line">מדריך נוסף: ${escapeHtml(secondary)}</span>`;
 }
+function photoApprovalIndicatorHtml(approval, photoUploads) {
+  if (!Array.isArray(photoUploads) || !photoUploads.length) return '';
+  const instrName = normalizeOpsText(approval?.instructorName || '');
+  const school = normalizeOpsText(approval?.school || '');
+  if (!instrName || !school) return '';
+  const found = photoUploads.find((u) => {
+    const uName = normalizeOpsText(u?.instructor_name || '');
+    const uSchool = normalizeOpsText(u?.school || '');
+    return uName === instrName && uSchool === school;
+  });
+  if (found?.file_path) {
+    return `<div class="ds-ops-photo-indicator ds-ops-photo-indicator--has">📷 יש אישור צילום <button type="button" class="ds-ops-icon-btn" data-ops-photo-view="${escapeHtml(String(found.id))}" title="צפייה באישור צילום" aria-label="צפייה באישור צילום">👁</button></div>`;
+  }
+  return '<div class="ds-ops-photo-indicator ds-ops-photo-indicator--no">📷 לא הועלה</div>';
+}
+
 function completionApprovalTeamCellHtml(approval, contactCtx) {
   const primaryHtml = completionApprovalInstructorCellHtml(approval);
   const shownNames = new Set();
@@ -2504,7 +2520,7 @@ function completionApprovalTabHtml(rows, state, data = {}, directory = buildScho
       <td class="ds-ops-completion-col--authority ds-table-cell-truncate">${escapeHtml(approval.authority || '—')}</td>
       <td class="ds-ops-completion-col--school ds-table-cell-wrap">${escapeHtml(approval.school || '')}</td>
       <td class="ds-ops-completion-col--type ds-table-cell-truncate">${completionApprovalTypeChip(approval)}</td>
-      <td class="ds-ops-completion-col--instructor ds-table-cell-wrap">${completionApprovalTeamCellHtml(approval, contactCtx)}</td>
+      <td class="ds-ops-completion-col--instructor ds-table-cell-wrap">${completionApprovalTeamCellHtml(approval, contactCtx)}${photoApprovalIndicatorHtml(approval, data?.photoApprovalUploads || [])}</td>
       <td class="ds-ops-completion-col--contact ds-ops-completion-col-contact-cell">${contactDropdown}</td>
       <td class="ds-ops-completion-col--actions ds-ops-completion-actions-cell no-print"><div class="ds-ops-completion-actions"><button type="button" class="ds-ops-icon-btn" data-ops-approval-view="${displayIndex}" title="צפייה באישור" aria-label="צפייה באישור">👁</button>${!hasFile
         ? ` <button type="button" class="ds-ops-icon-btn ds-ops-icon-btn--add" data-ops-approval-upload="${displayIndex}" title="${hasUploadRecord ? 'העלאה מחדש / החלפת קובץ' : 'הוספת אישור פעילות חתום'}" aria-label="${hasUploadRecord ? 'העלאה מחדש / החלפת קובץ' : 'הוספת אישור פעילות חתום'}">＋</button>${hasUploadRecord ? ` <button type="button" class="ds-ops-icon-btn ds-ops-icon-btn--reject" data-ops-upload-delete="${escapeHtml(upload.id)}" title="מחיקת רשומת הקובץ" aria-label="מחיקת רשומת הקובץ">🗑</button>` : ''}`
@@ -2558,7 +2574,7 @@ function renderTab(rows, state, data, allPreparedRows = []) {
 
 export const operationsManagementScreen = {
   load: async ({ api }) => {
-    const [activities, lists, schoolsDirectory, contactsSchoolsRows, completionApprovalUploads, contactResponsibles, workshopStockDistributions, instructorSchedulePrintContacts] = await Promise.all([
+    const [activities, lists, schoolsDirectory, contactsSchoolsRows, completionApprovalUploads, contactResponsibles, workshopStockDistributions, instructorSchedulePrintContacts, photoApprovalUploads] = await Promise.all([
       api.allActivities(),
       api.adminLists().catch(() => ({ categories: [] })),
       readOperationsSchoolsDirectory(),
@@ -2566,7 +2582,8 @@ export const operationsManagementScreen = {
       api.completionApprovalUploads().catch(() => ({ rows: [] })),
       api.schoolContactResponsibles().catch(() => ({ rows: [] })),
       api.workshopStockDistributions ? api.workshopStockDistributions().catch(() => ({ rows: [] })) : Promise.resolve({ rows: [] }),
-      api.instructorSchedulePrintContacts ? api.instructorSchedulePrintContacts().catch(() => ({ rows: [] })) : Promise.resolve({ rows: [] })
+      api.instructorSchedulePrintContacts ? api.instructorSchedulePrintContacts().catch(() => ({ rows: [] })) : Promise.resolve({ rows: [] }),
+      api.photoApprovalUploads ? api.photoApprovalUploads().catch(() => ({ rows: [] })) : Promise.resolve({ rows: [] })
     ]);
     return {
       ...activities,
@@ -2576,6 +2593,7 @@ export const operationsManagementScreen = {
       adminListsData: lists,
       contactsSchoolsRows,
       completionApprovalUploads: completionApprovalUploads?.rows || [],
+      photoApprovalUploads: photoApprovalUploads?.rows || [],
       contactResponsiblesRows: contactResponsibles?.rows || [],
       workshopStockDistributions: workshopStockDistributions?.rows || [],
       instructorSchedulePrintContactsRows: instructorSchedulePrintContacts?.rows || []
@@ -2932,6 +2950,18 @@ export const operationsManagementScreen = {
     };
     root.querySelectorAll('[data-ops-upload-view]').forEach((btn) => btn.addEventListener('click', () => openSignedUpload(btn.getAttribute('data-ops-upload-view'), false)));
     root.querySelectorAll('[data-ops-upload-download]').forEach((btn) => btn.addEventListener('click', () => openSignedUpload(btn.getAttribute('data-ops-upload-download'), true)));
+
+    const photoUploadsById = new Map((Array.isArray(data?.photoApprovalUploads) ? data.photoApprovalUploads : []).map((u) => [String(u.id), u]));
+    root.querySelectorAll('[data-ops-photo-view]').forEach((btn) => btn.addEventListener('click', async () => {
+      const id = btn.getAttribute('data-ops-photo-view');
+      if (!id) return;
+      const upload = photoUploadsById.get(id);
+      if (!upload?.file_path) return;
+      try {
+        const result = await api.photoApprovalSignedUrl({ filePath: upload.file_path });
+        if (result?.signedUrl) window.open(result.signedUrl, '_blank', 'noopener,noreferrer');
+      } catch (err) { alert('שגיאה בפתיחת קובץ אישור הצילום: ' + (err?.message || '')); }
+    }));
 
     root.querySelectorAll('[data-ops-upload-delete]').forEach((btn) => btn.addEventListener('click', async () => {
       const id = btn.getAttribute('data-ops-upload-delete');

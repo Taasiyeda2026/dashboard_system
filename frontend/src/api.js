@@ -2635,7 +2635,9 @@ function invalidateScreenDataByAction(action) {
     uploadCompletionApproval: ['instructor-completion-approvals', 'my-data', 'instructor-calendar'],
     replaceCompletionApprovalUpload: ['instructor-completion-approvals', 'my-data', 'instructor-calendar'],
     deleteCompletionApprovalUpload: ['instructor-completion-approvals', 'my-data', 'instructor-calendar'],
-    reviewCompletionApprovalUpload: ['instructor-completion-approvals', 'my-data', 'instructor-calendar']
+    reviewCompletionApprovalUpload: ['instructor-completion-approvals', 'my-data', 'instructor-calendar'],
+    uploadPhotoApproval: ['my-data', 'instructor-calendar', 'operations-management'],
+    replacePhotoApproval: ['my-data', 'instructor-calendar', 'operations-management']
   };
   const prefixes = targetedMutations[action];
   if (!prefixes || !prefixes.length) return;
@@ -4919,6 +4921,15 @@ function completionApprovalUploadPath({ approval, file, instructorEmpId }) {
   return `${userId}/${segment}/${ts}-${rand}.${ext}`;
 }
 
+function photoApprovalUploadPath({ instructorEmpId, school, file }) {
+  const userId = String(instructorEmpId || 'u').replace(/[^a-zA-Z0-9]/g, '-').replace(/-+/g, '-').replace(/^-|-$/g, '') || 'u';
+  const schoolKey = String(school || 'school').replace(/[^a-zA-Z0-9\u0590-\u05FF]/g, '-').replace(/-+/g, '-').replace(/^-|-$/g, '').slice(0, 40) || 'school';
+  const ext = (String(file?.name || '').split('.').pop().toLowerCase().replace(/[^a-z0-9]/g, '') || 'bin').slice(0, 5);
+  const ts = Date.now();
+  const rand = Math.random().toString(36).slice(2, 8);
+  return `${userId}/${schoolKey}/${ts}-${rand}.${ext}`;
+}
+
 function filterOperationsRows(rows, params = {}) {
   const q = String(params?.search || '').trim().toLowerCase();
   const activityType = String(params?.activity_type || '').trim();
@@ -5686,6 +5697,94 @@ export const api = {
     };
     const { data, error } = await supabase.from('activity_completion_approval_uploads').insert(row).select('*').single();
     if (error) throw new Error(error.message || 'completion_approval_upload_record_failed');
+    return { row: data, _source: 'supabase' };
+  },
+  photoApprovalUploads: async () => {
+    const role = String(state?.user?.role || '').trim();
+    const query = supabase
+      .from('photo_approval_uploads')
+      .select('*')
+      .order('uploaded_at', { ascending: false });
+    if (role === 'instructor') {
+      if (!isActiveInstructorPilotUser()) return { rows: [], _source: 'supabase' };
+      query.in('instructor_emp_id', currentUserIdentityValues());
+    }
+    const { data, error } = await query;
+    if (error) throw new Error(error.message || 'photo_approval_uploads_read_failed');
+    return { rows: Array.isArray(data) ? data : [], _source: 'supabase' };
+  },
+  photoApprovalSignedUrl: async ({ filePath } = {}) => {
+    const path = String(filePath || '').trim();
+    if (!path) throw new Error('missing_file_path');
+    const { data, error } = await supabase.storage
+      .from('photo-approvals')
+      .createSignedUrl(path, 60 * 5);
+    if (error) throw new Error(error.message || 'photo_approval_signed_url_failed');
+    return { signedUrl: data?.signedUrl || '' };
+  },
+  uploadPhotoApproval: async ({ instructorEmpId, instructorName, school, authority, schoolId, file } = {}) => {
+    const role = String(state?.user?.role || '').trim();
+    const ownEmpIds = currentUserIdentityValues();
+    const empId = String(instructorEmpId || '').trim();
+    if (!empId) throw new Error('חסר מזהה עובד למדריך.');
+    if (role === 'instructor') {
+      if (!isActiveInstructorPilotUser()) throw new Error('תצוגת מדריך אינה פעילה למשתמש זה.');
+      if (!ownEmpIds.includes(empId)) throw new Error('מדריך יכול להעלות אישור צילום רק עבור עצמו.');
+    } else if (!COMPLETION_APPROVAL_MANAGER_ROLES.has(role)) {
+      throw new Error('אין הרשאה להעלות אישור צילום.');
+    }
+    if (!completionApprovalUploadAllowedFile(file)) throw new Error('ניתן להעלות PDF, JPG, JPEG או PNG בלבד.');
+    const schoolVal = String(school || '').trim();
+    if (!schoolVal) throw new Error('חסר שם בית ספר לאישור הצילום.');
+    const filePath = photoApprovalUploadPath({ instructorEmpId: empId, school: schoolVal, file });
+    const upload = await supabase.storage.from('photo-approvals').upload(filePath, file, { contentType: file.type || undefined, upsert: false });
+    if (upload.error) throw new Error(upload.error.message || 'photo_approval_storage_upload_failed');
+    const row = {
+      instructor_emp_id: empId,
+      instructor_name: String(instructorName || '').trim(),
+      school_id: String(schoolId || '').trim(),
+      authority: String(authority || '').trim(),
+      school: schoolVal,
+      file_path: filePath,
+      mime_type: String(file?.type || '').trim(),
+      file_size: Number(file?.size || 0),
+      uploaded_by_user_id: String(state?.user?.user_id || state?.user?.auth_user_id || '').trim(),
+      status: 'uploaded'
+    };
+    const { data, error } = await supabase.from('photo_approval_uploads').insert(row).select('*').single();
+    if (error) {
+      await supabase.storage.from('photo-approvals').remove([filePath]).catch(() => {});
+      throw new Error(error.message || 'photo_approval_upload_record_failed');
+    }
+    return { row: data, _source: 'supabase' };
+  },
+  replacePhotoApproval: async ({ id, file } = {}) => {
+    const uploadId = String(id || '').trim();
+    if (!uploadId) throw new Error('missing_photo_approval_id');
+    if (!completionApprovalUploadAllowedFile(file)) throw new Error('ניתן להעלות PDF, JPG, JPEG או PNG בלבד.');
+    const existing = await supabase.from('photo_approval_uploads').select('*').eq('id', uploadId).single();
+    if (existing.error || !existing.data) throw new Error('photo_approval_not_found');
+    const role = String(state?.user?.role || '').trim();
+    const ownEmpIds = currentUserIdentityValues();
+    if (role === 'instructor' && !ownEmpIds.includes(String(existing.data?.instructor_emp_id || ''))) {
+      throw new Error('אין הרשאה להחליף אישור צילום של מדריך אחר.');
+    }
+    const oldPath = String(existing.data?.file_path || '').trim();
+    const newPath = photoApprovalUploadPath({ instructorEmpId: existing.data?.instructor_emp_id, school: existing.data?.school, file });
+    const upload = await supabase.storage.from('photo-approvals').upload(newPath, file, { contentType: file.type || undefined, upsert: false });
+    if (upload.error) throw new Error(upload.error.message || 'photo_approval_storage_replace_failed');
+    const { data, error } = await supabase.from('photo_approval_uploads').update({
+      file_path: newPath,
+      mime_type: String(file?.type || '').trim(),
+      file_size: Number(file?.size || 0),
+      uploaded_at: new Date().toISOString(),
+      status: 'uploaded'
+    }).eq('id', uploadId).select('*').single();
+    if (error) {
+      await supabase.storage.from('photo-approvals').remove([newPath]).catch(() => {});
+      throw new Error(error.message || 'photo_approval_replace_record_failed');
+    }
+    if (oldPath) await supabase.storage.from('photo-approvals').remove([oldPath]).catch(() => {});
     return { row: data, _source: 'supabase' };
   },
   operations: async (params = {}) => {
