@@ -2723,12 +2723,12 @@ function normalizeData(data) {
 
 const PROPOSALS_AGREEMENTS_ALLOWED_ROLES = new Set(['domain_manager', 'operation_manager', 'admin', 'business_development_manager']);
 const PROPOSALS_AGREEMENTS_MANAGE_ROLES = new Set(['domain_manager', 'operation_manager', 'admin']);
-const PROPOSALS_AGREEMENTS_COLUMNS = 'id,authority_id,school_id,contact_school_id,client_authority,school_framework,document_type,activity_type_group,proposal_domain,proposal_date,activity_names,contact_name,contact_role,phone,email,notes,status,approval_note,total_amount,custom_document_sections,include_catalog,signature_meta,approved_by,approved_at,sent_by,sent_at,created_at,updated_at';
+const PROPOSALS_AGREEMENTS_COLUMNS = 'id,authority_id,school_id,contact_school_id,client_authority,school_framework,document_type,activity_type_group,proposal_domain,proposal_date,activity_names,contact_name,contact_role,phone,email,contact_phone,contact_email,notes,status,approval_note,total_amount,custom_document_sections,include_catalog,signature_meta,approved_by,approved_at,sent_by,sent_at,created_at,updated_at';
 const PROPOSALS_AGREEMENTS_DIRECTORY_COLUMNS = 'id,authority_id,authority_code,school_id,contact_school_id,authority_name,legacy_client_authority,contact_client_type,contact_client_name,school_name,legacy_school_framework,document_type,activity_type_group,proposal_domain,proposal_date,activity_names,contact_name,contact_role,phone,email,notes,status,approval_note,total_amount,custom_document_sections,include_catalog,signature_meta,approved_by,approved_at,sent_by,sent_at,created_at,updated_at';
 const PROPOSALS_AGREEMENTS_WRITABLE_COLUMNS = new Set([
   'authority_id', 'school_id', 'contact_school_id', 'client_authority', 'school_framework',
   'document_type', 'activity_type_group', 'proposal_date', 'activity_names', 'contact_name',
-  'contact_role', 'phone', 'email', 'notes', 'status', 'approval_note', 'total_amount',
+  'contact_role', 'phone', 'email', 'contact_phone', 'contact_email', 'notes', 'status', 'approval_note', 'total_amount',
   'custom_document_sections', 'include_catalog', 'proposal_domain'
 ]);
 const PROPOSALS_AGREEMENTS_APPROVAL_COLUMNS = new Set(['approved_by', 'approved_at', 'signature_position', 'signature_meta']);
@@ -3278,6 +3278,8 @@ function sanitizeProposalAgreementPayload(payload = {}, groupLookup = proposalGr
     contact_role:        cleanProposalAgreementText(payload.contact_role),
     phone:               cleanProposalAgreementText(payload.phone),
     email:               cleanProposalAgreementText(payload.email),
+    contact_phone:       cleanProposalAgreementText(payload.contact_phone) || cleanProposalAgreementText(payload.phone),
+    contact_email:       cleanProposalAgreementText(payload.contact_email) || cleanProposalAgreementText(payload.email),
     notes:               parseActivityNamesFromNotes(payload.notes).notes,
     status:              statusForDb(PA_VALID_STATUSES_SET.has(rawStatus) ? rawStatus : 'draft'),
     approval_note:       cleanProposalAgreementText(payload.approval_note),
