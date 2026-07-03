@@ -2672,7 +2672,7 @@ function buildProposalDocumentHtml({ dateDisplay, documentTitle, row, introText,
   const isSummerDocument = isSummerProposalGroup(row?.activity_type_group);
   const documentModifierClass = `${isNextYear ? ' pa-document--next-year' : ''}${isSummerDocument ? ' pa-document--summer' : ''}`;
   return `
-    <div class="proposal-document pa-document pa-a4-page${documentModifierClass}" dir="rtl" style="position:relative;min-height:277mm;box-sizing:border-box;padding-bottom:14mm;">
+    <div class="proposal-document pa-document pa-a4-page${documentModifierClass}" dir="rtl" style="position:relative;min-height:277mm;box-sizing:border-box;padding-bottom:12mm;">
       <style>
         .pa-org-intro {
           padding-inline: 4mm !important;
@@ -2773,7 +2773,7 @@ function buildProposalDocumentHtml({ dateDisplay, documentTitle, row, introText,
           ${signatureHtml}
         </div>
       </div>
-      <div class="pa-page-footer" style="position:absolute;left:12mm;right:12mm;bottom:5mm;text-align:center;font-size:8pt;line-height:1.2;border-top:1px solid #d1d5db;padding-top:1mm;background:#fff;">
+      <div class="pa-page-footer" style="position:absolute;left:12mm;right:12mm;bottom:2mm;text-align:center;font-size:8pt;line-height:1.2;border-top:1px solid #d1d5db;padding-top:1mm;background:#fff;">
         <span>תעשיידע — תעשייה למען חינוך מתקדם (ע״ר) | <span dir="ltr">www.think.org.il</span></span>
       </div>
     </div>`;
