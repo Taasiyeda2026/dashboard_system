@@ -178,6 +178,32 @@ function instructorNamesForActivity(row, preferredName = '') {
   ].map(text).filter((name, index, names) => name && names.findIndex((other) => norm(other) === norm(name)) === index);
 }
 
+export function findCompletionUploadForRow(row, uploads = []) {
+  if (!row || !Array.isArray(uploads) || !uploads.length) return null;
+  const rowIds = [row?.RowID, row?.row_id, row?.id, row?.activity_id, row?.uuid]
+    .map((v) => text(v)).filter(Boolean);
+  if (rowIds.length) {
+    const byId = uploads.find((u) => {
+      const raw = text(u?.activity_row_id);
+      if (!raw) return false;
+      return raw.split(',').map((s) => s.trim()).some((id) => id && rowIds.includes(id));
+    });
+    if (byId) return byId;
+  }
+  const rowDate = isoDate(row?.start_date || row?.activity_date || row?.date);
+  if (!rowDate) return null;
+  const rowAuthority = norm(row?.authority || '');
+  const rowSchool = norm(row?.school || '');
+  return uploads.find((u) => {
+    if (isoDate(u?.activity_date) !== rowDate) return false;
+    const uSchool = norm(u?.school || '');
+    if (rowSchool && uSchool && uSchool !== rowSchool) return false;
+    const uAuthority = norm(u?.authority || '');
+    if (rowAuthority && uAuthority && uAuthority !== rowAuthority) return false;
+    return true;
+  }) || null;
+}
+
 export function resolveInstructorApprovalForRow(row, allInstructorRows = [], instructorName = '') {
   const scopedRows = Array.isArray(allInstructorRows) && allInstructorRows.length ? allInstructorRows : [row];
   if (!row) return null;

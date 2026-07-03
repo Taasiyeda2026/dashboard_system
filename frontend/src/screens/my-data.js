@@ -1,7 +1,7 @@
 import { escapeHtml } from './shared/html.js';
 import { formatDateHe, formatTimeShort } from './shared/format-date.js';
 import { dsPageHeader, dsCard, dsScreenStack, dsTableWrap, dsEmptyState } from './shared/layout.js';
-import { activityDetailHtml, assignedToCurrentInstructor, bindActivityDetailActions, completionStatusFromUpload, contactGroupsByDateSchool, currentInstructorIds, groupForRow, isoDate, isResponsibleForGroup, norm, statusChipHtml } from './instructor-utils.js';
+import { activityDetailHtml, assignedToCurrentInstructor, bindActivityDetailActions, completionStatusFromUpload, contactGroupsByDateSchool, currentInstructorIds, findCompletionUploadForRow, groupForRow, isoDate, isResponsibleForGroup, norm, statusChipHtml } from './instructor-utils.js';
 
 const VISIBLE_COLS = ['completion_approval_status', 'start_date', 'activity_hours', 'school', 'grade', 'activity_name'];
 const COL_LABELS = { start_date: 'תאריך', activity_hours: 'שעות', school: 'בית ספר', grade: 'שכבה', activity_name: 'שם פעילות', completion_approval_status: 'סטטוס' };
@@ -45,22 +45,9 @@ function sortActivitiesChronologically(rows) {
   });
 }
 
-function uploadMap(uploads = []) {
-  const m = new Map();
-  (Array.isArray(uploads) ? uploads : []).forEach((u) => m.set(`${isoDate(u.activity_date)}|${norm(u.authority)}|${norm(u.school)}`, u));
-  return m;
-}
-
-function uploadFor(row, uploadsByKey) {
-  const date = isoDate(row?.start_date || row?.activity_date);
-  const school = norm(row?.school);
-  const authority = norm(row?.authority);
-  return uploadsByKey.get(`${date}|${authority}|${school}`) || uploadsByKey.get(`${date}||${school}`) || null;
-}
-
-function rowMeta(row, userEmpId, teamMap, state, uploadsByKey = new Map()) {
+function rowMeta(row, userEmpId, teamMap, state, uploads = []) {
   const rawType = String(row.activity_type || '').trim();
-  const status = completionStatusFromUpload(uploadFor(row, uploadsByKey), row);
+  const status = completionStatusFromUpload(findCompletionUploadForRow(row, uploads), row);
   const rowDate = String(row?.start_date || row?.activity_date || '').slice(0, 10);
   const responsible = isResponsibleForGroup(groupForRow(row, teamMap), currentInstructorIds(state));
   const searchHay = buildSearchHaystack(row);
@@ -94,7 +81,7 @@ export const myDataScreen = {
     const rowsAll = Array.isArray(data?.rows) ? data.rows : [];
     const rows = rowsAll.filter((row) => assignedToCurrentInstructor(row, currentInstructorIds(state)));
     const teamMap = contactGroupsByDateSchool(data?.teamGroups || []);
-    const uploadsByKey = uploadMap(data?.uploads || []);
+    const uploads = data?.uploads || [];
     const preparedRows = sortActivitiesChronologically(rows.map((row) => {
       const isPrimary = userEmpId && String(row?.emp_id || '').trim() === userEmpId;
       const peer = isPrimary ? String(row?.instructor_name_2 || '').trim() : String(row?.instructor_name || '').trim();
@@ -102,7 +89,7 @@ export const myDataScreen = {
     }));
 
     const body = preparedRows.map((row) => {
-      const meta = rowMeta(row, userEmpId, teamMap, state, uploadsByKey);
+      const meta = rowMeta(row, userEmpId, teamMap, state, uploads);
       const cells = VISIBLE_COLS.map((col) => {
         if (col === 'completion_approval_status') return `<td class="instr-col-status">${statusChipHtml(meta.status)}</td>`;
         return `<td class="instr-col-${col.replace(/_/g, '-')}">${escapeHtml(cellValue(row, col))}</td>`;
@@ -110,7 +97,7 @@ export const myDataScreen = {
       return `<tr class="ds-data-row instr-table-row" data-list-item data-search="${escapeHtml(meta.searchHay)}" data-filter="${escapeHtml(meta.rawType)}" data-status="${escapeHtml(meta.status.key)}" data-date="${escapeHtml(meta.rowDate)}" data-responsible="${meta.responsible ? 'yes' : 'no'}" data-row-id="${escapeHtml(row.RowID)}" role="button" tabindex="0">${cells}<td class="instr-col-action"><div class="instr-row-actions"><button type="button" class="ds-btn ds-btn--xs ds-btn--ghost instr-row-action-btn" data-row-detail>פירוט</button></div></td></tr>`;
     }).join('');
 
-    const cards = preparedRows.map((row) => activityCardHtml(row, rowMeta(row, userEmpId, teamMap, state, uploadsByKey))).join('');
+    const cards = preparedRows.map((row) => activityCardHtml(row, rowMeta(row, userEmpId, teamMap, state, uploads))).join('');
 
     const thead = `<thead><tr>${VISIBLE_COLS.map((col) => `<th class="instr-col-${col.replace(/_/g, '-')}">${escapeHtml(COL_LABELS[col] || col)}</th>`).join('')}<th class="instr-col-action">פעולה</th></tr></thead>`;
 
@@ -169,7 +156,7 @@ export const myDataScreen = {
 
     const rows = (Array.isArray(data?.rows) ? data.rows : []).filter((row) => assignedToCurrentInstructor(row, currentInstructorIds(state)));
     const teamMap = contactGroupsByDateSchool(data?.teamGroups || []);
-    const uploadsByKey = uploadMap(data?.uploads || []);
+    const uploads = data?.uploads || [];
     const rowById = new Map(rows.map((row) => [String(row.RowID), row]));
 
     const openActivityDetail = (hit) => {
@@ -177,7 +164,7 @@ export const myDataScreen = {
       try {
         ui.openDrawer({
           title: 'פירוט פעילות',
-          content: activityDetailHtml(hit, { ids: currentInstructorIds(state), teamMap, upload: uploadFor(hit, uploadsByKey) }),
+          content: activityDetailHtml(hit, { ids: currentInstructorIds(state), teamMap, upload: findCompletionUploadForRow(hit, uploads) }),
           onOpen: (contentNode) => {
             bindActivityDetailActions(contentNode, { ui, row: hit, rows, allInstructorRows: rows, teamMap, state });
           }

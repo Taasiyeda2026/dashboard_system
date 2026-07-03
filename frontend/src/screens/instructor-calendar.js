@@ -1,7 +1,7 @@
 import { escapeHtml } from './shared/html.js';
 import { formatDateHe } from './shared/format-date.js';
 import { dsPageHeader, dsScreenStack } from './shared/layout.js';
-import { activityDetailHtml, activityHours, assignedToCurrentInstructor, bindActivityDetailActions, completionStatusFromUpload, contactGroupsByDateSchool, currentInstructorIds, currentInstructorName, groupForRow, isResponsibleForGroup, isoDate, monthKey, parseLocalDate, participants, rowTitle, statusChipHtml, text, WEEKDAY_SHORT_HE, weekdayNameHe } from './instructor-utils.js';
+import { activityDetailHtml, activityHours, assignedToCurrentInstructor, bindActivityDetailActions, completionStatusFromUpload, contactGroupsByDateSchool, currentInstructorIds, currentInstructorName, findCompletionUploadForRow, groupForRow, isResponsibleForGroup, isoDate, monthKey, parseLocalDate, participants, rowTitle, statusChipHtml, text, WEEKDAY_SHORT_HE, weekdayNameHe } from './instructor-utils.js';
 
 let selectedMonth = new Date();
 let selectedMonthWasChosen = false;
@@ -14,17 +14,15 @@ function addMonths(d, n) { return new Date(d.getFullYear(), d.getMonth() + n, 1,
 function toIso(d) { return `${d.getFullYear()}-${String(d.getMonth()+1).padStart(2,'0')}-${String(d.getDate()).padStart(2,'0')}`; }
 function monthTitle(d) { return d.toLocaleDateString('he-IL', { month: 'long', year: 'numeric' }); }
 function rowsForMonth(rows, d) { const mk = `${d.getFullYear()}-${String(d.getMonth()+1).padStart(2,'0')}`; return rows.filter((r) => monthKey(r.start_date || r.activity_date) === mk); }
-function uploadMap(uploads = []) { const m = new Map(); (Array.isArray(uploads) ? uploads : []).forEach((u) => m.set(`${isoDate(u.activity_date)}|${String(u.school||'').trim()}`, u)); return m; }
-function uploadFor(row, map) { return map.get(`${isoDate(row.start_date || row.activity_date)}|${String(row.school||'').trim()}`) || null; }
 
-function dayCell(date, rows, uMap, inMonth) {
+function dayCell(date, rows, uploadsArr, inMonth) {
   const iso = toIso(date);
   const todayIso = toIso(new Date());
   const isToday = iso === todayIso;
   const dayRows = rows.filter((r) => isoDate(r.start_date || r.activity_date) === iso);
   const tags = [];
   if (dayRows.length) tags.push(`<span class="instr-day-count">${dayRows.length} פעילויות</span>`);
-  const statuses = new Set(dayRows.map((r) => completionStatusFromUpload(uploadFor(r, uMap), r).key));
+  const statuses = new Set(dayRows.map((r) => completionStatusFromUpload(findCompletionUploadForRow(r, uploadsArr), r).key));
   if (statuses.has('missing')) tags.push(statusChipHtml({ key: 'missing', label: 'חסר אישור' }));
   else if (statuses.has('rejected')) tags.push(statusChipHtml({ key: 'rejected', label: 'נדחה' }));
   else if (statuses.has('uploaded')) tags.push(statusChipHtml({ key: 'uploaded', label: 'הועלה' }));
@@ -35,10 +33,10 @@ function dayCell(date, rows, uMap, inMonth) {
   return `<button type="button" class="instr-calendar-day ${inMonth ? '' : 'is-muted'} ${dayRows.length ? 'has-activity' : ''} ${isToday ? 'is-today' : ''}" data-calendar-day="${escapeHtml(iso)}" ${disabledAttr}>${todayBadge}<strong>${date.getDate()}</strong><div>${tags.slice(0,2).join('')}</div></button>`;
 }
 
-function mobileDayCardHtml(iso, dayRows, uMap) {
+function mobileDayCardHtml(iso, dayRows, uploadsArr) {
   const todayIso = toIso(new Date());
   const isToday = iso === todayIso;
-  const statuses = new Set(dayRows.map((r) => completionStatusFromUpload(uploadFor(r, uMap), r).key));
+  const statuses = new Set(dayRows.map((r) => completionStatusFromUpload(findCompletionUploadForRow(r, uploadsArr), r).key));
   const statusTags = [];
   if (statuses.has('missing')) statusTags.push(statusChipHtml({ key: 'missing', label: 'חסר אישור' }));
   else if (statuses.has('rejected')) statusTags.push(statusChipHtml({ key: 'rejected', label: 'נדחה' }));
@@ -61,7 +59,7 @@ function mobileDayCardHtml(iso, dayRows, uMap) {
   </button>`;
 }
 
-function mobileDayListHtml(rows, uMap, d) {
+function mobileDayListHtml(rows, uploadsArr, d) {
   const monthRows = rowsForMonth(rows, d);
   const dayMap = new Map();
   monthRows.forEach((row) => {
@@ -74,10 +72,10 @@ function mobileDayListHtml(rows, uMap, d) {
   if (!sortedDays.length) {
     return '<p class="instr-cal-mobile-empty">אין פעילויות בחודש זה</p>';
   }
-  return `<div class="instr-cal-mobile-list">${sortedDays.map((iso) => mobileDayCardHtml(iso, dayMap.get(iso), uMap)).join('')}</div>`;
+  return `<div class="instr-cal-mobile-list">${sortedDays.map((iso) => mobileDayCardHtml(iso, dayMap.get(iso), uploadsArr)).join('')}</div>`;
 }
 
-function calendarHtml(rows, uMap, d) {
+function calendarHtml(rows, uploadsArr, d) {
   const first = monthStart(d);
   const start = new Date(first);
   start.setDate(first.getDate() - first.getDay());
@@ -85,15 +83,15 @@ function calendarHtml(rows, uMap, d) {
   for (let i = 0; i < 42; i++) {
     const cur = new Date(start);
     cur.setDate(start.getDate() + i);
-    cells.push(dayCell(cur, rows, uMap, cur.getMonth() === d.getMonth()));
+    cells.push(dayCell(cur, rows, uploadsArr, cur.getMonth() === d.getMonth()));
   }
   const toolbar = `<div class="instr-calendar-toolbar"><h2>${escapeHtml(monthTitle(d))}</h2><div><button class="ds-btn ds-btn--sm ds-btn--secondary" data-cal-prev>חודש קודם</button><button class="ds-btn ds-btn--sm ds-btn--ghost" data-cal-today>היום</button><button class="ds-btn ds-btn--sm ds-btn--secondary" data-cal-next>חודש הבא</button></div></div>`;
   const desktopGrid = `<div class="instr-calendar-desktop"><div class="instr-weekdays">${WEEKDAY_SHORT_HE.map((w)=>`<span>${w}</span>`).join('')}</div><div class="instr-calendar-grid">${cells.join('')}</div></div>`;
-  const mobileList = `<div class="instr-calendar-mobile">${mobileDayListHtml(rows, uMap, d)}</div>`;
+  const mobileList = `<div class="instr-calendar-mobile">${mobileDayListHtml(rows, uploadsArr, d)}</div>`;
   return `<div class="instructor-calendar-inner"><section class="instr-calendar-card">${toolbar}${desktopGrid}${mobileList}</section></div>`;
 }
 
-function dayDrawerHtml(iso, rows, uMap) {
+function dayDrawerHtml(iso, rows, uploadsArr) {
   const dayRows = rows
     .filter((r) => isoDate(r.start_date || r.activity_date) === iso)
     .sort((a, b) => text(a.start_time || a.StartTime).localeCompare(text(b.start_time || b.StartTime)));
@@ -109,7 +107,7 @@ function dayDrawerHtml(iso, rows, uMap) {
     : '';
   const groupsHtml = [...groups.entries()].map(([k, items]) =>
     `<section><h3>${escapeHtml(k)}</h3>${items.map((r) =>
-      `<article class="instr-activity-card"><div><strong>${escapeHtml(activityHours(r))} | ${escapeHtml(rowTitle(r))} | ${escapeHtml(text(r.grade)||'—')}</strong><small>${escapeHtml(text(r.school)||'')} · משתתפים: ${escapeHtml(participants(r))}</small>${statusChipHtml(completionStatusFromUpload(uploadFor(r, uMap), r))}</div><button class="ds-btn ds-btn--xs ds-btn--primary" data-activity-detail="${escapeHtml(String(r.RowID||''))}">פירוט</button></article>`
+      `<article class="instr-activity-card"><div><strong>${escapeHtml(activityHours(r))} | ${escapeHtml(rowTitle(r))} | ${escapeHtml(text(r.grade)||'—')}</strong><small>${escapeHtml(text(r.school)||'')} · משתתפים: ${escapeHtml(participants(r))}</small>${statusChipHtml(completionStatusFromUpload(findCompletionUploadForRow(r, uploadsArr), r))}</div><button class="ds-btn ds-btn--xs ds-btn--primary" data-activity-detail="${escapeHtml(String(r.RowID||''))}">פירוט</button></article>`
     ).join('')}</section>`
   ).join('');
   return `<div class="instr-day-drawer">${responsibleNote}${groupsHtml}</div>`;
@@ -130,15 +128,15 @@ export const instructorCalendarScreen = {
     currentIds = currentInstructorIds(state);
     teamMap = contactGroupsByDateSchool(data?.teamGroups || []);
     renderRows = (Array.isArray(data?.rows) ? data.rows : []).filter((r) => assignedToCurrentInstructor(r, currentIds));
-    const uMap = uploadMap(data?.uploads || []);
+    const uploadsArr = data?.uploads || [];
     return dsScreenStack(
-      `<section class="instructor-area">${dsPageHeader('לוח השנה שלי')}${calendarHtml(renderRows, uMap, selectedMonth)}</section>`
+      `<section class="instructor-area">${dsPageHeader('לוח השנה שלי')}${calendarHtml(renderRows, uploadsArr, selectedMonth)}</section>`
     );
   },
   bind({ root, data, ui, state, rerender }) {
     currentIds = currentInstructorIds(state);
     teamMap = contactGroupsByDateSchool(data?.teamGroups || []);
-    const uMap = uploadMap(data?.uploads || []);
+    const uploadsArr = data?.uploads || [];
 
     root.querySelector('[data-cal-prev]')?.addEventListener('click', () => { selectedMonth = addMonths(selectedMonth, -1); selectedMonthWasChosen = true; rerender?.(); });
     root.querySelector('[data-cal-next]')?.addEventListener('click', () => { selectedMonth = addMonths(selectedMonth, 1); selectedMonthWasChosen = true; rerender?.(); });
@@ -149,7 +147,7 @@ export const instructorCalendarScreen = {
       try {
         ui.openDrawer({
           title: 'פירוט פעילות',
-          content: activityDetailHtml(row, { ids: currentIds, teamMap, upload: uploadFor(row, uMap) }),
+          content: activityDetailHtml(row, { ids: currentIds, teamMap, upload: findCompletionUploadForRow(row, uploadsArr) }),
           onOpen: (contentNode) => {
             bindActivityDetailActions(contentNode, { ui, row, state, allInstructorRows: renderRows });
           }
@@ -167,7 +165,7 @@ export const instructorCalendarScreen = {
           ui?.openDrawer({
             title: `פעילויות בתאריך ${formatDateHe(iso) || iso}`,
             subtitle: weekdayNameHe(iso),
-            content: dayDrawerHtml(iso, renderRows, uMap),
+            content: dayDrawerHtml(iso, renderRows, uploadsArr),
             onOpen: (contentNode) => {
               contentNode.querySelectorAll('[data-activity-detail]').forEach((detailBtn) => {
                 detailBtn.addEventListener('click', () => {
