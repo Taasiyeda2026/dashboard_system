@@ -11,11 +11,15 @@ const runTests = !args.has('--no-tests');
 const ignoredPrefixes = ['dist/', 'node_modules/', '.git/'];
 const jsExtensions = new Set(['.js', '.mjs', '.cjs']);
 
+// Each source file maps to one or more focused test files (node --test).
+// Keep this list limited to mappings verified against real imports in tests/*.
+// If a mapped test file goes missing, the runner warns and skips it rather than failing.
 const screenTestMap = new Map([
-  ['frontend/src/screens/proposals-agreements.js', 'tests/proposals-agreements-screen.test.mjs'],
-  ['frontend/src/screens/activities.js', 'tests/activities-render.test.mjs'],
-  ['frontend/src/screens/admin-settings.js', 'tests/admin-settings-screen.test.mjs'],
-  ['frontend/src/screens/permissions.js', 'tests/permissions-screen.test.mjs']
+  ['frontend/src/screens/proposals-agreements.js', ['tests/proposals-agreements-screen.test.mjs']],
+  ['frontend/src/screens/activities.js', ['tests/activities-screen.test.mjs']],
+  ['frontend/src/api.js', ['tests/api-mutations.test.mjs']],
+  ['frontend/sw.js', ['tests/service-worker-pwa-cache.test.mjs']],
+  ['sw.js', ['tests/service-worker-pwa-cache.test.mjs']]
 ]);
 
 function toPosix(filePath) {
@@ -100,17 +104,30 @@ if (!checkFiles.length) {
 }
 
 if (runTests && !frontendMode) {
-  const relevantTests = Array.from(new Set(
-    changedFilesFromGit()
-      .map((file) => screenTestMap.get(file))
-      .filter((file) => file && exists(file))
-  ));
+  const relevantTests = new Set();
+  const missingMappedTests = new Set();
+
+  for (const file of changedFilesFromGit()) {
+    const mappedTests = screenTestMap.get(file);
+    if (!mappedTests) continue;
+    for (const testFile of mappedTests) {
+      if (exists(testFile)) {
+        relevantTests.add(testFile);
+      } else {
+        missingMappedTests.add(`${file} -> ${testFile}`);
+      }
+    }
+  }
+
+  for (const entry of missingMappedTests) {
+    console.warn(`[check] Warning: mapped test file not found, skipping (${entry})`);
+  }
 
   for (const testFile of relevantTests) {
     run('node', ['--test', testFile]);
   }
 
-  if (!relevantTests.length) {
+  if (!relevantTests.size) {
     console.log('[check] No mapped screen tests for changed files.');
   }
 }
