@@ -18461,11 +18461,6 @@ details[open] > .ds-fin-acc__summary::before { transform: rotate(90deg); }
 
 /* Proposal print/PDF readability overrides: allow natural A4 pagination instead of fit-to-page compression. */
 @media print {
-  @page {
-    size: A4 portrait;
-    margin: 10mm 16mm;
-  }
-
   html,
   body {
     font-size: 12px !important;
@@ -18951,7 +18946,7 @@ details[open] > .ds-fin-acc__summary::before { transform: rotate(90deg); }
 @media print {
   @page {
     size: A4 portrait;
-    margin: 4mm 12mm 22mm 12mm;
+    margin: 10mm 16mm;
   }
 
   .proposal-document.pa-a4-page,

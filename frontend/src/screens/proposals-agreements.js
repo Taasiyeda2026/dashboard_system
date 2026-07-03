@@ -2773,7 +2773,7 @@ function buildProposalDocumentHtml({ dateDisplay, documentTitle, row, introText,
           ${signatureHtml}
         </div>
       </div>
-      <div class="pa-page-footer" style="position:absolute;left:12mm;right:12mm;bottom:6mm;text-align:center;font-size:9pt;line-height:1.2;border-top:1px solid #d1d5db;padding-top:2mm;background:#fff;">
+      <div class="pa-page-footer" style="position:absolute;left:12mm;right:12mm;bottom:6mm;text-align:center;font-size:8pt;line-height:1.2;border-top:1px solid #d1d5db;padding-top:2mm;background:#fff;">
         <span>תעשיידע — תעשייה למען חינוך מתקדם (ע״ר) | <span dir="ltr">www.think.org.il</span></span>
       </div>
     </div>`;
