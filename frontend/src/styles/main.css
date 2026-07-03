@@ -13287,328 +13287,13 @@ select.ds-input {
     display: block !important;
   }
 
-  /* ── The document itself ──────────────────────────────────────── */
-  .proposal-document {
-    width: 210mm !important;
-    max-width: none !important;
-    min-height: auto !important;
-    height: auto !important;
-    margin: 0 !important;
-    padding: 12mm 18mm 8mm !important;
-    box-shadow: none !important;
-    border: none !important;
-    border-radius: 0 !important;
-    background: #fff !important;
-    color: #000 !important;
-    direction: rtl !important;
-    font-family: Arial, "Noto Sans Hebrew", "David", sans-serif !important;
-    font-size: 9pt !important;
-    line-height: 1.35 !important;
-    letter-spacing: 0.1px !important;
-    display: block !important;
-    box-sizing: border-box !important;
-    -webkit-print-color-adjust: exact;
-    print-color-adjust: exact;
-  }
 
-  /* Header — centered logo/date, single recipient block on the right */
-  .proposal-document-header {
-    position: relative !important;
-    display: flex !important;
-    justify-content: center !important;
-    align-items: flex-start !important;
-    direction: rtl !important;
-    max-width: 148mm !important;
-    width: 100% !important;
-    min-height: 17mm !important;
-    margin-inline: auto !important;
-    padding: 0 !important;
-    margin-bottom: 3pt !important;
-    background: transparent !important;
-  }
-  .proposal-header-brand {
-    display: flex !important;
-    flex-direction: column !important;
-    align-items: center !important;
-    max-width: 46% !important;
-    margin-inline: auto !important;
-    direction: ltr !important;
-    text-align: center !important;
-  }
-  .proposal-logo {
-    width: auto !important;
-    max-width: 40mm !important;
-    max-height: 14mm !important;
-    height: auto !important;
-    object-fit: contain !important;
-    display: block !important;
-  }
-
-  /* Footer — fixed at bottom of each printed page */
-  .proposal-document-footer {
-    position: fixed !important;
-    right: 18mm !important;
-    left: 18mm !important;
-    bottom: 7mm !important;
-    width: auto !important;
-    height: auto !important;
-    padding: 0 !important;
-    border-top: none !important;
-    margin-top: 0 !important;
-    text-align: center !important;
-    line-height: normal !important;
-    break-before: avoid !important;
-    page-break-before: avoid !important;
-    break-inside: avoid !important;
-    page-break-inside: avoid !important;
-  }
-  .proposal-footer-logo {
-    width: auto !important;
-    max-width: 100% !important;
-    height: auto !important;
-    max-height: 21mm !important;
-    margin-inline: auto !important;
-    object-fit: contain !important;
-    display: block !important;
-    opacity: 1 !important;
-  }
-
-  /* Body — centered readable column, room for footer */
-  .proposal-document-body {
-    display: block !important;
-    flex: none !important;
-    padding: 0 0 30mm !important;
-    overflow-wrap: anywhere !important;
-    word-break: normal !important;
-  }
-  .proposal-document-content {
-    width: 100% !important;
-    max-width: 148mm !important;
-    margin-inline: auto !important;
-    display: block !important;
-    min-height: 0 !important;
-  }
-  .pa-doc-bottom {
-    margin: 0 !important;
-  }
-
-  /* ── Inner document content ───────────────────────────────────── */
-  .pa-doc-date {
-    width: 100% !important;
-    font-size: 7pt !important;
-    text-align: center !important;
-    direction: ltr !important;
-    line-height: 1.3 !important;
-    color: #6b7280 !important;
-    margin-top: 2pt !important;
-  }
-  .pa-doc-address {
-    position: absolute !important;
-    inset-block-start: 0 !important;
-    inset-inline-start: 0 !important;
-    direction: rtl !important;
-    text-align: right !important;
-    font-size: 9pt !important;
-    line-height: 1.35 !important;
-    margin: 0 !important;
-    max-width: 40% !important;
-    overflow-wrap: anywhere !important;
-  }
-  .pa-doc-address p {
-    margin: 0 0 1pt !important;
-    text-align: right !important;
-  }
-  .pa-doc-divider {
-    border: none !important;
-    border-top: 1px solid #c5d5e8 !important;
-    margin: 5pt auto 7pt !important;
-    width: 100% !important;
-    max-width: 148mm !important;
-  }
-  .pa-doc-subject {
-    text-align: center !important;
-    font-size: 12pt !important;
-    font-weight: 700 !important;
-    color: #1f4e79 !important;
-    text-decoration: none !important;
-    margin: 6pt 0 7pt !important;
-    line-height: 1.35 !important;
-    overflow-wrap: anywhere !important;
-  }
-  .pa-section {
-    margin: 5pt 0 2pt !important;
-    break-inside: auto !important;
-    page-break-inside: auto !important;
-  }
-  .pa-section h3 {
-    font-size: 10pt !important;
-    break-after: avoid !important;
-    page-break-after: avoid !important;
-    font-weight: 700 !important;
-    text-decoration: none !important;
-    color: #1f4e79 !important;
-    margin: 0 0 2pt !important;
-    line-height: 1.35 !important;
-    padding-bottom: 2pt !important;
-    border-bottom: 1px solid #d0daea !important;
-    text-align: right !important;
-  }
-  .pa-doc-intro,
-  .pa-section-body,
-  .pa-proposal-lines {
-    font-size: 9pt !important;
-    line-height: 1.35 !important;
-    color: #000 !important;
-    text-align: right !important;
-    overflow-wrap: anywhere !important;
-    word-break: normal !important;
-  }
-  .proposal-document .pa-section-body p,
-  .proposal-document .pa-doc-intro p {
-    margin: 0 0 3pt !important;
-    overflow-wrap: anywhere !important;
-  }
-  .proposal-document .pa-section-body ul,
-  .proposal-document .pa-doc-intro ul {
-    margin: 2pt 0 4pt !important;
-    padding-inline-start: 0 !important;
-    list-style: none !important;
-  }
-  .proposal-document .pa-section-body ol,
-  .proposal-document .pa-doc-intro ol {
-    margin: 2pt 0 4pt !important;
-    padding-inline-start: 22px !important;
-  }
-  .proposal-document .pa-section-body li,
-  .proposal-document .pa-doc-intro li {
-    margin: 0 0 2pt !important;
-    line-height: 1.35 !important;
-    overflow-wrap: anywhere !important;
-    word-break: normal !important;
-    break-inside: avoid !important;
-    page-break-inside: avoid !important;
-  }
-  /* אחריות תעשיידע / אחריות בית הספר — print line-height מוקטן */
-  .pa-responsibility-org .pa-section-body,
-  .pa-responsibility-school .pa-section-body { line-height: 1.25 !important; }
-  .pa-responsibility-org .pa-section-body p,
-  .pa-responsibility-org .pa-section-body li,
-  .pa-responsibility-school .pa-section-body p,
-  .pa-responsibility-school .pa-section-body li { line-height: 1.25 !important; }
-  /* שינויים, ביטולים והתאמות — print font-size מוקטן ב-0.5pt */
-  .pa-cancellations-section .pa-section-body { font-size: 8.5pt !important; }
-  .proposal-document .pa-section-body ul li,
-  .proposal-document .pa-doc-intro ul li {
-    position: relative !important;
-    padding-inline-start: 18px !important;
-  }
-  .proposal-document .pa-section-body ul li::before,
-  .proposal-document .pa-doc-intro ul li::before {
-    content: '•' !important;
-    position: absolute !important;
-    inset-inline-start: 1px !important;
-    font-size: 0.55em !important;
-    line-height: 2.5 !important;
-    font-weight: 400 !important;
-    color: inherit !important;
-  }
-  .pa-costs-intro-heading {
-    font-weight: 700 !important;
-    font-size: 10pt !important;
-    color: #1f4e79 !important;
-    text-align: right !important;
-    margin: 5pt 0 3pt !important;
-    break-after: avoid !important;
-    page-break-after: avoid !important;
-  }
-  .pa-cost-table-block {
-    break-inside: avoid !important;
-    page-break-inside: avoid !important;
-  }
-  .pa-cost-table {
-    width: 100% !important;
-    margin: 2pt 0 4pt !important;
-    font-size: 9pt !important;
-  }
-  .pa-cost-table th,
-  .pa-cost-table td {
-    border: 1px solid #c5d0dc !important;
-    padding: 3pt 5pt !important;
-  }
-  .pa-cost-table thead th {
-    background: #eef4fa !important;
-    color: #1f4e79 !important;
-  }
-  .pa-cost-table tfoot td {
-    font-weight: 700 !important;
-    background: #f8fbff !important;
-  }
-  .proposal-signature,
-  .ds-pa-doc-signature {
-    position: static !important;
-    display: flex !important;
-    flex-direction: column !important;
-    align-items: flex-end !important;
-    margin: 10pt auto 16pt !important;
-    width: 100% !important;
-    max-width: 148mm !important;
-    break-inside: avoid !important;
-    page-break-inside: avoid !important;
-  }
-  .proposal-signature-greeting {
-    width: 50mm !important;
-    max-width: 100% !important;
-    text-align: left !important;
-    direction: rtl !important;
-    margin: 0 0 4pt !important;
-    font-size: 9pt !important;
-  }
-  .proposal-signature-line {
-    width: 50mm !important;
-    max-width: 100% !important;
-    border-top: 0.3mm solid #111827 !important;
-    margin: 0 0 2pt !important;
-  }
-  .proposal-signature-name {
-    width: 50mm !important;
-    max-width: 100% !important;
-    margin: 0 !important;
-    text-align: left !important;
-    direction: ltr !important;
-    font-size: 9pt !important;
-  }
-  .pa-currency-amount {
-    direction: ltr !important;
-    unicode-bidi: isolate !important;
-    display: inline-block !important;
-    white-space: nowrap !important;
-    text-align: left !important;
-  }
-  .pa-proposal-lines ul {
-    list-style: none !important;
-    padding-inline-start: 0 !important;
-    margin: 2pt 0 4pt !important;
-  }
-  .pa-proposal-lines ul li {
-    position: relative !important;
-    padding-inline-start: 14pt !important;
-    margin: 2pt 0 !important;
-    line-height: 1.35 !important;
-    font-size: 9pt !important;
-    color: #000 !important;
-    overflow-wrap: anywhere !important;
-    word-break: normal !important;
-  }
-  .pa-proposal-lines ul li::before {
-    content: '•' !important;
-    position: absolute !important;
-    inset-inline-start: 1px !important;
-    font-size: 11pt !important;
-    line-height: 1.3 !important;
-    font-weight: 700 !important;
-    color: #1f4e79 !important;
-  }
-
+  /* Legacy pre-unification proposal-document/header/footer/section/cost-table/signature
+     print styling removed here — those classes are either dead (superseded by pa-page-header,
+     pa-to-block, pa-doc-title, pa-section-heading, pa-footer-signature, pa-page-footer) or
+     duplicated by later, more specific rules. This block previously reintroduced a fixed
+     .proposal-document-footer and a 148mm-capped content column that skewed print height
+     calculations. See docs/proposal-print-layout.md. */
 }
 
 /* ===== Exceptions UX refresh: grouped cards, balanced grid, and header count badge ===== */
@@ -18414,21 +18099,18 @@ details[open] > .ds-fin-acc__summary::before { transform: rotate(90deg); }
 @media print {
   * { -webkit-print-color-adjust: exact; print-color-adjust: exact; }
   /* @page margin is defined once, authoritatively, in the final print override block at the end of this file. */
+  /* Do not reintroduce min-height:297mm/display:flex here — a flex column forced to full
+     A4 height cannot fragment across pages in print, so it gets pushed whole to page 2,
+     leaving page 1 with only the header/recipient block above it. See docs/proposal-print-layout.md. */
   .proposal-document.pa-document {
     width: 210mm !important;
-    min-height: 297mm !important;
     padding: 10mm 17mm 0 !important;
     box-shadow: none !important;
     border-radius: 0 !important;
     font-size: 11.5px !important;
     line-height: 1.3 !important;
-    display: flex !important;
-    flex-direction: column !important;
   }
   .proposal-document.pa-document .proposal-document-body {
-    display: flex !important;
-    flex-direction: column !important;
-    flex: 1 1 auto !important;
     padding: 0 !important;
   }
   .proposal-preview-area,
@@ -18832,16 +18514,9 @@ details[open] > .ds-fin-acc__summary::before { transform: rotate(90deg); }
   text-align: left;
 }
 @media print {
-  .proposal-document.pa-document.pa-document--next-year {
-    min-height: calc(297mm - 24mm) !important;
-    display: flex !important;
-    flex-direction: column !important;
-  }
-  .proposal-document.pa-document.pa-document--next-year .proposal-document-body {
-    display: flex !important;
-    flex: 1 1 auto !important;
-    flex-direction: column !important;
-  }
+  /* Do not reintroduce min-height:297mm/display:flex on the next-year document — a flex
+     column forced to full A4 height cannot fragment across pages, so the whole body gets
+     pushed to page 2, leaving page 1 with only the header/recipient block. See docs/proposal-print-layout.md. */
   .proposal-document.pa-document.pa-document--next-year .proposal-document-content {
     width: 100% !important;
   }
@@ -18874,7 +18549,6 @@ details[open] > .ds-fin-acc__summary::before { transform: rotate(90deg); }
   .proposal-document.pa-document--next-year .pa-item-details-table.pa-next-year-course-table .pa-hourly-price-col { width: 12.333% !important; }
   .proposal-document.pa-document--next-year .pa-item-details-table.pa-next-year-course-table .pa-total-price-col { width: 12.333% !important; }
   .proposal-document.pa-document--next-year .pa-page-footer {
-    margin-top: auto !important;
     position: static !important;
   }
 }
@@ -18935,23 +18609,9 @@ details[open] > .ds-fin-acc__summary::before { transform: rotate(90deg); }
   .proposal-document .pa-cost-table.pa-summer-cost-table .pa-unit-price-col { width: 19% !important; }
   .proposal-document .pa-cost-table.pa-summer-cost-table .pa-total-col { width: 17% !important; }
 }
-@media print {
-  .proposal-document.pa-document {
-    min-height: calc(297mm - 24mm) !important;
-    display: flex !important;
-    flex-direction: column !important;
-  }
-  .proposal-document.pa-document .proposal-document-body {
-    display: flex !important;
-    flex: 1 1 auto !important;
-    flex-direction: column !important;
-  }
-  .proposal-document.pa-document .proposal-document-content {
-    display: flex !important;
-    flex: 1 1 auto !important;
-    flex-direction: column !important;
-  }
-}
+/* Do not reintroduce min-height:297mm/display:flex on .proposal-document.pa-document here —
+   see docs/proposal-print-layout.md for why a flex column forced to full A4 height breaks
+   pagination (the whole body gets pushed to page 2, leaving page 1 nearly blank). */
 
 /* Proposal print page chrome: logo only on page 1 via pa-print-fixed-logo (position:absolute). */
 @media print {
@@ -20594,20 +20254,14 @@ details[open] > .ds-fin-acc__summary::before { transform: rotate(90deg); }
   }
 }
 
-/* Header, recipient block and title stay together at the top of the document. */
+/* Header, recipient block and title spacing (natural flow only — no break-after:avoid here).
+   Chaining break-after:avoid across header/recipient/divider/date/title glues them to
+   whatever follows; when that combined run doesn't fit the remaining page-1 space, the
+   whole chain (recipient block through the intro) gets pushed to page 2, leaving page 1
+   almost blank. See docs/proposal-print-layout.md — this is the confirmed root cause of
+   the "page 1 is nearly empty" bug. Do not reintroduce break-after/page-break-after: avoid
+   on these elements. */
 @media print {
-  .proposal-document-header,
-  .proposal-document .pa-page-header,
-  .proposal-document .pa-to-block,
-  .proposal-document .pa-doc-divider,
-  .proposal-document .pa-doc-date,
-  .proposal-document .pa-doc-title {
-    page-break-before: auto !important;
-    page-break-after: avoid !important;
-    break-before: auto !important;
-    break-after: avoid !important;
-  }
-
   .proposal-document .pa-page-header {
     margin: 0 0 1mm !important;
     padding: 0 !important;
