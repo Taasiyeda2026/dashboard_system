@@ -1,0 +1,117 @@
+תיקון ממוקד — רוחב ויישור עמודות בטבלת אישורי ביצוע
+
+השינויים הקודמים לא נראים בפועל.
+
+יש לבצע תיקון תצוגה בלבד בטבלת אישורי ביצוע במסך:
+ניהול תפעול → אישורי ביצוע
+
+לא לשנות לוגיקה.
+לא לשנות נתונים.
+לא לשנות העלאת קבצים.
+לא לשנות אישור / דחייה.
+לא לשנות הרשאות.
+לא לשנות Supabase.
+לא לבצע ריפקטורינג.
+
+הבעיה:
+נראה שיש הגדרות רוחב גם ב־`main.css` וגם ב־inline `<style>` בתוך `operations-management.js`.
+בפועל ה־inline `<style>` גובר ולכן שינוי ב־`main.css` לבד לא נראה.
+
+יש לעדכן את המקום האפקטיבי בפועל עבור הטבלה:
+`.ds-ops-completion-preview`
+
+עמודות קיימות שיש לעדכן:
+
+* `ds-ops-completion-col--status`
+* `ds-ops-completion-col--date`
+* `ds-ops-completion-col--type`
+* `ds-ops-completion-col--instructor`
+
+השינוי המבוקש:
+
+1. עמודת סטטוס אישור
+
+* רוחב: `95px`
+* יישור כותרת למרכז
+* יישור תוכן העמודה למרכז
+* להחיל גם על `col`, גם על `th`, גם על `td`
+
+2. עמודת תאריך
+
+* רוחב: `95px`
+* יישור כותרת למרכז
+* יישור תוכן העמודה למרכז
+* להחיל גם על `col`, גם על `th`, גם על `td`
+
+3. עמודת סוג אישור
+
+* רוחב: `95px`
+* יישור כותרת למרכז
+* יישור תוכן העמודה למרכז
+* להחיל גם על `col`, גם על `th`, גם על `td`
+
+4. עמודת צוות הדרכה
+
+* להגדיל את הרוחב שלה על חשבון הקטנת שלוש העמודות לעיל.
+* לא להשאיר את העמודה בלי רוחב.
+* לתת לה רוחב ברור וגדול יותר, למשל `190px`–`220px`, לפי מה שנכנס טוב במסך.
+* התוכן של צוות הדרכה יכול להישאר מיושר לימין / עטוף שורות, לא למרכז.
+
+הנחיית CSS מומלצת:
+
+```css
+.ds-ops-completion-preview col.ds-ops-completion-col--status,
+.ds-ops-completion-preview th.ds-ops-completion-col--status,
+.ds-ops-completion-preview td.ds-ops-completion-col--status {
+  width: 95px;
+  min-width: 95px;
+  max-width: 95px;
+  text-align: center;
+}
+
+.ds-ops-completion-preview col.ds-ops-completion-col--date,
+.ds-ops-completion-preview th.ds-ops-completion-col--date,
+.ds-ops-completion-preview td.ds-ops-completion-col--date {
+  width: 95px;
+  min-width: 95px;
+  max-width: 95px;
+  text-align: center;
+}
+
+.ds-ops-completion-preview col.ds-ops-completion-col--type,
+.ds-ops-completion-preview th.ds-ops-completion-col--type,
+.ds-ops-completion-preview td.ds-ops-completion-col--type {
+  width: 95px;
+  min-width: 95px;
+  max-width: 95px;
+  text-align: center;
+}
+
+.ds-ops-completion-preview col.ds-ops-completion-col--instructor,
+.ds-ops-completion-preview th.ds-ops-completion-col--instructor,
+.ds-ops-completion-preview td.ds-ops-completion-col--instructor {
+  width: 210px;
+  min-width: 190px;
+  text-align: right;
+  white-space: normal;
+}
+```
+
+חשוב:
+אם קיימות הגדרות קודמות שסותרות את זה, למשל `10%`, `110px`, `100px` או הגדרות רק ב־`main.css`, יש לעדכן או לנטרל אותן כך שההגדרה החדשה באמת תנצח.
+
+בדיקה בפועל:
+
+* לפתוח ניהול תפעול → אישורי ביצוע.
+* לבדוק שהכותרות סטטוס אישור, תאריך, סוג אישור מיושרות למרכז.
+* לבדוק שגם תוכן העמודות האלה במרכז.
+* לבדוק שכל אחת מהן ברוחב 95px.
+* לבדוק שצוות הדרכה קיבל יותר מקום.
+* לבדוק שאין שבירת טבלה או חפיפה.
+* לבדוק במסך רגיל, לא רק בקוד.
+
+בסיום:
+
+* לעדכן SW / Cache / build אם צריך.
+* לדווח איזה קובץ שונה.
+* לדווח שהשינוי נבדק בפועל בדפדפן.

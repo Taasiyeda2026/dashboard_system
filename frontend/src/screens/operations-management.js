@@ -1362,16 +1362,32 @@ function opsManagementStylesHtml() {
     .ds-ops-mgmt-screen .ds-ops-completion-preview th,.ds-ops-mgmt-screen .ds-ops-completion-preview td { padding:5px 8px; line-height:1.25; vertical-align:middle; }
     .ds-ops-mgmt-screen .ds-ops-completion-preview th:first-child,.ds-ops-mgmt-screen .ds-ops-completion-preview td:first-child { padding-inline-start:10px; padding-inline-end:10px; white-space:nowrap; }
     .ds-ops-mgmt-screen .ds-ops-completion-preview tbody tr { height:42px; }
-    /* completion approvals — semantic column alignment */
-    .ds-ops-mgmt-screen .ds-ops-completion-col--status { width:100px; text-align:center; }
-    .ds-ops-mgmt-screen .ds-ops-completion-col--date { width:100px; text-align:center; white-space:nowrap; }
-    .ds-ops-mgmt-screen .ds-ops-completion-col--authority { width:105px; text-align:right; }
-    .ds-ops-mgmt-screen .ds-ops-completion-col--school { width:105px; text-align:right; white-space:normal; overflow-wrap:break-word; }
-    .ds-ops-mgmt-screen .ds-ops-completion-col--type { width:100px; text-align:center; }
-    .ds-ops-mgmt-screen .ds-ops-completion-col--instructor { width:120px; text-align:right; white-space:normal; overflow-wrap:break-word; }
-    .ds-ops-mgmt-screen .ds-ops-completion-col--contact { width:105px; text-align:right; }
+    /* completion approvals — col/th/td width+align (text-align on col alone does not propagate in browsers) */
+    .ds-ops-completion-preview col.ds-ops-completion-col--status,
+    .ds-ops-completion-preview th.ds-ops-completion-col--status,
+    .ds-ops-completion-preview td.ds-ops-completion-col--status { width:95px; min-width:95px; max-width:95px; text-align:center !important; }
+    .ds-ops-completion-preview col.ds-ops-completion-col--date,
+    .ds-ops-completion-preview th.ds-ops-completion-col--date,
+    .ds-ops-completion-preview td.ds-ops-completion-col--date { width:95px; min-width:95px; max-width:95px; text-align:center !important; white-space:nowrap; }
+    .ds-ops-completion-preview col.ds-ops-completion-col--type,
+    .ds-ops-completion-preview th.ds-ops-completion-col--type,
+    .ds-ops-completion-preview td.ds-ops-completion-col--type { width:95px; min-width:95px; max-width:95px; text-align:center !important; }
+    .ds-ops-completion-preview col.ds-ops-completion-col--instructor,
+    .ds-ops-completion-preview th.ds-ops-completion-col--instructor,
+    .ds-ops-completion-preview td.ds-ops-completion-col--instructor { width:210px; min-width:190px; text-align:right !important; white-space:normal; overflow-wrap:break-word; }
+    .ds-ops-completion-preview col.ds-ops-completion-col--authority,
+    .ds-ops-completion-preview th.ds-ops-completion-col--authority,
+    .ds-ops-completion-preview td.ds-ops-completion-col--authority { width:105px; text-align:right !important; }
+    .ds-ops-completion-preview col.ds-ops-completion-col--school,
+    .ds-ops-completion-preview th.ds-ops-completion-col--school,
+    .ds-ops-completion-preview td.ds-ops-completion-col--school { width:105px; text-align:right !important; white-space:normal; overflow-wrap:break-word; }
+    .ds-ops-completion-preview col.ds-ops-completion-col--contact,
+    .ds-ops-completion-preview th.ds-ops-completion-col--contact,
+    .ds-ops-completion-preview td.ds-ops-completion-col--contact { width:105px; text-align:right !important; }
+    .ds-ops-completion-preview col.ds-ops-completion-col--actions,
+    .ds-ops-completion-preview th.ds-ops-completion-col--actions,
+    .ds-ops-completion-preview td.ds-ops-completion-col--actions { width:140px; text-align:center !important; }
     .ds-ops-mgmt-screen .ds-ops-completion-team-extra { display:block; font-size:0.78em; color:#64748b; margin-top:2px; }
-    .ds-ops-mgmt-screen .ds-ops-completion-col--actions { width:140px; text-align:center; }
     .ds-ops-mgmt-screen .ds-ops-completion-col-contact-cell { text-align:right; }
     .ds-ops-mgmt-screen .ds-ops-completion-col-contact-cell select { width:100%; max-width:100%; box-sizing:border-box; text-align:right; direction:rtl; height:30px; min-height:30px; padding-top:3px; padding-bottom:3px; }
     .ds-ops-mgmt-screen .ds-ops-completion-col-who-cell { white-space:normal; line-height:1.35; }
