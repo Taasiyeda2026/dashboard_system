@@ -16831,6 +16831,11 @@ details[open] > .ds-fin-acc__summary::before { transform: rotate(90deg); }
   width: 150px;
 }
 
+.ds-ops-completion-col--photo {
+  width: 130px;
+  text-align: center;
+}
+
 .ds-ops-completion-col--status {
   width: 110px;
 }
@@ -16862,6 +16867,10 @@ details[open] > .ds-fin-acc__summary::before { transform: rotate(90deg); }
 
 .ds-ops-mgmt-screen .ds-ops-completion-col--contact {
   width: 105px;
+}
+
+.ds-ops-mgmt-screen .ds-ops-completion-col--photo {
+  width: 120px;
 }
 
 .ds-ops-mgmt-screen .ds-ops-completion-col--status {
@@ -16898,6 +16907,20 @@ details[open] > .ds-fin-acc__summary::before { transform: rotate(90deg); }
 .ds-ops-completion-col--contact,
 .ds-ops-completion-col--status {
   text-align: right;
+}
+
+.ds-ops-completion-preview td.ds-ops-completion-col--photo {
+  text-align: center;
+}
+
+.ds-ops-completion-col--photo .ds-ops-photo-indicator {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: center;
+  gap: 4px;
+  white-space: normal;
+  overflow-wrap: anywhere;
 }
 
 .ds-ops-completion-col-contact-cell {

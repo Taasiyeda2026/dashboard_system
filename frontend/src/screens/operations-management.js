@@ -1375,6 +1375,9 @@ function opsManagementStylesHtml() {
     .ds-ops-completion-preview col.ds-ops-completion-col--instructor,
     .ds-ops-completion-preview th.ds-ops-completion-col--instructor,
     .ds-ops-completion-preview td.ds-ops-completion-col--instructor { width:210px; min-width:190px; text-align:right !important; white-space:normal; overflow-wrap:break-word; }
+    .ds-ops-completion-preview col.ds-ops-completion-col--photo,
+    .ds-ops-completion-preview th.ds-ops-completion-col--photo,
+    .ds-ops-completion-preview td.ds-ops-completion-col--photo { width:130px; min-width:120px; max-width:140px; text-align:center !important; white-space:normal; overflow-wrap:break-word; }
     .ds-ops-completion-preview col.ds-ops-completion-col--authority,
     .ds-ops-completion-preview th.ds-ops-completion-col--authority,
     .ds-ops-completion-preview td.ds-ops-completion-col--authority { width:105px; text-align:right !important; }
@@ -1388,6 +1391,7 @@ function opsManagementStylesHtml() {
     .ds-ops-completion-preview th.ds-ops-completion-col--actions,
     .ds-ops-completion-preview td.ds-ops-completion-col--actions { width:140px; text-align:center !important; }
     .ds-ops-mgmt-screen .ds-ops-completion-team-extra { display:block; font-size:0.78em; color:#64748b; margin-top:2px; }
+    .ds-ops-mgmt-screen .ds-ops-completion-col--photo .ds-ops-photo-indicator { display:flex; flex-wrap:wrap; align-items:center; justify-content:center; gap:4px; white-space:normal; overflow-wrap:anywhere; font-size:0.82em; line-height:1.3; }
     .ds-ops-mgmt-screen .ds-ops-completion-col-contact-cell { text-align:right; }
     .ds-ops-mgmt-screen .ds-ops-completion-col-contact-cell select { width:100%; max-width:100%; box-sizing:border-box; text-align:right; direction:rtl; height:30px; min-height:30px; padding-top:3px; padding-bottom:3px; }
     .ds-ops-mgmt-screen .ds-ops-completion-col-who-cell { white-space:normal; line-height:1.35; }
@@ -1445,6 +1449,7 @@ function opsManagementStylesHtml() {
       .ds-ops-mgmt-screen .ds-ops-completion-col--status,
       .ds-ops-mgmt-screen .ds-ops-completion-col--date,
       .ds-ops-mgmt-screen .ds-ops-completion-col--type,
+      .ds-ops-mgmt-screen .ds-ops-completion-col--photo,
       .ds-ops-mgmt-screen .ds-ops-completion-col--actions { text-align:center !important; }
       .ds-ops-mgmt-screen .ds-ops-col--school,
       .ds-ops-mgmt-screen .ds-ops-col--instructor,
@@ -2550,7 +2555,8 @@ function completionApprovalTabHtml(rows, state, data = {}, directory = buildScho
       <td class="ds-ops-completion-col--authority ds-table-cell-truncate">${escapeHtml(approval.authority || '—')}</td>
       <td class="ds-ops-completion-col--school ds-table-cell-wrap">${escapeHtml(approval.school || '')}</td>
       <td class="ds-ops-completion-col--type ds-table-cell-truncate">${completionApprovalTypeChip(approval)}</td>
-      <td class="ds-ops-completion-col--instructor ds-table-cell-wrap">${completionApprovalTeamCellHtml(approval, contactCtx)}${photoApprovalIndicatorHtml(approval, data?.photoApprovalUploads || [])}</td>
+      <td class="ds-ops-completion-col--instructor ds-table-cell-wrap">${completionApprovalTeamCellHtml(approval, contactCtx)}</td>
+      <td class="ds-ops-completion-col--photo ds-table-cell-wrap">${photoApprovalIndicatorHtml(approval, data?.photoApprovalUploads || [])}</td>
       <td class="ds-ops-completion-col--contact ds-ops-completion-col-contact-cell">${contactDropdown}</td>
       <td class="ds-ops-completion-col--actions ds-ops-completion-actions-cell no-print"><div class="ds-ops-completion-actions"><button type="button" class="ds-ops-icon-btn" data-ops-approval-view="${displayIndex}" title="צפייה באישור" aria-label="צפייה באישור">👁</button>${!hasFile
         ? ` <button type="button" class="ds-ops-icon-btn ds-ops-icon-btn--add" data-ops-approval-upload="${displayIndex}" title="${hasUploadRecord ? 'העלאה מחדש / החלפת קובץ' : 'הוספת אישור פעילות חתום'}" aria-label="${hasUploadRecord ? 'העלאה מחדש / החלפת קובץ' : 'הוספת אישור פעילות חתום'}">＋</button>${hasUploadRecord ? ` <button type="button" class="ds-ops-icon-btn ds-ops-icon-btn--reject" data-ops-upload-delete="${escapeHtml(upload.id)}" title="מחיקת רשומת הקובץ" aria-label="מחיקת רשומת הקובץ">🗑</button>` : ''}`
@@ -2562,7 +2568,7 @@ function completionApprovalTabHtml(rows, state, data = {}, directory = buildScho
   _completionApprovalPrintContext = { approvals: items.map((item) => item.approval), uploads: data?.completionApprovalUploads || [] };
   const contactRows = (selectedDate || selectedPrintInstructor || approvalState.instructor || selectedAuthority) ? summerRows.filter((row) => items.some((item) => String(item.approval.date || '').slice(0, 10) === String(row.start_date || row.activity_date || '').slice(0, 10) && String(item.approval.school || '').trim() === String(row.school || row.single_school_name || row.legacy_school || '').trim())) : summerRows;
   const table = items.length
-    ? dsTableWrap(`<table class="ds-table ds-table--compact ds-ops-completion-preview"><colgroup><col class="ds-ops-completion-col--status"><col class="ds-ops-completion-col--date"><col class="ds-ops-completion-col--authority"><col class="ds-ops-completion-col--school"><col class="ds-ops-completion-col--type"><col class="ds-ops-completion-col--instructor"><col class="ds-ops-completion-col--contact"><col class="ds-ops-completion-col--actions no-print"></colgroup><thead><tr><th class="ds-ops-completion-col--status">סטטוס אישור</th><th class="ds-ops-completion-col--date">תאריך</th><th class="ds-ops-completion-col--authority">רשות</th><th class="ds-ops-completion-col--school">בית ספר</th><th class="ds-ops-completion-col--type">סוג אישור</th><th class="ds-ops-completion-col--instructor">צוות הדרכה</th><th class="ds-ops-completion-col--contact">אחראי קשר</th><th class="ds-ops-completion-col--actions no-print">פעולות</th></tr></thead><tbody>${body}</tbody></table>`)
+    ? dsTableWrap(`<table class="ds-table ds-table--compact ds-ops-completion-preview"><colgroup><col class="ds-ops-completion-col--status"><col class="ds-ops-completion-col--date"><col class="ds-ops-completion-col--authority"><col class="ds-ops-completion-col--school"><col class="ds-ops-completion-col--type"><col class="ds-ops-completion-col--instructor"><col class="ds-ops-completion-col--photo"><col class="ds-ops-completion-col--contact"><col class="ds-ops-completion-col--actions no-print"></colgroup><thead><tr><th class="ds-ops-completion-col--status">סטטוס אישור</th><th class="ds-ops-completion-col--date">תאריך</th><th class="ds-ops-completion-col--authority">רשות</th><th class="ds-ops-completion-col--school">בית ספר</th><th class="ds-ops-completion-col--type">סוג אישור</th><th class="ds-ops-completion-col--instructor">צוות הדרכה</th><th class="ds-ops-completion-col--photo">אישור צילום</th><th class="ds-ops-completion-col--contact">אחראי קשר</th><th class="ds-ops-completion-col--actions no-print">פעולות</th></tr></thead><tbody>${body}</tbody></table>`)
     : dsEmptyState('לא נמצאו אישורי ביצוע בטווח הנוכחי');
   const activePanel = `<div class="ds-ops-completion-approvals-card">${dsCard({ body: table, padded: false })}</div>`;
   return `<section class="ds-ops-mgmt-panel ds-ops-completion-panel" dir="rtl">
