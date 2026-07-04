@@ -81,7 +81,7 @@ function mediumItems() {
 }
 
 function longItems() {
-  return Array.from({ length: 18 }, (_, index) => ({
+  return Array.from({ length: 28 }, (_, index) => ({
     item_name: `פעילות ארוכה מספר ${index + 1} עם תיאור נוסף`,
     proposal_group: 'summer',
     quantity: 3,
@@ -206,8 +206,12 @@ async function main() {
         console.error(`  FAIL: short proposal should stay on one page (got ${result.pdfPageCount})`);
         failed = true;
       }
-      if (result.footerFromPageBottomMm > 50) {
-        console.error(`  FAIL: short proposal footer should sit within ~50mm of page bottom (got ${result.footerFromPageBottomMm.toFixed(1)}mm)`);
+      if (result.gapHeightMm > 1) {
+        console.error(`  FAIL: short proposal footer gap must not reserve page height (got ${result.gapHeightMm.toFixed(1)}mm)`);
+        failed = true;
+      }
+      if (result.footerBottomMm >= PRINTABLE_HEIGHT_MM) {
+        console.error(`  FAIL: short proposal footer must stay on page 1 (footerBottom=${result.footerBottomMm.toFixed(1)}mm)`);
         failed = true;
       }
     }

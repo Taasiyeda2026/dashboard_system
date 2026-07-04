@@ -20616,12 +20616,14 @@ details[open] > .ds-fin-acc__summary::before { transform: rotate(90deg); }
    See docs/proposal-print-layout.md.
    ═══════════════════════════════════════════════════════════════════════ */
 @media print {
+  .proposal-document,
   .proposal-document.pa-document,
+  .pa-a4-page,
   .proposal-document.pa-document .proposal-document-body,
   .proposal-document.pa-document .proposal-document-content {
     display: block !important;
     height: auto !important;
-    min-height: 0 !important;
+    min-height: auto !important;
     max-height: none !important;
     padding-bottom: 0 !important;
     margin-bottom: 0 !important;
@@ -20632,6 +20634,14 @@ details[open] > .ds-fin-acc__summary::before { transform: rotate(90deg); }
     page-break-before: auto !important;
     page-break-after: auto !important;
     page-break-inside: auto !important;
+  }
+
+  .proposal-document-body,
+  .proposal-document-content {
+    display: block !important;
+    min-height: auto !important;
+    height: auto !important;
+    padding-bottom: 0 !important;
   }
 
   .proposal-document .pa-section,
@@ -20995,13 +21005,49 @@ details[open] > .ds-fin-acc__summary::before { transform: rotate(90deg); }
   padding: 0 !important; border: 0 !important; background: transparent !important; box-shadow: none !important; font-size: 0 !important;
 }
 @media print {
+  /* Footer-in-flow fix: no flex/min-height on the A4 document box; gap must not reserve page height. */
+  .proposal-document,
   .proposal-document.pa-document,
-  .proposal-document.pa-a4-page,
+  .pa-a4-page {
+    display: block !important;
+    min-height: auto !important;
+    height: auto !important;
+  }
+
+  .proposal-document-body,
+  .proposal-document-content,
   .proposal-document.pa-document .proposal-document-body,
   .proposal-document.pa-document .proposal-document-content {
     display: block !important;
-    min-height: 0 !important;
+    min-height: auto !important;
     height: auto !important;
+    padding-bottom: 0 !important;
+  }
+
+  .proposal-document.pa-document .pa-page-footer-area {
+    margin-top: 0 !important;
+    display: block !important;
+  }
+
+  .proposal-document .pa-page-footer-gap {
+    display: block !important;
+    height: 0 !important;
+    min-height: 0 !important;
+    margin: 0 !important;
+    padding: 0 !important;
+    border: 0 !important;
+    overflow: hidden !important;
+  }
+
+  .proposal-document.pa-document .pa-page-footer,
+  .proposal-document .pa-page-footer {
+    position: static !important;
+    margin-top: 6px !important;
+    margin-bottom: 0 !important;
+    padding-top: 5px !important;
+    padding-bottom: 0 !important;
+    break-inside: avoid !important;
+    page-break-inside: avoid !important;
   }
   .proposal-document .pa-cost-table.pa-tour-cost-table,
   .proposal-document .pa-cost-table.pa-activities-table.pa-tour-cost-table,
@@ -21026,27 +21072,4 @@ details[open] > .ds-fin-acc__summary::before { transform: rotate(90deg); }
   .proposal-document.pa-document--next-year .pa-next-year-course-table .pa-hours-col,
   .proposal-document.pa-document--next-year .pa-next-year-course-table .pa-total-price-col { width: 12% !important; }
   .proposal-document .pa-signature-spacer { height: 1em !important; max-height: 1em !important; margin: 0 !important; padding: 0 !important; }
-  .proposal-document .pa-page-footer-area {
-    margin-top: 0 !important;
-    display: block !important;
-  }
-  .proposal-document .pa-page-footer-gap {
-    display: block !important;
-    height: 0 !important;
-    min-height: max(24mm, 145mm) !important;
-    margin: 0 !important;
-    padding: 0 !important;
-    border: 0 !important;
-    overflow: hidden !important;
-  }
-  .proposal-document.pa-document .pa-page-footer,
-  .proposal-document .pa-page-footer {
-    position: static !important;
-    margin-top: 0 !important;
-    margin-bottom: 0 !important;
-    padding-top: 5px !important;
-    padding-bottom: 0 !important;
-    break-inside: avoid !important;
-    page-break-inside: avoid !important;
-  }
 }
