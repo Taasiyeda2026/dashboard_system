@@ -3265,10 +3265,10 @@ function sanitizeProposalAgreementPayload(payload = {}, groupLookup = proposalGr
   const clientAuthority = cleanProposalAgreementText(payload.client_authority || payload.authority_name || payload.authority);
   const schoolFramework = cleanProposalAgreementText(payload.school_framework || payload.school_name || payload.school) || (clientType === 'other' ? cleanProposalAgreementText(payload.client_name) : clientAuthority);
   const row = {
-    authority_id:        clientType === 'other' ? null : uuidOrNull(payload.authority_id),
+    authority_id:        uuidOrNull(payload.authority_id),
     school_id:           clientType === 'school' ? uuidOrNull(payload.school_id) : null,
-    contact_school_id:   clientType === 'other' ? null : (payload.contact_school_id != null ? (Number.isInteger(Number(payload.contact_school_id)) && Number(payload.contact_school_id) > 0 ? Number(payload.contact_school_id) : null) : null),
-    client_authority:    clientType === 'other' ? '' : clientAuthority,
+    contact_school_id:   payload.contact_school_id != null ? (Number.isInteger(Number(payload.contact_school_id)) && Number(payload.contact_school_id) > 0 ? Number(payload.contact_school_id) : null) : null,
+    client_authority:    clientAuthority,
     school_framework:    schoolFramework,
     document_type:       cleanProposalAgreementText(payload.document_type) || 'הצעת מחיר',
     activity_type_group: normalizeProposalActivityGroupForSave(rawGroup, groupLookup),
@@ -3392,7 +3392,7 @@ async function ensureContactSchoolFromProposal(payload = {}) {
     ? payload._contact_original
     : {};
   const authority = cleanProposalAgreementText(payload.client_authority);
-  const school = cleanProposalAgreementText(payload.school_framework);
+  const school = cleanProposalAgreementText(payload.client_type) === 'other' ? '' : cleanProposalAgreementText(payload.school_framework);
   if (!authority) return null;
   const resolvedSchool = await resolveProposalSchoolCatalogIds(payload);
   const clientType = cleanProposalAgreementText(orig.client_type) || cleanProposalAgreementText(payload.client_type) || (resolvedSchool.school_id || school ? 'school' : 'authority');
@@ -5962,7 +5962,7 @@ export const api = {
       client_type: cleanProposalAgreementText(payload.client_type) || (resolvedSchool.school_id ? 'school' : 'authority')
     };
     const insert = sanitizeProposalAgreementPayload(enrichedPayload, groupLookup);
-    if (enrichedPayload.client_type !== 'other') {
+    if (cleanProposalAgreementText(enrichedPayload.contact_name) && cleanProposalAgreementText(enrichedPayload.client_authority)) {
       insert.contact_school_id = await ensureValidProposalContactSchoolId({ ...insert, _contact_original: enrichedPayload?._contact_original });
     }
     const { data, error } = await supabase
@@ -5993,7 +5993,7 @@ export const api = {
     };
     const patch = sanitizeProposalAgreementPayload(enrichedPayload, groupLookup);
     patch.updated_at = new Date().toISOString();
-    if (enrichedPayload.client_type !== 'other') {
+    if (cleanProposalAgreementText(enrichedPayload.contact_name) && cleanProposalAgreementText(enrichedPayload.client_authority)) {
       patch.contact_school_id = await ensureValidProposalContactSchoolId({ ...patch, _contact_original: enrichedPayload?._contact_original });
     }
     const { data, error } = await supabase

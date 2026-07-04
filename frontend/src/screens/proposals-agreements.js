@@ -1708,14 +1708,14 @@ function tourCostComponentEditorRowHtml(component = {}, idx = 0) {
   const options = TOUR_COST_COMPONENT_OPTIONS.map((option) => `<option value="${escapeHtml(option.component_type)}"${option.component_type === c.component_type ? ' selected' : ''}>${escapeHtml(option.label)}</option>`).join('');
   const classNameValue = isClass && c.label !== 'כיתה / קבוצה' ? c.label : '';
   return `<div class="ds-pa-tour-component-row" data-pa-tour-component-row>
-    <label class="ds-pa-item-field"><span>רכיב</span><select class="ds-input ds-input--sm" name="tour_component_type_${idx}" data-pa-tour-component-type>${options}</select></label>
+    <label class="ds-pa-item-field ds-pa-tour-component-type-field"><span>רכיב</span><select class="ds-input ds-input--sm" name="tour_component_type_${idx}" data-pa-tour-component-type>${options}</select></label>
     <input type="hidden" name="tour_component_label_${idx}" value="${escapeHtml(c.label)}" data-pa-tour-component-label>
     <label class="ds-pa-item-field ds-pa-tour-class-name-field" data-pa-tour-class-name-field${isClass ? '' : ' hidden'}>
       <span>שם כיתה / קבוצה</span>
       <input class="ds-input ds-input--sm" type="text" name="tour_component_class_name_${idx}" value="${escapeHtml(classNameValue)}" placeholder="שם הכיתה או הקבוצה" data-pa-tour-component-class-name>
     </label>
-    <label class="ds-pa-item-field"><span>מחיר יחידה</span><input class="ds-input ds-input--sm" type="number" min="0" step="any" name="tour_component_unit_price_${idx}" value="${val(c.unit_price)}" data-pa-tour-component-price></label>
-    <label class="ds-pa-item-field"><span>כמות</span><input class="ds-input ds-input--sm" type="number" min="0" step="any" name="tour_component_quantity_${idx}" value="${val(c.quantity) || '1'}" data-pa-tour-component-quantity></label>
+    <label class="ds-pa-item-field ds-pa-tour-component-price-field"><span>מחיר יחידה</span><input class="ds-input ds-input--sm" type="number" min="0" step="any" name="tour_component_unit_price_${idx}" value="${val(c.unit_price)}" data-pa-tour-component-price></label>
+    <label class="ds-pa-item-field ds-pa-tour-component-quantity-field"><span>כמות</span><input class="ds-input ds-input--sm" type="number" min="0" step="any" name="tour_component_quantity_${idx}" value="${val(c.quantity) || '1'}" data-pa-tour-component-quantity></label>
     <label class="ds-pa-item-field"><span>סה״כ</span><input class="ds-input ds-input--sm" type="number" min="0" step="any" name="tour_component_total_${idx}" value="${val(c.total_price)}" data-pa-tour-component-total readonly aria-readonly="true"></label>
     <div class="ds-pa-tour-component-delete-cell"><button type="button" class="ds-btn ds-btn--xs ds-btn--ghost" data-pa-remove-tour-component>מחיקה</button></div>
     <span></span>
@@ -1729,7 +1729,7 @@ function tourDetailsEditorHtml(items = []) {
   const total = val(d.total_price);
   return `<div class="ds-pa-items-section ds-pa-tour-details" data-pa-tour-details>
     <div class="ds-pa-items-header"><span class="ds-pa-items-section-label">פרטי טבלת הסיור</span></div>
-    <p class="ds-muted" style="font-size:0.8rem;margin:0 0 8px">הפעילות קבועה: ${escapeHtml(TOUR_ACTIVITY_LINE)}</p>
+    <p class="ds-muted" style="font-size:0.8rem;margin:0 0 8px">${escapeHtml(TOUR_ACTIVITY_LINE)}</p>
     <div class="ds-pa-tour-summary-row" style="display:flex;align-items:center;gap:12px;margin-bottom:6px">
       <div class="ds-pa-item-field ds-pa-tour-grand-total-field"><span>סה״כ כללי</span><strong class="ds-pa-tour-grand-total-display" data-pa-grand-total>${total ? `₪ ${formatCurrency(total)}` : '₪ 0'}</strong></div>
     </div>
@@ -3132,7 +3132,7 @@ function buildContactSourceFromRow(row = {}) {
   if (inferredClientType === 'other') {
     return {
       id: null, authority_id: null, school_id: null, semel_mosad: null, school_required: 'no',
-      client_type: 'other', client_name: '', authority: '', school: '',
+      client_type: 'other', client_name: text(row.client_name || row.school_framework), authority: text(row.client_authority), school: '',
       contact_name: text(row.contact_name), contact_role: text(row.contact_role), phone: text(row.phone), email: text(row.email), mobile: ''
     };
   }
@@ -3236,7 +3236,7 @@ function resetRecipientDependentFields(form, nextClientType) {
   const schoolSearchPanel = form.querySelector('[data-pa-school-search-panel]');
   const results = form.querySelector('[data-pa-client-results]');
   const schoolResults = form.querySelector('[data-pa-school-results]');
-  if (searchFieldWrap) searchFieldWrap.hidden = type === 'other';
+  if (searchFieldWrap) searchFieldWrap.hidden = false;
   if (schoolSearchPanel) schoolSearchPanel.hidden = true;
   if (results) { results.hidden = true; results.innerHTML = ''; }
   if (schoolResults) { schoolResults.hidden = true; schoolResults.innerHTML = ''; }
@@ -3502,8 +3502,7 @@ function formHtml(mode, row = {}, activityNameOptions = [], contactOptions = [],
             <input type="hidden" name="contact_selection_mode" value="">
             ${textField('contact_name', 'שם', row.contact_name, false)}
             ${textField('contact_role', FIELD_LABELS.contact_role, normalizeContactRoleDisplay(row.contact_role), false)}
-            <label class="ds-pa-form-field ds-pa-other-company-note"><span>חברה</span><input class="ds-input ds-input--sm" value="${escapeHtml(initOther ? (row.client_name || initSchool) : '')}" readonly tabindex="-1" aria-readonly="true"></label>
-          </div>
+            </div>
           <div class="ds-pa-contact-channels" data-pa-contact-channels-wrap>
             <div class="ds-pa-contact-channels-status" data-pa-contact-channels-status${channelsStatusVisible ? '' : ' hidden'}>${channelsStatusVisible ? contactChannelsStatusHtml(Boolean(initEmail), Boolean(initPhone), initOther) : ''}</div>
             <div class="ds-pa-form-grid ds-pa-contact-channels-fields" data-pa-contact-channels-fields${initOther ? '' : ' hidden'}>
@@ -3883,12 +3882,12 @@ function payloadFromForm(form) {
   if (payload.client_type === 'other') {
     const otherClientName = text(formData.get('other_client_name'));
     payload.school_framework = otherClientName;
-    payload.client_authority = '';
+    payload.client_authority = text(formData.get('contact_source_authority'));
     payload.client_name = otherClientName;
     payload.other_client_name = otherClientName;
-    payload.authority_id = null;
+    payload.authority_id = text(formData.get('contact_source_authority_id')) || null;
     payload.school_id = null;
-    payload.contact_school_id = null;
+    payload.contact_school_id = text(formData.get('contact_source_id')) || null;
     payload.semel_mosad = null;
     payload._school_required = 'no';
   } else {
@@ -4893,7 +4892,19 @@ export const proposalsAgreementsScreen = {
 
       if (step === 'authority') {
         const selectedType = text(form.querySelector('input[name="client_type_selector"]:checked')?.value) || 'school';
-        if (selectedType === 'authority') {
+        if (selectedType === 'other') {
+          const authorityName = catalogAuthorityName(contact);
+          const authorityId = text(contact.authority_id) || '';
+          const otherClientName = text(form.querySelector('[name="other_client_name"]')?.value);
+          form.dataset.paAuthorityId = authorityId;
+          form.dataset.paAuthorityName = authorityName;
+          form.dataset.paNewClient = 'no';
+          applyContactSelectionAfterClient(form, {
+            authority: authorityName, school: '', authorityId, schoolId: '',
+            clientType: 'other', clientName: otherClientName || authorityName
+          });
+          showManualContactFields(form);
+        } else if (selectedType === 'authority') {
           const authorityName = catalogAuthorityName(contact);
           const authorityId = text(contact.authority_id) || '';
           form.dataset.paAuthorityId = authorityId;
@@ -4993,8 +5004,8 @@ export const proposalsAgreementsScreen = {
       const roCtx = form.querySelector('[data-pa-contact-ro-ctx]');
 
       if (selected === 'other') {
-        if (searchRow) searchRow.hidden = false;
-        if (searchFieldWrap) searchFieldWrap.hidden = true;
+        if (searchRow) searchRow.hidden = locked;
+        if (searchFieldWrap) searchFieldWrap.hidden = locked;
         if (schoolSearchPanel) schoolSearchPanel.hidden = true;
         if (otherField) otherField.hidden = false;
         if (contactPanel) contactPanel.hidden = false;
@@ -5045,11 +5056,19 @@ export const proposalsAgreementsScreen = {
       form.querySelector('[name="other_client_name"]')?.addEventListener('input', () => {
         const selected = text(form.querySelector('input[name="client_type_selector"]:checked')?.value);
         if (selected !== 'other') return;
-        const authInput = form.querySelector('input[name="client_authority"]');
-        const schoolInput = form.querySelector('input[name="school_framework"]');
-        if (authInput) authInput.value = '';
-        if (schoolInput) schoolInput.value = '';
-        setContactSourceFields(form, emptyContactSourceForRecipientType('other', text(form.querySelector('[name="other_client_name"]')?.value)));
+        const otherName = text(form.querySelector('[name="other_client_name"]')?.value);
+        const currentSource = contactSourceFromForm(form);
+        const nextSource = {
+          ...emptyContactSourceForRecipientType('other', otherName),
+          authority_id: currentSource.authority_id,
+          authority: currentSource.authority,
+          client_name: otherName,
+          contact_name: text(form.querySelector('input[name="contact_name"]')?.value),
+          contact_role: text(form.querySelector('input[name="contact_role"]')?.value),
+          phone: text(form.querySelector('input[name="phone"]')?.value),
+          email: text(form.querySelector('input[name="email"]')?.value)
+        };
+        setContactSourceFields(form, nextSource);
         calcGrandTotal(form);
         updateLivePreview(form);
       }, { signal });
