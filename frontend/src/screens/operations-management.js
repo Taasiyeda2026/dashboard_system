@@ -53,6 +53,7 @@ import {
   approvalFileTitle,
   approvalsBatchTitle,
   buildCompletionApprovals,
+  COMPLETION_APPROVAL_PRINT_BUILD,
   completionApprovalInstructorOptions,
   completionApprovalPrintCss,
   completionApprovalsPrintHtml
@@ -2061,6 +2062,43 @@ function schoolsTabHtml(rows, state, directory = buildSchoolsDirectory([]), cont
 }
 
 
+
+const OPERATIONS_COMPLETION_APPROVAL_DEBUG_BUILD = 'operations-completion-approval-debug-20260704';
+let _completionApprovalDebugSignature = '';
+
+function logCompletionApprovalDebugRows(items = []) {
+  if (typeof console === 'undefined' || typeof console.table !== 'function') return;
+  const rows = (Array.isArray(items) ? items : []).map((item) => {
+    const approval = item?.approval || {};
+    const upload = item?.upload || null;
+    return {
+      instructorName: approval.instructorName || '',
+      instructorEmpId: approval.instructorEmpId || '',
+      date: approval.date || '',
+      school: approval.school || '',
+      rowIds: (Array.isArray(approval.activities) ? approval.activities : [])
+        .map((activity) => activity?.rowId || activity?.row_id || activity?.RowID)
+        .filter(Boolean)
+        .join(', '),
+      uploadId: upload?.id || '',
+      file_path: upload?.file_path || '',
+      storage_exists: upload?.storage_exists,
+      storage_status: upload?.storage_status || '',
+      statusInfo: completionApprovalStatusInfo(upload),
+      operationsBuild: OPERATIONS_COMPLETION_APPROVAL_DEBUG_BUILD,
+      printBuild: COMPLETION_APPROVAL_PRINT_BUILD
+    };
+  });
+  const signature = JSON.stringify(rows);
+  if (signature === _completionApprovalDebugSignature) return;
+  _completionApprovalDebugSignature = signature;
+  console.info('[completion-approval-debug] loaded builds', {
+    operationsBuild: OPERATIONS_COMPLETION_APPROVAL_DEBUG_BUILD,
+    printBuild: COMPLETION_APPROVAL_PRINT_BUILD
+  });
+  console.table(rows);
+}
+
 let _completionApprovalPrintContext = null;
 
 function printCompletionApprovals(approvals = [], title = 'אישור ביצוע פעילות') {
@@ -2499,6 +2537,7 @@ function completionApprovalTabHtml(rows, state, data = {}, directory = buildScho
   const uploads = data?.completionApprovalUploads || [];
   const todayIso = localTodayIso();
   const allItems = approvals.map((approval, originalIndex) => ({ approval, upload: completionApprovalLookupUpload(approval, uploads), originalIndex })).sort((a, b) => compareCompletionApprovalWorkItems(a, b, todayIso));
+  logCompletionApprovalDebugRows(allItems);
   const selectedPrintInstructor = String(approvalState.printInstructor || '').trim();
   const selectedAuthority = String(approvalState.selectedAuthority || '').trim();
   const selectedApprovalType = String(approvalState.approvalType || '').trim();
