@@ -175,7 +175,7 @@ let proposalGroupLookups = EMPTY_PROPOSAL_GROUP_LOOKUPS;
 const COMBINED_TEMPLATE_GROUP_KEYS = Object.freeze(['summer', 'next_year']);
 
 const PROPOSAL_GROUP_DISPLAY_FALLBACKS = Object.freeze({
-  summer: 'פעילויות קיץ',
+  summer: 'קיץ',
   next_year: 'תשפ״ז',
   combined: 'הצעה משולבת',
   tour: 'סיור'
@@ -195,7 +195,9 @@ const PROPOSAL_GROUP_LEGACY_ALIASES = Object.freeze({
 });
 
 function userFacingProposalGroupLabel(value = '') {
-  return text(value).replace(/שנה הבאה/g, PROPOSAL_GROUP_DISPLAY_FALLBACKS.next_year);
+  return text(value)
+    .replace(/פעילויות קיץ/g, PROPOSAL_GROUP_DISPLAY_FALLBACKS.summer)
+    .replace(/שנה הבאה/g, PROPOSAL_GROUP_DISPLAY_FALLBACKS.next_year);
 }
 
 function proposalGroupSafeDisplayName(groupKey = '', displayName = '') {
@@ -887,7 +889,8 @@ function statusFilterHtml() {
 function statusBadgeHtml(status) {
   const normalizedStatus = normalizeProposalStatus(status);
   const label = STATUS_LABELS[status] || STATUS_LABELS[normalizedStatus] || status || '—';
-  return `<span class="ds-pa-status-text ds-pa-status-text--${escapeHtml(normalizedStatus || 'unknown')}">${escapeHtml(label)}</span>`;
+  const displayLabel = normalizedStatus === 'sent' ? `✓ ${label}` : label;
+  return `<span class="ds-pa-status-text ds-pa-status-text--${escapeHtml(normalizedStatus || 'unknown')}">${escapeHtml(displayLabel)}</span>`;
 }
 
 
@@ -3644,15 +3647,14 @@ function drawerHtml(row, activityNameOptions = [], state = null) {
     ? `<p class="ds-pa-drawer-sub">רשות: ${escapeHtml(row.client_authority)}</p>` : '';
 
   const drawerSentBy = text(row.sent_by);
-  const showSentBy = drawerRowStatus === 'sent' && drawerSentBy;
-  const amountSummary = row.total_amount != null ? ` · ₪ ${escapeHtml(formatCurrency(row.total_amount))}` : '';
-  const drawerSummary = `${escapeHtml(proposalGroupDisplayName(row.activity_type_group) || '—')} · ${statusBadgeHtml(row.status)}${amountSummary}`;
+  const drawerSummary = 'פרטי הצעת מחיר';
 
   const infoCell = (label, value, wide = false, options = {}) => {
     const display = text(value) || (options.emptyText || '');
     if (!display && !options.showEmpty) return '';
     return `<div class="ds-pa-info-cell${wide ? ' ds-pa-info-cell--wide' : ''}"><span class="ds-pa-info-label">${escapeHtml(label)}</span><span class="ds-pa-info-value">${escapeHtml(display || 'לא הוזן')}</span></div>`;
   };
+  const infoCellRaw = (label, valueHtml, wide = false) => `<div class="ds-pa-info-cell${wide ? ' ds-pa-info-cell--wide' : ''}"><span class="ds-pa-info-label">${escapeHtml(label)}</span><span class="ds-pa-info-value">${valueHtml || 'לא הוזן'}</span></div>`;
   const activityNames = (Array.isArray(row.activity_names) ? row.activity_names : []).map(text).filter(Boolean);
   const activitiesCard = activityNames.length
     ? `<div class="ds-pa-info-card">
@@ -3660,21 +3662,21 @@ function drawerHtml(row, activityNameOptions = [], state = null) {
         <div class="ds-pa-activity-tags">${activityNames.map((n) => `<span class="ds-pa-activity-tag">${escapeHtml(n)}</span>`).join('')}</div>
       </div>` : '';
 
-  const proposalDetailsCard = `<div class="ds-pa-info-card">
-    <h4 class="ds-pa-card-title">פרטי הצעה</h4>
+  const proposalHeaderCard = `<div class="ds-pa-info-card ds-pa-info-card--proposal-head">
     <div class="ds-pa-info-grid">
-      ${infoCell('סוג הצעה', proposalGroupDisplayName(row.activity_type_group), false, { showEmpty: true })}
+      ${infoCell('שם בית הספר', drawerClientType === 'other' ? clientDisplayName : text(row.school_framework) || clientDisplayName, false, { showEmpty: true })}
+      ${infoCell('שם הרשות', text(row.client_authority), false, { showEmpty: true })}
+      ${infoCellRaw('סטטוס', statusBadgeHtml(row.status))}
       ${infoCell('תחום', normalizeProposalDomain(row.proposal_domain), false, { showEmpty: true })}
-      ${infoCell('תאריך הצעה', formatDateDisplay(row.proposal_date), false, { showEmpty: true })}
-      ${showSentBy ? infoCell('נשלח על ידי', drawerSentBy) : ''}
+      ${infoCell('תאריך הצעה', formatDateDisplay(row.proposal_date), true, { showEmpty: true })}
+      ${drawerSentBy ? infoCell('נשלח על ידי', drawerSentBy) : ''}
       ${text(row.sent_at) ? infoCell('תאריך שליחה', formatDateDisplay(row.sent_at)) : ''}
     </div>
   </div>`;
 
-  const financialCard = `<div class="ds-pa-info-card">
+  const financialCard = `<div class="ds-pa-info-card ds-pa-info-card--financial-summary">
     <h4 class="ds-pa-card-title">סיכום כספי</h4>
     <div class="ds-pa-info-grid">
-      ${infoCell('מספר שורות הצעה', String((Array.isArray(row.activity_names) ? row.activity_names : []).length || '—'), false, { showEmpty: true })}
       ${infoCell('סה״כ לתשלום', row.total_amount != null ? `₪ ${formatCurrency(row.total_amount)}` : '', false, { showEmpty: true })}
     </div>
   </div>`;
@@ -3725,12 +3727,12 @@ function drawerHtml(row, activityNameOptions = [], state = null) {
         <span class="ds-pa-drawer-icon-btns">${drawerActionButtons(row, state)}</span>
       </div>
       <div class="ds-pa-drawer-body">
+        ${proposalHeaderCard}
         ${contactCard}
-        ${proposalDetailsCard}
-        ${financialCard}
         <div data-pa-activities-fallback>${activitiesCard}</div>
         <div data-pa-drawer-items><span class="ds-muted" style="font-size:0.8rem">טוען שורות הצעה...</span></div>
         ${notesCard}
+        ${financialCard}
       </div>
       <p class="ds-pa-form-error" data-pa-drawer-error role="alert" style="color:#dc2626;font-size:0.8rem;padding:4px 16px 0"></p>
       <div data-pa-inline-form></div>
