@@ -2457,20 +2457,21 @@ function proposalRecipientLines(row = {}) {
     : inferProposalClientType(row);
   const schoolName = safeVal(row.school_framework) || safeVal(row.school_name);
   const authorityName = safeVal(row.client_authority) || safeVal(row.authority_name);
+  const otherName = safeVal(row.client_name);
 
-  if (clientType === 'school') {
-    return [recipientLine(schoolName, authorityName)].filter(Boolean);
-  }
-
-  if (clientType === 'authority') {
+  // Authority-only: no real school name → keep existing authority-only display.
+  if (clientType === 'authority' && !schoolName) {
     return [authorityName].filter(Boolean);
   }
 
+  // "Other" recipient: prefer school/mframework label, then saved client name.
   if (clientType === 'other') {
-    return [safeVal(row.client_name) || schoolName].filter(Boolean);
+    const primary = schoolName || otherName;
+    return [primary].filter(Boolean);
   }
 
-  return [];
+  // School proposals and authority proposals that include a school name — show school + authority (deduped).
+  return [recipientLine(schoolName, authorityName)].filter(Boolean);
 }
 
 function recipientBlockHtml(row = {}) {
