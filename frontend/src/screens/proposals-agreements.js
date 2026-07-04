@@ -197,6 +197,8 @@ const PROPOSAL_GROUP_LEGACY_ALIASES = Object.freeze({
 function proposalGroupSafeDisplayName(groupKey = '', displayName = '') {
   const key = text(groupKey);
   const label = text(displayName);
+  // Keep internal / Supabase values intact, but force the user-facing annual proposal label.
+  if (key === 'next_year') return PROPOSAL_GROUP_DISPLAY_FALLBACKS.next_year;
   if (label && label !== key) return label;
   return PROPOSAL_GROUP_DISPLAY_FALLBACKS[key] || label || key;
 }
@@ -488,6 +490,8 @@ function normalizeProposalDomain(raw) {
 function proposalGroupDisplayName(value) {
   const raw = text(value);
   if (!raw) return '';
+  const key = normalizeProposalGroup(raw);
+  if (key === 'next_year') return PROPOSAL_GROUP_DISPLAY_FALLBACKS.next_year;
   const meta = proposalGroupMeta(raw);
   return meta?.display_name || raw;
 }
@@ -917,17 +921,18 @@ function canGenerateProposalPdf(row, state) {
 
 function statusSelectHtml(row, enabled, canApprove = false, state = null) {
   const currentStatus = STATUS_OPTIONS.includes(normalizeProposalStatus(row?.status)) ? normalizeProposalStatus(row.status) : 'draft';
+  const visibleStatus = statusBadgeHtml(currentStatus);
   if (!enabled || currentStatus === 'sent' || currentStatus === 'cancelled') {
-    return statusBadgeHtml(currentStatus);
+    return visibleStatus;
   }
   const effectiveState = state || { user: { role: canApprove ? 'admin' : 'operation_manager', manage_proposals_agreements: enabled, approve_proposals_agreements: canApprove } };
   const selectableStatuses = currentStatus === 'approved' && !canApprove
     ? STATUS_OPTIONS.filter((status) => status !== currentStatus && canTransitionProposalStatus(row, status, effectiveState))
     : STATUS_OPTIONS.filter((status) => status === currentStatus || canTransitionProposalStatus(row, status, effectiveState));
+  if (selectableStatuses.length <= 1 && !(currentStatus === 'approved' && selectableStatuses[0] === 'sent')) return visibleStatus;
   const options = selectableStatuses.map((status) => optionHtml(status, currentStatus, STATUS_LABELS[status] || status)).join('');
-  const disabled = enabled ? '' : ' disabled aria-disabled="true"';
-  if (selectableStatuses.length <= 1 && !(currentStatus === 'approved' && selectableStatuses[0] === 'sent')) return statusBadgeHtml(currentStatus);
-  return `<select class="ds-pa-status-select" data-pa-row-status data-pa-status-id="${escapeHtml(row?.id || '')}" data-pa-previous-status="${escapeHtml(currentStatus)}" aria-label="עדכון סטטוס הצעה"${disabled}>${options}</select>`;
+  const hiddenSelect = `<select class="ds-pa-status-select ds-pa-status-select--sr-only" data-pa-row-status data-pa-status-id="${escapeHtml(row?.id || '')}" data-pa-previous-status="${escapeHtml(currentStatus)}" aria-label="עדכון סטטוס הצעה" tabindex="-1" aria-hidden="true">${options}</select>`;
+  return `${visibleStatus}${hiddenSelect}`;
 }
 
 function detailRowsHtml(row) {
@@ -1992,22 +1997,21 @@ function itemsSummaryHtml(items = []) {
     const t = Number(proposalField(i, 'total_price', 'totalPrice')) || ((Number(proposalField(i, 'quantity', 'quantity')) || 1) * (Number(proposalField(i, 'unit_price', 'unitPrice')) || 0));
     return s + t;
   }, 0);
-  const chip = (label, val) => val != null && val !== ''
-    ? `<span class="ds-pa-item-meta-chip"><span class="ds-pa-info-label">${escapeHtml(label)}</span> <span style="white-space:nowrap">${escapeHtml(String(val))}</span></span>`
+  const metaText = (label, val) => val != null && val !== ''
+    ? `${escapeHtml(label)}: <span style="white-space:nowrap">${escapeHtml(String(val))}</span>`
     : '';
-  const priceChip = (label, amount) => amount
-    ? `<span class="ds-pa-item-meta-chip"><span class="ds-pa-info-label">${escapeHtml(label)}</span> <span style="white-space:nowrap">₪ ${escapeHtml(formatCurrency(amount))}</span></span>`
+  const priceMetaText = (label, amount) => amount
+    ? `${escapeHtml(label)}: <span style="white-space:nowrap">₪ ${escapeHtml(formatCurrency(amount))}</span>`
     : '';
   const cards = visibleSummaryItems.map((item) => {
     const t = Number(proposalField(item, 'total_price', 'totalPrice')) || ((Number(proposalField(item, 'quantity', 'quantity')) || 1) * (Number(proposalField(item, 'unit_price', 'unitPrice')) || 0));
     const manualNote = cleanCustomerText(text(item.course_note || item.manual_note || ''));
     const noteHtml = manualNote ? `<div class="ds-muted" style="font-size:0.72rem;margin-top:2px">${escapeHtml(manualNote)}</div>` : '';
     const meta = [
-      chip('סוג', proposalField(item, 'item_type', 'itemType')),
-      chip('כמות', proposalField(item, 'quantity', 'quantity') != null ? proposalField(item, 'quantity', 'quantity') : null),
-      priceChip('מחיר יח׳', proposalField(item, 'unit_price', 'unitPrice') != null ? Number(proposalField(item, 'unit_price', 'unitPrice')) : 0),
-      priceChip('סה״כ', t)
-    ].filter(Boolean).join('');
+      metaText('כמות', proposalField(item, 'quantity', 'quantity') != null ? proposalField(item, 'quantity', 'quantity') : null),
+      priceMetaText('מחיר יחידה', proposalField(item, 'unit_price', 'unitPrice') != null ? Number(proposalField(item, 'unit_price', 'unitPrice')) : 0),
+      priceMetaText('סה״כ', t)
+    ].filter(Boolean).join(' · ');
     return `<div class="ds-pa-item-card">
       <div class="ds-pa-item-card-name">${escapeHtml(publicActivityName(proposalField(item, 'item_name', 'itemName')) || '')}${noteHtml}</div>
       ${meta ? `<div class="ds-pa-item-card-meta">${meta}</div>` : ''}
@@ -2016,7 +2020,6 @@ function itemsSummaryHtml(items = []) {
   return `<div class="ds-pa-items-summary">
     <h4 class="ds-pa-card-title" style="margin-bottom:8px">שורות הצעה</h4>
     <div class="ds-pa-item-cards">${cards}</div>
-    <div class="ds-pa-items-total">סה״כ לתשלום: <strong style="white-space:nowrap">₪ ${formatCurrency(total)}</strong></div>
   </div>`;
 }
 
@@ -3629,11 +3632,9 @@ function drawerHtml(row, activityNameOptions = [], state = null) {
   const drawerRowStatus = normalizeProposalStatus(text(row.status));
   const drawerHasSig = proposalHasSavedApprovalSignature(row);
   const drawerNeedsResign = drawerRowStatus === 'approved' && !drawerHasSig;
-  const signedBadge = (drawerRowStatus === 'sent' || (drawerRowStatus === 'approved' && drawerHasSig))
-    ? `<span class="ds-pa-state-note ds-pa-state-note--ok">✓ מאושר וחתום</span>`
-    : drawerNeedsResign
-      ? `<span class="ds-pa-state-note ds-pa-state-note--warn">ההצעה מאושרת אך חסרה חתימה/זמן אישור ולכן לא ניתן לסמן כנשלחה</span>`
-      : '';
+  const signatureWarning = drawerNeedsResign
+    ? `<span class="ds-pa-state-note ds-pa-state-note--warn">ההצעה מאושרת אך חסרה חתימה/זמן אישור ולכן לא ניתן לסמן כנשלחה</span>`
+    : '';
 
   const clientDisplayName = text(row.client_name) || text(row.school_framework) || text(row.client_authority) || '—';
   const drawerClientType = inferProposalClientType(row);
@@ -3644,7 +3645,7 @@ function drawerHtml(row, activityNameOptions = [], state = null) {
 
   const drawerSentBy = text(row.sent_by);
   const showSentBy = drawerRowStatus === 'sent' && drawerSentBy;
-  const drawerSummary = `${escapeHtml(proposalGroupDisplayName(row.activity_type_group) || '—')} · ${statusBadgeHtml(row.status)} · ${row.total_amount != null ? `₪ ${escapeHtml(formatCurrency(row.total_amount))}` : '—'}`;
+  const drawerSummary = `${escapeHtml(proposalGroupDisplayName(row.activity_type_group) || '—')} · ${statusBadgeHtml(row.status)}`;
 
   const infoCell = (label, value, wide = false, options = {}) => {
     const display = text(value) || (options.emptyText || '');
@@ -3661,10 +3662,8 @@ function drawerHtml(row, activityNameOptions = [], state = null) {
   const proposalDetailsCard = `<div class="ds-pa-info-card">
     <h4 class="ds-pa-card-title">פרטי הצעה</h4>
     <div class="ds-pa-info-grid">
-      ${infoCell('סוג הצעה', proposalGroupDisplayName(row.activity_type_group), false, { showEmpty: true })}
       ${infoCell('תחום', normalizeProposalDomain(row.proposal_domain), false, { showEmpty: true })}
       ${infoCell('תאריך הצעה', formatDateDisplay(row.proposal_date), false, { showEmpty: true })}
-      <div class="ds-pa-info-cell"><span class="ds-pa-info-label">סטטוס</span><span class="ds-pa-info-value">${statusBadgeHtml(row.status)}</span></div>
       ${showSentBy ? infoCell('נשלח על ידי', drawerSentBy) : ''}
       ${text(row.sent_at) ? infoCell('תאריך שליחה', formatDateDisplay(row.sent_at)) : ''}
     </div>
@@ -3720,7 +3719,7 @@ function drawerHtml(row, activityNameOptions = [], state = null) {
         <button type="button" class="ds-btn ds-btn--xs ds-btn--ghost" data-pa-close-drawer aria-label="סגירת פרטי רשומה" style="flex-shrink:0;font-size:1rem;padding:2px 8px">✕</button>
       </header>
       <div class="ds-pa-drawer-action-bar">
-        <span class="ds-pa-drawer-badges">${signedBadge ? signedBadge : ''}${customBadge ? '&ensp;' + customBadge : ''}</span>
+        <span class="ds-pa-drawer-badges">${signatureWarning ? signatureWarning : ''}${customBadge ? '&ensp;' + customBadge : ''}</span>
         <span class="ds-pa-drawer-icon-btns">${drawerActionButtons(row, state)}</span>
       </div>
       <div class="ds-pa-drawer-body">

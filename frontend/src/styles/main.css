@@ -11268,7 +11268,7 @@ select.ds-input {
   margin-bottom: 5px;
 }
 
-.ds-pa-item-card-meta { display: flex; flex-wrap: wrap; gap: 8px; }
+.ds-pa-item-card-meta { display: block; color: #475569; font-size: .8rem; line-height: 1.55; }
 
 .ds-pa-item-meta-chip {
   display: inline-flex;
@@ -20727,11 +20727,12 @@ details[open] > .ds-fin-acc__summary::before { transform: rotate(90deg); }
 .ds-pa-col-money { text-align: center; white-space: nowrap; font-variant-numeric: tabular-nums; }
 .ds-pa-status-text { font-weight: 700; background: transparent !important; border: 0 !important; border-radius: 0 !important; padding: 0 !important; white-space: nowrap; }
 .ds-pa-status-text--sent { color: #15803d; }
-.ds-pa-status-text--approved { color: #0f766e; }
+.ds-pa-status-text--approved { color: #15803d; }
 .ds-pa-status-text--pending_approval { color: #b45309; }
 .ds-pa-status-text--returned_for_changes { color: #ea580c; }
 .ds-pa-status-text--draft { color: #64748b; }
 .ds-pa-status-text--cancelled { color: #dc2626; }
+.ds-pa-status-select--sr-only { position: absolute !important; inline-size: 1px !important; block-size: 1px !important; padding: 0 !important; margin: -1px !important; overflow: hidden !important; clip: rect(0 0 0 0) !important; white-space: nowrap !important; border: 0 !important; }
 .ds-pa-actions-inner--clean { display: inline-flex; align-items: center; justify-content: center; gap: 4px; position: relative; }
 .ds-pa-row-more { position: relative; }
 .ds-pa-row-more summary { list-style: none; cursor: pointer; width: 28px; height: 28px; display: inline-flex; align-items: center; justify-content: center; border-radius: 8px; color: #475569; }
