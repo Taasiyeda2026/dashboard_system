@@ -2144,20 +2144,18 @@ function dedupeCompletionApprovals(approvals = []) {
   return result;
 }
 
-// Row-id first (plus instructor_emp_id/instructor_name when the activity isn't a
-// shared Tamir-team approval, since either instructor may upload the one shared
-// file): date+authority+school is only a fallback for legacy uploads that never
-// recorded an activity_row_id at all — this avoids mixing up two activities on
-// the same day/school when their row ids differ.
+// Row-id first plus the specific instructor_emp_id: each real instructor uploads
+// their own approval file. date+authority+school is only a fallback for legacy
+// uploads that never recorded an activity_row_id at all — this avoids mixing up
+// two activities on the same day/school when their row ids differ.
 function completionApprovalLookupUpload(approval, uploads) {
-  const isTamir = !!approval?.isTamirTeamApproval;
   const rowIds = (Array.isArray(approval?.activities) ? approval.activities : [])
     .map((activity) => activity?.rowId || activity?.row_id || activity?.RowID)
     .filter(Boolean);
   return findMatchingCompletionApprovalUpload(uploads, {
     rowIds,
-    instructorEmpId: isTamir ? '' : approval?.instructorEmpId,
-    instructorName: isTamir ? '' : approval?.instructorName,
+    instructorEmpId: approval?.instructorEmpId,
+    instructorName: approval?.instructorName,
     date: approval?.date,
     authority: approval?.authority,
     school: approval?.school
@@ -2179,11 +2177,11 @@ function completionApprovalUploadStatusChip(upload) {
 }
 
 function completionApprovalTypeLabel(approval) {
-  return approval?.isTamirTeamApproval ? 'תמיר' : 'רגיל';
+  return approval?.isTamirTeamApproval || approval?.isTamirActivity ? 'תמיר' : 'רגיל';
 }
 
 function completionApprovalTypeChip(approval) {
-  return approval?.isTamirTeamApproval
+  return approval?.isTamirTeamApproval || approval?.isTamirActivity
     ? '<span class="ds-chip ds-chip--warn">תמיר</span>'
     : '<span class="ds-chip ds-chip--neutral">רגיל</span>';
 }
@@ -2506,7 +2504,7 @@ function completionApprovalTabHtml(rows, state, data = {}, directory = buildScho
   const selectedApprovalType = String(approvalState.approvalType || '').trim();
   const dateFilteredItems = selectedDate ? allItems.filter((item) => String(item.approval?.date || '').slice(0, 10) === selectedDate) : allItems;
   const authorityFilteredItems = selectedAuthority ? dateFilteredItems.filter((item) => (item.approval?.authority || '') === selectedAuthority) : dateFilteredItems;
-  const typeFilteredItems = selectedApprovalType ? authorityFilteredItems.filter((item) => (selectedApprovalType === 'tamir' ? !!item.approval?.isTamirTeamApproval : !item.approval?.isTamirTeamApproval)) : authorityFilteredItems;
+  const typeFilteredItems = selectedApprovalType ? authorityFilteredItems.filter((item) => (selectedApprovalType === 'tamir' ? !!(item.approval?.isTamirTeamApproval || item.approval?.isTamirActivity) : !(item.approval?.isTamirTeamApproval || item.approval?.isTamirActivity))) : authorityFilteredItems;
   const items = selectedPrintInstructor ? typeFilteredItems.filter((item) => item.approval?.instructorName === selectedPrintInstructor) : typeFilteredItems;
   const effectiveTodayIso = todayIso < COMPLETION_APPROVAL_SUMMER_FROM ? '' : (todayIso > COMPLETION_APPROVAL_SUMMER_TO ? COMPLETION_APPROVAL_SUMMER_TO : todayIso);
   const throughTodayItems = effectiveTodayIso ? allItems.filter((item) => String(item.approval?.date || '').slice(0, 10) <= effectiveTodayIso) : [];
