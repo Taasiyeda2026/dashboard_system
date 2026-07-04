@@ -16,6 +16,7 @@ import {
 const BLANK = '________________';
 const ORG_NAME = 'עמותת תעשיידע – תעשייה למען חינוך מתקדם';
 const taasiyedaLogoSrc = new URL('../../../assets/logo1.png', import.meta.url).href;
+export const COMPLETION_APPROVAL_PRINT_BUILD = 'completion-approval-print-debug-20260704';
 
 function text(value) {
   const clean = String(value ?? '').trim();
