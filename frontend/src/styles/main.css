@@ -20636,4 +20636,41 @@ details[open] > .ds-fin-acc__summary::before { transform: rotate(90deg); }
   .pa-print-fixed-logo {
     display: none !important;
   }
+
+  /* ── Zero document padding-top/bottom + signature tightening (2026-07-04b) ──
+     Measured with real computed styles + generated PDFs (Playwright):
+     1) `.proposal-document.pa-document.pa-document--next-year` elsewhere in
+        this file still carries `padding-top: 17mm !important` (a pre-redesign
+        leftover), with the same selector specificity as this rule — being
+        last in the file is what makes this win. It pushed the next-year
+        variant's logo ~17mm below the top of the content box for no reason;
+        the base/summer variants were already at 0. Do not remove this rule
+        or the padding-top:17mm landmine resurfaces.
+     2) `.pa-signature-rule` (a decorative border-top line between the
+        signature image and the signer name) is hidden outright in print —
+        even at height:0 it still rendered a 1px line, the last remaining
+        sliver of separation between the image and the name. (Distinct from
+        `.pa-signature-spacer`, which sits between the blessing line and the
+        image and was already zeroed by an earlier rule in this file.)
+     3) Signature image enlarged ~20% (195x90 -> 234x108) per design request.
+        The surrounding block has no fixed height and keeps break-inside:avoid,
+        so this cannot push the footer to a new page — verified with a real
+        generated PDF (short + long proposals still render as before: no
+        extra blank page, footer stays with the signature). */
+  .proposal-document.pa-document.pa-document--next-year,
+  .proposal-document.pa-document.pa-document--summer,
+  .proposal-document.pa-document.pa-document--next-year.pa-document--summer {
+    padding-top: 0 !important;
+    padding-bottom: 0 !important;
+  }
+
+  .proposal-document .pa-signature-rule {
+    display: none !important;
+  }
+
+  .proposal-document .pa-footer-signature .pa-signature-image,
+  .proposal-document.pa-document--next-year .pa-footer-signature .pa-signature-image {
+    max-width: 234px !important;
+    max-height: 108px !important;
+  }
 }
