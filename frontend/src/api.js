@@ -3814,6 +3814,10 @@ function profileCanAccessPersonalReports(profileRow) {
   return personalReportsProfileFlagYes(profileRow.can_access_personal_reports);
 }
 
+function userCanAccessPersonalReportsFromPermissions(flat = {}) {
+  return permissionFlagYes(flat.can_access_personal_reports);
+}
+
 async function readPersonalReportsProfile(authUserId, options = {}) {
   const id = String(authUserId || '').trim();
   if (!supabase || !id) return null;
@@ -4015,7 +4019,9 @@ function buildBootstrapFromUser(userRow, profileRow = null) {
   if (canViewEditRequests && !allowedRoutes.includes('edit-requests')) {
     allowedRoutes.push('edit-requests');
   }
-  const hasPersonalReportsAccess = profileCanAccessPersonalReports(profileRow);
+  const hasPersonalReportsAccess =
+    profileCanAccessPersonalReports(profileRow) ||
+    userCanAccessPersonalReportsFromPermissions(flat);
   const hasPersonalReportsManager = canManagePersonalReportsUser(flat);
   const personalReportsIdx = allowedRoutes.indexOf('personal-reports');
   if (hasPersonalReportsAccess && personalReportsIdx === -1) allowedRoutes.push('personal-reports');
@@ -5380,7 +5386,9 @@ export const api = {
     ]);
     const token = makeSessionToken(user);
     const flat = flattenUserRow(user);
-    const hasPersonalReportsAccess = profileCanAccessPersonalReports(profileRow);
+    const hasPersonalReportsAccess =
+      profileCanAccessPersonalReports(profileRow) ||
+      userCanAccessPersonalReportsFromPermissions(flat);
     const proposalFlags = proposalSessionUserFlagsFromFlatUser(flat);
     return {
       token,
