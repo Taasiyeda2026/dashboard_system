@@ -2214,8 +2214,7 @@ function completionApprovalInstructorCellHtml(approval) {
   if (!approval?.isTamirTeamApproval) return escapeHtml(approval?.instructorName || '');
   const names = Array.isArray(approval?.instructorNames) ? approval.instructorNames : [];
   const primary = names[0] || approval?.instructorName || '—';
-  const secondary = names[1] || 'טרם שובץ';
-  return `<span class="ds-ops-completion-instructor-line">מדריך: ${escapeHtml(primary)}</span><br><span class="ds-ops-completion-instructor-line">מדריך נוסף: ${escapeHtml(secondary)}</span>`;
+  return `<span class="ds-ops-completion-instructor-line">מדריך: ${escapeHtml(primary)}</span>`;
 }
 function photoApprovalIndicatorHtml(approval, photoUploads) {
   const noUploadHtml = '<div class="ds-ops-photo-indicator ds-ops-photo-indicator--no">📷 לא הועלה</div>';
@@ -2249,17 +2248,34 @@ function photoApprovalIndicatorHtml(approval, photoUploads) {
 
 function completionApprovalTeamCellHtml(approval, contactCtx) {
   const primaryHtml = completionApprovalInstructorCellHtml(approval);
-  const shownNames = new Set();
+  const primaryName = approval?.isTamirTeamApproval
+    ? ((Array.isArray(approval?.instructorNames) ? approval.instructorNames[0] : '') || approval?.instructorName || '')
+    : (approval?.instructorName || '');
+  const shownNames = new Set([primaryName].filter(Boolean));
+  const extraNames = [];
+  const addExtra = (name) => {
+    const trimmed = String(name || '').trim();
+    if (!trimmed || shownNames.has(trimmed)) return;
+    shownNames.add(trimmed);
+    extraNames.push(trimmed);
+  };
+  // Any teammate beyond the primary — whether from the Tamir team roster or the
+  // separate "who's with me today" contact context — is merged into one
+  // comma-separated line under a single "מדריך נוסף" label, never one per line.
   if (approval?.isTamirTeamApproval) {
     const names = Array.isArray(approval?.instructorNames) ? approval.instructorNames : [];
-    names.forEach((n) => { if (n) shownNames.add(n); });
+    names.slice(1).forEach(addExtra);
   }
-  if (approval?.instructorName) shownNames.add(approval.instructorName);
-  const additionalNames = (contactCtx && contactCtx.instructors.length)
-    ? contactCtx.instructors.map((i) => i.name).filter((name) => name && !shownNames.has(name))
-    : [];
-  if (!additionalNames.length) return primaryHtml;
-  return `${primaryHtml}<span class="ds-ops-completion-team-extra">${escapeHtml(additionalNames.join(', '))}</span>`;
+  if (contactCtx && contactCtx.instructors.length) {
+    contactCtx.instructors.forEach((i) => addExtra(i.name));
+  }
+  if (extraNames.length) {
+    return `${primaryHtml}<br><span class="ds-ops-completion-team-extra">מדריך נוסף: ${escapeHtml(extraNames.join(', '))}</span>`;
+  }
+  if (approval?.isTamirTeamApproval) {
+    return `${primaryHtml}<br><span class="ds-ops-completion-team-extra">מדריך נוסף: טרם שובץ</span>`;
+  }
+  return primaryHtml;
 }
 
 
