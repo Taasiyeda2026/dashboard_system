@@ -20733,7 +20733,7 @@ details[open] > .ds-fin-acc__summary::before { transform: rotate(90deg); }
 .ds-pa-status-text--draft { color: #64748b; }
 .ds-pa-status-text--cancelled { color: #dc2626; }
 .ds-pa-status-select--sr-only { position: absolute !important; inline-size: 1px !important; block-size: 1px !important; padding: 0 !important; margin: -1px !important; overflow: hidden !important; clip: rect(0 0 0 0) !important; white-space: nowrap !important; border: 0 !important; }
-.ds-pa-actions-inner--clean { display: inline-flex; align-items: center; justify-content: center; gap: 6px; position: relative; min-width: 60px; }
+.ds-pa-actions-inner--clean { display: inline-flex; align-items: center; justify-content: center; gap: 4px; position: relative; min-width: 92px; }
 .ds-pa-row-more { position: relative; }
 .ds-pa-row-more summary { list-style: none; cursor: pointer; width: 26px; height: 26px; display: inline-flex; align-items: center; justify-content: center; border-radius: 8px; color: #475569; font-size: 1rem; line-height: 1; }
 .ds-pa-row-more summary::-webkit-details-marker { display: none; }
@@ -20797,14 +20797,14 @@ details[open] > .ds-fin-acc__summary::before { transform: rotate(90deg); }
 }
 .ds-pa-actions-col,
 .ds-pa-actions-cell {
-  width: 82px;
-  min-width: 82px;
+  width: 104px;
+  min-width: 104px;
 }
 .ds-pa-row-action--icon,
 .ds-pa-row-more summary {
-  width: 26px;
-  height: 26px;
-  min-width: 26px;
+  width: 24px;
+  height: 24px;
+  min-width: 24px;
   color: #475569;
 }
 .ds-pa-status-text {
@@ -20824,7 +20824,35 @@ details[open] > .ds-fin-acc__summary::before { transform: rotate(90deg); }
 .ds-pa-item-card-meta {
   display: flex;
   flex-wrap: wrap;
-  gap: 0 6px;
+  gap: 6px;
+}
+.ds-pa-drawer-status-text {
+  margin: 2px 0 0;
+  color: #0f172a;
+  font-size: .84rem;
+  font-weight: 700;
+}
+.ds-pa-total-amount {
+  font-size: 1rem;
+  font-weight: 800;
+  color: #0f172a;
+}
+.ds-pa-item-summary-label,
+.ds-pa-item-summary-field span {
+  display: block;
+  font-size: .7rem;
+  color: #64748b;
+  margin-bottom: 2px;
+}
+.ds-pa-item-summary-field {
+  display: inline-flex;
+  flex-direction: column;
+  min-width: 74px;
+}
+.ds-pa-item-card-name strong,
+.ds-pa-item-summary-field strong {
+  color: #0f172a;
+  font-size: .8rem;
 }
 .ds-pa-other-company-note input[readonly] {
   background: #f8fbff;
