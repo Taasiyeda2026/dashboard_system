@@ -53,7 +53,6 @@ import {
   approvalFileTitle,
   approvalsBatchTitle,
   buildCompletionApprovals,
-  COMPLETION_APPROVAL_PRINT_BUILD,
   completionApprovalInstructorOptions,
   completionApprovalPrintCss,
   completionApprovalsPrintHtml
@@ -2063,42 +2062,6 @@ function schoolsTabHtml(rows, state, directory = buildSchoolsDirectory([]), cont
 
 
 
-const OPERATIONS_COMPLETION_APPROVAL_DEBUG_BUILD = 'operations-completion-approval-debug-20260704';
-let _completionApprovalDebugSignature = '';
-
-function logCompletionApprovalDebugRows(items = []) {
-  if (typeof console === 'undefined' || typeof console.table !== 'function') return;
-  const rows = (Array.isArray(items) ? items : []).map((item) => {
-    const approval = item?.approval || {};
-    const upload = item?.upload || null;
-    return {
-      instructorName: approval.instructorName || '',
-      instructorEmpId: approval.instructorEmpId || '',
-      date: approval.date || '',
-      school: approval.school || '',
-      rowIds: (Array.isArray(approval.activities) ? approval.activities : [])
-        .map((activity) => activity?.rowId || activity?.row_id || activity?.RowID)
-        .filter(Boolean)
-        .join(', '),
-      uploadId: upload?.id || '',
-      file_path: upload?.file_path || '',
-      storage_exists: upload?.storage_exists,
-      storage_status: upload?.storage_status || '',
-      statusInfo: completionApprovalStatusInfo(upload),
-      operationsBuild: OPERATIONS_COMPLETION_APPROVAL_DEBUG_BUILD,
-      printBuild: COMPLETION_APPROVAL_PRINT_BUILD
-    };
-  });
-  const signature = JSON.stringify(rows);
-  if (signature === _completionApprovalDebugSignature) return;
-  _completionApprovalDebugSignature = signature;
-  console.info('[completion-approval-debug] loaded builds', {
-    operationsBuild: OPERATIONS_COMPLETION_APPROVAL_DEBUG_BUILD,
-    printBuild: COMPLETION_APPROVAL_PRINT_BUILD
-  });
-  console.table(rows);
-}
-
 let _completionApprovalPrintContext = null;
 
 function printCompletionApprovals(approvals = [], title = 'אישור ביצוע פעילות') {
@@ -2134,12 +2097,15 @@ function completionApprovalsForState(rows, state, directory, contactsIndex, summ
 
 
 
+function completionApprovalHasFileRef(upload) {
+  return !!(upload?.file_path || upload?.file_name || upload?.file_ref_exists);
+}
 function completionApprovalStorageExists(upload) {
-  return !!upload?.file_path && upload.storage_exists !== false && String(upload?.storage_status || '').trim() !== 'missing';
+  return completionApprovalHasFileRef(upload);
 }
 function completionApprovalIsHandled(upload) {
   const status = String(upload?.status || '').trim();
-  return completionApprovalStorageExists(upload) || (status === 'uploaded' || status === 'approved') && completionApprovalStorageExists(upload);
+  return completionApprovalHasFileRef(upload) || ['uploaded', 'approved'].includes(status);
 }
 
 function completionApprovalSortBucket(dateIso, handled, todayIso = localTodayIso()) {
@@ -2205,9 +2171,6 @@ function completionApprovalUploadStatusLabel(upload) {
 
 function completionApprovalUploadStatusChip(upload) {
   const info = completionApprovalStatusInfo(upload);
-  if (info.key === 'missing' && upload?.file_path && !completionApprovalStorageExists(upload)) {
-    return `<span class="ds-ops-status-rejected">⚠ ${escapeHtml(info.label)}</span>`;
-  }
   if (info.key === 'approved') return `<span class="ds-ops-status-approved">✓ ${escapeHtml(info.label)}</span>`;
   if (info.key === 'rejected') return `<span class="ds-ops-status-rejected">✕ ${escapeHtml(info.label)}</span>`;
   if (info.key === 'uploaded') return `<span class="ds-ops-status-uploaded">↑ ${escapeHtml(info.label)}</span>`;
@@ -2537,7 +2500,6 @@ function completionApprovalTabHtml(rows, state, data = {}, directory = buildScho
   const uploads = data?.completionApprovalUploads || [];
   const todayIso = localTodayIso();
   const allItems = approvals.map((approval, originalIndex) => ({ approval, upload: completionApprovalLookupUpload(approval, uploads), originalIndex })).sort((a, b) => compareCompletionApprovalWorkItems(a, b, todayIso));
-  logCompletionApprovalDebugRows(allItems);
   const selectedPrintInstructor = String(approvalState.printInstructor || '').trim();
   const selectedAuthority = String(approvalState.selectedAuthority || '').trim();
   const selectedApprovalType = String(approvalState.approvalType || '').trim();
@@ -2566,7 +2528,7 @@ function completionApprovalTabHtml(rows, state, data = {}, directory = buildScho
   </div>`;
   const contactContextMap = buildContactContextMap(summerRows, data?.contactResponsiblesRows || []);
   const body = items.map(({ approval, upload }, displayIndex) => {
-    const hasFile = completionApprovalStorageExists(upload);
+    const hasFile = completionApprovalHasFileRef(upload);
     const hasUploadRecord = !!upload?.id;
     const uploadStatus = String(upload?.status || '').trim();
     const isApproved = uploadStatus === 'approved';
@@ -3014,7 +2976,7 @@ export const operationsManagementScreen = {
         const result = await api.completionApprovalSignedUrl({ filePath: upload.file_path, download });
         if (result?.signedUrl) window.open(result.signedUrl, '_blank', 'noopener,noreferrer');
       } catch (error) {
-        alert(`פתיחת הקובץ נכשלה: ${error?.message || error}`);
+        alert('לא ניתן לפתוח את הקובץ כרגע. ייתכן שיש בעיית הרשאת Storage.');
       }
     };
     root.querySelectorAll('[data-ops-upload-view]').forEach((btn) => btn.addEventListener('click', () => openSignedUpload(btn.getAttribute('data-ops-upload-view'), false)));
