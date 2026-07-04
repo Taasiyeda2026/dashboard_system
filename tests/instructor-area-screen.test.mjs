@@ -9,12 +9,12 @@ import { instructorCompletionApprovalsScreen } from '../frontend/src/screens/ins
 import { resolveInstructorApprovalForRow, openInstructorApprovalForActivity, activityDetailHtml, contactGroupsByDateSchool, findCompletionUploadForRow } from '../frontend/src/screens/instructor-utils.js';
 
 const row = {
-  RowID: 'r1', start_date: '2026-06-21', activity_date: '2026-06-21', start_time: '08:00', end_time: '08:45',
-  authority: 'קריית שמונה', school: 'מגנים', grade: 'כיתה ג׳', activity_name: 'נשכן מפרקים', activity_type: 'workshop', participants_count: 25,
+  RowID: 'r1', start_date: '2026-07-21', activity_date: '2026-07-21', start_time: '08:00', end_time: '08:45',
+  authority: 'קריית שמונה', school: 'מגנים', grade: 'כיתה ג׳', activity_name: 'נשכן מפרקים', activity_type: 'workshop', participants_count: 25, activity_season: 'summer_2026', status: 'פתוח',
   emp_id: '1525', instructor_name: 'אייל יוחאי', emp_id_2: '1502', instructor_name_2: 'הילה רוזן'
 };
 const state = { user: { role: 'instructor', emp_id: '1525', full_name: 'אייל יוחאי' }, clientSettings: {} };
-const teamGroups = [{ activity_date: '2026-06-21', school: 'מגנים', responsibleEmpId: '1525', responsibleName: 'אייל יוחאי', instructors: [{ name: 'אייל יוחאי' }, { name: 'הילה רוזן' }] }];
+const teamGroups = [{ activity_date: '2026-07-21', school: 'מגנים', responsibleEmpId: '1525', responsibleName: 'אייל יוחאי', instructors: [{ name: 'אייל יוחאי' }, { name: 'הילה רוזן' }] }];
 
 test('instructor route source defaults to calendar and keeps admin routes separate', () => {
   const main = readFileSync(new URL('../frontend/src/main.js', import.meta.url), 'utf8');
@@ -35,8 +35,8 @@ test('calendar renders activity days and opens day then activity detail drawers'
   const opened = [];
   const ui = { openDrawer(payload) { opened.push(payload); drawer.innerHTML = payload.content; payload.onOpen?.(drawer); } };
   instructorCalendarScreen.bind({ root, data: { rows: [row], teamGroups, uploads: [] }, ui, state, rerender() {} });
-  root.querySelector('[data-calendar-day="2026-06-21"]').click();
-  assert.equal(opened.at(-1).title, 'פעילויות בתאריך 21/06/2026');
+  root.querySelector('[data-calendar-day="2026-07-21"]').click();
+  assert.equal(opened.at(-1).title, 'פעילויות בתאריך 21/07/2026');
   assert.match(drawer.innerHTML, /אתה אחראי קשר ביום זה/);
   drawer.querySelector('[data-activity-detail="r1"]').click();
   assert.equal(opened.at(-1).title, 'פירוט פעילות');
@@ -57,6 +57,36 @@ test('my activities table has instructor filters and detail-only row action', ()
 });
 
 
+
+
+
+test('instructor summer visibility filter allows only summer 2026 open or closed activities', () => {
+  const openSummer = { ...row, RowID: 'summer-open', status: 'פתוח' };
+  const closedSummer = { ...row, RowID: 'summer-closed', status: 'סגור' };
+  const deletedSummer = { ...row, RowID: 'summer-deleted', status: 'נמחק' };
+  const canceledSummer = { ...row, RowID: 'summer-canceled', status: 'בוטל' };
+  const otherStatusSummer = { ...row, RowID: 'summer-other', status: 'בהמתנה' };
+  const regularAssigned = { ...row, RowID: 'regular-assigned', activity_season: 'regular', status: 'פתוח' };
+  const rows = [openSummer, closedSummer, deletedSummer, canceledSummer, otherStatusSummer, regularAssigned];
+
+  const myDataHtml = myDataScreen.render({ rows, teamGroups }, { state });
+  assert.match(myDataHtml, /data-row-id="summer-open"/);
+  assert.match(myDataHtml, /data-row-id="summer-closed"/);
+  assert.doesNotMatch(myDataHtml, /data-row-id="summer-deleted"/);
+  assert.doesNotMatch(myDataHtml, /data-row-id="summer-canceled"/);
+  assert.doesNotMatch(myDataHtml, /data-row-id="summer-other"/);
+  assert.doesNotMatch(myDataHtml, /data-row-id="regular-assigned"/);
+
+  const approvalsHtml = instructorCompletionApprovalsScreen.render({ rows, uploads: [] }, { state });
+  assert.match(approvalsHtml, /2 פעילויות/);
+  assert.doesNotMatch(approvalsHtml, /לא נמצאו אישורי ביצוע/);
+
+  const todayIso = new Date().toISOString().slice(0, 10);
+  const calendarRows = rows.map((activity) => ({ ...activity, start_date: todayIso, activity_date: todayIso }));
+  const calendarHtml = instructorCalendarScreen.render({ rows: calendarRows, teamGroups, uploads: [] }, { state });
+  assert.match(calendarHtml, /2 פעילויות/);
+  assert.doesNotMatch(calendarHtml, /6 פעילויות/);
+});
 
 test('completion approvals load requests rows with closed activities included', async () => {
   const calls = [];
@@ -117,7 +147,7 @@ test('signed URL storage failure does not override approved status on instructor
   const missingStorageUpload = {
     activity_row_id: 'r1',
     instructor_emp_id: '1525',
-    activity_date: '2026-06-21',
+    activity_date: '2026-07-21',
     authority: 'קריית שמונה',
     school: 'מגנים',
     status: 'approved',
@@ -151,7 +181,7 @@ test('completion upload matching prefers activity_row_id and never mixes same-da
   const uploadForB = {
     activity_row_id: 'r2',
     instructor_emp_id: '1525',
-    activity_date: '2026-06-21',
+    activity_date: '2026-07-21',
     authority: 'קריית שמונה',
     school: 'מגנים',
     status: 'uploaded',
@@ -164,7 +194,7 @@ test('completion upload matching prefers activity_row_id and never mixes same-da
 
 test('completion upload matching falls back to date+authority+school only for legacy uploads without activity_row_id', () => {
   const legacyUpload = {
-    activity_date: '2026-06-21',
+    activity_date: '2026-07-21',
     authority: 'קריית שמונה',
     school: 'מגנים',
     status: 'uploaded',
@@ -176,7 +206,7 @@ test('completion upload matching falls back to date+authority+school only for le
 test('completion approvals keeps closed summer workshop printable and shows existing upload', () => {
   const closedRow = { ...row, status: 'סגור' };
   const upload = {
-    activity_date: '2026-06-21',
+    activity_date: '2026-07-21',
     authority: 'קריית שמונה',
     school: 'מגנים',
     status: 'uploaded',
@@ -210,7 +240,7 @@ test('completion approvals page keeps upload controls compact with pick and plus
 
 test('completion approvals shows and opens view button for existing instructor upload', async () => {
   const upload = {
-    activity_date: '2026-06-21',
+    activity_date: '2026-07-21',
     authority: 'קריית שמונה',
     school: 'מגנים',
     status: 'uploaded',
@@ -257,7 +287,7 @@ test('completion approvals shows and opens view button for existing instructor u
 
 test('completion approvals hides view button without file path and keeps rejected upload controls', () => {
   const uploadWithoutPath = {
-    activity_date: '2026-06-21',
+    activity_date: '2026-07-21',
     authority: 'קריית שמונה',
     school: 'מגנים',
     status: 'uploaded',
@@ -282,7 +312,7 @@ test('activity detail print resolves the full instructor approval group instead 
   const approval = resolveInstructorApprovalForRow(first, [first, second, otherSchool], 'אייל יוחאי');
 
   assert.equal(approval?.instructorName, 'אייל יוחאי');
-  assert.equal(approval?.date, '2026-06-21');
+  assert.equal(approval?.date, '2026-07-21');
   assert.equal(approval?.school, 'מגנים');
   assert.deepEqual(approval.activities.map((activity) => activity.name), ['פעילות בוקר', 'פעילות המשך']);
 });
@@ -338,7 +368,7 @@ test('my activities uses status-first columns and detail-only actions', () => {
 test('activity detail shows compact solo message when current instructor is assigned alone', () => {
   const soloRow = { ...row, emp_id_2: '', instructor_name_2: '' };
   const soloGroups = [{
-    activity_date: '2026-06-21',
+    activity_date: '2026-07-21',
     school: 'מגנים',
     responsibleEmpId: '1525',
     responsibleName: 'אייל יוחאי',
@@ -354,7 +384,7 @@ test('activity detail shows compact solo message when current instructor is assi
 
 test('activity detail lists only additional instructors with available contact details', () => {
   const detailedGroups = [{
-    activity_date: '2026-06-21',
+    activity_date: '2026-07-21',
     school: 'מגנים',
     responsibleEmpId: '1525',
     responsibleName: 'אייל יוחאי',
@@ -499,7 +529,7 @@ test('calendar renders mobile day list alongside desktop grid', () => {
   assert.match(html, /instr-calendar-desktop/);
   assert.match(html, /instr-calendar-mobile/);
   assert.match(html, /instr-cal-mobile-list/);
-  assert.match(html, /data-calendar-day="2026-06-21"/);
+  assert.match(html, /data-calendar-day="2026-07-21"/);
 });
 
 test('my activities includes mobile card list alongside desktop table', () => {
