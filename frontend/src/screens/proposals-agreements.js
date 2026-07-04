@@ -3670,22 +3670,27 @@ function drawerHtml(row, activityNameOptions = [], state = null) {
     if (!display && !options.showEmpty) return '';
     return `<div class="ds-pa-info-cell${wide ? ' ds-pa-info-cell--wide' : ''}"><span class="ds-pa-info-label">${escapeHtml(label)}</span><span class="ds-pa-info-value">${escapeHtml(display || 'לא הוזן')}</span></div>`;
   };
-  const activityNames = (Array.isArray(row.activity_names) ? row.activity_names : []).map(text).filter(Boolean);
-  const activitiesCard = activityNames.length
-    ? `<div class="ds-pa-activity-tags">${activityNames.map((n) => `<span class="ds-pa-activity-tag">${escapeHtml(n)}</span>`).join('')}</div>` : '';
+  const metaSep = '<span class="ds-pa-drawer-meta-sep" aria-hidden="true">|</span>';
+  const drawerMetaLine = [
+    `<span class="ds-pa-drawer-meta-item">${escapeHtml(authorityName)}</span>`,
+    `<span class="ds-pa-drawer-meta-item">${escapeHtml(proposalDate)}</span>`,
+    `<span class="ds-pa-drawer-meta-item">${escapeHtml(proposalDomain)}</span>`,
+    `<span class="ds-pa-drawer-meta-item ds-pa-drawer-meta-item--status"><span class="ds-pa-drawer-status-text">${escapeHtml(statusText)}</span></span>`
+  ].join(metaSep);
 
-  const sendingCard = `<div class="ds-pa-info-card ds-pa-info-card--sending">
-    <h4 class="ds-pa-card-title">פרטי שליחה</h4>
+  const hasSendingInfo = Boolean(text(row.sent_by) || text(row.sent_at));
+  const sendingCard = hasSendingInfo
+    ? `<div class="ds-pa-info-card ds-pa-info-card--sending ds-pa-info-card--flat">
     <div class="ds-pa-info-grid">
-      ${infoCell('נשלח על ידי', text(row.sent_by), false, { emptyText: 'לא נשלח', showEmpty: true })}
-      ${infoCell('תאריך שליחה', text(row.sent_at) ? formatDateDisplay(row.sent_at) : 'לא נשלח', false, { showEmpty: true })}
+      ${infoCell('נשלח על ידי', text(row.sent_by), false, { showEmpty: true })}
+      ${infoCell('תאריך שליחה', text(row.sent_at) ? formatDateDisplay(row.sent_at) : '', false, { showEmpty: true })}
     </div>
-  </div>`;
+  </div>`
+    : '';
 
   const sourceId = text(row.contact_school_id || row.contact_source_id);
   const contactCanUpdate = Boolean(sourceId);
   const contactCard = `<form class="ds-pa-info-card ds-pa-contact-update-card" data-pa-drawer-contact-form data-pa-contact-source-id="${escapeHtml(sourceId)}" data-pa-contact-source-table="contacts_schools">
-    <h4 class="ds-pa-card-title">פרטי איש קשר</h4>
     <div class="ds-pa-info-grid ds-pa-contact-view-grid">
       ${infoCell('איש קשר', text(row.contact_name), false, { showEmpty: true })}
       ${infoCell('תפקיד', text(row.contact_role), false, { showEmpty: true })}
@@ -3704,14 +3709,7 @@ function drawerHtml(row, activityNameOptions = [], state = null) {
     </details>` : `<p class="ds-muted" style="font-size:.78rem;margin:8px 0 0">לא נמצא מזהה איש קשר קיים לעדכון.</p>`}
   </form>`;
 
-  const proposalDetailsCard = `<div class="ds-pa-info-card ds-pa-info-card--proposal-details">
-    <h4 class="ds-pa-card-title">פרטי ההצעה</h4>
-    <div class="ds-pa-info-grid">
-      ${infoCell('סוג הצעה', proposalGroupDisplayName(row.activity_type_group), true, { showEmpty: true })}
-    </div>
-    ${activitiesCard}
-    <div data-pa-drawer-items><span class="ds-muted" style="font-size:0.8rem">טוען שורות הצעה...</span></div>
-  </div>`;
+  const itemsHost = `<div class="ds-pa-drawer-items-host" data-pa-drawer-items><span class="ds-muted" style="font-size:0.8rem">טוען שורות הצעה...</span></div>`;
 
   const financialCard = `<div class="ds-pa-info-card ds-pa-info-card--financial-summary">
     <h4 class="ds-pa-card-title">סה״כ לתשלום</h4>
@@ -3728,11 +3726,10 @@ function drawerHtml(row, activityNameOptions = [], state = null) {
 
   return `<aside class="ds-pa-drawer" data-pa-drawer data-pa-drawer-id="${escapeHtml(row.id)}" aria-live="polite" dir="rtl">
     <div class="ds-pa-drawer-panel">
-      <header class="ds-pa-drawer-head ds-pa-drawer-head--compact">
+      <header class="ds-pa-drawer-head ds-pa-drawer-head--hero">
         <div class="ds-pa-drawer-head-info">
-          <h3 class="ds-pa-drawer-name">${escapeHtml(schoolName)} | ${escapeHtml(authorityName)}</h3>
-          <p class="ds-pa-drawer-summary">${escapeHtml(proposalDate)} | ${escapeHtml(proposalDomain)}</p>
-          <p class="ds-pa-drawer-status-text">${escapeHtml(statusText)}</p>
+          <h3 class="ds-pa-drawer-name ds-pa-drawer-name--hero">${escapeHtml(schoolName)}</h3>
+          <p class="ds-pa-drawer-meta-line">${drawerMetaLine}</p>
         </div>
         <button type="button" class="ds-btn ds-btn--xs ds-btn--ghost" data-pa-close-drawer aria-label="סגירת פרטי רשומה" style="flex-shrink:0;font-size:1rem;padding:2px 8px">✕</button>
       </header>
@@ -3743,7 +3740,7 @@ function drawerHtml(row, activityNameOptions = [], state = null) {
       <div class="ds-pa-drawer-body">
         ${sendingCard}
         ${contactCard}
-        ${proposalDetailsCard}
+        ${itemsHost}
         ${notesCard}
         ${financialCard}
       </div>
