@@ -6,7 +6,7 @@ import { cleanActivityManagerName, getContactsInstructorUsers, getRosterUsers, N
 import { EXCEPTION_TYPE_ORDER, normalizedExceptionTypes } from './screens/shared/exceptions-metrics.js';
 import { isSummerActivity, normalizeActivitySeason } from './screens/shared/summer-activity.js';
 import { resolveActiveUserRowAfterAuth } from './auth-user-resolve.js';
-import { supabase, supabaseConfig, waitForSupabaseAuthSession } from './supabase-client.js';
+import { supabase, supabaseConfig, waitForSupabaseAuthSession, resetSupabaseAuthSessionWait } from './supabase-client.js';
 import { isEmptyValue, nonEmptyString } from './utils/empty-value.js';
 import { permissionFlagYes, canEditDirect, canAddActivityDirect, canRequestEdit, canRequestCreateActivity, canReviewRequests } from './permissions.js';
 
@@ -3814,24 +3814,37 @@ function profileCanAccessPersonalReports(profileRow) {
   return personalReportsProfileFlagYes(profileRow.can_access_personal_reports);
 }
 
-async function readPersonalReportsProfile(authUserId) {
+async function readPersonalReportsProfile(authUserId, options = {}) {
   const id = String(authUserId || '').trim();
   if (!supabase || !id) return null;
-  const session = await waitForSupabaseAuthSession();
+  const retryDelayMs = Number.isFinite(options.retryDelayMs) ? options.retryDelayMs : 250;
+  const session = await waitForSupabaseAuthSession({ timeoutMs: options.timeoutMs || 6000 });
   if (!session?.user?.id) {
     try { console.warn('[personal-reports-profile] skipped: no supabase auth session'); } catch { /* ignore */ }
     return null;
   }
-  const { data, error } = await supabase
-    .from('profiles')
-    .select(PROFILE_PERSONAL_REPORTS_COLUMNS)
-    .eq('id', id)
-    .maybeSingle();
-  if (error) {
-    try { console.warn('[personal-reports-profile]', error.message); } catch { /* ignore */ }
-    return null;
-  }
-  return data;
+
+  const readProfileById = async () => {
+    const { data, error } = await supabase
+      .from('profiles')
+      .select(PROFILE_PERSONAL_REPORTS_COLUMNS)
+      .eq('id', id)
+      .maybeSingle();
+    if (error) {
+      try { console.warn('[personal-reports-profile]', error.message); } catch { /* ignore */ }
+      return null;
+    }
+    return data || null;
+  };
+
+  const firstRow = await readProfileById();
+  if (firstRow || options.retryIfMissing === false) return firstRow;
+
+  // Supabase Auth session restoration can lag immediately after sign-in.
+  // Retry once before treating a missing profile as genuinely absent, so a
+  // transient empty RLS result does not persist can_access_personal_reports=false.
+  await new Promise((resolve) => setTimeout(resolve, retryDelayMs));
+  return readProfileById();
 }
 
 async function readPersonalReportsProfilesByAuthIds(authUserIds = []) {
@@ -4141,6 +4154,12 @@ async function loginWithSupabaseAuth(username, password) {
     throwLoginError('invalid_credentials', { login: submittedUsername, message: String(authError?.message || '') });
   }
 
+  resetSupabaseAuthSessionWait();
+  const postSignInSession = await waitForSupabaseAuthSession({ timeoutMs: 6000 });
+  if (!postSignInSession?.user?.id) {
+    resetSupabaseAuthSessionWait();
+  }
+
   const authUserId = String(authData.user.id || '').trim();
   const rowAuthUserId = String(loginUser.auth_user_id || '').trim();
   if (!authUserId || !rowAuthUserId || authUserId !== rowAuthUserId) {
@@ -4188,7 +4207,9 @@ async function loginWithSupabaseAuth(username, password) {
 
   userRow.auth_user_id = authUserId;
   assertValidLoginUserRow(userRow);
-  const profileRow = await readPersonalReportsProfile(authUserId);
+  resetSupabaseAuthSessionWait();
+  await waitForSupabaseAuthSession({ timeoutMs: 6000 });
+  const profileRow = await readPersonalReportsProfile(authUserId, { retryIfMissing: true, retryDelayMs: 300 });
   return { userRow, profileRow };
 }
 
@@ -4221,7 +4242,9 @@ async function readCurrentUserBySession() {
   });
   if (!userRow) throw new Error('unauthorized');
   userRow.auth_user_id = String(userRow.auth_user_id || authUserId || '').trim();
-  const profileRow = await readPersonalReportsProfile(authUserId);
+  resetSupabaseAuthSessionWait();
+  await waitForSupabaseAuthSession({ timeoutMs: 6000 });
+  const profileRow = await readPersonalReportsProfile(authUserId, { retryIfMissing: true, retryDelayMs: 300 });
   return { userRow, profileRow };
 }
 
