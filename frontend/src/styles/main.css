@@ -20674,3 +20674,33 @@ details[open] > .ds-fin-acc__summary::before { transform: rotate(90deg); }
     max-height: 108px !important;
   }
 }
+
+/* Focused proposal editor layout updates (2026-07-04). */
+.ds-pa-recipient-type { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 6px; }
+.ds-pa-school-step-text { display: grid; grid-template-columns: minmax(0, 1fr) auto; align-items: center; gap: 8px; }
+.ds-pa-two-col-grid { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 8px; }
+.ds-pa-form-actions-main { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 8px; align-items: center; }
+.ds-pa-form-actions-main .ds-btn { width: 100%; min-height: 32px; padding-block: 5px; }
+.ds-pa-other-client-section { border: 1px solid #dbe7f3; border-radius: 12px; padding: 8px; background: #f8fbff; }
+.ds-pa-other-client-section h5 { margin: 0 0 6px; font-size: .86rem; color: #0f172a; }
+.ds-pa-item-grid--extras { grid-template-columns: repeat(3, minmax(0, 1fr)); }
+.ds-pa-item-grid--extras .ds-pa-item-field--name,
+.ds-pa-item-grid--extras .ds-pa-line-total { grid-column: auto; }
+.ds-pa-item-remove--quick { min-width: 30px; padding-inline: 6px; }
+.ds-pa-tour-component-row { display: grid; grid-template-columns: minmax(120px, 1fr) minmax(110px, 1fr) minmax(90px, .8fr) minmax(90px, .8fr) 34px; gap: 8px; align-items: end; }
+.ds-pa-tour-component-delete-cell .ds-btn { min-width: 30px; width: 30px; height: 30px; padding: 0; font-size: 0; }
+.ds-pa-tour-component-delete-cell .ds-btn::before { content: '🗑'; font-size: 14px; line-height: 1; }
+.proposal-document .pa-signature-rule { display: block !important; width: 100% !important; border-top: 1px solid #555 !important; margin: 0 !important; height: 0 !important; }
+.proposal-document .pa-footer-signature,
+.proposal-document .pa-page-footer { break-inside: avoid !important; page-break-inside: avoid !important; }
+.proposal-document .pa-page-footer { margin-top: 4px !important; padding: 4px 0 5px !important; }
+@media print {
+  .ds-pa-form-actions-main { grid-template-columns: repeat(3, minmax(0, 1fr)); }
+  .proposal-document .pa-signature-rule { display: block !important; border-top: 1px solid #555 !important; }
+  .proposal-document .pa-footer-signature,
+  .proposal-document .pa-page-footer { break-inside: avoid !important; page-break-inside: avoid !important; }
+  .proposal-document .pa-page-footer { margin-top: 3px !important; padding: 3px 0 4px !important; position: static !important; }
+}
+@media (max-width: 700px) {
+  .ds-pa-recipient-type, .ds-pa-two-col-grid, .ds-pa-form-actions-main, .ds-pa-item-grid--extras, .ds-pa-tour-component-row { grid-template-columns: 1fr; }
+}

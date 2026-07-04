@@ -176,7 +176,7 @@ const COMBINED_TEMPLATE_GROUP_KEYS = Object.freeze(['summer', 'next_year']);
 
 const PROPOSAL_GROUP_DISPLAY_FALLBACKS = Object.freeze({
   summer: 'פעילויות קיץ',
-  next_year: 'שנה הבאה',
+  next_year: 'תשפ״ז',
   combined: 'הצעה משולבת',
   tour: 'סיור'
 });
@@ -186,6 +186,7 @@ const PROPOSAL_GROUP_LEGACY_ALIASES = Object.freeze({
   'שנת הלימודים תשפ״ז': 'next_year',
   'תוכניות תשפ״ז': 'next_year',
   'שנה הבאה': 'next_year',
+  'תשפ״ז': 'next_year',
   'הצעה משולבת': 'combined',
   'סיור': 'tour',
   'קיץ תשפ״ו ושנת הלימודים תשפ״ז': 'combined',
@@ -1115,6 +1116,7 @@ function inferProposalClientType(row = {}) {
   if (text(row.school_id)) return 'school';
   if (text(row.authority_id) && !text(row.school_id)) return 'authority';
   if (text(row.client_type) === 'other') return 'other';
+  if (text(row.client_name) && !text(row.authority_id) && !text(row.school_id) && !text(row.client_authority)) return 'other';
   if (!text(row.authority_id) && !text(row.school_id) && !text(row.client_authority) && text(row.school_framework)) return 'other';
   return 'school';
 }
@@ -1207,8 +1209,9 @@ function contactPickerHtml(contactOptions, authority, school, selectedContactNam
       const val = contactOptionKey(c);
       const contactName = text(c.contact_name);
       const label = c.contact_role ? `${contactName} (${text(c.contact_role)})` : contactName;
+      // Do not preselect a contact automatically when a school/authority is chosen.
       const contactPayload = encodeURIComponent(JSON.stringify(c));
-      return `<option value="${escapeHtml(val)}" data-pa-contact-option="${escapeHtml(contactPayload)}"${contactName === selectedName || val === selectedName ? ' selected' : ''}>${escapeHtml(label)}</option>`;
+      return `<option value="${escapeHtml(val)}" data-pa-contact-option="${escapeHtml(contactPayload)}"${selectedName && (contactName === selectedName || val === selectedName) ? ' selected' : ''}>${escapeHtml(label)}</option>`;
     }),
     '<option value="__pa_other_contact__">אחר</option>'
   ].join('');
@@ -2452,7 +2455,7 @@ function proposalRecipientLines(row = {}) {
   }
 
   if (clientType === 'other') {
-    return [];
+    return [safeVal(row.client_name) || schoolName].filter(Boolean);
   }
 
   return [];
@@ -2695,7 +2698,7 @@ function buildProposalDocumentHtml({ dateDisplay, documentTitle, row, introText,
   const isSummerDocument = isSummerProposalGroup(row?.activity_type_group);
   const documentModifierClass = `${isNextYear ? ' pa-document--next-year' : ''}${isSummerDocument ? ' pa-document--summer' : ''}`;
   return `
-    <div class="proposal-document pa-document pa-a4-page${documentModifierClass}" data-build="20260703c" dir="rtl" style="position:relative;box-sizing:border-box;">
+    <div class="proposal-document pa-document pa-a4-page${documentModifierClass}" data-build="20260704a" dir="rtl" style="position:relative;box-sizing:border-box;">
       <style>
         .pa-org-intro {
           padding-inline: 4mm !important;
@@ -2703,7 +2706,8 @@ function buildProposalDocumentHtml({ dateDisplay, documentTitle, row, introText,
         }
 
         .pa-tour-cost-table {
-          width: 370px;
+          width: 50%;
+          min-width: 300px;
           max-width: 100%;
           margin-inline: auto;
           table-layout: fixed;
@@ -2739,7 +2743,8 @@ function buildProposalDocumentHtml({ dateDisplay, documentTitle, row, introText,
             box-sizing: border-box !important;
           }
           .pa-tour-cost-table {
-            width: 370px !important;
+            width: 50% !important;
+            min-width: 300px !important;
             max-width: 100% !important;
             margin-inline: auto !important;
             table-layout: fixed !important;
@@ -3154,7 +3159,7 @@ function emptyContactSourceForRecipientType(nextClientType, otherName = '') {
     return {
       id: null, authority_id: null, school_id: null, semel_mosad: null,
       school_required: 'no', client_type: 'other',
-      client_name: '', authority: '', school: '',
+      client_name: otherName, authority: '', school: '',
       contact_name: '', contact_role: '', phone: '', mobile: '', email: '', source_table: ''
     };
   }
@@ -3239,7 +3244,7 @@ function resetRecipientDependentFields(form, nextClientType) {
   if (schoolSearchInput) schoolSearchInput.value = '';
 
   const otherField = form.querySelector('[data-pa-other-client-field]');
-  if (otherField) otherField.hidden = true;
+  if (otherField) otherField.hidden = type !== 'other';
 
   const contactPanel = form.querySelector('[data-pa-step-panel="contact"]');
   if (contactPanel) contactPanel.hidden = type !== 'other';
@@ -3313,12 +3318,12 @@ export function proposalTypeCardsHtml(selected) {
   const normalizedSelected = normalizeProposalGroup(selected);
   const options = proposalGroupLookups.groups.filter(o => o.group_key !== 'combined');
   if (!options.length) {
-    return `<div class="ds-pa-type-chips" data-pa-type-cards style="display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:4px;margin:0"></div><input type="hidden" name="activity_type_group" value="${escapeHtml(normalizedSelected)}" data-pa-type-hidden>`;
+    return `<div class="ds-pa-type-chips" data-pa-type-cards style="display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:4px;margin:0"></div><input type="hidden" name="activity_type_group" value="${escapeHtml(normalizedSelected)}" data-pa-type-hidden>`;
   }
-  return `<div class="ds-pa-type-chips" data-pa-type-cards style="display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:4px;margin:0">
+  return `<div class="ds-pa-type-chips" data-pa-type-cards style="display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:4px;margin:0">
     ${options.map((opt) => {
       const isSel = normalizedSelected === opt.group_key;
-      return `<button type="button" class="ds-pa-type-card${isSel ? ' is-selected' : ''}" data-pa-type-btn="${escapeHtml(opt.group_key)}" style="width:100%;min-height:auto;padding:4px 6px;border-radius:12px;border:1.5px solid ${isSel ? '#6366f1' : '#d1d5db'};background:${isSel ? '#eef2ff' : '#f9fafb'};color:${isSel ? '#4f46e5' : '#374151'};font-weight:${isSel ? '600' : '400'};font-size:0.8rem;cursor:pointer;text-align:center;line-height:1.2;transition:all .15s">${escapeHtml(opt.display_name)}</button>`;
+      return `<button type="button" class="ds-pa-type-card${isSel ? ' is-selected' : ''}" data-pa-type-btn="${escapeHtml(opt.group_key)}" style="width:100%;min-height:auto;padding:4px 6px;border-radius:12px;border:1.5px solid ${isSel ? '#6366f1' : '#d1d5db'};background:${isSel ? '#eef2ff' : '#f9fafb'};color:${isSel ? '#4f46e5' : '#374151'};font-weight:${isSel ? '600' : '400'};font-size:0.8rem;cursor:pointer;text-align:center;line-height:1.2;transition:all .15s">${escapeHtml(opt.group_key === 'summer' ? 'קיץ' : opt.group_key === 'next_year' ? 'תשפ״ז' : opt.display_name)}</button>`;
     }).join('')}
   </div><input type="hidden" name="activity_type_group" value="${escapeHtml(normalizedSelected)}" data-pa-type-hidden>`;
 }
@@ -3475,7 +3480,7 @@ function formHtml(mode, row = {}, activityNameOptions = [], contactOptions = [],
           ${clientTypeSelectorHtml(initClientType)}
           ${contactOptionsLoadErrorHtml(contactOptionsError)}
           ${clientSearchHtml(contactOptions, row)}
-          <label class="ds-pa-form-field ds-pa-other-client-field" data-pa-other-client-field${initOther ? '' : ' hidden'}><span>שם הגורם / הלקוח</span><input class="ds-input ds-input--sm" name="other_client_name" value="${escapeHtml(initOther ? initSchool : '')}" placeholder="שם הגורם / הלקוח"></label>
+          <div class="ds-pa-other-client-section" data-pa-other-client-field${initOther ? '' : ' hidden'}><h5>פרטי הלקוח</h5><label class="ds-pa-form-field ds-pa-other-client-field"><span>שם הלקוח</span><input class="ds-input ds-input--sm" name="other_client_name" value="${escapeHtml(initOther ? (row.client_name || initSchool) : '')}" placeholder="שם הלקוח"></label></div>
         </div>
         <div data-pa-client-card${isLocked ? '' : ' hidden'}>${isLocked ? clientLockedBannerHtml(initAuth, initSchool, initContact, initRole, initPhone, initEmail, initClientName, initSchoolMeta) : ''}</div>
         <div class="ds-pa-client-hidden-values" data-pa-client-fields hidden>
@@ -3516,7 +3521,7 @@ function formHtml(mode, row = {}, activityNameOptions = [], contactOptions = [],
         <div class="ds-pa-form-field">
           ${proposalTypeCardsHtml(normalizedActivityGroup)}
         </div>
-        <div class="ds-pa-type-meta-aux">
+        <div class="ds-pa-type-meta-aux ds-pa-two-col-grid">
           <label class="ds-pa-form-field"><span>${escapeHtml(FIELD_LABELS.proposal_date)}</span><input class="ds-input ds-input--sm" type="date" name="proposal_date" value="${escapeHtml(proposalDate)}"></label><label class="ds-pa-form-field"><span>${escapeHtml(FIELD_LABELS.proposal_domain)}: Y / E</span><select class="ds-input ds-input--sm" name="proposal_domain">${optionHtml('Y', row.proposal_domain || 'Y', 'Y')}${optionHtml('E', row.proposal_domain || 'Y', 'E')}</select></label>
           <input type="hidden" name="document_type" value="${escapeHtml(text(row.document_type) || 'הצעת מחיר')}">
         </div>
@@ -3850,10 +3855,11 @@ function payloadFromForm(form) {
   const selectedClientType = text(formData.get('client_type_selector')) || text(formData.get('contact_source_client_type')) || (text(formData.get('contact_source_school_id')) ? 'school' : 'authority');
   payload.client_type = ['school', 'authority', 'other'].includes(selectedClientType) ? selectedClientType : 'school';
   if (payload.client_type === 'other') {
-    payload.school_framework = '';
+    const otherClientName = text(formData.get('other_client_name'));
+    payload.school_framework = otherClientName;
     payload.client_authority = '';
-    payload.client_name = '';
-    payload.other_client_name = '';
+    payload.client_name = otherClientName;
+    payload.other_client_name = otherClientName;
     payload.authority_id = null;
     payload.school_id = null;
     payload.contact_school_id = null;
@@ -3910,9 +3916,12 @@ function validatePayload(payload, statusOverride, options = {}) {
   const isOtherProposal = clientType === 'other';
   const isAuthorityOnlyProposal = clientType === 'authority';
   const baseRequiredFields = requiresCompleteProposal ? REQUIRED_FIELDS_PENDING : REQUIRED_FIELDS_DRAFT;
-  const requiredFields = baseRequiredFields.filter((key) => !(isOtherProposal && ['client_authority', 'school_framework', 'other_client_name'].includes(key)));
+  const requiredFields = baseRequiredFields.filter((key) => !(isOtherProposal && ['client_authority'].includes(key)));
   const missing = requiredFields.filter((key) => !text(payload[key]));
   const errors = missing.map((key) => FIELD_LABELS[key] || key);
+  if (isOtherProposal && !text(payload.client_name || payload.school_framework)) {
+    errors.push('שם הלקוח');
+  }
   if (!isOtherProposal) {
     if (!text(payload.authority_id)) {
       errors.push('יש לבחור רשות מתוך רשימת הרשויות.');
@@ -4960,7 +4969,7 @@ export const proposalsAgreementsScreen = {
         if (searchRow) searchRow.hidden = false;
         if (searchFieldWrap) searchFieldWrap.hidden = true;
         if (schoolSearchPanel) schoolSearchPanel.hidden = true;
-        if (otherField) otherField.hidden = true;
+        if (otherField) otherField.hidden = false;
         if (contactPanel) contactPanel.hidden = false;
         manualFields.forEach((el) => { el.hidden = false; });
         if (roCtx) roCtx.hidden = true;
@@ -5013,7 +5022,7 @@ export const proposalsAgreementsScreen = {
         const schoolInput = form.querySelector('input[name="school_framework"]');
         if (authInput) authInput.value = '';
         if (schoolInput) schoolInput.value = '';
-        setContactSourceFields(form, emptyContactSourceForRecipientType('other'));
+        setContactSourceFields(form, emptyContactSourceForRecipientType('other', text(form.querySelector('[name="other_client_name"]')?.value)));
         calcGrandTotal(form);
         updateLivePreview(form);
       }, { signal });
