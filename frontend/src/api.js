@@ -2339,7 +2339,10 @@ function normalizeApprovalText(value) {
 function approvalUploadMatchesActivity(upload = {}, row = {}) {
   const rowId = String(row?.RowID || row?.row_id || row?.id || '').trim();
   const uploadRowIds = String(upload?.activity_row_id || upload?.activity_id || '').split(',').map((value) => value.trim()).filter(Boolean);
-  if (rowId && uploadRowIds.includes(rowId)) return true;
+  // An upload that carries row ids is scoped to those specific activities: never fall
+  // through to the looser date+school match below, or two activities on the same
+  // day/school (with different row ids) could get mixed up.
+  if (uploadRowIds.length) return !!rowId && uploadRowIds.includes(rowId);
 
   const rowDate = firstNormalizedDate(row?.start_date, row?.activity_date, row?.date, row?.date_1, row?.Date1);
   const uploadDate = firstNormalizedDate(upload?.activity_date, upload?.date);

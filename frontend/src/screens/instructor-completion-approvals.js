@@ -6,6 +6,11 @@ import {
   buildCompletionApprovals,
   openApprovalPrintWindow
 } from './shared/activity-completion-approval-print.js';
+import {
+  completionApprovalStatusInfo,
+  completionApprovalUploadStorageExists,
+  findMatchingCompletionApprovalUpload
+} from './shared/completion-approval-status.js';
 
 let approvalsByKey = new Map();
 let pendingUploadTargetKey = '';
@@ -70,24 +75,23 @@ function readPendingUploadTargetKey() {
 function approvalStableKey(approval) {
   return [approval?.instructorName, approval?.date, approval?.authority, approval?.school].map((part) => norm(part)).join('|');
 }
-function uploadsByApproval(uploads = []) {
-  const map = new Map();
-  (Array.isArray(uploads) ? uploads : []).forEach((upload) => {
-    const key = `${text(upload?.activity_date)}|${norm(upload?.authority)}|${norm(upload?.school)}`;
-    if (!map.has(key)) map.set(key, upload);
+// Row-id first: an approval's own activities carry the real activity row ids,
+// so matching prefers those (plus instructorEmpId) over date+authority+school —
+// the latter is only used as a fallback for legacy uploads without a row id.
+function findUploadForApproval(approval, uploads = []) {
+  const rowIds = (Array.isArray(approval?.activities) ? approval.activities : [])
+    .map((activity) => activity?.rowId || activity?.row_id || activity?.RowID)
+    .filter(Boolean);
+  return findMatchingCompletionApprovalUpload(uploads, {
+    rowIds,
+    instructorEmpId: approval?.instructorEmpId,
+    date: approval?.date,
+    authority: approval?.authority,
+    school: approval?.school
   });
-  return map;
-}
-function uploadStorageExists(upload) {
-  return !!upload?.file_path && upload.storage_exists !== false && text(upload?.storage_status) !== 'missing';
 }
 function statusInfo(upload) {
-  const status = text(upload?.status);
-  if (upload?.file_path && !uploadStorageExists(upload)) return { key: 'missing', label: 'הקובץ חסר באחסון' };
-  if (status === 'approved') return { key: 'approved', label: 'אושר' };
-  if (status === 'rejected') return { key: 'rejected', label: 'נדחה' };
-  if (status === 'uploaded' || uploadStorageExists(upload)) return { key: 'uploaded', label: 'הועלה לבדיקה' };
-  return { key: 'missing', label: 'טרם הועלה' };
+  return completionApprovalStatusInfo(upload);
 }
 function truncateFileName(name, max = 20) {
   const raw = String(name || '').trim();
@@ -99,7 +103,7 @@ function truncateFileName(name, max = 20) {
 function uploadControlsHtml(approval, upload, safeKey) {
   const st = statusInfo(upload).key;
   const hasExistingFile = !!(upload?.file_path || upload?.file_name);
-  const storageExists = uploadStorageExists(upload);
+  const storageExists = completionApprovalUploadStorageExists(upload);
   const uploadId = escapeHtml(upload?.id || '');
 
   const fileInput = `<input class="instr-file-input-hidden" type="file" accept=".pdf,.jpg,.jpeg,.png,application/pdf,image/jpeg,image/png" data-pick-input="${safeKey}" data-upload-id="${uploadId}">`;
@@ -154,20 +158,20 @@ export const instructorCompletionApprovalsScreen = {
     const rows = allAssignedRows.filter(isSummerCompletionApprovalRow);
     const instructorName = instructorNameForRows(allAssignedRows, ids, currentInstructorName(state));
     const approvals = buildCompletionApprovals(rows, { instructor: instructorName, dateMode: 'range', dateFrom: COMPLETION_APPROVAL_SUMMER_FROM, dateTo: COMPLETION_APPROVAL_SUMMER_TO });
-    const uploadMap = uploadsByApproval(data?.uploads || []);
+    const uploads = data?.uploads || [];
     pendingUploadTargetKey = readPendingUploadTargetKey();
 
     approvalsByKey = new Map(approvals.map((approval) => [approvalStableKey(approval), approval]));
 
     const statusCounts = { missing: 0, uploaded: 0, approved: 0, rejected: 0 };
     approvals.forEach((approval) => {
-      const st = statusInfo(uploadMap.get(uploadKey(approval))).key;
+      const st = statusInfo(findUploadForApproval(approval, uploads)).key;
       statusCounts[st] = (statusCounts[st] || 0) + 1;
     });
 
     const actCountLabel = (n) => n === 1 ? 'פעילות אחת' : `${n} פעילויות`;
     const mappedApprovals = approvals.map((approval) => {
-      const upload = uploadMap.get(uploadKey(approval));
+      const upload = findUploadForApproval(approval, uploads);
       const acts = approval.activities || [];
       const safeKey = escapeHtml(approvalStableKey(approval));
       const uploadCell = uploadControlsHtml(approval, upload, safeKey);

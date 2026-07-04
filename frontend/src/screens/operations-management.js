@@ -47,8 +47,7 @@ import {
   getActivityActualParticipantCount,
   getActivityOperationalQuantity,
   getActivityRequiredInventoryQuantity,
-  sumRequiredInventoryQuantitiesFromActivities,
-  isTamirCompletionApprovalActivity
+  sumRequiredInventoryQuantitiesFromActivities
 } from './shared/operations-activity-helpers.js';
 import {
   approvalFileTitle,
@@ -58,6 +57,10 @@ import {
   completionApprovalPrintCss,
   completionApprovalsPrintHtml
 } from './shared/activity-completion-approval-print.js';
+import {
+  completionApprovalStatusInfo,
+  findMatchingCompletionApprovalUpload
+} from './shared/completion-approval-status.js';
 
 const SCOPE = 'operations-management';
 const TAB_INSTRUCTORS = 'instructors';
@@ -2141,63 +2144,38 @@ function dedupeCompletionApprovals(approvals = []) {
   return result;
 }
 
-function completionApprovalUploadKey(approval) {
-  const normalize = (value) => String(value || '').trim().replace(/[״"]/g, '').replace(/[׳']/g, '').replace(/\s+/g, ' ').toLowerCase();
-  if (approval?.isTamirTeamApproval) {
-    return `tamir|${String(approval?.date || '').trim()}|${normalize(approval?.authority)}|${normalize(approval?.school)}`;
-  }
-  return `${String(approval?.date || '').trim()}|${normalize(approval?.authority)}|${normalize(approval?.school)}|${normalize(approval?.instructorName)}`;
-}
-function completionApprovalUploadMap(rows = []) {
-  const normalize = (value) => String(value || '').trim().replace(/[״"]/g, '').replace(/[׳']/g, '').replace(/\s+/g, ' ').toLowerCase();
-  const map = new Map();
-  (Array.isArray(rows) ? rows : []).forEach((row) => {
-    const key = `${String(row?.activity_date || '').trim()}|${normalize(row?.authority)}|${normalize(row?.school)}|${normalize(row?.instructor_name)}`;
-    if (!map.has(key)) map.set(key, row);
-    // Tamir activities require two instructors but the upload is tracked per-activity, not per-uploader;
-    // whoever uploads (as recorded on authority/school) satisfies the shared team approval.
-    if (isTamirCompletionApprovalActivity(row)) {
-      const tamirKey = `tamir|${String(row?.activity_date || '').trim()}|${normalize(row?.authority)}|${normalize(row?.school)}`;
-      if (!map.has(tamirKey)) map.set(tamirKey, row);
-    }
-    // Also index by covered activity row ids so legacy uploads (recorded under a single instructor
-    // before this fix) can still be matched to the Tamir team approval that covers the same activity.
-    String(row?.activity_row_id || '').split(',').map((value) => value.trim()).filter(Boolean).forEach((rowId) => {
-      const rowIdKey = `tamir-row:${rowId}`;
-      if (!map.has(rowIdKey)) map.set(rowIdKey, row);
-    });
-  });
-  return map;
-}
-
-function completionApprovalLookupUpload(approval, uploadMap) {
-  const direct = uploadMap.get(completionApprovalUploadKey(approval));
-  if (direct || !approval?.isTamirTeamApproval) return direct;
+// Row-id first (plus instructor_emp_id/instructor_name when the activity isn't a
+// shared Tamir-team approval, since either instructor may upload the one shared
+// file): date+authority+school is only a fallback for legacy uploads that never
+// recorded an activity_row_id at all — this avoids mixing up two activities on
+// the same day/school when their row ids differ.
+function completionApprovalLookupUpload(approval, uploads) {
+  const isTamir = !!approval?.isTamirTeamApproval;
   const rowIds = (Array.isArray(approval?.activities) ? approval.activities : [])
-    .map((activity) => String(activity?.rowId || activity?.row_id || activity?.RowID || '').trim())
+    .map((activity) => activity?.rowId || activity?.row_id || activity?.RowID)
     .filter(Boolean);
-  for (const rowId of rowIds) {
-    const hit = uploadMap.get(`tamir-row:${rowId}`);
-    if (hit) return hit;
-  }
-  return undefined;
+  return findMatchingCompletionApprovalUpload(uploads, {
+    rowIds,
+    instructorEmpId: isTamir ? '' : approval?.instructorEmpId,
+    instructorName: isTamir ? '' : approval?.instructorName,
+    date: approval?.date,
+    authority: approval?.authority,
+    school: approval?.school
+  });
 }
 function completionApprovalUploadStatusLabel(upload) {
-  const status = String(upload?.status || '').trim();
-  if (upload?.file_path && !completionApprovalStorageExists(upload)) return 'הקובץ חסר באחסון';
-  if (status === 'approved') return 'אושר';
-  if (status === 'rejected') return 'נדחה';
-  if (status === 'uploaded' || completionApprovalStorageExists(upload)) return 'הועלה';
-  return 'טרם הועלה';
+  return completionApprovalStatusInfo(upload).label;
 }
 
 function completionApprovalUploadStatusChip(upload) {
-  const status = String(upload?.status || '').trim();
-  if (upload?.file_path && !completionApprovalStorageExists(upload)) return '<span class="ds-ops-status-rejected">⚠ הקובץ חסר באחסון</span>';
-  if (status === 'approved') return '<span class="ds-ops-status-approved">✓ אושר</span>';
-  if (status === 'rejected') return '<span class="ds-ops-status-rejected">✕ נדחה</span>';
-  if (status === 'uploaded' || completionApprovalStorageExists(upload)) return '<span class="ds-ops-status-uploaded">↑ הועלה</span>';
-  return '<span class="ds-muted">טרם הועלה</span>';
+  const info = completionApprovalStatusInfo(upload);
+  if (info.key === 'missing' && upload?.file_path && !completionApprovalStorageExists(upload)) {
+    return `<span class="ds-ops-status-rejected">⚠ ${escapeHtml(info.label)}</span>`;
+  }
+  if (info.key === 'approved') return `<span class="ds-ops-status-approved">✓ ${escapeHtml(info.label)}</span>`;
+  if (info.key === 'rejected') return `<span class="ds-ops-status-rejected">✕ ${escapeHtml(info.label)}</span>`;
+  if (info.key === 'uploaded') return `<span class="ds-ops-status-uploaded">↑ ${escapeHtml(info.label)}</span>`;
+  return `<span class="ds-muted">${escapeHtml(info.label)}</span>`;
 }
 
 function completionApprovalTypeLabel(approval) {
@@ -2520,9 +2498,9 @@ function completionApprovalTabHtml(rows, state, data = {}, directory = buildScho
   const instructors = completionApprovalInstructorOptions(summerRows);
   const scopedInstructors = approvalState.instructor ? instructors.filter((name) => name === approvalState.instructor) : instructors;
   const approvals = dedupeCompletionApprovals(scopedInstructors.flatMap((instructor) => buildCompletionApprovals(summerRows, { instructor, dateMode: 'range', dateFrom: COMPLETION_APPROVAL_SUMMER_FROM, dateTo: COMPLETION_APPROVAL_SUMMER_TO, directory, contactsIndex, summerPrintContactsIndex })));
-  const uploadMap = completionApprovalUploadMap(data?.completionApprovalUploads || []);
+  const uploads = data?.completionApprovalUploads || [];
   const todayIso = localTodayIso();
-  const allItems = approvals.map((approval, originalIndex) => ({ approval, upload: completionApprovalLookupUpload(approval, uploadMap), originalIndex })).sort((a, b) => compareCompletionApprovalWorkItems(a, b, todayIso));
+  const allItems = approvals.map((approval, originalIndex) => ({ approval, upload: completionApprovalLookupUpload(approval, uploads), originalIndex })).sort((a, b) => compareCompletionApprovalWorkItems(a, b, todayIso));
   const selectedPrintInstructor = String(approvalState.printInstructor || '').trim();
   const selectedAuthority = String(approvalState.selectedAuthority || '').trim();
   const selectedApprovalType = String(approvalState.approvalType || '').trim();
@@ -2878,9 +2856,8 @@ export const operationsManagementScreen = {
       const uploadById = new Map(uploads.map((u) => [String(u.id), u]));
       const authorityName = ops.completionApproval.selectedAuthority || '';
       if (!authorityName) { alert('יש לבחור רשות לפני הורדת אישורים'); return; }
-      const uploadMap2 = completionApprovalUploadMap(uploads);
       const itemsWithFile = approvals.map((approval, i) => {
-        const upload = completionApprovalLookupUpload(approval, uploadMap2);
+        const upload = completionApprovalLookupUpload(approval, uploads);
         return upload?.file_path ? { approval, upload, index: i } : null;
       }).filter(Boolean);
       if (!itemsWithFile.length) { alert('לא נמצאו אישורים חתומים להורדה עבור הבחירה הנוכחית'); return; }
@@ -2942,8 +2919,7 @@ export const operationsManagementScreen = {
         const origText = btn.textContent;
         btn.textContent = '…';
         try {
-          const uploadMap2 = completionApprovalUploadMap(_completionApprovalPrintContext?.uploads || []);
-          const existingUpload = completionApprovalLookupUpload(approval, uploadMap2);
+          const existingUpload = completionApprovalLookupUpload(approval, _completionApprovalPrintContext?.uploads || []);
           if (existingUpload?.id) {
             await api.replaceCompletionApprovalUpload({ id: existingUpload.id, file });
           } else {

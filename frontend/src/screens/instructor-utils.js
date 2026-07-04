@@ -2,6 +2,7 @@ import { escapeHtml } from './shared/html.js';
 import { formatDateHe, formatTimeShort } from './shared/format-date.js';
 import { buildCompletionApprovals, openApprovalPrintWindow, approvalFileTitle } from './shared/activity-completion-approval-print.js';
 import { getActivityAuthorityName, getActivityInstructorNames, getActivitySchoolDisplayName, getActivitySchoolNames } from './shared/operations-activity-helpers.js';
+import { completionApprovalStatusInfo, findMatchingCompletionApprovalUpload } from './shared/completion-approval-status.js';
 
 export const WEEKDAYS_HE = ['יום א׳', 'יום ב׳', 'יום ג׳', 'יום ד׳', 'יום ה׳', 'יום ו׳', 'יום ש׳'];
 export const WEEKDAY_SHORT_HE = ['א׳', 'ב׳', 'ג׳', 'ד׳', 'ה׳', 'ו׳', 'ש׳'];
@@ -31,12 +32,8 @@ export function peerNameForRow(row, ids) {
   if ((Array.isArray(ids) ? ids : [ids]).includes(text(row?.emp_id_2))) return text(row?.instructor_name || row?.instructor || '');
   return '';
 }
-export function completionStatusFromUpload(upload, row = {}) {
-  const raw = text(upload?.status || row?.completion_approval_status || '').toLowerCase();
-  if (raw === 'approved' || raw === 'אושר') return { key: 'approved', label: 'אושר' };
-  if (raw === 'rejected' || raw === 'נדחה') return { key: 'rejected', label: 'נדחה — נדרש תיקון' };
-  if (raw === 'uploaded' || upload?.file_path || raw === 'הועלה' || raw.includes('uploaded')) return { key: 'uploaded', label: 'הועלה לבדיקה' };
-  return { key: 'missing', label: 'טרם הועלה' };
+export function completionStatusFromUpload(upload) {
+  return completionApprovalStatusInfo(upload);
 }
 export function statusChipHtml(status, extraClass = '') { return `<span class="instr-status instr-status--${escapeHtml(status.key)} ${escapeHtml(extraClass)}">${escapeHtml(status.label)}</span>`; }
 export function contactGroupsByDateSchool(groups = []) {
@@ -185,30 +182,15 @@ function instructorNamesForActivity(row, preferredName = '') {
   ].map(text).filter((name, index, names) => name && names.findIndex((other) => norm(other) === norm(name)) === index);
 }
 
-export function findCompletionUploadForRow(row, uploads = []) {
+export function findCompletionUploadForRow(row, uploads = [], instructorEmpId = '') {
   if (!row || !Array.isArray(uploads) || !uploads.length) return null;
-  const rowIds = [row?.RowID, row?.row_id, row?.id, row?.activity_id, row?.uuid]
-    .map((v) => text(v)).filter(Boolean);
-  if (rowIds.length) {
-    const byId = uploads.find((u) => {
-      const raw = text(u?.activity_row_id);
-      if (!raw) return false;
-      return raw.split(',').map((s) => s.trim()).some((id) => id && rowIds.includes(id));
-    });
-    if (byId) return byId;
-  }
-  const rowDate = isoDate(row?.start_date || row?.activity_date || row?.date);
-  if (!rowDate) return null;
-  const rowAuthority = norm(row?.authority || '');
-  const rowSchool = norm(row?.school || '');
-  return uploads.find((u) => {
-    if (isoDate(u?.activity_date) !== rowDate) return false;
-    const uSchool = norm(u?.school || '');
-    if (rowSchool && uSchool && uSchool !== rowSchool) return false;
-    const uAuthority = norm(u?.authority || '');
-    if (rowAuthority && uAuthority && uAuthority !== rowAuthority) return false;
-    return true;
-  }) || null;
+  return findMatchingCompletionApprovalUpload(uploads, {
+    rowIds: [row?.RowID, row?.row_id, row?.id, row?.activity_id, row?.uuid],
+    instructorEmpId,
+    date: row?.start_date || row?.activity_date || row?.date,
+    authority: row?.authority,
+    school: row?.school
+  });
 }
 
 export function findPhotoUploadForRow(row, instructorEmpId, photoUploads = []) {
