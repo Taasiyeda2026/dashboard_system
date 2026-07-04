@@ -28,6 +28,9 @@ import {
   formatApprovalTime,
   sortApprovalActivitiesByTime
 } from '../frontend/src/screens/shared/activity-completion-approval-print.js';
+import {
+  findMatchingCompletionApprovalUpload
+} from '../frontend/src/screens/shared/completion-approval-status.js';
 
 function baseState(overrides = {}) {
   return {
@@ -440,6 +443,34 @@ test('workshop quantity metrics use participants_count for required inventory an
   assert.equal(noStock.estimatedQuantity, 0);
   assert.equal(noStock.stockQuantity, null);
   assert.equal(noStock.gap, null);
+});
+
+test('completion approvals are scoped to real assigned instructors and matching uploads use instructor emp id', () => {
+  const rows = [
+    { RowID: 'A1', status: 'פתוח', authority: 'רשות א', school: 'בית ספר', activity_type: 'סדנה', activity_name: 'סדנה', start_date: '2026-07-10', activity_season: 'summer_2026', instructor_name: 'מדריך ראשון', emp_id: '111', instructor_name_2: 'מדריך שני', emp_id_2: '222' },
+    { RowID: 'A2', status: 'פתוח', authority: 'רשות א', school: 'בית ספר', activity_type: 'סדנה', activity_name: 'סדנה נוספת', start_date: '2026-07-10', activity_season: 'summer_2026', instructor_name: 'מדריך ראשון', emp_id: '111', instructor_name_2: 'מדריך נוסף', emp_id_2: '' },
+    { RowID: 'A3', status: 'פתוח', authority: 'רשות א', school: 'בית ספר', activity_type: 'סדנה', activity_name: 'סדנה בלי מדריך', start_date: '2026-07-10', activity_season: 'summer_2026', instructor_name: '', emp_id: '' }
+  ];
+
+  assert.deepEqual(completionApprovalInstructorOptions(rows), ['מדריך ראשון', 'מדריך שני']);
+
+  const firstApprovals = buildCompletionApprovals(rows, { instructor: 'מדריך ראשון', dateMode: 'range', dateFrom: '2026-06-20', dateTo: '2026-08-31' });
+  assert.equal(firstApprovals.length, 1);
+  assert.equal(firstApprovals[0].instructorEmpId, '111');
+  assert.deepEqual(firstApprovals[0].instructorNames, ['מדריך ראשון']);
+  assert.deepEqual(firstApprovals[0].activities.map((activity) => activity.rowId).sort(), ['A1', 'A2']);
+
+  const secondApprovals = buildCompletionApprovals(rows, { instructor: 'מדריך שני', dateMode: 'range', dateFrom: '2026-06-20', dateTo: '2026-08-31' });
+  assert.equal(secondApprovals.length, 1);
+  assert.equal(secondApprovals[0].instructorEmpId, '222');
+  assert.deepEqual(secondApprovals[0].activities.map((activity) => activity.rowId), ['A1']);
+
+  const uploads = [
+    { id: 'u1', activity_row_id: 'A1,A2', instructor_emp_id: '111', file_path: 'activity-completion-approvals/111/file.pdf', status: 'uploaded', storage_exists: true },
+    { id: 'u2', activity_row_id: 'A1', instructor_emp_id: '222', file_path: 'activity-completion-approvals/222/file.pdf', status: 'uploaded', storage_exists: true }
+  ];
+  assert.equal(findMatchingCompletionApprovalUpload(uploads, { rowIds: firstApprovals[0].activities.map((activity) => activity.rowId), instructorEmpId: firstApprovals[0].instructorEmpId })?.id, 'u1');
+  assert.equal(findMatchingCompletionApprovalUpload(uploads, { rowIds: secondApprovals[0].activities.map((activity) => activity.rowId), instructorEmpId: secondApprovals[0].instructorEmpId })?.id, 'u2');
 });
 
 test('workshops tab shows inventory columns and print action', () => {

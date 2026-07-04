@@ -56,9 +56,11 @@ function getInstructorEntries(activity) {
   const entries = [];
   const add = (name, empId) => {
     const cleanName = text(name);
+    const cleanEmpId = text(empId);
     if (!isValidInstructorName(cleanName)) return;
-    if (entries.some((entry) => norm(entry.name) === norm(cleanName))) return;
-    entries.push({ name: cleanName, empId: text(empId) });
+    if (!cleanEmpId) return;
+    if (entries.some((entry) => entry.empId === cleanEmpId || norm(entry.name) === norm(cleanName))) return;
+    entries.push({ name: cleanName, empId: cleanEmpId });
   };
   add(activity?.instructor_name || activity?.instructor || activity?.guide_name || activity?.guide, activity?.emp_id || activity?.employee_id || activity?.instructor_emp_id);
   add(activity?.instructor_name_2 || activity?.instructor_2 || activity?.guide_name_2 || activity?.guide_2, activity?.emp_id_2 || activity?.employee_id_2 || activity?.instructor_emp_id_2);
@@ -133,10 +135,6 @@ export function buildCompletionApprovals(rows = [], { instructor = '', dateMode 
   (Array.isArray(rows) ? rows : []).forEach((activity) => {
     if (isDeletedActivity(activity)) return;
     const instructorEntries = getInstructorEntries(activity);
-    // Tamir activities get their own approval track even with a single instructor filled in so far
-    // (the activity still requires a second instructor); the group is keyed by date+authority+school,
-    // never by instructor name, so the approval doesn't split per instructor.
-    const isTamirTeam = isTamirCompletionApprovalActivity(activity);
     instructorEntries.forEach((instructorEntry) => {
       if (instructorEntry.name !== selected) return;
       activityDates(activity).forEach((activityDate) => {
@@ -150,16 +148,15 @@ export function buildCompletionApprovals(rows = [], { instructor = '', dateMode 
         seen.add(unique);
         const authority = getActivityAuthorityName(activity);
         const school = cleanSchoolName(activity);
-        const key = isTamirTeam
-          ? `tamir|${activityDate}|${norm(authority)}|${norm(school)}`
-          : `${norm(instructorEntry.name)}|${activityDate}|${norm(authority)}|${norm(school)}`;
+        const key = `${instructorEntry.empId}|${norm(instructorEntry.name)}|${activityDate}|${norm(authority)}|${norm(school)}`;
         if (!groups.has(key)) {
           groups.set(key, {
             id: key,
-            instructorName: isTamirTeam ? instructorEntries.map((entry) => entry.name).join(' + ') : instructorEntry.name,
-            instructorNames: isTamirTeam ? instructorEntries.map((entry) => entry.name) : [instructorEntry.name],
+            instructorName: instructorEntry.name,
+            instructorNames: [instructorEntry.name],
             instructorEmpId: instructorEntry.empId,
-            isTamirTeamApproval: isTamirTeam,
+            isTamirTeamApproval: false,
+            isTamirActivity: isTamirCompletionApprovalActivity(activity),
             date: activityDate,
             authority,
             school,

@@ -41,7 +41,7 @@ export function findMatchingCompletionApprovalUpload(uploads, { rowIds = [], ins
   const uploadRowIdList = (upload) => text(upload?.activity_row_id).split(',').map((value) => value.trim()).filter(Boolean);
   const empIdMatches = (upload) => {
     const uploadEmpId = text(upload?.instructor_emp_id);
-    return !empIdSet.size || !uploadEmpId || empIdSet.has(uploadEmpId);
+    return !empIdSet.size || (!!uploadEmpId && empIdSet.has(uploadEmpId));
   };
 
   if (idSet.size) {
