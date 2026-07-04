@@ -16909,6 +16909,18 @@ details[open] > .ds-fin-acc__summary::before { transform: rotate(90deg); }
   text-align: right;
 }
 
+.ds-ops-completion-instructor-line {
+  font-size: 0.85rem;
+  color: #102a43;
+}
+
+.ds-ops-completion-team-extra {
+  display: inline;
+  font-size: 0.74rem;
+  font-weight: 400;
+  color: #64748b;
+}
+
 .ds-ops-completion-preview td.ds-ops-completion-col--photo {
   text-align: center;
 }
