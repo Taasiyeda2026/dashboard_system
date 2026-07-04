@@ -6,6 +6,7 @@ import {
   buildCompletionApprovals,
   openApprovalPrintWindow
 } from './shared/activity-completion-approval-print.js';
+import { isInstructorSummerVisibleActivity } from './shared/summer-activity.js';
 import {
   completionApprovalStatusInfo,
   completionApprovalUploadStorageExists,
@@ -33,7 +34,7 @@ function activityDateInCompletionApprovalSummer(row) {
   return /^\d{4}-\d{2}-\d{2}$/.test(date) && date >= COMPLETION_APPROVAL_SUMMER_FROM && date <= COMPLETION_APPROVAL_SUMMER_TO;
 }
 function isSummerCompletionApprovalRow(row) {
-  return isIncludedCompletionApprovalActivityType(row) && activityDateInCompletionApprovalSummer(row);
+  return isInstructorSummerVisibleActivity(row);
 }
 
 function text(value) { return String(value ?? '').trim(); }

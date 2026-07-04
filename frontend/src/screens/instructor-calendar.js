@@ -1,6 +1,7 @@
 import { escapeHtml } from './shared/html.js';
 import { formatDateHe } from './shared/format-date.js';
 import { dsPageHeader, dsScreenStack } from './shared/layout.js';
+import { isInstructorSummerVisibleActivity } from './shared/summer-activity.js';
 import { activityDetailHtml, activityHours, assignedToCurrentInstructor, bindActivityDetailActions, completionStatusFromUpload, contactGroupsByDateSchool, currentInstructorIds, currentInstructorName, findCompletionUploadForRow, findPhotoUploadForRow, groupForRow, isResponsibleForGroup, isoDate, monthKey, parseLocalDate, participants, rowTitle, statusChipHtml, text, WEEKDAY_SHORT_HE, weekdayNameHe } from './instructor-utils.js';
 
 let selectedMonth = new Date();
@@ -128,7 +129,7 @@ export const instructorCalendarScreen = {
     if (!selectedMonthWasChosen) selectedMonth = new Date();
     currentIds = currentInstructorIds(state);
     teamMap = contactGroupsByDateSchool(data?.teamGroups || []);
-    renderRows = (Array.isArray(data?.rows) ? data.rows : []).filter((r) => assignedToCurrentInstructor(r, currentIds));
+    renderRows = (Array.isArray(data?.rows) ? data.rows : []).filter((r) => isInstructorSummerVisibleActivity(r) && assignedToCurrentInstructor(r, currentIds));
     const uploadsArr = data?.uploads || [];
     return dsScreenStack(
       `<section class="instructor-area">${dsPageHeader('לוח השנה שלי')}${calendarHtml(renderRows, uploadsArr, selectedMonth)}</section>`

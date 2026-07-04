@@ -1,6 +1,7 @@
 import { escapeHtml } from './shared/html.js';
 import { formatDateHe, formatTimeShort } from './shared/format-date.js';
 import { dsPageHeader, dsCard, dsScreenStack, dsTableWrap, dsEmptyState } from './shared/layout.js';
+import { isInstructorSummerVisibleActivity } from './shared/summer-activity.js';
 import { activityDetailHtml, assignedToCurrentInstructor, bindActivityDetailActions, completionStatusFromUpload, contactGroupsByDateSchool, currentInstructorIds, findCompletionUploadForRow, findPhotoUploadForRow, groupForRow, isoDate, isResponsibleForGroup, norm, statusChipHtml } from './instructor-utils.js';
 
 const VISIBLE_COLS = ['completion_approval_status', 'start_date', 'activity_hours', 'school', 'grade', 'activity_name'];
@@ -80,7 +81,7 @@ export const myDataScreen = {
   render(data, { state } = {}) {
     const userEmpId = String(state?.user?.emp_id || state?.user?.employee_id || '').trim();
     const rowsAll = Array.isArray(data?.rows) ? data.rows : [];
-    const rows = rowsAll.filter((row) => assignedToCurrentInstructor(row, currentInstructorIds(state)));
+    const rows = rowsAll.filter((row) => isInstructorSummerVisibleActivity(row) && assignedToCurrentInstructor(row, currentInstructorIds(state)));
     const teamMap = contactGroupsByDateSchool(data?.teamGroups || []);
     const uploads = data?.uploads || [];
     const preparedRows = sortActivitiesChronologically(rows.map((row) => {
@@ -155,7 +156,7 @@ export const myDataScreen = {
       applyFilters();
     });
 
-    const rows = (Array.isArray(data?.rows) ? data.rows : []).filter((row) => assignedToCurrentInstructor(row, currentInstructorIds(state)));
+    const rows = (Array.isArray(data?.rows) ? data.rows : []).filter((row) => isInstructorSummerVisibleActivity(row) && assignedToCurrentInstructor(row, currentInstructorIds(state)));
     const teamMap = contactGroupsByDateSchool(data?.teamGroups || []);
     const uploads = data?.uploads || [];
     const photoUploads = data?.photoUploads || [];
