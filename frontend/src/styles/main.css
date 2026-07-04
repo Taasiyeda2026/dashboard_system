@@ -21005,13 +21005,19 @@ details[open] > .ds-fin-acc__summary::before { transform: rotate(90deg); }
   padding: 0 !important; border: 0 !important; background: transparent !important; box-shadow: none !important; font-size: 0 !important;
 }
 @media print {
-  /* Footer-in-flow fix: no flex/min-height on the A4 document box; gap must not reserve page height. */
+  /* Footer-in-flow fix: no flex/min-height on the A4 document box; gap must not reserve page height.
+     Chrome/Chromium cannot fragment a flex column forced to A4 height — the whole box (incl. footer)
+     gets pushed to page 2. See docs/proposal-print-layout.md. */
   .proposal-document,
   .proposal-document.pa-document,
+  .proposal-document.pa-a4-page,
+  .pa-document,
   .pa-a4-page {
     display: block !important;
     min-height: auto !important;
     height: auto !important;
+    max-height: none !important;
+    overflow: visible !important;
   }
 
   .proposal-document-body,
@@ -21019,9 +21025,12 @@ details[open] > .ds-fin-acc__summary::before { transform: rotate(90deg); }
   .proposal-document.pa-document .proposal-document-body,
   .proposal-document.pa-document .proposal-document-content {
     display: block !important;
+    flex: none !important;
     min-height: auto !important;
     height: auto !important;
+    max-height: none !important;
     padding-bottom: 0 !important;
+    overflow: visible !important;
   }
 
   .proposal-document.pa-document .pa-page-footer-area {
@@ -21039,15 +21048,17 @@ details[open] > .ds-fin-acc__summary::before { transform: rotate(90deg); }
     overflow: hidden !important;
   }
 
+  .pa-page-footer,
   .proposal-document.pa-document .pa-page-footer,
   .proposal-document .pa-page-footer {
     position: static !important;
-    margin-top: 6px !important;
-    margin-bottom: 0 !important;
-    padding-top: 5px !important;
-    padding-bottom: 0 !important;
+    display: block !important;
     break-inside: avoid !important;
     page-break-inside: avoid !important;
+    break-before: auto !important;
+    page-break-before: auto !important;
+    margin-top: 6px !important;
+    padding-top: 4px !important;
   }
   .proposal-document .pa-cost-table.pa-tour-cost-table,
   .proposal-document .pa-cost-table.pa-activities-table.pa-tour-cost-table,
