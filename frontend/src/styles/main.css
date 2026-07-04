@@ -20674,3 +20674,91 @@ details[open] > .ds-fin-acc__summary::before { transform: rotate(90deg); }
     max-height: 108px !important;
   }
 }
+
+/* Focused proposal editor layout updates (2026-07-04). */
+.ds-pa-recipient-type { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 6px; }
+.ds-pa-school-step-text { display: grid; grid-template-columns: minmax(0, 1fr) auto; align-items: center; gap: 8px; }
+.ds-pa-two-col-grid { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 8px; }
+.ds-pa-form-actions-main { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 8px; align-items: center; }
+.ds-pa-form-actions-main .ds-btn { width: 100%; min-height: 32px; padding-block: 5px; }
+.ds-pa-other-client-section { border: 1px solid #dbe7f3; border-radius: 12px; padding: 8px; background: #f8fbff; }
+.ds-pa-other-client-section h5 { margin: 0 0 6px; font-size: .86rem; color: #0f172a; }
+.ds-pa-item-grid--extras { grid-template-columns: repeat(3, minmax(0, 1fr)); }
+.ds-pa-item-grid--extras .ds-pa-item-field--name,
+.ds-pa-item-grid--extras .ds-pa-line-total { grid-column: auto; }
+.ds-pa-item-remove--quick { min-width: 30px; padding-inline: 6px; }
+.ds-pa-tour-component-row { display: grid; grid-template-columns: minmax(120px, 1fr) minmax(110px, 1fr) minmax(90px, .8fr) minmax(90px, .8fr) 34px; gap: 8px; align-items: end; }
+.ds-pa-tour-component-delete-cell .ds-btn { min-width: 30px; width: 30px; height: 30px; padding: 0; font-size: 0; }
+.ds-pa-tour-component-delete-cell .ds-btn::before { content: '🗑'; font-size: 14px; line-height: 1; }
+.proposal-document .pa-signature-rule { display: block !important; width: 100% !important; border-top: 1px solid #555 !important; margin: 0 !important; height: 0 !important; }
+.proposal-document .pa-footer-signature,
+.proposal-document .pa-page-footer { break-inside: avoid !important; page-break-inside: avoid !important; }
+.proposal-document .pa-page-footer { margin-top: 4px !important; padding: 4px 0 5px !important; }
+@media print {
+  .ds-pa-form-actions-main { grid-template-columns: repeat(3, minmax(0, 1fr)); }
+  .proposal-document .pa-signature-rule { display: block !important; border-top: 1px solid #555 !important; }
+  .proposal-document .pa-footer-signature,
+  .proposal-document .pa-page-footer { break-inside: avoid !important; page-break-inside: avoid !important; }
+  .proposal-document .pa-page-footer { margin-top: 3px !important; padding: 3px 0 4px !important; position: static !important; }
+}
+@media (max-width: 700px) {
+  .ds-pa-recipient-type, .ds-pa-two-col-grid, .ds-pa-form-actions-main, .ds-pa-item-grid--extras, .ds-pa-tour-component-row { grid-template-columns: 1fr; }
+}
+
+/* Focused proposals list/drawer cleanup (2026-07-04). */
+.ds-pa-toolbar {
+  display: grid;
+  grid-template-columns: minmax(220px, 1.5fr) repeat(3, minmax(130px, .8fr)) auto;
+  gap: 8px;
+  align-items: end;
+  margin-bottom: 8px;
+}
+.ds-pa-toolbar .ds-pa-filter,
+.ds-pa-toolbar .ds-pa-search { margin: 0; }
+.ds-pa-toolbar .ds-pa-filter span,
+.ds-pa-toolbar .ds-pa-search span { font-size: .74rem; color: #64748b; font-weight: 600; }
+.ds-pa-clear-inline { min-height: 32px; align-self: end; white-space: nowrap; }
+.ds-pa-table { border-collapse: separate; border-spacing: 0; background: #fff; }
+.ds-pa-table th { background: #f8fbff; color: #475569; font-size: .78rem; font-weight: 700; border-bottom: 1px solid #dbe7f3; }
+.ds-pa-table td { padding: 7px 8px; border-bottom: 1px solid #eef2f7; font-size: .82rem; vertical-align: middle; }
+.ds-pa-table tbody tr:nth-child(even) { background: #fbfdff; }
+.ds-pa-table tbody tr:hover { background: #f0fdfa; }
+.ds-pa-col-center { text-align: center; }
+.ds-pa-col-money { text-align: center; white-space: nowrap; font-variant-numeric: tabular-nums; }
+.ds-pa-status-text { font-weight: 700; background: transparent !important; border: 0 !important; border-radius: 0 !important; padding: 0 !important; white-space: nowrap; }
+.ds-pa-status-text--sent { color: #15803d; }
+.ds-pa-status-text--approved { color: #0f766e; }
+.ds-pa-status-text--pending_approval { color: #b45309; }
+.ds-pa-status-text--returned_for_changes { color: #ea580c; }
+.ds-pa-status-text--draft { color: #64748b; }
+.ds-pa-status-text--cancelled { color: #dc2626; }
+.ds-pa-actions-inner--clean { display: inline-flex; align-items: center; justify-content: center; gap: 4px; position: relative; }
+.ds-pa-row-more { position: relative; }
+.ds-pa-row-more summary { list-style: none; cursor: pointer; width: 28px; height: 28px; display: inline-flex; align-items: center; justify-content: center; border-radius: 8px; color: #475569; }
+.ds-pa-row-more summary::-webkit-details-marker { display: none; }
+.ds-pa-row-more summary:hover { background: #eef6f8; }
+.ds-pa-row-more-menu { position: absolute; inset-inline-end: 0; top: 32px; z-index: 20; min-width: 170px; padding: 6px; border: 1px solid #dbe7f3; border-radius: 12px; background: #fff; box-shadow: 0 12px 28px rgba(15,23,42,.14); display: grid; gap: 2px; }
+.ds-pa-more-action { display: flex; align-items: center; gap: 7px; border: 0; background: transparent; color: #334155; text-align: right; padding: 7px 8px; border-radius: 8px; cursor: pointer; font-size: .82rem; }
+.ds-pa-more-action:hover { background: #f8fbff; }
+.ds-pa-more-action--danger { color: #dc2626; }
+.ds-pa-drawer-summary { margin: 2px 0 0; color: #475569; font-size: .86rem; }
+.ds-pa-state-note { color: #64748b; font-size: .78rem; font-weight: 700; }
+.ds-pa-state-note--ok { color: #0f766e; }
+.ds-pa-state-note--warn { color: #b45309; }
+.ds-pa-drawer-body { display: grid; gap: 10px; }
+.ds-pa-info-card { background: #fff; border: 1px solid #dbe7f3; border-radius: 14px; padding: 10px 12px; box-shadow: 0 1px 2px rgba(15,23,42,.03); }
+.ds-pa-card-title { margin: 0 0 8px; font-size: .9rem; color: #0f172a; }
+.ds-pa-info-grid { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 8px 10px; }
+.ds-pa-info-cell { min-width: 0; }
+.ds-pa-info-cell--wide { grid-column: 1 / -1; }
+.ds-pa-info-label { display: block; font-size: .72rem; color: #64748b; margin-bottom: 2px; }
+.ds-pa-info-value { display: block; font-size: .84rem; color: #0f172a; overflow-wrap: anywhere; }
+.ds-pa-contact-edit-details { margin-top: 10px; border-top: 1px solid #eef2f7; padding-top: 8px; }
+.ds-pa-contact-edit-details summary { cursor: pointer; color: #0f766e; font-weight: 700; font-size: .82rem; }
+.ds-pa-contact-edit-grid { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 8px; margin: 8px 0; }
+.ds-pa-contact-update-msg { margin: 6px 0 0; color: #0f766e; font-size: .78rem; }
+@media (max-width: 760px) {
+  .ds-pa-toolbar { grid-template-columns: 1fr; }
+  .ds-pa-info-grid,
+  .ds-pa-contact-edit-grid { grid-template-columns: 1fr; }
+}

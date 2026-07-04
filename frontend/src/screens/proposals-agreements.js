@@ -176,7 +176,7 @@ const COMBINED_TEMPLATE_GROUP_KEYS = Object.freeze(['summer', 'next_year']);
 
 const PROPOSAL_GROUP_DISPLAY_FALLBACKS = Object.freeze({
   summer: 'פעילויות קיץ',
-  next_year: 'שנה הבאה',
+  next_year: 'תשפ״ז',
   combined: 'הצעה משולבת',
   tour: 'סיור'
 });
@@ -186,6 +186,7 @@ const PROPOSAL_GROUP_LEGACY_ALIASES = Object.freeze({
   'שנת הלימודים תשפ״ז': 'next_year',
   'תוכניות תשפ״ז': 'next_year',
   'שנה הבאה': 'next_year',
+  'תשפ״ז': 'next_year',
   'הצעה משולבת': 'combined',
   'סיור': 'tour',
   'קיץ תשפ״ו ושנת הלימודים תשפ״ז': 'combined',
@@ -878,18 +879,7 @@ function statusFilterHtml() {
 function statusBadgeHtml(status) {
   const normalizedStatus = normalizeProposalStatus(status);
   const label = STATUS_LABELS[status] || STATUS_LABELS[normalizedStatus] || status || '—';
-  if (normalizedStatus === 'sent') {
-    return `<span class="ds-pa-badge ds-pa-badge--sent">✓ ${escapeHtml(label)}</span>`;
-  }
-  const colorMap = {
-    draft:                '#888',
-    pending_approval:     '#d97706',
-    returned_for_changes: '#dc2626',
-    approved:             '#16a34a',
-    cancelled:            '#6b7280'
-  };
-  const color = colorMap[status] || colorMap[normalizedStatus] || '#888';
-  return `<span class="ds-pa-badge" style="display:inline-block;padding:1px 7px;border-radius:10px;font-size:0.78rem;background:${color};color:#fff;white-space:nowrap">${escapeHtml(label)}</span>`;
+  return `<span class="ds-pa-status-text ds-pa-status-text--${escapeHtml(normalizedStatus || 'unknown')}">${escapeHtml(label)}</span>`;
 }
 
 
@@ -985,44 +975,46 @@ export function proposalsAgreementsTableRowsHtml(rows, state) {
   }
   const canManage = canManageProposalsAgreements(state);
   const isAdmin = canApproveProposalsAgreements(state);
+  const iconSvg = {
+    eye: '<path d="M1 12s4-8 11-8 11 8 11 8-4 8-11 8-11-8-11-8z"/><circle cx="12" cy="12" r="3"/>',
+    edit: '<path d="M11 4H4a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2v-7"/><path d="M18.5 2.5a2.121 2.121 0 0 1 3 3L12 15l-4 1 1-4 9.5-9.5z"/>',
+    clone: '<rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/>',
+    approve: '<path d="M22 11.08V12a10 10 0 1 1-5.93-9.14"/><polyline points="22 4 12 14.01 9 11.01"/>',
+    return: '<polyline points="9 14 4 9 9 4"/><path d="M20 20v-7a4 4 0 0 0-4-4H4"/>',
+    cancel: '<circle cx="12" cy="12" r="10"/><line x1="15" y1="9" x2="9" y2="15"/><line x1="9" y1="9" x2="15" y2="15"/>',
+    send: '<line x1="22" y1="2" x2="11" y2="13"/><polygon points="22 2 15 22 11 13 2 9 22 2"/>',
+    print: '<path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><polyline points="14 2 14 8 20 8"/><line x1="16" y1="13" x2="8" y2="13"/><line x1="16" y1="17" x2="8" y2="17"/>',
+    delete: '<polyline points="3 6 5 6 21 6"/><path d="M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6m3 0V4a1 1 0 0 1 1-1h4a1 1 0 0 1 1 1v2"/>'
+  };
+  const rowAction = (attrs, title, icon, danger = false) => `<button type="button" class="ds-pa-more-action${danger ? ' ds-pa-more-action--danger' : ''}" ${attrs}><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">${icon}</svg><span>${escapeHtml(title)}</span></button>`;
   return rows.map((row) => {
     const status = normalizeProposalStatus(row.status || 'draft');
     const isSent = status === 'sent';
-    const actionBtns = [];
-    actionBtns.push(`<button type="button" class="ds-btn ds-btn--xs ds-btn--ghost ds-pa-row-action ds-pa-row-action--icon" data-pa-preview="${escapeHtml(row.id)}" title="תצוגה מקדימה"><svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M1 12s4-8 11-8 11 8 11 8-4 8-11 8-11-8-11-8z"/><circle cx="12" cy="12" r="3"/></svg></button>`);
-    if (isProposalEditable(row, state)) {
-      actionBtns.push(`<button type="button" class="ds-btn ds-btn--xs ds-pa-row-action ds-pa-row-action--icon" data-pa-edit-row="${escapeHtml(row.id)}" title="עריכה"><svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M11 4H4a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2v-7"/><path d="M18.5 2.5a2.121 2.121 0 0 1 3 3L12 15l-4 1 1-4 9.5-9.5z"/></svg></button>`);
-    }
-    if (canManage && (status === 'approved' || isSent)) {
-      actionBtns.push(`<button type="button" class="ds-btn ds-btn--xs ds-btn--ghost ds-pa-row-action ds-pa-row-action--icon" data-pa-clone-row="${escapeHtml(row.id)}" title="שכפול להצעה חדשה"><svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button>`);
-    }
+    const moreActions = [];
+    if (isProposalEditable(row, state)) moreActions.push(rowAction(`data-pa-edit-row="${escapeHtml(row.id)}"`, 'עריכה', iconSvg.edit));
+    if (canManage && (status === 'approved' || isSent)) moreActions.push(rowAction(`data-pa-clone-row="${escapeHtml(row.id)}"`, 'שכפול להצעה חדשה', iconSvg.clone));
     if (isAdmin && status === 'pending_approval') {
-      actionBtns.push(`<button type="button" class="ds-btn ds-btn--xs ds-pa-row-action ds-pa-row-action--icon" data-pa-status-action="approved" data-pa-action-id="${escapeHtml(row.id)}" title="חתום ואשר"><svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M22 11.08V12a10 10 0 1 1-5.93-9.14"/><polyline points="22 4 12 14.01 9 11.01"/></svg></button>`);
-      actionBtns.push(`<button type="button" class="ds-btn ds-btn--xs ds-btn--ghost ds-pa-row-action ds-pa-row-action--icon" data-pa-status-action="returned_for_changes" data-pa-action-id="${escapeHtml(row.id)}" title="החזרה לתיקון"><svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><polyline points="9 14 4 9 9 4"/><path d="M20 20v-7a4 4 0 0 0-4-4H4"/></svg></button>`);
-      actionBtns.push(`<button type="button" class="ds-btn ds-btn--xs ds-btn--ghost ds-pa-row-action ds-pa-row-action--icon ds-pa-row-action--danger" data-pa-status-action="cancelled" data-pa-action-id="${escapeHtml(row.id)}" title="ביטול"><svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><circle cx="12" cy="12" r="10"/><line x1="15" y1="9" x2="9" y2="15"/><line x1="9" y1="9" x2="15" y2="15"/></svg></button>`);
+      moreActions.push(rowAction(`data-pa-status-action="approved" data-pa-action-id="${escapeHtml(row.id)}"`, 'חתום ואשר', iconSvg.approve));
+      moreActions.push(rowAction(`data-pa-status-action="returned_for_changes" data-pa-action-id="${escapeHtml(row.id)}"`, 'החזרה לתיקון', iconSvg.return));
+      moreActions.push(rowAction(`data-pa-status-action="cancelled" data-pa-action-id="${escapeHtml(row.id)}"`, 'ביטול', iconSvg.cancel, true));
     }
-    if (isAdmin && status === 'approved' && !proposalHasSavedApprovalSignature(row)) {
-      actionBtns.push(`<button type="button" class="ds-btn ds-btn--xs ds-pa-row-action ds-pa-row-action--icon" data-pa-status-action="approved" data-pa-action-id="${escapeHtml(row.id)}" title="אשר וחתום מחדש — ההצעה מאושרת אך חסרה חתימה/זמן אישור ולכן לא ניתן לסמן כנשלחה"><svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M22 11.08V12a10 10 0 1 1-5.93-9.14"/><polyline points="22 4 12 14.01 9 11.01"/></svg></button>`);
-    }
-    if (canTransitionProposalStatus(row, 'sent', state)) {
-      actionBtns.push(`<button type="button" class="ds-btn ds-btn--xs ds-pa-row-action ds-pa-row-action--icon" data-pa-status-action="sent" data-pa-action-id="${escapeHtml(row.id)}" title="סימון כנשלח"><svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><line x1="22" y1="2" x2="11" y2="13"/><polygon points="22 2 15 22 11 13 2 9 22 2"/></svg></button>`);
-    }
-    if (canGenerateProposalPdf(row, state)) {
-      actionBtns.push(`<button type="button" class="ds-btn ds-btn--xs ds-btn--ghost ds-pa-row-action ds-pa-row-action--icon" data-pa-print="${escapeHtml(row.id)}" title="PDF"><svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><polyline points="14 2 14 8 20 8"/><line x1="16" y1="13" x2="8" y2="13"/><line x1="16" y1="17" x2="8" y2="17"/></svg></button>`);
-    }
-    if (canDeleteProposal(row, state)) {
-      actionBtns.push(`<button type="button" class="ds-btn ds-btn--xs ds-btn--ghost ds-pa-row-action ds-pa-row-action--icon ds-pa-row-action--danger" data-pa-delete-row="${escapeHtml(row.id)}" title="מחיקה"><svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><polyline points="3 6 5 6 21 6"/><path d="M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6m3 0V4a1 1 0 0 1 1-1h4a1 1 0 0 1 1 1v2"/></svg></button>`);
-    }
+    if (isAdmin && status === 'approved' && !proposalHasSavedApprovalSignature(row)) moreActions.push(rowAction(`data-pa-status-action="approved" data-pa-action-id="${escapeHtml(row.id)}"`, 'אשר וחתום מחדש', iconSvg.approve));
+    if (canTransitionProposalStatus(row, 'sent', state)) moreActions.push(rowAction(`data-pa-status-action="sent" data-pa-action-id="${escapeHtml(row.id)}"`, 'סימון כנשלח', iconSvg.send));
+    if (canGenerateProposalPdf(row, state)) moreActions.push(rowAction(`data-pa-print="${escapeHtml(row.id)}"`, 'PDF', iconSvg.print));
+    if (canDeleteProposal(row, state)) moreActions.push(rowAction(`data-pa-delete-row="${escapeHtml(row.id)}"`, 'מחיקה', iconSvg.delete, true));
+    const moreMenu = moreActions.length
+      ? `<details class="ds-pa-row-more"><summary aria-label="פעולות נוספות">⋯</summary><div class="ds-pa-row-more-menu">${moreActions.join('')}</div></details>`
+      : '';
     return `
     <tr data-pa-row-id="${escapeHtml(row.id)}" tabindex="0">
       <td class="ds-pa-domain-col">${escapeHtml(row.proposal_domain || 'Y')}</td>
       <td>${escapeHtml(row.client_name || row.client_authority || row.school_framework || '—')}</td>
       <td>${inferProposalClientType(row) === 'other' ? '' : escapeHtml(row.school_framework || '—')}</td>
       <td>${escapeHtml(proposalGroupDisplayName(row.activity_type_group) || '—')}</td>
-      <td style="text-align:center">${escapeHtml(formatDateDisplay(row.proposal_date) || '')}</td>
-      <td>${statusSelectHtml(row, canManage, isAdmin, state)}</td>
-      <td style="text-align:center">${row.total_amount != null ? `₪ ${escapeHtml(formatCurrency(row.total_amount))}` : ''}</td>
-      <td class="ds-pa-actions-cell"><div class="ds-pa-actions-inner">${actionBtns.join('')}</div></td>
+      <td class="ds-pa-col-center">${escapeHtml(formatDateDisplay(row.proposal_date) || '')}</td>
+      <td class="ds-pa-col-center">${statusSelectHtml(row, canManage, isAdmin, state)}</td>
+      <td class="ds-pa-col-money">${row.total_amount != null ? `₪ ${escapeHtml(formatCurrency(row.total_amount))}` : ''}</td>
+      <td class="ds-pa-actions-cell"><div class="ds-pa-actions-inner ds-pa-actions-inner--clean"><button type="button" class="ds-btn ds-btn--xs ds-btn--ghost ds-pa-row-action ds-pa-row-action--icon" data-pa-preview="${escapeHtml(row.id)}" title="תצוגה מקדימה"><svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">${iconSvg.eye}</svg></button>${moreMenu}</div></td>
     </tr>`;
   }).join('');
 }
@@ -1115,6 +1107,7 @@ function inferProposalClientType(row = {}) {
   if (text(row.school_id)) return 'school';
   if (text(row.authority_id) && !text(row.school_id)) return 'authority';
   if (text(row.client_type) === 'other') return 'other';
+  if (text(row.client_name) && !text(row.authority_id) && !text(row.school_id) && !text(row.client_authority)) return 'other';
   if (!text(row.authority_id) && !text(row.school_id) && !text(row.client_authority) && text(row.school_framework)) return 'other';
   return 'school';
 }
@@ -1207,8 +1200,9 @@ function contactPickerHtml(contactOptions, authority, school, selectedContactNam
       const val = contactOptionKey(c);
       const contactName = text(c.contact_name);
       const label = c.contact_role ? `${contactName} (${text(c.contact_role)})` : contactName;
+      // Do not preselect a contact automatically when a school/authority is chosen.
       const contactPayload = encodeURIComponent(JSON.stringify(c));
-      return `<option value="${escapeHtml(val)}" data-pa-contact-option="${escapeHtml(contactPayload)}"${contactName === selectedName || val === selectedName ? ' selected' : ''}>${escapeHtml(label)}</option>`;
+      return `<option value="${escapeHtml(val)}" data-pa-contact-option="${escapeHtml(contactPayload)}"${selectedName && (contactName === selectedName || val === selectedName) ? ' selected' : ''}>${escapeHtml(label)}</option>`;
     }),
     '<option value="__pa_other_contact__">אחר</option>'
   ].join('');
@@ -2452,7 +2446,7 @@ function proposalRecipientLines(row = {}) {
   }
 
   if (clientType === 'other') {
-    return [];
+    return [safeVal(row.client_name) || schoolName].filter(Boolean);
   }
 
   return [];
@@ -2695,7 +2689,7 @@ function buildProposalDocumentHtml({ dateDisplay, documentTitle, row, introText,
   const isSummerDocument = isSummerProposalGroup(row?.activity_type_group);
   const documentModifierClass = `${isNextYear ? ' pa-document--next-year' : ''}${isSummerDocument ? ' pa-document--summer' : ''}`;
   return `
-    <div class="proposal-document pa-document pa-a4-page${documentModifierClass}" data-build="20260703c" dir="rtl" style="position:relative;box-sizing:border-box;">
+    <div class="proposal-document pa-document pa-a4-page${documentModifierClass}" data-build="20260704a" dir="rtl" style="position:relative;box-sizing:border-box;">
       <style>
         .pa-org-intro {
           padding-inline: 4mm !important;
@@ -2703,7 +2697,8 @@ function buildProposalDocumentHtml({ dateDisplay, documentTitle, row, introText,
         }
 
         .pa-tour-cost-table {
-          width: 370px;
+          width: 50%;
+          min-width: 300px;
           max-width: 100%;
           margin-inline: auto;
           table-layout: fixed;
@@ -2739,7 +2734,8 @@ function buildProposalDocumentHtml({ dateDisplay, documentTitle, row, introText,
             box-sizing: border-box !important;
           }
           .pa-tour-cost-table {
-            width: 370px !important;
+            width: 50% !important;
+            min-width: 300px !important;
             max-width: 100% !important;
             margin-inline: auto !important;
             table-layout: fixed !important;
@@ -3154,7 +3150,7 @@ function emptyContactSourceForRecipientType(nextClientType, otherName = '') {
     return {
       id: null, authority_id: null, school_id: null, semel_mosad: null,
       school_required: 'no', client_type: 'other',
-      client_name: '', authority: '', school: '',
+      client_name: otherName, authority: '', school: '',
       contact_name: '', contact_role: '', phone: '', mobile: '', email: '', source_table: ''
     };
   }
@@ -3239,7 +3235,7 @@ function resetRecipientDependentFields(form, nextClientType) {
   if (schoolSearchInput) schoolSearchInput.value = '';
 
   const otherField = form.querySelector('[data-pa-other-client-field]');
-  if (otherField) otherField.hidden = true;
+  if (otherField) otherField.hidden = type !== 'other';
 
   const contactPanel = form.querySelector('[data-pa-step-panel="contact"]');
   if (contactPanel) contactPanel.hidden = type !== 'other';
@@ -3313,12 +3309,12 @@ export function proposalTypeCardsHtml(selected) {
   const normalizedSelected = normalizeProposalGroup(selected);
   const options = proposalGroupLookups.groups.filter(o => o.group_key !== 'combined');
   if (!options.length) {
-    return `<div class="ds-pa-type-chips" data-pa-type-cards style="display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:4px;margin:0"></div><input type="hidden" name="activity_type_group" value="${escapeHtml(normalizedSelected)}" data-pa-type-hidden>`;
+    return `<div class="ds-pa-type-chips" data-pa-type-cards style="display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:4px;margin:0"></div><input type="hidden" name="activity_type_group" value="${escapeHtml(normalizedSelected)}" data-pa-type-hidden>`;
   }
-  return `<div class="ds-pa-type-chips" data-pa-type-cards style="display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:4px;margin:0">
+  return `<div class="ds-pa-type-chips" data-pa-type-cards style="display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:4px;margin:0">
     ${options.map((opt) => {
       const isSel = normalizedSelected === opt.group_key;
-      return `<button type="button" class="ds-pa-type-card${isSel ? ' is-selected' : ''}" data-pa-type-btn="${escapeHtml(opt.group_key)}" style="width:100%;min-height:auto;padding:4px 6px;border-radius:12px;border:1.5px solid ${isSel ? '#6366f1' : '#d1d5db'};background:${isSel ? '#eef2ff' : '#f9fafb'};color:${isSel ? '#4f46e5' : '#374151'};font-weight:${isSel ? '600' : '400'};font-size:0.8rem;cursor:pointer;text-align:center;line-height:1.2;transition:all .15s">${escapeHtml(opt.display_name)}</button>`;
+      return `<button type="button" class="ds-pa-type-card${isSel ? ' is-selected' : ''}" data-pa-type-btn="${escapeHtml(opt.group_key)}" style="width:100%;min-height:auto;padding:4px 6px;border-radius:12px;border:1.5px solid ${isSel ? '#6366f1' : '#d1d5db'};background:${isSel ? '#eef2ff' : '#f9fafb'};color:${isSel ? '#4f46e5' : '#374151'};font-weight:${isSel ? '600' : '400'};font-size:0.8rem;cursor:pointer;text-align:center;line-height:1.2;transition:all .15s">${escapeHtml(opt.group_key === 'summer' ? 'קיץ' : opt.group_key === 'next_year' ? 'תשפ״ז' : opt.display_name)}</button>`;
     }).join('')}
   </div><input type="hidden" name="activity_type_group" value="${escapeHtml(normalizedSelected)}" data-pa-type-hidden>`;
 }
@@ -3475,7 +3471,7 @@ function formHtml(mode, row = {}, activityNameOptions = [], contactOptions = [],
           ${clientTypeSelectorHtml(initClientType)}
           ${contactOptionsLoadErrorHtml(contactOptionsError)}
           ${clientSearchHtml(contactOptions, row)}
-          <label class="ds-pa-form-field ds-pa-other-client-field" data-pa-other-client-field${initOther ? '' : ' hidden'}><span>שם הגורם / הלקוח</span><input class="ds-input ds-input--sm" name="other_client_name" value="${escapeHtml(initOther ? initSchool : '')}" placeholder="שם הגורם / הלקוח"></label>
+          <div class="ds-pa-other-client-section" data-pa-other-client-field${initOther ? '' : ' hidden'}><h5>פרטי הלקוח</h5><label class="ds-pa-form-field ds-pa-other-client-field"><span>שם הלקוח</span><input class="ds-input ds-input--sm" name="other_client_name" value="${escapeHtml(initOther ? (row.client_name || initSchool) : '')}" placeholder="שם הלקוח"></label></div>
         </div>
         <div data-pa-client-card${isLocked ? '' : ' hidden'}>${isLocked ? clientLockedBannerHtml(initAuth, initSchool, initContact, initRole, initPhone, initEmail, initClientName, initSchoolMeta) : ''}</div>
         <div class="ds-pa-client-hidden-values" data-pa-client-fields hidden>
@@ -3516,7 +3512,7 @@ function formHtml(mode, row = {}, activityNameOptions = [], contactOptions = [],
         <div class="ds-pa-form-field">
           ${proposalTypeCardsHtml(normalizedActivityGroup)}
         </div>
-        <div class="ds-pa-type-meta-aux">
+        <div class="ds-pa-type-meta-aux ds-pa-two-col-grid">
           <label class="ds-pa-form-field"><span>${escapeHtml(FIELD_LABELS.proposal_date)}</span><input class="ds-input ds-input--sm" type="date" name="proposal_date" value="${escapeHtml(proposalDate)}"></label><label class="ds-pa-form-field"><span>${escapeHtml(FIELD_LABELS.proposal_domain)}: Y / E</span><select class="ds-input ds-input--sm" name="proposal_domain">${optionHtml('Y', row.proposal_domain || 'Y', 'Y')}${optionHtml('E', row.proposal_domain || 'Y', 'E')}</select></label>
           <input type="hidden" name="document_type" value="${escapeHtml(text(row.document_type) || 'הצעת מחיר')}">
         </div>
@@ -3628,15 +3624,15 @@ function drawerHtml(row, activityNameOptions = [], state = null) {
 
   const hasCustomSections = Array.isArray(row.custom_document_sections) && row.custom_document_sections.length > 0;
   const customBadge = hasCustomSections
-    ? `<span class="ds-pa-badge" title="המסמך הזה כולל עריכה מותאמת אישית" style="display:inline-block;padding:1px 7px;border-radius:10px;font-size:0.75rem;background:#6366f1;color:#fff">מסמך מותאם</span>`
+    ? `<span class="ds-pa-state-note" title="המסמך הזה כולל עריכה מותאמת אישית">מסמך מותאם</span>`
     : '';
   const drawerRowStatus = normalizeProposalStatus(text(row.status));
   const drawerHasSig = proposalHasSavedApprovalSignature(row);
   const drawerNeedsResign = drawerRowStatus === 'approved' && !drawerHasSig;
   const signedBadge = (drawerRowStatus === 'sent' || (drawerRowStatus === 'approved' && drawerHasSig))
-    ? `<span style="display:inline-flex;align-items:center;gap:3px;padding:1px 7px;border-radius:10px;font-size:0.75rem;background:#d1fae5;color:#065f46;border:1px solid #6ee7b7">✓ מאושר וחתום</span>`
+    ? `<span class="ds-pa-state-note ds-pa-state-note--ok">✓ מאושר וחתום</span>`
     : drawerNeedsResign
-      ? `<span style="display:inline-flex;align-items:center;gap:3px;padding:1px 7px;border-radius:10px;font-size:0.75rem;background:#fef3c7;color:#92400e;border:1px solid #fde68a">ההצעה מאושרת אך חסרה חתימה/זמן אישור ולכן לא ניתן לסמן כנשלחה</span>`
+      ? `<span class="ds-pa-state-note ds-pa-state-note--warn">ההצעה מאושרת אך חסרה חתימה/זמן אישור ולכן לא ניתן לסמן כנשלחה</span>`
       : '';
 
   const clientDisplayName = text(row.client_name) || text(row.school_framework) || text(row.client_authority) || '—';
@@ -3646,27 +3642,15 @@ function drawerHtml(row, activityNameOptions = [], state = null) {
   const authSub = drawerClientType !== 'other' && text(row.client_authority) && text(row.client_authority) !== clientDisplayName && text(row.client_authority) !== text(row.school_framework)
     ? `<p class="ds-pa-drawer-sub">רשות: ${escapeHtml(row.client_authority)}</p>` : '';
 
-  // ── compact metadata strip ──
-  const metaChip = (label, value) => value
-    ? `<span class="ds-pa-meta-chip"><span class="ds-pa-meta-chip-label">${escapeHtml(label)}</span><span class="ds-pa-meta-chip-value">${escapeHtml(value)}</span></span>`
-    : '';
   const drawerSentBy = text(row.sent_by);
   const showSentBy = drawerRowStatus === 'sent' && drawerSentBy;
-  const metaStripChips = [
-    metaChip('סוג', proposalGroupDisplayName(row.activity_type_group)),
-    metaChip('תחום', normalizeProposalDomain(row.proposal_domain)),
-    metaChip('תאריך', formatDateDisplay(row.proposal_date)),
-    showSentBy ? metaChip('נשלח ע״י', drawerSentBy) : '',
-    showSentBy && text(row.sent_at) ? metaChip('תאריך שליחה', formatDateDisplay(row.sent_at)) : ''
-  ].filter(Boolean).join('');
-  const metaStrip = metaStripChips
-    ? `<div class="ds-pa-meta-strip" dir="rtl">${metaStripChips}</div>`
-    : '';
+  const drawerSummary = `${escapeHtml(proposalGroupDisplayName(row.activity_type_group) || '—')} · ${statusBadgeHtml(row.status)} · ${row.total_amount != null ? `₪ ${escapeHtml(formatCurrency(row.total_amount))}` : '—'}`;
 
-  // ── פעילויות card ──
-  const infoCell = (label, value, wide = false) => value
-    ? `<div class="ds-pa-info-cell${wide ? ' ds-pa-info-cell--wide' : ''}"><span class="ds-pa-info-label">${escapeHtml(label)}</span><span class="ds-pa-info-value">${escapeHtml(value)}</span></div>`
-    : '';
+  const infoCell = (label, value, wide = false, options = {}) => {
+    const display = text(value) || (options.emptyText || '');
+    if (!display && !options.showEmpty) return '';
+    return `<div class="ds-pa-info-cell${wide ? ' ds-pa-info-cell--wide' : ''}"><span class="ds-pa-info-label">${escapeHtml(label)}</span><span class="ds-pa-info-value">${escapeHtml(display || 'לא הוזן')}</span></div>`;
+  };
   const activityNames = (Array.isArray(row.activity_names) ? row.activity_names : []).map(text).filter(Boolean);
   const activitiesCard = activityNames.length
     ? `<div class="ds-pa-info-card">
@@ -3674,18 +3658,47 @@ function drawerHtml(row, activityNameOptions = [], state = null) {
         <div class="ds-pa-activity-tags">${activityNames.map((n) => `<span class="ds-pa-activity-tag">${escapeHtml(n)}</span>`).join('')}</div>
       </div>` : '';
 
-  // ── פרטי קשר card ──
-  const contactFields = [
-    infoCell('איש קשר', text(row.contact_name)),
-    infoCell('תפקיד', text(row.contact_role)),
-    infoCell('טלפון', text(row.phone)),
-    infoCell('דוא״ל', text(row.email))
-  ].filter(Boolean).join('');
-  const contactCard = contactFields
-    ? `<div class="ds-pa-info-card">
-        <h4 class="ds-pa-card-title">פרטי קשר</h4>
-        <div class="ds-pa-info-grid">${contactFields}</div>
-      </div>` : '';
+  const proposalDetailsCard = `<div class="ds-pa-info-card">
+    <h4 class="ds-pa-card-title">פרטי הצעה</h4>
+    <div class="ds-pa-info-grid">
+      ${infoCell('סוג הצעה', proposalGroupDisplayName(row.activity_type_group), false, { showEmpty: true })}
+      ${infoCell('תחום', normalizeProposalDomain(row.proposal_domain), false, { showEmpty: true })}
+      ${infoCell('תאריך הצעה', formatDateDisplay(row.proposal_date), false, { showEmpty: true })}
+      <div class="ds-pa-info-cell"><span class="ds-pa-info-label">סטטוס</span><span class="ds-pa-info-value">${statusBadgeHtml(row.status)}</span></div>
+      ${showSentBy ? infoCell('נשלח על ידי', drawerSentBy) : ''}
+      ${text(row.sent_at) ? infoCell('תאריך שליחה', formatDateDisplay(row.sent_at)) : ''}
+    </div>
+  </div>`;
+
+  const financialCard = `<div class="ds-pa-info-card">
+    <h4 class="ds-pa-card-title">סיכום כספי</h4>
+    <div class="ds-pa-info-grid">
+      ${infoCell('מספר שורות הצעה', String(activityNames.length || '—'), false, { showEmpty: true })}
+      ${infoCell('סה״כ לתשלום', row.total_amount != null ? `₪ ${formatCurrency(row.total_amount)}` : '', false, { showEmpty: true })}
+    </div>
+  </div>`;
+
+  const sourceId = text(row.contact_school_id || row.contact_source_id);
+  const contactCanUpdate = Boolean(sourceId);
+  const contactCard = `<form class="ds-pa-info-card ds-pa-contact-update-card" data-pa-drawer-contact-form data-pa-contact-source-id="${escapeHtml(sourceId)}" data-pa-contact-source-table="contacts_schools">
+    <h4 class="ds-pa-card-title">פרטי איש קשר</h4>
+    <div class="ds-pa-info-grid ds-pa-contact-view-grid">
+      ${infoCell('איש קשר', text(row.contact_name), false, { showEmpty: true })}
+      ${infoCell('תפקיד', text(row.contact_role), false, { showEmpty: true })}
+      ${infoCell('מייל', text(row.email), false, { showEmpty: true })}
+      ${infoCell('טלפון', text(row.phone), false, { showEmpty: true })}
+    </div>
+    ${contactCanUpdate ? `<details class="ds-pa-contact-edit-details"><summary>עדכון פרטי איש קשר</summary>
+      <div class="ds-pa-contact-edit-grid">
+        <label class="ds-pa-form-field"><span>שם איש קשר</span><input class="ds-input ds-input--sm" name="contact_name" value="${escapeHtml(text(row.contact_name))}"></label>
+        <label class="ds-pa-form-field"><span>תפקיד</span><input class="ds-input ds-input--sm" name="contact_role" value="${escapeHtml(text(row.contact_role))}"></label>
+        <label class="ds-pa-form-field"><span>מייל</span><input class="ds-input ds-input--sm" name="email" value="${escapeHtml(text(row.email))}"></label>
+        <label class="ds-pa-form-field"><span>טלפון</span><input class="ds-input ds-input--sm" name="phone" value="${escapeHtml(text(row.phone))}"></label>
+      </div>
+      <button type="submit" class="ds-btn ds-btn--sm ds-btn--primary">שמור פרטי קשר</button>
+      <p class="ds-pa-contact-update-msg" data-pa-contact-update-msg></p>
+    </details>` : `<p class="ds-muted" style="font-size:.78rem;margin:8px 0 0">לא נמצא מזהה איש קשר קיים לעדכון.</p>`}
+  </form>`;
 
   // ── הערות card ──
   const notesFields = [
@@ -3701,17 +3714,19 @@ function drawerHtml(row, activityNameOptions = [], state = null) {
       <header class="ds-pa-drawer-head">
         <div class="ds-pa-drawer-head-info">
           <h3 class="ds-pa-drawer-name">${escapeHtml(clientDisplayName)}</h3>
+          <p class="ds-pa-drawer-summary">${drawerSummary}</p>
           ${schoolSub}${authSub}
         </div>
         <button type="button" class="ds-btn ds-btn--xs ds-btn--ghost" data-pa-close-drawer aria-label="סגירת פרטי רשומה" style="flex-shrink:0;font-size:1rem;padding:2px 8px">✕</button>
       </header>
       <div class="ds-pa-drawer-action-bar">
-        <span class="ds-pa-drawer-badges">${statusBadgeHtml(row.status)}${signedBadge ? '&ensp;' + signedBadge : ''}${customBadge ? '&ensp;' + customBadge : ''}</span>
+        <span class="ds-pa-drawer-badges">${signedBadge ? signedBadge : ''}${customBadge ? '&ensp;' + customBadge : ''}</span>
         <span class="ds-pa-drawer-icon-btns">${drawerActionButtons(row, state)}</span>
       </div>
-      ${metaStrip}
       <div class="ds-pa-drawer-body">
         ${contactCard}
+        ${proposalDetailsCard}
+        ${financialCard}
         <div data-pa-activities-fallback>${activitiesCard}</div>
         <div data-pa-drawer-items><span class="ds-muted" style="font-size:0.8rem">טוען שורות הצעה...</span></div>
         ${notesCard}
@@ -3799,6 +3814,15 @@ export function updateProposalsAgreementsTableOnly(root, rows, state, options = 
 }
 
 
+
+function proposalsScreenSummaryText(rows = []) {
+  const normalized = (Array.isArray(rows) ? rows : []).map((row) => normalizeProposalStatus(row.status));
+  const total = normalized.length;
+  const waiting = normalized.filter((status) => status === 'pending_approval' || status === 'returned_for_changes').length;
+  const sent = normalized.filter((status) => status === 'sent').length;
+  return `${total} הצעות | ${waiting} ממתינות לטיפול | ${sent} נשלחו`;
+}
+
 function setDocumentEditMode(root, enabled) {
   const drawer = root?.querySelector('[data-pa-drawer]');
   const panel = drawer?.querySelector('.ds-pa-drawer-panel');
@@ -3850,10 +3874,11 @@ function payloadFromForm(form) {
   const selectedClientType = text(formData.get('client_type_selector')) || text(formData.get('contact_source_client_type')) || (text(formData.get('contact_source_school_id')) ? 'school' : 'authority');
   payload.client_type = ['school', 'authority', 'other'].includes(selectedClientType) ? selectedClientType : 'school';
   if (payload.client_type === 'other') {
-    payload.school_framework = '';
+    const otherClientName = text(formData.get('other_client_name'));
+    payload.school_framework = otherClientName;
     payload.client_authority = '';
-    payload.client_name = '';
-    payload.other_client_name = '';
+    payload.client_name = otherClientName;
+    payload.other_client_name = otherClientName;
     payload.authority_id = null;
     payload.school_id = null;
     payload.contact_school_id = null;
@@ -3910,9 +3935,12 @@ function validatePayload(payload, statusOverride, options = {}) {
   const isOtherProposal = clientType === 'other';
   const isAuthorityOnlyProposal = clientType === 'authority';
   const baseRequiredFields = requiresCompleteProposal ? REQUIRED_FIELDS_PENDING : REQUIRED_FIELDS_DRAFT;
-  const requiredFields = baseRequiredFields.filter((key) => !(isOtherProposal && ['client_authority', 'school_framework', 'other_client_name'].includes(key)));
+  const requiredFields = baseRequiredFields.filter((key) => !(isOtherProposal && ['client_authority'].includes(key)));
   const missing = requiredFields.filter((key) => !text(payload[key]));
   const errors = missing.map((key) => FIELD_LABELS[key] || key);
+  if (isOtherProposal && !text(payload.client_name || payload.school_framework)) {
+    errors.push('שם הלקוח');
+  }
   if (!isOtherProposal) {
     if (!text(payload.authority_id)) {
       errors.push('יש לבחור רשות מתוך רשימת הרשויות.');
@@ -4170,7 +4198,7 @@ export const proposalsAgreementsScreen = {
     const canManage = canManageProposalsAgreements(state);
     const rawRows = Array.isArray(data?.rows) ? data.rows.map(normalizeProposalAgreementRow) : [];
     return dsScreenStack(`
-      ${dsPageHeader('הצעות מחיר')}
+      ${dsPageHeader('הצעות מחיר', proposalsScreenSummaryText(rawRows))}
       <section class="ds-pa-screen" data-pa-screen dir="rtl">
         <style>
           .ds-pa-screen-tab{border-radius:10px 10px 0 0;transition:background .15s,color .15s,border-color .15s}.ds-pa-screen-tab:hover{background:rgba(14,165,233,.08)}
@@ -4190,10 +4218,11 @@ export const proposalsAgreementsScreen = {
             ${filterSelectHtml('activity_type_group', 'סוג הצעה', proposalGroupFilterOptions)}
             ${statusFilterHtml()}
             <label class="ds-pa-filter"><span>תחום</span><select class="ds-input ds-input--sm" data-pa-filter="proposal_domain"><option value="">הכול</option><option value="Y">Y</option><option value="E">E</option></select></label>
+            <button type="button" class="ds-btn ds-btn--sm ds-btn--ghost ds-pa-clear-inline" data-pa-clear-filters>ניקוי סינון</button>
           </div>
           ${activeFiltersHtml({})}
-          <div class="ds-pa-local-status" aria-live="polite">מציג <strong data-pa-results-count>${rows.length}</strong> מתוך <strong data-pa-total-count>${totalRows}</strong> הצעות</div>
-          ${dsCard({ title: 'רשומות', padded: false, body: `<div data-pa-filtered-empty-host></div><div class="ds-pa-records-shell" data-pa-table-region>${tableHtml(rows, state)}</div>` })}
+          <div class="ds-pa-local-status" aria-live="polite" hidden><strong data-pa-results-count>${rows.length}</strong><strong data-pa-total-count>${totalRows}</strong></div>
+          <div data-pa-filtered-empty-host></div><div class="ds-pa-records-shell" data-pa-table-region>${tableHtml(rows, state)}</div>
           ${drawerHtml(null, [], state)}
         </div>
         <div data-pa-tab-panel="new" hidden>
@@ -4960,7 +4989,7 @@ export const proposalsAgreementsScreen = {
         if (searchRow) searchRow.hidden = false;
         if (searchFieldWrap) searchFieldWrap.hidden = true;
         if (schoolSearchPanel) schoolSearchPanel.hidden = true;
-        if (otherField) otherField.hidden = true;
+        if (otherField) otherField.hidden = false;
         if (contactPanel) contactPanel.hidden = false;
         manualFields.forEach((el) => { el.hidden = false; });
         if (roCtx) roCtx.hidden = true;
@@ -5013,7 +5042,7 @@ export const proposalsAgreementsScreen = {
         const schoolInput = form.querySelector('input[name="school_framework"]');
         if (authInput) authInput.value = '';
         if (schoolInput) schoolInput.value = '';
-        setContactSourceFields(form, emptyContactSourceForRecipientType('other'));
+        setContactSourceFields(form, emptyContactSourceForRecipientType('other', text(form.querySelector('[name="other_client_name"]')?.value)));
         calcGrandTotal(form);
         updateLivePreview(form);
       }, { signal });
@@ -5757,6 +5786,55 @@ export const proposalsAgreementsScreen = {
       if (form) updateProposalStepper(form);
     }, { signal });
 
+    root.addEventListener('submit', async (event) => {
+
+      const drawerContactForm = event.target.closest?.('[data-pa-drawer-contact-form]');
+      if (drawerContactForm && event.type === 'submit') {
+        event.preventDefault();
+        const msg = drawerContactForm.querySelector('[data-pa-contact-update-msg]');
+        const sourceId = text(drawerContactForm.dataset.paContactSourceId);
+        const sourceTable = text(drawerContactForm.dataset.paContactSourceTable) || 'contacts_schools';
+        if (!sourceId) {
+          if (msg) msg.textContent = 'לא נמצא איש קשר קיים לעדכון.';
+          return;
+        }
+        const fields = {
+          contact_name: text(drawerContactForm.querySelector('[name="contact_name"]')?.value),
+          contact_role: text(drawerContactForm.querySelector('[name="contact_role"]')?.value),
+          email: text(drawerContactForm.querySelector('[name="email"]')?.value),
+          phone: text(drawerContactForm.querySelector('[name="phone"]')?.value),
+          mobile: text(drawerContactForm.querySelector('[name="phone"]')?.value)
+        };
+        try {
+          if (msg) msg.textContent = 'שומר...';
+          await api.updateUnifiedContactRecord({ source_table: sourceTable, source_id: sourceId, fields });
+          const openId = text(drawerContactForm.closest('[data-pa-drawer]')?.dataset?.paDrawerId);
+          const existing = data.rows.find((item) => text(item.id) === openId);
+          if (existing) {
+            existing.contact_name = fields.contact_name;
+            existing.contact_role = fields.contact_role;
+            existing.email = fields.email;
+            existing.phone = fields.phone;
+          }
+          const contactMatch = contactOptions.find((c) => text(c.id) === sourceId && text(c.source_table || 'contacts_schools') === sourceTable);
+          if (contactMatch) {
+            contactMatch.contact_name = fields.contact_name;
+            contactMatch.contact_role = fields.contact_role;
+            contactMatch.email = fields.email;
+            contactMatch.phone = fields.phone;
+            contactMatch.mobile = fields.mobile;
+          }
+          if (msg) msg.textContent = 'פרטי איש הקשר עודכנו.';
+          if (existing) drawerContactForm.closest('[data-pa-drawer]').outerHTML = drawerHtml(normalizeProposalAgreementRow(existing), activityNameOptions, state);
+          refreshTable();
+          showToast('פרטי איש הקשר עודכנו', 'success', 1800);
+        } catch (err) {
+          if (msg) msg.textContent = `שגיאה בעדכון איש קשר: ${err?.message || err}`;
+        }
+        return;
+      }
+    }, { signal });
+
     // ── Click handler ─────────────────────────────────────────────────────────
     root.addEventListener('click', async (event) => {
       // Discount / notes section toggle
@@ -5793,7 +5871,7 @@ export const proposalsAgreementsScreen = {
       }
 
       // Row click — skip if clicking an inline action button inside the row
-      const rowEl = !event.target.closest?.('[data-pa-preview],[data-pa-edit-row],[data-pa-print],[data-pa-delete-row],[data-pa-clone-row]')
+      const rowEl = !event.target.closest?.('[data-pa-preview],[data-pa-edit-row],[data-pa-print],[data-pa-delete-row],[data-pa-clone-row],[data-pa-row-more],[data-pa-status-action],.ds-pa-row-more')
         ? event.target.closest?.('[data-pa-row-id]')
         : null;
       if (rowEl) {
