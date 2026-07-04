@@ -16816,7 +16816,7 @@ details[open] > .ds-fin-acc__summary::before { transform: rotate(90deg); }
 }
 
 .ds-ops-completion-col--instructor {
-  width: 130px;
+  width: 150px;
 }
 
 .ds-ops-completion-col--school {
@@ -16832,7 +16832,7 @@ details[open] > .ds-fin-acc__summary::before { transform: rotate(90deg); }
 }
 
 .ds-ops-completion-col--photo {
-  width: 130px;
+  width: 128px;
   text-align: center;
 }
 
@@ -16841,7 +16841,7 @@ details[open] > .ds-fin-acc__summary::before { transform: rotate(90deg); }
 }
 
 .ds-ops-completion-col--actions {
-  width: 190px;
+  width: 180px;
   text-align: center;
 }
 
@@ -16854,7 +16854,7 @@ details[open] > .ds-fin-acc__summary::before { transform: rotate(90deg); }
 }
 
 .ds-ops-mgmt-screen .ds-ops-completion-col--instructor {
-  width: 120px;
+  width: 150px;
 }
 
 .ds-ops-mgmt-screen .ds-ops-completion-col--school {
@@ -16878,7 +16878,7 @@ details[open] > .ds-fin-acc__summary::before { transform: rotate(90deg); }
 }
 
 .ds-ops-mgmt-screen .ds-ops-completion-col--actions {
-  width: 140px;
+  width: 180px;
 }
 
 .ds-ops-completion-col-contact-cell select {
