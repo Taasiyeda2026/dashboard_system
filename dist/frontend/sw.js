@@ -13,7 +13,7 @@ const PRECACHE_URLS = [
   "./assets/apple-touch-icon-DZF9rhdV.png",
   "./assets/favicon-D0Y9bj5H.ico",
   "./assets/index-DisRcM4x.js",
-  "./assets/style-Yitw_r76.css",
+  "./assets/style-DNyhiY07.css",
   "./index.html",
   "./manifest.json"
 ];
