@@ -1096,7 +1096,7 @@ test('switching recipient type from school to other clears authority and school 
       form.querySelector('input[name="other_client_name"]').dispatchEvent(new dom.window.Event('input', { bubbles: true }));
       await delay(20);
 
-      assert.equal(stepComplete(form).client, true, 'other recipient is complete without client_authority');
+      assert.equal(stepComplete(form).client, false, 'other recipient requires authority as well as client name');
 
       const preview = previewText(form);
       assert.match(preview, new RegExp(otherName));
@@ -1139,7 +1139,8 @@ test('stepComplete returns clientDone per recipient type', async () => {
       form.querySelector('input[name="other_client_name"]').value = 'גורם אחר';
       form.querySelector('input[name="school_framework"]').value = 'גורם אחר';
       form.querySelector('input[name="contact_source_client_type"]').value = 'other';
-      assert.equal(stepComplete(form).client, true, 'other complete with client name');
+      form.querySelector('input[name="contact_source_authority_id"]').value = 'auth-a';
+      assert.equal(stepComplete(form).client, true, 'other complete with authority id and client name');
     }
   );
 });
@@ -1161,7 +1162,7 @@ test('validatePayload enforces recipient-specific requirements', () => {
     authority_id: null,
     school_id: null
   });
-  assert.ok(!otherErrors.some((e) => /רשות/.test(e)), 'other proposal should not require authority');
+  assert.ok(otherErrors.some((e) => /רשות/.test(e)), 'other proposal should require authority');
 
   const authorityErrors = validatePayload({
     ...base,
@@ -2028,7 +2029,7 @@ test('proposal preview for other recipient omits stale organization fields and e
   assert.doesNotMatch(html, /בית ספר:\s*—/);
 });
 
-test('proposal DB payload for other recipient keeps client name in school_framework only', async () => {
+test('proposal DB payload for other recipient keeps client name in client_name and leaves school_framework empty', async () => {
   const { sanitizeProposalAgreementPayload } = await import('../frontend/src/api.js');
   const emptyLookup = { aliasToKey: new Map(), groupByKey: new Map() };
   const dbPayload = sanitizeProposalAgreementPayload({
@@ -3057,7 +3058,7 @@ test('bundle parent cost table uses parent quantity in print preview', async () 
 });
 
 
-test('tour proposal preview uses scoped 85 percent cost table and omits generic cost intro', () => {
+test('tour proposal preview uses scoped 60 percent cost table and omits generic cost intro', () => {
   const row = {
     id: 'tour-preview-1',
     activity_type_group: 'סיור',
@@ -3098,13 +3099,13 @@ test('tour proposal preview uses scoped 85 percent cost table and omits generic 
   const table = doc.querySelector('.pa-tour-cost-table');
 
   assert.ok(table, 'tour cost table should still render');
-  assert.equal(table.querySelectorAll('colgroup col').length, 5);
-  assert.match(styleText, /\.pa-tour-cost-table\s*\{[^}]*width:\s*85%/s);
-  assert.match(styleText, /\.pa-tour-cost-table\s*\{[^}]*max-width:\s*85%/s);
+  assert.equal(table.querySelectorAll('colgroup col').length, 4);
+  assert.match(styleText, /\.pa-tour-cost-table\s*\{[^}]*width:\s*60%/s);
+  assert.match(styleText, /\.pa-tour-cost-table\s*\{[^}]*max-width:\s*60%/s);
   assert.match(styleText, /\.pa-tour-cost-table\s*\{[^}]*margin-inline:\s*auto/s);
   assert.match(styleText, /\.pa-tour-cost-table th,\s*\.pa-tour-cost-table td\s*\{[^}]*text-align:\s*center/s);
   assert.match(styleText, /\.pa-tour-cost-table th:first-child,\s*\.pa-tour-cost-table td:first-child\s*\{[^}]*text-align:\s*right/s);
-  assert.match(styleText, /@media print[\s\S]*\.pa-tour-cost-table\s*\{[\s\S]*width:\s*85% !important/);
+  assert.match(styleText, /@media print[\s\S]*\.pa-tour-cost-table\s*\{[\s\S]*width:\s*60% !important/);
   assert.match(styleText, /\.pa-tour-class-col\s*\{\s*width:\s*24%;\s*\}/);
   assert.match(styleText, /\.pa-tour-total-col\s*\{\s*width:\s*14%;\s*\}/);
   const docText = doc.documentElement.textContent || '';
