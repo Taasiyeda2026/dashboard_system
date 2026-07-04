@@ -22,7 +22,7 @@ function dayCell(date, rows, uploadsArr, inMonth) {
   const dayRows = rows.filter((r) => isoDate(r.start_date || r.activity_date) === iso);
   const tags = [];
   if (dayRows.length) tags.push(`<span class="instr-day-count">${dayRows.length} פעילויות</span>`);
-  const statuses = new Set(dayRows.map((r) => completionStatusFromUpload(findCompletionUploadForRow(r, uploadsArr), r).key));
+  const statuses = new Set(dayRows.map((r) => completionStatusFromUpload(findCompletionUploadForRow(r, uploadsArr, currentIds)).key));
   if (statuses.has('missing')) tags.push(statusChipHtml({ key: 'missing', label: 'חסר אישור' }));
   else if (statuses.has('rejected')) tags.push(statusChipHtml({ key: 'rejected', label: 'נדחה' }));
   else if (statuses.has('uploaded')) tags.push(statusChipHtml({ key: 'uploaded', label: 'הועלה' }));
@@ -36,7 +36,7 @@ function dayCell(date, rows, uploadsArr, inMonth) {
 function mobileDayCardHtml(iso, dayRows, uploadsArr) {
   const todayIso = toIso(new Date());
   const isToday = iso === todayIso;
-  const statuses = new Set(dayRows.map((r) => completionStatusFromUpload(findCompletionUploadForRow(r, uploadsArr), r).key));
+  const statuses = new Set(dayRows.map((r) => completionStatusFromUpload(findCompletionUploadForRow(r, uploadsArr, currentIds)).key));
   const statusTags = [];
   if (statuses.has('missing')) statusTags.push(statusChipHtml({ key: 'missing', label: 'חסר אישור' }));
   else if (statuses.has('rejected')) statusTags.push(statusChipHtml({ key: 'rejected', label: 'נדחה' }));
@@ -107,7 +107,7 @@ function dayDrawerHtml(iso, rows, uploadsArr) {
     : '';
   const groupsHtml = [...groups.entries()].map(([k, items]) =>
     `<section><h3>${escapeHtml(k)}</h3>${items.map((r) =>
-      `<article class="instr-activity-card"><div><strong>${escapeHtml(activityHours(r))} | ${escapeHtml(rowTitle(r))} | ${escapeHtml(text(r.grade)||'—')}</strong><small>${escapeHtml(text(r.school)||'')} · משתתפים: ${escapeHtml(participants(r))}</small>${statusChipHtml(completionStatusFromUpload(findCompletionUploadForRow(r, uploadsArr), r))}</div><button class="ds-btn ds-btn--xs ds-btn--primary" data-activity-detail="${escapeHtml(String(r.RowID||''))}">פירוט</button></article>`
+      `<article class="instr-activity-card"><div><strong>${escapeHtml(activityHours(r))} | ${escapeHtml(rowTitle(r))} | ${escapeHtml(text(r.grade)||'—')}</strong><small>${escapeHtml(text(r.school)||'')} · משתתפים: ${escapeHtml(participants(r))}</small>${statusChipHtml(completionStatusFromUpload(findCompletionUploadForRow(r, uploadsArr, currentIds)))}</div><button class="ds-btn ds-btn--xs ds-btn--primary" data-activity-detail="${escapeHtml(String(r.RowID||''))}">פירוט</button></article>`
     ).join('')}</section>`
   ).join('');
   return `<div class="instr-day-drawer">${responsibleNote}${groupsHtml}</div>`;
@@ -118,7 +118,7 @@ export const instructorCalendarScreen = {
     selectedMonth = new Date();
     selectedMonthWasChosen = false;
     const [myData, uploads, photoUploads] = await Promise.all([
-      api.myData(),
+      api.myData({ includeClosedForApprovals: true }),
       api.completionApprovalUploads().catch(() => ({ rows: [] })),
       api.photoApprovalUploads ? api.photoApprovalUploads().catch(() => ({ rows: [] })) : Promise.resolve({ rows: [] })
     ]);
@@ -151,7 +151,7 @@ export const instructorCalendarScreen = {
         const photoUpload = findPhotoUploadForRow(row, userEmpIdForPhoto, photoUploadsArr);
         ui.openDrawer({
           title: 'פירוט פעילות',
-          content: activityDetailHtml(row, { ids: currentIds, teamMap, upload: findCompletionUploadForRow(row, uploadsArr), photoUpload }),
+          content: activityDetailHtml(row, { ids: currentIds, teamMap, upload: findCompletionUploadForRow(row, uploadsArr, currentIds), photoUpload }),
           onOpen: (contentNode) => {
             bindActivityDetailActions(contentNode, { ui, row, state, allInstructorRows: renderRows, api, photoUpload });
           }

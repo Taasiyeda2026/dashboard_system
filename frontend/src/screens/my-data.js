@@ -47,7 +47,7 @@ function sortActivitiesChronologically(rows) {
 
 function rowMeta(row, userEmpId, teamMap, state, uploads = []) {
   const rawType = String(row.activity_type || '').trim();
-  const status = completionStatusFromUpload(findCompletionUploadForRow(row, uploads), row);
+  const status = completionStatusFromUpload(findCompletionUploadForRow(row, uploads, currentInstructorIds(state)));
   const rowDate = String(row?.start_date || row?.activity_date || '').slice(0, 10);
   const responsible = isResponsibleForGroup(groupForRow(row, teamMap), currentInstructorIds(state));
   const searchHay = buildSearchHaystack(row);
@@ -71,7 +71,7 @@ function activityCardHtml(row, meta) {
 export const myDataScreen = {
   load: async ({ api }) => {
     const [myData, uploads, photoUploads] = await Promise.all([
-      api.myData(),
+      api.myData({ includeClosedForApprovals: true }),
       api.completionApprovalUploads().catch(() => ({ rows: [] })),
       api.photoApprovalUploads ? api.photoApprovalUploads().catch(() => ({ rows: [] })) : Promise.resolve({ rows: [] })
     ]);
@@ -168,7 +168,7 @@ export const myDataScreen = {
         const photoUpload = findPhotoUploadForRow(hit, userEmpIdForPhoto, photoUploads);
         ui.openDrawer({
           title: 'פירוט פעילות',
-          content: activityDetailHtml(hit, { ids: currentInstructorIds(state), teamMap, upload: findCompletionUploadForRow(hit, uploads), photoUpload }),
+          content: activityDetailHtml(hit, { ids: currentInstructorIds(state), teamMap, upload: findCompletionUploadForRow(hit, uploads, currentInstructorIds(state)), photoUpload }),
           onOpen: (contentNode) => {
             bindActivityDetailActions(contentNode, { ui, row: hit, rows, allInstructorRows: rows, teamMap, state, api, photoUpload });
           }

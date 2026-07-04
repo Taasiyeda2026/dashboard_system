@@ -6,7 +6,7 @@ import { instructorCalendarScreen } from '../frontend/src/screens/instructor-cal
 import { myDataScreen } from '../frontend/src/screens/my-data.js';
 import { instructorGuidelinesScreen } from '../frontend/src/screens/instructor-guidelines.js';
 import { instructorCompletionApprovalsScreen } from '../frontend/src/screens/instructor-completion-approvals.js';
-import { resolveInstructorApprovalForRow, openInstructorApprovalForActivity, activityDetailHtml, contactGroupsByDateSchool } from '../frontend/src/screens/instructor-utils.js';
+import { resolveInstructorApprovalForRow, openInstructorApprovalForActivity, activityDetailHtml, contactGroupsByDateSchool, findCompletionUploadForRow } from '../frontend/src/screens/instructor-utils.js';
 
 const row = {
   RowID: 'r1', start_date: '2026-06-21', activity_date: '2026-06-21', start_time: '08:00', end_time: '08:45',
@@ -72,6 +72,104 @@ test('completion approvals load requests rows with closed activities included', 
 
   assert.deepEqual(calls, [{ includeClosedForApprovals: true }]);
   assert.deepEqual(data.rows, [row]);
+});
+
+test('calendar and my activities also request rows with closed activities included', async () => {
+  const calendarCalls = [];
+  const myDataCalls = [];
+  const calendarData = await instructorCalendarScreen.load({
+    api: {
+      myData: async (params) => { calendarCalls.push(params); return { rows: [row], teamGroups }; },
+      completionApprovalUploads: async () => ({ rows: [] }),
+      photoApprovalUploads: async () => ({ rows: [] })
+    }
+  });
+  const myDataData = await myDataScreen.load({
+    api: {
+      myData: async (params) => { myDataCalls.push(params); return { rows: [row], teamGroups }; },
+      completionApprovalUploads: async () => ({ rows: [] }),
+      photoApprovalUploads: async () => ({ rows: [] })
+    }
+  });
+
+  assert.deepEqual(calendarCalls, [{ includeClosedForApprovals: true }]);
+  assert.deepEqual(myDataCalls, [{ includeClosedForApprovals: true }]);
+  assert.deepEqual(calendarData.rows, [row]);
+  assert.deepEqual(myDataData.rows, [row]);
+});
+
+test('a closed activity assigned to the instructor still renders on calendar and my activities', () => {
+  const todayIso = new Date().toISOString().slice(0, 10);
+  const closedRow = { ...row, RowID: 'closed-r1', status: 'סגור', start_date: todayIso, activity_date: todayIso };
+
+  const calendarHtml = instructorCalendarScreen.render({ rows: [closedRow], teamGroups, uploads: [] }, { state });
+  const calendarDom = new JSDOM(`<main id="root">${calendarHtml}</main>`);
+  const dayBtn = calendarDom.window.document.querySelector(`[data-calendar-day="${todayIso}"]`);
+  assert.ok(dayBtn, 'closed activity day should render as an active calendar cell');
+  assert.match(dayBtn.className, /has-activity/);
+  assert.equal(dayBtn.hasAttribute('disabled'), false);
+
+  const myDataHtml = myDataScreen.render({ rows: [closedRow], teamGroups }, { state });
+  assert.match(myDataHtml, /data-row-id="closed-r1"/);
+});
+
+test('storage-missing upload overrides an approved status on every instructor screen', () => {
+  const missingStorageUpload = {
+    activity_row_id: 'r1',
+    instructor_emp_id: '1525',
+    activity_date: '2026-06-21',
+    authority: 'קריית שמונה',
+    school: 'מגנים',
+    status: 'approved',
+    file_path: 'completion-approvals/1525/r1/file.pdf',
+    file_name: 'signed-approval.pdf',
+    storage_exists: false,
+    storage_status: 'missing'
+  };
+
+  const approvalsHtml = instructorCompletionApprovalsScreen.render({ rows: [row], uploads: [missingStorageUpload] }, { state });
+  assert.match(approvalsHtml, /הקובץ חסר באחסון/);
+  assert.match(approvalsHtml, /instr-status--missing/);
+  assert.doesNotMatch(approvalsHtml, />אושר</);
+
+  const todayIso = new Date().toISOString().slice(0, 10);
+  const todayRow = { ...row, start_date: todayIso, activity_date: todayIso };
+  const todayUpload = { ...missingStorageUpload, activity_date: todayIso };
+  const calendarHtml = instructorCalendarScreen.render({ rows: [todayRow], teamGroups, uploads: [todayUpload] }, { state });
+  assert.match(calendarHtml, /חסר אישור/);
+  assert.doesNotMatch(calendarHtml, /instr-status--approved/);
+
+  const myDataHtml = myDataScreen.render({ rows: [row], teamGroups, uploads: [missingStorageUpload] }, { state });
+  assert.match(myDataHtml, /הקובץ חסר באחסון/);
+  assert.doesNotMatch(myDataHtml, /instr-status--approved/);
+});
+
+test('completion upload matching prefers activity_row_id and never mixes same-day/school activities', () => {
+  const rowA = { ...row, RowID: 'r1' };
+  const rowB = { ...row, RowID: 'r2', activity_name: 'פעילות שנייה' };
+  const uploadForB = {
+    activity_row_id: 'r2',
+    instructor_emp_id: '1525',
+    activity_date: '2026-06-21',
+    authority: 'קריית שמונה',
+    school: 'מגנים',
+    status: 'uploaded',
+    file_path: 'completion-approvals/1525/r2/file.pdf'
+  };
+
+  assert.equal(findCompletionUploadForRow(rowA, [uploadForB]), null);
+  assert.deepEqual(findCompletionUploadForRow(rowB, [uploadForB]), uploadForB);
+});
+
+test('completion upload matching falls back to date+authority+school only for legacy uploads without activity_row_id', () => {
+  const legacyUpload = {
+    activity_date: '2026-06-21',
+    authority: 'קריית שמונה',
+    school: 'מגנים',
+    status: 'uploaded',
+    file_path: 'completion-approvals/legacy/file.pdf'
+  };
+  assert.deepEqual(findCompletionUploadForRow(row, [legacyUpload]), legacyUpload);
 });
 
 test('completion approvals keeps closed summer workshop printable and shows existing upload', () => {
