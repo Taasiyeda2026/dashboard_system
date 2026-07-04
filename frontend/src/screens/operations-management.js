@@ -2216,9 +2216,8 @@ function completionApprovalInstructorCellHtml(approval) {
   const primary = names[0] || approval?.instructorName || '—';
   return `<span class="ds-ops-completion-instructor-line">מדריך: ${escapeHtml(primary)}</span>`;
 }
-function photoApprovalIndicatorHtml(approval, photoUploads) {
-  const noUploadHtml = '<div class="ds-ops-photo-indicator ds-ops-photo-indicator--no">📷 לא הועלה</div>';
-  if (!Array.isArray(photoUploads)) return noUploadHtml;
+function findPhotoApprovalUpload(approval, photoUploads) {
+  if (!Array.isArray(photoUploads)) return null;
   const approvalEmpId = String(approval?.instructorEmpId || '').trim();
   const approvalSchoolId = String(approval?.schoolId || '').trim();
   const instrName = normalizeOpsText(approval?.instructorName || '');
@@ -2239,9 +2238,14 @@ function photoApprovalIndicatorHtml(approval, photoUploads) {
     if (instrNames.length && instrNames.includes(uName)) return true;
     return false;
   };
-  const found = photoUploads.find(matchUpload);
+  return photoUploads.find(matchUpload) || null;
+}
+
+function photoApprovalIndicatorHtml(approval, photoUploads, displayIndex) {
+  const noUploadHtml = `<div class="ds-ops-photo-indicator ds-ops-photo-indicator--no">📷 לא הועלה <button type="button" class="ds-ops-icon-btn ds-ops-icon-btn--add" data-ops-photo-upload="${displayIndex}" title="העלאת אישור צילום" aria-label="העלאת אישור צילום">＋</button></div>`;
+  const found = findPhotoApprovalUpload(approval, photoUploads);
   if (found?.file_path) {
-    return `<div class="ds-ops-photo-indicator ds-ops-photo-indicator--has">📷 יש אישור צילום <button type="button" class="ds-ops-icon-btn" data-ops-photo-view="${escapeHtml(String(found.id))}" title="צפייה באישור צילום" aria-label="צפייה באישור צילום">👁</button></div>`;
+    return `<div class="ds-ops-photo-indicator ds-ops-photo-indicator--has">📷 יש אישור צילום <button type="button" class="ds-ops-icon-btn" data-ops-photo-view="${escapeHtml(String(found.id))}" title="צפייה באישור צילום" aria-label="צפייה באישור צילום">👁</button> <button type="button" class="ds-ops-icon-btn ds-ops-icon-btn--add" data-ops-photo-replace="${escapeHtml(String(found.id))}" title="החלפת אישור צילום" aria-label="החלפת אישור צילום">↻</button></div>`;
   }
   return noUploadHtml;
 }
@@ -2568,7 +2572,7 @@ function completionApprovalTabHtml(rows, state, data = {}, directory = buildScho
     return `<tr${highlightToday ? ' class="ds-ops-work-today-row"' : ''}>
       <td class="ds-ops-completion-col--status ds-table-cell-truncate">${completionApprovalUploadStatusChip(upload)}</td>
       <td class="ds-ops-completion-col--type ds-table-cell-truncate">${completionApprovalTypeChip(approval)}</td>
-      <td class="ds-ops-completion-col--photo ds-table-cell-wrap">${photoApprovalIndicatorHtml(approval, data?.photoApprovalUploads || [])}</td>
+      <td class="ds-ops-completion-col--photo ds-table-cell-wrap">${photoApprovalIndicatorHtml(approval, data?.photoApprovalUploads || [], displayIndex)}</td>
       <td class="ds-ops-completion-col--date ds-table-cell-truncate">${escapeHtml(formatDateHe(approval.date) || approval.date || '')}${todayChip}</td>
       <td class="ds-ops-completion-col--authority ds-table-cell-truncate">${escapeHtml(approval.authority || '—')}</td>
       <td class="ds-ops-completion-col--school ds-table-cell-wrap">${escapeHtml(approval.school || '')}</td>
@@ -3013,6 +3017,72 @@ export const operationsManagementScreen = {
         const result = await api.photoApprovalSignedUrl({ filePath: upload.file_path });
         if (result?.signedUrl) window.open(result.signedUrl, '_blank', 'noopener,noreferrer');
       } catch (err) { alert('שגיאה בפתיחת קובץ אישור הצילום: ' + (err?.message || '')); }
+    }));
+
+    root.querySelectorAll('[data-ops-photo-upload]').forEach((btn) => btn.addEventListener('click', () => {
+      const index = Number(btn.getAttribute('data-ops-photo-upload'));
+      const approval = (_completionApprovalPrintContext?.approvals || [])[index];
+      if (!approval) return;
+      const input = document.createElement('input');
+      input.type = 'file';
+      input.accept = '.pdf,.jpg,.jpeg,.png';
+      input.style.display = 'none';
+      document.body.appendChild(input);
+      input.addEventListener('change', async () => {
+        const file = input.files?.[0];
+        document.body.removeChild(input);
+        if (!file) return;
+        btn.disabled = true;
+        const origText = btn.textContent;
+        btn.textContent = '…';
+        try {
+          await api.uploadPhotoApproval({
+            instructorEmpId: approval.instructorEmpId,
+            instructorName: approval.instructorName,
+            school: approval.school,
+            authority: approval.authority,
+            schoolId: approval.schoolId,
+            file
+          });
+          showOpsToast('אישור הצילום הועלה בהצלחה ✓');
+          clearScreenDataCache?.('operations-management');
+          rerender?.();
+        } catch (error) {
+          alert(`העלאת אישור הצילום נכשלה: ${error?.message || error}`);
+          btn.disabled = false;
+          btn.textContent = origText;
+        }
+      });
+      input.click();
+    }));
+
+    root.querySelectorAll('[data-ops-photo-replace]').forEach((btn) => btn.addEventListener('click', () => {
+      const id = btn.getAttribute('data-ops-photo-replace');
+      if (!id) return;
+      const input = document.createElement('input');
+      input.type = 'file';
+      input.accept = '.pdf,.jpg,.jpeg,.png';
+      input.style.display = 'none';
+      document.body.appendChild(input);
+      input.addEventListener('change', async () => {
+        const file = input.files?.[0];
+        document.body.removeChild(input);
+        if (!file) return;
+        btn.disabled = true;
+        const origText = btn.textContent;
+        btn.textContent = '…';
+        try {
+          await api.replacePhotoApproval({ id, file });
+          showOpsToast('אישור הצילום הועלה בהצלחה ✓');
+          clearScreenDataCache?.('operations-management');
+          rerender?.();
+        } catch (error) {
+          alert(`החלפת אישור הצילום נכשלה: ${error?.message || error}`);
+          btn.disabled = false;
+          btn.textContent = origText;
+        }
+      });
+      input.click();
     }));
 
     root.querySelectorAll('[data-ops-upload-delete]').forEach((btn) => btn.addEventListener('click', async () => {
