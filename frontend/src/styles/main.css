@@ -20763,3 +20763,69 @@ details[open] > .ds-fin-acc__summary::before { transform: rotate(90deg); }
   .ds-pa-info-grid,
   .ds-pa-contact-edit-grid { grid-template-columns: 1fr; }
 }
+
+/* Focused proposals table/drawer compact pass (2026-07-04). */
+.ds-pa-toolbar {
+  min-height: 38px;
+  align-items: center;
+}
+.ds-pa-toolbar .ds-input,
+.ds-pa-toolbar .ds-btn {
+  min-height: 32px;
+}
+.ds-pa-table {
+  border: 1px solid #e8eef6;
+  box-shadow: none;
+}
+.ds-pa-table th {
+  padding: 6px 8px;
+  white-space: nowrap;
+}
+.ds-pa-table td {
+  padding: 5px 8px;
+  height: 34px;
+  line-height: 1.25;
+}
+.ds-pa-table tbody tr:nth-child(even) {
+  background: #f8fcff;
+}
+.ds-pa-table tbody tr:nth-child(odd) {
+  background: #fff;
+}
+.ds-pa-table tbody tr + tr td {
+  border-top: 0 !important;
+}
+.ds-pa-actions-col,
+.ds-pa-actions-cell {
+  width: 82px;
+  min-width: 82px;
+}
+.ds-pa-row-action--icon,
+.ds-pa-row-more summary {
+  width: 26px;
+  height: 26px;
+  min-width: 26px;
+}
+.ds-pa-status-text {
+  display: inline;
+  background: transparent !important;
+  border: 0 !important;
+  box-shadow: none !important;
+  outline: 0 !important;
+}
+.ds-pa-drawer-summary .ds-pa-status-text {
+  font-weight: 700;
+}
+.ds-pa-item-card {
+  border-color: #e8eef6;
+  box-shadow: none;
+}
+.ds-pa-item-card-meta {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0 6px;
+}
+.ds-pa-other-company-note input[readonly] {
+  background: #f8fbff;
+  color: #475569;
+}

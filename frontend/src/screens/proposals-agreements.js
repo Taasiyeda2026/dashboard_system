@@ -194,13 +194,17 @@ const PROPOSAL_GROUP_LEGACY_ALIASES = Object.freeze({
   'קיץ תשפ״ו + תשפ״ז': 'combined'
 });
 
+function userFacingProposalGroupLabel(value = '') {
+  return text(value).replace(/שנה הבאה/g, PROPOSAL_GROUP_DISPLAY_FALLBACKS.next_year);
+}
+
 function proposalGroupSafeDisplayName(groupKey = '', displayName = '') {
   const key = text(groupKey);
-  const label = text(displayName);
+  const label = userFacingProposalGroupLabel(displayName);
   // Keep internal / Supabase values intact, but force the user-facing annual proposal label.
   if (key === 'next_year') return PROPOSAL_GROUP_DISPLAY_FALLBACKS.next_year;
   if (label && label !== key) return label;
-  return PROPOSAL_GROUP_DISPLAY_FALLBACKS[key] || label || key;
+  return userFacingProposalGroupLabel(PROPOSAL_GROUP_DISPLAY_FALLBACKS[key] || label || key);
 }
 let proposalTemplateSectionsLookup = [];
 
@@ -493,7 +497,7 @@ function proposalGroupDisplayName(value) {
   const key = normalizeProposalGroup(raw);
   if (key === 'next_year') return PROPOSAL_GROUP_DISPLAY_FALLBACKS.next_year;
   const meta = proposalGroupMeta(raw);
-  return meta?.display_name || raw;
+  return userFacingProposalGroupLabel(meta?.display_name || raw);
 }
 
 function resolveProposalTemplateKey(value) {
@@ -930,9 +934,8 @@ function statusSelectHtml(row, enabled, canApprove = false, state = null) {
     ? STATUS_OPTIONS.filter((status) => status !== currentStatus && canTransitionProposalStatus(row, status, effectiveState))
     : STATUS_OPTIONS.filter((status) => status === currentStatus || canTransitionProposalStatus(row, status, effectiveState));
   if (selectableStatuses.length <= 1 && !(currentStatus === 'approved' && selectableStatuses[0] === 'sent')) return visibleStatus;
-  const options = selectableStatuses.map((status) => optionHtml(status, currentStatus, STATUS_LABELS[status] || status)).join('');
-  const hiddenSelect = `<select class="ds-pa-status-select ds-pa-status-select--sr-only" data-pa-row-status data-pa-status-id="${escapeHtml(row?.id || '')}" data-pa-previous-status="${escapeHtml(currentStatus)}" aria-label="עדכון סטטוס הצעה" tabindex="-1" aria-hidden="true">${options}</select>`;
-  return `${visibleStatus}${hiddenSelect}`;
+  // Status changes are exposed through the compact actions menu; table cells remain plain text only.
+  return visibleStatus;
 }
 
 function detailRowsHtml(row) {
@@ -1027,7 +1030,7 @@ export function proposalsAgreementsTableRowsHtml(rows, state) {
 function tableHtml(rows, state) {
   return dsTableWrap(`
     <table class="ds-table ds-pa-table" data-pa-table>
-      <colgroup><col style="width:55px"><col style="width:160px"><col style="width:180px"><col style="width:130px"><col style="width:120px"><col style="width:130px"><col style="width:110px"><col style="width:160px"></colgroup>
+      <colgroup><col style="width:48px"><col style="width:170px"><col style="width:170px"><col style="width:120px"><col style="width:112px"><col style="width:120px"><col style="width:112px"><col style="width:82px"></colgroup>
       <thead><tr><th class="ds-pa-domain-col">תחום</th><th>רשות / מועצה / עירייה</th><th>בית ספר / מסגרת</th><th class="ds-pa-col-center">סוג הצעה</th><th class="ds-pa-col-center">תאריך הצעה</th><th class="ds-pa-col-center">סטטוס</th><th class="ds-pa-col-center">סה״כ</th><th class="ds-pa-actions-col ds-pa-col-center">פעולות</th></tr></thead>
       <tbody data-pa-table-body>${proposalsAgreementsTableRowsHtml(rows, state)}</tbody>
     </table>
@@ -1993,10 +1996,6 @@ function itemsSummaryHtml(items = []) {
     return '<p class="ds-pa-no-items-alert" role="alert" style="font-size:0.8rem;margin:4px 0;color:#b45309;background:#fffbeb;border:1px solid #fde68a;border-radius:8px;padding:6px 10px">לא נשמרו שורות פעילות להצעה זו</p>';
   }
   const visibleSummaryItems = activeItems.filter((item) => !isTestHoursItem(item));
-  const total = visibleSummaryItems.reduce((s, i) => {
-    const t = Number(proposalField(i, 'total_price', 'totalPrice')) || ((Number(proposalField(i, 'quantity', 'quantity')) || 1) * (Number(proposalField(i, 'unit_price', 'unitPrice')) || 0));
-    return s + t;
-  }, 0);
   const metaText = (label, val) => val != null && val !== ''
     ? `${escapeHtml(label)}: <span style="white-space:nowrap">${escapeHtml(String(val))}</span>`
     : '';
@@ -3474,7 +3473,7 @@ function formHtml(mode, row = {}, activityNameOptions = [], contactOptions = [],
           ${clientTypeSelectorHtml(initClientType)}
           ${contactOptionsLoadErrorHtml(contactOptionsError)}
           ${clientSearchHtml(contactOptions, row)}
-          <div class="ds-pa-other-client-section" data-pa-other-client-field${initOther ? '' : ' hidden'}><h5>פרטי הלקוח</h5><label class="ds-pa-form-field ds-pa-other-client-field"><span>שם הלקוח</span><input class="ds-input ds-input--sm" name="other_client_name" value="${escapeHtml(initOther ? (row.client_name || initSchool) : '')}" placeholder="שם הלקוח"></label></div>
+          <div class="ds-pa-other-client-section" data-pa-other-client-field${initOther ? '' : ' hidden'}><h5>פרטי הלקוח</h5><label class="ds-pa-form-field ds-pa-other-client-field"><span>שם הלקוח / חברה</span><input class="ds-input ds-input--sm" name="other_client_name" value="${escapeHtml(initOther ? (row.client_name || initSchool) : '')}" placeholder="שם הלקוח"></label></div>
         </div>
         <div data-pa-client-card${isLocked ? '' : ' hidden'}>${isLocked ? clientLockedBannerHtml(initAuth, initSchool, initContact, initRole, initPhone, initEmail, initClientName, initSchoolMeta) : ''}</div>
         <div class="ds-pa-client-hidden-values" data-pa-client-fields hidden>
@@ -3494,6 +3493,7 @@ function formHtml(mode, row = {}, activityNameOptions = [], contactOptions = [],
             <input type="hidden" name="contact_selection_mode" value="">
             ${textField('contact_name', 'שם', row.contact_name, false)}
             ${textField('contact_role', FIELD_LABELS.contact_role, normalizeContactRoleDisplay(row.contact_role), false)}
+            <label class="ds-pa-form-field ds-pa-other-company-note"><span>חברה</span><input class="ds-input ds-input--sm" value="${escapeHtml(initOther ? (row.client_name || initSchool) : '')}" readonly tabindex="-1" aria-readonly="true"></label>
           </div>
           <div class="ds-pa-contact-channels" data-pa-contact-channels-wrap>
             <div class="ds-pa-contact-channels-status" data-pa-contact-channels-status${channelsStatusVisible ? '' : ' hidden'}>${channelsStatusVisible ? contactChannelsStatusHtml(Boolean(initEmail), Boolean(initPhone), initOther) : ''}</div>
@@ -3645,7 +3645,8 @@ function drawerHtml(row, activityNameOptions = [], state = null) {
 
   const drawerSentBy = text(row.sent_by);
   const showSentBy = drawerRowStatus === 'sent' && drawerSentBy;
-  const drawerSummary = `${escapeHtml(proposalGroupDisplayName(row.activity_type_group) || '—')} · ${statusBadgeHtml(row.status)}`;
+  const amountSummary = row.total_amount != null ? ` · ₪ ${escapeHtml(formatCurrency(row.total_amount))}` : '';
+  const drawerSummary = `${escapeHtml(proposalGroupDisplayName(row.activity_type_group) || '—')} · ${statusBadgeHtml(row.status)}${amountSummary}`;
 
   const infoCell = (label, value, wide = false, options = {}) => {
     const display = text(value) || (options.emptyText || '');
@@ -3662,6 +3663,7 @@ function drawerHtml(row, activityNameOptions = [], state = null) {
   const proposalDetailsCard = `<div class="ds-pa-info-card">
     <h4 class="ds-pa-card-title">פרטי הצעה</h4>
     <div class="ds-pa-info-grid">
+      ${infoCell('סוג הצעה', proposalGroupDisplayName(row.activity_type_group), false, { showEmpty: true })}
       ${infoCell('תחום', normalizeProposalDomain(row.proposal_domain), false, { showEmpty: true })}
       ${infoCell('תאריך הצעה', formatDateDisplay(row.proposal_date), false, { showEmpty: true })}
       ${showSentBy ? infoCell('נשלח על ידי', drawerSentBy) : ''}
@@ -3672,7 +3674,7 @@ function drawerHtml(row, activityNameOptions = [], state = null) {
   const financialCard = `<div class="ds-pa-info-card">
     <h4 class="ds-pa-card-title">סיכום כספי</h4>
     <div class="ds-pa-info-grid">
-      ${infoCell('מספר שורות הצעה', String(activityNames.length || '—'), false, { showEmpty: true })}
+      ${infoCell('מספר שורות הצעה', String((Array.isArray(row.activity_names) ? row.activity_names : []).length || '—'), false, { showEmpty: true })}
       ${infoCell('סה״כ לתשלום', row.total_amount != null ? `₪ ${formatCurrency(row.total_amount)}` : '', false, { showEmpty: true })}
     </div>
   </div>`;
