@@ -10846,6 +10846,10 @@ select.ds-input {
   margin-inline: auto;
 }
 
+.ds-pa-screen:has([data-pa-tab-panel="new"]:not([hidden]) .pa-editor-workspace) {
+  max-width: 1220px;
+}
+
 .ds-pa-toolbar {
   display: flex;
   flex-wrap: wrap;
@@ -17342,7 +17346,7 @@ details[open] > .ds-fin-acc__summary::before { transform: rotate(90deg); }
    Scoped to pa-editor/pa-sidebar/pa-preview so the dashboard stays isolated.
    ═══════════════════════════════════════════════════════════════════ */
 .pa-editor-workspace {
-  --pa-sidebar-width: 420px;
+  --pa-sidebar-width: 460px;
 }
 .pa-editor.ds-pa-form--compact {
   max-width: min(1760px, 100%);
