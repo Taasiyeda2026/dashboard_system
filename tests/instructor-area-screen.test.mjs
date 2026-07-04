@@ -113,7 +113,7 @@ test('a closed activity assigned to the instructor still renders on calendar and
   assert.match(myDataHtml, /data-row-id="closed-r1"/);
 });
 
-test('storage-missing upload overrides an approved status on every instructor screen', () => {
+test('signed URL storage failure does not override approved status on instructor screens', () => {
   const missingStorageUpload = {
     activity_row_id: 'r1',
     instructor_emp_id: '1525',
@@ -128,20 +128,21 @@ test('storage-missing upload overrides an approved status on every instructor sc
   };
 
   const approvalsHtml = instructorCompletionApprovalsScreen.render({ rows: [row], uploads: [missingStorageUpload] }, { state });
-  assert.match(approvalsHtml, /הקובץ חסר באחסון/);
-  assert.match(approvalsHtml, /instr-status--missing/);
-  assert.doesNotMatch(approvalsHtml, />אושר</);
+  assert.match(approvalsHtml, />אושר/);
+  assert.match(approvalsHtml, /instr-status--approved/);
+  assert.doesNotMatch(approvalsHtml, /הקובץ חסר באחסון/);
 
   const todayIso = new Date().toISOString().slice(0, 10);
   const todayRow = { ...row, start_date: todayIso, activity_date: todayIso };
   const todayUpload = { ...missingStorageUpload, activity_date: todayIso };
   const calendarHtml = instructorCalendarScreen.render({ rows: [todayRow], teamGroups, uploads: [todayUpload] }, { state });
-  assert.match(calendarHtml, /חסר אישור/);
-  assert.doesNotMatch(calendarHtml, /instr-status--approved/);
+  assert.match(calendarHtml, /אושר/);
+  assert.match(calendarHtml, /instr-status--approved/);
 
   const myDataHtml = myDataScreen.render({ rows: [row], teamGroups, uploads: [missingStorageUpload] }, { state });
-  assert.match(myDataHtml, /הקובץ חסר באחסון/);
-  assert.doesNotMatch(myDataHtml, /instr-status--approved/);
+  assert.match(myDataHtml, />אושר/);
+  assert.match(myDataHtml, /instr-status--approved/);
+  assert.doesNotMatch(myDataHtml, /הקובץ חסר באחסון/);
 });
 
 test('completion upload matching prefers activity_row_id and never mixes same-day/school activities', () => {

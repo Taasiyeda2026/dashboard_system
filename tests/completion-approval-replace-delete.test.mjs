@@ -1,10 +1,28 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
 import { readFileSync } from 'node:fs';
+import { completionApprovalStatusInfo } from '../frontend/src/screens/shared/completion-approval-status.js';
 
 const apiSource = readFileSync(new URL('../frontend/src/api.js', import.meta.url), 'utf8');
 const instructorSource = readFileSync(new URL('../frontend/src/screens/instructor-completion-approvals.js', import.meta.url), 'utf8');
 const opsSource = readFileSync(new URL('../frontend/src/screens/operations-management.js', import.meta.url), 'utf8');
+
+
+test('completion approval status ignores signed URL storage failures when a file reference exists', () => {
+  assert.deepEqual(completionApprovalStatusInfo(null), { key: 'missing', label: 'טרם הועלה' });
+  assert.deepEqual(
+    completionApprovalStatusInfo({ status: 'approved', file_path: 'signed/path.pdf', storage_exists: false, storage_status: 'signed_url_failed' }),
+    { key: 'approved', label: 'אושר' }
+  );
+  assert.deepEqual(
+    completionApprovalStatusInfo({ status: 'uploaded', file_path: 'signed/path.pdf', storage_exists: false, storage_status: 'signed_url_failed' }),
+    { key: 'uploaded', label: 'הועלה לבדיקה' }
+  );
+  assert.deepEqual(
+    completionApprovalStatusInfo({ status: 'uploaded', file_name: 'approval.pdf', storage_exists: false, storage_status: 'missing' }),
+    { key: 'uploaded', label: 'הועלה לבדיקה' }
+  );
+});
 
 test('completion approval uploads expose storage existence and ignore missing storage in activity checks', () => {
   assert.match(apiSource, /storage_exists/);
@@ -30,11 +48,10 @@ test('completion approval deletion removes storage and upload row', () => {
   assert.ok(apiSource.indexOf("remove([filePath])") < apiSource.indexOf("delete().eq('id', uploadId)"));
 });
 
-test('instructor UI shows view, replace, delete for valid files and re-upload for missing storage', () => {
+test('instructor UI shows view, replace and delete for completion approval file references', () => {
   assert.match(instructorSource, /data-view-file-path/);
-  assert.match(instructorSource, /החלף קובץ/);
+  assert.match(instructorSource, /החלף/);
   assert.match(instructorSource, /data-delete-upload-id/);
-  assert.match(instructorSource, /הקובץ חסר באחסון/);
   assert.match(instructorSource, /replaceCompletionApprovalUpload/);
   assert.match(instructorSource, /deleteCompletionApprovalUpload/);
 });

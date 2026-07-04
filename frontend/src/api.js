@@ -2371,9 +2371,7 @@ function approvalUploadMatchesActivity(upload = {}, row = {}) {
 }
 
 function completionApprovalStorageExists(upload = {}) {
-  if (!upload?.file_path) return false;
-  if (upload.storage_exists === false || String(upload.storage_status || '').trim() === 'missing') return false;
-  return true;
+  return !!(upload?.file_path || upload?.file_name || upload?.file_ref_exists);
 }
 
 function hasCompletionApprovalForActivity(row = {}, approvalUploads = []) {
@@ -5619,10 +5617,17 @@ export const api = {
     const rows = Array.isArray(data) ? data : [];
     const rowsWithStorage = await Promise.all(rows.map(async (row) => {
       const filePath = String(row?.file_path || '').trim();
-      if (!filePath) return { ...row, storage_exists: false, storage_status: 'missing' };
+      if (!filePath) return { ...row, file_ref_exists: false, storage_exists: false, storage_status: 'missing' };
       const signed = await supabase.storage.from('completion-approvals').createSignedUrl(filePath, 30);
-      const exists = !signed.error && !!signed.data?.signedUrl;
-      return { ...row, storage_exists: exists, storage_status: exists ? 'exists' : 'missing' };
+      const signedUrlOk = !signed.error && !!signed.data?.signedUrl;
+      return {
+        ...row,
+        file_ref_exists: true,
+        storage_exists: signedUrlOk,
+        storage_status: signedUrlOk ? 'exists' : 'signed_url_failed',
+        storage_access_status: signedUrlOk ? 'ok' : 'failed',
+        ...(signed.error ? { storage_error: String(signed.error.message || 'completion_approval_signed_url_failed') } : {})
+      };
     }));
     return { rows: rowsWithStorage, _source: 'supabase' };
   },
