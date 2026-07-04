@@ -20894,34 +20894,76 @@ details[open] > .ds-fin-acc__summary::before { transform: rotate(90deg); }
 .ds-pa-tour-component-price-field .ds-input,
 .ds-pa-tour-component-quantity-field .ds-input { width: 100%; }
 
-/* Pin proposal footers to the bottom of short A4 pages while keeping them in normal flow. */
-.proposal-document.pa-document {
-  box-sizing: border-box !important;
-  display: flex !important;
-  flex-direction: column !important;
+
+
+/* Final proposal regression overrides (2026-07-04): keep print flow static; no fixed footer, no A4 min-height/flex. */
+.pa-sidebar .ds-pa-item-quick-row {
+  grid-template-columns: minmax(0, 1fr) 72px 28px !important;
+  gap: 6px !important;
+  align-items: end !important;
 }
-.proposal-document.pa-document .proposal-document-body {
-  flex: 1 1 auto !important;
+.pa-sidebar .ds-pa-item-quick-row .ds-pa-item-field,
+.pa-sidebar .ds-pa-item-quick-row .ds-pa-item-field select,
+.pa-sidebar .ds-pa-item-quick-row .ds-pa-item-field input { min-width: 0 !important; }
+.pa-sidebar .ds-pa-item-quick-row .ds-pa-item-remove,
+.ds-pa-item-remove.ds-pa-item-remove--quick {
+  grid-column: auto !important;
+  width: 28px !important;
+  min-width: 28px !important;
+  height: 28px !important;
+  min-height: 28px !important;
+  padding: 0 !important;
+  border: 0 !important;
+  background: transparent !important;
+  box-shadow: none !important;
 }
-.proposal-document.pa-document .pa-page-footer {
-  margin-top: auto !important;
-  flex: 0 0 auto !important;
+.pa-sidebar .ds-pa-tour-component-row {
+  grid-template-columns: minmax(86px, 1fr) minmax(70px, .9fr) 72px 52px 64px 28px !important;
+  gap: 5px !important;
+  align-items: end !important;
+}
+.pa-sidebar .ds-pa-tour-component-row .ds-pa-item-field,
+.pa-sidebar .ds-pa-tour-component-row .ds-input { min-width: 0 !important; }
+.pa-sidebar .ds-pa-tour-component-delete-cell .ds-btn {
+  width: 28px !important; min-width: 28px !important; height: 28px !important; min-height: 28px !important;
+  padding: 0 !important; border: 0 !important; background: transparent !important; box-shadow: none !important; font-size: 0 !important;
 }
 @media print {
+  .proposal-document.pa-document,
   .proposal-document.pa-a4-page,
-  .proposal-document.pa-document {
-    box-sizing: border-box !important;
-    min-height: 297mm !important;
-    display: flex !important;
-    flex-direction: column !important;
+  .proposal-document.pa-document .proposal-document-body,
+  .proposal-document.pa-document .proposal-document-content {
+    display: block !important;
+    min-height: 0 !important;
+    height: auto !important;
   }
-  .proposal-document.pa-document .proposal-document-body {
-    flex: 1 1 auto !important;
+  .proposal-document .pa-cost-table.pa-tour-cost-table,
+  .proposal-document .pa-cost-table.pa-activities-table.pa-tour-cost-table,
+  .pa-cost-table.pa-tour-cost-table,
+  .pa-cost-table.pa-activities-table.pa-tour-cost-table {
+    width: 60% !important;
+    max-width: 60% !important;
+    min-width: 0 !important;
+    margin-inline: auto !important;
+    table-layout: fixed !important;
   }
-  .proposal-document .pa-page-footer,
-  .proposal-document.pa-document .pa-page-footer {
-    margin-top: auto !important;
+  .proposal-document .pa-cost-table.pa-tour-cost-table th,
+  .proposal-document .pa-cost-table.pa-tour-cost-table td { text-align: center !important; }
+  .proposal-document .pa-cost-table.pa-tour-cost-table th:first-child,
+  .proposal-document .pa-cost-table.pa-tour-cost-table td:first-child { text-align: right !important; }
+  .proposal-document.pa-document--next-year .pa-next-year-course-table col { width: auto !important; }
+  .proposal-document.pa-document--next-year .pa-next-year-course-table .pa-course-col { width: 26% !important; }
+  .proposal-document.pa-document--next-year .pa-next-year-course-table .pa-hourly-price-col { width: 14% !important; }
+  .proposal-document.pa-document--next-year .pa-next-year-course-table .pa-gefen-col,
+  .proposal-document.pa-document--next-year .pa-next-year-course-table .pa-meetings-col,
+  .proposal-document.pa-document--next-year .pa-next-year-course-table .pa-groups-col,
+  .proposal-document.pa-document--next-year .pa-next-year-course-table .pa-hours-col,
+  .proposal-document.pa-document--next-year .pa-next-year-course-table .pa-total-price-col { width: 12% !important; }
+  .proposal-document .pa-signature-spacer { height: 1em !important; max-height: 1em !important; margin: 0 !important; padding: 0 !important; }
+  .proposal-document.pa-document .pa-page-footer,
+  .proposal-document .pa-page-footer {
     position: static !important;
+    margin-top: 22mm !important;
     break-inside: avoid !important;
     page-break-inside: avoid !important;
   }

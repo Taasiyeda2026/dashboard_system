@@ -189,6 +189,10 @@ const PROPOSAL_GROUP_LEGACY_ALIASES = Object.freeze({
   'תשפ״ז': 'next_year',
   'הצעה משולבת': 'combined',
   'סיור': 'tour',
+  'סיורים': 'tour',
+  'סיור לימודי': 'tour',
+  'סיור לימודי חווייתי': 'tour',
+  'התנסות בתעשייה – סיור לימודי חווייתי': 'tour',
   'קיץ תשפ״ו ושנת הלימודים תשפ״ז': 'combined',
   'קיץ תשפ״ו ותוכניות תשפ״ז': 'combined',
   'קיץ תשפ״ו + תשפ״ז': 'combined'
@@ -217,8 +221,7 @@ const TOUR_ACTIVITY_LINE = `${TOUR_ACTIVITY_NAME} – גפ״ן ${TOUR_GEFEN_NUMB
 const TOUR_INTRO_BODY = `תעשיידע היא עמותה חינוכית-טכנולוגית הפועלת לחיבור בין מערכת החינוך לבין התעשייה, החדשנות ועולמות התעסוקה. במסגרת פעילותה מובילה העמותה סיורים לימודיים-חווייתיים המאפשרים לתלמידים חשיפה לסביבות עבודה אמיתיות, לטכנולוגיות מתקדמות ולבעלי תפקידים מגוונים.
 
 הסיור מחבר בין הלמידה בבית הספר לבין היישום המעשי בשטח, מעודד סקרנות וחשיבה יזמית ומסייע לתלמידות ולתלמידים להיחשף לאפשרויות עתידיות בלימודים ובעולם העבודה. הסיור מותאם לשכבת הגיל, למגמות הלימוד, למטרות החינוכיות של בית הספר ולאופי הגוף המארח.`;
-const TOUR_ACTIVITY_INTRO_BODY = `להלן הפעילות המוצעת לשנת הלימודים תשפ״ז:
-${TOUR_ACTIVITY_LINE}`;
+const TOUR_ACTIVITY_INTRO_BODY = TOUR_ACTIVITY_LINE;
 const TOUR_CANCELLATION_TERMS_BODY = `ביטול סיור בהתראה של פחות משני ימי עבודה יחויב כסיור שהתקיים בפועל.
 
 שינוי מועד הסיור בשל הנחיות, מצב חירום או אילוצי הגוף המארח יתואם למועד חלופי מוסכם בין הצדדים.
@@ -1601,7 +1604,8 @@ function tourCostComponentsFromDetails(details = {}) {
     ? (details.cost_components ?? details.costComponents).map(normalizeTourCostComponent)
     : [];
   // Backward compat: convert old class/students structure to a 'class' component
-  if (!existing.some((c) => c.component_type === 'class')) {
+  const isStructuredTourV2 = text(details.kind) === 'tour_table_v2' || details.students_total != null || details.studentsTotal != null;
+  if (!isStructuredTourV2 && !existing.some((c) => c.component_type === 'class')) {
     const className = text(details.class_name ?? details.className);
     const students = numberValue(details.students_count ?? details.studentsCount);
     const unitPrice = numberValue(details.price_per_student ?? details.pricePerStudent);
@@ -1822,6 +1826,11 @@ function extractItemsFromForm(form) {
       return normalizeTourCostComponent({ component_type, label, unit_price, quantity });
     }).filter((component) => component.unit_price > 0 || component.total_price > 0);
     const details = {
+      class_name: text(get('tour_class_name')),
+      students_count: numberValue(get('tour_students_count')),
+      price_per_student: numberValue(get('tour_price_per_student')),
+      quantity: numberValue(get('tour_quantity')) ?? 1,
+      students_total: numberValue(get('tour_students_total')),
       cost_components,
       total_price: numberValue(get('tour_total_price'))
     };
@@ -2350,8 +2359,9 @@ function proposalItemDetailsTableHtml(items = [], contextGroup = '') {
   const nextYearTableStyle = isNextYearTable
     ? ' style="width:85%;margin-inline:auto;table-layout:fixed;"'
     : '';
-  const nextYearFirstColStyle = isNextYearTable ? ' style="width:34%"' : '';
-  const nextYearOtherColStyle = isNextYearTable ? ' style="width:11%"' : '';
+  const nextYearFirstColStyle = isNextYearTable ? ' style="width:26%"' : '';
+  const nextYearOtherColStyle = isNextYearTable ? ' style="width:12%"' : '';
+  const nextYearHourlyColStyle = isNextYearTable ? ' style="width:14%"' : '';
   return `<table class="${tableClass}"${nextYearTableStyle}>
     <colgroup>
       <col class="pa-course-col"${nextYearFirstColStyle}>
@@ -2359,7 +2369,7 @@ function proposalItemDetailsTableHtml(items = [], contextGroup = '') {
       <col class="pa-meetings-col"${nextYearOtherColStyle}>
       <col class="pa-groups-col"${nextYearOtherColStyle}>
       <col class="pa-hours-col"${nextYearOtherColStyle}>
-      <col class="pa-hourly-price-col"${nextYearOtherColStyle}>
+      <col class="pa-hourly-price-col"${nextYearHourlyColStyle}>
       <col class="pa-total-price-col"${nextYearOtherColStyle}>
     </colgroup>
     <thead><tr><th>קורס / תוכנית</th><th>מס׳ גפ״ן</th><th>מפגשים</th><th>קבוצות</th><th>שעות</th><th>מחיר לשעה</th><th>סה״כ</th></tr></thead>
@@ -2708,9 +2718,9 @@ function buildProposalDocumentHtml({ dateDisplay, documentTitle, row, introText,
         }
 
         .pa-tour-cost-table {
-          width: 50%;
-          min-width: 300px;
-          max-width: 100%;
+          width: 60%;
+          min-width: 0;
+          max-width: 60%;
           margin-inline: auto;
           table-layout: fixed;
           border-collapse: collapse;
@@ -2745,9 +2755,9 @@ function buildProposalDocumentHtml({ dateDisplay, documentTitle, row, introText,
             box-sizing: border-box !important;
           }
           .pa-tour-cost-table {
-            width: 50% !important;
-            min-width: 300px !important;
-            max-width: 100% !important;
+            width: 60% !important;
+            min-width: 0 !important;
+            max-width: 60% !important;
             margin-inline: auto !important;
             table-layout: fixed !important;
           }
@@ -3131,7 +3141,7 @@ function buildContactSourceFromRow(row = {}) {
   const inferredClientType = inferProposalClientType(row);
   if (inferredClientType === 'other') {
     return {
-      id: null, authority_id: null, school_id: null, semel_mosad: null, school_required: 'no',
+      id: null, authority_id: row.authority_id || null, school_id: null, semel_mosad: null, school_required: 'no',
       client_type: 'other', client_name: text(row.client_name || row.school_framework), authority: text(row.client_authority), school: '',
       contact_name: text(row.contact_name), contact_role: text(row.contact_role), phone: text(row.phone), email: text(row.email), mobile: ''
     };
@@ -3271,7 +3281,7 @@ function stepComplete(form) {
 
   let clientDone = false;
   if (clientType === 'other') {
-    clientDone = true;
+    clientDone = Boolean(authorityId && otherName);
   } else if (clientType === 'authority') {
     clientDone = Boolean(authorityId);
   } else {
@@ -3881,7 +3891,7 @@ function payloadFromForm(form) {
   payload.client_type = ['school', 'authority', 'other'].includes(selectedClientType) ? selectedClientType : 'school';
   if (payload.client_type === 'other') {
     const otherClientName = text(formData.get('other_client_name'));
-    payload.school_framework = otherClientName;
+    payload.school_framework = '';
     payload.client_authority = text(formData.get('contact_source_authority'));
     payload.client_name = otherClientName;
     payload.other_client_name = otherClientName;
@@ -3895,7 +3905,7 @@ function payloadFromForm(form) {
     payload.semel_mosad = text(formData.get('contact_source_semel_mosad')) || null;
     const schoolRequired = text(formData.get('contact_source_school_required'));
     payload._school_required = schoolRequired === 'no' ? 'no' : 'yes';
-    const isAuthorityOnlyPayload = payload.client_type === 'authority';
+    const isAuthorityOnlyPayload = payload.client_type === 'authority' || payload.client_type === 'other';
     payload.school_id = isAuthorityOnlyPayload ? null : (text(formData.get('contact_source_school_id')) || null);
     payload.contact_school_id = isAuthorityOnlyPayload ? null : (text(formData.get('contact_source_id')) || null);
   }
@@ -3941,16 +3951,16 @@ function validatePayload(payload, statusOverride, options = {}) {
   const isOtherProposal = clientType === 'other';
   const isAuthorityOnlyProposal = clientType === 'authority';
   const baseRequiredFields = requiresCompleteProposal ? REQUIRED_FIELDS_PENDING : REQUIRED_FIELDS_DRAFT;
-  const requiredFields = baseRequiredFields.filter((key) => !(isOtherProposal && ['client_authority'].includes(key)));
+  const requiredFields = baseRequiredFields;
   const missing = requiredFields.filter((key) => !text(payload[key]));
   const errors = missing.map((key) => FIELD_LABELS[key] || key);
   if (isOtherProposal && !text(payload.client_name || payload.school_framework)) {
     errors.push('שם הלקוח');
   }
+  if (!text(payload.authority_id)) {
+    errors.push('יש לבחור רשות מתוך רשימת הרשויות.');
+  }
   if (!isOtherProposal) {
-    if (!text(payload.authority_id)) {
-      errors.push('יש לבחור רשות מתוך רשימת הרשויות.');
-    }
     if (!text(payload.school_id) && !isAuthorityOnlyProposal) {
       errors.push('יש לבחור בית ספר מתוך רשימת בתי הספר של הרשות.');
     }
@@ -3961,7 +3971,7 @@ function validatePayload(payload, statusOverride, options = {}) {
     errors.push('יש להזין שם איש קשר חדש.');
   }
   if (hasManualContact && !text(payload.contact_school_id)) {
-    if (!isOtherProposal && (!text(payload.authority_id) || (!isAuthorityOnlyProposal && !text(payload.school_id)))) {
+    if (!text(payload.authority_id) || (!isOtherProposal && !isAuthorityOnlyProposal && !text(payload.school_id))) {
       errors.push('ניתן להוסיף איש קשר רק לאחר בחירת רשות ובית ספר.');
     }
   }
@@ -4465,11 +4475,11 @@ export const proposalsAgreementsScreen = {
         semel_mosad = '',
         schoolMeta = null
       } = ctx;
-      const isAuthorityOnly = clientType === 'authority';
+      const isAuthorityOnly = clientType === 'authority' || clientType === 'other';
       const authInput = form.querySelector('input[name="client_authority"]');
       const schoolInput = form.querySelector('input[name="school_framework"]');
       if (authInput) authInput.value = authority;
-      if (schoolInput) schoolInput.value = school;
+      if (schoolInput) schoolInput.value = clientType === 'other' ? '' : school;
 
       const catalogSchool = schoolMeta || findSchoolCatalogContact(contactOptions, {
         authorityId,
@@ -5376,7 +5386,7 @@ export const proposalsAgreementsScreen = {
       const submitBtnHtml = options.onSubmit ? `<button type="button" class="ds-btn ds-btn--primary ds-btn--sm no-print" id="pa-preview-submit">${escapeHtml(options.submitLabel || 'שליחה לאישור')}</button>` : '';
       const approvePreviewBtnHtml = canApproveFromPreview ? '<button type="button" class="ds-btn ds-btn--primary ds-btn--sm no-print" id="pa-preview-approve-sign">אישור וחתימה</button>' : '';
       const hasCustomSections = Array.isArray(freshRow.custom_document_sections) && freshRow.custom_document_sections.length > 0;
-      const missingTemplateNotice = (!templateSections.length && !hasCustomSections)
+      const missingTemplateNotice = (!templateSections.length && !hasCustomSections && !isTourProposalGroup(freshRow.activity_type_group))
         ? '<p class="ds-pa-template-missing-notice no-print" role="alert" style="margin:6px 0 0;color:#b45309;font-size:0.85rem">לא נמצאה תבנית פעילה לסוג הצעה זה</p>'
         : '';
       // Admin-only notice (never printed) when the proposal has no saved item rows.
