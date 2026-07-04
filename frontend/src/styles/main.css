@@ -20862,3 +20862,67 @@ details[open] > .ds-fin-acc__summary::before { transform: rotate(90deg); }
   background: #f8fbff;
   color: #475569;
 }
+
+/* Proposal editor compact row fixes: keep delete as an icon-only control beside quantity. */
+.ds-pa-item-quick-row {
+  grid-template-columns: minmax(0, 1fr) 82px 24px !important;
+  gap: 6px !important;
+}
+.ds-pa-item-remove.ds-pa-item-remove--quick {
+  width: 24px !important;
+  min-width: 24px !important;
+  height: 28px !important;
+  min-height: 28px !important;
+  padding: 0 !important;
+  border: 0 !important;
+  background: transparent !important;
+  box-shadow: none !important;
+  color: #b91c1c !important;
+  display: inline-flex !important;
+  align-items: center !important;
+  justify-content: center !important;
+}
+.ds-pa-item-remove.ds-pa-item-remove--quick:hover,
+.ds-pa-item-remove.ds-pa-item-remove--quick:focus-visible {
+  background: transparent !important;
+  color: #991b1b !important;
+}
+.ds-pa-tour-component-type-field { max-width: 130px; }
+.ds-pa-tour-component-price-field { max-width: 105px; }
+.ds-pa-tour-component-quantity-field { max-width: 78px; }
+.ds-pa-tour-component-type-field .ds-input,
+.ds-pa-tour-component-price-field .ds-input,
+.ds-pa-tour-component-quantity-field .ds-input { width: 100%; }
+
+/* Pin proposal footers to the bottom of short A4 pages while keeping them in normal flow. */
+.proposal-document.pa-document {
+  box-sizing: border-box !important;
+  display: flex !important;
+  flex-direction: column !important;
+}
+.proposal-document.pa-document .proposal-document-body {
+  flex: 1 1 auto !important;
+}
+.proposal-document.pa-document .pa-page-footer {
+  margin-top: auto !important;
+  flex: 0 0 auto !important;
+}
+@media print {
+  .proposal-document.pa-a4-page,
+  .proposal-document.pa-document {
+    box-sizing: border-box !important;
+    min-height: 297mm !important;
+    display: flex !important;
+    flex-direction: column !important;
+  }
+  .proposal-document.pa-document .proposal-document-body {
+    flex: 1 1 auto !important;
+  }
+  .proposal-document .pa-page-footer,
+  .proposal-document.pa-document .pa-page-footer {
+    margin-top: auto !important;
+    position: static !important;
+    break-inside: avoid !important;
+    page-break-inside: avoid !important;
+  }
+}
