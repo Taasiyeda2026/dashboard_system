@@ -1988,13 +1988,13 @@ test('proposal preview recipient block respects selected recipient type', async 
     },
     {
       client_type: 'authority',
-      expectedLines: ['לכבוד:', 'דנה ישראלי, מנהלת', 'טלפון: 050-1234567 | דוא״ל: dana@example.com', 'אשכול'],
-      absent: ['בית ספר אופק', 'לקוח ישן']
+      expectedLines: ['לכבוד:', 'דנה ישראלי, מנהלת', 'טלפון: 050-1234567 | דוא״ל: dana@example.com', 'בית ספר אופק, אשכול'],
+      absent: ['לקוח ישן']
     },
     {
       client_type: 'other',
-      expectedLines: ['לכבוד:', 'דנה ישראלי, מנהלת', 'טלפון: 050-1234567 | דוא״ל: dana@example.com'],
-      absent: ['בית ספר אופק', 'אשכול', 'לקוח ישן']
+      expectedLines: ['לכבוד:', 'דנה ישראלי, מנהלת', 'טלפון: 050-1234567 | דוא״ל: dana@example.com', 'בית ספר אופק'],
+      absent: ['אשכול', 'לקוח ישן']
     }
   ];
 
@@ -2011,7 +2011,7 @@ test('proposal preview recipient block respects selected recipient type', async 
   }
 });
 
-test('proposal preview for other recipient omits stale organization fields and empty labels', () => {
+test('proposal preview for other recipient shows school framework and omits stale client fields', () => {
   const html = proposalPreviewBodyHtml({
     client_type: 'other',
     client_authority: 'רשות ישנה',
@@ -2024,9 +2024,68 @@ test('proposal preview for other recipient omits stale organization fields and e
     status: 'approved'
   }, [], []);
   assert.match(html, /איש קשר/);
-  assert.doesNotMatch(html, /עמותת בדיקה|רשות ישנה|לקוח ישן/);
+  assert.match(html, /עמותת בדיקה/);
+  assert.doesNotMatch(html, /רשות ישנה|לקוח ישן/);
   assert.doesNotMatch(html, /רשות:\s*—/);
   assert.doesNotMatch(html, /בית ספר:\s*—/);
+});
+
+test('proposal recipient block shows school name across all template types when school and authority exist', async () => {
+  const baseRow = {
+    document_type: 'הצעת מחיר',
+    proposal_date: '2026-06-30',
+    status: 'approved',
+    contact_name: 'דנה ישראלי',
+    contact_role: 'מנהלת',
+    school_framework: 'מרחבי אשכול',
+    client_authority: 'אשכול',
+    client_type: 'authority'
+  };
+  const templateGroups = [
+    { activity_type_group: 'summer', label: 'summer' },
+    { activity_type_group: 'next_year', label: 'next_year' },
+    { activity_type_group: 'הצעה משולבת', label: 'combined' },
+    { activity_type_group: 'סיור', label: 'tour' }
+  ];
+
+  for (const entry of templateGroups) {
+    await withJSDOM(proposalPreviewBodyHtml({ ...baseRow, activity_type_group: entry.activity_type_group }, [], []), async (_root, dom) => {
+      const address = dom.window.document.querySelector('.pa-doc-address');
+      assert.ok(address, `recipient block should render for ${entry.label}`);
+      const orgLine = Array.from(address.querySelectorAll('.pa-recipient-lines p'))
+        .map((p) => p.textContent)
+        .find((line) => line.includes('מרחבי אשכול'));
+      assert.equal(orgLine, 'מרחבי אשכול, אשכול', `${entry.label} should show school and authority`);
+    });
+  }
+});
+
+test('proposal recipient block hides invalid school placeholders and dedupes identical school and authority', async () => {
+  await withJSDOM(proposalPreviewBodyHtml({
+    document_type: 'הצעת מחיר',
+    activity_type_group: 'summer',
+    proposal_date: '2026-06-30',
+    status: 'approved',
+    client_type: 'authority',
+    client_authority: 'אשכול',
+    school_framework: 'ללא בית ספר'
+  }, [], []), async (_root, dom) => {
+    const lines = Array.from(dom.window.document.querySelectorAll('.pa-doc-address p')).map((p) => p.textContent);
+    assert.deepEqual(lines, ['לכבוד:', 'אשכול']);
+  });
+
+  await withJSDOM(proposalPreviewBodyHtml({
+    document_type: 'הצעת מחיר',
+    activity_type_group: 'summer',
+    proposal_date: '2026-06-30',
+    status: 'approved',
+    client_type: 'school',
+    client_authority: 'אשכול',
+    school_framework: 'אשכול'
+  }, [], []), async (_root, dom) => {
+    const lines = Array.from(dom.window.document.querySelectorAll('.pa-doc-address p')).map((p) => p.textContent);
+    assert.deepEqual(lines, ['לכבוד:', 'אשכול']);
+  });
 });
 
 test('proposal DB payload for other recipient keeps client name in client_name and leaves school_framework empty', async () => {
@@ -2880,6 +2939,7 @@ test('proposal preview renders recipient block before title without empty commas
     assert.deepEqual(Array.from(address.querySelectorAll('p')).map((p) => p.textContent), [
       'לכבוד:',
       'יונית לוי, מנהלת',
+      'טלפון: 050-1111111 | דוא״ל: dana@example.com',
       'בית ספר אורט, רשות הדוגמה'
     ]);
     assert.doesNotMatch(address.textContent, /undefined|null|NaN|,,|,\s*$/);
