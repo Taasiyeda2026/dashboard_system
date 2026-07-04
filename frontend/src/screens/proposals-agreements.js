@@ -2811,8 +2811,11 @@ function buildProposalDocumentHtml({ dateDisplay, documentTitle, row, introText,
           ${signatureHtml}
         </div>
       </div>
-      <div class="pa-page-footer">
-        <span>תעשיידע — תעשייה למען חינוך מתקדם (ע״ר) | <span dir="ltr">www.think.org.il</span></span>
+      <div class="pa-page-footer-area">
+        <div class="pa-page-footer-gap" aria-hidden="true"></div>
+        <div class="pa-page-footer">
+          <span>תעשיידע — תעשייה למען חינוך מתקדם (ע״ר) | <span dir="ltr">www.think.org.il</span></span>
+        </div>
       </div>
     </div>`;
 }
