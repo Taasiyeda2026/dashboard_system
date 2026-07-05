@@ -2727,6 +2727,9 @@ function invalidateScreenDataByAction(action) {
     addProposalAgreement: ['proposals-agreements'],
     updateProposalAgreement: ['proposals-agreements'],
     updateProposalAgreementStatus: ['proposals-agreements'],
+    lockAndSendProposalAgreement: ['proposals-agreements'],
+    uploadLegacyProposalFinalPdf: ['proposals-agreements'],
+    getProposalFinalPdfSignedUrl: ['proposals-agreements'],
     deleteProposalAgreement: ['proposals-agreements'],
     saveProposalAgreementItems: ['proposals-agreements'],
     uploadCompletionApproval: ['instructor-completion-approvals', 'my-data', 'instructor-calendar'],
@@ -2820,8 +2823,9 @@ function normalizeData(data) {
 
 const PROPOSALS_AGREEMENTS_ALLOWED_ROLES = new Set(['domain_manager', 'operation_manager', 'admin', 'business_development_manager']);
 const PROPOSALS_AGREEMENTS_MANAGE_ROLES = new Set(['domain_manager', 'operation_manager', 'admin']);
-const PROPOSALS_AGREEMENTS_COLUMNS = 'id,authority_id,school_id,contact_school_id,client_authority,school_framework,document_type,activity_type_group,proposal_domain,proposal_date,activity_names,contact_name,contact_role,phone,email,contact_phone,contact_email,notes,status,approval_note,total_amount,custom_document_sections,include_catalog,signature_meta,approved_by,approved_at,sent_by,sent_at,created_at,updated_at';
-const PROPOSALS_AGREEMENTS_DIRECTORY_COLUMNS = 'id,authority_id,authority_code,school_id,contact_school_id,authority_name,legacy_client_authority,contact_client_type,contact_client_name,school_name,legacy_school_framework,document_type,activity_type_group,proposal_domain,proposal_date,activity_names,contact_name,contact_role,phone,email,notes,status,approval_note,total_amount,custom_document_sections,include_catalog,signature_meta,approved_by,approved_at,sent_by,sent_at,created_at,updated_at';
+const PROPOSALS_AGREEMENTS_COLUMNS = 'id,authority_id,school_id,contact_school_id,client_authority,school_framework,document_type,activity_type_group,proposal_domain,proposal_date,activity_names,contact_name,contact_role,phone,email,contact_phone,contact_email,notes,status,approval_note,total_amount,custom_document_sections,include_catalog,signature_meta,approved_by,approved_at,sent_by,sent_at,locked_at,locked_by,locked_reason,final_pdf_path,final_pdf_file_name,final_pdf_created_at,final_pdf_created_by,document_snapshot,document_html_snapshot,created_at,updated_at';
+const PROPOSALS_AGREEMENTS_DIRECTORY_COLUMNS = 'id,authority_id,authority_code,school_id,contact_school_id,authority_name,legacy_client_authority,contact_client_type,contact_client_name,school_name,legacy_school_framework,document_type,activity_type_group,proposal_domain,proposal_date,activity_names,contact_name,contact_role,phone,email,notes,status,approval_note,total_amount,custom_document_sections,include_catalog,signature_meta,approved_by,approved_at,sent_by,sent_at,locked_at,locked_by,locked_reason,final_pdf_path,final_pdf_file_name,final_pdf_created_at,final_pdf_created_by,document_snapshot,document_html_snapshot,created_at,updated_at';
+const PROPOSAL_FINAL_PDF_BUCKET = 'proposal-final-pdfs';
 const PROPOSALS_AGREEMENTS_WRITABLE_COLUMNS = new Set([
   'authority_id', 'school_id', 'contact_school_id', 'client_authority', 'school_framework',
   'document_type', 'activity_type_group', 'proposal_date', 'activity_names', 'contact_name',
@@ -3032,11 +3036,54 @@ function normalizeProposalAgreementRow(row = {}) {
     approved_at:         cleanProposalAgreementText(row.approved_at),
     sent_by:             cleanProposalAgreementText(row.sent_by),
     sent_at:             cleanProposalAgreementText(row.sent_at),
+    locked_at:           cleanProposalAgreementText(row.locked_at),
+    locked_by:           cleanProposalAgreementText(row.locked_by),
+    locked_reason:       cleanProposalAgreementText(row.locked_reason),
+    final_pdf_path:      cleanProposalAgreementText(row.final_pdf_path),
+    final_pdf_file_name: cleanProposalAgreementText(row.final_pdf_file_name),
+    final_pdf_created_at: cleanProposalAgreementText(row.final_pdf_created_at),
+    final_pdf_created_by: cleanProposalAgreementText(row.final_pdf_created_by),
+    document_snapshot:   (row.document_snapshot && typeof row.document_snapshot === 'object' && !Array.isArray(row.document_snapshot)) ? row.document_snapshot : null,
+    document_html_snapshot: cleanProposalAgreementText(row.document_html_snapshot),
     created_at:          cleanProposalAgreementText(row.created_at),
     updated_at:          cleanProposalAgreementText(row.updated_at)
   };
   normalized._searchText = buildProposalAgreementSearchText(normalized);
   return normalized;
+}
+
+function proposalFinalPdfAllowedFile(file) {
+  if (!file || typeof file !== 'object') return false;
+  const mime = String(file.type || '').trim().toLowerCase();
+  const name = String(file.name || '').trim().toLowerCase();
+  return mime === 'application/pdf' || name.endsWith('.pdf');
+}
+
+function proposalFinalPdfStoragePath(proposalId, fileName = 'proposal.pdf') {
+  const rowId = cleanProposalAgreementText(proposalId);
+  if (!rowId) throw new Error('missing_proposal_agreement_id');
+  const now = new Date();
+  const stamp = [
+    now.getUTCFullYear(),
+    String(now.getUTCMonth() + 1).padStart(2, '0'),
+    String(now.getUTCDate()).padStart(2, '0'),
+    '-',
+    String(now.getUTCHours()).padStart(2, '0'),
+    String(now.getUTCMinutes()).padStart(2, '0'),
+    String(now.getUTCSeconds()).padStart(2, '0')
+  ].join('');
+  const safeName = String(fileName || 'proposal.pdf').replace(/[^\w.\-א-ת]+/g, '_').slice(0, 120) || 'proposal.pdf';
+  return `proposals/${rowId}/sent/${stamp}.pdf`;
+}
+
+function proposalLockActorName() {
+  return firstNameOnly(
+    state?.user?.full_name ||
+    state?.user?.name ||
+    state?.user?.username ||
+    state?.user?.user_id ||
+    ''
+  );
 }
 
 
@@ -3063,10 +3110,7 @@ function canTransitionProposalAgreementStatus(currentRow = {}, cleanStatus = '')
     return true;
   }
   if (targetStatus === 'sent') {
-    if (currentStatus !== 'approved' || !hasProposalAgreementSignature(currentRow) || !cleanProposalAgreementText(currentRow.approved_at)) {
-      throw new Error('ניתן לסמן כנשלח רק הצעה מאושרת וחתומה.');
-    }
-    return true;
+    throw new Error('שליחת הצעה דורשת נעילת מסמך והעלאת PDF סופי. השתמשו בפעולת "סימון כנשלח".');
   }
   if (targetStatus === 'cancelled') {
     if (!canApproveProposalsAgreementsApi()) throw new Error('proposals_agreements_approval_forbidden');
@@ -6152,15 +6196,7 @@ export const api = {
       patch.signature_meta = (signatureMeta && typeof signatureMeta === 'object' && !Array.isArray(signatureMeta)) ? signatureMeta : {};
     }
     if (cleanStatus === 'sent') {
-      const senderName = firstNameOnly(
-        state?.user?.full_name ||
-        state?.user?.name ||
-        state?.user?.username ||
-        state?.user?.user_id ||
-        ''
-      );
-      patch.sent_by = senderName;
-      patch.sent_at = new Date().toISOString();
+      throw new Error('שליחת הצעה דורשת נעילת מסמך והעלאת PDF סופי. השתמשו בפעולת "סימון כנשלח".');
     }
     if (cleanStatus === 'draft') {
       patch.signature_meta = {};
@@ -6176,6 +6212,129 @@ export const api = {
       .single();
     if (error) throw new Error(error.message || 'proposals_agreement_status_update_failed');
     return { ok: true, row: normalizeProposalAgreementRow(data) };
+  },
+  lockAndSendProposalAgreement: async (id, payload = {}) => {
+    assertCanManageProposalsAgreementsApi();
+    const rowId = cleanProposalAgreementText(id);
+    if (!rowId) throw new Error('missing_proposal_agreement_id');
+    const pdfFile = payload?.pdfFile || payload?.file || null;
+    if (!proposalFinalPdfAllowedFile(pdfFile)) throw new Error('יש להעלות קובץ PDF סופי לפני שליחת ההצעה.');
+    const documentSnapshot = payload?.documentSnapshot ?? payload?.document_snapshot ?? null;
+    const documentHtmlSnapshot = cleanProposalAgreementText(payload?.documentHtmlSnapshot ?? payload?.document_html_snapshot);
+    if (!documentSnapshot || typeof documentSnapshot !== 'object' || Array.isArray(documentSnapshot)) {
+      throw new Error('חסר snapshot מסמך לנעילה.');
+    }
+    if (!documentHtmlSnapshot) throw new Error('חסר HTML snapshot לנעילה.');
+    const { data: currentRow, error: currentRowError } = await supabase
+      .from('proposals_agreements')
+      .select(PROPOSALS_AGREEMENTS_COLUMNS)
+      .eq('id', rowId)
+      .single();
+    if (currentRowError || !currentRow) throw new Error('proposals_agreement_not_found');
+    const currentStatus = normalizeProposalAgreementStatusForDb(currentRow.status || 'draft');
+    if (currentStatus === 'sent') throw new Error('הצעה שנשלחה נעולה ולא ניתן לשנות את סטטוסה.');
+    if (cleanProposalAgreementText(currentRow.final_pdf_path)) throw new Error('כבר קיים PDF סופי להצעה זו.');
+    if (currentStatus !== 'approved' || !hasProposalAgreementSignature(currentRow) || !cleanProposalAgreementText(currentRow.approved_at)) {
+      throw new Error('ניתן לסמן כנשלח רק הצעה מאושרת וחתומה.');
+    }
+    const filePath = proposalFinalPdfStoragePath(rowId, pdfFile?.name);
+    const uploaded = await supabase.storage
+      .from(PROPOSAL_FINAL_PDF_BUCKET)
+      .upload(filePath, pdfFile, { contentType: 'application/pdf', upsert: false });
+    if (uploaded.error) throw new Error(uploaded.error.message || 'proposal_final_pdf_upload_failed');
+    const nowIso = new Date().toISOString();
+    const actorName = proposalLockActorName();
+    const patch = {
+      status: 'sent',
+      sent_by: actorName,
+      sent_at: nowIso,
+      locked_at: nowIso,
+      locked_by: actorName,
+      locked_reason: 'sent',
+      final_pdf_path: filePath,
+      final_pdf_file_name: String(pdfFile?.name || 'proposal.pdf').trim(),
+      final_pdf_created_at: nowIso,
+      final_pdf_created_by: actorName,
+      document_snapshot: documentSnapshot,
+      document_html_snapshot: documentHtmlSnapshot,
+      updated_at: nowIso
+    };
+    const { data, error } = await supabase
+      .from('proposals_agreements')
+      .update(patch)
+      .eq('id', rowId)
+      .select(PROPOSALS_AGREEMENTS_COLUMNS)
+      .single();
+    if (error) throw new Error(error.message || 'proposal_lock_and_send_failed');
+    return { ok: true, row: normalizeProposalAgreementRow(data) };
+  },
+  uploadLegacyProposalFinalPdf: async (id, payload = {}) => {
+    assertCanManageProposalsAgreementsApi();
+    const rowId = cleanProposalAgreementText(id);
+    if (!rowId) throw new Error('missing_proposal_agreement_id');
+    const pdfFile = payload?.pdfFile || payload?.file || null;
+    if (!proposalFinalPdfAllowedFile(pdfFile)) throw new Error('ניתן להעלות PDF בלבד.');
+    const { data: currentRow, error: currentRowError } = await supabase
+      .from('proposals_agreements')
+      .select(PROPOSALS_AGREEMENTS_COLUMNS)
+      .eq('id', rowId)
+      .single();
+    if (currentRowError || !currentRow) throw new Error('proposals_agreement_not_found');
+    const currentStatus = normalizeProposalAgreementStatusForDb(currentRow.status || 'draft');
+    if (!['sent', 'approved'].includes(currentStatus)) {
+      throw new Error('ניתן להעלות PDF סופי רק להצעה שנשלחה או מאושרת.');
+    }
+    if (cleanProposalAgreementText(currentRow.final_pdf_path)) {
+      throw new Error('כבר קיים PDF סופי להצעה זו ולא ניתן להחליף אותו.');
+    }
+    const filePath = proposalFinalPdfStoragePath(rowId, pdfFile?.name);
+    const uploaded = await supabase.storage
+      .from(PROPOSAL_FINAL_PDF_BUCKET)
+      .upload(filePath, pdfFile, { contentType: 'application/pdf', upsert: false });
+    if (uploaded.error) throw new Error(uploaded.error.message || 'proposal_final_pdf_upload_failed');
+    const nowIso = new Date().toISOString();
+    const actorName = proposalLockActorName();
+    const patch = {
+      final_pdf_path: filePath,
+      final_pdf_file_name: String(pdfFile?.name || 'proposal.pdf').trim(),
+      final_pdf_created_at: nowIso,
+      final_pdf_created_by: actorName,
+      updated_at: nowIso
+    };
+    if (!cleanProposalAgreementText(currentRow.locked_at)) {
+      patch.locked_at = nowIso;
+      patch.locked_by = actorName;
+      patch.locked_reason = currentStatus === 'sent' ? 'sent_legacy_pdf_upload' : 'legacy_pdf_upload';
+    }
+    const { data, error } = await supabase
+      .from('proposals_agreements')
+      .update(patch)
+      .eq('id', rowId)
+      .select(PROPOSALS_AGREEMENTS_COLUMNS)
+      .single();
+    if (error) throw new Error(error.message || 'proposal_legacy_pdf_upload_failed');
+    return { ok: true, row: normalizeProposalAgreementRow(data) };
+  },
+  getProposalFinalPdfSignedUrl: async (id) => {
+    assertCanUseProposalsAgreementsApi();
+    const rowId = cleanProposalAgreementText(id);
+    if (!rowId) throw new Error('missing_proposal_agreement_id');
+    const { data: currentRow, error: currentRowError } = await supabase
+      .from('proposals_agreements')
+      .select('final_pdf_path,final_pdf_file_name,status')
+      .eq('id', rowId)
+      .single();
+    if (currentRowError || !currentRow) throw new Error('proposals_agreement_not_found');
+    const filePath = cleanProposalAgreementText(currentRow.final_pdf_path);
+    if (!filePath) throw new Error('proposal_final_pdf_missing');
+    const { data, error } = await supabase.storage
+      .from(PROPOSAL_FINAL_PDF_BUCKET)
+      .createSignedUrl(filePath, 60 * 5, { download: false });
+    if (error) throw new Error(error.message || 'proposal_final_pdf_signed_url_failed');
+    return {
+      signedUrl: data?.signedUrl || '',
+      fileName: cleanProposalAgreementText(currentRow.final_pdf_file_name) || 'proposal.pdf'
+    };
   },
   readProposalAgreementItems: async (proposalId) => {
     assertCanUseProposalsAgreementsApi();
