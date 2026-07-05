@@ -157,66 +157,54 @@ async function updateWorkshopStockItemsInSupabase(updates = []) {
   if (!supabase) throw new Error('no_supabase_client');
   const rows = Array.isArray(updates) ? updates : [];
   const saved = [];
+  const editableCategories = ['workshop_stock', 'activity_names'];
   for (const item of rows) {
     const stockQuantity = normalizeWorkshopStockQuantity(item?.stock_quantity ?? item?.stockQuantity);
     if (stockQuantity == null) continue;
+    const stockGroupKey = String(item?.stock_group_key || item?.stockGroupKey || '').trim();
+    if (!stockGroupKey) throw new Error('workshop_stock_group_key_required');
     const listId = String(item?.list_id || item?.listId || '').trim();
     const source = String(item?.source || '').trim();
-    if (listId && source === 'workshop_stock') {
+
+    if (listId && editableCategories.includes(source)) {
       const { data, error } = await supabase
         .from('lists')
         .update(buildListStockQuantityPatch(item?._row || item, stockQuantity))
         .eq('list_id', listId)
-        .eq('category', 'workshop_stock')
-        .select('list_id,category,value,label,stock_quantity,metadata')
+        .eq('category', source)
+        .eq('stock_group_key', stockGroupKey)
+        .select('list_id,category,value,label,stock_quantity,stock_group_key,stock_group_name,metadata')
         .single();
       if (error) throw new Error(error.message || 'workshop_stock_update_failed');
       saved.push(data);
       continue;
     }
-    const value = String(item?.value || '').trim();
-    const label = String(item?.label || item?.item_name || item?.itemName || value).trim();
-    if (!value || !label) continue;
+
     const { data: existing, error: existingError } = await supabase
       .from('lists')
-      .select('list_id,category,value,label,stock_quantity,metadata')
-      .eq('category', 'workshop_stock')
-      .eq('value', value)
+      .select('list_id,category,value,label,stock_quantity,stock_group_key,stock_group_name,metadata')
+      .in('category', editableCategories)
+      .eq('stock_group_key', stockGroupKey)
+      .limit(1)
       .maybeSingle();
     if (existingError) throw new Error(existingError.message || 'workshop_stock_lookup_failed');
-    if (existing?.list_id) {
-      const { data, error } = await supabase
-        .from('lists')
-        .update(buildListStockQuantityPatch(existing, stockQuantity))
-        .eq('list_id', existing.list_id)
-        .eq('category', 'workshop_stock')
-        .select('list_id,category,value,label,stock_quantity,metadata')
-        .single();
-      if (error) throw new Error(error.message || 'workshop_stock_update_failed');
-      saved.push(data);
-      continue;
-    }
-    const insertRow = {
-      category: 'workshop_stock',
-      value,
-      label,
-      active: true,
-      stock_quantity: stockQuantity,
-      activity_name: label,
-      activity_no: String(item?.activity_no || item?.activityNo || value).trim() || value,
-      sort_order: Number(item?.sort_order || item?.sortOrder) || 0
-    };
+    if (!existing?.list_id) throw new Error('workshop_stock_mapping_not_found');
+
     const { data, error } = await supabase
       .from('lists')
-      .insert(insertRow)
-      .select('list_id,category,value,label,stock_quantity,metadata')
+      .update(buildListStockQuantityPatch(existing, stockQuantity))
+      .eq('list_id', existing.list_id)
+      .eq('category', existing.category)
+      .eq('stock_group_key', stockGroupKey)
+      .select('list_id,category,value,label,stock_quantity,stock_group_key,stock_group_name,metadata')
       .single();
-    if (error) throw new Error(error.message || 'workshop_stock_insert_failed');
+    if (error) throw new Error(error.message || 'workshop_stock_update_failed');
     saved.push(data);
   }
   clearBootstrapReadCaches();
   return { ok: true, rows: saved };
 }
+
 
 function clearBootstrapReadCaches() {
   settingsRowsCache = null;
