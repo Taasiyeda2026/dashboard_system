@@ -1106,6 +1106,43 @@ test('switching recipient type from school to other clears authority and school 
   );
 });
 
+test('other recipient shows authority search only and never school search panel', async () => {
+  await withJSDOM(
+    proposalsAgreementsScreen.render({ rows: [], contactOptions: sampleContactOptions }, { state: stateFor('admin') }),
+    async (root, dom) => {
+      proposalsAgreementsScreen.bind({
+        root,
+        data: { rows: [], activityNameOptions: [], contactOptions: sampleContactOptions },
+        state: stateFor('admin'),
+        api: {}
+      });
+
+      const form = openNewProposalForm(root, dom);
+      selectRecipientType(form, dom, 'other');
+      await delay(20);
+
+      const schoolPanel = form.querySelector('[data-pa-school-search-panel]');
+      assert.equal(schoolPanel.hidden, true, 'school panel hidden when other is selected');
+      assert.equal(form.querySelector('[data-pa-other-client-field]').hidden, false);
+      assert.equal(form.querySelector('[data-pa-contact-manual-fields]').hidden, false);
+
+      selectClientResult(form, dom, 'רשות א');
+      await delay(20);
+
+      assert.equal(schoolPanel.hidden, true, 'school panel stays hidden after authority selection for other');
+      assert.equal(form.querySelector('[data-pa-school-search-input]').value, '');
+      assert.equal(form.querySelector('input[name="school_framework"]').value, '');
+      assert.equal(form.querySelector('input[name="contact_source_school_id"]').value, '');
+      assert.equal(form.querySelector('input[name="contact_source_client_type"]').value, 'other');
+      assert.equal(form.querySelector('[data-pa-other-client-field]').hidden, false);
+
+      form.querySelector('input[name="other_client_name"]').value = 'חברת בדיקה';
+      form.querySelector('input[name="contact_name"]').value = 'איש קשר';
+      assert.equal(stepComplete(form).client, true);
+    }
+  );
+});
+
 test('stepComplete returns clientDone per recipient type', async () => {
   await withJSDOM(
     proposalsAgreementsScreen.render({ rows: [], contactOptions: sampleContactOptions }, { state: stateFor('admin') }),
