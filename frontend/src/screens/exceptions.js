@@ -343,7 +343,6 @@ export const exceptionsScreen = {
       <section class="ds-exceptions-screen__section"><h2 class="ds-section-title ds-exceptions-screen__title">חריגות</h2></section>
       ${(() => { try { return sessionStorage.getItem('ds_exceptions_save_notice') === '1'; } catch { return false; } })() ? `<div class="ds-exceptions-save-notice" role="status" dir="rtl"><strong>הפעילות נשמרה בהצלחה.</strong> החריגה תוקנה ולכן הפעילות הוסרה ממסך החריגות. <button type="button" class="ds-btn ds-btn--sm" data-exception-go-activities>מעבר למסך פעילויות</button></div>` : ''}
       ${exceptionTabsHtml(activeTab, { general: uniqueExceptionActivityCount(tabRows.general), summerDates: uniqueExceptionActivityCount(tabRows.summerDates) })}
-      ${activeTab === EXCEPTIONS_TAB_SUMMER_DATES ? '<p class="ds-exceptions-tab-note">כאן מוצגות פעילויות קיץ 2026 עם חריגות: חסר מדריך, חסר תאריך פעילות, פעילות שהסתיימה והסטטוס לא נסגר, או חסר אישור ביצוע. פעילויות שנמחקו או בוטלו אינן נכללות.</p>' : ''}
       ${exceptionsSummaryHtml(visibleRows)}
       ${!hasAnyRows ? `<section class="ds-exceptions-screen__section">${dsEmptyState(emptyText)}</section>` : groups.map((group) => `<section class="ds-exceptions-screen__section">${exceptionGroupCard(group)}</section>`).join('')}
       </div>
