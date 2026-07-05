@@ -240,11 +240,9 @@ function addStockToMap(map, names, stock) {
 export function buildWorkshopStockMapFromLists(listsData) {
   const map = new Map();
   const categories = Array.isArray(listsData?.categories) ? listsData.categories : [];
-  let sawWorkshopStock = false;
   categories.forEach(({ category, items }) => {
     const cat = String(category || '').trim().toLowerCase();
     if (!WORKSHOP_STOCK_LIST_CATEGORIES.has(cat)) return;
-    sawWorkshopStock = true;
     const list = Array.isArray(items) ? items : [];
     list.forEach((item) => {
       const row = item?._row && typeof item._row === 'object' ? item._row : item;
@@ -254,20 +252,18 @@ export function buildWorkshopStockMapFromLists(listsData) {
       addStockToMap(map, [row?.label, row?.value, item?.label, item?.value], stock);
     });
   });
-  if (!sawWorkshopStock) {
-    categories.forEach(({ category, items }) => {
-      const cat = String(category || '').trim().toLowerCase();
-      if (cat !== 'activity_names') return;
-      const list = Array.isArray(items) ? items : [];
-      list.forEach((item) => {
-        const row = item?._row && typeof item._row === 'object' ? item._row : item;
-        if (!isActivityNameWorkshopListRow(row, cat) || row?.active === false) return;
-        const stock = parseStockQuantityFromRow(row);
-        if (stock === null) return;
-        addStockToMap(map, [row?.activity_name, row?.label, row?.value, item?.label, item?.value], stock);
-      });
+  categories.forEach(({ category, items }) => {
+    const cat = String(category || '').trim().toLowerCase();
+    if (cat !== 'activity_names') return;
+    const list = Array.isArray(items) ? items : [];
+    list.forEach((item) => {
+      const row = item?._row && typeof item._row === 'object' ? item._row : item;
+      if (!isActivityNameWorkshopListRow(row, cat) || row?.active === false) return;
+      const stock = parseStockQuantityFromRow(row);
+      if (stock === null) return;
+      addStockToMap(map, [row?.activity_name, row?.label, row?.value, item?.label, item?.value], stock);
     });
-  }
+  });
   return map;
 }
 
