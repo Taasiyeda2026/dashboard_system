@@ -1007,15 +1007,6 @@ function extractWorkshopCatalogRows(listsData, activityRows = [], workshopStockD
     });
   });
 
-  const catalogGroupKeys = new Set(rows.map((r) => r.stockGroupKey));
-  (Array.isArray(workshopStockDistributions) ? workshopStockDistributions : []).forEach((dist) => {
-    const stockGroupKey = distributionStockGroupKey(dist);
-    if (!stockGroupKey || catalogGroupKeys.has(stockGroupKey)) return;
-    catalogGroupKeys.add(stockGroupKey);
-    const displayName = resolveWorkshopStockDisplayName(stockGroupKey, stockGroupKeyToName);
-    add({ no: '', name: displayName, stockGroupKey, stockGroupName: displayName });
-  });
-
   return rows.sort((a, b) => compareValues(a.workshopNo || a.workshopName, b.workshopNo || b.workshopName, 'asc'));
 }
 
@@ -1042,6 +1033,10 @@ function activityMatchesOfficialWorkshop(activity = {}, workshop = {}) {
     const normA = normalizeActivityNo(activityNo);
     const normW = normalizeActivityNo(workshopNo);
     if (normA && normA === normW) return true;
+  }
+  if (activityNo && workshop.stockGroupKey) {
+    const canonActivityKey = canonicalStockGroupKey(`activity_${activityNo}`);
+    if (canonActivityKey && canonActivityKey === workshop.stockGroupKey) return true;
   }
   return normalizeWorkshopKey(getActivityName(activity)) === normalizeWorkshopKey(workshop.workshopName);
 }
