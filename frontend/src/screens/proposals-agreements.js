@@ -5818,11 +5818,12 @@ export const proposalsAgreementsScreen = {
         ? '<p class="ds-pa-no-items-notice no-print" role="alert" style="margin:6px 0 0;color:#b45309;font-size:0.85rem">לא נשמרו שורות פעילות להצעה זו</p>'
         : '';
       const legacyNotice = isSentLocked && !lockedPreviewHtml && !proposalHasFinalPdf(freshRow)
-        ? `<div class="ds-pa-legacy-sent-notice no-print" role="status"><p>הצעה זו נשלחה לפני מנגנון שמירת PDF סופי. ניתן להעלות PDF ידנית כדי לנעול צפייה עתידית.</p></div>`
+        ? `<p class="ds-pa-legacy-sent-notice no-print" role="status" style="margin:6px 0 0;color:#92400e;font-size:0.85rem">לא נמצא PDF סופי — מוצגת תצוגה מתוך הנתונים הקיימים.</p>`
         : '';
       const lockedNotice = isSentLocked && lockedPreviewHtml
         ? '<p class="ds-pa-locked-view-notice no-print" role="status" style="margin:6px 0 0;color:#1d4ed8;font-size:0.85rem">מוצג מסמך נעול שנשמר בעת השליחה — לא תצוגה חיה מתבנית Supabase.</p>'
         : '';
+      const showPrintBtn = !isSentLocked || (!lockedPreviewHtml && !proposalHasFinalPdf(freshRow));
       overlay.innerHTML = `
         <div class="proposal-preview-toolbar no-print">
           <button type="button" class="ds-btn ds-btn--sm no-print" id="pa-preview-close">← חזרה</button>
@@ -5830,7 +5831,7 @@ export const proposalsAgreementsScreen = {
           ${submitBtnHtml}
           ${approvePreviewBtnHtml}
           ${signingMode ? '<button type="button" class="ds-btn ds-btn--primary ds-btn--sm no-print" id="pa-signature-confirm">אישור וחתימה</button><button type="button" class="ds-btn ds-btn--sm ds-btn--ghost no-print" id="pa-signature-cancel">ביטול</button>' : ''}
-          ${!isSentLocked ? '<button type="button" class="ds-btn ds-btn--sm no-print" id="pa-print-btn">הדפסה / שמירה כ-PDF</button>' : ''}
+          ${showPrintBtn ? '<button type="button" class="ds-btn ds-btn--sm no-print" id="pa-print-btn">הדפסה / שמירה כ-PDF</button>' : ''}
           ${isSentLocked && proposalHasFinalPdf(freshRow) ? '<button type="button" class="ds-btn ds-btn--sm no-print" id="pa-view-final-pdf-btn">צפייה ב־PDF שנשלח</button>' : ''}
           <span class="ds-pa-preview-client no-print">${clientLabel}</span>
           ${legacyNotice}
@@ -5839,9 +5840,7 @@ export const proposalsAgreementsScreen = {
           ${missingItemsNotice}
         </div>
         <div class="proposal-preview-area">
-          ${isSentLocked
-            ? (lockedPreviewHtml || '<p class="ds-muted">אין מסמך נעול שמור להצגה. ניתן להעלות PDF סופי ידנית.</p>')
-            : proposalPreviewBodyHtml(freshRow, items, templateSections, signingMode ? { showSignatureImage: true } : {})}
+          ${lockedPreviewHtml || proposalPreviewBodyHtml(freshRow, items, templateSections, signingMode ? { showSignatureImage: true } : {})}
         </div>`;
       document.body.appendChild(overlay);
       document.body.classList.add('is-print-preview');
