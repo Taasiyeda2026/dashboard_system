@@ -172,6 +172,7 @@ async function main() {
 
   const fixtures = [
     { name: 'short', row: makeRow(), items: shortItems() },
+    { name: 'short-next-year', row: makeRow({ activity_type_group: 'שנת הלימודים תשפ״ז' }), items: shortItems().map((item) => ({ ...item, proposal_group: 'שנת הלימודים תשפ״ז' })) },
     { name: 'medium', row: makeRow(), items: mediumItems() },
     { name: 'long', row: makeRow(), items: longItems() }
   ];
@@ -201,7 +202,7 @@ async function main() {
       console.error('  FAIL: footer must not use position:fixed');
       failed = true;
     }
-    if (result.fixture === 'short') {
+    if (result.fixture === 'short' || result.fixture === 'short-next-year') {
       if (result.pdfPageCount !== 1) {
         console.error(`  FAIL: short proposal should stay on one page (got ${result.pdfPageCount})`);
         failed = true;
@@ -212,6 +213,10 @@ async function main() {
       }
       if (result.footerBottomMm >= PRINTABLE_HEIGHT_MM) {
         console.error(`  FAIL: short proposal footer must stay on page 1 (footerBottom=${result.footerBottomMm.toFixed(1)}mm)`);
+        failed = true;
+      }
+      if (result.footerFromPageBottomMm > 20) {
+        console.error(`  FAIL: short proposal footer should sit near page bottom (footerFromPageBottom=${result.footerFromPageBottomMm.toFixed(1)}mm)`);
         failed = true;
       }
     }

@@ -1042,8 +1042,8 @@ export function proposalsAgreementsTableRowsHtml(rows, state) {
 function tableHtml(rows, state) {
   return dsTableWrap(`
     <table class="ds-table ds-pa-table" data-pa-table>
-      <colgroup><col style="width:48px"><col style="width:170px"><col style="width:170px"><col style="width:120px"><col style="width:112px"><col style="width:120px"><col style="width:112px"><col style="width:104px"></colgroup>
-      <thead><tr><th class="ds-pa-domain-col">תחום</th><th>רשות / מועצה / עירייה</th><th>בית ספר / מסגרת</th><th class="ds-pa-col-center">סוג הצעה</th><th class="ds-pa-col-center">תאריך הצעה</th><th class="ds-pa-col-center">סטטוס</th><th class="ds-pa-col-center">סה״כ</th><th class="ds-pa-actions-col ds-pa-col-center">פעולות</th></tr></thead>
+      <colgroup><col style="width:48px"><col style="width:160px"><col style="width:160px"><col style="width:120px"><col style="width:112px"><col style="width:120px"><col style="width:112px"><col style="width:124px"></colgroup>
+      <thead><tr><th class="ds-pa-domain-col">תחום</th><th>רשות</th><th>בית הספר</th><th class="ds-pa-col-center">סוג הצעה</th><th class="ds-pa-col-center">תאריך הצעה</th><th class="ds-pa-col-center">סטטוס</th><th class="ds-pa-col-center">סה״כ</th><th class="ds-pa-actions-col ds-pa-col-center">פעולות</th></tr></thead>
       <tbody data-pa-table-body>${proposalsAgreementsTableRowsHtml(rows, state)}</tbody>
     </table>
   `);
@@ -2052,7 +2052,7 @@ function itemsSummaryHtml(items = []) {
       itemPriceHtml('סה״כ', t)
     ].filter(Boolean).join('');
     return `<div class="ds-pa-item-card">
-      <div class="ds-pa-item-card-name"><span class="ds-pa-item-summary-label">פעילות / פריט</span><strong>${escapeHtml(publicActivityName(proposalField(item, 'item_name', 'itemName')) || '—')}</strong>${noteHtml}</div>
+      <div class="ds-pa-item-card-name"><strong>${escapeHtml(publicActivityName(proposalField(item, 'item_name', 'itemName')) || '—')}</strong>${noteHtml}</div>
       ${meta ? `<div class="ds-pa-item-card-meta">${meta}</div>` : ''}
     </div>`;
   }).join('');
@@ -2381,9 +2381,10 @@ function proposalItemDetailsTableHtml(items = [], contextGroup = '') {
   const nextYearTableStyle = isNextYearTable
     ? ' style="width:85%;margin-inline:auto;table-layout:fixed;"'
     : '';
-  const nextYearFirstColStyle = isNextYearTable ? ' style="width:26%"' : '';
+  const nextYearFirstColStyle = isNextYearTable ? ' style="width:20%"' : '';
   const nextYearOtherColStyle = isNextYearTable ? ' style="width:12%"' : '';
-  const nextYearHourlyColStyle = isNextYearTable ? ' style="width:14%"' : '';
+  const nextYearHourlyColStyle = isNextYearTable ? ' style="width:16%"' : '';
+  const nextYearTotalColStyle = isNextYearTable ? ' style="width:16%"' : '';
   return `<table class="${tableClass}"${nextYearTableStyle}>
     <colgroup>
       <col class="pa-course-col"${nextYearFirstColStyle}>
@@ -2392,7 +2393,7 @@ function proposalItemDetailsTableHtml(items = [], contextGroup = '') {
       <col class="pa-groups-col"${nextYearOtherColStyle}>
       <col class="pa-hours-col"${nextYearOtherColStyle}>
       <col class="pa-hourly-price-col"${nextYearHourlyColStyle}>
-      <col class="pa-total-price-col"${nextYearOtherColStyle}>
+      <col class="pa-total-price-col"${nextYearTotalColStyle}>
     </colgroup>
     <thead><tr><th>קורס / תוכנית</th><th>מס׳ גפ״ן</th><th>מפגשים</th><th>קבוצות</th><th>שעות</th><th>מחיר לשעה</th><th>סה״כ</th></tr></thead>
     <tbody>${rows.join('')}</tbody>
@@ -2821,6 +2822,7 @@ function buildProposalDocumentHtml({ dateDisplay, documentTitle, row, introText,
       ${recipientBlockHtml(row)}
       <hr class="pa-doc-divider pa-divider">
       ${dateDisplay ? `<div class="pa-doc-date pa-date-area">${escapeHtml(dateDisplay)}</div>` : ''}
+      <div class="pa-proposal-body-footer-shell">
       <div class="proposal-document-body">
         <div class="proposal-document-content">
           ${title ? `<h1 class="pa-doc-subject pa-doc-title">${escapeHtml(title)}</h1>` : ''}
@@ -2839,6 +2841,7 @@ function buildProposalDocumentHtml({ dateDisplay, documentTitle, row, introText,
         <div class="pa-page-footer">
           <span>תעשיידע — תעשייה למען חינוך מתקדם (ע״ר) | <span dir="ltr">www.think.org.il</span></span>
         </div>
+      </div>
       </div>
     </div>`;
 }
