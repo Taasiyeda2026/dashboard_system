@@ -4146,6 +4146,11 @@ function isManualCourseWithoutGefen(item = {}) {
     && !proposalItemHasCatalogIdentity(item);
 }
 
+function shouldValidateManualCourseGefenForItem(item = {}, fallbackGroup = '') {
+  const itemGroup = text(item.proposal_group || item.proposalGroup || item.activity_type_group || item.activityTypeGroup);
+  return isNextYearProposalGroup(itemGroup || fallbackGroup);
+}
+
 function validatePayload(payload, statusOverride, options = {}) {
   const targetStatus = statusOverride || payload.status || 'draft';
   const requiresCompleteProposal = targetStatus === 'sent' || targetStatus === 'pending_approval' || targetStatus === 'approved';
@@ -4190,7 +4195,7 @@ function validatePayload(payload, statusOverride, options = {}) {
       if (missingGroup) errors.push('שיוך קבוצה בכל שורה');
     }
     if (options.canAddManualCourseWithoutGefen === false) {
-      const manualCourseWithoutGefen = items.find(isManualCourseWithoutGefen);
+      const manualCourseWithoutGefen = items.find((item) => shouldValidateManualCourseGefenForItem(item, grp) && isManualCourseWithoutGefen(item));
       if (manualCourseWithoutGefen) errors.push('רק מנהל מערכת יכול להוסיף קורס חדש שאינו מהרשימה וללא מספר גפ״ן.');
     }
   }

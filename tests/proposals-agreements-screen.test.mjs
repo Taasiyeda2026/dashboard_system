@@ -1813,8 +1813,8 @@ test('pending flow send handler saves directly without requiring preview first',
   assert.match(source, /showToast\('ההצעה נשמרה ונשלחה לאישור', 'success'\)/);
 });
 
-test('manual course without gefen is blocked for non-admin and allowed for admin validation', () => {
-  const payload = {
+test('manual course without gefen is validated only for next_year proposals', () => {
+  const basePayload = {
     client_type: 'school',
     client_authority: 'רשות',
     school_framework: 'בית ספר',
@@ -1822,19 +1822,29 @@ test('manual course without gefen is blocked for non-admin and allowed for admin
     school_id: 'school-test',
     document_type: 'הצעת מחיר',
     proposal_date: '2026-07-03',
-    activity_type_group: 'summer',
-    total_amount: 100,
-    _items: [{ item_name: 'קורס ידני חדש', quantity: 1, unit_price: 100, total_price: 100, proposal_group: 'summer' }]
+    total_amount: 100
+  };
+  const nextYearPayload = {
+    ...basePayload,
+    activity_type_group: 'next_year',
+    _items: [{ item_name: 'קורס ידני חדש', quantity: 1, unit_price: 100, total_price: 100, proposal_group: 'next_year' }]
   };
   assert.match(
-    validatePayload(payload, 'pending_approval', { canAddManualCourseWithoutGefen: false }).join(' | '),
+    validatePayload(nextYearPayload, 'pending_approval', { canAddManualCourseWithoutGefen: false }).join(' | '),
     /רק מנהל מערכת יכול להוסיף קורס חדש שאינו מהרשימה וללא מספר גפ״ן/
   );
-  assert.deepEqual(validatePayload(payload, 'pending_approval', { canAddManualCourseWithoutGefen: true }), []);
+  assert.deepEqual(validatePayload(nextYearPayload, 'pending_approval', { canAddManualCourseWithoutGefen: true }), []);
   assert.deepEqual(validatePayload({
-    ...payload,
-    _items: [{ ...payload._items[0], source_pricing_key: 'price-1' }]
+    ...nextYearPayload,
+    _items: [{ ...nextYearPayload._items[0], source_pricing_key: 'price-1' }]
   }, 'pending_approval', { canAddManualCourseWithoutGefen: false }), []);
+
+  const summerPayload = {
+    ...basePayload,
+    activity_type_group: 'summer',
+    _items: [{ item_name: 'פעילות קיץ ללא גפן', quantity: 1, unit_price: 100, total_price: 100, proposal_group: 'summer' }]
+  };
+  assert.deepEqual(validatePayload(summerPayload, 'pending_approval', { canAddManualCourseWithoutGefen: false }), []);
 });
 
 test('next_year admin manual course option appears only for admin in pricing select', async () => {
