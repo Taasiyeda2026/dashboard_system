@@ -829,10 +829,10 @@ function normalizeWorkshopKey(name) {
   return String(name || '').trim().toLowerCase();
 }
 
-function isTruthyListValue(value) {
-  if (value === true || value === 1) return true;
+function isInactiveListValue(value) {
+  if (value === false || value === 0) return true;
   const normalized = String(value ?? '').trim().toLowerCase();
-  return ['true', '1', 'yes', 'y', 'active', 'פעיל', 'כן'].includes(normalized);
+  return ['false', '0', 'no', 'inactive', 'לא פעיל', 'לא'].includes(normalized);
 }
 
 function isWorkshopInventoryRequired(workshopName) {
@@ -928,7 +928,7 @@ function extractWorkshopCatalogRows(listsData, activityRows = []) {
     if (cat !== 'workshop_stock') return;
     (Array.isArray(items) ? items : []).forEach((item) => {
       const row = item?._row && typeof item._row === 'object' ? item._row : item;
-      if (row?.active === false || !isTruthyListValue(row?.active)) return;
+      if (isInactiveListValue(row?.active)) return;
       const name = String(row?.label || item?.label || row?.value || item?.value || '').trim();
       const key = normalizeWorkshopKey(name);
       if (key && !workshopStockLookup.has(key)) workshopStockLookup.set(key, stockMapValue(row));
@@ -954,7 +954,7 @@ function extractWorkshopCatalogRows(listsData, activityRows = []) {
     if (cat !== 'activity_names') return;
     (Array.isArray(items) ? items : []).forEach((item) => {
       const row = item?._row && typeof item._row === 'object' ? item._row : item;
-      if (!isOfficialWorkshopListRow(row, cat) || row?.active === false || !isTruthyListValue(row?.active)) return;
+      if (!isOfficialWorkshopListRow(row, cat) || isInactiveListValue(row?.active)) return;
       const name = row?.activity_name || row?.label || item?.label || row?.value || item?.value || '';
       const stockKey = normalizeWorkshopKey(name);
       const stock = workshopStockLookup.has(stockKey) ? workshopStockLookup.get(stockKey) : stockMapValue(row);
