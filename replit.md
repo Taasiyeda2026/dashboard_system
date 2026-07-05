@@ -75,6 +75,7 @@ Migration files to apply (in order):
 - `supabase/migrations/20260622150000_ensure_contact_school_from_proposal_school_ids.sql`
 - `supabase/migrations/20260617_fix_contact_school_id_coalesce_type.sql`  ← **תיקון COALESCE bigint/uuid**
 - `supabase/migrations/20260629200000_admin_permissions_rls.sql`  ← **RLS לניהול הרשאות: INSERT/UPDATE/DELETE על users + UPDATE profiles ע"י admin**
+- `supabase/migrations/20260705160000_fix_lists_list_id_default_sequence.sql`  ← **⚡ דחוף: מוסיף sequence/default ל-lists.list_id כדי שהטריגר sync_dynamic_dropdown_lists() יוכל לעשות INSERT בלי list_id ידני. בלעדיו כל שמירת פעילות workshop נכשלת.**
 
 After applying 20260505 files: seed `users` table with existing users (user_id, entry_code, role, name).
 
