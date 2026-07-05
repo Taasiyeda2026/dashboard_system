@@ -735,6 +735,15 @@ export function normalizeProposalAgreementRow(row = {}) {
     approved_at:         text(row.approved_at),
     sent_by:             text(row.sent_by),
     sent_at:             text(row.sent_at),
+    locked_at:           text(row.locked_at),
+    locked_by:           text(row.locked_by),
+    locked_reason:       text(row.locked_reason),
+    final_pdf_path:      text(row.final_pdf_path),
+    final_pdf_file_name: text(row.final_pdf_file_name),
+    final_pdf_created_at: text(row.final_pdf_created_at),
+    final_pdf_created_by: text(row.final_pdf_created_by),
+    document_snapshot:   (row.document_snapshot && typeof row.document_snapshot === 'object' && !Array.isArray(row.document_snapshot)) ? row.document_snapshot : null,
+    document_html_snapshot: text(row.document_html_snapshot),
     updated_at:          text(row.updated_at)
   };
   normalized._searchText = buildProposalsAgreementsSearchText(normalized);
@@ -926,7 +935,110 @@ function canDeleteProposal(row, state) {
 }
 
 function canGenerateProposalPdf(row, state) {
-  return canManageProposalsAgreements(state) && ['approved', 'sent'].includes(normalizeProposalStatus(row?.status || 'draft'));
+  return canManageProposalsAgreements(state) && normalizeProposalStatus(row?.status || 'draft') === 'approved';
+}
+
+export function proposalHasFinalPdf(row = {}) {
+  return Boolean(text(row.final_pdf_path));
+}
+
+export function isProposalSentLocked(row = {}) {
+  return normalizeProposalStatus(row?.status) === 'sent';
+}
+
+export function isProposalLegacySentWithoutPdf(row = {}) {
+  return isProposalSentLocked(row) && !proposalHasFinalPdf(row);
+}
+
+function canViewSentProposalPdf(row, state) {
+  return canManageProposalsAgreements(state) && isProposalSentLocked(row) && proposalHasFinalPdf(row);
+}
+
+function canUploadLegacyProposalPdf(row, state) {
+  const status = normalizeProposalStatus(row?.status || 'draft');
+  return canManageProposalsAgreements(state) && ['sent', 'approved'].includes(status) && !proposalHasFinalPdf(row);
+}
+
+function serializeProposalSnapshotSection(section = {}) {
+  return {
+    section_key: proposalTextField(section, 'section_key', 'sectionKey'),
+    section_title: proposalTextField(section, 'section_title', 'sectionTitle'),
+    section_body: normalizeMultilineText(proposalField(section, 'section_body', 'sectionBody'))
+  };
+}
+
+export function buildProposalDocumentSnapshot(row = {}, items = [], templateSections = []) {
+  const activityTypeGroup = normalizeProposalGroup(row.activity_type_group);
+  const templateKey = proposalGroupTemplateKey(activityTypeGroup);
+  const filteredSections = filterTemplateSectionsForGroup(templateSections, activityTypeGroup);
+  const sectionsSource = resolveDocumentSections(row, filteredSections);
+  const normalizedRow = {
+    id: text(row.id),
+    client_authority: text(row.client_authority),
+    school_framework: text(row.school_framework),
+    document_type: text(row.document_type),
+    activity_type_group: activityTypeGroup,
+    proposal_domain: normalizeProposalDomain(row.proposal_domain),
+    proposal_date: text(row.proposal_date),
+    activity_names: normalizeActivityNames(row.activity_names),
+    contact_name: text(row.contact_name),
+    contact_role: text(row.contact_role),
+    phone: text(row.phone),
+    email: text(row.email),
+    notes: text(row.notes),
+    status: normalizeProposalStatus(row.status),
+    total_amount: row.total_amount != null ? Number(row.total_amount) || null : null,
+    include_catalog: includeCatalogValue(row.include_catalog),
+    signature_meta: row.signature_meta && typeof row.signature_meta === 'object' ? row.signature_meta : {},
+    approved_by: text(row.approved_by),
+    approved_at: text(row.approved_at),
+    custom_document_sections: Array.isArray(row.custom_document_sections)
+      ? row.custom_document_sections.map(serializeProposalSnapshotSection)
+      : []
+  };
+  const serializedItems = (Array.isArray(items) ? items : []).map((item) => ({
+    item_name: text(item.item_name ?? item.itemName),
+    item_type: text(item.item_type ?? item.itemType),
+    proposal_group: text(item.proposal_group ?? item.proposalGroup),
+    quantity: Number(item.quantity) || 1,
+    unit_price: item.unit_price != null ? Number(item.unit_price) : null,
+    total_price: item.total_price != null ? Number(item.total_price) : null,
+    meetings_count: item.meetings_count != null ? Number(item.meetings_count) : null,
+    hours_count: item.hours_count != null ? Number(item.hours_count) : null,
+    hourly_price: item.hourly_price != null ? Number(item.hourly_price) : null,
+    gefen_number: text(item.gefen_number ?? item.gefenNumber),
+    description: text(item.description),
+    course_note: text(item.course_note ?? item.courseNote),
+    activity_no: text(item.activity_no ?? item.activityNo),
+    unit_duration: text(item.unit_duration ?? item.unitDuration),
+    proposal_display_mode: text(item.proposal_display_mode ?? item.proposalDisplayMode),
+    selected_bundle_items: Array.isArray(item.selected_bundle_items) ? item.selected_bundle_items : []
+  }));
+  return {
+    version: 1,
+    template_key: templateKey,
+    activity_type_group: activityTypeGroup,
+    row: normalizedRow,
+    items: serializedItems,
+    template_sections: sectionsSource.map(serializeProposalSnapshotSection),
+    built_at: new Date().toISOString()
+  };
+}
+
+export function proposalPreviewHtmlFromSnapshot(snapshot = null) {
+  if (!snapshot || typeof snapshot !== 'object') return '';
+  const row = snapshot.row && typeof snapshot.row === 'object' ? snapshot.row : {};
+  const items = Array.isArray(snapshot.items) ? snapshot.items : [];
+  const sections = Array.isArray(snapshot.template_sections) ? snapshot.template_sections : [];
+  return proposalPreviewBodyHtml({ ...row, status: row.status || 'sent' }, items, sections, { showSignatureImage: true });
+}
+
+export function proposalLockedPreviewHtml(row = {}) {
+  const htmlSnapshot = text(row.document_html_snapshot);
+  if (htmlSnapshot) return htmlSnapshot;
+  const snapshot = row.document_snapshot && typeof row.document_snapshot === 'object' ? row.document_snapshot : null;
+  if (snapshot) return proposalPreviewHtmlFromSnapshot(snapshot);
+  return '';
 }
 
 function statusSelectHtml(row, enabled, canApprove = false, state = null) {
@@ -1008,8 +1120,13 @@ export function proposalsAgreementsTableRowsHtml(rows, state) {
     const moreActions = [];
     const showQuickClone = canManage && (status === 'approved' || isSent);
     const showQuickPrint = canGenerateProposalPdf(row, state);
+    const showViewSentPdf = canViewSentProposalPdf(row, state);
     const quickActions = [
-      quickAction(`data-pa-preview="${escapeHtml(row.id)}"`, 'תצוגה מקדימה', iconSvg.eye),
+      isSent
+        ? (showViewSentPdf
+          ? quickAction(`data-pa-view-final-pdf="${escapeHtml(row.id)}"`, 'צפייה ב־PDF שנשלח', iconSvg.eye)
+          : quickAction(`data-pa-preview="${escapeHtml(row.id)}"`, 'צפייה במסמך שנשלח', iconSvg.eye))
+        : quickAction(`data-pa-preview="${escapeHtml(row.id)}"`, 'תצוגה מקדימה', iconSvg.eye),
       showQuickPrint ? quickAction(`data-pa-print="${escapeHtml(row.id)}"`, 'PDF', iconSvg.print) : '',
       showQuickClone ? quickAction(`data-pa-clone-row="${escapeHtml(row.id)}"`, 'שכפול להצעה חדשה', iconSvg.clone) : ''
     ].filter(Boolean).join('');
@@ -2885,6 +3002,23 @@ function catalogAppendixNoticeHtml(row = {}, items = []) {
   return `<section class="pa-catalog-appendix-notice" data-pa-catalog-appendix-notice>${escapeHtml(message)}</section>`;
 }
 
+function proposalLegacySentNoticeHtml() {
+  return `<div class="ds-pa-legacy-sent-notice" data-pa-legacy-sent-notice role="status">
+    <p>הצעה זו נשלחה לפני מנגנון שמירת PDF סופי. ניתן להעלות PDF ידנית כדי לנעול צפייה עתידית.</p>
+  </div>`;
+}
+
+function proposalLegacyPdfUploadHtml(rowId) {
+  return `<div class="ds-pa-legacy-pdf-upload" data-pa-legacy-pdf-upload>
+    <label class="ds-pa-form-field ds-pa-form-field--wide">
+      <span>העלאת PDF סופי להצעה ישנה</span>
+      <input class="ds-input ds-input--sm" type="file" accept="application/pdf,.pdf" data-pa-legacy-pdf-input>
+    </label>
+    <button type="button" class="ds-btn ds-btn--sm ds-btn--primary" data-pa-legacy-pdf-upload-btn data-pa-legacy-pdf-id="${escapeHtml(rowId)}">שמור PDF סופי</button>
+    <p class="ds-pa-form-error" data-pa-legacy-pdf-error role="alert"></p>
+  </div>`;
+}
+
 export function proposalPreviewBodyHtml(row, items = [], templateSections = [], renderOptions = {}) {
   const activityTypeGroup = normalizeProposalGroup(row.activity_type_group);
   const templateKey = proposalGroupTemplateKey(activityTypeGroup);
@@ -3667,7 +3801,7 @@ function drawerActionButtons(row, state) {
   const PRINT = '<polyline points="6 9 6 2 18 2 18 9"/><path d="M6 18H4a2 2 0 0 1-2-2v-5a2 2 0 0 1 2-2h16a2 2 0 0 1 2 2v5a2 2 0 0 1-2 2h-2"/><rect x="6" y="14" width="12" height="8"/>';
   const CLONE = '<rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/>';
 
-  buttons.push(iconBtn(`data-pa-preview="${escapeHtml(row.id)}"`, 'תצוגה מקדימה', EYE));
+  buttons.push(iconBtn(`data-pa-preview="${escapeHtml(row.id)}"`, isProposalSentLocked(row) ? 'צפייה במסמך שנשלח' : 'תצוגה מקדימה', EYE));
 
   if (isProposalEditable(row, state)) {
     buttons.push(iconBtn(`data-pa-edit-row="${escapeHtml(row.id)}"`, 'עריכה', PENCIL));
@@ -3696,8 +3830,13 @@ function drawerActionButtons(row, state) {
   if (canTransitionProposalStatus(row, 'sent', state)) {
     buttons.push(iconBtn(`data-pa-status-action="sent" data-pa-action-id="${escapeHtml(row.id)}"`, 'סימון כנשלח', SENT));
   }
+  if (canViewSentProposalPdf(row, state)) {
+    buttons.push(iconBtn(`data-pa-view-final-pdf="${escapeHtml(row.id)}"`, 'צפייה ב־PDF שנשלח', EYE));
+  }
   if (canGenerateProposalPdf(row, state)) {
     buttons.push(iconBtn(`data-pa-print="${escapeHtml(row.id)}"`, 'הדפסה / שמירה כ-PDF', PRINT));
+    buttons.push(iconBtn(`data-pa-clone-row="${escapeHtml(row.id)}"`, 'שכפול להצעה חדשה', CLONE));
+  } else if (isProposalSentLocked(row) && canManageProposalsAgreements(state)) {
     buttons.push(iconBtn(`data-pa-clone-row="${escapeHtml(row.id)}"`, 'שכפול להצעה חדשה', CLONE));
   }
   return buttons.join('');
@@ -3742,12 +3881,17 @@ function drawerHtml(row, activityNameOptions = [], state = null) {
   ].join(metaSep);
 
   const hasSendingInfo = Boolean(text(row.sent_by) || text(row.sent_at));
-  const sendingCard = hasSendingInfo
+  const legacySentNotice = isProposalLegacySentWithoutPdf(row) ? proposalLegacySentNoticeHtml() : '';
+  const legacyPdfUpload = canUploadLegacyProposalPdf(row, state) ? proposalLegacyPdfUploadHtml(row.id) : '';
+  const sendingCard = hasSendingInfo || legacySentNotice || legacyPdfUpload
     ? `<div class="ds-pa-info-card ds-pa-info-card--sending ds-pa-info-card--flat">
+    ${legacySentNotice}
     <div class="ds-pa-info-grid">
       ${infoCell('נשלח על ידי', text(row.sent_by), false, { showEmpty: true })}
       ${infoCell('תאריך שליחה', text(row.sent_at) ? formatDateDisplay(row.sent_at) : '', false, { showEmpty: true })}
+      ${infoCell('נעול בתאריך', text(row.locked_at) ? formatDateDisplay(row.locked_at) : '', false, { showEmpty: true })}
     </div>
+    ${legacyPdfUpload}
   </div>`
     : '';
 
@@ -5552,12 +5696,104 @@ export const proposalsAgreementsScreen = {
     };
 
     // ── Preview ───────────────────────────────────────────────────────────────
+    const openProposalFinalPdf = async (row) => {
+      const id = text(row?.id);
+      if (!id || typeof api.getProposalFinalPdfSignedUrl !== 'function') {
+        showToast('לא ניתן לפתוח PDF שנשלח', 'error');
+        return;
+      }
+      try {
+        const result = await api.getProposalFinalPdfSignedUrl(id);
+        const url = text(result?.signedUrl);
+        if (!url) throw new Error('proposal_final_pdf_missing');
+        window.open(url, '_blank', 'noopener,noreferrer');
+      } catch (err) {
+        showToast('שגיאה בפתיחת PDF שנשלח', 'error');
+        window.alert?.(`שגיאה בפתיחת PDF: ${err?.message || err}`);
+      }
+    };
+
+    const openSendProposalDialog = async (row, items = []) => {
+      const freshRow = rowWithCentralContact(row);
+      const mergedItems = proposalItemsWithFallback(items, freshRow);
+      const templateSections = filterTemplateSectionsForGroup(proposalTemplateSections, freshRow.activity_type_group);
+      const previewHtml = proposalPreviewBodyHtml(freshRow, mergedItems, templateSections, { showSignatureImage: true });
+      document.getElementById('pa-send-dialog-overlay')?.remove();
+      const overlay = document.createElement('div');
+      overlay.id = 'pa-send-dialog-overlay';
+      overlay.className = 'proposal-preview-overlay';
+      overlay.setAttribute('dir', 'rtl');
+      overlay.innerHTML = `
+        <div class="proposal-preview-toolbar no-print">
+          <button type="button" class="ds-btn ds-btn--sm no-print" id="pa-send-dialog-close">ביטול</button>
+          <button type="button" class="ds-btn ds-btn--primary ds-btn--sm no-print" id="pa-send-dialog-confirm">אשר שליחה ונעילה</button>
+          <span class="ds-pa-preview-client no-print">סימון כנשלח — נדרש PDF סופי</span>
+        </div>
+        <div class="ds-pa-send-dialog-body">
+          <p class="ds-pa-send-dialog-note no-print">לפני שליחה: הדפיסו/שמרו את המסמך כ-PDF והעלו את הקובץ הסופי. לאחר השליחה המסמך יינעל ולא יושפע משינויי תבנית.</p>
+          <label class="ds-pa-form-field ds-pa-form-field--wide no-print">
+            <span>קובץ PDF סופי *</span>
+            <input class="ds-input ds-input--sm" type="file" accept="application/pdf,.pdf" id="pa-send-pdf-input" required>
+          </label>
+          <p class="ds-pa-form-error no-print" id="pa-send-dialog-error" role="alert"></p>
+          <div class="proposal-preview-area">${previewHtml}</div>
+        </div>`;
+      document.body.appendChild(overlay);
+      const closeDialog = () => overlay.remove();
+      overlay.querySelector('#pa-send-dialog-close')?.addEventListener('click', closeDialog);
+      overlay.addEventListener('keydown', (e) => { if (e.key === 'Escape') closeDialog(); });
+      overlay.querySelector('#pa-send-dialog-confirm')?.addEventListener('click', async () => {
+        const confirmBtn = overlay.querySelector('#pa-send-dialog-confirm');
+        const errorEl = overlay.querySelector('#pa-send-dialog-error');
+        const fileInput = overlay.querySelector('#pa-send-pdf-input');
+        const pdfFile = fileInput?.files?.[0] || null;
+        if (!pdfFile) {
+          if (errorEl) errorEl.textContent = 'יש לבחור קובץ PDF סופי לפני שליחה.';
+          return;
+        }
+        if (!/\.pdf$/i.test(text(pdfFile.name)) && text(pdfFile.type) !== 'application/pdf') {
+          if (errorEl) errorEl.textContent = 'ניתן להעלות PDF בלבד.';
+          return;
+        }
+        if (typeof api.lockAndSendProposalAgreement !== 'function') {
+          if (errorEl) errorEl.textContent = 'פעולת שליחה ונעילה אינה זמינה.';
+          return;
+        }
+        confirmBtn.disabled = true;
+        try {
+          const documentSnapshot = buildProposalDocumentSnapshot(freshRow, mergedItems, templateSections);
+          const documentHtmlSnapshot = previewHtml;
+          const result = await api.lockAndSendProposalAgreement(text(freshRow.id), {
+            pdfFile,
+            documentSnapshot,
+            documentHtmlSnapshot
+          });
+          replaceLocalRow(data, result?.row || { ...freshRow, status: 'sent' });
+          refreshTable();
+          const updated = data.rows.find((item) => text(item.id) === text(freshRow.id));
+          const drawer = root.querySelector('[data-pa-drawer]');
+          if (drawer && updated) drawer.outerHTML = drawerHtml(updated, activityNameOptions, state);
+          closeDialog();
+          showToast('ההצעה נשלחה וננעלה בהצלחה', 'success');
+        } catch (err) {
+          confirmBtn.disabled = false;
+          if (errorEl) errorEl.textContent = `שגיאה בשליחה: ${err?.message || err}`;
+        }
+      });
+    };
+
     const openPreview = async (row, items, options = {}) => {
       if (options.form) options.form.dataset.paPreviewSeen = 'yes';
       const savedRow = data.rows.find((r) => text(r.id) === text(row.id));
       const mergedRow = savedRow ? { ...savedRow, ...row } : row;
       const freshRow = rowWithCentralContact(mergedRow);
       items = proposalItemsWithFallback(items, freshRow);
+      const isSentLocked = isProposalSentLocked(freshRow);
+      if (isSentLocked && proposalHasFinalPdf(freshRow) && options.forceLivePreview !== true) {
+        await openProposalFinalPdf(freshRow);
+        return;
+      }
+      const lockedPreviewHtml = isSentLocked ? proposalLockedPreviewHtml(freshRow) : '';
       const templateSections = filterTemplateSectionsForGroup(proposalTemplateSections, freshRow.activity_type_group);
       document.getElementById('pa-preview-overlay')?.remove();
       const overlay = document.createElement('div');
@@ -5581,20 +5817,31 @@ export const proposalsAgreementsScreen = {
       const missingItemsNotice = (!Array.isArray(items) || !items.length)
         ? '<p class="ds-pa-no-items-notice no-print" role="alert" style="margin:6px 0 0;color:#b45309;font-size:0.85rem">לא נשמרו שורות פעילות להצעה זו</p>'
         : '';
+      const legacyNotice = isSentLocked && !lockedPreviewHtml && !proposalHasFinalPdf(freshRow)
+        ? `<div class="ds-pa-legacy-sent-notice no-print" role="status"><p>הצעה זו נשלחה לפני מנגנון שמירת PDF סופי. ניתן להעלות PDF ידנית כדי לנעול צפייה עתידית.</p></div>`
+        : '';
+      const lockedNotice = isSentLocked && lockedPreviewHtml
+        ? '<p class="ds-pa-locked-view-notice no-print" role="status" style="margin:6px 0 0;color:#1d4ed8;font-size:0.85rem">מוצג מסמך נעול שנשמר בעת השליחה — לא תצוגה חיה מתבנית Supabase.</p>'
+        : '';
       overlay.innerHTML = `
         <div class="proposal-preview-toolbar no-print">
-          <button type="button" class="ds-btn ds-btn--sm no-print" id="pa-preview-close">← חזרה לעריכה</button>
+          <button type="button" class="ds-btn ds-btn--sm no-print" id="pa-preview-close">← חזרה</button>
           ${saveBtnHtml}
           ${submitBtnHtml}
           ${approvePreviewBtnHtml}
           ${signingMode ? '<button type="button" class="ds-btn ds-btn--primary ds-btn--sm no-print" id="pa-signature-confirm">אישור וחתימה</button><button type="button" class="ds-btn ds-btn--sm ds-btn--ghost no-print" id="pa-signature-cancel">ביטול</button>' : ''}
-          <button type="button" class="ds-btn ds-btn--sm no-print" id="pa-print-btn">הדפסה / שמירה כ-PDF</button>
+          ${!isSentLocked ? '<button type="button" class="ds-btn ds-btn--sm no-print" id="pa-print-btn">הדפסה / שמירה כ-PDF</button>' : ''}
+          ${isSentLocked && proposalHasFinalPdf(freshRow) ? '<button type="button" class="ds-btn ds-btn--sm no-print" id="pa-view-final-pdf-btn">צפייה ב־PDF שנשלח</button>' : ''}
           <span class="ds-pa-preview-client no-print">${clientLabel}</span>
+          ${legacyNotice}
+          ${lockedNotice}
           ${missingTemplateNotice}
           ${missingItemsNotice}
         </div>
         <div class="proposal-preview-area">
-          ${proposalPreviewBodyHtml(freshRow, items, templateSections, signingMode ? { showSignatureImage: true } : {})}
+          ${isSentLocked
+            ? (lockedPreviewHtml || '<p class="ds-muted">אין מסמך נעול שמור להצגה. ניתן להעלות PDF סופי ידנית.</p>')
+            : proposalPreviewBodyHtml(freshRow, items, templateSections, signingMode ? { showSignatureImage: true } : {})}
         </div>`;
       document.body.appendChild(overlay);
       document.body.classList.add('is-print-preview');
@@ -5613,6 +5860,7 @@ export const proposalsAgreementsScreen = {
         document.title = proposalPdfDocumentTitle(freshRow);
         window.print();
       });
+      overlay.querySelector('#pa-view-final-pdf-btn')?.addEventListener('click', () => openProposalFinalPdf(freshRow));
       const closeOverlay = () => {
         overlay.remove();
         document.body.classList.remove('is-print-preview');
@@ -5831,6 +6079,18 @@ export const proposalsAgreementsScreen = {
               }
             }
           });
+          return;
+        }
+        if (newStatus === 'sent') {
+          rowStatusSelect.value = previousStatus;
+          const row = data.rows.find((r) => text(r.id) === id);
+          if (!row || !canTransitionProposalStatus(row, 'sent', state)) {
+            showToast('אין הרשאה או שהמעבר אינו מותר בסטטוס הנוכחי.', 'error');
+            return;
+          }
+          let items = [];
+          try { if (typeof api.readProposalAgreementItems === 'function') items = await api.readProposalAgreementItems(id); } catch { items = []; }
+          await openSendProposalDialog(row, items);
           return;
         }
         rowStatusSelect.disabled = true;
@@ -6106,7 +6366,7 @@ export const proposalsAgreementsScreen = {
       }
 
       // Row click — skip if clicking an inline action button inside the row
-      const rowEl = !event.target.closest?.('[data-pa-preview],[data-pa-edit-row],[data-pa-print],[data-pa-delete-row],[data-pa-clone-row],[data-pa-row-more],[data-pa-status-action],.ds-pa-row-more')
+      const rowEl = !event.target.closest?.('[data-pa-preview],[data-pa-view-final-pdf],[data-pa-edit-row],[data-pa-print],[data-pa-delete-row],[data-pa-clone-row],[data-pa-row-more],[data-pa-status-action],.ds-pa-row-more')
         ? event.target.closest?.('[data-pa-row-id]')
         : null;
       if (rowEl) {
@@ -6321,6 +6581,15 @@ export const proposalsAgreementsScreen = {
           });
           return;
         }
+        if (newStatus === 'sent') {
+          const row = data.rows.find((r) => text(r.id) === id);
+          if (!row) return;
+          let items = [];
+          try { if (typeof api.readProposalAgreementItems === 'function') items = await api.readProposalAgreementItems(id); } catch { items = []; }
+          await openSendProposalDialog(row, items);
+          statusActionBtn.disabled = false;
+          return;
+        }
         if (newStatus === 'returned_for_changes') {
           const drawer = root.querySelector('[data-pa-drawer]');
           const inlineFormHost = drawer?.querySelector('[data-pa-inline-form]');
@@ -6351,6 +6620,50 @@ export const proposalsAgreementsScreen = {
           const drawerErrEl = root.querySelector('[data-pa-drawer-error]');
           if (drawerErrEl) drawerErrEl.textContent = `שגיאה בעדכון סטטוס: ${err?.message || err}`;
           else window.alert(`שגיאה בעדכון סטטוס: ${err?.message || err}`);
+        }
+        return;
+      }
+
+      const viewFinalPdfBtn = event.target.closest?.('[data-pa-view-final-pdf]');
+      if (viewFinalPdfBtn) {
+        const id = text(viewFinalPdfBtn.dataset.paViewFinalPdf);
+        const row = data.rows.find((r) => text(r.id) === id);
+        if (!row) return;
+        viewFinalPdfBtn.disabled = true;
+        await openProposalFinalPdf(row);
+        viewFinalPdfBtn.disabled = false;
+        return;
+      }
+
+      const legacyPdfUploadBtn = event.target.closest?.('[data-pa-legacy-pdf-upload-btn]');
+      if (legacyPdfUploadBtn) {
+        if (!canManage) return;
+        const id = text(legacyPdfUploadBtn.dataset.paLegacyPdfId);
+        const row = data.rows.find((r) => text(r.id) === id);
+        const wrap = legacyPdfUploadBtn.closest('[data-pa-legacy-pdf-upload]');
+        const fileInput = wrap?.querySelector('[data-pa-legacy-pdf-input]');
+        const errorEl = wrap?.querySelector('[data-pa-legacy-pdf-error]');
+        const pdfFile = fileInput?.files?.[0] || null;
+        if (!row || !pdfFile) {
+          if (errorEl) errorEl.textContent = 'יש לבחור קובץ PDF.';
+          return;
+        }
+        if (typeof api.uploadLegacyProposalFinalPdf !== 'function') {
+          if (errorEl) errorEl.textContent = 'העלאת PDF אינה זמינה.';
+          return;
+        }
+        legacyPdfUploadBtn.disabled = true;
+        try {
+          const result = await api.uploadLegacyProposalFinalPdf(id, { pdfFile });
+          replaceLocalRow(data, result?.row || row);
+          refreshTable();
+          const updated = data.rows.find((item) => text(item.id) === id);
+          const drawer = root.querySelector('[data-pa-drawer]');
+          if (drawer && updated) drawer.outerHTML = drawerHtml(updated, activityNameOptions, state);
+          showToast('PDF סופי נשמר בהצלחה', 'success');
+        } catch (err) {
+          legacyPdfUploadBtn.disabled = false;
+          if (errorEl) errorEl.textContent = `שגיאה בהעלאה: ${err?.message || err}`;
         }
         return;
       }

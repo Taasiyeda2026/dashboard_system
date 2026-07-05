@@ -60,7 +60,7 @@ const MIGRATION_FILE = new URL('../supabase/migrations/20260518_create_proposals
 const ROLE_UPDATE_MIGRATION_FILE = new URL('../supabase/migrations/20260602_add_business_development_manager_role.sql', import.meta.url);
 const APPROVAL_GUARD_MIGRATION_FILE = new URL('../supabase/migrations/20260616_proposals_agreements_approval_guard.sql', import.meta.url);
 
-const { proposalsAgreementsScreen, canAccessProposalsAgreements, canManageProposalsAgreements, STATUS_LABELS, STATUS_OPTIONS, buildProposalCatalogPdfEntries, proposalPreviewBodyHtml, normalizeProposalAgreementRow, countPendingApprovedProposals, isProposalApprovedPendingSend, extractItemsFromForm, sortRows, calculateTourTotal, validatePayload, resetRecipientDependentFields, stepComplete } = await import('../frontend/src/screens/proposals-agreements.js');
+const { proposalsAgreementsScreen, canAccessProposalsAgreements, canManageProposalsAgreements, STATUS_LABELS, STATUS_OPTIONS, buildProposalCatalogPdfEntries, proposalPreviewBodyHtml, normalizeProposalAgreementRow, countPendingApprovedProposals, isProposalApprovedPendingSend, extractItemsFromForm, sortRows, calculateTourTotal, validatePayload, resetRecipientDependentFields, stepComplete, buildProposalDocumentSnapshot, proposalLockedPreviewHtml, proposalHasFinalPdf, isProposalLegacySentWithoutPdf } = await import('../frontend/src/screens/proposals-agreements.js');
 
 function stateFor(role) {
   return {
@@ -404,7 +404,6 @@ test('proposal managers can mark approved signed proposals as sent without appro
   const tableBody = html.match(/<tbody data-pa-table-body>[\s\S]*?<\/tbody>/)?.[0] || '';
 
   assert.match(tableBody, /data-pa-status-action="sent"/, 'manager should see mark-as-sent table action for signed approved proposals');
-  assert.match(tableBody, /<option value="sent"/, 'manager should be able to select sent for an approved proposal');
   assert.doesNotMatch(tableBody, /<option value="approved"/, 'manager without approve permission should not be able to select approved');
   assert.doesNotMatch(html, /אישור וחתימה/, 'manager without approve permission should not see sign-and-approve action');
 });
@@ -422,7 +421,6 @@ test('approved proposal with signature and approved_at but no approved_by can st
   const tableBody = html.match(/<tbody data-pa-table-body>[\s\S]*?<\/tbody>/)?.[0] || '';
 
   assert.match(tableBody, /data-pa-status-action="sent"/, 'a missing approved_by audit field must not block the sent action');
-  assert.match(tableBody, /<option value="sent"/, 'sent must be selectable in the status dropdown');
   assert.doesNotMatch(tableBody, /אשר וחתום מחדש/, 'a fully signed approval should not be treated as needing a re-sign');
 
   await withJSDOM(html, async (root) => {
@@ -1966,43 +1964,22 @@ test('status filter shows only matching rows', async () => {
   );
 });
 
-test('table status dropdown updates status through the API and refreshes the row', async () => {
-  const localData = { rows: [{ ...sampleRows[0], status: 'draft' }] };
-  const saves = [];
-  await withJSDOM(
-    proposalsAgreementsScreen.render(localData, { state: stateFor('admin') }),
-    async (root, dom) => {
-      proposalsAgreementsScreen.bind({
-        root,
-        data: localData,
-        state: stateFor('admin'),
-        api: {
-          updateProposalAgreementStatus: async (id, status, note) => {
-            saves.push({ id, status, note });
-            return { ok: true, row: { ...localData.rows[0], id, status } };
-          }
-        }
-      });
-
-      const select = root.querySelector('[data-pa-row-status]');
-      assert.ok(select, 'status select should exist in the table row');
-      select.value = 'sent';
-      select.dispatchEvent(new dom.window.Event('change', { bubbles: true }));
-      await delay(30);
-
-      assert.deepEqual(saves, [{ id: sampleRows[0].id, status: 'sent', note: '' }]);
-      assert.equal(localData.rows[0].status, 'sent');
-      assert.equal(root.querySelector('[data-pa-row-status]').value, 'sent');
-    }
-  );
+test('approved signed proposals expose mark-as-sent action for lock-and-send flow', () => {
+  const approvedRow = {
+    ...sampleRows[0],
+    status: 'approved',
+    signature_meta: { signature: { image: 'proposals/signature-idan-nahum.png' } },
+    approved_at: '2026-06-30T10:00:00.000Z'
+  };
+  const html = proposalsAgreementsScreen.render({ rows: [approvedRow] }, { state: stateFor('admin') });
+  assert.match(html, /data-pa-status-action="sent"/);
+  assert.match(html, /סימון כנשלח/);
 });
 
 test('status badge is rendered in table rows with correct labels', () => {
   const html = proposalsAgreementsScreen.render({ rows: sampleRows }, { state: stateFor('admin') });
   assert.match(html, /טיוטה/);
   assert.match(html, /נשלח/);
-  // Inline table status control
-  assert.match(html, /data-pa-row-status/);
   assert.doesNotMatch(html, /נחתם/);
 });
 
@@ -4091,7 +4068,7 @@ test('exact timestamp proposal templates multiline migration matches stable SQL 
 });
 
 const STABLE_COMMIT = '2c772f835cc19da52fd76528c0b19f667f23de79';
-const STABLE_DIRECTORY_COLUMNS = 'id,authority_id,authority_code,school_id,contact_school_id,authority_name,legacy_client_authority,contact_client_type,contact_client_name,school_name,legacy_school_framework,document_type,activity_type_group,proposal_domain,proposal_date,activity_names,contact_name,contact_role,phone,email,notes,status,approval_note,total_amount,custom_document_sections,include_catalog,signature_meta,approved_by,approved_at,sent_by,sent_at,created_at,updated_at';
+const STABLE_DIRECTORY_COLUMNS = 'id,authority_id,authority_code,school_id,contact_school_id,authority_name,legacy_client_authority,contact_client_type,contact_client_name,school_name,legacy_school_framework,document_type,activity_type_group,proposal_domain,proposal_date,activity_names,contact_name,contact_role,phone,email,notes,status,approval_note,total_amount,custom_document_sections,include_catalog,signature_meta,approved_by,approved_at,sent_by,sent_at,locked_at,locked_by,locked_reason,final_pdf_path,final_pdf_file_name,final_pdf_created_at,final_pdf_created_by,document_snapshot,document_html_snapshot,created_at,updated_at';
 
 test('rollback: proposals directory select fields match stable commit before emergency cleanup', async () => {
   const apiSource = await readFile(API_FILE, 'utf8');
@@ -4567,8 +4544,8 @@ test('package 2 workflow locks status actions by role and status', () => {
   assert.match(approvedHtml, /data-pa-status-action="sent"/, 'approved signed proposals can be marked sent');
 
   const sentHtml = proposalsAgreementsScreen.render({ rows: [{ ...sampleRows[0], status: 'sent', signature_meta: signed, approved_by: '11111111-1111-4111-8111-111111111111', approved_at: '2026-06-30T10:00:00.000Z' }] }, { state: manager });
-  assert.doesNotMatch(sentHtml, /data-pa-edit-row=|data-pa-delete-row=|data-pa-status-action="sent"/, 'sent proposals are terminal and locked from edit/delete/status changes');
-  assert.match(sentHtml, /data-pa-print=/, 'sent proposals can be printed to PDF');
+  assert.doesNotMatch(sentHtml, /data-pa-edit-row=|data-pa-delete-row=|data-pa-status-action="sent"|data-pa-print=/, 'sent proposals are terminal and locked from edit/delete/status changes/print');
+  assert.match(sentHtml, /data-pa-clone-row=/, 'sent proposals can be duplicated to a new draft');
 
   const cancelledHtml = proposalsAgreementsScreen.render({ rows: [{ ...sampleRows[0], status: 'cancelled' }] }, { state: manager });
   assert.doesNotMatch(cancelledHtml, /data-pa-edit-row=|data-pa-print=/, 'cancelled proposals are locked from edit and PDF');
@@ -4598,11 +4575,95 @@ test('sent metadata stays out of table status and appears only in drawer metadat
   });
 });
 
-test('package 2 status API validates terminal states and sent metadata source', async () => {
+test('package 2 status API validates terminal states and lock-and-send flow', async () => {
   const apiSource = await readFile(new URL('../frontend/src/api.js', import.meta.url), 'utf8');
   assert.match(apiSource, /if \(currentStatus === 'sent'\) throw new Error\('הצעה שנשלחה נעולה/);
   assert.match(apiSource, /if \(currentStatus === 'cancelled'\) throw new Error\('הצעה שבוטלה נעולה/);
-  assert.match(apiSource, /targetStatus === 'sent'[\s\S]*currentStatus !== 'approved'[\s\S]*approved_at/);
-  assert.match(apiSource, /patch\.sent_by = senderName;/, 'sent_by is written only when marking sent');
-  assert.match(apiSource, /patch\.sent_at = new Date\(\)\.toISOString\(\);/, 'sent_at is written when marking sent');
+  assert.match(apiSource, /lockAndSendProposalAgreement: async/);
+  assert.match(apiSource, /sent_by: actorName/);
+  assert.match(apiSource, /sent_at: nowIso/);
+  assert.match(apiSource, /document_snapshot: documentSnapshot/);
+  assert.match(apiSource, /proposal-final-pdfs/);
+});
+
+test('proposal final pdf locking migration defines lock columns and private bucket', async () => {
+  const migration = await readFile(new URL('../supabase/migrations/20260705140000_proposal_final_pdf_locking.sql', import.meta.url), 'utf8');
+  assert.match(migration, /locked_at timestamptz/);
+  assert.match(migration, /locked_by text/);
+  assert.match(migration, /locked_reason text/);
+  assert.match(migration, /final_pdf_path text/);
+  assert.match(migration, /document_snapshot jsonb/);
+  assert.match(migration, /document_html_snapshot text/);
+  assert.match(migration, /'proposal-final-pdfs'/);
+  assert.match(migration, /public = false/);
+  assert.doesNotMatch(migration, /UPDATE public\.proposals_agreements[\s\S]*final_pdf_path/);
+});
+
+test('buildProposalDocumentSnapshot captures row, items and template sections', () => {
+  const row = {
+    ...sampleRows[0],
+    status: 'approved',
+    proposal_date: '2026-07-01',
+    total_amount: 1500,
+    custom_document_sections: [{ section_key: 'intro', section_title: 'פתיח', section_body: 'טקסט קבוע' }]
+  };
+  const items = [{ item_name: 'סדנה', quantity: 1, unit_price: 1500, total_price: 1500, proposal_group: 'summer' }];
+  const sections = [{ template_key: 'summer', section_key: 'intro', section_title: 'פתיח', section_body: 'טקסט תבנית' }];
+  const snapshot = buildProposalDocumentSnapshot(row, items, sections);
+  assert.equal(snapshot.version, 1);
+  assert.equal(snapshot.row.client_authority, row.client_authority);
+  assert.equal(snapshot.items.length, 1);
+  assert.equal(snapshot.template_sections[0].section_body, 'טקסט קבוע');
+});
+
+test('proposalLockedPreviewHtml prefers stored html snapshot over live template', () => {
+  const liveIntro = 'טקסט חי מתבנית';
+  const lockedIntro = 'טקסט נעול שנשמר';
+  const row = {
+    ...sampleRows[0],
+    status: 'sent',
+    document_html_snapshot: `<div class="proposal-document"><p>${lockedIntro}</p></div>`
+  };
+  const liveHtml = proposalPreviewBodyHtml(row, [], [{ template_key: 'summer', section_key: 'intro', section_body: liveIntro }]);
+  const lockedHtml = proposalLockedPreviewHtml(row);
+  assert.match(lockedHtml, /טקסט נעול שנשמר/);
+  assert.doesNotMatch(lockedHtml, /טקסט חי מתבנית/);
+  assert.match(liveHtml, /טקסט חי מתבנית/);
+});
+
+test('sent proposals with final pdf expose view-sent-pdf action', () => {
+  const manager = stateFor('operation_manager');
+  const sentRow = {
+    ...sampleRows[0],
+    status: 'sent',
+    final_pdf_path: 'proposals/11111111-1111-1111-1111-111111111111/sent/20260705-120000.pdf',
+    locked_at: '2026-07-05T12:00:00.000Z'
+  };
+  const html = proposalsAgreementsScreen.render({ rows: [sentRow] }, { state: manager });
+  assert.match(html, /data-pa-view-final-pdf=/);
+  assert.match(html, /צפייה ב־PDF שנשלח|צפייה במסמך שנשלח/);
+  assert.doesNotMatch(html, /data-pa-print=/);
+});
+
+test('legacy sent proposals without final pdf show legacy notice in drawer', async () => {
+  const manager = stateFor('operation_manager');
+  const legacyRow = { ...sampleRows[0], status: 'sent', sent_by: 'דנה', sent_at: '2026-06-30T10:00:00.000Z' };
+  assert.equal(isProposalLegacySentWithoutPdf(legacyRow), true);
+  assert.equal(proposalHasFinalPdf(legacyRow), false);
+  await withJSDOM(
+    proposalsAgreementsScreen.render({ rows: [legacyRow] }, { state: manager }),
+    async (root, dom) => {
+      proposalsAgreementsScreen.bind({
+        root,
+        data: { rows: [legacyRow], activityNameOptions: [] },
+        state: manager,
+        api: { readProposalAgreementItems: async () => [] }
+      });
+      root.querySelector('[data-pa-row-id]')?.dispatchEvent(new dom.window.MouseEvent('click', { bubbles: true }));
+      await delay(20);
+      const drawer = root.querySelector('[data-pa-drawer]');
+      assert.match(drawer?.innerHTML || '', /לפני מנגנון שמירת PDF סופי/);
+      assert.match(drawer?.innerHTML || '', /העלאת PDF סופי להצעה ישנה/);
+    }
+  );
 });
