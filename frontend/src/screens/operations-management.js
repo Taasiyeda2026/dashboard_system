@@ -2022,7 +2022,9 @@ function workshopsTabHtml(activitiesRowsForRequiredInventory, state, stockMap, c
         );
         return mainRow + detailHtml;
       }).join('')}</tbody></table>`)
-    : dsEmptyState('לא נמצאו סדנאות בטווח הנבחר');
+    : (listsData?._loadError || listsData?.error || !catalogRows.length)
+      ? `<div role="alert" style="margin:16px 0;padding:12px 16px;background:#fef3c7;border:1px solid #f59e0b;border-radius:6px;color:#92400e;font-size:13px;direction:rtl;text-align:right;">⚠️ קטלוג המלאי לא נטען. יש לרענן את הדף או לבדוק הרשאות/חיבור.${listsData?._loadError || listsData?.error ? `<br><span style="font-size:11px;opacity:.75">שגיאה: ${escapeHtml(String(listsData._loadError || listsData.error))}</span>` : ''}</div>`
+      : dsEmptyState('לא נמצאו סדנאות בטווח הנבחר');
 
   const editButton = isOperationsAdmin(state)
     ? '<button type="button" class="ds-btn ds-btn--sm ds-btn--secondary" data-ops-open-stock-edit>עריכת מלאי</button>'
@@ -2692,7 +2694,16 @@ function renderTab(rows, state, data, allPreparedRows = []) {
     return completionApprovalTabHtml(approvalRows, state, data, directory, contactsIndex, summerPrintContactsIndex);
   }
   if (ops.tab === TAB_WORKSHOPS) {
-    const catalogRows = extractWorkshopCatalogRows(data?.adminListsData, allPreparedRows, data?.workshopStockDistributions || []);
+    const adminListsData = data?.adminListsData;
+    if (adminListsData?.error || adminListsData?._loadError) {
+      // eslint-disable-next-line no-console
+      console.warn('[ציוד ומלאי] adminListsData נטען עם שגיאה:', adminListsData.error || adminListsData._loadError);
+    }
+    const catalogRows = extractWorkshopCatalogRows(adminListsData, allPreparedRows, data?.workshopStockDistributions || []);
+    if (!catalogRows.length) {
+      // eslint-disable-next-line no-console
+      console.warn('[ציוד ומלאי] קטלוג ריק. categories:', Array.isArray(adminListsData?.categories) ? adminListsData.categories.map((c) => c.category) : 'none', 'error:', adminListsData?.error || adminListsData?._loadError || 'none');
+    }
     const activitiesRowsForRequiredInventory = allPreparedRows.filter((row) =>
       isOpenOrClosedActivity(row) &&
       !isTamirActivity(row) &&
@@ -2700,7 +2711,7 @@ function renderTab(rows, state, data, allPreparedRows = []) {
       activityOverlapsDateRange(row, WORKSHOPS_SUMMER_FROM, WORKSHOPS_SUMMER_TO)
     );
     const workshopStockDistributions = data?.workshopStockDistributions || [];
-    return workshopsTabHtml(activitiesRowsForRequiredInventory, state, stockMap, catalogRows, workshopStockDistributions, data?.adminListsData);
+    return workshopsTabHtml(activitiesRowsForRequiredInventory, state, stockMap, catalogRows, workshopStockDistributions, adminListsData);
   }
   return instructorsTabHtml(rows, state, data, directory, contactsIndex, allPreparedRows);
 }
@@ -2709,12 +2720,20 @@ export const operationsManagementScreen = {
   load: async ({ api }) => {
     const [activities, lists, schoolsDirectory, contactsSchoolsRows, completionApprovalUploads, contactResponsibles, workshopStockDistributions, instructorSchedulePrintContacts, photoApprovalUploads] = await Promise.all([
       api.allActivities(),
-      api.adminLists().catch(() => ({ categories: [] })),
+      api.adminLists().catch((err) => {
+        // eslint-disable-next-line no-console
+        console.warn('[ציוד ומלאי] adminLists נכשל (catch):', err?.message || err);
+        return { categories: [], _loadError: String(err?.message || 'load_failed') };
+      }),
       readOperationsSchoolsDirectory(),
       readContactsSchools(),
       api.completionApprovalUploads().catch(() => ({ rows: [] })),
       api.schoolContactResponsibles().catch(() => ({ rows: [] })),
-      api.workshopStockDistributions ? api.workshopStockDistributions().catch(() => ({ rows: [] })) : Promise.resolve({ rows: [] }),
+      api.workshopStockDistributions ? api.workshopStockDistributions().catch((err) => {
+        // eslint-disable-next-line no-console
+        console.warn('[ציוד ומלאי] workshop_stock_distributions נכשל:', err?.message || err);
+        return { rows: [], _loadError: String(err?.message || 'load_failed') };
+      }) : Promise.resolve({ rows: [] }),
       api.instructorSchedulePrintContacts ? api.instructorSchedulePrintContacts().catch(() => ({ rows: [] })) : Promise.resolve({ rows: [] }),
       api.photoApprovalUploads ? api.photoApprovalUploads().catch(() => ({ rows: [] })) : Promise.resolve({ rows: [] })
     ]);
