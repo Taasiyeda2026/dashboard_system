@@ -923,20 +923,27 @@ function formatInventoryRemainder(stockValue, usageValue) {
   return `<span class="ds-ops-gap ${tone}">${formatSignedNumberForRtl(remainder)}</span>`;
 }
 
-function extractWorkshopCatalogRows(listsData, activityRows = []) {
+function extractWorkshopCatalogRows(listsData, activityRows = [], workshopStockDistributions = []) {
   const rows = [];
   const seen = new Set();
   const categories = Array.isArray(listsData?.categories) ? listsData.categories : [];
   const workshopStockLookup = new Map();
+  const stockGroupNameLookup = new Map();
   categories.forEach(({ category, items }) => {
     const cat = String(category || '').trim().toLowerCase();
-    if (cat !== 'workshop_stock') return;
+    if (cat !== 'workshop_stock' && cat !== 'activity_names') return;
     (Array.isArray(items) ? items : []).forEach((item) => {
       const row = item?._row && typeof item._row === 'object' ? item._row : item;
       if (isInactiveListValue(row?.active)) return;
-      const name = String(row?.label || item?.label || row?.value || item?.value || '').trim();
-      const key = normalizeWorkshopKey(name);
-      if (key && !workshopStockLookup.has(key)) workshopStockLookup.set(key, stockMapValue(row));
+      const name = String(row?.label || item?.label || row?.activity_name || row?.stock_group_name || row?.value || item?.value || '').trim();
+      const nameKey = normalizeWorkshopKey(name);
+      if (cat === 'workshop_stock' && nameKey && !workshopStockLookup.has(nameKey)) workshopStockLookup.set(nameKey, stockMapValue(row));
+      const groupKey = cat === 'activity_names'
+        ? officialWorkshopStockGroupKey(row)
+        : canonicalStockGroupKey(row?.stock_group_key || row?.value || item?.value || '');
+      if (groupKey && name && !stockGroupNameLookup.has(groupKey)) {
+        stockGroupNameLookup.set(groupKey, officialWorkshopStockGroupName(row) || name);
+      }
     });
   });
   const add = ({ no = '', name = '', stock = null, stockGroupKey = '', stockGroupName = '' } = {}) => {
@@ -973,15 +980,19 @@ function extractWorkshopCatalogRows(listsData, activityRows = []) {
     });
   });
   if (!rows.length) {
-    (Array.isArray(activityRows) ? activityRows : []).forEach((activity) => {
-      if (!isOpenOrClosedActivity(activity) || !isWorkshopActivity(activity)) return;
-      const name = getActivityName(activity);
+    const distributionKeys = new Set();
+    (Array.isArray(workshopStockDistributions) ? workshopStockDistributions : []).forEach((distribution) => {
+      const key = distributionStockGroupKey(distribution);
+      if (key) distributionKeys.add(key);
+    });
+    distributionKeys.forEach((stockGroupKey) => {
+      const stockGroupName = stockGroupNameLookup.get(stockGroupKey) || stockGroupKey;
       add({
-        no: activity?.activity_no || activity?.workshop_no || '',
-        name,
+        no: '',
+        name: stockGroupName,
         stock: null,
-        stockGroupKey: activity?.stock_group_key || activity?.activity_no || name,
-        stockGroupName: name
+        stockGroupKey,
+        stockGroupName
       });
     });
   }
@@ -1020,7 +1031,7 @@ function activityMatchesAnyOfficialWorkshop(activity = {}, catalogRows = []) {
 }
 
 function distributionStockGroupKey(row = {}) {
-  return canonicalStockGroupKey(row?.stock_group_key || row?.stockGroupKey || row?.workshop_stock_group_key || row?.activity_no || '');
+  return canonicalStockGroupKey(row?.stock_group_key || row?.stockGroupKey || row?.workshop_stock_group_key || '');
 }
 
 function distributionInstructorName(row = {}) {
@@ -1080,7 +1091,7 @@ function isWorkshopStockLocationName(name) {
 function workshopMetricsRows(activitiesRowsForRequiredInventory, stockMap, catalogRows = [], workshopStockDistributions = [], dateRange = {}) {
   const groups = new Map();
   catalogRows.forEach((catalog) => {
-    const key = canonicalStockGroupKey(catalog.stockGroupKey || `activity_${catalog.workshopNo || normalizeWorkshopKey(catalog.workshopName)}`);
+    const key = canonicalStockGroupKey(catalog.stockGroupKey);
     if (!groups.has(key)) {
       groups.set(key, {
         stockGroupKey: key,
@@ -2648,7 +2659,7 @@ function renderTab(rows, state, data, allPreparedRows = []) {
     return completionApprovalTabHtml(approvalRows, state, data, directory, contactsIndex, summerPrintContactsIndex);
   }
   if (ops.tab === TAB_WORKSHOPS) {
-    const catalogRows = extractWorkshopCatalogRows(data?.adminListsData, allPreparedRows);
+    const catalogRows = extractWorkshopCatalogRows(data?.adminListsData, allPreparedRows, data?.workshopStockDistributions || []);
     const activitiesRowsForRequiredInventory = allPreparedRows.filter((row) =>
       isOpenOrClosedActivity(row) &&
       !isTamirActivity(row) &&
@@ -2697,7 +2708,7 @@ export const operationsManagementScreen = {
     const baseRows = applyBaseFilters(prepared, state);
     const filteredRows = isCompletionApprovalTab ? baseRows : applyAllFilters(baseRows, state);
     const filterRows = ops.tab === TAB_WORKSHOPS
-      ? baseRows.filter((row) => activityMatchesAnyOfficialWorkshop(row, extractWorkshopCatalogRows(data?.adminListsData, prepared)))
+      ? baseRows.filter((row) => activityMatchesAnyOfficialWorkshop(row, extractWorkshopCatalogRows(data?.adminListsData, prepared, data?.workshopStockDistributions || [])))
       : baseRows;
     const activeRows = isCompletionApprovalTab ? baseRows : filteredRows;
     return `<div class="ds-screen-stack ds-ops-mgmt-screen">${opsManagementStylesHtml()}${dsPageHeader(isCompletionApprovalTab ? 'בקרת אישורי ביצוע לקיץ 2026' : 'ניהול תפעול')}

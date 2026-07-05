@@ -497,21 +497,64 @@ test('workshops tab shows inventory columns and print action', () => {
   assert.match(html, />300</);
 });
 
-test('workshops inventory falls back to loaded workshop activities when catalog lists are empty', () => {
+test('workshops inventory falls back to real workshop_stock_distributions keys when catalog lists are empty', () => {
   const state = baseState();
   state.operationsManagement.tab = 'workshops';
+  state.operationsManagement.expandedWorkshop = 'kofet_kesem';
   const rows = [
-    { RowID: 'FB-1', status: 'פתוח', activity_name: 'סדנת חירום', start_date: '2026-07-10', activity_season: 'summer_2026', activity_type: 'workshop', participants_count: 36, instructor_name: 'נועה' }
+    { RowID: 'FB-1', status: 'פתוח', activity_no: '024', activity_name: 'קופת קסם', start_date: '2026-07-10', activity_season: 'summer_2026', activity_type: 'workshop', participants_count: 36, instructor_name: 'נועה' }
   ];
   const adminListsData = { categories: [{ category: 'workshop_stock', items: [] }] };
   const html = operationsManagementScreen.render({
     rows,
     workshopStockMap: buildWorkshopStockMapFromLists(adminListsData),
-    adminListsData
+    adminListsData,
+    workshopStockDistributions: [
+      { stock_group_key: 'kofet_kesem', instructor_name: 'מלאי עידן', quantity_received: 12, distribution_date: '2026-07-01' },
+      { activity_no: '024', instructor_name: 'נועה', quantity_received: 99, distribution_date: '2026-07-02' }
+    ]
   }, { state });
-  assert.match(html, /סדנת חירום/);
-  assert.match(html, /data-ops-workshop-toggle/);
+  assert.match(html, /data-ops-stock-group="kofet_kesem"/);
+  assert.match(html, /קופת קסם|kofet_kesem/);
+  assert.match(html, />12</);
+  assert.match(html, /פירוט לפי מדריכים/);
+  assert.doesNotMatch(html, /data-ops-stock-group="activity_24"/);
+  assert.doesNotMatch(html, />99</);
   assert.doesNotMatch(html, /לא נמצאו סדנאות בטווח הנבחר/);
+});
+
+test('workshops inventory preserves special stock_group_key mappings for kofet kesem guitar and watch', () => {
+  const state = baseState();
+  state.operationsManagement.tab = 'workshops';
+  const adminListsData = { categories: [{ category: 'activity_names', items: [
+    { value: '024', _row: { category: 'activity_names', type: 'workshop', activity_type: 'workshop', active: true, activity_no: '024', activity_name: 'קופת קסם', stock_group_key: 'kofet_kesem', stock_group_name: 'קופת קסם' } },
+    { value: '031', _row: { category: 'activity_names', type: 'workshop', activity_type: 'workshop', active: true, activity_no: '031', activity_name: 'גיטרה', stock_group_key: 'guitar_special', stock_group_name: 'גיטרה' } },
+    { value: '032', _row: { category: 'activity_names', type: 'workshop', activity_type: 'workshop', active: true, activity_no: '032', activity_name: 'שעון', stock_group_key: 'watch_special', stock_group_name: 'שעון' } }
+  ] }] };
+  const html = operationsManagementScreen.render({
+    rows: [
+      { RowID: 'KOFET-1', status: 'פתוח', activity_no: '024', activity_name: 'קופת קסם', start_date: '2026-07-10', activity_season: 'summer_2026', activity_type: 'workshop' },
+      { RowID: 'GUITAR-1', status: 'פתוח', activity_no: '031', activity_name: 'גיטרה', start_date: '2026-07-10', activity_season: 'summer_2026', activity_type: 'workshop' },
+      { RowID: 'WATCH-1', status: 'פתוח', activity_no: '032', activity_name: 'שעון', start_date: '2026-07-10', activity_season: 'summer_2026', activity_type: 'workshop' }
+    ],
+    workshopStockMap: buildWorkshopStockMapFromLists(adminListsData),
+    adminListsData,
+    workshopStockDistributions: [
+      { stock_group_key: 'kofet_kesem', instructor_name: 'מלאי עידן', quantity_received: 10, distribution_date: '2026-07-01' },
+      { stock_group_key: 'guitar_special', instructor_name: 'מלאי הילה', quantity_received: 20, distribution_date: '2026-07-01' },
+      { stock_group_key: 'watch_special', instructor_name: 'דני', quantity_received: 30, distribution_date: '2026-07-01' }
+    ]
+  }, { state });
+  assert.match(html, /data-ops-stock-group="kofet_kesem"/);
+  assert.match(html, /data-ops-stock-group="guitar_special"/);
+  assert.match(html, /data-ops-stock-group="watch_special"/);
+  assert.doesNotMatch(html, /data-ops-stock-group="activity_24"/);
+  assert.doesNotMatch(html, /data-ops-stock-group="activity_31"/);
+  assert.doesNotMatch(html, /data-ops-stock-group="activity_32"/);
+  assert.match(html, />10</);
+  assert.match(html, />20</);
+  assert.match(html, />30</);
+  assert.doesNotMatch(html, /data-ops-open-stock-edit/);
 });
 
 test('workshops inventory shows plain text status and flags negative warehouse balance', () => {
