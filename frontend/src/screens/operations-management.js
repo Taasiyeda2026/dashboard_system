@@ -857,6 +857,11 @@ function isOpenOrClosedActivity(row) {
   return status === 'פתוח' || status === 'סגור';
 }
 
+function isWorkshopActivity(row = {}) {
+  const type = String(row?.activity_type || row?.type || row?.item_type || '').trim().toLowerCase();
+  return type === 'workshop' || type === 'סדנה';
+}
+
 function isOfficialWorkshopListRow(row = {}, category = '') {
   const cat = String(category || row?.category || '').trim().toLowerCase();
   if (cat !== 'activity_names') return false;
@@ -967,6 +972,19 @@ function extractWorkshopCatalogRows(listsData, activityRows = []) {
       });
     });
   });
+  if (!rows.length) {
+    (Array.isArray(activityRows) ? activityRows : []).forEach((activity) => {
+      if (!isOpenOrClosedActivity(activity) || !isWorkshopActivity(activity)) return;
+      const name = getActivityName(activity);
+      add({
+        no: activity?.activity_no || activity?.workshop_no || '',
+        name,
+        stock: null,
+        stockGroupKey: activity?.stock_group_key || activity?.activity_no || name,
+        stockGroupName: name
+      });
+    });
+  }
   return rows.sort((a, b) => compareValues(a.workshopNo || a.workshopName, b.workshopNo || b.workshopName, 'asc'));
 }
 
@@ -1968,7 +1986,6 @@ function workshopsTabHtml(activitiesRowsForRequiredInventory, state, stockMap, c
 
   return `<section class="ds-ops-mgmt-panel ds-ops-workshops-panel" dir="rtl">
     <div class="ds-ops-mgmt-panel__toolbar no-print">
-      ${isOperationsAdmin(state) ? '<button type="button" class="ds-btn ds-btn--sm ds-btn--ghost" data-ops-open-stock-edit>עריכת מלאי</button>' : ''}
       <button type="button" class="ds-btn ds-btn--sm ds-btn--primary" data-ops-print-workshops>הדפס מלאי סדנאות</button>
     </div>
     <div class="ds-ops-mgmt-print-header only-print"><h2>מלאי סדנאות</h2><p>טווח קיץ: ${escapeHtml(formatDateHe(WORKSHOPS_SUMMER_FROM))} – ${escapeHtml(formatDateHe(WORKSHOPS_SUMMER_TO))}</p></div>

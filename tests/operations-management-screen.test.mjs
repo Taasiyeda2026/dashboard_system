@@ -497,6 +497,22 @@ test('workshops tab shows inventory columns and print action', () => {
   assert.match(html, />300</);
 });
 
+test('workshops inventory falls back to loaded workshop activities when catalog lists are empty', () => {
+  const state = baseState();
+  state.operationsManagement.tab = 'workshops';
+  const rows = [
+    { RowID: 'FB-1', status: 'פתוח', activity_name: 'סדנת חירום', start_date: '2026-07-10', activity_season: 'summer_2026', activity_type: 'workshop', participants_count: 36, instructor_name: 'נועה' }
+  ];
+  const adminListsData = { categories: [{ category: 'workshop_stock', items: [] }] };
+  const html = operationsManagementScreen.render({
+    rows,
+    workshopStockMap: buildWorkshopStockMapFromLists(adminListsData),
+    adminListsData
+  }, { state });
+  assert.match(html, /סדנת חירום/);
+  assert.match(html, /data-ops-workshop-toggle/);
+  assert.doesNotMatch(html, /לא נמצאו סדנאות בטווח הנבחר/);
+});
 
 test('workshops inventory shows plain text status and flags negative warehouse balance', () => {
   const state = baseState();
