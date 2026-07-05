@@ -3670,9 +3670,7 @@ function formHtml(mode, row = {}, activityNameOptions = [], contactOptions = [],
     activity_type_group: normalizedActivityGroup,
     proposal_date: proposalDate
   });
-  const initialTemplateKey = proposalGroupTemplateKey(normalizedActivityGroup);
-  const initialTemplateSections = resolveDocumentSections(row, [])
-    .filter((section) => !proposalTextField(section, 'template_key', 'templateKey') || proposalTextField(section, 'template_key', 'templateKey') === initialTemplateKey);
+  const initialTemplateSections = resolveDocumentSections(row, filterTemplateSectionsForGroup(proposalTemplateSectionsLookup, normalizedActivityGroup));
   const initialPreviewHtml = proposalPreviewBodyHtml(initialPreviewRow, items, initialTemplateSections);
 
   return `<form class="ds-pa-form ds-pa-form--compact pa-editor" data-pa-form data-pa-mode="${escapeHtml(mode)}" data-pa-id="${escapeHtml(row.id || '')}" data-pa-original-type="${escapeHtml(normalizedActivityGroup)}" data-pa-allow-manual-course="${allowManualCourse ? 'yes' : 'no'}" dir="rtl">
