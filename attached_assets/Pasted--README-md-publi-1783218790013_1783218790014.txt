@@ -1,0 +1,176 @@
+קרא קודם README.md.
+
+תיקון חירום — ציוד ומלאי.
+
+הטבלה הנכונה שממנה לוקחים את המלאי היא:
+
+public.workshop_stock_distributions
+
+לא public.lists כמקור כמות מלאי.
+
+public.lists משמשת רק למיפוי שמות / קטלוג / שם תצוגה, למשל:
+- category='workshop_stock'
+- category='activity_names'
+
+אבל מקור האמת של כמויות המלאי הוא:
+public.workshop_stock_distributions
+
+עמודות מרכזיות בטבלת המלאי:
+- stock_group_key — מפתח המלאי האמיתי
+- instructor_name — אצל מי נמצא המלאי / מלאי מרכזי / מדריך
+- quantity_received — כמות מלאי
+- period_start
+- period_end
+- notes
+
+דוגמה קיימת:
+בטבלה יש מפתחות כמו:
+- activity_010
+- activity_009
+- activity_008
+- kofet_kesem
+
+לכן אסור להמציא stock_group_key מתוך activity_no או שם פעילות.
+אם המפתח הוא kofet_kesem — זה המפתח האמיתי וצריך לשמור אותו.
+
+==================================================
+מה צריך לתקן
+==================================================
+
+1. כמות קיימת / מלאי קיים
+הכמות הקיימת בטבלת "מלאי סדנאות" חייבת להיבנות מ:
+
+public.workshop_stock_distributions.quantity_received
+
+לפי:
+public.workshop_stock_distributions.stock_group_key
+
+לא לקחת כמות קיימת מ:
+- lists.stock_quantity
+- activity_names
+- activity_no
+- שם פעילות
+
+2. שם תצוגה
+stock_group_key הוא מפתח פנימי בלבד.
+אסור להציג למשתמש activity_1 / activity_2 / kofet_kesem כשם סדנה.
+
+צריך לפתור שם תצוגה בעברית לפי lists:
+
+א. לחפש ב-public.lists:
+category='workshop_stock'
+ושם:
+stock_group_key = workshop_stock_distributions.stock_group_key
+
+ולהציג שם מתוך:
+- stock_group_name
+- stock_item_name
+- stock_label
+- label
+- activity_name
+- value
+
+ב. אם לא נמצא, לחפש ב-public.lists:
+category='activity_names'
+
+התאמה לפי:
+- stock_group_key
+- או אם stock_group_key הוא activity_###, אז activity_no תואם
+
+ולהציג:
+- activity_name
+- label
+- value
+
+ג. אם עדיין לא נמצא שם:
+להציג:
+מלאי ללא שם (stock_group_key)
+
+לא להציג activity_1 בתור שם הסדנה.
+
+3. חישובי מלאי
+השורות צריכות להיבנות לפי stock_group_key אמיתי.
+
+עבור כל stock_group_key:
+- כמות קיימת = סכום quantity_received מתוך public.workshop_stock_distributions
+- ניצול בפועל = לפי פעילויות סגורות כפי שהמערכת מחשבת היום
+- צפי נדרש = לפי פעילויות פתוחות כפי שהמערכת מחשבת היום
+- יתרה צפויה = כמות קיימת פחות ניצול פחות צפי
+
+לא לשנות את החישוב.
+רק לתקן את מקור המלאי ואת שם התצוגה.
+
+4. קופת קסם / גיטרה / שעון
+יש פריטים עם מיפוי מיוחד.
+
+חובה:
+- קופת קסם נשארת עם stock_group_key = kofet_kesem
+- לא להפוך אותה ל-activity_x
+- להציג לה שם עברי תקין
+- גיטרה ושעון צריכים להישאר עם המפתח האמיתי שלהם מתוך workshop_stock_distributions / lists
+- לא להמציא להם מפתח חדש
+
+5. כפתור "עריכת מלאי" לאדמין
+הכפתור צריך לערוך את הטבלה הנכונה:
+
+public.workshop_stock_distributions
+
+לא lists.stock_quantity.
+
+דרישות:
+- הכפתור מופיע רק ל-admin.
+- החלון מציג שם פריט בעברית.
+- מאחורי הקלעים עובד לפי stock_group_key אמיתי.
+- שינוי כמות מעדכן/יוצר רשומה ב-public.workshop_stock_distributions.
+- לא יוצר stock_group_key חדש.
+- אם אין stock_group_key אמיתי — לא לאפשר עריכה של אותו פריט.
+- לא לערוך public.lists כמקור כמות מלאי.
+
+6. לא לעשות
+- לא SQL.
+- לא לשנות נתוני Supabase ידנית.
+- לא למחוק רשומות.
+- לא לשנות חישובי מלאי.
+- לא לשנות הצעות מחיר במסגרת תיקון המלאי.
+- לא להמציא stock_group_key.
+- לא לקחת כמות קיימת מ-lists.
+
+==================================================
+בדיקות קבלה
+==================================================
+
+1. במסך ניהול תפעול > ציוד ומלאי לא מופיע activity_1 / activity_2 בשם הסדנה.
+2. מופיעים שמות סדנאות בעברית.
+3. כמות קיימת נלקחת מ-public.workshop_stock_distributions.
+4. stock_group_key נשמר כמפתח פנימי אמיתי.
+5. קופת קסם נשארת kofet_kesem אבל מוצגת בשם עברי.
+6. גיטרה ושעון לא מקבלים מפתח מומצא.
+7. ניצול בפועל / צפי נדרש / יתרה צפויה נשארים תקינים.
+8. פירוט שורה עדיין נפתח.
+9. כפתור עריכת מלאי מופיע רק לאדמין.
+10. עריכת מלאי משנה את public.workshop_stock_distributions.
+11. רענון עמוד מציג את הכמות המעודכנת.
+12. אין שינוי ב-public.lists כמקור כמות מלאי.
+
+==================================================
+חובה בסיום
+==================================================
+
+אם שונו JS/CSS:
+- לעדכן frontend/sw.js
+- להעלות CACHE_VERSION
+- להריץ:
+  npm run check:changed
+  npm run check:build
+  npm run check:pwa
+- לעדכן dist/build לפי README
+
+בסיכום להחזיר:
+1. אישור שמקור המלאי הוא public.workshop_stock_distributions.
+2. איך נפתר שם התצוגה דרך public.lists.
+3. איך נשמר stock_group_key אמיתי.
+4. איך נבדקו קופת קסם, גיטרה ושעון.
+5. האם כפתור עריכת מלאי חזר לאדמין.
+6. האם העריכה מעדכנת workshop_stock_distributions.
+7. CACHE_VERSION לפני ואחרי.
+8. תוצאות בדיקות.

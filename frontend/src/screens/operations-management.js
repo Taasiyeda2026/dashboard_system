@@ -923,30 +923,59 @@ function formatInventoryRemainder(stockValue, usageValue) {
   return `<span class="ds-ops-gap ${tone}">${formatSignedNumberForRtl(remainder)}</span>`;
 }
 
+function resolveWorkshopStockDisplayName(stockGroupKey, stockGroupKeyToName) {
+  const direct = stockGroupKeyToName.get(stockGroupKey);
+  if (direct) return direct;
+  const match = stockGroupKey.match(/^activity_(\d+)$/i);
+  if (match) {
+    const normNo = String(Number(match[1]));
+    const byNo = stockGroupKeyToName.get(`_actno_${normNo}`);
+    if (byNo) return byNo;
+  }
+  return `מלאי ללא שם (${stockGroupKey})`;
+}
+
 function extractWorkshopCatalogRows(listsData, activityRows = [], workshopStockDistributions = []) {
   const rows = [];
   const seen = new Set();
   const categories = Array.isArray(listsData?.categories) ? listsData.categories : [];
-  const workshopStockLookup = new Map();
-  const stockGroupNameLookup = new Map();
+  const stockGroupKeyToName = new Map();
+
   categories.forEach(({ category, items }) => {
     const cat = String(category || '').trim().toLowerCase();
     if (cat !== 'workshop_stock' && cat !== 'activity_names') return;
     (Array.isArray(items) ? items : []).forEach((item) => {
       const row = item?._row && typeof item._row === 'object' ? item._row : item;
       if (isInactiveListValue(row?.active)) return;
-      const name = String(row?.label || item?.label || row?.activity_name || row?.stock_group_name || row?.value || item?.value || '').trim();
-      const nameKey = normalizeWorkshopKey(name);
-      if (cat === 'workshop_stock' && nameKey && !workshopStockLookup.has(nameKey)) workshopStockLookup.set(nameKey, stockMapValue(row));
-      const groupKey = cat === 'activity_names'
-        ? officialWorkshopStockGroupKey(row)
-        : canonicalStockGroupKey(row?.stock_group_key || row?.value || item?.value || '');
-      if (groupKey && name && !stockGroupNameLookup.has(groupKey)) {
-        stockGroupNameLookup.set(groupKey, officialWorkshopStockGroupName(row) || name);
+      const displayName = String(
+        row?.stock_group_name || row?.stock_item_name || row?.stock_label ||
+        row?.activity_name || row?.label || item?.label ||
+        row?.value || item?.value || ''
+      ).trim();
+      if (!displayName) return;
+      const rawSgk = String(row?.stock_group_key || '').trim();
+      if (rawSgk) {
+        const canonSgk = canonicalStockGroupKey(rawSgk);
+        if (canonSgk && !stockGroupKeyToName.has(canonSgk)) stockGroupKeyToName.set(canonSgk, displayName);
+      }
+      if (cat === 'activity_names') {
+        const actNo = String(row?.activity_no || '').trim();
+        if (actNo) {
+          const normNo = String(Number(actNo));
+          if (normNo && normNo !== 'NaN') {
+            const actNoKey = `_actno_${normNo}`;
+            if (!stockGroupKeyToName.has(actNoKey)) stockGroupKeyToName.set(actNoKey, displayName);
+            if (!rawSgk) {
+              const genKey = canonicalStockGroupKey(`activity_${actNo}`);
+              if (genKey && !stockGroupKeyToName.has(genKey)) stockGroupKeyToName.set(genKey, displayName);
+            }
+          }
+        }
       }
     });
   });
-  const add = ({ no = '', name = '', stock = null, stockGroupKey = '', stockGroupName = '' } = {}) => {
+
+  const add = ({ no = '', name = '', stockGroupKey = '', stockGroupName = '' } = {}) => {
     const cleanName = String(name || '').trim();
     if (!cleanName || !isWorkshopInventoryRequired(cleanName)) return;
     const canonicalGroupKey = canonicalStockGroupKey(stockGroupKey);
@@ -956,11 +985,12 @@ function extractWorkshopCatalogRows(listsData, activityRows = [], workshopStockD
     rows.push({
       workshopNo: String(no || '').trim(),
       workshopName: cleanName,
-      stockQuantity: stock,
+      stockQuantity: null,
       stockGroupKey: canonicalGroupKey,
       stockGroupName: String(stockGroupName || cleanName).trim()
     });
   };
+
   categories.forEach(({ category, items }) => {
     const cat = String(category || '').trim().toLowerCase();
     if (cat !== 'activity_names') return;
@@ -968,34 +998,24 @@ function extractWorkshopCatalogRows(listsData, activityRows = [], workshopStockD
       const row = item?._row && typeof item._row === 'object' ? item._row : item;
       if (!isOfficialWorkshopListRow(row, cat) || isInactiveListValue(row?.active)) return;
       const name = row?.activity_name || row?.label || item?.label || row?.value || item?.value || '';
-      const stockKey = normalizeWorkshopKey(name);
-      const stock = workshopStockLookup.has(stockKey) ? workshopStockLookup.get(stockKey) : stockMapValue(row);
       add({
         no: row?.activity_no || row?.value || item?.value,
         name,
-        stock,
         stockGroupKey: officialWorkshopStockGroupKey(row),
-        stockGroupName: officialWorkshopStockGroupName(row)
+        stockGroupName: officialWorkshopStockGroupName(row) || name
       });
     });
   });
-  if (!rows.length) {
-    const distributionKeys = new Set();
-    (Array.isArray(workshopStockDistributions) ? workshopStockDistributions : []).forEach((distribution) => {
-      const key = distributionStockGroupKey(distribution);
-      if (key) distributionKeys.add(key);
-    });
-    distributionKeys.forEach((stockGroupKey) => {
-      const stockGroupName = stockGroupNameLookup.get(stockGroupKey) || stockGroupKey;
-      add({
-        no: '',
-        name: stockGroupName,
-        stock: null,
-        stockGroupKey,
-        stockGroupName
-      });
-    });
-  }
+
+  const catalogGroupKeys = new Set(rows.map((r) => r.stockGroupKey));
+  (Array.isArray(workshopStockDistributions) ? workshopStockDistributions : []).forEach((dist) => {
+    const stockGroupKey = distributionStockGroupKey(dist);
+    if (!stockGroupKey || catalogGroupKeys.has(stockGroupKey)) return;
+    catalogGroupKeys.add(stockGroupKey);
+    const displayName = resolveWorkshopStockDisplayName(stockGroupKey, stockGroupKeyToName);
+    add({ no: '', name: displayName, stockGroupKey, stockGroupName: displayName });
+  });
+
   return rows.sort((a, b) => compareValues(a.workshopNo || a.workshopName, b.workshopNo || b.workshopName, 'asc'));
 }
 
