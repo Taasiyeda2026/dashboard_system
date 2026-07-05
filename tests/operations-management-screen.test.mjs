@@ -557,6 +557,21 @@ test('workshops inventory preserves special stock_group_key mappings for kofet k
   assert.doesNotMatch(html, /data-ops-open-stock-edit/);
 });
 
+test('workshop stock edit drawer uses special stock_group_key values for admin inventory edits', () => {
+  const state = baseState({ user: { role: 'admin' }, operationsManagement: { ...baseState().operationsManagement, tab: 'workshops' } });
+  const adminListsData = { categories: [{ category: 'activity_names', items: [
+    { value: '024', _row: { list_id: 'k-list', category: 'activity_names', type: 'workshop', activity_type: 'workshop', active: true, activity_no: '024', activity_name: 'קופת קסם', stock_group_key: 'kofet_kesem', stock_group_name: 'קופת קסם', stock_quantity: 10 } },
+    { value: '031', _row: { list_id: 'g-list', category: 'activity_names', type: 'workshop', activity_type: 'workshop', active: true, activity_no: '031', activity_name: 'גיטרה', stock_group_key: 'guitar_special', stock_group_name: 'גיטרה', stock_quantity: 20 } },
+    { value: '032', _row: { list_id: 'w-list', category: 'activity_names', type: 'workshop', activity_type: 'workshop', active: true, activity_no: '032', activity_name: 'שעון', stock_group_key: 'watch_special', stock_group_name: 'שעון', stock_quantity: 30 } },
+    { value: '033', _row: { list_id: 'bad-list', category: 'activity_names', type: 'workshop', activity_type: 'workshop', active: true, activity_no: '033', activity_name: 'ללא מפתח', stock_quantity: 40 } }
+  ] }] };
+  const html = operationsManagementScreen.render({ rows: [], workshopStockMap: buildWorkshopStockMapFromLists(adminListsData), adminListsData }, { state });
+  assert.match(html, /data-ops-open-stock-edit/);
+  const items = collectWorkshopStockEditorItems(adminListsData);
+  assert.deepEqual(items.map((item) => item.stock_group_key).sort(), ['guitar_special', 'kofet_kesem', 'watch_special']);
+  assert.equal(items.some((item) => item.activity_no === '033'), false);
+});
+
 test('workshops inventory shows plain text status and flags negative warehouse balance', () => {
   const state = baseState();
   state.operationsManagement.tab = 'workshops';
@@ -1163,27 +1178,31 @@ test('authorities print layout uses 60% table with page-relative column widths',
   assert.doesNotMatch(src, /col-grade/);
 });
 
-test('collectWorkshopStockEditorItems merges workshop_stock and missing activity_names workshops', () => {
+test('collectWorkshopStockEditorItems exposes only real stock_group_key inventory items', () => {
   const adminListsData = {
     categories: [
       { category: 'workshop_stock', items: [
-        { value: 'frog', label: 'פרוגי המקפצת', _row: { list_id: 'ws-1', category: 'workshop_stock', value: 'frog', label: 'פרוגי המקפצת', active: true, stock_quantity: 120 } }
+        { value: 'frog', label: 'פרוגי המקפצת', _row: { list_id: 'ws-1', category: 'workshop_stock', value: 'frog', label: 'פרוגי המקפצת', active: true, stock_group_key: 'frog_stock', stock_group_name: 'פרוגי המקפצת', stock_quantity: 120 } }
       ] },
       { category: 'activity_names', items: [
-        { value: '001', label: 'פרוגי המקפצת', _row: { category: 'activity_names', type: 'workshop', activity_type: 'workshop', active: true, activity_no: '001', activity_name: 'פרוגי המקפצת', stock_quantity: 120 } },
-        { value: '002', label: 'סדנת חדשה', _row: { category: 'activity_names', type: 'workshop', activity_type: 'workshop', active: true, activity_no: '002', activity_name: 'סדנת חדשה', stock_quantity: 40 } }
+        { value: '001', label: 'פרוגי המקפצת', _row: { category: 'activity_names', type: 'workshop', activity_type: 'workshop', active: true, activity_no: '001', activity_name: 'פרוגי המקפצת', stock_group_key: 'frog_stock', stock_quantity: 120 } },
+        { value: '002', label: 'סדנת חדשה', _row: { category: 'activity_names', type: 'workshop', activity_type: 'workshop', active: true, activity_no: '002', activity_name: 'סדנת חדשה', stock_group_key: 'new_stock', stock_group_name: 'מלאי סדנת חדשה', stock_quantity: 40 } },
+        { value: '003', label: 'ללא מיפוי', _row: { category: 'activity_names', type: 'workshop', activity_type: 'workshop', active: true, activity_no: '003', activity_name: 'ללא מיפוי', stock_quantity: 10 } }
       ] }
     ]
   };
   const items = collectWorkshopStockEditorItems(adminListsData);
   assert.equal(items.length, 2);
   assert.equal(items.find((item) => item.label === 'פרוגי המקפצת')?.source, 'workshop_stock');
-  assert.equal(items.find((item) => item.label === 'סדנת חדשה')?.source, 'activity_names');
+  assert.equal(items.find((item) => item.label === 'פרוגי המקפצת')?.stock_group_key, 'frog_stock');
+  assert.equal(items.find((item) => item.label === 'מלאי סדנת חדשה')?.source, 'activity_names');
+  assert.equal(items.find((item) => item.label === 'מלאי סדנת חדשה')?.stock_group_key, 'new_stock');
+  assert.equal(items.some((item) => item.label === 'ללא מיפוי'), false);
 });
 
 test('workshops tab shows stock edit button only for admin', () => {
   const adminListsData = { categories: [{ category: 'workshop_stock', items: [
-    { value: 'frog', label: 'פרוגי המקפצת', _row: { category: 'workshop_stock', value: 'frog', label: 'פרוגי המקפצת', active: true, stock_quantity: 120 } }
+    { value: 'frog', label: 'פרוגי המקפצת', _row: { category: 'workshop_stock', value: 'frog', label: 'פרוגי המקפצת', active: true, stock_group_key: 'frog_stock', stock_quantity: 120 } }
   ] }] };
   const payload = {
     rows: [{ RowID: 'FROG-1', status: 'פתוח', activity_name: 'פרוגי המקפצת', start_date: '2026-07-10', activity_season: 'summer_2026' }],

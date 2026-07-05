@@ -1942,9 +1942,9 @@ function workshopStockEditDrawerHtml(items = [], searchQuery = '') {
     ? filtered.map((item) => {
         const qty = Number.isFinite(Number(item.stock_quantity)) ? Number(item.stock_quantity) : 0;
         return `<tr data-ops-stock-edit-row data-stock-key="${escapeHtml(item.key || '')}">
-          <td>${escapeHtml(item.label || '—')}</td>
+          <td>${escapeHtml(item.label || '—')}<br><span class="ds-muted" dir="ltr">${escapeHtml(item.stock_group_key || item.key || '')}</span></td>
           <td class="ds-ops-stock-edit-current">${formatSignedNumberForRtl(qty)}</td>
-          <td><input class="ds-input ds-input--sm ds-ops-stock-edit-qty" type="number" min="0" step="1" inputmode="numeric" data-ops-stock-edit-qty data-original-qty="${qty}" data-list-id="${escapeHtml(String(item.list_id || ''))}" data-source="${escapeHtml(item.source || '')}" data-value="${escapeHtml(item.value || '')}" data-label="${escapeHtml(item.label || '')}" data-activity-no="${escapeHtml(item.activity_no || '')}" data-sort-order="${Number(item.sort_order) || 0}" value="${qty}" aria-label="כמות מלאי"></td>
+          <td><input class="ds-input ds-input--sm ds-ops-stock-edit-qty" type="number" min="0" step="1" inputmode="numeric" data-ops-stock-edit-qty data-original-qty="${qty}" data-list-id="${escapeHtml(String(item.list_id || ''))}" data-source="${escapeHtml(item.source || '')}" data-stock-group-key="${escapeHtml(item.stock_group_key || item.key || '')}" data-value="${escapeHtml(item.value || '')}" data-label="${escapeHtml(item.label || '')}" data-activity-no="${escapeHtml(item.activity_no || '')}" data-sort-order="${Number(item.sort_order) || 0}" value="${qty}" aria-label="כמות מלאי"></td>
         </tr>`;
       }).join('')
     : `<tr><td colspan="3">${dsEmptyState(q ? 'לא נמצאו פריטים בחיפוש' : 'אין פריטי מלאי לעריכה')}</td></tr>`;
@@ -1995,9 +1995,13 @@ function workshopsTabHtml(activitiesRowsForRequiredInventory, state, stockMap, c
       }).join('')}</tbody></table>`)
     : dsEmptyState('לא נמצאו סדנאות בטווח הנבחר');
 
+  const editButton = isOperationsAdmin(state)
+    ? '<button type="button" class="ds-btn ds-btn--sm ds-btn--secondary" data-ops-open-stock-edit>עריכת מלאי</button>'
+    : '';
   return `<section class="ds-ops-mgmt-panel ds-ops-workshops-panel" dir="rtl">
     <div class="ds-ops-mgmt-panel__toolbar no-print">
       <button type="button" class="ds-btn ds-btn--sm ds-btn--primary" data-ops-print-workshops>הדפס מלאי סדנאות</button>
+      ${editButton}
     </div>
     <div class="ds-ops-mgmt-print-header only-print"><h2>מלאי סדנאות</h2><p>טווח קיץ: ${escapeHtml(formatDateHe(WORKSHOPS_SUMMER_FROM))} – ${escapeHtml(formatDateHe(WORKSHOPS_SUMMER_TO))}</p></div>
     <div class="ds-ops-workshops-card">${dsCard({ title: 'מלאי סדנאות', badge: String(metrics.length), body: `<div class="ds-ops-workshops-table-wrap">${table}</div>`, padded: false })}</div>
@@ -2877,6 +2881,7 @@ export const operationsManagementScreen = {
               return {
                 list_id: fieldText(input.dataset.listId),
                 source: fieldText(input.dataset.source),
+                stock_group_key: fieldText(input.dataset.stockGroupKey),
                 value: fieldText(input.dataset.value),
                 label: fieldText(input.dataset.label),
                 activity_no: fieldText(input.dataset.activityNo),
