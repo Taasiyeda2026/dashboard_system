@@ -76,6 +76,7 @@ Migration files to apply (in order):
 - `supabase/migrations/20260617_fix_contact_school_id_coalesce_type.sql`  ← **תיקון COALESCE bigint/uuid**
 - `supabase/migrations/20260629200000_admin_permissions_rls.sql`  ← **RLS לניהול הרשאות: INSERT/UPDATE/DELETE על users + UPDATE profiles ע"י admin**
 - ~~`supabase/migrations/20260705160000_fix_lists_list_id_default_sequence.sql`~~ ✅ **הורץ** — איפוס sequence של lists.list_id ל-MAX+1 (sequence היה מפגר → duplicate key בטריגר sync_dynamic_dropdown_lists)
+- `supabase/migrations/20260705180000_fix_gefen_number_not_null.sql` ← **⚡ דחוף: `coalesce(nullif(gefen_number,''),'')` בפונקציה save_proposal_agreement_items_atomic — בלעדיו שמירת/אישור הצעה נכשלת עם NOT NULL על gefen_number**
 
 After applying 20260505 files: seed `users` table with existing users (user_id, entry_code, role, name).
 
