@@ -13,6 +13,7 @@ import {
   KIRYAT_MOSHE_REHOVOT_AUTHORITY,
   isSummerOperationsException,
   buildWorkshopStockMapFromLists,
+  collectWorkshopStockEditorItems,
   buildWorkshopQuantityMetrics,
   getActivityActualParticipantCount,
   getActivityRequiredInventoryQuantity,
@@ -1101,6 +1102,42 @@ test('authorities print layout uses 60% table with page-relative column widths',
   assert.match(src, /\.authorities-table \.col-class\{width:20%/);
   assert.match(src, /\.authorities-table \.col-activity\{width:33%/);
   assert.doesNotMatch(src, /col-grade/);
+});
+
+test('collectWorkshopStockEditorItems merges workshop_stock and missing activity_names workshops', () => {
+  const adminListsData = {
+    categories: [
+      { category: 'workshop_stock', items: [
+        { value: 'frog', label: 'פרוגי המקפצת', _row: { list_id: 'ws-1', category: 'workshop_stock', value: 'frog', label: 'פרוגי המקפצת', active: true, stock_quantity: 120 } }
+      ] },
+      { category: 'activity_names', items: [
+        { value: '001', label: 'פרוגי המקפצת', _row: { category: 'activity_names', type: 'workshop', activity_type: 'workshop', active: true, activity_no: '001', activity_name: 'פרוגי המקפצת', stock_quantity: 120 } },
+        { value: '002', label: 'סדנת חדשה', _row: { category: 'activity_names', type: 'workshop', activity_type: 'workshop', active: true, activity_no: '002', activity_name: 'סדנת חדשה', stock_quantity: 40 } }
+      ] }
+    ]
+  };
+  const items = collectWorkshopStockEditorItems(adminListsData);
+  assert.equal(items.length, 2);
+  assert.equal(items.find((item) => item.label === 'פרוגי המקפצת')?.source, 'workshop_stock');
+  assert.equal(items.find((item) => item.label === 'סדנת חדשה')?.source, 'activity_names');
+});
+
+test('workshops tab shows stock edit button only for admin', () => {
+  const adminListsData = { categories: [{ category: 'workshop_stock', items: [
+    { value: 'frog', label: 'פרוגי המקפצת', _row: { category: 'workshop_stock', value: 'frog', label: 'פרוגי המקפצת', active: true, stock_quantity: 120 } }
+  ] }] };
+  const payload = {
+    rows: [{ RowID: 'FROG-1', status: 'פתוח', activity_name: 'פרוגי המקפצת', start_date: '2026-07-10', activity_season: 'summer_2026' }],
+    workshopStockMap: buildWorkshopStockMapFromLists(adminListsData),
+    adminListsData
+  };
+  const adminState = baseState({ user: { role: 'admin' }, operationsManagement: { ...baseState().operationsManagement, tab: 'workshops', dateFrom: '2026-07-01', dateTo: '2026-07-31' } });
+  const managerState = baseState({ user: { role: 'operation_manager' }, operationsManagement: { ...baseState().operationsManagement, tab: 'workshops', dateFrom: '2026-07-01', dateTo: '2026-07-31' } });
+  const adminHtml = operationsManagementScreen.render(payload, { state: adminState });
+  const managerHtml = operationsManagementScreen.render(payload, { state: managerState });
+  assert.match(adminHtml, /data-ops-open-stock-edit/);
+  assert.match(adminHtml, /עריכת מלאי/);
+  assert.doesNotMatch(managerHtml, /data-ops-open-stock-edit/);
 });
 
 test('service worker keeps CACHE_VERSION only in frontend implementation', async () => {

@@ -44,6 +44,7 @@ import {
   schoolGroupKey,
   buildActivitySearchText,
   buildWorkshopStockMapFromLists,
+  collectWorkshopStockEditorItems,
   getActivityActualParticipantCount,
   getActivityOperationalQuantity,
   getActivityRequiredInventoryQuantity,
@@ -73,6 +74,10 @@ const SUMMER_TRAINING_SESSION_KEY = 'opsSummerTrainingActive';
 const COMPLETION_APPROVAL_SUMMER_FROM = '2026-06-20';
 const COMPLETION_APPROVAL_SUMMER_TO = '2026-08-31';
 const COMPLETION_APPROVAL_MANAGER_ROLES = new Set(['admin', 'operation_manager', 'domain_manager', 'activities_manager', 'instructor_manager']);
+
+function isOperationsAdmin(state = {}) {
+  return String(state?.user?.role || state?.user?.display_role || '').trim() === 'admin';
+}
 
 
 let _opsNeedsEntryReset = false;
@@ -1308,6 +1313,15 @@ function opsManagementStylesHtml() {
     .ds-ops-mgmt-screen .ds-ops-stock-input { width:64px; text-align:center; font-size:12px; padding:2px 4px; border:1px solid #94a3b8; border-radius:4px; background:#fff; }
     .ds-ops-mgmt-screen .ds-ops-stock-save-btn { background:#0369a1; color:#fff; border:none; border-radius:4px; padding:2px 6px; cursor:pointer; font-size:11px; margin-inline-start:2px; }
     .ds-ops-mgmt-screen .ds-ops-stock-cancel-btn { background:#94a3b8; color:#fff; border:none; border-radius:4px; padding:2px 6px; cursor:pointer; font-size:11px; margin-inline-start:2px; }
+    .ds-ops-mgmt-screen .ds-ops-stock-edit-intro { margin:0 0 10px; font-size:0.84rem; }
+    .ds-ops-mgmt-screen .ds-ops-stock-edit-search { margin-bottom:10px; }
+    .ds-ops-mgmt-screen .ds-ops-stock-edit-table-wrap { max-height:min(62vh,520px); overflow:auto; margin-bottom:12px; }
+    .ds-ops-mgmt-screen .ds-ops-stock-edit-table td, .ds-ops-mgmt-screen .ds-ops-stock-edit-table th { white-space:nowrap; }
+    .ds-ops-mgmt-screen .ds-ops-stock-edit-qty { width:88px; text-align:center; }
+    .ds-ops-mgmt-screen .ds-ops-stock-edit-actions { display:flex; justify-content:flex-start; gap:8px; }
+    .ds-ops-mgmt-screen .ds-ops-stock-edit-status { margin:0 0 8px; font-size:0.82rem; }
+    .ds-ops-mgmt-screen .ds-ops-stock-edit-status.is-error { color:#b91c1c; }
+    .ds-ops-mgmt-screen .ds-ops-stock-edit-status.is-success { color:#047857; }
     .ds-ops-mgmt-screen .ds-ops-schools-authority { margin-block:14px; border:1px solid #d8e5ee; border-radius:16px; background:#fff; overflow:hidden; }
     .ds-ops-mgmt-screen .ds-ops-schools-authority__header { display:flex; align-items:center; justify-content:space-between; gap:16px; padding:12px 16px; background:#eefaff; border-bottom:1px solid #d8e5ee; font-weight:700; }
     .ds-ops-mgmt-screen .ds-ops-schools-authority__stats,
@@ -1890,7 +1904,31 @@ function workshopInstructorDetailHtml(row) {
   </div></td></tr>`;
 }
 
-function workshopsTabHtml(activitiesRowsForRequiredInventory, state, stockMap, catalogRows = [], workshopStockDistributions = []) {
+function workshopStockEditDrawerHtml(items = [], searchQuery = '') {
+  const q = String(searchQuery || '').trim().toLowerCase();
+  const filtered = q
+    ? items.filter((item) => String(item.label || '').toLowerCase().includes(q) || String(item.value || '').toLowerCase().includes(q))
+    : items;
+  const rowsHtml = filtered.length
+    ? filtered.map((item) => {
+        const qty = Number.isFinite(Number(item.stock_quantity)) ? Number(item.stock_quantity) : 0;
+        return `<tr data-ops-stock-edit-row data-stock-key="${escapeHtml(item.key || '')}">
+          <td>${escapeHtml(item.label || '—')}</td>
+          <td class="ds-ops-stock-edit-current">${formatSignedNumberForRtl(qty)}</td>
+          <td><input class="ds-input ds-input--sm ds-ops-stock-edit-qty" type="number" min="0" step="1" inputmode="numeric" data-ops-stock-edit-qty data-original-qty="${qty}" data-list-id="${escapeHtml(String(item.list_id || ''))}" data-source="${escapeHtml(item.source || '')}" data-value="${escapeHtml(item.value || '')}" data-label="${escapeHtml(item.label || '')}" data-activity-no="${escapeHtml(item.activity_no || '')}" data-sort-order="${Number(item.sort_order) || 0}" value="${qty}" aria-label="כמות מלאי"></td>
+        </tr>`;
+      }).join('')
+    : `<tr><td colspan="3">${dsEmptyState(q ? 'לא נמצאו פריטים בחיפוש' : 'אין פריטי מלאי לעריכה')}</td></tr>`;
+  return `<div class="ds-ops-stock-edit-drawer" data-ops-stock-edit-drawer dir="rtl">
+    <p class="ds-muted ds-ops-stock-edit-intro">עדכון הכמות יישמר ב-Supabase וישפיע על חישובי ציוד ומלאי.</p>
+    <label class="ds-filter-field ds-ops-stock-edit-search"><span class="ds-filter-field__label">חיפוש</span><input class="ds-input ds-input--sm" type="search" data-ops-stock-edit-search value="${escapeHtml(searchQuery)}" placeholder="שם פעילות / פריט"></label>
+    <div class="ds-ops-stock-edit-table-wrap">${dsTableWrap(`<table class="ds-table ds-table--compact ds-ops-stock-edit-table"><thead><tr><th>פריט מלאי</th><th>מלאי נוכחי</th><th>כמות חדשה</th></tr></thead><tbody>${rowsHtml}</tbody></table>`)}</div>
+    <p class="ds-ops-stock-edit-status" data-ops-stock-edit-status hidden role="status"></p>
+    <div class="ds-ops-stock-edit-actions"><button type="button" class="ds-btn ds-btn--primary" data-ops-stock-edit-save>שמור שינויים</button></div>
+  </div>`;
+}
+
+function workshopsTabHtml(activitiesRowsForRequiredInventory, state, stockMap, catalogRows = [], workshopStockDistributions = [], listsData = null) {
   const ops = ensureOpsState(state);
   const allMetrics = sortByConfig(workshopMetricsRows(activitiesRowsForRequiredInventory, stockMap, catalogRows, workshopStockDistributions, { from: WORKSHOPS_SUMMER_FROM, to: WORKSHOPS_SUMMER_TO }), state, TAB_WORKSHOPS, {
     workshopNo: (row) => row.workshopNo || row.workshopName,
@@ -1930,6 +1968,7 @@ function workshopsTabHtml(activitiesRowsForRequiredInventory, state, stockMap, c
 
   return `<section class="ds-ops-mgmt-panel ds-ops-workshops-panel" dir="rtl">
     <div class="ds-ops-mgmt-panel__toolbar no-print">
+      ${isOperationsAdmin(state) ? '<button type="button" class="ds-btn ds-btn--sm ds-btn--ghost" data-ops-open-stock-edit>עריכת מלאי</button>' : ''}
       <button type="button" class="ds-btn ds-btn--sm ds-btn--primary" data-ops-print-workshops>הדפס מלאי סדנאות</button>
     </div>
     <div class="ds-ops-mgmt-print-header only-print"><h2>מלאי סדנאות</h2><p>טווח קיץ: ${escapeHtml(formatDateHe(WORKSHOPS_SUMMER_FROM))} – ${escapeHtml(formatDateHe(WORKSHOPS_SUMMER_TO))}</p></div>
@@ -2600,7 +2639,7 @@ function renderTab(rows, state, data, allPreparedRows = []) {
       activityOverlapsDateRange(row, WORKSHOPS_SUMMER_FROM, WORKSHOPS_SUMMER_TO)
     );
     const workshopStockDistributions = data?.workshopStockDistributions || [];
-    return workshopsTabHtml(activitiesRowsForRequiredInventory, state, stockMap, catalogRows, workshopStockDistributions);
+    return workshopsTabHtml(activitiesRowsForRequiredInventory, state, stockMap, catalogRows, workshopStockDistributions, data?.adminListsData);
   }
   return instructorsTabHtml(rows, state, data, directory, contactsIndex, allPreparedRows);
 }
@@ -2651,7 +2690,7 @@ export const operationsManagementScreen = {
       ${isCompletionApprovalTab ? '' : `<p class="ds-muted ds-ops-mgmt-count no-print" dir="rtl">מציג ${filteredRows.length} פעילויות מתוך ${allRows.length}</p>`}
     </div>`;
   },
-  bind({ root, data = {}, api, state, rerender, clearScreenDataCache }) {
+  bind({ root, data = {}, api, state, rerender, clearScreenDataCache, ui }) {
     if (!root) return;
     state = state || {};
     const ops = ensureOpsState(state);
@@ -2779,6 +2818,79 @@ export const operationsManagementScreen = {
       printInstructorSchedule();
     });
     root.querySelector('[data-ops-print-workshops]')?.addEventListener('click', () => printWorkshopsFromDom(root));
+
+    const openStockEditDrawer = (searchQuery = '') => {
+      if (!isOperationsAdmin(state) || !ui?.openDrawer) return;
+      const editorItems = collectWorkshopStockEditorItems(data?.adminListsData);
+      ui.openDrawer({
+        title: 'עריכת מלאי סדנאות',
+        content: workshopStockEditDrawerHtml(editorItems, searchQuery),
+        onOpen: (contentNode) => {
+          const searchInput = contentNode.querySelector('[data-ops-stock-edit-search]');
+          const statusEl = contentNode.querySelector('[data-ops-stock-edit-status]');
+          const saveBtn = contentNode.querySelector('[data-ops-stock-edit-save]');
+          searchInput?.addEventListener('input', () => {
+            const q = String(searchInput.value || '').trim().toLowerCase();
+            contentNode.querySelectorAll('[data-ops-stock-edit-row]').forEach((row) => {
+              const label = String(row.querySelector('td')?.textContent || '').trim().toLowerCase();
+              row.hidden = Boolean(q) && !label.includes(q);
+            });
+          });
+          saveBtn?.addEventListener('click', async () => {
+            if (!api?.updateWorkshopStockItems) return;
+            const updates = Array.from(contentNode.querySelectorAll('[data-ops-stock-edit-qty]')).map((input) => {
+              const raw = String(input.value ?? '').trim();
+              if (raw === '') return null;
+              const stockQuantity = Number(raw);
+              if (!Number.isFinite(stockQuantity) || stockQuantity < 0) return null;
+              const original = Number(input.dataset.originalQty);
+              if (Number.isFinite(original) && original === stockQuantity) return null;
+              const fieldText = (value) => String(value ?? '').trim();
+              return {
+                list_id: fieldText(input.dataset.listId),
+                source: fieldText(input.dataset.source),
+                value: fieldText(input.dataset.value),
+                label: fieldText(input.dataset.label),
+                activity_no: fieldText(input.dataset.activityNo),
+                sort_order: Number(input.dataset.sortOrder) || 0,
+                stock_quantity: stockQuantity
+              };
+            }).filter(Boolean);
+            if (!updates.length) {
+              if (statusEl) {
+                statusEl.hidden = false;
+                statusEl.className = 'ds-ops-stock-edit-status is-error';
+                statusEl.textContent = 'לא נמצאו שינויים לשמירה.';
+              }
+              return;
+            }
+            if (saveBtn) saveBtn.disabled = true;
+            if (statusEl) {
+              statusEl.hidden = false;
+              statusEl.className = 'ds-ops-stock-edit-status';
+              statusEl.textContent = 'שומר...';
+            }
+            try {
+              await api.updateWorkshopStockItems(updates);
+              clearScreenDataCache?.('operations-management');
+              ui.closeDrawer?.();
+              showOpsToast('מלאי הסדנאות נשמר בהצלחה ✓');
+              rerender?.();
+            } catch (error) {
+              if (statusEl) {
+                statusEl.hidden = false;
+                statusEl.className = 'ds-ops-stock-edit-status is-error';
+                statusEl.textContent = `שמירת המלאי נכשלה: ${error?.message || error}`;
+              }
+            } finally {
+              if (saveBtn) saveBtn.disabled = false;
+            }
+          });
+        }
+      });
+    };
+
+    root.querySelector('[data-ops-open-stock-edit]')?.addEventListener('click', () => openStockEditDrawer(''));
     root.querySelector('[data-ops-print-schools]')?.addEventListener('click', () => printSchoolsSchedule());
 
     const workshopsWrap = root.querySelector('.ds-ops-workshops-table-wrap');
