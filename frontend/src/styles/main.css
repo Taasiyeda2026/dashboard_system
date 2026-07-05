@@ -12488,6 +12488,15 @@ select.ds-input {
 .ds-pa-item-quick-row .ds-pa-item-field--price { flex: 0 0 104px; width: 104px; }
 .ds-pa-item-quick-row .ds-pa-item-field--total { flex: 0 0 auto; min-width: 96px; }
 .ds-pa-item-remove { align-self: flex-end; flex: 0 0 auto; }
+.ds-pa-item-manual-name {
+  margin-top: 6px;
+}
+.ds-pa-item-row--manual .ds-pa-item-extra-body {
+  margin-top: 4px;
+}
+.ds-pa-item-field--manual-name input {
+  font-weight: 600;
+}
 @media (max-width: 700px) {
   .ds-pa-item-quick-row { flex-wrap: wrap; gap: 6px; }
   .ds-pa-item-quick-row .ds-pa-item-field--select { flex: 1 1 100%; min-width: 0; }

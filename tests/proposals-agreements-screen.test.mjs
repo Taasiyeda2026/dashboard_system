@@ -1839,6 +1839,49 @@ test('manual course without gefen is blocked for non-admin and allowed for admin
   }, 'pending_approval', { canAddManualCourseWithoutGefen: false }), []);
 });
 
+test('next_year admin manual course option appears only for admin in pricing select', async () => {
+  const source = await readFile(SCREEN_FILE, 'utf8');
+  assert.match(source, /MANUAL_COURSE_OPTION_KEY = '__manual_course__'/);
+  assert.match(source, /MANUAL_COURSE_OPTION_LABEL = 'קורס אחר \/ טקסט חופשי'/);
+  assert.match(source, /data-pa-allow-manual-course="\$\{allowManualCourse \? 'yes' : 'no'\}"/);
+  assert.match(source, /allowManualCourse && isNextYearProposalGroup\(options\.groupKey\)/);
+  assert.match(source, /selectedKey === MANUAL_COURSE_OPTION_KEY[\s\S]*applyManualCourseToRow/);
+});
+
+test('extractItemsFromForm keeps next_year manual course rows without catalog identity', async () => {
+  await withJSDOM(`<form data-pa-form>
+    <select name="activity_type_group"><option value="next_year" selected>next_year</option></select>
+    <article data-pa-item-row data-pa-row-group="next_year" data-pa-manual-course="yes">
+      <select data-pa-pricing-select><option value="__manual_course__" selected>manual</option></select>
+      <input name="item_name" value="קורס ייחודי שלא בקטלוג">
+      <input name="proposal_group" value="next_year">
+      <input name="quantity" value="2">
+      <input name="meetings_count" value="8">
+      <input name="hours_count" value="16">
+      <input name="unit_price" value="450">
+      <input data-pa-item-total name="total_price" value="900">
+      <textarea name="course_note">הערה לתוכנית</textarea>
+      <input name="item_selected_bundle_items" value="[]">
+      <input name="item_display_mode" value="single">
+    </article>
+  </form>`, async (root) => {
+    const items = extractItemsFromForm(root.querySelector('[data-pa-form]'));
+    assert.equal(items.length, 1);
+    assert.equal(items[0].item_name, 'קורס ייחודי שלא בקטלוג');
+    assert.equal(items[0].quantity, 2);
+    assert.equal(items[0].meetings_count, 8);
+    assert.equal(items[0].hours_count, 16);
+    assert.equal(items[0].unit_price, 450);
+    assert.equal(items[0].total_price, 900);
+    assert.equal(items[0].course_note, 'הערה לתוכנית');
+    assert.equal(items[0].proposal_group, 'next_year');
+    assert.equal(items[0].pricing_option_key, '');
+    assert.equal(items[0].activity_no, '');
+    assert.equal(items[0].source_pricing_key, '');
+    assert.equal(items[0].gefen_number, '');
+  });
+});
+
 test('saving manual contact keeps authority and school ids in pending payload', async () => {
   const savedPayloads = [];
   const manualSchoolCatalog = [
