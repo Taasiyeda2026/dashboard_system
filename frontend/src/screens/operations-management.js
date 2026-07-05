@@ -1103,6 +1103,16 @@ function isWorkshopStockLocationName(name) {
   return value === 'מלאי עידן' || value === 'מלאי הילה';
 }
 
+function isActivityEffectivelyClosed(activity) {
+  if (String(activity?.status || '').trim() === 'סגור') return true;
+  if (isActivityDeleted(activity)) return false;
+  const today = new Date().toISOString().slice(0, 10);
+  const dates = getActivityScheduleDates(activity);
+  const lastDate = dates.length ? dates[dates.length - 1] : '';
+  if (lastDate && lastDate < today) return true;
+  return false;
+}
+
 function workshopMetricsRows(activitiesRowsForRequiredInventory, stockMap, catalogRows = [], workshopStockDistributions = [], dateRange = {}) {
   const groups = new Map();
   catalogRows.forEach((catalog) => {
@@ -1131,8 +1141,8 @@ function workshopMetricsRows(activitiesRowsForRequiredInventory, stockMap, catal
 
   return Array.from(groups.values()).map((group) => {
     const activityCount = group.activities.length;
-    const closedActivities = group.activities.filter((activity) => String(activity?.status || '').trim() === 'סגור');
-    const openActivities = group.activities.filter((activity) => String(activity?.status || '').trim() !== 'סגור' && !isActivityDeleted(activity));
+    const closedActivities = group.activities.filter((activity) => isActivityEffectivelyClosed(activity));
+    const openActivities = group.activities.filter((activity) => !isActivityEffectivelyClosed(activity) && !isActivityDeleted(activity));
     const requiredQuantity = sumRequiredInventoryQuantitiesFromActivities(openActivities);
     const usedQuantity = sumRequiredInventoryQuantitiesFromActivities(closedActivities);
     const activitiesWithoutParticipants = group.activities.filter((activity) => getActivityActualParticipantCount(activity) === null).length;
@@ -1168,7 +1178,7 @@ function workshopMetricsRows(activitiesRowsForRequiredInventory, stockMap, catal
     });
     group.activities.forEach((activity) => {
       const activityQuantity = getActivityRequiredInventoryQuantity(activity);
-      const isClosed = String(activity?.status || '').trim() === 'סגור';
+      const isClosed = isActivityEffectivelyClosed(activity);
       const instructors = getActivityInstructorNames(activity).filter((name) => !isWorkshopStockLocationName(name));
       const names = instructors.length ? instructors : ['לא משויך'];
       names.forEach((name) => {
