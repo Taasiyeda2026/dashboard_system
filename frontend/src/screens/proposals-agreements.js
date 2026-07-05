@@ -1132,6 +1132,28 @@ function inferProposalClientType(row = {}) {
   return 'school';
 }
 
+function selectedRecipientType(form) {
+  return text(form?.querySelector('input[name="client_type_selector"]:checked')?.value) || 'school';
+}
+
+function hideSchoolSearchPanel(form) {
+  if (!form) return;
+  const schoolSearchPanel = form.querySelector('[data-pa-school-search-panel]');
+  if (schoolSearchPanel) schoolSearchPanel.hidden = true;
+  const schoolResults = form.querySelector('[data-pa-school-results]');
+  if (schoolResults) { schoolResults.hidden = true; schoolResults.innerHTML = ''; }
+  const schoolSearchInput = form.querySelector('[data-pa-school-search-input]');
+  if (schoolSearchInput) schoolSearchInput.value = '';
+  if (text(form.dataset.paSearchStep) === 'school') form.dataset.paSearchStep = 'authority';
+}
+
+function syncOtherRecipientSchoolFieldVisibility(form) {
+  if (!form) return;
+  const hideSchool = selectedRecipientType(form) === 'other';
+  const roSchoolField = form.querySelector('[data-pa-contact-ro-school]')?.closest('label');
+  if (roSchoolField) roSchoolField.hidden = hideSchool;
+}
+
 function clientTypeSelectorHtml(selected = 'school') {
   const value = ['school', 'authority', 'other'].includes(text(selected)) ? text(selected) : 'school';
   const options = [
@@ -3251,7 +3273,7 @@ function resetRecipientDependentFields(form, nextClientType) {
   const results = form.querySelector('[data-pa-client-results]');
   const schoolResults = form.querySelector('[data-pa-school-results]');
   if (searchFieldWrap) searchFieldWrap.hidden = false;
-  if (schoolSearchPanel) schoolSearchPanel.hidden = true;
+  hideSchoolSearchPanel(form);
   if (results) { results.hidden = true; results.innerHTML = ''; }
   if (schoolResults) { schoolResults.hidden = true; schoolResults.innerHTML = ''; }
   const searchInput = form.querySelector('[data-pa-client-search-input]');
@@ -3452,7 +3474,7 @@ function formHtml(mode, row = {}, activityNameOptions = [], contactOptions = [],
   }) || row;
   const contactPanelVisible = initOther || (isLocked && (initAuthorityOnly ? Boolean(initAuthorityId) : Boolean(initSchoolId)));
   const channelsStatusVisible = contactPanelVisible && Boolean(initContact);
-  const initPickerHtml = contactPanelVisible ? contactPickerHtml(
+  const initPickerHtml = contactPanelVisible && !initOther ? contactPickerHtml(
     contactOptions,
     initAuth,
     initSchool,
@@ -3501,7 +3523,7 @@ function formHtml(mode, row = {}, activityNameOptions = [], contactOptions = [],
         <div data-pa-client-card${isLocked ? '' : ' hidden'}>${isLocked ? clientLockedBannerHtml(initAuth, initSchool, initContact, initRole, initPhone, initEmail, initClientName, initSchoolMeta) : ''}</div>
         <div class="ds-pa-client-hidden-values" data-pa-client-fields hidden>
           ${hiddenField('client_authority', row.client_authority)}
-          ${hiddenField('school_framework', row.school_framework)}
+          ${hiddenField('school_framework', initOther ? '' : row.school_framework)}
         </div>
       </div>
       <div data-pa-step-panel="contact"${contactPanelVisible ? '' : ' hidden'}>
@@ -3898,7 +3920,7 @@ function payloadFromForm(form) {
     payload.other_client_name = otherClientName;
     payload.authority_id = text(formData.get('contact_source_authority_id')) || null;
     payload.school_id = null;
-    payload.contact_school_id = text(formData.get('contact_source_id')) || null;
+    payload.contact_school_id = null;
     payload.semel_mosad = null;
     payload._school_required = 'no';
   } else {
@@ -4193,7 +4215,9 @@ export {
   calculateTourTotal,
   validatePayload,
   resetRecipientDependentFields,
-  stepComplete
+  stepComplete,
+  selectedRecipientType,
+  hideSchoolSearchPanel
 };
 
 // ─── Screen ───────────────────────────────────────────────────────────────────
@@ -4476,6 +4500,73 @@ export const proposalsAgreementsScreen = {
         semel_mosad = '',
         schoolMeta = null
       } = ctx;
+
+      if (clientType === 'other') {
+        const authInput = form.querySelector('input[name="client_authority"]');
+        const schoolInput = form.querySelector('input[name="school_framework"]');
+        if (authInput) authInput.value = authority;
+        if (schoolInput) schoolInput.value = '';
+        const otherName = text(form.querySelector('[name="other_client_name"]')?.value);
+        setContactSource(form, {
+          id: null,
+          authority_id: authorityId || null,
+          school_id: null,
+          semel_mosad: null,
+          school_required: 'no',
+          client_type: 'other',
+          client_name: otherName || clientName || '',
+          authority,
+          school: '',
+          contact_name: text(form.querySelector('input[name="contact_name"]')?.value),
+          contact_role: text(form.querySelector('input[name="contact_role"]')?.value),
+          phone: text(form.querySelector('input[name="phone"]')?.value),
+          mobile: '',
+          email: text(form.querySelector('input[name="email"]')?.value)
+        });
+        form.dataset.paAuthorityId = authorityId;
+        form.dataset.paAuthorityName = authority;
+        hideSchoolSearchPanel(form);
+        const searchField = form.querySelector('[data-pa-client-search-field]');
+        const searchFieldWrap = form.querySelector('[data-pa-client-search-field-wrap]');
+        const results = form.querySelector('[data-pa-client-results]');
+        const input = form.querySelector('[data-pa-client-search-input]');
+        if (searchField) searchField.hidden = true;
+        if (searchFieldWrap) searchFieldWrap.hidden = false;
+        if (input) input.value = '';
+        if (results) { results.hidden = true; results.innerHTML = ''; }
+        const pickerHost = form.querySelector('[data-pa-contact-picker-host]');
+        if (pickerHost) pickerHost.innerHTML = '';
+        setAddContactRowState(form, { visible: false, showNoContactNote: false });
+        const card = form.querySelector('[data-pa-client-card]');
+        if (card) { card.hidden = true; card.innerHTML = ''; }
+        const searchRow = form.querySelector('[data-pa-client-search-row]');
+        if (searchRow) searchRow.hidden = false;
+        const otherField = form.querySelector('[data-pa-other-client-field]');
+        if (otherField) otherField.hidden = false;
+        const contactPanel = form.querySelector('[data-pa-step-panel="contact"]');
+        if (contactPanel) contactPanel.hidden = false;
+        form.querySelectorAll('[data-pa-contact-manual-fields]').forEach((el) => { el.hidden = false; });
+        const roCtx = form.querySelector('[data-pa-contact-ro-ctx]');
+        if (roCtx) {
+          roCtx.hidden = false;
+          const roAuth = form.querySelector('[data-pa-contact-ro-authority]');
+          const roSchool = form.querySelector('[data-pa-contact-ro-school]');
+          if (roAuth) roAuth.value = authority;
+          if (roSchool) roSchool.value = '';
+        }
+        syncOtherRecipientSchoolFieldVisibility(form);
+        const channelsFields = form.querySelector('[data-pa-contact-channels-fields]');
+        if (channelsFields) channelsFields.hidden = false;
+        setContactSelectionMode(form, 'other');
+        setPanelOpen(form, 'contact', true);
+        setTimeout(() => {
+          calcGrandTotal(form);
+          updateProposalStepper(form);
+          updateLivePreview(form);
+        }, 0);
+        return;
+      }
+
       const isAuthorityOnly = clientType === 'authority' || clientType === 'other';
       const authInput = form.querySelector('input[name="client_authority"]');
       const schoolInput = form.querySelector('input[name="school_framework"]');
@@ -4801,24 +4892,22 @@ export const proposalsAgreementsScreen = {
       delete form.dataset.paAuthorityId;
       delete form.dataset.paAuthorityName;
       const searchField = form.querySelector('[data-pa-client-search-field]');
-      const schoolSearchPanel = form.querySelector('[data-pa-school-search-panel]');
       const results = form.querySelector('[data-pa-client-results]');
-      const schoolResults = form.querySelector('[data-pa-school-results]');
       if (searchField) searchField.hidden = false;
-      if (schoolSearchPanel) schoolSearchPanel.hidden = true;
+      hideSchoolSearchPanel(form);
       if (results) { results.hidden = true; results.innerHTML = ''; }
-      if (schoolResults) { schoolResults.hidden = true; schoolResults.innerHTML = ''; }
       const searchInput = form.querySelector('[data-pa-client-search-input]');
-      const schoolSearchInput = form.querySelector('[data-pa-school-search-input]');
       if (searchInput) searchInput.value = '';
-      if (schoolSearchInput) schoolSearchInput.value = '';
-      setPanelOpen(form, 'contact', false);
+      setPanelOpen(form, 'contact', selectedRecipientType(form) === 'other');
       const pickerHost = form.querySelector('[data-pa-contact-picker-host]');
       if (pickerHost) pickerHost.innerHTML = '';
-      form.querySelectorAll('[data-pa-contact-manual-fields]').forEach((el) => { el.hidden = true; });
+      if (selectedRecipientType(form) !== 'other') {
+        form.querySelectorAll('[data-pa-contact-manual-fields]').forEach((el) => { el.hidden = true; });
+      }
     };
 
     const showSchoolSearchPanel = (form, authorityName) => {
+      if (selectedRecipientType(form) !== 'school') return;
       const searchField = form.querySelector('[data-pa-client-search-field]');
       const results = form.querySelector('[data-pa-client-results]');
       const schoolSearchPanel = form.querySelector('[data-pa-school-search-panel]');
@@ -4843,6 +4932,7 @@ export const proposalsAgreementsScreen = {
     const applyClientSearchMode = (form) => {
       if (!form) return;
       if (!form.dataset.paSearchStep) form.dataset.paSearchStep = 'authority';
+      if (selectedRecipientType(form) === 'other') hideSchoolSearchPanel(form);
       const clientFieldsEl = form?.querySelector('[data-pa-client-fields]');
       const clientCardEl = form?.querySelector('[data-pa-client-card]');
       const isLocked = clientCardEl && !clientCardEl.hidden && clientCardEl.children.length > 0;
@@ -4856,6 +4946,7 @@ export const proposalsAgreementsScreen = {
 
     const applyAuthoritySelection = (form, contact) => {
       if (!form || !contact) return;
+      if (selectedRecipientType(form) !== 'school') return;
       const authorityName = catalogAuthorityName(contact);
       const authorityId = text(contact.authority_id) || '';
       form.dataset.paAuthorityId = authorityId;
@@ -4914,7 +5005,6 @@ export const proposalsAgreementsScreen = {
             authority: authorityName, school: '', authorityId, schoolId: '',
             clientType: 'other', clientName: otherClientName || authorityName
           });
-          showManualContactFields(form);
         } else if (selectedType === 'authority') {
           const authorityName = catalogAuthorityName(contact);
           const authorityId = text(contact.authority_id) || '';
@@ -4936,6 +5026,7 @@ export const proposalsAgreementsScreen = {
       }
 
       if (step === 'school') {
+        if (selectedRecipientType(form) !== 'school') return;
         form.dataset.paNewClient = 'no';
         const storedAuthorityId = form.dataset.paAuthorityId || '';
         const storedAuthorityName = form.dataset.paAuthorityName || '';
@@ -5017,11 +5108,12 @@ export const proposalsAgreementsScreen = {
       if (selected === 'other') {
         if (searchRow) searchRow.hidden = locked;
         if (searchFieldWrap) searchFieldWrap.hidden = locked;
-        if (schoolSearchPanel) schoolSearchPanel.hidden = true;
+        hideSchoolSearchPanel(form);
         if (otherField) otherField.hidden = false;
         if (contactPanel) contactPanel.hidden = false;
         manualFields.forEach((el) => { el.hidden = false; });
-        if (roCtx) roCtx.hidden = true;
+        if (roCtx) roCtx.hidden = locked || !text(form.querySelector('input[name="contact_source_authority_id"]')?.value);
+        syncOtherRecipientSchoolFieldVisibility(form);
         if (channelsFields) channelsFields.hidden = false;
         if (!locked) setContactSelectionMode(form, 'other');
         renderContactChannelsStatus(form);
@@ -5029,7 +5121,7 @@ export const proposalsAgreementsScreen = {
         if (otherField) otherField.hidden = true;
         if (searchRow) searchRow.hidden = locked;
         if (searchFieldWrap) searchFieldWrap.hidden = false;
-        if (schoolSearchPanel) schoolSearchPanel.hidden = true;
+        hideSchoolSearchPanel(form);
         if (!locked) {
           if (contactPanel) contactPanel.hidden = true;
           manualFields.forEach((el) => { el.hidden = true; });
@@ -6441,6 +6533,7 @@ export const proposalsAgreementsScreen = {
         if (pickerHost) pickerHost.innerHTML = '';
         resetClientSearchPanels(form);
         applyClientSearchMode(form);
+        applyRecipientTypeMode(form);
         updateProposalStepper(form);
         form.querySelector('[data-pa-client-search-input]')?.focus();
         return;
@@ -6451,6 +6544,7 @@ export const proposalsAgreementsScreen = {
         if (!form) return;
         resetClientSearchPanels(form);
         applyClientSearchMode(form);
+        applyRecipientTypeMode(form);
         updateProposalStepper(form);
         form.querySelector('[data-pa-client-search-input]')?.focus();
         return;
@@ -6478,6 +6572,7 @@ export const proposalsAgreementsScreen = {
         if (pickerHost) pickerHost.innerHTML = '';
         resetClientSearchPanels(form);
         applyClientSearchMode(form);
+        applyRecipientTypeMode(form);
         updateProposalStepper(form);
         form.querySelector('[data-pa-client-search-input]')?.focus();
         return;
