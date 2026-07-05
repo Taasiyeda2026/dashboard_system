@@ -1038,6 +1038,10 @@ function activityMatchesOfficialWorkshop(activity = {}, workshop = {}) {
     const canonActivityKey = canonicalStockGroupKey(`activity_${activityNo}`);
     if (canonActivityKey && canonActivityKey === workshop.stockGroupKey) return true;
   }
+  const activityStockGroupKey = canonicalStockGroupKey(
+    activity?.stock_group_key || activity?.stockGroupKey || activity?.workshop_stock_group_key || ''
+  );
+  if (activityStockGroupKey && workshop.stockGroupKey && activityStockGroupKey === workshop.stockGroupKey) return true;
   return normalizeWorkshopKey(getActivityName(activity)) === normalizeWorkshopKey(workshop.workshopName);
 }
 
