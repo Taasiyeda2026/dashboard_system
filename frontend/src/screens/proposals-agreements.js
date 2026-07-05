@@ -2359,9 +2359,10 @@ function proposalItemDetailsTableHtml(items = [], contextGroup = '') {
   const nextYearTableStyle = isNextYearTable
     ? ' style="width:85%;margin-inline:auto;table-layout:fixed;"'
     : '';
-  const nextYearFirstColStyle = isNextYearTable ? ' style="width:26%"' : '';
+  const nextYearFirstColStyle = isNextYearTable ? ' style="width:20%"' : '';
   const nextYearOtherColStyle = isNextYearTable ? ' style="width:12%"' : '';
-  const nextYearHourlyColStyle = isNextYearTable ? ' style="width:14%"' : '';
+  const nextYearHourlyColStyle = isNextYearTable ? ' style="width:16%"' : '';
+  const nextYearTotalColStyle = isNextYearTable ? ' style="width:16%"' : '';
   return `<table class="${tableClass}"${nextYearTableStyle}>
     <colgroup>
       <col class="pa-course-col"${nextYearFirstColStyle}>
@@ -2370,7 +2371,7 @@ function proposalItemDetailsTableHtml(items = [], contextGroup = '') {
       <col class="pa-groups-col"${nextYearOtherColStyle}>
       <col class="pa-hours-col"${nextYearOtherColStyle}>
       <col class="pa-hourly-price-col"${nextYearHourlyColStyle}>
-      <col class="pa-total-price-col"${nextYearOtherColStyle}>
+      <col class="pa-total-price-col"${nextYearTotalColStyle}>
     </colgroup>
     <thead><tr><th>קורס / תוכנית</th><th>מס׳ גפ״ן</th><th>מפגשים</th><th>קבוצות</th><th>שעות</th><th>מחיר לשעה</th><th>סה״כ</th></tr></thead>
     <tbody>${rows.join('')}</tbody>

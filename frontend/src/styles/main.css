@@ -18604,13 +18604,13 @@ details[open] > .ds-fin-acc__summary::before { transform: rotate(90deg); }
   margin: 6pt auto 8pt;
   table-layout: fixed;
 }
-.proposal-document.pa-document--next-year .pa-item-details-table.pa-next-year-course-table .pa-course-col { width: 26%; }
-.proposal-document.pa-document--next-year .pa-item-details-table.pa-next-year-course-table .pa-gefen-col { width: 12.333%; }
+.proposal-document.pa-document--next-year .pa-item-details-table.pa-next-year-course-table .pa-course-col { width: 20%; }
+.proposal-document.pa-document--next-year .pa-item-details-table.pa-next-year-course-table .pa-gefen-col,
 .proposal-document.pa-document--next-year .pa-item-details-table.pa-next-year-course-table .pa-meetings-col,
 .proposal-document.pa-document--next-year .pa-item-details-table.pa-next-year-course-table .pa-groups-col,
-.proposal-document.pa-document--next-year .pa-item-details-table.pa-next-year-course-table .pa-hours-col { width: 12.333%; }
-.proposal-document.pa-document--next-year .pa-item-details-table.pa-next-year-course-table .pa-hourly-price-col { width: 12.333%; }
-.proposal-document.pa-document--next-year .pa-item-details-table.pa-next-year-course-table .pa-total-price-col { width: 12.333%; }
+.proposal-document.pa-document--next-year .pa-item-details-table.pa-next-year-course-table .pa-hours-col { width: 12%; }
+.proposal-document.pa-document--next-year .pa-item-details-table.pa-next-year-course-table .pa-hourly-price-col { width: 16%; }
+.proposal-document.pa-document--next-year .pa-item-details-table.pa-next-year-course-table .pa-total-price-col { width: 16%; }
 .proposal-document.pa-document--next-year .pa-item-details-table.pa-next-year-course-table .pa-course-total-row td {
   background: #f8fbff;
   font-weight: 700;
@@ -18646,13 +18646,13 @@ details[open] > .ds-fin-acc__summary::before { transform: rotate(90deg); }
     margin: 8px auto 10px !important;
     table-layout: fixed !important;
   }
-  .proposal-document.pa-document--next-year .pa-item-details-table.pa-next-year-course-table .pa-course-col { width: 26% !important; }
-  .proposal-document.pa-document--next-year .pa-item-details-table.pa-next-year-course-table .pa-gefen-col { width: 12.333% !important; }
+  .proposal-document.pa-document--next-year .pa-item-details-table.pa-next-year-course-table .pa-course-col { width: 20% !important; }
+  .proposal-document.pa-document--next-year .pa-item-details-table.pa-next-year-course-table .pa-gefen-col,
   .proposal-document.pa-document--next-year .pa-item-details-table.pa-next-year-course-table .pa-meetings-col,
   .proposal-document.pa-document--next-year .pa-item-details-table.pa-next-year-course-table .pa-groups-col,
-  .proposal-document.pa-document--next-year .pa-item-details-table.pa-next-year-course-table .pa-hours-col { width: 12.333% !important; }
-  .proposal-document.pa-document--next-year .pa-item-details-table.pa-next-year-course-table .pa-hourly-price-col { width: 12.333% !important; }
-  .proposal-document.pa-document--next-year .pa-item-details-table.pa-next-year-course-table .pa-total-price-col { width: 12.333% !important; }
+  .proposal-document.pa-document--next-year .pa-item-details-table.pa-next-year-course-table .pa-hours-col { width: 12% !important; }
+  .proposal-document.pa-document--next-year .pa-item-details-table.pa-next-year-course-table .pa-hourly-price-col { width: 16% !important; }
+  .proposal-document.pa-document--next-year .pa-item-details-table.pa-next-year-course-table .pa-total-price-col { width: 16% !important; }
   .proposal-document.pa-document--next-year .pa-page-footer {
     position: static !important;
   }
@@ -18674,13 +18674,13 @@ details[open] > .ds-fin-acc__summary::before { transform: rotate(90deg); }
 .proposal-document .pa-doc-intro li,
 .proposal-document .pa-proposal-list li { margin-bottom: 2px !important; }
 .proposal-document .pa-page-footer { margin-top: 6px; padding-top: 8px; }
-.proposal-document .pa-item-details-table.pa-next-year-course-table .pa-course-col { width: 26%; }
+.proposal-document .pa-item-details-table.pa-next-year-course-table .pa-course-col { width: 20%; }
 .proposal-document .pa-item-details-table.pa-next-year-course-table .pa-gefen-col,
 .proposal-document .pa-item-details-table.pa-next-year-course-table .pa-meetings-col,
 .proposal-document .pa-item-details-table.pa-next-year-course-table .pa-groups-col,
-.proposal-document .pa-item-details-table.pa-next-year-course-table .pa-hours-col,
-.proposal-document .pa-item-details-table.pa-next-year-course-table .pa-hourly-price-col,
-.proposal-document .pa-item-details-table.pa-next-year-course-table .pa-total-price-col { width: 12.333%; }
+.proposal-document .pa-item-details-table.pa-next-year-course-table .pa-hours-col { width: 12%; }
+.proposal-document .pa-item-details-table.pa-next-year-course-table .pa-hourly-price-col { width: 16%; }
+.proposal-document .pa-item-details-table.pa-next-year-course-table .pa-total-price-col { width: 16%; }
 .proposal-document .pa-item-details-table.pa-next-year-course-table th:not(:first-child),
 .proposal-document .pa-item-details-table.pa-next-year-course-table td:not(:first-child) { text-align: center !important; }
 .proposal-document .pa-cost-table.pa-summer-cost-table .pa-activity-col { width: 47%; }
@@ -18702,13 +18702,13 @@ details[open] > .ds-fin-acc__summary::before { transform: rotate(90deg); }
   .proposal-document .pa-doc-intro li,
   .proposal-document .pa-proposal-list li { margin-bottom: 2px !important; }
   .proposal-document .pa-page-footer { margin-top: 6px !important; padding-top: 8px !important; position: static !important; }
-  .proposal-document .pa-item-details-table.pa-next-year-course-table .pa-course-col { width: 26% !important; }
+  .proposal-document .pa-item-details-table.pa-next-year-course-table .pa-course-col { width: 20% !important; }
   .proposal-document .pa-item-details-table.pa-next-year-course-table .pa-gefen-col,
   .proposal-document .pa-item-details-table.pa-next-year-course-table .pa-meetings-col,
   .proposal-document .pa-item-details-table.pa-next-year-course-table .pa-groups-col,
-  .proposal-document .pa-item-details-table.pa-next-year-course-table .pa-hours-col,
-  .proposal-document .pa-item-details-table.pa-next-year-course-table .pa-hourly-price-col,
-  .proposal-document .pa-item-details-table.pa-next-year-course-table .pa-total-price-col { width: 12.333% !important; }
+  .proposal-document .pa-item-details-table.pa-next-year-course-table .pa-hours-col { width: 12% !important; }
+  .proposal-document .pa-item-details-table.pa-next-year-course-table .pa-hourly-price-col { width: 16% !important; }
+  .proposal-document .pa-item-details-table.pa-next-year-course-table .pa-total-price-col { width: 16% !important; }
   .proposal-document .pa-cost-table.pa-summer-cost-table .pa-activity-col { width: 47% !important; }
   .proposal-document .pa-cost-table.pa-summer-cost-table .pa-quantity-col { width: 17% !important; }
   .proposal-document .pa-cost-table.pa-summer-cost-table .pa-unit-price-col { width: 19% !important; }
@@ -21075,12 +21075,12 @@ details[open] > .ds-fin-acc__summary::before { transform: rotate(90deg); }
   .proposal-document .pa-cost-table.pa-tour-cost-table th:first-child,
   .proposal-document .pa-cost-table.pa-tour-cost-table td:first-child { text-align: right !important; }
   .proposal-document.pa-document--next-year .pa-next-year-course-table col { width: auto !important; }
-  .proposal-document.pa-document--next-year .pa-next-year-course-table .pa-course-col { width: 26% !important; }
-  .proposal-document.pa-document--next-year .pa-next-year-course-table .pa-hourly-price-col { width: 14% !important; }
+  .proposal-document.pa-document--next-year .pa-next-year-course-table .pa-course-col { width: 20% !important; }
+  .proposal-document.pa-document--next-year .pa-next-year-course-table .pa-hourly-price-col { width: 16% !important; }
+  .proposal-document.pa-document--next-year .pa-next-year-course-table .pa-total-price-col { width: 16% !important; }
   .proposal-document.pa-document--next-year .pa-next-year-course-table .pa-gefen-col,
   .proposal-document.pa-document--next-year .pa-next-year-course-table .pa-meetings-col,
   .proposal-document.pa-document--next-year .pa-next-year-course-table .pa-groups-col,
-  .proposal-document.pa-document--next-year .pa-next-year-course-table .pa-hours-col,
-  .proposal-document.pa-document--next-year .pa-next-year-course-table .pa-total-price-col { width: 12% !important; }
+  .proposal-document.pa-document--next-year .pa-next-year-course-table .pa-hours-col { width: 12% !important; }
   .proposal-document .pa-signature-spacer { height: 1em !important; max-height: 1em !important; margin: 0 !important; padding: 0 !important; }
 }
