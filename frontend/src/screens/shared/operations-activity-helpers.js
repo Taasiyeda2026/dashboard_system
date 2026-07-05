@@ -271,6 +271,75 @@ export function buildWorkshopStockMapFromLists(listsData) {
   return map;
 }
 
+export function collectWorkshopStockEditorItems(listsData = {}) {
+  const items = [];
+  const seenKeys = new Set();
+  const categories = Array.isArray(listsData?.categories) ? listsData.categories : [];
+
+  const addItem = ({ row = {}, item = {}, source = '', listId = null, value = '', label = '', activityNo = '', stockQuantity = null, sortOrder = 0 } = {}) => {
+    const name = String(label || row?.label || row?.activity_name || item?.label || value || '').trim();
+    if (!name) return;
+    const key = normalizeWorkshopProductKey(name);
+    if (!key || seenKeys.has(key)) return;
+    seenKeys.add(key);
+    const qty = stockQuantity ?? parseStockQuantityFromRow(row);
+    items.push({
+      key,
+      list_id: listId || row?.list_id || null,
+      value: String(value || row?.value || item?.value || '').trim(),
+      label: name,
+      activity_no: String(activityNo || row?.activity_no || '').trim(),
+      stock_quantity: qty ?? 0,
+      source: source || (listId ? 'workshop_stock' : 'activity_names'),
+      sort_order: Number(sortOrder ?? row?.sort_order) || 0,
+      _row: row
+    });
+  };
+
+  categories.forEach(({ category, items: catItems }) => {
+    if (String(category || '').trim().toLowerCase() !== 'workshop_stock') return;
+    (Array.isArray(catItems) ? catItems : []).forEach((item) => {
+      const row = item?._row && typeof item._row === 'object' ? item._row : item;
+      if (row?.active === false) return;
+      addItem({
+        row,
+        item,
+        source: 'workshop_stock',
+        listId: row?.list_id || null,
+        value: row?.value || item?.value,
+        label: row?.label || item?.label,
+        activityNo: row?.activity_no,
+        stockQuantity: parseStockQuantityFromRow(row),
+        sortOrder: row?.sort_order
+      });
+    });
+  });
+
+  categories.forEach(({ category, items: catItems }) => {
+    const cat = String(category || '').trim().toLowerCase();
+    if (cat !== 'activity_names') return;
+    (Array.isArray(catItems) ? catItems : []).forEach((item) => {
+      const row = item?._row && typeof item._row === 'object' ? item._row : item;
+      if (!isActivityNameWorkshopListRow(row, cat) || row?.active === false) return;
+      const name = row?.activity_name || row?.label || item?.label || row?.value || '';
+      const key = normalizeWorkshopProductKey(name);
+      if (seenKeys.has(key)) return;
+      addItem({
+        row,
+        item,
+        source: 'activity_names',
+        value: row?.value || item?.value,
+        label: name,
+        activityNo: row?.activity_no,
+        stockQuantity: parseStockQuantityFromRow(row) ?? 0,
+        sortOrder: row?.sort_order
+      });
+    });
+  });
+
+  return items.sort((a, b) => a.label.localeCompare(b.label, 'he'));
+}
+
 export function getWorkshopStockQuantity(productName, stockMap) {
   if (!(stockMap instanceof Map)) return null;
   const key = normalizeWorkshopProductKey(productName);

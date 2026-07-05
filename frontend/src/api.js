@@ -114,13 +114,109 @@ const DASHBOARD_ACTIVITY_COLUMNS = [
 ].join(',');
 const DASHBOARD_ACTIVITY_MIN_COLUMNS = 'row_id,activity_family,activity_manager,activity_name,authority,school,instructor_name,instructor_name_2,emp_id,emp_id_2,start_date,end_date,status,activity_type';
 const SETTINGS_BOOTSTRAP_COLUMNS = 'key,value,description';
-const LISTS_BOOTSTRAP_COLUMNS = 'category,value,label,active,category_order,sort_order,activity_no,activity_name,activity_type,type,stock_quantity,stock_group_key,stock_group_name,stock_item_name,stock_label';
+const LISTS_BOOTSTRAP_COLUMNS = 'list_id,category,value,label,active,category_order,sort_order,activity_no,activity_name,activity_type,type,stock_quantity,stock_group_key,stock_group_name,stock_item_name,stock_label,metadata,parent_value';
 let settingsRowsCache = null;
 let settingsRowsPromise = null;
 let listsRowsCache = null;
 let listsRowsPromise = null;
 let instructorContactsCache = null;
 let instructorContactsPromise = null;
+
+function assertAdminApi() {
+  const role = String(state?.user?.role || state?.user?.display_role || '').trim();
+  if (role !== 'admin') throw new Error('admin_only');
+}
+
+function normalizeWorkshopStockQuantity(value) {
+  if (value == null || value === '') return null;
+  const n = Number(value);
+  if (!Number.isFinite(n) || n < 0) return null;
+  return Math.floor(n);
+}
+
+function buildListStockQuantityPatch(existingRow = {}, stockQuantity) {
+  const patch = { stock_quantity: stockQuantity };
+  const rawMeta = existingRow?.metadata;
+  if (rawMeta && typeof rawMeta === 'object' && !Array.isArray(rawMeta)) {
+    patch.metadata = { ...rawMeta, stock_quantity: stockQuantity };
+  } else if (typeof rawMeta === 'string' && rawMeta.trim()) {
+    try {
+      const parsed = JSON.parse(rawMeta);
+      if (parsed && typeof parsed === 'object' && !Array.isArray(parsed)) {
+        patch.metadata = { ...parsed, stock_quantity: stockQuantity };
+      }
+    } catch {
+      // keep column-only update
+    }
+  }
+  return patch;
+}
+
+async function updateWorkshopStockItemsInSupabase(updates = []) {
+  assertAdminApi();
+  if (!supabase) throw new Error('no_supabase_client');
+  const rows = Array.isArray(updates) ? updates : [];
+  const saved = [];
+  for (const item of rows) {
+    const stockQuantity = normalizeWorkshopStockQuantity(item?.stock_quantity ?? item?.stockQuantity);
+    if (stockQuantity == null) continue;
+    const listId = String(item?.list_id || item?.listId || '').trim();
+    const source = String(item?.source || '').trim();
+    if (listId && source === 'workshop_stock') {
+      const { data, error } = await supabase
+        .from('lists')
+        .update(buildListStockQuantityPatch(item?._row || item, stockQuantity))
+        .eq('list_id', listId)
+        .eq('category', 'workshop_stock')
+        .select('list_id,category,value,label,stock_quantity,metadata')
+        .single();
+      if (error) throw new Error(error.message || 'workshop_stock_update_failed');
+      saved.push(data);
+      continue;
+    }
+    const value = String(item?.value || '').trim();
+    const label = String(item?.label || item?.item_name || item?.itemName || value).trim();
+    if (!value || !label) continue;
+    const { data: existing, error: existingError } = await supabase
+      .from('lists')
+      .select('list_id,category,value,label,stock_quantity,metadata')
+      .eq('category', 'workshop_stock')
+      .eq('value', value)
+      .maybeSingle();
+    if (existingError) throw new Error(existingError.message || 'workshop_stock_lookup_failed');
+    if (existing?.list_id) {
+      const { data, error } = await supabase
+        .from('lists')
+        .update(buildListStockQuantityPatch(existing, stockQuantity))
+        .eq('list_id', existing.list_id)
+        .eq('category', 'workshop_stock')
+        .select('list_id,category,value,label,stock_quantity,metadata')
+        .single();
+      if (error) throw new Error(error.message || 'workshop_stock_update_failed');
+      saved.push(data);
+      continue;
+    }
+    const insertRow = {
+      category: 'workshop_stock',
+      value,
+      label,
+      active: true,
+      stock_quantity: stockQuantity,
+      activity_name: label,
+      activity_no: String(item?.activity_no || item?.activityNo || value).trim() || value,
+      sort_order: Number(item?.sort_order || item?.sortOrder) || 0
+    };
+    const { data, error } = await supabase
+      .from('lists')
+      .insert(insertRow)
+      .select('list_id,category,value,label,stock_quantity,metadata')
+      .single();
+    if (error) throw new Error(error.message || 'workshop_stock_insert_failed');
+    saved.push(data);
+  }
+  clearBootstrapReadCaches();
+  return { ok: true, rows: saved };
+}
 
 function clearBootstrapReadCaches() {
   settingsRowsCache = null;
@@ -5951,6 +6047,7 @@ export const api = {
     if (error) throw new Error(error.message || 'workshop_stock_distributions_read_failed');
     return { rows: Array.isArray(data) ? data : [], _source: 'supabase' };
   },
+  updateWorkshopStockItems: updateWorkshopStockItemsInSupabase,
   addProposalAgreement: async (payload) => {
     assertCanManageProposalsAgreementsApi();
     const groupLookup = await getProposalGroupLookup();
