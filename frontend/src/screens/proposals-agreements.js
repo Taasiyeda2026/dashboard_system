@@ -1347,6 +1347,15 @@ function isNextYearProposalGroup(value = '') {
   return proposalGroupTemplateKey(value) === 'next_year';
 }
 
+const MANUAL_COURSE_OPTION_KEY = '__manual_course__';
+const MANUAL_COURSE_OPTION_LABEL = 'קורס אחר / טקסט חופשי';
+
+function isProposalManualCourseItem(item = {}, options = {}) {
+  if (!options.allowManualCourse || !isNextYearProposalGroup(options.groupKey || item.proposal_group || item.proposalGroup)) return false;
+  if (text(item.pricing_option_key || item.pricingOptionKey) === MANUAL_COURSE_OPTION_KEY) return true;
+  return isManualCourseWithoutGefen(item);
+}
+
 function isWorkshopKindText(value = '') {
   return /סדנ|workshop|stem|חלל/.test(value);
 }
@@ -1512,15 +1521,17 @@ function itemRowHtml(item = {}, idx = 0, pricingOptions = [], options = {}) {
   const calcTotal = (Number(proposalField(item, 'quantity', 'quantity')) || 0) && (Number(proposalField(item, 'unit_price', 'unitPrice')) || 0)
     ? String(((Number(proposalField(item, 'quantity', 'quantity')) || 0) * (Number(proposalField(item, 'unit_price', 'unitPrice')) || 0)).toFixed(2))
     : n(item.total_price);
-  const selectedPricingKey = text(item.pricing_option_key || item.pricing_activity_no || item.activity_no || item.pricing_activity_name || item.item_name);
-  const pricingSelectOptionsHtml = buildPricingSelectOptionsHtml(pricingOptions, selectedPricingKey);
   const contextGroup = text(options.groupKey || item.proposal_group || '');
+  const isManualCourseRow = isProposalManualCourseItem(item, { allowManualCourse: options.allowManualCourse, groupKey: contextGroup });
+  const selectedPricingKey = isManualCourseRow
+    ? MANUAL_COURSE_OPTION_KEY
+    : text(item.pricing_option_key || item.pricing_activity_no || item.activity_no || item.pricing_activity_name || item.item_name);
+  const pricingSelectOptionsHtml = buildPricingSelectOptionsHtml(pricingOptions, selectedPricingKey, {
+    allowManualCourse: options.allowManualCourse,
+    groupKey: contextGroup
+  });
   const isSummerRow = isSummerItemRowContext(contextGroup);
   const gefenValue = proposalTextField(item, 'gefen_number', 'gefenNumber');
-  const hasActivity = Boolean(text(item.item_name));
-  const selectedName = text(item.item_name) || 'בחרו פעילות';
-  const selectedType = text(proposalField(item, 'item_type', 'itemType'));
-  const typeBadgeHtml = selectedType ? `<span class="ds-pa-item-type-badge" style="font-size:0.72rem;border:1px solid #e5e7eb;border-radius:999px;padding:1px 6px;color:#64748b;background:#f8fafc">${escapeHtml(selectedType)}</span>` : '';
   const isNextYearRow = !isSummerRow && isNextYearProposalGroup(contextGroup);
   const hasExistingNote = isNextYearRow && Boolean(text(item.course_note || item.manual_note || ''));
   const meetingsHoursFieldsHtml = isSummerRow
@@ -1536,19 +1547,25 @@ function itemRowHtml(item = {}, idx = 0, pricingOptions = [], options = {}) {
       </summary>
       <textarea class="ds-input ds-input--sm ds-pa-note-textarea" name="course_note" rows="2" placeholder="הערה לתוכנית">${escapeHtml(item.course_note || item.manual_note || '')}</textarea>
     </details>` : '';
-  return `<article class="ds-pa-item-card ds-pa-item-row${isSummerRow ? ' ds-pa-item-row--summer' : ''}" data-pa-item-row data-pa-item-idx="${idx}" data-pa-row-group="${escapeHtml(contextGroup)}"${isSummerRow ? ' data-pa-summer-row' : ''}>
+  const manualNameRowHtml = isNextYearRow && options.allowManualCourse
+    ? `<div class="ds-pa-item-manual-name" data-pa-manual-name-row${isManualCourseRow ? '' : ' hidden'}>
+      <label class="ds-pa-item-field ds-pa-item-field--manual-name"><span>שם הקורס</span><input class="ds-input ds-input--sm"${isManualCourseRow ? ' name="item_name"' : ''} data-pa-manual-item-name value="${escapeHtml(item.item_name || '')}" placeholder="הזינו שם קורס ידני"></label>
+    </div>`
+    : '';
+  return `<article class="ds-pa-item-card ds-pa-item-row${isSummerRow ? ' ds-pa-item-row--summer' : ''}${isManualCourseRow ? ' ds-pa-item-row--manual' : ''}" data-pa-item-row data-pa-item-idx="${idx}" data-pa-row-group="${escapeHtml(contextGroup)}"${isSummerRow ? ' data-pa-summer-row' : ''}${isManualCourseRow ? ' data-pa-manual-course="yes"' : ''}>
     <div class="ds-pa-item-quick-row" style="display:grid;grid-template-columns:minmax(0,1fr) 96px 34px;gap:8px;align-items:end">
       <label class="ds-pa-item-field ds-pa-item-field--select ds-pa-item-field--select-no-label"><select class="ds-input ds-input--sm" name="pricing_activity_name" data-pa-pricing-select>${pricingSelectOptionsHtml}</select></label>
       <label class="ds-pa-item-field ds-pa-item-field--qty"><input class="ds-input ds-input--sm" type="number" name="quantity" value="${n(item.quantity) || '1'}" min="0" step="any" data-pa-item-qty aria-label="כמות"></label>
       <button type="button" class="ds-btn ds-btn--xs ds-btn--ghost ds-pa-item-remove ds-pa-item-remove--quick" data-pa-remove-item aria-label="הסר שורה" title="מחיקת שורה"><svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><polyline points="3 6 5 6 21 6"/><path d="M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6m3 0V4a1 1 0 0 1 1-1h4a1 1 0 0 1 1 1v2"/></svg></button>
     </div>
+    ${manualNameRowHtml}
     ${nextYearNoteHtml}
     <div class="ds-pa-bundle-prompt" data-pa-bundle-prompt hidden></div>
-    <details class="ds-pa-item-extra" data-pa-item-details>
-      <summary class="ds-pa-item-extra-toggle">עריכה</summary>
+    <details class="ds-pa-item-extra" data-pa-item-details${isManualCourseRow ? ' open' : ''}>
+      <summary class="ds-pa-item-extra-toggle">${isManualCourseRow ? 'פרטי קורס' : 'עריכה'}</summary>
       <div class="ds-pa-item-extra-body">
         <div class="ds-pa-item-grid ds-pa-item-grid--extras">
-          <label class="ds-pa-item-field ds-pa-item-field--name"><span>שם פעילות / תוכנית</span><input class="ds-input ds-input--sm" name="item_name" value="${escapeHtml(item.item_name || '')}" placeholder="שם פעילות"></label>
+          <label class="ds-pa-item-field ds-pa-item-field--name" data-pa-details-item-name${isManualCourseRow ? ' hidden' : ''}><span>שם פעילות / תוכנית</span><input class="ds-input ds-input--sm"${isManualCourseRow ? '' : ' name="item_name"'} data-pa-details-item-name-input value="${escapeHtml(item.item_name || '')}" placeholder="שם פעילות"></label>
           ${meetingsHoursFieldsHtml}
           <label class="ds-pa-item-field ds-pa-item-field--price"><span>מחיר יחידה</span><input class="ds-input ds-input--sm" type="number" name="unit_price" value="${n(item.unit_price)}" min="0" step="any" data-pa-item-price></label>
           <label class="ds-pa-item-field ds-pa-item-field--total ds-pa-line-total"><span>סה״כ שורה</span><output data-pa-item-total-display>${calcTotal ? `₪ ${formatCurrency(calcTotal)}` : '₪ 0'}</output><input type="hidden" name="total_price" value="${calcTotal}" data-pa-item-total></label>
@@ -1573,9 +1590,10 @@ function itemRowHtml(item = {}, idx = 0, pricingOptions = [], options = {}) {
   </article>`;
 }
 
-function combinedItemsSectionHtml(label, groupKey, items, pricingOptions, idxOffset) {
+function combinedItemsSectionHtml(label, groupKey, items, pricingOptions, idxOffset, editorOptions = {}) {
   const startItems = Array.isArray(items) ? items : [];
-  const rowsHtml = startItems.map((item, i) => itemRowHtml({ ...item, proposal_group: item.proposal_group || groupKey }, idxOffset + i, pricingOptions, { groupKey })).join('');
+  const rowOptions = { groupKey, allowManualCourse: editorOptions.allowManualCourse };
+  const rowsHtml = startItems.map((item, i) => itemRowHtml({ ...item, proposal_group: item.proposal_group || groupKey }, idxOffset + i, pricingOptions, rowOptions)).join('');
   return `<div class="ds-pa-items-section ds-pa-items-section--group" data-pa-items-group="${escapeHtml(groupKey)}">
     <div class="ds-pa-items-header">
       <span class="ds-pa-items-section-label">${escapeHtml(label)}</span>
@@ -1767,7 +1785,7 @@ function tourDetailsEditorHtml(items = []) {
   </div>`;
 }
 
-function itemsEditorHtml(items = [], pricingOptions = [], activityTypeGroup = '') {
+function itemsEditorHtml(items = [], pricingOptions = [], activityTypeGroup = '', editorOptions = {}) {
   const hasProposalType = Boolean(normalizeProposalGroup(activityTypeGroup));
   if (!hasProposalType) {
     return `<div class="ds-pa-items-section ds-pa-items-section--locked" data-pa-items-locked>
@@ -1787,7 +1805,7 @@ function itemsEditorHtml(items = [], pricingOptions = [], activityTypeGroup = ''
     const sections = childGroups.map((groupKey) => {
       const groupItems = (Array.isArray(items) ? items : []).filter((item) => itemBelongsToGroup(item, groupKey));
       const groupPricing = filterPricingByProposalType(pricingOptions, groupKey);
-      const sectionHtml = combinedItemsSectionHtml(proposalGroupDisplayName(groupKey), groupKey, groupItems, groupPricing, idxOffset);
+      const sectionHtml = combinedItemsSectionHtml(proposalGroupDisplayName(groupKey), groupKey, groupItems, groupPricing, idxOffset, editorOptions);
       idxOffset += groupItems.length || 1;
       return sectionHtml;
     }).join('');
@@ -1798,7 +1816,7 @@ function itemsEditorHtml(items = [], pricingOptions = [], activityTypeGroup = ''
   }
 
   const editableItems = (Array.isArray(items) && items.length) ? items : (pricingOptions.length ? [{ proposal_group: normalizedGroup, quantity: 1 }] : []);
-  const rowsHtml = editableItems.map((item, idx) => itemRowHtml({ ...item, proposal_group: item.proposal_group || normalizedGroup }, idx, pricingOptions, { groupKey: normalizedGroup })).join('');
+  const rowsHtml = editableItems.map((item, idx) => itemRowHtml({ ...item, proposal_group: item.proposal_group || normalizedGroup }, idx, pricingOptions, { groupKey: normalizedGroup, allowManualCourse: editorOptions.allowManualCourse })).join('');
   return `<div class="ds-pa-items-section">
     <div class="ds-pa-items-header">
       <button type="button" class="ds-btn ds-btn--xs" data-pa-add-item>+ הוסף שורה</button>
@@ -1873,11 +1891,27 @@ function extractItemsFromForm(form) {
       return Number.isFinite(n) ? n : null;
     };
 
+    const pricingSelectVal = text(row.querySelector('[data-pa-pricing-select]')?.value);
+    const rawGroup = fieldText('proposal_group')
+      || text(row.dataset.paRowGroup)
+      || formGroup;
+    const normalizedRowGroup = normalizeProposalGroup(rawGroup);
+    const editedName = fieldText('item_name');
+    const isManualCourseRow = pricingSelectVal === MANUAL_COURSE_OPTION_KEY
+      || text(row.dataset.paManualCourse) === 'yes'
+      || (isNextYearProposalGroup(normalizedRowGroup) && isManualCourseWithoutGefen({
+        item_name: editedName,
+        gefen_number: fieldText('gefen_number'),
+        source_pricing_key: fieldText('item_source_pricing_key'),
+        pricing_option_key: fieldText('pricing_option_key'),
+        activity_no: fieldText('activity_no'),
+        list_id: fieldText('list_id')
+      }));
+
     // Resolve the pricing row picked in the select so saved items always carry
     // the catalog item_name / pricing_key / unit_price instead of relying on free text.
-    const optionKey = fieldText('pricing_option_key') || text(row.querySelector('[data-pa-pricing-select]')?.value);
-    const editedName = fieldText('item_name');
-    const pricingRow = lookupPricingRow({ optionKey, activityNo: fieldText('activity_no'), itemName: editedName });
+    const optionKey = isManualCourseRow ? '' : (fieldText('pricing_option_key') || pricingSelectVal);
+    const pricingRow = isManualCourseRow ? null : lookupPricingRow({ optionKey, activityNo: fieldText('activity_no'), itemName: editedName });
     const pricingName = publicActivityName(pricingRow?.activity_name);
 
     const itemName = editedName || pricingName;
@@ -1893,33 +1927,29 @@ function extractItemsFromForm(form) {
 
     const rawDisplayMode = fieldText('item_display_mode');
     const displayMode = PROPOSAL_DISPLAY_MODES.has(rawDisplayMode) ? rawDisplayMode : 'single';
-    const rawGroup = fieldText('proposal_group')
-      || text(row.dataset.paRowGroup)
-      || text(pricingRow?.proposal_group)
-      || formGroup;
 
     const extracted = {
-      activity_no:            fieldText('activity_no') || text(pricingRow?.activity_no),
-      pricing_activity_no:    fieldText('activity_no') || text(pricingRow?.activity_no),
-      pricing_option_key:     text(optionKey),
+      activity_no:            isManualCourseRow ? '' : (fieldText('activity_no') || text(pricingRow?.activity_no)),
+      pricing_activity_no:    isManualCourseRow ? '' : (fieldText('activity_no') || text(pricingRow?.activity_no)),
+      pricing_option_key:     isManualCourseRow ? '' : text(optionKey),
       item_name:              itemName,
-      item_type:              fieldText('item_type') || text(pricingRow?.item_type),
-      gefen_number:           fieldText('gefen_number') || text(pricingRow?.gefen_number),
-      meetings_count:         fieldNumber('meetings_count') ?? numberValue(pricingRow?.meetings_count),
+      item_type:              isManualCourseRow ? '' : (fieldText('item_type') || text(pricingRow?.item_type)),
+      gefen_number:           isManualCourseRow ? '' : (fieldText('gefen_number') || text(pricingRow?.gefen_number)),
+      meetings_count:         fieldNumber('meetings_count') ?? (isManualCourseRow ? null : numberValue(pricingRow?.meetings_count)),
       hours_count:            hoursCount,
       quantity:               quantity || 1,
-      unit_duration:          fieldText('unit_duration') || text(pricingRow?.unit_duration),
+      unit_duration:          isManualCourseRow ? '' : (fieldText('unit_duration') || text(pricingRow?.unit_duration)),
       unit_price:             unitPrice,
       hourly_price:           hourlyPrice,
       total_price:            totalPrice,
       description:            fieldText('description') || '',
       course_note:            fieldText('course_note') || '',
-      proposal_group:         normalizeProposalGroup(rawGroup),
+      proposal_group:         normalizedRowGroup,
       sort_order:             rowIdx,
-      proposal_display_mode:  displayMode,
-      source_pricing_key:     fieldText('item_source_pricing_key') || text(pricingRow?.pricing_key),
-      list_id:                fieldText('list_id') || text(pricingRow?.list_id),
-      selected_bundle_items:  selectedBundleItems
+      proposal_display_mode:  isManualCourseRow ? 'single' : displayMode,
+      source_pricing_key:     isManualCourseRow ? '' : (fieldText('item_source_pricing_key') || text(pricingRow?.pricing_key)),
+      list_id:                isManualCourseRow ? '' : (fieldText('list_id') || text(pricingRow?.list_id)),
+      selected_bundle_items:  isManualCourseRow ? [] : selectedBundleItems
     };
     return {
       ...extracted,
@@ -3022,13 +3052,16 @@ function filterPricingByActivityType(pricing, activityType) {
   return pricing.filter((row) => text(row.item_type) === activityType);
 }
 
-function buildPricingSelectOptionsHtml(pricingOptions, selectedPricingKey) {
+function buildPricingSelectOptionsHtml(pricingOptions, selectedPricingKey, options = {}) {
   const visibleRows = pricingOptions.filter((row) =>
     !isTestHoursItem(row) &&
     text(row.proposal_display_mode) !== 'bundle_child' &&
     !/^תמיר/i.test(text(row.activity_name))
   );
-  return ['<option value="">— בחר פעילות מהרשימה —</option>', ...visibleRows.map((row, optionIdx) => {
+  const manualOptionHtml = options.allowManualCourse && isNextYearProposalGroup(options.groupKey)
+    ? `<option value="${MANUAL_COURSE_OPTION_KEY}"${selectedPricingKey === MANUAL_COURSE_OPTION_KEY ? ' selected' : ''}>${escapeHtml(MANUAL_COURSE_OPTION_LABEL)}</option>`
+    : '';
+  return ['<option value="">— בחר פעילות מהרשימה —</option>', manualOptionHtml, ...visibleRows.map((row, optionIdx) => {
     const value = pricingOptionKey(row, optionIdx);
     const legacySelected = selectedPricingKey && [value, text(row.activity_no), text(row.activity_name), publicActivityName(row.activity_name)].includes(selectedPricingKey);
     const isBundleParent = row.proposal_display_mode === 'bundle_parent' || row.is_bundle_parent;
@@ -3040,7 +3073,7 @@ function buildPricingSelectOptionsHtml(pricingOptions, selectedPricingKey) {
       price != null && price > 0 ? `₪ ${formatCurrency(price)}` : ''
     ].filter(Boolean);
     return `<option value="${escapeHtml(value)}"${legacySelected ? ' selected' : ''}${isBundleParent ? ' data-bundle-parent="1"' : ''}>${escapeHtml(labelParts.join(' — '))}</option>`;
-  })].join('');
+  })].filter(Boolean).join('');
 }
 
 function filterItemsByProposalType(items, activityTypeGroup) {
@@ -3495,6 +3528,7 @@ function formHtml(mode, row = {}, activityNameOptions = [], contactOptions = [],
   const canApproveDirectly = canApproveProposalsAgreements(state) && !rowIsAlreadyApproved;
   const primaryActionLabel = canApproveDirectly ? 'חתום ואשר' : 'שליחה לאישור';
   const primaryActionStatus = canApproveDirectly ? 'approved' : 'pending_approval';
+  const allowManualCourse = userRole(state) === 'admin';
 
   const initialPreviewRow = normalizeProposalAgreementRow({
     ...row,
@@ -3507,7 +3541,7 @@ function formHtml(mode, row = {}, activityNameOptions = [], contactOptions = [],
     .filter((section) => !proposalTextField(section, 'template_key', 'templateKey') || proposalTextField(section, 'template_key', 'templateKey') === initialTemplateKey);
   const initialPreviewHtml = proposalPreviewBodyHtml(initialPreviewRow, items, initialTemplateSections);
 
-  return `<form class="ds-pa-form ds-pa-form--compact pa-editor" data-pa-form data-pa-mode="${escapeHtml(mode)}" data-pa-id="${escapeHtml(row.id || '')}" data-pa-original-type="${escapeHtml(normalizedActivityGroup)}" dir="rtl">
+  return `<form class="ds-pa-form ds-pa-form--compact pa-editor" data-pa-form data-pa-mode="${escapeHtml(mode)}" data-pa-id="${escapeHtml(row.id || '')}" data-pa-original-type="${escapeHtml(normalizedActivityGroup)}" data-pa-allow-manual-course="${allowManualCourse ? 'yes' : 'no'}" dir="rtl">
     <div class="pa-editor-workspace">
       <aside class="pa-sidebar" aria-label="עריכת פרטי הצעת מחיר">
         <div class="pa-sidebar-heading">
@@ -3573,7 +3607,7 @@ function formHtml(mode, row = {}, activityNameOptions = [], contactOptions = [],
 
     <div class="ds-pa-form-activities-panel" data-pa-step-panel="activity">
       <h4 class="pa-sidebar-section-title">פעילויות ומחירים</h4>
-      <div data-pa-items-host>${itemsEditorHtml(items, filteredPricing, normalizedActivityGroup)}</div>
+      <div data-pa-items-host>${itemsEditorHtml(items, filteredPricing, normalizedActivityGroup, { allowManualCourse })}</div>
     </div>
 
     <div class="ds-pa-form-bottom-panel" data-pa-step-panel="summary">
@@ -4435,7 +4469,7 @@ export const proposalsAgreementsScreen = {
         const itemsHost = form.querySelector('[data-pa-items-host]');
         if (!itemsHost) return;
         const filteredPricing = filterPricingByProposalType(proposalActivityPricing, newType);
-        itemsHost.innerHTML = itemsEditorHtml(currentItems, filteredPricing, newType);
+        itemsHost.innerHTML = itemsEditorHtml(currentItems, filteredPricing, newType, { allowManualCourse: text(form.dataset.paAllowManualCourse) === 'yes' });
         const modeEl = form.querySelector('[data-pa-template-mode]');
         if (modeEl && text(form.dataset.paOriginalType) && text(form.dataset.paOriginalType) !== newType) {
           modeEl.textContent = 'סוג ההצעה השתנה';
@@ -5330,6 +5364,64 @@ export const proposalsAgreementsScreen = {
       if (input) input.value = value == null ? '' : String(value);
     };
 
+    const formAllowsManualCourse = (form) => text(form?.dataset?.paAllowManualCourse) === 'yes';
+
+    const setManualCourseNameFieldActive = (itemRow, active) => {
+      const manualInput = itemRow?.querySelector?.('[data-pa-manual-item-name]');
+      const detailsInput = itemRow?.querySelector?.('[data-pa-details-item-name-input]');
+      const manualRow = itemRow?.querySelector?.('[data-pa-manual-name-row]');
+      const detailsName = itemRow?.querySelector?.('[data-pa-details-item-name]');
+      const details = itemRow?.querySelector?.('[data-pa-item-details]');
+      const summary = itemRow?.querySelector?.('.ds-pa-item-extra-toggle');
+      if (active) {
+        const currentName = text(detailsInput?.value || manualInput?.value);
+        if (manualInput) {
+          manualInput.name = 'item_name';
+          if (currentName) manualInput.value = currentName;
+        }
+        if (detailsInput) detailsInput.removeAttribute('name');
+        if (manualRow) manualRow.hidden = false;
+        if (detailsName) detailsName.hidden = true;
+        if (details) details.open = true;
+        if (summary) summary.textContent = 'פרטי קורס';
+        itemRow.classList.add('ds-pa-item-row--manual');
+        itemRow.dataset.paManualCourse = 'yes';
+      } else {
+        const currentName = text(manualInput?.value || detailsInput?.value);
+        if (manualInput) manualInput.removeAttribute('name');
+        if (detailsInput) {
+          detailsInput.name = 'item_name';
+          if (currentName) detailsInput.value = currentName;
+        }
+        if (manualRow) manualRow.hidden = true;
+        if (detailsName) detailsName.hidden = false;
+        if (summary) summary.textContent = 'עריכה';
+        itemRow.classList.remove('ds-pa-item-row--manual');
+        delete itemRow.dataset.paManualCourse;
+      }
+    };
+
+    const applyManualCourseToRow = (itemRow, form) => {
+      const rowGroup = text(itemRow.dataset.paRowGroup) || 'next_year';
+      [
+        'pricing_option_key', 'activity_no', 'item_type', 'gefen_number', 'gefen_number_display',
+        'item_source_pricing_key', 'bundle_pricing_key', 'list_id', 'description', 'unit_duration', 'hourly_price'
+      ].forEach((name) => setRowValue(itemRow, name, ''));
+      setRowValue(itemRow, 'item_display_mode', 'single');
+      setRowValue(itemRow, 'proposal_group', rowGroup);
+      setRowValue(itemRow, 'item_selected_bundle_items', '[]');
+      const bundlePrompt = itemRow.querySelector('[data-pa-bundle-prompt]');
+      if (bundlePrompt) {
+        bundlePrompt.hidden = true;
+        bundlePrompt.innerHTML = '';
+      }
+      setManualCourseNameFieldActive(itemRow, true);
+      itemRow.querySelector('[data-pa-manual-item-name]')?.focus();
+      calcItemRow(itemRow);
+      if (form) calcGrandTotal(form);
+      if (form) updateProposalStepper(form);
+    };
+
     const selectedBundleChildren = (itemRow) => Array.from(itemRow?.querySelectorAll?.('[data-pa-bundle-child-check]:checked') || [])
       .map((cb) => {
         try {
@@ -5766,8 +5858,13 @@ export const proposalsAgreementsScreen = {
         const basePricing = filterPricingByProposalType(proposalActivityPricing, contractType);
         const filteredPricing = filterPricingByActivityType(basePricing, selectedActivityType);
         form.querySelectorAll('[data-pa-pricing-select]').forEach((sel) => {
+          const itemRow = sel.closest('[data-pa-item-row]');
+          const rowGroup = text(itemRow?.dataset?.paRowGroup);
           const currentVal = text(sel.value);
-          sel.innerHTML = buildPricingSelectOptionsHtml(filteredPricing, currentVal);
+          sel.innerHTML = buildPricingSelectOptionsHtml(filteredPricing, currentVal, {
+            allowManualCourse: formAllowsManualCourse(form),
+            groupKey: rowGroup
+          });
         });
         return;
       }
@@ -5791,6 +5888,14 @@ export const proposalsAgreementsScreen = {
       const itemRow = pricingSelect.closest('[data-pa-item-row]');
       const form = pricingSelect.closest('[data-pa-form]');
       const selectedKey = text(pricingSelect.value);
+      if (!itemRow) return;
+      const bundlePrompt = itemRow.querySelector('[data-pa-bundle-prompt]');
+      if (selectedKey === MANUAL_COURSE_OPTION_KEY) {
+        if (!formAllowsManualCourse(form)) return;
+        applyManualCourseToRow(itemRow, form);
+        return;
+      }
+      setManualCourseNameFieldActive(itemRow, false);
       const itemTypeInput = itemRow?.querySelector?.('[name="item_type"]');
       const picked = resolvePricingRow({
         optionKey: selectedKey,
@@ -5798,8 +5903,6 @@ export const proposalsAgreementsScreen = {
         activityName: selectedKey,
         itemType: itemTypeInput?.value
       });
-      if (!itemRow) return;
-      const bundlePrompt = itemRow.querySelector('[data-pa-bundle-prompt]');
       if (!picked) { if (bundlePrompt) bundlePrompt.hidden = true; return; }
       const isBundle = picked.proposal_display_mode === 'bundle_parent' || picked.is_bundle_parent;
       if (isBundle && bundlePrompt) {
@@ -6347,7 +6450,8 @@ export const proposalsAgreementsScreen = {
         const rowGroup = groupKey || currentType;
         const basePricing = filterPricingByProposalType(proposalActivityPricing, rowGroup || currentType);
         const rowPricing = basePricing;
-        tmp.innerHTML = itemRowHtml({ proposal_group: rowGroup }, idx, rowPricing, { groupKey: rowGroup });
+        const allowManualCourse = formAllowsManualCourse(form);
+        tmp.innerHTML = itemRowHtml({ proposal_group: rowGroup }, idx, rowPricing, { groupKey: rowGroup, allowManualCourse });
         tbody.appendChild(tmp.firstElementChild);
         if (form) calcGrandTotal(form);
         if (form) updateProposalStepper(form);
