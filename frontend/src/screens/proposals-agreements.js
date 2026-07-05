@@ -2799,6 +2799,7 @@ function buildProposalDocumentHtml({ dateDisplay, documentTitle, row, introText,
       ${recipientBlockHtml(row)}
       <hr class="pa-doc-divider pa-divider">
       ${dateDisplay ? `<div class="pa-doc-date pa-date-area">${escapeHtml(dateDisplay)}</div>` : ''}
+      <div class="pa-proposal-body-footer-shell">
       <div class="proposal-document-body">
         <div class="proposal-document-content">
           ${title ? `<h1 class="pa-doc-subject pa-doc-title">${escapeHtml(title)}</h1>` : ''}
@@ -2817,6 +2818,7 @@ function buildProposalDocumentHtml({ dateDisplay, documentTitle, row, introText,
         <div class="pa-page-footer">
           <span>תעשיידע — תעשייה למען חינוך מתקדם (ע״ר) | <span dir="ltr">www.think.org.il</span></span>
         </div>
+      </div>
       </div>
     </div>`;
 }

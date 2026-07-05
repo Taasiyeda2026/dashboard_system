@@ -17950,10 +17950,17 @@ details[open] > .ds-fin-acc__summary::before { transform: rotate(90deg); }
   flex-direction: column;
 }
 .proposal-document.pa-document .proposal-document-body {
-  flex: 1 1 auto;
+  flex: 0 1 auto;
   display: flex;
   flex-direction: column;
   min-height: 0;
+}
+.pa-proposal-body-footer-shell {
+  display: flex;
+  flex-direction: column;
+  flex: 1 1 auto;
+  min-height: 0;
+  width: 100%;
 }
 .proposal-document.pa-document .proposal-document-content {
   max-width: none;
@@ -18173,8 +18180,9 @@ details[open] > .ds-fin-acc__summary::before { transform: rotate(90deg); }
 }
 .pa-page-footer-gap {
   display: block;
-  height: 0;
+  flex: 1 1 auto;
   min-height: 0;
+  height: auto;
   margin: 0;
   padding: 0;
   border: 0;
@@ -21083,4 +21091,60 @@ details[open] > .ds-fin-acc__summary::before { transform: rotate(90deg); }
   .proposal-document.pa-document--next-year .pa-next-year-course-table .pa-hours-col,
   .proposal-document.pa-document--next-year .pa-next-year-course-table .pa-total-price-col { width: 12% !important; }
   .proposal-document .pa-signature-spacer { height: 1em !important; max-height: 1em !important; margin: 0 !important; padding: 0 !important; }
+
+  /* Footer shell: relative + absolute footer pins to shell bottom on short page-1
+     proposals without flex/min-height on the whole document (see docs/proposal-print-layout.md). */
+  .pa-proposal-body-footer-shell {
+    display: block !important;
+    position: relative !important;
+    width: 100% !important;
+    box-sizing: border-box !important;
+    min-height: calc(281mm - var(--pa-proposal-header-offset, 45mm)) !important;
+    height: auto !important;
+    padding-bottom: 14mm !important;
+    break-inside: auto !important;
+    page-break-inside: auto !important;
+  }
+  .pa-proposal-body-footer-shell > .proposal-document-body {
+    display: block !important;
+    height: auto !important;
+    flex: none !important;
+    min-height: 0 !important;
+    break-inside: auto !important;
+    page-break-inside: auto !important;
+  }
+  .pa-proposal-body-footer-shell > .proposal-document-body > .proposal-document-content {
+    display: block !important;
+    break-inside: auto !important;
+    page-break-inside: auto !important;
+  }
+  .pa-proposal-body-footer-shell > .pa-page-footer-area {
+    display: block !important;
+    position: absolute !important;
+    left: 0 !important;
+    right: 0 !important;
+    bottom: 0 !important;
+    width: 100% !important;
+    margin-top: 0 !important;
+    break-inside: avoid !important;
+    page-break-inside: avoid !important;
+  }
+  .pa-proposal-body-footer-shell .pa-page-footer-gap {
+    display: none !important;
+    height: 0 !important;
+    min-height: 0 !important;
+    margin: 0 !important;
+    padding: 0 !important;
+  }
+  .pa-proposal-body-footer-shell > .pa-page-footer-area > .pa-page-footer {
+    display: block !important;
+    width: 100% !important;
+    margin-top: 0 !important;
+    padding-top: 4px !important;
+    position: static !important;
+    break-inside: avoid !important;
+    page-break-inside: avoid !important;
+    break-before: auto !important;
+    page-break-before: auto !important;
+  }
 }
