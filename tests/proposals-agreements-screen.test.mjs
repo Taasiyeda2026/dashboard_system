@@ -3279,14 +3279,18 @@ test('tour proposal preview uses scoped 60 percent cost table and omits generic 
 
   assert.ok(table, 'tour cost table should still render');
   assert.equal(table.querySelectorAll('colgroup col').length, 4);
-  assert.match(styleText, /\.pa-tour-cost-table\s*\{[^}]*width:\s*60%/s);
-  assert.match(styleText, /\.pa-tour-cost-table\s*\{[^}]*max-width:\s*60%/s);
-  assert.match(styleText, /\.pa-tour-cost-table\s*\{[^}]*margin-right:\s*0/s);
-  assert.match(styleText, /\.pa-tour-cost-table\s*\{[^}]*margin-left:\s*auto/s);
-  assert.match(styleText, /\.pa-tour-cost-table th,\s*\.pa-tour-cost-table td\s*\{[^}]*padding-top:\s*4px[^}]*padding-bottom:\s*4px/s);
-  assert.match(styleText, /\.pa-tour-cost-table th,\s*\.pa-tour-cost-table td\s*\{[^}]*text-align:\s*right/s);
-  assert.match(styleText, /\.pa-tour-cost-table \.pa-tour-col--price,\s*\.pa-tour-cost-table \.pa-tour-col--total\s*\{[^}]*text-align:\s*center/s);
-  assert.match(styleText, /@media print[\s\S]*\.pa-tour-cost-table\s*\{[\s\S]*width:\s*60% !important/);
+  assert.ok(doc.querySelector('.pa-proposal-doc--tour'), 'tour documents should receive a tour-only print styling hook');
+  assert.match(styleText, /\.pa-proposal-doc--tour \.pa-section\s*\{[^}]*margin-top:\s*3mm[^}]*margin-bottom:\s*3mm/s);
+  assert.match(styleText, /\.pa-proposal-doc--tour \.pa-section-heading\s*\{[^}]*margin-bottom:\s*1\.5mm[^}]*line-height:\s*1\.2/s);
+  assert.match(styleText, /\.pa-proposal-doc--tour \.pa-section li\s*\{[^}]*margin-bottom:\s*0\.8mm[^}]*line-height:\s*1\.25/s);
+  assert.match(styleText, /\.pa-proposal-doc--tour \.pa-tour-cost-table\s*\{[^}]*width:\s*60%/s);
+  assert.match(styleText, /\.pa-proposal-doc--tour \.pa-tour-cost-table\s*\{[^}]*max-width:\s*60%/s);
+  assert.match(styleText, /\.pa-proposal-doc--tour \.pa-tour-cost-table\s*\{[^}]*margin-right:\s*0/s);
+  assert.match(styleText, /\.pa-proposal-doc--tour \.pa-tour-cost-table\s*\{[^}]*margin-left:\s*auto/s);
+  assert.match(styleText, /\.pa-proposal-doc--tour \.pa-cost-table th,[\s\S]*padding-top:\s*3px[\s\S]*padding-bottom:\s*3px[\s\S]*line-height:\s*1\.15/s);
+  assert.match(styleText, /\.pa-proposal-doc--tour \.pa-tour-cost-table th,\s*\.pa-proposal-doc--tour \.pa-tour-cost-table td\s*\{[^}]*text-align:\s*right/s);
+  assert.match(styleText, /\.pa-proposal-doc--tour \.pa-tour-cost-table \.pa-tour-col--price,\s*\.pa-proposal-doc--tour \.pa-tour-cost-table \.pa-tour-col--total\s*\{[^}]*text-align:\s*center/s);
+  assert.match(styleText, /@media print[\s\S]*\.pa-proposal-doc--tour \.pa-tour-cost-table\s*\{[\s\S]*width:\s*60% !important/);
   assert.match(styleText, /\.pa-tour-col--component\s*\{[^}]*width:\s*125px/s);
   assert.match(styleText, /\.pa-tour-col--total\s*\{[^}]*width:\s*85px[^}]*text-align:\s*center/s);
   const docText = doc.documentElement.textContent || '';

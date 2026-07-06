@@ -2885,7 +2885,8 @@ function buildProposalDocumentHtml({ dateDisplay, documentTitle, row, introText,
   const title = text(documentTitle);
   const isNextYear = isNextYearProposalGroup(row?.activity_type_group);
   const isSummerDocument = isSummerProposalGroup(row?.activity_type_group);
-  const documentModifierClass = `${isNextYear ? ' pa-document--next-year' : ''}${isSummerDocument ? ' pa-document--summer' : ''}`;
+  const isTourDocument = isTourProposalGroup(row?.activity_type_group);
+  const documentModifierClass = `${isNextYear ? ' pa-document--next-year' : ''}${isSummerDocument ? ' pa-document--summer' : ''}${isTourDocument ? ' pa-proposal-doc--tour pa-document--tour' : ''}`;
   return `
     <div class="proposal-document pa-document pa-a4-page${documentModifierClass}" data-build="20260704a" dir="rtl" style="position:relative;box-sizing:border-box;">
       <style>
@@ -2894,35 +2895,74 @@ function buildProposalDocumentHtml({ dateDisplay, documentTitle, row, introText,
           box-sizing: border-box !important;
         }
 
-        .pa-tour-cost-table {
+        .pa-proposal-doc--tour .pa-section {
+          margin-top: 3mm;
+          margin-bottom: 3mm;
+        }
+        .pa-proposal-doc--tour .pa-section-heading {
+          margin-top: 0;
+          margin-bottom: 1.5mm;
+          line-height: 1.2;
+        }
+        .pa-proposal-doc--tour .pa-section p {
+          margin-top: 0;
+          margin-bottom: 1.5mm;
+          line-height: 1.25;
+        }
+        .pa-proposal-doc--tour .pa-section ul,
+        .pa-proposal-doc--tour .pa-section ol {
+          margin-top: 1mm;
+          margin-bottom: 2mm;
+          padding-inline-start: 5mm;
+        }
+        .pa-proposal-doc--tour .pa-section li {
+          margin-bottom: 0.8mm;
+          line-height: 1.25;
+        }
+        .pa-proposal-doc--tour .pa-cost-table,
+        .pa-proposal-doc--tour .pa-tour-cost-table,
+        .pa-proposal-doc--tour .ds-pa-print-tour-table {
+          margin-top: 1.5mm;
+          margin-bottom: 2mm;
+          border-collapse: collapse;
+        }
+        .pa-proposal-doc--tour .pa-tour-payment-block {
+          margin-top: 0;
+          margin-bottom: 0;
+        }
+        .pa-proposal-doc--tour .pa-cost-table th,
+        .pa-proposal-doc--tour .pa-cost-table td,
+        .pa-proposal-doc--tour .pa-tour-cost-table th,
+        .pa-proposal-doc--tour .pa-tour-cost-table td,
+        .pa-proposal-doc--tour .ds-pa-print-tour-table th,
+        .pa-proposal-doc--tour .ds-pa-print-tour-table td {
+          padding-top: 3px;
+          padding-bottom: 3px;
+          line-height: 1.15;
+        }
+        .pa-proposal-doc--tour .pa-tour-cost-table {
           width: 60%;
           min-width: 0;
           max-width: 60%;
           margin-right: 0;
           margin-left: auto;
           table-layout: fixed;
-          border-collapse: collapse;
           direction: rtl;
         }
-        .pa-tour-cost-table th,
-        .pa-tour-cost-table td {
+        .pa-proposal-doc--tour .pa-tour-cost-table th,
+        .pa-proposal-doc--tour .pa-tour-cost-table td {
           box-sizing: border-box;
-          padding-top: 4px;
-          padding-bottom: 4px;
           vertical-align: middle;
           white-space: normal;
           overflow-wrap: anywhere;
-        }
-        .pa-tour-cost-table th,
-        .pa-tour-cost-table td {
           text-align: right;
         }
-        .pa-tour-cost-table .pa-tour-col--price,
-        .pa-tour-cost-table .pa-tour-col--total {
+        .pa-proposal-doc--tour .pa-tour-cost-table .pa-tour-col--price,
+        .pa-proposal-doc--tour .pa-tour-cost-table .pa-tour-col--total {
           text-align: center;
         }
-        .pa-tour-cost-table .pa-currency-amount,
-        .pa-tour-cost-table .money-amount {
+        .pa-proposal-doc--tour .pa-tour-cost-table .pa-currency-amount,
+        .pa-proposal-doc--tour .pa-tour-cost-table .money-amount {
           display: inline-block;
           max-width: 100%;
           white-space: nowrap;
@@ -2936,7 +2976,7 @@ function buildProposalDocumentHtml({ dateDisplay, documentTitle, row, introText,
             padding-inline: 4mm !important;
             box-sizing: border-box !important;
           }
-          .pa-tour-cost-table {
+          .pa-proposal-doc--tour .pa-tour-cost-table {
             width: 60% !important;
             min-width: 0 !important;
             max-width: 60% !important;
@@ -2944,17 +2984,17 @@ function buildProposalDocumentHtml({ dateDisplay, documentTitle, row, introText,
             margin-left: auto !important;
             table-layout: fixed !important;
           }
-          .pa-tour-cost-table th,
-          .pa-tour-cost-table td {
-            padding: 1.4mm 1.5mm !important;
+          .pa-proposal-doc--tour .pa-tour-cost-table th,
+          .pa-proposal-doc--tour .pa-tour-cost-table td {
+            padding: 1mm 1.5mm !important;
             font-size: 8.5pt !important;
-            line-height: 1.25 !important;
+            line-height: 1.15 !important;
             white-space: normal !important;
             overflow: hidden !important;
             text-overflow: clip !important;
           }
-          .pa-tour-cost-table .pa-currency-amount,
-          .pa-tour-cost-table .money-amount {
+          .pa-proposal-doc--tour .pa-tour-cost-table .pa-currency-amount,
+          .pa-proposal-doc--tour .pa-tour-cost-table .money-amount {
             white-space: nowrap !important;
           }
         }
