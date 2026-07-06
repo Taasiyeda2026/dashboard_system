@@ -1331,7 +1331,7 @@ function dedupeContactPickerOptions(contacts = []) {
       normalizeHebrewQuoteVariants(contactName),
       normalizeHebrewQuoteVariants(text(contact?.contact_role)),
       text(contact?.email).toLowerCase(),
-      text(contact?.phone || contact?.mobile || '')
+      contactDisplayPhone(contact)
     ].join('||');
     if (seen.has(key)) return;
     seen.add(key);
@@ -1377,6 +1377,10 @@ function contactPickerHtml(contactOptions, authority, school, selectedContactNam
 
 const CONTACT_CHANNELS_HINT_MESSAGE = 'מומלץ להשלים מייל ונייד להמשך טיפול';
 
+function contactDisplayPhone(contact = {}) {
+  return text(contact?.mobile || contact?.phone || '');
+}
+
 function contactChannelsStatusHtml(hasEmail, hasMobile, fieldsOpen = false) {
   const chip = (label, ok) => `<span class="ds-pa-contact-channel-chip${ok ? '' : ' is-missing'}">${escapeHtml(label)}: ${ok ? 'קיים' : 'חסר'}</span>`;
   const missing = !hasEmail || !hasMobile;
@@ -1395,7 +1399,7 @@ function contactOptionKey(contact = {}) {
     text(contact.school),
     text(contact.contact_name),
     text(contact.email),
-    text(contact.phone || contact.mobile || '')
+    contactDisplayPhone(contact)
   ].join('||');
 }
 
@@ -2894,7 +2898,8 @@ function buildProposalDocumentHtml({ dateDisplay, documentTitle, row, introText,
           width: 60%;
           min-width: 0;
           max-width: 60%;
-          margin-inline: auto;
+          margin-right: 0;
+          margin-left: auto;
           table-layout: fixed;
           border-collapse: collapse;
           direction: rtl;
@@ -2902,15 +2907,19 @@ function buildProposalDocumentHtml({ dateDisplay, documentTitle, row, introText,
         .pa-tour-cost-table th,
         .pa-tour-cost-table td {
           box-sizing: border-box;
-          text-align: center;
+          padding-top: 4px;
+          padding-bottom: 4px;
           vertical-align: middle;
           white-space: normal;
           overflow-wrap: anywhere;
         }
-        .pa-tour-cost-table .pa-tour-col--component,
-        .pa-tour-cost-table th:first-child,
-        .pa-tour-cost-table td:first-child {
+        .pa-tour-cost-table th,
+        .pa-tour-cost-table td {
           text-align: right;
+        }
+        .pa-tour-cost-table .pa-tour-col--price,
+        .pa-tour-cost-table .pa-tour-col--total {
+          text-align: center;
         }
         .pa-tour-cost-table .pa-currency-amount,
         .pa-tour-cost-table .money-amount {
@@ -2931,12 +2940,13 @@ function buildProposalDocumentHtml({ dateDisplay, documentTitle, row, introText,
             width: 60% !important;
             min-width: 0 !important;
             max-width: 60% !important;
-            margin-inline: auto !important;
+            margin-right: 0 !important;
+            margin-left: auto !important;
             table-layout: fixed !important;
           }
           .pa-tour-cost-table th,
           .pa-tour-cost-table td {
-            padding: 2mm 1.5mm !important;
+            padding: 1.4mm 1.5mm !important;
             font-size: 8.5pt !important;
             line-height: 1.25 !important;
             white-space: normal !important;
@@ -3250,7 +3260,7 @@ function defaultContactFromSchoolMeta(schoolMeta = {}) {
     id: '',
     contact_name: principalName,
     contact_role: 'מנהל/ת בית הספר',
-    phone: text(schoolMeta.phone) || text(schoolMeta.school_phone || schoolMeta.mobile || ''),
+    phone: text(schoolMeta.mobile) || text(schoolMeta.phone || schoolMeta.school_phone || ''),
     mobile: text(schoolMeta.mobile),
     email: text(schoolMeta.email)
   };
@@ -3262,7 +3272,7 @@ function schoolDetailsLines(contact = {}) {
     catalogAuthorityName(contact) ? ['רשות', catalogAuthorityName(contact)] : null,
     text(contact.semel_mosad) ? ['סמל מוסד', text(contact.semel_mosad)] : null,
     text(contact.principal_name || contact.contact_name) ? ['מנהל/ת', text(contact.principal_name || contact.contact_name)] : null,
-    text(contact.school_phone || contact.phone || contact.mobile) ? ['טלפון', text(contact.school_phone || contact.phone || contact.mobile)] : null,
+    text(contact.mobile || contact.school_phone || contact.phone) ? ['טלפון', text(contact.mobile || contact.school_phone || contact.phone)] : null,
     text(contact.school_address || contact.address || contact.institution_address) ? ['כתובת', text(contact.school_address || contact.address || contact.institution_address)] : null,
     text(contact.city) ? ['עיר', text(contact.city)] : null
   ].filter(Boolean);
@@ -3294,7 +3304,7 @@ function enrichProposalRowFromContactOptions(row = {}, contactOptions = []) {
     school_id: row.school_id ?? schoolContact.school_id ?? null,
     semel_mosad: text(row.semel_mosad) || text(schoolContact.semel_mosad),
     principal_name: text(row.principal_name) || text(schoolContact.principal_name || schoolContact.contact_name),
-    school_phone: text(row.school_phone) || text(schoolContact.school_phone || schoolContact.phone || schoolContact.mobile),
+    school_phone: text(row.school_phone) || text(schoolContact.mobile || schoolContact.school_phone || schoolContact.phone),
     school_address: text(row.school_address) || text(schoolContact.school_address || schoolContact.address || schoolContact.institution_address),
     city: text(row.city) || text(schoolContact.city)
   };
@@ -3325,7 +3335,7 @@ function contactMatchesProposalRow(contact = {}, row = {}) {
   const schoolMatch = text(contact.school) === text(row.school_framework);
   const nameMatch = text(contact.contact_name) === text(row.contact_name);
   const emailMatch = text(contact.email) && text(contact.email) === text(row.email);
-  const phoneMatch = text(contact.phone || contact.mobile || '') && text(contact.phone || contact.mobile || '') === text(row.phone);
+  const phoneMatch = contactDisplayPhone(contact) && contactDisplayPhone(contact) === text(row.phone);
   // Name must match; email/phone/authority+school provide additional confirmation.
   // Never match solely by email or phone when names differ — prevents wrong-contact substitution.
   return Boolean(nameMatch && (emailMatch || phoneMatch || (authorityMatch && schoolMatch)));
@@ -3506,7 +3516,7 @@ function contactSourceInputsHtml(contact = {}) {
     <input type="hidden" name="contact_source_school" value="${escapeHtml(text(source.school))}">
     <input type="hidden" name="contact_source_name" value="${escapeHtml(text(source.contact_name))}">
     <input type="hidden" name="contact_source_role" value="${escapeHtml(text(source.contact_role))}">
-    <input type="hidden" name="contact_source_phone" value="${escapeHtml(text(source.phone || source.mobile || ''))}">
+    <input type="hidden" name="contact_source_phone" value="${escapeHtml(text(source.mobile || source.phone || ''))}">
     <input type="hidden" name="contact_source_mobile" value="${escapeHtml(text(source.mobile))}">
     <input type="hidden" name="contact_source_email" value="${escapeHtml(text(source.email))}">
     <input type="hidden" name="contact_source_table" value="${escapeHtml(text(source.source_table))}">`;
@@ -4517,7 +4527,7 @@ export const proposalsAgreementsScreen = {
         school_framework: text(contact.school) || enriched.school_framework,
         contact_name:     text(contact.contact_name) || enriched.contact_name,
         contact_role:     text(contact.contact_role) || enriched.contact_role,
-        phone:            text(contact.phone || contact.mobile || '') || enriched.phone,
+        phone:            contactDisplayPhone(contact) || enriched.phone,
         email:            text(contact.email) || enriched.email
       };
     };
@@ -4980,7 +4990,7 @@ export const proposalsAgreementsScreen = {
           fillContactFields(form, contact);
           setContactSource(form, contact);
           setAddContactRowState(form, { visible: false, showNoContactNote: false });
-          lockClientFields(form, text(contact.authority), text(contact.school), text(contact.contact_name), text(contact.contact_role), text(contact.phone || contact.mobile || ''), text(contact.email || ''), text(contact.client_name) || text(contact.school) || text(contact.authority), contact);
+          lockClientFields(form, text(contact.authority), text(contact.school), text(contact.contact_name), text(contact.contact_role), contactDisplayPhone(contact), text(contact.email || ''), text(contact.client_name) || text(contact.school) || text(contact.authority), contact);
           if (form) setTimeout(() => calcGrandTotal(form), 0);
         }
       }, { signal });

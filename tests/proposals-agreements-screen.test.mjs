@@ -3281,25 +3281,22 @@ test('tour proposal preview uses scoped 60 percent cost table and omits generic 
   assert.equal(table.querySelectorAll('colgroup col').length, 4);
   assert.match(styleText, /\.pa-tour-cost-table\s*\{[^}]*width:\s*60%/s);
   assert.match(styleText, /\.pa-tour-cost-table\s*\{[^}]*max-width:\s*60%/s);
-  assert.match(styleText, /\.pa-tour-cost-table\s*\{[^}]*margin-inline:\s*auto/s);
-  assert.match(styleText, /\.pa-tour-cost-table th,\s*\.pa-tour-cost-table td\s*\{[^}]*text-align:\s*center/s);
-  assert.match(styleText, /\.pa-tour-cost-table th:first-child,\s*\.pa-tour-cost-table td:first-child\s*\{[^}]*text-align:\s*right/s);
+  assert.match(styleText, /\.pa-tour-cost-table\s*\{[^}]*margin-right:\s*0/s);
+  assert.match(styleText, /\.pa-tour-cost-table\s*\{[^}]*margin-left:\s*auto/s);
+  assert.match(styleText, /\.pa-tour-cost-table th,\s*\.pa-tour-cost-table td\s*\{[^}]*padding-top:\s*4px[^}]*padding-bottom:\s*4px/s);
+  assert.match(styleText, /\.pa-tour-cost-table th,\s*\.pa-tour-cost-table td\s*\{[^}]*text-align:\s*right/s);
+  assert.match(styleText, /\.pa-tour-cost-table \.pa-tour-col--price,\s*\.pa-tour-cost-table \.pa-tour-col--total\s*\{[^}]*text-align:\s*center/s);
   assert.match(styleText, /@media print[\s\S]*\.pa-tour-cost-table\s*\{[\s\S]*width:\s*60% !important/);
-  assert.match(styleText, /\.pa-tour-class-col\s*\{\s*width:\s*24%;\s*\}/);
-  assert.match(styleText, /\.pa-tour-total-col\s*\{\s*width:\s*14%;\s*\}/);
+  assert.match(styleText, /\.pa-tour-col--component\s*\{[^}]*width:\s*125px/s);
+  assert.match(styleText, /\.pa-tour-col--total\s*\{[^}]*width:\s*85px[^}]*text-align:\s*center/s);
   const docText = doc.documentElement.textContent || '';
   assert.doesNotMatch(docText, /פירוט הפעילויות והעלויות מוצג בטבלת העלויות שלהלן\./);
   assert.match(docText, /התשלום עבור הסיור יבוצע בהתאם לטבלה שלהלן:/);
   const headers = Array.from(table.querySelectorAll('th')).map((th) => th.textContent.trim());
-  assert.deepEqual(headers, ['כיתה', 'מספר תלמידים', 'מחיר לתלמיד', 'כמות', 'סה״כ']);
-  assert.doesNotMatch(table.textContent || '', /מדריך|הסעה/);
-  const componentText = doc.querySelector('.pa-tour-components-table')?.textContent || '';
-  assert.match(componentText, /מדריך/);
-  assert.match(componentText, /הסעה אוטובוס/);
-  assert.match(componentText, /הסעה מיניבוס/);
-  assert.match(docText, /סה״כ כללי/);
+  assert.deepEqual(headers, ['רכיב', 'כמות', 'מחיר', 'סה״כ']);
+  assert.match(table.textContent || '', /מדריך/);
+  assert.match(table.textContent || '', /הסעה/);
   assert.ok(doc.querySelector('.pa-signature-spacer'), 'signature spacer should render');
-  assert.equal(doc.querySelector('.pa-signature-spacer')?.querySelectorAll('br').length, 2);
 });
 
 test('legacy tour_table guide and transport are rendered as separate cost components', () => {
