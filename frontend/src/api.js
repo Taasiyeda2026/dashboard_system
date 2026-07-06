@@ -3540,7 +3540,7 @@ async function ensureContactSchoolFromProposal(payload = {}) {
     p_contact_name:  cleanProposalAgreementText(payload.contact_name) || null,
     p_contact_role:  cleanProposalAgreementText(payload.contact_role) || null,
     p_phone:         cleanProposalAgreementText(payload.phone) || null,
-    p_mobile:        cleanProposalAgreementText(orig.mobile) || null,
+    p_mobile:        cleanProposalAgreementText(orig.mobile) || cleanProposalAgreementText(payload.phone) || null,
     p_email:         cleanProposalAgreementText(payload.email) || null,
     p_address:       null,
     p_notes:         cleanProposalAgreementText(payload.notes) || null

@@ -796,9 +796,9 @@ test('new proposal editor renders two-pane A4 layout and live preview updates ke
       assert.ok(liveDocument, 'live A4 preview should be present');
       assert.ok(liveDocument.classList.contains('pa-document'), 'document should use the scoped Proposaleditor document class');
       assert.ok(liveDocument.querySelector('.pa-page-header .pa-logo-area .proposal-logo'), 'document should render the Proposaleditor-style logo area');
-      assert.equal(liveDocument.querySelectorAll('.pa-page-footer').length, 1, 'document should render exactly one Proposaleditor-style footer');
+      assert.equal(liveDocument.querySelectorAll('.pa-page-footer, .pa-page-footer-area, .pa-page-footer-gap').length, 0, 'proposal document should not render footer markup');
       assert.equal(liveDocument.querySelectorAll('.proposal-document-footer, .proposal-footer, .proposal-footer-logo').length, 0, 'new proposal document should not render legacy footer classes');
-      assert.match(liveDocument.querySelector('.pa-page-footer')?.textContent || '', /www\.think\.org\.il/);
+      assert.doesNotMatch(liveDocument.textContent || '', /www\.think\.org\.il/);
       assert.equal(liveDocument.querySelectorAll('.pa-footer-signature').length, 1, 'document should render exactly one signature block');
       assert.ok(liveDocument.querySelector('.pa-footer-signature .pa-signature-rule'), 'document should render the Proposaleditor-style signature rule');
       assert.ok(liveDocument.querySelector('.pa-footer-signature .pa-signer-name'), 'document should render the signer name below the signature rule');
@@ -917,7 +917,7 @@ test('approved proposals render flow signature block inside the document', () =>
   const doc = new JSDOM(approvedHtml).window.document;
   const signature = doc.querySelector('.pa-footer-signature');
   assert.ok(signature, 'signature block should render in document flow');
-  assert.equal(doc.querySelectorAll('.pa-page-footer').length, 1);
+  assert.equal(doc.querySelectorAll('.pa-page-footer, .pa-page-footer-area, .pa-page-footer-gap').length, 0);
   assert.equal(signature.querySelectorAll('.pa-signature-image').length, 1);
   assert.equal(signature.querySelectorAll('.pa-signature-rule').length, 1);
   assert.equal(signature.querySelectorAll('.pa-signer-name').length, 1);
@@ -929,7 +929,6 @@ test('approved proposals render flow signature block inside the document', () =>
     ['pa-signature-image', 'pa-signature-rule', 'pa-signer-name'],
     'signature image, rule, and signer name should render in fixed vertical order'
   );
-  assert.ok(signature.compareDocumentPosition(doc.querySelector('.pa-page-footer')) & doc.defaultView.Node.DOCUMENT_POSITION_FOLLOWING, 'signature should appear before page footer');
   assert.doesNotMatch(signature.textContent || '', /אושר בתאריך/);
   assert.doesNotMatch(signature.textContent || '', /אושר ונחתם דיגיטלית/);
 });
@@ -2050,17 +2049,17 @@ test('proposal preview recipient block respects selected recipient type', async 
   const cases = [
     {
       client_type: 'school',
-      expectedLines: ['לכבוד:', 'דנה ישראלי, מנהלת', 'טלפון: 050-1234567 | דוא״ל: dana@example.com', 'בית ספר אופק, אשכול'],
+      expectedLines: ['לכבוד:', 'דנה ישראלי, מנהלת', 'נייד: 050-1234567 | דוא״ל: dana@example.com', 'בית ספר אופק, אשכול'],
       absent: []
     },
     {
       client_type: 'authority',
-      expectedLines: ['לכבוד:', 'דנה ישראלי, מנהלת', 'טלפון: 050-1234567 | דוא״ל: dana@example.com', 'בית ספר אופק, אשכול'],
+      expectedLines: ['לכבוד:', 'דנה ישראלי, מנהלת', 'נייד: 050-1234567 | דוא״ל: dana@example.com', 'בית ספר אופק, אשכול'],
       absent: ['לקוח ישן']
     },
     {
       client_type: 'other',
-      expectedLines: ['לכבוד:', 'דנה ישראלי, מנהלת', 'טלפון: 050-1234567 | דוא״ל: dana@example.com', 'בית ספר אופק'],
+      expectedLines: ['לכבוד:', 'דנה ישראלי, מנהלת', 'נייד: 050-1234567 | דוא״ל: dana@example.com', 'בית ספר אופק'],
       absent: ['אשכול', 'לקוח ישן']
     }
   ];
@@ -3058,7 +3057,7 @@ test('proposal preview renders recipient block before title without empty commas
     assert.deepEqual(Array.from(address.querySelectorAll('p')).map((p) => p.textContent), [
       'לכבוד:',
       'יונית לוי, מנהלת',
-      'טלפון: 050-1111111 | דוא״ל: dana@example.com',
+      'נייד: 050-1111111 | דוא״ל: dana@example.com',
       'בית ספר אורט, רשות הדוגמה'
     ]);
     assert.doesNotMatch(address.textContent, /undefined|null|NaN|,,|,\s*$/);
@@ -4096,7 +4095,7 @@ test('proposal preview replaces selected course placeholder and renders one cost
     assert.ok(paymentSection?.contains(tables[0]), 'cost table should be inside payment section');
     assert.ok((paymentSection.textContent || '').indexOf('טקסט תנאי תשלום') < (paymentSection.textContent || '').indexOf('סה״כ לתשלום'));
     assert.equal(doc.querySelectorAll('.pa-footer-signature').length, 1);
-    assert.equal(doc.querySelectorAll('.pa-page-footer').length, 1);
+    assert.equal(doc.querySelectorAll('.pa-page-footer, .pa-page-footer-area, .pa-page-footer-gap').length, 0);
   });
 });
 
