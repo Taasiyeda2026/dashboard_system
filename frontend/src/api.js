@@ -2811,11 +2811,11 @@ function normalizeData(data) {
 
 const PROPOSALS_AGREEMENTS_ALLOWED_ROLES = new Set(['domain_manager', 'operation_manager', 'admin', 'business_development_manager']);
 const PROPOSALS_AGREEMENTS_MANAGE_ROLES = new Set(['domain_manager', 'operation_manager', 'admin']);
-const PROPOSALS_AGREEMENTS_COLUMNS = 'id,authority_id,school_id,contact_school_id,client_authority,school_framework,document_type,activity_type_group,proposal_domain,proposal_date,activity_names,contact_name,contact_role,phone,email,contact_phone,contact_email,notes,status,approval_note,total_amount,custom_document_sections,include_catalog,signature_meta,approved_by,approved_at,sent_by,sent_at,locked_at,locked_by,locked_reason,final_pdf_path,final_pdf_file_name,final_pdf_created_at,final_pdf_created_by,document_snapshot,document_html_snapshot,created_at,updated_at';
-const PROPOSALS_AGREEMENTS_DIRECTORY_COLUMNS = 'id,authority_id,authority_code,school_id,contact_school_id,authority_name,legacy_client_authority,contact_client_type,contact_client_name,school_name,legacy_school_framework,document_type,activity_type_group,proposal_domain,proposal_date,activity_names,contact_name,contact_role,phone,email,notes,status,approval_note,total_amount,custom_document_sections,include_catalog,signature_meta,approved_by,approved_at,sent_by,sent_at,locked_at,locked_by,locked_reason,final_pdf_path,final_pdf_file_name,final_pdf_created_at,final_pdf_created_by,document_snapshot,document_html_snapshot,created_at,updated_at';
+const PROPOSALS_AGREEMENTS_COLUMNS = 'id,authority_id,school_id,contact_school_id,semel_mosad,client_authority,school_framework,document_type,activity_type_group,proposal_domain,proposal_date,activity_names,contact_name,contact_role,phone,email,contact_phone,contact_email,notes,status,approval_note,total_amount,custom_document_sections,include_catalog,signature_meta,approved_by,approved_at,sent_by,sent_at,locked_at,locked_by,locked_reason,final_pdf_path,final_pdf_file_name,final_pdf_created_at,final_pdf_created_by,document_snapshot,document_html_snapshot,created_at,updated_at';
+const PROPOSALS_AGREEMENTS_DIRECTORY_COLUMNS = 'id,authority_id,authority_code,school_id,contact_school_id,semel_mosad,authority_name,legacy_client_authority,contact_client_type,contact_client_name,school_name,legacy_school_framework,document_type,activity_type_group,proposal_domain,proposal_date,activity_names,contact_name,contact_role,phone,email,notes,status,approval_note,total_amount,custom_document_sections,include_catalog,signature_meta,approved_by,approved_at,sent_by,sent_at,locked_at,locked_by,locked_reason,final_pdf_path,final_pdf_file_name,final_pdf_created_at,final_pdf_created_by,document_snapshot,document_html_snapshot,created_at,updated_at';
 const PROPOSAL_FINAL_PDF_BUCKET = 'proposal-final-pdfs';
 const PROPOSALS_AGREEMENTS_WRITABLE_COLUMNS = new Set([
-  'authority_id', 'school_id', 'contact_school_id', 'client_authority', 'school_framework',
+  'authority_id', 'school_id', 'contact_school_id', 'semel_mosad', 'client_authority', 'school_framework',
   'document_type', 'activity_type_group', 'proposal_date', 'activity_names', 'contact_name',
   'contact_role', 'phone', 'email', 'contact_phone', 'contact_email', 'notes', 'status', 'approval_note', 'total_amount',
   'custom_document_sections', 'include_catalog', 'proposal_domain'
@@ -3373,6 +3373,13 @@ export function uuidOrNull(value) {
   return isValidUuid(raw) ? raw : null;
 }
 
+export function bigintIdOrNull(value) {
+  if (value == null || value === '') return null;
+  if (typeof value === 'object') return null;
+  const n = Number(value);
+  return Number.isSafeInteger(n) && n > 0 ? n : null;
+}
+
 function assertProposalAgreementApprovalPayloadAllowed(payload = {}) {
   const requestedStatus = cleanProposalAgreementText(payload.status);
   const touchesApprovalField = Object.keys(payload || {}).some((key) => PROPOSALS_AGREEMENTS_APPROVAL_COLUMNS.has(key));
@@ -3393,9 +3400,10 @@ function sanitizeProposalAgreementPayload(payload = {}, groupLookup = proposalGr
   const clientAuthority = cleanProposalAgreementText(payload.client_authority || payload.authority_name || payload.authority);
   const schoolFramework = cleanProposalAgreementText(payload.school_framework || payload.school_name || payload.school) || (clientType === 'other' ? cleanProposalAgreementText(payload.client_name) : clientAuthority);
   const row = {
-    authority_id:        uuidOrNull(payload.authority_id),
-    school_id:           clientType === 'school' ? uuidOrNull(payload.school_id) : null,
-    contact_school_id:   payload.contact_school_id != null ? (Number.isInteger(Number(payload.contact_school_id)) && Number(payload.contact_school_id) > 0 ? Number(payload.contact_school_id) : null) : null,
+    authority_id:        bigintIdOrNull(payload.authority_id),
+    school_id:           clientType === 'school' ? bigintIdOrNull(payload.school_id) : null,
+    contact_school_id:   bigintIdOrNull(payload.contact_school_id),
+    semel_mosad:         clientType === 'school' ? bigintIdOrNull(payload.semel_mosad) : null,
     client_authority:    clientAuthority,
     school_framework:    schoolFramework,
     document_type:       cleanProposalAgreementText(payload.document_type) || 'הצעת מחיר',
@@ -3468,14 +3476,14 @@ async function resolveProposalSchoolCatalogIds(payload = {}, catalog = null) {
   const clientType = cleanProposalAgreementText(payload.client_type) || (payload.school_id ? 'school' : 'authority');
   if (clientType !== 'school') {
     return {
-      authority_id: uuidOrNull(payload.authority_id),
+      authority_id: bigintIdOrNull(payload.authority_id),
       school_id: null,
       semel_mosad: null
     };
   }
-  let authority_id = uuidOrNull(payload.authority_id);
-  let school_id = uuidOrNull(payload.school_id);
-  let semel_mosad = cleanProposalAgreementText(payload.semel_mosad) || (!uuidOrNull(payload.school_id) ? cleanProposalAgreementText(payload.school_id) : null) || null;
+  let authority_id = bigintIdOrNull(payload.authority_id);
+  let school_id = bigintIdOrNull(payload.school_id);
+  let semel_mosad = bigintIdOrNull(payload.semel_mosad) || (!bigintIdOrNull(payload.school_id) ? bigintIdOrNull(payload.school_id) : null) || null;
   const schoolLookup = catalog?.schoolLookup || (await readAuthoritySchoolCatalog()).schoolLookup;
   const schoolMeta = resolveSchoolCatalogEntry(schoolLookup, {
     school_id,
@@ -3484,9 +3492,9 @@ async function resolveProposalSchoolCatalogIds(payload = {}, catalog = null) {
     authority: cleanProposalAgreementText(payload.client_authority || payload.authority_name || payload.authority)
   });
   if (schoolMeta) {
-    school_id = school_id || uuidOrNull(schoolMeta.id);
-    authority_id = authority_id || uuidOrNull(schoolMeta.authority_id);
-    semel_mosad = semel_mosad || schoolMeta.semel_mosad || null;
+    school_id = school_id || bigintIdOrNull(schoolMeta.id);
+    authority_id = authority_id || bigintIdOrNull(schoolMeta.authority_id);
+    semel_mosad = semel_mosad || bigintIdOrNull(schoolMeta.semel_mosad) || null;
   }
   return { authority_id, school_id, semel_mosad };
 }
@@ -3524,7 +3532,7 @@ async function ensureContactSchoolFromProposal(payload = {}) {
   if (!authority) return null;
   const resolvedSchool = await resolveProposalSchoolCatalogIds(payload);
   const clientType = cleanProposalAgreementText(orig.client_type) || cleanProposalAgreementText(payload.client_type) || (resolvedSchool.school_id || school ? 'school' : 'authority');
-  const clientName = cleanProposalAgreementText(orig.client_name) || (clientType === 'school' ? school : authority);
+  const clientName = cleanProposalAgreementText(orig.client_name) || cleanProposalAgreementText(payload.client_name) || (clientType === 'school' ? school : authority);
   const rpcArgs = {
     p_client_type:   clientType,
     p_client_name:   clientName || authority,
@@ -3538,9 +3546,12 @@ async function ensureContactSchoolFromProposal(payload = {}) {
     p_address:       null,
     p_notes:         cleanProposalAgreementText(payload.notes) || null
   };
-  if (uuidOrNull(resolvedSchool.school_id)) rpcArgs.p_school_id = uuidOrNull(resolvedSchool.school_id);
-  if (uuidOrNull(resolvedSchool.authority_id)) rpcArgs.p_authority_id = uuidOrNull(resolvedSchool.authority_id);
-  if (resolvedSchool.semel_mosad) rpcArgs.p_semel_mosad = resolvedSchool.semel_mosad;
+  const rpcSchoolId = bigintIdOrNull(resolvedSchool.school_id);
+  const rpcAuthorityId = bigintIdOrNull(resolvedSchool.authority_id);
+  const rpcSemelMosad = bigintIdOrNull(resolvedSchool.semel_mosad);
+  if (rpcSchoolId) rpcArgs.p_school_id = rpcSchoolId;
+  if (rpcAuthorityId) rpcArgs.p_authority_id = rpcAuthorityId;
+  if (rpcSemelMosad) rpcArgs.p_semel_mosad = rpcSemelMosad;
   const { data: contactSchoolId, error } = await supabase.rpc(
     'ensure_contact_school_from_proposal',
     rpcArgs
@@ -3550,8 +3561,8 @@ async function ensureContactSchoolFromProposal(payload = {}) {
 }
 
 async function resolveValidProposalContactSchoolId(value) {
-  const id = Number(value);
-  if (!Number.isInteger(id) || id <= 0) return null;
+  const id = bigintIdOrNull(value);
+  if (!id) return null;
   const { data, error } = await supabase
     .from('contacts_schools')
     .select('id')
@@ -6092,7 +6103,7 @@ export const api = {
     };
     const insert = sanitizeProposalAgreementPayload(enrichedPayload, groupLookup);
     if (cleanProposalAgreementText(enrichedPayload.contact_name) && cleanProposalAgreementText(enrichedPayload.client_authority)) {
-      insert.contact_school_id = await ensureValidProposalContactSchoolId({ ...insert, _contact_original: enrichedPayload?._contact_original });
+      insert.contact_school_id = await ensureValidProposalContactSchoolId({ ...enrichedPayload, ...insert, _contact_original: enrichedPayload?._contact_original });
     }
     const { data, error } = await supabase
       .from('proposals_agreements')
@@ -6123,7 +6134,7 @@ export const api = {
     const patch = sanitizeProposalAgreementPayload(enrichedPayload, groupLookup);
     patch.updated_at = new Date().toISOString();
     if (cleanProposalAgreementText(enrichedPayload.contact_name) && cleanProposalAgreementText(enrichedPayload.client_authority)) {
-      patch.contact_school_id = await ensureValidProposalContactSchoolId({ ...patch, _contact_original: enrichedPayload?._contact_original });
+      patch.contact_school_id = await ensureValidProposalContactSchoolId({ ...enrichedPayload, ...patch, _contact_original: enrichedPayload?._contact_original });
     }
     const { data, error } = await supabase
       .from('proposals_agreements')
