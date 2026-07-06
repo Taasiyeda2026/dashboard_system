@@ -2811,11 +2811,11 @@ function normalizeData(data) {
 
 const PROPOSALS_AGREEMENTS_ALLOWED_ROLES = new Set(['domain_manager', 'operation_manager', 'admin', 'business_development_manager']);
 const PROPOSALS_AGREEMENTS_MANAGE_ROLES = new Set(['domain_manager', 'operation_manager', 'admin']);
-const PROPOSALS_AGREEMENTS_COLUMNS = 'id,authority_id,school_id,contact_school_id,semel_mosad,client_authority,school_framework,document_type,activity_type_group,proposal_domain,proposal_date,activity_names,contact_name,contact_role,phone,email,contact_phone,contact_email,notes,status,approval_note,total_amount,custom_document_sections,include_catalog,signature_meta,approved_by,approved_at,sent_by,sent_at,locked_at,locked_by,locked_reason,final_pdf_path,final_pdf_file_name,final_pdf_created_at,final_pdf_created_by,document_snapshot,document_html_snapshot,created_at,updated_at';
+const PROPOSALS_AGREEMENTS_COLUMNS = 'id,authority_id,school_id,contact_school_id,client_authority,school_framework,document_type,activity_type_group,proposal_domain,proposal_date,activity_names,contact_name,contact_role,phone,email,contact_phone,contact_email,notes,status,approval_note,total_amount,custom_document_sections,include_catalog,signature_meta,approved_by,approved_at,sent_by,sent_at,locked_at,locked_by,locked_reason,final_pdf_path,final_pdf_file_name,final_pdf_created_at,final_pdf_created_by,document_snapshot,document_html_snapshot,created_at,updated_at';
 const PROPOSALS_AGREEMENTS_DIRECTORY_COLUMNS = 'id,authority_id,authority_code,school_id,contact_school_id,semel_mosad,authority_name,legacy_client_authority,contact_client_type,contact_client_name,school_name,legacy_school_framework,document_type,activity_type_group,proposal_domain,proposal_date,activity_names,contact_name,contact_role,phone,email,notes,status,approval_note,total_amount,custom_document_sections,include_catalog,signature_meta,approved_by,approved_at,sent_by,sent_at,locked_at,locked_by,locked_reason,final_pdf_path,final_pdf_file_name,final_pdf_created_at,final_pdf_created_by,document_snapshot,document_html_snapshot,created_at,updated_at';
 const PROPOSAL_FINAL_PDF_BUCKET = 'proposal-final-pdfs';
 const PROPOSALS_AGREEMENTS_WRITABLE_COLUMNS = new Set([
-  'authority_id', 'school_id', 'contact_school_id', 'semel_mosad', 'client_authority', 'school_framework',
+  'authority_id', 'school_id', 'contact_school_id', 'client_authority', 'school_framework',
   'document_type', 'activity_type_group', 'proposal_date', 'activity_names', 'contact_name',
   'contact_role', 'phone', 'email', 'contact_phone', 'contact_email', 'notes', 'status', 'approval_note', 'total_amount',
   'custom_document_sections', 'include_catalog', 'proposal_domain'
@@ -3403,7 +3403,6 @@ function sanitizeProposalAgreementPayload(payload = {}, groupLookup = proposalGr
     authority_id:        bigintIdOrNull(payload.authority_id),
     school_id:           clientType === 'school' ? bigintIdOrNull(payload.school_id) : null,
     contact_school_id:   bigintIdOrNull(payload.contact_school_id),
-    semel_mosad:         clientType === 'school' ? bigintIdOrNull(payload.semel_mosad) : null,
     client_authority:    clientAuthority,
     school_framework:    schoolFramework,
     document_type:       cleanProposalAgreementText(payload.document_type) || 'הצעת מחיר',
@@ -6229,7 +6228,16 @@ export const api = {
       .select(PROPOSALS_AGREEMENTS_COLUMNS)
       .eq('id', rowId)
       .single();
-    if (currentRowError || !currentRow) throw new Error('proposals_agreement_not_found');
+    if (currentRowError) {
+      console.error('[proposals_agreements] lockAndSendProposalAgreement fetch failed', {
+        code: currentRowError.code,
+        message: currentRowError.message,
+        details: currentRowError.details,
+        hint: currentRowError.hint
+      });
+      throw new Error('proposals_agreement_not_found');
+    }
+    if (!currentRow) throw new Error('proposals_agreement_not_found');
     const currentStatus = normalizeProposalAgreementStatusForDb(currentRow.status || 'draft');
     if (currentStatus === 'sent') throw new Error('הצעה שנשלחה נעולה ולא ניתן לשנות את סטטוסה.');
     if (cleanProposalAgreementText(currentRow.final_pdf_path)) throw new Error('כבר קיים PDF סופי להצעה זו.');
