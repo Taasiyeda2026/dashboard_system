@@ -1,5 +1,7 @@
 -- Add semel_mosad to proposals_agreements_directory_view
 -- Fixes: column proposals_agreements_directory_view.semel_mosad does not exist
+-- Note: proposals_agreements does NOT have semel_mosad.
+-- Source of truth for semel_mosad is schools / contacts_schools.
 
 DROP VIEW IF EXISTS public.proposals_agreements_directory_view CASCADE;
 
@@ -10,7 +12,7 @@ SELECT
   a.authority_code,
   pa.school_id,
   pa.contact_school_id,
-  COALESCE(pa.semel_mosad, s.semel_mosad, cs.semel_mosad) AS semel_mosad,
+  COALESCE(s.semel_mosad, cs.semel_mosad) AS semel_mosad,
   COALESCE(a.authority_name, cs.authority, pa.client_authority) AS authority_name,
   pa.client_authority AS legacy_client_authority,
   cs.client_type AS contact_client_type,
