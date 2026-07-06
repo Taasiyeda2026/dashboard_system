@@ -2214,6 +2214,33 @@ test('updateProposalAgreementStatus uses statusForDb before Supabase write', asy
   );
 });
 
+
+test('proposal agreement table writes do not request or persist semel_mosad', async () => {
+  const apiSource = await readFile(API_FILE, 'utf8');
+  const tableColumnsMatch = apiSource.match(/const PROPOSALS_AGREEMENTS_COLUMNS = '([^']+)'/);
+  const directoryColumnsMatch = apiSource.match(/const PROPOSALS_AGREEMENTS_DIRECTORY_COLUMNS = '([^']+)'/);
+  const writableColumnsMatch = apiSource.match(/const PROPOSALS_AGREEMENTS_WRITABLE_COLUMNS = new Set\(\[([\s\S]*?)\]\);/);
+  assert.ok(tableColumnsMatch, 'table columns constant should be defined');
+  assert.ok(directoryColumnsMatch, 'directory columns constant should be defined');
+  assert.ok(writableColumnsMatch, 'writable columns constant should be defined');
+
+  const tableColumns = tableColumnsMatch[1].split(',').map((column) => column.trim());
+  const directoryColumns = directoryColumnsMatch[1].split(',').map((column) => column.trim());
+  assert.ok(!tableColumns.includes('semel_mosad'), 'direct proposals_agreements selects must not request semel_mosad');
+  assert.ok(directoryColumns.includes('semel_mosad'), 'directory view selects should include semel_mosad');
+  assert.doesNotMatch(writableColumnsMatch[1], /['"]semel_mosad['"]/, 'direct writes must not include semel_mosad');
+  const sanitizeBody = apiSource.slice(
+    apiSource.indexOf('function sanitizeProposalAgreementPayload'),
+    apiSource.indexOf('function proposalContactMatches')
+  );
+  assert.doesNotMatch(
+    sanitizeBody,
+    /semel_mosad:/,
+    'sanitizeProposalAgreementPayload must not add semel_mosad to the DB row'
+  );
+  assert.match(apiSource, /if \(rpcSemelMosad\) rpcArgs\.p_semel_mosad = rpcSemelMosad;/, 'contact-school RPC may still receive semel_mosad');
+});
+
 test('proposal payload preserves numeric bigint business ids while approval uses only auth UUID', async () => {
   const { sanitizeProposalAgreementPayload, isValidUuid, uuidOrNull, bigintIdOrNull } = await import('../frontend/src/api.js');
   const { state } = await import('../frontend/src/state.js');
@@ -2239,7 +2266,7 @@ test('proposal payload preserves numeric bigint business ids while approval uses
     assert.equal(dbPayload.authority_id, 537);
     assert.equal(dbPayload.school_id, 537);
     assert.equal(dbPayload.contact_school_id, 537);
-    assert.equal(dbPayload.semel_mosad, 123456);
+    assert.equal(dbPayload.semel_mosad, undefined, 'semel_mosad is not written directly to proposals_agreements');
     assert.equal(dbPayload.id, undefined, 'proposal id remains outside the bigint sanitizer payload');
   } finally {
     state.user = previousUser;
@@ -4103,7 +4130,7 @@ test('exact timestamp proposal templates multiline migration matches stable SQL 
 });
 
 const STABLE_COMMIT = '2c772f835cc19da52fd76528c0b19f667f23de79';
-const STABLE_DIRECTORY_COLUMNS = 'id,authority_id,authority_code,school_id,contact_school_id,authority_name,legacy_client_authority,contact_client_type,contact_client_name,school_name,legacy_school_framework,document_type,activity_type_group,proposal_domain,proposal_date,activity_names,contact_name,contact_role,phone,email,notes,status,approval_note,total_amount,custom_document_sections,include_catalog,signature_meta,approved_by,approved_at,sent_by,sent_at,locked_at,locked_by,locked_reason,final_pdf_path,final_pdf_file_name,final_pdf_created_at,final_pdf_created_by,document_snapshot,document_html_snapshot,created_at,updated_at';
+const STABLE_DIRECTORY_COLUMNS = 'id,authority_id,authority_code,school_id,contact_school_id,semel_mosad,authority_name,legacy_client_authority,contact_client_type,contact_client_name,school_name,legacy_school_framework,document_type,activity_type_group,proposal_domain,proposal_date,activity_names,contact_name,contact_role,phone,email,notes,status,approval_note,total_amount,custom_document_sections,include_catalog,signature_meta,approved_by,approved_at,sent_by,sent_at,locked_at,locked_by,locked_reason,final_pdf_path,final_pdf_file_name,final_pdf_created_at,final_pdf_created_by,document_snapshot,document_html_snapshot,created_at,updated_at';
 
 test('rollback: proposals directory select fields match stable commit before emergency cleanup', async () => {
   const apiSource = await readFile(API_FILE, 'utf8');
