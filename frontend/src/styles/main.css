@@ -21157,3 +21157,163 @@ details[open] > .ds-fin-acc__summary::before { transform: rotate(90deg); }
     page-break-before: auto !important;
   }
 }
+
+/* ABSOLUTE FINAL PRINT OVERRIDE extension — tour proposals only (2026-07-06).
+   Keep this at the true end of main.css per docs/proposal-print-layout.md. */
+@media print {
+  .proposal-document.pa-document.pa-document--tour,
+  .proposal-document.pa-document.pa-proposal-doc--tour {
+    display: block !important;
+    padding-top: 0 !important;
+    padding-bottom: 0 !important;
+    min-height: auto !important;
+    height: auto !important;
+    max-height: none !important;
+    overflow: visible !important;
+    break-inside: auto !important;
+    page-break-inside: auto !important;
+  }
+
+  .proposal-document.pa-document.pa-document--tour .pa-proposal-body-footer-shell,
+  .proposal-document.pa-document.pa-proposal-doc--tour .pa-proposal-body-footer-shell {
+    display: block !important;
+    min-height: auto !important;
+    height: auto !important;
+    padding-bottom: 0 !important;
+    break-inside: auto !important;
+    page-break-inside: auto !important;
+  }
+
+  .proposal-document.pa-document.pa-document--tour .proposal-document-content,
+  .proposal-document.pa-document.pa-document--tour .proposal-document-body,
+  .proposal-document.pa-document.pa-proposal-doc--tour .proposal-document-content,
+  .proposal-document.pa-document.pa-proposal-doc--tour .proposal-document-body {
+    display: block !important;
+    padding-bottom: 0 !important;
+    min-height: auto !important;
+    height: auto !important;
+    break-inside: auto !important;
+    page-break-inside: auto !important;
+  }
+
+  .proposal-document.pa-document.pa-document--tour .pa-section,
+  .proposal-document.pa-document.pa-proposal-doc--tour .pa-section,
+  .proposal-document.pa-document.pa-document--tour .pa-cost-section,
+  .proposal-document.pa-document.pa-proposal-doc--tour .pa-cost-section,
+  .proposal-document.pa-document.pa-document--tour .pa-cost-table-block,
+  .proposal-document.pa-document.pa-proposal-doc--tour .pa-cost-table-block {
+    margin-top: 2mm !important;
+    margin-bottom: 2mm !important;
+    break-inside: auto !important;
+    page-break-inside: auto !important;
+  }
+
+  .proposal-document.pa-document.pa-document--tour .pa-section-heading,
+  .proposal-document.pa-document.pa-proposal-doc--tour .pa-section-heading,
+  .proposal-document.pa-document.pa-document--tour .pa-section h3,
+  .proposal-document.pa-document.pa-proposal-doc--tour .pa-section h3 {
+    margin-top: 0 !important;
+    margin-bottom: 1mm !important;
+    line-height: 1.15 !important;
+  }
+
+  .proposal-document.pa-document.pa-document--tour .pa-section p,
+  .proposal-document.pa-document.pa-proposal-doc--tour .pa-section p,
+  .proposal-document.pa-document.pa-document--tour .pa-section-body p,
+  .proposal-document.pa-document.pa-proposal-doc--tour .pa-section-body p {
+    margin-top: 0 !important;
+    margin-bottom: 1mm !important;
+    line-height: 1.2 !important;
+  }
+
+  .proposal-document.pa-document.pa-document--tour .pa-section ul,
+  .proposal-document.pa-document.pa-document--tour .pa-section ol,
+  .proposal-document.pa-document.pa-proposal-doc--tour .pa-section ul,
+  .proposal-document.pa-document.pa-proposal-doc--tour .pa-section ol {
+    margin-top: 0.8mm !important;
+    margin-bottom: 1.5mm !important;
+    padding-inline-start: 5mm !important;
+  }
+
+  .proposal-document.pa-document.pa-document--tour .pa-section li,
+  .proposal-document.pa-document.pa-proposal-doc--tour .pa-section li {
+    margin-bottom: 0.6mm !important;
+    line-height: 1.18 !important;
+  }
+
+  .proposal-document.pa-document.pa-document--tour .pa-tour-payment-block,
+  .proposal-document.pa-document.pa-proposal-doc--tour .pa-tour-payment-block {
+    margin-top: 1mm !important;
+    margin-bottom: 1.5mm !important;
+  }
+
+  .proposal-document.pa-document.pa-document--tour .pa-tour-cost-table,
+  .proposal-document.pa-document.pa-proposal-doc--tour .pa-tour-cost-table {
+    width: 60% !important;
+    max-width: 60% !important;
+    min-width: 0 !important;
+    margin-right: 0 !important;
+    margin-left: auto !important;
+    margin-top: 1mm !important;
+    margin-bottom: 1.5mm !important;
+    border-collapse: collapse !important;
+    table-layout: fixed !important;
+    direction: rtl !important;
+  }
+
+  .proposal-document.pa-document.pa-document--tour .pa-tour-cost-table th,
+  .proposal-document.pa-document.pa-document--tour .pa-tour-cost-table td,
+  .proposal-document.pa-document.pa-proposal-doc--tour .pa-tour-cost-table th,
+  .proposal-document.pa-document.pa-proposal-doc--tour .pa-tour-cost-table td {
+    padding-top: 2px !important;
+    padding-bottom: 2px !important;
+    line-height: 1.12 !important;
+    vertical-align: middle !important;
+  }
+
+  .proposal-document.pa-document.pa-document--tour .pa-tour-cost-table .pa-tour-col--price,
+  .proposal-document.pa-document.pa-document--tour .pa-tour-cost-table .pa-tour-col--total,
+  .proposal-document.pa-document.pa-proposal-doc--tour .pa-tour-cost-table .pa-tour-col--price,
+  .proposal-document.pa-document.pa-proposal-doc--tour .pa-tour-cost-table .pa-tour-col--total {
+    text-align: center !important;
+  }
+
+  .proposal-document.pa-document.pa-document--tour .pa-tour-cost-table tfoot td,
+  .proposal-document.pa-document.pa-proposal-doc--tour .pa-tour-cost-table tfoot td {
+    padding-top: 2px !important;
+    padding-bottom: 2px !important;
+    line-height: 1.12 !important;
+  }
+
+  .proposal-document.pa-document.pa-document--tour .pa-page-footer-area,
+  .proposal-document.pa-document.pa-proposal-doc--tour .pa-page-footer-area {
+    position: static !important;
+    display: block !important;
+    margin-top: 2mm !important;
+    padding-top: 0 !important;
+    break-before: auto !important;
+    page-break-before: auto !important;
+  }
+
+  .proposal-document.pa-document.pa-document--tour .pa-footer-signature,
+  .proposal-document.pa-document.pa-document--tour .pa-page-footer,
+  .proposal-document.pa-document.pa-proposal-doc--tour .pa-footer-signature,
+  .proposal-document.pa-document.pa-proposal-doc--tour .pa-page-footer {
+    position: static !important;
+    margin-top: 2mm !important;
+    padding-top: 0 !important;
+    break-before: auto !important;
+    page-break-before: auto !important;
+    break-inside: avoid !important;
+    page-break-inside: avoid !important;
+  }
+
+  .proposal-document.pa-document.pa-document--tour .pa-footer-signature .pa-signature-image,
+  .proposal-document.pa-document.pa-document--tour .pa-signature img,
+  .proposal-document.pa-document.pa-proposal-doc--tour .pa-footer-signature .pa-signature-image,
+  .proposal-document.pa-document.pa-proposal-doc--tour .pa-signature img {
+    max-height: 16mm !important;
+    width: auto !important;
+    object-fit: contain !important;
+  }
+}

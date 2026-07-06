@@ -2896,32 +2896,31 @@ function buildProposalDocumentHtml({ dateDisplay, documentTitle, row, introText,
         }
 
         .pa-proposal-doc--tour .pa-section {
-          margin-top: 3mm;
-          margin-bottom: 3mm;
+          margin-top: 2mm;
+          margin-bottom: 2mm;
         }
         .pa-proposal-doc--tour .pa-section-heading {
           margin-top: 0;
-          margin-bottom: 1.5mm;
-          line-height: 1.2;
+          margin-bottom: 1mm;
+          line-height: 1.15;
         }
         .pa-proposal-doc--tour .pa-section p {
           margin-top: 0;
-          margin-bottom: 1.5mm;
-          line-height: 1.25;
+          margin-bottom: 1mm;
+          line-height: 1.2;
         }
         .pa-proposal-doc--tour .pa-section ul,
         .pa-proposal-doc--tour .pa-section ol {
-          margin-top: 1mm;
-          margin-bottom: 2mm;
+          margin-top: 0.8mm;
+          margin-bottom: 1.5mm;
           padding-inline-start: 5mm;
         }
         .pa-proposal-doc--tour .pa-section li {
-          margin-bottom: 0.8mm;
-          line-height: 1.25;
+          margin-bottom: 0.6mm;
+          line-height: 1.18;
         }
         .pa-proposal-doc--tour .pa-cost-table,
-        .pa-proposal-doc--tour .pa-tour-cost-table,
-        .pa-proposal-doc--tour .ds-pa-print-tour-table {
+        .pa-proposal-doc--tour .pa-tour-cost-table {
           margin-top: 1.5mm;
           margin-bottom: 2mm;
           border-collapse: collapse;
@@ -2933,12 +2932,10 @@ function buildProposalDocumentHtml({ dateDisplay, documentTitle, row, introText,
         .pa-proposal-doc--tour .pa-cost-table th,
         .pa-proposal-doc--tour .pa-cost-table td,
         .pa-proposal-doc--tour .pa-tour-cost-table th,
-        .pa-proposal-doc--tour .pa-tour-cost-table td,
-        .pa-proposal-doc--tour .ds-pa-print-tour-table th,
-        .pa-proposal-doc--tour .ds-pa-print-tour-table td {
-          padding-top: 3px;
-          padding-bottom: 3px;
-          line-height: 1.15;
+        .pa-proposal-doc--tour .pa-tour-cost-table td {
+          padding-top: 2px;
+          padding-bottom: 2px;
+          line-height: 1.12;
         }
         .pa-proposal-doc--tour .pa-tour-cost-table {
           width: 60%;
@@ -2986,9 +2983,9 @@ function buildProposalDocumentHtml({ dateDisplay, documentTitle, row, introText,
           }
           .pa-proposal-doc--tour .pa-tour-cost-table th,
           .pa-proposal-doc--tour .pa-tour-cost-table td {
-            padding: 1mm 1.5mm !important;
+            padding: 2px 1.2mm !important;
             font-size: 8.5pt !important;
-            line-height: 1.15 !important;
+            line-height: 1.12 !important;
             white-space: normal !important;
             overflow: hidden !important;
             text-overflow: clip !important;
