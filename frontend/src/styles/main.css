@@ -21176,10 +21176,16 @@ details[open] > .ds-fin-acc__summary::before { transform: rotate(90deg); }
 
   .proposal-document.pa-document.pa-document--tour .pa-proposal-body-footer-shell,
   .proposal-document.pa-document.pa-proposal-doc--tour .pa-proposal-body-footer-shell {
+    /* Tour-only bottom alignment for real PDFs: keep the document itself in
+       normal block flow (no flex and no A4 min-height), but let the body/footer
+       shell occupy the remaining first-page area on short tour proposals. The
+       footer area is absolute inside this shell, not fixed to the page, so it
+       does not repeat or force the content onto page 2. */
     display: block !important;
-    min-height: auto !important;
+    position: relative !important;
+    min-height: calc(281mm - var(--pa-proposal-header-offset, 45mm)) !important;
     height: auto !important;
-    padding-bottom: 0 !important;
+    padding-bottom: 13mm !important;
     break-inside: auto !important;
     page-break-inside: auto !important;
   }
@@ -21287,9 +21293,13 @@ details[open] > .ds-fin-acc__summary::before { transform: rotate(90deg); }
 
   .proposal-document.pa-document.pa-document--tour .pa-page-footer-area,
   .proposal-document.pa-document.pa-proposal-doc--tour .pa-page-footer-area {
-    position: static !important;
+    position: absolute !important;
+    left: 0 !important;
+    right: 0 !important;
+    bottom: 0 !important;
     display: block !important;
-    margin-top: 2mm !important;
+    width: 100% !important;
+    margin-top: 0 !important;
     padding-top: 0 !important;
     break-before: auto !important;
     page-break-before: auto !important;
