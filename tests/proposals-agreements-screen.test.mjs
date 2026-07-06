@@ -2214,8 +2214,8 @@ test('updateProposalAgreementStatus uses statusForDb before Supabase write', asy
   );
 });
 
-test('proposal UUID fields reject numeric business ids and approval uses only auth UUID', async () => {
-  const { sanitizeProposalAgreementPayload, isValidUuid, uuidOrNull } = await import('../frontend/src/api.js');
+test('proposal payload preserves numeric bigint business ids while approval uses only auth UUID', async () => {
+  const { sanitizeProposalAgreementPayload, isValidUuid, uuidOrNull, bigintIdOrNull } = await import('../frontend/src/api.js');
   const { state } = await import('../frontend/src/state.js');
   const previousUser = state.user;
   state.user = { role: 'admin', user_id: '537', auth_user_id: '' };
@@ -2223,6 +2223,7 @@ test('proposal UUID fields reject numeric business ids and approval uses only au
   try {
     assert.equal(isValidUuid('537'), false);
     assert.equal(uuidOrNull('537'), null);
+    assert.equal(bigintIdOrNull('537'), 537);
     assert.equal(uuidOrNull('550e8400-e29b-41d4-a716-446655440000'), '550e8400-e29b-41d4-a716-446655440000');
     const dbPayload = sanitizeProposalAgreementPayload({
       client_authority: 'רשות בדיקה',
@@ -2232,11 +2233,14 @@ test('proposal UUID fields reject numeric business ids and approval uses only au
       authority_id: '537',
       school_id: '537',
       contact_school_id: '537',
+      semel_mosad: '123456',
       status: 'pending_approval'
     }, emptyLookup);
-    assert.equal(dbPayload.authority_id, null);
-    assert.equal(dbPayload.school_id, null);
-    assert.equal(dbPayload.contact_school_id, null);
+    assert.equal(dbPayload.authority_id, 537);
+    assert.equal(dbPayload.school_id, 537);
+    assert.equal(dbPayload.contact_school_id, 537);
+    assert.equal(dbPayload.semel_mosad, 123456);
+    assert.equal(dbPayload.id, undefined, 'proposal id remains outside the bigint sanitizer payload');
   } finally {
     state.user = previousUser;
   }
@@ -2249,6 +2253,27 @@ test('proposal UUID fields reject numeric business ids and approval uses only au
   assert.match(apiSource, /patch\.status = 'approved'/);
 });
 
+
+
+test('proposal client type inference honors explicit other before authority fallback', async () => {
+  const screenSource = await readFile(SCREEN_FILE, 'utf8');
+  assert.match(screenSource, /const explicitType = text\(row\.contact_client_type \|\| row\.client_type\)/);
+  assert.match(screenSource, /if \(explicitType === 'other'\) return 'other';[\s\S]*if \(text\(row\.authority_id\) && !text\(row\.school_id\)\) return 'authority';/);
+  const otherRow = {
+    ...sampleRows[0],
+    id: 'other-row',
+    contact_client_type: 'other',
+    authority_id: 537,
+    school_id: null,
+    school_framework: 'לקוח חברה'
+  };
+  const authorityRow = { ...sampleRows[0], id: 'auth-row', contact_client_type: 'authority', authority_id: 537, school_id: null };
+  const schoolRow = { ...sampleRows[0], id: 'school-row', contact_client_type: 'school', authority_id: 537, school_id: 42 };
+  const html = proposalsAgreementsScreen.render({ rows: [otherRow, authorityRow, schoolRow] }, { state: stateFor('admin') });
+  assert.match(html, /other-row/);
+  assert.match(html, /auth-row/);
+  assert.match(html, /school-row/);
+});
 
 test('multiple proposal item names are preserved on save', async () => {
   const savedPayloads = [];

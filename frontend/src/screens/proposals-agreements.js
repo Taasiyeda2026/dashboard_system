@@ -1240,9 +1240,12 @@ function catalogSchoolName(row = {}) {
 
 
 function inferProposalClientType(row = {}) {
+  const explicitType = text(row.contact_client_type || row.client_type);
+  if (explicitType === 'other') return 'other';
+  if (explicitType === 'authority') return 'authority';
+  if (explicitType === 'school') return 'school';
   if (text(row.school_id)) return 'school';
   if (text(row.authority_id) && !text(row.school_id)) return 'authority';
-  if (text(row.client_type) === 'other') return 'other';
   if (text(row.client_name) && !text(row.authority_id) && !text(row.school_id) && !text(row.client_authority)) return 'other';
   if (!text(row.authority_id) && !text(row.school_id) && !text(row.client_authority) && text(row.school_framework)) return 'other';
   return 'school';
