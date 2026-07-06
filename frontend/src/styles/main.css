@@ -21176,16 +21176,14 @@ details[open] > .ds-fin-acc__summary::before { transform: rotate(90deg); }
 
   .proposal-document.pa-document.pa-document--tour .pa-proposal-body-footer-shell,
   .proposal-document.pa-document.pa-proposal-doc--tour .pa-proposal-body-footer-shell {
-    /* Tour-only bottom alignment for real PDFs: keep the document itself in
-       normal block flow (no flex and no A4 min-height), but let the body/footer
-       shell occupy the remaining first-page area on short tour proposals. The
-       footer area is absolute inside this shell, not fixed to the page, so it
-       does not repeat or force the content onto page 2. */
+    /* Tour-only footer flow fix: keep the body/footer shell in regular
+       document flow. Do not use min-height, flex, fixed/absolute bottom
+       anchoring, or extra padding as a footer reservation. */
     display: block !important;
-    position: relative !important;
-    min-height: calc(281mm - var(--pa-proposal-header-offset, 45mm)) !important;
+    position: static !important;
+    min-height: auto !important;
     height: auto !important;
-    padding-bottom: 13mm !important;
+    padding-bottom: 0 !important;
     break-inside: auto !important;
     page-break-inside: auto !important;
   }
@@ -21208,8 +21206,8 @@ details[open] > .ds-fin-acc__summary::before { transform: rotate(90deg); }
   .proposal-document.pa-document.pa-proposal-doc--tour .pa-cost-section,
   .proposal-document.pa-document.pa-document--tour .pa-cost-table-block,
   .proposal-document.pa-document.pa-proposal-doc--tour .pa-cost-table-block {
-    margin-top: 2mm !important;
-    margin-bottom: 2mm !important;
+    margin-top: 1.4mm !important;
+    margin-bottom: 1.4mm !important;
     break-inside: auto !important;
     page-break-inside: auto !important;
   }
@@ -21249,8 +21247,8 @@ details[open] > .ds-fin-acc__summary::before { transform: rotate(90deg); }
 
   .proposal-document.pa-document.pa-document--tour .pa-tour-payment-block,
   .proposal-document.pa-document.pa-proposal-doc--tour .pa-tour-payment-block {
-    margin-top: 1mm !important;
-    margin-bottom: 1.5mm !important;
+    margin-top: 0.6mm !important;
+    margin-bottom: 0.8mm !important;
   }
 
   .proposal-document.pa-document.pa-document--tour .pa-tour-cost-table,
@@ -21260,8 +21258,8 @@ details[open] > .ds-fin-acc__summary::before { transform: rotate(90deg); }
     min-width: 0 !important;
     margin-right: 0 !important;
     margin-left: auto !important;
-    margin-top: 1mm !important;
-    margin-bottom: 1.5mm !important;
+    margin-top: 0.6mm !important;
+    margin-bottom: 0.8mm !important;
     border-collapse: collapse !important;
     table-layout: fixed !important;
     direction: rtl !important;
@@ -21293,13 +21291,10 @@ details[open] > .ds-fin-acc__summary::before { transform: rotate(90deg); }
 
   .proposal-document.pa-document.pa-document--tour .pa-page-footer-area,
   .proposal-document.pa-document.pa-proposal-doc--tour .pa-page-footer-area {
-    position: absolute !important;
-    left: 0 !important;
-    right: 0 !important;
-    bottom: 0 !important;
+    position: static !important;
     display: block !important;
     width: 100% !important;
-    margin-top: 0 !important;
+    margin-top: 1mm !important;
     padding-top: 0 !important;
     break-before: auto !important;
     page-break-before: auto !important;
@@ -21310,7 +21305,7 @@ details[open] > .ds-fin-acc__summary::before { transform: rotate(90deg); }
   .proposal-document.pa-document.pa-proposal-doc--tour .pa-footer-signature,
   .proposal-document.pa-document.pa-proposal-doc--tour .pa-page-footer {
     position: static !important;
-    margin-top: 2mm !important;
+    margin-top: 1mm !important;
     padding-top: 0 !important;
     break-before: auto !important;
     page-break-before: auto !important;
@@ -21322,7 +21317,8 @@ details[open] > .ds-fin-acc__summary::before { transform: rotate(90deg); }
   .proposal-document.pa-document.pa-document--tour .pa-signature img,
   .proposal-document.pa-document.pa-proposal-doc--tour .pa-footer-signature .pa-signature-image,
   .proposal-document.pa-document.pa-proposal-doc--tour .pa-signature img {
-    max-height: 16mm !important;
+    max-width: 234px !important;
+    max-height: 108px !important;
     width: auto !important;
     object-fit: contain !important;
   }
