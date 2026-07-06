@@ -344,7 +344,7 @@ export const instructorsScreen = {
         hasMore ? `<div style="display:flex;justify-content:center;padding:12px 0"><button type="button" class="ds-btn ds-btn--sm" data-list-show-more="${INSTRUCTORS_SCOPE}" data-next-count="${nextCount}">הצג עוד</button></div>` : ''
       }`;
 
-    const pageHeader = `<div class="instr-page-header" dir="rtl"><span class="instr-page-header__title">מדריכים משובצים החודש</span><span class="instr-page-header__count">${filtered.length} מדריכים</span></div>`;
+    const pageHeader = `<div class="instr-page-header" dir="rtl"><span class="instr-page-header__title">מדריכים משובצים</span><span class="instr-page-header__count">${filtered.length} מדריכים</span></div>`;
 
     return dsScreenStack(`
       <section class="instr-page ds-instructors-screen">
