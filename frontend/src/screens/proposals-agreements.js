@@ -1378,7 +1378,7 @@ function contactPickerHtml(contactOptions, authority, school, selectedContactNam
 const CONTACT_CHANNELS_HINT_MESSAGE = 'מומלץ להשלים מייל ונייד להמשך טיפול';
 
 function contactDisplayPhone(contact = {}) {
-  return text(contact?.mobile || contact?.phone || '');
+  return text(contact?.mobile || '');
 }
 
 function contactChannelsStatusHtml(hasEmail, hasMobile, fieldsOpen = false) {
@@ -2661,7 +2661,7 @@ function recipientBlockHtml(row = {}) {
   if (contactRole && contactRole !== contactName) contactParts.push(escapeHtml(contactRole));
   const contactLine = contactParts.length ? `<p>${contactParts.join(', ')}</p>` : '';
   const contactDetailParts = [];
-  if (phone) contactDetailParts.push(`טלפון: ${escapeHtml(phone)}`);
+  if (phone) contactDetailParts.push(`נייד: ${escapeHtml(phone)}`);
   if (email) contactDetailParts.push(`דוא״ל: ${escapeHtml(email)}`);
   const contactDetailsLine = contactDetailParts.length ? `<p class="pa-contact-details pa-print-hidden-contact-details">${contactDetailParts.join(' | ')}</p>` : '';
   const orgLines = proposalRecipientLines(row).map((line) => recipientLineHtml(line));
@@ -3032,12 +3032,6 @@ function buildProposalDocumentHtml({ dateDisplay, documentTitle, row, introText,
           ${signatureHtml}
         </div>
       </div>
-      <div class="pa-page-footer-area">
-        <div class="pa-page-footer-gap" aria-hidden="true"></div>
-        <div class="pa-page-footer">
-          <span>תעשיידע — תעשייה למען חינוך מתקדם (ע״ר) | <span dir="ltr">www.think.org.il</span></span>
-        </div>
-      </div>
       </div>
     </div>`;
 }
@@ -3297,7 +3291,7 @@ function defaultContactFromSchoolMeta(schoolMeta = {}) {
     id: '',
     contact_name: principalName,
     contact_role: 'מנהל/ת בית הספר',
-    phone: text(schoolMeta.mobile) || text(schoolMeta.phone || schoolMeta.school_phone || ''),
+    phone: text(schoolMeta.mobile),
     mobile: text(schoolMeta.mobile),
     email: text(schoolMeta.email)
   };
@@ -3309,7 +3303,7 @@ function schoolDetailsLines(contact = {}) {
     catalogAuthorityName(contact) ? ['רשות', catalogAuthorityName(contact)] : null,
     text(contact.semel_mosad) ? ['סמל מוסד', text(contact.semel_mosad)] : null,
     text(contact.principal_name || contact.contact_name) ? ['מנהל/ת', text(contact.principal_name || contact.contact_name)] : null,
-    text(contact.mobile || contact.school_phone || contact.phone) ? ['טלפון', text(contact.mobile || contact.school_phone || contact.phone)] : null,
+    text(contact.mobile) ? ['נייד', text(contact.mobile)] : null,
     text(contact.school_address || contact.address || contact.institution_address) ? ['כתובת', text(contact.school_address || contact.address || contact.institution_address)] : null,
     text(contact.city) ? ['עיר', text(contact.city)] : null
   ].filter(Boolean);
@@ -3341,7 +3335,7 @@ function enrichProposalRowFromContactOptions(row = {}, contactOptions = []) {
     school_id: row.school_id ?? schoolContact.school_id ?? null,
     semel_mosad: text(row.semel_mosad) || text(schoolContact.semel_mosad),
     principal_name: text(row.principal_name) || text(schoolContact.principal_name || schoolContact.contact_name),
-    school_phone: text(row.school_phone) || text(schoolContact.mobile || schoolContact.school_phone || schoolContact.phone),
+    school_phone: text(row.school_phone) || text(schoolContact.school_phone || schoolContact.phone),
     school_address: text(row.school_address) || text(schoolContact.school_address || schoolContact.address || schoolContact.institution_address),
     city: text(row.city) || text(schoolContact.city)
   };
@@ -3372,6 +3366,8 @@ function contactMatchesProposalRow(contact = {}, row = {}) {
   const schoolMatch = text(contact.school) === text(row.school_framework);
   const nameMatch = text(contact.contact_name) === text(row.contact_name);
   const emailMatch = text(contact.email) && text(contact.email) === text(row.email);
+  const idMatch = text(row.contact_school_id || row.contact_source_id) && text(row.contact_school_id || row.contact_source_id) === text(contact.id);
+  if (idMatch) return true;
   const phoneMatch = contactDisplayPhone(contact) && contactDisplayPhone(contact) === text(row.phone);
   // Name must match; email/phone/authority+school provide additional confirmation.
   // Never match solely by email or phone when names differ — prevents wrong-contact substitution.
@@ -3553,7 +3549,7 @@ function contactSourceInputsHtml(contact = {}) {
     <input type="hidden" name="contact_source_school" value="${escapeHtml(text(source.school))}">
     <input type="hidden" name="contact_source_name" value="${escapeHtml(text(source.contact_name))}">
     <input type="hidden" name="contact_source_role" value="${escapeHtml(text(source.contact_role))}">
-    <input type="hidden" name="contact_source_phone" value="${escapeHtml(text(source.mobile || source.phone || ''))}">
+    <input type="hidden" name="contact_source_phone" value="${escapeHtml(text(source.mobile || ''))}">
     <input type="hidden" name="contact_source_mobile" value="${escapeHtml(text(source.mobile))}">
     <input type="hidden" name="contact_source_email" value="${escapeHtml(text(source.email))}">
     <input type="hidden" name="contact_source_table" value="${escapeHtml(text(source.source_table))}">`;
@@ -4158,7 +4154,7 @@ function payloadFromForm(form) {
     payload._school_required = schoolRequired === 'no' ? 'no' : 'yes';
     const isAuthorityOnlyPayload = payload.client_type === 'authority' || payload.client_type === 'other';
     payload.school_id = isAuthorityOnlyPayload ? null : (text(formData.get('contact_source_school_id')) || null);
-    payload.contact_school_id = isAuthorityOnlyPayload ? null : (text(formData.get('contact_source_id')) || null);
+    payload.contact_school_id = text(formData.get('contact_source_id')) || null;
   }
   payload._contact_selection_mode = text(formData.get('contact_selection_mode'));
   payload._contact_original = {
@@ -4552,20 +4548,22 @@ export const proposalsAgreementsScreen = {
     const rowWithCentralContact = (row) => {
       if (!row) return row;
       const enriched = enrichProposalRowFromContactOptions(row, contactOptions);
-      // The contact saved on the proposal is the source of truth — never override it.
-      if (text(enriched.contact_name)) return enriched;
       const contact = findContactForProposalRow(contactOptions, enriched);
       if (!contact) return enriched;
+      const savedContactName = text(enriched.contact_name);
+      // Live-display enrichment only: keep saved proposal fields as source of truth,
+      // and fill only missing mobile/email from the selected contact. Never fall back
+      // to a landline phone.
       return {
         ...enriched,
         client_name:      text(contact.client_name) || enriched.client_name || text(contact.school) || text(contact.authority),
         client_type:      text(contact.client_type) || enriched.client_type,
         client_authority: text(contact.authority) || enriched.client_authority,
         school_framework: text(contact.school) || enriched.school_framework,
-        contact_name:     text(contact.contact_name) || enriched.contact_name,
-        contact_role:     text(contact.contact_role) || enriched.contact_role,
-        phone:            contactDisplayPhone(contact) || enriched.phone,
-        email:            text(contact.email) || enriched.email
+        contact_name:     savedContactName || text(contact.contact_name),
+        contact_role:     text(enriched.contact_role) || text(contact.contact_role),
+        phone:            text(enriched.phone) || contactDisplayPhone(contact),
+        email:            text(enriched.email) || text(contact.email)
       };
     };
     let debounceTimer = null;
@@ -4890,9 +4888,8 @@ export const proposalsAgreementsScreen = {
       const map = {
         contact_name: text(contact.contact_name),
         contact_role: text(contact.contact_role),
-        // Mobile is the central channel for follow-up; keep an existing landline
-        // as a fallback only, never drop it from the source record.
-        phone:        text(contact.mobile || contact.phone || ''),
+        // The proposal phone field stores business mobile only; never fall back to a landline.
+        phone:        text(contact.mobile || ''),
         email:        text(contact.email || '')
       };
       for (const [name, value] of Object.entries(map)) {
@@ -5027,7 +5024,7 @@ export const proposalsAgreementsScreen = {
           fillContactFields(form, contact);
           setContactSource(form, contact);
           setAddContactRowState(form, { visible: false, showNoContactNote: false });
-          lockClientFields(form, text(contact.authority), text(contact.school), text(contact.contact_name), text(contact.contact_role), contactDisplayPhone(contact), text(contact.email || ''), text(contact.client_name) || text(contact.school) || text(contact.authority), contact);
+          lockClientFields(form, text(contact.authority), text(contact.school), text(contact.contact_name), text(contact.contact_role), text(contact.mobile || ''), text(contact.email || ''), text(contact.client_name) || text(contact.school) || text(contact.authority), contact);
           if (form) setTimeout(() => calcGrandTotal(form), 0);
         }
       }, { signal });

@@ -21323,3 +21323,62 @@ details[open] > .ds-fin-acc__summary::before { transform: rotate(90deg); }
     object-fit: contain !important;
   }
 }
+
+/* ABSOLUTE FINAL PRINT OVERRIDE extension — remove proposal footers entirely (2026-07-06).
+   Proposal documents no longer render a footer. These rules neutralize any stale
+   snapshots/preview markup without reserving footer space. Keep document flow natural. */
+.proposal-document .pa-page-footer-area,
+.proposal-document .pa-page-footer-gap,
+.proposal-document .pa-page-footer {
+  display: none !important;
+  height: 0 !important;
+  min-height: 0 !important;
+  max-height: 0 !important;
+  margin: 0 !important;
+  padding: 0 !important;
+  border: 0 !important;
+  overflow: hidden !important;
+}
+
+.proposal-document .pa-proposal-body-footer-shell,
+.proposal-document.pa-document .pa-proposal-body-footer-shell {
+  display: block !important;
+  position: static !important;
+  min-height: 0 !important;
+  height: auto !important;
+  max-height: none !important;
+  padding-bottom: 0 !important;
+  break-inside: auto !important;
+  page-break-inside: auto !important;
+}
+
+@media print {
+  .proposal-document .pa-page-footer-area,
+  .proposal-document .pa-page-footer-gap,
+  .proposal-document .pa-page-footer,
+  .proposal-document.pa-document .pa-page-footer-area,
+  .proposal-document.pa-document .pa-page-footer-gap,
+  .proposal-document.pa-document .pa-page-footer {
+    display: none !important;
+    height: 0 !important;
+    min-height: 0 !important;
+    max-height: 0 !important;
+    margin: 0 !important;
+    padding: 0 !important;
+    border: 0 !important;
+    overflow: hidden !important;
+    position: static !important;
+  }
+
+  .proposal-document .pa-proposal-body-footer-shell,
+  .proposal-document.pa-document .pa-proposal-body-footer-shell {
+    display: block !important;
+    position: static !important;
+    min-height: 0 !important;
+    height: auto !important;
+    max-height: none !important;
+    padding-bottom: 0 !important;
+    break-inside: auto !important;
+    page-break-inside: auto !important;
+  }
+}
