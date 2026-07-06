@@ -80,6 +80,29 @@ function mediumItems() {
   }));
 }
 
+
+function tourItems(componentCount = 4) {
+  const components = Array.from({ length: componentCount }, (_, index) => {
+    const unit = 350 + index * 90;
+    const quantity = index % 2 === 0 ? 1 : 2;
+    return {
+      component_type: index === 0 ? 'class' : `component_${index + 1}`,
+      label: index === 0 ? 'כיתה / קבוצה' : `רכיב סיור ${index + 1}`,
+      unit_price: unit,
+      quantity,
+      total_price: unit * quantity
+    };
+  });
+  const total = components.reduce((sum, c) => sum + c.total_price, 0);
+  return [{
+    item_name: 'התנסות בתעשייה – סיור לימודי חווייתי',
+    proposal_group: 'tour',
+    item_type: 'סיור',
+    details: { kind: 'tour_table_v2', cost_components: components, total_price: total },
+    total_price: total
+  }];
+}
+
 function longItems() {
   return Array.from({ length: 28 }, (_, index) => ({
     item_name: `פעילות ארוכה מספר ${index + 1} עם תיאור נוסף`,
@@ -134,7 +157,13 @@ async function analyzeFixture(playwright, html, outPath) {
         footerTopMm,
         footerBottomMm,
         footerFromPageBottomMm,
-        pageCountEstimate
+        pageCountEstimate,
+        hasTourHook: Boolean(document.querySelector('.pa-document--tour')),
+        hasTourTable: Boolean(document.querySelector('.pa-tour-cost-table')),
+        tourTableMarginRight: document.querySelector('.pa-tour-cost-table') ? getComputedStyle(document.querySelector('.pa-tour-cost-table')).marginRight : '',
+        tourTableMarginLeft: document.querySelector('.pa-tour-cost-table') ? getComputedStyle(document.querySelector('.pa-tour-cost-table')).marginLeft : '',
+        tourPriceAlign: document.querySelector('.pa-tour-col--price') ? getComputedStyle(document.querySelector('.pa-tour-col--price')).textAlign : '',
+        tourTotalAlign: document.querySelector('.pa-tour-col--total') ? getComputedStyle(document.querySelector('.pa-tour-col--total')).textAlign : ''
       };
     }, PRINTABLE_HEIGHT_MM);
 
@@ -174,7 +203,10 @@ async function main() {
     { name: 'short', row: makeRow(), items: shortItems() },
     { name: 'short-next-year', row: makeRow({ activity_type_group: 'שנת הלימודים תשפ״ז' }), items: shortItems().map((item) => ({ ...item, proposal_group: 'שנת הלימודים תשפ״ז' })) },
     { name: 'medium', row: makeRow(), items: mediumItems() },
-    { name: 'long', row: makeRow(), items: longItems() }
+    { name: 'long', row: makeRow(), items: longItems() },
+    { name: 'tour-short', row: makeRow({ activity_type_group: 'tour' }), items: tourItems(3) },
+    { name: 'tour-borderline', row: makeRow({ activity_type_group: 'סיור לימודי חווייתי' }), items: tourItems(10) },
+    { name: 'tour-long', row: makeRow({ activity_type_group: 'התנסות בתעשייה – סיור לימודי חווייתי' }), items: tourItems(24) }
   ];
 
   const results = [];
@@ -227,6 +259,24 @@ async function main() {
     if (result.fixture === 'long' && result.pdfPageCount < 2) {
       console.error('  FAIL: long proposal should break to at least 2 pages');
       failed = true;
+    }
+    if (result.fixture.startsWith('tour-')) {
+      if (!result.hasTourHook || !result.hasTourTable) {
+        console.error('  FAIL: tour fixture must render the tour document hook and pa-tour-cost-table');
+        failed = true;
+      }
+      if (result.tourPriceAlign !== 'center' || result.tourTotalAlign !== 'center') {
+        console.error(`  FAIL: tour price/total columns must be centered (price=${result.tourPriceAlign}, total=${result.tourTotalAlign})`);
+        failed = true;
+      }
+      if (result.fixture === 'tour-short' && result.pdfPageCount !== 1) {
+        console.error(`  FAIL: short tour proposal should stay on one page (got ${result.pdfPageCount})`);
+        failed = true;
+      }
+      if (result.fixture === 'tour-long' && result.pdfPageCount < 2) {
+        console.error('  FAIL: long tour proposal should break to at least 2 pages');
+        failed = true;
+      }
     }
   }
 
