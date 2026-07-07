@@ -28,6 +28,7 @@ function phoneHref(phone) {
 export function summerContactsModalHtml(rows) {
   const contacts = normalizeSummerContactRows(rows);
   if (!contacts.length) return `<p class="instr-summer-contacts-empty">לא נמצאו אנשי קשר להצגה</p>`;
+  const colgroup = SUMMER_CONTACT_COLS.map(([key]) => `<col class="instr-summer-contact-${key.replace(/_/g, '-')}">`).join('');
   const head = SUMMER_CONTACT_COLS.map(([key, label]) => `<th class="instr-summer-contact-${key.replace(/_/g, '-')}">${escapeHtml(label)}</th>`).join('');
   const body = contacts.map((row) => {
     const cells = SUMMER_CONTACT_COLS.map(([key]) => {
@@ -39,7 +40,7 @@ export function summerContactsModalHtml(rows) {
     }).join('');
     return `<tr>${cells}</tr>`;
   }).join('');
-  return `<div class="instr-summer-contacts-wrap"><table class="ds-table instr-summer-contacts-table"><thead><tr>${head}</tr></thead><tbody>${body}</tbody></table></div>`;
+  return `<div class="instr-summer-contacts-wrap"><table class="ds-table instr-summer-contacts-table"><colgroup>${colgroup}</colgroup><thead><tr>${head}</tr></thead><tbody>${body}</tbody></table></div>`;
 }
 
 export function renderSummerContactsButton(extraAttributes = '') {
