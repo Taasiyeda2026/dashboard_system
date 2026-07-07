@@ -205,6 +205,7 @@ function ensureOpsState(state = {}) {
   if (!ops.completionApproval.subtab) ops.completionApproval.subtab = 'approvals';
   if (!ops.completionApproval.printInstructor) ops.completionApproval.printInstructor = '';
   if (!ops.completionApproval.approvalType) ops.completionApproval.approvalType = '';
+  if (!ops.completionApproval.approvalStatus) ops.completionApproval.approvalStatus = '';
   ops.sorts = ops.sorts || {};
   Object.entries(SORT_DEFAULTS).forEach(([tab, sort]) => {
     if (!ops.sorts[tab]) ops.sorts[tab] = { ...sort };
@@ -1376,7 +1377,7 @@ function opsManagementStylesHtml() {
     .ds-ops-mgmt-screen .ds-ops-authorities-table th,.ds-ops-mgmt-screen .ds-ops-authorities-table td { padding-top:0.25rem; padding-bottom:0.25rem; padding-inline:0.35rem; }
     .ds-ops-mgmt-screen .ds-ops-completion-panel { display:flex; justify-content:center; width:100%; }
     .ds-ops-mgmt-screen .ds-ops-completion-workspace { width:min(100%,1280px); max-width:100%; margin-inline:auto; display:flex; flex-direction:column; gap:8px; align-items:stretch; box-sizing:border-box; padding-inline:12px; }
-    .ds-ops-mgmt-screen .ds-ops-completion-control-card { width:100%; box-sizing:border-box; display:flex; flex-direction:column; align-items:flex-start; gap:6px; padding:8px 14px 8px; border:1px solid #d8e5ee; border-radius:14px; background:#f8fbfd; box-shadow:0 1px 2px rgba(15,23,42,0.04); }
+    .ds-ops-mgmt-screen .ds-ops-completion-control-card { width:100%; box-sizing:border-box; display:flex; flex-direction:column; align-items:flex-start; gap:8px; padding:10px 14px 12px; border:1px solid #d8e5ee; border-radius:14px; background:#f8fbfd; box-shadow:0 1px 2px rgba(15,23,42,0.04); }
     .ds-ops-mgmt-screen .ds-ops-completion-title-bar { display:flex; flex-direction:row; align-items:center; gap:10px; flex-wrap:nowrap; width:100%; min-width:0; }
     .ds-ops-mgmt-screen .ds-ops-completion-summary { position:relative; flex:0 0 auto; text-align:right; color:#0f172a; }
     .ds-ops-mgmt-screen .ds-ops-completion-summary__title { appearance:none; border:0; background:transparent; color:#0f172a; margin:0; padding:0 0 1px; font:inherit; font-size:17px; line-height:1.25; font-weight:800; cursor:pointer; border-bottom:1px dashed transparent; white-space:nowrap; }
@@ -1386,12 +1387,18 @@ function opsManagementStylesHtml() {
     .ds-ops-mgmt-screen .ds-ops-completion-summary-popover p { margin:0; }
     .ds-ops-mgmt-screen .ds-ops-completion-summary-popover p + p { margin-top:4px; }
     .ds-ops-mgmt-screen .ds-ops-completion-control-row { display:flex; flex-wrap:wrap; align-items:center; justify-content:flex-start; gap:6px; width:100%; }
+    .ds-ops-mgmt-screen .ds-ops-completion-toolbar-stack { display:flex; flex-direction:column; gap:8px; width:100%; min-width:0; }
+    .ds-ops-mgmt-screen .ds-ops-completion-toolbar-section { display:flex; flex-direction:column; gap:5px; width:100%; min-width:0; }
+    .ds-ops-mgmt-screen .ds-ops-completion-toolbar-label { display:block; color:#64748b; font-size:11px; font-weight:800; line-height:1.2; }
+    .ds-ops-mgmt-screen .ds-ops-completion-filter-toolbar { display:grid; grid-template-columns:repeat(auto-fit, minmax(140px, max-content)); align-items:end; gap:8px; width:100%; min-width:0; }
+    .ds-ops-mgmt-screen .ds-ops-completion-actions-toolbar { display:grid; grid-template-columns:repeat(auto-fit, minmax(140px, max-content)); align-items:center; justify-content:flex-start; gap:8px; width:100%; padding-top:8px; border-top:1px solid #e2e8f0; }
     .ds-ops-mgmt-screen .ds-ops-completion-control-row label,
     .ds-ops-mgmt-screen .ds-ops-approval-print-filter { display:flex; flex-wrap:nowrap; align-items:center; justify-content:flex-start; gap:6px; margin:0; font-weight:700; color:#334155; }
-    .ds-ops-mgmt-screen .ds-ops-completion-date-filter input[type="date"] { width:140px; min-width:130px; }
-    .ds-ops-mgmt-screen .ds-ops-approval-print-filter select { width:130px; min-width:110px; max-width:160px; }
-    .ds-ops-mgmt-screen .ds-ops-completion-control-row .ds-btn { flex:0 0 auto; width:auto; min-width:0; white-space:nowrap; }
-    .ds-ops-mgmt-screen .ds-ops-completion-filter-toolbar { flex:1 1 auto; flex-wrap:nowrap; min-width:0; }
+    .ds-ops-mgmt-screen .ds-ops-completion-date-filter input[type="date"] { width:156px; min-width:150px; }
+    .ds-ops-mgmt-screen .ds-ops-approval-print-filter select { width:100%; min-width:140px; max-width:220px; }
+    .ds-ops-mgmt-screen .ds-ops-completion-control-row .ds-btn,
+    .ds-ops-mgmt-screen .ds-ops-completion-actions-toolbar .ds-btn { flex:0 0 auto; width:auto; min-width:0; white-space:nowrap; }
+    .ds-ops-mgmt-screen .ds-ops-completion-actions-toolbar .ds-btn { justify-content:center; min-height:32px; padding-inline:12px; }
     .ds-ops-mgmt-screen .ds-ops-completion-selected-date { width:100%; margin:0; padding:8px 10px; border:1px solid #dbeafe; border-radius:10px; background:#eff6ff; color:#1e3a8a; font-size:13px; line-height:1.45; text-align:right; }
     .ds-ops-mgmt-screen .ds-ops-completion-subtabs { display:flex; flex-wrap:wrap; justify-content:flex-start; gap:6px; width:100%; padding-top:4px; border-top:1px solid #e2e8f0; }
     .ds-ops-mgmt-screen .ds-ops-completion-subtabs .ds-btn { border-radius:999px; }
@@ -1467,13 +1474,20 @@ function opsManagementStylesHtml() {
       .ds-ops-mgmt-screen .ds-ops-completion-workspace { width:100%; }
       .ds-ops-mgmt-screen .ds-ops-completion-control-card { padding:8px 10px; }
       .ds-ops-mgmt-screen .ds-ops-completion-title-bar { flex-wrap:wrap; }
-      .ds-ops-mgmt-screen .ds-ops-completion-filter-toolbar { flex:1 1 100%; flex-wrap:wrap; }
+      .ds-ops-mgmt-screen .ds-ops-completion-filter-toolbar { grid-template-columns:repeat(2, minmax(0, 1fr)); }
+      .ds-ops-mgmt-screen .ds-ops-completion-actions-toolbar { grid-template-columns:repeat(2, minmax(0, 1fr)); justify-content:stretch; }
       .ds-ops-mgmt-screen .ds-ops-completion-control-row { align-items:stretch; }
       .ds-ops-mgmt-screen .ds-ops-completion-control-row label,
       .ds-ops-mgmt-screen .ds-ops-approval-print-filter { width:100%; align-items:flex-start; }
       .ds-ops-mgmt-screen .ds-ops-completion-date-filter input[type="date"],
-      .ds-ops-mgmt-screen .ds-ops-approval-print-filter select { width:min(100%, 220px); }
+      .ds-ops-mgmt-screen .ds-ops-approval-print-filter select,
+      .ds-ops-mgmt-screen .ds-ops-completion-filter-toolbar .ds-btn,
+      .ds-ops-mgmt-screen .ds-ops-completion-actions-toolbar .ds-btn { width:100%; min-width:0; max-width:100%; }
       .ds-ops-mgmt-screen .ds-ops-completion-approvals-card .ds-table-wrap { overflow-x:auto; }
+    }
+    @media (max-width: 460px) {
+      .ds-ops-mgmt-screen .ds-ops-completion-filter-toolbar,
+      .ds-ops-mgmt-screen .ds-ops-completion-actions-toolbar { grid-template-columns:1fr; }
     }
     @media print {
       .ds-ops-mgmt-screen .ds-ops-schools-authority:not(:first-child) { break-before:page; page-break-before:always; }
@@ -2509,10 +2523,12 @@ function completionApprovalTabHtml(rows, state, data = {}, directory = buildScho
   const selectedPrintInstructor = String(approvalState.printInstructor || '').trim();
   const selectedAuthority = String(approvalState.selectedAuthority || '').trim();
   const selectedApprovalType = String(approvalState.approvalType || '').trim();
+  const selectedApprovalStatus = String(approvalState.approvalStatus || '').trim();
   const dateFilteredItems = selectedDate ? allItems.filter((item) => String(item.approval?.date || '').slice(0, 10) === selectedDate) : allItems;
   const authorityFilteredItems = selectedAuthority ? dateFilteredItems.filter((item) => (item.approval?.authority || '') === selectedAuthority) : dateFilteredItems;
   const typeFilteredItems = selectedApprovalType ? authorityFilteredItems.filter((item) => (selectedApprovalType === 'tamir' ? !!(item.approval?.isTamirTeamApproval || item.approval?.isTamirActivity) : !(item.approval?.isTamirTeamApproval || item.approval?.isTamirActivity))) : authorityFilteredItems;
-  const items = selectedPrintInstructor ? typeFilteredItems.filter((item) => item.approval?.instructorName === selectedPrintInstructor) : typeFilteredItems;
+  const statusFilteredItems = selectedApprovalStatus ? typeFilteredItems.filter((item) => completionApprovalStatusInfo(item.upload).key === selectedApprovalStatus) : typeFilteredItems;
+  const items = selectedPrintInstructor ? statusFilteredItems.filter((item) => item.approval?.instructorName === selectedPrintInstructor) : statusFilteredItems;
   const effectiveTodayIso = todayIso < COMPLETION_APPROVAL_SUMMER_FROM ? '' : (todayIso > COMPLETION_APPROVAL_SUMMER_TO ? COMPLETION_APPROVAL_SUMMER_TO : todayIso);
   const throughTodayItems = effectiveTodayIso ? allItems.filter((item) => String(item.approval?.date || '').slice(0, 10) <= effectiveTodayIso) : [];
   const selectedDateItems = selectedDate ? dateFilteredItems : [];
@@ -2521,6 +2537,7 @@ function completionApprovalTabHtml(rows, state, data = {}, directory = buildScho
   const dateFilterHtml = `<label class="ds-ops-completion-date-filter"><input class="ds-input ds-input--sm" type="date" min="${COMPLETION_APPROVAL_SUMMER_FROM}" max="${COMPLETION_APPROVAL_SUMMER_TO}" value="${escapeHtml(selectedDate)}" data-ops-completion-date-filter></label><button type="button" class="ds-btn ds-btn--sm ds-btn--ghost" data-ops-completion-date-clear>כל התאריכים</button>`;
   const authorityOptions = [...new Set(allItems.map((item) => item.approval?.authority || '').filter(Boolean))].sort((a, b) => a.localeCompare(b, 'he'));
   const authoritySelectHtml = `<label class="ds-ops-approval-print-filter"><select class="ds-input ds-input--sm" aria-label="סינון רשות" data-ops-completion-authority-filter><option value="">כל הרשויות</option>${authorityOptions.map((a) => `<option value="${escapeHtml(a)}"${selectedAuthority === a ? ' selected' : ''}>${escapeHtml(a)}</option>`).join('')}</select></label>`;
+  const statusSelectHtml = `<label class="ds-ops-approval-print-filter"><select class="ds-input ds-input--sm" aria-label="סינון סטטוס אישור" data-ops-completion-status-filter><option value=""${selectedApprovalStatus === '' ? ' selected' : ''}>כל הסטטוסים</option><option value="missing"${selectedApprovalStatus === 'missing' ? ' selected' : ''}>טרם הועלה</option><option value="uploaded"${selectedApprovalStatus === 'uploaded' ? ' selected' : ''}>הועלה לבדיקה</option><option value="approved"${selectedApprovalStatus === 'approved' ? ' selected' : ''}>אושר</option><option value="rejected"${selectedApprovalStatus === 'rejected' ? ' selected' : ''}>נדחה</option></select></label>`;
   const typeSelectHtml = `<label class="ds-ops-approval-print-filter"><select class="ds-input ds-input--sm" aria-label="סינון סוג אישור" data-ops-completion-type-filter><option value=""${selectedApprovalType === '' ? ' selected' : ''}>כל האישורים</option><option value="regular"${selectedApprovalType === 'regular' ? ' selected' : ''}>רגילים</option><option value="tamir"${selectedApprovalType === 'tamir' ? ' selected' : ''}>תמיר</option></select></label>`;
   const activeSubtab = approvalState.subtab === 'contacts' ? 'contacts' : 'approvals';
   const printInstructorOptions = completionApprovalPrintInstructorOptions(approvals);
@@ -2534,7 +2551,7 @@ function completionApprovalTabHtml(rows, state, data = {}, directory = buildScho
   </div>`;
   const titleBar = `<div class="ds-ops-completion-title-bar no-print" dir="rtl">
     <header class="ds-ops-completion-summary"><button type="button" class="ds-ops-completion-summary__title" aria-haspopup="dialog" aria-expanded="${approvalState.summaryOpen ? 'true' : 'false'}" data-ops-completion-summary-toggle>אישורי ביצוע</button>${summaryPopoverHtml}</header>
-    ${activeSubtab === 'approvals' ? `<div class="ds-ops-completion-control-row ds-ops-completion-filter-toolbar ds-ops-approval-print-toolbar">${dateFilterHtml}${authoritySelectHtml}${typeSelectHtml}${printInstructorSelect}<button type="button" class="ds-btn ds-btn--sm ds-btn--ghost" data-ops-completion-clear-filters title="ניקוי סינונים">✕ ניקוי</button><button type="button" class="ds-btn ds-btn--sm ds-btn--primary ds-ops-approval-print-btn" data-ops-approval-print-all>הדפסה</button>${downloadBtnHtml}</div>` : ''}
+    ${activeSubtab === 'approvals' ? `<div class="ds-ops-completion-toolbar-stack"><section class="ds-ops-completion-toolbar-section" aria-label="סינון אישורי ביצוע"><span class="ds-ops-completion-toolbar-label">סינונים</span><div class="ds-ops-completion-filter-toolbar ds-ops-approval-print-toolbar">${dateFilterHtml}${statusSelectHtml}${typeSelectHtml}${authoritySelectHtml}${printInstructorSelect}<button type="button" class="ds-btn ds-btn--sm ds-btn--ghost" data-ops-completion-clear-filters title="ניקוי סינונים">✕ ניקוי</button></div></section><section class="ds-ops-completion-toolbar-section" aria-label="פעולות אישורי ביצוע"><span class="ds-ops-completion-toolbar-label">פעולות</span><div class="ds-ops-completion-actions-toolbar"><button type="button" class="ds-btn ds-btn--sm ds-btn--primary ds-ops-approval-print-btn" data-ops-approval-print-all>הדפסה</button>${downloadBtnHtml}</div></section></div>` : ''}
     ${subtabsHtml}
   </div>`;
   const contactContextMap = buildContactContextMap(summerRows, data?.contactResponsiblesRows || []);
@@ -2724,10 +2741,15 @@ export const operationsManagementScreen = {
       ops.completionApproval.selectedAuthority = '';
       ops.completionApproval.printInstructor = '';
       ops.completionApproval.approvalType = '';
+      ops.completionApproval.approvalStatus = '';
       rerender?.();
     });
     root.querySelector('[data-ops-completion-type-filter]')?.addEventListener('change', (ev) => {
       ops.completionApproval.approvalType = ev.target.value || '';
+      rerender?.();
+    });
+    root.querySelector('[data-ops-completion-status-filter]')?.addEventListener('change', (ev) => {
+      ops.completionApproval.approvalStatus = ev.target.value || '';
       rerender?.();
     });
 
