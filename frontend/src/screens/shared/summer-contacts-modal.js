@@ -28,7 +28,7 @@ function phoneHref(phone) {
 export function summerContactsModalHtml(rows) {
   const contacts = normalizeSummerContactRows(rows);
   if (!contacts.length) return `<p class="instr-summer-contacts-empty">לא נמצאו אנשי קשר להצגה</p>`;
-  const head = SUMMER_CONTACT_COLS.map(([, label]) => `<th>${escapeHtml(label)}</th>`).join('');
+  const head = SUMMER_CONTACT_COLS.map(([key, label]) => `<th class="instr-summer-contact-${key.replace(/_/g, '-')}">${escapeHtml(label)}</th>`).join('');
   const body = contacts.map((row) => {
     const cells = SUMMER_CONTACT_COLS.map(([key]) => {
       const value = row[key] || '—';
