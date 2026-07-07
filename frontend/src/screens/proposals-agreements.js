@@ -3366,7 +3366,12 @@ function contactMatchesProposalRow(contact = {}, row = {}) {
   const schoolMatch = text(contact.school) === text(row.school_framework);
   const nameMatch = text(contact.contact_name) === text(row.contact_name);
   const emailMatch = text(contact.email) && text(contact.email) === text(row.email);
-  const idMatch = text(row.contact_school_id || row.contact_source_id) && text(row.contact_school_id || row.contact_source_id) === text(contact.id);
+  // contact_school_id is a contacts_schools.id and must only ever be matched against a contact
+  // sourced from contacts_schools. Ids are not unique across tables (e.g. contacts_schools.id 404
+  // and schools.id 404 can be unrelated clients), so matching by numeric id alone without checking
+  // source_table can silently substitute the wrong authority/school.
+  const contactSourceId = text(row.contact_school_id || row.contact_source_id);
+  const idMatch = Boolean(contactSourceId && text(contact.id) && text(contact.source_table) === 'contacts_schools' && contactSourceId === text(contact.id));
   if (idMatch) return true;
   const phoneMatch = contactDisplayPhone(contact) && contactDisplayPhone(contact) === text(row.phone);
   // Name must match; email/phone/authority+school provide additional confirmation.
@@ -4551,19 +4556,17 @@ export const proposalsAgreementsScreen = {
       const contact = findContactForProposalRow(contactOptions, enriched);
       if (!contact) return enriched;
       const savedContactName = text(enriched.contact_name);
-      // Live-display enrichment only: keep saved proposal fields as source of truth,
-      // and fill only missing mobile/email from the selected contact. Never fall back
-      // to a landline phone.
+      // Live-display enrichment only: client_authority, school_framework, client_name, client_type,
+      // authority_id, school_id and contact_school_id are the saved proposal's own identity fields —
+      // they are the single source of truth for table/drawer/preview/print and must never be replaced
+      // by a matched contact. Only missing contact channels are filled in here, and phone is only
+      // ever taken from mobile (never a landline).
       return {
         ...enriched,
-        client_name:      text(contact.client_name) || enriched.client_name || text(contact.school) || text(contact.authority),
-        client_type:      text(contact.client_type) || enriched.client_type,
-        client_authority: text(contact.authority) || enriched.client_authority,
-        school_framework: text(contact.school) || enriched.school_framework,
-        contact_name:     savedContactName || text(contact.contact_name),
-        contact_role:     text(enriched.contact_role) || text(contact.contact_role),
-        phone:            text(enriched.phone) || contactDisplayPhone(contact),
-        email:            text(enriched.email) || text(contact.email)
+        contact_name: savedContactName || text(contact.contact_name),
+        contact_role: text(enriched.contact_role) || text(contact.contact_role),
+        phone:        text(enriched.phone) || contactDisplayPhone(contact),
+        email:        text(enriched.email) || text(contact.email)
       };
     };
     let debounceTimer = null;

@@ -3104,6 +3104,249 @@ test('proposal preview preserves saved contact details and does not override wit
   });
 });
 
+// ─── Authority/school display-consistency regression suite ─────────────────
+// contacts_schools.id and schools.id are independent numeric sequences that can collide by
+// coincidence (e.g. id 404 exists in both tables for unrelated clients). contact_school_id must
+// only ever be resolved against contacts_schools, and enrichment must never replace the saved
+// proposal's own client_authority/school_framework/client_name/client_type/authority_id/school_id.
+test('table, drawer and print/preview all show the proposal\'s own client_authority/school_framework even when contact_school_id collides with a different schools.id record', async () => {
+  const row = {
+    id: 'row-404-collision',
+    client_authority: 'חורה',
+    school_framework: 'עמל עהד חורה למצוינות',
+    contact_school_id: '404',
+    document_type: 'הצעת מחיר',
+    activity_type_group: 'פעילויות קיץ',
+    status: 'draft',
+    contact_name: '',
+    contact_role: '',
+    phone: '',
+    email: '',
+    notes: ''
+  };
+  // Deliberately ordered so the wrong (schools-sourced) record with the colliding id comes first —
+  // a plain id lookup (Array.find) must not pick it just because it appears earlier in the list.
+  const contactOptions = [
+    {
+      id: '404',
+      source_table: 'schools',
+      authority: 'ג\'דיידה-מכר',
+      school: 'מקיף גדידה',
+      contact_name: 'מנהל גדידה',
+      contact_role: 'מנהל/ת',
+      phone: '',
+      mobile: '03-9999999',
+      email: 'jadeida@example.com'
+    },
+    {
+      id: '404',
+      source_table: 'contacts_schools',
+      authority: 'חורה',
+      school: 'עמל עהד חורה למצוינות',
+      contact_name: 'מנהל חורה',
+      contact_role: 'מנהל/ת',
+      phone: '',
+      mobile: '050-4040404',
+      email: 'hura@example.com'
+    }
+  ];
+
+  const initialHtml = proposalsAgreementsScreen.render({ rows: [row] }, { state: stateFor('admin') });
+  const tableBody = initialHtml.match(/<tbody data-pa-table-body>[\s\S]*?<\/tbody>/)?.[0] || '';
+  assert.match(tableBody, /עמל עהד חורה למצוינות/, 'table must show the proposal\'s own school');
+  assert.doesNotMatch(tableBody, /ג'דיידה|גדידה/, 'table must never show the colliding schools.id record');
+
+  await withJSDOM(initialHtml, async (root, dom) => {
+    proposalsAgreementsScreen.bind({
+      root,
+      data: { rows: [row], contactOptions },
+      state: stateFor('admin'),
+      api: { readProposalAgreementItems: async () => [] }
+    });
+
+    // Side panel (drawer)
+    root.querySelector(`[data-pa-row-id="${row.id}"]`)?.dispatchEvent(new dom.window.MouseEvent('click', { bubbles: true }));
+    await delay(20);
+    const drawer = root.querySelector('[data-pa-drawer]');
+    assert.match(drawer.innerHTML, /חורה/);
+    assert.match(drawer.innerHTML, /עמל עהד חורה למצוינות/);
+    assert.doesNotMatch(drawer.innerHTML, /ג'דיידה|גדידה/, 'drawer must never show the colliding schools.id record');
+    // Missing contact channels are filled only from the correctly matched contacts_schools record.
+    assert.match(drawer.innerHTML, /מנהל חורה/);
+    assert.match(drawer.innerHTML, /050-4040404/);
+    assert.doesNotMatch(drawer.innerHTML, /מנהל גדידה|03-9999999|jadeida@example\.com/);
+
+    // Preview (identical row must flow through unchanged)
+    root.querySelector(`[data-pa-preview="${row.id}"]`)?.dispatchEvent(new dom.window.MouseEvent('click', { bubbles: true }));
+    await delay(20);
+    const address = dom.window.document.querySelector('.pa-doc-address');
+    assert.ok(address, 'preview recipient block should render');
+    assert.match(address.textContent, /חורה/);
+    assert.match(address.textContent, /עמל עהד חורה למצוינות/);
+    assert.doesNotMatch(address.textContent, /ג'דיידה|גדידה/, 'preview must never show the colliding schools.id record');
+  });
+});
+
+test('print preview uses the same recipient row as the table/drawer despite a colliding contact_school_id', async () => {
+  const row = {
+    ...sampleRows[0],
+    id: 'row-404-print',
+    status: 'approved',
+    client_authority: 'חורה',
+    school_framework: 'עמל עהד חורה למצוינות',
+    contact_school_id: '404',
+    approved_by: 'מנהל',
+    approved_at: '2026-07-01T00:00:00.000Z',
+    signature_meta: { signature: { image: '/img/sig.png' } }
+  };
+  const contactOptions = [
+    { id: '404', source_table: 'schools', authority: 'ג\'דיידה-מכר', school: 'מקיף גדידה', contact_name: 'מנהל גדידה', mobile: '03-9999999', email: 'jadeida@example.com' },
+    { id: '404', source_table: 'contacts_schools', authority: 'חורה', school: 'עמל עהד חורה למצוינות', contact_name: 'מנהל חורה', mobile: '050-4040404', email: 'hura@example.com' }
+  ];
+
+  // jsdom does not put requestAnimationFrame on the global scope; openPreview's autoPrint branch
+  // calls the bare identifier, so stub it for the duration of this test only (print fires ~150ms
+  // after that callback, well past our short delay below, so window.print() itself is never reached).
+  const savedRAF = globalThis.requestAnimationFrame;
+  globalThis.requestAnimationFrame = (cb) => setTimeout(cb, 0);
+  try {
+    await withJSDOM(proposalsAgreementsScreen.render({ rows: [row] }, { state: stateFor('admin') }), async (root, dom) => {
+      proposalsAgreementsScreen.bind({
+        root,
+        data: { rows: [row], contactOptions },
+        state: stateFor('admin'),
+        api: { readProposalAgreementItems: async () => [] }
+      });
+      // print shares openPreview() with the preview button (only differing by an auto window.print()
+      // fired ~150ms later), so asserting on the same overlay here proves print and preview never diverge.
+      root.querySelector(`[data-pa-print="${row.id}"]`)?.dispatchEvent(new dom.window.MouseEvent('click', { bubbles: true }));
+      await delay(20);
+      const address = dom.window.document.querySelector('.pa-doc-address');
+      assert.ok(address, 'print preview recipient block should render');
+      assert.match(address.textContent, /חורה/);
+      assert.match(address.textContent, /עמל עהד חורה למצוינות/);
+      assert.doesNotMatch(address.textContent, /ג'דיידה|גדידה/, 'print must never show the colliding schools.id record');
+    });
+  } finally {
+    globalThis.requestAnimationFrame = savedRAF;
+  }
+});
+
+test('contact enrichment fills only missing mobile/email and never replaces an existing recipient', async () => {
+  const row = {
+    ...sampleRows[0],
+    contact_school_id: '9001',
+    contact_name: 'קשר קיים',
+    contact_role: 'תפקיד קיים',
+    phone: '',
+    email: ''
+  };
+  const contactOptions = [{
+    id: '9001',
+    source_table: 'contacts_schools',
+    authority: row.client_authority,
+    school: row.school_framework,
+    contact_name: 'קשר אחר לגמרי',
+    contact_role: 'תפקיד אחר',
+    phone: '03-1234567',
+    mobile: '052-7654321',
+    email: 'new@example.com'
+  }];
+
+  await withJSDOM(proposalsAgreementsScreen.render({ rows: [row] }, { state: stateFor('admin') }), async (root, dom) => {
+    proposalsAgreementsScreen.bind({
+      root,
+      data: { rows: [row], contactOptions },
+      state: stateFor('admin'),
+      api: { readProposalAgreementItems: async () => [] }
+    });
+    root.querySelector(`[data-pa-row-id="${row.id}"]`)?.dispatchEvent(new dom.window.MouseEvent('click', { bubbles: true }));
+    await delay(20);
+    const drawer = root.querySelector('[data-pa-drawer]');
+    // The saved recipient must never be swapped for a differently-named contact.
+    assert.match(drawer.innerHTML, /קשר קיים/);
+    assert.match(drawer.innerHTML, /תפקיד קיים/);
+    assert.doesNotMatch(drawer.innerHTML, /קשר אחר לגמרי|תפקיד אחר/);
+    // Missing channels are filled in, and phone only ever comes from mobile — never the landline.
+    assert.match(drawer.innerHTML, /052-7654321/);
+    assert.match(drawer.innerHTML, /new@example\.com/);
+    assert.doesNotMatch(drawer.innerHTML, /03-1234567/);
+  });
+});
+
+test('contact_school_id never matches a contact record with an unclear or missing source_table', async () => {
+  const row = {
+    ...sampleRows[0],
+    contact_school_id: '777',
+    contact_name: '',
+    contact_role: '',
+    phone: '',
+    email: ''
+  };
+  const ambiguousContact = {
+    id: '777',
+    // source_table intentionally omitted: identity cannot be confirmed, so this must never be
+    // treated as a contacts_schools match just because the numeric id happens to line up.
+    authority: 'רשות אחרת',
+    school: 'בית ספר אחר',
+    contact_name: 'לא אמור להיטען',
+    mobile: '050-0000000',
+    email: 'ambiguous@example.com'
+  };
+
+  await withJSDOM(proposalsAgreementsScreen.render({ rows: [row] }, { state: stateFor('admin') }), async (root, dom) => {
+    proposalsAgreementsScreen.bind({
+      root,
+      data: { rows: [row], contactOptions: [ambiguousContact] },
+      state: stateFor('admin'),
+      api: { readProposalAgreementItems: async () => [] }
+    });
+    root.querySelector(`[data-pa-row-id="${row.id}"]`)?.dispatchEvent(new dom.window.MouseEvent('click', { bubbles: true }));
+    await delay(20);
+    const drawer = root.querySelector('[data-pa-drawer]');
+    assert.doesNotMatch(drawer.innerHTML, /לא אמור להיטען|ambiguous@example\.com|050-0000000/);
+    assert.match(drawer.innerHTML, new RegExp(row.client_authority));
+  });
+});
+
+test('sent proposal with a saved final PDF opens the existing file and never rebuilds a live preview or print', async () => {
+  const sentRow = {
+    ...sampleRows[0],
+    status: 'sent',
+    final_pdf_path: 'proposal-final-pdfs/existing-file.pdf',
+    final_pdf_file_name: 'proposal.pdf',
+    sent_by: 'מנהל מערכת',
+    sent_at: '2026-07-01T00:00:00.000Z'
+  };
+  let requestedIds = [];
+  const api = {
+    readProposalAgreementItems: async () => [],
+    getProposalFinalPdfSignedUrl: async (id) => { requestedIds.push(id); return { signedUrl: 'https://example.com/signed.pdf' }; }
+  };
+
+  // Manager role renders the dedicated "view sent PDF" quick action.
+  await withJSDOM(proposalsAgreementsScreen.render({ rows: [sentRow] }, { state: stateFor('admin') }), async (root, dom) => {
+    dom.window.open = () => {};
+    proposalsAgreementsScreen.bind({ root, data: { rows: [sentRow] }, state: stateFor('admin'), api });
+    root.querySelector(`[data-pa-view-final-pdf="${sentRow.id}"]`)?.dispatchEvent(new dom.window.MouseEvent('click', { bubbles: true }));
+    await delay(20);
+    assert.deepEqual(requestedIds, [sentRow.id], 'view action should fetch the saved final PDF by id');
+    assert.equal(dom.window.document.getElementById('pa-preview-overlay'), null, 'no live preview should be built for a locked sent proposal');
+  });
+
+  // Non-manager viewer role falls back to the generic preview button, which must still redirect to
+  // the saved final PDF instead of rebuilding (and thereby changing) a live document.
+  requestedIds = [];
+  await withJSDOM(proposalsAgreementsScreen.render({ rows: [sentRow] }, { state: stateFor('business_development_manager') }), async (root, dom) => {
+    dom.window.open = () => {};
+    proposalsAgreementsScreen.bind({ root, data: { rows: [sentRow] }, state: stateFor('business_development_manager'), api });
+    root.querySelector(`[data-pa-preview="${sentRow.id}"]`)?.dispatchEvent(new dom.window.MouseEvent('click', { bubbles: true }));
+    await delay(20);
+    assert.deepEqual(requestedIds, [sentRow.id], 'preview action must redirect to the saved final PDF for a locked sent proposal');
+    assert.equal(dom.window.document.getElementById('pa-preview-overlay'), null, 'no live preview should be rebuilt once the proposal is sent with a saved PDF');
+  });
+});
+
 test('approved proposal has no edit document button', async () => {
   const row = { ...sampleRows[0], status: 'approved' };
   await withJSDOM(proposalsAgreementsScreen.render({ rows: [row] }, { state: stateFor('admin') }), async (root, dom) => {

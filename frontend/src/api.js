@@ -2981,8 +2981,13 @@ function normalizeProposalAgreementRow(row = {}) {
   const parsedNotes = parseActivityNamesFromNotes(row.notes);
   const PA_VALID_STATUSES = new Set(['draft', 'sent', 'pending_approval', 'returned_for_changes', 'approved', 'cancelled']);
   let rawStatus = cleanProposalAgreementText(row.status);
-  const authorityName = cleanProposalAgreementText(row.client_authority || row.authority_name || row.legacy_client_authority || row.authority);
-  const schoolFramework = cleanProposalAgreementText(row.school_framework || row.school_name || row.contact_client_name || row.legacy_school_framework || row.school);
+  // proposals_agreements_directory_view exposes both the raw saved values (client_authority direct
+  // on base-table reads, legacy_client_authority/legacy_school_framework on the view) and catalog-joined
+  // convenience columns (authority_name/school_name, coalesced from authorities/contacts_schools/schools).
+  // The saved proposal row is always the source of truth, so raw/legacy fields must be checked first —
+  // otherwise a stale or coincidentally-colliding catalog join could override the proposal's own client.
+  const authorityName = cleanProposalAgreementText(row.client_authority || row.legacy_client_authority || row.authority_name || row.authority);
+  const schoolFramework = cleanProposalAgreementText(row.school_framework || row.legacy_school_framework || row.school_name || row.contact_client_name || row.school);
   const normalized = {
     id:                  cleanProposalAgreementText(row.id),
     client_type:         cleanProposalAgreementText(row.contact_client_type) || (row.school_id ? 'school' : 'authority'),
