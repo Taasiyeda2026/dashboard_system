@@ -1,26 +1,22 @@
 import { escapeHtml } from './html.js';
 
 const SUMMER_CONTACT_COLS = [
-  ['external_key', 'מספר ייחודי'],
-  ['authority', 'רשות'],
   ['school', 'שם בית ספר'],
   ['contact_name', 'איש קשר'],
   ['contact_phone', 'טלפון'],
   ['school_address', 'כתובת בית הספר'],
-  ['city_or_authority', 'רשות / עיר']
+  ['authority', 'רשות']
 ];
 
 export function normalizeSummerContactRows(rows) {
   return (Array.isArray(rows) ? rows : [])
     .filter((row) => row && typeof row === 'object')
     .map((row) => ({
-      external_key: String(row.external_key || '').trim(),
-      authority: String(row.authority || '').trim(),
       school: String(row.school || '').trim(),
       contact_name: String(row.contact_name || '').trim(),
       contact_phone: String(row.contact_phone || '').trim(),
       school_address: String(row.school_address || '').trim(),
-      city_or_authority: String(row.city_or_authority || '').trim()
+      authority: String(row.authority || row.city_or_authority || '').trim()
     }));
 }
 
