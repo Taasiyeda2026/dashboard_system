@@ -5083,3 +5083,93 @@ test('lock-and-send API treats an existing final_pdf_path as ready to send', asy
   assert.doesNotMatch(lockBlock, /כבר קיים PDF סופי להצעה זו\.'/,
     'API should not block sending approved proposals that already have a final PDF');
 });
+
+test('mark as sent with an existing final PDF calls lock/send without reopening upload UI', async () => {
+  const approvedRow = {
+    ...sampleRows[0],
+    status: 'approved',
+    approved_at: '2026-06-16T10:30:00.000Z',
+    signature_meta: { signature: { image: 'proposals/signature-idan-nahum.png' } },
+    final_pdf_path: 'proposals/existing/sent.pdf',
+    final_pdf_file_name: 'sent.pdf'
+  };
+  const managerState = stateFor('operation_manager');
+  managerState.user.manage_proposals_agreements = true;
+  const data = { rows: [approvedRow], activityNameOptions: [] };
+  let payloadSeen = null;
+
+  await withJSDOM(
+    proposalsAgreementsScreen.render(data, { state: managerState }),
+    async (root, dom) => {
+      proposalsAgreementsScreen.bind({
+        root,
+        data,
+        state: managerState,
+        api: {
+          readProposalAgreementItems: async () => [],
+          lockAndSendProposalAgreement: async (id, payload) => {
+            payloadSeen = { id, payload };
+            return { ok: true, row: { ...approvedRow, status: 'sent', locked_at: '2026-07-07T10:00:00.000Z' } };
+          }
+        }
+      });
+
+      root.querySelector('[data-pa-status-action="sent"]')?.dispatchEvent(new dom.window.MouseEvent('click', { bubbles: true }));
+      await delay(30);
+
+      assert.equal(root.ownerDocument.getElementById('pa-send-dialog-overlay'), null, 'existing final PDF must not open upload dialog');
+      assert.equal(payloadSeen?.id, approvedRow.id);
+      assert.equal(Object.hasOwn(payloadSeen?.payload || {}, 'pdfFile'), false, 'existing final PDF should send without a new pdfFile');
+      assert.equal(data.rows[0].status, 'sent');
+    }
+  );
+});
+
+test('mark as sent without final PDF uploads once and closes the upload UI', async () => {
+  const approvedRow = {
+    ...sampleRows[0],
+    status: 'approved',
+    approved_at: '2026-06-16T10:30:00.000Z',
+    signature_meta: { signature: { image: 'proposals/signature-idan-nahum.png' } },
+    final_pdf_path: ''
+  };
+  const managerState = stateFor('operation_manager');
+  managerState.user.manage_proposals_agreements = true;
+  const data = { rows: [approvedRow], activityNameOptions: [] };
+  let uploadCalls = 0;
+
+  await withJSDOM(
+    proposalsAgreementsScreen.render(data, { state: managerState }),
+    async (root, dom) => {
+      proposalsAgreementsScreen.bind({
+        root,
+        data,
+        state: managerState,
+        api: {
+          readProposalAgreementItems: async () => [],
+          lockAndSendProposalAgreement: async (id, payload) => {
+            uploadCalls += 1;
+            assert.equal(id, approvedRow.id);
+            assert.equal(payload.pdfFile?.name, 'final.pdf');
+            return { ok: true, row: { ...approvedRow, status: 'sent', final_pdf_path: 'proposals/new/final.pdf' } };
+          }
+        }
+      });
+
+      root.querySelector('[data-pa-status-action="sent"]')?.dispatchEvent(new dom.window.MouseEvent('click', { bubbles: true }));
+      await delay(30);
+      const overlay = root.ownerDocument.getElementById('pa-send-dialog-overlay');
+      assert.ok(overlay, 'missing final PDF should open upload dialog');
+
+      const input = overlay.querySelector('#pa-send-pdf-input');
+      const pdf = new dom.window.File(['%PDF-1.4'], 'final.pdf', { type: 'application/pdf' });
+      Object.defineProperty(input, 'files', { value: [pdf], configurable: true });
+      overlay.querySelector('#pa-send-dialog-confirm')?.dispatchEvent(new dom.window.MouseEvent('click', { bubbles: true }));
+      await delay(30);
+
+      assert.equal(uploadCalls, 1, 'successful send should upload exactly once');
+      assert.equal(root.ownerDocument.getElementById('pa-send-dialog-overlay'), null, 'dialog should close after successful upload/send');
+      assert.equal(data.rows[0].status, 'sent');
+    }
+  );
+});
