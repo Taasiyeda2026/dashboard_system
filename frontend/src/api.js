@@ -5646,7 +5646,7 @@ export const api = {
     const contactsIndex = buildContactsSchoolsIndex(contactsSchoolsRows);
     const schoolsIndex = buildSchoolsCatalogContactIndex(schoolsRows);
     const rows = enrichRowsWithSchoolContact(openRows.filter((row) => isInstructorAssignedRow(row, idsSet)), contactsIndex, schoolsIndex, summerPrintContactsIndex);
-    return { rows, teamGroups: buildInstructorTeamGroups(openRows, rows, contactResponsibles), _source: 'supabase' };
+    return { rows, teamGroups: buildInstructorTeamGroups(openRows, rows, contactResponsibles), summerContacts: summerPrintContactRows, contactRows: summerPrintContactRows, _source: 'supabase' };
   },
 
 

@@ -7,6 +7,16 @@ import { activityDetailHtml, assignedToCurrentInstructor, bindActivityDetailActi
 const VISIBLE_COLS = ['completion_approval_status', 'start_date', 'activity_hours', 'school', 'grade', 'activity_name'];
 const COL_LABELS = { start_date: 'תאריך', activity_hours: 'שעות', school: 'בית ספר', grade: 'שכבה', activity_name: 'שם פעילות', completion_approval_status: 'סטטוס' };
 
+const SUMMER_CONTACT_COLS = [
+  ['external_key', 'מספר ייחודי'],
+  ['authority', 'רשות'],
+  ['school', 'שם בית ספר'],
+  ['contact_name', 'איש קשר'],
+  ['contact_phone', 'טלפון'],
+  ['school_address', 'כתובת בית הספר'],
+  ['city_or_authority', 'רשות / עיר']
+];
+
 function cellValue(row, column) {
   if (column === 'activity_hours') {
     const start = formatTimeShort(row?.start_time || row?.StartTime || '');
@@ -27,6 +37,42 @@ function buildSearchHaystack(row) {
     row?.school || '', row?.authority || '', row?.grade || '',
     row?.activity_name || '', row?.activity_type || ''
   ].join(' ');
+}
+
+function normalizeSummerContactRows(rows) {
+  return (Array.isArray(rows) ? rows : [])
+    .filter((row) => row && typeof row === 'object')
+    .map((row) => ({
+      external_key: String(row.external_key || '').trim(),
+      authority: String(row.authority || '').trim(),
+      school: String(row.school || '').trim(),
+      contact_name: String(row.contact_name || '').trim(),
+      contact_phone: String(row.contact_phone || '').trim(),
+      school_address: String(row.school_address || '').trim(),
+      city_or_authority: String(row.city_or_authority || '').trim()
+    }));
+}
+
+function phoneHref(phone) {
+  const cleaned = String(phone || '').replace(/[^0-9+]/g, '');
+  return cleaned ? `tel:${cleaned}` : '';
+}
+
+function summerContactsModalHtml(rows) {
+  const contacts = normalizeSummerContactRows(rows);
+  if (!contacts.length) return `<p class="instr-summer-contacts-empty">לא נמצאו אנשי קשר להצגה</p>`;
+  const head = SUMMER_CONTACT_COLS.map(([, label]) => `<th>${escapeHtml(label)}</th>`).join('');
+  const body = contacts.map((row) => {
+    const cells = SUMMER_CONTACT_COLS.map(([key]) => {
+      const value = row[key] || '—';
+      if (key === 'contact_phone' && row.contact_phone) {
+        return `<td class="instr-summer-contact-phone"><a href="${escapeHtml(phoneHref(row.contact_phone))}" dir="ltr">${escapeHtml(row.contact_phone)}</a></td>`;
+      }
+      return `<td class="instr-summer-contact-${key.replace(/_/g, '-')}">${escapeHtml(value)}</td>`;
+    }).join('');
+    return `<tr>${cells}</tr>`;
+  }).join('');
+  return `<div class="instr-summer-contacts-wrap"><table class="ds-table instr-summer-contacts-table"><thead><tr>${head}</tr></thead><tbody>${body}</tbody></table></div>`;
 }
 
 function sortActivitiesChronologically(rows) {
@@ -76,7 +122,7 @@ export const myDataScreen = {
       api.completionApprovalUploads().catch(() => ({ rows: [] })),
       api.photoApprovalUploads ? api.photoApprovalUploads().catch(() => ({ rows: [] })) : Promise.resolve({ rows: [] })
     ]);
-    return { rows: myData?.rows || [], teamGroups: myData?.teamGroups || [], uploads: uploads?.rows || [], photoUploads: photoUploads?.rows || [] };
+    return { rows: myData?.rows || [], teamGroups: myData?.teamGroups || [], summerContacts: myData?.summerContacts || myData?.contactRows || [], uploads: uploads?.rows || [], photoUploads: photoUploads?.rows || [] };
   },
   render(data, { state } = {}) {
     const userEmpId = String(state?.user?.emp_id || state?.user?.employee_id || '').trim();
@@ -110,6 +156,9 @@ export const myDataScreen = {
     return dsScreenStack(`
       <section class="instructor-area instructor-area--table">
         ${dsPageHeader('הפעילויות שלי', 'כל הפעילויות שמשויכות אליך')}
+        <div class="instr-my-data-actions">
+          <button type="button" class="ds-btn instr-summer-contacts-btn" data-summer-contacts-open>אנשי קשר</button>
+        </div>
         <div class="instr-filter-bar">
           <input class="ds-input instr-filter-search" data-instr-search placeholder="חיפוש לפי בית ספר / פעילות / רשות">
           <input class="ds-input instr-filter-date" type="date" data-instr-date aria-label="תאריך פעילות">
@@ -131,6 +180,25 @@ export const myDataScreen = {
     `);
   },
   bind({ root, data, ui, state, api }) {
+    let summerContacts = normalizeSummerContactRows(data?.summerContacts || data?.contactRows || []);
+    const openSummerContacts = async () => {
+      if (!ui) return;
+      if (!summerContacts.length && api?.instructorSchedulePrintContacts) {
+        try {
+          const payload = await api.instructorSchedulePrintContacts();
+          summerContacts = normalizeSummerContactRows(payload?.rows || []);
+        } catch (err) {
+          console.warn('[my-data] instructorSchedulePrintContacts failed', err?.message || err);
+        }
+      }
+      ui.openModal({
+        title: 'אנשי קשר',
+        content: summerContactsModalHtml(summerContacts),
+        modalClass: 'ds-modal--summer-contacts'
+      });
+    };
+    root.querySelector('[data-summer-contacts-open]')?.addEventListener('click', openSummerContacts);
+
     const applyFilters = () => {
       const q = String(root.querySelector('[data-instr-search]')?.value || '').trim().toLowerCase();
       const selectedDate = String(root.querySelector('[data-instr-date]')?.value || '').trim();
