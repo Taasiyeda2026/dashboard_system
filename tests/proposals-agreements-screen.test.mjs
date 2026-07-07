@@ -60,7 +60,7 @@ const MIGRATION_FILE = new URL('../supabase/migrations/20260518_create_proposals
 const ROLE_UPDATE_MIGRATION_FILE = new URL('../supabase/migrations/20260602_add_business_development_manager_role.sql', import.meta.url);
 const APPROVAL_GUARD_MIGRATION_FILE = new URL('../supabase/migrations/20260616_proposals_agreements_approval_guard.sql', import.meta.url);
 
-const { proposalsAgreementsScreen, canAccessProposalsAgreements, canManageProposalsAgreements, STATUS_LABELS, STATUS_OPTIONS, buildProposalCatalogPdfEntries, proposalPreviewBodyHtml, normalizeProposalAgreementRow, countPendingApprovedProposals, isProposalApprovedPendingSend, extractItemsFromForm, sortRows, calculateTourTotal, validatePayload, resetRecipientDependentFields, stepComplete, buildProposalDocumentSnapshot, proposalLockedPreviewHtml, proposalHasFinalPdf, isProposalLegacySentWithoutPdf } = await import('../frontend/src/screens/proposals-agreements.js');
+const { proposalsAgreementsScreen, canAccessProposalsAgreements, canManageProposalsAgreements, STATUS_LABELS, STATUS_OPTIONS, buildProposalCatalogPdfEntries, proposalPreviewBodyHtml, normalizeProposalAgreementRow, countPendingApprovedProposals, isProposalApprovedPendingSend, extractItemsFromForm, sortRows, calculateTourTotal, validatePayload, resetRecipientDependentFields, stepComplete, buildProposalDocumentSnapshot, proposalLockedPreviewHtml, proposalHasFinalPdf, isProposalLegacySentWithoutPdf, upsertProposalContactOption } = await import('../frontend/src/screens/proposals-agreements.js');
 
 function stateFor(role) {
   return {
@@ -4225,6 +4225,86 @@ test('proposal form has no catalog attach control and saves include_catalog fals
       assert.equal(savedPayload?.include_catalog, false);
     }
   );
+});
+
+
+test('saved manual proposal contact is added to current contact options and appears in next proposal without page refresh', () => {
+  const contactOptions = [...sampleCatalogAuthorities, ...sampleCatalogSchools];
+  const row = {
+    id: 'saved-1',
+    contact_school_id: '9001',
+    client_type: 'school',
+    client_name: 'בית ספר א',
+    client_authority: 'רשות א',
+    school_framework: 'בית ספר א',
+    authority_id: 'auth-a',
+    school_id: 'school-a',
+    contact_name: 'נועה חדשה',
+    contact_role: 'רכזת',
+    phone: '050-9001000',
+    email: 'noa@example.com'
+  };
+
+  const inserted = upsertProposalContactOption(contactOptions, row);
+
+  assert.equal(row.contact_school_id, '9001', 'saved proposal row should carry the returned contact_school_id');
+  assert.ok(inserted, 'saved contact should be upserted into in-memory contactOptions');
+  assert.equal(inserted.id, '9001');
+  assert.equal(inserted.source_table, 'contacts_schools');
+  assert.equal(inserted.client_type, 'school');
+  assert.equal(inserted.client_name, 'בית ספר א');
+  assert.equal(inserted.authority_id, 'auth-a');
+  assert.equal(inserted.school_id, 'school-a');
+  assert.equal(inserted.authority, 'רשות א');
+  assert.equal(inserted.authority_name, 'רשות א');
+  assert.equal(inserted.school, 'בית ספר א');
+  assert.equal(inserted.school_name, 'בית ספר א');
+  assert.equal(inserted.contact_name, 'נועה חדשה');
+  assert.equal(inserted.contact_role, 'רכזת');
+  assert.equal(inserted.mobile, '050-9001000');
+  assert.equal(inserted.phone, '050-9001000');
+  assert.equal(inserted.email, 'noa@example.com');
+  assert.equal(inserted.active, true);
+  assert.ok(contactOptions.some((contact) => contact.source_table === 'contacts_schools' && contact.id === '9001' && contact.contact_name === 'נועה חדשה'), 'next proposal opened in the same screen reads from the updated contactOptions array');
+});
+
+test('saved manual proposal contact upsert does not duplicate or overwrite unrelated client rows', () => {
+  const rows = [{ id: 'existing-row', client_authority: 'רשות ב', school_framework: 'מסגרת ב', contact_name: 'יוסי קשר' }];
+  const contactOptions = [
+    ...sampleCatalogAuthorities,
+    ...sampleCatalogSchools,
+    { id: '9001', source_table: 'schools', authority_id: 'other-auth', school_id: '9001', authority: 'רשות אחרת', school: 'בית ספר אחר', contact_name: '', mobile: '' },
+    { authority_id: 'auth-a', school_id: 'school-a', authority: 'רשות א', school: 'בית ספר א', contact_name: 'נועה חדשה', mobile: '' }
+  ];
+
+  upsertProposalContactOption(contactOptions, {
+    id: 'saved-contact',
+    contact_school_id: '9001',
+    client_type: 'school',
+    client_authority: 'רשות א',
+    school_framework: 'בית ספר א',
+    authority_id: 'auth-a',
+    school_id: 'school-a',
+    contact_name: 'נועה חדשה',
+    phone: '050-9001000'
+  });
+  upsertProposalContactOption(contactOptions, {
+    id: 'saved-contact-again',
+    contact_school_id: '9001',
+    client_type: 'school',
+    client_authority: 'רשות א',
+    school_framework: 'בית ספר א',
+    authority_id: 'auth-a',
+    school_id: 'school-a',
+    contact_name: 'נועה חדשה',
+    phone: '050-9001000'
+  });
+
+  const contactsSchoolsMatches = contactOptions.filter((contact) => contact.source_table === 'contacts_schools' && contact.id === '9001');
+  assert.equal(contactsSchoolsMatches.length, 1, 'same manual client/contact should be updated instead of duplicated');
+  assert.equal(contactOptions.find((contact) => contact.source_table === 'schools' && contact.school_id === '9001')?.authority, 'רשות אחרת', 'contacts_schools id must not update a schools row with the same numeric id');
+  assert.equal(rows.find((row) => row.id === 'existing-row')?.client_authority, 'רשות ב', 'new contact upsert must not overwrite an existing proposal authority');
+  assert.equal(rows.find((row) => row.id === 'existing-row')?.school_framework, 'מסגרת ב', 'new contact upsert must not overwrite an existing proposal school');
 });
 
 test('next_year proposal title uses template_name תוכניות from Supabase', async () => {

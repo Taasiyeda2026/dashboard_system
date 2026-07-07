@@ -3383,6 +3383,56 @@ function findContactForProposalRow(contactOptions = [], row = {}) {
   return (Array.isArray(contactOptions) ? contactOptions : []).find((contact) => contactMatchesProposalRow(contact, row)) || null;
 }
 
+
+function upsertProposalContactOption(contactOptions = [], row = {}) {
+  if (!Array.isArray(contactOptions) || !row || typeof row !== 'object') return null;
+  const contactSchoolId = text(row.contact_school_id);
+  if (!contactSchoolId) return null;
+  const authorityName = text(row.client_authority || row.authority || row.authority_name);
+  const schoolName = text(row.school_framework || row.school || row.school_name);
+  const contactName = text(row.contact_name);
+  if (!authorityName || !contactName) return null;
+  const next = {
+    id: contactSchoolId,
+    source_id: contactSchoolId,
+    source_table: 'contacts_schools',
+    client_type: text(row.client_type) || (text(row.school_id) || schoolName ? 'school' : 'authority'),
+    client_name: text(row.client_name) || schoolName || authorityName,
+    authority_id: row.authority_id ?? null,
+    school_id: row.school_id ?? null,
+    authority: authorityName,
+    authority_name: authorityName,
+    school: schoolName,
+    school_name: schoolName,
+    contact_name: contactName,
+    contact_role: text(row.contact_role),
+    mobile: text(row.mobile || row.phone),
+    phone: text(row.phone),
+    email: text(row.email),
+    active: row.active ?? true
+  };
+  const sameContactSchoolId = (contact) => (
+    text(contact?.source_table) === 'contacts_schools'
+    && text(contact?.id)
+    && text(contact.id) === contactSchoolId
+  );
+  const sameClientAndContact = (contact) => (
+    !text(contact?.id)
+    && text(contact?.authority_id) === text(next.authority_id)
+    && text(contact?.school_id) === text(next.school_id)
+    && text(contact?.authority || contact?.authority_name) === authorityName
+    && text(contact?.school || contact?.school_name) === schoolName
+    && text(contact?.contact_name) === contactName
+  );
+  const idx = contactOptions.findIndex((contact) => sameContactSchoolId(contact) || sameClientAndContact(contact));
+  if (idx >= 0) {
+    contactOptions[idx] = { ...contactOptions[idx], ...next };
+  } else {
+    contactOptions.push(next);
+  }
+  return next;
+}
+
 function buildContactSourceFromRow(row = {}) {
   const inferredClientType = inferProposalClientType(row);
   if (inferredClientType === 'other') {
@@ -4451,7 +4501,8 @@ export {
   resetRecipientDependentFields,
   stepComplete,
   selectedRecipientType,
-  hideSchoolSearchPanel
+  hideSchoolSearchPanel,
+  upsertProposalContactOption
 };
 
 // ─── Screen ───────────────────────────────────────────────────────────────────
@@ -6012,6 +6063,7 @@ export const proposalsAgreementsScreen = {
           showToast('הטיוטה נשמרה בהצלחה', 'success');
         }
         replaceLocalRow(data, finalRow);
+        upsertProposalContactOption(contactOptions, finalRow);
         resetLocalFilters();
         switchTab('records');
         highlightProposalRow(savedId);
