@@ -5,6 +5,15 @@ import { getActivityAuthorityName, getActivityContactName, getActivityContactPho
 import { cleanActivityManagerName, getContactsInstructorUsers, getRosterUsers, NO_ACTIVITY_MANAGER_LABEL, normalizeOneDayActivityType, resolveActivityInstructorName, buildContactsInstructorLookup, resolveCanonicalInstructorPair, validateInstructorIdentityPayload } from './screens/shared/activity-options.js';
 import { EXCEPTION_TYPE_ORDER, normalizedExceptionTypes } from './screens/shared/exceptions-metrics.js';
 import { isSummerActivity, normalizeActivitySeason } from './screens/shared/summer-activity.js';
+import {
+  normalizeContactMatchText,
+  buildContactResponsibleIndex,
+  contactResponsibleGroupsArray,
+  buildSummerContactIndex,
+  buildContactsSchoolsIndex,
+  buildSchoolsCatalogContactIndex,
+  resolveSchoolContact
+} from './screens/shared/contact-responsible.js';
 import { resolveActiveUserRowAfterAuth } from './auth-user-resolve.js';
 import { supabase, supabaseConfig, waitForSupabaseAuthSession, resetSupabaseAuthSessionWait } from './supabase-client.js';
 import { isEmptyValue, nonEmptyString } from './utils/empty-value.js';
@@ -1234,10 +1243,6 @@ async function readUnifiedContactsFromSupabase({ requireAuth = false, letter = '
  * ⚠️ permissions table is intentionally excluded — login credentials must never be read client-side.
  */
 
-function normalizeMyDataContactText(value) {
-  return String(value == null ? '' : value).trim().replace(/[״"]/g, '').replace(/[׳']/g, '').replace(/\s+/g, ' ').toLowerCase();
-}
-
 async function readMyDataSummerPrintContactRows() {
   if (!supabase) return [];
   try {
@@ -1271,63 +1276,9 @@ async function readMyDataContactsSchoolsRows() {
 }
 
 
-function buildMyDataSummerPrintContactsIndex(rows = []) {
-  const index = new Map();
-  (Array.isArray(rows) ? rows : []).forEach((row) => {
-    if (String(row?.season || '').trim() !== 'summer_2026' || row?.active !== true) return;
-    const name = String(row?.contact_name || '').trim();
-    const phone = String(row?.contact_phone || '').trim();
-    if (!name && !phone) return;
-    const key = `${normalizeMyDataContactText(row?.authority || '')}|${normalizeMyDataContactText(row?.school || '')}`;
-    if (key === '|') return;
-    if (!index.has(key)) index.set(key, []);
-    index.get(key).push({
-      name,
-      phone,
-      role: '',
-      school_address: String(row?.summer_school_address || row?.school_address || '').trim(),
-      city_or_authority: String(row?.summer_contact_city_or_authority || row?.city_or_authority || '').trim(),
-      summer_contact_status: String(row?.summer_contact_status || row?.contact_status || row?.status || '').trim()
-    });
-  });
-  return index;
-}
-
-function buildMyDataContactsIndex(rows = []) {
-  const index = new Map();
-  (Array.isArray(rows) ? rows : []).forEach((row) => {
-    const name = String(row?.contact_name || '').trim();
-    if (!name) return;
-    const key = `${normalizeMyDataContactText(row?.authority || '')}|${normalizeMyDataContactText(row?.school || '')}`;
-    if (!index.has(key)) index.set(key, []);
-    index.get(key).push({
-      name,
-      phone: String(row?.phone || '').trim(),
-      role: String(row?.contact_role || '').trim()
-    });
-  });
-  return index;
-}
-
-function buildMyDataSchoolsContactIndex(rows = []) {
-  const index = new Map();
-  (Array.isArray(rows) ? rows : []).forEach((row) => {
-    const name = String(row?.principal_name || '').trim();
-    if (!name) return;
-    const school = String(row?.school_name || '').trim();
-    const authority = String(row?.authority || '').trim();
-    const id = String(row?.id || '').trim();
-    const entry = { name, phone: String(row?.school_phone || '').trim(), role: 'מנהל/ת בית ספר' };
-    [
-      id ? `id|${id}` : '',
-      `${normalizeMyDataContactText(authority)}|${normalizeMyDataContactText(school)}`
-    ].filter(Boolean).forEach((key) => {
-      if (!index.has(key)) index.set(key, []);
-      index.get(key).push(entry);
-    });
-  });
-  return index;
-}
+// Index builders now live in screens/shared/contact-responsible.js (buildSummerContactIndex,
+// buildContactsSchoolsIndex, buildSchoolsCatalogContactIndex) so the instructor data path and
+// the operations-management admin path resolve school contacts from the exact same logic.
 
 function firstMyDataContact(options = []) {
   const seen = new Set();
@@ -1335,7 +1286,7 @@ function firstMyDataContact(options = []) {
     const name = String(option?.name || '').trim();
     const phone = String(option?.phone || '').trim();
     if (!name && !phone) continue;
-    const key = `${normalizeMyDataContactText(name)}|${normalizeMyDataContactText(phone)}`;
+    const key = `${normalizeContactMatchText(name)}|${normalizeContactMatchText(phone)}`;
     if (seen.has(key)) continue;
     seen.add(key);
     return { name, phone, role: String(option?.role || '').trim() };
@@ -1346,60 +1297,59 @@ function firstMyDataContact(options = []) {
 function enrichRowsWithSchoolContact(rows = [], contactsIndex = new Map(), schoolsIndex = new Map(), summerPrintContactsIndex = new Map()) {
   return (Array.isArray(rows) ? rows : []).map((row) => {
     const isSummerRow = String(row?.activity_season ?? row?.activitySeason ?? '').trim() === 'summer_2026';
+    const authority = getActivityAuthorityName(row);
+    const schoolNames = getActivitySchoolNames(row);
+    const schoolId = String(row?.school_id || row?.single_school_id || '').trim();
+
+    if (isSummerRow) {
+      // Single source of truth for summer contacts: dedicated summer contact first,
+      // then contacts_schools, then the school catalog - only for fields the
+      // higher-priority source left empty. Identical resolver used by the admin
+      // operations-management screen and its printed schedule.
+      const resolved = resolveSchoolContact(
+        { authority, schoolNames, schoolCatalogId: schoolId },
+        { summerIndex: summerPrintContactsIndex, contactsSchoolsIndex: contactsIndex, schoolsCatalogIndex: schoolsIndex }
+      );
+      return {
+        ...row,
+        contact_name: resolved.name,
+        contact_phone: resolved.phone,
+        school_contact_name: resolved.name,
+        school_contact_phone: resolved.phone,
+        school_contact_role: resolved.role,
+        school_address: resolved.address,
+        city_or_authority: resolved.cityOrAuthority,
+        summer_contact_name: resolved.name,
+        summer_contact_phone: resolved.phone,
+        summer_school_address: resolved.address,
+        summer_contact_city_or_authority: resolved.cityOrAuthority,
+        summer_contact_status: resolved.status
+      };
+    }
+
     const options = [];
     const add = (name, phone = '', role = '') => {
       if (!String(name || '').trim() && !String(phone || '').trim()) return;
       options.push({ name: String(name || '').trim(), phone: String(phone || '').trim(), role: String(role || '').trim() });
     };
-    const authorityKey = normalizeMyDataContactText(getActivityAuthorityName(row));
-    const schoolId = String(row?.school_id || row?.single_school_id || '').trim();
-    const schoolNames = getActivitySchoolNames(row);
+    const authorityKey = normalizeContactMatchText(authority);
+    add(getActivityContactName(row), getActivityContactPhone(row));
     schoolNames.forEach((schoolName) => {
-      const key = `${authorityKey}|${normalizeMyDataContactText(schoolName)}`;
-      (summerPrintContactsIndex.get(key) || []).forEach((c) => add(c.name, c.phone, c.role));
+      const key = `${authorityKey}|${normalizeContactMatchText(schoolName)}`;
+      (contactsIndex.get(key) || []).forEach((c) => add(c.name, c.phone, c.role));
     });
-    if (!isSummerRow) {
-      add(getActivityContactName(row), getActivityContactPhone(row));
-      schoolNames.forEach((schoolName) => {
-        const key = `${authorityKey}|${normalizeMyDataContactText(schoolName)}`;
-        (contactsIndex.get(key) || []).forEach((c) => add(c.name, c.phone, c.role));
-      });
-      if (schoolId) (schoolsIndex.get(`id|${schoolId}`) || []).forEach((c) => add(c.name, c.phone, c.role));
-      schoolNames.forEach((schoolName) => {
-        const key = `${authorityKey}|${normalizeMyDataContactText(schoolName)}`;
-        (schoolsIndex.get(key) || []).forEach((c) => add(c.name, c.phone, c.role));
-      });
-      if (authorityKey) (contactsIndex.get(`${authorityKey}|`) || []).forEach((c) => add(c.name, c.phone, c.role));
-    }
+    if (schoolId) (schoolsIndex.get(`id:${schoolId}`) || []).forEach((c) => add(c.name, c.phone, c.role));
+    schoolNames.forEach((schoolName) => {
+      const key = `${authorityKey}|${normalizeContactMatchText(schoolName)}`;
+      (schoolsIndex.get(key) || []).forEach((c) => add(c.name, c.phone, c.role));
+    });
+    if (authorityKey) (contactsIndex.get(`${authorityKey}|`) || []).forEach((c) => add(c.name, c.phone, c.role));
+
     const contact = firstMyDataContact(options);
-    let summerExtra = {};
-    if (isSummerRow) {
-      for (const schoolName of schoolNames) {
-        const key = `${authorityKey}|${normalizeMyDataContactText(schoolName)}`;
-        const entries = summerPrintContactsIndex.get(key) || [];
-        if (entries.length) {
-          summerExtra = {
-            contact_name: entries[0].name || '',
-            contact_phone: entries[0].phone || '',
-            school_contact_name: entries[0].name || '',
-            school_contact_phone: entries[0].phone || '',
-            school_address: entries[0].school_address || '',
-            city_or_authority: entries[0].city_or_authority || '',
-            summer_contact_name: entries[0].name || '',
-            summer_contact_phone: entries[0].phone || '',
-            summer_school_address: entries[0].school_address || '',
-            summer_contact_city_or_authority: entries[0].city_or_authority || '',
-            summer_contact_status: entries[0].summer_contact_status || ''
-          };
-          break;
-        }
-      }
-    }
     return {
       ...row,
       school_contact_name: contact.name,
       school_contact_phone: contact.phone,
-      ...summerExtra,
       school_contact_role: contact.role
     };
   });
@@ -2725,7 +2675,11 @@ function invalidateScreenDataByAction(action) {
     deleteCompletionApprovalUpload: ['instructor-completion-approvals', 'my-data', 'instructor-calendar'],
     reviewCompletionApprovalUpload: ['instructor-completion-approvals', 'my-data', 'instructor-calendar'],
     uploadPhotoApproval: ['my-data', 'instructor-calendar', 'operations-management'],
-    replacePhotoApproval: ['my-data', 'instructor-calendar', 'operations-management']
+    replacePhotoApproval: ['my-data', 'instructor-calendar', 'operations-management'],
+    // Contact responsible overrides affect every screen that shows the resolved
+    // responsible/school contact for a date+school - not just operations-management,
+    // which was the only one cleared before (see saveSchoolContactResponsible below).
+    saveSchoolContactResponsible: ['my-data', 'instructor-calendar', 'instructor-completion-approvals', 'operations-management']
   };
   const prefixes = targetedMutations[action];
   if (!prefixes || !prefixes.length) return;
@@ -5005,28 +4959,6 @@ async function readActivityDatesFromSupabase(source_row_id, source_sheet) {
 }
 
 
-function normalizeContactGroupText(value) {
-  return String(value || '').trim().replace(/[״"]/g, '').replace(/[׳']/g, '').replace(/\s+/g, ' ').toLowerCase();
-}
-function activityContactGroupKey(row) {
-  const date = String(row?.start_date || row?.activity_date || row?.date || row?.date_1 || '').trim().slice(0, 10);
-  const schoolId = String(row?.school_id || row?.single_school_id || '').trim();
-  const school = schoolId || normalizeContactGroupText(row?.school || row?.single_school_name || row?.legacy_school || '');
-  return date && school ? `${date}|${school}` : '';
-}
-function activityInstructorEntries(row) {
-  const entries = [];
-  const add = (name, empId) => {
-    const cleanName = String(name || '').trim();
-    const cleanId = String(empId || '').trim();
-    if (!cleanName && !cleanId) return;
-    if (entries.some((entry) => entry.empId === cleanId && entry.name === cleanName)) return;
-    entries.push({ name: cleanName || cleanId, empId: cleanId });
-  };
-  add(row?.instructor_name || row?.instructor, row?.emp_id);
-  add(row?.instructor_name_2 || row?.instructor_2, row?.emp_id_2);
-  return entries;
-}
 async function readSchoolContactResponsiblesRows() {
   const { data, error } = await supabase.from('activity_school_contact_responsibles').select('*');
   if (error) return [];
@@ -5041,37 +4973,32 @@ async function readInstructorSchedulePrintContactsRows() {
   if (error) return [];
   return Array.isArray(data) ? data : [];
 }
-function contactResponsibleOverrideMap(rows = []) {
-  const map = new Map();
-  rows.forEach((row) => {
-    const key = `${String(row?.activity_date || '').trim().slice(0, 10)}|${String(row?.school_id || '').trim() || normalizeContactGroupText(row?.school)}`;
-    if (key && key !== '|') map.set(key, row);
-  });
-  return map;
-}
+
+// Single source of truth for "who confirms the activity with the school" (אחראי קשר):
+// grouping, fallback and override resolution all live in screens/shared/contact-responsible.js
+// and are shared verbatim with operations-management.js's admin screen and printed schedule.
+// `allRows` (the FULL activities dataset) decides who the responsible is; `ownRows` only
+// decides which of those groups this instructor gets to see.
 function buildInstructorTeamGroups(allRows, ownRows, overrides = []) {
-  const ownKeys = new Set(ownRows.map(activityContactGroupKey).filter(Boolean));
-  const grouped = new Map();
-  allRows.forEach((row) => {
-    const key = activityContactGroupKey(row);
-    if (!ownKeys.has(key)) return;
-    if (!grouped.has(key)) grouped.set(key, []);
-    grouped.get(key).push(row);
+  const index = buildContactResponsibleIndex(allRows, overrides);
+  const visibleKeys = new Set();
+  (Array.isArray(ownRows) ? ownRows : []).forEach((row) => {
+    const group = findContactResponsibleGroup(row, index);
+    if (group) visibleKeys.add(group.key);
   });
-  const overrideMap = contactResponsibleOverrideMap(overrides);
-  return Array.from(grouped.entries()).map(([key, rows]) => {
-    const first = rows.slice().sort((a, b) => String(a?.start_time || a?.StartTime || '').localeCompare(String(b?.start_time || b?.StartTime || '')))[0] || rows[0];
-    const instructors = [];
-    rows.forEach((row) => activityInstructorEntries(row).forEach((entry) => {
-      if (!instructors.some((item) => (item.empId && item.empId === entry.empId) || (!item.empId && item.name === entry.name))) instructors.push(entry);
+  return contactResponsibleGroupsArray(index)
+    .filter((group) => visibleKeys.has(group.key))
+    .map((group) => ({
+      key: group.key,
+      activity_date: group.date,
+      school_id: group.schoolId,
+      school: group.school,
+      schoolAliases: group.schoolAliases,
+      instructors: group.instructors,
+      responsibleEmpId: group.responsibleEmpId,
+      responsibleName: group.responsibleName,
+      responsibleSource: group.responsibleSource
     }));
-    const override = overrideMap.get(key);
-    const defaultResp = activityInstructorEntries(first)[0] || instructors[0] || { name: '', empId: '' };
-    const responsibleEmpId = String(override?.responsible_emp_id || defaultResp.empId || '').trim();
-    const responsibleName = String(override?.responsible_name || defaultResp.name || responsibleEmpId || '').trim();
-    const [activity_date] = key.split('|');
-    return { key, activity_date, school_id: String(first?.school_id || first?.single_school_id || '').trim(), school: String(first?.school || first?.single_school_name || first?.legacy_school || '').trim(), instructors, responsibleEmpId, responsibleName };
-  });
 }
 
 async function readAllActivitiesRowsSupabase() {
@@ -5706,9 +5633,9 @@ export const api = {
     const openRows = includeClosedForApprovals
       ? allRows.filter((row) => !isActivityDeleted(row) && !isActivityCancelled(row))
       : allRows.filter((row) => !isActivityClosed(row));
-    const summerPrintContactsIndex = buildMyDataSummerPrintContactsIndex(summerPrintContactRows);
-    const contactsIndex = buildMyDataContactsIndex(contactsSchoolsRows);
-    const schoolsIndex = buildMyDataSchoolsContactIndex(schoolsRows);
+    const summerPrintContactsIndex = buildSummerContactIndex(summerPrintContactRows);
+    const contactsIndex = buildContactsSchoolsIndex(contactsSchoolsRows);
+    const schoolsIndex = buildSchoolsCatalogContactIndex(schoolsRows);
     const rows = enrichRowsWithSchoolContact(openRows.filter((row) => isInstructorAssignedRow(row, idsSet)), contactsIndex, schoolsIndex, summerPrintContactsIndex);
     return { rows, teamGroups: buildInstructorTeamGroups(openRows, rows, contactResponsibles), _source: 'supabase' };
   },
@@ -5734,12 +5661,19 @@ export const api = {
       updated_by: String(state?.user?.user_id || state?.user?.username || '').trim(),
       updated_at: new Date().toISOString()
     };
-    let existingQuery = supabase.from('activity_school_contact_responsibles').select('id').eq('activity_date', row.activity_date).limit(1);
-    existingQuery = row.school_id ? existingQuery.eq('school_id', row.school_id) : existingQuery.eq('school', row.school).eq('school_id', '');
-    const existing = await existingQuery.maybeSingle();
-    if (existing.error) throw new Error(existing.error.message || 'school_contact_responsible_read_failed');
-    const request = existing.data?.id
-      ? supabase.from('activity_school_contact_responsibles').update(row).eq('id', existing.data.id).select('*').single()
+    // Match an existing override by school_id OR by normalized school text (whichever
+    // side has it), not both at once - a strict AND match let the same school accumulate
+    // duplicate override rows whenever one save carried a school_id and another didn't.
+    const existingRows = await supabase.from('activity_school_contact_responsibles').select('id, school_id, school').eq('activity_date', row.activity_date);
+    if (existingRows.error) throw new Error(existingRows.error.message || 'school_contact_responsible_read_failed');
+    const normalizedSchool = normalizeContactMatchText(row.school);
+    const existingMatch = (existingRows.data || []).find((candidate) => {
+      const candidateId = String(candidate?.school_id || '').trim();
+      if (row.school_id && candidateId && candidateId === row.school_id) return true;
+      return Boolean(normalizedSchool) && normalizeContactMatchText(candidate?.school) === normalizedSchool;
+    });
+    const request = existingMatch?.id
+      ? supabase.from('activity_school_contact_responsibles').update(row).eq('id', existingMatch.id).select('*').single()
       : supabase.from('activity_school_contact_responsibles').insert(row).select('*').single();
     const { data, error } = await request;
     if (error) throw new Error(error.message || 'school_contact_responsible_save_failed');
