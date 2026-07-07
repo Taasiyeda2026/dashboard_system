@@ -6164,7 +6164,6 @@ export const api = {
     const rowId = cleanProposalAgreementText(id);
     if (!rowId) throw new Error('missing_proposal_agreement_id');
     const pdfFile = payload?.pdfFile || payload?.file || null;
-    if (!proposalFinalPdfAllowedFile(pdfFile)) throw new Error('יש להעלות קובץ PDF סופי לפני שליחת ההצעה.');
     const documentSnapshot = payload?.documentSnapshot ?? payload?.document_snapshot ?? null;
     const documentHtmlSnapshot = cleanProposalAgreementText(payload?.documentHtmlSnapshot ?? payload?.document_html_snapshot);
     if (!documentSnapshot || typeof documentSnapshot !== 'object' || Array.isArray(documentSnapshot)) {
@@ -6188,15 +6187,13 @@ export const api = {
     if (!currentRow) throw new Error('proposals_agreement_not_found');
     const currentStatus = normalizeProposalAgreementStatusForDb(currentRow.status || 'draft');
     if (currentStatus === 'sent') throw new Error('הצעה שנשלחה נעולה ולא ניתן לשנות את סטטוסה.');
-    if (cleanProposalAgreementText(currentRow.final_pdf_path)) throw new Error('כבר קיים PDF סופי להצעה זו.');
+    const existingFinalPdfPath = cleanProposalAgreementText(currentRow.final_pdf_path);
     if (currentStatus !== 'approved' || !hasProposalAgreementSignature(currentRow) || !cleanProposalAgreementText(currentRow.approved_at)) {
       throw new Error('ניתן לסמן כנשלח רק הצעה מאושרת וחתומה.');
     }
-    const filePath = proposalFinalPdfStoragePath(rowId, pdfFile?.name);
-    const uploaded = await supabase.storage
-      .from(PROPOSAL_FINAL_PDF_BUCKET)
-      .upload(filePath, pdfFile, { contentType: 'application/pdf', upsert: false });
-    if (uploaded.error) throw new Error(uploaded.error.message || 'proposal_final_pdf_upload_failed');
+    if (!existingFinalPdfPath && !proposalFinalPdfAllowedFile(pdfFile)) {
+      throw new Error('יש להעלות קובץ PDF סופי לפני שליחת ההצעה.');
+    }
     const nowIso = new Date().toISOString();
     const actorName = proposalLockActorName();
     const patch = {
@@ -6206,14 +6203,21 @@ export const api = {
       locked_at: nowIso,
       locked_by: actorName,
       locked_reason: 'sent',
-      final_pdf_path: filePath,
-      final_pdf_file_name: String(pdfFile?.name || 'proposal.pdf').trim(),
-      final_pdf_created_at: nowIso,
-      final_pdf_created_by: actorName,
       document_snapshot: documentSnapshot,
       document_html_snapshot: documentHtmlSnapshot,
       updated_at: nowIso
     };
+    if (!existingFinalPdfPath) {
+      const filePath = proposalFinalPdfStoragePath(rowId, pdfFile?.name);
+      const uploaded = await supabase.storage
+        .from(PROPOSAL_FINAL_PDF_BUCKET)
+        .upload(filePath, pdfFile, { contentType: 'application/pdf', upsert: false });
+      if (uploaded.error) throw new Error(uploaded.error.message || 'proposal_final_pdf_upload_failed');
+      patch.final_pdf_path = filePath;
+      patch.final_pdf_file_name = String(pdfFile?.name || 'proposal.pdf').trim();
+      patch.final_pdf_created_at = nowIso;
+      patch.final_pdf_created_by = actorName;
+    }
     const { data, error } = await supabase
       .from('proposals_agreements')
       .update(patch)
