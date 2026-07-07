@@ -36,15 +36,36 @@ export function completionStatusFromUpload(upload) {
   return completionApprovalStatusInfo(upload);
 }
 export function statusChipHtml(status, extraClass = '') { return `<span class="instr-status instr-status--${escapeHtml(status.key)} ${escapeHtml(extraClass)}">${escapeHtml(status.label)}</span>`; }
+// Indexes each team group by school_id (when the group has one) AND by every known
+// school-name spelling (schoolAliases, falling back to just `school`), so a row whose
+// own school_id/name differs slightly from the group's "canonical" display name still
+// resolves to the same group - matching the union-find grouping api.js computed it with.
 export function contactGroupsByDateSchool(groups = []) {
   const map = new Map();
   (Array.isArray(groups) ? groups : []).forEach((g) => {
-    const key = `${isoDate(g?.activity_date)}|${norm(g?.school)}`;
-    if (key !== '|') map.set(key, g);
+    const date = isoDate(g?.activity_date);
+    if (!date) return;
+    const schoolId = text(g?.school_id);
+    if (schoolId) map.set(`${date}|id:${schoolId}`, g);
+    const aliases = Array.isArray(g?.schoolAliases) && g.schoolAliases.length ? g.schoolAliases : [g?.school];
+    aliases.forEach((alias) => {
+      const normAlias = norm(alias);
+      if (normAlias) map.set(`${date}|${normAlias}`, g);
+    });
   });
   return map;
 }
-export function groupForRow(row, teamMap) { return teamMap?.get(`${isoDate(row?.start_date || row?.activity_date)}|${norm(row?.school)}`) || null; }
+export function groupForRow(row, teamMap) {
+  if (!teamMap) return null;
+  const date = isoDate(row?.start_date || row?.activity_date);
+  if (!date) return null;
+  const schoolId = text(row?.school_id || row?.single_school_id);
+  if (schoolId) {
+    const byId = teamMap.get(`${date}|id:${schoolId}`);
+    if (byId) return byId;
+  }
+  return teamMap.get(`${date}|${norm(row?.school)}`) || null;
+}
 export function isResponsibleForGroup(group, ids) { return !!group && (Array.isArray(ids) ? ids : [ids]).includes(text(group.responsibleEmpId)); }
 export function rowTitle(row) { return text(row?.activity_name || row?.activity || row?.activity_type || 'פעילות'); }
 
@@ -133,6 +154,9 @@ export function activityDetailHtml(row, { ids = [], teamMap = new Map(), upload 
   const status = completionStatusFromUpload(upload, row);
   const responsible = cleanDetailValue(group?.responsibleName);
   const mineResponsible = isResponsibleForGroup(group, ids);
+  // Fallback (auto-computed) responsibles are flagged so instructors don't read a
+  // computed default as if an admin had manually appointed someone.
+  const responsibleIsFallback = group?.responsibleSource === 'fallback';
   const peersHtml = peerInstructorsHtml(row, ids, group);
   const contactHtml = schoolContactDetailHtml(row);
   const fields = [
@@ -146,8 +170,8 @@ export function activityDetailHtml(row, { ids = [], teamMap = new Map(), upload 
     contactHtml ? ['איש קשר בית ספר', contactHtml] : null,
     ['אישור צילום', `<span data-instr-photo-section>${photoApprovalSectionHtml(photoUpload)}</span>`],
     ['אישור ביצוע', statusChipHtml(status)],
-    peersHtml ? ['מי משובץ איתי', peersHtml] : null,
-    responsible ? ['אחראי קשר', `${escapeHtml(responsible)}${mineResponsible ? ' ' + statusChipHtml({ key: 'contact', label: 'אני אחראי קשר' }) : ''}`] : null
+    peersHtml ? ['מי נמצא איתי', peersHtml] : null,
+    responsible ? ['אחראי קשר', `${escapeHtml(responsible)}${responsibleIsFallback ? ' <small class="instr-responsible-fallback-note">(ברירת מחדל, לא הוגדר ידנית)</small>' : ''}${mineResponsible ? ' ' + statusChipHtml({ key: 'contact', label: 'אני אחראי קשר' }) : ''}`] : null
   ].filter(Boolean);
   return `<div class="instr-detail">${mineResponsible ? '<div class="instr-contact-note"><strong>את/ה אחראי/ת קשר</strong><br>יש לוודא את קיום הפעילות מול איש הקשר בבית הספר ולעדכן את שאר הצוות.</div>' : ''}<div class="instr-detail-grid">${fields.map(([k, v]) => `<div class="instr-info-row"><span>${escapeHtml(k)}</span><strong>${typeof v === 'string' && v.includes('<') ? v : escapeHtml(v)}</strong></div>`).join('')}</div><div class="instr-detail-actions"><button class="ds-btn ds-btn--sm ds-btn--secondary" data-instr-print-approval>הדפסת אישור</button><button class="ds-btn ds-btn--sm ds-btn--primary" data-instr-upload-approval>העלאת אישור</button><button class="ds-btn ds-btn--sm ds-btn--ghost" data-ui-close-drawer>סגור</button></div></div>`;
 }

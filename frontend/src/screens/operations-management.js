@@ -62,6 +62,15 @@ import {
   completionApprovalStatusInfo,
   findMatchingCompletionApprovalUpload
 } from './shared/completion-approval-status.js';
+import {
+  buildContactResponsibleIndex,
+  findContactResponsibleGroup,
+  contactResponsibleGroupsArray,
+  buildSummerContactIndex,
+  buildContactsSchoolsIndex as buildSharedContactsSchoolsIndex,
+  buildSchoolsCatalogContactIndex,
+  resolveSchoolContact
+} from './shared/contact-responsible.js';
 
 const SCOPE = 'operations-management';
 const TAB_INSTRUCTORS = 'instructors';
@@ -705,42 +714,29 @@ function buildScheduleRows(rows, state, directory) {
 }
 
 
-function normalizePrintContactMatchText(value) {
-  return String(value || '')
-    .trim()
-    .replace(/[״"]/g, '"')
-    .replace(/[׳']/g, "'")
-    .replace(/[\u2010-\u2015־]/g, '-')
-    .replace(/\s+/g, ' ')
-    .toLowerCase();
-}
-
-function loosePrintContactMatchText(value) {
-  return normalizePrintContactMatchText(value)
-    .replace(/["'`´]/g, '')
-    .replace(/[-–—־]/g, '')
-    .replace(/\b(בית ספר|ביהס|בי"ס|מקיף|חטיבת ביניים|חטיבה|יסודי)\b/g, '')
-    .replace(/\s+/g, '')
-    .trim();
-}
-
 function activitySchoolIdForPrint(activity = {}) {
   return String(activity?.school_id || activity?.single_school_id || activity?.single_semel_mosad || '').trim();
 }
 
-function buildPrintContactRowsForGroup(group, printContacts = [], contactResponsibles = []) {
+// School contact resolution for the printed schedule: same shared 3-tier resolver
+// (dedicated summer contact -> contacts_schools -> school catalog, missing fields
+// only) used by the instructor's own screens, so the printed sheet a manager hands
+// out never disagrees with what instructors see for themselves.
+function buildPrintContactRowsForGroup(group, schoolContactIndices) {
   const authority = group?.authority || '';
-  const date = group?.date || '';
   const schools = uniqueSorted((group?.entries || []).map((entry) => getActivitySchoolDisplayNameClean(entry.activity)).filter(Boolean));
   return schools.map((school) => {
-    const contact = findInstructorSchedulePrintContact(printContacts, { authority, school, date });
-    const responsible = findPrintContactResponsible(contactResponsibles, group?.entries || [], group?.date || '', school);
+    const representative = (group?.entries || []).find((entry) => getActivitySchoolDisplayNameClean(entry.activity) === school)?.activity;
+    const schoolCatalogId = activitySchoolIdForPrint(representative || {});
+    const resolved = resolveSchoolContact({ authority, schoolNames: [school], schoolCatalogId }, schoolContactIndices);
+    if (!resolved.name && !resolved.phone) {
+      warnSummerPrintContactDev({ authority, school, date: group?.date || '', reason: 'no_summer_print_contact_match' });
+    }
     return {
       school,
-      address: contact?.school_address || '',
-      contactName: contact?.contact_name || '',
-      contactPhone: contact?.contact_phone || '',
-      responsibleName: responsible?.responsible_name || ''
+      address: resolved.address || '',
+      contactName: resolved.name || '',
+      contactPhone: resolved.phone || ''
     };
   });
 }
@@ -748,35 +744,6 @@ function buildPrintContactRowsForGroup(group, printContacts = [], contactRespons
 function warnSummerPrintContactDev(payload) {
   if (typeof import.meta === 'undefined' || !import.meta.env?.DEV) return;
   console.warn('[schedule-print-contacts]', payload);
-}
-
-function findInstructorSchedulePrintContact(printContacts = [], { authority = '', school = '', date = '' } = {}) {
-  const authNorm = normalizePrintContactMatchText(authority);
-  const schoolNorm = normalizePrintContactMatchText(school);
-  const schoolLoose = loosePrintContactMatchText(school);
-  const activeRows = (Array.isArray(printContacts) ? printContacts : []).filter((row) => row?.active !== false);
-  const match = activeRows.find((row) => normalizePrintContactMatchText(row?.authority) === authNorm && normalizePrintContactMatchText(row?.school) === schoolNorm)
-    || activeRows.find((row) => normalizePrintContactMatchText(row?.authority) === authNorm && loosePrintContactMatchText(row?.school) === schoolLoose)
-    || activeRows.find((row) => loosePrintContactMatchText(row?.school) === schoolLoose)
-    || null;
-  if (!match) {
-    warnSummerPrintContactDev({ authority, school, date, reason: 'no_summer_print_contact_match' });
-  } else if (!String(match.contact_name || '').trim() || !String(match.contact_phone || '').trim()) {
-    warnSummerPrintContactDev({ authority, school, date, reason: 'empty_summer_print_contact' });
-  }
-  return match;
-}
-
-function findPrintContactResponsible(contactResponsibles = [], entries = [], date = '', school = '') {
-  const activityDate = String(date || '').slice(0, 10);
-  const schoolNorm = normalizePrintContactMatchText(school);
-  const schoolLoose = loosePrintContactMatchText(school);
-  const ids = new Set((entries || []).map((entry) => activitySchoolIdForPrint(entry.activity)).filter(Boolean));
-  const rows = (Array.isArray(contactResponsibles) ? contactResponsibles : []).filter((row) => String(row?.activity_date || '').slice(0, 10) === activityDate);
-  return rows.find((row) => ids.has(String(row?.school_id || '').trim()))
-    || rows.find((row) => normalizePrintContactMatchText(row?.school) === schoolNorm)
-    || rows.find((row) => loosePrintContactMatchText(row?.school) === schoolLoose)
-    || null;
 }
 
 function printContactFallback(value) {
@@ -1469,6 +1436,7 @@ function opsManagementStylesHtml() {
     .ds-ops-mgmt-screen .ds-ops-completion-col--photo .ds-ops-photo-indicator { display:flex; flex-wrap:wrap; align-items:center; justify-content:center; gap:4px; white-space:normal; overflow-wrap:anywhere; font-size:0.82em; line-height:1.3; }
     .ds-ops-mgmt-screen .ds-ops-completion-col-contact-cell { text-align:right; }
     .ds-ops-mgmt-screen .ds-ops-completion-col-contact-cell select { width:100%; max-width:100%; box-sizing:border-box; text-align:right; direction:rtl; height:30px; min-height:30px; padding-top:3px; padding-bottom:3px; }
+    .ds-ops-mgmt-screen .ds-ops-contact-fallback-note { display:block; font-size:0.76em; color:#64748b; margin-top:2px; }
     .ds-ops-mgmt-screen .ds-ops-completion-col-who-cell { white-space:normal; line-height:1.35; }
     .ds-ops-mgmt-screen .ds-ops-completion-actions-cell { text-align:center; vertical-align:middle; white-space:nowrap; padding-inline:4px; }
     .ds-ops-mgmt-screen .ds-ops-completion-actions { display:inline-flex; align-items:center; justify-content:center; gap:3px; flex-wrap:nowrap; white-space:nowrap; }
@@ -1592,10 +1560,20 @@ function sumScheduleStudentCounts(scheduleRows = []) {
   }, 0);
 }
 
-function buildGroupedScheduleHtml({ scheduleRows, state, selectedInstructorFilter, directory, contactsIndex, printContacts = [], contactResponsiblesRows = [], allRows = [] }) {
+function buildGroupedScheduleHtml({ scheduleRows, state, selectedInstructorFilter, printContacts = [], contactsSchoolsRows = [], schoolsDirectoryRows = [], contactResponsiblesRows = [], allRows = [] }) {
   if (!scheduleRows || !scheduleRows.length) return '<p>אין פעילויות להדפסה.</p>';
   const ops = ensureOpsState(state);
   const showInstructor = !selectedInstructorFilter;
+
+  // Single source of truth for both "who's with me" / "contact responsible" and the
+  // school's own contact person, computed once from the full activities dataset so this
+  // printed sheet always matches the admin table and the instructor's own screens.
+  const responsibleIndex = buildContactResponsibleIndex(allRows, contactResponsiblesRows);
+  const schoolContactIndices = {
+    summerIndex: buildSummerContactIndex(printContacts),
+    contactsSchoolsIndex: buildSharedContactsSchoolsIndex(contactsSchoolsRows),
+    schoolsCatalogIndex: buildSchoolsCatalogContactIndex(schoolsDirectoryRows)
+  };
 
   const groups = [];
   const groupMap = new Map();
@@ -1639,31 +1617,19 @@ function buildGroupedScheduleHtml({ scheduleRows, state, selectedInstructorFilte
       return `<tr><td>${escapeHtml(entry.time || '—')}</td><td>${escapeHtml(getActivityName(a))}</td><td>${escapeHtml(studentCountLabel)}</td><td>${escapeHtml(getActivityGradeLabel(a) || '—')}</td>${instrCell}</tr>`;
     }).join('');
     const tableClass = showInstructor ? 'pb-act has-instructor' : 'pb-act';
-    const contactRows = buildPrintContactRowsForGroup(group, printContacts, contactResponsiblesRows);
+    const contactRows = buildPrintContactRowsForGroup(group, schoolContactIndices);
     const contactRowsHtml = contactRows.map((row) => `<tr><td>${escapeHtml(printContactFallback(row.school))}</td><td>${escapeHtml(printContactFallback(row.address))}</td><td>${escapeHtml(printContactFallback(row.contactName))}</td><td>${escapeHtml(printContactFallback(row.contactPhone))}</td></tr>`).join('');
     const contactsHtml = contactRowsHtml ? `<section class="pb-contacts"><h3>פרטי קשר ואימות פעילות</h3><table><thead><tr><th>בית ספר</th><th>כתובת</th><th>איש קשר</th><th>טלפון</th></tr></thead><tbody>${contactRowsHtml}</tbody></table></section>` : '';
-    const groupDateStr = group.date || '';
-    const groupSchoolNorm = normalizePrintContactMatchText(group.school);
-    const groupSchoolIds = new Set((group.entries || []).map((entry) => activitySchoolIdForPrint(entry.activity)).filter(Boolean));
-    const teamSet = new Set();
-    (allRows || []).forEach((activity) => {
-      const actSchoolId = activitySchoolIdForPrint(activity);
-      const schoolMatch = (actSchoolId && groupSchoolIds.has(actSchoolId))
-        || normalizePrintContactMatchText(getActivitySchoolDisplayNameClean(activity)) === groupSchoolNorm;
-      if (!schoolMatch) return;
-      const dates = activityDatesInRange(activity, ops.dateFrom, ops.dateTo);
-      const primary = getActivityPrimaryDate(activity);
-      const actDates = dates.length ? dates : (primary ? [primary] : []);
-      if (!actDates.includes(groupDateStr)) return;
-      getActivityInstructorNames(activity).forEach((name) => { if (name) teamSet.add(name); });
-    });
-    const teamList = [...teamSet].filter(Boolean);
+    // Same canonical group the admin table and instructor screens resolve for this
+    // date+school - any representative activity in the group resolves to it.
+    const representativeActivity = group.entries[0]?.activity;
+    const responsibleGroup = representativeActivity ? findContactResponsibleGroup(representativeActivity, responsibleIndex) : null;
+    const teamList = responsibleGroup?.instructors?.map((entry) => entry.name).filter(Boolean) || [];
     const teamText = teamList.length ? teamList.join(', ') : 'ללא מדריכים';
-    const overrideMap = opsContactOverrideMap(contactResponsiblesRows);
-    const overrideKey = [...groupSchoolIds].map((id) => overrideMap.get(`${groupDateStr}|${id}`)).find(Boolean)
-      || overrideMap.get(`${groupDateStr}|${normalizePrintContactMatchText(group.school).replace(/[״"׳']/g, '').replace(/\s+/g, ' ').toLowerCase()}`);
-    const responsibleName = String(overrideKey?.responsible_name || (contactRows.length && contactRows[0].responsibleName) || teamList[0] || '').trim() || 'לא הוגדר';
-    const teamHtml = `<div class="pb-team-block"><div class="pb-team"><strong>מי איתי היום:</strong> ${escapeHtml(teamText)}</div><div class="pb-team"><strong>האחראי לאישור קיום הפעילות מול איש הקשר בבית הספר הוא:</strong> ${escapeHtml(responsibleName)}</div></div>`;
+    const responsibleIsFallback = responsibleGroup?.responsibleSource === 'fallback';
+    const responsibleName = String(responsibleGroup?.responsibleName || '').trim() || 'לא הוגדר';
+    const responsibleFallbackNote = responsibleIsFallback ? ' (ברירת מחדל - לא הוגדר ידנית)' : '';
+    const teamHtml = `<div class="pb-team-block"><div class="pb-team"><strong>מי איתי היום:</strong> ${escapeHtml(teamText)}</div><div class="pb-team"><strong>האחראי לאישור קיום הפעילות מול איש הקשר בבית הספר הוא:</strong> ${escapeHtml(responsibleName)}${escapeHtml(responsibleFallbackNote)}</div></div>`;
     return `<div class="pb">
       <div class="pb-hdr">
         <span class="pb-date">${escapeHtml(dateLabel)}</span>
@@ -1887,7 +1853,18 @@ function instructorsTabHtml(rows, state, data = {}, directory = buildSchoolsDire
   const scheduleRows = buildScheduleRows(rows, state, directory);
   const selectedInstructorFilter = String(filters.instructor || '').trim();
   const printTitle = selectedInstructorFilter ? selectedInstructorFilter : 'כל המדריכים';
-  _schedulePrintContext = { scheduleRows, state, selectedInstructorFilter, directory, contactsIndex, printContacts: data?.instructorSchedulePrintContactsRows || [], contactResponsiblesRows: data?.contactResponsiblesRows || [], allRows: allPreparedRows.length ? allPreparedRows : rows };
+  _schedulePrintContext = {
+    scheduleRows,
+    state,
+    selectedInstructorFilter,
+    directory,
+    contactsIndex,
+    printContacts: data?.instructorSchedulePrintContactsRows || [],
+    contactsSchoolsRows: data?.contactsSchoolsRows || [],
+    schoolsDirectoryRows: data?.schoolsDirectoryRows || [],
+    contactResponsiblesRows: data?.contactResponsiblesRows || [],
+    allRows: allPreparedRows.length ? allPreparedRows : rows
+  };
 
   const tableRows = scheduleRows.map((entry) => {
     const activity = entry.activity;
@@ -2415,127 +2392,54 @@ function completionApprovalZipFileName(approval, upload, index) {
   return `${base || index}-${index + 1}.${ext}`;
 }
 
-function opsContactGroupKey(row) {
-  const normalize = (value) => String(value || '').trim().replace(/[״"]/g, '').replace(/[׳']/g, '').replace(/\s+/g, ' ').toLowerCase();
-  const date = String(row?.start_date || row?.activity_date || row?.date || '').trim().slice(0, 10);
-  const schoolId = String(row?.school_id || row?.single_school_id || '').trim();
-  const school = schoolId || normalize(row?.school || row?.single_school_name || row?.legacy_school || '');
-  return date && school ? `${date}|${school}` : '';
-}
-function opsInstructorEntries(row) {
-  const entries = [];
-  [[row?.instructor_name || row?.instructor, row?.emp_id], [row?.instructor_name_2 || row?.instructor_2, row?.emp_id_2]].forEach(([name, empId]) => {
-    const cleanName = String(name || '').trim();
-    const cleanId = String(empId || '').trim();
-    if (!cleanName && !cleanId) return;
-    if (!entries.some((entry) => entry.empId === cleanId && entry.name === cleanName)) entries.push({ name: cleanName || cleanId, empId: cleanId });
-  });
-  return entries;
-}
-function opsContactOverrideMap(rows = []) {
-  const normalize = (value) => String(value || '').trim().replace(/[״"]/g, '').replace(/[׳']/g, '').replace(/\s+/g, ' ').toLowerCase();
-  const map = new Map();
-  (Array.isArray(rows) ? rows : []).forEach((row) => {
-    const key = `${String(row?.activity_date || '').trim().slice(0, 10)}|${String(row?.school_id || '').trim() || normalize(row?.school)}`;
-    if (key && key !== '|') map.set(key, row);
-  });
-  return map;
-}
+// Thin adapter over the canonical resolver: keeps returning a Map keyed by
+// `${date}|${schoolId}` and `${date}|${normalizeOpsText(school-or-alias)}` so the
+// two existing call sites below don't need their own lookup logic rewritten, while
+// the grouping/fallback/override computation itself is the single shared resolver.
 function buildContactContextMap(allRows, overrides) {
-  const grouped = new Map();
-  (Array.isArray(allRows) ? allRows : []).forEach((row) => {
-    const date = String(row?.start_date || row?.activity_date || '').trim().slice(0, 10);
-    const rawSchool = String(row?.school || row?.single_school_name || row?.legacy_school || '').trim();
-    if (!date || !rawSchool) return;
-    const key = `${date}|${normalizeOpsText(rawSchool)}`;
-    if (!grouped.has(key)) grouped.set(key, { rows: [], schoolId: String(row?.school_id || row?.single_school_id || '').trim(), school: rawSchool });
-    grouped.get(key).rows.push(row);
-  });
-  const overrideMap = opsContactOverrideMap(overrides);
-  const instrKey = (entry) => entry.empId || entry.name;
-
-  // Pass 1: collect group metadata and instructors, sorted stably by key
-  const groupData = [];
-  grouped.forEach(({ rows: groupRows, schoolId, school }, key) => {
-    const first = groupRows.slice().sort((a, b) => String(a?.start_time || a?.StartTime || '').localeCompare(String(b?.start_time || b?.StartTime || '')))[0] || groupRows[0];
-    const instructors = [];
-    groupRows.forEach((row) => opsInstructorEntries(row).forEach((entry) => {
-      if (!instructors.some((item) => (item.empId && item.empId === entry.empId) || (!item.empId && item.name === entry.name))) instructors.push(entry);
-    }));
-    const date = String(first?.start_date || first?.activity_date || '').slice(0, 10);
-    const overrideKey = schoolId ? `${date}|${schoolId}` : `${date}|${normalizeOpsText(school)}`;
-    const override = overrideMap.get(overrideKey) || overrideMap.get(`${date}|${normalizeOpsText(school)}`);
-    groupData.push({ key, date, schoolId, school, instructors, override });
-  });
-  groupData.sort((a, b) => a.key.localeCompare(b.key));
-
-  // Pass 2: init load counter for all known instructors
-  const loadCounter = new Map();
-  const incr = (k) => loadCounter.set(k, (loadCounter.get(k) || 0) + 1);
-  groupData.forEach(({ instructors }) => instructors.forEach((e) => { if (!loadCounter.has(instrKey(e))) loadCounter.set(instrKey(e), 0); }));
-
-  // Pass 3: count manual overrides into load, then auto-assign the rest (stable, lowest-load)
-  const assignments = new Map();
-  groupData.forEach(({ key, instructors, override }) => {
-    if (override) {
-      const responsibleEmpId = String(override.responsible_emp_id || '').trim();
-      const responsibleName = String(override.responsible_name || responsibleEmpId || '').trim();
-      const matched = instructors.find((e) => (e.empId && e.empId === responsibleEmpId) || e.name === responsibleName || e.name === responsibleEmpId);
-      incr(matched ? instrKey(matched) : (responsibleEmpId || responsibleName));
-      assignments.set(key, { responsibleEmpId, responsibleName });
-      return;
-    }
-    if (!instructors.length) { assignments.set(key, { responsibleEmpId: '', responsibleName: '' }); return; }
-    let best = instructors[0];
-    for (let i = 1; i < instructors.length; i++) {
-      if ((loadCounter.get(instrKey(instructors[i])) || 0) < (loadCounter.get(instrKey(best)) || 0)) best = instructors[i];
-    }
-    incr(instrKey(best));
-    assignments.set(key, { responsibleEmpId: best.empId || '', responsibleName: best.name || best.empId || '' });
-  });
-
-  // Pass 4: build result — options show final load count per instructor
+  const index = buildContactResponsibleIndex(allRows, overrides);
   const result = new Map();
-  groupData.forEach(({ key, date, schoolId, school, instructors }) => {
-    const { responsibleEmpId, responsibleName } = assignments.get(key);
-    const options = instructors.map((entry) => {
-      const cnt = loadCounter.get(instrKey(entry)) || 0;
-      const label = cnt > 0 ? `${entry.name} (${cnt})` : entry.name;
-      const isSelected = (entry.empId && entry.empId === responsibleEmpId) || entry.name === responsibleName;
-      return `<option value="${escapeHtml(entry.empId || entry.name)}" data-name="${escapeHtml(entry.name)}"${isSelected ? ' selected' : ''}>${escapeHtml(label)}</option>`;
+  contactResponsibleGroupsArray(index).forEach((group) => {
+    const options = group.instructors.map((entry) => {
+      const isSelected = (entry.empId && entry.empId === group.responsibleEmpId) || (!entry.empId && entry.name === group.responsibleName);
+      return `<option value="${escapeHtml(entry.empId || entry.name)}" data-name="${escapeHtml(entry.name)}"${isSelected ? ' selected' : ''}>${escapeHtml(entry.name)}</option>`;
     }).join('');
-    const ctx = { instructors, responsibleEmpId, responsibleName, date, schoolId, school, options };
-    result.set(key, ctx);
-    if (schoolId && !result.has(`${date}|${schoolId}`)) result.set(`${date}|${schoolId}`, ctx);
+    const ctx = {
+      instructors: group.instructors,
+      responsibleEmpId: group.responsibleEmpId,
+      responsibleName: group.responsibleName,
+      responsibleSource: group.responsibleSource,
+      date: group.date,
+      schoolId: group.schoolId,
+      school: group.school,
+      options
+    };
+    if (group.schoolId) result.set(`${group.date}|${group.schoolId}`, ctx);
+    result.set(`${group.date}|${normalizeOpsText(group.school)}`, ctx);
+    (group.schoolAliases || []).forEach((alias) => result.set(`${group.date}|${normalizeOpsText(alias)}`, ctx));
   });
   return result;
 }
 function opsContactGroupsHtml(rows = [], overrides = [], uploadMap = new Map()) {
-  const grouped = new Map();
-  rows.forEach((row) => {
-    const key = opsContactGroupKey(row);
-    if (!key) return;
-    if (!grouped.has(key)) grouped.set(key, []);
-    grouped.get(key).push(row);
-  });
   const todayIso = localTodayIso();
-  const ctxMap = buildContactContextMap(rows, overrides);
-  const body = Array.from(grouped.entries()).map(([key, groupRows]) => {
-    const first = groupRows.slice().sort((a, b) => String(a?.start_time || a?.StartTime || '').localeCompare(String(b?.start_time || b?.StartTime || '')))[0] || groupRows[0];
-    const date = String(first?.start_date || first?.activity_date || '').slice(0, 10);
-    const school = String(first?.school || first?.single_school_name || first?.legacy_school || '').trim();
-    const schoolId = String(first?.school_id || first?.single_school_id || '').trim();
-    const ctxKey = `${date}|${normalizeOpsText(school)}`;
-    const ctx = ctxMap.get(ctxKey) || ctxMap.get(`${date}|${schoolId}`);
-    const instructors = ctx?.instructors || [];
-    const responsibleEmpId = ctx?.responsibleEmpId || '';
-    const responsibleName = ctx?.responsibleName || '';
-    const options = ctx?.options || '';
-    const handled = groupRows.some((row) => opsInstructorEntries(row).some((entry) => Array.from(uploadMap.values()).some((upload) => String(upload?.activity_date || '').trim().slice(0, 10) === date && normalizeOpsText(upload?.school) === normalizeOpsText(school) && normalizeOpsText(upload?.instructor_name) === normalizeOpsText(entry.name) && completionApprovalIsHandled(upload))));
+  const groups = contactResponsibleGroupsArray(buildContactResponsibleIndex(rows, overrides));
+  const body = groups.map((group) => {
+    const { date, school, schoolId, instructors, responsibleEmpId, responsibleName, responsibleSource } = group;
+    const options = instructors.map((entry) => {
+      const isSelected = (entry.empId && entry.empId === responsibleEmpId) || (!entry.empId && entry.name === responsibleName);
+      return `<option value="${escapeHtml(entry.empId || entry.name)}" data-name="${escapeHtml(entry.name)}"${isSelected ? ' selected' : ''}>${escapeHtml(entry.name)}</option>`;
+    }).join('');
+    const handled = instructors.some((entry) => Array.from(uploadMap.values()).some((upload) => String(upload?.activity_date || '').trim().slice(0, 10) === date && normalizeOpsText(upload?.school) === normalizeOpsText(school) && normalizeOpsText(upload?.instructor_name) === normalizeOpsText(entry.name) && completionApprovalIsHandled(upload)));
     const highlightToday = date === todayIso && !handled;
     const rowClass = highlightToday ? ' class="ds-ops-work-today-row"' : '';
     const todayChip = highlightToday ? ' <span class="ds-chip ds-chip--info ds-ops-today-chip">TODAY</span>' : '';
-    return { date, school, html: `<tr${rowClass}><td class="ds-table-cell-truncate">${escapeHtml(formatDateHe(date) || date)}${todayChip}</td><td class="ds-table-cell-wrap">${escapeHtml(school)}</td><td class="ds-table-cell-wrap">${escapeHtml(instructors.map((i) => i.name).join(', '))}</td><td><select class="ds-input ds-input--sm ds-ops-contact-responsible-select" data-contact-responsible-select data-date="${escapeHtml(date)}" data-school-id="${escapeHtml(schoolId)}" data-school="${escapeHtml(school)}"><option value="">בחרו אחראי קשר</option>${options}</select></td></tr>`, bucket: completionApprovalSortBucket(date, handled, todayIso) };
+    const fallbackNote = responsibleSource === 'fallback' ? ' <span class="ds-ops-contact-fallback-note">(ברירת מחדל, לא הוגדר ידנית)</span>' : '';
+    return {
+      date,
+      school,
+      html: `<tr${rowClass}><td class="ds-table-cell-truncate">${escapeHtml(formatDateHe(date) || date)}${todayChip}</td><td class="ds-table-cell-wrap">${escapeHtml(school)}</td><td class="ds-table-cell-wrap">${escapeHtml(instructors.map((i) => i.name).join(', '))}</td><td><select class="ds-input ds-input--sm ds-ops-contact-responsible-select" data-contact-responsible-select data-date="${escapeHtml(date)}" data-school-id="${escapeHtml(schoolId)}" data-school="${escapeHtml(school)}"><option value="">בחרו אחראי קשר</option>${options}</select>${fallbackNote}</td></tr>`,
+      bucket: completionApprovalSortBucket(date, handled, todayIso)
+    };
   }).sort((a, b) => (a.bucket - b.bucket) || a.date.localeCompare(b.date) || a.school.localeCompare(b.school, 'he', { numeric: true })).map((item) => item.html).join('');
   if (!body) return '';
   return `<div class="ds-ops-contact-responsible-card">${dsCard({ title: 'אחראי קשר מול בית הספר', body: dsTableWrap(`<table class="ds-table ds-table--compact ds-ops-contact-responsible-table"><colgroup><col class="ds-ops-contact-col--date"><col class="ds-ops-contact-col--school"><col class="ds-ops-contact-col--team"><col class="ds-ops-contact-col--responsible"></colgroup><thead><tr><th>תאריך</th><th>בית ספר / מסגרת</th><th>מי איתי היום</th><th>אחראי קשר</th></tr></thead><tbody>${body}</tbody></table>`), padded: false })}</div>`;
@@ -2624,9 +2528,14 @@ function completionApprovalTabHtml(rows, state, data = {}, directory = buildScho
   const downloadBtnHtml = isManager
     ? `<button type="button" class="ds-btn ds-btn--sm ds-btn--ghost" data-ops-approval-download-zip${selectedAuthority ? '' : ' disabled'} title="${selectedAuthority ? `הורדת כל האישורים החתומים לרשות: ${escapeHtml(selectedAuthority)}` : 'יש לבחור רשות לפני הורדת אישורים'}" style="${selectedAuthority ? '' : 'opacity:0.45;cursor:default;'}">⬇ הורדת אישורים</button>`
     : '';
+  const subtabsHtml = `<div class="ds-ops-completion-subtabs no-print">
+    <button type="button" class="ds-btn ds-btn--sm ${activeSubtab === 'approvals' ? 'ds-btn--primary' : 'ds-btn--ghost'}" data-ops-completion-subtab="approvals" aria-pressed="${activeSubtab === 'approvals'}">אישורי ביצוע</button>
+    <button type="button" class="ds-btn ds-btn--sm ${activeSubtab === 'contacts' ? 'ds-btn--primary' : 'ds-btn--ghost'}" data-ops-completion-subtab="contacts" aria-pressed="${activeSubtab === 'contacts'}">אנשי קשר ואחראי קשר</button>
+  </div>`;
   const titleBar = `<div class="ds-ops-completion-title-bar no-print" dir="rtl">
     <header class="ds-ops-completion-summary"><button type="button" class="ds-ops-completion-summary__title" aria-haspopup="dialog" aria-expanded="${approvalState.summaryOpen ? 'true' : 'false'}" data-ops-completion-summary-toggle>אישורי ביצוע</button>${summaryPopoverHtml}</header>
-    <div class="ds-ops-completion-control-row ds-ops-completion-filter-toolbar ds-ops-approval-print-toolbar">${dateFilterHtml}${authoritySelectHtml}${typeSelectHtml}${printInstructorSelect}<button type="button" class="ds-btn ds-btn--sm ds-btn--ghost" data-ops-completion-clear-filters title="ניקוי סינונים">✕ ניקוי</button><button type="button" class="ds-btn ds-btn--sm ds-btn--primary ds-ops-approval-print-btn" data-ops-approval-print-all>הדפסה</button>${downloadBtnHtml}</div>
+    ${activeSubtab === 'approvals' ? `<div class="ds-ops-completion-control-row ds-ops-completion-filter-toolbar ds-ops-approval-print-toolbar">${dateFilterHtml}${authoritySelectHtml}${typeSelectHtml}${printInstructorSelect}<button type="button" class="ds-btn ds-btn--sm ds-btn--ghost" data-ops-completion-clear-filters title="ניקוי סינונים">✕ ניקוי</button><button type="button" class="ds-btn ds-btn--sm ds-btn--primary ds-ops-approval-print-btn" data-ops-approval-print-all>הדפסה</button>${downloadBtnHtml}</div>` : ''}
+    ${subtabsHtml}
   </div>`;
   const contactContextMap = buildContactContextMap(summerRows, data?.contactResponsiblesRows || []);
   const body = items.map(({ approval, upload }, displayIndex) => {
@@ -2646,7 +2555,7 @@ function completionApprovalTabHtml(rows, state, data = {}, directory = buildScho
     const contactCtx = contactContextMap.get(contactKey) || contactContextMap.get(`${approvalDate}|${normalizeOpsText(approval.school || '')}`);
     const whoIsWithMe = contactCtx && contactCtx.instructors.length ? escapeHtml(contactCtx.instructors.map((i) => i.name).join(', ')) : '—';
     const contactDropdown = contactCtx
-      ? `<select class="ds-input ds-input--sm ds-ops-contact-responsible-select" data-contact-responsible-select data-date="${escapeHtml(contactCtx.date)}" data-school-id="${escapeHtml(contactCtx.schoolId)}" data-school="${escapeHtml(contactCtx.school)}"><option value="">בחרו</option>${contactCtx.options}</select>`
+      ? `<select class="ds-input ds-input--sm ds-ops-contact-responsible-select" data-contact-responsible-select data-date="${escapeHtml(contactCtx.date)}" data-school-id="${escapeHtml(contactCtx.schoolId)}" data-school="${escapeHtml(contactCtx.school)}"><option value="">בחרו</option>${contactCtx.options}</select>${contactCtx.responsibleSource === 'fallback' ? '<span class="ds-ops-contact-fallback-note">(ברירת מחדל)</span>' : ''}`
       : '<span class="ds-muted">—</span>';
     return `<tr${highlightToday ? ' class="ds-ops-work-today-row"' : ''}>
       <td class="ds-ops-completion-col--status ds-table-cell-truncate">${completionApprovalUploadStatusChip(upload)}</td>
@@ -2669,12 +2578,15 @@ function completionApprovalTabHtml(rows, state, data = {}, directory = buildScho
   const table = items.length
     ? dsTableWrap(`<table class="ds-table ds-table--compact ds-ops-completion-preview"><colgroup><col class="ds-ops-completion-col--status"><col class="ds-ops-completion-col--type"><col class="ds-ops-completion-col--photo"><col class="ds-ops-completion-col--date"><col class="ds-ops-completion-col--authority"><col class="ds-ops-completion-col--school"><col class="ds-ops-completion-col--instructor"><col class="ds-ops-completion-col--contact"><col class="ds-ops-completion-col--actions no-print"></colgroup><thead><tr><th class="ds-ops-completion-col--status">סטטוס אישור</th><th class="ds-ops-completion-col--type">סוג אישור</th><th class="ds-ops-completion-col--photo">אישור צילום</th><th class="ds-ops-completion-col--date">תאריך</th><th class="ds-ops-completion-col--authority">רשות</th><th class="ds-ops-completion-col--school">בית ספר</th><th class="ds-ops-completion-col--instructor">צוות הדרכה</th><th class="ds-ops-completion-col--contact">אחראי קשר</th><th class="ds-ops-completion-col--actions no-print">פעולות</th></tr></thead><tbody>${body}</tbody></table>`)
     : dsEmptyState('לא נמצאו אישורי ביצוע בטווח הנוכחי');
-  const activePanel = `<div class="ds-ops-completion-approvals-card">${dsCard({ body: table, padded: false })}</div>`;
+  const contactsPanel = opsContactGroupsHtml(contactRows, data?.contactResponsiblesRows || [], uploads) || dsEmptyState('לא נמצאו בתי ספר להצגה בטווח הנוכחי');
+  const activePanel = activeSubtab === 'contacts'
+    ? `<div class="ds-ops-contact-responsible-panel">${contactsPanel}</div>`
+    : `<div class="ds-ops-completion-approvals-card">${dsCard({ body: table, padded: false })}</div>`;
   return `<section class="ds-ops-mgmt-panel ds-ops-completion-panel" dir="rtl">
     <div class="ds-ops-completion-workspace">
       <div class="ds-ops-completion-control-card no-print">
         ${titleBar}
-        ${selectedDateHtml}
+        ${activeSubtab === 'approvals' ? selectedDateHtml : ''}
       </div>
       ${activePanel}
     </div>
