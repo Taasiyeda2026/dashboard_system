@@ -16792,10 +16792,10 @@ details[open] > .ds-fin-acc__summary::before { transform: rotate(90deg); }
 .ds-ops-approval-print-toolbar {
   display: inline-flex;
   align-items: center;
-  justify-content: center;
-  gap: 0.5rem;
-  flex-wrap: nowrap;
-  justify-self: center;
+  justify-content: flex-start;
+  gap: 5px;
+  flex-wrap: wrap;
+  justify-self: start;
 }
 
 .ds-ops-approval-print-filter {
@@ -16808,14 +16808,14 @@ details[open] > .ds-fin-acc__summary::before { transform: rotate(90deg); }
 }
 
 .ds-ops-approval-print-filter select {
-  width: 150px;
-  min-width: 140px;
+  width: 160px;
+  min-width: 150px;
   max-width: 180px;
 }
 
 .ds-ops-approval-print-btn {
   width: auto;
-  min-width: 5.5rem;
+  min-width: 0;
   align-self: center;
 }
 
