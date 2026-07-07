@@ -19884,7 +19884,9 @@ details[open] > .ds-fin-acc__summary::before { transform: rotate(90deg); }
   overflow-wrap: anywhere;
 }
 
-/* Proposal recipient/print cleanup: hide non-print contact channels and remove text dividers. */
+/* Proposal recipient/print cleanup: keep the contact mobile/email line visible everywhere
+   (screen, preview and print) and remove text dividers. The "לכבוד" block is the only
+   place a proposal shows how to reach the contact, so it must survive to print/PDF. */
 .proposal-document.pa-document .pa-print-hidden-contact-details {
   display: block;
 }
@@ -19928,8 +19930,11 @@ details[open] > .ds-fin-acc__summary::before { transform: rotate(90deg); }
 }
 
 @media print {
+  /* Was `display: none !important` — that dropped the contact's mobile/email line
+     ("נייד: ... | דוא״ל: ...") from every printed/PDF proposal even though the preview
+     showed it. The class name is legacy (it once meant "hide in print"); keep it visible. */
   .proposal-document.pa-document .pa-print-hidden-contact-details {
-    display: none !important;
+    display: block !important;
   }
 
   .proposal-document.pa-document .pa-doc-divider,
@@ -21380,5 +21385,21 @@ details[open] > .ds-fin-acc__summary::before { transform: rotate(90deg); }
     padding-bottom: 0 !important;
     break-inside: auto !important;
     page-break-inside: auto !important;
+  }
+}
+
+/* ABSOLUTE FINAL PRINT OVERRIDE extension — recipient mobile/email must always print
+   (2026-07-07). The "לכבוד" block's contact line (contact name, role, mobile, email,
+   authority/school) is the only place a printed proposal shows how to reach the
+   contact. Do not add a later rule anywhere in this file that sets display:none (or
+   visibility:hidden) on .pa-contact-details / .pa-print-hidden-contact-details for
+   print — restate the override here instead. */
+@media print {
+  .proposal-document .pa-contact-details,
+  .proposal-document .pa-print-hidden-contact-details,
+  .proposal-document.pa-document .pa-contact-details,
+  .proposal-document.pa-document .pa-print-hidden-contact-details {
+    display: block !important;
+    visibility: visible !important;
   }
 }
