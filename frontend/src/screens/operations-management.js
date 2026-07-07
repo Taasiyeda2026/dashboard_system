@@ -1376,35 +1376,36 @@ function opsManagementStylesHtml() {
     .ds-ops-mgmt-screen .ds-ops-authorities-table .ds-ops-col--activity { width:33%; white-space:normal; word-break:break-word; }
     .ds-ops-mgmt-screen .ds-ops-authorities-table th,.ds-ops-mgmt-screen .ds-ops-authorities-table td { padding-top:0.25rem; padding-bottom:0.25rem; padding-inline:0.35rem; }
     .ds-ops-mgmt-screen .ds-ops-completion-panel { display:flex; justify-content:center; width:100%; }
-    .ds-ops-mgmt-screen .ds-ops-completion-workspace { width:min(100%,1280px); max-width:100%; margin-inline:auto; display:flex; flex-direction:column; gap:8px; align-items:stretch; box-sizing:border-box; padding-inline:12px; }
-    .ds-ops-mgmt-screen .ds-ops-completion-control-card { width:100%; box-sizing:border-box; display:flex; flex-direction:column; align-items:flex-start; gap:8px; padding:10px 14px 12px; border:1px solid #d8e5ee; border-radius:14px; background:#f8fbfd; box-shadow:0 1px 2px rgba(15,23,42,0.04); }
-    .ds-ops-mgmt-screen .ds-ops-completion-title-bar { display:flex; flex-direction:row; align-items:center; gap:10px; flex-wrap:nowrap; width:100%; min-width:0; }
+    .ds-ops-mgmt-screen .ds-ops-completion-workspace { width:min(100%,1280px); max-width:100%; margin-inline:auto; display:flex; flex-direction:column; gap:6px; align-items:stretch; box-sizing:border-box; padding-inline:8px; }
+    .ds-ops-mgmt-screen .ds-ops-completion-control-card { width:100%; box-sizing:border-box; display:flex; flex-direction:column; align-items:flex-start; gap:5px; padding:6px 10px; border:1px solid #d8e5ee; border-radius:12px; background:#f8fbfd; box-shadow:0 1px 2px rgba(15,23,42,0.04); }
+    .ds-ops-mgmt-screen .ds-ops-completion-title-bar { display:flex; flex-direction:row; align-items:center; gap:6px; flex-wrap:wrap; width:100%; min-width:0; }
     .ds-ops-mgmt-screen .ds-ops-completion-summary { position:relative; flex:0 0 auto; text-align:right; color:#0f172a; }
-    .ds-ops-mgmt-screen .ds-ops-completion-summary__title { appearance:none; border:0; background:transparent; color:#0f172a; margin:0; padding:0 0 1px; font:inherit; font-size:17px; line-height:1.25; font-weight:800; cursor:pointer; border-bottom:1px dashed transparent; white-space:nowrap; }
+    .ds-ops-mgmt-screen .ds-ops-completion-summary__title { appearance:none; border:0; background:transparent; color:#0f172a; margin:0; padding:0 2px 1px; font:inherit; font-size:14px; line-height:1.2; font-weight:800; cursor:pointer; border-bottom:1px dashed transparent; white-space:nowrap; }
     .ds-ops-mgmt-screen .ds-ops-completion-summary__title:hover,
     .ds-ops-mgmt-screen .ds-ops-completion-summary__title:focus-visible { color:#0f8fa8; border-bottom-color:#8bd3df; outline:none; }
     .ds-ops-mgmt-screen .ds-ops-completion-summary-popover { position:absolute; inset-block-start:calc(100% + 8px); inset-inline-start:0; inset-inline-end:auto; z-index:5; width:320px; max-width:min(90vw, 320px); box-sizing:border-box; padding:10px 14px; border:1px solid #d8e5ee; border-radius:14px; background:#fff; box-shadow:0 14px 30px rgba(15,23,42,0.14); color:#334155; font-size:13px; line-height:1.45; }
     .ds-ops-mgmt-screen .ds-ops-completion-summary-popover p { margin:0; }
     .ds-ops-mgmt-screen .ds-ops-completion-summary-popover p + p { margin-top:4px; }
     .ds-ops-mgmt-screen .ds-ops-completion-control-row { display:flex; flex-wrap:wrap; align-items:center; justify-content:flex-start; gap:6px; width:100%; }
-    .ds-ops-mgmt-screen .ds-ops-completion-toolbar-stack { display:flex; flex-direction:column; gap:8px; width:100%; min-width:0; }
-    .ds-ops-mgmt-screen .ds-ops-completion-toolbar-section { display:flex; flex-direction:column; gap:5px; width:100%; min-width:0; }
-    .ds-ops-mgmt-screen .ds-ops-completion-toolbar-label { display:block; color:#64748b; font-size:11px; font-weight:800; line-height:1.2; }
-    .ds-ops-mgmt-screen .ds-ops-completion-filter-toolbar { display:grid; grid-template-columns:repeat(auto-fit, minmax(140px, max-content)); align-items:end; gap:8px; width:100%; min-width:0; }
-    .ds-ops-mgmt-screen .ds-ops-completion-actions-toolbar { display:grid; grid-template-columns:repeat(auto-fit, minmax(140px, max-content)); align-items:center; justify-content:flex-start; gap:8px; width:100%; padding-top:8px; border-top:1px solid #e2e8f0; }
+    .ds-ops-mgmt-screen .ds-ops-completion-toolbar-stack { display:flex; flex:1 1 720px; flex-direction:row; align-items:center; flex-wrap:wrap; gap:6px; width:auto; min-width:0; }
+    .ds-ops-mgmt-screen .ds-ops-completion-toolbar-section { display:flex; flex-direction:row; align-items:center; flex-wrap:wrap; gap:5px; width:auto; min-width:0; }
+    .ds-ops-mgmt-screen .ds-ops-completion-toolbar-label { display:none; }
+    .ds-ops-mgmt-screen .ds-ops-completion-filter-toolbar { display:flex; flex-wrap:wrap; align-items:center; gap:5px; width:auto; min-width:0; }
+    .ds-ops-mgmt-screen .ds-ops-completion-actions-toolbar { display:flex; flex-wrap:wrap; align-items:center; justify-content:flex-start; gap:5px; width:auto; padding-top:0; border-top:0; }
     .ds-ops-mgmt-screen .ds-ops-completion-control-row label,
     .ds-ops-mgmt-screen .ds-ops-approval-print-filter { display:flex; flex-wrap:nowrap; align-items:center; justify-content:flex-start; gap:6px; margin:0; font-weight:700; color:#334155; }
-    .ds-ops-mgmt-screen .ds-ops-completion-date-filter input[type="date"] { width:156px; min-width:150px; }
-    .ds-ops-mgmt-screen .ds-ops-approval-print-filter select { width:100%; min-width:140px; max-width:220px; }
+    .ds-ops-mgmt-screen .ds-ops-completion-date-filter input[type="date"] { width:160px; min-width:150px; height:30px; }
+    .ds-ops-mgmt-screen .ds-ops-approval-print-filter select { width:160px; min-width:150px; max-width:180px; height:30px; }
     .ds-ops-mgmt-screen .ds-ops-completion-control-row .ds-btn,
     .ds-ops-mgmt-screen .ds-ops-completion-actions-toolbar .ds-btn { flex:0 0 auto; width:auto; min-width:0; white-space:nowrap; }
-    .ds-ops-mgmt-screen .ds-ops-completion-actions-toolbar .ds-btn { justify-content:center; min-height:32px; padding-inline:12px; }
+    .ds-ops-mgmt-screen .ds-ops-completion-filter-toolbar .ds-btn,
+    .ds-ops-mgmt-screen .ds-ops-completion-actions-toolbar .ds-btn { justify-content:center; min-height:30px; height:30px; padding:4px 10px; font-size:12px; }
     .ds-ops-mgmt-screen .ds-ops-completion-selected-date { width:100%; margin:0; padding:8px 10px; border:1px solid #dbeafe; border-radius:10px; background:#eff6ff; color:#1e3a8a; font-size:13px; line-height:1.45; text-align:right; }
-    .ds-ops-mgmt-screen .ds-ops-completion-subtabs { display:flex; flex-wrap:wrap; justify-content:flex-start; gap:6px; width:100%; padding-top:4px; border-top:1px solid #e2e8f0; }
+    .ds-ops-mgmt-screen .ds-ops-completion-subtabs { display:flex; flex-wrap:wrap; justify-content:flex-start; gap:5px; width:auto; padding-top:0; border-top:0; }
     .ds-ops-mgmt-screen .ds-ops-completion-subtabs .ds-btn { border-radius:999px; }
     .ds-ops-mgmt-screen .ds-ops-completion-approvals-card { width:100%; margin:0; box-sizing:border-box; }
     .ds-ops-mgmt-screen .ds-ops-completion-approvals-card .ds-card { width:100%; margin:0; box-sizing:border-box; overflow:hidden; border-radius:16px; }
-    .ds-ops-mgmt-screen .ds-ops-completion-approvals-card .ds-card__body { padding:8px 10px 10px; }
+    .ds-ops-mgmt-screen .ds-ops-completion-approvals-card .ds-card__body { padding:4px 8px 8px; }
     .ds-ops-mgmt-screen .ds-ops-completion-approvals-card .ds-table-wrap { width:100%; max-width:100%; box-sizing:border-box; overflow-x:hidden; }
     .ds-ops-mgmt-screen .ds-ops-completion-preview { width:100%; min-width:0; table-layout:fixed; }
     .ds-ops-mgmt-screen .ds-ops-completion-preview th { white-space:nowrap; vertical-align:middle; text-align:right; }
