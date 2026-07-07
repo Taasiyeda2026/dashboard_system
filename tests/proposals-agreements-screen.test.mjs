@@ -5052,3 +5052,124 @@ test('legacy sent proposals without final pdf show legacy notice in drawer', asy
     }
   );
 });
+
+test('mark as sent skips final PDF upload dialog when final_pdf_path already exists', async () => {
+  const screenSource = await readFile(SCREEN_FILE, 'utf8');
+  assert.match(screenSource, /if \(proposalHasFinalPdf\(freshRow\)\) \{/,
+    'send flow should check final_pdf_path before rendering the upload dialog');
+  const existingPdfBranch = screenSource.match(/if \(proposalHasFinalPdf\(freshRow\)\) \{[\s\S]*?\n      \}\n      document\.getElementById\('pa-send-dialog-overlay'\)/)?.[0] || '';
+  assert.match(existingPdfBranch, /finalizeSentProposal\(freshRow, mergedItems, \{ previewHtml, templateSections \}\)/,
+    'existing final PDF should go straight to lock-and-send without a pdfFile');
+  assert.doesNotMatch(existingPdfBranch, /pa-send-pdf-input|קובץ PDF סופי/,
+    'existing final PDF path must not ask the user to choose another file');
+});
+
+test('mark as sent without final_pdf_path uploads one PDF and then closes the upload dialog', async () => {
+  const screenSource = await readFile(SCREEN_FILE, 'utf8');
+  const dialogBlock = screenSource.match(/const openSendProposalDialog = async[\s\S]*?const openPreview = async/)?.[0] || '';
+  assert.match(dialogBlock, /id="pa-send-pdf-input" required/,
+    'missing final PDF should still require a PDF file in the dialog');
+  assert.match(dialogBlock, /await finalizeSentProposal\(freshRow, mergedItems, \{ pdfFile, previewHtml, templateSections \}\);\n\s*closeDialog\(\);/,
+    'successful upload should update status to sent and close the dialog once');
+});
+
+test('lock-and-send API treats an existing final_pdf_path as ready to send', async () => {
+  const apiSource = await readFile(new URL('../frontend/src/api.js', import.meta.url), 'utf8');
+  const lockBlock = apiSource.match(/lockAndSendProposalAgreement: async[\s\S]*?uploadLegacyProposalFinalPdf: async/)?.[0] || '';
+  assert.match(lockBlock, /const existingFinalPdfPath = cleanProposalAgreementText\(currentRow\.final_pdf_path\)/,
+    'API should inspect existing final_pdf_path before deciding whether upload is required');
+  assert.match(lockBlock, /if \(!existingFinalPdfPath && !proposalFinalPdfAllowedFile\(pdfFile\)\)/,
+    'API should require a PDF upload only when no final PDF exists');
+  assert.doesNotMatch(lockBlock, /כבר קיים PDF סופי להצעה זו\.'/,
+    'API should not block sending approved proposals that already have a final PDF');
+});
+
+test('mark as sent with an existing final PDF calls lock/send without reopening upload UI', async () => {
+  const approvedRow = {
+    ...sampleRows[0],
+    status: 'approved',
+    approved_at: '2026-06-16T10:30:00.000Z',
+    signature_meta: { signature: { image: 'proposals/signature-idan-nahum.png' } },
+    final_pdf_path: 'proposals/existing/sent.pdf',
+    final_pdf_file_name: 'sent.pdf'
+  };
+  const managerState = stateFor('operation_manager');
+  managerState.user.manage_proposals_agreements = true;
+  const data = { rows: [approvedRow], activityNameOptions: [] };
+  let payloadSeen = null;
+
+  await withJSDOM(
+    proposalsAgreementsScreen.render(data, { state: managerState }),
+    async (root, dom) => {
+      proposalsAgreementsScreen.bind({
+        root,
+        data,
+        state: managerState,
+        api: {
+          readProposalAgreementItems: async () => [],
+          lockAndSendProposalAgreement: async (id, payload) => {
+            payloadSeen = { id, payload };
+            return { ok: true, row: { ...approvedRow, status: 'sent', locked_at: '2026-07-07T10:00:00.000Z' } };
+          }
+        }
+      });
+
+      root.querySelector('[data-pa-status-action="sent"]')?.dispatchEvent(new dom.window.MouseEvent('click', { bubbles: true }));
+      await delay(30);
+
+      assert.equal(root.ownerDocument.getElementById('pa-send-dialog-overlay'), null, 'existing final PDF must not open upload dialog');
+      assert.equal(payloadSeen?.id, approvedRow.id);
+      assert.equal(Object.hasOwn(payloadSeen?.payload || {}, 'pdfFile'), false, 'existing final PDF should send without a new pdfFile');
+      assert.equal(data.rows[0].status, 'sent');
+    }
+  );
+});
+
+test('mark as sent without final PDF uploads once and closes the upload UI', async () => {
+  const approvedRow = {
+    ...sampleRows[0],
+    status: 'approved',
+    approved_at: '2026-06-16T10:30:00.000Z',
+    signature_meta: { signature: { image: 'proposals/signature-idan-nahum.png' } },
+    final_pdf_path: ''
+  };
+  const managerState = stateFor('operation_manager');
+  managerState.user.manage_proposals_agreements = true;
+  const data = { rows: [approvedRow], activityNameOptions: [] };
+  let uploadCalls = 0;
+
+  await withJSDOM(
+    proposalsAgreementsScreen.render(data, { state: managerState }),
+    async (root, dom) => {
+      proposalsAgreementsScreen.bind({
+        root,
+        data,
+        state: managerState,
+        api: {
+          readProposalAgreementItems: async () => [],
+          lockAndSendProposalAgreement: async (id, payload) => {
+            uploadCalls += 1;
+            assert.equal(id, approvedRow.id);
+            assert.equal(payload.pdfFile?.name, 'final.pdf');
+            return { ok: true, row: { ...approvedRow, status: 'sent', final_pdf_path: 'proposals/new/final.pdf' } };
+          }
+        }
+      });
+
+      root.querySelector('[data-pa-status-action="sent"]')?.dispatchEvent(new dom.window.MouseEvent('click', { bubbles: true }));
+      await delay(30);
+      const overlay = root.ownerDocument.getElementById('pa-send-dialog-overlay');
+      assert.ok(overlay, 'missing final PDF should open upload dialog');
+
+      const input = overlay.querySelector('#pa-send-pdf-input');
+      const pdf = new dom.window.File(['%PDF-1.4'], 'final.pdf', { type: 'application/pdf' });
+      Object.defineProperty(input, 'files', { value: [pdf], configurable: true });
+      overlay.querySelector('#pa-send-dialog-confirm')?.dispatchEvent(new dom.window.MouseEvent('click', { bubbles: true }));
+      await delay(30);
+
+      assert.equal(uploadCalls, 1, 'successful send should upload exactly once');
+      assert.equal(root.ownerDocument.getElementById('pa-send-dialog-overlay'), null, 'dialog should close after successful upload/send');
+      assert.equal(data.rows[0].status, 'sent');
+    }
+  );
+});

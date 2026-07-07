@@ -5816,11 +5816,46 @@ export const proposalsAgreementsScreen = {
       }
     };
 
+    const finalizeSentProposal = async (row, items = [], { pdfFile = null, previewHtml: suppliedPreviewHtml = '', templateSections: suppliedTemplateSections = null } = {}) => {
+      const freshRow = rowWithCentralContact(row);
+      const mergedItems = proposalItemsWithFallback(items, freshRow);
+      const templateSections = Array.isArray(suppliedTemplateSections)
+        ? suppliedTemplateSections
+        : filterTemplateSectionsForGroup(proposalTemplateSections, freshRow.activity_type_group);
+      const previewHtml = suppliedPreviewHtml || proposalPreviewBodyHtml(freshRow, mergedItems, templateSections, { showSignatureImage: true });
+      const documentSnapshot = buildProposalDocumentSnapshot(freshRow, mergedItems, templateSections);
+      const documentHtmlSnapshot = previewHtml;
+      const payload = proposalHasFinalPdf(freshRow)
+        ? { documentSnapshot, documentHtmlSnapshot }
+        : { pdfFile, documentSnapshot, documentHtmlSnapshot };
+      const result = await api.lockAndSendProposalAgreement(text(freshRow.id), payload);
+      replaceLocalRow(data, result?.row || { ...freshRow, status: 'sent' });
+      refreshTable();
+      const updated = data.rows.find((item) => text(item.id) === text(freshRow.id));
+      const drawer = root.querySelector('[data-pa-drawer]');
+      if (drawer && updated) drawer.outerHTML = drawerHtml(updated, activityNameOptions, state);
+      showToast('ההצעה נשלחה וננעלה בהצלחה', 'success');
+      return updated || result?.row || { ...freshRow, status: 'sent' };
+    };
+
     const openSendProposalDialog = async (row, items = []) => {
       const freshRow = rowWithCentralContact(row);
       const mergedItems = proposalItemsWithFallback(items, freshRow);
       const templateSections = filterTemplateSectionsForGroup(proposalTemplateSections, freshRow.activity_type_group);
       const previewHtml = proposalPreviewBodyHtml(freshRow, mergedItems, templateSections, { showSignatureImage: true });
+      if (proposalHasFinalPdf(freshRow)) {
+        if (typeof api.lockAndSendProposalAgreement !== 'function') {
+          showToast('פעולת שליחה ונעילה אינה זמינה.', 'error');
+          return;
+        }
+        try {
+          await finalizeSentProposal(freshRow, mergedItems, { previewHtml, templateSections });
+        } catch (err) {
+          showToast('שגיאה בעדכון סטטוס ההצעה', 'error');
+          window.alert?.(`שגיאה בשליחה: ${err?.message || err}`);
+        }
+        return;
+      }
       document.getElementById('pa-send-dialog-overlay')?.remove();
       const overlay = document.createElement('div');
       overlay.id = 'pa-send-dialog-overlay';
@@ -5864,20 +5899,8 @@ export const proposalsAgreementsScreen = {
         }
         confirmBtn.disabled = true;
         try {
-          const documentSnapshot = buildProposalDocumentSnapshot(freshRow, mergedItems, templateSections);
-          const documentHtmlSnapshot = previewHtml;
-          const result = await api.lockAndSendProposalAgreement(text(freshRow.id), {
-            pdfFile,
-            documentSnapshot,
-            documentHtmlSnapshot
-          });
-          replaceLocalRow(data, result?.row || { ...freshRow, status: 'sent' });
-          refreshTable();
-          const updated = data.rows.find((item) => text(item.id) === text(freshRow.id));
-          const drawer = root.querySelector('[data-pa-drawer]');
-          if (drawer && updated) drawer.outerHTML = drawerHtml(updated, activityNameOptions, state);
+          await finalizeSentProposal(freshRow, mergedItems, { pdfFile, previewHtml, templateSections });
           closeDialog();
-          showToast('ההצעה נשלחה וננעלה בהצלחה', 'success');
         } catch (err) {
           confirmBtn.disabled = false;
           if (errorEl) errorEl.textContent = `שגיאה בשליחה: ${err?.message || err}`;
