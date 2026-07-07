@@ -1,4 +1,5 @@
 import { escapeHtml } from './shared/html.js';
+import { bindSummerContactsModalEvents, renderSummerContactsButton } from './shared/summer-contacts-modal.js';
 import { supabase } from '../supabase-client.js';
 import { formatDateHe, formatDateHeWithWeekday } from './shared/format-date.js';
 import {
@@ -2552,7 +2553,7 @@ function completionApprovalTabHtml(rows, state, data = {}, directory = buildScho
   </div>`;
   const titleBar = `<div class="ds-ops-completion-title-bar no-print" dir="rtl">
     <header class="ds-ops-completion-summary"><button type="button" class="ds-ops-completion-summary__title" aria-haspopup="dialog" aria-expanded="${approvalState.summaryOpen ? 'true' : 'false'}" data-ops-completion-summary-toggle>אישורי ביצוע</button>${summaryPopoverHtml}</header>
-    ${activeSubtab === 'approvals' ? `<div class="ds-ops-completion-toolbar-stack"><section class="ds-ops-completion-toolbar-section" aria-label="סינון אישורי ביצוע"><span class="ds-ops-completion-toolbar-label">סינונים</span><div class="ds-ops-completion-filter-toolbar ds-ops-approval-print-toolbar">${dateFilterHtml}${statusSelectHtml}${typeSelectHtml}${authoritySelectHtml}${printInstructorSelect}<button type="button" class="ds-btn ds-btn--sm ds-btn--ghost" data-ops-completion-clear-filters title="ניקוי סינונים">✕ ניקוי</button></div></section><section class="ds-ops-completion-toolbar-section" aria-label="פעולות אישורי ביצוע"><span class="ds-ops-completion-toolbar-label">פעולות</span><div class="ds-ops-completion-actions-toolbar"><button type="button" class="ds-btn ds-btn--sm ds-btn--primary ds-ops-approval-print-btn" data-ops-approval-print-all>הדפסה</button>${downloadBtnHtml}</div></section></div>` : ''}
+    ${activeSubtab === 'approvals' ? `<div class="ds-ops-completion-toolbar-stack"><section class="ds-ops-completion-toolbar-section" aria-label="סינון אישורי ביצוע"><span class="ds-ops-completion-toolbar-label">סינונים</span><div class="ds-ops-completion-filter-toolbar ds-ops-approval-print-toolbar">${dateFilterHtml}${statusSelectHtml}${typeSelectHtml}${authoritySelectHtml}${printInstructorSelect}<button type="button" class="ds-btn ds-btn--sm ds-btn--ghost" data-ops-completion-clear-filters title="ניקוי סינונים">✕ ניקוי</button></div></section><section class="ds-ops-completion-toolbar-section" aria-label="פעולות אישורי ביצוע"><span class="ds-ops-completion-toolbar-label">פעולות</span><div class="ds-ops-completion-actions-toolbar">${renderSummerContactsButton()}<button type="button" class="ds-btn ds-btn--sm ds-btn--primary ds-ops-approval-print-btn" data-ops-approval-print-all>הדפסה</button>${downloadBtnHtml}</div></section></div>` : ''}
     ${subtabsHtml}
   </div>`;
   const contactContextMap = buildContactContextMap(summerRows, data?.contactResponsiblesRows || []);
@@ -2710,6 +2711,8 @@ export const operationsManagementScreen = {
       _opsNeedsEntryReset = false;
       resetOperationsManagementEntry(state);
     }
+
+    bindSummerContactsModalEvents(root, { ui, api, rows: data?.instructorSchedulePrintContactsRows || [], logPrefix: 'operations-management' });
 
     root.querySelectorAll('[data-ops-tab]').forEach((btn) => {
       btn.addEventListener('click', () => {
