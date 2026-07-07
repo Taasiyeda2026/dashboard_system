@@ -8,6 +8,7 @@ import { isSummerActivity, normalizeActivitySeason } from './screens/shared/summ
 import {
   normalizeContactMatchText,
   buildContactResponsibleIndex,
+  findContactResponsibleGroup,
   contactResponsibleGroupsArray,
   buildSummerContactIndex,
   buildContactsSchoolsIndex,
