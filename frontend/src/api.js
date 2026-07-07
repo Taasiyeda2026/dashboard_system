@@ -1243,12 +1243,20 @@ async function readUnifiedContactsFromSupabase({ requireAuth = false, letter = '
  * ⚠️ permissions table is intentionally excluded — login credentials must never be read client-side.
  */
 
+// Single column list for every read of public.instructor_schedule_print_contacts -
+// admin (operations-management) and instructor (my-data) must select the exact same
+// columns so they can never resolve a different summer contact for the same row.
+// contact_status/status are NOT real columns on this table; selecting them makes
+// Supabase reject the whole query, which silently drops the dedicated summer
+// contact and falls back to contacts_schools/schools catalog for everyone.
+const INSTRUCTOR_SCHEDULE_PRINT_CONTACTS_SELECT = 'id,season,external_key,authority,school,contact_name,contact_phone,school_address,city_or_authority,active,source_note,notes';
+
 async function readMyDataSummerPrintContactRows() {
   if (!supabase) return [];
   try {
     const { data, error } = await supabase
       .from('instructor_schedule_print_contacts')
-      .select('season, authority, school, contact_name, contact_phone, school_address, city_or_authority, active, contact_status, status')
+      .select(INSTRUCTOR_SCHEDULE_PRINT_CONTACTS_SELECT)
       .eq('season', 'summer_2026')
       .eq('active', true)
       .limit(10000);
@@ -4968,7 +4976,7 @@ async function readInstructorSchedulePrintContactsRows() {
   // Dedicated source for Summer 2026 workshop print/schedule contact details.
   const { data, error } = await supabase
     .from('instructor_schedule_print_contacts')
-    .select('id,season,external_key,authority,school,contact_name,contact_phone,school_address,city_or_authority,active,contact_status,status,source_note,notes')
+    .select(INSTRUCTOR_SCHEDULE_PRINT_CONTACTS_SELECT)
     .eq('active', true);
   if (error) return [];
   return Array.isArray(data) ? data : [];
