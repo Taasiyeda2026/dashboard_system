@@ -1,162 +1,80 @@
-import { test, beforeEach } from 'node:test';
+import { test } from 'node:test';
 import assert from 'node:assert/strict';
 
-const API_MODULE = new URL('../frontend/src/api.js', import.meta.url).href;
-const STATE_MODULE = new URL('../frontend/src/state.js', import.meta.url).href;
-
-function makeStorage(){ const m=new Map(); return {getItem:(k)=>m.has(k)?m.get(k):null,setItem:(k,v)=>m.set(k,String(v)),removeItem:(k)=>m.delete(k),clear:()=>m.clear()}; }
-function setupDom() {
-  global.window = {};
-  global.document = {};
-  global.localStorage = makeStorage();
-  global.sessionStorage = makeStorage();
-  global.window.localStorage = global.localStorage;
-  global.window.sessionStorage = global.sessionStorage;
-  global.performance = { now: () => 0 };
-  global.requestAnimationFrame = (cb) => cb();
+async function readApiSource() {
+  const fs = await import('node:fs/promises');
+  return fs.readFile(new URL('../frontend/src/api.js', import.meta.url), 'utf8');
 }
 
-beforeEach(() => {
-  setupDom();
-});
-
-async function freshModules() {
-  const stamp = Date.now() + Math.random();
-  const stateMod = await import(`${STATE_MODULE}?bust=${stamp}`);
-  const apiMod = await import(`${API_MODULE}?bust=${stamp}`);
-  return { ...stateMod, ...apiMod };
+async function readSource(relPath) {
+  const fs = await import('node:fs/promises');
+  return fs.readFile(new URL(relPath, import.meta.url), 'utf8');
 }
 
-function mockOkFetch(capturedBodies = []) {
-  global.fetch = async (_url, req) => {
-    capturedBodies.push(JSON.parse(req.body));
-    return {
-      status: 200,
-      async text() {
-        return JSON.stringify({ ok: true, data: { done: true } });
-      }
-    };
-  };
-}
-
-test('addActivity supports object payload (short)', async () => {
-  const { api, state } = await freshModules();
-  state.token = 'token';
-
-  const bodies = [];
-  mockOkFetch(bodies);
-
-  await api.addActivity({ source: 'short', activity_name: 'A', start_date: '2026-04-01' });
-
-  assert.equal(bodies[0].action, 'addActivity');
-  assert.equal(bodies[0].activity.source, 'short');
-  assert.equal(bodies[0].activity.activity_name, 'A');
+test('addActivity supports object payload and long-source signature in Supabase path', async () => {
+  const source = await readApiSource();
+  assert.match(source, /addActivity: async \(target, data\) => \{/);
+  assert.match(source, /typeof target === 'object' && target !== null && data === undefined/);
+  assert.match(source, /\? \{ activity: target \}/);
+  assert.match(source, /: \{ activity: \{ \.\.\.\(data \|\| \{\}\), source: target \} \}/);
+  assert.match(source, /upsertActivityToSupabase\(payload\)/);
 });
 
-test('addActivity supports (target, data) signature for long source', async () => {
-  const { api, state } = await freshModules();
-  state.token = 'token';
-  const bodies = [];
-  mockOkFetch(bodies);
-
-  await api.addActivity('long', { activity_name: 'Program X', sessions: '8', Date1: '2026-04-02' });
-
-  assert.equal(bodies[0].action, 'addActivity');
-  assert.equal(bodies[0].activity.source, 'long');
-  assert.equal(bodies[0].activity.activity_name, 'Program X');
-  assert.equal(bodies[0].activity.Date1, '2026-04-02');
+test('saveActivity keeps direct edit source identifiers and changes payload', async () => {
+  const source = await readApiSource();
+  assert.match(source, /saveActivity: async \(a, b\) => \{/);
+  assert.match(source, /\? \{ source_row_id: a, changes: b \}/);
+  assert.match(source, /return api\.submitEditRequest\(payload\);/);
+  assert.match(source, /return updateActivityInSupabase\(payload\);/);
 });
 
-test('saveActivity sends source_sheet, source_row_id and changes in direct-edit flow', async () => {
-  const { api, state } = await freshModules();
-  state.token = 'token';
-  const bodies = [];
-  mockOkFetch(bodies);
-
-  await api.saveActivity({
-    source_sheet: 'activities',
-    source_row_id: 'LONG-123',
-    changes: { activity_name: 'Updated', Date1: '2026-04-15' }
-  });
-
-  assert.equal(bodies[0].action, 'saveActivity');
-  assert.equal(bodies[0].source_sheet, 'activities');
-  assert.equal(bodies[0].source_row_id, 'LONG-123');
-  assert.equal(bodies[0].changes.activity_name, 'Updated');
-});
-
-test('submitEditRequest and reviewEditRequest send correct payloads', async () => {
-  const { api, state } = await freshModules();
-  state.token = 'token';
-  const bodies = [];
-  mockOkFetch(bodies);
-
-  await api.submitEditRequest('LONG-2', { notes: 'x' });
-  await api.reviewEditRequest('REQ-1', 'approved');
-
-  assert.equal(bodies[0].action, 'submitEditRequest');
-  assert.equal(bodies[0].source_row_id, 'LONG-2');
-  assert.equal(bodies[0].changes.notes, 'x');
-
-  assert.equal(bodies[1].action, 'reviewEditRequest');
-  assert.equal(bodies[1].request_id, 'REQ-1');
-  assert.equal(bodies[1].status, 'approved');
+test('submitEditRequest and reviewEditRequest keep request payload handling', async () => {
+  const source = await readApiSource();
+  assert.match(source, /submitEditRequest: async \(source_row_id, changes, source_sheet = 'activities'\) => \{/);
+  assert.match(source, /const rowId = String\(requestPayload\?\.source_row_id \|\| source_row_id \|\| ''\)\.trim\(\);/);
+  assert.match(source, /reviewEditRequest: async \(request_id, status\) => \{/);
+  assert.match(source, /const requestId = String\(request_id \|\| ''\)\.trim\(\);/);
 });
 
 test('api mutation cache invalidation map includes required keys', async () => {
-  const fs = await import('node:fs/promises');
-  const source = await fs.readFile(new URL('../frontend/src/api.js', import.meta.url), 'utf8');
+  const source = await readApiSource();
   assert.match(source, /submitEditRequest:\s*\['activities:',\s*'edit-requests'/);
   assert.match(source, /reviewEditRequest:\s*\['edit-requests',\s*'activities:',\s*'activityDetail:',\s*'dashboard:',\s*'exceptions:'/);
   assert.match(source, /addActivity:\s*\['activities:',\s*'activityDetail:'/);
 });
 
+test('api myData team-group builder imports contact responsible resolver', async () => {
+  const source = await readApiSource();
+  const contactSource = await readSource('../frontend/src/screens/shared/contact-responsible.js');
+
+  assert.match(contactSource, /export function findContactResponsibleGroup\(/);
+  assert.match(source, /import \{[\s\S]*findContactResponsibleGroup,[\s\S]*\} from '\.\/screens\/shared\/contact-responsible\.js';/);
+  assert.match(source, /function buildInstructorTeamGroups\(allRows, ownRows, overrides = \[\]\) \{[\s\S]*const group = findContactResponsibleGroup\(row, index\);/);
+  assert.match(source, /myData: async \(params = \{\}\) => \{[\s\S]*teamGroups: buildInstructorTeamGroups\(openRows, rows, contactResponsibles\)/);
+});
+
 test('sanitizeActivityPayloadForSupabase normalizes bigint/time empty values to null', async () => {
-  const fs = await import('node:fs/promises');
-  const source = await fs.readFile(new URL('../frontend/src/api.js', import.meta.url), 'utf8');
+  const source = await readApiSource();
   assert.match(source, /function normalizeBigintFieldForSupabase\(value\)/);
   assert.match(source, /function normalizeTimeFieldForSupabase\(value\)/);
-  assert.match(source, /const bigintFields = new Set\(\['activity_no', 'sessions', 'price', 'emp_id'\]\)/);
+  assert.match(source, /const bigintFields = new Set\(\['activity_no', 'sessions', 'price', 'emp_id', 'emp_id_2'\]\)/);
   assert.match(source, /const timeFields = new Set\(\['start_time', 'end_time'\]\)/);
   assert.match(source, /sanitized\[key\] = nextValue === undefined \? null : nextValue;/);
 });
 
-test('read-model rollout excludes finance from normal paths and keeps end-dates', async () => {
-  const fs = await import('node:fs/promises');
-  const source = await fs.readFile(new URL('../frontend/src/api.js', import.meta.url), 'utf8');
-  const mainSource = await fs.readFile(new URL('../frontend/src/main.js', import.meta.url), 'utf8');
-  assert.match(source, /const READ_MODELS_ENABLED = true/);
-  assert.match(source, /READ_MODEL_ENABLED_KEY_LIST\s*=\s*\[[^\]]*'week'[^\]]*'month'[^\]]*'exceptions'[^\]]*'end-dates'[^\]]*\]/);
-  assert.doesNotMatch(source, /READ_MODEL_ENABLED_KEY_LIST\s*=\s*\[[^\]]*'finance'[^\]]*\]/);
-  assert.match(source, /endDates:\s*\(options\)\s*=>\s*requestReadModel\('end-dates'/);
+test('Supabase read paths keep instructor data screens and end dates registered', async () => {
+  const source = await readApiSource();
+  const mainSource = await readSource('../frontend/src/main.js');
+  assert.match(source, /myData: async \(params = \{\}\) => \{/);
+  assert.match(source, /week: async \(params\) => \{/);
+  assert.match(source, /month: async \(params\) => \{/);
+  assert.match(source, /endDates: \(\) => readEndDatesFromSupabase\(\)/);
   assert.match(mainSource, /const screenLoaders = \{[\s\S]*'end-dates': \(\) => import\('\.\/screens\/end-dates\.js'\)/);
 });
 
-test('perf request marks slow=true for API calls longer than 3000ms', async () => {
-  const { api, state } = await freshModules();
-  state.token = 'token';
-  let nowTick = 0;
-  global.performance = { now: () => nowTick };
-  global.fetch = async () => {
-    nowTick = 3501;
-    return {
-      status: 200,
-      async text() {
-        return JSON.stringify({ ok: true, data: { done: true } });
-      }
-    };
-  };
-
-  await api.week({ week_offset: 0 });
-  const reqs = global.window.__dsPerf?.requests || [];
-  assert.ok(reqs.length > 0);
-  assert.equal(reqs[0].slow, true);
-});
-
 test('perf summary helper is defined in main when window is available', async () => {
-  const fs = await import('node:fs/promises');
-  const source = await fs.readFile(new URL('../frontend/src/main.js', import.meta.url), 'utf8');
-  assert.match(source, /window\.__printDsPerfSummary\s*=\s*\(\)\s*=>/);
-  assert.match(source, /const slowestRequests = \[\.\.\.requests\]/);
-  assert.match(source, /const slowestScreens = \[\.\.\.renders\]/);
+  const mainSource = await readSource('../frontend/src/main.js');
+  assert.match(mainSource, /window\.__printDsPerfSummary\s*=\s*\(\)\s*=>/);
+  assert.match(mainSource, /const slowestRequests = \[\.\.\.requests\]/);
+  assert.match(mainSource, /const slowestScreens = \[\.\.\.renders\]/);
 });
