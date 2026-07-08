@@ -1,5 +1,5 @@
 import { getActivityDateColumns, formatTimeRangeShort } from './format-date.js';
-import { isSummerActivity, normalizeActivitySeason, ACTIVITY_SEASON_SUMMER_2026, ACTIVITY_SEASON_SCHOOL_2027 } from './summer-activity.js';
+import { isSummerActivity, normalizeActivitySeason, ACTIVITY_SEASON_SUMMER_2026, ACTIVITY_SEASON_SCHOOL_2027, activityMatchesPeriodKey } from './summer-activity.js';
 
 const INVALID_INSTRUCTOR_NAMES = new Set(['-', 'לא משויך', 'ללא שיוך']);
 
@@ -447,13 +447,7 @@ export function getActivityOperationalNotes(activity) {
 }
 
 export function activityMatchesPeriod(activity, periodKey) {
-  const key = String(periodKey || 'all').trim();
-  if (!key || key === 'all') return true;
-  const season = normalizeActivitySeason(activity?.activity_season ?? activity?.activitySeason);
-  if (key === ACTIVITY_SEASON_SUMMER_2026) return season === ACTIVITY_SEASON_SUMMER_2026 || isSummerActivity(activity);
-  if (key === ACTIVITY_SEASON_SCHOOL_2027) return season === ACTIVITY_SEASON_SCHOOL_2027;
-  if (key === 'school_2026') return season !== ACTIVITY_SEASON_SUMMER_2026 && season !== ACTIVITY_SEASON_SCHOOL_2027;
-  return true;
+  return activityMatchesPeriodKey(activity, periodKey);
 }
 
 export function isActivityDeleted(activity) {

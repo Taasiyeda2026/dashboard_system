@@ -44,7 +44,7 @@ import {
 import { readActivitiesGapFromQuery, syncActivitiesGapQuery, isActivitiesGapQueryValue } from './shared/route-query.js';
 import { rowMatchesActivityGapFilter } from './shared/activity-gap-filter.js';
 import { renderActivitiesViewSwitcher, bindActivitiesViewSwitcher } from './shared/view-switcher.js';
-import { ACTIVITY_SEASON_OPTIONS, SUMMER_DEFAULT_MONTH_YM, isSummerActivity, normalizeActivitySeason } from './shared/summer-activity.js';
+import { ACTIVITY_SEASON_OPTIONS, SUMMER_DEFAULT_MONTH_YM, ACTIVITY_SEASON_REGULAR, ACTIVITY_SEASON_SUMMER_2026, ACTIVITY_SEASON_SCHOOL_2027, getActivityPeriodKey, normalizeActivitySeason } from './shared/summer-activity.js';
 import { showToast } from './shared/toast.js';
 import { canEditDirect, canAddActivityDirect, canRequestEdit, canRequestCreateActivity, canReviewRequests } from '../permissions.js';
 const taasiyedaLogoSrc = new URL('../../assets/logo1.png', import.meta.url).href;
@@ -62,7 +62,7 @@ const ALL_ACTIVITIES_STATUS_FILTERS = [
 const ACTIVITY_PERIOD_TABS = [
   { key: 'school_2026', label: 'תשפ״ו / 2026', start: '', end: '2026-06-30' },
   { key: 'summer_2026', label: 'קיץ 2026', start: '2026-07-01', end: '2026-08-31' },
-  { key: 'school_2027', label: 'תשפ״ז / 2027', start: '2026-09-01', end: '2027-06-30' },
+  { key: 'school_2027', label: 'תשפ״ז / 2027', start: '2026-09-01', end: '2027-08-31' },
   { key: 'archive', label: 'ארכיון', archive: true }
 ];
 const SUMMER_2026_DEFAULT_FROM = '2026-06-28';
@@ -168,17 +168,12 @@ function activityPeriodKey(row = {}) {
   if (isDeletedActivity(row)) return 'deleted';
   if (isClosedActivity(row)) return 'archive';
   if (!isActiveActivity(row)) return 'inactive';
-  const hasExplicitSeason = String(row?.activity_season ?? row?.activitySeason ?? '').trim() !== '';
-  const season = normalizeActivitySeason(row?.activity_season ?? row?.activitySeason);
-  if (season === 'summer_2026' || isSummerActivity(row)) return 'summer_2026';
-  if (season === 'school_2027') return 'school_2027';
-  const start = normalizedActivityStartDate(row);
-  if (hasExplicitSeason && season === 'regular') return start >= '2026-09-01' ? 'school_2027' : 'school_2026';
-  if (!start) return 'school_2026';
-  if (start >= '2026-09-01') return 'school_2027';
-  if (start >= '2026-07-01') return 'summer_2026';
+  const period = getActivityPeriodKey(row);
+  if (period === ACTIVITY_SEASON_SUMMER_2026) return 'summer_2026';
+  if (period === ACTIVITY_SEASON_SCHOOL_2027) return 'school_2027';
   return 'school_2026';
 }
+
 
 function activityMatchesSelectedStartMonth(row = {}, ym = '') {
   const month = String(ym || '').trim().slice(0, 7);
@@ -706,7 +701,7 @@ function instructorOptionsHtml(rosterUsers, selected = '', placeholder = '—') 
     .join('');
 }
 
-function addActivityModalHtml(settings) {
+function addActivityModalHtml(settings, activityPeriodTab = '') {
   const allActivityNames = getActivityCatalog(settings);
   const allTypes = ADD_ACTIVITY_TYPE_ORDER.slice();
   const rosterUsers = getValidInstructorUsers(settings);
@@ -722,6 +717,13 @@ function addActivityModalHtml(settings) {
   const initialType = '';
   const initialActivityNames = [];
   const sessionsList = Array.from({ length: 35 }, (_, i) => String(i + 1));
+  const initialSeason = activityPeriodTab === 'school_2027'
+    ? ACTIVITY_SEASON_SCHOOL_2027
+    : activityPeriodTab === 'summer_2026'
+      ? ACTIVITY_SEASON_SUMMER_2026
+      : ACTIVITY_SEASON_REGULAR;
+  const statusOptions = ['פתוח', 'מאושר - ממתין לשיבוץ', 'סגור'];
+  const initialStatus = initialSeason === ACTIVITY_SEASON_SCHOOL_2027 ? 'מאושר - ממתין לשיבוץ' : 'פתוח';
 
   const authorityField = `
     <div class="ds-activity-add-field ds-activity-add-field--entity" data-entity-field="authority">
@@ -766,7 +768,8 @@ function addActivityModalHtml(settings) {
         </label>
         <input type="hidden" name="activity_no" value="" data-add-activity-no>
         <label class="ds-activity-add-field ds-activity-add-field--compact" data-field-sessions><span>מספר מפגשים</span><select class="ds-input" name="sessions" data-add-sessions>${optionsHtml(sessionsList, '1')}</select></label>
-        <label class="ds-activity-add-field ds-activity-add-field--compact"><span>עונת פעילות</span><select class="ds-input" name="activity_season">${activitySeasonSelectHtml(settings, 'regular')}</select></label>
+        <label class="ds-activity-add-field ds-activity-add-field--compact"><span>עונת פעילות</span><select class="ds-input" name="activity_season">${activitySeasonSelectHtml(settings, initialSeason)}</select></label>
+        <label class="ds-activity-add-field ds-activity-add-field--compact"><span>סטטוס</span><select class="ds-input" name="status">${optionsHtml(statusOptions, initialStatus)}</select></label>
         <label class="ds-activity-add-field ds-activity-add-field--compact"><span>מימון</span><select class="ds-input" name="funding">${optionsHtml(fundingOptions)}</select></label>
         <label class="ds-activity-add-field ds-activity-add-field--compact"><span>מחיר</span><input class="ds-input" name="price" type="number" min="0" step="1"></label>
         <label class="ds-activity-add-field"><span>קבוצה / כיתה</span><input class="ds-input" name="class_group" type="text"></label>
@@ -2562,7 +2565,7 @@ export const activitiesScreen = {
         emp_id_2: instructor2.emp_id,
         start_date: isOneDay ? oneDayDate : get('start_date'),
         end_date: isOneDay ? oneDayDate || null : get('end_date') || null,
-        status: 'פתוח',
+        status: get('status') || 'פתוח',
         notes: get('notes')
       };
       if (isOneDay) {
@@ -2629,22 +2632,23 @@ export const activitiesScreen = {
         resetAddActivitySavingState(form, submitBtn);
         return;
       }
-      if (isOneDay && !String(payload.date_1 || payload.start_date || '').trim()) {
+      const isSchool2027Activity = normalizeActivitySeason(payload.activity_season) === ACTIVITY_SEASON_SCHOOL_2027;
+      if (isOneDay && !isSchool2027Activity && !String(payload.date_1 || payload.start_date || '').trim()) {
         setAddActivityStatus(statusEl, 'יש למלא תאריך פעילות', { isError: true });
         resetAddActivitySavingState(form, submitBtn);
         return;
       }
-      if (!isOneDay && !meetingDateValues.some((dateValue) => String(dateValue || '').trim())) {
+      if (!isOneDay && !isSchool2027Activity && !meetingDateValues.some((dateValue) => String(dateValue || '').trim())) {
         setAddActivityStatus(statusEl, 'יש למלא לפחות תאריך מפגש אחד', { isError: true });
         resetAddActivitySavingState(form, submitBtn);
         return;
       }
-      if (!String(payload.start_time || '').trim()) {
+      if (!isSchool2027Activity && !String(payload.start_time || '').trim()) {
         setAddActivityStatus(statusEl, 'יש לבחור שעת התחלה', { isError: true });
         resetAddActivitySavingState(form, submitBtn);
         return;
       }
-      if (!String(payload.end_time || '').trim()) {
+      if (!isSchool2027Activity && !String(payload.end_time || '').trim()) {
         setAddActivityStatus(statusEl, 'יש לבחור שעת סיום', { isError: true });
         resetAddActivitySavingState(form, submitBtn);
         return;
@@ -2654,7 +2658,7 @@ export const activitiesScreen = {
         ['activity_type', 'סוג פעילות'],
         ['activity_name', 'שם פעילות'],
         ['authority', 'רשות'],
-        ['school', 'בית ספר'],
+        ...(isSchool2027Activity ? [] : [['school', 'בית ספר']]),
         ...(isOneDay ? [['start_date', 'תאריך פעילות'], ['end_date', 'תאריך סיום'], ['date_1', 'תאריך פעילות']] : [])
       ];
       const missing = required.filter(([key]) => !String(payload[key] || '').trim()).map(([, label]) => label);
@@ -2787,7 +2791,7 @@ export const activitiesScreen = {
           title: isCreateRequestOnly ? 'בקשה להוספת פעילות' : 'הוספת פעילות',
           // חשוב: חלון הוספת פעילות חייב להשתמש ב-client settings האחידים
           // (כמו admin), ללא בניית רשימות fallback מתוך rows חלקיים של המסך.
-          content: addActivityModalHtml(state?.clientSettings || {}),
+          content: addActivityModalHtml(state?.clientSettings || {}, state.activityPeriodTab),
           actions: `
             <button type="button" class="ds-btn ds-btn--primary" data-add-activity-submit>${isCreateRequestOnly ? 'שליחת בקשה לאישור' : 'שמור'}</button>
             <button type="button" class="ds-btn" data-ui-close-modal>ביטול</button>
