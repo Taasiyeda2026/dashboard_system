@@ -1,5 +1,9 @@
 const SUMMER_START_DATE = '2026-07-01';
 const SUMMER_END_DATE = '2026-08-31';
+export const SCHOOL_2026_START_DATE = '2025-09-01';
+export const SCHOOL_2026_END_DATE = '2026-08-31';
+export const SCHOOL_2027_START_DATE = '2026-09-01';
+export const SCHOOL_2027_END_DATE = '2027-08-31';
 const SUMMER_ROW_ID_PREFIX = 'summer_';
 const EXCLUDED_SUMMER_STATUSES = new Set(['בוטל', 'נמחק', 'סגור', 'cancelled', 'canceled', 'deleted', 'closed']);
 const INSTRUCTOR_SUMMER_VISIBLE_STATUSES = new Set(['פתוח', 'סגור']);
@@ -30,6 +34,37 @@ export function normalizeActivitySeason(value) {
   if (SUMMER_SEASON_ALIASES.has(v)) return ACTIVITY_SEASON_SUMMER_2026;
   if (SCHOOL_2027_ALIASES.has(v)) return ACTIVITY_SEASON_SCHOOL_2027;
   return ACTIVITY_SEASON_REGULAR;
+}
+
+
+export function hasExplicitActivitySeason(activity = {}) {
+  return String(activity?.activity_season ?? activity?.activitySeason ?? '').trim() !== '';
+}
+
+export function getActivitySeasonDate(activity = {}) {
+  return normalizedDateText(activity?.start_date ?? activity?.date_start ?? activity?.activity_date ?? activity?.date ?? activity?.date_1 ?? activity?.Date1);
+}
+
+export function getActivityPeriodKey(activity = {}) {
+  const explicitSeason = hasExplicitActivitySeason(activity);
+  const season = normalizeActivitySeason(activity?.activity_season ?? activity?.activitySeason);
+  if (season === ACTIVITY_SEASON_SCHOOL_2027) return ACTIVITY_SEASON_SCHOOL_2027;
+  if (season === ACTIVITY_SEASON_SUMMER_2026) return ACTIVITY_SEASON_SUMMER_2026;
+
+  const start = getActivitySeasonDate(activity);
+  if (start >= SCHOOL_2027_START_DATE && start <= SCHOOL_2027_END_DATE) return ACTIVITY_SEASON_SCHOOL_2027;
+  if (start >= SUMMER_START_DATE && start <= SUMMER_END_DATE) return ACTIVITY_SEASON_SUMMER_2026;
+  if (start >= SCHOOL_2026_START_DATE && start <= SCHOOL_2026_END_DATE) return ACTIVITY_SEASON_REGULAR;
+  if (explicitSeason && season === ACTIVITY_SEASON_REGULAR) return ACTIVITY_SEASON_REGULAR;
+  return ACTIVITY_SEASON_REGULAR;
+}
+
+export function activityMatchesPeriodKey(activity = {}, periodKey = '') {
+  const key = String(periodKey || 'all').trim();
+  if (!key || key === 'all') return true;
+  const period = getActivityPeriodKey(activity);
+  if (key === 'school_2026') return period === ACTIVITY_SEASON_REGULAR;
+  return period === key;
 }
 
 export function activitySeasonLabel(value) {

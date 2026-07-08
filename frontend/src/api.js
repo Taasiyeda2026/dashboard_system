@@ -4,7 +4,7 @@ import { hebrewRole } from './screens/shared/ui-hebrew.js';
 import { getActivityAuthorityName, getActivityContactName, getActivityContactPhone, getActivitySchoolNames } from './screens/shared/operations-activity-helpers.js';
 import { cleanActivityManagerName, getContactsInstructorUsers, getRosterUsers, NO_ACTIVITY_MANAGER_LABEL, normalizeOneDayActivityType, resolveActivityInstructorName, buildContactsInstructorLookup, resolveCanonicalInstructorPair, validateInstructorIdentityPayload } from './screens/shared/activity-options.js';
 import { EXCEPTION_TYPE_ORDER, normalizedExceptionTypes } from './screens/shared/exceptions-metrics.js';
-import { isSummerActivity, normalizeActivitySeason } from './screens/shared/summer-activity.js';
+import { ACTIVITY_SEASON_SCHOOL_2027, isSummerActivity, normalizeActivitySeason } from './screens/shared/summer-activity.js';
 import {
   normalizeContactMatchText,
   buildContactResponsibleIndex,
@@ -346,6 +346,7 @@ const CLOSED_STATUS = 'סגור';
 const OPEN_STATUS = 'פתוח';
 const LEGACY_ACTIVE_STATUS = 'פעיל';
 const DELETED_STATUS = 'נמחק';
+const APPROVED_PENDING_PLACEMENT_STATUS = 'מאושר - ממתין לשיבוץ';
 const GENERIC_ONE_DAY_ACTIVITY_NAMES = new Set(['סדנה', 'סדנאות', 'סיור', 'סיורים', 'חדר בריחה', 'חדרי בריחה']);
 
 function oneDayTypeFromActivityFields(activityType, itemType) {
@@ -4446,12 +4447,15 @@ function assertValidOneDayActivityRow(row = {}) {
   const name = String(row.activity_name || '').trim();
   if (!name || GENERIC_ONE_DAY_ACTIVITY_NAMES.has(name)) throw new Error('יש לבחור שם פעילות מתוך הרשימה');
   const selectedDate = normalizeDateFieldForSupabase(row.date_1 || row.start_date || row.end_date);
-  if (!selectedDate) throw new Error('יש לבחור תאריך תקין לפעילות חד־יומית לפני השמירה');
-  row.start_date = selectedDate;
-  row.end_date = selectedDate;
-  row.date_1 = selectedDate;
+  const isSchool2027 = normalizeActivitySeason(row.activity_season) === ACTIVITY_SEASON_SCHOOL_2027;
+  if (!selectedDate && !isSchool2027) throw new Error('יש לבחור תאריך תקין לפעילות חד־יומית לפני השמירה');
+  if (selectedDate) {
+    row.start_date = selectedDate;
+    row.end_date = selectedDate;
+    row.date_1 = selectedDate;
+  }
   if (String(row.status || '').trim() === LEGACY_ACTIVE_STATUS) row.status = OPEN_STATUS;
-  if (![OPEN_STATUS, CLOSED_STATUS, DELETED_STATUS].includes(String(row.status || '').trim())) row.status = OPEN_STATUS;
+  if (![OPEN_STATUS, APPROVED_PENDING_PLACEMENT_STATUS, CLOSED_STATUS, DELETED_STATUS].includes(String(row.status || '').trim())) row.status = OPEN_STATUS;
   return row;
 }
 

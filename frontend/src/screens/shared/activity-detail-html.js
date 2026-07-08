@@ -443,8 +443,9 @@ function blockActivityDetails(row, { settings = {} } = {}) {
     console.warn('[activity-edit] activity name options missing from client settings');
   }
   const isOneDay = Boolean(normalizeOneDayActivityType(activityType));
-  const statusOptions = ['פתוח', 'סגור'];
-  const normalizedStatus = normStatus(row.status) === 'closed' ? 'סגור' : 'פתוח';
+  const statusOptions = ['פתוח', 'מאושר - ממתין לשיבוץ', 'סגור'];
+  const rawStatus = String(row.status || '').trim();
+  const normalizedStatus = statusOptions.includes(rawStatus) ? rawStatus : (normStatus(row.status) === 'closed' ? 'סגור' : 'פתוח');
 
   return `
     <section class="activity-drawer__section activity-drawer__section--edit-group" data-mode="edit" hidden>
