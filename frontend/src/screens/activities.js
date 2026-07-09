@@ -1803,7 +1803,7 @@ export const activitiesScreen = {
               : (monthRows.length === 0)
                 ? 'אין פעילויות להצגה בחודש הנבחר'
                 : 'לא נמצאו פעילויות התואמות לסינון הנוכחי')
-        : dsTableWrap(`<table class="ds-table ds-table--interactive ds-table--activities-list" dir="rtl">
+        : dsTableWrap(`<table class="ds-table ds-table--interactive ds-table--activities-list${is2027Tab ? ' ds-table--activities-2027' : ''}" dir="rtl">
                 ${tableColsHtml}
                 <tbody>${tableRows}</tbody>
               </table>`) + loadMoreHtml;
