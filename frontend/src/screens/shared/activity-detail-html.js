@@ -742,9 +742,13 @@ function buildDateChipsHtml(schedule, isOnce) {
     .map(({ item, count, doneCount }) => {
       const isDone = doneCount > 0;
       const countLabel = count > 1 ? ` · ${count} מפגשים` : '';
+      const noteText = String(item?.note || '').trim();
+      const noteDot = noteText
+        ? `<span class="activity-drawer__date-note-dot" title="${escapeHtml(noteText)}" aria-label="הערה: ${escapeHtml(noteText)}" style="margin-right:4px;font-size:0.65em;color:var(--color-primary,#2563eb);cursor:help;vertical-align:middle">●</span>`
+        : '';
       return `
         <div class="activity-drawer__date-chip ${isDone ? 'is-done' : ''}" data-date-card>
-          <span>${escapeHtml(`${formatDateHeWithWeekday(item?.date || '')}${countLabel}`)}</span>
+          <span>${escapeHtml(`${formatDateHeWithWeekday(item?.date || '')}${countLabel}`)}</span>${noteDot}
         </div>
       `;
     })
@@ -761,17 +765,21 @@ function buildOneDayViewHtml(schedule, row, datesLoading) {
   const dateVal = String(firstMeeting?.date || '').trim();
   const dateDisplay = dateVal ? formatDateHe(dateVal) : '';
   const weekdayDisplay = dateVal ? fmtWeekdayShort(dateVal) : '';
+  const noteText = String(firstMeeting?.note || '').trim();
+  const noteDot = noteText
+    ? `<span class="activity-drawer__date-note-dot" title="${escapeHtml(noteText)}" aria-label="הערה: ${escapeHtml(noteText)}" style="margin-right:4px;font-size:0.65em;color:var(--color-primary,#2563eb);cursor:help;vertical-align:middle">●</span>`
+    : '';
   return `<div class="activity-drawer__oneday-info" data-mode="view" data-dates-view-chips>
     ${dateDisplay || weekdayDisplay ? `<div class="activity-drawer__date-chip">
       <span data-oneday-date-display>${escapeHtml(dateDisplay)}</span>
-      ${weekdayDisplay ? `<span class="activity-drawer__weekday" data-oneday-weekday-display>${escapeHtml(weekdayDisplay)}</span>` : `<span data-oneday-weekday-display></span>`}
+      ${weekdayDisplay ? `<span class="activity-drawer__weekday" data-oneday-weekday-display>${escapeHtml(weekdayDisplay)}</span>` : `<span data-oneday-weekday-display></span>`}${noteDot}
     </div>` : `<div class="activity-drawer__date-chip activity-drawer__date-chip--empty">
       <span data-oneday-date-display></span><span data-oneday-weekday-display></span>
     </div>`}
   </div>`;
 }
 
-function blockDates(row, { canEdit = false, canDirectEdit = false, datesLoading = false } = {}) {
+function blockDates(row, { canEdit = false, canDirectEdit = false, datesLoading = false, is2027 = false } = {}) {
   const schedule = Array.isArray(row?.meeting_schedule) ? row.meeting_schedule : [];
   const activityType = normalizeActivityTypeKey(row.activity_type || row.item_type);
   const isOnce = ONCE_TYPES.includes(activityType);
@@ -798,6 +806,7 @@ function blockDates(row, { canEdit = false, canDirectEdit = false, datesLoading 
           attrs: 'data-role="meeting-date" data-meeting-index="0" data-meeting-idx="0" data-oneday-date',
         })}
         <input type="hidden" name="meeting_performed_0" value="${escapeHtml(String(firstMeeting?.performed || 'no'))}">
+        ${is2027 ? `<textarea class="ds-input" name="meeting_note_0" rows="1" placeholder="הערה לתאריך זה" data-meeting-note-idx="0" style="margin-top:4px;font-size:0.85em;resize:vertical">${escapeHtml(String(firstMeeting?.note || ''))}</textarea>` : ''}
       </div>
     `;
     return `
@@ -837,6 +846,7 @@ function blockDates(row, { canEdit = false, canDirectEdit = false, datesLoading 
           attrs: `data-role="meeting-date" data-meeting-index="${i}" data-meeting-idx="${i}"`,
         })}
         <input type="hidden" name="meeting_performed_${i}" value="${escapeHtml(String(item?.performed || 'no'))}">
+        ${is2027 ? `<textarea class="ds-input" name="meeting_note_${i}" rows="1" placeholder="הערה למפגש זה" data-meeting-note-idx="${i}" style="margin-top:4px;font-size:0.85em;resize:vertical">${escapeHtml(String(item?.note || ''))}</textarea>` : ''}
       </div>
     `)
     .join('');
@@ -945,6 +955,8 @@ export function patchDrawerDatesSection(sectionEl, datesData) {
     if (weekdayEl) weekdayEl.textContent = dateVal ? fmtWeekdayShort(dateVal) : '';
     const oneDayInput = sectionEl.querySelector('[data-meeting-dates-edit] input[data-meeting-idx="0"]');
     if (oneDayInput) oneDayInput.value = dateVal;
+    const oneDayNoteEl = sectionEl.querySelector('[data-meeting-dates-edit] textarea[data-meeting-note-idx="0"]');
+    if (oneDayNoteEl) oneDayNoteEl.value = String(firstMeeting?.note || '').trim();
     const form = sectionEl.closest('[data-drawer-form]');
     if (form && typeof form._refreshInitialValues === 'function') {
       form._refreshInitialValues();
@@ -979,6 +991,8 @@ export function patchDrawerDatesSection(sectionEl, datesData) {
     schedule.forEach((item, index) => {
       const input = editGrid.querySelector(`input[data-meeting-idx="${index}"]`);
       if (input) input.value = String(item?.date || '').trim();
+      const noteEl = editGrid.querySelector(`textarea[data-meeting-note-idx="${index}"]`);
+      if (noteEl) noteEl.value = String(item?.note || '').trim();
     });
     const form = sectionEl.closest('[data-drawer-form]');
     if (form && typeof form._refreshInitialValues === 'function') {
@@ -1078,8 +1092,8 @@ function singleForm(row, { settings = {}, privateNote = null, canEdit = false, c
         ? blockViewOnce(row, { settings, hideFunding: hideFundingInView || instructorLimited })
         : blockViewCourse(row, { settings })}
       ${isOnce && showDates
-        ? `<div class="activity-drawer__once-dates-row" data-once-dates-row>${blockDates(row, { canEdit, canDirectEdit, datesLoading })}</div>`
-        : (showDates ? blockDates(row, { canEdit, canDirectEdit, datesLoading }) : '')}
+        ? `<div class="activity-drawer__once-dates-row" data-once-dates-row>${blockDates(row, { canEdit, canDirectEdit, datesLoading, is2027 })}</div>`
+        : (showDates ? blockDates(row, { canEdit, canDirectEdit, datesLoading, is2027 }) : '')}
       ${blockNotes(row, { hidden: instructorLimited })}
       ${blockPrivateNote(row, { privateNote, showPrivateNote })}
       ${blockActivityDetails(row, { settings })}

@@ -4577,6 +4577,10 @@ function mapMeetingDateFieldNamesToSupabase(changes = {}) {
     }
     if (/^meeting_performed_\d+$/.test(key)) {
       delete out[key];
+      continue;
+    }
+    if (/^meeting_note_\d+$/.test(key)) {
+      delete out[key];
     }
   }
   return out;
@@ -4803,11 +4807,41 @@ function assertSupabaseActivityUpdateApplied(operation, requestedChanges = {}, r
   }
 }
 
+async function upsertMeetingNotesToSupabase(rowId, notesMap = {}) {
+  const entries = Object.entries(notesMap);
+  if (!entries.length) return;
+  const rows = entries.map(([idx0, note]) => ({
+    source_row_id: rowId,
+    meeting_no: String(Number(idx0) + 1),
+    notes: String(note || '')
+  }));
+  try {
+    await supabase
+      .from('activity_meetings')
+      .upsert(rows, { onConflict: 'source_row_id,meeting_no' });
+  } catch (e) {
+    console.warn('[activity-meetings] upsertMeetingNotesToSupabase failed', e?.message || e);
+  }
+}
+
+function extractMeetingNotes(changes = {}) {
+  const notes = {};
+  for (const [key, val] of Object.entries(changes)) {
+    const m = /^meeting_note_(\d+)$/.exec(key);
+    if (m) {
+      const idx0 = Number(m[1]);
+      if (Number.isFinite(idx0) && idx0 >= 0 && idx0 < 35) notes[idx0] = String(val || '');
+    }
+  }
+  return notes;
+}
+
 async function updateActivityInSupabase(payload = {}) {
   const rowId = String(payload?.source_row_id || payload?.row_id || payload?.RowID || '').trim();
   const sourceSheet = String(payload?.source_sheet || 'activities').trim() || 'activities';
   if (!rowId) throw new Error('missing_row_id');
   const rawChanges = applyInstructorEmpSync({ ...(payload?.changes || {}) });
+  const meetingNotes = extractMeetingNotes(rawChanges);
   const mappedChanges = mapMeetingDateFieldNamesToSupabase(rawChanges);
   const { data: existingInstructorRow, error: existingInstructorError } = await supabase
     .from('activities')
@@ -4859,7 +4893,14 @@ async function updateActivityInSupabase(payload = {}) {
     const derivedEnd = deriveEndDateFromDates(mergedDates);
     if (derivedEnd) changes.end_date = derivedEnd;
   }
-  if (!Object.keys(changes).length) throw new Error('No changes to submit');
+  const hasMeetingNotes = Object.keys(meetingNotes).length > 0;
+  if (!Object.keys(changes).length && !hasMeetingNotes) throw new Error('No changes to submit');
+  if (!Object.keys(changes).length) {
+    await upsertMeetingNotesToSupabase(rowId, meetingNotes);
+    const { data: notesOnlyRow } = await supabase.from('activities').select('*').eq('row_id', rowId).maybeSingle();
+    const notesOnlyNormalized = normalizeActivityRow(notesOnlyRow || {});
+    return { ok: true, RowID: rowId, row_id: rowId, source_sheet: 'activities', row: notesOnlyNormalized };
+  }
   const debugPayload = { source_sheet: sourceSheet, source_row_id: rowId, changes };
   const { data: rowIdMatches, error: rowIdMatchesError } = await supabase
     .from('activities')
@@ -4947,6 +4988,9 @@ async function updateActivityInSupabase(payload = {}) {
     throw dbVerifyError;
   }
   const normalized = normalizeActivityRow({ ...(data || {}), ...(freshDbRow || {}) });
+  if (hasMeetingNotes) {
+    await upsertMeetingNotesToSupabase(rowId, meetingNotes);
+  }
   logActivityMutationDebug('success', 'saveActivity', debugPayload, { table: 'activities', returned_row_id: normalized.row_id });
   return { ok: true, RowID: rowId, row_id: rowId, source_sheet: 'activities', row: normalized };
 }
@@ -4971,7 +5015,20 @@ async function readActivityDatesFromSupabase(source_row_id, source_sheet) {
   if (error) throw new Error(error.message || 'dates_failed');
   const row = normalizeActivityRow(data || {});
   const meeting_dates = getActivityDateColumns(row);
-  const meeting_schedule = meeting_dates.map((d) => ({ date: d, performed: 'no' }));
+  const notesMap = {};
+  try {
+    const { data: meetingNoteRows } = await supabase
+      .from('activity_meetings')
+      .select('meeting_no,notes')
+      .eq('source_row_id', rowId);
+    if (Array.isArray(meetingNoteRows)) {
+      meetingNoteRows.forEach((m) => {
+        const idx = Number(m.meeting_no) - 1;
+        if (Number.isFinite(idx) && idx >= 0 && m.notes) notesMap[idx] = String(m.notes);
+      });
+    }
+  } catch (_) { /* notes are optional — do not fail dates load */ }
+  const meeting_schedule = meeting_dates.map((d, i) => ({ date: d, performed: 'no', note: notesMap[i] || '' }));
   return {
     meeting_dates,
     date_cols: meeting_dates,
