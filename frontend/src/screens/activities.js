@@ -2513,7 +2513,7 @@ export const activitiesScreen = {
 
 
     root.querySelector('[data-activity-layout-list]')?.addEventListener('click', async (ev) => {
-      if (!canUseActivityLayout(state) || state.activityPeriodTab !== ACTIVITY_LAYOUT_SEASON || !ui) return;
+      if (!canUseActivityLayout(state) || state.activityPeriodTab !== ACTIVITY_SEASON_REGULAR || state.activitiesInnerTab !== ACTIVITIES_INNER_TAB_SUMMER_2026 || !ui) return;
       const btn = ev.currentTarget;
       btn.disabled = true;
       ui.openDrawer({
