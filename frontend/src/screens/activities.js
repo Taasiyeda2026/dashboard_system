@@ -1690,7 +1690,6 @@ export const activitiesScreen = {
         <td class="ds-activities-col ds-activities-col--instructor"><span class="ds-activities-cell-ellipsis" title="${escapeHtml(managerLabel || '—')}">${escapeHtml(managerLabel || '—')}</span></td>
         <td class="ds-activities-col ds-activities-col--date"><time class="ds-activities-date">${escapeHtml(startHe2027)}</time></td>
         <td class="ds-activities-col ds-activities-col--date"><time class="ds-activities-date">${escapeHtml(endHe2027)}</time></td>
-        <td class="ds-activities-col ds-activities-col--meetings">${(() => { const nd = nextMeetingDate(row); const ndHe = nd ? (formatDateHe(nd) || nd) : ''; return ndHe ? `<time class="ds-activities-date" title="${escapeHtml(nd)}">${escapeHtml(ndHe)}</time>` : '<span class="ds-activities-date ds-activities-date--none">—</span>'; })()}</td>
         <td class="ds-activities-col ds-activities-col--contact-name"><span class="ds-activities-cell-ellipsis" title="${contactName2027}">${contactName2027}</span></td>
         <td class="ds-activities-col ds-activities-col--contact-phone"><span class="ds-activities-cell-ellipsis" title="${contactPhone2027}">${contactPhone2027}</span></td>
       </tr>
@@ -1770,11 +1769,10 @@ export const activitiesScreen = {
                   <col class="ds-activities-col--instructor">
                   <col class="ds-activities-col--date">
                   <col class="ds-activities-col--date">
-                  <col class="ds-activities-col--meetings">
                   <col class="ds-activities-col--contact-name">
                   <col class="ds-activities-col--contact-phone">
                 </colgroup>
-                <thead><tr><th>תוכנית / סוג</th><th>רשות</th><th>בית ספר</th><th>מנהל פעילות</th><th>תאריך התחלה</th><th>תאריך סיום</th><th>המפגש הבא</th><th>איש קשר</th><th>נייד</th></tr></thead>`
+                <thead><tr><th>תוכנית / סוג</th><th>רשות</th><th>בית ספר</th><th>מנהל פעילות</th><th>תאריך התחלה</th><th>תאריך סיום</th><th>איש קשר</th><th>נייד</th></tr></thead>`
         : `<colgroup>
                   <col class="ds-activities-col--program">
                   <col class="ds-activities-col--authority">

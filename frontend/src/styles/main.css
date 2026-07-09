@@ -9424,15 +9424,14 @@ select.ds-input {
 .ds-table--activities-list col.ds-activities-col--meetings   { width: 9%; }
 .ds-table--activities-list col.ds-activities-col--notes      { width: 25%; }
 
-/* ── 2027 table: 9 columns, sum = 100% ── */
-.ds-table--activities-2027 col.ds-activities-col--program       { width: 18%; }
-.ds-table--activities-2027 col.ds-activities-col--authority     { width: 10%; }
-.ds-table--activities-2027 col.ds-activities-col--school        { width: 14%; }
-.ds-table--activities-2027 col.ds-activities-col--instructor    { width: 12%; }
-.ds-table--activities-2027 col.ds-activities-col--date          { width: 8%;  }
-.ds-table--activities-2027 col.ds-activities-col--meetings      { width: 8%;  }
-.ds-table--activities-2027 col.ds-activities-col--contact-name  { width: 14%; }
-.ds-table--activities-2027 col.ds-activities-col--contact-phone { width: 8%;  }
+/* ── 2027 table: 8 columns, sum = 100% ── */
+.ds-table--activities-2027 col.ds-activities-col--program       { width: 22%; }
+.ds-table--activities-2027 col.ds-activities-col--authority     { width: 13%; }
+.ds-table--activities-2027 col.ds-activities-col--school        { width: 16%; }
+.ds-table--activities-2027 col.ds-activities-col--instructor    { width: 13%; }
+.ds-table--activities-2027 col.ds-activities-col--date          { width: 10%; }
+.ds-table--activities-2027 col.ds-activities-col--contact-name  { width: 10%; }
+.ds-table--activities-2027 col.ds-activities-col--contact-phone { width: 6%;  }
 
 .ds-table--activities-2027 td {
   height: 28px;
