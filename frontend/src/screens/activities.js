@@ -50,7 +50,7 @@ import { canEditDirect, canAddActivityDirect, canRequestEdit, canRequestCreateAc
 const taasiyedaLogoSrc = new URL('../../assets/logo1.png', import.meta.url).href;
 
 const inflightActivityDetailRequests = new Map();
-const ADD_ACTIVITY_TYPE_ORDER = ['workshop', 'escape_room', 'tour', 'after_school'];
+const ADD_ACTIVITY_TYPE_ORDER = ['course', 'workshop', 'escape_room', 'tour', 'after_school'];
 
 const ALL_ACTIVITIES_TAB_KEY = 'all_activities';
 const ACTIVITIES_INNER_TAB_ALL = 'year_all';
