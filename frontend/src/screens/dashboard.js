@@ -2,7 +2,7 @@ import { escapeHtml } from './shared/html.js';
 import { dsCard, dsScreenStack } from './shared/layout.js';
 import { computeOperationalExceptionsTotal } from './shared/exceptions-metrics.js';
 import { syncActivitiesGapQuery } from './shared/route-query.js';
-import { defaultMonthForGlobalActivityPeriod, SUMMER_DEFAULT_MONTH_YM } from './shared/summer-activity.js';
+import { defaultMonthForGlobalActivityPeriod, ACTIVITY_SEASON_REGULAR } from './shared/summer-activity.js';
 import { activityTypeIconSvg } from './shared/activity-type-icons.js';
 
 const HEBREW_MONTHS = [
@@ -194,7 +194,7 @@ function goActivitiesDrill(state, patch) {
   state.activityTab = patch.activityTab ?? 'all';
   state.activityFinanceStatus = patch.activityFinanceStatus ?? '';
   state.activityQuickFamily = patch.activityQuickFamily ?? '';
-  state.activityPeriodTab = patch.activityPeriodTab || (patch.activityQuickFamily === 'summer' ? 'summer_2026' : (state.activityPeriodTab || 'school_2026'));
+  state.activityPeriodTab = patch.activityPeriodTab || state.activityPeriodTab || ACTIVITY_SEASON_REGULAR;
   state.activityQuickManager = patch.activityQuickManager ?? '';
   state.activityEndingCurrentMonth = !!patch.activityEndingCurrentMonth;
   state.activitiesMonthYm = patch.activitiesMonthYm || state.dashboardMonthYm || currentMonthYm();
@@ -637,8 +637,8 @@ export const dashboardScreen = {
       if (action === 'kpi|summer') {
         goActivitiesDrill(state, {
           activityQuickFamily: '',
-          activityPeriodTab: 'summer_2026',
-          activitiesMonthYm: SUMMER_DEFAULT_MONTH_YM,
+          activityPeriodTab: ACTIVITY_SEASON_REGULAR,
+          activitiesMonthYm: '',
           resetActivityListFilters: true
         });
         ui.closeAll();

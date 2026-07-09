@@ -1181,7 +1181,7 @@ function closeMobileNav() {
 }
 
 function buildScreenDataCacheKey(route, cacheState = state) {
-  const activityPeriod = normalizeGlobalActivityPeriod(cacheState?.activityPeriodTab || 'summer_2026');
+  const activityPeriod = normalizeGlobalActivityPeriod(cacheState?.activityPeriodTab || 'regular');
   const withActivityPeriod = (base) => `${base}:period:${activityPeriod}`;
   if (route === 'activities') {
     return 'activities:periods';

@@ -1,7 +1,7 @@
 import { resetSupabaseAuthSessionWait } from './supabase-client.js';
 import { permissionFlagYes } from './permissions.js';
 import {
-  ACTIVITY_SEASON_SUMMER_2026,
+  ACTIVITY_SEASON_REGULAR,
   GLOBAL_ACTIVITY_PERIOD_STORAGE_KEY,
   defaultMonthForGlobalActivityPeriod,
   isValidGlobalActivityPeriod,
@@ -82,7 +82,7 @@ function normalizeStoredUserFlags(user) {
   };
 }
 
-const DEFAULT_GLOBAL_ACTIVITY_PERIOD = ACTIVITY_SEASON_SUMMER_2026;
+const DEFAULT_GLOBAL_ACTIVITY_PERIOD = ACTIVITY_SEASON_REGULAR;
 
 const _initStoredUser = normalizeStoredUserFlags(JSON.parse(localStorage.getItem('dashboard_user') || 'null'));
 const _initCalKey = calendarMonthSessionKey(_initStoredUser?.user_id);
@@ -249,13 +249,14 @@ export function setSession(session) {
 export function setGlobalActivityPeriod(value, { persist = true } = {}) {
   const nextPeriod = normalizeGlobalActivityPeriod(value || DEFAULT_GLOBAL_ACTIVITY_PERIOD);
   state.activityPeriodTab = nextPeriod;
+  state.activitiesInnerTab = 'year_all';
   const periodMonth = defaultMonthForGlobalActivityPeriod(nextPeriod);
   state.dashboardMonthYm = periodMonth;
   state.activitiesMonthYm = periodMonth;
   if (state.operationsManagement) {
     state.operationsManagement.period = nextPeriod;
-    const from = nextPeriod === ACTIVITY_SEASON_SUMMER_2026 ? '2026-07-01' : nextPeriod === 'school_2027' ? '2026-09-01' : '';
-    const to = nextPeriod === ACTIVITY_SEASON_SUMMER_2026 ? '2026-08-31' : nextPeriod === 'school_2027' ? '2027-08-31' : '';
+    const from = nextPeriod === 'school_2027' ? '2026-09-01' : '2025-09-01';
+    const to = nextPeriod === 'school_2027' ? '2027-08-31' : '2026-08-31';
     state.operationsManagement.dateFrom = from;
     state.operationsManagement.dateTo = to;
   }
