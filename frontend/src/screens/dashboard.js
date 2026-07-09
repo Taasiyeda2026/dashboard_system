@@ -2,7 +2,7 @@ import { escapeHtml } from './shared/html.js';
 import { dsCard, dsScreenStack } from './shared/layout.js';
 import { computeOperationalExceptionsTotal } from './shared/exceptions-metrics.js';
 import { syncActivitiesGapQuery } from './shared/route-query.js';
-import { SUMMER_DEFAULT_MONTH_YM } from './shared/summer-activity.js';
+import { defaultMonthForGlobalActivityPeriod, SUMMER_DEFAULT_MONTH_YM } from './shared/summer-activity.js';
 import { activityTypeIconSvg } from './shared/activity-type-icons.js';
 
 const HEBREW_MONTHS = [
@@ -307,10 +307,11 @@ export const dashboardScreen = {
   async load({ api, state }) {
     let ym = state.dashboardMonthYm;
     const now = currentMonthYm();
+    const periodDefaultMonth = defaultMonthForGlobalActivityPeriod(state.activityPeriodTab);
     if (!ym || !/^\d{4}-\d{2}$/.test(ym)) {
-      ym = now;
+      ym = periodDefaultMonth || now;
     }
-    if (ym > now) {
+    if (ym > now && ym !== periodDefaultMonth) {
       ym = now;
       saveDashboardMonthToStorage(ym);
     }

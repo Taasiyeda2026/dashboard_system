@@ -59,6 +59,7 @@ export function getActivityPeriodKey(activity = {}) {
 }
 
 export const GLOBAL_ACTIVITY_PERIODS = [ACTIVITY_SEASON_SUMMER_2026, ACTIVITY_SEASON_REGULAR, ACTIVITY_SEASON_SCHOOL_2027];
+export const GLOBAL_ACTIVITY_PERIOD_STORAGE_KEY = 'dashboard_activity_period';
 
 export function normalizeGlobalActivityPeriod(value) {
   const key = String(value || '').trim();
@@ -81,6 +82,17 @@ export function globalActivityPeriodFullLabel(value) {
 
 export function globalActivityPeriodOptions() {
   return ACTIVITY_SEASON_OPTIONS.map(({ value, label, shortLabel }) => ({ value, label, shortLabel }));
+}
+
+export function isValidGlobalActivityPeriod(value) {
+  return GLOBAL_ACTIVITY_PERIODS.includes(String(value || '').trim());
+}
+
+export function defaultMonthForGlobalActivityPeriod(value) {
+  const key = normalizeGlobalActivityPeriod(value);
+  if (key === ACTIVITY_SEASON_SUMMER_2026) return SUMMER_DEFAULT_MONTH_YM;
+  if (key === ACTIVITY_SEASON_SCHOOL_2027) return SCHOOL_2027_START_DATE.slice(0, 7);
+  return '';
 }
 
 export function activityMatchesPeriodKey(activity = {}, periodKey = '') {
