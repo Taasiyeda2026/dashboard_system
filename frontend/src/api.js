@@ -124,7 +124,7 @@ const DASHBOARD_ACTIVITY_COLUMNS = [
 ].join(',');
 const DASHBOARD_ACTIVITY_MIN_COLUMNS = 'row_id,activity_family,activity_manager,activity_name,authority,school,instructor_name,instructor_name_2,emp_id,emp_id_2,start_date,end_date,status,activity_type';
 const SETTINGS_BOOTSTRAP_COLUMNS = 'key,value,description';
-const LISTS_BOOTSTRAP_COLUMNS = 'list_id,category,value,label,active,category_order,sort_order,activity_no,activity_name,activity_type,type,stock_quantity,stock_group_key,stock_group_name,stock_item_name,stock_label,parent_value';
+const LISTS_BOOTSTRAP_COLUMNS = 'list_id,category,value,label,active,is_active,category_order,sort_order,activity_no,activity_name,activity_type,type,stock_quantity,stock_group_key,stock_group_name,stock_item_name,stock_label,parent_value';
 let settingsRowsCache = null;
 let settingsRowsPromise = null;
 let listsRowsCache = null;
@@ -1600,7 +1600,7 @@ function buildClientSettingsFromLists(listsData, settingsRows = [], instructorCo
     activity_type: String(i._row?.activity_type || i._row?.parent_value || i._row?.type || '').trim(),
     parent_value:  String(i._row?.parent_value  || i._row?.activity_type || i._row?.type || '').trim(),
     type:          String(i._row?.type || i._row?.activity_type || i._row?.parent_value || '').trim(),
-    active:        i._row?.active ?? i._row?.is_active ?? i.active,
+    active:        (typeof i._row?.is_active === 'boolean') ? i._row?.is_active : (i._row?.active ?? i.active),
     sort_order:    Number.isFinite(Number(i._row?.sort_order)) ? Number(i._row?.sort_order) : null
   }));
   const activityTypes = [...new Set(activityNames.map((row) => String(row.activity_type || row.parent_value || row.type || '').trim()).filter(Boolean))];

@@ -202,6 +202,7 @@ export function getActivityCatalog(settings) {
       sort_order: row?.sort_order
     }))
     .filter((row) => row.label)
+    .filter((row) => !isExplicitlyInactive(row.active))
     .filter((row) => {
       const sig = `${row.label}|${row.activity_no}|${row.parent_value}`;
       if (seen.has(sig)) return false;

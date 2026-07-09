@@ -816,7 +816,10 @@ function addActivityModalHtml(settings, activityPeriodTab = '') {
         </label>
         <input type="hidden" name="activity_no" value="" data-add-activity-no>
         <label class="ds-activity-add-field ds-activity-add-field--compact" data-field-sessions><span>מספר מפגשים</span><select class="ds-input" name="sessions" data-add-sessions>${optionsHtml(sessionsList, '1')}</select></label>
-        <label class="ds-activity-add-field ds-activity-add-field--compact"><span>עונת פעילות</span><select class="ds-input" name="activity_season">${activitySeasonSelectHtml(settings, initialSeason)}</select></label>
+        ${initialSeason === ACTIVITY_SEASON_SCHOOL_2027
+          ? `<input type="hidden" name="activity_season" value="${escapeHtml(ACTIVITY_SEASON_SCHOOL_2027)}">`
+          : `<label class="ds-activity-add-field ds-activity-add-field--compact"><span>עונת פעילות</span><select class="ds-input" name="activity_season">${activitySeasonSelectHtml(settings, initialSeason)}</select></label>`
+        }
         <label class="ds-activity-add-field ds-activity-add-field--compact"><span>סטטוס</span><select class="ds-input" name="status">${optionsHtml(statusOptions, initialStatus)}</select></label>
         <label class="ds-activity-add-field ds-activity-add-field--compact"><span>מימון</span><select class="ds-input" name="funding">${optionsHtml(fundingOptions)}</select></label>
         <label class="ds-activity-add-field ds-activity-add-field--compact"><span>מחיר</span><input class="ds-input" name="price" type="number" min="0" step="1"></label>
