@@ -449,10 +449,13 @@ function blockActivityDetails(row, { settings = {} } = {}) {
   const isOneDay = Boolean(normalizeOneDayActivityType(activityType));
   const is2027Row = normalizeActivitySeason(row.activity_season) === ACTIVITY_SEASON_SCHOOL_2027;
   const statusOptions = is2027Row
-    ? ['בתהליך', 'מוכן לשיבוץ', 'סגור']
+    ? ['פתוח', 'בתהליך', 'סגור']
     : ['פתוח', 'מאושר - ממתין לשיבוץ', 'סגור'];
   const rawStatus = String(row.status || '').trim();
-  const normalizedStatus = statusOptions.includes(rawStatus) ? rawStatus : (is2027Row ? 'בתהליך' : (normStatus(row.status) === 'closed' ? 'סגור' : 'פתוח'));
+  const status2027Normalized = rawStatus === 'מוכן לשיבוץ' ? 'בתהליך' : rawStatus;
+  const normalizedStatus = statusOptions.includes(is2027Row ? status2027Normalized : rawStatus)
+    ? (is2027Row ? status2027Normalized : rawStatus)
+    : (is2027Row ? 'בתהליך' : (normStatus(row.status) === 'closed' ? 'סגור' : 'פתוח'));
 
   return `
     <section class="activity-drawer__section activity-drawer__section--edit-group" data-mode="edit" hidden>

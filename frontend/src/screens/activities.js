@@ -769,7 +769,7 @@ function addActivityModalHtml(settings, activityPeriodTab = '') {
       ? ACTIVITY_SEASON_SUMMER_2026
       : ACTIVITY_SEASON_REGULAR;
   const statusOptions = initialSeason === ACTIVITY_SEASON_SCHOOL_2027
-    ? ['בתהליך', 'מוכן לשיבוץ', 'סגור']
+    ? ['פתוח', 'בתהליך', 'סגור']
     : ['פתוח', 'מאושר - ממתין לשיבוץ', 'סגור'];
   const initialStatus = initialSeason === ACTIVITY_SEASON_SCHOOL_2027 ? 'בתהליך' : 'פתוח';
 
