@@ -4775,6 +4775,7 @@ async function upsertActivityToSupabase(payload = {}) {
   }
   await saveActivitySchoolsForActivity(data || row, act);
   const normalized = normalizeActivityRow(data || row);
+  invalidateAllActivitiesRowsCache();
   logActivityMutationDebug('success', 'addActivity', { source_sheet: 'activities', source_row_id: normalized.row_id, changes: row });
   return { RowID: normalized.RowID, row_id: normalized.row_id, source_sheet: 'activities', row: normalized };
 }
@@ -5043,6 +5044,7 @@ async function updateActivityInSupabase(payload = {}) {
   if (hasMeetingNotes) {
     await upsertMeetingNotesToSupabase(rowId, meetingNotes);
   }
+  invalidateAllActivitiesRowsCache();
   logActivityMutationDebug('success', 'saveActivity', debugPayload, { table: 'activities', returned_row_id: normalized.row_id });
   return { ok: true, RowID: rowId, row_id: rowId, source_sheet: 'activities', row: normalized };
 }
@@ -5134,8 +5136,24 @@ function buildInstructorTeamGroups(allRows, ownRows, overrides = []) {
     }));
 }
 
-async function readAllActivitiesRowsSupabase() {
-  return selectActivitiesFromSupabase('*');
+let _allActivitiesRowsCache = null;
+let _allActivitiesRowsCacheAt = 0;
+const _ALL_ACTIVITIES_ROWS_CACHE_TTL_MS = 2 * 60 * 1000; // 2 דקות
+
+async function readAllActivitiesRowsSupabase({ forceRefresh = false } = {}) {
+  const now = Date.now();
+  if (!forceRefresh && _allActivitiesRowsCache && (now - _allActivitiesRowsCacheAt) < _ALL_ACTIVITIES_ROWS_CACHE_TTL_MS) {
+    return _allActivitiesRowsCache;
+  }
+  const rows = await selectActivitiesFromSupabase('*');
+  _allActivitiesRowsCache = rows;
+  _allActivitiesRowsCacheAt = Date.now();
+  return rows;
+}
+
+export function invalidateAllActivitiesRowsCache() {
+  _allActivitiesRowsCache = null;
+  _allActivitiesRowsCacheAt = 0;
 }
 
 

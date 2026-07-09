@@ -309,30 +309,52 @@ function normalizeSchoolRow(row = {}) {
   };
 }
 
-async function readOperationsSchoolsDirectory() {
+let _opsSchoolsDirCache = null;
+let _opsSchoolsDirCacheAt = 0;
+const _OPS_SCHOOLS_DIR_TTL_MS = 5 * 60 * 1000;
+
+async function readOperationsSchoolsDirectory({ forceRefresh = false } = {}) {
   if (!supabase) return { rows: [], source: 'none' };
+  const now = Date.now();
+  if (!forceRefresh && _opsSchoolsDirCache && (now - _opsSchoolsDirCacheAt) < _OPS_SCHOOLS_DIR_TTL_MS) {
+    return _opsSchoolsDirCache;
+  }
   try {
     const { data, error } = await supabase
       .from('schools')
       .select('id, semel_mosad, school_name, authority, authority_id, district, principal_name, school_phone, institution_address, city')
       .limit(10000);
     if (error) throw error;
-    return { rows: Array.isArray(data) ? data : [], source: 'schools' };
+    const result = { rows: Array.isArray(data) ? data : [], source: 'schools' };
+    _opsSchoolsDirCache = result;
+    _opsSchoolsDirCacheAt = Date.now();
+    return result;
   } catch (error) {
     console.warn('[operations-management] schools directory read failed', error?.message || error);
     return { rows: [], source: 'error' };
   }
 }
 
-async function readContactsSchools() {
+let _opsContactsSchoolsCache = null;
+let _opsContactsSchoolsCacheAt = 0;
+const _OPS_CONTACTS_SCHOOLS_TTL_MS = 5 * 60 * 1000;
+
+async function readContactsSchools({ forceRefresh = false } = {}) {
   if (!supabase) return [];
+  const now = Date.now();
+  if (!forceRefresh && _opsContactsSchoolsCache && (now - _opsContactsSchoolsCacheAt) < _OPS_CONTACTS_SCHOOLS_TTL_MS) {
+    return _opsContactsSchoolsCache;
+  }
   try {
     const { data, error } = await supabase
       .from('contacts_schools')
       .select('authority, school, school_id, contact_name, contact_role, phone')
       .limit(10000);
     if (error) throw error;
-    return Array.isArray(data) ? data : [];
+    const rows = Array.isArray(data) ? data : [];
+    _opsContactsSchoolsCache = rows;
+    _opsContactsSchoolsCacheAt = Date.now();
+    return rows;
   } catch (err) {
     console.warn('[operations-management] contacts_schools read failed', err?.message || err);
     return [];
