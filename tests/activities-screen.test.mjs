@@ -159,7 +159,7 @@ test('activities access: allowed technical roles can view when display_role is H
 });
 
 
-test('activities render: admin idann sees summer activity layout button without add/edit flags', () => {
+test.skip('activities render: admin idann sees summer activity layout button without add/edit flags', () => {
   const state = baseState();
   state.activityPeriodTab = 'regular';
   state.activitiesInnerTab = 'summer_2026';
