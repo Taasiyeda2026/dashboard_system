@@ -2176,9 +2176,180 @@ export const activitiesScreen = {
       if (shellHdr) shellHdr.hidden = true;
     }
 
+    function bindContact2027Section(contentRoot) {
+      const section = contentRoot.querySelector('[data-contact-2027-section]');
+      if (!section) return;
+
+      const schoolId  = section.dataset.schoolId  || '';
+      const school    = section.dataset.school    || '';
+      const authority = section.dataset.authority || '';
+
+      const select       = section.querySelector('[data-contact-2027-select]');
+      const preview      = section.querySelector('[data-contact-2027-preview]');
+      const addBtn       = section.querySelector('[data-contact-2027-add-btn]');
+      const addForm      = section.querySelector('[data-contact-2027-add-form]');
+      const saveNewBtn   = section.querySelector('[data-contact-2027-save-new]');
+      const cancelNewBtn = section.querySelector('[data-contact-2027-cancel-new]');
+      const idInput      = section.querySelector('[data-contact-2027-id-input]');
+      const hiddenName   = section.querySelector('[data-contact-2027-hidden-name]');
+      const hiddenPhone  = section.querySelector('[data-contact-2027-hidden-phone]');
+      const hiddenEmail  = section.querySelector('[data-contact-2027-hidden-email]');
+      const errorEl      = section.querySelector('[data-new-contact-error]');
+
+      let loadedContacts = [];
+
+      const updatePreview = () => {
+        const val = select ? select.value : '';
+        const c = loadedContacts.find((x) => String(x.id) === val);
+        if (c) {
+          const ph = String(c.phone || c.mobile || '').trim();
+          const em = String(c.email || '').trim();
+          section.querySelector('[data-contact-2027-pname]').textContent  = String(c.contact_name || '').trim();
+          section.querySelector('[data-contact-2027-pphone]').textContent = ph;
+          section.querySelector('[data-contact-2027-pemail]').textContent = em;
+          if (preview) preview.style.display = 'block';
+          if (idInput)    idInput.value    = String(c.id);
+          if (hiddenName) hiddenName.value = String(c.contact_name || '').trim();
+          if (hiddenPhone) hiddenPhone.value = ph;
+          if (hiddenEmail) hiddenEmail.value = em;
+        } else {
+          if (preview) preview.style.display = 'none';
+          if (idInput)    idInput.value    = '';
+          if (hiddenName) hiddenName.value = '';
+          if (hiddenPhone) hiddenPhone.value = '';
+          if (hiddenEmail) hiddenEmail.value = '';
+        }
+      };
+
+      const populateSelect = (contacts, currentId) => {
+        if (!select) return;
+        select.innerHTML = '';
+        if (!contacts.length) {
+          select.innerHTML = '<option value="">לא נמצא איש קשר לבית הספר</option>';
+          return;
+        }
+        const placeholder = document.createElement('option');
+        placeholder.value = '';
+        placeholder.textContent = '— בחר איש קשר —';
+        select.appendChild(placeholder);
+        contacts.forEach((c) => {
+          const opt = document.createElement('option');
+          opt.value = String(c.id);
+          const ph = String(c.phone || c.mobile || '').trim();
+          opt.textContent = [String(c.contact_name || '').trim(), String(c.contact_role || '').trim(), ph].filter(Boolean).join(' — ');
+          select.appendChild(opt);
+        });
+        if (currentId && contacts.find((c) => String(c.id) === String(currentId))) {
+          select.value = String(currentId);
+        } else if (contacts.length === 1) {
+          select.value = String(contacts[0].id);
+        }
+        updatePreview();
+      };
+
+      const loadContacts = async (overrideSchool, overrideAuthority) => {
+        const s  = overrideSchool    || school;
+        const au = overrideAuthority || authority;
+        if (!select) return;
+        select.innerHTML = '<option value="">טוען...</option>';
+        if (preview) preview.style.display = 'none';
+        try {
+          const contacts = await api.contactsForSchool(schoolId, s, au);
+          loadedContacts = contacts;
+          const currentId = idInput ? idInput.value : section.dataset.currentContactId || '';
+          populateSelect(contacts, currentId);
+        } catch (_) {
+          if (select) select.innerHTML = '<option value="">שגיאה בטעינה</option>';
+        }
+      };
+
+      select?.addEventListener('change', updatePreview);
+
+      addBtn?.addEventListener('click', () => {
+        if (addForm) addForm.style.display = 'block';
+        if (addBtn)  addBtn.style.display  = 'none';
+        if (errorEl) errorEl.textContent   = '';
+      });
+
+      cancelNewBtn?.addEventListener('click', () => {
+        if (addForm) addForm.style.display = 'none';
+        if (addBtn)  addBtn.style.display  = '';
+        if (errorEl) errorEl.textContent   = '';
+      });
+
+      saveNewBtn?.addEventListener('click', async () => {
+        if (!addForm) return;
+        const nameVal  = (addForm.querySelector('[data-new-contact-name]')?.value  || '').trim();
+        const roleVal  = (addForm.querySelector('[data-new-contact-role]')?.value  || '').trim();
+        const phoneVal = (addForm.querySelector('[data-new-contact-phone]')?.value || '').trim();
+        const emailVal = (addForm.querySelector('[data-new-contact-email]')?.value || '').trim();
+
+        if (errorEl) errorEl.textContent = '';
+        if (!nameVal) { if (errorEl) errorEl.textContent = 'שם איש קשר הוא שדה חובה'; return; }
+        if (!phoneVal && !emailVal) { if (errorEl) errorEl.textContent = 'יש להזין נייד או מייל לפחות'; return; }
+
+        const dup = loadedContacts.find((c) =>
+          (phoneVal && (String(c.phone||'') === phoneVal || String(c.mobile||'') === phoneVal)) ||
+          (emailVal && String(c.email||'') === emailVal)
+        );
+        if (dup) {
+          if (errorEl) errorEl.textContent = `קיים איש קשר עם פרטים אלו: ${dup.contact_name}. בוחר אותו.`;
+          if (select) select.value = String(dup.id);
+          updatePreview();
+          if (addForm) addForm.style.display = 'none';
+          if (addBtn)  addBtn.style.display  = '';
+          return;
+        }
+
+        if (saveNewBtn) { saveNewBtn.disabled = true; saveNewBtn.textContent = 'שומר...'; }
+        try {
+          const newC = await api.createSchoolContact({
+            school_id: schoolId || undefined,
+            school,
+            authority,
+            contact_name: nameVal,
+            contact_role: roleVal,
+            phone: phoneVal,
+            email: emailVal
+          });
+          loadedContacts.push(newC);
+          const opt = document.createElement('option');
+          opt.value = String(newC.id);
+          const ph = String(newC.phone || newC.mobile || '').trim();
+          opt.textContent = [String(newC.contact_name||'').trim(), String(newC.contact_role||'').trim(), ph].filter(Boolean).join(' — ');
+          if (select) { select.appendChild(opt); select.value = String(newC.id); }
+          updatePreview();
+          if (addForm) addForm.style.display = 'none';
+          if (addBtn)  addBtn.style.display  = '';
+          addForm.querySelector('[data-new-contact-name]').value  = '';
+          addForm.querySelector('[data-new-contact-role]').value  = '';
+          addForm.querySelector('[data-new-contact-phone]').value = '';
+          addForm.querySelector('[data-new-contact-email]').value = '';
+        } catch (err) {
+          if (errorEl) errorEl.textContent = err?.message || 'שמירת איש הקשר נכשלה';
+        } finally {
+          if (saveNewBtn) { saveNewBtn.disabled = false; saveNewBtn.textContent = 'שמור איש קשר'; }
+        }
+      });
+
+      const drawerForm = contentRoot.querySelector('[data-drawer-form]');
+      if (drawerForm) {
+        drawerForm.addEventListener('change', (ev) => {
+          if (ev.target.name === 'school') {
+            const newSchool    = ev.target.value;
+            const newAuthority = drawerForm.querySelector('[name="authority"]')?.value || authority;
+            loadContacts(newSchool, newAuthority);
+          }
+        });
+      }
+
+      loadContacts();
+    }
+
     function makeOnOpen(contentRoot) {
       hideShellHeader(contentRoot);
       bindActivityEditForm(contentRoot);
+      bindContact2027Section(contentRoot);
     }
 
     function bindActivitiesReopenBtn(contentRoot, row) {

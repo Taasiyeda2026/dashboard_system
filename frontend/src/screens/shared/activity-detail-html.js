@@ -591,27 +591,79 @@ function blockExtraEditInfo(row, { settings = {} } = {}) {
 }
 
 function blockContact2027(row) {
-  const contactName = String(row.contact_name || '').trim();
-  const contactPhone = String(row.contact_phone || row.phone || '').trim();
-  const contactEmail = String(row.contact_email || row.email || '').trim();
-  const viewHtml = [
-    contactName ? `<span class="activity-view-field__value">${escapeHtml(contactName)}</span>` : '',
+  const contactName  = String(row.contact_name  || '').trim();
+  const contactPhone = String(row.contact_phone || row.phone  || '').trim();
+  const contactEmail = String(row.contact_email || row.email  || '').trim();
+  const schoolContactId = String(row.school_contact_id || '').trim();
+  const schoolId   = String(row.school_id  || '').trim();
+  const school     = String(row.school     || '').trim();
+  const authority  = String(row.authority  || '').trim();
+
+  const viewParts = [
+    contactName  ? `<span class="activity-view-field__value">${escapeHtml(contactName)}</span>`  : '',
     contactPhone ? `<a class="activity-view-field__value" href="tel:${escapeHtml(contactPhone)}">${escapeHtml(contactPhone)}</a>` : '',
     contactEmail ? `<a class="activity-view-field__value" href="mailto:${escapeHtml(contactEmail)}">${escapeHtml(contactEmail)}</a>` : ''
-  ].filter(Boolean).join(' · ') || '<span class="activity-view-field__value" style="color:var(--color-text-muted)">—</span>';
+  ].filter(Boolean);
+  const viewHtml = viewParts.join(' · ') || '<span class="activity-view-field__value" style="color:var(--color-text-muted)">—</span>';
+
   return `
-    <section class="activity-drawer__section" data-contact-2027-section>
+    <section class="activity-drawer__section" data-contact-2027-section
+      data-school-id="${escapeHtml(schoolId)}"
+      data-school="${escapeHtml(school)}"
+      data-authority="${escapeHtml(authority)}"
+      data-current-contact-id="${escapeHtml(schoolContactId)}">
+
       <h3 class="activity-drawer__section-title">איש קשר</h3>
+
+      <!-- Always-present hidden inputs — submitted with every form save -->
+      <input type="hidden" name="school_contact_id" data-contact-2027-id-input value="${escapeHtml(schoolContactId)}">
+      <input type="hidden" name="contact_name"      data-contact-2027-hidden-name  value="${escapeHtml(contactName)}">
+      <input type="hidden" name="contact_phone"     data-contact-2027-hidden-phone value="${escapeHtml(contactPhone)}">
+      <input type="hidden" name="contact_email"     data-contact-2027-hidden-email value="${escapeHtml(contactEmail)}">
+
+      <!-- View mode -->
       <div class="activity-view-card__grid" data-mode="view">
         <div class="activity-view-field">
           <span class="activity-view-field__label">פרטי קשר</span>
-          ${viewHtml}
+          <span data-contact-2027-view-wrap>${viewHtml}</span>
         </div>
       </div>
+
+      <!-- Edit mode UI (no named inputs here — updates hidden inputs above) -->
       <div class="activity-drawer__details-edit-grid" data-mode="edit" hidden>
-        ${fieldEditOnly('איש קשר', inputHtml({ name: 'contact_name', value: row.contact_name || '' }))}
-        ${fieldEditOnly('נייד', inputHtml({ name: 'contact_phone', value: row.contact_phone || row.phone || '', attrs: 'type="tel" inputmode="numeric" dir="ltr"' }))}
-        ${fieldEditOnly('מייל', inputHtml({ name: 'contact_email', value: row.contact_email || row.email || '', attrs: 'type="email" dir="ltr"' }))}
+        <div style="padding:2px 0 8px">
+          <label style="display:block;font-size:0.82em;font-weight:600;margin-bottom:4px;color:var(--color-text-muted,#64748b)">איש קשר</label>
+
+          <!-- Dropdown (no name — JS updates the hidden input) -->
+          <select class="ds-input" data-contact-2027-select style="width:100%">
+            <option value="">טוען אנשי קשר...</option>
+          </select>
+
+          <!-- Preview of selected contact -->
+          <div data-contact-2027-preview style="display:none;margin-top:6px;font-size:0.85em;padding:6px 10px;background:var(--color-bg-secondary,#f1f5f9);border-radius:6px;line-height:1.5">
+            <div data-contact-2027-pname style="font-weight:600"></div>
+            <div data-contact-2027-pphone style="color:var(--color-text-muted,#64748b)"></div>
+            <div data-contact-2027-pemail style="color:var(--color-text-muted,#64748b)"></div>
+          </div>
+
+          <!-- Inline add-new form (hidden by default) -->
+          <div data-contact-2027-add-form style="display:none;margin-top:8px;padding:10px;border:1px solid var(--color-border,#e2e8f0);border-radius:8px">
+            <div style="font-size:0.85em;font-weight:600;margin-bottom:8px;color:var(--color-text,#1e293b)">הוספת איש קשר חדש</div>
+            <input type="text"  class="ds-input" placeholder="שם איש קשר *"  data-new-contact-name  style="margin-bottom:4px;width:100%">
+            <input type="text"  class="ds-input" placeholder="תפקיד"          data-new-contact-role  style="margin-bottom:4px;width:100%">
+            <input type="tel"   class="ds-input" placeholder="נייד"           data-new-contact-phone style="margin-bottom:4px;width:100%" dir="ltr">
+            <input type="email" class="ds-input" placeholder="מייל"           data-new-contact-email style="margin-bottom:6px;width:100%" dir="ltr">
+            <div data-new-contact-error style="color:var(--color-danger,#e53e3e);font-size:0.8em;min-height:1em;margin-bottom:4px"></div>
+            <div style="display:flex;gap:8px">
+              <button type="button" class="ds-btn ds-btn--primary ds-btn--sm" data-contact-2027-save-new>שמור איש קשר</button>
+              <button type="button" class="ds-btn ds-btn--sm"                 data-contact-2027-cancel-new>ביטול</button>
+            </div>
+          </div>
+
+          <!-- Add-new trigger -->
+          <button type="button" class="ds-btn ds-btn--ghost ds-btn--sm" data-contact-2027-add-btn
+            style="margin-top:8px;font-size:0.82em;padding:4px 8px">+ הוסף איש קשר חדש</button>
+        </div>
       </div>
     </section>
   `;

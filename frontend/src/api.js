@@ -4552,7 +4552,11 @@ const ALLOWED_ACTIVITY_COLUMNS = new Set([
   'finance_status',
   'finance_notes',
   'operations_private_notes',
-  'participants_count'
+  'participants_count',
+  'school_contact_id',
+  'contact_name',
+  'contact_phone',
+  'contact_email'
 ]);
 for (let i = 1; i <= 35; i++) ALLOWED_ACTIVITY_COLUMNS.add(`date_${i}`);
 
@@ -4651,7 +4655,7 @@ function synchronizeStartDateAndFirstMeeting(payload = {}, existing = {}) {
 function sanitizeActivityPayloadForSupabase(payload = {}, { includeRowId = true } = {}) {
   const sanitized = {};
   const source = payload && typeof payload === 'object' ? payload : {};
-  const bigintFields = new Set(['activity_no', 'sessions', 'price', 'emp_id', 'emp_id_2']);
+  const bigintFields = new Set(['activity_no', 'sessions', 'price', 'emp_id', 'emp_id_2', 'school_contact_id']);
   const timeFields = new Set(['start_time', 'end_time']);
   const humanNameFields = new Set(['instructor_name', 'instructor_name_2', 'activity_manager', 'previous_activity_manager']);
   for (const [key, rawValue] of Object.entries(source)) {
@@ -4805,6 +4809,54 @@ function assertSupabaseActivityUpdateApplied(operation, requestedChanges = {}, r
       throw err;
     }
   }
+}
+
+async function readContactsForSchoolActivity(schoolId, school, authority) {
+  if (!supabase) return [];
+  try {
+    let query = supabase
+      .from('contacts_schools')
+      .select('id,contact_name,contact_role,phone,mobile,email')
+      .neq('active', 'לא פעיל')
+      .order('contact_name', { ascending: true })
+      .limit(200);
+    if (schoolId && String(schoolId).trim()) {
+      query = query.eq('school_id', String(schoolId).trim());
+    } else if (school && String(school).trim()) {
+      query = query.eq('school', String(school).trim());
+      if (authority && String(authority).trim()) query = query.eq('authority', String(authority).trim());
+    } else {
+      return [];
+    }
+    const { data, error } = await query;
+    if (error) throw error;
+    return Array.isArray(data) ? data : [];
+  } catch (err) {
+    console.warn('[contacts] readContactsForSchoolActivity failed', err?.message || err);
+    return [];
+  }
+}
+
+async function createSchoolContactForActivity({ school_id, school, authority, contact_name, contact_role, phone, email } = {}) {
+  if (!supabase) throw new Error('supabase_not_initialized');
+  const row = {
+    school_id: school_id || null,
+    school: String(school || '').trim(),
+    authority: String(authority || '').trim(),
+    contact_name: String(contact_name || '').trim(),
+    contact_role: String(contact_role || '').trim(),
+    phone: String(phone || '').trim(),
+    mobile: String(phone || '').trim(),
+    email: String(email || '').trim(),
+    active: 'פעיל'
+  };
+  const { data, error } = await supabase
+    .from('contacts_schools')
+    .insert(row)
+    .select('id,contact_name,contact_role,phone,mobile,email')
+    .single();
+  if (error) throw new Error(error.message || 'create_contact_failed');
+  return data;
 }
 
 async function upsertMeetingNotesToSupabase(rowId, notesMap = {}) {
@@ -5660,6 +5712,8 @@ export const api = {
   },
   activityDetail: (source_row_id, source_sheet) => readActivityDetailFromSupabase(source_row_id, source_sheet),
   activityDates: (source_row_id, source_sheet) => readActivityDatesFromSupabase(source_row_id, source_sheet),
+  contactsForSchool: (schoolId, school, authority) => readContactsForSchoolActivity(schoolId, school, authority),
+  createSchoolContact: (params) => createSchoolContactForActivity(params),
   week: async (params) => {
     const resolved = (params && typeof params === 'object') ? params : {};
     const weekOffset = Number.parseInt(resolved.week_offset, 10);

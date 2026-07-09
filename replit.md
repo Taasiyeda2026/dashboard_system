@@ -6,7 +6,7 @@ Preserve: RTL, Hebrew, dark shell + light panels. Communication with user: Hebre
 ## Runtime
 - Static server: `npx serve dist -l 5000` (workflow: "Start application")
 - SW cache bump: edit `CACHE_VERSION` in `frontend/sw.js` after any JS/CSS change.
-- **Current versions**: SW v1212 (frontend/sw.js + dist/sw.js)
+- **Current versions**: SW v1213 (frontend/sw.js + dist/sw.js)
 
 
 ## User preferences
@@ -79,6 +79,7 @@ Migration files to apply (in order):
 - `supabase/migrations/20260705200000_drop_broken_activities_end_date_trigger.sql` ← **⚡ דחוף: מסיר טריגר שבור `trg_activities_sync_end_date_from_meetings` שקורא btrim(date) → שגיאת שרת בכל UPDATE על activities. trg_sync_activity_end_date הנכון נשאר.**
 - `supabase/migrations/20260705210000_rename_ofek_lataasiya_to_premium.sql` ← מעדכן שמות ישנים ב-Supabase (proposal_activity_pricing, catalog_program_details, lists, proposal_activity_pricing_aliases) → "אופק יזמות פרימיום לתעשייה"
 - `supabase/migrations/20260705180000_fix_gefen_number_not_null.sql` ← **⚡ דחוף: `coalesce(nullif(gefen_number,''),'')` בפונקציה save_proposal_agreement_items_atomic — בלעדיו שמירת/אישור הצעה נכשלת עם NOT NULL על gefen_number**
+- `supabase/migrations/20260709120000_add_school_contact_id_to_activities.sql` ← מוסיף `school_contact_id bigint FK→contacts_schools` + `contact_name/phone/email text` (IF NOT EXISTS) לטבלת activities — נדרש לפיצ'ר בחירת איש קשר בפעילויות 2027
 
 After applying 20260505 files: seed `users` table with existing users (user_id, entry_code, role, name).
 
