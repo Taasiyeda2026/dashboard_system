@@ -1,5 +1,6 @@
 import { resetSupabaseAuthSessionWait } from './supabase-client.js';
 import { permissionFlagYes } from './permissions.js';
+import { normalizeGlobalActivityPeriod } from './screens/shared/summer-activity.js';
 
 function defaultClientSettings() {
   return {
@@ -95,6 +96,9 @@ function initialActivityPeriodTab() {
 const _initStoredUser = normalizeStoredUserFlags(JSON.parse(localStorage.getItem('dashboard_user') || 'null'));
 const _initCalKey = calendarMonthSessionKey(_initStoredUser?.user_id);
 const _initMonthYm = (_initCalKey && sessionStorage.getItem(_initCalKey)) || '';
+const _storedGlobalActivityPeriod = (() => {
+  try { return localStorage.getItem('dashboard_activity_period') || ''; } catch { return ''; }
+})();
 cleanupLegacyCalendarMonthLocalStorage(_initStoredUser?.user_id);
 
 export const state = {
@@ -104,7 +108,7 @@ export const state = {
   routes: [],
   effectiveRoutes: [],
   activityTab: 'all',
-  activityPeriodTab: initialActivityPeriodTab(),
+  activityPeriodTab: normalizeGlobalActivityPeriod(_storedGlobalActivityPeriod || initialActivityPeriodTab()),
   activityFinanceStatus: '',
   activityQuickFamily: '',
   activityQuickManager: '',

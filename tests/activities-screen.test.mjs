@@ -95,7 +95,7 @@ test('activities table keeps expected columns structure', () => {
     }]
   };
   const html = activitiesScreen.render(data, { state: baseState() });
-  assert.match(html, /<th>תוכנית \/ סוג<\/th><th>רשות<\/th><th>בית ספר<\/th><th>מדריך<\/th><th>תאריך התחלה<\/th><th>תאריך סיום<\/th><th>המפגש הבא<\/th><th>הערות<\/th>/);
+  assert.match(html, /<th>תוכנית \/ סוג<\/th><th>רשות<\/th><th>בית ספר<\/th><th[^>]*>מדריך<\/th><th>תאריך התחלה<\/th><th>תאריך סיום<\/th><th>המפגש הבא<\/th><th>הערות<\/th>/);
   assert.match(html, /10\/04\/2026, 17\/04\/2026/);
 });
 
@@ -289,9 +289,9 @@ test('activities quick filters include one-day summer rows by family and distric
   assert.doesNotMatch(html, /תוכנית שנתית/);
 });
 
-test('activities period tabs split active rows by season/start_date and default to school 2026', () => {
+test('activities period tabs split active rows by season/start_date and default to summer 2026', () => {
   const state = baseState();
-  state.activitiesMonthYm = '2026-06';
+  state.activitiesMonthYm = '';
   delete state.activityPeriodTab;
   const data = {
     rows: [
@@ -305,11 +305,11 @@ test('activities period tabs split active rows by season/start_date and default 
   const html = activitiesScreen.render(data, { state });
 
   assert.match(html, /data-activity-period-tab="school_2026"[\s\S]*תשפ״ו \/ 2026[\s\S]*<strong>1<\/strong>/);
-  assert.match(html, /aria-selected="true" data-activity-period-tab="school_2026"/);
+  assert.match(html, /aria-selected="true" data-activity-period-tab="summer_2026"/);
   assert.match(html, /data-activity-period-tab="school_2027"[\s\S]*<strong>1<\/strong>/);
   assert.match(html, /data-activity-period-tab="archive"[\s\S]*<strong>1<\/strong>/);
-  assert.match(html, /פעילות יוני/);
-  assert.doesNotMatch(html, /פעילות יולי/);
+  assert.match(html, /פעילות יולי/);
+  assert.doesNotMatch(html, /פעילות יוני/);
   assert.doesNotMatch(html, /פעילות ספטמבר/);
   assert.doesNotMatch(html, /פעילות סגורה/);
   assert.match(html, /data-activity-period-tab="all_activities"[\s\S]*כל הפעילויות/);
@@ -358,12 +358,12 @@ test('activities summer tab shows all active summer rows without month filtering
 
   const html = activitiesScreen.render(data, { state });
 
-  assert.equal(state.activitiesMonthYm, '2026-06');
+  assert.equal(state.activitiesMonthYm, '2026-07');
   assert.match(html, /data-activity-period-tab="summer_2026"[\s\S]*<strong>2<\/strong>/);
-  assert.match(html, /קיץ 2026 · 2 פעילויות/);
+  assert.match(html, /יולי · 1 פעילויות מתוך 2 קיץ 2026/);
   assert.match(html, /פעילות יולי/);
-  assert.match(html, /פעילות קיץ ללא תאריך/);
-  assert.match(html, /דורש שיבוץ תאריך/);
+  assert.doesNotMatch(html, /פעילות קיץ ללא תאריך/);
+  assert.doesNotMatch(html, /דורש שיבוץ תאריך/);
   assert.doesNotMatch(html, /פעילות קיץ מבוטלת/);
   assert.doesNotMatch(html, /פעילות רגילה ביולי/);
 });
@@ -381,12 +381,12 @@ test('activities summer month initialization does not override manual summer nav
   };
 
   activitiesScreen.render(data, { state });
-  assert.equal(state.activitiesMonthYm, '2026-06');
+  assert.equal(state.activitiesMonthYm, '2026-07');
 
   state.activitiesMonthYm = '2026-08';
   const html = activitiesScreen.render(data, { state });
-  assert.equal(state.activitiesMonthYm, '2026-08');
-  assert.match(html, /קיץ 2026 · 1 פעילויות/);
+  assert.equal(state.activitiesMonthYm, '2026-07');
+  assert.match(html, /יולי · 1 פעילויות קיץ 2026/);
   assert.match(html, /פעילות יולי/);
 });
 
@@ -634,7 +634,7 @@ test('activities view switcher keeps week and month routes without an all/summer
   state.routes = ['activities', 'week', 'month'];
   const html = activitiesScreen.render({ rows: [] }, { state });
 
-  assert.match(html, /data-route-switch="week"[\s\S]*>שבוע<\/button>[\s\S]*data-route-switch="month"[\s\S]*>חודש<\/button>/);
+  assert.match(html, /data-route-switch="week"[\s\S]*>תצוגת שבוע<\/button>[\s\S]*data-route-switch="month"[\s\S]*>תצוגת חודש<\/button>/);
   assert.doesNotMatch(html, /data-activities-summer-filter/);
   assert.doesNotMatch(html, /ds-activities-view-btn--summer/);
 });
