@@ -768,8 +768,10 @@ function addActivityModalHtml(settings, activityPeriodTab = '') {
     : activityPeriodTab === 'summer_2026'
       ? ACTIVITY_SEASON_SUMMER_2026
       : ACTIVITY_SEASON_REGULAR;
-  const statusOptions = ['פתוח', 'מאושר - ממתין לשיבוץ', 'סגור'];
-  const initialStatus = initialSeason === ACTIVITY_SEASON_SCHOOL_2027 ? 'מאושר - ממתין לשיבוץ' : 'פתוח';
+  const statusOptions = initialSeason === ACTIVITY_SEASON_SCHOOL_2027
+    ? ['בתהליך', 'מוכן לשיבוץ', 'סגור']
+    : ['פתוח', 'מאושר - ממתין לשיבוץ', 'סגור'];
+  const initialStatus = initialSeason === ACTIVITY_SEASON_SCHOOL_2027 ? 'בתהליך' : 'פתוח';
 
   const authorityField = `
     <div class="ds-activity-add-field ds-activity-add-field--entity" data-entity-field="authority">
@@ -1636,6 +1638,7 @@ export const activitiesScreen = {
       return acc;
     }, {});
     const isSummerTab = state.activityPeriodTab === ACTIVITY_SEASON_REGULAR && state.activitiesInnerTab === ACTIVITIES_INNER_TAB_SUMMER_2026;
+    const is2027Tab = state.activityPeriodTab === ACTIVITY_SEASON_SCHOOL_2027;
     const tableRows = safeRows
       .map((row) => {
         const instructorMeta = activityInstructorMeta(row, { hideEmpIds, instructorByEmpId });
@@ -1669,6 +1672,35 @@ export const activitiesScreen = {
         ]
           .filter(Boolean)
           .join(' ');
+
+        if (is2027Tab) {
+          const activityDateRaw2027 = String(row.date_1 || row.start_date || '').trim();
+          const activityDateHe2027 = activityDateRaw2027 ? (formatDateHe(activityDateRaw2027) || activityDateRaw2027) : '—';
+          const startHe2027 = formatDateHe(row.start_date) || '—';
+          const endRaw2027 = String(row?.end_date || row?.date_end || '').trim() || String(row?.start_date || '').trim();
+          const endHe2027 = endRaw2027 ? formatDateHe(endRaw2027) || '—' : '—';
+          const startTime2027 = activityLayoutStartTime(row);
+          const endTime2027 = activityLayoutEndTime(row);
+          const hoursDisplay2027 = (startTime2027 && endTime2027) ? `${escapeHtml(startTime2027)}–${escapeHtml(endTime2027)}` : (startTime2027 || endTime2027 ? escapeHtml(startTime2027 || endTime2027) : '—');
+          const contactName2027 = escapeHtml(String(row.contact_name || '—'));
+          const contactPhone2027 = escapeHtml(String(row.contact_phone || row.phone || '—'));
+          return `
+      <tr class="ds-data-row ds-activities-row" data-list-item data-search="${escapeHtml(rowSearch)}" data-filter="" data-row-id="${escapeHtml(row.RowID)}">
+        <td class="ds-activities-col ds-activities-col--program"><div class="ds-activities-program-cell"><strong class="ds-activities-program-name" title="${activityName}">${activityName}</strong><span class="ds-activities-program-type" title="${activityTypeLabel}">${activityTypeLabel}</span>${editStatusBadge}</div></td>
+        <td class="ds-activities-col ds-activities-col--authority"><span class="ds-activities-cell-ellipsis" title="${escapeHtml(row.authority || '—')}">${escapeHtml(row.authority || '—')}</span></td>
+        <td class="ds-activities-col ds-activities-col--school"><span class="ds-activities-cell-ellipsis" title="${escapeHtml(getActivitySchoolDisplayName(row) || '—')}">${escapeHtml(getActivitySchoolDisplayName(row) || '—')}</span></td>
+        <td class="ds-activities-col ds-activities-col--instructor"><div class="ds-activities-instructor-wrap">${instructorDisplay}<span class="ds-activities-manager-line" title="${escapeHtml(managerLabel || '—')}">מנהל: ${escapeHtml(managerLabel || '—')}</span></div></td>
+        <td class="ds-activities-col ds-activities-col--date"><time class="ds-activities-date">${escapeHtml(startHe2027)}</time></td>
+        <td class="ds-activities-col ds-activities-col--date"><time class="ds-activities-date">${escapeHtml(endHe2027)}</time></td>
+        <td class="ds-activities-col ds-activities-col--meetings">${(() => { const nd = nextMeetingDate(row); const ndHe = nd ? (formatDateHe(nd) || nd) : ''; return ndHe ? `<time class="ds-activities-date" title="${escapeHtml(nd)}">${escapeHtml(ndHe)}</time>` : '<span class="ds-activities-date ds-activities-date--none">—</span>'; })()}</td>
+        <td class="ds-activities-col ds-activities-col--notes"><span class="ds-activities-cell-ellipsis" title="${escapeHtml(String(row.notes || '—'))}">${escapeHtml(String(row.notes || '—'))}</span></td>
+        <td class="ds-activities-col ds-activities-col--date" style="text-align:center"><time class="ds-activities-date">${escapeHtml(activityDateHe2027)}</time></td>
+        <td class="ds-activities-col ds-activities-col--hours" style="text-align:center"><span class="ds-activities-hours">${hoursDisplay2027}</span></td>
+        <td class="ds-activities-col ds-activities-col--contact-name"><span class="ds-activities-cell-ellipsis" title="${contactName2027}">${contactName2027}</span></td>
+        <td class="ds-activities-col ds-activities-col--contact-phone"><span class="ds-activities-cell-ellipsis" title="${contactPhone2027}">${contactPhone2027}</span></td>
+      </tr>
+    `;
+        }
 
         if (isSummerTab) {
           const activityDateRaw = String(row.date_1 || row.start_date || '').trim();
@@ -1735,7 +1767,23 @@ export const activitiesScreen = {
                   <col class="ds-activities-col--notes">
                 </colgroup>
                 <thead><tr><th>תוכנית / סוג</th><th>רשות</th><th>בית ספר</th><th style="text-align:center">כיתה</th><th class="ds-activities-col--instructor">מדריך</th><th style="text-align:center">תאריך פעילות</th><th style="text-align:center">שעות</th><th>הערות</th></tr></thead>`
-      : `<colgroup>
+      : is2027Tab
+        ? `<colgroup>
+                  <col class="ds-activities-col--program">
+                  <col class="ds-activities-col--authority">
+                  <col class="ds-activities-col--school">
+                  <col class="ds-activities-col--instructor">
+                  <col class="ds-activities-col--date">
+                  <col class="ds-activities-col--date">
+                  <col class="ds-activities-col--meetings">
+                  <col class="ds-activities-col--notes">
+                  <col class="ds-activities-col--date">
+                  <col class="ds-activities-col--hours">
+                  <col class="ds-activities-col--contact-name">
+                  <col class="ds-activities-col--contact-phone">
+                </colgroup>
+                <thead><tr><th>תוכנית / סוג</th><th>רשות</th><th>בית ספר</th><th class="ds-activities-col--instructor">מדריך</th><th>תאריך התחלה</th><th>תאריך סיום</th><th>המפגש הבא</th><th>הערות</th><th style="text-align:center">תאריך פעילות</th><th style="text-align:center">שעות</th><th>איש קשר</th><th>נייד</th></tr></thead>`
+        : `<colgroup>
                   <col class="ds-activities-col--program">
                   <col class="ds-activities-col--authority">
                   <col class="ds-activities-col--school">

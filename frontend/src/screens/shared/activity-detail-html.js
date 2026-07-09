@@ -1,7 +1,7 @@
 import { escapeHtml } from './html.js';
 import { formatDateHe, formatDateHeWithWeekday, formatTimeShort, formatTimeRangeShort, formatActivityDateColumnsHe } from './format-date.js';
 import { activityManagerDisplayName, activityTypeDisplayLabel, activityTypeMatches, cleanActivityManagerName, getManagerUsers, getContactsInstructorUsers, getRosterUsers, getValidInstructorUsers, humanDisplayText, INVALID_ACTIVITY_INSTRUCTOR_STATUS, validateInstructorBinding, NO_ACTIVITY_MANAGER_LABEL, normalizeActivityTypeKey, normalizeOneDayActivityType, resolveActivityInstructorName, resolveGradeOptions } from './activity-options.js';
-import { ACTIVITY_SEASON_OPTIONS, activitySeasonLabel, normalizeActivitySeason } from './summer-activity.js';
+import { ACTIVITY_SEASON_OPTIONS, ACTIVITY_SEASON_SCHOOL_2027, activitySeasonLabel, normalizeActivitySeason } from './summer-activity.js';
 
 const ONCE_TYPES = ['workshop', 'tour', 'escape_room'];
 const ACTIVITY_EDIT_TYPE_ORDER = ['workshop', 'escape_room', 'tour', 'after_school'];
@@ -443,9 +443,12 @@ function blockActivityDetails(row, { settings = {} } = {}) {
     console.warn('[activity-edit] activity name options missing from client settings');
   }
   const isOneDay = Boolean(normalizeOneDayActivityType(activityType));
-  const statusOptions = ['פתוח', 'מאושר - ממתין לשיבוץ', 'סגור'];
+  const is2027Row = normalizeActivitySeason(row.activity_season) === ACTIVITY_SEASON_SCHOOL_2027;
+  const statusOptions = is2027Row
+    ? ['בתהליך', 'מוכן לשיבוץ', 'סגור']
+    : ['פתוח', 'מאושר - ממתין לשיבוץ', 'סגור'];
   const rawStatus = String(row.status || '').trim();
-  const normalizedStatus = statusOptions.includes(rawStatus) ? rawStatus : (normStatus(row.status) === 'closed' ? 'סגור' : 'פתוח');
+  const normalizedStatus = statusOptions.includes(rawStatus) ? rawStatus : (is2027Row ? 'בתהליך' : (normStatus(row.status) === 'closed' ? 'סגור' : 'פתוח'));
 
   return `
     <section class="activity-drawer__section activity-drawer__section--edit-group" data-mode="edit" hidden>
@@ -582,6 +585,33 @@ function blockExtraEditInfo(row, { settings = {} } = {}) {
             : inputHtml({ name: 'funding', value: row.funding })
         )}
         ${fieldEditOnly('מחיר', inputHtml({ name: 'price', value: row.price }))}
+      </div>
+    </section>
+  `;
+}
+
+function blockContact2027(row) {
+  const contactName = String(row.contact_name || '').trim();
+  const contactPhone = String(row.contact_phone || row.phone || '').trim();
+  const contactEmail = String(row.contact_email || row.email || '').trim();
+  const viewHtml = [
+    contactName ? `<span class="activity-view-field__value">${escapeHtml(contactName)}</span>` : '',
+    contactPhone ? `<a class="activity-view-field__value" href="tel:${escapeHtml(contactPhone)}">${escapeHtml(contactPhone)}</a>` : '',
+    contactEmail ? `<a class="activity-view-field__value" href="mailto:${escapeHtml(contactEmail)}">${escapeHtml(contactEmail)}</a>` : ''
+  ].filter(Boolean).join(' · ') || '<span class="activity-view-field__value" style="color:var(--color-text-muted)">—</span>';
+  return `
+    <section class="activity-drawer__section" data-contact-2027-section>
+      <h3 class="activity-drawer__section-title">איש קשר</h3>
+      <div class="activity-view-card__grid" data-mode="view">
+        <div class="activity-view-field">
+          <span class="activity-view-field__label">פרטי קשר</span>
+          ${viewHtml}
+        </div>
+      </div>
+      <div class="activity-drawer__details-edit-grid" data-mode="edit" hidden>
+        ${fieldEditOnly('איש קשר', inputHtml({ name: 'contact_name', value: row.contact_name || '' }))}
+        ${fieldEditOnly('נייד', inputHtml({ name: 'contact_phone', value: row.contact_phone || row.phone || '', attrs: 'type="tel" inputmode="numeric" dir="ltr"' }))}
+        ${fieldEditOnly('מייל', inputHtml({ name: 'contact_email', value: row.contact_email || row.email || '', attrs: 'type="email" dir="ltr"' }))}
       </div>
     </section>
   `;
@@ -1012,6 +1042,7 @@ function jsonAttr(value) {
 function singleForm(row, { settings = {}, privateNote = null, canEdit = false, canDirectEdit = false, canRequestEdit = false, canDeleteActivity = false, showPrivateNote = false, idx = 0, datesLoading = false, instructorLimited = false } = {}) {
   const computedEnd = autoEndDate(row);
   const activityType = normalizeActivityTypeKey(row.activity_type || row.item_type);
+  const is2027 = normalizeActivitySeason(row.activity_season) === ACTIVITY_SEASON_SCHOOL_2027;
   const isOnce = ONCE_TYPES.includes(activityType);
   const isCourse = activityType === 'course';
   const isAfterSchool = activityType === 'after_school';
@@ -1055,6 +1086,7 @@ function singleForm(row, { settings = {}, privateNote = null, canEdit = false, c
       ${blockAssignment(row, { settings })}
       ${blockTeamTimes(row, { settings })}
       ${instructorLimited ? '' : blockExtraEditInfo(row, { settings })}
+      ${is2027 ? blockContact2027(row) : ''}
       ${blockEditActions({ canEdit, canDirectEdit, canDeleteActivity })}
       ${blockViewFooter({ canEdit, canDirectEdit })}
     </form>
