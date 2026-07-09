@@ -9424,17 +9424,15 @@ select.ds-input {
 .ds-table--activities-list col.ds-activities-col--meetings   { width: 9%; }
 .ds-table--activities-list col.ds-activities-col--notes      { width: 25%; }
 
-/* ── 2027 table: 12 balanced columns, sum = 100% ── */
-.ds-table--activities-2027 col.ds-activities-col--program       { width: 14%; }
-.ds-table--activities-2027 col.ds-activities-col--authority     { width: 8%;  }
-.ds-table--activities-2027 col.ds-activities-col--school        { width: 10%; }
-.ds-table--activities-2027 col.ds-activities-col--instructor    { width: 9%;  }
-.ds-table--activities-2027 col.ds-activities-col--date          { width: 7%;  }
-.ds-table--activities-2027 col.ds-activities-col--meetings      { width: 7%;  }
-.ds-table--activities-2027 col.ds-activities-col--notes         { width: 11%; }
-.ds-table--activities-2027 col.ds-activities-col--hours         { width: 6%;  }
-.ds-table--activities-2027 col.ds-activities-col--contact-name  { width: 8%;  }
-.ds-table--activities-2027 col.ds-activities-col--contact-phone { width: 6%;  }
+/* ── 2027 table: 9 columns, sum = 100% ── */
+.ds-table--activities-2027 col.ds-activities-col--program       { width: 18%; }
+.ds-table--activities-2027 col.ds-activities-col--authority     { width: 10%; }
+.ds-table--activities-2027 col.ds-activities-col--school        { width: 14%; }
+.ds-table--activities-2027 col.ds-activities-col--instructor    { width: 12%; }
+.ds-table--activities-2027 col.ds-activities-col--date          { width: 8%;  }
+.ds-table--activities-2027 col.ds-activities-col--meetings      { width: 8%;  }
+.ds-table--activities-2027 col.ds-activities-col--contact-name  { width: 14%; }
+.ds-table--activities-2027 col.ds-activities-col--contact-phone { width: 8%;  }
 
 .ds-table--activities-2027 td {
   height: 28px;
@@ -9447,11 +9445,9 @@ select.ds-input {
 }
 .ds-table--activities-2027 td.ds-activities-col--date,
 .ds-table--activities-2027 td.ds-activities-col--meetings,
-.ds-table--activities-2027 td.ds-activities-col--hours,
 .ds-table--activities-2027 td.ds-activities-col--contact-phone,
 .ds-table--activities-2027 th.ds-activities-col--date,
 .ds-table--activities-2027 th.ds-activities-col--meetings,
-.ds-table--activities-2027 th.ds-activities-col--hours,
 .ds-table--activities-2027 th.ds-activities-col--contact-phone {
   text-align: center;
 }
