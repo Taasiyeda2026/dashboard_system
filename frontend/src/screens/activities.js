@@ -1682,16 +1682,18 @@ export const activitiesScreen = {
           const endHe2027 = endRaw2027 ? formatDateHe(endRaw2027) || '—' : '—';
           const contactName2027 = escapeHtml(String(row.contact_name || '—'));
           const contactPhone2027 = escapeHtml(String(row.contact_phone || row.phone || '—'));
+          const contactEmail2027 = escapeHtml(String(row.contact_email || '—'));
           return `
       <tr class="ds-data-row ds-activities-row" data-list-item data-search="${escapeHtml(rowSearch)}" data-filter="" data-row-id="${escapeHtml(row.RowID)}">
         <td class="ds-activities-col ds-activities-col--program"><div class="ds-activities-program-cell"><strong class="ds-activities-program-name" title="${activityName}">${activityName}</strong><span class="ds-activities-program-type" title="${activityTypeLabel}">${activityTypeLabel}</span>${editStatusBadge}</div></td>
         <td class="ds-activities-col ds-activities-col--authority"><span class="ds-activities-cell-ellipsis" title="${escapeHtml(row.authority || '—')}">${escapeHtml(row.authority || '—')}</span></td>
         <td class="ds-activities-col ds-activities-col--school"><span class="ds-activities-cell-ellipsis" title="${escapeHtml(getActivitySchoolDisplayName(row) || '—')}">${escapeHtml(getActivitySchoolDisplayName(row) || '—')}</span></td>
-        <td class="ds-activities-col ds-activities-col--instructor"><span class="ds-activities-cell-ellipsis" title="${escapeHtml(managerLabel || '—')}">${escapeHtml(managerLabel || '—')}</span></td>
-        <td class="ds-activities-col ds-activities-col--date"><time class="ds-activities-date">${escapeHtml(startHe2027)}</time></td>
-        <td class="ds-activities-col ds-activities-col--date"><time class="ds-activities-date">${escapeHtml(endHe2027)}</time></td>
         <td class="ds-activities-col ds-activities-col--contact-name"><span class="ds-activities-cell-ellipsis" title="${contactName2027}">${contactName2027}</span></td>
         <td class="ds-activities-col ds-activities-col--contact-phone"><span class="ds-activities-cell-ellipsis" title="${contactPhone2027}">${contactPhone2027}</span></td>
+        <td class="ds-activities-col ds-activities-col--contact-email"><span class="ds-activities-cell-ellipsis" title="${contactEmail2027}">${contactEmail2027}</span></td>
+        <td class="ds-activities-col ds-activities-col--date"><time class="ds-activities-date">${escapeHtml(startHe2027)}</time></td>
+        <td class="ds-activities-col ds-activities-col--date"><time class="ds-activities-date">${escapeHtml(endHe2027)}</time></td>
+        <td class="ds-activities-col ds-activities-col--instructor">${instructorDisplay}</td>
       </tr>
     `;
         }
@@ -1766,13 +1768,14 @@ export const activitiesScreen = {
                   <col class="ds-activities-col--program">
                   <col class="ds-activities-col--authority">
                   <col class="ds-activities-col--school">
-                  <col class="ds-activities-col--instructor">
-                  <col class="ds-activities-col--date">
-                  <col class="ds-activities-col--date">
                   <col class="ds-activities-col--contact-name">
                   <col class="ds-activities-col--contact-phone">
+                  <col class="ds-activities-col--contact-email">
+                  <col class="ds-activities-col--date">
+                  <col class="ds-activities-col--date">
+                  <col class="ds-activities-col--instructor">
                 </colgroup>
-                <thead><tr><th>תוכנית / סוג</th><th>רשות</th><th>בית ספר</th><th>מנהל פעילות</th><th>תאריך התחלה</th><th>תאריך סיום</th><th>איש קשר</th><th>נייד</th></tr></thead>`
+                <thead><tr><th>תוכנית / סוג</th><th>רשות</th><th>בית ספר</th><th>איש קשר</th><th>נייד</th><th>מייל</th><th>תאריך התחלה</th><th>תאריך סיום</th><th>מדריך</th></tr></thead>`
         : `<colgroup>
                   <col class="ds-activities-col--program">
                   <col class="ds-activities-col--authority">

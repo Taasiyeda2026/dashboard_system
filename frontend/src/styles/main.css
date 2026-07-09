@@ -9424,14 +9424,15 @@ select.ds-input {
 .ds-table--activities-list col.ds-activities-col--meetings   { width: 9%; }
 .ds-table--activities-list col.ds-activities-col--notes      { width: 25%; }
 
-/* ── 2027 table: 8 columns, sum = 100% ── */
-.ds-table--activities-2027 col.ds-activities-col--program       { width: 22%; }
-.ds-table--activities-2027 col.ds-activities-col--authority     { width: 13%; }
-.ds-table--activities-2027 col.ds-activities-col--school        { width: 16%; }
-.ds-table--activities-2027 col.ds-activities-col--instructor    { width: 13%; }
-.ds-table--activities-2027 col.ds-activities-col--date          { width: 10%; }
-.ds-table--activities-2027 col.ds-activities-col--contact-name  { width: 10%; }
-.ds-table--activities-2027 col.ds-activities-col--contact-phone { width: 6%;  }
+/* ── 2027 table: 9 columns, sum = 100% ── */
+.ds-table--activities-2027 col.ds-activities-col--program        { width: 11%; }
+.ds-table--activities-2027 col.ds-activities-col--authority      { width: 11%; }
+.ds-table--activities-2027 col.ds-activities-col--school         { width: 11%; }
+.ds-table--activities-2027 col.ds-activities-col--contact-name   { width: 11%; }
+.ds-table--activities-2027 col.ds-activities-col--contact-phone  { width: 11%; }
+.ds-table--activities-2027 col.ds-activities-col--contact-email  { width: 11%; }
+.ds-table--activities-2027 col.ds-activities-col--date           { width: 9.5%; }
+.ds-table--activities-2027 col.ds-activities-col--instructor     { width: 15%; }
 
 .ds-table--activities-2027 td {
   height: 28px;
@@ -9443,11 +9444,11 @@ select.ds-input {
   font-size: 0.7rem;
 }
 .ds-table--activities-2027 td.ds-activities-col--date,
-.ds-table--activities-2027 td.ds-activities-col--meetings,
 .ds-table--activities-2027 td.ds-activities-col--contact-phone,
+.ds-table--activities-2027 td.ds-activities-col--contact-email,
 .ds-table--activities-2027 th.ds-activities-col--date,
-.ds-table--activities-2027 th.ds-activities-col--meetings,
-.ds-table--activities-2027 th.ds-activities-col--contact-phone {
+.ds-table--activities-2027 th.ds-activities-col--contact-phone,
+.ds-table--activities-2027 th.ds-activities-col--contact-email {
   text-align: center;
 }
 .ds-table--activities-2027 .ds-activities-program-name { font-size: 0.77rem; }
