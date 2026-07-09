@@ -4,7 +4,7 @@ import { activityManagerDisplayName, activityTypeDisplayLabel, activityTypeMatch
 import { ACTIVITY_SEASON_OPTIONS, ACTIVITY_SEASON_SCHOOL_2027, activitySeasonLabel, normalizeActivitySeason } from './summer-activity.js';
 
 const ONCE_TYPES = ['workshop', 'tour', 'escape_room'];
-const ACTIVITY_EDIT_TYPE_ORDER = ['workshop', 'escape_room', 'tour', 'after_school'];
+const ACTIVITY_EDIT_TYPE_ORDER = ['course', 'workshop', 'escape_room', 'tour', 'after_school'];
 
 const ACTIVITY_TYPE_PILL_LABEL = {
   course: 'קורס',
@@ -281,7 +281,7 @@ function resolveActivityNameOptions(settings, activityType) {
   const opts = (settings && settings.dropdown_options) ? settings.dropdown_options : {};
   const keys = [
     'activity_names', 'activity_name',
-    'program_names', 'workshop_names', 'tour_names', 'escape_room_names'
+    'program_names', 'course_names', 'workshop_names', 'tour_names', 'escape_room_names'
   ];
   let all = [];
   for (let i = 0; i < keys.length; i++) {
@@ -305,6 +305,10 @@ function buildActivityNameOpts(options, safeValue, activityType) {
   const hasTagged = sourceOptions.some((o) => String(o?.parent_value || o?.activity_type || '').trim());
   if (!filtered.length && !hasTagged) filtered = sourceOptions;
   const all = filtered.slice();
+  const labelsInList = new Set(all.map((o) => String(o?.label || '').trim()).filter(Boolean));
+  if (safeValue && !labelsInList.has(safeValue)) {
+    all.unshift({ label: safeValue, activity_no: '', parent_value: normalizedType, activity_type: normalizedType });
+  }
   return [`<option value="">—</option>`]
     .concat(
       all.map((o) => {
@@ -460,7 +464,7 @@ function blockActivityDetails(row, { settings = {} } = {}) {
         )}
         ${fieldEditOnly(
           activityNameLabel(activityType),
-          activityNameSelectHtml('activity_name', row.activity_name, allActivityNames, activityType),
+          activityNameSelectHtml('activity_name', row.program_name || row.activity_name || row.title || row.name, allActivityNames, activityType),
           'activity-drawer__field--full'
         )}
         ${fieldEditOnly(
