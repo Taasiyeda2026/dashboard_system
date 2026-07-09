@@ -17,6 +17,7 @@ import {
   collectDependentFilterOptions
 } from './shared/activity-list-filters.js';
 import {
+  ACTIVITY_SEASON_REGULAR,
   ACTIVITY_SEASON_SUMMER_2026,
   ACTIVITY_SEASON_SCHOOL_2027,
   defaultMonthForGlobalActivityPeriod,
@@ -123,10 +124,8 @@ const WORKSHOPS_SUMMER_FROM = '2026-06-15';
 const WORKSHOPS_SUMMER_TO = '2026-08-30';
 
 const PERIOD_OPTIONS = [
-  { value: ACTIVITY_SEASON_SUMMER_2026, label: 'קיץ 2026' },
-  { value: 'school_2026', label: 'תשפ״ו / 2026' },
-  { value: ACTIVITY_SEASON_SCHOOL_2027, label: 'תשפ״ז / 2027' },
-  { value: 'all', label: 'כל הפעילויות' }
+  { value: ACTIVITY_SEASON_REGULAR, label: '2026' },
+  { value: ACTIVITY_SEASON_SCHOOL_2027, label: '2027' }
 ];
 
 const FILTER_FIELDS = [
@@ -170,15 +169,12 @@ function addDaysIso(iso, days) {
 }
 
 function defaultPeriodKey(state = {}) {
-  return normalizeGlobalActivityPeriod(state.activityPeriodTab || ACTIVITY_SEASON_SUMMER_2026);
+  return normalizeGlobalActivityPeriod(state.activityPeriodTab || ACTIVITY_SEASON_REGULAR);
 }
 
 function defaultDateRange(periodKey) {
-  if (periodKey === ACTIVITY_SEASON_SUMMER_2026) {
-    return { from: '2026-07-01', to: '2026-08-31' };
-  }
-  const from = isoToday();
-  return { from, to: addDaysIso(from, 30) };
+  if (periodKey === ACTIVITY_SEASON_SCHOOL_2027) return { from: '2026-09-01', to: '2027-08-31' };
+  return { from: '2025-09-01', to: '2026-08-31' };
 }
 
 function ensureOpsState(state = {}) {
@@ -2791,7 +2787,7 @@ export const operationsManagementScreen = {
     }
 
     root.querySelector('[data-ops-period]')?.addEventListener('change', (ev) => {
-      ops.period = setGlobalActivityPeriod(ev.target.value || ACTIVITY_SEASON_SUMMER_2026);
+      ops.period = setGlobalActivityPeriod(ev.target.value || ACTIVITY_SEASON_REGULAR);
       const range = defaultDateRange(ops.period);
       ops.dateFrom = range.from;
       ops.dateTo = range.to;
