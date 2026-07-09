@@ -87,7 +87,7 @@ const TAB_SCHOOLS = 'schools';
 const SUMMER_TRAINING_SESSION_KEY = 'opsSummerTrainingActive';
 const COMPLETION_APPROVAL_SUMMER_FROM = '2026-06-20';
 const COMPLETION_APPROVAL_SUMMER_TO = '2026-08-31';
-const COMPLETION_APPROVAL_MANAGER_ROLES = new Set(['admin', 'operation_manager', 'domain_manager', 'activities_manager', 'instructor_manager']);
+const COMPLETION_APPROVAL_MANAGER_ROLES = new Set(['admin', 'operation_manager', 'domain_manager', 'activities_manager', 'instructor_manager', 'finance']);
 
 function isOperationsAdmin(state = {}) {
   return String(state?.user?.role || state?.user?.display_role || '').trim() === 'admin';
