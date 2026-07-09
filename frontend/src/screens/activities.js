@@ -1680,20 +1680,24 @@ export const activitiesScreen = {
           const startHe2027 = formatDateHe(row.start_date) || '—';
           const endRaw2027 = String(row?.end_date || row?.date_end || '').trim() || String(row?.start_date || '').trim();
           const endHe2027 = endRaw2027 ? formatDateHe(endRaw2027) || '—' : '—';
-          const contactName2027 = escapeHtml(String(row.contact_name || '—'));
-          const contactPhone2027 = escapeHtml(String(row.contact_phone || row.phone || '—'));
-          const contactEmail2027 = escapeHtml(String(row.contact_email || '—'));
+          const rawContactName = String(row.contact_name || '').trim();
+          const contactName2027 = escapeHtml(rawContactName || '—');
+          const contactPhone2027 = escapeHtml(String(row.contact_phone || row.phone || '').trim());
+          const contactEmail2027 = escapeHtml(String(row.contact_email || '').trim());
+          const contactCell2027 = rawContactName
+            ? `<button class="ds-contact-popover-btn" type="button" data-contact-popover data-cname="${contactName2027}" data-cphone="${contactPhone2027}" data-cemail="${contactEmail2027}">${contactName2027}</button>`
+            : '<span>—</span>';
+          const notes2027 = escapeHtml(String(row.notes || '—'));
           return `
       <tr class="ds-data-row ds-activities-row" data-list-item data-search="${escapeHtml(rowSearch)}" data-filter="" data-row-id="${escapeHtml(row.RowID)}">
         <td class="ds-activities-col ds-activities-col--program"><div class="ds-activities-program-cell"><strong class="ds-activities-program-name" title="${activityName}">${activityName}</strong><span class="ds-activities-program-type" title="${activityTypeLabel}">${activityTypeLabel}</span>${editStatusBadge}</div></td>
         <td class="ds-activities-col ds-activities-col--authority"><span class="ds-activities-cell-ellipsis" title="${escapeHtml(row.authority || '—')}">${escapeHtml(row.authority || '—')}</span></td>
         <td class="ds-activities-col ds-activities-col--school"><span class="ds-activities-cell-ellipsis" title="${escapeHtml(getActivitySchoolDisplayName(row) || '—')}">${escapeHtml(getActivitySchoolDisplayName(row) || '—')}</span></td>
-        <td class="ds-activities-col ds-activities-col--contact-name"><span class="ds-activities-cell-ellipsis" title="${contactName2027}">${contactName2027}</span></td>
-        <td class="ds-activities-col ds-activities-col--contact-phone"><span class="ds-activities-cell-ellipsis" title="${contactPhone2027}">${contactPhone2027}</span></td>
-        <td class="ds-activities-col ds-activities-col--contact-email"><span class="ds-activities-cell-ellipsis" title="${contactEmail2027}">${contactEmail2027}</span></td>
+        <td class="ds-activities-col ds-activities-col--contact-name">${contactCell2027}</td>
         <td class="ds-activities-col ds-activities-col--date"><time class="ds-activities-date">${escapeHtml(startHe2027)}</time></td>
         <td class="ds-activities-col ds-activities-col--date"><time class="ds-activities-date">${escapeHtml(endHe2027)}</time></td>
         <td class="ds-activities-col ds-activities-col--instructor">${instructorDisplay}</td>
+        <td class="ds-activities-col ds-activities-col--notes"><span class="ds-activities-cell-ellipsis" title="${notes2027}">${notes2027}</span></td>
       </tr>
     `;
         }
@@ -1769,13 +1773,12 @@ export const activitiesScreen = {
                   <col class="ds-activities-col--authority">
                   <col class="ds-activities-col--school">
                   <col class="ds-activities-col--contact-name">
-                  <col class="ds-activities-col--contact-phone">
-                  <col class="ds-activities-col--contact-email">
                   <col class="ds-activities-col--date">
                   <col class="ds-activities-col--date">
                   <col class="ds-activities-col--instructor">
+                  <col class="ds-activities-col--notes">
                 </colgroup>
-                <thead><tr><th>תוכנית / סוג</th><th>רשות</th><th>בית ספר</th><th>איש קשר</th><th>נייד</th><th>מייל</th><th>תאריך התחלה</th><th>תאריך סיום</th><th>מדריך</th></tr></thead>`
+                <thead><tr><th>תוכנית / סוג</th><th>רשות</th><th>בית ספר</th><th>איש קשר</th><th>תאריך התחלה</th><th>תאריך סיום</th><th>מדריך</th><th>הערות</th></tr></thead>`
         : `<colgroup>
                   <col class="ds-activities-col--program">
                   <col class="ds-activities-col--authority">
@@ -3073,9 +3076,46 @@ export const activitiesScreen = {
     if (root._rowAbort) root._rowAbort.abort();
     root._rowAbort = new AbortController();
     const rowSig = { signal: root._rowAbort.signal };
+    if (!document._contactPopoverEl) {
+      const pop = document.createElement('div');
+      pop.className = 'ds-contact-popover';
+      document.body.appendChild(pop);
+      document._contactPopoverEl = pop;
+      document.addEventListener('click', (e) => {
+        if (!e.target.closest('[data-contact-popover]') && !e.target.closest('.ds-contact-popover')) {
+          pop.classList.remove('is-open');
+        }
+      });
+      document.addEventListener('keydown', (e) => {
+        if (e.key === 'Escape') pop.classList.remove('is-open');
+      });
+    }
+    root.addEventListener('click', (ev) => {
+      const btn = ev.target.closest('[data-contact-popover]');
+      if (!btn) return;
+      ev.stopPropagation();
+      const pop = document._contactPopoverEl;
+      if (!pop) return;
+      const name = btn.dataset.cname || '';
+      const phone = btn.dataset.cphone || '';
+      const email = btn.dataset.cemail || '';
+      const lines = [];
+      if (name && name !== '—') lines.push(`<span class="ds-contact-popover__name">${name}</span>`);
+      if (phone) lines.push(`<span class="ds-contact-popover__phone">נייד: ${phone}</span>`);
+      if (email) lines.push(`<span class="ds-contact-popover__email">מייל: ${email}</span>`);
+      pop.innerHTML = lines.length ? lines.join('') : '<span class="ds-contact-popover__name">אין פרטים</span>';
+      const rect = btn.getBoundingClientRect();
+      const scrollY = window.scrollY || document.documentElement.scrollTop;
+      pop.style.top = `${rect.bottom + scrollY + 4}px`;
+      pop.style.right = `${document.documentElement.clientWidth - rect.right}px`;
+      pop.style.left = 'auto';
+      pop.classList.add('is-open');
+    }, rowSig);
+
     root.addEventListener('click', (ev) => {
       const rowNode = ev.target.closest('.ds-data-row');
       if (!rowNode) return;
+      if (ev.target.closest('[data-contact-popover]')) return;
       ev.stopPropagation();
       const rowId = rowNode.dataset.rowId;
       const hit = filteredRows.find((row) => row.RowID === rowId);

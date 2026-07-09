@@ -9424,15 +9424,14 @@ select.ds-input {
 .ds-table--activities-list col.ds-activities-col--meetings   { width: 9%; }
 .ds-table--activities-list col.ds-activities-col--notes      { width: 25%; }
 
-/* ── 2027 table: 9 columns, sum = 100% ── */
-.ds-table--activities-2027 col.ds-activities-col--program        { width: 11%; }
-.ds-table--activities-2027 col.ds-activities-col--authority      { width: 11%; }
-.ds-table--activities-2027 col.ds-activities-col--school         { width: 11%; }
-.ds-table--activities-2027 col.ds-activities-col--contact-name   { width: 11%; }
-.ds-table--activities-2027 col.ds-activities-col--contact-phone  { width: 11%; }
-.ds-table--activities-2027 col.ds-activities-col--contact-email  { width: 11%; }
-.ds-table--activities-2027 col.ds-activities-col--date           { width: 9.5%; }
-.ds-table--activities-2027 col.ds-activities-col--instructor     { width: 15%; }
+/* ── 2027 table: 8 columns, sum = 100% ── */
+.ds-table--activities-2027 col.ds-activities-col--program       { width: 11%; }
+.ds-table--activities-2027 col.ds-activities-col--authority     { width: 11%; }
+.ds-table--activities-2027 col.ds-activities-col--school        { width: 11%; }
+.ds-table--activities-2027 col.ds-activities-col--contact-name  { width: 11%; }
+.ds-table--activities-2027 col.ds-activities-col--date          { width: 9.5%; }
+.ds-table--activities-2027 col.ds-activities-col--instructor    { width: 12%; }
+.ds-table--activities-2027 col.ds-activities-col--notes         { width: 25%; }
 
 .ds-table--activities-2027 td {
   height: 28px;
@@ -9444,13 +9443,54 @@ select.ds-input {
   font-size: 0.7rem;
 }
 .ds-table--activities-2027 td.ds-activities-col--date,
-.ds-table--activities-2027 td.ds-activities-col--contact-phone,
-.ds-table--activities-2027 td.ds-activities-col--contact-email,
-.ds-table--activities-2027 th.ds-activities-col--date,
-.ds-table--activities-2027 th.ds-activities-col--contact-phone,
-.ds-table--activities-2027 th.ds-activities-col--contact-email {
+.ds-table--activities-2027 th.ds-activities-col--date {
   text-align: center;
 }
+
+/* ── contact popover button ── */
+.ds-contact-popover-btn {
+  background: none;
+  border: none;
+  padding: 0;
+  margin: 0;
+  font: inherit;
+  font-size: 0.76rem;
+  color: var(--ds-link, #4a90d9);
+  cursor: pointer;
+  text-align: right;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  max-width: 100%;
+  display: block;
+  text-decoration: underline;
+  text-decoration-style: dotted;
+  text-underline-offset: 2px;
+}
+.ds-contact-popover-btn:hover {
+  color: var(--ds-link-hover, #2266aa);
+}
+
+/* ── contact popover card ── */
+.ds-contact-popover {
+  display: none;
+  position: absolute;
+  z-index: 9000;
+  background: var(--ds-panel-bg, #fff);
+  border: 1px solid var(--ds-border, #d0d5dd);
+  border-radius: 6px;
+  box-shadow: 0 4px 12px rgba(0,0,0,0.15);
+  padding: 10px 14px;
+  min-width: 180px;
+  max-width: 260px;
+  direction: rtl;
+  text-align: right;
+  line-height: 1.6;
+}
+.ds-contact-popover.is-open { display: flex; flex-direction: column; gap: 3px; }
+.ds-contact-popover__name  { font-weight: 600; font-size: 0.82rem; color: var(--ds-text, #111); }
+.ds-contact-popover__phone,
+.ds-contact-popover__email { font-size: 0.78rem; color: var(--ds-text-secondary, #555); }
 .ds-table--activities-2027 .ds-activities-program-name { font-size: 0.77rem; }
 .ds-table--activities-2027 .ds-activities-program-type { font-size: 0.62rem; }
 .ds-table--activities-2027 .ds-activities-instructor-name { font-size: 0.72rem; }
