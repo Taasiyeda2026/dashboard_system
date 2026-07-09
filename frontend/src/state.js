@@ -249,6 +249,7 @@ export function setSession(session) {
 export function setGlobalActivityPeriod(value, { persist = true } = {}) {
   const nextPeriod = normalizeGlobalActivityPeriod(value || DEFAULT_GLOBAL_ACTIVITY_PERIOD);
   state.activityPeriodTab = nextPeriod;
+  state.activitiesInnerTab = 'year_all';
   const periodMonth = defaultMonthForGlobalActivityPeriod(nextPeriod);
   state.dashboardMonthYm = periodMonth;
   state.activitiesMonthYm = periodMonth;

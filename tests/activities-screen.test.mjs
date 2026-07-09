@@ -161,7 +161,8 @@ test('activities access: allowed technical roles can view when display_role is H
 
 test.skip('activities render: admin idann sees summer activity layout button without add/edit flags', () => {
   const state = baseState();
-  state.activityPeriodTab = 'summer_2026';
+  state.activityPeriodTab = 'regular';
+  state.activitiesInnerTab = 'summer_2026';
   state.user = {
     username: 'idann',
     display_role: 'מנהל מערכת',
@@ -735,7 +736,7 @@ test('admin all-activities Excel export is imported and logs failures', async ()
   const source = await fs.readFile(new URL('../frontend/src/screens/activities.js', import.meta.url), 'utf8');
   assert.match(source, /import \{ exportActivitiesToExcel \} from '\.\/shared\/excel-export\.js';/);
   assert.match(source, /data-activities-export-all/);
-  assert.match(source, /const rows = isAllActivitiesMode\(state\) \? allActivitiesRows\(sourceRows, state\) : activityPeriodRows/);
+  assert.match(source, /const rows = activityRowsForInnerTab\(sourceRows, state\);/);
   assert.match(source, /catch \(err\) \{[\s\S]*console\.error\('Failed to export all activities to Excel', err\);/);
 });
 
@@ -1047,6 +1048,58 @@ test.skip('activity layout drawer keeps saved sent statuses and includes undated
     if (previousAbortController === undefined) delete globalThis.AbortController;
     else globalThis.AbortController = previousAbortController;
   }
+});
+
+
+test('activities inner tabs are scoped to global 2026 and split regular/summer/archive', () => {
+  const state = baseState();
+  state.activityPeriodTab = 'regular';
+  const data = { rows: [
+    { RowID: 'REG-2026', activity_name: 'פעילות שנתית', activity_type: 'workshop', authority: 'רשות א', school: 'בית ספר א', start_date: '2026-05-10', status: 'פעיל', activity_season: 'regular' },
+    { RowID: 'SUMMER-2026', activity_name: 'פעילות קיץ', activity_type: 'workshop', authority: 'רשות ב', school: 'בית ספר ב', start_date: '2026-07-10', status: 'פעיל', activity_season: 'summer_2026' },
+    { RowID: 'ARCHIVE-2026', activity_name: 'פעילות ארכיון', activity_type: 'workshop', authority: 'רשות ג', school: 'בית ספר ג', start_date: '2026-06-10', status: 'סגור', activity_season: 'regular' },
+    { RowID: 'SCHOOL-2027', activity_name: 'פעילות 2027', activity_type: 'course', authority: 'רשות ד', school: 'בית ספר ד', start_date: '2026-09-10', status: 'פעיל', activity_season: 'school_2027' }
+  ] };
+
+  const allHtml = activitiesScreen.render(data, { state });
+  assert.match(allHtml, /כל פעילויות 2026[\s\S]*<strong>2<\/strong>/);
+  assert.match(allHtml, /שנת 2026[\s\S]*<strong>1<\/strong>/);
+  assert.match(allHtml, /קיץ 2026[\s\S]*<strong>1<\/strong>/);
+  assert.match(allHtml, /ארכיון 2026[\s\S]*<strong>1<\/strong>/);
+  assert.match(allHtml, /פעילות שנתית/);
+  assert.match(allHtml, /פעילות קיץ/);
+  assert.doesNotMatch(allHtml, /פעילות 2027/);
+
+  state.activitiesInnerTab = 'summer_2026';
+  const summerHtml = activitiesScreen.render(data, { state });
+  assert.match(summerHtml, /aria-selected="true" data-activity-period-tab="summer_2026"/);
+  assert.match(summerHtml, /פעילות קיץ/);
+  assert.doesNotMatch(summerHtml, /פעילות שנתית/);
+  assert.doesNotMatch(summerHtml, /פעילות 2027/);
+
+  state.activitiesInnerTab = 'regular_2026';
+  const regularHtml = activitiesScreen.render(data, { state });
+  assert.match(regularHtml, /פעילות שנתית/);
+  assert.doesNotMatch(regularHtml, /פעילות קיץ/);
+});
+
+test('activities inner tabs are scoped to global 2027 and hide 2026 summer tabs/data', () => {
+  const state = baseState();
+  state.activityPeriodTab = 'school_2027';
+  const data = { rows: [
+    { RowID: 'SUMMER-2026', activity_name: 'פעילות קיץ', activity_type: 'workshop', authority: 'רשות ב', school: 'בית ספר ב', start_date: '2026-07-10', status: 'פעיל', activity_season: 'summer_2026' },
+    { RowID: 'REG-2026', activity_name: 'פעילות שנתית', activity_type: 'workshop', authority: 'רשות א', school: 'בית ספר א', start_date: '2026-05-10', status: 'פעיל', activity_season: 'regular' },
+    { RowID: 'SCHOOL-2027', activity_name: 'פעילות 2027', activity_type: 'course', authority: 'רשות ד', school: 'בית ספר ד', start_date: '2026-09-10', status: 'פעיל', activity_season: 'school_2027' }
+  ] };
+
+  const html = activitiesScreen.render(data, { state });
+  assert.match(html, /כל פעילויות 2027/);
+  assert.match(html, /פעילויות 2027/);
+  assert.doesNotMatch(html, /קיץ 2026/);
+  assert.doesNotMatch(html, /שנת 2026/);
+  assert.match(html, /פעילות 2027/);
+  assert.doesNotMatch(html, /פעילות קיץ/);
+  assert.doesNotMatch(html, /פעילות שנתית/);
 });
 
 test('activity period helper keeps one source of truth and explicit season beats date', async () => {
