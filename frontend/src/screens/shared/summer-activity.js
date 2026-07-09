@@ -12,9 +12,8 @@ export const ACTIVITY_SEASON_REGULAR = 'regular';
 export const ACTIVITY_SEASON_SUMMER_2026 = 'summer_2026';
 export const ACTIVITY_SEASON_SCHOOL_2027 = 'school_2027';
 export const ACTIVITY_SEASON_OPTIONS = [
-  { value: ACTIVITY_SEASON_SUMMER_2026, label: 'קיץ 2026', shortLabel: 'קיץ' },
-  { value: ACTIVITY_SEASON_REGULAR, label: 'תשפ״ו / 2026', shortLabel: '2026' },
-  { value: ACTIVITY_SEASON_SCHOOL_2027, label: 'תשפ״ז / 2027', shortLabel: '2027' }
+  { value: ACTIVITY_SEASON_REGULAR, label: '2026', shortLabel: '2026' },
+  { value: ACTIVITY_SEASON_SCHOOL_2027, label: '2027', shortLabel: '2027' }
 ];
 const SUMMER_SEASON_ALIASES = new Set([ACTIVITY_SEASON_SUMMER_2026, 'summer']);
 const SCHOOL_2027_ALIASES = new Set([ACTIVITY_SEASON_SCHOOL_2027]);
@@ -58,26 +57,23 @@ export function getActivityPeriodKey(activity = {}) {
   return '';
 }
 
-export const GLOBAL_ACTIVITY_PERIODS = [ACTIVITY_SEASON_SUMMER_2026, ACTIVITY_SEASON_REGULAR, ACTIVITY_SEASON_SCHOOL_2027];
+export const GLOBAL_ACTIVITY_PERIODS = [ACTIVITY_SEASON_REGULAR, ACTIVITY_SEASON_SCHOOL_2027];
 export const GLOBAL_ACTIVITY_PERIOD_STORAGE_KEY = 'dashboard_activity_period';
 
 export function normalizeGlobalActivityPeriod(value) {
   const key = String(value || '').trim();
-  if (key === 'school_2026' || key === 'archive' || key === ACTIVITY_SEASON_REGULAR) return ACTIVITY_SEASON_REGULAR;
-  if (key === ACTIVITY_SEASON_SCHOOL_2027) return ACTIVITY_SEASON_SCHOOL_2027;
-  return ACTIVITY_SEASON_SUMMER_2026;
+  if (key === ACTIVITY_SEASON_SCHOOL_2027 || key === '2027') return ACTIVITY_SEASON_SCHOOL_2027;
+  return ACTIVITY_SEASON_REGULAR;
 }
 
 export function globalActivityPeriodLabel(value) {
   const key = normalizeGlobalActivityPeriod(value);
-  if (key === ACTIVITY_SEASON_SCHOOL_2027) return '2027';
-  if (key === ACTIVITY_SEASON_REGULAR) return '2026';
-  return 'קיץ';
+  return key === ACTIVITY_SEASON_SCHOOL_2027 ? '2027' : '2026';
 }
 
 export function globalActivityPeriodFullLabel(value) {
   const key = normalizeGlobalActivityPeriod(value);
-  return ACTIVITY_SEASON_OPTIONS.find((option) => option.value === key)?.label || 'קיץ 2026';
+  return ACTIVITY_SEASON_OPTIONS.find((option) => option.value === key)?.label || '2026';
 }
 
 export function globalActivityPeriodOptions() {
@@ -90,7 +86,6 @@ export function isValidGlobalActivityPeriod(value) {
 
 export function defaultMonthForGlobalActivityPeriod(value) {
   const key = normalizeGlobalActivityPeriod(value);
-  if (key === ACTIVITY_SEASON_SUMMER_2026) return SUMMER_DEFAULT_MONTH_YM;
   if (key === ACTIVITY_SEASON_SCHOOL_2027) return SCHOOL_2027_START_DATE.slice(0, 7);
   return '';
 }
@@ -99,7 +94,7 @@ export function activityMatchesPeriodKey(activity = {}, periodKey = '') {
   const key = String(periodKey || 'all').trim();
   if (!key || key === 'all') return true;
   const period = getActivityPeriodKey(activity);
-  if (key === 'school_2026') return period === ACTIVITY_SEASON_REGULAR;
+  if (key === 'school_2026' || key === ACTIVITY_SEASON_REGULAR) return period === ACTIVITY_SEASON_REGULAR || period === ACTIVITY_SEASON_SUMMER_2026;
   return period === key;
 }
 

@@ -332,7 +332,7 @@ async function readActivitiesFromSupabase(filters = {}) {
 
 
 function currentGlobalActivityPeriod() {
-  return normalizeGlobalActivityPeriod(state?.activityPeriodTab || 'summer_2026');
+  return normalizeGlobalActivityPeriod(state?.activityPeriodTab || 'regular');
 }
 
 function filterRowsByGlobalActivityPeriod(rows = [], period = currentGlobalActivityPeriod()) {
