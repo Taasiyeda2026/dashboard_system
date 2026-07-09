@@ -301,8 +301,7 @@ async function readArchiveActivitiesFromSupabase() {
       .eq('status', CLOSED_STATUS);
     if (error) throw new Error(error.message || 'archive_read_failed');
     const rawRows = Array.isArray(data) ? data : [];
-    const rows = rawRows
-      .map(normalizeActivityRow)
+    const rows = filterRowsByGlobalActivityPeriod(rawRows.map(normalizeActivityRow))
       .sort((a, b) => String(b?.end_date || b?.start_date || '').localeCompare(String(a?.end_date || a?.start_date || '')));
     return { rows, _source: 'supabase', _debug: { activities_loaded_from_supabase: rawRows.length, source_table: 'public.activities' } };
   } catch (err) {
@@ -5655,9 +5654,10 @@ export const api = {
     ]);
     const idsSet = getInstructorIdentitySet();
     const includeClosedForApprovals = Boolean(params?.includeClosedForApprovals);
+    const periodRows = filterRowsByGlobalActivityPeriod(allRows);
     const openRows = includeClosedForApprovals
-      ? allRows.filter((row) => !isActivityDeleted(row) && !isActivityCancelled(row))
-      : allRows.filter((row) => !isActivityClosed(row));
+      ? periodRows.filter((row) => !isActivityDeleted(row) && !isActivityCancelled(row))
+      : periodRows.filter((row) => !isActivityClosed(row));
     const summerPrintContactsIndex = buildSummerContactIndex(summerPrintContactRows);
     const contactsIndex = buildContactsSchoolsIndex(contactsSchoolsRows);
     const schoolsIndex = buildSchoolsCatalogContactIndex(schoolsRows);
@@ -5932,7 +5932,8 @@ export const api = {
   },
   operations: async (params = {}) => {
     const allRows = await readAllActivitiesRowsSupabase();
-    const rows = filterOperationsRows(allRows, params || {});
+    const periodRows = filterRowsByGlobalActivityPeriod(allRows, params?.activity_period || currentGlobalActivityPeriod());
+    const rows = filterOperationsRows(periodRows, params || {});
     return { rows, _source: 'supabase' };
   },
   operationsDetail: async (source_row_id, source_sheet) => readActivityDetailFromSupabase(source_row_id, source_sheet),

@@ -1181,19 +1181,24 @@ function closeMobileNav() {
 }
 
 function buildScreenDataCacheKey(route, cacheState = state) {
+  const activityPeriod = normalizeGlobalActivityPeriod(cacheState?.activityPeriodTab || 'summer_2026');
+  const withActivityPeriod = (base) => `${base}:period:${activityPeriod}`;
   if (route === 'activities') {
     return 'activities:periods';
   }
   if (route === 'dashboard') {
     const ym = cacheState.dashboardMonthYm && /^\d{4}-\d{2}$/.test(cacheState.dashboardMonthYm) ? cacheState.dashboardMonthYm : 'default';
-    return `dashboard:${ym}`;
+    return withActivityPeriod(`dashboard:${ym}`);
   }
   if (route === 'week') {
-    return `week:${cacheState.weekOffset || 0}`;
+    return withActivityPeriod(`week:${cacheState.weekOffset || 0}`);
   }
   if (route === 'month') {
     const ym = cacheState.monthYm && /^\d{4}-\d{2}$/.test(cacheState.monthYm) ? cacheState.monthYm : 'current';
-    return `month:${ym}`;
+    return withActivityPeriod(`month:${ym}`);
+  }
+  if (['archive', 'operations-management', 'instructor-completion-approvals'].includes(route)) {
+    return withActivityPeriod(route);
   }
   return route;
 }
@@ -2134,35 +2139,36 @@ function bindShell() {
     localStorage.removeItem('dashboard_routes');
     render();
   };
-  const periodWrap = document.querySelector('[data-global-period-wrap]');
-  const periodToggle = periodWrap?.querySelector('[data-global-period-toggle]');
-  const periodMenu = periodWrap?.querySelector('[data-global-period-menu]');
-  const setPeriodMenuOpen = (open) => {
-    if (!periodMenu || !periodToggle) return;
-    periodMenu.hidden = !open;
-    periodToggle.setAttribute('aria-expanded', open ? 'true' : 'false');
-  };
-  const closePeriodMenuOnOutsideClick = (ev) => {
-    if (periodWrap?.contains(ev.target)) return;
-    setPeriodMenuOpen(false);
-    document.removeEventListener('click', closePeriodMenuOnOutsideClick);
-  };
-  periodToggle?.addEventListener('click', (ev) => {
-    ev.stopPropagation();
-    const nextOpen = !!periodMenu?.hidden;
-    setPeriodMenuOpen(nextOpen);
-    document.removeEventListener('click', closePeriodMenuOnOutsideClick);
-    if (nextOpen) setTimeout(() => document.addEventListener('click', closePeriodMenuOnOutsideClick), 0);
-  });
-  periodWrap?.querySelectorAll('[data-global-period-option]').forEach((btn) => {
-    btn.addEventListener('click', (ev) => {
+  document.addEventListener('click', (ev) => {
+    const toggle = ev.target?.closest?.('[data-global-period-toggle]');
+    const option = ev.target?.closest?.('[data-global-period-option]');
+    const wrap = ev.target?.closest?.('[data-global-period-wrap]');
+    const currentWrap = document.querySelector('[data-global-period-wrap]');
+    const periodToggle = currentWrap?.querySelector('[data-global-period-toggle]');
+    const periodMenu = currentWrap?.querySelector('[data-global-period-menu]');
+    const setPeriodMenuOpen = (open) => {
+      if (!periodMenu || !periodToggle) return;
+      periodMenu.hidden = !open;
+      periodToggle.setAttribute('aria-expanded', open ? 'true' : 'false');
+    };
+    if (toggle) {
       ev.stopPropagation();
-      state.activityPeriodTab = normalizeGlobalActivityPeriod(btn.getAttribute('data-global-period-option'));
-      try { localStorage.setItem('dashboard_activity_period', state.activityPeriodTab); } catch { /* ignore */ }
+      setPeriodMenuOpen(!!periodMenu?.hidden);
+      return;
+    }
+    if (option) {
+      ev.stopPropagation();
+      const selected = normalizeGlobalActivityPeriod(option.getAttribute('data-global-period-option'));
+      if (state.activityPeriodTab !== selected) {
+        state.activityPeriodTab = selected;
+        try { localStorage.setItem('dashboard_activity_period', state.activityPeriodTab); } catch { /* ignore */ }
+        clearScreenDataCache();
+        scheduleRender();
+      }
       setPeriodMenuOpen(false);
-      clearScreenDataCache();
-      scheduleRender();
-    });
+      return;
+    }
+    if (!wrap) setPeriodMenuOpen(false);
   });
   document.getElementById('logoutBtn')?.addEventListener('click', handleLogout);
   document.querySelectorAll('.shell-logout-btn--mobile').forEach((btn) => {
