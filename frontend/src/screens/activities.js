@@ -1962,7 +1962,7 @@ export const activitiesScreen = {
 
     async function renderActivityLayoutDrawerContent() {
       const statuses = await loadActivityLayoutStatuses();
-      activityLayoutGroups = readyActivityLayoutSchools(activityPeriodRows(activitiesRows, ACTIVITY_LAYOUT_SEASON), statuses);
+      activityLayoutGroups = readyActivityLayoutSchools(summer2026Rows(activitiesRows), statuses);
       const content = document.querySelector('.ds-drawer__content');
       if (content) content.innerHTML = activityLayoutListHtml(activityLayoutGroups);
     }
