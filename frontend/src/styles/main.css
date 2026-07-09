@@ -21433,3 +21433,50 @@ details[open] > .ds-fin-acc__summary::before { transform: rotate(90deg); }
   transform: translateY(-1px);
   box-shadow: 0 2px 7px rgba(0, 0, 0, 0.28);
 }
+.shell-period-wrap {
+  position: relative;
+  display: inline-flex;
+}
+.shell-period-menu {
+  position: absolute;
+  inset-inline-end: 0;
+  bottom: calc(100% + 8px);
+  z-index: 30;
+  display: grid;
+  gap: 4px;
+  min-width: 148px;
+  padding: 6px;
+  border: 1px solid rgba(148, 163, 184, 0.45);
+  border-radius: 12px;
+  background: #fff;
+  color: #0f172a;
+  box-shadow: 0 16px 34px rgba(15, 23, 42, 0.22);
+}
+.shell-period-menu[hidden] {
+  display: none;
+}
+.shell-period-option {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 10px;
+  width: 100%;
+  border: 0;
+  border-radius: 9px;
+  background: transparent;
+  color: #0f172a;
+  padding: 7px 9px;
+  font-size: 12px;
+  font-weight: 800;
+  text-align: right;
+  cursor: pointer;
+}
+.shell-period-option strong {
+  direction: ltr;
+  color: var(--ds-accent);
+  font-size: 11px;
+}
+.shell-period-option:hover,
+.shell-period-option.is-active {
+  background: rgba(26, 51, 88, 0.09);
+}
