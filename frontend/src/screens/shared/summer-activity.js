@@ -50,13 +50,38 @@ export function getActivityPeriodKey(activity = {}) {
   const season = normalizeActivitySeason(activity?.activity_season ?? activity?.activitySeason);
   if (season === ACTIVITY_SEASON_SCHOOL_2027) return ACTIVITY_SEASON_SCHOOL_2027;
   if (season === ACTIVITY_SEASON_SUMMER_2026) return ACTIVITY_SEASON_SUMMER_2026;
+  if (explicitSeason && season === ACTIVITY_SEASON_REGULAR) return ACTIVITY_SEASON_REGULAR;
+
+  const rowId = String(activity?.row_id ?? activity?.RowID ?? activity?.id ?? '').trim().toLowerCase();
+  if (rowId.startsWith(SUMMER_ROW_ID_PREFIX)) return ACTIVITY_SEASON_SUMMER_2026;
 
   const start = getActivitySeasonDate(activity);
   if (start >= SCHOOL_2027_START_DATE && start <= SCHOOL_2027_END_DATE) return ACTIVITY_SEASON_SCHOOL_2027;
   if (start >= SUMMER_START_DATE && start <= SUMMER_END_DATE) return ACTIVITY_SEASON_SUMMER_2026;
   if (start >= SCHOOL_2026_START_DATE && start <= SCHOOL_2026_END_DATE) return ACTIVITY_SEASON_REGULAR;
-  if (explicitSeason && season === ACTIVITY_SEASON_REGULAR) return ACTIVITY_SEASON_REGULAR;
   return ACTIVITY_SEASON_REGULAR;
+}
+
+export const GLOBAL_ACTIVITY_PERIODS = [ACTIVITY_SEASON_SUMMER_2026, ACTIVITY_SEASON_SCHOOL_2027, ACTIVITY_SEASON_REGULAR];
+
+export function normalizeGlobalActivityPeriod(value) {
+  const key = String(value || '').trim();
+  if (key === 'school_2026' || key === 'archive' || key === ACTIVITY_SEASON_REGULAR) return ACTIVITY_SEASON_REGULAR;
+  if (key === ACTIVITY_SEASON_SCHOOL_2027) return ACTIVITY_SEASON_SCHOOL_2027;
+  return ACTIVITY_SEASON_SUMMER_2026;
+}
+
+export function globalActivityPeriodLabel(value) {
+  const key = normalizeGlobalActivityPeriod(value);
+  if (key === ACTIVITY_SEASON_SCHOOL_2027) return '2027';
+  if (key === ACTIVITY_SEASON_REGULAR) return '2026';
+  return 'קיץ 2026';
+}
+
+export function nextGlobalActivityPeriod(value) {
+  const current = normalizeGlobalActivityPeriod(value);
+  const index = GLOBAL_ACTIVITY_PERIODS.indexOf(current);
+  return GLOBAL_ACTIVITY_PERIODS[(index + 1) % GLOBAL_ACTIVITY_PERIODS.length];
 }
 
 export function activityMatchesPeriodKey(activity = {}, periodKey = '') {

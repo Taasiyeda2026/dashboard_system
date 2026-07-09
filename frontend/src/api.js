@@ -4,7 +4,7 @@ import { hebrewRole } from './screens/shared/ui-hebrew.js';
 import { getActivityAuthorityName, getActivityContactName, getActivityContactPhone, getActivitySchoolNames } from './screens/shared/operations-activity-helpers.js';
 import { cleanActivityManagerName, getContactsInstructorUsers, getRosterUsers, NO_ACTIVITY_MANAGER_LABEL, normalizeOneDayActivityType, resolveActivityInstructorName, buildContactsInstructorLookup, resolveCanonicalInstructorPair, validateInstructorIdentityPayload } from './screens/shared/activity-options.js';
 import { EXCEPTION_TYPE_ORDER, normalizedExceptionTypes } from './screens/shared/exceptions-metrics.js';
-import { ACTIVITY_SEASON_SCHOOL_2027, isSummerActivity, normalizeActivitySeason } from './screens/shared/summer-activity.js';
+import { ACTIVITY_SEASON_SCHOOL_2027, activityMatchesPeriodKey, isSummerActivity, normalizeActivitySeason, normalizeGlobalActivityPeriod } from './screens/shared/summer-activity.js';
 import {
   normalizeContactMatchText,
   buildContactResponsibleIndex,
@@ -320,6 +320,7 @@ async function readActivitiesFromSupabase(filters = {}) {
     const rawRows = Array.isArray(data) ? data : [];
     const rows = rawRows
       .map(normalizeActivityRow)
+      .filter((row) => filters?.include_all_periods ? true : activityMatchesPeriodKey(row, filters?.activity_period || currentGlobalActivityPeriod()))
       .filter((row) => filters?.include_inactive ? true : !isActivityInactive(row))
       .filter((row) => rowMatchesActivitiesFilters(row, filters));
     return { rows, _source: 'supabase', _debug: { activities_loaded_from_supabase: rawRows.length, source_table: 'public.activities' } };
@@ -328,6 +329,15 @@ async function readActivitiesFromSupabase(filters = {}) {
     console.error('[supabase] Unexpected activities fetch error:', error);
     return null;
   }
+}
+
+
+function currentGlobalActivityPeriod() {
+  return normalizeGlobalActivityPeriod(state?.activityPeriodTab || 'summer_2026');
+}
+
+function filterRowsByGlobalActivityPeriod(rows = [], period = currentGlobalActivityPeriod()) {
+  return (Array.isArray(rows) ? rows : []).filter((row) => activityMatchesPeriodKey(row, period));
 }
 
 function buildSupabaseErrorPayload(base, error, extra = {}) {
@@ -1915,7 +1925,7 @@ async function readWeekFromSupabase(weekOffset) {
   if (!supabase) return emptyWeekPayload(startDate, endDate, { error: 'no_supabase_client' });
 
   try {
-    const rows = (await selectActivitiesByDateRangeFromSupabase({ startDate, endDate }))
+    const rows = filterRowsByGlobalActivityPeriod(await selectActivitiesByDateRangeFromSupabase({ startDate, endDate }))
       .filter((row) => !isActivityInactive(row));
     const matchingRows = rows.filter((row) => activityHasDateInRange(row, startDate, endDate));
     const itemsById = buildItemsById(matchingRows);
@@ -1952,7 +1962,7 @@ async function readMonthFromSupabase(ym) {
     const range = monthDateRange(monthPrefix);
     const [yStr, mStr] = monthPrefix.split('-');
     const lastDay = new Date(Number(yStr), Number(mStr), 0).getDate();
-    const rows = (await selectActivitiesByDateRangeFromSupabase({
+    const rows = filterRowsByGlobalActivityPeriod(await selectActivitiesByDateRangeFromSupabase({
       startDate: range.startDate,
       endDate: range.endDate
     })).filter((row) => !isActivityInactive(row));
@@ -2044,11 +2054,12 @@ async function dashboardReadModelFromSupabase(month) {
       fallbackSelect: DASHBOARD_ACTIVITY_MIN_COLUMNS
     });
     // Open-only rows (not closed) — used for summary, instructor/manager stats, exceptions
-    const openRows = allRangeRows.filter((row) => !isActivityInactive(row));
+    const scopedRangeRows = filterRowsByGlobalActivityPeriod(allRangeRows);
+    const openRows = scopedRangeRows.filter((row) => !isActivityInactive(row));
     // Open-only rows that have a specific date (start/end/meeting) in this month — matches activities screen
     const monthRows = openRows.filter((row) => activityHasDatePointInMonth(row, monthPrefix));
     // All rows (open + closed) with a specific date in this month — for KPI base counts
-    const allMonthRows = allRangeRows.filter((row) => activityHasDatePointInMonth(row, monthPrefix));
+    const allMonthRows = scopedRangeRows.filter((row) => activityHasDatePointInMonth(row, monthPrefix));
     // Course/afterschool endings: open activities of that type whose end_date falls in this month
     const endingRows = openRows.filter((row) => (rowActivityType(row) === 'course' || rowActivityType(row) === 'after_school') && String(row?.end_date || '').slice(0, 7) === monthPrefix);
 
@@ -2063,7 +2074,7 @@ async function dashboardReadModelFromSupabase(month) {
       .filter(isSummerActivity)
       .map((row, index) => String(row?.RowID || row?.row_id || '').trim() || `summer:${index}`)).size;
 
-    const exceptionSummary = await readExceptionsFromSupabase({ month: monthPrefix, activityRows: allRangeRows });
+    const exceptionSummary = await readExceptionsFromSupabase({ month: monthPrefix, activityRows: scopedRangeRows });
     const exceptionError = exceptionSummary?.error || exceptionSummary?._debug?.error;
     const exceptionsUnavailable = !exceptionSummary || !!exceptionError;
     if (exceptionsUnavailable) {
@@ -4500,7 +4511,8 @@ function sanitizeActivityPayload(act = {}) {
   }
   row.status = String(row.status || (normalizedType ? OPEN_STATUS : LEGACY_ACTIVE_STATUS));
   if (normalizedType && row.status === LEGACY_ACTIVE_STATUS) row.status = OPEN_STATUS;
-  row.activity_season = normalizeActivitySeason(row.activity_season ?? act.activitySeason);
+  if (!String(row.activity_season ?? act.activitySeason ?? '').trim() && currentGlobalActivityPeriod() === ACTIVITY_SEASON_SCHOOL_2027) row.activity_season = ACTIVITY_SEASON_SCHOOL_2027;
+  else row.activity_season = normalizeActivitySeason(row.activity_season ?? act.activitySeason);
   for (let i = 1; i <= 35; i++) {
     const lower = `date_${i}`;
     const oldDateKey = `Date${i}`;
@@ -5547,9 +5559,9 @@ export const api = {
     if (data) return data;
     throw new Error('archive_supabase_failed');
   },
-  allActivities: async () => {
+  allActivities: async (params = {}) => {
     const rows = await readAllActivitiesRowsSupabase();
-    return { rows, _source: 'supabase' };
+    return { rows: params?.include_all_periods ? rows : filterRowsByGlobalActivityPeriod(rows, params?.activity_period || currentGlobalActivityPeriod()), _source: 'supabase' };
   },
   activities: async (filters, options) => {
     const resolvedFilters = filters || {};

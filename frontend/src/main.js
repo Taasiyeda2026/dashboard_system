@@ -1,5 +1,6 @@
 import { api } from './api.js';
 import { config } from './config.js';
+import { globalActivityPeriodLabel, nextGlobalActivityPeriod, normalizeGlobalActivityPeriod } from './screens/shared/summer-activity.js';
 import { state, setSession, defaultClientSettings } from './state.js';
 import { SCREEN_CACHE_STORAGE_PREFIX, persistCacheEntry, deletePersistedCacheEntry, deletePersistedCacheByPrefixes } from './cache-persist.js';
 import { escapeHtml } from './screens/shared/html.js';
@@ -1091,6 +1092,7 @@ function shell(content) {
         <hr class="shell-sidebar__divider" />
         <nav class="shell-nav">${nav}${attendanceNavBtn}</nav>
         <div class="shell-sidebar__footer" dir="rtl">
+          <button type="button" class="shell-period-btn" data-global-period-toggle aria-label="תקופת פעילות גלובלית" title="תקופת פעילות גלובלית">${escapeHtml(globalActivityPeriodLabel(state.activityPeriodTab))}</button>
           <div class="ds-accent-picker-wrap" data-accent-picker-wrap>
             <button type="button" class="ds-accent-picker-btn" data-accent-picker-btn aria-label="צבע ממשק" title="צבע ממשק"></button>
             <div class="ds-accent-picker-popover" data-accent-picker-popover hidden>
@@ -2127,6 +2129,12 @@ function bindShell() {
     localStorage.removeItem('dashboard_routes');
     render();
   };
+  document.querySelector('[data-global-period-toggle]')?.addEventListener('click', () => {
+    state.activityPeriodTab = nextGlobalActivityPeriod(state.activityPeriodTab);
+    try { localStorage.setItem('dashboard_activity_period', normalizeGlobalActivityPeriod(state.activityPeriodTab)); } catch { /* ignore */ }
+    clearScreenDataCache();
+    scheduleRender();
+  });
   document.getElementById('logoutBtn')?.addEventListener('click', handleLogout);
   document.querySelectorAll('.shell-logout-btn--mobile').forEach((btn) => {
     btn.addEventListener('click', handleLogout);

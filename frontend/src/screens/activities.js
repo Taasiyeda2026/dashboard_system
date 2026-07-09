@@ -2283,6 +2283,8 @@ export const activitiesScreen = {
     root.querySelectorAll('[data-activity-period-tab]').forEach((btn) => {
       btn.addEventListener('click', () => {
         state.activityPeriodTab = normalizeActivityPeriodTab(btn.getAttribute('data-activity-period-tab'));
+        try { localStorage.setItem('dashboard_activity_period', state.activityPeriodTab); } catch { /* ignore */ }
+        clearScreenDataCache?.();
         state.activitiesSummerShowAll = false;
         if (activityPeriodUsesMonthNavigation(state)) {
           ensureActivityPeriodMonth(state, activitiesRows, { force: true });
