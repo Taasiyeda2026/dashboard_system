@@ -171,7 +171,8 @@ function activityPeriodKey(row = {}) {
   const period = getActivityPeriodKey(row);
   if (period === ACTIVITY_SEASON_SUMMER_2026) return 'summer_2026';
   if (period === ACTIVITY_SEASON_SCHOOL_2027) return 'school_2027';
-  return 'school_2026';
+  if (period === ACTIVITY_SEASON_REGULAR) return 'school_2026';
+  return 'unknown';
 }
 
 
@@ -2669,7 +2670,7 @@ export const activitiesScreen = {
         resetAddActivitySavingState(form, submitBtn);
         return;
       }
-      if (!String(payload.activity_no || '').trim()) {
+      if (!isSchool2027Activity && !String(payload.activity_no || '').trim()) {
         setAddActivityStatus(statusEl, 'לא ניתן לשמור: חסר מזהה פעילות מקור', { isError: true });
         resetAddActivitySavingState(form, submitBtn);
         return;

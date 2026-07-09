@@ -1,5 +1,6 @@
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
+import fs from 'node:fs';
 import { JSDOM } from 'jsdom';
 
 if (!globalThis.sessionStorage) {
@@ -296,7 +297,7 @@ test('activities period tabs split active rows by season/start_date and default 
   const data = {
     rows: [
       { RowID: 'SCHOOL-2026', activity_name: 'פעילות יוני', activity_type: 'workshop', authority: 'רשות א', school: 'בית ספר א', start_date: '2026-06-30' },
-      { RowID: 'SUMMER-2026', activity_name: 'פעילות יולי', activity_type: 'workshop', authority: 'רשות ב', school: 'בית ספר ב', start_date: '2026-07-01' },
+      { RowID: 'SUMMER-2026', activity_name: 'פעילות יולי', activity_type: 'workshop', authority: 'רשות ב', school: 'בית ספר ב', start_date: '2026-07-01', activity_season: 'summer_2026' },
       { RowID: 'SCHOOL-2027', activity_name: 'פעילות ספטמבר', activity_type: 'course', authority: 'רשות ג', school: 'בית ספר ג', start_date: '2026-09-01' },
       { RowID: 'ARCHIVE-CLOSED', activity_name: 'פעילות סגורה', activity_type: 'course', authority: 'רשות ד', school: 'בית ספר ד', start_date: '2026-07-10', status: 'סגור' }
     ]
@@ -323,9 +324,9 @@ test('activities period tab badges are computed before month filtering', () => {
     rows: [
       { RowID: 'REG-JUNE', activity_name: 'פעילות יוני', activity_type: 'workshop', authority: 'רשות א', school: 'בית ספר א', start_date: '2026-06-10', status: 'פעיל' },
       { RowID: 'REG-MAY', activity_name: 'פעילות מאי', activity_type: 'workshop', authority: 'רשות ב', school: 'בית ספר ב', start_date: '2026-05-10', status: 'פעיל' },
-      { RowID: 'summer_july', activity_name: 'קיץ יולי', activity_type: 'workshop', authority: 'רשות ג', school: 'בית ספר ג', start_date: '2026-07-10', status: 'פעיל' },
-      { RowID: 'summer_undated', activity_name: 'קיץ ללא תאריך', activity_type: 'workshop', authority: 'רשות ד', school: 'בית ספר ד', start_date: '', status: 'פעיל' },
-      { RowID: 'summer_closed', activity_name: 'קיץ סגור', activity_type: 'workshop', authority: 'רשות ה', school: 'בית ספר ה', start_date: '2026-07-11', status: 'סגור' },
+      { RowID: 'summer_july', activity_name: 'קיץ יולי', activity_type: 'workshop', authority: 'רשות ג', school: 'בית ספר ג', start_date: '2026-07-10', status: 'פעיל', activity_season: 'summer_2026' },
+      { RowID: 'summer_undated', activity_name: 'קיץ ללא תאריך', activity_type: 'workshop', authority: 'רשות ד', school: 'בית ספר ד', start_date: '', status: 'פעיל', activity_season: 'summer_2026' },
+      { RowID: 'summer_closed', activity_name: 'קיץ סגור', activity_type: 'workshop', authority: 'רשות ה', school: 'בית ספר ה', start_date: '2026-07-11', status: 'סגור', activity_season: 'summer_2026' },
       { RowID: 'CLOSED-REG', activity_name: 'ארכיון רגיל', activity_type: 'course', authority: 'רשות ו', school: 'בית ספר ו', start_date: '2026-05-10', status: 'סגור' },
       { RowID: 'DELETED-REG', activity_name: 'נמחק רגיל', activity_type: 'course', authority: 'רשות ז', school: 'בית ספר ז', start_date: '2026-05-10', status: 'נמחק' }
     ]
@@ -349,9 +350,9 @@ test('activities summer tab shows all active summer rows without month filtering
   state.activitiesMonthYm = '2026-06';
   const data = {
     rows: [
-      { RowID: 'summer_july_1', activity_name: 'פעילות יולי', activity_type: 'workshop', authority: 'רשות א', school: 'בית ספר א', start_date: '2026-07-01', status: 'פעיל' },
-      { RowID: 'summer_undated_1', activity_name: 'פעילות קיץ ללא תאריך', activity_type: 'workshop', authority: 'רשות ב', school: 'בית ספר ב', start_date: '', status: 'פעיל' },
-      { RowID: 'summer_cancelled_1', activity_name: 'פעילות קיץ מבוטלת', activity_type: 'workshop', authority: 'רשות ג', school: 'בית ספר ג', start_date: '2026-07-02', status: 'בוטל' },
+      { RowID: 'summer_july_1', activity_name: 'פעילות יולי', activity_type: 'workshop', authority: 'רשות א', school: 'בית ספר א', start_date: '2026-07-01', status: 'פעיל', activity_season: 'summer_2026' },
+      { RowID: 'summer_undated_1', activity_name: 'פעילות קיץ ללא תאריך', activity_type: 'workshop', authority: 'רשות ב', school: 'בית ספר ב', start_date: '', status: 'פעיל', activity_season: 'summer_2026' },
+      { RowID: 'summer_cancelled_1', activity_name: 'פעילות קיץ מבוטלת', activity_type: 'workshop', authority: 'רשות ג', school: 'בית ספר ג', start_date: '2026-07-02', status: 'בוטל', activity_season: 'summer_2026' },
       { RowID: 'REGULAR-JULY', activity_name: 'פעילות רגילה ביולי', activity_type: 'workshop', authority: 'רשות ד', school: 'בית ספר ד', start_date: '2026-07-03', status: 'פעיל', activity_season: 'regular' }
     ]
   };
@@ -376,7 +377,7 @@ test('activities summer month initialization does not override manual summer nav
   state.activitiesMonthYm = '2026-06';
   const data = {
     rows: [
-      { RowID: 'summer_july_1', activity_name: 'פעילות יולי', activity_type: 'workshop', authority: 'רשות א', school: 'בית ספר א', start_date: '2026-07-01', status: 'פעיל' }
+      { RowID: 'summer_july_1', activity_name: 'פעילות יולי', activity_type: 'workshop', authority: 'רשות א', school: 'בית ספר א', start_date: '2026-07-01', status: 'פעיל', activity_season: 'summer_2026' }
     ]
   };
 
@@ -1046,4 +1047,50 @@ test('activity layout drawer keeps saved sent statuses and includes undated summ
     if (previousAbortController === undefined) delete globalThis.AbortController;
     else globalThis.AbortController = previousAbortController;
   }
+});
+
+test('activity period helper keeps one source of truth and explicit season beats date', async () => {
+  const {
+    getActivityPeriodKey,
+    activityMatchesPeriodKey,
+    ACTIVITY_SEASON_REGULAR,
+    ACTIVITY_SEASON_SUMMER_2026,
+    ACTIVITY_SEASON_SCHOOL_2027,
+    globalActivityPeriodLabel,
+    globalActivityPeriodOptions,
+    normalizeGlobalActivityPeriod
+  } = await import('../frontend/src/screens/shared/summer-activity.js');
+
+  assert.equal(getActivityPeriodKey({ activity_season: 'regular', start_date: '2026-09-15' }), ACTIVITY_SEASON_REGULAR);
+  assert.equal(getActivityPeriodKey({ activity_season: 'summer_2026', start_date: '2027-01-10' }), ACTIVITY_SEASON_SUMMER_2026);
+  assert.equal(getActivityPeriodKey({ activity_season: 'school_2027' }), ACTIVITY_SEASON_SCHOOL_2027);
+  assert.equal(getActivityPeriodKey({ start_date: '2026-09-01' }), ACTIVITY_SEASON_SCHOOL_2027);
+  assert.equal(getActivityPeriodKey({ start_date: '2026-08-31' }), ACTIVITY_SEASON_REGULAR);
+  assert.equal(getActivityPeriodKey({}), '');
+  assert.equal(activityMatchesPeriodKey({ activity_season: 'school_2027' }, 'summer_2026'), false);
+  assert.equal(activityMatchesPeriodKey({ activity_season: 'school_2027' }, 'school_2027'), true);
+  assert.equal(activityMatchesPeriodKey({ activity_season: 'regular', start_date: '2026-10-01' }, 'school_2027'), false);
+  assert.equal(activityMatchesPeriodKey({ activity_season: 'regular', start_date: '2026-10-01' }, 'school_2026'), true);
+
+  assert.deepEqual(globalActivityPeriodOptions().map((option) => option.label), ['קיץ 2026', 'תשפ״ו / 2026', 'תשפ״ז / 2027']);
+  assert.equal(globalActivityPeriodLabel('summer_2026'), 'קיץ');
+  assert.equal(globalActivityPeriodLabel('regular'), '2026');
+  assert.equal(globalActivityPeriodLabel('school_2027'), '2027');
+  assert.equal(normalizeGlobalActivityPeriod(''), 'summer_2026');
+});
+
+test('global activity period control opens a dropdown instead of blind cycling', () => {
+  const mainSource = fs.readFileSync(new URL('../frontend/src/main.js', import.meta.url), 'utf8');
+  assert.match(mainSource, /data-global-period-toggle[\s\S]*aria-haspopup="listbox"/);
+  assert.match(mainSource, /data-global-period-menu[\s\S]*role="listbox"/);
+  assert.match(mainSource, /data-global-period-option/);
+  assert.doesNotMatch(mainSource, /nextGlobalActivityPeriod/);
+});
+
+test('new school 2027 activity defaults to school_2027 and relaxed required fields', () => {
+  const source = fs.readFileSync(new URL('../frontend/src/screens/activities.js', import.meta.url), 'utf8');
+  assert.match(source, /activityPeriodTab === 'school_2027'[\s\S]*ACTIVITY_SEASON_SCHOOL_2027/);
+  assert.match(source, /initialStatus = initialSeason === ACTIVITY_SEASON_SCHOOL_2027 \? 'מאושר - ממתין לשיבוץ' : 'פתוח'/);
+  assert.match(source, /\.\.\.\(isSchool2027Activity \? \[\] : \[\['school', 'בית ספר'\]\]\)/);
+  assert.match(source, /if \(!isSchool2027Activity && !String\(payload\.activity_no/);
 });
