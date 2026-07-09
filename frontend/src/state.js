@@ -1,6 +1,12 @@
 import { resetSupabaseAuthSessionWait } from './supabase-client.js';
 import { permissionFlagYes } from './permissions.js';
-import { normalizeGlobalActivityPeriod } from './screens/shared/summer-activity.js';
+import {
+  ACTIVITY_SEASON_SUMMER_2026,
+  GLOBAL_ACTIVITY_PERIOD_STORAGE_KEY,
+  defaultMonthForGlobalActivityPeriod,
+  isValidGlobalActivityPeriod,
+  normalizeGlobalActivityPeriod
+} from './screens/shared/summer-activity.js';
 
 function defaultClientSettings() {
   return {
@@ -76,13 +82,20 @@ function normalizeStoredUserFlags(user) {
   };
 }
 
-const DEFAULT_GLOBAL_ACTIVITY_PERIOD = 'summer_2026';
+const DEFAULT_GLOBAL_ACTIVITY_PERIOD = ACTIVITY_SEASON_SUMMER_2026;
 
 const _initStoredUser = normalizeStoredUserFlags(JSON.parse(localStorage.getItem('dashboard_user') || 'null'));
 const _initCalKey = calendarMonthSessionKey(_initStoredUser?.user_id);
 const _initMonthYm = (_initCalKey && sessionStorage.getItem(_initCalKey)) || '';
 const _storedGlobalActivityPeriod = (() => {
-  try { return localStorage.getItem('dashboard_activity_period') || ''; } catch { return ''; }
+  try {
+    const stored = localStorage.getItem(GLOBAL_ACTIVITY_PERIOD_STORAGE_KEY) || '';
+    if (stored && !isValidGlobalActivityPeriod(stored)) {
+      localStorage.removeItem(GLOBAL_ACTIVITY_PERIOD_STORAGE_KEY);
+      return '';
+    }
+    return stored;
+  } catch { return ''; }
 })();
 cleanupLegacyCalendarMonthLocalStorage(_initStoredUser?.user_id);
 
@@ -170,7 +183,7 @@ export function setSession(session) {
     state.effectiveRoutes = [];
     state.route = 'login';
     state.activityTab = 'all';
-    state.activityPeriodTab = 'school_2026';
+    setGlobalActivityPeriod(DEFAULT_GLOBAL_ACTIVITY_PERIOD, { persist: false });
     state.activityFinanceStatus = '';
     state.activityQuickFamily = '';
     state.activityQuickManager = '';
@@ -231,6 +244,25 @@ export function setSession(session) {
   localStorage.setItem('dashboard_token', session.token);
   localStorage.setItem('dashboard_user', JSON.stringify(state.user));
   sessionStorage.setItem('ds_session_alive', '1');
+}
+
+export function setGlobalActivityPeriod(value, { persist = true } = {}) {
+  const nextPeriod = normalizeGlobalActivityPeriod(value || DEFAULT_GLOBAL_ACTIVITY_PERIOD);
+  state.activityPeriodTab = nextPeriod;
+  const periodMonth = defaultMonthForGlobalActivityPeriod(nextPeriod);
+  state.dashboardMonthYm = periodMonth;
+  state.activitiesMonthYm = periodMonth;
+  if (state.operationsManagement) {
+    state.operationsManagement.period = nextPeriod;
+    const from = nextPeriod === ACTIVITY_SEASON_SUMMER_2026 ? '2026-07-01' : nextPeriod === 'school_2027' ? '2026-09-01' : '';
+    const to = nextPeriod === ACTIVITY_SEASON_SUMMER_2026 ? '2026-08-31' : nextPeriod === 'school_2027' ? '2027-08-31' : '';
+    state.operationsManagement.dateFrom = from;
+    state.operationsManagement.dateTo = to;
+  }
+  if (persist) {
+    try { localStorage.setItem(GLOBAL_ACTIVITY_PERIOD_STORAGE_KEY, nextPeriod); } catch { /* ignore */ }
+  }
+  return nextPeriod;
 }
 
 export { defaultClientSettings, calendarMonthSessionKey, cleanupLegacyCalendarMonthLocalStorage };

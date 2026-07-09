@@ -1,6 +1,7 @@
 import { escapeHtml } from './shared/html.js';
 import { bindSummerContactsModalEvents, renderSummerContactsButton } from './shared/summer-contacts-modal.js';
 import { supabase } from '../supabase-client.js';
+import { setGlobalActivityPeriod } from '../state.js';
 import { formatDateHe, formatDateHeWithWeekday } from './shared/format-date.js';
 import {
   dsPageHeader,
@@ -18,7 +19,9 @@ import {
 import {
   ACTIVITY_SEASON_SUMMER_2026,
   ACTIVITY_SEASON_SCHOOL_2027,
-  normalizeActivitySeason
+  defaultMonthForGlobalActivityPeriod,
+  normalizeActivitySeason,
+  normalizeGlobalActivityPeriod
 } from './shared/summer-activity.js';
 import {
   parseLinkedSchoolsJson,
@@ -166,10 +169,8 @@ function addDaysIso(iso, days) {
   return date.toISOString().slice(0, 10);
 }
 
-function defaultPeriodKey() {
-  const month = isoToday().slice(0, 7);
-  if (month >= '2026-06' && month <= '2026-08') return ACTIVITY_SEASON_SUMMER_2026;
-  return 'school_2026';
+function defaultPeriodKey(state = {}) {
+  return normalizeGlobalActivityPeriod(state.activityPeriodTab || ACTIVITY_SEASON_SUMMER_2026);
 }
 
 function defaultDateRange(periodKey) {
@@ -184,7 +185,12 @@ function ensureOpsState(state = {}) {
   state.operationsManagement = state.operationsManagement || {};
   const ops = state.operationsManagement;
   if (!ops.tab || ops.tab === TAB_SUMMER) ops.tab = TAB_INSTRUCTORS;
-  if (!ops.period) ops.period = defaultPeriodKey();
+  const globalPeriod = defaultPeriodKey(state);
+  if (ops.period !== globalPeriod) {
+    ops.period = globalPeriod;
+    ops.dateFrom = '';
+    ops.dateTo = '';
+  }
   if (!ops.dateFrom || !ops.dateTo) {
     const range = defaultDateRange(ops.period);
     ops.dateFrom = ops.dateFrom || range.from;
@@ -2785,10 +2791,11 @@ export const operationsManagementScreen = {
     }
 
     root.querySelector('[data-ops-period]')?.addEventListener('change', (ev) => {
-      ops.period = ev.target.value || 'all';
+      ops.period = setGlobalActivityPeriod(ev.target.value || ACTIVITY_SEASON_SUMMER_2026);
       const range = defaultDateRange(ops.period);
       ops.dateFrom = range.from;
       ops.dateTo = range.to;
+      state.dashboardMonthYm = defaultMonthForGlobalActivityPeriod(ops.period);
       rerender?.();
     });
 

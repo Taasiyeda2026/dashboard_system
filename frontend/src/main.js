@@ -1,7 +1,7 @@
 import { api } from './api.js';
 import { config } from './config.js';
 import { globalActivityPeriodLabel, globalActivityPeriodFullLabel, globalActivityPeriodOptions, normalizeGlobalActivityPeriod } from './screens/shared/summer-activity.js';
-import { state, setSession, defaultClientSettings } from './state.js';
+import { state, setSession, defaultClientSettings, setGlobalActivityPeriod } from './state.js';
 import { SCREEN_CACHE_STORAGE_PREFIX, persistCacheEntry, deletePersistedCacheEntry, deletePersistedCacheByPrefixes } from './cache-persist.js';
 import { escapeHtml } from './screens/shared/html.js';
 import { hebrewRole, translateApiErrorForUser } from './screens/shared/ui-hebrew.js';
@@ -2160,8 +2160,7 @@ function bindShell() {
       ev.stopPropagation();
       const selected = normalizeGlobalActivityPeriod(option.getAttribute('data-global-period-option'));
       if (state.activityPeriodTab !== selected) {
-        state.activityPeriodTab = selected;
-        try { localStorage.setItem('dashboard_activity_period', state.activityPeriodTab); } catch { /* ignore */ }
+        setGlobalActivityPeriod(selected);
         clearScreenDataCache();
         scheduleRender();
       }
