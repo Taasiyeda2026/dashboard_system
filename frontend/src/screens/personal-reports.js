@@ -90,7 +90,8 @@ const ADMIN_MANAGE_STATUS_META = Object.fromEntries(
 
 const PR_SCREEN_MODES = {
   MY_REPORTS: 'my-reports',
-  MANAGEMENT: 'employee-reports-management'
+  MANAGEMENT: 'employee-reports-management',
+  REVIEWS: 'annual-reviews'
 };
 
 // ─── module state ─────────────────────────────────────────────────────────────
@@ -1786,11 +1787,12 @@ function simulationBannerHtml(employeeName) {
   `;
 }
 
-function personalReportsModeTabsHtml(activeMode) {
+function personalReportsModeTabsHtml(activeMode, { showManagement = true } = {}) {
   return `
-    <div class="pr-screen-mode-switch" role="tablist" aria-label="מעבר בין דוח אישי לניהול עובדים">
+    <div class="pr-screen-mode-switch" role="tablist" aria-label="דוחות אישיים ומשובים">
       <button class="pr-report-tab${activeMode === PR_SCREEN_MODES.MY_REPORTS ? ' is-active' : ''}" data-pr-action="screen-mode-my-reports" type="button" role="tab" aria-selected="${activeMode === PR_SCREEN_MODES.MY_REPORTS ? 'true' : 'false'}">הדוחות שלי</button>
-      <button class="pr-report-tab${activeMode === PR_SCREEN_MODES.MANAGEMENT ? ' is-active' : ''}" data-pr-action="screen-mode-management" type="button" role="tab" aria-selected="${activeMode === PR_SCREEN_MODES.MANAGEMENT ? 'true' : 'false'}">ניהול דוחות עובדים</button>
+      ${showManagement ? `<button class="pr-report-tab${activeMode === PR_SCREEN_MODES.MANAGEMENT ? ' is-active' : ''}" data-pr-action="screen-mode-management" type="button" role="tab" aria-selected="${activeMode === PR_SCREEN_MODES.MANAGEMENT ? 'true' : 'false'}">ניהול דוחות עובדים</button>` : ''}
+      <button class="pr-report-tab${activeMode === PR_SCREEN_MODES.REVIEWS ? ' is-active' : ''}" data-pr-action="screen-mode-reviews" type="button" role="tab" aria-selected="${activeMode === PR_SCREEN_MODES.REVIEWS ? 'true' : 'false'}">משובים</button>
     </div>
   `;
 }
@@ -1880,7 +1882,9 @@ function myReportsDashboardHtml(profile, {
   const myStatus = cardData?.myStatus || deriveMyReportStatus(report, totals);
   const statusChip = myReportStatusChipHtml(myStatus);
   const actions = myReportActionsHtml(myStatus, report, month, year);
-  const modeTabs = showModeTabs ? personalReportsModeTabsHtml(PR_SCREEN_MODES.MY_REPORTS) : '';
+  const modeTabs = showModeTabs
+    ? personalReportsModeTabsHtml(PR_SCREEN_MODES.MY_REPORTS, { showManagement: profileCanManagePersonalReports(prSession?.profile) })
+    : '';
   const isCurrentMonth = isCurrentReportMonth(month, year);
   const title = isCurrentMonth ? 'דוח אישי לחודש הנוכחי' : `דוח אישי — ${selectedLabel}`;
   const showReportCard = Boolean(report) || isCurrentMonth;
@@ -2666,7 +2670,6 @@ async function renderMyReportsDashboard(root, {
   _prActiveView = { kind: 'my-reports', isSimulation, selectedMonth: monthValue };
   renderInto(root, myReportsDashboardHtml(profile, { isSimulation, cardData, showModeTabs, selectedMonthValue: monthValue }));
   bindMyReportsDashboard(root, { isSimulation });
-  if (!isSimulation) await mountAnnualReviewLanding(root);
 }
 
 async function returnToEmployeeDashboard(root, { isSimulation = false } = {}) {
@@ -3053,6 +3056,11 @@ function bindMyReportsDashboard(root, { isSimulation = false } = {}) {
     }
     if (action === 'screen-mode-management') {
       prScreenMode = PR_SCREEN_MODES.MANAGEMENT;
+      await rerender(root, _dashboardUser);
+      return;
+    }
+    if (action === 'screen-mode-reviews') {
+      prScreenMode = PR_SCREEN_MODES.REVIEWS;
       await rerender(root, _dashboardUser);
       return;
     }
@@ -3591,6 +3599,11 @@ function bindEmployeeReportsManagement(root) {
       await rerender(root, _dashboardUser);
       return;
     }
+    if (action === 'screen-mode-reviews') {
+      prScreenMode = PR_SCREEN_MODES.REVIEWS;
+      await rerender(root, _dashboardUser);
+      return;
+    }
     if (action === 'clear-admin-filters') {
       const monthInput = root.querySelector('#pr-filter-month');
       const statusInput = root.querySelector('#pr-filter-status');
@@ -3868,7 +3881,9 @@ async function rerender(root, dashboardUser = dashboardUserForAuth(), { forceRel
     bindInternalEmployeeLogin(root);
     return;
   }
-  if (profileCanManagePersonalReports(prSession.profile) && prScreenMode === PR_SCREEN_MODES.MY_REPORTS && !prViewAsEmployee) {
+  if (prScreenMode === PR_SCREEN_MODES.REVIEWS && !prViewAsEmployee) {
+    await renderAnnualReviewsScreen(root);
+  } else if (profileCanManagePersonalReports(prSession.profile) && prScreenMode === PR_SCREEN_MODES.MY_REPORTS && !prViewAsEmployee) {
     await renderMyReportsDashboard(root, {
       profile: prSession.profile,
       employeeId: prSession.user.id,
@@ -3905,6 +3920,7 @@ async function rerender(root, dashboardUser = dashboardUserForAuth(), { forceRel
     await renderMyReportsDashboard(root, {
       profile: prSession.profile,
       employeeId: prSession.user.id,
+      showModeTabs: true,
       selectedMonth: resolveMyReportsSelectedMonth(),
       force: forceReload
     });
@@ -4029,24 +4045,48 @@ async function loadAnnualReviewAccess() {
 }
 
 function annualReviewLandingHtml(rows) {
-  if (!rows.length) return '';
   const uid = prSession?.user?.id;
   const managed = rows.filter((row) => row.manager_id === uid);
   const own = rows.find((row) => row.employee_id === uid);
+  const visibleReviews = managed.length ? managed : (own ? [own] : []);
   return `<section class="pr-card ar-landing no-print" aria-labelledby="ar-landing-title">
     <div class="pr-my-report-card__header"><div><span class="pr-eyebrow">משוב שנתי</span><h2 id="ar-landing-title" class="pr-card__title">${managed.length ? 'ניהול משובים שנתיים' : 'המשוב השנתי שלי'}</h2></div></div>
-    ${managed.length ? `<div class="ar-review-list">${managed.map((r) => `<button type="button" class="ar-review-row" data-ar-open="${escapeHtml(r.id)}"><span><strong>${escapeHtml(r.employee_name || 'עובד/ת')}</strong><small>${escapeHtml(r.employee_role || '')}</small></span>${dsStatusChip(ANNUAL_REVIEW_STATUS[r.status] || r.status, r.status === 'completed_locked' ? 'success' : 'warning')}</button>`).join('')}</div>` : ''}
-    ${own ? `<button type="button" class="pr-btn pr-btn--primary" data-ar-open="${escapeHtml(own.id)}">פתיחת המשוב · ${escapeHtml(ANNUAL_REVIEW_STATUS[own.status] || own.status)}</button>` : ''}
+    ${visibleReviews.length ? `<div class="ar-review-list">${visibleReviews.map((r) => `<article class="ar-review-row"><div class="ar-review-row__details"><strong>${escapeHtml(r.employee_name || 'עובד/ת')}</strong><span>${escapeHtml(r.review_year)}</span></div>${dsStatusChip(ANNUAL_REVIEW_STATUS[r.status] || r.status, r.status === 'completed_locked' ? 'success' : 'warning')}<button type="button" class="pr-btn pr-btn--primary pr-btn--sm" data-ar-open="${escapeHtml(r.id)}">פתיחת המשוב</button></article>`).join('')}</div>` : '<p class="pr-helper-text">לא נמצאו משובים להצגה.</p>'}
   </section>`;
 }
 
-async function mountAnnualReviewLanding(root) {
+function annualReviewsScreenHtml(rows = []) {
+  return `<div class="pr-screen pr-screen--reviews" dir="rtl">
+    <div class="pr-topbar"><button class="pr-btn pr-btn--ghost pr-back-btn" data-pr-action="back-to-dashboard">← חזרה לדשבורד</button><span class="pr-topbar__title">משובים</span><button class="pr-btn pr-btn--ghost pr-btn--sm" data-pr-action="lock-screen" type="button" style="margin-right:auto">יציאה</button></div>
+    <div class="pr-body pr-reviews-body">${personalReportsModeTabsHtml(PR_SCREEN_MODES.REVIEWS, { showManagement: profileCanManagePersonalReports(prSession?.profile) })}${annualReviewLandingHtml(rows)}</div>
+  </div>`;
+}
+
+async function renderAnnualReviewsScreen(root) {
   try {
     const rows = await loadAnnualReviewAccess();
-    const body = root.querySelector('.pr-landing-body');
-    if (body && rows.length) body.insertAdjacentHTML('afterbegin', annualReviewLandingHtml(rows));
+    _prActiveView = { kind: 'annual-reviews' };
+    renderInto(root, annualReviewsScreenHtml(rows));
+    bindAnnualReviewsScreen(root);
     root.querySelectorAll('[data-ar-open]').forEach((button) => button.addEventListener('click', () => openAnnualReview(root, button.dataset.arOpen)));
-  } catch (error) { console.warn('[annual-review] access load failed', error?.message || error); }
+  } catch (error) {
+    console.warn('[annual-review] access load failed', error?.message || error);
+    renderInto(root, annualReviewsScreenHtml([]));
+    bindAnnualReviewsScreen(root);
+  }
+}
+
+function bindAnnualReviewsScreen(root) {
+  root.querySelector('[data-pr-action="back-to-dashboard"]')?.addEventListener('click', dispatchBackToDashboard);
+  root.querySelector('[data-pr-action="lock-screen"]')?.addEventListener('click', () => {
+    resetPersonalReportsAuth(); renderInto(root, internalEmployeeLoginHtml()); bindInternalEmployeeLogin(root);
+  });
+  root.querySelector('[data-pr-action="screen-mode-my-reports"]')?.addEventListener('click', async () => {
+    prScreenMode = PR_SCREEN_MODES.MY_REPORTS; await rerender(root, _dashboardUser);
+  });
+  root.querySelector('[data-pr-action="screen-mode-management"]')?.addEventListener('click', async () => {
+    prScreenMode = PR_SCREEN_MODES.MANAGEMENT; await rerender(root, _dashboardUser);
+  });
 }
 
 async function loadAnnualReviewBundle(review) {
@@ -4088,7 +4128,7 @@ function annualReviewDetailHtml(review, bundle, isManager) {
   const prepVisible = !isManager || review.employee_preparation_shared;
   const evaluationVisible = isManager || review.manager_shared_at;
   return `<div class="pr-screen ar-screen" dir="rtl"><div class="pr-topbar no-print"><button class="pr-btn pr-btn--ghost" data-ar-back>← חזרה לדוחות אישיים</button><span class="pr-topbar__title">משוב שנתי</span><button class="pr-btn pr-btn--primary" data-ar-print>הדפסה / שמירה כ-PDF</button></div>
-  <main class="pr-body ar-document"><header class="ar-print-header"><div class="ar-logo">תעשיידע</div><div><h1>משוב שנתי</h1><p>${escapeHtml(review.employee_name || '')} · ${escapeHtml(review.employee_role || '')} · ${escapeHtml(review.review_year)}</p></div>${dsStatusChip(ANNUAL_REVIEW_STATUS[review.status] || review.status, locked ? 'success' : 'warning')}</header>${annualReviewActionsHtml(review, isManager)}
+  <main class="pr-body ar-document"><header class="ar-print-header"><div class="ar-logo">תעשיידע</div><div><h1>משוב שנתי</h1><p>${escapeHtml(review.employee_name || '')} · ${escapeHtml(review.review_year)}</p></div>${dsStatusChip(ANNUAL_REVIEW_STATUS[review.status] || review.status, locked ? 'success' : 'warning')}</header>${annualReviewActionsHtml(review, isManager)}
   ${!isManager ? `<section class="pr-card ar-section no-print"><h2>הכנה אישית של העובד/ת</h2><p class="ar-intro">שיחת המשוב היא הזדמנות לעצור, לסכם את השנה שחלפה, לשוחח על אופן ההתנהלות שלנו כיום ולחשוב יחד על המשך הדרך לקראת פתיחת שנת הלימודים החדשה.</p><p>השאלות נועדו לעורר מחשבה ולעזור לך לזכור נושאים שחשוב לך להעלות. אין חובה להשיב עליהן בכתב. ניתן לבחור את הנושאים הרלוונטיים עבורך ולרשום נקודות לקראת השיחה:</p><ul class="ar-prompts">${REVIEW_PROMPTS.map((q) => `<li>${escapeHtml(q)}</li>`).join('')}</ul><form data-ar-form="preparation" data-version="${escapeHtml(bundle.preparation?.version || '')}">${reviewTextarea('notes', 'נקודות שחשוב לי לזכור לקראת השיחה', bundle.preparation?.notes, locked)}<label><input type="checkbox" name="include_in_pdf" ${bundle.preparation?.include_in_pdf ? 'checked' : ''} ${locked ? 'disabled' : ''}> לכלול את ההכנה במסמך הסופי</label><small class="ar-save-state" aria-live="polite">${bundle.preparation?.updated_at ? `נשמר לאחרונה ${new Date(bundle.preparation.updated_at).toLocaleString('he-IL')}` : 'טרם נשמר'}</small></form></section>` : ''}
   ${prepVisible && bundle.preparation?.include_in_pdf ? `<section class="pr-card ar-section print-only"><h2>הכנה אישית</h2><p>${escapeHtml(bundle.preparation.notes || '')}</p></section>` : ''}
   ${evaluationVisible ? `<section class="pr-card ar-section"><h2>הערכת המנהל</h2><p class="ar-rating-legend">1 – נדרש שיפור משמעותי · 2 – נדרש שיפור · 3 – עומד בציפיות · 4 – מעל הציפיות · 5 – מצטיין/ת</p><div class="ar-evaluations">${bundle.evaluations.map((e) => `<div class="ar-evaluation"><strong>${escapeHtml(e.metric_label)}</strong><div class="ar-rating" aria-label="דירוג">${[1,2,3,4,5].map((n) => `<button type="button" data-ar-rating="${n}" data-evaluation-id="${escapeHtml(e.id)}" class="${e.rating === n ? 'is-selected' : ''}" ${!isManager || locked ? 'disabled' : ''}>${n}</button>`).join('')}<button type="button" data-ar-rating="na" data-evaluation-id="${escapeHtml(e.id)}" class="${e.not_applicable ? 'is-selected' : ''}" ${!isManager || locked ? 'disabled' : ''}>לא רלוונטי</button></div>${reviewTextarea(`evaluation_comment_${e.id}`, 'הערה', e.comment, !isManager || locked)}</div>`).join('')}</div></section>` : ''}
