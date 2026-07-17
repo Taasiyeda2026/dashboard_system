@@ -1,70 +1,69 @@
--- Prevent browser clients from reading login secrets while preserving the existing
--- Supabase Auth flow and the safe user fields required by the dashboard.
--- This migration intentionally does not delete entry_code: server-side legacy login
--- and one-off Auth migration scripts may still use it.
-
+-- Restrict public.users to the caller's row (or an explicitly-authorised user
+-- administrator) and expose a deliberately small employee directory.
 alter table public.users enable row level security;
 
--- Remove every table-wide read grant (including the grant introduced by the admin
--- permissions migration). Column grants below are the only direct browser reads.
 revoke select on table public.users from anon, authenticated;
-revoke select (entry_code) on table public.users from anon, authenticated;
 
--- No unauthenticated directory access is required after Supabase Auth login.
--- Existing SECURITY DEFINER login RPCs retain owner access and are unaffected.
+create or replace function public.app_user_can_manage_users()
+returns boolean
+language sql
+stable
+security definer
+set search_path = pg_catalog
+as $$
+  select exists (
+    select 1
+    from public.users as u
+    where u.auth_user_id = auth.uid()
+      and u.is_active = true
+      and coalesce(u.permissions ->> 'manage_users', u.permissions ->> 'view_permissions') = 'yes'
+  );
+$$;
+revoke all on function public.app_user_can_manage_users() from public, anon;
+grant execute on function public.app_user_can_manage_users() to authenticated;
 
--- Safe fields used by authenticated bootstrap/auth resolution, activity permission
--- context, and the permissions administration screen. email/auth_user_id are retained
--- because auth-user-resolve.js maps the Auth identity to the active application row;
--- neither is exposed through the employee-directory view below.
-do $$
-declare
-  safe_columns text[] := array[
-    'user_id', 'username', 'email', 'name', 'full_name', 'role',
-    'display_role', 'display_role2', 'default_view', 'emp_id', 'is_active',
-    'permissions', 'created_at', 'updated_at', 'auth_user_id', 'auth_email',
-    'migrated_to_auth', 'can_review_requests', 'can_request_edit',
-    'can_request_edit_2', 'can_edit_direct', 'can_add_activity',
-    'view_certificates', 'view_proposals_agreements',
-    'manage_proposals_agreements', 'approve_proposals_agreements'
-  ];
-  existing_columns text;
-begin
-  select string_agg(quote_ident(column_name), ', ' order by array_position(safe_columns, column_name))
-    into existing_columns
-  from information_schema.columns
-  where table_schema = 'public'
-    and table_name = 'users'
-    and column_name = any(safe_columns);
+drop policy if exists users_select_active_public_safe on public.users;
+drop policy if exists "users_select_authenticated_active" on public.users;
+drop policy if exists users_current_or_manager_select on public.users;
+create policy users_current_or_manager_select
+on public.users for select to authenticated
+using (auth_user_id = auth.uid() or public.app_user_can_manage_users());
 
-  if existing_columns is null then
-    raise exception 'No safe public.users columns found for authenticated SELECT grant';
-  end if;
+-- Direct table reads are required by the existing administration client, but RLS
+-- limits a normal user to their own record.  Only an explicit manager permission
+-- permits reading other records (and consequently their administrative fields).
+grant select on table public.users to authenticated;
 
-  execute format('grant select (%s) on table public.users to authenticated', existing_columns);
-end $$;
+drop view if exists public.current_app_user;
+create view public.current_app_user
+with (security_invoker = true, security_barrier = true)
+as
+select *
+from public.users
+where auth_user_id = auth.uid();
+revoke all on table public.current_app_user from public, anon;
+grant select on table public.current_app_user to authenticated;
 
--- A deliberately small employee directory for screens that need names/identifiers.
--- security_invoker ensures the caller's public.users RLS and column privileges apply.
+-- This view intentionally runs with its owner privileges so RLS on public.users
+-- cannot turn it into a one-row directory.  It contains no login or permission data.
 drop view if exists public.app_user_directory;
 create view public.app_user_directory
-with (security_invoker = true)
+with (security_barrier = true)
 as
-select user_id, name, full_name, display_role, emp_id, is_active
+select user_id, coalesce(full_name, name) as name, display_role, emp_id, is_active
 from public.users
 where is_active = true;
-
 revoke all on table public.app_user_directory from public, anon;
 grant select on table public.app_user_directory to authenticated;
 
+comment on view public.current_app_user is
+  'The complete public.users row belonging to auth.uid(); never returns another user.';
 comment on view public.app_user_directory is
-  'Authenticated, RLS-respecting employee directory. Excludes email, Auth UUIDs, permissions and entry_code.';
+  'Safe directory: internal id, name, display role, employee number and status only.';
 
--- Fail migration validation if a future edit accidentally grants the secret column.
 do $$
 begin
-  if has_column_privilege('anon', 'public.users', 'entry_code', 'select')
-     or has_column_privilege('authenticated', 'public.users', 'entry_code', 'select') then
-    raise exception 'Security invariant failed: entry_code is browser-readable';
+  if has_table_privilege('anon', 'public.users', 'select') then
+    raise exception 'Security invariant failed: anon can read public.users';
   end if;
 end $$;
