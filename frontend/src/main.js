@@ -1197,6 +1197,9 @@ function buildScreenDataCacheKey(route, cacheState = state) {
     const ym = cacheState.monthYm && /^\d{4}-\d{2}$/.test(cacheState.monthYm) ? cacheState.monthYm : 'current';
     return withActivityPeriod(`month:${ym}`);
   }
+  if (route === 'exceptions') {
+    return withActivityPeriod(route);
+  }
   if (['archive', 'operations-management', 'instructor-completion-approvals'].includes(route)) {
     return withActivityPeriod(route);
   }
