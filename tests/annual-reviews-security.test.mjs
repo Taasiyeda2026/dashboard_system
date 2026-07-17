@@ -54,6 +54,17 @@ test('autosave uses optimistic version and cannot overwrite newer content', () =
   assert.match(screen, /data-version=/);
 });
 
+test('annual review workflow uses database operations instead of direct review updates', () => {
+  for (const operation of [
+    'open_review_for_employee', 'submit_employee_preparation', 'start_manager_preparation',
+    'share_manager_evaluation', 'start_review_conversation', 'finish_review_conversation',
+    'approve_review_as_employee', 'approve_review_as_manager', 'complete_and_lock_review',
+    'reopen_annual_review'
+  ]) assert.match(screen, new RegExp(operation));
+  assert.doesNotMatch(screen, /from\('annual_reviews'\)\.update\(/);
+  assert.match(screen, /p_expected_version: review\.version/);
+});
+
 test('annual review print is Hebrew RTL A4 and hides navigation', () => {
   assert.match(screen, /class="pr-screen ar-screen" dir="rtl"/);
   assert.match(screen, /הדפסה \/ שמירה כ-PDF/);

@@ -4067,19 +4067,21 @@ function reviewTextarea(name, label, value = '', disabled = false) {
 }
 function annualReviewActionsHtml(review, isManager) {
   const managerSteps = {
-    not_opened: ['employee_preparation', 'פתיחת המשוב להכנת העובד/ת'],
-    submitted_to_manager: ['manager_preparation', 'מעבר להכנת המנהל'],
-    manager_preparation: ['ready_for_conversation', 'שיתוף ההערכה ומוכן לשיחה'],
-    ready_for_conversation: ['conversation_in_progress', 'התחלת שיחת המשוב'],
-    conversation_in_progress: ['awaiting_employee_response', 'העברה להתייחסות העובד/ת']
+    not_opened: ['open_review_for_employee', 'פתיחת המשוב להכנת העובד/ת'],
+    submitted_to_manager: ['start_manager_preparation', 'מעבר להכנת המנהל'],
+    manager_preparation: ['share_manager_evaluation', 'שיתוף ההערכה ומוכן לשיחה'],
+    ready_for_conversation: ['start_review_conversation', 'התחלת שיחת המשוב'],
+    conversation_in_progress: ['finish_review_conversation', 'העברה להתייחסות העובד/ת']
   };
   const step = isManager ? managerSteps[review.status] : (review.status === 'employee_preparation'
-    ? ['submitted_to_manager', 'הגשת ההכנה למנהל']
-    : review.status === 'awaiting_employee_response' && review.manager_approved_at
-      ? ['completed_locked', 'אישור וסיום המשוב'] : null);
+    ? ['submit_employee_preparation', 'הגשת ההכנה למנהל']
+    : review.status === 'awaiting_employee_response' && !review.employee_approved_at
+      ? ['approve_review_as_employee', 'אישור העובד/ת'] : null);
   const managerApprove = isManager && review.status === 'awaiting_employee_response' && !review.manager_approved_at;
-  if (!step && !managerApprove) return '';
-  return `<div class="ar-workflow no-print">${step ? `<button type="button" class="pr-btn pr-btn--primary" data-ar-next-status="${step[0]}">${step[1]}</button>` : ''}${managerApprove ? '<button type="button" class="pr-btn pr-btn--primary" data-ar-manager-approve>אישור המנהל</button>' : ''}</div>`;
+  const canComplete = isManager && review.status === 'awaiting_employee_response' && review.employee_approved_at && review.manager_approved_at;
+  const canReopen = isManager && review.status === 'completed_locked';
+  if (!step && !managerApprove && !canComplete && !canReopen) return '';
+  return `<div class="ar-workflow no-print">${step ? `<button type="button" class="pr-btn pr-btn--primary" data-ar-operation="${step[0]}">${step[1]}</button>` : ''}${managerApprove ? '<button type="button" class="pr-btn pr-btn--primary" data-ar-operation="approve_review_as_manager">אישור המנהל</button>' : ''}${canComplete ? '<button type="button" class="pr-btn pr-btn--primary" data-ar-operation="complete_and_lock_review">סיום ונעילת המשוב</button>' : ''}${canReopen ? '<button type="button" class="pr-btn pr-btn--ghost" data-ar-reopen>פתיחת המשוב מחדש</button>' : ''}</div>`;
 }
 function annualReviewDetailHtml(review, bundle, isManager) {
   const locked = Boolean(review.locked_at) || review.status === 'completed_locked';
@@ -4122,21 +4124,17 @@ async function openAnnualReview(root, id) {
 function bindAnnualReview(root, review, isManager) {
   root.querySelector('[data-ar-back]')?.addEventListener('click', () => rerender(root, _dashboardUser));
   root.querySelector('[data-ar-print]')?.addEventListener('click', () => window.print());
-  root.querySelector('[data-ar-next-status]')?.addEventListener('click', async (event) => {
-    const status = event.currentTarget.dataset.arNextStatus;
-    const patch = { status };
-    if (status === 'submitted_to_manager') patch.submitted_at = new Date().toISOString();
-    if (status === 'ready_for_conversation') { patch.manager_shared_at = new Date().toISOString(); }
-    if (status === 'completed_locked') {
-      patch.employee_approved_at = new Date().toISOString(); patch.completed_at = patch.employee_approved_at; patch.locked_at = patch.employee_approved_at;
-    }
-    const { data, error } = await supabase.from('annual_reviews').update(patch).eq('id', review.id).eq('version', review.version).select().single();
+  root.querySelectorAll('[data-ar-operation]').forEach((button) => button.addEventListener('click', async (event) => {
+    const operation = event.currentTarget.dataset.arOperation;
+    const { data, error } = await supabase.rpc(operation, { p_review_id: review.id, p_expected_version: review.version });
     if (error) return showToast(error.message || 'עדכון מצב המשוב נכשל', 'danger');
     Object.assign(review, data); await openAnnualReview(root, review.id);
-  });
-  root.querySelector('[data-ar-manager-approve]')?.addEventListener('click', async () => {
-    const { data, error } = await supabase.from('annual_reviews').update({ manager_approved_at: new Date().toISOString() }).eq('id', review.id).eq('version', review.version).select().single();
-    if (error) return showToast(error.message || 'אישור המנהל נכשל', 'danger');
+  }));
+  root.querySelector('[data-ar-reopen]')?.addEventListener('click', async () => {
+    const reason = window.prompt('יש להזין סיבה לפתיחת המשוב מחדש:')?.trim();
+    if (!reason) return;
+    const { data, error } = await supabase.rpc('reopen_annual_review', { p_review_id: review.id, p_expected_version: review.version, p_reason: reason });
+    if (error) return showToast(error.message || 'פתיחת המשוב מחדש נכשלה', 'danger');
     Object.assign(review, data); await openAnnualReview(root, review.id);
   });
   root.querySelectorAll('[data-ar-form]').forEach((form) => form.addEventListener('input', () => {
