@@ -295,7 +295,7 @@ export const exceptionsScreen = {
     const now = new Date();
     const currentYm = `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, '0')}`;
     const month = state?.exceptionsMonthYm || state?.dashboardMonthYm || currentYm;
-    return api.exceptions({ month });
+    return api.exceptions({ month, activity_period: state?.activityPeriodTab });
   },
   render(data, { state } = {}) {
     const allRows   = prepareExceptionDisplayRows(data);

@@ -2450,11 +2450,16 @@ function summerCompletionExceptionTypes(row = {}, opts = {}) {
   return types;
 }
 
+function isActivityInPreparation(row = {}) {
+  return String(row?.status || '').trim() === 'היערכות';
+}
+
 function getActivityExceptions(activityRows = [], month = '', opts = {}) {
   const knownInstructorIds = opts.knownInstructorIds; // Set<string> | undefined
   const rows = [];
   const instances = [];
   for (const row of activityRows) {
+    if (isActivityInPreparation(row)) continue;
     if (isActivityDeleted(row) || isActivityCancelled(row)) continue;
     if (isActivityInactive(row) && !isSummerCompletionTrackedActivity(row)) continue;
     if (!activityOverlapsMonthForExceptions(row, month)) continue;
@@ -2552,6 +2557,7 @@ async function readExceptionsFromSupabase(params = {}) {
   const now = new Date();
   const currentYm = `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, '0')}`;
   const month = /^\d{4}-\d{2}$/.test(candidate) ? candidate : currentYm;
+  const activityPeriod = normalizeGlobalActivityPeriod(params?.activity_period || currentGlobalActivityPeriod());
   try {
     const suppliedActivityRows = Array.isArray(params?.activityRows) ? params.activityRows : null;
     const [activitiesResult, instrListResult, approvalsResult, settingsRows] = await Promise.all([
@@ -2580,17 +2586,20 @@ async function readExceptionsFromSupabase(params = {}) {
         .filter(Boolean)
     );
     const allRows = (Array.isArray(activitiesResult.data) ? activitiesResult.data : []).map(normalizeActivityRow);
-    const exceptionSummary = buildExceptionsModelFromRows(allRows, month, {
+    const periodRows = filterRowsByGlobalActivityPeriod(allRows, activityPeriod);
+    const exceptionSummary = buildExceptionsModelFromRows(periodRows, month, {
       include_rows: true,
       knownInstructorIds: knownInstructorIds.size > 0 ? knownInstructorIds : undefined,
       lateEndDateThreshold,
       completionApprovalUploads: Array.isArray(approvalsResult.data) ? approvalsResult.data : []
     });
-    const undatedRows = allRows
+    const undatedRows = periodRows
+      .filter((row) => !isActivityInPreparation(row))
       .filter((row) => !isActivityInactive(row))
       .filter((row) => !hasAnyActivityDate(row));
     return {
       month,
+      activity_period: activityPeriod,
       ...exceptionSummary,
       undatedRows,
       undatedCount: undatedRows.length,
@@ -7274,6 +7283,7 @@ export {
   rowMatchesActivitiesFilters,
   rowExceptionTypesFromActivity,
   getActivityExceptions,
+  isActivityInPreparation,
   buildExceptionsModelFromRows,
   normalizeActivityRow,
   sanitizeActivityPayload,

@@ -155,7 +155,8 @@ test('Supabase exceptions read uses a single activities source and computes in c
   const block = source.match(/async function readExceptionsFromSupabase[\s\S]*?function syncContactToSupabase/);
   assert.ok(block, 'readExceptionsFromSupabase should exist');
   assert.match(block[0], /supabase\.from\('activities'\)\.select\('\*'\)/);
-  assert.match(block[0], /buildExceptionsModelFromRows\(allRows/);
+  assert.match(block[0], /const periodRows = filterRowsByGlobalActivityPeriod\(allRows, activityPeriod\)/);
+  assert.match(block[0], /buildExceptionsModelFromRows\(periodRows/);
   assert.match(block[0], /late_end_date_threshold/);
   assert.doesNotMatch(block[0], /missingStartResult|lateEndDateResult/);
 });
