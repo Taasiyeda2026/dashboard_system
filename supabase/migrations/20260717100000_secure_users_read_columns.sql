@@ -1,7 +1,11 @@
--- Secure browser reads from public.users while preserving Supabase Auth.
--- entry_code remains available only to trusted server-side/database processes.
+-- Secure access to public.users while preserving Supabase Auth.
+-- entry_code remains available only to trusted server-side processes.
 
 alter table public.users enable row level security;
+
+-- ============================================================
+-- User-management permission
+-- ============================================================
 
 create or replace function public.app_user_can_manage_users()
 returns boolean
@@ -16,7 +20,8 @@ as $$
     where u.auth_user_id = auth.uid()
       and u.is_active = true
       and (
-        u.permissions ->> 'manage_users' = 'yes'
+        u.role = 'admin'
+        or u.permissions ->> 'manage_users' = 'yes'
         or u.permissions ->> 'view_permissions' = 'yes'
       )
   );
@@ -30,15 +35,25 @@ grant execute
 on function public.app_user_can_manage_users()
 to authenticated;
 
--- Remove known broad read policies.
-drop policy if exists users_select_active_public_safe on public.users;
-drop policy if exists "users_select_authenticated_active" on public.users;
-drop policy if exists users_current_or_manager_select on public.users;
-drop policy if exists users_current_or_manager_guard on public.users;
+-- ============================================================
+-- Remove unsafe SELECT policies
+-- ============================================================
 
--- A normal user can read only their own row.
--- An explicitly authorised user administrator can read other rows,
--- but only through the safe column grants defined below.
+drop policy if exists users_select_active_public_safe
+on public.users;
+
+drop policy if exists "users_select_authenticated_active"
+on public.users;
+
+drop policy if exists users_current_or_manager_select
+on public.users;
+
+drop policy if exists users_current_or_manager_guard
+on public.users;
+
+-- A regular user can read only their own application profile.
+-- An explicitly authorised administrator can read other profiles,
+-- subject to the safe column list defined below.
 create policy users_current_or_manager_select
 on public.users
 for select
@@ -48,8 +63,8 @@ using (
   or public.app_user_can_manage_users()
 );
 
--- Restrictive protection prevents another permissive SELECT policy from
--- accidentally broadening access.
+-- Restrictive policy prevents another permissive SELECT policy
+-- from accidentally broadening access.
 create policy users_current_or_manager_guard
 on public.users
 as restrictive
@@ -60,70 +75,84 @@ using (
   or public.app_user_can_manage_users()
 );
 
--- Remove table-wide browser access.
-revoke select on table public.users from public, anon, authenticated;
+-- ============================================================
+-- Remove all existing browser SELECT privileges
+-- ============================================================
 
--- Grant only explicitly approved columns.
--- entry_code is intentionally excluded.
+revoke select
+on table public.users
+from public, anon, authenticated;
+
+-- Table-level REVOKE does not remove older column-level grants.
+-- Therefore, remove SELECT from every existing column as well.
 do $$
 declare
-  safe_columns text[] := array[
-    'user_id',
-    'username',
-    'email',
-    'name',
-    'full_name',
-    'role',
-    'display_role',
-    'display_role2',
-    'default_view',
-    'emp_id',
-    'is_active',
-    'permissions',
-    'created_at',
-    'updated_at',
-    'auth_user_id',
-    'auth_email',
-    'migrated_to_auth',
-    'can_review_requests',
-    'can_request_edit',
-    'can_request_edit_2',
-    'can_edit_direct',
-    'can_add_activity',
-    'view_certificates',
-    'view_proposals_agreements',
-    'manage_proposals_agreements',
-    'approve_proposals_agreements'
-  ];
-  existing_columns text;
+  all_columns text;
 begin
   select string_agg(
     quote_ident(column_name),
-    ', ' order by array_position(safe_columns, column_name)
+    ', ' order by ordinal_position
   )
-  into existing_columns
+  into all_columns
   from information_schema.columns
   where table_schema = 'public'
-    and table_name = 'users'
-    and column_name = any(safe_columns);
+    and table_name = 'users';
 
-  if existing_columns is null then
-    raise exception 'No approved public.users columns were found';
+  if all_columns is null then
+    raise exception 'public.users columns were not found';
   end if;
 
   execute format(
-    'grant select (%s) on table public.users to authenticated',
-    existing_columns
+    'revoke select (%s) on table public.users from anon, authenticated',
+    all_columns
   );
 end
 $$;
 
--- The current signed-in user's application profile.
--- Never use SELECT * here.
+-- ============================================================
+-- Grant authenticated users only approved columns
+-- ============================================================
+
+grant select (
+  user_id,
+  name,
+  full_name,
+  role,
+  email,
+  display_role,
+  default_view,
+  is_active,
+  permissions,
+  auth_user_id,
+  auth_email,
+  migrated_to_auth,
+  created_at,
+  updated_at,
+  can_review_requests,
+  username,
+  view_certificates,
+  view_proposals_agreements,
+  manage_proposals_agreements,
+  approve_proposals_agreements,
+  emp_id,
+  display_role2
+)
+on table public.users
+to authenticated;
+
+-- entry_code is intentionally excluded.
+
+-- ============================================================
+-- Current authenticated application user
+-- ============================================================
+
 drop view if exists public.current_app_user;
 
 create view public.current_app_user
-with (security_invoker = true, security_barrier = true)
+with (
+  security_invoker = true,
+  security_barrier = true
+)
 as
 select
   user_id,
@@ -144,10 +173,6 @@ select
   auth_email,
   migrated_to_auth,
   can_review_requests,
-  can_request_edit,
-  can_request_edit_2,
-  can_edit_direct,
-  can_add_activity,
   view_certificates,
   view_proposals_agreements,
   manage_proposals_agreements,
@@ -155,13 +180,24 @@ select
 from public.users
 where auth_user_id = auth.uid();
 
-revoke all on table public.current_app_user from public, anon;
-grant select on table public.current_app_user to authenticated;
+revoke all
+on table public.current_app_user
+from public, anon;
 
--- Safe employee directory. The view exposes no email, Auth UUID,
--- permission map or entry_code.
+grant select
+on table public.current_app_user
+to authenticated;
+
+comment on view public.current_app_user is
+  'Application profile belonging to the current auth.uid(). Excludes entry_code.';
+
+-- ============================================================
+-- Safe employee directory
+-- ============================================================
+
 drop view if exists public.app_user_directory;
 
+-- This view deliberately exposes only non-sensitive directory fields.
 create view public.app_user_directory
 with (security_barrier = true)
 as
@@ -174,20 +210,30 @@ select
 from public.users
 where is_active = true;
 
-revoke all on table public.app_user_directory from public, anon;
-grant select on table public.app_user_directory to authenticated;
+revoke all
+on table public.app_user_directory
+from public, anon;
 
-comment on view public.current_app_user is
-  'Application profile of the current auth.uid(). Excludes entry_code.';
+grant select
+on table public.app_user_directory
+to authenticated;
 
 comment on view public.app_user_directory is
   'Safe employee directory without email, Auth UUID, permissions or entry_code.';
 
--- Security invariants.
+-- ============================================================
+-- Security validation
+-- ============================================================
+
 do $$
 begin
-  if has_table_privilege('anon', 'public.users', 'select') then
-    raise exception 'Security invariant failed: anon can read public.users';
+  if has_table_privilege(
+    'anon',
+    'public.users',
+    'select'
+  ) then
+    raise exception
+      'Security invariant failed: anon has table-level SELECT on public.users';
   end if;
 
   if has_column_privilege(
@@ -196,7 +242,8 @@ begin
     'entry_code',
     'select'
   ) then
-    raise exception 'Security invariant failed: anon can read entry_code';
+    raise exception
+      'Security invariant failed: anon can read entry_code';
   end if;
 
   if has_column_privilege(
@@ -205,7 +252,18 @@ begin
     'entry_code',
     'select'
   ) then
-    raise exception 'Security invariant failed: authenticated can read entry_code';
+    raise exception
+      'Security invariant failed: authenticated can read entry_code';
+  end if;
+
+  if not has_column_privilege(
+    'authenticated',
+    'public.users',
+    'user_id',
+    'select'
+  ) then
+    raise exception
+      'Security invariant failed: authenticated cannot read safe user columns';
   end if;
 end
 $$;
