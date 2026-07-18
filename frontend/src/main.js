@@ -7,6 +7,7 @@ import { escapeHtml } from './screens/shared/html.js';
 import { hebrewRole, translateApiErrorForUser } from './screens/shared/ui-hebrew.js';
 import { createSharedInteractionLayer } from './screens/shared/interactions.js';
 import { headerNavGridHtml } from './screens/shared/act-nav-grid.js';
+import { syncGlobalActivityPeriodSelector as syncGlobalActivityPeriodSelectorDom } from './screens/shared/shell-period-selector.js';
 import { uniqueExceptionActivityCount } from './screens/shared/exceptions-metrics.js';
 import { loginScreen } from './screens/login.js';
 import { clearFinancePrefsIfUserChanged } from './screens/shared/finance-prefs-storage.js';
@@ -35,6 +36,10 @@ const inflightRequests = new Map();
 const PERF_MAX_RENDERS = 150;
 
 export { applyGlobalAccent };
+
+export function syncGlobalActivityPeriodSelector(root = document) {
+  syncGlobalActivityPeriodSelectorDom(root, state.activityPeriodTab);
+}
 
 export function bindAccentPickerOnce() {
   bindAccentPickerListenerOnce({
@@ -1549,6 +1554,7 @@ function updateNavActiveClasses() {
     btn.classList.toggle('is-active', btn.dataset.route === state.route);
   });
   updateExceptionNavCount();
+  syncGlobalActivityPeriodSelector();
   const mobileBrand = document.querySelector('.shell-top__mobile-brand');
   if (mobileBrand) {
     mobileBrand.textContent = screenLabels[state.route] || systemNameDisplay();
@@ -2164,6 +2170,7 @@ function bindShell() {
       const selected = normalizeGlobalActivityPeriod(option.getAttribute('data-global-period-option'));
       if (state.activityPeriodTab !== selected) {
         setGlobalActivityPeriod(selected);
+        syncGlobalActivityPeriodSelector();
         clearScreenDataCache();
         scheduleRender();
       }
