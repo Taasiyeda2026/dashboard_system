@@ -79,6 +79,41 @@ test('opening annual review routes directly to manager preparation through guard
   assert.match(screen, /פתיחת המשוב והתחלת הערכת מנהל/);
 });
 
+
+test('annual review UI gates editable fields by status and participant ownership', () => {
+  assert.match(screen, /canEditManagerEvaluation = isManager && review\.status === 'manager_preparation' && !locked/);
+  assert.match(screen, /canEditManagerConversation = isManager && canEditConversation/);
+  assert.match(screen, /canEditEmployeeVoice = isEmployee && canEditConversation/);
+  assert.match(screen, /canEditEmployeeResponse = isEmployee && review\.status === 'awaiting_employee_response' && !review\.employee_approved_at && !locked/);
+  assert.match(screen, /data-ar-form="conversation-manager"/);
+  assert.match(screen, /data-ar-form="conversation-employee-voice"/);
+  assert.match(screen, /data-can-edit="\$\{canEditGoals \? 'true' : 'false'\}"/);
+});
+
+test('conversation autosave sends only fields owned by the active participant', () => {
+  assert.match(screen, /if \(form\.dataset\.arForm === 'conversation-manager'\) table = 'review_conversation_summary'/);
+  assert.match(screen, /if \(form\.dataset\.arForm === 'conversation-employee-voice'\)[\s\S]*values\.employee_voice = Object\.fromEntries/);
+  assert.match(screen, /Object\.keys\(values\)\.filter\(\(key\) => key\.startsWith\('employee_voice_'\)\)\.forEach/);
+  assert.doesNotMatch(screen, /form\.dataset\.arForm === 'conversation'[\s\S]*values\.employee_voice/);
+});
+
+test('annual review saves expose visible save states and clear failures', () => {
+  assert.match(screen, /setAnnualSaveState\(form, 'שומר\.\.\.', 'saving'\)/);
+  assert.match(screen, /setAnnualSaveState\(form, 'נשמר', 'saved'\)/);
+  assert.match(screen, /שמירת הטופס נכשלה/);
+  assert.match(screen, /שמירת היעד נכשלה/);
+  assert.match(screen, /שמירת הדירוג נכשלה/);
+});
+
+test('ratings comments and goals use version checks and conflict messaging', () => {
+  assert.match(screen, /function updateVersionedRow\(table, idField, id, values, previousVersion\)/);
+  assert.match(screen, /query = query\.eq\('version', Number\(previousVersion\)\)/);
+  assert.match(screen, /annualReviewConflictMessage\(\)/);
+  assert.match(screen, /data-evaluation-version/);
+  assert.match(screen, /data-version="\$\{escapeHtml\(g\.version \|\| ''\)\}"/);
+  assert.match(screen, /supabase\.from\('review_goals'\)\.delete\(\)\.eq\('id', id\)[\s\S]*\.eq\('version', Number\(row\.dataset\.version\)\)/);
+});
+
 test('annual review print is Hebrew RTL A4 and hides navigation', () => {
   assert.match(screen, /class="pr-screen ar-screen" dir="rtl"/);
   assert.match(screen, /הדפסה \/ שמירה כ-PDF/);
