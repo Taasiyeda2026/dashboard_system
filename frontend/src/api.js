@@ -18,6 +18,7 @@ import {
 import { resolveActiveUserRowAfterAuth } from './auth-user-resolve.js';
 import { supabase, supabaseConfig, waitForSupabaseAuthSession, resetSupabaseAuthSessionWait } from './supabase-client.js';
 import { isEmptyValue, nonEmptyString } from './utils/empty-value.js';
+import { withResolvedSchool2027Contact } from './screens/shared/school-2027-contact.js';
 import { permissionFlagYes, canEditDirect, canAddActivityDirect, canRequestEdit, canRequestCreateActivity, canReviewRequests } from './permissions.js';
 
 /**
@@ -317,8 +318,10 @@ async function readActivitiesFromSupabase(filters = {}) {
     const { data, error } = await supabase.from('activities').select('*');
     if (error) throw new Error(error.message || 'activities_read_failed');
     const rawRows = Array.isArray(data) ? data : [];
-    const rows = rawRows
-      .map(normalizeActivityRow)
+    const normalizedRows = rawRows.map(normalizeActivityRow);
+    const contactRows = await readContactsForSchool2027Activities(normalizedRows);
+    const rows = normalizedRows
+      .map((row) => withResolvedSchool2027Contact(row, contactRows))
       .filter((row) => filters?.include_all_periods ? true : activityMatchesPeriodKey(row, filters?.activity_period || currentGlobalActivityPeriod()))
       .filter((row) => filters?.include_inactive ? true : !isActivityInactive(row))
       .filter((row) => rowMatchesActivitiesFilters(row, filters));
@@ -4821,6 +4824,64 @@ function assertSupabaseActivityUpdateApplied(operation, requestedChanges = {}, r
   }
 }
 
+
+async function readContactsForSchool2027Activities(rows = []) {
+  if (!supabase) return [];
+  const school2027Rows = (Array.isArray(rows) ? rows : []).filter((row) => normalizeActivitySeason(row?.activity_season) === ACTIVITY_SEASON_SCHOOL_2027);
+  if (!school2027Rows.length) return [];
+  try {
+    const schoolIds = [...new Set(school2027Rows.map((row) => String(row?.school_id || '').trim()).filter(Boolean))];
+    const contactIds = [...new Set(school2027Rows.map((row) => String(row?.school_contact_id || '').trim()).filter(Boolean))];
+    const pairs = school2027Rows
+      .filter((row) => !String(row?.school_id || '').trim())
+      .map((row) => ({ authority: String(row?.authority || '').trim(), school: String(row?.school || '').trim() }))
+      .filter((pair) => pair.authority && pair.school);
+    const requests = [];
+    if (contactIds.length) {
+      requests.push(
+        supabase
+          .from('contacts_schools')
+          .select('id,school_id,authority,school,contact_name,contact_role,phone,mobile,email,active')
+          .in('id', contactIds)
+          .neq('active', 'לא פעיל')
+          .limit(1000)
+      );
+    }
+    if (schoolIds.length) {
+      requests.push(
+        supabase
+          .from('contacts_schools')
+          .select('id,school_id,authority,school,contact_name,contact_role,phone,mobile,email,active')
+          .in('school_id', schoolIds)
+          .neq('active', 'לא פעיל')
+          .limit(1000)
+      );
+    }
+    for (const pair of pairs) {
+      requests.push(
+        supabase
+          .from('contacts_schools')
+          .select('id,school_id,authority,school,contact_name,contact_role,phone,mobile,email,active')
+          .eq('authority', pair.authority)
+          .eq('school', pair.school)
+          .neq('active', 'לא פעיל')
+          .limit(200)
+      );
+    }
+    if (!requests.length) return [];
+    const results = await Promise.all(requests);
+    const byId = new Map();
+    for (const result of results) {
+      if (result?.error) throw result.error;
+      for (const contact of (Array.isArray(result?.data) ? result.data : [])) byId.set(String(contact.id), contact);
+    }
+    return [...byId.values()];
+  } catch (err) {
+    console.warn('[contacts] readContactsForSchool2027Activities failed', err?.message || err);
+    return [];
+  }
+}
+
 async function readContactsForSchoolActivity(schoolId, school, authority) {
   if (!supabase) return [];
   try {
@@ -5064,7 +5125,9 @@ async function readActivityDetailFromSupabase(source_row_id, source_sheet) {
   const { data, error } = await supabase.from('activities').select('*').eq('row_id', rowId).single();
   if (error) throw new Error(error.message || 'detail_failed');
   const normalized = normalizeActivityRow(data || {});
-  return { row: { ...normalized, private_note: normalized.operations_private_notes || '' } };
+  const contactRows = await readContactsForSchool2027Activities([normalized]);
+  const resolved = withResolvedSchool2027Contact(normalized, contactRows);
+  return { row: { ...resolved, private_note: resolved.operations_private_notes || '' } };
 }
 
 async function readActivityDatesFromSupabase(source_row_id, source_sheet) {

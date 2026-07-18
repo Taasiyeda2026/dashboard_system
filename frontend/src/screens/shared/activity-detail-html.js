@@ -1,6 +1,7 @@
 import { escapeHtml } from './html.js';
 import { formatDateHe, formatDateHeWithWeekday, formatTimeShort, formatTimeRangeShort, formatActivityDateColumnsHe } from './format-date.js';
 import { activityManagerDisplayName, activityTypeDisplayLabel, activityTypeMatches, cleanActivityManagerName, getManagerUsers, getContactsInstructorUsers, getRosterUsers, getValidInstructorUsers, humanDisplayText, INVALID_ACTIVITY_INSTRUCTOR_STATUS, validateInstructorBinding, NO_ACTIVITY_MANAGER_LABEL, normalizeActivityTypeKey, normalizeOneDayActivityType, resolveActivityInstructorName, resolveGradeOptions } from './activity-options.js';
+import { resolveSchool2027Contact } from './school-2027-contact.js';
 import { ACTIVITY_SEASON_OPTIONS, ACTIVITY_SEASON_SCHOOL_2027, activitySeasonLabel, normalizeActivitySeason } from './summer-activity.js';
 
 const ONCE_TYPES = ['workshop', 'tour', 'escape_room'];
@@ -598,9 +599,10 @@ function blockExtraEditInfo(row, { settings = {} } = {}) {
 }
 
 function blockContact2027(row) {
-  const contactName  = String(row.contact_name  || '').trim();
-  const contactPhone = String(row.contact_phone || row.phone  || '').trim();
-  const contactEmail = String(row.contact_email || row.email  || '').trim();
+  const resolvedContact = row.resolved_school_2027_contact || resolveSchool2027Contact(row, []);
+  const contactName  = String(resolvedContact.name || row.contact_name || '').trim();
+  const contactPhone = String(resolvedContact.phone || row.contact_phone || '').trim();
+  const contactEmail = String(resolvedContact.email || row.contact_email || '').trim();
   const schoolContactId = String(row.school_contact_id || '').trim();
   const schoolId   = String(row.school_id  || '').trim();
   const school     = String(row.school     || '').trim();
@@ -611,7 +613,7 @@ function blockContact2027(row) {
     contactPhone ? `<a class="activity-view-field__value" href="tel:${escapeHtml(contactPhone)}">${escapeHtml(contactPhone)}</a>` : '',
     contactEmail ? `<a class="activity-view-field__value" href="mailto:${escapeHtml(contactEmail)}">${escapeHtml(contactEmail)}</a>` : ''
   ].filter(Boolean);
-  const viewHtml = viewParts.join(' · ') || '<span class="activity-view-field__value" style="color:var(--color-text-muted)">—</span>';
+  const viewHtml = viewParts.join('<br>') || '<span class="activity-view-field__value" style="color:var(--color-text-muted)">—</span>';
 
   return `
     <section class="activity-drawer__section" data-contact-2027-section
@@ -649,6 +651,7 @@ function blockContact2027(row) {
           <!-- Preview of selected contact -->
           <div data-contact-2027-preview style="display:none;margin-top:6px;font-size:0.85em;padding:6px 10px;background:var(--color-bg-secondary,#f1f5f9);border-radius:6px;line-height:1.5">
             <div data-contact-2027-pname style="font-weight:600"></div>
+            <div data-contact-2027-prole style="color:var(--color-text-muted,#64748b)"></div>
             <div data-contact-2027-pphone style="color:var(--color-text-muted,#64748b)"></div>
             <div data-contact-2027-pemail style="color:var(--color-text-muted,#64748b)"></div>
           </div>

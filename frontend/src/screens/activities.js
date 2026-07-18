@@ -44,6 +44,7 @@ import {
 import { readActivitiesGapFromQuery, syncActivitiesGapQuery, isActivitiesGapQueryValue } from './shared/route-query.js';
 import { rowMatchesActivityGapFilter } from './shared/activity-gap-filter.js';
 import { renderActivitiesViewSwitcher, bindActivitiesViewSwitcher } from './shared/view-switcher.js';
+import { resolveSchool2027Contact } from './shared/school-2027-contact.js';
 import { ACTIVITY_SEASON_OPTIONS, ACTIVITY_SEASON_REGULAR, ACTIVITY_SEASON_SUMMER_2026, ACTIVITY_SEASON_SCHOOL_2027, getActivityPeriodKey, normalizeActivitySeason, normalizeGlobalActivityPeriod, globalActivityPeriodLabel } from './shared/summer-activity.js';
 import { showToast } from './shared/toast.js';
 import { canEditDirect, canAddActivityDirect, canRequestEdit, canRequestCreateActivity, canReviewRequests } from '../permissions.js';
@@ -1680,12 +1681,15 @@ export const activitiesScreen = {
           const startHe2027 = formatDateHe(row.start_date) || '—';
           const endRaw2027 = String(row?.end_date || row?.date_end || '').trim() || String(row?.start_date || '').trim();
           const endHe2027 = endRaw2027 ? formatDateHe(endRaw2027) || '—' : '—';
-          const rawContactName = String(row.contact_name || '').trim();
+          const resolvedContact = row.resolved_school_2027_contact || resolveSchool2027Contact(row, []);
+          const rawContactName = String(resolvedContact.name || '').trim();
+          const rawContactPhone = String(resolvedContact.phone || '').trim();
           const contactName2027 = escapeHtml(rawContactName || '—');
-          const contactPhone2027 = escapeHtml(String(row.contact_phone || row.phone || '').trim());
-          const contactEmail2027 = escapeHtml(String(row.contact_email || '').trim());
+          const contactPhone2027 = escapeHtml(rawContactPhone);
+          const contactEmail2027 = escapeHtml(String(resolvedContact.email || '').trim());
+          const phoneLine2027 = rawContactPhone ? `<span class="ds-activities-contact-phone">${contactPhone2027}</span>` : '';
           const contactCell2027 = rawContactName
-            ? `<button class="ds-contact-popover-btn" type="button" data-contact-popover data-cname="${contactName2027}" data-cphone="${contactPhone2027}" data-cemail="${contactEmail2027}">${contactName2027}</button>`
+            ? `<button class="ds-contact-popover-btn" type="button" data-contact-popover data-cname="${contactName2027}" data-cphone="${contactPhone2027}" data-cemail="${contactEmail2027}"><span>${contactName2027}</span>${phoneLine2027}</button>`
             : '<span>—</span>';
           const notes2027 = escapeHtml(String(row.notes || '—'));
           return `
@@ -2198,9 +2202,11 @@ export const activitiesScreen = {
         const val = select ? select.value : '';
         const c = loadedContacts.find((x) => String(x.id) === val);
         if (c) {
-          const ph = String(c.phone || c.mobile || '').trim();
+          const ph = String(c.mobile || c.phone || '').trim();
           const em = String(c.email || '').trim();
+          const role = String(c.contact_role || '').trim();
           section.querySelector('[data-contact-2027-pname]').textContent  = String(c.contact_name || '').trim();
+          section.querySelector('[data-contact-2027-prole]').textContent  = role;
           section.querySelector('[data-contact-2027-pphone]').textContent = ph;
           section.querySelector('[data-contact-2027-pemail]').textContent = em;
           if (preview) preview.style.display = 'block';
@@ -2231,7 +2237,7 @@ export const activitiesScreen = {
         contacts.forEach((c) => {
           const opt = document.createElement('option');
           opt.value = String(c.id);
-          const ph = String(c.phone || c.mobile || '').trim();
+          const ph = String(c.mobile || c.phone || '').trim();
           opt.textContent = [String(c.contact_name || '').trim(), String(c.contact_role || '').trim(), ph].filter(Boolean).join(' — ');
           select.appendChild(opt);
         });
@@ -2311,7 +2317,7 @@ export const activitiesScreen = {
           loadedContacts.push(newC);
           const opt = document.createElement('option');
           opt.value = String(newC.id);
-          const ph = String(newC.phone || newC.mobile || '').trim();
+          const ph = String(newC.mobile || newC.phone || '').trim();
           opt.textContent = [String(newC.contact_name||'').trim(), String(newC.contact_role||'').trim(), ph].filter(Boolean).join(' — ');
           if (select) { select.appendChild(opt); select.value = String(newC.id); }
           updatePreview();
