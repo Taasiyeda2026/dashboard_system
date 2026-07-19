@@ -4005,16 +4005,42 @@ const ANNUAL_REVIEW_STATUS = {
 };
 
 const CONVERSATION_FIELDS = {
-  achievements: 'הישגים מרכזיים מהשנה שחלפה', strengths: 'חוזקות שחשוב לשמר', improvements: 'נושאים לשיפור',
-  process_changes: 'תהליכי עבודה שכדאי לשנות', support_needed: 'תמיכה, כלים או הכשרה נדרשים', manager_summary: 'סיכום המנהל'
+  achievements: 'מהם ההישגים והתרומות המרכזיים שבאו לידי ביטוי בתקופה האחרונה?',
+  strengths: 'אילו חוזקות חשוב לשמר ולהמשיך לפתח?',
+  improvements: 'מהם הנושאים המרכזיים לשיפור ומהן הציפיות להמשך?',
+  process_changes: 'אילו תהליכי עבודה כדאי לשנות או לשפר?',
+  support_needed: 'איזו תמיכה יוכל המנהל לספק?',
+  manager_summary: 'מהם עיקרי המשוב והצעדים שסוכמו להמשך?'
 };
 const EMPLOYEE_VOICE_FIELDS = {
-  preserve: 'מה חשוב לשמר בעבודה ובארגון?', manager_experience: 'כיצד את/ה חווה את העבודה עם המנהל הישיר?',
-  leadership_experience: 'כיצד את/ה חווה את ההתנהלות מול הנהלת הארגון ומנהלים נוספים?', collaboration: 'כיצד מתנהלים שיתוף הפעולה, העברת המידע וחלוקת האחריות?',
-  obstacles: 'אילו החלטות או תהליכים מקשים על עבודתך?', management_changes: 'מה לדעתך המנהלים יכולים לעשות אחרת?',
-  criticism: 'האם יש ביקורת, דעה או הצעה שחשוב לך להעלות?', tools: 'אילו כלים או תמיכה יסייעו לך?', additional: 'האם יש דבר נוסף שחשוב לך לתעד?'
+  achievements: 'אילו הישגים, פרויקטים, משימות או תרומות שלך מהתקופה האחרונה חשוב לך להדגיש?',
+  strengths: 'אילו חוזקות אישיות ומקצועיות סייעו לך בעבודה ומה חשוב לדעתך להמשיך לשמר?',
+  challenges: 'אילו משימות, מצבים או תקופות היו מאתגרים עבורך וכיצד התמודדת איתם?',
+  enablers_barriers: 'מה עזר לך להצליח בעבודה ומה הקשה עליך או מנע ממך להתקדם?',
+  learning: 'מה למדת בתקופה האחרונה ובאילו תחומים מקצועיים או אישיים הרגשת שהתפתחת?',
+  workload: 'כיצד את/ה חווה את עומס העבודה, סדרי העדיפויות וחלוקת המשימות?',
+  role_clarity: 'האם תחומי האחריות, הציפיות וסדרי העדיפויות ברורים לך? מה דורש לדעתך הבהרה או תיאום נוסף?',
+  management_support: 'כיצד את/ה חווה את המענה, הליווי והתמיכה שאת/ה מקבל/ת מהמנהל הישיר ומהנהלת הארגון?',
+  collaboration: 'כיצד מתנהלים לדעתך שיתוף הפעולה, העברת המידע וחלוקת האחריות עם המנהל, הצוות וגורמים נוספים?',
+  decision_processes: 'כיצד תהליכי העבודה וקבלת ההחלטות בארגון משפיעים על היכולת שלך לבצע את עבודתך באופן יעיל?',
+  stop: 'אילו משימות, החלטות, הרגלים או תהליכי עבודה מקשים על העבודה וכדאי לדעתך להפסיק או לשנות?',
+  start: 'אילו תהליכים, דרכי עבודה או יוזמות חדשות כדאי לדעתך להתחיל לקדם?',
+  continue: 'אילו דברים מתנהלים היטב וחשוב לדעתך להמשיך לעשות ולשמר?',
+  development: 'באילו תחומים היית רוצה להתפתח, להעמיק או לרכוש ידע וניסיון נוספים?',
+  additional_responsibility: 'האם יש תחומי אחריות, משימות חדשות או יוזמות שהיית רוצה לקחת על עצמך?',
+  tools: 'אילו כלים, מידע, הכשרה, משאבים או תמיכה יכולים לסייע לך להצליח יותר בעבודה?',
+  goals: 'אילו מטרות או נושאים היית רוצה לקדם בתקופה הקרובה?',
+  expectations: 'מה היית רוצה לקבל מהמנהל ומהארגון כדי להצליח ולהתפתח בהמשך?',
+  management_changes: 'מה לדעתך המנהל או הנהלת הארגון יכולים לעשות אחרת כדי לשפר את העבודה וההתנהלות?',
+  criticism: 'האם יש ביקורת, דעה או הצעה שחשוב לך להעלות בנוגע לעבודה, להתנהלות או לסביבת העבודה?',
+  additional: 'האם יש דבר נוסף שחשוב לך להעלות או לתעד במסגרת השיחה?'
 };
-const RESPONSE_FIELDS = { response_to_summary: 'התייחסות לסיכום', agreed_points: 'נקודות שאיתן אני מסכים/ה', clarification_points: 'נקודות שברצוני להבהיר', final_comment: 'הערה מסכמת' };
+const RESPONSE_FIELDS = {
+  response_to_summary: 'האם סיכום המנהל משקף את עיקרי השיחה?',
+  agreed_points: 'מהן הנקודות המרכזיות שאיתן את/ה מסכים/ה?',
+  clarification_points: 'האם יש נקודות שברצונך להבהיר או להוסיף?',
+  final_comment: 'האם יש לך הערה מסכמת שחשוב לתעד?'
+};
 let _annualReviews = [];
 let _annualReviewContext = null;
 let _annualSaveTimer = null;
@@ -4168,7 +4194,7 @@ function annualReviewDetailHtml(review, bundle, isManager) {
   <main class="pr-body ar-document"><header class="ar-print-header"><div class="ar-logo">תעשיידע</div><div><h1>משוב שנתי</h1><p>${escapeHtml(review.employee_name || '')} · ${escapeHtml(review.review_year)}</p><p>שם המנהל: ${escapeHtml(managerDisplayName)}</p></div>${dsStatusChip(ANNUAL_REVIEW_STATUS[review.status] || review.status, locked ? 'success' : 'warning')}</header>${annualReviewActionsHtml(review, isManager, isEmployee)}
   ${!evaluationVisible ? `<section class="pr-card ar-section ar-manager-draft-notice"><p>${review.status === 'not_opened' ? 'המנהל טרם פתח את המשוב.' : 'המשוב נמצא בהכנת המנהל וטרם שותף איתך.'}</p></section>` : ''}
   ${evaluationVisible ? `<section class="pr-card ar-section"><h2>הערכת המנהל</h2><p class="ar-rating-legend">1 – נדרש שיפור משמעותי · 2 – נדרש שיפור · 3 – עומד בציפיות · 4 – מעל הציפיות · 5 – מצטיין/ת</p><div class="ar-save-state" data-ar-evaluation-save aria-live="polite"></div><div class="ar-evaluations">${bundle.evaluations.map((e) => `<div class="ar-evaluation" data-evaluation-version="${escapeHtml(e.version || '')}"><strong>${escapeHtml(e.metric_label)}</strong><div class="ar-rating" aria-label="דירוג">${[1,2,3,4,5].map((n) => `<button type="button" data-ar-rating="${n}" data-evaluation-id="${escapeHtml(e.id)}" class="${e.rating === n ? 'is-selected' : ''}" ${!canEditManagerEvaluation ? 'disabled' : ''}>${n}</button>`).join('')}<button type="button" data-ar-rating="na" data-evaluation-id="${escapeHtml(e.id)}" class="${e.not_applicable ? 'is-selected' : ''}" ${!canEditManagerEvaluation ? 'disabled' : ''}>לא רלוונטי</button></div>${reviewTextarea(`evaluation_comment_${e.id}`, 'הערה', e.comment, !canEditManagerEvaluation, { className: 'annual-review-metric-comment', rows: 2 })}</div>`).join('')}</div></section>` : ''}
-  ${sharedContentVisible ? `<section class="pr-card ar-section"><h2>סיכום המנהל</h2>${conversationNotice}<form data-ar-form="conversation-manager" data-version="${escapeHtml(bundle.conversation?.version || '')}">${Object.entries(CONVERSATION_FIELDS).map(([k,l]) => reviewTextarea(k,l,bundle.conversation?.[k],!canEditManagerConversation)).join('')}<div class="ar-save-state" aria-live="polite"></div></form></section><section class="pr-card ar-section"><h2>דברי העובד</h2>${conversationNotice}<form data-ar-form="conversation-employee-voice" data-version="${escapeHtml(bundle.conversation?.version || '')}">${Object.entries(EMPLOYEE_VOICE_FIELDS).map(([k,l]) => reviewTextarea(`employee_voice_${k}`,l,bundle.conversation?.employee_voice?.[k],!canEditEmployeeVoice)).join('')}<div class="ar-save-state" aria-live="polite"></div></form></section><section class="pr-card ar-section"><h2>מטרות ופעולות מוסכמות</h2>${emptyGoals}<div class="ar-goals" data-can-edit="${canEditGoals ? 'true' : 'false'}"><div class="ar-save-state" data-ar-goals-save aria-live="polite"></div><table><thead><tr><th>מטרה</th><th>פעולה מוסכמת</th><th>אחראי</th><th>מועד יעד</th><th class="no-print"></th></tr></thead><tbody>${bundle.goals.map((g) => goalRowHtml(g, !canEditGoals)).join('')}</tbody></table>${canEditGoals ? '<button type="button" class="pr-btn pr-btn--primary no-print" data-ar-add-goal>הוספת מטרה</button>' : ''}</div></section>
+  ${sharedContentVisible ? `<section class="pr-card ar-section"><h2>סיכום המנהל</h2>${conversationNotice}<form data-ar-form="conversation-manager" data-version="${escapeHtml(bundle.conversation?.version || '')}">${Object.entries(CONVERSATION_FIELDS).map(([k,l]) => reviewTextarea(k,l,bundle.conversation?.[k],!canEditManagerConversation)).join('')}<div class="ar-save-state" aria-live="polite"></div></form></section><section class="pr-card ar-section"><h2>דברי העובד</h2>${conversationNotice}<p class="ar-section-help">השאלות נועדו לאפשר לך להעלות את התחומים, המשימות והנושאים החשובים לך בעבודתך. ניתן לבחור לאילו שאלות להתייחס ועל אילו נושאים להרחיב. אין חובה להתייחס לכל השאלות.</p><form data-ar-form="conversation-employee-voice" data-version="${escapeHtml(bundle.conversation?.version || '')}">${Object.entries(EMPLOYEE_VOICE_FIELDS).map(([k,l]) => reviewTextarea(`employee_voice_${k}`,l,bundle.conversation?.employee_voice?.[k],!canEditEmployeeVoice)).join('')}<div class="ar-save-state" aria-live="polite"></div></form></section><section class="pr-card ar-section"><h2>מטרות ופעולות מוסכמות</h2>${emptyGoals}<div class="ar-goals" data-can-edit="${canEditGoals ? 'true' : 'false'}"><div class="ar-save-state" data-ar-goals-save aria-live="polite"></div><table><thead><tr><th>מטרה</th><th>פעולה מוסכמת</th><th>אחראי</th><th>מועד יעד</th><th class="no-print"></th></tr></thead><tbody>${bundle.goals.map((g) => goalRowHtml(g, !canEditGoals)).join('')}</tbody></table>${canEditGoals ? '<button type="button" class="pr-btn pr-btn--primary no-print" data-ar-add-goal>הוספת מטרה</button>' : ''}</div></section>
   <section class="pr-card ar-section"><h2>תגובת העובד</h2><form data-ar-form="response" data-version="${escapeHtml(bundle.response?.version || '')}">${Object.entries(RESPONSE_FIELDS).map(([k,l]) => reviewTextarea(k,l,bundle.response?.[k],!canEditEmployeeResponse)).join('')}<div class="ar-save-state" aria-live="polite"></div></form></section>` : ''}
   <footer class="ar-signatures"><span>שם העובד/ת: ${escapeHtml(review.employee_name || '')}</span><span>שם המנהל: ${escapeHtml(managerDisplayName)}</span><span>תאריך אישור: ${review.completed_at ? escapeHtml(new Date(review.completed_at).toLocaleDateString('he-IL')) : '____________'}</span></footer></main>${annualReviewModalHtml()}</div>`;
 }
