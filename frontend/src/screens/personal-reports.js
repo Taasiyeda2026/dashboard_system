@@ -4038,8 +4038,19 @@ async function loadAnnualReviewAccess() {
   }
   const { data: assignments, error: assignmentsError } = await supabase.from('annual_review_assignments').select('employee_id,manager_id,employee_name');
   if (assignmentsError) throw assignmentsError;
+  const managerIds = [...new Set((data || []).map((row) => row.manager_id).filter(Boolean))];
+  const managerNameEntries = await Promise.all(managerIds.map(async (managerId) => {
+    const { data: managerName, error: managerNameError } = await supabase.rpc('resolve_annual_review_manager_name', { p_manager_id: managerId });
+    if (managerNameError) throw managerNameError;
+    return [managerId, typeof managerName === 'string' ? managerName.trim() : ''];
+  }));
+  const managerNameById = new Map(managerNameEntries);
   const assignmentByEmployee = new Map((assignments || []).map((row) => [row.employee_id, row]));
-  _annualReviews = (data || []).map((row) => ({ ...row, ...(assignmentByEmployee.get(row.employee_id) || {}) }));
+  _annualReviews = (data || []).map((row) => ({
+    ...row,
+    ...(assignmentByEmployee.get(row.employee_id) || {}),
+    manager_name: managerNameById.get(row.manager_id) || ''
+  }));
   return _annualReviews;
 }
 
@@ -4152,13 +4163,14 @@ function annualReviewDetailHtml(review, bundle, isManager) {
   const sharedContentVisible = evaluationVisible && !['not_opened', 'manager_preparation'].includes(review.status);
   const conversationNotice = canEditConversation ? '' : '<p class="pr-helper-text">השדות מוצגים לקריאה בלבד בשלב זה.</p>';
   const emptyGoals = !bundle.goals.length ? '<p class="ar-empty-goals">עדיין לא הוגדרו מטרות להמשך.</p>' : '';
+  const managerDisplayName = review.manager_name || 'שם המנהל לא זמין';
   return `<div class="pr-screen ar-screen" dir="rtl"><div class="pr-topbar no-print"><button class="pr-btn pr-btn--ghost" data-ar-back>← חזרה למשובים</button><span class="pr-topbar__title">משוב שנתי</span><button class="pr-btn pr-btn--primary" data-ar-print>הדפסה או שמירה כ־PDF</button></div>
-  <main class="pr-body ar-document"><header class="ar-print-header"><div class="ar-logo">תעשיידע</div><div><h1>משוב שנתי</h1><p>${escapeHtml(review.employee_name || '')} · ${escapeHtml(review.review_year)}</p></div>${dsStatusChip(ANNUAL_REVIEW_STATUS[review.status] || review.status, locked ? 'success' : 'warning')}</header>${annualReviewActionsHtml(review, isManager, isEmployee)}
+  <main class="pr-body ar-document"><header class="ar-print-header"><div class="ar-logo">תעשיידע</div><div><h1>משוב שנתי</h1><p>${escapeHtml(review.employee_name || '')} · ${escapeHtml(review.review_year)}</p><p>שם המנהל: ${escapeHtml(managerDisplayName)}</p></div>${dsStatusChip(ANNUAL_REVIEW_STATUS[review.status] || review.status, locked ? 'success' : 'warning')}</header>${annualReviewActionsHtml(review, isManager, isEmployee)}
   ${!evaluationVisible ? `<section class="pr-card ar-section ar-manager-draft-notice"><p>${review.status === 'not_opened' ? 'המנהל טרם פתח את המשוב.' : 'המשוב נמצא בהכנת המנהל וטרם שותף איתך.'}</p></section>` : ''}
   ${evaluationVisible ? `<section class="pr-card ar-section"><h2>הערכת המנהל</h2><p class="ar-rating-legend">1 – נדרש שיפור משמעותי · 2 – נדרש שיפור · 3 – עומד בציפיות · 4 – מעל הציפיות · 5 – מצטיין/ת</p><div class="ar-save-state" data-ar-evaluation-save aria-live="polite"></div><div class="ar-evaluations">${bundle.evaluations.map((e) => `<div class="ar-evaluation" data-evaluation-version="${escapeHtml(e.version || '')}"><strong>${escapeHtml(e.metric_label)}</strong><div class="ar-rating" aria-label="דירוג">${[1,2,3,4,5].map((n) => `<button type="button" data-ar-rating="${n}" data-evaluation-id="${escapeHtml(e.id)}" class="${e.rating === n ? 'is-selected' : ''}" ${!canEditManagerEvaluation ? 'disabled' : ''}>${n}</button>`).join('')}<button type="button" data-ar-rating="na" data-evaluation-id="${escapeHtml(e.id)}" class="${e.not_applicable ? 'is-selected' : ''}" ${!canEditManagerEvaluation ? 'disabled' : ''}>לא רלוונטי</button></div>${reviewTextarea(`evaluation_comment_${e.id}`, 'הערה', e.comment, !canEditManagerEvaluation, { className: 'annual-review-metric-comment', rows: 2 })}</div>`).join('')}</div></section>` : ''}
   ${sharedContentVisible ? `<section class="pr-card ar-section"><h2>סיכום המנהל</h2>${conversationNotice}<form data-ar-form="conversation-manager" data-version="${escapeHtml(bundle.conversation?.version || '')}">${Object.entries(CONVERSATION_FIELDS).map(([k,l]) => reviewTextarea(k,l,bundle.conversation?.[k],!canEditManagerConversation)).join('')}<div class="ar-save-state" aria-live="polite"></div></form></section><section class="pr-card ar-section"><h2>דברי העובד</h2>${conversationNotice}<form data-ar-form="conversation-employee-voice" data-version="${escapeHtml(bundle.conversation?.version || '')}">${Object.entries(EMPLOYEE_VOICE_FIELDS).map(([k,l]) => reviewTextarea(`employee_voice_${k}`,l,bundle.conversation?.employee_voice?.[k],!canEditEmployeeVoice)).join('')}<div class="ar-save-state" aria-live="polite"></div></form></section><section class="pr-card ar-section"><h2>מטרות ופעולות מוסכמות</h2>${emptyGoals}<div class="ar-goals" data-can-edit="${canEditGoals ? 'true' : 'false'}"><div class="ar-save-state" data-ar-goals-save aria-live="polite"></div><table><thead><tr><th>מטרה</th><th>פעולה מוסכמת</th><th>אחראי</th><th>מועד יעד</th><th class="no-print"></th></tr></thead><tbody>${bundle.goals.map((g) => goalRowHtml(g, !canEditGoals)).join('')}</tbody></table>${canEditGoals ? '<button type="button" class="pr-btn pr-btn--primary no-print" data-ar-add-goal>הוספת מטרה</button>' : ''}</div></section>
   <section class="pr-card ar-section"><h2>תגובת העובד</h2><form data-ar-form="response" data-version="${escapeHtml(bundle.response?.version || '')}">${Object.entries(RESPONSE_FIELDS).map(([k,l]) => reviewTextarea(k,l,bundle.response?.[k],!canEditEmployeeResponse)).join('')}<div class="ar-save-state" aria-live="polite"></div></form></section>` : ''}
-  <footer class="ar-signatures"><span>שם העובד/ת: ${escapeHtml(review.employee_name || '')}</span><span>שם המנהל: ${escapeHtml(review.manager_name || 'עידן')}</span><span>תאריך אישור: ${review.completed_at ? escapeHtml(new Date(review.completed_at).toLocaleDateString('he-IL')) : '____________'}</span></footer></main>${annualReviewModalHtml()}</div>`;
+  <footer class="ar-signatures"><span>שם העובד/ת: ${escapeHtml(review.employee_name || '')}</span><span>שם המנהל: ${escapeHtml(managerDisplayName)}</span><span>תאריך אישור: ${review.completed_at ? escapeHtml(new Date(review.completed_at).toLocaleDateString('he-IL')) : '____________'}</span></footer></main>${annualReviewModalHtml()}</div>`;
 }
 function goalRowHtml(g = {}, disabled = false) { return `<tr data-goal-id="${escapeHtml(g.id || '')}" data-version="${escapeHtml(g.version || '')}"><td contenteditable="${disabled ? 'false' : 'true'}" data-field="goal">${escapeHtml(g.goal || '')}</td><td contenteditable="${disabled ? 'false' : 'true'}" data-field="agreed_actions">${escapeHtml(g.agreed_actions || '')}</td><td contenteditable="${disabled ? 'false' : 'true'}" data-field="owner">${escapeHtml(g.owner || '')}</td><td><input type="date" data-field="target_date" value="${escapeHtml(g.target_date || '')}" ${disabled ? 'disabled' : ''}></td><td class="no-print">${disabled ? '' : '<button type="button" data-ar-delete-goal aria-label="מחיקת יעד">×</button>'}</td></tr>`; }
 

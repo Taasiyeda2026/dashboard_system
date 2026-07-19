@@ -7,6 +7,7 @@ const reviewsMigration = await readFile(new URL('../supabase/migrations/20260717
 const openReviewMigration = await readFile(new URL('../supabase/migrations/20260718120000_open_annual_review_to_manager_preparation.sql', import.meta.url), 'utf8');
 const hardeningMigration = await readFile(new URL('../supabase/migrations/20260719120000_harden_annual_review_workflow.sql', import.meta.url), 'utf8');
 const unifiedMetricsMigration = await readFile(new URL('../supabase/migrations/20260719150000_unify_annual_review_metrics.sql', import.meta.url), 'utf8');
+const managerNameMigration = await readFile(new URL('../supabase/migrations/20260719170000_resolve_annual_review_manager_name.sql', import.meta.url), 'utf8');
 const screen = await readFile(new URL('../frontend/src/screens/personal-reports.js', import.meta.url), 'utf8');
 const css = await readFile(new URL('../frontend/src/styles/main.css', import.meta.url), 'utf8');
 
@@ -199,6 +200,18 @@ test('annual review print is Hebrew RTL A4 and hides navigation', () => {
   assert.match(css, /body\.is-annual-review-print \.no-print[\s\S]*display:none!important/i);
   assert.match(css, /white-space:pre-wrap/i);
   assert.match(css, /page-break-inside:avoid/i);
+});
+
+test('manager full name is securely resolved and shown on screen and in print', () => {
+  assert.match(managerNameMigration, /resolve_annual_review_manager_name\(p_manager_id uuid\)/i);
+  assert.match(managerNameMigration, /u\.auth_user_id = p_manager_id/i);
+  assert.match(managerNameMigration, /coalesce\(nullif\(btrim\(u\.full_name\), ''\), nullif\(btrim\(u\.name\), ''\)\)/i);
+  assert.match(managerNameMigration, /auth\.uid\(\) in \(review\.employee_id, review\.manager_id\)/i);
+  assert.match(screen, /resolve_annual_review_manager_name'[\s\S]*p_manager_id: managerId/);
+  assert.doesNotMatch(screen.slice(screen.indexOf('// ─── Annual review module')), /\|\|\s*['"]עידן['"]/);
+  assert.match(screen, /const managerDisplayName = review\.manager_name \|\| 'שם המנהל לא זמין'/);
+  const detail = screen.match(/function annualReviewDetailHtml[\s\S]*?\n}/)?.[0] || '';
+  assert.equal((detail.match(/שם המנהל: \$\{escapeHtml\(managerDisplayName\)\}/g) || []).length, 2);
 });
 
 test('existing personal reports remain mounted and annual review is additive', () => {
