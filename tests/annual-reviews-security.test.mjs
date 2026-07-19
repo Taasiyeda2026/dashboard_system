@@ -5,6 +5,7 @@ import { readFile } from 'node:fs/promises';
 const usersMigration = await readFile(new URL('../supabase/migrations/20260717100000_secure_users_read_columns.sql', import.meta.url), 'utf8');
 const reviewsMigration = await readFile(new URL('../supabase/migrations/20260717110000_create_annual_reviews.sql', import.meta.url), 'utf8');
 const openReviewMigration = await readFile(new URL('../supabase/migrations/20260718120000_open_annual_review_to_manager_preparation.sql', import.meta.url), 'utf8');
+const hardeningMigration = await readFile(new URL('../supabase/migrations/20260719120000_harden_annual_review_workflow.sql', import.meta.url), 'utf8');
 const screen = await readFile(new URL('../frontend/src/screens/personal-reports.js', import.meta.url), 'utf8');
 const css = await readFile(new URL('../frontend/src/styles/main.css', import.meta.url), 'utf8');
 
@@ -42,7 +43,7 @@ test('employee cannot see an unshared manager draft', () => {
   assert.match(screen, /const evaluationVisible = isManager \|\| Boolean\(review\.manager_shared_at\)/);
   assert.match(screen, /המשוב נמצא בהכנת המנהל וטרם שותף איתך\./);
   assert.match(screen, /evaluationVisible \? `<section class="pr-card ar-section"><h2>הערכת המנהל/);
-  assert.match(screen, /sharedContentVisible \? `<section class="pr-card ar-section"><h2>סיכום שיחת המשוב/);
+  assert.match(screen, /sharedContentVisible \? `<section class="pr-card ar-section"><h2>סיכום המנהל/);
   assert.match(screen, /share_manager_evaluation/);
 });
 
@@ -76,7 +77,42 @@ test('opening annual review routes directly to manager preparation through guard
   assert.match(openReviewMigration, /create or replace function public\.open_review_for_employee/i);
   assert.match(openReviewMigration, /transition_annual_review\(\s*p_review_id,\s*p_expected_version,\s*'manager',\s*'not_opened',\s*'manager_preparation'/i);
   assert.doesNotMatch(openReviewMigration, /employee_preparation|submitted_to_manager/);
-  assert.match(screen, /פתיחת המשוב והתחלת הערכת מנהל/);
+  assert.match(screen, /פתיחת המשוב והתחלת הכנת המנהל/);
+});
+
+test('database enforces field ownership and exact workflow stages', () => {
+  assert.match(hardeningMigration, /r\.status<>'manager_preparation'/);
+  for (const field of ['achievements','strengths','improvements','process_changes','support_needed','manager_summary']) {
+    assert.match(hardeningMigration, new RegExp(`new\\.${field}`));
+  }
+  assert.match(hardeningMigration, /manager_fields_manager_only/);
+  assert.match(hardeningMigration, /employee_voice_employee_only/);
+  assert.match(hardeningMigration, /r\.status<>'conversation_in_progress'/);
+  assert.match(hardeningMigration, /before insert or update or delete on public\.review_goals/);
+  assert.match(hardeningMigration, /r\.status<>'awaiting_employee_response'/);
+  assert.match(hardeningMigration, /employee_approved_at is not null/);
+  assert.match(hardeningMigration, /revoke insert, update, delete on public\.annual_reviews/);
+});
+
+test('workflow guidance, goals, approvals and accessible confirmations are explicit', () => {
+  assert.match(screen, /מה עושים עכשיו\?/);
+  assert.match(screen, /הוספת מטרה/);
+  assert.match(screen, /canEditGoals \? '<button[^']*data-ar-add-goal/);
+  assert.match(screen, /עדיין לא הוגדרו מטרות להמשך/);
+  assert.match(screen, /שני הצדדים אישרו את המשוב/);
+  assert.match(screen, /review\.employee_approved_at && review\.manager_approved_at/);
+  assert.match(screen, /נעילת המשוב וסיום התהליך/);
+  assert.match(screen, /<dialog class="ar-modal"/);
+  assert.match(screen, /לאחר השיתוף העובד יוכל לראות את הערכת המנהל/);
+  assert.match(screen, /פעולה זו תנעל את המשוב ותמנע עריכה נוספת/);
+  assert.doesNotMatch(screen.slice(screen.indexOf('// ─── Annual review module')), /window\.(?:prompt|confirm)/);
+});
+
+test('approvals do not auto-lock and completion remains a separate manager RPC', () => {
+  const approval = hardeningMigration.match(/create or replace function public\.approve_review_as_employee[\s\S]*?end \$\$;/i)?.[0] || '';
+  assert.doesNotMatch(approval, /completed_locked|locked_at/);
+  assert.match(reviewsMigration, /complete_and_lock_review[\s\S]*employee_approved_at is not null[\s\S]*manager_approved_at is not null/i);
+  assert.match(screen, /bothApproved[\s\S]*complete_and_lock_review/);
 });
 
 
