@@ -6,6 +6,7 @@ const usersMigration = await readFile(new URL('../supabase/migrations/2026071710
 const reviewsMigration = await readFile(new URL('../supabase/migrations/20260717110000_create_annual_reviews.sql', import.meta.url), 'utf8');
 const openReviewMigration = await readFile(new URL('../supabase/migrations/20260718120000_open_annual_review_to_manager_preparation.sql', import.meta.url), 'utf8');
 const hardeningMigration = await readFile(new URL('../supabase/migrations/20260719120000_harden_annual_review_workflow.sql', import.meta.url), 'utf8');
+const unifiedMetricsMigration = await readFile(new URL('../supabase/migrations/20260719150000_unify_annual_review_metrics.sql', import.meta.url), 'utf8');
 const screen = await readFile(new URL('../frontend/src/screens/personal-reports.js', import.meta.url), 'utf8');
 const css = await readFile(new URL('../frontend/src/styles/main.css', import.meta.url), 'utf8');
 
@@ -29,6 +30,42 @@ test('review assignment is UUID-only, exactly four employees, and browser cannot
   assert.match(reviewsMigration, /p_manager_id uuid, p_tony_id uuid, p_hila_id uuid, p_gil_id uuid, p_eden_id uuid/i);
   assert.match(reviewsMigration, /count\(distinct x\)[\s\S]*<> 5/i);
   assert.match(reviewsMigration, /revoke all on function public\.provision_annual_review_assignments[\s\S]*authenticated/i);
+});
+
+test('all four employees receive the same 16 general annual-review metrics', () => {
+  const definitions = unifiedMetricsMigration.match(/from unnest\(array\[([\s\S]*?)\]\) with ordinality as metric/i)?.[1] || '';
+  const labels = [...definitions.matchAll(/'([^']+)'/g)].map((match) => match[1]);
+  assert.equal(labels.length, 16);
+  assert.equal(new Set(labels).size, 16);
+  assert.equal(labels.filter((label) => label === 'התמודדות עם בעיות, הפעלת שיקול דעת וטיפול עצמאי עד לפתרון').length, 1);
+  const metricsByEmployee = Object.fromEntries(['tony_naim', 'hila_rozen', 'gil_neeman', 'eden_cohen'].map((employeeKey) => {
+    assert.match(unifiedMetricsMigration, new RegExp(employeeKey));
+    return [employeeKey, [...labels]];
+  }));
+  for (const employeeMetrics of Object.values(metricsByEmployee)) assert.equal(employeeMetrics.length, 16);
+  assert.equal(new Set(Object.values(metricsByEmployee).map((employeeMetrics) => JSON.stringify(employeeMetrics))).size, 1);
+  assert.match(unifiedMetricsMigration, /'common'::text/);
+  assert.doesNotMatch(definitions, /when\s+'(?:tony_naim|hila_rozen|gil_neeman|eden_cohen)'|metric_group[^\n]*'role'/i);
+});
+
+test('metric reconciliation creates missing 2026 reviews and protects started reviews', () => {
+  assert.match(unifiedMetricsMigration, /insert into public\.annual_reviews\(employee_id, manager_id, review_year, status\)/i);
+  assert.match(unifiedMetricsMigration, /2026, 'not_opened'/i);
+  assert.match(unifiedMetricsMigration, /on conflict \(employee_id, review_year\) do nothing/i);
+  assert.match(unifiedMetricsMigration, /review\.status = 'not_opened'/i);
+  assert.match(unifiedMetricsMigration, /evaluation\.rating is not null[\s\S]*evaluation\.not_applicable[\s\S]*btrim\(evaluation\.comment\)/i);
+  for (const table of ['review_conversation_summary', 'review_goals', 'employee_review_response']) {
+    assert.match(unifiedMetricsMigration, new RegExp(`not exists \\(select 1 from public\\.${table}`));
+  }
+  assert.doesNotMatch(unifiedMetricsMigration, /select\s+public\.provision_annual_review_assignments|call\s+public\.provision_annual_review_assignments/i);
+});
+
+test('empty Hila review remains visible and role definitions are not loaded by the UI', () => {
+  const landing = screen.match(/function annualReviewLandingHtml\(rows\)([\s\S]*?)\n}/)?.[1] || '';
+  assert.match(landing, /rows\.filter\(\(row\) => row\.manager_id === uid\)/);
+  assert.doesNotMatch(landing, /rows\.(?:filter|find)\([^\n]*status|evaluations|employee_role/);
+  assert.match(screen, /select\('employee_id,manager_id,employee_name'\)/);
+  assert.doesNotMatch(screen.slice(screen.indexOf('// ─── Annual review module')), /employee_role/);
 });
 
 test('each review participant is scoped by auth.uid and admin role gets no bypass', () => {

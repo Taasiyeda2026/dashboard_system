@@ -4036,7 +4036,7 @@ async function loadAnnualReviewAccess() {
     if (['42P01', 'PGRST205'].includes(error.code)) return [];
     throw error;
   }
-  const { data: assignments, error: assignmentsError } = await supabase.from('annual_review_assignments').select('employee_id,manager_id,employee_name,employee_role');
+  const { data: assignments, error: assignmentsError } = await supabase.from('annual_review_assignments').select('employee_id,manager_id,employee_name');
   if (assignmentsError) throw assignmentsError;
   const assignmentByEmployee = new Map((assignments || []).map((row) => [row.employee_id, row]));
   _annualReviews = (data || []).map((row) => ({ ...row, ...(assignmentByEmployee.get(row.employee_id) || {}) }));
