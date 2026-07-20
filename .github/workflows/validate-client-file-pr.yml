@@ -8,6 +8,7 @@ on:
       - 'frontend/src/screens/instructors.js'
       - 'frontend/src/screens/instructor-contacts.js'
       - 'frontend/src/proposal-pdf-svg-origin-clean.js'
+      - 'frontend/src/proposal-pdf-storage-key.js'
       - 'frontend/src/proposal-pdf-storage-key-hotfix.js'
       - 'frontend/src/main-with-proposal-pdf-hotfix.js'
       - 'frontend/src/styles/**'
@@ -47,6 +48,7 @@ jobs:
           node --check frontend/src/screens/instructors.js
           node --check frontend/src/screens/instructor-contacts.js
           node --check frontend/src/proposal-pdf-svg-origin-clean.js
+          node --check frontend/src/proposal-pdf-storage-key.js
           node --check frontend/src/proposal-pdf-storage-key-hotfix.js
           node --check frontend/src/main-with-proposal-pdf-hotfix.js
           node --check frontend/src/main.js
