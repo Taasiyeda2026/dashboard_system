@@ -1,8 +1,6 @@
 import { escapeHtml } from './shared/html.js';
 import { hebrewColumn, hebrewEmploymentType } from './shared/ui-hebrew.js';
 import {
-  dsPageHeader,
-  dsCard,
   dsScreenStack,
   dsEmptyState,
   dsStatusChip
@@ -197,11 +195,16 @@ export const instructorContactsScreen = {
       : `<div class="ic-contact-grid ic-contact-grid--compact" style="${COMPACT_GRID_STYLE}" dir="rtl">${rows.map(renderContactCard).join('')}</div>`;
 
     return dsScreenStack(`
-      ${dsPageHeader('אנשי קשר מדריכים', 'לחצו על שם מדריך להצגת פרטי הקשר והמידע הנוסף')}
-      <div class="ds-screen-top-row" style="display:flex;justify-content:flex-start;gap:8px;margin-bottom:8px">
-        <button type="button" class="ds-btn ds-btn--sm ds-btn--ghost" data-route="instructors">← חזרה למדריכים</button>
+      <div style="display:flex;justify-content:flex-start;margin-bottom:2px">
+        <button type="button" class="ds-btn ds-btn--sm ds-btn--ghost" data-route="instructors" style="font-weight:800;min-width:92px">← חזרה</button>
       </div>
-      <div class="ds-screen-top-row">
+
+      <header class="ds-page-header" style="padding-top:2px">
+        <h1 class="ds-page-header__title" style="font-weight:850">אנשי קשר מדריכים</h1>
+        <p class="ds-page-header__subtitle" style="font-weight:700;color:#344256">לחצו על שם מדריך להצגת פרטי הקשר והמידע הנוסף</p>
+      </header>
+
+      <div class="ds-screen-top-row" style="display:flex;align-items:center;justify-content:flex-start;gap:12px;flex-wrap:wrap">
         <input
           id="instr-contacts-search"
           type="search"
@@ -209,14 +212,17 @@ export const instructorContactsScreen = {
           placeholder="חיפוש..."
           value="${escapeHtml(searchQ)}"
           dir="rtl"
+          style="flex:1 1 320px;max-width:520px;min-width:220px"
         />
+        <div class="ds-filter-bar" role="toolbar" style="display:flex;align-items:center;gap:8px;flex-wrap:wrap;margin:0;padding:0;border:0;background:transparent">
+          ${activeChips}
+          <span class="ds-badge" style="font-weight:800">${rows.length} מדריכים</span>
+        </div>
       </div>
-      <div class="ds-filter-bar" role="toolbar">${activeChips}</div>
-      ${dsCard({
-        title: `אנשי קשר מדריכים · ${rows.length}`,
-        body: cardsHtml,
-        padded: rows.length === 0
-      })}
+
+      <section class="ds-card">
+        <div class="ds-card__body${rows.length === 0 ? ' ds-card__body--padded' : ''}">${cardsHtml}</div>
+      </section>
     `);
   },
   bind({ root, data, state, ui, rerender, clearScreenDataCache, api }) {
