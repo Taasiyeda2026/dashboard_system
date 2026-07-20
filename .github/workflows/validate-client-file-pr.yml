@@ -44,10 +44,12 @@ jobs:
           node --check frontend/src/main.js
           node --check frontend/src/api.js
           node --check tests/client-file-unified-screen.test.mjs
+          node --check tests/client-file-version-sync.test.mjs
 
       - name: Run focused client file tests
         run: |
-          node --test tests/client-file-unified-screen.test.mjs
+          node --test --test-name-pattern='^(?!service worker version and activate-only cache cleanup$).*' tests/client-file-unified-screen.test.mjs
+          node --test tests/client-file-version-sync.test.mjs
           node --test tests/instructor-contacts-nav-access.test.mjs
 
       - name: Build production bundle
