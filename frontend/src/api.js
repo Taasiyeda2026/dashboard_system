@@ -664,13 +664,14 @@ function normalizeCatalogText(value) {
 
 const SUPABASE_CATALOG_PAGE_SIZE = 1000;
 
-async function readSupabaseCatalogPages({ table, columns, applyOrder, pageSize = SUPABASE_CATALOG_PAGE_SIZE }) {
+async function readSupabaseCatalogPages({ table, columns, applyFilter, applyOrder, pageSize = SUPABASE_CATALOG_PAGE_SIZE }) {
   const rows = [];
   for (let from = 0; ; from += pageSize) {
     const to = from + pageSize - 1;
     let query = supabase
       .from(table)
       .select(columns);
+    if (typeof applyFilter === 'function') query = applyFilter(query);
     if (typeof applyOrder === 'function') query = applyOrder(query);
     const { data, error } = await query.range(from, to);
     if (error) return { data: rows, error, pageIndex: Math.floor(from / pageSize) };
@@ -1197,39 +1198,44 @@ async function readUnifiedContactsFromSupabase({ requireAuth = false, letter = '
     if (!session?.user?.id) throw new Error('contacts_unified_view_requires_auth_session');
   }
   try {
-    let query = supabase
-      .from('contacts_unified_view')
-      .select(CONTACTS_UNIFIED_VIEW_COLUMNS);
     const safeLetter = String(letter || '').trim().replace(/[%,()]/g, '');
-    if (safeLetter) {
-      query = query.or(`authority_name.ilike.${safeLetter}%,authority.ilike.${safeLetter}%,client_name.ilike.${safeLetter}%`);
-    }
     const safeSearch = String(search || '').trim().replace(/[%,()]/g, '');
-    if (safeSearch) {
-      const term = `%${safeSearch}%`;
-      query = query.or([
-        `client_name.ilike.${term}`,
-        `authority_name.ilike.${term}`,
-        `authority.ilike.${term}`,
-        `school_name.ilike.${term}`,
-        `school.ilike.${term}`,
-        `contact_name.ilike.${term}`,
-        `contact_role.ilike.${term}`,
-        `phone.ilike.${term}`,
-        `mobile.ilike.${term}`,
-        `email.ilike.${term}`,
-        `authority_code.ilike.${term}`,
-        `semel_mosad.ilike.${term}`
-      ].join(','));
-    }
-    const { data, error } = await query
-      .order('authority_name', { ascending: true })
-      .order('school_name', { ascending: true })
-      .order('contact_domain', { ascending: true })
-      .order('contact_name', { ascending: true });
+    const { data, error, pageIndex } = await readSupabaseCatalogPages({
+      table: 'contacts_unified_view',
+      columns: CONTACTS_UNIFIED_VIEW_COLUMNS,
+      applyFilter: (baseQuery) => {
+        let query = baseQuery;
+        if (safeLetter) {
+          query = query.or(`authority_name.ilike.${safeLetter}%,authority.ilike.${safeLetter}%,client_name.ilike.${safeLetter}%`);
+        }
+        if (safeSearch) {
+          const term = `%${safeSearch}%`;
+          query = query.or([
+            `client_name.ilike.${term}`,
+            `authority_name.ilike.${term}`,
+            `authority.ilike.${term}`,
+            `school_name.ilike.${term}`,
+            `school.ilike.${term}`,
+            `contact_name.ilike.${term}`,
+            `contact_role.ilike.${term}`,
+            `phone.ilike.${term}`,
+            `mobile.ilike.${term}`,
+            `email.ilike.${term}`,
+            `authority_code.ilike.${term}`,
+            `semel_mosad.ilike.${term}`
+          ].join(','));
+        }
+        return query;
+      },
+      applyOrder: (query) => query
+        .order('authority_name', { ascending: true })
+        .order('school_name', { ascending: true })
+        .order('contact_domain', { ascending: true })
+        .order('contact_name', { ascending: true })
+    });
     if (error) {
       // eslint-disable-next-line no-console
-      console.warn('[supabase] Failed to load contacts_unified_view:', error);
+      console.warn('[supabase] Failed to load contacts_unified_view:', { pageIndex, error });
       if (requireAuth && isSupabasePermissionDeniedError(error)) {
         throw new Error('contacts_unified_view_permission_denied');
       }
