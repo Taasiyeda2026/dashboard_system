@@ -148,6 +148,11 @@ export const instructorContactsScreen = {
     const allRows = Array.isArray(data?.rows) ? data.rows : [];
     const hideEmpIds = !!state?.clientSettings?.hide_emp_id_on_screens;
 
+    root.querySelector('[data-route="instructors"]')?.addEventListener('click', (ev) => {
+      ev.preventDefault();
+      document.dispatchEvent(new CustomEvent('app:navigate', { detail: { route: 'instructors' } }));
+    });
+
     let searchTimer;
     root.querySelector('#instr-contacts-search')?.addEventListener('input', (ev) => {
       const next = ev.target.value || '';

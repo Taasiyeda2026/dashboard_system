@@ -44,13 +44,13 @@ test('service worker entry imports the implementation without a second manual ve
   assert.match(rootSw, /importScripts\(new URL\('frontend\/sw\.js', self\.location\)\.href\);/, 'root SW should import the central implementation directly');
 });
 
-test('service worker removes old dashboard caches during install and activate', async () => {
+test('service worker removes old dashboard caches during activate only', async () => {
   const frontendSw = await read(FRONTEND_SW_FILE);
 
   assert.match(frontendSw, /const CACHE_PREFIX = 'dashboard-static-v';/);
   assert.match(frontendSw, /key\.startsWith\(CACHE_PREFIX\) && key !== CACHE_NAME/, 'cleanup should target old dashboard cache versions');
-  assert.match(frontendSw, /await deleteOutdatedCaches\(\);[\s\S]*self\.skipWaiting\(\);/, 'install should clean old caches before taking control');
-  assert.match(frontendSw, /deleteOutdatedCaches\(\)\.then\(async \(deletedKeys\) => \{[\s\S]*await self\.clients\.claim\(\);[\s\S]*await reloadClientsAfterCacheUpgrade\(deletedKeys\);/, 'activate should clean old caches, claim clients, and reload windows after a cache upgrade');
+  assert.doesNotMatch(frontendSw, /install[\s\S]*await deleteOutdatedCaches\(\);[\s\S]*self\.skipWaiting\(\);/, 'install must not delete outdated caches before activate');
+  assert.match(frontendSw, /self\.addEventListener\('activate'[\s\S]*deleteOutdatedCaches\(\)\.then\(async \(deletedKeys\) => \{[\s\S]*await self\.clients\.claim\(\);[\s\S]*await reloadClientsAfterCacheUpgrade\(deletedKeys\);/, 'activate should clean old caches, claim clients, and reload windows after a cache upgrade');
 });
 
 test('service worker reloads open dashboard windows after deleting old cache versions', async () => {
