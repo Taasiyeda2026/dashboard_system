@@ -634,12 +634,20 @@ test('page is excluded from header nav and ACT_SUBNAV_ITEMS', async () => {
 test('client file landing consolidates proposal queues under one screen', () => {
   const html = proposalsAgreementsScreen.render({ rows: sampleRows, contactOptions: sampleContactOptions }, { state: stateFor('admin') });
   assert.match(html, /תיק לקוח/);
+  assert.doesNotMatch(html, /ממתינות לטיפול/);
+  assert.doesNotMatch(html, /\d+\s*הצעות\s*\|/);
+  assert.doesNotMatch(html, /ds-page-header__subtitle/);
   assert.match(html, /data-pa-client-search/);
+  assert.match(html, /ds-client-toolbar/);
+  assert.match(html, /ds-client-actions/);
   assert.match(html, /טיוטות/);
   assert.match(html, /ממתינות לאישור/);
   assert.match(html, /הוחזרו לתיקון/);
   assert.match(html, /ממתינות לשליחה/);
   assert.match(html, /data-pa-client-queues/);
+  // Search sits alone in its row; action buttons are in a separate centered actions row.
+  assert.match(html, /ds-client-search-row[\s\S]*?data-pa-client-search[\s\S]*?<\/div>\s*<div class="ds-client-actions">[\s\S]*?data-pa-client-all-proposals/);
+  assert.doesNotMatch(html, /ds-client-search-row[\s\S]*?data-pa-client-all-proposals[\s\S]*?ds-client-actions/);
 });
 
 test('client search opens a closed customer file and x returns to search', async () => {
@@ -4869,16 +4877,19 @@ test('upgraded selector fallback shows Hebrew display labels only, not internal 
     proposalActivityGroups: [
       { group_key: 'summer', template_key: 'summer', sort_order: 1, is_active: true },
       { group_key: 'next_year', template_key: 'next_year', sort_order: 2, is_active: true },
-      { group_key: 'combined', template_key: 'combined', included_group_keys: ['summer', 'next_year'], sort_order: 3, is_active: true }
+      { group_key: 'tour', template_key: 'tour', sort_order: 3, is_active: true },
+      { group_key: 'combined', template_key: 'combined', included_group_keys: ['summer', 'next_year'], sort_order: 4, is_active: true }
     ]
   }, [], []);
   const html = proposalTypeCardsHtml('summer');
-  assert.match(html, />פעילויות קיץ</);
-  assert.match(html, />שנה הבאה</);
-  assert.match(html, />הצעה משולבת</);
+  assert.match(html, />קיץ</);
+  assert.match(html, />תשפ״ז</);
+  assert.match(html, />סיור</);
+  assert.doesNotMatch(html, /הצעה משולבת/);
   assert.doesNotMatch(html, />summer</);
   assert.doesNotMatch(html, />next_year</);
   assert.doesNotMatch(html, />combined</);
+  assert.doesNotMatch(html, />tour</);
 });
 
 test('legacy activity_type_group values resolve to canonical keys for summer and next_year templates', () => {

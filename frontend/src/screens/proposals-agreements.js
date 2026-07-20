@@ -176,9 +176,15 @@ const COMBINED_TEMPLATE_GROUP_KEYS = Object.freeze(['summer', 'next_year']);
 const PROPOSAL_GROUP_DISPLAY_FALLBACKS = Object.freeze({
   summer: 'קיץ',
   next_year: 'תשפ״ז',
-  combined: 'הצעה משולבת',
   tour: 'סיור'
 });
+/** Internal template key only — never shown to users. */
+const COMBINED_INTERNAL_KEY = 'combined';
+const CLIENT_FACING_TYPE_OPTIONS = Object.freeze([
+  { value: 'next_year', label: 'תשפ״ז' },
+  { value: 'summer', label: 'קיץ' },
+  { value: 'tour', label: 'סיור' }
+]);
 const PROPOSAL_GROUP_LEGACY_ALIASES = Object.freeze({
   'קיץ תשפ״ו': 'summer',
   'פעילויות קיץ': 'summer',
@@ -186,15 +192,15 @@ const PROPOSAL_GROUP_LEGACY_ALIASES = Object.freeze({
   'תוכניות תשפ״ז': 'next_year',
   'שנה הבאה': 'next_year',
   'תשפ״ז': 'next_year',
-  'הצעה משולבת': 'combined',
+  'הצעה משולבת': COMBINED_INTERNAL_KEY,
   'סיור': 'tour',
   'סיורים': 'tour',
   'סיור לימודי': 'tour',
   'סיור לימודי חווייתי': 'tour',
   'התנסות בתעשייה – סיור לימודי חווייתי': 'tour',
-  'קיץ תשפ״ו ושנת הלימודים תשפ״ז': 'combined',
-  'קיץ תשפ״ו ותוכניות תשפ״ז': 'combined',
-  'קיץ תשפ״ו + תשפ״ז': 'combined'
+  'קיץ תשפ״ו ושנת הלימודים תשפ״ז': COMBINED_INTERNAL_KEY,
+  'קיץ תשפ״ו ותוכניות תשפ״ז': COMBINED_INTERNAL_KEY,
+  'קיץ תשפ״ו + תשפ״ז': COMBINED_INTERNAL_KEY
 });
 
 function userFacingProposalGroupLabel(value = '') {
@@ -206,13 +212,19 @@ function userFacingProposalGroupLabel(value = '') {
 function proposalGroupSafeDisplayName(groupKey = '', displayName = '') {
   const key = text(groupKey);
   const label = userFacingProposalGroupLabel(displayName);
+  if (key === COMBINED_INTERNAL_KEY || label === 'הצעה משולבת') {
+    return clientFacingProposalTypeLabel({ activity_type_group: key || label, document_type: label });
+  }
   if (Object.prototype.hasOwnProperty.call(PROPOSAL_GROUP_DISPLAY_FALLBACKS, key)) {
     return PROPOSAL_GROUP_DISPLAY_FALLBACKS[key];
   }
   const alias = PROPOSAL_GROUP_LEGACY_ALIASES[key] || PROPOSAL_GROUP_LEGACY_ALIASES[label] || PROPOSAL_GROUP_LEGACY_ALIASES[normalizeHebrewQuoteVariants(label)];
+  if (alias === COMBINED_INTERNAL_KEY) {
+    return clientFacingProposalTypeLabel({ activity_type_group: key || label, document_type: label });
+  }
   if (alias && PROPOSAL_GROUP_DISPLAY_FALLBACKS[alias]) return PROPOSAL_GROUP_DISPLAY_FALLBACKS[alias];
-  if (label && label !== key) return label;
-  return userFacingProposalGroupLabel(label || key);
+  if (label && label !== key && !/combined|משולב/i.test(label)) return label;
+  return userFacingProposalGroupLabel(label || key) || '—';
 }
 let proposalTemplateSectionsLookup = [];
 
@@ -484,11 +496,12 @@ function normalizeProposalGroup(value) {
 function proposalGroupMeta(value) {
   const key = normalizeProposalGroup(value);
   return proposalGroupLookups.groupByKey.get(key)
-    || (PROPOSAL_GROUP_DISPLAY_FALLBACKS[key] ? normalizeProposalGroupRecord({
+    || ((PROPOSAL_GROUP_DISPLAY_FALLBACKS[key] || key === COMBINED_INTERNAL_KEY) ? normalizeProposalGroupRecord({
       group_key: key,
-      display_name: PROPOSAL_GROUP_DISPLAY_FALLBACKS[key],
+      display_name: PROPOSAL_GROUP_DISPLAY_FALLBACKS[key] || '',
       template_key: key,
-      included_group_keys: key === 'combined' ? [...COMBINED_TEMPLATE_GROUP_KEYS] : [],
+      included_group_keys: key === COMBINED_INTERNAL_KEY ? [...COMBINED_TEMPLATE_GROUP_KEYS] : [],
+      is_combined: key === COMBINED_INTERNAL_KEY,
       is_active: true
     }) : null);
 }
@@ -498,10 +511,76 @@ function normalizeProposalDomain(raw) {
   return (v === 'N' || v === 'E') ? 'E' : 'Y';
 }
 
-function proposalGroupDisplayName(value) {
+function inferClientFacingTypeKeyFromText(value = '') {
   const raw = text(value);
   if (!raw) return '';
   const directAlias = PROPOSAL_GROUP_LEGACY_ALIASES[raw] || PROPOSAL_GROUP_LEGACY_ALIASES[normalizeHebrewQuoteVariants(raw)];
+  if (directAlias && PROPOSAL_GROUP_DISPLAY_FALLBACKS[directAlias]) return directAlias;
+  if (Object.prototype.hasOwnProperty.call(PROPOSAL_GROUP_DISPLAY_FALLBACKS, raw)) return raw;
+  const lowered = normalizeHebrewQuoteVariants(raw).toLowerCase();
+  if (/סיור|tour/.test(lowered)) return 'tour';
+  if (/קיץ|summer/.test(lowered)) return 'summer';
+  if (/תשפ|שנה הבאה|תוכניות|next[_-]?year/.test(lowered)) return 'next_year';
+  return '';
+}
+
+/** Resolve a displayable type key; never returns combined. */
+export function resolveClientFacingTypeKey(row = {}, items = []) {
+  const hints = [
+    row.template_key,
+    row.activity_type_group,
+    row.proposal_group,
+    row.document_type,
+    ...(Array.isArray(row.activity_names) ? row.activity_names : []),
+    ...(Array.isArray(items) ? items.flatMap((item) => [
+      item.item_name ?? item.itemName,
+      item.proposal_group ?? item.proposalGroup,
+      item.item_type ?? item.itemType
+    ]) : [])
+  ].map(text).filter(Boolean);
+
+  const hits = new Set();
+  hints.forEach((hint) => {
+    const key = inferClientFacingTypeKeyFromText(hint);
+    if (key) hits.add(key);
+  });
+
+  const normalized = normalizeProposalGroup(row.activity_type_group || row.proposal_group || '');
+  const isCombined = normalized === COMBINED_INTERNAL_KEY
+    || isCombinedProposalGroup(row.activity_type_group)
+    || /combined|משולב/i.test(text(row.activity_type_group));
+
+  if (isCombined) {
+    if (hits.size === 1) return [...hits][0];
+    return '';
+  }
+  if (hits.size === 1) return [...hits][0];
+  if (PROPOSAL_GROUP_DISPLAY_FALLBACKS[normalized]) return normalized;
+  return inferClientFacingTypeKeyFromText(row.activity_type_group || row.proposal_group || '');
+}
+
+/** User-facing proposal type label — only תשפ״ז / קיץ / סיור / —. */
+export function clientFacingProposalTypeLabel(row = {}, items = []) {
+  const key = resolveClientFacingTypeKey(row, items);
+  if (key && PROPOSAL_GROUP_DISPLAY_FALLBACKS[key]) return PROPOSAL_GROUP_DISPLAY_FALLBACKS[key];
+  const raw = text(row.activity_type_group || row.proposal_group || row.document_type || row.template_key);
+  if (raw) {
+    // eslint-disable-next-line no-console
+    console.warn('[client-file] unknown proposal type value', raw);
+  }
+  return '—';
+}
+
+function proposalGroupDisplayName(value) {
+  const raw = text(value);
+  if (!raw) return '';
+  if (/^combined$/i.test(raw) || /הצעה משולבת|משולב/.test(raw)) {
+    return clientFacingProposalTypeLabel({ activity_type_group: raw, document_type: raw });
+  }
+  const directAlias = PROPOSAL_GROUP_LEGACY_ALIASES[raw] || PROPOSAL_GROUP_LEGACY_ALIASES[normalizeHebrewQuoteVariants(raw)];
+  if (directAlias === COMBINED_INTERNAL_KEY) {
+    return clientFacingProposalTypeLabel({ activity_type_group: raw, document_type: raw });
+  }
   if (directAlias && PROPOSAL_GROUP_DISPLAY_FALLBACKS[directAlias]) {
     return PROPOSAL_GROUP_DISPLAY_FALLBACKS[directAlias];
   }
@@ -509,16 +588,25 @@ function proposalGroupDisplayName(value) {
     return PROPOSAL_GROUP_DISPLAY_FALLBACKS[raw];
   }
   const key = normalizeProposalGroup(raw);
+  if (key === COMBINED_INTERNAL_KEY) {
+    return clientFacingProposalTypeLabel({ activity_type_group: raw, document_type: raw });
+  }
   if (Object.prototype.hasOwnProperty.call(PROPOSAL_GROUP_DISPLAY_FALLBACKS, key)) {
     return PROPOSAL_GROUP_DISPLAY_FALLBACKS[key];
   }
   const meta = proposalGroupMeta(raw);
   const templateKey = text(meta?.template_key || meta?.group_key);
+  if (templateKey === COMBINED_INTERNAL_KEY) {
+    return clientFacingProposalTypeLabel({ activity_type_group: raw, template_key: templateKey, document_type: meta?.display_name });
+  }
   if (Object.prototype.hasOwnProperty.call(PROPOSAL_GROUP_DISPLAY_FALLBACKS, templateKey)) {
     return PROPOSAL_GROUP_DISPLAY_FALLBACKS[templateKey];
   }
   const label = userFacingProposalGroupLabel(meta?.display_name || '');
   const labelAlias = PROPOSAL_GROUP_LEGACY_ALIASES[label] || PROPOSAL_GROUP_LEGACY_ALIASES[normalizeHebrewQuoteVariants(label)];
+  if (labelAlias === COMBINED_INTERNAL_KEY) {
+    return clientFacingProposalTypeLabel({ activity_type_group: raw, document_type: label });
+  }
   if (labelAlias && PROPOSAL_GROUP_DISPLAY_FALLBACKS[labelAlias]) {
     return PROPOSAL_GROUP_DISPLAY_FALLBACKS[labelAlias];
   }
@@ -527,10 +615,10 @@ function proposalGroupDisplayName(value) {
   if (/תשפ|שנה הבאה|תוכניות|next[_-]?year/i.test(label) || /תשפ|שנה הבאה|תוכניות|next[_-]?year/i.test(raw)) {
     return PROPOSAL_GROUP_DISPLAY_FALLBACKS.next_year;
   }
-  if (label && label !== key && !/^[a-z][a-z0-9_]*$/i.test(label)) return label;
+  if (label && label !== key && !/^[a-z][a-z0-9_]*$/i.test(label) && !/combined|משולב/i.test(label)) return label;
   // eslint-disable-next-line no-console
   console.warn('[client-file] unknown proposal type value', raw);
-  return '';
+  return '—';
 }
 
 function resolveProposalTemplateKey(value) {
@@ -3659,16 +3747,17 @@ function showValidationNotice(form, errors, isPending) {
 
 export function proposalTypeCardsHtml(selected) {
   const normalizedSelected = normalizeProposalGroup(selected);
-  const options = proposalGroupLookups.groups.filter(o => o.group_key !== 'combined');
+  const options = proposalGroupLookups.groups.filter((o) => o.group_key !== COMBINED_INTERNAL_KEY && PROPOSAL_GROUP_DISPLAY_FALLBACKS[o.group_key]);
   if (!options.length) {
-    return `<div class="ds-pa-type-chips" data-pa-type-cards style="display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:4px;margin:0"></div><input type="hidden" name="activity_type_group" value="${escapeHtml(normalizedSelected)}" data-pa-type-hidden>`;
+    return `<div class="ds-pa-type-chips" data-pa-type-cards style="display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:4px;margin:0"></div><input type="hidden" name="activity_type_group" value="${escapeHtml(normalizedSelected === COMBINED_INTERNAL_KEY ? '' : normalizedSelected)}" data-pa-type-hidden>`;
   }
   return `<div class="ds-pa-type-chips" data-pa-type-cards style="display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:4px;margin:0">
     ${options.map((opt) => {
       const isSel = normalizedSelected === opt.group_key;
-      return `<button type="button" class="ds-pa-type-card${isSel ? ' is-selected' : ''}" data-pa-type-btn="${escapeHtml(opt.group_key)}" style="width:100%;min-height:auto;padding:4px 6px;border-radius:12px;border:1.5px solid ${isSel ? '#6366f1' : '#d1d5db'};background:${isSel ? '#eef2ff' : '#f9fafb'};color:${isSel ? '#4f46e5' : '#374151'};font-weight:${isSel ? '600' : '400'};font-size:0.8rem;cursor:pointer;text-align:center;line-height:1.2;transition:all .15s">${escapeHtml(opt.group_key === 'summer' ? 'קיץ' : opt.group_key === 'next_year' ? 'תשפ״ז' : opt.display_name)}</button>`;
+      const label = PROPOSAL_GROUP_DISPLAY_FALLBACKS[opt.group_key] || clientFacingProposalTypeLabel({ activity_type_group: opt.group_key, document_type: opt.display_name });
+      return `<button type="button" class="ds-pa-type-card${isSel ? ' is-selected' : ''}" data-pa-type-btn="${escapeHtml(opt.group_key)}" style="width:100%;min-height:auto;padding:4px 6px;border-radius:12px;border:1.5px solid ${isSel ? '#6366f1' : '#d1d5db'};background:${isSel ? '#eef2ff' : '#f9fafb'};color:${isSel ? '#4f46e5' : '#374151'};font-weight:${isSel ? '600' : '400'};font-size:0.8rem;cursor:pointer;text-align:center;line-height:1.2;transition:all .15s">${escapeHtml(label)}</button>`;
     }).join('')}
-  </div><input type="hidden" name="activity_type_group" value="${escapeHtml(normalizedSelected)}" data-pa-type-hidden>`;
+  </div><input type="hidden" name="activity_type_group" value="${escapeHtml(normalizedSelected === COMBINED_INTERNAL_KEY ? '' : normalizedSelected)}" data-pa-type-hidden>`;
 }
 
 function proposalStepperHtml() {
@@ -4102,9 +4191,196 @@ function dedupeById(rows) {
   });
 }
 
+function normalizedSemanticPart(value) {
+  return text(value)
+    .toLowerCase()
+    .normalize('NFKD')
+    .replace(/[\u0591-\u05C7]/g, '')
+    .replace(/[״"׳`]/g, "'")
+    .replace(/\s+/g, ' ')
+    .trim();
+}
+
+function proposalItemsForSemantic(row = {}, itemsByProposalId = {}) {
+  const id = text(row?.id);
+  const fromMap = id && itemsByProposalId ? itemsByProposalId[id] : null;
+  if (Array.isArray(fromMap) && fromMap.length) return fromMap;
+  const snapItems = row?.document_snapshot && Array.isArray(row.document_snapshot.items)
+    ? row.document_snapshot.items
+    : [];
+  if (snapItems.length) return snapItems;
+  const fromJson = parseProposalItemsJsonFallback(row);
+  if (fromJson.length) return fromJson;
+  return [];
+}
+
+function itemsSemanticSignature(items = []) {
+  const normalized = (Array.isArray(items) ? items : []).map((item) => ([
+    normalizedSemanticPart(item.item_name ?? item.itemName),
+    normalizedSemanticPart(item.gefen_number ?? item.gefenNumber),
+    String(Number(item.quantity) || 0),
+    String(Number(item.unit_price ?? item.unitPrice) || 0),
+    String(Number(item.total_price ?? item.totalPrice) || 0),
+    String(Number(item.sort_order ?? item.sortOrder) || 0)
+  ].join('\u001f'))).filter((line) => line.replace(/\u001f/g, '').trim()).sort();
+  return normalized.join('\u001e');
+}
+
+/** Stable key for semantic duplicates (same client/school/type/date/amount/status/items). */
+export function semanticDuplicateKey(row = {}, items = []) {
+  const authorityId = text(row.authority_id);
+  const schoolId = text(row.school_id || row.contact_school_id);
+  const semel = text(row.semel_mosad);
+  const authority = normalizedSemanticPart(row.client_authority || row.authority_name || row.authority);
+  const school = normalizedSemanticPart(row.school_framework || row.school_name || row.school);
+  const typeKey = resolveClientFacingTypeKey(row, items) || normalizedSemanticPart(row.activity_type_group);
+  const date = text(row.proposal_date).slice(0, 10);
+  const amount = String(Number(row.total_amount) || 0);
+  const status = normalizeProposalStatus(row.status || 'draft');
+  const version = String(Math.max(1, Number(row.version_number) || 1));
+  const series = text(row.proposal_series_id);
+  const itemSig = itemsSemanticSignature(items);
+  return [
+    authorityId || authority,
+    schoolId || semel || school,
+    typeKey,
+    date,
+    amount,
+    status,
+    series,
+    version,
+    itemSig
+  ].join('|');
+}
+
+function semanticSoftKey(row = {}) {
+  const authorityId = text(row.authority_id);
+  const schoolId = text(row.school_id || row.contact_school_id);
+  const semel = text(row.semel_mosad);
+  const authority = normalizedSemanticPart(row.client_authority || row.authority_name || row.authority);
+  const school = normalizedSemanticPart(row.school_framework || row.school_name || row.school);
+  const typeKey = resolveClientFacingTypeKey(row, proposalItemsForSemantic(row)) || normalizedSemanticPart(row.activity_type_group);
+  const date = text(row.proposal_date).slice(0, 10);
+  const amount = String(Number(row.total_amount) || 0);
+  const status = normalizeProposalStatus(row.status || 'draft');
+  const version = String(Math.max(1, Number(row.version_number) || 1));
+  const series = text(row.proposal_series_id);
+  return [authorityId || authority, schoolId || semel || school, typeKey, date, amount, status, series, version].join('|');
+}
+
+function semanticCanonicalScore(row = {}) {
+  const hasPdf = Boolean(text(row.final_pdf_path) || text(row.final_pdf_file_name));
+  const hasSnapshot = Boolean(
+    (row.document_snapshot && typeof row.document_snapshot === 'object')
+    || text(row.document_html_snapshot)
+  );
+  const hasSentAt = Boolean(text(row.sent_at));
+  const identityFilled = [row.contact_school_id, row.school_id, row.authority_id].filter((v) => text(v)).length;
+  const updated = Date.parse(text(row.updated_at)) || 0;
+  const created = Date.parse(text(row.created_at)) || 0;
+  return [
+    hasPdf ? 1 : 0,
+    hasSnapshot ? 1 : 0,
+    hasSentAt ? 1 : 0,
+    identityFilled,
+    updated,
+    created,
+    text(row.id)
+  ];
+}
+
+function compareSemanticCanonical(a, b) {
+  const sa = semanticCanonicalScore(a);
+  const sb = semanticCanonicalScore(b);
+  for (let i = 0; i < sa.length; i += 1) {
+    if (sa[i] === sb[i]) continue;
+    if (typeof sa[i] === 'string') return String(sb[i]).localeCompare(String(sa[i]));
+    return sb[i] > sa[i] ? 1 : -1;
+  }
+  return 0;
+}
+
+/**
+ * Display-only collapse of semantic duplicates. Does not delete rows from storage.
+ * Returns { rows, duplicateIds }.
+ */
+export function collapseSemanticDuplicates(rows = [], itemsByProposalId = {}) {
+  const list = dedupeById(Array.isArray(rows) ? rows : []);
+  const softGroups = new Map();
+  list.forEach((row) => {
+    const soft = semanticSoftKey(row);
+    if (!softGroups.has(soft)) softGroups.set(soft, []);
+    softGroups.get(soft).push(row);
+  });
+
+  const kept = [];
+  const duplicateIds = [];
+
+  softGroups.forEach((group) => {
+    if (group.length === 1) {
+      kept.push(group[0]);
+      return;
+    }
+    const withItems = group.map((row) => {
+      const items = proposalItemsForSemantic(row, itemsByProposalId);
+      return { row, items, itemSig: itemsSemanticSignature(items), fullKey: semanticDuplicateKey(row, items) };
+    });
+    const nonEmptySigs = [...new Set(withItems.map((entry) => entry.itemSig).filter(Boolean))];
+    const buckets = new Map();
+    withItems.forEach((entry) => {
+      let bucketKey = entry.fullKey;
+      if (!entry.itemSig && nonEmptySigs.length === 1) {
+        bucketKey = semanticDuplicateKey(entry.row, withItems.find((other) => other.itemSig)?.items || []);
+      } else if (!entry.itemSig && nonEmptySigs.length > 1) {
+        bucketKey = `${semanticSoftKey(entry.row)}|__empty__|${text(entry.row.id)}`;
+      }
+      if (!buckets.has(bucketKey)) buckets.set(bucketKey, []);
+      buckets.get(bucketKey).push(entry.row);
+    });
+    buckets.forEach((bucket) => {
+      const sorted = [...bucket].sort(compareSemanticCanonical);
+      kept.push(sorted[0]);
+      sorted.slice(1).forEach((dup) => {
+        const id = text(dup.id);
+        if (id) duplicateIds.push(id);
+      });
+    });
+  });
+
+  return {
+    rows: sortRows(kept),
+    duplicateIds
+  };
+}
+
+function indexProposalItemsById(data = {}) {
+  const map = {};
+  const push = (proposalId, item) => {
+    const id = text(proposalId);
+    if (!id) return;
+    if (!map[id]) map[id] = [];
+    map[id].push(item);
+  };
+  (Array.isArray(data?.proposalAgreementItems) ? data.proposalAgreementItems : []).forEach((item) => {
+    push(item.proposal_agreement_id ?? item.proposalAgreementId, item);
+  });
+  (Array.isArray(data?.rows) ? data.rows : []).forEach((row) => {
+    const id = text(row?.id);
+    if (!id || map[id]?.length) return;
+    const items = proposalItemsForSemantic(row, {});
+    if (items.length) map[id] = items;
+  });
+  return map;
+}
+
 function allDisplayRows(data) {
   const rows = Array.isArray(data?.rows) ? data.rows : [];
-  return dedupeById(sortRows(rows));
+  const itemsByProposalId = data?._itemsByProposalId || indexProposalItemsById(data);
+  const collapsed = collapseSemanticDuplicates(sortRows(rows), itemsByProposalId);
+  if (Array.isArray(data?._semanticDuplicateIds)) {
+    data._semanticDuplicateIds = collapsed.duplicateIds;
+  }
+  return collapsed.rows;
 }
 
 function normalizedClientPart(value) {
@@ -4197,22 +4473,22 @@ function isArchivedClientProposal(row, allRows = []) {
   return false;
 }
 
-function proposalCompactCardHtml(row, { archived = false } = {}) {
+function proposalCompactCardHtml(row, { archived = false, canManage = false } = {}) {
   const status = normalizeProposalStatus(row.status);
   const version = Math.max(1, Number(row.version_number) || 1);
   const amount = row.total_amount != null ? `₪${escapeHtml(formatCurrency(row.total_amount))}` : '';
-  const typeLabel = proposalGroupDisplayName(row.activity_type_group) || '—';
+  const typeLabel = clientFacingProposalTypeLabel(row) || '—';
   const hasPdf = Boolean(text(row.final_pdf_path) || text(row.final_pdf_file_name));
   return `<article class="ds-client-proposal${archived ? ' is-archived' : ''}">
-    <button type="button" class="ds-client-proposal__main" data-pa-row-id="${escapeHtml(row.id)}" aria-label="פתיחת הצעה">
+    <button type="button" class="ds-client-proposal__main" data-pa-open-proposal-id="${escapeHtml(row.id)}" aria-label="פתיחת הצעה">
       <span class="ds-client-proposal__icon" aria-hidden="true">📄</span>
       <span><strong>${escapeHtml(typeLabel)}</strong><small>${escapeHtml(formatDateDisplay(row.proposal_date || row.created_at))} · ${escapeHtml(STATUS_LABELS[status] || status)}${version > 1 ? ` · גרסה ${version}` : ''}</small></span>
       ${amount ? `<b>${amount}</b>` : ''}
     </button>
     <div class="ds-client-proposal__actions">
-      <button type="button" class="ds-client-proposal__version" data-pa-row-id="${escapeHtml(row.id)}">צפייה</button>
+      <button type="button" class="ds-client-proposal__version" data-pa-open-proposal-id="${escapeHtml(row.id)}">צפייה</button>
       ${hasPdf ? `<button type="button" class="ds-client-proposal__version" data-pa-view-final-pdf="${escapeHtml(row.id)}">PDF</button>` : ''}
-      ${!archived ? `<button type="button" class="ds-client-proposal__version" data-pa-clone-row="${escapeHtml(row.id)}" title="יצירת גרסה חדשה">גרסה חדשה</button>` : ''}
+      ${!archived && canManage ? `<button type="button" class="ds-client-proposal__version" data-pa-clone-row="${escapeHtml(row.id)}" title="יצירת גרסה חדשה">גרסה חדשה</button>` : ''}
     </div>
   </article>`;
 }
@@ -4221,7 +4497,7 @@ function clientQueueCardHtml(row) {
   const fileKey = clientFileKey(row);
   const school = text(row.school_framework) || text(row.school_name) || '';
   const authority = text(row.client_authority) || text(row.authority_name) || '';
-  const typeLabel = proposalGroupDisplayName(row.activity_type_group) || '—';
+  const typeLabel = clientFacingProposalTypeLabel(row) || '—';
   return `<button type="button" class="ds-client-queue-item" data-pa-open-client="${escapeHtml(fileKey)}" data-pa-open-proposal="${escapeHtml(row.id)}">
     <strong>${escapeHtml(school || authority || 'לקוח ללא שם')}</strong>
     <span>${escapeHtml([authority && school ? authority : '', typeLabel, formatDateDisplay(row.proposal_date || row.created_at), row.total_amount != null ? `₪${formatCurrency(row.total_amount)}` : ''].filter(Boolean).join(' · '))}</span>
@@ -4236,17 +4512,22 @@ const CLIENT_QUEUE_COLUMNS = [
 ];
 
 function clientFileLandingHtml(data = {}, state = {}) {
-  const activeRows = allDisplayRows(data).filter((row) => !isArchivedClientProposal(row, allDisplayRows(data)));
+  const displayRowsList = allDisplayRows(data);
+  const activeRows = displayRowsList.filter((row) => !isArchivedClientProposal(row, displayRowsList));
   const queues = CLIENT_QUEUE_COLUMNS.map(([status, label]) => {
     const rows = activeRows.filter((row) => normalizeProposalStatus(row.status) === status);
     return `<section class="ds-client-queue"><header><span>${escapeHtml(label)}</span><b>${rows.length}</b></header><div>${rows.length ? rows.map(clientQueueCardHtml).join('') : '<p>אין הצעות</p>'}</div></section>`;
   }).join('');
   const canManage = canManageProposalsAgreements(state);
   return `<div class="ds-client-home" data-pa-client-home>
-    <div class="ds-client-search-row">
-      <label class="ds-client-search"><span class="sr-only">חיפוש תיק לקוח</span><input class="ds-input" data-pa-client-search placeholder="חיפוש רשות, בית ספר, סמל מוסד או איש קשר…" autocomplete="off"></label>
-      <button type="button" class="ds-btn ds-btn--ghost ds-client-secondary" data-pa-client-all-proposals>כל ההצעות</button>
-      ${canManage ? '<button type="button" class="ds-btn ds-btn--ghost ds-client-secondary" data-pa-client-add-other title="חברה, עמותה או גוף שאינם בית ספר או רשות קיימים">+ לקוח אחר</button>' : ''}
+    <div class="ds-client-toolbar">
+      <div class="ds-client-search-row">
+        <label class="ds-client-search"><span class="sr-only">חיפוש תיק לקוח</span><input class="ds-input" data-pa-client-search placeholder="חיפוש לפי רשות, בית ספר, סמל מוסד, איש קשר, נייד או דוא״ל" autocomplete="off"></label>
+      </div>
+      <div class="ds-client-actions">
+        <button type="button" class="ds-btn ds-btn--ghost ds-client-secondary" data-pa-client-all-proposals>כל ההצעות</button>
+        ${canManage ? '<button type="button" class="ds-btn ds-btn--ghost ds-client-secondary" data-pa-client-add-other title="חברה, עמותה או גוף שאינם בית ספר או רשות קיימים">+ לקוח אחר</button>' : ''}
+      </div>
     </div>
     <div class="ds-client-search-results" data-pa-client-search-results hidden></div>
     <div class="ds-client-queues" data-pa-client-queues>${queues}</div>
@@ -4280,7 +4561,7 @@ function clientContactsHtml(file = {}, canManage = false) {
 
 function selectedClientFileHtml(file, state = {}) {
   const canManage = canManageProposalsAgreements(state);
-  const proposals = dedupeById(file.proposals || []);
+  const proposals = collapseSemanticDuplicates(dedupeById(file.proposals || []), {}).rows;
   const current = proposals.filter((row) => !isArchivedClientProposal(row, proposals));
   const archive = proposals.filter((row) => isArchivedClientProposal(row, proposals));
   return `<div class="ds-client-file" data-pa-client-file="${escapeHtml(file.key)}">
@@ -4297,9 +4578,9 @@ function selectedClientFileHtml(file, state = {}) {
     </section>
     <aside class="ds-client-file__proposals">
       <div class="ds-client-file__proposals-head"><h3>הצעות עדכניות</h3>${canManage ? '<button type="button" class="ds-btn ds-btn--sm ds-btn--primary" data-pa-client-add-proposal>＋ הצעה</button>' : ''}</div>
-      <div>${current.length ? current.map((row) => proposalCompactCardHtml(row)).join('') : '<p class="ds-client-empty">אין הצעות עדכניות</p>'}</div>
+      <div>${current.length ? current.map((row) => proposalCompactCardHtml(row, { canManage })).join('') : '<p class="ds-client-empty">אין הצעות עדכניות</p>'}</div>
       <hr>
-      <details class="ds-client-archive"><summary>ארכיון הצעות מחיר — ${archive.length}</summary><div>${archive.length ? archive.map((row) => proposalCompactCardHtml(row, { archived: true })).join('') : '<p class="ds-client-empty">הארכיון ריק</p>'}</div></details>
+      <details class="ds-client-archive"><summary>ארכיון הצעות מחיר — ${archive.length}</summary><div>${archive.length ? archive.map((row) => proposalCompactCardHtml(row, { archived: true, canManage })).join('') : '<p class="ds-client-empty">הארכיון ריק</p>'}</div></details>
     </aside>
   </div>`;
 }
@@ -4317,6 +4598,89 @@ function clientContactEditorHtml(file, contact = {}, index = -1) {
       <p data-pa-client-contact-error role="alert"></p>
       <div><button type="submit" class="ds-btn ds-btn--primary">שמירה</button><button type="button" class="ds-btn" data-pa-client-contact-close>ביטול</button></div>
     </form>
+  </div>`;
+}
+
+function uniqueSortedLabels(values = []) {
+  return [...new Set(values.map(text).filter(Boolean))].sort((a, b) => a.localeCompare(b, 'he'));
+}
+
+function readAllClientProposalFilters(form) {
+  if (!form) return {};
+  const get = (name) => text(form.elements?.[name]?.value || form.querySelector(`[name="${name}"]`)?.value);
+  return {
+    q: get('q'),
+    authority: get('authority'),
+    school: get('school'),
+    type: get('type'),
+    status: get('status'),
+    from: get('from'),
+    to: get('to')
+  };
+}
+
+function filterAllClientProposals(rows = [], filters = {}) {
+  const q = normalizedClientPart(filters.q);
+  return rows.filter((row) => {
+    if (filters.authority && text(row.client_authority || row.authority_name) !== filters.authority) return false;
+    if (filters.school && text(row.school_framework || row.school_name) !== filters.school) return false;
+    if (filters.type) {
+      const typeKey = resolveClientFacingTypeKey(row);
+      if (typeKey !== filters.type) return false;
+    }
+    if (filters.status && normalizeProposalStatus(row.status) !== filters.status) return false;
+    const date = text(row.proposal_date || row.created_at).slice(0, 10);
+    if (filters.from && date && date < filters.from) return false;
+    if (filters.to && date && date > filters.to) return false;
+    if (q) {
+      const hay = [
+        row.client_authority, row.authority_name, row.school_framework, row.school_name,
+        clientFacingProposalTypeLabel(row), STATUS_LABELS[normalizeProposalStatus(row.status)],
+        row.quote_number, row.total_amount
+      ].map(normalizedClientPart).join(' ');
+      if (!hay.includes(q)) return false;
+    }
+    return true;
+  }).sort((a, b) => text(b.proposal_date || b.created_at).localeCompare(text(a.proposal_date || a.created_at)));
+}
+
+function allClientProposalsListHtml(rows = [], allRows = []) {
+  if (!rows.length) return '<p class="ds-client-empty" data-pa-client-all-list>לא נמצאו הצעות לסינון זה</p>';
+  return rows.map((row) => {
+    const school = text(row.school_framework) || text(row.school_name) || '—';
+    const authority = text(row.client_authority) || text(row.authority_name) || '—';
+    const typeLabel = clientFacingProposalTypeLabel(row) || '—';
+    const status = normalizeProposalStatus(row.status);
+    const archived = isArchivedClientProposal(row, allRows);
+    return `<button type="button" class="ds-client-queue-item" data-pa-open-client="${escapeHtml(clientFileKey(row))}" data-pa-open-proposal="${escapeHtml(row.id)}">
+      <strong>${escapeHtml(authority)} · ${escapeHtml(school)}</strong>
+      <span>${escapeHtml([typeLabel, formatDateDisplay(row.proposal_date || row.created_at), STATUS_LABELS[status] || status, archived ? 'ארכיון' : '', row.total_amount != null ? `₪${formatCurrency(row.total_amount)}` : ''].filter(Boolean).join(' · '))}</span>
+    </button>`;
+  }).join('');
+}
+
+function allClientProposalsViewHtml(data = {}, filters = {}) {
+  const allRows = allDisplayRows(data);
+  const authorities = uniqueSortedLabels(allRows.map((row) => row.client_authority || row.authority_name));
+  const schools = uniqueSortedLabels(allRows.map((row) => row.school_framework || row.school_name));
+  const filtered = filterAllClientProposals(allRows, filters);
+  const statusOptions = Object.entries(STATUS_LABELS).map(([value, label]) => ({ value, label }));
+  return `<div class="ds-client-all" data-pa-client-all>
+    <div class="ds-client-search-row">
+      <button type="button" class="ds-btn ds-btn--ghost" data-pa-client-close>× חזרה</button>
+      <strong data-pa-client-all-count>כל ההצעות · ${filtered.length}</strong>
+    </div>
+    <form class="ds-client-all-filters" data-pa-client-all-filters>
+      <label><span class="sr-only">חיפוש</span><input class="ds-input" name="q" type="search" placeholder="חיפוש חופשי" value="${escapeHtml(filters.q || '')}" autocomplete="off"></label>
+      <label><span>רשות</span><select class="ds-input" name="authority"><option value="">הכול</option>${authorities.map((v) => `<option value="${escapeHtml(v)}"${filters.authority === v ? ' selected' : ''}>${escapeHtml(v)}</option>`).join('')}</select></label>
+      <label><span>בית ספר / גוף</span><select class="ds-input" name="school"><option value="">הכול</option>${schools.map((v) => `<option value="${escapeHtml(v)}"${filters.school === v ? ' selected' : ''}>${escapeHtml(v)}</option>`).join('')}</select></label>
+      <label><span>סוג הצעה</span><select class="ds-input" name="type"><option value="">הכול</option>${CLIENT_FACING_TYPE_OPTIONS.map((t) => `<option value="${escapeHtml(t.value)}"${filters.type === t.value ? ' selected' : ''}>${escapeHtml(t.label)}</option>`).join('')}</select></label>
+      <label><span>סטטוס</span><select class="ds-input" name="status"><option value="">הכול</option>${statusOptions.map((s) => `<option value="${escapeHtml(s.value)}"${filters.status === s.value ? ' selected' : ''}>${escapeHtml(s.label)}</option>`).join('')}</select></label>
+      <label><span>מתאריך</span><input class="ds-input" type="date" name="from" value="${escapeHtml(filters.from || '')}"></label>
+      <label><span>עד תאריך</span><input class="ds-input" type="date" name="to" value="${escapeHtml(filters.to || '')}"></label>
+      <button type="button" class="ds-btn ds-btn--ghost" data-pa-client-clear-all-filters>ניקוי סינונים</button>
+    </form>
+    <div class="ds-client-all-list" data-pa-client-all-list>${allClientProposalsListHtml(filtered, allRows)}</div>
   </div>`;
 }
 
@@ -4394,14 +4758,6 @@ function updateProposalListTabCounts(root, data) {
 }
 
 
-
-function proposalsScreenSummaryText(rows = []) {
-  const normalized = (Array.isArray(rows) ? rows : []).map((row) => normalizeProposalStatus(row.status));
-  const total = normalized.length;
-  const waiting = normalized.filter((status) => status === 'pending_approval' || status === 'returned_for_changes').length;
-  const sent = normalized.filter((status) => status === 'sent').length;
-  return `${total} הצעות | ${waiting} ממתינות לטיפול | ${sent} נשלחו`;
-}
 
 function setDocumentEditMode(root, enabled) {
   const drawer = root?.querySelector('[data-pa-drawer]');
@@ -4764,7 +5120,12 @@ export {
   stepComplete,
   selectedRecipientType,
   hideSchoolSearchPanel,
-  upsertProposalContactOption
+  upsertProposalContactOption,
+  proposalGroupDisplayName,
+  isArchivedClientProposal,
+  allClientProposalsViewHtml,
+  filterAllClientProposals,
+  readAllClientProposalFilters
 };
 
 // ─── Screen ───────────────────────────────────────────────────────────────────
@@ -4785,9 +5146,8 @@ export const proposalsAgreementsScreen = {
     const sentCount = rowsForProposalListView(data, 'sent').length;
     const proposalGroupFilterOptions = proposalGroupOptions(data, Array.isArray(data?.rows) ? data.rows : [], Array.isArray(data?.proposalActivityPricing) ? data.proposalActivityPricing : []);
     const canManage = canManageProposalsAgreements(state);
-    const rawRows = Array.isArray(data?.rows) ? data.rows.map(normalizeProposalAgreementRow) : [];
     return dsScreenStack(`
-      ${dsPageHeader('תיק לקוח', proposalsScreenSummaryText(rawRows))}
+      ${dsPageHeader('תיק לקוח')}
       <section class="ds-pa-screen" data-pa-screen dir="rtl">
         <style>
           .ds-pa-screen-tab{border-radius:10px 10px 0 0;transition:background .15s,color .15s,border-color .15s}.ds-pa-screen-tab:hover{background:rgba(14,165,233,.08)}.ds-pa-tab-count{display:inline-flex;min-width:19px;height:19px;padding:0 5px;align-items:center;justify-content:center;border-radius:999px;background:#e2e8f0;color:#475569;font-size:.72rem;margin-inline-start:4px}.ds-pa-screen-tab.is-active .ds-pa-tab-count{background:#dbeafe;color:#1d4ed8}
@@ -4795,8 +5155,8 @@ export const proposalsAgreementsScreen = {
           .ds-pa-item-quick-row{display:grid;grid-template-columns:minmax(0,1fr) 96px;gap:6px;align-items:end}.ds-pa-item-extra{margin-top:4px}.ds-pa-item-extra-toggle{cursor:pointer;color:#2563eb;font-size:.78rem}.ds-pa-type-chips{grid-template-columns:repeat(2,minmax(0,1fr))}.ds-pa-type-card{min-height:28px!important;padding:3px 5px!important;font-size:.76rem!important}.ds-pa-summary-bar--compact{display:flex;align-items:center;gap:8px;justify-content:space-between}.ds-pa-summary-bar--compact .ds-pa-summary-pill{flex:1}.ds-pa-item-field--select select{overflow:hidden;text-overflow:ellipsis}.ds-pa-item-field--select-no-label{gap:0}.ds-pa-item-field span{display:block;font-size:.74rem;color:#64748b;margin-bottom:3px;font-weight:600}.ds-pa-line-total output{min-height:34px;display:flex;align-items:center;justify-content:center;border:1px solid #dbe7f3;border-radius:10px;background:#f8fbff;font-weight:700;color:#0f766e}.ds-pa-items-total-row{margin-top:10px;padding:10px 12px;border-radius:12px;background:#eef8ff;font-size:.9rem}.ds-pa-items-total-row strong{color:#0369a1}
           .ds-pa-bundle-prompt{margin-top:12px}.ds-pa-bundle-panel{border:1px solid #b7e0f5;background:#f8fdff;border-radius:14px;padding:12px}.ds-pa-bundle-head{display:flex;justify-content:space-between;gap:10px;align-items:center;margin-bottom:6px}.ds-pa-bundle-head strong{font-size:.9rem;color:#0f172a}.ds-pa-bundle-head span,.ds-pa-bundle-help,.ds-pa-bundle-empty{font-size:.78rem;color:#64748b}.ds-pa-bundle-grid{display:grid;grid-template-columns:repeat(auto-fit,minmax(220px,1fr));gap:8px;margin-top:10px}.ds-pa-bundle-child-card{display:grid;grid-template-columns:auto 1fr auto;align-items:center;gap:8px;border:1px solid #dbe7f3;border-radius:12px;background:#fff;padding:9px 10px;cursor:pointer;min-height:42px}.ds-pa-bundle-child-card:hover{border-color:#38bdf8;background:#f0f9ff}.ds-pa-bundle-child-card:has(input:checked){border-color:#0ea5e9;background:#e0f2fe;box-shadow:0 0 0 1px #0ea5e9 inset}.ds-pa-bundle-child-name{font-size:.82rem;color:#0f172a;line-height:1.25}.ds-pa-bundle-child-price{font-size:.8rem;font-weight:700;color:#0f766e;white-space:nowrap}.ds-pa-bundle-footer{display:flex;justify-content:space-between;align-items:center;gap:10px;margin-top:10px;flex-wrap:wrap}.ds-pa-bundle-actions{display:flex;gap:6px}.ds-pa-bundle-selection-summary{font-size:.78rem;color:#0369a1;font-weight:700}.ds-pa-summary-bundle-list{margin:4px 0 0;padding-right:16px;font-size:.72rem}.ds-pa-items-summary-table{width:100%;border-collapse:collapse;font-size:.78rem}.ds-pa-items-summary-table th,.ds-pa-items-summary-table td{border-bottom:1px solid #e5eef6;padding:6px;text-align:right}.ds-pa-items-summary-table th{color:#64748b;font-weight:700;background:#f8fbff}
           .ds-pa-active-filters{display:flex;flex-wrap:wrap;align-items:center;gap:6px 8px;border:1px solid #dbe7f3;background:#f8fbff;border-radius:10px;padding:6px 10px;margin:8px 0 10px}.ds-pa-active-filters[hidden]{display:none}.ds-pa-active-filters-label{color:#475569;font-weight:700;font-size:.82rem;flex-shrink:0}.ds-pa-active-filter-chips{display:flex;flex-wrap:wrap;gap:6px}.ds-pa-active-filter-chip{border:1px solid #bfdbfe;background:#eff6ff;color:#1e3a8a;border-radius:999px;padding:3px 9px;font-size:.78rem}.ds-pa-active-filters [data-pa-clear-filters]{margin-inline-start:auto}.ds-pa-filtered-empty{margin:12px;border:1px solid #fed7aa;background:#fff7ed;color:#9a3412;border-radius:12px;padding:14px;text-align:center}.ds-pa-filtered-empty p{margin:0 0 10px;font-weight:700}
-          .ds-pa-legacy-list{display:none!important}.ds-client-workspace{max-width:1180px;margin:0 auto}.ds-client-home{padding:16px 10px 8px}.ds-client-search-row{display:flex;justify-content:center;align-items:center;gap:14px;max-width:650px;margin:0 auto 26px}.ds-client-search{flex:1}.ds-client-search input{height:44px;border:2px solid #0797bf;border-radius:999px;padding-inline:20px;background:#fff}.ds-client-add{width:42px;height:42px;border:0;background:transparent;color:#0797bf;font-size:2rem;cursor:pointer}.ds-client-search-results{max-width:760px;margin:-16px auto 24px;border:1px solid #b7ddeb;background:#fff;border-radius:16px;box-shadow:0 12px 30px rgba(15,67,87,.12);padding:6px;max-height:380px;overflow:auto}.ds-client-search-result{display:flex;width:100%;justify-content:space-between;align-items:center;text-align:right;padding:12px 14px;border:0;border-bottom:1px solid #e6f1f5;background:#fff;cursor:pointer;border-radius:10px}.ds-client-search-result:hover{background:#eefaff}.ds-client-search-result span{color:#64748b;font-size:.8rem}.ds-client-queues{display:grid;grid-template-columns:repeat(4,minmax(190px,1fr));gap:18px}.ds-client-queue{border:2px solid #0797bf;border-radius:16px;background:#fff;min-height:210px;overflow:hidden}.ds-client-queue header{display:flex;justify-content:space-between;align-items:center;padding:12px 14px;background:#eefaff;color:#05789a}.ds-client-queue header b{display:inline-grid;place-items:center;min-width:24px;height:24px;border-radius:999px;background:#0797bf;color:#fff}.ds-client-queue>div{padding:8px}.ds-client-queue>div>p,.ds-client-empty,.ds-client-search-empty{text-align:center;color:#94a3b8;font-size:.84rem}.ds-client-queue-item{display:block;width:100%;text-align:right;border:0;border-bottom:1px solid #e5eef2;background:#fff;padding:10px 8px;cursor:pointer}.ds-client-queue-item:hover{background:#f0fbff}.ds-client-queue-item strong,.ds-client-queue-item span{display:block}.ds-client-queue-item span{font-size:.75rem;color:#64748b;margin-top:3px}.ds-client-home__hint{text-align:center;color:#64748b;font-size:.8rem;margin-top:16px}.ds-client-file{position:relative;display:grid;grid-template-columns:minmax(0,1fr) 350px;gap:26px;border:2px solid #0797bf;border-radius:18px;background:#fff;padding:32px;margin:14px 4px;box-shadow:0 8px 28px rgba(15,67,87,.08)}.ds-client-file__close{position:absolute;top:10px;left:12px;border:0;background:transparent;color:#dc2626;font-size:1.05rem;cursor:pointer}.ds-client-file__identity>p{display:grid;grid-template-columns:120px 1fr;gap:10px;margin:0 0 12px}.ds-client-file__identity>p span,.ds-client-file h3{color:#0788ad;font-weight:700}.ds-client-file__contacts-head,.ds-client-file__proposals-head{display:flex;justify-content:space-between;align-items:center;margin-top:22px}.ds-client-file h3{margin:0;font-size:1.05rem}.ds-client-contacts{display:grid;gap:8px;margin-top:10px}.ds-client-contact{display:grid;grid-template-columns:minmax(130px,1fr) minmax(180px,1fr) auto;gap:14px;align-items:center;padding:10px 12px;border:1px solid #d7eaf1;border-radius:12px;background:#fbfeff}.ds-client-contact strong,.ds-client-contact span,.ds-client-contact a{display:block}.ds-client-contact span,.ds-client-contact a{font-size:.8rem;color:#64748b}.ds-client-contact button{border:0;background:transparent;color:#0788ad;cursor:pointer;font-size:1rem}.ds-client-file__proposals{border:2px solid #0797bf;border-radius:16px;padding:16px;background:#fbfeff;align-self:start}.ds-client-file__proposals-head{margin:0 0 10px}.ds-client-file__proposals hr{border:0;border-top:1px solid #1f2937;margin:20px 10px}.ds-client-proposal{border:1px solid #d7eaf1;background:#fff;border-radius:12px;margin:8px 0;padding:5px}.ds-client-proposal.is-archived{opacity:.78}.ds-client-proposal__main{display:grid;grid-template-columns:auto 1fr auto;gap:8px;align-items:center;width:100%;text-align:right;border:0;background:transparent;padding:7px;cursor:pointer}.ds-client-proposal__main span strong,.ds-client-proposal__main span small{display:block}.ds-client-proposal__main small{color:#64748b;font-size:.7rem;margin-top:2px}.ds-client-proposal__main b{font-size:.76rem;color:#0f766e}.ds-client-proposal__version{display:block;margin-inline-start:auto;border:0;background:transparent;color:#0788ad;font-size:.72rem;cursor:pointer;padding:2px 7px}.ds-client-archive summary{cursor:pointer;color:#64748b;font-weight:700;font-size:.84rem}.ds-client-archive summary b{display:inline-grid;place-items:center;min-width:20px;height:20px;border-radius:999px;background:#e2e8f0;margin-inline-start:4px}.ds-client-contact-modal{position:fixed;inset:0;z-index:10000;display:grid;place-items:center;background:rgba(15,23,42,.45);padding:20px}.ds-client-contact-form{position:relative;width:min(520px,100%);display:grid;grid-template-columns:1fr 1fr;gap:12px;background:#fff;border-radius:18px;padding:26px;box-shadow:0 24px 60px rgba(15,23,42,.25)}.ds-client-contact-form h3,.ds-client-contact-form>div,.ds-client-contact-form>p{grid-column:1/-1}.ds-client-contact-form label{display:grid;gap:5px;font-size:.8rem;color:#475569}.ds-client-contact-form>p{color:#dc2626;margin:0}.ds-client-contact-form>div{display:flex;gap:8px;justify-content:flex-start}
-          @media (max-width:1000px){.ds-client-queues{grid-template-columns:repeat(2,1fr)}.ds-client-file{grid-template-columns:1fr}.ds-client-file__proposals{width:auto}}@media (max-width:900px){.ds-pa-bundle-grid{grid-template-columns:1fr}}@media (max-width:640px){.ds-pa-type-chips{grid-template-columns:repeat(2,minmax(0,1fr))}.ds-pa-item-quick-row{grid-template-columns:1fr}.ds-client-queues{grid-template-columns:1fr}.ds-client-file{padding:26px 16px}.ds-client-contact{grid-template-columns:1fr auto}.ds-client-contact__channels{grid-column:1/-1}.ds-client-contact-form{grid-template-columns:1fr}}
+          .ds-pa-legacy-list{display:none!important}.ds-client-workspace{max-width:1180px;margin:0 auto}.ds-client-home{padding:12px 10px 8px}.ds-client-toolbar{display:flex;flex-direction:column;align-items:center;gap:12px;width:100%;max-width:100%;margin:0 auto 22px}.ds-client-search-row{display:flex;justify-content:center;width:100%;margin:0}.ds-client-search{display:block;width:min(100%,480px);margin:0 auto}.ds-client-search input{display:block;width:100%;height:44px;border:2px solid #0797bf;border-radius:999px;padding-inline:20px;background:#fff;box-sizing:border-box}.ds-client-actions{display:flex;justify-content:center;flex-wrap:wrap;gap:10px}.ds-client-add{width:42px;height:42px;border:0;background:transparent;color:#0797bf;font-size:2rem;cursor:pointer}.ds-client-search-results{max-width:760px;margin:0 auto 18px;border:1px solid #b7ddeb;background:#fff;border-radius:16px;box-shadow:0 12px 30px rgba(15,67,87,.12);padding:6px;max-height:380px;overflow:auto}.ds-client-search-result{display:flex;width:100%;justify-content:space-between;align-items:center;text-align:right;padding:12px 14px;border:0;border-bottom:1px solid #e6f1f5;background:#fff;cursor:pointer;border-radius:10px}.ds-client-search-result:hover{background:#eefaff}.ds-client-search-result span{color:#64748b;font-size:.8rem}.ds-client-queues{display:grid;grid-template-columns:repeat(4,minmax(190px,1fr));gap:18px}.ds-client-queue{border:2px solid #0797bf;border-radius:16px;background:#fff;min-height:210px;overflow:hidden}.ds-client-queue header{display:flex;justify-content:space-between;align-items:center;padding:12px 14px;background:#eefaff;color:#05789a}.ds-client-queue header b{display:inline-grid;place-items:center;min-width:24px;height:24px;border-radius:999px;background:#0797bf;color:#fff}.ds-client-queue>div{padding:8px}.ds-client-queue>div>p,.ds-client-empty,.ds-client-search-empty{text-align:center;color:#94a3b8;font-size:.84rem}.ds-client-queue-item{display:block;width:100%;text-align:right;border:0;border-bottom:1px solid #e5eef2;background:#fff;padding:10px 8px;cursor:pointer}.ds-client-queue-item:hover{background:#f0fbff}.ds-client-queue-item strong,.ds-client-queue-item span{display:block}.ds-client-queue-item span{font-size:.75rem;color:#64748b;margin-top:3px}.ds-client-home__hint{text-align:center;color:#64748b;font-size:.8rem;margin-top:16px}.ds-client-all-filters{display:grid;grid-template-columns:repeat(auto-fit,minmax(140px,1fr));gap:8px;max-width:1100px;margin:0 auto 16px;padding:10px;border:1px solid #d7eaf1;border-radius:14px;background:#fbfeff}.ds-client-all-filters label{display:grid;gap:4px;font-size:.75rem;color:#475569}.ds-client-all-list{max-width:1100px;margin:0 auto;border:1px solid #d7eaf1;border-radius:14px;background:#fff;overflow:hidden}.ds-client-file{position:relative;display:grid;grid-template-columns:minmax(0,1fr) 350px;gap:26px;border:2px solid #0797bf;border-radius:18px;background:#fff;padding:32px;margin:14px 4px;box-shadow:0 8px 28px rgba(15,67,87,.08)}.ds-client-file__close{position:absolute;top:10px;left:12px;border:0;background:transparent;color:#dc2626;font-size:1.05rem;cursor:pointer}.ds-client-file__identity>p{display:grid;grid-template-columns:120px 1fr;gap:10px;margin:0 0 12px}.ds-client-file__identity>p span,.ds-client-file h3{color:#0788ad;font-weight:700}.ds-client-file__contacts-head,.ds-client-file__proposals-head{display:flex;justify-content:space-between;align-items:center;margin-top:22px}.ds-client-file h3{margin:0;font-size:1.05rem}.ds-client-contacts{display:grid;gap:8px;margin-top:10px}.ds-client-contact{display:grid;grid-template-columns:minmax(130px,1fr) minmax(180px,1fr) auto;gap:14px;align-items:center;padding:10px 12px;border:1px solid #d7eaf1;border-radius:12px;background:#fbfeff}.ds-client-contact strong,.ds-client-contact span,.ds-client-contact a{display:block}.ds-client-contact span,.ds-client-contact a{font-size:.8rem;color:#64748b}.ds-client-contact button{border:0;background:transparent;color:#0788ad;cursor:pointer;font-size:1rem}.ds-client-file__proposals{border:2px solid #0797bf;border-radius:16px;padding:16px;background:#fbfeff;align-self:start}.ds-client-file__proposals-head{margin:0 0 10px}.ds-client-file__proposals hr{border:0;border-top:1px solid #1f2937;margin:20px 10px}.ds-client-proposal{border:1px solid #d7eaf1;background:#fff;border-radius:12px;margin:8px 0;padding:5px}.ds-client-proposal.is-archived{opacity:.78}.ds-client-proposal__main{display:grid;grid-template-columns:auto 1fr auto;gap:8px;align-items:center;width:100%;text-align:right;border:0;background:transparent;padding:7px;cursor:pointer}.ds-client-proposal__main span strong,.ds-client-proposal__main span small{display:block}.ds-client-proposal__main small{color:#64748b;font-size:.7rem;margin-top:2px}.ds-client-proposal__main b{font-size:.76rem;color:#0f766e}.ds-client-proposal__actions{display:flex;flex-wrap:wrap;gap:4px;justify-content:flex-end;padding:0 7px 6px}.ds-client-proposal__version{display:inline-block;margin-inline-start:auto;border:0;background:transparent;color:#0788ad;font-size:.72rem;cursor:pointer;padding:2px 7px}.ds-client-archive summary{cursor:pointer;color:#64748b;font-weight:700;font-size:.84rem}.ds-client-archive summary b{display:inline-grid;place-items:center;min-width:20px;height:20px;border-radius:999px;background:#e2e8f0;margin-inline-start:4px}.ds-client-contact-modal{position:fixed;inset:0;z-index:10000;display:grid;place-items:center;background:rgba(15,23,42,.45);padding:20px}.ds-client-contact-form{position:relative;width:min(520px,100%);display:grid;grid-template-columns:1fr 1fr;gap:12px;background:#fff;border-radius:18px;padding:26px;box-shadow:0 24px 60px rgba(15,23,42,.25)}.ds-client-contact-form h3,.ds-client-contact-form>div,.ds-client-contact-form>p{grid-column:1/-1}.ds-client-contact-form label{display:grid;gap:5px;font-size:.8rem;color:#475569}.ds-client-contact-form>p{color:#dc2626;margin:0}.ds-client-contact-form>div{display:flex;gap:8px;justify-content:flex-start}
+          @media (max-width:1000px){.ds-client-queues{grid-template-columns:repeat(2,1fr)}.ds-client-file{grid-template-columns:1fr}.ds-client-file__proposals{width:auto}}@media (max-width:900px){.ds-pa-bundle-grid{grid-template-columns:1fr}}@media (max-width:640px){.ds-pa-type-chips{grid-template-columns:repeat(2,minmax(0,1fr))}.ds-pa-item-quick-row{grid-template-columns:1fr}.ds-client-queues{grid-template-columns:1fr}.ds-client-search{width:100%;max-width:100%}.ds-client-file{padding:26px 16px}.ds-client-contact{grid-template-columns:1fr auto}.ds-client-contact__channels{grid-column:1/-1}.ds-client-contact-form{grid-template-columns:1fr}}
         </style>
         <div class="ds-client-workspace" data-pa-client-workspace>${clientFileLandingHtml(data, state)}</div>
         <div class="ds-pa-screen-tabs" data-pa-screen-tabs hidden aria-hidden="true">
@@ -4834,6 +5194,15 @@ export const proposalsAgreementsScreen = {
     data.rows = sortRows((Array.isArray(data.rows) ? data.rows : [])
       .map(normalizeProposalAgreementRow)
       .filter((r) => { const k = text(r.id); if (!k || seenIds.has(k)) return false; seenIds.add(k); return true; }));
+    data._itemsByProposalId = indexProposalItemsById(data);
+    {
+      const collapsed = collapseSemanticDuplicates(data.rows, data._itemsByProposalId);
+      data._semanticDuplicateIds = collapsed.duplicateIds;
+      if (collapsed.duplicateIds.length) {
+        // eslint-disable-next-line no-console
+        console.info('[client-file] semantic duplicates collapsed', collapsed.duplicateIds.length);
+      }
+    }
     notifyPendingProposalsNav(data.rows);
     const activityNameOptions = Array.from(new Set((Array.isArray(data?.activityNameOptions) ? data.activityNameOptions : []).map((v) => text(v)).filter(Boolean)));
     const proposalActivityPricing = Array.isArray(data?.proposalActivityPricing) ? data.proposalActivityPricing : [];
@@ -4887,23 +5256,69 @@ export const proposalsAgreementsScreen = {
       };
     };
     let debounceTimer = null;
+    let allProposalsFilterTimer = null;
     let activeListView = 'records';
     let selectedClientKey = '';
+    let allProposalsFilters = {};
+    let viewingAllProposals = false;
     const clientWorkspace = root.querySelector('[data-pa-client-workspace]');
 
     const currentClientFile = () => buildClientFiles({ ...data, contactOptions }).find((file) => file.key === selectedClientKey) || null;
     const renderClientWorkspace = () => {
       if (!clientWorkspace) return;
+      if (viewingAllProposals) {
+        clientWorkspace.innerHTML = allClientProposalsViewHtml({ ...data, contactOptions }, allProposalsFilters);
+        return;
+      }
       const file = currentClientFile();
       clientWorkspace.innerHTML = file
         ? `${selectedClientFileHtml(file, state)}${drawerHtml(null, activityNameOptions, state)}`
         : clientFileLandingHtml({ ...data, contactOptions }, state);
     };
+    const updateAllProposalsListOnly = () => {
+      if (!clientWorkspace?.querySelector('[data-pa-client-all]')) return;
+      const allRows = allDisplayRows(data);
+      const filtered = filterAllClientProposals(allRows, allProposalsFilters);
+      const list = clientWorkspace.querySelector('[data-pa-client-all-list]');
+      const count = clientWorkspace.querySelector('[data-pa-client-all-count]');
+      if (list) list.innerHTML = allClientProposalsListHtml(filtered, allRows);
+      if (count) count.textContent = `כל ההצעות · ${filtered.length}`;
+    };
+    const openProposalDetails = async (proposalId, { clientKeyHint = '', preferSentView = null } = {}) => {
+      const id = text(proposalId);
+      if (!id) return;
+      const row = rowWithCentralContact(data.rows.find((item) => text(item.id) === id));
+      if (!row) return;
+      viewingAllProposals = false;
+      const nextClientKey = text(clientKeyHint) || selectedClientKey || clientFileKey(row);
+      selectedClientKey = nextClientKey;
+      activeListView = (preferSentView ?? normalizeProposalStatus(row.status) === 'sent') ? 'sent' : 'records';
+      renderClientWorkspace();
+      const drawerHost = clientWorkspace?.querySelector('[data-pa-drawer]') || root.querySelector('[data-pa-drawer]');
+      if (!drawerHost) return;
+      drawerHost.outerHTML = drawerHtml(row, activityNameOptions, state);
+      const newDrawer = clientWorkspace?.querySelector('[data-pa-drawer]') || root.querySelector('[data-pa-drawer]');
+      const itemsHost = newDrawer?.querySelector('[data-pa-drawer-items]');
+      if (itemsHost && typeof api.readProposalAgreementItems === 'function') {
+        try {
+          const items = proposalItemsWithFallback(await api.readProposalAgreementItems(id), row);
+          if (itemsHost.isConnected) {
+            itemsHost.innerHTML = itemsSummaryHtml(items);
+            const hasActiveItems = (Array.isArray(items) ? items : []).filter(hasMeaningfulProposalItemValue).filter((i) => !isTestHoursItem(i)).length > 0;
+            const fallback = newDrawer?.querySelector('[data-pa-activities-fallback]');
+            if (fallback && hasActiveItems) fallback.hidden = true;
+          }
+        } catch { if (itemsHost?.isConnected) itemsHost.innerHTML = ''; }
+      } else if (itemsHost) {
+        itemsHost.innerHTML = '';
+      }
+    };
     const openClientFile = (key, proposalId = '') => {
+      viewingAllProposals = false;
       selectedClientKey = text(key);
       renderClientWorkspace();
       if (proposalId) {
-        setTimeout(() => clientWorkspace?.querySelector(`[data-pa-row-id="${window.CSS?.escape ? window.CSS.escape(text(proposalId)) : text(proposalId)}"]`)?.click(), 0);
+        openProposalDetails(proposalId, { clientKeyHint: selectedClientKey });
       }
     };
     const proposalPrefillForClient = (file) => ({
@@ -4936,6 +5351,13 @@ export const proposalsAgreementsScreen = {
     root.querySelector('[data-pa-search]')?.addEventListener('input', debouncedRefresh, { signal });
     root.querySelectorAll('[data-pa-filter]').forEach((el) => el.addEventListener('change', refreshTable, { signal }));
     root.addEventListener('input', (event) => {
+      const allForm = event.target.closest?.('[data-pa-client-all-filters]');
+      if (allForm) {
+        allProposalsFilters = readAllClientProposalFilters(allForm);
+        clearTimeout(allProposalsFilterTimer);
+        allProposalsFilterTimer = setTimeout(updateAllProposalsListOnly, SEARCH_DEBOUNCE_MS);
+        return;
+      }
       const input = event.target.closest?.('[data-pa-client-search]');
       if (!input) return;
       const results = root.querySelector('[data-pa-client-search-results]');
@@ -4946,6 +5368,12 @@ export const proposalsAgreementsScreen = {
         results.innerHTML = query ? clientSearchResultsHtml(buildClientFiles({ ...data, contactOptions }), query) : '';
       }
       if (queues) queues.hidden = Boolean(query);
+    }, { signal });
+    root.addEventListener('change', (event) => {
+      const allForm = event.target.closest?.('[data-pa-client-all-filters]');
+      if (!allForm) return;
+      allProposalsFilters = readAllClientProposalFilters(allForm);
+      updateAllProposalsListOnly();
     }, { signal });
     root.addEventListener('click', (ev) => {
       if (!ev.target?.closest?.('[data-pa-clear-filters]')) return;
@@ -6121,6 +6549,7 @@ export const proposalsAgreementsScreen = {
       formHost.innerHTML = '';
       setFormTabLabel('add');
       switchTab('records');
+      viewingAllProposals = false;
       renderClientWorkspace();
     };
 
@@ -6857,6 +7286,8 @@ export const proposalsAgreementsScreen = {
 
       if (event.target.closest?.('[data-pa-client-close]')) {
         selectedClientKey = '';
+        viewingAllProposals = false;
+        allProposalsFilters = {};
         renderClientWorkspace();
         return;
       }
@@ -6876,29 +7307,30 @@ export const proposalsAgreementsScreen = {
         return;
       }
 
+      if (event.target.closest?.('[data-pa-client-clear-all-filters]')) {
+        allProposalsFilters = {};
+        const form = clientWorkspace?.querySelector('[data-pa-client-all-filters]');
+        if (form) {
+          form.querySelectorAll('input, select').forEach((el) => { el.value = ''; });
+        }
+        updateAllProposalsListOnly();
+        return;
+      }
+
       const allProposalsBtn = event.target.closest?.('[data-pa-client-all-proposals]');
       if (allProposalsBtn) {
         selectedClientKey = '';
-        if (clientWorkspace) {
-          const rows = allDisplayRows(data);
-          clientWorkspace.innerHTML = `<div class="ds-client-all" data-pa-client-all>
-            <div class="ds-client-search-row">
-              <button type="button" class="ds-btn ds-btn--ghost" data-pa-client-close>× חזרה</button>
-              <strong>כל ההצעות · ${rows.length}</strong>
-            </div>
-            <div class="ds-client-all-list">${rows.map((row) => {
-              const school = text(row.school_framework) || '—';
-              const authority = text(row.client_authority) || '—';
-              const typeLabel = proposalGroupDisplayName(row.activity_type_group) || '—';
-              const status = normalizeProposalStatus(row.status);
-              const archived = isArchivedClientProposal(row, rows);
-              return `<button type="button" class="ds-client-queue-item" data-pa-open-client="${escapeHtml(clientFileKey(row))}" data-pa-open-proposal="${escapeHtml(row.id)}">
-                <strong>${escapeHtml(authority)} · ${escapeHtml(school)}</strong>
-                <span>${escapeHtml([typeLabel, formatDateDisplay(row.proposal_date || row.created_at), STATUS_LABELS[status] || status, archived ? 'ארכיון' : '', row.total_amount != null ? `₪${formatCurrency(row.total_amount)}` : ''].filter(Boolean).join(' · '))}</span>
-              </button>`;
-            }).join('') || '<p class="ds-client-empty">אין הצעות</p>'}</div>
-          </div>`;
-        }
+        viewingAllProposals = true;
+        allProposalsFilters = {};
+        renderClientWorkspace();
+        return;
+      }
+
+      const openProposalBtn = event.target.closest?.('[data-pa-open-proposal-id]');
+      if (openProposalBtn && !event.target.closest?.('[data-pa-view-final-pdf],[data-pa-clone-row]')) {
+        await openProposalDetails(openProposalBtn.dataset.paOpenProposalId, {
+          clientKeyHint: selectedClientKey || openProposalBtn.closest?.('[data-pa-client-file]')?.dataset?.paClientFile || ''
+        });
         return;
       }
 
@@ -6956,31 +7388,13 @@ export const proposalsAgreementsScreen = {
       }
 
       // Row click — skip if clicking an inline action button inside the row
-      const rowEl = !event.target.closest?.('[data-pa-preview],[data-pa-view-final-pdf],[data-pa-edit-row],[data-pa-print],[data-pa-delete-row],[data-pa-clone-row],[data-pa-row-more],[data-pa-status-action],.ds-pa-row-more')
+      const rowEl = !event.target.closest?.('[data-pa-preview],[data-pa-view-final-pdf],[data-pa-edit-row],[data-pa-print],[data-pa-delete-row],[data-pa-clone-row],[data-pa-row-more],[data-pa-status-action],[data-pa-open-proposal-id],.ds-pa-row-more')
         ? event.target.closest?.('[data-pa-row-id]')
         : null;
       if (rowEl) {
-        const row = rowWithCentralContact(data.rows.find((item) => text(item.id) === text(rowEl.dataset.paRowId)));
-        const drawer = root.querySelector('[data-pa-drawer]');
-        if (drawer && row) {
-          drawer.outerHTML = drawerHtml(row, activityNameOptions, state);
-          // Load items for drawer display
-          const newDrawer = root.querySelector('[data-pa-drawer]');
-          const itemsHost = newDrawer?.querySelector('[data-pa-drawer-items]');
-          if (itemsHost && text(row.id) && typeof api.readProposalAgreementItems === 'function') {
-            try {
-              const items = proposalItemsWithFallback(await api.readProposalAgreementItems(text(row.id)), row);
-              if (itemsHost.isConnected) {
-                itemsHost.innerHTML = itemsSummaryHtml(items);
-                const hasActiveItems = (Array.isArray(items) ? items : []).filter(hasMeaningfulProposalItemValue).filter((i) => !isTestHoursItem(i)).length > 0;
-                const fallback = newDrawer?.querySelector('[data-pa-activities-fallback]');
-                if (fallback && hasActiveItems) fallback.hidden = true;
-              }
-            } catch { if (itemsHost.isConnected) itemsHost.innerHTML = ''; }
-          } else if (itemsHost) {
-            itemsHost.innerHTML = '';
-          }
-        }
+        await openProposalDetails(rowEl.dataset.paRowId, {
+          clientKeyHint: selectedClientKey || clientFileKey(data.rows.find((item) => text(item.id) === text(rowEl.dataset.paRowId)) || {})
+        });
         return;
       }
 
@@ -6988,6 +7402,8 @@ export const proposalsAgreementsScreen = {
         const drawer = root.querySelector('[data-pa-drawer]');
         if (drawer) drawer.outerHTML = drawerHtml(null, activityNameOptions, state);
         setDocumentEditMode(root, false);
+        // Keep the selected client file after closing a proposal drawer.
+        if (selectedClientKey) renderClientWorkspace();
         return;
       }
 

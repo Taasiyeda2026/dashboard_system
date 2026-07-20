@@ -366,6 +366,10 @@ export const instructorsScreen = {
 
   bind({ root, data, state, rerender, api, ui }) {
     bindLocalFilters(root, state, INSTRUCTORS_SCOPE, rerender, { debounceMs: 300 });
+    root.querySelector('.instr-contacts-link,[data-route="instructor-contacts"]')?.addEventListener('click', (ev) => {
+      ev.preventDefault();
+      document.dispatchEvent(new CustomEvent('app:navigate', { detail: { route: 'instructor-contacts' } }));
+    });
     root.querySelector(`[data-list-show-more="${INSTRUCTORS_SCOPE}"]`)?.addEventListener('click', (ev) => {
       ensureActivityListFilters(state, INSTRUCTORS_SCOPE).visibleCount = Number(ev.currentTarget?.dataset?.nextCount || 200);
       rerender();
