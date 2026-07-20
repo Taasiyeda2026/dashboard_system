@@ -24,5 +24,66 @@
   <script type="module" src="./frontend/src/screens/operations-visual-tweaks.js?v=20260720-operations-toolbar-compact-v1"></script>
   <script type="module" src="./frontend/src/screens/operations-completion-toolbar-compact.js?v=20260720-single-row-v1"></script>
   <script type="module" src="./frontend/src/screens/operations-inventory-polish.js?v=20260720-proposal-pdf-tainted-canvas-v1"></script>
+  <script type="module">
+    const allowedSendingLabels = new Set(['נשלח על ידי', 'תאריך שליחה']);
+    const emptyPublicValues = new Set(['', 'לא הוזן', 'לא נשמר', 'לא קיים', '—']);
+    const uuidPattern = /^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i;
+    const normalizedText = (element) => String(element?.textContent || '').replace(/\s+/g, ' ').trim();
+    const cellLabel = (cell) => normalizedText(cell?.querySelector('.ds-pa-info-label'));
+    const cellValue = (cell) => normalizedText(cell?.querySelector('.ds-pa-info-value'));
+    const cardByTitle = (detail, title) => Array.from(detail.querySelectorAll('.ds-pa-info-card'))
+      .find((card) => normalizedText(card.querySelector('.ds-pa-card-title')) === title) || null;
+
+    function cleanProposalDetails() {
+      document.querySelectorAll('#app [data-pa-proposal-detail]').forEach((detail) => {
+        const proposalCard = cardByTitle(detail, 'פרטי ההצעה');
+        proposalCard?.querySelectorAll('.ds-pa-info-cell').forEach((cell) => {
+          if (cellLabel(cell) === 'סטטוס' || uuidPattern.test(cellValue(cell))) cell.remove();
+        });
+
+        const sendingCard = cardByTitle(detail, 'פרטי שליחה');
+        const sendingGrid = sendingCard?.querySelector('.ds-pa-info-grid');
+        if (sendingCard && sendingGrid) {
+          sendingGrid.querySelectorAll('.ds-pa-info-cell').forEach((cell) => {
+            const label = cellLabel(cell);
+            const value = cellValue(cell);
+            if (!allowedSendingLabels.has(label) || emptyPublicValues.has(value) || uuidPattern.test(value)) cell.remove();
+          });
+
+          if (!sendingGrid.querySelector('.ds-pa-info-cell')) {
+            sendingGrid.remove();
+            if (!sendingCard.querySelector('[data-pa-public-sending-empty]')) {
+              const empty = document.createElement('p');
+              empty.className = 'ds-muted';
+              empty.dataset.paPublicSendingEmpty = 'true';
+              empty.textContent = 'ההצעה טרם נשלחה';
+              sendingCard.appendChild(empty);
+            }
+          }
+        }
+
+        detail.querySelectorAll('.ds-pa-info-cell').forEach((cell) => {
+          if (uuidPattern.test(cellValue(cell))) cell.remove();
+        });
+      });
+    }
+
+    let cleanupQueued = false;
+    const scheduleProposalDetailsCleanup = () => {
+      if (cleanupQueued) return;
+      cleanupQueued = true;
+      setTimeout(() => {
+        cleanupQueued = false;
+        cleanProposalDetails();
+      }, 40);
+    };
+
+    if (document.readyState === 'loading') {
+      document.addEventListener('DOMContentLoaded', scheduleProposalDetailsCleanup, { once: true });
+    } else {
+      scheduleProposalDetailsCleanup();
+    }
+    new MutationObserver(scheduleProposalDetailsCleanup).observe(document.documentElement, { childList: true, subtree: true });
+  </script>
 </body>
 </html>
