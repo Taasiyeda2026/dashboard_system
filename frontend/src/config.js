@@ -46,5 +46,5 @@ if (!resolvedUrl) {
 export const config = {
   apiUrl: resolvedUrl,
   DIAGNOSTICS_UI_ENABLED: false,
-  HOTFIX_VERSION: 'client-file-accent-pdf-hotfix-20260720-v1'
+  HOTFIX_VERSION: 'instructor-contacts-compact-20260720-v1'
 };
