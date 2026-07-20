@@ -110,6 +110,7 @@ test('view-only users do not see management actions; managers do', async () => {
     const search = root.querySelector('[data-pa-client-search]');
     search.value = 'ריגלר';
     search.dispatchEvent(new dom.window.Event('input', { bubbles: true }));
+    await new Promise((r) => setTimeout(r, 300));
     root.querySelector('[data-pa-open-client]')?.click();
     await new Promise((r) => setTimeout(r, 20));
     assert.ok(root.querySelector('[data-pa-client-file]'), 'view-only can open client file');
@@ -125,6 +126,7 @@ test('view-only users do not see management actions; managers do', async () => {
     const search = root.querySelector('[data-pa-client-search]');
     search.value = 'ריגלר';
     search.dispatchEvent(new dom.window.Event('input', { bubbles: true }));
+    await new Promise((r) => setTimeout(r, 300));
     root.querySelector('[data-pa-open-client]')?.click();
     await new Promise((r) => setTimeout(r, 20));
     assert.ok(root.querySelector('[data-pa-client-file]'), 'manager can open client file');
@@ -326,6 +328,7 @@ test('opening a proposal from a client file returns to that client file', async 
     const search = root.querySelector('[data-pa-client-search]');
     search.value = 'ריגלר';
     search.dispatchEvent(new dom.window.Event('input', { bubbles: true }));
+    await new Promise((r) => setTimeout(r, 300));
     root.querySelector('[data-pa-open-client]')?.click();
     await new Promise((r) => setTimeout(r, 20));
     assert.ok(root.querySelector('[data-pa-client-file]'));
@@ -413,4 +416,168 @@ test('client file home header has title only and centered search toolbar', async
   assert.match(html, /ds-client-toolbar/);
   assert.match(html, /width:min\(100%,480px\)/);
   assert.match(html, /ds-client-actions/);
+});
+
+test('home board has no close (X) button before a client is opened, and an opened archive starts closed', async () => {
+  const manageState = stateFor({ manage: true, role: 'admin' });
+  const current = { id: 'v1', client_authority: 'נתניה', school_framework: 'ריגלר', activity_type_group: 'next_year', status: 'sent', proposal_date: '2026-05-01', total_amount: 1000, version_number: 1, school_id: '1' };
+  const archived = { id: 'v0', client_authority: 'נתניה', school_framework: 'ריגלר', activity_type_group: 'next_year', status: 'sent', proposal_date: '2026-04-01', total_amount: 900, version_number: 1, archived_at: '2026-04-02T00:00:00Z', school_id: '1' };
+  const data = { rows: [current, archived], contactOptions: [] };
+  const html = proposalsAgreementsScreen.render(data, { state: manageState });
+  assert.equal(html.match(/data-pa-client-close/g), null, 'no close (X) button before any client file is open');
+  await withJSDOM(html, async (root, dom) => {
+    const api = { readProposalAgreementItems: async () => [] };
+    proposalsAgreementsScreen.bind({ root, data: structuredClone(data), state: manageState, api });
+    assert.equal(root.querySelector('[data-pa-client-close]'), null, 'home board still has no close button before opening a client');
+    const search = root.querySelector('[data-pa-client-search]');
+    search.value = 'ריגלר';
+    search.dispatchEvent(new dom.window.Event('input', { bubbles: true }));
+    await new Promise((r) => setTimeout(r, 300));
+    root.querySelector('[data-pa-open-client]')?.click();
+    await new Promise((r) => setTimeout(r, 20));
+    assert.ok(root.querySelector('[data-pa-client-close]'), 'an X exists once a client file is open');
+    const archiveDetails = root.querySelector('.ds-client-archive');
+    assert.ok(archiveDetails, 'archive section renders');
+    assert.equal(archiveDetails.hasAttribute('open'), false, 'archive must be collapsed by default');
+  });
+});
+
+test('view-only users can see and open the sent-PDF action; users without access get none', async () => {
+  const viewState = stateFor({ manage: false, role: 'business_development_manager' });
+  const noAccessState = { user: { role: 'instructor', display_role: 'instructor' }, effectiveRoutes: [] };
+  const row = {
+    id: 'sent-pdf-1',
+    client_authority: 'נתניה',
+    school_framework: 'ריגלר',
+    activity_type_group: 'summer',
+    status: 'sent',
+    proposal_date: '2026-06-28',
+    total_amount: 5000,
+    final_pdf_path: 'proposals/x/sent/1.pdf',
+    version_number: 1,
+    school_id: '1'
+  };
+  const data = { rows: [row], contactOptions: [] };
+
+  const noAccessHtml = proposalsAgreementsScreen.render(data, { state: noAccessState });
+  assert.match(noAccessHtml, /אין לך הרשאה לצפות במסך זה/, 'a user without proposals access must not see the screen');
+
+  const viewHtml = proposalsAgreementsScreen.render(data, { state: viewState });
+  await withJSDOM(viewHtml, async (root, dom) => {
+    const api = { readProposalAgreementItems: async () => [] };
+    proposalsAgreementsScreen.bind({ root, data: structuredClone(data), state: viewState, api });
+    const search = root.querySelector('[data-pa-client-search]');
+    search.value = 'ריגלר';
+    search.dispatchEvent(new dom.window.Event('input', { bubbles: true }));
+    await new Promise((r) => setTimeout(r, 300));
+    root.querySelector('[data-pa-open-client]')?.click();
+    await new Promise((r) => setTimeout(r, 20));
+    assert.ok(root.querySelector('[data-pa-view-final-pdf="sent-pdf-1"]'), 'client card must show the sent-PDF action for a view-only user');
+    root.querySelector('[data-pa-open-proposal-id="sent-pdf-1"]')?.click();
+    await new Promise((r) => setTimeout(r, 40));
+    assert.ok(root.querySelector('[data-pa-view-final-pdf="sent-pdf-1"]'), 'view-only user must see the sent-PDF action in the proposal detail view');
+    assert.equal(root.querySelector('[data-pa-print]'), null, 'view-only user must not see the generate/print PDF action');
+  });
+});
+
+test('all-proposals filters by authority, school and date range combine, and clearing restores every record', async () => {
+  const manageState = stateFor({ manage: true, role: 'admin' });
+  const data = {
+    rows: [
+      { id: 'r1', client_authority: 'נתניה', school_framework: 'ריגלר', activity_type_group: 'next_year', status: 'draft', proposal_date: '2026-06-10', total_amount: 1000 },
+      { id: 'r2', client_authority: 'נתניה', school_framework: 'אחר', activity_type_group: 'next_year', status: 'draft', proposal_date: '2026-06-20', total_amount: 2000 },
+      { id: 'r3', client_authority: 'תל אביב', school_framework: 'ריגלר', activity_type_group: 'summer', status: 'draft', proposal_date: '2026-07-01', total_amount: 3000 }
+    ],
+    contactOptions: []
+  };
+  const html = proposalsAgreementsScreen.render(data, { state: manageState });
+  await withJSDOM(html, async (root, dom) => {
+    const api = { readProposalAgreementItems: async () => [] };
+    proposalsAgreementsScreen.bind({ root, data: structuredClone(data), state: manageState, api });
+    root.querySelector('[data-pa-client-all-proposals]')?.click();
+    await new Promise((r) => setTimeout(r, 0));
+
+    const authorityFilter = root.querySelector('[data-pa-filter="client_authority"]');
+    const schoolFilter = root.querySelector('[data-pa-filter="school_framework"]');
+    const dateFrom = root.querySelector('[data-pa-filter="date_from"]');
+    const dateTo = root.querySelector('[data-pa-filter="date_to"]');
+    assert.ok(authorityFilter, 'authority filter must exist');
+    assert.ok(schoolFilter, 'school/body filter must exist');
+    assert.ok(dateFrom && dateTo, 'date range filters must exist');
+
+    authorityFilter.value = 'נתניה';
+    authorityFilter.dispatchEvent(new dom.window.Event('change', { bubbles: true }));
+    let bodyText = root.querySelector('[data-pa-table-body]')?.textContent || '';
+    assert.match(bodyText, /ריגלר/);
+    assert.match(bodyText, /אחר/);
+    assert.doesNotMatch(bodyText, /תל אביב/, 'authority filter must exclude other authorities');
+
+    schoolFilter.value = 'ריגלר';
+    schoolFilter.dispatchEvent(new dom.window.Event('change', { bubbles: true }));
+    bodyText = root.querySelector('[data-pa-table-body]')?.textContent || '';
+    assert.match(bodyText, /ריגלר/);
+    assert.doesNotMatch(bodyText, /אחר/, 'authority + school filters must combine (AND), not override each other');
+
+    schoolFilter.value = '';
+    schoolFilter.dispatchEvent(new dom.window.Event('change', { bubbles: true }));
+    dateFrom.value = '2026-06-15';
+    dateFrom.dispatchEvent(new dom.window.Event('change', { bubbles: true }));
+    dateTo.value = '2026-06-25';
+    dateTo.dispatchEvent(new dom.window.Event('change', { bubbles: true }));
+    bodyText = root.querySelector('[data-pa-table-body]')?.textContent || '';
+    assert.doesNotMatch(bodyText, /ריגלר/, 'row dated 2026-06-10 is outside the date range');
+    assert.match(bodyText, /אחר/, 'row dated 2026-06-20 is inside the date range');
+
+    root.querySelector('[data-pa-clear-filters]')?.click();
+    bodyText = root.querySelector('[data-pa-table-body]')?.textContent || '';
+    assert.match(bodyText, /ריגלר/);
+    assert.match(bodyText, /אחר/);
+    assert.match(bodyText, /תל אביב/);
+    assert.equal(authorityFilter.value, '', 'clear filters resets the authority filter');
+    assert.equal(dateFrom.value, '', 'clear filters resets the date-from filter');
+    assert.equal(dateTo.value, '', 'clear filters resets the date-to filter');
+  });
+});
+
+test('client-file search debounces and keeps focus on the same input while typing', async () => {
+  const manageState = stateFor({ manage: true, role: 'admin' });
+  const data = {
+    rows: [
+      { id: 'r1', client_authority: 'נתניה', school_framework: 'ריגלר', activity_type_group: 'next_year', status: 'draft', proposal_date: '2026-06-10', total_amount: 1000, school_id: '1' }
+    ],
+    contactOptions: []
+  };
+  const html = proposalsAgreementsScreen.render(data, { state: manageState });
+  await withJSDOM(html, async (root, dom) => {
+    const api = { readProposalAgreementItems: async () => [] };
+    proposalsAgreementsScreen.bind({ root, data: structuredClone(data), state: manageState, api });
+    const search = root.querySelector('[data-pa-client-search]');
+    const results = root.querySelector('[data-pa-client-search-results]');
+    const beforeResultsHtml = results.innerHTML;
+    search.focus();
+    ['ר', 'רי', 'ריג'].forEach((partial) => {
+      search.value = partial;
+      search.dispatchEvent(new dom.window.Event('input', { bubbles: true }));
+    });
+    await new Promise((r) => setTimeout(r, 120));
+    assert.equal(root.querySelector('[data-pa-client-search]'), search, 'the same input node stays in the DOM (no full re-render)');
+    assert.equal(dom.window.document.activeElement, search, 'focus must stay on the search input while typing');
+    assert.equal(results.innerHTML, beforeResultsHtml, 'results must not update before the debounce delay elapses');
+    await new Promise((r) => setTimeout(r, 220));
+    assert.match(results.textContent, /ריגלר/, 'results update once the debounce delay has elapsed');
+    assert.equal(dom.window.document.activeElement, search, 'focus must remain after the debounced update');
+  });
+});
+
+test('routine debug console dumps are removed while relied-on load diagnostics and error logs remain', async () => {
+  const screenSource = await readFile(SCREEN_FILE, 'utf8');
+  assert.doesNotMatch(screenSource, /\[proposal-schools-filter\]/, 'ad-hoc schools-filter debug dump must be removed');
+  assert.doesNotMatch(screenSource, /\[proposal-save-payload\]/, 'ad-hoc save-payload debug dump must be removed');
+  assert.doesNotMatch(screenSource, /PA_SAVE_ITEMS/, 'ad-hoc save-items debug dump must be removed');
+  assert.doesNotMatch(screenSource, /semantic duplicates collapsed/, 'ad-hoc dedupe debug dump must be removed');
+  // Diagnostics explicitly relied on elsewhere (see proposals-agreements-screen.test.mjs) must stay.
+  assert.match(screenSource, /console\.info\('\[proposal-load-debug\]'/);
+  assert.match(screenSource, /\[proposal-authorities-debug\]/);
+  // Real error handling must remain untouched.
+  assert.match(screenSource, /console\.warn\('\[client-file\] unknown proposal type value', raw\)/);
 });

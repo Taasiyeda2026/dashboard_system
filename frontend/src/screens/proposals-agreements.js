@@ -990,6 +990,11 @@ function rowMatches(row, filters) {
   if (filters.activity_type_group && normalizeProposalGroup(row.activity_type_group) !== normalizeProposalGroup(filters.activity_type_group)) return false;
   if (filters.status && normalizeProposalStatus(row.status) !== filters.status) return false;
   if (filters.proposal_domain && (row.proposal_domain || 'Y') !== filters.proposal_domain) return false;
+  if (filters.client_authority && text(row.client_authority) !== filters.client_authority) return false;
+  if (filters.school_framework && text(row.school_framework) !== filters.school_framework) return false;
+  const rowDate = text(row.proposal_date).slice(0, 10);
+  if (filters.date_from && (!rowDate || rowDate < filters.date_from)) return false;
+  if (filters.date_to && (!rowDate || rowDate > filters.date_to)) return false;
   return true;
 }
 
@@ -1073,7 +1078,7 @@ export function isProposalLegacySentWithoutPdf(row = {}) {
 }
 
 function canViewSentProposalPdf(row, state) {
-  return canManageProposalsAgreements(state) && isProposalSentLocked(row) && proposalHasFinalPdf(row);
+  return canAccessProposalsAgreements(state) && isProposalSentLocked(row) && proposalHasFinalPdf(row);
 }
 
 function canUploadLegacyProposalPdf(row, state) {
@@ -4630,16 +4635,24 @@ function currentFilters(root) {
     q:                   root.querySelector('[data-pa-search]')?.value || '',
     activity_type_group: root.querySelector('[data-pa-filter="activity_type_group"]')?.value || '',
     status:              root.querySelector('[data-pa-filter="status"]')?.value || '',
-    proposal_domain:     root.querySelector('[data-pa-filter="proposal_domain"]')?.value || ''
+    proposal_domain:     root.querySelector('[data-pa-filter="proposal_domain"]')?.value || '',
+    client_authority:    root.querySelector('[data-pa-filter="client_authority"]')?.value || '',
+    school_framework:    root.querySelector('[data-pa-filter="school_framework"]')?.value || '',
+    date_from:           root.querySelector('[data-pa-filter="date_from"]')?.value || '',
+    date_to:             root.querySelector('[data-pa-filter="date_to"]')?.value || ''
   };
 }
 
 function activeFilters(filters = {}) {
   return [
     text(filters.q) ? { key: 'q', label: 'חיפוש', value: text(filters.q) } : null,
+    text(filters.client_authority) ? { key: 'client_authority', label: 'רשות', value: text(filters.client_authority) } : null,
+    text(filters.school_framework) ? { key: 'school_framework', label: 'בית ספר / גוף', value: text(filters.school_framework) } : null,
     text(filters.activity_type_group) ? { key: 'activity_type_group', label: 'סוג הצעה', value: proposalGroupDisplayName(filters.activity_type_group) } : null,
     text(filters.status) ? { key: 'status', label: 'סטטוס', value: STATUS_LABELS[normalizeProposalStatus(filters.status)] || filters.status } : null,
-    text(filters.proposal_domain) ? { key: 'proposal_domain', label: 'תחום', value: filters.proposal_domain } : null
+    text(filters.proposal_domain) ? { key: 'proposal_domain', label: 'תחום', value: filters.proposal_domain } : null,
+    text(filters.date_from) ? { key: 'date_from', label: 'מתאריך', value: formatDateDisplay(filters.date_from) } : null,
+    text(filters.date_to) ? { key: 'date_to', label: 'עד תאריך', value: formatDateDisplay(filters.date_to) } : null
   ].filter(Boolean);
 }
 
@@ -5072,6 +5085,9 @@ export const proposalsAgreementsScreen = {
     const recordsCount = rowsForProposalListView(data, 'records').length;
     const sentCount = rowsForProposalListView(data, 'sent').length;
     const proposalGroupFilterOptions = proposalGroupOptions(data, Array.isArray(data?.rows) ? data.rows : [], Array.isArray(data?.proposalActivityPricing) ? data.proposalActivityPricing : []);
+    const allRowsForFilters = allDisplayRows(data);
+    const authorityFilterOptions = uniqueValues(allRowsForFilters, 'client_authority');
+    const schoolFilterOptions = uniqueValues(allRowsForFilters, 'school_framework');
     const canManage = canManageProposalsAgreements(state);
     return dsScreenStack(`
       ${dsPageHeader('תיק לקוח')}
@@ -5098,9 +5114,13 @@ export const proposalsAgreementsScreen = {
           </div>
           <div class="ds-pa-toolbar">
             <label class="ds-pa-search"><span>חיפוש</span><input class="ds-input ds-input--sm" data-pa-search placeholder="חיפוש מקומי" autocomplete="off"></label>
+            ${filterSelectHtml('client_authority', 'רשות', authorityFilterOptions)}
+            ${filterSelectHtml('school_framework', 'בית ספר / גוף', schoolFilterOptions)}
             ${filterSelectHtml('activity_type_group', 'סוג הצעה', proposalGroupFilterOptions)}
             ${statusFilterHtml()}
             <label class="ds-pa-filter"><span>תחום</span><select class="ds-input ds-input--sm" data-pa-filter="proposal_domain"><option value="">הכול</option><option value="Y">Y</option><option value="E">E</option></select></label>
+            <label class="ds-pa-filter"><span>מתאריך</span><input class="ds-input ds-input--sm" type="date" data-pa-filter="date_from"></label>
+            <label class="ds-pa-filter"><span>עד תאריך</span><input class="ds-input ds-input--sm" type="date" data-pa-filter="date_to"></label>
             <button type="button" class="ds-btn ds-btn--sm ds-btn--ghost ds-pa-clear-inline" data-pa-clear-filters>ניקוי סינון</button>
           </div>
           ${activeFiltersHtml({})}
@@ -5129,10 +5149,6 @@ export const proposalsAgreementsScreen = {
     {
       const collapsed = collapseSemanticDuplicates(data.rows, data._itemsByProposalId);
       data._semanticDuplicateIds = collapsed.duplicateIds;
-      if (collapsed.duplicateIds.length) {
-        // eslint-disable-next-line no-console
-        console.info('[client-file] semantic duplicates collapsed', collapsed.duplicateIds.length);
-      }
     }
     notifyPendingProposalsNav(data.rows);
     const activityNameOptions = Array.from(new Set((Array.isArray(data?.activityNameOptions) ? data.activityNameOptions : []).map((v) => text(v)).filter(Boolean)));
@@ -5187,6 +5203,7 @@ export const proposalsAgreementsScreen = {
       };
     };
     let debounceTimer = null;
+    let clientSearchDebounceTimer = null;
     let activeListView = 'records';
     let selectedClientKey = '';
     let viewingAllProposals = false;
@@ -5425,14 +5442,18 @@ export const proposalsAgreementsScreen = {
     root.addEventListener('input', (event) => {
       const input = event.target.closest?.('[data-pa-client-search]');
       if (!input) return;
-      const results = root.querySelector('[data-pa-client-search-results]');
-      const queues = root.querySelector('[data-pa-client-queues]');
+      clearTimeout(clientSearchDebounceTimer);
       const query = text(input.value);
-      if (results) {
+      // Toggle the queues visibility immediately (cheap, no re-render), only the
+      // results list itself — which never touches the input — is debounced.
+      const queues = root.querySelector('[data-pa-client-queues]');
+      if (queues) queues.hidden = Boolean(query);
+      clientSearchDebounceTimer = setTimeout(() => {
+        const results = root.querySelector('[data-pa-client-search-results]');
+        if (!results) return;
         results.hidden = !query;
         results.innerHTML = query ? clientSearchResultsHtml(buildClientFiles({ ...data, contactOptions }), query) : '';
-      }
-      if (queues) queues.hidden = Boolean(query);
+      }, SEARCH_DEBOUNCE_MS);
     }, { signal });
     root.addEventListener('click', (ev) => {
       if (!ev.target?.closest?.('[data-pa-clear-filters]')) return;
@@ -6037,18 +6058,6 @@ export const proposalsAgreementsScreen = {
       form.dataset.paAuthorityId = authorityId;
       form.dataset.paAuthorityName = authorityName;
       form.dataset.paNewClient = 'no';
-      // eslint-disable-next-line no-console
-      console.info('[proposal-schools-filter]', {
-        selectedAuthority: { id: authorityId, name: authorityName },
-        selectedAuthorityId: authorityId,
-        allSchoolsCount: contactOptions.filter((c) => c._catalog_source === 'schools').length,
-        matchingSchoolsCount: contactOptions
-          .filter((c) => c._catalog_source === 'schools' && String(c.authority_id) === String(authorityId))
-          .length,
-        sampleMatchingSchools: contactOptions
-          .filter((c) => c._catalog_source === 'schools' && String(c.authority_id) === String(authorityId))
-          .slice(0, 10)
-      });
 
       const authInput = form.querySelector('input[name="client_authority"]');
       const schoolInput = form.querySelector('input[name="school_framework"]');
@@ -6952,18 +6961,12 @@ export const proposalsAgreementsScreen = {
         }
       }
       try {
-        console.info('[proposal-save-payload]', {
-          activity_type_group: payload.activity_type_group,
-          activity_names: payload.activity_names,
-          total_amount: payload.total_amount
-        });
         const result = mode === 'edit'
           ? await api.updateProposalAgreement(id, payload)
           : await api.addProposalAgreement(payload);
         const savedId = text(result?.row?.id || id);
         const items = Array.isArray(payload._items) ? payload._items : filterItemsByProposalType(extractItemsFromForm(form), payload.activity_type_group);
         if (savedId && typeof api.saveProposalAgreementItems === 'function') {
-          console.debug('[PA_SAVE_ITEMS]', { savedId, activity_type_group: payload.activity_type_group, items });
           await api.saveProposalAgreementItems(savedId, items);
         }
         let finalRow = result?.row || { ...payload, id: savedId };
@@ -7983,11 +7986,6 @@ export const proposalsAgreementsScreen = {
             status: 'draft',
           };
           const cloneItems = sourceItems.map(({ id: _id, ...rest }) => rest);
-          console.info('[proposal-save-payload]', {
-            activity_type_group: clonePayload.activity_type_group,
-            activity_names: clonePayload.activity_names,
-            total_amount: clonePayload.total_amount
-          });
           const result = await api.addProposalAgreement(clonePayload);
           if (!result?.ok || !result?.row?.id) throw new Error('clone_failed');
           const newId = result.row.id;
