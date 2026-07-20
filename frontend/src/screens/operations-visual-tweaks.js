@@ -135,6 +135,71 @@ function addOperationsVisualTweaksStyle() {
       line-height: 1.2;
       margin-top: 2px;
     }
+
+    /* ניהול תפעול — שורת פעולות וחיפוש קומפקטית */
+    #app .ds-ops-mgmt-screen .ds-ops-mgmt-panel__toolbar,
+    #app .ds-ops-mgmt-screen .ops-compact-action-row {
+      display: flex !important;
+      align-items: center !important;
+      justify-content: flex-start !important;
+      gap: 6px !important;
+      flex-wrap: nowrap !important;
+      width: 100% !important;
+      max-width: 100% !important;
+      padding: 4px 0 !important;
+      margin: 0 0 8px !important;
+      overflow-x: auto !important;
+      scrollbar-width: thin;
+      box-sizing: border-box;
+    }
+    #app .ds-ops-mgmt-screen .ds-ops-mgmt-panel__toolbar .ds-btn,
+    #app .ds-ops-mgmt-screen .ops-compact-action-row .ds-btn,
+    #app .ds-ops-mgmt-screen .ds-ops-mgmt-panel__toolbar button,
+    #app .ds-ops-mgmt-screen .ops-compact-action-row button {
+      min-width: 0 !important;
+      width: auto !important;
+      min-height: 30px !important;
+      height: 30px !important;
+      padding: 3px 9px !important;
+      border-radius: 8px !important;
+      font-size: 12px !important;
+      line-height: 1.1 !important;
+      font-weight: 750 !important;
+      white-space: nowrap !important;
+      flex: 0 0 auto !important;
+    }
+    #app .ds-ops-mgmt-screen .ds-ops-mgmt-panel__toolbar .ds-input,
+    #app .ds-ops-mgmt-screen .ops-compact-action-row .ds-input,
+    #app .ds-ops-mgmt-screen .ds-ops-mgmt-panel__toolbar input,
+    #app .ds-ops-mgmt-screen .ds-ops-mgmt-panel__toolbar select,
+    #app .ds-ops-mgmt-screen .ops-compact-action-row input,
+    #app .ds-ops-mgmt-screen .ops-compact-action-row select {
+      min-width: 165px !important;
+      width: min(230px, 24vw) !important;
+      max-width: 230px !important;
+      min-height: 30px !important;
+      height: 30px !important;
+      padding: 2px 8px !important;
+      border-radius: 8px !important;
+      font-size: 12px !important;
+      flex: 1 1 190px !important;
+    }
+    @media (max-width: 1050px) {
+      #app .ds-ops-mgmt-screen .ds-ops-mgmt-panel__toolbar,
+      #app .ds-ops-mgmt-screen .ops-compact-action-row {
+        flex-wrap: wrap !important;
+        overflow-x: visible !important;
+      }
+      #app .ds-ops-mgmt-screen .ds-ops-mgmt-panel__toolbar .ds-input,
+      #app .ds-ops-mgmt-screen .ops-compact-action-row .ds-input,
+      #app .ds-ops-mgmt-screen .ds-ops-mgmt-panel__toolbar input,
+      #app .ds-ops-mgmt-screen .ds-ops-mgmt-panel__toolbar select,
+      #app .ds-ops-mgmt-screen .ops-compact-action-row input,
+      #app .ds-ops-mgmt-screen .ops-compact-action-row select {
+        width: 210px !important;
+        max-width: 210px !important;
+      }
+    }
   `;
   document.head.appendChild(style);
 }
@@ -178,10 +243,50 @@ function setActivitiesArchiveMode() {
   app.classList.toggle('ds-activities-archive-mode', isActivitiesArchiveVisible());
 }
 
+function compactOperationsActionRow() {
+  const root = document.querySelector('#app .ds-ops-mgmt-screen');
+  if (!root) return;
+
+  const buttons = Array.from(root.querySelectorAll('button'));
+  buttons.forEach((button) => {
+    if (textOf(button) === 'אנשי קשר ואחראי קשר') button.textContent = 'אחראי קשר';
+  });
+
+  const knownLabels = new Set([
+    'הדפס סידור עבודה',
+    'כולל ישנים',
+    'מדריכים',
+    'אחראי קשר',
+    'אנשי קשר ואחראי קשר',
+    'הכשרות קיץ',
+    'סדנת קיץ'
+  ]);
+  const actionButtons = Array.from(root.querySelectorAll('button')).filter((button) => knownLabels.has(textOf(button)));
+  if (!actionButtons.length) return;
+
+  const anchor = actionButtons.find((button) => textOf(button) === 'אחראי קשר') || actionButtons[0];
+  let row = anchor.closest('.ds-ops-mgmt-panel__toolbar, .ds-toolbar, .ds-screen-top-row');
+  if (!row) {
+    let node = anchor.parentElement;
+    let depth = 0;
+    while (node && node !== root && depth < 5) {
+      const matchingButtons = Array.from(node.querySelectorAll('button')).filter((button) => knownLabels.has(textOf(button)));
+      if (matchingButtons.length >= 2) {
+        row = node;
+        break;
+      }
+      node = node.parentElement;
+      depth += 1;
+    }
+  }
+  row?.classList.add('ops-compact-action-row');
+}
+
 function runOperationsVisualTweaks() {
   addOperationsVisualTweaksStyle();
   removeEmptyCellLegendText();
   setActivitiesArchiveMode();
+  compactOperationsActionRow();
 }
 
 function scheduleOperationsVisualTweaks() {
