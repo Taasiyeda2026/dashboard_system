@@ -658,6 +658,7 @@ test('client search opens a closed customer file and x returns to search', async
     const search = root.querySelector('[data-pa-client-search]');
     search.value = 'מיכל כהן';
     search.dispatchEvent(new dom.window.Event('input', { bubbles: true }));
+    await delay(300);
     const results = root.querySelector('[data-pa-client-search-results]');
     assert.equal(results.hidden, false);
     assert.match(results.textContent, /בית ספר א/);
@@ -683,6 +684,7 @@ test('client file separates current proposal versions from archive', async () =>
     const search = root.querySelector('[data-pa-client-search]');
     search.value = '11111';
     search.dispatchEvent(new dom.window.Event('input', { bubbles: true }));
+    await delay(300);
     root.querySelector('[data-pa-open-client]')?.dispatchEvent(new dom.window.MouseEvent('click', { bubbles: true }));
     const file = root.querySelector('[data-pa-client-file]');
     assert.match(file.textContent, /הצעות עדכניות/);
@@ -706,6 +708,7 @@ test('client file creates contacts inside the selected school without leaving th
     const search = root.querySelector('[data-pa-client-search]');
     search.value = '11111';
     search.dispatchEvent(new dom.window.Event('input', { bubbles: true }));
+    await delay(300);
     root.querySelector('[data-pa-open-client]')?.dispatchEvent(new dom.window.MouseEvent('click', { bubbles: true }));
     root.querySelector('[data-pa-client-add-contact]')?.dispatchEvent(new dom.window.MouseEvent('click', { bubbles: true }));
     const form = root.querySelector('[data-pa-client-contact-form]');
@@ -729,6 +732,7 @@ test('new proposal from client file opens the existing editor with client prefil
     const search = root.querySelector('[data-pa-client-search]');
     search.value = '11111';
     search.dispatchEvent(new dom.window.Event('input', { bubbles: true }));
+    await delay(300);
     root.querySelector('[data-pa-open-client]')?.dispatchEvent(new dom.window.MouseEvent('click', { bubbles: true }));
     root.querySelector('[data-pa-client-add-proposal]')?.dispatchEvent(new dom.window.MouseEvent('click', { bubbles: true }));
     await delay(20);
