@@ -26,6 +26,7 @@
   <script type="module" src="./frontend/src/screens/operations-inventory-polish.js?v=20260720-proposal-pdf-tainted-canvas-v1"></script>
   <script type="module">
     const allowedSendingLabels = new Set(['נשלח על ידי', 'תאריך שליחה']);
+    const hiddenProposalLabels = new Set(['סטטוס', 'תחום', 'תאריך הצעה']);
     const emptyPublicValues = new Set(['', 'לא הוזן', 'לא נשמר', 'לא קיים', '—']);
     const uuidPattern = /^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i;
     const normalizedText = (element) => String(element?.textContent || '').replace(/\s+/g, ' ').trim();
@@ -34,32 +35,72 @@
     const cardByTitle = (detail, title) => Array.from(detail.querySelectorAll('.ds-pa-info-card'))
       .find((card) => normalizedText(card.querySelector('.ds-pa-card-title')) === title) || null;
 
+    function ensureProposalDetailsPublicStyle() {
+      if (document.getElementById('proposal-details-public-style')) return;
+      const style = document.createElement('style');
+      style.id = 'proposal-details-public-style';
+      style.textContent = `
+        #app [data-pa-proposal-detail] .ds-pa-proposal-info-grid.ds-pa-proposal-info-grid--public {
+          grid-template-columns: repeat(2, minmax(0, 1fr)) !important;
+        }
+        @media (max-width: 900px) {
+          #app [data-pa-proposal-detail] .ds-pa-proposal-info-grid.ds-pa-proposal-info-grid--public {
+            grid-template-columns: 1fr !important;
+          }
+        }
+      `;
+      document.head.appendChild(style);
+    }
+
+    function createMergedSendingCell(label, value) {
+      const cell = document.createElement('div');
+      cell.className = 'ds-pa-info-cell';
+      cell.dataset.paMergedSending = 'true';
+
+      const labelElement = document.createElement('span');
+      labelElement.className = 'ds-pa-info-label';
+      labelElement.textContent = label;
+
+      const valueElement = document.createElement('span');
+      valueElement.className = 'ds-pa-info-value';
+      valueElement.textContent = value;
+
+      cell.append(labelElement, valueElement);
+      return cell;
+    }
+
     function cleanProposalDetails() {
+      ensureProposalDetailsPublicStyle();
       document.querySelectorAll('#app [data-pa-proposal-detail]').forEach((detail) => {
         const proposalCard = cardByTitle(detail, 'פרטי ההצעה');
+        const proposalGrid = proposalCard?.querySelector('.ds-pa-info-grid');
         proposalCard?.querySelectorAll('.ds-pa-info-cell').forEach((cell) => {
-          if (cellLabel(cell) === 'סטטוס' || uuidPattern.test(cellValue(cell))) cell.remove();
+          if (hiddenProposalLabels.has(cellLabel(cell)) || uuidPattern.test(cellValue(cell))) cell.remove();
         });
 
         const sendingCard = cardByTitle(detail, 'פרטי שליחה');
         const sendingGrid = sendingCard?.querySelector('.ds-pa-info-grid');
-        if (sendingCard && sendingGrid) {
-          sendingGrid.querySelectorAll('.ds-pa-info-cell').forEach((cell) => {
+        if (proposalGrid && sendingCard) {
+          proposalGrid.querySelectorAll('[data-pa-merged-sending]').forEach((cell) => cell.remove());
+          const publicSendingCells = [];
+
+          sendingGrid?.querySelectorAll('.ds-pa-info-cell').forEach((cell) => {
             const label = cellLabel(cell);
             const value = cellValue(cell);
-            if (!allowedSendingLabels.has(label) || emptyPublicValues.has(value) || uuidPattern.test(value)) cell.remove();
+            if (allowedSendingLabels.has(label) && !emptyPublicValues.has(value) && !uuidPattern.test(value)) {
+              cell.dataset.paMergedSending = 'true';
+              publicSendingCells.push(cell);
+            }
           });
 
-          if (!sendingGrid.querySelector('.ds-pa-info-cell')) {
-            sendingGrid.remove();
-            if (!sendingCard.querySelector('[data-pa-public-sending-empty]')) {
-              const empty = document.createElement('p');
-              empty.className = 'ds-muted';
-              empty.dataset.paPublicSendingEmpty = 'true';
-              empty.textContent = 'ההצעה טרם נשלחה';
-              sendingCard.appendChild(empty);
-            }
+          if (publicSendingCells.length) {
+            publicSendingCells.forEach((cell) => proposalGrid.appendChild(cell));
+          } else {
+            proposalGrid.appendChild(createMergedSendingCell('פרטי שליחה', 'ההצעה טרם נשלחה'));
           }
+
+          sendingCard.remove();
+          proposalCard.parentElement?.classList.add('ds-pa-proposal-info-grid--public');
         }
 
         detail.querySelectorAll('.ds-pa-info-cell').forEach((cell) => {

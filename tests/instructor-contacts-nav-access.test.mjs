@@ -49,5 +49,6 @@ test('clicking instructor-contacts and back navigates via app:navigate', async (
 
   assert.deepEqual(navigations, ['instructor-contacts', 'instructors']);
   assert.match(instructorsSource, /אנשי קשר מדריכים/);
-  assert.match(contactsSource, /חזרה למדריכים/);
+  assert.match(contactsSource, /data-route="instructors"/);
+  assert.match(contactsSource, /חזרה/);
 });
