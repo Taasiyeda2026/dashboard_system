@@ -4440,6 +4440,10 @@ function buildClientFiles(data = {}) {
   };
 
   (Array.isArray(data?.contactOptions) ? data.contactOptions : []).forEach((contact) => {
+    if (text(contact.source_table) === 'contacts_schools') {
+      const sourceId = contact.source_id ?? contact.id;
+      contact = { ...contact, id: sourceId, source_id: sourceId, source_table: 'contacts_schools' };
+    }
     const file = ensureFile(contact);
     if (!file || !text(contact.contact_name)) return;
     const contactKey = text(contact.source_table && contact.source_id ? `${contact.source_table}:${contact.source_id}` : '')
@@ -4600,8 +4604,9 @@ function selectedClientFileHtml(file, state = {}) {
 }
 
 function clientContactEditorHtml(file, contact = {}, index = -1) {
+  const contactId = contact.source_id ?? contact.id ?? '';
   return `<div class="ds-client-contact-modal" data-pa-client-contact-modal role="dialog" aria-modal="true" aria-label="${index >= 0 ? 'עריכת' : 'הוספת'} איש קשר">
-    <form class="ds-client-contact-form" data-pa-client-contact-form data-pa-contact-index="${index}">
+    <form class="ds-client-contact-form" data-pa-client-contact-form data-pa-contact-index="${index}" data-pa-contact-id="${escapeHtml(contactId)}">
       <button type="button" class="ds-client-file__close" data-pa-client-contact-close aria-label="סגירה">✕</button>
       <h3>${index >= 0 ? 'עריכת' : 'הוספת'} איש קשר</h3>
       <label>שם מלא<input class="ds-input" name="contact_name" required value="${escapeHtml(contact.contact_name || '')}"></label>
@@ -6652,8 +6657,7 @@ export const proposalsAgreementsScreen = {
       const get = (name) => text(formData.get(name));
       const index = Number(contactForm.dataset.paContactIndex);
       const original = index >= 0 ? file.contacts[index] : null;
-      const payload = {
-        id: original?.source_table === 'contacts_schools' ? (original.source_id || original.id || null) : null,
+      const contactFields = {
         client_type: file.client_type || (file.school_id ? 'school' : 'authority'),
         client_name: file.school || file.authority,
         authority_id: file.authority_id || null,
@@ -6667,37 +6671,57 @@ export const proposalsAgreementsScreen = {
         phone: get('phone'),
         email: get('email')
       };
-      const matchesOriginalContact = (contact) => Boolean(original) && (
-        (text(original.source_table) && text(original.source_id) && text(contact.source_table) === text(original.source_table) && text(contact.source_id) === text(original.source_id))
-        || (normalizedClientPart(contact.contact_name) === normalizedClientPart(original.contact_name)
-          && normalizedClientPart(contact.email || contact.mobile || contact.phone) === normalizedClientPart(original.email || original.mobile || original.phone))
-      );
+      const directExistingIdValue = original && (text(original.source_table) === 'contacts_schools' || !text(original.source_table))
+        ? (original.source_id ?? original.id ?? contactForm.dataset.paContactId)
+        : null;
+      const directExistingId = text(directExistingIdValue) ? directExistingIdValue : null;
+      const legacyMatches = original && directExistingId == null
+        ? contactOptions.filter((contact) => (
+          text(contact.source_table) === 'contacts_schools'
+          && normalizedClientPart(contact.authority_id || contact.authority) === normalizedClientPart(original.authority_id || original.authority || file.authority)
+          && normalizedClientPart(contact.school_id || contact.school) === normalizedClientPart(original.school_id || original.school || file.school)
+          && normalizedClientPart(contact.contact_name) === normalizedClientPart(original.contact_name)
+          && (contact.source_id ?? contact.id) != null
+        ))
+        : [];
+      const existingId = directExistingId ?? (legacyMatches.length === 1 ? (legacyMatches[0].source_id ?? legacyMatches[0].id) : null);
       const errorEl = contactForm.querySelector('[data-pa-client-contact-error]');
       const submitBtn = contactForm.querySelector('[type="submit"]');
-      if (!payload.contact_name) {
+      if (!contactFields.contact_name) {
         if (errorEl) errorEl.textContent = 'יש להזין שם איש קשר';
         return;
       }
       if (submitBtn) submitBtn.disabled = true;
       try {
         if (!original) {
-          await api.addContact({ kind: 'school', row: payload });
-          contactOptions = [...contactOptions, { ...payload, source_table: 'contacts_schools' }];
-        } else if (original.source_table === 'contacts_schools' && payload.id != null) {
-          await api.saveContact({ kind: 'school', row: payload, _supabase_orig: original });
-          contactOptions = contactOptions.map((contact) => matchesOriginalContact(contact) ? { ...contact, ...payload } : contact);
+          const result = await api.addContact({ kind: 'school', row: contactFields });
+          const insertedId = result?.row?.id;
+          contactOptions = [...contactOptions, { ...contactFields, id: insertedId, source_id: insertedId, source_table: 'contacts_schools' }];
+          showToast('איש הקשר נוסף בהצלחה', 'success', 1800);
+        } else if (existingId != null && existingId !== '') {
+          const updateRow = { ...contactFields, id: existingId };
+          await api.saveContact({ kind: 'school', row: updateRow, _supabase_orig: original });
+          contactOptions = contactOptions.map((contact) => (
+            (text(contact.source_table) === 'contacts_schools' || !text(contact.source_table))
+            && text(contact.source_id ?? contact.id) === text(existingId)
+          ) ? { ...contact, ...contactFields, id: existingId, source_id: existingId, source_table: 'contacts_schools' } : contact);
+          showToast('פרטי איש הקשר עודכנו בהצלחה', 'success', 1800);
         } else if (typeof api.updateUnifiedContactRecord === 'function' && original.source_table && original.source_id != null) {
-          await api.updateUnifiedContactRecord({ source_table: original.source_table, source_id: original.source_id, fields: payload });
-          contactOptions = contactOptions.map((contact) => matchesOriginalContact(contact) ? { ...contact, ...payload } : contact);
+          await api.updateUnifiedContactRecord({ source_table: original.source_table, source_id: original.source_id, fields: contactFields });
+          contactOptions = contactOptions.map((contact) => text(contact.source_table) === text(original.source_table) && text(contact.source_id) === text(original.source_id) ? { ...contact, ...contactFields } : contact);
+          showToast('פרטי איש הקשר עודכנו בהצלחה', 'success', 1800);
         } else {
-          await api.addContact({ kind: 'school', row: payload });
-          contactOptions = contactOptions.map((contact) => matchesOriginalContact(contact) ? { ...contact, ...payload, source_table: 'contacts_schools' } : contact);
+          const identityError = new Error('client_contact_update_identity_missing');
+          console.error('[client-file contact identity missing]', { original, file, legacyMatches });
+          throw identityError;
         }
         data.contactOptions = contactOptions;
         renderClientWorkspace();
-        showToast('איש הקשר נשמר בתיק הלקוח', 'success', 1800);
       } catch (err) {
-        if (errorEl) errorEl.textContent = `שגיאה בשמירה: ${err?.message || err}`;
+        console.error('[client-file contact save failed]', err);
+        if (errorEl) errorEl.textContent = err?.message === 'client_contact_update_identity_missing'
+          ? 'לא ניתן לזהות את רשומת איש הקשר לעדכון. יש לרענן את תיק הלקוח ולנסות שוב.'
+          : 'לא ניתן היה לשמור את פרטי איש הקשר. הפרטים שהוזנו נשמרו בטופס וניתן לנסות שוב.';
         if (submitBtn) submitBtn.disabled = false;
       }
     }, { signal });

@@ -103,6 +103,105 @@ test('client-file render is data-pure and bind never requests an initial rerende
   });
 });
 
+test('client-file contact editing updates by exact source id and never inserts a duplicate', async () => {
+  const state = stateFor({ manage: true, role: 'admin' });
+  for (const contact of [
+    { id: '81', source_id: '81', source_table: 'contacts_schools' },
+    { id: '82' }
+  ]) {
+    const data = {
+      rows: [],
+      contactOptions: [{
+        ...contact,
+        client_type: 'school', authority_id: '5', school_id: '9', authority: 'נתניה', school: 'ריגלר',
+        contact_name: 'אורי אהרון כהן', contact_role: 'מנהל', mobile: '050-1111111'
+      }]
+    };
+    await withJSDOM(proposalsAgreementsScreen.render(data, { state }), async (root, dom) => {
+      const saved = [];
+      const added = [];
+      proposalsAgreementsScreen.bind({
+        root, data, state,
+        api: {
+          saveContact: async (payload) => { saved.push(payload); return { ok: true }; },
+          addContact: async (payload) => { added.push(payload); return { ok: true, row: { id: 'new' } }; }
+        }
+      });
+      const search = root.querySelector('[data-pa-client-search]');
+      search.value = 'ריגלר';
+      search.dispatchEvent(new dom.window.Event('input', { bubbles: true }));
+      await new Promise((resolve) => setTimeout(resolve, 300));
+      root.querySelector('[data-pa-open-client]')?.click();
+      root.querySelector('[data-pa-client-edit-contact]')?.click();
+      const form = root.querySelector('[data-pa-client-contact-form]');
+      form.querySelector('[name="contact_role"]').value = 'רכז';
+      form.dispatchEvent(new dom.window.Event('submit', { bubbles: true, cancelable: true }));
+      await new Promise((resolve) => setTimeout(resolve, 0));
+      assert.equal(saved.length, 1);
+      assert.equal(added.length, 0);
+      assert.equal(String(saved[0].row.id), String(contact.source_id || contact.id));
+      assert.equal(data.contactOptions.length, 1);
+      assert.equal(data.contactOptions[0].contact_role, 'רכז');
+      assert.equal(data.contactOptions[0].source_table, 'contacts_schools');
+    });
+  }
+});
+
+test('client-file edit without an unambiguous id does not insert and hides database errors', async () => {
+  const state = stateFor({ manage: true, role: 'admin' });
+  const data = { rows: [], contactOptions: [{ client_type: 'school', authority: 'נתניה', school: 'ריגלר', contact_name: 'אורי אהרון כהן' }] };
+  await withJSDOM(proposalsAgreementsScreen.render(data, { state }), async (root, dom) => {
+    let addCalls = 0;
+    proposalsAgreementsScreen.bind({ root, data, state, api: { addContact: async () => { addCalls += 1; } } });
+    const search = root.querySelector('[data-pa-client-search]');
+    search.value = 'ריגלר';
+    search.dispatchEvent(new dom.window.Event('input', { bubbles: true }));
+    await new Promise((resolve) => setTimeout(resolve, 300));
+    root.querySelector('[data-pa-open-client]')?.click();
+    root.querySelector('[data-pa-client-edit-contact]')?.click();
+    const form = root.querySelector('[data-pa-client-contact-form]');
+    form.dispatchEvent(new dom.window.Event('submit', { bubbles: true, cancelable: true }));
+    await new Promise((resolve) => setTimeout(resolve, 0));
+    assert.equal(addCalls, 0);
+    const message = form.querySelector('[data-pa-client-contact-error]').textContent;
+    assert.match(message, /לא ניתן לזהות/);
+    assert.doesNotMatch(message, /contacts_schools|not-null|PostgreSQL|Supabase/i);
+  });
+});
+
+test('new client-file contact inserts without identity metadata and uses returned id', async () => {
+  const state = stateFor({ manage: true, role: 'admin' });
+  const data = { rows: [{ id: 'p1', client_type: 'school', client_authority: 'נתניה', school_framework: 'ריגלר', authority_id: '5', school_id: '9' }], contactOptions: [] };
+  await withJSDOM(proposalsAgreementsScreen.render(data, { state }), async (root, dom) => {
+    let inserted;
+    proposalsAgreementsScreen.bind({ root, data, state, api: { addContact: async (payload) => { inserted = payload; return { ok: true, row: { id: 91 } }; } } });
+    const search = root.querySelector('[data-pa-client-search]');
+    search.value = 'ריגלר';
+    search.dispatchEvent(new dom.window.Event('input', { bubbles: true }));
+    await new Promise((resolve) => setTimeout(resolve, 300));
+    root.querySelector('[data-pa-open-client]')?.click();
+    root.querySelector('[data-pa-client-add-contact]')?.click();
+    const form = root.querySelector('[data-pa-client-contact-form]');
+    form.querySelector('[name="contact_name"]').value = 'איש חדש';
+    form.dispatchEvent(new dom.window.Event('submit', { bubbles: true, cancelable: true }));
+    await new Promise((resolve) => setTimeout(resolve, 0));
+    assert.ok(inserted);
+    assert.equal(Object.hasOwn(inserted.row, 'id'), false);
+    assert.equal(Object.hasOwn(inserted.row, 'source_id'), false);
+    assert.equal(Object.hasOwn(inserted.row, 'source_table'), false);
+    assert.equal(data.contactOptions[0].id, 91);
+    assert.equal(data.contactOptions[0].source_id, 91);
+  });
+});
+
+test('school contact insert sanitizes null identity before reaching Supabase', async () => {
+  const apiSource = await readFile(new URL('../frontend/src/api.js', import.meta.url), 'utf8');
+  assert.match(apiSource, /if \(nextRow\.id == null \|\| nextRow\.id === ''\) delete nextRow\.id;/);
+  assert.match(apiSource, /delete nextRow\.source_id;/);
+  assert.match(apiSource, /delete nextRow\.source_table;/);
+  assert.match(apiSource, /from\('contacts_schools'\)\.insert\(nextRow\)\.select\(\)\.single\(\)/);
+});
+
 test('combined activity-group metadata cannot recurse while the client-file screen renders', () => {
   const data = {
     rows: [],
@@ -440,13 +539,13 @@ test('opening a proposal from all-proposals table returns to the table with filt
 test('service worker version and activate-only cache cleanup', async () => {
   const sw = await readFile(SW_FILE, 'utf8');
   const config = await readFile(CONFIG_FILE, 'utf8');
-  assert.match(sw, /const CACHE_VERSION = 1240;/);
+  assert.match(sw, /const CACHE_VERSION = 1241;/);
   const installBlock = sw.match(/self\.addEventListener\('install',[\s\S]*?\n\}\);/)?.[0] || '';
   assert.doesNotMatch(installBlock, /deleteOutdatedCaches\(/);
   assert.match(sw, /self\.addEventListener\('activate'[\s\S]*deleteOutdatedCaches\(/);
   assert.match(sw, /clients\.claim/);
   assert.match(sw, /isApiLikeUrl/);
-  assert.match(config, /client-file-render-lifecycle-hotfix-20260720-v1/);
+  assert.match(config, /client-contact-update-hotfix-20260720-v1/);
 });
 
 test('STATUS_LABELS remain available for filters', () => {
