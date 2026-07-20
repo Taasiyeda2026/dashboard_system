@@ -258,8 +258,10 @@ test('view-only users do not see management actions; managers do', async () => {
 
   const viewHtml = proposalsAgreementsScreen.render(data, { state: viewState });
   const manageHtml = proposalsAgreementsScreen.render(data, { state: manageState });
-  assert.doesNotMatch(viewHtml, /\+ לקוח אחר/);
-  assert.match(manageHtml, /\+ לקוח אחר/);
+  assert.doesNotMatch(viewHtml, /לקוח אחר/);
+  assert.doesNotMatch(manageHtml, /לקוח אחר/);
+  assert.match(viewHtml, /\+ הצעה חדשה/);
+  assert.match(manageHtml, /\+ הצעה חדשה/);
 
   await withJSDOM(viewHtml, async (root, dom) => {
     const api = { readProposalAgreementItems: async () => [] };
@@ -539,13 +541,13 @@ test('opening a proposal from all-proposals table returns to the table with filt
 test('service worker version and activate-only cache cleanup', async () => {
   const sw = await readFile(SW_FILE, 'utf8');
   const config = await readFile(CONFIG_FILE, 'utf8');
-  assert.match(sw, /const CACHE_VERSION = 1241;/);
+  assert.match(sw, /const CACHE_VERSION = 1242;/);
   const installBlock = sw.match(/self\.addEventListener\('install',[\s\S]*?\n\}\);/)?.[0] || '';
   assert.doesNotMatch(installBlock, /deleteOutdatedCaches\(/);
   assert.match(sw, /self\.addEventListener\('activate'[\s\S]*deleteOutdatedCaches\(/);
   assert.match(sw, /clients\.claim/);
   assert.match(sw, /isApiLikeUrl/);
-  assert.match(config, /client-contact-update-hotfix-20260720-v1/);
+  assert.match(config, /client-file-accent-pdf-hotfix-20260720-v1/);
 });
 
 test('STATUS_LABELS remain available for filters', () => {
