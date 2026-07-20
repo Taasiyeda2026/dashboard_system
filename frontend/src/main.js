@@ -559,7 +559,7 @@ const screenLabels = {
   'admin-settings': 'הגדרות מערכת',
   'admin-lists': 'ניהול רשימות',
   archive: 'ארכיון',
-  'proposals-agreements': 'הצעות מחיר',
+  'proposals-agreements': 'תיק לקוח',
   finance: 'כספים',
   invitations: 'הזמנות לאירועים',
   orders: 'הזמנות לאירועים',
@@ -1069,9 +1069,10 @@ function shell(content) {
 
   const HEADER_ALWAYS_EXCLUDE = new Set(['instructor-contacts', 'proposals-agreements', 'week', 'month']);
   const adminHeaderExclude = isAdminUser ? new Set(['operations', ...(isActiveInstructorPilotUser() ? [] : ['my-data']), 'permissions']) : new Set();
+  const hasUnifiedClientFile = effectiveRoutes().includes('proposals-agreements');
   const headerNavHtml = headerNavGridHtml({
     route: state.route,
-    routes: effectiveRoutes().filter((r) => !adminHeaderExclude.has(r) && !HEADER_ALWAYS_EXCLUDE.has(r))
+    routes: effectiveRoutes().filter((r) => !adminHeaderExclude.has(r) && !HEADER_ALWAYS_EXCLUDE.has(r) && !(hasUnifiedClientFile && r === 'contacts'))
   }, { exceptions: exceptionsNavCount(), editRequests: Number(state.openEditRequestsCount) || 0 });
   const headerTechHtml = '';
   const instructorMobileHeader = isInstructorUser
