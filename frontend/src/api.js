@@ -41,6 +41,7 @@ const MUTATING_ACTIONS = {
   addActivity: true,
   addContact: true,
   saveContact: true,
+  deleteSchoolContact: true,
   updateUnifiedContactRecord: true,
   submitEditRequest: true,
   submitCreateActivityRequest: true,
@@ -2697,6 +2698,7 @@ function invalidateScreenDataByAction(action) {
     savePermission: ['permissions'],
     addContact: ['contacts', 'instructor-contacts'],
     saveContact: ['contacts', 'instructor-contacts'],
+    deleteSchoolContact: ['contacts', 'instructor-contacts', 'proposals-agreements'],
     updateUnifiedContactRecord: ['contacts', 'instructor-contacts'],
     saveSheetMapping: ['adminSettings', 'listSheets', 'dashboard:', 'activities:', 'week:', 'month:'],
     saveClientSetting: ['adminSettings', 'dashboard:', 'activities:', 'week:', 'month:'],
@@ -3063,7 +3065,7 @@ function proposalFinalPdfStoragePath(proposalId, fileName = 'proposal.pdf') {
     String(now.getUTCSeconds()).padStart(2, '0')
   ].join('');
   const safeName = String(fileName || 'proposal.pdf').replace(/[^\w.\-א-ת]+/g, '_').slice(0, 120) || 'proposal.pdf';
-  return `proposals/${rowId}/sent/${stamp}.pdf`;
+  return `proposals/${rowId}/${stamp}-${Date.now()}/${safeName}`;
 }
 
 function proposalLockActorName() {
@@ -6472,13 +6474,16 @@ export const api = {
     if (!documentHtmlSnapshot) throw new Error('missing_document_html_snapshot');
     const { data: currentRow, error: currentRowError } = await supabase.from('proposals_agreements').select(PROPOSALS_AGREEMENTS_COLUMNS).eq('id', rowId).single();
     if (currentRowError || !currentRow) throw new Error('proposals_agreement_not_found');
-    if (normalizeProposalAgreementStatusForDb(currentRow.status) === 'sent' || cleanProposalAgreementText(currentRow.locked_at)) {
+    const isHistoricalSnapshotBackfill = normalizeProposalAgreementStatusForDb(currentRow.status) === 'sent'
+      && !cleanProposalAgreementText(currentRow.final_pdf_path)
+      && Boolean(cleanProposalAgreementText(currentRow.document_html_snapshot) || currentRow.document_snapshot);
+    if (!isHistoricalSnapshotBackfill && (normalizeProposalAgreementStatusForDb(currentRow.status) === 'sent' || cleanProposalAgreementText(currentRow.locked_at))) {
       throw new Error('proposal_is_locked');
     }
     const filePath = proposalFinalPdfStoragePath(rowId, pdfFile.name);
     const uploaded = await supabase.storage.from(PROPOSAL_FINAL_PDF_BUCKET).upload(filePath, pdfFile, {
       contentType: 'application/pdf',
-      upsert: true
+      upsert: false
     });
     if (uploaded.error) throw new Error(uploaded.error.message || 'proposal_final_pdf_upload_failed');
     const nowIso = new Date().toISOString();
@@ -6837,6 +6842,13 @@ export const api = {
       return { ok: true };
     }
     throw new Error('invalid_contact_kind');
+  },
+  deleteSchoolContact: async (contactId) => {
+    const id = cleanProposalAgreementText(contactId);
+    if (!id) throw new Error('missing_school_contact_id');
+    const { error } = await supabase.from('contacts_schools').delete().eq('id', id);
+    if (error) throw new Error(error.message || 'delete_school_contact_failed');
+    return { ok: true, id };
   },
   updateUnifiedContactRecord: async (payload) => {
     const sourceTable = String(payload?.source_table || '').trim();

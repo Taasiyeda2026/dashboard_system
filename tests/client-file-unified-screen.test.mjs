@@ -541,13 +541,27 @@ test('opening a proposal from all-proposals table returns to the table with filt
 test('service worker version and activate-only cache cleanup', async () => {
   const sw = await readFile(SW_FILE, 'utf8');
   const config = await readFile(CONFIG_FILE, 'utf8');
-  assert.match(sw, /const CACHE_VERSION = 1242;/);
+  assert.match(sw, /const CACHE_VERSION = 1243;/);
   const installBlock = sw.match(/self\.addEventListener\('install',[\s\S]*?\n\}\);/)?.[0] || '';
   assert.doesNotMatch(installBlock, /deleteOutdatedCaches\(/);
   assert.match(sw, /self\.addEventListener\('activate'[\s\S]*deleteOutdatedCaches\(/);
   assert.match(sw, /clients\.claim/);
   assert.match(sw, /isApiLikeUrl/);
-  assert.match(config, /client-file-accent-pdf-hotfix-20260720-v1/);
+  assert.match(config, /client-file-accent-pdf-hotfix-20260720-v2/);
+});
+
+test('contact deletion and PDF flow use exact ids without a manual file picker', async () => {
+  const [screenSource, apiSource] = await Promise.all([
+    readFile(SCREEN_FILE, 'utf8'),
+    readFile(new URL('../frontend/src/api.js', import.meta.url), 'utf8')
+  ]);
+  assert.match(screenSource, /data-pa-client-delete-contact/);
+  assert.match(screenSource, /api\.deleteSchoolContact\(contactId\)/);
+  assert.match(apiSource, /deleteSchoolContact:\s*async \(contactId\)/);
+  assert.match(apiSource, /\.delete\(\)\.eq\('id', id\)/);
+  assert.doesNotMatch(screenSource, /data-pa-legacy-pdf-input|העלאת PDF סופי להצעה ישנה/);
+  assert.match(screenSource, /ds-pa-proposal-info-grid/);
+  assert.match(apiSource, /upsert:\s*false/);
 });
 
 test('STATUS_LABELS remain available for filters', () => {
