@@ -48,7 +48,24 @@ jobs:
           node --check tests/instructor-contacts-nav-access.test.mjs
 
       - name: Run unified client file tests
-        run: node --test --test-name-pattern='^(?!service worker version and activate-only cache cleanup$).*' tests/client-file-unified-screen.test.mjs
+        id: unified_tests
+        continue-on-error: true
+        shell: bash
+        run: |
+          set -o pipefail
+          node --test --test-name-pattern='^(?!service worker version and activate-only cache cleanup$).*' tests/client-file-unified-screen.test.mjs 2>&1 | tee unified-client-file-tests.log
+
+      - name: Upload unified test output
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: unified-client-file-test-output
+          path: unified-client-file-tests.log
+          if-no-files-found: error
+
+      - name: Stop on unified test failure
+        if: steps.unified_tests.outcome == 'failure'
+        run: exit 1
 
       - name: Validate current cache and hotfix versions
         run: node --test tests/client-file-version-sync.test.mjs
