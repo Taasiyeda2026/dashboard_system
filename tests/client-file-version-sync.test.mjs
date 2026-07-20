@@ -16,7 +16,7 @@ test('service worker and client-file hotfix versions are current and structurall
 
   const hotfixVersion = config.match(/HOTFIX_VERSION:\s*'([^']+)'/)?.[1] || '';
   assert.ok(hotfixVersion.trim(), 'HOTFIX_VERSION must be defined');
-  assert.match(hotfixVersion, /proposal-pdf-storage-key/, 'HOTFIX_VERSION must describe the current proposal PDF storage-key generation');
+  assert.match(hotfixVersion, /proposal-pdf-(?:svg-origin-clean|storage-key)/, 'HOTFIX_VERSION must describe the current PDF hotfix generation');
 
   const installBlock = sw.match(/self\.addEventListener\('install',[\s\S]*?\n\}\);/)?.[0] || '';
   assert.doesNotMatch(installBlock, /deleteOutdatedCaches\(/);
