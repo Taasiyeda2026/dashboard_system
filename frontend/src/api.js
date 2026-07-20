@@ -6494,7 +6494,7 @@ export const api = {
       if (error) throw new Error(error.message || 'proposal_final_pdf_save_failed');
       return { ok: true, row: normalizeProposalAgreementRow(data) };
     } catch (error) {
-      console.error('[proposal-pdf-failed]', { stage: pdfStage, proposalId: rowId, name: error?.name, message: error?.message, stack: error?.stack, error });
+      if (!error?.__proposalPdfLogged) console.error('[proposal-pdf-failed]', { stage: pdfStage, proposalId: rowId, name: error?.name, message: error?.message });
       throw error;
     }
   },
