@@ -743,6 +743,10 @@ export function normalizeProposalAgreementRow(row = {}) {
     final_pdf_created_by: text(row.final_pdf_created_by),
     document_snapshot:   (row.document_snapshot && typeof row.document_snapshot === 'object' && !Array.isArray(row.document_snapshot)) ? row.document_snapshot : null,
     document_html_snapshot: text(row.document_html_snapshot),
+    proposal_series_id: text(row.proposal_series_id),
+    version_number: Math.max(1, Number(row.version_number) || 1),
+    supersedes_proposal_id: text(row.supersedes_proposal_id),
+    archived_at: text(row.archived_at),
     updated_at:          text(row.updated_at)
   };
   normalized._searchText = buildProposalsAgreementsSearchText(normalized);
@@ -4074,6 +4078,190 @@ function allDisplayRows(data) {
   return dedupeById(sortRows(rows));
 }
 
+function normalizedClientPart(value) {
+  return text(value).trim().toLocaleLowerCase('he-IL');
+}
+
+function clientFileKey(row = {}) {
+  const authorityId = text(row.authority_id);
+  const schoolId = text(row.school_id);
+  const semel = text(row.semel_mosad);
+  const authority = text(row.client_authority || row.authority_name || row.authority);
+  const school = text(row.school_framework || row.school_name || row.school || row.contact_client_name);
+  const rawType = text(row.client_type || row.contact_client_type);
+  const isSchool = rawType === 'school' || Boolean(schoolId || semel || (school && normalizedClientPart(school) !== normalizedClientPart(authority)));
+  if (isSchool) return `school:${schoolId || semel || `${normalizedClientPart(authority)}|${normalizedClientPart(school)}`}`;
+  if (rawType === 'other') return `other:${normalizedClientPart(school || authority)}`;
+  return `authority:${authorityId || normalizedClientPart(authority || school)}`;
+}
+
+function mergeClientFileIdentity(file, row = {}) {
+  const authority = text(row.client_authority || row.authority_name || row.authority);
+  const school = text(row.school_framework || row.school_name || row.school || row.contact_client_name);
+  const type = text(row.client_type || row.contact_client_type) || (row.school_id || row.semel_mosad ? 'school' : 'authority');
+  file.client_type = file.client_type || type;
+  file.authority_id = file.authority_id || row.authority_id || null;
+  file.school_id = file.school_id || row.school_id || null;
+  file.authority = file.authority || authority;
+  file.school = file.school || (type === 'authority' ? '' : school);
+  file.semel_mosad = file.semel_mosad || text(row.semel_mosad);
+  file.domain = file.domain || text(row.proposal_domain || row.contact_domain);
+  file.city = file.city || text(row.city);
+  file.district = file.district || text(row.district);
+  return file;
+}
+
+function buildClientFiles(data = {}) {
+  const files = new Map();
+  const ensureFile = (row) => {
+    const key = clientFileKey(row);
+    if (!key || key.endsWith(':')) return null;
+    if (!files.has(key)) files.set(key, { key, client_type: '', authority_id: null, school_id: null, authority: '', school: '', semel_mosad: '', domain: '', city: '', district: '', contacts: [], proposals: [] });
+    return mergeClientFileIdentity(files.get(key), row);
+  };
+
+  (Array.isArray(data?.contactOptions) ? data.contactOptions : []).forEach((contact) => {
+    const file = ensureFile(contact);
+    if (!file || !text(contact.contact_name)) return;
+    const contactKey = text(contact.source_table && contact.source_id ? `${contact.source_table}:${contact.source_id}` : '')
+      || [contact.contact_name, contact.mobile, contact.phone, contact.email].map(normalizedClientPart).join('|');
+    if (!file.contacts.some((item) => item._clientContactKey === contactKey)) {
+      file.contacts.push({ ...contact, _clientContactKey: contactKey });
+    }
+  });
+
+  allDisplayRows(data).forEach((proposal) => {
+    const file = ensureFile(proposal);
+    if (file) file.proposals.push(proposal);
+  });
+
+  return Array.from(files.values()).sort((a, b) => {
+    const aLabel = `${a.authority} ${a.school}`.trim();
+    const bLabel = `${b.authority} ${b.school}`.trim();
+    return aLabel.localeCompare(bLabel, 'he');
+  });
+}
+
+function clientFileSearchText(file = {}) {
+  return [
+    file.authority, file.school, file.semel_mosad, file.domain, file.city, file.district,
+    ...(file.contacts || []).flatMap((contact) => [contact.contact_name, contact.contact_role, contact.mobile, contact.phone, contact.email])
+  ].map(normalizedClientPart).filter(Boolean).join(' ');
+}
+
+function clientFileLabel(file = {}) {
+  return text(file.school) || text(file.authority) || 'לקוח ללא שם';
+}
+
+function proposalCompactCardHtml(row, { archived = false } = {}) {
+  const status = normalizeProposalStatus(row.status);
+  const version = Math.max(1, Number(row.version_number) || 1);
+  const amount = row.total_amount != null ? `₪${escapeHtml(formatCurrency(row.total_amount))}` : '';
+  return `<article class="ds-client-proposal${archived ? ' is-archived' : ''}">
+    <button type="button" class="ds-client-proposal__main" data-pa-row-id="${escapeHtml(row.id)}" aria-label="פתיחת הצעה">
+      <span class="ds-client-proposal__icon" aria-hidden="true">📄</span>
+      <span><strong>${escapeHtml(proposalGroupDisplayName(row.activity_type_group) || row.document_type || 'הצעת מחיר')}</strong><small>${escapeHtml(formatDateDisplay(row.proposal_date || row.created_at))} · ${escapeHtml(STATUS_LABELS[status] || status)}${version > 1 ? ` · גרסה ${version}` : ''}</small></span>
+      ${amount ? `<b>${amount}</b>` : ''}
+    </button>
+    ${!archived ? `<button type="button" class="ds-client-proposal__version" data-pa-clone-row="${escapeHtml(row.id)}" title="יצירת גרסה חדשה">גרסה חדשה</button>` : ''}
+  </article>`;
+}
+
+function clientQueueCardHtml(row) {
+  const fileKey = clientFileKey(row);
+  return `<button type="button" class="ds-client-queue-item" data-pa-open-client="${escapeHtml(fileKey)}" data-pa-open-proposal="${escapeHtml(row.id)}">
+    <strong>${escapeHtml(text(row.school_framework) || text(row.client_authority) || 'לקוח ללא שם')}</strong>
+    <span>${escapeHtml(text(row.client_authority))}${row.total_amount != null ? ` · ₪${escapeHtml(formatCurrency(row.total_amount))}` : ''}</span>
+  </button>`;
+}
+
+const CLIENT_QUEUE_COLUMNS = [
+  ['draft', 'טיוטות'],
+  ['pending_approval', 'ממתינות לאישור'],
+  ['returned_for_changes', 'הוחזרו לתיקון'],
+  ['approved', 'ממתינות לשליחה']
+];
+
+function clientFileLandingHtml(data = {}, state = {}) {
+  const files = buildClientFiles(data);
+  const activeRows = allDisplayRows(data).filter((row) => !text(row.archived_at) && normalizeProposalStatus(row.status) !== 'cancelled');
+  const queues = CLIENT_QUEUE_COLUMNS.map(([status, label]) => {
+    const rows = activeRows.filter((row) => normalizeProposalStatus(row.status) === status);
+    return `<section class="ds-client-queue"><header><span>${escapeHtml(label)}</span><b>${rows.length}</b></header><div>${rows.length ? rows.map(clientQueueCardHtml).join('') : '<p>אין הצעות</p>'}</div></section>`;
+  }).join('');
+  return `<div class="ds-client-home" data-pa-client-home>
+    <div class="ds-client-search-row">
+      <button type="button" class="ds-client-add" data-pa-client-add-proposal aria-label="הצעה חדשה" ${canManageProposalsAgreements(state) ? '' : 'hidden'}>＋</button>
+      <label class="ds-client-search"><span class="sr-only">חיפוש תיק לקוח</span><input class="ds-input" data-pa-client-search placeholder="חיפוש רשות, בית ספר, סמל מוסד או איש קשר…" autocomplete="off"></label>
+    </div>
+    <div class="ds-client-search-results" data-pa-client-search-results hidden></div>
+    <div class="ds-client-queues" data-pa-client-queues>${queues}</div>
+    <p class="ds-client-home__hint">${files.length} תיקי לקוח · החיפוש מציג את התיק רק לאחר בחירה</p>
+  </div>`;
+}
+
+function clientSearchResultsHtml(files, query) {
+  const needle = normalizedClientPart(query);
+  if (!needle) return '';
+  const matches = files.filter((file) => clientFileSearchText(file).includes(needle)).slice(0, 30);
+  if (!matches.length) return '<p class="ds-client-search-empty">לא נמצא תיק לקוח מתאים</p>';
+  return matches.map((file) => `<button type="button" class="ds-client-search-result" data-pa-open-client="${escapeHtml(file.key)}">
+    <strong>${escapeHtml(clientFileLabel(file))}</strong>
+    <span>${escapeHtml([file.authority && file.authority !== clientFileLabel(file) ? file.authority : '', file.semel_mosad ? `סמל ${file.semel_mosad}` : '', file.contacts.length ? `${file.contacts.length} אנשי קשר` : ''].filter(Boolean).join(' · '))}</span>
+  </button>`).join('');
+}
+
+function clientContactsHtml(file = {}, canManage = false) {
+  if (!file.contacts.length) return '<p class="ds-client-empty">לא הוגדרו אנשי קשר לתיק זה.</p>';
+  return file.contacts.map((contact, index) => `<article class="ds-client-contact">
+    <div><strong>${escapeHtml(contact.contact_name)}</strong><span>${escapeHtml(contact.contact_role || 'ללא תפקיד')}</span></div>
+    <div class="ds-client-contact__channels">
+      ${text(contact.mobile || contact.phone) ? `<a href="tel:${escapeHtml(contact.mobile || contact.phone)}">${escapeHtml(contact.mobile || contact.phone)}</a>` : '<span>אין טלפון</span>'}
+      ${text(contact.email) ? `<a href="mailto:${escapeHtml(contact.email)}">${escapeHtml(contact.email)}</a>` : '<span>אין מייל</span>'}
+    </div>
+    ${canManage ? `<button type="button" data-pa-client-edit-contact="${index}" aria-label="עריכת איש קשר">✎</button>` : ''}
+  </article>`).join('');
+}
+
+function selectedClientFileHtml(file, state = {}) {
+  const canManage = canManageProposalsAgreements(state);
+  const current = file.proposals.filter((row) => !text(row.archived_at) && normalizeProposalStatus(row.status) !== 'cancelled');
+  const archive = file.proposals.filter((row) => text(row.archived_at) || normalizeProposalStatus(row.status) === 'cancelled');
+  return `<div class="ds-client-file" data-pa-client-file="${escapeHtml(file.key)}">
+    <button type="button" class="ds-client-file__close" data-pa-client-close aria-label="סגירת תיק לקוח">✕</button>
+    <section class="ds-client-file__identity">
+      <p><span>רשות</span><strong>${escapeHtml(file.authority || 'לא הוגדרה')}</strong></p>
+      <p><span>תחום</span><strong>${escapeHtml(file.domain || 'לא הוגדר')}</strong></p>
+      <p><span>בית ספר</span><strong>${escapeHtml(file.school || (file.client_type === 'authority' ? 'תיק רשות' : 'לא הוגדר'))}</strong></p>
+      <p><span>סמל מוסד</span><strong>${escapeHtml(file.semel_mosad || 'לא הוגדר')}</strong></p>
+      <div class="ds-client-file__contacts-head"><h3>אנשי קשר</h3>${canManage ? '<button type="button" class="ds-btn ds-btn--sm ds-btn--ghost" data-pa-client-add-contact>＋ איש קשר</button>' : ''}</div>
+      <div class="ds-client-contacts">${clientContactsHtml(file, canManage)}</div>
+    </section>
+    <aside class="ds-client-file__proposals">
+      <div class="ds-client-file__proposals-head"><h3>הצעות עדכניות</h3>${canManage ? '<button type="button" class="ds-btn ds-btn--sm ds-btn--primary" data-pa-client-add-proposal>＋ הצעה</button>' : ''}</div>
+      <div>${current.length ? current.map((row) => proposalCompactCardHtml(row)).join('') : '<p class="ds-client-empty">אין הצעות עדכניות</p>'}</div>
+      <hr>
+      <details class="ds-client-archive" ${archive.length ? '' : 'open'}><summary>ארכיון הצעות מחיר <b>${archive.length}</b></summary><div>${archive.length ? archive.map((row) => proposalCompactCardHtml(row, { archived: true })).join('') : '<p class="ds-client-empty">הארכיון ריק</p>'}</div></details>
+    </aside>
+  </div>`;
+}
+
+function clientContactEditorHtml(file, contact = {}, index = -1) {
+  return `<div class="ds-client-contact-modal" data-pa-client-contact-modal role="dialog" aria-modal="true" aria-label="${index >= 0 ? 'עריכת' : 'הוספת'} איש קשר">
+    <form class="ds-client-contact-form" data-pa-client-contact-form data-pa-contact-index="${index}">
+      <button type="button" class="ds-client-file__close" data-pa-client-contact-close aria-label="סגירה">✕</button>
+      <h3>${index >= 0 ? 'עריכת' : 'הוספת'} איש קשר</h3>
+      <label>שם מלא<input class="ds-input" name="contact_name" required value="${escapeHtml(contact.contact_name || '')}"></label>
+      <label>תפקיד<input class="ds-input" name="contact_role" value="${escapeHtml(contact.contact_role || '')}"></label>
+      <label>נייד<input class="ds-input" name="mobile" value="${escapeHtml(contact.mobile || contact.phone || '')}"></label>
+      <label>טלפון נוסף<input class="ds-input" name="phone" value="${escapeHtml(contact.phone || '')}"></label>
+      <label>מייל<input class="ds-input" type="email" name="email" value="${escapeHtml(contact.email || '')}"></label>
+      <p data-pa-client-contact-error role="alert"></p>
+      <div><button type="submit" class="ds-btn ds-btn--primary">שמירה</button><button type="button" class="ds-btn" data-pa-client-contact-close>ביטול</button></div>
+    </form>
+  </div>`;
+}
+
 function rowsForProposalListView(data, listView = 'records') {
   return allDisplayRows(data).filter((row) => {
     const isSent = normalizeProposalStatus(row.status) === 'sent';
@@ -4530,7 +4718,7 @@ export const proposalsAgreementsScreen = {
   },
   render(data = {}, { state } = {}) {
     if (data?.unauthorized || !canAccessProposalsAgreements(state)) {
-      return dsScreenStack(`${dsPageHeader('הצעות מחיר', 'גישה מוגבלת למורשים בלבד')}${dsEmptyState('אין לך הרשאה לצפות במסך זה')}`);
+      return dsScreenStack(`${dsPageHeader('תיק לקוח', 'גישה מוגבלת למורשים בלבד')}${dsEmptyState('אין לך הרשאה לצפות במסך זה')}`);
     }
     setProposalGroupLookups(data, Array.isArray(data?.rows) ? data.rows : [], Array.isArray(data?.proposalActivityPricing) ? data.proposalActivityPricing : []);
     setProposalPricingLookup(Array.isArray(data?.proposalActivityPricing) ? data.proposalActivityPricing : []);
@@ -4541,7 +4729,7 @@ export const proposalsAgreementsScreen = {
     const canManage = canManageProposalsAgreements(state);
     const rawRows = Array.isArray(data?.rows) ? data.rows.map(normalizeProposalAgreementRow) : [];
     return dsScreenStack(`
-      ${dsPageHeader('הצעות מחיר', proposalsScreenSummaryText(rawRows))}
+      ${dsPageHeader('תיק לקוח', `${buildClientFiles(data).length} לקוחות · ${proposalsScreenSummaryText(rawRows)}`)}
       <section class="ds-pa-screen" data-pa-screen dir="rtl">
         <style>
           .ds-pa-screen-tab{border-radius:10px 10px 0 0;transition:background .15s,color .15s,border-color .15s}.ds-pa-screen-tab:hover{background:rgba(14,165,233,.08)}.ds-pa-tab-count{display:inline-flex;min-width:19px;height:19px;padding:0 5px;align-items:center;justify-content:center;border-radius:999px;background:#e2e8f0;color:#475569;font-size:.72rem;margin-inline-start:4px}.ds-pa-screen-tab.is-active .ds-pa-tab-count{background:#dbeafe;color:#1d4ed8}
@@ -4549,14 +4737,16 @@ export const proposalsAgreementsScreen = {
           .ds-pa-item-quick-row{display:grid;grid-template-columns:minmax(0,1fr) 96px;gap:6px;align-items:end}.ds-pa-item-extra{margin-top:4px}.ds-pa-item-extra-toggle{cursor:pointer;color:#2563eb;font-size:.78rem}.ds-pa-type-chips{grid-template-columns:repeat(2,minmax(0,1fr))}.ds-pa-type-card{min-height:28px!important;padding:3px 5px!important;font-size:.76rem!important}.ds-pa-summary-bar--compact{display:flex;align-items:center;gap:8px;justify-content:space-between}.ds-pa-summary-bar--compact .ds-pa-summary-pill{flex:1}.ds-pa-item-field--select select{overflow:hidden;text-overflow:ellipsis}.ds-pa-item-field--select-no-label{gap:0}.ds-pa-item-field span{display:block;font-size:.74rem;color:#64748b;margin-bottom:3px;font-weight:600}.ds-pa-line-total output{min-height:34px;display:flex;align-items:center;justify-content:center;border:1px solid #dbe7f3;border-radius:10px;background:#f8fbff;font-weight:700;color:#0f766e}.ds-pa-items-total-row{margin-top:10px;padding:10px 12px;border-radius:12px;background:#eef8ff;font-size:.9rem}.ds-pa-items-total-row strong{color:#0369a1}
           .ds-pa-bundle-prompt{margin-top:12px}.ds-pa-bundle-panel{border:1px solid #b7e0f5;background:#f8fdff;border-radius:14px;padding:12px}.ds-pa-bundle-head{display:flex;justify-content:space-between;gap:10px;align-items:center;margin-bottom:6px}.ds-pa-bundle-head strong{font-size:.9rem;color:#0f172a}.ds-pa-bundle-head span,.ds-pa-bundle-help,.ds-pa-bundle-empty{font-size:.78rem;color:#64748b}.ds-pa-bundle-grid{display:grid;grid-template-columns:repeat(auto-fit,minmax(220px,1fr));gap:8px;margin-top:10px}.ds-pa-bundle-child-card{display:grid;grid-template-columns:auto 1fr auto;align-items:center;gap:8px;border:1px solid #dbe7f3;border-radius:12px;background:#fff;padding:9px 10px;cursor:pointer;min-height:42px}.ds-pa-bundle-child-card:hover{border-color:#38bdf8;background:#f0f9ff}.ds-pa-bundle-child-card:has(input:checked){border-color:#0ea5e9;background:#e0f2fe;box-shadow:0 0 0 1px #0ea5e9 inset}.ds-pa-bundle-child-name{font-size:.82rem;color:#0f172a;line-height:1.25}.ds-pa-bundle-child-price{font-size:.8rem;font-weight:700;color:#0f766e;white-space:nowrap}.ds-pa-bundle-footer{display:flex;justify-content:space-between;align-items:center;gap:10px;margin-top:10px;flex-wrap:wrap}.ds-pa-bundle-actions{display:flex;gap:6px}.ds-pa-bundle-selection-summary{font-size:.78rem;color:#0369a1;font-weight:700}.ds-pa-summary-bundle-list{margin:4px 0 0;padding-right:16px;font-size:.72rem}.ds-pa-items-summary-table{width:100%;border-collapse:collapse;font-size:.78rem}.ds-pa-items-summary-table th,.ds-pa-items-summary-table td{border-bottom:1px solid #e5eef6;padding:6px;text-align:right}.ds-pa-items-summary-table th{color:#64748b;font-weight:700;background:#f8fbff}
           .ds-pa-active-filters{display:flex;flex-wrap:wrap;align-items:center;gap:6px 8px;border:1px solid #dbe7f3;background:#f8fbff;border-radius:10px;padding:6px 10px;margin:8px 0 10px}.ds-pa-active-filters[hidden]{display:none}.ds-pa-active-filters-label{color:#475569;font-weight:700;font-size:.82rem;flex-shrink:0}.ds-pa-active-filter-chips{display:flex;flex-wrap:wrap;gap:6px}.ds-pa-active-filter-chip{border:1px solid #bfdbfe;background:#eff6ff;color:#1e3a8a;border-radius:999px;padding:3px 9px;font-size:.78rem}.ds-pa-active-filters [data-pa-clear-filters]{margin-inline-start:auto}.ds-pa-filtered-empty{margin:12px;border:1px solid #fed7aa;background:#fff7ed;color:#9a3412;border-radius:12px;padding:14px;text-align:center}.ds-pa-filtered-empty p{margin:0 0 10px;font-weight:700}
-          @media (max-width:900px){.ds-pa-bundle-grid{grid-template-columns:1fr}}@media (max-width:640px){.ds-pa-type-chips{grid-template-columns:repeat(2,minmax(0,1fr))}.ds-pa-item-quick-row{grid-template-columns:1fr}}
+          .ds-pa-legacy-list{display:none!important}.ds-client-workspace{max-width:1180px;margin:0 auto}.ds-client-home{padding:16px 10px 8px}.ds-client-search-row{display:flex;justify-content:center;align-items:center;gap:14px;max-width:650px;margin:0 auto 26px}.ds-client-search{flex:1}.ds-client-search input{height:44px;border:2px solid #0797bf;border-radius:999px;padding-inline:20px;background:#fff}.ds-client-add{width:42px;height:42px;border:0;background:transparent;color:#0797bf;font-size:2rem;cursor:pointer}.ds-client-search-results{max-width:760px;margin:-16px auto 24px;border:1px solid #b7ddeb;background:#fff;border-radius:16px;box-shadow:0 12px 30px rgba(15,67,87,.12);padding:6px;max-height:380px;overflow:auto}.ds-client-search-result{display:flex;width:100%;justify-content:space-between;align-items:center;text-align:right;padding:12px 14px;border:0;border-bottom:1px solid #e6f1f5;background:#fff;cursor:pointer;border-radius:10px}.ds-client-search-result:hover{background:#eefaff}.ds-client-search-result span{color:#64748b;font-size:.8rem}.ds-client-queues{display:grid;grid-template-columns:repeat(4,minmax(190px,1fr));gap:18px}.ds-client-queue{border:2px solid #0797bf;border-radius:16px;background:#fff;min-height:210px;overflow:hidden}.ds-client-queue header{display:flex;justify-content:space-between;align-items:center;padding:12px 14px;background:#eefaff;color:#05789a}.ds-client-queue header b{display:inline-grid;place-items:center;min-width:24px;height:24px;border-radius:999px;background:#0797bf;color:#fff}.ds-client-queue>div{padding:8px}.ds-client-queue>div>p,.ds-client-empty,.ds-client-search-empty{text-align:center;color:#94a3b8;font-size:.84rem}.ds-client-queue-item{display:block;width:100%;text-align:right;border:0;border-bottom:1px solid #e5eef2;background:#fff;padding:10px 8px;cursor:pointer}.ds-client-queue-item:hover{background:#f0fbff}.ds-client-queue-item strong,.ds-client-queue-item span{display:block}.ds-client-queue-item span{font-size:.75rem;color:#64748b;margin-top:3px}.ds-client-home__hint{text-align:center;color:#64748b;font-size:.8rem;margin-top:16px}.ds-client-file{position:relative;display:grid;grid-template-columns:minmax(0,1fr) 350px;gap:26px;border:2px solid #0797bf;border-radius:18px;background:#fff;padding:32px;margin:14px 4px;box-shadow:0 8px 28px rgba(15,67,87,.08)}.ds-client-file__close{position:absolute;top:10px;left:12px;border:0;background:transparent;color:#dc2626;font-size:1.05rem;cursor:pointer}.ds-client-file__identity>p{display:grid;grid-template-columns:120px 1fr;gap:10px;margin:0 0 12px}.ds-client-file__identity>p span,.ds-client-file h3{color:#0788ad;font-weight:700}.ds-client-file__contacts-head,.ds-client-file__proposals-head{display:flex;justify-content:space-between;align-items:center;margin-top:22px}.ds-client-file h3{margin:0;font-size:1.05rem}.ds-client-contacts{display:grid;gap:8px;margin-top:10px}.ds-client-contact{display:grid;grid-template-columns:minmax(130px,1fr) minmax(180px,1fr) auto;gap:14px;align-items:center;padding:10px 12px;border:1px solid #d7eaf1;border-radius:12px;background:#fbfeff}.ds-client-contact strong,.ds-client-contact span,.ds-client-contact a{display:block}.ds-client-contact span,.ds-client-contact a{font-size:.8rem;color:#64748b}.ds-client-contact button{border:0;background:transparent;color:#0788ad;cursor:pointer;font-size:1rem}.ds-client-file__proposals{border:2px solid #0797bf;border-radius:16px;padding:16px;background:#fbfeff;align-self:start}.ds-client-file__proposals-head{margin:0 0 10px}.ds-client-file__proposals hr{border:0;border-top:1px solid #1f2937;margin:20px 10px}.ds-client-proposal{border:1px solid #d7eaf1;background:#fff;border-radius:12px;margin:8px 0;padding:5px}.ds-client-proposal.is-archived{opacity:.78}.ds-client-proposal__main{display:grid;grid-template-columns:auto 1fr auto;gap:8px;align-items:center;width:100%;text-align:right;border:0;background:transparent;padding:7px;cursor:pointer}.ds-client-proposal__main span strong,.ds-client-proposal__main span small{display:block}.ds-client-proposal__main small{color:#64748b;font-size:.7rem;margin-top:2px}.ds-client-proposal__main b{font-size:.76rem;color:#0f766e}.ds-client-proposal__version{display:block;margin-inline-start:auto;border:0;background:transparent;color:#0788ad;font-size:.72rem;cursor:pointer;padding:2px 7px}.ds-client-archive summary{cursor:pointer;color:#64748b;font-weight:700;font-size:.84rem}.ds-client-archive summary b{display:inline-grid;place-items:center;min-width:20px;height:20px;border-radius:999px;background:#e2e8f0;margin-inline-start:4px}.ds-client-contact-modal{position:fixed;inset:0;z-index:10000;display:grid;place-items:center;background:rgba(15,23,42,.45);padding:20px}.ds-client-contact-form{position:relative;width:min(520px,100%);display:grid;grid-template-columns:1fr 1fr;gap:12px;background:#fff;border-radius:18px;padding:26px;box-shadow:0 24px 60px rgba(15,23,42,.25)}.ds-client-contact-form h3,.ds-client-contact-form>div,.ds-client-contact-form>p{grid-column:1/-1}.ds-client-contact-form label{display:grid;gap:5px;font-size:.8rem;color:#475569}.ds-client-contact-form>p{color:#dc2626;margin:0}.ds-client-contact-form>div{display:flex;gap:8px;justify-content:flex-start}
+          @media (max-width:1000px){.ds-client-queues{grid-template-columns:repeat(2,1fr)}.ds-client-file{grid-template-columns:1fr}.ds-client-file__proposals{width:auto}}@media (max-width:900px){.ds-pa-bundle-grid{grid-template-columns:1fr}}@media (max-width:640px){.ds-pa-type-chips{grid-template-columns:repeat(2,minmax(0,1fr))}.ds-pa-item-quick-row{grid-template-columns:1fr}.ds-client-queues{grid-template-columns:1fr}.ds-client-file{padding:26px 16px}.ds-client-contact{grid-template-columns:1fr auto}.ds-client-contact__channels{grid-column:1/-1}.ds-client-contact-form{grid-template-columns:1fr}}
         </style>
-        <div class="ds-pa-screen-tabs" data-pa-screen-tabs style="display:flex;gap:4px;border-bottom:2px solid var(--ds-border,#e5e7eb);margin-bottom:12px">
+        <div class="ds-client-workspace" data-pa-client-workspace>${clientFileLandingHtml(data, state)}</div>
+        <div class="ds-pa-screen-tabs" data-pa-screen-tabs hidden aria-hidden="true">
           <button type="button" class="ds-pa-screen-tab is-active" data-pa-tab="records" style="padding:6px 16px;border:none;background:none;cursor:pointer;font-weight:600;border-bottom:2px solid transparent;margin-bottom:-2px;color:inherit;font-size:0.9rem">📋 רשומות <span class="ds-pa-tab-count" data-pa-tab-count="records">${recordsCount}</span></button>
           <button type="button" class="ds-pa-screen-tab" data-pa-tab="sent" style="padding:6px 16px;border:none;background:none;cursor:pointer;font-weight:500;border-bottom:2px solid transparent;margin-bottom:-2px;color:var(--ds-text-muted,#6b7280);font-size:0.9rem">✓ הצעות שנשלחו <span class="ds-pa-tab-count" data-pa-tab-count="sent">${sentCount}</span></button>
           ${canManage ? '<button type="button" class="ds-pa-screen-tab" data-pa-tab="new" style="padding:6px 16px;border:none;background:none;cursor:pointer;font-weight:500;border-bottom:2px solid transparent;margin-bottom:-2px;color:var(--ds-text-muted,#6b7280);font-size:0.9rem">+ הצעה חדשה</button>' : ''}
         </div>
-        <div data-pa-tab-panel="list">
+        <div class="ds-pa-legacy-list" data-pa-tab-panel="list" aria-hidden="true">
           <div class="ds-pa-toolbar">
             <label class="ds-pa-search"><span>חיפוש</span><input class="ds-input ds-input--sm" data-pa-search placeholder="חיפוש מקומי" autocomplete="off"></label>
             ${filterSelectHtml('activity_type_group', 'סוג הצעה', proposalGroupFilterOptions)}
@@ -4592,7 +4782,7 @@ export const proposalsAgreementsScreen = {
     setProposalGroupLookups(data, data.rows, proposalActivityPricing);
     setProposalPricingLookup(proposalActivityPricing);
     const proposalTemplateSections = normalizeTemplateSections(Array.isArray(data?.proposalTemplateSections) ? data.proposalTemplateSections : []);
-    const contactOptions = Array.isArray(data?.contactOptions) ? data.contactOptions : [];
+    let contactOptions = Array.isArray(data?.contactOptions) ? data.contactOptions : [];
     const contactOptionsError = text(data?.contactOptionsError || '');
     const proposalLoaderDebug = data?._debug?.proposal_loader || {};
     const proposalLoaderError = (key) => proposalLoaderDebug?.[key]?.errorDetails || proposalLoaderDebug?.[key]?.error || null;
@@ -4640,12 +4830,45 @@ export const proposalsAgreementsScreen = {
     };
     let debounceTimer = null;
     let activeListView = 'records';
+    let selectedClientKey = '';
+    const clientWorkspace = root.querySelector('[data-pa-client-workspace]');
+
+    const currentClientFile = () => buildClientFiles({ ...data, contactOptions }).find((file) => file.key === selectedClientKey) || null;
+    const renderClientWorkspace = () => {
+      if (!clientWorkspace) return;
+      const file = currentClientFile();
+      clientWorkspace.innerHTML = file
+        ? `${selectedClientFileHtml(file, state)}${drawerHtml(null, activityNameOptions, state)}`
+        : clientFileLandingHtml({ ...data, contactOptions }, state);
+    };
+    const openClientFile = (key, proposalId = '') => {
+      selectedClientKey = text(key);
+      renderClientWorkspace();
+      if (proposalId) {
+        setTimeout(() => clientWorkspace?.querySelector(`[data-pa-row-id="${window.CSS?.escape ? window.CSS.escape(text(proposalId)) : text(proposalId)}"]`)?.click(), 0);
+      }
+    };
+    const proposalPrefillForClient = (file) => ({
+      client_type: file.client_type || (file.school_id ? 'school' : 'authority'),
+      authority_id: file.authority_id,
+      school_id: file.school_id,
+      client_authority: file.authority,
+      school_framework: file.school || file.authority,
+      semel_mosad: file.semel_mosad,
+      proposal_domain: file.domain || 'Y',
+      contact_name: text(file.contacts[0]?.contact_name),
+      contact_role: text(file.contacts[0]?.contact_role),
+      phone: text(file.contacts[0]?.mobile || file.contacts[0]?.phone),
+      email: text(file.contacts[0]?.email),
+      contact_school_id: file.contacts[0]?.source_table === 'contacts_schools' ? (file.contacts[0]?.source_id || null) : null
+    });
 
     const refreshTable = () => {
       const filters = currentFilters(root);
       const listRows = rowsForProposalListView(data, activeListView);
       updateProposalsAgreementsTableOnly(root, displayRows(data, filters, activeListView), state, { filters, totalRows: listRows.length });
       updateProposalListTabCounts(root, data);
+      renderClientWorkspace();
     };
     const debouncedRefresh = () => {
       clearTimeout(debounceTimer);
@@ -4654,6 +4877,18 @@ export const proposalsAgreementsScreen = {
 
     root.querySelector('[data-pa-search]')?.addEventListener('input', debouncedRefresh, { signal });
     root.querySelectorAll('[data-pa-filter]').forEach((el) => el.addEventListener('change', refreshTable, { signal }));
+    root.addEventListener('input', (event) => {
+      const input = event.target.closest?.('[data-pa-client-search]');
+      if (!input) return;
+      const results = root.querySelector('[data-pa-client-search-results]');
+      const queues = root.querySelector('[data-pa-client-queues]');
+      const query = text(input.value);
+      if (results) {
+        results.hidden = !query;
+        results.innerHTML = query ? clientSearchResultsHtml(buildClientFiles({ ...data, contactOptions }), query) : '';
+      }
+      if (queues) queues.hidden = Boolean(query);
+    }, { signal });
     root.addEventListener('click', (ev) => {
       if (!ev.target?.closest?.('[data-pa-clear-filters]')) return;
       clearTimeout(debounceTimer);
@@ -5799,6 +6034,7 @@ export const proposalsAgreementsScreen = {
         const targetPanel = isListTab ? 'list' : tabName;
         panel.hidden = panel.dataset.paTabPanel !== targetPanel;
       });
+      if (clientWorkspace) clientWorkspace.hidden = !isListTab;
       if (isListTab) refreshTable();
     };
 
@@ -5827,7 +6063,68 @@ export const proposalsAgreementsScreen = {
       formHost.innerHTML = '';
       setFormTabLabel('add');
       switchTab('records');
+      renderClientWorkspace();
     };
+
+    root.addEventListener('submit', async (event) => {
+      const contactForm = event.target.closest?.('[data-pa-client-contact-form]');
+      if (!contactForm) return;
+      event.preventDefault();
+      const file = currentClientFile();
+      if (!file) return;
+      const formData = new FormData(contactForm);
+      const get = (name) => text(formData.get(name));
+      const index = Number(contactForm.dataset.paContactIndex);
+      const original = index >= 0 ? file.contacts[index] : null;
+      const payload = {
+        id: original?.source_table === 'contacts_schools' ? (original.source_id || original.id || null) : null,
+        client_type: file.client_type || (file.school_id ? 'school' : 'authority'),
+        client_name: file.school || file.authority,
+        authority_id: file.authority_id || null,
+        school_id: file.school_id || null,
+        semel_mosad: file.semel_mosad || null,
+        authority: file.authority,
+        school: file.school || null,
+        contact_name: get('contact_name'),
+        contact_role: get('contact_role'),
+        mobile: get('mobile'),
+        phone: get('phone'),
+        email: get('email')
+      };
+      const matchesOriginalContact = (contact) => Boolean(original) && (
+        (text(original.source_table) && text(original.source_id) && text(contact.source_table) === text(original.source_table) && text(contact.source_id) === text(original.source_id))
+        || (normalizedClientPart(contact.contact_name) === normalizedClientPart(original.contact_name)
+          && normalizedClientPart(contact.email || contact.mobile || contact.phone) === normalizedClientPart(original.email || original.mobile || original.phone))
+      );
+      const errorEl = contactForm.querySelector('[data-pa-client-contact-error]');
+      const submitBtn = contactForm.querySelector('[type="submit"]');
+      if (!payload.contact_name) {
+        if (errorEl) errorEl.textContent = 'יש להזין שם איש קשר';
+        return;
+      }
+      if (submitBtn) submitBtn.disabled = true;
+      try {
+        if (!original) {
+          await api.addContact({ kind: 'school', row: payload });
+          contactOptions = [...contactOptions, { ...payload, source_table: 'contacts_schools' }];
+        } else if (original.source_table === 'contacts_schools' && payload.id != null) {
+          await api.saveContact({ kind: 'school', row: payload, _supabase_orig: original });
+          contactOptions = contactOptions.map((contact) => matchesOriginalContact(contact) ? { ...contact, ...payload } : contact);
+        } else if (typeof api.updateUnifiedContactRecord === 'function' && original.source_table && original.source_id != null) {
+          await api.updateUnifiedContactRecord({ source_table: original.source_table, source_id: original.source_id, fields: payload });
+          contactOptions = contactOptions.map((contact) => matchesOriginalContact(contact) ? { ...contact, ...payload } : contact);
+        } else {
+          await api.addContact({ kind: 'school', row: payload });
+          contactOptions = contactOptions.map((contact) => matchesOriginalContact(contact) ? { ...contact, ...payload, source_table: 'contacts_schools' } : contact);
+        }
+        data.contactOptions = contactOptions;
+        renderClientWorkspace();
+        showToast('איש הקשר נשמר בתיק הלקוח', 'success', 1800);
+      } catch (err) {
+        if (errorEl) errorEl.textContent = `שגיאה בשמירה: ${err?.message || err}`;
+        if (submitBtn) submitBtn.disabled = false;
+      }
+    }, { signal });
 
     // ── Preview ───────────────────────────────────────────────────────────────
     const openProposalFinalPdf = async (row) => {
@@ -6489,6 +6786,51 @@ export const proposalsAgreementsScreen = {
 
     // ── Click handler ─────────────────────────────────────────────────────────
     root.addEventListener('click', async (event) => {
+      if (event.target.closest?.('[data-pa-client-contact-close]')) {
+        event.target.closest('[data-pa-client-contact-modal]')?.remove();
+        return;
+      }
+
+      const openClientBtn = event.target.closest?.('[data-pa-open-client]');
+      if (openClientBtn) {
+        openClientFile(openClientBtn.dataset.paOpenClient, openClientBtn.dataset.paOpenProposal);
+        return;
+      }
+
+      if (event.target.closest?.('[data-pa-client-close]')) {
+        selectedClientKey = '';
+        renderClientWorkspace();
+        return;
+      }
+
+      const addClientProposalBtn = event.target.closest?.('[data-pa-client-add-proposal]');
+      if (addClientProposalBtn) {
+        if (!canManage) return;
+        const file = currentClientFile();
+        await openForm('add', file ? proposalPrefillForClient(file) : {});
+        return;
+      }
+
+      const addClientContactBtn = event.target.closest?.('[data-pa-client-add-contact]');
+      if (addClientContactBtn) {
+        const file = currentClientFile();
+        if (!canManage || !file || !clientWorkspace) return;
+        clientWorkspace.insertAdjacentHTML('beforeend', clientContactEditorHtml(file));
+        clientWorkspace.querySelector('[data-pa-client-contact-form] input')?.focus?.();
+        return;
+      }
+
+      const editClientContactBtn = event.target.closest?.('[data-pa-client-edit-contact]');
+      if (editClientContactBtn) {
+        const file = currentClientFile();
+        const index = Number(editClientContactBtn.dataset.paClientEditContact);
+        const contact = file?.contacts[index];
+        if (!canManage || !file || !contact || !clientWorkspace) return;
+        clientWorkspace.insertAdjacentHTML('beforeend', clientContactEditorHtml(file, contact, index));
+        clientWorkspace.querySelector('[data-pa-client-contact-form] input')?.focus?.();
+        return;
+      }
+
       // Discount / notes section toggle
       const discountToggle = event.target.closest?.('[data-pa-discount-toggle]');
       if (discountToggle) {
@@ -7045,6 +7387,7 @@ export const proposalsAgreementsScreen = {
             notes: text(sourceRow.notes),
             custom_document_sections: Array.isArray(sourceRow.custom_document_sections) ? sourceRow.custom_document_sections : [],
             include_catalog: includeCatalogValue(sourceRow.include_catalog),
+            supersedes_proposal_id: text(sourceRow.id),
             status: 'draft',
           };
           const cloneItems = sourceItems.map(({ id: _id, ...rest }) => rest);
@@ -7059,8 +7402,10 @@ export const proposalsAgreementsScreen = {
           if (cloneItems.length) {
             await api.saveProposalAgreementItems(newId, cloneItems);
           }
-          data.rows = dedupeById([result.row, ...(Array.isArray(data.rows) ? data.rows : []).map(normalizeProposalAgreementRow)]);
+          const archivedAt = new Date().toISOString();
+          data.rows = dedupeById([result.row, ...(Array.isArray(data.rows) ? data.rows : []).map(normalizeProposalAgreementRow).map((row) => text(row.id) === id ? { ...row, archived_at: archivedAt } : row)]);
           refreshTable();
+          renderClientWorkspace();
           cloneBtn.disabled = false;
           const newRow = rowWithCentralContact(normalizeProposalAgreementRow(result.row));
           // The cloned draft opens straight in the full-width edit form.
