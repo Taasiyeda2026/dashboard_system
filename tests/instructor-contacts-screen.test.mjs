@@ -73,11 +73,29 @@ function makeHarness(dom, rows) {
   return { screenRoot, state, ui, getRerenderCount: () => rerenderCount };
 }
 
-test('renders 24 instructor contact cards without error', async () => {
+test('renders 24 compact instructor contact cards without error', async () => {
   await withScreenDom(async () => {
     const { screenRoot } = makeHarness(null, sampleRows(24));
     const cards = screenRoot.querySelectorAll('[data-card-action]');
     assert.equal(cards.length, 24);
+    assert.equal(screenRoot.querySelectorAll('.ic-contact-card--compact').length, 24);
+  });
+});
+
+test('compact cards display only the instructor name; details stay in the drawer', async () => {
+  await withScreenDom(async (dom) => {
+    const { screenRoot } = makeHarness(null, sampleRows(3));
+    const secondCard = screenRoot.querySelectorAll('[data-card-action]')[1];
+    assert.equal(secondCard.textContent.trim(), 'מדריך מספר 1 לבדיקה');
+    assert.equal(secondCard.querySelectorAll('.ic-contact-card__avatar, .ic-contact-card__status, .ic-contact-card__body').length, 0);
+    assert.doesNotMatch(secondCard.textContent, /050-1234567|example\.com|מנהל 1|רחוב הדוגמה/);
+
+    secondCard.dispatchEvent(new dom.window.MouseEvent('click', { bubbles: true }));
+    const drawerText = document.querySelector('.ds-drawer__content')?.textContent || '';
+    assert.match(drawerText, /050-1234567/);
+    assert.match(drawerText, /test1@example\.com/);
+    assert.match(drawerText, /מנהל 1/);
+    assert.match(drawerText, /רחוב הדוגמה 1/);
   });
 });
 
@@ -192,6 +210,6 @@ test('no internal/technical strings leak into the rendered screen', async () => 
     assert.doesNotMatch(text, /רשימה עצמאית/);
     assert.doesNotMatch(text, /אינה נגזרת מפעילויות/);
     assert.doesNotMatch(text, /ספר כתובות/);
-    assert.match(screenRoot.innerHTML, /פרטי הקשר והמידע המקצועי של צוות ההדרכה/);
+    assert.match(screenRoot.innerHTML, /לחצו על שם מדריך להצגת פרטי הקשר והמידע הנוסף/);
   });
 });
