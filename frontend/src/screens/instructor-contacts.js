@@ -23,9 +23,18 @@ const ICON_MANAGER = `<svg class="ic-contact-card__icon-svg" viewBox="0 0 24 24"
 const ICON_PIN = `<svg class="ic-contact-card__icon-svg" viewBox="0 0 24 24" width="16" height="16" aria-hidden="true" focusable="false"><path fill="currentColor" d="M12 2C8.1 2 5 5.1 5 9c0 5.2 7 13 7 13s7-7.8 7-13c0-3.9-3.1-7-7-7zm0 9.5c-1.4 0-2.5-1.1-2.5-2.5S10.6 6.5 12 6.5s2.5 1.1 2.5 2.5S13.4 11.5 12 11.5z"/></svg>`;
 
 function avatarColor(seed) {
+  const s = String(seed ?? '');
   let h = 0;
-  for (let i = 0; i < seed.length; i++) h = (h * 31 + seed.charCodeAt(i)) & 0x7fffffff;
+  for (let i = 0; i < s.length; i++) h = (h * 31 + s.charCodeAt(i)) & 0x7fffffff;
   return AVATAR_PALETTE[h % AVATAR_PALETTE.length];
+}
+
+/** Normalizes the `active` column (stored as yes/no, but tolerates boolean/numeric) to 'yes' | 'no'. */
+function normalizeActiveFlag(value) {
+  if (value === false || value === 0) return 'no';
+  if (value === true || value === 1) return 'yes';
+  const s = String(value ?? '').trim().toLowerCase();
+  return s === 'no' || s === 'false' || s === '0' ? 'no' : 'yes';
 }
 
 function avatarInitials(name) {
@@ -46,8 +55,9 @@ function drawerHtml(row, hideEmpIds) {
     if (hideEmpIds && col === 'emp_id') return '';
     const raw = row?.[col] ?? '';
     if (col === 'active') {
-      const label = String(raw).toLowerCase() === 'yes' ? 'כן' : 'לא';
-      const kind = String(raw).toLowerCase() === 'yes' ? 'success' : 'neutral';
+      const isYes = normalizeActiveFlag(raw) === 'yes';
+      const label = isYes ? 'כן' : 'לא';
+      const kind = isYes ? 'success' : 'neutral';
       return `<p><strong>${escapeHtml(hebrewColumn(col))}:</strong> ${dsStatusChip(label, kind)}</p>`;
     }
     const val = col === 'employment_type' ? hebrewEmploymentType(raw) : (raw || '—');
@@ -85,7 +95,7 @@ function renderContactCard(row) {
   const nameRaw = textValue(row.full_name) || textValue(row.emp_id) || 'מדריך';
   const initials = avatarInitials(nameRaw);
   const color = avatarColor(row.emp_id || nameRaw);
-  const isActive = String(row.active || '').toLowerCase() !== 'no';
+  const isActive = normalizeActiveFlag(row.active) === 'yes';
   const mobile = textValue(row.mobile || row.phone);
   const email = textValue(row.email);
   const address = textValue(row.address);
@@ -147,7 +157,7 @@ export const instructorContactsScreen = {
 
     let rows = applySearch(allRows, appliedSearchQ);
     if (activeFilter) {
-      rows = rows.filter((r) => String(r.active || '').toLowerCase() === activeFilter);
+      rows = rows.filter((r) => normalizeActiveFlag(r.active) === activeFilter);
     }
 
     const activeChips = [

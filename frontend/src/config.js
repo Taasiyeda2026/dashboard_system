@@ -46,5 +46,5 @@ if (!resolvedUrl) {
 export const config = {
   apiUrl: resolvedUrl,
   DIAGNOSTICS_UI_ENABLED: false,
-  HOTFIX_VERSION: 'client-file-all-proposals-table-20260720-v6'
+  HOTFIX_VERSION: 'instructor-contacts-stack-overflow-hotfix-20260720-v1'
 };
