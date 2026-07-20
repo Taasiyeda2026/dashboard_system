@@ -53,14 +53,16 @@ jobs:
         shell: bash
         run: |
           set -o pipefail
-          node --test --test-name-pattern='^(?!service worker version and activate-only cache cleanup$).*' tests/client-file-unified-screen.test.mjs 2>&1 | tee unified-client-file-tests.log
+          node --test tests/client-file-unified-screen.test.mjs 2>&1 | tee unified-client-file-tests.log
 
-      - name: Upload unified test output
+      - name: Upload unified test diagnostics
         if: always()
         uses: actions/upload-artifact@v4
         with:
           name: unified-client-file-test-output
-          path: unified-client-file-tests.log
+          path: |
+            unified-client-file-tests.log
+            tests/client-file-unified-screen.test.mjs
           if-no-files-found: error
 
       - name: Stop on unified test failure
