@@ -4,7 +4,7 @@ import {
   installProposalPdfStorageKeyHotfix,
   proposalPdfFileWithSafeStorageName,
   proposalPdfSafeStorageFileName
-} from '../frontend/src/proposal-pdf-storage-key-hotfix.js';
+} from '../frontend/src/proposal-pdf-storage-key.js';
 
 class FakeFile {
   constructor(parts = [], name = '', options = {}) {
