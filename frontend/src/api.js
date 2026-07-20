@@ -3729,6 +3729,7 @@ function mapUnifiedContactsForProposals(unifiedRows) {
       mobile:       cleanProposalAgreementText(c.mobile || ''),
       email:        cleanProposalAgreementText(c.email || ''),
       source_table: cleanProposalAgreementText(c.source_table),
+      source_id:    cleanProposalAgreementText(c.source_id || c.id),
       active:       'yes'
     };
   }).filter((c) => c.authority_name || c.school_name || c.authority || c.school);
@@ -6726,6 +6727,9 @@ export const api = {
     }
     if (kind === 'school') {
       const nextRow = { ...row };
+      if (nextRow.id == null || nextRow.id === '') delete nextRow.id;
+      delete nextRow.source_id;
+      delete nextRow.source_table;
       if (nextRow.role !== undefined && nextRow.contact_role === undefined) nextRow.contact_role = nextRow.role;
       delete nextRow.role;
       if (!nextRow.client_type) nextRow.client_type = 'school';
@@ -6737,9 +6741,9 @@ export const api = {
           : (nextRow.school || nextRow.authority || null);
       }
       if (!nextRow.active) nextRow.active = 'פעיל';
-      const { error } = await supabase.from('contacts_schools').upsert(nextRow, { onConflict: 'authority,school,contact_name' });
+      const { data, error } = await supabase.from('contacts_schools').insert(nextRow).select().single();
       if (error) throw new Error(error.message || 'add_contact_failed');
-      return { ok: true };
+      return { ok: true, row: data };
     }
     throw new Error('invalid_contact_kind');
   },
