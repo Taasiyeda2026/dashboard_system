@@ -560,13 +560,52 @@ test('table structure includes all required columns including status', () => {
   assert.match(html, /ds-pa-table/);
 });
 
-test('sent status row keeps green badge only without row highlight', () => {
+test('sent proposals are separated into their own tab and keep the sent badge', async () => {
   const sentRow = { ...sampleRows[0], status: 'sent' };
-  const html = proposalsAgreementsScreen.render({ rows: [sentRow] }, { state: stateFor('admin') });
-  const tableBody = html.match(/<tbody data-pa-table-body>[\s\S]*?<\/tbody>/)?.[0] || '';
-  assert.match(tableBody, /ds-pa-badge--sent/);
-  assert.match(tableBody, /✓ נשלח/);
-  assert.doesNotMatch(tableBody, /proposal-row--sent/);
+  const rows = [{ ...sampleRows[1], status: 'approved' }, sentRow];
+  const html = proposalsAgreementsScreen.render({ rows }, { state: stateFor('admin') });
+
+  assert.match(html, /data-pa-tab="sent"/);
+  assert.match(html, /הצעות שנשלחו/);
+  assert.match(html, /data-pa-tab-count="records">1</);
+  assert.match(html, /data-pa-tab-count="sent">1</);
+
+  await withJSDOM(html, async (root, dom) => {
+    proposalsAgreementsScreen.bind({ root, data: { rows }, state: stateFor('admin'), api: {} });
+    assert.doesNotMatch(root.querySelector('[data-pa-table-region]').textContent, /רשות א/, 'sent proposal should not render in the workflow records tab');
+    assert.match(root.querySelector('[data-pa-table-region]').textContent, /רשות ב/);
+
+    root.querySelector('[data-pa-tab="sent"]').dispatchEvent(new dom.window.MouseEvent('click', { bubbles: true }));
+    const tableBody = root.querySelector('[data-pa-table-body]')?.innerHTML || '';
+    assert.match(tableBody, /ds-pa-status-text--sent/);
+    assert.match(tableBody, /✓ נשלח/);
+    assert.doesNotMatch(tableBody, /proposal-row--sent/);
+    assert.match(root.querySelector('[data-pa-table-region]').textContent, /רשות א/);
+    assert.doesNotMatch(root.querySelector('[data-pa-table-region]').textContent, /רשות ב/);
+    assert.equal(root.querySelector('[data-pa-status-filter]').hidden, true, 'status filter is redundant in the sent-only tab');
+  });
+});
+
+test('a proposal that changes to sent leaves records and appears in the sent tab on refresh', async () => {
+  const movingRow = { ...sampleRows[0], id: 'moving-to-sent', status: 'approved' };
+  const existingSentRow = { ...sampleRows[1], id: 'already-sent', status: 'sent' };
+  const data = { rows: [movingRow, existingSentRow] };
+
+  await withJSDOM(proposalsAgreementsScreen.render(data, { state: stateFor('admin') }), async (root, dom) => {
+    proposalsAgreementsScreen.bind({ root, data, state: stateFor('admin'), api: {} });
+    assert.match(root.querySelector('[data-pa-table-region]').textContent, /רשות א/);
+
+    data.rows.find((row) => row.id === movingRow.id).status = 'sent';
+    root.querySelector('[data-pa-filter="proposal_domain"]').dispatchEvent(new dom.window.Event('change', { bubbles: true }));
+
+    assert.doesNotMatch(root.querySelector('[data-pa-table-region]').textContent, /רשות א/);
+    assert.equal(root.querySelector('[data-pa-tab-count="records"]').textContent, '0');
+    assert.equal(root.querySelector('[data-pa-tab-count="sent"]').textContent, '2');
+
+    root.querySelector('[data-pa-tab="sent"]').dispatchEvent(new dom.window.MouseEvent('click', { bubbles: true }));
+    assert.match(root.querySelector('[data-pa-table-region]').textContent, /רשות א/);
+    assert.match(root.querySelector('[data-pa-table-region]').textContent, /רשות ב/);
+  });
 });
 
 test('contact details are hidden from the outer table and available only in drawer markup', () => {
@@ -2195,7 +2234,9 @@ test('proposal records sort actionable statuses before sent even when sent was u
 
   const html = proposalsAgreementsScreen.render({ rows: sorted }, { state: stateFor('admin') });
   const rowIds = [...html.matchAll(/data-pa-row-id="([^"]+)"/g)].map((match) => match[1]);
-  assert.deepEqual(rowIds, ['pending-old', 'approved-old', 'returned', 'draft', 'sent-newest']);
+  assert.deepEqual(rowIds, ['pending-old', 'approved-old', 'returned', 'draft']);
+  assert.match(html, /data-pa-tab-count="records">4</);
+  assert.match(html, /data-pa-tab-count="sent">1</);
 });
 
 test('reading pending_approval from DB displays awaiting approval in UI', () => {
