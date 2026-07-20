@@ -2829,35 +2829,94 @@ function proposalPdfFileName(row = {}, items = []) {
   return `הצעת_מחיר_${client}${type ? `_${type}` : ''}_${day}-${month}-${year}.pdf`;
 }
 
-async function proposalHtmlToPdfBlob(html) {
+async function proposalHtmlToPdfBlob(html, { proposalId = '', onStage = null } = {}) {
   const width = 794;
+  const pageHeight = 1123;
+  let pdfStage = 'start';
+  const setStage = (stage) => { pdfStage = stage; onStage?.(stage); };
   const host = document.createElement('div');
-  host.style.cssText = `position:fixed;right:-10000px;top:0;width:${width}px;background:#fff;z-index:-1`;
-  host.innerHTML = html;
-  document.body.appendChild(host);
+  let activeObjectUrl = '';
   try {
+    setStage('mount-render-host');
+    host.style.cssText = `position:fixed;right:-10000px;top:0;width:${width}px;background:#fff;z-index:-1`;
+    host.innerHTML = html;
+    document.body.appendChild(host);
+    setStage('wait-fonts');
     await document.fonts?.ready;
+    setStage('prepare-assets');
+    const clean = host.cloneNode(true);
+    clean.querySelectorAll('button,iframe,object,script,[data-pdf-exclude],.ds-pa-pdf-spinner').forEach((node) => node.remove());
+    clean.style.cssText = `position:static;inset:auto;transform:none;width:${width}px;direction:rtl;background:#fff`;
+    const images = Array.from(clean.querySelectorAll('img'));
+    await Promise.all(images.map(async (img, index) => {
+      const label = img.getAttribute('alt') || img.getAttribute('aria-label') || img.className || `image-${index + 1}`;
+      const absoluteSrc = new URL(img.getAttribute('src') || img.src, window.location.href);
+      img.src = absoluteSrc.href;
+      if (absoluteSrc.origin === window.location.origin && absoluteSrc.protocol !== 'data:') {
+        const response = await fetch(absoluteSrc.href);
+        if (!response.ok) throw new Error(`proposal_pdf_asset_failed:${label}:${response.status}`);
+        const asset = await response.blob();
+        img.src = await new Promise((resolve, reject) => {
+          const reader = new FileReader();
+          reader.onload = () => resolve(String(reader.result || ''));
+          reader.onerror = () => reject(new Error(`proposal_pdf_asset_failed:${label}:read`));
+          reader.readAsDataURL(asset);
+        });
+      }
+      try {
+        if (typeof img.decode === 'function') await img.decode();
+        else if (!img.complete) await new Promise((resolve, reject) => { img.onload = resolve; img.onerror = reject; });
+      } catch (error) {
+        throw new Error(`proposal_pdf_asset_failed:${label}:${error?.message || 'load'}`);
+      }
+      if (!img.complete || !img.naturalWidth) throw new Error(`proposal_pdf_asset_failed:${label}:empty`);
+    }));
+    // Measure the sanitized, serialization-safe tree rather than the off-screen host.
+    host.replaceChildren(clean);
     const height = Math.max(1123, Math.ceil(host.scrollHeight));
     const css = Array.from(document.styleSheets).flatMap((sheet) => {
       try { return Array.from(sheet.cssRules || []).map((rule) => rule.cssText); } catch { return []; }
     }).join('\n');
-    const serialized = new XMLSerializer().serializeToString(host);
-    const svg = `<svg xmlns="http://www.w3.org/2000/svg" width="${width}" height="${height}"><foreignObject width="100%" height="100%"><div xmlns="http://www.w3.org/1999/xhtml"><style>${css}</style>${serialized}</div></foreignObject></svg>`;
-    const image = new Image();
-    const url = URL.createObjectURL(new Blob([svg], { type: 'image/svg+xml;charset=utf-8' }));
-    await new Promise((resolve, reject) => { image.onload = resolve; image.onerror = reject; image.src = url; });
-    const pageHeight = 1123;
     const pages = [];
     for (let top = 0; top < height; top += pageHeight) {
+      setStage('serialize-html');
+      const pageRoot = document.createElement('div');
+      pageRoot.style.cssText = `position:static;inset:auto;transform:none;width:${width}px;height:${pageHeight}px;overflow:hidden;direction:rtl;background:#fff`;
+      const pageContent = clean.cloneNode(true);
+      pageContent.style.cssText += `;position:relative;inset:auto;transform:translateY(-${top}px);width:${width}px;direction:rtl;background:#fff`;
+      pageRoot.appendChild(pageContent);
+      const serialized = new XMLSerializer().serializeToString(pageRoot);
+      setStage('build-svg');
+      const svg = `<svg xmlns="http://www.w3.org/2000/svg" width="${width}" height="${pageHeight}"><foreignObject width="100%" height="100%"><div xmlns="http://www.w3.org/1999/xhtml"><style>${css}</style>${serialized}</div></foreignObject></svg>`;
+      const image = new Image();
+      activeObjectUrl = URL.createObjectURL(new Blob([svg], { type: 'image/svg+xml;charset=utf-8' }));
+      setStage('load-svg-image');
+      image.src = activeObjectUrl;
+      if (typeof image.decode === 'function') await image.decode();
+      else await new Promise((resolve, reject) => { image.onload = resolve; image.onerror = () => reject(new Error('proposal_pdf_svg_image_load_failed')); });
+      setStage('create-canvas');
       const canvas = document.createElement('canvas');
       canvas.width = width * 2; canvas.height = pageHeight * 2;
+      setStage('get-canvas-context');
       const context = canvas.getContext('2d');
+      if (!context) throw new Error('proposal_pdf_canvas_context_unavailable');
       context.fillStyle = '#fff'; context.fillRect(0, 0, canvas.width, canvas.height);
-      context.drawImage(image, 0, top, width, Math.min(pageHeight, height - top), 0, 0, canvas.width, Math.min(canvas.height, (height - top) * 2));
-      const jpeg = await new Promise((resolve) => canvas.toBlob(resolve, 'image/jpeg', 0.94));
-      pages.push(new Uint8Array(await jpeg.arrayBuffer()));
+      setStage('draw-image');
+      context.drawImage(image, 0, 0, canvas.width, canvas.height);
+      setStage('canvas-to-jpeg');
+      const jpeg = await new Promise((resolve, reject) => {
+        try { canvas.toBlob((blob) => blob ? resolve(blob) : reject(new Error('proposal_pdf_jpeg_blob_empty')), 'image/jpeg', 0.94); }
+        catch (error) { reject(error); }
+      });
+      if (!jpeg.size) throw new Error('proposal_pdf_jpeg_empty');
+      setStage('jpeg-array-buffer');
+      const jpegBytes = new Uint8Array(await jpeg.arrayBuffer());
+      if (!jpegBytes.length) throw new Error('proposal_pdf_jpeg_bytes_empty');
+      pages.push(jpegBytes);
+      URL.revokeObjectURL(activeObjectUrl); activeObjectUrl = '';
     }
-    URL.revokeObjectURL(url);
+    if (!pages.length) throw new Error('proposal_pdf_pages_empty');
+    setStage('assemble-pdf');
     const encoder = new TextEncoder(); const chunks = []; const offsets = [0]; let length = 0;
     const push = (value) => { const bytes = typeof value === 'string' ? encoder.encode(value) : value; chunks.push(bytes); length += bytes.length; };
     push('%PDF-1.4\n');
@@ -2875,8 +2934,19 @@ async function proposalHtmlToPdfBlob(html) {
     const xref = length; push(`xref\n0 ${objectCount + 1}\n0000000000 65535 f \n`);
     for (let i = 1; i <= objectCount; i += 1) push(`${String(offsets[i]).padStart(10, '0')} 00000 n \n`);
     push(`trailer\n<< /Size ${objectCount + 1} /Root 1 0 R >>\nstartxref\n${xref}\n%%EOF`);
-    return new Blob(chunks, { type: 'application/pdf' });
-  } finally { host.remove(); }
+    const pdf = new Blob(chunks, { type: 'application/pdf' });
+    setStage('validate-pdf');
+    if (!pdf.size) throw new Error('pdf_blob_empty');
+    const signature = new TextDecoder().decode(await pdf.slice(0, 5).arrayBuffer());
+    if (signature !== '%PDF-') throw new Error('pdf_signature_invalid');
+    return pdf;
+  } catch (error) {
+    console.error('[proposal-pdf-failed]', { stage: pdfStage, proposalId, name: error?.name, message: error?.message, stack: error?.stack, error });
+    throw error;
+  } finally {
+    if (activeObjectUrl) URL.revokeObjectURL(activeObjectUrl);
+    host.remove();
+  }
 }
 
 function parseSectionBodyStructure(value, options = {}) {
@@ -6791,16 +6861,18 @@ export const proposalsAgreementsScreen = {
     }, { signal });
 
     // ── Preview ───────────────────────────────────────────────────────────────
-    const openProposalFinalPdf = async (row) => {
+    const openProposalFinalPdf = async (row, onStage = null) => {
       const id = text(row?.id);
       if (!id || typeof api.getProposalFinalPdfSignedUrl !== 'function') {
         showToast('לא ניתן לפתוח PDF שנשלח', 'error');
         return;
       }
       try {
+        onStage?.('signed-url');
         const result = await api.getProposalFinalPdfSignedUrl(id);
         const url = text(result?.signedUrl);
         if (!url) throw new Error('proposal_final_pdf_missing');
+        onStage?.('open-result');
         window.open(url, '_blank', 'noopener,noreferrer');
       } catch (err) {
         showToast('שגיאה בפתיחת PDF שנשלח', 'error');
@@ -6810,6 +6882,9 @@ export const proposalsAgreementsScreen = {
 
     const generateAndSaveProposalPdf = async (row, items = [], button = null) => {
       const freshRow = rowWithCentralContact(row);
+      const proposalId = text(freshRow.id);
+      let pdfStage = 'start';
+      const setPdfStage = (stage) => { pdfStage = stage; };
       const historicalSnapshotBackfill = isProposalLegacySentWithoutPdf(freshRow) && canGenerateProposalPdf(freshRow, state);
       if ((isProposalSentLocked(freshRow) && !historicalSnapshotBackfill) || !canManage) {
         if (proposalHasFinalPdf(freshRow)) await openProposalFinalPdf(freshRow);
@@ -6822,6 +6897,7 @@ export const proposalsAgreementsScreen = {
       const originalHtml = button?.innerHTML;
       if (button) { button.disabled = true; button.innerHTML = '<span class="ds-pa-pdf-spinner" aria-hidden="true"></span> מפיק...'; }
       try {
+        setPdfStage('build-html');
         const mergedItems = proposalItemsWithFallback(items, freshRow);
         const templateSections = filterTemplateSectionsForGroup(proposalTemplateSections, freshRow.activity_type_group);
         const documentHtmlSnapshot = historicalSnapshotBackfill && text(freshRow.document_html_snapshot)
@@ -6830,18 +6906,29 @@ export const proposalsAgreementsScreen = {
         const documentSnapshot = historicalSnapshotBackfill && freshRow.document_snapshot
           ? freshRow.document_snapshot
           : buildProposalDocumentSnapshot(freshRow, mergedItems, templateSections);
-        const blob = await proposalHtmlToPdfBlob(documentHtmlSnapshot);
+        const blob = await proposalHtmlToPdfBlob(documentHtmlSnapshot, { proposalId, onStage: setPdfStage });
+        setPdfStage('validate-pdf');
         if (blob.type !== 'application/pdf' || blob.size < 5) throw new Error('pdf_blob_invalid');
         const signature = new TextDecoder().decode(await blob.slice(0, 5).arrayBuffer());
         if (signature !== '%PDF-') throw new Error('pdf_signature_invalid');
+        setPdfStage('create-file');
         const pdfFile = new File([blob], proposalPdfFileName(freshRow, mergedItems), { type: 'application/pdf' });
-        const result = await api.uploadProposalFinalPdf(text(freshRow.id), { pdfFile, documentSnapshot, documentHtmlSnapshot });
+        if (!pdfFile.size) throw new Error('pdf_file_empty');
+        setPdfStage('call-upload-api');
+        const result = await api.uploadProposalFinalPdf(proposalId, { pdfFile, documentSnapshot, documentHtmlSnapshot });
         replaceLocalRow(data, result?.row || freshRow);
         refreshTable();
         showToast('ה־PDF הופק ונשמר בהצלחה', 'success');
-        await openProposalFinalPdf(result?.row || freshRow);
+        await openProposalFinalPdf(result?.row || freshRow, setPdfStage);
       } catch (err) {
-        console.error('[proposal PDF generation failed]', err);
+        console.error('[proposal-pdf-failed]', {
+          stage: pdfStage,
+          proposalId,
+          name: err?.name,
+          message: err?.message,
+          stack: err?.stack,
+          error: err
+        });
         showToast('לא ניתן היה להפיק את ה־PDF. ניתן לנסות שוב.', 'error');
       } finally {
         if (button?.isConnected) { button.disabled = false; button.innerHTML = originalHtml || 'PDF'; }

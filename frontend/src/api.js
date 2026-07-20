@@ -6462,42 +6462,41 @@ export const api = {
     return { ok: true, row: normalizeProposalAgreementRow(data) };
   },
   uploadProposalFinalPdf: async (id, payload = {}) => {
-    assertCanManageProposalsAgreementsApi();
     const rowId = cleanProposalAgreementText(id);
-    const pdfFile = payload?.pdfFile || payload?.file || null;
-    const documentSnapshot = payload?.documentSnapshot ?? payload?.document_snapshot ?? null;
-    const documentHtmlSnapshot = cleanProposalAgreementText(payload?.documentHtmlSnapshot ?? payload?.document_html_snapshot);
-    if (!rowId) throw new Error('missing_proposal_agreement_id');
-    if (!proposalFinalPdfAllowedFile(pdfFile)) throw new Error('invalid_proposal_final_pdf');
-    if (!documentSnapshot || typeof documentSnapshot !== 'object' || Array.isArray(documentSnapshot)) throw new Error('missing_document_snapshot');
-    if (!documentHtmlSnapshot) throw new Error('missing_document_html_snapshot');
-    const { data: currentRow, error: currentRowError } = await supabase.from('proposals_agreements').select(PROPOSALS_AGREEMENTS_COLUMNS).eq('id', rowId).single();
-    if (currentRowError || !currentRow) throw new Error('proposals_agreement_not_found');
-    const isHistoricalSnapshotBackfill = normalizeProposalAgreementStatusForDb(currentRow.status) === 'sent'
-      && !cleanProposalAgreementText(currentRow.final_pdf_path)
-      && Boolean(cleanProposalAgreementText(currentRow.document_html_snapshot) || currentRow.document_snapshot);
-    if (!isHistoricalSnapshotBackfill && (normalizeProposalAgreementStatusForDb(currentRow.status) === 'sent' || cleanProposalAgreementText(currentRow.locked_at))) {
-      throw new Error('proposal_is_locked');
+    let pdfStage = 'start';
+    try {
+      assertCanManageProposalsAgreementsApi();
+      const pdfFile = payload?.pdfFile || payload?.file || null;
+      const documentSnapshot = payload?.documentSnapshot ?? payload?.document_snapshot ?? null;
+      const documentHtmlSnapshot = cleanProposalAgreementText(payload?.documentHtmlSnapshot ?? payload?.document_html_snapshot);
+      if (!rowId) throw new Error('missing_proposal_agreement_id');
+      if (!proposalFinalPdfAllowedFile(pdfFile)) throw new Error('invalid_proposal_final_pdf');
+      if (!documentSnapshot || typeof documentSnapshot !== 'object' || Array.isArray(documentSnapshot)) throw new Error('missing_document_snapshot');
+      if (!documentHtmlSnapshot) throw new Error('missing_document_html_snapshot');
+      const { data: currentRow, error: currentRowError } = await supabase.from('proposals_agreements').select(PROPOSALS_AGREEMENTS_COLUMNS).eq('id', rowId).single();
+      if (currentRowError || !currentRow) throw new Error('proposals_agreement_not_found');
+      const isHistoricalSnapshotBackfill = normalizeProposalAgreementStatusForDb(currentRow.status) === 'sent'
+        && !cleanProposalAgreementText(currentRow.final_pdf_path)
+        && Boolean(cleanProposalAgreementText(currentRow.document_html_snapshot) || currentRow.document_snapshot);
+      if (!isHistoricalSnapshotBackfill && (normalizeProposalAgreementStatusForDb(currentRow.status) === 'sent' || cleanProposalAgreementText(currentRow.locked_at))) throw new Error('proposal_is_locked');
+      const filePath = proposalFinalPdfStoragePath(rowId, pdfFile.name);
+      pdfStage = 'storage-upload';
+      const uploaded = await supabase.storage.from(PROPOSAL_FINAL_PDF_BUCKET).upload(filePath, pdfFile, { contentType: 'application/pdf', upsert: false });
+      if (uploaded.error) throw new Error(uploaded.error.message || 'proposal_final_pdf_upload_failed');
+      const nowIso = new Date().toISOString();
+      const patch = {
+        final_pdf_path: filePath, final_pdf_file_name: String(pdfFile.name || 'proposal.pdf').trim(),
+        final_pdf_created_at: nowIso, final_pdf_created_by: proposalLockActorName(),
+        document_snapshot: documentSnapshot, document_html_snapshot: documentHtmlSnapshot, updated_at: nowIso
+      };
+      pdfStage = 'proposal-row-update';
+      const { data, error } = await supabase.from('proposals_agreements').update(patch).eq('id', rowId).select(PROPOSALS_AGREEMENTS_COLUMNS).single();
+      if (error) throw new Error(error.message || 'proposal_final_pdf_save_failed');
+      return { ok: true, row: normalizeProposalAgreementRow(data) };
+    } catch (error) {
+      console.error('[proposal-pdf-failed]', { stage: pdfStage, proposalId: rowId, name: error?.name, message: error?.message, stack: error?.stack, error });
+      throw error;
     }
-    const filePath = proposalFinalPdfStoragePath(rowId, pdfFile.name);
-    const uploaded = await supabase.storage.from(PROPOSAL_FINAL_PDF_BUCKET).upload(filePath, pdfFile, {
-      contentType: 'application/pdf',
-      upsert: false
-    });
-    if (uploaded.error) throw new Error(uploaded.error.message || 'proposal_final_pdf_upload_failed');
-    const nowIso = new Date().toISOString();
-    const patch = {
-      final_pdf_path: filePath,
-      final_pdf_file_name: String(pdfFile.name || 'proposal.pdf').trim(),
-      final_pdf_created_at: nowIso,
-      final_pdf_created_by: proposalLockActorName(),
-      document_snapshot: documentSnapshot,
-      document_html_snapshot: documentHtmlSnapshot,
-      updated_at: nowIso
-    };
-    const { data, error } = await supabase.from('proposals_agreements').update(patch).eq('id', rowId).select(PROPOSALS_AGREEMENTS_COLUMNS).single();
-    if (error) throw new Error(error.message || 'proposal_final_pdf_save_failed');
-    return { ok: true, row: normalizeProposalAgreementRow(data) };
   },
   getProposalFinalPdfSignedUrl: async (id) => {
     assertCanUseProposalsAgreementsApi();
