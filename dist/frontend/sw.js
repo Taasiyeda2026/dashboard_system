@@ -4,7 +4,7 @@
  * API-like requests: network only, never cached. Bump CACHE_VERSION after deploy to drop old caches.
  * CACHE_VERSION is the single manual SW/cache version source; /sw.js imports this file without its own version.
  */
-const CACHE_VERSION = 1233;
+const CACHE_VERSION = 1235;
 const CACHE_PREFIX = 'dashboard-static-v';
 const CACHE_NAME = `${CACHE_PREFIX}${CACHE_VERSION}`;
 
@@ -12,7 +12,7 @@ const CACHE_NAME = `${CACHE_PREFIX}${CACHE_VERSION}`;
 const PRECACHE_URLS = [
   "./assets/apple-touch-icon-DZF9rhdV.png",
   "./assets/favicon-D0Y9bj5H.ico",
-  "./assets/index-uH8uX8QE.js",
+  "./assets/index-JIRNr1am.js",
   "./assets/style-BOvFjclr.css",
   "./index.html",
   "./manifest.json"
@@ -148,9 +148,8 @@ self.addEventListener('install', (event) => {
           console.warn('[SW] precache skip', path, e);
         }
       }
-      // Delete stale caches immediately on install so activate sees a clean state.
-      await deleteOutdatedCaches();
-      // Take control immediately — don't wait for old SW to die.
+      // Do not delete outdated caches during install — activate owns cleanup so
+      // reloadClientsAfterCacheUpgrade still sees deleted keys and can refresh clients.
       self.skipWaiting();
     })
   );
