@@ -1,0 +1,42 @@
+name: Validate unified client file
+
+on:
+  pull_request:
+    branches: [main]
+    paths:
+      - 'frontend/src/client-file-*.js'
+      - 'tests/client-file-unified-screen.test.mjs'
+      - 'index.html'
+      - '.github/workflows/validate-client-file-pr.yml'
+
+permissions:
+  contents: read
+
+jobs:
+  validate:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+          cache: npm
+
+      - name: Install dependencies
+        run: npm install
+
+      - name: Check JavaScript syntax
+        run: |
+          node --check frontend/src/client-file-data-adapter.js
+          node --check frontend/src/client-file-overlay.js
+          node --check frontend/src/client-file-proposal-open.js
+          node --check tests/client-file-unified-screen.test.mjs
+
+      - name: Run focused client file tests
+        run: node --test tests/client-file-unified-screen.test.mjs
+
+      - name: Build production bundle
+        run: npm run check:build
