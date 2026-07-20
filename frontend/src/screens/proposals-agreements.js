@@ -892,9 +892,11 @@ function filterSelectHtml(key, label, values) {
 
 function statusFilterHtml() {
   const options = ['<option value="">הכול</option>',
-    ...STATUS_OPTIONS.map((s) => `<option value="${escapeHtml(s)}">${escapeHtml(STATUS_LABELS[s] || s)}</option>`)
+    ...STATUS_OPTIONS
+      .filter((status) => status !== 'sent')
+      .map((s) => `<option value="${escapeHtml(s)}">${escapeHtml(STATUS_LABELS[s] || s)}</option>`)
   ].join('');
-  return `<label class="ds-pa-filter"><span>סטטוס</span><select class="ds-input ds-input--sm" data-pa-filter="status">${options}</select></label>`;
+  return `<label class="ds-pa-filter" data-pa-status-filter><span>סטטוס</span><select class="ds-input ds-input--sm" data-pa-filter="status">${options}</select></label>`;
 }
 
 function statusBadgeHtml(status) {
@@ -4072,8 +4074,15 @@ function allDisplayRows(data) {
   return dedupeById(sortRows(rows));
 }
 
-function displayRows(data, filters = {}) {
-  return allDisplayRows(data).filter((row) => rowMatches(row, filters));
+function rowsForProposalListView(data, listView = 'records') {
+  return allDisplayRows(data).filter((row) => {
+    const isSent = normalizeProposalStatus(row.status) === 'sent';
+    return listView === 'sent' ? isSent : !isSent;
+  });
+}
+
+function displayRows(data, filters = {}, listView = 'records') {
+  return rowsForProposalListView(data, listView).filter((row) => rowMatches(row, filters));
 }
 
 function currentFilters(root) {
@@ -4129,6 +4138,13 @@ export function updateProposalsAgreementsTableOnly(root, rows, state, options = 
   if (totalCounter) totalCounter.textContent = String(totalRows);
   if (activeHost) activeHost.outerHTML = activeFiltersHtml(options.filters || {});
   if (emptyHost) emptyHost.innerHTML = rows.length === 0 && totalRows > 0 ? filteredOutMessageHtml(totalRows) : '';
+}
+
+function updateProposalListTabCounts(root, data) {
+  ['records', 'sent'].forEach((listView) => {
+    const count = root?.querySelector(`[data-pa-tab-count="${listView}"]`);
+    if (count) count.textContent = String(rowsForProposalListView(data, listView).length);
+  });
 }
 
 
@@ -4518,8 +4534,9 @@ export const proposalsAgreementsScreen = {
     }
     setProposalGroupLookups(data, Array.isArray(data?.rows) ? data.rows : [], Array.isArray(data?.proposalActivityPricing) ? data.proposalActivityPricing : []);
     setProposalPricingLookup(Array.isArray(data?.proposalActivityPricing) ? data.proposalActivityPricing : []);
-    const totalRows = allDisplayRows(data).length;
-    const rows = displayRows(data, {});
+    const rows = displayRows(data, {}, 'records');
+    const recordsCount = rowsForProposalListView(data, 'records').length;
+    const sentCount = rowsForProposalListView(data, 'sent').length;
     const proposalGroupFilterOptions = proposalGroupOptions(data, Array.isArray(data?.rows) ? data.rows : [], Array.isArray(data?.proposalActivityPricing) ? data.proposalActivityPricing : []);
     const canManage = canManageProposalsAgreements(state);
     const rawRows = Array.isArray(data?.rows) ? data.rows.map(normalizeProposalAgreementRow) : [];
@@ -4527,7 +4544,7 @@ export const proposalsAgreementsScreen = {
       ${dsPageHeader('הצעות מחיר', proposalsScreenSummaryText(rawRows))}
       <section class="ds-pa-screen" data-pa-screen dir="rtl">
         <style>
-          .ds-pa-screen-tab{border-radius:10px 10px 0 0;transition:background .15s,color .15s,border-color .15s}.ds-pa-screen-tab:hover{background:rgba(14,165,233,.08)}
+          .ds-pa-screen-tab{border-radius:10px 10px 0 0;transition:background .15s,color .15s,border-color .15s}.ds-pa-screen-tab:hover{background:rgba(14,165,233,.08)}.ds-pa-tab-count{display:inline-flex;min-width:19px;height:19px;padding:0 5px;align-items:center;justify-content:center;border-radius:999px;background:#e2e8f0;color:#475569;font-size:.72rem;margin-inline-start:4px}.ds-pa-screen-tab.is-active .ds-pa-tab-count{background:#dbeafe;color:#1d4ed8}
           .ds-pa-form{max-width:1080px;margin-inline:auto}.ds-pa-form .ds-pa-form-grid{max-width:100%}.ds-pa-item-card{border:1px solid #dbe7f3;border-radius:10px;background:#fff;padding:5px 8px;margin:3px 0;box-shadow:0 1px 3px rgba(15,23,42,.04)}
           .ds-pa-item-quick-row{display:grid;grid-template-columns:minmax(0,1fr) 96px;gap:6px;align-items:end}.ds-pa-item-extra{margin-top:4px}.ds-pa-item-extra-toggle{cursor:pointer;color:#2563eb;font-size:.78rem}.ds-pa-type-chips{grid-template-columns:repeat(2,minmax(0,1fr))}.ds-pa-type-card{min-height:28px!important;padding:3px 5px!important;font-size:.76rem!important}.ds-pa-summary-bar--compact{display:flex;align-items:center;gap:8px;justify-content:space-between}.ds-pa-summary-bar--compact .ds-pa-summary-pill{flex:1}.ds-pa-item-field--select select{overflow:hidden;text-overflow:ellipsis}.ds-pa-item-field--select-no-label{gap:0}.ds-pa-item-field span{display:block;font-size:.74rem;color:#64748b;margin-bottom:3px;font-weight:600}.ds-pa-line-total output{min-height:34px;display:flex;align-items:center;justify-content:center;border:1px solid #dbe7f3;border-radius:10px;background:#f8fbff;font-weight:700;color:#0f766e}.ds-pa-items-total-row{margin-top:10px;padding:10px 12px;border-radius:12px;background:#eef8ff;font-size:.9rem}.ds-pa-items-total-row strong{color:#0369a1}
           .ds-pa-bundle-prompt{margin-top:12px}.ds-pa-bundle-panel{border:1px solid #b7e0f5;background:#f8fdff;border-radius:14px;padding:12px}.ds-pa-bundle-head{display:flex;justify-content:space-between;gap:10px;align-items:center;margin-bottom:6px}.ds-pa-bundle-head strong{font-size:.9rem;color:#0f172a}.ds-pa-bundle-head span,.ds-pa-bundle-help,.ds-pa-bundle-empty{font-size:.78rem;color:#64748b}.ds-pa-bundle-grid{display:grid;grid-template-columns:repeat(auto-fit,minmax(220px,1fr));gap:8px;margin-top:10px}.ds-pa-bundle-child-card{display:grid;grid-template-columns:auto 1fr auto;align-items:center;gap:8px;border:1px solid #dbe7f3;border-radius:12px;background:#fff;padding:9px 10px;cursor:pointer;min-height:42px}.ds-pa-bundle-child-card:hover{border-color:#38bdf8;background:#f0f9ff}.ds-pa-bundle-child-card:has(input:checked){border-color:#0ea5e9;background:#e0f2fe;box-shadow:0 0 0 1px #0ea5e9 inset}.ds-pa-bundle-child-name{font-size:.82rem;color:#0f172a;line-height:1.25}.ds-pa-bundle-child-price{font-size:.8rem;font-weight:700;color:#0f766e;white-space:nowrap}.ds-pa-bundle-footer{display:flex;justify-content:space-between;align-items:center;gap:10px;margin-top:10px;flex-wrap:wrap}.ds-pa-bundle-actions{display:flex;gap:6px}.ds-pa-bundle-selection-summary{font-size:.78rem;color:#0369a1;font-weight:700}.ds-pa-summary-bundle-list{margin:4px 0 0;padding-right:16px;font-size:.72rem}.ds-pa-items-summary-table{width:100%;border-collapse:collapse;font-size:.78rem}.ds-pa-items-summary-table th,.ds-pa-items-summary-table td{border-bottom:1px solid #e5eef6;padding:6px;text-align:right}.ds-pa-items-summary-table th{color:#64748b;font-weight:700;background:#f8fbff}
@@ -4535,10 +4552,11 @@ export const proposalsAgreementsScreen = {
           @media (max-width:900px){.ds-pa-bundle-grid{grid-template-columns:1fr}}@media (max-width:640px){.ds-pa-type-chips{grid-template-columns:repeat(2,minmax(0,1fr))}.ds-pa-item-quick-row{grid-template-columns:1fr}}
         </style>
         <div class="ds-pa-screen-tabs" data-pa-screen-tabs style="display:flex;gap:4px;border-bottom:2px solid var(--ds-border,#e5e7eb);margin-bottom:12px">
-          <button type="button" class="ds-pa-screen-tab is-active" data-pa-tab="records" style="padding:6px 16px;border:none;background:none;cursor:pointer;font-weight:600;border-bottom:2px solid transparent;margin-bottom:-2px;color:inherit;font-size:0.9rem">📋 רשומות</button>
+          <button type="button" class="ds-pa-screen-tab is-active" data-pa-tab="records" style="padding:6px 16px;border:none;background:none;cursor:pointer;font-weight:600;border-bottom:2px solid transparent;margin-bottom:-2px;color:inherit;font-size:0.9rem">📋 רשומות <span class="ds-pa-tab-count" data-pa-tab-count="records">${recordsCount}</span></button>
+          <button type="button" class="ds-pa-screen-tab" data-pa-tab="sent" style="padding:6px 16px;border:none;background:none;cursor:pointer;font-weight:500;border-bottom:2px solid transparent;margin-bottom:-2px;color:var(--ds-text-muted,#6b7280);font-size:0.9rem">✓ הצעות שנשלחו <span class="ds-pa-tab-count" data-pa-tab-count="sent">${sentCount}</span></button>
           ${canManage ? '<button type="button" class="ds-pa-screen-tab" data-pa-tab="new" style="padding:6px 16px;border:none;background:none;cursor:pointer;font-weight:500;border-bottom:2px solid transparent;margin-bottom:-2px;color:var(--ds-text-muted,#6b7280);font-size:0.9rem">+ הצעה חדשה</button>' : ''}
         </div>
-        <div data-pa-tab-panel="records">
+        <div data-pa-tab-panel="list">
           <div class="ds-pa-toolbar">
             <label class="ds-pa-search"><span>חיפוש</span><input class="ds-input ds-input--sm" data-pa-search placeholder="חיפוש מקומי" autocomplete="off"></label>
             ${filterSelectHtml('activity_type_group', 'סוג הצעה', proposalGroupFilterOptions)}
@@ -4547,7 +4565,7 @@ export const proposalsAgreementsScreen = {
             <button type="button" class="ds-btn ds-btn--sm ds-btn--ghost ds-pa-clear-inline" data-pa-clear-filters>ניקוי סינון</button>
           </div>
           ${activeFiltersHtml({})}
-          <div class="ds-pa-local-status" aria-live="polite" hidden><strong data-pa-results-count>${rows.length}</strong><strong data-pa-total-count>${totalRows}</strong></div>
+          <div class="ds-pa-local-status" aria-live="polite" hidden><strong data-pa-results-count>${rows.length}</strong><strong data-pa-total-count>${recordsCount}</strong></div>
           <div data-pa-filtered-empty-host></div><div class="ds-pa-records-shell" data-pa-table-region>${tableHtml(rows, state)}</div>
           ${drawerHtml(null, [], state)}
         </div>
@@ -4621,10 +4639,13 @@ export const proposalsAgreementsScreen = {
       };
     };
     let debounceTimer = null;
+    let activeListView = 'records';
 
     const refreshTable = () => {
       const filters = currentFilters(root);
-      updateProposalsAgreementsTableOnly(root, displayRows(data, filters), state, { filters, totalRows: allDisplayRows(data).length });
+      const listRows = rowsForProposalListView(data, activeListView);
+      updateProposalsAgreementsTableOnly(root, displayRows(data, filters, activeListView), state, { filters, totalRows: listRows.length });
+      updateProposalListTabCounts(root, data);
     };
     const debouncedRefresh = () => {
       clearTimeout(debounceTimer);
@@ -5759,6 +5780,14 @@ export const proposalsAgreementsScreen = {
     };
 
     const switchTab = (tabName) => {
+      const isListTab = tabName === 'records' || tabName === 'sent';
+      if (isListTab) {
+        activeListView = tabName;
+        const statusFilter = root.querySelector('[data-pa-filter="status"]');
+        if (statusFilter) statusFilter.value = '';
+        const statusFilterWrap = root.querySelector('[data-pa-status-filter]');
+        if (statusFilterWrap) statusFilterWrap.hidden = tabName === 'sent';
+      }
       root.querySelectorAll('[data-pa-tab]').forEach((btn) => {
         const active = btn.dataset.paTab === tabName;
         btn.classList.toggle('is-active', active);
@@ -5767,8 +5796,10 @@ export const proposalsAgreementsScreen = {
         btn.style.borderBottomColor = active ? 'var(--ds-primary,#6366f1)' : 'transparent';
       });
       root.querySelectorAll('[data-pa-tab-panel]').forEach((panel) => {
-        panel.hidden = panel.dataset.paTabPanel !== tabName;
+        const targetPanel = isListTab ? 'list' : tabName;
+        panel.hidden = panel.dataset.paTabPanel !== targetPanel;
       });
+      if (isListTab) refreshTable();
     };
 
     const resetLocalFilters = () => {
@@ -6111,10 +6142,10 @@ export const proposalsAgreementsScreen = {
       const tabName = btn.dataset.paTab;
       if (tabName === 'new' && canManage) {
         openForm('add'); // openForm calls switchTab('new') internally
-      } else if (tabName === 'records') {
-        // Clear the new-proposal form and switch back to records
+      } else if (tabName === 'records' || tabName === 'sent') {
+        // Clear the proposal form and switch to the selected list view.
         if (formHost) { formHost.hidden = true; formHost.innerHTML = ''; }
-        switchTab('records');
+        switchTab(tabName);
       }
     }, { signal });
 
