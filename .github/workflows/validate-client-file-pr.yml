@@ -4,9 +4,17 @@ on:
   pull_request:
     branches: [main]
     paths:
-      - 'frontend/src/client-file-*.js'
-      - 'tests/client-file-unified-screen.test.mjs'
+      - 'frontend/src/screens/proposals-agreements.js'
+      - 'frontend/src/screens/instructors.js'
+      - 'frontend/src/screens/instructor-contacts.js'
+      - 'frontend/src/styles/**'
+      - 'frontend/src/config.js'
+      - 'frontend/sw.js'
+      - 'sw.js'
       - 'index.html'
+      - 'tests/client-file-*.test.mjs'
+      - 'tests/proposals-agreements-screen.test.mjs'
+      - 'tests/instructor-contacts-nav-access.test.mjs'
       - '.github/workflows/validate-client-file-pr.yml'
 
 permissions:
@@ -30,13 +38,18 @@ jobs:
 
       - name: Check JavaScript syntax
         run: |
-          node --check frontend/src/client-file-data-adapter.js
-          node --check frontend/src/client-file-overlay.js
-          node --check frontend/src/client-file-proposal-open.js
+          node --check frontend/src/screens/proposals-agreements.js
+          node --check frontend/src/screens/instructors.js
+          node --check frontend/src/screens/instructor-contacts.js
           node --check tests/client-file-unified-screen.test.mjs
 
       - name: Run focused client file tests
-        run: node --test tests/client-file-unified-screen.test.mjs
+        run: |
+          node --test tests/client-file-unified-screen.test.mjs
+          node --test tests/instructor-contacts-nav-access.test.mjs
 
       - name: Build production bundle
         run: npm run check:build
+
+      - name: Check PWA cache guardrails
+        run: npm run check:pwa
