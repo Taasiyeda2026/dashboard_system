@@ -221,11 +221,11 @@ test('archive rules keep plain sent current and put superseded/cancelled in arch
   assert.ok(archive.some((row) => row.id === 'c1'));
 });
 
-test('all-proposals search keeps focus while updating only the results list', async () => {
+test('כל ההצעות opens the legacy proposals table immediately', async () => {
   const viewState = stateFor({ manage: true, role: 'admin' });
   const data = {
     rows: [
-      { id: '1', client_authority: 'נתניה', school_framework: 'ריגלר', activity_type_group: 'next_year', status: 'sent', proposal_date: '2026-06-28', total_amount: 22600 },
+      { id: '1', client_authority: 'נתניה', school_framework: 'ריגלר', activity_type_group: 'next_year', status: 'draft', proposal_date: '2026-06-28', total_amount: 22600 },
       { id: '2', client_authority: 'תל אביב', school_framework: 'אלון', activity_type_group: 'summer', status: 'draft', proposal_date: '2026-05-01', total_amount: 1000 }
     ],
     contactOptions: []
@@ -236,28 +236,30 @@ test('all-proposals search keeps focus while updating only the results list', as
     proposalsAgreementsScreen.bind({ root, data: structuredClone(data), state: viewState, api });
     root.querySelector('[data-pa-client-all-proposals]')?.click();
     await new Promise((r) => setTimeout(r, 0));
-    const form = root.querySelector('[data-pa-client-all-filters]');
-    const input = form?.querySelector('input[name="q"]');
-    assert.ok(form);
-    assert.ok(input);
-    input.focus();
-    input.value = 'נ';
-    input.dispatchEvent(new dom.window.Event('input', { bubbles: true }));
-    input.value = 'נת';
-    input.dispatchEvent(new dom.window.Event('input', { bubbles: true }));
-    input.value = 'נתנ';
-    input.setSelectionRange(3, 3);
-    input.dispatchEvent(new dom.window.Event('input', { bubbles: true }));
-    assert.equal(dom.window.document.activeElement, input);
-    assert.equal(input.selectionStart, 3);
+    assert.equal(root.querySelector('[data-pa-client-all]'), null, 'must not show the card-list intermediate screen');
+    assert.equal(root.querySelector('.ds-page-header__title')?.textContent, 'הצעת מחיר');
+    const legacy = root.querySelector('[data-pa-all-proposals-table]');
+    assert.ok(legacy);
+    assert.equal(legacy.getAttribute('aria-hidden'), 'false');
+    assert.ok(root.querySelector('[data-pa-back-to-client-home]'));
+    assert.match(root.querySelector('[data-pa-back-to-client-home]')?.textContent || '', /חזרה לתיק הלקוח/);
+    assert.ok(root.querySelector('[data-pa-search]'));
+    assert.ok(root.querySelector('[data-pa-filter="activity_type_group"]'));
+    assert.ok(root.querySelector('[data-pa-filter="status"]'));
+    assert.ok(root.querySelector('[data-pa-table-body]'));
+    assert.match(root.querySelector('[data-pa-table-body]')?.textContent || '', /נתניה/);
+    assert.match(root.querySelector('[data-pa-table-body]')?.textContent || '', /תל אביב/);
+    const search = root.querySelector('[data-pa-search]');
+    search.value = 'נתניה';
+    search.dispatchEvent(new dom.window.Event('input', { bubbles: true }));
     await new Promise((r) => setTimeout(r, 350));
-    assert.equal(dom.window.document.activeElement, input);
-    const list = root.querySelector('[data-pa-client-all-list]');
-    assert.match(list?.textContent || '', /נתניה/);
-    assert.doesNotMatch(list?.textContent || '', /תל אביב/);
-    root.querySelector('[data-pa-client-clear-all-filters]')?.click();
+    assert.match(root.querySelector('[data-pa-table-body]')?.textContent || '', /נתניה/);
+    assert.doesNotMatch(root.querySelector('[data-pa-table-body]')?.textContent || '', /תל אביב/);
+    root.querySelector('[data-pa-back-to-client-home]')?.click();
     await new Promise((r) => setTimeout(r, 0));
-    assert.match(root.querySelector('[data-pa-client-all-list]')?.textContent || '', /תל אביב/);
+    assert.ok(root.querySelector('[data-pa-client-home]'));
+    assert.equal(root.querySelector('.ds-page-header__title')?.textContent, 'תיק לקוח');
+    assert.equal(root.querySelector('[data-pa-all-proposals-table]')?.getAttribute('aria-hidden'), 'true');
   });
 });
 
@@ -288,12 +290,12 @@ test('opening a board proposal opens details by id and returns to home queues', 
     assert.ok(root.querySelector('[data-pa-proposal-detail]'), 'proposal detail opens immediately');
     assert.equal(root.querySelector('[data-pa-client-file]'), null, 'must not open client file first');
     assert.equal(root.querySelector('[data-pa-client-home]'), null, 'must leave the home board');
-    assert.equal(root.querySelector('[data-pa-client-all]'), null, 'must not open all-proposals list');
+    assert.equal(root.querySelector('[data-pa-client-all]'), null, 'must not open all-proposals card list');
     assert.ok(root.querySelector('[data-pa-drawer][data-pa-drawer-id="exact-id-77"]'));
     assert.match(root.querySelector('[data-pa-proposal-detail-back]')?.textContent || '', /חזרה לתיק הלקוח/);
     assert.match(root.querySelector('.ds-page-header__title')?.textContent || '', /תשפ״ז|פרטי הצעה/);
-    // Legacy list stays hidden and unused as an intermediate step.
-    assert.match(root.querySelector('.ds-pa-legacy-list')?.getAttribute('aria-hidden') || '', /true/);
+    // Board open must not activate the all-proposals table as an intermediate step.
+    assert.equal(root.querySelector('[data-pa-all-proposals-table]')?.getAttribute('aria-hidden'), 'true');
     root.querySelector('[data-pa-proposal-detail-back]')?.click();
     await new Promise((r) => setTimeout(r, 20));
     assert.ok(root.querySelector('[data-pa-client-home]'), 'back returns to client-file home');
@@ -338,16 +340,52 @@ test('opening a proposal from a client file returns to that client file', async 
   });
 });
 
+test('opening a proposal from all-proposals table returns to the table with filters', async () => {
+  const viewState = stateFor({ manage: true, role: 'admin' });
+  const data = {
+    rows: [
+      { id: 'row-a', client_authority: 'מטה יהודה', school_framework: 'מטה יהודה', activity_type_group: 'next_year', status: 'approved', proposal_date: '2026-06-28', total_amount: 85000 },
+      { id: 'row-b', client_authority: 'נתניה', school_framework: 'ריגלר', activity_type_group: 'summer', status: 'draft', proposal_date: '2026-05-01', total_amount: 1000 }
+    ],
+    contactOptions: []
+  };
+  const html = proposalsAgreementsScreen.render(data, { state: viewState });
+  await withJSDOM(html, async (root, dom) => {
+    const api = { readProposalAgreementItems: async () => [] };
+    proposalsAgreementsScreen.bind({ root, data: structuredClone(data), state: viewState, api });
+    root.querySelector('[data-pa-client-all-proposals]')?.click();
+    await new Promise((r) => setTimeout(r, 0));
+    const search = root.querySelector('[data-pa-search]');
+    search.value = 'מטה';
+    search.dispatchEvent(new dom.window.Event('input', { bubbles: true }));
+    await new Promise((r) => setTimeout(r, 350));
+    assert.match(root.querySelector('[data-pa-table-body]')?.textContent || '', /מטה יהודה/);
+    assert.doesNotMatch(root.querySelector('[data-pa-table-body]')?.textContent || '', /נתניה/);
+    root.querySelector('[data-pa-row-id="row-a"]')?.click();
+    await new Promise((r) => setTimeout(r, 40));
+    assert.ok(root.querySelector('[data-pa-proposal-detail]'));
+    assert.match(root.querySelector('[data-pa-proposal-detail-back]')?.textContent || '', /חזרה לכל ההצעות/);
+    root.querySelector('[data-pa-proposal-detail-back]')?.click();
+    await new Promise((r) => setTimeout(r, 20));
+    assert.equal(root.querySelector('[data-pa-proposal-detail]'), null);
+    assert.equal(root.querySelector('.ds-page-header__title')?.textContent, 'הצעת מחיר');
+    assert.equal(root.querySelector('[data-pa-all-proposals-table]')?.getAttribute('aria-hidden'), 'false');
+    assert.equal(root.querySelector('[data-pa-search]')?.value, 'מטה', 'filters must be preserved');
+    assert.match(root.querySelector('[data-pa-table-body]')?.textContent || '', /מטה יהודה/);
+    assert.doesNotMatch(root.querySelector('[data-pa-table-body]')?.textContent || '', /נתניה/);
+  });
+});
+
 test('service worker version and activate-only cache cleanup', async () => {
   const sw = await readFile(SW_FILE, 'utf8');
   const config = await readFile(CONFIG_FILE, 'utf8');
-  assert.match(sw, /const CACHE_VERSION = 1236;/);
+  assert.match(sw, /const CACHE_VERSION = 1237;/);
   const installBlock = sw.match(/self\.addEventListener\('install',[\s\S]*?\n\}\);/)?.[0] || '';
   assert.doesNotMatch(installBlock, /deleteOutdatedCaches\(/);
   assert.match(sw, /self\.addEventListener\('activate'[\s\S]*deleteOutdatedCaches\(/);
   assert.match(sw, /clients\.claim/);
   assert.match(sw, /isApiLikeUrl/);
-  assert.match(config, /client-file-open-detail-20260720-v4/);
+  assert.match(config, /client-file-all-proposals-table-20260720-v5/);
 });
 
 test('STATUS_LABELS remain available for filters', () => {
