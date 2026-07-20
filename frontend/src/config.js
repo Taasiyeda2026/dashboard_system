@@ -46,5 +46,5 @@ if (!resolvedUrl) {
 export const config = {
   apiUrl: resolvedUrl,
   DIAGNOSTICS_UI_ENABLED: false,
-  HOTFIX_VERSION: 'proposal-pdf-tainted-canvas-20260720-v1'
+  HOTFIX_VERSION: 'proposal-pdf-svg-origin-clean-20260721-v1'
 };
