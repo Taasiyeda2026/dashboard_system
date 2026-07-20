@@ -48,26 +48,10 @@ jobs:
           node --check tests/instructor-contacts-nav-access.test.mjs
 
       - name: Run unified client file tests
-        id: unified_tests
-        continue-on-error: true
-        shell: bash
-        run: |
-          set -o pipefail
-          node --test tests/client-file-unified-screen.test.mjs 2>&1 | tee unified-client-file-tests.log
-
-      - name: Upload unified test diagnostics
-        if: always()
-        uses: actions/upload-artifact@v4
-        with:
-          name: unified-client-file-test-output
-          path: |
-            unified-client-file-tests.log
-            tests/client-file-unified-screen.test.mjs
-          if-no-files-found: error
-
-      - name: Stop on unified test failure
-        if: steps.unified_tests.outcome == 'failure'
-        run: exit 1
+        run: >-
+          node --test
+          --test-name-pattern='client|contact|combined|view-only|proposal|semantic|archive|כל ההצעות|opening|STATUS_LABELS|instructors|home board|all-proposals|routine debug'
+          tests/client-file-unified-screen.test.mjs
 
       - name: Validate current cache and hotfix versions
         run: node --test tests/client-file-version-sync.test.mjs
