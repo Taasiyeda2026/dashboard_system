@@ -104,13 +104,13 @@ test('view-only users do not see management actions; managers do', async () => {
   assert.doesNotMatch(viewHtml, /\+ לקוח אחר/);
   assert.match(manageHtml, /\+ לקוח אחר/);
 
-  await withJSDOM(viewHtml, async (root) => {
+  await withJSDOM(viewHtml, async (root, dom) => {
     const api = { readProposalAgreementItems: async () => [] };
     proposalsAgreementsScreen.bind({ root, data: structuredClone(data), state: viewState, api });
-    const openBtn = root.querySelector('[data-pa-open-client]');
-    assert.ok(openBtn);
-    delete openBtn.dataset.paOpenProposal;
-    openBtn.click();
+    const search = root.querySelector('[data-pa-client-search]');
+    search.value = 'ריגלר';
+    search.dispatchEvent(new dom.window.Event('input', { bubbles: true }));
+    root.querySelector('[data-pa-open-client]')?.click();
     await new Promise((r) => setTimeout(r, 20));
     assert.ok(root.querySelector('[data-pa-client-file]'), 'view-only can open client file');
     assert.equal(root.querySelector('[data-pa-client-add-other]'), null);
@@ -119,13 +119,13 @@ test('view-only users do not see management actions; managers do', async () => {
     assert.equal(root.querySelector('[data-pa-clone-row]'), null);
   });
 
-  await withJSDOM(manageHtml, async (root) => {
+  await withJSDOM(manageHtml, async (root, dom) => {
     const api = { readProposalAgreementItems: async () => [] };
     proposalsAgreementsScreen.bind({ root, data: structuredClone(data), state: manageState, api });
-    const openBtn = root.querySelector('[data-pa-open-client]');
-    assert.ok(openBtn);
-    delete openBtn.dataset.paOpenProposal;
-    openBtn.click();
+    const search = root.querySelector('[data-pa-client-search]');
+    search.value = 'ריגלר';
+    search.dispatchEvent(new dom.window.Event('input', { bubbles: true }));
+    root.querySelector('[data-pa-open-client]')?.click();
     await new Promise((r) => setTimeout(r, 20));
     assert.ok(root.querySelector('[data-pa-client-file]'), 'manager can open client file');
     assert.ok(root.querySelector('[data-pa-client-add-proposal]'));
@@ -261,16 +261,16 @@ test('all-proposals search keeps focus while updating only the results list', as
   });
 });
 
-test('opening a proposal uses the exact id and returns to the client file', async () => {
+test('opening a board proposal opens details by id and returns to home queues', async () => {
   const viewState = stateFor({ manage: true, role: 'admin' });
   const row = {
     id: 'exact-id-77',
-    client_authority: 'נתניה',
-    school_framework: 'ריגלר',
+    client_authority: 'מטה יהודה',
+    school_framework: 'מטה יהודה',
     activity_type_group: 'next_year',
     status: 'approved',
     proposal_date: '2026-06-28',
-    total_amount: 22600,
+    total_amount: 85000,
     final_pdf_path: 'x.pdf',
     version_number: 1,
     school_id: '77'
@@ -280,15 +280,58 @@ test('opening a proposal uses the exact id and returns to the client file', asyn
   await withJSDOM(html, async (root) => {
     const api = { readProposalAgreementItems: async () => sampleItems() };
     proposalsAgreementsScreen.bind({ root, data: structuredClone(data), state: viewState, api });
-    const queueBtn = root.querySelector('[data-pa-open-proposal="exact-id-77"]');
+    const queueBtn = root.querySelector('[data-pa-open-proposal-id="exact-id-77"]');
     assert.ok(queueBtn, 'approved proposal should appear on the treatment board');
+    assert.equal(queueBtn.getAttribute('data-pa-return-to'), 'home');
     queueBtn.click();
     await new Promise((r) => setTimeout(r, 50));
+    assert.ok(root.querySelector('[data-pa-proposal-detail]'), 'proposal detail opens immediately');
+    assert.equal(root.querySelector('[data-pa-client-file]'), null, 'must not open client file first');
+    assert.equal(root.querySelector('[data-pa-client-home]'), null, 'must leave the home board');
+    assert.equal(root.querySelector('[data-pa-client-all]'), null, 'must not open all-proposals list');
+    assert.ok(root.querySelector('[data-pa-drawer][data-pa-drawer-id="exact-id-77"]'));
+    assert.match(root.querySelector('[data-pa-proposal-detail-back]')?.textContent || '', /חזרה לתיק הלקוח/);
+    assert.match(root.querySelector('.ds-page-header__title')?.textContent || '', /תשפ״ז|פרטי הצעה/);
+    // Legacy list stays hidden and unused as an intermediate step.
+    assert.match(root.querySelector('.ds-pa-legacy-list')?.getAttribute('aria-hidden') || '', /true/);
+    root.querySelector('[data-pa-proposal-detail-back]')?.click();
+    await new Promise((r) => setTimeout(r, 20));
+    assert.ok(root.querySelector('[data-pa-client-home]'), 'back returns to client-file home');
+    assert.ok(root.querySelector('[data-pa-client-queues]'), 'treatment board queues are restored');
+    assert.equal(root.querySelector('[data-pa-proposal-detail]'), null);
+    assert.equal(root.querySelector('.ds-page-header__title')?.textContent, 'תיק לקוח');
+  });
+});
+
+test('opening a proposal from a client file returns to that client file', async () => {
+  const viewState = stateFor({ manage: true, role: 'admin' });
+  const row = {
+    id: 'client-prop-9',
+    client_authority: 'נתניה',
+    school_framework: 'ריגלר',
+    activity_type_group: 'summer',
+    status: 'draft',
+    proposal_date: '2026-06-01',
+    total_amount: 1200,
+    version_number: 1,
+    school_id: '9'
+  };
+  const data = { rows: [row], contactOptions: [] };
+  const html = proposalsAgreementsScreen.render(data, { state: viewState });
+  await withJSDOM(html, async (root, dom) => {
+    const api = { readProposalAgreementItems: async () => [] };
+    proposalsAgreementsScreen.bind({ root, data: structuredClone(data), state: viewState, api });
+    const search = root.querySelector('[data-pa-client-search]');
+    search.value = 'ריגלר';
+    search.dispatchEvent(new dom.window.Event('input', { bubbles: true }));
+    root.querySelector('[data-pa-open-client]')?.click();
+    await new Promise((r) => setTimeout(r, 20));
     assert.ok(root.querySelector('[data-pa-client-file]'));
-    // Drawer may still be loading items; wait a tick for openProposalDetails.
-    await new Promise((r) => setTimeout(r, 50));
-    assert.ok(root.querySelector('[data-pa-drawer]'));
-    root.querySelector('[data-pa-close-drawer]')?.click();
+    root.querySelector('[data-pa-open-proposal-id="client-prop-9"]')?.click();
+    await new Promise((r) => setTimeout(r, 40));
+    assert.ok(root.querySelector('[data-pa-proposal-detail]'));
+    assert.equal(root.querySelector('[data-pa-client-file]'), null);
+    root.querySelector('[data-pa-proposal-detail-back]')?.click();
     await new Promise((r) => setTimeout(r, 20));
     assert.ok(root.querySelector('[data-pa-client-file]'));
     assert.match(root.querySelector('[data-pa-client-file]')?.textContent || '', /ריגלר|נתניה/);
@@ -298,13 +341,13 @@ test('opening a proposal uses the exact id and returns to the client file', asyn
 test('service worker version and activate-only cache cleanup', async () => {
   const sw = await readFile(SW_FILE, 'utf8');
   const config = await readFile(CONFIG_FILE, 'utf8');
-  assert.match(sw, /const CACHE_VERSION = 1235;/);
+  assert.match(sw, /const CACHE_VERSION = 1236;/);
   const installBlock = sw.match(/self\.addEventListener\('install',[\s\S]*?\n\}\);/)?.[0] || '';
   assert.doesNotMatch(installBlock, /deleteOutdatedCaches\(/);
   assert.match(sw, /self\.addEventListener\('activate'[\s\S]*deleteOutdatedCaches\(/);
   assert.match(sw, /clients\.claim/);
   assert.match(sw, /isApiLikeUrl/);
-  assert.match(config, /client-file-unified-20260720-v3/);
+  assert.match(config, /client-file-open-detail-20260720-v4/);
 });
 
 test('STATUS_LABELS remain available for filters', () => {
