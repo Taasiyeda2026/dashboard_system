@@ -2707,7 +2707,6 @@ function invalidateScreenDataByAction(action) {
     updateProposalAgreementStatus: ['proposals-agreements'],
     lockAndSendProposalAgreement: ['proposals-agreements'],
     uploadProposalFinalPdf: ['proposals-agreements'],
-    uploadLegacyProposalFinalPdf: ['proposals-agreements'],
     getProposalFinalPdfSignedUrl: ['proposals-agreements'],
     deleteProposalAgreement: ['proposals-agreements'],
     saveProposalAgreementItems: ['proposals-agreements'],
@@ -6498,53 +6497,6 @@ export const api = {
     };
     const { data, error } = await supabase.from('proposals_agreements').update(patch).eq('id', rowId).select(PROPOSALS_AGREEMENTS_COLUMNS).single();
     if (error) throw new Error(error.message || 'proposal_final_pdf_save_failed');
-    return { ok: true, row: normalizeProposalAgreementRow(data) };
-  },
-  uploadLegacyProposalFinalPdf: async (id, payload = {}) => {
-    assertCanManageProposalsAgreementsApi();
-    const rowId = cleanProposalAgreementText(id);
-    if (!rowId) throw new Error('missing_proposal_agreement_id');
-    const pdfFile = payload?.pdfFile || payload?.file || null;
-    if (!proposalFinalPdfAllowedFile(pdfFile)) throw new Error('ניתן להעלות PDF בלבד.');
-    const { data: currentRow, error: currentRowError } = await supabase
-      .from('proposals_agreements')
-      .select(PROPOSALS_AGREEMENTS_COLUMNS)
-      .eq('id', rowId)
-      .single();
-    if (currentRowError || !currentRow) throw new Error('proposals_agreement_not_found');
-    const currentStatus = normalizeProposalAgreementStatusForDb(currentRow.status || 'draft');
-    if (!['sent', 'approved'].includes(currentStatus)) {
-      throw new Error('ניתן להעלות PDF סופי רק להצעה שנשלחה או מאושרת.');
-    }
-    if (cleanProposalAgreementText(currentRow.final_pdf_path)) {
-      throw new Error('כבר קיים PDF סופי להצעה זו ולא ניתן להחליף אותו.');
-    }
-    const filePath = proposalFinalPdfStoragePath(rowId, pdfFile?.name);
-    const uploaded = await supabase.storage
-      .from(PROPOSAL_FINAL_PDF_BUCKET)
-      .upload(filePath, pdfFile, { contentType: 'application/pdf', upsert: false });
-    if (uploaded.error) throw new Error(uploaded.error.message || 'proposal_final_pdf_upload_failed');
-    const nowIso = new Date().toISOString();
-    const actorName = proposalLockActorName();
-    const patch = {
-      final_pdf_path: filePath,
-      final_pdf_file_name: String(pdfFile?.name || 'proposal.pdf').trim(),
-      final_pdf_created_at: nowIso,
-      final_pdf_created_by: actorName,
-      updated_at: nowIso
-    };
-    if (!cleanProposalAgreementText(currentRow.locked_at)) {
-      patch.locked_at = nowIso;
-      patch.locked_by = actorName;
-      patch.locked_reason = currentStatus === 'sent' ? 'sent_legacy_pdf_upload' : 'legacy_pdf_upload';
-    }
-    const { data, error } = await supabase
-      .from('proposals_agreements')
-      .update(patch)
-      .eq('id', rowId)
-      .select(PROPOSALS_AGREEMENTS_COLUMNS)
-      .single();
-    if (error) throw new Error(error.message || 'proposal_legacy_pdf_upload_failed');
     return { ok: true, row: normalizeProposalAgreementRow(data) };
   },
   getProposalFinalPdfSignedUrl: async (id) => {

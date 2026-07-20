@@ -4147,7 +4147,7 @@ function drawerHtml(row, activityNameOptions = [], state = null) {
     `<span class="ds-pa-drawer-meta-item ds-pa-drawer-meta-item--status"><span class="ds-pa-drawer-status-text">${escapeHtml(statusText)}</span></span>`
   ].join(metaSep);
 
-  const hasSendingInfo = Boolean(text(row.sent_by) || text(row.sent_at));
+  const hasSendingInfo = Boolean(text(row.sent_by) || text(row.sent_at) || text(row.approved_by) || text(row.approved_at) || proposalHasFinalPdf(row));
   const missingHistoricalPdf = isProposalLegacySentWithoutPdf(row) && !canGenerateProposalPdf(row, state)
     ? '<p class="ds-muted">לא קיים PDF שמור להצעה זו</p>' : '';
   const sendingCard = hasSendingInfo || missingHistoricalPdf
@@ -4156,19 +4156,23 @@ function drawerHtml(row, activityNameOptions = [], state = null) {
     <div class="ds-pa-info-grid">
       ${infoCell('נשלח על ידי', text(row.sent_by), false, { showEmpty: true })}
       ${infoCell('תאריך שליחה', text(row.sent_at) ? formatDateDisplay(row.sent_at) : '', false, { showEmpty: true })}
+      ${infoCell('אושר על ידי', text(row.approved_by), false, { showEmpty: true })}
+      ${infoCell('תאריך אישור', text(row.approved_at) ? formatDateDisplay(row.approved_at) : '', false, { showEmpty: true })}
       ${infoCell('נעול בתאריך', text(row.locked_at) ? formatDateDisplay(row.locked_at) : '', false, { showEmpty: true })}
+      ${infoCell('סטטוס PDF', proposalHasFinalPdf(row) ? 'נשמר' : 'לא נשמר', false, { showEmpty: true })}
+      ${infoCell('שם קובץ PDF', text(row.final_pdf_file_name), false, { showEmpty: true })}
     </div>
   </div>`
     : '';
 
   const sourceId = text(row.contact_school_id || row.contact_source_id);
-  const contactCanUpdate = Boolean(sourceId);
+  const contactCanUpdate = Boolean(sourceId) && canManageProposalsAgreements(state);
   const contactCard = `<form class="ds-pa-info-card ds-pa-contact-update-card" data-pa-drawer-contact-form data-pa-contact-source-id="${escapeHtml(sourceId)}" data-pa-contact-source-table="contacts_schools">
     <div class="ds-pa-info-grid ds-pa-contact-view-grid">
       ${infoCell('איש קשר', text(row.contact_name), false, { showEmpty: true })}
       ${infoCell('תפקיד', text(row.contact_role), false, { showEmpty: true })}
-      ${infoCell('מייל', text(row.email), false, { showEmpty: true })}
-      ${infoCell('טלפון', text(row.phone), false, { showEmpty: true })}
+      <div class="ds-pa-info-cell"><span class="ds-pa-info-label">דוא״ל</span><span class="ds-pa-info-value">${text(row.email) ? `<a href="mailto:${escapeHtml(text(row.email))}">${escapeHtml(text(row.email))}</a>` : 'לא הוזן'}</span></div>
+      <div class="ds-pa-info-cell"><span class="ds-pa-info-label">נייד</span><span class="ds-pa-info-value">${text(row.phone) ? `<a href="tel:${escapeHtml(text(row.phone))}">${escapeHtml(text(row.phone))}</a>` : 'לא הוזן'}</span></div>
     </div>
     ${contactCanUpdate ? `<details class="ds-pa-contact-edit-details"><summary>עדכון פרטי איש קשר</summary>
       <div class="ds-pa-contact-edit-grid">
@@ -4212,7 +4216,7 @@ function drawerHtml(row, activityNameOptions = [], state = null) {
       </div>
       <div class="ds-pa-drawer-body">
         <div class="ds-pa-proposal-info-grid">
-          <section class="ds-pa-info-card"><h4 class="ds-pa-card-title">פרטי ההצעה</h4><div class="ds-pa-info-grid">${infoCell('רשות', authorityName, false, { showEmpty: true })}${infoCell('בית ספר / גוף', schoolName, false, { showEmpty: true })}${infoCell('סוג הצעה', clientFacingProposalTypeLabel(row), false, { showEmpty: true })}${infoCell('תאריך הצעה', proposalDate, false, { showEmpty: true })}${infoCell('סטטוס', statusText, false, { showEmpty: true })}${infoCell('תחום', proposalDomain, false, { showEmpty: true })}${infoCell('סמל מוסד', text(row.semel_mosad), false, { showEmpty: true })}</div></section>
+          <section class="ds-pa-info-card"><h4 class="ds-pa-card-title">פרטי ההצעה</h4><div class="ds-pa-info-grid">${infoCell('רשות', authorityName, false, { showEmpty: true })}${infoCell('בית ספר / גוף', schoolName, false, { showEmpty: true })}${infoCell('סוג הצעה', clientFacingProposalTypeLabel(row), false, { showEmpty: true })}${infoCell('תאריך הצעה', proposalDate, false, { showEmpty: true })}${infoCell('סטטוס', statusText, false, { showEmpty: true })}${infoCell('תחום', proposalDomain, false, { showEmpty: true })}${infoCell('סמל מוסד', text(row.semel_mosad), false, { showEmpty: true })}${infoCell('מספר הצעה', text(row.proposal_number))}${infoCell('הערות', text(row.notes), true)}</div></section>
           ${contactCard}
           ${sendingCard || '<section class="ds-pa-info-card"><h4 class="ds-pa-card-title">פרטי שליחה</h4><p class="ds-muted">טרם נשלחה</p></section>'}
         </div>
@@ -4227,12 +4231,10 @@ function drawerHtml(row, activityNameOptions = [], state = null) {
 
 /** Full-page proposal details for the unified client-file UI (board / client / all / archive). */
 function proposalDetailViewHtml(row, activityNameOptions = [], state = null, { returnTo = 'home' } = {}) {
-  const typeTitle = clientFacingProposalTypeLabel(row) || 'פרטי הצעה';
   const backLabel = returnTo === 'all' ? 'חזרה לכל ההצעות' : 'חזרה לתיק הלקוח';
   return `<div class="ds-pa-proposal-detail" data-pa-proposal-detail data-pa-return-to="${escapeHtml(returnTo)}" data-pa-detail-id="${escapeHtml(text(row?.id))}">
     <div class="ds-pa-proposal-detail-toolbar">
       <button type="button" class="ds-btn ds-btn--ghost" data-pa-proposal-detail-back>← ${escapeHtml(backLabel)}</button>
-      <h2 class="ds-pa-proposal-detail-title">${escapeHtml(typeTitle)}</h2>
     </div>
     ${drawerHtml(row, activityNameOptions, state)}
   </div>`;
@@ -4580,13 +4582,9 @@ function clientFileLandingHtml(data = {}, state = {}) {
   const canManage = canManageProposalsAgreements(state);
   return `<div class="ds-client-home" data-pa-client-home>
     <div class="ds-client-toolbar">
-      <div class="ds-client-search-row">
-        <label class="ds-client-search"><input class="ds-input" data-pa-client-search aria-label="חיפוש לפי פרטי לקוח" placeholder="חיפוש לפי רשות, בית ספר, סמל מוסד, איש קשר, נייד או דוא״ל" autocomplete="off"></label>
-      </div>
-      <div class="ds-client-actions">
-        <button type="button" class="ds-btn ds-btn--ghost ds-client-secondary" data-pa-client-all-proposals>כל ההצעות</button>
-        <button type="button" class="ds-btn ds-btn--primary ds-client-secondary" data-pa-client-add-proposal title="יצירת הצעת מחיר חדשה">+ הצעה חדשה</button>
-      </div>
+      <button type="button" class="ds-btn ds-client-toolbar-button ds-btn--primary" data-pa-client-add-proposal title="יצירת הצעת מחיר חדשה">+ הצעה חדשה</button>
+      <button type="button" class="ds-btn ds-client-toolbar-button ds-btn--ghost" data-pa-client-all-proposals>כל ההצעות</button>
+      <label class="ds-client-search"><input class="ds-input" data-pa-client-search aria-label="חיפוש לפי פרטי לקוח" placeholder="חיפוש לפי רשות, בית ספר, סמל מוסד, איש קשר, נייד או דוא״ל" autocomplete="off"></label>
     </div>
     <div class="ds-client-search-results" data-pa-client-search-results hidden></div>
     <div class="ds-client-queues" data-pa-client-queues>${queues}</div>
@@ -4612,7 +4610,8 @@ function clientContactsHtml(file = {}, canManage = false) {
     const mobile = text(contact.mobile || contact.phone);
     const email = text(contact.email);
     return `<article class="ds-client-contact">
-    <div><strong>${escapeHtml(name)} · ${escapeHtml(role)}</strong><span>${mobile ? escapeHtml(mobile) : 'אין טלפון'}${email ? ` · ${escapeHtml(email)}` : ''}</span></div>
+    <div class="ds-client-contact__identity"><strong>${escapeHtml(name)}</strong><span>${escapeHtml(role)}</span></div>
+    <div class="ds-client-contact__channels">${mobile ? `<a href="tel:${escapeHtml(mobile)}">${escapeHtml(mobile)}</a>` : '<span>אין טלפון</span>'}${email ? `<a href="mailto:${escapeHtml(email)}">${escapeHtml(email)}</a>` : '<span>אין דוא״ל</span>'}</div>
     ${canManage ? `<div class="ds-client-contact__actions"><button type="button" data-pa-client-edit-contact="${index}" title="עריכת איש קשר" aria-label="עריכת איש קשר">✎</button><button type="button" data-pa-client-delete-contact="${index}" title="הסרת איש קשר" aria-label="הסרת איש קשר">🗑</button></div>` : ''}
   </article>`;
   }).join('');
@@ -4635,7 +4634,7 @@ function selectedClientFileHtml(file, state = {}) {
       <div class="ds-client-contacts">${clientContactsHtml(file, canManage)}</div>
     </section>
     <aside class="ds-client-file__proposals">
-      <div class="ds-client-file__proposals-head"><h3>הצעות עדכניות</h3>${canManage ? '<button type="button" class="ds-btn ds-btn--sm ds-btn--primary" data-pa-client-add-proposal>+ הצעה חדשה</button>' : ''}</div>
+      <div class="ds-client-file__proposals-head"><h3>הצעות עדכניות</h3><button type="button" class="ds-btn ds-btn--sm ds-btn--primary" data-pa-client-add-proposal>+ הצעה חדשה</button></div>
       <div>${current.length ? current.map((row) => proposalCompactCardHtml(row, { canManage })).join('') : '<p class="ds-client-empty">אין הצעות עדכניות</p>'}</div>
       <hr>
       <details class="ds-client-archive"><summary>ארכיון הצעות מחיר — ${archive.length}</summary><div>${archive.length ? archive.map((row) => proposalCompactCardHtml(row, { archived: true, canManage })).join('') : '<p class="ds-client-empty">הארכיון ריק</p>'}</div></details>
@@ -5132,7 +5131,7 @@ export const proposalsAgreementsScreen = {
     const canManage = canManageProposalsAgreements(state);
     return dsScreenStack(`
       ${dsPageHeader('תיק לקוח')}
-      <section class="ds-pa-screen" data-pa-screen dir="rtl">
+      <section class="ds-pa-screen" data-pa-screen data-pa-view-mode="client-home" dir="rtl">
         <style>
           .ds-pa-pdf-spinner{display:inline-block;width:12px;height:12px;border:2px solid currentColor;border-inline-end-color:transparent;border-radius:50%;animation:ds-pa-spin .7s linear infinite}@keyframes ds-pa-spin{to{transform:rotate(360deg)}}.ds-pa-screen-tab{border-radius:10px 10px 0 0;transition:background .15s,color .15s,border-color .15s}.ds-pa-screen-tab.is-active{color:var(--ds-accent)!important;border-bottom-color:var(--ds-accent)!important}.ds-pa-screen-tab:focus-visible{outline:3px solid color-mix(in srgb,var(--ds-accent) 24%,transparent);outline-offset:2px}.ds-pa-screen-tab:hover{background:color-mix(in srgb,var(--ds-accent) 8%,transparent)}.ds-pa-tab-count{display:inline-flex;min-width:19px;height:19px;padding:0 5px;align-items:center;justify-content:center;border-radius:999px;background:#e2e8f0;color:#475569;font-size:.72rem;margin-inline-start:4px}.ds-pa-screen-tab.is-active .ds-pa-tab-count{background:var(--ds-accent-soft);color:var(--ds-accent)}
           .ds-pa-form{max-width:1080px;margin-inline:auto}.ds-pa-form .ds-pa-form-grid{max-width:100%}.ds-pa-item-card{border:1px solid #dbe7f3;border-radius:10px;background:#fff;padding:5px 8px;margin:3px 0;box-shadow:0 1px 3px rgba(15,23,42,.04)}
@@ -5140,9 +5139,9 @@ export const proposalsAgreementsScreen = {
           .ds-pa-bundle-prompt{margin-top:12px}.ds-pa-bundle-panel{border:1px solid #b7e0f5;background:#f8fdff;border-radius:14px;padding:12px}.ds-pa-bundle-head{display:flex;justify-content:space-between;gap:10px;align-items:center;margin-bottom:6px}.ds-pa-bundle-head strong{font-size:.9rem;color:#0f172a}.ds-pa-bundle-head span,.ds-pa-bundle-help,.ds-pa-bundle-empty{font-size:.78rem;color:#64748b}.ds-pa-bundle-grid{display:grid;grid-template-columns:repeat(auto-fit,minmax(220px,1fr));gap:8px;margin-top:10px}.ds-pa-bundle-child-card{display:grid;grid-template-columns:auto 1fr auto;align-items:center;gap:8px;border:1px solid #dbe7f3;border-radius:12px;background:#fff;padding:9px 10px;cursor:pointer;min-height:42px}.ds-pa-bundle-child-card:hover{border-color:#38bdf8;background:#f0f9ff}.ds-pa-bundle-child-card:has(input:checked){border-color:#0ea5e9;background:#e0f2fe;box-shadow:0 0 0 1px #0ea5e9 inset}.ds-pa-bundle-child-name{font-size:.82rem;color:#0f172a;line-height:1.25}.ds-pa-bundle-child-price{font-size:.8rem;font-weight:700;color:#0f766e;white-space:nowrap}.ds-pa-bundle-footer{display:flex;justify-content:space-between;align-items:center;gap:10px;margin-top:10px;flex-wrap:wrap}.ds-pa-bundle-actions{display:flex;gap:6px}.ds-pa-bundle-selection-summary{font-size:.78rem;color:#0369a1;font-weight:700}.ds-pa-summary-bundle-list{margin:4px 0 0;padding-right:16px;font-size:.72rem}.ds-pa-items-summary-table{width:100%;border-collapse:collapse;font-size:.78rem}.ds-pa-items-summary-table th,.ds-pa-items-summary-table td{border-bottom:1px solid #e5eef6;padding:6px;text-align:right}.ds-pa-items-summary-table th{color:#64748b;font-weight:700;background:#f8fbff}
           .ds-pa-active-filters{display:flex;flex-wrap:wrap;align-items:center;gap:6px 8px;border:1px solid #dbe7f3;background:#f8fbff;border-radius:10px;padding:6px 10px;margin:8px 0 10px}.ds-pa-active-filters[hidden]{display:none}.ds-pa-active-filters-label{color:#475569;font-weight:700;font-size:.82rem;flex-shrink:0}.ds-pa-active-filter-chips{display:flex;flex-wrap:wrap;gap:6px}.ds-pa-active-filter-chip{border:1px solid #bfdbfe;background:#eff6ff;color:#1e3a8a;border-radius:999px;padding:3px 9px;font-size:.78rem}.ds-pa-active-filters [data-pa-clear-filters]{margin-inline-start:auto}.ds-pa-filtered-empty{margin:12px;border:1px solid #fed7aa;background:#fff7ed;color:#9a3412;border-radius:12px;padding:14px;text-align:center}.ds-pa-filtered-empty p{margin:0 0 10px;font-weight:700}
           .ds-pa-legacy-list .ds-pa-toolbar{display:flex;flex-wrap:nowrap;align-items:end;gap:6px}.ds-pa-legacy-list .ds-pa-toolbar>*{min-width:0}.ds-pa-legacy-list .ds-pa-search{flex:1 1 170px;min-width:140px;max-width:190px}.ds-pa-legacy-list .ds-pa-filter{flex:0 1 112px;min-width:0;max-width:none}.ds-pa-legacy-list .ds-pa-filter:has([data-pa-filter="client_authority"]){flex-basis:130px}.ds-pa-legacy-list .ds-pa-filter:has([data-pa-filter="school_framework"]){flex-basis:150px}.ds-pa-legacy-list .ds-pa-filter:has([data-pa-filter="proposal_domain"]){flex-basis:90px}.ds-pa-legacy-list .ds-pa-filter:has([data-pa-filter="date_from"]),.ds-pa-legacy-list .ds-pa-filter:has([data-pa-filter="date_to"]){flex-basis:128px}.ds-pa-legacy-list .ds-pa-toolbar .ds-input,.ds-pa-legacy-list .ds-pa-clear-inline{width:100%;height:34px;min-height:34px;box-sizing:border-box}.ds-pa-legacy-list .ds-pa-clear-inline{flex:0 0 auto;width:auto;padding-inline:10px}
-          .ds-pa-legacy-list{display:none}.ds-pa-screen.is-all-proposals:not(.is-proposal-detail) .ds-pa-legacy-list{display:block}.ds-pa-screen.is-all-proposals:not(.is-proposal-detail) .ds-client-workspace{display:none}.ds-pa-screen.is-proposal-detail .ds-pa-legacy-list{display:none}.ds-pa-screen.is-proposal-detail .ds-client-workspace{display:block}.ds-pa-all-back{margin:0 0 12px}.ds-client-workspace{max-width:1180px;margin:0 auto}.ds-client-home{padding:12px 10px 8px}.ds-client-toolbar{display:flex;flex-direction:column;align-items:center;gap:12px;width:100%;max-width:100%;margin:0 auto 22px}.ds-client-search-row{display:flex;justify-content:center;width:100%;margin:0}.ds-client-search{display:block;width:min(100%,480px);margin:0 auto}.ds-client-search input{display:block;width:100%;height:44px;border:2px solid var(--ds-accent);border-radius:999px;padding-inline:20px;background:#fff;box-sizing:border-box}.ds-client-search input:focus{border-color:var(--ds-accent);box-shadow:0 0 0 3px color-mix(in srgb,var(--ds-accent) 20%,transparent);outline:0}.ds-client-actions{display:flex;justify-content:center;flex-wrap:wrap;gap:10px}.ds-client-add{width:42px;height:42px;border:0;background:transparent;color:var(--ds-accent);font-size:2rem;cursor:pointer}.ds-client-search-results{max-width:760px;margin:0 auto 18px;border:1px solid color-mix(in srgb,var(--ds-accent) 30%,var(--ds-border));background:#fff;border-radius:16px;box-shadow:0 12px 30px color-mix(in srgb,var(--ds-accent) 12%,transparent);padding:6px;max-height:380px;overflow:auto}.ds-client-search-result{display:flex;width:100%;justify-content:space-between;align-items:center;text-align:right;padding:12px 14px;border:0;border-bottom:1px solid var(--ds-border);background:#fff;cursor:pointer;border-radius:10px}.ds-client-search-result:hover,.ds-client-search-result:focus-visible{background:var(--ds-accent-soft);outline:3px solid color-mix(in srgb,var(--ds-accent) 28%,transparent);outline-offset:1px}.ds-client-search-result span{color:#64748b;font-size:.8rem}.ds-client-queues{display:grid;grid-template-columns:repeat(4,minmax(190px,1fr));gap:18px}.ds-client-queue{border:2px solid var(--ds-accent);border-radius:16px;background:#fff;min-height:150px;overflow:hidden;box-shadow:0 4px 14px color-mix(in srgb,var(--ds-accent) 6%,transparent)}.ds-client-queue header{display:flex;justify-content:space-between;align-items:center;padding:12px 14px;background:var(--ds-accent-soft);color:var(--ds-accent)}.ds-client-queue header b{display:inline-grid;place-items:center;min-width:24px;height:24px;border-radius:999px;background:var(--ds-accent);color:#fff}.ds-client-queue>div{padding:8px}.ds-client-queue>div>p,.ds-client-empty,.ds-client-search-empty{text-align:center;color:#94a3b8;font-size:.84rem}.ds-client-queue-item{display:block;width:100%;text-align:right;border:0;border-bottom:1px solid var(--ds-border);background:#fff;padding:10px 8px;cursor:pointer;border-radius:8px;transition:background .15s,box-shadow .15s}.ds-client-queue-item:hover,.ds-client-queue-item:focus-visible{background:color-mix(in srgb,var(--ds-accent) 7%,var(--ds-surface));box-shadow:0 0 0 3px color-mix(in srgb,var(--ds-accent) 20%,transparent);outline:0}.ds-client-queue-item strong,.ds-client-queue-item span{display:block}.ds-client-queue-item span{font-size:.75rem;color:#64748b;margin-top:3px}.ds-client-home__hint{text-align:center;color:#64748b;font-size:.8rem;margin-top:16px}.ds-client-file{position:relative;display:grid;grid-template-columns:minmax(0,1fr) 350px;gap:26px;border:2px solid var(--ds-accent);border-radius:18px;background:#fff;padding:32px;margin:14px 4px;box-shadow:0 8px 28px color-mix(in srgb,var(--ds-accent) 8%,transparent)}.ds-client-file__close{position:absolute;top:10px;left:12px;border:0;background:transparent;color:#dc2626;font-size:1.05rem;cursor:pointer}.ds-client-file__identity>p{display:grid;grid-template-columns:120px 1fr;gap:10px;margin:0 0 12px}.ds-client-file__identity>p span,.ds-client-file h3{color:var(--ds-accent);font-weight:700}.ds-client-file__contacts-head,.ds-client-file__proposals-head{display:flex;justify-content:space-between;align-items:center;margin-top:22px}.ds-client-file h3{margin:0;font-size:1.05rem}.ds-client-contacts{display:grid;gap:8px;margin-top:10px}.ds-client-contact{display:grid;grid-template-columns:minmax(130px,1fr) minmax(180px,1fr) auto;gap:14px;align-items:center;padding:10px 12px;border:1px solid color-mix(in srgb,var(--ds-accent) 20%,var(--ds-border));border-radius:12px;background:color-mix(in srgb,var(--ds-accent) 3%,var(--ds-surface))}.ds-client-contact strong,.ds-client-contact span,.ds-client-contact a{display:block}.ds-client-contact span,.ds-client-contact a{font-size:.8rem;color:#64748b}.ds-client-contact button{border:0;background:transparent;color:var(--ds-accent);cursor:pointer;font-size:1rem}.ds-client-file__proposals{border:2px solid var(--ds-accent);border-radius:16px;padding:16px;background:color-mix(in srgb,var(--ds-accent) 3%,var(--ds-surface));align-self:start}.ds-client-file__proposals-head{margin:0 0 10px}.ds-client-file__proposals hr{border:0;border-top:1px solid #1f2937;margin:20px 10px}.ds-client-proposal{border:1px solid color-mix(in srgb,var(--ds-accent) 20%,var(--ds-border));background:#fff;border-radius:12px;margin:8px 0;padding:5px}.ds-client-proposal.is-archived{opacity:.78}.ds-client-proposal__main{display:grid;grid-template-columns:auto 1fr auto;gap:8px;align-items:center;width:100%;text-align:right;border:0;background:transparent;padding:7px;cursor:pointer}.ds-client-proposal__main span strong,.ds-client-proposal__main span small{display:block}.ds-client-proposal__main small{color:#64748b;font-size:.7rem;margin-top:2px}.ds-client-proposal__main b{font-size:.76rem;color:#0f766e}.ds-client-proposal__actions{display:flex;flex-wrap:wrap;gap:4px;justify-content:flex-end;padding:0 7px 6px}.ds-client-proposal__version{display:inline-block;margin-inline-start:auto;border:0;background:transparent;color:var(--ds-accent);font-size:.72rem;cursor:pointer;padding:2px 7px}.ds-client-archive summary{cursor:pointer;color:#64748b;font-weight:700;font-size:.84rem}.ds-client-archive summary b{display:inline-grid;place-items:center;min-width:20px;height:20px;border-radius:999px;background:#e2e8f0;margin-inline-start:4px}.ds-client-contact-modal{position:fixed;inset:0;z-index:10000;display:grid;place-items:center;background:rgba(15,23,42,.45);padding:20px}.ds-client-contact-form{position:relative;width:min(520px,100%);display:grid;grid-template-columns:1fr 1fr;gap:12px;background:#fff;border-radius:18px;padding:26px;box-shadow:0 24px 60px rgba(15,23,42,.25)}.ds-client-contact-form h3,.ds-client-contact-form>div,.ds-client-contact-form>p{grid-column:1/-1}.ds-client-contact-form label{display:grid;gap:5px;font-size:.8rem;color:#475569}.ds-client-contact-form>p{color:#dc2626;margin:0}.ds-client-contact-form>div{display:flex;gap:8px;justify-content:flex-start}
-          .ds-pa-proposal-detail{width:94%;max-width:1360px;margin:0 auto;padding:8px 10px 24px}.ds-pa-proposal-detail-toolbar{display:flex;align-items:center;gap:12px;flex-wrap:wrap;margin-bottom:14px}.ds-pa-proposal-detail-title{margin:0;font-size:1.15rem;color:var(--ds-accent);font-weight:700}.ds-pa-proposal-detail .ds-pa-drawer{position:static;inset:auto;z-index:auto;display:block;background:transparent;justify-content:stretch}.ds-pa-proposal-detail .ds-pa-drawer-panel{width:100%;max-width:100%;height:auto;max-height:none;overflow:visible;border:2px solid var(--ds-accent);border-radius:18px;box-shadow:0 8px 28px color-mix(in srgb,var(--ds-accent) 8%,transparent)}.ds-pa-proposal-detail .ds-pa-drawer-head [data-pa-close-drawer]{display:none}.ds-pa-proposal-info-grid{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:18px}.ds-pa-proposal-info-grid>.ds-pa-info-card{margin:0;border:1px solid var(--ds-border);background:var(--ds-surface);box-shadow:0 3px 12px color-mix(in srgb,var(--ds-accent) 8%,transparent)}.ds-pa-activities-wide{margin-top:18px;border:1px solid var(--ds-border);border-radius:14px;padding:16px;background:var(--ds-surface)}.ds-client-contact__actions{display:flex;gap:6px}.ds-client-contact button:focus-visible{outline:3px solid color-mix(in srgb,var(--ds-accent) 28%,transparent);outline-offset:2px;border-radius:6px}
-          @media (max-width:1100px){.ds-pa-proposal-info-grid{grid-template-columns:repeat(2,minmax(0,1fr))}.ds-pa-legacy-list .ds-pa-toolbar{flex-wrap:wrap}.ds-pa-legacy-list .ds-pa-search,.ds-pa-legacy-list .ds-pa-filter{flex:1 1 150px;max-width:none}}@media (max-width:1000px){.ds-client-queues{grid-template-columns:repeat(2,1fr)}.ds-client-file{grid-template-columns:1fr}.ds-client-file__proposals{width:auto}}@media (max-width:900px){.ds-pa-bundle-grid{grid-template-columns:1fr}}@media (max-width:640px){.ds-pa-proposal-info-grid{grid-template-columns:1fr}.ds-pa-proposal-detail{width:100%;padding-inline:0}.ds-pa-type-chips{grid-template-columns:repeat(2,minmax(0,1fr))}.ds-pa-item-quick-row{grid-template-columns:1fr}.ds-client-queues{grid-template-columns:1fr}.ds-client-search{width:calc(100% - 8px);max-width:460px}.ds-client-actions{gap:8px}.ds-client-file{padding:26px 16px}.ds-client-contact{grid-template-columns:1fr auto}.ds-client-contact__channels{grid-column:1/-1}.ds-client-contact-form{grid-template-columns:1fr}.ds-pa-legacy-list .ds-pa-search,.ds-pa-legacy-list .ds-pa-filter{flex-basis:calc(50% - 3px)}.ds-pa-legacy-list .ds-pa-clear-inline{flex:1 1 100%}}
+          .ds-pa-legacy-list{display:none}.ds-pa-screen[data-pa-view-mode="all-proposals"] .ds-pa-legacy-list{display:block}.ds-pa-screen[data-pa-view-mode="all-proposals"] .ds-client-workspace,.ds-pa-screen[data-pa-view-mode="proposal-editor"] .ds-client-workspace{display:none}.ds-pa-screen[data-pa-view-mode="proposal-details"] .ds-pa-legacy-list,.ds-pa-screen[data-pa-view-mode="proposal-editor"] .ds-pa-legacy-list{display:none}.ds-pa-all-back{margin:0 0 12px}.ds-client-workspace{max-width:1360px;margin:0 auto}.ds-client-home{padding:12px 10px 8px}.ds-client-toolbar{display:flex;flex-direction:row;justify-content:center;align-items:center;flex-wrap:nowrap;gap:9px;width:100%;margin:0 auto 22px}.ds-client-toolbar-button{width:140px;height:42px;min-height:42px;padding:0 14px;border-radius:12px;font-size:.9rem;flex:0 0 140px}.ds-client-search{display:block;width:420px;flex:0 1 420px;margin:0}.ds-client-search input{display:block;width:100%;height:42px;border:2px solid var(--ds-accent);border-radius:12px;padding-inline:16px;background:#fff;box-sizing:border-box}.ds-client-search input:focus{border-color:var(--ds-accent);box-shadow:0 0 0 3px color-mix(in srgb,var(--ds-accent) 20%,transparent);outline:0}.ds-client-actions{display:flex;justify-content:center;flex-wrap:wrap;gap:10px}.ds-client-add{width:42px;height:42px;border:0;background:transparent;color:var(--ds-accent);font-size:2rem;cursor:pointer}.ds-client-search-results{max-width:760px;margin:0 auto 18px;border:1px solid color-mix(in srgb,var(--ds-accent) 30%,var(--ds-border));background:#fff;border-radius:16px;box-shadow:0 12px 30px color-mix(in srgb,var(--ds-accent) 12%,transparent);padding:6px;max-height:380px;overflow:auto}.ds-client-search-result{display:flex;width:100%;justify-content:space-between;align-items:center;text-align:right;padding:12px 14px;border:0;border-bottom:1px solid var(--ds-border);background:#fff;cursor:pointer;border-radius:10px}.ds-client-search-result:hover,.ds-client-search-result:focus-visible{background:var(--ds-accent-soft);outline:3px solid color-mix(in srgb,var(--ds-accent) 28%,transparent);outline-offset:1px}.ds-client-search-result span{color:#64748b;font-size:.8rem}.ds-client-queues{display:grid;grid-template-columns:repeat(4,minmax(190px,1fr));gap:18px}.ds-client-queue{border:2px solid var(--ds-accent);border-radius:16px;background:#fff;min-height:150px;overflow:hidden;box-shadow:0 4px 14px color-mix(in srgb,var(--ds-accent) 6%,transparent)}.ds-client-queue header{display:flex;justify-content:space-between;align-items:center;padding:12px 14px;background:var(--ds-accent-soft);color:var(--ds-accent)}.ds-client-queue header b{display:inline-grid;place-items:center;min-width:24px;height:24px;border-radius:999px;background:var(--ds-accent);color:#fff}.ds-client-queue>div{padding:8px}.ds-client-queue>div>p,.ds-client-empty,.ds-client-search-empty{text-align:center;color:#94a3b8;font-size:.84rem}.ds-client-queue-item{display:block;width:100%;text-align:right;border:0;border-bottom:1px solid var(--ds-border);background:#fff;padding:10px 8px;cursor:pointer;border-radius:8px;transition:background .15s,box-shadow .15s}.ds-client-queue-item:hover,.ds-client-queue-item:focus-visible{background:color-mix(in srgb,var(--ds-accent) 7%,var(--ds-surface));box-shadow:0 0 0 3px color-mix(in srgb,var(--ds-accent) 20%,transparent);outline:0}.ds-client-queue-item strong,.ds-client-queue-item span{display:block}.ds-client-queue-item span{font-size:.75rem;color:#64748b;margin-top:3px}.ds-client-home__hint{text-align:center;color:#64748b;font-size:.8rem;margin-top:16px}.ds-client-file{position:relative;display:grid;grid-template-columns:minmax(380px,40%) minmax(0,1fr);gap:26px;border:2px solid var(--ds-accent);border-radius:18px;background:#fff;padding:32px;margin:14px 4px;box-shadow:0 8px 28px color-mix(in srgb,var(--ds-accent) 8%,transparent)}.ds-client-file__close{position:absolute;top:10px;left:12px;border:0;background:transparent;color:#dc2626;font-size:1.05rem;cursor:pointer}.ds-client-file__identity>p{display:grid;grid-template-columns:120px 1fr;gap:10px;margin:0 0 12px}.ds-client-file__identity>p span,.ds-client-file h3{color:var(--ds-accent);font-weight:700}.ds-client-file__contacts-head,.ds-client-file__proposals-head{display:flex;justify-content:space-between;align-items:center;margin-top:22px}.ds-client-file h3{margin:0;font-size:1.05rem}.ds-client-contacts{display:grid;gap:8px;margin-top:10px}.ds-client-contact{display:grid;grid-template-columns:minmax(130px,1fr) minmax(180px,1fr) auto;gap:14px;align-items:center;padding:10px 12px;border:1px solid color-mix(in srgb,var(--ds-accent) 20%,var(--ds-border));border-radius:12px;background:color-mix(in srgb,var(--ds-accent) 3%,var(--ds-surface))}.ds-client-contact strong,.ds-client-contact span,.ds-client-contact a{display:block}.ds-client-contact span,.ds-client-contact a{font-size:.8rem;color:#64748b}.ds-client-contact button{border:0;background:transparent;color:var(--ds-accent);cursor:pointer;font-size:1rem}.ds-client-file__proposals{border:2px solid var(--ds-accent);border-radius:16px;padding:16px;background:color-mix(in srgb,var(--ds-accent) 3%,var(--ds-surface));align-self:start}.ds-client-file__proposals-head{margin:0 0 10px}.ds-client-file__proposals hr{border:0;border-top:1px solid #1f2937;margin:20px 10px}.ds-client-proposal{border:1px solid color-mix(in srgb,var(--ds-accent) 20%,var(--ds-border));background:#fff;border-radius:12px;margin:8px 0;padding:5px}.ds-client-proposal.is-archived{opacity:.78}.ds-client-proposal__main{display:grid;grid-template-columns:auto 1fr auto;gap:8px;align-items:center;width:100%;text-align:right;border:0;background:transparent;padding:7px;cursor:pointer}.ds-client-proposal__main span strong,.ds-client-proposal__main span small{display:block}.ds-client-proposal__main small{color:#64748b;font-size:.7rem;margin-top:2px}.ds-client-proposal__main b{font-size:.76rem;color:#0f766e}.ds-client-proposal__actions{display:flex;flex-wrap:wrap;gap:4px;justify-content:flex-end;padding:0 7px 6px}.ds-client-proposal__version{display:inline-block;margin-inline-start:auto;border:0;background:transparent;color:var(--ds-accent);font-size:.72rem;cursor:pointer;padding:2px 7px}.ds-client-archive summary{cursor:pointer;color:#64748b;font-weight:700;font-size:.84rem}.ds-client-archive summary b{display:inline-grid;place-items:center;min-width:20px;height:20px;border-radius:999px;background:#e2e8f0;margin-inline-start:4px}.ds-client-contact-modal{position:fixed;inset:0;z-index:10000;display:grid;place-items:center;background:rgba(15,23,42,.45);padding:20px}.ds-client-contact-form{position:relative;width:min(520px,100%);display:grid;grid-template-columns:1fr 1fr;gap:12px;background:#fff;border-radius:18px;padding:26px;box-shadow:0 24px 60px rgba(15,23,42,.25)}.ds-client-contact-form h3,.ds-client-contact-form>div,.ds-client-contact-form>p{grid-column:1/-1}.ds-client-contact-form label{display:grid;gap:5px;font-size:.8rem;color:#475569}.ds-client-contact-form>p{color:#dc2626;margin:0}.ds-client-contact-form>div{display:flex;gap:8px;justify-content:flex-start}
+          .ds-pa-proposal-detail{width:94%;max-width:1360px;margin:0 auto;padding:8px 10px 24px}.ds-pa-proposal-detail-toolbar{display:flex;align-items:center;gap:12px;flex-wrap:wrap;margin-bottom:14px}.ds-pa-proposal-detail .ds-pa-drawer{position:static;inset:auto;z-index:auto;display:block;background:transparent;justify-content:stretch}.ds-pa-proposal-detail .ds-pa-drawer-panel{width:100%;max-width:100%;height:auto;max-height:none;overflow:visible;border:2px solid var(--ds-accent);border-radius:18px;box-shadow:0 8px 28px color-mix(in srgb,var(--ds-accent) 8%,transparent)}.ds-pa-proposal-detail .ds-pa-drawer-head [data-pa-close-drawer]{display:none}.ds-pa-proposal-info-grid{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:18px}.ds-pa-proposal-info-grid>.ds-pa-info-card{margin:0;border:1px solid var(--ds-border);background:var(--ds-surface);box-shadow:0 3px 12px color-mix(in srgb,var(--ds-accent) 8%,transparent)}.ds-pa-activities-wide{margin-top:18px;border:1px solid var(--ds-border);border-radius:14px;padding:16px;background:var(--ds-surface)}.ds-client-contact__actions{display:flex;gap:6px}.ds-client-contact button:focus-visible{outline:3px solid color-mix(in srgb,var(--ds-accent) 28%,transparent);outline-offset:2px;border-radius:6px}
+          @media (max-width:1100px){.ds-pa-proposal-info-grid{grid-template-columns:repeat(2,minmax(0,1fr))}.ds-pa-legacy-list .ds-pa-toolbar{flex-wrap:wrap}.ds-pa-legacy-list .ds-pa-search,.ds-pa-legacy-list .ds-pa-filter{flex:1 1 150px;max-width:none}}@media (max-width:1000px){.ds-client-toolbar{flex-wrap:wrap}.ds-client-search{order:3;flex-basis:100%;width:min(100%,440px)}.ds-client-queues{grid-template-columns:repeat(2,1fr)}.ds-client-file{grid-template-columns:1fr}.ds-client-file__proposals{width:auto}}@media (max-width:900px){.ds-pa-bundle-grid{grid-template-columns:1fr}}@media (max-width:640px){.ds-pa-proposal-info-grid{grid-template-columns:1fr}.ds-pa-proposal-detail{width:100%;padding-inline:0}.ds-pa-type-chips{grid-template-columns:repeat(2,minmax(0,1fr))}.ds-pa-item-quick-row{grid-template-columns:1fr}.ds-client-queues{grid-template-columns:1fr}.ds-client-search{width:calc(100% - 8px);max-width:460px}.ds-client-actions{gap:8px}.ds-client-file{padding:26px 16px}.ds-client-contact{grid-template-columns:1fr auto}.ds-client-contact__channels{grid-column:1/-1}.ds-client-contact-form{grid-template-columns:1fr}.ds-pa-legacy-list .ds-pa-search,.ds-pa-legacy-list .ds-pa-filter{flex-basis:calc(50% - 3px)}.ds-pa-legacy-list .ds-pa-clear-inline{flex:1 1 100%}}
         </style>
         <div class="ds-client-workspace" data-pa-client-workspace>${clientFileLandingHtml(data, state)}</div>
         <div class="ds-pa-screen-tabs" data-pa-screen-tabs hidden aria-hidden="true">
@@ -5200,31 +5199,6 @@ export const proposalsAgreementsScreen = {
     const proposalTemplateSections = normalizeTemplateSections(Array.isArray(data?.proposalTemplateSections) ? data.proposalTemplateSections : []);
     let contactOptions = Array.isArray(data?.contactOptions) ? data.contactOptions : [];
     const contactOptionsError = text(data?.contactOptionsError || '');
-    const proposalLoaderDebug = data?._debug?.proposal_loader || {};
-    const proposalLoaderError = (key) => proposalLoaderDebug?.[key]?.errorDetails || proposalLoaderDebug?.[key]?.error || null;
-    // eslint-disable-next-line no-console
-    console.info('[proposal-load-debug]', {
-      templateSectionsCount: proposalTemplateSections.length,
-      agreementItemsCount: Array.isArray(data?.proposalAgreementItems) ? data.proposalAgreementItems.length : 0,
-      activityGroupsCount: Array.isArray(data?.proposalActivityGroups) ? data.proposalActivityGroups.length : 0,
-      groupAliasesCount: Array.isArray(data?.proposalGroupAliases) ? data.proposalGroupAliases.length : 0,
-      activityPricingCount: proposalActivityPricing.length,
-      proposalsCount: data.rows.length,
-      directoryRowsCount: proposalLoaderDebug?.rows?.count ?? data.rows.length,
-      templateSectionsError: proposalLoaderError('templateSectionsError') || proposalLoaderError('proposalTemplateSections'),
-      agreementItemsError: proposalLoaderError('agreementItemsError') || null,
-      activityGroupsError: proposalLoaderError('activityGroupsError') || proposalLoaderError('proposalActivityGroups'),
-      groupAliasesError: proposalLoaderError('groupAliasesError') || proposalLoaderError('proposalGroupAliases'),
-      activityPricingError: proposalLoaderError('activityPricingError') || proposalLoaderError('proposalActivityPricing')
-    });
-    // eslint-disable-next-line no-console
-    console.info('[proposal-authorities-debug]', {
-      totalContactOptions: contactOptions.length,
-      authoritiesCount: contactOptions.filter((c) => c._catalog_source === 'authorities').length,
-      firstAuthorities: contactOptions
-        .filter((c) => c._catalog_source === 'authorities')
-        .slice(0, 10)
-    });
     const rowWithCentralContact = (row) => {
       if (!row) return row;
       const enriched = enrichProposalRowFromContactOptions(row, contactOptions);
@@ -5249,6 +5223,9 @@ export const proposalsAgreementsScreen = {
     let activeListView = 'records';
     let selectedClientKey = '';
     let viewingAllProposals = false;
+    let viewMode = 'client-home';
+    let editorReturnContext = null;
+    let listViewState = null;
     /** @type {{ returnTo: string, openSource: string, clientKey: string, proposalId: string } | null} */
     let proposalDetailContext = null;
     const clientWorkspace = root.querySelector('[data-pa-client-workspace]');
@@ -5265,20 +5242,47 @@ export const proposalsAgreementsScreen = {
       const el = screenHeaderTitle();
       if (el) el.textContent = title;
     };
+    const setViewMode = (mode) => {
+      const allowed = new Set(['client-home', 'client-file', 'all-proposals', 'proposal-editor', 'proposal-details']);
+      viewMode = allowed.has(mode) ? mode : 'client-home';
+      screenRoot.dataset.paViewMode = viewMode;
+      const showList = viewMode === 'all-proposals';
+      const showEditor = viewMode === 'proposal-editor';
+      if (legacyList) {
+        legacyList.hidden = !showList;
+        legacyList.setAttribute('aria-hidden', showList ? 'false' : 'true');
+      }
+      if (screenTabs) {
+        screenTabs.hidden = !showList;
+        screenTabs.setAttribute('aria-hidden', showList ? 'false' : 'true');
+      }
+      const editorPanel = root.querySelector('[data-pa-tab-panel="new"]');
+      if (editorPanel) {
+        editorPanel.hidden = !showEditor;
+        editorPanel.setAttribute('aria-hidden', showEditor ? 'false' : 'true');
+      }
+    };
+    const captureListViewState = () => ({
+      activeListView,
+      scrollY: Number(window.scrollY) || 0,
+      search: text(root.querySelector('[data-pa-search]')?.value),
+      filters: Object.fromEntries(Array.from(root.querySelectorAll('[data-pa-filter]')).map((el) => [el.dataset.paFilter, el.value]))
+    });
+    const restoreListViewState = (snapshot) => {
+      if (!snapshot) return;
+      activeListView = snapshot.activeListView || 'records';
+      const search = root.querySelector('[data-pa-search]');
+      if (search) search.value = snapshot.search || '';
+      root.querySelectorAll('[data-pa-filter]').forEach((el) => { el.value = snapshot.filters?.[el.dataset.paFilter] || ''; });
+      (window.requestAnimationFrame || window.setTimeout)(() => window.scrollTo?.(0, snapshot.scrollY || 0), 0);
+    };
     const setProposalDetailMode = (enabled) => {
       screenRoot.classList.toggle('is-proposal-detail', Boolean(enabled));
     };
     const setAllProposalsMode = (enabled) => {
       viewingAllProposals = Boolean(enabled);
       screenRoot.classList.toggle('is-all-proposals', viewingAllProposals);
-      if (legacyList) {
-        legacyList.setAttribute('aria-hidden', viewingAllProposals ? 'false' : 'true');
-        legacyList.hidden = false;
-      }
-      if (screenTabs) {
-        screenTabs.hidden = !viewingAllProposals;
-        screenTabs.setAttribute('aria-hidden', viewingAllProposals ? 'false' : 'true');
-      }
+      if (viewingAllProposals) setViewMode('all-proposals');
     };
 
     const currentClientFile = () => buildClientFiles({ ...data, contactOptions }).find((file) => file.key === selectedClientKey) || null;
@@ -5305,8 +5309,8 @@ export const proposalsAgreementsScreen = {
     const renderProposalDetailWorkspace = (row) => {
       if (!clientWorkspace || !row) return;
       const returnTo = proposalDetailContext?.returnTo || 'home';
-      const typeTitle = clientFacingProposalTypeLabel(row) || 'פרטי הצעה';
-      setScreenTitle(typeTitle);
+      setScreenTitle('תיק לקוח');
+      setViewMode('proposal-details');
       setProposalDetailMode(true);
       clientWorkspace.hidden = false;
       clientWorkspace.innerHTML = proposalDetailViewHtml(row, activityNameOptions, state, { returnTo });
@@ -5317,6 +5321,7 @@ export const proposalsAgreementsScreen = {
       setProposalDetailMode(false);
       setAllProposalsMode(false);
       setScreenTitle('תיק לקוח');
+      setViewMode('client-home');
       if (clientWorkspace) {
         clientWorkspace.hidden = false;
         clientWorkspace.innerHTML = clientFileLandingHtml({ ...data, contactOptions }, state);
@@ -5327,7 +5332,8 @@ export const proposalsAgreementsScreen = {
       selectedClientKey = '';
       setProposalDetailMode(false);
       setAllProposalsMode(true);
-      setScreenTitle('הצעת מחיר');
+      setScreenTitle('תיק לקוח');
+      setViewMode('all-proposals');
       if (clientWorkspace) {
         clientWorkspace.hidden = true;
         clientWorkspace.innerHTML = '';
@@ -5360,6 +5366,7 @@ export const proposalsAgreementsScreen = {
         return;
       }
       if (ctx.openSource === 'all-proposals' || ctx.returnTo === 'all') {
+        restoreListViewState(listViewState);
         showAllProposalsTable();
         return;
       }
@@ -5367,6 +5374,7 @@ export const proposalsAgreementsScreen = {
         selectedClientKey = text(ctx.clientKey) || selectedClientKey;
         setAllProposalsMode(false);
         setScreenTitle('תיק לקוח');
+        setViewMode('client-file');
         if (clientWorkspace) {
           clientWorkspace.hidden = false;
           const file = currentClientFile();
@@ -5399,6 +5407,7 @@ export const proposalsAgreementsScreen = {
       setProposalDetailMode(false);
       clientWorkspace.hidden = false;
       const file = currentClientFile();
+      setViewMode(file ? 'client-file' : 'client-home');
       clientWorkspace.innerHTML = file
         ? `${selectedClientFileHtml(file, state)}${drawerHtml(null, activityNameOptions, state)}`
         : clientFileLandingHtml({ ...data, contactOptions }, state);
@@ -5425,8 +5434,10 @@ export const proposalsAgreementsScreen = {
         clientKey: nextClientKey,
         proposalId: id
       };
-      // Keep all-proposals filters/table DOM intact under the detail layer.
-      if (resolvedOpenSource === 'all-proposals') setAllProposalsMode(true);
+      if (resolvedOpenSource === 'all-proposals') {
+        listViewState = captureListViewState();
+        viewingAllProposals = true;
+      }
       else setAllProposalsMode(false);
       if (resolvedReturnTo === 'client') selectedClientKey = nextClientKey;
       renderProposalDetailWorkspace(row);
@@ -5446,6 +5457,7 @@ export const proposalsAgreementsScreen = {
       proposalDetailContext = null;
       setProposalDetailMode(false);
       setScreenTitle('תיק לקוח');
+      setViewMode('client-file');
       renderClientWorkspace();
     };
     const proposalPrefillForClient = (file) => ({
@@ -6590,11 +6602,16 @@ export const proposalsAgreementsScreen = {
 
     const openForm = async (mode, row = {}, preloadedItems = []) => {
       if (!formHost) return;
+      const originMode = viewMode;
+      editorReturnContext = {
+        mode: originMode,
+        clientKey: selectedClientKey,
+        list: originMode === 'all-proposals' ? captureListViewState() : null
+      };
       row = enrichProposalRowFromContactOptions(row, contactOptions);
-      // Switch to the "new" tab panel so formHost is visible (add and edit share the
-      // same full-width work area).
       setFormTabLabel(mode);
-      switchTab('new');
+      setViewMode('proposal-editor');
+      setScreenTitle(mode === 'edit' ? 'עריכת הצעה' : 'הצעה חדשה');
       let items = preloadedItems;
       if (mode === 'edit' && text(row.id) && !preloadedItems.length) {
         try {
@@ -6605,7 +6622,8 @@ export const proposalsAgreementsScreen = {
       }
       items = proposalItemsWithFallback(items, row);
       formHost.hidden = false;
-      formHost.innerHTML = formHtml(mode, row, activityNameOptions, contactOptions, items, proposalActivityPricing, state, contactOptionsError);
+      const backLabel = originMode === 'all-proposals' ? 'חזרה לכל ההצעות' : 'חזרה לתיק הלקוח';
+      formHost.innerHTML = `<div class="ds-pa-editor-back"><button type="button" class="ds-btn ds-btn--ghost" data-pa-cancel-form>← ${backLabel}</button></div>${formHtml(mode, row, activityNameOptions, contactOptions, items, proposalActivityPricing, state, contactOptionsError)}`;
       setupTypeChangeHandler(formHost);
       setupClientSelector(formHost);
       setupActivityPickers(formHost);
@@ -6616,6 +6634,7 @@ export const proposalsAgreementsScreen = {
         setupContactPicker(pickerHost, formHost.querySelector('[data-pa-form]'));
       }
       formHost.querySelector('select,input,textarea')?.focus?.();
+      formHost.scrollIntoView?.({ block: 'start' });
     };
 
     const switchTab = (tabName) => {
@@ -6669,6 +6688,8 @@ export const proposalsAgreementsScreen = {
       formHost.hidden = true;
       formHost.innerHTML = '';
       setFormTabLabel('add');
+      const returnContext = editorReturnContext;
+      editorReturnContext = null;
       if (proposalDetailContext?.proposalId) {
         const detailRow = rowWithCentralContact(data.rows.find((item) => text(item.id) === text(proposalDetailContext.proposalId)));
         if (detailRow) {
@@ -6680,11 +6701,13 @@ export const proposalsAgreementsScreen = {
           return;
         }
       }
-      if (viewingAllProposals) {
+      if (returnContext?.mode === 'all-proposals') {
+        restoreListViewState(returnContext.list);
+        viewingAllProposals = true;
         showAllProposalsTable();
         return;
       }
-      switchTab('records');
+      if (returnContext?.mode === 'client-file' && returnContext.clientKey) selectedClientKey = returnContext.clientKey;
       renderClientWorkspace();
     };
 
@@ -6781,7 +6804,7 @@ export const proposalsAgreementsScreen = {
         window.open(url, '_blank', 'noopener,noreferrer');
       } catch (err) {
         showToast('שגיאה בפתיחת PDF שנשלח', 'error');
-        window.alert?.(`שגיאה בפתיחת PDF: ${err?.message || err}`);
+        console.error('[proposal PDF open failed]', err);
       }
     };
 
@@ -6808,6 +6831,9 @@ export const proposalsAgreementsScreen = {
           ? freshRow.document_snapshot
           : buildProposalDocumentSnapshot(freshRow, mergedItems, templateSections);
         const blob = await proposalHtmlToPdfBlob(documentHtmlSnapshot);
+        if (blob.type !== 'application/pdf' || blob.size < 5) throw new Error('pdf_blob_invalid');
+        const signature = new TextDecoder().decode(await blob.slice(0, 5).arrayBuffer());
+        if (signature !== '%PDF-') throw new Error('pdf_signature_invalid');
         const pdfFile = new File([blob], proposalPdfFileName(freshRow, mergedItems), { type: 'application/pdf' });
         const result = await api.uploadProposalFinalPdf(text(freshRow.id), { pdfFile, documentSnapshot, documentHtmlSnapshot });
         replaceLocalRow(data, result?.row || freshRow);
@@ -6858,7 +6884,7 @@ export const proposalsAgreementsScreen = {
           await finalizeSentProposal(freshRow, mergedItems, { previewHtml, templateSections });
         } catch (err) {
           showToast('שגיאה בעדכון סטטוס ההצעה', 'error');
-          window.alert?.(`שגיאה בשליחה: ${err?.message || err}`);
+          console.error('[proposal lock and send failed]', err);
         }
         return;
       }
@@ -6957,7 +6983,7 @@ export const proposalsAgreementsScreen = {
         } catch (err) {
           btn.disabled = false;
           showToast('שגיאה באישור וחתימה', 'error');
-          window.alert?.(`שגיאה באישור וחתימה: ${err?.message || err}`);
+          console.error('[proposal approval failed]', err);
         }
       });
       if (options.onSubmit) overlay.querySelector('#pa-preview-submit')?.addEventListener('click', () => { closeOverlay(); options.onSubmit(); });
@@ -7029,18 +7055,17 @@ export const proposalsAgreementsScreen = {
         }
         replaceLocalRow(data, finalRow);
         upsertProposalContactOption(contactOptions, finalRow);
-        resetLocalFilters();
-        switchTab('records');
-        highlightProposalRow(savedId);
         refreshTable();
         closeForm();
+        if (viewMode === 'all-proposals') highlightProposalRow(savedId);
         const drawer = root.querySelector('[data-pa-drawer]');
         if (drawer && mode === 'edit') {
           const updated = data.rows.find((item) => text(item.id) === id);
           if (updated) drawer.outerHTML = drawerHtml(updated, activityNameOptions, state);
         }
       } catch (err) {
-        if (errorEl) errorEl.textContent = `שגיאה בשמירה: ${err?.message || err}`;
+        console.error('[proposal save failed]', err);
+        if (errorEl) errorEl.textContent = 'לא ניתן היה לשמור את ההצעה. הפרטים נשארו בטופס וניתן לנסות שוב.';
         form.dataset.saving = '';
         allBtns.forEach((b) => { b.disabled = false; });
       }
@@ -7143,7 +7168,7 @@ export const proposalsAgreementsScreen = {
               } catch (err) {
                 rowStatusSelect.disabled = false;
                 showToast('שגיאה בעדכון סטטוס ההצעה', 'error');
-                window.alert?.(`שגיאה בעדכון סטטוס: ${err?.message || err}`);
+                console.error('[proposal status update failed]', err);
               }
             }
           });
@@ -7171,7 +7196,7 @@ export const proposalsAgreementsScreen = {
           rowStatusSelect.value = previousStatus;
           rowStatusSelect.disabled = false;
           showToast('שגיאה בעדכון סטטוס ההצעה', 'error');
-          window.alert?.(`שגיאה בעדכון סטטוס: ${err?.message || err}`);
+          console.error('[proposal status update failed]', err);
         }
         return;
       }
@@ -7392,7 +7417,8 @@ export const proposalsAgreementsScreen = {
           refreshTable();
           showToast('פרטי איש הקשר עודכנו', 'success', 1800);
         } catch (err) {
-          if (msg) msg.textContent = `שגיאה בעדכון איש קשר: ${err?.message || err}`;
+          console.error('[proposal contact update failed]', err);
+          if (msg) msg.textContent = 'לא ניתן היה לשמור את פרטי איש הקשר. הפרטים נשארו בטופס.';
         }
         return;
       }
@@ -7738,7 +7764,7 @@ export const proposalsAgreementsScreen = {
                 showToast('ההצעה אושרה ונחתמה', 'success');
               } catch (err) {
                 statusActionBtn.disabled = false;
-                window.alert?.(`שגיאה באישור וחתימה: ${err?.message || err}`);
+                console.error('[proposal approval failed]', err);
               }
             }
           });
@@ -7781,8 +7807,8 @@ export const proposalsAgreementsScreen = {
         } catch (err) {
           statusActionBtn.disabled = false;
           const drawerErrEl = root.querySelector('[data-pa-drawer-error]');
-          if (drawerErrEl) drawerErrEl.textContent = `שגיאה בעדכון סטטוס: ${err?.message || err}`;
-          else window.alert(`שגיאה בעדכון סטטוס: ${err?.message || err}`);
+          console.error('[proposal status update failed]', err);
+          if (drawerErrEl) drawerErrEl.textContent = 'לא ניתן היה לעדכן את סטטוס ההצעה. ניתן לנסות שוב.';
         }
         return;
       }
@@ -7814,7 +7840,8 @@ export const proposalsAgreementsScreen = {
           if (drawer && updated) drawer.outerHTML = drawerHtml(updated, activityNameOptions, state);
         } catch (err) {
           returnConfirmBtn.disabled = false;
-          if (errorEl) errorEl.textContent = `שגיאה: ${err?.message || err}`;
+          console.error('[proposal action failed]', err);
+          if (errorEl) errorEl.textContent = 'לא ניתן היה להשלים את הפעולה. ניתן לנסות שוב.';
         }
         return;
       }
@@ -7982,7 +8009,8 @@ export const proposalsAgreementsScreen = {
         setDocumentEditMode(root, false);
         } catch (err) {
           deleteBtn.disabled = false;
-          window.alert(`שגיאה במחיקה: ${err?.message || err}`);
+          console.error('[proposal delete failed]', err);
+          showToast('לא ניתן היה למחוק את ההצעה. ניתן לנסות שוב.', 'error');
         }
         return;
       }
@@ -8040,8 +8068,8 @@ export const proposalsAgreementsScreen = {
         } catch (err) {
           cloneBtn.disabled = false;
           const drawerErrEl = root.querySelector('[data-pa-drawer-error]');
-          if (drawerErrEl) drawerErrEl.textContent = `שגיאה בשכפול: ${err?.message || err}`;
-          else window.alert(`שגיאה בשכפול: ${err?.message || err}`);
+          console.error('[proposal clone failed]', err);
+          if (drawerErrEl) drawerErrEl.textContent = 'לא ניתן היה לשכפל את ההצעה. ניתן לנסות שוב.';
         }
         return;
       }

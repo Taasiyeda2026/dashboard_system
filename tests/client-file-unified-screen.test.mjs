@@ -274,7 +274,7 @@ test('view-only users do not see management actions; managers do', async () => {
     await new Promise((r) => setTimeout(r, 20));
     assert.ok(root.querySelector('[data-pa-client-file]'), 'view-only can open client file');
     assert.equal(root.querySelector('[data-pa-client-add-other]'), null);
-    assert.equal(root.querySelector('[data-pa-client-add-proposal]'), null);
+    assert.ok(root.querySelector('[data-pa-client-add-proposal]'), 'all screen users can start a new proposal');
     assert.equal(root.querySelector('[data-pa-client-add-contact]'), null);
     assert.equal(root.querySelector('[data-pa-clone-row]'), null);
   });
@@ -398,7 +398,7 @@ test('כל ההצעות opens the legacy proposals table immediately', async () 
     root.querySelector('[data-pa-client-all-proposals]')?.click();
     await new Promise((r) => setTimeout(r, 0));
     assert.equal(root.querySelector('[data-pa-client-all]'), null, 'must not show the card-list intermediate screen');
-    assert.equal(root.querySelector('.ds-page-header__title')?.textContent, 'הצעת מחיר');
+    assert.equal(root.querySelector('.ds-page-header__title')?.textContent, 'תיק לקוח');
     const legacy = root.querySelector('[data-pa-all-proposals-table]');
     assert.ok(legacy);
     assert.equal(legacy.getAttribute('aria-hidden'), 'false');
@@ -410,6 +410,17 @@ test('כל ההצעות opens the legacy proposals table immediately', async () 
     assert.ok(root.querySelector('[data-pa-table-body]'));
     assert.match(root.querySelector('[data-pa-table-body]')?.textContent || '', /נתניה/);
     assert.match(root.querySelector('[data-pa-table-body]')?.textContent || '', /תל אביב/);
+    root.querySelector('[data-pa-tab="new"]')?.click();
+    await new Promise((r) => setTimeout(r, 20));
+    assert.equal(root.querySelector('[data-pa-screen]')?.dataset.paViewMode, 'proposal-editor');
+    assert.equal(legacy.getAttribute('aria-hidden'), 'true', 'editor replaces the proposal table');
+    assert.equal(root.querySelector('[data-pa-screen-tabs]')?.getAttribute('aria-hidden'), 'true', 'editor hides list tabs');
+    assert.equal(root.querySelectorAll('[data-pa-form]').length, 1, 'the existing editor is mounted exactly once');
+    assert.match(root.querySelector('[data-pa-cancel-form]')?.textContent || '', /חזרה לכל ההצעות/);
+    root.querySelector('[data-pa-cancel-form]')?.click();
+    await new Promise((r) => setTimeout(r, 20));
+    assert.equal(root.querySelector('[data-pa-screen]')?.dataset.paViewMode, 'all-proposals');
+    assert.equal(legacy.getAttribute('aria-hidden'), 'false');
     const search = root.querySelector('[data-pa-search]');
     search.value = 'נתניה';
     search.dispatchEvent(new dom.window.Event('input', { bubbles: true }));
@@ -453,8 +464,12 @@ test('opening a board proposal opens details by id and returns to home queues', 
     assert.equal(root.querySelector('[data-pa-client-home]'), null, 'must leave the home board');
     assert.equal(root.querySelector('[data-pa-client-all]'), null, 'must not open all-proposals card list');
     assert.ok(root.querySelector('[data-pa-drawer][data-pa-drawer-id="exact-id-77"]'));
+    assert.equal(root.querySelector('[data-pa-screen]')?.dataset.paViewMode, 'proposal-details');
+    assert.equal(root.querySelector('[data-pa-all-proposals-table]')?.getAttribute('aria-hidden'), 'true');
+    assert.equal(root.querySelectorAll('.ds-pa-proposal-info-grid > .ds-pa-info-card').length, 3);
+    assert.ok(root.querySelector('.ds-pa-activities-wide'), 'activities use the full-width region below the cards');
     assert.match(root.querySelector('[data-pa-proposal-detail-back]')?.textContent || '', /חזרה לתיק הלקוח/);
-    assert.match(root.querySelector('.ds-page-header__title')?.textContent || '', /תשפ״ז|פרטי הצעה/);
+    assert.equal(root.querySelector('.ds-page-header__title')?.textContent, 'תיק לקוח');
     // Board open must not activate the all-proposals table as an intermediate step.
     assert.equal(root.querySelector('[data-pa-all-proposals-table]')?.getAttribute('aria-hidden'), 'true');
     root.querySelector('[data-pa-proposal-detail-back]')?.click();
@@ -530,7 +545,7 @@ test('opening a proposal from all-proposals table returns to the table with filt
     root.querySelector('[data-pa-proposal-detail-back]')?.click();
     await new Promise((r) => setTimeout(r, 20));
     assert.equal(root.querySelector('[data-pa-proposal-detail]'), null);
-    assert.equal(root.querySelector('.ds-page-header__title')?.textContent, 'הצעת מחיר');
+    assert.equal(root.querySelector('.ds-page-header__title')?.textContent, 'תיק לקוח');
     assert.equal(root.querySelector('[data-pa-all-proposals-table]')?.getAttribute('aria-hidden'), 'false');
     assert.equal(root.querySelector('[data-pa-search]')?.value, 'מטה', 'filters must be preserved');
     assert.match(root.querySelector('[data-pa-table-body]')?.textContent || '', /מטה יהודה/);
@@ -541,13 +556,13 @@ test('opening a proposal from all-proposals table returns to the table with filt
 test('service worker version and activate-only cache cleanup', async () => {
   const sw = await readFile(SW_FILE, 'utf8');
   const config = await readFile(CONFIG_FILE, 'utf8');
-  assert.match(sw, /const CACHE_VERSION = 1243;/);
+  assert.match(sw, /const CACHE_VERSION = 1244;/);
   const installBlock = sw.match(/self\.addEventListener\('install',[\s\S]*?\n\}\);/)?.[0] || '';
   assert.doesNotMatch(installBlock, /deleteOutdatedCaches\(/);
   assert.match(sw, /self\.addEventListener\('activate'[\s\S]*deleteOutdatedCaches\(/);
   assert.match(sw, /clients\.claim/);
   assert.match(sw, /isApiLikeUrl/);
-  assert.match(config, /client-file-accent-pdf-hotfix-20260720-v2/);
+  assert.match(config, /client-file-unified-view-pdf-20260720-v3/);
 });
 
 test('contact deletion and PDF flow use exact ids without a manual file picker', async () => {
@@ -587,8 +602,9 @@ test('client file home header has title only and centered search toolbar', async
   assert.doesNotMatch(html, /ds-page-header__subtitle/);
   assert.doesNotMatch(html, /ממתינות לטיפול/);
   assert.match(html, /ds-client-toolbar/);
-  assert.match(html, /width:min\(100%,480px\)/);
-  assert.match(html, /ds-client-actions/);
+  assert.match(html, /width:420px/);
+  assert.match(html, /ds-client-toolbar-button/);
+  assert.match(html, /flex-wrap:nowrap/);
 });
 
 test('home board has no close (X) button before a client is opened, and an opened archive starts closed', async () => {
@@ -748,9 +764,8 @@ test('routine debug console dumps are removed while relied-on load diagnostics a
   assert.doesNotMatch(screenSource, /\[proposal-save-payload\]/, 'ad-hoc save-payload debug dump must be removed');
   assert.doesNotMatch(screenSource, /PA_SAVE_ITEMS/, 'ad-hoc save-items debug dump must be removed');
   assert.doesNotMatch(screenSource, /semantic duplicates collapsed/, 'ad-hoc dedupe debug dump must be removed');
-  // Diagnostics explicitly relied on elsewhere (see proposals-agreements-screen.test.mjs) must stay.
-  assert.match(screenSource, /console\.info\('\[proposal-load-debug\]'/);
-  assert.match(screenSource, /\[proposal-authorities-debug\]/);
+  assert.doesNotMatch(screenSource, /\[proposal-load-debug\]/);
+  assert.doesNotMatch(screenSource, /\[proposal-authorities-debug\]/);
   // Real error handling must remain untouched.
   assert.match(screenSource, /console\.warn\('\[client-file\] unknown proposal type value', raw\)/);
 });

@@ -1624,11 +1624,10 @@ test('authority search finds אשכול with type district and code metadata', a
   );
 });
 
-test('proposals screen logs proposal-authorities-debug on bind', async () => {
+test('proposals screen omits routine authority debug payloads', async () => {
   const screenSource = await readFile(SCREEN_FILE, 'utf8');
-  assert.match(screenSource, /\[proposal-authorities-debug\]/);
-  assert.match(screenSource, /authoritiesCount/);
-  assert.match(screenSource, /firstAuthorities/);
+  assert.doesNotMatch(screenSource, /\[proposal-authorities-debug\]/);
+  assert.doesNotMatch(screenSource, /\[proposal-load-debug\]/);
 });
 
 test('authority search shows only catalog authorities without contact details', async () => {
@@ -5035,9 +5034,7 @@ test('proposal load diagnostics include permission and RLS errors distinctly', a
   assert.match(apiSource, /console\.error\('\[proposal-load-error\]'/);
   assert.match(apiSource, /console\.error\('\[proposal-permission-error\]'/);
   assert.match(apiSource, /isSupabasePermissionDeniedError\(error\)/);
-  assert.match(screenSource, /console\.info\('\[proposal-load-debug\]'/);
-  assert.match(screenSource, /templateSectionsCount/);
-  assert.match(screenSource, /activityPricingCount/);
+  assert.doesNotMatch(screenSource, /console\.info\('\[proposal-load-debug\]'/);
 });
 
 test('missing-template warning is not shown when matching template sections exist', () => {
