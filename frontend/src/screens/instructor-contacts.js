@@ -122,6 +122,9 @@ export const instructorContactsScreen = {
 
     return dsScreenStack(`
       ${dsPageHeader('אנשי קשר מדריכים', 'ספר כתובות — לא תלוי בפעילויות')}
+      <div class="ds-screen-top-row" style="display:flex;justify-content:flex-start;gap:8px;margin-bottom:8px">
+        <button type="button" class="ds-btn ds-btn--sm ds-btn--ghost" data-route="instructors">← חזרה למדריכים</button>
+      </div>
       ${sourcesBanner}
       <div class="ds-screen-top-row">
         <input

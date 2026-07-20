@@ -26,11 +26,35 @@ test('unified workspace contains the approved home board and client file structu
   }
   assert.match(source, /placeholder="חיפוש לפי רשות, בית ספר, סמל מוסד, איש קשר, נייד או דוא״ל"/);
   assert.match(source, /\+ לקוח אחר/);
+  assert.match(source, /כל ההצעות/);
   assert.match(source, /\+ הצעת מחיר/);
   assert.match(source, /\+ איש קשר/);
   assert.match(source, /אנשי קשר/);
   assert.match(source, /הצעות עדכניות/);
   assert.match(source, /ארכיון הצעות מחיר/);
+  assert.match(source, /next_year:\s*'תשפ״ז'/);
+  assert.match(source, /summer:\s*'קיץ'/);
+  assert.match(source, /tour:\s*'סיור'/);
+  assert.match(source, /isArchivedProposal/);
+  assert.match(source, /data-pa-client-workspace/);
+  assert.doesNotMatch(source, /statuses\.includes\(normalizeStatus\(row\.status\)\)[\s\S]{0,40}sent/);
+});
+
+test('sent proposals stay current unless superseded or explicitly archived', async () => {
+  const source = await readFile(OVERLAY_FILE, 'utf8');
+  assert.match(source, /NOT merely because status is sent/);
+  assert.match(source, /supersedes_proposal_id/);
+  assert.match(source, /proposal_series_id/);
+  assert.match(source, /archived_at/);
+  assert.match(source, /cancelled/);
+});
+
+test('proposal mini cards keep view and PDF as actions on one card', async () => {
+  const source = await readFile(OVERLAY_FILE, 'utf8');
+  assert.match(source, /data-cf-open-pdf/);
+  assert.match(source, />צפייה</);
+  assert.match(source, /proposalHasPdf/);
+  assert.match(source, /ds-cf-mini-proposal__actions/);
 });
 
 test('existing proposal editor remains the action engine inside the unified workspace', async () => {

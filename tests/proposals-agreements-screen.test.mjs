@@ -678,7 +678,7 @@ test('client file separates current proposal versions from archive', async () =>
     root.querySelector('[data-pa-open-client]')?.dispatchEvent(new dom.window.MouseEvent('click', { bubbles: true }));
     const file = root.querySelector('[data-pa-client-file]');
     assert.match(file.textContent, /הצעות עדכניות/);
-    assert.match(file.textContent, /ארכיון הצעות מחיר\s*1/);
+    assert.match(file.textContent, /ארכיון הצעות מחיר\s*[—-]?\s*1/);
     assert.match(file.querySelector('.ds-client-proposal:not(.is-archived)')?.textContent || '', /גרסה 2/);
     assert.match(file.querySelector('.ds-client-proposal.is-archived')?.textContent || '', /קיץ/);
   });

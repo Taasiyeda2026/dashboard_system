@@ -499,9 +499,18 @@ function proposalGroupDisplayName(value) {
   const raw = text(value);
   if (!raw) return '';
   const key = normalizeProposalGroup(raw);
-  if (key === 'next_year') return PROPOSAL_GROUP_DISPLAY_FALLBACKS.next_year;
+  if (Object.prototype.hasOwnProperty.call(PROPOSAL_GROUP_DISPLAY_FALLBACKS, key)) {
+    return PROPOSAL_GROUP_DISPLAY_FALLBACKS[key];
+  }
   const meta = proposalGroupMeta(raw);
-  return userFacingProposalGroupLabel(meta?.display_name || raw);
+  const label = userFacingProposalGroupLabel(meta?.display_name || '');
+  if (label && label !== key && !/^[a-z][a-z0-9_]*$/i.test(label)) return label;
+  if (/^[a-z][a-z0-9_]*$/i.test(raw) || (key && /^[a-z][a-z0-9_]*$/i.test(key) && !label)) {
+    // eslint-disable-next-line no-console
+    console.warn('[client-file] unknown proposal type value', raw);
+    return '';
+  }
+  return label || '';
 }
 
 function resolveProposalTemplateKey(value) {
@@ -4153,25 +4162,53 @@ function clientFileLabel(file = {}) {
   return text(file.school) || text(file.authority) || 'לקוח ללא שם';
 }
 
+function isArchivedClientProposal(row, allRows = []) {
+  if (text(row?.archived_at)) return true;
+  if (normalizeProposalStatus(row?.status) === 'cancelled') return true;
+  const id = text(row?.id);
+  if (!id) return false;
+  if (allRows.some((other) => text(other?.supersedes_proposal_id) === id)) return true;
+  const series = text(row?.proposal_series_id);
+  if (series) {
+    const siblings = allRows.filter((other) => text(other?.proposal_series_id) === series);
+    const maxVersion = Math.max(0, ...siblings.map((other) => Math.max(1, Number(other?.version_number) || 1)));
+    if (Math.max(1, Number(row?.version_number) || 1) < maxVersion) return true;
+  }
+  return false;
+}
+
 function proposalCompactCardHtml(row, { archived = false } = {}) {
   const status = normalizeProposalStatus(row.status);
   const version = Math.max(1, Number(row.version_number) || 1);
   const amount = row.total_amount != null ? `₪${escapeHtml(formatCurrency(row.total_amount))}` : '';
+  const typeLabel = proposalGroupDisplayName(row.activity_type_group) || '—';
+  if (!proposalGroupDisplayName(row.activity_type_group) && text(row.activity_type_group)) {
+    // eslint-disable-next-line no-console
+    console.warn('[client-file] unknown proposal type value', row.activity_type_group);
+  }
+  const hasPdf = Boolean(text(row.final_pdf_path) || text(row.final_pdf_file_name));
   return `<article class="ds-client-proposal${archived ? ' is-archived' : ''}">
     <button type="button" class="ds-client-proposal__main" data-pa-row-id="${escapeHtml(row.id)}" aria-label="פתיחת הצעה">
       <span class="ds-client-proposal__icon" aria-hidden="true">📄</span>
-      <span><strong>${escapeHtml(proposalGroupDisplayName(row.activity_type_group) || row.document_type || 'הצעת מחיר')}</strong><small>${escapeHtml(formatDateDisplay(row.proposal_date || row.created_at))} · ${escapeHtml(STATUS_LABELS[status] || status)}${version > 1 ? ` · גרסה ${version}` : ''}</small></span>
+      <span><strong>${escapeHtml(typeLabel)}</strong><small>${escapeHtml(formatDateDisplay(row.proposal_date || row.created_at))} · ${escapeHtml(STATUS_LABELS[status] || status)}${version > 1 ? ` · גרסה ${version}` : ''}</small></span>
       ${amount ? `<b>${amount}</b>` : ''}
     </button>
-    ${!archived ? `<button type="button" class="ds-client-proposal__version" data-pa-clone-row="${escapeHtml(row.id)}" title="יצירת גרסה חדשה">גרסה חדשה</button>` : ''}
+    <div class="ds-client-proposal__actions">
+      <button type="button" class="ds-client-proposal__version" data-pa-row-id="${escapeHtml(row.id)}">צפייה</button>
+      ${hasPdf ? `<button type="button" class="ds-client-proposal__version" data-pa-view-final-pdf="${escapeHtml(row.id)}">PDF</button>` : ''}
+      ${!archived ? `<button type="button" class="ds-client-proposal__version" data-pa-clone-row="${escapeHtml(row.id)}" title="יצירת גרסה חדשה">גרסה חדשה</button>` : ''}
+    </div>
   </article>`;
 }
 
 function clientQueueCardHtml(row) {
   const fileKey = clientFileKey(row);
+  const school = text(row.school_framework) || text(row.school_name) || '';
+  const authority = text(row.client_authority) || text(row.authority_name) || '';
+  const typeLabel = proposalGroupDisplayName(row.activity_type_group) || '—';
   return `<button type="button" class="ds-client-queue-item" data-pa-open-client="${escapeHtml(fileKey)}" data-pa-open-proposal="${escapeHtml(row.id)}">
-    <strong>${escapeHtml(text(row.school_framework) || text(row.client_authority) || 'לקוח ללא שם')}</strong>
-    <span>${escapeHtml(text(row.client_authority))}${row.total_amount != null ? ` · ₪${escapeHtml(formatCurrency(row.total_amount))}` : ''}</span>
+    <strong>${escapeHtml(school || authority || 'לקוח ללא שם')}</strong>
+    <span>${escapeHtml([authority && school ? authority : '', typeLabel, formatDateDisplay(row.proposal_date || row.created_at), row.total_amount != null ? `₪${formatCurrency(row.total_amount)}` : ''].filter(Boolean).join(' · '))}</span>
   </button>`;
 }
 
@@ -4179,24 +4216,24 @@ const CLIENT_QUEUE_COLUMNS = [
   ['draft', 'טיוטות'],
   ['pending_approval', 'ממתינות לאישור'],
   ['returned_for_changes', 'הוחזרו לתיקון'],
-  ['approved', 'ממתינות לשליחה']
+  ['approved', 'מאושרות וממתינות לשליחה']
 ];
 
 function clientFileLandingHtml(data = {}, state = {}) {
-  const files = buildClientFiles(data);
-  const activeRows = allDisplayRows(data).filter((row) => !text(row.archived_at) && normalizeProposalStatus(row.status) !== 'cancelled');
+  const activeRows = allDisplayRows(data).filter((row) => !isArchivedClientProposal(row, allDisplayRows(data)));
   const queues = CLIENT_QUEUE_COLUMNS.map(([status, label]) => {
     const rows = activeRows.filter((row) => normalizeProposalStatus(row.status) === status);
     return `<section class="ds-client-queue"><header><span>${escapeHtml(label)}</span><b>${rows.length}</b></header><div>${rows.length ? rows.map(clientQueueCardHtml).join('') : '<p>אין הצעות</p>'}</div></section>`;
   }).join('');
+  const canManage = canManageProposalsAgreements(state);
   return `<div class="ds-client-home" data-pa-client-home>
     <div class="ds-client-search-row">
-      <button type="button" class="ds-client-add" data-pa-client-add-proposal aria-label="הצעה חדשה" ${canManageProposalsAgreements(state) ? '' : 'hidden'}>＋</button>
       <label class="ds-client-search"><span class="sr-only">חיפוש תיק לקוח</span><input class="ds-input" data-pa-client-search placeholder="חיפוש רשות, בית ספר, סמל מוסד או איש קשר…" autocomplete="off"></label>
+      <button type="button" class="ds-btn ds-btn--ghost ds-client-secondary" data-pa-client-all-proposals>כל ההצעות</button>
+      ${canManage ? '<button type="button" class="ds-btn ds-btn--ghost ds-client-secondary" data-pa-client-add-other title="חברה, עמותה או גוף שאינם בית ספר או רשות קיימים">+ לקוח אחר</button>' : ''}
     </div>
     <div class="ds-client-search-results" data-pa-client-search-results hidden></div>
     <div class="ds-client-queues" data-pa-client-queues>${queues}</div>
-    <p class="ds-client-home__hint">${files.length} תיקי לקוח · החיפוש מציג את התיק רק לאחר בחירה</p>
   </div>`;
 }
 
@@ -4213,26 +4250,31 @@ function clientSearchResultsHtml(files, query) {
 
 function clientContactsHtml(file = {}, canManage = false) {
   if (!file.contacts.length) return '<p class="ds-client-empty">לא הוגדרו אנשי קשר לתיק זה.</p>';
-  return file.contacts.map((contact, index) => `<article class="ds-client-contact">
-    <div><strong>${escapeHtml(contact.contact_name)}</strong><span>${escapeHtml(contact.contact_role || 'ללא תפקיד')}</span></div>
-    <div class="ds-client-contact__channels">
-      ${text(contact.mobile || contact.phone) ? `<a href="tel:${escapeHtml(contact.mobile || contact.phone)}">${escapeHtml(contact.mobile || contact.phone)}</a>` : '<span>אין טלפון</span>'}
-      ${text(contact.email) ? `<a href="mailto:${escapeHtml(contact.email)}">${escapeHtml(contact.email)}</a>` : '<span>אין מייל</span>'}
-    </div>
+  return file.contacts.map((contact, index) => {
+    const name = text(contact.contact_name) || 'איש קשר';
+    const role = text(contact.contact_role) || 'ללא תפקיד';
+    const mobile = text(contact.mobile || contact.phone);
+    const email = text(contact.email);
+    return `<article class="ds-client-contact">
+    <div><strong>${escapeHtml(name)} · ${escapeHtml(role)}</strong><span>${mobile ? escapeHtml(mobile) : 'אין טלפון'}${email ? ` · ${escapeHtml(email)}` : ''}</span></div>
     ${canManage ? `<button type="button" data-pa-client-edit-contact="${index}" aria-label="עריכת איש קשר">✎</button>` : ''}
-  </article>`).join('');
+  </article>`;
+  }).join('');
 }
 
 function selectedClientFileHtml(file, state = {}) {
   const canManage = canManageProposalsAgreements(state);
-  const current = file.proposals.filter((row) => !text(row.archived_at) && normalizeProposalStatus(row.status) !== 'cancelled');
-  const archive = file.proposals.filter((row) => text(row.archived_at) || normalizeProposalStatus(row.status) === 'cancelled');
+  const proposals = dedupeById(file.proposals || []);
+  const current = proposals.filter((row) => !isArchivedClientProposal(row, proposals));
+  const archive = proposals.filter((row) => isArchivedClientProposal(row, proposals));
   return `<div class="ds-client-file" data-pa-client-file="${escapeHtml(file.key)}">
     <button type="button" class="ds-client-file__close" data-pa-client-close aria-label="סגירת תיק לקוח">✕</button>
     <section class="ds-client-file__identity">
+      <p class="ds-client-file__eyebrow">תיק לקוח</p>
+      <h2 class="ds-client-file__title">${escapeHtml(file.school || file.authority || 'לקוח ללא שם')}</h2>
       <p><span>רשות</span><strong>${escapeHtml(file.authority || 'לא הוגדרה')}</strong></p>
       <p><span>תחום</span><strong>${escapeHtml(file.domain || 'לא הוגדר')}</strong></p>
-      <p><span>בית ספר</span><strong>${escapeHtml(file.school || (file.client_type === 'authority' ? 'תיק רשות' : 'לא הוגדר'))}</strong></p>
+      ${file.school ? `<p><span>בית ספר</span><strong>${escapeHtml(file.school)}</strong></p>` : ''}
       <p><span>סמל מוסד</span><strong>${escapeHtml(file.semel_mosad || 'לא הוגדר')}</strong></p>
       <div class="ds-client-file__contacts-head"><h3>אנשי קשר</h3>${canManage ? '<button type="button" class="ds-btn ds-btn--sm ds-btn--ghost" data-pa-client-add-contact>＋ איש קשר</button>' : ''}</div>
       <div class="ds-client-contacts">${clientContactsHtml(file, canManage)}</div>
@@ -4241,7 +4283,7 @@ function selectedClientFileHtml(file, state = {}) {
       <div class="ds-client-file__proposals-head"><h3>הצעות עדכניות</h3>${canManage ? '<button type="button" class="ds-btn ds-btn--sm ds-btn--primary" data-pa-client-add-proposal>＋ הצעה</button>' : ''}</div>
       <div>${current.length ? current.map((row) => proposalCompactCardHtml(row)).join('') : '<p class="ds-client-empty">אין הצעות עדכניות</p>'}</div>
       <hr>
-      <details class="ds-client-archive" ${archive.length ? '' : 'open'}><summary>ארכיון הצעות מחיר <b>${archive.length}</b></summary><div>${archive.length ? archive.map((row) => proposalCompactCardHtml(row, { archived: true })).join('') : '<p class="ds-client-empty">הארכיון ריק</p>'}</div></details>
+      <details class="ds-client-archive"><summary>ארכיון הצעות מחיר — ${archive.length}</summary><div>${archive.length ? archive.map((row) => proposalCompactCardHtml(row, { archived: true })).join('') : '<p class="ds-client-empty">הארכיון ריק</p>'}</div></details>
     </aside>
   </div>`;
 }
@@ -4729,7 +4771,7 @@ export const proposalsAgreementsScreen = {
     const canManage = canManageProposalsAgreements(state);
     const rawRows = Array.isArray(data?.rows) ? data.rows.map(normalizeProposalAgreementRow) : [];
     return dsScreenStack(`
-      ${dsPageHeader('תיק לקוח', `${buildClientFiles(data).length} לקוחות · ${proposalsScreenSummaryText(rawRows)}`)}
+      ${dsPageHeader('תיק לקוח', proposalsScreenSummaryText(rawRows))}
       <section class="ds-pa-screen" data-pa-screen dir="rtl">
         <style>
           .ds-pa-screen-tab{border-radius:10px 10px 0 0;transition:background .15s,color .15s,border-color .15s}.ds-pa-screen-tab:hover{background:rgba(14,165,233,.08)}.ds-pa-tab-count{display:inline-flex;min-width:19px;height:19px;padding:0 5px;align-items:center;justify-content:center;border-radius:999px;background:#e2e8f0;color:#475569;font-size:.72rem;margin-inline-start:4px}.ds-pa-screen-tab.is-active .ds-pa-tab-count{background:#dbeafe;color:#1d4ed8}
@@ -6808,6 +6850,39 @@ export const proposalsAgreementsScreen = {
         if (!canManage) return;
         const file = currentClientFile();
         await openForm('add', file ? proposalPrefillForClient(file) : {});
+        return;
+      }
+
+      const addOtherClientBtn = event.target.closest?.('[data-pa-client-add-other]');
+      if (addOtherClientBtn) {
+        if (!canManage) return;
+        await openForm('add', { client_type: 'other', contact_source_client_type: 'other' });
+        return;
+      }
+
+      const allProposalsBtn = event.target.closest?.('[data-pa-client-all-proposals]');
+      if (allProposalsBtn) {
+        selectedClientKey = '';
+        if (clientWorkspace) {
+          const rows = allDisplayRows(data);
+          clientWorkspace.innerHTML = `<div class="ds-client-all" data-pa-client-all>
+            <div class="ds-client-search-row">
+              <button type="button" class="ds-btn ds-btn--ghost" data-pa-client-close>× חזרה</button>
+              <strong>כל ההצעות · ${rows.length}</strong>
+            </div>
+            <div class="ds-client-all-list">${rows.map((row) => {
+              const school = text(row.school_framework) || '—';
+              const authority = text(row.client_authority) || '—';
+              const typeLabel = proposalGroupDisplayName(row.activity_type_group) || '—';
+              const status = normalizeProposalStatus(row.status);
+              const archived = isArchivedClientProposal(row, rows);
+              return `<button type="button" class="ds-client-queue-item" data-pa-open-client="${escapeHtml(clientFileKey(row))}" data-pa-open-proposal="${escapeHtml(row.id)}">
+                <strong>${escapeHtml(authority)} · ${escapeHtml(school)}</strong>
+                <span>${escapeHtml([typeLabel, formatDateDisplay(row.proposal_date || row.created_at), STATUS_LABELS[status] || status, archived ? 'ארכיון' : '', row.total_amount != null ? `₪${formatCurrency(row.total_amount)}` : ''].filter(Boolean).join(' · '))}</span>
+              </button>`;
+            }).join('') || '<p class="ds-client-empty">אין הצעות</p>'}</div>
+          </div>`;
+        }
         return;
       }
 
