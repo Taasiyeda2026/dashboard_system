@@ -70,6 +70,6 @@ export function installProposalPdfSvgOriginCleanHotfix(scope = globalThis) {
   return true;
 }
 
-if (typeof globalThis !== 'undefined') {
-  installProposalPdfSvgOriginCleanHotfix(globalThis);
+if (typeof window !== 'undefined' && window === globalThis) {
+  installProposalPdfSvgOriginCleanHotfix(window);
 }
