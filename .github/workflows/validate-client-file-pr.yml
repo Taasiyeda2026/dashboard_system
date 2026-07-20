@@ -8,6 +8,7 @@ on:
       - 'frontend/src/screens/instructors.js'
       - 'frontend/src/screens/instructor-contacts.js'
       - 'frontend/src/proposal-pdf-svg-origin-clean.js'
+      - 'frontend/src/proposal-pdf-storage-key-hotfix.js'
       - 'frontend/src/main-with-proposal-pdf-hotfix.js'
       - 'frontend/src/styles/**'
       - 'frontend/src/config.js'
@@ -16,6 +17,7 @@ on:
       - 'index.html'
       - 'tests/client-file-*.test.mjs'
       - 'tests/proposal-pdf-svg-origin-clean.test.mjs'
+      - 'tests/proposal-pdf-storage-key-hotfix.test.mjs'
       - 'tests/proposals-agreements-screen.test.mjs'
       - 'tests/instructor-contacts-nav-access.test.mjs'
       - '.github/workflows/validate-client-file-pr.yml'
@@ -45,6 +47,7 @@ jobs:
           node --check frontend/src/screens/instructors.js
           node --check frontend/src/screens/instructor-contacts.js
           node --check frontend/src/proposal-pdf-svg-origin-clean.js
+          node --check frontend/src/proposal-pdf-storage-key-hotfix.js
           node --check frontend/src/main-with-proposal-pdf-hotfix.js
           node --check frontend/src/main.js
           node --check frontend/src/api.js
@@ -52,6 +55,7 @@ jobs:
           node --check tests/client-file-version-sync.test.mjs
           node --check tests/instructor-contacts-nav-access.test.mjs
           node --check tests/proposal-pdf-svg-origin-clean.test.mjs
+          node --check tests/proposal-pdf-storage-key-hotfix.test.mjs
 
       - name: Run unified client file tests
         run: >-
@@ -64,6 +68,9 @@ jobs:
 
       - name: Run proposal PDF SVG origin-clean tests
         run: node --test tests/proposal-pdf-svg-origin-clean.test.mjs
+
+      - name: Run proposal PDF storage-key tests
+        run: node --test tests/proposal-pdf-storage-key-hotfix.test.mjs
 
       - name: Run instructor contacts navigation tests
         run: node --test tests/instructor-contacts-nav-access.test.mjs
