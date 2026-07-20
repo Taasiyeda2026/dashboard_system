@@ -59,6 +59,7 @@ const SCREEN_FILE = new URL('../frontend/src/screens/proposals-agreements.js', i
 const MIGRATION_FILE = new URL('../supabase/migrations/20260518_create_proposals_agreements.sql', import.meta.url);
 const ROLE_UPDATE_MIGRATION_FILE = new URL('../supabase/migrations/20260602_add_business_development_manager_role.sql', import.meta.url);
 const APPROVAL_GUARD_MIGRATION_FILE = new URL('../supabase/migrations/20260616_proposals_agreements_approval_guard.sql', import.meta.url);
+const CLIENT_FILE_VERSIONS_MIGRATION_FILE = new URL('../supabase/migrations/20260720143000_proposal_versions_for_client_file.sql', import.meta.url);
 
 const { proposalsAgreementsScreen, canAccessProposalsAgreements, canManageProposalsAgreements, STATUS_LABELS, STATUS_OPTIONS, buildProposalCatalogPdfEntries, proposalPreviewBodyHtml, normalizeProposalAgreementRow, countPendingApprovedProposals, isProposalApprovedPendingSend, extractItemsFromForm, sortRows, calculateTourTotal, validatePayload, resetRecipientDependentFields, stepComplete, buildProposalDocumentSnapshot, proposalLockedPreviewHtml, proposalHasFinalPdf, isProposalLegacySentWithoutPdf, upsertProposalContactOption } = await import('../frontend/src/screens/proposals-agreements.js');
 
@@ -627,6 +628,117 @@ test('page is excluded from header nav and ACT_SUBNAV_ITEMS', async () => {
 
   const subnavBlock = actNavSource.match(/export const ACT_SUBNAV_ITEMS = \[[\s\S]*?\];/)?.[0] || '';
   assert.doesNotMatch(subnavBlock, /proposals-agreements/);
+  assert.match(actNavSource, /hasUnifiedClientFile[\s\S]*item\.route === 'contacts'/, 'school contacts should be hidden only when the unified client file is available');
+});
+
+test('client file landing consolidates proposal queues under one screen', () => {
+  const html = proposalsAgreementsScreen.render({ rows: sampleRows, contactOptions: sampleContactOptions }, { state: stateFor('admin') });
+  assert.match(html, /תיק לקוח/);
+  assert.match(html, /data-pa-client-search/);
+  assert.match(html, /טיוטות/);
+  assert.match(html, /ממתינות לאישור/);
+  assert.match(html, /הוחזרו לתיקון/);
+  assert.match(html, /ממתינות לשליחה/);
+  assert.match(html, /data-pa-client-queues/);
+});
+
+test('client search opens a closed customer file and x returns to search', async () => {
+  const rows = [{ ...sampleRows[0], authority_id: 'auth-a', school_id: 'school-a', semel_mosad: '11111' }];
+  const data = { rows, contactOptions: sampleContactOptions, activityNameOptions: [] };
+  await withJSDOM(proposalsAgreementsScreen.render(data, { state: stateFor('admin') }), async (root, dom) => {
+    proposalsAgreementsScreen.bind({ root, data, state: stateFor('admin'), api: {} });
+    const search = root.querySelector('[data-pa-client-search]');
+    search.value = 'מיכל כהן';
+    search.dispatchEvent(new dom.window.Event('input', { bubbles: true }));
+    const results = root.querySelector('[data-pa-client-search-results]');
+    assert.equal(results.hidden, false);
+    assert.match(results.textContent, /בית ספר א/);
+    results.querySelector('[data-pa-open-client]')?.dispatchEvent(new dom.window.MouseEvent('click', { bubbles: true }));
+    assert.ok(root.querySelector('[data-pa-client-file]'));
+    assert.match(root.querySelector('[data-pa-client-file]').textContent, /רשות א/);
+    assert.match(root.querySelector('[data-pa-client-file]').textContent, /11111/);
+    assert.match(root.querySelector('[data-pa-client-file]').textContent, /מיכל כהן/);
+    root.querySelector('[data-pa-client-close]')?.dispatchEvent(new dom.window.MouseEvent('click', { bubbles: true }));
+    assert.ok(root.querySelector('[data-pa-client-search]'));
+    assert.equal(root.querySelector('[data-pa-client-file]'), null);
+  });
+});
+
+test('client file separates current proposal versions from archive', async () => {
+  const rows = [
+    { ...sampleRows[0], id: 'current-version', authority_id: 'auth-a', school_id: 'school-a', version_number: 2 },
+    { ...sampleRows[0], id: 'archived-version', authority_id: 'auth-a', school_id: 'school-a', version_number: 1, archived_at: '2026-07-20T10:00:00.000Z' }
+  ];
+  const data = { rows, contactOptions: sampleContactOptions, activityNameOptions: [] };
+  await withJSDOM(proposalsAgreementsScreen.render(data, { state: stateFor('admin') }), async (root, dom) => {
+    proposalsAgreementsScreen.bind({ root, data, state: stateFor('admin'), api: {} });
+    const search = root.querySelector('[data-pa-client-search]');
+    search.value = '11111';
+    search.dispatchEvent(new dom.window.Event('input', { bubbles: true }));
+    root.querySelector('[data-pa-open-client]')?.dispatchEvent(new dom.window.MouseEvent('click', { bubbles: true }));
+    const file = root.querySelector('[data-pa-client-file]');
+    assert.match(file.textContent, /הצעות עדכניות/);
+    assert.match(file.textContent, /ארכיון הצעות מחיר\s*1/);
+    assert.match(file.querySelector('.ds-client-proposal:not(.is-archived)')?.textContent || '', /גרסה 2/);
+    assert.match(file.querySelector('.ds-client-proposal.is-archived')?.textContent || '', /קיץ/);
+  });
+});
+
+test('client file creates contacts inside the selected school without leaving the screen', async () => {
+  const rows = [{ ...sampleRows[0], authority_id: 'auth-a', school_id: 'school-a', semel_mosad: '11111' }];
+  const data = { rows, contactOptions: sampleContactOptions, activityNameOptions: [] };
+  let savedContact = null;
+  await withJSDOM(proposalsAgreementsScreen.render(data, { state: stateFor('admin') }), async (root, dom) => {
+    proposalsAgreementsScreen.bind({
+      root,
+      data,
+      state: stateFor('admin'),
+      api: { addContact: async (payload) => { savedContact = payload; return { ok: true }; } }
+    });
+    const search = root.querySelector('[data-pa-client-search]');
+    search.value = '11111';
+    search.dispatchEvent(new dom.window.Event('input', { bubbles: true }));
+    root.querySelector('[data-pa-open-client]')?.dispatchEvent(new dom.window.MouseEvent('click', { bubbles: true }));
+    root.querySelector('[data-pa-client-add-contact]')?.dispatchEvent(new dom.window.MouseEvent('click', { bubbles: true }));
+    const form = root.querySelector('[data-pa-client-contact-form]');
+    form.querySelector('[name="contact_name"]').value = 'נועה לוי';
+    form.querySelector('[name="contact_role"]').value = 'רכזת';
+    form.querySelector('[name="mobile"]').value = '050-9876543';
+    form.dispatchEvent(new dom.window.Event('submit', { bubbles: true, cancelable: true }));
+    await delay(20);
+    assert.equal(savedContact?.kind, 'school');
+    assert.equal(savedContact?.row.school_id, 'school-a');
+    assert.equal(savedContact?.row.contact_name, 'נועה לוי');
+    assert.match(root.querySelector('[data-pa-client-file]')?.textContent || '', /נועה לוי/);
+  });
+});
+
+test('new proposal from client file opens the existing editor with client prefilled', async () => {
+  const rows = [{ ...sampleRows[0], authority_id: 'auth-a', school_id: 'school-a', semel_mosad: '11111' }];
+  const data = { rows, contactOptions: sampleContactOptions, activityNameOptions: [] };
+  await withJSDOM(proposalsAgreementsScreen.render(data, { state: stateFor('admin') }), async (root, dom) => {
+    proposalsAgreementsScreen.bind({ root, data, state: stateFor('admin'), api: {} });
+    const search = root.querySelector('[data-pa-client-search]');
+    search.value = '11111';
+    search.dispatchEvent(new dom.window.Event('input', { bubbles: true }));
+    root.querySelector('[data-pa-open-client]')?.dispatchEvent(new dom.window.MouseEvent('click', { bubbles: true }));
+    root.querySelector('[data-pa-client-add-proposal]')?.dispatchEvent(new dom.window.MouseEvent('click', { bubbles: true }));
+    await delay(20);
+    const form = root.querySelector('[data-pa-form]');
+    assert.ok(form, 'existing proposal editor should open');
+    assert.equal(form.querySelector('[name="client_authority"]')?.value, 'רשות א');
+    assert.equal(form.querySelector('[name="school_framework"]')?.value, 'בית ספר א');
+    assert.equal(root.querySelector('[data-pa-client-workspace]').hidden, true);
+  });
+});
+
+test('proposal version migration preserves superseded proposals in archive', async () => {
+  const migration = await readFile(CLIENT_FILE_VERSIONS_MIGRATION_FILE, 'utf8');
+  const screenSource = await readFile(SCREEN_FILE, 'utf8');
+  assert.match(migration, /proposal_series_id uuid/);
+  assert.match(migration, /supersedes_proposal_id uuid REFERENCES public\.proposals_agreements/);
+  assert.match(migration, /SET archived_at = COALESCE\(archived_at, now\(\)\)/);
+  assert.match(screenSource, /supersedes_proposal_id:\s*text\(sourceRow\.id\)/);
 });
 
 test('local search debounces 280ms and updates only table region and counter', async () => {
