@@ -206,10 +206,13 @@ function userFacingProposalGroupLabel(value = '') {
 function proposalGroupSafeDisplayName(groupKey = '', displayName = '') {
   const key = text(groupKey);
   const label = userFacingProposalGroupLabel(displayName);
-  // Keep internal / Supabase values intact, but force the user-facing annual proposal label.
-  if (key === 'next_year') return PROPOSAL_GROUP_DISPLAY_FALLBACKS.next_year;
+  if (Object.prototype.hasOwnProperty.call(PROPOSAL_GROUP_DISPLAY_FALLBACKS, key)) {
+    return PROPOSAL_GROUP_DISPLAY_FALLBACKS[key];
+  }
+  const alias = PROPOSAL_GROUP_LEGACY_ALIASES[key] || PROPOSAL_GROUP_LEGACY_ALIASES[label] || PROPOSAL_GROUP_LEGACY_ALIASES[normalizeHebrewQuoteVariants(label)];
+  if (alias && PROPOSAL_GROUP_DISPLAY_FALLBACKS[alias]) return PROPOSAL_GROUP_DISPLAY_FALLBACKS[alias];
   if (label && label !== key) return label;
-  return userFacingProposalGroupLabel(PROPOSAL_GROUP_DISPLAY_FALLBACKS[key] || label || key);
+  return userFacingProposalGroupLabel(label || key);
 }
 let proposalTemplateSectionsLookup = [];
 
@@ -498,19 +501,36 @@ function normalizeProposalDomain(raw) {
 function proposalGroupDisplayName(value) {
   const raw = text(value);
   if (!raw) return '';
+  const directAlias = PROPOSAL_GROUP_LEGACY_ALIASES[raw] || PROPOSAL_GROUP_LEGACY_ALIASES[normalizeHebrewQuoteVariants(raw)];
+  if (directAlias && PROPOSAL_GROUP_DISPLAY_FALLBACKS[directAlias]) {
+    return PROPOSAL_GROUP_DISPLAY_FALLBACKS[directAlias];
+  }
+  if (Object.prototype.hasOwnProperty.call(PROPOSAL_GROUP_DISPLAY_FALLBACKS, raw)) {
+    return PROPOSAL_GROUP_DISPLAY_FALLBACKS[raw];
+  }
   const key = normalizeProposalGroup(raw);
   if (Object.prototype.hasOwnProperty.call(PROPOSAL_GROUP_DISPLAY_FALLBACKS, key)) {
     return PROPOSAL_GROUP_DISPLAY_FALLBACKS[key];
   }
   const meta = proposalGroupMeta(raw);
-  const label = userFacingProposalGroupLabel(meta?.display_name || '');
-  if (label && label !== key && !/^[a-z][a-z0-9_]*$/i.test(label)) return label;
-  if (/^[a-z][a-z0-9_]*$/i.test(raw) || (key && /^[a-z][a-z0-9_]*$/i.test(key) && !label)) {
-    // eslint-disable-next-line no-console
-    console.warn('[client-file] unknown proposal type value', raw);
-    return '';
+  const templateKey = text(meta?.template_key || meta?.group_key);
+  if (Object.prototype.hasOwnProperty.call(PROPOSAL_GROUP_DISPLAY_FALLBACKS, templateKey)) {
+    return PROPOSAL_GROUP_DISPLAY_FALLBACKS[templateKey];
   }
-  return label || '';
+  const label = userFacingProposalGroupLabel(meta?.display_name || '');
+  const labelAlias = PROPOSAL_GROUP_LEGACY_ALIASES[label] || PROPOSAL_GROUP_LEGACY_ALIASES[normalizeHebrewQuoteVariants(label)];
+  if (labelAlias && PROPOSAL_GROUP_DISPLAY_FALLBACKS[labelAlias]) {
+    return PROPOSAL_GROUP_DISPLAY_FALLBACKS[labelAlias];
+  }
+  if (/סיור/.test(label) || /סיור/.test(raw)) return PROPOSAL_GROUP_DISPLAY_FALLBACKS.tour;
+  if (/קיץ/.test(label) || /קיץ/.test(raw) || /summer/i.test(raw)) return PROPOSAL_GROUP_DISPLAY_FALLBACKS.summer;
+  if (/תשפ|שנה הבאה|תוכניות|next[_-]?year/i.test(label) || /תשפ|שנה הבאה|תוכניות|next[_-]?year/i.test(raw)) {
+    return PROPOSAL_GROUP_DISPLAY_FALLBACKS.next_year;
+  }
+  if (label && label !== key && !/^[a-z][a-z0-9_]*$/i.test(label)) return label;
+  // eslint-disable-next-line no-console
+  console.warn('[client-file] unknown proposal type value', raw);
+  return '';
 }
 
 function resolveProposalTemplateKey(value) {
@@ -4182,10 +4202,6 @@ function proposalCompactCardHtml(row, { archived = false } = {}) {
   const version = Math.max(1, Number(row.version_number) || 1);
   const amount = row.total_amount != null ? `₪${escapeHtml(formatCurrency(row.total_amount))}` : '';
   const typeLabel = proposalGroupDisplayName(row.activity_type_group) || '—';
-  if (!proposalGroupDisplayName(row.activity_type_group) && text(row.activity_type_group)) {
-    // eslint-disable-next-line no-console
-    console.warn('[client-file] unknown proposal type value', row.activity_type_group);
-  }
   const hasPdf = Boolean(text(row.final_pdf_path) || text(row.final_pdf_file_name));
   return `<article class="ds-client-proposal${archived ? ' is-archived' : ''}">
     <button type="button" class="ds-client-proposal__main" data-pa-row-id="${escapeHtml(row.id)}" aria-label="פתיחת הצעה">

@@ -4804,18 +4804,18 @@ test('proposal type activity group selector renders exactly canonical display_na
     ]
   }, [{ activity_type_group: 'קיץ תשפ״ו' }], [{ proposal_group: 'pricing-alias' }]);
   assert.deepEqual(options, [
-    { value: 'summer', label: 'קיץ תשפ״ו' },
-    { value: 'next_year', label: 'תוכניות תשפ״ז' },
-    { value: 'combined', label: 'קיץ תשפ״ו ותוכניות תשפ״ז' }
+    { value: 'summer', label: 'קיץ' },
+    { value: 'next_year', label: 'תשפ״ז' },
+    { value: 'combined', label: 'הצעה משולבת' }
   ]);
 
   const html = proposalTypeCardsHtml('קיץ תשפ״ו');
   assert.equal((html.match(/data-pa-type-btn=/g) || []).length, 3);
   assert.match(html, /data-pa-type-btn="summer"/);
   assert.match(html, /value="summer"/);
-  assert.match(html, /קיץ תשפ״ו/);
-  assert.match(html, /תוכניות תשפ״ז/);
-  assert.match(html, /קיץ תשפ״ו ותוכניות תשפ״ז/);
+  assert.match(html, /קיץ/);
+  assert.match(html, /תשפ״ז/);
+  assert.match(html, /הצעה משולבת/);
   assert.doesNotMatch(html, />summer</);
   assert.doesNotMatch(html, />next_year</);
   assert.doesNotMatch(html, />combined</);
