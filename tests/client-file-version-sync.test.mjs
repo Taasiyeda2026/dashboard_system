@@ -12,11 +12,11 @@ test('service worker and client-file hotfix versions are current and structurall
   ]);
 
   const cacheVersion = Number(sw.match(/const CACHE_VERSION = (\d+);/)?.[1] || 0);
-  assert.ok(Number.isInteger(cacheVersion) && cacheVersion >= 1246, 'CACHE_VERSION must remain at the current generation or newer');
+  assert.ok(Number.isInteger(cacheVersion) && cacheVersion >= 1247, 'CACHE_VERSION must remain at the current generation or newer');
 
   const hotfixVersion = config.match(/HOTFIX_VERSION:\s*'([^']+)'/)?.[1] || '';
   assert.ok(hotfixVersion.trim(), 'HOTFIX_VERSION must be defined');
-  assert.match(hotfixVersion, /proposal-pdf-svg-origin-clean/, 'HOTFIX_VERSION must describe the current PDF SVG origin-clean generation');
+  assert.match(hotfixVersion, /proposal-pdf-storage-key/, 'HOTFIX_VERSION must describe the current proposal PDF storage-key generation');
 
   const installBlock = sw.match(/self\.addEventListener\('install',[\s\S]*?\n\}\);/)?.[0] || '';
   assert.doesNotMatch(installBlock, /deleteOutdatedCaches\(/);
