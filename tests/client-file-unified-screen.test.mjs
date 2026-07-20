@@ -80,6 +80,64 @@ test('client file uses a single native implementation without overlay scripts', 
   assert.doesNotMatch(screen, /stopImmediatePropagation/);
 });
 
+test('client-file render is data-pure and bind never requests an initial rerender', async () => {
+  const state = stateFor({ manage: true, role: 'admin' });
+  const data = {
+    rows: [{ id: 'pure-1', client_authority: 'חיפה', school_framework: 'אליאנס', school_id: '11', status: 'draft', activity_type_group: 'next_year' }],
+    contactOptions: []
+  };
+  const before = structuredClone(data);
+  const html = proposalsAgreementsScreen.render(data, { state });
+  assert.deepEqual(data, before, 'render must not mutate the supplied screen data');
+
+  await withJSDOM(html, async (root) => {
+    let rerenders = 0;
+    assert.doesNotThrow(() => proposalsAgreementsScreen.bind({
+      root,
+      data: structuredClone(data),
+      state,
+      api: { readProposalAgreementItems: async () => [] },
+      rerender: () => { rerenders += 1; }
+    }));
+    assert.equal(rerenders, 0, 'bind must not synchronously or implicitly rerender');
+  });
+});
+
+test('combined activity-group metadata cannot recurse while the client-file screen renders', () => {
+  const data = {
+    rows: [],
+    contactOptions: [],
+    proposalActivityGroups: [{
+      group_key: 'combined',
+      display_name: 'הצעה משולבת',
+      template_key: 'combined',
+      included_group_keys: ['summer', 'next_year'],
+      is_combined: true,
+      is_active: true
+    }],
+    proposalActivityPricing: [{ proposal_group: 'combined', activity_name: 'חבילה' }]
+  };
+  assert.doesNotThrow(() => proposalsAgreementsScreen.render(data, { state: stateFor() }));
+});
+
+test('a pending client search cannot update a replaced or detached screen root', async () => {
+  const state = stateFor();
+  const data = {
+    rows: [{ id: 'timer-1', client_authority: 'חיפה', school_framework: 'אליאנס', school_id: '11', status: 'draft', activity_type_group: 'next_year' }],
+    contactOptions: []
+  };
+  await withJSDOM(proposalsAgreementsScreen.render(data, { state }), async (root, dom) => {
+    proposalsAgreementsScreen.bind({ root, data: structuredClone(data), state, api: { readProposalAgreementItems: async () => [] } });
+    const input = root.querySelector('[data-pa-client-search]');
+    input.value = 'אל';
+    input.dispatchEvent(new dom.window.Event('input', { bubbles: true }));
+    root.innerHTML = '<p data-replacement>מסך חלופי</p>';
+    await new Promise((resolve) => setTimeout(resolve, 320));
+    assert.ok(root.querySelector('[data-replacement]'));
+    assert.equal(root.querySelector('[data-pa-client-search-results]'), null);
+  });
+});
+
 test('view-only users do not see management actions; managers do', async () => {
   const viewState = stateFor({ manage: false, role: 'business_development_manager' });
   const manageState = stateFor({ manage: true, role: 'admin' });
@@ -382,13 +440,13 @@ test('opening a proposal from all-proposals table returns to the table with filt
 test('service worker version and activate-only cache cleanup', async () => {
   const sw = await readFile(SW_FILE, 'utf8');
   const config = await readFile(CONFIG_FILE, 'utf8');
-  assert.match(sw, /const CACHE_VERSION = 1239;/);
+  assert.match(sw, /const CACHE_VERSION = 1240;/);
   const installBlock = sw.match(/self\.addEventListener\('install',[\s\S]*?\n\}\);/)?.[0] || '';
   assert.doesNotMatch(installBlock, /deleteOutdatedCaches\(/);
   assert.match(sw, /self\.addEventListener\('activate'[\s\S]*deleteOutdatedCaches\(/);
   assert.match(sw, /clients\.claim/);
   assert.match(sw, /isApiLikeUrl/);
-  assert.match(config, /instructor-contacts-stack-overflow-hotfix-20260720-v1/);
+  assert.match(config, /client-file-render-lifecycle-hotfix-20260720-v1/);
 });
 
 test('STATUS_LABELS remain available for filters', () => {

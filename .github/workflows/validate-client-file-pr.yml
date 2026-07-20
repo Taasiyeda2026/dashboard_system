@@ -41,6 +41,8 @@ jobs:
           node --check frontend/src/screens/proposals-agreements.js
           node --check frontend/src/screens/instructors.js
           node --check frontend/src/screens/instructor-contacts.js
+          node --check frontend/src/main.js
+          node --check frontend/src/api.js
           node --check tests/client-file-unified-screen.test.mjs
 
       - name: Run focused client file tests
