@@ -7,12 +7,15 @@ on:
       - 'frontend/src/screens/proposals-agreements.js'
       - 'frontend/src/screens/instructors.js'
       - 'frontend/src/screens/instructor-contacts.js'
+      - 'frontend/src/proposal-pdf-svg-origin-clean.js'
+      - 'frontend/src/main-with-proposal-pdf-hotfix.js'
       - 'frontend/src/styles/**'
       - 'frontend/src/config.js'
       - 'frontend/sw.js'
       - 'sw.js'
       - 'index.html'
       - 'tests/client-file-*.test.mjs'
+      - 'tests/proposal-pdf-svg-origin-clean.test.mjs'
       - 'tests/proposals-agreements-screen.test.mjs'
       - 'tests/instructor-contacts-nav-access.test.mjs'
       - '.github/workflows/validate-client-file-pr.yml'
@@ -41,11 +44,14 @@ jobs:
           node --check frontend/src/screens/proposals-agreements.js
           node --check frontend/src/screens/instructors.js
           node --check frontend/src/screens/instructor-contacts.js
+          node --check frontend/src/proposal-pdf-svg-origin-clean.js
+          node --check frontend/src/main-with-proposal-pdf-hotfix.js
           node --check frontend/src/main.js
           node --check frontend/src/api.js
           node --check tests/client-file-unified-screen.test.mjs
           node --check tests/client-file-version-sync.test.mjs
           node --check tests/instructor-contacts-nav-access.test.mjs
+          node --check tests/proposal-pdf-svg-origin-clean.test.mjs
 
       - name: Run unified client file tests
         run: >-
@@ -55,6 +61,9 @@ jobs:
 
       - name: Validate current cache and hotfix versions
         run: node --test tests/client-file-version-sync.test.mjs
+
+      - name: Run proposal PDF SVG origin-clean tests
+        run: node --test tests/proposal-pdf-svg-origin-clean.test.mjs
 
       - name: Run instructor contacts navigation tests
         run: node --test tests/instructor-contacts-nav-access.test.mjs
