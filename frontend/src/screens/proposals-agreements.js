@@ -2822,6 +2822,66 @@ function proposalPdfDocumentTitle(row = {}) {
   return label ? `הצעת מחיר - ${label}` : 'הצעת מחיר';
 }
 
+function proposalPdfFileName(row = {}, items = []) {
+  const client = sanitizeProposalPdfFileLabel(proposalRecipientFileLabel(row)).replace(/\s+/g, '_') || 'לקוח';
+  const typeLabels = { next_year: 'תשפז', summer: 'קיץ', tour: 'סיור' };
+  const typeKey = resolveClientFacingTypeKey(row, items) || text(row.activity_type_group);
+  const type = typeLabels[typeKey] || sanitizeProposalPdfFileLabel(typeKey).replace(/\s+/g, '_');
+  const dateValue = text(row.proposal_date).slice(0, 10) || new Date().toISOString().slice(0, 10);
+  const [year, month, day] = dateValue.split('-');
+  return `הצעת_מחיר_${client}${type ? `_${type}` : ''}_${day}-${month}-${year}.pdf`;
+}
+
+async function proposalHtmlToPdfBlob(html) {
+  const width = 794;
+  const host = document.createElement('div');
+  host.style.cssText = `position:fixed;right:-10000px;top:0;width:${width}px;background:#fff;z-index:-1`;
+  host.innerHTML = html;
+  document.body.appendChild(host);
+  try {
+    await document.fonts?.ready;
+    const height = Math.max(1123, Math.ceil(host.scrollHeight));
+    const css = Array.from(document.styleSheets).flatMap((sheet) => {
+      try { return Array.from(sheet.cssRules || []).map((rule) => rule.cssText); } catch { return []; }
+    }).join('\n');
+    const serialized = new XMLSerializer().serializeToString(host);
+    const svg = `<svg xmlns="http://www.w3.org/2000/svg" width="${width}" height="${height}"><foreignObject width="100%" height="100%"><div xmlns="http://www.w3.org/1999/xhtml"><style>${css}</style>${serialized}</div></foreignObject></svg>`;
+    const image = new Image();
+    const url = URL.createObjectURL(new Blob([svg], { type: 'image/svg+xml;charset=utf-8' }));
+    await new Promise((resolve, reject) => { image.onload = resolve; image.onerror = reject; image.src = url; });
+    const pageHeight = 1123;
+    const pages = [];
+    for (let top = 0; top < height; top += pageHeight) {
+      const canvas = document.createElement('canvas');
+      canvas.width = width * 2; canvas.height = pageHeight * 2;
+      const context = canvas.getContext('2d');
+      context.fillStyle = '#fff'; context.fillRect(0, 0, canvas.width, canvas.height);
+      context.drawImage(image, 0, top, width, Math.min(pageHeight, height - top), 0, 0, canvas.width, Math.min(canvas.height, (height - top) * 2));
+      const jpeg = await new Promise((resolve) => canvas.toBlob(resolve, 'image/jpeg', 0.94));
+      pages.push(new Uint8Array(await jpeg.arrayBuffer()));
+    }
+    URL.revokeObjectURL(url);
+    const encoder = new TextEncoder(); const chunks = []; const offsets = [0]; let length = 0;
+    const push = (value) => { const bytes = typeof value === 'string' ? encoder.encode(value) : value; chunks.push(bytes); length += bytes.length; };
+    push('%PDF-1.4\n');
+    const objectCount = 2 + pages.length * 3;
+    const object = (id, body) => { offsets[id] = length; push(`${id} 0 obj\n${body}\nendobj\n`); };
+    object(1, '<< /Type /Catalog /Pages 2 0 R >>');
+    object(2, `<< /Type /Pages /Count ${pages.length} /Kids [${pages.map((_, i) => `${3 + i * 3} 0 R`).join(' ')}] >>`);
+    pages.forEach((jpeg, i) => {
+      const pageId = 3 + i * 3, imageId = pageId + 1, contentId = pageId + 2;
+      object(pageId, `<< /Type /Page /Parent 2 0 R /MediaBox [0 0 595.28 841.89] /Resources << /XObject << /Im${i} ${imageId} 0 R >> >> /Contents ${contentId} 0 R >>`);
+      offsets[imageId] = length; push(`${imageId} 0 obj\n<< /Type /XObject /Subtype /Image /Width 1588 /Height 2246 /ColorSpace /DeviceRGB /BitsPerComponent 8 /Filter /DCTDecode /Length ${jpeg.length} >>\nstream\n`); push(jpeg); push('\nendstream\nendobj\n');
+      const command = `q 595.28 0 0 841.89 0 0 cm /Im${i} Do Q`;
+      object(contentId, `<< /Length ${command.length} >>\nstream\n${command}\nendstream`);
+    });
+    const xref = length; push(`xref\n0 ${objectCount + 1}\n0000000000 65535 f \n`);
+    for (let i = 1; i <= objectCount; i += 1) push(`${String(offsets[i]).padStart(10, '0')} 00000 n \n`);
+    push(`trailer\n<< /Size ${objectCount + 1} /Root 1 0 R >>\nstartxref\n${xref}\n%%EOF`);
+    return new Blob(chunks, { type: 'application/pdf' });
+  } finally { host.remove(); }
+}
+
 function parseSectionBodyStructure(value, options = {}) {
   const { alwaysBullet = false } = options;
   const raw = normalizeMultilineText(value).replace(/[ \t]*שורה\s+חדשה\s*:?\s*/gi, '\n');
@@ -4054,14 +4114,14 @@ function drawerActionButtons(row, state) {
   if (isAdminRole && normalizeProposalStatus(status) === 'approved' && !proposalHasSavedApprovalSignature(row)) {
     buttons.push(iconBtn(`data-pa-status-action="approved" data-pa-action-id="${escapeHtml(row.id)}"`, 'אשר וחתום מחדש', CHECK));
   }
-  if (canTransitionProposalStatus(row, 'sent', state)) {
+  if (canTransitionProposalStatus(row, 'sent', state) && proposalHasFinalPdf(row)) {
     buttons.push(iconBtn(`data-pa-status-action="sent" data-pa-action-id="${escapeHtml(row.id)}"`, 'סימון כנשלח', SENT));
   }
   if (canViewSentProposalPdf(row, state)) {
     buttons.push(iconBtn(`data-pa-view-final-pdf="${escapeHtml(row.id)}"`, 'צפייה ב־PDF שנשלח', EYE));
   }
   if (canGenerateProposalPdf(row, state)) {
-    buttons.push(iconBtn(`data-pa-print="${escapeHtml(row.id)}"`, 'הדפסה / שמירה כ-PDF', PRINT));
+    buttons.push(iconBtn(`data-pa-print="${escapeHtml(row.id)}"`, 'הפקת PDF ושמירה אוטומטית', PRINT));
     buttons.push(iconBtn(`data-pa-clone-row="${escapeHtml(row.id)}"`, 'שכפול להצעה חדשה', CLONE));
   } else if (isProposalSentLocked(row) && canManageProposalsAgreements(state)) {
     buttons.push(iconBtn(`data-pa-clone-row="${escapeHtml(row.id)}"`, 'שכפול להצעה חדשה', CLONE));
@@ -4505,7 +4565,7 @@ function proposalCompactCardHtml(row, { archived = false, canManage = false } = 
     </button>
     <div class="ds-client-proposal__actions">
       <button type="button" class="ds-client-proposal__version" data-pa-open-proposal-id="${escapeHtml(row.id)}" data-pa-return-to="client">צפייה</button>
-      ${hasPdf ? `<button type="button" class="ds-client-proposal__version" data-pa-view-final-pdf="${escapeHtml(row.id)}">PDF</button>` : ''}
+      ${hasPdf ? `<button type="button" class="ds-client-proposal__version" data-pa-view-final-pdf="${escapeHtml(row.id)}" title="פתיחת PDF שמור">PDF</button>` : (!archived && canManage && normalizeProposalStatus(row.status) === 'approved' ? `<button type="button" class="ds-client-proposal__version" data-pa-print="${escapeHtml(row.id)}" title="הפקת PDF ושמירה אוטומטית">PDF</button>` : '')}
       ${!archived && canManage ? `<button type="button" class="ds-client-proposal__version" data-pa-clone-row="${escapeHtml(row.id)}" title="יצירת גרסה חדשה">גרסה חדשה</button>` : ''}
     </div>
   </article>`;
@@ -4544,7 +4604,7 @@ function clientFileLandingHtml(data = {}, state = {}) {
       </div>
       <div class="ds-client-actions">
         <button type="button" class="ds-btn ds-btn--ghost ds-client-secondary" data-pa-client-all-proposals>כל ההצעות</button>
-        ${canManage ? '<button type="button" class="ds-btn ds-btn--ghost ds-client-secondary" data-pa-client-add-other title="חברה, עמותה או גוף שאינם בית ספר או רשות קיימים">+ לקוח אחר</button>' : ''}
+        <button type="button" class="ds-btn ds-btn--primary ds-client-secondary" data-pa-client-add-proposal title="יצירת הצעת מחיר חדשה">+ הצעה חדשה</button>
       </div>
     </div>
     <div class="ds-client-search-results" data-pa-client-search-results hidden></div>
@@ -5094,14 +5154,14 @@ export const proposalsAgreementsScreen = {
       ${dsPageHeader('תיק לקוח')}
       <section class="ds-pa-screen" data-pa-screen dir="rtl">
         <style>
-          .ds-pa-screen-tab{border-radius:10px 10px 0 0;transition:background .15s,color .15s,border-color .15s}.ds-pa-screen-tab:hover{background:rgba(14,165,233,.08)}.ds-pa-tab-count{display:inline-flex;min-width:19px;height:19px;padding:0 5px;align-items:center;justify-content:center;border-radius:999px;background:#e2e8f0;color:#475569;font-size:.72rem;margin-inline-start:4px}.ds-pa-screen-tab.is-active .ds-pa-tab-count{background:#dbeafe;color:#1d4ed8}
+          .ds-pa-pdf-spinner{display:inline-block;width:12px;height:12px;border:2px solid currentColor;border-inline-end-color:transparent;border-radius:50%;animation:ds-pa-spin .7s linear infinite}@keyframes ds-pa-spin{to{transform:rotate(360deg)}}.ds-pa-screen-tab{border-radius:10px 10px 0 0;transition:background .15s,color .15s,border-color .15s}.ds-pa-screen-tab.is-active{color:var(--ds-accent)!important;border-bottom-color:var(--ds-accent)!important}.ds-pa-screen-tab:focus-visible{outline:3px solid color-mix(in srgb,var(--ds-accent) 24%,transparent);outline-offset:2px}.ds-pa-screen-tab:hover{background:color-mix(in srgb,var(--ds-accent) 8%,transparent)}.ds-pa-tab-count{display:inline-flex;min-width:19px;height:19px;padding:0 5px;align-items:center;justify-content:center;border-radius:999px;background:#e2e8f0;color:#475569;font-size:.72rem;margin-inline-start:4px}.ds-pa-screen-tab.is-active .ds-pa-tab-count{background:var(--ds-accent-soft);color:var(--ds-accent)}
           .ds-pa-form{max-width:1080px;margin-inline:auto}.ds-pa-form .ds-pa-form-grid{max-width:100%}.ds-pa-item-card{border:1px solid #dbe7f3;border-radius:10px;background:#fff;padding:5px 8px;margin:3px 0;box-shadow:0 1px 3px rgba(15,23,42,.04)}
           .ds-pa-item-quick-row{display:grid;grid-template-columns:minmax(0,1fr) 96px;gap:6px;align-items:end}.ds-pa-item-extra{margin-top:4px}.ds-pa-item-extra-toggle{cursor:pointer;color:#2563eb;font-size:.78rem}.ds-pa-type-chips{grid-template-columns:repeat(2,minmax(0,1fr))}.ds-pa-type-card{min-height:28px!important;padding:3px 5px!important;font-size:.76rem!important}.ds-pa-summary-bar--compact{display:flex;align-items:center;gap:8px;justify-content:space-between}.ds-pa-summary-bar--compact .ds-pa-summary-pill{flex:1}.ds-pa-item-field--select select{overflow:hidden;text-overflow:ellipsis}.ds-pa-item-field--select-no-label{gap:0}.ds-pa-item-field span{display:block;font-size:.74rem;color:#64748b;margin-bottom:3px;font-weight:600}.ds-pa-line-total output{min-height:34px;display:flex;align-items:center;justify-content:center;border:1px solid #dbe7f3;border-radius:10px;background:#f8fbff;font-weight:700;color:#0f766e}.ds-pa-items-total-row{margin-top:10px;padding:10px 12px;border-radius:12px;background:#eef8ff;font-size:.9rem}.ds-pa-items-total-row strong{color:#0369a1}
           .ds-pa-bundle-prompt{margin-top:12px}.ds-pa-bundle-panel{border:1px solid #b7e0f5;background:#f8fdff;border-radius:14px;padding:12px}.ds-pa-bundle-head{display:flex;justify-content:space-between;gap:10px;align-items:center;margin-bottom:6px}.ds-pa-bundle-head strong{font-size:.9rem;color:#0f172a}.ds-pa-bundle-head span,.ds-pa-bundle-help,.ds-pa-bundle-empty{font-size:.78rem;color:#64748b}.ds-pa-bundle-grid{display:grid;grid-template-columns:repeat(auto-fit,minmax(220px,1fr));gap:8px;margin-top:10px}.ds-pa-bundle-child-card{display:grid;grid-template-columns:auto 1fr auto;align-items:center;gap:8px;border:1px solid #dbe7f3;border-radius:12px;background:#fff;padding:9px 10px;cursor:pointer;min-height:42px}.ds-pa-bundle-child-card:hover{border-color:#38bdf8;background:#f0f9ff}.ds-pa-bundle-child-card:has(input:checked){border-color:#0ea5e9;background:#e0f2fe;box-shadow:0 0 0 1px #0ea5e9 inset}.ds-pa-bundle-child-name{font-size:.82rem;color:#0f172a;line-height:1.25}.ds-pa-bundle-child-price{font-size:.8rem;font-weight:700;color:#0f766e;white-space:nowrap}.ds-pa-bundle-footer{display:flex;justify-content:space-between;align-items:center;gap:10px;margin-top:10px;flex-wrap:wrap}.ds-pa-bundle-actions{display:flex;gap:6px}.ds-pa-bundle-selection-summary{font-size:.78rem;color:#0369a1;font-weight:700}.ds-pa-summary-bundle-list{margin:4px 0 0;padding-right:16px;font-size:.72rem}.ds-pa-items-summary-table{width:100%;border-collapse:collapse;font-size:.78rem}.ds-pa-items-summary-table th,.ds-pa-items-summary-table td{border-bottom:1px solid #e5eef6;padding:6px;text-align:right}.ds-pa-items-summary-table th{color:#64748b;font-weight:700;background:#f8fbff}
           .ds-pa-active-filters{display:flex;flex-wrap:wrap;align-items:center;gap:6px 8px;border:1px solid #dbe7f3;background:#f8fbff;border-radius:10px;padding:6px 10px;margin:8px 0 10px}.ds-pa-active-filters[hidden]{display:none}.ds-pa-active-filters-label{color:#475569;font-weight:700;font-size:.82rem;flex-shrink:0}.ds-pa-active-filter-chips{display:flex;flex-wrap:wrap;gap:6px}.ds-pa-active-filter-chip{border:1px solid #bfdbfe;background:#eff6ff;color:#1e3a8a;border-radius:999px;padding:3px 9px;font-size:.78rem}.ds-pa-active-filters [data-pa-clear-filters]{margin-inline-start:auto}.ds-pa-filtered-empty{margin:12px;border:1px solid #fed7aa;background:#fff7ed;color:#9a3412;border-radius:12px;padding:14px;text-align:center}.ds-pa-filtered-empty p{margin:0 0 10px;font-weight:700}
           .ds-pa-legacy-list .ds-pa-toolbar{display:flex;flex-wrap:nowrap;align-items:end;gap:6px}.ds-pa-legacy-list .ds-pa-toolbar>*{min-width:0}.ds-pa-legacy-list .ds-pa-search{flex:1 1 170px;min-width:140px;max-width:190px}.ds-pa-legacy-list .ds-pa-filter{flex:0 1 112px;min-width:0;max-width:none}.ds-pa-legacy-list .ds-pa-filter:has([data-pa-filter="client_authority"]){flex-basis:130px}.ds-pa-legacy-list .ds-pa-filter:has([data-pa-filter="school_framework"]){flex-basis:150px}.ds-pa-legacy-list .ds-pa-filter:has([data-pa-filter="proposal_domain"]){flex-basis:90px}.ds-pa-legacy-list .ds-pa-filter:has([data-pa-filter="date_from"]),.ds-pa-legacy-list .ds-pa-filter:has([data-pa-filter="date_to"]){flex-basis:128px}.ds-pa-legacy-list .ds-pa-toolbar .ds-input,.ds-pa-legacy-list .ds-pa-clear-inline{width:100%;height:34px;min-height:34px;box-sizing:border-box}.ds-pa-legacy-list .ds-pa-clear-inline{flex:0 0 auto;width:auto;padding-inline:10px}
-          .ds-pa-legacy-list{display:none}.ds-pa-screen.is-all-proposals:not(.is-proposal-detail) .ds-pa-legacy-list{display:block}.ds-pa-screen.is-all-proposals:not(.is-proposal-detail) .ds-client-workspace{display:none}.ds-pa-screen.is-proposal-detail .ds-pa-legacy-list{display:none}.ds-pa-screen.is-proposal-detail .ds-client-workspace{display:block}.ds-pa-all-back{margin:0 0 12px}.ds-client-workspace{max-width:1180px;margin:0 auto}.ds-client-home{padding:12px 10px 8px}.ds-client-toolbar{display:flex;flex-direction:column;align-items:center;gap:12px;width:100%;max-width:100%;margin:0 auto 22px}.ds-client-search-row{display:flex;justify-content:center;width:100%;margin:0}.ds-client-search{display:block;width:min(100%,480px);margin:0 auto}.ds-client-search input{display:block;width:100%;height:44px;border:2px solid #0797bf;border-radius:999px;padding-inline:20px;background:#fff;box-sizing:border-box}.ds-client-actions{display:flex;justify-content:center;flex-wrap:wrap;gap:10px}.ds-client-add{width:42px;height:42px;border:0;background:transparent;color:#0797bf;font-size:2rem;cursor:pointer}.ds-client-search-results{max-width:760px;margin:0 auto 18px;border:1px solid #b7ddeb;background:#fff;border-radius:16px;box-shadow:0 12px 30px rgba(15,67,87,.12);padding:6px;max-height:380px;overflow:auto}.ds-client-search-result{display:flex;width:100%;justify-content:space-between;align-items:center;text-align:right;padding:12px 14px;border:0;border-bottom:1px solid #e6f1f5;background:#fff;cursor:pointer;border-radius:10px}.ds-client-search-result:hover,.ds-client-search-result:focus-visible{background:#eefaff;outline:3px solid rgba(7,151,191,.28);outline-offset:1px}.ds-client-search-result span{color:#64748b;font-size:.8rem}.ds-client-queues{display:grid;grid-template-columns:repeat(4,minmax(190px,1fr));gap:18px}.ds-client-queue{border:2px solid #0797bf;border-radius:16px;background:#fff;min-height:150px;overflow:hidden;box-shadow:0 4px 14px rgba(15,67,87,.06)}.ds-client-queue header{display:flex;justify-content:space-between;align-items:center;padding:12px 14px;background:#eefaff;color:#05789a}.ds-client-queue header b{display:inline-grid;place-items:center;min-width:24px;height:24px;border-radius:999px;background:#0797bf;color:#fff}.ds-client-queue>div{padding:8px}.ds-client-queue>div>p,.ds-client-empty,.ds-client-search-empty{text-align:center;color:#94a3b8;font-size:.84rem}.ds-client-queue-item{display:block;width:100%;text-align:right;border:0;border-bottom:1px solid #e5eef2;background:#fff;padding:10px 8px;cursor:pointer;border-radius:8px;transition:background .15s,box-shadow .15s}.ds-client-queue-item:hover,.ds-client-queue-item:focus-visible{background:#f0fbff;box-shadow:0 0 0 3px rgba(7,151,191,.2);outline:0}.ds-client-queue-item strong,.ds-client-queue-item span{display:block}.ds-client-queue-item span{font-size:.75rem;color:#64748b;margin-top:3px}.ds-client-home__hint{text-align:center;color:#64748b;font-size:.8rem;margin-top:16px}.ds-client-file{position:relative;display:grid;grid-template-columns:minmax(0,1fr) 350px;gap:26px;border:2px solid #0797bf;border-radius:18px;background:#fff;padding:32px;margin:14px 4px;box-shadow:0 8px 28px rgba(15,67,87,.08)}.ds-client-file__close{position:absolute;top:10px;left:12px;border:0;background:transparent;color:#dc2626;font-size:1.05rem;cursor:pointer}.ds-client-file__identity>p{display:grid;grid-template-columns:120px 1fr;gap:10px;margin:0 0 12px}.ds-client-file__identity>p span,.ds-client-file h3{color:#0788ad;font-weight:700}.ds-client-file__contacts-head,.ds-client-file__proposals-head{display:flex;justify-content:space-between;align-items:center;margin-top:22px}.ds-client-file h3{margin:0;font-size:1.05rem}.ds-client-contacts{display:grid;gap:8px;margin-top:10px}.ds-client-contact{display:grid;grid-template-columns:minmax(130px,1fr) minmax(180px,1fr) auto;gap:14px;align-items:center;padding:10px 12px;border:1px solid #d7eaf1;border-radius:12px;background:#fbfeff}.ds-client-contact strong,.ds-client-contact span,.ds-client-contact a{display:block}.ds-client-contact span,.ds-client-contact a{font-size:.8rem;color:#64748b}.ds-client-contact button{border:0;background:transparent;color:#0788ad;cursor:pointer;font-size:1rem}.ds-client-file__proposals{border:2px solid #0797bf;border-radius:16px;padding:16px;background:#fbfeff;align-self:start}.ds-client-file__proposals-head{margin:0 0 10px}.ds-client-file__proposals hr{border:0;border-top:1px solid #1f2937;margin:20px 10px}.ds-client-proposal{border:1px solid #d7eaf1;background:#fff;border-radius:12px;margin:8px 0;padding:5px}.ds-client-proposal.is-archived{opacity:.78}.ds-client-proposal__main{display:grid;grid-template-columns:auto 1fr auto;gap:8px;align-items:center;width:100%;text-align:right;border:0;background:transparent;padding:7px;cursor:pointer}.ds-client-proposal__main span strong,.ds-client-proposal__main span small{display:block}.ds-client-proposal__main small{color:#64748b;font-size:.7rem;margin-top:2px}.ds-client-proposal__main b{font-size:.76rem;color:#0f766e}.ds-client-proposal__actions{display:flex;flex-wrap:wrap;gap:4px;justify-content:flex-end;padding:0 7px 6px}.ds-client-proposal__version{display:inline-block;margin-inline-start:auto;border:0;background:transparent;color:#0788ad;font-size:.72rem;cursor:pointer;padding:2px 7px}.ds-client-archive summary{cursor:pointer;color:#64748b;font-weight:700;font-size:.84rem}.ds-client-archive summary b{display:inline-grid;place-items:center;min-width:20px;height:20px;border-radius:999px;background:#e2e8f0;margin-inline-start:4px}.ds-client-contact-modal{position:fixed;inset:0;z-index:10000;display:grid;place-items:center;background:rgba(15,23,42,.45);padding:20px}.ds-client-contact-form{position:relative;width:min(520px,100%);display:grid;grid-template-columns:1fr 1fr;gap:12px;background:#fff;border-radius:18px;padding:26px;box-shadow:0 24px 60px rgba(15,23,42,.25)}.ds-client-contact-form h3,.ds-client-contact-form>div,.ds-client-contact-form>p{grid-column:1/-1}.ds-client-contact-form label{display:grid;gap:5px;font-size:.8rem;color:#475569}.ds-client-contact-form>p{color:#dc2626;margin:0}.ds-client-contact-form>div{display:flex;gap:8px;justify-content:flex-start}
-          .ds-pa-proposal-detail{max-width:920px;margin:0 auto;padding:8px 10px 24px}.ds-pa-proposal-detail-toolbar{display:flex;align-items:center;gap:12px;flex-wrap:wrap;margin-bottom:14px}.ds-pa-proposal-detail-title{margin:0;font-size:1.15rem;color:#05789a;font-weight:700}.ds-pa-proposal-detail .ds-pa-drawer{position:static;inset:auto;z-index:auto;display:block;background:transparent;justify-content:stretch}.ds-pa-proposal-detail .ds-pa-drawer-panel{width:100%;max-width:100%;height:auto;max-height:none;overflow:visible;border:2px solid #0797bf;border-radius:18px;box-shadow:0 8px 28px rgba(15,67,87,.08)}.ds-pa-proposal-detail .ds-pa-drawer-head [data-pa-close-drawer]{display:none}
+          .ds-pa-legacy-list{display:none}.ds-pa-screen.is-all-proposals:not(.is-proposal-detail) .ds-pa-legacy-list{display:block}.ds-pa-screen.is-all-proposals:not(.is-proposal-detail) .ds-client-workspace{display:none}.ds-pa-screen.is-proposal-detail .ds-pa-legacy-list{display:none}.ds-pa-screen.is-proposal-detail .ds-client-workspace{display:block}.ds-pa-all-back{margin:0 0 12px}.ds-client-workspace{max-width:1180px;margin:0 auto}.ds-client-home{padding:12px 10px 8px}.ds-client-toolbar{display:flex;flex-direction:column;align-items:center;gap:12px;width:100%;max-width:100%;margin:0 auto 22px}.ds-client-search-row{display:flex;justify-content:center;width:100%;margin:0}.ds-client-search{display:block;width:min(100%,480px);margin:0 auto}.ds-client-search input{display:block;width:100%;height:44px;border:2px solid var(--ds-accent);border-radius:999px;padding-inline:20px;background:#fff;box-sizing:border-box}.ds-client-search input:focus{border-color:var(--ds-accent);box-shadow:0 0 0 3px color-mix(in srgb,var(--ds-accent) 20%,transparent);outline:0}.ds-client-actions{display:flex;justify-content:center;flex-wrap:wrap;gap:10px}.ds-client-add{width:42px;height:42px;border:0;background:transparent;color:var(--ds-accent);font-size:2rem;cursor:pointer}.ds-client-search-results{max-width:760px;margin:0 auto 18px;border:1px solid color-mix(in srgb,var(--ds-accent) 30%,var(--ds-border));background:#fff;border-radius:16px;box-shadow:0 12px 30px color-mix(in srgb,var(--ds-accent) 12%,transparent);padding:6px;max-height:380px;overflow:auto}.ds-client-search-result{display:flex;width:100%;justify-content:space-between;align-items:center;text-align:right;padding:12px 14px;border:0;border-bottom:1px solid var(--ds-border);background:#fff;cursor:pointer;border-radius:10px}.ds-client-search-result:hover,.ds-client-search-result:focus-visible{background:var(--ds-accent-soft);outline:3px solid color-mix(in srgb,var(--ds-accent) 28%,transparent);outline-offset:1px}.ds-client-search-result span{color:#64748b;font-size:.8rem}.ds-client-queues{display:grid;grid-template-columns:repeat(4,minmax(190px,1fr));gap:18px}.ds-client-queue{border:2px solid var(--ds-accent);border-radius:16px;background:#fff;min-height:150px;overflow:hidden;box-shadow:0 4px 14px color-mix(in srgb,var(--ds-accent) 6%,transparent)}.ds-client-queue header{display:flex;justify-content:space-between;align-items:center;padding:12px 14px;background:var(--ds-accent-soft);color:var(--ds-accent)}.ds-client-queue header b{display:inline-grid;place-items:center;min-width:24px;height:24px;border-radius:999px;background:var(--ds-accent);color:#fff}.ds-client-queue>div{padding:8px}.ds-client-queue>div>p,.ds-client-empty,.ds-client-search-empty{text-align:center;color:#94a3b8;font-size:.84rem}.ds-client-queue-item{display:block;width:100%;text-align:right;border:0;border-bottom:1px solid var(--ds-border);background:#fff;padding:10px 8px;cursor:pointer;border-radius:8px;transition:background .15s,box-shadow .15s}.ds-client-queue-item:hover,.ds-client-queue-item:focus-visible{background:color-mix(in srgb,var(--ds-accent) 7%,var(--ds-surface));box-shadow:0 0 0 3px color-mix(in srgb,var(--ds-accent) 20%,transparent);outline:0}.ds-client-queue-item strong,.ds-client-queue-item span{display:block}.ds-client-queue-item span{font-size:.75rem;color:#64748b;margin-top:3px}.ds-client-home__hint{text-align:center;color:#64748b;font-size:.8rem;margin-top:16px}.ds-client-file{position:relative;display:grid;grid-template-columns:minmax(0,1fr) 350px;gap:26px;border:2px solid var(--ds-accent);border-radius:18px;background:#fff;padding:32px;margin:14px 4px;box-shadow:0 8px 28px color-mix(in srgb,var(--ds-accent) 8%,transparent)}.ds-client-file__close{position:absolute;top:10px;left:12px;border:0;background:transparent;color:#dc2626;font-size:1.05rem;cursor:pointer}.ds-client-file__identity>p{display:grid;grid-template-columns:120px 1fr;gap:10px;margin:0 0 12px}.ds-client-file__identity>p span,.ds-client-file h3{color:var(--ds-accent);font-weight:700}.ds-client-file__contacts-head,.ds-client-file__proposals-head{display:flex;justify-content:space-between;align-items:center;margin-top:22px}.ds-client-file h3{margin:0;font-size:1.05rem}.ds-client-contacts{display:grid;gap:8px;margin-top:10px}.ds-client-contact{display:grid;grid-template-columns:minmax(130px,1fr) minmax(180px,1fr) auto;gap:14px;align-items:center;padding:10px 12px;border:1px solid color-mix(in srgb,var(--ds-accent) 20%,var(--ds-border));border-radius:12px;background:color-mix(in srgb,var(--ds-accent) 3%,var(--ds-surface))}.ds-client-contact strong,.ds-client-contact span,.ds-client-contact a{display:block}.ds-client-contact span,.ds-client-contact a{font-size:.8rem;color:#64748b}.ds-client-contact button{border:0;background:transparent;color:var(--ds-accent);cursor:pointer;font-size:1rem}.ds-client-file__proposals{border:2px solid var(--ds-accent);border-radius:16px;padding:16px;background:color-mix(in srgb,var(--ds-accent) 3%,var(--ds-surface));align-self:start}.ds-client-file__proposals-head{margin:0 0 10px}.ds-client-file__proposals hr{border:0;border-top:1px solid #1f2937;margin:20px 10px}.ds-client-proposal{border:1px solid color-mix(in srgb,var(--ds-accent) 20%,var(--ds-border));background:#fff;border-radius:12px;margin:8px 0;padding:5px}.ds-client-proposal.is-archived{opacity:.78}.ds-client-proposal__main{display:grid;grid-template-columns:auto 1fr auto;gap:8px;align-items:center;width:100%;text-align:right;border:0;background:transparent;padding:7px;cursor:pointer}.ds-client-proposal__main span strong,.ds-client-proposal__main span small{display:block}.ds-client-proposal__main small{color:#64748b;font-size:.7rem;margin-top:2px}.ds-client-proposal__main b{font-size:.76rem;color:#0f766e}.ds-client-proposal__actions{display:flex;flex-wrap:wrap;gap:4px;justify-content:flex-end;padding:0 7px 6px}.ds-client-proposal__version{display:inline-block;margin-inline-start:auto;border:0;background:transparent;color:var(--ds-accent);font-size:.72rem;cursor:pointer;padding:2px 7px}.ds-client-archive summary{cursor:pointer;color:#64748b;font-weight:700;font-size:.84rem}.ds-client-archive summary b{display:inline-grid;place-items:center;min-width:20px;height:20px;border-radius:999px;background:#e2e8f0;margin-inline-start:4px}.ds-client-contact-modal{position:fixed;inset:0;z-index:10000;display:grid;place-items:center;background:rgba(15,23,42,.45);padding:20px}.ds-client-contact-form{position:relative;width:min(520px,100%);display:grid;grid-template-columns:1fr 1fr;gap:12px;background:#fff;border-radius:18px;padding:26px;box-shadow:0 24px 60px rgba(15,23,42,.25)}.ds-client-contact-form h3,.ds-client-contact-form>div,.ds-client-contact-form>p{grid-column:1/-1}.ds-client-contact-form label{display:grid;gap:5px;font-size:.8rem;color:#475569}.ds-client-contact-form>p{color:#dc2626;margin:0}.ds-client-contact-form>div{display:flex;gap:8px;justify-content:flex-start}
+          .ds-pa-proposal-detail{max-width:920px;margin:0 auto;padding:8px 10px 24px}.ds-pa-proposal-detail-toolbar{display:flex;align-items:center;gap:12px;flex-wrap:wrap;margin-bottom:14px}.ds-pa-proposal-detail-title{margin:0;font-size:1.15rem;color:var(--ds-accent);font-weight:700}.ds-pa-proposal-detail .ds-pa-drawer{position:static;inset:auto;z-index:auto;display:block;background:transparent;justify-content:stretch}.ds-pa-proposal-detail .ds-pa-drawer-panel{width:100%;max-width:100%;height:auto;max-height:none;overflow:visible;border:2px solid var(--ds-accent);border-radius:18px;box-shadow:0 8px 28px color-mix(in srgb,var(--ds-accent) 8%,transparent)}.ds-pa-proposal-detail .ds-pa-drawer-head [data-pa-close-drawer]{display:none}
           @media (max-width:1100px){.ds-pa-legacy-list .ds-pa-toolbar{flex-wrap:wrap}.ds-pa-legacy-list .ds-pa-search,.ds-pa-legacy-list .ds-pa-filter{flex:1 1 150px;max-width:none}}@media (max-width:1000px){.ds-client-queues{grid-template-columns:repeat(2,1fr)}.ds-client-file{grid-template-columns:1fr}.ds-client-file__proposals{width:auto}}@media (max-width:900px){.ds-pa-bundle-grid{grid-template-columns:1fr}}@media (max-width:640px){.ds-pa-type-chips{grid-template-columns:repeat(2,minmax(0,1fr))}.ds-pa-item-quick-row{grid-template-columns:1fr}.ds-client-queues{grid-template-columns:1fr}.ds-client-search{width:calc(100% - 8px);max-width:460px}.ds-client-actions{gap:8px}.ds-client-file{padding:26px 16px}.ds-client-contact{grid-template-columns:1fr auto}.ds-client-contact__channels{grid-column:1/-1}.ds-client-contact-form{grid-template-columns:1fr}.ds-pa-legacy-list .ds-pa-search,.ds-pa-legacy-list .ds-pa-filter{flex-basis:calc(50% - 3px)}.ds-pa-legacy-list .ds-pa-clear-inline{flex:1 1 100%}}
         </style>
         <div class="ds-client-workspace" data-pa-client-workspace>${clientFileLandingHtml(data, state)}</div>
@@ -6745,6 +6805,38 @@ export const proposalsAgreementsScreen = {
       }
     };
 
+    const generateAndSaveProposalPdf = async (row, items = [], button = null) => {
+      const freshRow = rowWithCentralContact(row);
+      if (isProposalSentLocked(freshRow) || !canManage) {
+        if (proposalHasFinalPdf(freshRow)) await openProposalFinalPdf(freshRow);
+        return;
+      }
+      if (typeof api.uploadProposalFinalPdf !== 'function') {
+        showToast('לא ניתן היה להפיק את ה־PDF. ניתן לנסות שוב.', 'error');
+        return;
+      }
+      const originalHtml = button?.innerHTML;
+      if (button) { button.disabled = true; button.innerHTML = '<span class="ds-pa-pdf-spinner" aria-hidden="true"></span> מפיק...'; }
+      try {
+        const mergedItems = proposalItemsWithFallback(items, freshRow);
+        const templateSections = filterTemplateSectionsForGroup(proposalTemplateSections, freshRow.activity_type_group);
+        const documentHtmlSnapshot = proposalPreviewBodyHtml(freshRow, mergedItems, templateSections, { showSignatureImage: true });
+        const documentSnapshot = buildProposalDocumentSnapshot(freshRow, mergedItems, templateSections);
+        const blob = await proposalHtmlToPdfBlob(documentHtmlSnapshot);
+        const pdfFile = new File([blob], proposalPdfFileName(freshRow, mergedItems), { type: 'application/pdf' });
+        const result = await api.uploadProposalFinalPdf(text(freshRow.id), { pdfFile, documentSnapshot, documentHtmlSnapshot });
+        replaceLocalRow(data, result?.row || freshRow);
+        refreshTable();
+        showToast('ה־PDF הופק ונשמר בהצלחה', 'success');
+        await openProposalFinalPdf(result?.row || freshRow);
+      } catch (err) {
+        console.error('[proposal PDF generation failed]', err);
+        showToast('לא ניתן היה להפיק את ה־PDF. ניתן לנסות שוב.', 'error');
+      } finally {
+        if (button?.isConnected) { button.disabled = false; button.innerHTML = originalHtml || 'PDF'; }
+      }
+    };
+
     const finalizeSentProposal = async (row, items = [], { pdfFile = null, previewHtml: suppliedPreviewHtml = '', templateSections: suppliedTemplateSections = null } = {}) => {
       const freshRow = rowWithCentralContact(row);
       const mergedItems = proposalItemsWithFallback(items, freshRow);
@@ -6785,56 +6877,7 @@ export const proposalsAgreementsScreen = {
         }
         return;
       }
-      document.getElementById('pa-send-dialog-overlay')?.remove();
-      const overlay = document.createElement('div');
-      overlay.id = 'pa-send-dialog-overlay';
-      overlay.className = 'proposal-preview-overlay';
-      overlay.setAttribute('dir', 'rtl');
-      overlay.innerHTML = `
-        <div class="proposal-preview-toolbar no-print">
-          <button type="button" class="ds-btn ds-btn--sm no-print" id="pa-send-dialog-close">ביטול</button>
-          <button type="button" class="ds-btn ds-btn--primary ds-btn--sm no-print" id="pa-send-dialog-confirm">אשר שליחה ונעילה</button>
-          <span class="ds-pa-preview-client no-print">סימון כנשלח — נדרש PDF סופי</span>
-        </div>
-        <div class="ds-pa-send-dialog-body">
-          <p class="ds-pa-send-dialog-note no-print">לפני שליחה: הדפיסו/שמרו את המסמך כ-PDF והעלו את הקובץ הסופי. לאחר השליחה המסמך יינעל ולא יושפע משינויי תבנית.</p>
-          <label class="ds-pa-form-field ds-pa-form-field--wide no-print">
-            <span>קובץ PDF סופי *</span>
-            <input class="ds-input ds-input--sm" type="file" accept="application/pdf,.pdf" id="pa-send-pdf-input" required>
-          </label>
-          <p class="ds-pa-form-error no-print" id="pa-send-dialog-error" role="alert"></p>
-          <div class="proposal-preview-area">${previewHtml}</div>
-        </div>`;
-      document.body.appendChild(overlay);
-      const closeDialog = () => overlay.remove();
-      overlay.querySelector('#pa-send-dialog-close')?.addEventListener('click', closeDialog);
-      overlay.addEventListener('keydown', (e) => { if (e.key === 'Escape') closeDialog(); });
-      overlay.querySelector('#pa-send-dialog-confirm')?.addEventListener('click', async () => {
-        const confirmBtn = overlay.querySelector('#pa-send-dialog-confirm');
-        const errorEl = overlay.querySelector('#pa-send-dialog-error');
-        const fileInput = overlay.querySelector('#pa-send-pdf-input');
-        const pdfFile = fileInput?.files?.[0] || null;
-        if (!pdfFile) {
-          if (errorEl) errorEl.textContent = 'יש לבחור קובץ PDF סופי לפני שליחה.';
-          return;
-        }
-        if (!/\.pdf$/i.test(text(pdfFile.name)) && text(pdfFile.type) !== 'application/pdf') {
-          if (errorEl) errorEl.textContent = 'ניתן להעלות PDF בלבד.';
-          return;
-        }
-        if (typeof api.lockAndSendProposalAgreement !== 'function') {
-          if (errorEl) errorEl.textContent = 'פעולת שליחה ונעילה אינה זמינה.';
-          return;
-        }
-        confirmBtn.disabled = true;
-        try {
-          await finalizeSentProposal(freshRow, mergedItems, { pdfFile, previewHtml, templateSections });
-          closeDialog();
-        } catch (err) {
-          confirmBtn.disabled = false;
-          if (errorEl) errorEl.textContent = `שגיאה בשליחה: ${err?.message || err}`;
-        }
-      });
+      showToast('יש להפיק ולשמור PDF לפני שליחה ונעילה.', 'warning');
     };
 
     const openPreview = async (row, items, options = {}) => {
@@ -6876,7 +6919,7 @@ export const proposalsAgreementsScreen = {
         ? `<p class="ds-pa-legacy-sent-notice no-print" role="status" style="margin:6px 0 0;color:#92400e;font-size:0.85rem">לא נמצא PDF סופי — מוצגת תצוגה מתוך הנתונים הקיימים.</p>`
         : '';
       const lockedNotice = isSentLocked && lockedPreviewHtml
-        ? '<p class="ds-pa-locked-view-notice no-print" role="status" style="margin:6px 0 0;color:#1d4ed8;font-size:0.85rem">מוצג מסמך נעול שנשמר בעת השליחה — לא תצוגה חיה מתבנית Supabase.</p>'
+        ? '<p class="ds-pa-locked-view-notice no-print" role="status" style="margin:6px 0 0;color:var(--ds-accent);font-size:0.85rem">מוצג מסמך נעול שנשמר בעת השליחה — לא תצוגה חיה מתבנית Supabase.</p>'
         : '';
       const showPrintBtn = !isSentLocked || (!lockedPreviewHtml && !proposalHasFinalPdf(freshRow));
       overlay.innerHTML = `
@@ -6886,7 +6929,7 @@ export const proposalsAgreementsScreen = {
           ${submitBtnHtml}
           ${approvePreviewBtnHtml}
           ${signingMode ? '<button type="button" class="ds-btn ds-btn--primary ds-btn--sm no-print" id="pa-signature-confirm">אישור וחתימה</button><button type="button" class="ds-btn ds-btn--sm ds-btn--ghost no-print" id="pa-signature-cancel">ביטול</button>' : ''}
-          ${showPrintBtn ? '<button type="button" class="ds-btn ds-btn--sm no-print" id="pa-print-btn">הדפסה / שמירה כ-PDF</button>' : ''}
+          ${showPrintBtn ? '<button type="button" class="ds-btn ds-btn--sm no-print" id="pa-print-btn" title="הפקת PDF ושמירה אוטומטית">PDF</button>' : ''}
           ${isSentLocked && proposalHasFinalPdf(freshRow) ? '<button type="button" class="ds-btn ds-btn--sm no-print" id="pa-view-final-pdf-btn">צפייה ב־PDF שנשלח</button>' : ''}
           <span class="ds-pa-preview-client no-print">${clientLabel}</span>
           ${legacyNotice}
@@ -6903,17 +6946,8 @@ export const proposalsAgreementsScreen = {
       document.title = proposalPdfDocumentTitle(freshRow);
       const readSignatureMeta = () => defaultSignatureMeta();
       if (options.form) options.form.dataset.paPreviewSeen = 'yes';
-      if (options.autoPrint) {
-        requestAnimationFrame(() => setTimeout(() => {
-          document.title = proposalPdfDocumentTitle(freshRow);
-          window.print();
-        }, 150));
-      }
       const printButton = overlay.querySelector('#pa-print-btn');
-      printButton?.addEventListener('click', () => {
-        document.title = proposalPdfDocumentTitle(freshRow);
-        window.print();
-      });
+      printButton?.addEventListener('click', () => generateAndSaveProposalPdf(freshRow, items, printButton));
       overlay.querySelector('#pa-view-final-pdf-btn')?.addEventListener('click', () => openProposalFinalPdf(freshRow));
       const closeOverlay = () => {
         overlay.remove();
@@ -7404,18 +7438,11 @@ export const proposalsAgreementsScreen = {
 
       const addClientProposalBtn = event.target.closest?.('[data-pa-client-add-proposal]');
       if (addClientProposalBtn) {
-        if (!canManage) return;
         const file = currentClientFile();
         await openForm('add', file ? proposalPrefillForClient(file) : {});
         return;
       }
 
-      const addOtherClientBtn = event.target.closest?.('[data-pa-client-add-other]');
-      if (addOtherClientBtn) {
-        if (!canManage) return;
-        await openForm('add', { client_type: 'other', contact_source_client_type: 'other' });
-        return;
-      }
 
       const allProposalsBtn = event.target.closest?.('[data-pa-client-all-proposals]');
       if (allProposalsBtn) {
@@ -7654,7 +7681,7 @@ export const proposalsAgreementsScreen = {
           }
         } catch { items = []; }
         printBtn.disabled = false;
-        await openPreview(row, proposalItemsWithFallback(items, row), { autoPrint: true });
+        await generateAndSaveProposalPdf(row, proposalItemsWithFallback(items, row), printBtn);
         return;
       }
 
