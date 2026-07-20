@@ -46,5 +46,5 @@ if (!resolvedUrl) {
 export const config = {
   apiUrl: resolvedUrl,
   DIAGNOSTICS_UI_ENABLED: false,
-  HOTFIX_VERSION: 'tour-fields-grid-20260702-v1'
+  HOTFIX_VERSION: 'client-file-unified-20260720-v1'
 };

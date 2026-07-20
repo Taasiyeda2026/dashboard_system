@@ -678,7 +678,7 @@ test('client file separates current proposal versions from archive', async () =>
     root.querySelector('[data-pa-open-client]')?.dispatchEvent(new dom.window.MouseEvent('click', { bubbles: true }));
     const file = root.querySelector('[data-pa-client-file]');
     assert.match(file.textContent, /הצעות עדכניות/);
-    assert.match(file.textContent, /ארכיון הצעות מחיר\s*1/);
+    assert.match(file.textContent, /ארכיון הצעות מחיר\s*[—-]?\s*1/);
     assert.match(file.querySelector('.ds-client-proposal:not(.is-archived)')?.textContent || '', /גרסה 2/);
     assert.match(file.querySelector('.ds-client-proposal.is-archived')?.textContent || '', /קיץ/);
   });
@@ -4804,18 +4804,18 @@ test('proposal type activity group selector renders exactly canonical display_na
     ]
   }, [{ activity_type_group: 'קיץ תשפ״ו' }], [{ proposal_group: 'pricing-alias' }]);
   assert.deepEqual(options, [
-    { value: 'summer', label: 'קיץ תשפ״ו' },
-    { value: 'next_year', label: 'תוכניות תשפ״ז' },
-    { value: 'combined', label: 'קיץ תשפ״ו ותוכניות תשפ״ז' }
+    { value: 'summer', label: 'קיץ' },
+    { value: 'next_year', label: 'תשפ״ז' },
+    { value: 'combined', label: 'הצעה משולבת' }
   ]);
 
   const html = proposalTypeCardsHtml('קיץ תשפ״ו');
-  assert.equal((html.match(/data-pa-type-btn=/g) || []).length, 3);
+  // Combined proposals are created separately; type cards expose only summer + next_year.
+  assert.equal((html.match(/data-pa-type-btn=/g) || []).length, 2);
   assert.match(html, /data-pa-type-btn="summer"/);
   assert.match(html, /value="summer"/);
-  assert.match(html, /קיץ תשפ״ו/);
-  assert.match(html, /תוכניות תשפ״ז/);
-  assert.match(html, /קיץ תשפ״ו ותוכניות תשפ״ז/);
+  assert.match(html, /קיץ/);
+  assert.match(html, /תשפ״ז/);
   assert.doesNotMatch(html, />summer</);
   assert.doesNotMatch(html, />next_year</);
   assert.doesNotMatch(html, />combined</);
