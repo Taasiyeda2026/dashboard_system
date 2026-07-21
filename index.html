@@ -14,13 +14,43 @@
   <link rel="apple-touch-icon" href="./frontend/assets/apple-touch-icon.png" />
   <link rel="stylesheet" href="./frontend/src/styles/main.css" />
   <link rel="modulepreload" href="./frontend/src/main.js" />
+  <style id="client-file-row-alignment-v2">
+    #app .ds-client-file.is-layout-polished {
+      grid-template-columns: minmax(360px, .9fr) minmax(500px, 1.45fr) !important;
+      grid-template-rows: auto auto !important;
+      column-gap: 18px !important;
+      row-gap: 12px !important;
+      max-width: 1200px !important;
+    }
+    #app .ds-client-file.is-layout-polished > .ds-client-file__header {
+      grid-column: 1 / -1 !important;
+      grid-row: 1 !important;
+    }
+    #app .ds-client-file.is-layout-polished > .ds-client-file__identity,
+    #app .ds-client-file.is-layout-polished > .ds-client-file__proposals {
+      grid-row: 2 !important;
+      align-self: start !important;
+    }
+    @media (max-width: 1000px) {
+      #app .ds-client-file.is-layout-polished {
+        grid-template-columns: 1fr !important;
+        grid-template-rows: auto auto auto !important;
+      }
+      #app .ds-client-file.is-layout-polished > .ds-client-file__identity {
+        grid-row: 2 !important;
+      }
+      #app .ds-client-file.is-layout-polished > .ds-client-file__proposals {
+        grid-row: 3 !important;
+      }
+    }
+  </style>
   <title>Dashboard-Taasiyeda</title>
 </head>
 <body>
   <main id="app"></main>
   <script type="module" src="./frontend/src/dashboard-kpi-corrections.js?v=20260720-proposal-pdf-tainted-canvas-v1"></script>
   <script type="module" src="./frontend/src/main-with-proposal-pdf-hotfix.js?v=20260721-proposal-pdf-storage-key-v1"></script>
-  <script type="module" src="./frontend/src/screens/client-file-layout-polish.js?v=20260721-client-file-layout-v1"></script>
+  <script type="module" src="./frontend/src/screens/client-file-layout-polish.js?v=20260721-client-file-layout-v2"></script>
   <script type="module" src="./frontend/src/screens/operations-summer-training-matrix.js?v=20260720-proposal-pdf-tainted-canvas-v1"></script>
   <script type="module" src="./frontend/src/screens/operations-authorities-cleanup.js?v=20260720-proposal-pdf-tainted-canvas-v1"></script>
   <script type="module" src="./frontend/src/screens/operations-visual-tweaks.js?v=20260720-operations-toolbar-compact-v1"></script>
