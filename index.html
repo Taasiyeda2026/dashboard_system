@@ -192,9 +192,11 @@
 
         const sendingCard = cardByTitle(detail, 'פרטי שליחה');
         const sendingGrid = sendingCard?.querySelector('.ds-pa-info-grid');
-        const pdfStatusCell = Array.from(sendingGrid?.querySelectorAll('.ds-pa-info-cell') || [])
-          .find((cell) => cellLabel(cell) === 'סטטוס PDF');
-        updateSavedPdfIndicator(detail, cellValue(pdfStatusCell) === 'נשמר');
+        if (sendingCard) {
+          const pdfStatusCell = Array.from(sendingGrid?.querySelectorAll('.ds-pa-info-cell') || [])
+            .find((cell) => cellLabel(cell) === 'סטטוס PDF');
+          updateSavedPdfIndicator(detail, cellValue(pdfStatusCell) === 'נשמר');
+        }
         if (proposalGrid && sendingCard) {
           proposalGrid.querySelectorAll('[data-pa-merged-sending]').forEach((cell) => cell.remove());
           const publicSendingCells = [];
