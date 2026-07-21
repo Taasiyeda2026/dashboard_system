@@ -9,11 +9,6 @@ function clean(value) {
   return String(value == null ? '' : value).trim();
 }
 
-function nullable(value) {
-  const next = clean(value);
-  return next || null;
-}
-
 function normalized(value) {
   return clean(value).replace(/\s+/g, ' ').toLocaleLowerCase('he-IL');
 }
@@ -123,27 +118,6 @@ function schoolSourceScore(row, original = {}) {
   return score;
 }
 
-async function syncMatchingSchoolPrincipal(originalRow, fields) {
-  const schoolId = originalRow?.school_id;
-  if (schoolId == null || schoolId === '') return;
-  const { data: school, error: readError } = await supabase
-    .from('schools')
-    .select('id,principal_name,school_phone')
-    .eq('id', schoolId)
-    .maybeSingle();
-  if (readError || !school) return;
-  if (normalized(school.principal_name) !== normalized(originalRow.contact_name)) return;
-  const schoolPhone = fields.mobile || fields.phone;
-  const { error: updateError } = await supabase
-    .from('schools')
-    .update({
-      principal_name: nullable(fields.contact_name),
-      school_phone: nullable(schoolPhone)
-    })
-    .eq('id', schoolId);
-  if (updateError) console.warn('[client-contact-hotfix] principal sync failed', updateError.message || updateError);
-}
-
 async function readPossibleSources(contactId) {
   const [contactResult, schoolResult] = await Promise.all([
     supabase
@@ -166,48 +140,23 @@ async function saveExistingContact(contactId, fields, original = {}) {
   const { contactRow, schoolRow } = await readPossibleSources(contactId);
   if (!contactRow && !schoolRow) throw new Error('contact_source_not_found');
 
-  const useSchoolSource = Boolean(
-    schoolRow
+  const sourceTable = schoolRow
     && (!contactRow || schoolSourceScore(schoolRow, original) > contactSourceScore(contactRow, original))
-  );
+    ? 'schools'
+    : 'contacts_schools';
 
-  if (!useSchoolSource && contactRow) {
-    const updateBody = {
-      contact_name: nullable(fields.contact_name),
-      contact_role: nullable(fields.contact_role),
-      mobile: nullable(fields.mobile),
-      phone: nullable(fields.phone),
-      email: nullable(fields.email)
-    };
-    const { data: saved, error } = await supabase
-      .from('contacts_schools')
-      .update(updateBody)
-      .eq('id', contactId)
-      .select('id,school_id,contact_name,contact_role,phone,mobile,email')
-      .single();
-    if (error) throw error;
-    if (!saved || !valuesMatchContact(saved, fields)) throw new Error('contact_update_verification_failed');
-    await syncMatchingSchoolPrincipal(contactRow, fields);
-    return { source: 'contacts_schools', row: saved };
-  }
-
-  const schoolPhone = fields.mobile || fields.phone;
-  const { data: savedSchool, error: schoolError } = await supabase
-    .from('schools')
-    .update({
-      principal_name: nullable(fields.contact_name),
-      school_phone: nullable(schoolPhone)
-    })
-    .eq('id', contactId)
-    .select('id,principal_name,school_phone')
-    .single();
-  if (schoolError) throw schoolError;
-  if (!savedSchool
-      || normalized(savedSchool.principal_name) !== normalized(fields.contact_name)
-      || normalized(savedSchool.school_phone) !== normalized(schoolPhone)) {
-    throw new Error('school_contact_update_verification_failed');
-  }
-  return { source: 'schools', row: savedSchool };
+  const { data: saved, error } = await supabase.rpc('save_client_file_contact', {
+    p_source_table: sourceTable,
+    p_source_id: Number(contactId),
+    p_contact_name: fields.contact_name,
+    p_contact_role: fields.contact_role || null,
+    p_phone: fields.phone || null,
+    p_mobile: fields.mobile || null,
+    p_email: fields.email || null
+  });
+  if (error) throw error;
+  if (!saved || !valuesMatchContact(saved, fields)) throw new Error('contact_update_verification_failed');
+  return saved;
 }
 
 async function handleContactSubmit(event) {
