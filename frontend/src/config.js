@@ -46,5 +46,5 @@ if (!resolvedUrl) {
 export const config = {
   apiUrl: resolvedUrl,
   DIAGNOSTICS_UI_ENABLED: false,
-  HOTFIX_VERSION: 'client-contact-persistence-verified-20260721-v1'
+  HOTFIX_VERSION: 'client-contact-secure-rpc-20260721-v2'
 };
