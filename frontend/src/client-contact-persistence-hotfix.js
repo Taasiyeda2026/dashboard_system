@@ -29,6 +29,28 @@ function formFields(form) {
   };
 }
 
+function rememberOriginalFormValues(form) {
+  if (!form || form.dataset.paOriginalContactFields) return;
+  try {
+    form.dataset.paOriginalContactFields = JSON.stringify(formFields(form));
+  } catch {
+    form.dataset.paOriginalContactFields = '{}';
+  }
+}
+
+function originalFormFields(form) {
+  try {
+    const parsed = JSON.parse(form.dataset.paOriginalContactFields || '{}');
+    return parsed && typeof parsed === 'object' ? parsed : {};
+  } catch {
+    return {};
+  }
+}
+
+function annotateContactForms(root = document) {
+  root.querySelectorAll?.(FORM_SELECTOR).forEach(rememberOriginalFormValues);
+}
+
 function setFormError(form, message) {
   const error = form.querySelector('[data-pa-client-contact-error]');
   if (error) error.textContent = message;
@@ -81,6 +103,26 @@ function valuesMatchContact(row, fields) {
     && normalized(row?.email) === normalized(fields.email);
 }
 
+function contactSourceScore(row, original = {}) {
+  if (!row) return -1;
+  let score = 0;
+  if (normalized(row.contact_name) && normalized(row.contact_name) === normalized(original.contact_name)) score += 8;
+  if (normalized(row.contact_role) === normalized(original.contact_role)) score += 2;
+  if (normalized(row.mobile) === normalized(original.mobile)) score += 3;
+  if (normalized(row.phone) === normalized(original.phone)) score += 2;
+  if (normalized(row.email) === normalized(original.email)) score += 3;
+  return score;
+}
+
+function schoolSourceScore(row, original = {}) {
+  if (!row) return -1;
+  let score = 0;
+  if (normalized(row.principal_name) && normalized(row.principal_name) === normalized(original.contact_name)) score += 8;
+  const originalPhone = original.mobile || original.phone;
+  if (normalized(row.school_phone) === normalized(originalPhone)) score += 3;
+  return score;
+}
+
 async function syncMatchingSchoolPrincipal(originalRow, fields) {
   const schoolId = originalRow?.school_id;
   if (schoolId == null || schoolId === '') return;
@@ -102,15 +144,34 @@ async function syncMatchingSchoolPrincipal(originalRow, fields) {
   if (updateError) console.warn('[client-contact-hotfix] principal sync failed', updateError.message || updateError);
 }
 
-async function saveExistingContact(contactId, fields) {
-  const { data: contactRow, error: contactReadError } = await supabase
-    .from('contacts_schools')
-    .select('id,school_id,contact_name,contact_role,phone,mobile,email')
-    .eq('id', contactId)
-    .maybeSingle();
-  if (contactReadError) throw contactReadError;
+async function readPossibleSources(contactId) {
+  const [contactResult, schoolResult] = await Promise.all([
+    supabase
+      .from('contacts_schools')
+      .select('id,school_id,contact_name,contact_role,phone,mobile,email')
+      .eq('id', contactId)
+      .maybeSingle(),
+    supabase
+      .from('schools')
+      .select('id,principal_name,school_phone')
+      .eq('id', contactId)
+      .maybeSingle()
+  ]);
+  if (contactResult.error) throw contactResult.error;
+  if (schoolResult.error) throw schoolResult.error;
+  return { contactRow: contactResult.data, schoolRow: schoolResult.data };
+}
 
-  if (contactRow) {
+async function saveExistingContact(contactId, fields, original = {}) {
+  const { contactRow, schoolRow } = await readPossibleSources(contactId);
+  if (!contactRow && !schoolRow) throw new Error('contact_source_not_found');
+
+  const useSchoolSource = Boolean(
+    schoolRow
+    && (!contactRow || schoolSourceScore(schoolRow, original) > contactSourceScore(contactRow, original))
+  );
+
+  if (!useSchoolSource && contactRow) {
     const updateBody = {
       contact_name: nullable(fields.contact_name),
       contact_role: nullable(fields.contact_role),
@@ -127,7 +188,7 @@ async function saveExistingContact(contactId, fields) {
     if (error) throw error;
     if (!saved || !valuesMatchContact(saved, fields)) throw new Error('contact_update_verification_failed');
     await syncMatchingSchoolPrincipal(contactRow, fields);
-    return saved;
+    return { source: 'contacts_schools', row: saved };
   }
 
   const schoolPhone = fields.mobile || fields.phone;
@@ -146,12 +207,13 @@ async function saveExistingContact(contactId, fields) {
       || normalized(savedSchool.school_phone) !== normalized(schoolPhone)) {
     throw new Error('school_contact_update_verification_failed');
   }
-  return savedSchool;
+  return { source: 'schools', row: savedSchool };
 }
 
 async function handleContactSubmit(event) {
   const form = event.target?.closest?.(FORM_SELECTOR);
   if (!form) return;
+  rememberOriginalFormValues(form);
   const index = Number(form.dataset.paContactIndex);
   const contactId = clean(form.dataset.paContactId);
   if (!Number.isInteger(index) || index < 0 || !contactId) return;
@@ -161,6 +223,7 @@ async function handleContactSubmit(event) {
   if (form.dataset.contactSaveHotfix === 'saving') return;
 
   const fields = formFields(form);
+  const original = originalFormFields(form);
   if (!fields.contact_name) {
     setFormError(form, 'יש להזין שם איש קשר');
     return;
@@ -172,7 +235,7 @@ async function handleContactSubmit(event) {
   setFormError(form, 'שומר ומוודא שהעדכון נקלט...');
 
   try {
-    await saveExistingContact(contactId, fields);
+    await saveExistingContact(contactId, fields, original);
     updateVisibleContactCard(form, fields);
     clearScreenDataCache();
     deletePersistedCacheByPrefixes(['proposals-agreements']);
@@ -187,4 +250,9 @@ async function handleContactSubmit(event) {
   }
 }
 
+annotateContactForms();
+new MutationObserver(() => annotateContactForms()).observe(document.documentElement, {
+  childList: true,
+  subtree: true
+});
 document.addEventListener('submit', handleContactSubmit, true);
