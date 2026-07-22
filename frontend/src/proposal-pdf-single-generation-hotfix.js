@@ -73,9 +73,16 @@ export function installProposalPdfSingleGenerationHotfix(targetScreen = proposal
   const originalBind = targetScreen.bind;
   if (typeof originalBind !== 'function') return false;
 
-  targetScreen.bind = function proposalPdfSingleGenerationBind(root, data, context = {}) {
-    const result = originalBind.call(this, root, data, context);
-    installRootGuard(root, data, context);
+  targetScreen.bind = function proposalPdfSingleGenerationBind(context = {}) {
+    const result = originalBind.call(this, context);
+    const root = context?.root;
+    const data = context?.data;
+    if (root && typeof root.addEventListener === 'function') {
+      installRootGuard(root, data, {
+        ...context,
+        signal: root?._paAbort?.signal || context?.signal
+      });
+    }
     return result;
   };
 
