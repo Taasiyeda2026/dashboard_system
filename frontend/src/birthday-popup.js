@@ -3,6 +3,7 @@ import { supabase, waitForSupabaseAuthSession } from './supabase-client.js';
 
 const ISRAEL_TIME_ZONE = 'Asia/Jerusalem';
 const POPUP_ROOT_SELECTOR = '[data-birthday-popup-root]';
+const PREVIEW_QUERY_PARAM = 'birthday_preview';
 const CHECK_INTERVAL_MS = 60_000;
 const SHELL_WAIT_TIMEOUT_MS = 15_000;
 
@@ -44,6 +45,26 @@ function resolveBirthdayImagePath(path) {
   }
 }
 
+function birthdayPreviewSlug() {
+  if (typeof window === 'undefined') return '';
+  try {
+    return String(new URL(window.location.href).searchParams.get(PREVIEW_QUERY_PARAM) || '').trim();
+  } catch {
+    return '';
+  }
+}
+
+function clearBirthdayPreviewParam() {
+  if (typeof window === 'undefined') return;
+  try {
+    const url = new URL(window.location.href);
+    url.searchParams.delete(PREVIEW_QUERY_PARAM);
+    window.history.replaceState({}, '', url);
+  } catch {
+    // Ignore URL parsing failures.
+  }
+}
+
 function closeBirthdayPopup() {
   const root = document.querySelector(POPUP_ROOT_SELECTOR);
   if (root) root.remove();
@@ -67,6 +88,18 @@ function waitForAuthenticatedShell(timeoutMs = SHELL_WAIT_TIMEOUT_MS) {
       if (Date.now() - startedAt >= timeoutMs) finish(false);
     }, 120);
   });
+}
+
+async function fetchBirthdayPreview(employeeSlug) {
+  const { data, error } = await supabase
+    .from('employee_birthdays')
+    .select('id,employee_name,employee_slug,image_path,display_order')
+    .eq('employee_slug', employeeSlug)
+    .eq('is_active', true)
+    .maybeSingle();
+
+  if (error) throw error;
+  return data || null;
 }
 
 async function fetchPendingBirthdays(userId, dateParts) {
@@ -113,7 +146,7 @@ async function saveBirthdayAcknowledgement(userId, birthdayId, birthdayYear) {
   if (error && error.code !== '23505') throw error;
 }
 
-function createBirthdayPopupElement(birthday) {
+function createBirthdayPopupElement(birthday, { preview = false } = {}) {
   const root = document.createElement('div');
   root.className = 'birthday-popup-overlay';
   root.dataset.birthdayPopupRoot = 'true';
@@ -154,6 +187,15 @@ function createBirthdayPopupElement(birthday) {
 
   confirmButton.addEventListener('click', async () => {
     if (confirmButton.disabled) return;
+
+    if (preview) {
+      closeBirthdayPopup();
+      clearBirthdayPreviewParam();
+      activeQueue = [];
+      activeRunKey = '';
+      return;
+    }
+
     confirmButton.disabled = true;
     confirmButton.textContent = 'שומר…';
     errorText.hidden = true;
@@ -182,6 +224,14 @@ function createBirthdayPopupElement(birthday) {
   return { root, confirmButton };
 }
 
+function mountBirthdayPopup(birthday, options = {}) {
+  closeBirthdayPopup();
+  const { root, confirmButton } = createBirthdayPopupElement(birthday, options);
+  document.body.appendChild(root);
+  document.body.classList.add('birthday-popup-open');
+  window.requestAnimationFrame(() => confirmButton.focus({ preventScroll: true }));
+}
+
 function showNextBirthdayPopup() {
   closeBirthdayPopup();
   const birthday = activeQueue[0];
@@ -189,11 +239,17 @@ function showNextBirthdayPopup() {
     activeRunKey = '';
     return;
   }
+  mountBirthdayPopup(birthday);
+}
 
-  const { root, confirmButton } = createBirthdayPopupElement(birthday);
-  document.body.appendChild(root);
-  document.body.classList.add('birthday-popup-open');
-  window.requestAnimationFrame(() => confirmButton.focus({ preventScroll: true }));
+async function showBirthdayPreview(employeeSlug) {
+  const shellReady = await waitForAuthenticatedShell();
+  if (!shellReady) return false;
+  const birthday = await fetchBirthdayPreview(employeeSlug);
+  if (!birthday) return false;
+  activeRunKey = `preview:${employeeSlug}`;
+  mountBirthdayPopup(birthday, { preview: true });
+  return true;
 }
 
 async function runBirthdayCheck(session) {
@@ -243,6 +299,17 @@ async function triggerBirthdayCheck(sessionOverride = null) {
       closeBirthdayPopup();
       return;
     }
+
+    const previewSlug = birthdayPreviewSlug();
+    if (previewSlug) {
+      try {
+        const previewShown = await showBirthdayPreview(previewSlug);
+        if (previewShown) return;
+      } catch (error) {
+        console.error('[birthday-popup] preview failed', error);
+      }
+    }
+
     await runBirthdayCheck(session);
   })().finally(() => {
     checkPromise = null;
