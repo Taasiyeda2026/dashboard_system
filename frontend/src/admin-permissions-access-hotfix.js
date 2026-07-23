@@ -28,6 +28,10 @@ export const ADMIN_ONLY_API_ACTIONS = Object.freeze([
 
 const adminOnlyRouteSet = new Set(ADMIN_ONLY_ROUTES);
 
+export function hasResolvedUser(user = state?.user) {
+  return Boolean(user && typeof user === 'object' && String(user?.role || user?.display_role || '').trim());
+}
+
 export function isSystemAdmin(user = state?.user || {}) {
   return String(user?.role || user?.display_role || '').trim() === 'admin';
 }
@@ -92,7 +96,7 @@ function arraysEqual(a, b) {
 }
 
 function scrubStoredRoutes() {
-  if (typeof localStorage === 'undefined' || isSystemAdmin()) return;
+  if (typeof localStorage === 'undefined' || !hasResolvedUser() || isSystemAdmin()) return;
   try {
     const raw = localStorage.getItem('dashboard_routes');
     if (!raw) return;
@@ -108,7 +112,7 @@ function scrubStoredRoutes() {
 }
 
 function scrubAdminRouteFromUrl() {
-  if (typeof window === 'undefined' || isSystemAdmin()) return;
+  if (typeof window === 'undefined' || !hasResolvedUser() || isSystemAdmin()) return;
   try {
     const url = new URL(window.location.href);
     const requestedRoute = String(url.searchParams.get('route') || '').trim();
@@ -122,7 +126,7 @@ function scrubAdminRouteFromUrl() {
 }
 
 export function enforceAdminOnlyState() {
-  if (isSystemAdmin()) return false;
+  if (!hasResolvedUser() || isSystemAdmin()) return false;
   let changed = false;
 
   const nextRoutes = sanitizeAdminOnlyRoutes(state?.routes);
@@ -148,7 +152,7 @@ export function enforceAdminOnlyState() {
 }
 
 function removeAdminOnlyNavigation() {
-  if (typeof document === 'undefined' || isSystemAdmin()) return;
+  if (typeof document === 'undefined' || !hasResolvedUser() || isSystemAdmin()) return;
   const selectors = ADMIN_ONLY_ROUTES.flatMap((route) => [
     `[data-route="${route}"]`,
     `[data-act-subnav="${route}"]`
@@ -169,7 +173,7 @@ enforceUiBoundary();
 
 if (typeof document !== 'undefined') {
   document.addEventListener('click', (event) => {
-    if (isSystemAdmin()) return;
+    if (!hasResolvedUser() || isSystemAdmin()) return;
     const target = event.target?.closest?.('[data-route], [data-act-subnav]');
     const requestedRoute = String(target?.dataset?.route || target?.dataset?.actSubnav || '').trim();
     if (!adminOnlyRouteSet.has(requestedRoute)) return;
