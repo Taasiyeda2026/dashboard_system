@@ -9,3 +9,4 @@ import './school-calendar-runtime.js';
 import './birthday-popup.js';
 import './birthday-calendar.js';
 import './main.js';
+import './screens/annual-reviews-v2.js';
