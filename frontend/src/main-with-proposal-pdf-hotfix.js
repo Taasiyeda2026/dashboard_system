@@ -7,4 +7,5 @@ import './admin-lists-auth-hotfix.js';
 import './admin-permissions-access-hotfix.js';
 import './school-calendar-runtime.js';
 import './birthday-popup.js';
+import './birthday-calendar.js';
 import './main.js';
