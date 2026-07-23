@@ -2,7 +2,7 @@ import './styles/birthday-popup-overlay-fix.css';
 
 const PREVIEW_QUERY_PARAM = 'birthday_preview';
 const POPUP_ROOT_SELECTOR = '[data-birthday-popup-root]';
-const DISMISS_GUARD_MS = 3000;
+const DISMISS_GUARD_MS = 15_000;
 
 let suppressUntil = 0;
 let suppressedDialogLabel = '';
