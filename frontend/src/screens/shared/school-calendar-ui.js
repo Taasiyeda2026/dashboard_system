@@ -16,26 +16,83 @@ function ensureSchoolCalendarStyles() {
   style.textContent = `
     #app .ds-interactive-card--day-cell.is-school-calendar-day {
       border-color: rgba(99, 102, 241, .45);
+      min-width: 0;
     }
     #app .ds-interactive-card--day-cell.is-school-holiday {
       background: rgba(124, 58, 237, .07);
     }
     #app .ds-interactive-card--day-cell .ds-interactive-card__subtitle[data-school-calendar-label] {
-      display: -webkit-box;
+      display: block;
+      width: 100%;
+      max-width: 100%;
+      min-width: 0;
       overflow: hidden;
-      -webkit-line-clamp: 2;
-      -webkit-box-orient: vertical;
-      line-height: 1.25;
-      font-size: .74rem;
+      white-space: normal !important;
+      overflow-wrap: anywhere;
+      word-break: break-word;
+      line-height: 1.16;
+      font-size: .56rem;
+      padding: 1px 3px;
+      border-radius: 6px;
+    }
+    #app .ds-interactive-card--day-cell.is-school-calendar-day .ds-interactive-card__meta {
+      max-width: 100%;
+      min-width: 0;
+      font-size: .58rem;
+      line-height: 1.16;
+      white-space: normal;
+      overflow-wrap: anywhere;
+      word-break: break-word;
+    }
+    #app .ds-week-col__head {
+      min-width: 0;
+      overflow: hidden;
     }
     #app .ds-week-col__holiday[data-school-calendar-label] {
       display: block;
+      width: 100%;
+      max-width: 100%;
+      min-width: 0;
       margin-top: 4px;
-      line-height: 1.25;
-      font-size: .78rem;
+      padding: 1px 3px;
+      border-radius: 6px;
+      line-height: 1.16;
+      font-size: .58rem;
+      white-space: normal !important;
+      overflow-wrap: anywhere;
+      word-break: break-word;
     }
     #app .ds-week-col__holiday.is-school-holiday {
       font-weight: 700;
+    }
+    #app .ds-week-col .ds-interactive-card--session,
+    #app .ds-month-day-cards .ds-interactive-card--session {
+      min-width: 0;
+      overflow: hidden;
+      gap: 2px;
+      padding: 4px 6px;
+    }
+    #app .ds-week-col .ds-interactive-card--session .ds-interactive-card__title,
+    #app .ds-month-day-cards .ds-interactive-card--session .ds-interactive-card__title {
+      max-width: 100%;
+      min-width: 0;
+      font-size: .66rem;
+      line-height: 1.18;
+      white-space: normal;
+      overflow-wrap: anywhere;
+      word-break: break-word;
+    }
+    #app .ds-week-col .ds-interactive-card--session .ds-interactive-card__subtitle,
+    #app .ds-week-col .ds-interactive-card--session .ds-interactive-card__meta,
+    #app .ds-month-day-cards .ds-interactive-card--session .ds-interactive-card__subtitle,
+    #app .ds-month-day-cards .ds-interactive-card--session .ds-interactive-card__meta {
+      max-width: 100%;
+      min-width: 0;
+      font-size: .58rem;
+      line-height: 1.18;
+      white-space: normal;
+      overflow-wrap: anywhere;
+      word-break: break-word;
     }
   `;
   document.head.appendChild(style);
