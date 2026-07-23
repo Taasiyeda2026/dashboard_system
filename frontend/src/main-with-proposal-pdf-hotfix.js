@@ -7,3 +7,4 @@ import './admin-lists-auth-hotfix.js';
 import './admin-permissions-access-hotfix.js';
 import './school-calendar-runtime.js';
 import './main.js';
+import './screens/annual-reviews-v2.js';
