@@ -1,0 +1,122 @@
+/* Final compact layout: the card follows the image and the action floats above it. */
+.birthday-popup-overlay {
+  padding: 10px;
+  background:
+    radial-gradient(circle at 20% 20%, rgba(147, 197, 253, 0.05), transparent 30%),
+    radial-gradient(circle at 82% 18%, rgba(244, 114, 182, 0.04), transparent 28%),
+    radial-gradient(circle at 50% 82%, rgba(196, 181, 253, 0.05), transparent 32%),
+    rgba(14, 18, 30, 0.12);
+  backdrop-filter: blur(2px);
+  -webkit-backdrop-filter: blur(2px);
+}
+
+.birthday-popup-card {
+  width: min(84vw, 400px);
+  max-height: calc(100vh - 20px);
+  padding: 1px;
+  border-radius: 14px;
+  box-shadow: 0 12px 30px rgba(9, 14, 30, 0.22);
+}
+
+.birthday-popup-card::before {
+  inset: -3px;
+  border-radius: 16px;
+  filter: blur(4px);
+  opacity: 0.28;
+  animation: none;
+}
+
+.birthday-popup-card::after {
+  display: none;
+}
+
+.birthday-popup-card__inner {
+  position: relative;
+  border-radius: 12px;
+  background: transparent;
+  box-shadow: none;
+}
+
+.birthday-popup-image {
+  display: block;
+  width: 100% !important;
+  max-width: none !important;
+  height: auto !important;
+  max-height: min(76vh, 540px);
+  object-fit: contain;
+  border-radius: 12px;
+  background: transparent;
+}
+
+.birthday-popup-actions {
+  position: absolute;
+  right: 0;
+  bottom: 8px;
+  left: 0;
+  z-index: 2;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 4px;
+  padding: 0;
+  background: transparent;
+  pointer-events: none;
+}
+
+.birthday-popup-confirm {
+  min-width: 68px;
+  height: 28px;
+  padding: 0 11px;
+  border: 1px solid rgba(255, 255, 255, 0.82);
+  font-size: 0.76rem;
+  box-shadow: 0 4px 12px rgba(60, 38, 120, 0.28);
+  pointer-events: auto;
+}
+
+.birthday-popup-confirm:hover:not(:disabled) {
+  box-shadow: 0 5px 14px rgba(60, 38, 120, 0.34);
+}
+
+.birthday-popup-confirm:focus-visible {
+  outline-width: 2px;
+  outline-offset: 2px;
+}
+
+.birthday-popup-error {
+  max-width: calc(100% - 24px);
+  padding: 3px 7px;
+  border-radius: 7px;
+  background: rgba(255, 255, 255, 0.92);
+  font-size: 0.72rem;
+  pointer-events: auto;
+}
+
+@media (max-width: 640px) {
+  .birthday-popup-card {
+    width: min(88vw, 380px);
+    border-radius: 12px;
+  }
+
+  .birthday-popup-card::before {
+    inset: -2px;
+    border-radius: 14px;
+    filter: blur(3px);
+  }
+
+  .birthday-popup-card__inner,
+  .birthday-popup-image {
+    border-radius: 10px;
+  }
+
+  .birthday-popup-actions {
+    bottom: 6px;
+  }
+
+  .birthday-popup-confirm {
+    min-width: 64px;
+    height: 27px;
+    padding: 0 10px;
+    font-size: 0.74rem;
+  }
+}
