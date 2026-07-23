@@ -23,6 +23,9 @@ create table if not exists public.birthday_popup_acknowledgements (
 alter table public.employee_birthdays enable row level security;
 alter table public.birthday_popup_acknowledgements enable row level security;
 
+revoke all privileges on table public.employee_birthdays from anon, authenticated;
+revoke all privileges on table public.birthday_popup_acknowledgements from anon, authenticated;
+
 grant select on table public.employee_birthdays to authenticated;
 grant select, insert on table public.birthday_popup_acknowledgements to authenticated;
 
