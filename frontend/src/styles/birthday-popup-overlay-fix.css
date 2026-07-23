@@ -16,6 +16,8 @@
   padding: 1px;
   border-radius: 14px;
   box-shadow: 0 12px 30px rgba(9, 14, 30, 0.22);
+  scale: 0.65;
+  transform-origin: center center;
 }
 
 .birthday-popup-card::before {
