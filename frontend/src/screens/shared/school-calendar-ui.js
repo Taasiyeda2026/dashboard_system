@@ -61,7 +61,7 @@ function setMonthSubtitle(card, label) {
     else card.appendChild(subtitle);
   }
   subtitle.dataset.schoolCalendarLabel = 'true';
-  subtitle.textContent = label;
+  if (subtitle.textContent !== label) subtitle.textContent = label;
 }
 
 function decorateMonth(rows) {
@@ -104,8 +104,9 @@ function decorateWeek(rows) {
       header.appendChild(label);
     }
 
+    const text = compactSchoolCalendarLabel(events, { maxTitles: 2 });
     label.dataset.schoolCalendarLabel = 'true';
-    label.textContent = compactSchoolCalendarLabel(events, { maxTitles: 2 });
+    if (label.textContent !== text) label.textContent = text;
     label.classList.toggle('is-school-holiday', events.some((event) => event.blocks_scheduling));
     label.title = events.map((event) => event.title).join('\n');
   });
