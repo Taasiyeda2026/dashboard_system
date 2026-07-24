@@ -1,4 +1,5 @@
 import './styles/birthday-popup.css';
+import './styles/birthday-popup-overlay-fix.css';
 import { supabase, waitForSupabaseAuthSession } from './supabase-client.js';
 
 const ISRAEL_TIME_ZONE = 'Asia/Jerusalem';
@@ -8,6 +9,11 @@ const CHECK_INTERVAL_MS = 60_000;
 const SHELL_WAIT_TIMEOUT_MS = 15_000;
 
 const checkedRunKeys = new Set();
+const dismissedGreetingKeys = globalThis.__BIRTHDAY_POPUP_DISMISSED_KEYS__ instanceof Set
+  ? globalThis.__BIRTHDAY_POPUP_DISMISSED_KEYS__
+  : new Set();
+globalThis.__BIRTHDAY_POPUP_DISMISSED_KEYS__ = dismissedGreetingKeys;
+
 let activeRunKey = '';
 let activeSessionUserId = '';
 let activeQueue = [];
@@ -59,15 +65,27 @@ function clearBirthdayPreviewParam() {
   try {
     const url = new URL(window.location.href);
     url.searchParams.delete(PREVIEW_QUERY_PARAM);
-    window.history.replaceState({}, '', url);
+    window.history.replaceState(window.history.state, '', url);
   } catch {
     // Ignore URL parsing failures.
   }
 }
 
+function birthdayGreetingKey(birthday, { preview = false } = {}) {
+  const identity = String(
+    birthday?.id || birthday?.employee_slug || birthday?.employee_name || ''
+  ).trim();
+  if (!identity) return '';
+
+  const userId = activeSessionUserId || 'unknown-user';
+  const yearKey = preview
+    ? 'preview'
+    : String(activeBirthdayYear || israelDateParts().year);
+  return `${userId}:${preview ? 'preview' : 'birthday'}:${identity}:${yearKey}`;
+}
+
 function closeBirthdayPopup() {
-  const root = document.querySelector(POPUP_ROOT_SELECTOR);
-  if (root) root.remove();
+  document.querySelectorAll(POPUP_ROOT_SELECTOR).forEach((root) => root.remove());
   document.body.classList.remove('birthday-popup-open');
 }
 
@@ -147,9 +165,11 @@ async function saveBirthdayAcknowledgement(userId, birthdayId, birthdayYear) {
 }
 
 function createBirthdayPopupElement(birthday, { preview = false } = {}) {
+  const greetingKey = birthdayGreetingKey(birthday, { preview });
   const root = document.createElement('div');
   root.className = 'birthday-popup-overlay';
   root.dataset.birthdayPopupRoot = 'true';
+  root.dataset.birthdayGreetingKey = greetingKey;
   root.setAttribute('dir', 'rtl');
 
   const dialog = document.createElement('section');
@@ -187,12 +207,13 @@ function createBirthdayPopupElement(birthday, { preview = false } = {}) {
 
   confirmButton.addEventListener('click', async () => {
     if (confirmButton.disabled) return;
+    if (greetingKey) dismissedGreetingKeys.add(greetingKey);
 
     if (preview) {
-      closeBirthdayPopup();
       clearBirthdayPreviewParam();
       activeQueue = [];
       activeRunKey = '';
+      closeBirthdayPopup();
       return;
     }
 
@@ -206,6 +227,7 @@ function createBirthdayPopupElement(birthday, { preview = false } = {}) {
       closeBirthdayPopup();
       showNextBirthdayPopup();
     } catch (error) {
+      if (greetingKey) dismissedGreetingKeys.delete(greetingKey);
       console.error('[birthday-popup] acknowledgement failed', error);
       confirmButton.disabled = false;
       confirmButton.textContent = 'אישור';
@@ -221,24 +243,36 @@ function createBirthdayPopupElement(birthday, { preview = false } = {}) {
     }
   });
 
-  return { root, confirmButton };
+  return { root, confirmButton, greetingKey };
 }
 
 function mountBirthdayPopup(birthday, options = {}) {
-  closeBirthdayPopup();
+  const greetingKey = birthdayGreetingKey(birthday, options);
+  if (!greetingKey || dismissedGreetingKeys.has(greetingKey)) return false;
+
+  // A single DOM root is the source of truth. Never replace or stack an existing popup.
+  if (document.querySelector(POPUP_ROOT_SELECTOR)) return false;
+
   const { root, confirmButton } = createBirthdayPopupElement(birthday, options);
   document.body.appendChild(root);
   document.body.classList.add('birthday-popup-open');
   window.requestAnimationFrame(() => confirmButton.focus({ preventScroll: true }));
+  return true;
 }
 
 function showNextBirthdayPopup() {
-  closeBirthdayPopup();
+  while (activeQueue.length) {
+    const greetingKey = birthdayGreetingKey(activeQueue[0]);
+    if (!greetingKey || !dismissedGreetingKeys.has(greetingKey)) break;
+    activeQueue.shift();
+  }
+
   const birthday = activeQueue[0];
   if (!birthday) {
     activeRunKey = '';
     return;
   }
+
   mountBirthdayPopup(birthday);
 }
 
@@ -247,7 +281,11 @@ async function showBirthdayPreview(employeeSlug) {
   if (!shellReady) return false;
   const birthday = await fetchBirthdayPreview(employeeSlug);
   if (!birthday) return false;
+
+  const greetingKey = birthdayGreetingKey(birthday, { preview: true });
   activeRunKey = `preview:${employeeSlug}`;
+  if (dismissedGreetingKeys.has(greetingKey)) return true;
+
   mountBirthdayPopup(birthday, { preview: true });
   return true;
 }
@@ -296,10 +334,12 @@ async function triggerBirthdayCheck(sessionOverride = null) {
       activeSessionUserId = '';
       activeQueue = [];
       activeRunKey = '';
+      dismissedGreetingKeys.clear();
       closeBirthdayPopup();
       return;
     }
 
+    activeSessionUserId = String(session.user.id);
     const previewSlug = birthdayPreviewSlug();
     if (previewSlug) {
       try {
@@ -330,6 +370,7 @@ function startBirthdayPopupRuntime() {
       activeSessionUserId = '';
       activeQueue = [];
       activeRunKey = '';
+      dismissedGreetingKeys.clear();
       closeBirthdayPopup();
       return;
     }
