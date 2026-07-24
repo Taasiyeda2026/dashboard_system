@@ -1,22 +1,31 @@
 /*
- * The annual-review area currently has two landing implementations:
- * personal-reports.js creates buttons with data-ar-open and annual-reviews-v2.js
- * replaces them with data-ar2-open buttons. Other shell capture listeners may
- * stop the real click before it reaches the listener that owns the button.
+ * The annual-review area has two landing implementations:
+ * - personal-reports.js uses data-ar-open and binds directly to each button.
+ * - annual-reviews-v2.js uses data-ar2-open and a delegated document listener.
  *
- * Keep a very small addEventListener wrapper active so we can remember the
- * relevant direct/delegated handlers even when they are registered later, then
- * run a fallback only if the original click left the same button on screen.
+ * Some shell listeners may stop the click before it reaches either owner. Keep a
+ * narrow addEventListener wrapper active, remember only the two review-opening
+ * handlers, and invoke a fallback only when the genuine event was not handled.
  */
 
 const nativeAddEventListener = EventTarget.prototype.addEventListener;
-const documentClickHandlers = [];
+const v2DocumentHandlers = [];
 const directButtonHandlers = new WeakMap();
+const handledEvents = new WeakSet();
 const fallbackScheduled = new WeakSet();
 const OPEN_SELECTOR = '[data-ar-open],[data-ar2-open]';
 
-function isCaptureOption(options) {
-  return options === true || Boolean(options && typeof options === 'object' && options.capture);
+function listenerSource(listener) {
+  try {
+    return Function.prototype.toString.call(listener);
+  } catch {
+    return '';
+  }
+}
+
+function isAnnualReviewsV2Handler(listener) {
+  const source = listenerSource(listener);
+  return source.includes('data-ar2-open') && source.includes('openReview');
 }
 
 function rememberDirectHandler(target, listener) {
@@ -25,17 +34,32 @@ function rememberDirectHandler(target, listener) {
   directButtonHandlers.set(target, current);
 }
 
+function wrappedReviewHandler(listener, thisArg) {
+  return function annualReviewTrackedListener(event) {
+    const button = event.target?.closest?.(OPEN_SELECTOR);
+    if (button) handledEvents.add(event);
+    return listener.call(thisArg || this, event);
+  };
+}
+
 function patchedAddEventListener(type, listener, options) {
   if (type === 'click' && typeof listener === 'function') {
-    if (this === document && isCaptureOption(options)) {
-      if (!documentClickHandlers.includes(listener)) documentClickHandlers.push(listener);
-    } else if (this instanceof Element && this.matches?.(OPEN_SELECTOR)) {
+    if (this === document && isAnnualReviewsV2Handler(listener)) {
+      if (!v2DocumentHandlers.includes(listener)) v2DocumentHandlers.push(listener);
+      return nativeAddEventListener.call(this, type, wrappedReviewHandler(listener, document), options);
+    }
+
+    if (this instanceof Element && this.matches?.(OPEN_SELECTOR)) {
       rememberDirectHandler(this, listener);
+      return nativeAddEventListener.call(this, type, wrappedReviewHandler(listener, this), options);
     }
   }
+
   return nativeAddEventListener.call(this, type, listener, options);
 }
 
+// Intentionally kept active: the legacy landing binds its direct handlers only
+// after the async review list has been rendered.
 EventTarget.prototype.addEventListener = patchedAddEventListener;
 
 function fallbackEvent(button) {
@@ -61,18 +85,16 @@ async function invokeHandler(handler, thisArg, eventLike) {
 
 async function runFallback(button) {
   if (!button?.isConnected) return;
-
-  const direct = directButtonHandlers.get(button) || [];
   const eventLike = fallbackEvent(button);
   let invoked = false;
 
-  for (const handler of direct) {
+  for (const handler of directButtonHandlers.get(button) || []) {
     invoked = (await invokeHandler(handler, button, eventLike)) || invoked;
     if (!button.isConnected) return;
   }
 
   if (button.matches('[data-ar2-open]')) {
-    for (const handler of documentClickHandlers) {
+    for (const handler of v2DocumentHandlers) {
       invoked = (await invokeHandler(handler, document, eventLike)) || invoked;
       if (!button.isConnected) return;
     }
@@ -81,7 +103,7 @@ async function runFallback(button) {
   if (!invoked && button.isConnected) {
     button.disabled = false;
     button.textContent = button.dataset.reviewOpenOriginalLabel || 'פתיחת המשוב';
-    console.error('[annual-reviews-open-button] no matching open handler was registered');
+    console.error('[annual-reviews-open-button] no review-opening handler was registered');
   }
 }
 
@@ -95,11 +117,11 @@ function scheduleFallback(event) {
   }
   button.textContent = 'פותח…';
 
-  // Allow the normal target/document listeners to run first. Only when the same
-  // button remains on the landing do we invoke the remembered handler ourselves.
+  // The timeout runs after the normal capture/target/bubble phases. If one of the
+  // real owners handled the event, do nothing. Otherwise invoke its saved handler.
   setTimeout(async () => {
     fallbackScheduled.delete(button);
-    if (!button.isConnected) return;
+    if (handledEvents.has(event) || !button.isConnected) return;
     await runFallback(button);
     if (button.isConnected) {
       setTimeout(() => {
@@ -111,6 +133,6 @@ function scheduleFallback(event) {
   }, 0);
 }
 
-// Registered before the application modules. It does not block the genuine
-// click; it only schedules a fallback after the normal event dispatch.
+// Loaded before the application modules and therefore before any shell capture
+// listener that might stop the event.
 nativeAddEventListener.call(window, 'click', scheduleFallback, { capture: true });
