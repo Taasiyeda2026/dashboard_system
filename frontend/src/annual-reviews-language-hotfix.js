@@ -60,12 +60,6 @@ const TEXT_REPLACEMENTS = new Map([
   ['הדפסת המשוב המלא', 'הדפסת המשוב']
 ]);
 
-const OBSOLETE_EXPLANATIONS = [
-  '.ar2-card__head .ar2-muted',
-  '.ar2-private',
-  '.ar2-guide'
-];
-
 let scheduled = false;
 let processing = false;
 
@@ -93,9 +87,11 @@ function simplifyStatuses(root) {
 }
 
 function removeExplanations(root) {
-  OBSOLETE_EXPLANATIONS.forEach((selector) => {
-    root.querySelectorAll(selector).forEach((node) => node.remove());
+  root.querySelectorAll('.ar2-card__head .ar2-muted').forEach((node) => {
+    if (!node.closest('header.ar2-card')) node.remove();
   });
+
+  root.querySelectorAll('.ar2-private, .ar2-guide').forEach((node) => node.remove());
 
   root.querySelectorAll('.ar2-card > .ar2-muted').forEach((node) => {
     if (node.textContent.includes('חלק העובד:') || node.textContent.includes('חלק המנהל:')) node.remove();
