@@ -60,6 +60,16 @@ const TEXT_REPLACEMENTS = new Map([
   ['הדפסת המשוב המלא', 'הדפסת המשוב']
 ]);
 
+const CONFIRM_REPLACEMENTS = new Map([
+  ['לפתוח את המשוב למילוי העובד והמנהל?', 'לפתוח את המשוב?'],
+  ['לאחר האישור לא ניתן יהיה לערוך את חלק העובד. התוכן ייחשף רק לאחר אישור חלק המנהל. להמשיך?', 'להשלים את ההערכה העצמית? לאחר ההשלמה לא ניתן יהיה לערוך אותה.'],
+  ['לאחר האישור לא ניתן יהיה לערוך את חלק המנהל. התוכן ייחשף רק לאחר אישור חלק העובד. להמשיך?', 'להשלים את הערכת המנהל? לאחר ההשלמה לא ניתן יהיה לערוך אותה.'],
+  ['להתחיל את שיחת המשוב? המסך יהיה משותף לצפייה בלבד.', 'להתחיל את שיחת המשוב?'],
+  ['לסיים את השיחה ולעבור לכתיבת סיכום המנהל?', 'לסיים את שיחת המשוב?'],
+  ['לאחר ההעברה הסיכום יינעל ויוצג לעובד. להמשיך?', 'להעביר את הסיכום הניהולי לעובד?'],
+  ['האישור ינעל את המשוב ויסיים את התהליך. להמשיך?', 'לאשר ולהשלים את המשוב?']
+]);
+
 let scheduled = false;
 let processing = false;
 
@@ -91,7 +101,7 @@ function removeExplanations(root) {
     if (!node.closest('header.ar2-card')) node.remove();
   });
 
-  root.querySelectorAll('.ar2-private, .ar2-guide').forEach((node) => node.remove());
+  root.querySelectorAll('.ar2-private, .ar2-guide, .ar2-progress').forEach((node) => node.remove());
 
   root.querySelectorAll('.ar2-card > .ar2-muted').forEach((node) => {
     if (node.textContent.includes('חלק העובד:') || node.textContent.includes('חלק המנהל:')) node.remove();
@@ -126,10 +136,18 @@ function refineAcknowledgement(root) {
   });
 }
 
+function installConfirmCopy() {
+  if (window.__annualReviewsConfirmCopyInstalled) return;
+  const originalConfirm = window.confirm.bind(window);
+  window.confirm = (message) => originalConfirm(CONFIRM_REPLACEMENTS.get(String(message)) || message);
+  window.__annualReviewsConfirmCopyInstalled = true;
+}
+
 function processAnnualReviews() {
   if (processing) return;
   const roots = document.querySelectorAll('.ar2-screen, [data-ar2-landing]');
-  if (!roots.length) return;
+  const toasts = document.querySelectorAll('.ar2-toast');
+  if (!roots.length && !toasts.length) return;
 
   processing = true;
   try {
@@ -140,6 +158,7 @@ function processAnnualReviews() {
       removeExplanations(root);
       refineAcknowledgement(root);
     });
+    toasts.forEach((toast) => replaceExactText(toast));
   } finally {
     processing = false;
   }
@@ -154,6 +173,7 @@ function scheduleProcess() {
   });
 }
 
+installConfirmCopy();
 new MutationObserver(scheduleProcess).observe(document.documentElement, {
   childList: true,
   subtree: true
