@@ -1,60 +1,73 @@
 /*
- * The personal-reports screen initially binds review buttons directly to the
- * legacy landing nodes. annual-reviews-v2 then replaces that landing markup,
- * so those node-bound listeners are discarded. Capture the v2 delegated click
- * handler while the module is initialized and invoke it from the window capture
- * phase. This keeps the replacement buttons functional even when another shell
- * listener stops the event before it reaches document.
+ * The annual-review landing is first rendered by personal-reports.js and then
+ * replaced by annual-reviews-v2.js. Direct listeners attached to the original
+ * buttons are therefore lost. Capture document-level click handlers while the
+ * application modules are initialized, then bind every replacement button
+ * directly and forward the real click to the captured handlers.
  */
 
-const nativeDocumentAddEventListener = document.addEventListener;
-let annualReviewsV2ClickHandler = null;
-let documentListenerRestored = false;
+const nativeAddEventListener = EventTarget.prototype.addEventListener;
+const capturedDocumentClickHandlers = [];
+let listenerPatchRestored = false;
 
 function isCaptureOption(options) {
   return options === true || Boolean(options && typeof options === 'object' && options.capture);
 }
 
-function restoreDocumentAddEventListener() {
-  if (documentListenerRestored) return;
-  documentListenerRestored = true;
-  try {
-    delete document.addEventListener;
-  } catch {
-    document.addEventListener = nativeDocumentAddEventListener;
-  }
-}
-
-document.addEventListener = function patchedDocumentAddEventListener(type, listener, options) {
+function patchedAddEventListener(type, listener, options) {
   if (
-    !annualReviewsV2ClickHandler
+    this === document
     && type === 'click'
     && isCaptureOption(options)
     && typeof listener === 'function'
-    && String(listener).includes('data-ar2-open')
   ) {
-    annualReviewsV2ClickHandler = listener;
+    capturedDocumentClickHandlers.push(listener);
   }
 
-  return nativeDocumentAddEventListener.call(this, type, listener, options);
-};
+  return nativeAddEventListener.call(this, type, listener, options);
+}
 
-window.addEventListener('click', (event) => {
-  const button = event.target?.closest?.('[data-ar2-open]');
-  if (!button || typeof annualReviewsV2ClickHandler !== 'function') return;
+function restoreNativeAddEventListener() {
+  if (listenerPatchRestored) return;
+  listenerPatchRestored = true;
+  EventTarget.prototype.addEventListener = nativeAddEventListener;
+}
 
+function forwardAnnualReviewClick(event, button) {
   event.preventDefault();
   event.stopImmediatePropagation();
 
-  annualReviewsV2ClickHandler({
-    target: button,
-    preventDefault() {},
-    stopPropagation() {},
-    stopImmediatePropagation() {}
-  });
-}, true);
+  for (const handler of capturedDocumentClickHandlers) {
+    try {
+      handler.call(document, event);
+    } catch (error) {
+      console.error('[annual-reviews-open-button] delegated handler failed', error);
+    }
+  }
+}
 
-// Direct sibling modules are evaluated before queued microtasks, so the v2
-// listener is captured and the native method is restored immediately afterward.
-queueMicrotask(restoreDocumentAddEventListener);
-setTimeout(restoreDocumentAddEventListener, 0);
+function bindAnnualReviewOpenButtons(root = document) {
+  root.querySelectorAll?.('[data-ar2-open]:not([data-ar2-open-bound])').forEach((button) => {
+    button.dataset.ar2OpenBound = 'true';
+    nativeAddEventListener.call(button, 'click', (event) => {
+      forwardAnnualReviewClick(event, button);
+    }, { capture: true });
+  });
+}
+
+EventTarget.prototype.addEventListener = patchedAddEventListener;
+
+bindAnnualReviewOpenButtons();
+new MutationObserver((mutations) => {
+  for (const mutation of mutations) {
+    mutation.addedNodes.forEach((node) => {
+      if (!(node instanceof Element)) return;
+      if (node.matches?.('[data-ar2-open]')) bindAnnualReviewOpenButtons(node.parentElement || document);
+      else bindAnnualReviewOpenButtons(node);
+    });
+  }
+}).observe(document.documentElement, { childList: true, subtree: true });
+
+// All static sibling modules finish evaluation before these callbacks run.
+queueMicrotask(restoreNativeAddEventListener);
+setTimeout(restoreNativeAddEventListener, 0);
