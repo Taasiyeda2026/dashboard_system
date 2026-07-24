@@ -74,6 +74,10 @@ test('3604 and 52279 contain only their designated inserted meeting topics', () 
   assert.equal(premium.syllabus.length, 14);
   assert.equal(premium.syllabus[9].topic, 'המיזם במספרים');
   assert.equal(premium.syllabus[11].topic, 'חדר העסקאות');
+  assert.equal(
+    premium.syllabus[11].desc,
+    'סימולציית השקעות קבוצתית הכוללת הצגת המיזם, הצעת מחיר והשקעה, שאלות כלכליות, משא ומתן וקבלת החלטות.'
+  );
 });
 
 test('SCHOOL_CATALOG keeps authoritative initial totals independent of rounded hourly prices', () => {
