@@ -62,7 +62,8 @@ const state = {
   currentBundle: null,
   saveTimers: new WeakMap(),
   pendingSaves: new Set(),
-  rendering: false
+  rendering: false,
+  openingReview: null
 };
 
 function installStyles() {
@@ -498,6 +499,7 @@ async function openReview(id) {
   } catch (error) {
     console.error('[annual-reviews-v2] open failed', error);
     showToast(error.message || 'פתיחת המשוב נכשלה.', 'error');
+    throw error;
   } finally {
     state.rendering = false;
   }
@@ -764,12 +766,30 @@ function bindDetail(root) {
 }
 
 function bindGlobalClicks() {
-  document.addEventListener('click', (event) => {
+  document.addEventListener('click', async (event) => {
     const open = event.target.closest('[data-ar2-open]');
     if (open) {
       event.preventDefault();
       event.stopPropagation();
-      openReview(open.dataset.ar2Open);
+      if (state.openingReview) return;
+
+      const originalLabel = open.textContent;
+      open.disabled = true;
+      open.setAttribute('aria-busy', 'true');
+      open.textContent = 'טוען…';
+      const request = openReview(open.dataset.ar2Open);
+      state.openingReview = request;
+      try {
+        await request;
+      } catch {
+        if (open.isConnected) {
+          open.disabled = false;
+          open.removeAttribute('aria-busy');
+          open.textContent = originalLabel;
+        }
+      } finally {
+        if (state.openingReview === request) state.openingReview = null;
+      }
       return;
     }
     if (event.target.closest('[data-ar2-dashboard]')) {

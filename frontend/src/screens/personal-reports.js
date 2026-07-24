@@ -4087,7 +4087,7 @@ function annualReviewLandingHtml(rows) {
   const visibleReviews = managed.length ? managed : (own ? [own] : []);
   return `<section class="pr-card ar-landing no-print" aria-labelledby="ar-landing-title">
     <div class="pr-my-report-card__header"><div><span class="pr-eyebrow">משוב שנתי</span><h2 id="ar-landing-title" class="pr-card__title">${managed.length ? 'ניהול משובים שנתיים' : 'המשוב השנתי שלי'}</h2></div></div>
-    ${visibleReviews.length ? `<div class="ar-review-list">${visibleReviews.map((r) => `<article class="ar-review-row"><div class="ar-review-row__details"><strong>${escapeHtml(r.employee_name || 'עובד/ת')}</strong><span>${escapeHtml(r.review_year)}</span></div>${dsStatusChip(ANNUAL_REVIEW_STATUS[r.status] || r.status, r.status === 'completed_locked' ? 'success' : 'warning')}<button type="button" class="pr-btn pr-btn--primary pr-btn--sm" data-ar-open="${escapeHtml(r.id)}">פתיחת המשוב</button></article>`).join('')}</div>` : '<p class="pr-helper-text">לא נמצאו משובים להצגה.</p>'}
+    ${visibleReviews.length ? `<div class="ar-review-list">${visibleReviews.map((r) => `<article class="ar-review-row"><div class="ar-review-row__details"><strong>${escapeHtml(r.employee_name || 'עובד/ת')}</strong><span>${escapeHtml(r.review_year)}</span></div>${dsStatusChip(ANNUAL_REVIEW_STATUS[r.status] || r.status, r.status === 'completed_locked' ? 'success' : 'warning')}<button type="button" class="pr-btn pr-btn--primary pr-btn--sm" data-ar2-open="${escapeHtml(r.id)}">פתיחת המשוב</button></article>`).join('')}</div>` : '<p class="pr-helper-text">לא נמצאו משובים להצגה.</p>'}
   </section>`;
 }
 
@@ -4104,7 +4104,6 @@ async function renderAnnualReviewsScreen(root) {
     _prActiveView = { kind: 'annual-reviews' };
     renderInto(root, annualReviewsScreenHtml(rows));
     bindAnnualReviewsScreen(root);
-    root.querySelectorAll('[data-ar-open]').forEach((button) => button.addEventListener('click', () => openAnnualReview(root, button.dataset.arOpen)));
   } catch (error) {
     console.warn('[annual-review] access load failed', error?.message || error);
     renderInto(root, annualReviewsScreenHtml([]));

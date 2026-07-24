@@ -88,3 +88,61 @@ test('autosave uses optimistic child-row versions', () => {
   assert.match(screen, /המידע השתנה במקום אחר/);
   assert.match(screen, /data-version=/);
 });
+
+test('one click path opens exactly one review and releases the button after an error', async () => {
+  const start = screen.indexOf('function bindGlobalClicks()');
+  const end = screen.indexOf('\n\nlet enhanceQueued', start);
+  assert.ok(start >= 0 && end > start, 'global click binding should exist');
+
+  let clickHandler;
+  const documentStub = {
+    addEventListener(type, handler) {
+      if (type === 'click') clickHandler = handler;
+    }
+  };
+  let openCalls = 0;
+  let rejectOpen;
+  const openReviewStub = () => {
+    openCalls += 1;
+    return new Promise((resolve, reject) => { rejectOpen = reject; });
+  };
+  const runtimeState = { openingReview: null };
+  const install = new Function('document', 'openReview', 'state', `${screen.slice(start, end)}; bindGlobalClicks();`);
+  install(documentStub, openReviewStub, runtimeState);
+
+  const attributes = new Map();
+  const button = {
+    dataset: { ar2Open: 'review-1' },
+    textContent: 'פתיחת המשוב',
+    disabled: false,
+    isConnected: true,
+    setAttribute(name, value) { attributes.set(name, value); },
+    removeAttribute(name) { attributes.delete(name); }
+  };
+  const event = {
+    target: { closest: (selector) => selector === '[data-ar2-open]' ? button : null },
+    preventDefault() {},
+    stopPropagation() {}
+  };
+
+  const firstClick = clickHandler(event);
+  const secondClick = clickHandler(event);
+  assert.equal(openCalls, 1);
+  assert.equal(button.disabled, true);
+  assert.equal(button.textContent, 'טוען…');
+  rejectOpen(new Error('network failed'));
+  await Promise.all([firstClick, secondClick]);
+  assert.equal(button.disabled, false);
+  assert.equal(button.textContent, 'פתיחת המשוב');
+  assert.equal(attributes.has('aria-busy'), false);
+});
+
+test('annual review opener uses one local mechanism without changing authentication events', async () => {
+  const personalReports = await readFile(new URL('../frontend/src/screens/personal-reports.js', import.meta.url), 'utf8');
+  assert.doesNotMatch(personalReports, /data-ar-open=/);
+  assert.match(personalReports, /data-ar2-open=/);
+  assert.equal((screen.match(/document\.addEventListener\('click'/g) || []).length, 1);
+  assert.doesNotMatch(screen, /EventTarget\.prototype\.addEventListener\s*=/);
+  assert.doesNotMatch(entry, /annual-reviews-open-button-guard/);
+  await assert.rejects(readFile(new URL('../frontend/src/annual-reviews-open-button-guard.js', import.meta.url), 'utf8'));
+});
