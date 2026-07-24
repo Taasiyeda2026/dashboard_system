@@ -2,12 +2,13 @@
  * The annual-review landing is first rendered by personal-reports.js and then
  * replaced by annual-reviews-v2.js. Direct listeners attached to the original
  * buttons are therefore lost. Capture document-level click handlers while the
- * application modules are initialized, then bind every replacement button
- * directly and forward the real click to the captured handlers.
+ * application modules are initialized and forward replacement-button clicks
+ * from the earliest window capture phase.
  */
 
 const nativeAddEventListener = EventTarget.prototype.addEventListener;
 const capturedDocumentClickHandlers = [];
+const handledEvents = new WeakSet();
 let listenerPatchRestored = false;
 
 function isCaptureOption(options) {
@@ -33,7 +34,11 @@ function restoreNativeAddEventListener() {
   EventTarget.prototype.addEventListener = nativeAddEventListener;
 }
 
-function forwardAnnualReviewClick(event, button) {
+function forwardAnnualReviewClick(event) {
+  const button = event.target?.closest?.('[data-ar2-open]');
+  if (!button || handledEvents.has(event)) return;
+  handledEvents.add(event);
+
   event.preventDefault();
   event.stopImmediatePropagation();
 
@@ -49,13 +54,14 @@ function forwardAnnualReviewClick(event, button) {
 function bindAnnualReviewOpenButtons(root = document) {
   root.querySelectorAll?.('[data-ar2-open]:not([data-ar2-open-bound])').forEach((button) => {
     button.dataset.ar2OpenBound = 'true';
-    nativeAddEventListener.call(button, 'click', (event) => {
-      forwardAnnualReviewClick(event, button);
-    }, { capture: true });
+    nativeAddEventListener.call(button, 'click', forwardAnnualReviewClick, { capture: true });
   });
 }
 
 EventTarget.prototype.addEventListener = patchedAddEventListener;
+
+// Registered by the first application module, before shell listeners can block it.
+nativeAddEventListener.call(window, 'click', forwardAnnualReviewClick, { capture: true });
 
 bindAnnualReviewOpenButtons();
 new MutationObserver((mutations) => {
