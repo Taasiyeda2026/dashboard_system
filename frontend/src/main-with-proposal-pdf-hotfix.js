@@ -1,3 +1,4 @@
+import './annual-reviews-open-button-guard.js';
 import './proposal-pdf-svg-origin-clean.js';
 import './proposal-pdf-storage-key-hotfix.js';
 import './proposal-pdf-download-filename-hotfix.js';
@@ -10,7 +11,6 @@ import './birthday-popup.js';
 import './birthday-popup-session-guard.js';
 import './birthday-calendar.js';
 import './main.js';
-import './annual-reviews-open-button-guard.js';
 import './screens/annual-reviews-v2.js';
 import './annual-reviews-language-hotfix.js';
 import './annual-reviews-shared-stage.js';
