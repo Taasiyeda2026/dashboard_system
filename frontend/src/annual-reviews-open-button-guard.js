@@ -1,22 +1,28 @@
 /*
- * Annual-review buttons are rendered twice:
- * - personal-reports.js uses data-ar-open and binds a direct listener.
- * - annual-reviews-v2.js replaces the list with data-ar2-open and binds a
- *   delegated document listener.
+ * Annual-review buttons are rendered in two forms:
+ * - data-ar-open: legacy landing, direct button listener.
+ * - data-ar2-open: current landing, one delegated document listener.
  *
- * A shell capture listener can stop the real click before it reaches either
- * owner. This guard loads first, remembers the relevant listeners as they are
- * registered, and invokes them synchronously from the earliest window-capture
- * phase. The event is then stopped so the review is opened exactly once.
+ * A shell capture listener may stop the click before it reaches the owner. This
+ * guard loads first, remembers only the matching review-opening handlers, and
+ * invokes exactly one of them from the earliest window-capture phase.
  */
 
 const nativeAddEventListener = EventTarget.prototype.addEventListener;
-const documentCaptureClickHandlers = [];
 const directButtonHandlers = new WeakMap();
+let currentLandingHandler = null;
 const OPEN_SELECTOR = '[data-ar-open],[data-ar2-open]';
 
-function isCaptureOption(options) {
-  return options === true || Boolean(options && typeof options === 'object' && options.capture);
+function listenerSource(listener) {
+  try {
+    return Function.prototype.toString.call(listener);
+  } catch {
+    return '';
+  }
+}
+
+function isCurrentLandingHandler(listener) {
+  return listenerSource(listener).includes('data-ar2-open');
 }
 
 function rememberDirectHandler(target, listener) {
@@ -27,13 +33,11 @@ function rememberDirectHandler(target, listener) {
 
 function patchedAddEventListener(type, listener, options) {
   if (type === 'click' && typeof listener === 'function') {
-    if (this === document && isCaptureOption(options)) {
-      if (!documentCaptureClickHandlers.includes(listener)) {
-        documentCaptureClickHandlers.push(listener);
-      }
+    if (this === document && isCurrentLandingHandler(listener)) {
+      currentLandingHandler = listener;
     }
 
-    if (this instanceof Element && this.matches?.(OPEN_SELECTOR)) {
+    if (this instanceof Element && this.matches?.('[data-ar-open]')) {
       rememberDirectHandler(this, listener);
     }
   }
@@ -41,8 +45,7 @@ function patchedAddEventListener(type, listener, options) {
   return nativeAddEventListener.call(this, type, listener, options);
 }
 
-// Kept active because the legacy buttons and their handlers are created only
-// after an asynchronous review-list load.
+// Kept active because the legacy buttons are created after an asynchronous load.
 EventTarget.prototype.addEventListener = patchedAddEventListener;
 
 function invoke(handler, thisArg, event) {
@@ -63,40 +66,30 @@ function openFromFirstCapture(event) {
   if (!button) return;
 
   const originalLabel = button.textContent.trim() || 'פתיחת המשוב';
-  button.textContent = 'פותח…';
-  button.disabled = true;
-
   let invoked = false;
 
-  // Legacy implementation: invoke the listener attached directly to the button.
-  for (const handler of directButtonHandlers.get(button) || []) {
-    invoked = invoke(handler, button, event) || invoked;
+  if (button.matches('[data-ar2-open]') && currentLandingHandler) {
+    invoked = invoke(currentLandingHandler, document, event);
+  } else if (button.matches('[data-ar-open]')) {
+    const handler = (directButtonHandlers.get(button) || [])[0];
+    if (handler) invoked = invoke(handler, button, event);
   }
 
-  // Current implementation: invoke document capture handlers. Unrelated handlers
-  // return immediately because the target is not one of their controls.
-  for (const handler of documentCaptureClickHandlers) {
-    invoked = invoke(handler, document, event) || invoked;
-  }
+  // When the real owner is not registered yet, do not freeze the control.
+  if (!invoked) return;
 
+  button.textContent = 'טוען…';
+  button.disabled = true;
   event.preventDefault();
   event.stopImmediatePropagation();
 
-  if (!invoked) {
-    button.disabled = false;
-    button.textContent = originalLabel;
-    console.error('[annual-reviews-open-button] no opening listener was registered');
-    return;
-  }
-
-  // Restore the control only when the opening process failed and the same landing
-  // button is still present. A successful opening removes it from the DOM.
+  // Successful opening replaces the landing and disconnects this button. Restore
+  // it only when loading failed and the same control remains on screen.
   setTimeout(() => {
     if (!button.isConnected) return;
     button.disabled = false;
     button.textContent = originalLabel;
-  }, 7000);
+  }, 8000);
 }
 
-// Registered before main.js and before all shell capture listeners.
 nativeAddEventListener.call(window, 'click', openFromFirstCapture, { capture: true });
