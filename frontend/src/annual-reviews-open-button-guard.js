@@ -1,79 +1,116 @@
 /*
- * The annual-review landing is first rendered by personal-reports.js and then
- * replaced by annual-reviews-v2.js. Direct listeners attached to the original
- * buttons are therefore lost. Capture document-level click handlers while the
- * application modules are initialized and forward replacement-button clicks
- * from the earliest window capture phase.
+ * The annual-review area currently has two landing implementations:
+ * personal-reports.js creates buttons with data-ar-open and annual-reviews-v2.js
+ * replaces them with data-ar2-open buttons. Other shell capture listeners may
+ * stop the real click before it reaches the listener that owns the button.
+ *
+ * Keep a very small addEventListener wrapper active so we can remember the
+ * relevant direct/delegated handlers even when they are registered later, then
+ * run a fallback only if the original click left the same button on screen.
  */
 
 const nativeAddEventListener = EventTarget.prototype.addEventListener;
-const capturedDocumentClickHandlers = [];
-const handledEvents = new WeakSet();
-let listenerPatchRestored = false;
+const documentClickHandlers = [];
+const directButtonHandlers = new WeakMap();
+const fallbackScheduled = new WeakSet();
+const OPEN_SELECTOR = '[data-ar-open],[data-ar2-open]';
 
 function isCaptureOption(options) {
   return options === true || Boolean(options && typeof options === 'object' && options.capture);
 }
 
+function rememberDirectHandler(target, listener) {
+  const current = directButtonHandlers.get(target) || [];
+  if (!current.includes(listener)) current.push(listener);
+  directButtonHandlers.set(target, current);
+}
+
 function patchedAddEventListener(type, listener, options) {
-  if (
-    this === document
-    && type === 'click'
-    && isCaptureOption(options)
-    && typeof listener === 'function'
-  ) {
-    capturedDocumentClickHandlers.push(listener);
-  }
-
-  return nativeAddEventListener.call(this, type, listener, options);
-}
-
-function restoreNativeAddEventListener() {
-  if (listenerPatchRestored) return;
-  listenerPatchRestored = true;
-  EventTarget.prototype.addEventListener = nativeAddEventListener;
-}
-
-function forwardAnnualReviewClick(event) {
-  const button = event.target?.closest?.('[data-ar2-open]');
-  if (!button || handledEvents.has(event)) return;
-  handledEvents.add(event);
-
-  event.preventDefault();
-  event.stopImmediatePropagation();
-
-  for (const handler of capturedDocumentClickHandlers) {
-    try {
-      handler.call(document, event);
-    } catch (error) {
-      console.error('[annual-reviews-open-button] delegated handler failed', error);
+  if (type === 'click' && typeof listener === 'function') {
+    if (this === document && isCaptureOption(options)) {
+      if (!documentClickHandlers.includes(listener)) documentClickHandlers.push(listener);
+    } else if (this instanceof Element && this.matches?.(OPEN_SELECTOR)) {
+      rememberDirectHandler(this, listener);
     }
   }
-}
-
-function bindAnnualReviewOpenButtons(root = document) {
-  root.querySelectorAll?.('[data-ar2-open]:not([data-ar2-open-bound])').forEach((button) => {
-    button.dataset.ar2OpenBound = 'true';
-    nativeAddEventListener.call(button, 'click', forwardAnnualReviewClick, { capture: true });
-  });
+  return nativeAddEventListener.call(this, type, listener, options);
 }
 
 EventTarget.prototype.addEventListener = patchedAddEventListener;
 
-// Registered by the first application module, before shell listeners can block it.
-nativeAddEventListener.call(window, 'click', forwardAnnualReviewClick, { capture: true });
+function fallbackEvent(button) {
+  return {
+    target: button,
+    currentTarget: button,
+    defaultPrevented: false,
+    preventDefault() { this.defaultPrevented = true; },
+    stopPropagation() {},
+    stopImmediatePropagation() {}
+  };
+}
 
-bindAnnualReviewOpenButtons();
-new MutationObserver((mutations) => {
-  for (const mutation of mutations) {
-    mutation.addedNodes.forEach((node) => {
-      if (!(node instanceof Element)) return;
-      if (node.matches?.('[data-ar2-open]')) bindAnnualReviewOpenButtons(node.parentElement || document);
-      else bindAnnualReviewOpenButtons(node);
-    });
+async function invokeHandler(handler, thisArg, eventLike) {
+  try {
+    await handler.call(thisArg, eventLike);
+    return true;
+  } catch (error) {
+    console.error('[annual-reviews-open-button] fallback handler failed', error);
+    return false;
   }
-}).observe(document.documentElement, { childList: true, subtree: true });
+}
 
-// All static sibling modules finish evaluation before these callbacks run.
-queueMicrotask(restoreNativeAddEventListener);
-setTimeout(restoreNativeAddEventListener, 0);
+async function runFallback(button) {
+  if (!button?.isConnected) return;
+
+  const direct = directButtonHandlers.get(button) || [];
+  const eventLike = fallbackEvent(button);
+  let invoked = false;
+
+  for (const handler of direct) {
+    invoked = (await invokeHandler(handler, button, eventLike)) || invoked;
+    if (!button.isConnected) return;
+  }
+
+  if (button.matches('[data-ar2-open]')) {
+    for (const handler of documentClickHandlers) {
+      invoked = (await invokeHandler(handler, document, eventLike)) || invoked;
+      if (!button.isConnected) return;
+    }
+  }
+
+  if (!invoked && button.isConnected) {
+    button.disabled = false;
+    button.textContent = button.dataset.reviewOpenOriginalLabel || 'פתיחת המשוב';
+    console.error('[annual-reviews-open-button] no matching open handler was registered');
+  }
+}
+
+function scheduleFallback(event) {
+  const button = event.target?.closest?.(OPEN_SELECTOR);
+  if (!button || fallbackScheduled.has(button)) return;
+  fallbackScheduled.add(button);
+
+  if (!button.dataset.reviewOpenOriginalLabel) {
+    button.dataset.reviewOpenOriginalLabel = button.textContent.trim() || 'פתיחת המשוב';
+  }
+  button.textContent = 'פותח…';
+
+  // Allow the normal target/document listeners to run first. Only when the same
+  // button remains on the landing do we invoke the remembered handler ourselves.
+  setTimeout(async () => {
+    fallbackScheduled.delete(button);
+    if (!button.isConnected) return;
+    await runFallback(button);
+    if (button.isConnected) {
+      setTimeout(() => {
+        if (!button.isConnected) return;
+        button.disabled = false;
+        button.textContent = button.dataset.reviewOpenOriginalLabel || 'פתיחת המשוב';
+      }, 6000);
+    }
+  }, 0);
+}
+
+// Registered before the application modules. It does not block the genuine
+// click; it only schedules a fallback after the normal event dispatch.
+nativeAddEventListener.call(window, 'click', scheduleFallback, { capture: true });
