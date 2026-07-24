@@ -12,3 +12,4 @@ import './birthday-calendar.js';
 import './main.js';
 import './screens/annual-reviews-v2.js';
 import './annual-reviews-language-hotfix.js';
+import './annual-reviews-shared-stage.js';
