@@ -14,3 +14,4 @@ import './screens/annual-reviews-v2.js';
 import './annual-reviews-language-hotfix.js';
 import './annual-reviews-shared-stage.js';
 import './annual-reviews-next-school-year.js';
+import './annual-reviews-role-lessons.js';
