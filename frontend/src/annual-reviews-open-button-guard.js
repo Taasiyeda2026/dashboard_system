@@ -24,8 +24,9 @@ function listenerSource(listener) {
 }
 
 function isAnnualReviewsV2Handler(listener) {
-  const source = listenerSource(listener);
-  return source.includes('data-ar2-open') && source.includes('openReview');
+  // Function names are minified in the production bundle, but selector strings
+  // are preserved. The v2 delegated click owner contains this exact selector.
+  return listenerSource(listener).includes('data-ar2-open');
 }
 
 function rememberDirectHandler(target, listener) {
