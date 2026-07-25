@@ -1,6 +1,7 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
 import { readFileSync } from 'node:fs';
+import { JSDOM } from 'jsdom';
 
 const dashboardEnhancer = readFileSync(new URL('../frontend/src/dashboard-kpi-corrections.js', import.meta.url), 'utf8');
 const integration = readFileSync(new URL('../frontend/src/summer-feedback-admin-integration.js', import.meta.url), 'utf8');
@@ -38,6 +39,96 @@ test('personal reports keeps its existing tabs and adds the full summer feedback
   assert.ok(integration.includes('sourceTabList.cloneNode(true)'));
   assert.ok(integration.includes('button.dataset.prAction'));
   assert.ok(integration.includes('lock-screen'));
+});
+
+test('admin tab click is delegated and replaces the reports screen instead of relying on hidden', () => {
+  assert.ok(integration.includes("document.addEventListener('click', handleSummerFeedbackAdminTabClick, true)"));
+  assert.ok(integration.includes('root.replaceChildren(screen)'));
+  assert.ok(integration.includes('root.replaceChildren(...originalNodes)'));
+  assert.equal(integration.includes('originalNodes.forEach(({ node }) => { node.hidden = true; })'), false);
+  assert.ok(integration.includes('fallbackToDirectAdmin'));
+});
+
+test('clicking the summer feedback tab opens the embedded screen and another tab restores the original screen', async () => {
+  const dom = new JSDOM('<!doctype html><html><head></head><body></body></html>', {
+    url: 'https://example.test/dashboard/'
+  });
+
+  const previousGlobals = new Map();
+  const globals = {
+    window: dom.window,
+    document: dom.window.document,
+    navigator: dom.window.navigator,
+    MutationObserver: dom.window.MutationObserver,
+    CustomEvent: dom.window.CustomEvent,
+    HTMLElement: dom.window.HTMLElement,
+    Node: dom.window.Node,
+    localStorage: dom.window.localStorage,
+    sessionStorage: dom.window.sessionStorage,
+    requestAnimationFrame: (callback) => { callback(0); return 1; },
+    cancelAnimationFrame: () => {}
+  };
+
+  for (const [key, value] of Object.entries(globals)) {
+    previousGlobals.set(key, Object.getOwnPropertyDescriptor(globalThis, key));
+    Object.defineProperty(globalThis, key, { configurable: true, writable: true, value });
+  }
+
+  try {
+    const moduleUrl = new URL('../frontend/src/summer-feedback-admin-integration.js', import.meta.url);
+    const integrationModule = await import(`${moduleUrl.href}?click-test=${Date.now()}`);
+
+    const root = document.createElement('div');
+    root.id = 'pr-root';
+    root.innerHTML = `
+      <div id="pr-toast"></div>
+      <div class="pr-screen pr-screen--reports">
+        <div class="pr-screen-mode-switch" role="tablist">
+          <button class="pr-report-tab is-active" type="button" data-pr-action="screen-mode-my-reports">הדוחות שלי</button>
+          <button class="pr-report-tab" type="button" data-pr-action="screen-mode-management">ניהול דוחות עובדים</button>
+          <button class="pr-report-tab" type="button" data-pr-action="screen-mode-reviews">משובים</button>
+          <button class="pr-report-tab" type="button" data-summer-feedback-admin-tab="true">משוב קיץ</button>
+        </div>
+        <button type="button" data-pr-action="back-to-dashboard">חזרה לדשבורד</button>
+        <button type="button" data-pr-action="lock-screen">יציאה</button>
+      </div>
+    `;
+
+    const originalScreen = root.querySelector('.pr-screen--reports');
+    const originalMyReportsButton = root.querySelector('[data-pr-action="screen-mode-my-reports"]');
+    let restoredTabClicks = 0;
+    originalMyReportsButton.addEventListener('click', () => { restoredTabClicks += 1; });
+
+    const adminButton = root.querySelector('[data-summer-feedback-admin-tab]');
+    let prevented = false;
+    let stopped = false;
+    const opened = integrationModule.handleSummerFeedbackAdminTabClick({
+      target: adminButton,
+      preventDefault: () => { prevented = true; },
+      stopPropagation: () => { stopped = true; }
+    });
+
+    assert.equal(opened, true);
+    assert.equal(prevented, true);
+    assert.equal(stopped, true);
+    assert.equal(originalScreen.isConnected, false);
+    assert.ok(root.querySelector(':scope > .pr-screen--summer-feedback-admin'));
+    assert.match(root.querySelector('iframe')?.getAttribute('src') || '', /view=admin&embedded=1/);
+
+    const clonedMyReportsButton = root.querySelector('.pr-screen--summer-feedback-admin [data-pr-action="screen-mode-my-reports"]');
+    assert.ok(clonedMyReportsButton);
+    clonedMyReportsButton.click();
+
+    assert.equal(root.querySelector('.pr-screen--reports'), originalScreen);
+    assert.equal(originalScreen.isConnected, true);
+    assert.equal(restoredTabClicks, 1);
+  } finally {
+    dom.window.close();
+    for (const [key, descriptor] of previousGlobals.entries()) {
+      if (descriptor) Object.defineProperty(globalThis, key, descriptor);
+      else delete globalThis[key];
+    }
+  }
 });
 
 test('embedded feedback shares dashboard Supabase configuration and authenticated project', () => {
