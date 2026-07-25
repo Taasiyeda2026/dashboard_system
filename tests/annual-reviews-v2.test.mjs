@@ -10,6 +10,15 @@ test('simplified annual review module is loaded by the application entrypoint', 
   assert.match(entry, /import '\.\/screens\/annual-reviews-v2\.js';/);
 });
 
+test('review open local fix is opt-in and binds directly to review buttons', () => {
+  assert.match(screen, /new URLSearchParams\(window\.location\.search\)\.get\('reviewFix'\) === '1'/);
+  assert.match(screen, /querySelectorAll\('\[data-ar2-open\]:not\(\[data-ar2-local-bound\]\)'\)/);
+  assert.match(screen, /button\.addEventListener\('click'/);
+  assert.match(screen, /if \(reviewOpenLocalFixEnabled\(\)\) bindLocalReviewControls\(\);\s*else bindGlobalClicks\(\);/);
+  assert.doesNotMatch(screen, /EventTarget\.prototype/);
+  assert.doesNotMatch(entry, /annual-reviews-open-button-guard\.js/);
+});
+
 test('employee and manager complete private parallel sections before atomic reveal', () => {
   assert.match(migration, /employee_section_submitted_at timestamptz/);
   assert.match(migration, /manager_section_submitted_at timestamptz/);

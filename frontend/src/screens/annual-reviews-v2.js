@@ -779,17 +779,45 @@ function bindGlobalClicks() {
   }, true);
 }
 
+function reviewOpenLocalFixEnabled() {
+  return new URLSearchParams(window.location.search).get('reviewFix') === '1';
+}
+
+function bindLocalReviewControls(scope = document) {
+  if (!reviewOpenLocalFixEnabled()) return;
+
+  scope.querySelectorAll('[data-ar2-open]:not([data-ar2-local-bound])').forEach((button) => {
+    button.dataset.ar2LocalBound = 'true';
+    button.addEventListener('click', (event) => {
+      event.preventDefault();
+      event.stopPropagation();
+      openReview(button.dataset.ar2Open);
+    });
+  });
+
+  scope.querySelectorAll('[data-ar2-dashboard]:not([data-ar2-local-bound])').forEach((button) => {
+    button.dataset.ar2LocalBound = 'true';
+    button.addEventListener('click', (event) => {
+      event.preventDefault();
+      event.stopPropagation();
+      document.dispatchEvent(new CustomEvent('app:navigate', { detail: { route: 'dashboard' } }));
+    });
+  });
+}
+
 let enhanceQueued = false;
 function scheduleEnhance() {
   if (enhanceQueued) return;
   enhanceQueued = true;
   queueMicrotask(() => {
     enhanceQueued = false;
+    bindLocalReviewControls();
     enhanceExistingLanding();
   });
 }
 
 installStyles();
-bindGlobalClicks();
+if (reviewOpenLocalFixEnabled()) bindLocalReviewControls();
+else bindGlobalClicks();
 new MutationObserver(scheduleEnhance).observe(document.documentElement, { childList: true, subtree: true });
 scheduleEnhance();
