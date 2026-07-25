@@ -12,3 +12,4 @@ import './birthday-calendar.js';
 import './main.js';
 import './screens/annual-reviews-v2.js';
 import './annual-reviews-language-safe.js';
+import './annual-reviews-rating-comment-compact.js';
