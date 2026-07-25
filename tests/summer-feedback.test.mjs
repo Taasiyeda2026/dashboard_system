@@ -45,6 +45,13 @@ test('manager instructors can fill their own feedback and switch to management',
   assert.match(app, /המשוב שלי/);
 });
 
+test('client blocks editing outside the cycle window and excludes unanswered means', () => {
+  assert.match(app, /const cycleIsOpen/);
+  assert.match(app, /if \(!cycleIsOpen\(state\.cycle\)\)/);
+  assert.match(app, /value !== null && value !== undefined && value !== ''/);
+  assert.match(app, /value >= 1 && value <= 5/);
+});
+
 test('feedback supports locking, manager reopen, selection limits and CSV export', () => {
   assert.match(app, /state\.submitted/);
   assert.match(app, /async function reopen/);
