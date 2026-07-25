@@ -17,6 +17,7 @@ function addInventoryPolishStyle() {
   style.id = 'ops-inventory-polish-style';
   style.textContent = `
     .ds-ops-workshops-panel [data-ops-print-workshops] { display: none !important; }
+    .ds-ops-workshops-panel [data-ops-open-stock-edit] { display: none !important; }
     .ds-ops-workshops-panel .ds-ops-usage-cell {
       text-align: center !important;
     }
@@ -150,16 +151,22 @@ function renameInventoryTab() {
   });
 }
 
+export function removeAdminInventoryShortcut(root = document) {
+  root.querySelectorAll?.('[data-ops-open-stock-edit]').forEach((button) => button.remove());
+}
+
 function runInventoryPolish() {
   addInventoryPolishStyle();
   bindParticipantsCountUi();
   renameInventoryTab();
+  removeAdminInventoryShortcut(document);
 }
 
 function scheduleInventoryPolish() {
   setTimeout(() => {
     runInventoryPolish();
     syncParticipantsCountForms(document);
+    removeAdminInventoryShortcut(document);
   }, 90);
 }
 
