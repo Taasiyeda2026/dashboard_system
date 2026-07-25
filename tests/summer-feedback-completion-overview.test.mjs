@@ -24,7 +24,7 @@ test('feedback sections start closed and completed cards receive a green confirm
         <summary><span><strong>פעילות</strong></span><b>0/2</b></summary>
         <div class="metric-grid">
           <label><select><option value=""></option><option value="5" selected>5</option></select></label>
-          <label><select><option value=""></option><option value=""></option></select></label>
+          <label><select><option value="" selected></option><option value="5">5</option></select></label>
         </div>
       </details>
     </form>
@@ -34,13 +34,15 @@ test('feedback sections start closed and completed cards receive a green confirm
     window: globalThis.window,
     document: globalThis.document,
     MutationObserver: globalThis.MutationObserver,
-    requestAnimationFrame: globalThis.requestAnimationFrame
+    requestAnimationFrame: globalThis.requestAnimationFrame,
+    testMode: globalThis.__SUMMER_FEEDBACK_COMPLETION_TEST__
   };
 
   globalThis.window = dom.window;
   globalThis.document = dom.window.document;
   globalThis.MutationObserver = dom.window.MutationObserver;
   globalThis.requestAnimationFrame = (callback) => setTimeout(callback, 0);
+  globalThis.__SUMMER_FEEDBACK_COMPLETION_TEST__ = true;
 
   try {
     const moduleUrl = new URL('../frontend/public/summer-feedback/completion-overview.js', import.meta.url);
@@ -60,8 +62,7 @@ test('feedback sections start closed and completed cards receive a green confirm
     assert.equal(activityBadge.textContent, '1/2');
     assert.equal(activityBadge.classList.contains('is-complete'), false);
 
-    activity.querySelectorAll('select')[1].value = '';
-    activity.querySelectorAll('select')[1].innerHTML = '<option value="5" selected>5</option>';
+    activity.querySelectorAll('select')[1].value = '5';
     overview.updateCompletionIndicators(document);
     assert.equal(activityBadge.textContent, '2/2');
     assert.equal(activityBadge.classList.contains('is-complete'), true);
@@ -71,6 +72,7 @@ test('feedback sections start closed and completed cards receive a green confirm
     globalThis.document = previous.document;
     globalThis.MutationObserver = previous.MutationObserver;
     globalThis.requestAnimationFrame = previous.requestAnimationFrame;
+    globalThis.__SUMMER_FEEDBACK_COMPLETION_TEST__ = previous.testMode;
   }
 });
 
