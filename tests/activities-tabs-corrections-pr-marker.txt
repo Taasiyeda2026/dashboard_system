@@ -1,1 +1,0 @@
-Validation marker for the activities tab scope and default behavior.
