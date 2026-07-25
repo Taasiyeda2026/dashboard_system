@@ -39,6 +39,7 @@ if (supabaseUrl && supabaseAnonKey) {
 
 export const supabaseConfig = {
   url: supabaseUrl,
+  publishableKey: supabaseAnonKey,
   hasAnonKey: Boolean(supabaseAnonKey),
   isConfigured: Boolean(supabaseUrl && supabaseAnonKey),
   usesFallbackUrl: supabaseUrl === FALLBACK_SUPABASE_URL,
