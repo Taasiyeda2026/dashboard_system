@@ -4,7 +4,7 @@
  * API-like requests: network only, never cached. Bump CACHE_VERSION after deploy to drop old caches.
  * CACHE_VERSION is the single manual SW/cache version source; /sw.js imports this file without its own version.
  */
-const CACHE_VERSION = 1257;
+const CACHE_VERSION = 1258;
 const CACHE_PREFIX = 'dashboard-static-v';
 const CACHE_NAME = `${CACHE_PREFIX}${CACHE_VERSION}`;
 
@@ -178,25 +178,16 @@ self.addEventListener('fetch', (event) => {
 
   // API-like same-origin routes — always hit the network.
   if (isApiLikeUrl(url) || isBlockedCachePath(url)) {
-    event.respondWith(fetch(request));
+    event.respondWith(fetch(withNoStore(request)));
     return;
   }
 
-  // Only handle navigation + static assets; let everything else pass through.
-  if (!(isNavigationRequest(request) || isStaticAssetUrl(url))) return;
+  // App shell and all normal JS/CSS/assets: network-first for reliable updates.
+  if (isNavigationRequest(request) || isStaticAssetUrl(url)) {
+    event.respondWith(caches.open(CACHE_NAME).then((cache) => networkFirst(request, cache)));
+    return;
+  }
 
-  // HTML / JS / CSS / manifest — network-first so a reload always gets the latest.
-  const networkFresh = (
-    isNavigationRequest(request) ||
-    url.pathname.endsWith('.html') ||
-    url.pathname.endsWith('.js') ||
-    url.pathname.endsWith('.css') ||
-    url.pathname.endsWith('/manifest.json') || isManifestUrl(url)
-  );
-
-  event.respondWith(
-    caches.open(CACHE_NAME).then((cache) =>
-      networkFresh ? networkFirst(request, cache) : cacheFirst(request, cache)
-    )
-  );
+  // Other same-origin GETs: network-first as well; only cache successful static-safe responses.
+  event.respondWith(caches.open(CACHE_NAME).then((cache) => networkFirst(request, cache)));
 });
