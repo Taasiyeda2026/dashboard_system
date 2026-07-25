@@ -771,9 +771,8 @@ function reviewOpenLocalFixEnabled() {
 }
 
 function bindLocalReviewControls(scope = document) {
-  const guarded = reviewOpenLocalFixEnabled();
   scope.querySelectorAll('[data-ar2-open]').forEach((button) => {
-    bindAnnualReviewOpenButton(button, openReview, { guarded });
+    bindAnnualReviewOpenButton(button, openReview, { guarded: true });
   });
 
   scope.querySelectorAll('[data-ar2-dashboard]:not([data-ar2-local-bound])').forEach((button) => {
@@ -786,18 +785,35 @@ function bindLocalReviewControls(scope = document) {
   });
 }
 
+function bindGlobalClicks() {
+  document.addEventListener('click', (event) => {
+    const open = event.target.closest('[data-ar2-open]');
+    if (open) {
+      event.preventDefault();
+      event.stopPropagation();
+      openReview(open.dataset.ar2Open);
+      return;
+    }
+    if (event.target.closest('[data-ar2-dashboard]')) {
+      event.preventDefault();
+      document.dispatchEvent(new CustomEvent('app:navigate', { detail: { route: 'dashboard' } }));
+    }
+  }, true);
+}
+
 let enhanceQueued = false;
 function scheduleEnhance() {
   if (enhanceQueued) return;
   enhanceQueued = true;
   queueMicrotask(() => {
     enhanceQueued = false;
-    bindLocalReviewControls();
+    if (reviewOpenLocalFixEnabled()) bindLocalReviewControls();
     enhanceExistingLanding();
   });
 }
 
 installStyles();
-bindLocalReviewControls();
+if (reviewOpenLocalFixEnabled()) bindLocalReviewControls();
+else bindGlobalClicks();
 new MutationObserver(scheduleEnhance).observe(document.documentElement, { childList: true, subtree: true });
 scheduleEnhance();
