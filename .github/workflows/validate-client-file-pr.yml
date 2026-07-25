@@ -34,6 +34,7 @@ on:
       - 'tests/summer-feedback-admin-personal-reports.test.mjs'
       - 'tests/summer-feedback-completion-overview.test.mjs'
       - 'tests/summer-feedback-instructor-card.test.mjs'
+      - 'tests/summer-feedback-refinements.test.mjs'
       - '.github/workflows/validate-client-file-pr.yml'
 
 permissions:
@@ -71,6 +72,8 @@ jobs:
           node --check frontend/src/dashboard-kpi-corrections.js
           node --check frontend/src/summer-feedback-admin-integration.js
           node --check frontend/src/summer-feedback-instructor-card.js
+          node --check frontend/public/summer-feedback/app.js
+          node --check frontend/public/summer-feedback/questionnaire-refinements.js
           node --check frontend/public/summer-feedback/embedded-admin.js
           node --check frontend/public/summer-feedback/supabase-configured-client.js
           node --check frontend/public/summer-feedback/completion-overview.js
@@ -86,6 +89,7 @@ jobs:
           node --check tests/summer-feedback-admin-personal-reports.test.mjs
           node --check tests/summer-feedback-completion-overview.test.mjs
           node --check tests/summer-feedback-instructor-card.test.mjs
+          node --check tests/summer-feedback-refinements.test.mjs
 
       - name: Run auth and shared-list regression tests
         run: node --test tests/auth-session-admin-lists-hotfix.test.mjs
@@ -104,6 +108,9 @@ jobs:
 
       - name: Check summer feedback embedded mode
         run: node --test --test-name-pattern='embedded management mode' tests/summer-feedback-admin-personal-reports.test.mjs
+
+      - name: Check summer feedback questionnaire v4
+        run: node --test tests/summer-feedback-refinements.test.mjs
 
       - name: Check summer feedback completion overview
         run: node --test tests/summer-feedback-completion-overview.test.mjs
