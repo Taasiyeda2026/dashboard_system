@@ -15,6 +15,9 @@ on:
       - 'frontend/src/auth-session-isolation-hotfix.js'
       - 'frontend/src/main-with-proposal-pdf-hotfix.js'
       - 'frontend/src/state.js'
+      - 'frontend/src/dashboard-kpi-corrections.js'
+      - 'frontend/src/summer-feedback-admin-integration.js'
+      - 'frontend/public/summer-feedback/**'
       - 'frontend/src/styles/**'
       - 'frontend/src/config.js'
       - 'frontend/sw.js'
@@ -26,6 +29,7 @@ on:
       - 'tests/proposal-pdf-storage-key-hotfix.test.mjs'
       - 'tests/proposals-agreements-screen.test.mjs'
       - 'tests/instructor-contacts-nav-access.test.mjs'
+      - 'tests/summer-feedback-admin-personal-reports.test.mjs'
       - '.github/workflows/validate-client-file-pr.yml'
 
 permissions:
@@ -59,6 +63,9 @@ jobs:
           node --check frontend/src/admin-permissions-access-hotfix.js
           node --check frontend/src/auth-session-isolation-hotfix.js
           node --check frontend/src/main-with-proposal-pdf-hotfix.js
+          node --check frontend/src/dashboard-kpi-corrections.js
+          node --check frontend/src/summer-feedback-admin-integration.js
+          node --check frontend/public/summer-feedback/embedded-admin.js
           node --check frontend/src/main.js
           node --check frontend/src/state.js
           node --check frontend/src/api.js
@@ -68,9 +75,13 @@ jobs:
           node --check tests/instructor-contacts-nav-access.test.mjs
           node --check tests/proposal-pdf-svg-origin-clean.test.mjs
           node --check tests/proposal-pdf-storage-key-hotfix.test.mjs
+          node --check tests/summer-feedback-admin-personal-reports.test.mjs
 
       - name: Run auth and shared-list regression tests
         run: node --test tests/auth-session-admin-lists-hotfix.test.mjs
+
+      - name: Run summer feedback admin integration tests
+        run: node --test tests/summer-feedback-admin-personal-reports.test.mjs
 
       - name: Run unified client file tests
         run: >-
