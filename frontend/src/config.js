@@ -46,5 +46,5 @@ if (!resolvedUrl) {
 export const config = {
   apiUrl: resolvedUrl,
   DIAGNOSTICS_UI_ENABLED: false,
-  HOTFIX_VERSION: 'client-contact-secure-rpc-20260721-v2'
+  HOTFIX_VERSION: 'auth-session-admin-lists-20260725-v1'
 };
