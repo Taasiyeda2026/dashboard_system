@@ -1,5 +1,6 @@
 const FORM_SELECTOR = '#feedbackForm';
 const COMPLETE_CLASS = 'is-complete';
+const TEST_MODE_FLAG = '__SUMMER_FEEDBACK_COMPLETION_TEST__';
 
 function nextFrame(callback) {
   const schedule = globalThis.requestAnimationFrame || ((fn) => setTimeout(fn, 0));
@@ -67,7 +68,7 @@ function scheduleUpdate() {
   });
 }
 
-if (typeof document !== 'undefined') {
+if (typeof document !== 'undefined' && globalThis[TEST_MODE_FLAG] !== true) {
   const observer = new MutationObserver(scheduleUpdate);
   observer.observe(document.documentElement, {
     childList: true,
