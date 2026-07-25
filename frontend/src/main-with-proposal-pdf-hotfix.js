@@ -10,6 +10,7 @@ import './school-calendar-runtime.js';
 import './birthday-popup.js';
 import './birthday-popup-session-guard.js';
 import './birthday-calendar.js';
+import './activities-tabs-corrections.js';
 import './main.js';
 import './screens/annual-reviews-v2.js';
 import './annual-reviews-language-safe.js';
