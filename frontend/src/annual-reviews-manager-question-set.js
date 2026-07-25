@@ -2,7 +2,7 @@ import { supabase } from './supabase-client.js';
 import { escapeHtml } from './screens/shared/html.js';
 import { registerAnnualReviewExtension } from './annual-reviews-safe-runtime.js';
 
-const QUESTIONS = [
+const DEFAULT_QUESTIONS = [
   {
     key: 'professional_quality',
     title: 'מקצועיות ואיכות הביצוע',
@@ -53,7 +53,62 @@ const QUESTIONS = [
   }
 ];
 
+const TONY_QUESTIONS = [
+  {
+    key: 'professional_quality',
+    title: 'מקצועיות ואיכות הביצוע',
+    prompt: 'באיזו מידה טוני מבצעת את תחומי אחריותה ברמה המקצועית ובאיכות הנדרשת?',
+    rating: true
+  },
+  {
+    key: 'financial_documentation',
+    title: 'תיעוד, סדר ודיוק',
+    prompt: 'באיזו מידה טוני מקפידה על תיעוד מלא, מדויק, שוטף וניתן לאיתור של הנתונים והמסמכים הכספיים שבאחריותה, בהתאם לנהלים ולדרישות החלות על התפקיד?',
+    rating: true
+  },
+  {
+    key: 'task_management',
+    title: 'ניהול משימות ועמידה בהתחייבויות',
+    prompt: 'באיזו מידה טוני מנהלת את משימותיה, קובעת סדרי עדיפויות, עומדת במועדים הנמצאים בשליטתה ומעדכנת בזמן על עיכובים או מידע חסר?',
+    rating: true
+  },
+  {
+    key: 'problem_solving_followup',
+    title: 'התמודדות עם בעיות ומעקב עד לסגירה',
+    prompt: 'באיזו מידה טוני מזהה בעיות או חוסרים, פועלת לבירורם, עוקבת אחר הטיפול ומקדמת את הנושא עד לפתרון או להצפתו בפני המנהל?',
+    rating: true
+  },
+  {
+    key: 'initiative_broad_view',
+    title: 'יוזמה וראייה רחבה',
+    prompt: 'באיזו מידה טוני מגלה יוזמה, חושבת מעבר למשימה המיידית, מזהה השלכות ומציעה דרכים לשיפור העבודה?',
+    rating: true
+  },
+  {
+    key: 'collaboration_communication',
+    title: 'תקשורת ושיתוף פעולה',
+    prompt: 'באיזו מידה טוני מעבירה מידע באופן ברור ובזמן ומתנהלת באופן מקצועי מול המנהל וממשקי העבודה?',
+    rating: true
+  },
+  {
+    key: 'achievements_strengths',
+    title: 'הישגים וחוזקות',
+    prompt: 'אילו הישגים, תרומות או חוזקות של טוני בלטו בתקופה הנבחנת ומה חשוב להמשיך לשמר?',
+    rating: false
+  },
+  {
+    key: 'improvement_conversation',
+    title: 'נקודות לשיפור ונושאים לשיחה',
+    prompt: 'אילו תחומים בהתנהלותה או בביצועיה של טוני נכון לחזק, ואילו נושאים חשוב לברר עמה במהלך שיחת המשוב?',
+    rating: false
+  }
+];
+
 const timers = new WeakMap();
+
+function questionsFor(employeeName) {
+  return String(employeeName || '').trim() === 'טוני נעים' ? TONY_QUESTIONS : DEFAULT_QUESTIONS;
+}
 
 function ratingButtons(answer, editable, key) {
   const selected = Number(answer?.rating || 0);
@@ -75,7 +130,8 @@ function questionHtml(question, answer, editable) {
 }
 
 function valuesFromForm(form) {
-  return Object.fromEntries(QUESTIONS.map((question) => {
+  const questions = questionsFor(form.dataset.employeeName);
+  return Object.fromEntries(questions.map((question) => {
     const node = form.querySelector(`[data-manager-question="${CSS.escape(question.key)}"]`);
     const selected = node?.querySelector('[data-manager-rating].is-selected')?.dataset.managerRating || '';
     return [question.key, {
@@ -140,7 +196,7 @@ function removeLegacyManagerContent(section) {
   section.querySelector('form[data-ar2-form="manager"]')?.remove();
   const metrics = section.querySelector('.ar2-metrics');
   if (metrics?.parentElement) metrics.parentElement.remove();
-  section.querySelectorAll('[data-safe-group="next-year-manager"],[data-safe-group="role-lessons-manager"]').forEach((node) => node.remove());
+  section.querySelectorAll('[data-safe-group="next-year-manager"],[data-safe-group="role-lessons-manager"],[data-safe-group="lessons-manager"]').forEach((node) => node.remove());
 }
 
 function replaceSubmitButton(section, form, review) {
@@ -173,9 +229,11 @@ function replaceSubmitButton(section, form, review) {
 
 registerAnnualReviewExtension(async (root, context) => {
   const section = root.querySelector('#ar2-manager-section');
-  if (!section || section.dataset.managerQuestionSet === 'v2') return;
+  if (!section || section.dataset.managerQuestionSet === 'v3') return;
 
-  const { review, isManager } = context;
+  const { review, isManager, employeeName } = context;
+  const resolvedEmployeeName = employeeName || review.employee_name || '';
+  const questions = questionsFor(resolvedEmployeeName);
   const revealed = Boolean(review.answers_revealed_at);
   if (!isManager && !revealed) return;
 
@@ -199,13 +257,14 @@ registerAnnualReviewExtension(async (root, context) => {
   const form = document.createElement('form');
   form.className = 'ar2-manager-question-set';
   form.dataset.reviewId = review.id;
+  form.dataset.employeeName = resolvedEmployeeName;
   form.dataset.version = String(row?.version || '');
-  form.innerHTML = `<div class="ar2-question-list">${QUESTIONS.map((question) => questionHtml(question, row?.answers?.[question.key], editable)).join('')}</div>
+  form.innerHTML = `<div class="ar2-question-list">${questions.map((question) => questionHtml(question, row?.answers?.[question.key], editable)).join('')}</div>
     <div class="ar2-save" data-manager-save aria-live="polite"></div>`;
 
   const actions = section.querySelector('.ar2-actions');
   section.insertBefore(form, actions || null);
-  section.dataset.managerQuestionSet = 'v2';
+  section.dataset.managerQuestionSet = 'v3';
 
   if (editable) {
     form.addEventListener('input', () => scheduleSave(form));
