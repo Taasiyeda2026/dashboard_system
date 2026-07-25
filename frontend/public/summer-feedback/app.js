@@ -8,21 +8,79 @@ const supabase = createClient(
 
 const CYCLE_KEY = 'summer_2026';
 const DASHBOARD_URL = '../';
-const GENERAL = [
-  ['preparation_info', 'המידע שקיבלתי לפני הפעילות היה ברור ומספק'],
-  ['professional_training', 'ההדרכה המקצועית אפשרה לי להגיע מוכן/ה'],
-  ['equipment_distribution', 'חלוקת הציוד והערכות הייתה מסודרת'],
-  ['schedule_clarity', 'השיבוצים, הכתובות ולוחות הזמנים היו ברורים'],
-  ['support_response', 'קיבלתי מענה מקצועי ותפעולי בעת הצורך'],
-  ['workload', 'היקף הפעילות והעומס היו סבירים'],
-  ['overall_organization', 'פעילות הקיץ הייתה מאורגנת ומוצלחת']
+
+const GENERAL_GROUPS = [
+  {
+    key: 'content_training',
+    title: 'תוכן והכשרה',
+    questions: [
+      ['preparation_info', 'המידע וחומרי התוכן שקיבלתי לפני הפעילות היו ברורים ומספקים'],
+      ['professional_training', 'ההכשרה המקצועית הכינה אותי להעברת הפעילויות'],
+      ['content_goals_clarity', 'הכרתי את מטרות הפעילויות ואת דרך ההעברה המצופה'],
+      ['content_support', 'קיבלתי מענה מקצועי לשאלות תוכן לפני הפעילות ובמהלכה']
+    ]
+  },
+  {
+    key: 'coordination_scheduling',
+    title: 'תיאום ושיבוץ',
+    questions: [
+      ['scheduling_timeliness', 'השיבוצים נמסרו לי בזמן שאפשר היערכות מתאימה'],
+      ['schedule_clarity', 'פרטי הפעילות, הכתובת, השעות והקבוצה היו ברורים'],
+      ['change_updates', 'שינויים ועדכונים הועברו בצורה מסודרת ובזמן'],
+      ['constraints_response', 'אילוצים ובקשות שהעליתי קיבלו התייחסות עניינית'],
+      ['workload', 'היקף הפעילויות וחלוקת העומס היו סבירים']
+    ]
+  },
+  {
+    key: 'activity_management',
+    title: 'ניהול הפעילות והמענה השוטף',
+    questions: [
+      ['management_contact_clarity', 'היה לי ברור למי לפנות בכל שאלה מקצועית, תפעולית או לוגיסטית'],
+      ['management_presence', 'ניהול הפעילות היה נוכח, מעורב וזמין בהתאם לצורך'],
+      ['daily_resources_check', 'לפני ימי הפעילות נעשתה בדיקה שיש ברשותי את המידע, הציוד והחומרים הנדרשים'],
+      ['daily_readiness_check', 'וידאו איתי שאני ערוך/ה ומוכן/ה להדרכה מדי יום'],
+      ['ongoing_contact', 'התקיים איתי קשר שוטף ולא רק כאשר התעוררה בעיה'],
+      ['issue_resolution', 'חוסרים, תקלות ובעיות טופלו בזמן וביעילות'],
+      ['post_activity_followup', 'לאחר הפעילויות נעשתה בדיקה כיצד היה והאם עלו קשיים או צרכים'],
+      ['management_communication', 'התקשורת מול ניהול הפעילות הייתה ברורה, רציפה ומכבדת'],
+      ['support_response', 'קיבלתי גיבוי ומענה שאפשרו לי להתמודד עם מצבים בשטח']
+    ]
+  },
+  {
+    key: 'logistics',
+    title: 'לוגיסטיקה וציוד',
+    questions: [
+      ['equipment_distribution', 'הציוד והערכות נמסרו בזמן ובצורה מסודרת'],
+      ['equipment_completeness', 'הציוד והחומרים היו מלאים, תקינים ומוכנים לשימוש'],
+      ['equipment_quantity_fit', 'הכמויות שסופקו התאימו למספר המשתתפים'],
+      ['logistics_instructions', 'ההנחיות לקבלת הציוד, השימוש בו והחזרתו היו ברורות']
+    ]
+  },
+  {
+    key: 'confidence_envelope',
+    title: 'תחושת ביטחון ומעטפת',
+    questions: [
+      ['readiness_confidence', 'הרגשתי בטוח/ה ומוכן/ה להעביר את הפעילויות'],
+      ['professional_backup', 'הרגשתי שיש לי כתובת מקצועית ותפעולית בעת הצורך'],
+      ['full_support_envelope', 'קיבלתי מעטפת מלאה שאפשרה לי להתמקד בהדרכה'],
+      ['overall_organization', 'באופן כללי, פעילות הקיץ הייתה מאורגנת ומנוהלת היטב']
+    ]
+  }
 ];
+
+const GENERAL = GENERAL_GROUPS.flatMap(group => group.questions);
+
 const METRICS = [
   ['age_fit', 'התאמה לגיל'],
   ['time_fit', 'התאמה לזמן'],
+  ['content_clarity', 'בהירות התוכן'],
+  ['delivery_ease', 'קלות ההעברה'],
   ['equipment_quality', 'ציוד וחומרים'],
-  ['student_success', 'הצלחה בקרב הילדים']
+  ['student_engagement', 'עניין והשתתפות'],
+  ['student_success', 'הצלחת הפעילות'],
+  ['overall_rating', 'הערכה כללית']
 ];
+
 const IMPROVEMENTS = ['הזמן לא הספיק','הפעילות הייתה קצרה מדי','אי־התאמה לגיל','הוראות לא ברורות','בנייה מורכבת','נדרשה עזרה רבה','ציוד חסר','חלקים לא תקינים','תוצר לא מוצלח','עניין נמוך'];
 const SUCCESSES = ['התלהבות הילדים','תוצר מוצלח','תוכן מעניין','התאמה לגיל','הוראות ברורות','ציוד נוח','התאמה לזמן','שילוב למידה והנאה'];
 
@@ -142,6 +200,14 @@ function chips(values, selected, kind, assignmentId, locked) {
 
 function ratingFor(id) { return state.ratings.find(row => row.assignment_id === id) || {}; }
 
+function generalGroupCard(group, index, locked) {
+  const completed = group.questions.filter(([key]) => state.response.general_answers?.[key]).length;
+  return `<details class="feedback-group" ${index === 0 ? 'open' : ''}>
+    <summary><span><strong>${index + 1}. ${esc(group.title)}</strong><small>${group.questions.length} היגדים</small></span><b data-general-complete="${esc(group.key)}">${completed}/${group.questions.length}</b></summary>
+    <div class="feedback-group-body"><div class="general-grid">${group.questions.map(([key,label])=>`<label class="question"><span>${esc(label)}</span><select name="general_${key}" ${locked?'disabled':''}>${ratingOptions(state.response.general_answers?.[key])}</select></label>`).join('')}</div></div>
+  </details>`;
+}
+
 function renderInstructor() {
   const preview = state.previewMode;
   const locked = state.submitted && !preview;
@@ -160,21 +226,22 @@ function renderInstructor() {
       : '<button class="button secondary" type="button" id="saveNow">שמירת טיוטה</button><button class="button primary" type="submit">הגשת המשוב</button>';
 
   app.innerHTML = frame(`<main class="container">
-    <section class="hero"><div><h1>משוב פעילות הקיץ</h1><p>שלום ${esc(name)}. המשוב מתייחס לפעילויות ולהיערכות, ולא להערכת עבודת המדריך.</p></div><div class="hero-count"><strong>${state.assignments.length}</strong><span>סוגי פעילויות · ${total} הפעלות</span></div></section>
+    <section class="hero"><div><h1>משוב פעילות הקיץ</h1><p>שלום ${esc(name)}. המשוב עוסק במעטפת שקיבלת ובפעילויות שהעברת, ואינו הערכה של עבודתך.</p></div><div class="hero-count"><strong>${state.assignments.length}</strong><span>סוגי פעילויות · ${total} הפעלות</span></div></section>
     <div class="status">${statusLine}</div>
     ${banner}
     <div class="progress"><div><strong>התקדמות</strong><span id="progressText">0%</span></div><div class="track"><i id="progressBar"></i></div></div>
     <form id="feedbackForm">
-      <section class="panel"><h2>1. היערכות והתנהלות</h2><p class="hint">1 – כלל לא · 5 – במידה רבה מאוד</p>
-        <div class="general-grid">${GENERAL.map(([key,label])=>`<label class="question"><span>${esc(label)}</span><select name="general_${key}" ${locked?'disabled':''}>${ratingOptions(state.response.general_answers?.[key])}</select></label>`).join('')}</div>
+      <section class="panel"><h2>1. המעטפת שקיבלתי</h2><p class="hint">דירוג 1–5: 1 – כלל לא · 5 – במידה רבה מאוד. אפשר לפתוח כל נושא בנפרד.</p>
+        <div class="feedback-groups">${GENERAL_GROUPS.map((group,index)=>generalGroupCard(group,index,locked)).join('')}</div>
       </section>
-      <section class="panel"><h2>2. דירוג הפעילויות</h2><p class="hint">מוצגות רק הפעילויות שהעברת ומספר ההפעלות שלהן.</p>
-        <div class="activity-list">${state.assignments.map(a=>activityCard(a,locked)).join('')}</div>
+      <section class="panel"><h2>2. הערכת הפעילויות</h2><p class="hint">מוצגות הפעילויות שהעברת. לכל פעילות יש דירוג נפרד ושדה הערה חופשית.</p>
+        <div class="activity-list">${state.assignments.map((a,index)=>activityCard(a,locked,index===0)).join('')}</div>
       </section>
-      <section class="panel"><h2>3. סיכום</h2>
-        <label class="text-question"><span>מה חשוב לשמר מהפעילויות ומההיערכות?</span><textarea data-summary="preserve" ${locked?'disabled':''}>${esc(state.response.summary_answers?.preserve||'')}</textarea></label>
+      <section class="panel"><h2>3. סיכום והמלצות</h2>
+        <label class="text-question"><span>מה חשוב לשמר מהפעילויות ומהמעטפת שקיבלת?</span><textarea data-summary="preserve" ${locked?'disabled':''}>${esc(state.response.summary_answers?.preserve||'')}</textarea></label>
         <label class="text-question"><span>מה חשוב לשנות או לשפר?</span><textarea data-summary="improve" ${locked?'disabled':''}>${esc(state.response.summary_answers?.improve||'')}</textarea></label>
-        <label class="text-question"><span>איזו הכשרה או הכנה נוספת הייתה מסייעת לך?</span><textarea data-summary="training_needed" ${locked?'disabled':''}>${esc(state.response.summary_answers?.training_needed||'')}</textarea></label>
+        <label class="text-question"><span>מה חשוב לשמר או לשפר בניהול הפעילות, במענה השוטף ובליווי המדריכים?</span><textarea data-summary="management_interface" ${locked?'disabled':''}>${esc(state.response.summary_answers?.management_interface||'')}</textarea></label>
+        <label class="text-question"><span>איזו הכשרה, הכנה או תמיכה נוספת הייתה מסייעת לך?</span><textarea data-summary="training_needed" ${locked?'disabled':''}>${esc(state.response.summary_answers?.training_needed||'')}</textarea></label>
         <label class="text-question"><span>הערות נוספות</span><textarea data-summary="additional_notes" ${locked?'disabled':''}>${esc(state.response.summary_answers?.additional_notes||'')}</textarea></label>
       </section>
       <div class="submit-bar">${submitBar}</div>
@@ -193,11 +260,12 @@ function renderInstructor() {
   updateProgress();
 }
 
-function activityCard(a, locked) {
+function activityCard(a, locked, open = false) {
   const r = ratingFor(a.id);
   const grades = (a.grade_labels||[]).join(', ');
-  return `<details class="activity" open><summary><span><strong>${esc(a.activity_name)}</strong><small>${a.activity_count} הפעלות${grades?` · ${esc(grades)}`:''}</small></span><b data-complete="${a.id}">0/4</b></summary>
+  return `<details class="activity" ${open ? 'open' : ''}><summary><span><strong>${esc(a.activity_name)}</strong><small>${a.activity_count} הפעלות${grades?` · ${esc(grades)}`:''}</small></span><b data-complete="${a.id}">0/${METRICS.length}</b></summary>
     <div class="activity-body"><div class="metric-grid">${METRICS.map(([key,label])=>`<label><span>${esc(label)}</span><select data-rating="${key}" data-assignment="${a.id}" ${locked?'disabled':''}>${ratingOptions(r[key])}</select></label>`).join('')}</div>
+      <label class="activity-free-note"><span>הערה או המלצה לפעילות זו</span><input type="text" data-note="additional" data-assignment="${a.id}" value="${esc(r.additional_note||'')}" placeholder="מה עבד היטב, מה היה קשה או מה כדאי לשנות?" ${locked?'disabled':''}></label>
       <div class="highlights"><label><input type="checkbox" data-highlight="success" data-assignment="${a.id}" ${r.success_highlight?'checked':''} ${locked?'disabled':''}> פעילות מוצלחת במיוחד</label><label><input type="checkbox" data-highlight="improvement" data-assignment="${a.id}" ${r.needs_improvement?'checked':''} ${locked?'disabled':''}> פעילות שדורשת שיפור</label></div>
       <div class="detail-box ${r.success_highlight?'':'hidden'}" data-box="success-${a.id}"><strong>מה תרם להצלחה?</strong><div class="chips">${chips(SUCCESSES,r.success_reasons,'success',a.id,locked)}</div><textarea data-note="success" data-assignment="${a.id}" placeholder="הערה קצרה" ${locked?'disabled':''}>${esc(r.success_note||'')}</textarea></div>
       <div class="detail-box ${r.needs_improvement?'':'hidden'}" data-box="improvement-${a.id}"><strong>מה דרוש שיפור?</strong><div class="chips">${chips(IMPROVEMENTS,r.improvement_categories,'improvement',a.id,locked)}</div><textarea data-note="improvement" data-assignment="${a.id}" placeholder="מה כדאי לשנות בפועל?" ${locked?'disabled':''}>${esc(r.improvement_note||'')}</textarea></div>
@@ -237,12 +305,13 @@ function collectSnapshot() {
     return {
       response_id:state.response.id, assignment_id:a.id, cycle_id:state.cycle.id,
       instructor_auth_user_id:state.previewMode ? a.instructor_auth_user_id : state.user.id,
-      age_fit:value('age_fit'), time_fit:value('time_fit'), equipment_quality:value('equipment_quality'), student_success:value('student_success'),
+      ...Object.fromEntries(METRICS.map(([key])=>[key,value(key)])),
       success_highlight:Boolean(document.querySelector(`[data-highlight="success"][data-assignment="${a.id}"]`)?.checked),
       needs_improvement:Boolean(document.querySelector(`[data-highlight="improvement"][data-assignment="${a.id}"]`)?.checked),
       success_reasons:checked('success'), improvement_categories:checked('improvement'),
       success_note:document.querySelector(`[data-note="success"][data-assignment="${a.id}"]`)?.value.trim()||'',
-      improvement_note:document.querySelector(`[data-note="improvement"][data-assignment="${a.id}"]`)?.value.trim()||'', additional_note:''
+      improvement_note:document.querySelector(`[data-note="improvement"][data-assignment="${a.id}"]`)?.value.trim()||'',
+      additional_note:document.querySelector(`[data-note="additional"][data-assignment="${a.id}"]`)?.value.trim()||''
     };
   });
   return { general_answers, summary_answers, ratings };
@@ -316,7 +385,12 @@ function updateProgress() {
   const percent=Math.round(complete/total*100);
   const text=document.querySelector('#progressText'); const bar=document.querySelector('#progressBar');
   if(text) text.textContent=`${percent}%`; if(bar) bar.style.width=`${percent}%`;
-  state.assignments.forEach((a,index)=>{const el=document.querySelector(`[data-complete="${a.id}"]`);if(el)el.textContent=`${METRICS.filter(([key])=>snapshot.ratings[index][key]).length}/4`;});
+  GENERAL_GROUPS.forEach(group=>{
+    const count=group.questions.filter(([key])=>snapshot.general_answers[key]).length;
+    const el=document.querySelector(`[data-general-complete="${group.key}"]`);
+    if(el) el.textContent=`${count}/${group.questions.length}`;
+  });
+  state.assignments.forEach((a,index)=>{const el=document.querySelector(`[data-complete="${a.id}"]`);if(el)el.textContent=`${METRICS.filter(([key])=>snapshot.ratings[index][key]).length}/${METRICS.length}`;});
 }
 
 function groupedInstructors() {
@@ -375,10 +449,11 @@ function analysisTable() {
   const rows=[...map.values()].map(item=>{
     const ratings=state.ratings.filter(r=>item.ids.includes(r.assignment_id));
     const rated=ratings.filter(r=>METRICS.some(([key])=>r[key] !== null && r[key] !== undefined && r[key] !== ''));
-    return {...item,count:rated.length,age:mean(rated.map(r=>r.age_fit)),time:mean(rated.map(r=>r.time_fit)),equipment:mean(rated.map(r=>r.equipment_quality)),success:mean(rated.map(r=>r.student_success)),improve:ratings.filter(r=>r.needs_improvement).length,highlight:ratings.filter(r=>r.success_highlight).length};
+    const averages=Object.fromEntries(METRICS.map(([key])=>[key,mean(rated.map(r=>r[key]))]));
+    return {...item,count:rated.length,...averages,improve:ratings.filter(r=>r.needs_improvement).length,highlight:ratings.filter(r=>r.success_highlight).length};
   }).sort((a,b)=>b.count-a.count||a.name.localeCompare(b.name,'he'));
   const format=n=>n==null?'—':n.toFixed(2);
-  return `<h2>ניתוח לפי פעילות</h2><div class="table-wrap"><table><thead><tr><th>פעילות</th><th>הפעלות</th><th>דירוגים</th><th>גיל</th><th>זמן</th><th>ציוד</th><th>הצלחה</th><th>לשיפור</th><th>בולטת</th></tr></thead><tbody>${rows.map(row=>`<tr><td><strong>${esc(row.name)}</strong></td><td>${row.total}</td><td>${row.count}</td><td>${format(row.age)}</td><td>${format(row.time)}</td><td>${format(row.equipment)}</td><td>${format(row.success)}</td><td>${row.improve}</td><td>${row.highlight}</td></tr>`).join('')}</tbody></table></div>`;
+  return `<h2>ניתוח לפי פעילות</h2><div class="table-wrap"><table><thead><tr><th>פעילות</th><th>הפעלות</th><th>דירוגים</th>${METRICS.map(([,label])=>`<th>${esc(label)}</th>`).join('')}<th>לשיפור</th><th>בולטת</th></tr></thead><tbody>${rows.map(row=>`<tr><td><strong>${esc(row.name)}</strong></td><td>${row.total}</td><td>${row.count}</td>${METRICS.map(([key])=>`<td>${format(row[key])}</td>`).join('')}<td>${row.improve}</td><td>${row.highlight}</td></tr>`).join('')}</tbody></table></div>`;
 }
 
 async function reopen(event) {
@@ -392,13 +467,38 @@ async function reopen(event) {
 
 function csv(value) { const text=Array.isArray(value)?value.join(' | '):String(value??''); return `"${text.replaceAll('"','""')}"`; }
 function exportCsv() {
-  const responses=new Map(state.responses.map(r=>[r.instructor_auth_user_id,r])); const ratings=new Map(state.ratings.map(r=>[r.assignment_id,r]));
-  const rows=[['מדריך','מספר עובד','פעילות','הפעלות','שכבות גיל','סטטוס','התאמה לגיל','התאמה לזמן','ציוד','הצלחה','בולטת','סיבות להצלחה','הערת הצלחה','לשיפור','קשיים','המלצה לשיפור','מה חשוב לשמר','מה חשוב לשפר','הכשרה נוספת','הערות כלליות']];
+  const responses=new Map(state.responses.map(r=>[r.instructor_auth_user_id,r]));
+  const ratings=new Map(state.ratings.map(r=>[r.assignment_id,r]));
+  const rows=[[
+    'מדריך','מספר עובד','פעילות','הפעלות','שכבות גיל','סטטוס',
+    ...GENERAL.map(([,label])=>label),
+    ...METRICS.map(([,label])=>label),
+    'הערה או המלצה לפעילות',
+    'בולטת','סיבות להצלחה','הערת הצלחה',
+    'לשיפור','קשיים','המלצה לשיפור',
+    'מה חשוב לשמר','מה חשוב לשפר','ניהול הפעילות והמענה','הכשרה נוספת','הערות כלליות'
+  ]];
   state.assignments.forEach(a=>{
-    const response=responses.get(a.instructor_auth_user_id); const rating=ratings.get(a.id)||{}; const summary=response?.summary_answers||{};
-    rows.push([a.instructor_name,a.instructor_emp_id,a.activity_name,a.activity_count,a.grade_labels,statusText(response?.status),rating.age_fit,rating.time_fit,rating.equipment_quality,rating.student_success,rating.success_highlight?'כן':'לא',rating.success_reasons,rating.success_note,rating.needs_improvement?'כן':'לא',rating.improvement_categories,rating.improvement_note,summary.preserve,summary.improve,summary.training_needed,summary.additional_notes]);
+    const response=responses.get(a.instructor_auth_user_id);
+    const rating=ratings.get(a.id)||{};
+    const general=response?.general_answers||{};
+    const summary=response?.summary_answers||{};
+    rows.push([
+      a.instructor_name,a.instructor_emp_id,a.activity_name,a.activity_count,a.grade_labels,statusText(response?.status),
+      ...GENERAL.map(([key])=>general[key]),
+      ...METRICS.map(([key])=>rating[key]),
+      rating.additional_note,
+      rating.success_highlight?'כן':'לא',rating.success_reasons,rating.success_note,
+      rating.needs_improvement?'כן':'לא',rating.improvement_categories,rating.improvement_note,
+      summary.preserve,summary.improve,summary.management_interface,summary.training_needed,summary.additional_notes
+    ]);
   });
-  const blob=new Blob(['\uFEFF'+rows.map(row=>row.map(csv).join(',')).join('\n')],{type:'text/csv;charset=utf-8'});const link=document.createElement('a');link.href=URL.createObjectURL(blob);link.download=`summer-feedback-${new Date().toISOString().slice(0,10)}.csv`;link.click();URL.revokeObjectURL(link.href);
+  const blob=new Blob(['\uFEFF'+rows.map(row=>row.map(csv).join(',')).join('\n')],{type:'text/csv;charset=utf-8'});
+  const link=document.createElement('a');
+  link.href=URL.createObjectURL(blob);
+  link.download=`summer-feedback-${new Date().toISOString().slice(0,10)}.csv`;
+  link.click();
+  URL.revokeObjectURL(link.href);
 }
 
 init();
