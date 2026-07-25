@@ -2,7 +2,6 @@ import { api } from './api.js';
 
 const ESCAPE_ROOM_KPI_ACTION = 'kpi|active_escape_room';
 const SUMMER_KPI_ACTION = 'kpi|summer';
-const SUMMER_FEEDBACK_URL = './summer-feedback/';
 
 function asNumber(value) {
   const n = Number(value);
@@ -73,37 +72,3 @@ const originalDashboardReadModel = api.dashboardReadModel?.bind(api);
 if (typeof originalDashboardReadModel === 'function') {
   api.dashboardReadModel = async (...args) => normalizeDashboardKpis(await originalDashboardReadModel(...args));
 }
-
-function ensureSummerFeedbackLink() {
-  document.querySelectorAll('.instr-my-data-actions').forEach((actions) => {
-    if (actions.querySelector('[data-summer-feedback-link]')) return;
-    const link = document.createElement('a');
-    link.href = SUMMER_FEEDBACK_URL;
-    link.className = 'ds-btn ds-btn--sm ds-btn--primary';
-    link.dataset.summerFeedbackLink = 'true';
-    link.textContent = 'משוב פעילות הקיץ';
-    link.setAttribute('aria-label', 'פתיחת משוב פעילות הקיץ');
-    actions.prepend(link);
-  });
-}
-
-let summerFeedbackLinkQueued = false;
-function scheduleSummerFeedbackLink() {
-  if (summerFeedbackLinkQueued) return;
-  summerFeedbackLinkQueued = true;
-  requestAnimationFrame(() => {
-    summerFeedbackLinkQueued = false;
-    ensureSummerFeedbackLink();
-  });
-}
-
-if (document.readyState === 'loading') {
-  document.addEventListener('DOMContentLoaded', scheduleSummerFeedbackLink, { once: true });
-} else {
-  scheduleSummerFeedbackLink();
-}
-
-new MutationObserver(scheduleSummerFeedbackLink).observe(document.documentElement, {
-  childList: true,
-  subtree: true
-});
