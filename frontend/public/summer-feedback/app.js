@@ -31,7 +31,7 @@ const toast = document.querySelector('#toast');
 const state = {
   user: null, cycle: null, assignments: [], responses: [], ratings: [], response: null,
   mode: 'instructor', submitted: false, saveTimer: null, savePromise: null,
-  revision: 0, savedRevision: 0, adminTab: 'status'
+  revision: 0, savedRevision: 0, adminTab: 'status', canAdmin: false, hasOwnFeedback: false
 };
 
 const esc = (value = '') => String(value).replaceAll('&','&amp;').replaceAll('<','&lt;').replaceAll('>','&gt;').replaceAll('"','&quot;').replaceAll("'",'&#039;');
@@ -47,7 +47,12 @@ function notify(message, error = false) {
 }
 
 function frame(content, label = '') {
-  return `<div class="shell"><header><div class="brand"><span>ת</span><div><strong>תעשיידע</strong><small>משוב פעילות הקיץ</small></div></div><div class="head-actions">${label ? `<small>${esc(label)}</small>` : ''}<a class="button" href="${DASHBOARD_URL}">חזרה לדשבורד</a></div></header>${content}</div>`;
+  const modeLink = state.canAdmin
+    ? (state.mode === 'admin'
+        ? (state.hasOwnFeedback ? '<a class="button" href="./">המשוב שלי</a>' : '')
+        : '<a class="button" href="./?view=admin">ניהול משובים</a>')
+    : '';
+  return `<div class="shell"><header><div class="brand"><span>ת</span><div><strong>תעשיידע</strong><small>משוב פעילות הקיץ</small></div></div><div class="head-actions">${label ? `<small>${esc(label)}</small>` : ''}${modeLink}<a class="button" href="${DASHBOARD_URL}">חזרה לדשבורד</a></div></header>${content}</div>`;
 }
 
 function renderMessage(title, text) {
@@ -75,10 +80,14 @@ async function init() {
     state.responses = responses.data || [];
     state.ratings = ratings.data || [];
 
-    state.mode = state.assignments.some(row => row.instructor_auth_user_id !== state.user.id) ? 'admin' : 'instructor';
+    const ownAssignments = state.assignments.filter(row => row.instructor_auth_user_id === state.user.id);
+    state.hasOwnFeedback = ownAssignments.length > 0;
+    state.canAdmin = state.assignments.some(row => row.instructor_auth_user_id !== state.user.id);
+    const requestedAdmin = new URLSearchParams(window.location.search).get('view') === 'admin';
+    state.mode = state.canAdmin && (requestedAdmin || !state.hasOwnFeedback) ? 'admin' : 'instructor';
     if (state.mode === 'admin') return renderAdmin();
 
-    state.assignments = state.assignments.filter(row => row.instructor_auth_user_id === state.user.id);
+    state.assignments = ownAssignments;
     state.ratings = state.ratings.filter(row => row.instructor_auth_user_id === state.user.id);
     if (!state.assignments.length) return renderMessage('לא נמצאו פעילויות','לא משויכות למשתמש שלך פעילויות שנכללו במשוב.');
     await ensureResponse();
