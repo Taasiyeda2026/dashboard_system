@@ -1,5 +1,6 @@
 import { api } from './api.js';
 import './summer-feedback-admin-integration.js';
+import './summer-feedback-instructor-card.js';
 
 const TYPE_DEFINITIONS = [
   { key: 'course', id: 'active_courses', action: 'kpi|active_courses', subtitle: 'קורסים' },

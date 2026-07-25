@@ -18,6 +18,7 @@ on:
       - 'frontend/src/supabase-client.js'
       - 'frontend/src/dashboard-kpi-corrections.js'
       - 'frontend/src/summer-feedback-admin-integration.js'
+      - 'frontend/src/summer-feedback-instructor-card.js'
       - 'frontend/public/summer-feedback/**'
       - 'frontend/src/styles/**'
       - 'frontend/src/config.js'
@@ -32,6 +33,7 @@ on:
       - 'tests/instructor-contacts-nav-access.test.mjs'
       - 'tests/summer-feedback-admin-personal-reports.test.mjs'
       - 'tests/summer-feedback-completion-overview.test.mjs'
+      - 'tests/summer-feedback-instructor-card.test.mjs'
       - '.github/workflows/validate-client-file-pr.yml'
 
 permissions:
@@ -68,6 +70,7 @@ jobs:
           node --check frontend/src/supabase-client.js
           node --check frontend/src/dashboard-kpi-corrections.js
           node --check frontend/src/summer-feedback-admin-integration.js
+          node --check frontend/src/summer-feedback-instructor-card.js
           node --check frontend/public/summer-feedback/embedded-admin.js
           node --check frontend/public/summer-feedback/supabase-configured-client.js
           node --check frontend/public/summer-feedback/completion-overview.js
@@ -82,6 +85,7 @@ jobs:
           node --check tests/proposal-pdf-storage-key-hotfix.test.mjs
           node --check tests/summer-feedback-admin-personal-reports.test.mjs
           node --check tests/summer-feedback-completion-overview.test.mjs
+          node --check tests/summer-feedback-instructor-card.test.mjs
 
       - name: Run auth and shared-list regression tests
         run: node --test tests/auth-session-admin-lists-hotfix.test.mjs
@@ -103,6 +107,9 @@ jobs:
 
       - name: Check summer feedback completion overview
         run: node --test tests/summer-feedback-completion-overview.test.mjs
+
+      - name: Check assigned instructor summer feedback card
+        run: node --test tests/summer-feedback-instructor-card.test.mjs
 
       - name: Run unified client file tests
         run: >-
