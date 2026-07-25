@@ -254,7 +254,12 @@ async function saveDraft(silent=true) {
 function validate() {
   const snapshot=collectSnapshot(); const missing=[];
   GENERAL.forEach(([key,label])=>{if(!snapshot.general_answers[key]) missing.push(label);});
-  state.assignments.forEach((a,index)=>METRICS.forEach(([key,label])=>{if(!snapshot.ratings[index][key]) missing.push(`${a.activity_name} – ${label}`);}));
+  state.assignments.forEach((a,index)=>{
+    const rating=snapshot.ratings[index];
+    METRICS.forEach(([key,label])=>{if(!rating[key]) missing.push(`${a.activity_name} – ${label}`);});
+    if(rating.success_highlight && !rating.success_reasons.length && !rating.success_note) missing.push(`${a.activity_name} – פירוט לפעילות מוצלחת`);
+    if(rating.needs_improvement && !rating.improvement_categories.length && !rating.improvement_note) missing.push(`${a.activity_name} – פירוט לפעילות שדורשת שיפור`);
+  });
   if(!snapshot.summary_answers.preserve) missing.push('מה חשוב לשמר');
   if(!snapshot.summary_answers.improve) missing.push('מה חשוב לשפר');
   return missing;
@@ -309,7 +314,11 @@ function statusTable(groups) {
 function analysisTable() {
   const map=new Map();
   state.assignments.forEach(a=>{if(!map.has(a.activity_key))map.set(a.activity_key,{name:a.activity_name,total:0,ids:[]});const item=map.get(a.activity_key);item.total+=Number(a.activity_count||0);item.ids.push(a.id);});
-  const rows=[...map.values()].map(item=>{const ratings=state.ratings.filter(r=>item.ids.includes(r.assignment_id));return {...item,count:ratings.length,age:mean(ratings.map(r=>r.age_fit)),time:mean(ratings.map(r=>r.time_fit)),equipment:mean(ratings.map(r=>r.equipment_quality)),success:mean(ratings.map(r=>r.student_success)),improve:ratings.filter(r=>r.needs_improvement).length,highlight:ratings.filter(r=>r.success_highlight).length};}).sort((a,b)=>b.count-a.count||a.name.localeCompare(b.name,'he'));
+  const rows=[...map.values()].map(item=>{
+    const ratings=state.ratings.filter(r=>item.ids.includes(r.assignment_id));
+    const rated=ratings.filter(r=>METRICS.some(([key])=>r[key] !== null && r[key] !== undefined && r[key] !== ''));
+    return {...item,count:rated.length,age:mean(rated.map(r=>r.age_fit)),time:mean(rated.map(r=>r.time_fit)),equipment:mean(rated.map(r=>r.equipment_quality)),success:mean(rated.map(r=>r.student_success)),improve:ratings.filter(r=>r.needs_improvement).length,highlight:ratings.filter(r=>r.success_highlight).length};
+  }).sort((a,b)=>b.count-a.count||a.name.localeCompare(b.name,'he'));
   const format=n=>n==null?'—':n.toFixed(2);
   return `<h2>ניתוח לפי פעילות</h2><div class="table-wrap"><table><thead><tr><th>פעילות</th><th>הפעלות</th><th>דירוגים</th><th>גיל</th><th>זמן</th><th>ציוד</th><th>הצלחה</th><th>לשיפור</th><th>בולטת</th></tr></thead><tbody>${rows.map(row=>`<tr><td><strong>${esc(row.name)}</strong></td><td>${row.total}</td><td>${row.count}</td><td>${format(row.age)}</td><td>${format(row.time)}</td><td>${format(row.equipment)}</td><td>${format(row.success)}</td><td>${row.improve}</td><td>${row.highlight}</td></tr>`).join('')}</tbody></table></div>`;
 }
@@ -324,8 +333,11 @@ async function reopen(event) {
 function csv(value) { const text=Array.isArray(value)?value.join(' | '):String(value??''); return `"${text.replaceAll('"','""')}"`; }
 function exportCsv() {
   const responses=new Map(state.responses.map(r=>[r.instructor_auth_user_id,r])); const ratings=new Map(state.ratings.map(r=>[r.assignment_id,r]));
-  const rows=[['מדריך','מספר עובד','פעילות','הפעלות','שכבות גיל','סטטוס','התאמה לגיל','התאמה לזמן','ציוד','הצלחה','בולטת','סיבות להצלחה','לשיפור','קשיים','המלצה']];
-  state.assignments.forEach(a=>{const response=responses.get(a.instructor_auth_user_id);const rating=ratings.get(a.id)||{};rows.push([a.instructor_name,a.instructor_emp_id,a.activity_name,a.activity_count,a.grade_labels,statusText(response?.status),rating.age_fit,rating.time_fit,rating.equipment_quality,rating.student_success,rating.success_highlight?'כן':'לא',rating.success_reasons,rating.needs_improvement?'כן':'לא',rating.improvement_categories,rating.improvement_note]);});
+  const rows=[['מדריך','מספר עובד','פעילות','הפעלות','שכבות גיל','סטטוס','התאמה לגיל','התאמה לזמן','ציוד','הצלחה','בולטת','סיבות להצלחה','הערת הצלחה','לשיפור','קשיים','המלצה לשיפור','מה חשוב לשמר','מה חשוב לשפר','הכשרה נוספת','הערות כלליות']];
+  state.assignments.forEach(a=>{
+    const response=responses.get(a.instructor_auth_user_id); const rating=ratings.get(a.id)||{}; const summary=response?.summary_answers||{};
+    rows.push([a.instructor_name,a.instructor_emp_id,a.activity_name,a.activity_count,a.grade_labels,statusText(response?.status),rating.age_fit,rating.time_fit,rating.equipment_quality,rating.student_success,rating.success_highlight?'כן':'לא',rating.success_reasons,rating.success_note,rating.needs_improvement?'כן':'לא',rating.improvement_categories,rating.improvement_note,summary.preserve,summary.improve,summary.training_needed,summary.additional_notes]);
+  });
   const blob=new Blob(['\uFEFF'+rows.map(row=>row.map(csv).join(',')).join('\n')],{type:'text/csv;charset=utf-8'});const link=document.createElement('a');link.href=URL.createObjectURL(blob);link.download=`summer-feedback-${new Date().toISOString().slice(0,10)}.csv`;link.click();URL.revokeObjectURL(link.href);
 }
 
