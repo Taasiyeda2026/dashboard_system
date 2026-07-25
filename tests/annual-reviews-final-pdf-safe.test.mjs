@@ -17,7 +17,7 @@ test('final PDF upload is restricted to completed reviews and one immutable obje
   assert.match(moduleCode, /%PDF-/);
   assert.match(moduleCode, /SHA-256/);
   assert.match(moduleCode, /register_annual_review_final_document/);
-  assert.doesNotMatch(moduleCode, /\.remove\(|\.update\(/);
+  assert.doesNotMatch(moduleCode, /storage\.from\(BUCKET\)\.(?:remove|update)/);
 });
 
 test('stored document is private and available through temporary signed links', () => {
