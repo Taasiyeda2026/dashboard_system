@@ -8,6 +8,8 @@ import {
   normalizeGlobalActivityPeriod
 } from './screens/shared/summer-activity.js';
 
+// Screen contract: current-period tabs are open-only, archive is closed-only,
+// and the combined tab contains both open and closed rows (never deleted/cancelled).
 const INNER_TAB_ALL = 'year_all';
 const INNER_TAB_REGULAR_2026 = 'regular_2026';
 const INNER_TAB_SUMMER_2026 = 'summer_2026';
