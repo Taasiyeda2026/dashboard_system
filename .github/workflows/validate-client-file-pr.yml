@@ -15,6 +15,7 @@ on:
       - 'frontend/src/auth-session-isolation-hotfix.js'
       - 'frontend/src/main-with-proposal-pdf-hotfix.js'
       - 'frontend/src/state.js'
+      - 'frontend/src/supabase-client.js'
       - 'frontend/src/dashboard-kpi-corrections.js'
       - 'frontend/src/summer-feedback-admin-integration.js'
       - 'frontend/public/summer-feedback/**'
@@ -63,9 +64,11 @@ jobs:
           node --check frontend/src/admin-permissions-access-hotfix.js
           node --check frontend/src/auth-session-isolation-hotfix.js
           node --check frontend/src/main-with-proposal-pdf-hotfix.js
+          node --check frontend/src/supabase-client.js
           node --check frontend/src/dashboard-kpi-corrections.js
           node --check frontend/src/summer-feedback-admin-integration.js
           node --check frontend/public/summer-feedback/embedded-admin.js
+          node --check frontend/public/summer-feedback/supabase-configured-client.js
           node --check frontend/src/main.js
           node --check frontend/src/state.js
           node --check frontend/src/api.js
@@ -88,6 +91,9 @@ jobs:
 
       - name: Check summer feedback personal reports integration
         run: node --test --test-name-pattern='personal reports keeps' tests/summer-feedback-admin-personal-reports.test.mjs
+
+      - name: Check summer feedback configured Supabase project
+        run: node --test --test-name-pattern='shares dashboard Supabase configuration' tests/summer-feedback-admin-personal-reports.test.mjs
 
       - name: Check summer feedback embedded mode
         run: node --test --test-name-pattern='embedded management mode' tests/summer-feedback-admin-personal-reports.test.mjs
