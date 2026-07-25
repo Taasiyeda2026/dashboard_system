@@ -14,12 +14,18 @@ function afterExistingRestore(callback) {
 function setCompletionBadge(badge, completed, total) {
   if (!badge || !Number.isFinite(total) || total <= 0) return;
   const isComplete = completed === total;
-  badge.textContent = `${completed}/${total}`;
-  badge.classList.toggle(COMPLETE_CLASS, isComplete);
-  badge.setAttribute('aria-label', isComplete
+  const nextText = `${completed}/${total}`;
+  const nextAriaLabel = isComplete
     ? `הסעיף הושלם: ${completed} מתוך ${total}`
-    : `הושלמו ${completed} מתוך ${total}`);
-  badge.title = isComplete ? 'הסעיף הושלם' : `נותרו ${Math.max(0, total - completed)} למילוי`;
+    : `הושלמו ${completed} מתוך ${total}`;
+  const nextTitle = isComplete ? 'הסעיף הושלם' : `נותרו ${Math.max(0, total - completed)} למילוי`;
+
+  if (badge.textContent !== nextText) badge.textContent = nextText;
+  if (badge.classList.contains(COMPLETE_CLASS) !== isComplete) {
+    badge.classList.toggle(COMPLETE_CLASS, isComplete);
+  }
+  if (badge.getAttribute('aria-label') !== nextAriaLabel) badge.setAttribute('aria-label', nextAriaLabel);
+  if (badge.title !== nextTitle) badge.title = nextTitle;
 }
 
 export function updateCompletionIndicators(root = document) {
