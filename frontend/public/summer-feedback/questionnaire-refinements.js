@@ -1,44 +1,23 @@
-const MANAGEMENT_MERGES = [
-  {
-    source: 'management_presence',
-    hidden: ['management_contact_clarity'],
-    label: 'ניהול הפעילות היה זמין ונוכח, והיה ברור למי לפנות בעת הצורך'
-  },
-  {
-    source: 'daily_resources_check',
-    hidden: ['daily_readiness_check'],
-    label: 'לפני כל יום פעילות וידאו שיש ברשותי המידע, הציוד והחומרים ושאני ערוך/ה להדרכה'
-  },
-  {
-    source: 'management_communication',
-    hidden: ['ongoing_contact'],
-    label: 'התקיים איתי קשר שוטף, ברור ומכבד לאורך הפעילות'
-  }
-];
-
-const MANAGEMENT_VISIBLE_KEYS = [
-  'management_presence',
-  'daily_resources_check',
-  'management_communication',
-  'issue_resolution',
-  'post_activity_followup',
-  'support_response'
-];
-
 const BRAND_LOGO_SRC = '../catalog/summercatalog/logo.png';
-const RESUME_STORAGE_PREFIX = 'summer-feedback-resume-v2';
+const RESUME_STORAGE_PREFIX = 'summer-feedback-resume-v4';
+const REQUIRED_SUMMARY_KEYS = [
+  'preserve_activities',
+  'improve_activities',
+  'preserve_support',
+  'improve_support',
+  'training_needed'
+];
 
-function questionLabel(select) {
-  return select?.closest('.question')?.querySelector(':scope > span:not(.answer-label)');
-}
+function addAnswerRow(container, select, compact = false) {
+  if (!container || !select || select.closest('.answer-row')) return;
 
-function addAnswerRow(label, select) {
-  if (!label || !select || select.closest('.answer-row')) return;
   const row = document.createElement('div');
-  row.className = 'answer-row';
+  row.className = `answer-row${compact ? ' compact' : ''}`;
+
   const caption = document.createElement('span');
   caption.className = 'answer-label';
   caption.textContent = 'דירוג';
+
   select.before(row);
   row.append(caption, select);
 }
@@ -50,14 +29,7 @@ function refineQuestionLayout() {
 
   document.querySelectorAll('.metric-grid label').forEach(label => {
     const select = label.querySelector('select');
-    if (!select || select.closest('.answer-row')) return;
-    const row = document.createElement('div');
-    row.className = 'answer-row compact';
-    const caption = document.createElement('span');
-    caption.className = 'answer-label';
-    caption.textContent = 'דירוג';
-    select.before(row);
-    row.append(caption, select);
+    addAnswerRow(label, select, true);
   });
 }
 
@@ -90,110 +62,58 @@ function styleActionButtons() {
   const saveButton = document.querySelector('#saveNow');
   if (saveButton && saveButton.textContent !== 'שמירה והמשך מאוחר יותר') {
     saveButton.textContent = 'שמירה והמשך מאוחר יותר';
-    saveButton.setAttribute('aria-label', 'שמירת טיוטה והמשך במועד מאוחר יותר');
+    saveButton.setAttribute(
+      'aria-label',
+      'שמירת טיוטה והמשך במועד מאוחר יותר'
+    );
   }
 
-  const submitButton = document.querySelector('#feedbackForm button[type="submit"]');
-  if (submitButton && !submitButton.disabled && submitButton.textContent !== 'סיום והגשת המשוב') {
+  const submitButton = document.querySelector(
+    '#feedbackForm button[type="submit"]'
+  );
+  if (
+    submitButton
+    && !submitButton.disabled
+    && submitButton.textContent !== 'סיום והגשת המשוב'
+  ) {
     submitButton.textContent = 'סיום והגשת המשוב';
   }
-}
-
-function syncMergedSelect(source, targets) {
-  for (const target of targets) {
-    if (!target || target.value === source.value) continue;
-    target.value = source.value;
-    target.dispatchEvent(new Event('change', { bubbles: true }));
-  }
-}
-
-function updateManagementBadge() {
-  const group = [...document.querySelectorAll('.feedback-group')]
-    .find(item => item.querySelector('summary strong')?.textContent.includes('ניהול הפעילות'));
-  if (!group) return;
-
-  const completed = MANAGEMENT_VISIBLE_KEYS.filter(key => {
-    const select = document.querySelector(`[name="general_${key}"]`);
-    return Boolean(select?.value);
-  }).length;
-
-  const badge = group.querySelector('summary b');
-  if (badge && badge.textContent !== `${completed}/6`) badge.textContent = `${completed}/6`;
 }
 
 function updateVisibleProgress() {
   const form = document.querySelector('#feedbackForm');
   if (!form) return;
 
-  const general = [...form.querySelectorAll('.question:not(.merged-question-hidden) select')];
-  const activities = [...form.querySelectorAll('.metric-grid select')];
-  const requiredSummary = ['preserve', 'improve']
+  const general = [...form.querySelectorAll('.question select')];
+  const metrics = [...form.querySelectorAll('.metric-grid select')];
+  const experiences = [...form.querySelectorAll('.activity-experience')]
+    .map(group => group.querySelector('[data-experience]:checked'));
+  const requiredSummary = REQUIRED_SUMMARY_KEYS
     .map(key => form.querySelector(`[data-summary="${key}"]`))
     .filter(Boolean);
-  const fields = [...general, ...activities, ...requiredSummary];
-  if (!fields.length) return;
 
-  const completed = fields.filter(field => Boolean(field.value?.trim())).length;
-  const percent = Math.round((completed / fields.length) * 100);
+  const total = general.length
+    + metrics.length
+    + experiences.length
+    + requiredSummary.length;
+
+  if (!total) return;
+
+  const completed = general.filter(field => Boolean(field.value)).length
+    + metrics.filter(field => Boolean(field.value)).length
+    + experiences.filter(Boolean).length
+    + requiredSummary.filter(field => Boolean(field.value.trim())).length;
+
+  const percent = Math.round((completed / total) * 100);
   const text = document.querySelector('#progressText');
   const bar = document.querySelector('#progressBar');
-  if (text && text.textContent !== `${percent}%`) text.textContent = `${percent}%`;
-  if (bar && bar.style.width !== `${percent}%`) bar.style.width = `${percent}%`;
-}
 
-function mergeManagementQuestions() {
-  for (const item of MANAGEMENT_MERGES) {
-    const source = document.querySelector(`[name="general_${item.source}"]`);
-    if (!source) continue;
-
-    const label = questionLabel(source);
-    if (label) label.textContent = item.label;
-
-    const targets = item.hidden
-      .map(key => document.querySelector(`[name="general_${key}"]`))
-      .filter(Boolean);
-
-    for (const target of targets) {
-      target.closest('.question')?.classList.add('merged-question-hidden');
-    }
-
-    if (source.dataset.mergeBound !== 'true') {
-      source.dataset.mergeBound = 'true';
-      source.addEventListener('change', () => {
-        syncMergedSelect(source, targets);
-        requestAnimationFrame(() => {
-          updateManagementBadge();
-          updateVisibleProgress();
-        });
-      });
-    }
-
-    syncMergedSelect(source, targets);
+  if (text && text.textContent !== `${percent}%`) {
+    text.textContent = `${percent}%`;
   }
-
-  updateManagementBadge();
-}
-
-function removeDuplicateActivityPrompts() {
-  document.querySelectorAll('.highlights, .detail-box').forEach(element => {
-    element.setAttribute('hidden', '');
-    element.setAttribute('aria-hidden', 'true');
-  });
-}
-
-function hideLegacyAnalysisColumns() {
-  document.querySelectorAll('.panel table').forEach(table => {
-    const headers = [...table.querySelectorAll('thead th')];
-    const indexes = headers
-      .map((header, index) => ({ index, text: header.textContent.trim() }))
-      .filter(item => item.text === 'לשיפור' || item.text === 'בולטת')
-      .map(item => item.index);
-
-    if (!indexes.length) return;
-    for (const row of table.rows) {
-      indexes.forEach(index => row.cells[index]?.classList.add('legacy-analysis-hidden'));
-    }
-  });
+  if (bar && bar.style.width !== `${percent}%`) {
+    bar.style.width = `${percent}%`;
+  }
 }
 
 function resumeIdentity() {
@@ -215,7 +135,9 @@ function readResumeState(key) {
 function writeResumeState(form) {
   const key = form?.dataset.resumeKey;
   if (!form || !key) return;
+
   const details = [...form.querySelectorAll('details')].map(item => item.open);
+
   try {
     localStorage.setItem(key, JSON.stringify({
       scrollY: Math.max(0, Math.round(window.scrollY)),
@@ -223,7 +145,7 @@ function writeResumeState(form) {
       updatedAt: Date.now()
     }));
   } catch {
-    // Browsers may block storage in strict privacy mode; draft answers still save to Supabase.
+    // Browsers may block storage; answers still save to Supabase.
   }
 }
 
@@ -237,18 +159,27 @@ function clearResumeState(form) {
 }
 
 function restoreResumeState(form) {
-  const state = readResumeState(form.dataset.resumeKey);
-  if (!state) return;
+  const savedState = readResumeState(form.dataset.resumeKey);
+  if (!savedState) return;
 
   const details = [...form.querySelectorAll('details')];
-  if (Array.isArray(state.details)) {
+  if (Array.isArray(savedState.details)) {
     details.forEach((item, index) => {
-      if (typeof state.details[index] === 'boolean') item.open = state.details[index];
+      if (typeof savedState.details[index] === 'boolean') {
+        item.open = savedState.details[index];
+      }
     });
   }
 
-  const maxScroll = Math.max(0, document.documentElement.scrollHeight - window.innerHeight);
-  const scrollY = Math.min(Math.max(0, Number(state.scrollY) || 0), maxScroll);
+  const maxScroll = Math.max(
+    0,
+    document.documentElement.scrollHeight - window.innerHeight
+  );
+  const scrollY = Math.min(
+    Math.max(0, Number(savedState.scrollY) || 0),
+    maxScroll
+  );
+
   window.scrollTo({ top: scrollY, behavior: 'auto' });
 }
 
@@ -268,13 +199,21 @@ function setupDraftResume() {
   form.querySelectorAll('details').forEach(item => {
     item.addEventListener('toggle', () => writeResumeState(form));
   });
-  form.addEventListener('input', () => writeResumeState(form), { passive: true });
-  form.addEventListener('change', () => writeResumeState(form), { passive: true });
+  form.addEventListener('input', () => writeResumeState(form), {
+    passive: true
+  });
+  form.addEventListener('change', () => writeResumeState(form), {
+    passive: true
+  });
 
-  const saveButton = form.querySelector('#saveNow');
-  saveButton?.addEventListener('click', () => writeResumeState(form));
+  form.querySelector('#saveNow')?.addEventListener(
+    'click',
+    () => writeResumeState(form)
+  );
 
-  requestAnimationFrame(() => requestAnimationFrame(() => restoreResumeState(form)));
+  requestAnimationFrame(() => {
+    requestAnimationFrame(() => restoreResumeState(form));
+  });
 }
 
 function persistCurrentPosition() {
@@ -282,33 +221,25 @@ function persistCurrentPosition() {
   if (form) writeResumeState(form);
 }
 
-function requestDraftSaveWhenLeaving() {
-  persistCurrentPosition();
-  const saveButton = document.querySelector('#saveNow');
-  if (saveButton && !saveButton.disabled) saveButton.click();
-}
-
 function applyRefinements() {
   applyBranding();
   removeStatementLabels();
   refineQuestionLayout();
-  mergeManagementQuestions();
-  removeDuplicateActivityPrompts();
-  hideLegacyAnalysisColumns();
   styleActionButtons();
   setupDraftResume();
   updateVisibleProgress();
 }
 
 let scheduled = false;
-const scheduleRefinements = () => {
+function scheduleRefinements() {
   if (scheduled) return;
   scheduled = true;
+
   requestAnimationFrame(() => {
     scheduled = false;
     applyRefinements();
   });
-};
+}
 
 let scrollTimer = null;
 window.addEventListener('scroll', () => {
@@ -318,11 +249,15 @@ window.addEventListener('scroll', () => {
 
 window.addEventListener('pagehide', persistCurrentPosition);
 document.addEventListener('visibilitychange', () => {
-  if (document.visibilityState === 'hidden') requestDraftSaveWhenLeaving();
+  if (document.visibilityState === 'hidden') persistCurrentPosition();
 });
-
-const observer = new MutationObserver(scheduleRefinements);
-observer.observe(document.documentElement, { childList: true, subtree: true, characterData: true });
 document.addEventListener('input', scheduleRefinements, true);
 document.addEventListener('change', scheduleRefinements, true);
-applyRefinements();
+
+const observer = new MutationObserver(scheduleRefinements);
+observer.observe(document.documentElement, {
+  childList: true,
+  subtree: true
+});
+
+scheduleRefinements();
