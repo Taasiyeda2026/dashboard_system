@@ -27,16 +27,28 @@ const MANAGER_QUESTIONS = {
   ]
 };
 
-const EMPLOYEE_QUESTIONS = {
+const COMMON_EMPLOYEE_QUESTIONS = [
+  { key: 'period_overview', title: 'מבט כללי על התקופה', prompt: 'כיצד את/ה מסכם/ת את התקופה הנבחנת מנקודת מבטך?' },
+  { key: 'direct_manager_interface', title: 'ממשק העבודה עם המנהל הישיר', prompt: 'כיצד מתנהל ממשק העבודה שלך עם המנהל הישיר מבחינת תקשורת, תיאום ציפיות, קבלת החלטות, משוב והעברת מידע? מה חשוב לשמר ומה נדרש לשפר?' },
+  { key: 'managerial_support', title: 'ליווי ותמיכה ניהולית', prompt: 'אילו הבהרות, כלים, החלטות, משאבים או ליווי ניהולי יסייעו לך לבצע את תפקידך בצורה מיטבית?' },
+  { key: 'marketing_pedagogy_interface', title: 'ממשק העבודה מול מנהלת השיווק והפדגוגיה', prompt: 'כיצד מתנהל ממשק העבודה מול יעל אביב, מנהלת השיווק והפדגוגיה, מבחינת תיאום, העברת מידע, חלוקת אחריות ולוחות זמנים? מה חשוב לשמר ומה נדרש לשפר?' },
+  { key: 'marketing_pedagogy_improvement', title: 'שיפור העבודה המשותפת עם השיווק והפדגוגיה', prompt: 'אילו שינויים בתהליכי העבודה המשותפים עם תחומי השיווק והפדגוגיה יסייעו לקדם משימות ותוצרים באופן יעיל, ברור ומתואם יותר?' }
+];
+
+const ROLE_EMPLOYEE_QUESTIONS = {
+  'גיל נאמן': [
+    { key: 'operations_current_interface', title: 'ממשק העבודה מול תפעול הפעילויות, התיאום והשיבוץ', prompt: 'כיצד מתנהל ממשק העבודה מול תחום תפעול הפעילויות בכל הקשור לתכנון הפעילויות, העברת מידע, תיאום, שיבוץ מדריכים, שינויים וטיפול בחריגים? מה חשוב לשמר ומה נדרש לשפר?' },
+    { key: 'operations_improvement_interface', title: 'שיפור הממשק בין ניהול הפעילויות לתפעול', prompt: 'אילו שינויים בתהליכי העבודה המשותפים בין ניהול הפעילויות לתפעול הפעילויות יסייעו לשפר את התיאום, זמינות המידע, השיבוץ והמעקב אחר ביצוע הפעילויות?' }
+  ],
   'עדן כהן': [
-    { key: 'activity_managers_current_interface', title: 'ממשק העבודה מול מנהלי הפעילויות', prompt: 'כיצד מתנהל ממשק העבודה מול מנהלי הפעילויות מבחינת תיאום, העברת מידע, בהירות המשימות וחלוקת האחריות? מה חשוב לשמר ומה נדרש לשפר?' },
-    { key: 'activity_managers_next_year_interface', title: 'שיפור הממשק לשנת הלימודים הבאה', prompt: 'אילו שינויים בממשק העבודה מול מנהלי הפעילויות יסייעו לקדם משימות, לקבל מידע ולסגור תהליכים באופן יעיל ומדויק יותר בשנת הלימודים הבאה?' }
+    { key: 'activity_management_current_interface', title: 'ממשק העבודה מול תחום ניהול הפעילויות', prompt: 'כיצד מתנהל ממשק העבודה בין תפעול הפעילויות לתחום ניהול הפעילויות מבחינת תיאום, העברת מידע, בהירות המשימות, שיבוץ וחלוקת האחריות? מה חשוב לשמר ומה נדרש לשפר?' },
+    { key: 'activity_management_improvement_interface', title: 'שיפור הממשק בין התפעול לניהול הפעילויות', prompt: 'אילו שינויים בתהליכי העבודה המשותפים בין תפעול הפעילויות לניהול הפעילויות יסייעו לקדם משימות, לקבל מידע ולסגור תהליכים באופן יעיל ומדויק יותר?' }
   ],
   'הילה רוזן': [
-    { key: 'activity_managers_current_interface', title: 'ממשק העבודה מול מנהלי הפעילויות', prompt: 'כיצד מתנהל ממשק העבודה מול מנהלי הפעילויות מבחינת העברת צורכי השטח, טיפול בקשיים, משוב מקצועי ומעקב אחר איכות הפעילות? מה חשוב לשמר ומה נדרש לשפר?' },
-    { key: 'activity_managers_next_year_interface', title: 'שיפור הממשק מול מנהלי הפעילויות', prompt: 'אילו שינויים בממשק העבודה מול מנהלי הפעילויות יסייעו לזהות צרכים מקצועיים מוקדם יותר ולשפר את המענה למדריכים ולפעילויות בשנת הלימודים הבאה?' },
-    { key: 'coordination_admin_current_interface', title: 'ממשק העבודה מול תחום תיאום הפעילויות והאדמיניסטרציה', prompt: 'כיצד מתנהל ממשק העבודה מול תחום תיאום הפעילויות והאדמיניסטרציה מבחינת תיאום ושיבוץ מדריכים, העברת מידע, ציוד, מסמכים ומעקב אחר צורכי ההדרכה? מה חשוב לשמר ומה נדרש לשפר?' },
-    { key: 'coordination_admin_next_year_interface', title: 'שיפור תהליכי התיאום והשיבוץ', prompt: 'אילו שינויים בתהליכי התיאום והשיבוץ יסייעו לאפשר הכשרה, היערכות וליווי מקצועי מסודרים יותר בשנת הלימודים הבאה?' }
+    { key: 'activity_management_current_interface', title: 'ממשק העבודה מול ניהול הפעילויות', prompt: 'כיצד מתנהל הממשק בין תחום ההדרכה לניהול הפעילויות מבחינת העברת צורכי השטח, טיפול בקשיים, משוב מקצועי ומעקב אחר איכות הפעילות? מה חשוב לשמר ומה נדרש לשפר?' },
+    { key: 'activity_management_improvement_interface', title: 'שיפור הממשק מול ניהול הפעילויות', prompt: 'אילו שינויים בממשק העבודה בין תחום ההדרכה לניהול הפעילויות יסייעו לזהות צרכים מקצועיים מוקדם יותר ולשפר את המענה למדריכים ולפעילויות?' },
+    { key: 'operations_current_interface', title: 'ממשק העבודה מול תפעול הפעילויות, התיאום והשיבוץ', prompt: 'כיצד מתנהל הממשק בין תחום ההדרכה לתפעול הפעילויות בכל הקשור לתיאום ושיבוץ מדריכים, העברת מידע, ציוד, מסמכים ומעקב אחר צורכי ההדרכה? מה חשוב לשמר ומה נדרש לשפר?' },
+    { key: 'operations_improvement_interface', title: 'שיפור הממשק מול תפעול הפעילויות', prompt: 'אילו שינויים בתהליכי העבודה המשותפים בין תחום ההדרכה לתפעול הפעילויות יסייעו לאפשר הכשרה, היערכות וליווי מקצועי מסודרים יותר?' }
   ],
   'טוני נעים': [
     { key: 'coordination_admin_current_interface', title: 'ממשק העבודה מול תחום תיאום הפעילויות והאדמיניסטרציה', prompt: 'כיצד מתנהל ממשק העבודה מול תחום תיאום הפעילויות והאדמיניסטרציה בכל הקשור להעברת מסמכים, אישורי ביצוע, נתוני נוכחות ומידע הנדרש להנהלת החשבונות ולשכר?' },
@@ -55,13 +67,16 @@ registerAnnualReviewExtension(async (root, context) => {
   const { review, isEmployee, isManager, employeeName } = context;
   const revealed = Boolean(review.answers_revealed_at);
 
-  const employeeQuestions = EMPLOYEE_QUESTIONS[employeeName] || [];
+  const employeeQuestions = [
+    ...COMMON_EMPLOYEE_QUESTIONS,
+    ...(ROLE_EMPLOYEE_QUESTIONS[employeeName] || [])
+  ];
   const employeeForm = root.querySelector('#ar2-employee-section form[data-ar2-form="employee"]');
-  if (employeeQuestions.length && employeeForm && (isEmployee || revealed) && !employeeForm.querySelector('[data-safe-group="interface-employee"]')) {
+  if (employeeForm && (isEmployee || revealed) && !employeeForm.querySelector('[data-safe-group="interface-employee"]')) {
     const row = await loadAnnualReviewRow(TABLES.employee, review.id);
-    insertVersionedQuestionGroup(employeeForm, {
+    const employeeGroup = insertVersionedQuestionGroup(employeeForm, {
       id: 'interface-employee',
-      title: 'ממשקי עבודה',
+      title: 'פתיחה וממשקי עבודה',
       questions: employeeQuestions,
       row,
       editable: isEmployee && review.status === 'employee_preparation' && !review.employee_section_submitted_at && !review.locked_at,
@@ -70,6 +85,7 @@ registerAnnualReviewExtension(async (root, context) => {
       mode: 'json',
       reviewId: review.id
     });
+    if (employeeGroup) employeeForm.querySelector('.ar2-question-list')?.prepend(employeeGroup);
   }
 
   const managerQuestions = MANAGER_QUESTIONS[employeeName] || [];
