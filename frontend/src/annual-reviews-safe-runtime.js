@@ -172,6 +172,7 @@ export function insertVersionedQuestionGroup(form, options) {
 
 async function runInstallers() {
   for (const root of document.querySelectorAll('.ar2-screen')) {
+    if (root.dataset.safeExtensionsResolved === 'true') continue;
     if (!root.querySelector('#ar2-employee-section, #ar2-manager-section, #ar2-conversation')) continue;
     let context;
     try {
@@ -181,13 +182,16 @@ async function runInstallers() {
       console.error('[annual-reviews-safe-runtime] context failed', error);
       continue;
     }
+    let failed = false;
     for (const installer of installers) {
       try {
         await installer(root, context);
       } catch (error) {
+        failed = true;
         console.error('[annual-reviews-safe-runtime] extension failed', error);
       }
     }
+    if (!failed) root.dataset.safeExtensionsResolved = 'true';
   }
 }
 
