@@ -2,9 +2,11 @@ import { supabase, supabaseConfig, waitForSupabaseAuthSession } from './supabase
 
 const ADMIN_TAB_ATTRIBUTE = 'data-summer-feedback-admin-tab';
 const ADMIN_FRAME_URL = './summer-feedback/?view=admin&embedded=1';
+const DIRECT_ADMIN_URL = './summer-feedback/?view=admin';
 const HEIGHT_MESSAGE_TYPE = 'summer-feedback:embedded-height';
 const STYLE_ELEMENT_ID = 'summer-feedback-admin-integration-styles';
 const EMBEDDED_CONFIG_KEY = '__dashboardSummerFeedbackConfig';
+const CLICK_BINDING_FLAG = '__summerFeedbackAdminTabClickBound';
 
 let adminCheckPromise = null;
 let cachedAdminUserId = '';
@@ -108,11 +110,9 @@ function markSummerTabActive(tabList) {
 }
 
 function restoreOriginalScreen(root, screen, originalNodes) {
-  screen?.remove();
-  for (const item of originalNodes) {
-    if (!item.node?.isConnected) continue;
-    item.node.hidden = item.wasHidden;
-  }
+  if (!root?.isConnected) return;
+  if (screen && root.firstChild !== screen && !screen.isConnected) return;
+  root.replaceChildren(...originalNodes);
 }
 
 function dispatchDashboardNavigation() {
@@ -140,80 +140,127 @@ function bindEmbeddedFrameHeight(iframe, screen) {
   return () => window.removeEventListener('message', onMessage);
 }
 
-function openSummerFeedbackAdmin(root, sourceTabList) {
-  if (!root || root.querySelector('.pr-screen--summer-feedback-admin')) return;
+export function openSummerFeedbackAdmin(root, sourceTabList) {
+  if (!root || !sourceTabList) return false;
+  if (root.querySelector(':scope > .pr-screen--summer-feedback-admin')) return true;
 
-  exposeEmbeddedSupabaseConfig();
-  const originalNodes = [...root.children].map((node) => ({ node, wasHidden: node.hidden }));
-  originalNodes.forEach(({ node }) => { node.hidden = true; });
+  const originalNodes = [...root.childNodes];
+  let screen = null;
 
-  const screen = document.createElement('div');
-  screen.className = 'pr-screen pr-screen--summer-feedback-admin';
-  screen.dir = 'rtl';
-  screen.innerHTML = `
-    <div class="pr-topbar">
-      <button class="pr-btn pr-btn--ghost pr-back-btn" type="button" data-summer-feedback-action="back-to-dashboard">← חזרה לדשבורד</button>
-      <span class="pr-topbar__title">משוב קיץ</span>
-      <button class="pr-btn pr-btn--ghost pr-btn--sm" type="button" data-summer-feedback-action="lock-screen" style="margin-right:auto" title="יציאה מהאזור הפנימי">יציאה</button>
-    </div>
-    <div class="pr-body pr-summer-feedback-admin-body">
-      <div data-summer-feedback-tabs></div>
-      <section class="pr-card pr-summer-feedback-frame-card" aria-label="ניהול משוב הקיץ">
-        <iframe class="pr-summer-feedback-frame" title="ניהול משוב הקיץ" src="${ADMIN_FRAME_URL}" loading="eager"></iframe>
-      </section>
-    </div>
-  `;
+  try {
+    exposeEmbeddedSupabaseConfig();
 
-  const clonedTabs = sourceTabList.cloneNode(true);
-  markSummerTabActive(clonedTabs);
-  screen.querySelector('[data-summer-feedback-tabs]')?.replaceWith(clonedTabs);
-  root.append(screen);
+    const clonedTabs = sourceTabList.cloneNode(true);
+    markSummerTabActive(clonedTabs);
 
-  const iframe = screen.querySelector('.pr-summer-feedback-frame');
-  const unbindHeight = iframe ? bindEmbeddedFrameHeight(iframe, screen) : () => {};
+    screen = document.createElement('div');
+    screen.className = 'pr-screen pr-screen--summer-feedback-admin';
+    screen.dir = 'rtl';
+    screen.innerHTML = `
+      <div class="pr-topbar">
+        <button class="pr-btn pr-btn--ghost pr-back-btn" type="button" data-summer-feedback-action="back-to-dashboard">← חזרה לדשבורד</button>
+        <span class="pr-topbar__title">משוב קיץ</span>
+        <button class="pr-btn pr-btn--ghost pr-btn--sm" type="button" data-summer-feedback-action="lock-screen" style="margin-right:auto" title="יציאה מהאזור הפנימי">יציאה</button>
+      </div>
+      <div class="pr-body pr-summer-feedback-admin-body">
+        <div data-summer-feedback-tabs></div>
+        <section class="pr-card pr-summer-feedback-frame-card" aria-label="ניהול משוב הקיץ">
+          <iframe class="pr-summer-feedback-frame" title="ניהול משוב הקיץ" src="${ADMIN_FRAME_URL}" loading="eager"></iframe>
+        </section>
+      </div>
+    `;
 
-  const closeAndActivate = (action) => {
-    unbindHeight();
-    restoreOriginalScreen(root, screen, originalNodes);
-    if (!action) return;
-    requestAnimationFrame(() => {
-      const originalButton = root.querySelector(`[data-pr-action="${action}"]`);
-      if (originalButton) originalButton.click();
+    screen.querySelector('[data-summer-feedback-tabs]')?.replaceWith(clonedTabs);
+
+    // Replace the current reports screen rather than relying on the `hidden` attribute.
+    // The detached nodes retain their event listeners and are restored when leaving the tab.
+    root.replaceChildren(screen);
+
+    const iframe = screen.querySelector('.pr-summer-feedback-frame');
+    const unbindHeight = iframe ? bindEmbeddedFrameHeight(iframe, screen) : () => {};
+
+    const closeAndActivate = (action) => {
+      unbindHeight();
+      restoreOriginalScreen(root, screen, originalNodes);
+      if (!action) return;
+      requestAnimationFrame(() => {
+        const originalButton = root.querySelector(`[data-pr-action="${action}"]`);
+        if (originalButton) originalButton.click();
+      });
+    };
+
+    clonedTabs.addEventListener('click', (event) => {
+      const button = event.target.closest('.pr-report-tab');
+      if (!button) return;
+      event.preventDefault();
+      event.stopPropagation();
+      if (button.hasAttribute(ADMIN_TAB_ATTRIBUTE)) return;
+      closeAndActivate(button.dataset.prAction || '');
+    }, true);
+
+    screen.querySelector('[data-summer-feedback-action="back-to-dashboard"]')?.addEventListener('click', () => {
+      unbindHeight();
+      restoreOriginalScreen(root, screen, originalNodes);
+      const originalBack = root.querySelector('[data-pr-action="back-to-dashboard"]');
+      if (originalBack) originalBack.click();
+      else dispatchDashboardNavigation();
     });
-  };
 
-  clonedTabs.addEventListener('click', (event) => {
-    const button = event.target.closest('.pr-report-tab');
-    if (!button) return;
-    event.preventDefault();
-    event.stopPropagation();
-    if (button.hasAttribute(ADMIN_TAB_ATTRIBUTE)) return;
-    closeAndActivate(button.dataset.prAction || '');
-  }, true);
+    screen.querySelector('[data-summer-feedback-action="lock-screen"]')?.addEventListener('click', () => {
+      closeAndActivate('lock-screen');
+    });
 
-  screen.querySelector('[data-summer-feedback-action="back-to-dashboard"]')?.addEventListener('click', () => {
-    unbindHeight();
-    restoreOriginalScreen(root, screen, originalNodes);
-    const originalBack = root.querySelector('[data-pr-action="back-to-dashboard"]');
-    if (originalBack) originalBack.click();
-    else dispatchDashboardNavigation();
-  });
+    return true;
+  } catch (error) {
+    if (screen?.isConnected || !root.childNodes.length) {
+      root.replaceChildren(...originalNodes);
+    }
+    throw error;
+  }
+}
 
-  screen.querySelector('[data-summer-feedback-action="lock-screen"]')?.addEventListener('click', () => {
-    closeAndActivate('lock-screen');
-  });
+function fallbackToDirectAdmin() {
+  try {
+    window.location.assign(DIRECT_ADMIN_URL);
+  } catch {
+    window.location.href = DIRECT_ADMIN_URL;
+  }
+}
+
+export function handleSummerFeedbackAdminTabClick(event) {
+  const button = event?.target?.closest?.(`[${ADMIN_TAB_ATTRIBUTE}]`);
+  if (!button || button.closest('.pr-screen--summer-feedback-admin')) return false;
+
+  const tabList = button.closest('.pr-screen-mode-switch');
+  const root = button.closest('#pr-root') || document.querySelector('#pr-root');
+  if (!tabList || !root) return false;
+
+  event.preventDefault();
+  event.stopPropagation();
+  button.setAttribute('aria-busy', 'true');
+
+  try {
+    const opened = openSummerFeedbackAdmin(root, tabList);
+    if (!opened) fallbackToDirectAdmin();
+    return opened;
+  } catch (error) {
+    console.error('[summer-feedback] failed to open admin tab', error);
+    fallbackToDirectAdmin();
+    return false;
+  } finally {
+    if (button.isConnected) button.removeAttribute('aria-busy');
+  }
+}
+
+function bindDelegatedAdminTabClick() {
+  if (window[CLICK_BINDING_FLAG]) return;
+  window[CLICK_BINDING_FLAG] = true;
+  document.addEventListener('click', handleSummerFeedbackAdminTabClick, true);
 }
 
 function injectAdminTab(tabList) {
   if (!tabList?.isConnected || tabList.querySelector(`[${ADMIN_TAB_ATTRIBUTE}]`)) return;
-  const button = createAdminTab();
-  button.addEventListener('click', (event) => {
-    event.preventDefault();
-    event.stopPropagation();
-    const root = button.closest('#pr-root');
-    if (root) openSummerFeedbackAdmin(root, tabList);
-  }, true);
-  tabList.append(button);
+  tabList.append(createAdminTab());
 }
 
 async function enhancePersonalReportsTabs() {
@@ -236,6 +283,7 @@ function scheduleEnhancement() {
 function initializeSummerFeedbackAdminIntegration() {
   if (typeof document === 'undefined' || typeof window === 'undefined') return;
   ensureIntegrationStyles();
+  bindDelegatedAdminTabClick();
   const observer = new MutationObserver(scheduleEnhancement);
   observer.observe(document.documentElement, { childList: true, subtree: true });
   document.addEventListener('app:navigate', scheduleEnhancement);
