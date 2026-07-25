@@ -37,7 +37,19 @@ const state = {
 const esc = (value = '') => String(value).replaceAll('&','&amp;').replaceAll('<','&lt;').replaceAll('>','&gt;').replaceAll('"','&quot;').replaceAll("'",'&#039;');
 const statusText = status => ({ draft:'טיוטה', submitted:'הוגש', reopened:'נפתח מחדש' }[status] || 'טרם התחיל');
 const fmtDate = value => value ? new Intl.DateTimeFormat('he-IL',{dateStyle:'short',timeStyle:'short'}).format(new Date(value)) : '—';
-const mean = values => { const nums = values.map(Number).filter(Number.isFinite); return nums.length ? nums.reduce((a,b)=>a+b,0)/nums.length : null; };
+const mean = values => {
+  const nums = values
+    .filter(value => value !== null && value !== undefined && value !== '')
+    .map(Number)
+    .filter(value => Number.isFinite(value) && value >= 1 && value <= 5);
+  return nums.length ? nums.reduce((a,b)=>a+b,0)/nums.length : null;
+};
+const cycleIsOpen = cycle => {
+  const now = Date.now();
+  const opensAt = cycle?.opens_at ? new Date(cycle.opens_at).getTime() : null;
+  const closesAt = cycle?.closes_at ? new Date(cycle.closes_at).getTime() : null;
+  return cycle?.status === 'open' && (!opensAt || opensAt <= now) && (!closesAt || closesAt >= now);
+};
 
 function notify(message, error = false) {
   toast.textContent = message;
@@ -86,6 +98,9 @@ async function init() {
     const requestedAdmin = new URLSearchParams(window.location.search).get('view') === 'admin';
     state.mode = state.canAdmin && (requestedAdmin || !state.hasOwnFeedback) ? 'admin' : 'instructor';
     if (state.mode === 'admin') return renderAdmin();
+    if (!cycleIsOpen(state.cycle)) {
+      return renderMessage('תקופת המשוב אינה פתוחה','לא ניתן למלא או לערוך את המשוב מחוץ לתקופת המילוי.');
+    }
 
     state.assignments = ownAssignments;
     state.ratings = state.ratings.filter(row => row.instructor_auth_user_id === state.user.id);
