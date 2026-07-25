@@ -25,6 +25,15 @@ if (!document.getElementById(STYLE_ID)) {
       filter: brightness(.92);
     }
 
+    @media print {
+      body.ar2-printing #app .ar2-screen textarea.ar2-textarea:not([data-ar2-metric-comment]),
+      body.ar2-printing #app [data-ar2-landing] textarea.ar2-textarea:not([data-ar2-metric-comment]) {
+        min-height: 0;
+        height: auto;
+        field-sizing: content;
+      }
+    }
+
     @media (prefers-reduced-motion: reduce) {
       #app .ar2-btn,
       #app .ar2-rating {
