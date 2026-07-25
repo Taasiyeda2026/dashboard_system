@@ -22,12 +22,16 @@ if (!globalThis.localStorage) {
 }
 
 const { activitiesScreen } = await import('../frontend/src/screens/activities.js');
-const { defaultActivitiesInnerTabForPeriod } = await import('../frontend/src/activities-tabs-corrections.js');
+const {
+  defaultActivitiesInnerTabForPeriod,
+  nextActivitiesMonth
+} = await import('../frontend/src/activities-tabs-corrections.js');
 
 function baseState(innerTab = 'year_all', period = 'regular') {
   return {
     activitiesInnerTab: innerTab,
     activitiesMonthYm: '',
+    activitiesNavLoading: false,
     activityPeriodTab: period,
     user: { role: 'admin', display_role: 'מנהל מערכת', can_add_activity: true },
     clientSettings: { hide_emp_id_on_screens: true, dropdown_options: {} },
@@ -69,17 +73,46 @@ test('all activities includes open and closed rows but excludes cancelled and de
   assert.match(html, /data-activity-period-tab="year_archive"[\s\S]*?<strong>3<\/strong>/);
 });
 
-test('summer tab remains open-only and archive remains closed-only', () => {
-  const summerHtml = activitiesScreen.render({ rows }, { state: baseState('summer_2026') });
+test('summer tab remains open-only and archive remains closed-only by selected month', () => {
+  const summerState = baseState('summer_2026');
+  summerState.activitiesMonthYm = '2026-07';
+  const summerHtml = activitiesScreen.render({ rows }, { state: summerState });
   assert.match(summerHtml, /קיץ פתוח/);
   assert.doesNotMatch(summerHtml, /קיץ סגור/);
   assert.doesNotMatch(summerHtml, /רגיל סגור/);
 
-  const archiveHtml = activitiesScreen.render({ rows }, { state: baseState('year_archive') });
-  assert.match(archiveHtml, /רגיל סגור 1/);
-  assert.match(archiveHtml, /רגיל סגור 2/);
-  assert.match(archiveHtml, /קיץ סגור/);
-  assert.doesNotMatch(archiveHtml, /קיץ פתוח/);
+  const januaryArchiveState = baseState('year_archive');
+  januaryArchiveState.activitiesMonthYm = '2026-01';
+  const januaryArchiveHtml = activitiesScreen.render({ rows }, { state: januaryArchiveState });
+  assert.match(januaryArchiveHtml, /רגיל סגור 1/);
+  assert.doesNotMatch(januaryArchiveHtml, /רגיל סגור 2/);
+  assert.doesNotMatch(januaryArchiveHtml, /קיץ סגור/);
+
+  const julyArchiveState = baseState('year_archive');
+  julyArchiveState.activitiesMonthYm = '2026-07';
+  const julyArchiveHtml = activitiesScreen.render({ rows }, { state: julyArchiveState });
+  assert.match(julyArchiveHtml, /קיץ סגור/);
+  assert.doesNotMatch(julyArchiveHtml, /רגיל סגור 1/);
+  assert.doesNotMatch(julyArchiveHtml, /קיץ פתוח/);
+});
+
+test('summer month navigation moves sequentially, including empty adjacent months', () => {
+  const state = baseState('summer_2026');
+  state.activitiesMonthYm = '2026-07';
+
+  const julyHtml = activitiesScreen.render({ rows }, { state });
+  assert.match(julyHtml, /data-activities-month-prev/);
+  assert.match(julyHtml, /data-activities-month-next/);
+  assert.match(julyHtml, /יולי 2026/);
+  assert.match(julyHtml, /קיץ פתוח/);
+  assert.equal(nextActivitiesMonth(state, -1), '2026-06');
+  assert.equal(nextActivitiesMonth(state, 1), '2026-08');
+
+  state.activitiesMonthYm = '2026-06';
+  const juneHtml = activitiesScreen.render({ rows }, { state });
+  assert.match(juneHtml, /יוני 2026/);
+  assert.doesNotMatch(juneHtml, /קיץ פתוח/);
+  assert.match(juneHtml, /0 פעילויות מתוך 1/);
 });
 
 test('2027 all activities combines active and closed 2027 rows only', () => {
