@@ -2,6 +2,22 @@ const params = new URLSearchParams(window.location.search);
 const embedded = params.get('embedded') === '1';
 const HEIGHT_MESSAGE_TYPE = 'summer-feedback:embedded-height';
 
+function preserveEmbeddedLink(link) {
+  if (!embedded || !link?.getAttribute('href')) return;
+  try {
+    const url = new URL(link.getAttribute('href'), window.location.href);
+    if (url.origin !== window.location.origin || url.pathname !== window.location.pathname) return;
+    url.searchParams.set('embedded', '1');
+    link.href = url.href;
+  } catch {
+    // Ignore malformed or non-navigation href values.
+  }
+}
+
+function preserveEmbeddedLinks(root = document) {
+  root.querySelectorAll?.('a[href]').forEach(preserveEmbeddedLink);
+}
+
 if (embedded) {
   document.documentElement.classList.add('summer-feedback-embedded');
 
@@ -11,6 +27,7 @@ if (embedded) {
     scheduled = true;
     requestAnimationFrame(() => {
       scheduled = false;
+      preserveEmbeddedLinks();
       const height = Math.max(
         document.documentElement.scrollHeight,
         document.body?.scrollHeight || 0,
@@ -23,6 +40,9 @@ if (embedded) {
   window.addEventListener('load', reportHeight);
   window.addEventListener('resize', reportHeight);
   document.addEventListener('toggle', reportHeight, true);
+  document.addEventListener('click', (event) => {
+    preserveEmbeddedLink(event.target.closest?.('a[href]'));
+  }, true);
 
   if ('ResizeObserver' in window) {
     const resizeObserver = new ResizeObserver(reportHeight);
