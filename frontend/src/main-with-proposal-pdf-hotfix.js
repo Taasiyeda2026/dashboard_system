@@ -19,3 +19,4 @@ import './annual-reviews-role-lessons-safe.js';
 import './annual-reviews-shared-stage-safe.js';
 import './annual-reviews-ui-compact-feedback.js';
 import './annual-reviews-print-plain.js';
+import './annual-reviews-manager-question-set.js';
