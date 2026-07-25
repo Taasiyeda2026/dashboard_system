@@ -18,7 +18,18 @@ test('standalone page uses separate static assets and is mobile ready', () => {
   assert.match(html, /href="\.\/styles\.css"/);
   assert.match(html, /src="\.\/app\.js"/);
   assert.doesNotMatch(html, /GZIP_BASE64|DecompressionStream/);
-  assert.match(css, /@media\(max-width:/);
+  assert.match(css, /@media \(max-width:/);
+});
+
+test('feedback layout stays compact and proportional on desktop', () => {
+  assert.match(css, /width: min\(1080px, calc\(100% - 32px\)\)/);
+  assert.match(css, /font-size: 15px/);
+  assert.match(css, /\.hero h1 \{ font-size: clamp\(27px, 3vw, 34px\); \}/);
+  assert.match(css, /max-width: 112px/);
+  assert.match(css, /width: fit-content/);
+  assert.match(css, /\.table-wrap \.button/);
+  assert.match(css, /min-height: 36px/);
+  assert.doesNotMatch(css, /clamp\(27px,4vw,42px\)/);
 });
 
 test('client uses the existing Supabase Auth session and production tables', () => {
