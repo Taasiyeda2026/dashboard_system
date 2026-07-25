@@ -178,16 +178,25 @@ self.addEventListener('fetch', (event) => {
 
   // API-like same-origin routes — always hit the network.
   if (isApiLikeUrl(url) || isBlockedCachePath(url)) {
-    event.respondWith(fetch(withNoStore(request)));
+    event.respondWith(fetch(request));
     return;
   }
 
-  // App shell and all normal JS/CSS/assets: network-first for reliable updates.
-  if (isNavigationRequest(request) || isStaticAssetUrl(url)) {
-    event.respondWith(caches.open(CACHE_NAME).then((cache) => networkFirst(request, cache)));
-    return;
-  }
+  // Only handle navigation + static assets; let everything else pass through.
+  if (!(isNavigationRequest(request) || isStaticAssetUrl(url))) return;
 
-  // Other same-origin GETs: network-first as well; only cache successful static-safe responses.
-  event.respondWith(caches.open(CACHE_NAME).then((cache) => networkFirst(request, cache)));
+  // HTML / JS / CSS / manifest — network-first so a reload always gets the latest.
+  const networkFresh = (
+    isNavigationRequest(request) ||
+    url.pathname.endsWith('.html') ||
+    url.pathname.endsWith('.js') ||
+    url.pathname.endsWith('.css') ||
+    url.pathname.endsWith('/manifest.json') || isManifestUrl(url)
+  );
+
+  event.respondWith(
+    caches.open(CACHE_NAME).then((cache) =>
+      networkFresh ? networkFirst(request, cache) : cacheFirst(request, cache)
+    )
+  );
 });
