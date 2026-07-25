@@ -15,6 +15,14 @@ test('question textareas use a lower default height', () => {
   assert.match(styles, /height:\s*64px/);
 });
 
+test('printed reviews reset the compact textarea height', () => {
+  assert.match(styles, /@media print/);
+  assert.match(styles, /body\.ar2-printing/);
+  assert.match(styles, /min-height:\s*0/);
+  assert.match(styles, /height:\s*auto/);
+  assert.match(styles, /field-sizing:\s*content/);
+});
+
 test('buttons and ratings provide visible press feedback without JavaScript listeners', () => {
   assert.match(styles, /\.ar2-btn:not\(:disabled\):active/);
   assert.match(styles, /\.ar2-rating:not\(:disabled\):active/);
