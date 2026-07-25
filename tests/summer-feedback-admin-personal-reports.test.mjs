@@ -4,8 +4,10 @@ import { readFileSync } from 'node:fs';
 
 const dashboardEnhancer = readFileSync(new URL('../frontend/src/dashboard-kpi-corrections.js', import.meta.url), 'utf8');
 const integration = readFileSync(new URL('../frontend/src/summer-feedback-admin-integration.js', import.meta.url), 'utf8');
+const supabaseClient = readFileSync(new URL('../frontend/src/supabase-client.js', import.meta.url), 'utf8');
 const personalReports = readFileSync(new URL('../frontend/src/screens/personal-reports.js', import.meta.url), 'utf8');
 const feedbackHtml = readFileSync(new URL('../frontend/public/summer-feedback/index.html', import.meta.url), 'utf8');
+const configuredClient = readFileSync(new URL('../frontend/public/summer-feedback/supabase-configured-client.js', import.meta.url), 'utf8');
 const embeddedCss = readFileSync(new URL('../frontend/public/summer-feedback/embedded-admin.css', import.meta.url), 'utf8');
 const embeddedJs = readFileSync(new URL('../frontend/public/summer-feedback/embedded-admin.js', import.meta.url), 'utf8');
 
@@ -17,12 +19,13 @@ test('dashboard loads the admin-only summer feedback integration without restori
   assert.ok(integration.includes("button.textContent = 'משוב קיץ'"));
 });
 
-test('summer feedback tab is restricted to an authenticated active admin', () => {
+test('summer feedback tab is restricted to an authenticated explicitly active admin', () => {
   assert.ok(integration.includes('waitForSupabaseAuthSession'));
   assert.ok(integration.includes(".from('users')"));
   assert.ok(integration.includes(".select('role,is_active')"));
   assert.ok(integration.includes("normalizeRole(data?.role) === 'admin'"));
-  assert.ok(integration.includes('data?.is_active !== false'));
+  assert.ok(integration.includes('data?.is_active === true'));
+  assert.equal(integration.includes('data?.is_active !== false'), false);
 });
 
 test('personal reports keeps its existing tabs and adds the full summer feedback management interface inside it', () => {
@@ -37,7 +40,19 @@ test('personal reports keeps its existing tabs and adds the full summer feedback
   assert.ok(integration.includes('lock-screen'));
 });
 
-test('embedded management mode removes the duplicate standalone header and follows the dashboard height', () => {
+test('embedded feedback shares dashboard Supabase configuration and authenticated project', () => {
+  assert.ok(supabaseClient.includes('publishableKey: supabaseAnonKey'));
+  assert.ok(integration.includes('supabaseConfig'));
+  assert.ok(integration.includes('__dashboardSummerFeedbackConfig'));
+  assert.ok(integration.includes('publishableKey: String(supabaseConfig?.publishableKey'));
+  assert.ok(feedbackHtml.includes('type="importmap"'));
+  assert.ok(feedbackHtml.includes('./supabase-configured-client.js'));
+  assert.ok(configuredClient.includes('window.parent?.[EMBEDDED_CONFIG_KEY]'));
+  assert.ok(configuredClient.includes('dashboardConfig?.url || defaultUrl'));
+  assert.ok(configuredClient.includes('dashboardConfig?.publishableKey || defaultPublishableKey'));
+});
+
+test('embedded management mode removes duplicate navigation, preserves embedded links and follows dashboard height', () => {
   assert.ok(feedbackHtml.includes('href="./embedded-admin.css"'));
   assert.ok(feedbackHtml.includes('src="./embedded-admin.js"'));
   assert.ok(embeddedCss.includes('html.summer-feedback-embedded .shell > header'));
@@ -45,6 +60,8 @@ test('embedded management mode removes the duplicate standalone header and follo
   assert.ok(embeddedCss.includes('html.summer-feedback-embedded .container'));
   assert.ok(embeddedCss.includes('width: 100%'));
   assert.ok(embeddedJs.includes("params.get('embedded') === '1'"));
+  assert.ok(embeddedJs.includes("url.searchParams.set('embedded', '1')"));
+  assert.ok(embeddedJs.includes('url.pathname !== window.location.pathname'));
   assert.ok(embeddedJs.includes('summer-feedback:embedded-height'));
   assert.ok(integration.includes('Math.min(Math.max(Math.ceil(requested), 720), 5600)'));
 });
