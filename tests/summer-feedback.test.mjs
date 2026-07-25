@@ -50,6 +50,21 @@ test('client blocks editing outside the cycle window and excludes unanswered mea
   assert.match(app, /if \(!cycleIsOpen\(state\.cycle\)\)/);
   assert.match(app, /value !== null && value !== undefined && value !== ''/);
   assert.match(app, /value >= 1 && value <= 5/);
+  assert.match(app, /const rated=ratings\.filter/);
+  assert.match(app, /count:rated\.length/);
+});
+
+test('highlighted activities require details before submission', () => {
+  assert.match(app, /rating\.success_highlight && !rating\.success_reasons\.length && !rating\.success_note/);
+  assert.match(app, /rating\.needs_improvement && !rating\.improvement_categories\.length && !rating\.improvement_note/);
+});
+
+test('CSV includes activity notes and all summary free text', () => {
+  assert.match(app, /הערת הצלחה/);
+  assert.match(app, /summary\.preserve/);
+  assert.match(app, /summary\.improve/);
+  assert.match(app, /summary\.training_needed/);
+  assert.match(app, /summary\.additional_notes/);
 });
 
 test('feedback supports locking, manager reopen, selection limits and CSV export', () => {
