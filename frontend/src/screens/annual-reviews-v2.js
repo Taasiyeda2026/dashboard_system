@@ -261,13 +261,43 @@ function landingCardHtml(rows) {
   </section>`;
 }
 
+function bindLandingControls(container) {
+  container.querySelectorAll('[data-ar2-open]:not([data-ar2-open-bound])').forEach((button) => {
+    button.dataset.ar2OpenBound = 'true';
+    button.addEventListener('click', async () => {
+      if (button.disabled) return;
+      const reviewId = button.dataset.ar2Open;
+      const originalLabel = button.textContent;
+      button.disabled = true;
+      button.textContent = 'טוען…';
+      const opened = await openReview(reviewId);
+      if (!opened && button.isConnected) {
+        button.disabled = false;
+        button.textContent = originalLabel;
+      }
+    });
+  });
+
+  container.querySelectorAll('[data-ar2-dashboard]:not([data-ar2-dashboard-bound])').forEach((button) => {
+    button.dataset.ar2DashboardBound = 'true';
+    button.addEventListener('click', () => {
+      document.dispatchEvent(new CustomEvent('app:navigate', { detail: { route: 'dashboard' } }));
+    });
+  });
+}
+
 async function enhanceExistingLanding() {
   const landing = document.querySelector('.pr-screen--reviews .ar-landing:not([data-ar2-enhanced])');
   if (!landing || state.rendering) return;
   landing.dataset.ar2Enhanced = 'loading';
+  bindLandingControls(landing);
   try {
     const rows = await loadReviews();
-    landing.outerHTML = landingCardHtml(rows);
+    const replacement = document.createElement('div');
+    replacement.innerHTML = landingCardHtml(rows);
+    const enhancedLanding = replacement.firstElementChild;
+    landing.replaceWith(enhancedLanding);
+    bindLandingControls(enhancedLanding);
   } catch (error) {
     landing.dataset.ar2Enhanced = 'error';
     console.warn('[annual-reviews-v2] landing load failed', error);
@@ -287,6 +317,7 @@ async function renderStandaloneLanding() {
       </div>
       <main class="ar2-body">${landingCardHtml(rows)}</main>
     </div>`;
+    bindLandingControls(root);
   } finally {
     state.rendering = false;
   }
@@ -484,7 +515,7 @@ function detailHtml(review, bundle) {
 
 async function openReview(id) {
   const root = rootElement();
-  if (!root) return;
+  if (!root) return false;
   state.rendering = true;
   try {
     await loadReviews();
@@ -495,9 +526,11 @@ async function openReview(id) {
     state.currentBundle = bundle;
     root.innerHTML = detailHtml(review, bundle);
     bindDetail(root);
+    return true;
   } catch (error) {
     console.error('[annual-reviews-v2] open failed', error);
     showToast(error.message || 'פתיחת המשוב נכשלה.', 'error');
+    return false;
   } finally {
     state.rendering = false;
   }
@@ -763,22 +796,6 @@ function bindDetail(root) {
   });
 }
 
-function bindGlobalClicks() {
-  document.addEventListener('click', (event) => {
-    const open = event.target.closest('[data-ar2-open]');
-    if (open) {
-      event.preventDefault();
-      event.stopPropagation();
-      openReview(open.dataset.ar2Open);
-      return;
-    }
-    if (event.target.closest('[data-ar2-dashboard]')) {
-      event.preventDefault();
-      document.dispatchEvent(new CustomEvent('app:navigate', { detail: { route: 'dashboard' } }));
-    }
-  }, true);
-}
-
 let enhanceQueued = false;
 function scheduleEnhance() {
   if (enhanceQueued) return;
@@ -790,6 +807,5 @@ function scheduleEnhance() {
 }
 
 installStyles();
-bindGlobalClicks();
 new MutationObserver(scheduleEnhance).observe(document.documentElement, { childList: true, subtree: true });
 scheduleEnhance();

@@ -5,9 +5,20 @@ import { readFile } from 'node:fs/promises';
 const migration = await readFile(new URL('../supabase/migrations/20260723123000_simplify_annual_review_workflow.sql', import.meta.url), 'utf8');
 const screen = await readFile(new URL('../frontend/src/screens/annual-reviews-v2.js', import.meta.url), 'utf8');
 const entry = await readFile(new URL('../frontend/src/main-with-proposal-pdf-hotfix.js', import.meta.url), 'utf8');
+const personalReports = await readFile(new URL('../frontend/src/screens/personal-reports.js', import.meta.url), 'utf8');
 
 test('simplified annual review module is loaded by the application entrypoint', () => {
   assert.match(entry, /import '\.\/screens\/annual-reviews-v2\.js';/);
+});
+
+test('review buttons use one local opener without a global event guard', () => {
+  assert.doesNotMatch(entry, /annual-reviews-open-button-guard/);
+  assert.doesNotMatch(personalReports, /data-ar-open=/);
+  assert.match(personalReports, /data-ar2-open=/);
+  assert.match(screen, /function bindLandingControls\(container\)/);
+  assert.match(screen, /button\.textContent = 'טוען…'/);
+  assert.match(screen, /if \(!opened && button\.isConnected\)/);
+  assert.doesNotMatch(screen, /document\.addEventListener\('click'/);
 });
 
 test('employee and manager complete private parallel sections before atomic reveal', () => {
