@@ -25,6 +25,9 @@ const MANAGEMENT_VISIBLE_KEYS = [
   'support_response'
 ];
 
+const BRAND_LOGO_SRC = '../catalog/summercatalog/logo.png';
+const RESUME_STORAGE_PREFIX = 'summer-feedback-resume-v2';
+
 function questionLabel(select) {
   return select?.closest('.question')?.querySelector(':scope > span:not(.answer-label)');
 }
@@ -58,6 +61,44 @@ function refineQuestionLayout() {
   });
 }
 
+function applyBranding() {
+  const brand = document.querySelector('.brand');
+  if (!brand || brand.dataset.logoApplied === 'true') return;
+
+  const logo = document.createElement('img');
+  logo.className = 'brand-logo';
+  logo.src = BRAND_LOGO_SRC;
+  logo.alt = 'לוגו תעשיידע';
+  logo.decoding = 'async';
+
+  const subtitle = document.createElement('small');
+  subtitle.className = 'brand-subtitle';
+  subtitle.textContent = 'משוב פעילות הקיץ';
+
+  brand.replaceChildren(logo, subtitle);
+  brand.dataset.logoApplied = 'true';
+}
+
+function removeStatementLabels() {
+  document.querySelectorAll('.feedback-group > summary small').forEach(label => {
+    label.hidden = true;
+    label.setAttribute('aria-hidden', 'true');
+  });
+}
+
+function styleActionButtons() {
+  const saveButton = document.querySelector('#saveNow');
+  if (saveButton && saveButton.textContent !== 'שמירה והמשך מאוחר יותר') {
+    saveButton.textContent = 'שמירה והמשך מאוחר יותר';
+    saveButton.setAttribute('aria-label', 'שמירת טיוטה והמשך במועד מאוחר יותר');
+  }
+
+  const submitButton = document.querySelector('#feedbackForm button[type="submit"]');
+  if (submitButton && !submitButton.disabled && submitButton.textContent !== 'סיום והגשת המשוב') {
+    submitButton.textContent = 'סיום והגשת המשוב';
+  }
+}
+
 function syncMergedSelect(source, targets) {
   for (const target of targets) {
     if (!target || target.value === source.value) continue;
@@ -76,9 +117,7 @@ function updateManagementBadge() {
     return Boolean(select?.value);
   }).length;
 
-  const small = group.querySelector('summary small');
   const badge = group.querySelector('summary b');
-  if (small && small.textContent !== '6 היגדים') small.textContent = '6 היגדים';
   if (badge && badge.textContent !== `${completed}/6`) badge.textContent = `${completed}/6`;
 }
 
@@ -157,11 +196,107 @@ function hideLegacyAnalysisColumns() {
   });
 }
 
+function resumeIdentity() {
+  const label = document.querySelector('.head-actions small')?.textContent?.trim();
+  const hero = document.querySelector('.hero p')?.textContent?.trim();
+  const identity = label || hero || 'feedback';
+  return `${RESUME_STORAGE_PREFIX}:${location.pathname}:${identity}`;
+}
+
+function readResumeState(key) {
+  try {
+    const value = localStorage.getItem(key);
+    return value ? JSON.parse(value) : null;
+  } catch {
+    return null;
+  }
+}
+
+function writeResumeState(form) {
+  const key = form?.dataset.resumeKey;
+  if (!form || !key) return;
+  const details = [...form.querySelectorAll('details')].map(item => item.open);
+  try {
+    localStorage.setItem(key, JSON.stringify({
+      scrollY: Math.max(0, Math.round(window.scrollY)),
+      details,
+      updatedAt: Date.now()
+    }));
+  } catch {
+    // Browsers may block storage in strict privacy mode; draft answers still save to Supabase.
+  }
+}
+
+function clearResumeState(form) {
+  const key = form?.dataset.resumeKey || resumeIdentity();
+  try {
+    localStorage.removeItem(key);
+  } catch {
+    // No-op when storage is unavailable.
+  }
+}
+
+function restoreResumeState(form) {
+  const state = readResumeState(form.dataset.resumeKey);
+  if (!state) return;
+
+  const details = [...form.querySelectorAll('details')];
+  if (Array.isArray(state.details)) {
+    details.forEach((item, index) => {
+      if (typeof state.details[index] === 'boolean') item.open = state.details[index];
+    });
+  }
+
+  const maxScroll = Math.max(0, document.documentElement.scrollHeight - window.innerHeight);
+  const scrollY = Math.min(Math.max(0, Number(state.scrollY) || 0), maxScroll);
+  window.scrollTo({ top: scrollY, behavior: 'auto' });
+}
+
+function setupDraftResume() {
+  const form = document.querySelector('#feedbackForm');
+  if (!form || form.dataset.resumeBound === 'true') return;
+
+  form.dataset.resumeBound = 'true';
+  form.dataset.resumeKey = resumeIdentity();
+
+  const submitted = document.querySelector('.status .badge.submitted');
+  if (submitted) {
+    clearResumeState(form);
+    return;
+  }
+
+  form.querySelectorAll('details').forEach(item => {
+    item.addEventListener('toggle', () => writeResumeState(form));
+  });
+  form.addEventListener('input', () => writeResumeState(form), { passive: true });
+  form.addEventListener('change', () => writeResumeState(form), { passive: true });
+
+  const saveButton = form.querySelector('#saveNow');
+  saveButton?.addEventListener('click', () => writeResumeState(form));
+
+  requestAnimationFrame(() => requestAnimationFrame(() => restoreResumeState(form)));
+}
+
+function persistCurrentPosition() {
+  const form = document.querySelector('#feedbackForm');
+  if (form) writeResumeState(form);
+}
+
+function requestDraftSaveWhenLeaving() {
+  persistCurrentPosition();
+  const saveButton = document.querySelector('#saveNow');
+  if (saveButton && !saveButton.disabled) saveButton.click();
+}
+
 function applyRefinements() {
+  applyBranding();
+  removeStatementLabels();
   refineQuestionLayout();
   mergeManagementQuestions();
   removeDuplicateActivityPrompts();
   hideLegacyAnalysisColumns();
+  styleActionButtons();
+  setupDraftResume();
   updateVisibleProgress();
 }
 
@@ -174,6 +309,17 @@ const scheduleRefinements = () => {
     applyRefinements();
   });
 };
+
+let scrollTimer = null;
+window.addEventListener('scroll', () => {
+  clearTimeout(scrollTimer);
+  scrollTimer = setTimeout(persistCurrentPosition, 160);
+}, { passive: true });
+
+window.addEventListener('pagehide', persistCurrentPosition);
+document.addEventListener('visibilitychange', () => {
+  if (document.visibilityState === 'hidden') requestDraftSaveWhenLeaving();
+});
 
 const observer = new MutationObserver(scheduleRefinements);
 observer.observe(document.documentElement, { childList: true, subtree: true, characterData: true });
