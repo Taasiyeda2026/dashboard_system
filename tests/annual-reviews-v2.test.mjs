@@ -5,9 +5,22 @@ import { readFile } from 'node:fs/promises';
 const migration = await readFile(new URL('../supabase/migrations/20260723123000_simplify_annual_review_workflow.sql', import.meta.url), 'utf8');
 const screen = await readFile(new URL('../frontend/src/screens/annual-reviews-v2.js', import.meta.url), 'utf8');
 const entry = await readFile(new URL('../frontend/src/main-with-proposal-pdf-hotfix.js', import.meta.url), 'utf8');
+const openButton = await readFile(new URL('../frontend/src/annual-review-open-button.js', import.meta.url), 'utf8');
 
 test('simplified annual review module is loaded by the application entrypoint', () => {
   assert.match(entry, /import '\.\/screens\/annual-reviews-v2\.js';/);
+});
+
+test('review open local fix and legacy global path are strictly separated', () => {
+  assert.match(screen, /new URLSearchParams\(window\.location\.search\)\.get\('reviewFix'\) === '1'/);
+  assert.match(screen, /bindAnnualReviewOpenButton\(button, openReview, \{ guarded: true \}\)/);
+  assert.match(openButton, /button\.addEventListener\('click', async/);
+  assert.match(openButton, /await openReview\(button\.dataset\.ar2Open\)/);
+  assert.match(screen, /function bindGlobalClicks\(\)[\s\S]*document\.addEventListener\('click'/);
+  assert.match(screen, /if \(reviewOpenLocalFixEnabled\(\)\) bindLocalReviewControls\(\);\s*else bindGlobalClicks\(\);/);
+  assert.match(screen, /if \(reviewOpenLocalFixEnabled\(\)\) bindLocalReviewControls\(\);\s*enhanceExistingLanding\(\);/);
+  assert.doesNotMatch(`${screen}\n${openButton}`, /EventTarget\.prototype/);
+  assert.doesNotMatch(entry, /annual-reviews-open-button-guard\.js/);
 });
 
 test('employee and manager complete private parallel sections before atomic reveal', () => {

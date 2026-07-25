@@ -1,4 +1,5 @@
 import { supabase } from '../supabase-client.js';
+import { bindAnnualReviewOpenButton } from '../annual-review-open-button.js';
 import { escapeHtml } from './shared/html.js';
 
 const STATUS_LABELS = {
@@ -484,7 +485,7 @@ function detailHtml(review, bundle) {
 
 async function openReview(id) {
   const root = rootElement();
-  if (!root) return;
+  if (!root) return false;
   state.rendering = true;
   try {
     await loadReviews();
@@ -495,9 +496,11 @@ async function openReview(id) {
     state.currentBundle = bundle;
     root.innerHTML = detailHtml(review, bundle);
     bindDetail(root);
+    return true;
   } catch (error) {
     console.error('[annual-reviews-v2] open failed', error);
     showToast(error.message || 'פתיחת המשוב נכשלה.', 'error');
+    return false;
   } finally {
     state.rendering = false;
   }
@@ -763,6 +766,25 @@ function bindDetail(root) {
   });
 }
 
+function reviewOpenLocalFixEnabled() {
+  return new URLSearchParams(window.location.search).get('reviewFix') === '1';
+}
+
+function bindLocalReviewControls(scope = document) {
+  scope.querySelectorAll('[data-ar2-open]').forEach((button) => {
+    bindAnnualReviewOpenButton(button, openReview, { guarded: true });
+  });
+
+  scope.querySelectorAll('[data-ar2-dashboard]:not([data-ar2-local-bound])').forEach((button) => {
+    button.dataset.ar2LocalBound = 'true';
+    button.addEventListener('click', (event) => {
+      event.preventDefault();
+      event.stopPropagation();
+      document.dispatchEvent(new CustomEvent('app:navigate', { detail: { route: 'dashboard' } }));
+    });
+  });
+}
+
 function bindGlobalClicks() {
   document.addEventListener('click', (event) => {
     const open = event.target.closest('[data-ar2-open]');
@@ -785,11 +807,13 @@ function scheduleEnhance() {
   enhanceQueued = true;
   queueMicrotask(() => {
     enhanceQueued = false;
+    if (reviewOpenLocalFixEnabled()) bindLocalReviewControls();
     enhanceExistingLanding();
   });
 }
 
 installStyles();
-bindGlobalClicks();
+if (reviewOpenLocalFixEnabled()) bindLocalReviewControls();
+else bindGlobalClicks();
 new MutationObserver(scheduleEnhance).observe(document.documentElement, { childList: true, subtree: true });
 scheduleEnhance();
