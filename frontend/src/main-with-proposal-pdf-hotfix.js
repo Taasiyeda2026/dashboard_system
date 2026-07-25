@@ -11,3 +11,4 @@ import './birthday-popup-session-guard.js';
 import './birthday-calendar.js';
 import './main.js';
 import './screens/annual-reviews-v2.js';
+import './annual-reviews-language-hotfix.js';
