@@ -1,9 +1,10 @@
-import { supabase, waitForSupabaseAuthSession } from './supabase-client.js';
+import { supabase, supabaseConfig, waitForSupabaseAuthSession } from './supabase-client.js';
 
 const ADMIN_TAB_ATTRIBUTE = 'data-summer-feedback-admin-tab';
 const ADMIN_FRAME_URL = './summer-feedback/?view=admin&embedded=1';
 const HEIGHT_MESSAGE_TYPE = 'summer-feedback:embedded-height';
 const STYLE_ELEMENT_ID = 'summer-feedback-admin-integration-styles';
+const EMBEDDED_CONFIG_KEY = '__dashboardSummerFeedbackConfig';
 
 let adminCheckPromise = null;
 let cachedAdminUserId = '';
@@ -31,7 +32,7 @@ async function currentAuthUserIsAdmin() {
       .maybeSingle();
 
     cachedAdminUserId = authUserId;
-    cachedAdminResult = !error && data?.is_active !== false && normalizeRole(data?.role) === 'admin';
+    cachedAdminResult = !error && data?.is_active === true && normalizeRole(data?.role) === 'admin';
     return cachedAdminResult;
   })();
 
@@ -79,18 +80,9 @@ function ensureIntegrationStyles() {
     }
 
     @media (max-width: 820px) {
-      .pr-summer-feedback-admin-body {
-        width: 100%;
-      }
-
-      .pr-summer-feedback-frame-card {
-        border-radius: 10px;
-      }
-
-      .pr-summer-feedback-frame {
-        height: 720px;
-        min-height: 720px;
-      }
+      .pr-summer-feedback-admin-body { width: 100%; }
+      .pr-summer-feedback-frame-card { border-radius: 10px; }
+      .pr-summer-feedback-frame { height: 720px; min-height: 720px; }
     }
   `;
   document.head.append(style);
@@ -127,6 +119,13 @@ function dispatchDashboardNavigation() {
   document.dispatchEvent(new CustomEvent('app:navigate', { detail: { route: 'dashboard' } }));
 }
 
+function exposeEmbeddedSupabaseConfig() {
+  window[EMBEDDED_CONFIG_KEY] = Object.freeze({
+    url: String(supabaseConfig?.url || '').trim(),
+    publishableKey: String(supabaseConfig?.publishableKey || '').trim()
+  });
+}
+
 function bindEmbeddedFrameHeight(iframe, screen) {
   const onMessage = (event) => {
     if (!screen.isConnected || event.origin !== window.location.origin || event.source !== iframe.contentWindow) return;
@@ -144,6 +143,7 @@ function bindEmbeddedFrameHeight(iframe, screen) {
 function openSummerFeedbackAdmin(root, sourceTabList) {
   if (!root || root.querySelector('.pr-screen--summer-feedback-admin')) return;
 
+  exposeEmbeddedSupabaseConfig();
   const originalNodes = [...root.children].map((node) => ({ node, wasHidden: node.hidden }));
   originalNodes.forEach(({ node }) => { node.hidden = true; });
 
