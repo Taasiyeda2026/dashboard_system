@@ -3,8 +3,8 @@ import { state } from './state.js';
 
 /**
  * Security boundary for system-administration screens.
- * Operational roles may manage activities, but only role=admin may view or mutate
- * users, permissions, system settings, and system lists.
+ * Operational roles may use shared read-only system lists where their screens need
+ * them, but only role=admin may view or mutate users, permissions and settings.
  */
 export const ADMIN_ONLY_ROUTES = Object.freeze([
   'permissions',
@@ -21,7 +21,6 @@ export const ADMIN_ONLY_API_ACTIONS = Object.freeze([
   'reactivateUser',
   'deleteUser',
   'adminSettings',
-  'adminLists',
   'listSheets',
   'saveSheetMapping'
 ]);

@@ -7,15 +7,20 @@ on:
       - 'frontend/src/screens/proposals-agreements.js'
       - 'frontend/src/screens/instructors.js'
       - 'frontend/src/screens/instructor-contacts.js'
+      - 'frontend/src/screens/operations-inventory-polish.js'
       - 'frontend/src/proposal-pdf-svg-origin-clean.js'
       - 'frontend/src/proposal-pdf-storage-key.js'
       - 'frontend/src/proposal-pdf-storage-key-hotfix.js'
+      - 'frontend/src/admin-permissions-access-hotfix.js'
+      - 'frontend/src/auth-session-isolation-hotfix.js'
       - 'frontend/src/main-with-proposal-pdf-hotfix.js'
+      - 'frontend/src/state.js'
       - 'frontend/src/styles/**'
       - 'frontend/src/config.js'
       - 'frontend/sw.js'
       - 'sw.js'
       - 'index.html'
+      - 'tests/auth-session-admin-lists-hotfix.test.mjs'
       - 'tests/client-file-*.test.mjs'
       - 'tests/proposal-pdf-svg-origin-clean.test.mjs'
       - 'tests/proposal-pdf-storage-key-hotfix.test.mjs'
@@ -47,17 +52,25 @@ jobs:
           node --check frontend/src/screens/proposals-agreements.js
           node --check frontend/src/screens/instructors.js
           node --check frontend/src/screens/instructor-contacts.js
+          node --check frontend/src/screens/operations-inventory-polish.js
           node --check frontend/src/proposal-pdf-svg-origin-clean.js
           node --check frontend/src/proposal-pdf-storage-key.js
           node --check frontend/src/proposal-pdf-storage-key-hotfix.js
+          node --check frontend/src/admin-permissions-access-hotfix.js
+          node --check frontend/src/auth-session-isolation-hotfix.js
           node --check frontend/src/main-with-proposal-pdf-hotfix.js
           node --check frontend/src/main.js
+          node --check frontend/src/state.js
           node --check frontend/src/api.js
+          node --check tests/auth-session-admin-lists-hotfix.test.mjs
           node --check tests/client-file-unified-screen.test.mjs
           node --check tests/client-file-version-sync.test.mjs
           node --check tests/instructor-contacts-nav-access.test.mjs
           node --check tests/proposal-pdf-svg-origin-clean.test.mjs
           node --check tests/proposal-pdf-storage-key-hotfix.test.mjs
+
+      - name: Run auth and shared-list regression tests
+        run: node --test tests/auth-session-admin-lists-hotfix.test.mjs
 
       - name: Run unified client file tests
         run: >-

@@ -5,6 +5,7 @@ import './proposal-pdf-single-generation-hotfix.js';
 import './client-contact-persistence-hotfix.js';
 import './admin-lists-auth-hotfix.js';
 import './admin-permissions-access-hotfix.js';
+import './auth-session-isolation-hotfix.js';
 import './school-calendar-runtime.js';
 import './birthday-popup.js';
 import './birthday-popup-session-guard.js';
