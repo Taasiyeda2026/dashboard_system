@@ -80,8 +80,17 @@ jobs:
       - name: Run auth and shared-list regression tests
         run: node --test tests/auth-session-admin-lists-hotfix.test.mjs
 
-      - name: Run summer feedback admin integration tests
-        run: node --test tests/summer-feedback-admin-personal-reports.test.mjs
+      - name: Check summer feedback dashboard loading
+        run: node --test --test-name-pattern='dashboard loads' tests/summer-feedback-admin-personal-reports.test.mjs
+
+      - name: Check summer feedback admin restriction
+        run: node --test --test-name-pattern='restricted to' tests/summer-feedback-admin-personal-reports.test.mjs
+
+      - name: Check summer feedback personal reports integration
+        run: node --test --test-name-pattern='personal reports keeps' tests/summer-feedback-admin-personal-reports.test.mjs
+
+      - name: Check summer feedback embedded mode
+        run: node --test --test-name-pattern='embedded management mode' tests/summer-feedback-admin-personal-reports.test.mjs
 
       - name: Run unified client file tests
         run: >-
