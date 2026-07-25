@@ -7,6 +7,7 @@ const TOKEN_KEY = 'dashboard_token';
 const SESSION_MARKER_KEY = 'ds_session_alive';
 const SCREEN_CACHE_PREFIXES = ['dashboard_screen_cache_v1', 'dashboard_screen_cache:'];
 const RELOAD_GUARD_KEY = 'dashboard_auth_reconcile_reload';
+const INITIAL_SESSION_RETRY_MS = 1800;
 let reloadScheduled = false;
 
 function safeJsonParse(value) {
@@ -105,6 +106,28 @@ export function reconcileDashboardIdentityWithAuthSession(session) {
   return true;
 }
 
+async function reconcileInitialAuthSession() {
+  if (!supabase) return;
+  try {
+    const first = await supabase.auth.getSession();
+    if (first?.data?.session?.user?.id) {
+      reconcileDashboardIdentityWithAuthSession(first.data.session);
+      return;
+    }
+    if (!state?.token && !localStorage.getItem(TOKEN_KEY)) return;
+    setTimeout(async () => {
+      try {
+        const retry = await supabase.auth.getSession();
+        reconcileDashboardIdentityWithAuthSession(retry?.data?.session || null);
+      } catch {
+        /* A later auth event or normal bootstrap will resolve transient failures. */
+      }
+    }, INITIAL_SESSION_RETRY_MS);
+  } catch {
+    /* A later auth event or normal bootstrap will resolve transient failures. */
+  }
+}
+
 function handleStorageChange(event) {
   if (!event || ![USER_KEY, TOKEN_KEY].includes(event.key)) return;
 
@@ -142,14 +165,13 @@ export function installAuthSessionIsolation() {
   if (window.__dashboardAuthSessionIsolationInstalled) return false;
   window.__dashboardAuthSessionIsolationInstalled = true;
 
+  try { sessionStorage.removeItem(RELOAD_GUARD_KEY); } catch { /* ignore */ }
   clearUserScopedDashboardCachesIfOwnerUnknown();
   window.addEventListener('storage', handleStorageChange);
   bindLogoutToSupabase();
 
   if (supabase) {
-    supabase.auth.getSession()
-      .then(({ data }) => reconcileDashboardIdentityWithAuthSession(data?.session || null))
-      .catch(() => {});
+    reconcileInitialAuthSession();
 
     supabase.auth.onAuthStateChange((event, session) => {
       if (event === 'SIGNED_OUT') {
@@ -159,7 +181,7 @@ export function installAuthSessionIsolation() {
         }
         return;
       }
-      if (event === 'SIGNED_IN' || event === 'TOKEN_REFRESHED' || event === 'INITIAL_SESSION') {
+      if ((event === 'SIGNED_IN' || event === 'TOKEN_REFRESHED' || event === 'INITIAL_SESSION') && session?.user?.id) {
         reconcileDashboardIdentityWithAuthSession(session);
       }
     });
