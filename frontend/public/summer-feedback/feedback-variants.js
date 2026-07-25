@@ -33,7 +33,7 @@ function cleanAnalysisCounts() {
     if (!VARIANT_NAMES.has(title)) return;
 
     const cells = row.querySelectorAll('td');
-    if (cells[1]) cells[1].textContent = '—';
+    if (cells[1] && cells[1].textContent.trim() !== '—') cells[1].textContent = '—';
   });
 }
 
