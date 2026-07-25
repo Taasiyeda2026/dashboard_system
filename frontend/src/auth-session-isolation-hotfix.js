@@ -8,6 +8,7 @@ const SESSION_MARKER_KEY = 'ds_session_alive';
 const SCREEN_CACHE_PREFIXES = ['dashboard_screen_cache_v1', 'dashboard_screen_cache:'];
 const RELOAD_GUARD_KEY = 'dashboard_auth_reconcile_reload';
 const INITIAL_SESSION_RETRY_MS = 1800;
+const CROSS_TAB_RELOAD_DELAY_MS = 300;
 let reloadScheduled = false;
 
 function safeJsonParse(value) {
@@ -56,7 +57,7 @@ function scheduleReload(reason = 'auth_identity_changed') {
   } catch {
     /* ignore */
   }
-  setTimeout(() => window.location.reload(), 0);
+  setTimeout(() => window.location.reload(), CROSS_TAB_RELOAD_DELAY_MS);
 }
 
 function clearLocalDashboardIdentity() {
@@ -70,7 +71,7 @@ function clearLocalDashboardIdentity() {
   }
 }
 
-export function reconcileDashboardIdentityWithAuthSession(session) {
+export function reconcileDashboardIdentityWithAuthSession(session, { allowIdentityClear = true } = {}) {
   const actualAuthUserId = String(session?.user?.id || '').trim();
   const currentUser = state?.user || null;
   const storedUser = storedDashboardUser();
@@ -79,7 +80,8 @@ export function reconcileDashboardIdentityWithAuthSession(session) {
 
   if (!actualAuthUserId) {
     if (state?.token || localStorage.getItem(TOKEN_KEY)) {
-      clearLocalDashboardIdentity();
+      if (allowIdentityClear) clearLocalDashboardIdentity();
+      else clearUserScopedDashboardCaches();
       scheduleReload('auth_session_missing');
       return false;
     }
@@ -88,17 +90,18 @@ export function reconcileDashboardIdentityWithAuthSession(session) {
 
   if (currentIdentity.authUserId && currentIdentity.authUserId !== actualAuthUserId) {
     clearUserScopedDashboardCaches();
-    if (storedIdentity.authUserId === actualAuthUserId) {
-      scheduleReload('auth_user_changed_in_other_tab');
-    } else {
+    if (allowIdentityClear && storedIdentity.authUserId !== actualAuthUserId) {
       clearLocalDashboardIdentity();
-      scheduleReload('auth_user_mismatch');
     }
+    scheduleReload(storedIdentity.authUserId === actualAuthUserId
+      ? 'auth_user_changed_in_other_tab'
+      : 'auth_user_mismatch');
     return false;
   }
 
   if (storedIdentity.authUserId && storedIdentity.authUserId !== actualAuthUserId) {
-    clearLocalDashboardIdentity();
+    if (allowIdentityClear) clearLocalDashboardIdentity();
+    else clearUserScopedDashboardCaches();
     scheduleReload('stored_auth_user_mismatch');
     return false;
   }
@@ -182,7 +185,7 @@ export function installAuthSessionIsolation() {
         return;
       }
       if ((event === 'SIGNED_IN' || event === 'TOKEN_REFRESHED' || event === 'INITIAL_SESSION') && session?.user?.id) {
-        reconcileDashboardIdentityWithAuthSession(session);
+        reconcileDashboardIdentityWithAuthSession(session, { allowIdentityClear: false });
       }
     });
   }
