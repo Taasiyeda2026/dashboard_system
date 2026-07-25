@@ -32,7 +32,8 @@ test('personal reports keeps its existing tabs and adds the full summer feedback
   assert.ok(integration.includes('pr-screen--summer-feedback-admin'));
   assert.ok(integration.includes('title="ניהול משוב הקיץ"'));
   assert.ok(integration.includes('./summer-feedback/?view=admin&embedded=1'));
-  assert.ok(integration.includes('screen-mode-my-reports'));
+  assert.ok(integration.includes('sourceTabList.cloneNode(true)'));
+  assert.ok(integration.includes('button.dataset.prAction'));
   assert.ok(integration.includes('lock-screen'));
 });
 
