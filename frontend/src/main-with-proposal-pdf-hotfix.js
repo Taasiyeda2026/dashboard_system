@@ -13,3 +13,6 @@ import './main.js';
 import './screens/annual-reviews-v2.js';
 import './annual-reviews-language-safe.js';
 import './annual-reviews-rating-comment-compact.js';
+import './annual-reviews-next-school-year-safe.js';
+import './annual-reviews-role-lessons-safe.js';
+import './annual-reviews-shared-stage-safe.js';
