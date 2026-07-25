@@ -17,14 +17,17 @@ test('feedback sections start closed and completed cards receive a green confirm
         <summary><span><strong>תוכן והכשרה</strong></span><b>0/2</b></summary>
         <div>
           <label class="question"><select><option value=""></option><option value="5" selected>5</option></select></label>
-          <label class="question"><select><option value=""></option><option value="4" selected>4</option></select></label>
+          <label class="question"><select><option value=""></option><option value="na" selected>לא רלוונטי</option></select></label>
         </div>
       </details>
       <details class="activity" open>
-        <summary><span><strong>פעילות</strong></span><b>0/2</b></summary>
+        <summary><span><strong>פעילות</strong></span><b>0/3</b></summary>
         <div class="metric-grid">
           <label><select><option value=""></option><option value="5" selected>5</option></select></label>
           <label><select><option value="" selected></option><option value="5">5</option></select></label>
+        </div>
+        <div class="activity-experience">
+          <label><input type="checkbox" data-experience value="קלה להעברה"></label>
         </div>
       </details>
     </form>
@@ -59,12 +62,17 @@ test('feedback sections start closed and completed cards receive a green confirm
     assert.equal(activity.open, false);
     assert.equal(groupBadge.textContent, '2/2');
     assert.equal(groupBadge.classList.contains('is-complete'), true);
-    assert.equal(activityBadge.textContent, '1/2');
+    assert.equal(activityBadge.textContent, '1/3');
     assert.equal(activityBadge.classList.contains('is-complete'), false);
 
     activity.querySelectorAll('select')[1].value = '5';
     overview.updateCompletionIndicators(document);
-    assert.equal(activityBadge.textContent, '2/2');
+    assert.equal(activityBadge.textContent, '2/3');
+    assert.equal(activityBadge.classList.contains('is-complete'), false);
+
+    activity.querySelector('[data-experience]').checked = true;
+    overview.updateCompletionIndicators(document);
+    assert.equal(activityBadge.textContent, '3/3');
     assert.equal(activityBadge.classList.contains('is-complete'), true);
   } finally {
     dom.window.close();
