@@ -82,6 +82,26 @@ function updateManagementBadge() {
   if (badge && badge.textContent !== `${completed}/6`) badge.textContent = `${completed}/6`;
 }
 
+function updateVisibleProgress() {
+  const form = document.querySelector('#feedbackForm');
+  if (!form) return;
+
+  const general = [...form.querySelectorAll('.question:not(.merged-question-hidden) select')];
+  const activities = [...form.querySelectorAll('.metric-grid select')];
+  const requiredSummary = ['preserve', 'improve']
+    .map(key => form.querySelector(`[data-summary="${key}"]`))
+    .filter(Boolean);
+  const fields = [...general, ...activities, ...requiredSummary];
+  if (!fields.length) return;
+
+  const completed = fields.filter(field => Boolean(field.value?.trim())).length;
+  const percent = Math.round((completed / fields.length) * 100);
+  const text = document.querySelector('#progressText');
+  const bar = document.querySelector('#progressBar');
+  if (text && text.textContent !== `${percent}%`) text.textContent = `${percent}%`;
+  if (bar && bar.style.width !== `${percent}%`) bar.style.width = `${percent}%`;
+}
+
 function mergeManagementQuestions() {
   for (const item of MANAGEMENT_MERGES) {
     const source = document.querySelector(`[name="general_${item.source}"]`);
@@ -102,7 +122,10 @@ function mergeManagementQuestions() {
       source.dataset.mergeBound = 'true';
       source.addEventListener('change', () => {
         syncMergedSelect(source, targets);
-        requestAnimationFrame(updateManagementBadge);
+        requestAnimationFrame(() => {
+          updateManagementBadge();
+          updateVisibleProgress();
+        });
       });
     }
 
@@ -139,6 +162,7 @@ function applyRefinements() {
   mergeManagementQuestions();
   removeDuplicateActivityPrompts();
   hideLegacyAnalysisColumns();
+  updateVisibleProgress();
 }
 
 let scheduled = false;
