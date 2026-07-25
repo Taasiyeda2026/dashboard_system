@@ -60,6 +60,11 @@ test('Tony Naim receives exactly eight tailored manager questions', () => {
   assert.match(moduleText, /=== 'טוני נעים' \? TONY_QUESTIONS : DEFAULT_QUESTIONS/);
 });
 
+test('Tony selection is exact and all other employee names use the default set', () => {
+  assert.match(moduleText, /String\(employeeName \|\| ''\)\.trim\(\) === 'טוני נעים'/);
+  assert.doesNotMatch(moduleText, /includes\('טוני'\)|startsWith\('טוני'\)/);
+});
+
 test('Tony questions cover observable documentation, follow-up, initiative and conversation topics', () => {
   assert.match(tonyBlock, /תיעוד מלא, מדויק, שוטף וניתן לאיתור/);
   assert.match(tonyBlock, /במועדים הנמצאים בשליטתה/);
