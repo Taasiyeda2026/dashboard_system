@@ -10,6 +10,7 @@ const schema = readFileSync(new URL('../supabase/migrations/20260725090000_creat
 const seed = readFileSync(new URL('../supabase/migrations/20260725090001_seed_summer_feedback_assignments.sql', import.meta.url), 'utf8');
 const ratingWindow = readFileSync(new URL('../supabase/migrations/20260725090003_enforce_summer_feedback_rating_window.sql', import.meta.url), 'utf8');
 const previewHold = readFileSync(new URL('../supabase/migrations/20260725170000_hold_summer_feedback_for_admin_preview.sql', import.meta.url), 'utf8');
+const draftAdmin = readFileSync(new URL('../supabase/migrations/20260725170100_restrict_summer_feedback_draft_to_admin.sql', import.meta.url), 'utf8');
 
 test('standalone page uses separate static assets and is mobile ready', () => {
   assert.match(html, /<html lang="he" dir="rtl">/);
@@ -95,7 +96,7 @@ test('dashboard does not expose the summer feedback button before final approval
   assert.doesNotMatch(dashboardEnhancer, /\.instr-my-data-actions/);
 });
 
-test('migrations protect data, hold the cycle in draft and seed exact workload', () => {
+test('migrations protect data, hold the cycle in draft and restrict draft access to admin', () => {
   assert.equal((schema.match(/enable row level security/g) || []).length, 4);
   assert.match(schema, /private\.is_summer_feedback_manager/);
   assert.match(ratingWindow, /c\.status = 'open'/);
@@ -103,6 +104,9 @@ test('migrations protect data, hold the cycle in draft and seed exact workload',
   assert.match(previewHold, /status='draft'/);
   assert.match(previewHold, /opens_at=null/);
   assert.match(previewHold, /closes_at=null/);
+  assert.match(draftAdmin, /private\.is_summer_feedback_admin/);
+  assert.match(draftAdmin, /u\.role='admin'/);
+  assert.match(draftAdmin, /c\.status in \('open','closed'\)/);
   assert.match(seed, /md5\(activity\)/);
   assert.match(seed, /assignment_rows<>59/);
   assert.match(seed, /activity_total<>291/);
