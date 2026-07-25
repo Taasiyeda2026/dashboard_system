@@ -31,7 +31,8 @@ const toast = document.querySelector('#toast');
 const state = {
   user: null, cycle: null, assignments: [], responses: [], ratings: [], response: null,
   mode: 'instructor', submitted: false, saveTimer: null, savePromise: null,
-  revision: 0, savedRevision: 0, adminTab: 'status', canAdmin: false, hasOwnFeedback: false
+  revision: 0, savedRevision: 0, adminTab: 'status', canAdmin: false, hasOwnFeedback: false,
+  previewMode: false, adminAssignments: [], adminResponses: [], adminRatings: []
 };
 
 const esc = (value = '') => String(value).replaceAll('&','&amp;').replaceAll('<','&lt;').replaceAll('>','&gt;').replaceAll('"','&quot;').replaceAll("'",'&#039;');
@@ -59,11 +60,13 @@ function notify(message, error = false) {
 }
 
 function frame(content, label = '') {
-  const modeLink = state.canAdmin
-    ? (state.mode === 'admin'
-        ? (state.hasOwnFeedback ? '<a class="button" href="./">המשוב שלי</a>' : '')
-        : '<a class="button" href="./?view=admin">ניהול משובים</a>')
-    : '';
+  const modeLink = state.previewMode
+    ? '<a class="button" href="./?view=admin">חזרה לניהול</a>'
+    : state.canAdmin
+      ? (state.mode === 'admin'
+          ? (state.hasOwnFeedback && cycleIsOpen(state.cycle) ? '<a class="button" href="./">המשוב שלי</a>' : '')
+          : '<a class="button" href="./?view=admin">ניהול משובים</a>')
+      : '';
   return `<div class="shell"><header><div class="brand"><span>ת</span><div><strong>תעשיידע</strong><small>משוב פעילות הקיץ</small></div></div><div class="head-actions">${label ? `<small>${esc(label)}</small>` : ''}${modeLink}<a class="button" href="${DASHBOARD_URL}">חזרה לדשבורד</a></div></header>${content}</div>`;
 }
 
@@ -79,7 +82,7 @@ async function init() {
 
     const { data: cycle, error: cycleError } = await supabase.from('summer_feedback_cycles').select('*').eq('cycle_key',CYCLE_KEY).maybeSingle();
     if (cycleError) throw cycleError;
-    if (!cycle) return renderMessage('המשוב אינו זמין','תקופת המשוב לא נפתחה.');
+    if (!cycle) return renderMessage('המשוב אינו זמין','המשוב עדיין אינו פתוח למילוי.');
     state.cycle = cycle;
 
     const [assignments, responses, ratings] = await Promise.all([
@@ -91,15 +94,19 @@ async function init() {
     state.assignments = assignments.data || [];
     state.responses = responses.data || [];
     state.ratings = ratings.data || [];
+    state.adminAssignments = [...state.assignments];
+    state.adminResponses = [...state.responses];
+    state.adminRatings = [...state.ratings];
 
     const ownAssignments = state.assignments.filter(row => row.instructor_auth_user_id === state.user.id);
     state.hasOwnFeedback = ownAssignments.length > 0;
     state.canAdmin = state.assignments.some(row => row.instructor_auth_user_id !== state.user.id);
     const requestedAdmin = new URLSearchParams(window.location.search).get('view') === 'admin';
-    state.mode = state.canAdmin && (requestedAdmin || !state.hasOwnFeedback) ? 'admin' : 'instructor';
+    const cycleOpen = cycleIsOpen(state.cycle);
+    state.mode = state.canAdmin && (requestedAdmin || !state.hasOwnFeedback || !cycleOpen) ? 'admin' : 'instructor';
     if (state.mode === 'admin') return renderAdmin();
-    if (!cycleIsOpen(state.cycle)) {
-      return renderMessage('תקופת המשוב אינה פתוחה','לא ניתן למלא או לערוך את המשוב מחוץ לתקופת המילוי.');
+    if (!cycleOpen) {
+      return renderMessage('המשוב עדיין אינו פתוח','לא ניתן למלא או לערוך את המשוב לפני האישור הסופי.');
     }
 
     state.assignments = ownAssignments;
@@ -136,13 +143,26 @@ function chips(values, selected, kind, assignmentId, locked) {
 function ratingFor(id) { return state.ratings.find(row => row.assignment_id === id) || {}; }
 
 function renderInstructor() {
-  const locked = state.submitted;
+  const preview = state.previewMode;
+  const locked = state.submitted && !preview;
   const total = state.assignments.reduce((sum,row)=>sum+Number(row.activity_count||0),0);
   const name = state.assignments[0]?.instructor_name || state.user.email;
+  const statusLine = preview
+    ? '<span class="badge draft">תצוגה מקדימה</span><span id="saveStatus">הנתונים אינם נשמרים</span>'
+    : `<span class="badge ${esc(state.response.status)}">${statusText(state.response.status)}</span><span id="saveStatus">${locked ? `הוגש ${fmtDate(state.response.submitted_at)}` : 'כל שינוי נשמר אוטומטית'}</span>`;
+  const banner = preview
+    ? '<div class="locked"><strong>תצוגה מקדימה לאדמין בלבד.</strong> ניתן להתנסות בשדות, אך דבר אינו נשמר או נשלח.</div>'
+    : locked ? '<div class="locked"><strong>המשוב הוגש וננעל.</strong> מנהל מורשה יכול לפתוח אותו מחדש.</div>' : '';
+  const submitBar = preview
+    ? '<span>מצב תצוגה מקדימה — ללא שמירה וללא הגשה.</span><a class="button primary" href="./?view=admin">חזרה לניהול</a>'
+    : locked
+      ? '<span>המשוב הושלם.</span>'
+      : '<button class="button secondary" type="button" id="saveNow">שמירת טיוטה</button><button class="button primary" type="submit">הגשת המשוב</button>';
+
   app.innerHTML = frame(`<main class="container">
     <section class="hero"><div><h1>משוב פעילות הקיץ</h1><p>שלום ${esc(name)}. המשוב מתייחס לפעילויות ולהיערכות, ולא להערכת עבודת המדריך.</p></div><div class="hero-count"><strong>${state.assignments.length}</strong><span>סוגי פעילויות · ${total} הפעלות</span></div></section>
-    <div class="status"><span class="badge ${esc(state.response.status)}">${statusText(state.response.status)}</span><span id="saveStatus">${locked ? `הוגש ${fmtDate(state.response.submitted_at)}` : 'כל שינוי נשמר אוטומטית'}</span></div>
-    ${locked ? '<div class="locked"><strong>המשוב הוגש וננעל.</strong> מנהל מורשה יכול לפתוח אותו מחדש.</div>' : ''}
+    <div class="status">${statusLine}</div>
+    ${banner}
     <div class="progress"><div><strong>התקדמות</strong><span id="progressText">0%</span></div><div class="track"><i id="progressBar"></i></div></div>
     <form id="feedbackForm">
       <section class="panel"><h2>1. היערכות והתנהלות</h2><p class="hint">1 – כלל לא · 5 – במידה רבה מאוד</p>
@@ -157,14 +177,19 @@ function renderInstructor() {
         <label class="text-question"><span>איזו הכשרה או הכנה נוספת הייתה מסייעת לך?</span><textarea data-summary="training_needed" ${locked?'disabled':''}>${esc(state.response.summary_answers?.training_needed||'')}</textarea></label>
         <label class="text-question"><span>הערות נוספות</span><textarea data-summary="additional_notes" ${locked?'disabled':''}>${esc(state.response.summary_answers?.additional_notes||'')}</textarea></label>
       </section>
-      <div class="submit-bar">${locked ? '<span>המשוב הושלם.</span>' : '<button class="button secondary" type="button" id="saveNow">שמירת טיוטה</button><button class="button primary" type="submit">הגשת המשוב</button>'}</div>
+      <div class="submit-bar">${submitBar}</div>
     </form>
-  </main>`, name);
+  </main>`, preview ? `תצוגה מקדימה · ${name}` : name);
 
-  document.querySelector('#feedbackForm')?.addEventListener('input', onEdit);
-  document.querySelector('#feedbackForm')?.addEventListener('change', onEdit);
-  document.querySelector('#feedbackForm')?.addEventListener('submit', submitFeedback);
-  document.querySelector('#saveNow')?.addEventListener('click', async()=>{ markDirty(); await saveDraft(false); });
+  const form = document.querySelector('#feedbackForm');
+  form?.addEventListener('input', onEdit);
+  form?.addEventListener('change', onEdit);
+  if (preview) {
+    form?.addEventListener('submit', event => event.preventDefault());
+  } else {
+    form?.addEventListener('submit', submitFeedback);
+    document.querySelector('#saveNow')?.addEventListener('click', async()=>{ markDirty(); await saveDraft(false); });
+  }
   updateProgress();
 }
 
@@ -180,7 +205,7 @@ function activityCard(a, locked) {
 }
 
 function onEdit(event) {
-  if (state.submitted) return;
+  if (state.submitted && !state.previewMode) return;
   const target = event.target;
   if (target.dataset.highlight) {
     const kind = target.dataset.highlight;
@@ -188,8 +213,9 @@ function onEdit(event) {
     if (checked.length > 3) { target.checked=false; notify('ניתן לבחור עד שלוש פעילויות בכל קטגוריה.',true); return; }
     document.querySelector(`[data-box="${kind}-${target.dataset.assignment}"]`)?.classList.toggle('hidden',!target.checked);
   }
-  markDirty();
   updateProgress();
+  if (state.previewMode) return;
+  markDirty();
   queueSave();
 }
 
@@ -209,7 +235,8 @@ function collectSnapshot() {
     const value = key => Number(document.querySelector(`[data-rating="${key}"][data-assignment="${a.id}"]`)?.value)||null;
     const checked = kind => [...document.querySelectorAll(`[data-kind="${kind}"][data-assignment="${a.id}"]:checked`)].map(el=>el.value);
     return {
-      response_id:state.response.id, assignment_id:a.id, cycle_id:state.cycle.id, instructor_auth_user_id:state.user.id,
+      response_id:state.response.id, assignment_id:a.id, cycle_id:state.cycle.id,
+      instructor_auth_user_id:state.previewMode ? a.instructor_auth_user_id : state.user.id,
       age_fit:value('age_fit'), time_fit:value('time_fit'), equipment_quality:value('equipment_quality'), student_success:value('student_success'),
       success_highlight:Boolean(document.querySelector(`[data-highlight="success"][data-assignment="${a.id}"]`)?.checked),
       needs_improvement:Boolean(document.querySelector(`[data-highlight="improvement"][data-assignment="${a.id}"]`)?.checked),
@@ -222,6 +249,7 @@ function collectSnapshot() {
 }
 
 async function saveDraft(silent=true) {
+  if (state.previewMode) return true;
   if (state.submitted) return true;
   if (state.savePromise) {
     const previous = await state.savePromise;
@@ -267,6 +295,7 @@ function validate() {
 
 async function submitFeedback(event) {
   event.preventDefault();
+  if (state.previewMode) return;
   const missing=validate();
   if(missing.length) return notify(`נותרו ${missing.length} שדות חובה למילוי.`,true);
   if(!confirm('להגיש את המשוב? לאחר ההגשה התשובות יינעלו.')) return;
@@ -297,18 +326,47 @@ function groupedInstructors() {
 }
 
 function renderAdmin() {
+  state.previewMode = false;
+  state.mode = 'admin';
+  state.assignments = [...state.adminAssignments];
+  state.responses = [...state.adminResponses];
+  state.ratings = [...state.adminRatings];
+  state.response = null;
+  state.submitted = false;
   const groups=groupedInstructors();
   const submitted=state.responses.filter(r=>r.status==='submitted').length;
-  app.innerHTML=frame(`<main class="container"><section class="hero"><div><h1>ניהול משוב פעילות הקיץ</h1><p>מעקב מילוי, ניתוח הפעילויות וייצוא הנתונים.</p></div><div class="hero-count"><strong>${submitted}/${groups.length}</strong><span>משובים שהוגשו</span></div></section>
+  const holdNotice = cycleIsOpen(state.cycle)
+    ? ''
+    : '<div class="locked"><strong>המשוב סגור למדריכים.</strong> רק אדמין יכול לצפות בתצוגה המקדימה. לא מתבצעת שמירה או הגשה.</div>';
+  app.innerHTML=frame(`<main class="container"><section class="hero"><div><h1>ניהול משוב פעילות הקיץ</h1><p>מעקב מילוי, ניתוח הפעילויות ותצוגה מקדימה לפני הפצה.</p></div><div class="hero-count"><strong>${submitted}/${groups.length}</strong><span>משובים שהוגשו</span></div></section>
+    ${holdNotice}
     <div class="admin-tabs"><button class="button ${state.adminTab==='status'?'primary':''}" data-tab="status">מעקב מילוי</button><button class="button ${state.adminTab==='analysis'?'primary':''}" data-tab="analysis">ניתוח פעילויות</button><button class="button" id="exportCsv">ייצוא CSV</button></div>
     <section class="panel">${state.adminTab==='status'?statusTable(groups):analysisTable()}</section></main>`, 'תצוגת ניהול');
   document.querySelectorAll('[data-tab]').forEach(btn=>btn.addEventListener('click',()=>{state.adminTab=btn.dataset.tab;renderAdmin();}));
   document.querySelector('#exportCsv')?.addEventListener('click',exportCsv);
   document.querySelectorAll('[data-reopen]').forEach(btn=>btn.addEventListener('click',reopen));
+  document.querySelectorAll('[data-preview]').forEach(btn=>btn.addEventListener('click',previewInstructor));
 }
 
 function statusTable(groups) {
-  return `<h2>סטטוס מדריכים</h2><div class="table-wrap"><table><thead><tr><th>מדריך/ה</th><th>סוגים</th><th>הפעלות</th><th>סטטוס</th><th>עדכון</th><th></th></tr></thead><tbody>${groups.map(group=>{const response=state.responses.find(x=>x.instructor_auth_user_id===group.id);return `<tr><td><strong>${esc(group.name)}</strong><small>מס׳ עובד ${esc(group.emp)}</small></td><td>${group.types}</td><td>${group.total}</td><td><span class="badge ${esc(response?.status||'')}">${statusText(response?.status)}</span></td><td>${fmtDate(response?.updated_at)}</td><td>${response?.status==='submitted'?`<button class="button" data-reopen="${response.id}">פתיחה מחדש</button>`:'—'}</td></tr>`;}).join('')}</tbody></table></div>`;
+  return `<h2>סטטוס מדריכים</h2><div class="table-wrap"><table><thead><tr><th>מדריך/ה</th><th>סוגים</th><th>הפעלות</th><th>סטטוס</th><th>עדכון</th><th></th></tr></thead><tbody>${groups.map(group=>{const response=state.responses.find(x=>x.instructor_auth_user_id===group.id);const reopenButton=response?.status==='submitted'?`<button class="button" data-reopen="${response.id}">פתיחה מחדש</button>`:'';return `<tr><td><strong>${esc(group.name)}</strong><small>מס׳ עובד ${esc(group.emp)}</small></td><td>${group.types}</td><td>${group.total}</td><td><span class="badge ${esc(response?.status||'')}">${statusText(response?.status)}</span></td><td>${fmtDate(response?.updated_at)}</td><td><button class="button primary" data-preview="${group.id}">תצוגה מקדימה</button>${reopenButton}</td></tr>`;}).join('')}</tbody></table></div>`;
+}
+
+function previewInstructor(event) {
+  if (!state.canAdmin) return;
+  const instructorId = event.currentTarget.dataset.preview;
+  const previewAssignments = state.adminAssignments.filter(row => row.instructor_auth_user_id === instructorId);
+  if (!previewAssignments.length) return notify('לא נמצאו פעילויות לתצוגה מקדימה.',true);
+  state.previewMode = true;
+  state.mode = 'instructor';
+  state.assignments = previewAssignments;
+  state.ratings = [];
+  state.response = { id:'preview', status:'draft', general_answers:{}, summary_answers:{} };
+  state.submitted = false;
+  state.revision = 0;
+  state.savedRevision = 0;
+  renderInstructor();
+  window.scrollTo({top:0,behavior:'smooth'});
 }
 
 function analysisTable() {
@@ -327,7 +385,9 @@ async function reopen(event) {
   if(!confirm('לפתוח את המשוב מחדש לעריכה?')) return;
   const result=await supabase.from('summer_feedback_responses').update({status:'reopened'}).eq('id',event.currentTarget.dataset.reopen).select().single();
   if(result.error) return notify('פתיחת המשוב נכשלה.',true);
-  state.responses=state.responses.map(r=>r.id===result.data.id?result.data:r); notify('המשוב נפתח מחדש.'); renderAdmin();
+  state.adminResponses=state.adminResponses.map(r=>r.id===result.data.id?result.data:r);
+  state.responses=[...state.adminResponses];
+  notify('המשוב נפתח מחדש.'); renderAdmin();
 }
 
 function csv(value) { const text=Array.isArray(value)?value.join(' | '):String(value??''); return `"${text.replaceAll('"','""')}"`; }
