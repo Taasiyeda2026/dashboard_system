@@ -34,9 +34,14 @@ function defaultClientSettings() {
   };
 }
 
+// A new browser tab shares localStorage and the Supabase session with the other
+// tabs. Do not delete that shared identity merely because this tab has no local
+// session marker yet; adopt the valid stored dashboard session instead.
 if (!sessionStorage.getItem('ds_session_alive')) {
-  localStorage.removeItem('dashboard_token');
-  localStorage.removeItem('dashboard_user');
+  const hasStoredDashboardSession = Boolean(
+    localStorage.getItem('dashboard_token') && localStorage.getItem('dashboard_user')
+  );
+  if (hasStoredDashboardSession) sessionStorage.setItem('ds_session_alive', '1');
 }
 
 function legacyCalendarMonthStorageKey(userId) {
@@ -177,6 +182,7 @@ export function clearScreenDataCache() {
 
 export function setSession(session) {
   if (!session) {
+    const previousUserId = state.user?.user_id;
     state.token = '';
     state.user = null;
     state.routes = [];
@@ -201,7 +207,7 @@ export function setSession(session) {
     resetSupabaseAuthSessionWait();
     localStorage.removeItem('dashboard_token');
     localStorage.removeItem('dashboard_user');
-    cleanupLegacyCalendarMonthLocalStorage(state.user?.user_id);
+    cleanupLegacyCalendarMonthLocalStorage(previousUserId);
     try {
       Object.keys(sessionStorage)
         .filter((key) => key === 'dashboard_calendar_month_ym_session' || key.startsWith('dashboard_calendar_month_ym_session:'))
