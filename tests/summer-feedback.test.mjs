@@ -74,11 +74,11 @@ test('feedback supports locking, manager reopen, selection limits and CSV export
   assert.match(app, /עד שלוש פעילויות/);
 });
 
-test('dashboard inserts the feedback link only in the instructor actions area', () => {
-  assert.match(dashboardEnhancer, /\.instr-my-data-actions/);
-  assert.match(dashboardEnhancer, /data-summer-feedback-link/);
-  assert.match(dashboardEnhancer, /\.\/summer-feedback\//);
-  assert.match(dashboardEnhancer, /MutationObserver/);
+test('dashboard does not expose the summer feedback button before final approval', () => {
+  assert.doesNotMatch(dashboardEnhancer, /data-summer-feedback-link/);
+  assert.doesNotMatch(dashboardEnhancer, /משוב פעילות הקיץ/);
+  assert.doesNotMatch(dashboardEnhancer, /\.\/summer-feedback\//);
+  assert.doesNotMatch(dashboardEnhancer, /\.instr-my-data-actions/);
 });
 
 test('migrations protect data, enforce the feedback window and seed exact workload', () => {
