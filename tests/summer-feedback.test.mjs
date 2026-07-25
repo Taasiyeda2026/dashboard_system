@@ -38,6 +38,13 @@ test('autosave queues a follow-up save and submission waits for the newest revis
   assert.match(app, /status:'submitted'/);
 });
 
+test('manager instructors can fill their own feedback and switch to management', () => {
+  assert.match(app, /const ownAssignments/);
+  assert.match(app, /requestedAdmin/);
+  assert.match(app, /\.\/\?view=admin/);
+  assert.match(app, /המשוב שלי/);
+});
+
 test('feedback supports locking, manager reopen, selection limits and CSV export', () => {
   assert.match(app, /state\.submitted/);
   assert.match(app, /async function reopen/);
