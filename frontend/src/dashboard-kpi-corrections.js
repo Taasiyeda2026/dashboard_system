@@ -1,4 +1,5 @@
 import { api } from './api.js';
+import './summer-feedback-admin-integration.js';
 
 const ESCAPE_ROOM_KPI_ACTION = 'kpi|active_escape_room';
 const SUMMER_KPI_ACTION = 'kpi|summer';

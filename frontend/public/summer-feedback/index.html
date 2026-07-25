@@ -10,6 +10,14 @@
   <link rel="stylesheet" href="./questionnaire.css">
   <link rel="stylesheet" href="./questionnaire-refinements.css">
   <link rel="stylesheet" href="./feedback-introduction.css">
+  <link rel="stylesheet" href="./embedded-admin.css">
+  <script type="importmap">
+    {
+      "imports": {
+        "https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2.105.3/+esm": "./supabase-configured-client.js"
+      }
+    }
+  </script>
 </head>
 <body>
   <div id="app"><main class="center"><p>טוען את המשוב שלך…</p></main></div>
@@ -18,5 +26,6 @@
   <script type="module" src="./feedback-variants.js"></script>
   <script type="module" src="./questionnaire-refinements.js"></script>
   <script type="module" src="./feedback-introduction.js"></script>
+  <script type="module" src="./embedded-admin.js"></script>
 </body>
 </html>
