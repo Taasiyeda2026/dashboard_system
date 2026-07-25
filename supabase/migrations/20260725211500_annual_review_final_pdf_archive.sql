@@ -91,12 +91,28 @@ on storage.objects
 for select to authenticated
 using (
   bucket_id = 'annual-review-final-pdfs'
-  and exists (
-    select 1
-    from public.annual_review_final_documents d
-    join public.annual_reviews r on r.id = d.review_id
-    where d.file_path = name
-      and auth.uid() in (r.employee_id, r.manager_id)
+  and (
+    exists (
+      select 1
+      from public.annual_review_final_documents d
+      join public.annual_reviews r on r.id = d.review_id
+      where d.file_path = name
+        and auth.uid() in (r.employee_id, r.manager_id)
+    )
+    or exists (
+      select 1
+      from public.annual_reviews r
+      where name = r.id::text || '/final.pdf'
+        and r.manager_id = auth.uid()
+        and r.status = 'completed_locked'
+        and r.employee_signed_at is not null
+        and r.locked_at is not null
+        and not exists (
+          select 1
+          from public.annual_review_final_documents d
+          where d.review_id = r.id
+        )
+    )
   )
 );
 
