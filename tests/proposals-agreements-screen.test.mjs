@@ -363,6 +363,8 @@ test('GEFEN approval includes only numbered non-summer rows and displays rounded
   assert.match(html, /רוקחים עולם/);
   assert.match(html, /571/);
   assert.match(html, /12,000/);
+  assert.match(html, /aria-label="לבחירה">☐/);
+  assert.doesNotMatch(html, /☒/);
   assert.doesNotMatch(html, /סדנת קיץ/);
   assert.doesNotMatch(html, /קורס ללא גפן/);
 });
@@ -502,6 +504,8 @@ test('GEFEN document refinement keeps compact equal numeric columns and bullet w
   assert.match(styles, /\.pa-proposal-doc--gefen \.pa-doc-title[\s\S]*color:\s*#0f5b8d/i);
   assert.match(styles, /\.pa-proposal-doc--gefen \.pa-doc-divider[\s\S]*border-top:\s*0\.35px solid #dbe4ec/i);
   assert.match(styles, /\.pa-gefen-approval-table \.pa-gefen-col[\s\S]*width:\s*10\.5%/);
+  assert.match(styles, /\.pa-gefen-approval-table \.pa-choice-col\s*\{\s*width:\s*6%/);
+  assert.match(styles, /\.pa-gefen-approval-table \.pa-course-col\s*\{\s*width:\s*31%/);
   assert.match(styles, /\.pa-gefen-linked-document[\s\S]*background:\s*#f0f8fc/i);
   assert.match(styles, /\.pa-gefen-combined-document\s*\{[\s\S]*width:\s*100%[\s\S]*max-width:\s*794px/i);
   assert.match(styles, /\.pa-gefen-combined-document > \.proposal-document\s*\{[\s\S]*width:\s*100%[\s\S]*max-width:\s*100%/i);

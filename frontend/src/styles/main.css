@@ -21056,11 +21056,11 @@ details[open] > .ds-fin-acc__summary::before { transform: rotate(90deg); }
 }
 
 .pa-gefen-approval-table .pa-choice-col {
-  width: 8%;
+  width: 6%;
 }
 
 .proposal-document .pa-gefen-approval-table .pa-course-col {
-  width: 29%;
+  width: 31%;
 }
 
 .proposal-document .pa-gefen-approval-table .pa-gefen-col,

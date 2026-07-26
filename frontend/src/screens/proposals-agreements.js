@@ -3577,7 +3577,7 @@ function gefenApprovalItemsTableHtml(items = []) {
       const quantity = itemQuantity(item);
       const total = itemQuantityTotal(item);
       return `<tr>
-        <td class="pa-gefen-choice" aria-label="נבחר">☒</td>
+        <td class="pa-gefen-choice" aria-label="לבחירה">☐</td>
         <td>${escapeHtml(courseShortNameForItem(item))}</td>
         <td>${escapeHtml(text(item.gefen_number))}</td>
         <td>${item.meetings_count != null ? escapeHtml(formatCurrency(item.meetings_count)) : ''}</td>
