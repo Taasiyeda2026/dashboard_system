@@ -103,6 +103,53 @@ test('client-file render is data-pure and bind never requests an initial rerende
   });
 });
 
+test('client file displays a duplicated school contact once and keeps the explicit details', async () => {
+  const contactBase = {
+    client_type: 'school',
+    authority_id: 'auth-a',
+    school_id: 'school-a',
+    authority: 'רשות א',
+    school: 'בית ספר א',
+    contact_name: 'מיכל כהן'
+  };
+  const data = {
+    rows: [],
+    contactOptions: [
+      {
+        ...contactBase,
+        id: 'school-a',
+        source_id: 'school-a',
+        source_table: 'schools',
+        contact_role: 'מנהל/ת',
+        phone: '03-1111111'
+      },
+      {
+        ...contactBase,
+        id: 'contact-17',
+        source_id: 'contact-17',
+        source_table: 'contacts_schools',
+        contact_role: 'מנהלת',
+        mobile: '050-2222222',
+        email: 'michal@example.org'
+      }
+    ]
+  };
+
+  await withJSDOM(proposalsAgreementsScreen.render(data, { state: stateFor({ role: 'admin' }) }), async (root, dom) => {
+    proposalsAgreementsScreen.bind({ root, data, state: stateFor({ role: 'admin' }), api: {} });
+    const search = root.querySelector('[data-pa-client-search]');
+    search.value = 'בית ספר א';
+    search.dispatchEvent(new dom.window.Event('input', { bubbles: true }));
+    await new Promise((resolve) => setTimeout(resolve, 300));
+    root.querySelector('[data-pa-open-client]')?.click();
+    const clientFileText = root.querySelector('[data-pa-client-file]')?.textContent || '';
+    assert.equal((clientFileText.match(/מיכל כהן/g) || []).length, 1);
+    assert.match(clientFileText, /מנהלת/);
+    assert.match(clientFileText, /050-2222222/);
+    assert.match(clientFileText, /michal@example\.org/);
+  });
+});
+
 test('client-file contact editing updates by exact source id and never inserts a duplicate', async () => {
   const state = stateFor({ manage: true, role: 'admin' });
   for (const contact of [
