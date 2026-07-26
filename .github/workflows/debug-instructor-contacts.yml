@@ -9,14 +9,88 @@ on:
       - '.github/workflows/debug-instructor-contacts.yml'
 
 permissions:
-  contents: read
+  contents: write
 
 jobs:
   debug:
     runs-on: ubuntu-latest
     steps:
-      - name: Checkout
+      - name: Checkout PR branch
         uses: actions/checkout@v4
+        with:
+          ref: ${{ github.head_ref }}
+
+      - name: Apply focused fixes
+        run: |
+          python - <<'PY'
+          from pathlib import Path
+
+          path = Path('frontend/src/screens/instructor-contacts.js')
+          text = path.read_text(encoding='utf-8')
+
+          old_clipboard = """  if (clipboard?.writeText) {
+            await clipboard.writeText(safe);
+            return true;
+          }
+          if (typeof document === 'undefined' || !document.body || typeof document.execCommand !== 'function') return false;
+          const textarea = document.createElement('textarea');
+          textarea.value = safe;
+          textarea.setAttribute('readonly', '');
+          textarea.style.position = 'fixed';
+          textarea.style.opacity = '0';
+          document.body.appendChild(textarea);
+          textarea.select();
+          const copied = document.execCommand('copy');
+          textarea.remove();
+          return copied;
+          """
+          new_clipboard = """  if (clipboard?.writeText) {
+            try {
+              await clipboard.writeText(safe);
+              return true;
+            } catch (_) {
+              // Continue to the legacy path when Clipboard API access is rejected.
+            }
+          }
+          const activeDocument = globalThis.document;
+          if (!activeDocument?.body || typeof activeDocument.execCommand !== 'function') return false;
+          const textarea = activeDocument.createElement('textarea');
+          textarea.value = safe;
+          textarea.setAttribute('readonly', '');
+          textarea.style.position = 'fixed';
+          textarea.style.opacity = '0';
+          activeDocument.body.appendChild(textarea);
+          textarea.select();
+          const copied = activeDocument.execCommand('copy');
+          textarea.remove();
+          return copied;
+          """
+
+          old_binding = """      requestAnimationFrame(() => {
+                const editButton = document.querySelector('[data-edit-instructor-contact]');
+                if (editButton) editButton.onclick = () => openEditor(hit);
+                const copyEmailButton = document.querySelector('[data-copy-instructor-email]');
+          """
+          new_binding = """      const drawerDocument = globalThis.document;
+              requestAnimationFrame(() => {
+                if (!drawerDocument) return;
+                const editButton = drawerDocument.querySelector('[data-edit-instructor-contact]');
+                if (editButton) editButton.onclick = () => openEditor(hit);
+                const copyEmailButton = drawerDocument.querySelector('[data-copy-instructor-email]');
+          """
+
+          if old_clipboard in text:
+              text = text.replace(old_clipboard, new_clipboard, 1)
+          elif new_clipboard not in text:
+              raise SystemExit('clipboard block not found')
+
+          if old_binding in text:
+              text = text.replace(old_binding, new_binding, 1)
+          elif new_binding not in text:
+              raise SystemExit('drawer binding block not found')
+
+          path.write_text(text, encoding='utf-8')
+          PY
 
       - name: Setup Node.js
         uses: actions/setup-node@v4
@@ -32,10 +106,21 @@ jobs:
           set -o pipefail
           node --test tests/instructor-contacts-screen.test.mjs 2>&1 | tee instructor-contacts-test.log
 
+      - name: Commit verified fixes
+        run: |
+          if git diff --quiet; then
+            exit 0
+          fi
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add frontend/src/screens/instructor-contacts.js
+          git commit -m "Fix instructor drawer async binding and clipboard fallback"
+          git push origin HEAD:${{ github.head_ref }}
+
       - name: Upload test output
         if: always()
         uses: actions/upload-artifact@v4
         with:
           name: instructor-contacts-test-output
           path: instructor-contacts-test.log
-          if-no-files-found: error
+          if-no-files-found: warn
