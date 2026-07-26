@@ -46,5 +46,5 @@ if (!resolvedUrl) {
 export const config = {
   apiUrl: resolvedUrl,
   DIAGNOSTICS_UI_ENABLED: false,
-  HOTFIX_VERSION: 'client-contact-secure-rpc-auth-session-20260725-v3'
+  HOTFIX_VERSION: 'session-security-timeouts-20260726-v1'
 };
