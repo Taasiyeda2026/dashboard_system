@@ -60,12 +60,20 @@ const MIGRATION_FILE = new URL('../supabase/migrations/20260518_create_proposals
 const ROLE_UPDATE_MIGRATION_FILE = new URL('../supabase/migrations/20260602_add_business_development_manager_role.sql', import.meta.url);
 const APPROVAL_GUARD_MIGRATION_FILE = new URL('../supabase/migrations/20260616_proposals_agreements_approval_guard.sql', import.meta.url);
 const CLIENT_FILE_VERSIONS_MIGRATION_FILE = new URL('../supabase/migrations/20260720143000_proposal_versions_for_client_file.sql', import.meta.url);
+const GEFEN_MIGRATION_FILE = new URL('../supabase/migrations/20260727010000_add_gefen_proposal_template.sql', import.meta.url);
 
-const { proposalsAgreementsScreen, canAccessProposalsAgreements, canManageProposalsAgreements, STATUS_LABELS, STATUS_OPTIONS, buildProposalCatalogPdfEntries, proposalPreviewBodyHtml, normalizeProposalAgreementRow, countPendingApprovedProposals, isProposalApprovedPendingSend, extractItemsFromForm, sortRows, calculateTourTotal, validatePayload, resetRecipientDependentFields, stepComplete, buildProposalDocumentSnapshot, proposalLockedPreviewHtml, proposalHasFinalPdf, isProposalLegacySentWithoutPdf, upsertProposalContactOption } = await import('../frontend/src/screens/proposals-agreements.js');
+const { proposalsAgreementsScreen, canAccessProposalsAgreements, canManageProposalsAgreements, STATUS_LABELS, STATUS_OPTIONS, buildProposalCatalogPdfEntries, proposalPreviewBodyHtml, normalizeProposalAgreementRow, countPendingApprovedProposals, isProposalApprovedPendingSend, extractItemsFromForm, sortRows, calculateTourTotal, validatePayload, resetRecipientDependentFields, stepComplete, buildProposalDocumentSnapshot, proposalLockedPreviewHtml, proposalHasFinalPdf, isProposalLegacySentWithoutPdf, upsertProposalContactOption, calculateProposalValidityDate, gefenEligibleItems, gefenApprovalDocumentHtml } = await import('../frontend/src/screens/proposals-agreements.js');
 
 function stateFor(role) {
+  const idanIdentity = role === 'admin'
+    ? {
+      user_id: 8000,
+      username: 'idann',
+      auth_user_id: 'e9ca304a-4e66-4774-830e-14f1318c4908'
+    }
+    : {};
   return {
-    user: { display_role: role, role },
+    user: { display_role: role, role, ...idanIdentity },
     clientSettings: {
       dropdown_options: {
         activity_names: [
@@ -298,6 +306,94 @@ test('screen authorization includes business development manager', () => {
   }
 });
 
+test('GEFEN migration backfills immutable numbering from 10055 and keeps old PDFs untouched', async () => {
+  const migration = await readFile(GEFEN_MIGRATION_FILE, 'utf8');
+  assert.match(migration, /row_number\(\) over \(order by pa\.created_at, pa\.id\)/i);
+  assert.match(migration, /10054 \+ ordered_proposals\.sequence_offset/i);
+  assert.match(migration, /proposal_quote_number_immutable/);
+  assert.match(migration, /combine_gefen_approval = false/);
+  assert.doesNotMatch(migration, /update public\.proposals_agreements[\s\S]*set final_pdf_/i);
+});
+
+test('GEFEN dedicated catalog includes the intentional 9545 values and rounded display remains separate from totals', async () => {
+  const migration = await readFile(GEFEN_MIGRATION_FILE, 'utf8');
+  assert.match(migration, /create table if not exists public\.proposal_gefen_courses/i);
+  assert.match(migration, /\('בינה מלאכותית', 'סודות ויסודות הבינה המלאכותית - חשיבה ביקורתית', '9545', 8, 640, 12\.5, 8000/);
+  assert.match(migration, /proposal_gefen_courses[\s\S]*enable row level security/i);
+  assert.match(migration, /grant select on table public\.proposal_gefen_courses to authenticated/i);
+});
+
+test('proposal validity uses 60, 30 and 21 day seasonal windows and skips Friday', () => {
+  assert.equal(calculateProposalValidityDate('2026-05-04', []), '2026-07-02');
+  assert.equal(calculateProposalValidityDate('2026-08-03', []), '2026-09-02');
+  assert.equal(calculateProposalValidityDate('2026-12-01', []), '2026-12-22');
+});
+
+test('proposal validity merges a nearby closed block and skips across it', () => {
+  const closed = [
+    { start_date: '2026-09-20', end_date: '2026-09-22', is_active: true, blocks_scheduling: true },
+    { start_date: '2026-09-23', end_date: '2026-09-26', is_active: true, blocks_scheduling: true }
+  ];
+  assert.equal(calculateProposalValidityDate('2026-09-15', closed), '2026-10-22');
+});
+
+test('GEFEN approval includes only numbered non-summer rows and displays rounded hourly prices', () => {
+  const row = {
+    id: 'gefen-1',
+    quote_number: '10167',
+    proposal_date: '2026-08-03',
+    valid_until: '2026-09-02',
+    activity_type_group: 'gefen',
+    school_framework: 'בית ספר גפן',
+    semel_mosad: '123456'
+  };
+  const items = [
+    { item_name: 'רוקחים עולם', proposal_group: 'gefen', gefen_number: '46091', meetings_count: 14, hours_count: 21, hourly_price: 571.428571, quantity: 1, unit_price: 12000, total_price: 12000 },
+    { item_name: 'סדנת קיץ', proposal_group: 'summer', gefen_number: '9999', quantity: 1, unit_price: 500, total_price: 500 },
+    { item_name: 'קורס ללא גפן', proposal_group: 'next_year', quantity: 1, unit_price: 700, total_price: 700 }
+  ];
+  assert.deepEqual(gefenEligibleItems(items).map((item) => item.item_name), ['רוקחים עולם']);
+  const html = gefenApprovalDocumentHtml(row, items);
+  assert.match(html, /הצעת מחיר מס׳ 10167/);
+  assert.match(html, /סמל מוסד:<\/strong> 123456/);
+  assert.match(html, /רוקחים עולם/);
+  assert.match(html, /571/);
+  assert.match(html, /12,000/);
+  assert.doesNotMatch(html, /סדנת קיץ/);
+  assert.doesNotMatch(html, /קורס ללא גפן/);
+});
+
+test('new GEFEN proposal preview links proposal and approval in one compact document', () => {
+  const row = {
+    id: 'gefen-2',
+    quote_number: '10168',
+    proposal_date: '2026-08-03',
+    valid_until: '2026-09-02',
+    activity_type_group: 'gefen',
+    school_framework: 'בית ספר גפן',
+    client_authority: 'רשות גפן',
+    semel_mosad: '654321',
+    combine_gefen_approval: true,
+    status: 'approved',
+    signature_meta: { signature: { image: 'proposals/signature-idan-nahum.png' } }
+  };
+  const items = [
+    { item_name: 'בינה מלאכותית', proposal_group: 'gefen', gefen_number: '9545', meetings_count: 8, hours_count: 12.5, hourly_price: 640, quantity: 1, unit_price: 8000, total_price: 8000 }
+  ];
+  const sections = [
+    { template_key: 'gefen', template_name: 'הצעת מחיר (מספר) פעילויות תעשיידע | תשפ"ז', section_key: 'intro', section_title: 'פתיח', section_body: 'פתיח גפן' },
+    { template_key: 'gefen', template_name: 'הצעת מחיר (מספר) פעילויות תעשיידע | תשפ"ז', section_key: 'activity_intro', section_title: 'התוכניות המוצעות', section_body: 'הצעה זו מיועדת לפתיחת הזמנה.\n\nהמחירים סופיים.' },
+    { template_key: 'gefen', template_name: 'הצעת מחיר (מספר) פעילויות תעשיידע | תשפ"ז', section_key: 'validity', section_title: 'תוקף ההצעה וזמינות הפעילות', section_body: 'בתוקף עד {{valid_until}}.' },
+    { template_key: 'gefen', template_name: 'הצעת מחיר (מספר) פעילויות תעשיידע | תשפ"ז', section_key: 'signature', section_title: 'חתימה', section_body: 'עידן נחום, סמנכ״ל כספים' }
+  ];
+  const html = proposalPreviewBodyHtml(row, items, sections, { showSignatureImage: true });
+  assert.match(html, /pa-gefen-combined-document/);
+  assert.match(html, /הצעת מחיר 10168 פעילויות תעשיידע/);
+  assert.match(html, /אישור כוונות להזמנה במערכת גפ״ן/);
+  assert.match(html, /data-pdf-page-break="true"/);
+  assert.match(html, /עידן נחום, סמנכ״ל כספים/);
+});
+
 test('proposals-agreements route is registered and role-gated in route definitions', async () => {
   const mainSource = await readFile(MAIN_FILE, 'utf8');
   const apiSource = await readFile(API_FILE, 'utf8');
@@ -363,31 +459,35 @@ test('role update migration allows business development manager for login and pr
 
 
 
-test('proposal approval UI is limited to admin or approve permission users', async () => {
+test('proposal approval UI is limited to Idan Nahum', async () => {
   const pendingRow = { ...sampleRows[0], status: 'pending_approval' };
   const sentRow = { ...sampleRows[0], status: 'sent' };
   const draftRow = { ...sampleRows[0], status: 'draft' };
   const regularManager = stateFor('operation_manager');
   regularManager.user.manage_proposals_agreements = true;
-  const privilegedManager = stateFor('operation_manager');
-  privilegedManager.user.manage_proposals_agreements = true;
-  privilegedManager.user.approve_proposals_agreements = true;
+  const flaggedManager = stateFor('operation_manager');
+  flaggedManager.user.manage_proposals_agreements = true;
+  flaggedManager.user.approve_proposals_agreements = true;
+  const idan = stateFor('admin');
 
   const regularHtml = proposalsAgreementsScreen.render({ rows: [pendingRow] }, { state: regularManager });
   assert.doesNotMatch(regularHtml, /חתום ואשר/, 'unprivileged manager should not see sign-and-approve action');
   const regularTable = regularHtml.match(/<tbody data-pa-table-body>[\s\S]*?<\/tbody>/)?.[0] || '';
   assert.doesNotMatch(regularTable, /<option value="approved"/, 'unprivileged manager should not be able to select approved status');
 
-  const privilegedDraftHtml = proposalsAgreementsScreen.render({ rows: [draftRow] }, { state: privilegedManager });
-  assert.doesNotMatch(privilegedDraftHtml, /חתום ואשר/, 'privileged user should only see sign-and-approve for pending approval proposals');
+  const flaggedPendingHtml = proposalsAgreementsScreen.render({ rows: [pendingRow] }, { state: flaggedManager });
+  assert.doesNotMatch(flaggedPendingHtml, /חתום ואשר/, 'legacy approval flag must not grant signature authority');
 
-  const privilegedPendingHtml = proposalsAgreementsScreen.render({ rows: [pendingRow] }, { state: privilegedManager });
-  assert.match(privilegedPendingHtml, /חתום ואשר/, 'approve permission should reveal sign-and-approve for pending approval proposals');
+  const idanDraftHtml = proposalsAgreementsScreen.render({ rows: [draftRow] }, { state: idan });
+  assert.doesNotMatch(idanDraftHtml, /חתום ואשר/, 'Idan should only see sign-and-approve for pending approval proposals');
 
-  const privilegedSentHtml = proposalsAgreementsScreen.render({ rows: [sentRow] }, { state: privilegedManager });
-  assert.doesNotMatch(privilegedSentHtml, /חתום ואשר/, 'sent proposals are final and should not expose sign-and-approve');
-  const privilegedTable = privilegedPendingHtml.match(/<tbody data-pa-table-body>[\s\S]*?<\/tbody>/)?.[0] || '';
-  assert.match(privilegedTable, /<option value="approved"/, 'approve permission should allow selecting approved status');
+  const idanPendingHtml = proposalsAgreementsScreen.render({ rows: [pendingRow] }, { state: idan });
+  assert.match(idanPendingHtml, /חתום ואשר/, 'Idan should see sign-and-approve for pending approval proposals');
+
+  const idanSentHtml = proposalsAgreementsScreen.render({ rows: [sentRow] }, { state: idan });
+  assert.doesNotMatch(idanSentHtml, /חתום ואשר/, 'sent proposals are final and should not expose sign-and-approve');
+  const idanTable = idanPendingHtml.match(/<tbody data-pa-table-body>[\s\S]*?<\/tbody>/)?.[0] || '';
+  assert.match(idanTable, /data-pa-status-action="approved"/, 'Idan should be able to approve a pending proposal');
 });
 
 test('proposal managers can mark approved signed proposals as sent without approve permission', () => {
@@ -4643,12 +4743,14 @@ test('rollback: manage permission does not expose approve actions for non-admin'
   assert.doesNotMatch(html, /אישור וחתימה/);
 });
 
-test('rollback: approve permission exposes sign-and-approve only for pending approval proposals', () => {
+test('legacy approve permission does not replace Idan signature authority', () => {
   const pendingRow = { id: '44444444-4444-4444-4444-444444444444', status: 'pending_approval', client_authority: 'רשות', school_framework: 'בית ספר' };
   const sentRow = { ...pendingRow, id: '55555555-5555-5555-5555-555555555555', status: 'sent' };
   const approverState = { user: { role: 'authorized_user', view_proposals_agreements: 'yes', approve_proposals_agreements: 'yes' } };
   const pendingHtml = proposalsAgreementsScreen.render({ rows: [pendingRow] }, { state: approverState });
-  assert.match(pendingHtml, /חתום ואשר/);
+  assert.doesNotMatch(pendingHtml, /חתום ואשר/);
+  const idanHtml = proposalsAgreementsScreen.render({ rows: [pendingRow] }, { state: stateFor('admin') });
+  assert.match(idanHtml, /חתום ואשר/);
   const sentHtml = proposalsAgreementsScreen.render({ rows: [sentRow] }, { state: approverState });
   assert.doesNotMatch(sentHtml, /חתום ואשר/);
 });
