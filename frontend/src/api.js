@@ -57,6 +57,9 @@ const MUTATING_ACTIONS = {
   addProposalAgreement: true,
   updateProposalAgreement: true,
   updateProposalAgreementStatus: true,
+  lockAndSendProposalAgreement: true,
+  uploadProposalFinalPdf: true,
+  uploadGefenApprovalDocument: true,
   deleteProposalAgreement: true,
   saveProposalAgreementItems: true,
   uploadCompletionApproval: true,
@@ -2707,6 +2710,7 @@ function invalidateScreenDataByAction(action) {
     updateProposalAgreementStatus: ['proposals-agreements'],
     lockAndSendProposalAgreement: ['proposals-agreements'],
     uploadProposalFinalPdf: ['proposals-agreements'],
+    uploadGefenApprovalDocument: ['proposals-agreements'],
     getProposalFinalPdfSignedUrl: ['proposals-agreements'],
     deleteProposalAgreement: ['proposals-agreements'],
     saveProposalAgreementItems: ['proposals-agreements'],
@@ -2805,9 +2809,11 @@ function normalizeData(data) {
 
 const PROPOSALS_AGREEMENTS_ALLOWED_ROLES = new Set(['domain_manager', 'operation_manager', 'admin', 'business_development_manager']);
 const PROPOSALS_AGREEMENTS_MANAGE_ROLES = new Set(['domain_manager', 'operation_manager', 'admin']);
-const PROPOSALS_AGREEMENTS_COLUMNS = 'id,authority_id,school_id,contact_school_id,client_authority,school_framework,document_type,activity_type_group,proposal_domain,proposal_date,activity_names,contact_name,contact_role,phone,email,contact_phone,contact_email,notes,status,approval_note,total_amount,custom_document_sections,include_catalog,signature_meta,approved_by,approved_at,sent_by,sent_at,locked_at,locked_by,locked_reason,final_pdf_path,final_pdf_file_name,final_pdf_created_at,final_pdf_created_by,document_snapshot,document_html_snapshot,proposal_series_id,version_number,supersedes_proposal_id,archived_at,created_at,updated_at';
-const PROPOSALS_AGREEMENTS_DIRECTORY_COLUMNS = 'id,authority_id,authority_code,school_id,contact_school_id,semel_mosad,authority_name,legacy_client_authority,contact_client_type,contact_client_name,school_name,legacy_school_framework,document_type,activity_type_group,proposal_domain,proposal_date,activity_names,contact_name,contact_role,phone,email,notes,status,approval_note,total_amount,custom_document_sections,include_catalog,signature_meta,approved_by,approved_at,sent_by,sent_at,locked_at,locked_by,locked_reason,final_pdf_path,final_pdf_file_name,final_pdf_created_at,final_pdf_created_by,document_snapshot,document_html_snapshot,proposal_series_id,version_number,supersedes_proposal_id,archived_at,created_at,updated_at';
+const PROPOSALS_AGREEMENTS_COLUMNS = 'id,authority_id,school_id,contact_school_id,client_authority,school_framework,document_type,activity_type_group,proposal_domain,proposal_date,activity_names,contact_name,contact_role,phone,email,contact_phone,contact_email,notes,status,approval_note,total_amount,custom_document_sections,include_catalog,signature_meta,approved_by,approved_at,sent_by,sent_at,locked_at,locked_by,locked_reason,final_pdf_path,final_pdf_file_name,final_pdf_created_at,final_pdf_created_by,document_snapshot,document_html_snapshot,proposal_series_id,version_number,supersedes_proposal_id,archived_at,quote_number,valid_until,combine_gefen_approval,created_at,updated_at';
+const PROPOSALS_AGREEMENTS_DIRECTORY_COLUMNS = 'id,authority_id,authority_code,school_id,contact_school_id,semel_mosad,authority_name,legacy_client_authority,contact_client_type,contact_client_name,school_name,legacy_school_framework,document_type,activity_type_group,proposal_domain,proposal_date,activity_names,contact_name,contact_role,phone,email,notes,status,approval_note,total_amount,custom_document_sections,include_catalog,signature_meta,approved_by,approved_at,sent_by,sent_at,locked_at,locked_by,locked_reason,final_pdf_path,final_pdf_file_name,final_pdf_created_at,final_pdf_created_by,document_snapshot,document_html_snapshot,proposal_series_id,version_number,supersedes_proposal_id,archived_at,quote_number,valid_until,combine_gefen_approval,created_at,updated_at';
 const PROPOSAL_FINAL_PDF_BUCKET = 'proposal-final-pdfs';
+const GEFEN_APPROVAL_DOCUMENT_TYPE = 'gefen_approval';
+const IDAN_NAHUM_AUTH_USER_ID = 'e9ca304a-4e66-4774-830e-14f1318c4908';
 const PROPOSALS_AGREEMENTS_WRITABLE_COLUMNS = new Set([
   'authority_id', 'school_id', 'contact_school_id', 'client_authority', 'school_framework',
   'document_type', 'activity_type_group', 'proposal_date', 'activity_names', 'contact_name',
@@ -2863,8 +2869,13 @@ function assertCanUseProposalsAgreementsApi() {
 }
 
 function canApproveProposalsAgreementsApi() {
-  const role = String(state?.user?.display_role || state?.user?.role || '').trim();
-  return role === 'admin' || permissionFlagYes(state?.user?.approve_proposals_agreements);
+  const user = state?.user || {};
+  const userId = cleanProposalAgreementText(user.user_id || user.emp_id || user.employee_id);
+  const username = cleanProposalAgreementText(user.username_for_login || user.username || user.username_display).toLowerCase();
+  const authUserId = cleanProposalAgreementText(user.auth_user_id).toLowerCase();
+  return userId === '8000'
+    || username === 'idann'
+    || authUserId === IDAN_NAHUM_AUTH_USER_ID;
 }
 
 function assertCanManageProposalsAgreementsApi() {
@@ -2950,6 +2961,7 @@ function buildProposalAgreementSearchText(row = {}) {
   const statusLabel = PA_STATUS_LABELS[cleanProposalAgreementText(row.status)] || cleanProposalAgreementText(row.status);
   return [
     row.id,
+    row.quote_number,
     row.client_authority,
     row.school_framework,
     row.authority_code,
@@ -2998,6 +3010,9 @@ function normalizeProposalAgreementRow(row = {}) {
     activity_type_group: normalizeProposalGroupValue(row.activity_type_group),
     proposal_domain:     normalizeProposalDomain(row.proposal_domain, 'Y'),
     proposal_date:       cleanProposalAgreementText(row.proposal_date),
+    quote_number:        cleanProposalAgreementText(row.quote_number),
+    valid_until:         cleanProposalAgreementText(row.valid_until),
+    combine_gefen_approval: row.combine_gefen_approval === true,
     activity_names:      normalizeProposalAgreementActivityNames(
       Array.isArray(row.activity_names) && row.activity_names.length
         ? row.activity_names
@@ -3036,6 +3051,10 @@ function normalizeProposalAgreementRow(row = {}) {
     final_pdf_created_by: cleanProposalAgreementText(row.final_pdf_created_by),
     document_snapshot:   (row.document_snapshot && typeof row.document_snapshot === 'object' && !Array.isArray(row.document_snapshot)) ? row.document_snapshot : null,
     document_html_snapshot: cleanProposalAgreementText(row.document_html_snapshot),
+    gefen_approval_status: cleanProposalAgreementText(row.gefen_approval_status) || 'missing',
+    gefen_approval_path: cleanProposalAgreementText(row.gefen_approval_path),
+    gefen_approval_file_name: cleanProposalAgreementText(row.gefen_approval_file_name),
+    gefen_approval_combined: row.gefen_approval_combined === true,
     created_at:          cleanProposalAgreementText(row.created_at),
     updated_at:          cleanProposalAgreementText(row.updated_at)
   };
@@ -3065,6 +3084,13 @@ function proposalFinalPdfStoragePath(proposalId, fileName = 'proposal.pdf') {
   ].join('');
   const safeName = String(fileName || 'proposal.pdf').replace(/[^\w.\-א-ת]+/g, '_').slice(0, 120) || 'proposal.pdf';
   return `proposals/${rowId}/${stamp}-${Date.now()}/${safeName}`;
+}
+
+function gefenApprovalPdfStoragePath(proposalId, fileName = 'gefen-approval.pdf') {
+  const rowId = cleanProposalAgreementText(proposalId);
+  if (!rowId) throw new Error('missing_proposal_agreement_id');
+  const safeName = String(fileName || 'gefen-approval.pdf').replace(/[^\w.\-א-ת]+/g, '_').slice(0, 120) || 'gefen-approval.pdf';
+  return `gefen-approvals/${rowId}/${Date.now()}/${safeName}`;
 }
 
 function proposalLockActorName() {
@@ -3662,6 +3688,76 @@ async function readProposalActivityPricingFromSupabase() {
   }
 }
 
+async function readProposalGefenCoursesFromSupabase() {
+  try {
+    const { data, error } = await supabase
+      .from('proposal_gefen_courses')
+      .select('id,short_name,full_name,gefen_number,meetings_count,hourly_price,hours_count,total_price,sort_order,is_active')
+      .eq('is_active', true)
+      .order('sort_order', { ascending: true });
+    if (error) throwProposalLoadError('gefenCoursesError', 'proposal_gefen_courses', error);
+    const rows = (Array.isArray(data) ? data : []).map((row) => {
+      const gefenNumber = cleanProposalAgreementText(row?.gefen_number);
+      return {
+        id: cleanProposalAgreementText(row?.id),
+        activity_no: gefenNumber,
+        activity_name: cleanProposalAgreementText(row?.short_name),
+        proposal_group: 'gefen',
+        item_type: 'קורס',
+        gefen_number: gefenNumber,
+        hours_count: row?.hours_count != null ? Number(row.hours_count) : null,
+        meetings_count: row?.meetings_count != null ? Number(row.meetings_count) : null,
+        unit_duration: '',
+        unit_price: row?.total_price != null ? Number(row.total_price) : null,
+        hourly_price: row?.hourly_price != null ? Number(row.hourly_price) : null,
+        description_short: cleanProposalAgreementText(row?.short_name),
+        description_for_proposal: cleanProposalAgreementText(row?.full_name),
+        is_active_for_proposals: row?.is_active !== false,
+        sort_order: Number(row?.sort_order) || 0,
+        pricing_key: `gefen:${gefenNumber}`,
+        parent_pricing_key: '',
+        proposal_display_mode: 'single',
+        proposal_bundle_label: '',
+        is_bundle_parent: false,
+        _source_table: 'proposal_gefen_courses'
+      };
+    });
+    noteProposalRead('proposalGefenCourses', rows, null);
+    return rows;
+  } catch (error) {
+    throwProposalLoadError('gefenCoursesError', 'proposal_gefen_courses', error);
+  }
+}
+
+async function readProposalAgreementItemsForLoader() {
+  const { data, error } = await supabase
+    .from('proposal_agreement_items')
+    .select('id,proposal_agreement_id,item_name,item_type,gefen_number,meetings_count,hours_count,quantity,unit_price,total_price,description,course_note,hourly_price,source_pricing_key,proposal_display_mode,selected_bundle_items,activity_no,unit_duration,proposal_group,sort_order')
+    .order('sort_order', { ascending: true });
+  if (error) throwProposalLoadError('agreementItemsError', 'proposal_agreement_items', error);
+  return Array.isArray(data) ? data : [];
+}
+
+async function readProposalLinkedDocumentsFromSupabase() {
+  const { data, error } = await supabase
+    .from('proposal_linked_documents')
+    .select('id,proposal_agreement_id,document_type,status,combined_with_proposal,file_path,file_name,created_at,updated_at')
+    .eq('document_type', GEFEN_APPROVAL_DOCUMENT_TYPE);
+  if (error) throwProposalLoadError('linkedDocumentsError', 'proposal_linked_documents', error);
+  return Array.isArray(data) ? data : [];
+}
+
+async function readSchoolCalendarForProposalValidity() {
+  const { data, error } = await supabase
+    .from('school_calendar')
+    .select('id,title,start_date,end_date,blocks_scheduling,is_active')
+    .eq('is_active', true)
+    .eq('blocks_scheduling', true)
+    .order('start_date', { ascending: true });
+  if (error) throwProposalLoadError('schoolCalendarError', 'school_calendar', error);
+  return Array.isArray(data) ? data : [];
+}
+
 function mapProposalTemplateSectionRow(row = {}) {
   const templateKey = cleanProposalAgreementText(row?.template_key ?? row?.templateKey);
   const templateName = cleanProposalAgreementText(row?.template_name ?? row?.templateName);
@@ -3850,7 +3946,18 @@ async function readProposalsAgreementsFromSupabase() {
   assertCanUseProposalsAgreementsApi();
   await waitForSupabaseAuthSession();
   lastProposalLoaderDebug = {};
-  const [paResult, contactsResult, rawProposalActivityPricing, proposalTemplateSections, proposalActivityGroups, proposalGroupAliases] = await Promise.all([
+  const [
+    paResult,
+    contactsResult,
+    rawProposalActivityPricing,
+    rawProposalGefenCourses,
+    proposalTemplateSections,
+    proposalActivityGroups,
+    proposalGroupAliases,
+    proposalAgreementItems,
+    proposalLinkedDocuments,
+    schoolCalendarRows
+  ] = await Promise.all([
     supabase
       .from('proposals_agreements_directory_view')
       .select(PROPOSALS_AGREEMENTS_DIRECTORY_COLUMNS)
@@ -3860,9 +3967,13 @@ async function readProposalsAgreementsFromSupabase() {
       .order('activity_type_group', { ascending: true }),
     readContactsSchoolsForProposals(),
     readProposalActivityPricingFromSupabase(),
+    readProposalGefenCoursesFromSupabase(),
     readProposalTemplateSectionsFromSupabase(),
     readProposalActivityGroupsFromSupabase(),
-    readProposalGroupAliasesFromSupabase()
+    readProposalGroupAliasesFromSupabase(),
+    readProposalAgreementItemsForLoader(),
+    readProposalLinkedDocumentsFromSupabase(),
+    readSchoolCalendarForProposalValidity()
   ]);
   if (paResult.error) throw new Error(paResult.error.message || 'proposals_agreements_read_failed');
   noteProposalRead('rows', Array.isArray(paResult.data) ? paResult.data : [], null);
@@ -3880,12 +3991,33 @@ async function readProposalsAgreementsFromSupabase() {
     buildProposalGroupLookup(proposalActivityGroups, proposalGroupAliases),
     buildProposalGroupHintsFromTemplateSections(proposalTemplateSections)
   );
-  const proposalActivityPricing = enrichProposalPricingRows(rawProposalActivityPricing, proposalGroupLookupCache);
-  const activityNameOptions = await readProposalActivityNamesFromSupabase();
+  const proposalActivityPricing = enrichProposalPricingRows([
+    ...rawProposalActivityPricing.filter((row) => normalizeProposalGroupValue(row?.proposal_group, proposalGroupLookupCache) !== 'gefen'),
+    ...rawProposalGefenCourses
+  ], proposalGroupLookupCache);
+  const activityNameOptions = Array.from(new Set([
+    ...await readProposalActivityNamesFromSupabase(),
+    ...rawProposalGefenCourses.map((row) => cleanProposalAgreementText(row?.activity_name)).filter(Boolean)
+  ])).sort((a, b) => a.localeCompare(b, 'he'));
+  const linkedDocumentByProposalId = new Map(
+    proposalLinkedDocuments.map((row) => [
+      cleanProposalAgreementText(row?.proposal_agreement_id),
+      row
+    ])
+  );
   return {
     rows: (Array.isArray(paResult.data) ? paResult.data : [])
       .map(normalizeProposalAgreementRow)
-      .map((row) => enrichProposalAgreementRowFromCatalog(row, proposalCatalog)),
+      .map((row) => {
+        const linked = linkedDocumentByProposalId.get(row.id);
+        return enrichProposalAgreementRowFromCatalog({
+          ...row,
+          gefen_approval_status: cleanProposalAgreementText(linked?.status) || 'missing',
+          gefen_approval_path: cleanProposalAgreementText(linked?.file_path),
+          gefen_approval_file_name: cleanProposalAgreementText(linked?.file_name),
+          gefen_approval_combined: linked?.combined_with_proposal === true
+        }, proposalCatalog);
+      }),
     activityNameOptions,
     contactOptions,
     contactOptionsError,
@@ -3893,6 +4025,9 @@ async function readProposalsAgreementsFromSupabase() {
     proposalGroupAliases,
     proposalActivityPricing,
     proposalTemplateSections,
+    proposalAgreementItems,
+    proposalLinkedDocuments,
+    schoolCalendarRows,
     _debug: {
       ...(contactsResult?._debug || {}),
       ...(contactOptionsError ? { contacts_error: contactOptionsError } : {}),
@@ -6519,6 +6654,105 @@ export const api = {
       fileName: cleanProposalAgreementText(currentRow.final_pdf_file_name) || 'proposal.pdf'
     };
   },
+  uploadGefenApprovalDocument: async (id, payload = {}) => {
+    assertCanManageProposalsAgreementsApi();
+    const rowId = cleanProposalAgreementText(id);
+    const pdfFile = payload?.pdfFile || payload?.file || null;
+    const documentSnapshot = payload?.documentSnapshot ?? payload?.document_snapshot ?? null;
+    const documentHtmlSnapshot = String(payload?.documentHtmlSnapshot ?? payload?.document_html_snapshot ?? '').trim();
+    if (!rowId) throw new Error('missing_proposal_agreement_id');
+    if (!proposalFinalPdfAllowedFile(pdfFile)) throw new Error('invalid_gefen_approval_pdf');
+    if (!documentSnapshot || typeof documentSnapshot !== 'object' || Array.isArray(documentSnapshot)) {
+      throw new Error('missing_gefen_approval_snapshot');
+    }
+    if (!documentHtmlSnapshot) throw new Error('missing_gefen_approval_html_snapshot');
+
+    const [{ data: proposalRow, error: proposalError }, { data: itemRows, error: itemsError }, { data: linkedRow, error: linkedError }] = await Promise.all([
+      supabase
+        .from('proposals_agreements_directory_view')
+        .select('id,quote_number,semel_mosad,activity_type_group,final_pdf_path')
+        .eq('id', rowId)
+        .single(),
+      supabase
+        .from('proposal_agreement_items')
+        .select('id,gefen_number,proposal_group,item_type,item_name')
+        .eq('proposal_agreement_id', rowId),
+      supabase
+        .from('proposal_linked_documents')
+        .select('id,status,file_path,file_name,combined_with_proposal')
+        .eq('proposal_agreement_id', rowId)
+        .eq('document_type', GEFEN_APPROVAL_DOCUMENT_TYPE)
+        .maybeSingle()
+    ]);
+    if (proposalError || !proposalRow) throw new Error('proposals_agreement_not_found');
+    if (itemsError) throw new Error(itemsError.message || 'proposal_items_read_failed');
+    if (linkedError) throw new Error(linkedError.message || 'gefen_approval_read_failed');
+    if (cleanProposalAgreementText(linkedRow?.status) === 'generated') {
+      throw new Error('gefen_approval_already_generated');
+    }
+    if (!cleanProposalAgreementText(proposalRow.semel_mosad)) {
+      throw new Error('חסר מספר מוסד. יש להשלים אותו לפני הפקת אישור גפ״ן.');
+    }
+    const eligibleItems = (Array.isArray(itemRows) ? itemRows : []).filter((item) => {
+      const group = normalizeProposalGroupValue(item?.proposal_group);
+      return group !== 'summer'
+        && Boolean(cleanProposalAgreementText(item?.gefen_number))
+        && !isProposalTestHoursItem(item);
+    });
+    if (!eligibleItems.length) {
+      throw new Error('חסר פירוט קורסים עם מספר גפ״ן. לא ניתן להפיק את האישור.');
+    }
+
+    const filePath = gefenApprovalPdfStoragePath(rowId, pdfFile.name);
+    const uploaded = await supabase.storage
+      .from(PROPOSAL_FINAL_PDF_BUCKET)
+      .upload(filePath, pdfFile, { contentType: 'application/pdf', upsert: false });
+    if (uploaded.error) throw new Error(uploaded.error.message || 'gefen_approval_pdf_upload_failed');
+    const nowIso = new Date().toISOString();
+    const linkedPayload = {
+      proposal_agreement_id: rowId,
+      document_type: GEFEN_APPROVAL_DOCUMENT_TYPE,
+      status: 'generated',
+      combined_with_proposal: false,
+      file_path: filePath,
+      file_name: String(pdfFile.name || 'gefen-approval.pdf').trim(),
+      document_snapshot: documentSnapshot,
+      document_html_snapshot: documentHtmlSnapshot,
+      created_by: proposalLockActorName(),
+      updated_at: nowIso
+    };
+    const { data, error } = await supabase
+      .from('proposal_linked_documents')
+      .upsert(linkedPayload, { onConflict: 'proposal_agreement_id,document_type' })
+      .select('id,proposal_agreement_id,document_type,status,combined_with_proposal,file_path,file_name,created_at,updated_at')
+      .single();
+    if (error) throw new Error(error.message || 'gefen_approval_save_failed');
+    return { ok: true, row: data };
+  },
+  getGefenApprovalSignedUrl: async (id) => {
+    assertCanUseProposalsAgreementsApi();
+    const rowId = cleanProposalAgreementText(id);
+    if (!rowId) throw new Error('missing_proposal_agreement_id');
+    const { data: linkedRow, error: linkedError } = await supabase
+      .from('proposal_linked_documents')
+      .select('file_path,file_name,status')
+      .eq('proposal_agreement_id', rowId)
+      .eq('document_type', GEFEN_APPROVAL_DOCUMENT_TYPE)
+      .single();
+    if (linkedError || !linkedRow) throw new Error('gefen_approval_missing');
+    const filePath = cleanProposalAgreementText(linkedRow.file_path);
+    if (cleanProposalAgreementText(linkedRow.status) !== 'generated' || !filePath) {
+      throw new Error('gefen_approval_missing');
+    }
+    const { data, error } = await supabase.storage
+      .from(PROPOSAL_FINAL_PDF_BUCKET)
+      .createSignedUrl(filePath, 60 * 5, { download: false });
+    if (error) throw new Error(error.message || 'gefen_approval_signed_url_failed');
+    return {
+      signedUrl: data?.signedUrl || '',
+      fileName: cleanProposalAgreementText(linkedRow.file_name) || 'gefen-approval.pdf'
+    };
+  },
   readProposalAgreementItems: async (proposalId) => {
     assertCanUseProposalsAgreementsApi();
     const rowId = cleanProposalAgreementText(proposalId);
@@ -6600,7 +6834,14 @@ export const api = {
   readProposalActivityPricing: async () => {
     assertCanUseProposalsAgreementsApi();
     const groupLookup = await getProposalGroupLookup();
-    return enrichProposalPricingRows(await readProposalActivityPricingFromSupabase(), groupLookup);
+    const [generalRows, gefenRows] = await Promise.all([
+      readProposalActivityPricingFromSupabase(),
+      readProposalGefenCoursesFromSupabase()
+    ]);
+    return enrichProposalPricingRows([
+      ...generalRows.filter((row) => normalizeProposalGroupValue(row?.proposal_group, groupLookup) !== 'gefen'),
+      ...gefenRows
+    ], groupLookup);
   },
   readProposalActivityGroups: async () => {
     assertCanUseProposalsAgreementsApi();
