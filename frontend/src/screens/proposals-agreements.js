@@ -4951,6 +4951,26 @@ function mergeClientFileIdentity(file, row = {}) {
   return file;
 }
 
+function clientContactIdentity(contact = {}) {
+  return normalizeHebrewQuoteVariants(text(contact.contact_name));
+}
+
+function mergeDisplayedClientContact(existing = {}, candidate = {}) {
+  const existingIsExplicit = text(existing.source_table) === 'contacts_schools';
+  const candidateIsExplicit = text(candidate.source_table) === 'contacts_schools';
+  const preferred = candidateIsExplicit && !existingIsExplicit ? candidate : existing;
+  const fallback = preferred === candidate ? existing : candidate;
+  return {
+    ...fallback,
+    ...preferred,
+    contact_role: text(preferred.contact_role) || text(fallback.contact_role),
+    mobile: text(preferred.mobile) || text(fallback.mobile),
+    phone: text(preferred.phone) || text(fallback.phone),
+    email: text(preferred.email) || text(fallback.email),
+    _clientContactKey: clientContactIdentity(preferred)
+  };
+}
+
 function buildClientFiles(data = {}) {
   const files = new Map();
   const ensureFile = (row) => {
@@ -4967,10 +4987,12 @@ function buildClientFiles(data = {}) {
     }
     const file = ensureFile(contact);
     if (!file || !text(contact.contact_name)) return;
-    const contactKey = text(contact.source_table && contact.source_id ? `${contact.source_table}:${contact.source_id}` : '')
-      || [contact.contact_name, contact.mobile, contact.phone, contact.email].map(normalizedClientPart).join('|');
-    if (!file.contacts.some((item) => item._clientContactKey === contactKey)) {
+    const contactKey = clientContactIdentity(contact);
+    const existingIndex = file.contacts.findIndex((item) => item._clientContactKey === contactKey);
+    if (existingIndex === -1) {
       file.contacts.push({ ...contact, _clientContactKey: contactKey });
+    } else {
+      file.contacts[existingIndex] = mergeDisplayedClientContact(file.contacts[existingIndex], contact);
     }
   });
 
