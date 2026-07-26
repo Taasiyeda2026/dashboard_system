@@ -20902,6 +20902,50 @@ details[open] > .ds-fin-acc__summary::before { transform: rotate(90deg); }
   line-height: 1.18;
 }
 
+.proposal-document.pa-proposal-doc--gefen .pa-gefen-recipient,
+.proposal-document.pa-proposal-doc--gefen .pa-gefen-recipient p,
+.proposal-document.pa-proposal-doc--gefen .pa-doc-title,
+.proposal-document.pa-proposal-doc--gefen .pa-org-intro,
+.proposal-document.pa-proposal-doc--gefen .pa-org-intro p,
+.proposal-document.pa-proposal-doc--gefen .pa-gefen-purpose,
+.proposal-document.pa-proposal-doc--gefen .pa-gefen-purpose p {
+  direction: rtl;
+  text-align: right !important;
+}
+
+.proposal-document.pa-proposal-doc--gefen .pa-gefen-recipient {
+  margin-bottom: 2mm !important;
+}
+
+.proposal-document.pa-proposal-doc--gefen .pa-gefen-recipient p {
+  margin: 0 0 0.5mm !important;
+  line-height: 1.25;
+}
+
+.proposal-document.pa-proposal-doc--gefen .pa-doc-divider {
+  display: block !important;
+  width: 100% !important;
+  margin: 1.5mm 0 2mm !important;
+  border: 0 !important;
+  border-top: 0.35px solid #dbe4ec !important;
+}
+
+.proposal-document.pa-proposal-doc--gefen .pa-doc-title {
+  margin: 0 0 1mm !important;
+  color: #0f5b8d !important;
+  font-size: 13pt;
+  line-height: 1.2;
+}
+
+.proposal-document.pa-proposal-doc--gefen .pa-doc-date {
+  margin: 0 0 1mm !important;
+  text-align: right !important;
+}
+
+.proposal-document.pa-proposal-doc--gefen .pa-org-intro {
+  padding-inline: 0 !important;
+}
+
 .proposal-document .pa-gefen-course-table,
 .pa-gefen-approval-table {
   width: 100%;
@@ -20935,6 +20979,19 @@ details[open] > .ds-fin-acc__summary::before { transform: rotate(90deg); }
 .pa-gefen-approval-table th:nth-child(2),
 .pa-gefen-approval-table td:nth-child(2) {
   text-align: right;
+}
+
+.proposal-document .pa-gefen-course-table .pa-course-col {
+  width: 31%;
+}
+
+.proposal-document .pa-gefen-course-table .pa-gefen-col,
+.proposal-document .pa-gefen-course-table .pa-meetings-col,
+.proposal-document .pa-gefen-course-table .pa-groups-col,
+.proposal-document .pa-gefen-course-table .pa-hours-col,
+.proposal-document .pa-gefen-course-table .pa-hourly-price-col,
+.proposal-document .pa-gefen-course-table .pa-total-price-col {
+  width: 11.5%;
 }
 
 .pa-gefen-document-warning {
@@ -21030,6 +21087,16 @@ details[open] > .ds-fin-acc__summary::before { transform: rotate(90deg); }
   .proposal-document.pa-proposal-doc--gefen .pa-gefen-course-table,
   .pa-gefen-approval-table {
     font-size: 7.8pt !important;
+  }
+
+  .proposal-document.pa-proposal-doc--gefen .pa-doc-divider {
+    display: block !important;
+    border-top: 0.25pt solid #dbe4ec !important;
+  }
+
+  .proposal-document.pa-proposal-doc--gefen .pa-doc-title {
+    color: #0f5b8d !important;
+    text-align: right !important;
   }
 }
 

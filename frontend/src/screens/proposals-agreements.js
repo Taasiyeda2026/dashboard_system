@@ -2692,7 +2692,7 @@ function proposalItemDetailsTableHtml(items = [], contextGroup = '') {
         const footerCells = [
           { value: totalLabel },
           { value: '' },
-          { value: hasMeetings ? formatCurrency(totalMeetings) : '' },
+          { value: hasMeetings && !isGefenTable ? formatCurrency(totalMeetings) : '' },
           { value: hasQuantity ? formatCurrency(totalQuantity) : '' },
           { value: hasHours ? formatCurrency(totalHours) : '' },
           { value: '' },
@@ -2843,13 +2843,17 @@ function recipientBlockHtml(row = {}) {
     const schoolName = safeVal(row.school_framework || row.school_name);
     const authorityName = safeVal(row.client_authority || row.authority_name);
     const semelMosad = safeVal(row.semel_mosad);
+    const schoolMetaParts = [];
+    if (schoolName) schoolMetaParts.push(`<strong>בית ספר:</strong> ${escapeHtml(schoolName)}`);
+    if (semelMosad) schoolMetaParts.push(`<strong>סמל מוסד:</strong> ${escapeHtml(semelMosad)}`);
+    if (authorityName) schoolMetaParts.push(`<strong>רשות:</strong> ${escapeHtml(authorityName)}`);
+    const schoolMetaLine = schoolMetaParts.length
+      ? `<p class="pa-gefen-school-meta">${schoolMetaParts.join(' | ')}</p>`
+      : '';
     return `<div class="pa-doc-address pa-to-block pa-gefen-recipient" style="margin:0 0 4mm 0;">
       <p class="pa-label-to" style="margin:0;"><strong>לכבוד:</strong></p>
       <div class="pa-recipient-lines" style="margin-top:0.2em;">
-        ${schoolName ? `<p><strong>בית ספר:</strong> ${escapeHtml(schoolName)}</p>` : ''}
-        ${semelMosad ? `<p><strong>סמל מוסד:</strong> ${escapeHtml(semelMosad)}</p>` : ''}
-        ${authorityName ? `<p><strong>רשות:</strong> ${escapeHtml(authorityName)}</p>` : ''}
-        ${contactLine}${contactDetailsLine}
+        ${contactLine}${schoolMetaLine}${contactDetailsLine}
       </div>
     </div>`;
   }
@@ -3291,7 +3295,8 @@ function buildProposalDocumentHtml({ dateDisplay, documentTitle, row, introText,
   const isNextYear = isNextYearProposalGroup(row?.activity_type_group);
   const isSummerDocument = isSummerProposalGroup(row?.activity_type_group);
   const isTourDocument = isTourProposalGroup(row?.activity_type_group);
-  const documentModifierClass = `${isNextYear ? ' pa-document--next-year' : ''}${isSummerDocument ? ' pa-document--summer' : ''}${isTourDocument ? ' pa-proposal-doc--tour pa-document--tour' : ''}`;
+  const isGefenDocument = normalizeProposalGroup(row?.activity_type_group) === 'gefen';
+  const documentModifierClass = `${isNextYear ? ' pa-document--next-year' : ''}${isSummerDocument ? ' pa-document--summer' : ''}${isTourDocument ? ' pa-proposal-doc--tour pa-document--tour' : ''}${isGefenDocument ? ' pa-proposal-doc--gefen pa-pdf-page' : ''}`;
   return `
     <div class="proposal-document pa-document pa-a4-page${documentModifierClass}" data-build="20260704a" dir="rtl" style="position:relative;box-sizing:border-box;">
       <style>
@@ -3422,11 +3427,12 @@ function buildProposalDocumentHtml({ dateDisplay, documentTitle, row, introText,
       </div>
       ${recipientBlockHtml(row)}
       <hr class="pa-doc-divider pa-divider">
-      ${dateDisplay ? `<div class="pa-doc-date pa-date-area">${escapeHtml(dateDisplay)}</div>` : ''}
+      ${!isGefenDocument && dateDisplay ? `<div class="pa-doc-date pa-date-area">${escapeHtml(dateDisplay)}</div>` : ''}
       <div class="pa-proposal-body-footer-shell">
       <div class="proposal-document-body">
         <div class="proposal-document-content">
           ${title ? `<h1 class="pa-doc-subject pa-doc-title">${escapeHtml(title)}</h1>` : ''}
+          ${isGefenDocument && dateDisplay ? `<div class="pa-doc-date pa-date-area">${escapeHtml(dateDisplay)}</div>` : ''}
           ${introText ? sectionLines(introText, { className: 'pa-doc-intro pa-intro-text pa-org-intro' }) : ''}
           ${sections.join('')}
           ${orgResponsibility}
@@ -3626,11 +3632,11 @@ function gefenProposalDocumentHtml(row, items = [], templateSections = [], rende
       ${activityAfterTable ? sectionBodyHtml(activityAfterTable) : ''}
       ${validationMessage ? `<p class="pa-gefen-document-warning" role="alert">${escapeHtml(validationMessage)}</p>` : ''}
     </section>`,
-    sectionHtml(sectionTitle('validity'), sectionBody('validity')),
+    sectionHtml(sectionTitle('validity'), sectionBody('validity'), '', { alwaysBullet: true }),
     sectionHtml(sectionTitle('school_responsibility'), sectionBody('school_responsibility'), '', { alwaysBullet: true }),
     sectionHtml(sectionTitle('taasiyeda_responsibility'), sectionBody('taasiyeda_responsibility'), '', { alwaysBullet: true }),
     sectionHtml(sectionTitle('payment_terms'), sectionBody('payment_terms'), '', { alwaysBullet: true }),
-    sectionHtml(sectionTitle('cancellation_terms'), sectionBody('cancellation_terms')),
+    sectionHtml(sectionTitle('cancellation_terms'), sectionBody('cancellation_terms'), '', { alwaysBullet: true }),
     sectionHtml(sectionTitle('precedence'), sectionBody('precedence'))
   ].filter(Boolean);
   const proposalHtml = buildProposalDocumentHtml({
@@ -3646,7 +3652,7 @@ function gefenProposalDocumentHtml(row, items = [], templateSections = [], rende
     remarks: '',
     signatureHtml: signatureSectionHtml(sectionBody('signature'), row, renderOptions),
     sectionLinesHtml,
-  }).replace('pa-proposal-doc', 'pa-proposal-doc pa-proposal-doc--gefen pa-pdf-page');
+  });
   if (renderOptions.includeGefenApproval === false) return proposalHtml;
   return `<div class="pa-gefen-combined-document">${proposalHtml}${gefenApprovalDocumentHtml(row, items, { pageBreak: true })}</div>`;
 }

@@ -56,11 +56,13 @@ const MAIN_FILE = new URL('../frontend/src/main.js', import.meta.url);
 const API_FILE = new URL('../frontend/src/api.js', import.meta.url);
 const ACT_NAV_FILE = new URL('../frontend/src/screens/shared/act-nav-grid.js', import.meta.url);
 const SCREEN_FILE = new URL('../frontend/src/screens/proposals-agreements.js', import.meta.url);
+const STYLES_FILE = new URL('../frontend/src/styles/main.css', import.meta.url);
 const MIGRATION_FILE = new URL('../supabase/migrations/20260518_create_proposals_agreements.sql', import.meta.url);
 const ROLE_UPDATE_MIGRATION_FILE = new URL('../supabase/migrations/20260602_add_business_development_manager_role.sql', import.meta.url);
 const APPROVAL_GUARD_MIGRATION_FILE = new URL('../supabase/migrations/20260616_proposals_agreements_approval_guard.sql', import.meta.url);
 const CLIENT_FILE_VERSIONS_MIGRATION_FILE = new URL('../supabase/migrations/20260720143000_proposal_versions_for_client_file.sql', import.meta.url);
 const GEFEN_MIGRATION_FILE = new URL('../supabase/migrations/20260726223144_add_gefen_proposal_template.sql', import.meta.url);
+const GEFEN_DOCUMENT_REFINEMENT_MIGRATION_FILE = new URL('../supabase/migrations/20260726230813_refine_gefen_proposal_document.sql', import.meta.url);
 
 const { proposalsAgreementsScreen, canAccessProposalsAgreements, canManageProposalsAgreements, STATUS_LABELS, STATUS_OPTIONS, buildProposalCatalogPdfEntries, proposalPreviewBodyHtml, normalizeProposalAgreementRow, countPendingApprovedProposals, isProposalApprovedPendingSend, extractItemsFromForm, sortRows, calculateTourTotal, validatePayload, resetRecipientDependentFields, stepComplete, buildProposalDocumentSnapshot, proposalLockedPreviewHtml, proposalHasFinalPdf, isProposalLegacySentWithoutPdf, upsertProposalContactOption, calculateProposalValidityDate, gefenEligibleItems, gefenApprovalDocumentHtml } = await import('../frontend/src/screens/proposals-agreements.js');
 
@@ -363,7 +365,7 @@ test('GEFEN approval includes only numbered non-summer rows and displays rounded
   assert.doesNotMatch(html, /קורס ללא גפן/);
 });
 
-test('new GEFEN proposal preview links proposal and approval in one compact document', () => {
+test('new GEFEN proposal preview links proposal and approval in one compact document', async () => {
   const row = {
     id: 'gefen-2',
     quote_number: '10168',
@@ -373,6 +375,10 @@ test('new GEFEN proposal preview links proposal and approval in one compact docu
     school_framework: 'בית ספר גפן',
     client_authority: 'רשות גפן',
     semel_mosad: '654321',
+    contact_name: 'שחר ברט',
+    contact_role: 'מנהלת בית ספר',
+    phone: '08-666-6666',
+    email: 'school-mgr@n-e.org.il',
     combine_gefen_approval: true,
     status: 'approved',
     signature_meta: { signature: { image: 'proposals/signature-idan-nahum.png' } }
@@ -381,9 +387,10 @@ test('new GEFEN proposal preview links proposal and approval in one compact docu
     { item_name: 'בינה מלאכותית', proposal_group: 'gefen', gefen_number: '9545', meetings_count: 8, hours_count: 12.5, hourly_price: 640, quantity: 1, unit_price: 8000, total_price: 8000 }
   ];
   const sections = [
-    { template_key: 'gefen', template_name: 'הצעת מחיר {{quote_number}} פעילויות תעשיידע | תשפ"ז', section_key: 'intro', section_title: 'פתיח', section_body: 'פתיח גפן' },
+    { template_key: 'gefen', template_name: 'הצעת מחיר {{quote_number}} פעילויות תעשיידע | תשפ"ז', section_key: 'intro', section_title: 'פתיח', section_body: 'תעשיידע היא עמותה חינוכית-טכנולוגית מיסודה של התאחדות התעשיינים בישראל.' },
     { template_key: 'gefen', template_name: 'הצעת מחיר {{quote_number}} פעילויות תעשיידע | תשפ"ז', section_key: 'activity_intro', section_title: 'התוכניות המוצעות', section_body: 'הצעה זו מיועדת לפתיחת הזמנה.\n\nהמחירים סופיים.' },
-    { template_key: 'gefen', template_name: 'הצעת מחיר {{quote_number}} פעילויות תעשיידע | תשפ"ז', section_key: 'validity', section_title: 'תוקף ההצעה וזמינות הפעילות', section_body: 'בתוקף עד {{valid_until}}.' },
+    { template_key: 'gefen', template_name: 'הצעת מחיר {{quote_number}} פעילויות תעשיידע | תשפ"ז', section_key: 'validity', section_title: 'תוקף ההצעה וזמינות הפעילות', section_body: ' הצעה זו בתוקף עד ליום {{valid_until}}.\n שריון צוותי ההדרכה, מועדי הפעילות והיקף התוכנית יבוצע לפי סדר השלמת הזמנות העבודה במערכת גפ״ן ובכפוף לזמינות.\n כל עוד לא אושרה הזמנת העבודה, לא ניתן להבטיח את השריון ולאחר תום תוקף ההצעה תהיה תעשיידע רשאית להקצות את הקיבולת לבתי ספר אחרים.' },
+    { template_key: 'gefen', template_name: 'הצעת מחיר {{quote_number}} פעילויות תעשיידע | תשפ"ז', section_key: 'cancellation_terms', section_title: 'שינויים, ביטולים והפחתת היקף', section_body: ' בקשה לשינוי או לדחיית מועד תימסר מוקדם ככל האפשר ורצוי לפחות 3 ימי עבודה מראש.\n מפגש שבוטל ביוזמת בית הספר יתואם למועד חלופי במהלך תקופת הפעילות.\n ביטול או שינוי שנמסרו פחות מ-48 שעות לפני המפגש יחייבו אישור בכתב של מנהל/ת בית הספר ויטופלו בתיאום בין הצדדים.\n הפסקת תוכנית או הפחתת היקפה לאחר תחילת הפעילות ייעשו בהודעה בכתב לפחות 30 ימים מראש או בהסכמה בכתב בין הצדדים.\n בתקופת ההודעה המוקדמת יישא בית הספר בתשלום עבור פעילויות שבוצעו או שתוכננו לתקופה זו, בהתאם להזמנת העבודה המאושרת ולהוראות גפ״ן.\n מפגש לא ידווח כמבוצע אלא אם התקיים בפועל או אם הדיווח מותר לפי הוראות גפ״ן.\n במקרה של מצב חירום או הנחיות רשות מוסמכת, יתואם מתווה חלופי בהתאם להוראות גפ״ן, לרבות דחייה, התאמה או מעבר לפעילות מקוונת. פעילות מקוונת תתומחר לפי התעריף החל בגפ״ן, לרבות הפחתה של 10%, ככל שנדרש.' },
     { template_key: 'gefen', template_name: 'הצעת מחיר {{quote_number}} פעילויות תעשיידע | תשפ"ז', section_key: 'signature', section_title: 'חתימה', section_body: 'עידן נחום, סמנכ״ל כספים' }
   ];
   const html = proposalPreviewBodyHtml(row, items, sections, { showSignatureImage: true });
@@ -393,6 +400,45 @@ test('new GEFEN proposal preview links proposal and approval in one compact docu
   assert.match(html, /אישור כוונות להזמנה במערכת גפ״ן/);
   assert.match(html, /data-pdf-page-break="true"/);
   assert.match(html, /עידן נחום, סמנכ״ל כספים/);
+  await withJSDOM(html, async (_root, dom) => {
+    const proposal = dom.window.document.querySelector('.pa-proposal-doc--gefen');
+    const recipientLines = Array.from(proposal.querySelectorAll('.pa-gefen-recipient p')).map((p) => p.textContent.trim());
+    assert.deepEqual(recipientLines, [
+      'לכבוד:',
+      'שחר ברט, מנהלת בית ספר',
+      'בית ספר: בית ספר גפן | סמל מוסד: 654321 | רשות: רשות גפן',
+      'נייד: 08-666-6666 | דוא״ל: school-mgr@n-e.org.il'
+    ]);
+    const divider = proposal.querySelector('.pa-doc-divider');
+    const title = proposal.querySelector('.pa-doc-title');
+    assert.ok(divider.compareDocumentPosition(title) & dom.window.Node.DOCUMENT_POSITION_FOLLOWING);
+    assert.equal(title.textContent, 'הצעת מחיר 10168 פעילויות תעשיידע | תשפ"ז');
+    const validity = Array.from(proposal.querySelectorAll('.pa-section'))
+      .find((section) => section.querySelector('.pa-section-heading')?.textContent.includes('תוקף ההצעה'));
+    const cancellation = Array.from(proposal.querySelectorAll('.pa-section'))
+      .find((section) => section.querySelector('.pa-section-heading')?.textContent.includes('שינויים, ביטולים'));
+    assert.equal(validity.querySelectorAll('li').length, 3);
+    assert.equal(cancellation.querySelectorAll('li').length, 7);
+    const footerCells = Array.from(proposal.querySelectorAll('.pa-gefen-course-table tfoot td')).map((cell) => cell.textContent.trim());
+    assert.equal(footerCells[2], '', 'GEFEN meetings column must not show a total');
+  });
+});
+
+test('GEFEN document refinement keeps compact equal numeric columns and bullet wording', async () => {
+  const [styles, migration] = await Promise.all([
+    readFile(STYLES_FILE, 'utf8'),
+    readFile(GEFEN_DOCUMENT_REFINEMENT_MIGRATION_FILE, 'utf8')
+  ]);
+  assert.match(styles, /\.pa-gefen-course-table \.pa-course-col\s*\{\s*width:\s*31%/);
+  for (const column of ['pa-gefen-col', 'pa-meetings-col', 'pa-groups-col', 'pa-hours-col', 'pa-hourly-price-col', 'pa-total-price-col']) {
+    assert.match(styles, new RegExp(`\\.${column}`));
+  }
+  assert.match(styles, /width:\s*11\.5%/);
+  assert.match(styles, /\.pa-proposal-doc--gefen \.pa-doc-title[\s\S]*color:\s*#0f5b8d/i);
+  assert.match(styles, /\.pa-proposal-doc--gefen \.pa-doc-divider[\s\S]*border-top:\s*0\.35px solid #dbe4ec/i);
+  assert.match(migration, /section_key in \('validity', 'cancellation_terms'\)/i);
+  assert.match(migration, / הצעה זו בתוקף עד ליום \{\{valid_until\}\}/);
+  assert.match(migration, / במקרה של מצב חירום או הנחיות רשות מוסמכת/);
 });
 
 test('proposals-agreements route is registered and role-gated in route definitions', async () => {
