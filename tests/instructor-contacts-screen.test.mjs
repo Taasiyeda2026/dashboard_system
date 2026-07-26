@@ -128,6 +128,9 @@ test('email copy button copies the displayed address', async () => {
     const copyButton = document.querySelector('[data-copy-instructor-email]');
     assert.ok(copyButton);
     assert.equal(copyButton.getAttribute('aria-label'), 'העתקת כתובת המייל');
+    assert.equal(copyButton.textContent.trim(), '');
+    assert.ok(copyButton.querySelector('svg'));
+    assert.equal(copyButton.style.width, '28px');
     copyButton.dispatchEvent(new dom.window.MouseEvent('click', { bubbles: true }));
     await new Promise((resolve) => setTimeout(resolve, 10));
     assert.equal(copied, 'test1@example.com');
