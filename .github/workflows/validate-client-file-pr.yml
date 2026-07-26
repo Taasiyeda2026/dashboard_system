@@ -13,6 +13,8 @@ on:
       - 'frontend/src/proposal-pdf-storage-key-hotfix.js'
       - 'frontend/src/admin-permissions-access-hotfix.js'
       - 'frontend/src/auth-session-isolation-hotfix.js'
+      - 'frontend/src/session-security-policy.js'
+      - 'frontend/src/session-security-runtime.js'
       - 'frontend/src/main-with-proposal-pdf-hotfix.js'
       - 'frontend/src/state.js'
       - 'frontend/src/supabase-client.js'
@@ -26,6 +28,7 @@ on:
       - 'sw.js'
       - 'index.html'
       - 'tests/auth-session-admin-lists-hotfix.test.mjs'
+      - 'tests/session-security-policy.test.mjs'
       - 'tests/client-file-*.test.mjs'
       - 'tests/proposal-pdf-svg-origin-clean.test.mjs'
       - 'tests/proposal-pdf-storage-key-hotfix.test.mjs'
@@ -67,6 +70,8 @@ jobs:
           node --check frontend/src/proposal-pdf-storage-key-hotfix.js
           node --check frontend/src/admin-permissions-access-hotfix.js
           node --check frontend/src/auth-session-isolation-hotfix.js
+          node --check frontend/src/session-security-policy.js
+          node --check frontend/src/session-security-runtime.js
           node --check frontend/src/main-with-proposal-pdf-hotfix.js
           node --check frontend/src/supabase-client.js
           node --check frontend/src/dashboard-kpi-corrections.js
@@ -81,6 +86,7 @@ jobs:
           node --check frontend/src/state.js
           node --check frontend/src/api.js
           node --check tests/auth-session-admin-lists-hotfix.test.mjs
+          node --check tests/session-security-policy.test.mjs
           node --check tests/client-file-unified-screen.test.mjs
           node --check tests/client-file-version-sync.test.mjs
           node --check tests/instructor-contacts-nav-access.test.mjs
@@ -93,6 +99,9 @@ jobs:
 
       - name: Run auth and shared-list regression tests
         run: node --test tests/auth-session-admin-lists-hotfix.test.mjs
+
+      - name: Run session security timeout tests
+        run: node --test tests/session-security-policy.test.mjs
 
       - name: Check summer feedback dashboard loading
         run: node --test --test-name-pattern='dashboard loads' tests/summer-feedback-admin-personal-reports.test.mjs
