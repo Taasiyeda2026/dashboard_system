@@ -20847,6 +20847,192 @@ details[open] > .ds-fin-acc__summary::before { transform: rotate(90deg); }
   }
 }
 
+.ds-pa-gefen-status {
+  display: inline-flex;
+  min-width: 42px;
+  justify-content: center;
+  border-radius: 999px;
+  padding: 2px 7px;
+  font-size: 0.72rem;
+  font-weight: 700;
+}
+
+.ds-pa-gefen-status--generated {
+  color: #166534;
+  background: #dcfce7;
+  border: 1px solid #86efac;
+}
+
+.ds-pa-gefen-status--missing {
+  color: #9a3412;
+  background: #ffedd5;
+  border: 1px solid #fdba74;
+}
+
+.ds-pa-quote-number {
+  font-variant-numeric: tabular-nums;
+  font-weight: 700;
+  color: #334155;
+}
+
+.pa-gefen-combined-document {
+  width: 210mm;
+  margin-inline: auto;
+  background: #fff;
+}
+
+.proposal-document.pa-proposal-doc--gefen {
+  font-size: 8.7pt;
+  line-height: 1.18;
+}
+
+.proposal-document.pa-proposal-doc--gefen .pa-section {
+  margin-block: 1.6mm;
+}
+
+.proposal-document.pa-proposal-doc--gefen .pa-section-heading {
+  margin-block: 0 0.7mm;
+  font-size: 9.5pt;
+  line-height: 1.12;
+}
+
+.proposal-document.pa-proposal-doc--gefen .pa-section p,
+.proposal-document.pa-proposal-doc--gefen .pa-section li {
+  margin-block: 0 0.6mm;
+  line-height: 1.18;
+}
+
+.proposal-document .pa-gefen-course-table,
+.pa-gefen-approval-table {
+  width: 100%;
+  table-layout: fixed;
+  border-collapse: collapse;
+  margin: 1.5mm 0;
+  font-size: 8pt;
+}
+
+.proposal-document .pa-gefen-course-table th,
+.proposal-document .pa-gefen-course-table td,
+.pa-gefen-approval-table th,
+.pa-gefen-approval-table td {
+  border: 1px solid #94a3b8;
+  padding: 1.2mm 1mm;
+  line-height: 1.12;
+  text-align: center;
+  vertical-align: middle;
+  overflow-wrap: anywhere;
+}
+
+.proposal-document .pa-gefen-course-table th,
+.pa-gefen-approval-table th {
+  background: #eaf5fb;
+  color: #0f3f5f;
+  font-weight: 700;
+}
+
+.proposal-document .pa-gefen-course-table th:first-child,
+.proposal-document .pa-gefen-course-table td:first-child,
+.pa-gefen-approval-table th:nth-child(2),
+.pa-gefen-approval-table td:nth-child(2) {
+  text-align: right;
+}
+
+.pa-gefen-document-warning {
+  margin: 2mm 0 !important;
+  padding: 1.5mm 2mm;
+  border: 1px solid #f59e0b;
+  border-radius: 2mm;
+  background: #fffbeb;
+  color: #92400e;
+  font-weight: 700;
+}
+
+.pa-gefen-approval-document {
+  width: 210mm;
+  min-height: 297mm;
+  box-sizing: border-box;
+  padding: 14mm 15mm 12mm;
+  margin: 0 auto;
+  background: #fff;
+  color: #111827;
+  font-family: Arial, "Noto Sans Hebrew", sans-serif;
+  font-size: 9pt;
+  line-height: 1.28;
+}
+
+.pa-gefen-doc-header {
+  display: grid;
+  grid-template-columns: 38mm 1fr;
+  align-items: center;
+  gap: 6mm;
+  padding-bottom: 3mm;
+  border-bottom: 1px solid #cbd5e1;
+}
+
+.pa-gefen-doc-header .proposal-logo {
+  width: 36mm;
+  height: auto;
+}
+
+.pa-gefen-doc-header h1 {
+  margin: 0;
+  color: #0f3f5f;
+  font-size: 16pt;
+  line-height: 1.15;
+}
+
+.pa-gefen-school-line {
+  margin: 4mm 0 2mm;
+}
+
+.pa-gefen-approval-document .pa-section {
+  margin-block: 3mm;
+}
+
+.pa-gefen-approval-document .pa-section-heading {
+  margin: 0 0 1mm;
+  color: #0f3f5f;
+  font-size: 11pt;
+}
+
+.pa-gefen-approval-document .pa-section p {
+  margin: 0 0 1.5mm;
+}
+
+.pa-gefen-approval-table .pa-choice-col {
+  width: 8%;
+}
+
+.pa-gefen-choice {
+  font-size: 13pt;
+}
+
+.pa-gefen-signature-grid {
+  display: grid;
+  grid-template-columns: 1.5fr 1.2fr 0.8fr;
+  gap: 4mm;
+  margin-top: 5mm;
+}
+
+@media print {
+  .pa-gefen-combined-document,
+  .pa-gefen-approval-document {
+    width: 100% !important;
+    margin: 0 !important;
+    box-shadow: none !important;
+  }
+
+  .pa-gefen-approval-document[data-pdf-page-break] {
+    break-before: page;
+    page-break-before: always;
+  }
+
+  .proposal-document.pa-proposal-doc--gefen .pa-gefen-course-table,
+  .pa-gefen-approval-table {
+    font-size: 7.8pt !important;
+  }
+}
+
 /* ═══════════════════════════════════════════════════════════════════════
    ABSOLUTE FINAL PRINT OVERRIDE — proposal document pagination.
    This is the last word in the cascade on purpose: it wins over every rule
