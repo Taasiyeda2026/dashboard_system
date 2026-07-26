@@ -96,3 +96,32 @@ test('assigned instructor card is inserted prominently below the dashboard heade
   assert.equal(host.querySelectorAll('[data-summer-feedback-instructor-card]').length, 1);
   dom.window.close();
 });
+
+test('assigned instructor card is also inserted on the instructor calendar home page', () => {
+  const dom = new JSDOM(`<!doctype html><html><body>
+    <main id="screenRoot">
+      <section class="instructor-area">
+        <header class="ds-page-header"><h1>לוח השנה שלי</h1></header>
+        <div class="instructor-calendar-inner"></div>
+      </section>
+    </main>
+  </body></html>`);
+
+  const host = cardModule.findSummerFeedbackCardHost(dom.window.document);
+  const state = cardModule.buildSummerFeedbackCardState({ assignments: [{ id: 'a1' }] });
+  const inserted = cardModule.injectSummerFeedbackCard(host, state);
+  const card = host.querySelector('[data-summer-feedback-instructor-card]');
+
+  assert.equal(host?.classList.contains('instructor-area'), true);
+  assert.equal(inserted, true);
+  assert.ok(card);
+  assert.equal(host.children[1], card);
+  assert.equal(card.querySelector('.ds-summer-feedback-card__action')?.getAttribute('href'), './summer-feedback/');
+  dom.window.close();
+});
+
+test('the card refreshes automatically after the scheduled opening time', () => {
+  assert.match(integrationSource, /REFRESH_INTERVAL_MS = 30_000/);
+  assert.match(integrationSource, /setInterval\(refreshFromServer, REFRESH_INTERVAL_MS\)/);
+  assert.match(integrationSource, /visibilitychange/);
+});
