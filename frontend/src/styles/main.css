@@ -20876,9 +20876,23 @@ details[open] > .ds-fin-acc__summary::before { transform: rotate(90deg); }
 }
 
 .pa-gefen-combined-document {
-  width: 210mm;
+  width: 100%;
+  max-width: 794px;
   margin-inline: auto;
   background: #fff;
+  min-width: 0;
+  box-sizing: border-box;
+}
+
+.pa-preview-canvas > .pa-gefen-combined-document {
+  flex: 0 1 794px;
+}
+
+.pa-gefen-combined-document > .proposal-document {
+  width: 100%;
+  max-width: 100%;
+  min-width: 0;
+  margin-inline: auto;
 }
 
 .proposal-document.pa-proposal-doc--gefen {
@@ -21004,60 +21018,68 @@ details[open] > .ds-fin-acc__summary::before { transform: rotate(90deg); }
   font-weight: 700;
 }
 
-.pa-gefen-approval-document {
-  width: 210mm;
-  min-height: 297mm;
-  box-sizing: border-box;
-  padding: 14mm 15mm 12mm;
-  margin: 0 auto;
-  background: #fff;
-  color: #111827;
-  font-family: Arial, "Noto Sans Hebrew", sans-serif;
-  font-size: 9pt;
-  line-height: 1.28;
+.proposal-document.pa-gefen-approval-document {
+  font-size: 8.7pt;
+  line-height: 1.18;
 }
 
-.pa-gefen-doc-header {
-  display: grid;
-  grid-template-columns: 38mm 1fr;
+.proposal-document.pa-gefen-approval-document .pa-doc-title {
+  color: #0f5b8d !important;
+}
+
+.pa-gefen-linked-document {
+  display: flex;
   align-items: center;
-  gap: 6mm;
-  padding-bottom: 3mm;
-  border-bottom: 1px solid #cbd5e1;
-}
-
-.pa-gefen-doc-header .proposal-logo {
-  width: 36mm;
-  height: auto;
-}
-
-.pa-gefen-doc-header h1 {
-  margin: 0;
+  justify-content: space-between;
+  gap: 3mm;
+  margin: 0 0 2mm;
+  padding: 1.4mm 2mm;
+  border: 1px solid #bfdbec;
+  border-radius: 1.5mm;
+  background: #f0f8fc;
   color: #0f3f5f;
-  font-size: 16pt;
-  line-height: 1.15;
+  font-size: 8.2pt;
 }
 
-.pa-gefen-school-line {
-  margin: 4mm 0 2mm;
+.proposal-document.pa-gefen-approval-document .pa-section {
+  margin-block: 2mm;
 }
 
-.pa-gefen-approval-document .pa-section {
-  margin-block: 3mm;
+.proposal-document.pa-gefen-approval-document .pa-section-heading {
+  margin: 0 0 0.8mm;
+  color: #0f3f5f;
+  font-size: 9.5pt;
 }
 
-.pa-gefen-approval-document .pa-section-heading {
+.proposal-document.pa-gefen-approval-document .pa-section p {
   margin: 0 0 1mm;
-  color: #0f3f5f;
-  font-size: 11pt;
-}
-
-.pa-gefen-approval-document .pa-section p {
-  margin: 0 0 1.5mm;
 }
 
 .pa-gefen-approval-table .pa-choice-col {
   width: 8%;
+}
+
+.proposal-document .pa-gefen-approval-table .pa-course-col {
+  width: 29%;
+}
+
+.proposal-document .pa-gefen-approval-table .pa-gefen-col,
+.proposal-document .pa-gefen-approval-table .pa-meetings-col,
+.proposal-document .pa-gefen-approval-table .pa-hours-col,
+.proposal-document .pa-gefen-approval-table .pa-hourly-price-col,
+.proposal-document .pa-gefen-approval-table .pa-groups-col,
+.proposal-document .pa-gefen-approval-table .pa-total-price-col {
+  width: 10.5%;
+}
+
+.proposal-document .pa-gefen-approval-table th:first-child,
+.proposal-document .pa-gefen-approval-table td:first-child {
+  text-align: center;
+}
+
+.proposal-document .pa-gefen-approval-table th:nth-child(2),
+.proposal-document .pa-gefen-approval-table td:nth-child(2) {
+  text-align: right;
 }
 
 .pa-gefen-choice {
@@ -21880,6 +21902,19 @@ details[open] > .ds-fin-acc__summary::before { transform: rotate(90deg); }
   .proposal-document.pa-document .pa-print-hidden-contact-details {
     display: block !important;
     visibility: visible !important;
+  }
+
+  /* A combined GEFEN file is two linked documents. The approval must begin on
+     a clean page even after the generic pagination reset above. */
+  .pa-gefen-combined-document {
+    width: 100% !important;
+    max-width: none !important;
+    margin: 0 !important;
+  }
+
+  .proposal-document.pa-gefen-approval-document[data-pdf-page-break] {
+    break-before: page !important;
+    page-break-before: always !important;
   }
 }
 

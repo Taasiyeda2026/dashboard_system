@@ -64,7 +64,7 @@ const CLIENT_FILE_VERSIONS_MIGRATION_FILE = new URL('../supabase/migrations/2026
 const GEFEN_MIGRATION_FILE = new URL('../supabase/migrations/20260726223144_add_gefen_proposal_template.sql', import.meta.url);
 const GEFEN_DOCUMENT_REFINEMENT_MIGRATION_FILE = new URL('../supabase/migrations/20260726230813_refine_gefen_proposal_document.sql', import.meta.url);
 
-const { proposalsAgreementsScreen, canAccessProposalsAgreements, canManageProposalsAgreements, STATUS_LABELS, STATUS_OPTIONS, buildProposalCatalogPdfEntries, proposalPreviewBodyHtml, normalizeProposalAgreementRow, countPendingApprovedProposals, isProposalApprovedPendingSend, extractItemsFromForm, sortRows, calculateTourTotal, validatePayload, resetRecipientDependentFields, stepComplete, buildProposalDocumentSnapshot, proposalLockedPreviewHtml, proposalHasFinalPdf, isProposalLegacySentWithoutPdf, upsertProposalContactOption, calculateProposalValidityDate, gefenEligibleItems, gefenApprovalDocumentHtml } = await import('../frontend/src/screens/proposals-agreements.js');
+const { proposalsAgreementsScreen, proposalsAgreementsTableRowsHtml, canAccessProposalsAgreements, canManageProposalsAgreements, STATUS_LABELS, STATUS_OPTIONS, buildProposalCatalogPdfEntries, proposalPreviewBodyHtml, normalizeProposalAgreementRow, countPendingApprovedProposals, isProposalApprovedPendingSend, extractItemsFromForm, sortRows, calculateTourTotal, validatePayload, resetRecipientDependentFields, stepComplete, buildProposalDocumentSnapshot, proposalLockedPreviewHtml, proposalHasFinalPdf, isProposalLegacySentWithoutPdf, upsertProposalContactOption, calculateProposalValidityDate, gefenEligibleItems, gefenApprovalDocumentHtml } = await import('../frontend/src/screens/proposals-agreements.js');
 
 function stateFor(role) {
   const idanIdentity = role === 'admin'
@@ -356,13 +356,68 @@ test('GEFEN approval includes only numbered non-summer rows and displays rounded
   ];
   assert.deepEqual(gefenEligibleItems(items).map((item) => item.item_name), ['רוקחים עולם']);
   const html = gefenApprovalDocumentHtml(row, items);
-  assert.match(html, /הצעת מחיר מס׳ 10167/);
+  assert.match(html, /אישור כוונות להזמנה במערכת גפ״ן \| הצעת מחיר 10167/);
+  assert.match(html, /מסמך המשך מקושר/);
+  assert.match(html, /מספר הצעה: 10167/);
   assert.match(html, /סמל מוסד:<\/strong> 123456/);
   assert.match(html, /רוקחים עולם/);
   assert.match(html, /571/);
   assert.match(html, /12,000/);
   assert.doesNotMatch(html, /סדנת קיץ/);
   assert.doesNotMatch(html, /קורס ללא גפן/);
+});
+
+test('GEFEN approval status visibly carries the linked quote number', () => {
+  const html = proposalsAgreementsTableRowsHtml([{
+    id: 'gefen-status-1',
+    quote_number: '10169',
+    activity_type_group: 'gefen',
+    gefen_approval_status: 'generated',
+    gefen_approval_path: 'proposal-linked-documents/gefen-status-1/approval.pdf',
+    status: 'approved'
+  }], stateFor('admin'));
+  assert.match(html, /הופק · הצעה 10169/);
+  assert.match(html, /צפייה באישור גפ״ן להצעה 10169/);
+  assert.match(html, /הפקה מחדש של אישור גפ״ן להצעה 10169/);
+});
+
+test('generated GEFEN approvals can be replaced without creating a second linked record', async () => {
+  const apiSource = await readFile(API_FILE, 'utf8');
+  const uploadMethod = apiSource.match(/uploadGefenApprovalDocument:\s*async[\s\S]*?\n  getGefenApprovalSignedUrl:/)?.[0] || '';
+  assert.ok(uploadMethod);
+  assert.doesNotMatch(uploadMethod, /gefen_approval_already_generated/);
+  assert.match(uploadMethod, /\.upsert\(linkedPayload,\s*\{\s*onConflict:\s*'proposal_agreement_id,document_type'\s*\}\)/);
+});
+
+test('new unsaved GEFEN preview never exposes the raw quote-number placeholder', () => {
+  const html = proposalPreviewBodyHtml({
+    activity_type_group: 'gefen',
+    proposal_date: '2026-07-27'
+  }, [], [{
+    template_key: 'gefen',
+    template_name: 'הצעת מחיר {{quote_number}} פעילויות תעשיידע | תשפ"ז',
+    section_key: 'intro',
+    section_title: 'פתיח',
+    section_body: 'פתיח'
+  }], { includeGefenApproval: false });
+  assert.match(html, /הצעת מחיר _____ פעילויות תעשיידע/);
+  assert.doesNotMatch(html, /\{\{quote_number\}\}/);
+});
+
+test('standalone GEFEN approval for an existing proposal uses the same GEFEN document shell', () => {
+  const html = gefenApprovalDocumentHtml({
+    id: 'legacy-tour-1',
+    quote_number: '10073',
+    activity_type_group: 'tour',
+    school_framework: 'בית ספר ותיק',
+    client_authority: 'רשות ותיקה',
+    semel_mosad: '630046'
+  }, [
+    { item_name: 'סיור תעשייה', proposal_group: 'tour', gefen_number: '9988', quantity: 1, unit_price: 1000, total_price: 1000 }
+  ]);
+  assert.match(html, /pa-proposal-doc--gefen/);
+  assert.match(html, /pa-gefen-recipient/);
+  assert.match(html, /אישור כוונות להזמנה במערכת גפ״ן \| הצעת מחיר 10073/);
 });
 
 test('new GEFEN proposal preview links proposal and approval in one compact document', async () => {
@@ -402,13 +457,23 @@ test('new GEFEN proposal preview links proposal and approval in one compact docu
   assert.match(html, /עידן נחום, סמנכ״ל כספים/);
   await withJSDOM(html, async (_root, dom) => {
     const proposal = dom.window.document.querySelector('.pa-proposal-doc--gefen');
+    const approval = dom.window.document.querySelector('.pa-gefen-approval-document');
+    assert.ok(approval.classList.contains('proposal-document'));
+    assert.ok(approval.classList.contains('pa-proposal-doc--gefen'));
+    assert.equal(
+      approval.querySelector('.pa-doc-title').textContent,
+      'אישור כוונות להזמנה במערכת גפ״ן | הצעת מחיר 10168 | תשפ״ז'
+    );
+    assert.equal(approval.querySelector('.pa-gefen-linked-document span').textContent.trim(), 'מספר הצעה: 10168');
     const recipientLines = Array.from(proposal.querySelectorAll('.pa-gefen-recipient p')).map((p) => p.textContent.trim());
+    const approvalRecipientLines = Array.from(approval.querySelectorAll('.pa-gefen-recipient p')).map((p) => p.textContent.trim());
     assert.deepEqual(recipientLines, [
       'לכבוד:',
       'שחר ברט, מנהלת בית ספר',
       'בית ספר: בית ספר גפן | סמל מוסד: 654321 | רשות: רשות גפן',
       'נייד: 08-666-6666 | דוא״ל: school-mgr@n-e.org.il'
     ]);
+    assert.deepEqual(approvalRecipientLines, recipientLines);
     const divider = proposal.querySelector('.pa-doc-divider');
     const title = proposal.querySelector('.pa-doc-title');
     assert.ok(divider.compareDocumentPosition(title) & dom.window.Node.DOCUMENT_POSITION_FOLLOWING);
@@ -436,6 +501,11 @@ test('GEFEN document refinement keeps compact equal numeric columns and bullet w
   assert.match(styles, /width:\s*11\.5%/);
   assert.match(styles, /\.pa-proposal-doc--gefen \.pa-doc-title[\s\S]*color:\s*#0f5b8d/i);
   assert.match(styles, /\.pa-proposal-doc--gefen \.pa-doc-divider[\s\S]*border-top:\s*0\.35px solid #dbe4ec/i);
+  assert.match(styles, /\.pa-gefen-approval-table \.pa-gefen-col[\s\S]*width:\s*10\.5%/);
+  assert.match(styles, /\.pa-gefen-linked-document[\s\S]*background:\s*#f0f8fc/i);
+  assert.match(styles, /\.pa-gefen-combined-document\s*\{[\s\S]*width:\s*100%[\s\S]*max-width:\s*794px/i);
+  assert.match(styles, /\.pa-gefen-combined-document > \.proposal-document\s*\{[\s\S]*width:\s*100%[\s\S]*max-width:\s*100%/i);
+  assert.match(styles, /\.proposal-document\.pa-gefen-approval-document\[data-pdf-page-break\][\s\S]*break-before:\s*page\s*!important/i);
   assert.match(migration, /section_key in \('validity', 'cancellation_terms'\)/i);
   assert.match(migration, / הצעה זו בתוקף עד ליום \{\{valid_until\}\}/);
   assert.match(migration, / במקרה של מצב חירום או הנחיות רשות מוסמכת/);
