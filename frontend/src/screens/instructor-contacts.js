@@ -79,18 +79,23 @@ async function copyTextToClipboard(value) {
   if (!safe) return false;
   const clipboard = globalThis.navigator?.clipboard || globalThis.window?.navigator?.clipboard;
   if (clipboard?.writeText) {
-    await clipboard.writeText(safe);
-    return true;
+    try {
+      await clipboard.writeText(safe);
+      return true;
+    } catch (_) {
+      // Continue to the legacy path when Clipboard API access is rejected.
+    }
   }
-  if (typeof document === 'undefined' || !document.body || typeof document.execCommand !== 'function') return false;
-  const textarea = document.createElement('textarea');
+  const activeDocument = globalThis.document;
+  if (!activeDocument?.body || typeof activeDocument.execCommand !== 'function') return false;
+  const textarea = activeDocument.createElement('textarea');
   textarea.value = safe;
   textarea.setAttribute('readonly', '');
   textarea.style.position = 'fixed';
   textarea.style.opacity = '0';
-  document.body.appendChild(textarea);
+  activeDocument.body.appendChild(textarea);
   textarea.select();
-  const copied = document.execCommand('copy');
+  const copied = activeDocument.execCommand('copy');
   textarea.remove();
   return copied;
 }
@@ -350,10 +355,12 @@ export const instructorContactsScreen = {
         title: hit.full_name || hit.emp_id,
         content: drawerHtml(hit, hideEmpIds, canEdit)
       });
+      const drawerDocument = globalThis.document;
       requestAnimationFrame(() => {
-        const editButton = document.querySelector('[data-edit-instructor-contact]');
+        if (!drawerDocument) return;
+        const editButton = drawerDocument.querySelector('[data-edit-instructor-contact]');
         if (editButton) editButton.onclick = () => openEditor(hit);
-        const copyEmailButton = document.querySelector('[data-copy-instructor-email]');
+        const copyEmailButton = drawerDocument.querySelector('[data-copy-instructor-email]');
         if (copyEmailButton) {
           copyEmailButton.onclick = async () => {
             const emailToCopy = copyEmailButton.dataset.copyInstructorEmail || '';
