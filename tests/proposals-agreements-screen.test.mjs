@@ -60,7 +60,7 @@ const MIGRATION_FILE = new URL('../supabase/migrations/20260518_create_proposals
 const ROLE_UPDATE_MIGRATION_FILE = new URL('../supabase/migrations/20260602_add_business_development_manager_role.sql', import.meta.url);
 const APPROVAL_GUARD_MIGRATION_FILE = new URL('../supabase/migrations/20260616_proposals_agreements_approval_guard.sql', import.meta.url);
 const CLIENT_FILE_VERSIONS_MIGRATION_FILE = new URL('../supabase/migrations/20260720143000_proposal_versions_for_client_file.sql', import.meta.url);
-const GEFEN_MIGRATION_FILE = new URL('../supabase/migrations/20260727010000_add_gefen_proposal_template.sql', import.meta.url);
+const GEFEN_MIGRATION_FILE = new URL('../supabase/migrations/20260726223144_add_gefen_proposal_template.sql', import.meta.url);
 
 const { proposalsAgreementsScreen, canAccessProposalsAgreements, canManageProposalsAgreements, STATUS_LABELS, STATUS_OPTIONS, buildProposalCatalogPdfEntries, proposalPreviewBodyHtml, normalizeProposalAgreementRow, countPendingApprovedProposals, isProposalApprovedPendingSend, extractItemsFromForm, sortRows, calculateTourTotal, validatePayload, resetRecipientDependentFields, stepComplete, buildProposalDocumentSnapshot, proposalLockedPreviewHtml, proposalHasFinalPdf, isProposalLegacySentWithoutPdf, upsertProposalContactOption, calculateProposalValidityDate, gefenEligibleItems, gefenApprovalDocumentHtml } = await import('../frontend/src/screens/proposals-agreements.js');
 
@@ -381,14 +381,15 @@ test('new GEFEN proposal preview links proposal and approval in one compact docu
     { item_name: 'בינה מלאכותית', proposal_group: 'gefen', gefen_number: '9545', meetings_count: 8, hours_count: 12.5, hourly_price: 640, quantity: 1, unit_price: 8000, total_price: 8000 }
   ];
   const sections = [
-    { template_key: 'gefen', template_name: 'הצעת מחיר (מספר) פעילויות תעשיידע | תשפ"ז', section_key: 'intro', section_title: 'פתיח', section_body: 'פתיח גפן' },
-    { template_key: 'gefen', template_name: 'הצעת מחיר (מספר) פעילויות תעשיידע | תשפ"ז', section_key: 'activity_intro', section_title: 'התוכניות המוצעות', section_body: 'הצעה זו מיועדת לפתיחת הזמנה.\n\nהמחירים סופיים.' },
-    { template_key: 'gefen', template_name: 'הצעת מחיר (מספר) פעילויות תעשיידע | תשפ"ז', section_key: 'validity', section_title: 'תוקף ההצעה וזמינות הפעילות', section_body: 'בתוקף עד {{valid_until}}.' },
-    { template_key: 'gefen', template_name: 'הצעת מחיר (מספר) פעילויות תעשיידע | תשפ"ז', section_key: 'signature', section_title: 'חתימה', section_body: 'עידן נחום, סמנכ״ל כספים' }
+    { template_key: 'gefen', template_name: 'הצעת מחיר {{quote_number}} פעילויות תעשיידע | תשפ"ז', section_key: 'intro', section_title: 'פתיח', section_body: 'פתיח גפן' },
+    { template_key: 'gefen', template_name: 'הצעת מחיר {{quote_number}} פעילויות תעשיידע | תשפ"ז', section_key: 'activity_intro', section_title: 'התוכניות המוצעות', section_body: 'הצעה זו מיועדת לפתיחת הזמנה.\n\nהמחירים סופיים.' },
+    { template_key: 'gefen', template_name: 'הצעת מחיר {{quote_number}} פעילויות תעשיידע | תשפ"ז', section_key: 'validity', section_title: 'תוקף ההצעה וזמינות הפעילות', section_body: 'בתוקף עד {{valid_until}}.' },
+    { template_key: 'gefen', template_name: 'הצעת מחיר {{quote_number}} פעילויות תעשיידע | תשפ"ז', section_key: 'signature', section_title: 'חתימה', section_body: 'עידן נחום, סמנכ״ל כספים' }
   ];
   const html = proposalPreviewBodyHtml(row, items, sections, { showSignatureImage: true });
   assert.match(html, /pa-gefen-combined-document/);
   assert.match(html, /הצעת מחיר 10168 פעילויות תעשיידע/);
+  assert.doesNotMatch(html, /הצעת מחיר\s+\(?מספר\)?/);
   assert.match(html, /אישור כוונות להזמנה במערכת גפ״ן/);
   assert.match(html, /data-pdf-page-break="true"/);
   assert.match(html, /עידן נחום, סמנכ״ל כספים/);
