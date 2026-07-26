@@ -15,7 +15,8 @@ const TEST_HOURS_REGEX = /(?:שעות\s*)?בדיק(?:ה|ות)?/i;
 const PUBLIC_BASE = import.meta.env?.BASE_URL || './';
 const PROPOSAL_SIGNATURE_IMAGE = 'proposals/signature-idan-nahum.png';
 const DEFAULT_SIGNATURE_META = Object.freeze({ image: PROPOSAL_SIGNATURE_IMAGE });
-const DEFAULT_SIGNER_NAME = 'עידן נחום, סמנכ״ל כספים ותפעול';
+const DEFAULT_SIGNER_NAME = 'עידן נחום, סמנכ״ל כספים';
+const IDAN_NAHUM_AUTH_USER_ID = 'e9ca304a-4e66-4774-830e-14f1318c4908';
 
 const COURSE_SHORT_NAMES_BY_GEFEN = Object.freeze({
   '6089': 'ביומימיקרי',
@@ -125,7 +126,13 @@ export function canManageProposalsAgreements(state) {
 }
 
 function canApproveProposalsAgreements(state) {
-  return userRole(state) === 'admin' || permFlag(state?.user?.approve_proposals_agreements);
+  const user = state?.user || {};
+  const userId = text(user.user_id || user.emp_id || user.employee_id);
+  const username = text(user.username_for_login || user.username || user.username_display).toLowerCase();
+  const authUserId = text(user.auth_user_id).toLowerCase();
+  return userId === '8000'
+    || username === 'idann'
+    || authUserId === IDAN_NAHUM_AUTH_USER_ID;
 }
 
 function text(value) {
@@ -176,12 +183,14 @@ const COMBINED_TEMPLATE_GROUP_KEYS = Object.freeze(['summer', 'next_year']);
 const PROPOSAL_GROUP_DISPLAY_FALLBACKS = Object.freeze({
   summer: 'קיץ',
   next_year: 'תשפ״ז',
-  tour: 'סיור'
+  tour: 'סיור',
+  gefen: 'גפן'
 });
 /** Internal template key only — never shown to users. */
 const COMBINED_INTERNAL_KEY = 'combined';
 const CLIENT_FACING_TYPE_OPTIONS = Object.freeze([
   { value: 'next_year', label: 'תשפ״ז' },
+  { value: 'gefen', label: 'גפן' },
   { value: 'summer', label: 'קיץ' },
   { value: 'tour', label: 'סיור' }
 ]);
@@ -198,6 +207,9 @@ const PROPOSAL_GROUP_LEGACY_ALIASES = Object.freeze({
   'סיור לימודי': 'tour',
   'סיור לימודי חווייתי': 'tour',
   'התנסות בתעשייה – סיור לימודי חווייתי': 'tour',
+  'גפן': 'gefen',
+  'גפ״ן': 'gefen',
+  'GEFEN': 'gefen',
   'קיץ תשפ״ו ושנת הלימודים תשפ״ז': COMBINED_INTERNAL_KEY,
   'קיץ תשפ״ו ותוכניות תשפ״ז': COMBINED_INTERNAL_KEY,
   'קיץ תשפ״ו + תשפ״ז': COMBINED_INTERNAL_KEY
@@ -227,6 +239,7 @@ function proposalGroupSafeDisplayName(groupKey = '', displayName = '') {
   return userFacingProposalGroupLabel(label || key) || '—';
 }
 let proposalTemplateSectionsLookup = [];
+let proposalSchoolCalendarRows = [];
 
 const TOUR_TEMPLATE_KEY = 'tour';
 const TOUR_ACTIVITY_NAME = 'התנסות בתעשייה – סיור לימודי חווייתי';
@@ -401,6 +414,7 @@ function collectGroupRecords(data = {}, rows = [], pricingOptions = []) {
 }
 
 function setProposalGroupLookups(data = {}, rows = [], pricingOptions = []) {
+  proposalSchoolCalendarRows = Array.isArray(data?.schoolCalendarRows) ? data.schoolCalendarRows : [];
   proposalTemplateSectionsLookup = normalizeTemplateSections(Array.isArray(data?.proposalTemplateSections)
     ? data.proposalTemplateSections
     : Array.isArray(data?.proposal_template_sections) ? data.proposal_template_sections : []);
@@ -519,6 +533,7 @@ function inferClientFacingTypeKeyFromText(value = '') {
   if (Object.prototype.hasOwnProperty.call(PROPOSAL_GROUP_DISPLAY_FALLBACKS, raw)) return raw;
   const lowered = normalizeHebrewQuoteVariants(raw).toLowerCase();
   if (/סיור|tour/.test(lowered)) return 'tour';
+  if (/גפ['״]?ן|gefen/.test(lowered)) return 'gefen';
   if (/קיץ|summer/.test(lowered)) return 'summer';
   if (/תשפ|שנה הבאה|תוכניות|next[_-]?year/.test(lowered)) return 'next_year';
   return '';
@@ -559,7 +574,7 @@ export function resolveClientFacingTypeKey(row = {}, items = []) {
   return inferClientFacingTypeKeyFromText(row.activity_type_group || row.proposal_group || '');
 }
 
-/** User-facing proposal type label — only תשפ״ז / קיץ / סיור / —. */
+/** User-facing proposal type label — only תשפ״ז / גפן / קיץ / סיור / —. */
 export function clientFacingProposalTypeLabel(row = {}, items = []) {
   const key = resolveClientFacingTypeKey(row, items);
   if (key && PROPOSAL_GROUP_DISPLAY_FALLBACKS[key]) return PROPOSAL_GROUP_DISPLAY_FALLBACKS[key];
@@ -610,6 +625,7 @@ function proposalGroupDisplayName(value) {
   if (labelAlias && PROPOSAL_GROUP_DISPLAY_FALLBACKS[labelAlias]) {
     return PROPOSAL_GROUP_DISPLAY_FALLBACKS[labelAlias];
   }
+  if (/גפ[״"']?ן|gefen/i.test(label) || /גפ[״"']?ן|gefen/i.test(raw)) return PROPOSAL_GROUP_DISPLAY_FALLBACKS.gefen;
   if (/סיור/.test(label) || /סיור/.test(raw)) return PROPOSAL_GROUP_DISPLAY_FALLBACKS.tour;
   if (/קיץ/.test(label) || /קיץ/.test(raw) || /summer/i.test(raw)) return PROPOSAL_GROUP_DISPLAY_FALLBACKS.summer;
   if (/תשפ|שנה הבאה|תוכניות|next[_-]?year/i.test(label) || /תשפ|שנה הבאה|תוכניות|next[_-]?year/i.test(raw)) {
@@ -796,7 +812,7 @@ function normalizeSearch(value) {
 
 export function buildProposalsAgreementsSearchText(row = {}) {
   return [
-    row.id, row.client_name, row.client_authority, row.school_framework, row.authority_code, row.semel_mosad,
+    row.id, row.quote_number, row.client_name, row.client_authority, row.school_framework, row.authority_code, row.semel_mosad,
     row.document_type,
     row.proposal_domain,
     row.activity_type_group, proposalGroupDisplayName(row.activity_type_group),
@@ -832,6 +848,9 @@ export function normalizeProposalAgreementRow(row = {}) {
     activity_type_group: normalizeProposalGroup(rawGroup),
     proposal_domain:     normalizeProposalDomain(row.proposal_domain),
     proposal_date:       text(row.proposal_date),
+    quote_number:        text(row.quote_number),
+    valid_until:         text(row.valid_until),
+    combine_gefen_approval: row.combine_gefen_approval === true,
     activity_names:      normalizeActivityNames(row.activity_names),
     contact_name:        text(row.contact_name),
     contact_role:        text(row.contact_role),
@@ -860,6 +879,10 @@ export function normalizeProposalAgreementRow(row = {}) {
     final_pdf_created_by: text(row.final_pdf_created_by),
     document_snapshot:   (row.document_snapshot && typeof row.document_snapshot === 'object' && !Array.isArray(row.document_snapshot)) ? row.document_snapshot : null,
     document_html_snapshot: text(row.document_html_snapshot),
+    gefen_approval_status: text(row.gefen_approval_status) || 'missing',
+    gefen_approval_path: text(row.gefen_approval_path),
+    gefen_approval_file_name: text(row.gefen_approval_file_name),
+    gefen_approval_combined: row.gefen_approval_combined === true,
     proposal_series_id: text(row.proposal_series_id),
     version_number: Math.max(1, Number(row.version_number) || 1),
     supersedes_proposal_id: text(row.supersedes_proposal_id),
@@ -1104,6 +1127,10 @@ export function buildProposalDocumentSnapshot(row = {}, items = [], templateSect
     activity_type_group: activityTypeGroup,
     proposal_domain: normalizeProposalDomain(row.proposal_domain),
     proposal_date: text(row.proposal_date),
+    quote_number: text(row.quote_number),
+    valid_until: text(row.valid_until),
+    semel_mosad: text(row.semel_mosad),
+    combine_gefen_approval: row.combine_gefen_approval === true,
     activity_names: normalizeActivityNames(row.activity_names),
     contact_name: text(row.contact_name),
     contact_role: text(row.contact_role),
@@ -1221,7 +1248,7 @@ function contactDetailRowsHtml(row = {}) {
 
 export function proposalsAgreementsTableRowsHtml(rows, state) {
   if (!rows.length) {
-    return `<tr class="ds-pa-empty-row"><td colspan="8">אין רשומות להצגה</td></tr>`;
+    return `<tr class="ds-pa-empty-row"><td colspan="10">אין רשומות להצגה</td></tr>`;
   }
   const canManage = canManageProposalsAgreements(state);
   const isAdmin = canApproveProposalsAgreements(state);
@@ -1245,6 +1272,8 @@ export function proposalsAgreementsTableRowsHtml(rows, state) {
     const showQuickClone = canManage && (status === 'approved' || isSent);
     const showQuickPrint = canGenerateProposalPdf(row, state);
     const showViewSentPdf = canViewSentProposalPdf(row, state);
+    const gefenApprovalApplicable = isGefenApprovalApplicable(row);
+    const gefenApprovalGenerated = text(row.gefen_approval_status) === 'generated' && Boolean(text(row.gefen_approval_path));
     const quickActions = [
       isSent
         ? (showViewSentPdf
@@ -1262,6 +1291,11 @@ export function proposalsAgreementsTableRowsHtml(rows, state) {
     }
     if (isAdmin && status === 'approved' && !proposalHasSavedApprovalSignature(row)) moreActions.push(rowAction(`data-pa-status-action="approved" data-pa-action-id="${escapeHtml(row.id)}"`, 'אשר וחתום מחדש', iconSvg.approve));
     if (canTransitionProposalStatus(row, 'sent', state)) moreActions.push(rowAction(`data-pa-status-action="sent" data-pa-action-id="${escapeHtml(row.id)}"`, 'סימון כנשלח', iconSvg.send));
+    if (gefenApprovalApplicable && gefenApprovalGenerated) {
+      moreActions.push(rowAction(`data-pa-view-gefen-approval="${escapeHtml(row.id)}"`, 'צפייה באישור גפ״ן', iconSvg.eye));
+    } else if (gefenApprovalApplicable && canManage) {
+      moreActions.push(rowAction(`data-pa-generate-gefen-approval="${escapeHtml(row.id)}"`, 'הפקת אישור גפ״ן', iconSvg.print));
+    }
     if (canDeleteProposal(row, state)) moreActions.push(rowAction(`data-pa-delete-row="${escapeHtml(row.id)}"`, 'מחיקה', iconSvg.delete, true));
     const moreMenu = moreActions.length
       ? `<details class="ds-pa-row-more"><summary aria-label="פעולות נוספות">⋯</summary><div class="ds-pa-row-more-menu">${moreActions.join('')}</div></details>`
@@ -1269,12 +1303,14 @@ export function proposalsAgreementsTableRowsHtml(rows, state) {
     return `
     <tr data-pa-row-id="${escapeHtml(row.id)}" tabindex="0">
       <td class="ds-pa-domain-col">${escapeHtml(row.proposal_domain || 'Y')}</td>
+      <td class="ds-pa-col-center ds-pa-quote-number">${escapeHtml(row.quote_number || '—')}</td>
       <td>${escapeHtml(row.client_name || row.client_authority || row.school_framework || '—')}</td>
       <td>${inferProposalClientType(row) === 'other' ? '' : escapeHtml(row.school_framework || '—')}</td>
       <td>${escapeHtml(proposalGroupDisplayName(row.activity_type_group) || '—')}</td>
       <td class="ds-pa-col-center">${escapeHtml(formatDateDisplay(row.proposal_date) || '')}</td>
       <td class="ds-pa-col-center">${statusSelectHtml(row, canManage, isAdmin, state)}</td>
       <td class="ds-pa-col-money">${row.total_amount != null ? `₪ ${escapeHtml(formatCurrency(row.total_amount))}` : ''}</td>
+      <td class="ds-pa-col-center">${gefenApprovalApplicable ? `<span class="ds-pa-gefen-status ds-pa-gefen-status--${gefenApprovalGenerated ? 'generated' : 'missing'}">${gefenApprovalGenerated ? 'הופק' : 'חסר'}</span>` : '—'}</td>
       <td class="ds-pa-actions-cell"><div class="ds-pa-actions-inner ds-pa-actions-inner--clean">${quickActions}${moreMenu}</div></td>
     </tr>`;
   }).join('');
@@ -1283,8 +1319,8 @@ export function proposalsAgreementsTableRowsHtml(rows, state) {
 function tableHtml(rows, state) {
   return dsTableWrap(`
     <table class="ds-table ds-pa-table" data-pa-table>
-      <colgroup><col style="width:48px"><col style="width:160px"><col style="width:160px"><col style="width:120px"><col style="width:112px"><col style="width:120px"><col style="width:112px"><col style="width:124px"></colgroup>
-      <thead><tr><th class="ds-pa-domain-col">תחום</th><th>רשות</th><th>בית הספר</th><th class="ds-pa-col-center">סוג הצעה</th><th class="ds-pa-col-center">תאריך הצעה</th><th class="ds-pa-col-center">סטטוס</th><th class="ds-pa-col-center">סה״כ</th><th class="ds-pa-actions-col ds-pa-col-center">פעולות</th></tr></thead>
+      <colgroup><col style="width:42px"><col style="width:72px"><col style="width:142px"><col style="width:142px"><col style="width:96px"><col style="width:104px"><col style="width:112px"><col style="width:104px"><col style="width:86px"><col style="width:118px"></colgroup>
+      <thead><tr><th class="ds-pa-domain-col">תחום</th><th class="ds-pa-col-center">מס׳</th><th>רשות</th><th>בית הספר</th><th class="ds-pa-col-center">סוג הצעה</th><th class="ds-pa-col-center">תאריך</th><th class="ds-pa-col-center">סטטוס</th><th class="ds-pa-col-center">סה״כ</th><th class="ds-pa-col-center">אישור גפ״ן</th><th class="ds-pa-actions-col ds-pa-col-center">פעולות</th></tr></thead>
       <tbody data-pa-table-body>${proposalsAgreementsTableRowsHtml(rows, state)}</tbody>
     </table>
   `);
@@ -1609,7 +1645,7 @@ function isWorkshopKindText(value = '') {
 }
 
 function isCourseKindText(value = '') {
-  return /קורס|תוכנית|תכנית|הדרכה|שנת|שנה הבאה|תשפ|program|course/.test(value);
+  return /קורס|תוכנית|תכנית|הדרכה|שנת|שנה הבאה|תשפ|גפן|gefen|program|course/.test(value);
 }
 
 function isNonCourseActivityKindText(value = '') {
@@ -2360,14 +2396,27 @@ function focusedProposalTitle(title, templateKey = '') {
 function proposalTitle(row, templateSections = []) {
   const templateKey = proposalGroupTemplateKey(normalizeProposalGroup(row.activity_type_group));
   const fromRow = text(row.proposal_title || row.document_title || row.title);
-  if (fromRow) return focusedProposalTitle(fromRow, templateKey);
   const fromTemplate = (Array.isArray(templateSections) ? templateSections : [])
     .map((section) => text(section?.template_name))
     .find(Boolean);
-  if (fromTemplate) return focusedProposalTitle(fromTemplate, templateKey);
   const meta = proposalGroupMeta(row.activity_type_group);
-  // Last resort is the row's own document_type column (a DB value), never a hardcoded literal.
-  return focusedProposalTitle(text(meta?.document_title || meta?.proposal_title || meta?.title) || text(row.document_type) || '', templateKey);
+  const baseTitle = focusedProposalTitle(
+    fromRow
+      || fromTemplate
+      || text(meta?.document_title || meta?.proposal_title || meta?.title)
+      || text(row.document_type)
+      || '',
+    templateKey
+  );
+  const quoteNumber = text(row.quote_number);
+  if (!quoteNumber) return baseTitle;
+  if (/\(מספר\)|\{\{quote_number\}\}/.test(baseTitle)) {
+    return baseTitle
+      .replace(/\(מספר\)/g, quoteNumber)
+      .replace(/\{\{quote_number\}\}/g, quoteNumber);
+  }
+  if (baseTitle.includes(quoteNumber)) return baseTitle;
+  return baseTitle.replace(/^הצעת מחיר\b/, `הצעת מחיר ${quoteNumber}`);
 }
 function sectionBodyHtml(value, options = {}) {
   return renderSectionBodyHtml(value, options);
@@ -2565,7 +2614,8 @@ function itemQuantityTotal(item = {}) {
 function proposalItemDetailsTableHtml(items = [], contextGroup = '') {
   if (!isCourseKindText(groupKindText(contextGroup))) return '';
   const isNextYearTable = isNextYearProposalGroup(contextGroup);
-  const tableClass = `pa-item-details-table pa-activities-table${isNextYearTable ? ' pa-next-year-course-table' : ''}`;
+  const isGefenTable = normalizeProposalGroup(contextGroup) === 'gefen';
+  const tableClass = `pa-item-details-table pa-activities-table${isNextYearTable ? ' pa-next-year-course-table' : ''}${isGefenTable ? ' pa-gefen-course-table' : ''}`;
   const allVisibleItems = (Array.isArray(items) ? items : []).filter((item) =>
     !isTestHoursItem(item) && text(item.proposal_display_mode) !== 'bundle_child');
   const visibleItems = allVisibleItems.filter((item) => !isDiscountItem(item));
@@ -2623,7 +2673,7 @@ function proposalItemDetailsTableHtml(items = [], contextGroup = '') {
       { value: item.meetings_count != null ? formatCurrency(item.meetings_count) : '' },
       { value: formatCurrency(quantity) },
       { value: item.hours_count != null ? formatCurrency(item.hours_count) : '' },
-      { value: item.hourly_price != null ? currencyAmountHtml(item.hourly_price) : '', html: true },
+      { value: item.hourly_price != null ? currencyAmountHtml(isGefenTable ? Math.round(Number(item.hourly_price) || 0) : item.hourly_price) : '', html: true },
       { value: quantityTotal != null ? currencyAmountHtml(quantityTotal) : '', html: true }
     ];
     if (!cells.some((cell) => cell.value)) return '';
@@ -2789,6 +2839,20 @@ function recipientBlockHtml(row = {}) {
   if (phone) contactDetailParts.push(`נייד: ${escapeHtml(phone)}`);
   if (email) contactDetailParts.push(`דוא״ל: ${escapeHtml(email)}`);
   const contactDetailsLine = contactDetailParts.length ? `<p class="pa-contact-details pa-print-hidden-contact-details">${contactDetailParts.join(' | ')}</p>` : '';
+  if (normalizeProposalGroup(row.activity_type_group) === 'gefen') {
+    const schoolName = safeVal(row.school_framework || row.school_name);
+    const authorityName = safeVal(row.client_authority || row.authority_name);
+    const semelMosad = safeVal(row.semel_mosad);
+    return `<div class="pa-doc-address pa-to-block pa-gefen-recipient" style="margin:0 0 4mm 0;">
+      <p class="pa-label-to" style="margin:0;"><strong>לכבוד:</strong></p>
+      <div class="pa-recipient-lines" style="margin-top:0.2em;">
+        ${schoolName ? `<p><strong>בית ספר:</strong> ${escapeHtml(schoolName)}</p>` : ''}
+        ${semelMosad ? `<p><strong>סמל מוסד:</strong> ${escapeHtml(semelMosad)}</p>` : ''}
+        ${authorityName ? `<p><strong>רשות:</strong> ${escapeHtml(authorityName)}</p>` : ''}
+        ${contactLine}${contactDetailsLine}
+      </div>
+    </div>`;
+  }
   const orgLines = proposalRecipientLines(row).map((line) => recipientLineHtml(line));
   const lines = [contactLine, contactDetailsLine, ...orgLines].filter(Boolean);
   const recipientLinesHtml = lines.join('\n    ');
@@ -2821,12 +2885,13 @@ function proposalPdfDocumentTitle(row = {}) {
 
 function proposalPdfFileName(row = {}, items = []) {
   const client = sanitizeProposalPdfFileLabel(proposalRecipientFileLabel(row)).replace(/\s+/g, '_') || 'לקוח';
-  const typeLabels = { next_year: 'תשפז', summer: 'קיץ', tour: 'סיור' };
+  const typeLabels = { next_year: 'תשפז', summer: 'קיץ', tour: 'סיור', gefen: 'גפן' };
   const typeKey = resolveClientFacingTypeKey(row, items) || text(row.activity_type_group);
   const type = typeLabels[typeKey] || sanitizeProposalPdfFileLabel(typeKey).replace(/\s+/g, '_');
   const dateValue = text(row.proposal_date).slice(0, 10) || new Date().toISOString().slice(0, 10);
   const [year, month, day] = dateValue.split('-');
-  return `הצעת_מחיר_${client}${type ? `_${type}` : ''}_${day}-${month}-${year}.pdf`;
+  const quoteNumber = sanitizeProposalPdfFileLabel(row.quote_number);
+  return `הצעת_מחיר${quoteNumber ? `_${quoteNumber}` : ''}_${client}${type ? `_${type}` : ''}_${day}-${month}-${year}.pdf`;
 }
 
 async function proposalPdfAssetUrlToDataUrl(value, label) {
@@ -2894,6 +2959,13 @@ async function proposalHtmlToPdfBlob(html, { proposalId = '', onStage = null } =
     document.body.appendChild(host);
     setStage('wait-fonts');
     await document.fonts?.ready;
+    const hostTop = host.getBoundingClientRect().top;
+    host.querySelectorAll('[data-pdf-page-break]').forEach((element) => {
+      const top = Math.max(0, Math.round(element.getBoundingClientRect().top - hostTop));
+      const remainder = top % pageHeight;
+      const spacer = remainder ? pageHeight - remainder : 0;
+      if (spacer > 1) element.style.marginTop = `${spacer}px`;
+    });
     setStage('prepare-assets');
     const clean = host.cloneNode(true);
     const sourceElements = [host, ...host.querySelectorAll('*')];
@@ -3378,8 +3450,212 @@ function catalogAppendixNoticeHtml(row = {}, items = []) {
   return `<section class="pa-catalog-appendix-notice" data-pa-catalog-appendix-notice>${escapeHtml(message)}</section>`;
 }
 
+function isoDateFromUtc(date) {
+  return date instanceof Date && Number.isFinite(date.getTime())
+    ? date.toISOString().slice(0, 10)
+    : '';
+}
+
+function utcDateFromIso(value) {
+  const iso = text(value).slice(0, 10);
+  if (!/^\d{4}-\d{2}-\d{2}$/.test(iso)) return null;
+  const date = new Date(`${iso}T00:00:00Z`);
+  return Number.isFinite(date.getTime()) ? date : null;
+}
+
+function addUtcDays(date, days) {
+  const next = new Date(date.getTime());
+  next.setUTCDate(next.getUTCDate() + Number(days || 0));
+  return next;
+}
+
+function utcDayDiff(start, end) {
+  return Math.round((end.getTime() - start.getTime()) / 86400000);
+}
+
+export function calculateProposalValidityDate(proposalDate, calendarRows = proposalSchoolCalendarRows) {
+  const quoteDate = utcDateFromIso(proposalDate);
+  if (!quoteDate) return '';
+  const month = quoteDate.getUTCMonth() + 1;
+  const validityDays = month >= 5 && month <= 7 ? 60 : month >= 8 && month <= 11 ? 30 : 21;
+  const rawPeriods = (Array.isArray(calendarRows) ? calendarRows : [])
+    .filter((row) => row?.is_active !== false && row?.blocks_scheduling !== false)
+    .map((row) => {
+      const start = utcDateFromIso(row?.start_date);
+      const end = utcDateFromIso(row?.end_date) || start;
+      return start && end ? { start, end: end < start ? start : end } : null;
+    })
+    .filter(Boolean)
+    .sort((a, b) => a.start - b.start || a.end - b.end);
+  const mergedPeriods = [];
+  rawPeriods.forEach((period) => {
+    const previous = mergedPeriods[mergedPeriods.length - 1];
+    if (!previous || period.start > addUtcDays(previous.end, 1)) {
+      mergedPeriods.push({ ...period });
+    } else if (period.end > previous.end) {
+      previous.end = period.end;
+    }
+  });
+  const firstBlockingPeriod = mergedPeriods.find((period) =>
+    period.start > quoteDate && utcDayDiff(period.start, period.end) + 1 >= 5);
+  let candidate = addUtcDays(quoteDate, validityDays);
+  if (firstBlockingPeriod && utcDayDiff(quoteDate, firstBlockingPeriod.start) <= 10) {
+    candidate = addUtcDays(candidate, utcDayDiff(firstBlockingPeriod.start, firstBlockingPeriod.end) + 1);
+  } else if (firstBlockingPeriod && candidate >= firstBlockingPeriod.start) {
+    candidate = addUtcDays(firstBlockingPeriod.start, -1);
+  }
+  const isClosed = (date) => rawPeriods.some((period) => date >= period.start && date <= period.end);
+  while ([5, 6].includes(candidate.getUTCDay()) || isClosed(candidate)) {
+    candidate = addUtcDays(candidate, -1);
+  }
+  return isoDateFromUtc(candidate);
+}
+
+export function gefenEligibleItems(items = []) {
+  return (Array.isArray(items) ? items : [])
+    .map((item) => normalizeProposalItemRow(item))
+    .filter((item) => {
+      const group = normalizeProposalGroup(item.proposal_group || item.group_key);
+      return group !== 'summer'
+        && Boolean(text(item.gefen_number))
+        && !isTestHoursItem(item)
+        && text(item.proposal_display_mode) !== 'bundle_child';
+    });
+}
+
+function isGefenApprovalApplicable(row = {}, items = []) {
+  const group = normalizeProposalGroup(row.activity_type_group);
+  if (group === 'summer') return false;
+  const eligibleCount = gefenEligibleItems(items).length;
+  if (eligibleCount) return true;
+  if (group === 'gefen') return true;
+  if (Array.isArray(items) && items.length) return false;
+  return ['next_year', 'tour', COMBINED_INTERNAL_KEY].includes(group);
+}
+
+function gefenApprovalValidationMessage(row = {}, items = []) {
+  if (!text(row.semel_mosad)) return 'חסר מספר מוסד. יש להשלים אותו לפני הפקת אישור גפ״ן.';
+  if (!gefenEligibleItems(items).length) return 'חסר פירוט קורסים או סיורים עם מספר גפ״ן. לא ניתן להפיק את האישור.';
+  return '';
+}
+
+function gefenApprovalItemsTableHtml(items = []) {
+  const rows = gefenEligibleItems(items);
+  if (!rows.length) return '';
+  return `<table class="pa-item-details-table pa-gefen-approval-table">
+    <colgroup><col class="pa-choice-col"><col class="pa-course-col"><col class="pa-gefen-col"><col class="pa-meetings-col"><col class="pa-hours-col"><col class="pa-hourly-price-col"><col class="pa-groups-col"><col class="pa-total-price-col"></colgroup>
+    <thead><tr><th>בחירה</th><th>תוכנית</th><th>מס׳ גפ״ן</th><th>מפגשים</th><th>שעות</th><th>מחיר לשעה</th><th>קבוצות</th><th>סה״כ</th></tr></thead>
+    <tbody>${rows.map((item) => {
+      const quantity = itemQuantity(item);
+      const total = itemQuantityTotal(item);
+      return `<tr>
+        <td class="pa-gefen-choice" aria-label="נבחר">☒</td>
+        <td>${escapeHtml(courseShortNameForItem(item))}</td>
+        <td>${escapeHtml(text(item.gefen_number))}</td>
+        <td>${item.meetings_count != null ? escapeHtml(formatCurrency(item.meetings_count)) : ''}</td>
+        <td>${item.hours_count != null ? escapeHtml(formatCurrency(item.hours_count)) : ''}</td>
+        <td>${item.hourly_price != null ? currencyAmountHtml(Math.round(Number(item.hourly_price) || 0)) : ''}</td>
+        <td>${escapeHtml(formatCurrency(quantity))}</td>
+        <td>${total != null ? currencyAmountHtml(total) : ''}</td>
+      </tr>`;
+    }).join('')}</tbody>
+  </table>`;
+}
+
+export function gefenApprovalDocumentHtml(row = {}, items = [], options = {}) {
+  const quoteNumber = text(row.quote_number);
+  const schoolName = text(row.school_framework || row.school_name);
+  const semelMosad = text(row.semel_mosad);
+  const validityIso = text(row.valid_until) || calculateProposalValidityDate(row.proposal_date);
+  const validityDisplay = formatDateDisplay(validityIso);
+  const validationMessage = gefenApprovalValidationMessage(row, items);
+  const pageBreak = options.pageBreak ? ' data-pdf-page-break="true"' : '';
+  return `<article class="pa-gefen-approval-document pa-pdf-page"${pageBreak} dir="rtl">
+    <header class="pa-gefen-doc-header">
+      <img src="${PUBLIC_BASE}proposals/proposal-header-logo.png" alt="לוגו תעשיידע" class="proposal-logo" onerror="this.style.display='none';">
+      <h1>אישור כוונות להזמנה במערכת גפ״ן | תשפ״ז</h1>
+    </header>
+    <p class="pa-gefen-school-line"><strong>בית ספר:</strong> ${escapeHtml(schoolName || '________________')} &nbsp; <strong>סמל מוסד:</strong> ${escapeHtml(semelMosad || '__________')}</p>
+    ${validationMessage ? `<p class="pa-gefen-document-warning" role="alert">${escapeHtml(validationMessage)}</p>` : ''}
+    <section class="pa-section">
+      <h3 class="pa-section-heading">בחירת התוכניות</h3>
+      <p>בית הספר מאשר כי בכוונתו לשלב בתוכנית העבודה הבית-ספרית לשנת הלימודים תשפ״ז את התוכניות המסומנות מתוך הצעת מחיר מס׳ ${escapeHtml(quoteNumber || '____________________')}.</p>
+      ${gefenApprovalItemsTableHtml(items)}
+    </section>
+    <section class="pa-section">
+      <h3 class="pa-section-heading">השלמת ההזמנה וזמינות הפעילות</h3>
+      <p>בית הספר יפעל להשלמת הזמנת העבודה במערכת גפ״ן עד ליום ${escapeHtml(validityDisplay || '___ / ___ / ______')}.</p>
+      <p>שריון צוותי ההדרכה, מועדי הפעילות והיקף התוכנית יבוצע לפי סדר השלמת הזמנות העבודה במערכת גפ״ן ובכפוף לזמינות. כל עוד לא אושרה הזמנת העבודה, לא ניתן להבטיח את השריון ולאחר המועד האמור תהיה תעשיידע רשאית להקצות את הקיבולת לבתי ספר אחרים.</p>
+    </section>
+    <section class="pa-section">
+      <h3 class="pa-section-heading">מעמד המסמך</h3>
+      <p>מסמך זה נועד לצורכי תיאום והיערכות בלבד. הוא אינו מהווה חוזה או הזמנת עבודה, אינו יוצר התחייבות כספית ולא תידרש או תשולם תמורה מכוחו. ההתקשרות תיכנס לתוקף רק לאחר אישור הזמנת עבודה דיגיטלית במערכת גפ״ן ובהתאם להוראותיה.</p>
+    </section>
+    <section class="pa-section pa-gefen-school-approval">
+      <h3 class="pa-section-heading">אישור בית הספר</h3>
+      <p>אני מאשר/ת את הכוונה לשלב את התוכניות המסומנות לעיל בתוכנית העבודה הבית-ספרית ולפעול להשלמת הזמנת העבודה במערכת גפ״ן עד למועד המצוין לעיל.</p>
+      <div class="pa-gefen-signature-grid">
+        <p>שם מנהל/ת בית הספר: __________________________</p>
+        <p>חתימה: _____________________________________</p>
+        <p>תאריך: ___ / ___ / ______</p>
+      </div>
+    </section>
+  </article>`;
+}
+
+function gefenProposalDocumentHtml(row, items = [], templateSections = [], renderOptions = {}) {
+  const templateKey = 'gefen';
+  const sourceSections = filterTemplateSectionsForGroup(templateSections, templateKey);
+  const sectionsSource = resolveDocumentSections(row, sourceSections);
+  const byKey = new Map(sectionsSource.map((section) => [proposalTextField(section, 'section_key', 'sectionKey'), section]));
+  const sectionTitle = (key) => text(byKey.get(key)?.section_title);
+  const sectionBody = (key) => {
+    const body = applyProposalTemplatePlaceholders(templateBodyText(byKey.get(key)), row, items);
+    const validityIso = text(row.valid_until) || calculateProposalValidityDate(row.proposal_date);
+    return body.replaceAll('{{valid_until}}', formatDateDisplay(validityIso) || '___ / ___ / ______');
+  };
+  const activityBlocks = sectionBody('activity_intro').split(/\n\n+/).filter(Boolean);
+  const activityPreface = activityBlocks.shift() || '';
+  const activityAfterTable = activityBlocks.join('\n');
+  const validationMessage = gefenApprovalValidationMessage(row, items);
+  const orderedSections = [
+    activityPreface ? `<section class="pa-section pa-gefen-purpose">${sectionBodyHtml(activityPreface)}</section>` : '',
+    `<section class="pa-section pa-gefen-programs">
+      <h3 class="pa-section-heading">${escapeHtml(sectionHeadingText(sectionTitle('activity_intro') || 'התוכניות המוצעות'))}</h3>
+      ${proposalItemDetailsTableHtml(items, 'gefen')}
+      ${activityAfterTable ? sectionBodyHtml(activityAfterTable) : ''}
+      ${validationMessage ? `<p class="pa-gefen-document-warning" role="alert">${escapeHtml(validationMessage)}</p>` : ''}
+    </section>`,
+    sectionHtml(sectionTitle('validity'), sectionBody('validity')),
+    sectionHtml(sectionTitle('school_responsibility'), sectionBody('school_responsibility'), '', { alwaysBullet: true }),
+    sectionHtml(sectionTitle('taasiyeda_responsibility'), sectionBody('taasiyeda_responsibility'), '', { alwaysBullet: true }),
+    sectionHtml(sectionTitle('payment_terms'), sectionBody('payment_terms'), '', { alwaysBullet: true }),
+    sectionHtml(sectionTitle('cancellation_terms'), sectionBody('cancellation_terms')),
+    sectionHtml(sectionTitle('precedence'), sectionBody('precedence'))
+  ].filter(Boolean);
+  const proposalHtml = buildProposalDocumentHtml({
+    dateDisplay: formatDateDisplay(row.proposal_date),
+    documentTitle: proposalTitle(row, sourceSections),
+    row,
+    introText: sectionBody('intro'),
+    sections: orderedSections,
+    orgResponsibility: '',
+    schoolResponsibility: '',
+    paymentTerms: '',
+    changesCancellation: '',
+    remarks: '',
+    signatureHtml: signatureSectionHtml(sectionBody('signature'), row, renderOptions),
+    sectionLinesHtml,
+  }).replace('pa-proposal-doc', 'pa-proposal-doc pa-proposal-doc--gefen pa-pdf-page');
+  if (renderOptions.includeGefenApproval === false) return proposalHtml;
+  return `<div class="pa-gefen-combined-document">${proposalHtml}${gefenApprovalDocumentHtml(row, items, { pageBreak: true })}</div>`;
+}
+
 export function proposalPreviewBodyHtml(row, items = [], templateSections = [], renderOptions = {}) {
   const activityTypeGroup = normalizeProposalGroup(row.activity_type_group);
+  if (activityTypeGroup === 'gefen') {
+    return gefenProposalDocumentHtml(row, items, templateSections, renderOptions);
+  }
   const templateKey = proposalGroupTemplateKey(activityTypeGroup);
   // Date comes only from the proposal row — no "today" fallback in customer documents.
   const dateDisplay = formatDateDisplay(row.proposal_date);
@@ -3468,7 +3744,7 @@ export function proposalPreviewBodyHtml(row, items = [], templateSections = [], 
       ? 'pa-summer-cancellation-terms'
       : '';
 
-  return buildProposalDocumentHtml({
+  const proposalHtml = buildProposalDocumentHtml({
     dateDisplay,
     documentTitle: proposalTitle(row, sourceTemplateSections),
     row,
@@ -3484,6 +3760,10 @@ export function proposalPreviewBodyHtml(row, items = [], templateSections = [], 
     signatureHtml,
     sectionLinesHtml,
   });
+  if (row.combine_gefen_approval === true && isGefenApprovalApplicable(row, items)) {
+    return `<div class="pa-gefen-combined-document">${proposalHtml}${gefenApprovalDocumentHtml(row, items, { pageBreak: true })}</div>`;
+  }
+  return proposalHtml;
 }
 
 // ─── Form ─────────────────────────────────────────────────────────────────────
@@ -3942,9 +4222,9 @@ export function proposalTypeCardsHtml(selected) {
   const normalizedSelected = normalizeProposalGroup(selected);
   const options = proposalGroupLookups.groups.filter((o) => o.group_key !== COMBINED_INTERNAL_KEY && PROPOSAL_GROUP_DISPLAY_FALLBACKS[o.group_key]);
   if (!options.length) {
-    return `<div class="ds-pa-type-chips" data-pa-type-cards style="display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:4px;margin:0"></div><input type="hidden" name="activity_type_group" value="${escapeHtml(normalizedSelected === COMBINED_INTERNAL_KEY ? '' : normalizedSelected)}" data-pa-type-hidden>`;
+    return `<div class="ds-pa-type-chips" data-pa-type-cards style="display:grid;grid-template-columns:repeat(4,minmax(0,1fr));gap:4px;margin:0"></div><input type="hidden" name="activity_type_group" value="${escapeHtml(normalizedSelected === COMBINED_INTERNAL_KEY ? '' : normalizedSelected)}" data-pa-type-hidden>`;
   }
-  return `<div class="ds-pa-type-chips" data-pa-type-cards style="display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:4px;margin:0">
+  return `<div class="ds-pa-type-chips" data-pa-type-cards style="display:grid;grid-template-columns:repeat(4,minmax(0,1fr));gap:4px;margin:0">
     ${options.map((opt) => {
       const isSel = normalizedSelected === opt.group_key;
       const label = PROPOSAL_GROUP_DISPLAY_FALLBACKS[opt.group_key] || clientFacingProposalTypeLabel({ activity_type_group: opt.group_key, document_type: opt.display_name });
@@ -4248,6 +4528,13 @@ function drawerActionButtons(row, state) {
   if (canViewSentProposalPdf(row, state)) {
     buttons.push(iconBtn(`data-pa-view-final-pdf="${escapeHtml(row.id)}"`, 'צפייה ב־PDF שנשלח', EYE));
   }
+  if (isGefenApprovalApplicable(row)) {
+    if (text(row.gefen_approval_status) === 'generated' && text(row.gefen_approval_path)) {
+      buttons.push(iconBtn(`data-pa-view-gefen-approval="${escapeHtml(row.id)}"`, 'צפייה באישור גפ״ן', EYE));
+    } else if (canManage) {
+      buttons.push(iconBtn(`data-pa-generate-gefen-approval="${escapeHtml(row.id)}"`, 'הפקת אישור גפ״ן', DOC));
+    }
+  }
   if (canGenerateProposalPdf(row, state)) {
     buttons.push(iconBtn(`data-pa-print="${escapeHtml(row.id)}"`, 'הפקת PDF ושמירה אוטומטית', PRINT));
     buttons.push(iconBtn(`data-pa-clone-row="${escapeHtml(row.id)}"`, 'שכפול להצעה חדשה', CLONE));
@@ -4364,7 +4651,7 @@ function drawerHtml(row, activityNameOptions = [], state = null) {
       </div>
       <div class="ds-pa-drawer-body">
         <div class="ds-pa-proposal-info-grid">
-          <section class="ds-pa-info-card"><h4 class="ds-pa-card-title">פרטי ההצעה</h4><div class="ds-pa-info-grid">${infoCell('רשות', authorityName, false, { showEmpty: true })}${infoCell('בית ספר / גוף', schoolName, false, { showEmpty: true })}${infoCell('סוג הצעה', clientFacingProposalTypeLabel(row), false, { showEmpty: true })}${infoCell('תאריך הצעה', proposalDate, false, { showEmpty: true })}${infoCell('סטטוס', statusText, false, { showEmpty: true })}${infoCell('תחום', proposalDomain, false, { showEmpty: true })}${infoCell('סמל מוסד', text(row.semel_mosad), false, { showEmpty: true })}${infoCell('מספר הצעה', text(row.proposal_number))}${infoCell('הערות', text(row.notes), true)}</div></section>
+          <section class="ds-pa-info-card"><h4 class="ds-pa-card-title">פרטי ההצעה</h4><div class="ds-pa-info-grid">${infoCell('רשות', authorityName, false, { showEmpty: true })}${infoCell('בית ספר / גוף', schoolName, false, { showEmpty: true })}${infoCell('סוג הצעה', clientFacingProposalTypeLabel(row), false, { showEmpty: true })}${infoCell('תאריך הצעה', proposalDate, false, { showEmpty: true })}${infoCell('תוקף עד', formatDateDisplay(row.valid_until), false, { showEmpty: true })}${infoCell('סטטוס', statusText, false, { showEmpty: true })}${infoCell('תחום', proposalDomain, false, { showEmpty: true })}${infoCell('סמל מוסד', text(row.semel_mosad), false, { showEmpty: true })}${infoCell('מספר הצעה', text(row.quote_number), false, { showEmpty: true })}${infoCell('אישור גפ״ן', isGefenApprovalApplicable(row) ? (text(row.gefen_approval_status) === 'generated' ? 'הופק' : 'חסר') : '—', false, { showEmpty: true })}${infoCell('הערות', text(row.notes), true)}</div></section>
           ${contactCard}
           ${sendingCard || '<section class="ds-pa-info-card"><h4 class="ds-pa-card-title">פרטי שליחה</h4><p class="ds-muted">טרם נשלחה</p></section>'}
         </div>
@@ -4688,15 +4975,19 @@ function proposalCompactCardHtml(row, { archived = false, canManage = false } = 
   const amount = row.total_amount != null ? `₪${escapeHtml(formatCurrency(row.total_amount))}` : '';
   const typeLabel = clientFacingProposalTypeLabel(row) || '—';
   const hasPdf = Boolean(text(row.final_pdf_path) || text(row.final_pdf_file_name));
+  const gefenApplicable = isGefenApprovalApplicable(row);
+  const gefenGenerated = text(row.gefen_approval_status) === 'generated' && Boolean(text(row.gefen_approval_path));
   return `<article class="ds-client-proposal${archived ? ' is-archived' : ''}">
     <button type="button" class="ds-client-proposal__main" data-pa-open-proposal-id="${escapeHtml(row.id)}" data-pa-return-to="client" aria-label="פתיחת הצעה">
       <span class="ds-client-proposal__icon" aria-hidden="true">📄</span>
-      <span><strong>${escapeHtml(typeLabel)}</strong><small>${escapeHtml(formatDateDisplay(row.proposal_date || row.created_at))} · ${escapeHtml(STATUS_LABELS[status] || status)}${version > 1 ? ` · גרסה ${version}` : ''}</small></span>
+      <span><strong>${row.quote_number ? `#${escapeHtml(row.quote_number)} · ` : ''}${escapeHtml(typeLabel)}</strong><small>${escapeHtml(formatDateDisplay(row.proposal_date || row.created_at))} · ${escapeHtml(STATUS_LABELS[status] || status)}${version > 1 ? ` · גרסה ${version}` : ''}${gefenApplicable ? ` · אישור גפ״ן: ${gefenGenerated ? 'הופק' : 'חסר'}` : ''}</small></span>
       ${amount ? `<b>${amount}</b>` : ''}
     </button>
     <div class="ds-client-proposal__actions">
       <button type="button" class="ds-client-proposal__version" data-pa-open-proposal-id="${escapeHtml(row.id)}" data-pa-return-to="client">צפייה</button>
       ${hasPdf ? `<button type="button" class="ds-client-proposal__version" data-pa-view-final-pdf="${escapeHtml(row.id)}" title="פתיחת PDF שמור">PDF</button>` : (!archived && canManage && normalizeProposalStatus(row.status) === 'approved' ? `<button type="button" class="ds-client-proposal__version" data-pa-print="${escapeHtml(row.id)}" title="הפקת PDF ושמירה אוטומטית">PDF</button>` : '')}
+      ${gefenApplicable && gefenGenerated ? `<button type="button" class="ds-client-proposal__version" data-pa-view-gefen-approval="${escapeHtml(row.id)}">אישור גפ״ן</button>` : ''}
+      ${gefenApplicable && !gefenGenerated && canManage ? `<button type="button" class="ds-client-proposal__version" data-pa-generate-gefen-approval="${escapeHtml(row.id)}">הפקת אישור</button>` : ''}
       ${!archived && canManage ? `<button type="button" class="ds-client-proposal__version" data-pa-clone-row="${escapeHtml(row.id)}" title="יצירת גרסה חדשה">גרסה חדשה</button>` : ''}
     </div>
   </article>`;
@@ -6958,6 +7249,81 @@ export const proposalsAgreementsScreen = {
       }
     };
 
+    const openGefenApprovalPdf = async (row) => {
+      const id = text(row?.id);
+      if (!id || typeof api.getGefenApprovalSignedUrl !== 'function') {
+        showToast('לא ניתן לפתוח את אישור גפ״ן', 'error');
+        return;
+      }
+      try {
+        const result = await api.getGefenApprovalSignedUrl(id);
+        const url = text(result?.signedUrl);
+        if (!url) throw new Error('gefen_approval_missing');
+        window.open(url, '_blank', 'noopener,noreferrer');
+      } catch (err) {
+        showToast('לא ניתן לפתוח את אישור גפ״ן', 'error');
+        console.error('[GEFEN approval open failed]', err);
+      }
+    };
+
+    const generateGefenApprovalPdf = async (row, items = [], button = null) => {
+      const freshRow = rowWithCentralContact(row);
+      const mergedItems = proposalItemsWithFallback(items, freshRow);
+      const validationMessage = gefenApprovalValidationMessage(freshRow, mergedItems);
+      if (validationMessage) {
+        showToast(validationMessage, 'warning');
+        return;
+      }
+      if (typeof api.uploadGefenApprovalDocument !== 'function') {
+        showToast('הפקת אישור גפ״ן אינה זמינה כרגע', 'error');
+        return;
+      }
+      const originalHtml = button?.innerHTML;
+      if (button) {
+        button.disabled = true;
+        button.innerHTML = '<span class="ds-pa-pdf-spinner" aria-hidden="true"></span> מפיק...';
+      }
+      try {
+        const documentHtmlSnapshot = gefenApprovalDocumentHtml(freshRow, mergedItems);
+        const documentSnapshot = {
+          ...buildProposalDocumentSnapshot(freshRow, mergedItems, proposalTemplateSections),
+          document_type: 'gefen_approval',
+          linked_proposal_id: text(freshRow.id)
+        };
+        const blob = await proposalHtmlToPdfBlob(documentHtmlSnapshot, { proposalId: text(freshRow.id) });
+        const quoteNumber = sanitizeProposalPdfFileLabel(freshRow.quote_number) || text(freshRow.id).slice(0, 8);
+        const pdfFile = new File([blob], `אישור_גפן_${quoteNumber}.pdf`, { type: 'application/pdf' });
+        const result = await api.uploadGefenApprovalDocument(text(freshRow.id), {
+          pdfFile,
+          documentSnapshot,
+          documentHtmlSnapshot
+        });
+        replaceLocalRow(data, {
+          ...freshRow,
+          gefen_approval_status: 'generated',
+          gefen_approval_path: text(result?.row?.file_path),
+          gefen_approval_file_name: text(result?.row?.file_name),
+          gefen_approval_combined: false
+        });
+        refreshTable();
+        renderClientWorkspace();
+        showToast('אישור גפ״ן הופק ונשמר', 'success');
+        const updated = data.rows.find((item) => text(item.id) === text(freshRow.id)) || freshRow;
+        await openGefenApprovalPdf(updated);
+      } catch (err) {
+        const message = err?.message === 'gefen_approval_already_generated'
+          ? 'אישור גפ״ן כבר הופק'
+          : 'לא ניתן היה להפיק את אישור גפ״ן';
+        showToast(message, err?.message === 'gefen_approval_already_generated' ? 'warning' : 'error');
+        console.error('[GEFEN approval generation failed]', err);
+      } finally {
+        if (button?.isConnected) {
+          button.disabled = false;
+          button.innerHTML = originalHtml || 'הפקת אישור';
+        }
+      }
+    };
+
     const generateAndSaveProposalPdf = async (row, items = [], button = null) => {
       const freshRow = rowWithCentralContact(row);
       const proposalId = text(freshRow.id);
@@ -6977,6 +7343,16 @@ export const proposalsAgreementsScreen = {
       try {
         setPdfStage('build-html');
         const mergedItems = proposalItemsWithFallback(items, freshRow);
+        if (
+          normalizeProposalGroup(freshRow.activity_type_group) === 'gefen'
+          || (freshRow.combine_gefen_approval === true && isGefenApprovalApplicable(freshRow, mergedItems))
+        ) {
+          const validationMessage = gefenApprovalValidationMessage(freshRow, mergedItems);
+          if (validationMessage) {
+            showToast(validationMessage, 'warning');
+            return;
+          }
+        }
         const templateSections = filterTemplateSectionsForGroup(proposalTemplateSections, freshRow.activity_type_group);
         const documentHtmlSnapshot = historicalSnapshotBackfill && text(freshRow.document_html_snapshot)
           ? text(freshRow.document_html_snapshot)
@@ -6994,10 +7370,23 @@ export const proposalsAgreementsScreen = {
         if (!pdfFile.size) throw new Error('pdf_file_empty');
         setPdfStage('call-upload-api');
         const result = await api.uploadProposalFinalPdf(proposalId, { pdfFile, documentSnapshot, documentHtmlSnapshot });
-        replaceLocalRow(data, result?.row || freshRow);
+        const savedRow = result?.row || freshRow;
+        const generatedCombinedGefen = normalizeProposalGroup(freshRow.activity_type_group) === 'gefen'
+          || (freshRow.combine_gefen_approval === true && isGefenApprovalApplicable(freshRow, mergedItems));
+        replaceLocalRow(data, generatedCombinedGefen
+          ? {
+            ...savedRow,
+            gefen_approval_status: 'generated',
+            gefen_approval_path: text(savedRow.final_pdf_path),
+            gefen_approval_file_name: text(savedRow.final_pdf_file_name),
+            gefen_approval_combined: true
+          }
+          : savedRow);
         refreshTable();
-        showToast('ה־PDF הופק ונשמר בהצלחה', 'success');
-        await openProposalFinalPdf(result?.row || freshRow, setPdfStage);
+        showToast(generatedCombinedGefen
+          ? 'ההצעה ואישור גפ״ן הופקו יחד ונשמרו'
+          : 'ה־PDF הופק ונשמר בהצלחה', 'success');
+        await openProposalFinalPdf(savedRow, setPdfStage);
       } catch (err) {
         if (!markProposalPdfErrorLogged(err)) console.error('[proposal-pdf-failed]', {
           stage: pdfStage,
@@ -7632,7 +8021,7 @@ export const proposalsAgreementsScreen = {
       }
 
       const openProposalBtn = event.target.closest?.('[data-pa-open-proposal-id]');
-      if (openProposalBtn && !event.target.closest?.('[data-pa-view-final-pdf],[data-pa-clone-row]')) {
+      if (openProposalBtn && !event.target.closest?.('[data-pa-view-final-pdf],[data-pa-view-gefen-approval],[data-pa-generate-gefen-approval],[data-pa-clone-row]')) {
         await openProposalDetails(openProposalBtn.dataset.paOpenProposalId, {
           returnTo: openProposalBtn.dataset.paReturnTo || '',
           openSource: openProposalBtn.dataset.paReturnTo === 'all' ? 'all-proposals' : 'client-file',
@@ -7726,7 +8115,7 @@ export const proposalsAgreementsScreen = {
       }
 
       // Row click — skip if clicking an inline action button inside the row
-      const rowEl = !event.target.closest?.('[data-pa-preview],[data-pa-view-final-pdf],[data-pa-edit-row],[data-pa-print],[data-pa-delete-row],[data-pa-clone-row],[data-pa-row-more],[data-pa-status-action],[data-pa-open-proposal-id],.ds-pa-row-more')
+      const rowEl = !event.target.closest?.('[data-pa-preview],[data-pa-view-final-pdf],[data-pa-view-gefen-approval],[data-pa-generate-gefen-approval],[data-pa-edit-row],[data-pa-print],[data-pa-delete-row],[data-pa-clone-row],[data-pa-row-more],[data-pa-status-action],[data-pa-open-proposal-id],.ds-pa-row-more')
         ? event.target.closest?.('[data-pa-row-id]')
         : null;
       if (rowEl) {
@@ -7986,6 +8375,30 @@ export const proposalsAgreementsScreen = {
         viewFinalPdfBtn.disabled = true;
         await openProposalFinalPdf(row);
         viewFinalPdfBtn.disabled = false;
+        return;
+      }
+
+      const viewGefenApprovalBtn = event.target.closest?.('[data-pa-view-gefen-approval]');
+      if (viewGefenApprovalBtn) {
+        const id = text(viewGefenApprovalBtn.dataset.paViewGefenApproval);
+        const row = data.rows.find((item) => text(item.id) === id);
+        if (!row) return;
+        viewGefenApprovalBtn.disabled = true;
+        await openGefenApprovalPdf(row);
+        viewGefenApprovalBtn.disabled = false;
+        return;
+      }
+
+      const generateGefenApprovalBtn = event.target.closest?.('[data-pa-generate-gefen-approval]');
+      if (generateGefenApprovalBtn) {
+        const id = text(generateGefenApprovalBtn.dataset.paGenerateGefenApproval);
+        const row = data.rows.find((item) => text(item.id) === id);
+        if (!row || !canManage) return;
+        let items = data?._itemsByProposalId?.[id] || [];
+        if (!items.length && typeof api.readProposalAgreementItems === 'function') {
+          try { items = await api.readProposalAgreementItems(id); } catch { items = []; }
+        }
+        await generateGefenApprovalPdf(row, proposalItemsWithFallback(items, row), generateGefenApprovalBtn);
         return;
       }
 
