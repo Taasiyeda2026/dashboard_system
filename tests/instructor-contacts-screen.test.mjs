@@ -47,9 +47,9 @@ function sampleRows(count = 24) {
   }));
 }
 
-function makeHarness(dom, rows) {
+function makeHarness(dom, rows, stateOverrides = { instrContactsActiveFilter: '' }) {
   const data = { rows };
-  const state = { clientSettings: { hide_emp_id_on_screens: true }, instrContactsSearch: '' };
+  const state = { clientSettings: { hide_emp_id_on_screens: true }, instrContactsSearch: '', ...stateOverrides };
   const ui = createSharedInteractionLayer();
   const screenRoot = document.getElementById('screenRoot');
   let rerenderCount = 0;
@@ -73,12 +73,27 @@ function makeHarness(dom, rows) {
   return { screenRoot, state, ui, getRerenderCount: () => rerenderCount };
 }
 
-test('renders 24 compact instructor contact cards without error', async () => {
+test('renders 24 compact instructor contact cards without error when all is selected', async () => {
   await withScreenDom(async () => {
     const { screenRoot } = makeHarness(null, sampleRows(24));
     const cards = screenRoot.querySelectorAll('[data-card-action]');
     assert.equal(cards.length, 24);
     assert.equal(screenRoot.querySelectorAll('.ic-contact-card--compact').length, 24);
+  });
+});
+
+test('defaults to active instructors on first entry', async () => {
+  await withScreenDom(async () => {
+    const rows = [
+      { emp_id: 'A1', full_name: 'פעיל ראשון', active: 'yes' },
+      { emp_id: 'A2', full_name: 'לא פעיל', active: 'no' },
+      { emp_id: 'A3', full_name: 'פעיל שני', active: true }
+    ];
+    const { screenRoot, state } = makeHarness(null, rows, {});
+    const names = Array.from(screenRoot.querySelectorAll('.ic-contact-card__name')).map((node) => node.textContent);
+    assert.deepEqual(names.sort(), ['פעיל ראשון', 'פעיל שני'].sort());
+    assert.equal(state.instrContactsActiveFilter, 'yes');
+    assert.ok(screenRoot.querySelector('[data-active-filter="yes"].is-active'));
   });
 });
 
@@ -99,6 +114,26 @@ test('compact cards display only the instructor name; details stay in the drawer
   });
 });
 
+test('email copy button copies the displayed address', async () => {
+  await withScreenDom(async (dom) => {
+    let copied = '';
+    Object.defineProperty(dom.window.navigator, 'clipboard', {
+      configurable: true,
+      value: { writeText: async (value) => { copied = value; } }
+    });
+    const { screenRoot } = makeHarness(null, sampleRows(2));
+    screenRoot.querySelectorAll('[data-card-action]')[1]
+      .dispatchEvent(new dom.window.MouseEvent('click', { bubbles: true }));
+    await new Promise((resolve) => setTimeout(resolve, 10));
+    const copyButton = document.querySelector('[data-copy-instructor-email]');
+    assert.ok(copyButton);
+    assert.equal(copyButton.getAttribute('aria-label'), 'העתקת כתובת המייל');
+    copyButton.dispatchEvent(new dom.window.MouseEvent('click', { bubbles: true }));
+    await new Promise((resolve) => setTimeout(resolve, 10));
+    assert.equal(copied, 'test1@example.com');
+  });
+});
+
 test('rerender is never called as a side effect of the initial render+bind', async () => {
   await withScreenDom(async () => {
     const { getRerenderCount } = makeHarness(null, sampleRows(24));
@@ -114,7 +149,6 @@ test('clicking a card opens the drawer exactly once', async () => {
     const drawer = document.querySelector('.ds-drawer');
     assert.equal(drawer.getAttribute('aria-hidden'), 'false');
     assert.match(drawer.querySelector('.ds-drawer__title')?.innerHTML || '', /מדריך מספר 0/);
-    // A second click on the same card must not stack another open (still exactly one drawer host).
     firstCard.dispatchEvent(new dom.window.MouseEvent('click', { bubbles: true }));
     assert.equal(document.querySelectorAll('.ds-drawer').length, 1);
     assert.equal(drawer.getAttribute('aria-hidden'), 'false');

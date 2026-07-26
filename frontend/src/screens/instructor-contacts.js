@@ -58,17 +58,46 @@ function avatarColor(seed) {
   return AVATAR_PALETTE[hash % AVATAR_PALETTE.length];
 }
 
-function detailField(icon, label, value, { dir = 'rtl', href = '' } = {}) {
+function detailField(icon, label, value, { dir = 'rtl', href = '', copyValue = '' } = {}) {
   const safe = textValue(value);
   if (!safe) return '';
   const valueHtml = href
     ? `<a href="${escapeHtml(href)}" style="color:#1d4ed8;text-decoration:none;font-weight:650" dir="${dir}">${escapeHtml(safe)}</a>`
     : `<span dir="${dir}" style="color:#263449;font-weight:620">${escapeHtml(safe)}</span>`;
+  const valueWrapHtml = copyValue
+    ? `<span style="min-width:0;display:flex;align-items:center;gap:8px;flex-wrap:wrap;direction:ltr;overflow-wrap:anywhere">${valueHtml}<button type="button" class="ds-btn ds-btn--xs ds-btn--ghost" data-copy-instructor-email="${escapeHtml(copyValue)}" aria-label="העתקת כתובת המייל" title="העתקת כתובת המייל" style="direction:rtl;white-space:nowrap">⧉ העתקה</button></span>`
+    : `<span style="min-width:0;overflow-wrap:anywhere">${valueHtml}</span>`;
   return `<div style="display:grid;grid-template-columns:38px 112px minmax(0,1fr);align-items:center;gap:10px;padding:11px 12px;border:1px solid #e1e8f1;border-radius:12px;background:#fff;box-shadow:0 1px 2px rgba(15,23,42,.035)">
     <span aria-hidden="true" style="width:34px;height:34px;border-radius:10px;display:grid;place-items:center;background:#edf5ff;font-size:18px">${icon}</span>
     <span style="color:#526174;font-size:.88rem;font-weight:700">${escapeHtml(label)}</span>
-    <span style="min-width:0;overflow-wrap:anywhere">${valueHtml}</span>
+    ${valueWrapHtml}
   </div>`;
+}
+
+async function copyTextToClipboard(value) {
+  const safe = textValue(value);
+  if (!safe) return false;
+  const clipboard = globalThis.navigator?.clipboard || globalThis.window?.navigator?.clipboard;
+  if (clipboard?.writeText) {
+    try {
+      await clipboard.writeText(safe);
+      return true;
+    } catch (_) {
+      // Continue to the legacy path when Clipboard API access is rejected.
+    }
+  }
+  const activeDocument = globalThis.document;
+  if (!activeDocument?.body || typeof activeDocument.execCommand !== 'function') return false;
+  const textarea = activeDocument.createElement('textarea');
+  textarea.value = safe;
+  textarea.setAttribute('readonly', '');
+  textarea.style.position = 'fixed';
+  textarea.style.opacity = '0';
+  activeDocument.body.appendChild(textarea);
+  textarea.select();
+  const copied = activeDocument.execCommand('copy');
+  textarea.remove();
+  return copied;
 }
 
 function drawerHtml(row, hideEmpIds, canEdit) {
@@ -80,7 +109,7 @@ function drawerHtml(row, hideEmpIds, canEdit) {
   const manager = textValue(row.direct_manager) || 'ללא';
   const fields = [
     detailField('📱', hebrewColumn('mobile'), phone, { dir: 'ltr', href: phone ? `tel:${phone.replace(/[^0-9+]/g, '')}` : '' }),
-    detailField('✉️', hebrewColumn('email'), email, { dir: 'ltr', href: email ? `mailto:${email}` : '' }),
+    detailField('✉️', hebrewColumn('email'), email, { dir: 'ltr', href: email ? `mailto:${email}` : '', copyValue: email }),
     detailField('📍', hebrewColumn('address'), row.address),
     detailField('💼', hebrewColumn('employment_type'), textValue(row.employment_type) ? hebrewEmploymentType(row.employment_type) : ''),
     detailField('👤', hebrewColumn('direct_manager'), manager),
@@ -177,7 +206,10 @@ export const instructorContactsScreen = {
       state.instrContactsAppliedSearch = normalizeSearch(searchQ).length >= MIN_SEARCH_CHARS ? searchQ : '';
     }
     const appliedSearchQ = state?.instrContactsAppliedSearch || '';
-    const activeFilter = state?.instrContactsActiveFilter || '';
+    if (!Object.prototype.hasOwnProperty.call(state, 'instrContactsActiveFilter')) {
+      state.instrContactsActiveFilter = 'yes';
+    }
+    const activeFilter = state?.instrContactsActiveFilter ?? 'yes';
 
     let rows = applySearch(allRows, appliedSearchQ);
     if (activeFilter) rows = rows.filter((r) => normalizeActiveFlag(r.active) === activeFilter);
@@ -323,9 +355,23 @@ export const instructorContactsScreen = {
         title: hit.full_name || hit.emp_id,
         content: drawerHtml(hit, hideEmpIds, canEdit)
       });
+      const drawerDocument = globalThis.document;
       requestAnimationFrame(() => {
-        const editButton = document.querySelector('[data-edit-instructor-contact]');
+        if (!drawerDocument) return;
+        const editButton = drawerDocument.querySelector('[data-edit-instructor-contact]');
         if (editButton) editButton.onclick = () => openEditor(hit);
+        const copyEmailButton = drawerDocument.querySelector('[data-copy-instructor-email]');
+        if (copyEmailButton) {
+          copyEmailButton.onclick = async () => {
+            const emailToCopy = copyEmailButton.dataset.copyInstructorEmail || '';
+            try {
+              const copied = await copyTextToClipboard(emailToCopy);
+              showToast(copied ? 'המייל הועתק' : 'לא ניתן להעתיק את המייל', copied ? 'success' : 'error', 1800);
+            } catch (_) {
+              showToast('לא ניתן להעתיק את המייל', 'error', 2200);
+            }
+          };
+        }
       });
     };
 
