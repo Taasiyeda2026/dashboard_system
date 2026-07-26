@@ -34,6 +34,7 @@ on:
       - 'tests/proposal-pdf-storage-key-hotfix.test.mjs'
       - 'tests/proposals-agreements-screen.test.mjs'
       - 'tests/instructor-contacts-nav-access.test.mjs'
+      - 'tests/instructor-contacts-screen.test.mjs'
       - 'tests/summer-feedback-admin-personal-reports.test.mjs'
       - 'tests/summer-feedback-completion-overview.test.mjs'
       - 'tests/summer-feedback-instructor-card.test.mjs'
@@ -90,6 +91,7 @@ jobs:
           node --check tests/client-file-unified-screen.test.mjs
           node --check tests/client-file-version-sync.test.mjs
           node --check tests/instructor-contacts-nav-access.test.mjs
+          node --check tests/instructor-contacts-screen.test.mjs
           node --check tests/proposal-pdf-svg-origin-clean.test.mjs
           node --check tests/proposal-pdf-storage-key-hotfix.test.mjs
           node --check tests/summer-feedback-admin-personal-reports.test.mjs
@@ -144,6 +146,9 @@ jobs:
 
       - name: Run instructor contacts navigation tests
         run: node --test tests/instructor-contacts-nav-access.test.mjs
+
+      - name: Run instructor contacts screen tests
+        run: node --test tests/instructor-contacts-screen.test.mjs
 
       - name: Build production bundle
         run: npm run check:build
