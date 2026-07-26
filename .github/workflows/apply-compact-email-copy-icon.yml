@@ -1,9 +1,12 @@
 name: Apply compact email copy icon
 
 on:
-  push:
-    branches:
-      - polish/instructor-email-copy-icon
+  pull_request:
+    branches: [main]
+    paths:
+      - 'frontend/src/screens/instructor-contacts.js'
+      - 'tests/instructor-contacts-screen.test.mjs'
+      - '.github/workflows/apply-compact-email-copy-icon.yml'
 
 permissions:
   contents: write
