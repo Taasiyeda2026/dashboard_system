@@ -6667,7 +6667,7 @@ export const api = {
     }
     if (!documentHtmlSnapshot) throw new Error('missing_gefen_approval_html_snapshot');
 
-    const [{ data: proposalRow, error: proposalError }, { data: itemRows, error: itemsError }, { data: linkedRow, error: linkedError }] = await Promise.all([
+    const [{ data: proposalRow, error: proposalError }, { data: itemRows, error: itemsError }] = await Promise.all([
       supabase
         .from('proposals_agreements_directory_view')
         .select('id,quote_number,semel_mosad,activity_type_group,final_pdf_path')
@@ -6676,20 +6676,10 @@ export const api = {
       supabase
         .from('proposal_agreement_items')
         .select('id,gefen_number,proposal_group,item_type,item_name')
-        .eq('proposal_agreement_id', rowId),
-      supabase
-        .from('proposal_linked_documents')
-        .select('id,status,file_path,file_name,combined_with_proposal')
         .eq('proposal_agreement_id', rowId)
-        .eq('document_type', GEFEN_APPROVAL_DOCUMENT_TYPE)
-        .maybeSingle()
     ]);
     if (proposalError || !proposalRow) throw new Error('proposals_agreement_not_found');
     if (itemsError) throw new Error(itemsError.message || 'proposal_items_read_failed');
-    if (linkedError) throw new Error(linkedError.message || 'gefen_approval_read_failed');
-    if (cleanProposalAgreementText(linkedRow?.status) === 'generated') {
-      throw new Error('gefen_approval_already_generated');
-    }
     if (!cleanProposalAgreementText(proposalRow.semel_mosad)) {
       throw new Error('חסר מספר מוסד. יש להשלים אותו לפני הפקת אישור גפ״ן.');
     }
