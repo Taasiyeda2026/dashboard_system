@@ -6,6 +6,7 @@ const CARD_ATTRIBUTE = 'data-summer-feedback-instructor-card';
 const STYLE_ID = 'summer-feedback-instructor-card-styles';
 const TEST_MODE_FLAG = '__SUMMER_FEEDBACK_INSTRUCTOR_CARD_TEST__';
 const CACHE_TTL_MS = 30_000;
+const REFRESH_INTERVAL_MS = 30_000;
 
 const GENERAL_VISIBLE_KEYS = [
   'preparation_info',
@@ -16,32 +17,33 @@ const GENERAL_VISIBLE_KEYS = [
   'schedule_clarity',
   'change_updates',
   'constraints_response',
-  'workload',
-  'management_presence',
+  'management_contact_clarity',
   'daily_resources_check',
   'management_communication',
   'issue_resolution',
-  'post_activity_followup',
-  'support_response',
   'equipment_distribution',
   'equipment_completeness',
-  'equipment_quantity_fit',
-  'logistics_instructions',
+  'equipment_replenishment',
   'readiness_confidence',
-  'professional_backup',
   'full_support_envelope',
   'overall_organization'
 ];
 
 const ACTIVITY_METRIC_KEYS = [
   'age_fit',
-  'time_fit',
   'content_clarity',
-  'delivery_ease',
+  'time_fit',
   'equipment_quality',
   'student_engagement',
-  'student_success',
   'overall_rating'
+];
+
+const REQUIRED_SUMMARY_KEYS = [
+  'preserve_activities',
+  'improve_activities',
+  'preserve_support',
+  'improve_support',
+  'training_needed'
 ];
 
 let cachedUserId = '';
@@ -50,6 +52,7 @@ let cachedAt = 0;
 let statePromise = null;
 let enhancementScheduled = false;
 let enhancementVersion = 0;
+let refreshTimer = null;
 
 function hasValue(value) {
   return value !== null && value !== undefined && String(value).trim() !== '';
@@ -73,15 +76,18 @@ export function calculateSummerFeedbackProgress({ assignments = [], response = n
   );
 
   const completedGeneral = GENERAL_VISIBLE_KEYS.filter((key) => hasValue(generalAnswers[key])).length;
-  const completedSummary = ['preserve', 'improve'].filter((key) => hasValue(summaryAnswers[key])).length;
+  const completedSummary = REQUIRED_SUMMARY_KEYS.filter((key) => hasValue(summaryAnswers[key])).length;
   const completedActivities = (Array.isArray(assignments) ? assignments : []).reduce((sum, assignment) => {
     const rating = ratingByAssignment.get(String(assignment?.id || '')) || {};
-    return sum + ACTIVITY_METRIC_KEYS.filter((key) => hasValue(rating[key])).length;
+    const completedMetrics = ACTIVITY_METRIC_KEYS.filter((key) => hasValue(rating[key])).length;
+    const completedExperience = Array.isArray(rating.delivery_experience) && rating.delivery_experience.length > 0 ? 1 : 0;
+    return sum + completedMetrics + completedExperience;
   }, 0);
 
+  const activityFieldCount = ACTIVITY_METRIC_KEYS.length + 1;
   const total = GENERAL_VISIBLE_KEYS.length
-    + (Array.isArray(assignments) ? assignments.length : 0) * ACTIVITY_METRIC_KEYS.length
-    + 2;
+    + (Array.isArray(assignments) ? assignments.length : 0) * activityFieldCount
+    + REQUIRED_SUMMARY_KEYS.length;
   const completed = completedGeneral + completedActivities + completedSummary;
   return total > 0 ? Math.min(100, Math.max(0, Math.round((completed / total) * 100))) : 0;
 }
@@ -136,27 +142,23 @@ function ensureCardStyles() {
       margin: 0 0 var(--ds-space-3, 16px);
       padding: 14px 16px;
       background: linear-gradient(135deg, #183153, #10243d);
-      color: #ffffff;
-      border: 1px solid rgba(255, 255, 255, 0.13);
+      color: #fff;
+      border: 1px solid rgba(255,255,255,.13);
       border-radius: 14px;
-      box-shadow: 0 10px 24px rgba(16, 36, 61, 0.16);
+      box-shadow: 0 10px 24px rgba(16,36,61,.16);
     }
-
-    .ds-summer-feedback-card.is-complete {
-      background: linear-gradient(135deg, #276749, #1f5a3f);
-    }
-
+    .instructor-area > .ds-summer-feedback-card { margin-top: 12px; }
+    .ds-summer-feedback-card.is-complete { background: linear-gradient(135deg, #276749, #1f5a3f); }
     .ds-summer-feedback-card__icon {
       display: grid;
       place-items: center;
       width: 42px;
       height: 42px;
       border-radius: 12px;
-      background: rgba(255, 255, 255, 0.13);
+      background: rgba(255,255,255,.13);
       font-size: 21px;
       line-height: 1;
     }
-
     .ds-summer-feedback-card__content { min-width: 0; }
     .ds-summer-feedback-card__status {
       display: inline-flex;
@@ -165,43 +167,38 @@ function ensureCardStyles() {
       margin-bottom: 4px;
       padding: 2px 8px;
       border-radius: 999px;
-      background: rgba(255, 255, 255, 0.14);
+      background: rgba(255,255,255,.14);
       color: #f3f7fb;
       font-size: 11.5px;
       font-weight: 700;
     }
-
     .ds-summer-feedback-card__title {
       margin: 0;
-      color: #ffffff;
+      color: #fff;
       font-size: 17px;
       font-weight: 750;
       line-height: 1.3;
     }
-
     .ds-summer-feedback-card__description {
       margin: 3px 0 0;
       color: #e5edf6;
       font-size: 12.5px;
       line-height: 1.45;
     }
-
     .ds-summer-feedback-card__progress {
       width: min(260px, 100%);
       height: 5px;
       margin-top: 9px;
       overflow: hidden;
       border-radius: 999px;
-      background: rgba(255, 255, 255, 0.18);
+      background: rgba(255,255,255,.18);
     }
-
     .ds-summer-feedback-card__progress > span {
       display: block;
       height: 100%;
       border-radius: inherit;
-      background: #ffffff;
+      background: #fff;
     }
-
     .ds-summer-feedback-card__action {
       display: inline-flex;
       align-items: center;
@@ -209,30 +206,22 @@ function ensureCardStyles() {
       min-height: 38px;
       padding: 7px 13px;
       color: #183153;
-      background: #ffffff;
-      border: 1px solid rgba(255, 255, 255, 0.85);
+      background: #fff;
+      border: 1px solid rgba(255,255,255,.85);
       border-radius: 9px;
       text-decoration: none;
       font-size: 13px;
       font-weight: 750;
       white-space: nowrap;
     }
-
     .ds-summer-feedback-card__action:hover { background: #f4f7fa; }
-
     @media (max-width: 720px) {
       .ds-summer-feedback-card {
         grid-template-columns: auto minmax(0, 1fr);
         gap: 10px;
         padding: 12px;
       }
-
-      .ds-summer-feedback-card__icon {
-        width: 38px;
-        height: 38px;
-        font-size: 19px;
-      }
-
+      .ds-summer-feedback-card__icon { width: 38px; height: 38px; font-size: 19px; }
       .ds-summer-feedback-card__title { font-size: 15px; }
       .ds-summer-feedback-card__description { font-size: 12px; }
       .ds-summer-feedback-card__action {
@@ -270,10 +259,14 @@ export function createSummerFeedbackCard(cardState, doc = document) {
 export function injectSummerFeedbackCard(host, cardState) {
   if (!host?.isConnected || host.querySelector(`[${CARD_ATTRIBUTE}]`)) return false;
   const card = createSummerFeedbackCard(cardState, host.ownerDocument || document);
-  const header = host.querySelector(':scope > .ds-dash-header');
+  const header = host.querySelector(':scope > .ds-dash-header, :scope > .ds-page-header, :scope > header');
   if (header) header.insertAdjacentElement('afterend', card);
   else host.prepend(card);
   return true;
+}
+
+export function findSummerFeedbackCardHost(root = document) {
+  return root.querySelector?.('.ds-dashboard-wrap, .instructor-area') || null;
 }
 
 function clearCachedState() {
@@ -329,7 +322,7 @@ async function fetchCurrentInstructorCardState() {
     if (response?.id) {
       const ratingsResult = await supabase
         .from('summer_feedback_activity_ratings')
-        .select('assignment_id,age_fit,time_fit,content_clarity,delivery_ease,equipment_quality,student_engagement,student_success,overall_rating')
+        .select('assignment_id,age_fit,content_clarity,time_fit,equipment_quality,student_engagement,overall_rating,delivery_experience')
         .eq('cycle_id', cycle.id)
         .eq('instructor_auth_user_id', userId);
       if (!ratingsResult.error) ratings = ratingsResult.data || [];
@@ -355,23 +348,24 @@ async function fetchCurrentInstructorCardState() {
   }
 }
 
-async function enhanceDashboardWithSummerFeedbackCard() {
+async function enhanceHomeWithSummerFeedbackCard() {
   if (typeof document === 'undefined') return;
-  const host = document.querySelector('.ds-dashboard-wrap');
+  const host = findSummerFeedbackCardHost(document);
   if (!host) return;
-  if (host.querySelector(`[${CARD_ATTRIBUTE}]`)) return;
 
   const version = ++enhancementVersion;
   const result = await fetchCurrentInstructorCardState();
   if (version !== enhancementVersion || !host.isConnected) return;
 
+  const existing = host.querySelector(`[${CARD_ATTRIBUTE}]`);
   if (!result.visible) {
-    host.querySelector(`[${CARD_ATTRIBUTE}]`)?.remove();
+    existing?.remove();
     return;
   }
 
   ensureCardStyles();
-  injectSummerFeedbackCard(host, result.cardState);
+  if (existing) existing.replaceWith(createSummerFeedbackCard(result.cardState, host.ownerDocument || document));
+  else injectSummerFeedbackCard(host, result.cardState);
 }
 
 function scheduleEnhancement() {
@@ -379,21 +373,30 @@ function scheduleEnhancement() {
   enhancementScheduled = true;
   requestAnimationFrame(() => {
     enhancementScheduled = false;
-    void enhanceDashboardWithSummerFeedbackCard();
+    void enhanceHomeWithSummerFeedbackCard();
   });
+}
+
+function refreshFromServer() {
+  clearCachedState();
+  scheduleEnhancement();
 }
 
 function initializeSummerFeedbackInstructorCard() {
   if (typeof document === 'undefined' || typeof window === 'undefined') return;
   ensureCardStyles();
+
   const observer = new MutationObserver(scheduleEnhancement);
   observer.observe(document.documentElement, { childList: true, subtree: true });
   document.addEventListener('app:navigate', scheduleEnhancement);
-  window.addEventListener('focus', scheduleEnhancement);
-  supabase?.auth?.onAuthStateChange?.(() => {
-    clearCachedState();
-    scheduleEnhancement();
+  document.addEventListener('visibilitychange', () => {
+    if (!document.hidden) refreshFromServer();
   });
+  window.addEventListener('focus', refreshFromServer);
+  supabase?.auth?.onAuthStateChange?.(() => refreshFromServer());
+
+  clearInterval(refreshTimer);
+  refreshTimer = window.setInterval(refreshFromServer, REFRESH_INTERVAL_MS);
   scheduleEnhancement();
 }
 
