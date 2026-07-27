@@ -586,11 +586,13 @@ test('GEFEN document refinement keeps compact equal numeric columns and bullet w
   assert.match(styles, /\.proposal-document\.pa-gefen-approval-document \.pa-doc-title[\s\S]*font-size:\s*14pt\s*!important[\s\S]*text-decoration:\s*none\s*!important/i);
   assert.match(styles, /\.pa-gefen-signature-field i[\s\S]*border-bottom:\s*0\.7px solid #64748b/i);
   assert.match(styles, /\.proposal-document\.pa-gefen-approval-document \.pa-doc-title[\s\S]*text-align:\s*center\s*!important/i);
-  assert.match(styles, /\.pa-gefen-signature-grid[\s\S]*width:\s*56%[\s\S]*border:\s*0/i);
+  assert.match(styles, /\.pa-gefen-signature-grid[\s\S]*gap:\s*3\.5mm[\s\S]*width:\s*56%[\s\S]*border:\s*0/i);
+  assert.match(styles, /\.pa-gefen-signature-field\s*\{[\s\S]*display:\s*flex[\s\S]*align-items:\s*flex-end[\s\S]*gap:\s*2mm/i);
+  assert.match(styles, /\.pa-gefen-approval-document \.pa-section\s*\{[\s\S]*margin-block:\s*1\.2mm/i);
   assert.match(styles, /\.pa-gefen-signature-field--date[\s\S]*width:\s*42%/i);
   assert.match(styles, /\.pa-gefen-signature-field--name,[\s\S]*\.pa-gefen-signature-field--signature[\s\S]*width:\s*76%/i);
   assert.match(styles, /\.pa-gefen-signature-field--signature\s*\{[\s\S]*margin-top:\s*8mm/i);
-  assert.match(styles, /\.pa-gefen-signature-field--signature i[\s\S]*min-height:\s*10mm/i);
+  assert.match(styles, /\.pa-gefen-signature-field--signature i[\s\S]*min-height:\s*0/i);
   assert.match(styles, /\.pa-gefen-validity-list li[\s\S]*line-height:\s*1\.38\s*!important/i);
   assert.match(styles, /\.pa-gefen-table-summary[\s\S]*font-size:\s*9pt/i);
   assert.match(styles, /\.pa-gefen-combined-document\s*\{[\s\S]*width:\s*100%[\s\S]*max-width:\s*794px/i);
