@@ -3337,6 +3337,7 @@ function buildProposalDocumentHtml({
   const isSummerDocument = isSummerProposalGroup(row?.activity_type_group);
   const isTourDocument = isTourProposalGroup(row?.activity_type_group);
   const isGefenDocument = normalizeProposalGroup(row?.activity_type_group) === 'gefen';
+  const isGefenApprovalDocument = text(documentClassName).split(' ').includes('pa-gefen-approval-document');
   const documentModifierClass = `${isNextYear ? ' pa-document--next-year' : ''}${isSummerDocument ? ' pa-document--summer' : ''}${isTourDocument ? ' pa-proposal-doc--tour pa-document--tour' : ''}${isGefenDocument ? ' pa-proposal-doc--gefen pa-pdf-page' : ''}`;
   return `
     <div class="proposal-document pa-document pa-a4-page${documentModifierClass}${documentClassName ? ` ${escapeHtml(documentClassName)}` : ''}" data-build="20260704a"${rootAttributes ? ` ${rootAttributes}` : ''} dir="rtl" style="position:relative;box-sizing:border-box;">
@@ -3472,8 +3473,9 @@ function buildProposalDocumentHtml({
       <div class="pa-proposal-body-footer-shell">
       <div class="proposal-document-body">
         <div class="proposal-document-content">
+          ${isGefenApprovalDocument && dateDisplay ? `<div class="pa-doc-date pa-date-area pa-gefen-approval-date">${escapeHtml(dateDisplay)}</div>` : ''}
           ${title ? `<h1 class="pa-doc-subject pa-doc-title">${escapeHtml(title)}</h1>` : ''}
-          ${isGefenDocument && dateDisplay ? `<div class="pa-doc-date pa-date-area">${escapeHtml(dateDisplay)}</div>` : ''}
+          ${isGefenDocument && !isGefenApprovalDocument && dateDisplay ? `<div class="pa-doc-date pa-date-area">${escapeHtml(dateDisplay)}</div>` : ''}
           ${introText ? sectionLines(introText, { className: 'pa-doc-intro pa-intro-text pa-org-intro' }) : ''}
           ${sections.join('')}
           ${orgResponsibility}
@@ -3641,14 +3643,13 @@ export function gefenApprovalDocumentHtml(row = {}, items = [], options = {}) {
   const validationMessage = gefenApprovalValidationMessage(row, items);
   const linkedQuoteNumber = escapeHtml(quoteNumber || '____________________');
   const sections = [
-    `<div class="pa-gefen-linked-document" aria-label="קישור להצעת המחיר">
-      <span><strong>מסמך המשך</strong> להצעת המחיר המקורית</span>
-      <bdi dir="ltr">#${linkedQuoteNumber}</bdi>
+    `<div class="pa-gefen-linked-document" aria-label="קישור למסמך המקורי">
+      <span>מקושר להצעה <bdi dir="ltr">${linkedQuoteNumber}</bdi></span>
     </div>`,
     validationMessage ? `<p class="pa-gefen-document-warning" role="alert">${escapeHtml(validationMessage)}</p>` : '',
     `<section class="pa-section">
       <h3 class="pa-section-heading">בחירת התוכניות</h3>
-      <p>בית הספר מאשר כי בכוונתו לשלב בתוכנית העבודה הבית-ספרית לשנת הלימודים תשפ״ז את התוכניות המסומנות מתוך הצעת מחיר ${linkedQuoteNumber}.</p>
+      <p>בית הספר מאשר כי בכוונתו לשלב בתוכנית העבודה הבית-ספרית לשנת הלימודים תשפ״ז את התוכניות המסומנות להלן.</p>
       ${gefenApprovalItemsTableHtml(items)}
     </section>
     <section class="pa-section">
@@ -3664,15 +3665,15 @@ export function gefenApprovalDocumentHtml(row = {}, items = [], options = {}) {
       <h3 class="pa-section-heading">אישור בית הספר</h3>
       <p>אני מאשר/ת את הכוונה לשלב את התוכניות המסומנות לעיל בתוכנית העבודה הבית-ספרית ולפעול להשלמת הזמנת העבודה במערכת גפ״ן עד למועד המצוין לעיל.</p>
       <div class="pa-gefen-signature-grid">
+        <div class="pa-gefen-signature-field pa-gefen-signature-field--date"><span>תאריך</span><i aria-hidden="true"></i></div>
         <div class="pa-gefen-signature-field pa-gefen-signature-field--name"><span>שם מנהל/ת בית הספר</span><i aria-hidden="true"></i></div>
         <div class="pa-gefen-signature-field pa-gefen-signature-field--signature"><span>חתימה</span><i aria-hidden="true"></i></div>
-        <div class="pa-gefen-signature-field pa-gefen-signature-field--date"><span>תאריך</span><i aria-hidden="true"></i></div>
       </div>
     </section>`
   ].filter(Boolean);
   return buildProposalDocumentHtml({
     dateDisplay: formatDateDisplay(row.proposal_date),
-    documentTitle: `אישור כוונות להזמנה במערכת גפ״ן | הצעת מחיר ${quoteNumber || '____________________'} | תשפ״ז`,
+    documentTitle: 'אישור כוונות להזמנה במערכת גפ״ן | תשפ״ז',
     row: approvalRow,
     introText: '',
     sections,
