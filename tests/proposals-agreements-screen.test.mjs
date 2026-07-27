@@ -383,6 +383,18 @@ test('GEFEN approval status visibly carries the linked quote number', () => {
   assert.match(html, /הפקה מחדש של אישור גפ״ן להצעה 10169/);
 });
 
+test('GEFEN approval generation is a visible table action and not hidden only in the overflow menu', () => {
+  const html = proposalsAgreementsTableRowsHtml([{
+    id: 'gefen-action-1',
+    quote_number: '10170',
+    activity_type_group: 'gefen',
+    gefen_approval_status: 'missing',
+    status: 'approved'
+  }], stateFor('admin'));
+  assert.match(html, /ds-pa-row-action[\s\S]*data-pa-generate-gefen-approval="gefen-action-1"/);
+  assert.match(html, /title="הפקת אישור גפ״ן להצעה 10170"/);
+});
+
 test('generated GEFEN approvals can be replaced without creating a second linked record', async () => {
   const apiSource = await readFile(API_FILE, 'utf8');
   const uploadMethod = apiSource.match(/uploadGefenApprovalDocument:\s*async[\s\S]*?\n  getGefenApprovalSignedUrl:/)?.[0] || '';
