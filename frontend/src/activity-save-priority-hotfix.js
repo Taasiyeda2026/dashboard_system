@@ -6,10 +6,19 @@
  * 2. Gives activity writes priority over known heavy background reads so the
  *    PATCH request is not left waiting behind full-table prefetch traffic.
  */
-var changes = null; // Intentional global binding for the current activities.js callback.
+var changes = null; // Global when loaded as a classic script; module-scoped when imported.
 
 (function installActivitySavePriorityHotfix() {
   'use strict';
+
+  // The source entry imports this file as an ES module. Create the same global
+  // binding there without changing the large activities module during the hotfix.
+  if (!Object.prototype.hasOwnProperty.call(globalThis, 'changes') && typeof document !== 'undefined') {
+    const globalBindingScript = document.createElement('script');
+    globalBindingScript.textContent = 'var changes = null;';
+    (document.head || document.documentElement).appendChild(globalBindingScript);
+    globalBindingScript.remove();
+  }
 
   if (globalThis.__activitySavePriorityHotfixInstalled) return;
   const nativeFetch = typeof globalThis.fetch === 'function'
