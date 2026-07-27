@@ -21133,27 +21133,32 @@ details[open] > .ds-fin-acc__summary::before { transform: rotate(90deg); }
 .pa-gefen-signature-grid {
   display: grid;
   grid-template-columns: minmax(0, 1fr);
-  gap: 4mm;
-  width: 62%;
+  gap: 5mm;
+  width: 56%;
   margin-top: 6mm;
   margin-left: auto;
   margin-right: 0;
   align-items: stretch;
-  padding: 5mm 0 1mm;
-  border-top: 0.5px solid #cbd5e1;
+  padding: 0;
+  border: 0;
 }
 
 .pa-gefen-signature-field {
-  display: grid;
-  grid-template-columns: 35mm minmax(0, 1fr);
-  align-items: end;
-  gap: 4mm;
+  display: block;
   min-width: 0;
 }
 
+.pa-gefen-signature-field--date {
+  width: 42%;
+}
+
+.pa-gefen-signature-field--name,
 .pa-gefen-signature-field--signature {
-  margin-top: 4mm;
-  align-items: start;
+  width: 76%;
+}
+
+.pa-gefen-signature-field--signature {
+  margin-top: 2mm;
 }
 
 .pa-gefen-signature-field span {
@@ -21164,12 +21169,23 @@ details[open] > .ds-fin-acc__summary::before { transform: rotate(90deg); }
 
 .pa-gefen-signature-field i {
   display: block;
-  min-height: 7mm;
+  min-height: 4mm;
+  margin-top: 1.5mm;
   border-bottom: 0.7px solid #64748b;
 }
 
 .pa-gefen-signature-field--signature i {
-  min-height: 18mm;
+  min-height: 16mm;
+}
+
+.proposal-document.pa-gefen-approval-document .pa-gefen-validity-list {
+  margin: 1.5mm 0 0 !important;
+  padding-inline-start: 6mm !important;
+}
+
+.proposal-document.pa-gefen-approval-document .pa-gefen-validity-list li {
+  margin-bottom: 1.5mm;
+  line-height: 1.38 !important;
 }
 
 .pa-gefen-table-summary {

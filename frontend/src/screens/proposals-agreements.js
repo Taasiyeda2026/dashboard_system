@@ -3653,9 +3653,12 @@ export function gefenApprovalDocumentHtml(row = {}, items = [], options = {}) {
       ${gefenApprovalItemsTableHtml(items)}
     </section>
     <section class="pa-section">
-      <h3 class="pa-section-heading">השלמת ההזמנה וזמינות הפעילות</h3>
-      <p>בית הספר יפעל להשלמת הזמנת העבודה במערכת גפ״ן עד ליום ${escapeHtml(validityDisplay || '___ / ___ / ______')}.</p>
-      <p>שריון צוותי ההדרכה, מועדי הפעילות והיקף התוכנית יבוצע לפי סדר השלמת הזמנות העבודה במערכת גפ״ן ובכפוף לזמינות. כל עוד לא אושרה הזמנת העבודה, לא ניתן להבטיח את השריון ולאחר המועד האמור תהיה תעשיידע רשאית להקצות את הקיבולת לבתי ספר אחרים.</p>
+      <h3 class="pa-section-heading">תוקף ההצעה וזמינות הפעילות:</h3>
+      <ul class="pa-gefen-validity-list">
+        <li>הצעה זו בתוקף עד ליום ${escapeHtml(validityDisplay || '___ / ___ / ______')}.</li>
+        <li>שריון צוותי ההדרכה, מועדי הפעילות והיקף התוכנית יבוצע לפי סדר השלמת הזמנות העבודה במערכת גפ״ן ובכפוף לזמינות.</li>
+        <li>כל עוד לא אושרה הזמנת העבודה, לא ניתן להבטיח את השריון ולאחר תום תוקף ההצעה תהיה תעשיידע רשאית להקצות את הקיבולת לבתי ספר אחרים.</li>
+      </ul>
     </section>
     <section class="pa-section">
       <h3 class="pa-section-heading">מעמד המסמך</h3>
