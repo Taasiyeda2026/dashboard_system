@@ -1,3 +1,5 @@
+import './network-request-dedupe.js';
+import './activity-performance-runtime.js';
 import './proposal-pdf-svg-origin-clean.js';
 import './proposal-pdf-storage-key-hotfix.js';
 import './proposal-pdf-download-filename-hotfix.js';
