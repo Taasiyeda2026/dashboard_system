@@ -13,6 +13,7 @@ on:
       - 'frontend/src/proposal-pdf-storage-key-hotfix.js'
       - 'frontend/src/proposal-activity-linking.js'
       - 'frontend/src/activity-drawer-inline-layout.js'
+      - 'frontend/src/activity-drawer-type-layout-fix.js'
       - 'frontend/src/admin-permissions-access-hotfix.js'
       - 'frontend/src/auth-session-isolation-hotfix.js'
       - 'frontend/src/session-security-policy.js'
@@ -37,6 +38,7 @@ on:
       - 'tests/proposal-pdf-storage-key-hotfix.test.mjs'
       - 'tests/proposal-activity-linking.test.mjs'
       - 'tests/activity-drawer-inline-layout.test.mjs'
+      - 'tests/activity-drawer-type-layout-fix.test.mjs'
       - 'tests/proposals-agreements-screen.test.mjs'
       - 'tests/instructor-contacts-nav-access.test.mjs'
       - 'tests/instructor-contacts-screen.test.mjs'
@@ -77,6 +79,7 @@ jobs:
           node --check frontend/src/proposal-pdf-storage-key-hotfix.js
           node --check frontend/src/proposal-activity-linking.js
           node --check frontend/src/activity-drawer-inline-layout.js
+          node --check frontend/src/activity-drawer-type-layout-fix.js
           node --check frontend/src/admin-permissions-access-hotfix.js
           node --check frontend/src/auth-session-isolation-hotfix.js
           node --check frontend/src/session-security-policy.js
@@ -105,6 +108,7 @@ jobs:
           node --check tests/proposal-pdf-storage-key-hotfix.test.mjs
           node --check tests/proposal-activity-linking.test.mjs
           node --check tests/activity-drawer-inline-layout.test.mjs
+          node --check tests/activity-drawer-type-layout-fix.test.mjs
           node --check tests/summer-feedback-admin-personal-reports.test.mjs
           node --check tests/summer-feedback-admin-response-view.test.mjs
           node --check tests/summer-feedback-completion-overview.test.mjs
@@ -149,6 +153,9 @@ jobs:
 
       - name: Check activity drawer inline layout
         run: node --test tests/activity-drawer-inline-layout.test.mjs
+
+      - name: Check activity drawer type layouts and archive actions
+        run: node --test tests/activity-drawer-type-layout-fix.test.mjs
 
       - name: Run unified client file tests
         run: >-
