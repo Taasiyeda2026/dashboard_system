@@ -1,4 +1,3 @@
-import { state } from './state.js';
 import {
   getActivityNamesForType,
   humanDisplayText,
@@ -115,7 +114,7 @@ function rebuildActivityNameSelect(form, settings, row) {
   return true;
 }
 
-export function polishActivityDrawerEditOptions(form, settings = state.clientSettings) {
+export function polishActivityDrawerEditOptions(form, settings = {}) {
   if (!form || !form.hasAttribute(ENHANCED_ATTR)) return false;
   if (form.hasAttribute(POLISHED_ATTR)) return false;
 
@@ -138,14 +137,16 @@ export function polishActivityDrawerEditOptions(form, settings = state.clientSet
   return true;
 }
 
-export function polishActivityDrawerEditOptionsIn(root = document, settings = state.clientSettings) {
+export function polishActivityDrawerEditOptionsIn(root = document, settings = {}) {
   root.querySelectorAll?.(`[data-drawer-form][${ENHANCED_ATTR}]`).forEach((form) => {
     polishActivityDrawerEditOptions(form, settings);
   });
 }
 
-function initialize() {
+async function initialize() {
   if (typeof document === 'undefined' || typeof MutationObserver === 'undefined') return;
+
+  const { state } = await import('./state.js');
   let scheduled = false;
   const schedule = () => {
     if (scheduled) return;
@@ -165,4 +166,4 @@ function initialize() {
   schedule();
 }
 
-if (globalThis[TEST_FLAG] !== true) initialize();
+if (globalThis[TEST_FLAG] !== true) initialize().catch(() => {});
