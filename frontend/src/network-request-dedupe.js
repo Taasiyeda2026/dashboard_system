@@ -1,9 +1,9 @@
 /*
- * Deduplicate identical heavy Supabase GET requests in the browser.
+ * Deduplicate and briefly cache identical heavy Supabase GET requests.
  *
- * This is intentionally limited to read-only endpoints that were observed to
- * repeat during dashboard/activity loading. Mutations are never delayed or
- * cached. Contact caches are invalidated whenever contacts_schools is changed.
+ * The cache is deliberately limited to read-only catalog/list endpoints used by
+ * activities and the client file. Mutations always go to the network and clear
+ * the related cached responses so edited data is never hidden by the cache.
  */
 (function installNetworkRequestDedupe() {
   'use strict';
@@ -18,6 +18,25 @@
 
   const inflight = new Map();
   const responseCache = new Map();
+
+  const READ_POLICIES = new Map([
+    ['activities', { namespace: 'activities', ttlMs: 5 * 60_000 }],
+    ['activity_meetings', { namespace: 'activity_meetings', ttlMs: 60_000 }],
+    ['contacts_schools', { namespace: 'contacts', ttlMs: 5 * 60_000 }],
+    ['contacts_unified_view', { namespace: 'contacts', ttlMs: 5 * 60_000 }],
+    ['schools', { namespace: 'contacts', ttlMs: 10 * 60_000 }],
+    ['authorities', { namespace: 'contacts', ttlMs: 10 * 60_000 }],
+    ['proposals_agreements_directory_view', { namespace: 'proposals', ttlMs: 2 * 60_000 }],
+    ['proposal_agreement_items', { namespace: 'proposals', ttlMs: 2 * 60_000 }],
+    ['proposal_linked_documents', { namespace: 'proposals', ttlMs: 2 * 60_000 }],
+    ['proposal_activity_pricing', { namespace: 'proposal_catalog', ttlMs: 10 * 60_000 }],
+    ['proposal_gefen_courses', { namespace: 'proposal_catalog', ttlMs: 10 * 60_000 }],
+    ['proposal_template_sections', { namespace: 'proposal_catalog', ttlMs: 10 * 60_000 }],
+    ['proposal_activity_groups', { namespace: 'proposal_catalog', ttlMs: 10 * 60_000 }],
+    ['proposal_group_aliases', { namespace: 'proposal_catalog', ttlMs: 10 * 60_000 }],
+    ['school_calendar', { namespace: 'proposal_catalog', ttlMs: 10 * 60_000 }],
+    ['lists', { namespace: 'lists', ttlMs: 10 * 60_000 }]
+  ]);
 
   function isRequest(value) {
     return typeof Request !== 'undefined' && value instanceof Request;
@@ -43,25 +62,27 @@
     return Boolean(url && /\.supabase\.co$/i.test(url.hostname) && url.pathname.includes('/rest/v1/'));
   }
 
+  function tableName(url) {
+    if (!isSupabaseRest(url)) return '';
+    const marker = '/rest/v1/';
+    const index = url.pathname.indexOf(marker);
+    return index >= 0 ? decodeURIComponent(url.pathname.slice(index + marker.length)).split('/')[0] : '';
+  }
+
+  function invalidationNamespaces(table) {
+    if (table === 'activities') return ['activities'];
+    if (table === 'activity_meetings') return ['activity_meetings', 'activities'];
+    if (table === 'contacts_schools' || table === 'schools' || table === 'authorities') return ['contacts', 'proposals'];
+    if (table === 'proposals_agreements' || table === 'proposal_agreement_items' || table === 'proposal_linked_documents') return ['proposals'];
+    if (table.startsWith('proposal_') || table === 'school_calendar' || table === 'lists') return ['proposal_catalog', 'proposals', 'lists'];
+    return [];
+  }
+
   function policyFor(method, url) {
-    if (!isSupabaseRest(url)) return null;
-    const path = url.pathname;
-
-    if (method !== 'GET') {
-      if (path.endsWith('/rest/v1/contacts_schools')) return { invalidateContacts: true };
-      return null;
-    }
-
-    if (path.endsWith('/rest/v1/activities')) {
-      return { namespace: 'activities', ttlMs: 0 };
-    }
-    if (path.endsWith('/rest/v1/contacts_schools')) {
-      return { namespace: 'contacts_schools', ttlMs: 60_000 };
-    }
-    if (path.endsWith('/rest/v1/contacts_unified_view')) {
-      return { namespace: 'contacts_unified_view', ttlMs: 20_000 };
-    }
-    return null;
+    const table = tableName(url);
+    if (!table) return null;
+    if (method !== 'GET') return { invalidate: invalidationNamespaces(table) };
+    return READ_POLICIES.get(table) || null;
   }
 
   function cacheKey(namespace, method, url, headers) {
@@ -98,11 +119,12 @@
     });
   }
 
-  function invalidateContactCaches() {
+  function invalidateNamespaces(namespaces) {
+    const names = new Set(Array.isArray(namespaces) ? namespaces : []);
+    if (!names.size) return;
     for (const key of responseCache.keys()) {
-      if (key.startsWith('contacts_schools|') || key.startsWith('contacts_unified_view|')) {
-        responseCache.delete(key);
-      }
+      const namespace = key.split('|', 1)[0];
+      if (names.has(namespace)) responseCache.delete(key);
     }
   }
 
@@ -110,8 +132,8 @@
     const { method, url, headers } = requestMeta(input, init);
     const policy = policyFor(method, url);
 
-    if (policy?.invalidateContacts) {
-      invalidateContactCaches();
+    if (policy?.invalidate?.length) {
+      invalidateNamespaces(policy.invalidate);
       return nativeFetch(input, init);
     }
     if (!policy?.namespace || init?.signal?.aborted) {
