@@ -21,6 +21,7 @@ import './styles/activity-drawer-inline-layout.css';
 import './activity-drawer-inline-layout.js';
 import './styles/activity-drawer-type-layout-fix.css';
 import './activity-drawer-type-layout-fix.js';
+import './styles/activity-drawer-edit-header-polish.css';
 import './proposal-activity-linking.js';
 import './screens/annual-reviews-v2.js';
 import './annual-reviews-language-safe.js';
