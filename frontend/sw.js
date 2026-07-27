@@ -4,7 +4,7 @@
  * API-like requests: network only, never cached. Bump CACHE_VERSION after deploy to drop old caches.
  * CACHE_VERSION is the single manual SW/cache version source; /sw.js imports this file without its own version.
  */
-const CACHE_VERSION = 1284;
+const CACHE_VERSION = 1285;
 const CACHE_PREFIX = 'dashboard-static-v';
 const CACHE_NAME = `${CACHE_PREFIX}${CACHE_VERSION}`;
 
@@ -75,18 +75,6 @@ async function deleteOutdatedCaches() {
   return outdatedKeys;
 }
 
-async function reloadClientsAfterCacheUpgrade(deletedKeys) {
-  if (!Array.isArray(deletedKeys) || !deletedKeys.length) return;
-  const clients = await self.clients.matchAll({ type: 'window', includeUncontrolled: true });
-  await Promise.all(clients.map(async (client) => {
-    try {
-      await client.navigate(client.url);
-    } catch (e) {
-      try { client.postMessage({ type: 'SW_UPDATED', version: CACHE_VERSION }); } catch (_) { /* ignore */ }
-    }
-  }));
-}
-
 function withNoStore(request) {
   return new Request(request, { cache: 'no-store' });
 }
@@ -143,21 +131,18 @@ self.addEventListener('install', (event) => {
           console.warn('[SW] precache skip', path, e);
         }
       }
-      // Do not delete outdated caches during install — activate owns cleanup so
-      // reloadClientsAfterCacheUpgrade still sees deleted keys and can refresh clients.
+      // Activate owns cache cleanup. Existing windows are never navigated or reloaded automatically.
       self.skipWaiting();
     })
   );
 });
 
 self.addEventListener('activate', (event) => {
-  event.waitUntil(
-    deleteOutdatedCaches().then(async (deletedKeys) => {
-      // Claim all open tabs so this SW serves them right away.
-      await self.clients.claim();
-      await reloadClientsAfterCacheUpgrade(deletedKeys);
-    })
-  );
+  event.waitUntil((async () => {
+    await deleteOutdatedCaches();
+    // Control open tabs without interrupting their current work. Fresh assets load on the next normal navigation/login.
+    await self.clients.claim();
+  })());
 });
 
 /** Allow the app to trigger skipWaiting via postMessage({ type: 'SKIP_WAITING' }). */

@@ -44,22 +44,22 @@ test('service worker entry imports the implementation without a second manual ve
   assert.match(rootSw, /importScripts\(new URL\('frontend\/sw\.js', self\.location\)\.href\);/, 'root SW should import the central implementation directly');
 });
 
-test('service worker removes old dashboard caches during activate only', async () => {
+test('service worker removes old dashboard caches during activate without interrupting open tabs', async () => {
   const frontendSw = await read(FRONTEND_SW_FILE);
+  const installStart = frontendSw.indexOf("self.addEventListener('install'");
+  const activateStart = frontendSw.indexOf("self.addEventListener('activate'");
+  const installBlock = installStart >= 0 && activateStart > installStart
+    ? frontendSw.slice(installStart, activateStart)
+    : '';
 
+  assert.ok(installBlock, 'service worker should define install before activate');
   assert.match(frontendSw, /const CACHE_PREFIX = 'dashboard-static-v';/);
   assert.match(frontendSw, /key\.startsWith\(CACHE_PREFIX\) && key !== CACHE_NAME/, 'cleanup should target old dashboard cache versions');
-  assert.doesNotMatch(frontendSw, /install[\s\S]*await deleteOutdatedCaches\(\);[\s\S]*self\.skipWaiting\(\);/, 'install must not delete outdated caches before activate');
-  assert.match(frontendSw, /self\.addEventListener\('activate'[\s\S]*deleteOutdatedCaches\(\)\.then\(async \(deletedKeys\) => \{[\s\S]*await self\.clients\.claim\(\);[\s\S]*await reloadClientsAfterCacheUpgrade\(deletedKeys\);/, 'activate should clean old caches, claim clients, and reload windows after a cache upgrade');
-});
-
-test('service worker reloads open dashboard windows after deleting old cache versions', async () => {
-  const frontendSw = await read(FRONTEND_SW_FILE);
-
-  assert.match(frontendSw, /return outdatedKeys;/, 'cache cleanup should report deleted old cache names');
-  assert.match(frontendSw, /async function reloadClientsAfterCacheUpgrade\(deletedKeys\)/, 'service worker should define forced client reload after cache upgrade');
-  assert.match(frontendSw, /self\.clients\.matchAll\(\{ type: 'window', includeUncontrolled: true \}\)/, 'reload should include currently open dashboard windows');
-  assert.match(frontendSw, /client\.navigate\(client\.url\)/, 'open clients should be navigated to fetch the fresh app shell and assets');
+  assert.doesNotMatch(installBlock, /deleteOutdatedCaches/, 'install must not delete outdated caches before activate');
+  assert.match(frontendSw, /self\.addEventListener\('activate'[\s\S]*await deleteOutdatedCaches\(\);[\s\S]*await self\.clients\.claim\(\);/, 'activate should clean old caches and claim clients silently');
+  assert.doesNotMatch(frontendSw, /reloadClientsAfterCacheUpgrade/, 'service worker must not keep a forced client reload helper');
+  assert.doesNotMatch(frontendSw, /client\.navigate\(/, 'service worker must not navigate or reload open dashboard tabs');
+  assert.doesNotMatch(frontendSw, /SW_UPDATED/, 'service worker should not display an update message or request a manual refresh');
 });
 
 test('service worker fetches app shell and manifest fresh after deploy', async () => {
