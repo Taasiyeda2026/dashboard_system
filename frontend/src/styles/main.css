@@ -21081,11 +21081,11 @@ details[open] > .ds-fin-acc__summary::before { transform: rotate(90deg); }
 }
 
 .proposal-document.pa-gefen-approval-document .pa-section {
-  margin-block: 3mm;
+  margin-block: 1.2mm;
 }
 
 .proposal-document.pa-gefen-approval-document .pa-section-heading {
-  margin: 0 0 1.2mm;
+  margin: 0 0 0.8mm;
   color: #0f3f5f;
   font-size: 11pt !important;
   line-height: 1.25 !important;
@@ -21095,7 +21095,7 @@ details[open] > .ds-fin-acc__summary::before { transform: rotate(90deg); }
 }
 
 .proposal-document.pa-gefen-approval-document .pa-section p {
-  margin: 0 0 1.4mm;
+  margin: 0 0 0.8mm;
   line-height: 1.38 !important;
 }
 
@@ -21142,7 +21142,7 @@ details[open] > .ds-fin-acc__summary::before { transform: rotate(90deg); }
 .pa-gefen-signature-grid {
   display: grid;
   grid-template-columns: minmax(0, 1fr);
-  gap: 4mm;
+  gap: 3.5mm;
   width: 56%;
   margin-top: 6mm;
   margin-left: auto;
@@ -21153,7 +21153,9 @@ details[open] > .ds-fin-acc__summary::before { transform: rotate(90deg); }
 }
 
 .pa-gefen-signature-field {
-  display: block;
+  display: flex;
+  align-items: flex-end;
+  gap: 2mm;
   min-width: 0;
 }
 
@@ -21174,17 +21176,20 @@ details[open] > .ds-fin-acc__summary::before { transform: rotate(90deg); }
   color: #334155;
   font-size: 9.5pt;
   font-weight: 600;
+  white-space: nowrap;
 }
 
 .pa-gefen-signature-field i {
   display: block;
-  min-height: 4mm;
-  margin-top: 1.5mm;
+  flex: 1 1 auto;
+  min-width: 0;
+  min-height: 0;
+  margin: 0 0 0.6mm;
   border-bottom: 0.7px solid #64748b;
 }
 
 .pa-gefen-signature-field--signature i {
-  min-height: 10mm;
+  min-height: 0;
 }
 
 .proposal-document.pa-gefen-approval-document .pa-gefen-validity-list {
@@ -21193,7 +21198,7 @@ details[open] > .ds-fin-acc__summary::before { transform: rotate(90deg); }
 }
 
 .proposal-document.pa-gefen-approval-document .pa-gefen-validity-list li {
-  margin-bottom: 1.5mm;
+  margin-bottom: 0.8mm;
   line-height: 1.38 !important;
 }
 
