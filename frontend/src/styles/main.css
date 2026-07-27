@@ -21136,7 +21136,7 @@ details[open] > .ds-fin-acc__summary::before { transform: rotate(90deg); }
 .pa-gefen-signature-grid {
   display: grid;
   grid-template-columns: minmax(0, 1fr);
-  gap: 5mm;
+  gap: 4mm;
   width: 56%;
   margin-top: 6mm;
   margin-left: auto;
@@ -21161,7 +21161,7 @@ details[open] > .ds-fin-acc__summary::before { transform: rotate(90deg); }
 }
 
 .pa-gefen-signature-field--signature {
-  margin-top: 2mm;
+  margin-top: 8mm;
 }
 
 .pa-gefen-signature-field span {
@@ -21178,7 +21178,7 @@ details[open] > .ds-fin-acc__summary::before { transform: rotate(90deg); }
 }
 
 .pa-gefen-signature-field--signature i {
-  min-height: 16mm;
+  min-height: 10mm;
 }
 
 .proposal-document.pa-gefen-approval-document .pa-gefen-validity-list {
