@@ -3109,11 +3109,10 @@ function proposalFinalPdfStoragePath(proposalId, fileName = 'proposal.pdf') {
   return `proposals/${rowId}/${stamp}-${Date.now()}/${safeName}`;
 }
 
-function gefenApprovalPdfStoragePath(proposalId, fileName = 'gefen-approval.pdf') {
+function gefenApprovalPdfStoragePath(proposalId) {
   const rowId = cleanProposalAgreementText(proposalId);
   if (!rowId) throw new Error('missing_proposal_agreement_id');
-  const safeName = String(fileName || 'gefen-approval.pdf').replace(/[^\w.\-א-ת]+/g, '_').slice(0, 120) || 'gefen-approval.pdf';
-  return `gefen-approvals/${rowId}/${Date.now()}/${safeName}`;
+  return `gefen-approvals/${rowId}/${Date.now()}/gefen-approval.pdf`;
 }
 
 function proposalLockActorName() {
@@ -6716,7 +6715,7 @@ export const api = {
       throw new Error('חסר פירוט קורסים עם מספר גפ״ן. לא ניתן להפיק את האישור.');
     }
 
-    const filePath = gefenApprovalPdfStoragePath(rowId, pdfFile.name);
+    const filePath = gefenApprovalPdfStoragePath(rowId);
     const uploaded = await supabase.storage
       .from(PROPOSAL_FINAL_PDF_BUCKET)
       .upload(filePath, pdfFile, { contentType: 'application/pdf', upsert: false });
