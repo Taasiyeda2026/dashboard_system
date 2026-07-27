@@ -17,7 +17,8 @@ test('desktop dashboard uses the available width without changing its actions', 
   assert.match(dashboardCss, /#app \.ds-dashboard-wrap\s*\{[\s\S]*max-width:\s*1180px;[\s\S]*zoom:\s*1;/);
   assert.match(dashboardCss, /\.ds-dashboard-kpi-grid\s*\{[\s\S]*grid-template-columns:\s*repeat\(5, minmax\(0, 1fr\)\);/);
   assert.match(dashboardCss, /\.ds-dashboard-kpi-grid--row2\s*\{[\s\S]*grid-template-columns:\s*repeat\(3, minmax\(0, 1fr\)\);/);
-  assert.match(dashboardCss, /\.ds-manager-grid\s*\{[\s\S]*grid-template-columns:\s*repeat\(3, minmax\(0, 1fr\)\);/);
+  assert.match(dashboardCss, /\.ds-manager-grid\s*\{[\s\S]*width:\s*100%;[\s\S]*max-width:\s*none;[\s\S]*grid-template-columns:\s*repeat\(3, minmax\(0, 1fr\)\);/);
+  assert.match(dashboardCss, /\.ds-manager-card--district\s*\{[\s\S]*grid-column:\s*auto\s*!important;/);
   assert.doesNotMatch(dashboardCss, /pointer-events:\s*none[^}]*\.ds-(?:interactive-card|manager-stat)/);
 });
 
