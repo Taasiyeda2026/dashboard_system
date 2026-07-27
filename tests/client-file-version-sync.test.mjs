@@ -14,7 +14,7 @@ test('service worker and client-file hotfix versions are current and structurall
   ]);
 
   const cacheVersion = Number(sw.match(/const CACHE_VERSION = (\d+);/)?.[1] || 0);
-  assert.ok(Number.isInteger(cacheVersion) && cacheVersion >= 1286, 'CACHE_VERSION must include the activity drawer cache refresh generation');
+  assert.ok(Number.isInteger(cacheVersion) && cacheVersion >= 1287, 'CACHE_VERSION must include the performance cache refresh generation');
 
   const hotfixVersion = config.match(/HOTFIX_VERSION:\s*'([^']+)'/)?.[1] || '';
   assert.ok(hotfixVersion.trim(), 'HOTFIX_VERSION must be defined');
@@ -24,6 +24,7 @@ test('service worker and client-file hotfix versions are current and structurall
     'HOTFIX_VERSION must describe a supported current client hotfix generation'
   );
   assert.match(hotfixVersion, /activity-drawer-cache-20260727-v1/, 'HOTFIX_VERSION must clear persisted screen data after the activity drawer redesign');
+  assert.match(hotfixVersion, /performance-cache-20260727-v1/, 'HOTFIX_VERSION must clear persisted data for the performance cache rollout');
 
   const installBlock = sw.match(/self\.addEventListener\('install',[\s\S]*?\n\}\);/)?.[0] || '';
   assert.doesNotMatch(installBlock, /deleteOutdatedCaches\(/);
