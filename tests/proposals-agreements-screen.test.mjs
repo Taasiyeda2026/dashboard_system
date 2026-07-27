@@ -523,6 +523,17 @@ test('new GEFEN proposal preview links proposal and approval in one compact docu
       Array.from(approval.querySelectorAll('.pa-gefen-signature-field span')).map((node) => node.textContent.trim()),
       ['תאריך', 'שם מנהל/ת בית הספר', 'חתימה']
     );
+    const approvalValidity = Array.from(approval.querySelectorAll('.pa-section'))
+      .find((section) => section.querySelector('.pa-section-heading')?.textContent.includes('תוקף ההצעה'));
+    assert.equal(approvalValidity.querySelector('.pa-section-heading').textContent.trim(), 'תוקף ההצעה וזמינות הפעילות:');
+    assert.deepEqual(
+      Array.from(approvalValidity.querySelectorAll('.pa-gefen-validity-list li')).map((node) => node.textContent.trim()),
+      [
+        'הצעה זו בתוקף עד ליום 02/09/2026.',
+        'שריון צוותי ההדרכה, מועדי הפעילות והיקף התוכנית יבוצע לפי סדר השלמת הזמנות העבודה במערכת גפ״ן ובכפוף לזמינות.',
+        'כל עוד לא אושרה הזמנת העבודה, לא ניתן להבטיח את השריון ולאחר תום תוקף ההצעה תהיה תעשיידע רשאית להקצות את הקיבולת לבתי ספר אחרים.'
+      ]
+    );
   });
 });
 
@@ -574,9 +585,11 @@ test('GEFEN document refinement keeps compact equal numeric columns and bullet w
   assert.match(styles, /\.proposal-document\.pa-gefen-approval-document \.pa-doc-title[\s\S]*font-size:\s*14pt\s*!important[\s\S]*text-decoration:\s*none\s*!important/i);
   assert.match(styles, /\.pa-gefen-signature-field i[\s\S]*border-bottom:\s*0\.7px solid #64748b/i);
   assert.match(styles, /\.proposal-document\.pa-gefen-approval-document \.pa-doc-title[\s\S]*text-align:\s*center\s*!important/i);
-  assert.match(styles, /\.pa-gefen-signature-grid[\s\S]*width:\s*62%[\s\S]*border-top:\s*0\.5px solid #cbd5e1/i);
-  assert.match(styles, /\.pa-gefen-signature-field[\s\S]*grid-template-columns:\s*35mm minmax\(0,\s*1fr\)/i);
-  assert.match(styles, /\.pa-gefen-signature-field--signature i[\s\S]*min-height:\s*18mm/i);
+  assert.match(styles, /\.pa-gefen-signature-grid[\s\S]*width:\s*56%[\s\S]*border:\s*0/i);
+  assert.match(styles, /\.pa-gefen-signature-field--date[\s\S]*width:\s*42%/i);
+  assert.match(styles, /\.pa-gefen-signature-field--name,[\s\S]*\.pa-gefen-signature-field--signature[\s\S]*width:\s*76%/i);
+  assert.match(styles, /\.pa-gefen-signature-field--signature i[\s\S]*min-height:\s*16mm/i);
+  assert.match(styles, /\.pa-gefen-validity-list li[\s\S]*line-height:\s*1\.38\s*!important/i);
   assert.match(styles, /\.pa-gefen-table-summary[\s\S]*font-size:\s*9pt/i);
   assert.match(styles, /\.pa-gefen-combined-document\s*\{[\s\S]*width:\s*100%[\s\S]*max-width:\s*794px/i);
   assert.match(styles, /\.pa-gefen-combined-document > \.proposal-document\s*\{[\s\S]*width:\s*100%[\s\S]*max-width:\s*100%/i);
