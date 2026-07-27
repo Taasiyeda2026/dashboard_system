@@ -2122,7 +2122,7 @@ export const activitiesScreen = {
           const entry = state?.screenDataCache?.[key];
           if (entry?.data && typeof entry.data === 'object') Object.assign(entry.data, row || changes || {});
         },
-        onSaveSuccess: async ({ sourceSheet, sourceRowId, contentRoot }) => {
+        onSaveSuccess: async ({ sourceSheet, sourceRowId, changes, contentRoot }) => {
           try {
             const rsp = await api.activityDetail(sourceRowId, sourceSheet || 'activities');
             const freshRow = rsp?.row;
