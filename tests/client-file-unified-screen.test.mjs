@@ -150,6 +150,39 @@ test('client file displays a duplicated school contact once and keeps the explic
   });
 });
 
+test('client file labels an 08 landline as phone and displays the duplicated principal once', async () => {
+  const data = {
+    rows: [],
+    contactOptions: [
+      {
+        client_type: 'school', authority_id: '468', school_id: '2057', authority: 'אשכול', school: 'מרחבי אשכול',
+        contact_name: 'שחר ברט', contact_role: 'מנהל/ת בית ספר', phone: '08-666-6666',
+        source_table: 'schools', source_id: '2057'
+      },
+      {
+        client_type: 'school', authority_id: '468', school_id: '2057', authority: 'אשכול', school: 'מרחבי אשכול',
+        contact_name: ' שחר   ברט ', contact_role: 'מנהלת בית ספר', phone: '08-666-6666',
+        mobile: '08-666-6666', email: 'school-mgr@n-e.org.il',
+        source_table: 'contacts_schools', source_id: '399'
+      }
+    ]
+  };
+
+  await withJSDOM(proposalsAgreementsScreen.render(data, { state: stateFor({ role: 'admin' }) }), async (root, dom) => {
+    proposalsAgreementsScreen.bind({ root, data, state: stateFor({ role: 'admin' }), api: {} });
+    const search = root.querySelector('[data-pa-client-search]');
+    search.value = 'מרחבי אשכול';
+    search.dispatchEvent(new dom.window.Event('input', { bubbles: true }));
+    await new Promise((resolve) => setTimeout(resolve, 300));
+    root.querySelector('[data-pa-open-client]')?.click();
+    const clientFileText = root.querySelector('[data-pa-client-file]')?.textContent || '';
+    assert.equal((clientFileText.match(/שחר\s+ברט/g) || []).length, 1);
+    assert.match(clientFileText, /טלפון:\s*08-666-6666/);
+    assert.doesNotMatch(clientFileText, /נייד:\s*08-666-6666/);
+    assert.match(clientFileText, /school-mgr@n-e\.org\.il/);
+  });
+});
+
 test('client-file contact editing updates by exact source id and never inserts a duplicate', async () => {
   const state = stateFor({ manage: true, role: 'admin' });
   for (const contact of [
