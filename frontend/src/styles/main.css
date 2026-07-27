@@ -20847,26 +20847,17 @@ details[open] > .ds-fin-acc__summary::before { transform: rotate(90deg); }
   }
 }
 
-.ds-pa-gefen-status {
-  display: inline-flex;
-  min-width: 42px;
-  justify-content: center;
-  border-radius: 999px;
-  padding: 2px 7px;
+.ds-pa-gefen-status-text {
   font-size: 0.72rem;
   font-weight: 700;
 }
 
-.ds-pa-gefen-status--generated {
+.ds-pa-gefen-status-text--generated {
   color: #166534;
-  background: #dcfce7;
-  border: 1px solid #86efac;
 }
 
-.ds-pa-gefen-status--missing {
+.ds-pa-gefen-status-text--missing {
   color: #9a3412;
-  background: #ffedd5;
-  border: 1px solid #fdba74;
 }
 
 .ds-pa-quote-number {
