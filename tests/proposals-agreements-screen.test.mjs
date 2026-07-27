@@ -558,6 +558,7 @@ test('GEFEN approval removes an incomplete duplicate row and keeps the complete 
   assert.equal((html.match(/בינה מלאכותית/g) || []).length, 1);
   assert.match(html, /תוכניות לבחירה: <strong>2<\/strong>/);
   assert.match(html, /היקף מלא: <strong>[\s\S]*17,500/);
+  assert.match(html, /<colgroup><col class="pa-choice-col"><col class="pa-course-col"><col class="pa-gefen-col"><col class="pa-meetings-col"><col class="pa-hours-col"><col class="pa-hourly-price-col"><col class="pa-groups-col"><col class="pa-total-price-col"><\/colgroup>/);
   assert.match(html, /נייד: <bdi dir="ltr">0525925005<\/bdi>/);
   assert.match(html, /דוא״ל: <bdi dir="ltr">1002120044@edu-darom\.org\.il<\/bdi>/);
   assert.doesNotMatch(html, /_{3,}/);
