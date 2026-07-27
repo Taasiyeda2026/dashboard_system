@@ -374,7 +374,7 @@ test('GEFEN approval includes only numbered non-summer rows and displays rounded
   assert.doesNotMatch(html, /קורס ללא גפן/);
 });
 
-test('GEFEN approval status visibly carries the linked quote number', () => {
+test('GEFEN approval status is short plain text in the proposals table', () => {
   const html = proposalsAgreementsTableRowsHtml([{
     id: 'gefen-status-1',
     quote_number: '10169',
@@ -383,7 +383,9 @@ test('GEFEN approval status visibly carries the linked quote number', () => {
     gefen_approval_path: 'proposal-linked-documents/gefen-status-1/approval.pdf',
     status: 'approved'
   }], stateFor('admin'));
-  assert.match(html, /הופק · הצעה 10169/);
+  assert.match(html, /ds-pa-gefen-status-text ds-pa-gefen-status-text--generated">הופק<\/span>/);
+  assert.doesNotMatch(html, /ds-pa-gefen-status(?:\s|")/);
+  assert.doesNotMatch(html, /הופק · הצעה 10169/);
   assert.match(html, /צפייה באישור גפ״ן להצעה 10169/);
   assert.match(html, /הפקה מחדש של אישור גפ״ן להצעה 10169/);
 });
