@@ -125,6 +125,8 @@ export function polishActivityDrawerEditOptions(form, settings = state.clientSet
 
   const typeSelect = form.querySelector('[name="activity_type"]');
   typeSelect?.addEventListener('change', () => {
+    const nameSelect = form.querySelector('[data-role="activity-name-select"], [name="activity_name"]');
+    if (nameSelect) nameSelect.value = '';
     rebuildActivityNameSelect(form, settings, {
       ...row,
       activity_type: typeSelect.value,
