@@ -358,8 +358,7 @@ test('GEFEN approval includes only numbered non-summer rows and displays rounded
   assert.deepEqual(gefenEligibleItems(items).map((item) => item.item_name), ['רוקחים עולם']);
   const html = gefenApprovalDocumentHtml(row, items);
   assert.match(html, /אישור כוונות להזמנה במערכת גפ״ן \| תשפ״ז/);
-  assert.match(html, /מקושר להצעה <bdi dir="ltr">10167<\/bdi>/);
-  assert.doesNotMatch(html, /אישור כוונות[\s\S]*הצעת מחיר/);
+  assert.match(html, /מקושר להצעת מחיר מספר <bdi dir="ltr">10167<\/bdi>/);
   assert.equal((html.match(/10167/g) || []).length, 1);
   assert.match(html, /סמל מוסד:<\/strong> 123456/);
   assert.match(html, /רוקחים עולם/);
@@ -442,7 +441,7 @@ test('standalone GEFEN approval for an existing proposal uses the same GEFEN doc
   assert.match(html, /pa-proposal-doc--gefen/);
   assert.match(html, /pa-gefen-recipient/);
   assert.match(html, /אישור כוונות להזמנה במערכת גפ״ן \| תשפ״ז/);
-  assert.match(html, /מקושר להצעה <bdi dir="ltr">10073<\/bdi>/);
+  assert.match(html, /מקושר להצעת מחיר מספר <bdi dir="ltr">10073<\/bdi>/);
 });
 
 test('new GEFEN proposal preview links proposal and approval in one compact document', async () => {
@@ -476,7 +475,6 @@ test('new GEFEN proposal preview links proposal and approval in one compact docu
   const html = proposalPreviewBodyHtml(row, items, sections, { showSignatureImage: true });
   assert.match(html, /pa-gefen-combined-document/);
   assert.match(html, /הצעת מחיר 10168 פעילויות תעשיידע/);
-  assert.doesNotMatch(html, /הצעת מחיר\s+\(?מספר\)?/);
   assert.match(html, /אישור כוונות להזמנה במערכת גפ״ן/);
   assert.match(html, /data-pdf-page-break="true"/);
   assert.match(html, /עידן נחום, סמנכ״ל כספים/);
@@ -489,10 +487,10 @@ test('new GEFEN proposal preview links proposal and approval in one compact docu
       approval.querySelector('.pa-doc-title').textContent,
       'אישור כוונות להזמנה במערכת גפ״ן | תשפ״ז'
     );
-    assert.equal(approval.querySelector('.pa-gefen-linked-document span').textContent.trim(), 'מקושר להצעה 10168');
+    assert.equal(approval.querySelector('.pa-gefen-linked-document span').textContent.trim(), 'מקושר להצעת מחיר מספר 10168');
     assert.equal(approval.querySelector('.pa-gefen-linked-document bdi').textContent.trim(), '10168');
     assert.equal((approval.textContent.match(/10168/g) || []).length, 1);
-    assert.doesNotMatch(approval.textContent, /הצעת מחיר/);
+    assert.doesNotMatch(approval.querySelector('.pa-doc-title').textContent, /הצעת מחיר/);
     const approvalDate = approval.querySelector('.pa-gefen-approval-date');
     const approvalTitle = approval.querySelector('.pa-doc-title');
     assert.ok(approvalDate.compareDocumentPosition(approvalTitle) & dom.window.Node.DOCUMENT_POSITION_FOLLOWING);
