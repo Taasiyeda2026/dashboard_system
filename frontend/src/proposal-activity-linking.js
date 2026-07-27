@@ -18,6 +18,12 @@ function clean(value) {
   return String(value == null ? '' : value).replace(/\s+/g, ' ').trim();
 }
 
+function quotedActivityCount(value) {
+  const parsed = Number(value);
+  if (!Number.isFinite(parsed)) return 1;
+  return Math.max(1, Math.min(100, Math.floor(parsed)));
+}
+
 function role() {
   return clean(state?.user?.display_role || state?.user?.role);
 }
@@ -41,7 +47,8 @@ function normalizedProposalGroup(value) {
     'תוכניות תשפ"ז', 'תוכניות תשפ״ז'
   ].includes(raw)) return 'next_year';
   if (['גפן', 'גפ"ן', 'גפ״ן'].includes(raw)) return 'gefen';
-  if (['summer', 'קיץ', 'קיץ תשפ"ו', 'קיץ תשפ״ו'].includes(lower) || ['קיץ', 'קיץ תשפ"ו', 'קיץ תשפ״ו'].includes(raw)) return 'summer';
+  if (['summer', 'קיץ', 'קיץ תשפ"ו', 'קיץ תשפ״ו'].includes(lower)
+    || ['קיץ', 'קיץ תשפ"ו', 'קיץ תשפ״ו'].includes(raw)) return 'summer';
   return lower;
 }
 
@@ -97,13 +104,6 @@ function injectStyles() {
       font-size: .98rem;
       font-weight: 800;
     }
-    .proposal-activity-creator__approval {
-      font-size: .78rem;
-      font-weight: 700;
-      white-space: nowrap;
-    }
-    .proposal-activity-creator__approval.is-ready { color: #047857; }
-    .proposal-activity-creator__approval.is-missing { color: #64748b; }
     .proposal-activity-creator__item {
       display: grid;
       grid-template-columns: minmax(0, 1fr) auto;
@@ -124,7 +124,7 @@ function injectStyles() {
       font-size: .76rem;
     }
     .proposal-activity-creator__button {
-      min-width: 122px;
+      min-width: 138px;
       border: 0;
       border-radius: 9px;
       padding: 7px 11px;
@@ -163,9 +163,7 @@ function injectStyles() {
       white-space: nowrap;
       cursor: pointer;
     }
-    .activity-gefen-cell input[type="checkbox"] {
-      margin: 0;
-    }
+    .activity-gefen-cell input[type="checkbox"] { margin: 0; }
     .activity-gefen-cell__order {
       width: 100%;
       min-width: 125px;
@@ -182,7 +180,6 @@ function injectStyles() {
       color: #64748b;
       font-size: .7rem;
     }
-    .activity-gefen-cell__approval.is-ready { color: #047857; font-weight: 700; }
     .activity-gefen-cell__readonly { color: #475569; }
     @media (max-width: 900px) {
       .proposal-activity-creator__item { grid-template-columns: 1fr; }
@@ -243,31 +240,22 @@ async function readProposalForDetail(root) {
 }
 
 async function readProposalActivityData(proposalId) {
-  const [{ data: items, error: itemsError }, { data: activities, error: activitiesError }, { data: approval, error: approvalError }] = await Promise.all([
+  const [{ data: items, error: itemsError }, { data: activities, error: activitiesError }] = await Promise.all([
     supabase
       .from('proposal_agreement_items')
-      .select('id,proposal_agreement_id,item_name,item_type,gefen_number,meetings_count,hours_count,total_price,proposal_group,sort_order')
+      .select('id,proposal_agreement_id,item_name,item_type,gefen_number,activity_no,list_id,meetings_count,hours_count,quantity,unit_price,total_price,proposal_group,sort_order')
       .eq('proposal_agreement_id', proposalId)
       .order('sort_order', { ascending: true }),
     supabase
       .from('activities')
-      .select('row_id,proposal_agreement_id,proposal_item_id,is_gefen_funded,exists_in_gefen,gefen_order_number')
-      .eq('proposal_agreement_id', proposalId),
-    supabase
-      .from('proposal_linked_documents')
-      .select('id,status')
+      .select('row_id,proposal_agreement_id,proposal_item_id,proposal_item_sequence,is_gefen_funded,exists_in_gefen,gefen_order_number')
       .eq('proposal_agreement_id', proposalId)
-      .eq('document_type', 'gefen_approval')
-      .limit(1)
-      .maybeSingle()
   ]);
   if (itemsError) throw itemsError;
   if (activitiesError) throw activitiesError;
-  if (approvalError && approvalError.code !== 'PGRST116') throw approvalError;
   return {
     items: Array.isArray(items) ? items : [],
-    activities: Array.isArray(activities) ? activities : [],
-    hasGefenApproval: clean(approval?.status) === 'generated'
+    activities: Array.isArray(activities) ? activities : []
   };
 }
 
@@ -279,9 +267,32 @@ function proposalCreatorHost(root) {
 
 function proposalItemMeta(item) {
   const parts = [];
+  const count = quotedActivityCount(item.quantity);
+  parts.push(count === 1 ? 'קבוצה אחת' : `${count} קבוצות`);
   if (clean(item.gefen_number)) parts.push(`מס׳ גפ״ן ${clean(item.gefen_number)}`);
   if (item.meetings_count != null) parts.push(`${clean(item.meetings_count)} מפגשים`);
   return parts.join(' · ');
+}
+
+function activitiesByProposalItem(activities) {
+  const grouped = new Map();
+  for (const activity of activities) {
+    const itemId = clean(activity.proposal_item_id);
+    if (!itemId) continue;
+    const rows = grouped.get(itemId) || [];
+    rows.push(activity);
+    grouped.set(itemId, rows);
+  }
+  for (const rows of grouped.values()) {
+    rows.sort((a, b) => Number(a.proposal_item_sequence || 0) - Number(b.proposal_item_sequence || 0));
+  }
+  return grouped;
+}
+
+function creationButtonText(requiredCount, createdCount) {
+  const remaining = Math.max(0, requiredCount - createdCount);
+  if (remaining === 0) return requiredCount === 1 ? 'הפעילות נוצרה' : `${requiredCount} פעילויות נוצרו`;
+  return remaining === 1 ? 'יצירת פעילות' : `יצירת ${remaining} פעילויות`;
 }
 
 function renderProposalCreator(root, proposal, data) {
@@ -290,27 +301,27 @@ function renderProposalCreator(root, proposal, data) {
   const eligibleItems = data.items.filter((item) => isEligibleProposalItem(item, proposal));
   if (!eligibleItems.length) return;
 
-  const byItemId = new Map(data.activities.map((activity) => [clean(activity.proposal_item_id), activity]));
+  const byItemId = activitiesByProposalItem(data.activities);
   const card = document.createElement('section');
   card.className = 'proposal-activity-creator';
   card.setAttribute(CREATOR_ATTR, proposal.id);
-  const approvalClass = data.hasGefenApproval ? 'is-ready' : 'is-missing';
-  const approvalText = data.hasGefenApproval ? 'אישור גפ״ן קיים' : 'אישור גפ״ן טרם הופק';
 
   card.innerHTML = `
     <div class="proposal-activity-creator__head">
       <h3 class="proposal-activity-creator__title">פעילויות 2027</h3>
-      <span class="proposal-activity-creator__approval ${approvalClass}">${approvalText}</span>
     </div>
     ${eligibleItems.map((item) => {
-      const activity = byItemId.get(clean(item.id));
-      const meta = proposalItemMeta(item);
-      const gefenState = activity?.is_gefen_funded
-        ? (activity?.exists_in_gefen ? 'קיים בגפ״ן' : 'מימון גפ״ן · טרם הוזן')
-        : '';
-      const createdMeta = activity
-        ? [clean(activity.row_id), gefenState].filter(Boolean).join(' · ')
-        : meta;
+      const requiredCount = quotedActivityCount(item.quantity);
+      const activities = byItemId.get(clean(item.id)) || [];
+      const createdCount = activities.length;
+      const complete = createdCount >= requiredCount;
+      const existsCount = activities.filter((activity) => activity.exists_in_gefen === true).length;
+      const createdMeta = createdCount
+        ? [
+            `${Math.min(createdCount, requiredCount)} מתוך ${requiredCount} פעילויות נוצרו`,
+            existsCount ? `${existsCount} סומנו כקיימות בגפ״ן` : ''
+          ].filter(Boolean).join(' · ')
+        : proposalItemMeta(item);
       return `
         <div class="proposal-activity-creator__item" data-proposal-item-id="${clean(item.id)}">
           <div class="proposal-activity-creator__name">
@@ -320,8 +331,8 @@ function renderProposalCreator(root, proposal, data) {
           <button type="button"
             class="proposal-activity-creator__button"
             data-create-activity-from-proposal-item="${clean(item.id)}"
-            ${activity || !canCreateActivitiesFromProposal() ? 'disabled' : ''}>
-            ${activity ? 'הפעילות נוצרה' : 'יצירת פעילות'}
+            ${complete || !canCreateActivitiesFromProposal() ? 'disabled' : ''}>
+            ${creationButtonText(requiredCount, createdCount)}
           </button>
         </div>
       `;
@@ -337,7 +348,7 @@ function renderProposalCreator(root, proposal, data) {
     if (!UUID_RE.test(proposalItemId)) return;
 
     button.disabled = true;
-    button.textContent = 'יוצר פעילות…';
+    button.textContent = 'יוצר פעילויות…';
     const { data: result, error } = await supabase.rpc('create_activity_from_proposal_item', {
       p_proposal_item_id: proposalItemId
     });
@@ -345,19 +356,16 @@ function renderProposalCreator(root, proposal, data) {
       console.error('[proposal-activity-create]', error);
       button.disabled = false;
       button.textContent = 'יצירת פעילות';
-      toast(error.message || 'יצירת הפעילות נכשלה.', 'error');
+      toast(error.message || 'יצירת הפעילויות נכשלה.', 'error');
       return;
     }
 
     clearScreenDataCache();
-    const activity = result?.activity || result?.[0]?.activity || null;
-    toast(result?.created === false ? 'הפעילות כבר קיימת.' : 'שורת הפעילות נוצרה בהצלחה.');
-    button.textContent = 'הפעילות נוצרה';
-    button.disabled = true;
-    if (activity?.row_id) {
-      const meta = button.closest('.proposal-activity-creator__item')?.querySelector('.proposal-activity-creator__meta');
-      if (meta) meta.textContent = clean(activity.row_id);
-    }
+    const createdCount = Number(result?.created_count || 0);
+    if (createdCount <= 0) toast('כל שורות הפעילות כבר קיימות.');
+    else if (createdCount === 1) toast('שורת הפעילות נוצרה בהצלחה.');
+    else toast(`${createdCount} שורות פעילות נוצרו בהצלחה.`);
+
     root.removeAttribute('data-proposal-activity-loaded');
     scheduleEnhancements();
   });
@@ -394,11 +402,9 @@ function activityRowId(tableRow) {
   return clean(nested?.getAttribute('data-row-id'));
 }
 
-function activityCellMeta(activity, quoteByProposalId, approvalProposalIds) {
+function activityCellMeta(activity, quoteByProposalId) {
   const proposalId = clean(activity.proposal_agreement_id);
-  const quote = proposalId ? clean(quoteByProposalId.get(proposalId)) : '';
-  const hasApproval = proposalId && approvalProposalIds.has(proposalId);
-  return { quote, hasApproval };
+  return { quote: proposalId ? clean(quoteByProposalId.get(proposalId)) : '' };
 }
 
 async function updateActivityGefen(activity, patch) {
@@ -409,7 +415,7 @@ async function updateActivityGefen(activity, patch) {
     .from('activities')
     .update(normalizedPatch)
     .eq('row_id', rowId)
-    .select('row_id,proposal_agreement_id,proposal_item_id,is_gefen_funded,exists_in_gefen,gefen_order_number,funding,activity_season')
+    .select('row_id,proposal_agreement_id,proposal_item_id,proposal_item_sequence,is_gefen_funded,exists_in_gefen,gefen_order_number,funding,activity_season')
     .single();
   if (error) throw error;
   clearScreenDataCache();
@@ -429,7 +435,7 @@ function renderActivityGefenCell(cell, activity, meta) {
           <input type="checkbox" data-gefen-field="is_gefen_funded" ${isFunded ? 'checked' : ''} ${editable ? '' : 'disabled'}>
           מימון גפ״ן
         </label>
-        <label title="הפעילות או ההזמנה קיימת בפועל במערכת גפ״ן">
+        <label title="סימון ידני: הפעילות או ההזמנה קיימת בפועל במערכת גפ״ן">
           <input type="checkbox" data-gefen-field="exists_in_gefen" ${exists ? 'checked' : ''} ${editable ? '' : 'disabled'}>
           קיים בגפ״ן
         </label>
@@ -442,7 +448,6 @@ function renderActivityGefenCell(cell, activity, meta) {
         ${editable && exists ? '' : 'disabled'}>
       <div class="activity-gefen-cell__meta">
         ${meta.quote ? `<span>הצעה ${escapeHtml(meta.quote)}</span>` : ''}
-        ${meta.hasApproval ? '<span class="activity-gefen-cell__approval is-ready">אישור גפ״ן קיים</span>' : ''}
         ${editable ? '' : '<span class="activity-gefen-cell__readonly">לצפייה בלבד</span>'}
       </div>
     </div>
@@ -484,7 +489,7 @@ function renderActivityGefenCell(cell, activity, meta) {
       const checked = existsInput.checked;
       const patch = checked
         ? { is_gefen_funded: true, exists_in_gefen: true, funding: 'גפן' }
-        : { exists_in_gefen: false };
+        : { exists_in_gefen: false, gefen_order_number: null };
       const saved = await updateActivityGefen(activity, patch);
       Object.assign(activity, saved || patch);
       renderActivityGefenCell(cell, activity, meta);
@@ -536,7 +541,7 @@ async function enhanceActivityTable(table) {
 
   const { data: activities, error } = await supabase
     .from('activities')
-    .select('row_id,proposal_agreement_id,proposal_item_id,is_gefen_funded,exists_in_gefen,gefen_order_number,funding,activity_season')
+    .select('row_id,proposal_agreement_id,proposal_item_id,proposal_item_sequence,is_gefen_funded,exists_in_gefen,gefen_order_number,funding,activity_season')
     .in('row_id', rowIds);
   if (error) {
     table.removeAttribute('data-gefen-enhanced-signature');
@@ -552,22 +557,14 @@ async function enhanceActivityTable(table) {
 
   const proposalIds = [...new Set(school2027.map((activity) => clean(activity.proposal_agreement_id)).filter(Boolean))];
   const quoteByProposalId = new Map();
-  const approvalProposalIds = new Set();
 
   if (proposalIds.length) {
-    const [{ data: proposals, error: proposalsError }, { data: approvals, error: approvalsError }] = await Promise.all([
-      supabase.from('proposals_agreements').select('id,quote_number').in('id', proposalIds),
-      supabase
-        .from('proposal_linked_documents')
-        .select('proposal_agreement_id,status')
-        .in('proposal_agreement_id', proposalIds)
-        .eq('document_type', 'gefen_approval')
-        .eq('status', 'generated')
-    ]);
+    const { data: proposals, error: proposalsError } = await supabase
+      .from('proposals_agreements')
+      .select('id,quote_number')
+      .in('id', proposalIds);
     if (proposalsError) throw proposalsError;
-    if (approvalsError) throw approvalsError;
     (proposals || []).forEach((proposal) => quoteByProposalId.set(clean(proposal.id), clean(proposal.quote_number)));
-    (approvals || []).forEach((approval) => approvalProposalIds.add(clean(approval.proposal_agreement_id)));
   }
 
   const headRow = table.querySelector('thead tr:last-child');
@@ -594,7 +591,7 @@ async function enhanceActivityTable(table) {
       cell.textContent = '—';
       return;
     }
-    renderActivityGefenCell(cell, activity, activityCellMeta(activity, quoteByProposalId, approvalProposalIds));
+    renderActivityGefenCell(cell, activity, activityCellMeta(activity, quoteByProposalId));
   });
 
   table.setAttribute('data-gefen-enhanced-signature', signature);
