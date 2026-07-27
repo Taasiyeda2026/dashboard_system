@@ -21019,12 +21019,52 @@ details[open] > .ds-fin-acc__summary::before { transform: rotate(90deg); }
 }
 
 .proposal-document.pa-gefen-approval-document {
-  font-size: 8.7pt;
-  line-height: 1.18;
+  font-size: 10pt;
+  line-height: 1.34;
 }
 
 .proposal-document.pa-gefen-approval-document .pa-doc-title {
   color: #0f5b8d !important;
+  font-size: 14pt !important;
+  line-height: 1.3 !important;
+  text-decoration: none !important;
+  margin: 1.5mm 0 1mm !important;
+  unicode-bidi: plaintext;
+}
+
+.proposal-document.pa-gefen-approval-document .pa-doc-date {
+  font-size: 9.5pt !important;
+  color: #475569;
+  margin-bottom: 2mm !important;
+}
+
+.proposal-document.pa-gefen-approval-document .proposal-logo {
+  max-height: 15mm !important;
+}
+
+.proposal-document.pa-gefen-approval-document .pa-gefen-recipient {
+  font-size: 10pt !important;
+  line-height: 1.35 !important;
+  margin-bottom: 3mm !important;
+}
+
+.proposal-document.pa-gefen-approval-document .pa-gefen-contact-details {
+  display: flex;
+  align-items: center;
+  justify-content: flex-start;
+  flex-wrap: wrap;
+  gap: 1.5mm;
+  direction: rtl;
+}
+
+.proposal-document.pa-gefen-approval-document .pa-gefen-contact-details bdi {
+  display: inline-block;
+  direction: ltr;
+  unicode-bidi: isolate;
+}
+
+.proposal-document.pa-gefen-approval-document .pa-gefen-contact-separator {
+  color: #94a3b8;
 }
 
 .pa-gefen-linked-document {
@@ -21032,27 +21072,32 @@ details[open] > .ds-fin-acc__summary::before { transform: rotate(90deg); }
   align-items: center;
   justify-content: space-between;
   gap: 3mm;
-  margin: 0 0 2mm;
-  padding: 1.4mm 2mm;
+  margin: 0 0 3mm;
+  padding: 1.6mm 2.4mm;
   border: 1px solid #bfdbec;
   border-radius: 1.5mm;
   background: #f0f8fc;
   color: #0f3f5f;
-  font-size: 8.2pt;
+  font-size: 9pt;
 }
 
 .proposal-document.pa-gefen-approval-document .pa-section {
-  margin-block: 2mm;
+  margin-block: 3mm;
 }
 
 .proposal-document.pa-gefen-approval-document .pa-section-heading {
-  margin: 0 0 0.8mm;
+  margin: 0 0 1.2mm;
   color: #0f3f5f;
-  font-size: 9.5pt;
+  font-size: 11pt !important;
+  line-height: 1.25 !important;
+  text-decoration: none !important;
+  border-bottom: 0.4px solid #d7e3ec;
+  padding-bottom: 0.7mm !important;
 }
 
 .proposal-document.pa-gefen-approval-document .pa-section p {
-  margin: 0 0 1mm;
+  margin: 0 0 1.4mm;
+  line-height: 1.38 !important;
 }
 
 .pa-gefen-approval-table .pa-choice-col {
@@ -21083,14 +21128,75 @@ details[open] > .ds-fin-acc__summary::before { transform: rotate(90deg); }
 }
 
 .pa-gefen-choice {
-  font-size: 13pt;
+  font-size: 14pt;
 }
 
 .pa-gefen-signature-grid {
   display: grid;
-  grid-template-columns: 1.5fr 1.2fr 0.8fr;
-  gap: 4mm;
-  margin-top: 5mm;
+  grid-template-columns: 1.35fr 1.15fr 0.8fr;
+  gap: 7mm;
+  margin-top: 7mm;
+  align-items: end;
+}
+
+.pa-gefen-signature-field {
+  display: grid;
+  grid-template-rows: auto 10mm;
+  gap: 1.5mm;
+  min-width: 0;
+}
+
+.pa-gefen-signature-field span {
+  color: #334155;
+  font-size: 9.5pt;
+  font-weight: 600;
+}
+
+.pa-gefen-signature-field i {
+  display: block;
+  border-bottom: 0.7px solid #64748b;
+}
+
+.pa-gefen-table-summary {
+  display: flex;
+  justify-content: flex-end;
+  align-items: center;
+  gap: 5mm;
+  margin-top: 1.5mm;
+  color: #334155;
+  font-size: 9pt;
+}
+
+.proposal-document.pa-gefen-approval-document .pa-gefen-approval-table {
+  margin: 2mm 0 0;
+  font-size: 9pt !important;
+  direction: rtl;
+}
+
+.proposal-document.pa-gefen-approval-document .pa-gefen-approval-table th,
+.proposal-document.pa-gefen-approval-document .pa-gefen-approval-table td {
+  padding: 1.8mm 1.2mm;
+  line-height: 1.2 !important;
+  overflow-wrap: normal;
+}
+
+.proposal-document.pa-gefen-approval-document .pa-gefen-approval-table th:nth-child(1),
+.proposal-document.pa-gefen-approval-document .pa-gefen-approval-table td:nth-child(1) {
+  width: 6% !important;
+}
+
+.proposal-document.pa-gefen-approval-document .pa-gefen-approval-table th:nth-child(2),
+.proposal-document.pa-gefen-approval-document .pa-gefen-approval-table td:nth-child(2) {
+  width: 31% !important;
+}
+
+.proposal-document.pa-gefen-approval-document .pa-gefen-approval-table th:nth-child(n+3),
+.proposal-document.pa-gefen-approval-document .pa-gefen-approval-table td:nth-child(n+3) {
+  width: 10.5% !important;
+}
+
+.proposal-document.pa-gefen-approval-document .pa-gefen-approval-table th:nth-child(6) {
+  white-space: nowrap;
 }
 
 @media print {
@@ -21119,6 +21225,20 @@ details[open] > .ds-fin-acc__summary::before { transform: rotate(90deg); }
   .proposal-document.pa-proposal-doc--gefen .pa-doc-title {
     color: #0f5b8d !important;
     text-align: right !important;
+  }
+
+  .proposal-document.pa-gefen-approval-document {
+    font-size: 10pt !important;
+    line-height: 1.34 !important;
+  }
+
+  .proposal-document.pa-gefen-approval-document .pa-doc-title {
+    font-size: 14pt !important;
+    text-decoration: none !important;
+  }
+
+  .proposal-document.pa-gefen-approval-document .pa-gefen-approval-table {
+    font-size: 9pt !important;
   }
 }
 
@@ -21915,6 +22035,61 @@ details[open] > .ds-fin-acc__summary::before { transform: rotate(90deg); }
   .proposal-document.pa-gefen-approval-document[data-pdf-page-break] {
     break-before: page !important;
     page-break-before: always !important;
+  }
+
+  .proposal-document.pa-gefen-approval-document {
+    font-size: 10pt !important;
+    line-height: 1.34 !important;
+  }
+
+  .proposal-document.pa-gefen-approval-document .proposal-logo {
+    max-height: 15mm !important;
+  }
+
+  .proposal-document.pa-gefen-approval-document .pa-doc-title {
+    margin: 1.5mm 0 1mm !important;
+    color: #0f5b8d !important;
+    font-size: 14pt !important;
+    line-height: 1.3 !important;
+    text-decoration: none !important;
+  }
+
+  .proposal-document.pa-gefen-approval-document .pa-doc-date {
+    margin-bottom: 2mm !important;
+    font-size: 9.5pt !important;
+  }
+
+  .proposal-document.pa-gefen-approval-document .pa-gefen-contact-details {
+    display: flex !important;
+    align-items: center !important;
+    flex-wrap: wrap !important;
+    gap: 1.5mm !important;
+    direction: rtl !important;
+  }
+
+  .proposal-document.pa-gefen-approval-document .pa-section-heading {
+    font-size: 11pt !important;
+    line-height: 1.25 !important;
+    text-decoration: none !important;
+  }
+
+  .proposal-document.pa-gefen-approval-document .pa-gefen-approval-table {
+    font-size: 9pt !important;
+  }
+
+  .proposal-document.pa-gefen-approval-document .pa-gefen-approval-table th:nth-child(1),
+  .proposal-document.pa-gefen-approval-document .pa-gefen-approval-table td:nth-child(1) {
+    width: 6% !important;
+  }
+
+  .proposal-document.pa-gefen-approval-document .pa-gefen-approval-table th:nth-child(2),
+  .proposal-document.pa-gefen-approval-document .pa-gefen-approval-table td:nth-child(2) {
+    width: 31% !important;
+  }
+
+  .proposal-document.pa-gefen-approval-document .pa-gefen-approval-table th:nth-child(n+3),
+  .proposal-document.pa-gefen-approval-document .pa-gefen-approval-table td:nth-child(n+3) {
+    width: 10.5% !important;
   }
 }
 

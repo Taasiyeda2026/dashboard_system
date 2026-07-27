@@ -351,18 +351,22 @@ test('GEFEN approval includes only numbered non-summer rows and displays rounded
   };
   const items = [
     { item_name: 'רוקחים עולם', proposal_group: 'gefen', gefen_number: '46091', meetings_count: 14, hours_count: 21, hourly_price: 571.428571, quantity: 1, unit_price: 12000, total_price: 12000 },
+    { item_name: 'רוקחים עולם', proposal_group: 'gefen', gefen_number: '46091', meetings_count: 14, hours_count: 21, hourly_price: null, quantity: 1, unit_price: null, total_price: null },
     { item_name: 'סדנת קיץ', proposal_group: 'summer', gefen_number: '9999', quantity: 1, unit_price: 500, total_price: 500 },
     { item_name: 'קורס ללא גפן', proposal_group: 'next_year', quantity: 1, unit_price: 700, total_price: 700 }
   ];
   assert.deepEqual(gefenEligibleItems(items).map((item) => item.item_name), ['רוקחים עולם']);
   const html = gefenApprovalDocumentHtml(row, items);
   assert.match(html, /אישור כוונות להזמנה במערכת גפ״ן \| הצעת מחיר 10167/);
-  assert.match(html, /מסמך המשך מקושר/);
-  assert.match(html, /מספר הצעה: 10167/);
+  assert.match(html, /מסמך המשך<\/strong> להצעת המחיר המקורית/);
+  assert.match(html, /<bdi dir="ltr">#10167<\/bdi>/);
   assert.match(html, /סמל מוסד:<\/strong> 123456/);
   assert.match(html, /רוקחים עולם/);
   assert.match(html, /571/);
   assert.match(html, /12,000/);
+  assert.match(html, /תוכניות לבחירה: <strong>1<\/strong>/);
+  assert.match(html, /היקף מלא: <strong>[\s\S]*12,000/);
+  assert.equal((html.match(/רוקחים עולם/g) || []).length, 1);
   assert.match(html, /aria-label="לבחירה">☐/);
   assert.doesNotMatch(html, /☒/);
   assert.doesNotMatch(html, /סדנת קיץ/);
@@ -481,14 +485,15 @@ test('new GEFEN proposal preview links proposal and approval in one compact docu
       approval.querySelector('.pa-doc-title').textContent,
       'אישור כוונות להזמנה במערכת גפ״ן | הצעת מחיר 10168 | תשפ״ז'
     );
-    assert.equal(approval.querySelector('.pa-gefen-linked-document span').textContent.trim(), 'מספר הצעה: 10168');
+    assert.equal(approval.querySelector('.pa-gefen-linked-document span').textContent.trim(), 'מסמך המשך להצעת המחיר המקורית');
+    assert.equal(approval.querySelector('.pa-gefen-linked-document bdi').textContent.trim(), '#10168');
     const recipientLines = Array.from(proposal.querySelectorAll('.pa-gefen-recipient p')).map((p) => p.textContent.trim());
     const approvalRecipientLines = Array.from(approval.querySelectorAll('.pa-gefen-recipient p')).map((p) => p.textContent.trim());
     assert.deepEqual(recipientLines, [
       'לכבוד:',
       'שחר ברט, מנהלת בית ספר',
       'בית ספר: בית ספר גפן | סמל מוסד: 654321 | רשות: רשות גפן',
-      'נייד: 08-666-6666 | דוא״ל: school-mgr@n-e.org.il'
+      'טלפון: 08-666-6666 | דוא״ל: school-mgr@n-e.org.il'
     ]);
     assert.deepEqual(approvalRecipientLines, recipientLines);
     const divider = proposal.querySelector('.pa-doc-divider');
@@ -503,7 +508,37 @@ test('new GEFEN proposal preview links proposal and approval in one compact docu
     assert.equal(cancellation.querySelectorAll('li').length, 7);
     const footerCells = Array.from(proposal.querySelectorAll('.pa-gefen-course-table tfoot td')).map((cell) => cell.textContent.trim());
     assert.equal(footerCells[2], '', 'GEFEN meetings column must not show a total');
+    assert.equal(approval.querySelectorAll('.pa-gefen-signature-field').length, 3);
+    assert.equal(approval.querySelectorAll('.pa-gefen-signature-field i').length, 3);
   });
+});
+
+test('GEFEN approval removes an incomplete duplicate row and keeps the complete quote total', () => {
+  const html = gefenApprovalDocumentHtml({
+    id: '42896768-9eff-433a-bc88-278aa172b7fe',
+    quote_number: '10165',
+    proposal_date: '2026-07-26',
+    valid_until: '2026-09-17',
+    activity_type_group: 'gefen',
+    school_framework: 'שמש גבולות',
+    client_authority: 'אשכול',
+    semel_mosad: '682211',
+    contact_name: 'אורית אמסלם',
+    contact_role: 'רכזת פדגוגית',
+    phone: '0525925005',
+    email: '1002120044@edu-darom.org.il'
+  }, [
+    { item_name: 'בינה מלאכותית', proposal_group: 'gefen', gefen_number: '9545', meetings_count: 8, hours_count: 12.5, hourly_price: 640, quantity: 1, unit_price: 8000, total_price: 8000 },
+    { item_name: 'בינה מלאכותית', proposal_group: 'gefen', gefen_number: '9545', meetings_count: 8, hours_count: 12.5, hourly_price: null, quantity: 1, unit_price: null, total_price: null },
+    { item_name: 'ביומימיקרי', proposal_group: 'gefen', gefen_number: '6089', meetings_count: 11, hours_count: 16.5, hourly_price: 575.7576, quantity: 1, unit_price: 9500, total_price: 9500 }
+  ]);
+  assert.equal((html.match(/<td>9545<\/td>/g) || []).length, 1);
+  assert.equal((html.match(/בינה מלאכותית/g) || []).length, 1);
+  assert.match(html, /תוכניות לבחירה: <strong>2<\/strong>/);
+  assert.match(html, /היקף מלא: <strong>[\s\S]*17,500/);
+  assert.match(html, /נייד: <bdi dir="ltr">0525925005<\/bdi>/);
+  assert.match(html, /דוא״ל: <bdi dir="ltr">1002120044@edu-darom\.org\.il<\/bdi>/);
+  assert.doesNotMatch(html, /_{3,}/);
 });
 
 test('GEFEN document refinement keeps compact equal numeric columns and bullet wording', async () => {
@@ -522,6 +557,9 @@ test('GEFEN document refinement keeps compact equal numeric columns and bullet w
   assert.match(styles, /\.pa-gefen-approval-table \.pa-choice-col\s*\{\s*width:\s*6%/);
   assert.match(styles, /\.pa-gefen-approval-table \.pa-course-col\s*\{\s*width:\s*31%/);
   assert.match(styles, /\.pa-gefen-linked-document[\s\S]*background:\s*#f0f8fc/i);
+  assert.match(styles, /\.proposal-document\.pa-gefen-approval-document \.pa-doc-title[\s\S]*font-size:\s*14pt\s*!important[\s\S]*text-decoration:\s*none\s*!important/i);
+  assert.match(styles, /\.pa-gefen-signature-field i[\s\S]*border-bottom:\s*0\.7px solid #64748b/i);
+  assert.match(styles, /\.pa-gefen-table-summary[\s\S]*font-size:\s*9pt/i);
   assert.match(styles, /\.pa-gefen-combined-document\s*\{[\s\S]*width:\s*100%[\s\S]*max-width:\s*794px/i);
   assert.match(styles, /\.pa-gefen-combined-document > \.proposal-document\s*\{[\s\S]*width:\s*100%[\s\S]*max-width:\s*100%/i);
   assert.match(styles, /\.proposal-document\.pa-gefen-approval-document\[data-pdf-page-break\][\s\S]*break-before:\s*page\s*!important/i);
