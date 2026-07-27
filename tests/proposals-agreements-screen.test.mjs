@@ -401,6 +401,9 @@ test('generated GEFEN approvals can be replaced without creating a second linked
   assert.ok(uploadMethod);
   assert.doesNotMatch(uploadMethod, /gefen_approval_already_generated/);
   assert.match(uploadMethod, /\.upsert\(linkedPayload,\s*\{\s*onConflict:\s*'proposal_agreement_id,document_type'\s*\}\)/);
+  assert.match(apiSource, /gefen-approvals\/\$\{rowId\}\/\$\{Date\.now\(\)\}\/gefen-approval\.pdf/);
+  assert.match(uploadMethod, /file_name:\s*String\(pdfFile\.name/);
+  assert.doesNotMatch(uploadMethod, /gefenApprovalPdfStoragePath\(rowId,\s*pdfFile\.name\)/);
 });
 
 test('new unsaved GEFEN preview never exposes the raw quote-number placeholder', () => {
