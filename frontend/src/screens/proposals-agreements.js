@@ -1318,7 +1318,7 @@ export function proposalsAgreementsTableRowsHtml(rows, state) {
       <td class="ds-pa-col-center">${escapeHtml(formatDateDisplay(row.proposal_date) || '')}</td>
       <td class="ds-pa-col-center">${statusSelectHtml(row, canManage, isAdmin, state)}</td>
       <td class="ds-pa-col-money">${row.total_amount != null ? `₪ ${escapeHtml(formatCurrency(row.total_amount))}` : ''}</td>
-      <td class="ds-pa-col-center">${gefenApprovalApplicable ? `<span class="ds-pa-gefen-status ds-pa-gefen-status--${gefenApprovalGenerated ? 'generated' : 'missing'}">${escapeHtml(gefenApprovalStatusDisplay(row, gefenApprovalGenerated))}</span>` : '—'}</td>
+      <td class="ds-pa-col-center">${gefenApprovalApplicable ? `<span class="ds-pa-gefen-status-text ds-pa-gefen-status-text--${gefenApprovalGenerated ? 'generated' : 'missing'}">${gefenApprovalGenerated ? 'הופק' : 'חסר'}</span>` : '—'}</td>
       <td class="ds-pa-actions-cell"><div class="ds-pa-actions-inner ds-pa-actions-inner--clean">${quickActions}${moreMenu}</div></td>
     </tr>`;
   }).join('');
