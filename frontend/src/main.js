@@ -336,12 +336,16 @@ function perfStore() {
       if (!currentStore) return null;
       const requests = Array.isArray(currentStore.requests) ? currentStore.requests : [];
       const renders = Array.isArray(currentStore.renders) ? currentStore.renders : [];
+      const interactions = Array.isArray(currentStore.interactions) ? currentStore.interactions : [];
       const slowestRequests = [...requests]
         .sort((a, b) => (b?.duration_ms || 0) - (a?.duration_ms || 0))
         .slice(0, 5);
       const slowestScreens = [...renders]
         .sort((a, b) => (b?.duration_ms || 0) - (a?.duration_ms || 0))
         .slice(0, 5);
+      const slowestInteractions = [...interactions]
+        .sort((a, b) => (b?.click_to_next_paint_ms || 0) - (a?.click_to_next_paint_ms || 0))
+        .slice(0, 10);
       const actionCounts = requests.reduce((acc, item) => {
         const key = String(item?.action || 'unknown');
         acc[key] = (acc[key] || 0) + 1;
@@ -350,12 +354,14 @@ function perfStore() {
       const summary = {
         slowest_requests: slowestRequests,
         slowest_screens: slowestScreens,
+        slowest_interactions: slowestInteractions,
         action_counts: actionCounts
       };
       if (typeof console !== 'undefined' && typeof console.table === 'function') {
         console.info('DS Perf Summary');
         console.table(slowestRequests);
         console.table(slowestScreens);
+        console.table(slowestInteractions);
         console.table(Object.entries(actionCounts).map(([action, count]) => ({ action, count })));
       } else if (typeof console !== 'undefined' && typeof console.info === 'function') {
         console.info('DS Perf Summary', summary);
