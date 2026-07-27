@@ -15,6 +15,7 @@ import './birthday-popup-session-guard.js';
 import './birthday-calendar.js';
 import './activities-tabs-corrections.js';
 import './main.js';
+import './proposal-activity-linking.js';
 import './screens/annual-reviews-v2.js';
 import './annual-reviews-language-safe.js';
 import './annual-reviews-rating-comment-compact.js';
