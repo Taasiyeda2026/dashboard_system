@@ -19,7 +19,7 @@ import { state } from './state.js';
   const DASHBOARD_PREFETCH_METHODS = ['week', 'month', 'endDates', 'archiveActivities'];
   const activitiesSnapshots = new Map();
   const activityInflight = new Map();
-  let lastActivitiesKey = '';
+  let lastActivitiesSnapshot = null;
   let suppressFullRefreshUntil = 0;
 
   function stableValue(value) {
@@ -76,6 +76,7 @@ import { state } from './state.js';
     for (const [key, data] of activitiesSnapshots.entries()) {
       activitiesSnapshots.set(key, patchSnapshotData(data, savedRow));
     }
+    lastActivitiesSnapshot = patchSnapshotData(lastActivitiesSnapshot, savedRow);
   }
 
   function beginPostSaveSuppression(savedRow) {
@@ -91,8 +92,7 @@ import { state } from './state.js';
       }
 
       const key = argsKey(args);
-      lastActivitiesKey = key;
-      const snapshot = activitiesSnapshots.get(key) || activitiesSnapshots.get(lastActivitiesKey);
+      const snapshot = activitiesSnapshots.get(key) || lastActivitiesSnapshot;
       if (Date.now() < suppressFullRefreshUntil && snapshot) {
         return Promise.resolve(snapshot);
       }
@@ -100,7 +100,10 @@ import { state } from './state.js';
       if (activityInflight.has(key)) return activityInflight.get(key);
       const request = Promise.resolve(originalActivities(...args))
         .then((data) => {
-          if (data && Array.isArray(data.rows)) activitiesSnapshots.set(key, data);
+          if (data && Array.isArray(data.rows)) {
+            activitiesSnapshots.set(key, data);
+            lastActivitiesSnapshot = data;
+          }
           return data;
         })
         .finally(() => activityInflight.delete(key));
