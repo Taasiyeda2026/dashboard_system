@@ -577,10 +577,11 @@ test('GEFEN document refinement keeps compact equal numeric columns and bullet w
   assert.match(styles, /width:\s*11\.5%/);
   assert.match(styles, /\.pa-proposal-doc--gefen \.pa-doc-title[\s\S]*color:\s*#0f5b8d/i);
   assert.match(styles, /\.pa-proposal-doc--gefen \.pa-doc-divider[\s\S]*border-top:\s*0\.35px solid #dbe4ec/i);
-  assert.match(styles, /\.pa-gefen-approval-table \.pa-gefen-col[\s\S]*width:\s*12%/);
-  assert.match(styles, /\.pa-gefen-approval-table \.pa-choice-col\s*\{\s*width:\s*3\.5%/);
-  assert.match(styles, /\.pa-gefen-approval-table \.pa-course-col,[\s\S]*\.pa-hourly-price-col,[\s\S]*\.pa-total-price-col[\s\S]*width:\s*16\.166%/);
-  assert.match(styles, /\.proposal-document\.pa-gefen-approval-document \.pa-gefen-approval-table[\s\S]*width:\s*80%\s*!important/i);
+  assert.match(styles, /\.pa-gefen-approval-table \.pa-gefen-col[\s\S]*width:\s*10\.667%/);
+  assert.match(styles, /\.pa-gefen-approval-table \.pa-choice-col\s*\{\s*width:\s*3\.111%/);
+  assert.match(styles, /\.pa-gefen-approval-table \.pa-course-col\s*\{\s*width:\s*25\.481%/);
+  assert.match(styles, /\.pa-hourly-price-col,[\s\S]*\.pa-total-price-col[\s\S]*width:\s*14\.37%/);
+  assert.match(styles, /\.proposal-document\.pa-gefen-approval-document \.pa-gefen-approval-table[\s\S]*width:\s*90%\s*!important/i);
   assert.match(styles, /\.pa-gefen-linked-document[\s\S]*background:\s*transparent/i);
   assert.match(styles, /\.proposal-document\.pa-gefen-approval-document \.pa-doc-title[\s\S]*font-size:\s*14pt\s*!important[\s\S]*text-decoration:\s*none\s*!important/i);
   assert.match(styles, /\.pa-gefen-signature-field i[\s\S]*border-bottom:\s*0\.7px solid #64748b/i);
