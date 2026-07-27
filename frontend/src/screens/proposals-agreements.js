@@ -1281,7 +1281,14 @@ export function proposalsAgreementsTableRowsHtml(rows, state) {
           : quickAction(`data-pa-preview="${escapeHtml(row.id)}"`, 'צפייה במסמך שנשלח', iconSvg.eye))
         : quickAction(`data-pa-preview="${escapeHtml(row.id)}"`, 'תצוגה מקדימה', iconSvg.eye),
       showQuickPrint ? quickAction(`data-pa-print="${escapeHtml(row.id)}"`, 'PDF', iconSvg.print) : '',
-      showQuickClone ? quickAction(`data-pa-clone-row="${escapeHtml(row.id)}"`, 'שכפול להצעה חדשה', iconSvg.clone) : ''
+      showQuickClone ? quickAction(`data-pa-clone-row="${escapeHtml(row.id)}"`, 'שכפול להצעה חדשה', iconSvg.clone) : '',
+      gefenApprovalApplicable && canManage
+        ? quickAction(
+          `data-pa-generate-gefen-approval="${escapeHtml(row.id)}"`,
+          gefenApprovalGenerated ? `הפקה מחדש של אישור גפ״ן להצעה ${text(row.quote_number)}` : `הפקת אישור גפ״ן להצעה ${text(row.quote_number)}`,
+          iconSvg.print
+        )
+        : ''
     ].filter(Boolean).join('');
     if (isProposalEditable(row, state)) moreActions.push(rowAction(`data-pa-edit-row="${escapeHtml(row.id)}"`, 'עריכה', iconSvg.edit));
     if (isAdmin && status === 'pending_approval') {
@@ -1540,7 +1547,20 @@ function contactPickerHtml(contactOptions, authority, school, selectedContactNam
 const CONTACT_CHANNELS_HINT_MESSAGE = 'מומלץ להשלים מייל ונייד להמשך טיפול';
 
 function contactDisplayPhone(contact = {}) {
-  return text(contact?.mobile || '');
+  return text(contact?.mobile || contact?.phone || '');
+}
+
+function isMobilePhoneNumber(value) {
+  return /^05\d{8}$/.test(text(value).replace(/\D/g, ''));
+}
+
+function contactPhonePresentation(contact = {}) {
+  const mobile = text(contact.mobile);
+  const phone = text(contact.phone);
+  if (isMobilePhoneNumber(mobile)) return { label: 'נייד', value: mobile };
+  if (phone) return { label: isMobilePhoneNumber(phone) ? 'נייד' : 'טלפון', value: phone };
+  if (mobile) return { label: 'טלפון', value: mobile };
+  return { label: 'טלפון', value: '' };
 }
 
 function contactChannelsStatusHtml(hasEmail, hasMobile, fieldsOpen = false) {
@@ -2838,7 +2858,7 @@ function recipientBlockHtml(row = {}) {
   if (contactRole && contactRole !== contactName) contactParts.push(escapeHtml(contactRole));
   const contactLine = contactParts.length ? `<p>${contactParts.join(', ')}</p>` : '';
   const contactDetailParts = [];
-  if (phone) contactDetailParts.push(`נייד: ${escapeHtml(phone)}`);
+  if (phone) contactDetailParts.push(`${isMobilePhoneNumber(phone) ? 'נייד' : 'טלפון'}: ${escapeHtml(phone)}`);
   if (email) contactDetailParts.push(`דוא״ל: ${escapeHtml(email)}`);
   const contactDetailsLine = contactDetailParts.length ? `<p class="pa-contact-details pa-print-hidden-contact-details">${contactDetailParts.join(' | ')}</p>` : '';
   if (normalizeProposalGroup(row.activity_type_group) === 'gefen') {
@@ -4650,7 +4670,7 @@ function drawerHtml(row, activityNameOptions = [], state = null) {
       ${infoCell('איש קשר', text(row.contact_name), false, { showEmpty: true })}
       ${infoCell('תפקיד', text(row.contact_role), false, { showEmpty: true })}
       <div class="ds-pa-info-cell"><span class="ds-pa-info-label">דוא״ל</span><span class="ds-pa-info-value">${text(row.email) ? `<a href="mailto:${escapeHtml(text(row.email))}">${escapeHtml(text(row.email))}</a>` : 'לא הוזן'}</span></div>
-      <div class="ds-pa-info-cell"><span class="ds-pa-info-label">נייד</span><span class="ds-pa-info-value">${text(row.phone) ? `<a href="tel:${escapeHtml(text(row.phone))}">${escapeHtml(text(row.phone))}</a>` : 'לא הוזן'}</span></div>
+      <div class="ds-pa-info-cell"><span class="ds-pa-info-label">${isMobilePhoneNumber(row.phone) ? 'נייד' : 'טלפון'}</span><span class="ds-pa-info-value">${text(row.phone) ? `<a href="tel:${escapeHtml(text(row.phone))}">${escapeHtml(text(row.phone))}</a>` : 'לא הוזן'}</span></div>
     </div>
     ${contactCanUpdate ? `<details class="ds-pa-contact-edit-details"><summary>עדכון פרטי איש קשר</summary>
       <div class="ds-pa-contact-edit-grid">
@@ -4952,7 +4972,7 @@ function mergeClientFileIdentity(file, row = {}) {
 }
 
 function clientContactIdentity(contact = {}) {
-  return normalizeHebrewQuoteVariants(text(contact.contact_name));
+  return normalizedClientPart(normalizeHebrewQuoteVariants(text(contact.contact_name)));
 }
 
 function mergeDisplayedClientContact(existing = {}, candidate = {}) {
@@ -5111,11 +5131,11 @@ function clientContactsHtml(file = {}, canManage = false) {
   return file.contacts.map((contact, index) => {
     const name = text(contact.contact_name) || 'איש קשר';
     const role = text(contact.contact_role) || 'ללא תפקיד';
-    const mobile = text(contact.mobile || contact.phone);
+    const phone = contactPhonePresentation(contact);
     const email = text(contact.email);
     return `<article class="ds-client-contact">
     <div class="ds-client-contact__identity"><strong>${escapeHtml(name)}</strong><span>${escapeHtml(role)}</span></div>
-    <div class="ds-client-contact__channels">${mobile ? `<a href="tel:${escapeHtml(mobile)}">${escapeHtml(mobile)}</a>` : '<span>אין טלפון</span>'}${email ? `<a href="mailto:${escapeHtml(email)}">${escapeHtml(email)}</a>` : '<span>אין דוא״ל</span>'}</div>
+    <div class="ds-client-contact__channels">${phone.value ? `<span>${escapeHtml(phone.label)}: <a href="tel:${escapeHtml(phone.value)}">${escapeHtml(phone.value)}</a></span>` : '<span>אין טלפון</span>'}${email ? `<a href="mailto:${escapeHtml(email)}">${escapeHtml(email)}</a>` : '<span>אין דוא״ל</span>'}</div>
     ${canManage ? `<div class="ds-client-contact__actions"><button type="button" data-pa-client-edit-contact="${index}" title="עריכת איש קשר" aria-label="עריכת איש קשר">✎</button><button type="button" data-pa-client-delete-contact="${index}" title="הסרת איש קשר" aria-label="הסרת איש קשר">🗑</button></div>` : ''}
   </article>`;
   }).join('');
@@ -5154,7 +5174,7 @@ function clientContactEditorHtml(file, contact = {}, index = -1) {
       <h3>${index >= 0 ? 'עריכת' : 'הוספת'} איש קשר</h3>
       <label>שם מלא<input class="ds-input" name="contact_name" required value="${escapeHtml(contact.contact_name || '')}"></label>
       <label>תפקיד<input class="ds-input" name="contact_role" value="${escapeHtml(contact.contact_role || '')}"></label>
-      <label>נייד<input class="ds-input" name="mobile" value="${escapeHtml(contact.mobile || contact.phone || '')}"></label>
+      <label>טלפון / נייד<input class="ds-input" name="mobile" value="${escapeHtml(contact.mobile || contact.phone || '')}"></label>
       <label>טלפון נוסף<input class="ds-input" name="phone" value="${escapeHtml(contact.phone || '')}"></label>
       <label>מייל<input class="ds-input" type="email" name="email" value="${escapeHtml(contact.email || '')}"></label>
       <p data-pa-client-contact-error role="alert"></p>
@@ -7376,7 +7396,10 @@ export const proposalsAgreementsScreen = {
         const updated = data.rows.find((item) => text(item.id) === text(freshRow.id)) || freshRow;
         await openGefenApprovalPdf(updated);
       } catch (err) {
-        showToast('לא ניתן היה להפיק את אישור גפ״ן', 'error');
+        const message = text(err?.message);
+        showToast(message && !/^(?:gefen_|proposal_|invalid_|missing_)/i.test(message)
+          ? message
+          : 'לא ניתן היה להפיק את אישור גפ״ן. יש לרענן את המסך ולנסות שוב.', 'error');
         console.error('[GEFEN approval generation failed]', err);
       } finally {
         if (button?.isConnected) {
