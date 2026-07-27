@@ -1,0 +1,169 @@
+import {
+  getActivityNamesForType,
+  humanDisplayText,
+  normalizeActivityTypeKey
+} from './screens/shared/activity-options.js';
+
+const ENHANCED_ATTR = 'data-activity-drawer-inline-layout';
+const POLISHED_ATTR = 'data-activity-drawer-edit-dedup';
+const TEST_FLAG = '__ACTIVITY_DRAWER_EDIT_DEDUP_TEST__';
+
+const SEASON_OPTIONS = [
+  { value: 'regular', label: '2026' },
+  { value: 'school_2027', label: '2027' }
+];
+
+function clean(value) {
+  return humanDisplayText(value);
+}
+
+function labelKey(value) {
+  return clean(value).toLocaleLowerCase('he-IL');
+}
+
+function parseExportRow(form) {
+  try {
+    return JSON.parse(form?.dataset?.exportRow || '{}') || {};
+  } catch {
+    return {};
+  }
+}
+
+function normalizeSeason(value) {
+  const raw = String(value || '').trim().toLowerCase();
+  if (raw === 'school_2027' || raw === '2027') return 'school_2027';
+  if (raw === 'summer_2026' || raw === 'summer' || raw === 'קיץ 2026') return 'summer_2026';
+  return 'regular';
+}
+
+function rebuildSeasonSelect(form, row) {
+  const select = form.querySelector('[name="activity_season"]');
+  if (!select) return false;
+
+  const selectedSeason = normalizeSeason(row.activity_season || select.value);
+  const options = SEASON_OPTIONS.slice();
+  if (selectedSeason === 'summer_2026') {
+    options.splice(1, 0, { value: 'summer_2026', label: 'קיץ 2026' });
+  }
+
+  select.replaceChildren(...options.map(({ value, label }) => {
+    const option = form.ownerDocument.createElement('option');
+    option.value = value;
+    option.textContent = label;
+    option.selected = value === selectedSeason;
+    return option;
+  }));
+  select.value = selectedSeason;
+  return true;
+}
+
+function dedupeCatalogItems(items, currentActivityNo) {
+  const byLabel = new Map();
+  (Array.isArray(items) ? items : []).forEach((item) => {
+    const label = clean(item?.label || item?.activity_name || item?.value);
+    if (!label) return;
+    const key = labelKey(label);
+    const candidate = {
+      label,
+      activity_no: String(item?.activity_no || '').trim(),
+      activity_type: normalizeActivityTypeKey(item?.activity_type || item?.parent_value || item?.type)
+    };
+    const existing = byLabel.get(key);
+    if (!existing || (currentActivityNo && candidate.activity_no === currentActivityNo)) {
+      byLabel.set(key, candidate);
+    }
+  });
+  return [...byLabel.values()];
+}
+
+function rebuildActivityNameSelect(form, settings, row) {
+  const select = form.querySelector('[data-role="activity-name-select"], [name="activity_name"]');
+  const typeSelect = form.querySelector('[name="activity_type"]');
+  if (!select || !typeSelect) return false;
+
+  const currentName = clean(select.value || row.activity_name || row.program_name || row.title || row.name);
+  const currentActivityNo = String(form.querySelector('[name="activity_no"]')?.value || row.activity_no || '').trim();
+  const activityType = normalizeActivityTypeKey(typeSelect.value || row.activity_type || row.item_type);
+  const catalogItems = dedupeCatalogItems(getActivityNamesForType(settings || {}, activityType), currentActivityNo);
+
+  if (currentName && !catalogItems.some((item) => labelKey(item.label) === labelKey(currentName))) {
+    catalogItems.unshift({
+      label: currentName,
+      activity_no: currentActivityNo,
+      activity_type: activityType
+    });
+  }
+
+  const placeholder = form.ownerDocument.createElement('option');
+  placeholder.value = '';
+  placeholder.textContent = '—';
+
+  const options = catalogItems.map((item) => {
+    const option = form.ownerDocument.createElement('option');
+    option.value = item.label;
+    option.textContent = item.label;
+    option.dataset.activityNo = item.activity_no;
+    option.dataset.activityType = item.activity_type || activityType;
+    option.selected = labelKey(item.label) === labelKey(currentName);
+    return option;
+  });
+
+  select.replaceChildren(placeholder, ...options);
+  select.value = currentName;
+  select.disabled = !activityType;
+  return true;
+}
+
+export function polishActivityDrawerEditOptions(form, settings = {}) {
+  if (!form || !form.hasAttribute(ENHANCED_ATTR)) return false;
+  if (form.hasAttribute(POLISHED_ATTR)) return false;
+
+  const row = parseExportRow(form);
+  rebuildSeasonSelect(form, row);
+  rebuildActivityNameSelect(form, settings, row);
+
+  const typeSelect = form.querySelector('[name="activity_type"]');
+  typeSelect?.addEventListener('change', () => {
+    const nameSelect = form.querySelector('[data-role="activity-name-select"], [name="activity_name"]');
+    if (nameSelect) nameSelect.value = '';
+    rebuildActivityNameSelect(form, settings, {
+      ...row,
+      activity_type: typeSelect.value,
+      activity_name: ''
+    });
+  });
+
+  form.setAttribute(POLISHED_ATTR, 'true');
+  return true;
+}
+
+export function polishActivityDrawerEditOptionsIn(root = document, settings = {}) {
+  root.querySelectorAll?.(`[data-drawer-form][${ENHANCED_ATTR}]`).forEach((form) => {
+    polishActivityDrawerEditOptions(form, settings);
+  });
+}
+
+async function initialize() {
+  if (typeof document === 'undefined' || typeof MutationObserver === 'undefined') return;
+
+  const { state } = await import('./state.js');
+  let scheduled = false;
+  const schedule = () => {
+    if (scheduled) return;
+    scheduled = true;
+    queueMicrotask(() => {
+      scheduled = false;
+      polishActivityDrawerEditOptionsIn(document, state.clientSettings);
+    });
+  };
+
+  new MutationObserver(schedule).observe(document.documentElement, {
+    childList: true,
+    subtree: true,
+    attributes: true,
+    attributeFilter: [ENHANCED_ATTR]
+  });
+  schedule();
+}
+
+if (globalThis[TEST_FLAG] !== true) initialize().catch(() => {});
