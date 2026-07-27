@@ -358,8 +358,7 @@ test('GEFEN approval includes only numbered non-summer rows and displays rounded
   assert.deepEqual(gefenEligibleItems(items).map((item) => item.item_name), ['רוקחים עולם']);
   const html = gefenApprovalDocumentHtml(row, items);
   assert.match(html, /אישור כוונות להזמנה במערכת גפ״ן \| תשפ״ז/);
-  assert.match(html, /מקושר להצעה <bdi dir="ltr">10167<\/bdi>/);
-  assert.doesNotMatch(html, /אישור כוונות[\s\S]*הצעת מחיר/);
+  assert.match(html, /מקושר להצעת מחיר מספר <bdi dir="ltr">10167<\/bdi>/);
   assert.equal((html.match(/10167/g) || []).length, 1);
   assert.match(html, /סמל מוסד:<\/strong> 123456/);
   assert.match(html, /רוקחים עולם/);
@@ -442,7 +441,7 @@ test('standalone GEFEN approval for an existing proposal uses the same GEFEN doc
   assert.match(html, /pa-proposal-doc--gefen/);
   assert.match(html, /pa-gefen-recipient/);
   assert.match(html, /אישור כוונות להזמנה במערכת גפ״ן \| תשפ״ז/);
-  assert.match(html, /מקושר להצעה <bdi dir="ltr">10073<\/bdi>/);
+  assert.match(html, /מקושר להצעת מחיר מספר <bdi dir="ltr">10073<\/bdi>/);
 });
 
 test('new GEFEN proposal preview links proposal and approval in one compact document', async () => {
@@ -476,7 +475,6 @@ test('new GEFEN proposal preview links proposal and approval in one compact docu
   const html = proposalPreviewBodyHtml(row, items, sections, { showSignatureImage: true });
   assert.match(html, /pa-gefen-combined-document/);
   assert.match(html, /הצעת מחיר 10168 פעילויות תעשיידע/);
-  assert.doesNotMatch(html, /הצעת מחיר\s+\(?מספר\)?/);
   assert.match(html, /אישור כוונות להזמנה במערכת גפ״ן/);
   assert.match(html, /data-pdf-page-break="true"/);
   assert.match(html, /עידן נחום, סמנכ״ל כספים/);
@@ -489,10 +487,10 @@ test('new GEFEN proposal preview links proposal and approval in one compact docu
       approval.querySelector('.pa-doc-title').textContent,
       'אישור כוונות להזמנה במערכת גפ״ן | תשפ״ז'
     );
-    assert.equal(approval.querySelector('.pa-gefen-linked-document span').textContent.trim(), 'מקושר להצעה 10168');
+    assert.equal(approval.querySelector('.pa-gefen-linked-document span').textContent.trim(), 'מקושר להצעת מחיר מספר 10168');
     assert.equal(approval.querySelector('.pa-gefen-linked-document bdi').textContent.trim(), '10168');
     assert.equal((approval.textContent.match(/10168/g) || []).length, 1);
-    assert.doesNotMatch(approval.textContent, /הצעת מחיר/);
+    assert.doesNotMatch(approval.querySelector('.pa-doc-title').textContent, /הצעת מחיר/);
     const approvalDate = approval.querySelector('.pa-gefen-approval-date');
     const approvalTitle = approval.querySelector('.pa-doc-title');
     assert.ok(approvalDate.compareDocumentPosition(approvalTitle) & dom.window.Node.DOCUMENT_POSITION_FOLLOWING);
@@ -577,10 +575,11 @@ test('GEFEN document refinement keeps compact equal numeric columns and bullet w
   assert.match(styles, /width:\s*11\.5%/);
   assert.match(styles, /\.pa-proposal-doc--gefen \.pa-doc-title[\s\S]*color:\s*#0f5b8d/i);
   assert.match(styles, /\.pa-proposal-doc--gefen \.pa-doc-divider[\s\S]*border-top:\s*0\.35px solid #dbe4ec/i);
-  assert.match(styles, /\.pa-gefen-approval-table \.pa-gefen-col[\s\S]*width:\s*12%/);
-  assert.match(styles, /\.pa-gefen-approval-table \.pa-choice-col\s*\{\s*width:\s*3\.5%/);
-  assert.match(styles, /\.pa-gefen-approval-table \.pa-course-col,[\s\S]*\.pa-hourly-price-col,[\s\S]*\.pa-total-price-col[\s\S]*width:\s*16\.166%/);
-  assert.match(styles, /\.proposal-document\.pa-gefen-approval-document \.pa-gefen-approval-table[\s\S]*width:\s*80%\s*!important/i);
+  assert.match(styles, /\.pa-gefen-approval-table \.pa-gefen-col[\s\S]*width:\s*10\.667%/);
+  assert.match(styles, /\.pa-gefen-approval-table \.pa-choice-col\s*\{\s*width:\s*3\.111%/);
+  assert.match(styles, /\.pa-gefen-approval-table \.pa-course-col\s*\{\s*width:\s*25\.481%/);
+  assert.match(styles, /\.pa-hourly-price-col,[\s\S]*\.pa-total-price-col[\s\S]*width:\s*14\.37%/);
+  assert.match(styles, /\.proposal-document\.pa-gefen-approval-document \.pa-gefen-approval-table[\s\S]*width:\s*90%\s*!important/i);
   assert.match(styles, /\.pa-gefen-linked-document[\s\S]*background:\s*transparent/i);
   assert.match(styles, /\.proposal-document\.pa-gefen-approval-document \.pa-doc-title[\s\S]*font-size:\s*14pt\s*!important[\s\S]*text-decoration:\s*none\s*!important/i);
   assert.match(styles, /\.pa-gefen-signature-field i[\s\S]*border-bottom:\s*0\.7px solid #64748b/i);

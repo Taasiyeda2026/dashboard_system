@@ -3644,7 +3644,7 @@ export function gefenApprovalDocumentHtml(row = {}, items = [], options = {}) {
   const linkedQuoteNumber = escapeHtml(quoteNumber || '____________________');
   const sections = [
     `<div class="pa-gefen-linked-document" aria-label="קישור למסמך המקורי">
-      <span>מקושר להצעה <bdi dir="ltr">${linkedQuoteNumber}</bdi></span>
+      <span>מקושר להצעת מחיר מספר <bdi dir="ltr">${linkedQuoteNumber}</bdi></span>
     </div>`,
     validationMessage ? `<p class="pa-gefen-document-warning" role="alert">${escapeHtml(validationMessage)}</p>` : '',
     `<section class="pa-section">
