@@ -4,6 +4,8 @@ import { readFile } from 'node:fs/promises';
 
 const SW_FILE = new URL('../frontend/sw.js', import.meta.url);
 const CONFIG_FILE = new URL('../frontend/src/config.js', import.meta.url);
+const INDEX_FILE = new URL('../index.html', import.meta.url);
+const DASHBOARD_CSS_FILE = new URL('../frontend/src/styles/dashboard-layout.css', import.meta.url);
 
 test('service worker and client-file hotfix versions are current and structurally valid', async () => {
   const [sw, config] = await Promise.all([
@@ -27,4 +29,22 @@ test('service worker and client-file hotfix versions are current and structurall
   assert.match(sw, /self\.addEventListener\('activate'[\s\S]*deleteOutdatedCaches\(/);
   assert.match(sw, /clients\.claim/);
   assert.match(sw, /isApiLikeUrl/);
+});
+
+test('dashboard layout stylesheet is loaded and keeps the intended responsive structure', async () => {
+  const [indexHtml, dashboardCss] = await Promise.all([
+    readFile(INDEX_FILE, 'utf8'),
+    readFile(DASHBOARD_CSS_FILE, 'utf8')
+  ]);
+
+  const sharedStylesheetIndex = indexHtml.indexOf('./frontend/src/styles/main.css');
+  const dashboardStylesheetIndex = indexHtml.indexOf('./frontend/src/styles/dashboard-layout.css');
+
+  assert.ok(sharedStylesheetIndex >= 0, 'main.css must remain linked');
+  assert.ok(dashboardStylesheetIndex > sharedStylesheetIndex, 'dashboard layout must load after main.css');
+  assert.match(dashboardCss, /#app \.ds-dashboard-wrap\s*\{[\s\S]*max-width:\s*1180px;[\s\S]*zoom:\s*1;/);
+  assert.match(dashboardCss, /\.ds-dashboard-kpi-grid\s*\{[\s\S]*grid-template-columns:\s*repeat\(5, minmax\(0, 1fr\)\);/);
+  assert.match(dashboardCss, /\.ds-dashboard-kpi-grid--row2\s*\{[\s\S]*grid-template-columns:\s*repeat\(3, minmax\(0, 1fr\)\);/);
+  assert.match(dashboardCss, /\.ds-manager-grid\s*\{[\s\S]*grid-template-columns:\s*repeat\(3, minmax\(0, 1fr\)\);/);
+  assert.match(dashboardCss, /@media \(max-width: 720px\)[\s\S]*\.ds-manager-grid\s*\{[\s\S]*grid-template-columns:\s*1fr;/);
 });

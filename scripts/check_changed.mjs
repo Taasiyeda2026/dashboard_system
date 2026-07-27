@@ -18,6 +18,8 @@ const screenTestMap = new Map([
   ['frontend/src/screens/proposals-agreements.js', ['tests/proposals-agreements-screen.test.mjs']],
   ['frontend/src/screens/activities.js', ['tests/activities-screen.test.mjs']],
   ['frontend/src/api.js', ['tests/api-mutations.test.mjs']],
+  ['frontend/src/styles/dashboard-layout.css', ['tests/dashboard-layout-polish.test.mjs']],
+  ['index.html', ['tests/dashboard-layout-polish.test.mjs']],
   ['frontend/sw.js', ['tests/service-worker-pwa-cache.test.mjs']],
   ['sw.js', ['tests/service-worker-pwa-cache.test.mjs']]
 ]);
