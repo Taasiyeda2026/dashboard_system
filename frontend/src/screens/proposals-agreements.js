@@ -2872,10 +2872,14 @@ function recipientBlockHtml(row = {}) {
     const schoolMetaLine = schoolMetaParts.length
       ? `<p class="pa-gefen-school-meta">${schoolMetaParts.join(' | ')}</p>`
       : '';
+    const gefenContactDetails = [
+      phone ? `<span>${isMobilePhoneNumber(phone) ? 'נייד' : 'טלפון'}: <bdi dir="ltr">${escapeHtml(phone)}</bdi></span>` : '',
+      email ? `<span>דוא״ל: <bdi dir="ltr">${escapeHtml(email)}</bdi></span>` : ''
+    ].filter(Boolean).join('<span class="pa-gefen-contact-separator" aria-hidden="true"> | </span>');
     return `<div class="pa-doc-address pa-to-block pa-gefen-recipient" style="margin:0 0 4mm 0;">
       <p class="pa-label-to" style="margin:0;"><strong>לכבוד:</strong></p>
       <div class="pa-recipient-lines" style="margin-top:0.2em;">
-        ${contactLine}${schoolMetaLine}${contactDetailsLine}
+        ${contactLine}${schoolMetaLine}${gefenContactDetails ? `<p class="pa-contact-details pa-gefen-contact-details">${gefenContactDetails}</p>` : ''}
       </div>
     </div>`;
   }
@@ -3555,7 +3559,7 @@ export function calculateProposalValidityDate(proposalDate, calendarRows = propo
 }
 
 export function gefenEligibleItems(items = []) {
-  return (Array.isArray(items) ? items : [])
+  const eligible = (Array.isArray(items) ? items : [])
     .map((item) => normalizeProposalItemRow(item))
     .filter((item) => {
       const group = normalizeProposalGroup(item.proposal_group || item.group_key);
@@ -3564,6 +3568,21 @@ export function gefenEligibleItems(items = []) {
         && !isTestHoursItem(item)
         && text(item.proposal_display_mode) !== 'bundle_child';
     });
+  const score = (item) => [
+    item.total_price,
+    item.unit_price,
+    item.hourly_price,
+    item.meetings_count,
+    item.hours_count,
+    item.quantity
+  ].filter((value) => value != null && value !== '' && Number.isFinite(Number(value))).length;
+  const byGefenNumber = new Map();
+  eligible.forEach((item) => {
+    const key = `${text(item.gefen_number)}|${normalizedClientPart(item.item_name || item.course_name || item.activity_name)}`;
+    const existing = byGefenNumber.get(key);
+    if (!existing || score(item) > score(existing)) byGefenNumber.set(key, item);
+  });
+  return Array.from(byGefenNumber.values());
 }
 
 function isGefenApprovalApplicable(row = {}, items = []) {
@@ -3591,7 +3610,7 @@ function gefenApprovalItemsTableHtml(items = []) {
   const rows = gefenEligibleItems(items);
   if (!rows.length) return '';
   return `<table class="pa-item-details-table pa-gefen-course-table pa-gefen-approval-table">
-    <colgroup><col class="pa-choice-col"><col class="pa-course-col"><col class="pa-gefen-col"><col class="pa-meetings-col"><col class="pa-hours-col"><col class="pa-hourly-price-col"><col class="pa-groups-col"><col class="pa-total-price-col"></colgroup>
+    <colgroup><col class="pa-total-price-col"><col class="pa-groups-col"><col class="pa-hourly-price-col"><col class="pa-hours-col"><col class="pa-meetings-col"><col class="pa-gefen-col"><col class="pa-course-col"><col class="pa-choice-col"></colgroup>
     <thead><tr><th>בחירה</th><th>תוכנית</th><th>מס׳ גפ״ן</th><th>מפגשים</th><th>שעות</th><th>מחיר לשעה</th><th>קבוצות</th><th>סה״כ</th></tr></thead>
     <tbody>${rows.map((item) => {
       const quantity = itemQuantity(item);
@@ -3607,7 +3626,11 @@ function gefenApprovalItemsTableHtml(items = []) {
         <td>${total != null ? currencyAmountHtml(total) : ''}</td>
       </tr>`;
     }).join('')}</tbody>
-  </table>`;
+  </table>
+  <div class="pa-gefen-table-summary">
+    <span>תוכניות לבחירה: <strong>${rows.length}</strong></span>
+    <span>היקף מלא: <strong>${currencyAmountHtml(rows.reduce((sum, item) => sum + (Number(itemQuantityTotal(item)) || 0), 0))}</strong></span>
+  </div>`;
 }
 
 export function gefenApprovalDocumentHtml(row = {}, items = [], options = {}) {
@@ -3619,8 +3642,8 @@ export function gefenApprovalDocumentHtml(row = {}, items = [], options = {}) {
   const linkedQuoteNumber = escapeHtml(quoteNumber || '____________________');
   const sections = [
     `<div class="pa-gefen-linked-document" aria-label="קישור להצעת המחיר">
-      <strong>מסמך המשך מקושר</strong>
-      <span>מספר הצעה: ${linkedQuoteNumber}</span>
+      <span><strong>מסמך המשך</strong> להצעת המחיר המקורית</span>
+      <bdi dir="ltr">#${linkedQuoteNumber}</bdi>
     </div>`,
     validationMessage ? `<p class="pa-gefen-document-warning" role="alert">${escapeHtml(validationMessage)}</p>` : '',
     `<section class="pa-section">
@@ -3641,9 +3664,9 @@ export function gefenApprovalDocumentHtml(row = {}, items = [], options = {}) {
       <h3 class="pa-section-heading">אישור בית הספר</h3>
       <p>אני מאשר/ת את הכוונה לשלב את התוכניות המסומנות לעיל בתוכנית העבודה הבית-ספרית ולפעול להשלמת הזמנת העבודה במערכת גפ״ן עד למועד המצוין לעיל.</p>
       <div class="pa-gefen-signature-grid">
-        <p>שם מנהל/ת בית הספר: __________________________</p>
-        <p>חתימה: _____________________________________</p>
-        <p>תאריך: ___ / ___ / ______</p>
+        <div class="pa-gefen-signature-field pa-gefen-signature-field--name"><span>שם מנהל/ת בית הספר</span><i aria-hidden="true"></i></div>
+        <div class="pa-gefen-signature-field pa-gefen-signature-field--signature"><span>חתימה</span><i aria-hidden="true"></i></div>
+        <div class="pa-gefen-signature-field pa-gefen-signature-field--date"><span>תאריך</span><i aria-hidden="true"></i></div>
       </div>
     </section>`
   ].filter(Boolean);
