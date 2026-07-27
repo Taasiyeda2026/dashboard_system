@@ -1060,23 +1060,46 @@ function mergeClientSettingsWithAuthoritySchoolCatalog(baseSettings, catalogOver
 }
 
 function buildProposalClientSearchOptions(contactRows, authorityLookup, schoolLookup) {
-  const options = (Array.isArray(contactRows) ? contactRows : [])
-    .map((row) => enrichSchoolContactRow(row, authorityLookup, schoolLookup));
-  const seen = new Set();
+  const options = [];
+  const optionIndexByKey = new Map();
 
   const addOption = (opt) => {
-    const key = [
-      normalizeCatalogText(opt.authority),
-      normalizeCatalogText(opt.school),
-      normalizeCatalogText(opt.contact_name),
-      normalizeCatalogText(opt.phone || opt.mobile),
-      normalizeCatalogText(opt.email),
-      normalizeCatalogText(opt._catalog_source || 'contact')
-    ].join('||');
-    if (seen.has(key)) return;
-    seen.add(key);
+    const contactName = normalizeCatalogText(opt.contact_name);
+    const key = contactName
+      ? [
+        String(opt.authority_id ?? normalizeCatalogText(opt.authority)),
+        String(opt.school_id ?? normalizeCatalogText(opt.school)),
+        contactName.toLocaleLowerCase('he')
+      ].join('||')
+      : [
+        normalizeCatalogText(opt._catalog_source || opt.source_table || 'contact'),
+        String(opt.authority_id ?? normalizeCatalogText(opt.authority)),
+        String(opt.school_id ?? normalizeCatalogText(opt.school))
+      ].join('||');
+    const existingIndex = optionIndexByKey.get(key);
+    if (existingIndex != null) {
+      const existing = options[existingIndex];
+      const optIsExplicit = normalizeCatalogText(opt.source_table) === 'contacts_schools';
+      const existingIsExplicit = normalizeCatalogText(existing.source_table) === 'contacts_schools';
+      const preferred = optIsExplicit && !existingIsExplicit ? opt : existing;
+      const fallback = preferred === opt ? existing : opt;
+      options[existingIndex] = {
+        ...fallback,
+        ...preferred,
+        contact_role: normalizeCatalogText(preferred.contact_role) || normalizeCatalogText(fallback.contact_role),
+        phone: normalizeCatalogText(preferred.phone) || normalizeCatalogText(fallback.phone),
+        mobile: normalizeCatalogText(preferred.mobile) || normalizeCatalogText(fallback.mobile),
+        email: normalizeCatalogText(preferred.email) || normalizeCatalogText(fallback.email)
+      };
+      return;
+    }
+    optionIndexByKey.set(key, options.length);
     options.push(opt);
   };
+
+  (Array.isArray(contactRows) ? contactRows : [])
+    .map((row) => enrichSchoolContactRow(row, authorityLookup, schoolLookup))
+    .forEach(addOption);
 
   for (const auth of authorityLookup.list) {
     if (!isCatalogActive(auth.active) || !auth.authority_name) continue;
