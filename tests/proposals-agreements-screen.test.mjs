@@ -587,7 +587,8 @@ test('GEFEN document refinement keeps compact equal numeric columns and bullet w
   assert.match(styles, /\.pa-gefen-signature-grid[\s\S]*width:\s*56%[\s\S]*border:\s*0/i);
   assert.match(styles, /\.pa-gefen-signature-field--date[\s\S]*width:\s*42%/i);
   assert.match(styles, /\.pa-gefen-signature-field--name,[\s\S]*\.pa-gefen-signature-field--signature[\s\S]*width:\s*76%/i);
-  assert.match(styles, /\.pa-gefen-signature-field--signature i[\s\S]*min-height:\s*16mm/i);
+  assert.match(styles, /\.pa-gefen-signature-field--signature\s*\{[\s\S]*margin-top:\s*8mm/i);
+  assert.match(styles, /\.pa-gefen-signature-field--signature i[\s\S]*min-height:\s*10mm/i);
   assert.match(styles, /\.pa-gefen-validity-list li[\s\S]*line-height:\s*1\.38\s*!important/i);
   assert.match(styles, /\.pa-gefen-table-summary[\s\S]*font-size:\s*9pt/i);
   assert.match(styles, /\.pa-gefen-combined-document\s*\{[\s\S]*width:\s*100%[\s\S]*max-width:\s*794px/i);
