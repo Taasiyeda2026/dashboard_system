@@ -143,3 +143,38 @@ test('instructor details cache is keyed by instructor and selected month', async
   assert.equal(state.instructorsActivityDetailsCache['EMP-3:2026-05'][0].activity_name, 'פעילות חודש 1');
   assert.equal(state.instructorsActivityDetailsCache['EMP-3:2026-06'][0].activity_name, 'פעילות חודש 2');
 });
+
+test('instructor opening reuses the activities screen snapshot when detail rows are unavailable', async () => {
+  const dom = new JSDOM('<!doctype html><html><body><main id="root"></main></body></html>', { url: 'http://localhost/' });
+  global.window = dom.window;
+  global.document = dom.window.document;
+  global.Element = dom.window.Element;
+  global.HTMLElement = dom.window.HTMLElement;
+  const activity = {
+    RowID: 'SHARED-1', emp_id: 'EMP-4', activity_name: 'פעילות משותפת',
+    school: 'בית ספר', authority: 'רשות', date_1: '2026-05-10'
+  };
+  const state = {
+    activityListFilters: {},
+    _instrDateFilter: { from: '2026-05' },
+    instructorsActivityDetailsCache: {},
+    screenDataCache: { 'activities:periods': { data: { rows: [activity] }, t: Date.now() } }
+  };
+  const data = { rows: [{
+    emp_id: 'EMP-4', full_name: 'מדריך משותף', programs_count: 1,
+    earliest_start_date: '2026-05-01', latest_end_date: '2026-05-31',
+    activity_type_counts: { course: 1 }
+  }] };
+  const root = document.getElementById('root');
+  root.innerHTML = instructorsScreen.render(data, { state });
+  let calls = 0;
+  instructorsScreen.bind({
+    root, data, state, rerender: () => {},
+    api: { activities: async () => { calls += 1; return { rows: [] }; } }
+  });
+  root.querySelector('[data-instructor-card="EMP-4"]').click();
+  await new Promise((resolve) => setTimeout(resolve, 0));
+  assert.equal(calls, 0);
+  assert.equal(state.instructorsActivityDetailsCache['EMP-4:2026-05'][0].RowID, 'SHARED-1');
+  dom.window.close();
+});

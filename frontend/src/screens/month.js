@@ -14,6 +14,7 @@ import {
 import { activityManagerDisplayName, getFilterOptionOverrides } from './shared/activity-options.js';
 import { calendarMonthSessionKey, cleanupLegacyCalendarMonthLocalStorage } from '../state.js';
 import { renderActivitiesViewSwitcher, bindActivitiesViewSwitcher } from './shared/view-switcher.js';
+import { monthScreenCacheKey } from './shared/calendar-cache-key.js';
 
 const inflightActivityDetailRequests = new Map();
 const inflightMonthRequests = new Map();
@@ -163,10 +164,6 @@ function shiftMonthYm(ym, delta) {
   const d = ym && /^\d{4}-\d{2}$/.test(ym) ? new Date(Number(ym.slice(0, 4)), Number(ym.slice(5, 7)) - 1, 1) : new Date();
   d.setMonth(d.getMonth() + delta);
   return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}`;
-}
-
-function monthCacheKey(ym) {
-  return `month:${ym && /^\d{4}-\d{2}$/.test(String(ym)) ? ym : 'current'}`;
 }
 
 function activityDetailCacheKey(row) {
@@ -432,7 +429,7 @@ export const monthScreen = {
       if (state.monthNavLoading) return;
       const startedAt = Date.now();
       const targetYm = shiftMonthYm(resolveBaseYm(), delta);
-      const targetKey = monthCacheKey(targetYm);
+      const targetKey = monthScreenCacheKey(targetYm, state);
       const hasCachedTarget = !!state?.screenDataCache?.[targetKey];
       state.monthYm = targetYm;
       state.monthNavLoading = true;
@@ -468,7 +465,7 @@ export const monthScreen = {
           [-1, 1].forEach((adj) => {
             const adjYm = shiftMonthYm(targetYm, adj);
             if (adjYm < _minYm || adjYm > _maxYm) return;
-            const adjKey = monthCacheKey(adjYm);
+            const adjKey = monthScreenCacheKey(adjYm, state);
             if (!state?.screenDataCache?.[adjKey] && !inflightMonthRequests.has(adjKey)) {
               const adjReq = api.month({ ym: adjYm }, { timeout_ms: 12000 })
                 .then((adjData) => {

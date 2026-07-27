@@ -1232,7 +1232,7 @@ const SCREEN_CACHE_TTL_MS = {
   week: 8 * 60 * 1000,
   month: 8 * 60 * 1000,
   exceptions: 8 * 60 * 1000,
-  'proposals-agreements': 0,
+  'proposals-agreements': 2 * 60 * 1000,
 };
 const DEFAULT_CACHE_TTL_MS = 15 * 60 * 1000;
 
@@ -1326,12 +1326,9 @@ function maybePersistScreenCacheEntry(key, entry) {
 async function loadScreenDataWithCache(screen) {
   if (!screen.load) return {};
   const routeName = String(state.route || '');
-  const routePerfEnabled = routeName === 'dashboard' || routeName === 'activities' || routeName === 'week' || routeName === 'month' || routeName === 'contacts';
+  const routePerfEnabled = routeName === 'dashboard' || routeName === 'activities' || routeName === 'week' || routeName === 'month' || routeName === 'contacts' || routeName === 'proposals-agreements';
   const routePerfStart = routePerfEnabled ? (typeof performance !== 'undefined' ? performance.now() : Date.now()) : 0;
   const key = screenDataCacheKey();
-  if (routeName === 'proposals-agreements') {
-    purgeProposalsRelatedCaches();
-  }
   const hit = state.screenDataCache[key];
   const ttl = screenCacheTtl();
   const age = hit ? Date.now() - hit.t : 0;
@@ -1385,12 +1382,11 @@ async function loadScreenDataWithCache(screen) {
         });
       }
       const entry = { data, t: Date.now() };
+      state.screenDataCache[key] = entry;
+      maybePersistScreenCacheEntry(key, entry);
       if (routeName === 'proposals-agreements') {
         logProposalsAgreementsContactOptions(data);
         syncPendingApprovedProposalsCountFromRows(data?.rows);
-      } else {
-        state.screenDataCache[key] = entry;
-        maybePersistScreenCacheEntry(key, entry);
       }
       if (key === 'exceptions') updateExceptionNavCount();
       inflightRequests.delete(key);
@@ -1425,10 +1421,8 @@ async function backgroundRefreshScreen(screen, cacheKey) {
     const data = await p;
     inflightRequests.delete(cacheKey);
     const entry = { data, t: Date.now() };
-    if (cacheKey !== 'proposals-agreements') {
-      state.screenDataCache[cacheKey] = entry;
-      maybePersistScreenCacheEntry(cacheKey, entry);
-    }
+    state.screenDataCache[cacheKey] = entry;
+    maybePersistScreenCacheEntry(cacheKey, entry);
     if (cacheKey === 'exceptions') updateExceptionNavCount();
     if (cacheKey === 'proposals-agreements') syncPendingApprovedProposalsCountFromRows(data?.rows);
     if (
@@ -1900,14 +1894,9 @@ async function mountScreen() {
 
   const cacheKey = screenDataCacheKey();
   const routeLoadStartMs = typeof performance !== 'undefined' ? performance.now() : Date.now();
-  if (requestedRoute === 'proposals-agreements') {
-    purgeProposalsRelatedCaches();
-  }
   // eslint-disable-next-line no-console
   console.info('[route-load:start]', { route: requestedRoute, cacheKey });
-  const rawEntry = (requestedRoute === 'proposals-agreements' || !screen.load)
-    ? null
-    : state.screenDataCache[cacheKey];
+  const rawEntry = !screen.load ? null : state.screenDataCache[cacheKey];
   const isStale = rawEntry && (Date.now() - rawEntry.t >= screenCacheTtl() || rawEntry.data?._is_stale === true);
 
   const shellExists = !!(state.token && document.querySelector('.app-shell #screenRoot'));

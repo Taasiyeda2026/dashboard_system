@@ -14,6 +14,7 @@ import {
 import { activityManagerDisplayName, getFilterOptionOverrides } from './shared/activity-options.js';
 import { bindActNavGrid } from './shared/act-nav-grid.js';
 import { renderActivitiesViewSwitcher, bindActivitiesViewSwitcher } from './shared/view-switcher.js';
+import { weekScreenCacheKey } from './shared/calendar-cache-key.js';
 
 const inflightActivityDetailRequests = new Map();
 const inflightWeekRequests = new Map();
@@ -336,7 +337,7 @@ export const weekScreen = {
       if (state.weekNavLoading) return;
       const startedAt = Date.now();
       const nextOffset = (state.weekOffset || 0) + delta;
-      const nextKey = `week:${nextOffset}`;
+      const nextKey = weekScreenCacheKey(nextOffset, state);
       const cached = state?.screenDataCache?.[nextKey];
       const ttlMs = 8 * 60 * 1000;
       const hasFreshCache = !!(cached && Date.now() - Number(cached.t || 0) < ttlMs);
@@ -362,7 +363,7 @@ export const weekScreen = {
           [-1, 1].forEach((adj) => {
             const adjOffset = nextOffset + adj;
             if (adjOffset < -1 || adjOffset > 1) return;
-            const adjKey = `week:${adjOffset}`;
+            const adjKey = weekScreenCacheKey(adjOffset, state);
             const adjCached = state?.screenDataCache?.[adjKey];
             const adjFresh = !!(adjCached && Date.now() - Number(adjCached.t || 0) < ttlMs);
             if (!adjFresh && !inflightWeekRequests.has(adjKey)) {

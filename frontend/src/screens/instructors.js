@@ -97,6 +97,41 @@ function normalizeInstructorIdentity(value) {
   return String(value || '').trim().replace(/\s+/g, ' ').toLowerCase();
 }
 
+const instructorActivityRowsIndexCache = new WeakMap();
+
+function indexedInstructorActivityRows(allRows, empId, instrName) {
+  if (!Array.isArray(allRows)) return [];
+  let index = instructorActivityRowsIndexCache.get(allRows);
+  if (!index) {
+    index = new Map();
+    allRows.forEach((row) => {
+      const keys = new Set([
+        row?.emp_id,
+        row?.emp_id_2,
+        row?.instructor_name,
+        row?.instructor_name_2
+      ].map(normalizeInstructorIdentity).filter(Boolean));
+      keys.forEach((key) => {
+        if (!index.has(key)) index.set(key, []);
+        index.get(key).push(row);
+      });
+    });
+    instructorActivityRowsIndexCache.set(allRows, index);
+  }
+  const targetKeys = new Set([empId, instrName].map(normalizeInstructorIdentity).filter(Boolean));
+  if (!targetKeys.size) return allRows;
+  const candidates = [];
+  const seen = new Set();
+  targetKeys.forEach((key) => {
+    (index.get(key) || []).forEach((row) => {
+      if (seen.has(row)) return;
+      seen.add(row);
+      candidates.push(row);
+    });
+  });
+  return candidates;
+}
+
 function instructorMatchesActivity(row, empId, instrName) {
   const targetEmpId = String(empId || '').trim();
   const normalizedTargets = new Set([
@@ -145,7 +180,7 @@ function activityInDetailsMonth(row, targetYm) {
 export function buildInstructorActivityDetailsForMonth(allRows, { empId, instrName, targetYm } = {}) {
   const items = [];
   const seenRowIds = new Set();
-  (Array.isArray(allRows) ? allRows : []).forEach((r) => {
+  indexedInstructorActivityRows(allRows, empId, instrName).forEach((r) => {
     const status = String(r.status || '').trim();
     if (status === 'סגור' || status === 'נמחק') return;
     if (!instructorMatchesActivity(r, empId, instrName)) return;
@@ -481,7 +516,7 @@ export const instructorsScreen = {
 
         try {
           const detailRows = Array.isArray(data?.detail_rows) ? data.detail_rows : null;
-          const cachedActivities = state?.screenDataCache?.['activities:all']?.data;
+          const cachedActivities = state?.screenDataCache?.['activities:periods']?.data;
           const res = detailRows ? { rows: detailRows } : (cachedActivities || await api.activities({ activity_type: 'all' }));
           const allRows = Array.isArray(res?.rows) ? res.rows : [];
           const items = buildInstructorActivityDetailsForMonth(allRows, { empId, instrName, targetYm });
