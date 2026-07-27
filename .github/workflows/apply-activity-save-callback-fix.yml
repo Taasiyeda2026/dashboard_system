@@ -1,0 +1,72 @@
+name: Apply activity save callback fix
+
+on:
+  push:
+    branches:
+      - agent/fix-activity-save-callback-scope
+
+permissions:
+  contents: write
+
+jobs:
+  patch:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: ${{ github.ref_name }}
+          fetch-depth: 0
+
+      - name: Patch source and remove obsolete hotfix
+        run: |
+          python - <<'PY'
+          from pathlib import Path
+
+          activities = Path('frontend/src/screens/activities.js')
+          text = activities.read_text(encoding='utf-8')
+          old = "onSaveSuccess: async ({ sourceSheet, sourceRowId, contentRoot }) => {"
+          new = "onSaveSuccess: async ({ sourceSheet, sourceRowId, changes, contentRoot }) => {"
+          if text.count(old) != 1:
+              raise SystemExit(f'Expected exactly one callback signature, found {text.count(old)}')
+          activities.write_text(text.replace(old, new), encoding='utf-8')
+
+          entry = Path('frontend/src/main-with-proposal-pdf-hotfix.js')
+          entry_text = entry.read_text(encoding='utf-8')
+          obsolete_import = "import './activity-save-priority-hotfix.js';\n"
+          if obsolete_import not in entry_text:
+              raise SystemExit('Obsolete hotfix import not found')
+          entry.write_text(entry_text.replace(obsolete_import, ''), encoding='utf-8')
+
+          dist_index = Path('dist/index.html')
+          dist_text = dist_index.read_text(encoding='utf-8')
+          dist_text = dist_text.replace('  <script type="module" src="./activity-save-priority-hotfix.js"></script>\n', '')
+          dist_index.write_text(dist_text, encoding='utf-8')
+
+          sw = Path('frontend/sw.js')
+          sw_text = sw.read_text(encoding='utf-8')
+          old_version = 'const CACHE_VERSION = 1281;'
+          if old_version not in sw_text:
+              raise SystemExit('Expected service worker cache version 1281')
+          sw.write_text(sw_text.replace(old_version, 'const CACHE_VERSION = 1282;', 1), encoding='utf-8')
+
+          for obsolete in [
+              Path('frontend/src/activity-save-priority-hotfix.js'),
+              Path('dist/activity-save-priority-hotfix.js'),
+          ]:
+              if obsolete.exists():
+                  obsolete.unlink()
+
+          workflow = Path('.github/workflows/apply-activity-save-callback-fix.yml')
+          workflow.unlink()
+          PY
+
+      - name: Run focused regression test
+        run: node --test tests/activity-save-callback-scope.test.mjs
+
+      - name: Commit direct fix
+        run: |
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add -A
+          git commit -m "Fix activity save callback scope"
+          git push origin HEAD:${{ github.ref_name }}
