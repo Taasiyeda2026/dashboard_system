@@ -42,7 +42,8 @@ test('dashboard layout stylesheet is loaded and keeps the intended responsive st
 
   assert.ok(sharedStylesheetIndex >= 0, 'main.css must remain linked');
   assert.ok(dashboardStylesheetIndex > sharedStylesheetIndex, 'dashboard layout must load after main.css');
-  assert.match(dashboardCss, /#app \.ds-dashboard-wrap\s*\{[\s\S]*max-width:\s*1180px;[\s\S]*zoom:\s*1;/);
+  assert.match(dashboardCss, /#app \.screen-root:has\(\.ds-dashboard-wrap\)\s*\{[\s\S]*zoom:\s*1;/);
+  assert.match(dashboardCss, /#app \.ds-dashboard-wrap\s*\{[\s\S]*width:\s*125%;[\s\S]*max-width:\s*1475px;[\s\S]*zoom:\s*0\.8;/);
   assert.match(dashboardCss, /\.ds-dashboard-kpi-grid\s*\{[\s\S]*grid-template-columns:\s*repeat\(5, minmax\(0, 1fr\)\);/);
   assert.match(dashboardCss, /\.ds-dashboard-kpi-grid--row2\s*\{[\s\S]*grid-template-columns:\s*repeat\(3, minmax\(0, 1fr\)\);/);
   assert.match(dashboardCss, /\.ds-manager-grid\s*\{[\s\S]*grid-template-columns:\s*repeat\(3, minmax\(0, 1fr\)\);/);
