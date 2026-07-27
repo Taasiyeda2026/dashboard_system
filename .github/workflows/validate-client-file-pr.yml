@@ -11,6 +11,7 @@ on:
       - 'frontend/src/proposal-pdf-svg-origin-clean.js'
       - 'frontend/src/proposal-pdf-storage-key.js'
       - 'frontend/src/proposal-pdf-storage-key-hotfix.js'
+      - 'frontend/src/proposal-activity-linking.js'
       - 'frontend/src/admin-permissions-access-hotfix.js'
       - 'frontend/src/auth-session-isolation-hotfix.js'
       - 'frontend/src/session-security-policy.js'
@@ -27,11 +28,13 @@ on:
       - 'frontend/sw.js'
       - 'sw.js'
       - 'index.html'
+      - 'supabase/migrations/*proposal_activity*.sql'
       - 'tests/auth-session-admin-lists-hotfix.test.mjs'
       - 'tests/session-security-policy.test.mjs'
       - 'tests/client-file-*.test.mjs'
       - 'tests/proposal-pdf-svg-origin-clean.test.mjs'
       - 'tests/proposal-pdf-storage-key-hotfix.test.mjs'
+      - 'tests/proposal-activity-linking.test.mjs'
       - 'tests/proposals-agreements-screen.test.mjs'
       - 'tests/instructor-contacts-nav-access.test.mjs'
       - 'tests/instructor-contacts-screen.test.mjs'
@@ -70,6 +73,7 @@ jobs:
           node --check frontend/src/proposal-pdf-svg-origin-clean.js
           node --check frontend/src/proposal-pdf-storage-key.js
           node --check frontend/src/proposal-pdf-storage-key-hotfix.js
+          node --check frontend/src/proposal-activity-linking.js
           node --check frontend/src/admin-permissions-access-hotfix.js
           node --check frontend/src/auth-session-isolation-hotfix.js
           node --check frontend/src/session-security-policy.js
@@ -96,6 +100,7 @@ jobs:
           node --check tests/instructor-contacts-screen.test.mjs
           node --check tests/proposal-pdf-svg-origin-clean.test.mjs
           node --check tests/proposal-pdf-storage-key-hotfix.test.mjs
+          node --check tests/proposal-activity-linking.test.mjs
           node --check tests/summer-feedback-admin-personal-reports.test.mjs
           node --check tests/summer-feedback-admin-response-view.test.mjs
           node --check tests/summer-feedback-completion-overview.test.mjs
@@ -134,6 +139,9 @@ jobs:
 
       - name: Check assigned instructor summer feedback card
         run: node --test tests/summer-feedback-instructor-card.test.mjs
+
+      - name: Check proposal activity creation
+        run: node --test tests/proposal-activity-linking.test.mjs
 
       - name: Run unified client file tests
         run: >-
