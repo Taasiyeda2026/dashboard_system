@@ -46,10 +46,16 @@ test('service worker entry imports the implementation without a second manual ve
 
 test('service worker removes old dashboard caches during activate without interrupting open tabs', async () => {
   const frontendSw = await read(FRONTEND_SW_FILE);
+  const installStart = frontendSw.indexOf("self.addEventListener('install'");
+  const activateStart = frontendSw.indexOf("self.addEventListener('activate'");
+  const installBlock = installStart >= 0 && activateStart > installStart
+    ? frontendSw.slice(installStart, activateStart)
+    : '';
 
+  assert.ok(installBlock, 'service worker should define install before activate');
   assert.match(frontendSw, /const CACHE_PREFIX = 'dashboard-static-v';/);
   assert.match(frontendSw, /key\.startsWith\(CACHE_PREFIX\) && key !== CACHE_NAME/, 'cleanup should target old dashboard cache versions');
-  assert.doesNotMatch(frontendSw, /install[\s\S]*await deleteOutdatedCaches\(\);[\s\S]*self\.skipWaiting\(\);/, 'install must not delete outdated caches before activate');
+  assert.doesNotMatch(installBlock, /deleteOutdatedCaches/, 'install must not delete outdated caches before activate');
   assert.match(frontendSw, /self\.addEventListener\('activate'[\s\S]*await deleteOutdatedCaches\(\);[\s\S]*await self\.clients\.claim\(\);/, 'activate should clean old caches and claim clients silently');
   assert.doesNotMatch(frontendSw, /reloadClientsAfterCacheUpgrade/, 'service worker must not keep a forced client reload helper');
   assert.doesNotMatch(frontendSw, /client\.navigate\(/, 'service worker must not navigate or reload open dashboard tabs');
