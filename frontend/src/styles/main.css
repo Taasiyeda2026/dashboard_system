@@ -21100,11 +21100,11 @@ details[open] > .ds-fin-acc__summary::before { transform: rotate(90deg); }
 }
 
 .pa-gefen-approval-table .pa-choice-col {
-  width: 3.111%;
+  width: 6%;
 }
 
 .proposal-document .pa-gefen-approval-table .pa-course-col {
-  width: 25.481%;
+  width: 22.592%;
 }
 
 .proposal-document .pa-gefen-approval-table .pa-hourly-price-col,
@@ -21121,7 +21121,13 @@ details[open] > .ds-fin-acc__summary::before { transform: rotate(90deg); }
 
 .proposal-document .pa-gefen-approval-table th:first-child,
 .proposal-document .pa-gefen-approval-table td:first-child {
-  text-align: center;
+  text-align: center !important;
+  white-space: nowrap;
+}
+
+.proposal-document.pa-gefen-approval-document .pa-gefen-approval-table th:nth-child(6),
+.proposal-document.pa-gefen-approval-document .pa-gefen-approval-table td:nth-child(6) {
+  text-align: center !important;
 }
 
 .proposal-document .pa-gefen-approval-table th:nth-child(2),
@@ -21219,12 +21225,12 @@ details[open] > .ds-fin-acc__summary::before { transform: rotate(90deg); }
 
 .proposal-document.pa-gefen-approval-document .pa-gefen-approval-table th:nth-child(1),
 .proposal-document.pa-gefen-approval-document .pa-gefen-approval-table td:nth-child(1) {
-  width: 3.111% !important;
+  width: 6% !important;
 }
 
 .proposal-document.pa-gefen-approval-document .pa-gefen-approval-table th:nth-child(2),
 .proposal-document.pa-gefen-approval-document .pa-gefen-approval-table td:nth-child(2) {
-  width: 25.481% !important;
+  width: 22.592% !important;
 }
 
 .proposal-document.pa-gefen-approval-document .pa-gefen-approval-table th:nth-child(6),
@@ -22131,12 +22137,12 @@ details[open] > .ds-fin-acc__summary::before { transform: rotate(90deg); }
 
   .proposal-document.pa-gefen-approval-document .pa-gefen-approval-table th:nth-child(1),
   .proposal-document.pa-gefen-approval-document .pa-gefen-approval-table td:nth-child(1) {
-    width: 3.111% !important;
+    width: 6% !important;
   }
 
   .proposal-document.pa-gefen-approval-document .pa-gefen-approval-table th:nth-child(2),
   .proposal-document.pa-gefen-approval-document .pa-gefen-approval-table td:nth-child(2) {
-    width: 25.481% !important;
+    width: 22.592% !important;
   }
 
   .proposal-document.pa-gefen-approval-document .pa-gefen-approval-table th:nth-child(6),
