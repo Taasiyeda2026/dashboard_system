@@ -357,9 +357,10 @@ test('GEFEN approval includes only numbered non-summer rows and displays rounded
   ];
   assert.deepEqual(gefenEligibleItems(items).map((item) => item.item_name), ['רוקחים עולם']);
   const html = gefenApprovalDocumentHtml(row, items);
-  assert.match(html, /אישור כוונות להזמנה במערכת גפ״ן \| הצעת מחיר 10167/);
-  assert.match(html, /מסמך המשך<\/strong> להצעת המחיר המקורית/);
-  assert.match(html, /<bdi dir="ltr">#10167<\/bdi>/);
+  assert.match(html, /אישור כוונות להזמנה במערכת גפ״ן \| תשפ״ז/);
+  assert.match(html, /מקושר להצעה <bdi dir="ltr">10167<\/bdi>/);
+  assert.doesNotMatch(html, /אישור כוונות[\s\S]*הצעת מחיר/);
+  assert.equal((html.match(/10167/g) || []).length, 1);
   assert.match(html, /סמל מוסד:<\/strong> 123456/);
   assert.match(html, /רוקחים עולם/);
   assert.match(html, /571/);
@@ -438,7 +439,8 @@ test('standalone GEFEN approval for an existing proposal uses the same GEFEN doc
   ]);
   assert.match(html, /pa-proposal-doc--gefen/);
   assert.match(html, /pa-gefen-recipient/);
-  assert.match(html, /אישור כוונות להזמנה במערכת גפ״ן \| הצעת מחיר 10073/);
+  assert.match(html, /אישור כוונות להזמנה במערכת גפ״ן \| תשפ״ז/);
+  assert.match(html, /מקושר להצעה <bdi dir="ltr">10073<\/bdi>/);
 });
 
 test('new GEFEN proposal preview links proposal and approval in one compact document', async () => {
@@ -483,10 +485,15 @@ test('new GEFEN proposal preview links proposal and approval in one compact docu
     assert.ok(approval.classList.contains('pa-proposal-doc--gefen'));
     assert.equal(
       approval.querySelector('.pa-doc-title').textContent,
-      'אישור כוונות להזמנה במערכת גפ״ן | הצעת מחיר 10168 | תשפ״ז'
+      'אישור כוונות להזמנה במערכת גפ״ן | תשפ״ז'
     );
-    assert.equal(approval.querySelector('.pa-gefen-linked-document span').textContent.trim(), 'מסמך המשך להצעת המחיר המקורית');
-    assert.equal(approval.querySelector('.pa-gefen-linked-document bdi').textContent.trim(), '#10168');
+    assert.equal(approval.querySelector('.pa-gefen-linked-document span').textContent.trim(), 'מקושר להצעה 10168');
+    assert.equal(approval.querySelector('.pa-gefen-linked-document bdi').textContent.trim(), '10168');
+    assert.equal((approval.textContent.match(/10168/g) || []).length, 1);
+    assert.doesNotMatch(approval.textContent, /הצעת מחיר/);
+    const approvalDate = approval.querySelector('.pa-gefen-approval-date');
+    const approvalTitle = approval.querySelector('.pa-doc-title');
+    assert.ok(approvalDate.compareDocumentPosition(approvalTitle) & dom.window.Node.DOCUMENT_POSITION_FOLLOWING);
     const recipientLines = Array.from(proposal.querySelectorAll('.pa-gefen-recipient p')).map((p) => p.textContent.trim());
     const approvalRecipientLines = Array.from(approval.querySelectorAll('.pa-gefen-recipient p')).map((p) => p.textContent.trim());
     assert.deepEqual(recipientLines, [
@@ -510,6 +517,10 @@ test('new GEFEN proposal preview links proposal and approval in one compact docu
     assert.equal(footerCells[2], '', 'GEFEN meetings column must not show a total');
     assert.equal(approval.querySelectorAll('.pa-gefen-signature-field').length, 3);
     assert.equal(approval.querySelectorAll('.pa-gefen-signature-field i').length, 3);
+    assert.deepEqual(
+      Array.from(approval.querySelectorAll('.pa-gefen-signature-field span')).map((node) => node.textContent.trim()),
+      ['תאריך', 'שם מנהל/ת בית הספר', 'חתימה']
+    );
   });
 });
 
@@ -553,12 +564,15 @@ test('GEFEN document refinement keeps compact equal numeric columns and bullet w
   assert.match(styles, /width:\s*11\.5%/);
   assert.match(styles, /\.pa-proposal-doc--gefen \.pa-doc-title[\s\S]*color:\s*#0f5b8d/i);
   assert.match(styles, /\.pa-proposal-doc--gefen \.pa-doc-divider[\s\S]*border-top:\s*0\.35px solid #dbe4ec/i);
-  assert.match(styles, /\.pa-gefen-approval-table \.pa-gefen-col[\s\S]*width:\s*10\.5%/);
-  assert.match(styles, /\.pa-gefen-approval-table \.pa-choice-col\s*\{\s*width:\s*6%/);
-  assert.match(styles, /\.pa-gefen-approval-table \.pa-course-col\s*\{\s*width:\s*31%/);
-  assert.match(styles, /\.pa-gefen-linked-document[\s\S]*background:\s*#f0f8fc/i);
+  assert.match(styles, /\.pa-gefen-approval-table \.pa-gefen-col[\s\S]*width:\s*13\.714%/);
+  assert.match(styles, /\.pa-gefen-approval-table \.pa-choice-col\s*\{\s*width:\s*4%/);
+  assert.match(styles, /\.pa-gefen-approval-table \.pa-course-col\s*\{\s*width:\s*13\.714%/);
+  assert.match(styles, /\.proposal-document\.pa-gefen-approval-document \.pa-gefen-approval-table[\s\S]*width:\s*70%\s*!important/i);
+  assert.match(styles, /\.pa-gefen-linked-document[\s\S]*background:\s*transparent/i);
   assert.match(styles, /\.proposal-document\.pa-gefen-approval-document \.pa-doc-title[\s\S]*font-size:\s*14pt\s*!important[\s\S]*text-decoration:\s*none\s*!important/i);
   assert.match(styles, /\.pa-gefen-signature-field i[\s\S]*border-bottom:\s*0\.7px solid #64748b/i);
+  assert.match(styles, /\.pa-gefen-signature-grid[\s\S]*grid-template-columns:\s*minmax\(0,\s*1fr\)/i);
+  assert.match(styles, /\.pa-gefen-signature-field--signature[\s\S]*grid-template-rows:\s*auto 18mm/i);
   assert.match(styles, /\.pa-gefen-table-summary[\s\S]*font-size:\s*9pt/i);
   assert.match(styles, /\.pa-gefen-combined-document\s*\{[\s\S]*width:\s*100%[\s\S]*max-width:\s*794px/i);
   assert.match(styles, /\.pa-gefen-combined-document > \.proposal-document\s*\{[\s\S]*width:\s*100%[\s\S]*max-width:\s*100%/i);
