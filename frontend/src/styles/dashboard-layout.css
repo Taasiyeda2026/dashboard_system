@@ -207,6 +207,9 @@
 
 #app .ds-dashboard-wrap .ds-manager-grid {
   display: grid;
+  width: 100%;
+  max-width: none;
+  margin-inline: 0;
   grid-template-columns: repeat(3, minmax(0, 1fr));
   gap: 14px;
 }
@@ -218,6 +221,11 @@
   border-radius: 14px;
   background: #ffffff;
   box-shadow: var(--ds-shadow-sm);
+}
+
+#app .ds-dashboard-wrap .ds-manager-card--district {
+  width: 100%;
+  grid-column: auto !important;
 }
 
 #app .ds-dashboard-wrap .ds-manager-card__head {
