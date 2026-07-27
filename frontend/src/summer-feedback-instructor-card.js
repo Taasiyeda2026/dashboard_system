@@ -3,6 +3,8 @@ import { supabase, waitForSupabaseAuthSession } from './supabase-client.js';
 const CYCLE_KEY = 'summer_2026';
 const FEEDBACK_URL = './summer-feedback/';
 const NAV_ATTRIBUTE = 'data-summer-feedback-nav-item';
+const MOBILE_NAV_ATTRIBUTE = 'data-summer-feedback-mobile-nav-item';
+const MOBILE_REPLACES_GUIDELINES_ATTRIBUTE = 'data-replaces-instructor-guidelines';
 const STYLE_ID = 'summer-feedback-nav-styles';
 const TEST_MODE_FLAG = '__SUMMER_FEEDBACK_INSTRUCTOR_CARD_TEST__';
 const CACHE_TTL_MS = 30_000;
@@ -42,12 +44,39 @@ function ensureNavStyles() {
       font-size: 12px;
       text-align: center;
     }
+    .instructor-bottom-nav__btn[${MOBILE_NAV_ATTRIBUTE}] .summer-feedback-mobile-nav__status {
+      position: absolute;
+      inset-block-start: 3px;
+      inset-inline-end: 7px;
+      display: grid;
+      place-items: center;
+      min-width: 15px;
+      height: 15px;
+      border-radius: 999px;
+      background: #166534;
+      color: #fff;
+      font-size: 10px;
+      line-height: 1;
+    }
+    .instructor-bottom-nav__btn[${MOBILE_NAV_ATTRIBUTE}] {
+      position: relative;
+    }
   `;
   document.head.append(style);
 }
 
 export function findSummerFeedbackNavHost(root = document) {
   return root.querySelector?.('.shell-sidebar .shell-nav') || null;
+}
+
+export function findSummerFeedbackMobileNavHost(root = document) {
+  return root.querySelector?.('.instructor-bottom-nav') || null;
+}
+
+function navigateToSummerFeedback(button, doc = document) {
+  const target = button?.dataset?.summerFeedbackHref || FEEDBACK_URL;
+  const view = doc.defaultView || (typeof window !== 'undefined' ? window : null);
+  if (view) view.location.href = target;
 }
 
 export function createSummerFeedbackNavItem(navState = {}, doc = document) {
@@ -62,11 +91,33 @@ export function createSummerFeedbackNavItem(navState = {}, doc = document) {
       ? '<span class="summer-feedback-nav__status" aria-label="המשוב הושלם">✓</span>'
       : ''
   }`;
-  button.addEventListener('click', () => {
-    const target = button.dataset.summerFeedbackHref || FEEDBACK_URL;
-    const view = doc.defaultView || (typeof window !== 'undefined' ? window : null);
-    if (view) view.location.href = target;
-  });
+  button.addEventListener('click', () => navigateToSummerFeedback(button, doc));
+  return button;
+}
+
+export function createSummerFeedbackMobileNavItem(navState = {}, doc = document) {
+  const button = doc.createElement('button');
+  button.type = 'button';
+  button.className = 'instructor-bottom-nav__btn';
+  button.setAttribute(MOBILE_NAV_ATTRIBUTE, 'true');
+  button.setAttribute('aria-label', 'משוב קיץ');
+  button.dataset.summerFeedbackHref = FEEDBACK_URL;
+  button.innerHTML = `
+    <span class="instructor-bottom-nav__icon" aria-hidden="true">☀</span>
+    <span class="instructor-bottom-nav__label">משוב</span>
+    ${navState.complete ? '<span class="summer-feedback-mobile-nav__status" aria-label="המשוב הושלם">✓</span>' : ''}
+  `;
+  button.addEventListener('click', () => navigateToSummerFeedback(button, doc));
+  return button;
+}
+
+function createInstructorGuidelinesMobileNavItem(doc = document) {
+  const button = doc.createElement('button');
+  button.type = 'button';
+  button.className = 'instructor-bottom-nav__btn';
+  button.dataset.route = 'instructor-guidelines';
+  button.setAttribute('aria-label', 'נהלים');
+  button.innerHTML = '<span class="instructor-bottom-nav__icon" aria-hidden="true">📖</span><span class="instructor-bottom-nav__label">נהלים</span>';
   return button;
 }
 
@@ -80,6 +131,18 @@ function updateSummerFeedbackNavItem(button, navState = {}) {
       ? '<span class="summer-feedback-nav__status" aria-label="המשוב הושלם">✓</span>'
       : ''
   }`;
+}
+
+function updateSummerFeedbackMobileNavItem(button, navState = {}) {
+  if (!button) return;
+  const complete = navState.complete === true;
+  const hasCompleteStatus = Boolean(button.querySelector('.summer-feedback-mobile-nav__status'));
+  if (complete === hasCompleteStatus) return;
+  button.innerHTML = `
+    <span class="instructor-bottom-nav__icon" aria-hidden="true">☀</span>
+    <span class="instructor-bottom-nav__label">משוב</span>
+    ${complete ? '<span class="summer-feedback-mobile-nav__status" aria-label="המשוב הושלם">✓</span>' : ''}
+  `;
 }
 
 export function injectSummerFeedbackNavItem(host, navState = {}) {
@@ -101,8 +164,36 @@ export function injectSummerFeedbackNavItem(host, navState = {}) {
   return true;
 }
 
+export function injectSummerFeedbackMobileNavItem(host, navState = {}) {
+  if (!host?.isConnected) return false;
+  const existing = host.querySelector(`[${MOBILE_NAV_ATTRIBUTE}]`);
+  if (existing) {
+    updateSummerFeedbackMobileNavItem(existing, navState);
+    return false;
+  }
+
+  const item = createSummerFeedbackMobileNavItem(navState, host.ownerDocument || document);
+  const guidelinesItem = host.querySelector('[data-route="instructor-guidelines"]');
+  if (guidelinesItem) {
+    item.setAttribute(MOBILE_REPLACES_GUIDELINES_ATTRIBUTE, 'true');
+    guidelinesItem.replaceWith(item);
+  } else {
+    const attendanceItem = host.querySelector('[data-external-url]');
+    if (attendanceItem) host.insertBefore(item, attendanceItem);
+    else host.append(item);
+  }
+  return true;
+}
+
 function removeSummerFeedbackNavItems(root = document) {
   root.querySelectorAll?.(`[${NAV_ATTRIBUTE}]`).forEach((item) => item.remove());
+  root.querySelectorAll?.(`[${MOBILE_NAV_ATTRIBUTE}]`).forEach((item) => {
+    if (item.hasAttribute(MOBILE_REPLACES_GUIDELINES_ATTRIBUTE)) {
+      item.replaceWith(createInstructorGuidelinesMobileNavItem(item.ownerDocument || document));
+    } else {
+      item.remove();
+    }
+  });
 }
 
 function clearCachedState() {
@@ -166,7 +257,7 @@ async function fetchCurrentSummerFeedbackNavState() {
     cachedAt = Date.now();
     return cachedState;
   } catch (error) {
-    console.warn('[summer-feedback] failed to load sidebar eligibility', error);
+    console.warn('[summer-feedback] failed to load navigation eligibility', error);
     cachedState = { visible: false, complete: false };
     cachedAt = Date.now();
     return cachedState;
@@ -175,14 +266,15 @@ async function fetchCurrentSummerFeedbackNavState() {
   }
 }
 
-async function enhanceSidebarWithSummerFeedbackNav() {
+async function enhanceNavigationWithSummerFeedback() {
   if (typeof document === 'undefined') return;
-  const host = findSummerFeedbackNavHost(document);
-  if (!host) return;
+  const sidebarHost = findSummerFeedbackNavHost(document);
+  const mobileHost = findSummerFeedbackMobileNavHost(document);
+  if (!sidebarHost && !mobileHost) return;
 
   const version = ++enhancementVersion;
   const navState = await fetchCurrentSummerFeedbackNavState();
-  if (version !== enhancementVersion || !host.isConnected) return;
+  if (version !== enhancementVersion) return;
 
   if (!navState.visible) {
     removeSummerFeedbackNavItems(document);
@@ -190,7 +282,8 @@ async function enhanceSidebarWithSummerFeedbackNav() {
   }
 
   ensureNavStyles();
-  injectSummerFeedbackNavItem(host, navState);
+  if (sidebarHost?.isConnected) injectSummerFeedbackNavItem(sidebarHost, navState);
+  if (mobileHost?.isConnected) injectSummerFeedbackMobileNavItem(mobileHost, navState);
 }
 
 function scheduleEnhancement() {
@@ -198,7 +291,7 @@ function scheduleEnhancement() {
   enhancementScheduled = true;
   requestAnimationFrame(() => {
     enhancementScheduled = false;
-    void enhanceSidebarWithSummerFeedbackNav();
+    void enhanceNavigationWithSummerFeedback();
   });
 }
 
@@ -215,8 +308,8 @@ function initializeSummerFeedbackInstructorNav() {
     const shellChanged = mutations.some((mutation) =>
       [...mutation.addedNodes, ...mutation.removedNodes].some((node) =>
         node?.nodeType === 1 && (
-          node.matches?.('.app-shell, .shell-sidebar, .shell-nav')
-          || node.querySelector?.('.shell-sidebar .shell-nav')
+          node.matches?.('.app-shell, .shell-sidebar, .shell-nav, .instructor-bottom-nav')
+          || node.querySelector?.('.shell-sidebar .shell-nav, .instructor-bottom-nav')
         )
       )
     );

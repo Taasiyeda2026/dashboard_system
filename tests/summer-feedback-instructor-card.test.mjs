@@ -92,10 +92,58 @@ test('manager interface gets the same tab after personal reports when assigned',
   dom.window.close();
 });
 
+test('eligible instructor gets mobile feedback in the guidelines position without crowding the bar', () => {
+  const dom = new JSDOM(`<!doctype html><html><body>
+    <div id="app">
+      <nav class="instructor-bottom-nav" aria-label="ניווט מדריך">
+        <button class="instructor-bottom-nav__btn" data-route="instructor-calendar">לוח שנה</button>
+        <button class="instructor-bottom-nav__btn" data-route="my-data">פעילויות</button>
+        <button class="instructor-bottom-nav__btn" data-route="instructor-completion-approvals">אישורים</button>
+        <button class="instructor-bottom-nav__btn" data-route="instructor-guidelines">נהלים</button>
+        <button class="instructor-bottom-nav__btn" data-external-url="https://example.com/attendance">נוכחות</button>
+        <button class="instructor-bottom-nav__btn" data-external-url-blank="https://example.com/workshops">סדנאות</button>
+      </nav>
+    </div>
+  </body></html>`, { url: 'https://example.com/dashboard_system/' });
+
+  const host = navModule.findSummerFeedbackMobileNavHost(dom.window.document);
+  const originalCount = host.children.length;
+  const inserted = navModule.injectSummerFeedbackMobileNavItem(host, { complete: false });
+  const item = host.querySelector('[data-summer-feedback-mobile-nav-item]');
+
+  assert.equal(inserted, true);
+  assert.ok(item);
+  assert.equal(host.children.length, originalCount);
+  assert.equal(host.querySelector('[data-route="instructor-guidelines"]'), null);
+  assert.equal(host.children[3], item);
+  assert.match(item.textContent, /משוב/);
+  assert.equal(item.dataset.summerFeedbackHref, './summer-feedback/');
+  assert.equal(navModule.injectSummerFeedbackMobileNavItem(host, { complete: false }), false);
+  assert.equal(host.querySelectorAll('[data-summer-feedback-mobile-nav-item]').length, 1);
+  dom.window.close();
+});
+
+test('completed mobile feedback shows completion status', () => {
+  const dom = new JSDOM(`<!doctype html><html><body>
+    <nav class="instructor-bottom-nav">
+      <button class="instructor-bottom-nav__btn" data-route="instructor-guidelines">נהלים</button>
+    </nav>
+  </body></html>`, { url: 'https://example.com/dashboard_system/' });
+
+  const host = navModule.findSummerFeedbackMobileNavHost(dom.window.document);
+  navModule.injectSummerFeedbackMobileNavItem(host, { complete: true });
+  const item = host.querySelector('[data-summer-feedback-mobile-nav-item]');
+
+  assert.ok(item);
+  assert.match(item.textContent, /✓/);
+  dom.window.close();
+});
+
 test('integration does not inject the summer feedback entry into screen content', () => {
   assert.doesNotMatch(integrationSource, /\.ds-dashboard-wrap/);
   assert.doesNotMatch(integrationSource, /\.instructor-area/);
   assert.match(integrationSource, /\.shell-sidebar \.shell-nav/);
+  assert.match(integrationSource, /\.instructor-bottom-nav/);
 });
 
 test('sidebar eligibility refreshes automatically after opening and closing dates', () => {
@@ -104,8 +152,8 @@ test('sidebar eligibility refreshes automatically after opening and closing date
   assert.match(integrationSource, /visibilitychange/);
 });
 
-test('observer only reacts to shell recreation and does not loop on nav item insertion', () => {
+test('observer reacts to desktop and mobile navigation recreation', () => {
   assert.match(integrationSource, /shellChanged/);
-  assert.match(integrationSource, /\.app-shell, \.shell-sidebar, \.shell-nav/);
+  assert.match(integrationSource, /\.app-shell, \.shell-sidebar, \.shell-nav, \.instructor-bottom-nav/);
   assert.doesNotMatch(integrationSource, /replaceWith\(createSummerFeedback/);
 });
