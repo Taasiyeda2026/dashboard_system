@@ -1,11 +1,16 @@
 /* Dashboard layout polish — isolated from the shared design system. */
 
+/* Keep the application shell at its normal size and apply the requested 80% view only inside the dashboard screen. */
+#app .screen-root:has(.ds-dashboard-wrap) {
+  zoom: 1;
+}
+
 #app .ds-dashboard-wrap {
-  width: 100%;
-  max-width: 1180px;
+  width: 125%;
+  max-width: 1475px;
   margin-inline: auto;
   gap: 16px;
-  zoom: 1;
+  zoom: 0.8;
 }
 
 #app .ds-dashboard-wrap > .ds-dash-header {
