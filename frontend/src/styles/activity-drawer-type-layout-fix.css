@@ -1,0 +1,95 @@
+.activity-drawer-inline__grid[data-activity-layout="course"],
+.activity-drawer-inline__grid[data-activity-layout="after_school"],
+.activity-drawer-inline__grid[data-activity-layout="tour"] {
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+}
+
+.activity-drawer-inline__grid[data-activity-layout="workshop"],
+.activity-drawer-inline__grid[data-activity-layout="escape_room"] {
+  grid-template-columns: repeat(4, minmax(0, 1fr));
+}
+
+.activity-drawer-inline__grid[data-activity-layout="workshop"] [data-field-key="manager"],
+.activity-drawer-inline__grid[data-activity-layout="escape_room"] [data-field-key="manager"] {
+  grid-column: span 2;
+}
+
+.activity-drawer-inline__grid[data-activity-layout="workshop"] [data-field-key="participants"],
+.activity-drawer-inline__grid[data-activity-layout="escape_room"] [data-field-key="participants"] {
+  grid-column: 1 / -1;
+}
+
+.activity-drawer-type-fix__season-edit {
+  min-inline-size: 0;
+}
+
+.activity-drawer-type-fix__season-edit .activity-drawer-inline__controls,
+.activity-drawer-type-fix__season-edit .ds-input,
+.activity-drawer-type-fix__season-edit select,
+.activity-drawer-type-fix__season-edit input {
+  inline-size: 100%;
+}
+
+.activity-drawer-type-fix__season-tag {
+  opacity: 0.9;
+}
+
+.activity-drawer-inline-layout .activity-drawer__header-actions {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  flex-wrap: wrap;
+}
+
+.activity-drawer-type-fix__archive-action {
+  min-block-size: 34px;
+  padding: 6px 11px !important;
+  border: 1px solid rgba(255, 255, 255, 0.32) !important;
+  border-radius: 9px !important;
+  background: rgba(255, 255, 255, 0.12) !important;
+  color: #fff !important;
+  font-size: 0.78rem !important;
+  font-weight: 750 !important;
+  line-height: 1.1;
+  white-space: nowrap;
+}
+
+.activity-drawer-type-fix__archive-action:hover {
+  background: rgba(255, 255, 255, 0.2) !important;
+  border-color: rgba(255, 255, 255, 0.5) !important;
+}
+
+@media (max-width: 1100px) {
+  .activity-drawer-inline__grid[data-activity-layout="workshop"],
+  .activity-drawer-inline__grid[data-activity-layout="escape_room"] {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+
+  .activity-drawer-inline__grid[data-activity-layout="workshop"] [data-field-key="manager"],
+  .activity-drawer-inline__grid[data-activity-layout="escape_room"] [data-field-key="manager"] {
+    grid-column: span 2;
+  }
+}
+
+@media (max-width: 680px) {
+  .activity-drawer-inline__grid[data-activity-layout="course"],
+  .activity-drawer-inline__grid[data-activity-layout="after_school"],
+  .activity-drawer-inline__grid[data-activity-layout="tour"],
+  .activity-drawer-inline__grid[data-activity-layout="workshop"],
+  .activity-drawer-inline__grid[data-activity-layout="escape_room"] {
+    grid-template-columns: 1fr;
+  }
+
+  .activity-drawer-inline__grid[data-activity-layout="workshop"] [data-field-key="manager"],
+  .activity-drawer-inline__grid[data-activity-layout="escape_room"] [data-field-key="manager"],
+  .activity-drawer-inline__grid[data-activity-layout="workshop"] [data-field-key="participants"],
+  .activity-drawer-inline__grid[data-activity-layout="escape_room"] [data-field-key="participants"] {
+    grid-column: auto;
+  }
+
+  .activity-drawer-type-fix__archive-action {
+    max-inline-size: 130px;
+    overflow: hidden;
+    text-overflow: ellipsis;
+  }
+}
