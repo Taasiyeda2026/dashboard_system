@@ -20,6 +20,7 @@ import { supabase, supabaseConfig, waitForSupabaseAuthSession, resetSupabaseAuth
 import { isEmptyValue, nonEmptyString } from './utils/empty-value.js';
 import { withResolvedSchool2027Contact } from './screens/shared/school-2027-contact.js';
 import { permissionFlagYes, canEditDirect, canAddActivityDirect, canRequestEdit, canRequestCreateActivity, canReviewRequests } from './permissions.js';
+import { mapWithConcurrency } from './bounded-concurrency.js';
 
 /**
  * Actions that modify server-side data.
@@ -171,11 +172,10 @@ async function updateWorkshopStockItemsInSupabase(updates = []) {
   assertAdminApi();
   if (!supabase) throw new Error('no_supabase_client');
   const rows = Array.isArray(updates) ? updates : [];
-  const saved = [];
   const editableCategories = ['workshop_stock', 'activity_names'];
-  for (const item of rows) {
+  const saved = await mapWithConcurrency(rows, 4, async (item) => {
     const stockQuantity = normalizeWorkshopStockQuantity(item?.stock_quantity ?? item?.stockQuantity);
-    if (stockQuantity == null) continue;
+    if (stockQuantity == null) return null;
     const stockGroupKey = String(item?.stock_group_key || item?.stockGroupKey || '').trim();
     if (!stockGroupKey) throw new Error('workshop_stock_group_key_required');
     const listId = String(item?.list_id || item?.listId || '').trim();
@@ -191,8 +191,7 @@ async function updateWorkshopStockItemsInSupabase(updates = []) {
         .select('list_id,category,value,label,stock_quantity,stock_group_key,stock_group_name,metadata')
         .single();
       if (error) throw new Error(error.message || 'workshop_stock_update_failed');
-      saved.push(data);
-      continue;
+      return data;
     }
 
     const { data: existing, error: existingError } = await supabase
@@ -214,10 +213,10 @@ async function updateWorkshopStockItemsInSupabase(updates = []) {
       .select('list_id,category,value,label,stock_quantity,stock_group_key,stock_group_name,metadata')
       .single();
     if (error) throw new Error(error.message || 'workshop_stock_update_failed');
-    saved.push(data);
-  }
+    return data;
+  });
   clearBootstrapReadCaches();
-  return { ok: true, rows: saved };
+  return { ok: true, rows: saved.filter(Boolean) };
 }
 
 

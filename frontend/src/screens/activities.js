@@ -234,14 +234,31 @@ function normalizeActivitiesInnerTab(value, yearKey) {
   return tabs.some((tab) => tab.key === key) ? key : ACTIVITIES_INNER_TAB_ALL;
 }
 
+const activityPeriodRowsCache = new WeakMap();
+const activityMonthRowsCache = new WeakMap();
+const activityAvailableMonthsCache = new WeakMap();
+
+function cachedRowsValue(cache, rows, key, create) {
+  if (!Array.isArray(rows)) return create();
+  let entries = cache.get(rows);
+  if (!entries) {
+    entries = new Map();
+    cache.set(rows, entries);
+  }
+  if (!entries.has(key)) entries.set(key, create());
+  return entries.get(key);
+}
+
 function activityRowsForInnerTab(rows, state = {}) {
   const yearKey = normalizeActivityPeriodTab(state.activityPeriodTab);
   const tabKey = normalizeActivitiesInnerTab(state.activitiesInnerTab, yearKey);
-  if (tabKey === ACTIVITIES_INNER_TAB_ARCHIVE) return archivedActivitiesYearRows(rows, yearKey);
-  if (yearKey === ACTIVITY_SEASON_SCHOOL_2027) return activeActivitiesYearRows(rows, yearKey);
-  if (tabKey === ACTIVITIES_INNER_TAB_SUMMER_2026) return summer2026Rows(rows);
-  if (tabKey === ACTIVITIES_INNER_TAB_REGULAR_2026) return regular2026Rows(rows);
-  return activeActivitiesYearRows(rows, yearKey);
+  return cachedRowsValue(activityPeriodRowsCache, rows, `${yearKey}:${tabKey}`, () => {
+    if (tabKey === ACTIVITIES_INNER_TAB_ARCHIVE) return archivedActivitiesYearRows(rows, yearKey);
+    if (yearKey === ACTIVITY_SEASON_SCHOOL_2027) return activeActivitiesYearRows(rows, yearKey);
+    if (tabKey === ACTIVITIES_INNER_TAB_SUMMER_2026) return summer2026Rows(rows);
+    if (tabKey === ACTIVITIES_INNER_TAB_REGULAR_2026) return regular2026Rows(rows);
+    return activeActivitiesYearRows(rows, yearKey);
+  });
 }
 
 function allActivitiesRows(rows, state = {}) {
@@ -259,10 +276,13 @@ function shouldApplyActivitiesMonthFilter(state = {}) {
   return activityPeriodUsesMonthNavigation(state);
 }
 
-function activityRowsForPeriodAndMonth(rows, state = {}) {
+export function activityRowsForPeriodAndMonth(rows, state = {}) {
   const periodRows = activityRowsForInnerTab(rows, state);
   if (!shouldApplyActivitiesMonthFilter(state)) return periodRows;
-  return periodRows.filter((row) => activityOccursInSelectedMonth(row, state.activitiesMonthYm));
+  const key = `${normalizeActivityPeriodTab(state.activityPeriodTab)}:${normalizeActivitiesInnerTab(state.activitiesInnerTab, state.activityPeriodTab)}:${state.activitiesMonthYm || ''}`;
+  return cachedRowsValue(activityMonthRowsCache, rows, key, () =>
+    periodRows.filter((row) => activityOccursInSelectedMonth(row, state.activitiesMonthYm))
+  );
 }
 
 function firstActivityMonthYm(rows) {
@@ -281,19 +301,22 @@ function firstActivityMonthYm(rows) {
 }
 
 function availableActivityMonthsForPeriod(rows, periodKey) {
-  const pRows = activityPeriodRows(rows, periodKey);
-  const months = new Set();
-  pRows.forEach((row) => {
-    [
-      normalizedActivityStartDate(row),
-      String(row?.end_date ?? row?.date_end ?? '').trim().slice(0, 10),
-      ...activityMeetingDates(row)
-    ].forEach((date) => {
-      const val = String(date || '').trim().slice(0, 10);
-      if (/^\d{4}-\d{2}-\d{2}$/.test(val)) months.add(val.slice(0, 7));
+  const normalizedPeriod = normalizeActivityPeriodTab(periodKey);
+  return cachedRowsValue(activityAvailableMonthsCache, rows, normalizedPeriod, () => {
+    const pRows = activityPeriodRows(rows, normalizedPeriod);
+    const months = new Set();
+    pRows.forEach((row) => {
+      [
+        normalizedActivityStartDate(row),
+        String(row?.end_date ?? row?.date_end ?? '').trim().slice(0, 10),
+        ...activityMeetingDates(row)
+      ].forEach((date) => {
+        const val = String(date || '').trim().slice(0, 10);
+        if (/^\d{4}-\d{2}-\d{2}$/.test(val)) months.add(val.slice(0, 7));
+      });
     });
+    return [...months].sort().filter((ym) => pRows.some((row) => activityOccursInSelectedMonth(row, ym)));
   });
-  return [...months].sort().filter((ym) => pRows.some((row) => activityOccursInSelectedMonth(row, ym)));
 }
 
 function pickBestMonthForPeriod(rows, periodKey) {

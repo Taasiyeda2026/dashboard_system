@@ -2671,39 +2671,66 @@ function renderTab(rows, state, data, allPreparedRows = []) {
   return instructorsTabHtml(rows, state, data, directory, contactsIndex, allPreparedRows);
 }
 
-export const operationsManagementScreen = {
-  load: async ({ api }) => {
-    const [activities, lists, schoolsDirectory, contactsSchoolsRows, completionApprovalUploads, contactResponsibles, workshopStockDistributions, instructorSchedulePrintContacts, photoApprovalUploads] = await Promise.all([
-      api.allActivities(),
-      api.adminLists().catch((err) => {
-        // eslint-disable-next-line no-console
-        console.warn('[ציוד ומלאי] adminLists נכשל (catch):', err?.message || err);
-        return { categories: [], _loadError: String(err?.message || 'load_failed') };
-      }),
-      readOperationsSchoolsDirectory(),
-      readContactsSchools(),
+function operationsTabDataKey(tab) {
+  if (tab === TAB_WORKSHOPS) return TAB_WORKSHOPS;
+  if (tab === TAB_COMPLETION_APPROVAL) return TAB_COMPLETION_APPROVAL;
+  return 'schedule';
+}
+
+export async function loadOperationsTabData(api, tab) {
+  const key = operationsTabDataKey(tab);
+  if (key === TAB_WORKSHOPS) {
+    const [lists, workshopStockDistributions] = await Promise.all([
+      api.adminLists().catch((err) => ({ categories: [], _loadError: String(err?.message || 'load_failed') })),
+      api.workshopStockDistributions
+        ? api.workshopStockDistributions().catch((err) => ({ rows: [], _loadError: String(err?.message || 'load_failed') }))
+        : Promise.resolve({ rows: [] })
+    ]);
+    return {
+      workshopStockMap: buildWorkshopStockMapFromLists(lists),
+      adminListsData: lists,
+      workshopStockDistributions: workshopStockDistributions?.rows || []
+    };
+  }
+
+  const sharedReads = [
+    readOperationsSchoolsDirectory(),
+    readContactsSchools(),
+    api.instructorSchedulePrintContacts ? api.instructorSchedulePrintContacts().catch(() => ({ rows: [] })) : Promise.resolve({ rows: [] })
+  ];
+  if (key === TAB_COMPLETION_APPROVAL) {
+    sharedReads.push(
       api.completionApprovalUploads().catch(() => ({ rows: [] })),
       api.schoolContactResponsibles().catch(() => ({ rows: [] })),
-      api.workshopStockDistributions ? api.workshopStockDistributions().catch((err) => {
-        // eslint-disable-next-line no-console
-        console.warn('[ציוד ומלאי] workshop_stock_distributions נכשל:', err?.message || err);
-        return { rows: [], _loadError: String(err?.message || 'load_failed') };
-      }) : Promise.resolve({ rows: [] }),
-      api.instructorSchedulePrintContacts ? api.instructorSchedulePrintContacts().catch(() => ({ rows: [] })) : Promise.resolve({ rows: [] }),
       api.photoApprovalUploads ? api.photoApprovalUploads().catch(() => ({ rows: [] })) : Promise.resolve({ rows: [] })
+    );
+  }
+  const [schoolsDirectory, contactsSchoolsRows, instructorSchedulePrintContacts, completionApprovalUploads, contactResponsibles, photoApprovalUploads] = await Promise.all(sharedReads);
+  return {
+    schoolsDirectoryRows: schoolsDirectory.rows,
+    schoolsDirectorySource: schoolsDirectory.source,
+    contactsSchoolsRows,
+    instructorSchedulePrintContactsRows: instructorSchedulePrintContacts?.rows || [],
+    ...(key === TAB_COMPLETION_APPROVAL ? {
+      completionApprovalUploads: completionApprovalUploads?.rows || [],
+      photoApprovalUploads: photoApprovalUploads?.rows || [],
+      contactResponsiblesRows: contactResponsibles?.rows || []
+    } : {})
+  };
+}
+
+export const operationsManagementScreen = {
+  load: async ({ api, state }) => {
+    const tabKey = operationsTabDataKey(_opsNeedsEntryReset ? TAB_INSTRUCTORS : ensureOpsState(state || {}).tab);
+    const [activities, tabData] = await Promise.all([
+      api.allActivities(),
+      loadOperationsTabData(api, tabKey)
     ]);
     return {
       ...activities,
-      schoolsDirectoryRows: schoolsDirectory.rows,
-      schoolsDirectorySource: schoolsDirectory.source,
-      workshopStockMap: buildWorkshopStockMapFromLists(lists),
-      adminListsData: lists,
-      contactsSchoolsRows,
-      completionApprovalUploads: completionApprovalUploads?.rows || [],
-      photoApprovalUploads: photoApprovalUploads?.rows || [],
-      contactResponsiblesRows: contactResponsibles?.rows || [],
-      workshopStockDistributions: workshopStockDistributions?.rows || [],
-      instructorSchedulePrintContactsRows: instructorSchedulePrintContacts?.rows || []
+      ...tabData,
+      _loadedOperationsTabs: [tabKey],
+      _operationsTabLoadPromises: new Map()
     };
   },
   render(data, { state } = {}) {
@@ -2739,11 +2766,27 @@ export const operationsManagementScreen = {
     bindSummerContactsModalEvents(root, { ui, api, rows: data?.instructorSchedulePrintContactsRows || [], logPrefix: 'operations-management' });
 
     root.querySelectorAll('[data-ops-tab]').forEach((btn) => {
-      btn.addEventListener('click', () => {
+      btn.addEventListener('click', async () => {
         ops.tab = btn.getAttribute('data-ops-tab') || TAB_INSTRUCTORS;
         if (ops.tab === TAB_SUMMER) ops.tab = TAB_INSTRUCTORS;
         try { sessionStorage.removeItem(SUMMER_TRAINING_SESSION_KEY); } catch { /* ignore */ }
         document.dispatchEvent(new CustomEvent('ops-mgmt-standard-tab', { detail: { tab: ops.tab } }));
+        const tabKey = operationsTabDataKey(ops.tab);
+        const loadedTabs = new Set(Array.isArray(data?._loadedOperationsTabs) ? data._loadedOperationsTabs : []);
+        if (!loadedTabs.has(tabKey)) {
+          const promises = data._operationsTabLoadPromises instanceof Map ? data._operationsTabLoadPromises : new Map();
+          data._operationsTabLoadPromises = promises;
+          let request = promises.get(tabKey);
+          if (!request) {
+            request = loadOperationsTabData(api, tabKey).finally(() => promises.delete(tabKey));
+            promises.set(tabKey, request);
+          }
+          try {
+            Object.assign(data, await request);
+            loadedTabs.add(tabKey);
+            data._loadedOperationsTabs = [...loadedTabs];
+          } catch (_) { /* existing empty-state behavior remains available */ }
+        }
         rerender?.();
       });
     });

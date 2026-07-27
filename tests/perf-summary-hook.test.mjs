@@ -27,4 +27,5 @@ test('browser-like environment can execute perf summary helper safely', async ()
   const summary = window.__printDsPerfSummary();
   assert.ok(summary);
   assert.ok(Object.prototype.hasOwnProperty.call(summary, 'slowest_requests'));
+  assert.ok(Object.prototype.hasOwnProperty.call(summary, 'slowest_interactions'));
 });
