@@ -22,6 +22,10 @@
   const READ_POLICIES = new Map([
     ['activities', { namespace: 'activities', ttlMs: 5 * 60_000 }],
     ['activity_meetings', { namespace: 'activity_meetings', ttlMs: 60_000 }],
+    ['activity_completion_approval_uploads', { namespace: 'completion_approvals', ttlMs: 60_000 }],
+    ['activity_school_contact_responsibles', { namespace: 'school_contacts', ttlMs: 5 * 60_000 }],
+    ['instructor_schedule_print_contacts', { namespace: 'school_contacts', ttlMs: 5 * 60_000 }],
+    ['contacts_instructors', { namespace: 'contacts', ttlMs: 10 * 60_000 }],
     ['contacts_schools', { namespace: 'contacts', ttlMs: 5 * 60_000 }],
     ['contacts_unified_view', { namespace: 'contacts', ttlMs: 5 * 60_000 }],
     ['schools', { namespace: 'contacts', ttlMs: 10 * 60_000 }],
@@ -72,7 +76,9 @@
   function invalidationNamespaces(table) {
     if (table === 'activities') return ['activities'];
     if (table === 'activity_meetings') return ['activity_meetings', 'activities'];
-    if (table === 'contacts_schools' || table === 'schools' || table === 'authorities') return ['contacts', 'proposals'];
+    if (table === 'activity_completion_approval_uploads') return ['completion_approvals'];
+    if (table === 'activity_school_contact_responsibles' || table === 'instructor_schedule_print_contacts') return ['school_contacts'];
+    if (table === 'contacts_instructors' || table === 'contacts_schools' || table === 'schools' || table === 'authorities') return ['contacts', 'proposals'];
     if (table === 'proposals_agreements' || table === 'proposal_agreement_items' || table === 'proposal_linked_documents') return ['proposals'];
     if (table.startsWith('proposal_') || table === 'school_calendar' || table === 'lists') return ['proposal_catalog', 'proposals', 'lists'];
     return [];
