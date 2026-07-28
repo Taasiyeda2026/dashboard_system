@@ -1,533 +1,208 @@
 import { escapeHtml } from './shared/html.js';
 import { dsCard, dsScreenStack, dsEmptyState } from './shared/layout.js';
-import { formatDateHe } from './shared/format-date.js';
+import { showToast } from './shared/toast.js';
 import { activityWorkDrawerHtml, patchDrawerDatesSection } from './shared/activity-detail-html.js';
 import {
-  ensureActivityListFilters,
-  prepareRowsForSearch,
-  applyLocalFilters,
-  filtersToolbarHtml,
-  bindLocalFilters,
-  splitVisibleRows
-} from './shared/activity-list-filters.js';
-import { activityTypeIconSvg } from './shared/activity-type-icons.js';
+  loadInstructorSchedulingData,
+  saveInstructorSchedulingProfile,
+  saveInstructorWeeklyRules,
+  saveInstructorAvailabilityException,
+  deleteInstructorAvailabilityException
+} from './instructor-scheduling-data.js';
+import {
+  text, activeFlag, assigned, instructorCard, profileHtml, contactForm, constraintsForm
+} from './instructor-workspace-ui.js';
 
-const INSTRUCTORS_SCOPE = 'instructors';
-const INSTRUCTOR_FILTER_FIELDS = [{
-  key: 'activity_manager',
-  label: 'מנהל פעילות',
-  getValues: (row) => Array.isArray(row.activity_managers) ? row.activity_managers : (row.activity_manager ? [row.activity_manager] : [])
-}];
-
-function applyActiveFilter(rows) {
-  return rows.filter((r) => (r.programs_count || 0) + (r.one_day_count || 0) > 0);
-}
-
-const HEBREW_MONTH_NAMES = ['ינואר','פברואר','מרץ','אפריל','מאי','יוני','יולי','אוגוסט','ספטמבר','אוקטובר','נובמבר','דצמבר'];
-
-function ymLabel(ym) {
-  const m = /^(\d{4})-(\d{2})$/.exec(String(ym || ''));
-  if (!m) return ym;
-  return `${HEBREW_MONTH_NAMES[Number(m[2]) - 1]} ${m[1]}`;
-}
-
-function toYm(dateStr) {
-  return String(dateStr || '').slice(0, 7);
-}
-
-function nextYm(ym) {
-  return shiftMonth(ym, 1);
-}
-
-function shiftMonth(ym, delta) {
-  const m = /^(\d{4})-(\d{2})$/.exec(String(ym || ''));
-  if (!m) return currentYm();
-  const date = new Date(Number(m[1]), Number(m[2]) - 1 + delta, 1);
-  return `${date.getFullYear()}-${String(date.getMonth() + 1).padStart(2, '0')}`;
-}
-
-function buildMonthOptions(minYm, maxYm) {
-  const opts = [];
-  let cur = minYm;
-  let guard = 0;
-  while (cur <= maxYm && guard++ < 120) {
-    opts.push({ value: cur, label: ymLabel(cur) });
-    cur = nextYm(cur);
-  }
-  return opts;
-}
-
-function applyDateFilter(rows, fromYm, toYm_) {
-  if (!fromYm && !toYm_) return rows;
-  return rows.filter((r) => {
-    const startYm = toYm(r.earliest_start_date || '');
-    const endYm   = toYm(r.latest_end_date     || '');
-    if (!startYm && !endYm) return false;
-    const rowEndYm   = endYm   || startYm;
-    const rowStartYm = startYm || endYm;
-    if (toYm_  && rowStartYm > toYm_)  return false;
-    if (fromYm && rowEndYm   < fromYm) return false;
-    return true;
-  });
-}
-
-function globalDateRange(rows) {
-  let min = '', max = '';
-  rows.forEach((r) => {
-    const s = toYm(r.earliest_start_date || '');
-    const e = toYm(r.latest_end_date     || '');
-    if (s && (!min || s < min)) min = s;
-    if (e && (!max || e > max)) max = e;
-  });
-  return { min, max };
-}
-
-
-function currentYm() {
-  const now = new Date();
-  return `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, '0')}`;
-}
-
-function resolveInstructorDetailsTargetYm(selectedYm) {
-  const candidate = String(selectedYm || '').trim().slice(0, 7);
-  return /^\d{4}-\d{2}$/.test(candidate) ? candidate : currentYm();
-}
-
-function normalizeInstructorIdentity(value) {
-  return String(value || '').trim().replace(/\s+/g, ' ').toLowerCase();
-}
-
-const instructorActivityRowsIndexCache = new WeakMap();
-
-function indexedInstructorActivityRows(allRows, empId, instrName) {
-  if (!Array.isArray(allRows)) return [];
-  let index = instructorActivityRowsIndexCache.get(allRows);
-  if (!index) {
-    index = new Map();
-    allRows.forEach((row) => {
-      const keys = new Set([
-        row?.emp_id,
-        row?.emp_id_2,
-        row?.instructor_name,
-        row?.instructor_name_2
-      ].map(normalizeInstructorIdentity).filter(Boolean));
-      keys.forEach((key) => {
-        if (!index.has(key)) index.set(key, []);
-        index.get(key).push(row);
-      });
-    });
-    instructorActivityRowsIndexCache.set(allRows, index);
-  }
-  const targetKeys = new Set([empId, instrName].map(normalizeInstructorIdentity).filter(Boolean));
-  if (!targetKeys.size) return allRows;
-  const candidates = [];
-  const seen = new Set();
-  targetKeys.forEach((key) => {
-    (index.get(key) || []).forEach((row) => {
-      if (seen.has(row)) return;
-      seen.add(row);
-      candidates.push(row);
-    });
-  });
-  return candidates;
-}
-
-function instructorMatchesActivity(row, empId, instrName) {
-  const targetEmpId = String(empId || '').trim();
-  const normalizedTargets = new Set([
-    normalizeInstructorIdentity(instrName),
-    normalizeInstructorIdentity(empId)
-  ].filter(Boolean));
-
-  if (targetEmpId && (String(row.emp_id || '').trim() === targetEmpId || String(row.emp_id_2 || '').trim() === targetEmpId)) {
-    return true;
-  }
-
-  return [row.instructor_name, row.instructor_name_2].some((value) => {
-    const normalized = normalizeInstructorIdentity(value);
-    return normalized && normalizedTargets.has(normalized);
-  });
-}
-
-function activityHasMeetingInMonth(row, targetYm) {
-  let hasMeetingDate = false;
-  let hasMeetingInTargetMonth = false;
-  for (let i = 1; i <= 35; i++) {
-    const d = String((row[`date_${i}`] || row[`Date${i}`]) || '').trim();
-    if (!d) continue;
-    hasMeetingDate = true;
-    if (d.startsWith(targetYm)) hasMeetingInTargetMonth = true;
-  }
-  return { hasMeetingDate, hasMeetingInTargetMonth };
-}
-
-function activityOverlapsFallbackMonth(row, targetYm) {
-  const startYm = toYm(row.start_date || '');
-  const endYm = toYm(row.end_date || '');
-  if (!startYm && !endYm) return false;
-  const rowStartYm = startYm || endYm;
-  const rowEndYm = endYm || startYm;
-  return rowStartYm <= targetYm && rowEndYm >= targetYm;
-}
-
-function activityInDetailsMonth(row, targetYm) {
-  if (!targetYm) return true;
-  const { hasMeetingDate, hasMeetingInTargetMonth } = activityHasMeetingInMonth(row, targetYm);
-  if (hasMeetingDate) return hasMeetingInTargetMonth;
-  return activityOverlapsFallbackMonth(row, targetYm);
-}
+const ACTIVE_FILTERS = [{ value: 'yes', label: 'פעילים' }, { value: '', label: 'הכול' }, { value: 'no', label: 'לא פעילים' }];
+const ASSIGNMENT_FILTERS = [{ value: '', label: 'כל השיבוצים' }, { value: 'assigned', label: 'משובצים' }, { value: 'unassigned', label: 'לא משובצים' }];
 
 export function buildInstructorActivityDetailsForMonth(allRows, { empId, instrName, targetYm } = {}) {
+  const targets = [empId, instrName].map((value) => text(value).toLowerCase()).filter(Boolean);
+  const seen = new Set();
   const items = [];
-  const seenRowIds = new Set();
-  indexedInstructorActivityRows(allRows, empId, instrName).forEach((r) => {
-    const status = String(r.status || '').trim();
-    if (status === 'סגור' || status === 'נמחק') return;
-    if (!instructorMatchesActivity(r, empId, instrName)) return;
-    if (!activityInDetailsMonth(r, targetYm)) return;
-
-    const rowId = String(r.row_id || r.RowID || '').trim();
-    if (rowId) {
-      if (seenRowIds.has(rowId)) return;
-      seenRowIds.add(rowId);
+  (Array.isArray(allRows) ? allRows : []).forEach((row) => {
+    if (['סגור', 'נמחק'].includes(text(row?.status))) return;
+    const identities = [row?.emp_id, row?.emp_id_2, row?.instructor_name, row?.instructor_name_2].map((value) => text(value).toLowerCase()).filter(Boolean);
+    if (!identities.some((value) => targets.includes(value))) return;
+    let hasMeeting = false;
+    let inMonth = false;
+    for (let i = 1; i <= 35; i += 1) {
+      const date = text(row?.[`date_${i}`] || row?.[`Date${i}`]);
+      if (!date) continue;
+      hasMeeting = true;
+      if (!targetYm || date.startsWith(targetYm)) inMonth = true;
     }
-
+    if (targetYm && hasMeeting && !inMonth) return;
+    if (targetYm && !hasMeeting) {
+      const start = text(row?.start_date).slice(0, 7) || text(row?.end_date).slice(0, 7);
+      const end = text(row?.end_date).slice(0, 7) || text(row?.start_date).slice(0, 7);
+      if (!start || targetYm < start || targetYm > end) return;
+    }
+    const id = text(row?.row_id || row?.RowID);
+    if (id && seen.has(id)) return;
+    if (id) seen.add(id);
     items.push({
-      RowID: String(r.RowID || r.row_id || r.source_row_id || '').trim(),
-      row_id: String(r.row_id || r.RowID || '').trim(),
-      source_row_id: String(r.source_row_id || r.RowID || r.row_id || '').trim(),
-      source_sheet: String(r.source_sheet || r.source_table || 'activities').trim(),
-      source_table: String(r.source_table || 'activities').trim(),
-      activity_name: String(r.activity_name || '—'),
-      school:        String(r.school || '—'),
-      authority:     String(r.authority || '—'),
-      start_date:    String(r.start_date || '').trim(),
-      end_date:      String(r.end_date || r.date_end || '').trim()
+      RowID: text(row?.RowID || row?.row_id || row?.source_row_id), row_id: text(row?.row_id || row?.RowID),
+      source_row_id: text(row?.source_row_id || row?.RowID || row?.row_id), source_sheet: text(row?.source_sheet || row?.source_table || 'activities'),
+      source_table: text(row?.source_table || 'activities'), activity_name: text(row?.activity_name) || '—', school: text(row?.school) || '—',
+      authority: text(row?.authority) || '—', start_date: text(row?.start_date), end_date: text(row?.end_date || row?.date_end)
     });
   });
   return items;
 }
 
-const TYPE_ITEMS = [
-  { keys: ['course', 'קורס', 'קורסים'], label: 'קורסים', icon: 'course' },
-  { keys: ['workshop', 'סדנה', 'סדנאות'], label: 'סדנאות', icon: 'workshop' },
-  { keys: ['escape_room', 'escape room', 'escape-room', 'חדר בריחה', 'חדרי בריחה'], label: 'חדרי בריחה', icon: 'escape_room' },
-  { keys: ['tour', 'סיור', 'סיורים'], label: 'סיורים', icon: 'tour' },
-  { keys: ['after_school', 'after school', 'afterschool', 'חוג אפטרסקול', 'אפטרסקול'], label: 'אפטרסקול', icon: 'after_school' },
-];
-
-function renderInstructorRow(row) {
-  const name       = escapeHtml(row.full_name || row.emp_id || '—');
-  const empId      = String(row.emp_id || '').trim();
-  const typeCounts = row.activity_type_counts || {};
-
-  const statCells = TYPE_ITEMS.map(({ keys, label, icon }) => {
-    const count = keys.reduce((sum, key) => sum + Number(typeCounts[key] || 0), 0);
-    return `<span class="instr-stat" title="${escapeHtml(label)}" aria-label="${escapeHtml(label)}: ${count}"><span class="instr-stat__icon">${activityTypeIconSvg(icon, 14)}</span><span class="instr-stat__num${count === 0 ? ' is-zero' : ''}">${count}</span></span>`;
-  }).join('');
-
-  return `<article class="instr-card" data-instructor-item="${escapeHtml(empId)}">
-    <button type="button" class="ci-row instr-summary-row" dir="rtl" data-instructor-card="${escapeHtml(empId)}" data-instructor-name="${name}">
-      <div class="ci-row__main">
-        <span class="ci-row__name">${name}</span>
-        <span class="instr-stats">${statCells}</span>
-      </div>
-    </button>
-  </article>`;
+function canEditScheduling(state) {
+  return ['admin', 'operation_manager'].includes(text(state?.user?.role || state?.user?.display_role));
 }
 
-function popupActivityKey(it, idx) {
-  return String(it?.RowID || it?.row_id || it?.source_row_id || idx || '').trim();
+function mergeRows(base, contacts, scheduling) {
+  const map = new Map();
+  const ensure = (id, name = '') => {
+    const key = text(id || name);
+    if (!key) return null;
+    if (!map.has(key)) map.set(key, { emp_id: key, full_name: text(name || key), programs_count: 0, one_day_count: 0, activity_type_counts: {}, activity_managers: [], authorities: [], schools: [], activity_names: [] });
+    return map.get(key);
+  };
+  (base?.rows || []).forEach((row) => Object.assign(ensure(row.emp_id || row.full_name, row.full_name || row.instructor_name), row));
+  (contacts?.rows || []).forEach((row) => Object.assign(ensure(row.emp_id || row.full_name, row.full_name), row));
+  const profiles = new Map((scheduling?.profiles || []).map((row) => [text(row.emp_id), row]));
+  return [...map.values()].map((row) => ({
+    ...row,
+    active: activeFlag(row.active),
+    scheduling_profile: profiles.get(text(row.emp_id)) || null,
+    availability_rules: (scheduling?.rules || []).filter((item) => text(item.emp_id) === text(row.emp_id)),
+    availability_exceptions: (scheduling?.exceptions || []).filter((item) => text(item.emp_id) === text(row.emp_id))
+  })).sort((a, b) => text(a.full_name).localeCompare(text(b.full_name), 'he'));
 }
 
-function renderPopupActivityRows(items) {
-  return (Array.isArray(items) ? items : []).map((it, idx) => {
-    const key = popupActivityKey(it, idx);
-    return `<tr data-instr-popup-activity-row="${escapeHtml(key)}">
-      <td class="instr-pt__name"><button type="button" class="instr-popup-activity-btn" data-instr-popup-activity="${escapeHtml(key)}" title="פתח פרטי פעילות">${escapeHtml(String(it.activity_name || '—'))}</button></td>
-      <td class="instr-pt__school">${escapeHtml(String(it.school || '—'))}</td>
-      <td class="instr-pt__authority">${escapeHtml(String(it.authority || '—'))}</td>
-    </tr>`;
-  }).join('');
+function activitiesFor(data, row) {
+  return (data?.detail_rows || []).filter((activity) => {
+    const targets = [row.emp_id, row.full_name].map((value) => text(value).toLowerCase());
+    return [activity.emp_id, activity.emp_id_2, activity.instructor_name, activity.instructor_name_2].map((value) => text(value).toLowerCase()).some((value) => value && targets.includes(value));
+  }).filter((activity) => !['סגור', 'נמחק', 'מבוטל'].includes(text(activity.status))).sort((a, b) => text(a.start_date).localeCompare(text(b.start_date)));
 }
 
-function buildPopupHtml(name, items) {
-  let bodyHtml;
-  if (!items) {
-    bodyHtml = '<p class="instr-popup__empty">טוען…</p>';
-  } else if (items.length === 0) {
-    bodyHtml = '<p class="instr-popup__empty">אין פעילויות משויכות.</p>';
-  } else {
-    bodyHtml = `<table class="instr-popup-table" dir="rtl">
-      <thead><tr>
-        <th>פעילות</th><th>בית ספר</th><th>רשות</th>
-      </tr></thead>
-      <tbody>${renderPopupActivityRows(items)}</tbody>
-    </table>`;
-  }
-  return `<div class="instr-popup-overlay ds-instructors-screen" id="instr-popup-overlay" role="dialog" aria-modal="true" dir="rtl">
-    <div class="instr-popup" id="instr-popup">
-      <div class="instr-popup__head">
-        <span class="instr-popup__name">${name}</span>
-        <button type="button" class="instr-popup__close" id="instr-popup-close" aria-label="סגור">✕</button>
-      </div>
-      <div class="instr-popup__body">${bodyHtml}</div>
-    </div>
-  </div>`;
+function searchText(row) {
+  return [row.full_name, row.emp_id, row.mobile, row.email, row.address, row.employment_type, row.direct_manager, ...(row.activity_managers || []), ...(row.authorities || []), ...(row.schools || []), ...(row.activity_names || [])].map(text).join(' ').toLowerCase();
 }
 
-function removePopup() {
-  document.getElementById('instr-popup-overlay')?.remove();
+function chips(items, selected, attr) {
+  return items.map((item) => `<button type="button" class="ds-chip${item.value === selected ? ' is-active' : ''}" ${attr}="${escapeHtml(item.value)}">${escapeHtml(item.label)}</button>`).join('');
 }
 
-function bindPopupActivityClicks(items, onActivityOpen) {
-  if (typeof onActivityOpen !== 'function') return;
-  const byKey = new Map();
-  (Array.isArray(items) ? items : []).forEach((it, idx) => byKey.set(popupActivityKey(it, idx), it));
-  document.querySelectorAll('[data-instr-popup-activity]').forEach((btn) => {
-    btn.addEventListener('click', (ev) => {
-      ev.preventDefault();
-      ev.stopPropagation();
-      const hit = byKey.get(String(btn.dataset.instrPopupActivity || '').trim());
-      if (hit) onActivityOpen(hit);
-    });
-  });
-}
-
-function openPopup(name, items, onActivityOpen) {
-  removePopup();
-  document.body.insertAdjacentHTML('beforeend', buildPopupHtml(name, items));
-  const overlay = document.getElementById('instr-popup-overlay');
-  overlay.addEventListener('click', (e) => { if (e.target === overlay) removePopup(); });
-  document.getElementById('instr-popup-close')?.addEventListener('click', removePopup);
-  bindPopupActivityClicks(items, onActivityOpen);
-  const onKey = (e) => { if (e.key === 'Escape') { removePopup(); document.removeEventListener('keydown', onKey); } };
-  document.addEventListener('keydown', onKey);
-}
-
-function updatePopupBody(items, name, onActivityOpen) {
-  const overlay = document.getElementById('instr-popup-overlay');
-  if (!overlay) return;
-  const popup = document.getElementById('instr-popup');
-  if (!popup) return;
-  popup.querySelector('.instr-popup__name').textContent = name || '';
-  const body = popup.querySelector('.instr-popup__body');
-  if (!body) return;
-  if (items.length === 0) {
-    body.innerHTML = '<p class="instr-popup__empty">אין פעילויות משויכות.</p>';
-  } else {
-    body.innerHTML = `<table class="instr-popup-table" dir="rtl">
-      <thead><tr><th>פעילות</th><th>בית ספר</th><th>רשות</th></tr></thead>
-      <tbody>${renderPopupActivityRows(items)}</tbody>
-    </table>`;
-    bindPopupActivityClicks(items, onActivityOpen);
-  }
-}
-
-function monthFilterBarHtml(fromYm, minYm, maxYm) {
-  if (!minYm || !maxYm) return '';
-  const monthText = ymLabel(fromYm);
-  return `<div class="instr-date-filter instr-date-filter--nav" dir="rtl" aria-label="בחירת חודש">
-    <button type="button" class="ds-btn ds-btn--sm ds-btn--ghost" data-instr-month-prev title="חודש קודם" aria-label="חודש קודם">▶</button>
-    <span class="instr-date-filter__label">${escapeHtml(monthText)}</span>
-    <button type="button" class="ds-btn ds-btn--sm ds-btn--ghost" data-instr-month-next title="חודש הבא" aria-label="חודש הבא">◀</button>
-  </div>`;
+function replaceScheduling(row, scheduling) {
+  row.scheduling_profile = (scheduling.profiles || []).find((item) => text(item.emp_id) === text(row.emp_id)) || null;
+  row.availability_rules = (scheduling.rules || []).filter((item) => text(item.emp_id) === text(row.emp_id));
+  row.availability_exceptions = (scheduling.exceptions || []).filter((item) => text(item.emp_id) === text(row.emp_id));
 }
 
 export const instructorsScreen = {
-  load: ({ api }) => api.instructors(),
-
-  render(data, { state } = {}) {
-    const allRows  = Array.isArray(data?.rows) ? data.rows : [];
-    prepareRowsForSearch(allRows, [
-      'full_name', 'name', 'instructor_name', 'emp_id', 'employee_id', 'EmployeeID',
-      'activity_name', 'activity_type', 'activity_manager', 'authority', 'school',
-      'status', 'start_date', 'end_date', 'earliest_start_date', 'latest_end_date',
-      'mobile', 'phone', 'email', 'employment_type', 'direct_manager',
-      (row) => (Array.isArray(row.activity_managers) ? row.activity_managers : []).join(' '),
-      (row) => (Array.isArray(row.authorities) ? row.authorities : []).join(' '),
-      (row) => (Array.isArray(row.schools) ? row.schools : []).join(' '),
-      (row) => (Array.isArray(row.activity_names) ? row.activity_names : []).join(' '),
-      (row) => (Array.isArray(row.activity_types) ? row.activity_types : []).join(' '),
-      (row) => row.activity_type_counts ? Object.keys(row.activity_type_counts).join(' ') : ''
-    ]);
-    const filters = ensureActivityListFilters(state, INSTRUCTORS_SCOPE);
-
-    const activeRows = applyActiveFilter(allRows);
-    const locallyFiltered = applyLocalFilters(activeRows, filters, { filterFields: INSTRUCTOR_FILTER_FIELDS });
-
-    const instrState = state._instrDateFilter = state._instrDateFilter || {};
-    if (!instrState.from) instrState.from = currentYm();
-    const dateFrom = instrState.from || currentYm();
-
-    const { min: globalMin, max: globalMax } = globalDateRange(activeRows);
-
-    const filtered = applyDateFilter(locallyFiltered, dateFrom, '');
-    const { visible: visibleRows, hasMore, nextCount } = splitVisibleRows(filtered, filters);
-
-    const toolbarHtml = filtersToolbarHtml(INSTRUCTORS_SCOPE, activeRows, state, {
-      filterFields: INSTRUCTOR_FILTER_FIELDS,
-      searchPlaceholder: 'חיפוש לפי שם מדריך / מזהה / מנהל / רשות / בית ספר…'
-    });
-
-    const mappingWarning = data && data.activities_loaded === false
-      ? '<p class="ds-muted" role="status">נתוני הפעילויות לא נטענו, ולכן לא ניתן לחשב שיוך מדריכים.</p>'
-      : '';
-    const bodyHtml = visibleRows.length === 0
-      ? dsEmptyState(filters.q || dateFrom ? 'לא נמצאו מדריכים לסינון זה' : 'אין נתוני מדריכים')
-      : `${mappingWarning}<div class="ci-list ci-list--instr-grid">${visibleRows.map((row) => renderInstructorRow(row)).join('')}</div>${
-        hasMore ? `<div style="display:flex;justify-content:center;padding:12px 0"><button type="button" class="ds-btn ds-btn--sm" data-list-show-more="${INSTRUCTORS_SCOPE}" data-next-count="${nextCount}">הצג עוד</button></div>` : ''
-      }`;
-
-    const pageHeader = `<div class="instr-page-header" dir="rtl">
-      <div class="instr-page-header__main">
-        <span class="instr-page-header__title">מדריכים משובצים</span>
-        <span class="instr-page-header__count">${filtered.length} מדריכים</span>
-      </div>
-      <button type="button" class="ds-btn ds-btn--sm ds-btn--ghost instr-contacts-link" data-route="instructor-contacts">אנשי קשר מדריכים</button>
-    </div>`;
-
-    return dsScreenStack(`
-      <section class="instr-page ds-instructors-screen">
-      ${pageHeader}
-      <div class="ds-screen-top-row">
-        ${toolbarHtml}
-      </div>
-      ${monthFilterBarHtml(dateFrom, globalMin, globalMax)}
-      ${dsCard({ title: '', body: bodyHtml, padded: filtered.length === 0 })}
-      </section>
-    `);
+  async load({ api }) {
+    const [base, contacts, scheduling] = await Promise.all([api.instructors(), api.instructorContacts(), loadInstructorSchedulingData()]);
+    return { ...base, rows: mergeRows(base, contacts, scheduling), scheduling };
   },
 
-  bind({ root, data, state, rerender, api, ui }) {
-    bindLocalFilters(root, state, INSTRUCTORS_SCOPE, rerender, { debounceMs: 300 });
-    root.querySelector('.instr-contacts-link,[data-route="instructor-contacts"]')?.addEventListener('click', (ev) => {
-      ev.preventDefault();
+  render(data, { state } = {}) {
+    state.instructorsWorkspace = state.instructorsWorkspace || { q: '', active: 'yes', assignment: '' };
+    const filters = state.instructorsWorkspace;
+    const query = text(filters.q).toLowerCase();
+    const rows = (data?.rows || []).filter((row) => {
+      if (filters.active && activeFlag(row.active) !== filters.active) return false;
+      if (filters.assignment === 'assigned' && !assigned(row)) return false;
+      if (filters.assignment === 'unassigned' && assigned(row)) return false;
+      return !query || searchText(row).includes(query);
+    });
+    const missingAddress = (data?.rows || []).filter((row) => activeFlag(row.active) === 'yes' && !text(row.address)).length;
+    const body = rows.length ? `<div class="instructors-workspace-grid">${rows.map(instructorCard).join('')}</div>` : dsEmptyState('לא נמצאו מדריכים בהתאם לסינון');
+    return dsScreenStack(`<style>.instructors-workspace-grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(270px,1fr));gap:12px}.instructors-workspace-grid>.ds-card:hover{border-color:#9db9d8!important;box-shadow:0 5px 16px rgba(15,23,42,.08)}@media(max-width:720px){.instructors-workspace-grid{grid-template-columns:1fr}}</style>
+      <header class="ds-page-header"><h1 class="ds-page-header__title">מדריכים</h1><p class="ds-page-header__subtitle">פרטי מדריכים, פעילויות, זמינות ואילוצים במקום אחד</p></header>
+      <div class="ds-screen-top-row" style="display:grid;gap:10px"><div style="display:flex;gap:10px;align-items:center;flex-wrap:wrap"><input class="ds-search-input" data-instructors-search type="search" placeholder="חיפוש לפי שם, מזהה, רשות, בית ספר או מנהל…" value="${escapeHtml(filters.q || '')}" style="flex:1 1 330px;max-width:620px"><span class="ds-badge">${rows.length} מדריכים</span>${missingAddress ? `<span class="ds-status-chip ds-status-chip--warning">${missingAddress} פעילים ללא כתובת</span>` : ''}</div><div style="display:flex;gap:8px;flex-wrap:wrap"><span class="ds-muted">סטטוס:</span>${chips(ACTIVE_FILTERS, filters.active, 'data-instructors-active')}<span class="ds-muted" style="margin-inline-start:10px">שיבוץ:</span>${chips(ASSIGNMENT_FILTERS, filters.assignment, 'data-instructors-assignment')}</div></div>
+      ${dsCard({ title: '', body, padded: rows.length === 0 })}<p class="ds-muted">ניהול האילוצים פתוח לאדמין ולתפעול בלבד. מנגנון הדירוג והשיבוץ האוטומטי אינם מופעלים בשלב זה.</p>`);
+  },
+
+  bind({ root, data, state, rerender, api, ui, clearScreenDataCache }) {
+    const rows = data?.rows || [];
+    const canEdit = canEditScheduling(state);
+    state.instructorsWorkspace = state.instructorsWorkspace || { q: '', active: 'yes', assignment: '' };
+    let timer;
+    root.querySelector('[data-instructors-search]')?.addEventListener('input', (event) => { state.instructorsWorkspace.q = event.target.value || ''; clearTimeout(timer); timer = setTimeout(rerender, 180); });
+    root.querySelectorAll('[data-instructors-active]').forEach((button) => button.addEventListener('click', () => { state.instructorsWorkspace.active = button.dataset.instructorsActive || ''; rerender(); }));
+    root.querySelectorAll('[data-instructors-assignment]').forEach((button) => button.addEventListener('click', () => { state.instructorsWorkspace.assignment = button.dataset.instructorsAssignment || ''; rerender(); }));
+    // Compatibility for older cached markup that still contains the former "אנשי קשר מדריכים" route button.
+    root.querySelector('[data-route="instructor-contacts"]')?.addEventListener('click', (event) => {
+      event.preventDefault();
       document.dispatchEvent(new CustomEvent('app:navigate', { detail: { route: 'instructor-contacts' } }));
     });
-    root.querySelector(`[data-list-show-more="${INSTRUCTORS_SCOPE}"]`)?.addEventListener('click', (ev) => {
-      ensureActivityListFilters(state, INSTRUCTORS_SCOPE).visibleCount = Number(ev.currentTarget?.dataset?.nextCount || 200);
-      rerender();
-    });
 
-    const instrState = state._instrDateFilter = state._instrDateFilter || {};
+    const refresh = async (row) => { const scheduling = await loadInstructorSchedulingData(); data.scheduling = scheduling; replaceScheduling(row, scheduling); };
+    const openActivity = async (activity) => {
+      if (!ui) return;
+      const id = activity.row_id || activity.RowID || activity.source_row_id;
+      ui.closeDrawer?.();
+      let row = activity;
+      try { row = (await api.activityDetail(id, activity.source_sheet || 'activities'))?.row || activity; } catch (_) {}
+      ui.openDrawer({ title: '', content: activityWorkDrawerHtml(row, { canEdit: false, canDirectEdit: false, canRequestEdit: false, showFinance: false, datesLoading: true, settings: state?.clientSettings || {} }) });
+      api.activityDates(id, activity.source_sheet || 'activities').then((dates) => { const section = document.querySelector('[data-dates-section]'); if (section) patchDrawerDatesSection(section, dates); }).catch(() => {});
+    };
 
-    root.querySelector('[data-instr-month-prev]')?.addEventListener('click', () => {
-      instrState.from = shiftMonth(instrState.from || currentYm(), -1);
-      rerender();
-    });
-    root.querySelector('[data-instr-month-next]')?.addEventListener('click', () => {
-      instrState.from = nextYm(instrState.from || currentYm());
-      rerender();
-    });
-
-    state.instructorsActivityDetailsCache = state.instructorsActivityDetailsCache || {};
-
-    const detailCache = state.screenDataCache || (state.screenDataCache = {});
-    const canSeePrivateNotes = ['operation_manager', 'admin'].includes(state?.user?.display_role);
-    const hideEmpIds = !!state?.clientSettings?.hide_emp_id_on_screens;
-    const hideRowId = !!state?.clientSettings?.hide_row_id_in_ui;
-    const hideActivityNo = !!state?.clientSettings?.hide_activity_no_on_screens;
-
-    const detailKey = (row) => `instructorActivityDetail:${row?.source_sheet || ''}:${row?.RowID || row?.row_id || row?.source_row_id || ''}`;
-    const datesKey = (row) => `instructorActivityDates:${row?.source_sheet || ''}:${row?.RowID || row?.row_id || row?.source_row_id || ''}`;
-
-    function hideShellHeader(contentRoot) {
-      const shellHdr = contentRoot.closest('.ds-drawer')?.querySelector(':scope > header');
-      if (shellHdr) shellHdr.hidden = true;
-    }
-
-    function drawerContent(row, datesLoading = false) {
-      const privateNote = canSeePrivateNotes ? row.private_note || '—' : null;
-      return activityWorkDrawerHtml(row, {
-        privateNote,
-        canEdit: false,
-        canDirectEdit: false,
-        canRequestEdit: false,
-        hideEmpIds,
-        hideRowId,
-        hideActivityNo,
-        settings: state?.clientSettings || {},
-        showFinance: false,
-        showFinanceFields: false,
-        datesLoading
+    const openProfile = (row) => {
+      if (!row || !ui) return;
+      const activities = activitiesFor(data, row);
+      const reopen = () => requestAnimationFrame(() => openProfile(row));
+      ui.openDrawer({ title: row.full_name || row.emp_id, content: profileHtml(row, activities, canEdit, !!data?.scheduling?.loaded) });
+      requestAnimationFrame(() => {
+        document.querySelector('[data-edit-instructor-contact]')?.addEventListener('click', () => openContact(row, reopen));
+        document.querySelector('[data-edit-instructor-constraints]')?.addEventListener('click', () => openConstraints(row, reopen));
+        document.querySelectorAll('[data-open-instructor-activity]').forEach((button) => button.addEventListener('click', () => { const hit = activities.find((item) => text(item.row_id || item.RowID || item.source_row_id) === text(button.dataset.openInstructorActivity)); if (hit) openActivity(hit); }));
       });
-    }
+    };
 
-    async function openActivityFromPopup(summaryRow) {
-      if (!summaryRow || !ui) return;
-      const rowId = summaryRow.RowID || summaryRow.row_id || summaryRow.source_row_id;
-      if (!rowId) return;
-      removePopup();
-      const cachedDetail = detailCache[detailKey(summaryRow)]?.data;
-      const cachedDates = detailCache[datesKey(summaryRow)]?.data;
-      const initialRow = cachedDetail || summaryRow;
-      const needDates = !cachedDates;
-      const onClose = () => {
-        const shellHdr = document.querySelector('.ds-drawer > header');
-        if (shellHdr) shellHdr.hidden = false;
+    const openContact = (row, reopen) => {
+      if (!canEdit) return;
+      ui.closeDrawer?.();
+      ui.openModal({ title: `עריכת פרטי מדריך — ${row.full_name || row.emp_id}`, content: contactForm(row), actions: '<button type="button" class="ds-btn ds-btn--primary" data-save-instructor-contact>שמירה</button><button type="button" class="ds-btn" data-ui-close-modal>ביטול</button>' });
+      const button = document.querySelector('[data-save-instructor-contact]');
+      button.onclick = async () => {
+        const modal = document.querySelector('.ds-modal__content');
+        const get = (name) => text(modal?.querySelector(`[name="${name}"]`)?.value);
+        const payload = { emp_id: row.emp_id, full_name: get('full_name'), mobile: get('mobile'), email: get('email'), address: get('address'), employment_type: get('employment_type'), direct_manager: get('direct_manager') || 'ללא', active: get('active') || 'yes' };
+        const status = modal?.querySelector('[data-instructor-form-status]');
+        if (!payload.full_name) { status.textContent = 'יש להזין שם מלא.'; return; }
+        try { button.disabled = true; await api.saveContact({ kind: 'instructor', row: payload }); Object.assign(row, payload); clearScreenDataCache?.(); ui.closeModal(); showToast('פרטי המדריך נשמרו', 'success', 1800); rerender(); reopen?.(); } catch (error) { status.textContent = `שגיאה: ${String(error?.message || '')}`; } finally { button.disabled = false; }
       };
-      ui.openDrawer({
-        title: '',
-        content: drawerContent(initialRow, needDates),
-        onOpen: hideShellHeader,
-        onClose
+    };
+
+    const openConstraints = (row, reopen) => {
+      if (!canEdit || !data?.scheduling?.loaded) return;
+      ui.closeDrawer?.();
+      ui.openModal({ title: `זמינות ואילוצים — ${row.full_name || row.emp_id}`, content: constraintsForm(row), actions: '<button type="button" class="ds-btn ds-btn--primary" data-save-instructor-constraints>שמירת זמינות</button><button type="button" class="ds-btn" data-ui-close-modal>סגירה</button>' });
+      const modal = document.querySelector('.ds-modal__content');
+      const status = modal?.querySelector('[data-constraints-status]');
+      modal?.querySelector('[data-add-availability-exception]')?.addEventListener('click', async (event) => {
+        const get = (name) => text(modal.querySelector(`[name="${name}"]`)?.value);
+        try { event.currentTarget.disabled = true; await saveInstructorAvailabilityException({ emp_id: row.emp_id, exception_date: get('exception_date'), available: get('exception_available') === 'yes', start_time: get('exception_start_time'), end_time: get('exception_end_time'), notes: get('exception_notes') }); await refresh(row); ui.closeModal(); showToast('החריג נשמר', 'success', 1600); openConstraints(row, reopen); } catch (error) { status.textContent = `שגיאה: ${String(error?.message || '')}`; } finally { event.currentTarget.disabled = false; }
       });
-      if (cachedDates) {
-        const sectionEl = document.querySelector('[data-dates-section]');
-        if (sectionEl) patchDrawerDatesSection(sectionEl, cachedDates);
-      } else {
-        api.activityDates(rowId, summaryRow.source_sheet || 'activities')
-          .then((datesData) => {
-            detailCache[datesKey(summaryRow)] = { data: datesData, t: Date.now() };
-            const sectionEl = document.querySelector('[data-dates-section]');
-            if (sectionEl) patchDrawerDatesSection(sectionEl, datesData);
-          })
-          .catch(() => {
-            const sectionEl = document.querySelector('[data-dates-section]');
-            if (sectionEl) sectionEl.removeAttribute('data-dates-loading');
-          });
-      }
-      if (!cachedDetail) {
-        try {
-          const rsp = await api.activityDetail(rowId, summaryRow.source_sheet || 'activities');
-          const row = rsp?.row || summaryRow;
-          detailCache[detailKey(summaryRow)] = { data: row, t: Date.now() };
-          ui.openDrawer({ title: '', content: drawerContent(row, false), onOpen: hideShellHeader, onClose });
-        } catch (_) {}
-      }
-    }
+      modal?.querySelectorAll('[data-delete-availability-exception]').forEach((button) => button.addEventListener('click', async () => { try { button.disabled = true; await deleteInstructorAvailabilityException(button.dataset.deleteAvailabilityException); await refresh(row); ui.closeModal(); showToast('החריג נמחק', 'success', 1400); openConstraints(row, reopen); } catch (error) { status.textContent = `שגיאה: ${String(error?.message || '')}`; button.disabled = false; } }));
+      const save = modal?.querySelector('[data-save-instructor-constraints]');
+      save.onclick = async () => {
+        const get = (name) => modal.querySelector(`[name="${name}"]`);
+        const rules = [...modal.querySelectorAll('[data-weekday-row]')].map((line) => ({ weekday: Number(line.dataset.weekdayRow), available: !!line.querySelector('[name="available"]')?.checked, start_time: line.querySelector('[name="start_time"]')?.value, end_time: line.querySelector('[name="end_time"]')?.value }));
+        try { save.disabled = true; await Promise.all([saveInstructorSchedulingProfile({ emp_id: row.emp_id, default_start_time: get('default_start_time')?.value, default_end_time: get('default_end_time')?.value, friday_allowed: !!get('friday_allowed')?.checked, notes: get('notes')?.value }), saveInstructorWeeklyRules(row.emp_id, rules)]); await refresh(row); ui.closeModal(); showToast('הזמינות והאילוצים נשמרו', 'success', 1800); rerender(); reopen?.(); } catch (error) { status.textContent = `שגיאה: ${String(error?.message || '')}`; } finally { save.disabled = false; }
+      };
+    };
 
-    root.querySelectorAll('[data-instructor-card]').forEach((btn) => {
-      btn.addEventListener('click', async () => {
-        const empId      = String(btn.dataset.instructorCard || '').trim();
-        const instrName  = String(btn.dataset.instructorName || '').trim();
-        if (!empId) return;
-
-        const targetYm = resolveInstructorDetailsTargetYm(instrState.from);
-        const cacheKey = `${empId}:${targetYm}`;
-        const cached = state.instructorsActivityDetailsCache[cacheKey];
-        if (Array.isArray(cached)) {
-          openPopup(instrName, cached, openActivityFromPopup);
-          return;
-        }
-
-        openPopup(instrName, null, openActivityFromPopup);
-
-        try {
-          const detailRows = Array.isArray(data?.detail_rows) ? data.detail_rows : null;
-          const cachedActivities = state?.screenDataCache?.['activities:periods']?.data;
-          const res = detailRows ? { rows: detailRows } : (cachedActivities || await api.activities({ activity_type: 'all' }));
-          const allRows = Array.isArray(res?.rows) ? res.rows : [];
-          const items = buildInstructorActivityDetailsForMonth(allRows, { empId, instrName, targetYm });
-
-          state.instructorsActivityDetailsCache[cacheKey] = items;
-          updatePopupBody(items, instrName, openActivityFromPopup);
-        } catch (_e) {
-          state.instructorsActivityDetailsCache[cacheKey] = [];
-          updatePopupBody([], instrName, openActivityFromPopup);
-        }
-      });
-    });
+    root.querySelectorAll('[data-instructor-profile]').forEach((button) => button.addEventListener('click', async () => {
+      const empId = text(button.dataset.instructorProfile || button.dataset.instructorCard);
+      const row = rows.find((item) => text(item.emp_id) === empId);
+      if (ui) { openProfile(row); return; }
+      const month = text(state?._instrDateFilter?.from).slice(0, 7) || new Date().toISOString().slice(0, 7);
+      state.instructorsActivityDetailsCache = state.instructorsActivityDetailsCache || {};
+      const key = `${empId}:${month}`;
+      if (Array.isArray(state.instructorsActivityDetailsCache[key])) return;
+      const detailRows = Array.isArray(data?.detail_rows) ? data.detail_rows : null;
+      const shared = state?.screenDataCache?.['activities:periods']?.data;
+      const response = detailRows ? { rows: detailRows } : (shared || await api.activities({ activity_type: 'all' }));
+      state.instructorsActivityDetailsCache[key] = buildInstructorActivityDetailsForMonth(response?.rows || [], { empId, instrName: row?.full_name || row?.instructor_name, targetYm: month });
+    }));
   }
 };
