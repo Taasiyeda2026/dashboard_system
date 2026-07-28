@@ -1,7 +1,7 @@
 const GEFEN_DOCUMENT_CONTENT_SELECTOR = '.proposal-document.pa-proposal-doc--gefen .proposal-document-content';
 const GEFEN_INTRO_SELECTOR = `${GEFEN_DOCUMENT_CONTENT_SELECTOR} .pa-org-intro`;
 const GEFEN_INTRO_LIST_SELECTOR = `${GEFEN_INTRO_SELECTOR} .pa-proposal-list`;
-const GEFEN_PRINT_STYLE_ID = 'gefen-proposal-print-layout-v3';
+const GEFEN_PRINT_STYLE_ID = 'gefen-proposal-print-layout-v4';
 const GEFEN_INTRO_ITEM_COUNT = 12;
 const GEFEN_INTRO_ROWS = 3;
 
@@ -118,6 +118,16 @@ function ensureGefenProposalPrintStyles() {
     .pa-proposal-doc--gefen:not(.pa-gefen-approval-document) .pa-section li {
       margin: 0 0 .45mm !important;
       line-height: 1.2 !important;
+    }
+    @media print {
+      .pa-proposal-doc--gefen:not(.pa-gefen-approval-document) .proposal-document-content > .pa-doc-title {
+        width: 100% !important;
+        text-align: center !important;
+      }
+      .pa-proposal-doc--gefen:not(.pa-gefen-approval-document) .proposal-document-content > .pa-doc-date {
+        width: 100% !important;
+        text-align: left !important;
+      }
     }
   `;
   document.head.appendChild(style);
