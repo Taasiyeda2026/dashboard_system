@@ -1,0 +1,57 @@
+import { api } from './api.js';
+import { state } from './state.js';
+import { supabase } from './supabase-client.js';
+
+/*
+ * Completion-approval list performance guard.
+ *
+ * The list only needs upload metadata. A signed Storage URL is created later,
+ * when the user explicitly opens a file. Avoiding one signing request per row
+ * removes a large burst of parallel Storage calls on every screen load.
+ */
+(function installCompletionApprovalPerformanceRuntime() {
+  'use strict';
+
+  if (globalThis.__dsCompletionApprovalPerformanceRuntimeInstalled) return;
+  globalThis.__dsCompletionApprovalPerformanceRuntimeInstalled = true;
+  if (!supabase || typeof api.completionApprovalUploads !== 'function') return;
+
+  const ACTIVE_INSTRUCTOR_EMP_IDS = new Set([
+    '1525', '1506', '1527', '1502', '1507',
+    '1509', '1515', '1500', '1503', '1511'
+  ]);
+
+  function currentUserIdentityValues() {
+    const user = state?.user || {};
+    return [user.emp_id, user.employee_id, user.user_id]
+      .map((value) => String(value || '').trim())
+      .filter(Boolean);
+  }
+
+  function isActiveInstructorPilotUser() {
+    return currentUserIdentityValues().some((id) => ACTIVE_INSTRUCTOR_EMP_IDS.has(id));
+  }
+
+  api.completionApprovalUploads = async function optimizedCompletionApprovalUploads() {
+    const role = String(state?.user?.role || '').trim();
+    let query = supabase
+      .from('activity_completion_approval_uploads')
+      .select('*')
+      .order('uploaded_at', { ascending: false });
+
+    if (role === 'instructor') {
+      if (!isActiveInstructorPilotUser()) return { rows: [], _source: 'supabase' };
+      const identityValues = currentUserIdentityValues();
+      if (!identityValues.length) return { rows: [], _source: 'supabase' };
+      query = query.in('instructor_emp_id', identityValues);
+    }
+
+    const { data, error } = await query;
+    if (error) throw new Error(error.message || 'completion_approval_uploads_read_failed');
+
+    return {
+      rows: Array.isArray(data) ? data : [],
+      _source: 'supabase'
+    };
+  };
+})();
