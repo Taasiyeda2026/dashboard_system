@@ -1,5 +1,6 @@
 import './network-request-dedupe.js';
 import './activity-performance-runtime.js';
+import './completion-approval-performance-runtime.js';
 import './interaction-performance.js';
 import './dashboard-exception-count-hotfix.js?v=20260728-unique-exception-activities-v2';
 import './proposal-pdf-svg-origin-clean.js';
