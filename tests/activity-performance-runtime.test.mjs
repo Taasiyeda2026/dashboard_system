@@ -7,6 +7,7 @@ const runtimeSource = await readFile(new URL('../frontend/src/activity-performan
 const completionRuntimeSource = await readFile(new URL('../frontend/src/completion-approval-performance-runtime.js', import.meta.url), 'utf8');
 const monthNavigationSource = await readFile(new URL('../frontend/src/month-navigation-runtime.js', import.meta.url), 'utf8');
 const dashboardMonthNavigationSource = await readFile(new URL('../frontend/src/dashboard-month-navigation-runtime.js', import.meta.url), 'utf8');
+const progressiveWarmupSource = await readFile(new URL('../frontend/src/progressive-route-warmup.js', import.meta.url), 'utf8');
 const dedupeSource = await readFile(new URL('../frontend/src/network-request-dedupe.js', import.meta.url), 'utf8');
 
 test('performance guards load before the application bootstrap', () => {
@@ -15,19 +16,32 @@ test('performance guards load before the application bootstrap', () => {
   const completionRuntimeIndex = entrySource.indexOf("import './completion-approval-performance-runtime.js';");
   const monthNavigationIndex = entrySource.indexOf("import './month-navigation-runtime.js';");
   const dashboardMonthNavigationIndex = entrySource.indexOf("import './dashboard-month-navigation-runtime.js';");
+  const progressiveWarmupIndex = entrySource.indexOf("import './progressive-route-warmup.js';");
   const mainIndex = entrySource.indexOf("import './main.js';");
   assert.ok(dedupeIndex >= 0, 'network request dedupe must be imported');
   assert.ok(runtimeIndex > dedupeIndex, 'activity performance runtime must load after fetch dedupe');
   assert.ok(completionRuntimeIndex > runtimeIndex, 'completion approval guard must load after activity guard');
   assert.ok(monthNavigationIndex > completionRuntimeIndex, 'month navigation guard must load after activity guards');
   assert.ok(dashboardMonthNavigationIndex > monthNavigationIndex, 'dashboard month navigation guard must load after month guard');
-  assert.ok(mainIndex > dashboardMonthNavigationIndex, 'all performance guards must load before main.js');
+  assert.ok(progressiveWarmupIndex > dashboardMonthNavigationIndex, 'progressive route warmup must load after navigation guards');
+  assert.ok(mainIndex > progressiveWarmupIndex, 'all performance guards must load before main.js');
 });
 
-test('dashboard speculative activity screens are blocked from heavy API reads', () => {
+test('dashboard speculative activity screens stay blocked except during controlled sequential warmup', () => {
   assert.match(runtimeSource, /DASHBOARD_PREFETCH_METHODS\s*=\s*\['week',\s*'month',\s*'endDates',\s*'archiveActivities'\]/);
   assert.match(runtimeSource, /dashboard_background_prefetch_skipped/);
-  assert.match(runtimeSource, /isDashboardPrefetchContext\(\)/);
+  assert.match(runtimeSource, /__DS_PROGRESSIVE_ROUTE_WARMUP__ === true/);
+  assert.match(runtimeSource, /&& !controlledSequentialWarmup/);
+});
+
+test('progressive warmup loads one route at a time and keeps navigation available', () => {
+  assert.match(progressiveWarmupSource, /const IDLE_WARM_ORDER = \[/);
+  assert.match(progressiveWarmupSource, /let queueRunning = false/);
+  assert.match(progressiveWarmupSource, /while \(queue\.length && state\?\.token\)/);
+  assert.match(progressiveWarmupSource, /await warmRoute\(item\.route\)/);
+  assert.match(progressiveWarmupSource, /state\.screenDataCache\[cacheKey\] = \{ data, t: Date\.now\(\), warmed: true \}/);
+  assert.match(progressiveWarmupSource, /querySelectorAll\('\[data-route\]\[disabled\]'\)/);
+  assert.doesNotMatch(progressiveWarmupSource, /Promise\.all\(IDLE_WARM_ORDER/);
 });
 
 test('post-save activity refresh uses the patched in-memory snapshot', () => {
