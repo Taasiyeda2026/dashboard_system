@@ -128,6 +128,11 @@ export const instructorsScreen = {
     root.querySelector('[data-instructors-search]')?.addEventListener('input', (event) => { state.instructorsWorkspace.q = event.target.value || ''; clearTimeout(timer); timer = setTimeout(rerender, 180); });
     root.querySelectorAll('[data-instructors-active]').forEach((button) => button.addEventListener('click', () => { state.instructorsWorkspace.active = button.dataset.instructorsActive || ''; rerender(); }));
     root.querySelectorAll('[data-instructors-assignment]').forEach((button) => button.addEventListener('click', () => { state.instructorsWorkspace.assignment = button.dataset.instructorsAssignment || ''; rerender(); }));
+    // Compatibility for older cached markup that still contains the former contacts route button.
+    root.querySelector('[data-route="instructor-contacts"]')?.addEventListener('click', (event) => {
+      event.preventDefault();
+      document.dispatchEvent(new CustomEvent('app:navigate', { detail: { route: 'instructor-contacts' } }));
+    });
 
     const refresh = async (row) => { const scheduling = await loadInstructorSchedulingData(); data.scheduling = scheduling; replaceScheduling(row, scheduling); };
     const openActivity = async (activity) => {
