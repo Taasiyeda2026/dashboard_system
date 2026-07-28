@@ -12,27 +12,25 @@ function finiteCount(...values) {
 function exceptionActivityCount(data = {}) {
   return finiteCount(
     data?.uniqueExceptionActivities,
+    data?.operationalUniqueCount,
     data?.totalExceptionRows,
+    data?.summary?.operational_gaps_unique_count,
     data?.summary?.totalExceptionRows,
     data?.summary?.total_exception_rows,
     Array.isArray(data?.rows) ? data.rows.length : null
   );
 }
 
-function exceptionInstanceCount(data = {}, fallback = 0) {
+function exceptionOccurrenceCount(data = {}, fallback = 0) {
   return finiteCount(
     data?.totalExceptionInstances,
+    data?.totalExceptionOccurrences,
     data?.summary?.totalExceptionInstances,
+    data?.summary?.totalExceptionOccurrences,
+    Array.isArray(data?.exceptionInstances) ? data.exceptionInstances.length : null,
     Array.isArray(data?.instances) ? data.instances.length : null,
     fallback
   ) ?? fallback;
-}
-
-function isSummerDashboardPayload(payload = {}) {
-  return (Array.isArray(payload?.rows) ? payload.rows : []).some((row) => {
-    const season = String(row?.activity_season ?? row?.activitySeason ?? '').trim();
-    return season === 'summer_2026';
-  });
 }
 
 function updateExceptionCard(cards, count) {
@@ -46,13 +44,17 @@ export function applyDashboardExceptionSummary(payload = {}, exceptions = {}) {
   const count = exceptionActivityCount(exceptions);
   if (count == null) return payload;
 
-  const instanceCount = exceptionInstanceCount(exceptions, count);
+  const occurrenceCount = exceptionOccurrenceCount(exceptions, count);
   const counts = exceptions?.counts && typeof exceptions.counts === 'object'
     ? exceptions.counts
     : (payload?.summary?.counts || {});
   const byDistrict = exceptions?.byDistrict && typeof exceptions.byDistrict === 'object'
     ? exceptions.byDistrict
     : (exceptions?.byManager && typeof exceptions.byManager === 'object' ? exceptions.byManager : {});
+  const {
+    totalExceptionInstances: _legacyInstanceTotal,
+    ...summaryWithoutAmbiguousInstanceTotal
+  } = payload?.summary && typeof payload.summary === 'object' ? payload.summary : {};
 
   const byActivityManager = (Array.isArray(payload?.by_activity_manager) ? payload.by_activity_manager : []).map((row) => {
     const key = String(row?.activity_manager || row?.district || '').trim();
@@ -65,16 +67,19 @@ export function applyDashboardExceptionSummary(payload = {}, exceptions = {}) {
     ...payload,
     exceptionsUnavailable: false,
     exceptionCount: count,
+    uniqueExceptionActivities: count,
+    totalExceptionOccurrences: occurrenceCount,
     totals: {
       ...(payload?.totals || {}),
       exceptions_count: count
     },
     summary: {
-      ...(payload?.summary || {}),
+      ...summaryWithoutAmbiguousInstanceTotal,
       exceptions_count: count,
       totalExceptionRows: count,
       total_exception_rows: count,
-      totalExceptionInstances: instanceCount,
+      totalExceptionOccurrences: occurrenceCount,
+      total_exception_occurrences: occurrenceCount,
       operational_gaps_count: count,
       operational_gaps_unique_count: count,
       operationalTotal: count,
@@ -87,30 +92,38 @@ export function applyDashboardExceptionSummary(payload = {}, exceptions = {}) {
   };
 }
 
-const originalDashboardReadModel = api.dashboardReadModel?.bind(api);
-if (typeof originalDashboardReadModel === 'function' && !globalThis.__dsDashboardExceptionCountHotfixInstalled) {
-  globalThis.__dsDashboardExceptionCountHotfixInstalled = true;
-  api.dashboardReadModel = async (...args) => {
-    const payload = await originalDashboardReadModel(...args);
-    if (!payload || typeof payload !== 'object' || !isSummerDashboardPayload(payload)) return payload;
+async function reconcileDashboardPayload(originalMethod, methodName, args) {
+  const payload = await originalMethod(...args);
+  if (!payload || typeof payload !== 'object') return payload;
 
-    const filters = args?.[0] && typeof args[0] === 'object' ? args[0] : {};
-    const month = String(payload?.month || filters?.month || filters?.ym || '').slice(0, 7);
-    if (!/^\d{4}-\d{2}$/.test(month) || typeof api.exceptions !== 'function') return payload;
+  const filters = args?.[0] && typeof args[0] === 'object' ? args[0] : {};
+  const month = String(payload?.month || filters?.month || filters?.ym || '').slice(0, 7);
+  if (!/^\d{4}-\d{2}$/.test(month) || typeof api.exceptions !== 'function') return payload;
 
-    try {
-      const exceptions = await api.exceptions({
-        month,
-        activity_period: state?.activityPeriodTab
-      });
-      if (exceptions?.error || exceptions?._debug?.error) return payload;
-      return applyDashboardExceptionSummary(payload, exceptions);
-    } catch (error) {
-      console.warn('[dashboard-exception-count-hotfix] exception reconciliation failed', {
-        month,
-        error: error?.message || String(error)
-      });
-      return payload;
-    }
-  };
+  try {
+    const exceptions = await api.exceptions({
+      month,
+      activity_period: state?.activityPeriodTab
+    });
+    if (exceptions?.error || exceptions?._debug?.error) return payload;
+    return applyDashboardExceptionSummary(payload, exceptions);
+  } catch (error) {
+    console.warn('[dashboard-exception-count-hotfix] exception reconciliation failed', {
+      method: methodName,
+      month,
+      error: error?.message || String(error)
+    });
+    return payload;
+  }
 }
+
+function installDashboardReconciler(methodName) {
+  const originalMethod = api?.[methodName]?.bind(api);
+  const flag = `__dsDashboardExceptionCountHotfix_${methodName}`;
+  if (typeof originalMethod !== 'function' || globalThis[flag]) return;
+  globalThis[flag] = true;
+  api[methodName] = (...args) => reconcileDashboardPayload(originalMethod, methodName, args);
+}
+
+installDashboardReconciler('dashboardSnapshot');
+installDashboardReconciler('dashboardReadModel');
