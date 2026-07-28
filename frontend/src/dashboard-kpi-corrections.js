@@ -101,10 +101,13 @@ function buildKpiCards(typeCounts, uniqueInstructorCount, courseEndings, payload
   const exceptionValue = exceptionsUnavailable
     ? 'לא זמין'
     : asNumber(
-      payload.summary?.totalExceptionInstances ??
+      payload.summary?.operational_gaps_unique_count ??
+      payload.summary?.totalExceptionRows ??
+      payload.summary?.total_exception_rows ??
       payload.summary?.exceptions_count ??
       payload.totals?.exceptions_count ??
       payload.exceptionCount ??
+      payload.summary?.totalExceptionInstances ??
       0
     );
 
