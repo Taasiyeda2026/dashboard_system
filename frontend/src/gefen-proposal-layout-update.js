@@ -28,14 +28,14 @@ export function layoutGefenIntroSkills(root = document) {
     list.style.gridTemplateRows = 'repeat(3, auto)';
     list.style.gridAutoFlow = 'column';
     list.style.gridAutoColumns = 'minmax(145px, max-content)';
-    list.style.columnGap = '34px';
-    list.style.rowGap = '6px';
+    list.style.columnGap = '24px';
+    list.style.rowGap = '3px';
     list.style.justifyContent = 'center';
     list.style.alignItems = 'start';
     list.style.width = 'max-content';
     list.style.maxWidth = '100%';
-    list.style.margin = '10px auto 0';
-    list.style.paddingInlineStart = '18px';
+    list.style.margin = '6px auto';
+    list.style.paddingInlineStart = '16px';
     list.style.listStylePosition = 'outside';
     list.style.textAlign = 'right';
     list.style.direction = 'rtl';
@@ -46,7 +46,8 @@ export function layoutGefenIntroSkills(root = document) {
       item.style.padding = '0';
       item.style.whiteSpace = 'nowrap';
       item.style.breakInside = 'avoid';
-      item.style.lineHeight = '1.35';
+      item.style.lineHeight = '1.2';
+      item.style.fontWeight = '700';
     });
   });
 }
