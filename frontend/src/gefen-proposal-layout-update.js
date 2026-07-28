@@ -1,7 +1,9 @@
 const GEFEN_DOCUMENT_CONTENT_SELECTOR = '.proposal-document.pa-proposal-doc--gefen .proposal-document-content';
 const GEFEN_INTRO_SELECTOR = `${GEFEN_DOCUMENT_CONTENT_SELECTOR} .pa-org-intro`;
 const GEFEN_INTRO_LIST_SELECTOR = `${GEFEN_INTRO_SELECTOR} .pa-proposal-list`;
-const GEFEN_PRINT_STYLE_ID = 'gefen-proposal-print-layout-v2';
+const GEFEN_PRINT_STYLE_ID = 'gefen-proposal-print-layout-v3';
+const GEFEN_INTRO_ITEM_COUNT = 12;
+const GEFEN_INTRO_ROWS = 3;
 
 function setImportantStyle(element, property, value) {
   element?.style?.setProperty(property, value, 'important');
@@ -29,7 +31,7 @@ function ensureGefenProposalPrintStyles() {
     .pa-proposal-doc--gefen:not(.pa-gefen-approval-document) .proposal-document-content > .pa-org-intro {
       order: 2 !important;
       margin: 0 0 1.2mm !important;
-      padding: 0 4mm !important;
+      padding: 0 3mm !important;
       box-sizing: border-box !important;
     }
     .pa-proposal-doc--gefen:not(.pa-gefen-approval-document) .proposal-document-content > :not(.pa-doc-date):not(.pa-doc-title):not(.pa-org-intro) {
@@ -41,10 +43,9 @@ function ensureGefenProposalPrintStyles() {
     }
     .pa-proposal-doc--gefen:not(.pa-gefen-approval-document) .pa-org-intro .pa-proposal-list {
       display: grid !important;
+      grid-template-columns: repeat(4, minmax(30mm, max-content)) !important;
       grid-template-rows: repeat(3, auto) !important;
-      grid-auto-flow: column !important;
-      grid-auto-columns: minmax(36mm, max-content) !important;
-      column-gap: 7mm !important;
+      column-gap: 4.5mm !important;
       row-gap: .7mm !important;
       justify-content: center !important;
       align-items: start !important;
@@ -64,6 +65,36 @@ function ensureGefenProposalPrintStyles() {
       break-inside: avoid !important;
       line-height: 1.15 !important;
       font-weight: 700 !important;
+    }
+    .pa-proposal-doc--gefen:not(.pa-gefen-approval-document) .pa-org-intro .pa-proposal-list > li:nth-child(1),
+    .pa-proposal-doc--gefen:not(.pa-gefen-approval-document) .pa-org-intro .pa-proposal-list > li:nth-child(4),
+    .pa-proposal-doc--gefen:not(.pa-gefen-approval-document) .pa-org-intro .pa-proposal-list > li:nth-child(7),
+    .pa-proposal-doc--gefen:not(.pa-gefen-approval-document) .pa-org-intro .pa-proposal-list > li:nth-child(10) {
+      grid-row: 1 !important;
+    }
+    .pa-proposal-doc--gefen:not(.pa-gefen-approval-document) .pa-org-intro .pa-proposal-list > li:nth-child(2),
+    .pa-proposal-doc--gefen:not(.pa-gefen-approval-document) .pa-org-intro .pa-proposal-list > li:nth-child(5),
+    .pa-proposal-doc--gefen:not(.pa-gefen-approval-document) .pa-org-intro .pa-proposal-list > li:nth-child(8),
+    .pa-proposal-doc--gefen:not(.pa-gefen-approval-document) .pa-org-intro .pa-proposal-list > li:nth-child(11) {
+      grid-row: 2 !important;
+    }
+    .pa-proposal-doc--gefen:not(.pa-gefen-approval-document) .pa-org-intro .pa-proposal-list > li:nth-child(3),
+    .pa-proposal-doc--gefen:not(.pa-gefen-approval-document) .pa-org-intro .pa-proposal-list > li:nth-child(6),
+    .pa-proposal-doc--gefen:not(.pa-gefen-approval-document) .pa-org-intro .pa-proposal-list > li:nth-child(9),
+    .pa-proposal-doc--gefen:not(.pa-gefen-approval-document) .pa-org-intro .pa-proposal-list > li:nth-child(12) {
+      grid-row: 3 !important;
+    }
+    .pa-proposal-doc--gefen:not(.pa-gefen-approval-document) .pa-org-intro .pa-proposal-list > li:nth-child(-n+3) {
+      grid-column: 1 !important;
+    }
+    .pa-proposal-doc--gefen:not(.pa-gefen-approval-document) .pa-org-intro .pa-proposal-list > li:nth-child(n+4):nth-child(-n+6) {
+      grid-column: 2 !important;
+    }
+    .pa-proposal-doc--gefen:not(.pa-gefen-approval-document) .pa-org-intro .pa-proposal-list > li:nth-child(n+7):nth-child(-n+9) {
+      grid-column: 3 !important;
+    }
+    .pa-proposal-doc--gefen:not(.pa-gefen-approval-document) .pa-org-intro .pa-proposal-list > li:nth-child(n+10):nth-child(-n+12) {
+      grid-column: 4 !important;
     }
     .pa-proposal-doc--gefen:not(.pa-gefen-approval-document) .pa-section {
       margin: 1.6mm 0 !important;
@@ -100,7 +131,7 @@ export function moveGefenProposalDateAboveTitle(root = document) {
   contents.forEach((content) => {
     const title = content.querySelector(':scope > .pa-doc-title');
     const date = content.querySelector(':scope > .pa-doc-date:not(.pa-gefen-approval-date)');
-    if (!title || !date || title.nextElementSibling !== date) return;
+    if (!title || !date || title.previousElementSibling === date) return;
     content.insertBefore(date, title);
   });
 }
@@ -113,7 +144,7 @@ export function layoutGefenIntroSkills(root = document) {
   intros.forEach((intro) => {
     const list = intro.querySelector(':scope > .pa-proposal-list');
     const items = Array.from(list?.children || []).filter((item) => item?.tagName === 'LI');
-    if (!list || items.length !== 9) return;
+    if (!list || items.length !== GEFEN_INTRO_ITEM_COUNT) return;
 
     setImportantStyle(intro, 'margin-top', '0');
     setImportantStyle(intro, 'margin-bottom', '4px');
@@ -126,12 +157,11 @@ export function layoutGefenIntroSkills(root = document) {
       setImportantStyle(paragraph, 'line-height', '1.22');
     });
 
-    list.dataset.gefenIntroColumns = 'yes';
+    list.dataset.gefenIntroColumns = '4x3';
     setImportantStyle(list, 'display', 'grid');
+    setImportantStyle(list, 'grid-template-columns', 'repeat(4, minmax(122px, max-content))');
     setImportantStyle(list, 'grid-template-rows', 'repeat(3, auto)');
-    setImportantStyle(list, 'grid-auto-flow', 'column');
-    setImportantStyle(list, 'grid-auto-columns', 'minmax(145px, max-content)');
-    setImportantStyle(list, 'column-gap', '24px');
+    setImportantStyle(list, 'column-gap', '20px');
     setImportantStyle(list, 'row-gap', '2px');
     setImportantStyle(list, 'justify-content', 'center');
     setImportantStyle(list, 'align-items', 'start');
@@ -144,7 +174,11 @@ export function layoutGefenIntroSkills(root = document) {
     setImportantStyle(list, 'direction', 'rtl');
     setImportantStyle(list, 'box-sizing', 'border-box');
 
-    items.forEach((item) => {
+    items.forEach((item, index) => {
+      const column = Math.floor(index / GEFEN_INTRO_ROWS) + 1;
+      const row = (index % GEFEN_INTRO_ROWS) + 1;
+      setImportantStyle(item, 'grid-column', String(column));
+      setImportantStyle(item, 'grid-row', String(row));
       setImportantStyle(item, 'margin', '0');
       setImportantStyle(item, 'padding', '0');
       setImportantStyle(item, 'white-space', 'nowrap');
@@ -184,13 +218,15 @@ function scheduleGefenProposalLayout() {
   });
 }
 
-ensureGefenProposalPrintStyles();
+if (typeof document !== 'undefined') {
+  ensureGefenProposalPrintStyles();
 
-if (document.readyState === 'loading') {
-  document.addEventListener('DOMContentLoaded', scheduleGefenProposalLayout, { once: true });
-} else {
-  scheduleGefenProposalLayout();
+  if (document.readyState === 'loading') {
+    document.addEventListener('DOMContentLoaded', scheduleGefenProposalLayout, { once: true });
+  } else {
+    scheduleGefenProposalLayout();
+  }
+
+  new MutationObserver(scheduleGefenProposalLayout)
+    .observe(document.documentElement, { childList: true, subtree: true });
 }
-
-new MutationObserver(scheduleGefenProposalLayout)
-  .observe(document.documentElement, { childList: true, subtree: true });
