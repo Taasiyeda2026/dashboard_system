@@ -808,7 +808,7 @@ test('after a new approval the sent action appears in the table without a page r
   );
 });
 
-test('opening a pending proposal and confirming signature completes one saved approval', async () => {
+test('proposal approval from drawer SVG completes one saved approval', async () => {
   const pendingRow = { ...sampleRows[1], status: 'pending_approval' };
   const adminState = stateFor('admin');
   const data = { rows: [pendingRow], activityNameOptions: [], contactOptions: [] };
@@ -832,6 +832,7 @@ test('opening a pending proposal and confirming signature completes one saved ap
                 ...pendingRow,
                 status: 'approved',
                 approved_at: '2026-07-28T10:00:00.000Z',
+                approved_by: adminState.user.auth_user_id,
                 signature_meta: args[3]
               }
             };
@@ -839,9 +840,15 @@ test('opening a pending proposal and confirming signature completes one saved ap
         }
       });
 
-      const approveButton = root.querySelector(`[data-pa-status-action="approved"][data-pa-action-id="${pendingRow.id}"]`);
-      assert.ok(approveButton, 'pending proposal should expose its approval action');
-      approveButton.dispatchEvent(new dom.window.MouseEvent('click', { bubbles: true }));
+      root.querySelector(`[data-pa-row-id="${pendingRow.id}"]`)?.dispatchEvent(new dom.window.MouseEvent('click', { bubbles: true }));
+      await delay(20);
+      const details = root.querySelector('[data-pa-proposal-detail]') || root.querySelector('[data-pa-drawer]');
+      const approveButton = details?.querySelector(`[data-pa-status-action="approved"][data-pa-action-id="${pendingRow.id}"]`);
+      assert.ok(approveButton, 'opened proposal details should expose its approval action');
+      const nestedIconTarget = approveButton.querySelector('path, polyline');
+      assert.ok(nestedIconTarget, 'approval action should contain an SVG drawing element');
+      nestedIconTarget.dispatchEvent(new dom.window.MouseEvent('click', { bubbles: true }));
+      assert.equal(approveButton.getAttribute('aria-busy'), 'true', 'approval action should become busy before loading items');
       await delay(20);
 
       const overlay = dom.window.document.getElementById('pa-preview-overlay');
@@ -857,7 +864,41 @@ test('opening a pending proposal and confirming signature completes one saved ap
       assert.ok(approvalCalls[0][3]?.signature?.image, 'approval request must include the signature before the approved status');
       assert.equal(data.rows[0].status, 'approved');
       assert.ok(data.rows[0].signature_meta?.signature?.image, 'local approved row must come from the response containing the saved signature');
+      assert.ok(data.rows[0].approved_at, 'local approved row must contain its approval timestamp');
+      assert.equal(data.rows[0].approved_by, adminState.user.auth_user_id);
       assert.equal(dom.window.document.getElementById('pa-preview-overlay'), null, 'preview overlay should close after the saved approval completes');
+    }
+  );
+});
+
+test('proposal approval item-load failure releases the drawer button and shows an error', async () => {
+  const pendingRow = { ...sampleRows[1], status: 'pending_approval' };
+  const adminState = stateFor('admin');
+  const data = { rows: [pendingRow], activityNameOptions: [], contactOptions: [] };
+
+  await withJSDOM(
+    proposalsAgreementsScreen.render(data, { state: adminState }),
+    async (root, dom) => {
+      proposalsAgreementsScreen.bind({
+        root,
+        data,
+        state: adminState,
+        api: { readProposalAgreementItems: async () => { throw new Error('items unavailable'); } }
+      });
+
+      root.querySelector(`[data-pa-row-id="${pendingRow.id}"]`)?.dispatchEvent(new dom.window.MouseEvent('click', { bubbles: true }));
+      await delay(20);
+      const details = root.querySelector('[data-pa-proposal-detail]') || root.querySelector('[data-pa-drawer]');
+      const approveButton = details?.querySelector(`[data-pa-status-action="approved"][data-pa-action-id="${pendingRow.id}"]`);
+      assert.ok(approveButton);
+      approveButton.querySelector('svg')?.dispatchEvent(new dom.window.MouseEvent('click', { bubbles: true }));
+      await delay(20);
+
+      assert.equal(approveButton.disabled, false, 'failed item loading must release the approval action');
+      assert.equal(approveButton.hasAttribute('aria-busy'), false);
+      assert.equal(dom.window.document.getElementById('pa-preview-overlay'), null);
+      const toast = dom.window.document.querySelector('.ds-toast--error');
+      assert.match(toast?.textContent || '', /לטעון את שורות ההצעה/);
     }
   );
 });

@@ -8140,6 +8140,8 @@ export const proposalsAgreementsScreen = {
 
     // ── Click handler ─────────────────────────────────────────────────────────
     root.addEventListener('click', async (event) => {
+      // Resolve nested SVG/path clicks before ancestor-based proposal navigation.
+      const delegatedStatusAction = event.target.closest?.('[data-pa-status-action]');
       if (event.target.closest?.('[data-pa-client-contact-close]')) {
         event.target.closest('[data-pa-client-contact-modal]')?.remove();
         return;
@@ -8181,7 +8183,7 @@ export const proposalsAgreementsScreen = {
       }
 
       const openProposalBtn = event.target.closest?.('[data-pa-open-proposal-id]');
-      if (openProposalBtn && !event.target.closest?.('[data-pa-view-final-pdf],[data-pa-view-gefen-approval],[data-pa-generate-gefen-approval],[data-pa-clone-row]')) {
+      if (openProposalBtn && !delegatedStatusAction && !event.target.closest?.('[data-pa-view-final-pdf],[data-pa-view-gefen-approval],[data-pa-generate-gefen-approval],[data-pa-clone-row]')) {
         await openProposalDetails(openProposalBtn.dataset.paOpenProposalId, {
           returnTo: openProposalBtn.dataset.paReturnTo || '',
           openSource: openProposalBtn.dataset.paReturnTo === 'all' ? 'all-proposals' : 'client-file',
@@ -8438,8 +8440,10 @@ export const proposalsAgreementsScreen = {
         return;
       }
 
-      const statusActionBtn = event.target.closest?.('[data-pa-status-action]');
+      const statusActionBtn = delegatedStatusAction;
       if (statusActionBtn) {
+        event.preventDefault();
+        event.stopPropagation();
         if (!canManage) return;
         const newStatus = text(statusActionBtn.dataset.paStatusAction);
         const id = text(statusActionBtn.dataset.paActionId);
@@ -8461,13 +8465,16 @@ export const proposalsAgreementsScreen = {
           }
           const row = data.rows.find((r) => text(r.id) === id);
           if (!row) return;
-          let items = [];
-          try { if (typeof api.readProposalAgreementItems === 'function') items = await api.readProposalAgreementItems(id); } catch { items = []; }
-          await openPreview(row, items, {
-            signatureMode: true,
-            onSignatureConfirm: async (signatureMeta, closeOverlay) => {
-              statusActionBtn.disabled = true;
-              try {
+          if (statusActionBtn.disabled) return;
+          statusActionBtn.disabled = true;
+          statusActionBtn.setAttribute('aria-busy', 'true');
+          try {
+            const items = typeof api.readProposalAgreementItems === 'function'
+              ? await api.readProposalAgreementItems(id)
+              : [];
+            await openPreview(row, items, {
+              signatureMode: true,
+              onSignatureConfirm: async (signatureMeta, closeOverlay) => {
                 const savedApproval = await approveProposalWithSignature(id, signatureMeta);
                 replaceLocalRow(data, savedApproval);
                 refreshTable();
@@ -8476,13 +8483,17 @@ export const proposalsAgreementsScreen = {
                 if (drawer && updated) drawer.outerHTML = drawerHtml(updated, activityNameOptions, state);
                 closeOverlay?.();
                 showToast('ההצעה אושרה ונחתמה', 'success');
-              } catch (err) {
-                throw err;
-              } finally {
-                if (statusActionBtn.isConnected) statusActionBtn.disabled = false;
               }
+            });
+          } catch (err) {
+            console.error('[proposal approval preview failed]', err);
+            showToast('לא ניתן היה לטעון את שורות ההצעה ולפתוח את מסך החתימה. ניתן לנסות שוב.', 'error');
+          } finally {
+            if (statusActionBtn.isConnected) {
+              statusActionBtn.disabled = false;
+              statusActionBtn.removeAttribute('aria-busy');
             }
-          });
+          }
           return;
         }
         if (newStatus === 'sent') {
