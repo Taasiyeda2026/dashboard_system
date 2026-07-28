@@ -3,6 +3,7 @@ import './activity-performance-runtime.js';
 import './completion-approval-performance-runtime.js';
 import './month-navigation-runtime.js';
 import './dashboard-month-navigation-runtime.js';
+import './progressive-route-warmup.js';
 import './interaction-performance.js';
 import './dashboard-exception-count-hotfix.js?v=20260728-unique-exception-activities-v2';
 import './proposal-pdf-svg-origin-clean.js';
