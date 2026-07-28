@@ -6,6 +6,8 @@ import { state } from './state.js';
  *
  * - The dashboard already has its own snapshot API, so its speculative prefetch
  *   must not launch five additional heavy screen reads in parallel.
+ * - A separate progressive warm-up may explicitly allow one controlled read at
+ *   a time by setting __DS_PROGRESSIVE_ROUTE_WARMUP__.
  * - Activity saves already return the updated row and the UI patches it locally;
  *   the immediate full-table quiet refresh is therefore redundant. During the
  *   short post-save window we return the patched activity snapshot instead.
@@ -48,7 +50,8 @@ import { state } from './state.js';
   }
 
   function isDashboardPrefetchContext() {
-    return String(state?.route || '').trim() === 'dashboard';
+    const controlledSequentialWarmup = globalThis.__DS_PROGRESSIVE_ROUTE_WARMUP__ === true;
+    return String(state?.route || '').trim() === 'dashboard' && !controlledSequentialWarmup;
   }
 
   function normalizedRowId(row = {}) {
