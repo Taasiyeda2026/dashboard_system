@@ -7557,6 +7557,32 @@ export const proposalsAgreementsScreen = {
       showToast('יש להפיק ולשמור PDF לפני שליחה ונעילה.', 'warning');
     };
 
+    const approvalRequests = new Set();
+    const approveProposalWithSignature = async (proposalId, signatureMeta) => {
+      const id = text(proposalId);
+      if (!id) throw new Error('לא נמצא מזהה להצעה. יש לשמור אותה ולנסות שוב.');
+      if (approvalRequests.has(id)) throw new Error('האישור והחתימה כבר מתבצעים. יש להמתין לסיום הפעולה.');
+      approvalRequests.add(id);
+      let timeoutId;
+      try {
+        const timeout = new Promise((_, reject) => {
+          timeoutId = setTimeout(() => reject(new Error('שמירת החתימה נמשכה זמן רב מדי. יש לבדוק את החיבור ולנסות שוב.')), 15000);
+        });
+        const result = await Promise.race([
+          api.updateProposalAgreementStatus(id, 'approved', '', signatureMeta),
+          timeout
+        ]);
+        const savedRow = result?.row;
+        if (!savedRow || normalizeProposalStatus(savedRow.status) !== 'approved' || !proposalHasSavedApprovalSignature(savedRow) || !text(savedRow.approved_at)) {
+          throw new Error('החתימה לא נשמרה במלואה ולכן סטטוס ההצעה לא עודכן בממשק.');
+        }
+        return savedRow;
+      } finally {
+        clearTimeout(timeoutId);
+        approvalRequests.delete(id);
+      }
+    };
+
     const openPreview = async (row, items, options = {}) => {
       if (options.form) options.form.dataset.paPreviewSeen = 'yes';
       const savedRow = data.rows.find((r) => text(r.id) === text(row.id));
@@ -7633,23 +7659,41 @@ export const proposalsAgreementsScreen = {
       };
       overlay.querySelector('#pa-preview-close')?.addEventListener('click', closeOverlay);
       overlay.querySelector('#pa-signature-cancel')?.addEventListener('click', closeOverlay);
-      overlay.querySelector('#pa-signature-confirm')?.addEventListener('click', () => options.onSignatureConfirm?.(readSignatureMeta(), closeOverlay));
+      overlay.querySelector('#pa-signature-confirm')?.addEventListener('click', async (event) => {
+        const btn = event.currentTarget;
+        if (btn.disabled) return;
+        btn.disabled = true;
+        btn.setAttribute('aria-busy', 'true');
+        try {
+          await options.onSignatureConfirm?.(readSignatureMeta(), closeOverlay);
+        } catch (err) {
+          const message = text(err?.message) || 'לא ניתן היה לשמור את החתימה ולאשר את ההצעה. ניתן לנסות שוב.';
+          showToast(message, 'error');
+          console.error('[proposal approval failed]', err);
+        } finally {
+          if (btn.isConnected) {
+            btn.disabled = false;
+            btn.removeAttribute('aria-busy');
+          }
+        }
+      });
       overlay.querySelector('#pa-preview-approve-sign')?.addEventListener('click', async (event) => {
         const btn = event.currentTarget;
         btn.disabled = true;
         try {
           const signatureMeta = readSignatureMeta();
-          const result = await api.updateProposalAgreementStatus(text(freshRow.id), 'approved', '', signatureMeta);
-          replaceLocalRow(data, result?.row || { ...freshRow, status: 'approved', approval_note: '', signature_meta: signatureMeta });
+          const savedApproval = await approveProposalWithSignature(text(freshRow.id), signatureMeta);
+          replaceLocalRow(data, savedApproval);
           refreshTable();
           const approvedRow = data.rows.find((item) => text(item.id) === text(freshRow.id)) || { ...freshRow, status: 'approved', signature_meta: signatureMeta };
           overlay.querySelector('.proposal-preview-area').innerHTML = proposalPreviewBodyHtml(approvedRow, items, templateSections, { showSignatureImage: true });
           btn.remove();
           showToast('ההצעה אושרה ונחתמה', 'success');
         } catch (err) {
-          btn.disabled = false;
-          showToast('שגיאה באישור וחתימה', 'error');
+          showToast(text(err?.message) || 'שגיאה באישור וחתימה', 'error');
           console.error('[proposal approval failed]', err);
+        } finally {
+          if (btn.isConnected) btn.disabled = false;
         }
       });
       if (options.onSubmit) overlay.querySelector('#pa-preview-submit')?.addEventListener('click', () => { closeOverlay(); options.onSubmit(); });
@@ -7711,8 +7755,7 @@ export const proposalsAgreementsScreen = {
         }
         let finalRow = result?.row || { ...payload, id: savedId };
         if (approvingWithSignature && savedId) {
-          const approval = await api.updateProposalAgreementStatus(savedId, 'approved', '', signatureMeta || defaultSignatureMeta());
-          finalRow = approval?.row || { ...finalRow, status: 'approved', signature_meta: signatureMeta || defaultSignatureMeta(), approved_at: new Date().toISOString() };
+          finalRow = await approveProposalWithSignature(savedId, signatureMeta || defaultSignatureMeta());
           showToast('ההצעה אושרה ונחתמה', 'success');
         } else if (targetStatus === 'pending_approval') {
           showToast('ההצעה נשמרה ונשלחה לאישור', 'success');
@@ -7732,9 +7775,14 @@ export const proposalsAgreementsScreen = {
       } catch (err) {
         console.error('[proposal save failed]', err);
         if (errorEl) errorEl.textContent = 'לא ניתן היה לשמור את ההצעה. הפרטים נשארו בטופס וניתן לנסות שוב.';
-        form.dataset.saving = '';
-        allBtns.forEach((b) => { b.disabled = false; });
+        return false;
+      } finally {
+        if (form.isConnected) {
+          form.dataset.saving = '';
+          allBtns.forEach((b) => { b.disabled = false; });
+        }
       }
+      return true;
     };
 
     // ── Tab switching ──────────────────────────────────────────────────────────
@@ -7826,15 +7874,15 @@ export const proposalsAgreementsScreen = {
             onSignatureConfirm: async (signatureMeta, closeOverlay) => {
               rowStatusSelect.disabled = true;
               try {
-                const result = await api.updateProposalAgreementStatus(id, 'approved', '', signatureMeta);
-                replaceLocalRow(data, result?.row || { id, status: 'approved', approval_note: '', signature_meta: signatureMeta, updated_at: new Date().toISOString() });
+                const savedApproval = await approveProposalWithSignature(id, signatureMeta);
+                replaceLocalRow(data, savedApproval);
                 refreshTable();
                 closeOverlay?.();
                 showToast('ההצעה אושרה ונחתמה', 'success');
               } catch (err) {
-                rowStatusSelect.disabled = false;
-                showToast('שגיאה בעדכון סטטוס ההצעה', 'error');
-                console.error('[proposal status update failed]', err);
+                throw err;
+              } finally {
+                if (rowStatusSelect.isConnected) rowStatusSelect.disabled = false;
               }
             }
           });
@@ -8420,8 +8468,8 @@ export const proposalsAgreementsScreen = {
             onSignatureConfirm: async (signatureMeta, closeOverlay) => {
               statusActionBtn.disabled = true;
               try {
-                const result = await api.updateProposalAgreementStatus(id, 'approved', '', signatureMeta);
-                replaceLocalRow(data, result?.row || { id, status: 'approved', approval_note: '', signature_meta: signatureMeta, updated_at: new Date().toISOString() });
+                const savedApproval = await approveProposalWithSignature(id, signatureMeta);
+                replaceLocalRow(data, savedApproval);
                 refreshTable();
                 const updated = data.rows.find((item) => text(item.id) === id);
                 const drawer = root.querySelector('[data-pa-drawer]');
@@ -8429,8 +8477,9 @@ export const proposalsAgreementsScreen = {
                 closeOverlay?.();
                 showToast('ההצעה אושרה ונחתמה', 'success');
               } catch (err) {
-                statusActionBtn.disabled = false;
-                console.error('[proposal approval failed]', err);
+                throw err;
+              } finally {
+                if (statusActionBtn.isConnected) statusActionBtn.disabled = false;
               }
             }
           });
@@ -8660,10 +8709,11 @@ export const proposalsAgreementsScreen = {
               signatureMode: true,
               onSignatureConfirm: async (signatureMeta, closeOverlay) => {
                 try {
-                  await saveForm(form, 'approved', signatureMeta);
-                  closeOverlay?.();
+                  const saved = await saveForm(form, 'approved', signatureMeta);
+                  if (saved) closeOverlay?.();
+                  else throw new Error('לא ניתן היה לשמור את החתימה ולאשר את ההצעה. הפרטים נשארו בטופס.');
                 } catch (e) {
-                  console.warn('[PA] saveForm error (approved flow):', e);
+                  throw e;
                 }
               }
             });
