@@ -1,9 +1,10 @@
 /*
- * Deduplicate and briefly cache identical heavy Supabase GET requests.
+ * Deduplicate identical Supabase GET requests that are already in flight.
  *
- * The cache is deliberately limited to read-only catalog/list endpoints used by
- * activities and the client file. Mutations always go to the network and clear
- * the related cached responses so edited data is never hidden by the cache.
+ * Operational responses are never retained after the request completes. This
+ * keeps navigation fast without showing stale activities, proposals, contacts
+ * or approval data from a previous screen visit. Browser HTTP caching is also
+ * disabled for these reads.
  */
 (function installNetworkRequestDedupe() {
   'use strict';
@@ -17,29 +18,28 @@
   globalThis.__dsNetworkRequestDedupeInstalled = true;
 
   const inflight = new Map();
-  const responseCache = new Map();
 
-  const READ_POLICIES = new Map([
-    ['activities', { namespace: 'activities', ttlMs: 5 * 60_000 }],
-    ['activity_meetings', { namespace: 'activity_meetings', ttlMs: 60_000 }],
-    ['activity_completion_approval_uploads', { namespace: 'completion_approvals', ttlMs: 60_000 }],
-    ['activity_school_contact_responsibles', { namespace: 'school_contacts', ttlMs: 5 * 60_000 }],
-    ['instructor_schedule_print_contacts', { namespace: 'school_contacts', ttlMs: 5 * 60_000 }],
-    ['contacts_instructors', { namespace: 'contacts', ttlMs: 10 * 60_000 }],
-    ['contacts_schools', { namespace: 'contacts', ttlMs: 5 * 60_000 }],
-    ['contacts_unified_view', { namespace: 'contacts', ttlMs: 5 * 60_000 }],
-    ['schools', { namespace: 'contacts', ttlMs: 10 * 60_000 }],
-    ['authorities', { namespace: 'contacts', ttlMs: 10 * 60_000 }],
-    ['proposals_agreements_directory_view', { namespace: 'proposals', ttlMs: 2 * 60_000 }],
-    ['proposal_agreement_items', { namespace: 'proposals', ttlMs: 2 * 60_000 }],
-    ['proposal_linked_documents', { namespace: 'proposals', ttlMs: 2 * 60_000 }],
-    ['proposal_activity_pricing', { namespace: 'proposal_catalog', ttlMs: 10 * 60_000 }],
-    ['proposal_gefen_courses', { namespace: 'proposal_catalog', ttlMs: 10 * 60_000 }],
-    ['proposal_template_sections', { namespace: 'proposal_catalog', ttlMs: 10 * 60_000 }],
-    ['proposal_activity_groups', { namespace: 'proposal_catalog', ttlMs: 10 * 60_000 }],
-    ['proposal_group_aliases', { namespace: 'proposal_catalog', ttlMs: 10 * 60_000 }],
-    ['school_calendar', { namespace: 'proposal_catalog', ttlMs: 10 * 60_000 }],
-    ['lists', { namespace: 'lists', ttlMs: 10 * 60_000 }]
+  const READ_NAMESPACES = new Map([
+    ['activities', 'activities'],
+    ['activity_meetings', 'activity_meetings'],
+    ['activity_completion_approval_uploads', 'completion_approvals'],
+    ['activity_school_contact_responsibles', 'school_contacts'],
+    ['instructor_schedule_print_contacts', 'school_contacts'],
+    ['contacts_instructors', 'contacts'],
+    ['contacts_schools', 'contacts'],
+    ['contacts_unified_view', 'contacts'],
+    ['schools', 'contacts'],
+    ['authorities', 'contacts'],
+    ['proposals_agreements_directory_view', 'proposals'],
+    ['proposal_agreement_items', 'proposals'],
+    ['proposal_linked_documents', 'proposals'],
+    ['proposal_activity_pricing', 'proposal_catalog'],
+    ['proposal_gefen_courses', 'proposal_catalog'],
+    ['proposal_template_sections', 'proposal_catalog'],
+    ['proposal_activity_groups', 'proposal_catalog'],
+    ['proposal_group_aliases', 'proposal_catalog'],
+    ['school_calendar', 'proposal_catalog'],
+    ['lists', 'lists']
   ]);
 
   function isRequest(value) {
@@ -73,25 +73,12 @@
     return index >= 0 ? decodeURIComponent(url.pathname.slice(index + marker.length)).split('/')[0] : '';
   }
 
-  function invalidationNamespaces(table) {
-    if (table === 'activities') return ['activities'];
-    if (table === 'activity_meetings') return ['activity_meetings', 'activities'];
-    if (table === 'activity_completion_approval_uploads') return ['completion_approvals'];
-    if (table === 'activity_school_contact_responsibles' || table === 'instructor_schedule_print_contacts') return ['school_contacts'];
-    if (table === 'contacts_instructors' || table === 'contacts_schools' || table === 'schools' || table === 'authorities') return ['contacts', 'proposals'];
-    if (table === 'proposals_agreements' || table === 'proposal_agreement_items' || table === 'proposal_linked_documents') return ['proposals'];
-    if (table.startsWith('proposal_') || table === 'school_calendar' || table === 'lists') return ['proposal_catalog', 'proposals', 'lists'];
-    return [];
+  function namespaceFor(method, url) {
+    if (method !== 'GET') return '';
+    return READ_NAMESPACES.get(tableName(url)) || '';
   }
 
-  function policyFor(method, url) {
-    const table = tableName(url);
-    if (!table) return null;
-    if (method !== 'GET') return { invalidate: invalidationNamespaces(table) };
-    return READ_POLICIES.get(table) || null;
-  }
-
-  function cacheKey(namespace, method, url, headers) {
+  function requestKey(namespace, method, url, headers) {
     return [
       namespace,
       method,
@@ -125,44 +112,19 @@
     });
   }
 
-  function invalidateNamespaces(namespaces) {
-    const names = new Set(Array.isArray(namespaces) ? namespaces : []);
-    if (!names.size) return;
-    for (const key of responseCache.keys()) {
-      const namespace = key.split('|', 1)[0];
-      if (names.has(namespace)) responseCache.delete(key);
-    }
-  }
-
-  globalThis.fetch = async function deduplicatedFetch(input, init = {}) {
+  globalThis.fetch = async function deduplicatedFreshFetch(input, init = {}) {
     const { method, url, headers } = requestMeta(input, init);
-    const policy = policyFor(method, url);
+    const namespace = namespaceFor(method, url);
 
-    if (policy?.invalidate?.length) {
-      invalidateNamespaces(policy.invalidate);
-      return nativeFetch(input, init);
-    }
-    if (!policy?.namespace || init?.signal?.aborted) {
+    if (!namespace || init?.signal?.aborted) {
       return nativeFetch(input, init);
     }
 
-    const key = cacheKey(policy.namespace, method, url, headers);
-    const cached = responseCache.get(key);
-    if (cached && cached.expiresAt > Date.now()) {
-      return responseFromSnapshot(cached.snapshot);
-    }
-    if (cached) responseCache.delete(key);
-
+    const key = requestKey(namespace, method, url, headers);
     let requestPromise = inflight.get(key);
     if (!requestPromise) {
-      requestPromise = nativeFetch(input, init)
+      requestPromise = nativeFetch(input, { ...init, cache: 'no-store' })
         .then(snapshotResponse)
-        .then((snapshot) => {
-          if (policy.ttlMs > 0 && snapshot.status >= 200 && snapshot.status < 300) {
-            responseCache.set(key, { snapshot, expiresAt: Date.now() + policy.ttlMs });
-          }
-          return snapshot;
-        })
         .finally(() => inflight.delete(key));
       inflight.set(key, requestPromise);
     }

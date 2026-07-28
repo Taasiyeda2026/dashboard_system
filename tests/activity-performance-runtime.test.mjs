@@ -38,12 +38,13 @@ test('completion approval list reads metadata without signing every storage obje
   assert.match(completionRuntimeSource, /query\.in\('instructor_emp_id', identityValues\)/);
 });
 
-test('identical heavy Supabase reads are deduplicated and invalidated after writes', () => {
-  assert.match(dedupeSource, /\['activities', \{ namespace: 'activities'/);
-  assert.match(dedupeSource, /\['contacts_schools', \{ namespace: 'contacts'/);
-  assert.match(dedupeSource, /\['activity_completion_approval_uploads', \{ namespace: 'completion_approvals'/);
-  assert.match(dedupeSource, /\['activity_school_contact_responsibles', \{ namespace: 'school_contacts'/);
+test('identical Supabase reads are deduplicated only while in flight', () => {
+  assert.match(dedupeSource, /\['activities', 'activities'\]/);
+  assert.match(dedupeSource, /\['contacts_schools', 'contacts'\]/);
+  assert.match(dedupeSource, /\['activity_completion_approval_uploads', 'completion_approvals'\]/);
+  assert.match(dedupeSource, /\['activity_school_contact_responsibles', 'school_contacts'\]/);
   assert.match(dedupeSource, /const inflight = new Map\(\)/);
-  assert.match(dedupeSource, /responseCache\.set\(key/);
-  assert.match(dedupeSource, /table === 'activity_completion_approval_uploads'/);
+  assert.match(dedupeSource, /cache:\s*'no-store'/);
+  assert.doesNotMatch(dedupeSource, /responseCache/);
+  assert.doesNotMatch(dedupeSource, /ttlMs/);
 });
