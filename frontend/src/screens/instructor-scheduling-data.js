@@ -23,6 +23,12 @@ function normalizeTime(value, fallback = null) {
   return /^\d{2}:\d{2}$/.test(text) ? text : fallback;
 }
 
+function normalizeEmpId(value) {
+  const numeric = Number(String(value ?? '').trim());
+  if (!Number.isSafeInteger(numeric) || numeric <= 0) throw new Error('מזהה המדריך אינו תקין.');
+  return numeric;
+}
+
 export async function loadInstructorSchedulingData() {
   if (!supabase) return emptySchedulingData('no_supabase_client');
   await waitForSupabaseAuthSession({ timeoutMs: 6000 });
@@ -47,8 +53,7 @@ export async function loadInstructorSchedulingData() {
 
 export async function saveInstructorSchedulingProfile(row) {
   requireClient();
-  const empId = String(row?.emp_id || '').trim();
-  if (!empId) throw new Error('חסר מזהה מדריך.');
+  const empId = normalizeEmpId(row?.emp_id);
   const payload = {
     emp_id: empId,
     default_start_time: normalizeTime(row?.default_start_time, '08:00'),
@@ -68,8 +73,7 @@ export async function saveInstructorSchedulingProfile(row) {
 
 export async function saveInstructorWeeklyRules(empId, rules) {
   requireClient();
-  const safeEmpId = String(empId || '').trim();
-  if (!safeEmpId) throw new Error('חסר מזהה מדריך.');
+  const safeEmpId = normalizeEmpId(empId);
   const rows = (Array.isArray(rules) ? rules : []).map((rule) => {
     const weekday = Number(rule?.weekday);
     const available = weekday === 6 ? false : !!rule?.available;
@@ -93,9 +97,9 @@ export async function saveInstructorWeeklyRules(empId, rules) {
 
 export async function saveInstructorAvailabilityException(row) {
   requireClient();
-  const empId = String(row?.emp_id || '').trim();
+  const empId = normalizeEmpId(row?.emp_id);
   const exceptionDate = String(row?.exception_date || '').trim();
-  if (!empId || !/^\d{4}-\d{2}-\d{2}$/.test(exceptionDate)) throw new Error('יש לבחור תאריך תקין.');
+  if (!/^\d{4}-\d{2}-\d{2}$/.test(exceptionDate)) throw new Error('יש לבחור תאריך תקין.');
   const available = !!row?.available;
   const payload = {
     emp_id: empId,
