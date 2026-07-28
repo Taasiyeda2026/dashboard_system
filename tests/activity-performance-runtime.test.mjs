@@ -4,15 +4,18 @@ import { readFile } from 'node:fs/promises';
 
 const entrySource = await readFile(new URL('../frontend/src/main-with-proposal-pdf-hotfix.js', import.meta.url), 'utf8');
 const runtimeSource = await readFile(new URL('../frontend/src/activity-performance-runtime.js', import.meta.url), 'utf8');
+const completionRuntimeSource = await readFile(new URL('../frontend/src/completion-approval-performance-runtime.js', import.meta.url), 'utf8');
 const dedupeSource = await readFile(new URL('../frontend/src/network-request-dedupe.js', import.meta.url), 'utf8');
 
-test('performance guards load before the application bootstrap', () => {
+ test('performance guards load before the application bootstrap', () => {
   const dedupeIndex = entrySource.indexOf("import './network-request-dedupe.js';");
   const runtimeIndex = entrySource.indexOf("import './activity-performance-runtime.js';");
+  const completionRuntimeIndex = entrySource.indexOf("import './completion-approval-performance-runtime.js';");
   const mainIndex = entrySource.indexOf("import './main.js';");
   assert.ok(dedupeIndex >= 0, 'network request dedupe must be imported');
   assert.ok(runtimeIndex > dedupeIndex, 'activity performance runtime must load after fetch dedupe');
-  assert.ok(mainIndex > runtimeIndex, 'both performance guards must load before main.js');
+  assert.ok(completionRuntimeIndex > runtimeIndex, 'completion approval guard must load after activity guard');
+  assert.ok(mainIndex > completionRuntimeIndex, 'all performance guards must load before main.js');
 });
 
 test('dashboard speculative activity screens are blocked from heavy API reads', () => {
@@ -28,9 +31,19 @@ test('post-save activity refresh uses the patched in-memory snapshot', () => {
   assert.match(runtimeSource, /wrapMutation\('saveActivity'/);
 });
 
-test('identical activities and school-contact reads are deduplicated', () => {
-  assert.match(dedupeSource, /path\.endsWith\('\/rest\/v1\/activities'\)/);
-  assert.match(dedupeSource, /path\.endsWith\('\/rest\/v1\/contacts_schools'\)/);
+test('completion approval list reads metadata without signing every storage object', () => {
+  assert.match(completionRuntimeSource, /activity_completion_approval_uploads/);
+  assert.match(completionRuntimeSource, /optimizedCompletionApprovalUploads/);
+  assert.doesNotMatch(completionRuntimeSource, /createSignedUrl/);
+  assert.match(completionRuntimeSource, /query\.in\('instructor_emp_id', identityValues\)/);
+});
+
+test('identical heavy Supabase reads are deduplicated and invalidated after writes', () => {
+  assert.match(dedupeSource, /\['activities', \{ namespace: 'activities'/);
+  assert.match(dedupeSource, /\['contacts_schools', \{ namespace: 'contacts'/);
+  assert.match(dedupeSource, /\['activity_completion_approval_uploads', \{ namespace: 'completion_approvals'/);
+  assert.match(dedupeSource, /\['activity_school_contact_responsibles', \{ namespace: 'school_contacts'/);
   assert.match(dedupeSource, /const inflight = new Map\(\)/);
   assert.match(dedupeSource, /responseCache\.set\(key/);
+  assert.match(dedupeSource, /table === 'activity_completion_approval_uploads'/);
 });
