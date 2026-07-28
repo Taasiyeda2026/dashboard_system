@@ -6,6 +6,7 @@ const entrySource = await readFile(new URL('../frontend/src/main-with-proposal-p
 const runtimeSource = await readFile(new URL('../frontend/src/activity-performance-runtime.js', import.meta.url), 'utf8');
 const completionRuntimeSource = await readFile(new URL('../frontend/src/completion-approval-performance-runtime.js', import.meta.url), 'utf8');
 const monthNavigationSource = await readFile(new URL('../frontend/src/month-navigation-runtime.js', import.meta.url), 'utf8');
+const dashboardMonthNavigationSource = await readFile(new URL('../frontend/src/dashboard-month-navigation-runtime.js', import.meta.url), 'utf8');
 const dedupeSource = await readFile(new URL('../frontend/src/network-request-dedupe.js', import.meta.url), 'utf8');
 
 test('performance guards load before the application bootstrap', () => {
@@ -13,12 +14,14 @@ test('performance guards load before the application bootstrap', () => {
   const runtimeIndex = entrySource.indexOf("import './activity-performance-runtime.js';");
   const completionRuntimeIndex = entrySource.indexOf("import './completion-approval-performance-runtime.js';");
   const monthNavigationIndex = entrySource.indexOf("import './month-navigation-runtime.js';");
+  const dashboardMonthNavigationIndex = entrySource.indexOf("import './dashboard-month-navigation-runtime.js';");
   const mainIndex = entrySource.indexOf("import './main.js';");
   assert.ok(dedupeIndex >= 0, 'network request dedupe must be imported');
   assert.ok(runtimeIndex > dedupeIndex, 'activity performance runtime must load after fetch dedupe');
   assert.ok(completionRuntimeIndex > runtimeIndex, 'completion approval guard must load after activity guard');
   assert.ok(monthNavigationIndex > completionRuntimeIndex, 'month navigation guard must load after activity guards');
-  assert.ok(mainIndex > monthNavigationIndex, 'all performance guards must load before main.js');
+  assert.ok(dashboardMonthNavigationIndex > monthNavigationIndex, 'dashboard month navigation guard must load after month guard');
+  assert.ok(mainIndex > dashboardMonthNavigationIndex, 'all performance guards must load before main.js');
 });
 
 test('dashboard speculative activity screens are blocked from heavy API reads', () => {
@@ -48,6 +51,15 @@ test('month navigation performs one bounded load and commits the target only aft
   assert.match(monthNavigationSource, /state\.monthYm = displayedYm/);
   assert.match(monthNavigationSource, /replaceButton\(root, '\[data-month-next\]'/);
   assert.doesNotMatch(monthNavigationSource, /adjYm|prefetch/);
+});
+
+test('dashboard navigation allows August 2026 and uses the period-aware cache key', () => {
+  assert.match(dashboardMonthNavigationSource, /SCHOOL_2026_END_DATE\.slice\(0, 7\)/);
+  assert.match(dashboardMonthNavigationSource, /dashboard:\$\{ym\}:period:\$\{bounds\.period\}/);
+  assert.match(dashboardMonthNavigationSource, /api\.dashboardSnapshot\(\{ month: ym \}\)/);
+  assert.match(dashboardMonthNavigationSource, /state\.dashboardMonthYm = targetYm/);
+  assert.match(dashboardMonthNavigationSource, /event\.stopImmediatePropagation\(\)/);
+  assert.doesNotMatch(dashboardMonthNavigationSource, /ym > now/);
 });
 
 test('identical Supabase reads are deduplicated without buffering response bodies', () => {
