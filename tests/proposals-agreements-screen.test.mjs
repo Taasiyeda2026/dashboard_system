@@ -849,12 +849,15 @@ test('proposal approval from drawer SVG completes one saved approval', async () 
       assert.ok(nestedIconTarget, 'approval action should contain an SVG drawing element');
       nestedIconTarget.dispatchEvent(new dom.window.MouseEvent('click', { bubbles: true }));
       assert.equal(approveButton.getAttribute('aria-busy'), 'true', 'approval action should become busy before loading items');
+      assert.equal(approveButton.disabled, false, 'opening the signature preview must not visually disable the approval action');
       await delay(20);
 
       const overlay = dom.window.document.getElementById('pa-preview-overlay');
       assert.ok(overlay, 'approval action should open the proposal signature preview');
       const confirmButton = overlay.querySelector('#pa-signature-confirm');
       assert.ok(confirmButton, 'signature preview should expose a confirmation button');
+      assert.equal(approveButton.disabled, false, 'approval action must be released once the signature preview is open');
+      assert.equal(approvalCalls.length, 0, 'opening the signature preview must not send an approval request');
       confirmButton.dispatchEvent(new dom.window.MouseEvent('click', { bubbles: true }));
       await delay(30);
 
@@ -898,9 +901,44 @@ test('proposal approval item-load failure releases the drawer button and shows a
       assert.equal(approveButton.hasAttribute('aria-busy'), false);
       assert.equal(dom.window.document.getElementById('pa-preview-overlay'), null);
       const toast = dom.window.document.querySelector('.ds-toast--error');
-      assert.match(toast?.textContent || '', /לטעון את שורות ההצעה/);
+      assert.match(toast?.textContent || '', /הכפתור שוחרר/);
+      assert.equal(dom.window.document.body.classList.contains('is-print-preview'), false);
     }
   );
+});
+
+test('proposal approval preview render failure releases the button and cleans body state', async () => {
+  const pendingRow = { ...sampleRows[1], status: 'pending_approval' };
+  const adminState = stateFor('admin');
+  const data = { rows: [pendingRow], activityNameOptions: [], contactOptions: [] };
+
+  await withJSDOM(proposalsAgreementsScreen.render(data, { state: adminState }), async (root, dom) => {
+    proposalsAgreementsScreen.bind({
+      root,
+      data,
+      state: adminState,
+      api: { readProposalAgreementItems: async () => [] }
+    });
+    root.querySelector(`[data-pa-row-id="${pendingRow.id}"]`)?.dispatchEvent(new dom.window.MouseEvent('click', { bubbles: true }));
+    await delay(20);
+    const details = root.querySelector('[data-pa-proposal-detail]') || root.querySelector('[data-pa-drawer]');
+    const approveButton = details?.querySelector(`[data-pa-status-action="approved"][data-pa-action-id="${pendingRow.id}"]`);
+    assert.ok(approveButton);
+
+    const originalAppendChild = dom.window.document.body.appendChild.bind(dom.window.document.body);
+    dom.window.document.body.appendChild = (node) => node.id === 'pa-preview-overlay' ? node : originalAppendChild(node);
+    approveButton.querySelector('path, polyline')?.dispatchEvent(new dom.window.MouseEvent('click', { bubbles: true }));
+    await delay(20);
+    dom.window.document.body.appendChild = originalAppendChild;
+
+    assert.equal(dom.window.document.querySelector('#pa-preview-overlay'), null);
+    assert.equal(dom.window.document.querySelector('#pa-signature-confirm'), null);
+    assert.equal(dom.window.document.body.classList.contains('is-print-preview'), false, 'failed preview must not leave print-preview body state behind');
+    assert.equal(approveButton.disabled, false);
+    assert.equal(approveButton.hasAttribute('aria-busy'), false);
+    assert.equal(approveButton.dataset.paApprovalOpening, undefined);
+    assert.match(dom.window.document.querySelector('.ds-toast--error')?.textContent || '', /לפתוח את מסך החתימה/);
+  });
 });
 
 test('unprivileged users cannot open signature mode or save signature from forged approve actions', async () => {

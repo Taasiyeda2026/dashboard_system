@@ -8465,8 +8465,8 @@ export const proposalsAgreementsScreen = {
           }
           const row = data.rows.find((r) => text(r.id) === id);
           if (!row) return;
-          if (statusActionBtn.disabled) return;
-          statusActionBtn.disabled = true;
+          if (statusActionBtn.dataset.paApprovalOpening === 'true') return;
+          statusActionBtn.dataset.paApprovalOpening = 'true';
           statusActionBtn.setAttribute('aria-busy', 'true');
           try {
             const items = typeof api.readProposalAgreementItems === 'function'
@@ -8485,12 +8485,20 @@ export const proposalsAgreementsScreen = {
                 showToast('ההצעה אושרה ונחתמה', 'success');
               }
             });
+            const signatureOverlay = document.querySelector('#pa-preview-overlay');
+            const signatureConfirm = document.querySelector('#pa-signature-confirm');
+            if (!signatureOverlay || !signatureConfirm) {
+              signatureOverlay?.remove();
+              document.body.classList.remove('is-print-preview');
+              throw new Error('Signature preview did not render its overlay and confirmation control.');
+            }
           } catch (err) {
             console.error('[proposal approval preview failed]', err);
-            showToast('לא ניתן היה לטעון את שורות ההצעה ולפתוח את מסך החתימה. ניתן לנסות שוב.', 'error');
+            showToast('לא ניתן היה לפתוח את מסך החתימה. הכפתור שוחרר וניתן לנסות שוב.', 'error');
           } finally {
             if (statusActionBtn.isConnected) {
               statusActionBtn.disabled = false;
+              delete statusActionBtn.dataset.paApprovalOpening;
               statusActionBtn.removeAttribute('aria-busy');
             }
           }
