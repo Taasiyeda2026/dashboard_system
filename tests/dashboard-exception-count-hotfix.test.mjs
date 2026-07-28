@@ -43,10 +43,13 @@ test('dashboard exception card uses the exact unique activity count from the exc
   const result = applyDashboardExceptionSummary(payload, exceptions);
 
   assert.equal(result.exceptionCount, 10);
+  assert.equal(result.uniqueExceptionActivities, 10);
+  assert.equal(result.totalExceptionOccurrences, 14);
   assert.equal(result.totals.exceptions_count, 10);
   assert.equal(result.summary.exceptions_count, 10);
   assert.equal(result.summary.totalExceptionRows, 10);
-  assert.equal(result.summary.totalExceptionInstances, 14);
+  assert.equal(result.summary.totalExceptionInstances, undefined);
+  assert.equal(result.summary.totalExceptionOccurrences, 14);
   assert.equal(result.summary.exceptions_unavailable, false);
   assert.equal(result.kpi_cards.find((card) => card.id === 'exceptions').title, '10');
   assert.equal(result.kpi_cards.find((card) => card.id === 'exceptions').value, 10);
@@ -56,21 +59,23 @@ test('dashboard exception card uses the exact unique activity count from the exc
   assert.equal(result.kpi_cards.find((card) => card.id === 'active_workshops').value, 281);
 
   assert.equal(payload.exceptionCount, 0, 'the original payload must not be mutated');
+  assert.equal(payload.summary.totalExceptionInstances, 0);
   assert.equal(payload.kpi_cards.find((card) => card.id === 'exceptions').value, 0);
 });
 
-test('the hotfix is loaded before main.js and is scoped to summer_2026 dashboard rows', async () => {
+test('the hotfix is loaded before main.js and reconciles the snapshot path used by the dashboard screen', async () => {
   const [entrySource, hotfixSource] = await Promise.all([
     readFile(entryUrl, 'utf8'),
     readFile(hotfixUrl, 'utf8')
   ]);
 
-  const hotfixImport = entrySource.indexOf("import './dashboard-exception-count-hotfix.js';");
+  const hotfixImport = entrySource.indexOf("import './dashboard-exception-count-hotfix.js");
   const mainImport = entrySource.indexOf("import './main.js';");
 
   assert.ok(hotfixImport >= 0);
   assert.ok(mainImport > hotfixImport);
-  assert.match(hotfixSource, /season === 'summer_2026'/);
+  assert.match(hotfixSource, /installDashboardReconciler\('dashboardSnapshot'\)/);
+  assert.match(hotfixSource, /installDashboardReconciler\('dashboardReadModel'\)/);
   assert.match(hotfixSource, /api\.exceptions\(\{/);
   assert.match(hotfixSource, /activity_period: state\?\.activityPeriodTab/);
 });
