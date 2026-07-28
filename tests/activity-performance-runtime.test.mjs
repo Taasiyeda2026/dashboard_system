@@ -5,17 +5,20 @@ import { readFile } from 'node:fs/promises';
 const entrySource = await readFile(new URL('../frontend/src/main-with-proposal-pdf-hotfix.js', import.meta.url), 'utf8');
 const runtimeSource = await readFile(new URL('../frontend/src/activity-performance-runtime.js', import.meta.url), 'utf8');
 const completionRuntimeSource = await readFile(new URL('../frontend/src/completion-approval-performance-runtime.js', import.meta.url), 'utf8');
+const monthNavigationSource = await readFile(new URL('../frontend/src/month-navigation-runtime.js', import.meta.url), 'utf8');
 const dedupeSource = await readFile(new URL('../frontend/src/network-request-dedupe.js', import.meta.url), 'utf8');
 
 test('performance guards load before the application bootstrap', () => {
   const dedupeIndex = entrySource.indexOf("import './network-request-dedupe.js';");
   const runtimeIndex = entrySource.indexOf("import './activity-performance-runtime.js';");
   const completionRuntimeIndex = entrySource.indexOf("import './completion-approval-performance-runtime.js';");
+  const monthNavigationIndex = entrySource.indexOf("import './month-navigation-runtime.js';");
   const mainIndex = entrySource.indexOf("import './main.js';");
   assert.ok(dedupeIndex >= 0, 'network request dedupe must be imported');
   assert.ok(runtimeIndex > dedupeIndex, 'activity performance runtime must load after fetch dedupe');
   assert.ok(completionRuntimeIndex > runtimeIndex, 'completion approval guard must load after activity guard');
-  assert.ok(mainIndex > completionRuntimeIndex, 'all performance guards must load before main.js');
+  assert.ok(monthNavigationIndex > completionRuntimeIndex, 'month navigation guard must load after activity guards');
+  assert.ok(mainIndex > monthNavigationIndex, 'all performance guards must load before main.js');
 });
 
 test('dashboard speculative activity screens are blocked from heavy API reads', () => {
@@ -36,6 +39,15 @@ test('completion approval list reads metadata without signing every storage obje
   assert.match(completionRuntimeSource, /optimizedCompletionApprovalUploads/);
   assert.doesNotMatch(completionRuntimeSource, /createSignedUrl/);
   assert.match(completionRuntimeSource, /query\.in\('instructor_emp_id', identityValues\)/);
+});
+
+test('month navigation performs one bounded load and commits the target only after success', () => {
+  assert.match(monthNavigationSource, /withTimeout\(api\.month\(\{ ym: targetYm \}\), 20000\)/);
+  assert.match(monthNavigationSource, /returnedYm !== targetYm/);
+  assert.match(monthNavigationSource, /state\.monthYm = targetYm/);
+  assert.match(monthNavigationSource, /state\.monthYm = displayedYm/);
+  assert.match(monthNavigationSource, /replaceButton\(root, '\[data-month-next\]'/);
+  assert.doesNotMatch(monthNavigationSource, /adjYm|prefetch/);
 });
 
 test('identical Supabase reads are deduplicated without buffering response bodies', () => {
