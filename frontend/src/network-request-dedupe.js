@@ -1,10 +1,9 @@
 /*
  * Deduplicate identical Supabase GET requests that are already in flight.
  *
- * Operational responses are never retained after the request completes. This
- * keeps navigation fast without showing stale activities, proposals, contacts
- * or approval data from a previous screen visit. Browser HTTP caching is also
- * disabled for these reads.
+ * No response body is buffered, copied or retained. Each caller receives a
+ * lightweight clone of the native response, while a later request always goes
+ * back to the server/application data layer as usual.
  */
 (function installNetworkRequestDedupe() {
   'use strict';
@@ -13,7 +12,7 @@
   const nativeFetch = typeof globalThis.fetch === 'function'
     ? globalThis.fetch.bind(globalThis)
     : null;
-  if (!nativeFetch || typeof Response === 'undefined' || typeof Headers === 'undefined') return;
+  if (!nativeFetch || typeof Headers === 'undefined') return;
 
   globalThis.__dsNetworkRequestDedupeInstalled = true;
 
@@ -90,29 +89,7 @@
     ].join('|');
   }
 
-  function copyBuffer(buffer) {
-    return buffer.slice(0);
-  }
-
-  async function snapshotResponse(response) {
-    const body = await response.arrayBuffer();
-    return {
-      body,
-      status: response.status,
-      statusText: response.statusText,
-      headers: Array.from(response.headers.entries())
-    };
-  }
-
-  function responseFromSnapshot(snapshot) {
-    return new Response(copyBuffer(snapshot.body), {
-      status: snapshot.status,
-      statusText: snapshot.statusText,
-      headers: snapshot.headers
-    });
-  }
-
-  globalThis.fetch = async function deduplicatedFreshFetch(input, init = {}) {
+  globalThis.fetch = async function deduplicatedFetch(input, init = {}) {
     const { method, url, headers } = requestMeta(input, init);
     const namespace = namespaceFor(method, url);
 
@@ -123,13 +100,12 @@
     const key = requestKey(namespace, method, url, headers);
     let requestPromise = inflight.get(key);
     if (!requestPromise) {
-      requestPromise = nativeFetch(input, { ...init, cache: 'no-store' })
-        .then(snapshotResponse)
+      requestPromise = nativeFetch(input, init)
         .finally(() => inflight.delete(key));
       inflight.set(key, requestPromise);
     }
 
-    const snapshot = await requestPromise;
-    return responseFromSnapshot(snapshot);
+    const response = await requestPromise;
+    return response.clone();
   };
 })();

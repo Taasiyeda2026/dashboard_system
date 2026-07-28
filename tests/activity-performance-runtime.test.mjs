@@ -38,13 +38,16 @@ test('completion approval list reads metadata without signing every storage obje
   assert.match(completionRuntimeSource, /query\.in\('instructor_emp_id', identityValues\)/);
 });
 
-test('identical Supabase reads are deduplicated only while in flight', () => {
+test('identical Supabase reads are deduplicated without buffering response bodies', () => {
   assert.match(dedupeSource, /\['activities', 'activities'\]/);
   assert.match(dedupeSource, /\['contacts_schools', 'contacts'\]/);
   assert.match(dedupeSource, /\['activity_completion_approval_uploads', 'completion_approvals'\]/);
   assert.match(dedupeSource, /\['activity_school_contact_responsibles', 'school_contacts'\]/);
   assert.match(dedupeSource, /const inflight = new Map\(\)/);
-  assert.match(dedupeSource, /cache:\s*'no-store'/);
+  assert.match(dedupeSource, /return response\.clone\(\)/);
+  assert.doesNotMatch(dedupeSource, /arrayBuffer\(/);
+  assert.doesNotMatch(dedupeSource, /copyBuffer/);
   assert.doesNotMatch(dedupeSource, /responseCache/);
   assert.doesNotMatch(dedupeSource, /ttlMs/);
+  assert.doesNotMatch(dedupeSource, /cache:\s*'no-store'/);
 });
