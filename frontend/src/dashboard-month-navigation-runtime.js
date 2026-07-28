@@ -19,7 +19,6 @@ import {
   const originalBind = typeof dashboardScreen.bind === 'function'
     ? dashboardScreen.bind.bind(dashboardScreen)
     : null;
-  let navigationPending = false;
 
   function currentMonthYm() {
     const date = new Date();
@@ -80,6 +79,9 @@ import {
       if (returnedMonth && returnedMonth !== ym) {
         throw new Error(`dashboard_month_mismatch:${returnedMonth}`);
       }
+      if (payload?._debug?.error) {
+        throw new Error(String(payload._debug.error));
+      }
       return payload;
     } finally {
       clearTimeout(timer);
@@ -98,8 +100,16 @@ import {
   dashboardScreen.bind = function bindDashboardWithReliableMonthNavigation(context) {
     originalBind?.(context);
 
-    const { root, state, api, rerender, data } = context || {};
-    if (!root || !state || !api) return;
+    const root = context?.root;
+    if (!root || !context?.state || !context?.api) return;
+
+    // The screen root survives inner re-renders. Store the newest context on it
+    // and install one capture handler only, so an older month closure can never
+    // take control after navigating more than once.
+    root.__dsDashboardMonthNavigationContext = context;
+    if (root.__dsDashboardMonthNavigationBound) return;
+    root.__dsDashboardMonthNavigationBound = true;
+    root.__dsDashboardMonthNavigationPending = false;
 
     root.addEventListener('click', async (event) => {
       const button = event.target?.closest?.('[data-dash-month-prev],[data-dash-month-next]');
@@ -108,14 +118,18 @@ import {
       event.preventDefault();
       event.stopPropagation();
       event.stopImmediatePropagation();
-      if (navigationPending) return;
+      if (root.__dsDashboardMonthNavigationPending) return;
 
-      const currentYm = clampToPeriod(data?.month || state.dashboardMonthYm, state.activityPeriodTab);
+      const latest = root.__dsDashboardMonthNavigationContext || {};
+      const { state, api, rerender, data } = latest;
+      if (!state || !api) return;
+
+      const currentYm = clampToPeriod(state.dashboardMonthYm || data?.month, state.activityPeriodTab);
       const delta = button.matches('[data-dash-month-next]') ? 1 : -1;
       const targetYm = clampToPeriod(shiftYm(currentYm, delta), state.activityPeriodTab);
       if (targetYm === currentYm) return;
 
-      navigationPending = true;
+      root.__dsDashboardMonthNavigationPending = true;
       root.querySelectorAll('[data-dash-month-prev],[data-dash-month-next]').forEach((node) => {
         node.disabled = true;
       });
@@ -132,11 +146,12 @@ import {
         await rerender?.();
       } catch (error) {
         console.warn('[dashboard-month-navigation:failed]', {
+          displayed_month: currentYm,
           requested_month: targetYm,
           error: error?.message || String(error)
         });
       } finally {
-        navigationPending = false;
+        root.__dsDashboardMonthNavigationPending = false;
         root.removeAttribute('aria-busy');
         root.querySelectorAll('[data-dash-month-prev],[data-dash-month-next]').forEach((node) => {
           node.disabled = false;
