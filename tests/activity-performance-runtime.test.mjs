@@ -7,7 +7,7 @@ const runtimeSource = await readFile(new URL('../frontend/src/activity-performan
 const completionRuntimeSource = await readFile(new URL('../frontend/src/completion-approval-performance-runtime.js', import.meta.url), 'utf8');
 const dedupeSource = await readFile(new URL('../frontend/src/network-request-dedupe.js', import.meta.url), 'utf8');
 
- test('performance guards load before the application bootstrap', () => {
+test('performance guards load before the application bootstrap', () => {
   const dedupeIndex = entrySource.indexOf("import './network-request-dedupe.js';");
   const runtimeIndex = entrySource.indexOf("import './activity-performance-runtime.js';");
   const completionRuntimeIndex = entrySource.indexOf("import './completion-approval-performance-runtime.js';");
