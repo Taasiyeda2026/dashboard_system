@@ -808,6 +808,60 @@ test('after a new approval the sent action appears in the table without a page r
   );
 });
 
+test('opening a pending proposal and confirming signature completes one saved approval', async () => {
+  const pendingRow = { ...sampleRows[1], status: 'pending_approval' };
+  const adminState = stateFor('admin');
+  const data = { rows: [pendingRow], activityNameOptions: [], contactOptions: [] };
+  const approvalCalls = [];
+
+  await withJSDOM(
+    proposalsAgreementsScreen.render(data, { state: adminState }),
+    async (root, dom) => {
+      proposalsAgreementsScreen.bind({
+        root,
+        data,
+        state: adminState,
+        api: {
+          readProposalAgreementItems: async () => [],
+          updateProposalAgreementStatus: async (...args) => {
+            approvalCalls.push(args);
+            await delay(5);
+            return {
+              ok: true,
+              row: {
+                ...pendingRow,
+                status: 'approved',
+                approved_at: '2026-07-28T10:00:00.000Z',
+                signature_meta: args[3]
+              }
+            };
+          }
+        }
+      });
+
+      const approveButton = root.querySelector(`[data-pa-status-action="approved"][data-pa-action-id="${pendingRow.id}"]`);
+      assert.ok(approveButton, 'pending proposal should expose its approval action');
+      approveButton.dispatchEvent(new dom.window.MouseEvent('click', { bubbles: true }));
+      await delay(20);
+
+      const overlay = dom.window.document.getElementById('pa-preview-overlay');
+      assert.ok(overlay, 'approval action should open the proposal signature preview');
+      const confirmButton = overlay.querySelector('#pa-signature-confirm');
+      assert.ok(confirmButton, 'signature preview should expose a confirmation button');
+      confirmButton.dispatchEvent(new dom.window.MouseEvent('click', { bubbles: true }));
+      await delay(30);
+
+      assert.equal(approvalCalls.length, 1, 'signature confirmation must issue exactly one approval request');
+      assert.equal(approvalCalls[0][0], pendingRow.id);
+      assert.equal(approvalCalls[0][1], 'approved');
+      assert.ok(approvalCalls[0][3]?.signature?.image, 'approval request must include the signature before the approved status');
+      assert.equal(data.rows[0].status, 'approved');
+      assert.ok(data.rows[0].signature_meta?.signature?.image, 'local approved row must come from the response containing the saved signature');
+      assert.equal(dom.window.document.getElementById('pa-preview-overlay'), null, 'preview overlay should close after the saved approval completes');
+    }
+  );
+});
+
 test('unprivileged users cannot open signature mode or save signature from forged approve actions', async () => {
   const sentRow = { ...sampleRows[0], status: 'sent' };
   const managerState = stateFor('operation_manager');
