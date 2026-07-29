@@ -24,6 +24,7 @@ import './birthday-calendar.js';
 import './activities-tabs-corrections.js';
 import './gefen-proposal-layout-update.js';
 import './gefen-proposal-pdf-header-alignment.js';
+import './proposal-full-clone-runtime.js?v=20260729-full-editable-clone-v1';
 import './main.js';
 import './styles/activity-drawer-inline-layout.css';
 import './activity-drawer-inline-layout.js';
