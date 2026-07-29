@@ -21,7 +21,7 @@ test('Israa page uses exactly the approved 24 information columns', () => {
 test('external table contains the twelve approved overview columns without an actions column', () => {
   for (const label of ['מסד','מס׳ הצעה','שם בית הספר','סמל מוסד','רשות','שם הפעילות','סכום ההצעה הכולל','סבירות לסגירה','שווי צפוי ריאלי','סטטוס','הפעולה הבאה','תאריך מעקב']) assert.match(tracking, new RegExp(label));
   assert.doesNotMatch(tracking, />פעולות</);
-  assert.match(tracking, /min-width:1510px/);
+  assert.doesNotMatch(tracking, /min-width:1510px|overflow-x:auto/);
 });
 
 test('Israa uses its own scoped drawer and only approved internal fields in view mode', () => {
@@ -39,4 +39,11 @@ test('only the four requested filters are present', () => {
 test('course selection still autofills the Gefen number', () => {
   assert.match(tracking, /data-v2-program-input/);
   assert.match(tracking, /gefen\.value = clean\(course\.gefen_number\)/);
+});
+
+test('drawer uses four visual sections and a compact per-row activities editor', () => {
+  for (const title of ['פרטי מסגרת וקשר', 'פרטי ההצעה', 'פירוט הפעילויות', 'הערות']) assert.match(tracking, new RegExp(title));
+  assert.match(tracking, /israa-drawer__activities/);
+  assert.match(tracking, /data-v2-activity-row/);
+  assert.doesNotMatch(tracking, /israa-drawer__heading/);
 });

@@ -4,7 +4,6 @@ import fs from 'node:fs';
 
 const tracking = fs.readFileSync(new URL('../frontend/src/israa-tracking-v2-runtime.js', import.meta.url), 'utf8');
 const filters = fs.readFileSync(new URL('../frontend/src/israa-tracking-filters-runtime.js', import.meta.url), 'utf8');
-const scroll = fs.readFileSync(new URL('../frontend/src/israa-tracking-horizontal-scroll.js', import.meta.url), 'utf8');
 const entry = fs.readFileSync(new URL('../frontend/src/main-with-proposal-pdf-hotfix.js', import.meta.url), 'utf8');
 
 const exactFields = ['quote_number','school_name','semel_mosad','authority','ownership','manager_name','manager_phone','manager_email','additional_contact','program_name','gefen_numbers','proposal_nature','expected_program','grade','participants_groups','proposal_date','total_amount','probability','status','next_action','follow_up_date','notes'];
@@ -17,10 +16,11 @@ test('Israa tracking exposes only the four required filters', () => {
   assert.match(filters, /נקה סינון/);
 });
 
-test('Israa content is bounded and the table is the horizontal scroller', () => {
+test('Israa content is bounded and the table fits without horizontal scrolling', () => {
   assert.match(tracking, /\.israa-v2\{[\s\S]*width:94%[\s\S]*max-width:1540px[\s\S]*margin:12px auto/);
-  assert.match(tracking, /\.israa-v2__wrap[\s\S]*overflow-x:auto/);
+  assert.match(tracking, /\.israa-v2__wrap[\s\S]*overflow:hidden/);
   assert.match(tracking, /\.israa-v2__wrap[\s\S]*direction:rtl/);
+  assert.doesNotMatch(tracking, /min-width:1510px|overflow-x:auto/);
   assert.doesNotMatch(tracking, /width:\s*100vw/);
 });
 
@@ -34,14 +34,8 @@ test('summary cards remain four equal columns', () => {
   assert.match(tracking, /min-height:68px/);
 });
 
-test('table wrapper resets to RTL start after render and resize', () => {
-  assert.match(scroll, /tableWrap\.scrollLeft\s*=\s*0/);
-  assert.match(scroll, /window\.addEventListener\('resize',[\s\S]*schedule\(true\)/);
-  assert.match(scroll, /window\.addEventListener\('hashchange',[\s\S]*schedule\(true\)/);
-});
-
 test('application entry cache-busts the exact Israa modules', () => {
-  assert.match(entry, /israa-tracking-v2-runtime\.js\?v=20260729-israa-exact-columns-v1/);
-  assert.match(entry, /israa-tracking-filters-runtime\.js\?v=20260729-israa-exact-columns-v1/);
-  assert.match(entry, /israa-tracking-horizontal-scroll\.js\?v=20260729-israa-exact-columns-v1/);
+  assert.match(entry, /israa-tracking-v2-runtime\.js\?v=20260729-israa-drawer-table-v2/);
+  assert.match(entry, /israa-tracking-filters-runtime\.js\?v=20260729-israa-drawer-table-v2/);
+  assert.doesNotMatch(entry, /israa-tracking-horizontal-scroll\.js/);
 });
