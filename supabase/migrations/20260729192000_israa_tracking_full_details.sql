@@ -21,6 +21,12 @@ declare
 begin
   select pg_get_functiondef('public.create_israa_tracking_from_proposal(uuid)'::regprocedure)
   into v_definition;
+
+  if position(E'    valid_until,\n    proposal_nature,' in v_definition) > 0
+     and position(E'    notes = case\n' in v_definition) > 0 then
+    return;
+  end if;
+
   v_original := v_definition;
 
   v_definition := replace(
