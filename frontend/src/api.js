@@ -296,12 +296,13 @@ function rowMatchesActivitiesFilters(row, filters = {}) {
   return true;
 }
 
-async function readArchiveActivitiesFromSupabase() {
+async function readArchiveActivitiesFromSupabase(activityPeriod = currentGlobalActivityPeriod()) {
   if (!supabase) return null;
   try {
     const { data, error } = await supabase
       .from('activities')
       .select('*')
+      .eq('activity_season', normalizeGlobalActivityPeriod(activityPeriod))
       .eq('status', CLOSED_STATUS);
     if (error) throw new Error(error.message || 'archive_read_failed');
     const rawRows = Array.isArray(data) ? data : [];
@@ -318,7 +319,8 @@ async function readActivitiesFromSupabase(filters = {}) {
   if (!supabase) return null;
 
   try {
-    const { data, error } = await supabase.from('activities').select('*');
+    const selectedSeason = normalizeGlobalActivityPeriod(filters?.activity_period || currentGlobalActivityPeriod());
+    const { data, error } = await supabase.from('activities').select('*').eq('activity_season', selectedSeason);
     if (error) throw new Error(error.message || 'activities_read_failed');
     const rawRows = Array.isArray(data) ? data : [];
     const normalizedRows = rawRows.map(normalizeActivityRow);
@@ -560,8 +562,8 @@ function activityHasDatePointInMonth(row, monthPrefix) {
   return allDates.length > 0 && allDates.some((d) => d >= startDate && d <= endDate);
 }
 
-async function selectActivitiesFromSupabase(select = '*') {
-  const result = await supabase.from('activities').select(select);
+async function selectActivitiesFromSupabase(select = '*', activitySeason = currentGlobalActivityPeriod()) {
+  const result = await supabase.from('activities').select(select).eq('activity_season', normalizeGlobalActivityPeriod(activitySeason));
   if (result.error) throw new Error(result.error.message || 'activities_read_failed');
   return (Array.isArray(result.data) ? result.data : []).map(normalizeActivityRow);
 }
@@ -603,7 +605,8 @@ async function selectActivitiesByDateRangeFromSupabase({
   }
   let query = supabase
     .from('activities')
-    .select(select);
+    .select(select)
+    .eq('activity_season', currentGlobalActivityPeriod());
   if (overlapByStartEnd) {
     query = query.lte('start_date', endDate).gte('end_date', startDate);
   } else {
@@ -2596,7 +2599,7 @@ async function readExceptionsFromSupabase(params = {}) {
   try {
     const suppliedActivityRows = Array.isArray(params?.activityRows) ? params.activityRows : null;
     const [activitiesResult, instrListResult, approvalsResult, settingsRows] = await Promise.all([
-      suppliedActivityRows ? Promise.resolve({ data: suppliedActivityRows, error: null }) : supabase.from('activities').select('*'),
+      suppliedActivityRows ? Promise.resolve({ data: suppliedActivityRows, error: null }) : supabase.from('activities').select('*').eq('activity_season', activityPeriod),
       readInstructorEmpIdsFromSupabase().then((data) => ({ data, error: null })),
       supabase.from('activity_completion_approval_uploads').select('*').then(({ data, error }) => ({ data: error ? [] : data, error })),
       readSettingsRowsFromSupabase().catch((error) => {
@@ -5380,24 +5383,20 @@ function buildInstructorTeamGroups(allRows, ownRows, overrides = []) {
     }));
 }
 
-let _allActivitiesRowsCache = null;
-let _allActivitiesRowsCacheAt = 0;
+const _allActivitiesRowsCache = new Map();
 const _ALL_ACTIVITIES_ROWS_CACHE_TTL_MS = 2 * 60 * 1000; // 2 דקות
 
-async function readAllActivitiesRowsSupabase({ forceRefresh = false } = {}) {
-  const now = Date.now();
-  if (!forceRefresh && _allActivitiesRowsCache && (now - _allActivitiesRowsCacheAt) < _ALL_ACTIVITIES_ROWS_CACHE_TTL_MS) {
-    return _allActivitiesRowsCache;
-  }
-  const rows = await selectActivitiesFromSupabase('*');
-  _allActivitiesRowsCache = rows;
-  _allActivitiesRowsCacheAt = Date.now();
+async function readAllActivitiesRowsSupabase({ forceRefresh = false, activityPeriod = currentGlobalActivityPeriod() } = {}) {
+  const selectedSeason = normalizeGlobalActivityPeriod(activityPeriod);
+  const cached = _allActivitiesRowsCache.get(selectedSeason);
+  if (!forceRefresh && cached && (Date.now() - cached.at) < _ALL_ACTIVITIES_ROWS_CACHE_TTL_MS) return cached.rows;
+  const rows = await selectActivitiesFromSupabase('*', selectedSeason);
+  _allActivitiesRowsCache.set(selectedSeason, { rows, at: Date.now() });
   return rows;
 }
 
 export function invalidateAllActivitiesRowsCache() {
-  _allActivitiesRowsCache = null;
-  _allActivitiesRowsCacheAt = 0;
+  _allActivitiesRowsCache.clear();
 }
 
 
@@ -5924,14 +5923,14 @@ export const api = {
     }
     return { ...supabasePayload, ...canonical, month };
   },
-  archiveActivities: async () => {
-    const data = await readArchiveActivitiesFromSupabase();
+  archiveActivities: async (params = {}) => {
+    const data = await readArchiveActivitiesFromSupabase(params?.activity_period || currentGlobalActivityPeriod());
     if (data) return data;
     throw new Error('archive_supabase_failed');
   },
   allActivities: async (params = {}) => {
-    const rows = await readAllActivitiesRowsSupabase();
-    return { rows: params?.include_all_periods ? rows : filterRowsByGlobalActivityPeriod(rows, params?.activity_period || currentGlobalActivityPeriod()), _source: 'supabase' };
+    const rows = await readAllActivitiesRowsSupabase({ activityPeriod: params?.activity_period || currentGlobalActivityPeriod() });
+    return { rows, _source: 'supabase' };
   },
   activities: async (filters, options) => {
     const resolvedFilters = filters || {};
@@ -6304,9 +6303,8 @@ export const api = {
     return { row: data, _source: 'supabase' };
   },
   operations: async (params = {}) => {
-    const allRows = await readAllActivitiesRowsSupabase();
-    const periodRows = filterRowsByGlobalActivityPeriod(allRows, params?.activity_period || currentGlobalActivityPeriod());
-    const rows = filterOperationsRows(periodRows, params || {});
+    const allRows = await readAllActivitiesRowsSupabase({ activityPeriod: params?.activity_period || currentGlobalActivityPeriod() });
+    const rows = filterOperationsRows(allRows, params || {});
     return { rows, _source: 'supabase' };
   },
   operationsDetail: async (source_row_id, source_sheet) => readActivityDetailFromSupabase(source_row_id, source_sheet),

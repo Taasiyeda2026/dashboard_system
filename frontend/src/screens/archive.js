@@ -227,8 +227,8 @@ function renderArchiveTableSection(rows, state, allRowsCount = rows.length) {
 }
 
 export const archiveScreen = {
-  async load({ api }) {
-    return api.archiveActivities();
+  async load({ api, state }) {
+    return api.archiveActivities({ activity_period: state?.archiveActivityPeriod || state?.activityPeriodTab });
   },
 
   render(data, { state }) {

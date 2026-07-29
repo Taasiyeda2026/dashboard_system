@@ -1,7 +1,7 @@
 import { api } from './api.js';
 import { config } from './config.js';
-import { globalActivityPeriodLabel, globalActivityPeriodFullLabel, globalActivityPeriodOptions, normalizeGlobalActivityPeriod } from './screens/shared/summer-activity.js';
-import { state, setSession, defaultClientSettings, setGlobalActivityPeriod } from './state.js';
+import { ACTIVE_ACTIVITY_SEASON, globalActivityPeriodLabel, globalActivityPeriodFullLabel, globalActivityPeriodOptions, normalizeGlobalActivityPeriod } from './screens/shared/summer-activity.js';
+import { state, setSession, defaultClientSettings, setGlobalActivityPeriod, setArchiveActivityPeriod } from './state.js';
 import { SCREEN_CACHE_STORAGE_PREFIX, persistCacheEntry, deletePersistedCacheEntry, deletePersistedCacheByPrefixes } from './cache-persist.js';
 import { escapeHtml } from './screens/shared/html.js';
 import { hebrewRole, translateApiErrorForUser } from './screens/shared/ui-hebrew.js';
@@ -38,7 +38,10 @@ const PERF_MAX_RENDERS = 150;
 export { applyGlobalAccent };
 
 export function syncGlobalActivityPeriodSelector(root = document) {
-  syncGlobalActivityPeriodSelectorDom(root, state.activityPeriodTab);
+  const visiblePeriod = state.route === 'archive' && state.archiveActivityPeriod
+    ? state.archiveActivityPeriod
+    : state.activityPeriodTab;
+  syncGlobalActivityPeriodSelectorDom(root, visiblePeriod);
 }
 
 export function bindAccentPickerOnce() {
@@ -52,13 +55,9 @@ export function bindAccentPickerOnce() {
 
 applyGlobalAccent(accentNameFromStorage(state.clientSettings));
 
-/** Timer handle for deferred prefetch — cancelled on every new navigation. */
-let prefetchTimer = null;
-let prefetchIdleId = null;
 let firstAuthenticatedRenderTimerStarted = false;
 let firstLoadTimerStarted = false;
 let firstDashboardSnapshotTimerStarted = false;
-let firstPrefetchTimerStarted = false;
 let fastRerenderVersion = 0;
 let navigationToken = 0;
 let activeNavigationToken = 0;
@@ -166,90 +165,6 @@ function setRouteRefreshing(active) {
   }
 }
 
-/** Injects the one-time CSS needed for the background-prefetch sidebar indicator. */
-function ensurePrefetchIndicatorStyle() {
-  if (ensurePrefetchIndicatorStyle._done) return;
-  ensurePrefetchIndicatorStyle._done = true;
-  if (typeof document === 'undefined') return;
-  const el = document.createElement('style');
-  el.setAttribute('data-ds', 'prefetch-indicator');
-  el.textContent =
-    '@keyframes ds-prefetch-sweep{0%{transform:translateX(100%)}100%{transform:translateX(-100%)}}' +
-    '.app-shell.is-prefetching .shell-sidebar{position:relative;overflow:hidden}' +
-    '.app-shell.is-prefetching .shell-sidebar::after{content:"";position:absolute;bottom:0;inset-inline-start:0;inset-inline-end:0;height:2px;' +
-    'background:linear-gradient(90deg,transparent 0%,rgba(99,179,237,0.55) 50%,transparent 100%);' +
-    'animation:ds-prefetch-sweep 1.6s linear infinite;pointer-events:none}';
-  document.head.appendChild(el);
-}
-
-/** Reference count of in-flight prefetch runs — indicator stays visible until it reaches zero. */
-let _prefetchIndicatorCount = 0;
-
-/** Shows or hides the subtle sidebar prefetch indicator (no spinner, no blocking UI).
- *  Reference-counted so overlapping runs don't prematurely clear the indicator. */
-function setPrefetchIndicator(active) {
-  if (typeof document === 'undefined') return;
-  if (active) {
-    ensurePrefetchIndicatorStyle();
-    _prefetchIndicatorCount = Math.max(0, _prefetchIndicatorCount) + 1;
-  } else {
-    _prefetchIndicatorCount = Math.max(0, _prefetchIndicatorCount - 1);
-  }
-  document.querySelector('.app-shell')?.classList.toggle('is-prefetching', _prefetchIndicatorCount > 0);
-}
-
-function cancelPrefetchSchedule() {
-  clearTimeout(prefetchTimer);
-  prefetchTimer = null;
-  if (typeof window !== 'undefined' && typeof window.cancelIdleCallback === 'function' && prefetchIdleId != null) {
-    window.cancelIdleCallback(prefetchIdleId);
-  }
-  prefetchIdleId = null;
-}
-
-function schedulePostLoginPrefetch() {
-  if (STABILITY_HOTFIX_DISABLE_BACKGROUND_REFRESH) return;
-  cancelPrefetchSchedule();
-  const run = () => {
-    prefetchTimer = null;
-    prefetchIdleId = null;
-    if (!state.token) return;
-    if (_isRendering || _pendingRender) return;
-    if (!firstPrefetchTimerStarted) {
-      firstPrefetchTimerStarted = true;
-      beginPerfTimer('prefetch:firstRun');
-      try {
-        prefetchFromDashboardIfNeeded();
-      } finally {
-        endPerfTimer('prefetch:firstRun');
-      }
-      return;
-    }
-    prefetchFromDashboardIfNeeded();
-  };
-
-  // When any of the prefetch-target screens already has a fresh cache entry the
-  // dashboard painted immediately from localStorage — there is no hydration
-  // competition to worry about, so we can start much sooner.  The 4 s floor is
-  // preserved only when the caches are fully cold (very first load / hard clear).
-  const _PREFETCH_WARM_SCREENS = ['activities', 'week', 'month', 'end-dates', 'archive'];
-  const _prefetchAnyWarm = _PREFETCH_WARM_SCREENS.some((r) => {
-    if (!isAllowedRoute(r)) return false;
-    const hit = state.screenDataCache[buildScreenDataCacheKey(r, state)];
-    const ttl = SCREEN_CACHE_TTL_MS[r] ?? DEFAULT_CACHE_TTL_MS;
-    return !!(hit && Date.now() - hit.t < ttl);
-  });
-  const _prefetchDelay = _prefetchAnyWarm ? 1200 : 3500;
-
-  prefetchTimer = setTimeout(() => {
-    prefetchTimer = null;
-    if (typeof window !== 'undefined' && typeof window.requestIdleCallback === 'function') {
-      prefetchIdleId = window.requestIdleCallback(run, { timeout: 1000 });
-    } else {
-      run();
-    }
-  }, _prefetchDelay);
-}
 
 function recordRenderPerf(route, phase, durationMs, extra = {}) {
   if (typeof window === 'undefined') return;
@@ -1202,6 +1117,10 @@ function buildScreenDataCacheKey(route, cacheState = state) {
     const ym = cacheState.dashboardMonthYm && /^\d{4}-\d{2}$/.test(cacheState.dashboardMonthYm) ? cacheState.dashboardMonthYm : 'default';
     return withActivityPeriod(`dashboard:${ym}`);
   }
+  if (route === 'archive') {
+    const archivePeriod = normalizeGlobalActivityPeriod(cacheState?.archiveActivityPeriod || activityPeriod);
+    return `archive:period:${archivePeriod}`;
+  }
   if (route === 'week') {
     return withActivityPeriod(`week:${cacheState.weekOffset || 0}`);
   }
@@ -1448,90 +1367,6 @@ async function backgroundRefreshScreen(screen, cacheKey) {
     if (typeof globalThis !== 'undefined') globalThis.__DS_BG_SCREEN_REFRESH__ = prevBg;
     setRouteRefreshing(false);
   }
-}
-
-async function prefetchFromDashboardIfNeeded() {
-  if (!state.token) return;
-  if (state.route !== 'dashboard') return;
-
-  const PREFETCH_SCREENS = ['activities', 'week', 'month', 'end-dates', 'archive'];
-  const toFetch = PREFETCH_SCREENS.filter((r) => isAllowedRoute(r));
-  if (!toFetch.length) return;
-
-  const capturedToken = activeNavigationToken;
-  const capturedSessionToken = state.token;
-  const capturedUserId = state.user?.user_id || '';
-
-  // activitiesScreen.load() synchronously sets state.activitiesMonthYm = currentYm()
-  // before its first await, so normalise it here before computing cache keys so
-  // the inflightRequests key and the final cache key stay in sync.
-  if (!state.activitiesMonthYm) {
-    const _n = new Date();
-    state.activitiesMonthYm = `${_n.getFullYear()}-${String(_n.getMonth() + 1).padStart(2, '0')}`;
-  }
-
-  let screenModules;
-  try {
-    screenModules = await Promise.all(toFetch.map((r) => getScreen(r).catch(() => null)));
-  } catch {
-    return;
-  }
-
-  if (activeNavigationToken !== capturedToken) return;
-  if (!state.token) return;
-
-  setPrefetchIndicator(true);
-  const fetchPromises = toFetch.map((route, idx) => {
-    const screen = screenModules[idx];
-    if (!screen || !screen.load) return Promise.resolve();
-
-    // Key is captured before load() so user changes to weekOffset/monthYm during
-    // the request do not shift the write to a different period's cache slot.
-    const cacheKey = buildScreenDataCacheKey(route, state);
-    const ttl = SCREEN_CACHE_TTL_MS[route] ?? DEFAULT_CACHE_TTL_MS;
-
-    const hit = state.screenDataCache[cacheKey];
-    if (hit && Date.now() - hit.t < ttl) return Promise.resolve();
-    if (inflightRequests.has(cacheKey)) return Promise.resolve();
-
-    const p = screen.load({ api, state })
-      .then((data) => {
-        inflightRequests.delete(cacheKey);
-        // Discard if navigation happened or the session changed mid-flight.
-        if (activeNavigationToken !== capturedToken) return data;
-        if (!state.token || state.token !== capturedSessionToken) return data;
-        if (capturedUserId && (state.user?.user_id || '') !== capturedUserId) return data;
-        // Keep a fresher entry if navigation already wrote one.
-        const existing = state.screenDataCache[cacheKey];
-        if (existing && Date.now() - existing.t < ttl) return existing.data ?? data;
-        const entry = { data, t: Date.now() };
-        state.screenDataCache[cacheKey] = entry;
-        maybePersistScreenCacheEntry(cacheKey, entry);
-        return data;
-      })
-      .catch((err) => {
-        inflightRequests.delete(cacheKey);
-        throw err;
-      });
-
-    // Registering in inflightRequests lets loadScreenDataWithCache reuse this
-    // promise if navigation arrives while the request is in flight.
-    inflightRequests.set(cacheKey, p);
-    return p;
-  });
-
-  try {
-    await Promise.allSettled(fetchPromises);
-  } finally {
-    setPrefetchIndicator(false);
-  }
-}
-
-function maybePrefetchFromDashboard() {
-  if (STABILITY_HOTFIX_DISABLE_BACKGROUND_REFRESH) return;
-  if (!hasMountedAuthenticatedShell) return;
-  if (_isRendering || _pendingRender) return;
-  schedulePostLoginPrefetch();
 }
 
 function setShellNavBusy(busy) {
@@ -1840,7 +1675,6 @@ async function mountScreen() {
   beginPerfTimer('route:transition');
   beginPerfTimer(transitionLabel);
   const mountStartMs = performance.now();
-  cancelPrefetchSchedule();
   if (isDesktopViewport()) {
     isMobileNavOpen = false;
     document.body.classList.remove('is-shell-nav-open');
@@ -1930,7 +1764,6 @@ async function mountScreen() {
       });
       if (routeChanged) lastRenderedRoute = state.route;
       if (isStale) backgroundRefreshScreen(screen, cacheKey);
-      maybePrefetchFromDashboard();
       finishRouteTransition(transitionLabel, requestedRoute, cacheKey, mountStartMs, transitionToken);
       return;
     }
@@ -1954,7 +1787,6 @@ async function mountScreen() {
     });
     if (routeChanged) lastRenderedRoute = state.route;
     if (isStale) backgroundRefreshScreen(screen, cacheKey);
-    maybePrefetchFromDashboard();
     finishRouteTransition(transitionLabel, requestedRoute, cacheKey, mountStartMs, transitionToken);
     return;
   } else {
@@ -2021,7 +1853,6 @@ async function mountScreen() {
         }
       }, 3000);
     }
-    maybePrefetchFromDashboard();
   } catch (err) {
     inflightRequests.delete(cacheKey);
     endPerfTimer('route:loadData');
@@ -2059,7 +1890,6 @@ async function mountScreen() {
       hasMountedAuthenticatedShell = true;
       endPerfTimer('login:firstAuthenticatedRender');
       endPerfTimer('screen:firstLoad');
-      schedulePostLoginPrefetch();
     }
     setShellNavBusy(false);
     finishRouteTransition(transitionLabel, requestedRoute, cacheKey, mountStartMs, transitionToken);
@@ -2164,8 +1994,14 @@ function bindShell() {
     if (option) {
       ev.stopPropagation();
       const selected = normalizeGlobalActivityPeriod(option.getAttribute('data-global-period-option'));
-      if (state.activityPeriodTab !== selected) {
-        setGlobalActivityPeriod(selected);
+      if (selected !== ACTIVE_ACTIVITY_SEASON) {
+        setArchiveActivityPeriod(selected);
+        state.route = 'archive';
+        clearScreenDataCache();
+        scheduleRender();
+      } else if (state.activityPeriodTab !== selected || state.route === 'archive') {
+        setArchiveActivityPeriod(ACTIVE_ACTIVITY_SEASON);
+        setGlobalActivityPeriod(ACTIVE_ACTIVITY_SEASON);
         syncGlobalActivityPeriodSelector();
         clearScreenDataCache();
         scheduleRender();
@@ -2235,7 +2071,6 @@ async function render() {
             firstAuthenticatedRenderTimerStarted = false;
             firstLoadTimerStarted = false;
             firstDashboardSnapshotTimerStarted = false;
-            firstPrefetchTimerStarted = false;
             beginPerfTimer('login:setSession');
             setSession({ token: data.token, user: data.user });
             state.authSessionReady = true;
@@ -2261,7 +2096,6 @@ async function render() {
             console.info('[first-route-render:start]', { route: state.route });
             loginInlineError = '';
             endPerfTimer('login:applyBootstrap');
-            scheduleRender();
             mountScreen().then(() => {
               // eslint-disable-next-line no-console
               console.info('[first-route-render:success]', { route: state.route });

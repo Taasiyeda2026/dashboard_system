@@ -131,7 +131,7 @@ async function readTrainingRows() {
 
 async function readSummerActivities(from, to) {
   if (!supabase) return [];
-  const { data, error } = await supabase.from('activities').select('*');
+  const { data, error } = await supabase.from('activities').select('*').eq('activity_season', 'summer_2026');
   if (error) throw error;
   return (Array.isArray(data) ? data : [])
     .filter((row) => !isActivityDeleted(row))

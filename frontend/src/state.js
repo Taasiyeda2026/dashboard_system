@@ -1,10 +1,9 @@
 import { resetSupabaseAuthSessionWait } from './supabase-client.js';
 import { permissionFlagYes } from './permissions.js';
 import {
-  ACTIVITY_SEASON_REGULAR,
+  ACTIVE_ACTIVITY_SEASON,
   GLOBAL_ACTIVITY_PERIOD_STORAGE_KEY,
   defaultMonthForGlobalActivityPeriod,
-  isValidGlobalActivityPeriod,
   normalizeGlobalActivityPeriod
 } from './screens/shared/summer-activity.js';
 
@@ -87,21 +86,11 @@ function normalizeStoredUserFlags(user) {
   };
 }
 
-const DEFAULT_GLOBAL_ACTIVITY_PERIOD = ACTIVITY_SEASON_REGULAR;
+const DEFAULT_GLOBAL_ACTIVITY_PERIOD = ACTIVE_ACTIVITY_SEASON;
 
 const _initStoredUser = normalizeStoredUserFlags(JSON.parse(localStorage.getItem('dashboard_user') || 'null'));
 const _initCalKey = calendarMonthSessionKey(_initStoredUser?.user_id);
 const _initMonthYm = (_initCalKey && sessionStorage.getItem(_initCalKey)) || '';
-const _storedGlobalActivityPeriod = (() => {
-  try {
-    const stored = localStorage.getItem(GLOBAL_ACTIVITY_PERIOD_STORAGE_KEY) || '';
-    if (stored && !isValidGlobalActivityPeriod(stored)) {
-      localStorage.removeItem(GLOBAL_ACTIVITY_PERIOD_STORAGE_KEY);
-      return '';
-    }
-    return stored;
-  } catch { return ''; }
-})();
 cleanupLegacyCalendarMonthLocalStorage(_initStoredUser?.user_id);
 
 export const state = {
@@ -111,7 +100,9 @@ export const state = {
   routes: [],
   effectiveRoutes: [],
   activityTab: 'all',
-  activityPeriodTab: normalizeGlobalActivityPeriod(_storedGlobalActivityPeriod || DEFAULT_GLOBAL_ACTIVITY_PERIOD),
+  activityPeriodTab: DEFAULT_GLOBAL_ACTIVITY_PERIOD,
+  /** Historical period is used only after an explicit archive selection. */
+  archiveActivityPeriod: null,
   activityFinanceStatus: '',
   activityQuickFamily: '',
   activityQuickManager: '',
@@ -190,6 +181,7 @@ export function setSession(session) {
     state.route = 'login';
     state.activityTab = 'all';
     setGlobalActivityPeriod(DEFAULT_GLOBAL_ACTIVITY_PERIOD, { persist: false });
+    state.archiveActivityPeriod = null;
     state.activityFinanceStatus = '';
     state.activityQuickFamily = '';
     state.activityQuickManager = '';
@@ -270,6 +262,12 @@ export function setGlobalActivityPeriod(value, { persist = true } = {}) {
     try { localStorage.setItem(GLOBAL_ACTIVITY_PERIOD_STORAGE_KEY, nextPeriod); } catch { /* ignore */ }
   }
   return nextPeriod;
+}
+
+export function setArchiveActivityPeriod(value) {
+  const period = normalizeGlobalActivityPeriod(value);
+  state.archiveActivityPeriod = period === ACTIVE_ACTIVITY_SEASON ? null : period;
+  return state.archiveActivityPeriod;
 }
 
 export { defaultClientSettings, calendarMonthSessionKey, cleanupLegacyCalendarMonthLocalStorage };
