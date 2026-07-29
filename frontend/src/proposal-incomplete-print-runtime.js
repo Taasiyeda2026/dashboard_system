@@ -7,28 +7,57 @@
  * even when optional or unfinished details are missing (including contact phone
  * or email). This handler is intentionally limited to the preview print button.
  */
-(function installProposalIncompletePrintRuntime() {
-  'use strict';
 
-  if (globalThis.__dsProposalIncompletePrintRuntimeInstalled) return;
-  globalThis.__dsProposalIncompletePrintRuntimeInstalled = true;
-  if (typeof document === 'undefined' || typeof window === 'undefined') return;
+const PREVIEW_SELECTOR = '#pa-preview-overlay';
+const PRINT_BUTTON_SELECTOR = `${PREVIEW_SELECTOR} #pa-print-btn`;
+const PRINT_LABEL = 'הדפסה / PDF';
+const PRINT_TITLE = 'הדפסה או שמירה כ־PDF גם כאשר חסרים פרטים';
+const PRINT_ARIA_LABEL = 'הדפסה או שמירה כ־PDF';
 
-  const PREVIEW_SELECTOR = '#pa-preview-overlay';
-  const PRINT_BUTTON_SELECTOR = `${PREVIEW_SELECTOR} #pa-print-btn`;
+/**
+ * Configures the preview print button without causing repeated DOM mutations.
+ *
+ * The MutationObserver below watches child-list changes. Reassigning textContent
+ * on every observer callback creates another child-list mutation and can trap the
+ * browser in an endless microtask loop. This function is deliberately idempotent:
+ * once the button already has the expected state, it performs no DOM writes.
+ */
+export function configureProposalPreviewPrintButton(button) {
+  if (!button) return false;
 
-  function updatePreviewPrintButton(root = document) {
-    const buttons = [];
-    if (root?.matches?.(PRINT_BUTTON_SELECTOR)) buttons.push(root);
-    root?.querySelectorAll?.(PRINT_BUTTON_SELECTOR).forEach((button) => buttons.push(button));
+  const alreadyConfigured =
+    button.dataset?.paBrowserPrint === 'yes' &&
+    button.textContent === PRINT_LABEL &&
+    button.title === PRINT_TITLE &&
+    button.getAttribute?.('aria-label') === PRINT_ARIA_LABEL;
 
-    buttons.forEach((button) => {
-      button.textContent = 'הדפסה / PDF';
-      button.title = 'הדפסה או שמירה כ־PDF גם כאשר חסרים פרטים';
-      button.setAttribute('aria-label', 'הדפסה או שמירה כ־PDF');
-      button.dataset.paBrowserPrint = 'yes';
-    });
+  if (alreadyConfigured) return false;
+
+  // Mark first so a MutationObserver callback triggered by textContent sees the
+  // configured state and exits without writing again.
+  if (button.dataset) button.dataset.paBrowserPrint = 'yes';
+  else button.setAttribute?.('data-pa-browser-print', 'yes');
+
+  if (button.textContent !== PRINT_LABEL) button.textContent = PRINT_LABEL;
+  if (button.title !== PRINT_TITLE) button.title = PRINT_TITLE;
+  if (button.getAttribute?.('aria-label') !== PRINT_ARIA_LABEL) {
+    button.setAttribute?.('aria-label', PRINT_ARIA_LABEL);
   }
+
+  return true;
+}
+
+export function updateProposalPreviewPrintButton(root = document) {
+  const buttons = [];
+  if (root?.matches?.(PRINT_BUTTON_SELECTOR)) buttons.push(root);
+  root?.querySelectorAll?.(PRINT_BUTTON_SELECTOR).forEach((button) => buttons.push(button));
+  buttons.forEach(configureProposalPreviewPrintButton);
+}
+
+export function installProposalIncompletePrintRuntime() {
+  if (globalThis.__dsProposalIncompletePrintRuntimeInstalled) return false;
+  if (typeof document === 'undefined' || typeof window === 'undefined') return false;
+  globalThis.__dsProposalIncompletePrintRuntimeInstalled = true;
 
   document.addEventListener('click', (event) => {
     const button = event.target?.closest?.(PRINT_BUTTON_SELECTOR);
@@ -57,7 +86,7 @@
       queued = true;
       queueMicrotask(() => {
         queued = false;
-        updatePreviewPrintButton();
+        updateProposalPreviewPrintButton();
       });
     };
   })();
@@ -70,4 +99,8 @@
 
   new MutationObserver(scheduleUpdate)
     .observe(document.documentElement, { childList: true, subtree: true });
-})();
+
+  return true;
+}
+
+installProposalIncompletePrintRuntime();
