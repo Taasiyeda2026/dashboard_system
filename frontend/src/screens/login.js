@@ -1,3 +1,5 @@
+import { beginLoginServiceWorkerUpdate } from '../login-service-worker-update.js';
+
 const loginLogoSrc = new URL('../../assets/logo1.png', import.meta.url).href;
 
 export const loginScreen = {
@@ -75,10 +77,15 @@ export const loginScreen = {
         return;
       }
 
+      // Start the update check in parallel with authentication. Activation and
+      // reload are deferred until onLogin has persisted the session and routes.
+      const serviceWorkerUpdate = beginLoginServiceWorkerUpdate();
       setBusy(true, 'מתחבר...');
       try {
         await onLogin(userId, code, errorNode);
+        await serviceWorkerUpdate.reloadIfUpdated();
       } catch (error) {
+        serviceWorkerUpdate.dispose();
         if (errorNode && !errorNode.textContent) errorNode.textContent = error.message;
         if (root.isConnected) setBusy(false, 'התחברות');
       }
