@@ -3,14 +3,34 @@ import assert from 'node:assert/strict';
 import { readFile } from 'node:fs/promises';
 import { JSDOM } from 'jsdom';
 
-import {
+if (!globalThis.sessionStorage) {
+  const sessionStore = new Map();
+  globalThis.sessionStorage = {
+    getItem: (key) => sessionStore.has(key) ? sessionStore.get(key) : null,
+    setItem: (key, value) => sessionStore.set(key, String(value)),
+    removeItem: (key) => sessionStore.delete(key),
+    clear: () => sessionStore.clear()
+  };
+}
+
+if (!globalThis.localStorage) {
+  const localStore = new Map();
+  globalThis.localStorage = {
+    getItem: (key) => localStore.has(key) ? localStore.get(key) : null,
+    setItem: (key, value) => localStore.set(key, String(value)),
+    removeItem: (key) => localStore.delete(key),
+    clear: () => localStore.clear()
+  };
+}
+
+const {
   NEXT_YEAR_SHORT_NAMES_BY_GEFEN,
   formatProposalHours,
   formatProposalHourlyPrice,
   normalizeProposalPricingTables,
   normalizeProposalPricingHtml,
   installProposalNextYearPricingDisplay
-} from '../frontend/src/proposal-next-year-pricing-display.js';
+} = await import('../frontend/src/proposal-next-year-pricing-display.js');
 
 const MIGRATION_FILE = new URL('../supabase/migrations/20260729153500_update_proposal_activity_next_year_pricing.sql', import.meta.url);
 
