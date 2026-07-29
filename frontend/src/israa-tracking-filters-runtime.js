@@ -3,7 +3,7 @@ const FILTERS_ATTR = 'data-israa-v2-filters';
 const DEBOUNCE_MS = 70;
 
 let timer = null;
-const filterState = { authority: '', school: '', program: '', status: '' };
+const filterState = { query: '', authority: '', school: '', program: '', status: '' };
 
 function clean(value) {
   return String(value == null ? '' : value).replace(/\s+/g, ' ').trim();
@@ -51,20 +51,21 @@ function injectStyles() {
       min-width:0; overflow:hidden; text-overflow:ellipsis; white-space:nowrap;
     }
     .israa-v2__filters-shell {
-      width:100%; margin:0 0 8px; overflow-x:auto; overflow-y:hidden;
-      scrollbar-width:thin; box-sizing:border-box;
+      width:100%; max-width:100%; min-width:0; margin:0 0 8px;
+      overflow:visible; box-sizing:border-box;
     }
     .israa-v2__filters {
-      width:100%; min-width:760px; box-sizing:border-box; display:flex;
-      flex-wrap:nowrap; align-items:center; gap:7px; padding:7px 8px;
+      width:100%; min-width:0; box-sizing:border-box; display:flex;
+      flex-wrap:wrap; align-items:center; gap:7px; padding:7px 8px;
       border:1px solid #dbe3ec; border-radius:9px; background:#fff; white-space:nowrap;
     }
-    .israa-v2__filter-select {
-      flex:1 1 0; min-width:132px; height:34px; padding:0 9px;
+    .israa-v2__filter-select,.israa-v2__filter-query {
+      flex:1 1 116px; min-width:105px; height:34px; padding:0 9px;
       border:1px solid #cbd5e1; border-radius:7px; background:#fff;
       color:#334155; font:inherit; font-size:11.5px; box-sizing:border-box;
     }
-    .israa-v2__filter-select:focus {
+    .israa-v2__filter-query { flex:1.35 1 160px; }
+    .israa-v2__filter-select:focus,.israa-v2__filter-query:focus {
       outline:0; border-color:#0891b2; box-shadow:0 0 0 2px rgba(8,145,178,.12);
     }
     .israa-v2__filter-reset {
@@ -74,7 +75,7 @@ function injectStyles() {
     }
     .israa-v2__filter-reset:hover { background:#f1f5f9; }
     .israa-v2__filter-count {
-      flex:0 0 82px; color:#64748b; font-size:11px; font-weight:750; text-align:center;
+      flex:0 0 68px; color:#64748b; font-size:11px; font-weight:750; text-align:center;
     }
     .israa-v2__filter-empty td {
       padding:24px !important; text-align:center; color:#64748b; background:#fff;
@@ -118,6 +119,7 @@ function programNames(row) {
 
 function rowMatches(row, headerMap) {
   if (row.classList.contains('is-editing') || row.dataset.v2RowId === '__new__') return true;
+  if (filterState.query && !normalized(row.dataset.v2SearchText || row.textContent).includes(normalized(filterState.query))) return false;
   if (filterState.authority && normalized(cellText(row, headerMap, 'רשות')) !== normalized(filterState.authority)) return false;
   if (filterState.school && normalized(schoolName(row, headerMap)) !== normalized(filterState.school)) return false;
   if (filterState.program && !programNames(row).map(normalized).includes(normalized(filterState.program))) return false;
@@ -181,6 +183,10 @@ function applyFilters(container) {
 function bindFilters(container, shell) {
   if (shell.dataset.bound === 'true') return;
   shell.dataset.bound = 'true';
+  shell.querySelector('[data-israa-v2-filter-query]')?.addEventListener('input', (event) => {
+    filterState.query = event.target.value;
+    applyFilters(container);
+  });
   for (const key of ['authority', 'school', 'program', 'status']) {
     shell.querySelector(`[data-israa-v2-filter-${key}]`)?.addEventListener('change', (event) => {
       filterState[key] = event.target.value;
@@ -190,8 +196,8 @@ function bindFilters(container, shell) {
   shell.querySelector('[data-israa-v2-filter-reset]')?.addEventListener('click', () => {
     for (const key of Object.keys(filterState)) {
       filterState[key] = '';
-      const select = shell.querySelector(`[data-israa-v2-filter-${key}]`);
-      if (select) select.value = '';
+      const control = shell.querySelector(`[data-israa-v2-filter-${key}]`);
+      if (control) control.value = '';
     }
     applyFilters(container);
   });
@@ -208,11 +214,12 @@ function enhanceContainer(container) {
     shell.setAttribute(FILTERS_ATTR, 'true');
     shell.innerHTML = `
       <div class="israa-v2__filters" role="search" aria-label="סינון טבלת המעקב">
+        <input type="search" class="israa-v2__filter-query" data-israa-v2-filter-query value="${escapeHtml(filterState.query)}" placeholder="חיפוש בכל נתוני המעקב" aria-label="חיפוש כללי במעקב">
         <select class="israa-v2__filter-select" data-israa-v2-filter-authority aria-label="סינון לפי רשות"></select>
         <select class="israa-v2__filter-select" data-israa-v2-filter-school aria-label="סינון לפי בית ספר"></select>
         <select class="israa-v2__filter-select" data-israa-v2-filter-program aria-label="סינון לפי תוכנית"></select>
         <select class="israa-v2__filter-select" data-israa-v2-filter-status aria-label="סינון לפי סטטוס"></select>
-        <button type="button" class="israa-v2__filter-reset" data-israa-v2-filter-reset>ניקוי</button>
+        <button type="button" class="israa-v2__filter-reset" data-israa-v2-filter-reset>נקה סינון</button>
         <span class="israa-v2__filter-count" data-israa-v2-filter-count></span>
       </div>`;
     toolbar.insertAdjacentElement('afterend', shell);

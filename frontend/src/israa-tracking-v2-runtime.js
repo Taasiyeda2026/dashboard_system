@@ -132,7 +132,13 @@ function injectStyles() {
   style.textContent = `
     .israa-mgmt.israa-v2-active > .israa-toolbar,
     .israa-mgmt.israa-v2-active > .prog-section { display: none !important; }
-    .israa-v2 { direction: rtl; margin-top: 10px; }
+    .israa-mgmt,
+    .israa-mgmt.israa-v2-active,
+    .israa-mgmt .israa-v2,
+    .israa-mgmt [data-israa-tracking-v2] {
+      width:100%; max-width:100%; min-width:0; box-sizing:border-box;
+    }
+    .israa-v2 { direction:rtl; margin-top:10px; overflow:visible; }
     .israa-v2__title-row {
       display:flex; align-items:center; justify-content:space-between; gap:12px; margin-bottom:10px;
     }
@@ -159,7 +165,9 @@ function injectStyles() {
     .israa-v2__error { margin-bottom:8px; padding:8px 10px; border-radius:8px; background:#fee2e2; color:#991b1b; font-size:.78rem; }
     .israa-v2__loading { padding:22px; text-align:center; color:#64748b; }
     .israa-v2__wrap {
-      width:100%; overflow-x:auto; border:1px solid #dbe3ec; border-radius:10px; background:#fff;
+      width:100%; max-width:100%; min-width:0; overflow-x:auto; overflow-y:visible;
+      direction:rtl; box-sizing:border-box; overscroll-behavior-inline:contain;
+      border:1px solid #dbe3ec; border-radius:10px; background:#fff;
       box-shadow:0 2px 8px rgba(26,51,88,.06);
     }
     .israa-v2__table { width:100%; min-width:1510px; table-layout:fixed; border-collapse:collapse; font-size:11.5px; }
@@ -370,6 +378,17 @@ function detailHtml(row, editing, rowKey) {
   </tr>`;
 }
 
+function searchableRowText(row) {
+  return [
+    row.authority, row.school_name, row.semel_mosad, row.program_name,
+    row.quote_number, row.contact_person, row.phone, row.email, row.status,
+    row.notes,
+    ...(Array.isArray(row.proposal_items) ? row.proposal_items.flatMap((item) => [
+      item.program_name, item.item_name, item.gefen_number
+    ]) : [])
+  ].map(clean).filter(Boolean).join(' ');
+}
+
 function rowHtml(row) {
   const editing = editingId === row.id;
   const expanded = editing || expandedId === row.id;
@@ -382,7 +401,7 @@ function rowHtml(row) {
        <button class="israa-v2__icon" data-v2-cancel title="ביטול">✕</button>`
     : `<button class="israa-v2__icon" data-v2-edit="${escapeHtml(row.id)}" title="עריכה">✏️</button>
        <button class="israa-v2__icon israa-v2__btn--danger" data-v2-delete="${escapeHtml(row.id)}" title="מחיקה">🗑️</button>`;
-  const main = `<tr class="israa-v2__row${editing ? ' is-editing' : ''}" data-v2-row-id="${escapeHtml(row.id)}"${editing ? '' : ` data-v2-toggle="${escapeHtml(row.id)}"`}>
+  const main = `<tr class="israa-v2__row${editing ? ' is-editing' : ''}" data-v2-row-id="${escapeHtml(row.id)}" data-v2-search-text="${escapeHtml(searchableRowText(row))}"${editing ? '' : ` data-v2-toggle="${escapeHtml(row.id)}"`}>
     ${cells}<td><div class="israa-v2__actions">${actions}</div></td>
   </tr>`;
   return main + (expanded ? detailHtml(row, editing, row.id) : '');
