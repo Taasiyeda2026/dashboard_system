@@ -29,6 +29,7 @@ function isSummerSourceRow(row = {}) {
 
 function isEligibleWorkshopRow(row = {}) {
   if (!isSummerSourceRow(row)) return false;
+  if (row.is_active_for_proposals === false) return false;
   const pricingKey = text(row.pricing_key);
   const parentKey = text(row.parent_pricing_key);
   return WORKSHOP_PARENT_KEYS.has(pricingKey) || WORKSHOP_PARENT_KEYS.has(parentKey);
@@ -63,7 +64,7 @@ function internalGroups(groups = []) {
     rows.push({
       group_key: NEXT_YEAR_WORKSHOPS_GROUP,
       display_name: 'סדנאות',
-      template_key: 'summer',
+      template_key: 'next_year',
       included_group_keys: [],
       sort_order: 202,
       is_active: true,
@@ -77,7 +78,7 @@ function internalGroups(groups = []) {
       return { ...group, display_name: 'קורסים ותוכניות', template_key: 'next_year', show_gefen: true, is_internal: true };
     }
     if (key === NEXT_YEAR_WORKSHOPS_GROUP) {
-      return { ...group, display_name: 'סדנאות', template_key: 'summer', show_gefen: false, is_internal: true };
+      return { ...group, display_name: 'סדנאות', template_key: 'next_year', show_gefen: false, is_internal: true };
     }
     return group;
   });
@@ -102,7 +103,7 @@ export function augmentNextYearPricingRows(rows = []) {
         ...row,
         proposal_group: NEXT_YEAR_WORKSHOPS_GROUP,
         group_key: NEXT_YEAR_WORKSHOPS_GROUP,
-        template_key: 'summer',
+        template_key: 'next_year',
         item_type: 'סדנה',
         gefen_number: '',
         meetings_count: null,
