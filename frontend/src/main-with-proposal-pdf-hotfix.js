@@ -36,6 +36,7 @@ import './proposal-activity-linking.js';
 import './proposal-domain-routing.js';
 import './israa-tracking-v2-runtime.js';
 import './israa-tracking-subtitle-removal.js';
+import './israa-tracking-horizontal-scroll.js';
 import './screens/annual-reviews-v2.js';
 import './annual-reviews-language-safe.js';
 import './annual-reviews-rating-comment-compact.js';
