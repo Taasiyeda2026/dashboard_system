@@ -8,15 +8,14 @@ import {
   normalizeGlobalActivityPeriod
 } from './screens/shared/summer-activity.js';
 
-function storedOrCurrentPeriod() {
+function storedOrDefaultPeriod() {
   try {
     const stored = localStorage.getItem(GLOBAL_ACTIVITY_PERIOD_STORAGE_KEY) || '';
     if (isValidGlobalActivityPeriod(stored)) return normalizeGlobalActivityPeriod(stored);
   } catch {
     /* ignore storage failures */
   }
-  const current = normalizeGlobalActivityPeriod(state.activityPeriodTab);
-  return current || ACTIVITY_SEASON_REGULAR;
+  return ACTIVITY_SEASON_REGULAR;
 }
 
 function clearPeriodScreenCache() {
@@ -45,7 +44,7 @@ function refreshCurrentRoute() {
 }
 
 // 2026 remains fully accessible until an explicit operational cutover is approved.
-const initialPeriod = storedOrCurrentPeriod();
+const initialPeriod = storedOrDefaultPeriod();
 setGlobalActivityPeriod(initialPeriod, { persist: false });
 state.archiveActivityPeriod = null;
 
@@ -59,9 +58,8 @@ document.addEventListener('click', (event) => {
   const option = event.target?.closest?.('[data-global-period-option]');
   if (!option) return;
 
-  // Override the temporary cutover behavior that redirected every historical
-  // period to the archive. Both 2026 and 2027 must remain normal selectable
-  // operational views until the cutover is explicitly activated.
+  // Override the temporary cutover behavior that redirected 2026 directly to
+  // the archive. Both 2026 and 2027 remain normal selectable operational views.
   event.preventDefault();
   event.stopImmediatePropagation();
 
