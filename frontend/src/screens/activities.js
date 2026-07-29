@@ -43,6 +43,7 @@ import {
 } from './shared/activity-options.js';
 import { readActivitiesGapFromQuery, syncActivitiesGapQuery, isActivitiesGapQueryValue } from './shared/route-query.js';
 import { rowMatchesActivityGapFilter } from './shared/activity-gap-filter.js';
+import { activityMatchesInstructorStatusFilter } from './shared/activity-instructor-filter.js';
 import { renderActivitiesViewSwitcher, bindActivitiesViewSwitcher } from './shared/view-switcher.js';
 import { resolveSchool2027Contact } from './shared/school-2027-contact.js';
 import { ACTIVITY_SEASON_OPTIONS, ACTIVITY_SEASON_REGULAR, ACTIVITY_SEASON_SUMMER_2026, ACTIVITY_SEASON_SCHOOL_2027, getActivityPeriodKey, normalizeActivitySeason, normalizeGlobalActivityPeriod, globalActivityPeriodLabel } from './shared/summer-activity.js';
@@ -354,11 +355,11 @@ function ensureActivityPeriodMonth(state, rows, { force = false } = {}) {
   }
 }
 
-function allActivitiesStatusFilterHtml(state = {}) {
-  if (!isAllActivitiesMode(state)) return '';
+function activityInstructorStatusFilterHtml(state = {}) {
   const selected = normalizeAllActivitiesStatusFilter(state.allActivitiesStatusFilter);
-  return `<select class="ds-input ds-input--sm ds-filter-select-inline ds-filter-select-inline--all-status" data-all-activities-status-filter aria-label="סינון סטטוס בכל הפעילויות" title="סטטוס" dir="rtl">
-      ${ALL_ACTIVITIES_STATUS_FILTERS.map((filter) => `<option value="${escapeHtml(filter.key)}"${filter.key === selected ? ' selected' : ''}>${escapeHtml(filter.key === 'all' ? 'סטטוס: הכל' : filter.label)}</option>`).join('')}
+  const filters = ALL_ACTIVITIES_STATUS_FILTERS.filter((filter) => ['all', 'unassigned'].includes(filter.key));
+  return `<select class="ds-input ds-input--sm ds-filter-select-inline ds-filter-select-inline--assignment" data-activities-instructor-status-filter aria-label="סינון פעילויות לפי שיבוץ מדריך" title="שיבוץ מדריך" dir="rtl">
+      ${filters.map((filter) => `<option value="${escapeHtml(filter.key)}"${filter.key === selected ? ' selected' : ''}>${escapeHtml(filter.key === 'all' ? 'שיבוץ: הכול' : filter.label)}</option>`).join('')}
     </select>`;
 }
 
@@ -1028,9 +1029,7 @@ function applyActivitiesLocalFilters(rows, state, settings) {
   const familyRows = applyClientFilters(rows, state, settings);
   const gapRows = applyActivitiesGapFilter(familyRows, state.activitiesGapFilter);
   prepareRowsForSearch(gapRows, ACTIVITY_SEARCH_FIELDS);
-  const assignmentRows = normalizeAllActivitiesStatusFilter(state.allActivitiesStatusFilter) === 'unassigned'
-    ? gapRows.filter((row) => !String(row.emp_id || '').trim() && !String(row.instructor_name || '').trim())
-    : gapRows;
+  const assignmentRows = gapRows.filter((row) => activityMatchesInstructorStatusFilter(row, state.allActivitiesStatusFilter));
   return applyLocalFilters(assignmentRows, filters, { filterFields: ACTIVITY_FILTER_FIELDS }).sort(compareActivityDefaultOrder);
 }
 
@@ -1845,10 +1844,10 @@ export const activitiesScreen = {
     const isNavLoading = !!state.activitiesNavLoading;
     const navLoadingChip = isNavLoading ? '<span class="ds-inline-loading-dot is-inline-loading" aria-hidden="true"></span>' : '';
     const viewSwitcher = renderActivitiesViewSwitcher(state, 'activities');
-    const allActivitiesStatusFilter = allActivitiesStatusFilterHtml(state);
+    const instructorStatusFilter = activityInstructorStatusFilterHtml(state);
     const mainToolbar = `<div class="ds-activities-main-toolbar" dir="rtl" data-local-filters="${ACTIVITIES_SCOPE}">
       <input type="search" class="ds-input ds-input--sm ds-activities-search-sm" data-filter-search="${ACTIVITIES_SCOPE}" value="${escapeHtml(listFilters.q || '')}" placeholder="חיפוש" aria-label="חיפוש פעילויות" title="חיפוש לפי מזהה, פעילות, מדריך, רשות, בית ספר, סטטוס, תאריך או סמל מוסד" />
-      ${allActivitiesStatusFilter}
+      ${instructorStatusFilter}
       ${bareFilters}
       <div class="ds-activities-main-toolbar__actions">
         <button type="button" class="ds-btn ds-btn--sm ds-btn--ghost ds-activities-toolbar-btn" data-filter-clear="${ACTIVITIES_SCOPE}" aria-label="ניקוי כל הסינונים" title="ניקוי כל הסינונים">ניקוי כל הסינונים</button>
@@ -2526,6 +2525,7 @@ export const activitiesScreen = {
       state.activitiesGapFilter = '';
       syncActivitiesGapQuery('');
       state.activityFinanceStatus = '';
+      state.allActivitiesStatusFilter = 'all';
     } });
     async function loadAllActivitiesForAdmin() {
       return typeof api.allActivities === 'function' ? api.allActivities() : api.activities({ activity_type: 'all' });
@@ -2598,7 +2598,7 @@ export const activitiesScreen = {
       });
     });
 
-    root.querySelector('[data-all-activities-status-filter]')?.addEventListener('change', (ev) => {
+    root.querySelector('[data-activities-instructor-status-filter]')?.addEventListener('change', (ev) => {
       state.allActivitiesStatusFilter = normalizeAllActivitiesStatusFilter(ev.currentTarget?.value);
       ensureActivityListFilters(state, ACTIVITIES_SCOPE).visibleCount = 200;
       rerenderLocal();

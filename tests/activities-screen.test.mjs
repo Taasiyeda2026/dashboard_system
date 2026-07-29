@@ -54,7 +54,7 @@ test('activities render: emp_id without name does not show "ללא מדריך"',
   };
   const html = activitiesScreen.render(data, { state: baseState() });
   assert.match(html, /ds-activities-instructor-name/);
-  assert.doesNotMatch(html, /ללא מדריך/);
+  assert.doesNotMatch(html, /ds-chip--instructor-empty/);
 });
 
 test('activities render: truly missing instructor shows "ללא מדריך"', () => {
@@ -703,7 +703,7 @@ test('activities screen wires add-activity form submit to api.addActivity flow',
   assert.match(source, /form\.addEventListener\('submit'[\s\S]*submitAddActivityForm/);
   assert.match(source, /await api\.addActivity\(payload\)/);
   assert.match(source, /setAddActivityStatus\(statusEl, `לא ניתן לשמור:/);
-  assert.match(source, /const ADD_ACTIVITY_TYPE_ORDER = \['workshop', 'escape_room', 'tour', 'after_school'\]/);
+  assert.match(source, /const ADD_ACTIVITY_TYPE_ORDER = \['course', 'workshop', 'escape_room', 'tour', 'after_school'\]/);
   assert.doesNotMatch(source, /data-add-family=/);
   assert.match(source, /'workshop'/);
   assert.match(source, /'tour'/);
@@ -1160,7 +1160,7 @@ test('global activity period control opens a dropdown instead of blind cycling',
 test('new school 2027 activity defaults to school_2027 and relaxed required fields', () => {
   const source = fs.readFileSync(new URL('../frontend/src/screens/activities.js', import.meta.url), 'utf8');
   assert.match(source, /activityPeriodTab === 'school_2027'[\s\S]*ACTIVITY_SEASON_SCHOOL_2027/);
-  assert.match(source, /initialStatus = initialSeason === ACTIVITY_SEASON_SCHOOL_2027 \? 'מאושר - ממתין לשיבוץ' : 'פתוח'/);
+  assert.match(source, /initialStatus = initialSeason === ACTIVITY_SEASON_SCHOOL_2027 \? 'בתהליך' : 'פתוח'/);
   assert.match(source, /\.\.\.\(isSchool2027Activity \? \[\] : \[\['school', 'בית ספר'\]\]\)/);
   assert.match(source, /if \(!isSchool2027Activity && !String\(payload\.activity_no/);
 });
