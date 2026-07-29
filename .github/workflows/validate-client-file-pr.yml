@@ -15,6 +15,7 @@ on:
       - 'frontend/src/proposal-pdf-storage-key-hotfix.js'
       - 'frontend/src/proposal-activity-linking.js'
       - 'frontend/src/proposal-next-year-pricing-display.js'
+      - 'frontend/src/proposal-next-year-workshops.js'
       - 'frontend/src/activity-drawer-inline-layout.js'
       - 'frontend/src/activity-drawer-type-layout-fix.js'
       - 'frontend/src/admin-permissions-access-hotfix.js'
@@ -34,6 +35,7 @@ on:
       - 'sw.js'
       - 'index.html'
       - 'supabase/migrations/*proposal_activity*.sql'
+      - 'supabase/migrations/*next_year*.sql'
       - 'tests/auth-session-admin-lists-hotfix.test.mjs'
       - 'tests/session-security-policy.test.mjs'
       - 'tests/client-file-*.test.mjs'
@@ -41,6 +43,7 @@ on:
       - 'tests/proposal-pdf-storage-key-hotfix.test.mjs'
       - 'tests/proposal-activity-linking.test.mjs'
       - 'tests/proposal-next-year-pricing-display.test.mjs'
+      - 'tests/proposal-next-year-workshops.test.mjs'
       - 'tests/activity-drawer-inline-layout.test.mjs'
       - 'tests/activity-drawer-type-layout-fix.test.mjs'
       - 'tests/proposals-agreements-screen.test.mjs'
@@ -85,6 +88,7 @@ jobs:
           node --check frontend/src/proposal-pdf-storage-key-hotfix.js
           node --check frontend/src/proposal-activity-linking.js
           node --check frontend/src/proposal-next-year-pricing-display.js
+          node --check frontend/src/proposal-next-year-workshops.js
           node --check frontend/src/activity-drawer-inline-layout.js
           node --check frontend/src/activity-drawer-type-layout-fix.js
           node --check frontend/src/admin-permissions-access-hotfix.js
@@ -115,6 +119,7 @@ jobs:
           node --check tests/proposal-pdf-storage-key-hotfix.test.mjs
           node --check tests/proposal-activity-linking.test.mjs
           node --check tests/proposal-next-year-pricing-display.test.mjs
+          node --check tests/proposal-next-year-workshops.test.mjs
           node --check tests/activity-drawer-inline-layout.test.mjs
           node --check tests/activity-drawer-type-layout-fix.test.mjs
           node --check tests/summer-feedback-admin-personal-reports.test.mjs
@@ -161,6 +166,9 @@ jobs:
 
       - name: Check next-year proposal pricing display
         run: node --test tests/proposal-next-year-pricing-display.test.mjs
+
+      - name: Check next-year workshops in proposals
+        run: node --test tests/proposal-next-year-workshops.test.mjs
 
       - name: Check activity drawer inline layout
         run: node --test tests/activity-drawer-inline-layout.test.mjs
