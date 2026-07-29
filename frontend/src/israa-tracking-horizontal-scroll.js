@@ -1,10 +1,14 @@
 const CONTAINER_SELECTOR = '[data-israa-tracking-v2]';
 const TABLE_WRAP_SELECTOR = '.israa-v2__wrap';
 const TABLE_SELECTOR = '.israa-v2__table';
-const TOP_SCROLL_ATTR = 'data-israa-v2-top-scroll';
-const DEBOUNCE_MS = 60;
+const FIXED_SCROLL_ATTR = 'data-israa-v2-fixed-scroll';
+const OLD_TOP_SCROLL_ATTR = 'data-israa-v2-top-scroll';
+const DEBOUNCE_MS = 50;
 
 let timer = null;
+let fixedScroller = null;
+let activeWrap = null;
+let syncing = false;
 
 function injectStyles() {
   if (document.getElementById('israa-tracking-horizontal-scroll-styles')) return;
@@ -12,22 +16,27 @@ function injectStyles() {
   const style = document.createElement('style');
   style.id = 'israa-tracking-horizontal-scroll-styles';
   style.textContent = `
-    .israa-v2__top-scroll {
-      width: 100%;
-      height: 17px;
-      margin: 0 0 5px;
+    .israa-v2__fixed-scroll {
+      position: fixed;
+      bottom: 7px;
+      height: 19px;
       overflow-x: auto;
       overflow-y: hidden;
       direction: rtl;
       scrollbar-gutter: stable;
-      border-inline: 1px solid transparent;
+      box-sizing: border-box;
+      border: 1px solid #cbd5e1;
+      border-radius: 8px;
+      background: #fff;
+      box-shadow: 0 3px 12px rgba(15, 23, 42, .18);
+      z-index: 1200;
     }
 
-    .israa-v2__top-scroll[hidden] {
+    .israa-v2__fixed-scroll[hidden] {
       display: none !important;
     }
 
-    .israa-v2__top-scroll-inner {
+    .israa-v2__fixed-scroll-inner {
       height: 1px;
       min-height: 1px;
       pointer-events: none;
@@ -36,62 +45,106 @@ function injectStyles() {
   document.head.appendChild(style);
 }
 
-function syncDimensions(topScroller, tableWrap, table) {
-  const inner = topScroller.querySelector('.israa-v2__top-scroll-inner');
-  if (!inner || !tableWrap || !table) return;
+function ensureFixedScroller() {
+  if (fixedScroller?.isConnected) return fixedScroller;
 
-  const tableWidth = Math.max(table.scrollWidth, table.getBoundingClientRect().width);
-  const needsHorizontalScroll = tableWidth > tableWrap.clientWidth + 1;
-
-  topScroller.hidden = !needsHorizontalScroll;
-  inner.style.width = `${Math.ceil(tableWidth)}px`;
-
-  if (needsHorizontalScroll) {
-    topScroller.scrollLeft = tableWrap.scrollLeft;
+  fixedScroller = document.querySelector(`[${FIXED_SCROLL_ATTR}]`);
+  if (!fixedScroller) {
+    fixedScroller = document.createElement('div');
+    fixedScroller.className = 'israa-v2__fixed-scroll';
+    fixedScroller.setAttribute(FIXED_SCROLL_ATTR, 'true');
+    fixedScroller.setAttribute('role', 'scrollbar');
+    fixedScroller.setAttribute('aria-label', 'גלילה רוחבית קבועה של טבלת המעקב');
+    fixedScroller.innerHTML = '<div class="israa-v2__fixed-scroll-inner"></div>';
+    document.body.appendChild(fixedScroller);
   }
+
+  if (fixedScroller.dataset.scrollSyncBound !== 'true') {
+    fixedScroller.dataset.scrollSyncBound = 'true';
+    fixedScroller.addEventListener('scroll', () => {
+      if (syncing || !activeWrap) return;
+      syncing = true;
+      activeWrap.scrollLeft = fixedScroller.scrollLeft;
+      requestAnimationFrame(() => { syncing = false; });
+    }, { passive: true });
+  }
+
+  return fixedScroller;
 }
 
-function enhanceContainer(container) {
-  const tableWrap = container.querySelector(TABLE_WRAP_SELECTOR);
-  const table = tableWrap?.querySelector(TABLE_SELECTOR);
-  if (!tableWrap || !table) return;
+function bindTableWrap(tableWrap) {
+  if (tableWrap.dataset.fixedScrollSyncBound === 'true') return;
+  tableWrap.dataset.fixedScrollSyncBound = 'true';
 
-  let topScroller = container.querySelector(`[${TOP_SCROLL_ATTR}]`);
-  if (!topScroller) {
-    topScroller = document.createElement('div');
-    topScroller.className = 'israa-v2__top-scroll';
-    topScroller.setAttribute(TOP_SCROLL_ATTR, 'true');
-    topScroller.setAttribute('role', 'scrollbar');
-    topScroller.setAttribute('aria-label', 'גלילה רוחבית של טבלת המעקב');
-    topScroller.innerHTML = '<div class="israa-v2__top-scroll-inner"></div>';
-    tableWrap.insertAdjacentElement('beforebegin', topScroller);
+  tableWrap.addEventListener('scroll', () => {
+    if (syncing || !fixedScroller || activeWrap !== tableWrap) return;
+    syncing = true;
+    fixedScroller.scrollLeft = tableWrap.scrollLeft;
+    requestAnimationFrame(() => { syncing = false; });
+  }, { passive: true });
+}
+
+function hideFixedScroller() {
+  if (fixedScroller) fixedScroller.hidden = true;
+  if (activeWrap) {
+    activeWrap.closest(CONTAINER_SELECTOR)?.style.removeProperty('padding-bottom');
+  }
+  activeWrap = null;
+}
+
+function syncGeometry(container, tableWrap, table) {
+  const scroller = ensureFixedScroller();
+  const inner = scroller.querySelector('.israa-v2__fixed-scroll-inner');
+  if (!inner) return;
+
+  const rect = tableWrap.getBoundingClientRect();
+  const tableWidth = Math.max(table.scrollWidth, table.getBoundingClientRect().width);
+  const needsHorizontalScroll = tableWidth > tableWrap.clientWidth + 1;
+  const visibleContainer = container.offsetParent !== null && rect.width > 0;
+
+  if (!needsHorizontalScroll || !visibleContainer) {
+    hideFixedScroller();
+    return;
   }
 
-  if (topScroller.dataset.scrollSyncBound !== 'true') {
-    topScroller.dataset.scrollSyncBound = 'true';
-    let syncing = false;
+  activeWrap = tableWrap;
+  bindTableWrap(tableWrap);
 
-    topScroller.addEventListener('scroll', () => {
-      if (syncing) return;
-      syncing = true;
-      tableWrap.scrollLeft = topScroller.scrollLeft;
-      requestAnimationFrame(() => { syncing = false; });
-    }, { passive: true });
+  const left = Math.max(0, rect.left);
+  const right = Math.min(window.innerWidth, rect.right);
+  const width = Math.max(0, right - left);
 
-    tableWrap.addEventListener('scroll', () => {
-      if (syncing) return;
-      syncing = true;
-      topScroller.scrollLeft = tableWrap.scrollLeft;
-      requestAnimationFrame(() => { syncing = false; });
-    }, { passive: true });
-  }
+  scroller.style.left = `${Math.round(left)}px`;
+  scroller.style.width = `${Math.round(width)}px`;
+  inner.style.width = `${Math.ceil(tableWidth)}px`;
+  scroller.hidden = width < 40;
+  container.style.paddingBottom = '30px';
 
-  requestAnimationFrame(() => syncDimensions(topScroller, tableWrap, table));
+  if (!scroller.hidden) scroller.scrollLeft = tableWrap.scrollLeft;
 }
 
 function run() {
   injectStyles();
-  document.querySelectorAll(CONTAINER_SELECTOR).forEach(enhanceContainer);
+
+  const containers = [...document.querySelectorAll(CONTAINER_SELECTOR)]
+    .filter((container) => container.offsetParent !== null);
+  const container = containers[0];
+
+  if (!container) {
+    hideFixedScroller();
+    return;
+  }
+
+  container.querySelector(`[${OLD_TOP_SCROLL_ATTR}]`)?.remove();
+
+  const tableWrap = container.querySelector(TABLE_WRAP_SELECTOR);
+  const table = tableWrap?.querySelector(TABLE_SELECTOR);
+  if (!tableWrap || !table) {
+    hideFixedScroller();
+    return;
+  }
+
+  requestAnimationFrame(() => syncGeometry(container, tableWrap, table));
 }
 
 function schedule() {
@@ -111,4 +164,6 @@ new MutationObserver(schedule).observe(document.documentElement, {
 });
 
 window.addEventListener('resize', schedule, { passive: true });
+window.addEventListener('scroll', schedule, { passive: true });
 window.addEventListener('hashchange', schedule);
+window.addEventListener('israa-tracking-updated', schedule);
