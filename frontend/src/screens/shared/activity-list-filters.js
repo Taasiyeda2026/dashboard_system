@@ -4,7 +4,8 @@ export const MIN_SEARCH_CHARS = 1;
 export const SEARCH_DEBOUNCE_MS = 150;
 const DEFAULT_SEARCH_DEBOUNCE_MS = SEARCH_DEBOUNCE_MS;
 const DEFAULT_VISIBLE_LIMIT = 200;
-const OPERATIONS_MANAGEMENT_STATUS_OPTIONS = ['פתוח', 'בתהליך', 'סגור', 'בוטל'];
+const OPERATIONS_MANAGEMENT_STATUS_OPTIONS = ['פתוח', 'סגור'];
+const OPERATIONS_MANAGEMENT_EXCLUDED_STATUSES = ['בוטל', 'cancelled', 'canceled'];
 const FILTER_OPTIONS_CACHE = new WeakMap();
 const SEARCH_FIELDS_IDS = new WeakMap();
 let searchFieldsIdSeq = 0;
@@ -68,6 +69,10 @@ export function ensureActivityListFilters(state, scope) {
       ...(state.listFilters[scope].optionOverrides || {}),
       status: OPERATIONS_MANAGEMENT_STATUS_OPTIONS
     };
+    state.listFilters[scope].excludedValues = {
+      ...(state.listFilters[scope].excludedValues || {}),
+      status: OPERATIONS_MANAGEMENT_EXCLUDED_STATUSES
+    };
   }
   if (!Object.prototype.hasOwnProperty.call(state.listFilters[scope], 'appliedQ')) {
     const q = normalizeText(state.listFilters[scope].q || '');
@@ -110,6 +115,17 @@ export function collectFilterOptions(rows, fields) {
 
 const DEPENDENT_EXCLUDE = new Set(['-', 'לא משויך', 'ללא שיוך']);
 
+function rowPassesConfiguredExclusions(row, filters) {
+  const excludedValues = filters?.excludedValues;
+  if (!excludedValues || typeof excludedValues !== 'object') return true;
+
+  return Object.entries(excludedValues).every(([key, rawValues]) => {
+    const values = Array.isArray(rawValues) ? rawValues : [rawValues];
+    const blocked = new Set(values.map(normalizeText).filter(Boolean));
+    return !blocked.has(normalizeText(row?.[key]));
+  });
+}
+
 /**
  * Builds filter options where each field's options come from rows that pass
  * all OTHER active filters (and the active free-text search), so the user
@@ -123,7 +139,18 @@ export function collectDependentFilterOptions(rows, filterFields, activeFilters,
 
   const result = {};
   fields.forEach((field) => {
+    const overrideValues = filters?.optionOverrides?.[field.key];
+    if (Array.isArray(overrideValues)) {
+      result[field.key] = Array.from(new Set(
+        overrideValues
+          .map((value) => String(value || '').trim())
+          .filter((value) => value && !DEPENDENT_EXCLUDE.has(value))
+      ));
+      return;
+    }
+
     const subset = list.filter((row) => {
+      if (!rowPassesConfiguredExclusions(row, filters)) return false;
       if (search && !String(row?.__searchText || '').includes(search)) return false;
       for (const f of fields) {
         if (f.key === field.key) continue;
@@ -144,11 +171,6 @@ export function collectDependentFilterOptions(rows, filterFields, activeFilters,
         if (text && !DEPENDENT_EXCLUDE.has(text)) values.add(text);
       });
     });
-    const overrideValues = filters?.optionOverrides?.[field.key];
-    (Array.isArray(overrideValues) ? overrideValues : []).forEach((value) => {
-      const text = String(value || '').trim();
-      if (text && !DEPENDENT_EXCLUDE.has(text)) values.add(text);
-    });
     result[field.key] = Array.from(values).sort((a, b) => a.localeCompare(b, 'he'));
   });
   return result;
@@ -163,6 +185,7 @@ export function applyLocalFilters(rows, filters, config = {}) {
   const filterFields = Array.isArray(config.filterFields) ? config.filterFields : [];
 
   return list.filter((row) => {
+    if (!rowPassesConfiguredExclusions(row, scoped)) return false;
     if (search && !String(row?.__searchText || '').includes(search)) return false;
     for (const field of filterFields) {
       const selected = String(scoped[field.key] || '').trim();
