@@ -98,6 +98,13 @@ function ensureSchoolCalendarStyles() {
   document.head.appendChild(style);
 }
 
+function hasSchoolCalendarView() {
+  return Boolean(
+    document.querySelector('#app nav[aria-label="ניווט חודשי"] .ds-cal-nav__label')
+      || document.querySelector('#app .ds-week-col[aria-label]')
+  );
+}
+
 function displayedMonthSpec() {
   const label = document.querySelector('#app nav[aria-label="ניווט חודשי"] .ds-cal-nav__label');
   const text = String(label?.textContent || '').replace(/\s+/g, ' ').trim();
@@ -171,6 +178,8 @@ function decorateWeek(rows) {
 
 async function decorateSchoolCalendarViews() {
   ensureSchoolCalendarStyles();
+  if (!hasSchoolCalendarView()) return;
+
   const rows = await loadSchoolCalendarRows();
   decorateMonth(rows);
   decorateWeek(rows);
