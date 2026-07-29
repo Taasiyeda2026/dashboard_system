@@ -94,6 +94,16 @@ test('repeated duplication does not reuse source version lineage', () => {
   }
 });
 
+test('internal next-year item groups are normalized on the proposal record', () => {
+  for (const internalGroup of ['next_year_courses', 'next_year_workshops']) {
+    const clone = buildEditableProposalClonePayload({
+      id: '11111111-1111-1111-1111-111111111111',
+      activity_type_group: internalGroup
+    }, { supersedes_proposal_id: '11111111-1111-1111-1111-111111111111' });
+    assert.equal(clone.activity_type_group, 'next_year');
+  }
+});
+
 test('proposal item cloning keeps content and removes record-specific identifiers', () => {
   const sourceItems = [{
     id: 'item-1',

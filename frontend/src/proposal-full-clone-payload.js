@@ -42,6 +42,11 @@ function cloneValue(value) {
   return value;
 }
 
+function normalizeProposalGroup(value) {
+  const group = text(value).toLowerCase();
+  return group === 'next_year_courses' || group === 'next_year_workshops' ? 'next_year' : value;
+}
+
 /**
  * Builds the complete business payload for an independent editable clone.
  *
@@ -69,6 +74,7 @@ export function buildEditableProposalClonePayload(source = {}, requested = {}) {
   // proposal rather than another version in the source series.
   payload.status = 'draft';
   payload.approval_note = '';
+  payload.activity_type_group = normalizeProposalGroup(payload.activity_type_group);
 
   return payload;
 }
