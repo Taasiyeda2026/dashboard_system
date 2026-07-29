@@ -4,7 +4,8 @@ import { showToast } from './screens/shared/toast.js';
 const CONTAINER_SELECTOR = '[data-israa-tracking-v2]';
 const NEW_ROW_SELECTOR = '[data-v2-row-id="__new__"]';
 const NEW_DETAIL_SELECTOR = '[data-v2-editor="__new__"]';
-const DEBOUNCE_MS = 70;
+const PAGE_SIZE = 1000;
+const DEBOUNCE_MS = 60;
 
 let timer = null;
 let schools = [];
@@ -38,59 +39,70 @@ function injectStyles() {
   const style = document.createElement('style');
   style.id = 'israa-new-row-catalog-styles';
   style.textContent = `
-    .israa-v2__catalog-select {
+    .israa-v2__catalog-select,
+    .israa-v2__catalog-input {
       width: 100%;
       min-width: 0;
+      height: 30px;
       box-sizing: border-box;
-      height: 29px;
-      border: 1px solid #cbd5e1;
+      border: 1px solid #94a3b8;
       border-radius: 6px;
-      padding: 3px 5px;
+      padding: 3px 6px;
       background: #fff;
       color: #0f172a;
       font: inherit;
       font-size: 10.5px;
     }
-
     .israa-v2__catalog-select:focus,
     .israa-v2__catalog-input:focus {
       outline: 0;
       border-color: #0891b2;
-      box-shadow: 0 0 0 2px rgba(8, 145, 178, .12);
+      box-shadow: 0 0 0 2px rgba(8,145,178,.12);
     }
-
     .israa-v2__catalog-input[readonly] {
       background: #f8fafc;
       color: #475569;
+    }
+    .israa-v2__catalog-loading {
+      color: #64748b;
+      font-size: 10px;
     }
   `;
   document.head.appendChild(style);
 }
 
-async function loadCatalogs() {
-  if (catalogsPromise) return catalogsPromise;
-
-  catalogsPromise = Promise.all([
-    supabase
+async function loadAllSchools() {
+  const result = [];
+  for (let from = 0; ; from += PAGE_SIZE) {
+    const { data, error } = await supabase
       .from('schools')
       .select('id,semel_mosad,school_name,authority,authority_id,principal_name,school_phone,active')
-      .in('active', ['yes', 'פעיל'])
+      .eq('active', 'yes')
       .not('semel_mosad', 'is', null)
       .order('school_name', { ascending: true })
-      .range(0, 999),
+      .range(from, from + PAGE_SIZE - 1);
+    if (error) throw error;
+    result.push(...(data || []));
+    if (!data || data.length < PAGE_SIZE) break;
+  }
+  return result;
+}
+
+async function loadCatalogs() {
+  if (catalogsPromise) return catalogsPromise;
+  catalogsPromise = Promise.all([
+    loadAllSchools(),
     supabase
       .from('proposal_gefen_courses')
       .select('id,short_name,full_name,gefen_number,total_price,sort_order')
       .eq('is_active', true)
       .order('sort_order', { ascending: true })
-  ]).then(([schoolsResult, coursesResult]) => {
-    if (schoolsResult.error) throw schoolsResult.error;
-    if (coursesResult.error) throw coursesResult.error;
-
-    schools = (schoolsResult.data || [])
+  ]).then(([schoolRows, courseResult]) => {
+    if (courseResult.error) throw courseResult.error;
+    schools = schoolRows
       .filter((school) => clean(school.school_name) && clean(school.semel_mosad))
       .sort((a, b) => clean(a.school_name).localeCompare(clean(b.school_name), 'he'));
-    courses = (coursesResult.data || [])
+    courses = (courseResult.data || [])
       .filter((course) => clean(course.short_name) && clean(course.gefen_number));
   }).catch((error) => {
     catalogsPromise = null;
@@ -98,7 +110,6 @@ async function loadCatalogs() {
     toast('טעינת רשימות בתי הספר והקורסים נכשלה.');
     throw error;
   });
-
   return catalogsPromise;
 }
 
@@ -122,37 +133,35 @@ function authorityNames() {
 }
 
 function schoolOptionLabel(school) {
-  return [clean(school.school_name), clean(school.semel_mosad), clean(school.authority)]
+  return [clean(school.school_name), `סמל ${clean(school.semel_mosad)}`, clean(school.authority)]
     .filter(Boolean)
     .join(' · ');
 }
 
-function fillSchoolOptions(select, authority = '', selectedSchoolId = '') {
-  const normalizedAuthority = clean(authority);
-  const available = normalizedAuthority
-    ? schools.filter((school) => clean(school.authority) === normalizedAuthority)
-    : schools;
-
-  select.innerHTML = [
-    '<option value="">בחירת בית ספר</option>',
-    ...available.map((school) => `<option value="${escapeHtml(school.id)}"${String(school.id) === String(selectedSchoolId) ? ' selected' : ''}>${escapeHtml(schoolOptionLabel(school))}</option>`)
-  ].join('');
-}
-
-function fillAuthorityOptions(select, selectedAuthority = '') {
+function fillAuthorityOptions(select, selected = '') {
   select.innerHTML = [
     '<option value="">בחירת רשות</option>',
-    ...authorityNames().map((authority) => `<option value="${escapeHtml(authority)}"${authority === selectedAuthority ? ' selected' : ''}>${escapeHtml(authority)}</option>`)
+    ...authorityNames().map((authority) => `<option value="${escapeHtml(authority)}"${authority === selected ? ' selected' : ''}>${escapeHtml(authority)}</option>`)
   ].join('');
 }
 
-function fillCourseOptions(select, selectedCourse = '') {
+function fillSchoolOptions(select, authority = '', selectedId = '') {
+  const authorityName = clean(authority);
+  const available = authorityName
+    ? schools.filter((school) => clean(school.authority) === authorityName)
+    : schools;
   select.innerHTML = [
-    '<option value="">בחירת תוכנית</option>',
+    '<option value="">בחירת בית ספר מתוך הרשימה</option>',
+    ...available.map((school) => `<option value="${escapeHtml(school.id)}"${String(school.id) === String(selectedId) ? ' selected' : ''}>${escapeHtml(schoolOptionLabel(school))}</option>`)
+  ].join('');
+}
+
+function fillCourseOptions(select, selected = '') {
+  select.innerHTML = [
+    '<option value="">בחירת תוכנית מתוך רשימת הקורסים</option>',
     ...courses.map((course) => {
       const name = clean(course.short_name);
-      const label = `${name} · ${clean(course.gefen_number)}`;
-      return `<option value="${escapeHtml(name)}"${name === selectedCourse ? ' selected' : ''}>${escapeHtml(label)}</option>`;
+      return `<option value="${escapeHtml(name)}"${name === selected ? ' selected' : ''}>${escapeHtml(`${name} · גפ״ן ${clean(course.gefen_number)}`)}</option>`;
     })
   ].join('');
 }
@@ -161,16 +170,13 @@ async function contactsForSchool(school) {
   const key = String(school.id || school.semel_mosad || '');
   if (contactsCache.has(key)) return contactsCache.get(key);
 
-  let query = supabase
+  let { data, error } = await supabase
     .from('contacts_schools')
     .select('id,school_id,semel_mosad,contact_name,contact_role,phone,mobile,email,active')
     .in('active', ['yes', 'פעיל'])
-    .order('contact_name', { ascending: true });
-
-  if (school.id) query = query.eq('school_id', school.id);
-  else query = query.eq('semel_mosad', school.semel_mosad);
-
-  let { data, error } = await query.range(0, 99);
+    .eq('school_id', school.id)
+    .order('contact_name', { ascending: true })
+    .range(0, 99);
   if (error) throw error;
 
   if ((!data || !data.length) && school.semel_mosad) {
@@ -202,7 +208,6 @@ function applyContact(contact, detail) {
 function configureContactInput(detail, contacts, school) {
   const contactInput = field(detail, 'contact_person');
   if (!contactInput) return;
-
   contactInput.classList.add('israa-v2__catalog-input');
   contactInput.setAttribute('list', 'israa-v2-new-contact-options');
   contactInput.dataset.israaNewContact = 'true';
@@ -215,8 +220,8 @@ function configureContactInput(detail, contacts, school) {
   }
   datalist.innerHTML = contacts.map((contact) => {
     const role = clean(contact.contact_role);
-    const label = role ? `${clean(contact.contact_name)} · ${role}` : clean(contact.contact_name);
-    return `<option value="${escapeHtml(clean(contact.contact_name))}">${escapeHtml(label)}</option>`;
+    const name = clean(contact.contact_name);
+    return `<option value="${escapeHtml(name)}">${escapeHtml(role ? `${name} · ${role}` : name)}</option>`;
   }).join('');
 
   contactInput.onchange = () => {
@@ -227,11 +232,7 @@ function configureContactInput(detail, contacts, school) {
   if (contacts.length) {
     applyContact(contacts[0], detail);
   } else {
-    applyContact({
-      contact_name: clean(school.principal_name),
-      phone: clean(school.school_phone),
-      email: ''
-    }, detail);
+    applyContact({ contact_name: school.principal_name, phone: school.school_phone, email: '' }, detail);
   }
 }
 
@@ -248,12 +249,10 @@ async function applySchoolSelection(container, schoolSelect, school) {
   const authoritySelect = field(row, 'authority');
   if (semelInput) semelInput.value = clean(school.semel_mosad);
   if (authoritySelect) authoritySelect.value = clean(school.authority);
-
   fillSchoolOptions(schoolSelect, clean(school.authority), school.id);
 
   try {
-    const contacts = await contactsForSchool(school);
-    configureContactInput(detail, contacts, school);
+    configureContactInput(detail, await contactsForSchool(school), school);
   } catch (error) {
     console.error('[israa-new-row-contacts]', error);
     configureContactInput(detail, [], school);
@@ -323,13 +322,18 @@ function enhanceNewRow(container) {
   courseSelect.addEventListener('change', () => {
     const selected = courses.find((course) => clean(course.short_name) === clean(courseSelect.value));
     gefenInput.value = selected ? clean(selected.gefen_number) : '';
+    const amountInput = field(row, 'total_amount');
+    const quantityInput = field(row, 'quantity');
+    if (selected && amountInput && !clean(amountInput.value)) {
+      const quantity = Math.max(1, Number(quantityInput?.value || 1));
+      amountInput.value = String(Number(selected.total_price || 0) * quantity);
+    }
   });
 }
 
 function validateNewRow(container) {
   const row = container.querySelector(NEW_ROW_SELECTOR);
   if (!row) return true;
-
   const required = [
     ['school_id', 'יש לבחור בית ספר מתוך הרשימה.'],
     ['school_name', 'יש לבחור בית ספר מתוך הרשימה.'],
@@ -337,7 +341,6 @@ function validateNewRow(container) {
     ['program_name', 'יש לבחור תוכנית מתוך רשימת הקורסים.'],
     ['gefen_numbers', 'לתוכנית שנבחרה חסר מספר גפ״ן.']
   ];
-
   for (const [name, message] of required) {
     if (!clean(field(row, name)?.value)) {
       toast(message);
@@ -351,18 +354,23 @@ async function run() {
   injectStyles();
   const container = document.querySelector(CONTAINER_SELECTOR);
   if (!container || !container.querySelector(NEW_ROW_SELECTOR)) return;
+  const row = container.querySelector(NEW_ROW_SELECTOR);
+  if (row && row.dataset.catalogEnhanced !== 'true') {
+    const firstInput = field(row, 'school_name');
+    if (firstInput) firstInput.placeholder = 'טוען רשימת בתי ספר…';
+  }
   await loadCatalogs();
   enhanceNewRow(container);
 }
 
 function schedule() {
   clearTimeout(timer);
-  timer = setTimeout(() => {
-    run().catch((error) => console.error('[israa-new-row-catalog]', error));
-  }, DEBOUNCE_MS);
+  timer = setTimeout(() => run().catch((error) => console.error('[israa-new-row-catalog]', error)), DEBOUNCE_MS);
 }
 
 document.addEventListener('click', (event) => {
+  if (event.target.closest('[data-v2-add]')) setTimeout(schedule, 0);
+
   const saveButton = event.target.closest('[data-v2-save-new]');
   if (!saveButton) return;
   const container = saveButton.closest(CONTAINER_SELECTOR);
@@ -377,9 +385,6 @@ if (document.readyState === 'loading') {
   schedule();
 }
 
-new MutationObserver(schedule).observe(document.documentElement, {
-  childList: true,
-  subtree: true
-});
-
+new MutationObserver(schedule).observe(document.documentElement, { childList: true, subtree: true });
 window.addEventListener('hashchange', schedule);
+window.addEventListener('israa-tracking-updated', schedule);
