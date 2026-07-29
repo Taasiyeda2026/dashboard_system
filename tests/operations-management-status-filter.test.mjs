@@ -27,38 +27,48 @@ function buildState(status) {
 
 const rows = [
   {
-    RowID: 'OPS-OPEN-1',
+    RowID: 'summer_open_1',
     status: 'פתוח',
-    activity_season: 'regular',
-    authority: 'רשות בדיקה',
-    school: 'בית ספר פתוח',
-    activity_name: 'פעילות פתוחה',
+    activity_season: 'summer_2026',
+    authority: 'רשות קיץ',
+    school: 'בית ספר קיץ פתוח',
+    activity_name: 'פעילות קיץ פתוחה',
     start_date: '2026-07-01',
     instructor_name: 'מדריך א'
   },
   {
-    RowID: 'OPS-CLOSED-1',
+    RowID: 'summer_closed_1',
     status: 'סגור',
-    activity_season: 'regular',
-    authority: 'רשות בדיקה',
-    school: 'בית ספר סגור',
-    activity_name: 'פעילות שנסגרה',
+    activity_season: 'summer_2026',
+    authority: 'רשות קיץ',
+    school: 'בית ספר קיץ סגור',
+    activity_name: 'פעילות קיץ שנסגרה',
     start_date: '2026-07-02',
     instructor_name: 'מדריך ב'
   },
   {
-    RowID: 'OPS-CANCELLED-1',
+    RowID: 'summer_cancelled_1',
     status: 'בוטל',
-    activity_season: 'regular',
-    authority: 'רשות בדיקה',
-    school: 'בית ספר מבוטל',
-    activity_name: 'פעילות שבוטלה',
+    activity_season: 'summer_2026',
+    authority: 'רשות קיץ',
+    school: 'בית ספר קיץ מבוטל',
+    activity_name: 'פעילות קיץ שבוטלה',
     start_date: '2026-07-03',
     instructor_name: 'מדריך ג'
+  },
+  {
+    RowID: 'regular_2026_1',
+    status: 'פתוח',
+    activity_season: 'regular',
+    authority: 'רשות שנתית',
+    school: 'בית ספר שנתי',
+    activity_name: 'פעילות שנתית 2026',
+    start_date: '2026-07-04',
+    instructor_name: 'מדריך ד'
   }
 ];
 
-test('operations management status filter contains only all, open and closed', () => {
+test('operations authorities show only summer 2026 with all, open and closed statuses', () => {
   const openHtml = operationsManagementScreen.render(
     { rows, workshopStockMap: new Map() },
     { state: buildState('פתוח') }
@@ -69,9 +79,12 @@ test('operations management status filter contains only all, open and closed', (
   assert.match(openHtml, /<option value="סגור">סגור<\/option>/);
   assert.doesNotMatch(openHtml, /<option value="בתהליך"/);
   assert.doesNotMatch(openHtml, /<option value="בוטל"/);
-  assert.match(openHtml, /פעילות פתוחה/);
-  assert.doesNotMatch(openHtml, /פעילות שנסגרה/);
-  assert.doesNotMatch(openHtml, /פעילות שבוטלה/);
+  assert.match(openHtml, /value="2026-06-15"/);
+  assert.match(openHtml, /value="2026-08-31"/);
+  assert.match(openHtml, /פעילות קיץ פתוחה/);
+  assert.doesNotMatch(openHtml, /פעילות קיץ שנסגרה/);
+  assert.doesNotMatch(openHtml, /פעילות קיץ שבוטלה/);
+  assert.doesNotMatch(openHtml, /פעילות שנתית 2026/);
 
   const closedHtml = operationsManagementScreen.render(
     { rows, workshopStockMap: new Map() },
@@ -79,16 +92,18 @@ test('operations management status filter contains only all, open and closed', (
   );
 
   assert.match(closedHtml, /<option value="סגור" selected>סגור<\/option>/);
-  assert.match(closedHtml, /פעילות שנסגרה/);
-  assert.doesNotMatch(closedHtml, /פעילות פתוחה/);
-  assert.doesNotMatch(closedHtml, /פעילות שבוטלה/);
+  assert.match(closedHtml, /פעילות קיץ שנסגרה/);
+  assert.doesNotMatch(closedHtml, /פעילות קיץ פתוחה/);
+  assert.doesNotMatch(closedHtml, /פעילות קיץ שבוטלה/);
+  assert.doesNotMatch(closedHtml, /פעילות שנתית 2026/);
 
   const allHtml = operationsManagementScreen.render(
     { rows, workshopStockMap: new Map() },
     { state: buildState('') }
   );
 
-  assert.match(allHtml, /פעילות פתוחה/);
-  assert.match(allHtml, /פעילות שנסגרה/);
-  assert.doesNotMatch(allHtml, /פעילות שבוטלה/);
+  assert.match(allHtml, /פעילות קיץ פתוחה/);
+  assert.match(allHtml, /פעילות קיץ שנסגרה/);
+  assert.doesNotMatch(allHtml, /פעילות קיץ שבוטלה/);
+  assert.doesNotMatch(allHtml, /פעילות שנתית 2026/);
 });
