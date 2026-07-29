@@ -59,4 +59,24 @@ export function evaluateInstructor({ instructor, profile: rawProfile, rules=[], 
   if(score!==null){scoreReasons.push(`מתאים לשפה ${LANGUAGE_LABELS[language]}`);if(education)scoreReasons.push(`מתאים לשכבת ${EDUCATION_LABELS[education]}`);scoreReasons.push(profile.gender==='female'?'פנויה בכל המפגשים':'פנוי בכל המפגשים');if(travel?.home?.distance_km!=null){scoreReasons.push(`${Math.round(travel.home.distance_km)} ק״מ מהבית, ${Math.round(travel.home.duration_minutes)} דקות נסיעה`);score-=Math.min(30,Math.max(0,travel.home.distance_km-10)*.6);if(travel.home.distance_km>40)warnings.push('מרחק הבית עולה על 40 ק״מ');}else scoreReasons.push('המרחק טרם חושב');if(sameSchool){score+=Math.min(12,sameSchool*4);scoreReasons.push(`${sameSchool} חיבורים באותו בית ספר`);}if(sameAuthority){score+=Math.min(8,sameAuthority*2);scoreReasons.push(`${sameAuthority} חיבורים באותה רשות`);}if(waitMinutes){score-=Math.min(10,Math.floor(waitMinutes/120));scoreReasons.push(`${waitMinutes} דקות המתנה מצטברות`);}if(separateTrips){score-=Math.min(10,separateTrips*2);scoreReasons.push(`${separateTrips} נסיעות נפרדות`);}score-=Math.min(18,weeklyLoad*2);scoreReasons.push(`עומס שבועי: ${weeklyLoad} מפגשים`);if(weeklyLoad>averageWeeklyLoad+2)warnings.push('עומס שבועי גבוה מהממוצע');score=Math.max(0,Math.min(120,Math.round(score)));}
   return {eligible:!failures.length,score,failures:[...new Set(failures)],warnings:[...new Set(warnings)],explanation:[...scoreReasons,...warnings].join(', '),scoreReasons,schedule};
 }
-export function rankInstructors(input) { const candidates=input.instructors.map(instructor=>({instructor,...evaluateInstructor({...input,instructor,profile:input.profiles?.[String(instructor.emp_id)],rules:input.rules?.[String(instructor.emp_id)] || [],exceptions:input.exceptions?.[String(instructor.emp_id)] || [],existingActivities:input.assignments?.[String(instructor.emp_id)] || [],travel:input.travel?.[String(instructor.emp_id)] || null,weeklyLoad:input.weeklyLoads?.[String(instructor.emp_id)] || 0})}));return {recommended:candidates.filter(c=>c.eligible&&!c.warnings.length).sort((a,b)=>b.score-a.score),exceptions:candidates.filter(c=>c.eligible&&c.warnings.length).sort((a,b)=>b.score-a.score),rejected:candidates.filter(c=>!c.eligible)}; }
+export function rankInstructors(input) {
+  const candidates=input.instructors.map(instructor=>({
+    instructor,
+    ...evaluateInstructor({
+      ...input,
+      instructor,
+      profile:input.profiles?.[String(instructor.emp_id)],
+      rules:input.rules?.[String(instructor.emp_id)] || [],
+      exceptions:input.exceptions?.[String(instructor.emp_id)] || [],
+      existingActivities:input.assignments?.[String(instructor.emp_id)] || [],
+      travel:input.travel?.[String(instructor.emp_id)] || null,
+      weeklyLoad:input.weeklyLoads?.[String(instructor.emp_id)] || 0,
+      averageWeeklyLoad:Number(input.averageWeeklyLoad) || 0
+    })
+  }));
+  return {
+    recommended:candidates.filter(c=>c.eligible&&!c.warnings.length).sort((a,b)=>b.score-a.score),
+    exceptions:candidates.filter(c=>c.eligible&&c.warnings.length).sort((a,b)=>b.score-a.score),
+    rejected:candidates.filter(c=>!c.eligible)
+  };
+}
