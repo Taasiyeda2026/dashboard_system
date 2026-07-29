@@ -1,12 +1,11 @@
-const EDUCATION_LABELS = { elementary: 'יסודי', middle_school: 'חטיבת ביניים', high_school: 'תיכון' };
 const LANGUAGE_LABELS = { he: 'עברית', ar: 'ערבית' };
 export const DEFAULT_SCHEDULING_PROFILE = Object.freeze({
-  gender: null, instruction_languages: ['he'], education_levels: ['elementary', 'middle_school', 'high_school'],
+  gender: null, instruction_languages: [],
   course_restriction_mode: 'all', course_ids: [], blocked_authorities: [], blocked_schools: [], friday_allowed: false,
   default_start_time: '08:00', default_end_time: '15:00'
 });
 export function normalizeSchedulingProfile(profile = {}) {
-  return { ...DEFAULT_SCHEDULING_PROFILE, ...(profile || {}), instruction_languages: Array.isArray(profile?.instruction_languages) ? profile.instruction_languages : DEFAULT_SCHEDULING_PROFILE.instruction_languages, education_levels: Array.isArray(profile?.education_levels) ? profile.education_levels : DEFAULT_SCHEDULING_PROFILE.education_levels, course_ids: Array.isArray(profile?.course_ids) ? profile.course_ids : [], blocked_authorities: Array.isArray(profile?.blocked_authorities) ? profile.blocked_authorities : [], blocked_schools: Array.isArray(profile?.blocked_schools) ? profile.blocked_schools : [] };
+  return { ...DEFAULT_SCHEDULING_PROFILE, ...(profile || {}), instruction_languages: Array.isArray(profile?.instruction_languages) ? profile.instruction_languages : [], course_ids: Array.isArray(profile?.course_ids) ? profile.course_ids : [], blocked_authorities: Array.isArray(profile?.blocked_authorities) ? profile.blocked_authorities : [], blocked_schools: Array.isArray(profile?.blocked_schools) ? profile.blocked_schools : [] };
 }
 export function deriveEducationLevel(grade) {
   const value = String(grade || '').trim().toLowerCase();
@@ -27,12 +26,11 @@ export function adjacentActivities(existingActivities, meeting) {
 }
 export function evaluateInstructor({ instructor, profile: rawProfile, rules=[], exceptions=[], activity, existingActivities=[], travel=null, weeklyLoad=0, averageWeeklyLoad=0 }) {
   const profile=normalizeSchedulingProfile(rawProfile), failures=[], warnings=[], scoreReasons=[], schedule=[];
-  const meetings=meetingRows(activity), language=activity.instruction_language || 'he', gender=activity.required_instructor_gender || 'any', education=activity.education_level || deriveEducationLevel(activity.grade), empId=String(instructor.emp_id || '');
+  const meetings=meetingRows(activity), language=String(activity.instruction_language || '').trim(), gender=activity.required_instructor_gender || 'any', empId=String(instructor.emp_id || '');
   if (String(instructor.active ?? 'yes').toLowerCase()==='no' || instructor.active===false) failures.push('המדריך אינו פעיל');
   if (!String(instructor.address || '').trim()) failures.push('חסרה כתובת מדריך');
-  if (!profile.instruction_languages.includes(language)) failures.push(`אינו מדריך ב${LANGUAGE_LABELS[language] || language}`);
+  if (language && !profile.instruction_languages.includes(language)) failures.push(`אינו מדריך ב${LANGUAGE_LABELS[language] || language}`);
   if (gender!=='any' && profile.gender!==gender) failures.push(gender==='female'?'הפעילות מחייבת מדריכה':'הפעילות מחייבת מדריך');
-  if (education && !profile.education_levels.includes(education)) failures.push(`אינו מתאים לשכבת ${EDUCATION_LABELS[education]}`);
   const courseId=String(activity.course_id || activity.activity_no || activity.activity_name || ''), courses=list(profile.course_ids);
   if (profile.course_restriction_mode==='allow_only'&&!courses.includes(courseId)) failures.push('המדריך מתאים רק לקורסים אחרים');
   if (profile.course_restriction_mode==='block_selected'&&courses.includes(courseId)) failures.push('הקורס חסום עבור המדריך');
@@ -56,7 +54,7 @@ export function evaluateInstructor({ instructor, profile: rawProfile, rules=[], 
     schedule.push({date:meeting.date,previous,next,previous_travel:transition.previous || null,next_travel:transition.next || null});
   }
   let score=failures.length?null:100;
-  if(score!==null){scoreReasons.push(`מתאים לשפה ${LANGUAGE_LABELS[language]}`);if(education)scoreReasons.push(`מתאים לשכבת ${EDUCATION_LABELS[education]}`);scoreReasons.push(profile.gender==='female'?'פנויה בכל המפגשים':'פנוי בכל המפגשים');if(travel?.home?.distance_km!=null){scoreReasons.push(`${Math.round(travel.home.distance_km)} ק״מ מהבית, ${Math.round(travel.home.duration_minutes)} דקות נסיעה`);score-=Math.min(30,Math.max(0,travel.home.distance_km-10)*.6);if(travel.home.distance_km>40)warnings.push('מרחק הבית עולה על 40 ק״מ');}else scoreReasons.push('המרחק טרם חושב');if(sameSchool){score+=Math.min(12,sameSchool*4);scoreReasons.push(`${sameSchool} חיבורים באותו בית ספר`);}if(sameAuthority){score+=Math.min(8,sameAuthority*2);scoreReasons.push(`${sameAuthority} חיבורים באותה רשות`);}if(waitMinutes){score-=Math.min(10,Math.floor(waitMinutes/120));scoreReasons.push(`${waitMinutes} דקות המתנה מצטברות`);}if(separateTrips){score-=Math.min(10,separateTrips*2);scoreReasons.push(`${separateTrips} נסיעות נפרדות`);}score-=Math.min(18,weeklyLoad*2);scoreReasons.push(`עומס שבועי: ${weeklyLoad} מפגשים`);if(weeklyLoad>averageWeeklyLoad+2)warnings.push('עומס שבועי גבוה מהממוצע');score=Math.max(0,Math.min(120,Math.round(score)));}
+  if(score!==null){if(language)scoreReasons.push(`מתאים לשפה ${LANGUAGE_LABELS[language]}`);scoreReasons.push(profile.gender==='female'?'פנויה בכל המפגשים':'פנוי בכל המפגשים');if(travel?.home?.distance_km!=null){scoreReasons.push(`${Math.round(travel.home.distance_km)} ק״מ מהבית, ${Math.round(travel.home.duration_minutes)} דקות נסיעה`);score-=Math.min(30,Math.max(0,travel.home.distance_km-10)*.6);if(travel.home.distance_km>40)warnings.push('מרחק הבית עולה על 40 ק״מ');}else scoreReasons.push('המרחק טרם חושב');if(sameSchool){score+=Math.min(12,sameSchool*4);scoreReasons.push(`${sameSchool} חיבורים באותו בית ספר`);}if(sameAuthority){score+=Math.min(8,sameAuthority*2);scoreReasons.push(`${sameAuthority} חיבורים באותה רשות`);}if(waitMinutes){score-=Math.min(10,Math.floor(waitMinutes/120));scoreReasons.push(`${waitMinutes} דקות המתנה מצטברות`);}if(separateTrips){score-=Math.min(10,separateTrips*2);scoreReasons.push(`${separateTrips} נסיעות נפרדות`);}score-=Math.min(18,weeklyLoad*2);scoreReasons.push(`עומס שבועי: ${weeklyLoad} מפגשים`);if(weeklyLoad>averageWeeklyLoad+2)warnings.push('עומס שבועי גבוה מהממוצע');score=Math.max(0,Math.min(120,Math.round(score)));}
   return {eligible:!failures.length,score,failures:[...new Set(failures)],warnings:[...new Set(warnings)],explanation:[...scoreReasons,...warnings].join(', '),scoreReasons,schedule};
 }
 export function rankInstructors(input) {

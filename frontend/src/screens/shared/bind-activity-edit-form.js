@@ -391,6 +391,11 @@ export function bindActivityEditForm(contentRoot, {
       changes[name] = nextValue;
     });
 
+    // An empty scheduling language is a real optional value, never an implicit Hebrew default.
+    if (Object.prototype.hasOwnProperty.call(changes, 'instruction_language') && changes.instruction_language === '') {
+      changes.instruction_language = null;
+    }
+
     if (String(form.dataset.originalStatus || '').trim() === 'פעיל' && !Object.prototype.hasOwnProperty.call(changes, 'status')) {
       changes.status = 'פתוח';
     }

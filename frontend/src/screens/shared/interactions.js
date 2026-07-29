@@ -227,7 +227,7 @@ export function createSharedInteractionLayer() {
     delete modal.dataset.modalVariant;
   }
 
-  function openModal({ title = '', content = '', actions = '', onClose, modalClass = '' } = {}) {
+  function openModal({ title = '', content = '', actions = '', onClose, modalClass = '', keepDrawerOpen = false } = {}) {
     if (!String(content || '').trim() && !String(actions || '').trim() && !title) {
       if (typeof console !== 'undefined') {
         console.warn('[openModal] Blocked: called with no content, no actions, and no title.', new Error().stack);
@@ -248,7 +248,9 @@ export function createSharedInteractionLayer() {
       modal.dataset.modalVariant = variant;
     }
 
-    if (drawerOpen) closeDrawer();
+    // Scheduling is the one workspace that intentionally floats above an activity drawer.
+    // All ordinary modals retain the historical close-the-drawer behaviour.
+    if (drawerOpen && !keepDrawerOpen) closeDrawer();
 
     if (modalOpen && typeof onModalClose === 'function') {
       const prev = onModalClose;

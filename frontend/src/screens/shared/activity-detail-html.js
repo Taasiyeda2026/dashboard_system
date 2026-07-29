@@ -3,6 +3,7 @@ import { formatDateHe, formatDateHeWithWeekday, formatTimeShort, formatTimeRange
 import { activityManagerDisplayName, activityTypeDisplayLabel, activityTypeMatches, cleanActivityManagerName, getManagerUsers, getContactsInstructorUsers, getRosterUsers, getValidInstructorUsers, humanDisplayText, INVALID_ACTIVITY_INSTRUCTOR_STATUS, validateInstructorBinding, NO_ACTIVITY_MANAGER_LABEL, normalizeActivityTypeKey, normalizeOneDayActivityType, resolveActivityInstructorName, resolveGradeOptions } from './activity-options.js';
 import { resolveSchool2027Contact } from './school-2027-contact.js';
 import { ACTIVITY_SEASON_OPTIONS, ACTIVITY_SEASON_SCHOOL_2027, activitySeasonLabel, normalizeActivitySeason } from './summer-activity.js';
+import { isActivitySchedulingEligible } from './activity-scheduling-eligibility.js';
 
 const ONCE_TYPES = ['workshop', 'tour', 'escape_room'];
 const ACTIVITY_EDIT_TYPE_ORDER = ['course', 'workshop', 'escape_room', 'tour', 'after_school'];
@@ -518,7 +519,7 @@ function blockAssignment(row, { settings = {} } = {}) {
   `;
 }
 
-function blockTeamTimes(row, { settings = {} } = {}) {
+function blockTeamTimes(row, { settings = {}, schedulingManaged = false } = {}) {
   const options = settings?.dropdown_options || {};
   const managers = getManagerUsers(settings || {});
   const rosterUsers = getValidInstructorUsers(settings || {});
@@ -546,7 +547,9 @@ function blockTeamTimes(row, { settings = {} } = {}) {
   ].some((result) => !result.valid)
     ? '<p class="ds-error-text">בפעילות זו קיים שיוך למדריך שאינו קיים בטבלת המדריכים. יש לבחור מדריך מחדש.</p>'
     : '';
-  const instructorEditHtml = twoInstructors
+  const instructorEditHtml = schedulingManaged
+    ? `<div class="activity-drawer__view">${escapeHtml(instructor1Display || 'טרם שובץ')}</div>`
+    : twoInstructors
     ? `<div class="activity-drawer__field-controls activity-drawer__field-controls--stacked">
         <input type="hidden" name="instructor_name" value="${escapeHtml(instructor1Display)}">
         <input type="hidden" name="instructor_name_2" value="${escapeHtml(instructor2Display)}">
@@ -1115,16 +1118,13 @@ function jsonAttr(value) {
   }
 }
 
-function schedulingInstructorMultiSelect(name, selected, settings, disabled) {
-  const selectedValues = new Set(Array.isArray(selected) ? selected.map(String) : []);
-  const options = getValidInstructorUsers(settings).map((item) => `<option value="${escapeHtml(item.emp_id)}"${selectedValues.has(String(item.emp_id)) ? ' selected' : ''}>${escapeHtml(item.full_name || item.name)} · ${escapeHtml(item.emp_id)}</option>`).join('');
-  return `<select class="ds-input" name="${name}" multiple size="5" data-scheduling-multi${disabled ? ' disabled' : ''}>${options}</select>`;
-}
-
 function singleForm(row, { settings = {}, privateNote = null, canEdit = false, canDirectEdit = false, canRequestEdit = false, canDeleteActivity = false, canSchedule = false, showPrivateNote = false, idx = 0, datesLoading = false, instructorLimited = false } = {}) {
   const computedEnd = autoEndDate(row);
   const activityType = normalizeActivityTypeKey(row.activity_type || row.item_type);
   const is2027 = normalizeActivitySeason(row.activity_season) === ACTIVITY_SEASON_SCHOOL_2027;
+  const schedulingEligible = isActivitySchedulingEligible(row);
+  const schedulingInstructorName = resolveActivityInstructorName(row)
+    || resolveInstructorDisplayName(row.instructor_name, row.emp_id, buildInstructorLookup(settings));
   const isOnce = ONCE_TYPES.includes(activityType);
   const isCourse = activityType === 'course';
   const isAfterSchool = activityType === 'after_school';
@@ -1163,11 +1163,14 @@ function singleForm(row, { settings = {}, privateNote = null, canEdit = false, c
         ? `<div class="activity-drawer__once-dates-row" data-once-dates-row>${blockDates(row, { canEdit, canDirectEdit, datesLoading, is2027 })}</div>`
         : (showDates ? blockDates(row, { canEdit, canDirectEdit, datesLoading, is2027 }) : '')}
       ${blockNotes(row, { hidden: instructorLimited })}
-      ${isCourse ? `<section class="activity-drawer__section" data-scheduling-requirements><h3 class="activity-drawer__section-title">דרישות שיבוץ</h3><div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(190px,1fr));gap:8px"><label>שפת הדרכה<select class="ds-input" name="instruction_language"${canEdit ? '' : ' disabled'}><option value="he"${(row.instruction_language || 'he') === 'he' ? ' selected' : ''}>עברית</option><option value="ar"${row.instruction_language === 'ar' ? ' selected' : ''}>ערבית</option></select></label><label>דרישת מגדר<select class="ds-input" name="required_instructor_gender"${canEdit ? '' : ' disabled'}><option value="any">ללא דרישה</option><option value="female"${row.required_instructor_gender === 'female' ? ' selected' : ''}>מדריכה בלבד</option><option value="male"${row.required_instructor_gender === 'male' ? ' selected' : ''}>מדריך בלבד</option></select></label><label>שכבת גיל<select class="ds-input" name="education_level"${canEdit ? '' : ' disabled'}><option value="">נגזר מהשכבה</option><option value="elementary"${row.education_level === 'elementary' ? ' selected' : ''}>יסודי</option><option value="middle_school"${row.education_level === 'middle_school' ? ' selected' : ''}>חטיבת ביניים</option><option value="high_school"${row.education_level === 'high_school' ? ' selected' : ''}>תיכון</option></select></label><label>מדריכים חסומים${schedulingInstructorMultiSelect('blocked_instructor_ids', row.blocked_instructor_ids, settings, !canEdit)}</label><label>מדריכים מותרים בלבד${schedulingInstructorMultiSelect('allowed_instructor_ids', row.allowed_instructor_ids, settings, !canEdit)}</label><label>הערת שיבוץ פנימית<textarea class="ds-input" name="scheduling_note"${canEdit ? '' : ' disabled'}>${escapeHtml(row.scheduling_note || '')}</textarea></label></div>${canSchedule ? '<button type="button" class="ds-btn ds-btn--primary" data-find-instructor style="margin-top:12px">איתור ושיבוץ מדריך</button>' : ''}</section>` : ''}
+      ${schedulingEligible ? `<section class="activity-drawer__section activity-scheduling-summary" data-scheduling-summary>
+        <div data-mode="view"><div class="activity-view-field"><span class="activity-view-field__label">מדריך/ה:</span><span class="activity-view-field__value">${escapeHtml(schedulingInstructorName || 'טרם שובץ')}</span></div>${canSchedule ? '<button type="button" class="ds-btn ds-btn--primary" data-find-instructor>ניהול שיבוץ</button>' : ''}</div>
+        <div data-mode="edit" hidden><p class="ds-muted">שני השדות אינם חובה.</p><div class="activity-scheduling-summary__fields"><label>דרישת מגדר (לא חובה)<select class="ds-input" name="required_instructor_gender"><option value="any">ללא דרישה</option><option value="female"${row.required_instructor_gender === 'female' ? ' selected' : ''}>מדריכה</option><option value="male"${row.required_instructor_gender === 'male' ? ' selected' : ''}>מדריך</option></select></label><label>שפת הדרכה (לא חובה)<select class="ds-input" name="instruction_language"><option value="">ללא דרישה</option><option value="he"${row.instruction_language === 'he' ? ' selected' : ''}>עברית</option><option value="ar"${row.instruction_language === 'ar' ? ' selected' : ''}>ערבית</option></select></label></div></div>
+      </section>` : ''}
       ${blockPrivateNote(row, { privateNote, showPrivateNote })}
       ${blockActivityDetails(row, { settings })}
       ${blockAssignment(row, { settings })}
-      ${blockTeamTimes(row, { settings })}
+      ${blockTeamTimes(row, { settings, schedulingManaged: is2027 })}
       ${instructorLimited ? '' : blockExtraEditInfo(row, { settings })}
       ${is2027 ? blockContact2027(row) : ''}
       ${blockEditActions({ canEdit, canDirectEdit, canDeleteActivity })}
