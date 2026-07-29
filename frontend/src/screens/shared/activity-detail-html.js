@@ -1115,7 +1115,7 @@ function jsonAttr(value) {
   }
 }
 
-function singleForm(row, { settings = {}, privateNote = null, canEdit = false, canDirectEdit = false, canRequestEdit = false, canDeleteActivity = false, showPrivateNote = false, idx = 0, datesLoading = false, instructorLimited = false } = {}) {
+function singleForm(row, { settings = {}, privateNote = null, canEdit = false, canDirectEdit = false, canRequestEdit = false, canDeleteActivity = false, canSchedule = false, showPrivateNote = false, idx = 0, datesLoading = false, instructorLimited = false } = {}) {
   const computedEnd = autoEndDate(row);
   const activityType = normalizeActivityTypeKey(row.activity_type || row.item_type);
   const is2027 = normalizeActivitySeason(row.activity_season) === ACTIVITY_SEASON_SCHOOL_2027;
@@ -1157,6 +1157,7 @@ function singleForm(row, { settings = {}, privateNote = null, canEdit = false, c
         ? `<div class="activity-drawer__once-dates-row" data-once-dates-row>${blockDates(row, { canEdit, canDirectEdit, datesLoading, is2027 })}</div>`
         : (showDates ? blockDates(row, { canEdit, canDirectEdit, datesLoading, is2027 }) : '')}
       ${blockNotes(row, { hidden: instructorLimited })}
+      ${isCourse ? `<section class="activity-drawer__section" data-scheduling-requirements><h3 class="activity-drawer__section-title">דרישות שיבוץ</h3><div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(160px,1fr));gap:8px"><label>שפת הדרכה<select class="ds-input" name="instruction_language"${canEdit ? '' : ' disabled'}><option value="he"${(row.instruction_language || 'he') === 'he' ? ' selected' : ''}>עברית</option><option value="ar"${row.instruction_language === 'ar' ? ' selected' : ''}>ערבית</option></select></label><label>דרישת מגדר<select class="ds-input" name="required_instructor_gender"${canEdit ? '' : ' disabled'}><option value="any">ללא דרישה</option><option value="female"${row.required_instructor_gender === 'female' ? ' selected' : ''}>מדריכה בלבד</option><option value="male"${row.required_instructor_gender === 'male' ? ' selected' : ''}>מדריך בלבד</option></select></label><label>שכבת גיל<select class="ds-input" name="education_level"${canEdit ? '' : ' disabled'}><option value="">נגזר מהשכבה</option><option value="elementary"${row.education_level === 'elementary' ? ' selected' : ''}>יסודי</option><option value="middle_school"${row.education_level === 'middle_school' ? ' selected' : ''}>חטיבת ביניים</option><option value="high_school"${row.education_level === 'high_school' ? ' selected' : ''}>תיכון</option></select></label></div>${canSchedule ? '<button type="button" class="ds-btn ds-btn--primary" data-find-instructor style="margin-top:12px">איתור ושיבוץ מדריך</button>' : ''}</section>` : ''}
       ${blockPrivateNote(row, { privateNote, showPrivateNote })}
       ${blockActivityDetails(row, { settings })}
       ${blockAssignment(row, { settings })}
@@ -1186,7 +1187,7 @@ export function activityRowDetailHtml(row, { privateNote = null, hideActivityNo 
 }
 
 export function activityWorkDrawerHtml(row, opts = {}) {
-  const { mode = 'single', summaryDate = '', privateNote = null, canEdit = false, canDirectEdit = false, canRequestEdit = false, canDeleteActivity = false, settings = {}, datesLoading = false, exportAction = true, instructorLimited = false } = opts;
+  const { mode = 'single', summaryDate = '', privateNote = null, canEdit = false, canDirectEdit = false, canRequestEdit = false, canDeleteActivity = false, canSchedule = false, settings = {}, datesLoading = false, exportAction = true, instructorLimited = false } = opts;
   if (mode === 'summary') {
     const rows = Array.isArray(row) ? row : [];
     const body = rows
@@ -1208,7 +1209,8 @@ export function activityWorkDrawerHtml(row, opts = {}) {
             canDeleteActivity,
             showPrivateNote: privateNote !== null,
             idx,
-            instructorLimited
+            instructorLimited,
+            canSchedule
           })}
         </div>
       `)
@@ -1234,7 +1236,8 @@ export function activityWorkDrawerHtml(row, opts = {}) {
         showPrivateNote: privateNote !== null,
         datesLoading,
         idx: 0,
-        instructorLimited
+        instructorLimited,
+        canSchedule
       })}
     </div>
   `;

@@ -60,6 +60,14 @@ export async function saveInstructorSchedulingProfile(row) {
     default_end_time: normalizeTime(row?.default_end_time, '15:00'),
     friday_allowed: !!row?.friday_allowed,
     notes: String(row?.notes || '').trim() || null,
+    gender: ['female', 'male'].includes(row?.gender) ? row.gender : null,
+    instruction_languages: Array.isArray(row?.instruction_languages) ? row.instruction_languages.filter(v => ['he', 'ar'].includes(v)) : ['he'],
+    education_levels: Array.isArray(row?.education_levels) ? row.education_levels.filter(v => ['elementary', 'middle_school', 'high_school'].includes(v)) : [],
+    course_restriction_mode: ['all', 'allow_only', 'block_selected'].includes(row?.course_restriction_mode) ? row.course_restriction_mode : 'all',
+    course_ids: Array.isArray(row?.course_ids) ? row.course_ids.map(String).filter(Boolean) : [],
+    blocked_authorities: Array.isArray(row?.blocked_authorities) ? row.blocked_authorities.map(String).filter(Boolean) : [],
+    blocked_schools: Array.isArray(row?.blocked_schools) ? row.blocked_schools.map(String).filter(Boolean) : [],
+    matching_note: String(row?.matching_note || '').trim() || null,
     updated_at: new Date().toISOString()
   };
   const { data, error } = await supabase

@@ -48,6 +48,7 @@ import { resolveSchool2027Contact } from './shared/school-2027-contact.js';
 import { ACTIVITY_SEASON_OPTIONS, ACTIVITY_SEASON_REGULAR, ACTIVITY_SEASON_SUMMER_2026, ACTIVITY_SEASON_SCHOOL_2027, getActivityPeriodKey, normalizeActivitySeason, normalizeGlobalActivityPeriod, globalActivityPeriodLabel } from './shared/summer-activity.js';
 import { showToast } from './shared/toast.js';
 import { canEditDirect, canAddActivityDirect, canRequestEdit, canRequestCreateActivity, canReviewRequests } from '../permissions.js';
+import { bindInstructorScheduling } from './instructor-scheduling-workflow.js';
 const taasiyedaLogoSrc = new URL('../../assets/logo1.png', import.meta.url).href;
 
 const inflightActivityDetailRequests = new Map();
@@ -63,7 +64,8 @@ const ALL_ACTIVITIES_STATUS_FILTERS = [
   { key: 'all', label: 'הכל' },
   { key: 'open', label: 'פתוח' },
   { key: 'closed', label: 'סגור' },
-  { key: 'undated', label: 'ללא תאריך' }
+  { key: 'undated', label: 'ללא תאריך' },
+  { key: 'unassigned', label: 'ללא מדריך' }
 ];
 const ACTIVITY_PERIOD_TABS = [
   { key: ACTIVITY_SEASON_REGULAR, label: '2026', start: '2025-09-01', end: '2026-08-31' },
@@ -1026,7 +1028,10 @@ function applyActivitiesLocalFilters(rows, state, settings) {
   const familyRows = applyClientFilters(rows, state, settings);
   const gapRows = applyActivitiesGapFilter(familyRows, state.activitiesGapFilter);
   prepareRowsForSearch(gapRows, ACTIVITY_SEARCH_FIELDS);
-  return applyLocalFilters(gapRows, filters, { filterFields: ACTIVITY_FILTER_FIELDS }).sort(compareActivityDefaultOrder);
+  const assignmentRows = normalizeAllActivitiesStatusFilter(state.allActivitiesStatusFilter) === 'unassigned'
+    ? gapRows.filter((row) => !String(row.emp_id || '').trim() && !String(row.instructor_name || '').trim())
+    : gapRows;
+  return applyLocalFilters(assignmentRows, filters, { filterFields: ACTIVITY_FILTER_FIELDS }).sort(compareActivityDefaultOrder);
 }
 
 function buildActivitiesDiagnostics(allRows, state, finalRows) {
@@ -1054,7 +1059,7 @@ function activitiesDiagnosticsHtml(diag) {
   </div>`;
 }
 
-function activityDrawerContent(row, canSeePrivateNotes, canEdit, canDirectEdit, canRequestEdit, canDeleteActivity, hideEmpIds, hideRowId, hideActivityNo, settings, { datesLoading = false } = {}) {
+function activityDrawerContent(row, canSeePrivateNotes, canEdit, canDirectEdit, canRequestEdit, canDeleteActivity, hideEmpIds, hideRowId, hideActivityNo, settings, { datesLoading = false, canSchedule = false } = {}) {
   const privateNote = canSeePrivateNotes ? row.private_note || '—' : null;
   return activityWorkDrawerHtml(row, {
     privateNote,
@@ -1062,6 +1067,7 @@ function activityDrawerContent(row, canSeePrivateNotes, canEdit, canDirectEdit, 
     canDirectEdit,
     canRequestEdit,
     canDeleteActivity,
+    canSchedule,
     hideEmpIds: !!hideEmpIds,
     hideRowId,
     hideActivityNo,
@@ -2156,7 +2162,7 @@ export const activitiesScreen = {
                 canDeleteActivity,
                 hideEmpIds, hideRowId, hideActivityNo,
                 mergeSettingsWithFallback(state?.clientSettings || {}, buildFallbackOptionsFromRows(activitiesRows)),
-                { datesLoading: false }
+                { datesLoading: false, canSchedule: ['admin', 'operation_manager'].includes(String(state?.user?.role || '')) }
               );
               hideShellHeader(contentRoot);
               bindActivityEditForm(contentRoot);
@@ -2375,6 +2381,7 @@ export const activitiesScreen = {
       hideShellHeader(contentRoot);
       bindActivityEditForm(contentRoot);
       bindContact2027Section(contentRoot);
+      bindInstructorScheduling(contentRoot, { ui, state, onAssigned: () => { clearScreenDataCache?.(); rerender(); } });
     }
 
     function bindActivitiesReopenBtn(contentRoot, row) {
@@ -2435,7 +2442,7 @@ export const activitiesScreen = {
       const buildDrawerContent = (row, datesLoading) => {
         const base = activityDrawerContent(
           row, canSeePrivateNotes, canEditActivity, canDirectEdit, canRequestEdit,
-          canDeleteActivity, hideEmpIds, hideRowId, hideActivityNo, settings, { datesLoading }
+          canDeleteActivity, hideEmpIds, hideRowId, hideActivityNo, settings, { datesLoading, canSchedule: ['admin', 'operation_manager'].includes(String(state?.user?.role || '')) }
         );
         if (!canReopenActivity) return base;
         return `<div style="padding:12px 16px 0;text-align:right">
