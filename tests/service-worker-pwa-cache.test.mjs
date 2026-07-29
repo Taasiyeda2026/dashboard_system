@@ -69,6 +69,7 @@ test('service worker fetches app shell and manifest fresh after deploy', async (
   assert.match(frontendSw, /new Request\(request, \{ cache: 'no-store' \}\)/, 'network-first requests should bypass stale browser cache');
   assert.match(frontendSw, /\|\| isManifestUrl\(url\)/, 'manifest should use the network-first path');
   assert.match(frontendSw, /if \(isApiLikeUrl\(url\) \|\| isBlockedCachePath\(url\)\) \{[\s\S]*event\.respondWith\(fetch\(request\)\)/, 'API-like and blocked requests should remain network-only');
+  assert.doesNotMatch(frontendSw, /ignoreSearch\s*:\s*true/, 'cache-busting query strings must remain part of the cache key');
 });
 
 test('PWA manifest and icon files still point to existing dashboard assets', async () => {
