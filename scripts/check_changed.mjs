@@ -17,6 +17,7 @@ const jsExtensions = new Set(['.js', '.mjs', '.cjs']);
 const screenTestMap = new Map([
   ['frontend/src/screens/proposals-agreements.js', ['tests/proposals-agreements-screen.test.mjs']],
   ['frontend/src/proposal-next-year-pricing-display.js', ['tests/proposal-next-year-pricing-display.test.mjs']],
+  ['frontend/src/proposal-next-year-workshops.js', ['tests/proposal-next-year-workshops.test.mjs']],
   ['frontend/src/screens/activities.js', ['tests/activities-screen.test.mjs']],
   ['frontend/src/api.js', ['tests/api-mutations.test.mjs']],
   ['frontend/src/styles/dashboard-layout.css', ['tests/dashboard-layout-polish.test.mjs']],
