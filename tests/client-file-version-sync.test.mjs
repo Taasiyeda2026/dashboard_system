@@ -1,20 +1,55 @@
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
 import { readFile } from 'node:fs/promises';
+import {
+  beginLoginServiceWorkerUpdate,
+  LOGIN_SW_RELOAD_GUARD_KEY
+} from '../frontend/src/login-service-worker-update.js';
 
 const SW_FILE = new URL('../frontend/sw.js', import.meta.url);
 const CONFIG_FILE = new URL('../frontend/src/config.js', import.meta.url);
+const LOGIN_FILE = new URL('../frontend/src/screens/login.js', import.meta.url);
+const LOGIN_SW_UPDATE_FILE = new URL('../frontend/src/login-service-worker-update.js', import.meta.url);
 const INDEX_FILE = new URL('../index.html', import.meta.url);
 const DASHBOARD_CSS_FILE = new URL('../frontend/src/styles/dashboard-layout.css', import.meta.url);
 
+class MockEventTarget {
+  constructor() {
+    this.listeners = new Map();
+  }
+
+  addEventListener(type, listener) {
+    if (!this.listeners.has(type)) this.listeners.set(type, new Set());
+    this.listeners.get(type).add(listener);
+  }
+
+  removeEventListener(type, listener) {
+    this.listeners.get(type)?.delete(listener);
+  }
+
+  dispatch(type) {
+    for (const listener of this.listeners.get(type) || []) listener();
+  }
+}
+
+function memoryStorage(initial = {}) {
+  const values = new Map(Object.entries(initial));
+  return {
+    getItem(key) { return values.has(key) ? values.get(key) : null; },
+    setItem(key, value) { values.set(key, String(value)); }
+  };
+}
+
 test('service worker and client-file hotfix versions are current and structurally valid', async () => {
-  const [sw, config] = await Promise.all([
+  const [sw, config, login, loginUpdate] = await Promise.all([
     readFile(SW_FILE, 'utf8'),
-    readFile(CONFIG_FILE, 'utf8')
+    readFile(CONFIG_FILE, 'utf8'),
+    readFile(LOGIN_FILE, 'utf8'),
+    readFile(LOGIN_SW_UPDATE_FILE, 'utf8')
   ]);
 
   const cacheVersion = Number(sw.match(/const CACHE_VERSION = (\d+);/)?.[1] || 0);
-  assert.ok(Number.isInteger(cacheVersion) && cacheVersion >= 1287, 'CACHE_VERSION must include the performance cache refresh generation');
+  assert.ok(Number.isInteger(cacheVersion) && cacheVersion >= 1314, 'CACHE_VERSION must include the login refresh rollout');
 
   const hotfixVersion = config.match(/HOTFIX_VERSION:\s*'([^']+)'/)?.[1] || '';
   assert.ok(hotfixVersion.trim(), 'HOTFIX_VERSION must be defined');
@@ -25,12 +60,110 @@ test('service worker and client-file hotfix versions are current and structurall
   );
   assert.match(hotfixVersion, /activity-drawer-cache-20260727-v1/, 'HOTFIX_VERSION must clear persisted screen data after the activity drawer redesign');
   assert.match(hotfixVersion, /performance-cache-20260727-v1/, 'HOTFIX_VERSION must clear persisted data for the performance cache rollout');
+  assert.match(hotfixVersion, /login-sw-refresh-20260729-v1/, 'HOTFIX_VERSION must identify the automatic login refresh rollout');
+
+  assert.match(login, /beginLoginServiceWorkerUpdate\(\)/);
+  assert.match(login, /await onLogin\(userId, code, errorNode\);[\s\S]*await serviceWorkerUpdate\.reloadIfUpdated\(\);/);
+  assert.match(loginUpdate, /serviceWorker\.getRegistration\(\)/);
+  assert.match(loginUpdate, /registration\.update\(\)/);
+  assert.match(loginUpdate, /controllerchange/);
+  assert.match(loginUpdate, /SKIP_WAITING/);
+  assert.match(loginUpdate, /LOGIN_SW_RELOAD_GUARD_KEY/);
 
   const installBlock = sw.match(/self\.addEventListener\('install',[\s\S]*?\n\}\);/)?.[0] || '';
   assert.doesNotMatch(installBlock, /deleteOutdatedCaches\(/);
   assert.match(sw, /self\.addEventListener\('activate'[\s\S]*deleteOutdatedCaches\(/);
   assert.match(sw, /clients\.claim/);
   assert.match(sw, /isApiLikeUrl/);
+});
+
+test('login update reloads once only after a newer worker controls the page', async () => {
+  const serviceWorker = new MockEventTarget();
+  serviceWorker.controller = { id: 'old-controller' };
+  const oldActive = { id: 'old-active' };
+  const newActive = { id: 'new-active' };
+  const registration = {
+    active: oldActive,
+    waiting: null,
+    installing: null,
+    async update() {
+      registration.active = newActive;
+      queueMicrotask(() => serviceWorker.dispatch('controllerchange'));
+      return registration;
+    }
+  };
+  serviceWorker.getRegistration = async () => registration;
+
+  let reloadCount = 0;
+  const storage = memoryStorage();
+  const attempt = beginLoginServiceWorkerUpdate({
+    navigatorRef: { serviceWorker },
+    windowRef: { location: { reload() { reloadCount += 1; } } },
+    sessionStorageRef: storage,
+    now: () => 1_000_000,
+    updateCheckTimeoutMs: 50,
+    activationTimeoutMs: 50,
+    postLoginWaitMs: 100
+  });
+
+  assert.equal(await attempt.reloadIfUpdated(), true);
+  assert.equal(reloadCount, 1);
+  assert.equal(storage.getItem(LOGIN_SW_RELOAD_GUARD_KEY), '1000000');
+});
+
+test('login update does not reload when there is no newer worker', async () => {
+  const serviceWorker = new MockEventTarget();
+  serviceWorker.controller = { id: 'controller' };
+  const registration = {
+    active: { id: 'active' },
+    waiting: null,
+    installing: null,
+    async update() { return registration; }
+  };
+  serviceWorker.getRegistration = async () => registration;
+
+  let reloadCount = 0;
+  const attempt = beginLoginServiceWorkerUpdate({
+    navigatorRef: { serviceWorker },
+    windowRef: { location: { reload() { reloadCount += 1; } } },
+    sessionStorageRef: memoryStorage(),
+    updateCheckTimeoutMs: 50,
+    activationTimeoutMs: 50,
+    postLoginWaitMs: 100
+  });
+
+  assert.equal(await attempt.reloadIfUpdated(), false);
+  assert.equal(reloadCount, 0);
+});
+
+test('login update guard prevents a reload loop in the same tab', async () => {
+  const serviceWorker = new MockEventTarget();
+  serviceWorker.controller = { id: 'old-controller' };
+  const registration = {
+    active: { id: 'old-active' },
+    waiting: null,
+    installing: null,
+    async update() {
+      registration.active = { id: 'new-active' };
+      queueMicrotask(() => serviceWorker.dispatch('controllerchange'));
+      return registration;
+    }
+  };
+  serviceWorker.getRegistration = async () => registration;
+
+  let reloadCount = 0;
+  const attempt = beginLoginServiceWorkerUpdate({
+    navigatorRef: { serviceWorker },
+    windowRef: { location: { reload() { reloadCount += 1; } } },
+    sessionStorageRef: memoryStorage({ [LOGIN_SW_RELOAD_GUARD_KEY]: '990000' }),
+    now: () => 1_000_000,
+    updateCheckTimeoutMs: 50,
+    activationTimeoutMs: 50,
+    postLoginWaitMs: 100
+  });
+
+  assert.equal(await attempt.reloadIfUpdated(), false);
+  assert.equal(reloadCount, 0);
 });
 
 test('dashboard layout stylesheet is loaded and keeps the intended responsive structure', async () => {
