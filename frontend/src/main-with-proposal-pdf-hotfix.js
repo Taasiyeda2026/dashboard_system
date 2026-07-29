@@ -39,6 +39,7 @@ import './israa-tracking-v2-runtime.js';
 import './israa-tracking-subtitle-removal.js';
 import './israa-tracking-horizontal-scroll.js';
 import './israa-tracking-filters-runtime.js';
+import './israa-new-row-catalog-runtime.js';
 import './screens/annual-reviews-v2.js';
 import './annual-reviews-language-safe.js';
 import './annual-reviews-rating-comment-compact.js';
