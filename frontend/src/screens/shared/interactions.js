@@ -5,6 +5,7 @@ const UI_LAYER_ID = 'ds-shared-ui-layer';
 
 /** Escape: לכל היותר listener אחד לכל טעינת מודול (האפליקציה משתמשת במופע יחיד של השכבה) */
 let moduleEscapeInstalled = false;
+let sharedInteractionLayer = null;
 
 const HOST_MARKUP = `
       <div class="ds-ui-backdrop" data-ui-close-all hidden></div>
@@ -57,6 +58,7 @@ function defaultModalTitle(title) {
 }
 
 export function createSharedInteractionLayer() {
+  if (sharedInteractionLayer) return sharedInteractionLayer;
   let host = null;
   let drawerOpen = false;
   let modalOpen = false;
@@ -327,7 +329,7 @@ export function createSharedInteractionLayer() {
     });
   }
 
-  return {
+  sharedInteractionLayer = {
     openDrawer,
     closeDrawer,
     openModal,
@@ -341,6 +343,7 @@ export function createSharedInteractionLayer() {
       return modalOpen;
     }
   };
+  return sharedInteractionLayer;
 }
 
 export function showConfirmModal(ui, { title = 'אישור פעולה', message = '', confirmLabel = 'אישור', confirmClass = 'ds-btn--danger', onConfirm } = {}) {

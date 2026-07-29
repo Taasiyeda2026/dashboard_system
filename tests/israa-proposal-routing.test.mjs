@@ -4,6 +4,7 @@ import fs from 'node:fs';
 
 const proposalRouting = fs.readFileSync(new URL('../frontend/src/proposal-domain-routing.js', import.meta.url), 'utf8');
 const trackingRuntime = fs.readFileSync(new URL('../frontend/src/israa-tracking-v2-runtime.js', import.meta.url), 'utf8');
+const proposalItems = fs.readFileSync(new URL('../frontend/src/israa-proposal-items.js', import.meta.url), 'utf8');
 const mainEntry = fs.readFileSync(new URL('../frontend/src/main-with-proposal-pdf-hotfix.js', import.meta.url), 'utf8');
 const migration = fs.readFileSync(new URL('../supabase/migrations/20260729163000_route_domain_e_to_israa_tracking.sql', import.meta.url), 'utf8');
 
@@ -21,10 +22,10 @@ test('the compact Israa table includes the required proposal columns', () => {
     'gefen_numbers', 'quantity', 'total_amount', 'probability', 'realistic_value',
     'status', 'follow_up_date', 'next_action'
   ]) {
-    assert.match(trackingRuntime, new RegExp(`key: '${key}'`));
+    assert.match(`${trackingRuntime}\n${proposalItems}`, new RegExp(key));
   }
   assert.match(trackingRuntime, /מעקב הצעות גפ״ן – תשפ״ז/);
-  assert.match(trackingRuntime, /proposal_gefen_courses/);
+  assert.match(trackingRuntime, /proposal_items/);
   assert.doesNotMatch(trackingRuntime, /שנת לימודים/);
 });
 
