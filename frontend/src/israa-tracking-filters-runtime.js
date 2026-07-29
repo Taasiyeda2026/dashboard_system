@@ -3,7 +3,7 @@ const FILTERS_ATTR = 'data-israa-v2-filters';
 const DEBOUNCE_MS = 70;
 
 let timer = null;
-const filterState = { query: '', authority: '', school: '', program: '', status: '' };
+const filterState = { authority: '', school: '', program: '', status: '' };
 
 function clean(value) {
   return String(value == null ? '' : value).replace(/\s+/g, ' ').trim();
@@ -27,39 +27,12 @@ function injectStyles() {
   const style = document.createElement('style');
   style.id = 'israa-tracking-filters-styles';
   style.textContent = `
-    .israa-v2__kpi-label,.israa-v2__kpi-value {
-      min-width:0; overflow:hidden; text-overflow:ellipsis; white-space:nowrap;
-    }
-    .israa-v2__filters-shell {
-      width:100%; max-width:100%; min-width:0; margin:0 0 10px;
-      overflow:visible; box-sizing:border-box;
-    }
-    .israa-v2__filters {
-      width:100%; min-width:0; box-sizing:border-box; display:flex;
-      flex-wrap:wrap; align-items:center; gap:7px; padding:7px 8px;
-      border:1px solid #dbe3ec; border-radius:9px; background:#fff; white-space:nowrap;
-    }
-    .israa-v2__filter-select,.israa-v2__filter-query {
-      flex:1 1 116px; min-width:105px; height:34px; padding:0 9px;
-      border:1px solid #cbd5e1; border-radius:7px; background:#fff;
-      color:#334155; font:inherit; font-size:11.5px; box-sizing:border-box;
-    }
-    .israa-v2__filter-query { flex:1.35 1 160px; }
-    .israa-v2__filter-select:focus,.israa-v2__filter-query:focus {
-      outline:0; border-color:#0891b2; box-shadow:0 0 0 2px rgba(8,145,178,.12);
-    }
-    .israa-v2__filter-reset {
-      flex:0 0 auto; height:34px; padding:0 12px; border:1px solid #cbd5e1;
-      border-radius:7px; background:#f8fafc; color:#475569; font:inherit;
-      font-size:11.5px; font-weight:750; cursor:pointer;
-    }
-    .israa-v2__filter-reset:hover { background:#f1f5f9; }
-    .israa-v2__filter-count {
-      flex:0 0 68px; color:#64748b; font-size:11px; font-weight:750; text-align:center;
-    }
-    .israa-v2__filter-empty td {
-      padding:24px !important; text-align:center; color:#64748b; background:#fff;
-    }
+    .israa-v2__filters-shell{width:100%;max-width:100%;min-width:0;margin:0 0 10px;overflow:visible;box-sizing:border-box}
+    .israa-v2__filters{width:100%;min-width:0;box-sizing:border-box;display:flex;flex-wrap:wrap;align-items:center;gap:7px;padding:7px 8px;border:1px solid #dbe3ec;border-radius:9px;background:#fff;white-space:nowrap}
+    .israa-v2__filter-select{flex:1 1 150px;min-width:130px;height:34px;padding:0 9px;border:1px solid #cbd5e1;border-radius:7px;background:#fff;color:#334155;font:inherit;font-size:11.5px;box-sizing:border-box}
+    .israa-v2__filter-select:focus{outline:0;border-color:#0891b2;box-shadow:0 0 0 2px rgba(8,145,178,.12)}
+    .israa-v2__filter-reset{flex:0 0 auto;height:34px;padding:0 12px;border:1px solid #cbd5e1;border-radius:7px;background:#f8fafc;color:#475569;font:inherit;font-size:11.5px;font-weight:750;cursor:pointer}
+    .israa-v2__filter-reset:hover{background:#f1f5f9}.israa-v2__filter-count{flex:0 0 68px;color:#64748b;font-size:11px;font-weight:750;text-align:center}.israa-v2__filter-empty td{padding:24px!important;text-align:center;color:#64748b;background:#fff}
   `;
   document.head.appendChild(style);
 }
@@ -72,7 +45,8 @@ function getHeaderMap(table) {
 
 function headerIndex(headerMap, label) {
   if (headerMap.has(label)) return headerMap.get(label);
-  if (label === 'בית ספר' && headerMap.has('בית ספר וסמל מוסד')) return headerMap.get('בית ספר וסמל מוסד');
+  if (label === 'שם בית הספר' && headerMap.has('בית ספר')) return headerMap.get('בית ספר');
+  if (label === 'שם הפעילות' && headerMap.has('תוכניות')) return headerMap.get('תוכניות');
   return null;
 }
 
@@ -82,25 +56,15 @@ function cellText(row, headerMap, label) {
   return clean(row.cells?.[index]?.textContent);
 }
 
-function schoolName(row, headerMap) {
-  const dedicated = clean(row.querySelector('.israa-v2__school-name')?.textContent);
-  if (dedicated) return dedicated;
-  const raw = cellText(row, headerMap, 'בית ספר');
-  return clean(raw.replace(/סמל מוסד\s*:\s*\S+/g, ''));
-}
-
 function programNames(row) {
   const indexed = clean(row.dataset.v2Programs);
   if (indexed) return indexed.split('|').map(clean).filter(Boolean);
-  const raw = clean(row.querySelector('.israa-v2__program .israa-v2__primary')?.textContent);
-  return raw ? [raw] : [];
+  return [clean(row.textContent)].filter(Boolean);
 }
 
 function rowMatches(row, headerMap) {
-  if (row.classList.contains('is-editing') || row.dataset.v2RowId === '__new__') return true;
-  if (filterState.query && !normalized(row.dataset.v2SearchText || row.textContent).includes(normalized(filterState.query))) return false;
   if (filterState.authority && normalized(cellText(row, headerMap, 'רשות')) !== normalized(filterState.authority)) return false;
-  if (filterState.school && normalized(schoolName(row, headerMap)) !== normalized(filterState.school)) return false;
+  if (filterState.school && normalized(cellText(row, headerMap, 'שם בית הספר')) !== normalized(filterState.school)) return false;
   if (filterState.program && !programNames(row).map(normalized).includes(normalized(filterState.program))) return false;
   if (filterState.status && normalized(cellText(row, headerMap, 'סטטוס')) !== normalized(filterState.status)) return false;
   return true;
@@ -111,19 +75,18 @@ function setSelectOptions(select, values, allLabel, selectedValue) {
   const unique = [...new Set(values.map(clean).filter(Boolean))].sort((a, b) => a.localeCompare(b, 'he'));
   select.innerHTML = [
     `<option value="">${escapeHtml(allLabel)}</option>`,
-    ...unique.map((value) => `<option value="${escapeHtml(value)}">${escapeHtml(value)}</option>`)
+    ...unique.map((value) => `<option value="${escapeHtml(value)}">${escapeHtml(value)}</option>`),
   ].join('');
   select.value = unique.includes(selectedValue) ? selectedValue : '';
 }
 
 function collectFilterValues(table, headerMap) {
-  const tableRows = [...table.querySelectorAll('tbody > tr.israa-v2__row[data-v2-row-id]')]
-    .filter((row) => row.dataset.v2RowId !== '__new__');
+  const tableRows = [...table.querySelectorAll('tbody > tr.israa-v2__row[data-v2-row-id]')];
   return {
     authorities: tableRows.map((row) => cellText(row, headerMap, 'רשות')),
-    schools: tableRows.map((row) => schoolName(row, headerMap)),
+    schools: tableRows.map((row) => cellText(row, headerMap, 'שם בית הספר')),
     programs: tableRows.flatMap(programNames),
-    statuses: tableRows.map((row) => cellText(row, headerMap, 'סטטוס'))
+    statuses: tableRows.map((row) => cellText(row, headerMap, 'סטטוס')),
   };
 }
 
@@ -132,16 +95,12 @@ function applyFilters(container) {
   const filters = container.querySelector(`[${FILTERS_ATTR}]`);
   if (!table || !filters) return;
   const headerMap = getHeaderMap(table);
-  const tableRows = [...table.querySelectorAll('tbody > tr.israa-v2__row[data-v2-row-id]')]
-    .filter((row) => row.dataset.v2RowId !== '__new__');
+  const tableRows = [...table.querySelectorAll('tbody > tr.israa-v2__row[data-v2-row-id]')];
   let visible = 0;
   tableRows.forEach((row) => {
     const matches = rowMatches(row, headerMap);
     row.hidden = !matches;
     if (matches) visible += 1;
-    const rowId = row.dataset.v2RowId;
-    const detail = rowId ? table.querySelector(`tbody > tr.israa-v2__detail[data-v2-detail-for="${CSS.escape(rowId)}"]`) : null;
-    if (detail) detail.hidden = !matches;
   });
   let emptyRow = table.querySelector('tbody > tr.israa-v2__filter-empty');
   if (tableRows.length && visible === 0) {
@@ -162,10 +121,6 @@ function applyFilters(container) {
 function bindFilters(container, shell) {
   if (shell.dataset.bound === 'true') return;
   shell.dataset.bound = 'true';
-  shell.querySelector('[data-israa-v2-filter-query]')?.addEventListener('input', (event) => {
-    filterState.query = event.target.value;
-    applyFilters(container);
-  });
   for (const key of ['authority', 'school', 'program', 'status']) {
     shell.querySelector(`[data-israa-v2-filter-${key}]`)?.addEventListener('change', (event) => {
       filterState[key] = event.target.value;
@@ -193,7 +148,6 @@ function enhanceContainer(container) {
     shell.setAttribute(FILTERS_ATTR, 'true');
     shell.innerHTML = `
       <div class="israa-v2__filters" role="search" aria-label="סינון טבלת המעקב">
-        <input type="search" class="israa-v2__filter-query" data-israa-v2-filter-query value="${escapeHtml(filterState.query)}" placeholder="חיפוש בכל נתוני המעקב" aria-label="חיפוש כללי במעקב">
         <select class="israa-v2__filter-select" data-israa-v2-filter-authority aria-label="סינון לפי רשות"></select>
         <select class="israa-v2__filter-select" data-israa-v2-filter-school aria-label="סינון לפי בית ספר"></select>
         <select class="israa-v2__filter-select" data-israa-v2-filter-program aria-label="סינון לפי תוכנית"></select>
@@ -208,7 +162,7 @@ function enhanceContainer(container) {
   const values = collectFilterValues(table, headerMap);
   setSelectOptions(shell.querySelector('[data-israa-v2-filter-authority]'), values.authorities, 'כל הרשויות', filterState.authority);
   setSelectOptions(shell.querySelector('[data-israa-v2-filter-school]'), values.schools, 'כל בתי הספר', filterState.school);
-  setSelectOptions(shell.querySelector('[data-israa-v2-filter-program]'), values.programs, 'כל התוכניות', filterState.program);
+  setSelectOptions(shell.querySelector('[data-israa-v2-filter-program]'), values.programs, 'כל הפעילויות', filterState.program);
   setSelectOptions(shell.querySelector('[data-israa-v2-filter-status]'), values.statuses, 'כל הסטטוסים', filterState.status);
   applyFilters(container);
 }
@@ -223,9 +177,9 @@ function schedule() {
   timer = setTimeout(run, DEBOUNCE_MS);
 }
 
-if (document.readyState === 'loading') document.addEventListener('DOMContentLoaded', schedule, { once:true });
+if (document.readyState === 'loading') document.addEventListener('DOMContentLoaded', schedule, { once: true });
 else schedule();
-new MutationObserver(schedule).observe(document.documentElement, { childList:true, subtree:true });
-window.addEventListener('resize', schedule, { passive:true });
+new MutationObserver(schedule).observe(document.documentElement, { childList: true, subtree: true });
+window.addEventListener('resize', schedule, { passive: true });
 window.addEventListener('hashchange', schedule);
 window.addEventListener('israa-tracking-updated', schedule);

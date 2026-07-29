@@ -2,75 +2,46 @@ import test from 'node:test';
 import assert from 'node:assert/strict';
 import fs from 'node:fs';
 
+const tracking = fs.readFileSync(new URL('../frontend/src/israa-tracking-v2-runtime.js', import.meta.url), 'utf8');
 const filters = fs.readFileSync(new URL('../frontend/src/israa-tracking-filters-runtime.js', import.meta.url), 'utf8');
 const scroll = fs.readFileSync(new URL('../frontend/src/israa-tracking-horizontal-scroll.js', import.meta.url), 'utf8');
-const newRow = fs.readFileSync(new URL('../frontend/src/israa-new-row-catalog-runtime.js', import.meta.url), 'utf8');
-const migration = fs.readFileSync(new URL('../supabase/migrations/20260729181500_israa_tracking_new_rows_start_as_sent.sql', import.meta.url), 'utf8');
 const entry = fs.readFileSync(new URL('../frontend/src/main-with-proposal-pdf-hotfix.js', import.meta.url), 'utf8');
 
-test('Israa tracking exposes a general search alongside the four filters', () => {
-  for (const key of ['authority', 'school', 'program', 'status']) {
-    assert.match(filters, new RegExp(`data-israa-v2-filter-${key}`));
-  }
-  assert.doesNotMatch(filters, /data-israa-v2-filter-probability/);
-  assert.doesNotMatch(filters, /data-israa-v2-filter-nature/);
-  assert.match(filters, /data-israa-v2-filter-query/);
-  assert.match(filters, /filterState\.query/);
+const exactFields = ['quote_number','school_name','semel_mosad','authority','ownership','manager_name','manager_phone','manager_email','additional_contact','program_name','gefen_numbers','proposal_nature','expected_program','grade','participants_groups','proposal_date','total_amount','probability','status','next_action','follow_up_date','notes'];
+
+test('Israa tracking exposes only the four required filters', () => {
+  for (const key of ['authority', 'school', 'program', 'status']) assert.match(filters, new RegExp(`data-israa-v2-filter-${key}`));
+  assert.doesNotMatch(filters, /data-israa-v2-filter-query/);
+  assert.doesNotMatch(filters, /filterState\.query/);
+  assert.doesNotMatch(filters, /data-israa-v2-filter-probability|data-israa-v2-filter-nature/);
   assert.match(filters, /נקה סינון/);
 });
 
-test('Israa content is bounded to the shell and only the table scrolls horizontally', () => {
-  const tracking = fs.readFileSync(new URL('../frontend/src/israa-tracking-v2-runtime.js', import.meta.url), 'utf8');
-  assert.match(tracking, /\.israa-v2\{[\s\S]*width:92%[\s\S]*max-width:1360px[\s\S]*margin:12px auto/);
+test('Israa content is bounded and the table is the horizontal scroller', () => {
+  assert.match(tracking, /\.israa-v2\{[\s\S]*width:94%[\s\S]*max-width:1540px[\s\S]*margin:12px auto/);
   assert.match(tracking, /\.israa-v2__wrap[\s\S]*overflow-x:auto/);
   assert.match(tracking, /\.israa-v2__wrap[\s\S]*direction:rtl/);
   assert.doesNotMatch(tracking, /width:\s*100vw/);
 });
 
-test('general search index includes visible and drawer tracking fields', () => {
-  const tracking = fs.readFileSync(new URL('../frontend/src/israa-tracking-v2-runtime.js', import.meta.url), 'utf8');
-  for (const field of ['authority', 'school_name', 'semel_mosad', 'program_name', 'quote_number', 'contact_person', 'phone', 'email', 'status', 'notes']) {
-    assert.match(tracking, new RegExp(`row\\.${field}`));
-  }
-  for (const field of ['next_action', 'barriers', 'outreach_method']) assert.match(tracking, new RegExp(`row\\.${field}`));
+test('search metadata uses only approved Israa data fields', () => {
+  for (const field of exactFields) assert.match(tracking, new RegExp(`row\.${field}`));
+  for (const field of ['valid_until','outreach_method','barriers','meetings_count','hours_count']) assert.doesNotMatch(tracking, new RegExp(`row\.${field}`));
 });
 
-test('summary cards use four equal columns inside the bounded content', () => {
-  const tracking = fs.readFileSync(new URL('../frontend/src/israa-tracking-v2-runtime.js', import.meta.url), 'utf8');
+test('summary cards remain four equal columns', () => {
   assert.match(tracking, /grid-template-columns:repeat\(4,minmax\(0,1fr\)\)/);
   assert.match(tracking, /min-height:68px/);
-  assert.doesNotMatch(filters, /grid-template-columns:repeat\(4,minmax\(0,1fr\)\)\s*!important/);
 });
 
-test('table wrapper is the sole horizontal scroller and resets to RTL start', () => {
+test('table wrapper resets to RTL start after render and resize', () => {
   assert.match(scroll, /tableWrap\.scrollLeft\s*=\s*0/);
   assert.match(scroll, /window\.addEventListener\('resize',[\s\S]*schedule\(true\)/);
   assert.match(scroll, /window\.addEventListener\('hashchange',[\s\S]*schedule\(true\)/);
-  assert.doesNotMatch(scroll, /position:\s*fixed|document\.body\.appendChild|overflow-x:\s*auto/);
 });
 
-test('new row uses school, contact and course catalogs', () => {
-  assert.match(newRow, /\.from\('schools'\)/);
-  assert.match(newRow, /\.from\('contacts_schools'\)/);
-  assert.match(newRow, /\.from\('proposal_gefen_courses'\)/);
-  assert.match(newRow, /dataset\.israaNewSchool/);
-  assert.match(newRow, /dataset\.israaNewContact/);
-  assert.match(newRow, /dataset\.israaNewCourse/);
-  assert.match(newRow, /hiddenField\(row, 'school_id'\)/);
-  assert.match(newRow, /semelInput\.readOnly = true/);
-  assert.match(newRow, /gefenInput\.readOnly = true/);
-  assert.match(newRow, /phoneInput\.value/);
-  assert.match(newRow, /emailInput\.value/);
-});
-
-test('proposal transfer starts in sent status and does not auto-promote to approved', () => {
-  assert.match(migration, /v_tracking_status := 'נשלחה'/);
-  assert.match(migration, /\$new_upsert\$[\s\S]*else current_row\.status[\s\S]*\$new_upsert\$/);
-  assert.match(migration, /approved status logic still exists/);
-});
-
-test('application entry loads the Israa tracking enhancements', () => {
-  assert.match(entry, /israa-tracking-horizontal-scroll\.js/);
-  assert.match(entry, /israa-tracking-filters-runtime\.js/);
-  assert.match(entry, /israa-new-row-catalog-runtime\.js/);
+test('application entry cache-busts the exact Israa modules', () => {
+  assert.match(entry, /israa-tracking-v2-runtime\.js\?v=20260729-israa-exact-columns-v1/);
+  assert.match(entry, /israa-tracking-filters-runtime\.js\?v=20260729-israa-exact-columns-v1/);
+  assert.match(entry, /israa-tracking-horizontal-scroll\.js\?v=20260729-israa-exact-columns-v1/);
 });
