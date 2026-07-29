@@ -4,6 +4,7 @@ export const MIN_SEARCH_CHARS = 1;
 export const SEARCH_DEBOUNCE_MS = 150;
 const DEFAULT_SEARCH_DEBOUNCE_MS = SEARCH_DEBOUNCE_MS;
 const DEFAULT_VISIBLE_LIMIT = 200;
+const OPERATIONS_MANAGEMENT_STATUS_OPTIONS = ['פתוח', 'בתהליך', 'סגור', 'בוטל'];
 const FILTER_OPTIONS_CACHE = new WeakMap();
 const SEARCH_FIELDS_IDS = new WeakMap();
 let searchFieldsIdSeq = 0;
@@ -62,6 +63,12 @@ export function prepareRowsForSearch(rows, fields) {
 export function ensureActivityListFilters(state, scope) {
   state.listFilters = state.listFilters || {};
   state.listFilters[scope] = state.listFilters[scope] || { q: '', appliedQ: '', visibleCount: DEFAULT_VISIBLE_LIMIT };
+  if (scope === 'operations-management') {
+    state.listFilters[scope].optionOverrides = {
+      ...(state.listFilters[scope].optionOverrides || {}),
+      status: OPERATIONS_MANAGEMENT_STATUS_OPTIONS
+    };
+  }
   if (!Object.prototype.hasOwnProperty.call(state.listFilters[scope], 'appliedQ')) {
     const q = normalizeText(state.listFilters[scope].q || '');
     state.listFilters[scope].appliedQ = q.length >= MIN_SEARCH_CHARS ? state.listFilters[scope].q : '';
@@ -136,6 +143,11 @@ export function collectDependentFilterOptions(rows, filterFields, activeFilters,
         const text = String(value || '').trim();
         if (text && !DEPENDENT_EXCLUDE.has(text)) values.add(text);
       });
+    });
+    const overrideValues = filters?.optionOverrides?.[field.key];
+    (Array.isArray(overrideValues) ? overrideValues : []).forEach((value) => {
+      const text = String(value || '').trim();
+      if (text && !DEPENDENT_EXCLUDE.has(text)) values.add(text);
     });
     result[field.key] = Array.from(values).sort((a, b) => a.localeCompare(b, 'he'));
   });
