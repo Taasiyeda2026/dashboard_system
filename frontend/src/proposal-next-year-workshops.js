@@ -4,6 +4,11 @@ const PATCH_KEY = Symbol.for('taasiyeda.proposalNextYearWorkshops');
 const NEXT_YEAR_GROUP = 'next_year';
 const NEXT_YEAR_COURSES_GROUP = 'next_year_courses';
 const NEXT_YEAR_WORKSHOPS_GROUP = 'next_year_workshops';
+const NEXT_YEAR_GROUP_LABELS = Object.freeze({
+  [NEXT_YEAR_COURSES_GROUP]: 'תשפ״ז (קורסים)',
+  [NEXT_YEAR_WORKSHOPS_GROUP]: 'תשפ״ז (סדנאות)'
+});
+const AMBIGUOUS_NEXT_YEAR_LABELS = new Set(['תשפ״ז', 'תשפ"ז']);
 const SUMMER_GROUP_ALIASES = new Set(['summer', 'פעילויות קיץ', 'קיץ תשפ״ו']);
 const NEXT_YEAR_GROUP_ALIASES = new Set(['next_year', 'שנה הבאה', 'שנת הלימודים תשפ״ז', 'תוכניות תשפ״ז', 'תשפ״ז']);
 const WORKSHOP_PARENT_KEYS = new Set(['maker_workshop', 'space_workshop']);
@@ -51,7 +56,7 @@ function internalGroups(groups = []) {
   if (!byKey.has(NEXT_YEAR_COURSES_GROUP)) {
     rows.push({
       group_key: NEXT_YEAR_COURSES_GROUP,
-      display_name: 'קורסים ותוכניות',
+      display_name: NEXT_YEAR_GROUP_LABELS[NEXT_YEAR_COURSES_GROUP],
       template_key: 'next_year',
       included_group_keys: [],
       sort_order: 201,
@@ -63,7 +68,7 @@ function internalGroups(groups = []) {
   if (!byKey.has(NEXT_YEAR_WORKSHOPS_GROUP)) {
     rows.push({
       group_key: NEXT_YEAR_WORKSHOPS_GROUP,
-      display_name: 'סדנאות',
+      display_name: NEXT_YEAR_GROUP_LABELS[NEXT_YEAR_WORKSHOPS_GROUP],
       template_key: 'next_year',
       included_group_keys: [],
       sort_order: 202,
@@ -75,10 +80,10 @@ function internalGroups(groups = []) {
   return rows.map((group) => {
     const key = text(group.group_key);
     if (key === NEXT_YEAR_COURSES_GROUP) {
-      return { ...group, display_name: 'קורסים ותוכניות', template_key: 'next_year', show_gefen: true, is_internal: true };
+      return { ...group, display_name: NEXT_YEAR_GROUP_LABELS[key], template_key: 'next_year', show_gefen: true, is_internal: true };
     }
     if (key === NEXT_YEAR_WORKSHOPS_GROUP) {
-      return { ...group, display_name: 'סדנאות', template_key: 'next_year', show_gefen: false, is_internal: true };
+      return { ...group, display_name: NEXT_YEAR_GROUP_LABELS[key], template_key: 'next_year', show_gefen: false, is_internal: true };
     }
     return group;
   });
@@ -209,8 +214,44 @@ function replaceCourseFooter(table, label, total) {
   footer.innerHTML = `<tr class="pa-course-total-row"><td colspan="6">${label}</td><td>${currencyHtml(total)}</td></tr>`;
 }
 
+function elementsMatching(root, selector) {
+  const elements = [];
+  if (root?.matches?.(selector)) elements.push(root);
+  root?.querySelectorAll?.(selector).forEach((element) => elements.push(element));
+  return elements;
+}
+
+function normalizeNextYearTableLayout(table) {
+  if (!table?.style) return;
+  table.style.width = '85%';
+  table.style.marginInline = 'auto';
+  table.style.tableLayout = 'fixed';
+}
+
+function setElementText(element, value) {
+  if (element && text(element.textContent) !== value) element.textContent = value;
+}
+
+export function normalizeNextYearGroupLabels(root = globalThis.document) {
+  Object.entries(NEXT_YEAR_GROUP_LABELS).forEach(([groupKey, label]) => {
+    elementsMatching(root, `[data-pa-items-group="${groupKey}"] .ds-pa-items-section-label`)
+      .forEach((element) => setElementText(element, label));
+  });
+
+  elementsMatching(root, '.proposal-document').forEach((documentElement) => {
+    const ambiguousHeadings = Array.from(documentElement.querySelectorAll('.pa-section > .pa-section-heading'))
+      .filter((element) => AMBIGUOUS_NEXT_YEAR_LABELS.has(text(element.textContent)));
+    if (ambiguousHeadings.length < 2) return;
+    setElementText(ambiguousHeadings[0], NEXT_YEAR_GROUP_LABELS[NEXT_YEAR_COURSES_GROUP]);
+    setElementText(ambiguousHeadings[1], NEXT_YEAR_GROUP_LABELS[NEXT_YEAR_WORKSHOPS_GROUP]);
+  });
+  return root;
+}
+
 function splitNextYearTable(table) {
-  if (!table || table.dataset.nextYearWorkshopsSplit === 'yes') return false;
+  if (!table) return false;
+  normalizeNextYearTableLayout(table);
+  if (table.dataset.nextYearWorkshopsSplit === 'yes') return false;
   const documentRef = table.ownerDocument;
   const workshopRows = Array.from(table.querySelectorAll('tbody > tr')).map(workshopRowData).filter(Boolean);
   if (!workshopRows.length) return false;
@@ -259,6 +300,7 @@ export function normalizeNextYearWorkshopTables(root = globalThis.document) {
   if (root?.matches?.(TABLE_SELECTOR)) tables.push(root);
   root?.querySelectorAll?.(TABLE_SELECTOR).forEach((table) => tables.push(table));
   tables.forEach(splitNextYearTable);
+  normalizeNextYearGroupLabels(root);
   removeInternalGroupOptions(root);
   return root;
 }
