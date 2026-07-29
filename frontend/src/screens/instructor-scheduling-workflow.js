@@ -1,279 +1,69 @@
 import { supabase } from '../supabase-client.js';
 import { escapeHtml } from './shared/html.js';
-import { rankInstructors, deriveEducationLevel, adjacentActivities } from './instructor-matching-engine.js';
+import { rankInstructors, adjacentActivities } from './instructor-matching-engine.js';
 import { activityMeetings, projectedWeeklyLoad, averageWeeklyLoad } from './instructor-scheduling-load.js';
+import { isActivitySchedulingEligible } from './shared/activity-scheduling-eligibility.js';
 import { showToast } from './shared/toast.js';
 
 const txt = (value) => String(value ?? '').trim();
-const group = (rows, key = 'emp_id') => rows.reduce((out, row) => {
-  const id = txt(row[key]);
-  if (id) (out[id] ||= []).push(row);
-  return out;
-}, {});
-
+const ids = (value) => Array.isArray(value) ? value.map(txt).filter(Boolean) : [];
+const group = (rows, key = 'emp_id') => rows.reduce((out, row) => { const id = txt(row[key]); if (id) (out[id] ||= []).push(row); return out; }, {});
 let routeCapability = 'unknown';
-
 async function route(origin, destination) {
   if (!txt(origin) || !txt(destination) || routeCapability === 'disabled') return null;
-  try {
-    const { data, error } = await supabase.functions.invoke('scheduling-route', { body: { origin, destination } });
-    if (error) return null;
-    if (!data?.calculated) {
-      if (data?.reason === 'google_key_not_configured') routeCapability = 'disabled';
-      return null;
-    }
-    routeCapability = 'available';
-    return {
-      distance_km: Number(data.distance_km),
-      duration_minutes: Number(data.duration_minutes)
-    };
-  } catch {
-    return null;
-  }
+  try { const { data, error } = await supabase.functions.invoke('scheduling-route', { body: { origin, destination } }); if (error || !data?.calculated) { if (data?.reason === 'google_key_not_configured') routeCapability = 'disabled'; return null; } routeCapability = 'available'; return { distance_km: Number(data.distance_km), duration_minutes: Number(data.duration_minutes) }; } catch { return null; }
 }
-
-async function mapWithConcurrency(items, limit, worker) {
-  const source = Array.isArray(items) ? items : [];
-  const results = new Array(source.length);
-  let nextIndex = 0;
-  async function run() {
-    while (nextIndex < source.length) {
-      const index = nextIndex++;
-      results[index] = await worker(source[index], index);
-    }
-  }
-  await Promise.all(Array.from({ length: Math.min(Math.max(1, limit), source.length || 1) }, run));
-  return results;
-}
-
 async function candidateTravel(instructor, activity, assigned) {
   const destination = activity.school_address || activity.school;
-  const result = {
-    home: await route(instructor.address, destination),
-    transitions: {}
-  };
-
-  for (const meeting of activityMeetings(activity)) {
-    const { previous, next } = adjacentActivities(assigned, meeting);
-    result.transitions[meeting.date] = {
-      previous: previous
-        ? await route(previous.school_address || previous.school, destination)
-        : null,
-      next: next
-        ? await route(destination, next.school_address || next.school)
-        : null
-    };
-  }
+  const result = { home: await route(instructor.address, destination), transitions: {} };
+  for (const meeting of activityMeetings(activity)) { const { previous, next } = adjacentActivities(assigned, meeting); result.transitions[meeting.date] = { previous: previous ? await route(previous.school_address || previous.school, destination) : null, next: next ? await route(destination, next.school_address || next.school) : null }; }
   return result;
 }
-
-function neighborLine(label, item, leg) {
-  if (!item) return `${label}: אין`;
-  const travel = leg?.duration_minutes != null
-    ? ` · ${leg.duration_minutes} דקות, ${Math.round(leg.distance_km)} ק״מ`
-    : ' · זמן מעבר טרם חושב';
-  return `${label}: ${item.activity_name || 'פעילות'} (${item.start_time}–${item.end_time})${travel}`;
+function datesText(activity) { return activityMeetings(activity).map((m) => m.date).filter(Boolean).join(', ') || '—'; }
+function multiPicker(name, title) { return `<section class="scheduling-picker" data-picker="${name}"><label>${title}<input class="ds-input" type="search" data-picker-search placeholder="חיפוש לפי שם או מספר מדריך"></label><div data-picker-tags class="scheduling-picker__tags"></div><div data-picker-results class="scheduling-picker__results"></div></section>`; }
+function modalHtml(activity) {
+  return `<div class="scheduling-workspace" dir="rtl" data-scheduling-workspace>
+    <header class="scheduling-workspace__activity"><h3>${escapeHtml(activity.activity_name || 'פעילות')}</h3><p><b>בית ספר:</b> ${escapeHtml(activity.school || '—')} · <b>רשות:</b> ${escapeHtml(activity.authority || '—')}</p><p><b>תאריכים:</b> ${escapeHtml(datesText(activity))} · <b>שעות:</b> ${escapeHtml(activity.start_time || '—')}–${escapeHtml(activity.end_time || '—')}</p></header>
+    <section class="scheduling-workspace__requirements"><h3>דרישות שיבוץ</h3><div class="scheduling-workspace__fields"><label>דרישת מגדר (לא חובה)<select class="ds-input" name="required_instructor_gender"><option value="any">ללא דרישה</option><option value="female"${activity.required_instructor_gender === 'female' ? ' selected' : ''}>מדריכה</option><option value="male"${activity.required_instructor_gender === 'male' ? ' selected' : ''}>מדריך</option></select></label><label>שפת הדרכה (לא חובה)<select class="ds-input" name="instruction_language"><option value="">ללא דרישה</option><option value="he"${activity.instruction_language === 'he' ? ' selected' : ''}>עברית</option><option value="ar"${activity.instruction_language === 'ar' ? ' selected' : ''}>ערבית</option></select></label></div>
+    ${multiPicker('blocked_instructor_ids', 'מדריכים חסומים')}${multiPicker('allowed_instructor_ids', 'מדריכים מותרים בלבד')}<label>הערת שיבוץ פנימית<textarea class="ds-input" name="scheduling_note">${escapeHtml(activity.scheduling_note || '')}</textarea></label></section>
+    <p class="scheduling-workspace__status" data-scheduling-status></p><div data-scheduling-results></div><section data-scheduling-confirmation></section>
+  </div>`;
 }
-
-function card(candidate, topId) {
-  const instructor = candidate.instructor;
-  const languages = (candidate.profile?.instruction_languages || ['he'])
-    .map((value) => value === 'he' ? 'עברית' : 'ערבית')
-    .join(', ');
-  return `<article class="ds-card" style="padding:14px;display:grid;gap:7px">
-    <div style="display:flex;justify-content:space-between">
-      <strong>${escapeHtml(instructor.full_name || instructor.emp_id)}</strong>
-      ${candidate.score == null ? '' : `<span class="ds-badge">ציון ${candidate.score}</span>`}
-    </div>
-    <span class="ds-muted">מזהה: ${escapeHtml(instructor.emp_id)} · שפות: ${escapeHtml(languages)}</span>
-    <p style="margin:0">${escapeHtml(candidate.eligible ? candidate.explanation : candidate.failures.join(' · '))}</p>
-    ${candidate.warnings.length ? `<p style="margin:0;color:#9a6700">⚠ ${escapeHtml(candidate.warnings.join(' · '))}</p>` : ''}
-    ${candidate.eligible ? `<button type="button" class="ds-btn ds-btn--primary" data-select-scheduling-candidate="${escapeHtml(instructor.emp_id)}" data-top="${txt(instructor.emp_id) === topId ? 'yes' : 'no'}">בחירה</button>` : ''}
-  </article>`;
-}
-
-function attachProfiles(results, profileMap) {
-  [...results.recommended, ...results.exceptions, ...results.rejected].forEach((candidate) => {
-    candidate.profile = profileMap[txt(candidate.instructor.emp_id)] || {};
-  });
-  return results;
+function candidateCard(candidate, topId) { const i = candidate.instructor; const travel = candidate.travel?.home; return `<article class="scheduling-candidate"><div><strong>${escapeHtml(i.full_name || i.emp_id)}</strong><span>מספר ${escapeHtml(i.emp_id)}</span></div>${candidate.score == null ? '' : `<b>ציון ${candidate.score}</b>`}<p>${escapeHtml(candidate.eligible ? candidate.explanation : candidate.failures.join(' · '))}</p>${candidate.warnings.length ? `<p class="scheduling-warning">${escapeHtml(candidate.warnings.join(' · '))}</p>` : ''}${travel?.duration_minutes != null ? `<p>מרחק ${Math.round(travel.distance_km)} ק״מ · ${Math.round(travel.duration_minutes)} דקות נסיעה</p>` : ''}${candidate.eligible ? `<button type="button" class="ds-btn ds-btn--primary" data-select-scheduling-candidate="${escapeHtml(i.emp_id)}" data-top="${txt(i.emp_id) === topId ? 'yes' : 'no'}">בחירה</button>` : ''}</article>`; }
+function bindPicker(workspace, name, instructors, initial, excludedName) {
+  const root = workspace.querySelector(`[data-picker="${name}"]`); const selected = new Set(ids(initial));
+  const render = () => { const excluded = workspace._pickers?.[excludedName]; if (excluded) [...selected].forEach((id) => excluded.has(id) && selected.delete(id)); const q = txt(root.querySelector('[data-picker-search]').value).toLowerCase(); root.querySelector('[data-picker-tags]').innerHTML = selected.size ? [...selected].map((id) => { const i = instructors.find((x) => txt(x.emp_id) === id); return `<span class="ds-chip">${escapeHtml(i?.full_name || id)} <button type="button" data-remove-picker="${escapeHtml(id)}" aria-label="הסרה">×</button></span>`; }).join('') : '<span class="ds-muted">לא נבחרו מדריכים</span>'; root.querySelector('[data-picker-results]').innerHTML = q ? instructors.filter((i) => (`${i.full_name || ''} ${i.emp_id || ''}`).toLowerCase().includes(q) && !selected.has(txt(i.emp_id)) && !excluded?.has(txt(i.emp_id))).slice(0, 12).map((i) => `<button type="button" class="scheduling-picker__option" data-add-picker="${escapeHtml(i.emp_id)}">${escapeHtml(i.full_name || '')} · ${escapeHtml(i.emp_id)}</button>`).join('') || '<span class="ds-muted">לא נמצאו מדריכים</span>' : ''; };
+  workspace._pickers ||= {}; workspace._pickers[name] = selected; root.addEventListener('input', render); root.addEventListener('click', (event) => { const add = event.target.closest('[data-add-picker]'); const remove = event.target.closest('[data-remove-picker]'); if (add) selected.add(add.dataset.addPicker); if (remove) selected.delete(remove.dataset.removePicker); render(); }); render(); return selected;
 }
 
 export function bindInstructorScheduling(root, { ui, state, onAssigned, onCalculated } = {}) {
-  const button = root?.querySelector('[data-find-instructor]');
-  if (!button || button.dataset.bound) return;
-  button.dataset.bound = 'yes';
-
+  const button = root?.querySelector('[data-find-instructor]'); if (!button || button.dataset.bound) return; button.dataset.bound = 'yes';
   button.addEventListener('click', async () => {
-    if (!['admin', 'operation_manager'].includes(txt(state?.user?.role))) {
-      showToast('אין הרשאה לשמור שיבוץ', 'error');
-      return;
-    }
-
-    const form = button.closest('[data-drawer-form]');
-    let activity = {};
-    try { activity = JSON.parse(form?.dataset.exportRow || '{}'); } catch { activity = {}; }
-    activity.instruction_language = form?.querySelector('[name="instruction_language"]')?.value || activity.instruction_language || 'he';
-    activity.required_instructor_gender = form?.querySelector('[name="required_instructor_gender"]')?.value || activity.required_instructor_gender || 'any';
-    activity.education_level = form?.querySelector('[name="education_level"]')?.value || activity.education_level || deriveEducationLevel(activity.grade);
-
-    button.disabled = true;
-    button.textContent = 'בודק תנאי סף…';
-
-    try {
-      const [contacts, profiles, rules, exceptions, activities] = await Promise.all([
-        supabase.from('contacts_instructors').select('*'),
-        supabase.from('instructor_scheduling_profiles').select('*'),
-        supabase.from('instructor_availability_rules').select('*'),
-        supabase.from('instructor_availability_exceptions').select('*'),
-        supabase.from('activities').select('*')
-          .eq('activity_season', txt(activity.activity_season || state?.activityPeriodTab || 'regular'))
-          .neq('row_id', txt(activity.row_id || activity.RowID))
-      ]);
-      const error = [contacts, profiles, rules, exceptions, activities].find((response) => response.error)?.error;
-      if (error) throw error;
-
-      const profileMap = Object.fromEntries((profiles.data || []).map((profile) => [txt(profile.emp_id), profile]));
-      const assignments = {};
-      for (const assignedActivity of activities.data || []) {
-        for (const id of [txt(assignedActivity.emp_id), txt(assignedActivity.emp_id_2)].filter(Boolean)) {
-          for (const meeting of activityMeetings(assignedActivity)) {
-            (assignments[id] ||= []).push({
-              ...meeting,
-              activity_name: assignedActivity.activity_name,
-              school: assignedActivity.school,
-              school_address: assignedActivity.school_address,
-              authority: assignedActivity.authority
-            });
-          }
-        }
-      }
-
-      const weeklyLoads = {};
-      for (const instructor of contacts.data || []) {
-        const id = txt(instructor.emp_id);
-        weeklyLoads[id] = projectedWeeklyLoad(assignments[id] || [], activity);
-      }
-      const averageLoad = averageWeeklyLoad(weeklyLoads);
-      const baseInput = {
-        instructors: contacts.data || [],
-        profiles: profileMap,
-        rules: group(rules.data || []),
-        exceptions: group(exceptions.data || []),
-        assignments,
-        weeklyLoads,
-        averageWeeklyLoad: averageLoad,
-        activity
-      };
-
-      const preliminary = rankInstructors({ ...baseInput, travel: {} });
-      const preliminaryEligible = [...preliminary.recommended, ...preliminary.exceptions];
-      const travel = {};
-
-      if (preliminaryEligible.length) {
-        button.textContent = `מחשב נסיעות ל־${preliminaryEligible.length} מועמדים…`;
-        await mapWithConcurrency(preliminaryEligible, 4, async (candidate) => {
-          const id = txt(candidate.instructor.emp_id);
-          travel[id] = await candidateTravel(candidate.instructor, activity, assignments[id] || []);
-        });
-      }
-
-      const results = attachProfiles(rankInstructors({ ...baseInput, travel }), profileMap);
-      const eligible = [...results.recommended, ...results.exceptions];
-      const top = eligible[0];
-      onCalculated?.({
-        activityId: txt(activity.row_id || activity.RowID),
-        ready: eligible.length > 0,
-        candidateCount: eligible.length,
-        topName: top?.instructor?.full_name || '',
-        reason: eligible.length ? '' : 'לא נמצאו מדריכים שעברו את תנאי הסף'
-      });
-
-      const section = (title, rows) => `<section style="display:grid;gap:9px">
-        <h3>${title} <span class="ds-badge">${rows.length}</span></h3>
-        ${rows.map((candidate) => card(candidate, txt(top?.instructor.emp_id))).join('') || '<p class="ds-muted">אין מועמדים בקבוצה זו.</p>'}
-      </section>`;
-
-      ui.openDrawer({
-        title: 'איתור ושיבוץ מדריך',
-        content: `<div dir="rtl" style="display:grid;gap:16px">
-          <header>
-            <h2>${escapeHtml(activity.activity_name || 'פעילות')}</h2>
-            <p>${escapeHtml(activity.school || '—')} · ${escapeHtml(activity.authority || '—')} · ${escapeHtml(activity.education_level || 'שכבה לא הוגדרה')} · ${activity.instruction_language === 'ar' ? 'ערבית' : 'עברית'} · ${escapeHtml(activity.start_time || '')}–${escapeHtml(activity.end_time || '')}</p>
-            <strong>${eligible.length ? 'מוכן לשיבוץ' : 'אין מועמדים מתאימים'}</strong>
-          </header>
-          ${section('מומלצים', results.recommended)}
-          ${section('מתאימים עם חריגה', results.exceptions)}
-          ${section('לא מתאימים', results.rejected)}
-        </div>`,
-        onOpen: (drawer) => {
-          drawer.querySelectorAll('[data-select-scheduling-candidate]').forEach((select) => select.addEventListener('click', () => {
-            const candidate = eligible.find((item) => txt(item.instructor.emp_id) === select.dataset.selectSchedulingCandidate);
-            if (!candidate) return;
-            const exception = candidate.warnings.length > 0;
-            const override = select.dataset.top !== 'yes';
-            const schedule = candidate.schedule.map((item) => `<li>
-              <strong>${escapeHtml(item.date)}</strong><br>
-              ${escapeHtml(neighborLine('פעילות קודמת', item.previous, item.previous_travel))}<br>
-              ${escapeHtml(neighborLine('פעילות הבאה', item.next, item.next_travel))}
-            </li>`).join('');
-
-            ui.openModal({
-              title: 'אישור שיבוץ',
-              content: `<div dir="rtl">
-                <h3>${escapeHtml(candidate.instructor.full_name)}</h3>
-                <p>כל המפגשים בשעות ${escapeHtml(activity.start_time || '')}–${escapeHtml(activity.end_time || '')}:</p>
-                <ul>${schedule}</ul>
-                ${candidate.warnings.length ? `<p>חריגות: ${escapeHtml(candidate.warnings.join(' · '))}</p>` : ''}
-                <label>${override || exception ? 'סיבה (חובה)' : 'הערה'}<textarea class="ds-input" data-assignment-reason></textarea></label>
-                ${exception ? '<label><input type="checkbox" data-approve-exception> אני מאשר/ת את החריגה</label>' : ''}
-                <p data-assignment-error></p>
-              </div>`,
-              actions: '<button class="ds-btn ds-btn--primary" data-confirm-assignment>אישור ושיבוץ</button><button class="ds-btn" data-ui-close-modal>ביטול</button>'
-            });
-
-            document.querySelector('[data-confirm-assignment]')?.addEventListener('click', async () => {
-              const modal = document.querySelector('.ds-modal__content');
-              const reason = txt(modal?.querySelector('[data-assignment-reason]')?.value);
-              const errorElement = modal?.querySelector('[data-assignment-error]');
-              if ((override || exception) && !reason) {
-                if (errorElement) errorElement.textContent = 'חובה להזין סיבה.';
-                return;
-              }
-              if (exception && !modal?.querySelector('[data-approve-exception]')?.checked) {
-                if (errorElement) errorElement.textContent = 'חובה לאשר את החריגה.';
-                return;
-              }
-
-              try {
-                const decision = exception ? 'exception_approved' : override ? 'overridden' : 'approved';
-                const { error: assignmentError } = await supabase.rpc('assign_activity_instructor', {
-                  p_activity_id: txt(activity.row_id || activity.RowID),
-                  p_emp_id: Number(candidate.instructor.emp_id),
-                  p_instructor_name: candidate.instructor.full_name,
-                  p_top_emp_id: top ? Number(top.instructor.emp_id) : null,
-                  p_selected_score: candidate.score,
-                  p_top_score: top?.score ?? null,
-                  p_decision_type: decision,
-                  p_reason: reason || null
-                });
-                if (assignmentError) throw assignmentError;
-                ui.closeModal();
-                ui.closeDrawer();
-                showToast('המדריך שובץ בהצלחה', 'success');
-                onAssigned?.();
-              } catch (assignmentError) {
-                if (errorElement) errorElement.textContent = `השמירה נכשלה: ${assignmentError.message}`;
-              }
-            });
-          }));
-        }
-      });
-    } catch (error) {
-      showToast(`חישוב ההתאמות נכשל: ${error.message}`, 'error');
-    } finally {
-      button.disabled = false;
-      button.textContent = 'איתור ושיבוץ מדריך';
-    }
+    const form = button.closest('[data-drawer-form]'); let activity = {}; try { activity = JSON.parse(form?.dataset.exportRow || '{}'); } catch { activity = {}; }
+    if (!isActivitySchedulingEligible(activity)) { showToast('ניהול שיבוץ זמין רק לפעילות פתוחה בשנת תשפ״ז', 'error'); return; }
+    if (!['admin', 'operation_manager'].includes(txt(state?.user?.role))) { showToast('אין הרשאה לשמור שיבוץ', 'error'); return; }
+    const contactsResponse = await supabase.from('contacts_instructors').select('*'); if (contactsResponse.error) { showToast(`טעינת המדריכים נכשלה: ${contactsResponse.error.message}`, 'error'); return; }
+    const instructors = contactsResponse.data || [];
+    ui.openModal({ title: 'ניהול שיבוץ', modalClass: 'ds-modal--scheduling', keepDrawerOpen: true, content: modalHtml(activity), actions: '<button type="button" class="ds-btn" data-ui-close-modal>סגירה</button><button type="button" class="ds-btn ds-btn--primary" data-run-scheduling>איתור מדריכים מתאימים</button>' });
+    const workspace = document.querySelector('[data-scheduling-workspace]'); if (!workspace) return;
+    const blocked = bindPicker(workspace, 'blocked_instructor_ids', instructors, activity.blocked_instructor_ids, 'allowed_instructor_ids');
+    const allowed = bindPicker(workspace, 'allowed_instructor_ids', instructors, activity.allowed_instructor_ids, 'blocked_instructor_ids');
+    document.querySelector('[data-run-scheduling]')?.addEventListener('click', async (event) => {
+      const run = event.currentTarget; const status = workspace.querySelector('[data-scheduling-status]'); const resultsRoot = workspace.querySelector('[data-scheduling-results]');
+      activity = { ...activity, instruction_language: txt(workspace.querySelector('[name="instruction_language"]')?.value) || null, required_instructor_gender: txt(workspace.querySelector('[name="required_instructor_gender"]')?.value) || 'any', blocked_instructor_ids: [...blocked], allowed_instructor_ids: [...allowed], scheduling_note: txt(workspace.querySelector('[name="scheduling_note"]')?.value) || null };
+      run.disabled = true; status.textContent = 'שומר דרישות ומאתר מדריכים…';
+      try {
+        const activityId = txt(activity.row_id || activity.RowID); const save = await supabase.rpc('save_activity_scheduling_requirements', { p_activity_id: activityId, p_instruction_language: activity.instruction_language, p_required_instructor_gender: activity.required_instructor_gender, p_blocked_instructor_ids: activity.blocked_instructor_ids, p_allowed_instructor_ids: activity.allowed_instructor_ids, p_scheduling_note: activity.scheduling_note }); if (save.error) throw new Error(`שמירת דרישות השיבוץ נכשלה: ${save.error.message}`);
+        const [profiles, rules, exceptions, activities] = await Promise.all([supabase.from('instructor_scheduling_profiles').select('*'), supabase.from('instructor_availability_rules').select('*'), supabase.from('instructor_availability_exceptions').select('*'), supabase.from('activities').select('*').eq('activity_season', 'school_2027').neq('row_id', activityId)]); const failed = [profiles, rules, exceptions, activities].find((r) => r.error); if (failed) throw failed.error;
+        const profileMap = Object.fromEntries((profiles.data || []).map((p) => [txt(p.emp_id), p])); const assignments = {};
+        for (const a of activities.data || []) for (const id of [txt(a.emp_id), txt(a.emp_id_2)].filter(Boolean)) for (const meeting of activityMeetings(a)) (assignments[id] ||= []).push({ ...meeting, activity_name: a.activity_name, school: a.school, school_address: a.school_address, authority: a.authority });
+        const weeklyLoads = Object.fromEntries(instructors.map((i) => [txt(i.emp_id), projectedWeeklyLoad(assignments[txt(i.emp_id)] || [], activity)])); const base = { instructors, profiles: profileMap, rules: group(rules.data || []), exceptions: group(exceptions.data || []), assignments, weeklyLoads, averageWeeklyLoad: averageWeeklyLoad(weeklyLoads), activity }; const preliminary = rankInstructors({ ...base, travel: {} }); const travel = {};
+        for (const c of [...preliminary.recommended, ...preliminary.exceptions]) travel[txt(c.instructor.emp_id)] = await candidateTravel(c.instructor, activity, assignments[txt(c.instructor.emp_id)] || []);
+        const ranked = rankInstructors({ ...base, travel }); [...ranked.recommended, ...ranked.exceptions, ...ranked.rejected].forEach((c) => { c.profile = profileMap[txt(c.instructor.emp_id)] || {}; c.travel = travel[txt(c.instructor.emp_id)] || null; }); const eligible = [...ranked.recommended, ...ranked.exceptions]; const top = eligible[0];
+        onCalculated?.({ activityId, ready: !!top, candidateCount: eligible.length, topName: top?.instructor?.full_name || '', reason: top ? '' : 'לא נמצאו מדריכים שעברו את תנאי הסף' });
+        const section = (title, rows) => `<section class="scheduling-candidates"><h3>${title} <span class="ds-badge">${rows.length}</span></h3>${rows.map((c) => candidateCard(c, txt(top?.instructor.emp_id))).join('') || '<p class="ds-muted">אין מועמדים בקבוצה זו.</p>'}</section>`; resultsRoot.innerHTML = section('מומלצים', ranked.recommended) + section('מתאימים עם חריגה', ranked.exceptions) + section('לא מתאימים', ranked.rejected); status.textContent = top ? 'האיתור הושלם' : 'לא נמצאו מדריכים מתאימים';
+        resultsRoot.querySelectorAll('[data-select-scheduling-candidate]').forEach((select) => select.addEventListener('click', () => { const candidate = eligible.find((c) => txt(c.instructor.emp_id) === select.dataset.selectSchedulingCandidate); if (!candidate) return; const exception = candidate.warnings.length > 0; const override = select.dataset.top !== 'yes'; const confirm = workspace.querySelector('[data-scheduling-confirmation]'); confirm.innerHTML = `<div class="scheduling-confirmation"><h3>אישור שיבוץ: ${escapeHtml(candidate.instructor.full_name)}</h3>${candidate.warnings.length ? `<p>${escapeHtml(candidate.warnings.join(' · '))}</p>` : ''}<label>${override || exception ? 'סיבה (חובה)' : 'הערה'}<textarea class="ds-input" data-assignment-reason></textarea></label>${exception ? '<label><input type="checkbox" data-approve-exception> אני מאשר/ת את החריגה</label>' : ''}<p data-assignment-error></p><button type="button" class="ds-btn ds-btn--primary" data-confirm-assignment>אישור ושיבוץ</button></div>`; confirm.scrollIntoView({ behavior: 'smooth', block: 'nearest' }); confirm.querySelector('[data-confirm-assignment]').addEventListener('click', async (e) => { const reason = txt(confirm.querySelector('[data-assignment-reason]')?.value); const error = confirm.querySelector('[data-assignment-error]'); if ((override || exception) && !reason) { error.textContent = 'חובה להזין סיבה.'; return; } if (exception && !confirm.querySelector('[data-approve-exception]')?.checked) { error.textContent = 'חובה לאשר את החריגה.'; return; } e.currentTarget.disabled = true; const decision = exception ? 'exception_approved' : override ? 'overridden' : 'approved'; const response = await supabase.rpc('assign_activity_instructor', { p_activity_id: activityId, p_emp_id: Number(candidate.instructor.emp_id), p_instructor_name: candidate.instructor.full_name, p_top_emp_id: top ? Number(top.instructor.emp_id) : null, p_selected_score: candidate.score, p_top_score: top?.score ?? null, p_decision_type: decision, p_reason: reason || null }); if (response.error) { error.textContent = `השמירה נכשלה: ${response.error.message}`; e.currentTarget.disabled = false; return; } form.dataset.exportRow = JSON.stringify({ ...activity, emp_id: candidate.instructor.emp_id, instructor_name: candidate.instructor.full_name }); root.querySelectorAll('[data-scheduling-summary] .activity-view-field__value').forEach((el) => { el.textContent = candidate.instructor.full_name; }); ui.closeModal(); showToast('המדריך שובץ בהצלחה', 'success'); onAssigned?.(response.data); }); }));
+      } catch (error) { status.textContent = error.message || 'איתור המדריכים נכשל'; showToast(status.textContent, 'error'); } finally { run.disabled = false; }
+    });
   });
 }
