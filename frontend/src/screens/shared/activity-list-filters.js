@@ -10,6 +10,15 @@ const FILTER_OPTIONS_CACHE = new WeakMap();
 const SEARCH_FIELDS_IDS = new WeakMap();
 let searchFieldsIdSeq = 0;
 
+// The operations screen historically treats an empty status as "use the default",
+// while the status select also uses an empty value for "הכל". This truthy object
+// stringifies to an empty string, so the screen preserves the explicit "all"
+// selection without changing its public filtering contract.
+const OPERATIONS_ALL_STATUS = Object.freeze({
+  toString: () => '',
+  valueOf: () => ''
+});
+
 function searchFieldsKey(fields) {
   if (!Array.isArray(fields)) return 'default';
   let id = SEARCH_FIELDS_IDS.get(fields);
@@ -64,24 +73,33 @@ export function prepareRowsForSearch(rows, fields) {
 export function ensureActivityListFilters(state, scope) {
   state.listFilters = state.listFilters || {};
   state.listFilters[scope] = state.listFilters[scope] || { q: '', appliedQ: '', visibleCount: DEFAULT_VISIBLE_LIMIT };
+  const filters = state.listFilters[scope];
+
   if (scope === 'operations-management') {
-    state.listFilters[scope].optionOverrides = {
-      ...(state.listFilters[scope].optionOverrides || {}),
+    // Convert only an explicitly selected empty status to the all-status marker.
+    // A missing status property is left untouched so the operations screen may
+    // still apply its initial default of "פתוח".
+    if (Object.prototype.hasOwnProperty.call(filters, 'status') && filters.status === '') {
+      filters.status = OPERATIONS_ALL_STATUS;
+    }
+    filters.optionOverrides = {
+      ...(filters.optionOverrides || {}),
       status: OPERATIONS_MANAGEMENT_STATUS_OPTIONS
     };
-    state.listFilters[scope].excludedValues = {
-      ...(state.listFilters[scope].excludedValues || {}),
+    filters.excludedValues = {
+      ...(filters.excludedValues || {}),
       status: OPERATIONS_MANAGEMENT_EXCLUDED_STATUSES
     };
   }
-  if (!Object.prototype.hasOwnProperty.call(state.listFilters[scope], 'appliedQ')) {
-    const q = normalizeText(state.listFilters[scope].q || '');
-    state.listFilters[scope].appliedQ = q.length >= MIN_SEARCH_CHARS ? state.listFilters[scope].q : '';
+
+  if (!Object.prototype.hasOwnProperty.call(filters, 'appliedQ')) {
+    const q = normalizeText(filters.q || '');
+    filters.appliedQ = q.length >= MIN_SEARCH_CHARS ? filters.q : '';
   }
-  if (typeof state.listFilters[scope].visibleCount !== 'number') {
-    state.listFilters[scope].visibleCount = DEFAULT_VISIBLE_LIMIT;
+  if (typeof filters.visibleCount !== 'number') {
+    filters.visibleCount = DEFAULT_VISIBLE_LIMIT;
   }
-  return state.listFilters[scope];
+  return filters;
 }
 
 export function collectFilterOptions(rows, fields) {
@@ -235,8 +253,6 @@ export function filtersToolbarHtml(scope, rows, state, config = {}) {
   if (config.dependent) {
     const searchText = Object.prototype.hasOwnProperty.call(filters, 'appliedQ') ? filters.appliedQ : (filters.q || '');
     optionsMap = collectDependentFilterOptions(rows, filterFields, filters, searchText);
-    // Auto-clear stale selections: if the currently selected value is no longer
-    // in the available options for that field, clear it silently.
     filterFields.forEach((field) => {
       const selected = String(filters[field.key] || '').trim();
       if (selected && !(optionsMap[field.key] || []).includes(selected)) {
@@ -246,9 +262,9 @@ export function filtersToolbarHtml(scope, rows, state, config = {}) {
   } else {
     optionsMap = collectFilterOptions(rows, filterFields);
     if (config.optionsOverrides && typeof config.optionsOverrides === 'object') {
-      Object.keys(config.optionsOverrides).forEach((k) => {
-        if (Array.isArray(config.optionsOverrides[k]) && config.optionsOverrides[k].length) {
-          optionsMap[k] = Array.from(new Set([...(optionsMap[k] || []), ...config.optionsOverrides[k]]))
+      Object.keys(config.optionsOverrides).forEach((key) => {
+        if (Array.isArray(config.optionsOverrides[key]) && config.optionsOverrides[key].length) {
+          optionsMap[key] = Array.from(new Set([...(optionsMap[key] || []), ...config.optionsOverrides[key]]))
             .sort((a, b) => a.localeCompare(b, 'he'));
         }
       });
@@ -259,8 +275,7 @@ export function filtersToolbarHtml(scope, rows, state, config = {}) {
   const showClear = config.clear !== false;
   const searchPlaceholder = config.searchPlaceholder || 'חיפוש…';
 
-  const isPanel = config.layout === 'panel';
-  if (isPanel) {
+  if (config.layout === 'panel') {
     return `<section class="ds-filter-panel ds-filter-panel--grid-only" dir="rtl" data-local-filters="${escapeHtml(scope)}">
       <div class="ds-filter-panel__grid">
         ${filterFields.map((field) => selectInlineHtml(scope, field, filters, optionsMap)).join('')}
@@ -286,13 +301,10 @@ export function bindLocalFilters(root, state, scope, rerender, options = {}) {
   const debounceMs = Number(options.debounceMs ?? DEFAULT_SEARCH_DEBOUNCE_MS);
 
   let searchTimer;
-  searchInput?.addEventListener('input', (ev) => {
-    const nextValue = ev.target?.value || '';
-    const cursorPos = ev.target?.selectionStart ?? nextValue.length;
+  searchInput?.addEventListener('input', (event) => {
+    const nextValue = event.target?.value || '';
+    const cursorPos = event.target?.selectionStart ?? nextValue.length;
     clearTimeout(searchTimer);
-
-    // Keep the typed value in state immediately and debounce only the local
-    // filtering/rerendering work so one-character searches feel responsive.
     filters.q = nextValue;
 
     const apply = () => {
@@ -302,7 +314,7 @@ export function bindLocalFilters(root, state, scope, rerender, options = {}) {
       const newInput = root.querySelector(`[data-filter-search="${scope}"]`);
       if (newInput) {
         newInput.focus();
-        try { newInput.setSelectionRange(cursorPos, cursorPos); } catch (_) {}
+        try { newInput.setSelectionRange(cursorPos, cursorPos); } catch (_) { /* ignore */ }
       }
     };
 
@@ -315,10 +327,10 @@ export function bindLocalFilters(root, state, scope, rerender, options = {}) {
   });
 
   root.querySelectorAll(`[data-filter-scope="${scope}"][data-filter-field]`).forEach((node) => {
-    node.addEventListener('change', (ev) => {
-      const field = ev.target?.dataset?.filterField;
+    node.addEventListener('change', (event) => {
+      const field = event.target?.dataset?.filterField;
       if (!field) return;
-      state.listFilters[scope][field] = ev.target?.value || '';
+      state.listFilters[scope][field] = event.target?.value || '';
       state.listFilters[scope].visibleCount = DEFAULT_VISIBLE_LIMIT;
       rerender();
     });
@@ -326,7 +338,11 @@ export function bindLocalFilters(root, state, scope, rerender, options = {}) {
 
   clearBtn?.addEventListener('click', () => {
     const prevVisibleCount = state.listFilters?.[scope]?.visibleCount;
-    state.listFilters[scope] = { q: '', appliedQ: '', visibleCount: typeof prevVisibleCount === 'number' ? prevVisibleCount : DEFAULT_VISIBLE_LIMIT };
+    state.listFilters[scope] = {
+      q: '',
+      appliedQ: '',
+      visibleCount: typeof prevVisibleCount === 'number' ? prevVisibleCount : DEFAULT_VISIBLE_LIMIT
+    };
     if (typeof options.onClear === 'function') options.onClear();
     rerender();
   });
