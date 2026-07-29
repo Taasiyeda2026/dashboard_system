@@ -11,8 +11,8 @@ export const SUMMER_DEFAULT_MONTH_YM = SUMMER_START_DATE.slice(0, 7);
 export const ACTIVITY_SEASON_REGULAR = 'regular';
 export const ACTIVITY_SEASON_SUMMER_2026 = 'summer_2026';
 export const ACTIVITY_SEASON_SCHOOL_2027 = 'school_2027';
-// The single operational cutover switch. Archive selection is kept separately in state.
-export const ACTIVE_ACTIVITY_SEASON = ACTIVITY_SEASON_SCHOOL_2027;
+// 2026 remains the active operational period until an explicit cutover is approved.
+export const ACTIVE_ACTIVITY_SEASON = ACTIVITY_SEASON_REGULAR;
 export const ACTIVITY_SEASON_OPTIONS = [
   { value: ACTIVITY_SEASON_REGULAR, label: '2026', shortLabel: '2026' },
   { value: ACTIVITY_SEASON_SCHOOL_2027, label: '2027', shortLabel: '2027' }
