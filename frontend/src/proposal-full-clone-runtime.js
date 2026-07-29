@@ -3,9 +3,9 @@ import { showToast } from './screens/shared/toast.js';
 import {
   buildEditableProposalClonePayload,
   cloneProposalItems
-} from './proposal-full-clone-payload.js';
+} from './proposal-full-clone-payload.js?v=20260729-independent-clone-v2';
 
-const INSTALL_FLAG = Symbol.for('taasiyeda.proposalFullCloneRuntime.v1');
+const INSTALL_FLAG = Symbol.for('taasiyeda.proposalFullCloneRuntime.v2');
 
 function text(value) {
   return String(value == null ? '' : value).trim();
@@ -46,13 +46,13 @@ async function loadCloneItems(apiClient, sourceId) {
 }
 
 /**
- * Wraps proposal creation only for version-clone requests. Normal proposal
+ * Wraps proposal creation only for duplication requests. Normal proposal
  * creation remains unchanged.
  *
- * A clone is created from fresh server data, receives all editable proposal
- * fields and all item rows, is reset to draft, and is rolled back if item-copy
- * fails. The existing proposals screen then opens the returned draft in edit
- * mode as usual.
+ * A duplicate is created from fresh server data, receives all editable
+ * proposal fields and all item rows, starts a new independent proposal series,
+ * is reset to draft, and is rolled back if item-copy fails. The existing
+ * proposals screen then opens the returned draft in edit mode as usual.
  */
 export function installProposalFullCloneRuntime(apiClient = api) {
   if (!apiClient || apiClient[INSTALL_FLAG]) return apiClient;
@@ -68,6 +68,9 @@ export function installProposalFullCloneRuntime(apiClient = api) {
   });
 
   apiClient.addProposalAgreement = async (requestedPayload = {}) => {
+    // The legacy screen currently sends supersedes_proposal_id as its clone
+    // source marker. The payload builder deliberately removes that field before
+    // insertion so duplication does not create or replace a version lineage.
     const sourceId = text(requestedPayload?.supersedes_proposal_id);
     if (!sourceId) return originalAddProposalAgreement(requestedPayload);
 
