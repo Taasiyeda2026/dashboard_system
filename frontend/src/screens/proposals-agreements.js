@@ -3588,6 +3588,7 @@ export function gefenEligibleItems(items = []) {
 }
 
 function isGefenApprovalApplicable(row = {}, items = []) {
+  if (inferProposalClientType(row) === 'authority') return false;
   const group = normalizeProposalGroup(row.activity_type_group);
   if (group === 'summer') return false;
   const eligibleCount = gefenEligibleItems(items).length;
@@ -3603,6 +3604,7 @@ function gefenApprovalStatusDisplay(row = {}, generated = text(row.gefen_approva
 }
 
 function gefenApprovalValidationMessage(row = {}, items = []) {
+  if (inferProposalClientType(row) === 'authority') return '';
   if (!text(row.semel_mosad)) return 'חסר מספר מוסד. יש להשלים אותו לפני הפקת אישור גפ״ן.';
   if (!gefenEligibleItems(items).length) return 'חסר פירוט קורסים או סיורים עם מספר גפ״ן. לא ניתן להפיק את האישור.';
   return '';
@@ -7456,8 +7458,11 @@ export const proposalsAgreementsScreen = {
         setPdfStage('build-html');
         const mergedItems = proposalItemsWithFallback(items, freshRow);
         if (
-          normalizeProposalGroup(freshRow.activity_type_group) === 'gefen'
-          || (freshRow.combine_gefen_approval === true && isGefenApprovalApplicable(freshRow, mergedItems))
+          isGefenApprovalApplicable(freshRow, mergedItems)
+          && (
+            normalizeProposalGroup(freshRow.activity_type_group) === 'gefen'
+            || freshRow.combine_gefen_approval === true
+          )
         ) {
           const validationMessage = gefenApprovalValidationMessage(freshRow, mergedItems);
           if (validationMessage) {
@@ -7483,8 +7488,11 @@ export const proposalsAgreementsScreen = {
         setPdfStage('call-upload-api');
         const result = await api.uploadProposalFinalPdf(proposalId, { pdfFile, documentSnapshot, documentHtmlSnapshot });
         const savedRow = result?.row || freshRow;
-        const generatedCombinedGefen = normalizeProposalGroup(freshRow.activity_type_group) === 'gefen'
-          || (freshRow.combine_gefen_approval === true && isGefenApprovalApplicable(freshRow, mergedItems));
+        const generatedCombinedGefen = isGefenApprovalApplicable(freshRow, mergedItems)
+          && (
+            normalizeProposalGroup(freshRow.activity_type_group) === 'gefen'
+            || freshRow.combine_gefen_approval === true
+          );
         replaceLocalRow(data, generatedCombinedGefen
           ? {
             ...savedRow,
