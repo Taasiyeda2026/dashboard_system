@@ -4,10 +4,10 @@ const DEBOUNCE_MS = 70;
 
 let timer = null;
 const filterState = {
-  query: '',
-  status: '',
-  probability: '',
-  nature: ''
+  authority: '',
+  school: '',
+  program: '',
+  status: ''
 };
 
 function clean(value) {
@@ -35,16 +35,20 @@ function injectStyles() {
   style.textContent = `
     .israa-v2__kpis {
       width: 100% !important;
+      margin-inline: 0 !important;
+      box-sizing: border-box !important;
+      display: grid !important;
       grid-template-columns: repeat(4, minmax(0, 1fr)) !important;
-      gap: 10px !important;
+      gap: 8px !important;
       align-items: stretch !important;
     }
 
     .israa-v2__kpi {
-      width: auto !important;
+      width: 100% !important;
       min-width: 0 !important;
       max-width: none !important;
       min-height: 66px;
+      margin: 0 !important;
       box-sizing: border-box;
       display: flex;
       flex-direction: column;
@@ -61,20 +65,21 @@ function injectStyles() {
 
     .israa-v2__filters-shell {
       width: 100%;
+      margin: 0 0 8px;
       overflow-x: auto;
       overflow-y: hidden;
-      margin: 0 0 8px;
       scrollbar-width: thin;
+      box-sizing: border-box;
     }
 
     .israa-v2__filters {
       width: 100%;
-      min-width: 840px;
+      min-width: 760px;
       box-sizing: border-box;
       display: flex;
       flex-wrap: nowrap;
       align-items: center;
-      gap: 8px;
+      gap: 7px;
       padding: 7px 8px;
       border: 1px solid #dbe3ec;
       border-radius: 9px;
@@ -82,48 +87,10 @@ function injectStyles() {
       white-space: nowrap;
     }
 
-    .israa-v2__filter-search {
-      flex: 1 1 320px;
-      min-width: 240px;
-      height: 34px;
-      display: flex;
-      align-items: center;
-      gap: 7px;
-      padding: 0 10px;
-      border: 1px solid #cbd5e1;
-      border-radius: 7px;
-      background: #fff;
-      box-sizing: border-box;
-    }
-
-    .israa-v2__filter-search:focus-within {
-      border-color: #0891b2;
-      box-shadow: 0 0 0 2px rgba(8, 145, 178, .12);
-    }
-
-    .israa-v2__filter-search-icon {
-      flex: 0 0 auto;
-      color: #64748b;
-      font-size: 13px;
-      line-height: 1;
-    }
-
-    .israa-v2__filter-search input {
-      width: 100%;
-      min-width: 0;
-      border: 0;
-      outline: 0;
-      background: transparent;
-      color: #0f172a;
-      font: inherit;
-      font-size: 12px;
-    }
-
     .israa-v2__filter-select {
-      flex: 0 0 auto;
+      flex: 1 1 0;
+      min-width: 132px;
       height: 34px;
-      min-width: 112px;
-      max-width: 165px;
       padding: 0 9px;
       border: 1px solid #cbd5e1;
       border-radius: 7px;
@@ -134,9 +101,11 @@ function injectStyles() {
       box-sizing: border-box;
     }
 
-    .israa-v2__filter-select--status { width: 150px; }
-    .israa-v2__filter-select--probability { width: 118px; }
-    .israa-v2__filter-select--nature { width: 138px; }
+    .israa-v2__filter-select:focus {
+      outline: 0;
+      border-color: #0891b2;
+      box-shadow: 0 0 0 2px rgba(8, 145, 178, .12);
+    }
 
     .israa-v2__filter-reset {
       flex: 0 0 auto;
@@ -155,7 +124,7 @@ function injectStyles() {
     .israa-v2__filter-reset:hover { background: #f1f5f9; }
 
     .israa-v2__filter-count {
-      flex: 0 0 86px;
+      flex: 0 0 82px;
       color: #64748b;
       font-size: 11px;
       font-weight: 750;
@@ -169,10 +138,9 @@ function injectStyles() {
       background: #fff;
     }
 
-    @media (max-width: 900px) {
+    @media (max-width: 720px) {
       .israa-v2__kpis {
-        grid-template-columns: repeat(4, minmax(150px, 1fr)) !important;
-        overflow-x: auto;
+        grid-template-columns: repeat(2, minmax(0, 1fr)) !important;
       }
     }
   `;
@@ -193,33 +161,33 @@ function cellText(row, headerMap, label) {
   return clean(row.cells?.[index]?.textContent);
 }
 
-function rowSearchText(row) {
-  const titles = [...row.querySelectorAll('[title]')]
-    .map((element) => clean(element.getAttribute('title')))
-    .filter(Boolean)
-    .join(' ');
-  return normalized(`${row.textContent || ''} ${titles}`);
+function programNames(row) {
+  const raw = clean(row.querySelector('.israa-v2__program-name')?.textContent);
+  if (!raw) return [];
+  return raw.split('•').map(clean).filter(Boolean);
 }
 
 function rowMatches(row, headerMap) {
   if (row.classList.contains('is-editing') || row.dataset.v2RowId === '__new__') return true;
 
-  const query = normalized(filterState.query);
-  if (query && !rowSearchText(row).includes(query)) return false;
+  if (filterState.authority) {
+    const authority = normalized(cellText(row, headerMap, 'רשות'));
+    if (authority !== normalized(filterState.authority)) return false;
+  }
+
+  if (filterState.school) {
+    const school = normalized(cellText(row, headerMap, 'בית ספר'));
+    if (school !== normalized(filterState.school)) return false;
+  }
+
+  if (filterState.program) {
+    const programs = programNames(row).map(normalized);
+    if (!programs.includes(normalized(filterState.program))) return false;
+  }
 
   if (filterState.status) {
     const status = normalized(cellText(row, headerMap, 'סטטוס'));
     if (status !== normalized(filterState.status)) return false;
-  }
-
-  if (filterState.probability) {
-    const probability = cellText(row, headerMap, 'סבירות').replace(/[^0-9]/g, '');
-    if (probability !== filterState.probability) return false;
-  }
-
-  if (filterState.nature) {
-    const nature = normalized(row.querySelector('.israa-v2__nature')?.textContent);
-    if (nature !== normalized(filterState.nature)) return false;
   }
 
   return true;
@@ -229,23 +197,22 @@ function setSelectOptions(select, values, allLabel, selectedValue) {
   if (!select) return;
   const unique = [...new Set(values.map(clean).filter(Boolean))]
     .sort((a, b) => a.localeCompare(b, 'he'));
-  const options = [`<option value="">${escapeHtml(allLabel)}</option>`]
-    .concat(unique.map((value) => `<option value="${escapeHtml(value)}">${escapeHtml(value)}</option>`));
-  select.innerHTML = options.join('');
+  select.innerHTML = [
+    `<option value="">${escapeHtml(allLabel)}</option>`,
+    ...unique.map((value) => `<option value="${escapeHtml(value)}">${escapeHtml(value)}</option>`)
+  ].join('');
   select.value = unique.includes(selectedValue) ? selectedValue : '';
 }
 
 function collectFilterValues(table, headerMap) {
-  const rows = [...table.querySelectorAll('tbody > tr.israa-v2__row[data-v2-row-id]')]
+  const tableRows = [...table.querySelectorAll('tbody > tr.israa-v2__row[data-v2-row-id]')]
     .filter((row) => row.dataset.v2RowId !== '__new__');
 
   return {
-    statuses: rows.map((row) => cellText(row, headerMap, 'סטטוס')),
-    probabilities: rows
-      .map((row) => cellText(row, headerMap, 'סבירות').replace(/[^0-9]/g, ''))
-      .filter(Boolean)
-      .map((value) => `${value}%`),
-    natures: rows.map((row) => clean(row.querySelector('.israa-v2__nature')?.textContent))
+    authorities: tableRows.map((row) => cellText(row, headerMap, 'רשות')),
+    schools: tableRows.map((row) => cellText(row, headerMap, 'בית ספר')),
+    programs: tableRows.flatMap(programNames),
+    statuses: tableRows.map((row) => cellText(row, headerMap, 'סטטוס'))
   };
 }
 
@@ -255,11 +222,11 @@ function applyFilters(container) {
   if (!table || !filters) return;
 
   const headerMap = getHeaderMap(table);
-  const rows = [...table.querySelectorAll('tbody > tr.israa-v2__row[data-v2-row-id]')]
+  const tableRows = [...table.querySelectorAll('tbody > tr.israa-v2__row[data-v2-row-id]')]
     .filter((row) => row.dataset.v2RowId !== '__new__');
 
   let visible = 0;
-  rows.forEach((row) => {
+  tableRows.forEach((row) => {
     const matches = rowMatches(row, headerMap);
     row.hidden = !matches;
     if (matches) visible += 1;
@@ -272,11 +239,11 @@ function applyFilters(container) {
   });
 
   let emptyRow = table.querySelector('tbody > tr.israa-v2__filter-empty');
-  if (rows.length > 0 && visible === 0) {
+  if (tableRows.length > 0 && visible === 0) {
     if (!emptyRow) {
       emptyRow = document.createElement('tr');
       emptyRow.className = 'israa-v2__filter-empty';
-      emptyRow.innerHTML = `<td colspan="${table.querySelectorAll('thead th').length}">לא נמצאו תוצאות התואמות לחיפוש ולסינון.</td>`;
+      emptyRow.innerHTML = `<td colspan="${table.querySelectorAll('thead th').length}">לא נמצאו תוצאות התואמות לסינון.</td>`;
       table.tBodies[0]?.appendChild(emptyRow);
     }
     emptyRow.hidden = false;
@@ -285,21 +252,31 @@ function applyFilters(container) {
   }
 
   const count = filters.querySelector('[data-israa-v2-filter-count]');
-  if (count) count.textContent = `${visible} מתוך ${rows.length}`;
+  if (count) count.textContent = `${visible} מתוך ${tableRows.length}`;
 }
 
 function bindFilters(container, shell) {
   if (shell.dataset.bound === 'true') return;
   shell.dataset.bound = 'true';
 
-  const queryInput = shell.querySelector('[data-israa-v2-filter-query]');
+  const authoritySelect = shell.querySelector('[data-israa-v2-filter-authority]');
+  const schoolSelect = shell.querySelector('[data-israa-v2-filter-school]');
+  const programSelect = shell.querySelector('[data-israa-v2-filter-program]');
   const statusSelect = shell.querySelector('[data-israa-v2-filter-status]');
-  const probabilitySelect = shell.querySelector('[data-israa-v2-filter-probability]');
-  const natureSelect = shell.querySelector('[data-israa-v2-filter-nature]');
   const resetButton = shell.querySelector('[data-israa-v2-filter-reset]');
 
-  queryInput?.addEventListener('input', () => {
-    filterState.query = queryInput.value;
+  authoritySelect?.addEventListener('change', () => {
+    filterState.authority = authoritySelect.value;
+    applyFilters(container);
+  });
+
+  schoolSelect?.addEventListener('change', () => {
+    filterState.school = schoolSelect.value;
+    applyFilters(container);
+  });
+
+  programSelect?.addEventListener('change', () => {
+    filterState.program = programSelect.value;
     applyFilters(container);
   });
 
@@ -308,25 +285,15 @@ function bindFilters(container, shell) {
     applyFilters(container);
   });
 
-  probabilitySelect?.addEventListener('change', () => {
-    filterState.probability = probabilitySelect.value.replace(/[^0-9]/g, '');
-    applyFilters(container);
-  });
-
-  natureSelect?.addEventListener('change', () => {
-    filterState.nature = natureSelect.value;
-    applyFilters(container);
-  });
-
   resetButton?.addEventListener('click', () => {
-    filterState.query = '';
+    filterState.authority = '';
+    filterState.school = '';
+    filterState.program = '';
     filterState.status = '';
-    filterState.probability = '';
-    filterState.nature = '';
-    if (queryInput) queryInput.value = '';
+    if (authoritySelect) authoritySelect.value = '';
+    if (schoolSelect) schoolSelect.value = '';
+    if (programSelect) programSelect.value = '';
     if (statusSelect) statusSelect.value = '';
-    if (probabilitySelect) probabilitySelect.value = '';
-    if (natureSelect) natureSelect.value = '';
     applyFilters(container);
   });
 }
@@ -342,15 +309,11 @@ function enhanceContainer(container) {
     shell.className = 'israa-v2__filters-shell';
     shell.setAttribute(FILTERS_ATTR, 'true');
     shell.innerHTML = `
-      <div class="israa-v2__filters" role="search" aria-label="חיפוש וסינון בטבלת המעקב">
-        <label class="israa-v2__filter-search">
-          <span class="israa-v2__filter-search-icon" aria-hidden="true">⌕</span>
-          <input type="search" data-israa-v2-filter-query autocomplete="off"
-            placeholder="חיפוש: בית ספר, רשות, מספר הצעה, תוכנית או גפ״ן">
-        </label>
-        <select class="israa-v2__filter-select israa-v2__filter-select--status" data-israa-v2-filter-status aria-label="סינון לפי סטטוס"></select>
-        <select class="israa-v2__filter-select israa-v2__filter-select--probability" data-israa-v2-filter-probability aria-label="סינון לפי סבירות"></select>
-        <select class="israa-v2__filter-select israa-v2__filter-select--nature" data-israa-v2-filter-nature aria-label="סינון לפי אופי ההצעה"></select>
+      <div class="israa-v2__filters" role="search" aria-label="סינון טבלת המעקב">
+        <select class="israa-v2__filter-select" data-israa-v2-filter-authority aria-label="סינון לפי רשות"></select>
+        <select class="israa-v2__filter-select" data-israa-v2-filter-school aria-label="סינון לפי בית ספר"></select>
+        <select class="israa-v2__filter-select" data-israa-v2-filter-program aria-label="סינון לפי תוכנית"></select>
+        <select class="israa-v2__filter-select" data-israa-v2-filter-status aria-label="סינון לפי סטטוס"></select>
         <button type="button" class="israa-v2__filter-reset" data-israa-v2-filter-reset>ניקוי</button>
         <span class="israa-v2__filter-count" data-israa-v2-filter-count></span>
       </div>
@@ -359,28 +322,32 @@ function enhanceContainer(container) {
     bindFilters(container, shell);
   }
 
-  const queryInput = shell.querySelector('[data-israa-v2-filter-query]');
-  if (queryInput && queryInput.value !== filterState.query) queryInput.value = filterState.query;
-
   const headerMap = getHeaderMap(table);
   const values = collectFilterValues(table, headerMap);
+
+  setSelectOptions(
+    shell.querySelector('[data-israa-v2-filter-authority]'),
+    values.authorities,
+    'כל הרשויות',
+    filterState.authority
+  );
+  setSelectOptions(
+    shell.querySelector('[data-israa-v2-filter-school]'),
+    values.schools,
+    'כל בתי הספר',
+    filterState.school
+  );
+  setSelectOptions(
+    shell.querySelector('[data-israa-v2-filter-program]'),
+    values.programs,
+    'כל התוכניות',
+    filterState.program
+  );
   setSelectOptions(
     shell.querySelector('[data-israa-v2-filter-status]'),
     values.statuses,
     'כל הסטטוסים',
     filterState.status
-  );
-  setSelectOptions(
-    shell.querySelector('[data-israa-v2-filter-probability]'),
-    values.probabilities,
-    'כל הסבירויות',
-    filterState.probability ? `${filterState.probability}%` : ''
-  );
-  setSelectOptions(
-    shell.querySelector('[data-israa-v2-filter-nature]'),
-    values.natures,
-    'כל סוגי ההצעה',
-    filterState.nature
   );
 
   applyFilters(container);
