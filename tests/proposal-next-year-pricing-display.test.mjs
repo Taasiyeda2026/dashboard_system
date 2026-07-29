@@ -126,7 +126,7 @@ test('saved HTML snapshots are normalized before upload and lock', async () => {
   for (const call of calls) {
     assert.match(call.payload.documentHtmlSnapshot, /יישומי AI בשיתוף GOOGLE/);
     assert.match(call.payload.documentHtmlSnapshot, />15<\/td>/);
-    assert.match(call.payload.documentHtmlSnapshot, /₪ 633/);
+    assert.match(call.payload.documentHtmlSnapshot, /₪(?: |&nbsp;)633/);
     assert.doesNotMatch(call.payload.documentHtmlSnapshot, /633\.3333/);
   }
 
