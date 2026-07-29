@@ -19,14 +19,29 @@ let cachedRows = null;
 let inflightRequest = null;
 let authSubscriptionStarted = false;
 let authGeneration = 0;
+let authenticatedUserId;
+
+function updateAuthenticatedUser(session) {
+  const nextUserId = session?.user?.id || null;
+
+  if (authenticatedUserId === undefined) {
+    authenticatedUserId = nextUserId;
+    return;
+  }
+
+  if (authenticatedUserId === nextUserId) return;
+
+  authenticatedUserId = nextUserId;
+  authGeneration += 1;
+  cachedRows = null;
+}
 
 function startAuthCacheInvalidation() {
   if (!supabase || authSubscriptionStarted) return;
   authSubscriptionStarted = true;
 
-  supabase.auth.onAuthStateChange(() => {
-    authGeneration += 1;
-    cachedRows = null;
+  supabase.auth.onAuthStateChange((_event, session) => {
+    updateAuthenticatedUser(session);
   });
 }
 
@@ -55,6 +70,7 @@ export async function loadSchoolCalendarRows() {
       return [];
     }
 
+    updateAuthenticatedUser(sessionData?.session || null);
     if (!sessionData?.session?.user) return [];
 
     const requestAuthGeneration = authGeneration;
