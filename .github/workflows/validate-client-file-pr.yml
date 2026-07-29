@@ -6,6 +6,8 @@ on:
     paths:
       - 'frontend/src/screens/proposals-agreements.js'
       - 'frontend/src/screens/instructors.js'
+      - 'frontend/src/screens/instructor-matching-engine.js'
+      - 'frontend/src/screens/instructor-scheduling-workflow.js'
       - 'frontend/src/screens/instructor-contacts.js'
       - 'frontend/src/screens/operations-inventory-polish.js'
       - 'frontend/src/proposal-pdf-svg-origin-clean.js'
@@ -42,6 +44,8 @@ on:
       - 'tests/proposals-agreements-screen.test.mjs'
       - 'tests/instructor-contacts-nav-access.test.mjs'
       - 'tests/instructor-contacts-screen.test.mjs'
+      - 'tests/instructor-matching-engine.test.mjs'
+      - 'tests/instructor-scheduling-permissions.test.mjs'
       - 'tests/summer-feedback-admin-personal-reports.test.mjs'
       - 'tests/summer-feedback-admin-response-view.test.mjs'
       - 'tests/summer-feedback-completion-overview.test.mjs'
@@ -177,6 +181,9 @@ jobs:
 
       - name: Run instructor contacts screen tests
         run: node --test tests/instructor-contacts-screen.test.mjs
+
+      - name: Run operational instructor scheduling tests
+        run: node --test tests/instructor-matching-engine.test.mjs tests/instructor-scheduling-permissions.test.mjs
 
       - name: Build production bundle
         run: npm run check:build

@@ -43,11 +43,13 @@ import {
 } from './shared/activity-options.js';
 import { readActivitiesGapFromQuery, syncActivitiesGapQuery, isActivitiesGapQueryValue } from './shared/route-query.js';
 import { rowMatchesActivityGapFilter } from './shared/activity-gap-filter.js';
+import { activityMatchesInstructorStatusFilter } from './shared/activity-instructor-filter.js';
 import { renderActivitiesViewSwitcher, bindActivitiesViewSwitcher } from './shared/view-switcher.js';
 import { resolveSchool2027Contact } from './shared/school-2027-contact.js';
 import { ACTIVITY_SEASON_OPTIONS, ACTIVITY_SEASON_REGULAR, ACTIVITY_SEASON_SUMMER_2026, ACTIVITY_SEASON_SCHOOL_2027, getActivityPeriodKey, normalizeActivitySeason, normalizeGlobalActivityPeriod, globalActivityPeriodLabel } from './shared/summer-activity.js';
 import { showToast } from './shared/toast.js';
 import { canEditDirect, canAddActivityDirect, canRequestEdit, canRequestCreateActivity, canReviewRequests } from '../permissions.js';
+import { bindInstructorScheduling } from './instructor-scheduling-workflow.js';
 const taasiyedaLogoSrc = new URL('../../assets/logo1.png', import.meta.url).href;
 
 const inflightActivityDetailRequests = new Map();
@@ -63,7 +65,8 @@ const ALL_ACTIVITIES_STATUS_FILTERS = [
   { key: 'all', label: 'הכל' },
   { key: 'open', label: 'פתוח' },
   { key: 'closed', label: 'סגור' },
-  { key: 'undated', label: 'ללא תאריך' }
+  { key: 'undated', label: 'ללא תאריך' },
+  { key: 'unassigned', label: 'ללא מדריך' }
 ];
 const ACTIVITY_PERIOD_TABS = [
   { key: ACTIVITY_SEASON_REGULAR, label: '2026', start: '2025-09-01', end: '2026-08-31' },
@@ -352,11 +355,11 @@ function ensureActivityPeriodMonth(state, rows, { force = false } = {}) {
   }
 }
 
-function allActivitiesStatusFilterHtml(state = {}) {
-  if (!isAllActivitiesMode(state)) return '';
+function activityInstructorStatusFilterHtml(state = {}) {
   const selected = normalizeAllActivitiesStatusFilter(state.allActivitiesStatusFilter);
-  return `<select class="ds-input ds-input--sm ds-filter-select-inline ds-filter-select-inline--all-status" data-all-activities-status-filter aria-label="סינון סטטוס בכל הפעילויות" title="סטטוס" dir="rtl">
-      ${ALL_ACTIVITIES_STATUS_FILTERS.map((filter) => `<option value="${escapeHtml(filter.key)}"${filter.key === selected ? ' selected' : ''}>${escapeHtml(filter.key === 'all' ? 'סטטוס: הכל' : filter.label)}</option>`).join('')}
+  const filters = ALL_ACTIVITIES_STATUS_FILTERS.filter((filter) => ['all', 'unassigned'].includes(filter.key));
+  return `<select class="ds-input ds-input--sm ds-filter-select-inline ds-filter-select-inline--assignment" data-activities-instructor-status-filter aria-label="סינון פעילויות לפי שיבוץ מדריך" title="שיבוץ מדריך" dir="rtl">
+      ${filters.map((filter) => `<option value="${escapeHtml(filter.key)}"${filter.key === selected ? ' selected' : ''}>${escapeHtml(filter.key === 'all' ? 'שיבוץ: הכול' : filter.label)}</option>`).join('')}
     </select>`;
 }
 
@@ -1026,7 +1029,8 @@ function applyActivitiesLocalFilters(rows, state, settings) {
   const familyRows = applyClientFilters(rows, state, settings);
   const gapRows = applyActivitiesGapFilter(familyRows, state.activitiesGapFilter);
   prepareRowsForSearch(gapRows, ACTIVITY_SEARCH_FIELDS);
-  return applyLocalFilters(gapRows, filters, { filterFields: ACTIVITY_FILTER_FIELDS }).sort(compareActivityDefaultOrder);
+  const assignmentRows = gapRows.filter((row) => activityMatchesInstructorStatusFilter(row, state.allActivitiesStatusFilter));
+  return applyLocalFilters(assignmentRows, filters, { filterFields: ACTIVITY_FILTER_FIELDS }).sort(compareActivityDefaultOrder);
 }
 
 function buildActivitiesDiagnostics(allRows, state, finalRows) {
@@ -1054,7 +1058,7 @@ function activitiesDiagnosticsHtml(diag) {
   </div>`;
 }
 
-function activityDrawerContent(row, canSeePrivateNotes, canEdit, canDirectEdit, canRequestEdit, canDeleteActivity, hideEmpIds, hideRowId, hideActivityNo, settings, { datesLoading = false } = {}) {
+function activityDrawerContent(row, canSeePrivateNotes, canEdit, canDirectEdit, canRequestEdit, canDeleteActivity, hideEmpIds, hideRowId, hideActivityNo, settings, { datesLoading = false, canSchedule = false } = {}) {
   const privateNote = canSeePrivateNotes ? row.private_note || '—' : null;
   return activityWorkDrawerHtml(row, {
     privateNote,
@@ -1062,6 +1066,7 @@ function activityDrawerContent(row, canSeePrivateNotes, canEdit, canDirectEdit, 
     canDirectEdit,
     canRequestEdit,
     canDeleteActivity,
+    canSchedule,
     hideEmpIds: !!hideEmpIds,
     hideRowId,
     hideActivityNo,
@@ -1669,9 +1674,14 @@ export const activitiesScreen = {
     const tableRows = safeRows
       .map((row) => {
         const instructorMeta = activityInstructorMeta(row, { hideEmpIds, instructorByEmpId });
+        const schedulingSummary = state?.instructorSchedulingSummaries?.[String(row.RowID || row.row_id || '')];
+        const missingScheduling = [row.school ? '' : 'חסר בית ספר', (row.start_time && row.end_time) ? '' : 'חסרות שעות', (row.date_1 || row.start_date) ? '' : 'חסרים תאריכים'].filter(Boolean);
+        const unassignedSchedulingHtml = schedulingSummary
+          ? `<small class="ds-muted">${schedulingSummary.ready ? `מוכנה לשיבוץ · ${schedulingSummary.candidateCount} מועמדים${schedulingSummary.topName ? ` · ${escapeHtml(schedulingSummary.topName)}` : ''}` : `חסר מידע · ${escapeHtml(schedulingSummary.reason)}`}</small>`
+          : `<small class="ds-muted">${missingScheduling.length ? `חסר מידע · ${escapeHtml(missingScheduling.join(' · '))}` : 'מוכנה לחישוב מועמדים'}</small>`;
         const instructorDisplay = instructorMeta.hasInstructor
           ? `<span class="ds-activities-instructor-name${instructorMeta.hasName ? '' : ' is-derived'}">${escapeHtml(instructorMeta.text)}</span>`
-          : '<span class="ds-chip ds-chip--status ds-chip--warn ds-chip--instructor-empty">ללא מדריך</span>';
+          : `<span style="display:grid;gap:3px"><span class="ds-chip ds-chip--status ds-chip--warn ds-chip--instructor-empty">ללא מדריך</span>${unassignedSchedulingHtml}</span>`;
         const activityTypeLabel = escapeHtml(visibleActivityCategoryLabel(row.activity_type));
         const rawActivityName = displayActivityName(row);
         const activityName = escapeHtml(rawActivityName);
@@ -1834,10 +1844,10 @@ export const activitiesScreen = {
     const isNavLoading = !!state.activitiesNavLoading;
     const navLoadingChip = isNavLoading ? '<span class="ds-inline-loading-dot is-inline-loading" aria-hidden="true"></span>' : '';
     const viewSwitcher = renderActivitiesViewSwitcher(state, 'activities');
-    const allActivitiesStatusFilter = allActivitiesStatusFilterHtml(state);
+    const instructorStatusFilter = activityInstructorStatusFilterHtml(state);
     const mainToolbar = `<div class="ds-activities-main-toolbar" dir="rtl" data-local-filters="${ACTIVITIES_SCOPE}">
       <input type="search" class="ds-input ds-input--sm ds-activities-search-sm" data-filter-search="${ACTIVITIES_SCOPE}" value="${escapeHtml(listFilters.q || '')}" placeholder="חיפוש" aria-label="חיפוש פעילויות" title="חיפוש לפי מזהה, פעילות, מדריך, רשות, בית ספר, סטטוס, תאריך או סמל מוסד" />
-      ${allActivitiesStatusFilter}
+      ${instructorStatusFilter}
       ${bareFilters}
       <div class="ds-activities-main-toolbar__actions">
         <button type="button" class="ds-btn ds-btn--sm ds-btn--ghost ds-activities-toolbar-btn" data-filter-clear="${ACTIVITIES_SCOPE}" aria-label="ניקוי כל הסינונים" title="ניקוי כל הסינונים">ניקוי כל הסינונים</button>
@@ -2156,7 +2166,7 @@ export const activitiesScreen = {
                 canDeleteActivity,
                 hideEmpIds, hideRowId, hideActivityNo,
                 mergeSettingsWithFallback(state?.clientSettings || {}, buildFallbackOptionsFromRows(activitiesRows)),
-                { datesLoading: false }
+                { datesLoading: false, canSchedule: ['admin', 'operation_manager'].includes(String(state?.user?.role || '')) }
               );
               hideShellHeader(contentRoot);
               bindActivityEditForm(contentRoot);
@@ -2375,6 +2385,7 @@ export const activitiesScreen = {
       hideShellHeader(contentRoot);
       bindActivityEditForm(contentRoot);
       bindContact2027Section(contentRoot);
+      bindInstructorScheduling(contentRoot, { ui, state, onCalculated: (summary) => { state.instructorSchedulingSummaries ||= {}; state.instructorSchedulingSummaries[summary.activityId] = summary; }, onAssigned: () => { clearScreenDataCache?.(); rerender(); } });
     }
 
     function bindActivitiesReopenBtn(contentRoot, row) {
@@ -2435,7 +2446,7 @@ export const activitiesScreen = {
       const buildDrawerContent = (row, datesLoading) => {
         const base = activityDrawerContent(
           row, canSeePrivateNotes, canEditActivity, canDirectEdit, canRequestEdit,
-          canDeleteActivity, hideEmpIds, hideRowId, hideActivityNo, settings, { datesLoading }
+          canDeleteActivity, hideEmpIds, hideRowId, hideActivityNo, settings, { datesLoading, canSchedule: ['admin', 'operation_manager'].includes(String(state?.user?.role || '')) }
         );
         if (!canReopenActivity) return base;
         return `<div style="padding:12px 16px 0;text-align:right">
@@ -2514,6 +2525,7 @@ export const activitiesScreen = {
       state.activitiesGapFilter = '';
       syncActivitiesGapQuery('');
       state.activityFinanceStatus = '';
+      state.allActivitiesStatusFilter = 'all';
     } });
     async function loadAllActivitiesForAdmin() {
       return typeof api.allActivities === 'function' ? api.allActivities() : api.activities({ activity_type: 'all' });
@@ -2586,7 +2598,7 @@ export const activitiesScreen = {
       });
     });
 
-    root.querySelector('[data-all-activities-status-filter]')?.addEventListener('change', (ev) => {
+    root.querySelector('[data-activities-instructor-status-filter]')?.addEventListener('change', (ev) => {
       state.allActivitiesStatusFilter = normalizeAllActivitiesStatusFilter(ev.currentTarget?.value);
       ensureActivityListFilters(state, ACTIVITIES_SCOPE).visibleCount = 200;
       rerenderLocal();
