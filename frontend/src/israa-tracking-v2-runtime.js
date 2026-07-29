@@ -2,127 +2,64 @@ import { supabase } from './supabase-client.js';
 import { state, clearScreenDataCache } from './state.js';
 import { showToast } from './screens/shared/toast.js';
 import { escapeHtml } from './screens/shared/html.js';
+import { createSharedInteractionLayer } from './screens/shared/interactions.js';
 
 const ISRAA_AUTH_USER_ID = '92bfb9d9-1b17-4022-901a-5f7cf17a263a';
 const ROOT_SELECTOR = '.israa-mgmt';
 const CONTAINER_ATTR = 'data-israa-tracking-v2';
-const DEBOUNCE_MS = 90;
 const PROBABILITY_OPTIONS = [30, 50, 100];
 const NATURE_OPTIONS = ['ממוקדת', 'לבחירה', 'משולבת'];
-const STATUS_OPTIONS = [
-  'טיוטה',
-  'נשלחה',
-  'בטיפול',
-  'ממתינה לבחירת תוכן',
-  'ממתינה לתקציב',
-  'אושרה',
-  'נדחתה',
-  'נסגרה'
-];
+const STATUS_OPTIONS = ['טיוטה','נשלחה','בטיפול','ממתינה לבחירת תוכן','ממתינה לתקציב','אושרה','נדחתה','נסגרה'];
+const ui = createSharedInteractionLayer();
 
-const MAIN_COLUMNS = [
-  { key: 'school_name', label: 'בית ספר', width: 155, type: 'text' },
-  { key: 'semel_mosad', label: 'סמל מוסד', width: 82, type: 'text', center: true },
-  { key: 'authority', label: 'רשות', width: 105, type: 'text' },
-  { key: 'quote_number', label: 'מס׳ הצעה', width: 80, type: 'text', center: true },
-  { key: 'program_name', label: 'תוכנית', width: 185, type: 'program' },
-  { key: 'gefen_numbers', label: 'מס׳ גפ״ן', width: 94, type: 'text', center: true },
-  { key: 'quantity', label: 'קבוצות', width: 66, type: 'number', center: true },
-  { key: 'total_amount', label: 'סכום', width: 94, type: 'money', center: true },
-  { key: 'probability', label: 'סבירות', width: 74, type: 'probability', center: true },
-  { key: 'realistic_value', label: 'צבר ריאלי', width: 98, type: 'calculated', center: true },
-  { key: 'status', label: 'סטטוס', width: 112, type: 'status', center: true },
-  { key: 'follow_up_date', label: 'תאריך מעקב', width: 96, type: 'date', center: true },
-  { key: 'next_action', label: 'הפעולה הבאה', width: 205, type: 'text' }
-];
-
-const DETAIL_COLUMNS = [
-  { key: 'contact_person', label: 'איש קשר', type: 'text' },
-  { key: 'phone', label: 'טלפון', type: 'tel' },
-  { key: 'email', label: 'דוא״ל', type: 'email' },
-  { key: 'proposal_date', label: 'תאריך הצעה', type: 'date' },
-  { key: 'proposal_nature', label: 'אופי ההצעה', type: 'nature' },
-  { key: 'notes', label: 'הערות / חסמים', type: 'textarea' }
-];
-
-let timer = null;
+let timer;
 let running = false;
 let rows = [];
 let courses = [];
 let loaded = false;
 let loading = false;
 let errorMessage = '';
-let editingId = null;
-let expandedId = null;
-let addingNew = false;
-let newDraft = {};
+let openRowId = null;
+let drawerMode = 'view';
 
-function clean(value) {
-  return String(value == null ? '' : value).replace(/\s+/g, ' ').trim();
-}
-
-function truthy(value) {
-  return value === true || value === 1 || value === '1' || value === 'yes' || value === 'true';
-}
+const clean = (value) => String(value == null ? '' : value).replace(/\s+/g, ' ').trim();
+const numberValue = (value) => {
+  if (value == null || value === '') return null;
+  const parsed = Number(String(value).replace(/[^0-9.\-]/g, ''));
+  return Number.isFinite(parsed) ? parsed : null;
+};
+const integerValue = (value) => Math.max(0, Math.floor(numberValue(value) || 0));
+const formatMoney = (value) => `₪${(numberValue(value) || 0).toLocaleString('he-IL', { maximumFractionDigits: 0 })}`;
+const formatDate = (value) => {
+  if (!value) return '—';
+  const parts = String(value).slice(0, 10).split('-');
+  return parts.length === 3 ? `${parts[2]}/${parts[1]}/${parts[0]}` : clean(value);
+};
+const realisticValue = (row) => numberValue(row?.realistic_value) ?? Math.round((numberValue(row?.total_amount) || 0) * (numberValue(row?.probability) || 0) / 100);
+const proposalItems = (row) => Array.isArray(row?.proposal_items) && row.proposal_items.length ? row.proposal_items : [{
+  program_name: row?.program_name, gefen_number: row?.gefen_numbers, quantity: row?.quantity,
+  total_price: row?.total_amount, meetings_count: row?.meetings_count, hours_count: row?.hours_count
+}].filter((item) => clean(item.program_name));
+const itemPrograms = (row) => proposalItems(row).map((item) => clean(item.program_name || item.item_name)).filter(Boolean);
+const totalGroups = (row) => proposalItems(row).reduce((sum, item) => sum + integerValue(item.quantity), 0) || integerValue(row?.quantity);
 
 function canUseScreen() {
   const user = state?.user || {};
-  const role = clean(user.display_role || user.role);
-  return clean(user.auth_user_id) === ISRAA_AUTH_USER_ID
-    || clean(user.user_id) === '3030'
-    || role === 'admin';
-}
-
-function toast(message, type = 'success') {
-  try {
-    showToast(message, type);
-  } catch {
-    console[type === 'error' ? 'error' : 'info'](message);
-  }
-}
-
-function numberValue(value) {
-  if (value == null || value === '') return null;
-  const normalized = String(value).replace(/[^0-9.\-]/g, '');
-  const parsed = Number(normalized);
-  return Number.isFinite(parsed) ? parsed : null;
-}
-
-function integerValue(value) {
-  const parsed = numberValue(value);
-  return parsed == null ? null : Math.max(0, Math.floor(parsed));
-}
-
-function formatMoney(value) {
-  const parsed = numberValue(value) || 0;
-  return `${parsed.toLocaleString('he-IL', { maximumFractionDigits: 0 })} ₪`;
-}
-
-function formatDate(value) {
-  if (!value) return '';
-  const parts = String(value).slice(0, 10).split('-');
-  if (parts.length !== 3) return clean(value);
-  return `${parts[2]}/${parts[1]}/${parts[0]}`;
-}
-
-function realisticValue(row) {
-  const saved = numberValue(row?.realistic_value);
-  if (saved != null) return saved;
-  return Math.round((numberValue(row?.total_amount) || 0) * (numberValue(row?.probability) || 0) / 100);
+  return clean(user.auth_user_id) === ISRAA_AUTH_USER_ID || clean(user.user_id) === '3030' || clean(user.display_role || user.role) === 'admin';
 }
 
 function statusClass(status) {
   const value = clean(status);
   if (value === 'אושרה') return 'is-approved';
+  if (value === 'נשלחה') return 'is-sent';
   if (value === 'נדחתה' || value === 'נסגרה') return 'is-closed';
   if (value.includes('ממתינה')) return 'is-waiting';
-  if (value === 'נשלחה') return 'is-sent';
+  if (value === 'טיוטה') return 'is-draft';
   return 'is-active';
 }
 
-function courseByName(name) {
-  const normalized = clean(name).toLowerCase();
-  return courses.find((course) => clean(course.short_name).toLowerCase() === normalized) || null;
+function toast(message, type = 'success') {
+  try { showToast(message, type); } catch { console[type === 'error' ? 'error' : 'info'](message); }
 }
 
 function injectStyles() {
@@ -130,610 +67,214 @@ function injectStyles() {
   const style = document.createElement('style');
   style.id = 'israa-tracking-v2-styles';
   style.textContent = `
-    .israa-mgmt.israa-v2-active > .israa-toolbar,
-    .israa-mgmt.israa-v2-active > .prog-section { display: none !important; }
-    .israa-mgmt,
-    .israa-mgmt.israa-v2-active,
-    .israa-mgmt .israa-v2,
-    .israa-mgmt [data-israa-tracking-v2] {
-      width:100%; max-width:100%; min-width:0; box-sizing:border-box;
-    }
-    .israa-v2 { direction:rtl; margin-top:10px; overflow:visible; }
-    .israa-v2__title-row {
-      display:flex; align-items:center; justify-content:space-between; gap:12px; margin-bottom:10px;
-    }
-    .israa-v2__title { margin:0; font-size:1.05rem; font-weight:850; color:#0f172a; }
-    .israa-v2__sub { color:#64748b; font-size:.76rem; }
-    .israa-v2__toolbar { display:flex; align-items:center; gap:8px; flex-wrap:wrap; margin-bottom:10px; }
-    .israa-v2__btn {
-      border:1px solid #cbd5e1; border-radius:8px; background:#fff; color:#334155;
-      padding:6px 10px; font:inherit; font-size:.78rem; font-weight:750; cursor:pointer;
-    }
-    .israa-v2__btn:hover { background:#f8fafc; }
-    .israa-v2__btn--primary { border-color:#0f766e; background:#0f766e; color:#fff; }
-    .israa-v2__btn--danger { color:#b91c1c; }
-    .israa-v2__btn[disabled] { opacity:.55; cursor:default; }
-    .israa-v2__kpis {
-      display:grid; grid-template-columns:repeat(4,minmax(210px,240px)); grid-auto-rows:64px;
-      justify-content:start; align-items:stretch; gap:8px; width:fit-content; max-width:100%;
-      margin:0 0 10px; box-sizing:border-box;
-    }
-    .israa-v2__kpi {
-      width:100%; min-width:0; height:64px; box-sizing:border-box;
-      display:flex; flex-direction:column; justify-content:center;
-      border:1px solid #e2e8f0; border-radius:10px; background:#fff; padding:7px 10px;
-      box-shadow:0 1px 4px rgba(15,23,42,.04);
-    }
-    .israa-v2__kpi-label { color:#64748b; font-size:.7rem; font-weight:700; }
-    .israa-v2__kpi-value { margin-top:2px; color:#0f172a; font-size:1rem; font-weight:850; }
-    .israa-v2__error { margin-bottom:8px; padding:8px 10px; border-radius:8px; background:#fee2e2; color:#991b1b; font-size:.78rem; }
-    .israa-v2__loading { padding:22px; text-align:center; color:#64748b; }
-    .israa-v2__wrap {
-      width:100%; max-width:100%; min-width:0; overflow-x:auto; overflow-y:visible;
-      direction:rtl; box-sizing:border-box; overscroll-behavior-inline:contain;
-      border:1px solid #dbe3ec; border-radius:10px; background:#fff;
-      box-shadow:0 2px 8px rgba(26,51,88,.06);
-    }
-    .israa-v2__table { width:100%; min-width:1510px; table-layout:fixed; border-collapse:collapse; font-size:11.5px; }
-    .israa-v2__table th {
-      position:sticky; top:0; z-index:1; padding:7px 6px; background:#f1f5f9; color:#334155;
-      border-bottom:1px solid #cbd5e1; border-inline-start:1px solid #e2e8f0;
-      text-align:right; font-size:10.5px; font-weight:800; white-space:nowrap;
-    }
-    .israa-v2__table td {
-      padding:6px; border-bottom:1px solid #e8edf3; border-inline-start:1px solid #eef2f6;
-      vertical-align:middle; color:#1e293b; overflow:hidden;
-    }
-    .israa-v2__row[data-v2-toggle] { cursor:pointer; }
-    .israa-v2__row[data-v2-toggle]:hover td { background:#f8fafc; }
-    .israa-v2__row.is-editing td, .israa-v2__row.is-new td { background:#fffbeb; }
-    .israa-v2__center { text-align:center !important; font-variant-numeric:tabular-nums; }
-    .israa-v2__text { white-space:nowrap; overflow:hidden; text-overflow:ellipsis; }
-    .israa-v2__program { display:grid; gap:3px; min-width:0; }
-    .israa-v2__program-name { line-height:1.25; white-space:normal; display:-webkit-box; -webkit-line-clamp:2; -webkit-box-orient:vertical; overflow:hidden; }
-    .israa-v2__nature { justify-self:start; padding:1px 6px; border-radius:999px; background:#e0f2fe; color:#075985; font-size:9px; font-weight:800; }
-    .israa-v2__status { display:inline-block; max-width:100%; padding:2px 7px; border-radius:999px; font-size:9.5px; font-weight:800; white-space:nowrap; overflow:hidden; text-overflow:ellipsis; }
-    .israa-v2__status.is-approved { background:#dcfce7; color:#166534; }
-    .israa-v2__status.is-sent { background:#dbeafe; color:#1d4ed8; }
-    .israa-v2__status.is-waiting { background:#fef3c7; color:#92400e; }
-    .israa-v2__status.is-closed { background:#e5e7eb; color:#475569; }
-    .israa-v2__status.is-active { background:#ede9fe; color:#6d28d9; }
-    .israa-v2__actions { display:flex; justify-content:center; gap:4px; }
-    .israa-v2__icon {
-      width:28px; height:28px; display:inline-grid; place-items:center; border:1px solid #cbd5e1;
-      border-radius:7px; background:#fff; font-size:13px; cursor:pointer;
-    }
-    .israa-v2__icon[disabled] { opacity:.5; cursor:default; }
-    .israa-v2__input, .israa-v2__select, .israa-v2__textarea {
-      width:100%; min-width:0; box-sizing:border-box; border:1px solid #cbd5e1; border-radius:6px;
-      padding:4px 5px; background:#fff; color:#0f172a; font:inherit; font-size:10.5px;
-    }
-    .israa-v2__textarea { min-height:58px; resize:vertical; }
-    .israa-v2__detail td { padding:0; background:#f8fafc; }
-    .israa-v2__detail-panel {
-      display:grid; grid-template-columns:repeat(5,minmax(120px,1fr)); gap:8px 12px;
-      padding:10px 12px; border-top:1px solid #e2e8f0;
-    }
-    .israa-v2__detail-item { min-width:0; }
-    .israa-v2__detail-item--wide { grid-column:span 2; }
-    .israa-v2__detail-label { display:block; margin-bottom:2px; color:#64748b; font-size:9.5px; font-weight:800; }
-    .israa-v2__detail-value { color:#1e293b; font-size:11px; white-space:normal; overflow-wrap:anywhere; }
-    .israa-v2__proposal-items { grid-column:1 / -1; border-top:1px dashed #cbd5e1; padding-top:7px; }
-    .israa-v2__proposal-items-list { display:flex; flex-wrap:wrap; gap:5px 10px; font-size:10.5px; color:#475569; }
-    .israa-v2__empty { padding:24px !important; text-align:center; color:#64748b; }
-    @media (max-width:1000px) {
-      .israa-v2__kpis { grid-template-columns:repeat(2,minmax(210px,240px)); }
-      .israa-v2__detail-panel { grid-template-columns:repeat(2,minmax(120px,1fr)); }
-    }
-    @media (max-width:600px) {
-      .israa-v2__kpis { width:100%; grid-template-columns:repeat(2,minmax(0,1fr)); }
-      .israa-v2__title-row { align-items:flex-start; flex-direction:column; }
-      .israa-v2__detail-panel { grid-template-columns:1fr; }
-      .israa-v2__detail-item--wide { grid-column:auto; }
-    }
-    @media (max-width:390px) {
-      .israa-v2__kpis { grid-template-columns:1fr; }
-    }
+    .israa-mgmt.israa-v2-active > .israa-toolbar,.israa-mgmt.israa-v2-active > .prog-section{display:none!important}
+    .israa-mgmt.israa-v2-active{width:100%;max-width:100%;min-width:0;overflow-x:hidden;box-sizing:border-box}
+    .israa-v2{direction:rtl;width:92%;max-width:1360px;min-width:0;margin:12px auto 0;box-sizing:border-box}
+    .israa-v2__title-row{display:flex;align-items:center;justify-content:space-between;gap:12px;margin-bottom:12px}.israa-v2__title{margin:0;font-size:1.08rem;font-weight:850;color:#0f172a}.israa-v2__sub{margin-top:3px;color:#64748b;font-size:.78rem}
+    .israa-v2__toolbar{display:flex;align-items:center;gap:8px;flex-wrap:wrap;margin:0 0 10px}.israa-v2__btn{border:1px solid #cbd5e1;border-radius:8px;background:#fff;color:#334155;padding:7px 11px;font:inherit;font-size:.8rem;font-weight:750;cursor:pointer}.israa-v2__btn:hover{background:#f8fafc}.israa-v2__btn--primary{border-color:#0f766e;background:#0f766e;color:#fff}.israa-v2__btn--danger{color:#b91c1c;border-color:#fecaca}.israa-v2__btn[disabled]{opacity:.55;cursor:default}
+    .israa-v2__kpis{display:grid;grid-template-columns:repeat(4,minmax(0,1fr));gap:10px;width:100%;margin:0 0 12px}.israa-v2__kpi{min-width:0;min-height:68px;display:flex;flex-direction:column;justify-content:center;border:1px solid #e2e8f0;border-radius:11px;background:#fff;padding:9px 12px;box-shadow:0 1px 4px rgba(15,23,42,.04)}.israa-v2__kpi-label{color:#64748b;font-size:.72rem;font-weight:700}.israa-v2__kpi-value{margin-top:3px;color:#0f172a;font-size:1.02rem;font-weight:850}
+    .israa-v2__error{margin-bottom:8px;padding:8px 10px;border-radius:8px;background:#fee2e2;color:#991b1b;font-size:.8rem}.israa-v2__loading{padding:24px;text-align:center;color:#64748b}
+    .israa-v2__wrap{width:100%;max-width:100%;min-width:0;overflow-x:auto;direction:rtl;box-sizing:border-box;overscroll-behavior-inline:contain;border:1px solid #dbe3ec;border-radius:11px;background:#fff;box-shadow:0 2px 8px rgba(26,51,88,.06)}
+    .israa-v2__table{width:100%;min-width:1040px;table-layout:fixed;border-collapse:collapse;font-size:12px}.israa-v2__table th{padding:9px 8px;background:#f1f5f9;color:#334155;border-bottom:1px solid #cbd5e1;text-align:right;font-size:11px;font-weight:800;white-space:nowrap}.israa-v2__table td{height:66px;padding:10px 9px;border-bottom:1px solid #e8edf3;vertical-align:middle;color:#1e293b;overflow:hidden}.israa-v2__row{cursor:pointer}.israa-v2__row:hover td{background:#f8fafc}.israa-v2__center{text-align:center!important;font-variant-numeric:tabular-nums}.israa-v2__primary{font-weight:800;color:#0f172a}.israa-v2__secondary{margin-top:4px;color:#64748b;font-size:10.5px;line-height:1.3}.israa-v2__clamp{display:-webkit-box;-webkit-line-clamp:2;-webkit-box-orient:vertical;overflow:hidden}.israa-v2__program{display:grid;gap:3px;min-width:0}.israa-v2__tags{display:flex;gap:5px;flex-wrap:wrap;margin-top:3px}.israa-v2__nature{width:max-content;padding:1px 6px;border-radius:999px;background:#e0f2fe;color:#075985;font-size:9px;font-weight:800}.israa-v2__status{display:inline-block;max-width:100%;padding:3px 8px;border-radius:999px;font-size:10px;font-weight:800;white-space:normal}.israa-v2__status.is-approved{background:#dcfce7;color:#166534}.israa-v2__status.is-sent{background:#dbeafe;color:#1d4ed8}.israa-v2__status.is-waiting{background:#fef3c7;color:#92400e}.israa-v2__status.is-closed{background:#e5e7eb;color:#475569}.israa-v2__status.is-draft{background:#f1f5f9;color:#475569}.israa-v2__status.is-active{background:#ede9fe;color:#6d28d9}.israa-v2__actions{display:flex;justify-content:center}.israa-v2__open{width:32px;height:32px;display:grid;place-items:center;border:1px solid #cbd5e1;border-radius:8px;background:#fff;color:#334155;font-size:17px;cursor:pointer}.israa-v2__empty{padding:28px!important;text-align:center;color:#64748b}
+    .ds-drawer.ds-drawer--israa{width:min(820px,55vw);max-width:calc(100vw - 32px)}.ds-drawer.ds-drawer--israa .ds-drawer__content{padding:0;overflow-y:auto}.israa-drawer{direction:rtl;color:#1e293b}.israa-drawer__hero{position:sticky;top:0;z-index:2;padding:14px 18px 12px;background:#fff;border-bottom:1px solid #e2e8f0}.israa-drawer__hero-top{display:flex;justify-content:space-between;align-items:flex-start;gap:12px}.israa-drawer__heading{margin:0;font-size:1.2rem;color:#0f172a}.israa-drawer__meta{display:flex;flex-wrap:wrap;gap:5px 12px;margin-top:5px;color:#64748b;font-size:.76rem}.israa-drawer__hero-actions{display:flex;gap:7px;flex-shrink:0}.israa-drawer__body{display:grid;grid-template-columns:1fr 1fr;gap:12px;padding:14px 18px 22px}.israa-drawer__section{min-width:0;border:1px solid #dbe3ec;border-radius:11px;background:#fff;overflow:hidden}.israa-drawer__section--wide{grid-column:1/-1}.israa-drawer__section h3{margin:0;padding:9px 11px;background:#f8fafc;border-bottom:1px solid #e2e8f0;font-size:.86rem}.israa-drawer__grid{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:10px;padding:11px}.israa-drawer__field{min-width:0}.israa-drawer__field--wide{grid-column:1/-1}.israa-drawer__label{display:block;margin-bottom:3px;color:#64748b;font-size:.68rem;font-weight:750}.israa-drawer__value{white-space:pre-wrap;overflow-wrap:anywhere;font-size:.82rem;line-height:1.5}.israa-drawer__metric{padding:9px;border-radius:8px;background:#f8fafc}.israa-drawer__metric .israa-drawer__value{font-weight:800}.israa-drawer__table-wrap{overflow-x:auto;padding:10px}.israa-drawer__table{width:100%;min-width:610px;border-collapse:collapse;font-size:.76rem}.israa-drawer__table th,.israa-drawer__table td{padding:7px;border-bottom:1px solid #e2e8f0;text-align:right}.israa-drawer__table th{color:#64748b;background:#f8fafc}.israa-drawer__form{display:contents}.israa-v2__input,.israa-v2__select,.israa-v2__textarea{width:100%;min-width:0;box-sizing:border-box;border:1px solid #cbd5e1;border-radius:7px;padding:7px;background:#fff;color:#0f172a;font:inherit;font-size:.78rem}.israa-v2__textarea{min-height:88px;resize:vertical}.israa-drawer__danger-row{display:flex;justify-content:flex-end;padding:0 18px 18px}.israa-drawer__error{grid-column:1/-1;color:#b91c1c;font-size:.78rem}
+    @media(max-width:1100px){.israa-v2{width:94%}.israa-v2__table{min-width:980px}.ds-drawer.ds-drawer--israa{width:min(820px,72vw)}}
+    @media(max-width:700px){.israa-v2{width:calc(100% - 24px)}.israa-v2__kpis{grid-template-columns:repeat(2,minmax(0,1fr))}.israa-v2__table{min-width:980px}.ds-drawer.ds-drawer--israa{width:calc(100vw - 16px);max-width:calc(100vw - 16px)}.israa-drawer__body{grid-template-columns:1fr;padding-inline:12px}.israa-drawer__section--wide{grid-column:auto}.israa-drawer__grid{grid-template-columns:repeat(2,minmax(0,1fr))}.israa-drawer__hero{padding-inline:12px}}
+    @media(max-width:430px){.israa-v2__kpis{grid-template-columns:1fr}.israa-drawer__grid{grid-template-columns:1fr}.israa-drawer__field--wide{grid-column:auto}.israa-drawer__hero-top{flex-direction:column}.israa-drawer__hero-actions{width:100%}}
   `;
   document.head.appendChild(style);
 }
 
-function activeTableTab(mgmt) {
-  const active = mgmt.querySelector('[data-israa-tab].is-active');
-  return !active || clean(active.dataset.israaTab) === 'table';
-}
-
 async function loadData(force = false) {
   if (!supabase || loading || (loaded && !force)) return;
-  loading = true;
-  errorMessage = '';
+  loading = true; errorMessage = '';
   try {
-    const [rowsResult, coursesResult] = await Promise.all([
-      supabase
-        .from('israa_program_tracking')
-        .select('*')
-        .order('proposal_date', { ascending: false, nullsFirst: false })
-        .order('created_at', { ascending: false }),
-      supabase
-        .from('proposal_gefen_courses')
-        .select('short_name,gefen_number,sort_order')
-        .eq('is_active', true)
-        .order('sort_order', { ascending: true })
+    const [tracking, catalog] = await Promise.all([
+      supabase.from('israa_program_tracking').select('*').order('proposal_date', { ascending: false, nullsFirst: false }).order('created_at', { ascending: false }),
+      supabase.from('proposal_gefen_courses').select('short_name,gefen_number,sort_order').eq('is_active', true).order('sort_order', { ascending: true })
     ]);
-    if (rowsResult.error) throw rowsResult.error;
-    if (coursesResult.error) throw coursesResult.error;
-    rows = Array.isArray(rowsResult.data) ? rowsResult.data : [];
-    courses = Array.isArray(coursesResult.data) ? coursesResult.data : [];
+    if (tracking.error) throw tracking.error;
+    if (catalog.error) throw catalog.error;
+    rows = Array.isArray(tracking.data) ? tracking.data : [];
+    courses = Array.isArray(catalog.data) ? catalog.data : [];
     loaded = true;
   } catch (error) {
     console.error('[israa-tracking-v2-load]', error);
     errorMessage = error?.message || 'שגיאה בטעינת טבלת המעקב';
-  } finally {
-    loading = false;
-  }
+  } finally { loading = false; }
+}
+
+function searchableRowText(row) {
+  return [row.authority,row.school_name,row.semel_mosad,row.quote_number,row.program_name,row.gefen_numbers,row.contact_person,row.phone,row.email,row.status,row.next_action,row.notes,row.barriers,row.outreach_method,
+    ...proposalItems(row).flatMap((item) => [item.program_name,item.item_name,item.gefen_number])].map(clean).filter(Boolean).join(' ');
 }
 
 function kpiHtml() {
   const total = rows.reduce((sum, row) => sum + (numberValue(row.total_amount) || 0), 0);
   const realistic = rows.reduce((sum, row) => sum + realisticValue(row), 0);
-  const approved = rows
-    .filter((row) => clean(row.status) === 'אושרה')
-    .reduce((sum, row) => sum + (numberValue(row.total_amount) || 0), 0);
-  const cards = [
-    ['מספר הצעות', rows.length.toLocaleString('he-IL')],
-    ['שווי הצעות כולל', formatMoney(total)],
-    ['שווי צבר ריאלי', formatMoney(realistic)],
-    ['שווי הצעות שאושרו', formatMoney(approved)]
-  ];
-  return `<div class="israa-v2__kpis">${cards.map(([label, value]) => `
-    <div class="israa-v2__kpi">
-      <div class="israa-v2__kpi-label">${escapeHtml(label)}</div>
-      <div class="israa-v2__kpi-value">${escapeHtml(value)}</div>
-    </div>`).join('')}</div>`;
-}
-
-function optionHtml(options, value, emptyLabel = '') {
-  const current = clean(value);
-  const all = [...options];
-  if (current && !all.map(clean).includes(current)) all.unshift(current);
-  return `${emptyLabel ? `<option value="">${escapeHtml(emptyLabel)}</option>` : ''}${all.map((option) => {
-    const raw = typeof option === 'number' ? String(option) : option;
-    return `<option value="${escapeHtml(raw)}"${clean(raw) === current ? ' selected' : ''}>${escapeHtml(raw)}</option>`;
-  }).join('')}`;
-}
-
-function inputHtml(field, value, type = 'text', extra = '') {
-  const v = value == null ? '' : String(value);
-  if (type === 'textarea') {
-    return `<textarea class="israa-v2__textarea" data-v2-field="${escapeHtml(field)}" ${extra}>${escapeHtml(v)}</textarea>`;
-  }
-  if (type === 'status') {
-    return `<select class="israa-v2__select" data-v2-field="${escapeHtml(field)}">${optionHtml(STATUS_OPTIONS, v, '(ריק)')}</select>`;
-  }
-  if (type === 'probability') {
-    return `<select class="israa-v2__select israa-v2__center" data-v2-field="${escapeHtml(field)}">${PROBABILITY_OPTIONS.map((option) => `<option value="${option}"${Number(v || 30) === option ? ' selected' : ''}>${option}%</option>`).join('')}</select>`;
-  }
-  if (type === 'nature') {
-    return `<select class="israa-v2__select" data-v2-field="${escapeHtml(field)}">${optionHtml(NATURE_OPTIONS, v || 'ממוקדת')}</select>`;
-  }
-  const htmlType = type === 'money' ? 'number' : type;
-  const step = type === 'money' ? ' step="1" min="0"' : type === 'number' ? ' step="1" min="0"' : '';
-  const list = type === 'program' ? ' list="israa-v2-course-options" data-v2-program-input' : '';
-  return `<input class="israa-v2__input${type === 'money' || type === 'number' ? ' israa-v2__center' : ''}" data-v2-field="${escapeHtml(field)}" type="${escapeHtml(htmlType)}" value="${escapeHtml(v)}"${step}${list} ${extra}>`;
-}
-
-function displayProgram(row) {
-  const name = clean(row.program_name);
-  const nature = clean(row.proposal_nature) || 'ממוקדת';
-  return `<div class="israa-v2__program" title="${escapeHtml(name)}">
-    <span class="israa-v2__program-name">${escapeHtml(name || '—')}</span>
-    <span class="israa-v2__nature">${escapeHtml(nature)}</span>
-  </div>`;
-}
-
-function displayCell(row, column) {
-  const value = row?.[column.key];
-  if (column.key === 'program_name') return displayProgram(row);
-  if (column.key === 'total_amount' || column.key === 'realistic_value') return escapeHtml(formatMoney(column.key === 'realistic_value' ? realisticValue(row) : value));
-  if (column.key === 'probability') return `${escapeHtml(String(numberValue(value) || 0))}%`;
-  if (column.key === 'status') return `<span class="israa-v2__status ${statusClass(value)}">${escapeHtml(clean(value) || '—')}</span>`;
-  if (column.key === 'follow_up_date') return escapeHtml(formatDate(value) || '—');
-  return `<div class="israa-v2__text" title="${escapeHtml(clean(value))}">${escapeHtml(clean(value) || '—')}</div>`;
-}
-
-function editCell(row, column) {
-  if (column.type === 'calculated') return escapeHtml(formatMoney(realisticValue(row)));
-  return inputHtml(column.key, row?.[column.key], column.type);
-}
-
-function proposalItemsHtml(row) {
-  const items = Array.isArray(row?.proposal_items) ? row.proposal_items : [];
-  if (!items.length) return '';
-  return `<div class="israa-v2__proposal-items">
-    <span class="israa-v2__detail-label">פירוט התוכניות בהצעה</span>
-    <div class="israa-v2__proposal-items-list">${items.map((item) => {
-      const parts = [
-        clean(item.program_name || item.item_name),
-        clean(item.gefen_number) ? `גפ״ן ${clean(item.gefen_number)}` : '',
-        Number(item.quantity) > 0 ? `${Number(item.quantity)} קבוצות` : '',
-        numberValue(item.total_price) != null ? formatMoney(item.total_price) : ''
-      ].filter(Boolean);
-      return `<span>${escapeHtml(parts.join(' · '))}</span>`;
-    }).join('')}</div>
-  </div>`;
-}
-
-function detailHtml(row, editing, rowKey) {
-  const detail = DETAIL_COLUMNS.map((field) => {
-    const wide = field.key === 'notes' ? ' israa-v2__detail-item--wide' : '';
-    const content = editing
-      ? inputHtml(field.key, row?.[field.key], field.type)
-      : `<div class="israa-v2__detail-value">${escapeHtml(field.key.includes('date') ? (formatDate(row?.[field.key]) || '—') : (clean(row?.[field.key]) || '—'))}</div>`;
-    return `<div class="israa-v2__detail-item${wide}">
-      <span class="israa-v2__detail-label">${escapeHtml(field.label)}</span>
-      ${content}
-    </div>`;
-  }).join('');
-
-  return `<tr class="israa-v2__detail" data-v2-detail-for="${escapeHtml(rowKey)}">
-    <td colspan="${MAIN_COLUMNS.length + 1}">
-      <div class="israa-v2__detail-panel" data-v2-editor="${escapeHtml(rowKey)}">
-        ${detail}
-        ${editing ? '' : proposalItemsHtml(row)}
-      </div>
-    </td>
-  </tr>`;
-}
-
-function searchableRowText(row) {
-  return [
-    row.authority, row.school_name, row.semel_mosad, row.program_name,
-    row.quote_number, row.contact_person, row.phone, row.email, row.status,
-    row.notes,
-    ...(Array.isArray(row.proposal_items) ? row.proposal_items.flatMap((item) => [
-      item.program_name, item.item_name, item.gefen_number
-    ]) : [])
-  ].map(clean).filter(Boolean).join(' ');
+  const approved = rows.filter((row) => clean(row.status) === 'אושרה').reduce((sum, row) => sum + (numberValue(row.total_amount) || 0), 0);
+  return `<div class="israa-v2__kpis">${[['מספר הצעות',rows.length.toLocaleString('he-IL')],['שווי הצעות כולל',formatMoney(total)],['שווי צבר ריאלי',formatMoney(realistic)],['שווי הצעות שאושרו',formatMoney(approved)]].map(([label,value]) => `<div class="israa-v2__kpi"><div class="israa-v2__kpi-label">${label}</div><div class="israa-v2__kpi-value">${escapeHtml(value)}</div></div>`).join('')}</div>`;
 }
 
 function rowHtml(row) {
-  const editing = editingId === row.id;
-  const expanded = editing || expandedId === row.id;
-  const cells = MAIN_COLUMNS.map((column) => {
-    const content = editing ? editCell(row, column) : displayCell(row, column);
-    return `<td class="${column.center ? 'israa-v2__center' : ''}">${content}</td>`;
-  }).join('');
-  const actions = editing
-    ? `<button class="israa-v2__icon" data-v2-save="${escapeHtml(row.id)}" title="שמירה">💾</button>
-       <button class="israa-v2__icon" data-v2-cancel title="ביטול">✕</button>`
-    : `<button class="israa-v2__icon" data-v2-edit="${escapeHtml(row.id)}" title="עריכה">✏️</button>
-       <button class="israa-v2__icon israa-v2__btn--danger" data-v2-delete="${escapeHtml(row.id)}" title="מחיקה">🗑️</button>`;
-  const main = `<tr class="israa-v2__row${editing ? ' is-editing' : ''}" data-v2-row-id="${escapeHtml(row.id)}" data-v2-search-text="${escapeHtml(searchableRowText(row))}"${editing ? '' : ` data-v2-toggle="${escapeHtml(row.id)}"`}>
-    ${cells}<td><div class="israa-v2__actions">${actions}</div></td>
+  const programs = itemPrograms(row);
+  const programMeta = `${programs.length > 1 ? `${programs.length} תוכניות · ` : ''}${totalGroups(row)} קבוצות`;
+  return `<tr class="israa-v2__row" tabindex="0" data-v2-row-id="${escapeHtml(row.id)}" data-v2-open="${escapeHtml(row.id)}" data-v2-search-text="${escapeHtml(searchableRowText(row))}" data-v2-programs="${escapeHtml(programs.join('|'))}">
+    <td><div class="israa-v2__primary israa-v2__clamp">${escapeHtml(clean(row.school_name) || '—')}</div><div class="israa-v2__secondary">סמל מוסד: ${escapeHtml(clean(row.semel_mosad) || '—')}</div></td>
+    <td><div class="israa-v2__clamp">${escapeHtml(clean(row.authority) || '—')}</div></td>
+    <td class="israa-v2__center"><span class="israa-v2__primary">${escapeHtml(clean(row.quote_number) || '—')}</span></td>
+    <td><div class="israa-v2__program"><span class="israa-v2__primary israa-v2__clamp">${escapeHtml(programs[0] || clean(row.program_name) || '—')}</span><span class="israa-v2__secondary">${escapeHtml(programMeta)}</span><span class="israa-v2__nature">${escapeHtml(clean(row.proposal_nature) || 'ממוקדת')}</span></div></td>
+    <td><div class="israa-v2__primary">${escapeHtml(formatMoney(row.total_amount))}</div><div class="israa-v2__secondary">סבירות ${numberValue(row.probability) || 0}% · צבר ${escapeHtml(formatMoney(realisticValue(row)))}</div></td>
+    <td class="israa-v2__center"><span class="israa-v2__status ${statusClass(row.status)}">${escapeHtml(clean(row.status) || '—')}</span></td>
+    <td><div class="israa-v2__primary">${escapeHtml(formatDate(row.follow_up_date))}</div><div class="israa-v2__secondary israa-v2__clamp" title="${escapeHtml(clean(row.next_action))}">${escapeHtml(clean(row.next_action) || '—')}</div></td>
+    <td class="israa-v2__center"><div class="israa-v2__actions"><button type="button" class="israa-v2__open" data-v2-open-button="${escapeHtml(row.id)}" aria-label="פתיחת פרטי ההצעה" title="פתיחת פרטים">‹</button></div></td>
   </tr>`;
-  return main + (expanded ? detailHtml(row, editing, row.id) : '');
-}
-
-function newRowHtml() {
-  const draft = {
-    proposal_nature: 'ממוקדת',
-    probability: 50,
-    status: 'טיוטה',
-    ...newDraft
-  };
-  const cells = MAIN_COLUMNS.map((column) => {
-    const content = column.type === 'calculated' ? escapeHtml(formatMoney(realisticValue(draft))) : editCell(draft, column);
-    return `<td class="${column.center ? 'israa-v2__center' : ''}">${content}</td>`;
-  }).join('');
-  return `<tr class="israa-v2__row is-new" data-v2-row-id="__new__">
-    ${cells}<td><div class="israa-v2__actions">
-      <button class="israa-v2__icon" data-v2-save-new title="שמירה">💾</button>
-      <button class="israa-v2__icon" data-v2-cancel-new title="ביטול">✕</button>
-    </div></td>
-  </tr>${detailHtml(draft, true, '__new__')}`;
-}
-
-function datalistHtml() {
-  return `<datalist id="israa-v2-course-options">${courses.map((course) => `<option value="${escapeHtml(clean(course.short_name))}">${escapeHtml(clean(course.gefen_number))}</option>`).join('')}</datalist>`;
 }
 
 function tableHtml() {
-  const header = MAIN_COLUMNS.map((column) => `<th class="${column.center ? 'israa-v2__center' : ''}">${escapeHtml(column.label)}</th>`).join('');
-  const colgroup = MAIN_COLUMNS.map((column) => `<col style="width:${column.width}px">`).join('') + '<col style="width:72px">';
-  const body = [
-    rows.map(rowHtml).join(''),
-    addingNew ? newRowHtml() : '',
-    !rows.length && !addingNew ? `<tr><td colspan="${MAIN_COLUMNS.length + 1}" class="israa-v2__empty">אין הצעות במעקב.</td></tr>` : ''
-  ].join('');
-  return `<div class="israa-v2__wrap">
-    <table class="israa-v2__table" dir="rtl">
-      <colgroup>${colgroup}</colgroup>
-      <thead><tr>${header}<th class="israa-v2__center">פעולות</th></tr></thead>
-      <tbody>${body}</tbody>
-    </table>
-  </div>${datalistHtml()}`;
+  const body = rows.length ? rows.map(rowHtml).join('') : '<tr><td colspan="8" class="israa-v2__empty">אין הצעות במעקב.</td></tr>';
+  return `<div class="israa-v2__wrap"><table class="israa-v2__table" dir="rtl"><colgroup><col style="width:15%"><col style="width:11%"><col style="width:10%"><col style="width:18%"><col style="width:14%"><col style="width:10%"><col style="width:16%"><col style="width:6%"></colgroup><thead><tr><th>בית ספר</th><th>רשות</th><th class="israa-v2__center">מס׳ הצעה</th><th>תוכניות</th><th>נתונים כספיים</th><th class="israa-v2__center">סטטוס</th><th>מעקב</th><th class="israa-v2__center">פעולות</th></tr></thead><tbody>${body}</tbody></table></div>`;
 }
 
 function renderContainer(container) {
-  container.innerHTML = `
-    <div class="israa-v2__title-row">
-      <div>
-        <h2 class="israa-v2__title">מעקב הצעות גפ״ן – תשפ״ז</h2>
-        <div class="israa-v2__sub">הצעות בתחום E בלבד · שמות קצרים ומספרי גפ״ן מתוך המערכת</div>
-      </div>
-    </div>
-    ${loading ? '<div class="israa-v2__loading">טוען נתונים…</div>' : `
-      ${kpiHtml()}
-      <div class="israa-v2__toolbar">
-        <button class="israa-v2__btn israa-v2__btn--primary" data-v2-add${addingNew ? ' disabled' : ''}>+ הוספת שורה</button>
-        <button class="israa-v2__btn" data-v2-export>📥 ייצוא לאקסל</button>
-        <button class="israa-v2__btn" data-v2-refresh>רענון</button>
-      </div>
-      ${errorMessage ? `<div class="israa-v2__error">${escapeHtml(errorMessage)}</div>` : ''}
-      ${tableHtml()}
-    `}
-  `;
+  container.innerHTML = `<div class="israa-v2__title-row"><div><h2 class="israa-v2__title">מעקב הצעות גפ״ן – תשפ״ז</h2><div class="israa-v2__sub">לחיצה על שורה מציגה את מלוא פרטי ההצעה</div></div></div>${loading ? '<div class="israa-v2__loading">טוען נתונים…</div>' : `${kpiHtml()}<div class="israa-v2__toolbar"><button class="israa-v2__btn israa-v2__btn--primary" data-v2-add>הוספת הצעה</button><button class="israa-v2__btn" data-v2-export>ייצוא לאקסל</button><button class="israa-v2__btn" data-v2-refresh>רענון</button></div>${errorMessage ? `<div class="israa-v2__error">${escapeHtml(errorMessage)}</div>` : ''}${tableHtml()}`}`;
+  window.dispatchEvent(new CustomEvent('israa-tracking-rendered'));
 }
 
-function collectEditor(container, rowKey) {
-  const main = container.querySelector(`[data-v2-row-id="${CSS.escape(rowKey)}"]`);
-  const detail = container.querySelector(`[data-v2-editor="${CSS.escape(rowKey)}"]`);
-  const elements = [...(main?.querySelectorAll('[data-v2-field]') || []), ...(detail?.querySelectorAll('[data-v2-field]') || [])];
-  const payload = {};
-  elements.forEach((element) => {
-    payload[element.dataset.v2Field] = element.value;
-  });
+function valueField(label, value, className = '') {
+  return `<div class="israa-drawer__field ${className}"><span class="israa-drawer__label">${escapeHtml(label)}</span><div class="israa-drawer__value">${escapeHtml(clean(value) || '—')}</div></div>`;
+}
 
-  payload.quantity = integerValue(payload.quantity);
-  payload.total_amount = numberValue(payload.total_amount);
+function inputField(label, key, value, type = 'text', className = '') {
+  let control;
+  if (type === 'textarea') control = `<textarea class="israa-v2__textarea" data-v2-field="${key}">${escapeHtml(value ?? '')}</textarea>`;
+  else if (type === 'status') control = `<select class="israa-v2__select" data-v2-field="${key}">${STATUS_OPTIONS.map((option) => `<option${clean(value) === option ? ' selected' : ''}>${option}</option>`).join('')}</select>`;
+  else if (type === 'nature') control = `<select class="israa-v2__select" data-v2-field="${key}">${NATURE_OPTIONS.map((option) => `<option${clean(value || 'ממוקדת') === option ? ' selected' : ''}>${option}</option>`).join('')}</select>`;
+  else if (type === 'probability') control = `<select class="israa-v2__select" data-v2-field="${key}">${PROBABILITY_OPTIONS.map((option) => `<option value="${option}"${Number(value || 50) === option ? ' selected' : ''}>${option}%</option>`).join('')}</select>`;
+  else control = `<input class="israa-v2__input" data-v2-field="${key}" type="${type}" value="${escapeHtml(value ?? '')}"${key === 'program_name' ? ' list="israa-v2-course-options" data-v2-program-input' : ''}>`;
+  return `<label class="israa-drawer__field ${className}"><span class="israa-drawer__label">${escapeHtml(label)}</span>${control}</label>`;
+}
+
+function sectionHtml(title, content, wide = false) { return `<section class="israa-drawer__section${wide ? ' israa-drawer__section--wide' : ''}"><h3>${escapeHtml(title)}</h3>${content}</section>`; }
+function programsTableHtml(row) {
+  const items = proposalItems(row);
+  return `<div class="israa-drawer__table-wrap"><table class="israa-drawer__table"><thead><tr><th>תוכנית</th><th>מס׳ גפ״ן</th><th>קבוצות</th><th>סכום</th><th>מפגשים</th><th>שעות</th></tr></thead><tbody>${items.length ? items.map((item) => `<tr><td>${escapeHtml(clean(item.program_name || item.item_name) || '—')}</td><td>${escapeHtml(clean(item.gefen_number) || '—')}</td><td>${escapeHtml(clean(item.quantity) || '—')}</td><td>${escapeHtml(formatMoney(item.total_price ?? item.amount))}</td><td>${escapeHtml(clean(item.meetings_count || item.meetings) || '—')}</td><td>${escapeHtml(clean(item.hours_count || item.hours) || '—')}</td></tr>`).join('') : '<tr><td colspan="6">לא הוגדרו תוכניות.</td></tr>'}</tbody></table></div>`;
+}
+
+function drawerContent(row, mode) {
+  const editing = mode === 'edit' || mode === 'create';
+  const draft = row || { proposal_nature: 'ממוקדת', probability: 50, status: 'טיוטה', proposal_items: [] };
+  const fields = editing ? {
+    snapshot: [inputField('תאריך ההצעה','proposal_date',draft.proposal_date,'date'),inputField('תוקף ההצעה','valid_until',draft.valid_until,'date'),inputField('מספר קבוצות','quantity',draft.quantity,'number'),inputField('סכום כולל','total_amount',draft.total_amount,'number'),inputField('סבירות','probability',draft.probability,'probability'),valueField('צבר ריאלי',formatMoney(realisticValue(draft)),'israa-drawer__metric')].join(''),
+    proposal: [inputField('תוכנית ראשית','program_name',draft.program_name),inputField('מס׳ גפ״ן','gefen_numbers',draft.gefen_numbers),inputField('אופי ההצעה','proposal_nature',draft.proposal_nature,'nature')].join(''),
+    tracking: [inputField('סטטוס','status',draft.status,'status'),inputField('תאריך המעקב','follow_up_date',draft.follow_up_date,'date'),inputField('הפעולה הבאה','next_action',draft.next_action,'textarea','israa-drawer__field--wide'),inputField('אופן הפנייה','outreach_method',draft.outreach_method),inputField('חסמים','barriers',draft.barriers,'textarea','israa-drawer__field--wide')].join(''),
+    contact: [inputField('איש קשר','contact_person',draft.contact_person),inputField('טלפון','phone',draft.phone,'tel'),inputField('דוא״ל','email',draft.email,'email')].join(''),
+    notes: inputField('הערות','notes',draft.notes,'textarea','israa-drawer__field--wide'),
+    identity: [inputField('בית ספר','school_name',draft.school_name),inputField('סמל מוסד','semel_mosad',draft.semel_mosad),inputField('רשות','authority',draft.authority),inputField('מס׳ הצעה','quote_number',draft.quote_number)].join('')
+  } : {
+    snapshot: [valueField('תאריך ההצעה',formatDate(draft.proposal_date),'israa-drawer__metric'),valueField('תוקף ההצעה',formatDate(draft.valid_until),'israa-drawer__metric'),valueField('מספר קבוצות',String(totalGroups(draft)),'israa-drawer__metric'),valueField('סכום כולל',formatMoney(draft.total_amount),'israa-drawer__metric'),valueField('סבירות',`${numberValue(draft.probability) || 0}%`,'israa-drawer__metric'),valueField('צבר ריאלי',formatMoney(realisticValue(draft)),'israa-drawer__metric')].join(''),
+    tracking: [valueField('סטטוס',draft.status),valueField('תאריך המעקב',formatDate(draft.follow_up_date)),valueField('הפעולה הבאה',draft.next_action,'israa-drawer__field--wide'),valueField('אופן הפנייה',draft.outreach_method),valueField('חסמים',draft.barriers,'israa-drawer__field--wide')].join(''),
+    contact: [valueField('איש קשר',draft.contact_person),draft.phone ? `<div class="israa-drawer__field"><span class="israa-drawer__label">טלפון</span><a class="israa-drawer__value" href="tel:${escapeHtml(draft.phone)}">${escapeHtml(draft.phone)}</a></div>` : valueField('טלפון','—'),draft.email ? `<div class="israa-drawer__field"><span class="israa-drawer__label">דוא״ל</span><a class="israa-drawer__value" href="mailto:${escapeHtml(draft.email)}">${escapeHtml(draft.email)}</a></div>` : valueField('דוא״ל','—')].join(''),
+    notes: valueField('הערות',draft.notes,'israa-drawer__field--wide')
+  };
+  const title = mode === 'create' ? 'הצעה חדשה' : clean(draft.school_name) || 'פרטי הצעה';
+  const buttons = editing ? `<button type="button" class="israa-v2__btn" data-v2-drawer-cancel>ביטול</button><button type="submit" class="israa-v2__btn israa-v2__btn--primary" data-v2-drawer-save>${mode === 'create' ? 'יצירה' : 'שמירה'}</button>` : `<button type="button" class="israa-v2__btn israa-v2__btn--primary" data-v2-drawer-edit>עריכה</button>`;
+  return `<form class="israa-drawer__form" data-v2-drawer-form data-v2-editor="${mode === 'create' ? '__new__' : escapeHtml(draft.id)}"><div class="israa-drawer"><header class="israa-drawer__hero"><div class="israa-drawer__hero-top"><div><h2 class="israa-drawer__heading">${escapeHtml(title)}</h2><div class="israa-drawer__meta">${mode === 'create' ? '' : `<span>${escapeHtml(clean(draft.authority) || '—')}</span><span>סמל ${escapeHtml(clean(draft.semel_mosad) || '—')}</span><span>הצעה ${escapeHtml(clean(draft.quote_number) || '—')}</span><span class="israa-v2__status ${statusClass(draft.status)}">${escapeHtml(clean(draft.status) || '—')}</span><span class="israa-v2__nature">${escapeHtml(clean(draft.proposal_nature) || 'ממוקדת')}</span>`}</div></div><div class="israa-drawer__hero-actions">${buttons}</div></div></header><div class="israa-drawer__body">${editing ? sectionHtml('פרטי ההצעה','<div class="israa-drawer__grid">'+fields.identity+'</div>',true) : ''}${sectionHtml('תמונת מצב','<div class="israa-drawer__grid">'+fields.snapshot+'</div>',true)}${editing ? sectionHtml('פרטי תוכנית','<div class="israa-drawer__grid">'+fields.proposal+'</div>',true) : sectionHtml('פירוט התוכניות',programsTableHtml(draft),true)}${sectionHtml('מעקב והתקדמות','<div class="israa-drawer__grid">'+fields.tracking+'</div>',true)}${sectionHtml('פרטי איש קשר','<div class="israa-drawer__grid">'+fields.contact+'</div>')}${sectionHtml('הערות','<div class="israa-drawer__grid">'+fields.notes+'</div>')}<div class="israa-drawer__error" data-v2-drawer-error></div></div>${!editing ? `<div class="israa-drawer__danger-row"><button type="button" class="israa-v2__btn israa-v2__btn--danger" data-v2-drawer-delete>מחיקת הצעה</button></div>` : ''}<datalist id="israa-v2-course-options">${courses.map((course) => `<option value="${escapeHtml(course.short_name)}">${escapeHtml(course.gefen_number)}</option>`).join('')}</datalist></div></form>`;
+}
+
+function openDrawer(row, mode = 'view') {
+  const requestedId = row?.id || null;
+  openRowId = requestedId; drawerMode = mode;
+  ui.openDrawer({ title: mode === 'create' ? 'הוספת הצעה' : 'פרטי הצעה', content: drawerContent(row, mode), onClose: () => { document.querySelector('.ds-drawer--israa')?.classList.remove('ds-drawer--israa'); openRowId = null; drawerMode = 'view'; }, onOpen: (content) => {
+    openRowId = requestedId; drawerMode = mode;
+    const drawer = content.closest('.ds-drawer'); drawer?.classList.add('ds-drawer--israa');
+    bindDrawer(content);
+  }});
+}
+
+function collectDrawer(form) {
+  const payload = {};
+  form.querySelectorAll('[data-v2-field]').forEach((field) => { payload[field.dataset.v2Field] = field.value; });
+  payload.quantity = integerValue(payload.quantity); payload.total_amount = numberValue(payload.total_amount);
   payload.total_cost = payload.total_amount == null ? '' : String(payload.total_amount);
-  payload.probability = PROBABILITY_OPTIONS.includes(Number(payload.probability)) ? Number(payload.probability) : 30;
-  payload.activity_date = payload.proposal_date || null;
-  payload.proposal_date = payload.proposal_date || null;
-  payload.follow_up_date = payload.follow_up_date || null;
+  payload.probability = PROBABILITY_OPTIONS.includes(Number(payload.probability)) ? Number(payload.probability) : 50;
+  payload.activity_date = payload.proposal_date || null; payload.proposal_date = payload.proposal_date || null;
+  payload.valid_until = payload.valid_until || null; payload.follow_up_date = payload.follow_up_date || null;
   payload.updated_at = new Date().toISOString();
   return payload;
 }
 
-function exportCsv() {
-  const columns = [
-    ['quote_number', 'מס׳ הצעה'],
-    ['school_name', 'בית ספר'],
-    ['semel_mosad', 'סמל מוסד'],
-    ['authority', 'רשות'],
-    ['contact_person', 'איש קשר'],
-    ['phone', 'טלפון'],
-    ['email', 'דוא״ל'],
-    ['program_name', 'תוכנית'],
-    ['gefen_numbers', 'מס׳ גפ״ן'],
-    ['proposal_nature', 'אופי ההצעה'],
-    ['quantity', 'קבוצות'],
-    ['proposal_date', 'תאריך הצעה'],
-    ['total_amount', 'סכום'],
-    ['probability', 'סבירות'],
-    ['realistic_value', 'צבר ריאלי'],
-    ['status', 'סטטוס'],
-    ['next_action', 'הפעולה הבאה'],
-    ['follow_up_date', 'תאריך מעקב'],
-    ['notes', 'הערות / חסמים']
-  ];
-  const quote = (value) => `"${String(value == null ? '' : value).replace(/"/g, '""')}"`;
-  const lines = [columns.map(([, label]) => quote(label)).join(',')];
-  rows.forEach((row) => {
-    lines.push(columns.map(([key]) => quote(key === 'realistic_value' ? realisticValue(row) : row[key])).join(','));
+async function saveDrawer(form, button) {
+  button.disabled = true;
+  const payload = collectDrawer(form); const creating = drawerMode === 'create';
+  try {
+    const query = creating ? supabase.from('israa_program_tracking').insert([payload]) : supabase.from('israa_program_tracking').update(payload).eq('id', openRowId);
+    const { data, error } = await query.select('*').single();
+    if (error) throw error;
+    rows = creating ? [data, ...rows] : rows.map((row) => row.id === data.id ? data : row);
+    openRowId = data.id; drawerMode = 'view'; clearScreenDataCache();
+    const container = document.querySelector(`[${CONTAINER_ATTR}]`); if (container) renderContainer(container);
+    openDrawer(data, 'view'); toast(creating ? 'ההצעה נוספה.' : 'ההצעה נשמרה.');
+  } catch (error) {
+    console.error('[israa-tracking-v2-save]', error); const node = form.querySelector('[data-v2-drawer-error]'); if (node) node.textContent = error?.message || 'שגיאה בשמירה'; button.disabled = false;
+  }
+}
+
+async function deleteRow(row) {
+  if (!row || !window.confirm('למחוק את ההצעה הזו?')) return;
+  const { error } = await supabase.from('israa_program_tracking').delete().eq('id', row.id);
+  if (error) { toast(error.message || 'שגיאה במחיקה', 'error'); return; }
+  rows = rows.filter((item) => item.id !== row.id); clearScreenDataCache(); ui.closeDrawer();
+  const container = document.querySelector(`[${CONTAINER_ATTR}]`); if (container) renderContainer(container); toast('ההצעה נמחקה.');
+}
+
+function bindDrawer(content) {
+  content.addEventListener('click', async (event) => {
+    if (event.target.closest('[data-v2-drawer-edit]')) { openDrawer(rows.find((row) => row.id === openRowId), 'edit'); return; }
+    if (event.target.closest('[data-v2-drawer-cancel]')) { if (drawerMode === 'create') ui.closeDrawer(); else openDrawer(rows.find((row) => row.id === openRowId), 'view'); return; }
+    if (event.target.closest('[data-v2-drawer-delete]')) await deleteRow(rows.find((row) => row.id === openRowId));
   });
-  const blob = new Blob([`\uFEFF${lines.join('\n')}`], { type: 'text/csv;charset=utf-8' });
-  const url = URL.createObjectURL(blob);
-  const anchor = document.createElement('a');
-  anchor.href = url;
-  anchor.download = `מעקב-הצעות-גפן-תשפז-${new Date().toISOString().slice(0, 10)}.csv`;
-  document.body.appendChild(anchor);
-  anchor.click();
-  anchor.remove();
-  URL.revokeObjectURL(url);
+  content.querySelector('[data-v2-drawer-form]')?.addEventListener('submit', (event) => { event.preventDefault(); saveDrawer(event.currentTarget, event.submitter || event.currentTarget.querySelector('[data-v2-drawer-save]')); });
+  content.addEventListener('change', (event) => {
+    const input = event.target.closest('[data-v2-program-input]'); if (!input) return;
+    const course = courses.find((item) => clean(item.short_name).toLowerCase() === clean(input.value).toLowerCase());
+    const gefen = content.querySelector('[data-v2-field="gefen_numbers"]'); if (course && gefen && !clean(gefen.value)) gefen.value = clean(course.gefen_number);
+  });
 }
 
-async function saveExisting(container, id, button) {
-  const payload = collectEditor(container, id);
-  button.disabled = true;
-  try {
-    const { data, error } = await supabase
-      .from('israa_program_tracking')
-      .update(payload)
-      .eq('id', id)
-      .select('*')
-      .single();
-    if (error) throw error;
-    rows = rows.map((row) => row.id === id ? data : row);
-    editingId = null;
-    errorMessage = '';
-    clearScreenDataCache();
-    toast('השורה נשמרה.');
-  } catch (error) {
-    console.error('[israa-tracking-v2-update]', error);
-    errorMessage = error?.message || 'שגיאה בשמירה';
-  }
-}
-
-async function saveNew(container, button) {
-  const payload = collectEditor(container, '__new__');
-  button.disabled = true;
-  try {
-    const { data, error } = await supabase
-      .from('israa_program_tracking')
-      .insert([payload])
-      .select('*')
-      .single();
-    if (error) throw error;
-    rows = [data, ...rows];
-    addingNew = false;
-    newDraft = {};
-    errorMessage = '';
-    clearScreenDataCache();
-    toast('השורה נוספה.');
-  } catch (error) {
-    console.error('[israa-tracking-v2-insert]', error);
-    errorMessage = error?.message || 'שגיאה בהוספה';
-  }
-}
-
-async function deleteRow(id) {
-  if (!window.confirm('למחוק את השורה הזו?')) return;
-  try {
-    const { error } = await supabase.from('israa_program_tracking').delete().eq('id', id);
-    if (error) throw error;
-    rows = rows.filter((row) => row.id !== id);
-    if (editingId === id) editingId = null;
-    if (expandedId === id) expandedId = null;
-    clearScreenDataCache();
-    toast('השורה נמחקה.');
-  } catch (error) {
-    console.error('[israa-tracking-v2-delete]', error);
-    errorMessage = error?.message || 'שגיאה במחיקה';
-  }
+function exportCsv() {
+  const columns = [['quote_number','מס׳ הצעה'],['school_name','בית ספר'],['semel_mosad','סמל מוסד'],['authority','רשות'],['contact_person','איש קשר'],['phone','טלפון'],['email','דוא״ל'],['program_name','תוכנית'],['gefen_numbers','מס׳ גפ״ן'],['proposal_nature','אופי ההצעה'],['quantity','קבוצות'],['proposal_date','תאריך הצעה'],['valid_until','תוקף'],['total_amount','סכום'],['probability','סבירות'],['realistic_value','צבר ריאלי'],['status','סטטוס'],['next_action','הפעולה הבאה'],['follow_up_date','תאריך מעקב'],['outreach_method','אופן הפנייה'],['notes','הערות'],['barriers','חסמים'],['proposal_items','פירוט תוכניות']];
+  const quote = (value) => `"${String(value == null ? '' : typeof value === 'object' ? JSON.stringify(value) : value).replace(/"/g, '""')}"`;
+  const lines = [columns.map(([, label]) => quote(label)).join(','), ...rows.map((row) => columns.map(([key]) => quote(key === 'realistic_value' ? realisticValue(row) : row[key])).join(','))];
+  const url = URL.createObjectURL(new Blob([`\uFEFF${lines.join('\n')}`], { type: 'text/csv;charset=utf-8' })); const anchor = document.createElement('a'); anchor.href = url; anchor.download = `מעקב-הצעות-גפן-תשפז-${new Date().toISOString().slice(0,10)}.csv`; document.body.appendChild(anchor); anchor.click(); anchor.remove(); URL.revokeObjectURL(url);
 }
 
 function bindContainer(container) {
-  if (container.dataset.bound === 'true') return;
-  container.dataset.bound = 'true';
-
+  if (container.dataset.bound === 'true') return; container.dataset.bound = 'true';
   container.addEventListener('click', async (event) => {
-    const target = event.target;
-    if (target.closest('[data-v2-add]')) {
-      addingNew = true;
-      editingId = null;
-      newDraft = { proposal_nature: 'ממוקדת', probability: 50, status: 'טיוטה' };
-      renderContainer(container);
-      return;
-    }
-    if (target.closest('[data-v2-export]')) {
-      exportCsv();
-      return;
-    }
-    if (target.closest('[data-v2-refresh]')) {
-      loaded = false;
-      await loadData(true);
-      renderContainer(container);
-      return;
-    }
-    const editButton = target.closest('[data-v2-edit]');
-    if (editButton) {
-      editingId = editButton.dataset.v2Edit;
-      addingNew = false;
-      expandedId = editingId;
-      renderContainer(container);
-      return;
-    }
-    if (target.closest('[data-v2-cancel]')) {
-      editingId = null;
-      renderContainer(container);
-      return;
-    }
-    if (target.closest('[data-v2-cancel-new]')) {
-      addingNew = false;
-      newDraft = {};
-      renderContainer(container);
-      return;
-    }
-    const saveButton = target.closest('[data-v2-save]');
-    if (saveButton) {
-      await saveExisting(container, saveButton.dataset.v2Save, saveButton);
-      renderContainer(container);
-      return;
-    }
-    const saveNewButton = target.closest('[data-v2-save-new]');
-    if (saveNewButton) {
-      await saveNew(container, saveNewButton);
-      renderContainer(container);
-      return;
-    }
-    const deleteButton = target.closest('[data-v2-delete]');
-    if (deleteButton) {
-      await deleteRow(deleteButton.dataset.v2Delete);
-      renderContainer(container);
-      return;
-    }
-    const toggle = target.closest('[data-v2-toggle]');
-    if (toggle && !target.closest('.israa-v2__actions')) {
-      const id = toggle.dataset.v2Toggle;
-      expandedId = expandedId === id ? null : id;
-      renderContainer(container);
-    }
+    if (event.target.closest('[data-v2-add]')) return openDrawer(null, 'create');
+    if (event.target.closest('[data-v2-export]')) return exportCsv();
+    if (event.target.closest('[data-v2-refresh]')) { loaded = false; await loadData(true); renderContainer(container); return; }
+    const button = event.target.closest('[data-v2-open-button]');
+    const rowElement = event.target.closest('[data-v2-open]');
+    if (button || (rowElement && !event.target.closest('button,a,input,select,textarea'))) { const id = button?.dataset.v2OpenButton || rowElement.dataset.v2Open; openDrawer(rows.find((row) => String(row.id) === String(id))); }
   });
-
-  container.addEventListener('change', (event) => {
-    const programInput = event.target.closest('[data-v2-program-input]');
-    if (!programInput) return;
-    const matched = courseByName(programInput.value);
-    if (!matched) return;
-    const editor = programInput.closest('[data-v2-row-id]') || container.querySelector(`[data-v2-row-id="${CSS.escape(programInput.closest('[data-v2-editor]')?.dataset.v2Editor || '')}"]`);
-    const rowKey = editor?.dataset.v2RowId || programInput.closest('[data-v2-editor]')?.dataset.v2Editor;
-    if (!rowKey) return;
-    const gefen = container.querySelector(`[data-v2-row-id="${CSS.escape(rowKey)}"] [data-v2-field="gefen_numbers"]`);
-    if (gefen && !clean(gefen.value)) gefen.value = clean(matched.gefen_number);
-  });
+  container.addEventListener('keydown', (event) => { const row = event.target.closest('[data-v2-open]'); if (row && (event.key === 'Enter' || event.key === ' ')) { event.preventDefault(); openDrawer(rows.find((item) => String(item.id) === row.dataset.v2Open)); } });
 }
 
 async function enhance(forceReload = false) {
-  if (running) return;
-  running = true;
+  if (running) return; running = true;
   try {
-    injectStyles();
-    const mgmt = document.querySelector(`#app ${ROOT_SELECTOR}`);
-    if (!mgmt || !canUseScreen()) return;
-
-    if (!activeTableTab(mgmt)) {
-      mgmt.classList.remove('israa-v2-active');
-      mgmt.querySelector(`[${CONTAINER_ATTR}]`)?.remove();
-      return;
-    }
-
-    mgmt.classList.add('israa-v2-active');
-    let container = mgmt.querySelector(`[${CONTAINER_ATTR}]`);
-    let created = false;
-    if (!container) {
-      container = document.createElement('section');
-      container.className = 'israa-v2';
-      container.setAttribute(CONTAINER_ATTR, 'true');
-      const tabbar = mgmt.querySelector('.israa-tabbar');
-      if (tabbar) tabbar.insertAdjacentElement('afterend', container);
-      else mgmt.prepend(container);
-      bindContainer(container);
-      created = true;
-    }
-
-    if (!loaded || forceReload) {
-      renderContainer(container);
-      await loadData(forceReload);
-      renderContainer(container);
-    } else if (created) {
-      renderContainer(container);
-    }
-  } finally {
-    running = false;
-  }
+    injectStyles(); const mgmt = document.querySelector(`#app ${ROOT_SELECTOR}`); if (!mgmt || !canUseScreen()) return;
+    const active = mgmt.querySelector('[data-israa-tab].is-active');
+    if (active && clean(active.dataset.israaTab) !== 'table') { mgmt.classList.remove('israa-v2-active'); mgmt.querySelector(`[${CONTAINER_ATTR}]`)?.remove(); return; }
+    mgmt.classList.add('israa-v2-active'); let container = mgmt.querySelector(`[${CONTAINER_ATTR}]`); let created = false;
+    if (!container) { container = document.createElement('section'); container.className = 'israa-v2'; container.setAttribute(CONTAINER_ATTR,'true'); const tabbar = mgmt.querySelector('.israa-tabbar'); if (tabbar) tabbar.insertAdjacentElement('afterend',container); else mgmt.prepend(container); bindContainer(container); created = true; }
+    if (!loaded || forceReload) { renderContainer(container); await loadData(forceReload); renderContainer(container); } else if (created) renderContainer(container);
+  } finally { running = false; }
 }
 
-function schedule(forceReload = false) {
-  clearTimeout(timer);
-  timer = setTimeout(() => {
-    enhance(forceReload).catch((error) => console.error('[israa-tracking-v2]', error));
-  }, DEBOUNCE_MS);
-}
-
-if (document.readyState === 'loading') {
-  document.addEventListener('DOMContentLoaded', () => schedule(), { once: true });
-} else {
-  schedule();
-}
-
-new MutationObserver(() => schedule()).observe(document.documentElement, {
-  childList: true,
-  subtree: true
-});
-
+function schedule(force = false) { clearTimeout(timer); timer = setTimeout(() => enhance(force).catch((error) => console.error('[israa-tracking-v2]', error)), 90); }
+if (document.readyState === 'loading') document.addEventListener('DOMContentLoaded', () => schedule(), { once:true }); else schedule();
+new MutationObserver(() => schedule()).observe(document.documentElement, { childList:true, subtree:true });
 window.addEventListener('hashchange', () => schedule());
-window.addEventListener('israa-tracking-updated', () => {
-  loaded = false;
-  schedule(true);
-});
+window.addEventListener('israa-tracking-updated', () => { loaded = false; schedule(true); });

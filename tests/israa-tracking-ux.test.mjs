@@ -21,24 +21,24 @@ test('Israa tracking exposes a general search alongside the four filters', () =>
 
 test('Israa content is bounded to the shell and only the table scrolls horizontally', () => {
   const tracking = fs.readFileSync(new URL('../frontend/src/israa-tracking-v2-runtime.js', import.meta.url), 'utf8');
-  assert.match(tracking, /\.israa-mgmt[\s\S]*max-width:100%[\s\S]*min-width:0[\s\S]*box-sizing:border-box/);
+  assert.match(tracking, /\.israa-v2\{[\s\S]*width:92%[\s\S]*max-width:1360px[\s\S]*margin:12px auto/);
   assert.match(tracking, /\.israa-v2__wrap[\s\S]*overflow-x:auto/);
   assert.match(tracking, /\.israa-v2__wrap[\s\S]*direction:rtl/);
   assert.doesNotMatch(tracking, /width:\s*100vw/);
 });
 
-test('general search index includes visible and expanded tracking fields', () => {
+test('general search index includes visible and drawer tracking fields', () => {
   const tracking = fs.readFileSync(new URL('../frontend/src/israa-tracking-v2-runtime.js', import.meta.url), 'utf8');
   for (const field of ['authority', 'school_name', 'semel_mosad', 'program_name', 'quote_number', 'contact_person', 'phone', 'email', 'status', 'notes']) {
     assert.match(tracking, new RegExp(`row\\.${field}`));
   }
+  for (const field of ['next_action', 'barriers', 'outreach_method']) assert.match(tracking, new RegExp(`row\\.${field}`));
 });
 
-test('summary cards remain compact and do not stretch across the content width', () => {
+test('summary cards use four equal columns inside the bounded content', () => {
   const tracking = fs.readFileSync(new URL('../frontend/src/israa-tracking-v2-runtime.js', import.meta.url), 'utf8');
-  assert.match(tracking, /grid-template-columns:repeat\(4,minmax\(210px,240px\)\)/);
-  assert.match(tracking, /grid-auto-rows:64px/);
-  assert.match(tracking, /justify-content:start/);
+  assert.match(tracking, /grid-template-columns:repeat\(4,minmax\(0,1fr\)\)/);
+  assert.match(tracking, /min-height:68px/);
   assert.doesNotMatch(filters, /grid-template-columns:repeat\(4,minmax\(0,1fr\)\)\s*!important/);
 });
 

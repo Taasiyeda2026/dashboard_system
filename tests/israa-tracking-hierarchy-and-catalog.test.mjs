@@ -2,57 +2,44 @@ import test from 'node:test';
 import assert from 'node:assert/strict';
 import fs from 'node:fs';
 
+const tracking = fs.readFileSync(new URL('../frontend/src/israa-tracking-v2-runtime.js', import.meta.url), 'utf8');
 const hierarchy = fs.readFileSync(new URL('../frontend/src/israa-tracking-hierarchy-runtime.js', import.meta.url), 'utf8');
 const catalog = fs.readFileSync(new URL('../frontend/src/israa-new-row-catalog-runtime.js', import.meta.url), 'utf8');
 const filters = fs.readFileSync(new URL('../frontend/src/israa-tracking-filters-runtime.js', import.meta.url), 'utf8');
-const entry = fs.readFileSync(new URL('../frontend/src/main-with-proposal-pdf-hotfix.js', import.meta.url), 'utf8');
-const sw = fs.readFileSync(new URL('../frontend/sw.js', import.meta.url), 'utf8');
-const migration = fs.readFileSync(new URL('../supabase/migrations/20260729192000_israa_tracking_full_details.sql', import.meta.url), 'utf8');
 
-test('external Israa table keeps all requested columns in the requested hierarchy', () => {
-  assert.match(hierarchy, /בית ספר וסמל מוסד/);
-  for (const label of ['רשות', 'מס׳ הצעה', 'תוכנית', 'מס׳ גפ״ן', 'קבוצות', 'סכום', 'סבירות', 'צבר ריאלי', 'סטטוס', 'תאריך מעקב', 'הפעולה הבאה']) {
-    assert.match(hierarchy, new RegExp(label.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')));
-  }
-  for (const group of ['identification', 'activity', 'finance', 'tracking']) {
-    assert.match(hierarchy, new RegExp(`israa-group-${group}`));
-  }
+test('tracking table has the eight stable summary columns', () => {
+  for (const label of ['בית ספר','רשות','מס׳ הצעה','תוכניות','נתונים כספיים','סטטוס','מעקב','פעולות']) assert.match(tracking, new RegExp(label));
+  assert.match(tracking, /table-layout:fixed/);
+  assert.match(tracking, /<col style=\"width:15%\">[\s\S]*<col style=\"width:6%\">/);
+  assert.doesNotMatch(tracking, /min-width:1510px/);
 });
 
-test('expanded row exposes contact, proposal, notes, barriers and full programs', () => {
-  for (const text of ['פרטי איש הקשר', 'פרטי ההצעה', 'תוקף ההצעה', 'אופן הפנייה', 'הערות וחסמים', 'פירוט מלא של התוכניות']) {
-    assert.match(hierarchy, new RegExp(text));
-  }
-  assert.match(hierarchy, /data-v2-field=\"valid_until\"/);
-  assert.match(hierarchy, /data-v2-field=\"outreach_method\"/);
-  assert.match(hierarchy, /data-v2-field=\"barriers\"/);
+test('one shared drawer contains full proposal sections and proposal items', () => {
+  assert.match(tracking, /createSharedInteractionLayer/);
+  assert.match(tracking, /ui\.openDrawer/);
+  for (const text of ['תמונת מצב','פירוט התוכניות','מעקב והתקדמות','פרטי איש קשר','הערות','חסמים','תוקף ההצעה','אופן הפנייה']) assert.match(tracking, new RegExp(text));
+  for (const key of ['program_name','gefen_number','quantity','total_price','meetings_count','hours_count']) assert.match(tracking, new RegExp(key));
+  assert.match(hierarchy, /one source of truth/);
+  assert.doesNotMatch(hierarchy, /\.from\('israa_program_tracking'\)/);
 });
 
-test('new row choices load every school page and use system catalogs', () => {
-  assert.match(catalog, /const PAGE_SIZE = 1000/);
-  assert.match(catalog, /for \(let from = 0; ; from \+= PAGE_SIZE\)/);
-  assert.match(catalog, /\.from\('schools'\)/);
-  assert.match(catalog, /\.from\('contacts_schools'\)/);
+test('drawer owns edit, create, cancel, save and delete actions', () => {
+  for (const action of ['data-v2-drawer-edit','data-v2-drawer-cancel','data-v2-drawer-save','data-v2-drawer-delete']) assert.match(tracking, new RegExp(action));
+  assert.match(tracking, /mode === 'create'/);
+  assert.match(tracking, /proposal_nature: 'ממוקדת', probability: 50, status: 'טיוטה'/);
+  assert.match(tracking, /rows = creating \? \[data, \.\.\.rows\]/);
+});
+
+test('all proposal programs participate in filtering and search', () => {
+  assert.match(tracking, /data-v2-programs/);
+  assert.match(filters, /row\.dataset\.v2Programs/);
+  assert.match(tracking, /row\.next_action/);
+  assert.match(tracking, /row\.notes/);
+  assert.match(tracking, /row\.barriers/);
+});
+
+test('course catalog remains available for gefen autofill', () => {
   assert.match(catalog, /\.from\('proposal_gefen_courses'\)/);
-  assert.match(catalog, /בחירת בית ספר מתוך הרשימה/);
-  assert.match(catalog, /בחירת תוכנית מתוך רשימת הקורסים/);
-  assert.match(catalog, /data-israa-new-contact/);
-});
-
-test('four filters continue to work with the combined school column', () => {
-  assert.match(filters, /בית ספר וסמל מוסד/);
-  for (const key of ['authority', 'school', 'program', 'status']) {
-    assert.match(filters, new RegExp(`data-israa-v2-filter-${key}`));
-  }
-  assert.doesNotMatch(filters, /data-israa-v2-filter-probability/);
-  assert.doesNotMatch(filters, /data-israa-v2-filter-nature/);
-});
-
-test('proposal detail fields are persisted and cache versions are bumped', () => {
-  for (const field of ['valid_until', 'outreach_method', 'barriers']) {
-    assert.match(migration, new RegExp(field));
-  }
-  assert.match(entry, /israa-tracking-hierarchy-runtime\.js\?v=20260729-israa-hierarchy-v5/);
-  assert.match(entry, /israa-new-row-catalog-runtime\.js\?v=20260729-israa-hierarchy-v5/);
-  assert.match(sw, /const CACHE_VERSION = 1307/);
+  assert.match(tracking, /data-v2-program-input/);
+  assert.match(tracking, /gefen\.value = clean\(course\.gefen_number\)/);
 });

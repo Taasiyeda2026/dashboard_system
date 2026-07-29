@@ -31,7 +31,7 @@ function injectStyles() {
       min-width:0; overflow:hidden; text-overflow:ellipsis; white-space:nowrap;
     }
     .israa-v2__filters-shell {
-      width:100%; max-width:100%; min-width:0; margin:0 0 8px;
+      width:100%; max-width:100%; min-width:0; margin:0 0 10px;
       overflow:visible; box-sizing:border-box;
     }
     .israa-v2__filters {
@@ -90,8 +90,10 @@ function schoolName(row, headerMap) {
 }
 
 function programNames(row) {
-  const raw = clean(row.querySelector('.israa-v2__program-name')?.textContent);
-  return raw ? raw.split('•').map(clean).filter(Boolean) : [];
+  const indexed = clean(row.dataset.v2Programs);
+  if (indexed) return indexed.split('|').map(clean).filter(Boolean);
+  const raw = clean(row.querySelector('.israa-v2__program .israa-v2__primary')?.textContent);
+  return raw ? [raw] : [];
 }
 
 function rowMatches(row, headerMap) {
