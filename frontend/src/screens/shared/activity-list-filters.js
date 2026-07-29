@@ -6,6 +6,10 @@ const DEFAULT_SEARCH_DEBOUNCE_MS = SEARCH_DEBOUNCE_MS;
 const DEFAULT_VISIBLE_LIMIT = 200;
 const OPERATIONS_MANAGEMENT_STATUS_OPTIONS = ['פתוח', 'סגור'];
 const OPERATIONS_MANAGEMENT_EXCLUDED_STATUSES = ['בוטל', 'cancelled', 'canceled'];
+const OPERATIONS_AUTHORITIES_TAB = 'authorities';
+const OPERATIONS_SUMMER_SEASON = 'summer_2026';
+const OPERATIONS_SUMMER_FROM = '2026-06-15';
+const OPERATIONS_SUMMER_TO = '2026-08-31';
 const FILTER_OPTIONS_CACHE = new WeakMap();
 const SEARCH_FIELDS_IDS = new WeakMap();
 let searchFieldsIdSeq = 0;
@@ -90,6 +94,16 @@ export function ensureActivityListFilters(state, scope) {
       ...(filters.excludedValues || {}),
       status: OPERATIONS_MANAGEMENT_EXCLUDED_STATUSES
     };
+
+    const isAuthoritiesTab = state?.operationsManagement?.tab === OPERATIONS_AUTHORITIES_TAB;
+    if (isAuthoritiesTab) {
+      filters.requiredActivitySeason = OPERATIONS_SUMMER_SEASON;
+      state.operationsManagement.period = 'regular';
+      state.operationsManagement.dateFrom = OPERATIONS_SUMMER_FROM;
+      state.operationsManagement.dateTo = OPERATIONS_SUMMER_TO;
+    } else {
+      delete filters.requiredActivitySeason;
+    }
   }
 
   if (!Object.prototype.hasOwnProperty.call(filters, 'appliedQ')) {
@@ -133,7 +147,20 @@ export function collectFilterOptions(rows, fields) {
 
 const DEPENDENT_EXCLUDE = new Set(['-', 'לא משויך', 'ללא שיוך']);
 
+function rowMatchesRequiredActivitySeason(row, filters) {
+  const requiredSeason = String(filters?.requiredActivitySeason || '').trim().toLowerCase();
+  if (!requiredSeason) return true;
+
+  const activitySeason = String(row?.activity_season ?? row?.activitySeason ?? '').trim().toLowerCase();
+  if (activitySeason === requiredSeason || (requiredSeason === OPERATIONS_SUMMER_SEASON && activitySeason === 'summer')) return true;
+
+  const rowId = String(row?.row_id ?? row?.RowID ?? row?.id ?? '').trim().toLowerCase();
+  return requiredSeason === OPERATIONS_SUMMER_SEASON && rowId.startsWith('summer_');
+}
+
 function rowPassesConfiguredExclusions(row, filters) {
+  if (!rowMatchesRequiredActivitySeason(row, filters)) return false;
+
   const excludedValues = filters?.excludedValues;
   if (!excludedValues || typeof excludedValues !== 'object') return true;
 
