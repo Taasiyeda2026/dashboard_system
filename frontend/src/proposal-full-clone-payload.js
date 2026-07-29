@@ -43,11 +43,13 @@ function cloneValue(value) {
 }
 
 /**
- * Builds the complete business payload for a cloned proposal.
+ * Builds the complete business payload for an independent editable clone.
  *
  * The clone keeps every editable proposal value, while deliberately omitting
- * generated, approval, signature, PDF, audit and lock fields. The new record is
- * always created as an editable draft and remains linked to the source version.
+ * generated, approval, signature, PDF, audit, lock and version-lineage fields.
+ * It is always created as a new draft in a new proposal series, so repeating
+ * the action never collides with an existing version and never archives the
+ * source proposal.
  */
 export function buildEditableProposalClonePayload(source = {}, requested = {}) {
   const payload = {};
@@ -62,7 +64,9 @@ export function buildEditableProposalClonePayload(source = {}, requested = {}) {
   const sourceId = text(source?.id || requested?.supersedes_proposal_id);
   if (!sourceId) throw new Error('missing_clone_source_proposal_id');
 
-  payload.supersedes_proposal_id = sourceId;
+  // The source ID is used only to load the latest source data. It is not sent
+  // as supersedes_proposal_id because duplication must create a new independent
+  // proposal rather than another version in the source series.
   payload.status = 'draft';
   payload.approval_note = '';
 
