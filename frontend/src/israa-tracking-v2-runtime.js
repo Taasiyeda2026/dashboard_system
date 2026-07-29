@@ -106,12 +106,12 @@ function injectStyles() {
     .israa-v2__toolbar{display:flex;align-items:center;gap:8px;flex-wrap:wrap;margin:0 0 10px}.israa-v2__btn{border:1px solid #cbd5e1;border-radius:8px;background:#fff;color:#334155;padding:7px 11px;font:inherit;font-size:.8rem;font-weight:750;cursor:pointer}.israa-v2__btn:hover{background:#f8fafc}.israa-v2__btn--primary{border-color:#0f766e;background:#0f766e;color:#fff}.israa-v2__btn--danger{color:#b91c1c;border-color:#fecaca}.israa-v2__btn[disabled]{opacity:.55;cursor:default}
     .israa-v2__kpis{display:grid;grid-template-columns:repeat(4,minmax(0,1fr));gap:10px;width:100%;margin:0 0 12px}.israa-v2__kpi{min-width:0;min-height:68px;display:flex;flex-direction:column;justify-content:center;border:1px solid #e2e8f0;border-radius:11px;background:#fff;padding:9px 12px;box-shadow:0 1px 4px rgba(15,23,42,.04)}.israa-v2__kpi-label{color:#64748b;font-size:.72rem;font-weight:700;min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}.israa-v2__kpi-value{margin-top:3px;color:#0f172a;font-size:1.02rem;font-weight:850;min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
     .israa-v2__error{margin-bottom:8px;padding:8px 10px;border-radius:8px;background:#fee2e2;color:#991b1b;font-size:.8rem}.israa-v2__loading{padding:24px;text-align:center;color:#64748b}
-    .israa-v2__wrap{width:100%;max-width:100%;min-width:0;overflow-x:auto;direction:rtl;box-sizing:border-box;overscroll-behavior-inline:contain;border:1px solid #dbe3ec;border-radius:11px;background:#fff;box-shadow:0 2px 8px rgba(26,51,88,.06)}
-    .israa-v2__table{width:100%;min-width:1510px;table-layout:fixed;border-collapse:collapse;font-size:11.5px}.israa-v2__table th{padding:9px 7px;background:#f1f5f9;color:#334155;border-bottom:1px solid #cbd5e1;text-align:right;font-size:10.5px;font-weight:800;white-space:nowrap}.israa-v2__table td{height:62px;padding:9px 7px;border-bottom:1px solid #e8edf3;vertical-align:middle;color:#1e293b;overflow:hidden}.israa-v2__row{cursor:pointer}.israa-v2__row:hover td{background:#f8fafc}.israa-v2__center{text-align:center!important;font-variant-numeric:tabular-nums}.israa-v2__primary{font-weight:800;color:#0f172a}.israa-v2__clamp{display:-webkit-box;-webkit-line-clamp:2;-webkit-box-orient:vertical;overflow:hidden}.israa-v2__status{display:inline-block;max-width:100%;padding:3px 8px;border-radius:999px;font-size:10px;font-weight:800;white-space:normal}.israa-v2__status.is-approved{background:#dcfce7;color:#166534}.israa-v2__status.is-sent{background:#dbeafe;color:#1d4ed8}.israa-v2__status.is-waiting{background:#fef3c7;color:#92400e}.israa-v2__status.is-closed{background:#e5e7eb;color:#475569}.israa-v2__status.is-draft{background:#f1f5f9;color:#475569}.israa-v2__status.is-active{background:#ede9fe;color:#6d28d9}.israa-v2__empty{padding:28px!important;text-align:center;color:#64748b}
-    .ds-drawer.ds-drawer--israa-exact{width:min(960px,64vw);max-width:calc(100vw - 32px)}.ds-drawer.ds-drawer--israa-exact .ds-drawer__content{padding:0;overflow-y:auto}.israa-drawer{direction:rtl;color:#1e293b}.israa-drawer__hero{position:sticky;top:0;z-index:2;display:flex;align-items:center;justify-content:space-between;gap:12px;padding:14px 18px;background:#fff;border-bottom:1px solid #e2e8f0}.israa-drawer__heading{margin:0;font-size:1.16rem;color:#0f172a}.israa-drawer__hero-actions{display:flex;gap:7px;flex-shrink:0}.israa-drawer__body{padding:16px 18px 22px}.israa-drawer__grid{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:13px 14px}.israa-drawer__field{min-width:0}.israa-drawer__field--wide{grid-column:1/-1}.israa-drawer__label{display:block;margin-bottom:4px;color:#64748b;font-size:.7rem;font-weight:800}.israa-drawer__value{min-height:20px;white-space:pre-wrap;overflow-wrap:anywhere;font-size:.84rem;line-height:1.5}.israa-drawer__readonly{padding:8px;border:1px solid #e2e8f0;border-radius:7px;background:#f8fafc;font-weight:750}.israa-drawer__form{display:contents}.israa-v2__input,.israa-v2__select,.israa-v2__textarea{width:100%;min-width:0;box-sizing:border-box;border:1px solid #cbd5e1;border-radius:7px;padding:8px;background:#fff;color:#0f172a;font:inherit;font-size:.8rem}.israa-v2__textarea{min-height:92px;resize:vertical}.israa-drawer__danger-row{display:flex;justify-content:flex-end;padding:0 18px 18px}.israa-drawer__error{grid-column:1/-1;color:#b91c1c;font-size:.78rem}
+    .israa-v2__wrap{width:100%;max-width:100%;min-width:0;overflow:hidden;direction:rtl;box-sizing:border-box;border:1px solid #dbe3ec;border-radius:11px;background:#fff;box-shadow:0 2px 8px rgba(26,51,88,.06)}
+    .israa-v2__table{width:100%;table-layout:fixed;border-collapse:collapse;font-size:clamp(9px,.7vw,11.5px)}.israa-v2__table th{padding:7px 4px;background:#f1f5f9;color:#334155;border-bottom:1px solid #cbd5e1;text-align:right;font-size:clamp(8.5px,.64vw,10.5px);font-weight:800;white-space:normal;overflow-wrap:anywhere;line-height:1.25}.israa-v2__table td{height:58px;padding:7px 4px;border-bottom:1px solid #e8edf3;vertical-align:middle;color:#1e293b;overflow:hidden;overflow-wrap:anywhere}.israa-v2__row{cursor:pointer}.israa-v2__row:hover td{background:#f8fafc}.israa-v2__center{text-align:center!important;font-variant-numeric:tabular-nums}.israa-v2__primary{font-weight:800;color:#0f172a}.israa-v2__clamp{display:-webkit-box;-webkit-line-clamp:3;-webkit-box-orient:vertical;overflow:hidden}.israa-v2__status{display:inline-block;max-width:100%;padding:3px 5px;border-radius:999px;font-size:9px;font-weight:800;white-space:normal;overflow-wrap:anywhere}.israa-v2__status.is-approved{background:#dcfce7;color:#166534}.israa-v2__status.is-sent{background:#dbeafe;color:#1d4ed8}.israa-v2__status.is-waiting{background:#fef3c7;color:#92400e}.israa-v2__status.is-closed{background:#e5e7eb;color:#475569}.israa-v2__status.is-draft{background:#f1f5f9;color:#475569}.israa-v2__status.is-active{background:#ede9fe;color:#6d28d9}.israa-v2__empty{padding:28px!important;text-align:center;color:#64748b}
+    .ds-drawer.ds-drawer--israa-exact{width:min(960px,64vw);max-width:calc(100vw - 32px)}.ds-drawer.ds-drawer--israa-exact .ds-drawer__content{padding:0;overflow-y:auto;background:#f8fafc}.israa-drawer{direction:rtl;color:#1e293b}.israa-drawer__actions{position:sticky;top:0;z-index:2;display:flex;justify-content:flex-end;gap:7px;padding:10px 18px;background:#f8fafc;border-bottom:1px solid #e2e8f0}.israa-drawer__body{display:grid;gap:12px;padding:14px 18px 20px}.israa-drawer__section{border:1px solid #dbe3ec;border-radius:10px;background:#fff;padding:12px 14px}.israa-drawer__section-title{margin:0 0 11px;color:#0f172a;font-size:.9rem;font-weight:850}.israa-drawer__grid{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:11px 14px}.israa-drawer__field{min-width:0}.israa-drawer__field--wide{grid-column:1/-1}.israa-drawer__label{display:block;margin-bottom:4px;color:#64748b;font-size:.7rem;font-weight:800}.israa-drawer__value{min-height:20px;white-space:pre-wrap;overflow-wrap:anywhere;font-size:.84rem;line-height:1.5}.israa-drawer__readonly{padding:8px;border:1px solid #e2e8f0;border-radius:7px;background:#f8fafc;font-weight:750}.israa-drawer__form{display:contents}.israa-v2__input,.israa-v2__select,.israa-v2__textarea{width:100%;min-width:0;box-sizing:border-box;border:1px solid #cbd5e1;border-radius:7px;padding:8px;background:#fff;color:#0f172a;font:inherit;font-size:.8rem}.israa-v2__textarea{min-height:82px;resize:vertical}.israa-drawer__activities{width:100%;table-layout:fixed;border-collapse:collapse;font-size:.78rem}.israa-drawer__activities th{padding:7px;background:#f1f5f9;color:#475569;border:1px solid #dbe3ec;text-align:right}.israa-drawer__activities td{padding:7px;border:1px solid #dbe3ec;vertical-align:top;overflow-wrap:anywhere}.israa-drawer__activities th:nth-child(1){width:44%}.israa-drawer__activities th:nth-child(2){width:23%}.israa-drawer__activities th:nth-child(3){width:33%}.israa-drawer__danger-row{display:flex;justify-content:flex-end;padding:0 18px 18px}.israa-drawer__error{color:#b91c1c;font-size:.78rem}
     @media(max-width:1100px){.israa-v2{width:96%}.ds-drawer.ds-drawer--israa-exact{width:min(960px,78vw)}}
-    @media(max-width:760px){.israa-v2{width:calc(100% - 20px)}.israa-v2__kpis{grid-template-columns:repeat(2,minmax(0,1fr))}.ds-drawer.ds-drawer--israa-exact{width:calc(100vw - 16px);max-width:calc(100vw - 16px)}.israa-drawer__grid{grid-template-columns:repeat(2,minmax(0,1fr))}.israa-drawer__hero{padding-inline:12px}.israa-drawer__body{padding-inline:12px}}
-    @media(max-width:460px){.israa-v2__kpis{grid-template-columns:1fr}.israa-drawer__grid{grid-template-columns:1fr}.israa-drawer__field--wide{grid-column:auto}.israa-drawer__hero{align-items:flex-start;flex-direction:column}.israa-drawer__hero-actions{width:100%}}
+    @media(max-width:760px){.israa-v2{width:calc(100% - 12px)}.israa-v2__kpis{grid-template-columns:repeat(2,minmax(0,1fr))}.ds-drawer.ds-drawer--israa-exact{width:calc(100vw - 16px);max-width:calc(100vw - 16px)}.israa-drawer__grid{grid-template-columns:repeat(2,minmax(0,1fr))}.israa-drawer__body{padding-inline:12px}}
+    @media(max-width:460px){.israa-v2__kpis{grid-template-columns:1fr}.israa-drawer__grid{grid-template-columns:1fr}.israa-drawer__field--wide{grid-column:auto}}
   `;
   document.head.appendChild(style);
 }
@@ -202,7 +202,7 @@ function tableHtml() {
   const body = rows.length
     ? rows.map(rowHtml).join('')
     : `<tr><td colspan="${EXTERNAL_COLUMNS.length}" class="israa-v2__empty">אין הצעות במעקב.</td></tr>`;
-  const widths = [4,7,13,7,9,20,10,8,10,8,14,10];
+  const widths = [3.5,6.5,11,6.5,8,16,9,7,9,8.5,9,6];
   return `<div class="israa-v2__wrap"><table class="israa-v2__table" dir="rtl"><colgroup>${widths.map((width) => `<col style="width:${width}%">`).join('')}</colgroup><thead><tr>${EXTERNAL_COLUMNS.map((label, index) => `<th${[0,1,3,6,7,8,9,11].includes(index) ? ' class="israa-v2__center"' : ''}>${escapeHtml(label)}</th>`).join('')}</tr></thead><tbody>${body}</tbody></table></div>`;
 }
 
@@ -239,27 +239,47 @@ function readonlyField(label, value, className = '') {
   return `<div class="israa-drawer__field ${className}"><span class="israa-drawer__label">${escapeHtml(label)}</span><div class="israa-drawer__value israa-drawer__readonly">${escapeHtml(clean(value) || '—')}</div></div>`;
 }
 
-function viewDrawerFields(draft) {
-  return [
+function section(title, fields, className = '') {
+  return `<section class="israa-drawer__section ${className}"><h3 class="israa-drawer__section-title">${escapeHtml(title)}</h3>${fields}</section>`;
+}
+
+function activityRows(draft) {
+  const split = (value) => String(value ?? '').split(/\s*[•;\n]\s*/).map(clean).filter(Boolean);
+  const names = split(draft.program_name);
+  const gefen = split(draft.gefen_numbers);
+  const participants = split(draft.participants_groups);
+  const count = Math.max(names.length, gefen.length, participants.length, 1);
+  return Array.from({ length: count }, (_, index) => ({
+    program_name: names[index] || '',
+    gefen_numbers: gefen[index] || '',
+    participants_groups: participants[index] || '',
+  }));
+}
+
+function activitiesTable(draft, editing) {
+  const cells = activityRows(draft).map((activity, index) => `<tr>${['program_name', 'gefen_numbers', 'participants_groups'].map((key) => {
+    if (!editing) return `<td>${escapeHtml(activity[key] || '—')}</td>`;
+    const list = key === 'program_name' ? ' list="israa-v2-course-options" data-v2-program-input' : '';
+    return `<td><input class="israa-v2__input" data-v2-activity-row="${index}" data-v2-activity-field="${key}" type="text" value="${escapeHtml(activity[key])}"${list}></td>`;
+  }).join('')}</tr>`).join('');
+  return `<table class="israa-drawer__activities"><thead><tr><th>שם הפעילות</th><th>מספר גפ״ן</th><th>קבוצות / מס' משתתפים</th></tr></thead><tbody>${cells}</tbody></table>`;
+}
+
+function viewDrawerFields(draft, serial) {
+  const contact = [
+    valueField('שם בית הספר', draft.school_name), valueField('סמל מוסד', draft.semel_mosad), valueField('רשות', draft.authority),
     valueField('בעלות', draft.ownership),
     valueField('שם מנהל/ת', draft.manager_name),
     valueField('נייד מנהל/ת', draft.manager_phone, '', 'tel'),
     valueField('מייל מנהל/ת', draft.manager_email, '', 'email'),
     valueField('איש/ת קשר נוסף', draft.additional_contact),
-    valueField('מספר גפ״ן', draft.gefen_numbers),
-    valueField('אופי ההצעה', draft.proposal_nature),
-    valueField('התוכנית הצפויה', draft.expected_program),
-    valueField('שכבה', draft.grade),
-    valueField("קבוצות / מס' משתתפים", draft.participants_groups),
-    valueField('תאריך הוצאת ההצעה', formatDate(draft.proposal_date)),
-    valueField('הערות', draft.notes, 'israa-drawer__field--wide'),
   ].join('');
+  const proposal = [valueField('מסד', serial), valueField('מס׳ הצעה', draft.quote_number), valueField('אופי ההצעה', draft.proposal_nature), valueField('התוכנית הצפויה', draft.expected_program), valueField('שכבה', draft.grade), valueField('תאריך הוצאת ההצעה', formatDate(draft.proposal_date)), valueField('סכום ההצעה הכולל', formatMoney(draft.total_amount)), valueField('סבירות לסגירה', `${numberValue(draft.probability) || 0}%`), valueField('שווי צפוי ריאלי', formatMoney(realisticValue(draft))), valueField('סטטוס', draft.status), valueField('הפעולה הבאה', draft.next_action), valueField('תאריך מעקב', formatDate(draft.follow_up_date))].join('');
+  return section('פרטי מסגרת וקשר', `<div class="israa-drawer__grid">${contact}</div>`) + section('פרטי ההצעה', `<div class="israa-drawer__grid">${proposal}</div>`) + section('פירוט הפעילויות', activitiesTable(draft, false)) + section('הערות', valueField('הערות', draft.notes));
 }
 
 function editDrawerFields(draft, serial) {
-  return [
-    readonlyField('מסד', serial || 'נקבע אוטומטית'),
-    inputField('מס׳ הצעה', 'quote_number', draft.quote_number),
+  const contact = [
     inputField('שם בית הספר', 'school_name', draft.school_name),
     inputField('סמל מוסד', 'semel_mosad', draft.semel_mosad),
     inputField('רשות', 'authority', draft.authority),
@@ -268,12 +288,12 @@ function editDrawerFields(draft, serial) {
     inputField('נייד מנהל/ת', 'manager_phone', draft.manager_phone, 'tel'),
     inputField('מייל מנהל/ת', 'manager_email', draft.manager_email, 'email'),
     inputField('איש/ת קשר נוסף', 'additional_contact', draft.additional_contact),
-    inputField('שם הפעילות', 'program_name', draft.program_name),
-    inputField('מספר גפ״ן', 'gefen_numbers', draft.gefen_numbers),
+  ].join('');
+  const proposal = [
+    readonlyField('מסד', serial || 'נקבע אוטומטית'), inputField('מס׳ הצעה', 'quote_number', draft.quote_number),
     inputField('אופי ההצעה', 'proposal_nature', draft.proposal_nature, 'nature'),
     inputField('התוכנית הצפויה', 'expected_program', draft.expected_program),
     inputField('שכבה', 'grade', draft.grade),
-    inputField("קבוצות / מס' משתתפים", 'participants_groups', draft.participants_groups),
     inputField('תאריך הוצאת ההצעה', 'proposal_date', draft.proposal_date, 'date'),
     inputField('סכום ההצעה הכולל', 'total_amount', draft.total_amount, 'number'),
     inputField('סבירות לסגירה', 'probability', draft.probability, 'probability'),
@@ -281,20 +301,19 @@ function editDrawerFields(draft, serial) {
     inputField('סטטוס', 'status', draft.status, 'status'),
     inputField('הפעולה הבאה', 'next_action', draft.next_action, 'textarea', 'israa-drawer__field--wide'),
     inputField('תאריך מעקב', 'follow_up_date', draft.follow_up_date, 'date'),
-    inputField('הערות', 'notes', draft.notes, 'textarea', 'israa-drawer__field--wide'),
   ].join('');
+  return section('פרטי מסגרת וקשר', `<div class="israa-drawer__grid">${contact}</div>`) + section('פרטי ההצעה', `<div class="israa-drawer__grid">${proposal}</div>`) + section('פירוט הפעילויות', activitiesTable(draft, true)) + section('הערות', inputField('הערות', 'notes', draft.notes, 'textarea'));
 }
 
 function drawerContent(row, mode) {
   const editing = mode === 'edit' || mode === 'create';
   const draft = row || { proposal_nature: 'ממוקדת', probability: 50, status: 'טיוטה' };
   const serial = row ? rows.findIndex((item) => String(item.id) === String(row.id)) + 1 : null;
-  const heading = mode === 'create' ? 'הוספת הצעה' : editing ? 'עריכת הצעה' : 'פרטי ההצעה';
   const buttons = editing
     ? `<button type="button" class="israa-v2__btn" data-v2-drawer-cancel>ביטול</button><button type="submit" class="israa-v2__btn israa-v2__btn--primary" data-v2-drawer-save>${mode === 'create' ? 'יצירה' : 'שמירה'}</button>`
     : `<button type="button" class="israa-v2__btn israa-v2__btn--primary" data-v2-drawer-edit>עריכה</button>`;
-  const fields = editing ? editDrawerFields(draft, serial) : viewDrawerFields(draft);
-  return `<form class="israa-drawer__form" data-v2-drawer-form data-v2-editor="${mode === 'create' ? '__new__' : escapeHtml(draft.id)}"><div class="israa-drawer"><header class="israa-drawer__hero"><h2 class="israa-drawer__heading">${heading}</h2><div class="israa-drawer__hero-actions">${buttons}</div></header><div class="israa-drawer__body"><div class="israa-drawer__grid">${fields}<div class="israa-drawer__error" data-v2-drawer-error></div></div></div>${!editing ? `<div class="israa-drawer__danger-row"><button type="button" class="israa-v2__btn israa-v2__btn--danger" data-v2-drawer-delete>מחיקת הצעה</button></div>` : ''}<datalist id="israa-v2-course-options">${courses.map((course) => `<option value="${escapeHtml(course.short_name)}">${escapeHtml(course.gefen_number)}</option>`).join('')}</datalist></div></form>`;
+  const fields = editing ? editDrawerFields(draft, serial) : viewDrawerFields(draft, serial);
+  return `<form class="israa-drawer__form" data-v2-drawer-form data-v2-editor="${mode === 'create' ? '__new__' : escapeHtml(draft.id)}"><div class="israa-drawer"><div class="israa-drawer__actions">${buttons}</div><div class="israa-drawer__body">${fields}<div class="israa-drawer__error" data-v2-drawer-error></div></div>${!editing ? `<div class="israa-drawer__danger-row"><button type="button" class="israa-v2__btn israa-v2__btn--danger" data-v2-drawer-delete>מחיקת הצעה</button></div>` : ''}<datalist id="israa-v2-course-options">${courses.map((course) => `<option value="${escapeHtml(course.short_name)}">${escapeHtml(course.gefen_number)}</option>`).join('')}</datalist></div></form>`;
 }
 
 function openDrawer(row, mode = 'view') {
@@ -302,7 +321,7 @@ function openDrawer(row, mode = 'view') {
   openRowId = requestedId;
   drawerMode = mode;
   ui.openDrawer({
-    title: mode === 'create' ? 'הוספת הצעה' : 'פרטי הצעה',
+    title: mode === 'create' ? 'הוספת הצעה' : mode === 'edit' ? 'עריכת הצעה' : 'פרטי הצעה',
     content: drawerContent(row, mode),
     onClose: () => {
       document.querySelector('.ds-drawer--israa-exact')?.classList.remove('ds-drawer--israa-exact');
@@ -321,6 +340,13 @@ function openDrawer(row, mode = 'view') {
 function collectDrawer(form) {
   const payload = {};
   form.querySelectorAll('[data-v2-field]').forEach((field) => { payload[field.dataset.v2Field] = field.value; });
+  const activities = [];
+  form.querySelectorAll('[data-v2-activity-row]').forEach((field) => {
+    const index = Number(field.dataset.v2ActivityRow);
+    activities[index] ||= {};
+    activities[index][field.dataset.v2ActivityField] = clean(field.value);
+  });
+  for (const key of ['program_name', 'gefen_numbers', 'participants_groups']) payload[key] = activities.map((activity) => activity?.[key] || '').join(' • ');
   payload.total_amount = numberValue(payload.total_amount);
   payload.total_cost = payload.total_amount == null ? '' : String(payload.total_amount);
   payload.probability = PROBABILITY_OPTIONS.includes(Number(payload.probability)) ? Number(payload.probability) : 50;
@@ -393,7 +419,8 @@ function bindDrawer(content) {
     const input = event.target.closest('[data-v2-program-input]');
     if (!input) return;
     const course = courses.find((item) => clean(item.short_name).toLowerCase() === clean(input.value).toLowerCase());
-    const gefen = content.querySelector('[data-v2-field="gefen_numbers"]');
+    const rowIndex = input.dataset.v2ActivityRow;
+    const gefen = content.querySelector(`[data-v2-activity-row="${rowIndex}"][data-v2-activity-field="gefen_numbers"]`);
     if (course && gefen && !clean(gefen.value)) gefen.value = clean(course.gefen_number);
   });
 }
