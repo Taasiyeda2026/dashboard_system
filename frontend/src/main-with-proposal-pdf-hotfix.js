@@ -11,6 +11,7 @@ import './proposal-pdf-storage-key-hotfix.js';
 import './proposal-pdf-download-filename-hotfix.js';
 import './proposal-pdf-single-generation-hotfix.js';
 import './proposal-incomplete-print-runtime.js?v=20260729-preview-freeze-v2';
+import './proposal-next-year-pricing-display.js?v=20260729-next-year-pricing-v1';
 import './proposal-approval-runtime.js';
 import './client-contact-persistence-hotfix.js';
 import './admin-lists-auth-hotfix.js';
