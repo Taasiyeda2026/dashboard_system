@@ -47,7 +47,7 @@ test('full proposal clone keeps all editable business fields and resets workflow
 
   assert.equal(clone.status, 'draft');
   assert.equal(clone.approval_note, '');
-  assert.equal(clone.supersedes_proposal_id, source.id);
+  assert.equal(Object.hasOwn(clone, 'supersedes_proposal_id'), false);
   assert.equal(clone.client_type, 'school');
   assert.equal(clone.school_id, 34);
   assert.equal(clone.semel_mosad, '555555');
@@ -64,9 +64,33 @@ test('full proposal clone keeps all editable business fields and resets workflow
 
   for (const systemField of [
     'quote_number', 'signature_meta', 'approved_by', 'approved_at',
-    'locked_at', 'final_pdf_path', 'created_at', 'updated_at'
+    'locked_at', 'final_pdf_path', 'created_at', 'updated_at',
+    'proposal_series_id', 'version_number', 'archived_at'
   ]) {
     assert.equal(Object.hasOwn(clone, systemField), false, `${systemField} must not be cloned`);
+  }
+});
+
+test('repeated duplication does not reuse source version lineage', () => {
+  const source = {
+    id: '11111111-1111-1111-1111-111111111111',
+    client_authority: 'אשדוד',
+    school_framework: "מקיף ה' כללי",
+    activity_type_group: 'next_year',
+    proposal_series_id: '11111111-1111-1111-1111-111111111111',
+    version_number: 2,
+    archived_at: '2026-07-29T11:50:27Z'
+  };
+
+  const firstClone = buildEditableProposalClonePayload(source, { supersedes_proposal_id: source.id });
+  const secondClone = buildEditableProposalClonePayload(source, { supersedes_proposal_id: source.id });
+
+  for (const clone of [firstClone, secondClone]) {
+    assert.equal(clone.status, 'draft');
+    assert.equal(Object.hasOwn(clone, 'supersedes_proposal_id'), false);
+    assert.equal(Object.hasOwn(clone, 'proposal_series_id'), false);
+    assert.equal(Object.hasOwn(clone, 'version_number'), false);
+    assert.equal(Object.hasOwn(clone, 'archived_at'), false);
   }
 });
 
