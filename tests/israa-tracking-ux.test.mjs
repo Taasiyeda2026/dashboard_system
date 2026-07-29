@@ -8,13 +8,30 @@ const newRow = fs.readFileSync(new URL('../frontend/src/israa-new-row-catalog-ru
 const migration = fs.readFileSync(new URL('../supabase/migrations/20260729181500_israa_tracking_new_rows_start_as_sent.sql', import.meta.url), 'utf8');
 const entry = fs.readFileSync(new URL('../frontend/src/main-with-proposal-pdf-hotfix.js', import.meta.url), 'utf8');
 
-test('Israa tracking exposes only the four requested filters', () => {
+test('Israa tracking exposes a general search alongside the four filters', () => {
   for (const key of ['authority', 'school', 'program', 'status']) {
     assert.match(filters, new RegExp(`data-israa-v2-filter-${key}`));
   }
   assert.doesNotMatch(filters, /data-israa-v2-filter-probability/);
   assert.doesNotMatch(filters, /data-israa-v2-filter-nature/);
-  assert.doesNotMatch(filters, /data-israa-v2-filter-query/);
+  assert.match(filters, /data-israa-v2-filter-query/);
+  assert.match(filters, /filterState\.query/);
+  assert.match(filters, /נקה סינון/);
+});
+
+test('Israa content is bounded to the shell and only the table scrolls horizontally', () => {
+  const tracking = fs.readFileSync(new URL('../frontend/src/israa-tracking-v2-runtime.js', import.meta.url), 'utf8');
+  assert.match(tracking, /\.israa-mgmt[\s\S]*max-width:100%[\s\S]*min-width:0[\s\S]*box-sizing:border-box/);
+  assert.match(tracking, /\.israa-v2__wrap[\s\S]*overflow-x:auto/);
+  assert.match(tracking, /\.israa-v2__wrap[\s\S]*direction:rtl/);
+  assert.doesNotMatch(tracking, /width:\s*100vw/);
+});
+
+test('general search index includes visible and expanded tracking fields', () => {
+  const tracking = fs.readFileSync(new URL('../frontend/src/israa-tracking-v2-runtime.js', import.meta.url), 'utf8');
+  for (const field of ['authority', 'school_name', 'semel_mosad', 'program_name', 'quote_number', 'contact_person', 'phone', 'email', 'status', 'notes']) {
+    assert.match(tracking, new RegExp(`row\\.${field}`));
+  }
 });
 
 test('summary cards use four equal columns across the content width', () => {
@@ -34,9 +51,9 @@ test('new row uses school, contact and course catalogs', () => {
   assert.match(newRow, /\.from\('schools'\)/);
   assert.match(newRow, /\.from\('contacts_schools'\)/);
   assert.match(newRow, /\.from\('proposal_gefen_courses'\)/);
-  assert.match(newRow, /data-israa-new-school/);
-  assert.match(newRow, /data-israa-new-contact/);
-  assert.match(newRow, /data-israa-new-course/);
+  assert.match(newRow, /dataset\.israaNewSchool/);
+  assert.match(newRow, /dataset\.israaNewContact/);
+  assert.match(newRow, /dataset\.israaNewCourse/);
   assert.match(newRow, /hiddenField\(row, 'school_id'\)/);
   assert.match(newRow, /semelInput\.readOnly = true/);
   assert.match(newRow, /gefenInput\.readOnly = true/);
@@ -46,8 +63,8 @@ test('new row uses school, contact and course catalogs', () => {
 
 test('proposal transfer starts in sent status and does not auto-promote to approved', () => {
   assert.match(migration, /v_tracking_status := 'נשלחה'/);
-  assert.doesNotMatch(migration, /excluded\.status = 'אושרה'/);
-  assert.match(migration, /else current_row\.status/);
+  assert.match(migration, /\$new_upsert\$[\s\S]*else current_row\.status[\s\S]*\$new_upsert\$/);
+  assert.match(migration, /approved status logic still exists/);
 });
 
 test('application entry loads the Israa tracking enhancements', () => {
