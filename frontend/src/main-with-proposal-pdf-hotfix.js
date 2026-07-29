@@ -1,4 +1,5 @@
 import './network-request-dedupe.js';
+import './activity-2026-season-query-hotfix.js?v=20260730-restore-2026-summer-v1';
 import './activity-performance-runtime.js';
 import './completion-approval-performance-runtime.js';
 import './month-navigation-runtime.js';
@@ -28,7 +29,7 @@ import './gefen-proposal-layout-update.js';
 import './gefen-proposal-pdf-header-alignment.js';
 import './proposal-full-clone-runtime.js?v=20260729-independent-clone-v2';
 import './main.js';
-import './activity-period-selector-access-hotfix.js?v=20260729-restore-2026-access-v1';
+import './activity-period-selector-access-hotfix.js?v=20260730-restore-2026-access-v2';
 import './styles/activity-drawer-inline-layout.css';
 import './activity-drawer-inline-layout.js';
 import './styles/activity-drawer-type-layout-fix.css';
