@@ -7344,7 +7344,19 @@ export const proposalsAgreementsScreen = {
     }, { signal });
 
     // ── Preview ───────────────────────────────────────────────────────────────
-    const openProposalFinalPdf = async (row, onStage = null) => {
+    const reservePdfWindow = () => {
+      try {
+        return window.open('', '_blank');
+      } catch {
+        return null;
+      }
+    };
+
+    const closeReservedPdfWindow = (reservedWindow) => {
+      try { reservedWindow?.close?.(); } catch { /* best effort */ }
+    };
+
+    const openProposalFinalPdf = async (row, onStage = null, reservedWindow = null) => {
       const id = text(row?.id);
       if (!id || typeof api.getProposalFinalPdfSignedUrl !== 'function') {
         showToast('לא ניתן לפתוח PDF שנשלח', 'error');
@@ -7356,10 +7368,23 @@ export const proposalsAgreementsScreen = {
         const url = text(result?.signedUrl);
         if (!url) throw new Error('proposal_final_pdf_missing');
         onStage?.('open-result');
-        window.open(url, '_blank', 'noopener,noreferrer');
+        if (reservedWindow && !reservedWindow.closed) {
+          reservedWindow.opener = null;
+          reservedWindow.location.replace(url);
+        } else {
+          const link = document.createElement('a');
+          link.href = url;
+          link.target = '_blank';
+          link.rel = 'noopener noreferrer';
+          link.download = text(result?.fileName);
+          document.body.appendChild(link);
+          link.click();
+          link.remove();
+        }
       } catch (err) {
-        showToast('שגיאה בפתיחת PDF שנשלח', 'error');
-        console.error('[proposal PDF open failed]', err);
+        closeReservedPdfWindow(reservedWindow);
+        showToast('לא ניתן ליצור קישור מאובטח או לפתוח את קובץ ה־PDF.', 'error');
+        console.error('[proposal PDF open failed]', { stage: 'signed-url-or-open', proposalId: id, error: err });
       }
     };
 
@@ -7441,11 +7466,15 @@ export const proposalsAgreementsScreen = {
     const generateAndSaveProposalPdf = async (row, items = [], button = null) => {
       const freshRow = rowWithCentralContact(row);
       const proposalId = text(freshRow.id);
+      // Reserve the tab before the first await so browser popup blockers do not
+      // discard the eventual signed URL returned after generation/upload.
+      const reservedPdfWindow = reservePdfWindow();
       let pdfStage = 'start';
       const setPdfStage = (stage) => { pdfStage = stage; };
       const historicalSnapshotBackfill = isProposalLegacySentWithoutPdf(freshRow) && canGenerateProposalPdf(freshRow, state);
       if ((isProposalSentLocked(freshRow) && !historicalSnapshotBackfill) || !canManage) {
-        if (proposalHasFinalPdf(freshRow)) await openProposalFinalPdf(freshRow);
+        if (proposalHasFinalPdf(freshRow)) await openProposalFinalPdf(freshRow, null, reservedPdfWindow);
+        else closeReservedPdfWindow(reservedPdfWindow);
         return;
       }
       if (typeof api.uploadProposalFinalPdf !== 'function') {
@@ -7506,8 +7535,9 @@ export const proposalsAgreementsScreen = {
         showToast(generatedCombinedGefen
           ? 'ההצעה ואישור גפ״ן הופקו יחד ונשמרו'
           : 'ה־PDF הופק ונשמר בהצלחה', 'success');
-        await openProposalFinalPdf(savedRow, setPdfStage);
+        await openProposalFinalPdf(savedRow, setPdfStage, reservedPdfWindow);
       } catch (err) {
+        closeReservedPdfWindow(reservedPdfWindow);
         if (!markProposalPdfErrorLogged(err)) console.error('[proposal-pdf-failed]', {
           stage: pdfStage,
           proposalId,
@@ -7516,7 +7546,15 @@ export const proposalsAgreementsScreen = {
           stack: err?.stack,
           error: err
         });
-        showToast('לא ניתן היה להפיק את ה־PDF. ניתן לנסות שוב.', 'error');
+        const stageMessages = {
+          'build-html': 'יצירת מסמך ה־HTML נכשלה.',
+          'render-canvas': 'יצירת ה־PDF נכשלה.',
+          'build-pdf': 'יצירת ה־PDF נכשלה.',
+          'call-upload-api': 'העלאת ה־PDF או שמירת נתוניו נכשלה.',
+          'signed-url': 'יצירת הקישור המאובטח ל־PDF נכשלה.',
+          'open-result': 'פתיחת קובץ ה־PDF נכשלה.'
+        };
+        showToast(stageMessages[pdfStage] || 'הפקת ה־PDF נכשלה. ניתן לנסות שוב.', 'error');
       } finally {
         if (button?.isConnected) { button.disabled = false; button.innerHTML = originalHtml || 'PDF'; }
       }
@@ -7659,7 +7697,10 @@ export const proposalsAgreementsScreen = {
       if (options.form) options.form.dataset.paPreviewSeen = 'yes';
       const printButton = overlay.querySelector('#pa-print-btn');
       printButton?.addEventListener('click', () => generateAndSaveProposalPdf(freshRow, items, printButton));
-      overlay.querySelector('#pa-view-final-pdf-btn')?.addEventListener('click', () => openProposalFinalPdf(freshRow));
+      overlay.querySelector('#pa-view-final-pdf-btn')?.addEventListener('click', () => {
+        const reservedWindow = reservePdfWindow();
+        openProposalFinalPdf(freshRow, null, reservedWindow);
+      });
       const closeOverlay = () => {
         overlay.remove();
         document.body.classList.remove('is-print-preview');
@@ -8560,8 +8601,9 @@ export const proposalsAgreementsScreen = {
         const id = text(viewFinalPdfBtn.dataset.paViewFinalPdf);
         const row = data.rows.find((r) => text(r.id) === id);
         if (!row) return;
+        const reservedWindow = reservePdfWindow();
         viewFinalPdfBtn.disabled = true;
-        await openProposalFinalPdf(row);
+        await openProposalFinalPdf(row, null, reservedWindow);
         viewFinalPdfBtn.disabled = false;
         return;
       }
@@ -8790,12 +8832,6 @@ export const proposalsAgreementsScreen = {
         if (!sourceRow) return;
         cloneBtn.disabled = true;
         try {
-          let sourceItems = [];
-          try {
-            if (typeof api.readProposalAgreementItems === 'function') {
-              sourceItems = await api.readProposalAgreementItems(id);
-            }
-          } catch { sourceItems = []; }
           const clonePayload = {
             authority_id: sourceRow.authority_id || null,
             school_id: sourceRow.school_id || null,
@@ -8816,15 +8852,9 @@ export const proposalsAgreementsScreen = {
             supersedes_proposal_id: text(sourceRow.id),
             status: 'draft',
           };
-          const cloneItems = sourceItems.map(({ id: _id, ...rest }) => rest);
           const result = await api.addProposalAgreement(clonePayload);
           if (!result?.ok || !result?.row?.id) throw new Error('clone_failed');
-          const newId = result.row.id;
-          if (cloneItems.length) {
-            await api.saveProposalAgreementItems(newId, cloneItems);
-          }
-          const archivedAt = new Date().toISOString();
-          data.rows = dedupeById([result.row, ...(Array.isArray(data.rows) ? data.rows : []).map(normalizeProposalAgreementRow).map((row) => text(row.id) === id ? { ...row, archived_at: archivedAt } : row)]);
+          data.rows = dedupeById([result.row, ...(Array.isArray(data.rows) ? data.rows : []).map(normalizeProposalAgreementRow)]);
           refreshTable();
           renderClientWorkspace();
           cloneBtn.disabled = false;

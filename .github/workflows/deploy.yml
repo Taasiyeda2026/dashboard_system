@@ -45,7 +45,7 @@ jobs:
           test "$(find dist/assets -maxdepth 1 -type f -name '*.js' -print -quit)"
           grep -R --include='*.js' -q 'next_year_workshops' dist/assets
           grep -R --include='*.js' -q 'סדנאות' dist/assets
-          grep -q 'const CACHE_VERSION = 1309;' dist/sw.js
+          grep -q 'const CACHE_VERSION = 1310;' dist/sw.js
           node -e "const m=require('./dist/build-metadata.json'); if(m.commit !== process.env.GITHUB_SHA || !m.nextYearCourses || !m.nextYearWorkshops) process.exit(1)"
           if grep -q 'ignoreSearch[[:space:]]*:[[:space:]]*true' dist/sw.js; then
             echo 'Pages artifact must preserve query-string cache busting' >&2
@@ -78,7 +78,7 @@ jobs:
               --header 'Cache-Control: no-cache' \
               "${PAGE_URL}build-metadata.json?commit=${GITHUB_SHA}" \
               --output live-build-metadata.json || true
-            if node -e "const m=require('./live-build-metadata.json'); if(m.commit !== process.env.GITHUB_SHA || m.cacheVersion !== 1309 || !m.nextYearCourses || !m.nextYearWorkshops) process.exit(1)" 2>/dev/null; then
+            if node -e "const m=require('./live-build-metadata.json'); if(m.commit !== process.env.GITHUB_SHA || m.cacheVersion !== 1310 || !m.nextYearCourses || !m.nextYearWorkshops) process.exit(1)" 2>/dev/null; then
               cat live-build-metadata.json
               exit 0
             fi
