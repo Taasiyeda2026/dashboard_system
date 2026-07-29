@@ -34,6 +34,7 @@ const {
 } = await import('../frontend/src/screens/proposals-agreements.js');
 
 const MIGRATION_FILE = new URL('../supabase/migrations/20260729192000_add_workshops_to_next_year_proposals.sql', import.meta.url);
+const TEMPLATE_FIX_MIGRATION_FILE = new URL('../supabase/migrations/20260729210000_keep_next_year_workshops_on_next_year_template.sql', import.meta.url);
 
 const baseGroups = [
   { group_key: 'summer', display_name: 'פעילויות קיץ', template_key: 'summer', included_group_keys: [] },
@@ -46,6 +47,7 @@ const basePricing = [
   { pricing_key: 'workshop_001', parent_pricing_key: 'maker_workshop', activity_name: 'רוטוקופטר', proposal_group: 'summer', group_key: 'summer', item_type: 'סדנה', unit_duration: '45 דקות', unit_price: 650, proposal_display_mode: 'bundle_child' },
   { pricing_key: 'space_workshop', activity_name: 'סדנאות חלל', proposal_group: 'summer', group_key: 'summer', item_type: 'סדנה', unit_duration: '45 דקות', unit_price: 500, proposal_display_mode: 'bundle_parent' },
   { pricing_key: 'workshop_034', parent_pricing_key: 'space_workshop', activity_name: 'מערכת השמש', proposal_group: 'summer', group_key: 'summer', item_type: 'סדנה', unit_duration: '45 דקות', unit_price: 450, proposal_display_mode: 'bundle_child' },
+  { pricing_key: 'workshop_inactive', parent_pricing_key: 'maker_workshop', activity_name: 'סדנה לא פעילה', proposal_group: 'summer', group_key: 'summer', item_type: 'סדנה', unit_price: 650, is_active_for_proposals: false },
   { pricing_key: 'digital_escape_room', activity_name: 'חדרי בריחה', proposal_group: 'summer', group_key: 'summer', item_type: 'חדר בריחה', unit_price: 450, proposal_display_mode: 'bundle_parent' },
   { pricing_key: 'escape_digital_room_detail', parent_pricing_key: 'digital_escape_room', activity_name: 'חדר בריחה דיגיטלי', proposal_group: 'summer', group_key: 'summer', item_type: 'חדר בריחה', unit_price: 450, proposal_display_mode: 'bundle_child' }
 ];
@@ -66,7 +68,9 @@ test('next-year payload exposes separate course and workshop sections without es
   assert.deepEqual(courseAliases.map((row) => row.activity_name), ['קורס לדוגמה']);
   assert.deepEqual(workshopAliases.map((row) => row.activity_name).sort(), ['מערכת השמש', 'סדנאות STEM', 'סדנאות חלל', 'רוטוקופטר'].sort());
   assert.equal(workshopAliases.some((row) => /בריחה/.test(row.activity_name)), false);
-  assert.equal(workshopAliases.every((row) => row.template_key === 'summer'), true);
+  assert.equal(workshopAliases.some((row) => row.is_active_for_proposals === false), false);
+  assert.equal(workshopAliases.every((row) => row.template_key === 'next_year'), true);
+  assert.equal(payload.proposalActivityGroups.find((group) => group.group_key === 'next_year_workshops').template_key, 'next_year');
 });
 
 test('pricing augmentation is idempotent', () => {
@@ -182,10 +186,14 @@ test('real next-year preview renders workshop-only, course-only and mixed saved 
 
 test('migration creates internal sections and leaves escape room excluded', async () => {
   const migration = await readFile(MIGRATION_FILE, 'utf8');
+  const templateFixMigration = await readFile(TEMPLATE_FIX_MIGRATION_FILE, 'utf8');
   assert.match(migration, /next_year_courses/);
   assert.match(migration, /next_year_workshops/);
   assert.match(migration, /included_group_keys = array\['next_year_courses', 'next_year_workshops'\]/);
   assert.match(migration, /קורסים, סדנאות או שילוב ביניהם/);
   assert.match(migration, /digital escape room intentionally remains summer-only/i);
   assert.match(migration, /Historical proposal items, locked snapshots and sent PDFs are not modified/);
+  assert.match(templateFixMigration, /where group_key = 'next_year_workshops'/);
+  assert.match(templateFixMigration, /template_key = 'next_year'/);
+  assert.doesNotMatch(templateFixMigration, /proposal_activity_pricing/);
 });
