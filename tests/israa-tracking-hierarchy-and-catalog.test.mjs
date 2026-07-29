@@ -3,43 +3,40 @@ import assert from 'node:assert/strict';
 import fs from 'node:fs';
 
 const tracking = fs.readFileSync(new URL('../frontend/src/israa-tracking-v2-runtime.js', import.meta.url), 'utf8');
-const hierarchy = fs.readFileSync(new URL('../frontend/src/israa-tracking-hierarchy-runtime.js', import.meta.url), 'utf8');
-const catalog = fs.readFileSync(new URL('../frontend/src/israa-new-row-catalog-runtime.js', import.meta.url), 'utf8');
 const filters = fs.readFileSync(new URL('../frontend/src/israa-tracking-filters-runtime.js', import.meta.url), 'utf8');
 
-test('tracking table has the eight stable summary columns', () => {
-  for (const label of ['בית ספר','רשות','מס׳ הצעה','תוכניות','נתונים כספיים','סטטוס','מעקב','פעולות']) assert.match(tracking, new RegExp(label));
-  assert.match(tracking, /table-layout:fixed/);
-  assert.match(tracking, /<col style=\"width:15%\">[\s\S]*<col style=\"width:6%\">/);
-  assert.doesNotMatch(tracking, /min-width:1510px/);
+const exactColumns = [
+  'מסד','מס׳ הצעה','שם בית הספר','סמל מוסד','רשות','בעלות','שם מנהל/ת','נייד מנהל/ת','מייל מנהל/ת','איש/ת קשר נוסף','שם הפעילות','מספר גפ״ן','אופי ההצעה','התוכנית הצפויה','שכבה',"קבוצות / מס' משתתפים",'תאריך הוצאת ההצעה','סכום ההצעה הכולל','סבירות לסגירה','שווי צפוי ריאלי','סטטוס','הפעולה הבאה','תאריך מעקב','הערות'
+];
+
+const forbidden = ['תוקף ההצעה','אופן הפנייה','חסמים','מפגשים','שעות','תוכנית ראשית','שנת לימודים / מועד הפעלה'];
+
+test('Israa page uses exactly the approved 24 information columns', () => {
+  for (const label of exactColumns) assert.match(tracking, new RegExp(label.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')));
+  for (const label of forbidden) assert.doesNotMatch(tracking, new RegExp(label));
+  assert.match(tracking, /const EXTERNAL_COLUMNS = \[/);
+  assert.match(tracking, /const INTERNAL_COLUMNS = \[/);
 });
 
-test('one shared drawer contains full proposal sections and proposal items', () => {
-  assert.match(tracking, /createSharedInteractionLayer/);
-  assert.match(tracking, /ui\.openDrawer/);
-  for (const text of ['תמונת מצב','פירוט התוכניות','מעקב והתקדמות','פרטי איש קשר','הערות','חסמים','תוקף ההצעה','אופן הפנייה']) assert.match(tracking, new RegExp(text));
-  for (const key of ['program_name','gefen_number','quantity','total_price','meetings_count','hours_count']) assert.match(tracking, new RegExp(key));
-  assert.match(hierarchy, /one source of truth/);
-  assert.doesNotMatch(hierarchy, /\.from\('israa_program_tracking'\)/);
+test('external table contains the twelve approved overview columns without an actions column', () => {
+  for (const label of ['מסד','מס׳ הצעה','שם בית הספר','סמל מוסד','רשות','שם הפעילות','סכום ההצעה הכולל','סבירות לסגירה','שווי צפוי ריאלי','סטטוס','הפעולה הבאה','תאריך מעקב']) assert.match(tracking, new RegExp(label));
+  assert.doesNotMatch(tracking, />פעולות</);
+  assert.match(tracking, /min-width:1510px/);
 });
 
-test('drawer owns edit, create, cancel, save and delete actions', () => {
-  for (const action of ['data-v2-drawer-edit','data-v2-drawer-cancel','data-v2-drawer-save','data-v2-drawer-delete']) assert.match(tracking, new RegExp(action));
-  assert.match(tracking, /mode === 'create'/);
-  assert.match(tracking, /proposal_nature: 'ממוקדת', probability: 50, status: 'טיוטה'/);
-  assert.match(tracking, /rows = creating \? \[data, \.\.\.rows\]/);
+test('Israa uses its own scoped drawer and only approved internal fields in view mode', () => {
+  assert.match(tracking, /ds-drawer--israa-exact/);
+  assert.match(tracking, /viewDrawerFields/);
+  for (const label of ['בעלות','שם מנהל\/ת','נייד מנהל\/ת','מייל מנהל\/ת','איש\/ת קשר נוסף','מספר גפ״ן','אופי ההצעה','התוכנית הצפויה','שכבה',"קבוצות \/ מס' משתתפים",'תאריך הוצאת ההצעה','הערות']) assert.match(tracking, new RegExp(label));
 });
 
-test('all proposal programs participate in filtering and search', () => {
-  assert.match(tracking, /data-v2-programs/);
-  assert.match(filters, /row\.dataset\.v2Programs/);
-  assert.match(tracking, /row\.next_action/);
-  assert.match(tracking, /row\.notes/);
-  assert.match(tracking, /row\.barriers/);
+test('only the four requested filters are present', () => {
+  for (const key of ['authority','school','program','status']) assert.match(filters, new RegExp(`data-israa-v2-filter-${key}`));
+  assert.doesNotMatch(filters, /data-israa-v2-filter-query/);
+  assert.doesNotMatch(filters, /filter-probability|filter-nature/);
 });
 
-test('course catalog remains available for gefen autofill', () => {
-  assert.match(catalog, /\.from\('proposal_gefen_courses'\)/);
+test('course selection still autofills the Gefen number', () => {
   assert.match(tracking, /data-v2-program-input/);
   assert.match(tracking, /gefen\.value = clean\(course\.gefen_number\)/);
 });
