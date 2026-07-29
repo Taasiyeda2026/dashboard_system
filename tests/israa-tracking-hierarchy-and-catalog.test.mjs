@@ -4,6 +4,7 @@ import fs from 'node:fs';
 
 const tracking = fs.readFileSync(new URL('../frontend/src/israa-tracking-v2-runtime.js', import.meta.url), 'utf8');
 const filters = fs.readFileSync(new URL('../frontend/src/israa-tracking-filters-runtime.js', import.meta.url), 'utf8');
+const proposalItems = fs.readFileSync(new URL('../frontend/src/israa-proposal-items.js', import.meta.url), 'utf8');
 
 const exactColumns = [
   'מסד','מס׳ הצעה','שם בית הספר','סמל מוסד','רשות','בעלות','שם מנהל/ת','נייד מנהל/ת','מייל מנהל/ת','איש/ת קשר נוסף','שם הפעילות','מספר גפ״ן','אופי ההצעה','התוכנית הצפויה','שכבה',"קבוצות / מס' משתתפים",'תאריך הוצאת ההצעה','סכום ההצעה הכולל','סבירות לסגירה','שווי צפוי ריאלי','סטטוס','הפעולה הבאה','תאריך מעקב','הערות'
@@ -36,14 +37,17 @@ test('only the four requested filters are present', () => {
   assert.doesNotMatch(filters, /filter-probability|filter-nature/);
 });
 
-test('course selection still autofills the Gefen number', () => {
-  assert.match(tracking, /data-v2-program-input/);
-  assert.match(tracking, /gefen\.value = clean\(course\.gefen_number\)/);
+test('new tracking records are selected from existing linked proposals', () => {
+  assert.match(tracking, /openProposalPicker/);
+  assert.match(tracking, /create_israa_tracking_from_proposal/);
+  assert.doesNotMatch(tracking, /\.insert\(\[payload\]\)/);
 });
 
-test('drawer uses four visual sections and a compact per-row activities editor', () => {
-  for (const title of ['פרטי מסגרת וקשר', 'פרטי ההצעה', 'פירוט הפעילויות', 'הערות']) assert.match(tracking, new RegExp(title));
+test('drawer uses seven required sections and proposal_items read-only activity rows', () => {
+  for (const title of ['פרטי המוסד ואיש הקשר', 'נתוני הצעת המחיר', 'הפעילויות הכלולות בהצעה', 'מידע משלים לתכנון', 'הערכת סגירה', 'משימת המשך', 'הערות']) assert.match(tracking, new RegExp(title));
   assert.match(tracking, /israa-drawer__activities/);
-  assert.match(tracking, /data-v2-activity-row/);
+  assert.match(proposalItems, /draft\.proposal_items\.map/);
+  assert.doesNotMatch(tracking, /data-v2-activity-row/);
+  assert.doesNotMatch(tracking, /const participants = split/);
   assert.doesNotMatch(tracking, /israa-drawer__heading/);
 });
