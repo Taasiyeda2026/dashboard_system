@@ -1,0 +1,5 @@
+Israa tracking UX requirements:
+- filters: authority, school, program, status only
+- KPI cards: four equal-width cards across content area
+- horizontal scrollbar: fixed to viewport bottom and synchronized with table
+- new domain E proposal transfer: status starts as נשלחה
