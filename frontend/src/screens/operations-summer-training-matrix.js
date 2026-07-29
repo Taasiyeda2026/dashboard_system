@@ -43,7 +43,7 @@ async function loadTrainings(){
   return Array.isArray(res.data)?res.data:[];
 }
 async function loadActivities(){
-  const res=await supabase.from('activities').select('*');
+  const res=await supabase.from('activities').select('*').eq('activity_season','summer_2026');
   if(res.error)throw res.error;
   return (Array.isArray(res.data)?res.data:[])
     .filter((row)=>!isActivityDeleted(row))

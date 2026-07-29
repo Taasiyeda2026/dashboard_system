@@ -126,7 +126,9 @@ export function bindInstructorScheduling(root, { ui, state, onAssigned, onCalcul
         supabase.from('instructor_scheduling_profiles').select('*'),
         supabase.from('instructor_availability_rules').select('*'),
         supabase.from('instructor_availability_exceptions').select('*'),
-        supabase.from('activities').select('*').neq('row_id', txt(activity.row_id || activity.RowID))
+        supabase.from('activities').select('*')
+          .eq('activity_season', txt(activity.activity_season || state?.activityPeriodTab || 'regular'))
+          .neq('row_id', txt(activity.row_id || activity.RowID))
       ]);
       const error = [contacts, profiles, rules, exceptions, activities].find((response) => response.error)?.error;
       if (error) throw error;
