@@ -161,11 +161,18 @@ export const instructorsScreen = {
     const openMatching = (row, reopen) => {
       if (!canEdit || !data?.scheduling?.loaded) return;
       ui.closeDrawer?.();
-      ui.openModal({ title: `התאמה לשיבוץ — ${row.full_name || row.emp_id}`, content: matchingForm(row), actions: '<button type="button" class="ds-btn ds-btn--primary" data-save-instructor-matching>שמירה</button><button type="button" class="ds-btn" data-ui-close-modal>ביטול</button>' });
+      const uniqueOptions = (items) => [...new Map(items.filter(item => item.value).map(item => [item.value, item])).values()].sort((a,b) => a.label.localeCompare(b.label, 'he'));
+      const activityRows = data?.detail_rows || [];
+      const options = {
+        courses: uniqueOptions(activityRows.filter(item => text(item.activity_type).toLowerCase() === 'course' || text(item.activity_type) === 'קורס').map(item => ({ value: text(item.activity_no || item.course_id || item.activity_name), label: `${text(item.activity_name)}${text(item.activity_no) ? ` · ${text(item.activity_no)}` : ''}` }))),
+        authorities: uniqueOptions(activityRows.map(item => ({ value: text(item.authority_id || item.authority), label: text(item.authority) }))),
+        schools: uniqueOptions(activityRows.map(item => ({ value: text(item.school_id || item.school), label: `${text(item.school)}${text(item.authority) ? ` · ${text(item.authority)}` : ''}` })))
+      };
+      ui.openModal({ title: `התאמה לשיבוץ — ${row.full_name || row.emp_id}`, content: matchingForm(row, options), actions: '<button type="button" class="ds-btn ds-btn--primary" data-save-instructor-matching>שמירה</button><button type="button" class="ds-btn" data-ui-close-modal>ביטול</button>' });
       const modal = document.querySelector('.ds-modal__content');
-      const csv = name => text(modal?.querySelector(`[name="${name}"]`)?.value).split(',').map(text).filter(Boolean);
+      const selected = name => [...(modal?.querySelector(`[name="${name}"]`)?.selectedOptions || [])].map(option => option.value).filter(Boolean);
       const save = modal?.querySelector('[data-save-instructor-matching]');
-      save.onclick = async () => { try { save.disabled = true; await saveInstructorSchedulingProfile({ ...(row.scheduling_profile || {}), emp_id: row.emp_id, gender: modal.querySelector('[name="gender"]')?.value, instruction_languages: [...modal.querySelectorAll('[name="language"]:checked')].map(x=>x.value), education_levels: [...modal.querySelectorAll('[name="education"]:checked')].map(x=>x.value), course_restriction_mode: modal.querySelector('[name="course_restriction_mode"]')?.value, course_ids: csv('course_ids'), blocked_authorities: csv('blocked_authorities'), blocked_schools: csv('blocked_schools'), matching_note: modal.querySelector('[name="matching_note"]')?.value }); await refresh(row); ui.closeModal(); showToast('ההתאמה לשיבוץ נשמרה','success'); rerender(); reopen?.(); } catch(error) { modal.querySelector('[data-matching-status]').textContent = `שגיאה: ${error.message}`; } finally { save.disabled=false; } };
+      save.onclick = async () => { try { save.disabled = true; await saveInstructorSchedulingProfile({ ...(row.scheduling_profile || {}), emp_id: row.emp_id, gender: modal.querySelector('[name="gender"]')?.value, instruction_languages: [...modal.querySelectorAll('[name="language"]:checked')].map(x=>x.value), education_levels: [...modal.querySelectorAll('[name="education"]:checked')].map(x=>x.value), course_restriction_mode: modal.querySelector('[name="course_restriction_mode"]')?.value, course_ids: selected('course_ids'), blocked_authorities: selected('blocked_authorities'), blocked_schools: selected('blocked_schools'), matching_note: modal.querySelector('[name="matching_note"]')?.value }); await refresh(row); ui.closeModal(); showToast('ההתאמה לשיבוץ נשמרה','success'); rerender(); reopen?.(); } catch(error) { modal.querySelector('[data-matching-status]').textContent = `שגיאה: ${error.message}`; } finally { save.disabled=false; } };
     };
 
     const openContact = (row, reopen) => {

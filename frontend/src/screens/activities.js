@@ -1675,9 +1675,14 @@ export const activitiesScreen = {
     const tableRows = safeRows
       .map((row) => {
         const instructorMeta = activityInstructorMeta(row, { hideEmpIds, instructorByEmpId });
+        const schedulingSummary = state?.instructorSchedulingSummaries?.[String(row.RowID || row.row_id || '')];
+        const missingScheduling = [row.school ? '' : 'חסר בית ספר', (row.start_time && row.end_time) ? '' : 'חסרות שעות', (row.date_1 || row.start_date) ? '' : 'חסרים תאריכים'].filter(Boolean);
+        const unassignedSchedulingHtml = schedulingSummary
+          ? `<small class="ds-muted">${schedulingSummary.ready ? `מוכנה לשיבוץ · ${schedulingSummary.candidateCount} מועמדים${schedulingSummary.topName ? ` · ${escapeHtml(schedulingSummary.topName)}` : ''}` : `חסר מידע · ${escapeHtml(schedulingSummary.reason)}`}</small>`
+          : `<small class="ds-muted">${missingScheduling.length ? `חסר מידע · ${escapeHtml(missingScheduling.join(' · '))}` : 'מוכנה לחישוב מועמדים'}</small>`;
         const instructorDisplay = instructorMeta.hasInstructor
           ? `<span class="ds-activities-instructor-name${instructorMeta.hasName ? '' : ' is-derived'}">${escapeHtml(instructorMeta.text)}</span>`
-          : '<span class="ds-chip ds-chip--status ds-chip--warn ds-chip--instructor-empty">ללא מדריך</span>';
+          : `<span style="display:grid;gap:3px"><span class="ds-chip ds-chip--status ds-chip--warn ds-chip--instructor-empty">ללא מדריך</span>${unassignedSchedulingHtml}</span>`;
         const activityTypeLabel = escapeHtml(visibleActivityCategoryLabel(row.activity_type));
         const rawActivityName = displayActivityName(row);
         const activityName = escapeHtml(rawActivityName);
@@ -2381,7 +2386,7 @@ export const activitiesScreen = {
       hideShellHeader(contentRoot);
       bindActivityEditForm(contentRoot);
       bindContact2027Section(contentRoot);
-      bindInstructorScheduling(contentRoot, { ui, state, onAssigned: () => { clearScreenDataCache?.(); rerender(); } });
+      bindInstructorScheduling(contentRoot, { ui, state, onCalculated: (summary) => { state.instructorSchedulingSummaries ||= {}; state.instructorSchedulingSummaries[summary.activityId] = summary; }, onAssigned: () => { clearScreenDataCache?.(); rerender(); } });
     }
 
     function bindActivitiesReopenBtn(contentRoot, row) {

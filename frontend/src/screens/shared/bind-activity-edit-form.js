@@ -374,6 +374,12 @@ export function bindActivityEditForm(contentRoot, {
       if (!name || name.startsWith('_')) return;
       if (/^meeting_date_\d+$/.test(name) || /^meeting_performed_\d+$/.test(name)) return;
       if (el.closest('[hidden]')) return;
+      if (el.matches('select[multiple][data-scheduling-multi]')) {
+        const nextValues = [...el.selectedOptions].map((option) => String(option.value).trim()).filter(Boolean);
+        const previousValues = Array.isArray(initialValues[name]) ? initialValues[name].map(String) : [];
+        if (JSON.stringify(nextValues) !== JSON.stringify(previousValues)) changes[name] = nextValues;
+        return;
+      }
       const rawValue = el.value;
       if (rawValue === undefined || rawValue === null) return;
       const rawNextValue = String(rawValue).trim();
