@@ -85,6 +85,9 @@ export const loginScreen = {
         await onLogin(userId, code, errorNode);
         await serviceWorkerUpdate.reloadIfUpdated();
       } catch (error) {
+        // If a newer worker activated during a failed attempt, refresh the still-safe
+        // login screen now so the next attempt cannot continue with stale assets.
+        if (await serviceWorkerUpdate.reloadIfUpdated()) return;
         serviceWorkerUpdate.dispose();
         if (errorNode && !errorNode.textContent) errorNode.textContent = error.message;
         if (root.isConnected) setBusy(false, 'התחברות');
