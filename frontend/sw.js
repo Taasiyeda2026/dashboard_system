@@ -4,7 +4,7 @@
  * API-like requests: network only, never cached. Bump CACHE_VERSION after deploy to drop old caches.
  * CACHE_VERSION is the single manual SW/cache version source; /sw.js imports this file without its own version.
  */
-const CACHE_VERSION = 1306;
+const CACHE_VERSION = 1307;
 const CACHE_PREFIX = 'dashboard-static-v';
 const CACHE_NAME = `${CACHE_PREFIX}${CACHE_VERSION}`;
 
@@ -131,7 +131,6 @@ self.addEventListener('install', (event) => {
           console.warn('[SW] precache skip', path, e);
         }
       }
-      // Activate owns cache cleanup. Existing windows are never navigated or reloaded automatically.
       self.skipWaiting();
     })
   );
@@ -140,12 +139,10 @@ self.addEventListener('install', (event) => {
 self.addEventListener('activate', (event) => {
   event.waitUntil((async () => {
     await deleteOutdatedCaches();
-    // Control open tabs without interrupting their current work. Fresh assets load on the next normal navigation/login.
     await self.clients.claim();
   })());
 });
 
-/** Allow the app to trigger skipWaiting via postMessage({ type: 'SKIP_WAITING' }). */
 self.addEventListener('message', (event) => {
   if (event.data && event.data.type === 'SKIP_WAITING') {
     self.skipWaiting();
@@ -157,20 +154,15 @@ self.addEventListener('fetch', (event) => {
   if (request.method !== 'GET') return;
 
   const url = new URL(request.url);
-
-  // External origins (Supabase, CDNs, etc.) — never intercept.
   if (!sameOrigin(url)) return;
 
-  // API-like same-origin routes — always hit the network.
   if (isApiLikeUrl(url) || isBlockedCachePath(url)) {
     event.respondWith(fetch(request));
     return;
   }
 
-  // Only handle navigation + static assets; let everything else pass through.
   if (!(isNavigationRequest(request) || isStaticAssetUrl(url))) return;
 
-  // HTML / JS / CSS / manifest — network-first so a reload always gets the latest.
   const networkFresh = (
     isNavigationRequest(request) ||
     url.pathname.endsWith('.html') ||
