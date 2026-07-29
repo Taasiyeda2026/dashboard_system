@@ -34,17 +34,19 @@ test('general search index includes visible and expanded tracking fields', () =>
   }
 });
 
-test('summary cards use four equal columns across the content width', () => {
-  assert.match(filters, /grid-template-columns:\s*repeat\(4,\s*minmax\(0,\s*1fr\)\)/);
-  assert.match(filters, /\.israa-v2__kpi\s*\{[\s\S]*width:\s*100%/);
-  assert.match(filters, /gap:\s*8px/);
+test('summary cards remain compact and do not stretch across the content width', () => {
+  const tracking = fs.readFileSync(new URL('../frontend/src/israa-tracking-v2-runtime.js', import.meta.url), 'utf8');
+  assert.match(tracking, /grid-template-columns:repeat\(4,minmax\(210px,240px\)\)/);
+  assert.match(tracking, /grid-auto-rows:64px/);
+  assert.match(tracking, /justify-content:start/);
+  assert.doesNotMatch(filters, /grid-template-columns:repeat\(4,minmax\(0,1fr\)\)\s*!important/);
 });
 
-test('horizontal table scrollbar is fixed at the bottom of the viewport', () => {
-  assert.match(scroll, /position:\s*fixed/);
-  assert.match(scroll, /bottom:\s*7px/);
-  assert.match(scroll, /document\.body\.appendChild\(fixedScroller\)/);
-  assert.match(scroll, /activeWrap\.scrollLeft\s*=\s*fixedScroller\.scrollLeft/);
+test('table wrapper is the sole horizontal scroller and resets to RTL start', () => {
+  assert.match(scroll, /tableWrap\.scrollLeft\s*=\s*0/);
+  assert.match(scroll, /window\.addEventListener\('resize',[\s\S]*schedule\(true\)/);
+  assert.match(scroll, /window\.addEventListener\('hashchange',[\s\S]*schedule\(true\)/);
+  assert.doesNotMatch(scroll, /position:\s*fixed|document\.body\.appendChild|overflow-x:\s*auto/);
 });
 
 test('new row uses school, contact and course catalogs', () => {
