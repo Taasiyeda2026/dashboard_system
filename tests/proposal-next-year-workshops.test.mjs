@@ -28,6 +28,10 @@ const {
   normalizeNextYearWorkshopHtml,
   installProposalNextYearWorkshops
 } = await import('../frontend/src/proposal-next-year-workshops.js');
+const {
+  proposalGroupOptions,
+  proposalPreviewBodyHtml
+} = await import('../frontend/src/screens/proposals-agreements.js');
 
 const MIGRATION_FILE = new URL('../supabase/migrations/20260729192000_add_workshops_to_next_year_proposals.sql', import.meta.url);
 
@@ -54,7 +58,7 @@ test('next-year payload exposes separate course and workshop sections without es
 
   const nextYear = payload.proposalActivityGroups.find((group) => group.group_key === 'next_year');
   assert.deepEqual(nextYear.included_group_keys, ['next_year_courses', 'next_year_workshops']);
-  assert.equal(payload.proposalActivityGroups.find((group) => group.group_key === 'next_year_courses').display_name, 'קורסים');
+  assert.equal(payload.proposalActivityGroups.find((group) => group.group_key === 'next_year_courses').display_name, 'קורסים ותוכניות');
   assert.equal(payload.proposalActivityGroups.find((group) => group.group_key === 'next_year_workshops').display_name, 'סדנאות');
 
   const courseAliases = payload.proposalActivityPricing.filter((row) => row.group_key === 'next_year_courses');
@@ -133,6 +137,47 @@ test('installer augments loaders and normalizes saved snapshots', async () => {
   </tbody><tfoot><tr><td colspan="6">סה״כ</td><td>₪ 650</td></tr></tfoot></table></section>`;
   await fakeApi.uploadProposalFinalPdf('proposal-1', { documentHtmlSnapshot: source });
   assert.match(saved[0].payload.documentHtmlSnapshot, /pa-next-year-workshop-table/);
+});
+
+test('real next-year preview renders workshop-only, course-only and mixed saved items', () => {
+  const payload = augmentNextYearProposalPayload({
+    proposalActivityGroups: baseGroups,
+    proposalActivityPricing: basePricing
+  });
+  proposalGroupOptions(payload, [], payload.proposalActivityPricing);
+  const row = { activity_type_group: 'next_year', proposal_date: '2026-07-29' };
+  const course = {
+    item_name: 'קורס לדוגמה', proposal_group: 'next_year_courses', quantity: 1,
+    unit_price: 9000, total_price: 9000, meetings_count: 10, hours_count: 15,
+    hourly_price: 600, gefen_number: '6089', proposal_display_mode: 'single'
+  };
+  const workshop = {
+    item_name: 'רוטוקופטר', proposal_group: 'next_year_workshops', quantity: 2,
+    unit_duration: '45 דקות', unit_price: 650, total_price: 1300,
+    proposal_display_mode: 'single'
+  };
+
+  const workshopOnly = proposalPreviewBodyHtml(row, [workshop], []);
+  assert.match(workshopOnly, /pa-next-year-workshop-table/);
+  assert.match(workshopOnly, /שם הסדנה/);
+  assert.match(workshopOnly, /משך הפעילות/);
+  assert.match(workshopOnly, /רוטוקופטר/);
+  assert.match(workshopOnly, /1,300/);
+  assert.doesNotMatch(workshopOnly, /מס׳ גפ״ן/);
+
+  const courseOnly = proposalPreviewBodyHtml(row, [course], []);
+  assert.match(courseOnly, /pa-next-year-course-table/);
+  assert.match(courseOnly, /קורסים ותוכניות/);
+  assert.doesNotMatch(courseOnly, /pa-next-year-workshop-table/);
+
+  const mixed = proposalPreviewBodyHtml(row, [course, workshop], []);
+  assert.match(mixed, /pa-next-year-course-table/);
+  assert.match(mixed, /pa-next-year-workshop-table/);
+  assert.match(mixed, /סה״כ קורסים|סה״כ לתשלום/);
+  assert.match(mixed, /סה״כ סדנאות/);
+  assert.match(mixed, /סה״כ כולל להצעה/);
+  assert.match(mixed, /10,300/);
+  assert.equal((mixed.match(/רוטוקופטר/g) || []).length, 1);
 });
 
 test('migration creates internal sections and leaves escape room excluded', async () => {

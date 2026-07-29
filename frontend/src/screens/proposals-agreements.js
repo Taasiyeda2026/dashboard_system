@@ -422,14 +422,24 @@ function setProposalGroupLookups(data = {}, rows = [], pricingOptions = []) {
   const groups = collectGroupRecords({ ...data, proposalTemplateSections: proposalTemplateSectionsLookup }, rows, pricingOptions);
   const groupByKey = new Map();
   const aliasToKey = new Map();
+  const canonicalGroupKeys = new Set(groups.map((group) => group.group_key));
   groups.forEach((group) => {
     groupByKey.set(group.group_key, group);
     aliasToKey.set(group.group_key, group.group_key);
     aliasToKey.set(normalizeHebrewQuoteVariants(group.group_key), group.group_key);
     aliasToKey.set(group.display_name, group.group_key);
     aliasToKey.set(normalizeHebrewQuoteVariants(group.display_name), group.group_key);
-    if (group.template_key) { aliasToKey.set(group.template_key, group.group_key); aliasToKey.set(normalizeHebrewQuoteVariants(group.template_key), group.group_key); }
+    if (group.template_key && !canonicalGroupKeys.has(group.template_key)) {
+      aliasToKey.set(group.template_key, group.group_key);
+      aliasToKey.set(normalizeHebrewQuoteVariants(group.template_key), group.group_key);
+    }
     group.aliases.forEach((alias) => { aliasToKey.set(alias, group.group_key); aliasToKey.set(normalizeHebrewQuoteVariants(alias), group.group_key); });
+  });
+  // Internal subgroups can share their parent's template_key. Canonical group
+  // keys must always win over those template aliases (for example next_year).
+  groups.forEach((group) => {
+    aliasToKey.set(group.group_key, group.group_key);
+    aliasToKey.set(normalizeHebrewQuoteVariants(group.group_key), group.group_key);
   });
   dataGroupAliasRows(data)
     .forEach((aliasRow) => {
@@ -1773,6 +1783,9 @@ function buildInfoStripInnerHtml(item = {}, contextGroup = '') {
   const showGefen = shouldShowGefenForItem(item, contextGroup);
   const parts = [];
 
+  const duration = text(item.unit_duration);
+  if (duration) parts.push(`משך פעילות ${duration}`);
+
   // Gefen (annual / combined only)
   const gefenNumber = showGefen ? proposalTextField(item, 'gefen_number', 'gefenNumber') : '';
   if (gefenNumber) parts.push(`גפ״ן ${escapeHtml(gefenNumber)}`);
@@ -1872,7 +1885,7 @@ function itemRowHtml(item = {}, idx = 0, pricingOptions = [], options = {}) {
         <div class="ds-pa-item-grid ds-pa-item-grid--extras">
           <label class="ds-pa-item-field ds-pa-item-field--name" data-pa-details-item-name${isManualCourseRow ? ' hidden' : ''}><span>שם פעילות / תוכנית</span><input class="ds-input ds-input--sm"${isManualCourseRow ? '' : ' name="item_name"'} data-pa-details-item-name-input value="${escapeHtml(item.item_name || '')}" placeholder="שם פעילות"></label>
           ${meetingsHoursFieldsHtml}
-          <label class="ds-pa-item-field ds-pa-item-field--price"><span>מחיר יחידה</span><input class="ds-input ds-input--sm" type="number" name="unit_price" value="${n(item.unit_price)}" min="0" step="any" data-pa-item-price></label>
+          <label class="ds-pa-item-field ds-pa-item-field--price"><span>${isSummerRow ? 'מחיר להפעלה' : 'מחיר יחידה'}</span><input class="ds-input ds-input--sm" type="number" name="unit_price" value="${n(item.unit_price)}" min="0" step="any" data-pa-item-price></label>
           <label class="ds-pa-item-field ds-pa-item-field--total ds-pa-line-total"><span>סה״כ שורה</span><output data-pa-item-total-display>${calcTotal ? `₪ ${formatCurrency(calcTotal)}` : '₪ 0'}</output><input type="hidden" name="total_price" value="${calcTotal}" data-pa-item-total></label>
         </div>
         ${isNextYearRow ? '' : `<label class="ds-pa-item-field ds-pa-item-field--full"><span>הערות או התאמות</span><textarea class="ds-input ds-input--sm" name="description" rows="2" placeholder="תיאור קצר, אם נדרש">${escapeHtml(item.description || '')}</textarea></label>`}
@@ -2598,6 +2611,55 @@ function proposalCostTableHtml(items = [], options = {}) {
       </tr>`).join('')}</tbody>
     <tfoot>${discountFooter}<tr><td colspan="3">סה״כ לתשלום</td><td>${currencyAmountHtml(grandTotal)}</td></tr></tfoot>
   </table>`;
+}
+
+function nextYearWorkshopTableHtml(items = []) {
+  const billedItems = (Array.isArray(items) ? items : []).filter((item) =>
+    !isTestHoursItem(item) && !isDiscountItem(item) && text(item.proposal_display_mode) !== 'bundle_child');
+  const rows = billedItems.flatMap((item) => {
+    const duration = text(item.unit_duration) || '45 דקות';
+    return costTableRowsFromItem(item).map((row) => ({ ...row, duration }));
+  });
+  if (!rows.length) return '';
+  const subtotal = rows.reduce((sum, row) => sum + row.total, 0);
+  return `<table class="pa-item-details-table pa-activities-table pa-next-year-workshop-table" style="width:85%;margin-inline:auto;table-layout:fixed;">
+    <colgroup><col style="width:32%"><col style="width:17%"><col style="width:14%"><col style="width:18%"><col style="width:19%"></colgroup>
+    <thead><tr><th>שם הסדנה</th><th>משך הפעילות</th><th>כמות</th><th>מחיר להפעלה</th><th>סה״כ</th></tr></thead>
+    <tbody>${rows.map((row) => `<tr>
+      <td>${escapeHtml(row.name)}</td><td>${escapeHtml(row.duration)}</td><td>${escapeHtml(formatCurrency(row.quantity))}</td>
+      <td>${currencyAmountHtml(row.unitPrice)}</td><td>${currencyAmountHtml(row.total)}</td>
+    </tr>`).join('')}</tbody>
+    <tfoot><tr><td colspan="4">סה״כ סדנאות</td><td>${currencyAmountHtml(subtotal)}</td></tr></tfoot>
+  </table>`;
+}
+
+function nextYearGroupedCostTablesHtml(row = {}, items = []) {
+  if (!isNextYearProposalGroup(row.activity_type_group) || !isCombinedProposalGroup(row.activity_type_group)) return '';
+  const groups = includedProposalGroups(row.activity_type_group);
+  const courseGroup = groups.find((group) => isNextYearProposalGroup(group));
+  const workshopGroup = groups.find((group) => isSummerProposalGroup(group) || isWorkshopKindText(groupKindText(group)));
+  const courseItems = courseGroup ? items.filter((item) => itemBelongsToGroup(item, courseGroup)) : [];
+  const workshopItems = workshopGroup ? items.filter((item) => itemBelongsToGroup(item, workshopGroup)) : [];
+  const courseTable = courseGroup ? proposalItemDetailsTableHtml(courseItems, courseGroup) : '';
+  const workshopTable = nextYearWorkshopTableHtml(workshopItems);
+  const sections = [
+    courseTable ? `<div class="pa-next-year-cost-group"><h4 class="pa-section-heading pa-next-year-course-heading">קורסים ותוכניות</h4>${courseTable}</div>` : '',
+    workshopTable ? `<div class="pa-next-year-cost-group"><h4 class="pa-section-heading pa-next-year-workshop-heading">סדנאות</h4>${workshopTable}</div>` : ''
+  ].filter(Boolean);
+  if (!sections.length) return '';
+  const regularTotal = [...courseItems, ...workshopItems]
+    .filter((item) => !isDiscountItem(item))
+    .reduce((sum, item) => sum + costTableRowsFromItem(item).reduce((rowSum, costRow) => rowSum + costRow.total, 0), 0);
+  const discount = Math.abs((Array.isArray(items) ? items : []).filter(isDiscountItem)
+    .reduce((sum, item) => sum + (Number(proposalField(item, 'total_price', 'totalPrice')) || Number(proposalField(item, 'unit_price', 'unitPrice')) || 0), 0));
+  const grandTotal = Math.max(regularTotal - discount, 0);
+  const totalTable = courseTable && workshopTable
+    ? `<table class="pa-cost-table pa-activities-table pa-next-year-combined-total" style="width:85%;margin:8px auto 0;"><tbody>
+        ${discount ? `<tr><td>הנחה</td><td>${currencyAmountHtml(-discount)}</td></tr>` : ''}
+        <tr><td><strong>סה״כ כולל להצעה</strong></td><td><strong>${currencyAmountHtml(grandTotal)}</strong></td></tr>
+      </tbody></table>`
+    : '';
+  return `${sections.join('')}${totalTable}`;
 }
 
 
@@ -3815,11 +3877,12 @@ export function proposalPreviewBodyHtml(row, items = [], templateSections = [], 
   // breakdown is always built dynamically from proposal_agreement_items.
   const paymentTermsBody = isTourProposalGroup(activityTypeGroup) ? '' : stripTableIntroFromPaymentTermsBody(sectionBody('payment_terms'), templateKey);
   const proposalKind = proposalActivityKind(row, items);
-  const costTableHtml = isTourProposalGroup(activityTypeGroup)
+  const groupedNextYearCostTables = nextYearGroupedCostTablesHtml(row, items);
+  const costTableHtml = groupedNextYearCostTables || (isTourProposalGroup(activityTypeGroup)
     ? tourCostTableHtml(items)
     : proposalKind === 'course'
       ? proposalItemDetailsTableHtml(items, activityTypeGroup)
-      : proposalCostTableHtml(items, { isSummer: isSummerProposalGroup(activityTypeGroup) });
+      : proposalCostTableHtml(items, { isSummer: isSummerProposalGroup(activityTypeGroup) }));
   const costsIntro = costsIntroBody(row, items);
   const costTableBlock = costTableHtml
     ? `<div class="pa-cost-table-block">${costsIntro ? `<p class="pa-costs-intro-heading">${escapeHtml(costsIntro)}</p>` : ''}${costTableHtml}</div>`

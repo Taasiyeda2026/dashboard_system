@@ -50,7 +50,7 @@ function internalGroups(groups = []) {
   if (!byKey.has(NEXT_YEAR_COURSES_GROUP)) {
     rows.push({
       group_key: NEXT_YEAR_COURSES_GROUP,
-      display_name: 'קורסים',
+      display_name: 'קורסים ותוכניות',
       template_key: 'next_year',
       included_group_keys: [],
       sort_order: 201,
@@ -74,7 +74,7 @@ function internalGroups(groups = []) {
   return rows.map((group) => {
     const key = text(group.group_key);
     if (key === NEXT_YEAR_COURSES_GROUP) {
-      return { ...group, display_name: 'קורסים', template_key: 'next_year', show_gefen: true, is_internal: true };
+      return { ...group, display_name: 'קורסים ותוכניות', template_key: 'next_year', show_gefen: true, is_internal: true };
     }
     if (key === NEXT_YEAR_WORKSHOPS_GROUP) {
       return { ...group, display_name: 'סדנאות', template_key: 'summer', show_gefen: false, is_internal: true };
