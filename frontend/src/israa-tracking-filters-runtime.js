@@ -27,26 +27,6 @@ function injectStyles() {
   const style = document.createElement('style');
   style.id = 'israa-tracking-filters-styles';
   style.textContent = `
-    .israa-v2__kpis {
-      width:100% !important;
-      margin-inline:0 !important;
-      box-sizing:border-box !important;
-      display:grid !important;
-      grid-template-columns:repeat(4,minmax(0,1fr)) !important;
-      gap:8px !important;
-      align-items:stretch !important;
-    }
-    .israa-v2__kpi {
-      width:100% !important;
-      min-width:0 !important;
-      max-width:none !important;
-      min-height:66px;
-      margin:0 !important;
-      box-sizing:border-box;
-      display:flex;
-      flex-direction:column;
-      justify-content:center;
-    }
     .israa-v2__kpi-label,.israa-v2__kpi-value {
       min-width:0; overflow:hidden; text-overflow:ellipsis; white-space:nowrap;
     }
@@ -79,9 +59,6 @@ function injectStyles() {
     }
     .israa-v2__filter-empty td {
       padding:24px !important; text-align:center; color:#64748b; background:#fff;
-    }
-    @media (max-width:720px) {
-      .israa-v2__kpis { grid-template-columns:repeat(2,minmax(0,1fr)) !important; }
     }
   `;
   document.head.appendChild(style);

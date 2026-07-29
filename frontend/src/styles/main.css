@@ -592,6 +592,23 @@ select {
   zoom: 0.85;
 }
 
+/* The tracking table owns its horizontal overflow; every shell ancestor must be shrinkable. */
+.app-shell.route-israa-management .shell-main,
+.app-shell.route-israa-management .shell-stage,
+.app-shell.route-israa-management .screen-root,
+.app-shell.route-israa-management .ds-screen-stack {
+  width: 100%;
+  max-width: 100%;
+  min-width: 0;
+  box-sizing: border-box;
+}
+
+.app-shell.route-israa-management .shell-stage,
+.app-shell.route-israa-management .screen-root,
+.app-shell.route-israa-management .ds-screen-stack {
+  overflow-x: visible;
+}
+
 
 .app-shell.is-route-loading .shell-nav__btn:disabled {
   pointer-events: none;

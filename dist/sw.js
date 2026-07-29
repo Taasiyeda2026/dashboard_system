@@ -4,7 +4,7 @@
  * API-like requests: network only, never cached. Bump CACHE_VERSION after deploy to drop old caches.
  * CACHE_VERSION is the single manual SW/cache version source; /sw.js imports this file without its own version.
  */
-const CACHE_VERSION = 1245;
+const CACHE_VERSION = 1311;
 const CACHE_PREFIX = 'dashboard-static-v';
 const CACHE_NAME = `${CACHE_PREFIX}${CACHE_VERSION}`;
 
@@ -12,8 +12,9 @@ const CACHE_NAME = `${CACHE_PREFIX}${CACHE_VERSION}`;
 const PRECACHE_URLS = [
   "./assets/apple-touch-icon-DZF9rhdV.png",
   "./assets/favicon-D0Y9bj5H.ico",
-  "./assets/index-B3AgsXux.js",
-  "./assets/style-DVR-CglV.css",
+  "./assets/index-eRx74EQW.js",
+  "./assets/main-DuWi37LF.js",
+  "./assets/style-C4B4TcBk.css",
   "./index.html",
   "./manifest.json"
 ];
@@ -80,18 +81,6 @@ async function deleteOutdatedCaches() {
   return outdatedKeys;
 }
 
-async function reloadClientsAfterCacheUpgrade(deletedKeys) {
-  if (!Array.isArray(deletedKeys) || !deletedKeys.length) return;
-  const clients = await self.clients.matchAll({ type: 'window', includeUncontrolled: true });
-  await Promise.all(clients.map(async (client) => {
-    try {
-      await client.navigate(client.url);
-    } catch (e) {
-      try { client.postMessage({ type: 'SW_UPDATED', version: CACHE_VERSION }); } catch (_) { /* ignore */ }
-    }
-  }));
-}
-
 function withNoStore(request) {
   return new Request(request, { cache: 'no-store' });
 }
@@ -106,10 +95,12 @@ async function precacheFresh(cache, path) {
 }
 
 async function cacheFirst(request, cache) {
-  const matchOpts = { ignoreSearch: true };
-  let cached = await cache.match(request, matchOpts);
+  // Query strings are part of the cache key. Several runtime modules deliberately
+  // use them as deploy cache-busters, so ignoring them can resurrect an older JS
+  // response after a release.
+  let cached = await cache.match(request);
   if (!cached && isNavigationRequest(request)) {
-    cached = await cache.match(resolveUrl('./index.html'), matchOpts);
+    cached = await cache.match(resolveUrl('./index.html'));
   }
   if (cached) return cached;
 
@@ -121,7 +112,6 @@ async function cacheFirst(request, cache) {
 }
 
 async function networkFirst(request, cache) {
-  const matchOpts = { ignoreSearch: true };
   try {
     const response = await fetch(withNoStore(request));
     if (shouldStoreResponse(response)) {
@@ -129,9 +119,9 @@ async function networkFirst(request, cache) {
     }
     return response;
   } catch (err) {
-    let cached = await cache.match(request, matchOpts);
+    let cached = await cache.match(request);
     if (!cached && isNavigationRequest(request)) {
-      cached = await cache.match(resolveUrl('./index.html'), matchOpts);
+      cached = await cache.match(resolveUrl('./index.html'));
     }
     if (cached) return cached;
     throw err;
@@ -148,24 +138,18 @@ self.addEventListener('install', (event) => {
           console.warn('[SW] precache skip', path, e);
         }
       }
-      // Do not delete outdated caches during install — activate owns cleanup so
-      // reloadClientsAfterCacheUpgrade still sees deleted keys and can refresh clients.
       self.skipWaiting();
     })
   );
 });
 
 self.addEventListener('activate', (event) => {
-  event.waitUntil(
-    deleteOutdatedCaches().then(async (deletedKeys) => {
-      // Claim all open tabs so this SW serves them right away.
-      await self.clients.claim();
-      await reloadClientsAfterCacheUpgrade(deletedKeys);
-    })
-  );
+  event.waitUntil((async () => {
+    await deleteOutdatedCaches();
+    await self.clients.claim();
+  })());
 });
 
-/** Allow the app to trigger skipWaiting via postMessage({ type: 'SKIP_WAITING' }). */
 self.addEventListener('message', (event) => {
   if (event.data && event.data.type === 'SKIP_WAITING') {
     self.skipWaiting();
@@ -177,20 +161,15 @@ self.addEventListener('fetch', (event) => {
   if (request.method !== 'GET') return;
 
   const url = new URL(request.url);
-
-  // External origins (Supabase, CDNs, etc.) — never intercept.
   if (!sameOrigin(url)) return;
 
-  // API-like same-origin routes — always hit the network.
   if (isApiLikeUrl(url) || isBlockedCachePath(url)) {
     event.respondWith(fetch(request));
     return;
   }
 
-  // Only handle navigation + static assets; let everything else pass through.
   if (!(isNavigationRequest(request) || isStaticAssetUrl(url))) return;
 
-  // HTML / JS / CSS / manifest — network-first so a reload always gets the latest.
   const networkFresh = (
     isNavigationRequest(request) ||
     url.pathname.endsWith('.html') ||
