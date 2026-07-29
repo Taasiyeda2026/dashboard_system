@@ -45,18 +45,33 @@ const rows = [
     activity_name: 'פעילות שנסגרה',
     start_date: '2026-07-02',
     instructor_name: 'מדריך ב'
+  },
+  {
+    RowID: 'OPS-CANCELLED-1',
+    status: 'בוטל',
+    activity_season: 'regular',
+    authority: 'רשות בדיקה',
+    school: 'בית ספר מבוטל',
+    activity_name: 'פעילות שבוטלה',
+    start_date: '2026-07-03',
+    instructor_name: 'מדריך ג'
   }
 ];
 
-test('operations management authorities tab exposes and applies closed status filter', () => {
+test('operations management status filter contains only all, open and closed', () => {
   const openHtml = operationsManagementScreen.render(
     { rows, workshopStockMap: new Map() },
     { state: buildState('פתוח') }
   );
 
+  assert.match(openHtml, /<option value="">הכל<\/option>/);
+  assert.match(openHtml, /<option value="פתוח" selected>פתוח<\/option>/);
   assert.match(openHtml, /<option value="סגור">סגור<\/option>/);
+  assert.doesNotMatch(openHtml, /<option value="בתהליך"/);
+  assert.doesNotMatch(openHtml, /<option value="בוטל"/);
   assert.match(openHtml, /פעילות פתוחה/);
   assert.doesNotMatch(openHtml, /פעילות שנסגרה/);
+  assert.doesNotMatch(openHtml, /פעילות שבוטלה/);
 
   const closedHtml = operationsManagementScreen.render(
     { rows, workshopStockMap: new Map() },
@@ -66,6 +81,7 @@ test('operations management authorities tab exposes and applies closed status fi
   assert.match(closedHtml, /<option value="סגור" selected>סגור<\/option>/);
   assert.match(closedHtml, /פעילות שנסגרה/);
   assert.doesNotMatch(closedHtml, /פעילות פתוחה/);
+  assert.doesNotMatch(closedHtml, /פעילות שבוטלה/);
 
   const allHtml = operationsManagementScreen.render(
     { rows, workshopStockMap: new Map() },
@@ -74,4 +90,5 @@ test('operations management authorities tab exposes and applies closed status fi
 
   assert.match(allHtml, /פעילות פתוחה/);
   assert.match(allHtml, /פעילות שנסגרה/);
+  assert.doesNotMatch(allHtml, /פעילות שבוטלה/);
 });
