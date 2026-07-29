@@ -17,6 +17,18 @@ const SCHOOL_CALENDAR_COLUMNS = [
 
 let cachedRows = null;
 let inflightRequest = null;
+let authSubscriptionStarted = false;
+let authGeneration = 0;
+
+function startAuthCacheInvalidation() {
+  if (!supabase || authSubscriptionStarted) return;
+  authSubscriptionStarted = true;
+
+  supabase.auth.onAuthStateChange(() => {
+    authGeneration += 1;
+    cachedRows = null;
+  });
+}
 
 export function getCachedSchoolCalendarRows() {
   return cachedRows;
@@ -32,6 +44,20 @@ export async function loadSchoolCalendarRows() {
 
   inflightRequest = (async () => {
     if (!supabase) return [];
+
+    startAuthCacheInvalidation();
+
+    const { data: sessionData, error: sessionError } = await supabase.auth.getSession();
+    if (sessionError) {
+      console.warn('[school-calendar] session check failed', {
+        message: sessionError.message || ''
+      });
+      return [];
+    }
+
+    if (!sessionData?.session?.user) return [];
+
+    const requestAuthGeneration = authGeneration;
     const { data, error } = await supabase
       .from('school_calendar')
       .select(SCHOOL_CALENDAR_COLUMNS)
@@ -46,6 +72,8 @@ export async function loadSchoolCalendarRows() {
       });
       return [];
     }
+
+    if (requestAuthGeneration !== authGeneration) return [];
 
     cachedRows = Array.isArray(data) ? data : [];
     return cachedRows;
