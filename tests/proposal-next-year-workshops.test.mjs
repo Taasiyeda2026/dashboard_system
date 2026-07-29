@@ -35,6 +35,7 @@ const {
 
 const MIGRATION_FILE = new URL('../supabase/migrations/20260729192000_add_workshops_to_next_year_proposals.sql', import.meta.url);
 const TEMPLATE_FIX_MIGRATION_FILE = new URL('../supabase/migrations/20260729210000_keep_next_year_workshops_on_next_year_template.sql', import.meta.url);
+const LABEL_MIGRATION_FILE = new URL('../supabase/migrations/20260729230000_label_next_year_subgroups.sql', import.meta.url);
 
 const baseGroups = [
   { group_key: 'summer', display_name: 'פעילויות קיץ', template_key: 'summer', included_group_keys: [] },
@@ -60,8 +61,8 @@ test('next-year payload exposes separate course and workshop sections without es
 
   const nextYear = payload.proposalActivityGroups.find((group) => group.group_key === 'next_year');
   assert.deepEqual(nextYear.included_group_keys, ['next_year_courses', 'next_year_workshops']);
-  assert.equal(payload.proposalActivityGroups.find((group) => group.group_key === 'next_year_courses').display_name, 'קורסים ותוכניות');
-  assert.equal(payload.proposalActivityGroups.find((group) => group.group_key === 'next_year_workshops').display_name, 'סדנאות');
+  assert.equal(payload.proposalActivityGroups.find((group) => group.group_key === 'next_year_courses').display_name, 'תשפ״ז (קורסים)');
+  assert.equal(payload.proposalActivityGroups.find((group) => group.group_key === 'next_year_workshops').display_name, 'תשפ״ז (סדנאות)');
 
   const courseAliases = payload.proposalActivityPricing.filter((row) => row.group_key === 'next_year_courses');
   const workshopAliases = payload.proposalActivityPricing.filter((row) => row.group_key === 'next_year_workshops');
@@ -102,6 +103,29 @@ test('mixed next-year document splits workshops into a dedicated table', () => {
   assert.match(normalized, /סה״כ סדנאות/);
   assert.match(normalized, /10,300/);
   assert.equal((normalized.match(/סדנאות STEM/g) || []).length, 1);
+});
+
+test('next-year editor and preview labels distinguish the two groups and align legacy tables', () => {
+  const dom = new JSDOM('<!doctype html><body></body>');
+  const html = `<div>
+    <div data-pa-items-group="next_year_courses"><div class="ds-pa-items-header"><span class="ds-pa-items-section-label">תשפ״ז</span></div></div>
+    <div data-pa-items-group="next_year_workshops"><div class="ds-pa-items-header"><span class="ds-pa-items-section-label">תשפ״ז</span></div></div>
+    <section class="proposal-document">
+      <section class="pa-section"><h3 class="pa-section-heading">תשפ״ז</h3><div class="pa-section-body">קורסים</div></section>
+      <section class="pa-section"><h3 class="pa-section-heading">תשפ״ז</h3><div class="pa-section-body">סדנאות</div></section>
+      <table class="pa-next-year-course-table"><tbody><tr><td>קורס</td></tr></tbody></table>
+    </section>
+  </div>`;
+  const normalized = normalizeNextYearWorkshopHtml(html, dom.window.document);
+  const parsed = new JSDOM(normalized).window.document;
+  assert.equal(parsed.querySelector('[data-pa-items-group="next_year_courses"] .ds-pa-items-section-label').textContent, 'תשפ״ז (קורסים)');
+  assert.equal(parsed.querySelector('[data-pa-items-group="next_year_workshops"] .ds-pa-items-section-label').textContent, 'תשפ״ז (סדנאות)');
+  const headings = Array.from(parsed.querySelectorAll('.proposal-document .pa-section > .pa-section-heading')).map((element) => element.textContent);
+  assert.deepEqual(headings, ['תשפ״ז (קורסים)', 'תשפ״ז (סדנאות)']);
+  const table = parsed.querySelector('.pa-next-year-course-table');
+  assert.equal(table.style.width, '85%');
+  assert.equal(table.style.marginInline, 'auto');
+  assert.equal(table.style.tableLayout, 'fixed');
 });
 
 test('workshop-only next-year document removes the empty course table', () => {
@@ -187,6 +211,7 @@ test('real next-year preview renders workshop-only, course-only and mixed saved 
 test('migration creates internal sections and leaves escape room excluded', async () => {
   const migration = await readFile(MIGRATION_FILE, 'utf8');
   const templateFixMigration = await readFile(TEMPLATE_FIX_MIGRATION_FILE, 'utf8');
+  const labelMigration = await readFile(LABEL_MIGRATION_FILE, 'utf8');
   assert.match(migration, /next_year_courses/);
   assert.match(migration, /next_year_workshops/);
   assert.match(migration, /included_group_keys = array\['next_year_courses', 'next_year_workshops'\]/);
@@ -196,4 +221,6 @@ test('migration creates internal sections and leaves escape room excluded', asyn
   assert.match(templateFixMigration, /where group_key = 'next_year_workshops'/);
   assert.match(templateFixMigration, /template_key = 'next_year'/);
   assert.doesNotMatch(templateFixMigration, /proposal_activity_pricing/);
+  assert.match(labelMigration, /תשפ״ז \(קורסים\)/);
+  assert.match(labelMigration, /תשפ״ז \(סדנאות\)/);
 });
