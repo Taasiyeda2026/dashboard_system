@@ -1,0 +1,14 @@
+import test from 'node:test';
+import assert from 'node:assert/strict';
+import { calculateCourseSchedule, instructorLoad, schedulingCourses } from '../frontend/src/screens/course-scheduling-engine.js';
+
+const course = (id, date='2027-09-05') => ({ row_id:id, activity_name:id, activity_type:'קורס', activity_season:'school_2027', status:'פתוח', school:'אלון', school_address:'רחוב 1', authority:'חיפה', instruction_language:'he', education_level:'elementary', start_time:'10:00', end_time:'11:00', meetings:[{date,start_time:'10:00',end_time:'11:00'}] });
+const instructors=[{emp_id:'1',full_name:'נועה',active:'yes',address:'חיפה'},{emp_id:'2',full_name:'דנה',active:'yes',address:'חיפה'}];
+const profiles={1:{gender:'female',instruction_languages:['he'],education_levels:['elementary'],course_restriction_mode:'allow_only',course_ids:['flex','only']},2:{gender:'female',instruction_languages:['he'],education_levels:['elementary'],course_restriction_mode:'allow_only',course_ids:['flex']}};
+const rules={1:[{weekday:0,available:true,start_time:'08:00',end_time:'16:00'}],2:[{weekday:0,available:true,start_time:'08:00',end_time:'16:00'}]};
+
+test('filters only open, unassigned 2027 courses',()=>{assert.deepEqual(schedulingCourses([course('ok'),{...course('assigned'),emp_id:'1'},{...course('workshop'),activity_type:'סדנה'},{...course('closed'),status:'סגור'},{...course('old'),activity_season:'regular'}]).map(x=>x.row_id),['ok']);});
+test('global allocation preserves the only instructor for a constrained course',()=>{const results=calculateCourseSchedule({activities:[course('flex'),course('only')],instructors,profiles,rules,exceptions:{}});assert.equal(results.filter(x=>x.recommended).length,2);assert.equal(results.find(x=>x.course.row_id==='only').recommended.instructor.emp_id,'1');assert.equal(results.find(x=>x.course.row_id==='flex').recommended.instructor.emp_id,'2');});
+test('checks every meeting and marks no-solution courses for recruitment',()=>{const result=calculateCourseSchedule({activities:[{...course('blocked'),meetings:[{date:'2027-09-05',start_time:'10:00',end_time:'11:00'},{date:'2027-09-06',start_time:'10:00',end_time:'11:00'}]}],instructors,profiles,rules,exceptions:{}})[0];assert.equal(result.status,'נדרש גיוס');assert.ok(result.checked.every(x=>x.failures.some(reason=>/זמינות/.test(reason))));});
+test('missing essential data is reported exactly and never proposed',()=>{const result=calculateCourseSchedule({activities:[{...course('missing'),school_address:'',instruction_language:''}],instructors,profiles,rules})[0];assert.equal(result.status,'חסר מידע');assert.deepEqual(result.missing,['כתובת בית הספר','שפת הדרכה']);});
+test('workload is calculated relative to declared availability',()=>{const load=instructorLoad([course('load')],profiles[1],rules[1]);assert.equal(load.hours,1);assert.equal(load.meetings,1);assert.equal(load.availabilityHours,8);assert.equal(load.ratio,0.125);});
