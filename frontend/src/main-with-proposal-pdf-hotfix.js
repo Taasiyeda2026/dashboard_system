@@ -48,7 +48,6 @@ import './annual-reviews-rating-comment-compact.js';
 import './annual-reviews-safe-extension-styles.js';
 import './annual-reviews-next-school-year-safe.js';
 import './annual-reviews-role-lessons-safe.js';
-import './annual-reviews-shared-stage-safe.js';
 import './annual-reviews-ui-compact-feedback.js';
 import './annual-reviews-print-plain.js';
 import './annual-reviews-manager-question-set.js';
