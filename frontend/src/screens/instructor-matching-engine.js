@@ -243,12 +243,13 @@ export function evaluateInstructor({
       scoreReasons.push(`${separateTrips} נסיעות נפרדות`);
     }
 
-    const ratio = Number(workloadRatio);
-    if (Number.isFinite(ratio)) {
+    const ratioProvided = workloadRatio !== null && workloadRatio !== undefined && workloadRatio !== '';
+    const ratio = ratioProvided ? Number(workloadRatio) : Number.NaN;
+    if (ratioProvided && Number.isFinite(ratio)) {
       score -= Math.min(30, Math.max(0, ratio) * 30);
       scoreReasons.push(`עומס שבועי צפוי: ${Math.round(ratio * 100)}% מהזמינות`);
       if (ratio > 1) warnings.push('העומס השבועי חורג מהיקף הזמינות');
-      else if (Number.isFinite(Number(averageWorkloadRatio)) && ratio > Number(averageWorkloadRatio) + 0.2) warnings.push('העומס השבועי גבוה משמעותית מהממוצע');
+      else if (averageWorkloadRatio !== null && averageWorkloadRatio !== undefined && Number.isFinite(Number(averageWorkloadRatio)) && ratio > Number(averageWorkloadRatio) + 0.2) warnings.push('העומס השבועי גבוה משמעותית מהממוצע');
     } else if (weeklyLoad || averageWeeklyLoad) {
       score -= Math.min(18, weeklyLoad * 2);
       scoreReasons.push(`עומס שבועי: ${weeklyLoad} מפגשים`);
