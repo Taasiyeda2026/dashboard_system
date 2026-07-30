@@ -11,7 +11,7 @@ import {
 } from './instructor-scheduling-data.js';
 import {
   text, activeFlag, assigned, instructorCard, profileHtml, contactForm, constraintsForm, matchingForm
-} from './instructor-workspace-ui.js';
+} from './instructor-workspace-ui.js?v=20260730-instructor-matching-modal-v1';
 
 const ACTIVE_FILTERS = [{ value: 'yes', label: 'פעילים' }, { value: '', label: 'הכול' }, { value: 'no', label: 'לא פעילים' }];
 const ASSIGNMENT_FILTERS = [{ value: '', label: 'כל השיבוצים' }, { value: 'assigned', label: 'משובצים' }, { value: 'unassigned', label: 'לא משובצים' }];
@@ -96,6 +96,93 @@ function replaceScheduling(row, scheduling) {
   row.availability_exceptions = (scheduling.exceptions || []).filter((item) => text(item.emp_id) === text(row.emp_id));
 }
 
+export function bindInstructorMatchingModal(modalRoot, { row, saveProfile, onSuccess } = {}) {
+  const content = modalRoot?.querySelector('.ds-modal__content');
+  const form = content?.querySelector('[data-instructor-matching-form]');
+  const saveButton = modalRoot?.querySelector('.ds-modal__footer [data-save-instructor-matching]');
+  if (!form || !saveButton || saveButton.dataset.matchingSaveBound === '1') return;
+  saveButton.dataset.matchingSaveBound = '1';
+
+  const closeMenus = (except = null) => form.querySelectorAll('[data-multiselect-menu]').forEach((menu) => {
+    if (menu !== except) menu.hidden = true;
+    const search = menu.closest('[data-multiselect]')?.querySelector('[data-multiselect-search]');
+    if (search && menu !== except) search.setAttribute('aria-expanded', 'false');
+  });
+  const renderTags = (widget) => {
+    const tags = widget.querySelector('[data-multiselect-tags]');
+    if (!tags) return;
+    const checked = [...widget.querySelectorAll('input[type="checkbox"]:checked')];
+    tags.innerHTML = checked.map((input) => `<span class="instructor-multiselect__tag">${escapeHtml(input.dataset.optionLabel || input.value)}<button type="button" data-remove-multiselect="${escapeHtml(input.value)}" aria-label="הסרת ${escapeHtml(input.dataset.optionLabel || input.value)}">✕</button></span>`).join('');
+    tags.hidden = checked.length === 0;
+  };
+  form.querySelectorAll('[data-multiselect]').forEach((widget) => {
+    const search = widget.querySelector('[data-multiselect-search]');
+    const menu = widget.querySelector('[data-multiselect-menu]');
+    renderTags(widget);
+    search?.addEventListener('focus', () => { closeMenus(menu); menu.hidden = false; search.setAttribute('aria-expanded', 'true'); });
+    search?.addEventListener('input', () => {
+      menu.hidden = false;
+      search.setAttribute('aria-expanded', 'true');
+      const query = text(search.value).toLowerCase();
+      menu.querySelectorAll('[data-search-text]').forEach((option) => { option.hidden = !!query && !option.dataset.searchText.includes(query); });
+    });
+    widget.addEventListener('change', () => renderTags(widget));
+    widget.addEventListener('click', (event) => {
+      const remove = event.target.closest?.('[data-remove-multiselect]');
+      if (!remove) return;
+      const input = [...widget.querySelectorAll('input[type="checkbox"]')].find((item) => item.value === remove.dataset.removeMultiselect);
+      if (input) input.checked = false;
+      renderTags(widget);
+    });
+  });
+  const outsideHandler = (event) => { if (!event.target.closest?.('[data-multiselect]')) closeMenus(); };
+  modalRoot.addEventListener('click', outsideHandler);
+
+  const syncCourseMode = () => {
+    const mode = form.querySelector('[name="course_restriction_mode"]:checked')?.value || 'all';
+    const picker = form.querySelector('[data-course-picker]');
+    picker.hidden = mode === 'all';
+    const heading = picker.querySelector('[data-course-picker-title]');
+    if (heading) heading.textContent = mode === 'block_selected' ? 'קורסים חסומים' : 'קורסים מותרים';
+  };
+  form.querySelectorAll('[name="course_restriction_mode"]').forEach((radio) => radio.addEventListener('change', syncCourseMode));
+  syncCourseMode();
+
+  saveButton.addEventListener('click', async () => {
+    if (saveButton.disabled) return;
+    const status = form.querySelector('[data-matching-status]');
+    const originalText = saveButton.textContent;
+    saveButton.disabled = true;
+    saveButton.classList.add('is-loading');
+    saveButton.setAttribute('aria-busy', 'true');
+    saveButton.textContent = 'שומר...';
+    status.hidden = true;
+    status.textContent = '';
+    const selected = (name) => [...form.querySelectorAll(`[name="${name}"]:checked`)].map((input) => input.value).filter(Boolean);
+    const courseMode = form.querySelector('[name="course_restriction_mode"]:checked')?.value || 'all';
+    try {
+      await saveProfile({
+        ...(row.scheduling_profile || {}), emp_id: row.emp_id,
+        gender: form.querySelector('[name="gender"]:checked')?.value || '',
+        instruction_languages: selected('language'),
+        course_restriction_mode: courseMode,
+        course_ids: courseMode === 'all' ? [] : selected('course_ids'),
+        blocked_authorities: selected('blocked_authorities'),
+        blocked_schools: selected('blocked_schools'),
+        matching_note: form.querySelector('[name="matching_note"]')?.value || ''
+      });
+      await onSuccess?.();
+    } catch (error) {
+      status.textContent = `לא ניתן לשמור את ההתאמה. ${String(error?.message || 'יש לנסות שוב.')}`;
+      status.hidden = false;
+      saveButton.disabled = false;
+      saveButton.classList.remove('is-loading');
+      saveButton.removeAttribute('aria-busy');
+      saveButton.textContent = originalText;
+    }
+  });
+}
+
 export const instructorsScreen = {
   async load({ api }) {
     const [base, contacts, scheduling] = await Promise.all([api.instructors(), api.instructorContacts(), loadInstructorSchedulingData()]);
@@ -168,11 +255,13 @@ export const instructorsScreen = {
         authorities: uniqueOptions(activityRows.map(item => ({ value: text(item.authority_id || item.authority), label: text(item.authority) }))),
         schools: uniqueOptions(activityRows.map(item => ({ value: text(item.school_id || item.school), label: `${text(item.school)}${text(item.authority) ? ` · ${text(item.authority)}` : ''}` })))
       };
-      ui.openModal({ title: `התאמה לשיבוץ — ${row.full_name || row.emp_id}`, content: matchingForm(row, options), actions: '<button type="button" class="ds-btn ds-btn--primary" data-save-instructor-matching>שמירה</button><button type="button" class="ds-btn" data-ui-close-modal>ביטול</button>' });
-      const modal = document.querySelector('.ds-modal__content');
-      const selected = name => [...(modal?.querySelector(`[name="${name}"]`)?.selectedOptions || [])].map(option => option.value).filter(Boolean);
-      const save = modal?.querySelector('[data-save-instructor-matching]');
-      save.onclick = async () => { try { save.disabled = true; await saveInstructorSchedulingProfile({ ...(row.scheduling_profile || {}), emp_id: row.emp_id, gender: modal.querySelector('[name="gender"]')?.value, instruction_languages: [...modal.querySelectorAll('[name="language"]:checked')].map(x=>x.value), education_levels: [...modal.querySelectorAll('[name="education"]:checked')].map(x=>x.value), course_restriction_mode: modal.querySelector('[name="course_restriction_mode"]')?.value, course_ids: selected('course_ids'), blocked_authorities: selected('blocked_authorities'), blocked_schools: selected('blocked_schools'), matching_note: modal.querySelector('[name="matching_note"]')?.value }); await refresh(row); ui.closeModal(); showToast('ההתאמה לשיבוץ נשמרה','success'); rerender(); reopen?.(); } catch(error) { modal.querySelector('[data-matching-status]').textContent = `שגיאה: ${error.message}`; } finally { save.disabled=false; } };
+      ui.openModal({ title: `התאמה לשיבוץ — ${row.full_name || row.emp_id}`, modalClass: 'ds-modal--instructor-matching', content: matchingForm(row, options), actions: '<button type="button" class="ds-btn" data-ui-close-modal>ביטול</button><button type="button" class="ds-btn ds-btn--primary" data-save-instructor-matching>שמירה</button>' });
+      const modalRoot = document.querySelector('.ds-modal.ds-modal--instructor-matching');
+      bindInstructorMatchingModal(modalRoot, {
+        row,
+        saveProfile: saveInstructorSchedulingProfile,
+        onSuccess: async () => { await refresh(row); ui.closeModal(); showToast('ההתאמה לשיבוץ נשמרה','success'); rerender(); reopen?.(); }
+      });
     };
 
     const openContact = (row, reopen) => {
