@@ -749,6 +749,33 @@ select {
   border-top: 1px solid var(--ds-border);
 }
 
+/* Instructor workspace: scheduling-fit editor */
+.ds-modal.ds-modal--instructor-matching{direction:rtl;width:min(820px,calc(100vw - 32px));max-height:calc(100vh - 40px);overflow:hidden;background:#f4f7fa;border-color:#d5dee8;border-radius:16px}
+.ds-modal.ds-modal--instructor-matching .ds-modal__header{flex:0 0 auto;padding:14px 18px;background:#142a46;border:0;color:#fff}
+.ds-modal.ds-modal--instructor-matching .ds-modal__title{font-size:1.08rem;font-weight:800;color:#fff}
+.ds-modal.ds-modal--instructor-matching .ds-modal__header .ds-icon-btn{color:#fff;border-color:rgba(255,255,255,.35);background:rgba(255,255,255,.08)}
+.ds-modal.ds-modal--instructor-matching .ds-modal__content{flex:1;min-height:0;padding:16px;overflow-y:auto;overflow-x:hidden;overscroll-behavior:contain}
+.ds-modal.ds-modal--instructor-matching .ds-modal__footer{flex:0 0 auto;align-items:center;padding:12px 16px;background:#fff;border-top:1px solid #dbe3ec}
+.ds-modal.ds-modal--instructor-matching .ds-modal__footer .ds-btn--primary{background:#08758d;border-color:#08758d;color:#fff;min-width:104px}
+.ds-modal.ds-modal--instructor-matching .ds-modal__footer .ds-btn.is-loading{cursor:wait;opacity:.78}
+.instructor-matching{display:grid;gap:14px;color:#243247}
+.instructor-matching__card{padding:16px;background:#fff;border:1px solid #dce3eb;border-radius:12px;box-shadow:0 2px 8px rgba(15,42,70,.04)}
+.instructor-matching__card h3{margin:0 0 13px;font-size:1rem;color:#21324a}
+.instructor-matching__card h4{margin:12px 0 7px;font-size:.88rem;color:#46566a}
+.instructor-matching__basic-grid,.instructor-matching__geo-grid{display:grid;grid-template-columns:1fr 1fr;gap:16px}
+.instructor-matching fieldset{min-width:0;margin:0;padding:0;border:0}.instructor-matching legend{margin-bottom:8px;font-size:.85rem;font-weight:750;color:#5d6b7d}
+.instructor-matching__choices{display:flex;gap:8px;flex-wrap:wrap}.instructor-matching__choices--modes{gap:10px}
+.instructor-matching__choice{display:inline-flex;align-items:center;gap:7px;min-height:38px;padding:7px 11px;background:#f8fafc;border:1px solid #d9e1ea;border-radius:9px;cursor:pointer;font-size:.88rem;font-weight:650}
+.instructor-matching__choice:has(input:checked){border-color:#178ba2;background:#eefbfc;color:#075c70}.instructor-matching__choice input{accent-color:#08758d}
+.instructor-matching__course-picker[hidden]{display:none}
+.instructor-multiselect{position:relative}.instructor-multiselect__search{width:100%;background:#fff}
+.instructor-multiselect__menu{position:absolute;z-index:10;inset:calc(100% + 4px) 0 auto;padding:6px;max-height:230px;overflow-y:auto;background:#fff;border:1px solid #cbd6e2;border-radius:10px;box-shadow:0 12px 28px rgba(22,42,68,.16)}
+.instructor-multiselect__option{display:flex;align-items:center;gap:9px;padding:9px;border-radius:7px;cursor:pointer;font-size:.86rem}.instructor-multiselect__option:hover{background:#f1f6fa}.instructor-multiselect__option input{accent-color:#08758d}
+.instructor-multiselect__tags{display:flex;gap:6px;flex-wrap:wrap;margin-bottom:7px}.instructor-multiselect__tag{display:inline-flex;align-items:center;gap:5px;max-width:100%;padding:5px 8px;background:#eaf7f9;border:1px solid #bfe2e8;border-radius:999px;color:#195568;font-size:.78rem;font-weight:700}.instructor-multiselect__tag button{padding:0;border:0;background:transparent;color:#52677a;cursor:pointer;font-size:.7rem}.instructor-multiselect__empty{margin:5px;padding:8px;color:#6b7788}
+.instructor-matching__note{display:grid;gap:6px}.instructor-matching__note>span{font-size:.86rem;font-weight:750}.instructor-matching__note textarea{width:100%;resize:vertical;min-height:84px}.instructor-matching__note small{color:#6b7788}
+.instructor-matching__status{margin:0;padding:10px 12px;border:1px solid #fecaca;border-radius:9px;background:#fff1f2;color:#a11d2d;font-weight:700}
+@media(max-width:640px){.ds-modal.ds-modal--instructor-matching{width:calc(100vw - 16px);max-height:calc(100vh - 16px)}.instructor-matching__basic-grid,.instructor-matching__geo-grid{grid-template-columns:1fr}.instructor-matching__choices--modes{display:grid}.ds-modal.ds-modal--instructor-matching .ds-modal__content{padding:10px}.instructor-matching__card{padding:13px}}
+
 @media (min-width: 960px) {
   .ds-modal {
     inset: 50% auto auto 50%;

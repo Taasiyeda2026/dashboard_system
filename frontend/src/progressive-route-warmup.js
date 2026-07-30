@@ -25,7 +25,7 @@ import { normalizeGlobalActivityPeriod } from './screens/shared/summer-activity.
     ['month', () => import('./screens/month.js').then((m) => m.monthScreen)],
     ['end-dates', () => import('./screens/end-dates.js').then((m) => m.endDatesScreen)],
     ['exceptions', () => import('./screens/exceptions.js').then((m) => m.exceptionsScreen)],
-    ['instructors', () => import('./screens/instructors.js').then((m) => m.instructorsScreen)],
+    ['instructors', () => import('./screens/instructors.js?v=20260730-instructor-matching-modal-v1').then((m) => m.instructorsScreen)],
     ['archive', () => import('./screens/archive.js').then((m) => m.archiveScreen)],
     ['edit-requests', () => import('./screens/edit-requests.js').then((m) => m.editRequestsScreen)],
     ['proposals-agreements', () => import('./screens/proposals-agreements.js').then((m) => m.proposalsAgreementsScreen)],
