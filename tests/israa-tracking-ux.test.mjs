@@ -38,7 +38,7 @@ test('summary cards remain four equal columns', () => {
 });
 
 test('application entry cache-busts the exact Israa modules', () => {
-  assert.match(entry, /israa-tracking-v2-runtime\.js\?v=20260730-israa-program-multiselect-click-fix-v1/);
+  assert.match(entry, /israa-tracking-v2-runtime\.js\?v=20260730-israa-program-menu-visible-v1/);
   assert.match(entry, /israa-tracking-filters-runtime\.js\?v=20260730-israa-toolbar-filters-v6/);
   assert.doesNotMatch(entry, /israa-tracking-horizontal-scroll\.js/);
   assert.doesNotMatch(tracking, /data-v2-refresh|>רענון</);
@@ -70,4 +70,17 @@ test('expected-program multi-select keeps tags outside its toggle and scopes int
   assert.match(tracking, /event\.preventDefault\(\);[\s\S]*event\.stopPropagation\(\);/);
   assert.match(tracking, /multiSelectOutsideClickBound/);
   assert.match(tracking, /selected\.join\(' \| '\)/);
+});
+
+test('expected-program menu expands in drawer flow and scrolls into view', () => {
+  const menuRule = tracking.match(/\.israa-v2__multi-menu\{([^}]*)\}/)?.[1] || '';
+  assert.match(menuRule, /position:static/);
+  assert.match(menuRule, /width:100%/);
+  assert.match(menuRule, /max-width:520px/);
+  assert.match(menuRule, /max-height:220px/);
+  assert.match(menuRule, /margin-top:7px/);
+  assert.match(menuRule, /overflow-y:auto/);
+  assert.doesNotMatch(menuRule, /position:(?:absolute|fixed)/);
+  assert.match(tracking, /\.israa-v2__multi-menu\[hidden\]\{display:none!important\}/);
+  assert.match(tracking, /const willOpen = menu\.hidden;[\s\S]*menu\.hidden = !willOpen;[\s\S]*requestAnimationFrame\(\(\) => \{[\s\S]*menu\.scrollIntoView\(\{ block: 'nearest', behavior: 'smooth' \}\)/);
 });
