@@ -55,5 +55,6 @@ import './annual-reviews-print-plain.js';
 import './annual-reviews-print-shell-fix.js?v=20260730-blank-print-v1';
 import './annual-reviews-manager-question-set.js';
 import './annual-reviews-manager-dedup.js?v=20260730-manager-dedup-v1';
+import './annual-reviews-readable-print.js?v=20260730-readable-print-v5';
 import './annual-reviews-isolated-print.js?v=20260730-compact-print-v4';
 import './annual-reviews-final-pdf-safe.js';
