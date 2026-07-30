@@ -58,7 +58,7 @@ as $$
       where nullif(btrim(cs.address), '') is not null
         and p_school_id is not null
         and cs.school_id = p_school_id
-      order by cs.updated_at desc nulls last, cs.id desc
+      order by cs.id desc
       limit 1
     ), ''),
     nullif((
@@ -70,7 +70,7 @@ as $$
           (p_authority_id is not null and cs.authority_id = p_authority_id)
           or lower(btrim(coalesce(cs.authority, ''))) = lower(btrim(coalesce(p_authority, '')))
         )
-      order by cs.updated_at desc nulls last, cs.id desc
+      order by cs.id desc
       limit 1
     ), ''),
     nullif(btrim(p_school), '')
