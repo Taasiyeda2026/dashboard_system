@@ -189,7 +189,7 @@ test('dashboard layout stylesheet is loaded and keeps the intended responsive st
   assert.match(dashboardCss, /@media \(max-width: 720px\)[\s\S]*\.ds-manager-grid\s*\{[\s\S]*grid-template-columns:\s*1fr;/);
 });
 
-test('annual review printing uses a visible standalone print document', async () => {
+test('annual review printing uses a compact management-document layout', async () => {
   const [indexHtml, entry, printRuntime] = await Promise.all([
     readFile(INDEX_FILE, 'utf8'),
     readFile(ENTRY_FILE, 'utf8'),
@@ -197,12 +197,16 @@ test('annual review printing uses a visible standalone print document', async ()
   ]);
 
   assert.match(indexHtml, /main-with-proposal-pdf-hotfix\.js\?v=20260730-annual-review-isolated-print-v2/);
-  assert.match(entry, /annual-reviews-isolated-print\.js\?v=20260730-visible-print-v3/);
+  assert.match(entry, /annual-reviews-isolated-print\.js\?v=20260730-compact-print-v4/);
   assert.match(printRuntime, /window\.open\('', name/);
   assert.match(printRuntime, /doc\.write\(buildPrintDocument\(sourceRoot\)\)/);
   assert.match(printRuntime, /event\.stopImmediatePropagation\(\)/);
   assert.match(printRuntime, /printWindow\.print\(\)/);
-  assert.match(printRuntime, /visibility:\s*visible !important/);
-  assert.match(printRuntime, /opacity:\s*1 !important/);
+  assert.match(printRuntime, /function buildGoalsTable/);
+  assert.match(printRuntime, /ar2-print-goals-table/);
+  assert.match(printRuntime, /ar2-print-question-heading/);
+  assert.match(printRuntime, /\.ar2-question__prompt \{ display: none !important; \}/);
+  assert.match(printRuntime, /cloneRoot\.querySelectorAll\('\.ar2-status'\)/);
+  assert.match(printRuntime, /@page \{ size: A4 portrait; margin: 10mm; \}/);
   assert.doesNotMatch(printRuntime, /data-ar2-isolated-print-frame|headResourcesHtml|opacity:\s*0/);
 });
