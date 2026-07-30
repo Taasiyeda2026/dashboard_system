@@ -9,7 +9,7 @@ const stateSource = await readFile(new URL('../frontend/src/state.js', import.me
 const inventoryPolishSource = await readFile(new URL('../frontend/src/screens/operations-inventory-polish.js', import.meta.url), 'utf8');
 
 function frozenArrayBody(source, exportName) {
-  const match = source.match(new RegExp(`export const ${exportName} = Object\.freeze\(\[([\s\S]*?)\]\);`));
+  const match = source.match(new RegExp(`export const ${exportName} = Object\\.freeze\\(\\[([\\s\\S]*?)\\]\\);`));
   assert.ok(match, `${exportName} must remain an explicit frozen array`);
   return match[1];
 }
