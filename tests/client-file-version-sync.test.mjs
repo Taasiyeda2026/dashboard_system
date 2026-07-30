@@ -12,6 +12,8 @@ const LOGIN_FILE = new URL('../frontend/src/screens/login.js', import.meta.url);
 const LOGIN_SW_UPDATE_FILE = new URL('../frontend/src/login-service-worker-update.js', import.meta.url);
 const INDEX_FILE = new URL('../index.html', import.meta.url);
 const DASHBOARD_CSS_FILE = new URL('../frontend/src/styles/dashboard-layout.css', import.meta.url);
+const ENTRY_FILE = new URL('../frontend/src/main-with-proposal-pdf-hotfix.js', import.meta.url);
+const ANNUAL_REVIEW_PRINT_FILE = new URL('../frontend/src/annual-reviews-isolated-print.js', import.meta.url);
 
 class MockEventTarget {
   constructor() {
@@ -61,6 +63,7 @@ test('service worker and client-file hotfix versions are current and structurall
   assert.match(hotfixVersion, /activity-drawer-cache-20260727-v1/, 'HOTFIX_VERSION must clear persisted screen data after the activity drawer redesign');
   assert.match(hotfixVersion, /performance-cache-20260727-v1/, 'HOTFIX_VERSION must clear persisted data for the performance cache rollout');
   assert.match(hotfixVersion, /login-sw-refresh-20260729-v1/, 'HOTFIX_VERSION must identify the automatic login refresh rollout');
+  assert.match(hotfixVersion, /annual-review-isolated-print-20260730-v2/, 'HOTFIX_VERSION must identify isolated annual review printing');
 
   assert.match(login, /beginLoginServiceWorkerUpdate\(\)/);
   assert.match(login, /await onLogin\(userId, code, errorNode\);[\s\S]*await serviceWorkerUpdate\.reloadIfUpdated\(\);/);
@@ -184,4 +187,21 @@ test('dashboard layout stylesheet is loaded and keeps the intended responsive st
   assert.match(dashboardCss, /\.ds-dashboard-kpi-grid--row2\s*\{[\s\S]*grid-template-columns:\s*repeat\(3, minmax\(0, 1fr\)\);/);
   assert.match(dashboardCss, /\.ds-manager-grid\s*\{[\s\S]*grid-template-columns:\s*repeat\(3, minmax\(0, 1fr\)\);/);
   assert.match(dashboardCss, /@media \(max-width: 720px\)[\s\S]*\.ds-manager-grid\s*\{[\s\S]*grid-template-columns:\s*1fr;/);
+});
+
+test('annual review printing loads a cache-busted isolated print document', async () => {
+  const [indexHtml, entry, printRuntime] = await Promise.all([
+    readFile(INDEX_FILE, 'utf8'),
+    readFile(ENTRY_FILE, 'utf8'),
+    readFile(ANNUAL_REVIEW_PRINT_FILE, 'utf8')
+  ]);
+
+  assert.match(indexHtml, /main-with-proposal-pdf-hotfix\.js\?v=20260730-annual-review-isolated-print-v2/);
+  assert.match(entry, /annual-reviews-isolated-print\.js\?v=20260730-isolated-print-v2/);
+  assert.match(printRuntime, /data-ar2-isolated-print-frame/);
+  assert.match(printRuntime, /doc\.write\(buildPrintDocument\(sourceRoot\)\)/);
+  assert.match(printRuntime, /event\.stopImmediatePropagation\(\)/);
+  assert.match(printRuntime, /printWindow\.print\(\)/);
+  assert.match(printRuntime, /height:\s*auto !important/);
+  assert.match(printRuntime, /overflow:\s*visible !important/);
 });
