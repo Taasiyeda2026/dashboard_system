@@ -28,7 +28,8 @@ test('Israa content is bounded and the table fits without horizontal scrolling',
 
 test('search metadata uses only approved Israa data fields', () => {
   for (const field of exactFields) assert.match(tracking, new RegExp(`row\.${field}`));
-  for (const field of ['activity_type','activity_type_group','valid_until','outreach_method','barriers','meetings_count','hours_count']) assert.doesNotMatch(tracking, new RegExp(`row\.${field}`));
+  assert.match(tracking, /row\.activity_type/);
+  for (const field of ['activity_type_group','valid_until','outreach_method','barriers','meetings_count','hours_count']) assert.doesNotMatch(tracking, new RegExp(`row\.${field}`));
 });
 
 test('summary cards remain four equal columns', () => {
@@ -37,9 +38,22 @@ test('summary cards remain four equal columns', () => {
 });
 
 test('application entry cache-busts the exact Israa modules', () => {
-  assert.match(entry, /israa-tracking-v2-runtime\.js\?v=20260730-israa-toolbar-filters-v6/);
+  assert.match(entry, /israa-tracking-v2-runtime\.js\?v=20260730-israa-compact-drawer-multiselect-v1/);
   assert.match(entry, /israa-tracking-filters-runtime\.js\?v=20260730-israa-toolbar-filters-v6/);
   assert.doesNotMatch(entry, /israa-tracking-horizontal-scroll\.js/);
   assert.doesNotMatch(tracking, /data-v2-refresh|>רענון</);
   assert.match(tracking, /israa-v2__date[^}]*white-space:nowrap/);
+});
+
+test('Israa drawer is compact and expected programs are constrained to proposal items', () => {
+  assert.match(tracking, /\.israa-drawer__grid\{[^}]*repeat\(2,minmax\(0,1fr\)\)/);
+  assert.doesNotMatch(tracking, /\.israa-drawer__grid\{[^}]*repeat\(3/);
+  assert.match(tracking, /\.israa-drawer__activities\{width:480px;max-width:100%;min-width:0/);
+  assert.match(tracking, /margin-inline-start:0;margin-inline-end:auto/);
+  assert.match(tracking, /const NATURE_OPTIONS = \['תוכנית מוגדרת', 'חלופות לבחירה'\]/);
+  assert.match(tracking, /draft\?\.proposal_items/);
+  assert.match(tracking, /data-v2-expected-option/);
+  assert.match(tracking, /data-v2-remove-expected/);
+  assert.match(tracking, /expected\.join\('\s*\|\s*'\)/);
+  assert.match(tracking, /לא נמצאו פעילויות לבחירה/);
 });
