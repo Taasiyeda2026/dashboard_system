@@ -453,6 +453,7 @@ function applyBootstrapFromLoginData(data) {
   state.routes = effectiveRoutes;
   state.effectiveRoutes = effectiveRoutes;
   enforceProposalsAgreementsRoute();
+  enforceCourseSchedulingRoute();
   state.route = resolveAllowedDefaultRoute(data.default_route, state.effectiveRoutes);
   saveRoutesToStorage(state.routes, state.route, state.clientSettings);
   consumePendingRouteFromUrlOrSession();
@@ -465,6 +466,7 @@ const screenLabels = {
   month: 'חודש',
   exceptions: 'חריגות',
   instructors: 'מדריכים',
+  'course-scheduling': 'שיבוץ קורסים',
   'instructor-contacts': 'אנשי קשר מדריכים',
   contacts: 'אנשי קשר',
   'end-dates': 'תאריכי סיום',
@@ -553,6 +555,7 @@ const screenLoaders = {
   month: () => import('./screens/month.js').then((m) => m.monthScreen),
   exceptions: () => import('./screens/exceptions.js').then((m) => m.exceptionsScreen),
   instructors: () => import('./screens/instructors.js').then((m) => m.instructorsScreen),
+  'course-scheduling': () => import('./screens/course-scheduling.js').then((m) => m.courseSchedulingScreen),
   'instructor-contacts': () => import('./screens/instructor-contacts.js').then((m) => m.instructorContactsScreen),
   contacts: () => import('./screens/contacts.js').then((m) => m.contactsScreen),
   'end-dates': () => import('./screens/end-dates.js').then((m) => m.endDatesScreen),
@@ -934,7 +937,7 @@ function shellUserRoleLine() {
 }
 
 // מסכים אלו מגיעים מניווט גריד בלבד — לא מוצגים בסרגל הצד
-const ACTIVITIES_CHILD_ROUTES = new Set(['week', 'month', 'instructors', 'end-dates', 'exceptions', 'instructor-contacts', 'archive', 'contacts', 'edit-requests']);
+const ACTIVITIES_CHILD_ROUTES = new Set(['week', 'month', 'instructors', 'course-scheduling', 'end-dates', 'exceptions', 'instructor-contacts', 'archive', 'contacts', 'edit-requests']);
 
 const PROPOSALS_AGREEMENTS_NAV_ROLES = new Set(['admin', 'operation_manager', 'domain_manager', 'business_development_manager']);
 
@@ -952,11 +955,18 @@ function enforceProposalsAgreementsRoute() {
   }
 }
 
+function enforceCourseSchedulingRoute() {
+  if (!state.token || !['admin', 'operation_manager'].includes(String(state?.user?.role || '').trim())) return;
+  if (!(state.effectiveRoutes || []).includes('course-scheduling')) state.effectiveRoutes = [...(state.effectiveRoutes || []), 'course-scheduling'];
+  state.routes = state.effectiveRoutes;
+}
+
 // מסכי ניהול — נגישים למי שיש לו הרשאה, אך לא מוצגים בסרגל הצד
 const ADMIN_SIDEBAR_HIDDEN_ROUTES = new Set(['admin-home', 'admin-settings', 'admin-lists']);
 
 function shell(content) {
   enforceProposalsAgreementsRoute();
+  enforceCourseSchedulingRoute();
   const hiddenSet = navSidebarHiddenRoutesSet();
   const contextualSet = navContextualRoutesSet();
   const isAdminUser = state?.user?.role === 'admin';
@@ -1553,6 +1563,7 @@ function tryRestoreRoutesInstant() {
     state.routes = effectiveR;
     state.effectiveRoutes = effectiveR;
     enforceProposalsAgreementsRoute();
+    enforceCourseSchedulingRoute();
     state.route = resolveAllowedDefaultRoute(saved.defaultRoute || '', state.effectiveRoutes);
     restoreScreenCacheFromStorage();
     return true;
@@ -1609,6 +1620,7 @@ function applyBootstrapRoutes(bootstrap) {
   state.routes = normalizedRoutes;
   state.effectiveRoutes = normalizedRoutes;
   enforceProposalsAgreementsRoute();
+  enforceCourseSchedulingRoute();
   const newDefault = resolveAllowedDefaultRoute(bootstrap.default_route, state.effectiveRoutes);
   saveRoutesToStorage(state.routes, newDefault, state.clientSettings);
   applyBootstrapUserFlags(bootstrap);

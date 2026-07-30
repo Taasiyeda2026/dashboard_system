@@ -31,6 +31,8 @@ export function evaluateInstructor({ instructor, profile: rawProfile, rules=[], 
   if (!String(instructor.address || '').trim()) failures.push('חסרה כתובת מדריך');
   if (language && !profile.instruction_languages.includes(language)) failures.push(`אינו מדריך ב${LANGUAGE_LABELS[language] || language}`);
   if (gender!=='any' && profile.gender!==gender) failures.push(gender==='female'?'הפעילות מחייבת מדריכה':'הפעילות מחייבת מדריך');
+  const educationLevel=String(activity.education_level || deriveEducationLevel(activity.grade));
+  if (educationLevel && !list(profile.education_levels).includes(educationLevel)) failures.push('המדריך אינו מתאים לשכבת הגיל');
   const courseId=String(activity.course_id || activity.activity_no || activity.activity_name || ''), courses=list(profile.course_ids);
   if (profile.course_restriction_mode==='allow_only'&&!courses.includes(courseId)) failures.push('המדריך מתאים רק לקורסים אחרים');
   if (profile.course_restriction_mode==='block_selected'&&courses.includes(courseId)) failures.push('הקורס חסום עבור המדריך');
@@ -44,11 +46,12 @@ export function evaluateInstructor({ instructor, profile: rawProfile, rules=[], 
     const weekday=new Date(`${meeting.date}T12:00:00`).getDay();
     if(weekday===6){failures.push(`הפעילות מתקיימת בשבת (${meeting.date})`);continue;}
     if(weekday===5&&!profile.friday_allowed) failures.push(`יום שישי אינו מאושר (${meeting.date})`);
-    const availability=exceptionMap.get(meeting.date) || ruleMap.get(weekday) || defaultAvailabilityForWeekday(weekday,profile);
+    const availability=exceptionMap.get(meeting.date) || ruleMap.get(weekday);
+    if(!availability){failures.push(`חסרים נתוני זמינות לתאריך ${meeting.date}`);continue;}
     if(!availability.available || minutes(meeting.start_time)<minutes(availability.start_time) || minutes(meeting.end_time)>minutes(availability.end_time)) failures.push(`אין זמינות מלאה בתאריך ${meeting.date}`);
     const {previous,next,day}=adjacentActivities(existingActivities,meeting); if(day.some(a=>overlaps(meeting,a))) failures.push(`חפיפה עם פעילות אחרת בתאריך ${meeting.date}`);
     const transition=travel?.transitions?.[meeting.date] || {};
-    const inspect=(neighbor,leg,direction)=>{if(!neighbor)return;const gap=direction==='previous'?minutes(meeting.start_time)-minutes(neighbor.end_time):minutes(neighbor.start_time)-minutes(meeting.end_time);const required=leg?.duration_minutes;if(required!=null&&gap<required) failures.push(`אין זמן מעבר מספיק ${direction==='previous'?'מהפעילות הקודמת':'לפעילות הבאה'} בתאריך ${meeting.date} (${gap} דקות זמינות, ${required} דקות נסיעה)`);if(same(neighbor.school,activity.school))sameSchool++;if(same(neighbor.authority,activity.authority))sameAuthority++;waitMinutes+=Math.max(0,gap-(required || 0));if(gap>120)separateTrips++;};
+    const inspect=(neighbor,leg,direction)=>{if(!neighbor)return;const gap=direction==='previous'?minutes(meeting.start_time)-minutes(neighbor.end_time):minutes(neighbor.start_time)-minutes(meeting.end_time);const required=leg?.duration_minutes;if(required==null&&!same(neighbor.school,activity.school))failures.push(`לא ניתן לאמת זמן מעבר בתאריך ${meeting.date}`);else if(required!=null&&gap<required) failures.push(`אין זמן מעבר מספיק ${direction==='previous'?'מהפעילות הקודמת':'לפעילות הבאה'} בתאריך ${meeting.date} (${gap} דקות זמינות, ${required} דקות נסיעה)`);if(same(neighbor.school,activity.school))sameSchool++;if(same(neighbor.authority,activity.authority))sameAuthority++;waitMinutes+=Math.max(0,gap-(required || 0));if(gap>120)separateTrips++;};
     inspect(previous,transition.previous,'previous');inspect(next,transition.next,'next');
     const ordered=[...day,meeting].sort((a,b)=>minutes(a.start_time)-minutes(b.start_time));let continuous=1,max=1;for(let i=1;i<ordered.length;i++){continuous=minutes(ordered[i].start_time)-minutes(ordered[i-1].end_time)<=30?continuous+1:1;max=Math.max(max,continuous);}const duration=minutes(meeting.end_time)-minutes(meeting.start_time);if((duration>=80&&max>3)||(duration<80&&max>5))failures.push(`הרצף היומי חורג מהמותר בתאריך ${meeting.date}`);
     schedule.push({date:meeting.date,previous,next,previous_travel:transition.previous || null,next_travel:transition.next || null});
