@@ -10,7 +10,7 @@ const ISRAA_AUTH_USER_ID = '92bfb9d9-1b17-4022-901a-5f7cf17a263a';
 const ROOT_SELECTOR = '.israa-mgmt';
 const CONTAINER_ATTR = 'data-israa-tracking-v2';
 const PROBABILITY_OPTIONS = [30, 50, 100];
-const NATURE_OPTIONS = ['ממוקדת', 'לבחירה', 'משולבת'];
+const NATURE_OPTIONS = ['תוכנית מוגדרת', 'חלופות לבחירה'];
 const STATUS_OPTIONS = ['טיוטה','נשלחה','בטיפול','ממתינה לבחירת תוכן','ממתינה לתקציב','אושרה','נדחתה','נסגרה'];
 const ui = createSharedInteractionLayer();
 
@@ -94,7 +94,7 @@ function injectStyles() {
     .israa-v2__error{margin-bottom:8px;padding:8px 10px;border-radius:8px;background:#fee2e2;color:#991b1b;font-size:.8rem}.israa-v2__loading{padding:24px;text-align:center;color:#64748b}
     .israa-v2__wrap{width:100%;max-width:100%;min-width:0;overflow:hidden;direction:rtl;box-sizing:border-box;border:1px solid #dbe3ec;border-radius:11px;background:#fff;box-shadow:0 2px 8px rgba(26,51,88,.06)}
     .israa-v2__table{width:100%;table-layout:fixed;border-collapse:collapse;font-size:12px}.israa-v2__table th{padding:7px 4px;background:#f1f5f9;color:#334155;border-bottom:1px solid #cbd5e1;text-align:right;font-size:11.5px;font-weight:800;white-space:normal;overflow-wrap:anywhere;line-height:1.25}.israa-v2__table td{height:58px;padding:7px 4px;border-bottom:1px solid #e8edf3;vertical-align:middle;color:#1e293b;overflow:hidden;overflow-wrap:anywhere}.israa-v2__row{cursor:pointer}.israa-v2__row:hover td{background:#f8fafc}.israa-v2__center{text-align:center!important;font-variant-numeric:tabular-nums}.israa-v2__primary{font-weight:800;color:#0f172a}.israa-v2__clamp{display:-webkit-box;-webkit-line-clamp:3;-webkit-box-orient:vertical;overflow:hidden}.israa-v2__status{display:inline-block;max-width:100%;padding:3px 5px;border-radius:999px;font-size:11px;font-weight:800;white-space:normal;overflow-wrap:anywhere}.israa-v2__status.is-approved{background:#dcfce7;color:#166534}.israa-v2__status.is-sent{background:#dbeafe;color:#1d4ed8}.israa-v2__status.is-waiting{background:#fef3c7;color:#92400e}.israa-v2__status.is-closed{background:#e5e7eb;color:#475569}.israa-v2__status.is-draft{background:#f1f5f9;color:#475569}.israa-v2__status.is-active{background:#ede9fe;color:#6d28d9}.israa-v2__date{white-space:nowrap;text-align:center;direction:ltr}.israa-v2__empty{padding:28px!important;text-align:center;color:#64748b}
-    .ds-drawer.ds-drawer--israa-exact{width:min(960px,64vw);max-width:calc(100vw - 32px)}.ds-drawer.ds-drawer--israa-exact .ds-drawer__content{padding:0;overflow-y:auto;background:#f4f7fb}.ds-drawer.ds-drawer--israa-detail>.ds-drawer__header{display:none}.israa-drawer{direction:rtl;color:#1e293b;min-height:100%;background:#f4f7fb}.israa-drawer__header{position:sticky;top:0;z-index:4;display:flex;align-items:center;justify-content:space-between;gap:18px;min-height:72px;padding:14px 18px;background:#142a46;color:#fff;box-shadow:0 2px 8px rgba(15,23,42,.16)}.israa-drawer__title-wrap{min-width:0}.israa-drawer__title{margin:0;color:#fff;font-size:18px;font-weight:850;line-height:1.35;overflow-wrap:anywhere}.israa-drawer__header-actions{display:inline-flex;align-items:center;gap:8px;flex:0 0 auto}.israa-drawer__header .israa-v2__btn{border-color:#0d9488;background:#0d9488;color:#fff}.israa-drawer__header .israa-v2__btn:hover{background:#0f766e}.israa-drawer__close{display:grid;place-items:center;width:36px;height:36px;padding:0;border:1px solid rgba(255,255,255,.35);border-radius:8px;background:transparent;color:#fff;font:inherit;font-size:18px;cursor:pointer;pointer-events:auto}.israa-drawer__close:hover{background:rgba(255,255,255,.14)}.israa-drawer__body{display:grid;gap:12px;padding:16px 18px 22px}.israa-drawer__section{border:1px solid #dce3ec;border-radius:11px;padding:14px 16px;background:#fff;box-shadow:0 1px 3px rgba(15,23,42,.04)}.israa-drawer__section-title{margin:0 0 12px;color:#1e3a5f;font-size:15px;font-weight:800}.israa-drawer__grid{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:13px 16px}.israa-drawer__field{min-width:0}.israa-drawer__field--wide{grid-column:1/-1}.israa-drawer__field--short{max-width:180px}.israa-drawer__label{display:block;margin-bottom:4px;color:#64748b;font-size:11px;font-weight:700}.israa-drawer__value{min-height:20px;color:#1e293b;white-space:pre-wrap;overflow-wrap:anywhere;font-size:13px;line-height:1.5}.israa-drawer__tag{display:inline-flex;padding:4px 9px;border:1px solid #cbd5e1;border-radius:999px;background:#f8fafc;font-weight:750}.israa-drawer__readonly{padding:8px;border:1px solid #dce3ec;border-radius:7px;background:#f8fafc;font-weight:750}.israa-drawer__form{display:contents}.israa-v2__input,.israa-v2__select,.israa-v2__textarea{width:100%;min-width:0;box-sizing:border-box;border:1px solid #cbd5e1;border-radius:7px;padding:8px;background:#fff;color:#1e293b;font:inherit;font-size:13px}.israa-v2__input:focus,.israa-v2__select:focus,.israa-v2__textarea:focus{outline:2px solid rgba(37,99,235,.2);border-color:#2563eb}.israa-v2__textarea{min-height:82px;resize:vertical}.israa-v2__textarea[data-v2-field="next_action"]{min-height:96px}.israa-drawer__activities{width:65%;max-width:650px;min-width:500px;table-layout:fixed;border-collapse:separate;border-spacing:0;border:1px solid #dce3ec;border-radius:8px;overflow:hidden;font-size:13px;background:#fff;margin-right:0;margin-left:auto}.israa-drawer__activities th{padding:8px;background:#f1f5f9;color:#334155;border-bottom:1px solid #dce3ec;text-align:right}.israa-drawer__activities td{height:40px;padding:8px;border-bottom:1px solid #e7ecf2;vertical-align:middle;overflow-wrap:anywhere}.israa-drawer__activities tbody tr:last-child td{border-bottom:0}.israa-drawer__activities th+th,.israa-drawer__activities td+td{border-right:1px solid #e7ecf2}.israa-drawer__activities th:nth-child(1){width:58%}.israa-drawer__activities th:nth-child(2){width:24%}.israa-drawer__activities th:nth-child(3){width:18%}.israa-drawer__legacy-activities{display:grid;gap:8px;white-space:pre-wrap;font-size:13px}.israa-v2__multi{display:flex;flex-wrap:wrap;gap:7px 12px;border:0;padding:0;margin:0}.israa-v2__multi-option{display:inline-flex;align-items:center;gap:4px;font-size:13px}.israa-v2__multi-option input{accent-color:#0d9488}.israa-drawer__error{color:#b91c1c;font-size:.78rem}
+    .ds-drawer.ds-drawer--israa-exact{width:min(960px,64vw);max-width:calc(100vw - 32px)}.ds-drawer.ds-drawer--israa-exact .ds-drawer__content{padding:0;overflow-y:auto;background:#f4f7fb}.ds-drawer.ds-drawer--israa-detail>.ds-drawer__header{display:none}.israa-drawer{direction:rtl;color:#1e293b;min-height:100%;background:#f4f7fb}.israa-drawer__header{position:sticky;top:0;z-index:4;display:flex;align-items:center;justify-content:space-between;gap:18px;min-height:72px;padding:14px 18px;background:#142a46;color:#fff;box-shadow:0 2px 8px rgba(15,23,42,.16)}.israa-drawer__title-wrap{min-width:0}.israa-drawer__title{margin:0;color:#fff;font-size:18px;font-weight:850;line-height:1.35;overflow-wrap:anywhere}.israa-drawer__header-actions{display:inline-flex;align-items:center;gap:8px;flex:0 0 auto}.israa-drawer__header .israa-v2__btn{border-color:#0d9488;background:#0d9488;color:#fff}.israa-drawer__header .israa-v2__btn:hover{background:#0f766e}.israa-drawer__close{display:grid;place-items:center;width:36px;height:36px;padding:0;border:1px solid rgba(255,255,255,.35);border-radius:8px;background:transparent;color:#fff;font:inherit;font-size:18px;cursor:pointer;pointer-events:auto}.israa-drawer__close:hover{background:rgba(255,255,255,.14)}.israa-drawer__body{display:grid;gap:11px;padding:14px 18px 20px}.israa-drawer__section{border:1px solid #dce3ec;border-radius:11px;padding:12px 14px;background:#fff;box-shadow:0 1px 3px rgba(15,23,42,.04)}.israa-drawer__section-title{margin:0 0 9px;color:#1e3a5f;font-size:15px;font-weight:800}.israa-drawer__grid{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:10px 16px}.israa-drawer__compact-row{display:flex;justify-content:flex-start;gap:24px;width:fit-content;max-width:100%;flex-wrap:wrap}.israa-drawer__field{min-width:0}.israa-drawer__field--wide{grid-column:1/-1}.israa-drawer__field--short{max-width:220px}.israa-drawer__label{display:block;margin-bottom:4px;color:#64748b;font-size:11px;font-weight:700}.israa-drawer__value{color:#1e293b;white-space:pre-wrap;overflow-wrap:anywhere;font-size:13px;line-height:1.5}.israa-drawer__tags{display:flex;flex-wrap:wrap;gap:6px}.israa-drawer__tag{display:inline-flex;align-items:center;gap:5px;padding:4px 9px;border:1px solid #cbd5e1;border-radius:999px;background:#f8fafc;font-weight:750}.israa-drawer__tag-remove{border:0;background:transparent;color:#64748b;padding:0;cursor:pointer;font-size:14px}.israa-drawer__readonly{padding:8px;border:1px solid #dce3ec;border-radius:7px;background:#f8fafc;font-weight:750}.israa-drawer__form{display:contents}.israa-v2__input,.israa-v2__select,.israa-v2__textarea{width:100%;min-width:0;box-sizing:border-box;border:1px solid #cbd5e1;border-radius:7px;padding:8px;background:#fff;color:#1e293b;font:inherit;font-size:13px}.israa-v2__input:focus,.israa-v2__select:focus,.israa-v2__textarea:focus{outline:2px solid rgba(37,99,235,.2);border-color:#2563eb}.israa-v2__textarea{min-height:82px;resize:vertical}.israa-v2__textarea[data-v2-field="next_action"]{min-height:96px}.israa-drawer__activities{width:480px;max-width:100%;min-width:0;table-layout:fixed;border-collapse:separate;border-spacing:0;border:1px solid #dce3ec;border-radius:8px;overflow:hidden;font-size:12.5px;background:#fff;margin-inline-start:0;margin-inline-end:auto}.israa-drawer__activities th{padding:6px 8px;background:#f1f5f9;color:#334155;border-bottom:1px solid #dce3ec;text-align:right}.israa-drawer__activities td{height:35px;padding:6px 8px;border-bottom:1px solid #e7ecf2;vertical-align:middle;overflow-wrap:anywhere}.israa-drawer__activities tbody tr:last-child td{border-bottom:0}.israa-drawer__activities th+th,.israa-drawer__activities td+td{border-right:1px solid #e7ecf2}.israa-drawer__activities th:nth-child(1){width:60%}.israa-drawer__activities th:nth-child(2){width:23%}.israa-drawer__activities th:nth-child(3){width:17%}.israa-drawer__legacy-activities{display:grid;gap:8px;white-space:pre-wrap;font-size:13px}.israa-v2__multi{position:relative}.israa-v2__multi-summary{display:flex;align-items:center;justify-content:space-between;gap:8px;width:100%;min-height:38px;border:1px solid #cbd5e1;border-radius:7px;padding:6px 8px;background:#fff;color:#334155;text-align:right;cursor:pointer}.israa-v2__multi-menu{position:absolute;z-index:6;top:calc(100% + 4px);right:0;width:min(360px,100%);max-height:220px;overflow-y:auto;border:1px solid #cbd5e1;border-radius:8px;padding:7px;background:#fff;box-shadow:0 8px 20px rgba(15,23,42,.14)}.israa-v2__multi-option{display:flex;align-items:center;gap:7px;padding:6px;font-size:13px}.israa-v2__multi-option input{accent-color:#0d9488}.israa-drawer__error{color:#b91c1c;font-size:.78rem}
     @media(max-width:1100px){.israa-v2{width:96%}.ds-drawer.ds-drawer--israa-exact{width:min(960px,78vw)}}
     @media(max-width:760px){.israa-v2{width:calc(100% - 12px)}.israa-v2__kpis{width:100%;max-width:none;grid-template-columns:repeat(2,minmax(0,1fr))}.ds-drawer.ds-drawer--israa-exact{width:calc(100vw - 16px);max-width:calc(100vw - 16px)}.israa-drawer__grid{grid-template-columns:repeat(2,minmax(0,1fr))}.israa-drawer__body{padding-inline:12px}.israa-drawer__activities{width:100%;min-width:0}}
     @media(max-width:460px){.israa-v2__kpis{grid-template-columns:1fr}.israa-drawer__grid{grid-template-columns:1fr}.israa-drawer__field--wide{grid-column:auto}}
@@ -136,6 +136,7 @@ function searchableRowText(row, index) {
     row.email,
     row.manager_email,
     row.additional_contact,
+    row.activity_type,
     row.program_name,
     row.gefen_numbers,
     row.proposal_nature,
@@ -238,7 +239,8 @@ async function openProposalPicker() {
 
 function valueField(label, value, className = '', linkType = '') {
   const normalized = clean(value);
-  let rendered = escapeHtml(normalized || '—');
+  if (!normalized) return '';
+  let rendered = escapeHtml(normalized);
   if (normalized && linkType === 'tel') rendered = `<a class="israa-drawer__value" href="tel:${escapeHtml(normalized)}">${escapeHtml(normalized)}</a>`;
   if (normalized && linkType === 'email') rendered = `<a class="israa-drawer__value" href="mailto:${escapeHtml(normalized)}">${escapeHtml(normalized)}</a>`;
   return `<div class="israa-drawer__field ${className}"><span class="israa-drawer__label">${escapeHtml(label)}</span><div class="israa-drawer__value">${rendered}</div></div>`;
@@ -251,7 +253,7 @@ function inputField(label, key, value, type = 'text', className = '') {
   } else if (type === 'status') {
     control = `<select class="israa-v2__select" data-v2-field="${key}">${STATUS_OPTIONS.map((option) => `<option${clean(value) === option ? ' selected' : ''}>${option}</option>`).join('')}</select>`;
   } else if (type === 'nature') {
-    control = `<select class="israa-v2__select" data-v2-field="${key}">${NATURE_OPTIONS.map((option) => `<option${clean(value || 'ממוקדת') === option ? ' selected' : ''}>${option}</option>`).join('')}</select>`;
+    control = `<select class="israa-v2__select" data-v2-field="${key}">${NATURE_OPTIONS.map((option) => `<option${clean(value || NATURE_OPTIONS[0]) === option ? ' selected' : ''}>${option}</option>`).join('')}</select>`;
   } else if (type === 'probability') {
     control = `<select class="israa-v2__select" data-v2-field="${key}">${PROBABILITY_OPTIONS.map((option) => `<option value="${option}"${Number(value || 50) === option ? ' selected' : ''}>${option}%</option>`).join('')}</select>`;
   } else {
@@ -261,12 +263,19 @@ function inputField(label, key, value, type = 'text', className = '') {
 }
 
 function expectedProgramField(draft) {
-  const selected = new Set(clean(draft.expected_program).split(/\s*[•;,]\s*/).filter(Boolean));
-  const options = [...new Set(activityNames(draft))];
+  const options = [...new Set((Array.isArray(draft?.proposal_items) ? draft.proposal_items : []).map((item) => clean(item?.program_name)).filter(Boolean))];
+  const selected = new Set(clean(draft.expected_program).split('|').map(clean).filter((name) => options.includes(name)));
   const controls = options.length
     ? options.map((name) => `<label class="israa-v2__multi-option"><input type="checkbox" data-v2-expected-option value="${escapeHtml(name)}"${selected.has(name) ? ' checked' : ''}> <span>${escapeHtml(name)}</span></label>`).join('')
-    : '<span class="israa-drawer__value">אין פעילויות לבחירה</span>';
-  return `<fieldset class="israa-drawer__field israa-drawer__field--wide israa-v2__multi"><legend class="israa-drawer__label">התוכנית הצפויה / בחירה נדרשת</legend>${controls}<input type="hidden" data-v2-field="expected_program" value="${escapeHtml([...selected].join(' • '))}"></fieldset>`;
+    : '';
+  const tags = [...selected].map((name) => `<span class="israa-drawer__tag">${escapeHtml(name)}<button type="button" class="israa-drawer__tag-remove" data-v2-remove-expected="${escapeHtml(name)}" aria-label="הסרת ${escapeHtml(name)}">×</button></span>`).join('');
+  return `<div class="israa-drawer__field israa-drawer__field--wide israa-v2__multi"><span class="israa-drawer__label">התוכנית הצפויה / בחירה נדרשת</span>${options.length ? `<button type="button" class="israa-v2__multi-summary" data-v2-multi-toggle aria-expanded="false"><span data-v2-expected-tags class="israa-drawer__tags">${tags || 'בחירת תוכניות'}</span><span>⌄</span></button><div class="israa-v2__multi-menu" data-v2-multi-menu hidden>${controls}</div>` : '<span class="israa-drawer__value">לא נמצאו פעילויות לבחירה</span>'}<input type="hidden" data-v2-field="expected_program" value="${escapeHtml([...selected].join(' | '))}"></div>`;
+}
+
+function tagsField(label, value, className = '') {
+  const values = clean(value).split('|').map(clean).filter(Boolean);
+  if (!values.length) return '';
+  return `<div class="israa-drawer__field ${className}"><span class="israa-drawer__label">${escapeHtml(label)}</span><div class="israa-drawer__tags">${values.map((item) => `<span class="israa-drawer__tag">${escapeHtml(item)}</span>`).join('')}</div></div>`;
 }
 
 function readonlyField(label, value, className = '') {
@@ -279,23 +288,24 @@ function section(title, fields, className = '') {
 
 function viewDrawerFields(draft, serial) {
   const contact = [
-    valueField('בעלות', draft.ownership),
+    valueField('בעלות', draft.ownership, 'israa-drawer__field--wide'),
     valueField('איש קשר', draft.contact_person || draft.manager_name),
-    valueField('תפקיד', draft.contact_role || draft.role || draft.additional_contact),
+    valueField('תפקיד', draft.contact_role),
     valueField('טלפון', draft.phone || draft.manager_phone, '', 'tel'),
     valueField('דוא״ל', draft.email || draft.manager_email, '', 'email'),
   ].join('');
-  const proposal = valueField('תאריך הצעה', formatDate(draft.proposal_date));
-  const planning = [valueField('מבנה ההצעה', draft.proposal_nature), valueField('התוכנית הצפויה / בחירה נדרשת', draft.expected_program, 'israa-drawer__field--wide'), valueField('שכבה', draft.grade, 'israa-drawer__field--short'), valueField('קבוצות / משתתפים', draft.participants_groups)].join('');
-  return section('איש קשר והתקשרות', `<div class="israa-drawer__grid">${contact}</div>`)
-    + section('תאריך ההצעה', `<div class="israa-drawer__grid">${proposal}</div>`)
-    + section('הפעילויות הכלולות בהצעה', activitiesTable(draft), 'israa-drawer__section--activities')
-    + section('בחירה והיקף צפויים', `<div class="israa-drawer__grid">${planning}</div>`)
+  const proposal = valueField('תאריך הצעה', draft.proposal_date ? formatDate(draft.proposal_date) : '') + (clean(draft.proposal_nature) ? `<div class="israa-drawer__field"><span class="israa-drawer__label">מבנה ההצעה</span><span class="israa-drawer__tag">${escapeHtml(clean(draft.proposal_nature))}</span></div>` : '');
+  const planning = [tagsField('התוכנית הצפויה', draft.expected_program, 'israa-drawer__field--wide'), valueField('שכבה', draft.grade), valueField('קבוצות / משתתפים', draft.participants_groups)].join('');
+  const hasActivities = (Array.isArray(draft.proposal_items) && draft.proposal_items.length) || clean(draft.program_name) || clean(draft.gefen_numbers);
+  return (contact ? section('איש קשר והתקשרות', `<div class="israa-drawer__grid">${contact}</div>`) : '')
+    + (proposal ? section('פרטים נוספים מהצעת המחיר', `<div class="israa-drawer__compact-row">${proposal}</div>`) : '')
+    + (hasActivities ? section('הפעילויות הכלולות בהצעה', activitiesTable(draft), 'israa-drawer__section--activities') : '')
+    + (planning ? section('בחירה והיקף צפויים', `<div class="israa-drawer__grid">${planning}</div>`) : '')
     + (clean(draft.notes) ? section('הערה', valueField('הערה', draft.notes, 'israa-drawer__field--wide')) : '');
 }
 
 function editDrawerFields(draft, serial) {
-  const contact = [readonlyField('בעלות', draft.ownership), readonlyField('איש קשר', draft.contact_person || draft.manager_name), readonlyField('תפקיד', draft.contact_role || draft.role || draft.additional_contact), readonlyField('טלפון', draft.phone || draft.manager_phone), readonlyField('דוא״ל', draft.email || draft.manager_email)].join('');
+  const contact = [(clean(draft.ownership) ? readonlyField('בעלות', draft.ownership, 'israa-drawer__field--wide') : ''), readonlyField('איש קשר', draft.contact_person || draft.manager_name), readonlyField('תפקיד', draft.contact_role), readonlyField('טלפון', draft.phone || draft.manager_phone), readonlyField('דוא״ל', draft.email || draft.manager_email)].join('');
   const proposal = readonlyField('תאריך הצעה', formatDate(draft.proposal_date));
   const planning = [
     inputField('מבנה ההצעה', 'proposal_nature', draft.proposal_nature, 'nature'),
@@ -309,7 +319,7 @@ function editDrawerFields(draft, serial) {
     inputField('סטטוס', 'status', draft.status, 'status'),
   ].join('');
   const followup = [inputField('פעולה להמשך', 'next_action', draft.next_action, 'textarea', 'israa-drawer__field--wide'), inputField('תאריך מעקב', 'follow_up_date', draft.follow_up_date, 'date')].join('');
-  return section('איש קשר והתקשרות', `<div class="israa-drawer__grid">${contact}</div>`)
+  return section('פרטי קשר', `<div class="israa-drawer__grid">${contact}</div>`)
     + section('תאריך ההצעה', `<div class="israa-drawer__grid">${proposal}</div>`)
     + section('הפעילויות הכלולות בהצעה', activitiesTable(draft), 'israa-drawer__section--activities')
     + section('בחירה והיקף צפויים', `<div class="israa-drawer__grid">${planning}</div>`)
@@ -319,7 +329,7 @@ function editDrawerFields(draft, serial) {
 
 function drawerContent(row, mode) {
   const editing = mode === 'edit';
-  const draft = row || { proposal_nature: 'ממוקדת', probability: 50, status: 'טיוטה' };
+  const draft = row || { proposal_nature: NATURE_OPTIONS[0], probability: 50, status: 'טיוטה' };
   const serial = row ? rows.findIndex((item) => String(item.id) === String(row.id)) + 1 : null;
   const buttons = editing
     ? `<button type="button" class="israa-v2__btn" data-v2-drawer-cancel>ביטול</button><button type="submit" class="israa-v2__btn israa-v2__btn--primary" data-v2-drawer-save>שמירה</button>`
@@ -353,7 +363,7 @@ function openDrawer(row, mode = 'view') {
 function collectDrawer(form) {
   const expected = [...form.querySelectorAll('[data-v2-expected-option]:checked')].map((field) => clean(field.value));
   const expectedField = form.querySelector('[data-v2-field="expected_program"]');
-  if (expectedField) expectedField.value = expected.join(' • ');
+  if (expectedField) expectedField.value = expected.join(' | ');
   const payload = {};
   form.querySelectorAll('[data-v2-field]').forEach((field) => { payload[field.dataset.v2Field] = field.value; });
   payload.probability = PROBABILITY_OPTIONS.includes(Number(payload.probability)) ? Number(payload.probability) : 50;
@@ -402,6 +412,22 @@ async function deleteRow(row) {
 
 function bindDrawer(content) {
   content.addEventListener('click', async (event) => {
+    const toggle = event.target.closest('[data-v2-multi-toggle]');
+    if (toggle) {
+      const menu = content.querySelector('[data-v2-multi-menu]');
+      if (menu) menu.hidden = !menu.hidden;
+      toggle.setAttribute('aria-expanded', String(menu ? !menu.hidden : false));
+      return;
+    }
+    const remove = event.target.closest('[data-v2-remove-expected]');
+    if (remove) {
+      const option = [...content.querySelectorAll('[data-v2-expected-option]')].find((node) => clean(node.value) === clean(remove.dataset.v2RemoveExpected));
+      if (option) {
+        option.checked = false;
+        option.dispatchEvent(new Event('change', { bubbles: true }));
+      }
+      return;
+    }
     if (event.target.closest('[data-v2-drawer-edit]')) {
       openDrawer(rows.find((row) => row.id === openRowId), 'edit');
       return;
@@ -418,6 +444,16 @@ function bindDrawer(content) {
     saveDrawer(event.currentTarget, event.submitter || event.currentTarget.querySelector('[data-v2-drawer-save]'));
   });
   content.addEventListener('change', (event) => {
+    if (event.target.matches('[data-v2-expected-option]')) {
+      const selected = [...content.querySelectorAll('[data-v2-expected-option]:checked')].map((node) => clean(node.value));
+      const tags = content.querySelector('[data-v2-expected-tags]');
+      const hidden = content.querySelector('[data-v2-field="expected_program"]');
+      if (hidden) hidden.value = selected.join(' | ');
+      if (tags) tags.innerHTML = selected.length
+        ? selected.map((name) => `<span class="israa-drawer__tag">${escapeHtml(name)}<button type="button" class="israa-drawer__tag-remove" data-v2-remove-expected="${escapeHtml(name)}" aria-label="הסרת ${escapeHtml(name)}">×</button></span>`).join('')
+        : 'בחירת תוכניות';
+      return;
+    }
     const probability = event.target.closest('[data-v2-field="probability"]');
     if (probability) {
       const row = rows.find((item) => item.id === openRowId);
