@@ -1,11 +1,16 @@
-import { evaluateInstructor } from './instructor-matching-engine.js';
-import { activityMeetings } from './instructor-scheduling-load.js';
-import { isActivitySchedulingEligible } from './shared/activity-scheduling-eligibility.js';
+import { evaluateInstructor, adjacentActivities } from './instructor-matching-engine.js';
+import { activityMeetings, isoWeekKey } from './instructor-scheduling-load.js';
+import { routeMatrixKey } from './course-scheduling-travel.js';
+import { isActivitySchedulingEligible, isSchedulingBlockingAssignment } from './shared/activity-scheduling-eligibility.js';
 
 const text = (value) => String(value ?? '').trim();
-const minutes = (value) => { const [hours, mins] = text(value).split(':').map(Number); return hours * 60 + mins; };
+const minutes = (value) => {
+  const [hours, mins] = text(value).split(':').map(Number);
+  return hours * 60 + mins;
+};
 const idOf = (row) => text(row?.row_id || row?.RowID || row?.id);
 const empOf = (row) => text(row?.emp_id);
+const placeOf = (row = {}) => text(row.school_address || row.school);
 
 export function schedulingCourses(rows = []) {
   return rows.filter(isActivitySchedulingEligible);
@@ -17,18 +22,16 @@ export function missingCourseInformation(activity) {
   if (!text(activity?.school_address)) missing.push('כתובת בית הספר');
   const meetings = activityMeetings(activity);
   if (!meetings.length) missing.push('תאריכי מפגשים');
-  if (!meetings.length || meetings.some((m) => !text(m.start_time || activity?.start_time) || !text(m.end_time || activity?.end_time))) missing.push('שעות');
+  if (!meetings.length || meetings.some((meeting) => !text(meeting.start_time || activity?.start_time) || !text(meeting.end_time || activity?.end_time))) missing.push('שעות');
   if (!text(activity?.instruction_language)) missing.push('שפת הדרכה');
   if (!text(activity?.education_level) && !text(activity?.grade)) missing.push('שכבת גיל');
   return [...new Set(missing)];
 }
 
-function teachingHours(rows = []) {
-  return rows.reduce((total, row) => total + activityMeetings(row).reduce((sum, meeting) => {
-    const start = minutes(meeting.start_time || row.start_time);
-    const end = minutes(meeting.end_time || row.end_time);
-    return sum + (Number.isFinite(start) && Number.isFinite(end) && end > start ? (end - start) / 60 : 0);
-  }, 0), 0);
+function meetingHours(meeting, activity = {}) {
+  const start = minutes(meeting.start_time || activity.start_time);
+  const end = minutes(meeting.end_time || activity.end_time);
+  return Number.isFinite(start) && Number.isFinite(end) && end > start ? (end - start) / 60 : 0;
 }
 
 export function availabilityHours(profile = {}, rules = []) {
@@ -38,75 +41,279 @@ export function availabilityHours(profile = {}, rules = []) {
 }
 
 export function instructorLoad(assignments = [], profile = {}, rules = []) {
-  const meetings = assignments.flatMap(activityMeetings);
-  const workDays = new Set(meetings.map((m) => text(m.date))).size;
-  const hours = teachingHours(assignments);
+  const weekHours = new Map();
+  let hours = 0;
+  let meetings = 0;
+  const workDates = new Set();
+
+  for (const activity of assignments) {
+    for (const meeting of activityMeetings(activity)) {
+      const duration = meetingHours(meeting, activity);
+      const week = isoWeekKey(meeting.date);
+      hours += duration;
+      meetings += 1;
+      workDates.add(text(meeting.date));
+      if (week) weekHours.set(week, (weekHours.get(week) || 0) + duration);
+    }
+  }
+
   const capacity = availabilityHours(profile, rules);
-  return { hours, meetings: meetings.length, workDays, availabilityHours: capacity, ratio: capacity > 0 ? hours / capacity : Number.POSITIVE_INFINITY };
+  const ratios = capacity > 0 ? [...weekHours.values()].map((value) => value / capacity) : [];
+  const maxRatio = capacity > 0 ? Math.max(0, ...ratios) : Number.POSITIVE_INFINITY;
+  const averageRatio = ratios.length ? ratios.reduce((sum, value) => sum + value, 0) / ratios.length : 0;
+
+  return {
+    hours,
+    meetings,
+    workDays: workDates.size,
+    availabilityHours: capacity,
+    weekHours: Object.fromEntries(weekHours),
+    maxRatio,
+    averageRatio,
+    ratio: maxRatio
+  };
 }
 
-function meetingAssignments(rows) {
-  return rows.flatMap((activity) => activityMeetings(activity).map((meeting) => ({ ...meeting, school: activity.school, authority: activity.authority, school_address: activity.school_address, activity_name: activity.activity_name })));
+function meetingAssignments(rows = []) {
+  return rows.flatMap((activity) => activityMeetings(activity).map((meeting) => ({
+    ...meeting,
+    activity_id: idOf(activity),
+    school: activity.school,
+    authority: activity.authority,
+    school_address: activity.school_address,
+    activity_name: activity.activity_name
+  })));
 }
 
-function candidateMap({ courses, instructors, profiles = {}, rules = {}, exceptions = {}, assigned = {}, travel = {}, preliminary = false }) {
-  const output = new Map();
-  courses.forEach((course) => {
-    const candidates = instructors.map((instructor) => {
-      const empId = empOf(instructor);
-      const load = instructorLoad(assigned[empId] || [], profiles[empId], rules[empId] || []);
-      const result = evaluateInstructor({ instructor, profile: profiles[empId], rules: rules[empId] || [], exceptions: exceptions[empId] || [], activity: course, existingActivities: meetingAssignments(assigned[empId] || []), travel: travel[idOf(course)]?.[empId] || null, validateTravel: !preliminary, weeklyLoad: load.ratio * 10, averageWeeklyLoad: 0 });
-      if (result.eligible) {
-        result.score = Math.max(0, Math.round(result.score - Math.min(30, load.ratio * 30)));
-        result.explanation = `${result.explanation}, עומס ביחס לזמינות ${Math.round(load.ratio * 100)}%`;
-      }
-      return { ...result, instructor, load };
-    });
-    output.set(idOf(course), candidates);
+function assignedRowsByInstructor(rows = [], supplied = {}) {
+  const assigned = {};
+  const add = (empId, row) => {
+    if (!empId || !row) return;
+    const list = assigned[empId] ||= [];
+    const rowId = idOf(row);
+    if (!list.some((existing) => idOf(existing) === rowId)) list.push(row);
+  };
+
+  for (const [empId, values] of Object.entries(supplied || {})) {
+    for (const row of values || []) add(text(empId), row);
+  }
+  for (const row of rows.filter(isSchedulingBlockingAssignment)) {
+    add(text(row.emp_id), row);
+    add(text(row.emp_id_2), row);
+  }
+  return assigned;
+}
+
+function averageFinite(values = []) {
+  const finite = values.map(Number).filter(Number.isFinite);
+  return finite.length ? finite.reduce((sum, value) => sum + value, 0) / finite.length : 0;
+}
+
+function sameSchool(first = {}, second = {}) {
+  const firstId = text(first.school_id);
+  const secondId = text(second.school_id);
+  if (firstId && secondId) return firstId === secondId;
+  return text(first.school).toLocaleLowerCase('he-IL') === text(second.school).toLocaleLowerCase('he-IL');
+}
+
+function routeLeg(routeMatrix = {}, origin, destination, sameLocation = false) {
+  if (sameLocation || (text(origin) && text(origin).toLocaleLowerCase('he-IL') === text(destination).toLocaleLowerCase('he-IL'))) {
+    return { distance_km: 0, duration_minutes: 0 };
+  }
+  return Object.prototype.hasOwnProperty.call(routeMatrix, routeMatrixKey(origin, destination))
+    ? routeMatrix[routeMatrixKey(origin, destination)]
+    : null;
+}
+
+function dynamicTravel(course, instructor, existingMeetings, input = {}) {
+  const base = input.travel?.[idOf(course)]?.[text(instructor.emp_id)] || null;
+  const transitions = {};
+  const destination = placeOf(course);
+  for (const meeting of activityMeetings(course)) {
+    const { previous, next } = adjacentActivities(existingMeetings, meeting);
+    transitions[meeting.date] = {
+      previous: previous ? routeLeg(input.routeMatrix, previous.school_address || previous.school, destination, sameSchool(previous, course)) : null,
+      next: next ? routeLeg(input.routeMatrix, destination, next.school_address || next.school, sameSchool(course, next)) : null
+    };
+  }
+  return { home: base?.home || null, transitions };
+}
+
+function fairnessVariance(loads = new Map()) {
+  const values = [...loads.values()].map(Number).filter(Number.isFinite);
+  if (!values.length) return 0;
+  const average = averageFinite(values);
+  return values.reduce((sum, value) => sum + ((value - average) ** 2), 0) / values.length;
+}
+
+function evaluateCandidate({ course, instructor, assignedRows, draftRows, profiles, rules, exceptions, input, averageRatio }) {
+  const empId = text(instructor.emp_id);
+  const occupiedRows = [...(assignedRows[empId] || []), ...(draftRows || [])];
+  const load = instructorLoad([...occupiedRows, course], profiles[empId], rules[empId] || []);
+  const occupiedMeetings = meetingAssignments(occupiedRows);
+  const travel = dynamicTravel(course, instructor, occupiedMeetings, input);
+  const result = evaluateInstructor({
+    instructor,
+    profile: profiles[empId],
+    rules: rules[empId] || [],
+    exceptions: exceptions[empId] || [],
+    activity: course,
+    existingActivities: occupiedMeetings,
+    travel,
+    validateTravel: !input.preliminary,
+    workloadRatio: load.maxRatio,
+    averageWorkloadRatio: averageRatio
   });
-  return output;
+  return { ...result, instructor, load };
+}
+
+function candidateMap({ courses, instructors, profiles = {}, rules = {}, exceptions = {}, assignedRows, input }) {
+  const baselineLoads = new Map(instructors.map((instructor) => {
+    const empId = text(instructor.emp_id);
+    return [empId, instructorLoad(assignedRows[empId] || [], profiles[empId], rules[empId] || []).maxRatio];
+  }));
+  const averageRatio = averageFinite([...baselineLoads.values()]);
+  const output = new Map();
+
+  for (const course of courses) {
+    output.set(idOf(course), instructors.map((instructor) => evaluateCandidate({
+      course,
+      instructor,
+      assignedRows,
+      draftRows: [],
+      profiles,
+      rules,
+      exceptions,
+      input,
+      averageRatio
+    })));
+  }
+  return { output, baselineLoads, averageRatio };
+}
+
+function draftRowsForInstructor(state, empId, ordered, excludeCourseId = '') {
+  return [...state.draft.entries()]
+    .filter(([courseId, candidate]) => courseId !== excludeCourseId && text(candidate.instructor.emp_id) === empId)
+    .map(([courseId]) => ordered.find((row) => idOf(row) === courseId))
+    .filter(Boolean);
 }
 
 export function calculateCourseSchedule(input = {}) {
-  const courses = schedulingCourses(input.activities || []);
-  const assignedRows = (input.activities || []).filter((row) => !isActivitySchedulingEligible(row) && (text(row.emp_id) || text(row.instructor_name)));
-  const assigned = { ...(input.assignments || {}) };
-  assignedRows.forEach((row) => { const emp = text(row.emp_id); if (emp) (assigned[emp] ||= []).push(row); });
+  const activities = input.activities || [];
+  const courses = schedulingCourses(activities);
+  const assignedRows = assignedRowsByInstructor(activities, input.assignments || {});
+  const profiles = input.profiles || {};
+  const rules = input.rules || {};
+  const exceptions = input.exceptions || {};
   const incomplete = new Map(courses.map((course) => [idOf(course), missingCourseInformation(course)]));
   const ready = courses.filter((course) => !incomplete.get(idOf(course)).length);
-  const maps = candidateMap({ ...input, courses: ready, assigned });
-  const ordered = [...ready].sort((a, b) => maps.get(idOf(a)).filter((c) => c.eligible).length - maps.get(idOf(b)).filter((c) => c.eligible).length);
-  // A bounded beam keeps the all-course calculation responsive while preserving
-  // the primary objective (assigned count) ahead of aggregate ranking score.
-  let states = [{ draft: new Map(), score: 0 }];
+  const { output: maps, baselineLoads, averageRatio } = candidateMap({
+    courses: ready,
+    instructors: input.instructors || [],
+    profiles,
+    rules,
+    exceptions,
+    assignedRows,
+    input
+  });
+
+  const ordered = [...ready].sort((first, second) =>
+    maps.get(idOf(first)).filter((candidate) => candidate.eligible).length
+      - maps.get(idOf(second)).filter((candidate) => candidate.eligible).length);
+
+  let states = [{ draft: new Map(), score: 0, loads: new Map(baselineLoads), fairness: fairnessVariance(baselineLoads) }];
   for (const course of ordered) {
     const expanded = [];
     for (const state of states) {
       expanded.push(state);
-      const candidates = maps.get(idOf(course)).filter((candidate) => candidate.eligible).sort((a, b) => b.score - a.score);
+      const candidates = maps.get(idOf(course))
+        .filter((candidate) => candidate.eligible)
+        .sort((first, second) => second.score - first.score);
+
       for (const candidate of candidates) {
-        const emp = empOf(candidate.instructor);
-        const draftRows = [...state.draft.entries()].filter(([, c]) => empOf(c.instructor) === emp).map(([courseId]) => ordered.find((row) => idOf(row) === courseId));
-        const check = evaluateInstructor({ instructor: candidate.instructor, profile: input.profiles?.[emp], rules: input.rules?.[emp] || [], exceptions: input.exceptions?.[emp] || [], activity: course, existingActivities: meetingAssignments([...(assigned[emp] || []), ...draftRows]), travel: input.travel?.[idOf(course)]?.[emp] || null, validateTravel: !input.preliminary });
-        if (!check.eligible) continue;
-        const draft = new Map(state.draft); draft.set(idOf(course), candidate);
-        expanded.push({ draft, score: state.score + candidate.score });
+        const empId = text(candidate.instructor.emp_id);
+        const draftRows = draftRowsForInstructor(state, empId, ordered);
+        const evaluated = evaluateCandidate({
+          course,
+          instructor: candidate.instructor,
+          assignedRows,
+          draftRows,
+          profiles,
+          rules,
+          exceptions,
+          input,
+          averageRatio
+        });
+        if (!evaluated.eligible) continue;
+
+        const draft = new Map(state.draft);
+        draft.set(idOf(course), evaluated);
+        const loads = new Map(state.loads);
+        loads.set(empId, evaluated.load.maxRatio);
+        expanded.push({
+          draft,
+          loads,
+          fairness: fairnessVariance(loads),
+          score: state.score + evaluated.score
+        });
       }
     }
-    states = expanded.sort((a, b) => b.draft.size - a.draft.size || b.score - a.score).slice(0, 200);
+    states = expanded
+      .sort((first, second) => second.draft.size - first.draft.size || first.fairness - second.fairness || second.score - first.score)
+      .slice(0, 200);
   }
-  const best = states[0]?.draft || new Map();
+
+  const bestState = states[0] || { draft: new Map() };
+  const refreshCandidate = (course, instructor) => {
+    const empId = text(instructor.emp_id);
+    return evaluateCandidate({
+      course,
+      instructor,
+      assignedRows,
+      draftRows: draftRowsForInstructor(bestState, empId, ordered, idOf(course)),
+      profiles,
+      rules,
+      exceptions,
+      input,
+      averageRatio
+    });
+  };
+
   return courses.map((course) => {
-    const id = idOf(course), missing = incomplete.get(id);
+    const id = idOf(course);
+    const missing = incomplete.get(id);
     if (missing.length) return { course, status: 'חסר מידע', missing, recommended: null, alternatives: [], checked: [] };
-    const checked = maps.get(id) || [], eligible = checked.filter((c) => c.eligible).sort((a, b) => b.score - a.score);
-    const recommended = best.get(id) || null;
+
+    const checked = maps.get(id) || [];
+    const selected = bestState.draft.get(id) || null;
+    const recommended = selected ? refreshCandidate(course, selected.instructor) : null;
+    const alternatives = checked
+      .filter((candidate) => candidate.eligible && text(candidate.instructor.emp_id) !== text(recommended?.instructor?.emp_id))
+      .map((candidate) => refreshCandidate(course, candidate.instructor))
+      .filter((candidate) => candidate.eligible)
+      .sort((first, second) => second.score - first.score)
+      .slice(0, 3);
     const incompleteProfiles = checked.filter((candidate) => candidate.missingProfileData.length);
-    return { course, status: recommended ? (recommended.warnings.length ? 'נדרש טיפול' : 'הצעה מוכנה') : incompleteProfiles.length ? 'נדרש טיפול' : 'נדרש גיוס', recommended, alternatives: eligible.filter((c) => empOf(c.instructor) !== empOf(recommended?.instructor)).slice(0, 3), checked, incompleteProfiles, treatmentReason: !recommended && incompleteProfiles.length ? 'לא ניתן להשלים את בדיקת השיבוץ משום שחסרים נתונים בפרופילי מדריכים.' : '' };
+
+    return {
+      course,
+      status: recommended
+        ? (recommended.warnings.length ? 'נדרש טיפול' : 'הצעה מוכנה')
+        : incompleteProfiles.length ? 'נדרש טיפול' : 'נדרש גיוס',
+      recommended,
+      alternatives,
+      checked,
+      incompleteProfiles,
+      treatmentReason: !recommended && incompleteProfiles.length
+        ? 'לא ניתן להשלים את בדיקת השיבוץ משום שחסרים נתונים בפרופילי מדריכים.'
+        : ''
+    };
   });
 }
 
 export function preliminaryCourseCandidates(input = {}) {
-  const results = calculateCourseSchedule({ ...input, travel: {}, preliminary: true });
-  return results.flatMap((result) => result.checked.filter((candidate) => candidate.eligible).map((candidate) => ({ course: result.course, candidate })));
+  const results = calculateCourseSchedule({ ...input, travel: {}, routeMatrix: {}, preliminary: true });
+  return results.flatMap((result) => result.checked
+    .filter((candidate) => candidate.eligible)
+    .map((candidate) => ({ course: result.course, candidate })));
 }
