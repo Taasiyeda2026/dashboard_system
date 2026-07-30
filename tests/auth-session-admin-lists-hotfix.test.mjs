@@ -9,7 +9,7 @@ const stateSource = await readFile(new URL('../frontend/src/state.js', import.me
 const inventoryPolishSource = await readFile(new URL('../frontend/src/screens/operations-inventory-polish.js', import.meta.url), 'utf8');
 
 function frozenArrayBody(source, exportName) {
-  const match = source.match(new RegExp(`export const ${exportName} = Object\\.freeze\\(\\[([\\s\\S]*?)\\]\\);`));
+  const match = source.match(new RegExp(`export const ${exportName} = Object\.freeze\(\[([\s\S]*?)\]\);`));
   assert.ok(match, `${exportName} must remain an explicit frozen array`);
   return match[1];
 }
@@ -26,7 +26,7 @@ test('admin lists screen remains admin-only while shared adminLists read is not 
 
 test('auth-session isolation loads before the main application bootstrap', () => {
   const isolationIndex = entrySource.indexOf("import './auth-session-isolation-hotfix.js';");
-  const mainIndex = entrySource.indexOf("import './main.js';");
+  const mainIndex = entrySource.indexOf("import './main.js");
   assert.ok(isolationIndex >= 0, 'auth session isolation import is required');
   assert.ok(mainIndex > isolationIndex, 'isolation must install before main.js restores routes');
 });
