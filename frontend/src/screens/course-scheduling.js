@@ -84,13 +84,26 @@ function rowsHtml(results) {
 
 function statusFiltersHtml(activeFilter, counts) {
   const labels = {
-    '': `הכול`,
+    '': 'הכול',
     'הצעה מוכנה': `הצעה מוכנה (${counts.ready})`,
     'נדרש טיפול': `נדרש טיפול (${counts.treatment})`,
     'נדרש גיוס': `נדרש גיוס (${counts.recruit})`,
     'חסר מידע': `חסר מידע (${counts.missing})`
   };
   return `<div style="display:flex;gap:7px;flex-wrap:wrap" aria-label="סינון לפי סטטוס">${STATUS_FILTERS.map((status) => `<button type="button" class="ds-btn ds-btn--sm${status === activeFilter ? ' ds-btn--primary' : ''}" data-course-status-filter="${escapeHtml(status)}" aria-pressed="${status === activeFilter ? 'true' : 'false'}">${escapeHtml(labels[status])}</button>`).join('')}</div>`;
+}
+
+function clickActivityRowWhenReady(rowId, attempts = 40) {
+  const tryOpen = () => {
+    const row = [...document.querySelectorAll('.ds-data-row')].find((node) => text(node.dataset.rowId) === text(rowId));
+    if (row) {
+      try { sessionStorage.removeItem(PENDING_ACTIVITY_STORAGE_KEY); } catch { /* storage may be unavailable */ }
+      row.click();
+      return;
+    }
+    if (attempts > 0) setTimeout(() => clickActivityRowWhenReady(rowId, attempts - 1), 125);
+  };
+  setTimeout(tryOpen, 0);
 }
 
 export const courseSchedulingScreen = {
@@ -156,7 +169,7 @@ export const courseSchedulingScreen = {
       const row = button.closest('[data-course-result]');
       const result = (state.courseSchedulingResults || []).find((item) => idOf(item.course) === row?.dataset.courseResult);
       if (!result) return;
-      const selectedId = text(row.querySelector(`[name="candidate-${CSS.escape(idOf(result.course))}"]:checked`)?.value) || emp(result.recommended);
+      const selectedId = text(row.querySelector('input[type="radio"]:checked')?.value) || emp(result.recommended);
       const selected = [result.recommended, ...result.alternatives].find((item) => emp(item) === selectedId);
       if (!selected) return;
       let reason = null;
@@ -218,12 +231,16 @@ export const courseSchedulingScreen = {
     root.querySelectorAll('[data-open-missing-course]').forEach((button) => button.addEventListener('click', () => {
       const result = (state.courseSchedulingResults || []).find((item) => idOf(item.course) === button.closest('[data-course-result]')?.dataset.courseResult);
       if (!result) return;
-      try { sessionStorage.setItem(PENDING_ACTIVITY_STORAGE_KEY, idOf(result.course)); } catch { /* storage may be unavailable */ }
+      const activityId = idOf(result.course);
+      try { sessionStorage.setItem(PENDING_ACTIVITY_STORAGE_KEY, activityId); } catch { /* storage may be unavailable */ }
       state.activityPeriodTab = 'school_2027';
       state.activitiesInnerTab = 'year_all';
       state.activitiesMonthYm = '';
       state.allActivitiesStatusFilter = 'all';
+      state.listFilters ||= {};
+      state.listFilters.activities = { ...(state.listFilters.activities || {}), q: activityId, appliedQ: activityId, visibleCount: 10000 };
       document.dispatchEvent(new CustomEvent('app:navigate', { detail: { route: 'activities' } }));
+      clickActivityRowWhenReady(activityId);
     }));
   }
 };
