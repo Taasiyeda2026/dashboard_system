@@ -39,7 +39,7 @@ import './styles/activity-drawer-edit-header-polish.css';
 import './activity-drawer-edit-dedup.js';
 import './proposal-activity-linking.js';
 import './proposal-domain-routing.js';
-import './israa-tracking-v2-runtime.js?v=20260730-israa-compact-drawer-multiselect-v1';
+import './israa-tracking-v2-runtime.js?v=20260730-israa-program-multiselect-click-fix-v1';
 import './israa-tracking-filters-runtime.js?v=20260730-israa-toolbar-filters-v6';
 import './israa-tracking-hierarchy-runtime.js?v=20260730-israa-toolbar-filters-v6';
 import './screens/annual-reviews-v2.js';
