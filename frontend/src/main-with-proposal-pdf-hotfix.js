@@ -45,7 +45,7 @@ import './israa-tracking-v2-runtime.js?v=20260730-israa-program-menu-visible-v1'
 import './israa-tracking-filters-runtime.js?v=20260730-israa-toolbar-filters-v6';
 import './israa-tracking-hierarchy-runtime.js?v=20260730-israa-toolbar-filters-v6';
 import './screens/annual-reviews-v2.js';
-import './annual-reviews-language-safe.js';
+import './annual-reviews-language-safe.js?v=20260730-final-pdf-upload-v1';
 import './annual-reviews-rating-comment-compact.js';
 import './annual-reviews-safe-extension-styles.js';
 import './annual-reviews-next-school-year-safe.js';
