@@ -3,7 +3,7 @@ const FILTERS_ATTR = 'data-israa-v2-filters';
 const DEBOUNCE_MS = 70;
 
 let timer = null;
-const filterState = { authority: '', school: '', program: '', status: '' };
+const filterState = { query: '', authority: '', school: '', program: '', status: '' };
 
 function clean(value) {
   return String(value == null ? '' : value).replace(/\s+/g, ' ').trim();
@@ -28,11 +28,13 @@ function injectStyles() {
   style.id = 'israa-tracking-filters-styles';
   style.textContent = `
     .israa-v2__filters-shell{width:100%;max-width:100%;min-width:0;margin:0 0 10px;overflow:visible;box-sizing:border-box}
-    .israa-v2__filters{width:100%;min-width:0;box-sizing:border-box;display:flex;flex-wrap:wrap;align-items:center;gap:7px;padding:7px 8px;border:1px solid #dbe3ec;border-radius:9px;background:#fff;white-space:nowrap}
-    .israa-v2__filter-select{flex:1 1 150px;min-width:130px;height:34px;padding:0 9px;border:1px solid #cbd5e1;border-radius:7px;background:#fff;color:#334155;font:inherit;font-size:11.5px;box-sizing:border-box}
-    .israa-v2__filter-select:focus{outline:0;border-color:#0891b2;box-shadow:0 0 0 2px rgba(8,145,178,.12)}
-    .israa-v2__filter-reset{flex:0 0 auto;height:34px;padding:0 12px;border:1px solid #cbd5e1;border-radius:7px;background:#f8fafc;color:#475569;font:inherit;font-size:11.5px;font-weight:750;cursor:pointer}
-    .israa-v2__filter-reset:hover{background:#f1f5f9}.israa-v2__filter-count{flex:0 0 68px;color:#64748b;font-size:11px;font-weight:750;text-align:center}.israa-v2__filter-empty td{padding:24px!important;text-align:center;color:#64748b;background:#fff}
+    .israa-v2__filters{width:100%;min-width:0;box-sizing:border-box;display:flex;flex-wrap:wrap;align-items:center;gap:8px;padding:7px 8px;border:1px solid #dbe3ec;border-radius:9px;background:#fff;white-space:nowrap;overflow:hidden}
+    .israa-v2__filter-query,.israa-v2__filter-select{flex:0 1 auto;min-width:0;height:32px;padding:0 9px;border:1px solid #cbd5e1;border-radius:7px;background:#fff;color:#334155;font:inherit;font-size:12px;box-sizing:border-box}
+    .israa-v2__filter-query{width:260px}.israa-v2__filter-select[data-israa-v2-filter-authority]{width:155px}.israa-v2__filter-select[data-israa-v2-filter-school]{width:165px}.israa-v2__filter-select[data-israa-v2-filter-program]{width:165px}.israa-v2__filter-select[data-israa-v2-filter-status]{width:135px}
+    .israa-v2__filter-query:focus,.israa-v2__filter-select:focus{outline:0;border-color:#0891b2;box-shadow:0 0 0 2px rgba(8,145,178,.12)}
+    .israa-v2__filter-reset{flex:0 0 auto;width:fit-content;height:32px;padding:0 9px;border:1px solid #cbd5e1;border-radius:7px;background:#f8fafc;color:#475569;font:inherit;font-size:12px;font-weight:750;cursor:pointer}
+    .israa-v2__filter-reset:hover{background:#f1f5f9}.israa-v2__filter-empty td{padding:24px!important;text-align:center;color:#64748b;background:#fff}
+    @media(max-width:760px){.israa-v2__filters{white-space:normal;overflow:visible}.israa-v2__filter-query{width:min(100%,260px)}}
   `;
   document.head.appendChild(style);
 }
@@ -63,6 +65,7 @@ function programNames(row) {
 }
 
 function rowMatches(row, headerMap) {
+  if (filterState.query && !normalized(row.dataset.v2SearchText).includes(normalized(filterState.query))) return false;
   if (filterState.authority && normalized(cellText(row, headerMap, 'רשות')) !== normalized(filterState.authority)) return false;
   if (filterState.school && normalized(cellText(row, headerMap, 'שם בית הספר')) !== normalized(filterState.school)) return false;
   if (filterState.program && !programNames(row).map(normalized).includes(normalized(filterState.program))) return false;
@@ -114,13 +117,15 @@ function applyFilters(container) {
   } else if (emptyRow) {
     emptyRow.remove();
   }
-  const count = filters.querySelector('[data-israa-v2-filter-count]');
-  if (count) count.textContent = `${visible} מתוך ${tableRows.length}`;
 }
 
 function bindFilters(container, shell) {
   if (shell.dataset.bound === 'true') return;
   shell.dataset.bound = 'true';
+  shell.querySelector('[data-israa-v2-filter-query]')?.addEventListener('input', (event) => {
+    filterState.query = event.target.value;
+    applyFilters(container);
+  });
   for (const key of ['authority', 'school', 'program', 'status']) {
     shell.querySelector(`[data-israa-v2-filter-${key}]`)?.addEventListener('change', (event) => {
       filterState[key] = event.target.value;
@@ -148,12 +153,12 @@ function enhanceContainer(container) {
     shell.setAttribute(FILTERS_ATTR, 'true');
     shell.innerHTML = `
       <div class="israa-v2__filters" role="search" aria-label="סינון טבלת המעקב">
+        <input class="israa-v2__filter-query" type="search" placeholder="חיפוש בעמוד" aria-label="חיפוש בעמוד" data-israa-v2-filter-query>
         <select class="israa-v2__filter-select" data-israa-v2-filter-authority aria-label="סינון לפי רשות"></select>
         <select class="israa-v2__filter-select" data-israa-v2-filter-school aria-label="סינון לפי בית ספר"></select>
         <select class="israa-v2__filter-select" data-israa-v2-filter-program aria-label="סינון לפי תוכנית"></select>
         <select class="israa-v2__filter-select" data-israa-v2-filter-status aria-label="סינון לפי סטטוס"></select>
         <button type="button" class="israa-v2__filter-reset" data-israa-v2-filter-reset>נקה סינון</button>
-        <span class="israa-v2__filter-count" data-israa-v2-filter-count></span>
       </div>`;
     toolbar.insertAdjacentElement('afterend', shell);
     bindFilters(container, shell);

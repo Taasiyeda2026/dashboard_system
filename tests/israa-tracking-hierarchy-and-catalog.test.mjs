@@ -17,7 +17,7 @@ test('external table has exactly the requested 11 overview columns and readable 
   assert.match(tracking, /table-layout:fixed/);
   assert.match(tracking, /font-size:12px/);
   assert.match(tracking, /font-size:11\.5px/);
-  assert.match(tracking, /const widths = \[4,7,13,7,9,9,8,9,8,19,7\]/);
+  assert.match(tracking, /const widths = \[3\.5,6\.5,14,6\.5,9,9,7,9,8,19,8\.5\]/);
   assert.doesNotMatch(tracking, /overflow-x:auto/);
 });
 

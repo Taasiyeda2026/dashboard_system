@@ -8,10 +8,12 @@ const entry = fs.readFileSync(new URL('../frontend/src/main-with-proposal-pdf-ho
 
 const exactFields = ['quote_number','school_name','semel_mosad','authority','ownership','manager_name','manager_phone','manager_email','additional_contact','program_name','gefen_numbers','proposal_nature','expected_program','grade','participants_groups','proposal_date','total_amount','probability','status','next_action','follow_up_date','notes'];
 
-test('Israa tracking exposes only the four required filters', () => {
+test('Israa tracking exposes compact search and the four required filters', () => {
   for (const key of ['authority', 'school', 'program', 'status']) assert.match(filters, new RegExp(`data-israa-v2-filter-${key}`));
-  assert.doesNotMatch(filters, /data-israa-v2-filter-query/);
-  assert.doesNotMatch(filters, /filterState\.query/);
+  assert.match(filters, /data-israa-v2-filter-query/);
+  assert.match(filters, /filterState\.query/);
+  assert.match(filters, /placeholder="חיפוש בעמוד"/);
+  assert.doesNotMatch(filters, /filter-count|מתוך/);
   assert.doesNotMatch(filters, /data-israa-v2-filter-probability|data-israa-v2-filter-nature/);
   assert.match(filters, /נקה סינון/);
 });
@@ -35,7 +37,9 @@ test('summary cards remain four equal columns', () => {
 });
 
 test('application entry cache-busts the exact Israa modules', () => {
-  assert.match(entry, /israa-tracking-v2-runtime\.js\?v=20260730-israa-approved-fields-v5/);
-  assert.match(entry, /israa-tracking-filters-runtime\.js\?v=20260730-israa-approved-fields-v5/);
+  assert.match(entry, /israa-tracking-v2-runtime\.js\?v=20260730-israa-toolbar-filters-v6/);
+  assert.match(entry, /israa-tracking-filters-runtime\.js\?v=20260730-israa-toolbar-filters-v6/);
   assert.doesNotMatch(entry, /israa-tracking-horizontal-scroll\.js/);
+  assert.doesNotMatch(tracking, /data-v2-refresh|>רענון</);
+  assert.match(tracking, /israa-v2__date[^}]*white-space:nowrap/);
 });
