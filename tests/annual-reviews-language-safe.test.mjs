@@ -6,7 +6,7 @@ const language = await readFile(new URL('../frontend/src/annual-reviews-language
 const entry = await readFile(new URL('../frontend/src/main-with-proposal-pdf-hotfix.js', import.meta.url), 'utf8');
 
 test('safe annual review language layer is loaded instead of the observer hotfix', () => {
-  assert.match(entry, /import '\.\/annual-reviews-language-safe\.js';/);
+  assert.match(entry, /import '\.\/annual-reviews-language-safe\.js\?v=20260730-final-pdf-upload-v1';/);
   assert.doesNotMatch(entry, /annual-reviews-language-hotfix\.js/);
 });
 
@@ -29,4 +29,10 @@ test('language passes are scheduled only around review navigation and operations
 
 test('header refinement avoids writing identical HTML repeatedly', () => {
   assert.match(language, /if \(metadata\.innerHTML !== nextHtml\) metadata\.innerHTML = nextHtml/);
+});
+
+test('final PDF upload card survives language cleanup passes', () => {
+  assert.match(language, /status\.closest\('\[data-final-pdf-card\]'\)/);
+  assert.match(language, /node\.closest\('\[data-final-pdf-card\]'\)/);
+  assert.match(language, /if \(node\.closest\('\[data-final-pdf-card\]'\)\) return;/);
 });
