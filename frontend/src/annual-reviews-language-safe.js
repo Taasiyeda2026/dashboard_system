@@ -81,6 +81,7 @@ function replaceExactText(root) {
 
 function simplifyStatuses(root) {
   root.querySelectorAll('.ar2-status').forEach((status) => {
+    if (status.closest('[data-final-pdf-card]')) return;
     const label = status.classList.contains('is-complete') ? 'הושלם' : 'טרם הושלם';
     if (status.textContent !== label) status.textContent = label;
   });
@@ -88,9 +89,12 @@ function simplifyStatuses(root) {
 
 function removeExplanations(root) {
   root.querySelectorAll('.ar2-card__head .ar2-muted').forEach((node) => {
-    if (!node.closest('header.ar2-card')) node.remove();
+    if (!node.closest('header.ar2-card') && !node.closest('[data-final-pdf-card]')) node.remove();
   });
-  root.querySelectorAll('.ar2-private, .ar2-guide, .ar2-progress').forEach((node) => node.remove());
+  root.querySelectorAll('.ar2-private, .ar2-guide, .ar2-progress').forEach((node) => {
+    if (node.closest('[data-final-pdf-card]')) return;
+    node.remove();
+  });
   root.querySelectorAll('.ar2-card > .ar2-muted').forEach((node) => {
     if (node.textContent.includes('חלק העובד:') || node.textContent.includes('חלק המנהל:')) node.remove();
   });
