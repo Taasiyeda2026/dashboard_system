@@ -16,14 +16,13 @@ const ui = createSharedInteractionLayer();
 
 const EXTERNAL_COLUMNS = [
   'מסד',
-  'מס׳ הצעה',
-  'סוג פעילות',
-  'שם בית הספר',
+  'מספר הצעה',
+  'בית ספר',
   'סמל מוסד',
   'רשות',
-  'סכום ההצעה הכולל',
-  'סבירות לסגירה',
-  'שווי צפוי ריאלי',
+  'סכום ההצעה',
+  'הערכת סגירה',
+  'תחזית כספית',
   'סטטוס',
   'פעולה להמשך',
   'תאריך מעקב',
@@ -59,8 +58,6 @@ const activityNames = (row) => {
   }
   return clean(row?.program_name).split(/\s*[•;]\s*/).map(clean).filter(Boolean);
 };
-const activityType = (row) => clean(row?.activity_type || row?.activity_type_group || row?.proposal_type
-  || (Array.isArray(row?.proposal_items) ? row.proposal_items.find((item) => clean(item?.item_type))?.item_type : ''));
 
 function canUseScreen() {
   const user = state?.user || {};
@@ -93,13 +90,13 @@ function injectStyles() {
     .israa-v2{direction:rtl;width:94%;max-width:1540px;min-width:0;margin:12px auto 0;box-sizing:border-box}
     .israa-v2__title-row{display:flex;align-items:center;justify-content:space-between;gap:12px;margin-bottom:12px}.israa-v2__title{margin:0;font-size:1.08rem;font-weight:850;color:#0f172a}
     .israa-v2__toolbar{display:flex;align-items:center;gap:8px;flex-wrap:wrap;margin:0 0 10px}.israa-v2__btn{border:1px solid #cbd5e1;border-radius:8px;background:#fff;color:#334155;padding:7px 11px;font:inherit;font-size:.8rem;font-weight:750;cursor:pointer}.israa-v2__btn:hover{background:#f8fafc}.israa-v2__btn--primary{border-color:#0f766e;background:#0f766e;color:#fff}.israa-v2__btn--danger{color:#b91c1c;border-color:#fecaca}.israa-v2__btn[disabled]{opacity:.55;cursor:default}
-    .israa-v2__kpis{display:grid;grid-template-columns:repeat(4,minmax(0,1fr));gap:10px;width:100%;margin:0 0 12px}.israa-v2__kpi{min-width:0;min-height:68px;display:flex;flex-direction:column;justify-content:center;border:1px solid #e2e8f0;border-radius:11px;background:#fff;padding:9px 12px;box-shadow:0 1px 4px rgba(15,23,42,.04)}.israa-v2__kpi-label{color:#64748b;font-size:.72rem;font-weight:700;min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}.israa-v2__kpi-value{margin-top:3px;color:#0f172a;font-size:1.02rem;font-weight:850;min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+    .israa-v2__kpis{display:grid;grid-template-columns:repeat(4,minmax(0,1fr));gap:10px;width:52%;max-width:760px;margin:0 0 12px auto}.israa-v2__kpi{min-width:0;min-height:68px;display:flex;flex-direction:column;justify-content:center;border:1px solid #e2e8f0;border-radius:11px;background:#fff;padding:9px 12px;box-shadow:0 1px 4px rgba(15,23,42,.04)}.israa-v2__kpi-label{color:#64748b;font-size:.72rem;font-weight:700;min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}.israa-v2__kpi-value{margin-top:3px;color:#0f172a;font-size:1.02rem;font-weight:850;min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
     .israa-v2__error{margin-bottom:8px;padding:8px 10px;border-radius:8px;background:#fee2e2;color:#991b1b;font-size:.8rem}.israa-v2__loading{padding:24px;text-align:center;color:#64748b}
     .israa-v2__wrap{width:100%;max-width:100%;min-width:0;overflow:hidden;direction:rtl;box-sizing:border-box;border:1px solid #dbe3ec;border-radius:11px;background:#fff;box-shadow:0 2px 8px rgba(26,51,88,.06)}
     .israa-v2__table{width:100%;table-layout:fixed;border-collapse:collapse;font-size:12px}.israa-v2__table th{padding:7px 4px;background:#f1f5f9;color:#334155;border-bottom:1px solid #cbd5e1;text-align:right;font-size:11.5px;font-weight:800;white-space:normal;overflow-wrap:anywhere;line-height:1.25}.israa-v2__table td{height:58px;padding:7px 4px;border-bottom:1px solid #e8edf3;vertical-align:middle;color:#1e293b;overflow:hidden;overflow-wrap:anywhere}.israa-v2__row{cursor:pointer}.israa-v2__row:hover td{background:#f8fafc}.israa-v2__center{text-align:center!important;font-variant-numeric:tabular-nums}.israa-v2__primary{font-weight:800;color:#0f172a}.israa-v2__clamp{display:-webkit-box;-webkit-line-clamp:3;-webkit-box-orient:vertical;overflow:hidden}.israa-v2__status{display:inline-block;max-width:100%;padding:3px 5px;border-radius:999px;font-size:11px;font-weight:800;white-space:normal;overflow-wrap:anywhere}.israa-v2__status.is-approved{background:#dcfce7;color:#166534}.israa-v2__status.is-sent{background:#dbeafe;color:#1d4ed8}.israa-v2__status.is-waiting{background:#fef3c7;color:#92400e}.israa-v2__status.is-closed{background:#e5e7eb;color:#475569}.israa-v2__status.is-draft{background:#f1f5f9;color:#475569}.israa-v2__status.is-active{background:#ede9fe;color:#6d28d9}.israa-v2__empty{padding:28px!important;text-align:center;color:#64748b}
-    .ds-drawer.ds-drawer--israa-exact{width:min(960px,64vw);max-width:calc(100vw - 32px)}.ds-drawer.ds-drawer--israa-exact .ds-drawer__content{padding:0;overflow-y:auto;background:#f4f7fb}.ds-drawer.ds-drawer--israa-detail>.ds-drawer__header{display:none}.israa-drawer{direction:rtl;color:#1e293b;min-height:100%;background:#f4f7fb}.israa-drawer__header{position:sticky;top:0;z-index:4;display:flex;align-items:center;justify-content:space-between;gap:18px;min-height:72px;padding:14px 18px;background:#142a46;color:#fff;box-shadow:0 2px 8px rgba(15,23,42,.16)}.israa-drawer__title-wrap{min-width:0}.israa-drawer__title{margin:0;color:#fff;font-size:18px;font-weight:850;line-height:1.35;overflow-wrap:anywhere}.israa-drawer__header-actions{display:inline-flex;align-items:center;gap:8px;flex:0 0 auto}.israa-drawer__header .israa-v2__btn{border-color:#0d9488;background:#0d9488;color:#fff}.israa-drawer__header .israa-v2__btn:hover{background:#0f766e}.israa-drawer__close{display:grid;place-items:center;width:36px;height:36px;padding:0;border:1px solid rgba(255,255,255,.35);border-radius:8px;background:transparent;color:#fff;font:inherit;font-size:18px;cursor:pointer;pointer-events:auto}.israa-drawer__close:hover{background:rgba(255,255,255,.14)}.israa-drawer__body{display:grid;gap:12px;padding:16px 18px 22px}.israa-drawer__section{border:1px solid #dce3ec;border-radius:11px;padding:14px 16px;background:#fff;box-shadow:0 1px 3px rgba(15,23,42,.04)}.israa-drawer__section-title{margin:0 0 12px;color:#1e3a5f;font-size:15px;font-weight:800}.israa-drawer__grid{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:13px 16px}.israa-drawer__field{min-width:0}.israa-drawer__field--wide{grid-column:1/-1}.israa-drawer__field--short{max-width:180px}.israa-drawer__label{display:block;margin-bottom:4px;color:#64748b;font-size:11px;font-weight:700}.israa-drawer__value{min-height:20px;color:#1e293b;white-space:pre-wrap;overflow-wrap:anywhere;font-size:13px;line-height:1.5}.israa-drawer__tag{display:inline-flex;padding:4px 9px;border:1px solid #cbd5e1;border-radius:999px;background:#f8fafc;font-weight:750}.israa-drawer__readonly{padding:8px;border:1px solid #dce3ec;border-radius:7px;background:#f8fafc;font-weight:750}.israa-drawer__form{display:contents}.israa-v2__input,.israa-v2__select,.israa-v2__textarea{width:100%;min-width:0;box-sizing:border-box;border:1px solid #cbd5e1;border-radius:7px;padding:8px;background:#fff;color:#1e293b;font:inherit;font-size:13px}.israa-v2__input:focus,.israa-v2__select:focus,.israa-v2__textarea:focus{outline:2px solid rgba(37,99,235,.2);border-color:#2563eb}.israa-v2__textarea{min-height:82px;resize:vertical}.israa-v2__textarea[data-v2-field="next_action"]{min-height:96px}.israa-drawer__activities{width:65%;max-width:650px;min-width:500px;table-layout:fixed;border-collapse:separate;border-spacing:0;border:1px solid #dce3ec;border-radius:8px;overflow:hidden;font-size:13px;background:#fff;margin-right:0;margin-left:auto}.israa-drawer__activities th{padding:8px;background:#f1f5f9;color:#334155;border-bottom:1px solid #dce3ec;text-align:right}.israa-drawer__activities td{height:40px;padding:8px;border-bottom:1px solid #e7ecf2;vertical-align:middle;overflow-wrap:anywhere}.israa-drawer__activities tbody tr:last-child td{border-bottom:0}.israa-drawer__activities th+th,.israa-drawer__activities td+td{border-right:1px solid #e7ecf2}.israa-drawer__activities th:nth-child(1){width:58%}.israa-drawer__activities th:nth-child(2){width:24%}.israa-drawer__activities th:nth-child(3){width:18%}.israa-drawer__legacy-activities{display:grid;gap:8px;white-space:pre-wrap;font-size:13px}.israa-drawer__error{color:#b91c1c;font-size:.78rem}
+    .ds-drawer.ds-drawer--israa-exact{width:min(960px,64vw);max-width:calc(100vw - 32px)}.ds-drawer.ds-drawer--israa-exact .ds-drawer__content{padding:0;overflow-y:auto;background:#f4f7fb}.ds-drawer.ds-drawer--israa-detail>.ds-drawer__header{display:none}.israa-drawer{direction:rtl;color:#1e293b;min-height:100%;background:#f4f7fb}.israa-drawer__header{position:sticky;top:0;z-index:4;display:flex;align-items:center;justify-content:space-between;gap:18px;min-height:72px;padding:14px 18px;background:#142a46;color:#fff;box-shadow:0 2px 8px rgba(15,23,42,.16)}.israa-drawer__title-wrap{min-width:0}.israa-drawer__title{margin:0;color:#fff;font-size:18px;font-weight:850;line-height:1.35;overflow-wrap:anywhere}.israa-drawer__header-actions{display:inline-flex;align-items:center;gap:8px;flex:0 0 auto}.israa-drawer__header .israa-v2__btn{border-color:#0d9488;background:#0d9488;color:#fff}.israa-drawer__header .israa-v2__btn:hover{background:#0f766e}.israa-drawer__close{display:grid;place-items:center;width:36px;height:36px;padding:0;border:1px solid rgba(255,255,255,.35);border-radius:8px;background:transparent;color:#fff;font:inherit;font-size:18px;cursor:pointer;pointer-events:auto}.israa-drawer__close:hover{background:rgba(255,255,255,.14)}.israa-drawer__body{display:grid;gap:12px;padding:16px 18px 22px}.israa-drawer__section{border:1px solid #dce3ec;border-radius:11px;padding:14px 16px;background:#fff;box-shadow:0 1px 3px rgba(15,23,42,.04)}.israa-drawer__section-title{margin:0 0 12px;color:#1e3a5f;font-size:15px;font-weight:800}.israa-drawer__grid{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:13px 16px}.israa-drawer__field{min-width:0}.israa-drawer__field--wide{grid-column:1/-1}.israa-drawer__field--short{max-width:180px}.israa-drawer__label{display:block;margin-bottom:4px;color:#64748b;font-size:11px;font-weight:700}.israa-drawer__value{min-height:20px;color:#1e293b;white-space:pre-wrap;overflow-wrap:anywhere;font-size:13px;line-height:1.5}.israa-drawer__tag{display:inline-flex;padding:4px 9px;border:1px solid #cbd5e1;border-radius:999px;background:#f8fafc;font-weight:750}.israa-drawer__readonly{padding:8px;border:1px solid #dce3ec;border-radius:7px;background:#f8fafc;font-weight:750}.israa-drawer__form{display:contents}.israa-v2__input,.israa-v2__select,.israa-v2__textarea{width:100%;min-width:0;box-sizing:border-box;border:1px solid #cbd5e1;border-radius:7px;padding:8px;background:#fff;color:#1e293b;font:inherit;font-size:13px}.israa-v2__input:focus,.israa-v2__select:focus,.israa-v2__textarea:focus{outline:2px solid rgba(37,99,235,.2);border-color:#2563eb}.israa-v2__textarea{min-height:82px;resize:vertical}.israa-v2__textarea[data-v2-field="next_action"]{min-height:96px}.israa-drawer__activities{width:65%;max-width:650px;min-width:500px;table-layout:fixed;border-collapse:separate;border-spacing:0;border:1px solid #dce3ec;border-radius:8px;overflow:hidden;font-size:13px;background:#fff;margin-right:0;margin-left:auto}.israa-drawer__activities th{padding:8px;background:#f1f5f9;color:#334155;border-bottom:1px solid #dce3ec;text-align:right}.israa-drawer__activities td{height:40px;padding:8px;border-bottom:1px solid #e7ecf2;vertical-align:middle;overflow-wrap:anywhere}.israa-drawer__activities tbody tr:last-child td{border-bottom:0}.israa-drawer__activities th+th,.israa-drawer__activities td+td{border-right:1px solid #e7ecf2}.israa-drawer__activities th:nth-child(1){width:58%}.israa-drawer__activities th:nth-child(2){width:24%}.israa-drawer__activities th:nth-child(3){width:18%}.israa-drawer__legacy-activities{display:grid;gap:8px;white-space:pre-wrap;font-size:13px}.israa-v2__multi{display:flex;flex-wrap:wrap;gap:7px 12px;border:0;padding:0;margin:0}.israa-v2__multi-option{display:inline-flex;align-items:center;gap:4px;font-size:13px}.israa-v2__multi-option input{accent-color:#0d9488}.israa-drawer__error{color:#b91c1c;font-size:.78rem}
     @media(max-width:1100px){.israa-v2{width:96%}.ds-drawer.ds-drawer--israa-exact{width:min(960px,78vw)}}
-    @media(max-width:760px){.israa-v2{width:calc(100% - 12px)}.israa-v2__kpis{grid-template-columns:repeat(2,minmax(0,1fr))}.ds-drawer.ds-drawer--israa-exact{width:calc(100vw - 16px);max-width:calc(100vw - 16px)}.israa-drawer__grid{grid-template-columns:repeat(2,minmax(0,1fr))}.israa-drawer__body{padding-inline:12px}.israa-drawer__activities{width:100%;min-width:0}}
+    @media(max-width:760px){.israa-v2{width:calc(100% - 12px)}.israa-v2__kpis{width:100%;max-width:none;grid-template-columns:repeat(2,minmax(0,1fr))}.ds-drawer.ds-drawer--israa-exact{width:calc(100vw - 16px);max-width:calc(100vw - 16px)}.israa-drawer__grid{grid-template-columns:repeat(2,minmax(0,1fr))}.israa-drawer__body{padding-inline:12px}.israa-drawer__activities{width:100%;min-width:0}}
     @media(max-width:460px){.israa-v2__kpis{grid-template-columns:1fr}.israa-drawer__grid{grid-template-columns:1fr}.israa-drawer__field--wide{grid-column:auto}}
   `;
   document.head.appendChild(style);
@@ -126,7 +123,6 @@ function searchableRowText(row, index) {
   return [
     index + 1,
     row.quote_number,
-    activityType(row),
     row.school_name,
     row.semel_mosad,
     row.authority,
@@ -170,7 +166,6 @@ function rowHtml(row, index) {
   return `<tr class="israa-v2__row" tabindex="0" data-v2-row-id="${escapeHtml(row.id)}" data-v2-open="${escapeHtml(row.id)}" data-v2-search-text="${escapeHtml(searchableRowText(row, index))}" data-v2-programs="${escapeHtml(programs.join('|'))}">
     <td class="israa-v2__center">${index + 1}</td>
     <td class="israa-v2__center"><span class="israa-v2__primary">${escapeHtml(clean(row.quote_number) || '—')}</span></td>
-    <td><div class="israa-v2__clamp">${escapeHtml(activityType(row) || '—')}</div></td>
     <td><div class="israa-v2__primary israa-v2__clamp">${escapeHtml(clean(row.school_name) || '—')}</div></td>
     <td class="israa-v2__center">${escapeHtml(clean(row.semel_mosad) || '—')}</td>
     <td><div class="israa-v2__clamp">${escapeHtml(clean(row.authority) || '—')}</div></td>
@@ -187,8 +182,8 @@ function tableHtml() {
   const body = rows.length
     ? rows.map(rowHtml).join('')
     : `<tr><td colspan="${EXTERNAL_COLUMNS.length}" class="israa-v2__empty">אין הצעות במעקב.</td></tr>`;
-  const widths = [4,7,7,11,7,8,8,8,8,8,18,6];
-  return `<div class="israa-v2__wrap"><table class="israa-v2__table" dir="rtl"><colgroup>${widths.map((width) => `<col style="width:${width}%">`).join('')}</colgroup><thead><tr>${EXTERNAL_COLUMNS.map((label, index) => `<th${[0,1,3,6,7,8,9,11].includes(index) ? ' class="israa-v2__center"' : ''}>${escapeHtml(label)}</th>`).join('')}</tr></thead><tbody>${body}</tbody></table></div>`;
+  const widths = [4,7,13,7,9,9,8,9,8,19,7];
+  return `<div class="israa-v2__wrap"><table class="israa-v2__table" dir="rtl"><colgroup>${widths.map((width) => `<col style="width:${width}%">`).join('')}</colgroup><thead><tr>${EXTERNAL_COLUMNS.map((label, index) => `<th${[0,1,3,5,6,7,8,10].includes(index) ? ' class="israa-v2__center"' : ''}>${escapeHtml(label)}</th>`).join('')}</tr></thead><tbody>${body}</tbody></table></div>`;
 }
 
 function renderContainer(container) {
@@ -260,6 +255,15 @@ function inputField(label, key, value, type = 'text', className = '') {
   return `<label class="israa-drawer__field ${className}"><span class="israa-drawer__label">${escapeHtml(label)}</span>${control}</label>`;
 }
 
+function expectedProgramField(draft) {
+  const selected = new Set(clean(draft.expected_program).split(/\s*[•;,]\s*/).filter(Boolean));
+  const options = [...new Set(activityNames(draft))];
+  const controls = options.length
+    ? options.map((name) => `<label class="israa-v2__multi-option"><input type="checkbox" data-v2-expected-option value="${escapeHtml(name)}"${selected.has(name) ? ' checked' : ''}> <span>${escapeHtml(name)}</span></label>`).join('')
+    : '<span class="israa-drawer__value">אין פעילויות לבחירה</span>';
+  return `<fieldset class="israa-drawer__field israa-drawer__field--wide israa-v2__multi"><legend class="israa-drawer__label">התוכנית הצפויה / בחירה נדרשת</legend>${controls}<input type="hidden" data-v2-field="expected_program" value="${escapeHtml([...selected].join(' • '))}"></fieldset>`;
+}
+
 function readonlyField(label, value, className = '') {
   return `<div class="israa-drawer__field ${className}"><span class="israa-drawer__label">${escapeHtml(label)}</span><div class="israa-drawer__value israa-drawer__readonly">${escapeHtml(clean(value) || '—')}</div></div>`;
 }
@@ -276,10 +280,10 @@ function viewDrawerFields(draft, serial) {
     valueField('טלפון', draft.phone || draft.manager_phone, '', 'tel'),
     valueField('דוא״ל', draft.email || draft.manager_email, '', 'email'),
   ].join('');
-  const proposal = `${valueField('תאריך הצעה', formatDate(draft.proposal_date))}<div class="israa-drawer__field"><span class="israa-drawer__label">מבנה ההצעה</span><div class="israa-drawer__value"><span class="israa-drawer__tag">${escapeHtml(clean(draft.proposal_nature) || '—')}</span></div></div>`;
-  const planning = [valueField('התוכנית הצפויה / בחירה נדרשת', draft.expected_program, 'israa-drawer__field--wide'), valueField('שכבה', draft.grade, 'israa-drawer__field--short'), valueField('קבוצות / משתתפים', draft.participants_groups)].join('');
+  const proposal = valueField('תאריך הצעה', formatDate(draft.proposal_date));
+  const planning = [valueField('מבנה ההצעה', draft.proposal_nature), valueField('התוכנית הצפויה / בחירה נדרשת', draft.expected_program, 'israa-drawer__field--wide'), valueField('שכבה', draft.grade, 'israa-drawer__field--short'), valueField('קבוצות / משתתפים', draft.participants_groups)].join('');
   return section('איש קשר והתקשרות', `<div class="israa-drawer__grid">${contact}</div>`)
-    + section('פרטים נוספים מהצעת המחיר', `<div class="israa-drawer__grid">${proposal}</div>`)
+    + section('תאריך ההצעה', `<div class="israa-drawer__grid">${proposal}</div>`)
     + section('הפעילויות הכלולות בהצעה', activitiesTable(draft), 'israa-drawer__section--activities')
     + section('בחירה והיקף צפויים', `<div class="israa-drawer__grid">${planning}</div>`)
     + (clean(draft.notes) ? section('הערה', valueField('הערה', draft.notes, 'israa-drawer__field--wide')) : '');
@@ -287,9 +291,10 @@ function viewDrawerFields(draft, serial) {
 
 function editDrawerFields(draft, serial) {
   const contact = [readonlyField('בעלות', draft.ownership), readonlyField('איש קשר', draft.contact_person || draft.manager_name), readonlyField('תפקיד', draft.contact_role || draft.role || draft.additional_contact), readonlyField('טלפון', draft.phone || draft.manager_phone), readonlyField('דוא״ל', draft.email || draft.manager_email)].join('');
-  const proposal = [readonlyField('תאריך הצעה', formatDate(draft.proposal_date)), readonlyField('מבנה ההצעה', draft.proposal_nature)].join('');
+  const proposal = readonlyField('תאריך הצעה', formatDate(draft.proposal_date));
   const planning = [
-    inputField('התוכנית הצפויה / בחירה נדרשת', 'expected_program', draft.expected_program, 'text', 'israa-drawer__field--wide'),
+    inputField('מבנה ההצעה', 'proposal_nature', draft.proposal_nature, 'nature'),
+    expectedProgramField(draft),
     inputField('שכבה', 'grade', draft.grade, 'text', 'israa-drawer__field--short'),
     inputField('קבוצות / משתתפים', 'participants_groups', draft.participants_groups),
   ].join('');
@@ -300,7 +305,7 @@ function editDrawerFields(draft, serial) {
   ].join('');
   const followup = [inputField('פעולה להמשך', 'next_action', draft.next_action, 'textarea', 'israa-drawer__field--wide'), inputField('תאריך מעקב', 'follow_up_date', draft.follow_up_date, 'date')].join('');
   return section('איש קשר והתקשרות', `<div class="israa-drawer__grid">${contact}</div>`)
-    + section('פרטים נוספים מהצעת המחיר', `<div class="israa-drawer__grid">${proposal}</div>`)
+    + section('תאריך ההצעה', `<div class="israa-drawer__grid">${proposal}</div>`)
     + section('הפעילויות הכלולות בהצעה', activitiesTable(draft), 'israa-drawer__section--activities')
     + section('בחירה והיקף צפויים', `<div class="israa-drawer__grid">${planning}</div>`)
     + section('הערכת סגירה ומעקב', `<div class="israa-drawer__grid">${closing}${followup}</div>`)
@@ -341,6 +346,9 @@ function openDrawer(row, mode = 'view') {
 }
 
 function collectDrawer(form) {
+  const expected = [...form.querySelectorAll('[data-v2-expected-option]:checked')].map((field) => clean(field.value));
+  const expectedField = form.querySelector('[data-v2-field="expected_program"]');
+  if (expectedField) expectedField.value = expected.join(' • ');
   const payload = {};
   form.querySelectorAll('[data-v2-field]').forEach((field) => { payload[field.dataset.v2Field] = field.value; });
   payload.probability = PROBABILITY_OPTIONS.includes(Number(payload.probability)) ? Number(payload.probability) : 50;

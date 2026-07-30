@@ -26,7 +26,7 @@ test('Israa content is bounded and the table fits without horizontal scrolling',
 
 test('search metadata uses only approved Israa data fields', () => {
   for (const field of exactFields) assert.match(tracking, new RegExp(`row\.${field}`));
-  for (const field of ['valid_until','outreach_method','barriers','meetings_count','hours_count']) assert.doesNotMatch(tracking, new RegExp(`row\.${field}`));
+  for (const field of ['activity_type','activity_type_group','valid_until','outreach_method','barriers','meetings_count','hours_count']) assert.doesNotMatch(tracking, new RegExp(`row\.${field}`));
 });
 
 test('summary cards remain four equal columns', () => {
@@ -35,7 +35,7 @@ test('summary cards remain four equal columns', () => {
 });
 
 test('application entry cache-busts the exact Israa modules', () => {
-  assert.match(entry, /israa-tracking-v2-runtime\.js\?v=20260730-israa-excel-drawer-v4/);
-  assert.match(entry, /israa-tracking-filters-runtime\.js\?v=20260730-israa-excel-drawer-v4/);
+  assert.match(entry, /israa-tracking-v2-runtime\.js\?v=20260730-israa-approved-fields-v5/);
+  assert.match(entry, /israa-tracking-filters-runtime\.js\?v=20260730-israa-approved-fields-v5/);
   assert.doesNotMatch(entry, /israa-tracking-horizontal-scroll\.js/);
 });
