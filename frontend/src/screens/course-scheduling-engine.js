@@ -49,13 +49,13 @@ function meetingAssignments(rows) {
   return rows.flatMap((activity) => activityMeetings(activity).map((meeting) => ({ ...meeting, school: activity.school, authority: activity.authority, school_address: activity.school_address, activity_name: activity.activity_name })));
 }
 
-function candidateMap({ courses, instructors, profiles = {}, rules = {}, exceptions = {}, assigned = {} }) {
+function candidateMap({ courses, instructors, profiles = {}, rules = {}, exceptions = {}, assigned = {}, travel = {}, preliminary = false }) {
   const output = new Map();
   courses.forEach((course) => {
     const candidates = instructors.map((instructor) => {
       const empId = empOf(instructor);
       const load = instructorLoad(assigned[empId] || [], profiles[empId], rules[empId] || []);
-      const result = evaluateInstructor({ instructor, profile: profiles[empId], rules: rules[empId] || [], exceptions: exceptions[empId] || [], activity: course, existingActivities: meetingAssignments(assigned[empId] || []), weeklyLoad: load.ratio * 10, averageWeeklyLoad: 0 });
+      const result = evaluateInstructor({ instructor, profile: profiles[empId], rules: rules[empId] || [], exceptions: exceptions[empId] || [], activity: course, existingActivities: meetingAssignments(assigned[empId] || []), travel: travel[idOf(course)]?.[empId] || null, validateTravel: !preliminary, weeklyLoad: load.ratio * 10, averageWeeklyLoad: 0 });
       if (result.eligible) {
         result.score = Math.max(0, Math.round(result.score - Math.min(30, load.ratio * 30)));
         result.explanation = `${result.explanation}, עומס ביחס לזמינות ${Math.round(load.ratio * 100)}%`;
@@ -87,7 +87,7 @@ export function calculateCourseSchedule(input = {}) {
       for (const candidate of candidates) {
         const emp = empOf(candidate.instructor);
         const draftRows = [...state.draft.entries()].filter(([, c]) => empOf(c.instructor) === emp).map(([courseId]) => ordered.find((row) => idOf(row) === courseId));
-        const check = evaluateInstructor({ instructor: candidate.instructor, profile: input.profiles?.[emp], rules: input.rules?.[emp] || [], exceptions: input.exceptions?.[emp] || [], activity: course, existingActivities: meetingAssignments([...(assigned[emp] || []), ...draftRows]) });
+        const check = evaluateInstructor({ instructor: candidate.instructor, profile: input.profiles?.[emp], rules: input.rules?.[emp] || [], exceptions: input.exceptions?.[emp] || [], activity: course, existingActivities: meetingAssignments([...(assigned[emp] || []), ...draftRows]), travel: input.travel?.[idOf(course)]?.[emp] || null, validateTravel: !input.preliminary });
         if (!check.eligible) continue;
         const draft = new Map(state.draft); draft.set(idOf(course), candidate);
         expanded.push({ draft, score: state.score + candidate.score });
@@ -101,6 +101,12 @@ export function calculateCourseSchedule(input = {}) {
     if (missing.length) return { course, status: 'חסר מידע', missing, recommended: null, alternatives: [], checked: [] };
     const checked = maps.get(id) || [], eligible = checked.filter((c) => c.eligible).sort((a, b) => b.score - a.score);
     const recommended = best.get(id) || null;
-    return { course, status: recommended ? (recommended.warnings.length ? 'נדרש טיפול' : 'הצעה מוכנה') : 'נדרש גיוס', recommended, alternatives: eligible.filter((c) => empOf(c.instructor) !== empOf(recommended?.instructor)).slice(0, 3), checked };
+    const incompleteProfiles = checked.filter((candidate) => candidate.missingProfileData.length);
+    return { course, status: recommended ? (recommended.warnings.length ? 'נדרש טיפול' : 'הצעה מוכנה') : incompleteProfiles.length ? 'נדרש טיפול' : 'נדרש גיוס', recommended, alternatives: eligible.filter((c) => empOf(c.instructor) !== empOf(recommended?.instructor)).slice(0, 3), checked, incompleteProfiles, treatmentReason: !recommended && incompleteProfiles.length ? 'לא ניתן להשלים את בדיקת השיבוץ משום שחסרים נתונים בפרופילי מדריכים.' : '' };
   });
+}
+
+export function preliminaryCourseCandidates(input = {}) {
+  const results = calculateCourseSchedule({ ...input, travel: {}, preliminary: true });
+  return results.flatMap((result) => result.checked.filter((candidate) => candidate.eligible).map((candidate) => ({ course: result.course, candidate })));
 }

@@ -4,7 +4,8 @@ import { dsEmptyState, dsScreenStack, dsTableWrap } from './shared/layout.js';
 import { showToast } from './shared/toast.js';
 import { loadInstructorSchedulingData } from './instructor-scheduling-data.js';
 import { activityMeetings } from './instructor-scheduling-load.js';
-import { calculateCourseSchedule, schedulingCourses } from './course-scheduling-engine.js';
+import { calculateCourseSchedule, preliminaryCourseCandidates, schedulingCourses } from './course-scheduling-engine.js';
+import { calculateCandidateTravel } from './course-scheduling-travel.js';
 
 const text = (value) => String(value ?? '').trim();
 const emp = (candidate) => text(candidate?.instructor?.emp_id);
@@ -22,13 +23,21 @@ function optionHtml(candidate, recommended) {
   return `<label class="course-scheduling__option"><input type="radio" name="candidate" value="${escapeHtml(emp(candidate))}"${emp(candidate) === emp(recommended) ? ' checked' : ''}><span><b>${escapeHtml(candidate.instructor.full_name || emp(candidate))}</b> · ציון ${candidate.score}<small>${escapeHtml(candidate.explanation)}</small></span></label>`;
 }
 
-function detailsHtml(result) {
+function missingCandidateHtml(candidate, course) {
+  const missing = candidate.missingProfileData.filter((item) => !item.includes('— משפיע'));
+  const issueRows = candidate.issues.filter((issue) => issue.missing).map((issue) => `<p>${escapeHtml(issue.message)} — משפיע על ${issue.dates.length} מפגשים. <details><summary>הצגת תאריכים</summary>${issue.dates.map((date) => `<span>${escapeHtml(date)}</span>`).join(' · ')}</details></p>`).join('');
+  const gender = missing.includes('מגדר') && course.required_instructor_gender === 'female' ? '<p>מגדר המדריך לא הוגדר. הקורס דורש מדריכה.</p>' : '';
+  return `<article class="scheduling-candidate"><p><b>${escapeHtml(candidate.instructor.full_name || emp(candidate))} | ${escapeHtml(emp(candidate))}</b></p><p><b>סטטוס:</b> חסרים נתוני מדריך</p><p><b>כתובת:</b> ${escapeHtml(candidate.instructor.address || 'לא הוגדרה')}</p>${gender}<p><b>חסר להשלמה:</b> ${escapeHtml(missing.join(', '))}.</p>${issueRows}<p>לא ניתן לחשב ציון התאמה ועומס ביחס לזמינות עד להשלמת הפרופיל.</p></article>`;
+}
+
+export function detailsHtml(result) {
   if (result.status === 'חסר מידע') return `<details><summary>מה חסר?</summary><p>${escapeHtml(result.missing.join(' · '))}</p></details>`;
   if (result.status === 'נדרש גיוס') {
     const reasons = result.checked.flatMap((item) => item.failures).reduce((counts, reason) => counts.set(reason, (counts.get(reason) || 0) + 1), new Map());
     return `<details><summary>דרישות וסיבות פסילה</summary><p>שפה: ${escapeHtml(result.course.instruction_language)} · שכבה: ${escapeHtml(result.course.education_level || result.course.grade)} · מגדר: ${escapeHtml(result.course.required_instructor_gender || 'ללא')}</p><ul>${[...reasons].sort((a,b)=>b[1]-a[1]).slice(0,5).map(([reason,count])=>`<li>${escapeHtml(reason)} (${count})</li>`).join('')}</ul><p>${result.checked.length} מדריכים נבדקו</p></details>`;
   }
-  return `<details data-course-options><summary>הצג חלופות</summary>${[result.recommended, ...result.alternatives].map((item) => optionHtml(item, result.recommended)).join('')}<details><summary>הצג את כל המדריכים שנבדקו</summary>${result.checked.map((item) => `<p><b>${escapeHtml(item.instructor.full_name || emp(item))}</b>: ${item.eligible ? `ציון ${item.score} · ${escapeHtml(item.explanation)}` : `לא מתאים · ${escapeHtml(item.failures.join(' · '))}`}</p>`).join('')}</details></details>`;
+  if (!result.recommended && result.status === 'נדרש טיפול') return `<p>${escapeHtml(result.treatmentReason)}</p><details><summary>מדריכים עם נתונים חסרים</summary>${result.incompleteProfiles.map((item) => missingCandidateHtml(item, result.course)).join('')}</details>`;
+  return `<details data-course-options><summary>הצג חלופות</summary>${[result.recommended, ...result.alternatives].map((item) => optionHtml(item, result.recommended)).join('')}<details><summary>הצג את כל המדריכים שנבדקו</summary>${result.checked.map((item) => item.missingProfileData.length ? missingCandidateHtml(item, result.course) : `<p><b>${escapeHtml(item.instructor.full_name || emp(item))}</b>: ${item.eligible ? `ציון ${item.score} · ${escapeHtml(item.explanation)}` : `לא מתאים · ${escapeHtml(item.failures.join(' · '))}`}</p>`).join('')}</details></details>`;
 }
 
 function rowsHtml(results) {
@@ -52,7 +61,12 @@ export const courseSchedulingScreen = {
       if (state.courseSchedulingLoading) return; state.courseSchedulingLoading = true; state.courseSchedulingError = ''; rerender();
       try {
         const scheduling = data.scheduling || {}; const profiles = Object.fromEntries((scheduling.profiles || []).map((row) => [text(row.emp_id), row]));
-        state.courseSchedulingResults = calculateCourseSchedule({ activities: data.activities, instructors: data.instructors, profiles, rules: group(scheduling.rules || [], 'emp_id'), exceptions: group(scheduling.exceptions || [], 'emp_id') });
+        const input = { activities: data.activities, instructors: data.instructors, profiles, rules: group(scheduling.rules || [], 'emp_id'), exceptions: group(scheduling.exceptions || [], 'emp_id') };
+        const preliminary = preliminaryCourseCandidates(input);
+        const routed = await calculateCandidateTravel(preliminary, data.activities);
+        state.courseSchedulingResults = calculateCourseSchedule({ ...input, travel: routed.travel });
+        if (routed.unavailableReason === 'google_key_not_configured') state.courseSchedulingError = 'מפתח Google Maps אינו מוגדר. מרחקים שלא דורשים אימות מעבר סומנו כלא מחושבים; מעבר בין בתי ספר לא יאושר ללא אימות.';
+        else if (routed.unavailableReason) state.courseSchedulingError = 'לא ניתן היה לחשב חלק מהמסלולים. מעברים בין בתי ספר שלא אומתו נפסלו באופן בטוח.';
         state.courseSchedulingCalculatedAt = new Intl.DateTimeFormat('he-IL', { dateStyle: 'short', timeStyle: 'short' }).format(new Date());
       } catch (error) { state.courseSchedulingError = `החישוב נכשל: ${error.message}`; } finally { state.courseSchedulingLoading = false; rerender(); }
     });
