@@ -197,7 +197,7 @@ test('annual review printing uses a visible standalone print document', async ()
   ]);
 
   assert.match(indexHtml, /main-with-proposal-pdf-hotfix\.js\?v=20260730-annual-review-isolated-print-v2/);
-  assert.match(entry, /annual-reviews-isolated-print\.js\?v=20260730-isolated-print-v2/);
+  assert.match(entry, /annual-reviews-isolated-print\.js\?v=20260730-visible-print-v3/);
   assert.match(printRuntime, /window\.open\('', name/);
   assert.match(printRuntime, /doc\.write\(buildPrintDocument\(sourceRoot\)\)/);
   assert.match(printRuntime, /event\.stopImmediatePropagation\(\)/);
