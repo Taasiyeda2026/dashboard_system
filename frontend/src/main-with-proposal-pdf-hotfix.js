@@ -18,6 +18,7 @@ import './proposal-next-year-workshops.js?v=20260729-next-year-workshops-v2';
 import './proposal-approval-runtime.js';
 import './client-contact-persistence-hotfix.js';
 import './admin-lists-auth-hotfix.js';
+import './school-catalog-bootstrap-hotfix.js?v=20260730-full-school-catalog-v1';
 import './admin-permissions-access-hotfix.js';
 import './auth-session-isolation-hotfix.js';
 import './session-security-runtime.js';
