@@ -53,6 +53,7 @@ import './annual-reviews-role-lessons-safe.js';
 import './annual-reviews-ui-compact-feedback.js';
 import './annual-reviews-print-plain.js';
 import './annual-reviews-print-shell-fix.js?v=20260730-blank-print-v1';
-import './annual-reviews-isolated-print.js?v=20260730-visible-print-v3';
 import './annual-reviews-manager-question-set.js';
+import './annual-reviews-manager-dedup.js?v=20260730-manager-dedup-v1';
+import './annual-reviews-isolated-print.js?v=20260730-visible-print-v3';
 import './annual-reviews-final-pdf-safe.js';
