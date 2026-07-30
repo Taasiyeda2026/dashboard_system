@@ -38,7 +38,7 @@ test('summary cards remain four equal columns', () => {
 });
 
 test('application entry cache-busts the exact Israa modules', () => {
-  assert.match(entry, /israa-tracking-v2-runtime\.js\?v=20260730-israa-compact-drawer-multiselect-v1/);
+  assert.match(entry, /israa-tracking-v2-runtime\.js\?v=20260730-israa-program-multiselect-click-fix-v1/);
   assert.match(entry, /israa-tracking-filters-runtime\.js\?v=20260730-israa-toolbar-filters-v6/);
   assert.doesNotMatch(entry, /israa-tracking-horizontal-scroll\.js/);
   assert.doesNotMatch(tracking, /data-v2-refresh|>רענון</);
@@ -56,4 +56,18 @@ test('Israa drawer is compact and expected programs are constrained to proposal 
   assert.match(tracking, /data-v2-remove-expected/);
   assert.match(tracking, /expected\.join\('\s*\|\s*'\)/);
   assert.match(tracking, /לא נמצאו פעילויות לבחירה/);
+});
+
+
+test('expected-program multi-select keeps tags outside its toggle and scopes interactions to its wrapper', () => {
+  assert.match(tracking, /class="israa-v2__multi-control"/);
+  assert.match(tracking, /class="israa-drawer__tags" data-v2-expected-tags/);
+  assert.match(tracking, /class="israa-v2__multi-toggle" data-v2-multi-toggle/);
+  const toggleMarkup = tracking.match(/<button[^>]*data-v2-multi-toggle[^>]*>[\s\S]*?<\/button>/)?.[0] || '';
+  assert.ok(toggleMarkup);
+  assert.doesNotMatch(toggleMarkup, /data-v2-remove-expected/);
+  assert.match(tracking, /toggle\.closest\('\.israa-v2__multi'\)/);
+  assert.match(tracking, /event\.preventDefault\(\);[\s\S]*event\.stopPropagation\(\);/);
+  assert.match(tracking, /multiSelectOutsideClickBound/);
+  assert.match(tracking, /selected\.join\(' \| '\)/);
 });
