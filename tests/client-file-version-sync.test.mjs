@@ -189,7 +189,7 @@ test('dashboard layout stylesheet is loaded and keeps the intended responsive st
   assert.match(dashboardCss, /@media \(max-width: 720px\)[\s\S]*\.ds-manager-grid\s*\{[\s\S]*grid-template-columns:\s*1fr;/);
 });
 
-test('annual review printing loads a cache-busted isolated print document', async () => {
+test('annual review printing uses a visible standalone print document', async () => {
   const [indexHtml, entry, printRuntime] = await Promise.all([
     readFile(INDEX_FILE, 'utf8'),
     readFile(ENTRY_FILE, 'utf8'),
@@ -198,10 +198,11 @@ test('annual review printing loads a cache-busted isolated print document', asyn
 
   assert.match(indexHtml, /main-with-proposal-pdf-hotfix\.js\?v=20260730-annual-review-isolated-print-v2/);
   assert.match(entry, /annual-reviews-isolated-print\.js\?v=20260730-isolated-print-v2/);
-  assert.match(printRuntime, /data-ar2-isolated-print-frame/);
+  assert.match(printRuntime, /window\.open\('', name/);
   assert.match(printRuntime, /doc\.write\(buildPrintDocument\(sourceRoot\)\)/);
   assert.match(printRuntime, /event\.stopImmediatePropagation\(\)/);
   assert.match(printRuntime, /printWindow\.print\(\)/);
-  assert.match(printRuntime, /height:\s*auto !important/);
-  assert.match(printRuntime, /overflow:\s*visible !important/);
+  assert.match(printRuntime, /visibility:\s*visible !important/);
+  assert.match(printRuntime, /opacity:\s*1 !important/);
+  assert.doesNotMatch(printRuntime, /data-ar2-isolated-print-frame|headResourcesHtml|opacity:\s*0/);
 });
