@@ -11,7 +11,7 @@ import {
 } from './instructor-scheduling-data.js';
 import {
   text, activeFlag, assigned, instructorCard, profileHtml, contactForm, constraintsForm, matchingForm
-} from './instructor-workspace-ui.js?v=20260730-instructor-matching-modal-v1';
+} from './instructor-workspace-ui.js?v=20260730-instructor-constraints-modal-v1';
 
 const ACTIVE_FILTERS = [{ value: 'yes', label: 'פעילים' }, { value: '', label: 'הכול' }, { value: 'no', label: 'לא פעילים' }];
 const ASSIGNMENT_FILTERS = [{ value: '', label: 'כל השיבוצים' }, { value: 'assigned', label: 'משובצים' }, { value: 'unassigned', label: 'לא משובצים' }];
@@ -184,6 +184,86 @@ export function bindInstructorMatchingModal(modalRoot, { row, saveProfile, onSuc
   });
 }
 
+export function bindInstructorConstraintsModal(modalRoot, {
+  row, saveProfile, saveWeeklyRules, saveException, deleteException, onExceptionChange, onSuccess
+} = {}) {
+  const form = modalRoot?.querySelector('.ds-modal__content [data-instructor-constraints-form]');
+  const saveButton = modalRoot?.querySelector('.ds-modal__footer [data-save-instructor-constraints]');
+  if (!form || !saveButton || saveButton.dataset.constraintsSaveBound === '1') return;
+  saveButton.dataset.constraintsSaveBound = '1';
+
+  const status = form.querySelector('[data-constraints-status]');
+  const showError = (error) => {
+    status.textContent = `שגיאה: ${String(error?.message || 'לא ניתן להשלים את הפעולה.')}`;
+    status.hidden = false;
+  };
+  const syncWeekday = (line) => {
+    const available = line.querySelector('[name="available"]');
+    const disabled = Number(line.dataset.weekdayRow) === 6 || !available?.checked;
+    line.querySelectorAll('[name="start_time"], [name="end_time"]').forEach((input) => { input.disabled = disabled; });
+  };
+  form.querySelectorAll('[data-weekday-row]').forEach((line) => {
+    syncWeekday(line);
+    line.querySelector('[name="available"]')?.addEventListener('change', () => syncWeekday(line));
+  });
+
+  form.querySelector('[data-add-availability-exception]')?.addEventListener('click', async (event) => {
+    const button = event.currentTarget;
+    const value = (name) => text(form.querySelector(`[name="${name}"]`)?.value);
+    try {
+      button.disabled = true;
+      status.hidden = true;
+      await saveException({ emp_id: row.emp_id, exception_date: value('exception_date'), available: value('exception_available') === 'yes', start_time: value('exception_start_time'), end_time: value('exception_end_time'), notes: value('exception_notes') });
+      await onExceptionChange?.('add');
+    } catch (error) {
+      showError(error);
+      button.disabled = false;
+    }
+  });
+  form.querySelectorAll('[data-delete-availability-exception]').forEach((button) => button.addEventListener('click', async () => {
+    try {
+      button.disabled = true;
+      status.hidden = true;
+      await deleteException(button.dataset.deleteAvailabilityException);
+      await onExceptionChange?.('delete');
+    } catch (error) {
+      showError(error);
+      button.disabled = false;
+    }
+  }));
+
+  saveButton.addEventListener('click', async () => {
+    if (saveButton.disabled) return;
+    const originalText = saveButton.textContent;
+    const input = (name) => form.querySelector(`[name="${name}"]`);
+    const rules = [...form.querySelectorAll('[data-weekday-row]')].map((line) => ({
+      weekday: Number(line.dataset.weekdayRow),
+      available: Number(line.dataset.weekdayRow) !== 6 && !!line.querySelector('[name="available"]')?.checked,
+      start_time: line.querySelector('[name="start_time"]')?.value,
+      end_time: line.querySelector('[name="end_time"]')?.value
+    }));
+    saveButton.disabled = true;
+    saveButton.classList.add('is-loading');
+    saveButton.setAttribute('aria-busy', 'true');
+    saveButton.textContent = 'שומר...';
+    status.hidden = true;
+    status.textContent = '';
+    try {
+      await Promise.all([
+        saveProfile({ emp_id: row.emp_id, default_start_time: input('default_start_time')?.value, default_end_time: input('default_end_time')?.value, friday_allowed: !!input('friday_allowed')?.checked, notes: input('notes')?.value }),
+        saveWeeklyRules(row.emp_id, rules)
+      ]);
+      await onSuccess?.();
+    } catch (error) {
+      showError(error);
+      saveButton.disabled = false;
+      saveButton.classList.remove('is-loading');
+      saveButton.removeAttribute('aria-busy');
+      saveButton.textContent = originalText;
+    }
+  });
+}
+
 export const instructorsScreen = {
   async load({ api }) {
     const [base, contacts, scheduling] = await Promise.all([api.instructors(), api.instructorContacts(), loadInstructorSchedulingData()]);
@@ -283,20 +363,14 @@ export const instructorsScreen = {
     const openConstraints = (row, reopen) => {
       if (!canEdit || !data?.scheduling?.loaded) return;
       ui.closeDrawer?.();
-      ui.openModal({ title: `זמינות ואילוצים — ${row.full_name || row.emp_id}`, content: constraintsForm(row), actions: '<button type="button" class="ds-btn ds-btn--primary" data-save-instructor-constraints>שמירת זמינות</button><button type="button" class="ds-btn" data-ui-close-modal>סגירה</button>' });
-      const modal = document.querySelector('.ds-modal__content');
-      const status = modal?.querySelector('[data-constraints-status]');
-      modal?.querySelector('[data-add-availability-exception]')?.addEventListener('click', async (event) => {
-        const get = (name) => text(modal.querySelector(`[name="${name}"]`)?.value);
-        try { event.currentTarget.disabled = true; await saveInstructorAvailabilityException({ emp_id: row.emp_id, exception_date: get('exception_date'), available: get('exception_available') === 'yes', start_time: get('exception_start_time'), end_time: get('exception_end_time'), notes: get('exception_notes') }); await refresh(row); ui.closeModal(); showToast('החריג נשמר', 'success', 1600); openConstraints(row, reopen); } catch (error) { status.textContent = `שגיאה: ${String(error?.message || '')}`; } finally { event.currentTarget.disabled = false; }
+      ui.openModal({ title: `זמינות ואילוצים — ${row.full_name || row.emp_id}`, modalClass: 'ds-modal--instructor-constraints', content: constraintsForm(row), actions: '<button type="button" class="ds-btn" data-ui-close-modal>סגירה</button><button type="button" class="ds-btn ds-btn--primary" data-save-instructor-constraints>שמירת זמינות</button>' });
+      const modalRoot = document.querySelector('.ds-modal.ds-modal--instructor-constraints');
+      bindInstructorConstraintsModal(modalRoot, {
+        row, saveProfile: saveInstructorSchedulingProfile, saveWeeklyRules: saveInstructorWeeklyRules,
+        saveException: saveInstructorAvailabilityException, deleteException: deleteInstructorAvailabilityException,
+        onExceptionChange: async (action) => { await refresh(row); ui.closeModal(); showToast(action === 'add' ? 'החריג נשמר' : 'החריג נמחק', 'success', 1600); openConstraints(row, reopen); },
+        onSuccess: async () => { await refresh(row); ui.closeModal(); showToast('הזמינות והאילוצים נשמרו', 'success', 1800); rerender(); reopen?.(); }
       });
-      modal?.querySelectorAll('[data-delete-availability-exception]').forEach((button) => button.addEventListener('click', async () => { try { button.disabled = true; await deleteInstructorAvailabilityException(button.dataset.deleteAvailabilityException); await refresh(row); ui.closeModal(); showToast('החריג נמחק', 'success', 1400); openConstraints(row, reopen); } catch (error) { status.textContent = `שגיאה: ${String(error?.message || '')}`; button.disabled = false; } }));
-      const save = modal?.querySelector('[data-save-instructor-constraints]');
-      save.onclick = async () => {
-        const get = (name) => modal.querySelector(`[name="${name}"]`);
-        const rules = [...modal.querySelectorAll('[data-weekday-row]')].map((line) => ({ weekday: Number(line.dataset.weekdayRow), available: !!line.querySelector('[name="available"]')?.checked, start_time: line.querySelector('[name="start_time"]')?.value, end_time: line.querySelector('[name="end_time"]')?.value }));
-        try { save.disabled = true; await Promise.all([saveInstructorSchedulingProfile({ emp_id: row.emp_id, default_start_time: get('default_start_time')?.value, default_end_time: get('default_end_time')?.value, friday_allowed: !!get('friday_allowed')?.checked, notes: get('notes')?.value }), saveInstructorWeeklyRules(row.emp_id, rules)]); await refresh(row); ui.closeModal(); showToast('הזמינות והאילוצים נשמרו', 'success', 1800); rerender(); reopen?.(); } catch (error) { status.textContent = `שגיאה: ${String(error?.message || '')}`; } finally { save.disabled = false; }
-      };
     };
 
     root.querySelectorAll('[data-instructor-profile]').forEach((button) => button.addEventListener('click', async () => {

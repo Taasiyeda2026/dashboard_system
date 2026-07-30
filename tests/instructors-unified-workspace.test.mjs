@@ -2,8 +2,8 @@ import { test } from 'node:test';
 import assert from 'node:assert/strict';
 import { JSDOM } from 'jsdom';
 
-import { bindInstructorMatchingModal, instructorsScreen } from '../frontend/src/screens/instructors.js';
-import { matchingForm, profileHtml } from '../frontend/src/screens/instructor-workspace-ui.js';
+import { bindInstructorConstraintsModal, bindInstructorMatchingModal, instructorsScreen } from '../frontend/src/screens/instructors.js';
+import { constraintsForm, matchingForm, profileHtml } from '../frontend/src/screens/instructor-workspace-ui.js';
 
 function rows() {
   return [
@@ -131,4 +131,85 @@ test('matching modal keeps entered values and re-enables save after a failure', 
     Object.assign(globalThis, saved);
     dom.window.close();
   }
+});
+
+function constraintsModal(row) {
+  return new JSDOM(`<section class="ds-modal ds-modal--instructor-constraints"><div class="ds-modal__content">${constraintsForm(row)}</div><footer class="ds-modal__footer"><button data-ui-close-modal>סגירה</button><button data-save-instructor-constraints>שמירת זמינות</button></footer></section>`);
+}
+
+test('constraints footer save binds once, locks during saving, and submits all weekdays', async () => {
+  const row = { emp_id: '1500', scheduling_profile: { friday_allowed: false }, availability_rules: [], availability_exceptions: [] };
+  const dom = constraintsModal(row);
+  let profileCalls = 0;
+  let rulesCalls = 0;
+  let profilePayload;
+  let rulesPayload;
+  let successCalls = 0;
+  let release;
+  const pending = new Promise((resolve) => { release = resolve; });
+  try {
+    const modal = dom.window.document.querySelector('.ds-modal');
+    const options = { row, saveProfile: async (payload) => { profileCalls += 1; profilePayload = payload; await pending; }, saveWeeklyRules: async (_empId, rules) => { rulesCalls += 1; rulesPayload = rules; }, onSuccess: () => { successCalls += 1; } };
+    bindInstructorConstraintsModal(modal, options);
+    bindInstructorConstraintsModal(modal, options);
+    assert.ok(modal.querySelector('.ds-modal__footer [data-save-instructor-constraints]'));
+    const unavailable = modal.querySelector('[data-weekday-row="2"]');
+    unavailable.querySelector('[name="available"]').click();
+    assert.equal(unavailable.querySelector('[name="start_time"]').disabled, true);
+    modal.querySelector('[name="friday_allowed"]').checked = true;
+    const save = modal.querySelector('[data-save-instructor-constraints]');
+    save.click();
+    save.click();
+    assert.equal(profileCalls, 1);
+    assert.equal(rulesCalls, 1);
+    assert.equal(save.disabled, true);
+    assert.equal(save.textContent, 'שומר...');
+    assert.equal(save.getAttribute('aria-busy'), 'true');
+    assert.equal(rulesPayload.length, 7);
+    assert.deepEqual(rulesPayload.map((rule) => rule.weekday), [0, 1, 2, 3, 4, 5, 6]);
+    assert.equal(rulesPayload.find((rule) => rule.weekday === 2).available, false);
+    assert.equal(rulesPayload.find((rule) => rule.weekday === 6).available, false);
+    assert.equal(profilePayload.friday_allowed, true);
+    release();
+    await pending;
+    await new Promise((resolve) => setTimeout(resolve, 0));
+    assert.equal(successCalls, 1);
+  } finally { dom.window.close(); }
+});
+
+test('constraints save failure preserves values and restores its footer button', async () => {
+  const row = { emp_id: '1500', scheduling_profile: {}, availability_rules: [], availability_exceptions: [] };
+  const dom = constraintsModal(row);
+  try {
+    const modal = dom.window.document.querySelector('.ds-modal');
+    bindInstructorConstraintsModal(modal, { row, saveProfile: async () => { throw new Error('תקלה זמנית'); }, saveWeeklyRules: async () => {} });
+    modal.querySelector('[name="notes"]').value = 'לא למחוק';
+    const save = modal.querySelector('[data-save-instructor-constraints]');
+    save.click();
+    await new Promise((resolve) => setTimeout(resolve, 0));
+    assert.equal(modal.querySelector('[name="notes"]').value, 'לא למחוק');
+    assert.equal(save.disabled, false);
+    assert.equal(save.textContent, 'שמירת זמינות');
+    assert.equal(save.hasAttribute('aria-busy'), false);
+    assert.match(modal.querySelector('[data-constraints-status]').textContent, /תקלה זמנית/);
+    assert.ok(modal.isConnected);
+  } finally { dom.window.close(); }
+});
+
+test('constraints exception add and delete actions remain connected', async () => {
+  const row = { emp_id: '1500', scheduling_profile: {}, availability_rules: [], availability_exceptions: [{ id: 'ex-1', exception_date: '2026-08-02', available: false }] };
+  const dom = constraintsModal(row);
+  const actions = [];
+  try {
+    const modal = dom.window.document.querySelector('.ds-modal');
+    bindInstructorConstraintsModal(modal, { row, saveProfile: async () => {}, saveWeeklyRules: async () => {}, saveException: async (payload) => { actions.push(['add', payload]); }, deleteException: async (id) => { actions.push(['delete', id]); }, onExceptionChange: async (action) => { actions.push(['refresh', action]); } });
+    modal.querySelector('[name="exception_date"]').value = '2026-08-03';
+    modal.querySelector('[data-add-availability-exception]').click();
+    await new Promise((resolve) => setTimeout(resolve, 0));
+    modal.querySelector('[data-delete-availability-exception]').click();
+    await new Promise((resolve) => setTimeout(resolve, 0));
+    assert.equal(actions[0][0], 'add');
+    assert.equal(actions[0][1].exception_date, '2026-08-03');
+    assert.deepEqual(actions.slice(1), [['refresh', 'add'], ['delete', 'ex-1'], ['refresh', 'delete']]);
+  } finally { dom.window.close(); }
 });
