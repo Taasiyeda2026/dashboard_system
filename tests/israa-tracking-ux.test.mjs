@@ -35,7 +35,7 @@ test('summary cards remain four equal columns', () => {
 });
 
 test('application entry cache-busts the exact Israa modules', () => {
-  assert.match(entry, /israa-tracking-v2-runtime\.js\?v=20260729-israa-linked-proposals-v3/);
-  assert.match(entry, /israa-tracking-filters-runtime\.js\?v=20260729-israa-linked-proposals-v3/);
+  assert.match(entry, /israa-tracking-v2-runtime\.js\?v=20260730-israa-excel-drawer-v4/);
+  assert.match(entry, /israa-tracking-filters-runtime\.js\?v=20260730-israa-excel-drawer-v4/);
   assert.doesNotMatch(entry, /israa-tracking-horizontal-scroll\.js/);
 });

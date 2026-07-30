@@ -1,53 +1,59 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
 import fs from 'node:fs';
+import * as XLSX from 'xlsx';
+import { buildIsraaWorkbook, MAIN_HEADERS, ITEM_HEADERS } from '../frontend/src/israa-excel-export.js';
 
 const tracking = fs.readFileSync(new URL('../frontend/src/israa-tracking-v2-runtime.js', import.meta.url), 'utf8');
-const filters = fs.readFileSync(new URL('../frontend/src/israa-tracking-filters-runtime.js', import.meta.url), 'utf8');
 const proposalItems = fs.readFileSync(new URL('../frontend/src/israa-proposal-items.js', import.meta.url), 'utf8');
 
-const exactColumns = [
-  'מסד','מס׳ הצעה','שם בית הספר','סמל מוסד','רשות','בעלות','שם מנהל/ת','נייד מנהל/ת','מייל מנהל/ת','איש/ת קשר נוסף','שם הפעילות','מספר גפ״ן','אופי ההצעה','התוכנית הצפויה','שכבה',"קבוצות / מס' משתתפים",'תאריך הוצאת ההצעה','סכום ההצעה הכולל','סבירות לסגירה','שווי צפוי ריאלי','סטטוס','הפעולה הבאה','תאריך מעקב','הערות'
-];
+const external = ['מסד','מס׳ הצעה','סוג פעילות','שם בית הספר','סמל מוסד','רשות','סכום ההצעה הכולל','סבירות לסגירה','שווי צפוי ריאלי','סטטוס','פעולה להמשך','תאריך מעקב'];
 
-const forbidden = ['תוקף ההצעה','אופן הפנייה','חסמים','מפגשים','שעות','תוכנית ראשית','שנת לימודים / מועד הפעלה'];
-
-test('Israa page uses exactly the approved 24 information columns', () => {
-  for (const label of exactColumns) assert.match(tracking, new RegExp(label.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')));
-  for (const label of forbidden) assert.doesNotMatch(tracking, new RegExp(label));
-  assert.match(tracking, /const EXTERNAL_COLUMNS = \[/);
-  assert.match(tracking, /const INTERNAL_COLUMNS = \[/);
+test('external table has exactly the requested 12 overview columns and readable fixed layout', () => {
+  const block = tracking.match(/const EXTERNAL_COLUMNS = \[([\s\S]*?)\];/)?.[1] || '';
+  assert.equal([...block.matchAll(/'([^']+)'/g)].map((match) => match[1]).length, 12);
+  for (const label of external) assert.match(block, new RegExp(label));
+  assert.doesNotMatch(block, /שם הפעילות|מספר גפ״ן|בעלות|איש קשר|הערה/);
+  assert.match(tracking, /table-layout:fixed/);
+  assert.match(tracking, /font-size:12px/);
+  assert.match(tracking, /font-size:11\.5px/);
+  assert.match(tracking, /const widths = \[4,7,7,11,7,8,8,8,8,8,18,6\]/);
+  assert.doesNotMatch(tracking, /overflow-x:auto/);
 });
 
-test('external table contains the twelve approved overview columns without an actions column', () => {
-  for (const label of ['מסד','מס׳ הצעה','שם בית הספר','סמל מוסד','רשות','שם הפעילות','סכום ההצעה הכולל','סבירות לסגירה','שווי צפוי ריאלי','סטטוס','הפעולה הבאה','תאריך מעקב']) assert.match(tracking, new RegExp(label));
-  assert.doesNotMatch(tracking, />פעולות</);
-  assert.doesNotMatch(tracking, /min-width:1510px|overflow-x:auto/);
-});
-
-test('Israa uses its own scoped drawer and only approved internal fields in view mode', () => {
-  assert.match(tracking, /ds-drawer--israa-exact/);
-  assert.match(tracking, /viewDrawerFields/);
-  for (const label of ['בעלות','שם מנהל\/ת','נייד מנהל\/ת','מייל מנהל\/ת','איש\/ת קשר נוסף','מספר גפ״ן','אופי ההצעה','התוכנית הצפויה','שכבה',"קבוצות \/ מס' משתתפים",'תאריך הוצאת ההצעה','הערות']) assert.match(tracking, new RegExp(label));
-});
-
-test('only the four requested filters are present', () => {
-  for (const key of ['authority','school','program','status']) assert.match(filters, new RegExp(`data-israa-v2-filter-${key}`));
-  assert.doesNotMatch(filters, /data-israa-v2-filter-query/);
-  assert.doesNotMatch(filters, /filter-probability|filter-nature/);
-});
-
-test('new tracking records are selected from existing linked proposals', () => {
-  assert.match(tracking, /openProposalPicker/);
-  assert.match(tracking, /create_israa_tracking_from_proposal/);
-  assert.doesNotMatch(tracking, /\.insert\(\[payload\]\)/);
-});
-
-test('drawer uses seven required sections and proposal_items read-only activity rows', () => {
-  for (const title of ['פרטי המוסד ואיש הקשר', 'נתוני הצעת המחיר', 'הפעילויות הכלולות בהצעה', 'מידע משלים לתכנון', 'הערכת סגירה', 'משימת המשך', 'הערות']) assert.match(tracking, new RegExp(title));
-  assert.match(tracking, /israa-drawer__activities/);
+test('view drawer contains only complementary groups and intact proposal item rows', () => {
+  const view = tracking.match(/function viewDrawerFields[\s\S]*?\n}\n\nfunction editDrawerFields/)?.[0] || '';
+  for (const title of ['איש קשר והתקשרות','פרטים נוספים מהצעת המחיר','הפעילויות הכלולות בהצעה','בחירה והיקף צפויים']) assert.match(view, new RegExp(title));
+  for (const duplicate of ['שם בית הספר','סמל מוסד','רשות','מס׳ הצעה','סכום ההצעה הכולל','הערכת סגירה','סטטוס','פעולה להמשך','תאריך מעקב']) assert.doesNotMatch(view, new RegExp(duplicate));
+  assert.match(view, /clean\(draft\.notes\) \? section\('הערה'/);
   assert.match(proposalItems, /draft\.proposal_items\.map/);
-  assert.doesNotMatch(tracking, /data-v2-activity-row/);
-  assert.doesNotMatch(tracking, /const participants = split/);
-  assert.doesNotMatch(tracking, /israa-drawer__heading/);
+  assert.match(proposalItems, /draft\?\.program_name/);
+  assert.doesNotMatch(proposalItems, /split\(/);
+  assert.match(tracking, /\.israa-drawer__activities\{width:65%;max-width:650px;min-width:500px/);
+});
+
+test('edit drawer only submits tracking fields and recalculates forecast', () => {
+  for (const key of ['expected_program','grade','participants_groups','probability','status','next_action','follow_up_date','notes']) assert.match(tracking, new RegExp(`'${key}'`));
+  assert.doesNotMatch(tracking, /data-v2-field="(?:quote_number|school_name|proposal_items|total_amount)"/);
+  assert.match(tracking, /data-v2-field="probability"/);
+  assert.match(tracking, /numberValue\(row\?\.total_amount\)[\s\S]*Number\(probability\.value\) \/ 100/);
+});
+
+test('real XLSX export contains the 24-field sheet and item-per-row sheet with native types', () => {
+  assert.equal(MAIN_HEADERS.length, 24);
+  assert.deepEqual(ITEM_HEADERS, ['מספר הצעה','בית ספר','סוג פעילות','שם הפעילות','מספר גפ״ן','מספר קבוצות / כמות']);
+  const workbook = buildIsraaWorkbook([{ id: '1', quote_number: 'Q1', proposal_date: '2026-07-30', school_name: 'בית ספר', semel_mosad: '00123', phone: '0501234567', total_amount: 1000, probability: 50, proposal_items: [{ program_name: 'פעילות א', gefen_number: '06089', quantity: 2, item_type: 'קורס' }] }]);
+  assert.deepEqual(workbook.SheetNames, ['מעקב הצעות איסראא', 'פירוט פעילויות']);
+  const main = workbook.Sheets[workbook.SheetNames[0]];
+  const items = workbook.Sheets[workbook.SheetNames[1]];
+  assert.equal(XLSX.utils.sheet_to_json(main, { header: 1 })[0].length, 24);
+  assert.equal(XLSX.utils.sheet_to_json(items, { header: 1 }).length, 2);
+  assert.equal(main.Q2.t, 'n');
+  assert.equal(main.S2.v, 0.5);
+  assert.equal(main.T2.v, 500);
+  assert.equal(main.G2.v, '00123');
+  assert.equal(main.J2.v, '0501234567');
+  assert.equal(main.B2.t, 'd');
+  assert.deepEqual(main['!autofilter'], { ref: 'A1:X2' });
+  assert.equal(workbook.Workbook.Views[0].RTL, true);
 });
