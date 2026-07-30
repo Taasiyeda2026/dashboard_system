@@ -19,8 +19,12 @@ export function proposalItemRows(draft) {
 
 export function activitiesTable(draft) {
   const items = proposalItemRows(draft);
-  const cells = items.length
-    ? items.map((item) => `<tr><td>${escapeHtml(item.program_name || '—')}</td><td>${escapeHtml(item.gefen_number || '—')}</td><td>${escapeHtml(item.quantity ?? '—')}</td></tr>`).join('')
-    : '<tr><td colspan="3">לא נמצאו פעילויות בהצעה המקושרת.</td></tr>';
+  if (!items.length) {
+    return `<div class="israa-drawer__legacy-activities">
+      <div><strong>פירוט ההצעה:</strong> ${escapeHtml(clean(draft?.program_name) || '—')}</div>
+      <div><strong>מספרי גפ״ן:</strong> ${escapeHtml(clean(draft?.gefen_numbers) || '—')}</div>
+    </div>`;
+  }
+  const cells = items.map((item) => `<tr><td>${escapeHtml(item.program_name || '—')}</td><td>${escapeHtml(item.gefen_number || '—')}</td><td>${escapeHtml(item.quantity ?? '—')}</td></tr>`).join('');
   return `<table class="israa-drawer__activities"><thead><tr><th>שם הפעילות</th><th>מספר גפ״ן</th><th>מספר קבוצות</th></tr></thead><tbody>${cells}</tbody></table>`;
 }

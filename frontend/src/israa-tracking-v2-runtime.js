@@ -4,6 +4,7 @@ import { showToast } from './screens/shared/toast.js';
 import { escapeHtml } from './screens/shared/html.js';
 import { createSharedInteractionLayer } from './screens/shared/interactions.js';
 import { activitiesTable } from './israa-proposal-items.js';
+import { exportIsraaWorkbook } from './israa-excel-export.js';
 
 const ISRAA_AUTH_USER_ID = '92bfb9d9-1b17-4022-901a-5f7cf17a263a';
 const ROOT_SELECTOR = '.israa-mgmt';
@@ -16,31 +17,16 @@ const ui = createSharedInteractionLayer();
 const EXTERNAL_COLUMNS = [
   'מסד',
   'מס׳ הצעה',
+  'סוג פעילות',
   'שם בית הספר',
   'סמל מוסד',
   'רשות',
-  'שם הפעילות',
   'סכום ההצעה הכולל',
   'סבירות לסגירה',
   'שווי צפוי ריאלי',
   'סטטוס',
-  'הפעולה הבאה',
+  'פעולה להמשך',
   'תאריך מעקב',
-];
-
-const INTERNAL_COLUMNS = [
-  'בעלות',
-  'שם מנהל/ת',
-  'נייד מנהל/ת',
-  'מייל מנהל/ת',
-  'איש/ת קשר נוסף',
-  'מספר גפ״ן',
-  'אופי ההצעה',
-  'התוכנית הצפויה',
-  'שכבה',
-  "קבוצות / מס' משתתפים",
-  'תאריך הוצאת ההצעה',
-  'הערות',
 ];
 
 let timer;
@@ -73,6 +59,8 @@ const activityNames = (row) => {
   }
   return clean(row?.program_name).split(/\s*[•;]\s*/).map(clean).filter(Boolean);
 };
+const activityType = (row) => clean(row?.activity_type || row?.activity_type_group || row?.proposal_type
+  || (Array.isArray(row?.proposal_items) ? row.proposal_items.find((item) => clean(item?.item_type))?.item_type : ''));
 
 function canUseScreen() {
   const user = state?.user || {};
@@ -108,10 +96,10 @@ function injectStyles() {
     .israa-v2__kpis{display:grid;grid-template-columns:repeat(4,minmax(0,1fr));gap:10px;width:100%;margin:0 0 12px}.israa-v2__kpi{min-width:0;min-height:68px;display:flex;flex-direction:column;justify-content:center;border:1px solid #e2e8f0;border-radius:11px;background:#fff;padding:9px 12px;box-shadow:0 1px 4px rgba(15,23,42,.04)}.israa-v2__kpi-label{color:#64748b;font-size:.72rem;font-weight:700;min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}.israa-v2__kpi-value{margin-top:3px;color:#0f172a;font-size:1.02rem;font-weight:850;min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
     .israa-v2__error{margin-bottom:8px;padding:8px 10px;border-radius:8px;background:#fee2e2;color:#991b1b;font-size:.8rem}.israa-v2__loading{padding:24px;text-align:center;color:#64748b}
     .israa-v2__wrap{width:100%;max-width:100%;min-width:0;overflow:hidden;direction:rtl;box-sizing:border-box;border:1px solid #dbe3ec;border-radius:11px;background:#fff;box-shadow:0 2px 8px rgba(26,51,88,.06)}
-    .israa-v2__table{width:100%;table-layout:fixed;border-collapse:collapse;font-size:clamp(10px,.7vw,11.5px)}.israa-v2__table th{padding:7px 4px;background:#f1f5f9;color:#334155;border-bottom:1px solid #cbd5e1;text-align:right;font-size:clamp(10px,.64vw,10.5px);font-weight:800;white-space:normal;overflow-wrap:anywhere;line-height:1.25}.israa-v2__table td{height:58px;padding:7px 4px;border-bottom:1px solid #e8edf3;vertical-align:middle;color:#1e293b;overflow:hidden;overflow-wrap:anywhere}.israa-v2__row{cursor:pointer}.israa-v2__row:hover td{background:#f8fafc}.israa-v2__center{text-align:center!important;font-variant-numeric:tabular-nums}.israa-v2__primary{font-weight:800;color:#0f172a}.israa-v2__clamp{display:-webkit-box;-webkit-line-clamp:3;-webkit-box-orient:vertical;overflow:hidden}.israa-v2__activity-line{display:block}.israa-v2__status{display:inline-block;max-width:100%;padding:3px 5px;border-radius:999px;font-size:10px;font-weight:800;white-space:normal;overflow-wrap:anywhere}.israa-v2__status.is-approved{background:#dcfce7;color:#166534}.israa-v2__status.is-sent{background:#dbeafe;color:#1d4ed8}.israa-v2__status.is-waiting{background:#fef3c7;color:#92400e}.israa-v2__status.is-closed{background:#e5e7eb;color:#475569}.israa-v2__status.is-draft{background:#f1f5f9;color:#475569}.israa-v2__status.is-active{background:#ede9fe;color:#6d28d9}.israa-v2__empty{padding:28px!important;text-align:center;color:#64748b}
-    .ds-drawer.ds-drawer--israa-exact{width:min(960px,64vw);max-width:calc(100vw - 32px)}.ds-drawer.ds-drawer--israa-exact .ds-drawer__content{padding:0;overflow-y:auto;background:#f4f7fb}.ds-drawer.ds-drawer--israa-detail>.ds-drawer__header{display:none}.israa-drawer{direction:rtl;color:#1e293b;min-height:100%;background:#f4f7fb}.israa-drawer__header{position:sticky;top:0;z-index:4;display:flex;align-items:center;justify-content:space-between;gap:18px;min-height:72px;padding:14px 18px;background:#142a46;color:#fff;box-shadow:0 2px 8px rgba(15,23,42,.16)}.israa-drawer__title-wrap{min-width:0}.israa-drawer__title{margin:0;color:#fff;font-size:18px;font-weight:850;line-height:1.35;overflow-wrap:anywhere}.israa-drawer__header-actions{display:inline-flex;align-items:center;gap:8px;flex:0 0 auto}.israa-drawer__header .israa-v2__btn{border-color:rgba(255,255,255,.4);background:rgba(255,255,255,.1);color:#fff}.israa-drawer__header .israa-v2__btn:hover{background:rgba(255,255,255,.18)}.israa-drawer__close{display:grid;place-items:center;width:36px;height:36px;padding:0;border:1px solid rgba(255,255,255,.35);border-radius:8px;background:transparent;color:#fff;font:inherit;font-size:18px;cursor:pointer;pointer-events:auto}.israa-drawer__close:hover{background:rgba(255,255,255,.14)}.israa-drawer__body{display:grid;gap:12px;padding:16px 18px 22px}.israa-drawer__section{border:1px solid #dce3ec;border-radius:11px;padding:14px 16px;background:#fff;box-shadow:0 1px 3px rgba(15,23,42,.04)}.israa-drawer__section--source,.israa-drawer__section--activities,.israa-drawer__section--tracking,.israa-drawer__section--notes{background:#fff}.israa-drawer__section-title{margin:0 0 12px;color:#1e3a5f;font-size:15px;font-weight:800}.israa-drawer__grid{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:13px 16px}.israa-drawer__field{min-width:0}.israa-drawer__field--wide{grid-column:1/-1}.israa-drawer__label{display:block;margin-bottom:4px;color:#64748b;font-size:11px;font-weight:700}.israa-drawer__value{min-height:20px;color:#1e293b;white-space:pre-wrap;overflow-wrap:anywhere;font-size:13px;line-height:1.5}.israa-drawer__readonly{padding:8px;border:1px solid #dce3ec;border-radius:7px;background:#f8fafc;font-weight:750}.israa-drawer__form{display:contents}.israa-v2__input,.israa-v2__select,.israa-v2__textarea{width:100%;min-width:0;box-sizing:border-box;border:1px solid #cbd5e1;border-radius:7px;padding:8px;background:#fff;color:#1e293b;font:inherit;font-size:13px}.israa-v2__input:focus,.israa-v2__select:focus,.israa-v2__textarea:focus{outline:2px solid rgba(37,99,235,.2);border-color:#2563eb}.israa-v2__textarea{min-height:82px;resize:vertical}.israa-drawer__activities{width:100%;table-layout:fixed;border-collapse:separate;border-spacing:0;border:1px solid #dce3ec;border-radius:8px;overflow:hidden;font-size:13px}.israa-drawer__activities th{padding:9px;background:#f1f5f9;color:#334155;border-bottom:1px solid #dce3ec;text-align:right}.israa-drawer__activities td{padding:9px;border-bottom:1px solid #e7ecf2;vertical-align:top;overflow-wrap:anywhere}.israa-drawer__activities tbody tr:last-child td{border-bottom:0}.israa-drawer__activities th+th,.israa-drawer__activities td+td{border-right:1px solid #e7ecf2}.israa-drawer__activities th:nth-child(1){width:55%}.israa-drawer__activities th:nth-child(2){width:25%}.israa-drawer__activities th:nth-child(3){width:20%}.israa-drawer__danger-row{display:flex;justify-content:flex-end;padding:0 18px 18px}.israa-drawer__error{color:#b91c1c;font-size:.78rem}
+    .israa-v2__table{width:100%;table-layout:fixed;border-collapse:collapse;font-size:12px}.israa-v2__table th{padding:7px 4px;background:#f1f5f9;color:#334155;border-bottom:1px solid #cbd5e1;text-align:right;font-size:11.5px;font-weight:800;white-space:normal;overflow-wrap:anywhere;line-height:1.25}.israa-v2__table td{height:58px;padding:7px 4px;border-bottom:1px solid #e8edf3;vertical-align:middle;color:#1e293b;overflow:hidden;overflow-wrap:anywhere}.israa-v2__row{cursor:pointer}.israa-v2__row:hover td{background:#f8fafc}.israa-v2__center{text-align:center!important;font-variant-numeric:tabular-nums}.israa-v2__primary{font-weight:800;color:#0f172a}.israa-v2__clamp{display:-webkit-box;-webkit-line-clamp:3;-webkit-box-orient:vertical;overflow:hidden}.israa-v2__status{display:inline-block;max-width:100%;padding:3px 5px;border-radius:999px;font-size:11px;font-weight:800;white-space:normal;overflow-wrap:anywhere}.israa-v2__status.is-approved{background:#dcfce7;color:#166534}.israa-v2__status.is-sent{background:#dbeafe;color:#1d4ed8}.israa-v2__status.is-waiting{background:#fef3c7;color:#92400e}.israa-v2__status.is-closed{background:#e5e7eb;color:#475569}.israa-v2__status.is-draft{background:#f1f5f9;color:#475569}.israa-v2__status.is-active{background:#ede9fe;color:#6d28d9}.israa-v2__empty{padding:28px!important;text-align:center;color:#64748b}
+    .ds-drawer.ds-drawer--israa-exact{width:min(960px,64vw);max-width:calc(100vw - 32px)}.ds-drawer.ds-drawer--israa-exact .ds-drawer__content{padding:0;overflow-y:auto;background:#f4f7fb}.ds-drawer.ds-drawer--israa-detail>.ds-drawer__header{display:none}.israa-drawer{direction:rtl;color:#1e293b;min-height:100%;background:#f4f7fb}.israa-drawer__header{position:sticky;top:0;z-index:4;display:flex;align-items:center;justify-content:space-between;gap:18px;min-height:72px;padding:14px 18px;background:#142a46;color:#fff;box-shadow:0 2px 8px rgba(15,23,42,.16)}.israa-drawer__title-wrap{min-width:0}.israa-drawer__title{margin:0;color:#fff;font-size:18px;font-weight:850;line-height:1.35;overflow-wrap:anywhere}.israa-drawer__header-actions{display:inline-flex;align-items:center;gap:8px;flex:0 0 auto}.israa-drawer__header .israa-v2__btn{border-color:#0d9488;background:#0d9488;color:#fff}.israa-drawer__header .israa-v2__btn:hover{background:#0f766e}.israa-drawer__close{display:grid;place-items:center;width:36px;height:36px;padding:0;border:1px solid rgba(255,255,255,.35);border-radius:8px;background:transparent;color:#fff;font:inherit;font-size:18px;cursor:pointer;pointer-events:auto}.israa-drawer__close:hover{background:rgba(255,255,255,.14)}.israa-drawer__body{display:grid;gap:12px;padding:16px 18px 22px}.israa-drawer__section{border:1px solid #dce3ec;border-radius:11px;padding:14px 16px;background:#fff;box-shadow:0 1px 3px rgba(15,23,42,.04)}.israa-drawer__section-title{margin:0 0 12px;color:#1e3a5f;font-size:15px;font-weight:800}.israa-drawer__grid{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:13px 16px}.israa-drawer__field{min-width:0}.israa-drawer__field--wide{grid-column:1/-1}.israa-drawer__field--short{max-width:180px}.israa-drawer__label{display:block;margin-bottom:4px;color:#64748b;font-size:11px;font-weight:700}.israa-drawer__value{min-height:20px;color:#1e293b;white-space:pre-wrap;overflow-wrap:anywhere;font-size:13px;line-height:1.5}.israa-drawer__tag{display:inline-flex;padding:4px 9px;border:1px solid #cbd5e1;border-radius:999px;background:#f8fafc;font-weight:750}.israa-drawer__readonly{padding:8px;border:1px solid #dce3ec;border-radius:7px;background:#f8fafc;font-weight:750}.israa-drawer__form{display:contents}.israa-v2__input,.israa-v2__select,.israa-v2__textarea{width:100%;min-width:0;box-sizing:border-box;border:1px solid #cbd5e1;border-radius:7px;padding:8px;background:#fff;color:#1e293b;font:inherit;font-size:13px}.israa-v2__input:focus,.israa-v2__select:focus,.israa-v2__textarea:focus{outline:2px solid rgba(37,99,235,.2);border-color:#2563eb}.israa-v2__textarea{min-height:82px;resize:vertical}.israa-v2__textarea[data-v2-field="next_action"]{min-height:96px}.israa-drawer__activities{width:65%;max-width:650px;min-width:500px;table-layout:fixed;border-collapse:separate;border-spacing:0;border:1px solid #dce3ec;border-radius:8px;overflow:hidden;font-size:13px;background:#fff;margin-right:0;margin-left:auto}.israa-drawer__activities th{padding:8px;background:#f1f5f9;color:#334155;border-bottom:1px solid #dce3ec;text-align:right}.israa-drawer__activities td{height:40px;padding:8px;border-bottom:1px solid #e7ecf2;vertical-align:middle;overflow-wrap:anywhere}.israa-drawer__activities tbody tr:last-child td{border-bottom:0}.israa-drawer__activities th+th,.israa-drawer__activities td+td{border-right:1px solid #e7ecf2}.israa-drawer__activities th:nth-child(1){width:58%}.israa-drawer__activities th:nth-child(2){width:24%}.israa-drawer__activities th:nth-child(3){width:18%}.israa-drawer__legacy-activities{display:grid;gap:8px;white-space:pre-wrap;font-size:13px}.israa-drawer__error{color:#b91c1c;font-size:.78rem}
     @media(max-width:1100px){.israa-v2{width:96%}.ds-drawer.ds-drawer--israa-exact{width:min(960px,78vw)}}
-    @media(max-width:760px){.israa-v2{width:calc(100% - 12px)}.israa-v2__kpis{grid-template-columns:repeat(2,minmax(0,1fr))}.ds-drawer.ds-drawer--israa-exact{width:calc(100vw - 16px);max-width:calc(100vw - 16px)}.israa-drawer__grid{grid-template-columns:repeat(2,minmax(0,1fr))}.israa-drawer__body{padding-inline:12px}}
+    @media(max-width:760px){.israa-v2{width:calc(100% - 12px)}.israa-v2__kpis{grid-template-columns:repeat(2,minmax(0,1fr))}.ds-drawer.ds-drawer--israa-exact{width:calc(100vw - 16px);max-width:calc(100vw - 16px)}.israa-drawer__grid{grid-template-columns:repeat(2,minmax(0,1fr))}.israa-drawer__body{padding-inline:12px}.israa-drawer__activities{width:100%;min-width:0}}
     @media(max-width:460px){.israa-v2__kpis{grid-template-columns:1fr}.israa-drawer__grid{grid-template-columns:1fr}.israa-drawer__field--wide{grid-column:auto}}
   `;
   document.head.appendChild(style);
@@ -138,6 +126,7 @@ function searchableRowText(row, index) {
   return [
     index + 1,
     row.quote_number,
+    activityType(row),
     row.school_name,
     row.semel_mosad,
     row.authority,
@@ -181,10 +170,10 @@ function rowHtml(row, index) {
   return `<tr class="israa-v2__row" tabindex="0" data-v2-row-id="${escapeHtml(row.id)}" data-v2-open="${escapeHtml(row.id)}" data-v2-search-text="${escapeHtml(searchableRowText(row, index))}" data-v2-programs="${escapeHtml(programs.join('|'))}">
     <td class="israa-v2__center">${index + 1}</td>
     <td class="israa-v2__center"><span class="israa-v2__primary">${escapeHtml(clean(row.quote_number) || '—')}</span></td>
+    <td><div class="israa-v2__clamp">${escapeHtml(activityType(row) || '—')}</div></td>
     <td><div class="israa-v2__primary israa-v2__clamp">${escapeHtml(clean(row.school_name) || '—')}</div></td>
     <td class="israa-v2__center">${escapeHtml(clean(row.semel_mosad) || '—')}</td>
     <td><div class="israa-v2__clamp">${escapeHtml(clean(row.authority) || '—')}</div></td>
-    <td><div class="israa-v2__primary israa-v2__clamp">${programs.length ? programs.map((name) => `<span class="israa-v2__activity-line">${escapeHtml(name)}</span>`).join('') : '—'}</div></td>
     <td class="israa-v2__center"><span class="israa-v2__primary">${escapeHtml(formatMoney(row.total_amount))}</span></td>
     <td class="israa-v2__center">${escapeHtml(`${numberValue(row.probability) || 0}%`)}</td>
     <td class="israa-v2__center"><span class="israa-v2__primary">${escapeHtml(formatMoney(realisticValue(row)))}</span></td>
@@ -198,7 +187,7 @@ function tableHtml() {
   const body = rows.length
     ? rows.map(rowHtml).join('')
     : `<tr><td colspan="${EXTERNAL_COLUMNS.length}" class="israa-v2__empty">אין הצעות במעקב.</td></tr>`;
-  const widths = [3.5,6.5,12,6,8,16,8.5,7,8.5,7.5,10,6.5];
+  const widths = [4,7,7,11,7,8,8,8,8,8,18,6];
   return `<div class="israa-v2__wrap"><table class="israa-v2__table" dir="rtl"><colgroup>${widths.map((width) => `<col style="width:${width}%">`).join('')}</colgroup><thead><tr>${EXTERNAL_COLUMNS.map((label, index) => `<th${[0,1,3,6,7,8,9,11].includes(index) ? ' class="israa-v2__center"' : ''}>${escapeHtml(label)}</th>`).join('')}</tr></thead><tbody>${body}</tbody></table></div>`;
 }
 
@@ -281,48 +270,41 @@ function section(title, fields, className = '') {
 
 function viewDrawerFields(draft, serial) {
   const contact = [
-    valueField('שם בית הספר', draft.school_name), valueField('סמל מוסד', draft.semel_mosad), valueField('רשות', draft.authority),
     valueField('בעלות', draft.ownership),
-    valueField('שם מנהל/ת', draft.manager_name),
-    valueField('נייד מנהל/ת', draft.manager_phone, '', 'tel'),
-    valueField('מייל מנהל/ת', draft.manager_email, '', 'email'),
-    valueField('איש/ת קשר נוסף', draft.additional_contact),
+    valueField('איש קשר', draft.contact_person || draft.manager_name),
+    valueField('תפקיד', draft.contact_role || draft.role || draft.additional_contact),
+    valueField('טלפון', draft.phone || draft.manager_phone, '', 'tel'),
+    valueField('דוא״ל', draft.email || draft.manager_email, '', 'email'),
   ].join('');
-  const proposal = [valueField('מס׳ הצעה', draft.quote_number), valueField('תאריך הוצאת ההצעה', formatDate(draft.proposal_date)), valueField('סכום ההצעה הכולל', formatMoney(draft.total_amount))].join('');
-  const planning = [valueField('אופי ההצעה', draft.proposal_nature), valueField('התוכנית הצפויה', draft.expected_program), valueField('שכבה', draft.grade), valueField("קבוצות / מס' משתתפים", draft.participants_groups)].join('');
-  const closing = [valueField('סבירות לסגירה', `${numberValue(draft.probability) || 0}%`), valueField('שווי צפוי ריאלי', formatMoney(realisticValue(draft))), valueField('סטטוס', draft.status)].join('');
-  const followup = [valueField('הפעולה הבאה', draft.next_action, 'israa-drawer__field--wide'), valueField('תאריך מעקב', formatDate(draft.follow_up_date))].join('');
-  return section('פרטי המוסד ואיש הקשר', `<div class="israa-drawer__grid">${contact}</div>`, 'israa-drawer__section--source')
-    + section('נתוני הצעת המחיר', `<div class="israa-drawer__grid">${proposal}</div>`, 'israa-drawer__section--source')
+  const proposal = `${valueField('תאריך הצעה', formatDate(draft.proposal_date))}<div class="israa-drawer__field"><span class="israa-drawer__label">מבנה ההצעה</span><div class="israa-drawer__value"><span class="israa-drawer__tag">${escapeHtml(clean(draft.proposal_nature) || '—')}</span></div></div>`;
+  const planning = [valueField('התוכנית הצפויה / בחירה נדרשת', draft.expected_program, 'israa-drawer__field--wide'), valueField('שכבה', draft.grade, 'israa-drawer__field--short'), valueField('קבוצות / משתתפים', draft.participants_groups)].join('');
+  return section('איש קשר והתקשרות', `<div class="israa-drawer__grid">${contact}</div>`)
+    + section('פרטים נוספים מהצעת המחיר', `<div class="israa-drawer__grid">${proposal}</div>`)
     + section('הפעילויות הכלולות בהצעה', activitiesTable(draft), 'israa-drawer__section--activities')
-    + section('מידע משלים לתכנון', `<div class="israa-drawer__grid">${planning}</div>`, 'israa-drawer__section--tracking')
-    + section('הערכת סגירה', `<div class="israa-drawer__grid">${closing}</div>`, 'israa-drawer__section--tracking')
-    + section('משימת המשך', `<div class="israa-drawer__grid">${followup}</div>`, 'israa-drawer__section--tracking')
-    + section('הערות', valueField('הערות', draft.notes), 'israa-drawer__section--notes');
+    + section('בחירה והיקף צפויים', `<div class="israa-drawer__grid">${planning}</div>`)
+    + (clean(draft.notes) ? section('הערה', valueField('הערה', draft.notes, 'israa-drawer__field--wide')) : '');
 }
 
 function editDrawerFields(draft, serial) {
-  const contact = [readonlyField('שם בית הספר', draft.school_name), readonlyField('סמל מוסד', draft.semel_mosad), readonlyField('רשות', draft.authority), readonlyField('בעלות', draft.ownership), readonlyField('שם מנהל/ת', draft.manager_name), readonlyField('נייד מנהל/ת', draft.manager_phone), readonlyField('מייל מנהל/ת', draft.manager_email), readonlyField('איש/ת קשר נוסף', draft.additional_contact)].join('');
-  const proposal = [readonlyField('מס׳ הצעה', draft.quote_number), readonlyField('תאריך הוצאת ההצעה', formatDate(draft.proposal_date)), readonlyField('סכום ההצעה הכולל', formatMoney(draft.total_amount))].join('');
+  const contact = [readonlyField('בעלות', draft.ownership), readonlyField('איש קשר', draft.contact_person || draft.manager_name), readonlyField('תפקיד', draft.contact_role || draft.role || draft.additional_contact), readonlyField('טלפון', draft.phone || draft.manager_phone), readonlyField('דוא״ל', draft.email || draft.manager_email)].join('');
+  const proposal = [readonlyField('תאריך הצעה', formatDate(draft.proposal_date)), readonlyField('מבנה ההצעה', draft.proposal_nature)].join('');
   const planning = [
-    inputField('אופי ההצעה', 'proposal_nature', draft.proposal_nature, 'nature'),
-    inputField('התוכנית הצפויה', 'expected_program', draft.expected_program),
-    inputField('שכבה', 'grade', draft.grade),
-    inputField("קבוצות / מס' משתתפים", 'participants_groups', draft.participants_groups),
+    inputField('התוכנית הצפויה / בחירה נדרשת', 'expected_program', draft.expected_program, 'text', 'israa-drawer__field--wide'),
+    inputField('שכבה', 'grade', draft.grade, 'text', 'israa-drawer__field--short'),
+    inputField('קבוצות / משתתפים', 'participants_groups', draft.participants_groups),
   ].join('');
   const closing = [
-    inputField('סבירות לסגירה', 'probability', draft.probability, 'probability'),
-    readonlyField('שווי צפוי ריאלי', formatMoney(realisticValue(draft)), 'israa-drawer__realistic'),
+    inputField('הערכת סגירה (%)', 'probability', draft.probability, 'probability'),
+    readonlyField('תחזית כספית', formatMoney(realisticValue(draft)), 'israa-drawer__realistic'),
     inputField('סטטוס', 'status', draft.status, 'status'),
   ].join('');
-  const followup = [inputField('הפעולה הבאה', 'next_action', draft.next_action, 'textarea', 'israa-drawer__field--wide'), inputField('תאריך מעקב', 'follow_up_date', draft.follow_up_date, 'date')].join('');
-  return section('פרטי המוסד ואיש הקשר', `<div class="israa-drawer__grid">${contact}</div>`, 'israa-drawer__section--source')
-    + section('נתוני הצעת המחיר', `<div class="israa-drawer__grid">${proposal}</div>`, 'israa-drawer__section--source')
+  const followup = [inputField('פעולה להמשך', 'next_action', draft.next_action, 'textarea', 'israa-drawer__field--wide'), inputField('תאריך מעקב', 'follow_up_date', draft.follow_up_date, 'date')].join('');
+  return section('איש קשר והתקשרות', `<div class="israa-drawer__grid">${contact}</div>`)
+    + section('פרטים נוספים מהצעת המחיר', `<div class="israa-drawer__grid">${proposal}</div>`)
     + section('הפעילויות הכלולות בהצעה', activitiesTable(draft), 'israa-drawer__section--activities')
-    + section('מידע משלים לתכנון', `<div class="israa-drawer__grid">${planning}</div>`, 'israa-drawer__section--tracking')
-    + section('הערכת סגירה', `<div class="israa-drawer__grid">${closing}</div>`, 'israa-drawer__section--tracking')
-    + section('משימת המשך', `<div class="israa-drawer__grid">${followup}</div>`, 'israa-drawer__section--tracking')
-    + section('הערות', inputField('הערות', 'notes', draft.notes, 'textarea'), 'israa-drawer__section--notes');
+    + section('בחירה והיקף צפויים', `<div class="israa-drawer__grid">${planning}</div>`)
+    + section('הערכת סגירה ומעקב', `<div class="israa-drawer__grid">${closing}${followup}</div>`)
+    + section('הערה', inputField('הערה', 'notes', draft.notes, 'textarea', 'israa-drawer__field--wide'));
 }
 
 function drawerContent(row, mode) {
@@ -433,50 +415,15 @@ function bindDrawer(content) {
   });
 }
 
-function exportCsv() {
-  const columns = [
-    ['__serial','מסד'],
-    ['quote_number','מס׳ הצעה'],
-    ['school_name','שם בית הספר'],
-    ['semel_mosad','סמל מוסד'],
-    ['authority','רשות'],
-    ['ownership','בעלות'],
-    ['manager_name','שם מנהל/ת'],
-    ['manager_phone','נייד מנהל/ת'],
-    ['manager_email','מייל מנהל/ת'],
-    ['additional_contact','איש/ת קשר נוסף'],
-    ['program_name','שם הפעילות'],
-    ['gefen_numbers','מספר גפ״ן'],
-    ['proposal_nature','אופי ההצעה'],
-    ['expected_program','התוכנית הצפויה'],
-    ['grade','שכבה'],
-    ['participants_groups',"קבוצות / מס' משתתפים"],
-    ['proposal_date','תאריך הוצאת ההצעה'],
-    ['total_amount','סכום ההצעה הכולל'],
-    ['probability','סבירות לסגירה'],
-    ['realistic_value','שווי צפוי ריאלי'],
-    ['status','סטטוס'],
-    ['next_action','הפעולה הבאה'],
-    ['follow_up_date','תאריך מעקב'],
-    ['notes','הערות'],
-  ];
-  const quote = (value) => `"${String(value == null ? '' : value).replace(/"/g, '""')}"`;
-  const lines = [
-    columns.map(([, label]) => quote(label)).join(','),
-    ...rows.map((row, index) => columns.map(([key]) => {
-      if (key === '__serial') return quote(index + 1);
-      if (key === 'realistic_value') return quote(realisticValue(row));
-      return quote(row[key]);
-    }).join(',')),
-  ];
-  const url = URL.createObjectURL(new Blob([`\uFEFF${lines.join('\n')}`], { type: 'text/csv;charset=utf-8' }));
-  const anchor = document.createElement('a');
-  anchor.href = url;
-  anchor.download = `מעקב-הצעות-גפן-תשפז-${new Date().toISOString().slice(0,10)}.csv`;
-  document.body.appendChild(anchor);
-  anchor.click();
-  anchor.remove();
-  URL.revokeObjectURL(url);
+function exportExcel(container) {
+  try {
+    const visibleIds = new Set([...container.querySelectorAll('.israa-v2__row[data-v2-row-id]:not([hidden])')].map((node) => node.dataset.v2RowId));
+    exportIsraaWorkbook(rows.filter((row) => visibleIds.has(String(row.id))));
+    toast('קובץ Excel נוצר בהצלחה.');
+  } catch (error) {
+    console.error('[israa-tracking-v2-export]', error);
+    toast(error?.message || 'לא ניתן ליצור את קובץ ה-Excel.', 'error');
+  }
 }
 
 function bindContainer(container) {
@@ -484,7 +431,7 @@ function bindContainer(container) {
   container.dataset.bound = 'true';
   container.addEventListener('click', async (event) => {
     if (event.target.closest('[data-v2-add]')) return openProposalPicker();
-    if (event.target.closest('[data-v2-export]')) return exportCsv();
+    if (event.target.closest('[data-v2-export]')) return exportExcel(container);
     if (event.target.closest('[data-v2-refresh]')) {
       loaded = false;
       await loadData(true);
