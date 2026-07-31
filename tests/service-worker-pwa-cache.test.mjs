@@ -40,7 +40,7 @@ test('service worker entry imports the implementation without a second manual ve
 
   assert.doesNotMatch(rootSw, /SW_ENTRY_VERSION/, 'root service worker should not require a second manual version');
   assert.ok(cacheVersion, 'frontend service worker should expose a cache version');
-  assert.ok(Number(cacheVersion[1]) >= 355, 'cache version should be bumped past the previous v354 cache');
+  assert.ok(Number(cacheVersion[1]) > 1329, 'cache version should be bumped past the previous v1329 cache');
   assert.match(rootSw, /importScripts\(new URL\('frontend\/sw\.js', self\.location\)\.href\);/, 'root SW should import the central implementation directly');
 });
 
