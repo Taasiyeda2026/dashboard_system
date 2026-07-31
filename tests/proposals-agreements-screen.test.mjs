@@ -1338,7 +1338,7 @@ test('preview uses only existing proposal template section keys and required key
   }
 });
 
-test('new proposal tab opens compact form with preview and role-aware primary action', async () => {
+test('new proposal tab opens full-width editor with preview and role-aware primary action', async () => {
   await withJSDOM(
     proposalsAgreementsScreen.render({ rows: sampleRows, contactOptions: sampleContactOptions }, { state: stateFor('admin') }),
     (root, dom) => {
@@ -1357,9 +1357,9 @@ test('new proposal tab opens compact form with preview and role-aware primary ac
       assert.equal(newPanel.hidden, false, 'new proposal panel should be visible after clicking add');
       const form = formHost.querySelector('[data-pa-form]');
       assert.ok(form, 'form element should exist');
-      assert.doesNotMatch(form.innerHTML, /שמירת טיוטה/);
-      assert.match(form.innerHTML, /תצוגה מקדימה/);
-      assert.match(form.innerHTML, /אישור והפקת הצעה/);
+      assert.match(form.innerHTML, /שמירת טיוטה/);
+      assert.match(form.innerHTML, /תצוגה מלאה של הצעת המחיר/);
+      assert.match(form.innerHTML, /חתום ואשר/);
       assert.doesNotMatch(form.innerHTML, /שליחה לאישור/);
       assert.match(form.innerHTML, /data-pa-client-search-input/);
       assert.match(form.innerHTML, /הוסף איש קשר ידנית/);
@@ -1367,7 +1367,7 @@ test('new proposal tab opens compact form with preview and role-aware primary ac
   );
 });
 
-test('new proposal editor renders two-pane A4 layout and live preview updates key fields', async () => {
+test('new proposal editor renders editor then full A4 preview and live preview updates key fields', async () => {
   await withJSDOM(
     proposalsAgreementsScreen.render({ rows: [], contactOptions: sampleContactOptions }, { state: stateFor('admin') }),
     async (root, dom) => {
@@ -1395,8 +1395,15 @@ test('new proposal editor renders two-pane A4 layout and live preview updates ke
       });
 
       const form = openNewProposalForm(root, dom);
-      assert.ok(form.classList.contains('pa-editor'), 'form should use the official two-pane editor shell');
-      assert.ok(form.querySelector('.pa-sidebar'), 'editing sidebar should be present');
+      assert.ok(form.classList.contains('pa-editor'), 'form should use the official editor shell');
+      const editorFields = form.querySelector('[data-pa-editor-fields]');
+      const preview = form.querySelector('.pa-preview');
+      const finalActions = form.querySelector('.ds-pa-form-actions--workflow');
+      assert.ok(editorFields, 'full-width editing fields should be present');
+      assert.ok(preview, 'full document preview should be present');
+      assert.ok(finalActions, 'final actions should be present');
+      assert.ok(editorFields.compareDocumentPosition(preview) & dom.window.Node.DOCUMENT_POSITION_FOLLOWING, 'preview should follow all editing fields');
+      assert.ok(preview.compareDocumentPosition(finalActions) & dom.window.Node.DOCUMENT_POSITION_FOLLOWING, 'final actions should follow the document preview');
       const liveDocument = form.querySelector('[data-pa-live-preview] .proposal-document');
       assert.ok(liveDocument, 'live A4 preview should be present');
       assert.ok(liveDocument.classList.contains('pa-document'), 'document should use the scoped Proposaleditor document class');
@@ -2367,7 +2374,7 @@ test('manual contact toggle appears when selected school has no contacts', async
   );
 });
 
-test('proposal form has no draft save and admin primary action approves directly', async () => {
+test('proposal form offers and persists draft save', async () => {
   const savedPayloads = [];
   const mockApi = {
     addProposalAgreement: async (payload) => {
@@ -2388,7 +2395,7 @@ test('proposal form has no draft save and admin primary action approves directly
       });
 
       const form = openNewProposalForm(root, dom);
-      assert.equal(form.querySelector('[data-pa-save-draft]'), null, 'draft save control should not exist');
+      assert.ok(form.querySelector('[data-pa-save-draft]'), 'draft save control should exist');
       fillPendingMinimum(form, dom, {
         client_authority: 'רשות בדיקה',
         school_framework: 'בית ספר בדיקה',
@@ -2397,11 +2404,11 @@ test('proposal form has no draft save and admin primary action approves directly
         unit_price: '100'
       });
 
-      form.querySelector('[data-pa-save-pending]').dispatchEvent(new dom.window.MouseEvent('click', { bubbles: true }));
+      form.querySelector('[data-pa-save-draft]').dispatchEvent(new dom.window.MouseEvent('click', { bubbles: true }));
       await delay(100);
 
       assert.equal(savedPayloads.length, 1, 'one save call');
-      assert.equal(savedPayloads[0].status, 'approved', 'admin primary action should approve directly');
+      assert.equal(savedPayloads[0].status, 'draft', 'draft action should preserve draft status');
       assert.notEqual(savedPayloads[0].is_new_client, true, 'default save should not mark as new client');
     }
   );

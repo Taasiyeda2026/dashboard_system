@@ -21774,6 +21774,167 @@ details[open] > .ds-fin-acc__summary::before { transform: rotate(90deg); }
   width: 28px !important; min-width: 28px !important; height: 28px !important; min-height: 28px !important;
   padding: 0 !important; border: 0 !important; background: transparent !important; box-shadow: none !important; font-size: 0 !important;
 }
+
+/* Proposal create/edit workspace: one document flow (editor, full preview, final actions). */
+.pa-editor-workspace {
+  display: flex;
+  flex-direction: column;
+  gap: 22px;
+  height: auto;
+  overflow: visible;
+  align-items: stretch;
+}
+.pa-editor.ds-pa-form--compact {
+  max-width: min(1600px, 100%);
+}
+.pa-editor-workspace .pa-sidebar {
+  width: 100%;
+  max-width: none;
+  overflow: visible;
+  padding: 18px;
+}
+.pa-editor-workspace .pa-sidebar-heading {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  flex-wrap: wrap;
+  gap: 12px;
+}
+.pa-editor-workspace .pa-sidebar-heading strong {
+  font-size: 1.2rem;
+}
+.pa-editor-heading-actions,
+.pa-editor-workspace .ds-pa-form-actions-main {
+  display: flex;
+  width: auto;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 8px;
+}
+.pa-editor-workspace .pa-sidebar .ds-btn,
+.pa-editor-workspace .ds-pa-form-actions .ds-btn {
+  width: auto;
+  max-width: max-content;
+  min-width: max-content;
+}
+.pa-editor-workspace .pa-sidebar .ds-pa-form-meta-panel {
+  grid-template-columns: minmax(0, 1.2fr) minmax(0, 1fr);
+  align-items: start;
+  gap: 14px;
+}
+.pa-editor-workspace .pa-sidebar [data-pa-step-panel="client"],
+.pa-editor-workspace .pa-sidebar [data-pa-step-panel="contact"] {
+  min-width: 0;
+}
+.pa-editor-workspace .pa-sidebar .ds-pa-client-search-block {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(180px, 1fr));
+  align-items: end;
+  gap: 10px;
+}
+.pa-editor-workspace .pa-sidebar .ds-pa-form-grid,
+.pa-editor-workspace .pa-sidebar .ds-pa-contact-manual-fields,
+.pa-editor-workspace .pa-sidebar .ds-pa-contact-channels-fields {
+  grid-template-columns: repeat(auto-fit, minmax(180px, 1fr));
+  align-items: end;
+  gap: 10px;
+}
+.pa-editor-workspace .pa-sidebar .ds-pa-type-meta-grid {
+  display: grid;
+  grid-template-columns: minmax(420px, 2fr) minmax(260px, .8fr);
+  align-items: end;
+  gap: 14px;
+}
+.pa-editor-workspace .pa-sidebar .ds-pa-type-meta-aux {
+  grid-template-columns: minmax(150px, 1fr) minmax(100px, .7fr);
+}
+.pa-editor-workspace .pa-sidebar .ds-pa-type-cards,
+.pa-editor-workspace .pa-sidebar .ds-pa-type-chips {
+  display: grid;
+  grid-template-columns: repeat(4, minmax(110px, 1fr));
+  gap: 6px;
+}
+.pa-editor-workspace .pa-sidebar .ds-pa-type-card {
+  width: auto;
+}
+.pa-editor-workspace .pa-sidebar .ds-pa-form-activities-panel {
+  padding: 12px;
+  border: 1px solid #d7e3ef;
+  border-radius: 12px;
+}
+.pa-editor-workspace .pa-sidebar .ds-pa-item-quick-row {
+  grid-template-columns: minmax(280px, 1fr) 90px 34px !important;
+}
+.pa-editor-workspace .pa-sidebar .ds-pa-item-quick-row .ds-pa-item-field--qty,
+.pa-editor-workspace .pa-sidebar .ds-pa-item-quick-row .ds-pa-item-field--price,
+.pa-editor-workspace .pa-sidebar .ds-pa-item-quick-row .ds-pa-item-field--total {
+  width: auto;
+}
+.pa-editor-workspace .pa-sidebar .ds-pa-item-grid--extras {
+  grid-template-columns: repeat(auto-fit, minmax(150px, 1fr));
+}
+.pa-editor-workspace .pa-sidebar .ds-pa-summary-bar,
+.pa-editor-workspace .pa-sidebar .ds-pa-discount-row,
+.pa-editor-workspace .pa-sidebar .ds-pa-items-header,
+.pa-editor-workspace .pa-sidebar .ds-pa-catalog-attach {
+  flex-direction: row;
+  align-items: center;
+  flex-wrap: wrap;
+}
+.pa-editor-workspace .pa-preview {
+  height: auto;
+  overflow: visible;
+  padding: 20px 12px 30px;
+}
+.pa-editor-workspace .pa-preview-toolbar {
+  max-width: 1120px;
+}
+.pa-editor-workspace .pa-preview-toolbar h2 {
+  margin: 0;
+  font-size: 1.15rem;
+  color: #1a2d4a;
+}
+.pa-editor-workspace .pa-preview-canvas {
+  display: grid;
+  justify-items: center;
+  gap: 22px;
+  overflow: visible;
+}
+.pa-editor-workspace > .ds-pa-form-actions {
+  display: flex;
+  justify-content: center;
+  padding: 16px;
+  border: 1px solid #d5e0ec;
+  border-radius: 14px;
+  background: #fff;
+}
+@media (max-width: 900px) {
+  .pa-editor-workspace .pa-sidebar .ds-pa-form-meta-panel,
+  .pa-editor-workspace .pa-sidebar .ds-pa-type-meta-grid {
+    grid-template-columns: 1fr;
+  }
+  .pa-editor-workspace .pa-sidebar .ds-pa-item-quick-row {
+    grid-template-columns: minmax(220px, 1fr) 80px 34px !important;
+    overflow-x: auto;
+  }
+}
+@media (max-width: 640px) {
+  .pa-editor-workspace .pa-sidebar .ds-pa-client-search-block,
+  .pa-editor-workspace .pa-sidebar .ds-pa-form-grid,
+  .pa-editor-workspace .pa-sidebar .ds-pa-contact-manual-fields,
+  .pa-editor-workspace .pa-sidebar .ds-pa-contact-channels-fields,
+  .pa-editor-workspace .pa-sidebar .ds-pa-type-meta-aux {
+    grid-template-columns: 1fr;
+  }
+  .pa-editor-workspace .pa-sidebar .ds-pa-type-cards,
+  .pa-editor-workspace .pa-sidebar .ds-pa-type-chips {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+  .pa-editor-workspace .pa-preview-canvas {
+    overflow-x: auto;
+    justify-items: start;
+  }
+}
 @media print {
   /* Footer-in-flow fix: no flex/min-height on the A4 document box; gap must not reserve page height.
      Chrome/Chromium cannot fragment a flex column forced to A4 height — the whole box (incl. footer)
