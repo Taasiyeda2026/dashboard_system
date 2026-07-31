@@ -1,12 +1,22 @@
 .ds-drawer.ds-drawer--activity-inline > .ds-drawer__content {
   position: relative !important;
+  display: flex !important;
+  flex-direction: column !important;
+  min-block-size: 0 !important;
   overflow: hidden !important;
 }
 
+/*
+ * The drawer can contain a status banner above the activity form.
+ * The form must fill only the remaining height, otherwise a 100% height form
+ * starts below the banner and its floating action button is pushed below the
+ * visible drawer edge.
+ */
 .activity-drawer-inline-layout {
   position: relative !important;
-  block-size: 100% !important;
-  max-block-size: 100% !important;
+  flex: 1 1 auto !important;
+  block-size: auto !important;
+  max-block-size: none !important;
   min-block-size: 0 !important;
   overflow: hidden !important;
 }
