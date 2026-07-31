@@ -1372,6 +1372,8 @@ test('proposal workspace keeps recipient heading spanning both columns and compa
   assert.match(css, /ds-pa-form-meta-panel > \.pa-sidebar-section-title\s*\{\s*grid-column:\s*1 \/ -1;/);
   assert.match(css, /ds-pa-type-chips[\s\S]*display:\s*flex !important;[\s\S]*width:\s*max-content;/);
   assert.doesNotMatch(css, /grid-template-columns:\s*repeat\(4,\s*minmax\(110px,\s*1fr\)\)/);
+  assert.match(css, /@media \(max-width: 900px\)[\s\S]*ds-pa-item-grid--extras\s*\{\s*grid-template-columns:\s*repeat\(2,\s*minmax\(0,\s*1fr\)\);\s*width:\s*100%;/);
+  assert.match(css, /@media \(max-width: 640px\)[\s\S]*ds-pa-item-grid--extras\s*\{\s*grid-template-columns:\s*1fr;\s*width:\s*100%;/);
 });
 
 test('proposal final actions follow the preview and return-to-editor scrolls to editing fields', async () => {
@@ -1388,6 +1390,9 @@ test('proposal final actions follow the preview and return-to-editor scrolls to 
       const editor = form.querySelector('[data-pa-editor-fields]');
       const preview = form.querySelector('.pa-preview');
       const actions = form.querySelector('.ds-pa-form-actions--workflow');
+      assert.ok(form.querySelector('.pa-editor-heading-actions')?.classList.contains('no-print'));
+      assert.ok(form.querySelector('.pa-preview-toolbar')?.classList.contains('no-print'));
+      assert.ok(actions?.classList.contains('no-print'));
       assert.ok(editor.compareDocumentPosition(preview) & dom.window.Node.DOCUMENT_POSITION_FOLLOWING);
       assert.ok(preview.compareDocumentPosition(actions) & dom.window.Node.DOCUMENT_POSITION_FOLLOWING);
       let scrolled = false;

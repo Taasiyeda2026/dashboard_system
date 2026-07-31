@@ -4529,7 +4529,7 @@ function formHtml(mode, row = {}, activityNameOptions = [], contactOptions = [],
       <section class="pa-sidebar" aria-label="עריכת פרטי הצעת מחיר" data-pa-editor-fields>
         <div class="pa-sidebar-heading">
           <strong>${escapeHtml(title)}</strong>
-          <div class="pa-editor-heading-actions">
+          <div class="pa-editor-heading-actions no-print">
             <button type="button" class="ds-btn ds-btn--sm ds-btn--ghost" data-pa-cancel-form>← חזרה לתיק הלקוח</button>
             <button type="button" class="ds-btn ds-btn--sm" data-pa-save-draft>שמירת טיוטה</button>
           </div>

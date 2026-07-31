@@ -21939,6 +21939,10 @@ details[open] > .ds-fin-acc__summary::before { transform: rotate(90deg); }
     grid-template-columns: minmax(220px, 1fr) 80px 34px !important;
     overflow-x: auto;
   }
+  .pa-editor-workspace .pa-sidebar .ds-pa-item-grid--extras {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+    width: 100%;
+  }
 }
 @media (max-width: 640px) {
   .pa-editor-workspace .pa-sidebar .ds-pa-client-search-block,
@@ -21950,6 +21954,10 @@ details[open] > .ds-fin-acc__summary::before { transform: rotate(90deg); }
   }
   .pa-editor-workspace .pa-sidebar .ds-pa-type-cards,
   .pa-editor-workspace .pa-sidebar .ds-pa-type-chips {
+    width: 100%;
+  }
+  .pa-editor-workspace .pa-sidebar .ds-pa-item-grid--extras {
+    grid-template-columns: 1fr;
     width: 100%;
   }
   .pa-editor-workspace .pa-preview-canvas {
