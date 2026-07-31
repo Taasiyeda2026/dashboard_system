@@ -4526,10 +4526,13 @@ function formHtml(mode, row = {}, activityNameOptions = [], contactOptions = [],
 
   return `<form class="ds-pa-form ds-pa-form--compact pa-editor" data-pa-form data-pa-mode="${escapeHtml(mode)}" data-pa-id="${escapeHtml(row.id || '')}" data-pa-original-type="${escapeHtml(normalizedActivityGroup)}" data-pa-allow-manual-course="${allowManualCourse ? 'yes' : 'no'}" dir="rtl">
     <div class="pa-editor-workspace">
-      <aside class="pa-sidebar" aria-label="עריכת פרטי הצעת מחיר">
+      <section class="pa-sidebar" aria-label="עריכת פרטי הצעת מחיר" data-pa-editor-fields>
         <div class="pa-sidebar-heading">
-          <span class="pa-sidebar-kicker">עורך הצעה</span>
           <strong>${escapeHtml(title)}</strong>
+          <div class="pa-editor-heading-actions no-print">
+            <button type="button" class="ds-btn ds-btn--sm ds-btn--ghost" data-pa-cancel-form>← חזרה לתיק הלקוח</button>
+            <button type="button" class="ds-btn ds-btn--sm" data-pa-save-draft>שמירת טיוטה</button>
+          </div>
         </div>
     <div class="ds-pa-form-meta-panel">
       <h4 class="pa-sidebar-section-title">פרטי נמען</h4>
@@ -4601,24 +4604,24 @@ function formHtml(mode, row = {}, activityNameOptions = [], contactOptions = [],
       ${proposalSummaryHtml(row.total_amount)}
       <div class="ds-pa-validation-notice" data-pa-validation-notice hidden></div>
       <p class="ds-pa-form-error" data-pa-form-error role="alert"></p>
-      <div class="ds-pa-form-actions ds-pa-form-actions--workflow">
-        <div class="ds-pa-form-actions-main">
-          <button type="button" class="ds-btn ds-btn--sm" data-pa-preview-form>תצוגה מקדימה</button>
-          <button type="button" class="ds-btn ds-btn--primary ds-btn--sm" data-pa-save-pending data-pa-target-status="${primaryActionStatus}">${escapeHtml(primaryActionLabel)}</button>
-          <button type="button" class="ds-btn ds-btn--sm ds-btn--ghost" data-pa-cancel-form>ביטול</button>
-        </div>
-      </div>
     </div>
-      </aside>
+      </section>
       <section class="pa-preview" aria-label="תצוגת מסמך A4">
         <div class="pa-preview-toolbar no-print">
-          <span>תצוגה מקדימה חיה</span>
+          <h2>תצוגה מלאה של הצעת המחיר</h2>
           <button type="button" class="ds-btn ds-btn--xs ds-btn--ghost" data-pa-preview-form>פתח לתצוגה / PDF</button>
         </div>
         <div class="pa-preview-canvas" data-pa-live-preview>
           ${initialPreviewHtml}
         </div>
       </section>
+      <footer class="ds-pa-form-actions ds-pa-form-actions--workflow no-print" aria-label="פעולות סופיות להצעת המחיר">
+        <div class="ds-pa-form-actions-main">
+          <button type="button" class="ds-btn ds-btn--sm ds-btn--ghost" data-pa-back-to-editor>חזרה לעריכה</button>
+          <button type="button" class="ds-btn ds-btn--sm" data-pa-save-draft>שמירת טיוטה</button>
+          <button type="button" class="ds-btn ds-btn--primary ds-btn--sm" data-pa-save-pending data-pa-target-status="${primaryActionStatus}">${escapeHtml(primaryActionLabel)}</button>
+        </div>
+      </footer>
     </div>
 
     <input type="hidden" name="status" data-pa-status-input value="${escapeHtml(currentStatus)}">
@@ -7239,7 +7242,8 @@ export const proposalsAgreementsScreen = {
       items = proposalItemsWithFallback(items, row);
       formHost.hidden = false;
       const backLabel = originMode === 'all-proposals' ? 'חזרה לכל ההצעות' : 'חזרה לתיק הלקוח';
-      formHost.innerHTML = `<div class="ds-pa-editor-back"><button type="button" class="ds-btn ds-btn--ghost" data-pa-cancel-form>← ${backLabel}</button></div>${formHtml(mode, row, activityNameOptions, contactOptions, items, proposalActivityPricing, state, contactOptionsError)}`;
+      formHost.innerHTML = formHtml(mode, row, activityNameOptions, contactOptions, items, proposalActivityPricing, state, contactOptionsError)
+        .replace('← חזרה לתיק הלקוח', `← ${backLabel}`);
       setupTypeChangeHandler(formHost);
       setupClientSelector(formHost);
       setupActivityPickers(formHost);
@@ -8861,6 +8865,14 @@ export const proposalsAgreementsScreen = {
         return;
       }
 
+      const saveDraftBtn = event.target.closest?.('[data-pa-save-draft]');
+      if (saveDraftBtn) {
+        const form = saveDraftBtn.closest('[data-pa-form]');
+        if (!form) return;
+        await saveForm(form, 'draft');
+        return;
+      }
+
       const deleteBtn = event.target.closest?.('[data-pa-delete-row]');
       if (deleteBtn) {
         const id = text(deleteBtn.dataset.paDeleteRow);
@@ -9044,6 +9056,11 @@ export const proposalsAgreementsScreen = {
         } catch (e) {
           console.warn('[PA] openPreview error:', e);
         }
+        return;
+      }
+
+      if (event.target.closest?.('[data-pa-back-to-editor]')) {
+        event.target.closest('[data-pa-form]')?.querySelector('[data-pa-editor-fields]')?.scrollIntoView?.({ behavior: 'smooth', block: 'start' });
         return;
       }
 
