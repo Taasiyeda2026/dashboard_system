@@ -31,6 +31,7 @@ import './activities-tabs-corrections.js';
 import './gefen-proposal-layout-update.js';
 import './gefen-proposal-pdf-header-alignment.js';
 import './proposal-full-clone-runtime.js?v=20260729-independent-clone-v2';
+import './proposal-summer-creation-retired.js?v=20260731-retire-summer-v1';
 import './main.js';
 import './activity-period-selector-access-hotfix.js?v=20260730-restore-2026-access-v2';
 import './styles/activity-drawer-inline-layout.css';
