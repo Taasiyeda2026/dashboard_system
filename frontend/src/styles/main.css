@@ -21822,6 +21822,9 @@ details[open] > .ds-fin-acc__summary::before { transform: rotate(90deg); }
   align-items: start;
   gap: 14px;
 }
+.pa-editor-workspace .pa-sidebar .ds-pa-form-meta-panel > .pa-sidebar-section-title {
+  grid-column: 1 / -1;
+}
 .pa-editor-workspace .pa-sidebar [data-pa-step-panel="client"],
 .pa-editor-workspace .pa-sidebar [data-pa-step-panel="contact"] {
   min-width: 0;
@@ -21835,27 +21838,45 @@ details[open] > .ds-fin-acc__summary::before { transform: rotate(90deg); }
 .pa-editor-workspace .pa-sidebar .ds-pa-form-grid,
 .pa-editor-workspace .pa-sidebar .ds-pa-contact-manual-fields,
 .pa-editor-workspace .pa-sidebar .ds-pa-contact-channels-fields {
-  grid-template-columns: repeat(auto-fit, minmax(180px, 1fr));
+  grid-template-columns: repeat(auto-fit, minmax(160px, max-content));
   align-items: end;
   gap: 10px;
 }
+.pa-editor-workspace .pa-sidebar .ds-pa-form-field:has([name="contact_role"]),
+.pa-editor-workspace .pa-sidebar .ds-pa-form-field:has([name="phone"]) {
+  width: min(100%, 190px);
+}
+.pa-editor-workspace .pa-sidebar .ds-pa-form-field:has([name="email"]) {
+  width: min(100%, 290px);
+}
+.pa-editor-workspace .pa-sidebar .ds-pa-form-field:has([name="proposal_date"]) {
+  width: 165px;
+}
+.pa-editor-workspace .pa-sidebar .ds-pa-school-details {
+  grid-template-columns: repeat(auto-fit, minmax(90px, max-content));
+  justify-content: start;
+}
 .pa-editor-workspace .pa-sidebar .ds-pa-type-meta-grid {
   display: grid;
-  grid-template-columns: minmax(420px, 2fr) minmax(260px, .8fr);
+  grid-template-columns: max-content max-content;
   align-items: end;
   gap: 14px;
 }
 .pa-editor-workspace .pa-sidebar .ds-pa-type-meta-aux {
-  grid-template-columns: minmax(150px, 1fr) minmax(100px, .7fr);
+  grid-template-columns: 165px 100px;
 }
 .pa-editor-workspace .pa-sidebar .ds-pa-type-cards,
 .pa-editor-workspace .pa-sidebar .ds-pa-type-chips {
-  display: grid;
-  grid-template-columns: repeat(4, minmax(110px, 1fr));
+  display: flex !important;
+  width: max-content;
+  max-width: 100%;
+  flex-wrap: wrap;
   gap: 6px;
 }
 .pa-editor-workspace .pa-sidebar .ds-pa-type-card {
-  width: auto;
+  width: auto !important;
+  min-width: max-content;
+  flex: 0 0 auto;
 }
 .pa-editor-workspace .pa-sidebar .ds-pa-form-activities-panel {
   padding: 12px;
@@ -21871,7 +21892,8 @@ details[open] > .ds-fin-acc__summary::before { transform: rotate(90deg); }
   width: auto;
 }
 .pa-editor-workspace .pa-sidebar .ds-pa-item-grid--extras {
-  grid-template-columns: repeat(auto-fit, minmax(150px, 1fr));
+  grid-template-columns: minmax(120px, max-content) 100px 110px 120px;
+  justify-content: start;
 }
 .pa-editor-workspace .pa-sidebar .ds-pa-summary-bar,
 .pa-editor-workspace .pa-sidebar .ds-pa-discount-row,
@@ -21928,7 +21950,7 @@ details[open] > .ds-fin-acc__summary::before { transform: rotate(90deg); }
   }
   .pa-editor-workspace .pa-sidebar .ds-pa-type-cards,
   .pa-editor-workspace .pa-sidebar .ds-pa-type-chips {
-    grid-template-columns: repeat(2, minmax(0, 1fr));
+    width: 100%;
   }
   .pa-editor-workspace .pa-preview-canvas {
     overflow-x: auto;

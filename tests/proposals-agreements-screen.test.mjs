@@ -1367,6 +1367,59 @@ test('new proposal tab opens full-width editor with preview and role-aware prima
   );
 });
 
+test('proposal workspace keeps recipient heading spanning both columns and compact proposal types', async () => {
+  const css = await readFile(new URL('../frontend/src/styles/main.css', import.meta.url), 'utf8');
+  assert.match(css, /ds-pa-form-meta-panel > \.pa-sidebar-section-title\s*\{\s*grid-column:\s*1 \/ -1;/);
+  assert.match(css, /ds-pa-type-chips[\s\S]*display:\s*flex !important;[\s\S]*width:\s*max-content;/);
+  assert.doesNotMatch(css, /grid-template-columns:\s*repeat\(4,\s*minmax\(110px,\s*1fr\)\)/);
+});
+
+test('proposal final actions follow the preview and return-to-editor scrolls to editing fields', async () => {
+  await withJSDOM(
+    proposalsAgreementsScreen.render({ rows: [], contactOptions: [] }, { state: stateFor('admin') }),
+    (root, dom) => {
+      proposalsAgreementsScreen.bind({
+        root,
+        data: { rows: [], activityNameOptions: [], contactOptions: [] },
+        state: stateFor('admin'),
+        api: {}
+      });
+      const form = openNewProposalForm(root, dom);
+      const editor = form.querySelector('[data-pa-editor-fields]');
+      const preview = form.querySelector('.pa-preview');
+      const actions = form.querySelector('.ds-pa-form-actions--workflow');
+      assert.ok(editor.compareDocumentPosition(preview) & dom.window.Node.DOCUMENT_POSITION_FOLLOWING);
+      assert.ok(preview.compareDocumentPosition(actions) & dom.window.Node.DOCUMENT_POSITION_FOLLOWING);
+      let scrolled = false;
+      editor.scrollIntoView = () => { scrolled = true; };
+      form.querySelector('[data-pa-back-to-editor]').dispatchEvent(new dom.window.MouseEvent('click', { bubbles: true }));
+      assert.equal(scrolled, true);
+    }
+  );
+});
+
+test('draft proposal opens the same full-width edit workspace', async () => {
+  const draft = sampleRows[0];
+  await withJSDOM(
+    proposalsAgreementsScreen.render({ rows: [draft], contactOptions: sampleContactOptions }, { state: stateFor('admin') }),
+    async (root, dom) => {
+      proposalsAgreementsScreen.bind({
+        root,
+        data: { rows: [draft], activityNameOptions: [], contactOptions: sampleContactOptions },
+        state: stateFor('admin'),
+        api: { readProposalAgreementItems: async () => [] }
+      });
+      root.querySelector(`[data-pa-row-id="${draft.id}"]`)?.dispatchEvent(new dom.window.MouseEvent('click', { bubbles: true }));
+      root.querySelector(`[data-pa-edit-row="${draft.id}"]`)?.dispatchEvent(new dom.window.MouseEvent('click', { bubbles: true }));
+      await delay(20);
+      const form = root.querySelector('[data-pa-form-host] [data-pa-form]');
+      assert.equal(form?.dataset.paMode, 'edit');
+      assert.ok(form?.querySelector('[data-pa-editor-fields]'));
+      assert.ok(form?.querySelector('[data-pa-live-preview] .proposal-document'));
+    }
+  );
+});
+
 test('new proposal editor renders editor then full A4 preview and live preview updates key fields', async () => {
   await withJSDOM(
     proposalsAgreementsScreen.render({ rows: [], contactOptions: sampleContactOptions }, { state: stateFor('admin') }),
