@@ -1481,7 +1481,7 @@ function clientSearchHtml(_contactOptions, row = {}) {
     </div>
     <div class="ds-pa-school-search-panel" data-pa-school-search-panel hidden>
       <p class="ds-pa-school-step-text"><span>רשות</span><strong data-pa-step-authority-name-school></strong>
-        <button type="button" class="ds-btn ds-btn--xs ds-btn--ghost" data-pa-change-authority-step>שנה רשות</button>
+        <button type="button" class="ds-btn ds-btn--xs ds-btn--ghost" data-pa-change-authority-step>החלף</button>
       </p>
       <div class="ds-pa-client-search-field-wrap" data-pa-school-search-field-wrap>
         <label class="ds-pa-form-field ds-pa-form-field--client-search" data-pa-school-search-field>
@@ -4098,15 +4098,18 @@ function clientLockedBannerHtml(auth, school, contactName, contactRole, phone, e
   if (!auth && !clientName) return '';
   const displayName = clientName || school || auth;
   const semelMosad = text(schoolMeta?.semel_mosad);
-  const recipientType = school && school !== auth ? 'בית ספר' : (auth ? 'רשות' : 'אחר');
-  return `<div class="ds-pa-client-locked">
+  const isSchool = Boolean(school && school !== auth);
+  const isAuthority = Boolean(auth && !isSchool);
+  const modeClass = isSchool ? ' is-school' : (isAuthority ? ' is-authority' : ' is-other');
+  return `<div class="ds-pa-client-locked${modeClass}">
     <div class="ds-pa-client-locked-body">
-      <p class="ds-pa-client-locked-type"><span>סוג נמען</span><strong>${recipientType}</strong></p>
       ${auth ? `<p class="ds-pa-client-locked-detail"><span>רשות</span><strong>${escapeHtml(auth)}</strong></p>` : ''}
-      ${school && school !== auth ? `<p class="ds-pa-client-locked-name"><span>בית ספר</span><strong>${escapeHtml(school)}</strong></p>` : `<p class="ds-pa-client-locked-name"><span>נמען</span><strong>${escapeHtml(displayName)}</strong></p>`}
-      ${semelMosad ? `<p class="ds-pa-client-locked-state"><span>סמל מוסד</span><strong>${escapeHtml(semelMosad)}</strong></p>` : ''}
+      ${isSchool
+        ? `<p class="ds-pa-client-locked-name"><span>בית ספר</span><strong>${escapeHtml(school)}</strong></p>`
+        : (!auth ? `<p class="ds-pa-client-locked-name"><span>נמען</span><strong>${escapeHtml(displayName)}</strong></p>` : '')}
+      ${isSchool && semelMosad ? `<p class="ds-pa-client-locked-state"><span>סמל מוסד</span><strong>${escapeHtml(semelMosad)}</strong></p>` : ''}
     </div>
-    <div class="ds-pa-client-locked-actions"><button type="button" class="ds-btn ds-btn--xs ds-btn--ghost" data-pa-unlock-client>שינוי</button></div>
+    <div class="ds-pa-client-locked-actions"><button type="button" class="ds-btn ds-btn--xs ds-btn--ghost" data-pa-unlock-client>החלף</button></div>
   </div>`;
 }
 
@@ -4535,17 +4538,21 @@ function formHtml(mode, row = {}, activityNameOptions = [], contactOptions = [],
         </div>
     <div class="ds-pa-form-meta-panel">
       <h4 class="pa-sidebar-section-title">פרטי נמען</h4>
-      <div data-pa-step-panel="client">
-        <div class="ds-pa-client-search-block" data-pa-client-search-row${isLocked ? ' hidden' : ''}>
-          ${clientTypeSelectorHtml(initClientType)}
-          ${contactOptionsLoadErrorHtml(contactOptionsError)}
-          ${clientSearchHtml(contactOptions, row)}
-          <div class="ds-pa-other-client-section" data-pa-other-client-field${initOther ? '' : ' hidden'}><h5>פרטי הלקוח</h5><label class="ds-pa-form-field ds-pa-other-client-field"><span>שם הלקוח / חברה</span><input class="ds-input ds-input--sm" name="other_client_name" value="${escapeHtml(initOther ? (row.client_name || initSchool) : '')}" placeholder="שם הלקוח"></label></div>
-        </div>
-        <div data-pa-client-card${isLocked ? '' : ' hidden'}>${isLocked ? clientLockedBannerHtml(initAuth, initSchool, initContact, initRole, initPhone, initEmail, initClientName, initSchoolMeta) : ''}</div>
-        <div class="ds-pa-client-hidden-values" data-pa-client-fields hidden>
-          ${hiddenField('client_authority', row.client_authority)}
-          ${hiddenField('school_framework', initOther ? '' : row.school_framework)}
+      <div class="ds-pa-recipient-meta-row" data-pa-recipient-meta-row>
+        <label class="ds-pa-form-field ds-pa-recipient-date-field"><span>${escapeHtml(FIELD_LABELS.proposal_date)}</span><input class="ds-input ds-input--sm" type="date" name="proposal_date" value="${escapeHtml(proposalDate)}"></label>
+        <label class="ds-pa-form-field ds-pa-recipient-domain-field"><span>${escapeHtml(FIELD_LABELS.proposal_domain)}: Y / E</span><select class="ds-input ds-input--sm" name="proposal_domain">${optionHtml('Y', row.proposal_domain || 'Y', 'Y')}${optionHtml('E', row.proposal_domain || 'Y', 'E')}</select></label>
+        ${clientTypeSelectorHtml(initClientType)}
+        <div class="ds-pa-recipient-flow" data-pa-step-panel="client">
+          <div class="ds-pa-client-search-block" data-pa-client-search-row${isLocked ? ' hidden' : ''}>
+            ${contactOptionsLoadErrorHtml(contactOptionsError)}
+            ${clientSearchHtml(contactOptions, row)}
+            <div class="ds-pa-other-client-section" data-pa-other-client-field${initOther ? '' : ' hidden'}><label class="ds-pa-form-field ds-pa-other-client-field"><span>שם הלקוח / חברה</span><input class="ds-input ds-input--sm" name="other_client_name" value="${escapeHtml(initOther ? (row.client_name || initSchool) : '')}" placeholder="שם הלקוח"></label></div>
+          </div>
+          <div data-pa-client-card${isLocked ? '' : ' hidden'}>${isLocked ? clientLockedBannerHtml(initAuth, initSchool, initContact, initRole, initPhone, initEmail, initClientName, initSchoolMeta) : ''}</div>
+          <div class="ds-pa-client-hidden-values" data-pa-client-fields hidden>
+            ${hiddenField('client_authority', row.client_authority)}
+            ${hiddenField('school_framework', initOther ? '' : row.school_framework)}
+          </div>
         </div>
       </div>
       <div data-pa-step-panel="contact"${contactPanelVisible ? '' : ' hidden'}>
@@ -4582,10 +4589,7 @@ function formHtml(mode, row = {}, activityNameOptions = [], contactOptions = [],
         <div class="ds-pa-form-field">
           ${proposalTypeCardsHtml(normalizedActivityGroup)}
         </div>
-        <div class="ds-pa-type-meta-aux ds-pa-two-col-grid">
-          <label class="ds-pa-form-field"><span>${escapeHtml(FIELD_LABELS.proposal_date)}</span><input class="ds-input ds-input--sm" type="date" name="proposal_date" value="${escapeHtml(proposalDate)}"></label><label class="ds-pa-form-field"><span>${escapeHtml(FIELD_LABELS.proposal_domain)}: Y / E</span><select class="ds-input ds-input--sm" name="proposal_domain">${optionHtml('Y', row.proposal_domain || 'Y', 'Y')}${optionHtml('E', row.proposal_domain || 'Y', 'E')}</select></label>
-          <input type="hidden" name="document_type" value="${escapeHtml(text(row.document_type) || 'הצעת מחיר')}">
-        </div>
+        <input type="hidden" name="document_type" value="${escapeHtml(text(row.document_type) || 'הצעת מחיר')}">
       </div>
       <div class="ds-pa-type-row">${templateIndicatorHtml(normalizedActivityGroup)}</div>
       <p class="ds-pa-template-mode ${hasCustomSections ? 'ds-pa-template-mode--custom' : ''}" data-pa-template-mode${hasCustomSections ? '' : ' hidden'}>${hasCustomSections ? 'נוסח מותאם אישית' : ''}</p>

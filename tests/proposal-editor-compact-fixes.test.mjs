@@ -5,6 +5,7 @@ import { readFile } from 'node:fs/promises';
 const INDEX_FILE = new URL('../index.html', import.meta.url);
 const CSS_FILE = new URL('../frontend/src/styles/proposal-editor-compact-fixes.css', import.meta.url);
 const RUNTIME_FILE = new URL('../frontend/src/proposal-editor-compact-fixes.js', import.meta.url);
+const SCREEN_FILE = new URL('../frontend/src/screens/proposals-agreements.js', import.meta.url);
 const CONFIG_FILE = new URL('../frontend/src/config.js', import.meta.url);
 const SW_FILE = new URL('../frontend/sw.js', import.meta.url);
 
@@ -14,7 +15,8 @@ test('proposal editor compact assets are loaded after the shared dashboard style
   const compactStyle = html.indexOf('./frontend/src/styles/proposal-editor-compact-fixes.css');
   assert.ok(mainStyle >= 0, 'main stylesheet should remain loaded');
   assert.ok(compactStyle > mainStyle, 'proposal editor overrides should load after main.css');
-  assert.match(html, /frontend\/src\/proposal-editor-compact-fixes\.js/);
+  assert.match(html, /frontend\/src\/proposal-editor-compact-fixes\.js\?v=20260801-v3/);
+  assert.match(html, /proposal-editor-compact-fixes\.css\?v=20260801-v3/);
 });
 
 test('proposal editor CSS is scoped, flat and keeps the requested control sizes', async () => {
@@ -69,19 +71,28 @@ test('next-year workshop editor rows stay on one compact line', async () => {
   assert.match(runtime, /grid-row', '1'/);
 });
 
-test('recipient label, proposal date and domain are arranged in one row without an empty contact section', async () => {
-  const runtime = await readFile(RUNTIME_FILE, 'utf8');
-  assert.match(runtime, /recipientTypeFieldForRow/);
-  assert.match(runtime, /label\.textContent = 'סוג נמען'/);
-  assert.match(runtime, /arrangeRecipientDateDomainRow/);
-  assert.match(runtime, /data-pa-recipient-meta-row/);
-  assert.match(runtime, /grid-template-columns', '160px 120px max-content'/);
-  assert.match(runtime, /input\[name="proposal_date"\]/);
-  assert.match(runtime, /select\[name="proposal_domain"\]/);
-  assert.match(runtime, /recipientField\.hidden = form\.classList\.contains\('has-locked-client'\)/);
-  assert.match(runtime, /searchBlock\.style\.setProperty\('grid-template-columns', '262px'/);
-  assert.match(runtime, /recipientReadyState/);
-  assert.match(runtime, /contactPanel\.hidden = !recipientReady/);
+test('recipient date, domain and type are owned by formHtml with no runtime rearrange', async () => {
+  const [runtime, screen, css] = await Promise.all([
+    readFile(RUNTIME_FILE, 'utf8'),
+    readFile(SCREEN_FILE, 'utf8'),
+    readFile(CSS_FILE, 'utf8')
+  ]);
+  assert.match(screen, /data-pa-recipient-meta-row/);
+  assert.match(screen, /ds-pa-recipient-date-field/);
+  assert.match(screen, /ds-pa-recipient-domain-field/);
+  assert.match(screen, /clientTypeSelectorHtml\(initClientType\)/);
+  assert.match(screen, /name="proposal_date"/);
+  assert.match(screen, /name="proposal_domain"/);
+  assert.equal((screen.match(/סוג נמען/g) || []).filter((value, index, arr) => arr.indexOf(value) === index).length >= 1, true);
+  assert.match(runtime, /Recipient type is rendered in formHtml/);
+  assert.match(runtime, /no runtime reparenting/);
+  assert.doesNotMatch(runtime, /row\.appendChild\(element\)/);
+  assert.doesNotMatch(runtime, /data-pa-recipient-meta-row[\s\S]*style\.setProperty|style\.setProperty[\s\S]*data-pa-recipient-meta-row/);
+  assert.doesNotMatch(runtime, /recipientField\.hidden = form\.classList\.contains\('has-locked-client'\)/);
+  assert.doesNotMatch(runtime, /contactPanel\.hidden = !recipientReady/);
+  assert.match(css, /\[data-pa-recipient-meta-row\]/);
+  assert.match(css, /\[data-pa-recipient-meta-row\][\s\S]*display:\s*flex !important/);
+  assert.doesNotMatch(css, /overflow-x:\s*auto/);
 });
 
 test('frontend hotfix and service worker cache versions are bumped together', async () => {
@@ -89,8 +100,7 @@ test('frontend hotfix and service worker cache versions are bumped together', as
     readFile(CONFIG_FILE, 'utf8'),
     readFile(SW_FILE, 'utf8')
   ]);
-  assert.match(config, /school-2027-default-cutover-20260801-v1/);
-  assert.match(config, /performance-continuation-20260801-v1/);
-  assert.match(config, /proposal-recipient-final-ui-20260801-v1/);
-  assert.match(sw, /const CACHE_VERSION = 1344;/);
+  assert.match(config, /proposal-recipient-single-source-20260801-v2/);
+  assert.match(config, /proposal-recipient-search-row-fix\.js\?v=20260801-v7/);
+  assert.match(sw, /const CACHE_VERSION = 1346;/);
 });
