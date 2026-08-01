@@ -37,18 +37,28 @@
 #app .pa-editor-workspace .ds-pa-type-card {
   inline-size: var(--pa-choice-width) !important;
   min-inline-size: var(--pa-choice-width) !important;
+  max-inline-size: var(--pa-choice-width) !important;
+  width: var(--pa-choice-width) !important;
   block-size: var(--pa-recipient-control-height) !important;
   min-block-size: var(--pa-recipient-control-height) !important;
   display: inline-flex !important;
   align-items: center;
   justify-content: center;
   text-align: center;
-  padding: 0 10px !important;
+  padding: 0 8px !important;
   box-sizing: border-box !important;
   border: 1px solid var(--pa-recipient-border) !important;
   border-radius: 10px !important;
   background: #fff !important;
   box-shadow: none !important;
+  overflow: hidden !important;
+  white-space: nowrap !important;
+}
+
+#app .pa-editor-workspace .ds-pa-recipient-type-option > span {
+  overflow: hidden !important;
+  text-overflow: ellipsis !important;
+  white-space: nowrap !important;
 }
 
 #app .pa-editor-workspace .ds-pa-type-card {

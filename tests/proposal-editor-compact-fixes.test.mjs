@@ -15,8 +15,8 @@ test('proposal editor compact assets are loaded after the shared dashboard style
   const compactStyle = html.indexOf('./frontend/src/styles/proposal-editor-compact-fixes.css');
   assert.ok(mainStyle >= 0, 'main stylesheet should remain loaded');
   assert.ok(compactStyle > mainStyle, 'proposal editor overrides should load after main.css');
-  assert.match(html, /frontend\/src\/proposal-editor-compact-fixes\.js\?v=20260801-v2/);
-  assert.match(html, /proposal-editor-compact-fixes\.css\?v=20260801-v2/);
+  assert.match(html, /frontend\/src\/proposal-editor-compact-fixes\.js\?v=20260801-v3/);
+  assert.match(html, /proposal-editor-compact-fixes\.css\?v=20260801-v3/);
 });
 
 test('proposal editor CSS is scoped, flat and keeps the requested control sizes', async () => {
@@ -100,7 +100,7 @@ test('frontend hotfix and service worker cache versions are bumped together', as
     readFile(CONFIG_FILE, 'utf8'),
     readFile(SW_FILE, 'utf8')
   ]);
-  assert.match(config, /proposal-recipient-single-source-20260801-v1/);
+  assert.match(config, /proposal-recipient-single-source-20260801-v2/);
   assert.match(config, /proposal-recipient-search-row-fix\.js\?v=20260801-v7/);
-  assert.match(sw, /const CACHE_VERSION = 1345;/);
+  assert.match(sw, /const CACHE_VERSION = 1346;/);
 });

@@ -58,6 +58,6 @@ test('final recipient asset and cache versions are bumped together', async () =>
     readFile(SW_FILE, 'utf8')
   ]);
   assert.match(config, /proposal-recipient-search-row-fix\.js\?v=20260801-v7/);
-  assert.match(config, /proposal-recipient-single-source-20260801-v1/);
-  assert.match(sw, /const CACHE_VERSION = 1345;/);
+  assert.match(config, /proposal-recipient-single-source-20260801-v2/);
+  assert.match(sw, /const CACHE_VERSION = 1346;/);
 });
