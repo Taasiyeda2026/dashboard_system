@@ -33,7 +33,7 @@ import './gefen-proposal-pdf-header-alignment.js';
 import './proposal-full-clone-runtime.js?v=20260729-independent-clone-v2';
 import './proposal-summer-creation-retired.js?v=20260731-retire-summer-v1';
 import './main.js';
-import './activity-period-selector-access-hotfix.js?v=20260730-restore-2026-access-v2';
+import './activity-period-selector-access-hotfix.js?v=20260801-school-2027-cutover-v1';
 import './styles/activity-drawer-inline-layout.css';
 import './activity-drawer-inline-layout.js';
 import './styles/activity-drawer-type-layout-fix.css';

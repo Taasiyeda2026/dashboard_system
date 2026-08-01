@@ -46,7 +46,7 @@ import { rowMatchesActivityGapFilter } from './shared/activity-gap-filter.js';
 import { activityMatchesInstructorStatusFilter } from './shared/activity-instructor-filter.js';
 import { renderActivitiesViewSwitcher, bindActivitiesViewSwitcher } from './shared/view-switcher.js';
 import { resolveSchool2027Contact } from './shared/school-2027-contact.js';
-import { ACTIVITY_SEASON_OPTIONS, ACTIVITY_SEASON_REGULAR, ACTIVITY_SEASON_SUMMER_2026, ACTIVITY_SEASON_SCHOOL_2027, getActivityPeriodKey, normalizeActivitySeason, normalizeGlobalActivityPeriod, globalActivityPeriodLabel } from './shared/summer-activity.js';
+import { ACTIVE_ACTIVITY_SEASON, ACTIVITY_SEASON_OPTIONS, ACTIVITY_SEASON_REGULAR, ACTIVITY_SEASON_SUMMER_2026, ACTIVITY_SEASON_SCHOOL_2027, getActivityPeriodKey, normalizeActivitySeason, normalizeGlobalActivityPeriod, globalActivityPeriodLabel } from './shared/summer-activity.js';
 import { showToast } from './shared/toast.js';
 import { canEditDirect, canAddActivityDirect, canRequestEdit, canRequestCreateActivity, canReviewRequests } from '../permissions.js';
 import { bindInstructorScheduling } from './instructor-scheduling-workflow.js';
@@ -87,7 +87,7 @@ function todayYmdForActivityDefaults() {
 }
 
 function defaultActivityPeriodTab() {
-  return ACTIVITY_SEASON_REGULAR;
+  return ACTIVE_ACTIVITY_SEASON;
 }
 const INACTIVE_ACTIVITY_STATUSES = new Set(['סגור', 'נמחק', 'בוטל', 'closed', 'deleted', 'inactive', 'cancelled', 'canceled']);
 const ACTIVITY_LAYOUT_SEASON = 'summer_2026';

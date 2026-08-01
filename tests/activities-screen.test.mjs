@@ -1129,11 +1129,11 @@ test('activity period helper keeps one source of truth and explicit season beats
   assert.equal(globalActivityPeriodLabel('summer_2026'), '2026');
   assert.equal(globalActivityPeriodLabel('regular'), '2026');
   assert.equal(globalActivityPeriodLabel('school_2027'), '2027');
-  assert.equal(normalizeGlobalActivityPeriod(''), 'regular');
+  assert.equal(normalizeGlobalActivityPeriod(''), 'school_2027');
 });
 
 
-test('global activity period options are only 2026 and 2027 with 2026 default', async () => {
+test('global activity period options are only 2026 and 2027 with 2027 default', async () => {
   const {
     globalActivityPeriodLabel,
     globalActivityPeriodOptions,
@@ -1142,7 +1142,7 @@ test('global activity period options are only 2026 and 2027 with 2026 default', 
   } = await import('../frontend/src/screens/shared/summer-activity.js');
 
   assert.deepEqual(globalActivityPeriodOptions().map((option) => option.shortLabel), ['2026', '2027']);
-  assert.equal(globalActivityPeriodLabel(normalizeGlobalActivityPeriod('')), '2026');
+  assert.equal(globalActivityPeriodLabel(normalizeGlobalActivityPeriod('')), '2027');
   assert.equal(globalActivityPeriodLabel('summer_2026'), '2026');
   assert.equal(activityMatchesPeriodKey({ activity_season: 'summer_2026', start_date: '2026-07-10' }, 'regular'), true);
   assert.equal(activityMatchesPeriodKey({ activity_season: 'regular', start_date: '2026-10-10' }, 'regular'), true);
