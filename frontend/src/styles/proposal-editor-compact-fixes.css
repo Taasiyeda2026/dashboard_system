@@ -1,0 +1,477 @@
+/* Proposal create/edit editor only. No document preview, print or PDF selectors. */
+#app .pa-editor-workspace {
+  --pa-compact-gap: 10px;
+  --pa-choice-width: 92px;
+  --pa-control-height: 36px;
+}
+
+/* Equal-sized controls requested in the editor header and choice groups. */
+#app .pa-editor-workspace .pa-editor-heading-actions .ds-btn {
+  inline-size: 160px !important;
+  min-inline-size: 160px !important;
+  block-size: var(--pa-control-height) !important;
+  min-block-size: var(--pa-control-height) !important;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  text-align: center;
+}
+#app .pa-editor-workspace .ds-pa-recipient-type {
+  display: grid !important;
+  grid-template-columns: repeat(3, var(--pa-choice-width)) !important;
+  grid-auto-rows: var(--pa-control-height) !important;
+  inline-size: max-content !important;
+  gap: 6px !important;
+}
+#app .pa-editor-workspace .ds-pa-recipient-type-option,
+#app .pa-editor-workspace .ds-pa-type-card {
+  inline-size: var(--pa-choice-width) !important;
+  min-inline-size: var(--pa-choice-width) !important;
+  block-size: var(--pa-control-height) !important;
+  min-block-size: var(--pa-control-height) !important;
+  display: inline-flex !important;
+  align-items: center;
+  justify-content: center;
+  text-align: center;
+  padding: 4px 8px !important;
+}
+#app .pa-editor-workspace .ds-pa-type-chips {
+  display: grid !important;
+  grid-template-columns: repeat(3, var(--pa-choice-width)) !important;
+  grid-auto-rows: var(--pa-control-height) !important;
+  inline-size: max-content !important;
+  gap: 6px !important;
+}
+
+/* Recipient and contact area: content-sized, two compact rows after selection. */
+#app .pa-editor-workspace .ds-pa-form-meta-panel {
+  display: grid !important;
+  grid-template-columns: minmax(0, max-content) !important;
+  justify-content: start !important;
+  align-items: start !important;
+  inline-size: fit-content !important;
+  max-inline-size: 100% !important;
+  gap: 8px !important;
+  padding-block-end: 8px !important;
+}
+#app .pa-editor-workspace .ds-pa-form-meta-panel > .pa-sidebar-section-title {
+  grid-column: 1 !important;
+  inline-size: 100%;
+  margin: 0 !important;
+}
+#app .pa-editor-workspace [data-pa-step-panel="client"],
+#app .pa-editor-workspace [data-pa-step-panel="contact"] {
+  inline-size: fit-content !important;
+  max-inline-size: 100% !important;
+  min-block-size: 0 !important;
+}
+#app .pa-editor-workspace .ds-pa-client-search-block {
+  display: grid !important;
+  grid-template-columns: max-content 262px !important;
+  justify-content: start !important;
+  align-items: end !important;
+  inline-size: fit-content !important;
+  max-inline-size: 100% !important;
+  gap: var(--pa-compact-gap) !important;
+}
+#app .pa-editor-workspace .ds-pa-client-search,
+#app .pa-editor-workspace .ds-pa-client-search-field-wrap {
+  inline-size: 262px !important;
+  max-inline-size: 262px !important;
+}
+#app .pa-editor-workspace .ds-pa-school-search-panel {
+  inline-size: fit-content !important;
+  max-inline-size: 100% !important;
+}
+#app .pa-editor-workspace .ds-pa-school-search-panel .ds-pa-client-search-field-wrap {
+  inline-size: 270px !important;
+  max-inline-size: 270px !important;
+}
+#app .pa-editor-workspace .ds-pa-form-meta-panel:has([data-pa-client-card]:not([hidden])) [data-pa-client-search-row] {
+  display: none !important;
+}
+#app .pa-editor-workspace [data-pa-client-card]:not([hidden]) {
+  display: block !important;
+  inline-size: fit-content !important;
+  max-inline-size: 100% !important;
+}
+#app .pa-editor-workspace .ds-pa-client-locked {
+  display: grid !important;
+  grid-template-columns: max-content 180px minmax(200px, 240px) 100px max-content !important;
+  justify-content: start !important;
+  align-items: end !important;
+  inline-size: fit-content !important;
+  max-inline-size: 100% !important;
+  gap: var(--pa-compact-gap) !important;
+  padding: 4px 0 8px !important;
+  border: 0 !important;
+  background: transparent !important;
+  min-block-size: 0 !important;
+}
+#app .pa-editor-workspace .ds-pa-client-locked-body,
+#app .pa-editor-workspace .ds-pa-client-locked-actions {
+  display: contents !important;
+}
+#app .pa-editor-workspace .ds-pa-client-locked p {
+  margin: 0 !important;
+  min-inline-size: 0;
+}
+#app .pa-editor-workspace .ds-pa-client-locked.is-authority {
+  grid-template-columns: max-content 200px max-content !important;
+}
+#app .pa-editor-workspace .ds-pa-client-locked.is-authority .ds-pa-client-locked-name {
+  display: none !important;
+}
+#app .pa-editor-workspace .ds-pa-client-locked-actions .ds-btn {
+  inline-size: auto !important;
+  min-inline-size: max-content !important;
+  block-size: 34px !important;
+}
+
+#app .pa-editor-workspace [data-pa-step-panel="contact"] {
+  display: grid !important;
+  gap: 6px !important;
+  padding-block-start: 6px !important;
+  border-block-start: 1px solid var(--ds-border) !important;
+}
+#app .pa-editor-workspace [data-pa-step-panel="contact"] > .pa-sidebar-section-title {
+  margin: 0 !important;
+  padding: 0 !important;
+  border: 0 !important;
+}
+#app .pa-editor-workspace [data-pa-step-panel="contact"] > .ds-pa-form-grid {
+  display: grid !important;
+  grid-template-columns: 240px max-content max-content !important;
+  justify-content: start !important;
+  align-items: end !important;
+  inline-size: fit-content !important;
+  max-inline-size: 100% !important;
+  gap: var(--pa-compact-gap) !important;
+}
+#app .pa-editor-workspace [data-pa-contact-picker-host] {
+  inline-size: 240px !important;
+}
+#app .pa-editor-workspace .ds-pa-contact-select-field,
+#app .pa-editor-workspace .ds-pa-contact-select-field select {
+  inline-size: 240px !important;
+  max-inline-size: 240px !important;
+}
+#app .pa-editor-workspace .ds-pa-contact-channels {
+  display: contents !important;
+}
+#app .pa-editor-workspace .ds-pa-contact-channels-status {
+  display: flex !important;
+  flex-flow: row nowrap !important;
+  align-items: center !important;
+  gap: 6px !important;
+  inline-size: max-content !important;
+  max-inline-size: none !important;
+  margin: 0 !important;
+}
+#app .pa-editor-workspace .ds-pa-contact-channels-status[hidden] {
+  display: none !important;
+}
+#app .pa-editor-workspace [data-pa-add-contact-row] {
+  inline-size: max-content !important;
+  align-items: center !important;
+  gap: 6px !important;
+}
+
+/* Proposal metadata stays one content-sized row. */
+#app .pa-editor-workspace .ds-pa-form-type-panel {
+  inline-size: fit-content !important;
+  max-inline-size: 100% !important;
+  min-block-size: 0 !important;
+  padding: 10px 12px !important;
+}
+#app .pa-editor-workspace .ds-pa-type-meta-grid {
+  display: grid !important;
+  grid-template-columns: max-content 160px 120px !important;
+  justify-content: start !important;
+  align-items: end !important;
+  inline-size: fit-content !important;
+  gap: 12px !important;
+}
+#app .pa-editor-workspace .ds-pa-type-meta-aux {
+  display: contents !important;
+}
+
+/* Activities: no full-width empty canvas; each template uses its content width. */
+#app .pa-editor-workspace .ds-pa-form-activities-panel {
+  display: grid !important;
+  grid-template-columns: max-content minmax(0, max-content) !important;
+  justify-content: start !important;
+  align-items: start !important;
+  inline-size: fit-content !important;
+  max-inline-size: 100% !important;
+  min-block-size: 0 !important;
+  gap: 8px 12px !important;
+  padding: 12px !important;
+}
+#app .pa-editor-workspace .ds-pa-form-activities-panel > .pa-sidebar-section-title {
+  margin: 0 !important;
+  align-self: start;
+}
+#app .pa-editor-workspace [data-pa-items-host],
+#app .pa-editor-workspace .ds-pa-items-section,
+#app .pa-editor-workspace .ds-pa-items-list {
+  inline-size: fit-content !important;
+  max-inline-size: 100% !important;
+}
+#app .pa-editor-workspace .ds-pa-items-section--group {
+  display: grid !important;
+  inline-size: fit-content !important;
+  max-inline-size: 100% !important;
+  gap: 6px !important;
+  padding: 8px 10px !important;
+  border: 1px solid #dbe7f3 !important;
+  border-radius: 10px !important;
+}
+#app .pa-editor-workspace .ds-pa-items-section--group + .ds-pa-items-section--group {
+  margin-block-start: 8px !important;
+}
+#app .pa-editor-workspace .ds-pa-items-header {
+  display: flex !important;
+  flex-flow: row nowrap !important;
+  justify-content: flex-start !important;
+  align-items: center !important;
+  inline-size: fit-content !important;
+  gap: 8px !important;
+  margin: 0 !important;
+}
+#app .pa-editor-workspace .ds-pa-items-header .ds-btn {
+  inline-size: auto !important;
+  min-inline-size: max-content !important;
+}
+#app .pa-editor-workspace .ds-pa-item-card {
+  inline-size: fit-content !important;
+  max-inline-size: 100% !important;
+  padding: 6px 8px !important;
+  margin: 0 !important;
+}
+#app .pa-editor-workspace .ds-pa-item-quick-row {
+  display: grid !important;
+  grid-template-columns: minmax(320px, 420px) 80px max-content 36px !important;
+  justify-content: start !important;
+  align-items: center !important;
+  inline-size: fit-content !important;
+  max-inline-size: 100% !important;
+  gap: 8px !important;
+  overflow: visible !important;
+}
+#app .pa-editor-workspace .ds-pa-item-quick-row .ds-pa-item-field--select,
+#app .pa-editor-workspace .ds-pa-item-quick-row .ds-pa-item-field--select select {
+  inline-size: 420px !important;
+  max-inline-size: 420px !important;
+}
+#app .pa-editor-workspace .ds-pa-item-quick-row .ds-pa-item-field--qty,
+#app .pa-editor-workspace .ds-pa-item-quick-row .ds-pa-item-field--qty input {
+  inline-size: 80px !important;
+  max-inline-size: 80px !important;
+}
+#app .pa-editor-workspace .ds-pa-item-edit {
+  inline-size: auto !important;
+  min-inline-size: max-content !important;
+}
+#app .pa-editor-workspace .ds-pa-item-remove--quick {
+  inline-size: 36px !important;
+  min-inline-size: 36px !important;
+  padding: 0 !important;
+}
+#app .pa-editor-workspace .ds-pa-note-details {
+  margin-block-start: 8px !important;
+}
+#app .pa-editor-workspace .ds-pa-item-extra {
+  margin-block-start: 8px !important;
+}
+#app .pa-editor-workspace .ds-pa-item-extra > summary {
+  display: none !important;
+}
+#app .pa-editor-workspace .ds-pa-item-extra:not([open]) > .ds-pa-item-extra-body {
+  display: none !important;
+}
+#app .pa-editor-workspace .ds-pa-item-extra-body {
+  inline-size: fit-content !important;
+  max-inline-size: 100% !important;
+  padding: 8px !important;
+}
+#app .pa-editor-workspace .ds-pa-item-grid--extras {
+  display: grid !important;
+  grid-template-columns: 190px 90px 90px 110px 120px !important;
+  justify-content: start !important;
+  align-items: end !important;
+  inline-size: fit-content !important;
+  max-inline-size: 100% !important;
+  gap: 8px !important;
+}
+#app .pa-editor-workspace .ds-pa-item-field--full {
+  display: block !important;
+  inline-size: 610px !important;
+  max-inline-size: 100% !important;
+  margin-block-start: 8px !important;
+}
+#app .pa-editor-workspace .ds-pa-item-field--full textarea {
+  inline-size: 100% !important;
+  min-block-size: 54px !important;
+}
+#app .pa-editor-workspace .ds-pa-line-total {
+  inline-size: 120px !important;
+}
+#app .pa-editor-workspace .ds-pa-line-total output {
+  min-block-size: var(--pa-control-height) !important;
+  padding: 4px 8px !important;
+}
+#app .pa-editor-workspace .ds-pa-items-total-row {
+  inline-size: 420px !important;
+  max-inline-size: 100% !important;
+  margin-block-start: 8px !important;
+  padding: 8px 10px !important;
+}
+
+/* Tour editor: compact header, total and cost rows without a large empty card. */
+#app .pa-editor-workspace .ds-pa-tour-details,
+#app .pa-editor-workspace .ds-pa-tour-components {
+  inline-size: fit-content !important;
+  max-inline-size: 100% !important;
+  min-block-size: 0 !important;
+}
+#app .pa-editor-workspace .ds-pa-tour-details {
+  display: grid !important;
+  justify-content: start !important;
+  gap: 8px !important;
+}
+#app .pa-editor-workspace .ds-pa-tour-summary-row {
+  display: flex !important;
+  justify-content: flex-start !important;
+  align-items: center !important;
+  inline-size: fit-content !important;
+  margin: 0 !important;
+  gap: 10px !important;
+}
+#app .pa-editor-workspace .ds-pa-tour-grand-total-field {
+  inline-size: 180px !important;
+}
+#app .pa-editor-workspace .ds-pa-tour-components .ds-pa-items-header {
+  margin: 0 !important;
+}
+#app .pa-editor-workspace [data-pa-tour-components-body]:empty {
+  display: none !important;
+}
+
+/* Notes and discount are one compact editor summary, not a full-width panel. */
+#app .pa-editor-workspace .ds-pa-form-bottom-panel {
+  display: block !important;
+  inline-size: fit-content !important;
+  max-inline-size: 100% !important;
+  min-block-size: 0 !important;
+  padding: 10px 12px !important;
+}
+#app .pa-editor-workspace .ds-pa-notes-details.is-compact-relocated {
+  display: none !important;
+}
+#app .pa-editor-workspace .ds-pa-summary {
+  inline-size: fit-content !important;
+  max-inline-size: 100% !important;
+  min-block-size: 0 !important;
+}
+#app .pa-editor-workspace .ds-pa-summary-bar--compact {
+  display: grid !important;
+  grid-template-columns: 240px max-content !important;
+  justify-content: start !important;
+  align-items: center !important;
+  inline-size: fit-content !important;
+  max-inline-size: 100% !important;
+  gap: 8px !important;
+}
+#app .pa-editor-workspace .ds-pa-summary-pill--total {
+  inline-size: 240px !important;
+  min-inline-size: 240px !important;
+  flex: none !important;
+  padding: 7px 10px !important;
+}
+#app .pa-editor-workspace [data-pa-discount-toggle] {
+  inline-size: auto !important;
+  min-inline-size: max-content !important;
+}
+#app .pa-editor-workspace .ds-pa-discount-details {
+  display: grid !important;
+  grid-template-columns: 130px 100px 240px 260px !important;
+  justify-content: start !important;
+  align-items: end !important;
+  inline-size: fit-content !important;
+  max-inline-size: 100% !important;
+  gap: 8px !important;
+  margin-block-start: 8px !important;
+  padding: 8px !important;
+}
+#app .pa-editor-workspace .ds-pa-discount-details[hidden] {
+  display: none !important;
+}
+#app .pa-editor-workspace .ds-pa-discount-row {
+  display: contents !important;
+}
+#app .pa-editor-workspace .ds-pa-discount-row .ds-pa-form-field,
+#app .pa-editor-workspace .ds-pa-compact-notes-field {
+  inline-size: auto !important;
+  min-inline-size: 0 !important;
+  margin: 0 !important;
+}
+#app .pa-editor-workspace .ds-pa-compact-notes-field,
+#app .pa-editor-workspace .ds-pa-compact-notes-field textarea {
+  inline-size: 260px !important;
+  max-inline-size: 260px !important;
+}
+#app .pa-editor-workspace .ds-pa-compact-notes-field textarea {
+  min-block-size: var(--pa-control-height) !important;
+  block-size: var(--pa-control-height) !important;
+  resize: vertical;
+}
+
+@media (max-width: 900px) {
+  #app .pa-editor-workspace .ds-pa-client-search-block,
+  #app .pa-editor-workspace .ds-pa-client-locked,
+  #app .pa-editor-workspace [data-pa-step-panel="contact"] > .ds-pa-form-grid,
+  #app .pa-editor-workspace .ds-pa-type-meta-grid,
+  #app .pa-editor-workspace .ds-pa-item-grid--extras,
+  #app .pa-editor-workspace .ds-pa-discount-details {
+    grid-template-columns: repeat(2, minmax(0, max-content)) !important;
+  }
+}
+
+@media (max-width: 640px) {
+  #app .pa-editor-workspace .pa-editor-heading-actions .ds-btn {
+    inline-size: 145px !important;
+    min-inline-size: 145px !important;
+  }
+  #app .pa-editor-workspace .ds-pa-client-search-block,
+  #app .pa-editor-workspace .ds-pa-client-locked,
+  #app .pa-editor-workspace [data-pa-step-panel="contact"] > .ds-pa-form-grid,
+  #app .pa-editor-workspace .ds-pa-type-meta-grid,
+  #app .pa-editor-workspace .ds-pa-item-quick-row,
+  #app .pa-editor-workspace .ds-pa-item-grid--extras,
+  #app .pa-editor-workspace .ds-pa-discount-details {
+    grid-template-columns: minmax(0, 1fr) !important;
+    inline-size: 100% !important;
+  }
+  #app .pa-editor-workspace .ds-pa-form-meta-panel,
+  #app .pa-editor-workspace .ds-pa-form-type-panel,
+  #app .pa-editor-workspace .ds-pa-form-activities-panel,
+  #app .pa-editor-workspace .ds-pa-form-bottom-panel,
+  #app .pa-editor-workspace .ds-pa-summary,
+  #app .pa-editor-workspace .ds-pa-summary-bar--compact {
+    inline-size: 100% !important;
+  }
+  #app .pa-editor-workspace .ds-pa-summary-bar--compact {
+    grid-template-columns: minmax(0, 1fr) max-content !important;
+  }
+  #app .pa-editor-workspace .ds-pa-item-quick-row .ds-pa-item-field--select,
+  #app .pa-editor-workspace .ds-pa-item-quick-row .ds-pa-item-field--select select,
+  #app .pa-editor-workspace .ds-pa-item-quick-row .ds-pa-item-field--qty,
+  #app .pa-editor-workspace .ds-pa-item-quick-row .ds-pa-item-field--qty input,
+  #app .pa-editor-workspace .ds-pa-item-field--full,
+  #app .pa-editor-workspace .ds-pa-compact-notes-field,
+  #app .pa-editor-workspace .ds-pa-compact-notes-field textarea {
+    inline-size: 100% !important;
+    max-inline-size: 100% !important;
+  }
+}
