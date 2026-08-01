@@ -3,6 +3,7 @@
   --pa-compact-gap: 10px;
   --pa-choice-width: 92px;
   --pa-control-height: 36px;
+  --pa-editor-line: #dbe4ee;
 }
 
 /* Equal-sized controls requested in the editor header and choice groups. */
@@ -16,13 +17,16 @@
   justify-content: center;
   text-align: center;
 }
-#app .pa-editor-workspace .ds-pa-recipient-type {
+
+#app .pa-editor-workspace .ds-pa-recipient-type,
+#app .pa-editor-workspace .ds-pa-type-chips {
   display: grid !important;
   grid-template-columns: repeat(3, var(--pa-choice-width)) !important;
   grid-auto-rows: var(--pa-control-height) !important;
   inline-size: max-content !important;
   gap: 6px !important;
 }
+
 #app .pa-editor-workspace .ds-pa-recipient-type-option,
 #app .pa-editor-workspace .ds-pa-type-card {
   inline-size: var(--pa-choice-width) !important;
@@ -35,36 +39,33 @@
   text-align: center;
   padding: 4px 8px !important;
 }
-#app .pa-editor-workspace .ds-pa-type-chips {
-  display: grid !important;
-  grid-template-columns: repeat(3, var(--pa-choice-width)) !important;
-  grid-auto-rows: var(--pa-control-height) !important;
-  inline-size: max-content !important;
-  gap: 6px !important;
-}
 
-/* Recipient and contact area: content-sized, two compact rows after selection. */
+/* Recipient and contact stay inside one outer panel with no inner cards. */
 #app .pa-editor-workspace .ds-pa-form-meta-panel {
   display: grid !important;
-  grid-template-columns: minmax(0, max-content) !important;
+  grid-template-columns: max-content !important;
   justify-content: start !important;
   align-items: start !important;
   inline-size: fit-content !important;
   max-inline-size: 100% !important;
-  gap: 8px !important;
-  padding-block-end: 8px !important;
+  min-block-size: 0 !important;
+  gap: 7px !important;
+  padding: 10px 12px !important;
 }
+
 #app .pa-editor-workspace .ds-pa-form-meta-panel > .pa-sidebar-section-title {
   grid-column: 1 !important;
   inline-size: 100%;
   margin: 0 !important;
 }
+
 #app .pa-editor-workspace [data-pa-step-panel="client"],
 #app .pa-editor-workspace [data-pa-step-panel="contact"] {
   inline-size: fit-content !important;
   max-inline-size: 100% !important;
   min-block-size: 0 !important;
 }
+
 #app .pa-editor-workspace .ds-pa-client-search-block {
   display: grid !important;
   grid-template-columns: max-content 262px !important;
@@ -74,54 +75,104 @@
   max-inline-size: 100% !important;
   gap: var(--pa-compact-gap) !important;
 }
+
 #app .pa-editor-workspace .ds-pa-client-search,
 #app .pa-editor-workspace .ds-pa-client-search-field-wrap {
   inline-size: 262px !important;
   max-inline-size: 262px !important;
 }
+
 #app .pa-editor-workspace .ds-pa-school-search-panel {
   inline-size: fit-content !important;
   max-inline-size: 100% !important;
 }
+
 #app .pa-editor-workspace .ds-pa-school-search-panel .ds-pa-client-search-field-wrap {
   inline-size: 270px !important;
   max-inline-size: 270px !important;
 }
+
 #app .pa-editor-workspace .ds-pa-form-meta-panel:has([data-pa-client-card]:not([hidden])) [data-pa-client-search-row] {
   display: none !important;
 }
+
 #app .pa-editor-workspace [data-pa-client-card]:not([hidden]) {
   display: block !important;
   inline-size: fit-content !important;
   max-inline-size: 100% !important;
 }
+
 #app .pa-editor-workspace .ds-pa-client-locked {
   display: grid !important;
-  grid-template-columns: max-content 180px minmax(200px, 240px) 100px max-content !important;
+  grid-template-columns: 100px 150px 220px 90px max-content !important;
+  grid-auto-flow: row !important;
   justify-content: start !important;
   align-items: end !important;
-  inline-size: fit-content !important;
+  inline-size: max-content !important;
   max-inline-size: 100% !important;
-  gap: var(--pa-compact-gap) !important;
-  padding: 4px 0 8px !important;
-  border: 0 !important;
-  background: transparent !important;
   min-block-size: 0 !important;
+  gap: var(--pa-compact-gap) !important;
+  padding: 2px 0 8px !important;
+  border: 0 !important;
+  border-radius: 0 !important;
+  background: transparent !important;
+  box-shadow: none !important;
 }
+
 #app .pa-editor-workspace .ds-pa-client-locked-body,
 #app .pa-editor-workspace .ds-pa-client-locked-actions {
   display: contents !important;
 }
+
 #app .pa-editor-workspace .ds-pa-client-locked p {
+  display: grid !important;
+  gap: 3px !important;
+  min-inline-size: 0 !important;
   margin: 0 !important;
-  min-inline-size: 0;
+  padding: 0 !important;
+  border: 0 !important;
+  background: transparent !important;
 }
+
+#app .pa-editor-workspace .ds-pa-client-locked-type {
+  grid-column: 1 !important;
+  grid-row: 1 !important;
+}
+
+#app .pa-editor-workspace .ds-pa-client-locked-detail {
+  grid-column: 2 !important;
+  grid-row: 1 !important;
+}
+
+#app .pa-editor-workspace .ds-pa-client-locked-name {
+  grid-column: 3 !important;
+  grid-row: 1 !important;
+}
+
+#app .pa-editor-workspace .ds-pa-client-locked-state {
+  grid-column: 4 !important;
+  grid-row: 1 !important;
+}
+
+#app .pa-editor-workspace .ds-pa-client-locked-actions {
+  grid-column: 5 !important;
+  grid-row: 1 !important;
+  align-self: end !important;
+}
+
 #app .pa-editor-workspace .ds-pa-client-locked.is-authority {
-  grid-template-columns: max-content 200px max-content !important;
+  grid-template-columns: 100px 190px max-content !important;
 }
-#app .pa-editor-workspace .ds-pa-client-locked.is-authority .ds-pa-client-locked-name {
+
+#app .pa-editor-workspace .ds-pa-client-locked.is-authority .ds-pa-client-locked-name,
+#app .pa-editor-workspace .ds-pa-client-locked.is-authority .ds-pa-client-locked-state {
   display: none !important;
 }
+
+#app .pa-editor-workspace .ds-pa-client-locked.is-authority .ds-pa-client-locked-actions {
+  grid-column: 3 !important;
+}
+
 #app .pa-editor-workspace .ds-pa-client-locked-actions .ds-btn {
   inline-size: auto !important;
   min-inline-size: max-content !important;
@@ -131,34 +182,37 @@
 #app .pa-editor-workspace [data-pa-step-panel="contact"] {
   display: grid !important;
   gap: 6px !important;
-  padding-block-start: 6px !important;
-  border-block-start: 1px solid var(--ds-border) !important;
+  padding-block-start: 8px !important;
+  border-block-start: 1px solid var(--pa-editor-line) !important;
 }
+
 #app .pa-editor-workspace [data-pa-step-panel="contact"] > .pa-sidebar-section-title {
   margin: 0 !important;
   padding: 0 !important;
   border: 0 !important;
 }
+
 #app .pa-editor-workspace [data-pa-step-panel="contact"] > .ds-pa-form-grid {
   display: grid !important;
-  grid-template-columns: 240px max-content max-content !important;
+  grid-template-columns: 270px max-content max-content !important;
   justify-content: start !important;
   align-items: end !important;
   inline-size: fit-content !important;
   max-inline-size: 100% !important;
   gap: var(--pa-compact-gap) !important;
 }
-#app .pa-editor-workspace [data-pa-contact-picker-host] {
-  inline-size: 240px !important;
-}
+
+#app .pa-editor-workspace [data-pa-contact-picker-host],
 #app .pa-editor-workspace .ds-pa-contact-select-field,
 #app .pa-editor-workspace .ds-pa-contact-select-field select {
-  inline-size: 240px !important;
-  max-inline-size: 240px !important;
+  inline-size: 270px !important;
+  max-inline-size: 270px !important;
 }
+
 #app .pa-editor-workspace .ds-pa-contact-channels {
   display: contents !important;
 }
+
 #app .pa-editor-workspace .ds-pa-contact-channels-status {
   display: flex !important;
   flex-flow: row nowrap !important;
@@ -168,22 +222,25 @@
   max-inline-size: none !important;
   margin: 0 !important;
 }
+
 #app .pa-editor-workspace .ds-pa-contact-channels-status[hidden] {
   display: none !important;
 }
+
 #app .pa-editor-workspace [data-pa-add-contact-row] {
   inline-size: max-content !important;
   align-items: center !important;
   gap: 6px !important;
 }
 
-/* Proposal metadata stays one content-sized row. */
+/* Proposal metadata remains one compact outer panel. */
 #app .pa-editor-workspace .ds-pa-form-type-panel {
   inline-size: fit-content !important;
   max-inline-size: 100% !important;
   min-block-size: 0 !important;
-  padding: 10px 12px !important;
+  padding: 9px 11px !important;
 }
+
 #app .pa-editor-workspace .ds-pa-type-meta-grid {
   display: grid !important;
   grid-template-columns: max-content 160px 120px !important;
@@ -192,44 +249,65 @@
   inline-size: fit-content !important;
   gap: 12px !important;
 }
+
 #app .pa-editor-workspace .ds-pa-type-meta-aux {
   display: contents !important;
 }
 
-/* Activities: no full-width empty canvas; each template uses its content width. */
+#app .pa-editor-workspace .ds-pa-type-row:empty,
+#app .pa-editor-workspace .ds-pa-template-mode[hidden] {
+  display: none !important;
+}
+
+/* Activities use one outer panel. Inner sections and rows are flat. */
 #app .pa-editor-workspace .ds-pa-form-activities-panel {
-  display: grid !important;
-  grid-template-columns: max-content minmax(0, max-content) !important;
-  justify-content: start !important;
-  align-items: start !important;
+  display: block !important;
+  inline-size: fit-content !important;
+  max-inline-size: 100% !important;
+  min-inline-size: 640px !important;
+  min-block-size: 0 !important;
+  padding: 11px 13px !important;
+}
+
+#app .pa-editor-workspace .ds-pa-compact-activities-heading {
+  display: flex !important;
+  flex-flow: row nowrap !important;
+  justify-content: flex-start !important;
+  align-items: center !important;
+  inline-size: 100% !important;
+  gap: 10px !important;
+  margin: 0 0 8px !important;
+  padding: 0 0 8px !important;
+  border-block-end: 1px solid var(--pa-editor-line) !important;
+}
+
+#app .pa-editor-workspace .ds-pa-compact-activities-heading .pa-sidebar-section-title {
+  margin: 0 !important;
+  padding: 0 !important;
+  border: 0 !important;
+}
+
+#app .pa-editor-workspace .ds-pa-compact-activities-heading .ds-btn {
+  inline-size: auto !important;
+  min-inline-size: max-content !important;
+}
+
+#app .pa-editor-workspace [data-pa-items-host],
+#app .pa-editor-workspace .ds-pa-items-section,
+#app .pa-editor-workspace .ds-pa-items-list,
+#app .pa-editor-workspace .ds-pa-tour-details,
+#app .pa-editor-workspace .ds-pa-tour-components {
   inline-size: fit-content !important;
   max-inline-size: 100% !important;
   min-block-size: 0 !important;
-  gap: 8px 12px !important;
-  padding: 12px !important;
-}
-#app .pa-editor-workspace .ds-pa-form-activities-panel > .pa-sidebar-section-title {
   margin: 0 !important;
-  align-self: start;
+  padding: 0 !important;
+  border: 0 !important;
+  border-radius: 0 !important;
+  background: transparent !important;
+  box-shadow: none !important;
 }
-#app .pa-editor-workspace [data-pa-items-host],
-#app .pa-editor-workspace .ds-pa-items-section,
-#app .pa-editor-workspace .ds-pa-items-list {
-  inline-size: fit-content !important;
-  max-inline-size: 100% !important;
-}
-#app .pa-editor-workspace .ds-pa-items-section--group {
-  display: grid !important;
-  inline-size: fit-content !important;
-  max-inline-size: 100% !important;
-  gap: 6px !important;
-  padding: 8px 10px !important;
-  border: 1px solid #dbe7f3 !important;
-  border-radius: 10px !important;
-}
-#app .pa-editor-workspace .ds-pa-items-section--group + .ds-pa-items-section--group {
-  margin-block-start: 8px !important;
-}
+
 #app .pa-editor-workspace .ds-pa-items-header {
   display: flex !important;
   flex-flow: row nowrap !important;
@@ -238,20 +316,58 @@
   inline-size: fit-content !important;
   gap: 8px !important;
   margin: 0 !important;
+  padding: 6px 0 !important;
+  border: 0 !important;
+  background: transparent !important;
 }
+
+#app .pa-editor-workspace .ds-pa-items-header:empty {
+  display: none !important;
+}
+
 #app .pa-editor-workspace .ds-pa-items-header .ds-btn {
   inline-size: auto !important;
   min-inline-size: max-content !important;
 }
+
+#app .pa-editor-workspace .ds-pa-items-section--group {
+  display: grid !important;
+  inline-size: fit-content !important;
+  max-inline-size: 100% !important;
+  gap: 5px !important;
+  margin: 0 !important;
+  padding: 8px 0 !important;
+  border: 0 !important;
+  border-radius: 0 !important;
+  background: transparent !important;
+  box-shadow: none !important;
+}
+
+#app .pa-editor-workspace .ds-pa-items-section--group + .ds-pa-items-section--group {
+  margin-block-start: 4px !important;
+  border-block-start: 1px solid var(--pa-editor-line) !important;
+}
+
 #app .pa-editor-workspace .ds-pa-item-card {
   inline-size: fit-content !important;
   max-inline-size: 100% !important;
-  padding: 6px 8px !important;
+  min-block-size: 0 !important;
   margin: 0 !important;
+  padding: 8px 0 !important;
+  border: 0 !important;
+  border-block-end: 1px solid var(--pa-editor-line) !important;
+  border-radius: 0 !important;
+  background: transparent !important;
+  box-shadow: none !important;
 }
+
+#app .pa-editor-workspace .ds-pa-item-card:last-child {
+  border-block-end: 0 !important;
+}
+
 #app .pa-editor-workspace .ds-pa-item-quick-row {
   display: grid !important;
-  grid-template-columns: minmax(320px, 420px) 80px max-content 36px !important;
+  grid-template-columns: minmax(300px, 400px) 72px max-content 34px !important;
   justify-content: start !important;
   align-items: center !important;
   inline-size: fit-content !important;
@@ -259,42 +375,59 @@
   gap: 8px !important;
   overflow: visible !important;
 }
+
 #app .pa-editor-workspace .ds-pa-item-quick-row .ds-pa-item-field--select,
 #app .pa-editor-workspace .ds-pa-item-quick-row .ds-pa-item-field--select select {
-  inline-size: 420px !important;
-  max-inline-size: 420px !important;
+  inline-size: 400px !important;
+  max-inline-size: 400px !important;
 }
+
 #app .pa-editor-workspace .ds-pa-item-quick-row .ds-pa-item-field--qty,
 #app .pa-editor-workspace .ds-pa-item-quick-row .ds-pa-item-field--qty input {
-  inline-size: 80px !important;
-  max-inline-size: 80px !important;
+  inline-size: 72px !important;
+  max-inline-size: 72px !important;
 }
+
 #app .pa-editor-workspace .ds-pa-item-edit {
   inline-size: auto !important;
   min-inline-size: max-content !important;
 }
+
 #app .pa-editor-workspace .ds-pa-item-remove--quick {
-  inline-size: 36px !important;
-  min-inline-size: 36px !important;
+  inline-size: 34px !important;
+  min-inline-size: 34px !important;
   padding: 0 !important;
 }
-#app .pa-editor-workspace .ds-pa-note-details {
-  margin-block-start: 8px !important;
-}
+
 #app .pa-editor-workspace .ds-pa-item-extra {
-  margin-block-start: 8px !important;
+  margin: 7px 0 0 !important;
+  padding: 0 !important;
+  border: 0 !important;
+  border-radius: 0 !important;
+  background: transparent !important;
+  box-shadow: none !important;
 }
+
 #app .pa-editor-workspace .ds-pa-item-extra > summary {
   display: none !important;
 }
+
 #app .pa-editor-workspace .ds-pa-item-extra:not([open]) > .ds-pa-item-extra-body {
   display: none !important;
 }
+
 #app .pa-editor-workspace .ds-pa-item-extra-body {
   inline-size: fit-content !important;
   max-inline-size: 100% !important;
-  padding: 8px !important;
+  margin: 0 !important;
+  padding: 8px 0 0 !important;
+  border: 0 !important;
+  border-block-start: 1px dashed var(--pa-editor-line) !important;
+  border-radius: 0 !important;
+  background: transparent !important;
+  box-shadow: none !important;
 }
+
 #app .pa-editor-workspace .ds-pa-item-grid--extras {
   display: grid !important;
   grid-template-columns: 190px 90px 90px 110px 120px !important;
@@ -304,127 +437,175 @@
   max-inline-size: 100% !important;
   gap: 8px !important;
 }
+
+#app .pa-editor-workspace .ds-pa-note-details {
+  margin-block-start: 8px !important;
+  border: 0 !important;
+  background: transparent !important;
+}
+
 #app .pa-editor-workspace .ds-pa-item-field--full {
   display: block !important;
-  inline-size: 610px !important;
+  inline-size: 560px !important;
   max-inline-size: 100% !important;
   margin-block-start: 8px !important;
 }
+
 #app .pa-editor-workspace .ds-pa-item-field--full textarea {
   inline-size: 100% !important;
-  min-block-size: 54px !important;
+  min-block-size: 52px !important;
 }
+
 #app .pa-editor-workspace .ds-pa-line-total {
   inline-size: 120px !important;
 }
+
 #app .pa-editor-workspace .ds-pa-line-total output {
   min-block-size: var(--pa-control-height) !important;
   padding: 4px 8px !important;
 }
-#app .pa-editor-workspace .ds-pa-items-total-row {
-  inline-size: 420px !important;
-  max-inline-size: 100% !important;
-  margin-block-start: 8px !important;
-  padding: 8px 10px !important;
+
+/* The final total is shown once in the summary row below the activities. */
+#app .pa-editor-workspace .ds-pa-items-total-row,
+#app .pa-editor-workspace .ds-pa-tour-grand-total-field,
+#app .pa-editor-workspace .is-duplicate-editor-total {
+  display: none !important;
 }
 
-/* Tour editor: compact header, total and cost rows without a large empty card. */
-#app .pa-editor-workspace .ds-pa-tour-details,
-#app .pa-editor-workspace .ds-pa-tour-components {
-  inline-size: fit-content !important;
-  max-inline-size: 100% !important;
-  min-block-size: 0 !important;
-}
 #app .pa-editor-workspace .ds-pa-tour-details {
   display: grid !important;
   justify-content: start !important;
-  gap: 8px !important;
+  gap: 7px !important;
 }
+
 #app .pa-editor-workspace .ds-pa-tour-summary-row {
   display: flex !important;
   justify-content: flex-start !important;
   align-items: center !important;
   inline-size: fit-content !important;
   margin: 0 !important;
-  gap: 10px !important;
+  gap: 8px !important;
 }
-#app .pa-editor-workspace .ds-pa-tour-grand-total-field {
-  inline-size: 180px !important;
-}
+
 #app .pa-editor-workspace .ds-pa-tour-components .ds-pa-items-header {
   margin: 0 !important;
 }
+
 #app .pa-editor-workspace [data-pa-tour-components-body]:empty {
   display: none !important;
 }
 
-/* Notes and discount are one compact editor summary, not a full-width panel. */
-#app .pa-editor-workspace .ds-pa-form-bottom-panel {
-  display: block !important;
+/* Summary and discount now live inside the single activities panel. */
+#app .pa-editor-workspace .ds-pa-summary.is-compact-relocated {
   inline-size: fit-content !important;
   max-inline-size: 100% !important;
   min-block-size: 0 !important;
-  padding: 10px 12px !important;
+  margin: 10px 0 0 !important;
+  padding: 10px 0 0 !important;
+  border: 0 !important;
+  border-block-start: 1px solid var(--pa-editor-line) !important;
+  border-radius: 0 !important;
+  background: transparent !important;
+  box-shadow: none !important;
 }
-#app .pa-editor-workspace .ds-pa-notes-details.is-compact-relocated {
-  display: none !important;
-}
-#app .pa-editor-workspace .ds-pa-summary {
-  inline-size: fit-content !important;
-  max-inline-size: 100% !important;
-  min-block-size: 0 !important;
-}
+
 #app .pa-editor-workspace .ds-pa-summary-bar--compact {
-  display: grid !important;
-  grid-template-columns: 240px max-content !important;
-  justify-content: start !important;
+  display: flex !important;
+  flex-flow: row nowrap !important;
+  justify-content: flex-start !important;
   align-items: center !important;
   inline-size: fit-content !important;
   max-inline-size: 100% !important;
-  gap: 8px !important;
+  gap: 10px !important;
+  margin: 0 !important;
+  padding: 0 !important;
+  border: 0 !important;
+  background: transparent !important;
+  box-shadow: none !important;
 }
+
 #app .pa-editor-workspace .ds-pa-summary-pill--total {
-  inline-size: 240px !important;
-  min-inline-size: 240px !important;
-  flex: none !important;
-  padding: 7px 10px !important;
+  display: inline-flex !important;
+  align-items: center !important;
+  gap: 8px !important;
+  inline-size: auto !important;
+  min-inline-size: 0 !important;
+  margin: 0 !important;
+  padding: 0 !important;
+  border: 0 !important;
+  border-radius: 0 !important;
+  background: transparent !important;
+  box-shadow: none !important;
 }
+
 #app .pa-editor-workspace [data-pa-discount-toggle] {
   inline-size: auto !important;
   min-inline-size: max-content !important;
 }
+
 #app .pa-editor-workspace .ds-pa-discount-details {
   display: grid !important;
-  grid-template-columns: 130px 100px 240px 260px !important;
+  grid-template-columns: 110px 100px 220px 260px !important;
   justify-content: start !important;
   align-items: end !important;
   inline-size: fit-content !important;
   max-inline-size: 100% !important;
   gap: 8px !important;
-  margin-block-start: 8px !important;
-  padding: 8px !important;
+  margin: 8px 0 0 !important;
+  padding: 8px 0 0 !important;
+  border: 0 !important;
+  border-block-start: 1px dashed var(--pa-editor-line) !important;
+  border-radius: 0 !important;
+  background: transparent !important;
+  box-shadow: none !important;
 }
+
 #app .pa-editor-workspace .ds-pa-discount-details[hidden] {
   display: none !important;
 }
+
 #app .pa-editor-workspace .ds-pa-discount-row {
   display: contents !important;
 }
+
 #app .pa-editor-workspace .ds-pa-discount-row .ds-pa-form-field,
 #app .pa-editor-workspace .ds-pa-compact-notes-field {
   inline-size: auto !important;
   min-inline-size: 0 !important;
   margin: 0 !important;
 }
+
 #app .pa-editor-workspace .ds-pa-compact-notes-field,
 #app .pa-editor-workspace .ds-pa-compact-notes-field textarea {
   inline-size: 260px !important;
   max-inline-size: 260px !important;
 }
+
 #app .pa-editor-workspace .ds-pa-compact-notes-field textarea {
   min-block-size: var(--pa-control-height) !important;
   block-size: var(--pa-control-height) !important;
   resize: vertical;
+}
+
+/* The old bottom wrapper is retained only for validation and errors. */
+#app .pa-editor-workspace .ds-pa-form-bottom-panel.is-summary-relocated {
+  inline-size: 100% !important;
+  min-block-size: 0 !important;
+  margin: 0 !important;
+  padding: 0 !important;
+  border: 0 !important;
+  border-radius: 0 !important;
+  background: transparent !important;
+  box-shadow: none !important;
+}
+
+#app .pa-editor-workspace .ds-pa-notes-details.is-compact-relocated {
+  display: none !important;
+}
+
+#app .pa-editor-workspace .ds-pa-form-bottom-panel.is-summary-relocated .ds-pa-form-error:empty,
+#app .pa-editor-workspace .ds-pa-form-bottom-panel.is-summary-relocated .ds-pa-validation-notice[hidden] {
+  display: none !important;
 }
 
 @media (max-width: 900px) {
@@ -436,6 +617,10 @@
   #app .pa-editor-workspace .ds-pa-discount-details {
     grid-template-columns: repeat(2, minmax(0, max-content)) !important;
   }
+
+  #app .pa-editor-workspace .ds-pa-form-activities-panel {
+    min-inline-size: 0 !important;
+  }
 }
 
 @media (max-width: 640px) {
@@ -443,6 +628,7 @@
     inline-size: 145px !important;
     min-inline-size: 145px !important;
   }
+
   #app .pa-editor-workspace .ds-pa-client-search-block,
   #app .pa-editor-workspace .ds-pa-client-locked,
   #app .pa-editor-workspace [data-pa-step-panel="contact"] > .ds-pa-form-grid,
@@ -453,17 +639,20 @@
     grid-template-columns: minmax(0, 1fr) !important;
     inline-size: 100% !important;
   }
+
   #app .pa-editor-workspace .ds-pa-form-meta-panel,
   #app .pa-editor-workspace .ds-pa-form-type-panel,
   #app .pa-editor-workspace .ds-pa-form-activities-panel,
-  #app .pa-editor-workspace .ds-pa-form-bottom-panel,
   #app .pa-editor-workspace .ds-pa-summary,
   #app .pa-editor-workspace .ds-pa-summary-bar--compact {
     inline-size: 100% !important;
   }
+
+  #app .pa-editor-workspace .ds-pa-compact-activities-heading,
   #app .pa-editor-workspace .ds-pa-summary-bar--compact {
-    grid-template-columns: minmax(0, 1fr) max-content !important;
+    flex-wrap: wrap !important;
   }
+
   #app .pa-editor-workspace .ds-pa-item-quick-row .ds-pa-item-field--select,
   #app .pa-editor-workspace .ds-pa-item-quick-row .ds-pa-item-field--select select,
   #app .pa-editor-workspace .ds-pa-item-quick-row .ds-pa-item-field--qty,
