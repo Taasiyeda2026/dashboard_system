@@ -6,11 +6,47 @@ function editorFormFromNode(node) {
 
 function markRecipientMode(form) {
   const locked = form.querySelector('.ds-pa-client-locked');
+  form.classList.toggle('has-locked-client', Boolean(locked));
   if (!locked) return;
   const type = String(locked.querySelector('.ds-pa-client-locked-type strong')?.textContent || '').trim();
   locked.classList.toggle('is-authority', type === 'רשות');
   locked.classList.toggle('is-school', type === 'בית ספר');
   locked.classList.toggle('is-other', type === 'אחר');
+}
+
+function arrangeRecipientDateDomainRow(form) {
+  const metaPanel = form.querySelector('.ds-pa-form-meta-panel');
+  const typePanel = form.querySelector('.ds-pa-form-type-panel');
+  const recipientType = form.querySelector('.ds-pa-recipient-type');
+  const dateField = typePanel?.querySelector('input[name="proposal_date"]')?.closest('label');
+  const domainField = typePanel?.querySelector('select[name="proposal_domain"]')?.closest('label');
+  if (!metaPanel || !recipientType || !dateField || !domainField) return;
+
+  let row = metaPanel.querySelector(':scope > [data-pa-recipient-meta-row]');
+  if (!row) {
+    row = document.createElement('div');
+    row.dataset.paRecipientMetaRow = 'true';
+    row.className = 'ds-pa-recipient-meta-row';
+    const title = metaPanel.querySelector(':scope > .pa-sidebar-section-title');
+    title?.insertAdjacentElement('afterend', row);
+  }
+
+  [dateField, domainField, recipientType].forEach((element) => {
+    if (element.parentElement !== row) row.appendChild(element);
+  });
+
+  row.style.setProperty('display', 'grid', 'important');
+  row.style.setProperty('grid-template-columns', '160px 120px max-content', 'important');
+  row.style.setProperty('align-items', 'end', 'important');
+  row.style.setProperty('justify-content', 'start', 'important');
+  row.style.setProperty('gap', '10px', 'important');
+  row.style.setProperty('inline-size', 'max-content', 'important');
+  row.style.setProperty('max-inline-size', '100%', 'important');
+  row.style.setProperty('margin', '0 0 8px', 'important');
+
+  dateField.style.setProperty('inline-size', '160px', 'important');
+  domainField.style.setProperty('inline-size', '120px', 'important');
+  recipientType.hidden = form.classList.contains('has-locked-client');
 }
 
 function relocateProgramNotes(form) {
@@ -72,6 +108,52 @@ function markActivitiesLayout(form) {
   panel.classList.toggle('has-multiple-add-rows', addButtons.length > 1);
 }
 
+function normalizeNextYearWorkshopRows(form) {
+  form.querySelectorAll('[data-pa-items-group="next_year_workshops"] [data-pa-item-row]').forEach((row) => {
+    const quickRow = row.querySelector(':scope > .ds-pa-item-quick-row');
+    if (!quickRow) return;
+
+    row.style.setProperty('inline-size', 'max-content', 'important');
+    row.style.setProperty('max-inline-size', '100%', 'important');
+    row.style.setProperty('min-block-size', '0', 'important');
+
+    quickRow.style.setProperty('display', 'grid', 'important');
+    quickRow.style.setProperty('grid-template-columns', '400px 72px max-content 34px', 'important');
+    quickRow.style.setProperty('grid-template-rows', '36px', 'important');
+    quickRow.style.setProperty('grid-auto-flow', 'column', 'important');
+    quickRow.style.setProperty('align-items', 'center', 'important');
+    quickRow.style.setProperty('justify-content', 'start', 'important');
+    quickRow.style.setProperty('inline-size', 'max-content', 'important');
+    quickRow.style.setProperty('max-inline-size', '100%', 'important');
+    quickRow.style.setProperty('gap', '8px', 'important');
+
+    const controls = [
+      quickRow.querySelector('.ds-pa-item-field--select'),
+      quickRow.querySelector('.ds-pa-item-field--qty'),
+      quickRow.querySelector('.ds-pa-item-edit'),
+      quickRow.querySelector('.ds-pa-item-remove--quick')
+    ];
+    controls.forEach((control, index) => {
+      if (!control) return;
+      control.style.setProperty('grid-column', String(index + 1), 'important');
+      control.style.setProperty('grid-row', '1', 'important');
+      control.style.setProperty('align-self', 'center', 'important');
+      control.style.setProperty('margin', '0', 'important');
+    });
+
+    const select = quickRow.querySelector('.ds-pa-item-field--select select');
+    const quantity = quickRow.querySelector('.ds-pa-item-field--qty input');
+    if (select) {
+      select.style.setProperty('inline-size', '400px', 'important');
+      select.style.setProperty('max-inline-size', '400px', 'important');
+    }
+    if (quantity) {
+      quantity.style.setProperty('inline-size', '72px', 'important');
+      quantity.style.setProperty('max-inline-size', '72px', 'important');
+    }
+  });
+}
+
 function markSummaryLayout(form) {
   const bottomPanel = form.querySelector('.ds-pa-form-bottom-panel');
   const summary = bottomPanel?.querySelector(':scope > .ds-pa-summary');
@@ -85,10 +167,49 @@ function markDuplicateEditorTotals(form) {
     .forEach((element) => element.classList.add('is-duplicate-editor-total'));
 }
 
+function selectedContactPayload(form) {
+  const option = form.querySelector('[data-pa-contact-select] option:checked[data-pa-contact-option]');
+  const encoded = String(option?.dataset?.paContactOption || '').trim();
+  if (!encoded) return null;
+  try {
+    const parsed = JSON.parse(decodeURIComponent(encoded));
+    return parsed && typeof parsed === 'object' ? parsed : null;
+  } catch {
+    return null;
+  }
+}
+
+function hydrateContactSourceFromPicker(form) {
+  const sourceIdInput = form.querySelector('input[name="contact_source_id"]');
+  if (!sourceIdInput || String(sourceIdInput.value || '').trim()) return;
+
+  const contact = selectedContactPayload(form);
+  const sourceId = String(contact?.id || contact?.source_id || '').trim();
+  if (!sourceId) return;
+
+  const setValue = (name, value) => {
+    const input = form.querySelector(`input[name="${name}"]`);
+    if (input && !String(input.value || '').trim()) input.value = value == null ? '' : String(value);
+  };
+
+  sourceIdInput.value = sourceId;
+  setValue('contact_source_table', contact.source_table || 'contacts_schools');
+  setValue('contact_source_authority_id', contact.authority_id);
+  setValue('contact_source_school_id', contact.school_id);
+  setValue('contact_source_semel_mosad', contact.semel_mosad);
+  setValue('contact_source_authority', contact.authority || contact.authority_name);
+  setValue('contact_source_school', contact.school || contact.school_name);
+  setValue('contact_source_name', contact.contact_name);
+  setValue('contact_source_role', contact.contact_role);
+  setValue('contact_source_mobile', contact.mobile);
+  setValue('contact_source_email', contact.email);
+}
+
 function ensureContactSaveButton(form) {
   const fieldsBlock = form.querySelector('[data-pa-contact-channels-fields]');
   if (!fieldsBlock) return;
 
+  hydrateContactSourceFromPicker(form);
   const sourceId = String(form.querySelector('input[name="contact_source_id"]')?.value || '').trim();
   const existing = fieldsBlock.querySelector('[data-pa-contact-channels-save]');
   if (!sourceId) {
@@ -114,6 +235,7 @@ function triggerContactSave(button) {
   const fieldsBlock = button?.closest?.('[data-pa-contact-channels-fields]');
   if (!form || !fieldsBlock || button.disabled) return;
 
+  hydrateContactSourceFromPicker(form);
   const target = fieldsBlock.querySelector('input[name="phone"]')
     || fieldsBlock.querySelector('input[name="email"]');
   if (!target) return;
@@ -142,9 +264,11 @@ function compactEditor(form) {
   if (!form || !form.querySelector('.pa-editor-workspace')) return;
   restoreLegacyMovedNodes(form);
   markRecipientMode(form);
+  arrangeRecipientDateDomainRow(form);
   relocateProgramNotes(form);
   mergeGeneralNotesIntoDiscount(form);
   markActivitiesLayout(form);
+  normalizeNextYearWorkshopRows(form);
   markSummaryLayout(form);
   markDuplicateEditorTotals(form);
   ensureContactSaveButton(form);
@@ -204,7 +328,9 @@ if (typeof document !== 'undefined') {
 
     const typeButton = event.target?.closest?.('[data-pa-type-btn]');
     const contactToggle = event.target?.closest?.('[data-pa-contact-channels-toggle]');
-    const form = (typeButton || contactToggle)?.closest?.('[data-pa-form]');
+    const addItemButton = event.target?.closest?.('[data-pa-add-item]');
+    const unlockClientButton = event.target?.closest?.('[data-pa-unlock-client]');
+    const form = (typeButton || contactToggle || addItemButton || unlockClientButton)?.closest?.('[data-pa-form]');
     if (form) setTimeout(() => scheduleCompact(form), 0);
   });
 
@@ -222,12 +348,16 @@ if (typeof document !== 'undefined') {
 export {
   compactEditor,
   markRecipientMode,
+  arrangeRecipientDateDomainRow,
   relocateProgramNotes,
   mergeGeneralNotesIntoDiscount,
   restoreLegacyMovedNodes,
   markActivitiesLayout,
+  normalizeNextYearWorkshopRows,
   markSummaryLayout,
   markDuplicateEditorTotals,
+  selectedContactPayload,
+  hydrateContactSourceFromPicker,
   ensureContactSaveButton,
   triggerContactSave,
   scheduleCompact
