@@ -48,11 +48,20 @@ test('runtime observer is child-list only and avoids the previous mutation loop'
   assert.doesNotMatch(runtime, /Supabase|fetch\(|localStorage|sessionStorage/);
 });
 
+test('contact channel editing includes an explicit save button that uses the existing save flow', async () => {
+  const runtime = await readFile(RUNTIME_FILE, 'utf8');
+  assert.match(runtime, /ensureContactSaveButton/);
+  assert.match(runtime, /data\.paContactChannelsSave = 'true'/);
+  assert.match(runtime, /שמירת פרטי קשר/);
+  assert.match(runtime, /target\.dispatchEvent\(new Event\('change', \{ bubbles: true \}\)\)/);
+  assert.match(runtime, /input\[name="contact_source_id"\]/);
+});
+
 test('frontend hotfix and service worker cache versions are bumped together', async () => {
   const [config, sw] = await Promise.all([
     readFile(CONFIG_FILE, 'utf8'),
     readFile(SW_FILE, 'utf8')
   ]);
-  assert.match(config, /proposal-template-switch-stability-20260801-v1/);
-  assert.match(sw, /const CACHE_VERSION = 1333;/);
+  assert.match(config, /proposal-contact-save-button-20260801-v1/);
+  assert.match(sw, /const CACHE_VERSION = 1334;/);
 });
