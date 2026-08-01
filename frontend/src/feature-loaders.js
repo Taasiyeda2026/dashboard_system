@@ -2,6 +2,9 @@
  * One-shot feature loaders.
  * Heavy screen modules (PDF, annual reviews, Israa, activity drawers, operations)
  * stay out of the initial bootstrap and load only when their route/feature is used.
+ *
+ * CSS is attached via <link> because the unbundled GitHub Pages deploy serves native
+ * ES modules, which cannot import .css files directly.
  */
 
 const featurePromises = new Map();
@@ -19,8 +22,36 @@ function loadOnce(name, loader) {
   return promise;
 }
 
+function resolveAssetUrl(relativePath) {
+  try {
+    return new URL(relativePath, import.meta.url).href;
+  } catch {
+    return relativePath;
+  }
+}
+
+function loadStylesheet(relativePath) {
+  const href = resolveAssetUrl(relativePath);
+  if (typeof document === 'undefined') return Promise.resolve();
+  const existing = Array.from(document.querySelectorAll('link[rel="stylesheet"]'))
+    .find((link) => link.href === href || link.getAttribute('href') === relativePath);
+  if (existing) return Promise.resolve();
+  return new Promise((resolve) => {
+    const link = document.createElement('link');
+    link.rel = 'stylesheet';
+    link.href = href;
+    link.dataset.featureLoaderCss = relativePath;
+    link.addEventListener('load', () => resolve(), { once: true });
+    link.addEventListener('error', () => resolve(), { once: true });
+    document.head.appendChild(link);
+  });
+}
+
 function importAll(paths) {
-  return Promise.all(paths.map((path) => import(path)));
+  return Promise.all(paths.map((path) => {
+    if (String(path).includes('.css')) return loadStylesheet(path);
+    return import(path);
+  }));
 }
 
 export const FEATURE_ROUTE_MAP = {
