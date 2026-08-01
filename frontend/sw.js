@@ -4,7 +4,7 @@
  * API-like requests: network only, never cached. Bump CACHE_VERSION after deploy to drop old caches.
  * CACHE_VERSION is the single manual SW/cache version source; /sw.js imports this file without its own version.
  */
-const CACHE_VERSION = 1340;
+const CACHE_VERSION = 1341;
 const CACHE_PREFIX = 'dashboard-static-v';
 const CACHE_NAME = `${CACHE_PREFIX}${CACHE_VERSION}`;
 
@@ -89,9 +89,6 @@ async function precacheFresh(cache, path) {
 }
 
 async function cacheFirst(request, cache) {
-  // Query strings are part of the cache key. Several runtime modules deliberately
-  // use them as deploy cache-busters, so ignoring them can resurrect an older JS
-  // response after a release.
   let cached = await cache.match(request);
   if (!cached && isNavigationRequest(request)) {
     cached = await cache.match(resolveUrl('./index.html'));
