@@ -15,14 +15,17 @@ test('proposal editor compact assets are loaded after the shared dashboard style
   const compactStyle = html.indexOf('./frontend/src/styles/proposal-editor-compact-fixes.css');
   assert.ok(mainStyle >= 0, 'main stylesheet should remain loaded');
   assert.ok(compactStyle > mainStyle, 'proposal editor overrides should load after main.css');
-  assert.match(html, /frontend\/src\/proposal-editor-compact-fixes\.js\?v=20260801-v3/);
-  assert.match(html, /proposal-editor-compact-fixes\.css\?v=20260801-v3/);
+  assert.match(html, /frontend\/src\/proposal-editor-compact-fixes\.js\?v=20260801-v4/);
+  assert.match(html, /proposal-editor-compact-fixes\.css\?v=20260801-v4/);
 });
 
 test('proposal editor CSS is scoped, flat and keeps the requested control sizes', async () => {
   const css = await readFile(CSS_FILE, 'utf8');
   assert.match(css, /#app \.pa-editor-workspace \.pa-editor-heading-actions \.ds-btn/);
   assert.match(css, /--pa-choice-width:\s*92px/);
+  assert.match(css, /--recipient-control-height:\s*40px/);
+  assert.match(css, /--recipient-border-color:\s*#cbd5e1/);
+  assert.match(css, /--recipient-border-radius:\s*8px/);
   assert.match(css, /grid-template-columns:\s*repeat\(3, var\(--pa-choice-width\)\)/);
   assert.match(css, /grid-template-columns:\s*minmax\(300px, 400px\) 72px max-content 34px/);
   assert.match(css, /\.ds-pa-item-card[\s\S]*border-block-end:\s*1px solid/);
@@ -63,12 +66,16 @@ test('contact channel editing restores the selected contact source and includes 
 });
 
 test('next-year workshop editor rows stay on one compact line', async () => {
-  const runtime = await readFile(RUNTIME_FILE, 'utf8');
+  const [runtime, css] = await Promise.all([
+    readFile(RUNTIME_FILE, 'utf8'),
+    readFile(CSS_FILE, 'utf8')
+  ]);
   assert.match(runtime, /normalizeNextYearWorkshopRows/);
-  assert.match(runtime, /data-pa-items-group="next_year_workshops"/);
-  assert.match(runtime, /grid-template-columns', '400px 72px max-content 34px'/);
-  assert.match(runtime, /grid-template-rows', '36px'/);
-  assert.match(runtime, /grid-row', '1'/);
+  assert.match(runtime, /Workshop one-line layout is owned by proposal-editor-compact-fixes\.css/);
+  assert.doesNotMatch(runtime, /style\.setProperty\('grid-template-columns', '400px 72px max-content 34px'/);
+  assert.match(css, /\[data-pa-items-group="next_year_workshops"\] \.ds-pa-item-quick-row/);
+  assert.match(css, /grid-template-columns:\s*400px 72px max-content 34px/);
+  assert.match(css, /grid-template-rows:\s*36px/);
 });
 
 test('recipient date, domain and type are owned by formHtml with no runtime rearrange', async () => {
@@ -100,7 +107,7 @@ test('frontend hotfix and service worker cache versions are bumped together', as
     readFile(CONFIG_FILE, 'utf8'),
     readFile(SW_FILE, 'utf8')
   ]);
-  assert.match(config, /proposal-recipient-single-source-20260801-v2/);
-  assert.match(config, /proposal-recipient-search-row-fix\.js\?v=20260801-v7/);
-  assert.match(sw, /const CACHE_VERSION = 1346;/);
+  assert.match(config, /proposal-recipient-workshops-final-20260801-v1/);
+  assert.match(config, /proposal-recipient-search-row-fix\.js\?v=20260801-v8/);
+  assert.match(sw, /const CACHE_VERSION = 1349;/);
 });

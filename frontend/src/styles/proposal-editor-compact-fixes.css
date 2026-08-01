@@ -3,8 +3,13 @@
   --pa-compact-gap: 10px;
   --pa-choice-width: 92px;
   --pa-control-height: 36px;
-  --pa-recipient-control-height: 42px;
-  --pa-recipient-border: #cbd5e1;
+  --recipient-control-height: 40px;
+  --recipient-border-color: #cbd5e1;
+  --recipient-border-radius: 8px;
+  --recipient-control-padding: 0 10px;
+  --recipient-control-font-size: 0.84rem;
+  --pa-recipient-control-height: var(--recipient-control-height);
+  --pa-recipient-border: var(--recipient-border-color);
   --pa-editor-line: #dbe4ee;
 }
 
@@ -24,7 +29,7 @@
 #app .pa-editor-workspace .ds-pa-type-chips {
   display: grid !important;
   grid-template-columns: repeat(3, var(--pa-choice-width)) !important;
-  grid-auto-rows: var(--pa-recipient-control-height) !important;
+  grid-auto-rows: var(--recipient-control-height) !important;
   inline-size: auto !important;
   gap: 6px !important;
 }
@@ -39,20 +44,21 @@
   min-inline-size: var(--pa-choice-width) !important;
   max-inline-size: var(--pa-choice-width) !important;
   width: var(--pa-choice-width) !important;
-  block-size: var(--pa-recipient-control-height) !important;
-  min-block-size: var(--pa-recipient-control-height) !important;
+  block-size: var(--recipient-control-height) !important;
+  min-block-size: var(--recipient-control-height) !important;
   display: inline-flex !important;
   align-items: center;
   justify-content: center;
   text-align: center;
-  padding: 0 8px !important;
+  padding: var(--recipient-control-padding) !important;
   box-sizing: border-box !important;
-  border: 1px solid var(--pa-recipient-border) !important;
-  border-radius: 10px !important;
+  border: 1px solid var(--recipient-border-color) !important;
+  border-radius: var(--recipient-border-radius) !important;
   background: #fff !important;
   box-shadow: none !important;
   overflow: hidden !important;
   white-space: nowrap !important;
+  font-size: var(--recipient-control-font-size) !important;
 }
 
 #app .pa-editor-workspace .ds-pa-recipient-type-option > span {
@@ -84,6 +90,7 @@
   padding: 12px 14px !important;
   box-sizing: border-box !important;
   overflow: visible !important;
+  overflow-x: visible !important;
 }
 
 #app .pa-editor-workspace .ds-pa-form-meta-panel > .pa-sidebar-section-title {
@@ -101,6 +108,7 @@
   max-inline-size: 100% !important;
   margin: 0 !important;
   overflow: visible !important;
+  overflow-x: visible !important;
 }
 
 #app .pa-editor-workspace [data-pa-step-panel="client"]:not([hidden]),
@@ -163,13 +171,15 @@
 #app .pa-editor-workspace .ds-pa-client-locked p > strong,
 #app .pa-editor-workspace [data-pa-change-authority-step],
 #app .pa-editor-workspace .ds-pa-client-locked-actions .ds-btn {
-  block-size: var(--pa-recipient-control-height) !important;
-  min-block-size: var(--pa-recipient-control-height) !important;
+  block-size: var(--recipient-control-height) !important;
+  min-block-size: var(--recipient-control-height) !important;
   box-sizing: border-box !important;
-  border: 1px solid var(--pa-recipient-border) !important;
-  border-radius: 10px !important;
+  border: 1px solid var(--recipient-border-color) !important;
+  border-radius: var(--recipient-border-radius) !important;
+  padding: var(--recipient-control-padding) !important;
   background: #fff !important;
   box-shadow: none !important;
+  font-size: var(--recipient-control-font-size) !important;
 }
 
 #app .pa-editor-workspace [data-pa-recipient-meta-row] input[name="proposal_date"] {
@@ -220,7 +230,7 @@
 #app .pa-editor-workspace .ds-pa-school-step-text {
   display: grid !important;
   grid-template-columns: minmax(72px, 110px) 54px !important;
-  grid-template-rows: 18px var(--pa-recipient-control-height) !important;
+  grid-template-rows: 18px var(--recipient-control-height) !important;
   align-items: end !important;
   justify-content: start !important;
   gap: 4px 6px !important;
@@ -259,6 +269,13 @@
   padding: 0 !important;
   font-size: 12px !important;
   font-weight: 700 !important;
+}
+
+/* Compact replace control stays smaller but shares the same border language. */
+#app .pa-editor-workspace [data-pa-change-authority-step],
+#app .pa-editor-workspace .ds-pa-client-locked-actions .ds-btn[data-pa-unlock-client] {
+  block-size: 32px !important;
+  min-block-size: 32px !important;
 }
 
 #app .pa-editor-workspace .ds-pa-client-locked p {
@@ -301,9 +318,37 @@
   overflow-x: hidden !important;
   overflow-y: auto !important;
   background: #fff !important;
-  border: 1px solid var(--pa-recipient-border) !important;
-  border-radius: 10px !important;
+  border: 1px solid var(--recipient-border-color) !important;
+  border-radius: var(--recipient-border-radius) !important;
   box-shadow: 0 10px 24px rgba(15, 23, 42, 0.16) !important;
+}
+
+/* Next-year workshop rows stay one content-sized line without runtime style writes. */
+#app .pa-editor-workspace [data-pa-items-group="next_year_workshops"] [data-pa-item-row] {
+  inline-size: max-content !important;
+  max-inline-size: 100% !important;
+  min-block-size: 0 !important;
+}
+
+#app .pa-editor-workspace [data-pa-items-group="next_year_workshops"] .ds-pa-item-quick-row {
+  display: grid !important;
+  grid-template-columns: 400px 72px max-content 34px !important;
+  grid-template-rows: 36px !important;
+  grid-auto-flow: column !important;
+  align-items: center !important;
+  justify-content: start !important;
+  inline-size: max-content !important;
+  max-inline-size: 100% !important;
+  gap: 8px !important;
+  overflow: visible !important;
+}
+
+#app .pa-editor-workspace [data-pa-items-group="next_year_workshops"] .ds-pa-item-quick-row > .ds-pa-item-field--select,
+#app .pa-editor-workspace [data-pa-items-group="next_year_workshops"] .ds-pa-item-quick-row > .ds-pa-item-field--qty,
+#app .pa-editor-workspace [data-pa-items-group="next_year_workshops"] .ds-pa-item-quick-row > .ds-pa-item-edit,
+#app .pa-editor-workspace [data-pa-items-group="next_year_workshops"] .ds-pa-item-quick-row > .ds-pa-item-remove--quick {
+  margin: 0 !important;
+  align-self: center !important;
 }
 
 #app .pa-editor-workspace [data-pa-step-panel="contact"]:not([hidden]) {

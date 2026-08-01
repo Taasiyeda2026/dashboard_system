@@ -620,6 +620,11 @@ function proposalGroupDisplayName(value) {
     return PROPOSAL_GROUP_DISPLAY_FALLBACKS[key];
   }
   const meta = proposalGroupMeta(raw);
+  const subgroupLabel = userFacingProposalGroupLabel(meta?.display_name || '');
+  // Internal תשפ״ז subgroups share template_key=next_year; keep their own labels.
+  if (subgroupLabel && (key === 'next_year_courses' || key === 'next_year_workshops')) {
+    return subgroupLabel;
+  }
   const templateKey = text(meta?.template_key || meta?.group_key);
   if (templateKey === COMBINED_INTERNAL_KEY) {
     return clientFacingProposalTypeLabel({ activity_type_group: raw, template_key: templateKey, document_type: meta?.display_name });
@@ -627,7 +632,7 @@ function proposalGroupDisplayName(value) {
   if (Object.prototype.hasOwnProperty.call(PROPOSAL_GROUP_DISPLAY_FALLBACKS, templateKey)) {
     return PROPOSAL_GROUP_DISPLAY_FALLBACKS[templateKey];
   }
-  const label = userFacingProposalGroupLabel(meta?.display_name || '');
+  const label = subgroupLabel;
   const labelAlias = PROPOSAL_GROUP_LEGACY_ALIASES[label] || PROPOSAL_GROUP_LEGACY_ALIASES[normalizeHebrewQuoteVariants(label)];
   if (labelAlias === COMBINED_INTERNAL_KEY) {
     return clientFacingProposalTypeLabel({ activity_type_group: raw, document_type: label });
@@ -1666,6 +1671,15 @@ function isNextYearProposalGroup(value = '') {
 
 const MANUAL_COURSE_OPTION_KEY = '__manual_course__';
 const MANUAL_COURSE_OPTION_LABEL = 'קורס אחר / טקסט חופשי';
+const MANUAL_WORKSHOP_OPTION_LABEL = 'סדנה אחרת / טקסט חופשי';
+
+function isNextYearWorkshopsGroup(value = '') {
+  return normalizeProposalGroup(value) === 'next_year_workshops';
+}
+
+function manualActivityOptionLabel(groupKey = '') {
+  return isNextYearWorkshopsGroup(groupKey) ? MANUAL_WORKSHOP_OPTION_LABEL : MANUAL_COURSE_OPTION_LABEL;
+}
 
 function isProposalManualCourseItem(item = {}, options = {}) {
   if (!options.allowManualCourse || !isNextYearProposalGroup(options.groupKey || item.proposal_group || item.proposalGroup)) return false;
@@ -3983,15 +3997,19 @@ function filterPricingByActivityType(pricing, activityType) {
 }
 
 function buildPricingSelectOptionsHtml(pricingOptions, selectedPricingKey, options = {}) {
+  const groupKey = text(options.groupKey || '');
+  const workshopsGroup = isNextYearWorkshopsGroup(groupKey);
+  // Workshops list must expose catalog activities (including bundle children).
+  // Courses keep the existing parent/bundle select behavior.
   const visibleRows = pricingOptions.filter((row) =>
     !isTestHoursItem(row) &&
-    text(row.proposal_display_mode) !== 'bundle_child' &&
+    (workshopsGroup || text(row.proposal_display_mode) !== 'bundle_child') &&
     !/^תמיר/i.test(text(row.activity_name))
   );
-  const manualOptionHtml = options.allowManualCourse && isNextYearProposalGroup(options.groupKey)
-    ? `<option value="${MANUAL_COURSE_OPTION_KEY}"${selectedPricingKey === MANUAL_COURSE_OPTION_KEY ? ' selected' : ''}>${escapeHtml(MANUAL_COURSE_OPTION_LABEL)}</option>`
+  const manualOptionHtml = options.allowManualCourse && isNextYearProposalGroup(groupKey)
+    ? `<option value="${MANUAL_COURSE_OPTION_KEY}"${selectedPricingKey === MANUAL_COURSE_OPTION_KEY ? ' selected' : ''}>${escapeHtml(manualActivityOptionLabel(groupKey))}</option>`
     : '';
-  return ['<option value="">— בחר פעילות מהרשימה —</option>', manualOptionHtml, ...visibleRows.map((row, optionIdx) => {
+  const activityOptionsHtml = visibleRows.map((row, optionIdx) => {
     const value = pricingOptionKey(row, optionIdx);
     const legacySelected = selectedPricingKey && [value, text(row.activity_no), text(row.activity_name), publicActivityName(row.activity_name)].includes(selectedPricingKey);
     const isBundleParent = row.proposal_display_mode === 'bundle_parent' || row.is_bundle_parent;
@@ -4003,7 +4021,9 @@ function buildPricingSelectOptionsHtml(pricingOptions, selectedPricingKey, optio
       price != null && price > 0 ? `₪ ${formatCurrency(price)}` : ''
     ].filter(Boolean);
     return `<option value="${escapeHtml(value)}"${legacySelected ? ' selected' : ''}${isBundleParent ? ' data-bundle-parent="1"' : ''}>${escapeHtml(labelParts.join(' — '))}</option>`;
-  })].filter(Boolean).join('');
+  });
+  // Manual free-text option always appears at the end of the list.
+  return ['<option value="">— בחר פעילות מהרשימה —</option>', ...activityOptionsHtml, manualOptionHtml].filter(Boolean).join('');
 }
 
 function filterItemsByProposalType(items, activityTypeGroup) {

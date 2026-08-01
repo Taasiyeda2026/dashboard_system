@@ -14,8 +14,8 @@ import './proposal-pdf-school-filename-runtime.js?v=20260730-school-code-name-v1
 import './proposal-incomplete-print-runtime.js?v=20260729-preview-freeze-v2';
 import './proposal-next-year-pricing-display.js?v=20260729-next-year-pricing-v1';
 import './proposal-next-year-table-alignment.js?v=20260729-next-year-compact-tables-v1';
-import './proposal-next-year-workshops.js?v=20260729-next-year-workshops-v2';
-import './proposal-next-year-space-workshop-pricing.js?v=20260730-space-workshop-500-v1';
+import './proposal-next-year-workshops.js?v=20260801-next-year-workshops-editor-deps-v1';
+import './proposal-next-year-space-workshop-pricing.js?v=20260801-space-workshop-editor-deps-v1';
 import './proposal-approval-runtime.js';
 import './client-contact-persistence-hotfix.js';
 import './admin-lists-auth-hotfix.js';

@@ -149,6 +149,9 @@ test('installer augments loaders and normalizes saved snapshots', async () => {
     async proposalsAgreements() {
       return { proposalActivityGroups: baseGroups, proposalActivityPricing: basePricing };
     },
+    async proposalsAgreementsEditorDeps() {
+      return { proposalActivityGroups: baseGroups, proposalActivityPricing: basePricing };
+    },
     async readProposalActivityPricing() { return basePricing; },
     async readProposalActivityGroups() { return baseGroups; },
     async uploadProposalFinalPdf(id, payload) { saved.push({ id, payload }); return { ok: true }; },
@@ -159,6 +162,12 @@ test('installer augments loaders and normalizes saved snapshots', async () => {
   assert.equal(installProposalNextYearWorkshops(fakeApi, dom.window), false);
   const loaded = await fakeApi.proposalsAgreements();
   assert.equal(loaded.proposalActivityPricing.some((row) => row.group_key === 'next_year_workshops'), true);
+  const editorDeps = await fakeApi.proposalsAgreementsEditorDeps();
+  assert.equal(editorDeps.proposalActivityPricing.some((row) => row.group_key === 'next_year_workshops'), true);
+  assert.deepEqual(
+    editorDeps.proposalActivityGroups.find((group) => group.group_key === 'next_year').included_group_keys,
+    ['next_year_courses', 'next_year_workshops']
+  );
 
   const source = `<section class="proposal-document"><table class="pa-next-year-course-table"><tbody>
     <tr><td>סדנאות STEM</td><td></td><td></td><td>1</td><td></td><td>₪ 650</td><td>₪ 650</td></tr>

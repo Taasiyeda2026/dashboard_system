@@ -21817,24 +21817,12 @@ details[open] > .ds-fin-acc__summary::before { transform: rotate(90deg); }
   max-width: max-content;
   min-width: max-content;
 }
-.pa-editor-workspace .pa-sidebar .ds-pa-form-meta-panel {
-  grid-template-columns: minmax(0, 1.2fr) minmax(0, 1fr);
-  align-items: start;
-  gap: 14px;
-}
-.pa-editor-workspace .pa-sidebar .ds-pa-form-meta-panel > .pa-sidebar-section-title {
-  grid-column: 1 / -1;
-}
+/* Recipient meta panel layout owned by proposal-editor-compact-fixes.css. */
 .pa-editor-workspace .pa-sidebar [data-pa-step-panel="client"],
 .pa-editor-workspace .pa-sidebar [data-pa-step-panel="contact"] {
   min-width: 0;
 }
-.pa-editor-workspace .pa-sidebar .ds-pa-client-search-block {
-  display: grid;
-  grid-template-columns: repeat(auto-fit, minmax(180px, 1fr));
-  align-items: end;
-  gap: 10px;
-}
+/* Recipient search block layout owned by proposal-editor-compact-fixes.css. */
 .pa-editor-workspace .pa-sidebar .ds-pa-form-grid,
 .pa-editor-workspace .pa-sidebar .ds-pa-contact-manual-fields,
 .pa-editor-workspace .pa-sidebar .ds-pa-contact-channels-fields {
@@ -22545,109 +22533,10 @@ details[open] > .ds-fin-acc__summary::before { transform: rotate(90deg); }
   min-height: 0;
   height: auto;
 }
-.pa-editor-workspace .pa-sidebar .ds-pa-client-search-block {
-  display: grid;
-  grid-template-columns: max-content 230px 260px;
-  justify-content: start;
-  align-items: end;
-  gap: 10px;
-}
-.pa-editor-workspace .pa-sidebar .ds-pa-recipient-type-field {
-  display: grid;
-  gap: 3px;
-  width: max-content;
-}
-.pa-editor-workspace .pa-sidebar .ds-pa-recipient-type-label {
-  margin: 0;
-}
-.pa-editor-workspace .pa-sidebar .ds-pa-recipient-type {
-  display: flex;
-  width: max-content;
-  gap: 5px;
-}
-.pa-editor-workspace .pa-sidebar .ds-pa-client-search {
-  display: contents;
-}
-.pa-editor-workspace .pa-sidebar .ds-pa-client-search-field-wrap {
-  width: 230px;
-}
-.pa-editor-workspace .pa-sidebar .ds-pa-school-search-panel {
-  display: contents;
-}
-.pa-editor-workspace .pa-sidebar .ds-pa-school-search-panel[hidden] {
-  display: none;
-}
-.pa-editor-workspace .pa-sidebar .ds-pa-school-step-text {
-  display: grid;
-  grid-template-columns: minmax(0, 1fr) max-content;
-  gap: 2px 6px;
-  align-items: center;
-  width: 230px;
-  min-width: 0;
-  margin: 0;
-  padding: 5px 8px;
-  border: 1px solid var(--ds-border);
-  border-radius: 8px;
-  background: var(--ds-surface);
-}
-.pa-editor-workspace .pa-sidebar .ds-pa-school-step-text > span {
-  grid-column: 1 / -1;
-  color: #64748b;
-  font-size: .7rem;
-}
-.pa-editor-workspace .pa-sidebar .ds-pa-school-step-text strong {
-  min-width: 0;
-  overflow: hidden;
-  text-overflow: ellipsis;
-  white-space: nowrap;
-}
-.pa-editor-workspace .pa-sidebar .ds-pa-school-search-panel .ds-pa-client-search-field-wrap {
-  width: 260px;
-}
-.pa-editor-workspace .pa-sidebar .ds-pa-form-meta-panel {
-  gap: 8px;
-}
-.pa-editor-workspace .pa-sidebar .ds-pa-recipient-type-option {
-  flex: 0 0 auto;
-  width: auto;
-  padding-inline: 10px;
-}
-.pa-editor-workspace .pa-sidebar .ds-pa-client-locked {
-  display: grid;
-  grid-template-columns: max-content 230px 260px 100px max-content;
-  justify-content: start;
-  align-items: end;
-  gap: 10px;
-  padding: 6px 0;
-  border: 0;
-  background: transparent;
-}
-.pa-editor-workspace .pa-sidebar .ds-pa-client-locked-body {
-  display: contents;
-}
-.pa-editor-workspace .pa-sidebar .ds-pa-client-locked-body p {
-  display: grid;
-  gap: 3px;
-  min-width: 0;
-  margin: 0;
-}
-.pa-editor-workspace .pa-sidebar .ds-pa-client-locked-body p > span {
-  color: #64748b;
-  font-size: .7rem;
-  font-weight: 600;
-}
-.pa-editor-workspace .pa-sidebar .ds-pa-client-locked-body p > strong {
-  overflow-wrap: anywhere;
-  color: #0f172a;
-  font-size: .82rem;
-}
-.pa-editor-workspace .pa-sidebar .ds-pa-client-locked-actions {
-  display: contents;
-}
-.pa-editor-workspace .pa-sidebar .ds-pa-client-locked-actions .ds-btn {
-  align-self: end;
-  margin-bottom: 1px;
-}
+/* Recipient search/type layout for .pa-editor-workspace is owned exclusively by
+   frontend/src/styles/proposal-editor-compact-fixes.css. Conflicting duplicate
+   rules were removed to keep a single HTML/CSS source of truth. */
+/* Locked recipient details layout owned by proposal-editor-compact-fixes.css. */
 .pa-editor-workspace .pa-sidebar [data-pa-step-panel="contact"] {
   display: grid;
   gap: 6px;
@@ -22785,24 +22674,7 @@ details[open] > .ds-fin-acc__summary::before { transform: rotate(90deg); }
   }
 }
 
-/* Proposal editor selection controls: choices within each group share one size. */
-.pa-editor-workspace .pa-sidebar .ds-pa-recipient-type-field {
-  width: min(100%, 255px);
-}
-.pa-editor-workspace .pa-sidebar .ds-pa-recipient-type {
-  display: grid;
-  grid-template-columns: repeat(3, minmax(0, 1fr));
-  grid-auto-rows: 34px;
-  width: 100%;
-}
-.pa-editor-workspace .pa-sidebar .ds-pa-recipient-type-option {
-  width: 100%;
-  min-width: 0;
-  min-height: 34px;
-  height: 34px;
-  padding: 4px 6px;
-  text-align: center;
-}
+/* Recipient-type equal sizing is owned by proposal-editor-compact-fixes.css. */
 
 /* Proposal create/edit only: keep action and data-entry rows content-sized. */
 .pa-editor-workspace .pa-editor-heading-actions .ds-btn {
