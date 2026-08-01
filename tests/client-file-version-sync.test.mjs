@@ -196,7 +196,7 @@ test('annual review printing uses a compact management-document layout', async (
     readFile(ANNUAL_REVIEW_PRINT_FILE, 'utf8')
   ]);
 
-  assert.match(indexHtml, /main-with-proposal-pdf-hotfix\.js\?v=20260730-annual-review-isolated-print-v2/);
+  assert.match(indexHtml, /main-with-proposal-pdf-hotfix\.js\?v=20260801-school-2027-cutover-v1/);
   assert.match(entry, /annual-reviews-isolated-print\.js\?v=20260730-compact-print-v4/);
   assert.match(printRuntime, /window\.open\('', name/);
   assert.match(printRuntime, /doc\.write\(buildPrintDocument\(sourceRoot\)\)/);
