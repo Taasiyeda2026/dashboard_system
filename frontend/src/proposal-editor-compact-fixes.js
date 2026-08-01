@@ -4,14 +4,50 @@ function editorFormFromNode(node) {
   return node.closest?.('[data-pa-form]') || node.querySelector?.('[data-pa-form]') || null;
 }
 
+function recipientReadyState(form, locked = form.querySelector('.ds-pa-client-locked')) {
+  if (locked) return true;
+
+  const selectedType = String(
+    form.querySelector('input[name="client_type_selector"]:checked')?.value
+    || form.querySelector('input[name="contact_source_client_type"]')?.value
+    || 'school'
+  ).trim();
+  const authorityId = String(form.querySelector('input[name="contact_source_authority_id"]')?.value || '').trim();
+  const schoolId = String(form.querySelector('input[name="contact_source_school_id"]')?.value || '').trim();
+  const otherName = String(form.querySelector('[name="other_client_name"]')?.value || '').trim();
+
+  if (selectedType === 'authority') return Boolean(authorityId);
+  if (selectedType === 'other') return Boolean(otherName);
+  return Boolean(authorityId && schoolId);
+}
+
 function markRecipientMode(form) {
   const locked = form.querySelector('.ds-pa-client-locked');
+  const recipientReady = recipientReadyState(form, locked);
   form.classList.toggle('has-locked-client', Boolean(locked));
+  form.classList.toggle('has-recipient-selection', recipientReady);
+
+  const contactPanel = form.querySelector('[data-pa-step-panel="contact"]');
+  if (contactPanel) contactPanel.hidden = !recipientReady;
+
   if (!locked) return;
   const type = String(locked.querySelector('.ds-pa-client-locked-type strong')?.textContent || '').trim();
   locked.classList.toggle('is-authority', type === 'רשות');
   locked.classList.toggle('is-school', type === 'בית ספר');
   locked.classList.toggle('is-other', type === 'אחר');
+}
+
+function recipientTypeFieldForRow(recipientType) {
+  const existingField = recipientType.closest('.ds-pa-form-field');
+  if (existingField && existingField !== recipientType) return existingField;
+
+  const field = document.createElement('div');
+  field.className = 'ds-pa-form-field ds-pa-recipient-type-field';
+  const label = document.createElement('span');
+  label.textContent = 'סוג נמען';
+  recipientType.insertAdjacentElement('beforebegin', field);
+  field.append(label, recipientType);
+  return field;
 }
 
 function arrangeRecipientDateDomainRow(form) {
@@ -22,6 +58,15 @@ function arrangeRecipientDateDomainRow(form) {
   const domainField = typePanel?.querySelector('select[name="proposal_domain"]')?.closest('label');
   if (!metaPanel || !recipientType || !dateField || !domainField) return;
 
+  const recipientField = recipientTypeFieldForRow(recipientType);
+  recipientField.classList.add('ds-pa-recipient-type-field');
+  let recipientLabel = recipientField.querySelector(':scope > span');
+  if (!recipientLabel) {
+    recipientLabel = document.createElement('span');
+    recipientLabel.textContent = 'סוג נמען';
+    recipientField.insertBefore(recipientLabel, recipientField.firstChild);
+  }
+
   let row = metaPanel.querySelector(':scope > [data-pa-recipient-meta-row]');
   if (!row) {
     row = document.createElement('div');
@@ -31,7 +76,7 @@ function arrangeRecipientDateDomainRow(form) {
     title?.insertAdjacentElement('afterend', row);
   }
 
-  [dateField, domainField, recipientType].forEach((element) => {
+  [dateField, domainField, recipientField].forEach((element) => {
     if (element.parentElement !== row) row.appendChild(element);
   });
 
@@ -42,11 +87,28 @@ function arrangeRecipientDateDomainRow(form) {
   row.style.setProperty('gap', '10px', 'important');
   row.style.setProperty('inline-size', 'max-content', 'important');
   row.style.setProperty('max-inline-size', '100%', 'important');
-  row.style.setProperty('margin', '0 0 8px', 'important');
+  row.style.setProperty('margin', '0 0 6px', 'important');
 
   dateField.style.setProperty('inline-size', '160px', 'important');
   domainField.style.setProperty('inline-size', '120px', 'important');
-  recipientType.hidden = form.classList.contains('has-locked-client');
+  recipientField.style.setProperty('display', 'grid', 'important');
+  recipientField.style.setProperty('gap', '3px', 'important');
+  recipientField.style.setProperty('inline-size', 'max-content', 'important');
+  recipientField.style.setProperty('margin', '0', 'important');
+  recipientType.hidden = false;
+  recipientField.hidden = form.classList.contains('has-locked-client');
+
+  const searchBlock = form.querySelector('[data-pa-client-search-row]');
+  if (searchBlock) {
+    searchBlock.classList.add('is-recipient-selector-relocated');
+    searchBlock.style.setProperty('display', searchBlock.hidden ? 'none' : 'grid', 'important');
+    searchBlock.style.setProperty('grid-template-columns', '262px', 'important');
+    searchBlock.style.setProperty('align-items', 'start', 'important');
+    searchBlock.style.setProperty('justify-content', 'start', 'important');
+    searchBlock.style.setProperty('gap', '6px', 'important');
+    searchBlock.style.setProperty('inline-size', 'fit-content', 'important');
+    searchBlock.style.setProperty('margin', '0', 'important');
+  }
 }
 
 function relocateProgramNotes(form) {
@@ -330,7 +392,8 @@ if (typeof document !== 'undefined') {
     const contactToggle = event.target?.closest?.('[data-pa-contact-channels-toggle]');
     const addItemButton = event.target?.closest?.('[data-pa-add-item]');
     const unlockClientButton = event.target?.closest?.('[data-pa-unlock-client]');
-    const form = (typeButton || contactToggle || addItemButton || unlockClientButton)?.closest?.('[data-pa-form]');
+    const recipientTypeOption = event.target?.closest?.('.ds-pa-recipient-type-option');
+    const form = (typeButton || contactToggle || addItemButton || unlockClientButton || recipientTypeOption)?.closest?.('[data-pa-form]');
     if (form) setTimeout(() => scheduleCompact(form), 0);
   });
 
@@ -347,7 +410,9 @@ if (typeof document !== 'undefined') {
 
 export {
   compactEditor,
+  recipientReadyState,
   markRecipientMode,
+  recipientTypeFieldForRow,
   arrangeRecipientDateDomainRow,
   relocateProgramNotes,
   mergeGeneralNotesIntoDiscount,
