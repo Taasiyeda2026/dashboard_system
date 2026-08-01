@@ -33,7 +33,7 @@ test('dedicated activity projections exist and are distinct', () => {
 });
 
 test('end-dates projection excludes meeting-date payload', () => {
-  const block = apiSource.match(/const ACTIVITY_END_DATES_COLUMNS = \[([\s\S]*?)\];/)?.[1] || '';
+  const block = apiSource.match(/const ACTIVITY_END_DATES_COLUMNS = \[([\s\S]*?)\]\.join/)?.[1] || '';
   assert.match(block, /end_date/);
   assert.doesNotMatch(block, /ACTIVITY_MEETING_DATE_COLUMNS/);
   assert.doesNotMatch(block, /date_1/);
