@@ -51,7 +51,7 @@ test('runtime observer is child-list only and avoids the previous mutation loop'
 test('contact channel editing includes an explicit save button that uses the existing save flow', async () => {
   const runtime = await readFile(RUNTIME_FILE, 'utf8');
   assert.match(runtime, /ensureContactSaveButton/);
-  assert.match(runtime, /data\.paContactChannelsSave = 'true'/);
+  assert.match(runtime, /dataset\.paContactChannelsSave = 'true'/);
   assert.match(runtime, /שמירת פרטי קשר/);
   assert.match(runtime, /target\.dispatchEvent\(new Event\('change', \{ bubbles: true \}\)\)/);
   assert.match(runtime, /input\[name="contact_source_id"\]/);
