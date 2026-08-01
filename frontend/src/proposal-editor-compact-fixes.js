@@ -98,49 +98,9 @@ function markActivitiesLayout(form) {
 }
 
 function normalizeNextYearWorkshopRows(form) {
-  form.querySelectorAll('[data-pa-items-group="next_year_workshops"] [data-pa-item-row]').forEach((row) => {
-    const quickRow = row.querySelector(':scope > .ds-pa-item-quick-row');
-    if (!quickRow) return;
-
-    row.style.setProperty('inline-size', 'max-content', 'important');
-    row.style.setProperty('max-inline-size', '100%', 'important');
-    row.style.setProperty('min-block-size', '0', 'important');
-
-    quickRow.style.setProperty('display', 'grid', 'important');
-    quickRow.style.setProperty('grid-template-columns', '400px 72px max-content 34px', 'important');
-    quickRow.style.setProperty('grid-template-rows', '36px', 'important');
-    quickRow.style.setProperty('grid-auto-flow', 'column', 'important');
-    quickRow.style.setProperty('align-items', 'center', 'important');
-    quickRow.style.setProperty('justify-content', 'start', 'important');
-    quickRow.style.setProperty('inline-size', 'max-content', 'important');
-    quickRow.style.setProperty('max-inline-size', '100%', 'important');
-    quickRow.style.setProperty('gap', '8px', 'important');
-
-    const controls = [
-      quickRow.querySelector('.ds-pa-item-field--select'),
-      quickRow.querySelector('.ds-pa-item-field--qty'),
-      quickRow.querySelector('.ds-pa-item-edit'),
-      quickRow.querySelector('.ds-pa-item-remove--quick')
-    ];
-    controls.forEach((control, index) => {
-      if (!control) return;
-      control.style.setProperty('grid-column', String(index + 1), 'important');
-      control.style.setProperty('grid-row', '1', 'important');
-      control.style.setProperty('align-self', 'center', 'important');
-      control.style.setProperty('margin', '0', 'important');
-    });
-
-    const select = quickRow.querySelector('.ds-pa-item-field--select select');
-    const quantity = quickRow.querySelector('.ds-pa-item-field--qty input');
-    if (select) {
-      select.style.setProperty('inline-size', '400px', 'important');
-      select.style.setProperty('max-inline-size', '400px', 'important');
-    }
-    if (quantity) {
-      quantity.style.setProperty('inline-size', '72px', 'important');
-      quantity.style.setProperty('max-inline-size', '72px', 'important');
-    }
-  });
+  // Workshop one-line layout is owned by proposal-editor-compact-fixes.css.
+  // Keep the hook so existing callers/tests continue to resolve.
+  if (!form?.querySelector?.('[data-pa-items-group="next_year_workshops"]')) return;
 }
 
 function markSummaryLayout(form) {

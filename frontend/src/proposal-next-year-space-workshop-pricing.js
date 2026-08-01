@@ -55,6 +55,13 @@ export function installNextYearSpaceWorkshopPricing(targetApi = api) {
     };
   }
 
+  const originalEditorDeps = targetApi.proposalsAgreementsEditorDeps;
+  if (typeof originalEditorDeps === 'function') {
+    targetApi.proposalsAgreementsEditorDeps = async function nextYearSpaceWorkshopPriceEditorDeps(...args) {
+      return normalizeNextYearSpaceWorkshopPayload(await originalEditorDeps.apply(this, args));
+    };
+  }
+
   wrapRowsMethod(targetApi, 'readProposalActivityPricing');
 
   Object.defineProperty(targetApi, PATCH_KEY, {

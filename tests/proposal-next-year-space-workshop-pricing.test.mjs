@@ -1,6 +1,25 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
 
+if (!globalThis.sessionStorage) {
+  const store = new Map();
+  globalThis.sessionStorage = {
+    getItem: (key) => store.has(key) ? store.get(key) : null,
+    setItem: (key, value) => store.set(key, String(value)),
+    removeItem: (key) => store.delete(key),
+    clear: () => store.clear()
+  };
+}
+if (!globalThis.localStorage) {
+  const store = new Map();
+  globalThis.localStorage = {
+    getItem: (key) => store.has(key) ? store.get(key) : null,
+    setItem: (key, value) => store.set(key, String(value)),
+    removeItem: (key) => store.delete(key),
+    clear: () => store.clear()
+  };
+}
+
 const {
   applyNextYearSpaceWorkshopPrice,
   normalizeNextYearSpaceWorkshopPayload,
@@ -60,6 +79,9 @@ test('normalizes proposal payload and API loaders', async () => {
     async proposalsAgreements() {
       return { proposalActivityPricing: rows };
     },
+    async proposalsAgreementsEditorDeps() {
+      return { proposalActivityPricing: rows };
+    },
     async readProposalActivityPricing() {
       return rows;
     }
@@ -69,7 +91,9 @@ test('normalizes proposal payload and API loaders', async () => {
   assert.equal(installNextYearSpaceWorkshopPricing(fakeApi), false);
 
   const loadedPayload = await fakeApi.proposalsAgreements();
+  const loadedDeps = await fakeApi.proposalsAgreementsEditorDeps();
   const loadedRows = await fakeApi.readProposalActivityPricing();
   assert.equal(loadedPayload.proposalActivityPricing[1].unit_price, 500);
+  assert.equal(loadedDeps.proposalActivityPricing[1].unit_price, 500);
   assert.equal(loadedRows[2].hourly_price, 500);
 });

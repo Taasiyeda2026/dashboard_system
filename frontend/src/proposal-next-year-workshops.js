@@ -335,6 +335,14 @@ export function installProposalNextYearWorkshops(targetApi = api, scope = global
       return augmentNextYearProposalPayload(await originalLoader.apply(this, args));
     };
   }
+  // Editor opens through a deferred deps loader; it must receive the same
+  // course/workshop aliases as the main proposalsAgreements payload.
+  const originalEditorDeps = targetApi.proposalsAgreementsEditorDeps;
+  if (typeof originalEditorDeps === 'function') {
+    targetApi.proposalsAgreementsEditorDeps = async function nextYearWorkshopsEditorDeps(...args) {
+      return augmentNextYearProposalPayload(await originalEditorDeps.apply(this, args));
+    };
+  }
   const originalPricing = targetApi.readProposalActivityPricing;
   if (typeof originalPricing === 'function') {
     targetApi.readProposalActivityPricing = async function nextYearWorkshopsPricing(...args) {
