@@ -78,7 +78,9 @@ test('proposals list uses metadata projection, paging, and on-demand detail/deps
   assert.match(proposalsSource, /limit: 50, offset: 0, includeLinkedDocuments: false/);
   assert.match(proposalsSource, /ensureEditorDeps/);
   assert.match(proposalsSource, /ensureProposalDetailRow/);
-  assert.match(proposalsSource, /appendRemainingProposalPages/);
+  assert.match(proposalsSource, /loadNextProposalPage/);
+  assert.doesNotMatch(proposalsSource, /while\s*\(\s*data\._hasMore\s*\)/);
+  assert.doesNotMatch(proposalsSource, /appendRemainingProposalPages\s*\(\s*\)\s*;/);
 });
 
 test('pending proposals badge uses count API, not full list loader', () => {

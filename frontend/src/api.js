@@ -4127,14 +4127,16 @@ async function readProposalsAgreementsEditorDepsFromSupabase() {
     proposalTemplateSections,
     proposalActivityGroups,
     proposalGroupAliases,
-    schoolCalendarRows
+    schoolCalendarRows,
+    contactsResult
   ] = await Promise.all([
     readProposalActivityPricingFromSupabase(),
     readProposalGefenCoursesFromSupabase(),
     readProposalTemplateSectionsFromSupabase(),
     readProposalActivityGroupsFromSupabase(),
     readProposalGroupAliasesFromSupabase(),
-    readSchoolCalendarForProposalValidity()
+    readSchoolCalendarForProposalValidity(),
+    readContactsSchoolsForProposals()
   ]);
   proposalGroupLookupCache = mergeProposalGroupLookups(
     buildProposalGroupLookup(proposalActivityGroups, proposalGroupAliases),
@@ -4155,8 +4157,89 @@ async function readProposalsAgreementsEditorDepsFromSupabase() {
     proposalActivityPricing,
     proposalTemplateSections,
     schoolCalendarRows,
+    contactOptions: Array.isArray(contactsResult?.contactOptions) ? contactsResult.contactOptions : [],
+    contactOptionsError: contactsResult?.contactOptionsError || null,
+    _contactsDebug: contactsResult?._debug || null,
     _source: 'supabase'
   };
+}
+
+function sanitizeProposalListSearchTerm(value) {
+  return String(value || '').trim().replace(/[%*,()]/g, ' ').replace(/\s+/g, ' ').trim();
+}
+
+function applyProposalsAgreementsListFilters(query, {
+  search = '',
+  status = '',
+  authorityId = '',
+  schoolId = '',
+  clientType = ''
+} = {}) {
+  let next = query;
+  const statusFilter = cleanProposalAgreementText(status);
+  if (statusFilter) next = next.eq('status', statusFilter);
+
+  const authorityFilter = bigintIdOrNull(authorityId);
+  if (authorityFilter != null) next = next.eq('authority_id', authorityFilter);
+
+  const schoolFilter = bigintIdOrNull(schoolId);
+  if (schoolFilter != null) next = next.eq('school_id', schoolFilter);
+
+  const clientTypeFilter = cleanProposalAgreementText(clientType).toLowerCase();
+  if (clientTypeFilter && ['school', 'authority', 'other'].includes(clientTypeFilter)) {
+    next = next.eq('contact_client_type', clientTypeFilter);
+  }
+
+  const safeSearch = sanitizeProposalListSearchTerm(search);
+  if (safeSearch) {
+    const term = `%${safeSearch}%`;
+    next = next.or([
+      `authority_name.ilike.${term}`,
+      `legacy_client_authority.ilike.${term}`,
+      `school_name.ilike.${term}`,
+      `legacy_school_framework.ilike.${term}`,
+      `contact_client_name.ilike.${term}`,
+      `contact_name.ilike.${term}`,
+      `contact_role.ilike.${term}`,
+      `phone.ilike.${term}`,
+      `email.ilike.${term}`,
+      `quote_number.ilike.${term}`,
+      `authority_code.ilike.${term}`,
+      `semel_mosad.ilike.${term}`,
+      `notes.ilike.${term}`
+    ].join(','));
+  }
+  return next;
+}
+
+function applyProposalsAgreementsListSort(query, sort = '') {
+  const key = cleanProposalAgreementText(sort).toLowerCase() || 'updated_at_desc';
+  if (key === 'updated_at_asc') {
+    return query
+      .order('updated_at', { ascending: true, nullsFirst: false })
+      .order('authority_name', { ascending: true })
+      .order('school_name', { ascending: true });
+  }
+  if (key === 'proposal_date_desc') {
+    return query
+      .order('proposal_date', { ascending: false, nullsFirst: false })
+      .order('updated_at', { ascending: false, nullsFirst: false });
+  }
+  if (key === 'proposal_date_asc') {
+    return query
+      .order('proposal_date', { ascending: true, nullsFirst: false })
+      .order('updated_at', { ascending: false, nullsFirst: false });
+  }
+  if (key === 'authority_asc') {
+    return query
+      .order('authority_name', { ascending: true })
+      .order('school_name', { ascending: true })
+      .order('updated_at', { ascending: false, nullsFirst: false });
+  }
+  return query
+    .order('updated_at', { ascending: false, nullsFirst: false })
+    .order('authority_name', { ascending: true })
+    .order('school_name', { ascending: true });
 }
 
 async function readProposalsPendingApprovedCountFromSupabase() {
@@ -4176,6 +4259,10 @@ async function readProposalsAgreementsFromSupabase({
   offset = 0,
   search = '',
   status = '',
+  authorityId = '',
+  schoolId = '',
+  clientType = '',
+  sort = 'updated_at_desc',
   includeLinkedDocuments = false,
   paginate = true
 } = {}) {
@@ -4185,43 +4272,25 @@ async function readProposalsAgreementsFromSupabase({
   const usePaging = paginate !== false && limit != null;
   const pageSize = usePaging ? Math.max(1, Number(limit) || PROPOSALS_LIST_PAGE_SIZE) : null;
   const pageOffset = Math.max(0, Number(offset) || 0);
-  const statusFilter = cleanProposalAgreementText(status);
-  void search; // reserved for future server-side search; page is filtered client-side today
-  // List entry: metadata page + contacts. Editor deps / snapshots / items load on demand.
+  const listQuery = {
+    search: sanitizeProposalListSearchTerm(search),
+    status: cleanProposalAgreementText(status),
+    authorityId: authorityId == null ? '' : String(authorityId).trim(),
+    schoolId: schoolId == null ? '' : String(schoolId).trim(),
+    clientType: cleanProposalAgreementText(clientType).toLowerCase(),
+    sort: cleanProposalAgreementText(sort).toLowerCase() || 'updated_at_desc'
+  };
+  // List entry: one metadata page only. Contacts/catalog/groups/editor deps load on demand.
   let proposalsQuery = supabase
     .from('proposals_agreements_directory_view')
-    .select(PROPOSALS_AGREEMENTS_LIST_COLUMNS)
-    .order('updated_at', { ascending: false, nullsFirst: false })
-    .order('authority_name', { ascending: true })
-    .order('school_name', { ascending: true });
+    .select(PROPOSALS_AGREEMENTS_LIST_COLUMNS);
+  proposalsQuery = applyProposalsAgreementsListFilters(proposalsQuery, listQuery);
+  proposalsQuery = applyProposalsAgreementsListSort(proposalsQuery, listQuery.sort);
   if (usePaging) proposalsQuery = proposalsQuery.range(pageOffset, pageOffset + pageSize - 1);
-  if (statusFilter) proposalsQuery = proposalsQuery.eq('status', statusFilter);
-  const [
-    paResult,
-    contactsResult,
-    proposalActivityGroups,
-    proposalGroupAliases
-  ] = await Promise.all([
-    proposalsQuery,
-    readContactsSchoolsForProposals(),
-    readProposalActivityGroupsFromSupabase(),
-    readProposalGroupAliasesFromSupabase()
-  ]);
+  const paResult = await proposalsQuery;
   if (paResult.error) throw new Error(paResult.error.message || 'proposals_agreements_read_failed');
   const rawRows = Array.isArray(paResult.data) ? paResult.data : [];
   noteProposalRead('rows', rawRows, null);
-  const contactOptions = Array.isArray(contactsResult?.contactOptions) ? contactsResult.contactOptions : [];
-  const contactOptionsError = contactsResult?.contactOptionsError || null;
-  let proposalCatalog = null;
-  try {
-    proposalCatalog = await readAuthoritySchoolCatalog();
-  } catch {
-    proposalCatalog = null;
-  }
-  proposalGroupLookupCache = mergeProposalGroupLookups(
-    buildProposalGroupLookup(proposalActivityGroups, proposalGroupAliases),
-    { groups: [], aliases: [] }
-  );
   const pageIds = rawRows.map((row) => cleanProposalAgreementText(row?.id)).filter(Boolean);
   const proposalLinkedDocuments = includeLinkedDocuments
     ? await readProposalLinkedDocumentsFromSupabase({ proposalIds: pageIds })
@@ -4237,7 +4306,7 @@ async function readProposalsAgreementsFromSupabase({
       .map(normalizeProposalAgreementRow)
       .map((row) => {
         const linked = linkedDocumentByProposalId.get(row.id);
-        return enrichProposalAgreementRowFromCatalog({
+        return {
           ...row,
           has_final_pdf: Boolean(cleanProposalAgreementText(row.final_pdf_path)),
           has_document_snapshot: false,
@@ -4247,30 +4316,38 @@ async function readProposalsAgreementsFromSupabase({
           gefen_approval_path: cleanProposalAgreementText(linked?.file_path),
           gefen_approval_file_name: cleanProposalAgreementText(linked?.file_name),
           gefen_approval_combined: linked?.combined_with_proposal === true
-        }, proposalCatalog);
+        };
       }),
     activityNameOptions: [],
-    contactOptions,
-    contactOptionsError,
-    proposalActivityGroups,
-    proposalGroupAliases,
+    contactOptions: [],
+    contactOptionsError: null,
+    proposalActivityGroups: [],
+    proposalGroupAliases: [],
     proposalActivityPricing: [],
     proposalTemplateSections: [],
     proposalAgreementItems: [],
     proposalLinkedDocuments,
     schoolCalendarRows: [],
     _editorDepsLoaded: false,
+    _contactsLoaded: false,
     _hasMore: usePaging ? rawRows.length >= pageSize : false,
     _offset: pageOffset,
     _limit: pageSize,
+    _query: listQuery,
     _debug: {
-      ...(contactsResult?._debug || {}),
-      ...(contactOptionsError ? { contacts_error: contactOptionsError } : {}),
       proposal_loader: {
         ...lastProposalLoaderDebug,
         list_projection: 'metadata',
         page_size: pageSize,
-        paginated: usePaging
+        paginated: usePaging,
+        server_search: Boolean(listQuery.search),
+        filters: {
+          status: listQuery.status || null,
+          authorityId: listQuery.authorityId || null,
+          schoolId: listQuery.schoolId || null,
+          clientType: listQuery.clientType || null,
+          sort: listQuery.sort
+        }
       }
     },
     _source: 'supabase'
@@ -6607,6 +6684,7 @@ export const api = {
   },
   proposalsAgreements: async (params = {}) => readProposalsAgreementsFromSupabase(params || {}),
   proposalsAgreementsEditorDeps: async () => readProposalsAgreementsEditorDepsFromSupabase(),
+  proposalsAgreementsContacts: async () => readContactsSchoolsForProposals(),
   proposalAgreementDetail: async (proposalId) => {
     const row = await readProposalAgreementDetailFromSupabase(proposalId);
     if (!row) return null;
