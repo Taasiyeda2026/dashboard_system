@@ -39,10 +39,13 @@ function mergeGeneralNotesIntoDiscount(form) {
 
 function compactActivitiesHeading(form) {
   const panel = form.querySelector('.ds-pa-form-activities-panel');
-  const title = panel?.querySelector(':scope > .pa-sidebar-section-title');
-  if (!panel || !title) return;
+  if (!panel) return;
 
   let heading = panel.querySelector(':scope > .ds-pa-compact-activities-heading');
+  const directTitle = panel.querySelector(':scope > .pa-sidebar-section-title');
+  const title = heading?.querySelector('.pa-sidebar-section-title') || directTitle;
+  if (!title) return;
+
   if (!heading) {
     heading = document.createElement('div');
     heading.className = 'ds-pa-compact-activities-heading';
@@ -50,19 +53,32 @@ function compactActivitiesHeading(form) {
   }
   if (title.parentElement !== heading) heading.appendChild(title);
 
-  const addButtons = Array.from(panel.querySelectorAll('button'))
-    .filter((button) => /הוסף\s+שורה/.test(String(button.textContent || '').trim()));
-  if (addButtons.length === 1 && addButtons[0].parentElement !== heading) {
-    heading.appendChild(addButtons[0]);
+  const existingHeadingButton = heading.querySelector('[data-pa-compact-heading-button]');
+  const outsideButtons = Array.from(panel.querySelectorAll('button'))
+    .filter((button) => /הוסף\s+שורה/.test(String(button.textContent || '').trim()))
+    .filter((button) => button !== existingHeadingButton);
+
+  if (outsideButtons.length === 1) {
+    if (existingHeadingButton && existingHeadingButton !== outsideButtons[0]) existingHeadingButton.remove();
+    outsideButtons[0].dataset.paCompactHeadingButton = 'true';
+    heading.appendChild(outsideButtons[0]);
+    return;
   }
+
+  if (outsideButtons.length > 1 && existingHeadingButton) existingHeadingButton.remove();
 }
 
 function relocateSummaryIntoActivities(form) {
   const activitiesPanel = form.querySelector('.ds-pa-form-activities-panel');
   const bottomPanel = form.querySelector('.ds-pa-form-bottom-panel');
-  const summary = bottomPanel?.querySelector('.ds-pa-summary') || form.querySelector('.ds-pa-summary');
-  if (!activitiesPanel || !summary) return;
+  if (!activitiesPanel) return;
 
+  const existingSummary = activitiesPanel.querySelector(':scope > .ds-pa-summary.is-compact-relocated');
+  const freshSummary = bottomPanel?.querySelector(':scope > .ds-pa-summary');
+  const summary = freshSummary || existingSummary;
+  if (!summary) return;
+
+  if (freshSummary && existingSummary && existingSummary !== freshSummary) existingSummary.remove();
   if (!activitiesPanel.contains(summary)) activitiesPanel.appendChild(summary);
   summary.classList.add('is-compact-relocated');
   bottomPanel?.classList.add('is-summary-relocated');
