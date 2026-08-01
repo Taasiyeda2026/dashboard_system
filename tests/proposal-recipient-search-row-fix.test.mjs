@@ -21,20 +21,22 @@ test('legacy recipient layout injector is neutralized and does not rearrange the
 test('single CSS source lays out date, domain, type and recipient flow in one row', async () => {
   const css = await readFile(CSS_FILE, 'utf8');
   assert.match(css, /\[data-pa-recipient-meta-row\]/);
-  assert.match(css, /flex-flow:\s*row wrap/);
+  assert.match(css, /ds-pa-recipient-main-row/);
+  assert.match(css, /grid-template-columns:\s*180px 140px 300px 320px/);
+  assert.match(css, /align-items:\s*end/);
   assert.match(css, /--recipient-control-height:\s*40px/);
   assert.match(css, /--recipient-border-color:\s*#cbd5e1/);
   assert.match(css, /--recipient-border-radius:\s*8px/);
   assert.match(css, /border:\s*1px solid var\(--recipient-border-color\)/);
   assert.match(css, /border-radius:\s*var\(--recipient-border-radius\)/);
-  assert.match(css, /grid-template-columns:\s*repeat\(3, var\(--pa-choice-width\)\)/);
   assert.match(css, /\[data-pa-step-panel="client"\]:not\(\[hidden\]\)/);
-  assert.match(css, /display:\s*contents !important/);
+  assert.doesNotMatch(css, /\[data-pa-recipient-meta-row\][\s\S]{0,200}flex-flow:\s*row wrap/);
   assert.doesNotMatch(css, /overflow-x:\s*auto !important/);
 });
 
 test('formHtml keeps one recipient-type label and compact locked recipient details', async () => {
   const screen = await readFile(SCREEN_FILE, 'utf8');
+  assert.match(screen, /ds-pa-recipient-main-row/);
   assert.match(screen, /ds-pa-recipient-type-label">סוג נמען</);
   assert.doesNotMatch(screen, /ds-pa-client-locked-type/);
   assert.match(screen, /data-pa-unlock-client>החלף</);
@@ -59,7 +61,7 @@ test('final recipient asset and cache versions are bumped together', async () =>
     readFile(CONFIG_FILE, 'utf8'),
     readFile(SW_FILE, 'utf8')
   ]);
-  assert.match(config, /proposal-recipient-search-row-fix\.js\?v=20260801-v8/);
-  assert.match(config, /proposal-recipient-workshops-final-20260801-v1/);
-  assert.match(sw, /const CACHE_VERSION = 1349;/);
+  assert.match(config, /proposal-recipient-search-row-fix\.js\?v=20260801-v9/);
+  assert.match(config, /recipient-single-row-grid-20260801-v1/);
+  assert.match(sw, /const CACHE_VERSION = 1350;/);
 });
