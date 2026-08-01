@@ -34,54 +34,50 @@ function mergeGeneralNotesIntoDiscount(form) {
     discountDetails.appendChild(notesField);
   }
   notesDetails.classList.add('is-compact-relocated');
-  notesDetails.hidden = true;
+  if (!notesDetails.hidden) notesDetails.hidden = true;
 }
 
-function compactActivitiesHeading(form) {
+function restoreLegacyMovedNodes(form) {
   const panel = form.querySelector('.ds-pa-form-activities-panel');
   if (!panel) return;
 
-  let heading = panel.querySelector(':scope > .ds-pa-compact-activities-heading');
-  const directTitle = panel.querySelector(':scope > .pa-sidebar-section-title');
-  const title = heading?.querySelector('.pa-sidebar-section-title') || directTitle;
-  if (!title) return;
+  const legacyHeading = panel.querySelector(':scope > .ds-pa-compact-activities-heading');
+  if (legacyHeading) {
+    const title = legacyHeading.querySelector(':scope > .pa-sidebar-section-title');
+    if (title) panel.insertBefore(title, legacyHeading);
 
-  if (!heading) {
-    heading = document.createElement('div');
-    heading.className = 'ds-pa-compact-activities-heading';
-    panel.insertBefore(heading, panel.firstChild);
-  }
-  if (title.parentElement !== heading) heading.appendChild(title);
+    const movedButton = legacyHeading.querySelector('[data-pa-compact-heading-button]');
+    if (movedButton) {
+      movedButton.removeAttribute('data-pa-compact-heading-button');
+      const currentHeader = panel.querySelector('.ds-pa-items-header');
+      if (currentHeader) currentHeader.appendChild(movedButton);
+      else movedButton.remove();
+    }
 
-  const existingHeadingButton = heading.querySelector('[data-pa-compact-heading-button]');
-  const outsideButtons = Array.from(panel.querySelectorAll('button'))
-    .filter((button) => /הוסף\s+שורה/.test(String(button.textContent || '').trim()))
-    .filter((button) => button !== existingHeadingButton);
-
-  if (outsideButtons.length === 1) {
-    if (existingHeadingButton && existingHeadingButton !== outsideButtons[0]) existingHeadingButton.remove();
-    outsideButtons[0].dataset.paCompactHeadingButton = 'true';
-    heading.appendChild(outsideButtons[0]);
-    return;
+    legacyHeading.remove();
   }
 
-  if (outsideButtons.length > 1 && existingHeadingButton) existingHeadingButton.remove();
+  const bottomPanel = form.querySelector('.ds-pa-form-bottom-panel');
+  const movedSummary = panel.querySelector(':scope > .ds-pa-summary.is-compact-relocated');
+  if (bottomPanel && movedSummary) bottomPanel.insertBefore(movedSummary, bottomPanel.firstChild);
 }
 
-function relocateSummaryIntoActivities(form) {
-  const activitiesPanel = form.querySelector('.ds-pa-form-activities-panel');
+function markActivitiesLayout(form) {
+  const panel = form.querySelector('.ds-pa-form-activities-panel');
+  if (!panel) return;
+
+  const addButtons = Array.from(panel.querySelectorAll('button'))
+    .filter((button) => /הוסף\s+שורה/.test(String(button.textContent || '').trim()));
+  panel.classList.toggle('has-single-add-row', addButtons.length === 1);
+  panel.classList.toggle('has-multiple-add-rows', addButtons.length > 1);
+}
+
+function markSummaryLayout(form) {
   const bottomPanel = form.querySelector('.ds-pa-form-bottom-panel');
-  if (!activitiesPanel) return;
-
-  const existingSummary = activitiesPanel.querySelector(':scope > .ds-pa-summary.is-compact-relocated');
-  const freshSummary = bottomPanel?.querySelector(':scope > .ds-pa-summary');
-  const summary = freshSummary || existingSummary;
-  if (!summary) return;
-
-  if (freshSummary && existingSummary && existingSummary !== freshSummary) existingSummary.remove();
-  if (!activitiesPanel.contains(summary)) activitiesPanel.appendChild(summary);
+  const summary = bottomPanel?.querySelector(':scope > .ds-pa-summary');
+  if (!bottomPanel || !summary) return;
   summary.classList.add('is-compact-relocated');
-  bottomPanel?.classList.add('is-summary-relocated');
+  bottomPanel.classList.add('is-summary-relocated');
 }
 
 function markDuplicateEditorTotals(form) {
@@ -91,20 +87,24 @@ function markDuplicateEditorTotals(form) {
 
 function markProposalType(form) {
   const type = String(form.querySelector('[name="activity_type_group"]')?.value || '').trim();
-  if (type) form.dataset.paCompactProposalType = type;
-  else delete form.dataset.paCompactProposalType;
+  if (type) {
+    if (form.dataset.paCompactProposalType !== type) form.dataset.paCompactProposalType = type;
+  } else if (form.dataset.paCompactProposalType) {
+    delete form.dataset.paCompactProposalType;
+  }
 }
 
 function compactEditor(form) {
   if (!form || !form.querySelector('.pa-editor-workspace')) return;
+  restoreLegacyMovedNodes(form);
   markRecipientMode(form);
   relocateProgramNotes(form);
   mergeGeneralNotesIntoDiscount(form);
-  compactActivitiesHeading(form);
-  relocateSummaryIntoActivities(form);
+  markActivitiesLayout(form);
+  markSummaryLayout(form);
   markDuplicateEditorTotals(form);
   markProposalType(form);
-  form.dataset.paCompactLayoutApplied = 'true';
+  if (form.dataset.paCompactLayoutApplied !== 'true') form.dataset.paCompactLayoutApplied = 'true';
 }
 
 function compactAll(root = document) {
@@ -114,13 +114,27 @@ function compactAll(root = document) {
 }
 
 let queued = false;
+let pendingRoot = null;
+let compactObserver = null;
+
 function scheduleCompact(root = document) {
+  pendingRoot = root || document;
   if (queued) return;
   queued = true;
-  queueMicrotask(() => {
+
+  const run = () => {
     queued = false;
-    compactAll(root);
-  });
+    const target = pendingRoot || document;
+    pendingRoot = null;
+    compactAll(target);
+    compactObserver?.takeRecords();
+  };
+
+  if (typeof window !== 'undefined' && typeof window.requestAnimationFrame === 'function') {
+    window.requestAnimationFrame(run);
+  } else {
+    setTimeout(run, 0);
+  }
 }
 
 if (typeof document !== 'undefined') {
@@ -134,24 +148,21 @@ if (typeof document !== 'undefined') {
     const form = event.target?.closest?.('[data-pa-form]');
     if (form) scheduleCompact(form);
   });
+
   document.addEventListener('click', (event) => {
-    const form = event.target?.closest?.('[data-pa-form]');
+    const typeButton = event.target?.closest?.('[data-pa-type-btn]');
+    const form = typeButton?.closest?.('[data-pa-form]');
     if (form) setTimeout(() => scheduleCompact(form), 0);
   });
 
   const app = document.getElementById('app') || document.documentElement;
-  new MutationObserver((mutations) => {
-    const relevant = mutations.some((mutation) =>
-      mutation.type === 'childList'
-      || mutation.attributeName === 'hidden'
-      || mutation.attributeName === 'open'
-      || mutation.attributeName === 'value');
-    if (relevant) scheduleCompact(app);
-  }).observe(app, {
+  compactObserver = new MutationObserver((mutations) => {
+    if (!mutations.some((mutation) => mutation.type === 'childList')) return;
+    scheduleCompact(app);
+  });
+  compactObserver.observe(app, {
     childList: true,
-    subtree: true,
-    attributes: true,
-    attributeFilter: ['hidden', 'open', 'value']
+    subtree: true
   });
 }
 
@@ -160,7 +171,9 @@ export {
   markRecipientMode,
   relocateProgramNotes,
   mergeGeneralNotesIntoDiscount,
-  compactActivitiesHeading,
-  relocateSummaryIntoActivities,
-  markDuplicateEditorTotals
+  restoreLegacyMovedNodes,
+  markActivitiesLayout,
+  markSummaryLayout,
+  markDuplicateEditorTotals,
+  scheduleCompact
 };
