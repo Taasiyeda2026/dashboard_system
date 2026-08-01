@@ -15,8 +15,21 @@ import { applyGlobalAccent, accentNameFromStorage, bindAccentPickerOnce as bindA
 import { waitForSupabaseAuthSession } from './supabase-client.js';
 import { permissionFlagYes as permissionEnabled } from './permissions.js';
 import { countPendingApprovedProposals } from './screens/shared/proposals-pending-count.js';
+import { bootstrapLocalBaselineMonitor } from './local-baseline-monitor.js';
 
 const app = document.getElementById('app');
+bootstrapLocalBaselineMonitor({
+  buildEnabled: import.meta.env.DEV || import.meta.env.VITE_DS_BASELINE_MONITOR === 'true',
+  getContext: () => ({
+    route: state.route,
+    activity_period: state.activityPeriodTab,
+    tab: state.operationsManagement?.tab || 'unknown',
+    drawer_open: !!document.querySelector('[role="dialog"],.ds-drawer.is-open'),
+    document_open: !!document.querySelector('[data-pa-document-detail],[data-pa-preview-modal]'),
+    navigation_id: String(activeNavigationToken || navigationToken || 0)
+  }),
+  document
+});
 const loginLogoSrc  = new URL('../assets/logo1.png',      import.meta.url).href;
 const systemLogoSrc = new URL('../assets/logo_system.png', import.meta.url).href;
 
@@ -1682,6 +1695,7 @@ async function mountScreen() {
   const transitionToken = ++navigationToken;
   activeNavigationToken = transitionToken;
   latestNavigationRoute = requestedRoute;
+  window.__dsLocalBaseline?.markNavigation?.({ route: requestedRoute });
   const transitionLabel = `route:transition:${transitionToken}`;
   activeRouteTransitionLabel = transitionLabel;
   beginPerfTimer('route:transition');
@@ -1849,6 +1863,7 @@ async function mountScreen() {
       phase: 'fresh-data-render',
       cacheKey
     });
+    window.__dsLocalBaseline?.markContent?.({ route: requestedRoute });
     endPerfTimer('route:renderScreen');
     // eslint-disable-next-line no-console
     console.info('[route-load:success]', {
