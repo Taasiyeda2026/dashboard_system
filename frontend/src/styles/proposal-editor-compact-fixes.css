@@ -3,6 +3,8 @@
   --pa-compact-gap: 10px;
   --pa-choice-width: 92px;
   --pa-control-height: 36px;
+  --pa-recipient-control-height: 42px;
+  --pa-recipient-border: #cbd5e1;
   --pa-editor-line: #dbe4ee;
 }
 
@@ -22,168 +24,300 @@
 #app .pa-editor-workspace .ds-pa-type-chips {
   display: grid !important;
   grid-template-columns: repeat(3, var(--pa-choice-width)) !important;
-  grid-auto-rows: var(--pa-control-height) !important;
-  inline-size: max-content !important;
+  grid-auto-rows: var(--pa-recipient-control-height) !important;
+  inline-size: auto !important;
   gap: 6px !important;
+}
+
+#app .pa-editor-workspace .ds-pa-type-chips {
+  grid-auto-rows: var(--pa-control-height) !important;
 }
 
 #app .pa-editor-workspace .ds-pa-recipient-type-option,
 #app .pa-editor-workspace .ds-pa-type-card {
   inline-size: var(--pa-choice-width) !important;
   min-inline-size: var(--pa-choice-width) !important;
-  block-size: var(--pa-control-height) !important;
-  min-block-size: var(--pa-control-height) !important;
+  max-inline-size: var(--pa-choice-width) !important;
+  width: var(--pa-choice-width) !important;
+  block-size: var(--pa-recipient-control-height) !important;
+  min-block-size: var(--pa-recipient-control-height) !important;
   display: inline-flex !important;
   align-items: center;
   justify-content: center;
   text-align: center;
-  padding: 4px 8px !important;
+  padding: 0 8px !important;
+  box-sizing: border-box !important;
+  border: 1px solid var(--pa-recipient-border) !important;
+  border-radius: 10px !important;
+  background: #fff !important;
+  box-shadow: none !important;
+  overflow: hidden !important;
+  white-space: nowrap !important;
 }
 
-/* Recipient and contact stay inside one outer panel with no inner cards. */
+#app .pa-editor-workspace .ds-pa-recipient-type-option > span {
+  overflow: hidden !important;
+  text-overflow: ellipsis !important;
+  white-space: nowrap !important;
+}
+
+#app .pa-editor-workspace .ds-pa-type-card {
+  block-size: var(--pa-control-height) !important;
+  min-block-size: var(--pa-control-height) !important;
+}
+
+#app .pa-editor-workspace .ds-pa-recipient-type-option:has(input:checked) {
+  border-color: #64748b !important;
+  background: #f8fafc !important;
+}
+
+/* One outer recipient box. Structure comes from formHtml — CSS only lays it out. */
 #app .pa-editor-workspace .ds-pa-form-meta-panel {
-  display: grid !important;
-  grid-template-columns: max-content !important;
-  justify-content: start !important;
-  align-items: start !important;
-  inline-size: fit-content !important;
+  display: flex !important;
+  flex-direction: column !important;
+  align-items: stretch !important;
+  justify-content: flex-start !important;
+  gap: 10px !important;
+  inline-size: 100% !important;
   max-inline-size: 100% !important;
   min-block-size: 0 !important;
-  gap: 7px !important;
-  padding: 10px 12px !important;
+  padding: 12px 14px !important;
+  box-sizing: border-box !important;
+  overflow: visible !important;
 }
 
 #app .pa-editor-workspace .ds-pa-form-meta-panel > .pa-sidebar-section-title {
-  grid-column: 1 !important;
-  inline-size: 100%;
   margin: 0 !important;
+  inline-size: 100% !important;
 }
 
-#app .pa-editor-workspace [data-pa-step-panel="client"],
-#app .pa-editor-workspace [data-pa-step-panel="contact"] {
-  inline-size: fit-content !important;
-  max-inline-size: 100% !important;
-  min-block-size: 0 !important;
-}
-
-#app .pa-editor-workspace .ds-pa-client-search-block {
-  display: grid !important;
-  grid-template-columns: max-content 262px !important;
-  justify-content: start !important;
+#app .pa-editor-workspace [data-pa-recipient-meta-row] {
+  display: flex !important;
+  flex-flow: row wrap !important;
   align-items: end !important;
-  inline-size: fit-content !important;
+  justify-content: flex-start !important;
+  gap: 10px !important;
+  inline-size: 100% !important;
   max-inline-size: 100% !important;
-  gap: var(--pa-compact-gap) !important;
+  margin: 0 !important;
+  overflow: visible !important;
 }
 
+#app .pa-editor-workspace [data-pa-step-panel="client"]:not([hidden]),
+#app .pa-editor-workspace [data-pa-client-search-row]:not([hidden]),
 #app .pa-editor-workspace .ds-pa-client-search,
-#app .pa-editor-workspace .ds-pa-client-search-field-wrap {
-  inline-size: 262px !important;
-  max-inline-size: 262px !important;
+#app .pa-editor-workspace [data-pa-client-card]:not([hidden]),
+#app .pa-editor-workspace .ds-pa-client-locked,
+#app .pa-editor-workspace .ds-pa-client-locked-body,
+#app .pa-editor-workspace .ds-pa-client-locked-actions,
+#app .pa-editor-workspace [data-pa-school-search-panel]:not([hidden]),
+#app .pa-editor-workspace [data-pa-other-client-field]:not([hidden]) {
+  display: contents !important;
 }
 
-#app .pa-editor-workspace .ds-pa-school-search-panel {
-  inline-size: fit-content !important;
-  max-inline-size: 100% !important;
-}
-
-#app .pa-editor-workspace .ds-pa-school-search-panel .ds-pa-client-search-field-wrap {
-  inline-size: 270px !important;
-  max-inline-size: 270px !important;
-}
-
-#app .pa-editor-workspace .ds-pa-form-meta-panel:has([data-pa-client-card]:not([hidden])) [data-pa-client-search-row] {
+#app .pa-editor-workspace [data-pa-step-panel="client"][hidden],
+#app .pa-editor-workspace [data-pa-client-search-row][hidden],
+#app .pa-editor-workspace [data-pa-client-card][hidden],
+#app .pa-editor-workspace [data-pa-other-client-field][hidden],
+#app .pa-editor-workspace [data-pa-client-search-field][hidden],
+#app .pa-editor-workspace [data-pa-school-search-panel][hidden],
+#app .pa-editor-workspace [data-pa-step-panel="contact"][hidden],
+#app .pa-editor-workspace [data-pa-client-results][hidden],
+#app .pa-editor-workspace [data-pa-school-results][hidden] {
   display: none !important;
 }
 
-#app .pa-editor-workspace [data-pa-client-card]:not([hidden]) {
-  display: block !important;
-  inline-size: fit-content !important;
-  max-inline-size: 100% !important;
+#app .pa-editor-workspace .ds-pa-recipient-type-field {
+  display: grid !important;
+  gap: 4px !important;
+  margin: 0 !important;
+  inline-size: auto !important;
 }
 
-#app .pa-editor-workspace .ds-pa-client-locked {
-  display: grid !important;
-  grid-template-columns: 100px 150px 220px 90px max-content !important;
-  grid-auto-flow: row !important;
-  justify-content: start !important;
-  align-items: end !important;
-  inline-size: max-content !important;
-  max-inline-size: 100% !important;
-  min-block-size: 0 !important;
-  gap: var(--pa-compact-gap) !important;
-  padding: 2px 0 8px !important;
+#app .pa-editor-workspace .ds-pa-recipient-date-field,
+#app .pa-editor-workspace .ds-pa-recipient-domain-field,
+#app .pa-editor-workspace [data-pa-recipient-meta-row] .ds-pa-form-field {
+  gap: 4px !important;
+  margin: 0 !important;
+}
+
+#app .pa-editor-workspace [data-pa-recipient-meta-row] .ds-pa-form-field > span,
+#app .pa-editor-workspace .ds-pa-recipient-type-label,
+#app .pa-editor-workspace .ds-pa-school-step-text > span,
+#app .pa-editor-workspace .ds-pa-client-locked p > span {
+  min-block-size: 18px !important;
+  margin: 0 !important;
+  padding: 0 !important;
+  font-size: 13px !important;
+  line-height: 18px !important;
+  font-weight: 700 !important;
+  color: #475569 !important;
+}
+
+#app .pa-editor-workspace [data-pa-recipient-meta-row] input[name="proposal_date"],
+#app .pa-editor-workspace [data-pa-recipient-meta-row] select[name="proposal_domain"],
+#app .pa-editor-workspace [data-pa-client-search-input],
+#app .pa-editor-workspace [data-pa-school-search-input],
+#app .pa-editor-workspace [data-pa-other-client-field] input,
+#app .pa-editor-workspace .ds-pa-school-step-text > strong,
+#app .pa-editor-workspace .ds-pa-client-locked p > strong,
+#app .pa-editor-workspace [data-pa-change-authority-step],
+#app .pa-editor-workspace .ds-pa-client-locked-actions .ds-btn {
+  block-size: var(--pa-recipient-control-height) !important;
+  min-block-size: var(--pa-recipient-control-height) !important;
+  box-sizing: border-box !important;
+  border: 1px solid var(--pa-recipient-border) !important;
+  border-radius: 10px !important;
+  background: #fff !important;
+  box-shadow: none !important;
+}
+
+#app .pa-editor-workspace [data-pa-recipient-meta-row] input[name="proposal_date"] {
+  inline-size: 160px !important;
+  max-inline-size: 160px !important;
+}
+
+#app .pa-editor-workspace [data-pa-recipient-meta-row] select[name="proposal_domain"] {
+  inline-size: 120px !important;
+  max-inline-size: 120px !important;
+}
+
+#app .pa-editor-workspace [data-pa-client-search-field-wrap],
+#app .pa-editor-workspace [data-pa-school-search-field-wrap] {
+  position: relative !important;
+  margin: 0 !important;
+  padding: 0 !important;
+  overflow: visible !important;
+  inline-size: 280px !important;
+  max-inline-size: 280px !important;
+}
+
+#app .pa-editor-workspace [data-pa-client-search-field-wrap]:has([data-pa-client-search-field][hidden]) {
+  display: none !important;
+}
+
+#app .pa-editor-workspace .ds-pa-other-client-section,
+#app .pa-editor-workspace .ds-pa-other-client-field {
+  margin: 0 !important;
+  padding: 0 !important;
   border: 0 !important;
   border-radius: 0 !important;
   background: transparent !important;
   box-shadow: none !important;
 }
 
-#app .pa-editor-workspace .ds-pa-client-locked-body,
-#app .pa-editor-workspace .ds-pa-client-locked-actions {
-  display: contents !important;
+#app .pa-editor-workspace [data-pa-client-search-field-wrap] > label,
+#app .pa-editor-workspace [data-pa-school-search-field-wrap] > label,
+#app .pa-editor-workspace [data-pa-client-search-input],
+#app .pa-editor-workspace [data-pa-school-search-input],
+#app .pa-editor-workspace [data-pa-other-client-field] .ds-pa-form-field,
+#app .pa-editor-workspace [data-pa-other-client-field] input {
+  inline-size: 280px !important;
+  max-inline-size: 280px !important;
+  margin: 0 !important;
+}
+
+#app .pa-editor-workspace .ds-pa-school-step-text {
+  display: grid !important;
+  grid-template-columns: minmax(72px, 110px) 54px !important;
+  grid-template-rows: 18px var(--pa-recipient-control-height) !important;
+  align-items: end !important;
+  justify-content: start !important;
+  gap: 4px 6px !important;
+  margin: 0 !important;
+  padding: 0 !important;
+  border: 0 !important;
+  background: transparent !important;
+  white-space: nowrap !important;
+}
+
+#app .pa-editor-workspace .ds-pa-school-step-text > span {
+  grid-column: 1 / -1 !important;
+  grid-row: 1 !important;
+}
+
+#app .pa-editor-workspace .ds-pa-school-step-text > strong {
+  grid-column: 1 !important;
+  grid-row: 2 !important;
+  display: flex !important;
+  align-items: center !important;
+  min-inline-size: 0 !important;
+  padding: 0 10px !important;
+  overflow: hidden !important;
+  text-overflow: ellipsis !important;
+  white-space: nowrap !important;
+}
+
+#app .pa-editor-workspace [data-pa-change-authority-step],
+#app .pa-editor-workspace .ds-pa-client-locked-actions .ds-btn {
+  grid-column: 2 !important;
+  grid-row: 2 !important;
+  inline-size: 54px !important;
+  min-inline-size: 54px !important;
+  max-inline-size: 54px !important;
+  margin: 0 !important;
+  padding: 0 !important;
+  font-size: 12px !important;
+  font-weight: 700 !important;
 }
 
 #app .pa-editor-workspace .ds-pa-client-locked p {
   display: grid !important;
-  gap: 3px !important;
+  gap: 4px !important;
   min-inline-size: 0 !important;
   margin: 0 !important;
   padding: 0 !important;
   border: 0 !important;
   background: transparent !important;
+  box-shadow: none !important;
+}
+
+#app .pa-editor-workspace .ds-pa-client-locked-detail > strong,
+#app .pa-editor-workspace .ds-pa-client-locked-name > strong,
+#app .pa-editor-workspace .ds-pa-client-locked-state > strong {
+  display: flex !important;
+  align-items: center !important;
+  min-inline-size: 0 !important;
+  max-inline-size: 170px !important;
+  padding: 0 10px !important;
+  overflow: hidden !important;
+  text-overflow: ellipsis !important;
+  white-space: nowrap !important;
 }
 
 #app .pa-editor-workspace .ds-pa-client-locked-type {
-  grid-column: 1 !important;
-  grid-row: 1 !important;
-}
-
-#app .pa-editor-workspace .ds-pa-client-locked-detail {
-  grid-column: 2 !important;
-  grid-row: 1 !important;
-}
-
-#app .pa-editor-workspace .ds-pa-client-locked-name {
-  grid-column: 3 !important;
-  grid-row: 1 !important;
-}
-
-#app .pa-editor-workspace .ds-pa-client-locked-state {
-  grid-column: 4 !important;
-  grid-row: 1 !important;
-}
-
-#app .pa-editor-workspace .ds-pa-client-locked-actions {
-  grid-column: 5 !important;
-  grid-row: 1 !important;
-  align-self: end !important;
-}
-
-#app .pa-editor-workspace .ds-pa-client-locked.is-authority {
-  grid-template-columns: 100px 190px max-content !important;
-}
-
-#app .pa-editor-workspace .ds-pa-client-locked.is-authority .ds-pa-client-locked-name,
-#app .pa-editor-workspace .ds-pa-client-locked.is-authority .ds-pa-client-locked-state {
   display: none !important;
 }
 
-#app .pa-editor-workspace .ds-pa-client-locked.is-authority .ds-pa-client-locked-actions {
-  grid-column: 3 !important;
+#app .pa-editor-workspace [data-pa-client-results],
+#app .pa-editor-workspace [data-pa-school-results] {
+  position: absolute !important;
+  inset-inline: 0 !important;
+  inset-block-start: calc(100% + 4px) !important;
+  z-index: 2000 !important;
+  inline-size: 100% !important;
+  max-inline-size: none !important;
+  max-block-size: 240px !important;
+  overflow-x: hidden !important;
+  overflow-y: auto !important;
+  background: #fff !important;
+  border: 1px solid var(--pa-recipient-border) !important;
+  border-radius: 10px !important;
+  box-shadow: 0 10px 24px rgba(15, 23, 42, 0.16) !important;
 }
 
-#app .pa-editor-workspace .ds-pa-client-locked-actions .ds-btn {
-  inline-size: auto !important;
-  min-inline-size: max-content !important;
-  block-size: 34px !important;
-}
-
-#app .pa-editor-workspace [data-pa-step-panel="contact"] {
+#app .pa-editor-workspace [data-pa-step-panel="contact"]:not([hidden]) {
   display: grid !important;
   gap: 6px !important;
-  padding-block-start: 8px !important;
+  inline-size: 100% !important;
+  max-inline-size: 100% !important;
+  margin: 0 !important;
+  padding-block-start: 9px !important;
+  border: 0 !important;
   border-block-start: 1px solid var(--pa-editor-line) !important;
+  border-radius: 0 !important;
+  background: transparent !important;
+  box-shadow: none !important;
 }
 
 #app .pa-editor-workspace [data-pa-step-panel="contact"] > .pa-sidebar-section-title {
@@ -243,7 +377,7 @@
 
 #app .pa-editor-workspace .ds-pa-type-meta-grid {
   display: grid !important;
-  grid-template-columns: max-content 160px 120px !important;
+  grid-template-columns: max-content !important;
   justify-content: start !important;
   align-items: end !important;
   inline-size: fit-content !important;
@@ -251,7 +385,7 @@
 }
 
 #app .pa-editor-workspace .ds-pa-type-meta-aux {
-  display: contents !important;
+  display: none !important;
 }
 
 #app .pa-editor-workspace .ds-pa-type-row:empty,
