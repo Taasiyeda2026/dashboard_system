@@ -4558,7 +4558,7 @@ function formHtml(mode, row = {}, activityNameOptions = [], contactOptions = [],
         </div>
     <div class="ds-pa-form-meta-panel">
       <h4 class="pa-sidebar-section-title">פרטי נמען</h4>
-      <div class="ds-pa-recipient-meta-row" data-pa-recipient-meta-row>
+      <div class="ds-pa-recipient-meta-row ds-pa-recipient-main-row" data-pa-recipient-meta-row>
         <label class="ds-pa-form-field ds-pa-recipient-date-field"><span>${escapeHtml(FIELD_LABELS.proposal_date)}</span><input class="ds-input ds-input--sm" type="date" name="proposal_date" value="${escapeHtml(proposalDate)}"></label>
         <label class="ds-pa-form-field ds-pa-recipient-domain-field"><span>${escapeHtml(FIELD_LABELS.proposal_domain)}: Y / E</span><select class="ds-input ds-input--sm" name="proposal_domain">${optionHtml('Y', row.proposal_domain || 'Y', 'Y')}${optionHtml('E', row.proposal_domain || 'Y', 'E')}</select></label>
         ${clientTypeSelectorHtml(initClientType)}
