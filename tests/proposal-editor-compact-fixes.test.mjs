@@ -69,14 +69,19 @@ test('next-year workshop editor rows stay on one compact line', async () => {
   assert.match(runtime, /grid-row', '1'/);
 });
 
-test('recipient type, proposal date and domain are arranged in one row', async () => {
+test('recipient label, proposal date and domain are arranged in one row without an empty contact section', async () => {
   const runtime = await readFile(RUNTIME_FILE, 'utf8');
+  assert.match(runtime, /recipientTypeFieldForRow/);
+  assert.match(runtime, /label\.textContent = 'סוג נמען'/);
   assert.match(runtime, /arrangeRecipientDateDomainRow/);
   assert.match(runtime, /data-pa-recipient-meta-row/);
   assert.match(runtime, /grid-template-columns', '160px 120px max-content'/);
   assert.match(runtime, /input\[name="proposal_date"\]/);
   assert.match(runtime, /select\[name="proposal_domain"\]/);
-  assert.match(runtime, /\.ds-pa-recipient-type/);
+  assert.match(runtime, /recipientField\.hidden = form\.classList\.contains\('has-locked-client'\)/);
+  assert.match(runtime, /searchBlock\.style\.setProperty\('grid-template-columns', '262px'/);
+  assert.match(runtime, /recipientReadyState/);
+  assert.match(runtime, /contactPanel\.hidden = !recipientReady/);
 });
 
 test('frontend hotfix and service worker cache versions are bumped together', async () => {
@@ -84,8 +89,6 @@ test('frontend hotfix and service worker cache versions are bumped together', as
     readFile(CONFIG_FILE, 'utf8'),
     readFile(SW_FILE, 'utf8')
   ]);
-  assert.match(config, /proposal-contact-edit-source-recovery-20260801-v1/);
-  assert.match(config, /nextyear-workshop-row-20260801-v1/);
-  assert.match(config, /recipient-meta-single-row-20260801-v1/);
-  assert.match(sw, /const CACHE_VERSION = 1335;/);
+  assert.match(config, /proposal-recipient-meta-alignment-20260801-v2/);
+  assert.match(sw, /const CACHE_VERSION = 1336;/);
 });
