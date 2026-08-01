@@ -2,7 +2,7 @@ import { escapeHtml } from './shared/html.js';
 import { dsCard, dsScreenStack } from './shared/layout.js';
 import { computeOperationalExceptionsTotal } from './shared/exceptions-metrics.js';
 import { syncActivitiesGapQuery } from './shared/route-query.js';
-import { defaultMonthForGlobalActivityPeriod, ACTIVITY_SEASON_REGULAR } from './shared/summer-activity.js';
+import { ACTIVE_ACTIVITY_SEASON, defaultMonthForGlobalActivityPeriod, ACTIVITY_SEASON_REGULAR } from './shared/summer-activity.js';
 import { activityTypeIconSvg } from './shared/activity-type-icons.js';
 
 const HEBREW_MONTHS = [
@@ -194,7 +194,7 @@ function goActivitiesDrill(state, patch) {
   state.activityTab = patch.activityTab ?? 'all';
   state.activityFinanceStatus = patch.activityFinanceStatus ?? '';
   state.activityQuickFamily = patch.activityQuickFamily ?? '';
-  state.activityPeriodTab = patch.activityPeriodTab || state.activityPeriodTab || ACTIVITY_SEASON_REGULAR;
+  state.activityPeriodTab = patch.activityPeriodTab || state.activityPeriodTab || ACTIVE_ACTIVITY_SEASON;
   state.activityQuickManager = patch.activityQuickManager ?? '';
   state.activityEndingCurrentMonth = !!patch.activityEndingCurrentMonth;
   state.activitiesMonthYm = patch.activitiesMonthYm || state.dashboardMonthYm || currentMonthYm();

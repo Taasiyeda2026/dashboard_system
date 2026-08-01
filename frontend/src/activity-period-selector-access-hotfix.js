@@ -1,25 +1,21 @@
 import { state, setGlobalActivityPeriod } from './state.js';
 import {
-  ACTIVITY_SEASON_REGULAR,
-  GLOBAL_ACTIVITY_PERIOD_STORAGE_KEY,
   globalActivityPeriodFullLabel,
   globalActivityPeriodLabel,
-  isValidGlobalActivityPeriod,
   normalizeGlobalActivityPeriod
 } from './screens/shared/summer-activity.js';
+import { clearActivityPeriodScreenCache, resolveInitialActivityPeriod } from './activity-period-cutover.js';
 
 function storedOrDefaultPeriod() {
   try {
-    const stored = localStorage.getItem(GLOBAL_ACTIVITY_PERIOD_STORAGE_KEY) || '';
-    if (isValidGlobalActivityPeriod(stored)) return normalizeGlobalActivityPeriod(stored);
+    return resolveInitialActivityPeriod(localStorage);
   } catch {
-    /* ignore storage failures */
+    return { period: normalizeGlobalActivityPeriod(''), didCutover: false };
   }
-  return ACTIVITY_SEASON_REGULAR;
 }
 
 function clearPeriodScreenCache() {
-  state.screenDataCache = {};
+  clearActivityPeriodScreenCache(state.screenDataCache);
   state.archiveActivityPeriod = null;
 }
 
@@ -43,9 +39,9 @@ function refreshCurrentRoute() {
   document.dispatchEvent(new CustomEvent('app:navigate', { detail: { route } }));
 }
 
-// 2026 remains fully accessible until an explicit operational cutover is approved.
-const initialPeriod = storedOrDefaultPeriod();
+const { period: initialPeriod, didCutover } = storedOrDefaultPeriod();
 setGlobalActivityPeriod(initialPeriod, { persist: false });
+if (didCutover) clearPeriodScreenCache();
 state.archiveActivityPeriod = null;
 
 // Run after the authenticated shell has had a chance to bind its navigation listener.

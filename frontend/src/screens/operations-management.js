@@ -18,6 +18,7 @@ import {
 } from './shared/activity-list-filters.js';
 import {
   ACTIVITY_SEASON_REGULAR,
+  ACTIVE_ACTIVITY_SEASON,
   ACTIVITY_SEASON_SUMMER_2026,
   ACTIVITY_SEASON_SCHOOL_2027,
   defaultMonthForGlobalActivityPeriod,
@@ -169,7 +170,7 @@ function addDaysIso(iso, days) {
 }
 
 function defaultPeriodKey(state = {}) {
-  return normalizeGlobalActivityPeriod(state.activityPeriodTab || ACTIVITY_SEASON_REGULAR);
+  return normalizeGlobalActivityPeriod(state.activityPeriodTab || ACTIVE_ACTIVITY_SEASON);
 }
 
 function defaultDateRange(periodKey) {
