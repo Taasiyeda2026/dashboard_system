@@ -1,5 +1,3 @@
-const EDITOR_SELECTOR = '#app .pa-editor-workspace [data-pa-form], #app [data-pa-form] .pa-editor-workspace';
-
 function editorFormFromNode(node) {
   if (!(node instanceof Element)) return null;
   if (node.matches?.('[data-pa-form]')) return node;
@@ -39,6 +37,42 @@ function mergeGeneralNotesIntoDiscount(form) {
   notesDetails.hidden = true;
 }
 
+function compactActivitiesHeading(form) {
+  const panel = form.querySelector('.ds-pa-form-activities-panel');
+  const title = panel?.querySelector(':scope > .pa-sidebar-section-title');
+  if (!panel || !title) return;
+
+  let heading = panel.querySelector(':scope > .ds-pa-compact-activities-heading');
+  if (!heading) {
+    heading = document.createElement('div');
+    heading.className = 'ds-pa-compact-activities-heading';
+    panel.insertBefore(heading, panel.firstChild);
+  }
+  if (title.parentElement !== heading) heading.appendChild(title);
+
+  const addButtons = Array.from(panel.querySelectorAll('button'))
+    .filter((button) => /הוסף\s+שורה/.test(String(button.textContent || '').trim()));
+  if (addButtons.length === 1 && addButtons[0].parentElement !== heading) {
+    heading.appendChild(addButtons[0]);
+  }
+}
+
+function relocateSummaryIntoActivities(form) {
+  const activitiesPanel = form.querySelector('.ds-pa-form-activities-panel');
+  const bottomPanel = form.querySelector('.ds-pa-form-bottom-panel');
+  const summary = bottomPanel?.querySelector('.ds-pa-summary') || form.querySelector('.ds-pa-summary');
+  if (!activitiesPanel || !summary) return;
+
+  if (!activitiesPanel.contains(summary)) activitiesPanel.appendChild(summary);
+  summary.classList.add('is-compact-relocated');
+  bottomPanel?.classList.add('is-summary-relocated');
+}
+
+function markDuplicateEditorTotals(form) {
+  form.querySelectorAll('.ds-pa-items-total-row, .ds-pa-tour-grand-total-field')
+    .forEach((element) => element.classList.add('is-duplicate-editor-total'));
+}
+
 function markProposalType(form) {
   const type = String(form.querySelector('[name="activity_type_group"]')?.value || '').trim();
   if (type) form.dataset.paCompactProposalType = type;
@@ -50,6 +84,9 @@ function compactEditor(form) {
   markRecipientMode(form);
   relocateProgramNotes(form);
   mergeGeneralNotesIntoDiscount(form);
+  compactActivitiesHeading(form);
+  relocateSummaryIntoActivities(form);
+  markDuplicateEditorTotals(form);
   markProposalType(form);
   form.dataset.paCompactLayoutApplied = 'true';
 }
@@ -102,4 +139,12 @@ if (typeof document !== 'undefined') {
   });
 }
 
-export { compactEditor, markRecipientMode, relocateProgramNotes, mergeGeneralNotesIntoDiscount };
+export {
+  compactEditor,
+  markRecipientMode,
+  relocateProgramNotes,
+  mergeGeneralNotesIntoDiscount,
+  compactActivitiesHeading,
+  relocateSummaryIntoActivities,
+  markDuplicateEditorTotals
+};
