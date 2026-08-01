@@ -102,7 +102,7 @@
 #app .pa-editor-workspace .ds-pa-recipient-main-row,
 #app .pa-editor-workspace [data-pa-recipient-meta-row] {
   display: grid !important;
-  grid-template-columns: 180px 140px 300px 320px !important;
+  grid-template-columns: 130px 130px 300px 320px !important;
   grid-template-rows: auto !important;
   grid-auto-flow: row !important;
   align-items: end !important;
@@ -403,11 +403,11 @@
 
 /* After authority / school selection, keep everything on the same main row. */
 #app .pa-editor-workspace [data-pa-recipient-meta-row]:has([data-pa-school-search-panel]:not([hidden])) {
-  grid-template-columns: 180px 140px 300px max-content !important;
+  grid-template-columns: 130px 130px 300px max-content !important;
 }
 
 #app .pa-editor-workspace [data-pa-recipient-meta-row]:has(.ds-pa-client-locked) {
-  grid-template-columns: 180px 140px 300px max-content !important;
+  grid-template-columns: 130px 130px 300px max-content !important;
 }
 
 #app .pa-editor-workspace [data-pa-school-search-panel]:not([hidden]) {
