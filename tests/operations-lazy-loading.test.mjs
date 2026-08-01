@@ -39,3 +39,14 @@ test('inventory tab loader does not read schedule or approval data', async () =>
   await loadOperationsTabData(trackedApi(calls), 'workshops');
   assert.deepEqual(calls.sort(), ['adminLists', 'workshopStockDistributions']);
 });
+
+test('schedule entry defers school, contact, print and approval dependencies', async () => {
+  const calls = [];
+  const data = await operationsManagementScreen.load({
+    api: trackedApi(calls),
+    state: { activityPeriodTab: 'school_2027', operationsManagement: { tab: 'instructors' } }
+  });
+  assert.deepEqual(calls, ['allActivities']);
+  assert.equal(data.schoolsDirectorySource, 'deferred');
+  assert.deepEqual(data._loadedOperationsTabs, ['schedule']);
+});
