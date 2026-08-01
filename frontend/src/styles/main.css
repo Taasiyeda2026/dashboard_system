@@ -22784,3 +22784,36 @@ details[open] > .ds-fin-acc__summary::before { transform: rotate(90deg); }
     grid-template-columns: minmax(0, 1fr) max-content;
   }
 }
+
+/* Proposal editor selection controls: choices within each group share one size. */
+.pa-editor-workspace .pa-sidebar .ds-pa-recipient-type-field {
+  width: min(100%, 255px);
+}
+.pa-editor-workspace .pa-sidebar .ds-pa-recipient-type {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  grid-auto-rows: 34px;
+  width: 100%;
+}
+.pa-editor-workspace .pa-sidebar .ds-pa-recipient-type-option {
+  width: 100%;
+  min-width: 0;
+  min-height: 34px;
+  height: 34px;
+  padding: 4px 6px;
+  text-align: center;
+}
+.pa-editor-workspace .pa-sidebar .ds-pa-type-chips {
+  grid-auto-rows: 34px;
+  align-items: stretch;
+}
+.pa-editor-workspace .pa-sidebar .ds-pa-type-card {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 100%;
+  min-width: 0;
+  min-height: 34px !important;
+  height: 34px;
+  text-align: center;
+}
