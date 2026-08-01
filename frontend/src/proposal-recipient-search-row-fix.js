@@ -27,6 +27,15 @@ function recipientSelectionReady(form) {
   return Boolean(authorityId && schoolId);
 }
 
+function setImportant(element, property, value) {
+  if (!element?.style) return;
+  if (
+    element.style.getPropertyValue(property) === value
+    && element.style.getPropertyPriority(property) === 'important'
+  ) return;
+  element.style.setProperty(property, value, 'important');
+}
+
 function ensureRecipientSingleBoxStyles() {
   if (document.getElementById('proposal-recipient-single-box-style')) return;
 
@@ -35,7 +44,7 @@ function ensureRecipientSingleBoxStyles() {
   style.textContent = `
     #app .pa-editor-workspace .ds-pa-form-meta-panel {
       display: grid !important;
-      grid-template-columns: minmax(0, max-content) !important;
+      grid-template-columns: max-content !important;
       justify-content: start !important;
       align-items: start !important;
       inline-size: fit-content !important;
@@ -46,13 +55,14 @@ function ensureRecipientSingleBoxStyles() {
     }
 
     #app .pa-editor-workspace [data-pa-recipient-meta-row] {
-      display: flex !important;
-      flex-flow: row nowrap !important;
-      align-items: flex-end !important;
-      justify-content: flex-start !important;
-      gap: 8px !important;
+      display: grid !important;
+      grid-template-columns: 160px 120px max-content max-content !important;
+      grid-template-rows: auto !important;
+      align-items: end !important;
+      justify-content: start !important;
+      gap: 10px !important;
       inline-size: max-content !important;
-      max-inline-size: 100% !important;
+      max-inline-size: none !important;
       min-block-size: 0 !important;
       margin: 0 !important;
     }
@@ -79,7 +89,19 @@ function ensureRecipientSingleBoxStyles() {
       margin: 0 !important;
     }
 
-    #app .pa-editor-workspace [data-pa-client-search-row]:not([hidden]),
+    #app .pa-editor-workspace [data-pa-client-search-row]:not([hidden]) {
+      display: inline-flex !important;
+      flex-flow: row nowrap !important;
+      align-items: flex-end !important;
+      justify-content: flex-start !important;
+      gap: 8px !important;
+      inline-size: max-content !important;
+      max-inline-size: none !important;
+      min-block-size: 0 !important;
+      grid-column: 4 !important;
+      grid-row: 1 !important;
+    }
+
     #app .pa-editor-workspace [data-pa-client-search-wrap]:not([hidden]) {
       display: inline-flex !important;
       flex-flow: row nowrap !important;
@@ -131,7 +153,12 @@ function ensureRecipientSingleBoxStyles() {
     }
 
     #app .pa-editor-workspace [data-pa-client-card]:not([hidden]) {
-      display: contents !important;
+      display: inline-flex !important;
+      align-items: flex-end !important;
+      inline-size: max-content !important;
+      max-inline-size: none !important;
+      grid-column: 4 !important;
+      grid-row: 1 !important;
     }
 
     #app .pa-editor-workspace .ds-pa-client-locked {
@@ -265,6 +292,39 @@ function setSearchLabels(form) {
   if (changeAuthorityButton) changeAuthorityButton.textContent = 'שינוי';
 }
 
+function enforceRecipientRowStyles(row, searchBlock, clientCard) {
+  setImportant(row, 'display', 'grid');
+  setImportant(row, 'grid-template-columns', '160px 120px max-content max-content');
+  setImportant(row, 'grid-template-rows', 'auto');
+  setImportant(row, 'align-items', 'end');
+  setImportant(row, 'justify-content', 'start');
+  setImportant(row, 'gap', '10px');
+  setImportant(row, 'inline-size', 'max-content');
+  setImportant(row, 'max-inline-size', 'none');
+  setImportant(row, 'margin', '0');
+
+  setImportant(searchBlock, 'grid-column', '4');
+  setImportant(searchBlock, 'grid-row', '1');
+  setImportant(searchBlock, 'display', searchBlock.hidden ? 'none' : 'inline-flex');
+  setImportant(searchBlock, 'flex-flow', 'row nowrap');
+  setImportant(searchBlock, 'align-items', 'end');
+  setImportant(searchBlock, 'justify-content', 'start');
+  setImportant(searchBlock, 'gap', '8px');
+  setImportant(searchBlock, 'inline-size', 'max-content');
+  setImportant(searchBlock, 'max-inline-size', 'none');
+  setImportant(searchBlock, 'margin', '0');
+
+  if (clientCard) {
+    setImportant(clientCard, 'grid-column', '4');
+    setImportant(clientCard, 'grid-row', '1');
+    setImportant(clientCard, 'display', clientCard.hidden ? 'none' : 'inline-flex');
+    setImportant(clientCard, 'align-items', 'end');
+    setImportant(clientCard, 'inline-size', 'max-content');
+    setImportant(clientCard, 'max-inline-size', 'none');
+    setImportant(clientCard, 'margin', '0');
+  }
+}
+
 function alignRecipientSearchRow(form) {
   if (!form?.querySelector('.pa-editor-workspace')) return;
 
@@ -294,6 +354,7 @@ function alignRecipientSearchRow(form) {
 
   row.classList.add('ds-pa-recipient-single-line');
   searchBlock.classList.add('is-recipient-search-in-meta-row');
+  enforceRecipientRowStyles(row, searchBlock, clientCard);
 
   const locked = Boolean(clientCard && !clientCard.hidden && clientCard.querySelector('.ds-pa-client-locked'));
   const schoolSearchOpen = Boolean(schoolPanel && !schoolPanel.hidden);
@@ -341,10 +402,19 @@ function scheduleRecipientSearchAlignment(root = document) {
   };
 
   if (typeof requestAnimationFrame === 'function') {
-    requestAnimationFrame(() => requestAnimationFrame(run));
+    requestAnimationFrame(() => requestAnimationFrame(() => requestAnimationFrame(run)));
   } else {
     setTimeout(run, 0);
   }
+}
+
+function mutationNeedsRecipientAlignment(mutation) {
+  if (mutation.type === 'childList') return true;
+  const target = mutation.target;
+  return target instanceof Element && target.matches(
+    '[data-pa-recipient-meta-row], [data-pa-client-search-row], [data-pa-client-card], '
+    + '.ds-pa-recipient-type-field, [data-pa-school-search-panel]'
+  );
 }
 
 if (typeof document !== 'undefined') {
@@ -373,17 +443,24 @@ if (typeof document !== 'undefined') {
 
   const app = document.getElementById('app') || document.documentElement;
   recipientObserver = new MutationObserver((mutations) => {
-    if (mutations.some((mutation) => mutation.type === 'childList')) {
-      scheduleRecipientSearchAlignment(app);
-    }
+    if (!mutations.some(mutationNeedsRecipientAlignment)) return;
+    const relevantTarget = mutations.find(mutationNeedsRecipientAlignment)?.target;
+    const form = relevantTarget instanceof Element ? relevantTarget.closest('[data-pa-form]') : null;
+    scheduleRecipientSearchAlignment(form || app);
   });
-  recipientObserver.observe(app, { childList: true, subtree: true });
+  recipientObserver.observe(app, {
+    childList: true,
+    subtree: true,
+    attributes: true,
+    attributeFilter: ['style', 'hidden', 'class']
+  });
 }
 
 export {
   selectedRecipientType,
   recipientSelectionReady,
   ensureRecipientSingleBoxStyles,
+  enforceRecipientRowStyles,
   alignRecipientSearchRow,
   scheduleRecipientSearchAlignment
 };
