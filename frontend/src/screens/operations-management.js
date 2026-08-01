@@ -2675,6 +2675,7 @@ function renderTab(rows, state, data, allPreparedRows = []) {
 function operationsTabDataKey(tab) {
   if (tab === TAB_WORKSHOPS) return TAB_WORKSHOPS;
   if (tab === TAB_COMPLETION_APPROVAL) return TAB_COMPLETION_APPROVAL;
+  if (tab === TAB_AUTHORITIES || tab === TAB_SCHOOLS) return 'directory';
   return 'schedule';
 }
 
@@ -2691,6 +2692,17 @@ export async function loadOperationsTabData(api, tab) {
       workshopStockMap: buildWorkshopStockMapFromLists(lists),
       adminListsData: lists,
       workshopStockDistributions: workshopStockDistributions?.rows || []
+    };
+  }
+
+  // The schedule is rendered from activity summary fields. Large school/contact
+  // directories are detail/print dependencies and must not block first paint.
+  if (key === 'schedule') {
+    return {
+      schoolsDirectoryRows: [],
+      schoolsDirectorySource: 'deferred',
+      contactsSchoolsRows: [],
+      instructorSchedulePrintContactsRows: []
     };
   }
 

@@ -129,6 +129,17 @@ const DASHBOARD_ACTIVITY_COLUMNS = [
   'status', 'activity_type', 'district', ...Array.from({ length: 35 }, (_, index) => `date_${index + 1}`)
 ].join(',');
 const DASHBOARD_ACTIVITY_MIN_COLUMNS = 'row_id,activity_family,activity_manager,activity_name,authority,school,instructor_name,instructor_name_2,emp_id,emp_id_2,start_date,end_date,status,activity_type';
+// Explicit list/read-model projection. Full activity rows are fetched only by activityDetail.
+const ACTIVITY_LIST_COLUMNS = [
+  'row_id', 'activity_family', 'activity_manager', 'district', 'authority_id', 'school_id',
+  'authority', 'school', 'grade', 'class_group', 'activity_type', 'item_type',
+  'activity_season', 'activity_no', 'activity_name', 'sessions', 'price', 'funding',
+  'start_time', 'end_time', 'emp_id', 'instructor_name', 'emp_id_2', 'instructor_name_2',
+  'start_date', 'end_date', 'status', 'participants_count', 'school_contact_id',
+  'contact_name', 'contact_phone', 'contact_email',
+  ...Array.from({ length: 35 }, (_, index) => `date_${index + 1}`)
+].join(',');
+const COMPLETION_APPROVAL_METADATA_COLUMNS = 'id,activity_row_id,activity_date,instructor_emp_id,instructor_name,authority,school,file_path,file_name,mime_type,file_size,uploaded_by_user_id,uploaded_at,status,reviewed_by,reviewed_at,review_note';
 const SETTINGS_BOOTSTRAP_COLUMNS = 'key,value,description';
 const LISTS_BOOTSTRAP_COLUMNS = 'list_id,category,value,label,active,is_active,category_order,sort_order,activity_no,activity_name,activity_type,type,stock_quantity,stock_group_key,stock_group_name,stock_item_name,stock_label,parent_value';
 let settingsRowsCache = null;
@@ -301,7 +312,7 @@ async function readArchiveActivitiesFromSupabase(activityPeriod = currentGlobalA
   try {
     const { data, error } = await supabase
       .from('activities')
-      .select('*')
+      .select(ACTIVITY_LIST_COLUMNS)
       .eq('activity_season', normalizeGlobalActivityPeriod(activityPeriod))
       .eq('status', CLOSED_STATUS);
     if (error) throw new Error(error.message || 'archive_read_failed');
@@ -320,7 +331,7 @@ async function readActivitiesFromSupabase(filters = {}) {
 
   try {
     const selectedSeason = normalizeGlobalActivityPeriod(filters?.activity_period || currentGlobalActivityPeriod());
-    const { data, error } = await supabase.from('activities').select('*').eq('activity_season', selectedSeason);
+    const { data, error } = await supabase.from('activities').select(ACTIVITY_LIST_COLUMNS).eq('activity_season', selectedSeason);
     if (error) throw new Error(error.message || 'activities_read_failed');
     const rawRows = Array.isArray(data) ? data : [];
     const normalizedRows = rawRows.map(normalizeActivityRow);
@@ -595,7 +606,7 @@ async function selectActivitiesByDateRangeFromSupabase({
   endDate,
   activityType = '',
   includeEndDate = false,
-  select = '*',
+  select = ACTIVITY_LIST_COLUMNS,
   overlapByStartEnd = false,
   fallbackSelect = ''
 } = {}) {
@@ -1722,7 +1733,7 @@ async function readInstructorsFromSupabase() {
   if (!supabase) return null;
   try {
     const [activityRows, contactsResult] = await Promise.all([
-      selectActivitiesFromSupabase('*'),
+      selectActivitiesFromSupabase(ACTIVITY_LIST_COLUMNS),
       supabase.from('contacts_instructors').select(CONTACTS_INSTRUCTORS_SCREEN_COLUMNS)
     ]);
 
@@ -2298,7 +2309,7 @@ function emptyDashboardPayload(month, debug = {}) {
 async function readEndDatesFromSupabase() {
   if (!supabase) throw new Error('no_supabase_client');
   try {
-    const rows = (await selectActivitiesFromSupabase('*'))
+    const rows = (await selectActivitiesFromSupabase(ACTIVITY_LIST_COLUMNS))
       .filter((row) => !isActivityInactive(row))
       .map((row) => ({ ...row, meeting_dates: getActivityDateColumns(row), date_cols: getActivityDateColumns(row) }));
     return { rows, _source: 'supabase' };
@@ -2599,9 +2610,9 @@ async function readExceptionsFromSupabase(params = {}) {
   try {
     const suppliedActivityRows = Array.isArray(params?.activityRows) ? params.activityRows : null;
     const [activitiesResult, instrListResult, approvalsResult, settingsRows] = await Promise.all([
-      suppliedActivityRows ? Promise.resolve({ data: suppliedActivityRows, error: null }) : supabase.from('activities').select('*').eq('activity_season', activityPeriod),
+      suppliedActivityRows ? Promise.resolve({ data: suppliedActivityRows, error: null }) : supabase.from('activities').select(ACTIVITY_LIST_COLUMNS).eq('activity_season', activityPeriod),
       readInstructorEmpIdsFromSupabase().then((data) => ({ data, error: null })),
-      supabase.from('activity_completion_approval_uploads').select('*').then(({ data, error }) => ({ data: error ? [] : data, error })),
+      supabase.from('activity_completion_approval_uploads').select(COMPLETION_APPROVAL_METADATA_COLUMNS).then(({ data, error }) => ({ data: error ? [] : data, error })),
       readSettingsRowsFromSupabase().catch((error) => {
         logDashboardSupabaseReadError('[supabase][dashboard] settings read failed', error, {
           table: 'public.settings',
@@ -5390,7 +5401,7 @@ async function readAllActivitiesRowsSupabase({ forceRefresh = false, activityPer
   const selectedSeason = normalizeGlobalActivityPeriod(activityPeriod);
   const cached = _allActivitiesRowsCache.get(selectedSeason);
   if (!forceRefresh && cached && (Date.now() - cached.at) < _ALL_ACTIVITIES_ROWS_CACHE_TTL_MS) return cached.rows;
-  const rows = await selectActivitiesFromSupabase('*', selectedSeason);
+  const rows = await selectActivitiesFromSupabase(ACTIVITY_LIST_COLUMNS, selectedSeason);
   _allActivitiesRowsCache.set(selectedSeason, { rows, at: Date.now() });
   return rows;
 }

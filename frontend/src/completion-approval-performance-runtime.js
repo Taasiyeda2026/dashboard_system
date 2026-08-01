@@ -20,6 +20,7 @@ import { supabase } from './supabase-client.js';
     '1525', '1506', '1527', '1502', '1507',
     '1509', '1515', '1500', '1503', '1511'
   ]);
+  const UPLOAD_METADATA_COLUMNS = 'id,activity_row_id,activity_date,instructor_emp_id,instructor_name,authority,school,file_path,file_name,mime_type,file_size,uploaded_by_user_id,uploaded_at,status,reviewed_by,reviewed_at,review_note';
 
   function currentUserIdentityValues() {
     const user = state?.user || {};
@@ -36,7 +37,7 @@ import { supabase } from './supabase-client.js';
     const role = String(state?.user?.role || '').trim();
     let query = supabase
       .from('activity_completion_approval_uploads')
-      .select('*')
+      .select(UPLOAD_METADATA_COLUMNS)
       .order('uploaded_at', { ascending: false });
 
     if (role === 'instructor') {
