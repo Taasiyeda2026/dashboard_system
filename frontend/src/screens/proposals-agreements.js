@@ -1459,9 +1459,11 @@ function clientTypeSelectorHtml(selected = 'school') {
     ['authority', 'רשות'],
     ['other', 'אחר']
   ];
-  return `<span class="ds-pa-recipient-type-label">למי מיועדת ההצעה?</span>
-  <div class="ds-pa-recipient-type" data-pa-recipient-type role="radiogroup" aria-label="למי מיועדת ההצעה?">
-    ${options.map(([key, label]) => `<label class="ds-pa-recipient-type-option"><input type="radio" name="client_type_selector" value="${key}"${value === key ? ' checked' : ''}> <span>${escapeHtml(label)}</span></label>`).join('')}
+  return `<div class="ds-pa-recipient-type-field">
+    <span class="ds-pa-recipient-type-label">סוג נמען</span>
+    <div class="ds-pa-recipient-type" data-pa-recipient-type role="radiogroup" aria-label="סוג נמען">
+      ${options.map(([key, label]) => `<label class="ds-pa-recipient-type-option"><input type="radio" name="client_type_selector" value="${key}"${value === key ? ' checked' : ''}> <span>${escapeHtml(label)}</span></label>`).join('')}
+    </div>
   </div>`;
 }
 
@@ -1478,7 +1480,7 @@ function clientSearchHtml(_contactOptions, row = {}) {
       <div class="ds-pa-client-results" data-pa-client-results hidden></div>
     </div>
     <div class="ds-pa-school-search-panel" data-pa-school-search-panel hidden>
-      <p class="ds-pa-school-step-text">רשות נבחרה: <strong data-pa-step-authority-name-school></strong>
+      <p class="ds-pa-school-step-text"><span>רשות</span><strong data-pa-step-authority-name-school></strong>
         <button type="button" class="ds-btn ds-btn--xs ds-btn--ghost" data-pa-change-authority-step>שנה רשות</button>
       </p>
       <div class="ds-pa-client-search-field-wrap" data-pa-school-search-field-wrap>
@@ -4104,10 +4106,7 @@ function clientLockedBannerHtml(auth, school, contactName, contactRole, phone, e
       ${school && school !== auth ? `<p class="ds-pa-client-locked-name"><span>בית ספר</span><strong>${escapeHtml(school)}</strong></p>` : `<p class="ds-pa-client-locked-name"><span>נמען</span><strong>${escapeHtml(displayName)}</strong></p>`}
       ${semelMosad ? `<p class="ds-pa-client-locked-state"><span>סמל מוסד</span><strong>${escapeHtml(semelMosad)}</strong></p>` : ''}
     </div>
-    <div class="ds-pa-client-locked-actions">
-      <button type="button" class="ds-btn ds-btn--xs ds-btn--ghost" data-pa-unlock-client>שינוי</button>
-      <button type="button" class="ds-btn ds-btn--xs ds-btn--ghost" data-pa-clear-client>נקה בחירה</button>
-    </div>
+    <div class="ds-pa-client-locked-actions"><button type="button" class="ds-btn ds-btn--xs ds-btn--ghost" data-pa-unlock-client>שינוי</button></div>
   </div>`;
 }
 
@@ -4577,7 +4576,8 @@ function formHtml(mode, row = {}, activityNameOptions = [], contactOptions = [],
       </div>
     </div>
 
-    <div class="ds-pa-form-type-panel" data-pa-step-panel="proposal" style="padding-top:4px">
+    <div class="ds-pa-form-type-panel" data-pa-step-panel="proposal">
+      <h4 class="pa-sidebar-section-title">פרטי ההצעה</h4>
       <div class="ds-pa-type-meta-grid">
         <div class="ds-pa-form-field">
           ${proposalTypeCardsHtml(normalizedActivityGroup)}
