@@ -90,6 +90,6 @@ test('frontend hotfix and service worker cache versions are bumped together', as
     readFile(SW_FILE, 'utf8')
   ]);
   assert.match(config, /school-2027-default-cutover-20260801-v1/);
-  assert.match(config, /proposal-recipient-row-conflict-20260801-v1/);
-  assert.match(sw, /const CACHE_VERSION = 1340;/);
+  assert.match(config, /proposal-recipient-dropdown-overflow-20260801-v1/);
+  assert.match(sw, /const CACHE_VERSION = 1341;/);
 });
