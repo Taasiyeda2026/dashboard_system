@@ -1,5 +1,3 @@
-const EDITOR_SELECTOR = '#app .pa-editor-workspace [data-pa-form], #app [data-pa-form] .pa-editor-workspace';
-
 function editorFormFromNode(node) {
   if (!(node instanceof Element)) return null;
   if (node.matches?.('[data-pa-form]')) return node;
@@ -39,6 +37,58 @@ function mergeGeneralNotesIntoDiscount(form) {
   notesDetails.hidden = true;
 }
 
+function compactActivitiesHeading(form) {
+  const panel = form.querySelector('.ds-pa-form-activities-panel');
+  if (!panel) return;
+
+  let heading = panel.querySelector(':scope > .ds-pa-compact-activities-heading');
+  const directTitle = panel.querySelector(':scope > .pa-sidebar-section-title');
+  const title = heading?.querySelector('.pa-sidebar-section-title') || directTitle;
+  if (!title) return;
+
+  if (!heading) {
+    heading = document.createElement('div');
+    heading.className = 'ds-pa-compact-activities-heading';
+    panel.insertBefore(heading, panel.firstChild);
+  }
+  if (title.parentElement !== heading) heading.appendChild(title);
+
+  const existingHeadingButton = heading.querySelector('[data-pa-compact-heading-button]');
+  const outsideButtons = Array.from(panel.querySelectorAll('button'))
+    .filter((button) => /הוסף\s+שורה/.test(String(button.textContent || '').trim()))
+    .filter((button) => button !== existingHeadingButton);
+
+  if (outsideButtons.length === 1) {
+    if (existingHeadingButton && existingHeadingButton !== outsideButtons[0]) existingHeadingButton.remove();
+    outsideButtons[0].dataset.paCompactHeadingButton = 'true';
+    heading.appendChild(outsideButtons[0]);
+    return;
+  }
+
+  if (outsideButtons.length > 1 && existingHeadingButton) existingHeadingButton.remove();
+}
+
+function relocateSummaryIntoActivities(form) {
+  const activitiesPanel = form.querySelector('.ds-pa-form-activities-panel');
+  const bottomPanel = form.querySelector('.ds-pa-form-bottom-panel');
+  if (!activitiesPanel) return;
+
+  const existingSummary = activitiesPanel.querySelector(':scope > .ds-pa-summary.is-compact-relocated');
+  const freshSummary = bottomPanel?.querySelector(':scope > .ds-pa-summary');
+  const summary = freshSummary || existingSummary;
+  if (!summary) return;
+
+  if (freshSummary && existingSummary && existingSummary !== freshSummary) existingSummary.remove();
+  if (!activitiesPanel.contains(summary)) activitiesPanel.appendChild(summary);
+  summary.classList.add('is-compact-relocated');
+  bottomPanel?.classList.add('is-summary-relocated');
+}
+
+function markDuplicateEditorTotals(form) {
+  form.querySelectorAll('.ds-pa-items-total-row, .ds-pa-tour-grand-total-field')
+    .forEach((element) => element.classList.add('is-duplicate-editor-total'));
+}
+
 function markProposalType(form) {
   const type = String(form.querySelector('[name="activity_type_group"]')?.value || '').trim();
   if (type) form.dataset.paCompactProposalType = type;
@@ -50,6 +100,9 @@ function compactEditor(form) {
   markRecipientMode(form);
   relocateProgramNotes(form);
   mergeGeneralNotesIntoDiscount(form);
+  compactActivitiesHeading(form);
+  relocateSummaryIntoActivities(form);
+  markDuplicateEditorTotals(form);
   markProposalType(form);
   form.dataset.paCompactLayoutApplied = 'true';
 }
@@ -102,4 +155,12 @@ if (typeof document !== 'undefined') {
   });
 }
 
-export { compactEditor, markRecipientMode, relocateProgramNotes, mergeGeneralNotesIntoDiscount };
+export {
+  compactEditor,
+  markRecipientMode,
+  relocateProgramNotes,
+  mergeGeneralNotesIntoDiscount,
+  compactActivitiesHeading,
+  relocateSummaryIntoActivities,
+  markDuplicateEditorTotals
+};
