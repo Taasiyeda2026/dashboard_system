@@ -4096,8 +4096,10 @@ function clientLockedBannerHtml(auth, school, contactName, contactRole, phone, e
   if (!auth && !clientName) return '';
   const displayName = clientName || school || auth;
   const semelMosad = text(schoolMeta?.semel_mosad);
+  const recipientType = school && school !== auth ? 'בית ספר' : (auth ? 'רשות' : 'אחר');
   return `<div class="ds-pa-client-locked">
     <div class="ds-pa-client-locked-body">
+      <p class="ds-pa-client-locked-type"><span>סוג נמען</span><strong>${recipientType}</strong></p>
       ${auth ? `<p class="ds-pa-client-locked-detail"><span>רשות</span><strong>${escapeHtml(auth)}</strong></p>` : ''}
       ${school && school !== auth ? `<p class="ds-pa-client-locked-name"><span>בית ספר</span><strong>${escapeHtml(school)}</strong></p>` : `<p class="ds-pa-client-locked-name"><span>נמען</span><strong>${escapeHtml(displayName)}</strong></p>`}
       ${semelMosad ? `<p class="ds-pa-client-locked-state"><span>סמל מוסד</span><strong>${escapeHtml(semelMosad)}</strong></p>` : ''}
