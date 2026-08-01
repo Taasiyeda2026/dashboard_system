@@ -22529,19 +22529,83 @@ details[open] > .ds-fin-acc__summary::before { transform: rotate(90deg); }
   max-width: 1050px;
   margin-inline: auto;
 }
+
+/* Keep the editor groups content-sized and sequential in the RTL inline flow. */
 .pa-editor-workspace .pa-sidebar .ds-pa-form-meta-panel {
   display: grid;
   grid-template-columns: minmax(0, 1fr);
-  gap: 10px;
+  align-items: start;
+  gap: 8px;
+  min-height: 0;
+}
+.pa-editor-workspace .pa-sidebar [data-pa-step-panel="client"],
+.pa-editor-workspace .pa-sidebar [data-pa-step-panel="contact"],
+.pa-editor-workspace .pa-sidebar .ds-pa-form-type-panel,
+.pa-editor-workspace .pa-sidebar .ds-pa-form-activities-panel {
+  min-height: 0;
+  height: auto;
 }
 .pa-editor-workspace .pa-sidebar .ds-pa-client-search-block {
-  grid-template-columns: max-content minmax(220px, 300px);
+  display: grid;
+  grid-template-columns: max-content 230px 260px;
   justify-content: start;
+  align-items: end;
   gap: 10px;
 }
+.pa-editor-workspace .pa-sidebar .ds-pa-recipient-type-field {
+  display: grid;
+  gap: 3px;
+  width: max-content;
+}
+.pa-editor-workspace .pa-sidebar .ds-pa-recipient-type-label {
+  margin: 0;
+}
+.pa-editor-workspace .pa-sidebar .ds-pa-recipient-type {
+  display: flex;
+  width: max-content;
+  gap: 5px;
+}
 .pa-editor-workspace .pa-sidebar .ds-pa-client-search {
-  grid-template-columns: minmax(220px, 300px);
-  width: min(100%, 300px);
+  display: contents;
+}
+.pa-editor-workspace .pa-sidebar .ds-pa-client-search-field-wrap {
+  width: 230px;
+}
+.pa-editor-workspace .pa-sidebar .ds-pa-school-search-panel {
+  display: contents;
+}
+.pa-editor-workspace .pa-sidebar .ds-pa-school-search-panel[hidden] {
+  display: none;
+}
+.pa-editor-workspace .pa-sidebar .ds-pa-school-step-text {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) max-content;
+  gap: 2px 6px;
+  align-items: center;
+  width: 230px;
+  min-width: 0;
+  margin: 0;
+  padding: 5px 8px;
+  border: 1px solid var(--ds-border);
+  border-radius: 8px;
+  background: var(--ds-surface);
+}
+.pa-editor-workspace .pa-sidebar .ds-pa-school-step-text > span {
+  grid-column: 1 / -1;
+  color: #64748b;
+  font-size: .7rem;
+}
+.pa-editor-workspace .pa-sidebar .ds-pa-school-step-text strong {
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.pa-editor-workspace .pa-sidebar .ds-pa-school-search-panel .ds-pa-client-search-field-wrap {
+  width: 260px;
+}
+.pa-editor-workspace .pa-sidebar .ds-pa-form-meta-panel {
+  gap: 8px;
 }
 .pa-editor-workspace .pa-sidebar .ds-pa-recipient-type-option {
   flex: 0 0 auto;
@@ -22549,14 +22613,17 @@ details[open] > .ds-fin-acc__summary::before { transform: rotate(90deg); }
   padding-inline: 10px;
 }
 .pa-editor-workspace .pa-sidebar .ds-pa-client-locked {
-  grid-template-columns: minmax(0, 1fr) max-content;
+  display: grid;
+  grid-template-columns: max-content 230px 260px 100px max-content;
+  justify-content: start;
   align-items: end;
+  gap: 10px;
+  padding: 6px 0;
+  border: 0;
+  background: transparent;
 }
 .pa-editor-workspace .pa-sidebar .ds-pa-client-locked-body {
-  display: grid;
-  grid-template-columns: max-content minmax(160px, 220px) minmax(200px, 260px) minmax(80px, 100px);
-  gap: 10px;
-  align-items: end;
+  display: contents;
 }
 .pa-editor-workspace .pa-sidebar .ds-pa-client-locked-body p {
   display: grid;
@@ -22573,6 +22640,24 @@ details[open] > .ds-fin-acc__summary::before { transform: rotate(90deg); }
   overflow-wrap: anywhere;
   color: #0f172a;
   font-size: .82rem;
+}
+.pa-editor-workspace .pa-sidebar .ds-pa-client-locked-actions {
+  display: contents;
+}
+.pa-editor-workspace .pa-sidebar .ds-pa-client-locked-actions .ds-btn {
+  align-self: end;
+  margin-bottom: 1px;
+}
+.pa-editor-workspace .pa-sidebar [data-pa-step-panel="contact"] {
+  display: grid;
+  gap: 6px;
+  padding-top: 6px;
+  border-top: 1px solid var(--ds-border);
+}
+.pa-editor-workspace .pa-sidebar [data-pa-step-panel="contact"] > .pa-sidebar-section-title {
+  margin: 0;
+  padding: 0;
+  border: 0;
 }
 .pa-editor-workspace .pa-sidebar [data-pa-step-panel="contact"] > .ds-pa-form-grid {
   grid-template-columns: 220px 140px 150px minmax(220px, 280px) max-content;
@@ -22594,14 +22679,23 @@ details[open] > .ds-fin-acc__summary::before { transform: rotate(90deg); }
   width: max-content;
 }
 .pa-editor-workspace .pa-sidebar .ds-pa-type-meta-grid {
-  grid-template-columns: max-content max-content;
+  grid-template-columns: max-content 160px 120px;
   justify-content: start;
-  gap: 10px;
+  align-items: end;
+  gap: 12px;
 }
 .pa-editor-workspace .pa-sidebar .ds-pa-type-meta-aux {
-  grid-template-columns: 140px 110px;
+  display: contents;
+}
+.pa-editor-workspace .pa-sidebar .ds-pa-form-type-panel {
   width: max-content;
-  gap: 10px;
+  max-width: 100%;
+  padding: 8px 10px;
+}
+.pa-editor-workspace .pa-sidebar .ds-pa-form-type-panel > .pa-sidebar-section-title {
+  margin: 0 0 6px;
+  padding: 0;
+  border: 0;
 }
 .pa-editor-workspace .pa-sidebar .ds-pa-form-activities-panel {
   display: grid;
