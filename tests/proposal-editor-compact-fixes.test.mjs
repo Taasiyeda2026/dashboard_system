@@ -89,6 +89,7 @@ test('frontend hotfix and service worker cache versions are bumped together', as
     readFile(CONFIG_FILE, 'utf8'),
     readFile(SW_FILE, 'utf8')
   ]);
-  assert.match(config, /proposal-recipient-meta-alignment-20260801-v2/);
-  assert.match(sw, /const CACHE_VERSION = 1336;/);
+  assert.match(config, /school-2027-default-cutover-20260801-v1/);
+  assert.match(config, /proposal-recipient-single-box-flow-20260801-v1/);
+  assert.match(sw, /const CACHE_VERSION = 1339;/);
 });
