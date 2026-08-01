@@ -22522,3 +22522,151 @@ details[open] > .ds-fin-acc__summary::before { transform: rotate(90deg); }
 @media (min-width:960px){.ds-ui-layer.is-modal-open .ds-modal.ds-modal--scheduling{width:min(92vw,1050px)!important;max-width:1050px!important;height:88vh;max-height:88vh}}
 @media (max-width:959px){.ds-modal.ds-modal--scheduling,.ds-ui-layer.is-modal-open .ds-modal.ds-modal--scheduling{inset:0!important;width:100vw!important;height:100vh!important;max-height:100vh!important;border-radius:0;transform:none!important}.scheduling-workspace__fields{grid-template-columns:1fr}}
 .course-scheduling__summary{display:flex;gap:12px;align-items:center;flex-wrap:wrap;padding:14px;border:1px solid var(--ds-border);border-radius:12px;background:var(--ds-surface)}.course-scheduling__table small,.course-scheduling__option small{display:block;color:var(--ds-text-secondary)}.course-scheduling__table td{vertical-align:top;min-width:110px}.course-scheduling__table td:nth-child(3){min-width:260px}.course-scheduling__option{display:flex;gap:8px;padding:8px;border-bottom:1px solid var(--ds-border)}
+
+/* Proposal editor: compact, sequential data-entry flow (layout only). */
+.pa-editor-workspace .pa-sidebar {
+  width: min(100%, 1050px);
+  max-width: 1050px;
+  margin-inline: auto;
+}
+.pa-editor-workspace .pa-sidebar .ds-pa-form-meta-panel {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr);
+  gap: 10px;
+}
+.pa-editor-workspace .pa-sidebar .ds-pa-client-search-block {
+  grid-template-columns: max-content minmax(220px, 300px);
+  justify-content: start;
+  gap: 10px;
+}
+.pa-editor-workspace .pa-sidebar .ds-pa-client-search {
+  grid-template-columns: minmax(220px, 300px);
+  width: min(100%, 300px);
+}
+.pa-editor-workspace .pa-sidebar .ds-pa-recipient-type-option {
+  flex: 0 0 auto;
+  width: auto;
+  padding-inline: 10px;
+}
+.pa-editor-workspace .pa-sidebar .ds-pa-client-locked {
+  grid-template-columns: minmax(0, 1fr) max-content;
+  align-items: end;
+}
+.pa-editor-workspace .pa-sidebar .ds-pa-client-locked-body {
+  display: grid;
+  grid-template-columns: minmax(160px, 220px) minmax(200px, 260px) minmax(80px, 100px);
+  gap: 10px;
+  align-items: end;
+}
+.pa-editor-workspace .pa-sidebar .ds-pa-client-locked-body p {
+  display: grid;
+  gap: 3px;
+  min-width: 0;
+  margin: 0;
+}
+.pa-editor-workspace .pa-sidebar .ds-pa-client-locked-body p > span {
+  color: #64748b;
+  font-size: .7rem;
+  font-weight: 600;
+}
+.pa-editor-workspace .pa-sidebar .ds-pa-client-locked-body p > strong {
+  overflow-wrap: anywhere;
+  color: #0f172a;
+  font-size: .82rem;
+}
+.pa-editor-workspace .pa-sidebar [data-pa-step-panel="contact"] > .ds-pa-form-grid {
+  grid-template-columns: 220px 140px 150px minmax(220px, 280px) max-content;
+  justify-content: start;
+  align-items: end;
+  gap: 10px;
+}
+.pa-editor-workspace .pa-sidebar [data-pa-contact-picker-host],
+.pa-editor-workspace .pa-sidebar .ds-pa-contact-channels {
+  display: contents;
+}
+.pa-editor-workspace .pa-sidebar .ds-pa-contact-channels-fields {
+  display: contents;
+}
+.pa-editor-workspace .pa-sidebar [data-pa-add-contact-row] {
+  grid-column: auto;
+  flex-direction: row;
+  align-items: center;
+  width: max-content;
+}
+.pa-editor-workspace .pa-sidebar .ds-pa-type-meta-grid {
+  grid-template-columns: max-content max-content;
+  justify-content: start;
+  gap: 10px;
+}
+.pa-editor-workspace .pa-sidebar .ds-pa-type-meta-aux {
+  grid-template-columns: 140px 110px;
+  width: max-content;
+  gap: 10px;
+}
+.pa-editor-workspace .pa-sidebar .ds-pa-form-activities-panel {
+  max-width: 760px;
+}
+.pa-editor-workspace .pa-sidebar .ds-pa-form-activities-panel > .pa-sidebar-section-title,
+.pa-editor-workspace .pa-sidebar .ds-pa-items-header {
+  margin: 0 0 8px;
+}
+.pa-editor-workspace .pa-sidebar .ds-pa-item-quick-row {
+  display: grid;
+  grid-template-columns: minmax(360px, 520px) 80px max-content 36px !important;
+  justify-content: start;
+  align-items: end;
+  gap: 8px;
+  overflow: visible;
+}
+.pa-editor-workspace .pa-sidebar .ds-pa-item-quick-row .ds-pa-item-field--select {
+  width: auto;
+  max-width: 520px;
+}
+.pa-editor-workspace .pa-sidebar .ds-pa-item-edit {
+  width: max-content;
+  min-width: max-content;
+}
+.pa-editor-workspace .pa-sidebar .ds-pa-item-remove--quick {
+  width: 36px;
+  min-width: 36px;
+  padding: 0;
+}
+.pa-editor-workspace .pa-sidebar .ds-pa-item-extra > summary {
+  display: none;
+}
+.pa-editor-workspace .pa-sidebar .ds-pa-item-extra:not([open]) > .ds-pa-item-extra-body {
+  display: none;
+}
+
+@media (max-width: 900px) {
+  .pa-editor-workspace .pa-sidebar .ds-pa-client-locked-body,
+  .pa-editor-workspace .pa-sidebar [data-pa-step-panel="contact"] > .ds-pa-form-grid {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+  .pa-editor-workspace .pa-sidebar .ds-pa-client-search-block,
+  .pa-editor-workspace .pa-sidebar .ds-pa-type-meta-grid {
+    grid-template-columns: minmax(0, 1fr);
+  }
+  .pa-editor-workspace .pa-sidebar .ds-pa-item-quick-row {
+    grid-template-columns: minmax(220px, 1fr) 80px max-content 36px !important;
+  }
+}
+@media (max-width: 640px) {
+  .pa-editor-workspace .pa-sidebar .ds-pa-client-locked,
+  .pa-editor-workspace .pa-sidebar .ds-pa-client-locked-body,
+  .pa-editor-workspace .pa-sidebar [data-pa-step-panel="contact"] > .ds-pa-form-grid,
+  .pa-editor-workspace .pa-sidebar .ds-pa-type-meta-aux,
+  .pa-editor-workspace .pa-sidebar .ds-pa-item-quick-row {
+    grid-template-columns: minmax(0, 1fr) !important;
+  }
+  .pa-editor-workspace .pa-sidebar .ds-pa-client-locked-actions,
+  .pa-editor-workspace .pa-sidebar [data-pa-add-contact-row] {
+    width: auto;
+    justify-self: start;
+  }
+  .pa-editor-workspace .pa-sidebar .ds-pa-item-quick-row .ds-pa-item-field--select,
+  .pa-editor-workspace .pa-sidebar .ds-pa-item-quick-row .ds-pa-item-field--qty {
+    width: 100%;
+    max-width: 100%;
+  }
+}

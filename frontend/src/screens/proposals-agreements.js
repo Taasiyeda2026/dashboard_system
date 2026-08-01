@@ -1871,9 +1871,10 @@ function itemRowHtml(item = {}, idx = 0, pricingOptions = [], options = {}) {
     </div>`
     : '';
   return `<article class="ds-pa-item-card ds-pa-item-row${isSummerRow ? ' ds-pa-item-row--summer' : ''}${isManualCourseRow ? ' ds-pa-item-row--manual' : ''}" data-pa-item-row data-pa-item-idx="${idx}" data-pa-row-group="${escapeHtml(contextGroup)}"${isSummerRow ? ' data-pa-summer-row' : ''}${isManualCourseRow ? ' data-pa-manual-course="yes"' : ''}>
-    <div class="ds-pa-item-quick-row" style="display:grid;grid-template-columns:minmax(0,1fr) 96px 34px;gap:8px;align-items:end">
+    <div class="ds-pa-item-quick-row">
       <label class="ds-pa-item-field ds-pa-item-field--select ds-pa-item-field--select-no-label"><select class="ds-input ds-input--sm" name="pricing_activity_name" data-pa-pricing-select>${pricingSelectOptionsHtml}</select></label>
       <label class="ds-pa-item-field ds-pa-item-field--qty"><input class="ds-input ds-input--sm" type="number" name="quantity" value="${n(item.quantity) || '1'}" min="0" step="any" data-pa-item-qty aria-label="כמות"></label>
+      <button type="button" class="ds-btn ds-btn--xs ds-btn--ghost ds-pa-item-edit" data-pa-item-edit-toggle aria-expanded="${isManualCourseRow ? 'true' : 'false'}">${isManualCourseRow ? 'פרטי קורס' : 'עריכה'}</button>
       <button type="button" class="ds-btn ds-btn--xs ds-btn--ghost ds-pa-item-remove ds-pa-item-remove--quick" data-pa-remove-item aria-label="הסר שורה" title="מחיקת שורה"><svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><polyline points="3 6 5 6 21 6"/><path d="M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6m3 0V4a1 1 0 0 1 1-1h4a1 1 0 0 1 1 1v2"/></svg></button>
     </div>
     ${manualNameRowHtml}
@@ -4094,15 +4095,12 @@ function enrichProposalRowFromContactOptions(row = {}, contactOptions = []) {
 function clientLockedBannerHtml(auth, school, contactName, contactRole, phone, email, clientName = '', schoolMeta = null) {
   if (!auth && !clientName) return '';
   const displayName = clientName || school || auth;
-  const city = text(schoolMeta?.city);
-  const secondaryParts = [
-    auth && auth !== displayName ? auth : '',
-    city && city !== auth && city !== displayName ? city : ''
-  ].filter(Boolean);
+  const semelMosad = text(schoolMeta?.semel_mosad);
   return `<div class="ds-pa-client-locked">
     <div class="ds-pa-client-locked-body">
-      <p class="ds-pa-client-locked-name">נבחר: ${escapeHtml(displayName)}</p>
-      ${secondaryParts.length ? `<p class="ds-pa-client-locked-state">${escapeHtml(secondaryParts.join(' / '))}</p>` : ''}
+      ${auth ? `<p class="ds-pa-client-locked-detail"><span>רשות</span><strong>${escapeHtml(auth)}</strong></p>` : ''}
+      ${school && school !== auth ? `<p class="ds-pa-client-locked-name"><span>בית ספר</span><strong>${escapeHtml(school)}</strong></p>` : `<p class="ds-pa-client-locked-name"><span>נמען</span><strong>${escapeHtml(displayName)}</strong></p>`}
+      ${semelMosad ? `<p class="ds-pa-client-locked-state"><span>סמל מוסד</span><strong>${escapeHtml(semelMosad)}</strong></p>` : ''}
     </div>
     <div class="ds-pa-client-locked-actions">
       <button type="button" class="ds-btn ds-btn--xs ds-btn--ghost" data-pa-unlock-client>שינוי</button>
@@ -8806,6 +8804,14 @@ export const proposalsAgreementsScreen = {
 
       // Items: remove row
       const removeItemBtn = event.target.closest?.('[data-pa-remove-item]');
+      const editItemBtn = event.target.closest?.('[data-pa-item-edit-toggle]');
+      if (editItemBtn) {
+        const details = editItemBtn.closest('[data-pa-item-row]')?.querySelector('[data-pa-item-details]');
+        if (!details) return;
+        details.open = !details.open;
+        editItemBtn.setAttribute('aria-expanded', String(details.open));
+        return;
+      }
       if (removeItemBtn) {
         const itemRow = removeItemBtn.closest('[data-pa-item-row]');
         const form = removeItemBtn.closest('[data-pa-form]');
