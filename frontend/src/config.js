@@ -1,4 +1,4 @@
-import './proposal-recipient-search-row-fix.js';
+import './proposal-recipient-search-row-fix.js?v=20260801-v5';
 
 /**
  * frontend/src/config.js — המקור היחיד לכתובת ה-API בכל הפרויקט.
