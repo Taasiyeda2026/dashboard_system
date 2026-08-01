@@ -123,23 +123,85 @@ function isActiveInstructorPilotUser(user = state?.user || {}) {
 const ACTIVITY_REQUEST_ROLES = new Set(['activities_manager', 'instructor_manager', 'business_development_manager']);
 const COMPLETION_APPROVAL_MANAGER_ROLES = new Set(['admin', 'operation_manager', 'domain_manager', 'activities_manager', 'instructor_manager']);
 
+const ACTIVITY_MEETING_DATE_COLUMNS = Array.from({ length: 35 }, (_, index) => `date_${index + 1}`);
 const DASHBOARD_ACTIVITY_COLUMNS = [
   'row_id', 'activity_family', 'activity_manager', 'activity_name', 'authority', 'school',
   'instructor_name', 'instructor_name_2', 'emp_id', 'emp_id_2', 'start_date', 'end_date',
-  'status', 'activity_type', 'district', ...Array.from({ length: 35 }, (_, index) => `date_${index + 1}`)
+  'status', 'activity_type', 'district', ...ACTIVITY_MEETING_DATE_COLUMNS
 ].join(',');
 const DASHBOARD_ACTIVITY_MIN_COLUMNS = 'row_id,activity_family,activity_manager,activity_name,authority,school,instructor_name,instructor_name_2,emp_id,emp_id_2,start_date,end_date,status,activity_type';
-// Explicit list/read-model projection. Full activity rows are fetched only by activityDetail.
+// Explicit list/read-model projections. Full activity rows are fetched only by activityDetail.
 const ACTIVITY_LIST_COLUMNS = [
   'row_id', 'activity_family', 'activity_manager', 'district', 'authority_id', 'school_id',
   'authority', 'school', 'grade', 'class_group', 'activity_type', 'item_type',
-  'activity_season', 'activity_no', 'activity_name', 'sessions', 'price', 'funding',
+  'activity_season', 'activity_no', 'activity_name', 'sessions',
   'start_time', 'end_time', 'emp_id', 'instructor_name', 'emp_id_2', 'instructor_name_2',
   'start_date', 'end_date', 'status', 'participants_count', 'school_contact_id',
-  'contact_name', 'contact_phone', 'contact_email',
-  ...Array.from({ length: 35 }, (_, index) => `date_${index + 1}`)
+  ...ACTIVITY_MEETING_DATE_COLUMNS
 ].join(',');
+// Activities table / list: fields shown or used for month/status filters (no finance/contact blobs).
+const ACTIVITY_TABLE_COLUMNS = [
+  'row_id', 'activity_family', 'activity_manager', 'authority', 'school', 'school_id',
+  'grade', 'class_group', 'activity_type', 'item_type', 'activity_season', 'activity_name',
+  'sessions', 'start_time', 'end_time', 'emp_id', 'instructor_name', 'emp_id_2', 'instructor_name_2',
+  'start_date', 'end_date', 'status',
+  ...ACTIVITY_MEETING_DATE_COLUMNS
+].join(',');
+const ACTIVITY_CALENDAR_COLUMNS = [
+  'row_id', 'activity_name', 'activity_type', 'activity_family', 'activity_season',
+  'authority', 'school', 'school_id', 'grade', 'class_group',
+  'instructor_name', 'instructor_name_2', 'emp_id', 'emp_id_2',
+  'start_time', 'end_time', 'start_date', 'end_date', 'status',
+  ...ACTIVITY_MEETING_DATE_COLUMNS
+].join(',');
+// End-dates screen: only columns required for the ending-dates table.
+const ACTIVITY_END_DATES_COLUMNS = [
+  'row_id', 'activity_name', 'authority', 'school',
+  'instructor_name', 'instructor_name_2', 'end_date', 'status', 'activity_season'
+].join(',');
+const ACTIVITY_EXCEPTIONS_COLUMNS = [
+  'row_id', 'activity_manager', 'district', 'authority', 'school', 'grade', 'class_group',
+  'activity_type', 'item_type', 'activity_season', 'activity_name', 'sessions',
+  'emp_id', 'instructor_name', 'emp_id_2', 'instructor_name_2',
+  'start_date', 'end_date', 'status',
+  ...ACTIVITY_MEETING_DATE_COLUMNS
+].join(',');
+const ACTIVITY_OPERATIONS_COLUMNS = [
+  'row_id', 'activity_name', 'activity_type', 'item_type', 'activity_season',
+  'authority', 'school', 'school_id', 'grade', 'class_group',
+  'instructor_name', 'instructor_name_2', 'emp_id', 'emp_id_2',
+  'start_time', 'end_time', 'start_date', 'end_date', 'status', 'participants_count',
+  ...ACTIVITY_MEETING_DATE_COLUMNS
+].join(',');
+const ACTIVITY_ARCHIVE_COLUMNS = [
+  'row_id', 'activity_name', 'activity_type', 'activity_family', 'activity_season',
+  'authority', 'school', 'instructor_name', 'instructor_name_2', 'activity_manager',
+  'start_date', 'end_date', 'status',
+  ...ACTIVITY_MEETING_DATE_COLUMNS
+].join(',');
+// List cards: assignment stats without meeting-date payload.
+const ACTIVITY_INSTRUCTOR_STATS_COLUMNS = [
+  'row_id', 'activity_name', 'activity_type', 'item_type', 'activity_season',
+  'authority', 'school', 'activity_manager',
+  'instructor_name', 'instructor_name_2', 'emp_id', 'emp_id_2',
+  'start_date', 'end_date', 'status'
+].join(',');
+// Instructor profile history: include meeting dates for month filtering.
+const ACTIVITY_INSTRUCTOR_HISTORY_COLUMNS = [
+  'row_id', 'activity_name', 'activity_type', 'item_type', 'activity_season',
+  'authority', 'school', 'activity_manager',
+  'instructor_name', 'instructor_name_2', 'emp_id', 'emp_id_2',
+  'start_date', 'end_date', 'status',
+  ...ACTIVITY_MEETING_DATE_COLUMNS
+].join(',');
+const ACTIVITY_DATES_ONLY_COLUMNS = ['row_id', 'start_date', 'end_date', ...ACTIVITY_MEETING_DATE_COLUMNS].join(',');
 const COMPLETION_APPROVAL_METADATA_COLUMNS = 'id,activity_row_id,activity_date,instructor_emp_id,instructor_name,authority,school,file_path,file_name,mime_type,file_size,uploaded_by_user_id,uploaded_at,status,reviewed_by,reviewed_at,review_note';
+const COMPLETION_APPROVAL_EXCEPTIONS_COLUMNS = 'id,activity_row_id,activity_date,instructor_name,school,file_path,file_name,status';
+const PHOTO_APPROVAL_METADATA_COLUMNS = 'id,instructor_emp_id,instructor_name,authority,school,school_id,file_path,file_name,mime_type,file_size,uploaded_at,status';
+const SCHOOL_CONTACT_RESPONSIBLES_COLUMNS = 'id,activity_date,school_id,school,authority,responsible_emp_id,responsible_name';
+const ARCHIVE_PAGE_SIZE = 200;
+const PROPOSALS_LIST_PAGE_SIZE = 50;
+const COMPLETION_APPROVALS_PAGE_SIZE = 50;
 const SETTINGS_BOOTSTRAP_COLUMNS = 'key,value,description';
 const LISTS_BOOTSTRAP_COLUMNS = 'list_id,category,value,label,active,is_active,category_order,sort_order,activity_no,activity_name,activity_type,type,stock_quantity,stock_group_key,stock_group_name,stock_item_name,stock_label,parent_value';
 let settingsRowsCache = null;
@@ -307,19 +369,30 @@ function rowMatchesActivitiesFilters(row, filters = {}) {
   return true;
 }
 
-async function readArchiveActivitiesFromSupabase(activityPeriod = currentGlobalActivityPeriod()) {
+async function readArchiveActivitiesFromSupabase(activityPeriod = currentGlobalActivityPeriod(), { limit = ARCHIVE_PAGE_SIZE, offset = 0 } = {}) {
   if (!supabase) return null;
   try {
+    const pageSize = Math.max(1, Number(limit) || ARCHIVE_PAGE_SIZE);
+    const pageOffset = Math.max(0, Number(offset) || 0);
     const { data, error } = await supabase
       .from('activities')
-      .select(ACTIVITY_LIST_COLUMNS)
+      .select(ACTIVITY_ARCHIVE_COLUMNS)
       .eq('activity_season', normalizeGlobalActivityPeriod(activityPeriod))
-      .eq('status', CLOSED_STATUS);
+      .eq('status', CLOSED_STATUS)
+      .order('end_date', { ascending: false, nullsFirst: false })
+      .order('start_date', { ascending: false, nullsFirst: false })
+      .range(pageOffset, pageOffset + pageSize - 1);
     if (error) throw new Error(error.message || 'archive_read_failed');
     const rawRows = Array.isArray(data) ? data : [];
-    const rows = filterRowsByGlobalActivityPeriod(rawRows.map(normalizeActivityRow))
-      .sort((a, b) => String(b?.end_date || b?.start_date || '').localeCompare(String(a?.end_date || a?.start_date || '')));
-    return { rows, _source: 'supabase', _debug: { activities_loaded_from_supabase: rawRows.length, source_table: 'public.activities' } };
+    const rows = filterRowsByGlobalActivityPeriod(rawRows.map(normalizeActivityRow));
+    return {
+      rows,
+      _source: 'supabase',
+      _hasMore: rawRows.length >= pageSize,
+      _offset: pageOffset,
+      _limit: pageSize,
+      _debug: { activities_loaded_from_supabase: rawRows.length, source_table: 'public.activities', projection: 'ACTIVITY_ARCHIVE_COLUMNS' }
+    };
   } catch (err) {
     console.error('[supabase] archive fetch error:', err);
     return null;
@@ -331,7 +404,8 @@ async function readActivitiesFromSupabase(filters = {}) {
 
   try {
     const selectedSeason = normalizeGlobalActivityPeriod(filters?.activity_period || currentGlobalActivityPeriod());
-    const { data, error } = await supabase.from('activities').select(ACTIVITY_LIST_COLUMNS).eq('activity_season', selectedSeason);
+    const select = filters?.select || ACTIVITY_TABLE_COLUMNS;
+    const { data, error } = await supabase.from('activities').select(select).eq('activity_season', selectedSeason);
     if (error) throw new Error(error.message || 'activities_read_failed');
     const rawRows = Array.isArray(data) ? data : [];
     const normalizedRows = rawRows.map(normalizeActivityRow);
@@ -341,7 +415,7 @@ async function readActivitiesFromSupabase(filters = {}) {
       .filter((row) => filters?.include_all_periods ? true : activityMatchesPeriodKey(row, filters?.activity_period || currentGlobalActivityPeriod()))
       .filter((row) => filters?.include_inactive ? true : !isActivityInactive(row))
       .filter((row) => rowMatchesActivitiesFilters(row, filters));
-    return { rows, _source: 'supabase', _debug: { activities_loaded_from_supabase: rawRows.length, source_table: 'public.activities' } };
+    return { rows, _source: 'supabase', _debug: { activities_loaded_from_supabase: rawRows.length, source_table: 'public.activities', projection: 'ACTIVITY_TABLE_COLUMNS' } };
   } catch (error) {
     // eslint-disable-next-line no-console
     console.error('[supabase] Unexpected activities fetch error:', error);
@@ -573,7 +647,7 @@ function activityHasDatePointInMonth(row, monthPrefix) {
   return allDates.length > 0 && allDates.some((d) => d >= startDate && d <= endDate);
 }
 
-async function selectActivitiesFromSupabase(select = '*', activitySeason = currentGlobalActivityPeriod()) {
+async function selectActivitiesFromSupabase(select = ACTIVITY_LIST_COLUMNS, activitySeason = currentGlobalActivityPeriod()) {
   const result = await supabase.from('activities').select(select).eq('activity_season', normalizeGlobalActivityPeriod(activitySeason));
   if (result.error) throw new Error(result.error.message || 'activities_read_failed');
   return (Array.isArray(result.data) ? result.data : []).map(normalizeActivityRow);
@@ -1729,11 +1803,40 @@ function buildClientSettingsFromLists(listsData, settingsRows = [], instructorCo
  * Computes per-instructor activity stats from public.activities only.
  * Returns { rows, _source: 'supabase' } or null on any failure.
  */
+async function readInstructorActivityHistoryFromSupabase({ empId = '', instructorName = '' } = {}) {
+  if (!supabase) return [];
+  const selectedSeason = currentGlobalActivityPeriod();
+  const emp = String(empId || '').trim();
+  const name = String(instructorName || '').trim().toLowerCase();
+  let query = supabase
+    .from('activities')
+    .select(ACTIVITY_INSTRUCTOR_HISTORY_COLUMNS)
+    .eq('activity_season', normalizeGlobalActivityPeriod(selectedSeason));
+  if (emp) {
+    // Prefer emp_id filter; names may contain characters unsafe for PostgREST .or() literals.
+    query = query.or(`emp_id.eq.${emp},emp_id_2.eq.${emp}`);
+  }
+  const { data, error } = await query;
+  if (error) throw new Error(error.message || 'instructor_activity_history_failed');
+  const rows = (Array.isArray(data) ? data : []).map(normalizeActivityRow).filter((row) => !isActivityInactive(row));
+  if (!emp && name) {
+    return rows.filter((row) => [row?.instructor_name, row?.instructor_name_2]
+      .map((value) => String(value || '').trim().toLowerCase())
+      .some((value) => value === name));
+  }
+  if (emp && name) {
+    // Keep emp matches; also include name-only matches from a second pass if needed later.
+    return rows;
+  }
+  return rows;
+}
+
 async function readInstructorsFromSupabase() {
   if (!supabase) return null;
   try {
+    // List entry: contacts + thin season stats (no meeting-date payload / no scheduling).
     const [activityRows, contactsResult] = await Promise.all([
-      selectActivitiesFromSupabase(ACTIVITY_LIST_COLUMNS),
+      selectActivitiesFromSupabase(ACTIVITY_INSTRUCTOR_STATS_COLUMNS),
       supabase.from('contacts_instructors').select(CONTACTS_INSTRUCTORS_SCREEN_COLUMNS)
     ]);
 
@@ -1845,7 +1948,8 @@ async function readInstructorsFromSupabase() {
     }));
 
     rows.sort((a, b) => String(a.full_name || '').localeCompare(String(b.full_name || ''), 'he'));
-    return { rows, detail_rows: activeRows, activities_loaded: true, _source: 'supabase' };
+    // Keep activity history off the list payload; load on instructor open by period.
+    return { rows, detail_rows: [], activities_loaded: false, _source: 'supabase' };
   } catch (error) {
     // eslint-disable-next-line no-console
     console.error('[supabase] Unexpected instructors fetch error:', error);
@@ -1973,7 +2077,7 @@ async function readWeekFromSupabase(weekOffset) {
   if (!supabase) return emptyWeekPayload(startDate, endDate, { error: 'no_supabase_client' });
 
   try {
-    const rows = filterRowsByGlobalActivityPeriod(await selectActivitiesByDateRangeFromSupabase({ startDate, endDate }))
+    const rows = filterRowsByGlobalActivityPeriod(await selectActivitiesByDateRangeFromSupabase({ startDate, endDate, select: ACTIVITY_CALENDAR_COLUMNS }))
       .filter((row) => !isActivityInactive(row));
     const matchingRows = rows.filter((row) => activityHasDateInRange(row, startDate, endDate));
     const itemsById = buildItemsById(matchingRows);
@@ -2012,7 +2116,8 @@ async function readMonthFromSupabase(ym) {
     const lastDay = new Date(Number(yStr), Number(mStr), 0).getDate();
     const rows = filterRowsByGlobalActivityPeriod(await selectActivitiesByDateRangeFromSupabase({
       startDate: range.startDate,
-      endDate: range.endDate
+      endDate: range.endDate,
+      select: ACTIVITY_CALENDAR_COLUMNS
     })).filter((row) => !isActivityInactive(row));
     const matchingRows = rows.filter((row) => activityHasDateInMonth(row, monthPrefix));
     const itemsById = buildItemsById(matchingRows);
@@ -2309,10 +2414,19 @@ function emptyDashboardPayload(month, debug = {}) {
 async function readEndDatesFromSupabase() {
   if (!supabase) throw new Error('no_supabase_client');
   try {
-    const rows = (await selectActivitiesFromSupabase(ACTIVITY_LIST_COLUMNS))
+    const selectedSeason = currentGlobalActivityPeriod();
+    const { data, error } = await supabase
+      .from('activities')
+      .select(ACTIVITY_END_DATES_COLUMNS)
+      .eq('activity_season', normalizeGlobalActivityPeriod(selectedSeason))
+      .in('activity_type', ['course', 'קורס', 'קורסים', 'after_school', 'צהרון', 'צהרונים']);
+    if (error) throw new Error(error.message || 'end_dates_read_failed');
+    const rows = (Array.isArray(data) ? data : [])
+      .map(normalizeActivityRow)
       .filter((row) => !isActivityInactive(row))
-      .map((row) => ({ ...row, meeting_dates: getActivityDateColumns(row), date_cols: getActivityDateColumns(row) }));
-    return { rows, _source: 'supabase' };
+      .filter((row) => String(row?.status || '').trim() !== CLOSED_STATUS)
+      .map((row) => ({ ...row, meeting_dates: [], date_cols: [] }));
+    return { rows, _source: 'supabase', _debug: { projection: 'ACTIVITY_END_DATES_COLUMNS' } };
   } catch (error) {
     throw new Error(error?.message || 'end_dates_supabase_failed');
   }
@@ -2609,10 +2723,13 @@ async function readExceptionsFromSupabase(params = {}) {
   const activityPeriod = normalizeGlobalActivityPeriod(params?.activity_period || currentGlobalActivityPeriod());
   try {
     const suppliedActivityRows = Array.isArray(params?.activityRows) ? params.activityRows : null;
+    const needsSummerCompletionUploads = activityPeriod === 'summer_2026';
     const [activitiesResult, instrListResult, approvalsResult, settingsRows] = await Promise.all([
-      suppliedActivityRows ? Promise.resolve({ data: suppliedActivityRows, error: null }) : supabase.from('activities').select(ACTIVITY_LIST_COLUMNS).eq('activity_season', activityPeriod),
+      suppliedActivityRows ? Promise.resolve({ data: suppliedActivityRows, error: null }) : supabase.from('activities').select(ACTIVITY_EXCEPTIONS_COLUMNS).eq('activity_season', activityPeriod),
       readInstructorEmpIdsFromSupabase().then((data) => ({ data, error: null })),
-      supabase.from('activity_completion_approval_uploads').select(COMPLETION_APPROVAL_METADATA_COLUMNS).then(({ data, error }) => ({ data: error ? [] : data, error })),
+      needsSummerCompletionUploads
+        ? supabase.from('activity_completion_approval_uploads').select(COMPLETION_APPROVAL_EXCEPTIONS_COLUMNS).gte('activity_date', '2026-06-01').lte('activity_date', '2026-09-30').then(({ data, error }) => ({ data: error ? [] : data, error }))
+        : Promise.resolve({ data: [], error: null }),
       readSettingsRowsFromSupabase().catch((error) => {
         logDashboardSupabaseReadError('[supabase][dashboard] settings read failed', error, {
           table: 'public.settings',
@@ -2846,7 +2963,10 @@ function normalizeData(data) {
 const PROPOSALS_AGREEMENTS_ALLOWED_ROLES = new Set(['domain_manager', 'operation_manager', 'admin', 'business_development_manager']);
 const PROPOSALS_AGREEMENTS_MANAGE_ROLES = new Set(['domain_manager', 'operation_manager', 'admin']);
 const PROPOSALS_AGREEMENTS_COLUMNS = 'id,authority_id,school_id,contact_school_id,client_authority,school_framework,document_type,activity_type_group,proposal_domain,proposal_date,activity_names,contact_name,contact_role,phone,email,contact_phone,contact_email,notes,status,approval_note,total_amount,custom_document_sections,include_catalog,signature_meta,approved_by,approved_at,sent_by,sent_at,locked_at,locked_by,locked_reason,final_pdf_path,final_pdf_file_name,final_pdf_created_at,final_pdf_created_by,document_snapshot,document_html_snapshot,proposal_series_id,version_number,supersedes_proposal_id,archived_at,quote_number,valid_until,combine_gefen_approval,created_at,updated_at';
-const PROPOSALS_AGREEMENTS_DIRECTORY_COLUMNS = 'id,authority_id,authority_code,school_id,contact_school_id,semel_mosad,authority_name,legacy_client_authority,contact_client_type,contact_client_name,school_name,legacy_school_framework,document_type,activity_type_group,proposal_domain,proposal_date,activity_names,contact_name,contact_role,phone,email,notes,status,approval_note,total_amount,custom_document_sections,include_catalog,signature_meta,approved_by,approved_at,sent_by,sent_at,locked_at,locked_by,locked_reason,final_pdf_path,final_pdf_file_name,final_pdf_created_at,final_pdf_created_by,document_snapshot,document_html_snapshot,proposal_series_id,version_number,supersedes_proposal_id,archived_at,quote_number,valid_until,combine_gefen_approval,created_at,updated_at';
+// List/directory projection — no snapshots/HTML/signature payloads.
+const PROPOSALS_AGREEMENTS_LIST_COLUMNS = 'id,authority_id,authority_code,school_id,contact_school_id,semel_mosad,authority_name,legacy_client_authority,contact_client_type,contact_client_name,school_name,legacy_school_framework,document_type,activity_type_group,proposal_domain,proposal_date,activity_names,contact_name,contact_role,phone,email,notes,status,approval_note,total_amount,include_catalog,approved_by,approved_at,sent_by,sent_at,locked_at,locked_by,locked_reason,final_pdf_path,final_pdf_file_name,final_pdf_created_at,final_pdf_created_by,proposal_series_id,version_number,supersedes_proposal_id,archived_at,quote_number,valid_until,combine_gefen_approval,created_at,updated_at';
+const PROPOSALS_AGREEMENTS_DIRECTORY_COLUMNS = PROPOSALS_AGREEMENTS_LIST_COLUMNS;
+const PROPOSALS_AGREEMENTS_DETAIL_COLUMNS = 'id,authority_id,authority_code,school_id,contact_school_id,semel_mosad,authority_name,legacy_client_authority,contact_client_type,contact_client_name,school_name,legacy_school_framework,document_type,activity_type_group,proposal_domain,proposal_date,activity_names,contact_name,contact_role,phone,email,notes,status,approval_note,total_amount,custom_document_sections,include_catalog,signature_meta,approved_by,approved_at,sent_by,sent_at,locked_at,locked_by,locked_reason,final_pdf_path,final_pdf_file_name,final_pdf_created_at,final_pdf_created_by,document_snapshot,document_html_snapshot,proposal_series_id,version_number,supersedes_proposal_id,archived_at,quote_number,valid_until,combine_gefen_approval,created_at,updated_at';
 const PROPOSAL_FINAL_PDF_BUCKET = 'proposal-final-pdfs';
 const GEFEN_APPROVAL_DOCUMENT_TYPE = 'gefen_approval';
 const IDAN_NAHUM_AUTH_USER_ID = 'e9ca304a-4e66-4774-830e-14f1318c4908';
@@ -3773,11 +3893,17 @@ async function readProposalAgreementItemsForLoader() {
   return Array.isArray(data) ? data : [];
 }
 
-async function readProposalLinkedDocumentsFromSupabase() {
-  const { data, error } = await supabase
+async function readProposalLinkedDocumentsFromSupabase({ proposalIds = null } = {}) {
+  let query = supabase
     .from('proposal_linked_documents')
     .select('id,proposal_agreement_id,document_type,status,combined_with_proposal,file_path,file_name,created_at,updated_at')
     .eq('document_type', GEFEN_APPROVAL_DOCUMENT_TYPE);
+  const ids = Array.isArray(proposalIds)
+    ? proposalIds.map((id) => cleanProposalAgreementText(id)).filter(Boolean)
+    : null;
+  if (ids && ids.length) query = query.in('proposal_agreement_id', ids);
+  if (ids && !ids.length) return [];
+  const { data, error } = await query;
   if (error) throwProposalLoadError('linkedDocumentsError', 'proposal_linked_documents', error);
   return Array.isArray(data) ? data : [];
 }
@@ -3977,51 +4103,39 @@ async function readContactsSchoolsForProposals() {
   };
 }
 
-async function readProposalsAgreementsFromSupabase() {
+async function readProposalAgreementDetailFromSupabase(proposalId) {
+  assertCanUseProposalsAgreementsApi();
+  const id = cleanProposalAgreementText(proposalId);
+  if (!id) throw new Error('missing_proposal_id');
+  await waitForSupabaseAuthSession();
+  const { data, error } = await supabase
+    .from('proposals_agreements_directory_view')
+    .select(PROPOSALS_AGREEMENTS_DETAIL_COLUMNS)
+    .eq('id', id)
+    .maybeSingle();
+  if (error) throw new Error(error.message || 'proposal_detail_read_failed');
+  if (!data) return null;
+  return normalizeProposalAgreementRow(data);
+}
+
+async function readProposalsAgreementsEditorDepsFromSupabase() {
   assertCanUseProposalsAgreementsApi();
   await waitForSupabaseAuthSession();
-  lastProposalLoaderDebug = {};
   const [
-    paResult,
-    contactsResult,
     rawProposalActivityPricing,
     rawProposalGefenCourses,
     proposalTemplateSections,
     proposalActivityGroups,
     proposalGroupAliases,
-    proposalAgreementItems,
-    proposalLinkedDocuments,
     schoolCalendarRows
   ] = await Promise.all([
-    supabase
-      .from('proposals_agreements_directory_view')
-      .select(PROPOSALS_AGREEMENTS_DIRECTORY_COLUMNS)
-      .order('authority_name', { ascending: true })
-      .order('school_name', { ascending: true })
-      .order('document_type', { ascending: true })
-      .order('activity_type_group', { ascending: true }),
-    readContactsSchoolsForProposals(),
     readProposalActivityPricingFromSupabase(),
     readProposalGefenCoursesFromSupabase(),
     readProposalTemplateSectionsFromSupabase(),
     readProposalActivityGroupsFromSupabase(),
     readProposalGroupAliasesFromSupabase(),
-    readProposalAgreementItemsForLoader(),
-    readProposalLinkedDocumentsFromSupabase(),
     readSchoolCalendarForProposalValidity()
   ]);
-  if (paResult.error) throw new Error(paResult.error.message || 'proposals_agreements_read_failed');
-  noteProposalRead('rows', Array.isArray(paResult.data) ? paResult.data : [], null);
-  const contactOptions = Array.isArray(contactsResult?.contactOptions) ? contactsResult.contactOptions : [];
-  const contactOptionsError = contactsResult?.contactOptionsError || null;
-  let proposalCatalog = null;
-  try {
-    proposalCatalog = await readAuthoritySchoolCatalog();
-  } catch {
-    proposalCatalog = null;
-  }
-  // Group/alias normalization happens here in the loader so the frontend receives
-  // logical group keys (e.g. summer/next_year/combined) instead of legacy Hebrew labels.
   proposalGroupLookupCache = mergeProposalGroupLookups(
     buildProposalGroupLookup(proposalActivityGroups, proposalGroupAliases),
     buildProposalGroupHintsFromTemplateSections(proposalTemplateSections)
@@ -4034,6 +4148,84 @@ async function readProposalsAgreementsFromSupabase() {
     ...await readProposalActivityNamesFromSupabase(),
     ...rawProposalGefenCourses.map((row) => cleanProposalAgreementText(row?.activity_name)).filter(Boolean)
   ])).sort((a, b) => a.localeCompare(b, 'he'));
+  return {
+    activityNameOptions,
+    proposalActivityGroups,
+    proposalGroupAliases,
+    proposalActivityPricing,
+    proposalTemplateSections,
+    schoolCalendarRows,
+    _source: 'supabase'
+  };
+}
+
+async function readProposalsPendingApprovedCountFromSupabase() {
+  assertCanUseProposalsAgreementsApi();
+  await waitForSupabaseAuthSession();
+  const { count, error } = await supabase
+    .from('proposals_agreements_directory_view')
+    .select('id', { count: 'exact', head: true })
+    .eq('status', 'approved')
+    .is('archived_at', null);
+  if (error) throw new Error(error.message || 'proposals_pending_count_failed');
+  return Number.isFinite(count) ? Number(count) : 0;
+}
+
+async function readProposalsAgreementsFromSupabase({
+  limit = PROPOSALS_LIST_PAGE_SIZE,
+  offset = 0,
+  search = '',
+  status = '',
+  includeLinkedDocuments = false,
+  paginate = true
+} = {}) {
+  assertCanUseProposalsAgreementsApi();
+  await waitForSupabaseAuthSession();
+  lastProposalLoaderDebug = {};
+  const usePaging = paginate !== false && limit != null;
+  const pageSize = usePaging ? Math.max(1, Number(limit) || PROPOSALS_LIST_PAGE_SIZE) : null;
+  const pageOffset = Math.max(0, Number(offset) || 0);
+  const statusFilter = cleanProposalAgreementText(status);
+  void search; // reserved for future server-side search; page is filtered client-side today
+  // List entry: metadata page + contacts. Editor deps / snapshots / items load on demand.
+  let proposalsQuery = supabase
+    .from('proposals_agreements_directory_view')
+    .select(PROPOSALS_AGREEMENTS_LIST_COLUMNS)
+    .order('updated_at', { ascending: false, nullsFirst: false })
+    .order('authority_name', { ascending: true })
+    .order('school_name', { ascending: true });
+  if (usePaging) proposalsQuery = proposalsQuery.range(pageOffset, pageOffset + pageSize - 1);
+  if (statusFilter) proposalsQuery = proposalsQuery.eq('status', statusFilter);
+  const [
+    paResult,
+    contactsResult,
+    proposalActivityGroups,
+    proposalGroupAliases
+  ] = await Promise.all([
+    proposalsQuery,
+    readContactsSchoolsForProposals(),
+    readProposalActivityGroupsFromSupabase(),
+    readProposalGroupAliasesFromSupabase()
+  ]);
+  if (paResult.error) throw new Error(paResult.error.message || 'proposals_agreements_read_failed');
+  const rawRows = Array.isArray(paResult.data) ? paResult.data : [];
+  noteProposalRead('rows', rawRows, null);
+  const contactOptions = Array.isArray(contactsResult?.contactOptions) ? contactsResult.contactOptions : [];
+  const contactOptionsError = contactsResult?.contactOptionsError || null;
+  let proposalCatalog = null;
+  try {
+    proposalCatalog = await readAuthoritySchoolCatalog();
+  } catch {
+    proposalCatalog = null;
+  }
+  proposalGroupLookupCache = mergeProposalGroupLookups(
+    buildProposalGroupLookup(proposalActivityGroups, proposalGroupAliases),
+    { groups: [], aliases: [] }
+  );
+  const pageIds = rawRows.map((row) => cleanProposalAgreementText(row?.id)).filter(Boolean);
+  const proposalLinkedDocuments = includeLinkedDocuments
+    ? await readProposalLinkedDocumentsFromSupabase({ proposalIds: pageIds })
+    : [];
   const linkedDocumentByProposalId = new Map(
     proposalLinkedDocuments.map((row) => [
       cleanProposalAgreementText(row?.proposal_agreement_id),
@@ -4041,32 +4233,45 @@ async function readProposalsAgreementsFromSupabase() {
     ])
   );
   return {
-    rows: (Array.isArray(paResult.data) ? paResult.data : [])
+    rows: rawRows
       .map(normalizeProposalAgreementRow)
       .map((row) => {
         const linked = linkedDocumentByProposalId.get(row.id);
         return enrichProposalAgreementRowFromCatalog({
           ...row,
+          has_final_pdf: Boolean(cleanProposalAgreementText(row.final_pdf_path)),
+          has_document_snapshot: false,
+          has_document_html_snapshot: false,
+          has_linked_documents: Boolean(linked),
           gefen_approval_status: cleanProposalAgreementText(linked?.status) || 'missing',
           gefen_approval_path: cleanProposalAgreementText(linked?.file_path),
           gefen_approval_file_name: cleanProposalAgreementText(linked?.file_name),
           gefen_approval_combined: linked?.combined_with_proposal === true
         }, proposalCatalog);
       }),
-    activityNameOptions,
+    activityNameOptions: [],
     contactOptions,
     contactOptionsError,
     proposalActivityGroups,
     proposalGroupAliases,
-    proposalActivityPricing,
-    proposalTemplateSections,
-    proposalAgreementItems,
+    proposalActivityPricing: [],
+    proposalTemplateSections: [],
+    proposalAgreementItems: [],
     proposalLinkedDocuments,
-    schoolCalendarRows,
+    schoolCalendarRows: [],
+    _editorDepsLoaded: false,
+    _hasMore: usePaging ? rawRows.length >= pageSize : false,
+    _offset: pageOffset,
+    _limit: pageSize,
     _debug: {
       ...(contactsResult?._debug || {}),
       ...(contactOptionsError ? { contacts_error: contactOptionsError } : {}),
-      proposal_loader: { ...lastProposalLoaderDebug }
+      proposal_loader: {
+        ...lastProposalLoaderDebug,
+        list_projection: 'metadata',
+        page_size: pageSize,
+        paginated: usePaging
+      }
     },
     _source: 'supabase'
   };
@@ -5321,7 +5526,7 @@ async function readActivityDatesFromSupabase(source_row_id, source_sheet) {
   const rowId = String(source_row_id || '').trim();
   const { data, error } = await supabase
     .from('activities')
-    .select('*')
+    .select(ACTIVITY_DATES_ONLY_COLUMNS)
     .eq('row_id', rowId)
     .maybeSingle();
   if (error) throw new Error(error.message || 'dates_failed');
@@ -5352,8 +5557,13 @@ async function readActivityDatesFromSupabase(source_row_id, source_sheet) {
 }
 
 
-async function readSchoolContactResponsiblesRows() {
-  const { data, error } = await supabase.from('activity_school_contact_responsibles').select('*');
+async function readSchoolContactResponsiblesRows({ fromDate = '', toDate = '', schoolIds = [] } = {}) {
+  let query = supabase.from('activity_school_contact_responsibles').select(SCHOOL_CONTACT_RESPONSIBLES_COLUMNS);
+  if (fromDate) query = query.gte('activity_date', fromDate);
+  if (toDate) query = query.lte('activity_date', toDate);
+  const ids = (Array.isArray(schoolIds) ? schoolIds : []).map((id) => String(id || '').trim()).filter(Boolean);
+  if (ids.length && ids.length <= 80) query = query.in('school_id', ids);
+  const { data, error } = await query;
   if (error) return [];
   return Array.isArray(data) ? data : [];
 }
@@ -5397,12 +5607,31 @@ function buildInstructorTeamGroups(allRows, ownRows, overrides = []) {
 const _allActivitiesRowsCache = new Map();
 const _ALL_ACTIVITIES_ROWS_CACHE_TTL_MS = 2 * 60 * 1000; // 2 דקות
 
-async function readAllActivitiesRowsSupabase({ forceRefresh = false, activityPeriod = currentGlobalActivityPeriod() } = {}) {
+async function readAllActivitiesRowsSupabase({
+  forceRefresh = false,
+  activityPeriod = currentGlobalActivityPeriod(),
+  select = ACTIVITY_OPERATIONS_COLUMNS,
+  startDate = '',
+  endDate = ''
+} = {}) {
   const selectedSeason = normalizeGlobalActivityPeriod(activityPeriod);
-  const cached = _allActivitiesRowsCache.get(selectedSeason);
+  const rangeKey = (startDate && endDate) ? `${startDate}:${endDate}` : 'season';
+  const cacheKey = `${selectedSeason}|${select}|${rangeKey}`;
+  const cached = _allActivitiesRowsCache.get(cacheKey);
   if (!forceRefresh && cached && (Date.now() - cached.at) < _ALL_ACTIVITIES_ROWS_CACHE_TTL_MS) return cached.rows;
-  const rows = await selectActivitiesFromSupabase(ACTIVITY_LIST_COLUMNS, selectedSeason);
-  _allActivitiesRowsCache.set(selectedSeason, { rows, at: Date.now() });
+  let rows;
+  if (startDate && endDate) {
+    rows = await selectActivitiesByDateRangeFromSupabase({
+      startDate,
+      endDate,
+      select,
+      includeEndDate: true
+    });
+    rows = filterRowsByGlobalActivityPeriod(rows, selectedSeason);
+  } else {
+    rows = await selectActivitiesFromSupabase(select, selectedSeason);
+  }
+  _allActivitiesRowsCache.set(cacheKey, { rows, at: Date.now() });
   return rows;
 }
 
@@ -5935,12 +6164,20 @@ export const api = {
     return { ...supabasePayload, ...canonical, month };
   },
   archiveActivities: async (params = {}) => {
-    const data = await readArchiveActivitiesFromSupabase(params?.activity_period || currentGlobalActivityPeriod());
+    const data = await readArchiveActivitiesFromSupabase(
+      params?.activity_period || currentGlobalActivityPeriod(),
+      { limit: params?.limit, offset: params?.offset }
+    );
     if (data) return data;
     throw new Error('archive_supabase_failed');
   },
   allActivities: async (params = {}) => {
-    const rows = await readAllActivitiesRowsSupabase({ activityPeriod: params?.activity_period || currentGlobalActivityPeriod() });
+    const rows = await readAllActivitiesRowsSupabase({
+      activityPeriod: params?.activity_period || currentGlobalActivityPeriod(),
+      select: params?.select || ACTIVITY_OPERATIONS_COLUMNS,
+      startDate: params?.startDate || params?.dateFrom || '',
+      endDate: params?.endDate || params?.dateTo || ''
+    });
     return { rows, _source: 'supabase' };
   },
   activities: async (filters, options) => {
@@ -6049,8 +6286,12 @@ export const api = {
   },
 
 
-  schoolContactResponsibles: async () => {
-    const rows = await readSchoolContactResponsiblesRows();
+  schoolContactResponsibles: async (params = {}) => {
+    const rows = await readSchoolContactResponsiblesRows({
+      fromDate: params?.fromDate || params?.dateFrom || '',
+      toDate: params?.toDate || params?.dateTo || '',
+      schoolIds: params?.schoolIds || []
+    });
     return { rows, _source: 'supabase' };
   },
   instructorSchedulePrintContacts: async () => {
@@ -6087,34 +6328,29 @@ export const api = {
     if (error) throw new Error(error.message || 'school_contact_responsible_save_failed');
     return { row: data, _source: 'supabase' };
   },
-  completionApprovalUploads: async () => {
+  completionApprovalUploads: async ({ limit = null, offset = 0, fromDate = '', toDate = '' } = {}) => {
     const role = String(state?.user?.role || '').trim();
-    const query = supabase
+    let query = supabase
       .from('activity_completion_approval_uploads')
-      .select('*')
+      .select(COMPLETION_APPROVAL_METADATA_COLUMNS)
+      .order('activity_date', { ascending: false, nullsFirst: false })
       .order('uploaded_at', { ascending: false });
+    if (fromDate) query = query.gte('activity_date', fromDate);
+    if (toDate) query = query.lte('activity_date', toDate);
+    // null/undefined limit = full metadata set for the filtered window (ops matching).
+    if (limit != null) {
+      const pageSize = Math.max(1, Number(limit) || COMPLETION_APPROVALS_PAGE_SIZE);
+      const pageOffset = Math.max(0, Number(offset) || 0);
+      query = query.range(pageOffset, pageOffset + pageSize - 1);
+    }
     if (role === 'instructor') {
       if (!isActiveInstructorPilotUser()) return { rows: [], _source: 'supabase' };
-      query.in('instructor_emp_id', currentUserIdentityValues());
+      query = query.in('instructor_emp_id', currentUserIdentityValues());
     }
     const { data, error } = await query;
     if (error) throw new Error(error.message || 'completion_approval_uploads_read_failed');
-    const rows = Array.isArray(data) ? data : [];
-    const rowsWithStorage = await Promise.all(rows.map(async (row) => {
-      const filePath = String(row?.file_path || '').trim();
-      if (!filePath) return { ...row, file_ref_exists: false, storage_exists: false, storage_status: 'missing' };
-      const signed = await supabase.storage.from('completion-approvals').createSignedUrl(filePath, 30);
-      const signedUrlOk = !signed.error && !!signed.data?.signedUrl;
-      return {
-        ...row,
-        file_ref_exists: true,
-        storage_exists: signedUrlOk,
-        storage_status: signedUrlOk ? 'exists' : 'signed_url_failed',
-        storage_access_status: signedUrlOk ? 'ok' : 'failed',
-        ...(signed.error ? { storage_error: String(signed.error.message || 'completion_approval_signed_url_failed') } : {})
-      };
-    }));
-    return { rows: rowsWithStorage, _source: 'supabase' };
+    // Metadata only — signed URLs are created on explicit open/download.
+    return { rows: Array.isArray(data) ? data : [], _source: 'supabase' };
   },
   completionApprovalSignedUrl: async ({ filePath, download = false } = {}) => {
     const path = String(filePath || '').trim();
@@ -6225,15 +6461,22 @@ export const api = {
     if (error) throw new Error(error.message || 'completion_approval_upload_record_failed');
     return { row: data, _source: 'supabase' };
   },
-  photoApprovalUploads: async () => {
+  photoApprovalUploads: async ({ schoolIds = [], limit = null, offset = 0 } = {}) => {
     const role = String(state?.user?.role || '').trim();
-    const query = supabase
+    let query = supabase
       .from('photo_approval_uploads')
-      .select('*')
+      .select(PHOTO_APPROVAL_METADATA_COLUMNS)
       .order('uploaded_at', { ascending: false });
+    const ids = (Array.isArray(schoolIds) ? schoolIds : []).map((id) => String(id || '').trim()).filter(Boolean);
+    if (ids.length && ids.length <= 80) query = query.in('school_id', ids);
+    if (limit != null) {
+      const pageSize = Math.max(1, Number(limit) || COMPLETION_APPROVALS_PAGE_SIZE);
+      const pageOffset = Math.max(0, Number(offset) || 0);
+      query = query.range(pageOffset, pageOffset + pageSize - 1);
+    }
     if (role === 'instructor') {
       if (!isActiveInstructorPilotUser()) return { rows: [], _source: 'supabase' };
-      query.in('instructor_emp_id', currentUserIdentityValues());
+      query = query.in('instructor_emp_id', currentUserIdentityValues());
     }
     const { data, error } = await query;
     if (error) throw new Error(error.message || 'photo_approval_uploads_read_failed');
@@ -6362,7 +6605,29 @@ export const api = {
     if (error) throw new Error(error.message || 'edit_requests_open_count_failed');
     return Number.isFinite(count) ? Number(count) : 0;
   },
-  proposalsAgreements: async () => readProposalsAgreementsFromSupabase(),
+  proposalsAgreements: async (params = {}) => readProposalsAgreementsFromSupabase(params || {}),
+  proposalsAgreementsEditorDeps: async () => readProposalsAgreementsEditorDepsFromSupabase(),
+  proposalAgreementDetail: async (proposalId) => {
+    const row = await readProposalAgreementDetailFromSupabase(proposalId);
+    if (!row) return null;
+    const linked = await readProposalLinkedDocumentsFromSupabase({ proposalIds: [row.id] });
+    const first = linked[0] || null;
+    return {
+      ...row,
+      has_document_snapshot: Boolean(row?.document_snapshot && typeof row.document_snapshot === 'object'),
+      has_document_html_snapshot: Boolean(String(row?.document_html_snapshot || '').trim()),
+      gefen_approval_status: cleanProposalAgreementText(first?.status) || row.gefen_approval_status || 'missing',
+      gefen_approval_path: cleanProposalAgreementText(first?.file_path) || row.gefen_approval_path || '',
+      gefen_approval_file_name: cleanProposalAgreementText(first?.file_name) || row.gefen_approval_file_name || '',
+      gefen_approval_combined: first ? first.combined_with_proposal === true : row.gefen_approval_combined === true,
+      proposalLinkedDocuments: linked
+    };
+  },
+  instructorActivityHistory: async (params = {}) => {
+    const rows = await readInstructorActivityHistoryFromSupabase(params || {});
+    return { rows, _source: 'supabase' };
+  },
+  proposalsPendingApprovedCount: async () => readProposalsPendingApprovedCountFromSupabase(),
   permissions: async () => {
     if (!supabase) throw new Error('no_supabase_client');
     const { data, error } = await supabase.from('users').select(USER_PUBLIC_COLUMNS).order('created_at', { ascending: false });

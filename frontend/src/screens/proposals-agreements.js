@@ -5732,7 +5732,8 @@ export {
 export const proposalsAgreementsScreen = {
   load: ({ api, state }) => {
     if (!canAccessProposalsAgreements(state)) return Promise.resolve({ rows: [], unauthorized: true });
-    return api.proposalsAgreements();
+    // First metadata page only; remaining pages append in bind for progressive completeness.
+    return api.proposalsAgreements({ limit: 50, offset: 0, includeLinkedDocuments: false });
   },
   render(data = {}, { state } = {}) {
     if (data?.unauthorized || !canAccessProposalsAgreements(state)) {
@@ -5836,6 +5837,77 @@ export const proposalsAgreementsScreen = {
         phone:        text(enriched.phone) || contactDisplayPhone(contact),
         email:        text(enriched.email) || text(contact.email)
       };
+    };
+    const ensureEditorDeps = async () => {
+      if (data?._editorDepsLoaded) return;
+      if (typeof api.proposalsAgreementsEditorDeps !== 'function') {
+        data._editorDepsLoaded = true;
+        return;
+      }
+      const deps = await api.proposalsAgreementsEditorDeps();
+      data.activityNameOptions = Array.isArray(deps?.activityNameOptions) ? deps.activityNameOptions : [];
+      data.proposalActivityPricing = Array.isArray(deps?.proposalActivityPricing) ? deps.proposalActivityPricing : [];
+      data.proposalTemplateSections = Array.isArray(deps?.proposalTemplateSections) ? deps.proposalTemplateSections : [];
+      data.proposalActivityGroups = Array.isArray(deps?.proposalActivityGroups) ? deps.proposalActivityGroups : data.proposalActivityGroups;
+      data.proposalGroupAliases = Array.isArray(deps?.proposalGroupAliases) ? deps.proposalGroupAliases : data.proposalGroupAliases;
+      data.schoolCalendarRows = Array.isArray(deps?.schoolCalendarRows) ? deps.schoolCalendarRows : [];
+      data._editorDepsLoaded = true;
+      activityNameOptions.splice(0, activityNameOptions.length, ...Array.from(new Set(data.activityNameOptions.map((v) => text(v)).filter(Boolean))));
+      proposalActivityPricing.splice(0, proposalActivityPricing.length, ...data.proposalActivityPricing);
+      setProposalGroupLookups(data, data.rows, proposalActivityPricing);
+      setProposalPricingLookup(proposalActivityPricing);
+      proposalTemplateSections.splice(0, proposalTemplateSections.length, ...normalizeTemplateSections(data.proposalTemplateSections));
+      proposalSchoolCalendarRows = data.schoolCalendarRows;
+    };
+    const appendRemainingProposalPages = async () => {
+      if (!data?._hasMore || data._pagingInFlight || typeof api.proposalsAgreements !== 'function') return;
+      data._pagingInFlight = true;
+      try {
+        let offset = Number(data._offset || 0) + Number(data._limit || 50);
+        while (data._hasMore) {
+          const next = await api.proposalsAgreements({
+            limit: Number(data._limit || 50),
+            offset,
+            includeLinkedDocuments: false
+          });
+          const nextRows = Array.isArray(next?.rows) ? next.rows : [];
+          const seen = new Set((data.rows || []).map((row) => text(row?.id)).filter(Boolean));
+          const merged = nextRows.filter((row) => {
+            const id = text(row?.id);
+            if (!id || seen.has(id)) return false;
+            seen.add(id);
+            return true;
+          });
+          data.rows = [...(data.rows || []), ...merged];
+          data._hasMore = Boolean(next?._hasMore) && nextRows.length > 0;
+          data._offset = Number(next?._offset || offset);
+          offset = Number(next?._offset || offset) + Number(next?._limit || data._limit || 50);
+          rerender?.();
+          if (!nextRows.length) break;
+        }
+      } catch {
+        data._hasMore = false;
+      } finally {
+        data._pagingInFlight = false;
+      }
+    };
+    appendRemainingProposalPages();
+    const ensureProposalDetailRow = async (row) => {
+      const id = text(row?.id);
+      if (!id || typeof api.proposalAgreementDetail !== 'function') return row;
+      const needsDetail = !(row?.document_snapshot && typeof row.document_snapshot === 'object')
+        && !text(row?.document_html_snapshot);
+      if (!needsDetail && row?.signature_meta != null && row?.custom_document_sections != null) return row;
+      try {
+        const detailed = await api.proposalAgreementDetail(id);
+        if (!detailed) return row;
+        const merged = { ...row, ...detailed };
+        const idx = data.rows.findIndex((item) => text(item.id) === id);
+        if (idx >= 0) data.rows[idx] = { ...data.rows[idx], ...detailed };
+        return merged;
+      } catch {
+        return row;
+      }
     };
     let debounceTimer = null;
     let clientSearchDebounceTimer = null;
@@ -6041,8 +6113,9 @@ export const proposalsAgreementsScreen = {
     const openProposalDetails = async (proposalId, { clientKeyHint = '', returnTo = '', openSource = '' } = {}) => {
       const id = text(proposalId);
       if (!id) return;
-      const row = rowWithCentralContact(data.rows.find((item) => text(item.id) === id));
+      let row = rowWithCentralContact(data.rows.find((item) => text(item.id) === id));
       if (!row) return;
+      row = rowWithCentralContact(await ensureProposalDetailRow(row));
       const resolvedReturnTo = resolveProposalReturnTo(returnTo, clientKeyHint);
       const nextClientKey = text(clientKeyHint) || selectedClientKey || clientFileKey(row);
       const resolvedOpenSource = text(openSource)
@@ -7227,6 +7300,8 @@ export const proposalsAgreementsScreen = {
         clientKey: selectedClientKey,
         list: originMode === 'all-proposals' ? captureListViewState() : null
       };
+      await ensureEditorDeps();
+      if (mode === 'edit' && text(row.id)) row = await ensureProposalDetailRow(row);
       row = enrichProposalRowFromContactOptions(row, contactOptions);
       setFormTabLabel(mode);
       setViewMode('proposal-editor');

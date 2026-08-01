@@ -8,6 +8,9 @@ import { supabase } from './supabase-client.js';
  * The list only needs upload metadata. A signed Storage URL is created later,
  * when the user explicitly opens a file. Avoiding one signing request per row
  * removes a large burst of parallel Storage calls on every screen load.
+ *
+ * Honors optional limit/offset/fromDate/toDate from the API call site so ops
+ * can scope summer windows without truncating unexpectedly.
  */
 (function installCompletionApprovalPerformanceRuntime() {
   'use strict';
@@ -33,12 +36,26 @@ import { supabase } from './supabase-client.js';
     return currentUserIdentityValues().some((id) => ACTIVE_INSTRUCTOR_EMP_IDS.has(id));
   }
 
-  api.completionApprovalUploads = async function optimizedCompletionApprovalUploads() {
+  api.completionApprovalUploads = async function optimizedCompletionApprovalUploads({
+    limit = null,
+    offset = 0,
+    fromDate = '',
+    toDate = ''
+  } = {}) {
     const role = String(state?.user?.role || '').trim();
     let query = supabase
       .from('activity_completion_approval_uploads')
       .select(UPLOAD_METADATA_COLUMNS)
+      .order('activity_date', { ascending: false, nullsFirst: false })
       .order('uploaded_at', { ascending: false });
+
+    if (fromDate) query = query.gte('activity_date', fromDate);
+    if (toDate) query = query.lte('activity_date', toDate);
+    if (limit != null) {
+      const pageSize = Math.max(1, Number(limit) || 50);
+      const pageOffset = Math.max(0, Number(offset) || 0);
+      query = query.range(pageOffset, pageOffset + pageSize - 1);
+    }
 
     if (role === 'instructor') {
       if (!isActiveInstructorPilotUser()) return { rows: [], _source: 'supabase' };
