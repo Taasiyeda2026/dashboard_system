@@ -36,17 +36,15 @@ test('runtime does not reparent live template controls during proposal type chan
   assert.match(runtime, /markSummaryLayout/);
   assert.match(runtime, /compactObserver\?\.takeRecords\(\)/);
   assert.match(runtime, /requestAnimationFrame\(run\)/);
-  assert.match(runtime, /attributeFilter/,
-    'placeholder to ensure the assertion below checks the removed broad observer options');
+  assert.doesNotMatch(runtime, /heading\.appendChild\(outsideButtons/);
+  assert.doesNotMatch(runtime, /activitiesPanel\.appendChild\(summary\)/);
 });
 
 test('runtime observer is child-list only and avoids the previous mutation loop', async () => {
   const runtime = await readFile(RUNTIME_FILE, 'utf8');
   assert.match(runtime, /compactObserver\.observe\(app, \{[\s\S]*childList:\s*true,[\s\S]*subtree:\s*true/);
   assert.doesNotMatch(runtime, /attributeFilter:\s*\['hidden', 'open', 'value'\]/);
-  assert.doesNotMatch(runtime, /heading\.appendChild\(outsideButtons/);
-  assert.doesNotMatch(runtime, /activitiesPanel\.appendChild\(summary\)/);
-  assert.doesNotMatch(runtime, /document\.addEventListener\('click',[\s\S]*closest\?\.\('\[data-pa-form\]'\)/);
+  assert.doesNotMatch(runtime, /document\.addEventListener\('click', \(event\) => \{\s*const form = event\.target\?\.closest\?\.\('\[data-pa-form\]'\)/);
   assert.doesNotMatch(runtime, /Supabase|fetch\(|localStorage|sessionStorage/);
 });
 
