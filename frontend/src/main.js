@@ -553,6 +553,10 @@ async function refreshPendingApprovedProposalsCount() {
     return;
   }
   try {
+    if (typeof api.proposalsPendingApprovedCount === 'function') {
+      setPendingApprovedProposalsCount(await api.proposalsPendingApprovedCount());
+      return;
+    }
     const data = await api.proposalsAgreements();
     const rows = Array.isArray(data?.rows) ? data.rows : [];
     setPendingApprovedProposalsCount(countPendingApprovedProposals(rows));
@@ -1132,9 +1136,11 @@ function closeMobileNav() {
 
 function buildScreenDataCacheKey(route, cacheState = state) {
   const activityPeriod = normalizeGlobalActivityPeriod(cacheState?.activityPeriodTab || 'regular');
-  const withActivityPeriod = (base) => `${base}:period:${activityPeriod}`;
+  // Projection/version stamp so 2026/2027 and list-shape changes never share one cache entry.
+  const projection = 'p2';
+  const withActivityPeriod = (base) => `${base}:period:${activityPeriod}:proj:${projection}`;
   if (route === 'activities') {
-    return 'activities:periods';
+    return `activities:periods:proj:${projection}`;
   }
   if (route === 'dashboard') {
     const ym = cacheState.dashboardMonthYm && /^\d{4}-\d{2}$/.test(cacheState.dashboardMonthYm) ? cacheState.dashboardMonthYm : 'default';
@@ -1142,7 +1148,7 @@ function buildScreenDataCacheKey(route, cacheState = state) {
   }
   if (route === 'archive') {
     const archivePeriod = normalizeGlobalActivityPeriod(cacheState?.archiveActivityPeriod || activityPeriod);
-    return `archive:period:${archivePeriod}`;
+    return `archive:period:${archivePeriod}:proj:${projection}`;
   }
   if (route === 'week') {
     return withActivityPeriod(`week:${cacheState.weekOffset || 0}`);
@@ -1154,10 +1160,22 @@ function buildScreenDataCacheKey(route, cacheState = state) {
   if (route === 'exceptions') {
     return withActivityPeriod(route);
   }
-  if (['archive', 'operations-management', 'instructor-completion-approvals'].includes(route)) {
+  if (route === 'end-dates') {
+    return withActivityPeriod('end-dates');
+  }
+  if (['operations-management', 'instructor-completion-approvals'].includes(route)) {
     return withActivityPeriod(route);
   }
-  return route;
+  if (route === 'proposals-agreements') {
+    return `proposals-agreements:list:proj:${projection}`;
+  }
+  if (route === 'contacts') {
+    return `contacts:list:proj:${projection}`;
+  }
+  if (route === 'instructors') {
+    return withActivityPeriod('instructors:list');
+  }
+  return `${route}:proj:${projection}`;
 }
 
 function screenDataCacheKey() {

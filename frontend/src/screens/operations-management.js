@@ -2712,10 +2712,20 @@ export async function loadOperationsTabData(api, tab) {
     api.instructorSchedulePrintContacts ? api.instructorSchedulePrintContacts().catch(() => ({ rows: [] })) : Promise.resolve({ rows: [] })
   ];
   if (key === TAB_COMPLETION_APPROVAL) {
+    // Summer-2026 window only; metadata without signed URLs. Directory/contacts stay tab-scoped.
     sharedReads.push(
-      api.completionApprovalUploads().catch(() => ({ rows: [] })),
-      api.schoolContactResponsibles().catch(() => ({ rows: [] })),
-      api.photoApprovalUploads ? api.photoApprovalUploads().catch(() => ({ rows: [] })) : Promise.resolve({ rows: [] })
+      api.completionApprovalUploads({
+        fromDate: SUMMER_2026_FROM,
+        toDate: SUMMER_2026_TO,
+        limit: null
+      }).catch(() => ({ rows: [] })),
+      api.schoolContactResponsibles({
+        fromDate: SUMMER_2026_FROM,
+        toDate: SUMMER_2026_TO
+      }).catch(() => ({ rows: [] })),
+      api.photoApprovalUploads
+        ? api.photoApprovalUploads({ limit: null }).catch(() => ({ rows: [] }))
+        : Promise.resolve({ rows: [] })
     );
   }
   const [schoolsDirectory, contactsSchoolsRows, instructorSchedulePrintContacts, completionApprovalUploads, contactResponsibles, photoApprovalUploads] = await Promise.all(sharedReads);
@@ -2734,9 +2744,16 @@ export async function loadOperationsTabData(api, tab) {
 
 export const operationsManagementScreen = {
   load: async ({ api, state }) => {
-    const tabKey = operationsTabDataKey(_opsNeedsEntryReset ? TAB_INSTRUCTORS : ensureOpsState(state || {}).tab);
+    const ops = ensureOpsState(state || {});
+    const tabKey = operationsTabDataKey(_opsNeedsEntryReset ? TAB_INSTRUCTORS : ops.tab);
+    const dateFrom = String(ops.dateFrom || '').trim();
+    const dateTo = String(ops.dateTo || '').trim();
     const [activities, tabData] = await Promise.all([
-      api.allActivities(),
+      api.allActivities({
+        activity_period: state?.activityPeriodTab,
+        startDate: dateFrom,
+        endDate: dateTo
+      }),
       loadOperationsTabData(api, tabKey)
     ]);
     return {

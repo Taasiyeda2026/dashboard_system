@@ -43,7 +43,12 @@ async function loadTrainings(){
   return Array.isArray(res.data)?res.data:[];
 }
 async function loadActivities(){
-  const res=await supabase.from('activities').select('*').eq('activity_season','summer_2026');
+  const columns=[
+    'row_id','activity_name','activity_type','item_type','activity_season','status',
+    'instructor_name','instructor_name_2','start_date','end_date',
+    ...Array.from({length:35},(_,i)=>`date_${i+1}`)
+  ].join(',');
+  const res=await supabase.from('activities').select(columns).eq('activity_season','summer_2026');
   if(res.error)throw res.error;
   return (Array.isArray(res.data)?res.data:[])
     .filter((row)=>!isActivityDeleted(row))

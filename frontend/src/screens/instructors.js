@@ -266,8 +266,9 @@ export function bindInstructorConstraintsModal(modalRoot, {
 
 export const instructorsScreen = {
   async load({ api }) {
-    const [base, contacts, scheduling] = await Promise.all([api.instructors(), api.instructorContacts(), loadInstructorSchedulingData()]);
-    return { ...base, rows: mergeRows(base, contacts, scheduling), scheduling };
+    // List entry: instructor cards + contacts only. Scheduling rules/exceptions load on open.
+    const [base, contacts] = await Promise.all([api.instructors(), api.instructorContacts()]);
+    return { ...base, rows: mergeRows(base, contacts, null), scheduling: null, _schedulingLoaded: false };
   },
 
   render(data, { state } = {}) {
@@ -302,7 +303,15 @@ export const instructorsScreen = {
       document.dispatchEvent(new CustomEvent('app:navigate', { detail: { route: 'instructor-contacts' } }));
     });
 
-    const refresh = async (row) => { const scheduling = await loadInstructorSchedulingData(); data.scheduling = scheduling; replaceScheduling(row, scheduling); };
+    const ensureScheduling = async () => {
+      if (data?._schedulingLoaded && data?.scheduling?.loaded) return data.scheduling;
+      const scheduling = await loadInstructorSchedulingData();
+      data.scheduling = scheduling;
+      data._schedulingLoaded = true;
+      (data.rows || []).forEach((row) => replaceScheduling(row, scheduling));
+      return scheduling;
+    };
+    const refresh = async (row) => { const scheduling = await loadInstructorSchedulingData(); data.scheduling = scheduling; data._schedulingLoaded = true; replaceScheduling(row, scheduling); };
     const openActivity = async (activity) => {
       if (!ui) return;
       const id = activity.row_id || activity.RowID || activity.source_row_id;
@@ -313,8 +322,23 @@ export const instructorsScreen = {
       api.activityDates(id, activity.source_sheet || 'activities').then((dates) => { const section = document.querySelector('[data-dates-section]'); if (section) patchDrawerDatesSection(section, dates); }).catch(() => {});
     };
 
-    const openProfile = (row) => {
+    const openProfile = async (row) => {
       if (!row || !ui) return;
+      await ensureScheduling();
+      const historyKey = text(row.emp_id || row.full_name);
+      if (data._historyEmpId !== historyKey || !Array.isArray(data.detail_rows) || !data.detail_rows.length) {
+        try {
+          const history = typeof api.instructorActivityHistory === 'function'
+            ? await api.instructorActivityHistory({ empId: row.emp_id, instructorName: row.full_name || row.instructor_name })
+            : await api.activities({ activity_type: 'all' });
+          data.detail_rows = Array.isArray(history?.rows) ? history.rows : [];
+          data._historyEmpId = historyKey;
+          data.activities_loaded = true;
+        } catch {
+          data.detail_rows = [];
+          data._historyEmpId = historyKey;
+        }
+      }
       const activities = activitiesFor(data, row);
       const reopen = () => requestAnimationFrame(() => openProfile(row));
       ui.openDrawer({ title: row.full_name || row.emp_id, content: profileHtml(row, activities, canEdit, !!data?.scheduling?.loaded) });
@@ -326,7 +350,8 @@ export const instructorsScreen = {
       });
     };
 
-    const openMatching = (row, reopen) => {
+    const openMatching = async (row, reopen) => {
+      await ensureScheduling();
       if (!canEdit || !data?.scheduling?.loaded) return;
       ui.closeDrawer?.();
       const uniqueOptions = (items) => [...new Map(items.filter(item => item.value).map(item => [item.value, item])).values()].sort((a,b) => a.label.localeCompare(b.label, 'he'));
@@ -360,7 +385,8 @@ export const instructorsScreen = {
       };
     };
 
-    const openConstraints = (row, reopen) => {
+    const openConstraints = async (row, reopen) => {
+      await ensureScheduling();
       if (!canEdit || !data?.scheduling?.loaded) return;
       ui.closeDrawer?.();
       ui.openModal({ title: `זמינות ואילוצים — ${row.full_name || row.emp_id}`, modalClass: 'ds-modal--instructor-constraints', content: constraintsForm(row), actions: '<button type="button" class="ds-btn" data-ui-close-modal>סגירה</button><button type="button" class="ds-btn ds-btn--primary" data-save-instructor-constraints>שמירת זמינות</button>' });

@@ -228,7 +228,11 @@ function renderArchiveTableSection(rows, state, allRowsCount = rows.length) {
 
 export const archiveScreen = {
   async load({ api, state }) {
-    return api.archiveActivities({ activity_period: state?.archiveActivityPeriod || state?.activityPeriodTab });
+    return api.archiveActivities({
+      activity_period: state?.archiveActivityPeriod || state?.activityPeriodTab,
+      limit: ARCHIVE_DEFAULT_VISIBLE_LIMIT,
+      offset: 0
+    });
   },
 
   render(data, { state }) {
@@ -270,7 +274,8 @@ export const archiveScreen = {
         <h2 class="ds-activities-page-title">ארכיון פעילויות · ${filteredRows.length} פעילויות סגורות</h2>
       </div>`;
 
-    const tableSection = `<div data-archive-table-section>${renderArchiveTableSection(filteredRows, state, allRows.length)}</div>`;
+    const loadedCount = allRows.length + (data?._hasMore ? 1 : 0);
+    const tableSection = `<div data-archive-table-section>${renderArchiveTableSection(filteredRows, state, loadedCount)}</div>`;
 
     return dsScreenStack(`
       <section class="ds-activities-screen ds-activities-screen--archive">
@@ -283,7 +288,7 @@ export const archiveScreen = {
   },
 
   bind({ root, data, state, rerender, ui, api }) {
-    const allRows = Array.isArray(data?.rows) ? data.rows : [];
+    const rowsRef = () => (Array.isArray(data?.rows) ? data.rows : []);
     const canSeePrivateNotes = ['operation_manager', 'admin'].includes(state?.user?.display_role);
     const hideEmpIds = !!state?.clientSettings?.hide_emp_id_on_screens;
     const hideRowId = !!state?.clientSettings?.hide_row_id_in_ui;
@@ -297,18 +302,22 @@ export const archiveScreen = {
       return acc;
     }, {});
 
-    prepareRowsForSearch(allRows, ARCHIVE_SEARCH_FIELDS);
+    prepareRowsForSearch(rowsRef(), ARCHIVE_SEARCH_FIELDS);
 
     const rerenderLocal = () => rerender();
     const tableContainer = root.querySelector('[data-archive-table-section]');
     let searchTimer;
     let searchFrame;
+    let archivePageInFlight = false;
 
     const replaceArchiveView = () => {
+      const allRows = rowsRef();
+      prepareRowsForSearch(allRows, ARCHIVE_SEARCH_FIELDS);
       const filteredRows = applyArchiveFilters(allRows, state);
       const yearScopedRows = applyArchiveYearFilter(allRows, state);
+      const loadedCount = allRows.length + (data?._hasMore ? 1 : 0);
       if (tableContainer) {
-        tableContainer.innerHTML = renderArchiveTableSection(filteredRows, state, allRows.length);
+        tableContainer.innerHTML = renderArchiveTableSection(filteredRows, state, loadedCount);
       }
       const kpiRow = root.querySelector('.ds-archive-kpi-row');
       if (kpiRow) {
@@ -367,11 +376,38 @@ export const archiveScreen = {
       rerenderLocal();
     });
 
-    root.addEventListener('click', (ev) => {
+    root.addEventListener('click', async (ev) => {
       const showMoreBtn = ev.target.closest(`[data-list-show-more="${ARCHIVE_SCOPE}"]`);
       if (!showMoreBtn) return;
       const next = Number(showMoreBtn.dataset?.nextCount || ARCHIVE_DEFAULT_VISIBLE_LIMIT);
       ensureActivityListFilters(state, ARCHIVE_SCOPE).visibleCount = next;
+      if (data?._hasMore && !archivePageInFlight && typeof api?.archiveActivities === 'function') {
+        archivePageInFlight = true;
+        showMoreBtn.disabled = true;
+        try {
+          const page = await api.archiveActivities({
+            activity_period: state?.archiveActivityPeriod || state?.activityPeriodTab,
+            limit: ARCHIVE_DEFAULT_VISIBLE_LIMIT,
+            offset: rowsRef().length
+          });
+          const incoming = Array.isArray(page?.rows) ? page.rows : [];
+          const seen = new Set(rowsRef().map((row) => String(row?.RowID || row?.row_id || '').trim()).filter(Boolean));
+          data.rows = [
+            ...rowsRef(),
+            ...incoming.filter((row) => {
+              const id = String(row?.RowID || row?.row_id || '').trim();
+              if (!id || seen.has(id)) return false;
+              seen.add(id);
+              return true;
+            })
+          ];
+          data._hasMore = Boolean(page?._hasMore) && incoming.length > 0;
+        } catch {
+          /* keep already loaded pages */
+        } finally {
+          archivePageInFlight = false;
+        }
+      }
       replaceArchiveView();
     });
 
@@ -526,7 +562,7 @@ export const archiveScreen = {
       const row = ev.target.closest('[data-row-id]');
       if (!row) return;
       const rowId = String(row.dataset.rowId || '').trim();
-      const summaryRow = allRows.find((r) => String(r?.RowID || '') === rowId);
+      const summaryRow = rowsRef().find((r) => String(r?.RowID || '') === rowId);
       if (summaryRow) openDetail(summaryRow);
     });
   }
