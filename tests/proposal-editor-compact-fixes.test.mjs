@@ -29,15 +29,24 @@ test('proposal editor CSS is scoped, flat and keeps the requested control sizes'
   assert.doesNotMatch(css, /(?:^|\n)\s*(?:button|\.ds-btn)\s*\{/m, 'no unscoped global button rules are allowed');
 });
 
-test('runtime flattens activities and keeps field names and data untouched', async () => {
+test('runtime does not reparent live template controls during proposal type changes', async () => {
   const runtime = await readFile(RUNTIME_FILE, 'utf8');
-  assert.match(runtime, /locked\.classList\.toggle\('is-authority'/);
-  assert.match(runtime, /extraBody\.appendChild\(noteDetails\)/);
-  assert.match(runtime, /discountDetails\.appendChild\(notesField\)/);
-  assert.match(runtime, /activitiesPanel\.appendChild\(summary\)/);
-  assert.match(runtime, /compactActivitiesHeading/);
-  assert.match(runtime, /markDuplicateEditorTotals/);
-  assert.match(runtime, /MutationObserver/);
+  assert.match(runtime, /restoreLegacyMovedNodes/);
+  assert.match(runtime, /markActivitiesLayout/);
+  assert.match(runtime, /markSummaryLayout/);
+  assert.match(runtime, /compactObserver\?\.takeRecords\(\)/);
+  assert.match(runtime, /requestAnimationFrame\(run\)/);
+  assert.match(runtime, /attributeFilter/,
+    'placeholder to ensure the assertion below checks the removed broad observer options');
+});
+
+test('runtime observer is child-list only and avoids the previous mutation loop', async () => {
+  const runtime = await readFile(RUNTIME_FILE, 'utf8');
+  assert.match(runtime, /compactObserver\.observe\(app, \{[\s\S]*childList:\s*true,[\s\S]*subtree:\s*true/);
+  assert.doesNotMatch(runtime, /attributeFilter:\s*\['hidden', 'open', 'value'\]/);
+  assert.doesNotMatch(runtime, /heading\.appendChild\(outsideButtons/);
+  assert.doesNotMatch(runtime, /activitiesPanel\.appendChild\(summary\)/);
+  assert.doesNotMatch(runtime, /document\.addEventListener\('click',[\s\S]*closest\?\.\('\[data-pa-form\]'\)/);
   assert.doesNotMatch(runtime, /Supabase|fetch\(|localStorage|sessionStorage/);
 });
 
@@ -46,6 +55,6 @@ test('frontend hotfix and service worker cache versions are bumped together', as
     readFile(CONFIG_FILE, 'utf8'),
     readFile(SW_FILE, 'utf8')
   ]);
-  assert.match(config, /proposal-editor-flat-layout-20260801-v1/);
-  assert.match(sw, /const CACHE_VERSION = 1332;/);
+  assert.match(config, /proposal-template-switch-stability-20260801-v1/);
+  assert.match(sw, /const CACHE_VERSION = 1333;/);
 });
