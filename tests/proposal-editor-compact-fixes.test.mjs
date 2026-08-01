@@ -15,8 +15,8 @@ test('proposal editor compact assets are loaded after the shared dashboard style
   const compactStyle = html.indexOf('./frontend/src/styles/proposal-editor-compact-fixes.css');
   assert.ok(mainStyle >= 0, 'main stylesheet should remain loaded');
   assert.ok(compactStyle > mainStyle, 'proposal editor overrides should load after main.css');
-  assert.match(html, /frontend\/src\/proposal-editor-compact-fixes\.js\?v=20260801-v5/);
-  assert.match(html, /proposal-editor-compact-fixes\.css\?v=20260801-v5/);
+  assert.match(html, /frontend\/src\/proposal-editor-compact-fixes\.js\?v=20260801-v6/);
+  assert.match(html, /proposal-editor-compact-fixes\.css\?v=20260801-v6/);
 });
 
 test('proposal editor CSS is scoped, flat and keeps the requested control sizes', async () => {
@@ -98,7 +98,7 @@ test('recipient date, domain and type are owned by formHtml with no runtime rear
   assert.doesNotMatch(runtime, /recipientField\.hidden = form\.classList\.contains\('has-locked-client'\)/);
   assert.doesNotMatch(runtime, /contactPanel\.hidden = !recipientReady/);
   assert.match(css, /\[data-pa-recipient-meta-row\]/);
-  assert.match(css, /grid-template-columns:\s*180px 140px 300px 320px/);
+  assert.match(css, /grid-template-columns:\s*130px 130px 300px 320px/);
   assert.doesNotMatch(css, /overflow-x:\s*auto/);
 });
 
@@ -107,7 +107,7 @@ test('frontend hotfix and service worker cache versions are bumped together', as
     readFile(CONFIG_FILE, 'utf8'),
     readFile(SW_FILE, 'utf8')
   ]);
-  assert.match(config, /recipient-single-row-grid-20260801-v1/);
-  assert.match(config, /proposal-recipient-search-row-fix\.js\?v=20260801-v9/);
-  assert.match(sw, /const CACHE_VERSION = 1350;/);
+  assert.match(config, /recipient-date-domain-130-20260801-v1/);
+  assert.match(config, /proposal-recipient-search-row-fix\.js\?v=20260801-v10/);
+  assert.match(sw, /const CACHE_VERSION = 1351;/);
 });

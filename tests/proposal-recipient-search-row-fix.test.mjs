@@ -22,7 +22,8 @@ test('single CSS source lays out date, domain, type and recipient flow in one ro
   const css = await readFile(CSS_FILE, 'utf8');
   assert.match(css, /\[data-pa-recipient-meta-row\]/);
   assert.match(css, /ds-pa-recipient-main-row/);
-  assert.match(css, /grid-template-columns:\s*180px 140px 300px 320px/);
+  assert.match(css, /grid-template-columns:\s*130px 130px 300px 320px/);
+  assert.match(css, /grid-template-columns:\s*130px 130px 300px max-content/);
   assert.match(css, /align-items:\s*end/);
   assert.match(css, /--recipient-control-height:\s*40px/);
   assert.match(css, /--recipient-border-color:\s*#cbd5e1/);
@@ -61,7 +62,7 @@ test('final recipient asset and cache versions are bumped together', async () =>
     readFile(CONFIG_FILE, 'utf8'),
     readFile(SW_FILE, 'utf8')
   ]);
-  assert.match(config, /proposal-recipient-search-row-fix\.js\?v=20260801-v9/);
-  assert.match(config, /recipient-single-row-grid-20260801-v1/);
-  assert.match(sw, /const CACHE_VERSION = 1350;/);
+  assert.match(config, /proposal-recipient-search-row-fix\.js\?v=20260801-v10/);
+  assert.match(config, /recipient-date-domain-130-20260801-v1/);
+  assert.match(sw, /const CACHE_VERSION = 1351;/);
 });
