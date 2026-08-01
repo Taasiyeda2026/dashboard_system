@@ -48,13 +48,35 @@ test('runtime observer is child-list only and avoids the previous mutation loop'
   assert.doesNotMatch(runtime, /Supabase|fetch\(|localStorage|sessionStorage/);
 });
 
-test('contact channel editing includes an explicit save button that uses the existing save flow', async () => {
+test('contact channel editing restores the selected contact source and includes an explicit save button', async () => {
   const runtime = await readFile(RUNTIME_FILE, 'utf8');
+  assert.match(runtime, /selectedContactPayload/);
+  assert.match(runtime, /hydrateContactSourceFromPicker/);
+  assert.match(runtime, /option:checked\[data-pa-contact-option\]/);
+  assert.match(runtime, /sourceIdInput\.value = sourceId/);
   assert.match(runtime, /ensureContactSaveButton/);
   assert.match(runtime, /dataset\.paContactChannelsSave = 'true'/);
   assert.match(runtime, /שמירת פרטי קשר/);
   assert.match(runtime, /target\.dispatchEvent\(new Event\('change', \{ bubbles: true \}\)\)/);
-  assert.match(runtime, /input\[name="contact_source_id"\]/);
+});
+
+test('next-year workshop editor rows stay on one compact line', async () => {
+  const runtime = await readFile(RUNTIME_FILE, 'utf8');
+  assert.match(runtime, /normalizeNextYearWorkshopRows/);
+  assert.match(runtime, /data-pa-items-group="next_year_workshops"/);
+  assert.match(runtime, /grid-template-columns', '400px 72px max-content 34px'/);
+  assert.match(runtime, /grid-template-rows', '36px'/);
+  assert.match(runtime, /grid-row', '1'/);
+});
+
+test('recipient type, proposal date and domain are arranged in one row', async () => {
+  const runtime = await readFile(RUNTIME_FILE, 'utf8');
+  assert.match(runtime, /arrangeRecipientDateDomainRow/);
+  assert.match(runtime, /data-pa-recipient-meta-row/);
+  assert.match(runtime, /grid-template-columns', '160px 120px max-content'/);
+  assert.match(runtime, /input\[name="proposal_date"\]/);
+  assert.match(runtime, /select\[name="proposal_domain"\]/);
+  assert.match(runtime, /\.ds-pa-recipient-type/);
 });
 
 test('frontend hotfix and service worker cache versions are bumped together', async () => {
@@ -62,6 +84,8 @@ test('frontend hotfix and service worker cache versions are bumped together', as
     readFile(CONFIG_FILE, 'utf8'),
     readFile(SW_FILE, 'utf8')
   ]);
-  assert.match(config, /proposal-contact-save-button-20260801-v1/);
-  assert.match(sw, /const CACHE_VERSION = 1334;/);
+  assert.match(config, /proposal-contact-edit-source-recovery-20260801-v1/);
+  assert.match(config, /nextyear-workshop-row-20260801-v1/);
+  assert.match(config, /recipient-meta-single-row-20260801-v1/);
+  assert.match(sw, /const CACHE_VERSION = 1335;/);
 });
