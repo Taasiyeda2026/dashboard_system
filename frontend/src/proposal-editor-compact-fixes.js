@@ -85,6 +85,50 @@ function markDuplicateEditorTotals(form) {
     .forEach((element) => element.classList.add('is-duplicate-editor-total'));
 }
 
+function ensureContactSaveButton(form) {
+  const fieldsBlock = form.querySelector('[data-pa-contact-channels-fields]');
+  if (!fieldsBlock) return;
+
+  const sourceId = String(form.querySelector('input[name="contact_source_id"]')?.value || '').trim();
+  const existing = fieldsBlock.querySelector('[data-pa-contact-channels-save]');
+  if (!sourceId) {
+    existing?.remove();
+    return;
+  }
+  if (existing) return;
+
+  const button = document.createElement('button');
+  button.type = 'button';
+  button.className = 'ds-btn ds-btn--sm ds-btn--primary';
+  button.dataset.paContactChannelsSave = 'true';
+  button.textContent = 'שמירת פרטי קשר';
+  button.setAttribute('aria-label', 'שמירת פרטי איש הקשר');
+  button.style.alignSelf = 'end';
+  button.style.whiteSpace = 'nowrap';
+  button.style.marginInlineStart = '8px';
+  fieldsBlock.appendChild(button);
+}
+
+function triggerContactSave(button) {
+  const form = button?.closest?.('[data-pa-form]');
+  const fieldsBlock = button?.closest?.('[data-pa-contact-channels-fields]');
+  if (!form || !fieldsBlock || button.disabled) return;
+
+  const target = fieldsBlock.querySelector('input[name="phone"]')
+    || fieldsBlock.querySelector('input[name="email"]');
+  if (!target) return;
+
+  button.disabled = true;
+  button.textContent = 'שומר...';
+  target.dispatchEvent(new Event('change', { bubbles: true }));
+
+  setTimeout(() => {
+    if (!button.isConnected) return;
+    button.disabled = false;
+    button.textContent = 'שמירת פרטי קשר';
+  }, 1200);
+}
+
 function markProposalType(form) {
   const type = String(form.querySelector('[name="activity_type_group"]')?.value || '').trim();
   if (type) {
@@ -103,6 +147,7 @@ function compactEditor(form) {
   markActivitiesLayout(form);
   markSummaryLayout(form);
   markDuplicateEditorTotals(form);
+  ensureContactSaveButton(form);
   markProposalType(form);
   if (form.dataset.paCompactLayoutApplied !== 'true') form.dataset.paCompactLayoutApplied = 'true';
 }
@@ -150,8 +195,16 @@ if (typeof document !== 'undefined') {
   });
 
   document.addEventListener('click', (event) => {
+    const contactSaveButton = event.target?.closest?.('[data-pa-contact-channels-save]');
+    if (contactSaveButton) {
+      event.preventDefault();
+      triggerContactSave(contactSaveButton);
+      return;
+    }
+
     const typeButton = event.target?.closest?.('[data-pa-type-btn]');
-    const form = typeButton?.closest?.('[data-pa-form]');
+    const contactToggle = event.target?.closest?.('[data-pa-contact-channels-toggle]');
+    const form = (typeButton || contactToggle)?.closest?.('[data-pa-form]');
     if (form) setTimeout(() => scheduleCompact(form), 0);
   });
 
@@ -175,5 +228,7 @@ export {
   markActivitiesLayout,
   markSummaryLayout,
   markDuplicateEditorTotals,
+  ensureContactSaveButton,
+  triggerContactSave,
   scheduleCompact
 };
