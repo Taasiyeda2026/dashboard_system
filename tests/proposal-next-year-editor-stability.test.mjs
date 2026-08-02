@@ -1,11 +1,32 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
 import { JSDOM } from 'jsdom';
-import {
+
+if (!globalThis.sessionStorage) {
+  const sessionStore = new Map();
+  globalThis.sessionStorage = {
+    getItem: (key) => sessionStore.has(key) ? sessionStore.get(key) : null,
+    setItem: (key, value) => sessionStore.set(key, String(value)),
+    removeItem: (key) => sessionStore.delete(key),
+    clear: () => sessionStore.clear()
+  };
+}
+
+if (!globalThis.localStorage) {
+  const localStore = new Map();
+  globalThis.localStorage = {
+    getItem: (key) => localStore.has(key) ? localStore.get(key) : null,
+    setItem: (key, value) => localStore.set(key, String(value)),
+    removeItem: (key) => localStore.delete(key),
+    clear: () => localStore.clear()
+  };
+}
+
+const {
   pricingRowsForNextYearGroup,
   isBlankNextYearEditorRow,
   stabilizeNextYearForm
-} from '../frontend/src/proposal-next-year-editor-stability.js';
+} = await import('../frontend/src/proposal-next-year-editor-stability.js');
 
 const course = {
   activity_name: 'אופק יזמות פרימיום בתעשייה',
