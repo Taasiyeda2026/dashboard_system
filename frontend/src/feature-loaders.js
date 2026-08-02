@@ -179,7 +179,7 @@ export function preloadScreenModule(route) {
       case 'dashboard':
         return import('./screens/dashboard.js');
       case 'activities':
-        return import('./screens/activities.js?v=20260802-scheduling-requirements-v1');
+        return import('./screens/activities.js');
       case 'week':
         return import('./screens/week.js');
       case 'month':

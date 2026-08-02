@@ -567,7 +567,7 @@ async function refreshPendingApprovedProposalsCount() {
 
 const screenLoaders = {
   dashboard: () => import('./screens/dashboard.js').then((m) => m.dashboardScreen),
-  activities: () => import('./screens/activities.js?v=20260802-scheduling-requirements-v1').then((m) => m.activitiesScreen),
+  activities: () => import('./screens/activities.js').then((m) => m.activitiesScreen),
   week: () => import('./screens/week.js').then((m) => m.weekScreen),
   month: () => import('./screens/month.js').then((m) => m.monthScreen),
   exceptions: () => import('./screens/exceptions.js').then((m) => m.exceptionsScreen),

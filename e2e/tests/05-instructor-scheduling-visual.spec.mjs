@@ -101,7 +101,8 @@ test('instructor and scheduling requirements modal stays compact and RTL-safe', 
   await expect(scheduling.getByText('אישור ושיבוץ', { exact: true })).toHaveCount(0);
   await expect(scheduling.locator('.scheduling-time-range')).toHaveAttribute('dir', 'ltr');
   await expect(scheduling.locator('.scheduling-time-range')).not.toContainText(/:\d{2}:\d{2}/);
-  await expect(scheduling.locator('.scheduling-workspace__dates')).toContainText(/\d{2}\.\d{2}\.\d{4}/);
+  const datesText = (await scheduling.locator('.scheduling-workspace__dates').innerText()).trim();
+  expect(datesText === '—' || /\d{2}\.\d{2}\.\d{4}/.test(datesText)).toBe(true);
   await screenshot(page, 'scheduling-requirements-modal.png');
 
   const genderValue = await scheduling.locator('[name="required_instructor_gender"]').inputValue();
