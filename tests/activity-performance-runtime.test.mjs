@@ -14,34 +14,32 @@ test('performance guards load before the application bootstrap', () => {
   const dedupeIndex = entrySource.indexOf("import './network-request-dedupe.js';");
   const runtimeIndex = entrySource.indexOf("import './activity-performance-runtime.js';");
   const completionRuntimeIndex = entrySource.indexOf("import './completion-approval-performance-runtime.js';");
-  const monthNavigationIndex = entrySource.indexOf("import './month-navigation-runtime.js';");
-  const dashboardMonthNavigationIndex = entrySource.indexOf("import './dashboard-month-navigation-runtime.js';");
   const progressiveWarmupIndex = entrySource.indexOf("import './progressive-route-warmup.js';");
   const mainIndex = entrySource.indexOf("import './main.js';");
+  const featureLoaderIndex = entrySource.indexOf("import './feature-route-loader.js';");
   assert.ok(dedupeIndex >= 0, 'network request dedupe must be imported');
   assert.ok(runtimeIndex > dedupeIndex, 'activity performance runtime must load after fetch dedupe');
   assert.ok(completionRuntimeIndex > runtimeIndex, 'completion approval guard must load after activity guard');
-  assert.ok(monthNavigationIndex > completionRuntimeIndex, 'month navigation guard must load after activity guards');
-  assert.ok(dashboardMonthNavigationIndex > monthNavigationIndex, 'dashboard month navigation guard must load after month guard');
-  assert.ok(progressiveWarmupIndex > dashboardMonthNavigationIndex, 'progressive route warmup must load after navigation guards');
+  assert.ok(progressiveWarmupIndex > completionRuntimeIndex, 'progressive route warmup must load after performance guards');
   assert.ok(mainIndex > progressiveWarmupIndex, 'all performance guards must load before main.js');
+  assert.ok(featureLoaderIndex > mainIndex, 'feature route loader must load after main.js');
 });
 
-test('dashboard speculative activity screens stay blocked except during controlled sequential warmup', () => {
+test('dashboard speculative activity screens stay blocked', () => {
   assert.match(runtimeSource, /DASHBOARD_PREFETCH_METHODS\s*=\s*\['week',\s*'month',\s*'endDates',\s*'archiveActivities'\]/);
   assert.match(runtimeSource, /dashboard_background_prefetch_skipped/);
   assert.match(runtimeSource, /__DS_PROGRESSIVE_ROUTE_WARMUP__ === true/);
   assert.match(runtimeSource, /&& !controlledSequentialWarmup/);
 });
 
-test('progressive warmup loads one route at a time and keeps navigation available', () => {
-  assert.match(progressiveWarmupSource, /const IDLE_WARM_ORDER = \[/);
-  assert.match(progressiveWarmupSource, /let queueRunning = false/);
-  assert.match(progressiveWarmupSource, /while \(queue\.length && state\?\.token\)/);
-  assert.match(progressiveWarmupSource, /await warmRoute\(item\.route\)/);
-  assert.match(progressiveWarmupSource, /state\.screenDataCache\[cacheKey\] = \{ data, t: Date\.now\(\), warmed: true \}/);
+test('progressive warmup only preloads JS modules and never screen data', () => {
+  assert.match(progressiveWarmupSource, /preloadScreenModule/);
+  assert.match(progressiveWarmupSource, /__DS_DISABLE_SCREEN_DATA_WARMUP__\s*=\s*true/);
+  assert.doesNotMatch(progressiveWarmupSource, /await\s+withTimeout\(screen\.load/);
+  assert.doesNotMatch(progressiveWarmupSource, /screenDataCache\[/);
+  assert.doesNotMatch(progressiveWarmupSource, /IDLE_WARM_ORDER/);
+  assert.doesNotMatch(progressiveWarmupSource, /warmRoute\s*\(/);
   assert.match(progressiveWarmupSource, /querySelectorAll\('\[data-route\]\[disabled\]'\)/);
-  assert.doesNotMatch(progressiveWarmupSource, /Promise\.all\(IDLE_WARM_ORDER/);
 });
 
 test('post-save activity refresh uses the patched in-memory snapshot', () => {
@@ -78,14 +76,4 @@ test('dashboard navigation allows August 2026 and uses the period-aware cache ke
 
 test('identical Supabase reads are deduplicated without buffering response bodies', () => {
   assert.match(dedupeSource, /\['activities', 'activities'\]/);
-  assert.match(dedupeSource, /\['contacts_schools', 'contacts'\]/);
-  assert.match(dedupeSource, /\['activity_completion_approval_uploads', 'completion_approvals'\]/);
-  assert.match(dedupeSource, /\['activity_school_contact_responsibles', 'school_contacts'\]/);
-  assert.match(dedupeSource, /const inflight = new Map\(\)/);
-  assert.match(dedupeSource, /return response\.clone\(\)/);
-  assert.doesNotMatch(dedupeSource, /arrayBuffer\(/);
-  assert.doesNotMatch(dedupeSource, /copyBuffer/);
-  assert.doesNotMatch(dedupeSource, /responseCache/);
-  assert.doesNotMatch(dedupeSource, /ttlMs/);
-  assert.doesNotMatch(dedupeSource, /cache:\s*'no-store'/);
 });

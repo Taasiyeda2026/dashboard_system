@@ -5137,7 +5137,28 @@ function buildClientFiles(data = {}) {
 
   allDisplayRows(data).forEach((proposal) => {
     const file = ensureFile(proposal);
-    if (file) file.proposals.push(proposal);
+    if (!file) return;
+    file.proposals.push(proposal);
+    // List view uses saved proposal contact fields; full contacts_schools catalog loads on editor/contact actions.
+    if (!text(proposal.contact_name)) return;
+    const fromProposal = {
+      contact_name: text(proposal.contact_name),
+      contact_role: text(proposal.contact_role),
+      mobile: text(proposal.phone),
+      phone: text(proposal.phone),
+      email: text(proposal.email),
+      authority_id: proposal.authority_id,
+      school_id: proposal.school_id,
+      source_table: 'proposal_row',
+      source_id: text(proposal.id)
+    };
+    const contactKey = clientContactIdentity(fromProposal);
+    const existingIndex = file.contacts.findIndex((item) => item._clientContactKey === contactKey);
+    if (existingIndex === -1) {
+      file.contacts.push({ ...fromProposal, _clientContactKey: contactKey });
+    } else {
+      file.contacts[existingIndex] = mergeDisplayedClientContact(file.contacts[existingIndex], fromProposal);
+    }
   });
 
   return Array.from(files.values()).sort((a, b) => {
@@ -5223,6 +5244,8 @@ function clientFileLandingHtml(data = {}, state = {}) {
     return `<section class="ds-client-queue"><header><span>${escapeHtml(label)}</span><b>${rows.length}</b></header><div>${rows.length ? rows.map(clientQueueCardHtml).join('') : '<p>אין הצעות</p>'}</div></section>`;
   }).join('');
   const canManage = canManageProposalsAgreements(state);
+  const hasMore = Boolean(data?._hasMore);
+  const pagingBusy = Boolean(data?._pagingInFlight);
   return `<div class="ds-client-home" data-pa-client-home>
     <div class="ds-client-toolbar">
       <button type="button" class="ds-btn ds-client-toolbar-button ds-btn--primary" data-pa-client-add-proposal title="יצירת הצעת מחיר חדשה">+ הצעה חדשה</button>
@@ -5231,6 +5254,7 @@ function clientFileLandingHtml(data = {}, state = {}) {
     </div>
     <div class="ds-client-search-results" data-pa-client-search-results hidden></div>
     <div class="ds-client-queues" data-pa-client-queues>${queues}</div>
+    ${hasMore ? `<div class="ds-client-load-more" data-pa-load-more-wrap><button type="button" class="ds-btn ds-btn--ghost" data-pa-load-more-proposals ${pagingBusy ? 'disabled' : ''}>${pagingBusy ? 'טוען…' : 'הצגת תיקים נוספים'}</button></div>` : ''}
   </div>`;
 }
 
@@ -5368,12 +5392,28 @@ export function updateProposalsAgreementsTableOnly(root, rows, state, options = 
   const totalCounter = root?.querySelector('[data-pa-total-count]');
   const activeHost = root?.querySelector('[data-pa-active-filters]');
   const emptyHost = root?.querySelector('[data-pa-filtered-empty-host]');
+  const tableRegion = root?.querySelector('[data-pa-table-region]');
   const totalRows = Number(options.totalRows ?? rows.length);
   if (body) body.innerHTML = proposalsAgreementsTableRowsHtml(rows, state);
   if (counter) counter.textContent = String(rows.length);
   if (totalCounter) totalCounter.textContent = String(totalRows);
   if (activeHost) activeHost.outerHTML = activeFiltersHtml(options.filters || {});
   if (emptyHost) emptyHost.innerHTML = rows.length === 0 && totalRows > 0 ? filteredOutMessageHtml(totalRows) : '';
+  if (tableRegion) {
+    let moreHost = tableRegion.querySelector('[data-pa-load-more-wrap]');
+    if (options.hasMore) {
+      if (!moreHost) {
+        moreHost = document.createElement('div');
+        moreHost.className = 'ds-pa-load-more';
+        moreHost.dataset.paLoadMoreWrap = 'true';
+        tableRegion.appendChild(moreHost);
+      }
+      moreHost.hidden = false;
+      moreHost.innerHTML = `<button type="button" class="ds-btn ds-btn--ghost" data-pa-load-more-proposals ${options.pagingBusy ? 'disabled' : ''}>${options.pagingBusy ? 'טוען…' : 'הצגת תיקים נוספים'}</button>`;
+    } else if (moreHost) {
+      moreHost.remove();
+    }
+  }
 }
 
 function updateProposalListTabCounts(root, data) {
@@ -5756,7 +5796,7 @@ export {
 export const proposalsAgreementsScreen = {
   load: ({ api, state }) => {
     if (!canAccessProposalsAgreements(state)) return Promise.resolve({ rows: [], unauthorized: true });
-    // First metadata page only; remaining pages append in bind for progressive completeness.
+    // First metadata page only. Additional pages load only on explicit user action.
     return api.proposalsAgreements({ limit: 50, offset: 0, includeLinkedDocuments: false });
   },
   render(data = {}, { state } = {}) {
@@ -5842,7 +5882,9 @@ export const proposalsAgreementsScreen = {
     setProposalPricingLookup(proposalActivityPricing);
     const proposalTemplateSections = normalizeTemplateSections(Array.isArray(data?.proposalTemplateSections) ? data.proposalTemplateSections : []);
     let contactOptions = Array.isArray(data?.contactOptions) ? data.contactOptions : [];
-    const contactOptionsError = text(data?.contactOptionsError || '');
+    let contactOptionsError = text(data?.contactOptionsError || '');
+    // Contacts provided with the screen payload (editor/tests) are already available.
+    if (contactOptions.length) data._contactsLoaded = true;
     const rowWithCentralContact = (row) => {
       if (!row) return row;
       const enriched = enrichProposalRowFromContactOptions(row, contactOptions);
@@ -5862,6 +5904,29 @@ export const proposalsAgreementsScreen = {
         email:        text(enriched.email) || text(contact.email)
       };
     };
+    const syncContactOptions = (nextOptions = [], error = null) => {
+      contactOptions = Array.isArray(nextOptions) ? nextOptions : [];
+      contactOptionsError = text(error || '');
+      data.contactOptions = contactOptions;
+      data.contactOptionsError = contactOptionsError;
+      data._contactsLoaded = true;
+    };
+    const ensureContacts = async () => {
+      if (data?._contactsLoaded) return;
+      if (typeof api.proposalsAgreementsContacts !== 'function'
+        && typeof api.proposalsAgreementsEditorDeps !== 'function') {
+        data._contactsLoaded = true;
+        return;
+      }
+      if (typeof api.proposalsAgreementsContacts === 'function') {
+        const contacts = await api.proposalsAgreementsContacts();
+        syncContactOptions(contacts?.contactOptions, contacts?.contactOptionsError);
+        return;
+      }
+      const deps = await api.proposalsAgreementsEditorDeps();
+      syncContactOptions(deps?.contactOptions, deps?.contactOptionsError);
+      data._editorDepsLoaded = true;
+    };
     const ensureEditorDeps = async () => {
       if (data?._editorDepsLoaded) return;
       if (typeof api.proposalsAgreementsEditorDeps !== 'function') {
@@ -5875,6 +5940,7 @@ export const proposalsAgreementsScreen = {
       data.proposalActivityGroups = Array.isArray(deps?.proposalActivityGroups) ? deps.proposalActivityGroups : data.proposalActivityGroups;
       data.proposalGroupAliases = Array.isArray(deps?.proposalGroupAliases) ? deps.proposalGroupAliases : data.proposalGroupAliases;
       data.schoolCalendarRows = Array.isArray(deps?.schoolCalendarRows) ? deps.schoolCalendarRows : [];
+      syncContactOptions(deps?.contactOptions, deps?.contactOptionsError);
       data._editorDepsLoaded = true;
       activityNameOptions.splice(0, activityNameOptions.length, ...Array.from(new Set(data.activityNameOptions.map((v) => text(v)).filter(Boolean))));
       proposalActivityPricing.splice(0, proposalActivityPricing.length, ...data.proposalActivityPricing);
@@ -5883,39 +5949,97 @@ export const proposalsAgreementsScreen = {
       proposalTemplateSections.splice(0, proposalTemplateSections.length, ...normalizeTemplateSections(data.proposalTemplateSections));
       proposalSchoolCalendarRows = data.schoolCalendarRows;
     };
-    const appendRemainingProposalPages = async () => {
-      if (!data?._hasMore || data._pagingInFlight || typeof api.proposalsAgreements !== 'function') return;
+    const currentListQuery = () => ({
+      search: text(data?._query?.search),
+      status: text(data?._query?.status),
+      authorityId: text(data?._query?.authorityId),
+      schoolId: text(data?._query?.schoolId),
+      clientType: text(data?._query?.clientType),
+      sort: text(data?._query?.sort) || 'updated_at_desc',
+      limit: Number(data?._limit || 50),
+      includeLinkedDocuments: false
+    });
+    const mergeProposalPageRows = (incoming = []) => {
+      const seen = new Set((data.rows || []).map((row) => text(row?.id)).filter(Boolean));
+      const merged = (Array.isArray(incoming) ? incoming : []).filter((row) => {
+        const id = text(row?.id);
+        if (!id || seen.has(id)) return false;
+        seen.add(id);
+        return true;
+      }).map(normalizeProposalAgreementRow);
+      data.rows = [...(data.rows || []), ...merged];
+      data._itemsByProposalId = indexProposalItemsById(data);
+      {
+        const collapsed = collapseSemanticDuplicates(data.rows, data._itemsByProposalId);
+        data._semanticDuplicateIds = collapsed.duplicateIds;
+      }
+      notifyPendingProposalsNav(data.rows);
+      return merged.length;
+    };
+    const loadNextProposalPage = async () => {
+      if (!data?._hasMore || data._pagingInFlight || typeof api.proposalsAgreements !== 'function') return false;
       data._pagingInFlight = true;
       try {
-        let offset = Number(data._offset || 0) + Number(data._limit || 50);
-        while (data._hasMore) {
-          const next = await api.proposalsAgreements({
-            limit: Number(data._limit || 50),
-            offset,
-            includeLinkedDocuments: false
-          });
-          const nextRows = Array.isArray(next?.rows) ? next.rows : [];
-          const seen = new Set((data.rows || []).map((row) => text(row?.id)).filter(Boolean));
-          const merged = nextRows.filter((row) => {
-            const id = text(row?.id);
-            if (!id || seen.has(id)) return false;
-            seen.add(id);
-            return true;
-          });
-          data.rows = [...(data.rows || []), ...merged];
-          data._hasMore = Boolean(next?._hasMore) && nextRows.length > 0;
-          data._offset = Number(next?._offset || offset);
-          offset = Number(next?._offset || offset) + Number(next?._limit || data._limit || 50);
-          rerender?.();
-          if (!nextRows.length) break;
-        }
+        const offset = Number(data._offset || 0) + Number(data._limit || 50);
+        const next = await api.proposalsAgreements({
+          ...currentListQuery(),
+          offset
+        });
+        const nextRows = Array.isArray(next?.rows) ? next.rows : [];
+        mergeProposalPageRows(nextRows);
+        data._hasMore = Boolean(next?._hasMore) && nextRows.length > 0;
+        data._offset = Number(next?._offset || offset);
+        data._limit = Number(next?._limit || data._limit || 50);
+        data._query = next?._query || data._query;
+        return true;
       } catch {
-        data._hasMore = false;
+        return false;
       } finally {
         data._pagingInFlight = false;
       }
     };
-    appendRemainingProposalPages();
+    const reloadProposalList = async (queryPatch = {}, { append = false } = {}) => {
+      if (data._pagingInFlight || typeof api.proposalsAgreements !== 'function') return false;
+      data._pagingInFlight = true;
+      try {
+        const nextQuery = {
+          ...currentListQuery(),
+          ...queryPatch,
+          offset: append ? Number(data._offset || 0) + Number(data._limit || 50) : 0
+        };
+        const page = await api.proposalsAgreements(nextQuery);
+        const pageRows = Array.isArray(page?.rows) ? page.rows : [];
+        if (append) mergeProposalPageRows(pageRows);
+        else {
+          const seenIdsLocal = new Set();
+          data.rows = pageRows
+            .map(normalizeProposalAgreementRow)
+            .filter((r) => { const k = text(r.id); if (!k || seenIdsLocal.has(k)) return false; seenIdsLocal.add(k); return true; });
+          data._itemsByProposalId = indexProposalItemsById(data);
+          {
+            const collapsed = collapseSemanticDuplicates(data.rows, data._itemsByProposalId);
+            data._semanticDuplicateIds = collapsed.duplicateIds;
+          }
+          notifyPendingProposalsNav(data.rows);
+        }
+        data._hasMore = Boolean(page?._hasMore) && pageRows.length > 0;
+        data._offset = Number(page?._offset || nextQuery.offset || 0);
+        data._limit = Number(page?._limit || data._limit || 50);
+        data._query = page?._query || {
+          search: nextQuery.search,
+          status: nextQuery.status,
+          authorityId: nextQuery.authorityId,
+          schoolId: nextQuery.schoolId,
+          clientType: nextQuery.clientType,
+          sort: nextQuery.sort
+        };
+        return true;
+      } catch {
+        return false;
+      } finally {
+        data._pagingInFlight = false;
+      }
+    };
     const ensureProposalDetailRow = async (row) => {
       const id = text(row?.id);
       if (!id || typeof api.proposalAgreementDetail !== 'function') return row;
@@ -6194,7 +6318,12 @@ export const proposalsAgreementsScreen = {
     const refreshTable = () => {
       const filters = currentFilters(root);
       const listRows = rowsForProposalListView(data, activeListView);
-      updateProposalsAgreementsTableOnly(root, displayRows(data, filters, activeListView), state, { filters, totalRows: listRows.length });
+      updateProposalsAgreementsTableOnly(root, displayRows(data, filters, activeListView), state, {
+        filters,
+        totalRows: listRows.length,
+        hasMore: Boolean(data?._hasMore),
+        pagingBusy: Boolean(data?._pagingInFlight)
+      });
       updateProposalListTabCounts(root, data);
       if (proposalDetailContext?.proposalId) {
         const detailRow = rowWithCentralContact(data.rows.find((item) => text(item.id) === text(proposalDetailContext.proposalId)));
@@ -6214,8 +6343,36 @@ export const proposalsAgreementsScreen = {
       }, SEARCH_DEBOUNCE_MS);
     };
 
-    root.querySelector('[data-pa-search]')?.addEventListener('input', debouncedRefresh, { signal });
-    root.querySelectorAll('[data-pa-filter]').forEach((el) => el.addEventListener('change', refreshTable, { signal }));
+    const listQueryFromUi = () => {
+      const filters = currentFilters(root);
+      return {
+        search: text(filters.q),
+        status: text(filters.status),
+        authorityId: '',
+        schoolId: '',
+        clientType: '',
+        sort: text(data?._query?.sort) || 'updated_at_desc'
+      };
+    };
+    const applyServerListQuery = async (queryPatch = {}, { append = false } = {}) => {
+      if (typeof api.proposalsAgreements !== 'function') {
+        refreshTable();
+        return;
+      }
+      const ok = await reloadProposalList(queryPatch, { append });
+      if (!ok || signal.aborted || !root.isConnected) return;
+      refreshTable();
+    };
+    root.querySelector('[data-pa-search]')?.addEventListener('input', () => {
+      clearTimeout(debounceTimer);
+      debounceTimer = setTimeout(() => {
+        if (signal.aborted || !root.isConnected) return;
+        applyServerListQuery(listQueryFromUi(), { append: false });
+      }, SEARCH_DEBOUNCE_MS);
+    }, { signal });
+    root.querySelectorAll('[data-pa-filter]').forEach((el) => el.addEventListener('change', () => {
+      applyServerListQuery(listQueryFromUi(), { append: false });
+    }, { signal }));
     root.addEventListener('input', (event) => {
       const input = event.target.closest?.('[data-pa-client-search]');
       if (!input) return;
@@ -6225,19 +6382,61 @@ export const proposalsAgreementsScreen = {
       // results list itself — which never touches the input — is debounced.
       const queues = root.querySelector('[data-pa-client-queues]');
       if (queues) queues.hidden = Boolean(query);
-      clientSearchDebounceTimer = setTimeout(() => {
+      clientSearchDebounceTimer = setTimeout(async () => {
         if (signal.aborted || !root.isConnected || !input.isConnected || text(input.value) !== query) return;
         const results = root.querySelector('[data-pa-client-search-results]');
         if (!results?.isConnected) return;
         results.hidden = !query;
-        results.innerHTML = query ? clientSearchResultsHtml(buildClientFiles({ ...data, contactOptions }), query) : '';
+        if (!query) {
+          results.innerHTML = '';
+          if (typeof api.proposalsAgreements === 'function') {
+            await applyServerListQuery({ search: '' }, { append: false });
+          }
+          return;
+        }
+        // Prefer server search when the list API exists; keep local fallback for tests/offline.
+        if (typeof api.proposalsAgreements === 'function') {
+          results.innerHTML = '<p class="ds-client-search-empty">מחפש…</p>';
+          const ok = await reloadProposalList({ search: query }, { append: false });
+          if (signal.aborted || !root.isConnected || !input.isConnected || text(input.value) !== query) return;
+          if (!ok) {
+            results.innerHTML = '<p class="ds-client-search-empty">החיפוש נכשל. נסו שוב.</p>';
+            return;
+          }
+          results.innerHTML = clientSearchResultsHtml(buildClientFiles({ ...data, contactOptions: [] }), query)
+            || '<p class="ds-client-search-empty">לא נמצא תיק לקוח מתאים</p>';
+          return;
+        }
+        results.innerHTML = clientSearchResultsHtml(buildClientFiles({ ...data, contactOptions }), query)
+          || '<p class="ds-client-search-empty">לא נמצא תיק לקוח מתאים</p>';
       }, SEARCH_DEBOUNCE_MS);
     }, { signal });
-    root.addEventListener('click', (ev) => {
+    root.addEventListener('click', async (ev) => {
+      const loadMoreBtn = ev.target?.closest?.('[data-pa-load-more-proposals]');
+      if (loadMoreBtn) {
+        ev.preventDefault();
+        if (data._pagingInFlight || !data._hasMore) return;
+        loadMoreBtn.disabled = true;
+        loadMoreBtn.textContent = 'טוען…';
+        const ok = await loadNextProposalPage();
+        if (signal.aborted || !root.isConnected) return;
+        refreshTable();
+        if (!ok) {
+          loadMoreBtn.disabled = false;
+          loadMoreBtn.textContent = 'הצגת תיקים נוספים';
+        }
+        return;
+      }
       if (!ev.target?.closest?.('[data-pa-clear-filters]')) return;
       clearTimeout(debounceTimer);
       resetLocalFilters();
-      refreshTable();
+      applyServerListQuery({
+        search: '',
+        status: '',
+        authorityId: '',
+        schoolId: '',
+        clientType: ''
+      }, { append: false });
     }, { signal });
     
 
@@ -7069,11 +7268,16 @@ export const proposalsAgreementsScreen = {
         if (roCtxInit) roCtxInit.hidden = false;
       }
       renderContactChannelsStatus(form);
+      const runClientSearch = async (step, inputSelector, resultsSelector) => {
+        await ensureContacts();
+        if (signal.aborted || !form.isConnected) return;
+        renderClientResults(form, step, form.querySelector(inputSelector), form.querySelector(resultsSelector));
+      };
       form.querySelector('[data-pa-client-search-input]')?.addEventListener('input', () => {
-        renderClientResults(form, 'authority', form.querySelector('[data-pa-client-search-input]'), form.querySelector('[data-pa-client-results]'));
+        runClientSearch('authority', '[data-pa-client-search-input]', '[data-pa-client-results]');
       }, { signal });
       form.querySelector('[data-pa-school-search-input]')?.addEventListener('input', () => {
-        renderClientResults(form, 'school', form.querySelector('[data-pa-school-search-input]'), form.querySelector('[data-pa-school-results]'));
+        runClientSearch('school', '[data-pa-school-search-input]', '[data-pa-school-results]');
       }, { signal });
     };
 
@@ -8414,19 +8618,43 @@ export const proposalsAgreementsScreen = {
       if (addClientContactBtn) {
         const file = currentClientFile();
         if (!canManage || !file || !clientWorkspace) return;
-        clientWorkspace.insertAdjacentHTML('beforeend', clientContactEditorHtml(file));
-        clientWorkspace.querySelector('[data-pa-client-contact-form] input')?.focus?.();
+        const openAddContact = () => {
+          clientWorkspace.insertAdjacentHTML('beforeend', clientContactEditorHtml(currentClientFile() || file));
+          clientWorkspace.querySelector('[data-pa-client-contact-form] input')?.focus?.();
+        };
+        const contactsApiMissing = typeof api.proposalsAgreementsContacts !== 'function'
+          && typeof api.proposalsAgreementsEditorDeps !== 'function';
+        if (data._contactsLoaded || contactsApiMissing) {
+          data._contactsLoaded = true;
+          openAddContact();
+          return;
+        }
+        await ensureContacts();
+        if (signal.aborted || !root.isConnected) return;
+        openAddContact();
         return;
       }
 
       const editClientContactBtn = event.target.closest?.('[data-pa-client-edit-contact]');
       if (editClientContactBtn) {
-        const file = currentClientFile();
-        const index = Number(editClientContactBtn.dataset.paClientEditContact);
-        const contact = file?.contacts[index];
-        if (!canManage || !file || !contact || !clientWorkspace) return;
-        clientWorkspace.insertAdjacentHTML('beforeend', clientContactEditorHtml(file, contact, index));
-        clientWorkspace.querySelector('[data-pa-client-contact-form] input')?.focus?.();
+        const openEditContact = () => {
+          const file = currentClientFile();
+          const index = Number(editClientContactBtn.dataset.paClientEditContact);
+          const contact = file?.contacts[index];
+          if (!canManage || !file || !contact || !clientWorkspace) return;
+          clientWorkspace.insertAdjacentHTML('beforeend', clientContactEditorHtml(file, contact, index));
+          clientWorkspace.querySelector('[data-pa-client-contact-form] input')?.focus?.();
+        };
+        const contactsApiMissing = typeof api.proposalsAgreementsContacts !== 'function'
+          && typeof api.proposalsAgreementsEditorDeps !== 'function';
+        if (data._contactsLoaded || contactsApiMissing) {
+          data._contactsLoaded = true;
+          openEditContact();
+          return;
+        }
+        await ensureContacts();
+        if (signal.aborted || !root.isConnected) return;
+        openEditContact();
         return;
       }
 

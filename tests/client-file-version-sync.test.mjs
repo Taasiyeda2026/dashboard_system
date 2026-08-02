@@ -190,14 +190,14 @@ test('dashboard layout stylesheet is loaded and keeps the intended responsive st
 });
 
 test('annual review printing uses a compact management-document layout', async () => {
-  const [indexHtml, entry, printRuntime] = await Promise.all([
+  const [indexHtml, featureLoaders, printRuntime] = await Promise.all([
     readFile(INDEX_FILE, 'utf8'),
-    readFile(ENTRY_FILE, 'utf8'),
+    readFile(new URL('../frontend/src/feature-loaders.js', import.meta.url), 'utf8'),
     readFile(ANNUAL_REVIEW_PRINT_FILE, 'utf8')
   ]);
 
-  assert.match(indexHtml, /main-with-proposal-pdf-hotfix\.js\?v=20260801-perf-projections-v1/);
-  assert.match(entry, /annual-reviews-isolated-print\.js\?v=20260730-compact-print-v4/);
+  assert.match(indexHtml, /main-with-proposal-pdf-hotfix\.js\?v=20260801-perf-startup-v1/);
+  assert.match(featureLoaders, /annual-reviews-isolated-print\.js\?v=20260730-compact-print-v4/);
   assert.match(printRuntime, /window\.open\('', name/);
   assert.match(printRuntime, /doc\.write\(buildPrintDocument\(sourceRoot\)\)/);
   assert.match(printRuntime, /event\.stopImmediatePropagation\(\)/);

@@ -5,14 +5,14 @@ import { readFile } from 'node:fs/promises';
 const ROOT = new URL('../', import.meta.url);
 
 test('proposal quantity creates one linked 2027 activity per group using catalog fields', async () => {
-  const [runtime, entry, initialMigration, fixMigration] = await Promise.all([
+  const [runtime, featureLoaders, initialMigration, fixMigration] = await Promise.all([
     readFile(new URL('frontend/src/proposal-activity-linking.js', ROOT), 'utf8'),
-    readFile(new URL('frontend/src/main-with-proposal-pdf-hotfix.js', ROOT), 'utf8'),
+    readFile(new URL('frontend/src/feature-loaders.js', ROOT), 'utf8'),
     readFile(new URL('supabase/migrations/20260727190000_create_activities_from_proposal_items.sql', ROOT), 'utf8'),
     readFile(new URL('supabase/migrations/20260727203000_fix_proposal_activity_quantity_and_catalog.sql', ROOT), 'utf8')
   ]);
 
-  assert.match(entry, /import '\.\/proposal-activity-linking\.js';/);
+  assert.match(featureLoaders, /import\('\.\/proposal-activity-linking\.js'\)/);
 
   assert.match(runtime, /create_activity_from_proposal_item/);
   assert.match(runtime, /data-create-activity-from-proposal-item/);
