@@ -57,6 +57,10 @@ test('bootstrap entry stays minimal and feature modules load on demand', () => {
   assert.match(featureLoaderSource, /case 'annualReviews'/);
   assert.match(featureLoaderSource, /case 'israa'/);
   assert.match(featureLoaderSource, /case 'activityDrawer'/);
+  // Literal dynamic imports are required for Rollup/Vite async chunks.
+  assert.match(featureLoaderSource, /import\('\.\/proposal-pdf-svg-origin-clean\.js'\)/);
+  assert.match(featureLoaderSource, /import\('\.\/annual-reviews-final-pdf-safe\.js'\)/);
+  assert.match(featureLoaderSource, /import\('\.\/activity-drawer-floating-actions\.js/);
   assert.match(featureRouteSource, /ensureFeaturesForRoute/);
   assert.match(featureRouteSource, /preloadScreenModule/);
 });
