@@ -114,25 +114,15 @@ function buildGrep(screenKeys) {
   return terms.map(escapeRegex).join('|');
 }
 
-export function classifyE2EScope(files, { isDraft = false, forceFull = false } = {}) {
+export function classifyE2EScope(files, { forceFull = false } = {}) {
   const changedFiles = normalizeFiles(files);
-
-  if (forceFull) {
-    return {
-      mode: 'full',
-      screens: CORE_SCREEN_KEYS,
-      grep: '',
-      reason: 'manual full run requested',
-      changedFiles
-    };
-  }
 
   if (changedFiles.length === 0) {
     return {
       mode: 'full',
       screens: CORE_SCREEN_KEYS,
       grep: '',
-      reason: 'no changed-file list was available',
+      reason: forceFull ? 'manual full run requested' : 'no changed-file list was available',
       changedFiles
     };
   }
@@ -143,6 +133,16 @@ export function classifyE2EScope(files, { isDraft = false, forceFull = false } =
       screens: [],
       grep: '',
       reason: 'documentation or non-runtime files only',
+      changedFiles
+    };
+  }
+
+  if (forceFull) {
+    return {
+      mode: 'full',
+      screens: CORE_SCREEN_KEYS,
+      grep: '',
+      reason: 'full PR checkpoint requested',
       changedFiles
     };
   }
@@ -190,16 +190,6 @@ export function classifyE2EScope(files, { isDraft = false, forceFull = false } =
 
   const orderedScreens = orderScreens(screens);
 
-  if (!isDraft) {
-    return {
-      mode: 'full',
-      screens: CORE_SCREEN_KEYS,
-      grep: '',
-      reason: 'code PR is ready for review, so the full merge gate is required',
-      changedFiles
-    };
-  }
-
   if (orderedScreens.length === 0) {
     return {
       mode: 'full',
@@ -214,7 +204,7 @@ export function classifyE2EScope(files, { isDraft = false, forceFull = false } =
     mode: 'targeted',
     screens: orderedScreens,
     grep: buildGrep(orderedScreens),
-    reason: `draft PR limited to mapped screens: ${orderedScreens.join(', ')}`,
+    reason: `mapped runtime files: ${orderedScreens.join(', ')}`,
     changedFiles
   };
 }
@@ -248,7 +238,6 @@ if (isMainModule()) {
   const input = fs.readFileSync(0, 'utf8');
   const files = input.split(/\r?\n/);
   const result = classifyE2EScope(files, {
-    isDraft: parseBoolean(process.env.PR_IS_DRAFT),
     forceFull: parseBoolean(process.env.FORCE_FULL)
   });
 
