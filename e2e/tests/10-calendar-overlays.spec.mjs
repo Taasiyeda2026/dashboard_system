@@ -58,7 +58,7 @@ test('month view shows team tasks, future school holidays and birthdays together
   await expect(august2.locator('[data-team-calendar-label="month"]')).toContainText('מיפוי קורסים');
   await expect(august2.locator('[data-team-calendar-label="month"]')).toContainText('מיפוי מדריכים');
   await expect(august2.locator('[data-team-calendar-label="month"]')).toContainText('סגירת שנת תשפ״ו');
-  await expect(august2.locator('[data-team-calendar-label="month"]')).toContainText('ועוד 0').toHaveCount(0);
+  await expect(august2.locator('[data-team-calendar-label="month"] .team-calendar-more')).toHaveCount(0);
 
   const august13 = dayCard(page, 13);
   await expect(august13.locator('[data-team-calendar-label="month"]')).toContainText('חופשה - גיל');
