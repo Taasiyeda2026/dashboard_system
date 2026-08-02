@@ -1895,7 +1895,8 @@ function itemRowHtml(item = {}, idx = 0, pricingOptions = [], options = {}) {
     : text(item.pricing_option_key || item.pricing_activity_no || item.activity_no || item.pricing_activity_name || item.item_name);
   const pricingSelectOptionsHtml = buildPricingSelectOptionsHtml(pricingOptions, selectedPricingKey, {
     allowManualCourse: options.allowManualCourse,
-    groupKey: contextGroup
+    groupKey: contextGroup,
+    savedItem: item
   });
   const isSummerRow = isSummerItemRowContext(contextGroup);
   const gefenValue = proposalTextField(item, 'gefen_number', 'gefenNumber');
@@ -3179,8 +3180,12 @@ export function validateProposalDocumentTree(root, { requireVisibleBox = false }
       }
     });
   };
-
-  checkParts(PROPOSAL_DOCUMENT_REQUIRED_PARTS);
+  const headerElements = documentRoot.querySelectorAll('.proposal-document-header, .pa-page-header');
+  const validHeader = [...headerElements].some((element) => text(element.textContent)
+    || [...element.querySelectorAll('img')].some((image) => text(image.getAttribute('src')) && image.getAttribute('aria-hidden') !== 'true'));
+  if (!headerElements.length || !validHeader) missing.push('כותרת ולוגו');
+  else if (requireVisibleBox && ![...headerElements].some(elementHasVisibleBox)) missing.push('כותרת ולוגו (מוסתר)');
+  checkParts(PROPOSAL_DOCUMENT_REQUIRED_PARTS.filter(({ key }) => key !== 'header'));
 
   const hasCourseTable = documentRoot.querySelector('.pa-next-year-course-table tbody tr');
   const hasWorkshopTable = documentRoot.querySelector('.pa-next-year-workshop-table tbody tr');
@@ -3203,14 +3208,13 @@ export function proposalDocumentIncompleteError(missing = []) {
 }
 
 const PROPOSAL_DOCUMENT_HTML_MARKERS = Object.freeze([
-  { label: 'שורש מסמך ההצעה', pattern: /class="[^"]*\bproposal-document\b/ },
-  { label: 'כותרת ולוגו', pattern: /class="[^"]*\b(?:proposal-document-header|pa-page-header)\b/ },
-  { label: 'פרטי הנמען', pattern: /class="[^"]*\b(?:pa-to-block|pa-doc-address)\b/ },
-  { label: 'כותרת ההצעה', pattern: /class="[^"]*\b(?:pa-doc-title|pa-doc-subject)\b/ },
-  { label: 'תוכן תבנית', pattern: /class="[^"]*\b(?:pa-section|pa-org-intro)\b/ },
+  { label: 'שורש מסמך ההצעה', pattern: /class\s*=\s*(['"])[^'"]*\bproposal-document\b[^'"]*\1/i },
+  { label: 'פרטי הנמען', pattern: /class\s*=\s*(['"])[^'"]*\b(?:pa-to-block|pa-doc-address)\b[^'"]*\1[^>]*>\s*[^<\s]/i },
+  { label: 'כותרת ההצעה', pattern: /class\s*=\s*(['"])[^'"]*\b(?:pa-doc-title|pa-doc-subject)\b[^'"]*\1[^>]*>\s*[^<\s]/i },
+  { label: 'תוכן תבנית', pattern: /class\s*=\s*(['"])[^'"]*\b(?:pa-section|pa-org-intro)\b[^'"]*\1[^>]*>[\s\S]*?[^<\s][\s\S]*?<\//i },
   {
     label: 'טבלת פעילות',
-    pattern: /class="[^"]*\b(?:pa-item-details-table|pa-activities-table|pa-cost-table|pa-tour-cost-table|pa-next-year-course-table|pa-next-year-workshop-table)\b/
+    pattern: /class\s*=\s*(['"])[^'"]*\b(?:pa-item-details-table|pa-activities-table|pa-cost-table|pa-tour-cost-table|pa-next-year-course-table|pa-next-year-workshop-table)\b[^'"]*\1[\s\S]*?<tr\b[^>]*>[\s\S]*?<\/tr>/i
   }
 ]);
 
@@ -3230,6 +3234,10 @@ export function validateProposalDocumentHtml(html) {
   const missing = PROPOSAL_DOCUMENT_HTML_MARKERS
     .filter(({ pattern }) => !pattern.test(source))
     .map(({ label }) => label);
+  const header = source.match(/<[^>]+class\s*=\s*(['"])[^'"]*\b(?:proposal-document-header|pa-page-header)\b[^'"]*\1[^>]*>([\s\S]*?)<\/[^>]+>/i);
+  if (!header || (!/<img\b[^>]*\bsrc\s*=\s*(['"])[^'"]+\1/i.test(header[2]) && !text(header[2].replace(/<[^>]*>/g, ' ')))) {
+    missing.splice(Math.min(1, missing.length), 0, 'כותרת ולוגו');
+  }
   return { ok: missing.length === 0, missing };
 }
 
@@ -3839,6 +3847,7 @@ export function gefenEligibleItems(items = []) {
     .filter((item) => {
       const group = normalizeProposalGroup(item.proposal_group || item.group_key);
       return group !== 'summer'
+        && group !== 'next_year_workshops'
         && Boolean(text(item.gefen_number))
         && !isTestHoursItem(item)
         && text(item.proposal_display_mode) !== 'bundle_child';
@@ -3868,7 +3877,8 @@ function isGefenApprovalApplicable(row = {}, items = []) {
   if (eligibleCount) return true;
   if (group === 'gefen') return true;
   if (Array.isArray(items) && items.length) return false;
-  return ['next_year', 'tour', COMBINED_INTERNAL_KEY].includes(group);
+  if (typeof row.gefen_approval_applicable === 'boolean') return row.gefen_approval_applicable;
+  return ['gefen', 'tour', COMBINED_INTERNAL_KEY].includes(group);
 }
 
 function gefenApprovalStatusDisplay(row = {}, generated = text(row.gefen_approval_status) === 'generated') {
@@ -4203,9 +4213,11 @@ function buildPricingSelectOptionsHtml(pricingOptions, selectedPricingKey, optio
   const manualOptionHtml = options.allowManualCourse && isNextYearProposalGroup(groupKey)
     ? `<option value="${MANUAL_COURSE_OPTION_KEY}"${selectedPricingKey === MANUAL_COURSE_OPTION_KEY ? ' selected' : ''}>${escapeHtml(manualActivityOptionLabel(groupKey))}</option>`
     : '';
+  let foundSavedSelection = false;
   const activityOptionsHtml = visibleRows.map((row, optionIdx) => {
     const value = pricingOptionKey(row, optionIdx);
     const legacySelected = selectedPricingKey && [value, text(row.activity_no), text(row.activity_name), publicActivityName(row.activity_name)].includes(selectedPricingKey);
+    if (legacySelected) foundSavedSelection = true;
     const isBundleParent = row.proposal_display_mode === 'bundle_parent' || row.is_bundle_parent;
     const name = publicActivityLabelFromRow(row) || value;
     const price = numberValue(row.unit_price);
@@ -4216,8 +4228,14 @@ function buildPricingSelectOptionsHtml(pricingOptions, selectedPricingKey, optio
     ].filter(Boolean);
     return `<option value="${escapeHtml(value)}"${legacySelected ? ' selected' : ''}${isBundleParent ? ' data-bundle-parent="1"' : ''}>${escapeHtml(labelParts.join(' — '))}</option>`;
   });
+  const savedItem = options.savedItem || {};
+  const savedName = publicActivityName(savedItem.item_name || savedItem.pricing_activity_name);
+  const savedPrice = numberValue(savedItem.unit_price);
+  const savedOptionHtml = selectedPricingKey && !foundSavedSelection && selectedPricingKey !== MANUAL_COURSE_OPTION_KEY && savedName
+    ? `<option value="${escapeHtml(selectedPricingKey)}" selected data-pa-saved-item="true">${escapeHtml([savedName, text(savedItem.item_type), savedPrice != null ? `₪ ${formatCurrency(savedPrice)}` : ''].filter(Boolean).join(' — '))}</option>`
+    : '';
   // Manual free-text option always appears at the end of the list.
-  return ['<option value="">— בחר פעילות מהרשימה —</option>', ...activityOptionsHtml, manualOptionHtml].filter(Boolean).join('');
+  return ['<option value="">— בחר פעילות מהרשימה —</option>', savedOptionHtml, ...activityOptionsHtml, manualOptionHtml].filter(Boolean).join('');
 }
 
 function filterItemsByProposalType(items, activityTypeGroup) {
@@ -7794,7 +7812,8 @@ export const proposalsAgreementsScreen = {
       setupTypeChangeHandler(formHost);
       setupClientSelector(formHost);
       setupActivityPickers(formHost);
-      setupItemCalc(formHost);
+      formHost.querySelectorAll('[data-pa-item-row]').forEach((itemRow) => calcItemRow(itemRow));
+      calcGrandTotal(formHost);
       setupFormStepper(formHost);
       const pickerHost = formHost.querySelector('[data-pa-contact-picker-host]');
       if (pickerHost && pickerHost.children.length) {
@@ -8078,6 +8097,7 @@ export const proposalsAgreementsScreen = {
     };
 
     const generateAndSaveProposalPdf = async (row, items = [], button = null) => {
+      await ensureEditorDeps();
       const freshRow = rowWithCentralContact(row);
       const proposalId = text(freshRow.id);
       // Reserve the tab before the first await so browser popup blockers do not
@@ -8186,6 +8206,7 @@ export const proposalsAgreementsScreen = {
     };
 
     const finalizeSentProposal = async (row, items = [], { pdfFile = null, previewHtml: suppliedPreviewHtml = '', templateSections: suppliedTemplateSections = null } = {}) => {
+      await ensureEditorDeps();
       const freshRow = rowWithCentralContact(row);
       const mergedItems = proposalItemsWithFallback(items, freshRow);
       const templateSections = Array.isArray(suppliedTemplateSections)
@@ -8208,6 +8229,7 @@ export const proposalsAgreementsScreen = {
     };
 
     const openSendProposalDialog = async (row, items = []) => {
+      await ensureEditorDeps();
       const freshRow = rowWithCentralContact(row);
       const mergedItems = proposalItemsWithFallback(items, freshRow);
       const templateSections = filterTemplateSectionsForGroup(proposalTemplateSections, freshRow.activity_type_group);
@@ -8255,6 +8277,7 @@ export const proposalsAgreementsScreen = {
     };
 
     const openPreview = async (row, items, options = {}) => {
+      await ensureEditorDeps();
       if (options.form) options.form.dataset.paPreviewSeen = 'yes';
       const savedRow = data.rows.find((r) => text(r.id) === text(row.id));
       const mergedRow = savedRow ? { ...savedRow, ...row } : row;
@@ -8314,6 +8337,7 @@ export const proposalsAgreementsScreen = {
         <div class="proposal-preview-area">
           ${lockedPreviewHtml || proposalPreviewBodyHtml(freshRow, items, templateSections, signingMode ? { showSignatureImage: true } : {})}
         </div>`;
+      proposalPdfDocumentNormalizer?.(overlay.querySelector('.proposal-preview-area'));
       document.body.appendChild(overlay);
       document.body.classList.add('is-print-preview');
       const previousDocumentTitle = document.title;

@@ -79,6 +79,15 @@ test('a full proposal document passes the PDF completeness gate', () => {
   assert.ok(result.documentRoot);
 });
 
+test('an image-only logo header passes while a genuinely empty title is blocked', () => {
+  const imageOnlyHeader = FULL_DOCUMENT_HTML.replace('><img src="logo.png" alt="לוגו">תעשיידע</div>', '><img src="logo.png" alt="לוגו"></div>');
+  assert.equal(validateProposalDocumentTree(documentTree(imageOnlyHeader)).ok, true);
+  assert.equal(validateProposalDocumentHtml(imageOnlyHeader.replaceAll('"', "'")).ok, true);
+  const emptyTitle = imageOnlyHeader.replace('הצעת מחיר 10200', '');
+  assert.ok(validateProposalDocumentTree(documentTree(emptyTitle)).missing.includes('כותרת ההצעה'));
+  assert.ok(validateProposalDocumentHtml(emptyTitle).missing.includes('כותרת ההצעה'));
+});
+
 test('a table-only fragment is blocked before a PDF can be produced', () => {
   const result = validateProposalDocumentTree(documentTree(TABLE_ONLY_HTML));
   assert.equal(result.ok, false);
@@ -167,12 +176,22 @@ test('the PDF path validates the document, normalizes it once and blocks a parti
   assert.match(source, /if \(text\(err\?\.userMessage\)\) \{\s*\n\s*showToast\(err\.userMessage, 'error', 6000\)/);
 });
 
-test('the document observer never rewrites a PDF render host mid-generation', async () => {
+test('next-year normalization is explicit and never installs a document-wide observer', async () => {
   const nextYear = await readFile(nextYearUrl, 'utf8');
   assert.match(nextYear, /setProposalPdfDocumentNormalizer\(\(host\) => normalizeNextYearWorkshopTables\(host\)\)/);
-  assert.match(nextYear, /normalizeNextYearWorkshopTables\(documentRef, \{ skipPdfRenderHosts: true \}\)/);
-  assert.match(nextYear, /skipPdfRenderHosts \|\| !insidePdfRenderHost\(table\)/);
+  assert.doesNotMatch(nextYear, /new scope\.MutationObserver/);
+  assert.doesNotMatch(nextYear, /querySelectorAll\?\.\('select option'\)/);
   assert.equal(PROPOSAL_PDF_RENDER_HOST_ATTRIBUTE, 'data-pdf-render-host');
+});
+
+test('all live document builders await the shared deferred editor dependency promise', async () => {
+  const source = await readFile(screenUrl, 'utf8');
+  for (const functionName of ['generateAndSaveProposalPdf', 'finalizeSentProposal', 'openSendProposalDialog', 'openPreview']) {
+    const start = source.indexOf(`const ${functionName} = async`);
+    assert.ok(start > 0, `${functionName} exists`);
+    assert.match(source.slice(start, start + 500), /await ensureEditorDeps\(\)/);
+  }
+  assert.match(source, /if \(editorDepsPromise\) return editorDepsPromise/);
 });
 
 test('the final print override releases the PDF host from the single-page flex column', async () => {

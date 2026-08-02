@@ -153,17 +153,18 @@
 #app .pa-editor-workspace [data-pa-school-results] { position: absolute; inset: calc(100% + 4px) 0 auto; z-index: 2000; max-block-size: 240px; overflow: auto; background: white; border: 1px solid var(--ds-accent); border-radius: 5px; box-shadow: 0 10px 24px rgb(15 23 42 / 16%); }
 #app .pa-editor-workspace .ds-pa-other-client-section { max-inline-size: 320px; }
 
-#app .pa-editor-workspace [data-pa-step-panel="contact"]:not([hidden]) { display: grid; grid-template-columns: 110px 1fr; align-items: end; gap: 10px; inline-size: 100%; margin-block-start: 14px; padding-block-start: 12px; border-block-start: 1px solid var(--pa-editor-line); }
-#app .pa-editor-workspace [data-pa-step-panel="contact"] > .ds-pa-form-grid { display: flex; align-items: end; gap: 8px; inline-size: fit-content; }
+#app .pa-editor-workspace [data-pa-step-panel="contact"]:not([hidden]) { display: grid; grid-template-columns: minmax(150px, 1fr) minmax(0, 4fr); align-items: end; gap: 10px; inline-size: 100%; min-inline-size: 0; margin-block-start: 14px; padding-block-start: 12px; border-block-start: 1px solid var(--pa-editor-line); }
+#app .pa-editor-workspace [data-pa-step-panel="contact"] > .ds-pa-form-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(140px, 1fr)); align-items: end; gap: 8px; inline-size: 100%; min-inline-size: 0; }
 #app .pa-editor-workspace [data-pa-contact-picker-host],
 #app .pa-editor-workspace .ds-pa-contact-select-field select { inline-size: 210px; }
 #app .pa-editor-workspace .ds-pa-contact-manual-fields,
-#app .pa-editor-workspace .ds-pa-contact-channels-fields { display: flex; align-items: end; gap: 8px; }
-#app .pa-editor-workspace .ds-pa-contact-manual-fields input { inline-size: 150px; }
-#app .pa-editor-workspace .ds-pa-contact-channels-fields input[name="phone"] { inline-size: 210px; }
-#app .pa-editor-workspace .ds-pa-contact-channels-fields input[name="email"] { inline-size: 360px; }
+#app .pa-editor-workspace .ds-pa-contact-channels-fields { display: grid; grid-template-columns: repeat(auto-fit, minmax(140px, 1fr)); align-items: end; gap: 8px; min-inline-size: 0; inline-size: 100%; }
+#app .pa-editor-workspace .ds-pa-contact-manual-fields > *,
+#app .pa-editor-workspace .ds-pa-contact-channels-fields > *,
+#app .pa-editor-workspace .ds-pa-contact-manual-fields input,
+#app .pa-editor-workspace .ds-pa-contact-channels-fields input { min-inline-size: 0; inline-size: 100%; }
 #app .pa-editor-workspace .ds-pa-contact-channels { display: contents; }
-#app .pa-editor-workspace .ds-pa-contact-channels-status { display: flex; align-items: center; gap: 6px; }
+#app .pa-editor-workspace .ds-pa-contact-channels-status { display: flex; align-items: center; align-self: start; gap: 6px; grid-column: 2; flex-wrap: wrap; }
 
 @media (max-width: 760px) {
   #app .pa-editor-workspace [data-pa-step-panel="contact"] > .ds-pa-form-grid,

@@ -233,23 +233,26 @@ test('each internal area exposes its own live total that the shared calculation 
   assert.match(screenSource, /form\.addEventListener\('change', \(\) => setTimeout\(\(\) => \{[\s\S]*?calcGrandTotal\(form\);/);
 });
 
-test('contact mobile and email fields keep a usable width', async () => {
+test('contact mobile and email fields use container-responsive tracks without overflow', async () => {
   const [editorCss, mainCss] = await Promise.all([
     readFile(EDITOR_CSS_FILE, 'utf8'),
     readFile(MAIN_CSS_FILE, 'utf8')
   ]);
 
-  const phoneWidth = Number(editorCss.match(/\.ds-pa-contact-channels-fields input\[name="phone"\] \{ inline-size: (\d+)px; \}/)?.[1] || 0);
-  const emailWidth = Number(editorCss.match(/\.ds-pa-contact-channels-fields input\[name="email"\] \{ inline-size: (\d+)px; \}/)?.[1] || 0);
-  assert.ok(phoneWidth >= 200, `phone field must stay usable, got ${phoneWidth}px`);
-  assert.ok(emailWidth >= 340, `email field must stay usable, got ${emailWidth}px`);
+  assert.match(editorCss, /\.ds-pa-contact-channels-fields \{ display: grid; grid-template-columns: repeat\(auto-fit, minmax\(140px, 1fr\)\)/);
+  assert.match(editorCss, /\.ds-pa-contact-channels-fields input \{ min-inline-size: 0; inline-size: 100%; \}/);
 
   const phoneWrapper = Number(mainCss.match(/:has\(\[name="phone"\]\) \{\s*\n\s*width: min\(100%, (\d+)px\);/)?.[1] || 0);
   const emailWrapper = Number(mainCss.match(/:has\(\[name="email"\]\) \{\s*\n\s*width: min\(100%, (\d+)px\);/)?.[1] || 0);
   assert.ok(phoneWrapper >= 220, `phone wrapper must not clip the value, got ${phoneWrapper}px`);
   assert.ok(emailWrapper >= 360, `email wrapper must not clip the value, got ${emailWrapper}px`);
 
-  // Narrow screens wrap instead of shrinking the fields into an unusable width.
-  assert.match(editorCss, /@media \(max-width: 760px\)[\s\S]*?\.ds-pa-contact-channels-fields \{ flex-wrap: wrap;/);
-  assert.match(editorCss, /@media \(max-width: 760px\)[\s\S]*?input\[name="email"\] \{ inline-size: min\(100%, 360px\); \}/);
+  assert.match(editorCss, /\.ds-pa-contact-channels-status \{[^}]*grid-column: 2;[^}]*flex-wrap: wrap;/);
+});
+
+test('saved proposal rows keep their stored price and hydrate totals once', async () => {
+  const screenSource = await readFile(SCREEN_FILE, 'utf8');
+  assert.match(screenSource, /savedPrice = numberValue\(savedItem\.unit_price\)/);
+  assert.match(screenSource, /data-pa-saved-item="true"/);
+  assert.match(screenSource, /formHost\.querySelectorAll\('\[data-pa-item-row\]'\)\.forEach\(\(itemRow\) => calcItemRow\(itemRow\)\);\s*\n\s*calcGrandTotal\(formHost\);/);
 });

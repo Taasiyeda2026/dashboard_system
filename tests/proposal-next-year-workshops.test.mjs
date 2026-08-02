@@ -177,6 +177,13 @@ test('installer augments loaders and normalizes saved snapshots', async () => {
   assert.match(saved[0].payload.documentHtmlSnapshot, /pa-next-year-workshop-table/);
 });
 
+test('normalization leaves internal editor select options untouched', () => {
+  const dom = new JSDOM('<form data-pa-form><select><option value="next_year_courses">קורסים</option><option value="next_year_workshops">סדנאות</option></select></form>');
+  const normalized = normalizeNextYearWorkshopHtml(dom.serialize(), dom.window.document);
+  assert.match(normalized, /value="next_year_courses"/);
+  assert.match(normalized, /value="next_year_workshops"/);
+});
+
 test('real next-year preview renders workshop-only, course-only and mixed saved items', () => {
   const payload = augmentNextYearProposalPayload({
     proposalActivityGroups: baseGroups,
