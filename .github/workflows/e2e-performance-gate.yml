@@ -31,6 +31,29 @@ jobs:
       - name: Checkout
         uses: actions/checkout@v4
 
+      - name: Verify required E2E secrets
+        env:
+          E2E_USERNAME: ${{ secrets.E2E_USERNAME }}
+          E2E_PASSWORD: ${{ secrets.E2E_PASSWORD }}
+        run: |
+          missing=0
+          if [ -z "$E2E_USERNAME" ]; then
+            echo '::error::Missing GitHub Secret E2E_USERNAME (dedicated test login username)'
+            missing=1
+          fi
+          if [ -z "$E2E_PASSWORD" ]; then
+            echo '::error::Missing GitHub Secret E2E_PASSWORD (dedicated test login entry code)'
+            missing=1
+          fi
+          if [ "$missing" -ne 0 ]; then
+            echo 'Add repository secrets at Settings → Secrets and variables → Actions:'
+            echo '  E2E_USERNAME, E2E_PASSWORD'
+            echo 'Also set E2E_BASE_URL for post-deploy smoke (live Pages URL).'
+            echo 'VITE_SUPABASE_URL / VITE_SUPABASE_ANON_KEY are used when present; the app also has publishable fallbacks.'
+            exit 1
+          fi
+          echo 'E2E credentials secret presence OK'
+
       - name: Setup Node.js
         uses: actions/setup-node@v4
         with:
@@ -51,24 +74,11 @@ jobs:
           VITE_SUPABASE_ANON_KEY: ${{ secrets.VITE_SUPABASE_ANON_KEY }}
         run: npm run build
 
-      - name: Verify required E2E secrets
-        env:
-          E2E_USERNAME: ${{ secrets.E2E_USERNAME }}
-          E2E_PASSWORD: ${{ secrets.E2E_PASSWORD }}
-        run: |
-          if [ -z "$E2E_USERNAME" ] || [ -z "$E2E_PASSWORD" ]; then
-            echo 'Missing GitHub Secrets: E2E_USERNAME and/or E2E_PASSWORD' >&2
-            exit 1
-          fi
-          if [ -z "${{ secrets.VITE_SUPABASE_URL }}" ] || [ -z "${{ secrets.VITE_SUPABASE_ANON_KEY }}" ]; then
-            echo 'Missing GitHub Secrets: VITE_SUPABASE_URL and/or VITE_SUPABASE_ANON_KEY' >&2
-            exit 1
-          fi
-
       - name: Run Playwright E2E + performance gate
         env:
           CI: 'true'
           E2E_START_PREVIEW: 'true'
+          # PR gate always hits the local production preview, not the live site.
           E2E_BASE_URL: http://127.0.0.1:4173
           E2E_USERNAME: ${{ secrets.E2E_USERNAME }}
           E2E_PASSWORD: ${{ secrets.E2E_PASSWORD }}
