@@ -2273,8 +2273,12 @@ function extractItemsFromForm(form) {
     };
 
     const pricingSelectVal = text(row.querySelector('[data-pa-pricing-select]')?.value);
-    const rawGroup = fieldText('proposal_group')
+    // The section owns the semantic group. Catalog/runtimes may temporarily
+    // hydrate a workshop with its source group (for example summer), but that
+    // must never remove it from the next-year workshop payload or A4 preview.
+    const rawGroup = text(row.closest('[data-pa-items-group]')?.dataset.paItemsGroup)
       || text(row.dataset.paRowGroup)
+      || fieldText('proposal_group')
       || formGroup;
     const normalizedRowGroup = normalizeProposalGroup(rawGroup);
     const editedName = fieldText('item_name');

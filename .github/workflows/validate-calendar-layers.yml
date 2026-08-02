@@ -45,8 +45,6 @@ jobs:
         env:
           VITE_BASE: ./
           VITE_BUILD_SHA: ${{ github.sha }}
-          VITE_SUPABASE_URL: ${{ secrets.VITE_SUPABASE_URL }}
-          VITE_SUPABASE_ANON_KEY: ${{ secrets.VITE_SUPABASE_ANON_KEY }}
         run: npm run build
       - name: Run direct calendar layer scenario
         env:
