@@ -139,12 +139,12 @@ test('proposal type filter is populated and a dedicated summer tab is added', ()
   assert.equal(dom.window.document.querySelectorAll('[data-pa-summer-tab]').length, 1);
 });
 
-test('runtime prewarms editor dependencies, exposes next-year GEFEN approval and schedules automatic PDF after signing', () => {
+test('runtime prewarms editor dependencies and leaves approval/PDF ownership to the integrity runtime', () => {
   assert.match(source, /proposalEditorDepsMemoized/);
   assert.match(source, /requestIdleCallback/);
-  assert.match(source, /dataset\.paGenerateGefenApproval/);
-  assert.match(source, /data-pa-status-action="approved"/);
-  assert.match(source, /scheduleAutomaticPdf/);
+  assert.doesNotMatch(source, /dataset\.paGenerateGefenApproval/);
+  assert.doesNotMatch(source, /data-pa-status-action="approved"/);
+  assert.doesNotMatch(source, /scheduleAutomaticPdf/);
   assert.match(source, /uploadProposalFinalPdf/);
   assert.match(source, /lockAndSendProposalAgreement/);
 });

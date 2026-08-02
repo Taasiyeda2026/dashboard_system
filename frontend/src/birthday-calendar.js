@@ -176,7 +176,15 @@ export function startBirthdayCalendarUi() {
     }
   });
 
-  new MutationObserver(scheduleDecoration).observe(document.documentElement, {
+  const appRoot = document.getElementById('app');
+  if (!appRoot) return;
+  new MutationObserver((mutations) => {
+    const calendarChanged = mutations.some((mutation) => Array.from(mutation.addedNodes).some((node) => (
+      node.nodeType === 1 && (node.matches?.('.ds-cal-grid, .ds-week-col, .ds-cal-nav__label')
+        || node.querySelector?.('.ds-cal-grid, .ds-week-col, .ds-cal-nav__label'))
+    )));
+    if (calendarChanged) scheduleDecoration();
+  }).observe(appRoot, {
     childList: true,
     subtree: true
   });

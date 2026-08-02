@@ -135,6 +135,10 @@ export function ensureFeature(name) {
 
     case 'activityDrawer':
       return loadOnce('activityDrawer', () => Promise.all([
+        // Calendar overlays belong to the calendar routes. Loading them here keeps
+        // direct month/week navigation independent from the dashboard/proposals.
+        import('./birthday-calendar.js'),
+        import('./school-calendar-runtime.js'),
         import('./activity-2026-season-query-hotfix.js?v=20260730-restore-2026-summer-v1'),
         import('./month-navigation-runtime.js'),
         import('./activities-tabs-corrections.js'),
