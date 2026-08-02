@@ -56,6 +56,14 @@ async function firstPositivePriceOption(select) {
   });
 }
 
+async function expectSelectedLabelMatchesInternalPrice(row) {
+  const selectedLabel = await row.locator('[data-pa-pricing-select] option:checked').innerText();
+  const labelPrice = amountOf(selectedLabel);
+  const internalPrice = amountOf(await row.locator('[data-pa-item-price]').inputValue());
+  expect(labelPrice).toBeGreaterThan(0);
+  expect(internalPrice).toBe(labelPrice);
+}
+
 test('real proposal regression path remains stable without saving data or PDFs', async ({ page, tracker }) => {
   test.setTimeout(300_000);
   tracker.resetScreen('proposal-focused-regressions');
@@ -106,6 +114,7 @@ test('real proposal regression path remains stable without saving data or PDFs',
   expect(premiumOption, 'the 13,500 ₪ next-year course must be available').not.toBe('');
   await courseSelect.selectOption(premiumOption);
   await expect(courseRow.locator('[data-pa-item-price]')).toHaveValue('13500');
+  await expectSelectedLabelMatchesInternalPrice(courseRow);
   await expect(courseRow.locator('[data-pa-item-total-display]')).toContainText('13,500');
   await expect(courses.locator('[data-pa-group-total="next_year_courses"]')).toContainText('13,500');
   await expect(form.locator('[data-pa-grand-total]')).toContainText('13,500');
@@ -122,7 +131,7 @@ test('real proposal regression path remains stable without saving data or PDFs',
   const secondCourseOption = await firstPositivePriceOption(secondCourse.locator('[data-pa-pricing-select]'));
   expect(secondCourseOption).not.toBe('');
   await secondCourse.locator('[data-pa-pricing-select]').selectOption(secondCourseOption);
-  await expect(secondCourse.locator('[data-pa-item-price]')).not.toHaveValue('');
+  await expectSelectedLabelMatchesInternalPrice(secondCourse);
 
   await workshops.locator('[data-pa-add-item]').click();
   const workshopRow = workshops.locator('[data-pa-item-row]').first();
@@ -131,17 +140,22 @@ test('real proposal regression path remains stable without saving data or PDFs',
   const workshopOption = await firstPositivePriceOption(workshopRow.locator('[data-pa-pricing-select]'));
   expect(workshopOption, 'a positive-price workshop must be available').not.toBe('');
   await workshopRow.locator('[data-pa-pricing-select]').selectOption(workshopOption);
-  await expect(workshopRow.locator('[data-pa-item-price]')).not.toHaveValue('');
+  await expectSelectedLabelMatchesInternalPrice(workshopRow);
   await expect.poll(async () => amountOf(await workshops.locator('[data-pa-group-total="next_year_workshops"]').innerText())).toBeGreaterThan(0);
   await expect.poll(async () => amountOf(await form.locator('[data-pa-grand-total]').innerText())).toBeGreaterThan(27000);
 
   await workshops.locator('[data-pa-add-item]').click();
   await expect(workshops.locator('[data-pa-item-row]')).toHaveCount(2);
+  const secondWorkshop = workshops.locator('[data-pa-item-row]').nth(1);
+  const secondWorkshopOption = await firstPositivePriceOption(secondWorkshop.locator('[data-pa-pricing-select]'));
+  expect(secondWorkshopOption).not.toBe('');
+  await secondWorkshop.locator('[data-pa-pricing-select]').selectOption(secondWorkshopOption);
+  await expectSelectedLabelMatchesInternalPrice(secondWorkshop);
   await shot(page, 'proposal-next-year-two-areas.png', form.locator('[data-pa-items-host]'));
 
   page.on('dialog', (dialog) => dialog.accept());
   await secondCourse.locator('[data-pa-remove-item]').click();
-  await workshops.locator('[data-pa-item-row]').nth(1).locator('[data-pa-remove-item]').click();
+  await secondWorkshop.locator('[data-pa-remove-item]').click();
   await expect(courses.locator('[data-pa-item-row]')).toHaveCount(1);
   await expect(workshops.locator('[data-pa-item-row]')).toHaveCount(1);
 
