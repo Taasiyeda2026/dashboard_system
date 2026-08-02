@@ -44,10 +44,21 @@ test('instructor and scheduling cosmetic flow stays compact and RTL-safe', async
   await setActivityPeriod(page, 'school_2027');
   await expect(page.getByText('כל פעילויות תשפ״ז', { exact: true })).toBeVisible();
   await screenshot(page, 'activities-year-labels.png');
-  const unassigned = page.locator('.ds-activities-row').filter({ hasText: 'טרם שובץ' }).first();
-  await expect(unassigned).toBeVisible();
-  await unassigned.click();
   const drawer = page.locator('.ds-drawer--activity-inline');
+  const activityRows = page.locator('.ds-activities-row[data-row-id]:visible');
+  const rowCount = await activityRows.count();
+  let schedulingActivityFound = false;
+  for (let index = 0; index < rowCount; index += 1) {
+    await activityRows.nth(index).click();
+    await expect(drawer).toBeVisible();
+    if (await drawer.locator('[data-find-instructor]:visible').count()) {
+      schedulingActivityFound = true;
+      break;
+    }
+    await drawer.locator('[data-ui-close-drawer]').click();
+    await expect(drawer).toBeHidden();
+  }
+  expect(schedulingActivityFound, 'expected an existing activity with real scheduling controls').toBe(true);
   await expect(drawer).toBeVisible();
   await screenshot(page, 'activity-drawer-restored.png');
   const drawerCssHref = await page.evaluate(() => Array.from(document.styleSheets)
@@ -59,7 +70,7 @@ test('instructor and scheduling cosmetic flow stays compact and RTL-safe', async
   const drawerCssResponse = await page.request.get(drawerCssHref);
   expect(drawerCssResponse.ok()).toBe(true);
   expect(drawerCssResponse.headers()['content-type']).toContain('text/css');
-  await page.locator('[data-find-instructor]').click();
+  await drawer.locator('[data-find-instructor]:visible').click();
   const scheduling = page.locator('.ds-modal--scheduling');
   await expect(scheduling).toBeVisible();
   await expect(scheduling.locator('.scheduling-time-range')).toHaveAttribute('dir', 'ltr');

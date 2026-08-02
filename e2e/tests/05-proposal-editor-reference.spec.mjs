@@ -125,7 +125,7 @@ test('proposal editor recipient flows match the approved reference', async ({ pa
   await expect(form.locator('[data-pa-contact-select]')).toBeVisible();
   await attachScreenshot(form, 'school', testInfo);
 
-  const authorityType = form.locator('.ds-pa-recipient-type-option').filter({ has: form.locator('input[value="authority"]') });
+  const authorityType = form.locator('.ds-pa-recipient-type-option').filter({ has: page.locator('input[name="client_type_selector"][value="authority"]') });
   await expect(authorityType).toHaveCount(1);
   await authorityType.click();
   await expect(authoritySearch).toBeVisible();
@@ -142,7 +142,7 @@ test('proposal editor recipient flows match the approved reference', async ({ pa
   await expect(form.locator('.ds-pa-client-locked-state')).toHaveCount(0);
   await attachScreenshot(form, 'authority', testInfo);
 
-  const otherType = form.locator('.ds-pa-recipient-type-option').filter({ has: form.locator('input[value="other"]') });
+  const otherType = form.locator('.ds-pa-recipient-type-option').filter({ has: page.locator('input[name="client_type_selector"][value="other"]') });
   await expect(otherType).toHaveCount(1);
   await otherType.click();
   await expect(form.locator('[data-pa-other-client-field]')).toBeVisible();
