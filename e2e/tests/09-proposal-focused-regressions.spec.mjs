@@ -24,6 +24,18 @@ async function openRowAction(row, selector) {
   await action.click();
 }
 
+async function openDetailPreview(page, row) {
+  await openRowAction(row, '[data-pa-preview]');
+  const detail = page.locator('[data-pa-proposal-detail]:visible');
+  await expect(detail).toBeVisible();
+  const previewAction = detail.locator('[data-pa-preview]').first();
+  await expect(previewAction).toBeVisible();
+  await previewAction.click();
+  const preview = page.locator('.proposal-preview-area:visible');
+  await expect(preview.locator('.proposal-document')).toBeVisible();
+  return { detail, preview };
+}
+
 async function assertNoOverlap(container) {
   const result = await container.evaluate((root) => {
     const elements = [...root.querySelectorAll('input, select, button, [data-pa-contact-channels-status]:not([hidden])')]
@@ -49,19 +61,18 @@ test('real proposal regression path remains stable without saving data or PDFs',
   const table = page.locator('[data-pa-all-proposals-table] [data-pa-table]').first();
   await expect(table).toBeVisible();
 
-  // Cold-list preview: open an approved proposal before any editor has been opened.
+  // Cold-list preview: the row action opens proposal details first. Wait for the
+  // asynchronous detail workspace before using its real preview action.
   const approved = table.locator('tbody tr[data-pa-row-id]').filter({ hasText: 'מאושר' }).first();
   await expect(approved).toBeVisible();
-  await openRowAction(approved, '[data-pa-preview]');
-  const detail = page.locator('[data-pa-proposal-detail]:visible');
-  if (await detail.count()) await detail.locator('[data-pa-preview]').first().click();
-  const preview = page.locator('.proposal-preview-area:visible');
-  await expect(preview.locator('.proposal-document')).toBeVisible();
+  const firstPreview = await openDetailPreview(page, approved);
+  const preview = firstPreview.preview;
   await expect(preview).not.toContainText('לא נמצאה תבנית פעילה לסוג הצעה זה');
   await expect(preview.locator('.pa-section, .pa-org-intro')).not.toHaveCount(0);
   await shot(page, 'proposal-full-template.png', preview);
   await page.locator('#pa-preview-close').click();
-  await page.locator('[data-pa-proposal-detail-back]:visible').first().click().catch(() => {});
+  await page.locator('[data-pa-proposal-detail-back]:visible').first().click();
+  await expect(table).toBeVisible();
 
   // Locate the real editable saved row with unit price 8,000 and quantity 1.
   const candidates = table.locator('tbody tr[data-pa-row-id]');
@@ -102,18 +113,24 @@ test('real proposal regression path remains stable without saving data or PDFs',
   const workshops = form.locator('[data-pa-items-group="next_year_workshops"]');
   await expect(courses).toHaveCount(1);
   await expect(workshops).toHaveCount(1);
+  await expect(courses.locator('[data-pa-item-row]')).toHaveCount(0);
+  await expect(workshops.locator('[data-pa-item-row]')).toHaveCount(0);
+
   for (const section of [courses, workshops]) {
     await section.locator('[data-pa-add-item]').click();
-    const select = section.locator('[data-pa-item-row]').last().locator('[data-pa-pricing-select]');
+    const rows = section.locator('[data-pa-item-row]');
+    await expect(rows).toHaveCount(1);
+    const select = rows.last().locator('[data-pa-pricing-select]');
     const option = await select.locator('option:not([value=""])').evaluateAll((options) => options.find((item) => !item.value.startsWith('__'))?.value || '');
     expect(option).not.toBe('');
     await select.selectOption(option);
+    await expect(rows.last().locator('[data-pa-item-price]')).not.toHaveValue('');
   }
   await shot(page, 'proposal-next-year-two-areas.png', form.locator('[data-pa-items-host]'));
   await form.locator('[data-pa-type-btn="gefen"]').click();
   await form.locator('[data-pa-type-btn="next_year"]').click();
-  await expect(courses).toHaveCount(1);
-  await expect(workshops).toHaveCount(1);
+  await expect(form.locator('[data-pa-items-group="next_year_courses"]')).toHaveCount(1);
+  await expect(form.locator('[data-pa-items-group="next_year_workshops"]')).toHaveCount(1);
 
   const contactToggle = form.locator('[data-pa-contact-channels-toggle]:visible').first();
   if (await contactToggle.count()) await contactToggle.click();
@@ -131,11 +148,9 @@ test('real proposal regression path remains stable without saving data or PDFs',
   // Return to the approved proposal and run the real PDF action. Storage is aborted,
   // therefore neither the proposal row nor an existing PDF can be updated.
   await page.setViewportSize({ width: 1440, height: 1000 });
-  await openRowAction(approved, '[data-pa-preview]');
-  if (await detail.count()) await detail.locator('[data-pa-preview]').first().click();
+  const secondPreview = await openDetailPreview(page, approved);
   const print = page.locator('#pa-print-btn');
   await expect(print).toBeVisible();
-  let hostParts = null;
   await page.evaluate(() => {
     window.__proposalPdfProbe = null;
     new MutationObserver(() => {
@@ -155,8 +170,10 @@ test('real proposal regression path remains stable without saving data or PDFs',
   await page.route('**/storage/v1/object/**', (route) => route.request().method() === 'POST' ? route.abort() : route.continue());
   await print.click();
   await expect.poll(async () => page.evaluate(() => window.__proposalPdfProbe), { timeout: 60_000 }).not.toBeNull();
-  hostParts = await page.evaluate(() => window.__proposalPdfProbe);
+  const hostParts = await page.evaluate(() => window.__proposalPdfProbe);
   expect(hostParts).toEqual({ header: true, recipient: true, title: true, template: true, table: true });
   expect(tracker.state.pageErrors).toEqual([]);
   await tracker.persist('proposal-focused-pdf-intercept');
+  await page.locator('#pa-preview-close').click().catch(() => {});
+  await expect(secondPreview.detail).toBeVisible();
 });
