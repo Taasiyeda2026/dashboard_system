@@ -62,7 +62,7 @@ test('proposal workflow exposes summer tab, fast editor, live totals and combine
   const gefenPrice = amountOf(await gefenRow.locator('[data-pa-item-price]').inputValue());
   expect(gefenPrice).toBeGreaterThan(0);
   await gefenRow.locator('[data-pa-item-qty]').fill('2');
-  await expect.poll(async () => amountOf(await gefenRow.locator('[data-pa-item-total-display]').innerText())).toBe(gefenPrice * 2);
+  await expect.poll(async () => amountOf(await gefenRow.locator('[data-pa-item-total]').inputValue())).toBe(gefenPrice * 2);
   await expect.poll(async () => amountOf(await form.locator('[data-pa-grand-total]').innerText())).toBe(gefenPrice * 2);
 
   // Build a mixed תשפ״ז document without saving the proposal.
