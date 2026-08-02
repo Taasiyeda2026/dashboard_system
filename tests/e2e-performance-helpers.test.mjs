@@ -3,9 +3,14 @@ import test from 'node:test';
 import {
   compareToBudget,
   pickMetrics,
+  relativeBudgetLimit,
   upsertBaselineScreen
 } from '../e2e/helpers/performance.mjs';
-import { ABSOLUTE_BUDGETS, REGRESSION_RATIO } from '../e2e/helpers/env.mjs';
+import {
+  ABSOLUTE_BUDGETS,
+  REGRESSION_MIN_ALLOWANCE,
+  REGRESSION_RATIO
+} from '../e2e/helpers/env.mjs';
 
 test('pickMetrics keeps only numeric performance fields', () => {
   const picked = pickMetrics({
@@ -37,7 +42,40 @@ test('compareToBudget fails on absolute ceiling', () => {
   assert.match(result.problems.join('\n'), /absolute budget/);
 });
 
-test('compareToBudget fails on >20% regression vs baseline', () => {
+test('timing regression limit includes fixed hosted-runner jitter allowance', () => {
+  assert.equal(
+    relativeBudgetLimit('timeToContentMs', 559),
+    559 + REGRESSION_MIN_ALLOWANCE.timeToContentMs
+  );
+  assert.equal(
+    relativeBudgetLimit('networkIdleMs', 1206),
+    1206 + REGRESSION_MIN_ALLOWANCE.networkIdleMs
+  );
+});
+
+test('timing variation inside the fixed allowance passes', () => {
+  const baseline = {
+    screens: {
+      'proposals-agreements': pickMetrics({
+        timeToContentMs: 559,
+        networkIdleMs: 1206,
+        requestCount: 34,
+        supabaseRequestCount: 8,
+        jsBytes: 535
+      })
+    }
+  };
+  const metrics = pickMetrics({
+    ...baseline.screens['proposals-agreements'],
+    timeToContentMs: 879,
+    networkIdleMs: 1514
+  });
+
+  const result = compareToBudget('proposals-agreements', metrics, baseline);
+  assert.equal(result.ok, true);
+});
+
+test('compareToBudget still fails on a material timing regression', () => {
   const baseline = {
     screens: {
       dashboard: pickMetrics({
@@ -55,11 +93,25 @@ test('compareToBudget fails on >20% regression vs baseline', () => {
   };
   const metrics = pickMetrics({
     ...baseline.screens.dashboard,
-    timeToContentMs: Math.floor(1000 * REGRESSION_RATIO) + 50
+    timeToContentMs: relativeBudgetLimit('timeToContentMs', 1000) + 1
   });
   const result = compareToBudget('dashboard', metrics, baseline);
   assert.equal(result.ok, false);
-  assert.match(result.problems.join('\n'), /regresses/);
+  assert.match(result.problems.join('\n'), /regression limit/);
+});
+
+test('non-timing metrics keep the strict ratio-only regression check', () => {
+  assert.equal(relativeBudgetLimit('requestCount', 10), 10 * REGRESSION_RATIO);
+
+  const baseline = {
+    screens: {
+      dashboard: pickMetrics({ requestCount: 10 })
+    }
+  };
+  const metrics = pickMetrics({ requestCount: 13 });
+  const result = compareToBudget('dashboard', metrics, baseline);
+  assert.equal(result.ok, false);
+  assert.match(result.problems.join('\n'), /requestCount/);
 });
 
 test('upsertBaselineScreen does not copy business fields', () => {
