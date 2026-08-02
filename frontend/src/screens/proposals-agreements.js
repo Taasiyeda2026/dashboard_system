@@ -7561,7 +7561,8 @@ export const proposalsAgreementsScreen = {
         await ensureEditorDeps();
         if (mode === 'edit' && text(row.id)) row = await ensureProposalDetailRow(row);
       } catch (error) {
-        formHost.innerHTML = `<div class="ds-empty ds-pa-editor-load-error" role="alert"><strong>לא הצלחנו לטעון את נתוני ההצעה.</strong><span>ניתן לחזור לתיק הלקוח ולנסות שוב.</span></div>`;
+        const errorBackLabel = originMode === 'all-proposals' ? 'חזרה לכל ההצעות' : 'חזרה לתיק הלקוח';
+        formHost.innerHTML = `<div class="ds-empty ds-pa-editor-load-error" role="alert"><strong>לא הצלחנו לטעון את נתוני ההצעה.</strong><span>ניתן לחזור ולנסות שוב.</span><button type="button" class="ds-btn ds-btn--primary" data-pa-cancel-form>← ${errorBackLabel}</button></div>`;
         return;
       }
       row = enrichProposalRowFromContactOptions(row, contactOptions);

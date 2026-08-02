@@ -125,6 +125,18 @@ test('proposal editor recipient flows match the approved reference', async ({ pa
   await expect(form.locator('[data-pa-contact-select]')).toBeVisible();
   await attachScreenshot(form, 'school', testInfo);
 
+  const contactSelect = form.locator('[data-pa-contact-select]');
+  const contactValue = await contactSelect.locator('option').evaluateAll((options) => options
+    .map((option) => option.value)
+    .find((value) => value && value !== '__pa_other_contact__') || '');
+  expect(contactValue, 'expected a real contact for the selected school').not.toBe('');
+  await contactSelect.selectOption(contactValue);
+  const contactChannelsToggle = form.locator('[data-pa-contact-channels-toggle]:visible');
+  await expect(contactChannelsToggle).toHaveCount(1);
+  await contactChannelsToggle.click();
+  await expect(form.locator('[data-pa-contact-channels-fields]')).toBeVisible();
+  await attachScreenshot(form, 'contact-edit-fields', testInfo);
+
   const authorityType = form.locator('.ds-pa-recipient-type-option').filter({ has: page.locator('input[name="client_type_selector"][value="authority"]') });
   await expect(authorityType).toHaveCount(1);
   await authorityType.click();

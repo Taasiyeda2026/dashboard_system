@@ -55,7 +55,9 @@ test('instructor and scheduling cosmetic flow stays compact and RTL-safe', async
       schedulingActivityFound = true;
       break;
     }
-    await drawer.locator('[data-ui-close-drawer]').click();
+    const activityDrawerClose = drawer.locator('.activity-drawer__close[data-action="close-drawer"]:visible');
+    await expect(activityDrawerClose).toHaveCount(1);
+    await activityDrawerClose.click();
     await expect(drawer).toBeHidden();
   }
   expect(schedulingActivityFound, 'expected an existing activity with real scheduling controls').toBe(true);
