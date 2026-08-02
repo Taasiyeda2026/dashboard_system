@@ -84,6 +84,16 @@ export const SCREENS = {
       }
     }
   },
+  archive: {
+    route: 'archive',
+    nav: '.shell-header-nav [data-route="archive"], [data-act-subnav="archive"], .shell-nav__btn[data-route="archive"]',
+    ready: '.ds-activities-screen--archive, .ds-archive-kpi-row',
+    title: 'ארכיון',
+    allowProgrammatic: true,
+    action: async (page) => {
+      await page.locator('.ds-archive-kpi-row').first().isVisible();
+    }
+  },
   contacts: {
     route: 'contacts',
     nav: '.shell-header-nav [data-route="contacts"], [data-act-subnav="contacts"], .shell-nav__btn[data-route="contacts"]',
@@ -174,6 +184,27 @@ export async function setActivityPeriod(page, period) {
   await page.locator(`[data-global-period-option="${period}"]`).click();
   await page.waitForTimeout(300);
   await waitForAppShell(page);
+}
+
+/** Label currently shown on the global period selector ('2026' / '2027'). */
+export async function readActivityPeriodLabel(page) {
+  return (await page.locator('[data-global-period-toggle]').first().innerText()).trim();
+}
+
+/**
+ * Reveals more table rows until the requested row id is rendered, using the
+ * screen's own "show more" control.
+ */
+export async function revealListRow(page, rowId, { maxClicks = 12 } = {}) {
+  const row = page.locator(`.ds-data-row[data-row-id="${rowId}"]`);
+  for (let attempt = 0; attempt <= maxClicks; attempt += 1) {
+    if (await row.count()) return row.first();
+    const showMore = page.locator('[data-list-show-more]:visible').first();
+    if (!(await showMore.count())) return null;
+    await showMore.click();
+    await page.waitForTimeout(250);
+  }
+  return (await row.count()) ? row.first() : null;
 }
 
 export async function loginViaUi(page, { username, password }) {

@@ -4,6 +4,30 @@ import { formatDateHe } from './format-date.js';
 import { escapeHtml } from './html.js';
 import { activityTypeMatches, getValidInstructorUsers, humanDisplayText, INSTRUCTOR_CONTACTS_MISSING_ERROR_MESSAGE, INSTRUCTOR_IDENTITY_ERROR_MESSAGE, normalizeActivityTypeKey, normalizeOneDayActivityType, resolveInstructorSelectionByEmpId, validateInstructorIdentityPayload } from './activity-options.js';
 import { state } from '../../state.js';
+import {
+  READ_ONLY_ACTIVITY_PERIOD_MESSAGE,
+  isActivityMutationBlocked
+} from './activity-readonly-period.js';
+
+/**
+ * Event-level guard for the historical 2026 period: even a direct click handler call
+ * must not be able to start an edit, save, or delete a read-only activity.
+ */
+function isReadOnlyActivityForm(form) {
+  if (!form) return false;
+  if (String(form.dataset.activityReadOnly || '') === 'yes') return true;
+  return isActivityMutationBlocked({
+    activityPeriod: String(state?.activityPeriodTab || ''),
+    activitySeason: String(form.getAttribute('data-activity-season') || '')
+  });
+}
+
+function blockReadOnlyActivityMutation(form) {
+  if (!isReadOnlyActivityForm(form)) return false;
+  setStatus(form?.querySelector?.('.ds-activity-edit-status'), 'is-error', READ_ONLY_ACTIVITY_PERIOD_MESSAGE);
+  showToast(READ_ONLY_ACTIVITY_PERIOD_MESSAGE, 'error', 3200);
+  return true;
+}
 
 function setEditMode(form, editing) {
   form.dataset.editing = editing ? 'yes' : 'no';
@@ -350,6 +374,7 @@ export function bindActivityEditForm(contentRoot, {
   const { signal } = abortController;
 
   async function saveActivityForm(form) {
+    if (blockReadOnlyActivityMutation(form)) return;
     if (form.dataset.saveInFlight === 'yes') {
       // eslint-disable-next-line no-console
       console.warn('[activity-save:duplicate-submit-blocked]', {
@@ -606,6 +631,7 @@ export function bindActivityEditForm(contentRoot, {
       if (!form) return;
 
       if (ev.target.closest('[data-action="start-edit"]')) {
+        if (blockReadOnlyActivityMutation(form)) return;
         setEditMode(form, true);
         captureFormInitialValues(form);
         const nameSel = form.querySelector('[data-role="activity-name-select"]');
@@ -628,11 +654,13 @@ export function bindActivityEditForm(contentRoot, {
 
       if (ev.target.closest('[data-action="save-edit"]')) {
         ev.preventDefault();
+        if (blockReadOnlyActivityMutation(form)) return;
         void saveActivityForm(form);
         return;
       }
       if (ev.target.closest('[data-action="delete-activity"]')) {
         ev.preventDefault();
+        if (blockReadOnlyActivityMutation(form)) return;
         const rowId = String(form.getAttribute('data-row-id') || '').trim();
         if (!rowId) return;
         const ok = window.confirm('האם למחוק את הפעילות? הפעילות תוסתר מהמסכים ולא תימחק פיזית מהמערכת.');

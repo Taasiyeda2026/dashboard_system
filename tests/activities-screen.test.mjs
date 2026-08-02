@@ -179,6 +179,8 @@ test.skip('activities render: admin idann sees summer activity layout button wit
 
 test('activities render: giln can request adding an activity when direct add is disabled', () => {
   const state = baseState();
+  // 2026 is read-only, so add affordances are asserted in the editable 2027 period.
+  state.activityPeriodTab = 'school_2027';
   state.user = {
     username: 'giln',
     display_role: 'מנהל פעילויות',
@@ -227,6 +229,7 @@ test('activities render: non-admin does not see admin toolbar buttons', () => {
 
 test('activities render: operation_manager sees add activity button', () => {
   const state = baseState();
+  state.activityPeriodTab = 'school_2027';
   state.user = { display_role: 'operation_manager', role: 'operation_manager', can_add_activity: true };
   const html = activitiesScreen.render({ rows: [] }, { state });
   assert.match(html, /data-activities-add-btn/);
@@ -856,6 +859,7 @@ test('activity edit form refreshes activity_name options and clears stale name w
 test('activity add form refreshes activity_name options and clears stale name when activity_type changes', () => {
   const settings = activityNameSettings();
   const state = baseState();
+  state.activityPeriodTab = 'school_2027';
   state.clientSettings = settings;
   state.user = { display_role: 'admin', role: 'admin', can_add_activity: true };
   const dom = new JSDOM('<body><main id="root"></main></body>', { url: 'https://example.test/dashboard_system/' });
@@ -919,6 +923,7 @@ test('activity add validation clears saving state and does not show duplicate in
   settings.dropdown_options.schools = ['בית ספר א'];
   settings.dropdown_options.activity_managers = ['מנהלת א'];
   const state = baseState();
+  state.activityPeriodTab = 'school_2027';
   state.clientSettings = settings;
   state.user = { display_role: 'admin', role: 'admin', can_add_activity: true };
   const dom = new JSDOM('<body><main id="root"></main></body>', { url: 'https://example.test/dashboard_system/' });
@@ -974,7 +979,7 @@ test('activity add validation clears saving state and does not show duplicate in
 
     form.dispatchEvent(new dom.window.Event('submit', { bubbles: true, cancelable: true }));
     await new Promise((resolve) => setTimeout(resolve, 0));
-    assert.equal(status.textContent, 'יש למלא תאריך פעילות');
+    assert.match(status.textContent, /^לא ניתן לשמור: חסר .*תאריך פעילות/);
     assert.notEqual(form.dataset.saving, 'yes');
     assert.equal(submit.disabled, false);
     assert.equal(submit.classList.contains('is-loading'), false);
@@ -984,12 +989,9 @@ test('activity add validation clears saving state and does not show duplicate in
     form.querySelector('[name="one_day_date"]').value = '2026-06-15';
     form.dispatchEvent(new dom.window.Event('submit', { bubbles: true, cancelable: true }));
     await new Promise((resolve) => setTimeout(resolve, 0));
-    assert.equal(status.textContent, 'יש לבחור שעת התחלה');
-
-    form.querySelector('[name="start_time"]').value = '09:00';
-    form.dispatchEvent(new dom.window.Event('submit', { bubbles: true, cancelable: true }));
-    await new Promise((resolve) => setTimeout(resolve, 0));
-    assert.equal(status.textContent, 'יש לבחור שעת סיום');
+    assert.equal(addCalls, 1);
+    assert.notEqual(form.dataset.saving, 'yes');
+    assert.equal(submit.disabled, false);
   } finally {
     globalThis.window = previousWindow;
     globalThis.document = previousDocument;
@@ -1062,12 +1064,14 @@ test('activities inner tabs are scoped to global 2026 and split regular/summer/a
   ] };
 
   const allHtml = activitiesScreen.render(data, { state });
-  assert.match(allHtml, /כל פעילויות 2026[\s\S]*<strong>2<\/strong>/);
+  // The combined 2026 tab is the full history: open and closed rows together.
+  assert.match(allHtml, /כל פעילויות 2026[\s\S]*<strong>3<\/strong>/);
   assert.match(allHtml, /שנת 2026[\s\S]*<strong>1<\/strong>/);
   assert.match(allHtml, /קיץ 2026[\s\S]*<strong>1<\/strong>/);
   assert.match(allHtml, /ארכיון 2026[\s\S]*<strong>1<\/strong>/);
   assert.match(allHtml, /פעילות שנתית/);
   assert.match(allHtml, /פעילות קיץ/);
+  assert.match(allHtml, /פעילות ארכיון/);
   assert.doesNotMatch(allHtml, /פעילות 2027/);
 
   state.activitiesInnerTab = 'summer_2026';

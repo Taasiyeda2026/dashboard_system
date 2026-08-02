@@ -68,6 +68,17 @@ export function normalizeGlobalActivityPeriod(value) {
   return ACTIVE_ACTIVITY_SEASON;
 }
 
+/**
+ * Season values stored in public.activities for one global period selection.
+ * 2026 is a single historical period that spans both `regular` and `summer_2026`,
+ * so every server-side season filter for it must query both keys.
+ */
+export function activitySeasonQueryValues(value) {
+  const key = normalizeGlobalActivityPeriod(value);
+  if (key === ACTIVITY_SEASON_SCHOOL_2027) return [ACTIVITY_SEASON_SCHOOL_2027];
+  return [ACTIVITY_SEASON_REGULAR, ACTIVITY_SEASON_SUMMER_2026];
+}
+
 export function globalActivityPeriodLabel(value) {
   const key = normalizeGlobalActivityPeriod(value);
   return key === ACTIVITY_SEASON_SCHOOL_2027 ? '2027' : '2026';
@@ -103,6 +114,17 @@ export function activityMatchesPeriodKey(activity = {}, periodKey = '') {
 export function activitySeasonLabel(value) {
   const normalized = normalizeActivitySeason(value);
   return ACTIVITY_SEASON_OPTIONS.find((option) => option.value === normalized)?.label || 'רגיל';
+}
+
+const ACTIVITY_PERIOD_DISPLAY_LABELS = {
+  [ACTIVITY_SEASON_REGULAR]: '2026',
+  [ACTIVITY_SEASON_SUMMER_2026]: 'קיץ 2026',
+  [ACTIVITY_SEASON_SCHOOL_2027]: '2027'
+};
+
+/** Human label for the activity's own period, keeping summer 2026 distinct from 2026. */
+export function activityPeriodDisplayLabel(activity = {}) {
+  return ACTIVITY_PERIOD_DISPLAY_LABELS[getActivityPeriodKey(activity)] || '';
 }
 
 export function isSummerActivity(activity = {}) {

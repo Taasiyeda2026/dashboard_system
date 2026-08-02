@@ -4,7 +4,8 @@ import { hebrewRole } from './screens/shared/ui-hebrew.js';
 import { getActivityAuthorityName, getActivityContactName, getActivityContactPhone, getActivitySchoolNames } from './screens/shared/operations-activity-helpers.js';
 import { cleanActivityManagerName, getContactsInstructorUsers, getRosterUsers, NO_ACTIVITY_MANAGER_LABEL, normalizeOneDayActivityType, resolveActivityInstructorName, buildContactsInstructorLookup, resolveCanonicalInstructorPair, validateInstructorIdentityPayload } from './screens/shared/activity-options.js';
 import { EXCEPTION_TYPE_ORDER, normalizedExceptionTypes } from './screens/shared/exceptions-metrics.js';
-import { ACTIVITY_SEASON_SCHOOL_2027, activityMatchesPeriodKey, isSummerActivity, normalizeActivitySeason, normalizeGlobalActivityPeriod } from './screens/shared/summer-activity.js';
+import { ACTIVITY_SEASON_SCHOOL_2027, activityMatchesPeriodKey, activitySeasonQueryValues, isSummerActivity, normalizeActivitySeason, normalizeGlobalActivityPeriod } from './screens/shared/summer-activity.js';
+import { assertActivityMutationAllowed } from './screens/shared/activity-readonly-period.js';
 import {
   normalizeContactMatchText,
   buildContactResponsibleIndex,
@@ -200,6 +201,8 @@ const COMPLETION_APPROVAL_EXCEPTIONS_COLUMNS = 'id,activity_row_id,activity_date
 const PHOTO_APPROVAL_METADATA_COLUMNS = 'id,instructor_emp_id,instructor_name,authority,school,school_id,file_path,file_name,mime_type,file_size,uploaded_at,status';
 const SCHOOL_CONTACT_RESPONSIBLES_COLUMNS = 'id,activity_date,school_id,school,authority,responsible_emp_id,responsible_name';
 const ARCHIVE_PAGE_SIZE = 200;
+/** Safety ceiling for the staged archive load (200 * 40 = 8000 closed activities). */
+const ARCHIVE_MAX_PAGES = 40;
 const PROPOSALS_LIST_PAGE_SIZE = 50;
 const COMPLETION_APPROVALS_PAGE_SIZE = 50;
 const SETTINGS_BOOTSTRAP_COLUMNS = 'key,value,description';
@@ -381,14 +384,14 @@ async function readArchiveActivitiesFromSupabase(activityPeriod = currentGlobalA
     const { data, error } = await supabase
       .from('activities')
       .select(ACTIVITY_ARCHIVE_COLUMNS)
-      .eq('activity_season', normalizeGlobalActivityPeriod(activityPeriod))
+      .in('activity_season', activitySeasonQueryValues(activityPeriod))
       .eq('status', CLOSED_STATUS)
       .order('end_date', { ascending: false, nullsFirst: false })
       .order('start_date', { ascending: false, nullsFirst: false })
       .range(pageOffset, pageOffset + pageSize - 1);
     if (error) throw new Error(error.message || 'archive_read_failed');
     const rawRows = Array.isArray(data) ? data : [];
-    const rows = filterRowsByGlobalActivityPeriod(rawRows.map(normalizeActivityRow));
+    const rows = filterRowsByGlobalActivityPeriod(rawRows.map(normalizeActivityRow), activityPeriod);
     return {
       rows,
       _source: 'supabase',
@@ -403,13 +406,62 @@ async function readArchiveActivitiesFromSupabase(activityPeriod = currentGlobalA
   }
 }
 
+/**
+ * Archive KPI cards, filters and counts must describe the whole period, not the
+ * first page. Pages through the existing archive reader until the period is fully
+ * loaded, keeping one projection and one API path.
+ */
+async function readAllArchiveActivitiesFromSupabase(activityPeriod = currentGlobalActivityPeriod(), { pageSize = ARCHIVE_PAGE_SIZE, maxPages = ARCHIVE_MAX_PAGES } = {}) {
+  const size = Math.max(1, Number(pageSize) || ARCHIVE_PAGE_SIZE);
+  const pageLimit = Math.max(1, Number(maxPages) || ARCHIVE_MAX_PAGES);
+  const rows = [];
+  const seenRowIds = new Set();
+  let loadedRawRows = 0;
+  let pages = 0;
+  let truncated = false;
+
+  for (let page = 0; page < pageLimit; page += 1) {
+    const result = await readArchiveActivitiesFromSupabase(activityPeriod, { limit: size, offset: page * size });
+    if (!result) return page === 0 ? null : finishArchivePages();
+    pages += 1;
+    loadedRawRows += Number(result?._debug?.activities_loaded_from_supabase || 0);
+    (Array.isArray(result.rows) ? result.rows : []).forEach((row) => {
+      const rowId = String(row?.RowID || row?.row_id || '').trim();
+      if (rowId && seenRowIds.has(rowId)) return;
+      if (rowId) seenRowIds.add(rowId);
+      rows.push(row);
+    });
+    if (!result._hasMore) return finishArchivePages();
+    truncated = page === pageLimit - 1;
+  }
+
+  return finishArchivePages();
+
+  function finishArchivePages() {
+    return {
+      rows,
+      _source: 'supabase',
+      _hasMore: truncated,
+      _offset: 0,
+      _limit: rows.length,
+      _debug: {
+        activities_loaded_from_supabase: loadedRawRows,
+        source_table: 'public.activities',
+        projection: 'ACTIVITY_ARCHIVE_COLUMNS',
+        archive_pages_loaded: pages,
+        archive_fully_loaded: !truncated
+      }
+    };
+  }
+}
+
 async function readActivitiesFromSupabase(filters = {}) {
   if (!supabase) return null;
 
   try {
     const selectedSeason = normalizeGlobalActivityPeriod(filters?.activity_period || currentGlobalActivityPeriod());
     const select = filters?.select || ACTIVITY_TABLE_COLUMNS;
-    const { data, error } = await supabase.from('activities').select(select).eq('activity_season', selectedSeason);
+    const { data, error } = await supabase.from('activities').select(select).in('activity_season', activitySeasonQueryValues(selectedSeason));
     if (error) throw new Error(error.message || 'activities_read_failed');
     const rawRows = Array.isArray(data) ? data : [];
     const normalizedRows = rawRows.map(normalizeActivityRow);
@@ -652,7 +704,7 @@ function activityHasDatePointInMonth(row, monthPrefix) {
 }
 
 async function selectActivitiesFromSupabase(select = ACTIVITY_LIST_COLUMNS, activitySeason = currentGlobalActivityPeriod()) {
-  const result = await supabase.from('activities').select(select).eq('activity_season', normalizeGlobalActivityPeriod(activitySeason));
+  const result = await supabase.from('activities').select(select).in('activity_season', activitySeasonQueryValues(activitySeason));
   if (result.error) throw new Error(result.error.message || 'activities_read_failed');
   return (Array.isArray(result.data) ? result.data : []).map(normalizeActivityRow);
 }
@@ -695,7 +747,7 @@ async function selectActivitiesByDateRangeFromSupabase({
   let query = supabase
     .from('activities')
     .select(select)
-    .eq('activity_season', currentGlobalActivityPeriod());
+    .in('activity_season', activitySeasonQueryValues(currentGlobalActivityPeriod()));
   if (overlapByStartEnd) {
     query = query.lte('start_date', endDate).gte('end_date', startDate);
   } else {
@@ -1815,7 +1867,7 @@ async function readInstructorActivityHistoryFromSupabase({ empId = '', instructo
   let query = supabase
     .from('activities')
     .select(ACTIVITY_INSTRUCTOR_HISTORY_COLUMNS)
-    .eq('activity_season', normalizeGlobalActivityPeriod(selectedSeason));
+    .in('activity_season', activitySeasonQueryValues(selectedSeason));
   if (emp) {
     // Prefer emp_id filter; names may contain characters unsafe for PostgREST .or() literals.
     query = query.or(`emp_id.eq.${emp},emp_id_2.eq.${emp}`);
@@ -2422,7 +2474,7 @@ async function readEndDatesFromSupabase() {
     const { data, error } = await supabase
       .from('activities')
       .select(ACTIVITY_END_DATES_COLUMNS)
-      .eq('activity_season', normalizeGlobalActivityPeriod(selectedSeason))
+      .in('activity_season', activitySeasonQueryValues(selectedSeason))
       .in('activity_type', ['course', 'קורס', 'קורסים', 'after_school', 'צהרון', 'צהרונים']);
     if (error) throw new Error(error.message || 'end_dates_read_failed');
     const rows = (Array.isArray(data) ? data : [])
@@ -2741,7 +2793,7 @@ async function readExceptionsFromSupabase(params = {}) {
     const suppliedActivityRows = Array.isArray(params?.activityRows) ? params.activityRows : null;
     const needsSummerCompletionUploads = activityPeriod === 'summer_2026';
     const [activitiesResult, instrListResult, approvalsResult, settingsRows] = await Promise.all([
-      suppliedActivityRows ? Promise.resolve({ data: suppliedActivityRows, error: null }) : supabase.from('activities').select(ACTIVITY_EXCEPTIONS_COLUMNS).eq('activity_season', activityPeriod),
+      suppliedActivityRows ? Promise.resolve({ data: suppliedActivityRows, error: null }) : supabase.from('activities').select(ACTIVITY_EXCEPTIONS_COLUMNS).in('activity_season', activitySeasonQueryValues(activityPeriod)),
       readInstructorEmpIdsFromSupabase().then((data) => ({ data, error: null })),
       needsSummerCompletionUploads
         ? supabase.from('activity_completion_approval_uploads').select(COMPLETION_APPROVAL_EXCEPTIONS_COLUMNS).gte('activity_date', '2026-06-01').lte('activity_date', '2026-09-30').then(({ data, error }) => ({ data: error ? [] : data, error }))
@@ -5443,6 +5495,29 @@ function extractMeetingNotes(changes = {}) {
   return notes;
 }
 
+/**
+ * Central write guard for the historical 2026 period. Blocks a mutation when the
+ * selected global period, the requested season, or the stored activity row is 2026,
+ * so a direct call from the UI cannot bypass the read-only state.
+ */
+function assertActivityPeriodEditable({ activity = null, changes = null } = {}) {
+  assertActivityMutationAllowed({
+    activityPeriod: String(state?.activityPeriodTab || ''),
+    activitySeason: changes?.activity_season ?? '',
+    activity
+  });
+}
+
+async function activityRowSeasonSnapshot(rowId) {
+  const { data, error } = await supabase
+    .from('activities')
+    .select('activity_season,start_date')
+    .eq('row_id', rowId)
+    .maybeSingle();
+  if (error) throw new Error(error.message || 'activity_season_read_failed');
+  return data || null;
+}
+
 async function updateActivityInSupabase(payload = {}) {
   const rowId = String(payload?.source_row_id || payload?.row_id || payload?.RowID || '').trim();
   const sourceSheet = String(payload?.source_sheet || 'activities').trim() || 'activities';
@@ -5452,10 +5527,11 @@ async function updateActivityInSupabase(payload = {}) {
   const mappedChanges = mapMeetingDateFieldNamesToSupabase(rawChanges);
   const { data: existingInstructorRow, error: existingInstructorError } = await supabase
     .from('activities')
-    .select('instructor_name,instructor_name_2,emp_id,emp_id_2')
+    .select('instructor_name,instructor_name_2,emp_id,emp_id_2,activity_season,start_date')
     .eq('row_id', rowId)
     .maybeSingle();
   if (existingInstructorError) throw buildSupabaseMutationError('saveActivity', existingInstructorError, 'save_failed');
+  assertActivityPeriodEditable({ activity: existingInstructorRow, changes: rawChanges });
   await validateActivityInstructorBindingsOrThrow({ ...(existingInstructorRow || {}), ...rawChanges });
   let existingForNormalization = null;
   const needsExisting = Object.keys(mappedChanges).some((key) => ['activity_type', 'item_type', 'activity_family', 'activity_name', 'start_date', 'end_date', 'date_1', 'status'].includes(key) || /^date_\d+$/.test(key));
@@ -6257,10 +6333,11 @@ export const api = {
     return { ...supabasePayload, ...canonical, month };
   },
   archiveActivities: async (params = {}) => {
-    const data = await readArchiveActivitiesFromSupabase(
-      params?.activity_period || currentGlobalActivityPeriod(),
-      { limit: params?.limit, offset: params?.offset }
-    );
+    const activityPeriod = params?.activity_period || currentGlobalActivityPeriod();
+    // A single page is requested only when the caller explicitly pages itself.
+    const data = params?.offset === undefined && params?.paged !== true
+      ? await readAllArchiveActivitiesFromSupabase(activityPeriod, { pageSize: params?.limit })
+      : await readArchiveActivitiesFromSupabase(activityPeriod, { limit: params?.limit, offset: params?.offset });
     if (data) return data;
     throw new Error('archive_supabase_failed');
   },
@@ -7511,10 +7588,12 @@ export const api = {
     const payload = (typeof target === 'object' && target !== null && data === undefined)
       ? { activity: target }
       : { activity: { ...(data || {}), source: target } };
+    assertActivityPeriodEditable({ activity: payload.activity, changes: payload.activity });
     return upsertActivityToSupabase(payload);
   },
   submitCreateActivityRequest: async (activity) => {
     if (!canSubmitCreateActivityRequestsUser()) throw new Error('forbidden_create_activity_request');
+    assertActivityPeriodEditable({ activity: activity || {}, changes: activity || {} });
     const currentUser = state?.user || {};
     const requestedPayload = sanitizeActivityPayloadForSupabase(
       synchronizeStartDateAndFirstMeeting(sanitizeActivityPayload(activity || {})),
@@ -7568,6 +7647,7 @@ export const api = {
     if (!rowId) throw new Error('missing_row_id');
     const role = String(state?.user?.role || '').trim();
     if (!ACTIVITY_DIRECT_MANAGE_ROLES.has(role)) throw new Error('forbidden_delete_activity');
+    assertActivityPeriodEditable({ activity: await activityRowSeasonSnapshot(rowId) });
     const { data, error } = await supabase
       .from('activities')
       .update({ status: DELETED_STATUS })
@@ -7588,10 +7668,11 @@ export const api = {
     const syncedChanges = applyInstructorEmpSync(rawChanges);
     const { data: existingInstructorRow, error: existingInstructorError } = await supabase
       .from('activities')
-      .select('instructor_name,instructor_name_2,emp_id,emp_id_2')
+      .select('instructor_name,instructor_name_2,emp_id,emp_id_2,activity_season,start_date')
       .eq('row_id', rowId)
       .maybeSingle();
     if (existingInstructorError) throw buildSupabaseMutationError('submitEditRequest', existingInstructorError, 'submit_edit_request_failed');
+    assertActivityPeriodEditable({ activity: existingInstructorRow, changes: syncedChanges });
     await validateActivityInstructorBindingsOrThrow({ ...(existingInstructorRow || {}), ...syncedChanges });
     const reducedChanges = Object.entries(syncedChanges).reduce((acc, [key, value]) => {
       if (value === undefined) return acc;
