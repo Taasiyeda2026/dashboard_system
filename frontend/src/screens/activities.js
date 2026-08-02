@@ -2411,7 +2411,7 @@ export const activitiesScreen = {
       hideShellHeader(contentRoot);
       bindActivityEditForm(contentRoot);
       bindContact2027Section(contentRoot);
-      bindInstructorScheduling(contentRoot, { ui, state, onCalculated: (summary) => { state.instructorSchedulingSummaries ||= {}; state.instructorSchedulingSummaries[summary.activityId] = summary; }, onAssigned: () => { clearScreenDataCache?.(); rerender(); } });
+      bindInstructorScheduling(contentRoot, { ui, state, activitiesRows });
     }
 
     function bindActivitiesReopenBtn(contentRoot, row) {
