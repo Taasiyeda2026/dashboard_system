@@ -12245,52 +12245,6 @@ select.ds-input {
   margin-bottom: 6px;
 }
 
-/* Readonly client card */
-.ds-pa-client-locked {
-  display: grid;
-  grid-template-columns: minmax(0, 1fr) auto;
-  align-items: start;
-  gap: 10px;
-  background: var(--ds-surface-2, #f8fafc);
-  border: 1px solid var(--ds-border, #e2e8f0);
-  border-radius: 8px;
-  padding: 8px 10px;
-  margin-bottom: 6px;
-}
-.ds-pa-client-locked-state {
-  grid-column: 1 / -1;
-  margin: 0;
-  font-size: 0.82rem;
-  font-weight: 700;
-  color: #1d4ed8;
-}
-.ds-pa-client-locked-body {
-  display: grid;
-  grid-template-columns: repeat(auto-fit, minmax(160px, 1fr));
-  align-items: start;
-  gap: 7px 10px;
-  min-width: 0;
-}
-.ds-pa-client-locked-name {
-  font-size: 0.82rem;
-  color: var(--ds-color-text, #0f172a);
-}
-.ds-pa-client-locked-actions {
-  display: inline-flex;
-  gap: 6px;
-  align-items: center;
-}
-.ds-pa-client-locked-detail {
-  display: inline-block;
-  min-width: 0;
-  font-size: 0.8rem;
-  color: var(--ds-color-text-muted, #64748b);
-  overflow-wrap: anywhere;
-}
-.ds-pa-client-locked-detail--warn {
-  color: #b45309;
-  font-weight: 700;
-}
 .ds-pa-new-client-label {
   font-size: 0.78rem;
   font-weight: 600;
@@ -17972,15 +17926,6 @@ details[open] > .ds-fin-acc__summary::before { transform: rotate(90deg); }
   margin: 0;
   font-size: 0.8rem;
 }
-.pa-sidebar .ds-pa-client-locked {
-  padding: 12px;
-  margin-bottom: 4px;
-  gap: 12px;
-}
-.pa-sidebar .ds-pa-client-locked-actions {
-  flex-wrap: wrap;
-  justify-content: flex-start;
-}
 .pa-sidebar .ds-pa-form-field span,
 .pa-sidebar .ds-pa-item-field span,
 .pa-sidebar .ds-pa-field-label {
@@ -18143,14 +18088,6 @@ details[open] > .ds-fin-acc__summary::before { transform: rotate(90deg); }
   flex-direction: column;
   align-items: stretch;
   gap: 8px;
-}
-.pa-sidebar .ds-pa-client-locked-actions {
-  display: grid;
-  grid-template-columns: 1fr;
-  gap: 8px;
-}
-.pa-sidebar .ds-pa-client-locked-actions .ds-btn {
-  width: 100%;
 }
 .pa-sidebar .ds-pa-item-remove {
   justify-self: stretch;
@@ -19193,32 +19130,6 @@ details[open] > .ds-fin-acc__summary::before { transform: rotate(90deg); }
 .pa-sidebar .pa-sidebar-section-title {
   margin-bottom: 6px;
   padding-bottom: 4px;
-}
-
-.pa-sidebar .ds-pa-client-locked {
-  padding: 8px 10px;
-  margin-bottom: 0;
-  gap: 8px;
-}
-
-.pa-sidebar .ds-pa-client-locked-body {
-  gap: 2px;
-}
-
-.pa-sidebar .ds-pa-client-locked-name,
-.pa-sidebar .ds-pa-client-locked-state {
-  margin: 0;
-}
-
-.pa-sidebar .ds-pa-client-locked-name {
-  font-size: 0.86rem;
-  font-weight: 800;
-  color: #0f172a;
-}
-
-.pa-sidebar .ds-pa-client-locked-state {
-  font-size: 0.76rem;
-  color: #64748b;
 }
 
 .pa-sidebar .ds-pa-contact-select-field {
@@ -21853,19 +21764,6 @@ details[open] > .ds-fin-acc__summary::before { transform: rotate(90deg); }
 .pa-editor-workspace .pa-sidebar .ds-pa-type-meta-aux {
   grid-template-columns: 165px 100px;
 }
-.pa-editor-workspace .pa-sidebar .ds-pa-type-cards,
-.pa-editor-workspace .pa-sidebar .ds-pa-type-chips {
-  display: flex !important;
-  width: max-content;
-  max-width: 100%;
-  flex-wrap: wrap;
-  gap: 6px;
-}
-.pa-editor-workspace .pa-sidebar .ds-pa-type-card {
-  width: auto !important;
-  min-width: max-content;
-  flex: 0 0 auto;
-}
 .pa-editor-workspace .pa-sidebar .ds-pa-form-activities-panel {
   padding: 12px;
   border: 1px solid #d7e3ef;
@@ -22523,14 +22421,6 @@ details[open] > .ds-fin-acc__summary::before { transform: rotate(90deg); }
   margin-inline: auto;
 }
 
-/* Keep the editor groups content-sized and sequential in the RTL inline flow. */
-.pa-editor-workspace .pa-sidebar .ds-pa-form-meta-panel {
-  display: grid;
-  grid-template-columns: minmax(0, 1fr);
-  align-items: start;
-  gap: 8px;
-  min-height: 0;
-}
 .pa-editor-workspace .pa-sidebar [data-pa-step-panel="client"],
 .pa-editor-workspace .pa-sidebar [data-pa-step-panel="contact"],
 .pa-editor-workspace .pa-sidebar .ds-pa-form-type-panel,
@@ -22541,31 +22431,6 @@ details[open] > .ds-fin-acc__summary::before { transform: rotate(90deg); }
 /* Recipient search/type layout for .pa-editor-workspace is owned exclusively by
    frontend/src/styles/proposal-editor-compact-fixes.css. Conflicting duplicate
    rules were removed to keep a single HTML/CSS source of truth. */
-/* Locked recipient details layout owned by proposal-editor-compact-fixes.css. */
-.pa-editor-workspace .pa-sidebar [data-pa-step-panel="contact"] {
-  display: grid;
-  gap: 6px;
-  padding-top: 6px;
-  border-top: 1px solid var(--ds-border);
-}
-.pa-editor-workspace .pa-sidebar [data-pa-step-panel="contact"] > .pa-sidebar-section-title {
-  margin: 0;
-  padding: 0;
-  border: 0;
-}
-.pa-editor-workspace .pa-sidebar [data-pa-step-panel="contact"] > .ds-pa-form-grid {
-  grid-template-columns: 220px 140px 150px minmax(220px, 280px) max-content;
-  justify-content: start;
-  align-items: end;
-  gap: 10px;
-}
-.pa-editor-workspace .pa-sidebar [data-pa-contact-picker-host],
-.pa-editor-workspace .pa-sidebar .ds-pa-contact-channels {
-  display: contents;
-}
-.pa-editor-workspace .pa-sidebar .ds-pa-contact-channels-fields {
-  display: contents;
-}
 .pa-editor-workspace .pa-sidebar [data-pa-add-contact-row] {
   grid-column: auto;
   flex-direction: row;
@@ -22644,7 +22509,6 @@ details[open] > .ds-fin-acc__summary::before { transform: rotate(90deg); }
 }
 
 @media (max-width: 900px) {
-  .pa-editor-workspace .pa-sidebar .ds-pa-client-locked-body,
   .pa-editor-workspace .pa-sidebar [data-pa-step-panel="contact"] > .ds-pa-form-grid {
     grid-template-columns: repeat(2, minmax(0, 1fr));
   }
@@ -22657,14 +22521,11 @@ details[open] > .ds-fin-acc__summary::before { transform: rotate(90deg); }
   }
 }
 @media (max-width: 640px) {
-  .pa-editor-workspace .pa-sidebar .ds-pa-client-locked,
-  .pa-editor-workspace .pa-sidebar .ds-pa-client-locked-body,
   .pa-editor-workspace .pa-sidebar [data-pa-step-panel="contact"] > .ds-pa-form-grid,
   .pa-editor-workspace .pa-sidebar .ds-pa-type-meta-aux,
   .pa-editor-workspace .pa-sidebar .ds-pa-item-quick-row {
     grid-template-columns: minmax(0, 1fr) !important;
   }
-  .pa-editor-workspace .pa-sidebar .ds-pa-client-locked-actions,
   .pa-editor-workspace .pa-sidebar [data-pa-add-contact-row] {
     width: auto;
     justify-self: start;

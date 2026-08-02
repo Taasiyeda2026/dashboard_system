@@ -4114,22 +4114,17 @@ function enrichProposalRowFromContactOptions(row = {}, contactOptions = []) {
   };
 }
 
-function clientLockedBannerHtml(auth, school, contactName, contactRole, phone, email, clientName = '', schoolMeta = null) {
+export function clientLockedBannerHtml(auth, school, contactName, contactRole, phone, email, clientName = '', schoolMeta = null, recipient = {}) {
   if (!auth && !clientName) return '';
-  const displayName = clientName || school || auth;
   const semelMosad = text(schoolMeta?.semel_mosad);
-  const isSchool = Boolean(school && school !== auth);
-  const isAuthority = Boolean(auth && !isSchool);
+  const clientType = text(recipient.clientType || recipient.client_type);
+  const isSchool = clientType === 'school' || Boolean(recipient.schoolId || recipient.school_id);
+  const isAuthority = clientType === 'authority';
   const modeClass = isSchool ? ' is-school' : (isAuthority ? ' is-authority' : ' is-other');
   return `<div class="ds-pa-client-locked${modeClass}">
     <div class="ds-pa-client-locked-body">
-      ${auth ? `<p class="ds-pa-client-locked-detail"><span>רשות</span><strong>${escapeHtml(auth)}</strong></p>` : ''}
-      ${isSchool
-        ? `<p class="ds-pa-client-locked-name"><span>בית ספר</span><strong>${escapeHtml(school)}</strong></p>`
-        : (!auth ? `<p class="ds-pa-client-locked-name"><span>נמען</span><strong>${escapeHtml(displayName)}</strong></p>` : '')}
       ${isSchool && semelMosad ? `<p class="ds-pa-client-locked-state"><span>סמל מוסד</span><strong>${escapeHtml(semelMosad)}</strong></p>` : ''}
     </div>
-    <div class="ds-pa-client-locked-actions"><button type="button" class="ds-btn ds-btn--xs ds-btn--ghost" data-pa-unlock-client>החלף</button></div>
   </div>`;
 }
 
@@ -4349,7 +4344,7 @@ function stepComplete(form) {
 
   let clientDone = false;
   if (clientType === 'other') {
-    clientDone = Boolean(authorityId && otherName);
+    clientDone = Boolean(otherName);
   } else if (clientType === 'authority') {
     clientDone = Boolean(authorityId);
   } else {
@@ -4394,17 +4389,21 @@ function showValidationNotice(form, errors, isPending) {
   if (errorEl) errorEl.textContent = '';
 }
 
-export function proposalTypeCardsHtml(selected) {
+export function proposalTypeCardsHtml(selected, { includeSummer = true } = {}) {
   const normalizedSelected = normalizeProposalGroup(selected);
-  const options = proposalGroupLookups.groups.filter((o) => o.group_key !== COMBINED_INTERNAL_KEY && PROPOSAL_GROUP_DISPLAY_FALLBACKS[o.group_key]);
+  const options = proposalGroupLookups.groups.filter((o) => (
+    o.group_key !== COMBINED_INTERNAL_KEY
+    && PROPOSAL_GROUP_DISPLAY_FALLBACKS[o.group_key]
+    && (includeSummer || o.group_key !== 'summer')
+  ));
   if (!options.length) {
-    return `<div class="ds-pa-type-chips" data-pa-type-cards style="display:grid;grid-template-columns:repeat(4,minmax(0,1fr));gap:4px;margin:0"></div><input type="hidden" name="activity_type_group" value="${escapeHtml(normalizedSelected === COMBINED_INTERNAL_KEY ? '' : normalizedSelected)}" data-pa-type-hidden>`;
+    return `<div class="ds-pa-type-chips" data-pa-type-cards></div><input type="hidden" name="activity_type_group" value="${escapeHtml(normalizedSelected === COMBINED_INTERNAL_KEY ? '' : normalizedSelected)}" data-pa-type-hidden>`;
   }
-  return `<div class="ds-pa-type-chips" data-pa-type-cards style="display:grid;grid-template-columns:repeat(4,minmax(0,1fr));gap:4px;margin:0">
+  return `<div class="ds-pa-type-chips" data-pa-type-cards>
     ${options.map((opt) => {
       const isSel = normalizedSelected === opt.group_key;
       const label = PROPOSAL_GROUP_DISPLAY_FALLBACKS[opt.group_key] || clientFacingProposalTypeLabel({ activity_type_group: opt.group_key, document_type: opt.display_name });
-      return `<button type="button" class="ds-pa-type-card${isSel ? ' is-selected' : ''}" data-pa-type-btn="${escapeHtml(opt.group_key)}" style="width:100%;min-height:auto;padding:4px 6px;border-radius:12px;border:1.5px solid ${isSel ? '#6366f1' : '#d1d5db'};background:${isSel ? '#eef2ff' : '#f9fafb'};color:${isSel ? '#4f46e5' : '#374151'};font-weight:${isSel ? '600' : '400'};font-size:0.8rem;cursor:pointer;text-align:center;line-height:1.2;transition:all .15s">${escapeHtml(label)}</button>`;
+      return `<button type="button" class="ds-pa-type-card${isSel ? ' is-selected' : ''}" data-pa-type-btn="${escapeHtml(opt.group_key)}">${escapeHtml(label)}</button>`;
     }).join('')}
   </div><input type="hidden" name="activity_type_group" value="${escapeHtml(normalizedSelected === COMBINED_INTERNAL_KEY ? '' : normalizedSelected)}" data-pa-type-hidden>`;
 }
@@ -4557,18 +4556,19 @@ function formHtml(mode, row = {}, activityNameOptions = [], contactOptions = [],
           </div>
         </div>
     <div class="ds-pa-form-meta-panel">
-      <h4 class="pa-sidebar-section-title">פרטי נמען</h4>
       <div class="ds-pa-recipient-meta-row ds-pa-recipient-main-row" data-pa-recipient-meta-row>
-        <label class="ds-pa-form-field ds-pa-recipient-date-field"><span>${escapeHtml(FIELD_LABELS.proposal_date)}</span><input class="ds-input ds-input--sm" type="date" name="proposal_date" value="${escapeHtml(proposalDate)}"></label>
-        <label class="ds-pa-form-field ds-pa-recipient-domain-field"><span>${escapeHtml(FIELD_LABELS.proposal_domain)}: Y / E</span><select class="ds-input ds-input--sm" name="proposal_domain">${optionHtml('Y', row.proposal_domain || 'Y', 'Y')}${optionHtml('E', row.proposal_domain || 'Y', 'E')}</select></label>
+        <div class="ds-pa-recipient-general"><h4 class="pa-sidebar-section-title">פרטים כלליים</h4>
+          <label class="ds-pa-form-field ds-pa-recipient-date-field"><span>${escapeHtml(FIELD_LABELS.proposal_date)}</span><input class="ds-input ds-input--sm" type="date" name="proposal_date" value="${escapeHtml(proposalDate)}"></label>
+          <label class="ds-pa-form-field ds-pa-recipient-domain-field"><span>תחום</span><select class="ds-input ds-input--sm" name="proposal_domain">${optionHtml('Y', row.proposal_domain || 'Y', 'Y')}${optionHtml('E', row.proposal_domain || 'Y', 'E')}</select></label>
+        </div>
         ${clientTypeSelectorHtml(initClientType)}
         <div class="ds-pa-recipient-flow" data-pa-step-panel="client">
-          <div class="ds-pa-client-search-block" data-pa-client-search-row${isLocked ? ' hidden' : ''}>
+          <div class="ds-pa-client-search-block" data-pa-client-search-row>
             ${contactOptionsLoadErrorHtml(contactOptionsError)}
             ${clientSearchHtml(contactOptions, row)}
             <div class="ds-pa-other-client-section" data-pa-other-client-field${initOther ? '' : ' hidden'}><label class="ds-pa-form-field ds-pa-other-client-field"><span>שם הלקוח / חברה</span><input class="ds-input ds-input--sm" name="other_client_name" value="${escapeHtml(initOther ? (row.client_name || initSchool) : '')}" placeholder="שם הלקוח"></label></div>
           </div>
-          <div data-pa-client-card${isLocked ? '' : ' hidden'}>${isLocked ? clientLockedBannerHtml(initAuth, initSchool, initContact, initRole, initPhone, initEmail, initClientName, initSchoolMeta) : ''}</div>
+          <div data-pa-client-card${isLocked ? '' : ' hidden'}>${isLocked ? clientLockedBannerHtml(initAuth, initSchool, initContact, initRole, initPhone, initEmail, initClientName, initSchoolMeta, { clientType: initClientType, schoolId: initSchoolId }) : ''}</div>
           <div class="ds-pa-client-hidden-values" data-pa-client-fields hidden>
             ${hiddenField('client_authority', row.client_authority)}
             ${hiddenField('school_framework', initOther ? '' : row.school_framework)}
@@ -4607,7 +4607,7 @@ function formHtml(mode, row = {}, activityNameOptions = [], contactOptions = [],
       <h4 class="pa-sidebar-section-title">פרטי ההצעה</h4>
       <div class="ds-pa-type-meta-grid">
         <div class="ds-pa-form-field">
-          ${proposalTypeCardsHtml(normalizedActivityGroup)}
+          ${proposalTypeCardsHtml(normalizedActivityGroup, { includeSummer: mode === 'edit' || normalizedActivityGroup === 'summer' })}
         </div>
         <input type="hidden" name="document_type" value="${escapeHtml(text(row.document_type) || 'הצעת מחיר')}">
       </div>
@@ -5819,13 +5819,13 @@ export const proposalsAgreementsScreen = {
         <style>
           .ds-pa-pdf-spinner{display:inline-block;width:12px;height:12px;border:2px solid currentColor;border-inline-end-color:transparent;border-radius:50%;animation:ds-pa-spin .7s linear infinite}@keyframes ds-pa-spin{to{transform:rotate(360deg)}}.ds-pa-screen-tab{border-radius:10px 10px 0 0;transition:background .15s,color .15s,border-color .15s}.ds-pa-screen-tab.is-active{color:var(--ds-accent)!important;border-bottom-color:var(--ds-accent)!important}.ds-pa-screen-tab:focus-visible{outline:3px solid color-mix(in srgb,var(--ds-accent) 24%,transparent);outline-offset:2px}.ds-pa-screen-tab:hover{background:color-mix(in srgb,var(--ds-accent) 8%,transparent)}.ds-pa-tab-count{display:inline-flex;min-width:19px;height:19px;padding:0 5px;align-items:center;justify-content:center;border-radius:999px;background:#e2e8f0;color:#475569;font-size:.72rem;margin-inline-start:4px}.ds-pa-screen-tab.is-active .ds-pa-tab-count{background:var(--ds-accent-soft);color:var(--ds-accent)}
           .ds-pa-form{max-width:1080px;margin-inline:auto}.ds-pa-form .ds-pa-form-grid{max-width:100%}.ds-pa-item-card{border:1px solid #dbe7f3;border-radius:10px;background:#fff;padding:5px 8px;margin:3px 0;box-shadow:0 1px 3px rgba(15,23,42,.04)}
-          .ds-pa-item-quick-row{display:grid;grid-template-columns:minmax(0,1fr) 96px;gap:6px;align-items:end}.ds-pa-item-extra{margin-top:4px}.ds-pa-item-extra-toggle{cursor:pointer;color:#2563eb;font-size:.78rem}.ds-pa-type-chips{grid-template-columns:repeat(2,minmax(0,1fr))}.ds-pa-type-card{min-height:28px!important;padding:3px 5px!important;font-size:.76rem!important}.ds-pa-summary-bar--compact{display:flex;align-items:center;gap:8px;justify-content:space-between}.ds-pa-summary-bar--compact .ds-pa-summary-pill{flex:1}.ds-pa-item-field--select select{overflow:hidden;text-overflow:ellipsis}.ds-pa-item-field--select-no-label{gap:0}.ds-pa-item-field span{display:block;font-size:.74rem;color:#64748b;margin-bottom:3px;font-weight:600}.ds-pa-line-total output{min-height:34px;display:flex;align-items:center;justify-content:center;border:1px solid #dbe7f3;border-radius:10px;background:#f8fbff;font-weight:700;color:#0f766e}.ds-pa-items-total-row{margin-top:10px;padding:10px 12px;border-radius:12px;background:#eef8ff;font-size:.9rem}.ds-pa-items-total-row strong{color:#0369a1}
+          .ds-pa-item-quick-row{display:grid;grid-template-columns:minmax(0,1fr) 96px;gap:6px;align-items:end}.ds-pa-item-extra{margin-top:4px}.ds-pa-item-extra-toggle{cursor:pointer;color:#2563eb;font-size:.78rem}.ds-pa-summary-bar--compact{display:flex;align-items:center;gap:8px;justify-content:space-between}.ds-pa-summary-bar--compact .ds-pa-summary-pill{flex:1}.ds-pa-item-field--select select{overflow:hidden;text-overflow:ellipsis}.ds-pa-item-field--select-no-label{gap:0}.ds-pa-item-field span{display:block;font-size:.74rem;color:#64748b;margin-bottom:3px;font-weight:600}.ds-pa-line-total output{min-height:34px;display:flex;align-items:center;justify-content:center;border:1px solid #dbe7f3;border-radius:10px;background:#f8fbff;font-weight:700;color:#0f766e}.ds-pa-items-total-row{margin-top:10px;padding:10px 12px;border-radius:12px;background:#eef8ff;font-size:.9rem}.ds-pa-items-total-row strong{color:#0369a1}
           .ds-pa-bundle-prompt{margin-top:12px}.ds-pa-bundle-panel{border:1px solid #b7e0f5;background:#f8fdff;border-radius:14px;padding:12px}.ds-pa-bundle-head{display:flex;justify-content:space-between;gap:10px;align-items:center;margin-bottom:6px}.ds-pa-bundle-head strong{font-size:.9rem;color:#0f172a}.ds-pa-bundle-head span,.ds-pa-bundle-help,.ds-pa-bundle-empty{font-size:.78rem;color:#64748b}.ds-pa-bundle-grid{display:grid;grid-template-columns:repeat(auto-fit,minmax(220px,1fr));gap:8px;margin-top:10px}.ds-pa-bundle-child-card{display:grid;grid-template-columns:auto 1fr auto;align-items:center;gap:8px;border:1px solid #dbe7f3;border-radius:12px;background:#fff;padding:9px 10px;cursor:pointer;min-height:42px}.ds-pa-bundle-child-card:hover{border-color:#38bdf8;background:#f0f9ff}.ds-pa-bundle-child-card:has(input:checked){border-color:#0ea5e9;background:#e0f2fe;box-shadow:0 0 0 1px #0ea5e9 inset}.ds-pa-bundle-child-name{font-size:.82rem;color:#0f172a;line-height:1.25}.ds-pa-bundle-child-price{font-size:.8rem;font-weight:700;color:#0f766e;white-space:nowrap}.ds-pa-bundle-footer{display:flex;justify-content:space-between;align-items:center;gap:10px;margin-top:10px;flex-wrap:wrap}.ds-pa-bundle-actions{display:flex;gap:6px}.ds-pa-bundle-selection-summary{font-size:.78rem;color:#0369a1;font-weight:700}.ds-pa-summary-bundle-list{margin:4px 0 0;padding-right:16px;font-size:.72rem}.ds-pa-items-summary-table{width:100%;border-collapse:collapse;font-size:.78rem}.ds-pa-items-summary-table th,.ds-pa-items-summary-table td{border-bottom:1px solid #e5eef6;padding:6px;text-align:right}.ds-pa-items-summary-table th{color:#64748b;font-weight:700;background:#f8fbff}
           .ds-pa-active-filters{display:flex;flex-wrap:wrap;align-items:center;gap:6px 8px;border:1px solid #dbe7f3;background:#f8fbff;border-radius:10px;padding:6px 10px;margin:8px 0 10px}.ds-pa-active-filters[hidden]{display:none}.ds-pa-active-filters-label{color:#475569;font-weight:700;font-size:.82rem;flex-shrink:0}.ds-pa-active-filter-chips{display:flex;flex-wrap:wrap;gap:6px}.ds-pa-active-filter-chip{border:1px solid #bfdbfe;background:#eff6ff;color:#1e3a8a;border-radius:999px;padding:3px 9px;font-size:.78rem}.ds-pa-active-filters [data-pa-clear-filters]{margin-inline-start:auto}.ds-pa-filtered-empty{margin:12px;border:1px solid #fed7aa;background:#fff7ed;color:#9a3412;border-radius:12px;padding:14px;text-align:center}.ds-pa-filtered-empty p{margin:0 0 10px;font-weight:700}
           .ds-pa-legacy-list .ds-pa-toolbar{display:flex;flex-wrap:nowrap;align-items:end;gap:6px}.ds-pa-legacy-list .ds-pa-toolbar>*{min-width:0}.ds-pa-legacy-list .ds-pa-search{flex:1 1 170px;min-width:140px;max-width:190px}.ds-pa-legacy-list .ds-pa-filter{flex:0 1 112px;min-width:0;max-width:none}.ds-pa-legacy-list .ds-pa-filter:has([data-pa-filter="client_authority"]){flex-basis:130px}.ds-pa-legacy-list .ds-pa-filter:has([data-pa-filter="school_framework"]){flex-basis:150px}.ds-pa-legacy-list .ds-pa-filter:has([data-pa-filter="proposal_domain"]){flex-basis:90px}.ds-pa-legacy-list .ds-pa-filter:has([data-pa-filter="date_from"]),.ds-pa-legacy-list .ds-pa-filter:has([data-pa-filter="date_to"]){flex-basis:128px}.ds-pa-legacy-list .ds-pa-toolbar .ds-input,.ds-pa-legacy-list .ds-pa-clear-inline{width:100%;height:34px;min-height:34px;box-sizing:border-box}.ds-pa-legacy-list .ds-pa-clear-inline{flex:0 0 auto;width:auto;padding-inline:10px}
           .ds-pa-legacy-list{display:none}.ds-pa-screen[data-pa-view-mode="all-proposals"] .ds-pa-legacy-list{display:block}.ds-pa-screen[data-pa-view-mode="all-proposals"] .ds-client-workspace,.ds-pa-screen[data-pa-view-mode="proposal-editor"] .ds-client-workspace{display:none}.ds-pa-screen[data-pa-view-mode="proposal-details"] .ds-pa-legacy-list,.ds-pa-screen[data-pa-view-mode="proposal-editor"] .ds-pa-legacy-list{display:none}.ds-pa-all-back{margin:0 0 12px}.ds-client-workspace{max-width:1360px;margin:0 auto}.ds-client-home{padding:12px 10px 8px}.ds-client-toolbar{display:flex;flex-direction:row;justify-content:center;align-items:center;flex-wrap:nowrap;gap:9px;width:100%;margin:0 auto 22px}.ds-client-toolbar-button{width:140px;height:42px;min-height:42px;padding:0 14px;border-radius:12px;font-size:.9rem;flex:0 0 140px}.ds-client-search{display:block;width:420px;flex:0 1 420px;margin:0}.ds-client-search input{display:block;width:100%;height:42px;border:2px solid var(--ds-accent);border-radius:12px;padding-inline:16px;background:#fff;box-sizing:border-box}.ds-client-search input:focus{border-color:var(--ds-accent);box-shadow:0 0 0 3px color-mix(in srgb,var(--ds-accent) 20%,transparent);outline:0}.ds-client-actions{display:flex;justify-content:center;flex-wrap:wrap;gap:10px}.ds-client-add{width:42px;height:42px;border:0;background:transparent;color:var(--ds-accent);font-size:2rem;cursor:pointer}.ds-client-search-results{max-width:760px;margin:0 auto 18px;border:1px solid color-mix(in srgb,var(--ds-accent) 30%,var(--ds-border));background:#fff;border-radius:16px;box-shadow:0 12px 30px color-mix(in srgb,var(--ds-accent) 12%,transparent);padding:6px;max-height:380px;overflow:auto}.ds-client-search-result{display:flex;width:100%;justify-content:space-between;align-items:center;text-align:right;padding:12px 14px;border:0;border-bottom:1px solid var(--ds-border);background:#fff;cursor:pointer;border-radius:10px}.ds-client-search-result:hover,.ds-client-search-result:focus-visible{background:var(--ds-accent-soft);outline:3px solid color-mix(in srgb,var(--ds-accent) 28%,transparent);outline-offset:1px}.ds-client-search-result span{color:#64748b;font-size:.8rem}.ds-client-queues{display:grid;grid-template-columns:repeat(4,minmax(190px,1fr));gap:18px}.ds-client-queue{border:2px solid var(--ds-accent);border-radius:16px;background:#fff;min-height:150px;overflow:hidden;box-shadow:0 4px 14px color-mix(in srgb,var(--ds-accent) 6%,transparent)}.ds-client-queue header{display:flex;justify-content:space-between;align-items:center;padding:12px 14px;background:var(--ds-accent-soft);color:var(--ds-accent)}.ds-client-queue header b{display:inline-grid;place-items:center;min-width:24px;height:24px;border-radius:999px;background:var(--ds-accent);color:#fff}.ds-client-queue>div{padding:8px}.ds-client-queue>div>p,.ds-client-empty,.ds-client-search-empty{text-align:center;color:#94a3b8;font-size:.84rem}.ds-client-queue-item{display:block;width:100%;text-align:right;border:0;border-bottom:1px solid var(--ds-border);background:#fff;padding:10px 8px;cursor:pointer;border-radius:8px;transition:background .15s,box-shadow .15s}.ds-client-queue-item:hover,.ds-client-queue-item:focus-visible{background:color-mix(in srgb,var(--ds-accent) 7%,var(--ds-surface));box-shadow:0 0 0 3px color-mix(in srgb,var(--ds-accent) 20%,transparent);outline:0}.ds-client-queue-item strong,.ds-client-queue-item span{display:block}.ds-client-queue-item span{font-size:.75rem;color:#64748b;margin-top:3px}.ds-client-home__hint{text-align:center;color:#64748b;font-size:.8rem;margin-top:16px}.ds-client-file{position:relative;display:grid;grid-template-columns:minmax(380px,40%) minmax(0,1fr);gap:26px;border:2px solid var(--ds-accent);border-radius:18px;background:#fff;padding:32px;margin:14px 4px;box-shadow:0 8px 28px color-mix(in srgb,var(--ds-accent) 8%,transparent)}.ds-client-file__close{position:absolute;top:10px;left:12px;border:0;background:transparent;color:#dc2626;font-size:1.05rem;cursor:pointer}.ds-client-file__identity>p{display:grid;grid-template-columns:120px 1fr;gap:10px;margin:0 0 12px}.ds-client-file__identity>p span,.ds-client-file h3{color:var(--ds-accent);font-weight:700}.ds-client-file__contacts-head,.ds-client-file__proposals-head{display:flex;justify-content:space-between;align-items:center;margin-top:22px}.ds-client-file h3{margin:0;font-size:1.05rem}.ds-client-contacts{display:grid;gap:8px;margin-top:10px}.ds-client-contact{display:grid;grid-template-columns:minmax(130px,1fr) minmax(180px,1fr) auto;gap:14px;align-items:center;padding:10px 12px;border:1px solid color-mix(in srgb,var(--ds-accent) 20%,var(--ds-border));border-radius:12px;background:color-mix(in srgb,var(--ds-accent) 3%,var(--ds-surface))}.ds-client-contact strong,.ds-client-contact span,.ds-client-contact a{display:block}.ds-client-contact span,.ds-client-contact a{font-size:.8rem;color:#64748b}.ds-client-contact button{border:0;background:transparent;color:var(--ds-accent);cursor:pointer;font-size:1rem}.ds-client-file__proposals{border:2px solid var(--ds-accent);border-radius:16px;padding:16px;background:color-mix(in srgb,var(--ds-accent) 3%,var(--ds-surface));align-self:start}.ds-client-file__proposals-head{margin:0 0 10px}.ds-client-file__proposals hr{border:0;border-top:1px solid #1f2937;margin:20px 10px}.ds-client-proposal{border:1px solid color-mix(in srgb,var(--ds-accent) 20%,var(--ds-border));background:#fff;border-radius:12px;margin:8px 0;padding:5px}.ds-client-proposal.is-archived{opacity:.78}.ds-client-proposal__main{display:grid;grid-template-columns:auto 1fr auto;gap:8px;align-items:center;width:100%;text-align:right;border:0;background:transparent;padding:7px;cursor:pointer}.ds-client-proposal__main span strong,.ds-client-proposal__main span small{display:block}.ds-client-proposal__main small{color:#64748b;font-size:.7rem;margin-top:2px}.ds-client-proposal__main b{font-size:.76rem;color:#0f766e}.ds-client-proposal__actions{display:flex;flex-wrap:wrap;gap:4px;justify-content:flex-end;padding:0 7px 6px}.ds-client-proposal__version{display:inline-block;margin-inline-start:auto;border:0;background:transparent;color:var(--ds-accent);font-size:.72rem;cursor:pointer;padding:2px 7px}.ds-client-archive summary{cursor:pointer;color:#64748b;font-weight:700;font-size:.84rem}.ds-client-archive summary b{display:inline-grid;place-items:center;min-width:20px;height:20px;border-radius:999px;background:#e2e8f0;margin-inline-start:4px}.ds-client-contact-modal{position:fixed;inset:0;z-index:10000;display:grid;place-items:center;background:rgba(15,23,42,.45);padding:20px}.ds-client-contact-form{position:relative;width:min(520px,100%);display:grid;grid-template-columns:1fr 1fr;gap:12px;background:#fff;border-radius:18px;padding:26px;box-shadow:0 24px 60px rgba(15,23,42,.25)}.ds-client-contact-form h3,.ds-client-contact-form>div,.ds-client-contact-form>p{grid-column:1/-1}.ds-client-contact-form label{display:grid;gap:5px;font-size:.8rem;color:#475569}.ds-client-contact-form>p{color:#dc2626;margin:0}.ds-client-contact-form>div{display:flex;gap:8px;justify-content:flex-start}
           .ds-pa-proposal-detail{width:94%;max-width:1360px;margin:0 auto;padding:8px 10px 24px}.ds-pa-proposal-detail-toolbar{display:flex;align-items:center;gap:12px;flex-wrap:wrap;margin-bottom:14px}.ds-pa-proposal-detail .ds-pa-drawer{position:static;inset:auto;z-index:auto;display:block;background:transparent;justify-content:stretch}.ds-pa-proposal-detail .ds-pa-drawer-panel{width:100%;max-width:100%;height:auto;max-height:none;overflow:visible;border:2px solid var(--ds-accent);border-radius:18px;box-shadow:0 8px 28px color-mix(in srgb,var(--ds-accent) 8%,transparent)}.ds-pa-proposal-detail .ds-pa-drawer-head [data-pa-close-drawer]{display:none}.ds-pa-proposal-info-grid{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:18px}.ds-pa-proposal-info-grid>.ds-pa-info-card{margin:0;border:1px solid var(--ds-border);background:var(--ds-surface);box-shadow:0 3px 12px color-mix(in srgb,var(--ds-accent) 8%,transparent)}.ds-pa-activities-wide{margin-top:18px;border:1px solid var(--ds-border);border-radius:14px;padding:16px;background:var(--ds-surface)}.ds-client-contact__actions{display:flex;gap:6px}.ds-client-contact button:focus-visible{outline:3px solid color-mix(in srgb,var(--ds-accent) 28%,transparent);outline-offset:2px;border-radius:6px}
-          @media (max-width:1100px){.ds-pa-proposal-info-grid{grid-template-columns:repeat(2,minmax(0,1fr))}.ds-pa-legacy-list .ds-pa-toolbar{flex-wrap:wrap}.ds-pa-legacy-list .ds-pa-search,.ds-pa-legacy-list .ds-pa-filter{flex:1 1 150px;max-width:none}}@media (max-width:1000px){.ds-client-toolbar{flex-wrap:wrap}.ds-client-search{order:3;flex-basis:100%;width:min(100%,440px)}.ds-client-queues{grid-template-columns:repeat(2,1fr)}.ds-client-file{grid-template-columns:1fr}.ds-client-file__proposals{width:auto}}@media (max-width:900px){.ds-pa-bundle-grid{grid-template-columns:1fr}}@media (max-width:640px){.ds-pa-proposal-info-grid{grid-template-columns:1fr}.ds-pa-proposal-detail{width:100%;padding-inline:0}.ds-pa-type-chips{grid-template-columns:repeat(2,minmax(0,1fr))}.ds-pa-item-quick-row{grid-template-columns:1fr}.ds-client-queues{grid-template-columns:1fr}.ds-client-search{width:calc(100% - 8px);max-width:460px}.ds-client-actions{gap:8px}.ds-client-file{padding:26px 16px}.ds-client-contact{grid-template-columns:1fr auto}.ds-client-contact__channels{grid-column:1/-1}.ds-client-contact-form{grid-template-columns:1fr}.ds-pa-legacy-list .ds-pa-search,.ds-pa-legacy-list .ds-pa-filter{flex-basis:calc(50% - 3px)}.ds-pa-legacy-list .ds-pa-clear-inline{flex:1 1 100%}}
+          @media (max-width:1100px){.ds-pa-proposal-info-grid{grid-template-columns:repeat(2,minmax(0,1fr))}.ds-pa-legacy-list .ds-pa-toolbar{flex-wrap:wrap}.ds-pa-legacy-list .ds-pa-search,.ds-pa-legacy-list .ds-pa-filter{flex:1 1 150px;max-width:none}}@media (max-width:1000px){.ds-client-toolbar{flex-wrap:wrap}.ds-client-search{order:3;flex-basis:100%;width:min(100%,440px)}.ds-client-queues{grid-template-columns:repeat(2,1fr)}.ds-client-file{grid-template-columns:1fr}.ds-client-file__proposals{width:auto}}@media (max-width:900px){.ds-pa-bundle-grid{grid-template-columns:1fr}}@media (max-width:640px){.ds-pa-proposal-info-grid{grid-template-columns:1fr}.ds-pa-proposal-detail{width:100%;padding-inline:0}.ds-pa-item-quick-row{grid-template-columns:1fr}.ds-client-queues{grid-template-columns:1fr}.ds-client-search{width:calc(100% - 8px);max-width:460px}.ds-client-actions{gap:8px}.ds-client-file{padding:26px 16px}.ds-client-contact{grid-template-columns:1fr auto}.ds-client-contact__channels{grid-column:1/-1}.ds-client-contact-form{grid-template-columns:1fr}.ds-pa-legacy-list .ds-pa-search,.ds-pa-legacy-list .ds-pa-filter{flex-basis:calc(50% - 3px)}.ds-pa-legacy-list .ds-pa-clear-inline{flex:1 1 100%}}
         </style>
         <div class="ds-client-workspace" data-pa-client-workspace>${clientFileLandingHtml(data, state)}</div>
         <div class="ds-pa-screen-tabs" data-pa-screen-tabs hidden aria-hidden="true">
@@ -6535,14 +6535,14 @@ export const proposalsAgreementsScreen = {
       if (noContactNote) noContactNote.hidden = !showNoContactNote;
     };
 
-    const lockClientFields = (form, auth, school, cName, cRole, phone, email, clientName = '', schoolMeta = null) => {
+    const lockClientFields = (form, auth, school, cName, cRole, phone, email, clientName = '', schoolMeta = null, recipient = {}) => {
       const cardEl = form?.querySelector('[data-pa-client-card]');
       const fieldsEl = form?.querySelector('[data-pa-client-fields]');
       const searchRow = form?.querySelector('[data-pa-client-search-row]');
       const results = form?.querySelector('[data-pa-client-results]');
-      if (cardEl) { cardEl.innerHTML = clientLockedBannerHtml(auth, school, cName, cRole, phone, email, clientName, schoolMeta); cardEl.hidden = false; }
+      if (cardEl) { cardEl.innerHTML = clientLockedBannerHtml(auth, school, cName, cRole, phone, email, clientName, schoolMeta, recipient); cardEl.hidden = false; }
       if (fieldsEl) fieldsEl.hidden = true;
-      if (searchRow) searchRow.hidden = true;
+      if (searchRow) searchRow.hidden = false;
       if (results) { results.hidden = true; results.innerHTML = ''; }
       const roAuth = form?.querySelector('[data-pa-contact-ro-authority]');
       const roSchoolEl = form?.querySelector('[data-pa-contact-ro-school]');
@@ -6614,9 +6614,9 @@ export const proposalsAgreementsScreen = {
         const searchFieldWrap = form.querySelector('[data-pa-client-search-field-wrap]');
         const results = form.querySelector('[data-pa-client-results]');
         const input = form.querySelector('[data-pa-client-search-input]');
-        if (searchField) searchField.hidden = true;
+        if (searchField) searchField.hidden = false;
         if (searchFieldWrap) searchFieldWrap.hidden = false;
-        if (input) input.value = '';
+        if (input) input.value = authority;
         if (results) { results.hidden = true; results.innerHTML = ''; }
         const pickerHost = form.querySelector('[data-pa-contact-picker-host]');
         if (pickerHost) pickerHost.innerHTML = '';
@@ -6713,7 +6713,8 @@ export const proposalsAgreementsScreen = {
         text(defaultContact?.phone),
         text(defaultContact?.email),
         clientName || school || authority,
-        catalogSchool
+        catalogSchool,
+        { clientType, schoolId: isAuthorityOnly ? null : schoolId }
       );
 
       const searchField = form.querySelector('[data-pa-client-search-field]');
@@ -6722,10 +6723,10 @@ export const proposalsAgreementsScreen = {
       const schoolSearchInput = form.querySelector('[data-pa-school-search-input]');
       const results = form.querySelector('[data-pa-client-results]');
       const schoolResults = form.querySelector('[data-pa-school-results]');
-      if (searchField) searchField.hidden = true;
-      if (schoolSearchPanel) schoolSearchPanel.hidden = true;
-      if (input) input.value = '';
-      if (schoolSearchInput) schoolSearchInput.value = '';
+      if (searchField) searchField.hidden = false;
+      if (schoolSearchPanel) schoolSearchPanel.hidden = clientType !== 'school';
+      if (input) input.value = authority;
+      if (schoolSearchInput) schoolSearchInput.value = isAuthorityOnly ? '' : school;
       if (results) { results.hidden = true; results.innerHTML = ''; }
       if (schoolResults) { schoolResults.hidden = true; schoolResults.innerHTML = ''; }
       setPanelOpen(form, 'contact', true);
@@ -6861,7 +6862,12 @@ export const proposalsAgreementsScreen = {
             text(form.querySelector('input[name="contact_source_authority"]')?.value),
             text(form.querySelector('input[name="contact_source_school"]')?.value),
             '', '', '', '',
-            text(form.querySelector('input[name="contact_source_client_name"]')?.value)
+            text(form.querySelector('input[name="contact_source_client_name"]')?.value),
+            null,
+            {
+              clientType: text(form.querySelector('input[name="contact_source_client_type"]')?.value),
+              schoolId: text(form.querySelector('input[name="contact_source_school_id"]')?.value)
+            }
           );
           showManualContactFields(form);
           return;
@@ -6877,7 +6883,7 @@ export const proposalsAgreementsScreen = {
           fillContactFields(form, contact);
           setContactSource(form, contact);
           setAddContactRowState(form, { visible: false, showNoContactNote: false });
-          lockClientFields(form, text(contact.authority), text(contact.school), text(contact.contact_name), text(contact.contact_role), text(contact.mobile || ''), text(contact.email || ''), text(contact.client_name) || text(contact.school) || text(contact.authority), contact);
+          lockClientFields(form, text(contact.authority), text(contact.school), text(contact.contact_name), text(contact.contact_role), text(contact.mobile || ''), text(contact.email || ''), text(contact.client_name) || text(contact.school) || text(contact.authority), contact, { clientType: text(contact.client_type), schoolId: text(contact.school_id) });
           if (form) setTimeout(() => calcGrandTotal(form), 0);
         }
       }, { signal });
@@ -6994,7 +7000,7 @@ export const proposalsAgreementsScreen = {
       const searchField = form.querySelector('[data-pa-client-search-field]');
       const results = form.querySelector('[data-pa-client-results]');
       const schoolSearchPanel = form.querySelector('[data-pa-school-search-panel]');
-      if (searchField) searchField.hidden = true;
+      if (searchField) searchField.hidden = false;
       if (results) { results.hidden = true; results.innerHTML = ''; }
       if (schoolSearchPanel) {
         schoolSearchPanel.hidden = false;
@@ -7177,8 +7183,8 @@ export const proposalsAgreementsScreen = {
       const roCtx = form.querySelector('[data-pa-contact-ro-ctx]');
 
       if (selected === 'other') {
-        if (searchRow) searchRow.hidden = locked;
-        if (searchFieldWrap) searchFieldWrap.hidden = locked;
+        if (searchRow) searchRow.hidden = false;
+        if (searchFieldWrap) searchFieldWrap.hidden = true;
         hideSchoolSearchPanel(form);
         if (otherField) otherField.hidden = false;
         if (contactPanel) contactPanel.hidden = false;
@@ -7190,7 +7196,7 @@ export const proposalsAgreementsScreen = {
         renderContactChannelsStatus(form);
       } else if (selected === 'authority') {
         if (otherField) otherField.hidden = true;
-        if (searchRow) searchRow.hidden = locked;
+        if (searchRow) searchRow.hidden = false;
         if (searchFieldWrap) searchFieldWrap.hidden = false;
         hideSchoolSearchPanel(form);
         if (!locked) {
@@ -7203,9 +7209,9 @@ export const proposalsAgreementsScreen = {
         applyClientSearchMode(form);
       } else {
         if (otherField) otherField.hidden = true;
-        if (searchRow) searchRow.hidden = locked;
-        if (searchFieldWrap) searchFieldWrap.hidden = locked || text(form.dataset.paSearchStep) === 'school';
-        if (schoolSearchPanel) schoolSearchPanel.hidden = locked || text(form.dataset.paSearchStep) !== 'school';
+        if (searchRow) searchRow.hidden = false;
+        if (searchFieldWrap) searchFieldWrap.hidden = false;
+        if (schoolSearchPanel) schoolSearchPanel.hidden = text(form.dataset.paSearchStep) !== 'school' && !locked;
         if (!locked) {
           if (contactPanel) contactPanel.hidden = true;
           manualFields.forEach((el) => { el.hidden = true; });
@@ -8709,10 +8715,6 @@ export const proposalsAgreementsScreen = {
           typeCardBtn.closest('[data-pa-type-cards]')?.querySelectorAll('[data-pa-type-btn]').forEach((btn) => {
             const isSel = text(btn.dataset.paTypeBtn) === val;
             btn.classList.toggle('is-selected', isSel);
-            btn.style.border = `1.5px solid ${isSel ? '#6366f1' : '#d1d5db'}`;
-            btn.style.background = isSel ? '#eef2ff' : '#f9fafb';
-            btn.style.color = isSel ? '#4f46e5' : '#374151';
-            btn.style.fontWeight = isSel ? '600' : '400';
           });
           typeInput.dispatchEvent(new Event('change', { bubbles: true }));
         }
@@ -9289,7 +9291,12 @@ export const proposalsAgreementsScreen = {
           text(form.querySelector('input[name="contact_source_authority"]')?.value),
           text(form.querySelector('input[name="contact_source_school"]')?.value),
           '', '', '', '',
-          text(form.querySelector('input[name="contact_source_client_name"]')?.value)
+          text(form.querySelector('input[name="contact_source_client_name"]')?.value),
+          null,
+          {
+            clientType: text(form.querySelector('input[name="contact_source_client_type"]')?.value),
+            schoolId: text(form.querySelector('input[name="contact_source_school_id"]')?.value)
+          }
         );
         showManualContactFields(form);
         return;

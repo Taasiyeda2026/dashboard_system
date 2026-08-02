@@ -8,15 +8,17 @@ const RUNTIME_FILE = new URL('../frontend/src/proposal-editor-compact-fixes.js',
 const SCREEN_FILE = new URL('../frontend/src/screens/proposals-agreements.js', import.meta.url);
 const CONFIG_FILE = new URL('../frontend/src/config.js', import.meta.url);
 const SW_FILE = new URL('../frontend/sw.js', import.meta.url);
+const FEATURE_LOADERS_FILE = new URL('../frontend/src/feature-loaders.js', import.meta.url);
 
-test('proposal editor compact assets are loaded after the shared dashboard styles', async () => {
-  const html = await readFile(INDEX_FILE, 'utf8');
-  const mainStyle = html.indexOf('./frontend/src/styles/main.css');
-  const compactStyle = html.indexOf('./frontend/src/styles/proposal-editor-compact-fixes.css');
-  assert.ok(mainStyle >= 0, 'main stylesheet should remain loaded');
-  assert.ok(compactStyle > mainStyle, 'proposal editor overrides should load after main.css');
-  assert.match(html, /frontend\/src\/proposal-editor-compact-fixes\.js\?v=20260801-v6/);
-  assert.match(html, /proposal-editor-compact-fixes\.css\?v=20260801-v6/);
+test('proposal editor compact CSS uses a Vite-aware feature import', async () => {
+  const [html, featureLoaders] = await Promise.all([
+    readFile(INDEX_FILE, 'utf8'),
+    readFile(FEATURE_LOADERS_FILE, 'utf8')
+  ]);
+  assert.match(html, /\.\/frontend\/src\/styles\/main\.css/);
+  assert.doesNotMatch(html, /proposal-editor-compact-fixes\.css/);
+  assert.match(featureLoaders, /import\('\.\/styles\/proposal-editor-compact-fixes\.css'\)/);
+  assert.doesNotMatch(featureLoaders, /loadStylesheet\('\.\/styles\/proposal-editor-compact-fixes\.css/);
 });
 
 test('proposal editor CSS is scoped, flat and keeps the requested control sizes', async () => {
@@ -25,8 +27,10 @@ test('proposal editor CSS is scoped, flat and keeps the requested control sizes'
   assert.match(css, /--pa-choice-width:\s*92px/);
   assert.match(css, /--recipient-control-height:\s*40px/);
   assert.match(css, /--recipient-border-color:\s*#cbd5e1/);
-  assert.match(css, /--recipient-border-radius:\s*8px/);
-  assert.match(css, /grid-template-columns:\s*repeat\(3, var\(--pa-choice-width\)\)/);
+  assert.match(css, /--recipient-border-radius:\s*5px/);
+  assert.match(css, /grid-template-columns:\s*150px 150px minmax\(300px, 1fr\)/);
+  assert.match(css, /\.ds-pa-recipient-type[\s\S]*grid-template-columns:\s*1fr/);
+  assert.match(css, /\.pa-editor-workspace \[hidden\] \{ display:\s*none !important; \}/);
   assert.match(css, /grid-template-columns:\s*minmax\(300px, 400px\) 72px max-content 34px/);
   assert.match(css, /\.ds-pa-item-card[\s\S]*border-block-end:\s*1px solid/);
   assert.match(css, /\.ds-pa-items-total-row,[\s\S]*display:\s*none !important/);
@@ -97,8 +101,8 @@ test('recipient date, domain and type are owned by formHtml with no runtime rear
   assert.doesNotMatch(runtime, /data-pa-recipient-meta-row[\s\S]*style\.setProperty|style\.setProperty[\s\S]*data-pa-recipient-meta-row/);
   assert.doesNotMatch(runtime, /recipientField\.hidden = form\.classList\.contains\('has-locked-client'\)/);
   assert.doesNotMatch(runtime, /contactPanel\.hidden = !recipientReady/);
-  assert.match(css, /\[data-pa-recipient-meta-row\]/);
-  assert.match(css, /grid-template-columns:\s*130px 130px 300px 320px/);
+  assert.match(css, /\.ds-pa-recipient-main-row/);
+  assert.match(css, /grid-template-columns:\s*150px 150px minmax\(300px, 1fr\)/);
   assert.doesNotMatch(css, /overflow-x:\s*auto/);
 });
 
@@ -109,5 +113,5 @@ test('frontend hotfix and service worker cache versions are bumped together', as
   ]);
   assert.match(config, /recipient-date-domain-130-20260801-v1/);
   assert.match(config, /proposal-recipient-search-row-fix\.js\?v=20260801-v10/);
-  assert.match(sw, /const CACHE_VERSION = 1351;/);
+  assert.match(sw, /const CACHE_VERSION = 1355;/);
 });
