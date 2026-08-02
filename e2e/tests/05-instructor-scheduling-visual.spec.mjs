@@ -127,6 +127,15 @@ test('instructor and scheduling requirements modal stays compact and RTL-safe', 
   await expect(page.locator('.ds-modal--scheduling')).toHaveCount(0);
   await expect(page.locator('.ds-modal')).toHaveAttribute('aria-hidden', 'true');
 
+  const closeOpenDrawer = async () => {
+    const activityDrawerClose = drawer.locator('.activity-drawer__close[data-action="close-drawer"]:visible');
+    if (await activityDrawerClose.count()) {
+      await activityDrawerClose.click();
+      await expect(drawer).toHaveAttribute('aria-hidden', 'true');
+    }
+  };
+  await closeOpenDrawer();
+
   await navigateToScreen(page, 'instructors');
   await waitForScreenReady(page, 'instructors');
   await navigateToScreen(page, 'activities');
@@ -147,11 +156,11 @@ test('instructor and scheduling requirements modal stays compact and RTL-safe', 
       await expect(reopened.getByRole('button', { name: 'שמירת דרישות השיבוץ', exact: true })).toBeVisible();
       await screenshot(page, 'scheduling-requirements-after-navigation.png');
       await reopened.locator('.ds-modal__footer button.ds-btn[data-ui-close-modal]').click();
+      await expect(page.locator('.ds-modal--scheduling')).toHaveCount(0);
       requirementsVisibleAfterReturn = true;
       break;
     }
-    const activityDrawerClose = drawer.locator('.activity-drawer__close[data-action="close-drawer"]:visible');
-    if (await activityDrawerClose.count()) await activityDrawerClose.click();
+    await closeOpenDrawer();
   }
   expect(requirementsVisibleAfterReturn).toBe(true);
 
