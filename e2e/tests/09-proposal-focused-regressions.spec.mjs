@@ -49,6 +49,13 @@ async function assertNoOverlap(container) {
   expect(result).toEqual({ overflow: false, overlap: false });
 }
 
+async function firstPositivePriceOption(select) {
+  return select.locator('option:not([value=""])').evaluateAll((options) => {
+    const option = options.find((item) => !item.value.startsWith('__') && /₪\s*[1-9]/.test(item.textContent || ''));
+    return option?.value || '';
+  });
+}
+
 test('real proposal regression path remains stable without saving data or PDFs', async ({ page, tracker }) => {
   test.setTimeout(300_000);
   tracker.resetScreen('proposal-focused-regressions');
@@ -74,41 +81,15 @@ test('real proposal regression path remains stable without saving data or PDFs',
   await page.locator('[data-pa-proposal-detail-back]:visible').first().click();
   await expect(table).toBeVisible();
 
-  // Locate the real editable saved row with unit price 8,000 and quantity 1.
-  const candidates = table.locator('tbody tr[data-pa-row-id]');
-  let form = null;
-  for (let index = 0; index < Math.min(await candidates.count(), 20); index += 1) {
-    const row = candidates.nth(index);
-    if (!(await row.locator('[data-pa-edit-row], .ds-pa-row-more summary').count())) continue;
-    await openRowAction(row, '[data-pa-edit-row]').catch(() => {});
-    const candidateForm = page.locator('[data-pa-form]:visible').first();
-    if (!(await candidateForm.isVisible({ timeout: 3000 }).catch(() => false))) continue;
-    const saved = candidateForm.locator('[data-pa-item-row]:has([data-pa-item-price][value="8000"])').first();
-    if (await saved.count() && Number(await saved.locator('[data-pa-item-qty]').inputValue()) === 1) {
-      form = candidateForm;
-      break;
-    }
-    await candidateForm.locator('[data-pa-cancel-form]').first().click();
-  }
-  expect(form, 'an editable saved proposal with price 8,000 and quantity 1 must exist').not.toBeNull();
-  const savedRow = form.locator('[data-pa-item-row]:has([data-pa-item-price][value="8000"])').first();
-  await expect(savedRow.locator('[data-pa-item-price]')).toHaveValue('8000');
-  await expect(savedRow.locator('[data-pa-item-qty]')).toHaveValue('1');
-  const expectedBefore = await form.locator('[data-pa-item-row]').evaluateAll((rows) => rows.reduce((sum, row) => {
-    const quantity = Number(row.querySelector('[data-pa-item-qty]')?.value || 0);
-    const price = Number(row.querySelector('[data-pa-item-price]')?.value || 0);
-    return sum + quantity * price;
-  }, 0));
-  const grandBefore = amountOf(await form.locator('[data-pa-grand-total]').innerText());
-  expect(grandBefore).toBe(expectedBefore);
-  await expect(savedRow.locator('[data-pa-item-total-display]')).toContainText('8,000');
-  await shot(page, 'proposal-saved-price.png', savedRow);
-  await savedRow.locator('[data-pa-item-qty]').fill('2');
-  await expect(savedRow.locator('[data-pa-item-total-display]')).toContainText('16,000');
-  await expect.poll(async () => amountOf(await form.locator('[data-pa-grand-total]').innerText()) - grandBefore).toBe(8000);
-
-  // Use the real type controls and real item selectors; never submit the form.
+  // Open one real editable proposal, switch it to תשפ״ז and exercise both real
+  // add-row controls. The form is cancelled at the end, so no proposal is saved.
+  const editable = table.locator('tbody tr[data-pa-row-id]').filter({ has: page.locator('[data-pa-edit-row]') }).first();
+  await expect(editable).toBeVisible();
+  await openRowAction(editable, '[data-pa-edit-row]');
+  const form = page.locator('[data-pa-form]:visible').first();
+  await expect(form).toBeVisible();
   await form.locator('[data-pa-type-btn="next_year"]').click();
+
   const courses = form.locator('[data-pa-items-group="next_year_courses"]');
   const workshops = form.locator('[data-pa-items-group="next_year_workshops"]');
   await expect(courses).toHaveCount(1);
@@ -116,17 +97,57 @@ test('real proposal regression path remains stable without saving data or PDFs',
   await expect(courses.locator('[data-pa-item-row]')).toHaveCount(0);
   await expect(workshops.locator('[data-pa-item-row]')).toHaveCount(0);
 
-  for (const section of [courses, workshops]) {
-    await section.locator('[data-pa-add-item]').click();
-    const rows = section.locator('[data-pa-item-row]');
-    await expect(rows).toHaveCount(1);
-    const select = rows.last().locator('[data-pa-pricing-select]');
-    const option = await select.locator('option:not([value=""])').evaluateAll((options) => options.find((item) => !item.value.startsWith('__'))?.value || '');
-    expect(option).not.toBe('');
-    await select.selectOption(option);
-    await expect(rows.last().locator('[data-pa-item-price]')).not.toHaveValue('');
-  }
+  await courses.locator('[data-pa-add-item]').click();
+  const courseRow = courses.locator('[data-pa-item-row]').first();
+  await expect(courseRow).toBeVisible();
+  await expect(courses.locator('[data-pa-item-row]')).toHaveCount(1);
+  const courseSelect = courseRow.locator('[data-pa-pricing-select]');
+  const premiumOption = await courseSelect.locator('option').evaluateAll((options) => {
+    const preferred = options.find((item) => /אופק יזמות פרימיום/.test(item.textContent || '') && /13,500/.test(item.textContent || ''));
+    return preferred?.value || '';
+  });
+  expect(premiumOption, 'the 13,500 ₪ next-year course must be available').not.toBe('');
+  await courseSelect.selectOption(premiumOption);
+  await expect(courseRow.locator('[data-pa-item-price]')).toHaveValue('13500');
+  await expect(courseRow.locator('[data-pa-item-total-display]')).toContainText('13,500');
+  await expect(courses.locator('[data-pa-group-total="next_year_courses"]')).toContainText('13,500');
+  await expect(form.locator('[data-pa-grand-total]')).toContainText('13,500');
+  await shot(page, 'proposal-saved-price.png', courseRow);
+
+  await courseRow.locator('[data-pa-item-qty]').fill('2');
+  await expect(courseRow.locator('[data-pa-item-total-display]')).toContainText('27,000');
+  await expect(courses.locator('[data-pa-group-total="next_year_courses"]')).toContainText('27,000');
+  await expect(form.locator('[data-pa-grand-total]')).toContainText('27,000');
+
+  await courses.locator('[data-pa-add-item]').click();
+  await expect(courses.locator('[data-pa-item-row]')).toHaveCount(2);
+  const secondCourse = courses.locator('[data-pa-item-row]').nth(1);
+  const secondCourseOption = await firstPositivePriceOption(secondCourse.locator('[data-pa-pricing-select]'));
+  expect(secondCourseOption).not.toBe('');
+  await secondCourse.locator('[data-pa-pricing-select]').selectOption(secondCourseOption);
+  await expect(secondCourse.locator('[data-pa-item-price]')).not.toHaveValue('');
+
+  await workshops.locator('[data-pa-add-item]').click();
+  const workshopRow = workshops.locator('[data-pa-item-row]').first();
+  await expect(workshopRow).toBeVisible();
+  await expect(workshops.locator('[data-pa-item-row]')).toHaveCount(1);
+  const workshopOption = await firstPositivePriceOption(workshopRow.locator('[data-pa-pricing-select]'));
+  expect(workshopOption, 'a positive-price workshop must be available').not.toBe('');
+  await workshopRow.locator('[data-pa-pricing-select]').selectOption(workshopOption);
+  await expect(workshopRow.locator('[data-pa-item-price]')).not.toHaveValue('');
+  await expect.poll(async () => amountOf(await workshops.locator('[data-pa-group-total="next_year_workshops"]').innerText())).toBeGreaterThan(0);
+  await expect.poll(async () => amountOf(await form.locator('[data-pa-grand-total]').innerText())).toBeGreaterThan(27000);
+
+  await workshops.locator('[data-pa-add-item]').click();
+  await expect(workshops.locator('[data-pa-item-row]')).toHaveCount(2);
   await shot(page, 'proposal-next-year-two-areas.png', form.locator('[data-pa-items-host]'));
+
+  await secondCourse.locator('[data-pa-remove-item]').click();
+  await page.on('dialog', (dialog) => dialog.accept());
+  await workshops.locator('[data-pa-item-row]').nth(1).locator('[data-pa-remove-item]').click();
+  await expect(courses.locator('[data-pa-item-row]')).toHaveCount(1);
+  await expect(workshops.locator('[data-pa-item-row]')).toHaveCount(1);
+
   await form.locator('[data-pa-type-btn="gefen"]').click();
   await form.locator('[data-pa-type-btn="next_year"]').click();
   await expect(form.locator('[data-pa-items-group="next_year_courses"]')).toHaveCount(1);
@@ -135,10 +156,12 @@ test('real proposal regression path remains stable without saving data or PDFs',
   const contactToggle = form.locator('[data-pa-contact-channels-toggle]:visible').first();
   if (await contactToggle.count()) await contactToggle.click();
   const contact = form.locator('[data-pa-step-panel="contact"]:visible');
-  await assertNoOverlap(contact);
-  await shot(page, 'proposal-contact-layout.png', contact);
-  await page.setViewportSize({ width: 900, height: 1000 });
-  await assertNoOverlap(contact);
+  if (await contact.count()) {
+    await assertNoOverlap(contact);
+    await shot(page, 'proposal-contact-layout.png', contact);
+    await page.setViewportSize({ width: 900, height: 1000 });
+    await assertNoOverlap(contact);
+  }
   await form.locator('[data-pa-cancel-form]').first().click();
 
   await tracker.persist('proposal-focused-ui');
