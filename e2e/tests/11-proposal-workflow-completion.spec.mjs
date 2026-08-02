@@ -38,18 +38,22 @@ test('proposal workflow exposes summer tab, fast editor, live totals and combine
   await expect(typeFilter.locator('option[value="summer"]')).toHaveText('קיץ');
   await expect(page.locator('[data-pa-summer-tab]')).toBeVisible();
 
-  await page.waitForTimeout(1000); // allow the deferred editor dependency prewarm to finish
+  await page.waitForTimeout(1000);
   const startedAt = Date.now();
   await page.locator('[data-pa-tab="new"]:visible').first().click();
-  let form = page.locator('[data-pa-form]:visible').first();
+  const form = page.locator('[data-pa-form]:visible').first();
   await expect(form).toBeVisible({ timeout: 10_000 });
   expect(Date.now() - startedAt).toBeLessThan(5000);
 
-  // GEFEN total must update inside the editor, not only in the document preview.
+  // GEFEN uses the generic activity editor rather than a grouped section.
   await form.locator('[data-pa-type-btn="gefen"]').click();
-  const gefenSection = form.locator('[data-pa-items-group="gefen"]');
-  await gefenSection.locator('[data-pa-add-item]').click();
-  const gefenRow = gefenSection.locator('[data-pa-item-row]').first();
+  let gefenRows = form.locator('[data-pa-item-row]');
+  if (await gefenRows.count() === 0) {
+    await form.locator('[data-pa-add-item]:visible').first().click();
+    gefenRows = form.locator('[data-pa-item-row]');
+  }
+  await expect(gefenRows).not.toHaveCount(0);
+  const gefenRow = gefenRows.first();
   const gefenSelect = gefenRow.locator('[data-pa-pricing-select]');
   const gefenOption = await positiveOption(gefenSelect);
   expect(gefenOption).not.toBe('');
@@ -65,6 +69,8 @@ test('proposal workflow exposes summer tab, fast editor, live totals and combine
   await form.locator('[data-pa-type-btn="next_year"]').click();
   const courses = form.locator('[data-pa-items-group="next_year_courses"]');
   const workshops = form.locator('[data-pa-items-group="next_year_workshops"]');
+  await expect(courses).toHaveCount(1);
+  await expect(workshops).toHaveCount(1);
   await courses.locator('[data-pa-add-item]').click();
   const courseRow = courses.locator('[data-pa-item-row]').first();
   const courseSelect = courseRow.locator('[data-pa-pricing-select]');
