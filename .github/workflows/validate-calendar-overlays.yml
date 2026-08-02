@@ -1,0 +1,83 @@
+name: Validate calendar overlays
+
+on:
+  pull_request:
+    branches: [main]
+    paths:
+      - 'frontend/src/feature-loaders.js'
+      - 'frontend/src/school-calendar-runtime.js'
+      - 'frontend/src/birthday-calendar.js'
+      - 'frontend/src/team-calendar-runtime.js'
+      - 'frontend/src/screens/shared/school-calendar-*.js'
+      - 'frontend/src/screens/shared/team-calendar-*.js'
+      - 'frontend/src/config.js'
+      - 'frontend/sw.js'
+      - 'supabase/migrations/20260802150500_add_team_calendar_events.sql'
+      - 'tests/calendar-overlays-and-team-events.test.mjs'
+      - 'e2e/tests/10-calendar-overlays.spec.mjs'
+      - '.github/workflows/validate-calendar-overlays.yml'
+
+permissions:
+  contents: read
+
+jobs:
+  validate-calendar-overlays:
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+          cache: npm
+
+      - name: Install dependencies
+        run: npm install
+
+      - name: Check JavaScript syntax
+        run: |
+          node --check frontend/src/screens/shared/team-calendar-data.js
+          node --check frontend/src/screens/shared/team-calendar-ui.js
+          node --check frontend/src/team-calendar-runtime.js
+          node --check frontend/src/feature-loaders.js
+          node --check tests/calendar-overlays-and-team-events.test.mjs
+          node --check e2e/tests/10-calendar-overlays.spec.mjs
+
+      - name: Run focused calendar tests
+        run: node --test tests/calendar-overlays-and-team-events.test.mjs tests/school-calendar-logic.test.mjs
+
+      - name: Install Playwright Chromium
+        run: npx playwright install chromium --with-deps
+
+      - name: Build production bundle
+        env:
+          VITE_BASE: ./
+          VITE_BUILD_SHA: ${{ github.sha }}
+          VITE_SUPABASE_URL: ${{ secrets.VITE_SUPABASE_URL }}
+          VITE_SUPABASE_ANON_KEY: ${{ secrets.VITE_SUPABASE_ANON_KEY }}
+        run: npm run build
+
+      - name: Run real month-calendar overlay test
+        env:
+          CI: 'true'
+          E2E_START_PREVIEW: 'true'
+          E2E_BASE_URL: http://127.0.0.1:4173
+          E2E_USERNAME: ${{ secrets.E2E_USERNAME }}
+          E2E_PASSWORD: ${{ secrets.E2E_PASSWORD }}
+          E2E_UPDATE_BASELINE: '0'
+        run: npx playwright test -c e2e/playwright.config.mjs e2e/tests/10-calendar-overlays.spec.mjs --project=chromium
+
+      - name: Check PWA cache guardrails
+        run: npm run check:pwa
+
+      - name: Upload calendar screenshots and logs
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: calendar-overlays-evidence-${{ github.sha }}
+          path: e2e/artifacts/
+          if-no-files-found: warn
+          retention-days: 14
