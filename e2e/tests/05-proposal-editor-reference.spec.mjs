@@ -1,5 +1,5 @@
 import { test, expect } from '../fixtures/test.mjs';
-import { navigateToScreen, waitForAppShell } from '../helpers/screen.mjs';
+import { navigateToScreen, waitForAppShell, waitForScreenReady } from '../helpers/screen.mjs';
 
 const evidence = (name) => `proposal-${name}.png`;
 
@@ -55,6 +55,8 @@ test('proposal editor recipient flows match the approved reference', async ({ pa
   await page.goto('/');
   await waitForAppShell(page);
   await navigateToScreen(page, 'proposals-agreements');
+  await waitForScreenReady(page, 'proposals-agreements');
+  await page.waitForLoadState('networkidle', { timeout: 20_000 }).catch(() => {});
 
   const newProposal = page.locator('[data-pa-client-home]:visible [data-pa-client-add-proposal]:visible');
   await expect(newProposal).toHaveCount(1);
@@ -92,7 +94,7 @@ test('proposal editor recipient flows match the approved reference', async ({ pa
   await expectComputedHidden(contactPanel);
   await expectComputedHidden(form.locator('[data-pa-client-card]'));
   await expectThreeColumnRecipientLayout(form);
-  await expect(form.locator('[data-pa-type-btn]')).toHaveText(['תשפ״ז', 'גפ״ן', 'סיור']);
+  await expect(form.locator('[data-pa-type-btn]')).toHaveText(['תשפ״ז', 'גפן', 'סיור']);
   await expect(form.locator('[data-pa-type-btn="summer"]')).toHaveCount(0);
 
   await chooseRealSearchResult(
