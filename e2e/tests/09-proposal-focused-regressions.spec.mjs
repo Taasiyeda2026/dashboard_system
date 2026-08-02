@@ -79,9 +79,10 @@ test('real proposal regression path remains stable without saving data or PDFs',
   await page.locator('[data-pa-proposal-detail-back]:visible').first().click();
   await expect(table).toBeVisible();
 
-  const editable = table.locator('tbody tr[data-pa-row-id]').filter({ has: page.locator('[data-pa-edit-row]') }).first();
-  await expect(editable).toBeVisible();
-  await openRowAction(editable, '[data-pa-edit-row]');
+  // Use the real new-proposal editor so the regression test does not depend on
+  // whether production currently contains an editable draft. The form is always
+  // cancelled, so no proposal or item is persisted.
+  await page.locator('[data-pa-tab="new"]:visible').first().click();
   const form = page.locator('[data-pa-form]:visible').first();
   await expect(form).toBeVisible();
   await form.locator('[data-pa-type-btn="next_year"]').click();
