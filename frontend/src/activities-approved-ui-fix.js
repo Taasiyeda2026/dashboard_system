@@ -33,6 +33,43 @@ function installStyles() {
       font-weight: 700 !important;
       white-space: normal !important;
     }
+    #app .ds-table--activities-list .ds-contact-popover-btn {
+      display: grid !important;
+      grid-template-columns: minmax(0, 1fr) !important;
+      gap: 3px !important;
+      width: 100% !important;
+      min-width: 0 !important;
+      padding: 0 !important;
+      border: 0 !important;
+      background: transparent !important;
+      text-align: right !important;
+      line-height: 1.25 !important;
+      white-space: normal !important;
+      overflow: visible !important;
+      cursor: pointer !important;
+    }
+    #app .ds-table--activities-list .ds-contact-popover-btn > span:first-child {
+      display: block !important;
+      min-width: 0 !important;
+      color: #334155 !important;
+      font-weight: 700 !important;
+      overflow: hidden !important;
+      text-overflow: ellipsis !important;
+      white-space: nowrap !important;
+    }
+    #app .ds-table--activities-list .ds-contact-popover-btn .ds-activities-contact-phone {
+      display: block !important;
+      direction: ltr !important;
+      unicode-bidi: isolate !important;
+      width: 100% !important;
+      color: #0284c7 !important;
+      font-size: 12px !important;
+      font-weight: 500 !important;
+      text-align: right !important;
+      overflow: visible !important;
+      text-overflow: clip !important;
+      white-space: nowrap !important;
+    }
     .ds-modal.ds-modal--scheduling {
       width: min(430px, calc(100vw - 32px)) !important;
       max-width: 430px !important;
