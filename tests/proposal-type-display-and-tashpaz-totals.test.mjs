@@ -51,18 +51,23 @@ test('תשפ״ז GEFEN eligibility includes numbered courses and always excludes
   assert.match(apiSource, /gefen_approval_applicable: gefenEligibilityByProposalId\.get\(row\.id\) === true/);
 });
 
-test('GEFEN approval action follows computed eligibility in list, client card and drawer HTML', () => {
+test('GEFEN approval action is available for every next-year and GEFEN proposal', () => {
   const base = { id: 'proposal-1', quote_number: '20001', activity_type_group: 'next_year', school_framework: 'בית ספר', status: 'approved' };
   const eligible = { ...base, gefen_approval_applicable: true };
   const workshopOnly = { ...base, id: 'proposal-2', gefen_approval_applicable: false };
   const action = /data-pa-generate-gefen-approval/;
 
   assert.match(proposalsAgreementsTableRowsHtml([eligible], adminState()), action);
-  assert.doesNotMatch(proposalsAgreementsTableRowsHtml([workshopOnly], adminState()), action);
+  assert.match(proposalsAgreementsTableRowsHtml([workshopOnly], adminState()), action);
   assert.match(proposalCompactCardHtml(eligible, { canManage: true }), action);
-  assert.doesNotMatch(proposalCompactCardHtml(workshopOnly, { canManage: true }), action);
+  assert.match(proposalCompactCardHtml(workshopOnly, { canManage: true }), action);
   assert.match(drawerHtml(eligible, [], adminState()), action);
-  assert.doesNotMatch(drawerHtml(workshopOnly, [], adminState()), action);
+  assert.match(drawerHtml(workshopOnly, [], adminState()), action);
+
+  const gefen = { ...base, id: 'proposal-3', activity_type_group: 'gefen' };
+  assert.match(proposalsAgreementsTableRowsHtml([gefen], adminState()), action);
+  assert.match(proposalCompactCardHtml(gefen, { canManage: true }), action);
+  assert.match(drawerHtml(gefen, [], adminState()), action);
 
   const course = { item_name: 'קורס גפן', proposal_group: 'next_year_courses', gefen_number: '6089', quantity: 1, unit_price: 8000, total_price: 8000 };
   const workshop = { item_name: 'סדנת חלל', proposal_group: 'next_year_workshops', gefen_number: '9999', quantity: 1, unit_price: 650, total_price: 650 };

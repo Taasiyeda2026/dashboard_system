@@ -3885,9 +3885,19 @@ export function gefenEligibleItems(items = []) {
   return Array.from(byGefenNumber.values());
 }
 
+export function gefenApprovalItems(row = {}, items = []) {
+  const eligible = gefenEligibleItems(items);
+  if (!isNextYearProposalGroup(row.activity_type_group)) return eligible;
+  return eligible.filter((item) => {
+    const group = normalizeProposalGroup(item.proposal_group || item.group_key);
+    return group !== 'next_year_workshops'
+      && !isWorkshopKindText(itemKindText(item));
+  });
+}
+
 function isGefenApprovalApplicable(row = {}, items = []) {
-  if (inferProposalClientType(row) === 'authority') return false;
   const group = normalizeProposalGroup(row.activity_type_group);
+  if (group === 'gefen' || isNextYearProposalGroup(group)) return true;
   if (group === 'summer') return false;
   const eligibleCount = gefenEligibleItems(items).length;
   if (eligibleCount) return true;
@@ -3903,14 +3913,18 @@ function gefenApprovalStatusDisplay(row = {}, generated = text(row.gefen_approva
 }
 
 function gefenApprovalValidationMessage(row = {}, items = []) {
-  if (inferProposalClientType(row) === 'authority') return '';
+  if (isNextYearProposalGroup(row.activity_type_group) && !gefenApprovalItems(row, items).length) {
+    return 'לא נבחרו קורסים להפקת אישור גפ״ן.';
+  }
   if (!text(row.semel_mosad)) return 'חסר מספר מוסד. יש להשלים אותו לפני הפקת אישור גפ״ן.';
-  if (!gefenEligibleItems(items).length) return 'חסר פירוט קורסים או סיורים עם מספר גפ״ן. לא ניתן להפיק את האישור.';
+  if (!gefenApprovalItems(row, items).length) {
+    return 'חסר פירוט קורסים או סיורים עם מספר גפ״ן. לא ניתן להפיק את האישור.';
+  }
   return '';
 }
 
-function gefenApprovalItemsTableHtml(items = []) {
-  const rows = gefenEligibleItems(items);
+function gefenApprovalItemsTableHtml(row = {}, items = []) {
+  const rows = gefenApprovalItems(row, items);
   if (!rows.length) return '';
   return `<table class="pa-item-details-table pa-gefen-course-table pa-gefen-approval-table">
     <colgroup><col class="pa-choice-col"><col class="pa-course-col"><col class="pa-gefen-col"><col class="pa-meetings-col"><col class="pa-hours-col"><col class="pa-hourly-price-col"><col class="pa-groups-col"><col class="pa-total-price-col"></colgroup>
@@ -3951,7 +3965,7 @@ export function gefenApprovalDocumentHtml(row = {}, items = [], options = {}) {
     `<section class="pa-section">
       <h3 class="pa-section-heading">בחירת התוכניות</h3>
       <p>בית הספר מאשר כי בכוונתו לשלב בתוכנית העבודה הבית-ספרית לשנת הלימודים תשפ״ז את התוכניות המסומנות להלן.</p>
-      ${gefenApprovalItemsTableHtml(items)}
+      ${gefenApprovalItemsTableHtml(row, items)}
     </section>
     <section class="pa-section">
       <h3 class="pa-section-heading">תוקף ההצעה וזמינות הפעילות:</h3>
