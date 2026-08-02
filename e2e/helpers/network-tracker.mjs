@@ -187,18 +187,25 @@ export function attachNetworkTracker(page, { screen = 'unknown' } = {}) {
       }
       if (url.includes('proposals_agreements_directory_view')) {
         const rangeHeader = request.headers()['range'] || request.headers()['Range'] || '';
-        // PostgREST uses Range: 0-49
+        // PostgREST may use Range: 0-49, while supabase-js often uses offset/limit query params.
         const rangeMatch = String(rangeHeader).match(/(\d+)-(\d+)/);
         let offset = 0;
         let end = null;
+        let limit = null;
         if (rangeMatch) {
           offset = Number(rangeMatch[1]);
           end = Number(rangeMatch[2]);
+          limit = end - offset + 1;
         } else {
           try {
             const parsed = new URL(url);
-            // some clients encode offset in query; keep defaults
-            void parsed;
+            const offsetParam = parsed.searchParams.get('offset');
+            const limitParam = parsed.searchParams.get('limit');
+            if (offsetParam != null && offsetParam !== '') offset = Number(offsetParam) || 0;
+            if (limitParam != null && limitParam !== '') {
+              limit = Number(limitParam) || null;
+              if (limit != null) end = offset + limit - 1;
+            }
           } catch {
             /* ignore */
           }
@@ -208,6 +215,7 @@ export function attachNetworkTracker(page, { screen = 'unknown' } = {}) {
           method,
           offset,
           end,
+          limit,
           rangeHeader,
           at: Date.now(),
           search: (() => {
