@@ -201,3 +201,4 @@ export function bindInstructorScheduling(root, { ui, state, activitiesRows, onRe
     });
   });
 }
+
