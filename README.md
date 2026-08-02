@@ -36,7 +36,7 @@ npx serve dist -l 5000
 ```text
 .
 ├── .github/workflows/
-│   ├── e2e-performance-gate.yml      ← בדיקות E2E וביצועים בכל PR ל-main
+│   ├── e2e-performance-gate.yml      ← בדיקות E2E מדורגות ושער ביצועים ל-PRים אל main
 │   └── e2e-post-deploy-smoke.yml     ← בדיקת Smoke לאחר פריסה ל-GitHub Pages
 ├── e2e/
 │   ├── tests/                         ← בדיקות מסכים, פעולות וביצועים
@@ -54,6 +54,7 @@ npx serve dist -l 5000
 │   │   ├── styles/main.css
 │   │   └── screens/                   ← קובץ אחד לכל מסך
 │   └── sw.js                          ← Service Worker, כולל CACHE_VERSION
+├── scripts/select-e2e-scope.mjs       ← מיפוי קבצים שהשתנו להיקף בדיקות מתאים
 ├── dist/                              ← פלט ה-build שמוגש בייצור
 ├── tests/                             ← Node test-runner ובדיקות helpers
 ├── supabase/migrations/               ← קבצי SQL להרצה ידנית ב-Supabase
@@ -160,7 +161,16 @@ npm run test:e2e:helpers
 
 ### E2E and Performance Gate
 
-ה-workflow `.github/workflows/e2e-performance-gate.yml` פועל בכל Pull Request אל `main` ומריץ build ייצור מקומי, Chromium, בדיקות E2E ושער ביצועים.
+ה-workflow `.github/workflows/e2e-performance-gate.yml` פועל בכל Pull Request אל `main`, מזהה את הקבצים שהשתנו ובוחר אוטומטית את היקף הבדיקה:
+
+- שינויי תיעוד וקבצים שאינם משפיעים על המערכת מסיימים בדיקה קצרה ללא Chromium וללא Playwright.
+- פתיחת PR חדש שאינו Draft מריצה נקודת בדיקה מלאה אחת.
+- עדכון רגיל של PR קיים מריץ בדיקות ממוקדות למסכים שהושפעו.
+- מעבר מ-Draft למוכן לבדיקה או פתיחה מחדש של PR מריצים נקודת בדיקה מלאה.
+- שינוי בקוד משותף, בתשתית, בבסיס הנתונים, בבדיקות או בקובץ מערכת שלא מופיע במיפוי מריץ את כל הבדיקות.
+- הפעלה ידנית של ה-workflow מריצה את כל הבדיקות ויכולה לשמש גם לעדכון baseline מאושר.
+
+מנגנון הבחירה מנוהל בקובץ `scripts/select-e2e-scope.mjs`. קובץ שאינו מזוהה כשינוי מקומי למסך מסוים נשלח כברירת מחדל להרצה מלאה.
 
 שם בדיקת ה-status המדויק:
 
