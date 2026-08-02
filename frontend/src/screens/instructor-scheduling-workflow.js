@@ -4,6 +4,7 @@ import { rankInstructors, adjacentActivities } from './instructor-matching-engin
 import { activityMeetings, projectedWeeklyLoad, averageWeeklyLoad } from './instructor-scheduling-load.js';
 import { isActivitySchedulingEligible } from './shared/activity-scheduling-eligibility.js';
 import { showToast } from './shared/toast.js';
+import { formatDateDots, formatTimeRangeShort } from './shared/format-date.js';
 
 const txt = (value) => String(value ?? '').trim();
 const ids = (value) => Array.isArray(value) ? value.map(txt).filter(Boolean) : [];
@@ -19,11 +20,14 @@ async function candidateTravel(instructor, activity, assigned) {
   for (const meeting of activityMeetings(activity)) { const { previous, next } = adjacentActivities(assigned, meeting); result.transitions[meeting.date] = { previous: previous ? await route(previous.school_address || previous.school, destination) : null, next: next ? await route(destination, next.school_address || next.school) : null }; }
   return result;
 }
-function datesText(activity) { return activityMeetings(activity).map((m) => m.date).filter(Boolean).join(', ') || '—'; }
+function datesText(activity) { return activityMeetings(activity).map((m) => formatDateDots(m.date)).filter(Boolean).join(', ') || '—'; }
+export function schedulingActivitySummaryHtml(activity) {
+  return `<header class="scheduling-workspace__activity"><h3>${escapeHtml(activity.activity_name || 'פעילות')}</h3><p><b>בית ספר:</b> ${escapeHtml(activity.school || '—')} · <b>רשות:</b> ${escapeHtml(activity.authority || '—')}</p><p class="scheduling-workspace__schedule"><span><b>תאריכים:</b> <bdi class="scheduling-workspace__dates" dir="ltr">${escapeHtml(datesText(activity))}</bdi></span><span><b>שעות:</b> <bdi class="scheduling-time-range" dir="ltr">${escapeHtml(formatTimeRangeShort(activity.start_time, activity.end_time))}</bdi></span></p></header>`;
+}
 function multiPicker(name, title) { return `<section class="scheduling-picker" data-picker="${name}"><label>${title}<input class="ds-input" type="search" data-picker-search placeholder="חיפוש לפי שם או מספר מדריך"></label><div data-picker-tags class="scheduling-picker__tags"></div><div data-picker-results class="scheduling-picker__results"></div></section>`; }
 function modalHtml(activity) {
   return `<div class="scheduling-workspace" dir="rtl" data-scheduling-workspace>
-    <header class="scheduling-workspace__activity"><h3>${escapeHtml(activity.activity_name || 'פעילות')}</h3><p><b>בית ספר:</b> ${escapeHtml(activity.school || '—')} · <b>רשות:</b> ${escapeHtml(activity.authority || '—')}</p><p><b>תאריכים:</b> ${escapeHtml(datesText(activity))} · <b>שעות:</b> ${escapeHtml(activity.start_time || '—')}–${escapeHtml(activity.end_time || '—')}</p></header>
+    ${schedulingActivitySummaryHtml(activity)}
     <section class="scheduling-workspace__requirements"><h3>דרישות שיבוץ</h3><div class="scheduling-workspace__fields"><label>דרישת מגדר (לא חובה)<select class="ds-input" name="required_instructor_gender"><option value="any">ללא דרישה</option><option value="female"${activity.required_instructor_gender === 'female' ? ' selected' : ''}>מדריכה</option><option value="male"${activity.required_instructor_gender === 'male' ? ' selected' : ''}>מדריך</option></select></label><label>שפת הדרכה (לא חובה)<select class="ds-input" name="instruction_language"><option value="">ללא דרישה</option><option value="he"${activity.instruction_language === 'he' ? ' selected' : ''}>עברית</option><option value="ar"${activity.instruction_language === 'ar' ? ' selected' : ''}>ערבית</option></select></label></div>
     ${multiPicker('blocked_instructor_ids', 'מדריכים חסומים')}${multiPicker('allowed_instructor_ids', 'מדריכים מותרים בלבד')}<label>הערת שיבוץ פנימית<textarea class="ds-input" name="scheduling_note">${escapeHtml(activity.scheduling_note || '')}</textarea></label></section>
     <p class="scheduling-workspace__status" data-scheduling-status></p><div data-scheduling-results></div><section data-scheduling-confirmation></section>
