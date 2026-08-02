@@ -3,8 +3,8 @@
  * Heavy screen modules (PDF, annual reviews, Israa, activity drawers, operations)
  * stay out of the initial bootstrap and load only when their route/feature is used.
  *
- * CSS is attached via <link> because the unbundled GitHub Pages deploy serves native
- * ES modules, which cannot import .css files directly.
+ * Most legacy feature CSS is attached via <link>. Proposal editor CSS is imported
+ * through Vite so production builds emit and load a real text/css asset.
  *
  * Every JS import() below uses a string literal so Rollup/Vite can emit async chunks.
  */
@@ -79,7 +79,7 @@ export function ensureFeature(name) {
 
     case 'proposals':
       return loadOnce('proposals', () => Promise.all([
-        loadStylesheet('./styles/proposal-editor-compact-fixes.css?v=20260802-reference-v2'),
+        import('./styles/proposal-editor-compact-fixes.css'),
         import('./proposal-pdf-svg-origin-clean.js'),
         import('./proposal-pdf-storage-key-hotfix.js'),
         import('./proposal-pdf-download-filename-hotfix.js'),

@@ -59,12 +59,30 @@ test('proposal editor recipient flows match the approved reference', async ({ pa
   const newProposal = page.locator('[data-pa-client-home]:visible [data-pa-client-add-proposal]:visible');
   await expect(newProposal).toHaveCount(1);
   await expect(newProposal).toBeVisible();
-  const activeScreen = newProposal.locator('xpath=ancestor::*[@data-pa-screen][1]');
-  await expect(activeScreen).toHaveCount(1);
   await newProposal.click();
-  const form = activeScreen.locator('[data-pa-form-host] > [data-pa-form]');
+  const activeScreen = page.locator('[data-pa-screen][data-pa-view-mode="proposal-editor"]:visible');
+  await expect(activeScreen).toHaveCount(1);
+  const form = activeScreen.locator('[data-pa-tab-panel="new"] [data-pa-form-host] > [data-pa-form]:visible');
   await expect(form).toHaveCount(1);
   await expect(form).toBeVisible();
+  const editorStylesheetHref = await page.evaluate(() => {
+    for (const sheet of Array.from(document.styleSheets)) {
+      try {
+        if (Array.from(sheet.cssRules).some((rule) => rule.cssText.includes('.ds-pa-recipient-main-row'))) {
+          return sheet.href || '';
+        }
+      } catch {
+        // Ignore cross-origin stylesheets; Vite assets are same-origin and readable.
+      }
+    }
+    return '';
+  });
+  expect(editorStylesheetHref).toMatch(/\.css(?:$|\?)/);
+  const editorStylesheetResponse = await page.request.get(editorStylesheetHref);
+  expect(editorStylesheetResponse.ok()).toBe(true);
+  expect(editorStylesheetResponse.headers()['content-type']).toContain('text/css');
+  await expect(form.locator('.ds-pa-recipient-main-row')).toHaveCSS('display', 'grid');
+  await expect(form.locator('.ds-pa-recipient-type')).toHaveCSS('display', 'grid');
 
   const authoritySearch = form.locator('[data-pa-client-search-field-wrap]');
   const schoolPanel = form.locator('[data-pa-school-search-panel]');
