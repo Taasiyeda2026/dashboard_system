@@ -167,7 +167,9 @@ test('real proposal regression path remains stable without saving data or PDFs',
 
   await page.setViewportSize({ width: 1440, height: 1000 });
   const secondPreview = await openDetailPreview(page, approved);
-  const print = page.locator('#pa-print-btn');
+  await page.locator('#pa-preview-close').click();
+  await expect(secondPreview.detail).toBeVisible();
+  const print = secondPreview.detail.locator('[data-pa-print]').first();
   await expect(print).toBeVisible();
   await page.evaluate(() => {
     window.__proposalPdfProbe = null;
@@ -192,6 +194,4 @@ test('real proposal regression path remains stable without saving data or PDFs',
   expect(hostParts).toEqual({ header: true, recipient: true, title: true, template: true, table: true });
   expect(tracker.state.pageErrors).toEqual([]);
   await tracker.persist('proposal-focused-pdf-intercept');
-  await page.locator('#pa-preview-close').click().catch(() => {});
-  await expect(secondPreview.detail).toBeVisible();
 });
