@@ -28,23 +28,25 @@ async function openDetailPreview(page, row) {
   await openRowAction(row, '[data-pa-preview]');
   const detail = page.locator('[data-pa-proposal-detail]:visible');
   await expect(detail).toBeVisible();
-  const previewAction = detail.locator('[data-pa-preview]').first();
-  await expect(previewAction).toBeVisible();
-  await previewAction.click();
-  const preview = page.locator('.proposal-preview-area:visible');
-  await expect(preview.locator('.proposal-document').first()).toBeVisible();
+  await detail.locator('[data-pa-detail-preview]').click();
+  const preview = page.locator('#pa-preview-overlay .pa-preview-sheet');
+  await expect(preview).toBeVisible();
   return { detail, preview };
 }
 
-async function assertNoOverlap(container) {
-  const result = await container.evaluate((root) => {
-    const elements = [...root.querySelectorAll('input, select, button, [data-pa-contact-channels-status]:not([hidden])')]
-      .filter((element) => element.getClientRects().length)
-      .map((element) => ({ element, rect: element.getBoundingClientRect() }));
-    const overlap = elements.some((left, index) => elements.slice(index + 1).some((right) =>
+async function assertNoOverlap(root) {
+  const result = await root.evaluate((element) => {
+    const controls = [...element.querySelectorAll('input:not([type="hidden"]), select, textarea, button')]
+      .filter((node) => {
+        const style = getComputedStyle(node);
+        const rect = node.getBoundingClientRect();
+        return style.visibility !== 'hidden' && style.display !== 'none' && rect.width > 0 && rect.height > 0;
+      })
+      .map((node) => ({ node, rect: node.getBoundingClientRect() }));
+    const overlap = controls.some((left, index) => controls.slice(index + 1).some((right) => (
       left.rect.left < right.rect.right - 1 && left.rect.right > right.rect.left + 1
-      && left.rect.top < right.rect.bottom - 1 && left.rect.bottom > right.rect.top + 1));
-    return { overflow: root.scrollWidth > root.clientWidth + 1, overlap };
+      && left.rect.top < right.rect.bottom - 1 && left.rect.bottom > right.rect.top + 1)));
+    return { overflow: element.scrollWidth > element.clientWidth + 1, overlap };
   });
   expect(result).toEqual({ overflow: false, overlap: false });
 }
@@ -62,6 +64,16 @@ async function expectSelectedLabelMatchesInternalPrice(row) {
   const internalPrice = amountOf(await row.locator('[data-pa-item-price]').inputValue());
   expect(labelPrice).toBeGreaterThan(0);
   expect(internalPrice).toBe(labelPrice);
+}
+
+async function mixedNextYearTotalsAreConsistent(form) {
+  return form.evaluate((element) => {
+    const amount = (value) => Number(String(value || '').replace(/[^\d.-]/g, '')) || 0;
+    const course = amount(element.querySelector('[data-pa-group-total="next_year_courses"]')?.textContent);
+    const workshop = amount(element.querySelector('[data-pa-group-total="next_year_workshops"]')?.textContent);
+    const grand = amount(element.querySelector('[data-pa-grand-total]')?.textContent);
+    return workshop > 0 && grand > 27000 && grand === course + workshop;
+  });
 }
 
 test('real proposal regression path remains stable without saving data or PDFs', async ({ page, tracker }) => {
@@ -141,8 +153,7 @@ test('real proposal regression path remains stable without saving data or PDFs',
   expect(workshopOption, 'a positive-price workshop must be available').not.toBe('');
   await workshopRow.locator('[data-pa-pricing-select]').selectOption(workshopOption);
   await expectSelectedLabelMatchesInternalPrice(workshopRow);
-  await expect.poll(async () => amountOf(await workshops.locator('[data-pa-group-total="next_year_workshops"]').innerText())).toBeGreaterThan(0);
-  await expect.poll(async () => amountOf(await form.locator('[data-pa-grand-total]').innerText())).toBeGreaterThan(27000);
+  await expect.poll(() => mixedNextYearTotalsAreConsistent(form)).toBe(true);
 
   await workshops.locator('[data-pa-add-item]').click();
   await expect(workshops.locator('[data-pa-item-row]')).toHaveCount(2);
