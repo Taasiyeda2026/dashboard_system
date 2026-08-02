@@ -23,9 +23,88 @@ if (!globalThis.localStorage) {
 
 const {
   finalizeSummerTab,
+  hydrateGenericPricingSelection,
   installProposalWorkflowUiIntegrity,
   recalculateProposalEditorTotals
 } = await import('../frontend/src/proposal-workflow-ui-integrity.js');
+
+function optionKey(row) {
+  return [
+    row.activity_no,
+    row.activity_name,
+    row.item_type,
+    row.proposal_group,
+    row.unit_duration,
+    row.unit_price,
+    row.sort_order
+  ].map((value) => String(value == null ? '' : value).trim()).join('||');
+}
+
+test('generic GEFEN selection hydrates its internal price and calculated total', () => {
+  const pricing = {
+    activity_no: '9545',
+    activity_name: 'סודות ויסודות הבינה המלאכותית',
+    item_type: 'תוכנית',
+    proposal_group: 'גפן',
+    unit_duration: '90 דקות',
+    unit_price: 8000,
+    sort_order: 1,
+    gefen_number: '9545',
+    meetings_count: 8,
+    hours_count: 12,
+    hourly_price: 666.67,
+    pricing_key: 'gefen_9545',
+    proposal_display_mode: 'single'
+  };
+  const selected = optionKey(pricing);
+  const dom = new JSDOM(`<form data-pa-form>
+    <article data-pa-item-row data-pa-row-group="גפן">
+      <select data-pa-pricing-select><option value="${selected}" selected>סודות ויסודות הבינה המלאכותית — תוכנית — ₪ 8,000</option></select>
+      <input data-pa-item-qty value="1">
+      <input name="unit_price" data-pa-item-price value="">
+      <input name="total_price" data-pa-item-total value="">
+      <output data-pa-item-total-display>₪ 0</output>
+      <input name="pricing_option_key" value="">
+      <input name="activity_no" value="">
+      <input name="item_name" value="">
+      <input name="item_type" value="">
+      <input name="gefen_number" value="">
+      <input name="gefen_number_display" value="">
+      <input name="meetings_count" value="">
+      <input name="hours_count" value="">
+      <input name="unit_duration" value="">
+      <input name="hourly_price" value="">
+      <input name="description" value="">
+      <input name="proposal_group" value="גפן">
+      <input name="item_display_mode" value="">
+      <input name="item_source_pricing_key" value="">
+      <input name="bundle_pricing_key" value="">
+      <input name="item_selected_bundle_items" value="[]">
+    </article>
+    <select data-pa-discount-type><option value="amount" selected>₪</option></select>
+    <input data-pa-discount-value value="0">
+    <strong data-pa-grand-total>₪ 0</strong>
+    <strong data-pa-summary-total>₪ 0</strong>
+    <span data-pa-summary-subtotal>₪ 0</span>
+    <span data-pa-summary-discount>₪ 0</span>
+  </form>`, { url: 'http://localhost/' });
+  const previousEvent = globalThis.Event;
+  globalThis.Event = dom.window.Event;
+  try {
+    const form = dom.window.document.querySelector('form');
+    const row = form.querySelector('[data-pa-item-row]');
+    const result = hydrateGenericPricingSelection(row, [pricing], { notify: false });
+    assert.equal(result.changed, true);
+    assert.equal(row.querySelector('[data-pa-item-price]').value, '8000');
+    assert.equal(row.querySelector('[name="item_name"]').value, pricing.activity_name);
+    assert.equal(row.querySelector('[name="gefen_number"]').value, '9545');
+    assert.equal(row.querySelector('[data-pa-item-total]').value, '8000.00');
+    assert.match(row.querySelector('[data-pa-item-total-display]').textContent, /8,000/);
+    assert.match(form.querySelector('[data-pa-grand-total]').textContent, /8,000/);
+  } finally {
+    globalThis.Event = previousEvent;
+  }
+});
 
 test('generic GEFEN rows outside grouped sections update the editor total', () => {
   const dom = new JSDOM(`<form data-pa-form>
