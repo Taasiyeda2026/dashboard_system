@@ -56,6 +56,7 @@ export const FEATURE_ROUTE_MAP = {
   month: ['activityDrawer'],
   archive: ['activityDrawer'],
   exceptions: ['activityDrawer'],
+  'end-dates': ['endDates'],
   'proposals-agreements': ['proposals'],
   'israa-management': ['israa'],
   'personal-reports': ['annualReviews'],
@@ -94,6 +95,7 @@ export function ensureFeature(name) {
         import('./proposal-workflow-completion.js?v=20260802-v1'),
         import('./proposal-workflow-ui-integrity.js?v=20260802-v1'),
         import('./proposal-summer-list-runtime.js?v=20260802-v1'),
+        import('./proposal-next-year-approved-fix.js?v=20260802-v1'),
         import('./proposal-approval-runtime.js'),
         import('./client-contact-persistence-hotfix.js'),
         import('./school-catalog-bootstrap-hotfix.js?v=20260730-full-school-catalog-v1'),
@@ -136,11 +138,10 @@ export function ensureFeature(name) {
 
     case 'activityDrawer':
       return loadOnce('activityDrawer', () => Promise.all([
-        // Calendar overlays belong to the calendar routes. Loading them here keeps
-        // direct month/week navigation independent from the dashboard/proposals.
         import('./birthday-calendar.js'),
         import('./school-calendar-runtime.js'),
         import('./team-calendar-runtime.js'),
+        import('./activities-approved-ui-fix.js?v=20260802-v1'),
         import('./activity-2026-season-query-hotfix.js?v=20260730-restore-2026-summer-v1'),
         import('./month-navigation-runtime.js'),
         import('./activities-tabs-corrections.js'),
@@ -154,13 +155,17 @@ export function ensureFeature(name) {
         import('./activity-drawer-floating-actions.js?v=20260731-floating-overlay-v3')
       ]));
 
+    case 'endDates':
+      return loadOnce('endDates', () => import('./end-dates-live-fix.js?v=20260802-v1'));
+
     case 'operations':
       return loadOnce('operations', () => Promise.all([
         import('./screens/operations-summer-training-matrix.js?v=20260720-proposal-pdf-tainted-canvas-v1'),
         import('./screens/operations-authorities-cleanup.js?v=20260720-proposal-pdf-tainted-canvas-v1'),
         import('./screens/operations-visual-tweaks.js?v=20260720-operations-toolbar-compact-v1'),
         import('./screens/operations-completion-toolbar-compact.js?v=20260720-single-row-v1'),
-        import('./screens/operations-inventory-polish.js?v=20260720-proposal-pdf-tainted-canvas-v1')
+        import('./screens/operations-inventory-polish.js?v=20260720-proposal-pdf-tainted-canvas-v1'),
+        import('./operations-2027-date-range-fix.js?v=20260802-v1')
       ]));
 
     case 'admin':
@@ -201,6 +206,11 @@ export function preloadScreenModule(route) {
         return import('./screens/archive.js');
       case 'edit-requests':
         return import('./screens/edit-requests.js');
+      case 'end-dates':
+        return Promise.all([
+          ensureFeature('endDates'),
+          import('./screens/end-dates.js')
+        ]);
       case 'proposals-agreements':
         return Promise.all([
           ensureFeature('proposals'),

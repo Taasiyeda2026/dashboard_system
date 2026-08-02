@@ -1,10 +1,18 @@
 import { loadTeamCalendarRows } from './team-calendar-data.js';
+import { createSharedInteractionLayer } from './interactions.js';
+import { formatDateHe } from './format-date.js';
 
 const MAX_VISIBLE_TASKS = 4;
 let decorationTimer = null;
 
 function text(value) {
   return String(value == null ? '' : value).trim();
+}
+
+function escapeHtml(value) {
+  return text(value).replace(/[&<>"']/g, (char) => ({
+    '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;'
+  }[char]));
 }
 
 export function teamCalendarEventsForDate(rows, isoDate) {
@@ -31,8 +39,11 @@ function taskList(documentRef, rows, isoDate, { expanded = false } = {}) {
   container.dataset.teamCalendarDate = isoDate;
   const visible = expanded ? rows : rows.slice(0, MAX_VISIBLE_TASKS);
   visible.forEach((row) => {
-    const item = documentRef.createElement('span');
+    const item = documentRef.createElement('button');
+    item.type = 'button';
     item.className = 'team-calendar-task';
+    item.dataset.teamCalendarEvent = text(row.external_key) || `${isoDate}|${text(row.title)}|${text(row.owner_name)}`;
+    item.dataset.teamCalendarDate = isoDate;
     item.textContent = `✓ ${taskText(row)}`;
     item.title = taskText(row);
     container.appendChild(item);
@@ -85,10 +96,23 @@ function ensureStyles(documentRef) {
   style.id = 'team-calendar-styles';
   style.textContent = `
     .team-calendar-tasks{display:grid;gap:2px;margin-top:3px;min-width:0}
-    .team-calendar-task{display:block;padding:2px 4px;border-inline-start:3px solid #0891b2;border-radius:4px;background:#ecfeff;color:#164e63;font-size:.58rem;line-height:1.2;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+    .team-calendar-task{display:block;width:100%;border:0;padding:2px 4px;border-inline-start:3px solid #0891b2;border-radius:4px;background:#ecfeff;color:#164e63;font:inherit;font-size:.58rem;line-height:1.2;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;text-align:start;cursor:pointer}
+    .team-calendar-task:hover,.team-calendar-task:focus-visible{background:#cffafe;outline:2px solid #67e8f9;outline-offset:1px}
     .team-calendar-more{border:0;background:transparent;color:#0e7490;font:inherit;font-size:.6rem;font-weight:700;text-align:start;cursor:pointer;padding:1px 4px}
+    .team-calendar-detail{display:grid;gap:12px;direction:rtl}
+    .team-calendar-detail__row{display:grid;grid-template-columns:90px 1fr;gap:10px;padding-block:8px;border-bottom:1px solid #e2e8f0}
+    .team-calendar-detail__row:last-child{border-bottom:0}
   `;
   documentRef.head.appendChild(style);
+}
+
+function taskDrawerHtml(row) {
+  const date = text(row.event_date).slice(0, 10);
+  return `<div class="team-calendar-detail">
+    <div class="team-calendar-detail__row"><strong>משימה</strong><span>${escapeHtml(row.title || '—')}</span></div>
+    <div class="team-calendar-detail__row"><strong>תאריך</strong><span><bdi dir="ltr">${escapeHtml(formatDateHe(date) || date || '—')}</bdi></span></div>
+    <div class="team-calendar-detail__row"><strong>אחראי</strong><span>${escapeHtml(row.owner_name || 'לא הוגדר')}</span></div>
+  </div>`;
 }
 
 async function decorate(documentRef) {
@@ -101,12 +125,24 @@ export function startTeamCalendarUi(scope = globalThis) {
   if (scope.__TEAM_CALENDAR_UI_STARTED__ || !scope.document) return;
   scope.__TEAM_CALENDAR_UI_STARTED__ = true;
   const documentRef = scope.document;
+  const ui = createSharedInteractionLayer();
   ensureStyles(documentRef);
   const schedule = () => {
     clearTimeout(decorationTimer);
     decorationTimer = setTimeout(() => void decorate(documentRef), 40);
   };
   documentRef.getElementById('app')?.addEventListener('click', async (event) => {
+    const task = event.target.closest?.('[data-team-calendar-event]');
+    if (task) {
+      event.preventDefault();
+      event.stopPropagation();
+      const isoDate = text(task.dataset.teamCalendarDate);
+      const key = text(task.dataset.teamCalendarEvent);
+      const rows = teamCalendarEventsForDate(await loadTeamCalendarRows(), isoDate);
+      const row = rows.find((entry) => (text(entry.external_key) || `${isoDate}|${text(entry.title)}|${text(entry.owner_name)}`) === key);
+      if (row) ui.openDrawer({ title: row.title || 'משימת צוות', content: taskDrawerHtml(row) });
+      return;
+    }
     const button = event.target.closest?.('[data-team-calendar-more]');
     if (!button) return;
     event.preventDefault();
