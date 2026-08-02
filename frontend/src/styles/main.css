@@ -21853,19 +21853,6 @@ details[open] > .ds-fin-acc__summary::before { transform: rotate(90deg); }
 .pa-editor-workspace .pa-sidebar .ds-pa-type-meta-aux {
   grid-template-columns: 165px 100px;
 }
-.pa-editor-workspace .pa-sidebar .ds-pa-type-cards,
-.pa-editor-workspace .pa-sidebar .ds-pa-type-chips {
-  display: flex !important;
-  width: max-content;
-  max-width: 100%;
-  flex-wrap: wrap;
-  gap: 6px;
-}
-.pa-editor-workspace .pa-sidebar .ds-pa-type-card {
-  width: auto !important;
-  min-width: max-content;
-  flex: 0 0 auto;
-}
 .pa-editor-workspace .pa-sidebar .ds-pa-form-activities-panel {
   padding: 12px;
   border: 1px solid #d7e3ef;
@@ -22518,14 +22505,6 @@ details[open] > .ds-fin-acc__summary::before { transform: rotate(90deg); }
   margin-inline: auto;
 }
 
-/* Keep the editor groups content-sized and sequential in the RTL inline flow. */
-.pa-editor-workspace .pa-sidebar .ds-pa-form-meta-panel {
-  display: grid;
-  grid-template-columns: minmax(0, 1fr);
-  align-items: start;
-  gap: 8px;
-  min-height: 0;
-}
 .pa-editor-workspace .pa-sidebar [data-pa-step-panel="client"],
 .pa-editor-workspace .pa-sidebar [data-pa-step-panel="contact"],
 .pa-editor-workspace .pa-sidebar .ds-pa-form-type-panel,
@@ -22536,31 +22515,6 @@ details[open] > .ds-fin-acc__summary::before { transform: rotate(90deg); }
 /* Recipient search/type layout for .pa-editor-workspace is owned exclusively by
    frontend/src/styles/proposal-editor-compact-fixes.css. Conflicting duplicate
    rules were removed to keep a single HTML/CSS source of truth. */
-/* Locked recipient details layout owned by proposal-editor-compact-fixes.css. */
-.pa-editor-workspace .pa-sidebar [data-pa-step-panel="contact"] {
-  display: grid;
-  gap: 6px;
-  padding-top: 6px;
-  border-top: 1px solid var(--ds-border);
-}
-.pa-editor-workspace .pa-sidebar [data-pa-step-panel="contact"] > .pa-sidebar-section-title {
-  margin: 0;
-  padding: 0;
-  border: 0;
-}
-.pa-editor-workspace .pa-sidebar [data-pa-step-panel="contact"] > .ds-pa-form-grid {
-  grid-template-columns: 220px 140px 150px minmax(220px, 280px) max-content;
-  justify-content: start;
-  align-items: end;
-  gap: 10px;
-}
-.pa-editor-workspace .pa-sidebar [data-pa-contact-picker-host],
-.pa-editor-workspace .pa-sidebar .ds-pa-contact-channels {
-  display: contents;
-}
-.pa-editor-workspace .pa-sidebar .ds-pa-contact-channels-fields {
-  display: contents;
-}
 .pa-editor-workspace .pa-sidebar [data-pa-add-contact-row] {
   grid-column: auto;
   flex-direction: row;

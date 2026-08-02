@@ -20,6 +20,35 @@ async function chooseRealSearchResult(input, results) {
   throw new Error('No real catalog result was available for the proposal recipient search');
 }
 
+async function expectComputedHidden(locator) {
+  await expect(locator).toHaveAttribute('hidden', '');
+  expect(await locator.evaluate((element) => getComputedStyle(element).display)).toBe('none');
+  expect(await locator.boundingBox()).toBeNull();
+}
+
+async function expectThreeColumnRecipientLayout(form) {
+  const [general, type, flow] = await Promise.all([
+    form.locator('.ds-pa-recipient-general').boundingBox(),
+    form.locator('.ds-pa-recipient-type-field').boundingBox(),
+    form.locator('.ds-pa-recipient-flow').boundingBox()
+  ]);
+  expect(general && type && flow).toBeTruthy();
+  expect(Math.abs(general.y - type.y)).toBeLessThan(20);
+  expect(Math.abs(general.y - flow.y)).toBeLessThan(20);
+  expect(general.x).toBeGreaterThan(type.x + type.width);
+  expect(type.x).toBeGreaterThan(flow.x + flow.width);
+
+  const buttons = await form.locator('.ds-pa-recipient-type-option').evaluateAll((nodes) => nodes.map((node) => {
+    const rect = node.getBoundingClientRect();
+    return { x: rect.x, y: rect.y, width: rect.width, height: rect.height };
+  }));
+  expect(buttons).toHaveLength(3);
+  expect(Math.abs(buttons[0].x - buttons[1].x)).toBeLessThan(2);
+  expect(Math.abs(buttons[1].x - buttons[2].x)).toBeLessThan(2);
+  expect(buttons[1].y).toBeGreaterThanOrEqual(buttons[0].y + buttons[0].height);
+  expect(buttons[2].y).toBeGreaterThanOrEqual(buttons[1].y + buttons[1].height);
+}
+
 test('proposal editor recipient flows match the approved reference', async ({ page }, testInfo) => {
   test.setTimeout(90_000);
   await page.setViewportSize({ width: 1440, height: 1000 });
@@ -30,8 +59,10 @@ test('proposal editor recipient flows match the approved reference', async ({ pa
   const newProposal = page.locator('[data-pa-client-home]:visible [data-pa-client-add-proposal]:visible');
   await expect(newProposal).toHaveCount(1);
   await expect(newProposal).toBeVisible();
+  const activeScreen = newProposal.locator('xpath=ancestor::*[@data-pa-screen][1]');
+  await expect(activeScreen).toHaveCount(1);
   await newProposal.click();
-  const form = page.locator('[data-pa-form]:visible');
+  const form = activeScreen.locator('[data-pa-form-host] > [data-pa-form]');
   await expect(form).toHaveCount(1);
   await expect(form).toBeVisible();
 
@@ -39,8 +70,10 @@ test('proposal editor recipient flows match the approved reference', async ({ pa
   const schoolPanel = form.locator('[data-pa-school-search-panel]');
   const contactPanel = form.locator('[data-pa-step-panel="contact"]');
   await expect(authoritySearch).toBeVisible();
-  await expect(schoolPanel).toBeHidden();
-  await expect(contactPanel).toBeHidden();
+  await expectComputedHidden(schoolPanel);
+  await expectComputedHidden(contactPanel);
+  await expectComputedHidden(form.locator('[data-pa-client-card]'));
+  await expectThreeColumnRecipientLayout(form);
   await expect(form.locator('[data-pa-type-btn]')).toHaveText(['תשפ״ז', 'גפ״ן', 'סיור']);
   await expect(form.locator('[data-pa-type-btn="summer"]')).toHaveCount(0);
 
@@ -50,6 +83,10 @@ test('proposal editor recipient flows match the approved reference', async ({ pa
   );
   await expect(authoritySearch).toBeVisible();
   await expect(schoolPanel).toBeVisible();
+  const authorityBox = await form.locator('[data-pa-client-search-input]').boundingBox();
+  const schoolBox = await form.locator('[data-pa-school-search-input]').boundingBox();
+  expect(authorityBox && schoolBox).toBeTruthy();
+  expect(schoolBox.y).toBeGreaterThanOrEqual(authorityBox.y + authorityBox.height);
   await chooseRealSearchResult(
     form.locator('[data-pa-school-search-input]'),
     form.locator('[data-pa-school-results]')

@@ -130,9 +130,7 @@
 #app .pa-editor-workspace .ds-pa-client-locked-body { grid-template-columns: repeat(3, minmax(74px, 1fr)); }
 #app .pa-editor-workspace .ds-pa-client-locked-actions { display: none; }
 
-#app .pa-editor-workspace [hidden],
-#app .pa-editor-workspace [data-pa-client-results][hidden],
-#app .pa-editor-workspace [data-pa-school-results][hidden] { display: none; }
+#app .pa-editor-workspace [hidden] { display: none !important; }
 #app .pa-editor-workspace [data-pa-client-results],
 #app .pa-editor-workspace [data-pa-school-results] { position: absolute; inset: calc(100% + 4px) 0 auto; z-index: 2000; max-block-size: 240px; overflow: auto; background: white; border: 1px solid var(--ds-accent); border-radius: 5px; box-shadow: 0 10px 24px rgb(15 23 42 / 16%); }
 #app .pa-editor-workspace .ds-pa-other-client-section { max-inline-size: 320px; }
@@ -182,93 +180,6 @@
 #app .pa-editor-workspace [data-pa-items-group="next_year_workshops"] .ds-pa-item-quick-row > .ds-pa-item-remove--quick {
   margin: 0 !important;
   align-self: center !important;
-}
-
-#app .pa-editor-workspace [data-pa-step-panel="contact"]:not([hidden]) {
-  display: grid !important;
-  gap: 6px !important;
-  width: fit-content !important;
-  max-width: 100% !important;
-  margin: 0 !important;
-  padding-block-start: 8px !important;
-  border: 0 !important;
-  border-block-start: 1px solid var(--pa-editor-line) !important;
-  border-radius: 0 !important;
-  background: transparent !important;
-  box-shadow: none !important;
-}
-
-#app .pa-editor-workspace [data-pa-step-panel="contact"] > .pa-sidebar-section-title {
-  margin: 0 !important;
-  padding: 0 !important;
-  border: 0 !important;
-}
-
-#app .pa-editor-workspace [data-pa-step-panel="contact"] > .ds-pa-form-grid {
-  display: grid !important;
-  grid-template-columns: 270px max-content max-content !important;
-  justify-content: start !important;
-  align-items: end !important;
-  inline-size: fit-content !important;
-  max-inline-size: 100% !important;
-  gap: var(--pa-compact-gap) !important;
-}
-
-#app .pa-editor-workspace [data-pa-contact-picker-host],
-#app .pa-editor-workspace .ds-pa-contact-select-field,
-#app .pa-editor-workspace .ds-pa-contact-select-field select {
-  inline-size: 270px !important;
-  max-inline-size: 270px !important;
-}
-
-#app .pa-editor-workspace .ds-pa-contact-channels {
-  display: contents !important;
-}
-
-#app .pa-editor-workspace .ds-pa-contact-channels-status {
-  display: flex !important;
-  flex-flow: row nowrap !important;
-  align-items: center !important;
-  gap: 6px !important;
-  inline-size: max-content !important;
-  max-inline-size: none !important;
-  margin: 0 !important;
-}
-
-#app .pa-editor-workspace .ds-pa-contact-channels-status[hidden] {
-  display: none !important;
-}
-
-#app .pa-editor-workspace [data-pa-add-contact-row] {
-  inline-size: max-content !important;
-  align-items: center !important;
-  gap: 6px !important;
-}
-
-/* Proposal metadata remains one compact outer panel. */
-#app .pa-editor-workspace .ds-pa-form-type-panel {
-  inline-size: fit-content !important;
-  max-inline-size: 100% !important;
-  min-block-size: 0 !important;
-  padding: 9px 11px !important;
-}
-
-#app .pa-editor-workspace .ds-pa-type-meta-grid {
-  display: grid !important;
-  grid-template-columns: max-content !important;
-  justify-content: start !important;
-  align-items: end !important;
-  inline-size: fit-content !important;
-  gap: 12px !important;
-}
-
-#app .pa-editor-workspace .ds-pa-type-meta-aux {
-  display: none !important;
-}
-
-#app .pa-editor-workspace .ds-pa-type-row:empty,
-#app .pa-editor-workspace .ds-pa-template-mode[hidden] {
-  display: none !important;
 }
 
 /* Activities use one outer panel. Inner sections and rows are flat. */
