@@ -136,6 +136,14 @@ test('instructor and scheduling requirements modal stays compact and RTL-safe', 
   };
   await closeOpenDrawer();
 
+  const bodyWidth = await page.evaluate(() => ({ scroll: document.documentElement.scrollWidth, client: document.documentElement.clientWidth }));
+  expect(bodyWidth.scroll).toBeLessThanOrEqual(bodyWidth.client + 1);
+  await tracker.persist('instructor-scheduling-visual');
+  assertNoTransportErrors(tracker);
+
+  // Intentional leave/return checks cache freshness without folding the reload into the
+  // earlier transport ledger (returning to activities re-fetches list data by design).
+  tracker.resetScreen('instructor-scheduling-cache');
   await navigateToScreen(page, 'instructors');
   await waitForScreenReady(page, 'instructors');
   await navigateToScreen(page, 'activities');
@@ -154,6 +162,9 @@ test('instructor and scheduling requirements modal stays compact and RTL-safe', 
       await expect(reopened.getByLabel('מגדר המדריך')).toBeVisible();
       await expect(reopened.getByText('מדריכים חסומים', { exact: true })).toHaveCount(0);
       await expect(reopened.getByRole('button', { name: 'שמירת דרישות השיבוץ', exact: true })).toBeVisible();
+      await expect(reopened.locator('[name="required_instructor_gender"]')).toHaveValue(genderValue);
+      await expect(reopened.locator('[name="instruction_language"]')).toHaveValue(languageValue);
+      await expect(reopened.locator('[name="education_level"]')).toHaveValue(educationValue);
       await screenshot(page, 'scheduling-requirements-after-navigation.png');
       await reopened.locator('.ds-modal__footer button.ds-btn[data-ui-close-modal]').click();
       await expect(page.locator('.ds-modal--scheduling')).toHaveCount(0);
@@ -163,9 +174,5 @@ test('instructor and scheduling requirements modal stays compact and RTL-safe', 
     await closeOpenDrawer();
   }
   expect(requirementsVisibleAfterReturn).toBe(true);
-
-  const bodyWidth = await page.evaluate(() => ({ scroll: document.documentElement.scrollWidth, client: document.documentElement.clientWidth }));
-  expect(bodyWidth.scroll).toBeLessThanOrEqual(bodyWidth.client + 1);
-  await tracker.persist('instructor-scheduling-visual');
-  assertNoTransportErrors(tracker);
+  await tracker.persist('instructor-scheduling-cache');
 });
