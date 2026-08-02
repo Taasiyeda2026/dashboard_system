@@ -60,10 +60,11 @@ test('proposal types, school alignment, תשפ״ז areas and live totals stay co
   await waitForScreenReady(page, 'proposals-agreements');
 
   // 1 + 2: the list shows main types only and keeps the school column right aligned.
-  const recordsTab = page.locator('[data-pa-tab="records"], [data-pa-client-queues] [data-pa-open-records]').first();
-  if (await recordsTab.count()) await recordsTab.click();
-  const table = page.locator('[data-pa-table]').first();
+  // The proposals table lives in the "all proposals" view, not in the client home.
+  await page.locator('[data-pa-client-all-proposals]:visible').first().click();
+  const table = page.locator('[data-pa-all-proposals-table] [data-pa-table]').first();
   await expect(table).toBeVisible();
+  await expect(table.locator('tbody tr[data-pa-row-id]').first()).toBeVisible();
 
   const typeLabels = await table.locator('tbody tr[data-pa-row-id] td:nth-child(5)').evaluateAll(
     (cells) => cells.map((cell) => cell.textContent.trim())
@@ -88,7 +89,8 @@ test('proposal types, school alignment, תשפ״ז areas and live totals stay co
   await checkPhase(page, tracker, 'proposal-editor-totals');
 
   // 3 + 4: open a new תשפ״ז proposal and fill both internal areas. Nothing is saved.
-  const newProposal = page.locator('[data-pa-client-add-proposal]:visible, [data-pa-new-proposal]:visible').first();
+  await page.locator('[data-pa-back-to-client-home]:visible').first().click();
+  const newProposal = page.locator('[data-pa-client-home]:visible [data-pa-client-add-proposal]:visible').first();
   await expect(newProposal).toBeVisible();
   await newProposal.click();
   const form = page.locator('[data-pa-screen][data-pa-view-mode="proposal-editor"]:visible [data-pa-form]:visible').first();
@@ -154,11 +156,14 @@ test('proposal types, school alignment, תשפ״ז areas and live totals stay co
   expect(await workshops.section.locator('[data-pa-item-row]').count()).toBeGreaterThan(0);
   await screenshot(page, 'proposal-tashpaz-dual-tables.png');
 
-  // 6: contact mobile and email must show their whole value.
-  const contactChannelsToggle = form.locator('[data-pa-contact-channels-toggle]:visible').first();
-  if (await contactChannelsToggle.count()) await contactChannelsToggle.click();
-  const phone = form.locator('[data-pa-contact-channels-fields] input[name="phone"]');
-  const email = form.locator('[data-pa-contact-channels-fields] input[name="email"]');
+  // 6: contact mobile and email must show their whole value in update mode.
+  const otherType = form.locator('.ds-pa-recipient-type-option').filter({
+    has: page.locator('input[name="client_type_selector"][value="other"]')
+  });
+  await expect(otherType).toHaveCount(1);
+  await otherType.click();
+  const phone = form.locator('input[name="phone"]:visible').first();
+  const email = form.locator('input[name="email"]:visible').first();
   await expect(phone).toBeVisible();
   await expect(email).toBeVisible();
   await phone.fill(LONG_PHONE);
