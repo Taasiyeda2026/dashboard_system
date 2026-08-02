@@ -13,6 +13,7 @@ on:
       - 'frontend/src/screens/shared/school-calendar-*.js'
       - 'frontend/src/screens/shared/team-calendar-*.js'
       - 'supabase/migrations/20260802190000_add_team_calendar_events.sql'
+      - 'supabase/migrations/20260802194500_align_team_calendar_events_display_order.sql'
       - 'tests/team-calendar-ui.test.mjs'
       - 'tests/school-calendar-logic.test.mjs'
       - 'e2e/tests/12-calendar-layers.spec.mjs'
@@ -45,6 +46,8 @@ jobs:
         env:
           VITE_BASE: ./
           VITE_BUILD_SHA: ${{ github.sha }}
+          VITE_SUPABASE_URL: https://szinlhjuwyiyszdpsdop.supabase.co
+          VITE_SUPABASE_ANON_KEY: sb_publishable_k0IbDJlgPA9KTVuDWrCyFw_Zsa5kZIM
         run: npm run build
       - name: Run direct calendar layer scenario
         env:

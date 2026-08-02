@@ -36,6 +36,7 @@ export const SHORT_ACTIVITY_EXCEPTION_TYPES = new Set([
 ]);
 
 const SHORT_ACTIVITY_TYPES = new Set(['workshop', 'tour', 'after_school', 'escape_room']);
+const CLOSED_ACTIVITY_STATUSES = new Set(['סגור', 'נסגר', 'בוצע', 'הושלם', 'closed', 'completed', 'done']);
 
 const LEGACY_EXCEPTION_TYPE_ALIASES = {
   late_end_date: 'end_date_out_of_sync',
@@ -52,6 +53,12 @@ export function normalizeExceptionType(type) {
 
 export function isApprovedExceptionType(type) {
   return APPROVED_EXCEPTION_TYPES.has(normalizeExceptionType(type));
+}
+
+function isClosedSummerActivity(activity = {}) {
+  const summer = isSummerActivity(activity) || String(activity?.activity_season || activity?.activitySeason || '').trim() === 'summer_2026';
+  if (!summer) return false;
+  return CLOSED_ACTIVITY_STATUSES.has(String(activity?.status || '').trim().toLowerCase());
 }
 
 export function isExceptionTypeRelevantForActivity(activity, exceptionType) {
@@ -75,6 +82,10 @@ export function isExceptionTypeRelevantForActivity(activity, exceptionType) {
 }
 
 export function normalizedExceptionTypes(row) {
+  // Closed Summer 2026 activities belong to the archive. They must not remain
+  // in the operational exceptions list merely because a completion approval is absent.
+  if (isClosedSummerActivity(row)) return [];
+
   const rawTypes = Array.isArray(row?.exception_types)
     ? row.exception_types
     : [row?.exception_type];
