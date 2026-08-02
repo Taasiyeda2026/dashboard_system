@@ -93,6 +93,7 @@ export function ensureFeature(name) {
         import('./proposal-next-year-selection-hydration.js?v=20260802-v1'),
         import('./proposal-workflow-completion.js?v=20260802-v1'),
         import('./proposal-workflow-ui-integrity.js?v=20260802-v1'),
+        import('./proposal-summer-list-runtime.js?v=20260802-v1'),
         import('./proposal-approval-runtime.js'),
         import('./client-contact-persistence-hotfix.js'),
         import('./school-catalog-bootstrap-hotfix.js?v=20260730-full-school-catalog-v1'),
