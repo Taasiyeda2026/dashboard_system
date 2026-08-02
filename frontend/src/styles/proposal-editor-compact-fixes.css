@@ -160,8 +160,8 @@
 #app .pa-editor-workspace .ds-pa-contact-manual-fields,
 #app .pa-editor-workspace .ds-pa-contact-channels-fields { display: flex; align-items: end; gap: 8px; }
 #app .pa-editor-workspace .ds-pa-contact-manual-fields input { inline-size: 150px; }
-#app .pa-editor-workspace .ds-pa-contact-channels-fields input[name="phone"] { inline-size: 170px; }
-#app .pa-editor-workspace .ds-pa-contact-channels-fields input[name="email"] { inline-size: 280px; }
+#app .pa-editor-workspace .ds-pa-contact-channels-fields input[name="phone"] { inline-size: 210px; }
+#app .pa-editor-workspace .ds-pa-contact-channels-fields input[name="email"] { inline-size: 360px; }
 #app .pa-editor-workspace .ds-pa-contact-channels { display: contents; }
 #app .pa-editor-workspace .ds-pa-contact-channels-status { display: flex; align-items: center; gap: 6px; }
 
@@ -170,8 +170,21 @@
   #app .pa-editor-workspace .ds-pa-contact-manual-fields,
   #app .pa-editor-workspace .ds-pa-contact-channels-fields { flex-wrap: wrap; inline-size: 100%; }
   #app .pa-editor-workspace .ds-pa-contact-channels-fields input[name="phone"],
-  #app .pa-editor-workspace .ds-pa-contact-channels-fields input[name="email"] { inline-size: min(100%, 320px); }
+  #app .pa-editor-workspace .ds-pa-contact-channels-fields input[name="email"] { inline-size: min(100%, 360px); }
 }
+
+/* Internal area totals sit under their own rows so each section sums on its own. */
+#app .pa-editor-workspace .ds-pa-items-group-total-row {
+  display: flex;
+  align-items: baseline;
+  justify-content: flex-start;
+  gap: 8px;
+  padding-block: 6px 2px;
+  font-size: 0.8rem;
+  color: var(--ds-color-text, #0f172a);
+}
+#app .pa-editor-workspace .ds-pa-items-group-total-row[hidden] { display: none; }
+#app .pa-editor-workspace .ds-pa-items-group-total-row strong { font-variant-numeric: tabular-nums; }
 
 #app .pa-editor-workspace .ds-pa-form-type-panel,
 #app .pa-editor-workspace .ds-pa-form-activities-panel { display: grid; grid-template-columns: 110px 1fr; align-items: start; gap: 10px; padding-block: 14px; }

@@ -11218,11 +11218,17 @@ select.ds-input {
   vertical-align: middle;
 }
 
-.ds-pa-table td:nth-child(4),
 .ds-pa-table td:nth-child(5),
 .ds-pa-table td:nth-child(6),
 .ds-pa-table td:nth-child(7) {
   text-align: center;
+  vertical-align: middle;
+}
+
+/* School stays right-aligned in RTL, header and values alike. */
+.ds-pa-table th.ds-pa-school-col,
+.ds-pa-table td.ds-pa-school-col {
+  text-align: right;
   vertical-align: middle;
 }
 
@@ -21741,12 +21747,15 @@ details[open] > .ds-fin-acc__summary::before { transform: rotate(90deg); }
   align-items: end;
   gap: 10px;
 }
-.pa-editor-workspace .pa-sidebar .ds-pa-form-field:has([name="contact_role"]),
-.pa-editor-workspace .pa-sidebar .ds-pa-form-field:has([name="phone"]) {
+.pa-editor-workspace .pa-sidebar .ds-pa-form-field:has([name="contact_role"]) {
   width: min(100%, 190px);
 }
+/* Mobile and email must show their full stored value, not a clipped one. */
+.pa-editor-workspace .pa-sidebar .ds-pa-form-field:has([name="phone"]) {
+  width: min(100%, 230px);
+}
 .pa-editor-workspace .pa-sidebar .ds-pa-form-field:has([name="email"]) {
-  width: min(100%, 290px);
+  width: min(100%, 380px);
 }
 .pa-editor-workspace .pa-sidebar .ds-pa-form-field:has([name="proposal_date"]) {
   width: 165px;
