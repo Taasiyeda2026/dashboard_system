@@ -4349,7 +4349,7 @@ function stepComplete(form) {
 
   let clientDone = false;
   if (clientType === 'other') {
-    clientDone = Boolean(authorityId && otherName);
+    clientDone = Boolean(otherName);
   } else if (clientType === 'authority') {
     clientDone = Boolean(authorityId);
   } else {
@@ -4394,17 +4394,21 @@ function showValidationNotice(form, errors, isPending) {
   if (errorEl) errorEl.textContent = '';
 }
 
-export function proposalTypeCardsHtml(selected) {
+export function proposalTypeCardsHtml(selected, { includeSummer = true } = {}) {
   const normalizedSelected = normalizeProposalGroup(selected);
-  const options = proposalGroupLookups.groups.filter((o) => o.group_key !== COMBINED_INTERNAL_KEY && PROPOSAL_GROUP_DISPLAY_FALLBACKS[o.group_key]);
+  const options = proposalGroupLookups.groups.filter((o) => (
+    o.group_key !== COMBINED_INTERNAL_KEY
+    && PROPOSAL_GROUP_DISPLAY_FALLBACKS[o.group_key]
+    && (includeSummer || o.group_key !== 'summer')
+  ));
   if (!options.length) {
-    return `<div class="ds-pa-type-chips" data-pa-type-cards style="display:grid;grid-template-columns:repeat(4,minmax(0,1fr));gap:4px;margin:0"></div><input type="hidden" name="activity_type_group" value="${escapeHtml(normalizedSelected === COMBINED_INTERNAL_KEY ? '' : normalizedSelected)}" data-pa-type-hidden>`;
+    return `<div class="ds-pa-type-chips" data-pa-type-cards></div><input type="hidden" name="activity_type_group" value="${escapeHtml(normalizedSelected === COMBINED_INTERNAL_KEY ? '' : normalizedSelected)}" data-pa-type-hidden>`;
   }
-  return `<div class="ds-pa-type-chips" data-pa-type-cards style="display:grid;grid-template-columns:repeat(4,minmax(0,1fr));gap:4px;margin:0">
+  return `<div class="ds-pa-type-chips" data-pa-type-cards>
     ${options.map((opt) => {
       const isSel = normalizedSelected === opt.group_key;
       const label = PROPOSAL_GROUP_DISPLAY_FALLBACKS[opt.group_key] || clientFacingProposalTypeLabel({ activity_type_group: opt.group_key, document_type: opt.display_name });
-      return `<button type="button" class="ds-pa-type-card${isSel ? ' is-selected' : ''}" data-pa-type-btn="${escapeHtml(opt.group_key)}" style="width:100%;min-height:auto;padding:4px 6px;border-radius:12px;border:1.5px solid ${isSel ? '#6366f1' : '#d1d5db'};background:${isSel ? '#eef2ff' : '#f9fafb'};color:${isSel ? '#4f46e5' : '#374151'};font-weight:${isSel ? '600' : '400'};font-size:0.8rem;cursor:pointer;text-align:center;line-height:1.2;transition:all .15s">${escapeHtml(label)}</button>`;
+      return `<button type="button" class="ds-pa-type-card${isSel ? ' is-selected' : ''}" data-pa-type-btn="${escapeHtml(opt.group_key)}">${escapeHtml(label)}</button>`;
     }).join('')}
   </div><input type="hidden" name="activity_type_group" value="${escapeHtml(normalizedSelected === COMBINED_INTERNAL_KEY ? '' : normalizedSelected)}" data-pa-type-hidden>`;
 }
@@ -4557,13 +4561,14 @@ function formHtml(mode, row = {}, activityNameOptions = [], contactOptions = [],
           </div>
         </div>
     <div class="ds-pa-form-meta-panel">
-      <h4 class="pa-sidebar-section-title">פרטי נמען</h4>
       <div class="ds-pa-recipient-meta-row ds-pa-recipient-main-row" data-pa-recipient-meta-row>
-        <label class="ds-pa-form-field ds-pa-recipient-date-field"><span>${escapeHtml(FIELD_LABELS.proposal_date)}</span><input class="ds-input ds-input--sm" type="date" name="proposal_date" value="${escapeHtml(proposalDate)}"></label>
-        <label class="ds-pa-form-field ds-pa-recipient-domain-field"><span>${escapeHtml(FIELD_LABELS.proposal_domain)}: Y / E</span><select class="ds-input ds-input--sm" name="proposal_domain">${optionHtml('Y', row.proposal_domain || 'Y', 'Y')}${optionHtml('E', row.proposal_domain || 'Y', 'E')}</select></label>
+        <div class="ds-pa-recipient-general"><h4 class="pa-sidebar-section-title">פרטים כלליים</h4>
+          <label class="ds-pa-form-field ds-pa-recipient-date-field"><span>${escapeHtml(FIELD_LABELS.proposal_date)}</span><input class="ds-input ds-input--sm" type="date" name="proposal_date" value="${escapeHtml(proposalDate)}"></label>
+          <label class="ds-pa-form-field ds-pa-recipient-domain-field"><span>תחום</span><select class="ds-input ds-input--sm" name="proposal_domain">${optionHtml('Y', row.proposal_domain || 'Y', 'Y')}${optionHtml('E', row.proposal_domain || 'Y', 'E')}</select></label>
+        </div>
         ${clientTypeSelectorHtml(initClientType)}
         <div class="ds-pa-recipient-flow" data-pa-step-panel="client">
-          <div class="ds-pa-client-search-block" data-pa-client-search-row${isLocked ? ' hidden' : ''}>
+          <div class="ds-pa-client-search-block" data-pa-client-search-row>
             ${contactOptionsLoadErrorHtml(contactOptionsError)}
             ${clientSearchHtml(contactOptions, row)}
             <div class="ds-pa-other-client-section" data-pa-other-client-field${initOther ? '' : ' hidden'}><label class="ds-pa-form-field ds-pa-other-client-field"><span>שם הלקוח / חברה</span><input class="ds-input ds-input--sm" name="other_client_name" value="${escapeHtml(initOther ? (row.client_name || initSchool) : '')}" placeholder="שם הלקוח"></label></div>
@@ -4607,7 +4612,7 @@ function formHtml(mode, row = {}, activityNameOptions = [], contactOptions = [],
       <h4 class="pa-sidebar-section-title">פרטי ההצעה</h4>
       <div class="ds-pa-type-meta-grid">
         <div class="ds-pa-form-field">
-          ${proposalTypeCardsHtml(normalizedActivityGroup)}
+          ${proposalTypeCardsHtml(normalizedActivityGroup, { includeSummer: mode === 'edit' || normalizedActivityGroup === 'summer' })}
         </div>
         <input type="hidden" name="document_type" value="${escapeHtml(text(row.document_type) || 'הצעת מחיר')}">
       </div>
@@ -6542,7 +6547,7 @@ export const proposalsAgreementsScreen = {
       const results = form?.querySelector('[data-pa-client-results]');
       if (cardEl) { cardEl.innerHTML = clientLockedBannerHtml(auth, school, cName, cRole, phone, email, clientName, schoolMeta); cardEl.hidden = false; }
       if (fieldsEl) fieldsEl.hidden = true;
-      if (searchRow) searchRow.hidden = true;
+      if (searchRow) searchRow.hidden = false;
       if (results) { results.hidden = true; results.innerHTML = ''; }
       const roAuth = form?.querySelector('[data-pa-contact-ro-authority]');
       const roSchoolEl = form?.querySelector('[data-pa-contact-ro-school]');
@@ -6614,9 +6619,9 @@ export const proposalsAgreementsScreen = {
         const searchFieldWrap = form.querySelector('[data-pa-client-search-field-wrap]');
         const results = form.querySelector('[data-pa-client-results]');
         const input = form.querySelector('[data-pa-client-search-input]');
-        if (searchField) searchField.hidden = true;
+        if (searchField) searchField.hidden = false;
         if (searchFieldWrap) searchFieldWrap.hidden = false;
-        if (input) input.value = '';
+        if (input) input.value = authority;
         if (results) { results.hidden = true; results.innerHTML = ''; }
         const pickerHost = form.querySelector('[data-pa-contact-picker-host]');
         if (pickerHost) pickerHost.innerHTML = '';
@@ -6722,10 +6727,10 @@ export const proposalsAgreementsScreen = {
       const schoolSearchInput = form.querySelector('[data-pa-school-search-input]');
       const results = form.querySelector('[data-pa-client-results]');
       const schoolResults = form.querySelector('[data-pa-school-results]');
-      if (searchField) searchField.hidden = true;
-      if (schoolSearchPanel) schoolSearchPanel.hidden = true;
-      if (input) input.value = '';
-      if (schoolSearchInput) schoolSearchInput.value = '';
+      if (searchField) searchField.hidden = false;
+      if (schoolSearchPanel) schoolSearchPanel.hidden = clientType !== 'school';
+      if (input) input.value = authority;
+      if (schoolSearchInput) schoolSearchInput.value = isAuthorityOnly ? '' : school;
       if (results) { results.hidden = true; results.innerHTML = ''; }
       if (schoolResults) { schoolResults.hidden = true; schoolResults.innerHTML = ''; }
       setPanelOpen(form, 'contact', true);
@@ -6994,7 +6999,7 @@ export const proposalsAgreementsScreen = {
       const searchField = form.querySelector('[data-pa-client-search-field]');
       const results = form.querySelector('[data-pa-client-results]');
       const schoolSearchPanel = form.querySelector('[data-pa-school-search-panel]');
-      if (searchField) searchField.hidden = true;
+      if (searchField) searchField.hidden = false;
       if (results) { results.hidden = true; results.innerHTML = ''; }
       if (schoolSearchPanel) {
         schoolSearchPanel.hidden = false;
@@ -7177,8 +7182,8 @@ export const proposalsAgreementsScreen = {
       const roCtx = form.querySelector('[data-pa-contact-ro-ctx]');
 
       if (selected === 'other') {
-        if (searchRow) searchRow.hidden = locked;
-        if (searchFieldWrap) searchFieldWrap.hidden = locked;
+        if (searchRow) searchRow.hidden = false;
+        if (searchFieldWrap) searchFieldWrap.hidden = true;
         hideSchoolSearchPanel(form);
         if (otherField) otherField.hidden = false;
         if (contactPanel) contactPanel.hidden = false;
@@ -7190,7 +7195,7 @@ export const proposalsAgreementsScreen = {
         renderContactChannelsStatus(form);
       } else if (selected === 'authority') {
         if (otherField) otherField.hidden = true;
-        if (searchRow) searchRow.hidden = locked;
+        if (searchRow) searchRow.hidden = false;
         if (searchFieldWrap) searchFieldWrap.hidden = false;
         hideSchoolSearchPanel(form);
         if (!locked) {
@@ -7203,9 +7208,9 @@ export const proposalsAgreementsScreen = {
         applyClientSearchMode(form);
       } else {
         if (otherField) otherField.hidden = true;
-        if (searchRow) searchRow.hidden = locked;
-        if (searchFieldWrap) searchFieldWrap.hidden = locked || text(form.dataset.paSearchStep) === 'school';
-        if (schoolSearchPanel) schoolSearchPanel.hidden = locked || text(form.dataset.paSearchStep) !== 'school';
+        if (searchRow) searchRow.hidden = false;
+        if (searchFieldWrap) searchFieldWrap.hidden = false;
+        if (schoolSearchPanel) schoolSearchPanel.hidden = text(form.dataset.paSearchStep) !== 'school' && !locked;
         if (!locked) {
           if (contactPanel) contactPanel.hidden = true;
           manualFields.forEach((el) => { el.hidden = true; });
@@ -8709,10 +8714,6 @@ export const proposalsAgreementsScreen = {
           typeCardBtn.closest('[data-pa-type-cards]')?.querySelectorAll('[data-pa-type-btn]').forEach((btn) => {
             const isSel = text(btn.dataset.paTypeBtn) === val;
             btn.classList.toggle('is-selected', isSel);
-            btn.style.border = `1.5px solid ${isSel ? '#6366f1' : '#d1d5db'}`;
-            btn.style.background = isSel ? '#eef2ff' : '#f9fafb';
-            btn.style.color = isSel ? '#4f46e5' : '#374151';
-            btn.style.fontWeight = isSel ? '600' : '400';
           });
           typeInput.dispatchEvent(new Event('change', { bubbles: true }));
         }

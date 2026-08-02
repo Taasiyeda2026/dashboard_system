@@ -79,7 +79,7 @@ export function ensureFeature(name) {
 
     case 'proposals':
       return loadOnce('proposals', () => Promise.all([
-        loadStylesheet('./styles/proposal-editor-compact-fixes.css?v=20260801-v6'),
+        loadStylesheet('./styles/proposal-editor-compact-fixes.css?v=20260802-reference-v1'),
         import('./proposal-pdf-svg-origin-clean.js'),
         import('./proposal-pdf-storage-key-hotfix.js'),
         import('./proposal-pdf-download-filename-hotfix.js'),
