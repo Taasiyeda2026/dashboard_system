@@ -67,7 +67,7 @@ test('compact runtime loads the focused next-year editor stabilizer', async () =
   ]);
   assert.match(runtime, /import '\.\/proposal-next-year-editor-stability\.js'/);
   assert.match(stability, /stabilizeNextYearForm/);
-  assert.match(stability, /data-pa-next-year-user-added/);
+  assert.match(stability, /paNextYearUserAdded/);
   assert.match(stability, /pricingRowsForNextYearGroup/);
   assert.doesNotMatch(stability, /document\.body\.innerHTML\s*=/);
 });
