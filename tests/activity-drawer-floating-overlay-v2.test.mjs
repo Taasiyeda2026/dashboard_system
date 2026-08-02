@@ -3,7 +3,7 @@ import assert from 'node:assert/strict';
 import { readFile } from 'node:fs/promises';
 
 const cssUrl = new URL('../frontend/src/styles/activity-drawer-floating-actions.css', import.meta.url);
-const entryUrl = new URL('../frontend/src/main-with-proposal-pdf-hotfix.js', import.meta.url);
+const featureLoaderUrl = new URL('../frontend/src/feature-loaders.js', import.meta.url);
 
 test('activity edit action is a true overlay above the scrollable drawer body', async () => {
   const css = await readFile(cssUrl, 'utf8');
@@ -15,7 +15,7 @@ test('activity edit action is a true overlay above the scrollable drawer body', 
 });
 
 test('floating overlay assets use a new cache version', async () => {
-  const entry = await readFile(entryUrl, 'utf8');
-  assert.match(entry, /activity-drawer-floating-actions\.css\?v=20260731-floating-overlay-v2/);
-  assert.match(entry, /activity-drawer-floating-actions\.js\?v=20260731-floating-overlay-v2/);
+  const featureLoaders = await readFile(featureLoaderUrl, 'utf8');
+  assert.match(featureLoaders, /activity-drawer-floating-actions\.css\?v=20260731-floating-overlay-v3/);
+  assert.match(featureLoaders, /activity-drawer-floating-actions\.js\?v=20260731-floating-overlay-v3/);
 });

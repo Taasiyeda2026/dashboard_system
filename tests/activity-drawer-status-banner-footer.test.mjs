@@ -3,7 +3,7 @@ import assert from 'node:assert/strict';
 import { readFile } from 'node:fs/promises';
 
 const cssUrl = new URL('../frontend/src/styles/activity-drawer-floating-actions.css', import.meta.url);
-const mainUrl = new URL('../frontend/src/main-with-proposal-pdf-hotfix.js', import.meta.url);
+const featureLoaderUrl = new URL('../frontend/src/feature-loaders.js', import.meta.url);
 
 test('activity form fills remaining drawer height below status banners', async () => {
   const css = await readFile(cssUrl, 'utf8');
@@ -14,7 +14,7 @@ test('activity form fills remaining drawer height below status banners', async (
 });
 
 test('floating footer assets use the latest cache-busting version', async () => {
-  const source = await readFile(mainUrl, 'utf8');
+  const source = await readFile(featureLoaderUrl, 'utf8');
   assert.match(source, /activity-drawer-floating-actions\.css\?v=20260731-floating-overlay-v3/);
   assert.match(source, /activity-drawer-floating-actions\.js\?v=20260731-floating-overlay-v3/);
 });
