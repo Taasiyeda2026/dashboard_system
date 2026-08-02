@@ -26,7 +26,7 @@ const screenUrl = new URL('../frontend/src/screens/proposals-agreements.js', imp
 const mainCssUrl = new URL('../frontend/src/styles/main.css', import.meta.url);
 const nextYearUrl = new URL('../frontend/src/proposal-next-year-workshops.js', import.meta.url);
 
-const { validateProposalDocumentTree, validateProposalDocumentHtml, PROPOSAL_PDF_RENDER_HOST_ATTRIBUTE } =
+const { validateProposalDocumentTree, validateProposalDocumentHtml, proposalPreviewBodyHtml, PROPOSAL_PDF_RENDER_HOST_ATTRIBUTE } =
   await import('../frontend/src/screens/proposals-agreements.js');
 
 function documentTree(html) {
@@ -64,6 +64,15 @@ test('saved PDF reserves a browser tab before awaiting its signed URL', async ()
   assert.match(source, /link\.download = text\(result\?\.fileName\)/);
 });
 
+test('PDF generation reserves its result window before the first await', async () => {
+  const source = await readFile(screenUrl, 'utf8');
+  const start = source.indexOf('const generateAndSaveProposalPdf = async');
+  const body = source.slice(start, source.indexOf('const finalizeSentProposal = async', start));
+  assert.ok(body.indexOf('const reservedPdfWindow = reservePdfWindow();') < body.indexOf('await ensureEditorDeps();'));
+  const beforeReservation = body.slice(0, body.indexOf('const reservedPdfWindow = reservePdfWindow();')).replace(/\/\/.*$/gm, '');
+  assert.doesNotMatch(beforeReservation, /\bawait\b/);
+});
+
 test('clone handler delegates one atomic item copy and never archives the source locally', async () => {
   const source = await readFile(screenUrl, 'utf8');
   const handler = source.slice(source.indexOf("const cloneBtn = event.target.closest?.('[data-pa-clone-row]')"));
@@ -86,6 +95,24 @@ test('an image-only logo header passes while a genuinely empty title is blocked'
   const emptyTitle = imageOnlyHeader.replace('הצעת מחיר 10200', '');
   assert.ok(validateProposalDocumentTree(documentTree(emptyTitle)).missing.includes('כותרת ההצעה'));
   assert.ok(validateProposalDocumentHtml(emptyTitle).missing.includes('כותרת ההצעה'));
+});
+
+test('non-DOM HTML validation reads nested recipient text and rejects a truly empty region', () => {
+  const nestedRecipient = FULL_DOCUMENT_HTML.replace('לכבוד: מנהלת בית הספר', '<span><b>לכבוד:</b> מנהלת בית הספר</span>');
+  assert.equal(validateProposalDocumentHtml(nestedRecipient.replaceAll('"', "'")).ok, true);
+  const emptyRecipient = nestedRecipient.replace('<span><b>לכבוד:</b> מנהלת בית הספר</span>', '<span><b></b></span>');
+  assert.ok(validateProposalDocumentHtml(emptyRecipient).missing.includes('פרטי הנמען'));
+  const emptyHeader = nestedRecipient.replace(/<div class="proposal-document-header[^>]*>[\s\S]*?<\/div>/, '<div class="proposal-document-header"></div>');
+  assert.ok(validateProposalDocumentHtml(emptyHeader).missing.includes('כותרת ולוגו'));
+});
+
+test('non-DOM validation accepts the real proposal preview HTML', () => {
+  const html = proposalPreviewBodyHtml(
+    { activity_type_group: 'gefen', client_authority: 'רשות', school_framework: 'בית ספר', contact_name: 'מנהלת', proposal_date: '2026-08-02' },
+    [{ item_name: 'בינה מלאכותית', proposal_group: 'gefen', quantity: 1, unit_price: 8000, total_price: 8000 }],
+    [{ template_key: 'gefen', section_key: 'intro', section_title: 'פתיח', section_body: 'תוכן תבנית מלא', is_active: true }]
+  );
+  assert.equal(validateProposalDocumentHtml(html).ok, true);
 });
 
 test('a table-only fragment is blocked before a PDF can be produced', () => {

@@ -1,46 +1,149 @@
 import fs from 'node:fs/promises';
 import path from 'node:path';
-import { test, expect } from '@playwright/test';
+import { test, expect } from '../fixtures/test.mjs';
+import { ARTIFACTS_DIR } from '../helpers/env.mjs';
+import { assertNoTransportErrors } from '../helpers/network-tracker.mjs';
+import { navigateToScreen, waitForAppShell, waitForScreenReady } from '../helpers/screen.mjs';
 
-const screenshots = path.resolve('artifacts/screenshots');
+const screenshotsDir = path.join(ARTIFACTS_DIR, 'screenshots');
+const amountOf = (value) => Number(String(value || '').replace(/[^\d.-]/g, '')) || 0;
 
-test('proposal regression path: full template, logo header, saved price, next-year areas and responsive contact', async ({ page }) => {
-  await fs.mkdir(screenshots, { recursive: true });
-  const errors = [];
-  page.on('pageerror', (error) => errors.push(error.message));
-  await page.goto('/');
-  const result = await page.evaluate(async () => {
-    const module = await import('/frontend/src/screens/proposals-agreements.js');
-    const row = { activity_type_group: 'next_year', proposal_date: '2026-08-02', client_authority: 'רשות לדוגמה', school_framework: 'בית ספר לדוגמה' };
-    const items = [
-      { item_name: 'בינה מלאכותית', item_type: 'קורס', proposal_group: 'next_year_courses', quantity: 1, unit_price: 8000, total_price: 8000, gefen_number: '6089' },
-      { item_name: 'סדנת חלל', item_type: 'סדנה', proposal_group: 'next_year_workshops', quantity: 1, unit_price: 650, total_price: 650 }
-    ];
-    const template = [{ template_key: 'next_year', section_key: 'intro', section_title: 'פתיח', section_body: 'תוכן תבנית מלא', is_active: true }];
-    const html = module.proposalPreviewBodyHtml(row, items, template);
-    document.body.innerHTML = `<main dir="rtl"><section id="document">${html}</section>
-      <section id="price"><h2>מחיר היסטורי</h2><label>כמות <input id="qty" type="number" value="1"></label><label>מחיר יחידה <input id="unit" data-pa-item-price value="8000"></label><output id="total">₪ 8,000</output></section>
-      <section id="contact" dir="rtl"><h2>עדכון איש קשר</h2><div class="contact-grid"><label>איש קשר<input></label><label>תפקיד<input></label><label>נייד<input></label><label>דוא״ל<input></label><button>שמירת פרטי קשר</button><small>נייד קיים · דוא״ל קיים</small></div></section></main>`;
-    const style = document.createElement('style');
-    style.textContent = `body{font-family:Arial;margin:24px;background:#f8fafc}main{display:grid;gap:20px}#price,#contact{background:white;padding:18px;border:1px solid #cbd5e1;border-radius:12px}#price{display:flex;gap:18px;align-items:end}label{display:grid;gap:5px;min-width:0}input{min-width:0;width:100%;box-sizing:border-box;padding:8px}.contact-grid{display:grid;grid-template-columns:repeat(auto-fit,minmax(140px,1fr));gap:10px;align-items:end;min-width:0}.contact-grid small{grid-column:1/-1}`;
-    document.head.append(style);
-    const check = module.validateProposalDocumentTree(document.querySelector('#document'));
-    const qty = document.querySelector('#qty');
-    qty.addEventListener('input', () => { document.querySelector('#total').textContent = `₪ ${(Number(qty.value) * 8000).toLocaleString('en-US')}`; });
-    return { ok: check.ok, missing: check.missing, courses: document.querySelectorAll('.pa-next-year-course-table').length, workshops: document.querySelectorAll('.pa-next-year-workshop-table').length };
+async function shot(page, name, locator = page) {
+  await fs.mkdir(screenshotsDir, { recursive: true });
+  await locator.screenshot({ path: path.join(screenshotsDir, name), fullPage: locator === page });
+}
+
+async function openRowAction(row, selector) {
+  let action = row.locator(`${selector}:visible`).first();
+  if (!(await action.count())) {
+    const more = row.locator('.ds-pa-row-more summary');
+    if (await more.count()) await more.click();
+    action = row.locator(selector).first();
+  }
+  await expect(action).toBeVisible();
+  await action.click();
+}
+
+async function assertNoOverlap(container) {
+  const result = await container.evaluate((root) => {
+    const elements = [...root.querySelectorAll('input, select, button, [data-pa-contact-channels-status]:not([hidden])')]
+      .filter((element) => element.getClientRects().length)
+      .map((element) => ({ element, rect: element.getBoundingClientRect() }));
+    const overlap = elements.some((left, index) => elements.slice(index + 1).some((right) =>
+      left.rect.left < right.rect.right - 1 && left.rect.right > right.rect.left + 1
+      && left.rect.top < right.rect.bottom - 1 && left.rect.bottom > right.rect.top + 1));
+    return { overflow: root.scrollWidth > root.clientWidth + 1, overlap };
   });
-  expect(result).toEqual({ ok: true, missing: [], courses: 1, workshops: 1 });
-  await expect(page.locator('#document')).not.toContainText('לא נמצאה תבנית פעילה');
-  await page.locator('#document').screenshot({ path: path.join(screenshots, 'proposal-full-template.png') });
-  await page.locator('#document').screenshot({ path: path.join(screenshots, 'proposal-next-year-two-areas.png') });
-  await expect(page.locator('#total')).toHaveText('₪ 8,000');
-  await page.locator('#qty').fill('2');
-  await expect(page.locator('#total')).toHaveText('₪ 16,000');
-  await page.locator('#price').screenshot({ path: path.join(screenshots, 'proposal-saved-price.png') });
-  await page.setViewportSize({ width: 1440, height: 900 });
-  await page.locator('#contact').screenshot({ path: path.join(screenshots, 'proposal-contact-layout.png') });
-  await page.setViewportSize({ width: 720, height: 900 });
-  const overflow = await page.locator('#contact').evaluate((element) => element.scrollWidth > element.clientWidth);
-  expect(overflow).toBe(false);
-  expect(errors).toEqual([]);
+  expect(result).toEqual({ overflow: false, overlap: false });
+}
+
+test('real proposal regression path remains stable without saving data or PDFs', async ({ page, tracker }) => {
+  test.setTimeout(300_000);
+  tracker.resetScreen('proposal-focused-regressions');
+  await page.setViewportSize({ width: 1440, height: 1000 });
+  await page.goto('/');
+  await waitForAppShell(page);
+  await navigateToScreen(page, 'proposals-agreements');
+  await waitForScreenReady(page, 'proposals-agreements');
+  await page.locator('[data-pa-client-all-proposals]:visible').first().click();
+  const table = page.locator('[data-pa-all-proposals-table] [data-pa-table]').first();
+  await expect(table).toBeVisible();
+
+  // Cold-list preview: open an approved proposal before any editor has been opened.
+  const approved = table.locator('tbody tr[data-pa-row-id]').filter({ hasText: 'מאושר' }).first();
+  await expect(approved).toBeVisible();
+  await openRowAction(approved, '[data-pa-preview]');
+  const detail = page.locator('[data-pa-proposal-detail]:visible');
+  if (await detail.count()) await detail.locator('[data-pa-preview]').first().click();
+  const preview = page.locator('.proposal-preview-area:visible');
+  await expect(preview.locator('.proposal-document')).toBeVisible();
+  await expect(preview).not.toContainText('לא נמצאה תבנית פעילה לסוג הצעה זה');
+  await expect(preview.locator('.pa-section, .pa-org-intro')).not.toHaveCount(0);
+  await shot(page, 'proposal-full-template.png', preview);
+  await page.locator('#pa-preview-close').click();
+  await page.locator('[data-pa-proposal-detail-back]:visible').first().click().catch(() => {});
+
+  // Locate the real editable saved row with unit price 8,000 and quantity 1.
+  const candidates = table.locator('tbody tr[data-pa-row-id]');
+  let form = null;
+  for (let index = 0; index < Math.min(await candidates.count(), 20); index += 1) {
+    const row = candidates.nth(index);
+    if (!(await row.locator('[data-pa-edit-row], .ds-pa-row-more summary').count())) continue;
+    await openRowAction(row, '[data-pa-edit-row]').catch(() => {});
+    const candidateForm = page.locator('[data-pa-form]:visible').first();
+    if (!(await candidateForm.isVisible({ timeout: 3000 }).catch(() => false))) continue;
+    const saved = candidateForm.locator('[data-pa-item-row]:has([data-pa-item-price][value="8000"])').first();
+    if (await saved.count() && Number(await saved.locator('[data-pa-item-qty]').inputValue()) === 1) {
+      form = candidateForm;
+      break;
+    }
+    await candidateForm.locator('[data-pa-cancel-form]').first().click();
+  }
+  expect(form, 'an editable saved proposal with price 8,000 and quantity 1 must exist').not.toBeNull();
+  const savedRow = form.locator('[data-pa-item-row]:has([data-pa-item-price][value="8000"])').first();
+  await expect(savedRow.locator('[data-pa-item-price]')).toHaveValue('8000');
+  await expect(savedRow.locator('[data-pa-item-qty]')).toHaveValue('1');
+  await expect.poll(async () => amountOf(await form.locator('[data-pa-grand-total]').innerText())).toBe(8000);
+  await shot(page, 'proposal-saved-price.png', savedRow);
+  await savedRow.locator('[data-pa-item-qty]').fill('2');
+  await expect.poll(async () => amountOf(await form.locator('[data-pa-grand-total]').innerText())).toBe(16000);
+
+  // Use the real type controls and real item selectors; never submit the form.
+  await form.locator('[data-pa-type-btn="next_year"]').click();
+  const courses = form.locator('[data-pa-items-group="next_year_courses"]');
+  const workshops = form.locator('[data-pa-items-group="next_year_workshops"]');
+  await expect(courses).toHaveCount(1);
+  await expect(workshops).toHaveCount(1);
+  for (const section of [courses, workshops]) {
+    await section.locator('[data-pa-add-item]').click();
+    const select = section.locator('[data-pa-item-row]').last().locator('[data-pa-pricing-select]');
+    const option = await select.locator('option:not([value=""])').evaluateAll((options) => options.find((item) => !item.value.startsWith('__'))?.value || '');
+    expect(option).not.toBe('');
+    await select.selectOption(option);
+  }
+  await shot(page, 'proposal-next-year-two-areas.png', form.locator('[data-pa-items-host]'));
+  await form.locator('[data-pa-type-btn="gefen"]').click();
+  await form.locator('[data-pa-type-btn="next_year"]').click();
+  await expect(courses).toHaveCount(1);
+  await expect(workshops).toHaveCount(1);
+
+  const contactToggle = form.locator('[data-pa-contact-channels-toggle]:visible').first();
+  if (await contactToggle.count()) await contactToggle.click();
+  const contact = form.locator('[data-pa-step-panel="contact"]:visible');
+  await assertNoOverlap(contact);
+  await shot(page, 'proposal-contact-layout.png', contact);
+  await page.setViewportSize({ width: 900, height: 1000 });
+  await assertNoOverlap(contact);
+  await form.locator('[data-pa-cancel-form]').first().click();
+
+  // Return to the approved proposal and run the real PDF action. Storage is aborted,
+  // therefore neither the proposal row nor an existing PDF can be updated.
+  await page.setViewportSize({ width: 1440, height: 1000 });
+  await openRowAction(approved, '[data-pa-preview]');
+  if (await detail.count()) await detail.locator('[data-pa-preview]').first().click();
+  const print = page.locator('#pa-print-btn');
+  await expect(print).toBeVisible();
+  let hostParts = null;
+  await page.evaluate(() => {
+    window.__proposalPdfProbe = null;
+    new MutationObserver(() => {
+      const host = document.querySelector('[data-pdf-render-host]');
+      if (!host || window.__proposalPdfProbe) return;
+      const visible = (selector) => [...host.querySelectorAll(selector)].some((element) => {
+        const box = element.getBoundingClientRect();
+        return box.width > 0 && box.height > 0;
+      });
+      window.__proposalPdfProbe = {
+        header: visible('.proposal-document-header, .pa-page-header'), recipient: visible('.pa-to-block, .pa-doc-address'),
+        title: visible('.pa-doc-title, .pa-doc-subject'), template: visible('.pa-section, .pa-org-intro'),
+        table: visible('.pa-item-details-table, .pa-activities-table, .pa-cost-table, .pa-next-year-course-table, .pa-next-year-workshop-table')
+      };
+    }).observe(document.body, { childList: true, subtree: true });
+  });
+  await page.route('**/storage/v1/object/**', (route) => route.request().method() === 'POST' ? route.abort() : route.continue());
+  await print.click();
+  await expect.poll(async () => page.evaluate(() => window.__proposalPdfProbe), { timeout: 60_000 }).not.toBeNull();
+  hostParts = await page.evaluate(() => window.__proposalPdfProbe);
+  expect(hostParts).toEqual({ header: true, recipient: true, title: true, template: true, table: true });
+  expect(tracker.state.pageErrors).toEqual([]);
 });

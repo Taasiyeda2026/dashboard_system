@@ -25,14 +25,28 @@ if (!globalThis.localStorage) {
 const SCREEN_FILE = new URL('../frontend/src/screens/proposals-agreements.js', import.meta.url);
 const MAIN_CSS_FILE = new URL('../frontend/src/styles/main.css', import.meta.url);
 const EDITOR_CSS_FILE = new URL('../frontend/src/styles/proposal-editor-compact-fixes.css', import.meta.url);
+const API_FILE = new URL('../frontend/src/api.js', import.meta.url);
 
 const {
   proposalsAgreementsTableRowsHtml,
-  nextYearInternalSectionTitle
+  nextYearInternalSectionTitle,
+  gefenEligibleItems
 } = await import('../frontend/src/screens/proposals-agreements.js');
 const { normalizeNextYearWorkshopHtml } = await import('../frontend/src/proposal-next-year-workshops.js');
 
 const FORBIDDEN_LIST_LABELS = ['תשפ״ז (קורסים)', 'תשפ״ז (סדנאות)', 'תשפ״ז (קורסים וסדנאות)'];
+
+test('תשפ״ז GEFEN eligibility includes numbered courses and always excludes workshops', async () => {
+  const course = { proposal_group: 'next_year_courses', item_type: 'קורס', gefen_number: '6089' };
+  const workshop = { proposal_group: 'next_year_workshops', item_type: 'סדנה', gefen_number: '9999' };
+  assert.deepEqual(gefenEligibleItems([workshop]), []);
+  assert.deepEqual(gefenEligibleItems([course, workshop]).map((item) => item.gefen_number), ['6089']);
+
+  const apiSource = await readFile(API_FILE, 'utf8');
+  assert.match(apiSource, /\.select\('proposal_agreement_id,proposal_group,item_type,gefen_number,proposal_display_mode'\)/);
+  assert.match(apiSource, /\.in\('proposal_agreement_id', pageIds\)/);
+  assert.match(apiSource, /gefen_approval_applicable: gefenEligibilityByProposalId\.get\(row\.id\) === true/);
+});
 
 function adminState() {
   return {

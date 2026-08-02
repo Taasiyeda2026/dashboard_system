@@ -3209,14 +3209,20 @@ export function proposalDocumentIncompleteError(missing = []) {
 
 const PROPOSAL_DOCUMENT_HTML_MARKERS = Object.freeze([
   { label: 'שורש מסמך ההצעה', pattern: /class\s*=\s*(['"])[^'"]*\bproposal-document\b[^'"]*\1/i },
-  { label: 'פרטי הנמען', pattern: /class\s*=\s*(['"])[^'"]*\b(?:pa-to-block|pa-doc-address)\b[^'"]*\1[^>]*>\s*[^<\s]/i },
-  { label: 'כותרת ההצעה', pattern: /class\s*=\s*(['"])[^'"]*\b(?:pa-doc-title|pa-doc-subject)\b[^'"]*\1[^>]*>\s*[^<\s]/i },
+  { label: 'פרטי הנמען', pattern: /class\s*=\s*(['"])[^'"]*\b(?:pa-to-block|pa-doc-address)\b[^'"]*\1/i },
+  { label: 'כותרת ההצעה', pattern: /class\s*=\s*(['"])[^'"]*\b(?:pa-doc-title|pa-doc-subject)\b[^'"]*\1/i },
   { label: 'תוכן תבנית', pattern: /class\s*=\s*(['"])[^'"]*\b(?:pa-section|pa-org-intro)\b[^'"]*\1[^>]*>[\s\S]*?[^<\s][\s\S]*?<\//i },
   {
     label: 'טבלת פעילות',
     pattern: /class\s*=\s*(['"])[^'"]*\b(?:pa-item-details-table|pa-activities-table|pa-cost-table|pa-tour-cost-table|pa-next-year-course-table|pa-next-year-workshop-table)\b[^'"]*\1[\s\S]*?<tr\b[^>]*>[\s\S]*?<\/tr>/i
   }
 ]);
+
+function htmlRegionText(source, classNames = []) {
+  const classPattern = classNames.join('|');
+  const region = String(source || '').match(new RegExp(`<([a-z][\\w:-]*)[^>]*class\\s*=\\s*(['"])[^'"]*\\b(?:${classPattern})\\b[^'"]*\\2[^>]*>([\\s\\S]*?)<\\/\\1\\s*>`, 'i'));
+  return region ? text(region[3].replace(/<[^>]*>/g, ' ').replace(/&nbsp;|&#160;/gi, ' ')) : '';
+}
 
 /**
  * Validates an HTML snapshot without rendering it, used before the file is created and
@@ -3234,6 +3240,8 @@ export function validateProposalDocumentHtml(html) {
   const missing = PROPOSAL_DOCUMENT_HTML_MARKERS
     .filter(({ pattern }) => !pattern.test(source))
     .map(({ label }) => label);
+  if (!htmlRegionText(source, ['pa-to-block', 'pa-doc-address']) && !missing.includes('פרטי הנמען')) missing.push('פרטי הנמען');
+  if (!htmlRegionText(source, ['pa-doc-title', 'pa-doc-subject']) && !missing.includes('כותרת ההצעה')) missing.push('כותרת ההצעה');
   const header = source.match(/<[^>]+class\s*=\s*(['"])[^'"]*\b(?:proposal-document-header|pa-page-header)\b[^'"]*\1[^>]*>([\s\S]*?)<\/[^>]+>/i);
   if (!header || (!/<img\b[^>]*\bsrc\s*=\s*(['"])[^'"]+\1/i.test(header[2]) && !text(header[2].replace(/<[^>]*>/g, ' ')))) {
     missing.splice(Math.min(1, missing.length), 0, 'כותרת ולוגו');
@@ -8097,12 +8105,12 @@ export const proposalsAgreementsScreen = {
     };
 
     const generateAndSaveProposalPdf = async (row, items = [], button = null) => {
-      await ensureEditorDeps();
       const freshRow = rowWithCentralContact(row);
       const proposalId = text(freshRow.id);
       // Reserve the tab before the first await so browser popup blockers do not
       // discard the eventual signed URL returned after generation/upload.
       const reservedPdfWindow = reservePdfWindow();
+      await ensureEditorDeps();
       let pdfStage = 'start';
       const setPdfStage = (stage) => { pdfStage = stage; };
       const historicalSnapshotBackfill = isProposalLegacySentWithoutPdf(freshRow) && canGenerateProposalPdf(freshRow, state);
