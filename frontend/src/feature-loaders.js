@@ -90,6 +90,7 @@ export function ensureFeature(name) {
         import('./proposal-next-year-table-alignment.js?v=20260729-next-year-compact-tables-v1'),
         import('./proposal-next-year-workshops.js?v=20260802-proposal-pdf-full-document-v1'),
         import('./proposal-next-year-space-workshop-pricing.js?v=20260801-space-workshop-editor-deps-v1'),
+        import('./proposal-next-year-selection-hydration.js?v=20260802-v1'),
         import('./proposal-approval-runtime.js'),
         import('./client-contact-persistence-hotfix.js'),
         import('./school-catalog-bootstrap-hotfix.js?v=20260730-full-school-catalog-v1'),
