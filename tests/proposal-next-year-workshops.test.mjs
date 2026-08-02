@@ -118,10 +118,11 @@ test('next-year editor and preview labels distinguish the two groups and align l
   </div>`;
   const normalized = normalizeNextYearWorkshopHtml(html, dom.window.document);
   const parsed = new JSDOM(normalized).window.document;
-  assert.equal(parsed.querySelector('[data-pa-items-group="next_year_courses"] .ds-pa-items-section-label').textContent, 'תשפ״ז (קורסים)');
-  assert.equal(parsed.querySelector('[data-pa-items-group="next_year_workshops"] .ds-pa-items-section-label').textContent, 'תשפ״ז (סדנאות)');
+  // The proposal type is always תשפ״ז; the two internal areas carry their own titles.
+  assert.equal(parsed.querySelector('[data-pa-items-group="next_year_courses"] .ds-pa-items-section-label').textContent, 'קורסים ותוכניות');
+  assert.equal(parsed.querySelector('[data-pa-items-group="next_year_workshops"] .ds-pa-items-section-label').textContent, 'סדנאות');
   const headings = Array.from(parsed.querySelectorAll('.proposal-document .pa-section > .pa-section-heading')).map((element) => element.textContent);
-  assert.deepEqual(headings, ['תשפ״ז (קורסים)', 'תשפ״ז (סדנאות)']);
+  assert.deepEqual(headings, ['קורסים ותוכניות', 'סדנאות']);
   const table = parsed.querySelector('.pa-next-year-course-table');
   assert.equal(table.style.width, '85%');
   assert.equal(table.style.marginInline, 'auto');

@@ -8,6 +8,15 @@ const NEXT_YEAR_GROUP_LABELS = Object.freeze({
   [NEXT_YEAR_COURSES_GROUP]: 'תשפ״ז (קורסים)',
   [NEXT_YEAR_WORKSHOPS_GROUP]: 'תשפ״ז (סדנאות)'
 });
+/**
+ * Displayed titles of the two internal areas. The proposal type itself always reads
+ * תשפ״ז, so the areas are named by their own content in the editor, the preview and
+ * the produced document.
+ */
+const NEXT_YEAR_SECTION_TITLES = Object.freeze({
+  [NEXT_YEAR_COURSES_GROUP]: 'קורסים ותוכניות',
+  [NEXT_YEAR_WORKSHOPS_GROUP]: 'סדנאות'
+});
 const AMBIGUOUS_NEXT_YEAR_LABELS = new Set(['תשפ״ז', 'תשפ"ז']);
 const SUMMER_GROUP_ALIASES = new Set(['summer', 'פעילויות קיץ', 'קיץ תשפ״ו']);
 const NEXT_YEAR_GROUP_ALIASES = new Set(['next_year', 'שנה הבאה', 'שנת הלימודים תשפ״ז', 'תוכניות תשפ״ז', 'תשפ״ז']);
@@ -233,17 +242,17 @@ function setElementText(element, value) {
 }
 
 export function normalizeNextYearGroupLabels(root = globalThis.document) {
-  Object.entries(NEXT_YEAR_GROUP_LABELS).forEach(([groupKey, label]) => {
+  Object.entries(NEXT_YEAR_SECTION_TITLES).forEach(([groupKey, title]) => {
     elementsMatching(root, `[data-pa-items-group="${groupKey}"] .ds-pa-items-section-label`)
-      .forEach((element) => setElementText(element, label));
+      .forEach((element) => setElementText(element, title));
   });
 
   elementsMatching(root, '.proposal-document').forEach((documentElement) => {
     const ambiguousHeadings = Array.from(documentElement.querySelectorAll('.pa-section > .pa-section-heading'))
       .filter((element) => AMBIGUOUS_NEXT_YEAR_LABELS.has(text(element.textContent)));
     if (ambiguousHeadings.length < 2) return;
-    setElementText(ambiguousHeadings[0], NEXT_YEAR_GROUP_LABELS[NEXT_YEAR_COURSES_GROUP]);
-    setElementText(ambiguousHeadings[1], NEXT_YEAR_GROUP_LABELS[NEXT_YEAR_WORKSHOPS_GROUP]);
+    setElementText(ambiguousHeadings[0], NEXT_YEAR_SECTION_TITLES[NEXT_YEAR_COURSES_GROUP]);
+    setElementText(ambiguousHeadings[1], NEXT_YEAR_SECTION_TITLES[NEXT_YEAR_WORKSHOPS_GROUP]);
   });
   return root;
 }

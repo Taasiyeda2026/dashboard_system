@@ -215,6 +215,36 @@ const PROPOSAL_GROUP_LEGACY_ALIASES = Object.freeze({
   'קיץ תשפ״ו + תשפ״ז': COMBINED_INTERNAL_KEY
 });
 
+/**
+ * `next_year_courses` / `next_year_workshops` scope activity rows inside a תשפ״ז
+ * proposal. They are never a proposal type: the list always shows תשפ״ז, and the
+ * two areas are titled by their own section names inside the proposal.
+ */
+const NEXT_YEAR_INTERNAL_SUBGROUPS = Object.freeze([
+  { key: 'next_year_courses', legacyLabel: 'תשפ״ז (קורסים)', sectionTitle: 'קורסים ותוכניות' },
+  { key: 'next_year_workshops', legacyLabel: 'תשפ״ז (סדנאות)', sectionTitle: 'סדנאות' }
+]);
+const NEXT_YEAR_INTERNAL_COMBINED_LABEL = 'תשפ״ז (קורסים וסדנאות)';
+
+function matchNextYearInternalSubgroup(value = '') {
+  const raw = text(value);
+  if (!raw) return null;
+  const normalized = normalizeHebrewQuoteVariants(raw);
+  return NEXT_YEAR_INTERNAL_SUBGROUPS.find((subgroup) =>
+    subgroup.key === raw || normalizeHebrewQuoteVariants(subgroup.legacyLabel) === normalized) || null;
+}
+
+function isNextYearInternalSubgroup(value = '') {
+  if (matchNextYearInternalSubgroup(value)) return true;
+  const normalized = normalizeHebrewQuoteVariants(text(value));
+  return Boolean(normalized) && normalized === normalizeHebrewQuoteVariants(NEXT_YEAR_INTERNAL_COMBINED_LABEL);
+}
+
+/** Title of an internal area inside a תשפ״ז proposal; empty for anything else. */
+export function nextYearInternalSectionTitle(value = '') {
+  return matchNextYearInternalSubgroup(value)?.sectionTitle || '';
+}
+
 function userFacingProposalGroupLabel(value = '') {
   return text(value)
     .replace(/פעילויות קיץ/g, PROPOSAL_GROUP_DISPLAY_FALLBACKS.summer)
@@ -599,6 +629,8 @@ export function clientFacingProposalTypeLabel(row = {}, items = []) {
 function proposalGroupDisplayName(value) {
   const raw = text(value);
   if (!raw) return '';
+  // Internal תשפ״ז areas are row scoping only — the displayed type stays תשפ״ז.
+  if (isNextYearInternalSubgroup(raw)) return PROPOSAL_GROUP_DISPLAY_FALLBACKS.next_year;
   if (/^combined$/i.test(raw) || /הצעה משולבת|משולב/.test(raw)) {
     return clientFacingProposalTypeLabel({ activity_type_group: raw, document_type: raw });
   }
@@ -621,10 +653,6 @@ function proposalGroupDisplayName(value) {
   }
   const meta = proposalGroupMeta(raw);
   const subgroupLabel = userFacingProposalGroupLabel(meta?.display_name || '');
-  // Internal תשפ״ז subgroups share template_key=next_year; keep their own labels.
-  if (subgroupLabel && (key === 'next_year_courses' || key === 'next_year_workshops')) {
-    return subgroupLabel;
-  }
   const templateKey = text(meta?.template_key || meta?.group_key);
   if (templateKey === COMBINED_INTERNAL_KEY) {
     return clientFacingProposalTypeLabel({ activity_type_group: raw, template_key: templateKey, document_type: meta?.display_name });
@@ -650,6 +678,11 @@ function proposalGroupDisplayName(value) {
   // eslint-disable-next-line no-console
   console.warn('[client-file] unknown proposal type value', raw);
   return '—';
+}
+
+/** Heading for a group section rendered inside a proposal, not a proposal type. */
+function proposalGroupSectionTitle(value) {
+  return nextYearInternalSectionTitle(value) || proposalGroupDisplayName(value);
 }
 
 function resolveProposalTemplateKey(value) {
@@ -1328,7 +1361,7 @@ export function proposalsAgreementsTableRowsHtml(rows, state) {
       <td class="ds-pa-domain-col">${escapeHtml(row.proposal_domain || 'Y')}</td>
       <td class="ds-pa-col-center ds-pa-quote-number">${escapeHtml(row.quote_number || '—')}</td>
       <td>${escapeHtml(row.client_name || row.client_authority || row.school_framework || '—')}</td>
-      <td>${inferProposalClientType(row) === 'other' ? '' : escapeHtml(row.school_framework || '—')}</td>
+      <td class="ds-pa-school-col">${inferProposalClientType(row) === 'other' ? '' : escapeHtml(row.school_framework || '—')}</td>
       <td>${escapeHtml(proposalGroupDisplayName(row.activity_type_group) || '—')}</td>
       <td class="ds-pa-col-center">${escapeHtml(formatDateDisplay(row.proposal_date) || '')}</td>
       <td class="ds-pa-col-center">${statusSelectHtml(row, canManage, isAdmin, state)}</td>
@@ -1343,7 +1376,7 @@ function tableHtml(rows, state) {
   return dsTableWrap(`
     <table class="ds-table ds-pa-table" data-pa-table>
       <colgroup><col style="width:42px"><col style="width:72px"><col style="width:142px"><col style="width:142px"><col style="width:96px"><col style="width:104px"><col style="width:112px"><col style="width:104px"><col style="width:86px"><col style="width:118px"></colgroup>
-      <thead><tr><th class="ds-pa-domain-col">תחום</th><th class="ds-pa-col-center">מס׳</th><th>רשות</th><th>בית הספר</th><th class="ds-pa-col-center">סוג הצעה</th><th class="ds-pa-col-center">תאריך</th><th class="ds-pa-col-center">סטטוס</th><th class="ds-pa-col-center">סה״כ</th><th class="ds-pa-col-center">אישור גפ״ן</th><th class="ds-pa-actions-col ds-pa-col-center">פעולות</th></tr></thead>
+      <thead><tr><th class="ds-pa-domain-col">תחום</th><th class="ds-pa-col-center">מס׳</th><th>רשות</th><th class="ds-pa-school-col">בית הספר</th><th class="ds-pa-col-center">סוג הצעה</th><th class="ds-pa-col-center">תאריך</th><th class="ds-pa-col-center">סטטוס</th><th class="ds-pa-col-center">סה״כ</th><th class="ds-pa-col-center">אישור גפ״ן</th><th class="ds-pa-actions-col ds-pa-col-center">פעולות</th></tr></thead>
       <tbody data-pa-table-body>${proposalsAgreementsTableRowsHtml(rows, state)}</tbody>
     </table>
   `);
@@ -1935,6 +1968,10 @@ function combinedItemsSectionHtml(label, groupKey, items, pricingOptions, idxOff
       <button type="button" class="ds-btn ds-btn--xs" data-pa-add-item data-pa-add-item-group="${escapeHtml(groupKey)}">+ הוסף שורה</button>
     </div>
     <div class="ds-pa-items-list" data-pa-items-body data-pa-items-group-body="${escapeHtml(groupKey)}">${rowsHtml}</div>
+    <div class="ds-pa-items-group-total-row" data-pa-items-group-total-row="${escapeHtml(groupKey)}">
+      <span>${escapeHtml(`סה״כ ${label}`)}</span>
+      <strong data-pa-group-total="${escapeHtml(groupKey)}">₪ 0</strong>
+    </div>
   </div>`;
 }
 
@@ -2140,7 +2177,7 @@ function itemsEditorHtml(items = [], pricingOptions = [], activityTypeGroup = ''
     const sections = childGroups.map((groupKey) => {
       const groupItems = (Array.isArray(items) ? items : []).filter((item) => itemBelongsToGroup(item, groupKey));
       const groupPricing = filterPricingByProposalType(pricingOptions, groupKey);
-      const sectionHtml = combinedItemsSectionHtml(proposalGroupDisplayName(groupKey), groupKey, groupItems, groupPricing, idxOffset, editorOptions);
+      const sectionHtml = combinedItemsSectionHtml(proposalGroupSectionTitle(groupKey), groupKey, groupItems, groupPricing, idxOffset, editorOptions);
       idxOffset += groupItems.length || 1;
       return sectionHtml;
     }).join('');
@@ -3864,7 +3901,7 @@ export function proposalPreviewBodyHtml(row, items = [], templateSections = [], 
       const introBody = isNextYearProposalGroup(groupKey)
         ? nextYearActivityIntroWithCourseNames(body, row, items, groupKey)
         : body;
-      const heading = sectionTitle(key) || proposalGroupDisplayName(groupKey);
+      const heading = sectionTitle(key) || proposalGroupSectionTitle(groupKey);
       const section = renderActivitySection(heading, introBody);
       if (section) sections.push(section);
     });
@@ -7360,12 +7397,31 @@ export const proposalsAgreementsScreen = {
       return calculated ?? 0;
     };
 
+    /**
+     * Per-area totals for proposals split into internal groups (תשפ״ז courses and
+     * workshops). Reuses the same row calculation as the grand total so the two can
+     * never disagree.
+     */
+    const calcGroupTotals = (container) => {
+      container.querySelectorAll('[data-pa-items-group]').forEach((section) => {
+        const groupKey = text(section.dataset.paItemsGroup);
+        const totalEl = section.querySelector(`[data-pa-group-total="${groupKey}"]`);
+        if (!totalEl) return;
+        let groupTotal = 0;
+        section.querySelectorAll('[data-pa-item-row]').forEach((rowEl) => { groupTotal += calcItemRow(rowEl); });
+        totalEl.textContent = groupTotal ? `₪ ${formatCurrency(groupTotal)}` : '₪ 0';
+        const row = section.querySelector(`[data-pa-items-group-total-row="${groupKey}"]`);
+        if (row) row.hidden = !section.querySelector('[data-pa-item-row]');
+      });
+    };
+
     const calcGrandTotal = (container) => {
       let subtotal = calcTourTotal(container);
       if (subtotal == null) {
         subtotal = 0;
         container.querySelectorAll('[data-pa-item-row]').forEach((rowEl) => { subtotal += calcItemRow(rowEl); });
       }
+      calcGroupTotals(container);
       const discountType = text(container.querySelector('[data-pa-discount-type]')?.value) || 'amount';
       const discountValue = parseFloat(container.querySelector('[data-pa-discount-value]')?.value || '0') || 0;
       const discount = discountType === 'percent' ? subtotal * (Math.min(discountValue, 100) / 100) : Math.min(discountValue, subtotal);
