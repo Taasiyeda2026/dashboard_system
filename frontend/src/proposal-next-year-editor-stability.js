@@ -1,6 +1,5 @@
 import { api } from './api.js';
 import { augmentNextYearPricingRows } from './proposal-next-year-workshops.js';
-import { normalizeProposalPricingTables } from './proposal-next-year-pricing-display.js';
 
 const PATCH_KEY = Symbol.for('taasiyeda.proposalNextYearEditorStability');
 const COURSE_GROUP = 'next_year_courses';
@@ -15,7 +14,7 @@ const NEXT_YEAR_TYPE_ALIASES = new Set([
 ]);
 
 let cachedPricingRows = [];
-let scheduledForms = new WeakSet();
+const scheduledForms = new WeakSet();
 
 function text(value) {
   return String(value == null ? '' : value).replace(/\s+/g, ' ').trim();
@@ -33,6 +32,10 @@ function formatCurrency(value) {
   return number.toLocaleString('he-IL', { minimumFractionDigits: 0, maximumFractionDigits: 2 });
 }
 
+function normalizedName(value) {
+  return text(value).replace(/[״"׳'`]/g, '').toLowerCase();
+}
+
 function pricingOptionKey(row = {}) {
   return [
     row.activity_no,
@@ -45,10 +48,6 @@ function pricingOptionKey(row = {}) {
   ].map(text).join('||');
 }
 
-function normalizedName(value) {
-  return text(value).replace(/[״"׳'`]/g, '').toLowerCase();
-}
-
 function pricingGroup(row = {}) {
   return text(row.group_key || row.proposal_group || row.activity_type_group);
 }
@@ -57,8 +56,7 @@ function isWorkshopPricingRow(row = {}) {
   const group = pricingGroup(row);
   if (group === WORKSHOP_GROUP) return true;
   if (group === COURSE_GROUP) return false;
-  const displayMode = text(row.proposal_display_mode);
-  if (displayMode === 'bundle_parent' || row.is_bundle_parent === true) return true;
+  if (text(row.proposal_display_mode) === 'bundle_parent' || row.is_bundle_parent === true) return true;
   const kind = normalizedName([
     row.item_type,
     row.activity_name,
@@ -75,7 +73,8 @@ function isCoursePricingRow(row = {}) {
   if (group === WORKSHOP_GROUP || isWorkshopPricingRow(row)) return false;
   if (!NEXT_YEAR_TYPE_ALIASES.has(group)) return false;
   const kind = normalizedName([row.item_type, row.activity_name].map(text).join(' '));
-  return /קורס|תוכנית|תכנית|program|course|הדרכה/.test(kind) || Boolean(text(row.gefen_number || row.activity_no));
+  return /קורס|תוכנית|תכנית|program|course|הדרכה/.test(kind)
+    || Boolean(text(row.gefen_number || row.activity_no));
 }
 
 export function pricingRowsForNextYearGroup(rows = [], groupKey = '') {
@@ -124,6 +123,10 @@ function wrapPricingMethod(targetApi, methodName) {
   };
 }
 
+function rowField(row, name) {
+  return text(row?.querySelector?.(`[name="${name}"]`)?.value);
+}
+
 function setInputValue(row, name, value, { overwrite = false } = {}) {
   const input = row?.querySelector?.(`[name="${name}"]`);
   if (!input) return false;
@@ -133,10 +136,6 @@ function setInputValue(row, name, value, { overwrite = false } = {}) {
   if (input.value === next) return false;
   input.value = next;
   return true;
-}
-
-function rowField(row, name) {
-  return text(row?.querySelector?.(`[name="${name}"]`)?.value);
 }
 
 function rowHasMeaningfulSelection(row) {
@@ -295,7 +294,8 @@ function calculateFormTotals(form) {
 
 function nextYearForm(form) {
   const type = text(form?.querySelector?.('[name="activity_type_group"]')?.value);
-  return NEXT_YEAR_TYPE_ALIASES.has(type) || Boolean(form?.querySelector?.(`[data-pa-items-group="${COURSE_GROUP}"]`));
+  return NEXT_YEAR_TYPE_ALIASES.has(type)
+    || Boolean(form?.querySelector?.(`[data-pa-items-group="${COURSE_GROUP}"]`));
 }
 
 function markPendingUserRow(form) {
@@ -364,7 +364,7 @@ function scheduleForm(form, options = {}) {
   const run = () => {
     scheduledForms.delete(form);
     if (!form.isConnected) return;
-    stabilizeNextYearForm(form, cachedPricingRows, options);
+    stabilizeNextYearForm(form, cachedPricingRows, { ...options, notify: false });
   };
   if (typeof requestAnimationFrame === 'function') requestAnimationFrame(run);
   else setTimeout(run, 0);
@@ -407,21 +407,15 @@ function installDomRuntime(scope = globalThis) {
 
   documentRef.addEventListener('change', (event) => {
     const form = event.target?.closest?.('[data-pa-form]');
-    if (!form) return;
-    if (event.target?.matches?.('[name="activity_type_group"]')) removeBlankNextYearRows(form);
-    if (event.target?.matches?.('[name="activity_type_group"], [data-pa-pricing-select]')) {
-      queueMicrotask(() => scheduleForm(form, { removeBlankRows: true }));
-    }
+    if (!form || !event.target?.matches?.('[name="activity_type_group"]')) return;
+    removeBlankNextYearRows(form);
+    queueMicrotask(() => scheduleForm(form, { removeBlankRows: true }));
   }, true);
 
   const observer = new scope.MutationObserver((mutations) => {
     const forms = new Set();
     mutations.forEach((mutation) => {
       mutation.addedNodes.forEach((node) => {
-        if (!(node instanceof Element)) return;
-        if (node.matches?.('.proposal-document') || node.querySelector?.('.proposal-document')) {
-          normalizeProposalPricingTables(node);
-        }
         if (!addedNodeNeedsStabilization(node)) return;
         formsInNode(node).forEach((form) => forms.add(form));
       });
