@@ -50,6 +50,18 @@ async function drawerFieldValue(page, label) {
   return '';
 }
 
+/**
+ * This flow crosses several screens and both periods in one test, so each phase is
+ * asserted and reset on its own — otherwise the shared shell bootstrap reads of one
+ * phase would look like duplicate requests in the next.
+ */
+async function checkPhase(page, tracker, nextPhase) {
+  await page.waitForLoadState('networkidle', { timeout: 20_000 }).catch(() => {});
+  await tracker.persist(tracker.state.screen);
+  assertNoTransportErrors(tracker);
+  tracker.resetScreen(nextPhase);
+}
+
 async function expectNoMutationControls(page, scope) {
   for (const selector of MUTATION_CONTROL_SELECTORS) {
     await expect(
@@ -61,7 +73,7 @@ async function expectNoMutationControls(page, scope) {
 
 test('2026 is a complete read-only history and 2027 stays the editable default', async ({ page, tracker }) => {
   test.setTimeout(240_000);
-  tracker.resetScreen('activities-2026-readonly');
+  tracker.resetScreen('period-default-2027');
 
   // 1 + 2: a stale stored 2026 selection must never reopen the app on 2026.
   await page.goto('/');
@@ -75,6 +87,7 @@ test('2026 is a complete read-only history and 2027 stays the editable default',
   await expect(page.locator('[data-global-period-toggle]').first()).toHaveText('2027');
   expect(await readActivityPeriodLabel(page)).toBe('2027');
   await screenshot(page, 'default-period-2027.png');
+  await checkPhase(page, tracker, 'activities-2026');
 
   // 3 + 4: manual 2026 selection, then open "all activities".
   await setActivityPeriod(page, 'regular');
@@ -116,6 +129,7 @@ test('2026 is a complete read-only history and 2027 stays the editable default',
   await expect(page.locator('#ds-shared-ui-layer')).not.toHaveClass(/is-drawer-open/);
   await expectNoMutationControls(page, page.locator('#screenRoot'));
   await screenshot(page, 'activities-2026-readonly.png');
+  await checkPhase(page, tracker, 'archive-2026');
 
   // 11 + 12: the archive shows an escape-room card with real escape-room activities.
   await navigateToScreen(page, 'archive');
@@ -138,6 +152,7 @@ test('2026 is a complete read-only history and 2027 stays the editable default',
   const archiveRowCount = await page.locator('.ds-table--archive .ds-data-row[data-row-id]').count();
   expect(archiveRowCount, 'the 2026 archive filter must return activities').toBeGreaterThan(0);
   await expectNoMutationControls(page, page.locator('#screenRoot'));
+  await checkPhase(page, tracker, 'activities-2027');
 
   // 14: 2027 must not inherit the read-only state.
   await setActivityPeriod(page, 'school_2027');
@@ -152,7 +167,5 @@ test('2026 is a complete read-only history and 2027 stays the editable default',
   await expect(page.locator('.ds-drawer__content [data-drawer-form]')).toHaveCount(1);
   await expect(page.locator('.ds-drawer__content [data-drawer-form]')).toHaveAttribute('data-activity-read-only', 'no');
 
-  await page.waitForLoadState('networkidle', { timeout: 20_000 }).catch(() => {});
-  await tracker.persist('activities-2026-readonly');
-  assertNoTransportErrors(tracker);
+  await checkPhase(page, tracker, 'activities-2026-readonly');
 });
