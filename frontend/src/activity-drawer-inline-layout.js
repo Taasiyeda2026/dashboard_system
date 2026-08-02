@@ -229,6 +229,9 @@ function coreDetails(form, body, row, existingValues) {
   const timeControls = extractFieldControls(form, ['start_time', 'end_time']);
   const fundingControls = extractFieldControls(form, ['funding']);
   const priceControls = extractFieldControls(form, ['price']);
+  // Operations screens inject their own participants section; never show two of them.
+  const hasOwnParticipantsSection = Boolean(form.querySelector('[data-participants-count-section]'));
+  const participantsControls = hasOwnParticipantsSection ? null : extractFieldControls(form, ['participants_count']);
   const seasonControls = extractFieldControls(form, ['activity_season']);
 
   const core = doc.createElement('section');
@@ -253,18 +256,26 @@ function coreDetails(form, body, row, existingValues) {
     makeField(doc, { label: 'שעות', viewValue: timeView, editControls: timeControls }),
     makeField(doc, { label: 'מימון', viewValue: row.funding, editControls: fundingControls }),
     makeField(doc, { label: 'מחיר', viewValue: formatMoney(row.price), editControls: priceControls }),
+    hasOwnParticipantsSection ? null : makeField(doc, {
+      label: 'מספר משתתפים',
+      viewValue: existingValues.get('מספר משתתפים') || row.participants_count,
+      editControls: participantsControls
+    }),
     makeField(doc, {
       label: 'עונת פעילות',
       viewValue: ({ school_2027: '2027', summer_2026: 'קיץ 2026', regular: '2026' })[clean(row.activity_season)] || row.activity_season,
       editControls: seasonControls
     })
-  ].forEach((field) => grid.append(field));
+  ].filter(Boolean).forEach((field) => grid.append(field));
 
   addRemainingEditFields(form, grid, row);
   core.append(grid);
 
   const central = form.querySelector('[data-central-info-section]');
   central?.remove();
+  // The base drawer lists period/funding/price/participants for screens without this
+  // layout; the inline grid supersedes it, so drop it instead of showing both.
+  form.querySelectorAll('[data-record-details-section]').forEach((section) => section.remove());
 
   const firstVisible = [...body.children].find((element) => {
     if (element.matches('input[type="hidden"]')) return false;

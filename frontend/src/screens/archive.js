@@ -15,23 +15,47 @@ import {
   normalizeText,
   splitVisibleRows
 } from './shared/activity-list-filters.js';
-import { activityManagerDisplayName, getRosterUsers } from './shared/activity-options.js';
+import { activityManagerDisplayName, getRosterUsers, normalizeActivityTypeKey } from './shared/activity-options.js';
+import { isReadOnlyActivityRow } from './shared/activity-readonly-period.js';
 
 const ARCHIVE_SCOPE = 'archive';
 const ARCHIVE_SEARCH_DEBOUNCE_MS = 280;
 const ARCHIVE_MIN_SEARCH_CHARS = 2;
 const ARCHIVE_DEFAULT_VISIBLE_LIMIT = 200;
 
-const ARCHIVE_TYPE_KPIS = [
+export const ARCHIVE_TYPE_KPIS = [
   { label: 'קורסים',      keys: ['course', 'קורס', 'קורסים'],                                              color: 'blue'   },
   { label: 'סדנאות',      keys: ['workshop', 'סדנה', 'סדנאות'],                                           color: 'purple' },
+  { label: 'חדרי בריחה',  keys: ['escape_room', 'חדר בריחה', 'חדרי בריחה'],                                color: 'red'    },
   { label: 'סיורים',      keys: ['tour', 'סיור', 'סיורים'],                                               color: 'green'  },
   { label: 'אפטרסקול',   keys: ['after_school', 'after school', 'afterschool', 'חוג אפטרסקול', 'אפטרסקול'], color: 'orange' },
 ];
 
+/**
+ * Cards must count real stored values, so every raw spelling of a type is matched
+ * through the canonical activity-type key as well as the literal source values.
+ */
+export function archiveRowMatchesTypeKpi(row, keys = []) {
+  const raw = String(row?.activity_type || '').trim();
+  if (!raw) return false;
+  if (keys.includes(raw)) return true;
+  const canonicalRow = normalizeActivityTypeKey(raw);
+  if (!canonicalRow) return false;
+  return keys.some((key) => normalizeActivityTypeKey(key) === canonicalRow);
+}
+
+export function archiveTypeKpiCounts(rows = []) {
+  const list = Array.isArray(rows) ? rows : [];
+  return ARCHIVE_TYPE_KPIS.map(({ label, keys }) => ({
+    label,
+    count: list.filter((row) => archiveRowMatchesTypeKpi(row, keys)).length
+  }));
+}
+
 function archiveTypeKpiHtml(rows, activeLabel = '') {
-  const cells = ARCHIVE_TYPE_KPIS.map(({ label, keys, color }) => {
-    const count = rows.filter((r) => keys.includes(String(r.activity_type || '').trim())).length;
+  const counts = new Map(archiveTypeKpiCounts(rows).map(({ label, count }) => [label, count]));
+  const cells = ARCHIVE_TYPE_KPIS.map(({ label, color }) => {
+    const count = counts.get(label) || 0;
     const activeClass = activeLabel === label ? ' is-active' : '';
     return `<button type="button" class="ds-archive-kpi ds-archive-kpi--${color}${activeClass}" data-archive-kpi="${escapeHtml(label)}">
       <span class="ds-archive-kpi__value">${count}</span>
@@ -142,7 +166,7 @@ function applyArchiveFilters(rows, state) {
   const typeFilterLabel = String(state.archiveTypeFilter || '').trim();
   if (typeFilterLabel) {
     const matchType = ARCHIVE_TYPE_KPIS.find((k) => k.label === typeFilterLabel);
-    if (matchType) out = out.filter((row) => matchType.keys.includes(String(row.activity_type || '').trim()));
+    if (matchType) out = out.filter((row) => archiveRowMatchesTypeKpi(row, matchType.keys));
   }
   return applyLocalFilters(out, archiveEffectiveFilters(filters), { filterFields: ARCHIVE_FILTER_FIELDS });
 }
@@ -228,10 +252,11 @@ function renderArchiveTableSection(rows, state, allRowsCount = rows.length) {
 
 export const archiveScreen = {
   async load({ api, state }) {
+    // Staged full load: cards, filters and counts must describe the whole period,
+    // never only the first page of closed activities.
     return api.archiveActivities({
       activity_period: state?.archiveActivityPeriod || state?.activityPeriodTab,
-      limit: ARCHIVE_DEFAULT_VISIBLE_LIMIT,
-      offset: 0
+      limit: ARCHIVE_DEFAULT_VISIBLE_LIMIT
     });
   },
 
@@ -388,7 +413,8 @@ export const archiveScreen = {
           const page = await api.archiveActivities({
             activity_period: state?.archiveActivityPeriod || state?.activityPeriodTab,
             limit: ARCHIVE_DEFAULT_VISIBLE_LIMIT,
-            offset: rowsRef().length
+            offset: rowsRef().length,
+            paged: true
           });
           const incoming = Array.isArray(page?.rows) ? page.rows : [];
           const seen = new Set(rowsRef().map((row) => String(row?.RowID || row?.row_id || '').trim()).filter(Boolean));
@@ -435,9 +461,12 @@ export const archiveScreen = {
       const cachedDetail = state?.screenDataCache?.[detailCacheKey(summaryRow)]?.data;
       const cachedDates = state?.screenDataCache?.[datesCacheKey(summaryRow)]?.data;
 
+      // Reopening is a data change: it stays unavailable for the historical 2026 period.
+      const canReopenRow = canReopen && !isReadOnlyActivityRow(summaryRow);
+
       const drawerContent = (row, datesLoading) => {
         const privateNote = canSeePrivateNotes ? row.private_note || '—' : null;
-        const reopenBtn = canReopen
+        const reopenBtn = canReopenRow && !isReadOnlyActivityRow(row)
           ? `<div style="padding:12px 16px 0;text-align:right">
                <button type="button" class="ds-btn ds-btn--sm ds-archive-reopen-btn" data-archive-reopen="${escapeHtml(String(row.RowID || ''))}">
                  🔓 פתח מחדש
@@ -459,8 +488,13 @@ export const archiveScreen = {
         });
       };
 
+      const openDrawerContent = (contentRoot, row) => {
+        hideShellHeader(contentRoot);
+        bindReopenBtn(contentRoot, row, canReopenRow);
+      };
+
       if (cachedDetail) {
-        ui.openDrawer({ title: '', content: drawerContent(cachedDetail, false), onOpen: (contentRoot) => { hideShellHeader(contentRoot); bindReopenBtn(contentRoot, cachedDetail); } });
+        ui.openDrawer({ title: '', content: drawerContent(cachedDetail, false), onOpen: (contentRoot) => openDrawerContent(contentRoot, cachedDetail) });
         return;
       }
 
@@ -468,7 +502,7 @@ export const archiveScreen = {
       ui.openDrawer({
         title: '',
         content: drawerContent(summaryRow, needDates),
-        onOpen: (contentRoot) => { hideShellHeader(contentRoot); bindReopenBtn(contentRoot, summaryRow); },
+        onOpen: (contentRoot) => openDrawerContent(contentRoot, summaryRow),
         onClose: () => {
           const shellHdr = document.querySelector('.ds-drawer > header');
           if (shellHdr) shellHdr.hidden = false;
@@ -506,8 +540,48 @@ export const archiveScreen = {
         .then((rsp) => {
           const row = rsp?.row || summaryRow;
           if (state?.screenDataCache) state.screenDataCache[key] = { data: row, t: Date.now() };
+          applyDetailToOpenDrawer(summaryRow, row);
         })
         .catch(() => {});
+    }
+
+    /**
+     * Refreshes the already-open drawer with the full activity record so funding,
+     * price and participant values appear without closing and reopening it.
+     */
+    function applyDetailToOpenDrawer(summaryRow, detailRow) {
+      const contentNode = document.querySelector('.ds-drawer__content');
+      const openForm = contentNode?.querySelector('[data-drawer-form]');
+      if (!contentNode || !openForm) return;
+      if (String(openForm.getAttribute('data-row-id') || '').trim() !== String(summaryRow?.RowID || '').trim()) return;
+      const canReopenRow = ['admin', 'operation_manager'].includes(state?.user?.display_role)
+        && !isReadOnlyActivityRow(detailRow);
+      const privateNote = canSeePrivateNotes ? detailRow.private_note || '—' : null;
+      const reopenBtn = canReopenRow
+        ? `<div style="padding:12px 16px 0;text-align:right">
+             <button type="button" class="ds-btn ds-btn--sm ds-archive-reopen-btn" data-archive-reopen="${escapeHtml(String(detailRow.RowID || ''))}">
+               🔓 פתח מחדש
+             </button>
+           </div>`
+        : '';
+      contentNode.innerHTML = reopenBtn + activityWorkDrawerHtml(detailRow, {
+        privateNote,
+        canEdit: false,
+        canDirectEdit: false,
+        canRequestEdit: false,
+        hideEmpIds,
+        hideRowId,
+        hideActivityNo,
+        settings,
+        showFinance: false,
+        showFinanceFields: false,
+        datesLoading: false
+      });
+      hideShellHeader(contentNode);
+      bindReopenBtn(contentNode, detailRow, canReopenRow);
+      const latestDates = state?.screenDataCache?.[datesCacheKey(summaryRow)]?.data;
+      const sectionEl = contentNode.querySelector('[data-dates-section]');
+      if (latestDates && sectionEl) patchDrawerDatesSection(sectionEl, latestDates);
     }
 
     function hideShellHeader(contentRoot) {
@@ -515,8 +589,8 @@ export const archiveScreen = {
       if (shellHdr) shellHdr.hidden = true;
     }
 
-    function bindReopenBtn(contentRoot, row) {
-      if (!canReopen) return;
+    function bindReopenBtn(contentRoot, row, allowReopen = canReopen) {
+      if (!allowReopen || isReadOnlyActivityRow(row)) return;
       const btn = contentRoot.querySelector('[data-archive-reopen]');
       if (!btn) return;
       btn.addEventListener('click', () => {
