@@ -50,10 +50,10 @@ function loadStylesheet(relativePath) {
 }
 
 export const FEATURE_ROUTE_MAP = {
-  dashboard: ['dashboard'],
+  dashboard: ['dashboard', 'calendarOverlays'],
   activities: ['activityDrawer'],
-  week: ['activityDrawer'],
-  month: ['activityDrawer'],
+  week: ['activityDrawer', 'calendarOverlays'],
+  month: ['activityDrawer', 'calendarOverlays'],
   archive: ['activityDrawer'],
   exceptions: ['activityDrawer'],
   'proposals-agreements': ['proposals'],
@@ -75,6 +75,13 @@ export function ensureFeature(name) {
         import('./birthday-popup.js'),
         import('./birthday-popup-session-guard.js'),
         import('./birthday-calendar.js')
+      ]));
+
+    case 'calendarOverlays':
+      return loadOnce('calendarOverlays', () => Promise.all([
+        import('./school-calendar-runtime.js'),
+        import('./birthday-calendar.js'),
+        import('./team-calendar-runtime.js')
       ]));
 
     case 'proposals':
