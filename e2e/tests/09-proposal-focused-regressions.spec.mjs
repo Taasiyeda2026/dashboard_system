@@ -68,8 +68,6 @@ test('real proposal regression path remains stable without saving data or PDFs',
   const table = page.locator('[data-pa-all-proposals-table] [data-pa-table]').first();
   await expect(table).toBeVisible();
 
-  // Cold-list preview: the row action opens proposal details first. Wait for the
-  // asynchronous detail workspace before using its real preview action.
   const approved = table.locator('tbody tr[data-pa-row-id]').filter({ hasText: 'מאושר' }).first();
   await expect(approved).toBeVisible();
   const firstPreview = await openDetailPreview(page, approved);
@@ -81,8 +79,6 @@ test('real proposal regression path remains stable without saving data or PDFs',
   await page.locator('[data-pa-proposal-detail-back]:visible').first().click();
   await expect(table).toBeVisible();
 
-  // Open one real editable proposal, switch it to תשפ״ז and exercise both real
-  // add-row controls. The form is cancelled at the end, so no proposal is saved.
   const editable = table.locator('tbody tr[data-pa-row-id]').filter({ has: page.locator('[data-pa-edit-row]') }).first();
   await expect(editable).toBeVisible();
   await openRowAction(editable, '[data-pa-edit-row]');
@@ -142,8 +138,8 @@ test('real proposal regression path remains stable without saving data or PDFs',
   await expect(workshops.locator('[data-pa-item-row]')).toHaveCount(2);
   await shot(page, 'proposal-next-year-two-areas.png', form.locator('[data-pa-items-host]'));
 
+  page.on('dialog', (dialog) => dialog.accept());
   await secondCourse.locator('[data-pa-remove-item]').click();
-  await page.on('dialog', (dialog) => dialog.accept());
   await workshops.locator('[data-pa-item-row]').nth(1).locator('[data-pa-remove-item]').click();
   await expect(courses.locator('[data-pa-item-row]')).toHaveCount(1);
   await expect(workshops.locator('[data-pa-item-row]')).toHaveCount(1);
@@ -168,8 +164,6 @@ test('real proposal regression path remains stable without saving data or PDFs',
   assertNoTransportErrors(tracker);
   tracker.resetScreen('proposal-focused-pdf-intercept');
 
-  // Return to the approved proposal and run the real PDF action. Storage is aborted,
-  // therefore neither the proposal row nor an existing PDF can be updated.
   await page.setViewportSize({ width: 1440, height: 1000 });
   const secondPreview = await openDetailPreview(page, approved);
   const print = page.locator('#pa-print-btn');
