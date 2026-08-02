@@ -1,0 +1,51 @@
+name: Validate next-year proposal editor
+
+on:
+  pull_request:
+    branches: [main]
+    paths:
+      - 'frontend/src/proposal-next-year-editor-stability.js'
+      - 'frontend/src/proposal-next-year-pricing-display.js'
+      - 'frontend/src/proposal-next-year-workshops.js'
+      - 'frontend/src/proposal-editor-compact-fixes.js'
+      - 'frontend/src/config.js'
+      - 'frontend/sw.js'
+      - 'tests/proposal-next-year-editor-stability.test.mjs'
+      - 'tests/proposal-editor-compact-fixes.test.mjs'
+      - '.github/workflows/validate-next-year-proposal-editor.yml'
+
+permissions:
+  contents: read
+
+jobs:
+  validate-next-year-editor:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+          cache: npm
+
+      - name: Install dependencies
+        run: npm install
+
+      - name: Check focused JavaScript syntax
+        run: |
+          node --check frontend/src/proposal-next-year-editor-stability.js
+          node --check frontend/src/proposal-next-year-pricing-display.js
+          node --check frontend/src/proposal-editor-compact-fixes.js
+          node --check tests/proposal-next-year-editor-stability.test.mjs
+          node --check tests/proposal-editor-compact-fixes.test.mjs
+
+      - name: Run focused next-year editor tests
+        run: node --test tests/proposal-next-year-editor-stability.test.mjs tests/proposal-editor-compact-fixes.test.mjs tests/proposal-next-year-workshops.test.mjs tests/proposal-next-year-pricing-display.test.mjs
+
+      - name: Build production bundle
+        run: npm run check:build
+
+      - name: Check PWA cache guardrails
+        run: npm run check:pwa
