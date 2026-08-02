@@ -22632,3 +22632,50 @@ details[open] > .ds-fin-acc__summary::before { transform: rotate(90deg); }
   height: 34px;
   text-align: center;
 }
+
+/* ABSOLUTE FINAL PRINT OVERRIDE extension — PDF render host (2026-08-02).
+   The generated PDF does not go through the browser print pipeline: the document is
+   rendered inside an SVG foreignObject of exactly one page height, which is a screen
+   media context, so every fix in the @media print blocks above does not reach it.
+   There, `.proposal-document.pa-document { display: flex; min-height: 1123px }` plus
+   `.proposal-document-body { flex: 0 1 auto; min-height: 0 }` let the flex column
+   shrink its own children to the single available page: the text sections collapsed
+   to nothing and the produced file kept little more than the activities table.
+   The PDF render host therefore takes the document out of flex and drops the A4
+   min-height so the content keeps its natural height and pages slice it correctly.
+   Keep this the last rule in the file and restate any future PDF-host fix here. */
+[data-pdf-render-host] .proposal-document,
+[data-pdf-render-host] .proposal-document.pa-document,
+[data-pdf-render-host] .proposal-document.pa-document.pa-document--next-year,
+[data-pdf-render-host] .proposal-document.pa-document.pa-document--summer,
+[data-pdf-render-host] .proposal-document.pa-gefen-approval-document {
+  display: block !important;
+  min-height: 0 !important;
+  height: auto !important;
+  max-height: none !important;
+  overflow: visible !important;
+  box-shadow: none !important;
+}
+[data-pdf-render-host] .proposal-document .proposal-document-body,
+[data-pdf-render-host] .proposal-document .proposal-document-content,
+[data-pdf-render-host] .proposal-document.pa-document .proposal-document-body,
+[data-pdf-render-host] .proposal-document.pa-document .proposal-document-content {
+  display: block !important;
+  flex: none !important;
+  min-height: 0 !important;
+  height: auto !important;
+  max-height: none !important;
+  overflow: visible !important;
+}
+[data-pdf-render-host] .proposal-document .pa-section,
+[data-pdf-render-host] .proposal-document .pa-cost-section,
+[data-pdf-render-host] .proposal-document .pa-org-intro,
+[data-pdf-render-host] .proposal-document .pa-to-block,
+[data-pdf-render-host] .proposal-document .pa-doc-title,
+[data-pdf-render-host] .proposal-document .proposal-document-header {
+  flex: none !important;
+  min-height: 0 !important;
+  height: auto !important;
+  max-height: none !important;
+  overflow: visible !important;
+}

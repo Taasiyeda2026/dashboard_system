@@ -31,7 +31,7 @@ async function fieldFitsItsValue(locator) {
   return locator.evaluate((element) => element.scrollWidth <= element.clientWidth + 1);
 }
 
-async function addRowInArea(form, groupKey) {
+async function addRowInArea(page, form, groupKey, { unitPrice = '1500' } = {}) {
   const section = form.locator(`[data-pa-items-group="${groupKey}"]`);
   await expect(section).toHaveCount(1);
   await section.locator('[data-pa-add-item]').first().click();
@@ -42,11 +42,26 @@ async function addRowInArea(form, groupKey) {
     .find((option) => option && !option.startsWith('__')) || '');
   expect(value, `expected a real priced activity for ${groupKey}`).not.toBe('');
   await select.selectOption(value);
+
+  // Catalog entries without a stored unit price leave the row at zero; entering the
+  // price is the same edit a user makes and keeps the totals assertion deterministic.
+  const total = row.locator('[data-pa-item-total-display]');
+  await page.waitForTimeout(400);
+  if (amountOf(await total.innerText()) === 0) {
+    // The price lives in the row's collapsed details block.
+    const toggle = row.locator('[data-pa-item-edit-toggle]');
+    if (await toggle.count()) await toggle.first().click();
+    const price = row.locator('[data-pa-item-price]');
+    await expect(price).toBeVisible();
+    await price.fill(unitPrice);
+    await price.dispatchEvent('input');
+    await expect.poll(async () => amountOf(await total.innerText()), { timeout: 15_000 }).toBeGreaterThan(0);
+  }
   return { section, row };
 }
 
-function amountOf(text) {
-  const match = String(text).replace(/\u00a0/g, ' ').match(/([\d,]+)/);
+function amountOf(value) {
+  const match = String(value).replace(/\u00a0/g, ' ').match(/([\d,]+)/);
   return match ? Number(match[1].replace(/,/g, '')) : 0;
 }
 
@@ -108,12 +123,12 @@ test('proposal types, school alignment, תשפ״ז areas and live totals stay co
   const workshopsTotal = form.locator('[data-pa-group-total="next_year_workshops"]');
   const grandTotal = form.locator('[data-pa-grand-total]').first();
 
-  const courses = await addRowInArea(form, 'next_year_courses');
+  const courses = await addRowInArea(page, form, 'next_year_courses');
   await expect.poll(async () => amountOf(await coursesTotal.innerText()), { timeout: 15_000 }).toBeGreaterThan(0);
   const coursesOnly = amountOf(await coursesTotal.innerText());
   expect(amountOf(await grandTotal.innerText())).toBe(coursesOnly);
 
-  const workshops = await addRowInArea(form, 'next_year_workshops');
+  const workshops = await addRowInArea(page, form, 'next_year_workshops');
   await expect.poll(async () => amountOf(await workshopsTotal.innerText()), { timeout: 15_000 }).toBeGreaterThan(0);
 
   // The combined total always equals the two areas together.
@@ -125,8 +140,10 @@ test('proposal types, school alignment, תשפ״ז areas and live totals stay co
 
   // A quantity change updates the area total and the combined total immediately.
   const beforeQuantity = amountOf(await coursesTotal.innerText());
-  await courses.row.locator('[data-pa-item-qty]').fill('3');
-  await courses.row.locator('[data-pa-item-qty]').dispatchEvent('input');
+  const quantity = courses.row.locator('[data-pa-item-qty]');
+  await expect(quantity).toBeVisible();
+  await quantity.fill('3');
+  await quantity.dispatchEvent('input');
   await expect.poll(async () => amountOf(await coursesTotal.innerText()), { timeout: 15_000 })
     .toBeGreaterThan(beforeQuantity);
   await expect.poll(async () => {

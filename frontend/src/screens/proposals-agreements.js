@@ -3091,6 +3091,148 @@ function markProposalPdfErrorLogged(error) {
   return false;
 }
 
+/**
+ * The next-year course/workshop split normally runs from a document-wide observer.
+ * The PDF render host must not depend on that timing, so the runtime module
+ * registers its normalizer here and the PDF path applies it once, synchronously.
+ */
+let proposalPdfDocumentNormalizer = null;
+
+export function setProposalPdfDocumentNormalizer(normalizer) {
+  proposalPdfDocumentNormalizer = typeof normalizer === 'function' ? normalizer : null;
+}
+
+export const PROPOSAL_PDF_RENDER_HOST_ATTRIBUTE = 'data-pdf-render-host';
+
+const PROPOSAL_DOCUMENT_REQUIRED_PARTS = Object.freeze([
+  { key: 'header', label: 'כותרת ולוגו', selector: '.proposal-document-header, .pa-page-header' },
+  { key: 'recipient', label: 'פרטי הנמען', selector: '.pa-to-block, .pa-doc-address' },
+  { key: 'title', label: 'כותרת ההצעה', selector: '.pa-doc-title, .pa-doc-subject' },
+  { key: 'template_content', label: 'תוכן תבנית', selector: '.pa-section, .pa-org-intro' },
+  {
+    key: 'activity_table',
+    label: 'טבלת פעילות',
+    selector: '.pa-item-details-table, .pa-activities-table, .pa-cost-table, .pa-tour-cost-table, .pa-next-year-course-table, .pa-next-year-workshop-table'
+  }
+]);
+
+const NEXT_YEAR_DUAL_REQUIRED_PARTS = Object.freeze([
+  { key: 'next_year_courses_table', label: 'טבלת קורסים', selector: '.pa-next-year-course-table' },
+  { key: 'next_year_workshops_table', label: 'טבלת סדנאות', selector: '.pa-next-year-workshop-table' },
+  { key: 'next_year_combined_total', label: 'סה״כ משותף', selector: '.pa-next-year-combined-total' }
+]);
+
+function elementHasVisibleBox(element) {
+  if (!element) return false;
+  if (typeof element.getBoundingClientRect !== 'function') return true;
+  const rect = element.getBoundingClientRect();
+  if (rect.width <= 0 || rect.height <= 0) return false;
+  const view = element.ownerDocument?.defaultView;
+  if (!view || typeof view.getComputedStyle !== 'function') return true;
+  const computed = view.getComputedStyle(element);
+  if (computed.display === 'none' || computed.visibility === 'hidden') return false;
+  return Number(computed.opacity || '1') > 0;
+}
+
+function proposalDocumentRoots(root) {
+  if (!root) return [];
+  const roots = [];
+  if (root.matches?.('.proposal-document')) roots.push(root);
+  root.querySelectorAll?.('.proposal-document').forEach((element) => {
+    if (!roots.includes(element)) roots.push(element);
+  });
+  return roots;
+}
+
+function hasNonEmptyText(elements = []) {
+  return [...elements].some((element) => text(element.textContent));
+}
+
+/**
+ * Structural gate for a produced proposal document. A partial document — a bare
+ * activities table or an inner fragment — must never reach the PDF file or the
+ * upload, so this runs before both.
+ */
+export function validateProposalDocumentTree(root, { requireVisibleBox = false } = {}) {
+  const missing = [];
+  const allRoots = proposalDocumentRoots(root);
+  // A combined document intentionally appends the GEFEN approval page; the proposal
+  // itself must still be exactly one root. A standalone approval document is its own
+  // single root.
+  const proposalRoots = allRoots.filter((element) => !element.classList?.contains('pa-gefen-approval-document'));
+  const roots = proposalRoots.length ? proposalRoots : allRoots;
+  if (roots.length !== 1) {
+    missing.push(roots.length === 0 ? 'שורש מסמך ההצעה' : 'שורש מסמך יחיד');
+    return { ok: false, missing, documentRoot: roots[0] || null };
+  }
+
+  const documentRoot = roots[0];
+  const checkParts = (parts) => {
+    parts.forEach(({ label, selector }) => {
+      const found = documentRoot.querySelectorAll(selector);
+      if (!found.length || !hasNonEmptyText(found)) {
+        missing.push(label);
+        return;
+      }
+      if (requireVisibleBox && ![...found].some((element) => elementHasVisibleBox(element))) {
+        missing.push(`${label} (מוסתר)`);
+      }
+    });
+  };
+
+  checkParts(PROPOSAL_DOCUMENT_REQUIRED_PARTS);
+
+  const hasCourseTable = documentRoot.querySelector('.pa-next-year-course-table tbody tr');
+  const hasWorkshopTable = documentRoot.querySelector('.pa-next-year-workshop-table tbody tr');
+  if (hasCourseTable && hasWorkshopTable) {
+    checkParts(NEXT_YEAR_DUAL_REQUIRED_PARTS);
+    const courseFooter = text(documentRoot.querySelector('.pa-next-year-course-table tfoot')?.textContent);
+    const workshopFooter = text(documentRoot.querySelector('.pa-next-year-workshop-table tfoot')?.textContent);
+    if (!courseFooter.includes('סה״כ קורסים')) missing.push('סיכום קורסים');
+    if (!workshopFooter.includes('סה״כ סדנאות')) missing.push('סיכום סדנאות');
+  }
+
+  return { ok: missing.length === 0, missing, documentRoot };
+}
+
+export function proposalDocumentIncompleteError(missing = []) {
+  const error = new Error(`proposal_pdf_document_incomplete:${missing.join('|')}`);
+  error.userMessage = `לא ניתן להפיק PDF — חסרים במסמך: ${missing.join(', ')}.`;
+  error.missingParts = [...missing];
+  return error;
+}
+
+const PROPOSAL_DOCUMENT_HTML_MARKERS = Object.freeze([
+  { label: 'שורש מסמך ההצעה', pattern: /class="[^"]*\bproposal-document\b/ },
+  { label: 'כותרת ולוגו', pattern: /class="[^"]*\b(?:proposal-document-header|pa-page-header)\b/ },
+  { label: 'פרטי הנמען', pattern: /class="[^"]*\b(?:pa-to-block|pa-doc-address)\b/ },
+  { label: 'כותרת ההצעה', pattern: /class="[^"]*\b(?:pa-doc-title|pa-doc-subject)\b/ },
+  { label: 'תוכן תבנית', pattern: /class="[^"]*\b(?:pa-section|pa-org-intro)\b/ },
+  {
+    label: 'טבלת פעילות',
+    pattern: /class="[^"]*\b(?:pa-item-details-table|pa-activities-table|pa-cost-table|pa-tour-cost-table|pa-next-year-course-table|pa-next-year-workshop-table)\b/
+  }
+]);
+
+/**
+ * Validates an HTML snapshot without rendering it, used before the file is created and
+ * again before the upload. Falls back to marker matching where no DOM is available, so
+ * the gate never silently passes a partial document.
+ */
+export function validateProposalDocumentHtml(html) {
+  const source = String(html || '');
+  if (!source.trim()) return { ok: false, missing: ['שורש מסמך ההצעה'] };
+  if (typeof document !== 'undefined' && typeof document.createElement === 'function') {
+    const template = document.createElement('template');
+    template.innerHTML = source;
+    return validateProposalDocumentTree(template.content);
+  }
+  const missing = PROPOSAL_DOCUMENT_HTML_MARKERS
+    .filter(({ pattern }) => !pattern.test(source))
+    .map(({ label }) => label);
+  return { ok: missing.length === 0, missing };
+}
+
 async function proposalHtmlToPdfBlob(html, { proposalId = '', onStage = null } = {}) {
   const width = 794;
   const pageHeight = 1123;
@@ -3101,10 +3243,22 @@ async function proposalHtmlToPdfBlob(html, { proposalId = '', onStage = null } =
   try {
     setStage('mount-render-host');
     host.style.cssText = `position:fixed;right:-10000px;top:0;width:${width}px;background:#fff;z-index:-1`;
+    host.setAttribute(PROPOSAL_PDF_RENDER_HOST_ATTRIBUTE, 'true');
     host.innerHTML = html;
     document.body.appendChild(host);
+    setStage('normalize-document');
+    // Apply the course/workshop split here instead of waiting for the document
+    // observer, so the render tree is final before it is measured and serialized.
+    try {
+      proposalPdfDocumentNormalizer?.(host);
+    } catch (error) {
+      throw new Error(`proposal_pdf_document_normalize_failed:${error?.message || 'unknown'}`);
+    }
     setStage('wait-fonts');
     await document.fonts?.ready;
+    setStage('validate-document');
+    const mountedCheck = validateProposalDocumentTree(host, { requireVisibleBox: true });
+    if (!mountedCheck.ok) throw proposalDocumentIncompleteError(mountedCheck.missing);
     const hostTop = host.getBoundingClientRect().top;
     host.querySelectorAll('[data-pdf-page-break]').forEach((element) => {
       const top = Math.max(0, Math.round(element.getBoundingClientRect().top - hostTop));
@@ -3158,6 +3312,9 @@ async function proposalHtmlToPdfBlob(html, { proposalId = '', onStage = null } =
     }));
     // Measure the sanitized, serialization-safe tree rather than the off-screen host.
     host.replaceChildren(clean);
+    setStage('validate-print-tree');
+    const printCheck = validateProposalDocumentTree(clean, { requireVisibleBox: true });
+    if (!printCheck.ok) throw proposalDocumentIncompleteError(printCheck.missing);
     const height = Math.max(1123, Math.ceil(host.scrollHeight));
     const rawCss = Array.from(document.styleSheets).flatMap((sheet) => {
       try { return Array.from(sheet.cssRules || []).map((rule) => rule.cssText); } catch { return []; }
@@ -7963,6 +8120,9 @@ export const proposalsAgreementsScreen = {
         const documentSnapshot = historicalSnapshotBackfill && freshRow.document_snapshot
           ? freshRow.document_snapshot
           : buildProposalDocumentSnapshot(freshRow, mergedItems, templateSections);
+        setPdfStage('validate-document-html');
+        const htmlCheck = validateProposalDocumentHtml(documentHtmlSnapshot);
+        if (!htmlCheck.ok) throw proposalDocumentIncompleteError(htmlCheck.missing);
         const blob = await proposalHtmlToPdfBlob(documentHtmlSnapshot, { proposalId, onStage: setPdfStage });
         setPdfStage('validate-pdf');
         if (blob.type !== 'application/pdf' || blob.size < 5) throw new Error('pdf_blob_invalid');
@@ -7971,6 +8131,9 @@ export const proposalsAgreementsScreen = {
         setPdfStage('create-file');
         const pdfFile = new File([blob], proposalPdfFileName(freshRow, mergedItems), { type: 'application/pdf' });
         if (!pdfFile.size) throw new Error('pdf_file_empty');
+        setPdfStage('validate-before-upload');
+        const uploadCheck = validateProposalDocumentHtml(documentHtmlSnapshot);
+        if (!uploadCheck.ok) throw proposalDocumentIncompleteError(uploadCheck.missing);
         setPdfStage('call-upload-api');
         const result = await api.uploadProposalFinalPdf(proposalId, { pdfFile, documentSnapshot, documentHtmlSnapshot });
         const savedRow = result?.row || freshRow;
@@ -8003,6 +8166,11 @@ export const proposalsAgreementsScreen = {
           stack: err?.stack,
           error: err
         });
+        // A blocked partial document explains exactly what is missing.
+        if (text(err?.userMessage)) {
+          showToast(err.userMessage, 'error', 6000);
+          return;
+        }
         const stageMessages = {
           'build-html': 'יצירת מסמך ה־HTML נכשלה.',
           'render-canvas': 'יצירת ה־PDF נכשלה.',
