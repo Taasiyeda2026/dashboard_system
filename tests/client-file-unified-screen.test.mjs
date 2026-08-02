@@ -27,22 +27,41 @@ async function withJSDOM(html, fn) {
     window: globalThis.window,
     FormData: globalThis.FormData,
     AbortController: globalThis.AbortController,
-    CustomEvent: globalThis.CustomEvent
+    CustomEvent: globalThis.CustomEvent,
+    requestAnimationFrame: globalThis.requestAnimationFrame,
+    cancelAnimationFrame: globalThis.cancelAnimationFrame
   };
   globalThis.window = dom.window;
   globalThis.document = dom.window.document;
   globalThis.FormData = dom.window.FormData;
   globalThis.AbortController = dom.window.AbortController;
   globalThis.CustomEvent = dom.window.CustomEvent;
+  const pendingAnimationFrames = new Set();
+  globalThis.requestAnimationFrame = (callback) => {
+    const handle = dom.window.setTimeout(() => {
+      pendingAnimationFrames.delete(handle);
+      callback(dom.window.performance.now());
+    }, 0);
+    pendingAnimationFrames.add(handle);
+    return handle;
+  };
+  globalThis.cancelAnimationFrame = (handle) => {
+    pendingAnimationFrames.delete(handle);
+    dom.window.clearTimeout(handle);
+  };
   try {
     const root = dom.window.document.getElementById('root');
     await fn(root, dom);
   } finally {
+    pendingAnimationFrames.forEach((handle) => dom.window.clearTimeout(handle));
+    pendingAnimationFrames.clear();
     globalThis.document = saved.document;
     globalThis.window = saved.window;
     globalThis.FormData = saved.FormData;
     globalThis.AbortController = saved.AbortController;
     globalThis.CustomEvent = saved.CustomEvent;
+    globalThis.requestAnimationFrame = saved.requestAnimationFrame;
+    globalThis.cancelAnimationFrame = saved.cancelAnimationFrame;
   }
 }
 
@@ -636,13 +655,13 @@ test('opening a proposal from all-proposals table returns to the table with filt
 test('service worker version and activate-only cache cleanup', async () => {
   const sw = await readFile(SW_FILE, 'utf8');
   const config = await readFile(CONFIG_FILE, 'utf8');
-  assert.match(sw, /const CACHE_VERSION = 1244;/);
+  assert.match(sw, /const CACHE_VERSION = 1357;/);
   const installBlock = sw.match(/self\.addEventListener\('install',[\s\S]*?\n\}\);/)?.[0] || '';
   assert.doesNotMatch(installBlock, /deleteOutdatedCaches\(/);
   assert.match(sw, /self\.addEventListener\('activate'[\s\S]*deleteOutdatedCaches\(/);
   assert.match(sw, /clients\.claim/);
   assert.match(sw, /isApiLikeUrl/);
-  assert.match(config, /client-file-unified-view-pdf-20260720-v3/);
+  assert.match(config, /proposal-error-return-20260802-v1/);
 });
 
 test('contact deletion and PDF flow use exact ids without a manual file picker', async () => {

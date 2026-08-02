@@ -5927,27 +5927,31 @@ export const proposalsAgreementsScreen = {
       syncContactOptions(deps?.contactOptions, deps?.contactOptionsError);
       data._editorDepsLoaded = true;
     };
+    let editorDepsPromise = null;
     const ensureEditorDeps = async () => {
       if (data?._editorDepsLoaded) return;
+      if (editorDepsPromise) return editorDepsPromise;
       if (typeof api.proposalsAgreementsEditorDeps !== 'function') {
         data._editorDepsLoaded = true;
         return;
       }
-      const deps = await api.proposalsAgreementsEditorDeps();
-      data.activityNameOptions = Array.isArray(deps?.activityNameOptions) ? deps.activityNameOptions : [];
-      data.proposalActivityPricing = Array.isArray(deps?.proposalActivityPricing) ? deps.proposalActivityPricing : [];
-      data.proposalTemplateSections = Array.isArray(deps?.proposalTemplateSections) ? deps.proposalTemplateSections : [];
-      data.proposalActivityGroups = Array.isArray(deps?.proposalActivityGroups) ? deps.proposalActivityGroups : data.proposalActivityGroups;
-      data.proposalGroupAliases = Array.isArray(deps?.proposalGroupAliases) ? deps.proposalGroupAliases : data.proposalGroupAliases;
-      data.schoolCalendarRows = Array.isArray(deps?.schoolCalendarRows) ? deps.schoolCalendarRows : [];
-      syncContactOptions(deps?.contactOptions, deps?.contactOptionsError);
-      data._editorDepsLoaded = true;
-      activityNameOptions.splice(0, activityNameOptions.length, ...Array.from(new Set(data.activityNameOptions.map((v) => text(v)).filter(Boolean))));
-      proposalActivityPricing.splice(0, proposalActivityPricing.length, ...data.proposalActivityPricing);
-      setProposalGroupLookups(data, data.rows, proposalActivityPricing);
-      setProposalPricingLookup(proposalActivityPricing);
-      proposalTemplateSections.splice(0, proposalTemplateSections.length, ...normalizeTemplateSections(data.proposalTemplateSections));
-      proposalSchoolCalendarRows = data.schoolCalendarRows;
+      editorDepsPromise = api.proposalsAgreementsEditorDeps().then((deps) => {
+        data.activityNameOptions = Array.isArray(deps?.activityNameOptions) ? deps.activityNameOptions : [];
+        data.proposalActivityPricing = Array.isArray(deps?.proposalActivityPricing) ? deps.proposalActivityPricing : [];
+        data.proposalTemplateSections = Array.isArray(deps?.proposalTemplateSections) ? deps.proposalTemplateSections : [];
+        data.proposalActivityGroups = Array.isArray(deps?.proposalActivityGroups) ? deps.proposalActivityGroups : data.proposalActivityGroups;
+        data.proposalGroupAliases = Array.isArray(deps?.proposalGroupAliases) ? deps.proposalGroupAliases : data.proposalGroupAliases;
+        data.schoolCalendarRows = Array.isArray(deps?.schoolCalendarRows) ? deps.schoolCalendarRows : [];
+        syncContactOptions(deps?.contactOptions, deps?.contactOptionsError);
+        data._editorDepsLoaded = true;
+        activityNameOptions.splice(0, activityNameOptions.length, ...Array.from(new Set(data.activityNameOptions.map((v) => text(v)).filter(Boolean))));
+        proposalActivityPricing.splice(0, proposalActivityPricing.length, ...data.proposalActivityPricing);
+        setProposalGroupLookups(data, data.rows, proposalActivityPricing);
+        setProposalPricingLookup(proposalActivityPricing);
+        proposalTemplateSections.splice(0, proposalTemplateSections.length, ...normalizeTemplateSections(data.proposalTemplateSections));
+        proposalSchoolCalendarRows = data.schoolCalendarRows;
+      }).finally(() => { editorDepsPromise = null; });
+      return editorDepsPromise;
     };
     const currentListQuery = () => ({
       search: text(data?._query?.search),
@@ -7288,8 +7292,22 @@ export const proposalsAgreementsScreen = {
     };
 
 
+    let previewFrame = 0;
+    let pendingPreviewForm = null;
     const updateLivePreview = (container) => {
       const form = container?.closest?.('[data-pa-form]') || (container?.matches?.('[data-pa-form]') ? container : null);
+      if (!form) return;
+      pendingPreviewForm = form;
+      if (previewFrame) return;
+      previewFrame = requestAnimationFrame(() => {
+        previewFrame = 0;
+        const nextForm = pendingPreviewForm;
+        pendingPreviewForm = null;
+        renderLivePreview(nextForm);
+      });
+    };
+
+    const renderLivePreview = (form) => {
       const previewHost = form?.querySelector?.('[data-pa-live-preview]');
       if (!form || !previewHost) return;
       const payload = payloadFromForm(form);
@@ -7534,12 +7552,20 @@ export const proposalsAgreementsScreen = {
         clientKey: selectedClientKey,
         list: originMode === 'all-proposals' ? captureListViewState() : null
       };
-      await ensureEditorDeps();
-      if (mode === 'edit' && text(row.id)) row = await ensureProposalDetailRow(row);
-      row = enrichProposalRowFromContactOptions(row, contactOptions);
       setFormTabLabel(mode);
       setViewMode('proposal-editor');
       setScreenTitle(mode === 'edit' ? 'עריכת הצעה' : 'הצעה חדשה');
+      formHost.hidden = false;
+      formHost.innerHTML = `<div class="ds-pa-editor-loading" role="status" aria-live="polite"><span class="ds-spinner" aria-hidden="true"></span><strong>מכינים את עורך ההצעה…</strong><small>הפרטים יוצגו מיד בסיום הטעינה</small></div>`;
+      try {
+        await ensureEditorDeps();
+        if (mode === 'edit' && text(row.id)) row = await ensureProposalDetailRow(row);
+      } catch (error) {
+        const errorBackLabel = originMode === 'all-proposals' ? 'חזרה לכל ההצעות' : 'חזרה לתיק הלקוח';
+        formHost.innerHTML = `<div class="ds-empty ds-pa-editor-load-error" role="alert"><strong>לא הצלחנו לטעון את נתוני ההצעה.</strong><span>ניתן לחזור ולנסות שוב.</span><button type="button" class="ds-btn ds-btn--primary" data-pa-cancel-form>← ${errorBackLabel}</button></div>`;
+        return;
+      }
+      row = enrichProposalRowFromContactOptions(row, contactOptions);
       let items = preloadedItems;
       if (mode === 'edit' && text(row.id) && !preloadedItems.length) {
         try {
@@ -7549,7 +7575,6 @@ export const proposalsAgreementsScreen = {
         } catch { items = []; }
       }
       items = proposalItemsWithFallback(items, row);
-      formHost.hidden = false;
       const backLabel = originMode === 'all-proposals' ? 'חזרה לכל ההצעות' : 'חזרה לתיק הלקוח';
       formHost.innerHTML = formHtml(mode, row, activityNameOptions, contactOptions, items, proposalActivityPricing, state, contactOptionsError)
         .replace('← חזרה לתיק הלקוח', `← ${backLabel}`);

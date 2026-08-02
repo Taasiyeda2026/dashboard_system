@@ -291,9 +291,10 @@ function innerTabLabel(targetState) {
   const tab = cleanText(targetState.activitiesInnerTab);
   if (tab === INNER_TAB_SUMMER_2026) return 'קיץ 2026';
   if (tab === INNER_TAB_REGULAR_2026) return 'שנת 2026';
-  if (tab === INNER_TAB_ARCHIVE) return `ארכיון ${year}`;
-  if (tab === INNER_TAB_2027) return 'פעילויות 2027';
-  return `כל פעילויות ${year}`;
+  const displayYear = year === '2027' ? 'תשפ״ז' : year;
+  if (tab === INNER_TAB_ARCHIVE) return `ארכיון ${displayYear}`;
+  if (tab === INNER_TAB_2027) return 'פעילויות תשפ״ז';
+  return `כל פעילויות ${displayYear}`;
 }
 
 function renderedVisibleCount(html, fallback) {

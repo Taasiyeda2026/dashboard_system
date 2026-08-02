@@ -35,20 +35,27 @@ async function withJSDOM(html, fn) {
     document: globalThis.document,
     window: globalThis.window,
     FormData: globalThis.FormData,
-    AbortController: globalThis.AbortController
+    AbortController: globalThis.AbortController,
+    requestAnimationFrame: globalThis.requestAnimationFrame,
+    cancelAnimationFrame: globalThis.cancelAnimationFrame
   };
   globalThis.window = dom.window;
   globalThis.document = dom.window.document;
   globalThis.FormData = dom.window.FormData;
   globalThis.AbortController = dom.window.AbortController;
+  globalThis.requestAnimationFrame = (callback) => dom.window.setTimeout(() => callback(dom.window.performance.now()), 0);
+  globalThis.cancelAnimationFrame = (handle) => dom.window.clearTimeout(handle);
   try {
     const root = dom.window.document.getElementById('root');
     await fn(root, dom);
   } finally {
+    await new Promise((resolve) => dom.window.setTimeout(resolve, 0));
     globalThis.document = saved.document;
     globalThis.window = saved.window;
     globalThis.FormData = saved.FormData;
     globalThis.AbortController = saved.AbortController;
+    globalThis.requestAnimationFrame = saved.requestAnimationFrame;
+    globalThis.cancelAnimationFrame = saved.cancelAnimationFrame;
   }
 }
 

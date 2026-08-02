@@ -125,7 +125,21 @@ test('proposal editor recipient flows match the approved reference', async ({ pa
   await expect(form.locator('[data-pa-contact-select]')).toBeVisible();
   await attachScreenshot(form, 'school', testInfo);
 
-  await form.locator('input[name="client_type_selector"][value="authority"]').check();
+  const contactSelect = form.locator('[data-pa-contact-select]');
+  const contactValue = await contactSelect.locator('option').evaluateAll((options) => options
+    .map((option) => option.value)
+    .find((value) => value && value !== '__pa_other_contact__') || '');
+  expect(contactValue, 'expected a real contact for the selected school').not.toBe('');
+  await contactSelect.selectOption(contactValue);
+  const contactChannelsToggle = form.locator('[data-pa-contact-channels-toggle]:visible');
+  await expect(contactChannelsToggle).toHaveCount(1);
+  await contactChannelsToggle.click();
+  await expect(form.locator('[data-pa-contact-channels-fields]')).toBeVisible();
+  await attachScreenshot(form, 'contact-edit-fields', testInfo);
+
+  const authorityType = form.locator('.ds-pa-recipient-type-option').filter({ has: page.locator('input[name="client_type_selector"][value="authority"]') });
+  await expect(authorityType).toHaveCount(1);
+  await authorityType.click();
   await expect(authoritySearch).toBeVisible();
   await expect(schoolPanel).toBeHidden();
   await expect(form.locator('[data-pa-other-client-field]')).toBeHidden();
@@ -140,7 +154,9 @@ test('proposal editor recipient flows match the approved reference', async ({ pa
   await expect(form.locator('.ds-pa-client-locked-state')).toHaveCount(0);
   await attachScreenshot(form, 'authority', testInfo);
 
-  await form.locator('input[name="client_type_selector"][value="other"]').check();
+  const otherType = form.locator('.ds-pa-recipient-type-option').filter({ has: page.locator('input[name="client_type_selector"][value="other"]') });
+  await expect(otherType).toHaveCount(1);
+  await otherType.click();
   await expect(form.locator('[data-pa-other-client-field]')).toBeVisible();
   await expect(contactPanel).toBeVisible();
   await expect(authoritySearch).toBeHidden();
