@@ -309,6 +309,20 @@ function markPendingUserRow(form) {
   delete form.dataset.paNextYearPendingAddGroup;
 }
 
+export function removeBlankNextYearRows(form) {
+  if (!form || !nextYearForm(form)) return 0;
+  let removed = 0;
+  NEXT_YEAR_GROUPS.forEach((groupKey) => {
+    form.querySelectorAll(`[data-pa-items-group="${groupKey}"] [data-pa-item-row]`).forEach((row) => {
+      if (!isBlankNextYearEditorRow(row)) return;
+      row.remove();
+      removed += 1;
+    });
+  });
+  if (removed) calculateFormTotals(form);
+  return removed;
+}
+
 export function stabilizeNextYearForm(form, pricingRows = cachedPricingRows, options = {}) {
   if (!form || !nextYearForm(form)) return { changed: false, removed: 0, total: 0 };
   markPendingUserRow(form);
@@ -333,7 +347,7 @@ export function stabilizeNextYearForm(form, pricingRows = cachedPricingRows, opt
   });
 
   const total = calculateFormTotals(form);
-  if (options.notify !== false) {
+  if (options.notify !== false && (changed || removed > 0)) {
     const target = form.querySelector('[data-pa-item-price]') || form.querySelector('[data-pa-item-qty]');
     if (target && form.dataset.paNextYearHydrating !== 'yes') {
       form.dataset.paNextYearHydrating = 'yes';
@@ -368,8 +382,8 @@ function formsInNode(node) {
 
 function addedNodeNeedsStabilization(node) {
   if (!(node instanceof Element)) return false;
-  return node.matches?.('[data-pa-form], [data-pa-items-group], [data-pa-item-row], [data-pa-items-host], .proposal-document')
-    || Boolean(node.querySelector?.('[data-pa-items-group], [data-pa-item-row], .proposal-document'));
+  return node.matches?.('[data-pa-form], [data-pa-items-group], [data-pa-item-row], [data-pa-items-host]')
+    || Boolean(node.querySelector?.('[data-pa-items-group], [data-pa-item-row]'));
 }
 
 function installDomRuntime(scope = globalThis) {
@@ -377,22 +391,28 @@ function installDomRuntime(scope = globalThis) {
   if (!documentRef?.documentElement || typeof scope?.MutationObserver !== 'function') return;
 
   documentRef.addEventListener('click', (event) => {
+    const form = event.target?.closest?.('[data-pa-form]');
+    if (form && event.target?.closest?.('[data-pa-save-draft], [data-pa-save-pending], [data-pa-preview], [data-pa-type-btn]')) {
+      removeBlankNextYearRows(form);
+    }
+
     const addButton = event.target?.closest?.('[data-pa-add-item][data-pa-add-item-group]');
     if (!addButton) return;
-    const form = addButton.closest('[data-pa-form]');
+    const addForm = addButton.closest('[data-pa-form]');
     const group = text(addButton.dataset.paAddItemGroup);
-    if (!form || !NEXT_YEAR_GROUPS.has(group)) return;
-    form.dataset.paNextYearPendingAddGroup = group;
-    queueMicrotask(() => scheduleForm(form, { removeBlankRows: true }));
+    if (!addForm || !NEXT_YEAR_GROUPS.has(group)) return;
+    addForm.dataset.paNextYearPendingAddGroup = group;
+    queueMicrotask(() => scheduleForm(addForm, { removeBlankRows: true }));
   }, true);
 
   documentRef.addEventListener('change', (event) => {
     const form = event.target?.closest?.('[data-pa-form]');
     if (!form) return;
+    if (event.target?.matches?.('[name="activity_type_group"]')) removeBlankNextYearRows(form);
     if (event.target?.matches?.('[name="activity_type_group"], [data-pa-pricing-select]')) {
       queueMicrotask(() => scheduleForm(form, { removeBlankRows: true }));
     }
-  });
+  }, true);
 
   const observer = new scope.MutationObserver((mutations) => {
     const forms = new Set();
