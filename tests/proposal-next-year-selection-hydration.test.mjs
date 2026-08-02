@@ -24,19 +24,26 @@ if (!globalThis.localStorage) {
 
 const { hydrateNextYearPricingSelection } = await import('../frontend/src/proposal-next-year-selection-hydration.js');
 
-const workshop = {
-  activity_name: 'סדנת חלל',
+const rawSpaceWorkshop = {
+  activity_name: 'אסטרונאוט על חוטים',
   activity_no: '',
-  pricing_key: 'space_workshop_activity_1',
-  proposal_group: 'next_year_workshops',
+  pricing_key: 'workshop_001',
+  parent_pricing_key: 'space_workshop',
+  proposal_group: 'פעילויות קיץ',
   item_type: 'סדנה',
   unit_duration: '45 דקות',
-  unit_price: 500,
-  sort_order: 25,
-  proposal_display_mode: 'single',
+  unit_price: 450,
+  sort_order: 1,
+  proposal_display_mode: 'bundle_child',
   meetings_count: 1,
   hours_count: 0.75,
   is_active_for_proposals: true
+};
+
+const displayedSpaceWorkshop = {
+  ...rawSpaceWorkshop,
+  proposal_group: 'next_year_workshops',
+  unit_price: 500
 };
 
 function optionKey(row) {
@@ -52,7 +59,7 @@ function optionKey(row) {
 }
 
 function formHtml(stalePrice = '') {
-  const value = optionKey(workshop);
+  const value = optionKey(displayedSpaceWorkshop);
   return `<form data-pa-form>
     <input name="activity_type_group" value="next_year">
     <section data-pa-items-group="next_year_courses">
@@ -62,7 +69,7 @@ function formHtml(stalePrice = '') {
     <section data-pa-items-group="next_year_workshops">
       <div data-pa-items-body>
         <article data-pa-item-row data-pa-row-group="next_year_workshops">
-          <select data-pa-pricing-select><option value="${value}" selected>סדנת חלל — סדנה — ₪ 500</option></select>
+          <select data-pa-pricing-select><option value="${value}" selected>אסטרונאוט על חוטים — סדנה — ₪ 500</option></select>
           <input name="quantity" data-pa-item-qty value="2">
           <input name="unit_price" data-pa-item-price value="${stalePrice}">
           <input name="total_price" data-pa-item-total value="">
@@ -109,14 +116,14 @@ function withDom(stalePrice, fn) {
   }
 }
 
-test('direct workshop selection hydrates internal price and all totals', () => {
+test('direct space-workshop selection applies the displayed 500 ₪ price and all totals', () => {
   withDom('', (form, row) => {
-    const result = hydrateNextYearPricingSelection(row, [workshop], { notify: false });
+    const result = hydrateNextYearPricingSelection(row, [rawSpaceWorkshop], { notify: false });
     assert.equal(result.changed, true);
     assert.equal(row.querySelector('[data-pa-item-price]').value, '500');
-    assert.equal(row.querySelector('[name="item_name"]').value, 'סדנת חלל');
+    assert.equal(row.querySelector('[name="item_name"]').value, 'אסטרונאוט על חוטים');
     assert.equal(row.querySelector('[name="item_type"]').value, 'סדנה');
-    assert.equal(row.querySelector('[name="item_source_pricing_key"]').value, 'space_workshop_activity_1');
+    assert.equal(row.querySelector('[name="item_source_pricing_key"]').value, 'workshop_001');
     assert.equal(row.querySelector('[data-pa-item-total]').value, '1000.00');
     assert.equal(row.querySelector('[data-pa-item-total-display]').textContent, '₪ 1,000');
     assert.equal(form.querySelector('[data-pa-group-total="next_year_workshops"]').textContent, '₪ 1,000');
@@ -126,7 +133,7 @@ test('direct workshop selection hydrates internal price and all totals', () => {
 
 test('an explicit workshop selection replaces a stale price from the previous activity', () => {
   withDom('13500', (form, row) => {
-    hydrateNextYearPricingSelection(row, [workshop], { notify: false });
+    hydrateNextYearPricingSelection(row, [rawSpaceWorkshop], { notify: false });
     assert.equal(row.querySelector('[data-pa-item-price]').value, '500');
     assert.equal(row.querySelector('[data-pa-item-total]').value, '1000.00');
     assert.equal(form.querySelector('[data-pa-summary-total]').textContent, '₪ 1,000');
@@ -137,9 +144,9 @@ test('direct selection dispatches one input notification after complete hydratio
   withDom('', (_form, row) => {
     let events = 0;
     row.querySelector('[data-pa-item-price]').addEventListener('input', () => { events += 1; });
-    hydrateNextYearPricingSelection(row, [workshop], { notify: true });
+    hydrateNextYearPricingSelection(row, [rawSpaceWorkshop], { notify: true });
     assert.equal(events, 1);
-    hydrateNextYearPricingSelection(row, [workshop], { notify: true });
+    hydrateNextYearPricingSelection(row, [rawSpaceWorkshop], { notify: true });
     assert.equal(events, 1);
   });
 });
