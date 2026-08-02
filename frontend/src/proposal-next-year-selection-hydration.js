@@ -1,5 +1,6 @@
 import { api } from './api.js';
 import { augmentNextYearPricingRows } from './proposal-next-year-workshops.js';
+import { applyNextYearSpaceWorkshopPrice } from './proposal-next-year-space-workshop-pricing.js';
 
 const PATCH_KEY = Symbol.for('taasiyeda.proposalNextYearSelectionHydration');
 const INTERNAL_GROUPS = new Set(['next_year_courses', 'next_year_workshops']);
@@ -33,8 +34,12 @@ function optionKey(row = {}) {
   ].map(text).join('||');
 }
 
+function normalizePricingRows(rows = []) {
+  return applyNextYearSpaceWorkshopPrice(augmentNextYearPricingRows(Array.isArray(rows) ? rows : []));
+}
+
 function cachePricing(rows = []) {
-  if (Array.isArray(rows)) cachedPricingRows = augmentNextYearPricingRows(rows);
+  if (Array.isArray(rows)) cachedPricingRows = normalizePricingRows(rows);
   return rows;
 }
 
@@ -69,9 +74,9 @@ function rowGroup(row) {
 }
 
 function rowsForGroup(rows, group) {
-  const augmented = augmentNextYearPricingRows(Array.isArray(rows) ? rows : []);
-  const exact = augmented.filter((entry) => text(entry.proposal_group || entry.group_key) === group);
-  return exact.length ? exact : augmented.filter((entry) => {
+  const normalized = normalizePricingRows(rows);
+  const exact = normalized.filter((entry) => text(entry.proposal_group || entry.group_key) === group);
+  return exact.length ? exact : normalized.filter((entry) => {
     const kind = text([entry.item_type, entry.activity_name, entry.pricing_key, entry.parent_pricing_key].join(' ')).toLowerCase();
     const workshop = text(entry.proposal_display_mode) === 'bundle_parent' || /סדנ|workshop|stem|חלל|maker/.test(kind);
     return group === 'next_year_workshops' ? workshop : !workshop && Boolean(text(entry.activity_no || entry.gefen_number));
