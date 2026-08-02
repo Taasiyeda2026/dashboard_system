@@ -1811,6 +1811,12 @@ function itemBelongsToGroup(item = {}, groupKey = '') {
   return !itemGroup || itemGroup === target;
 }
 
+export function proposalItemGroupForEditorRow(itemRow, catalogGroup = '') {
+  return text(itemRow?.closest?.('[data-pa-items-group]')?.dataset?.paItemsGroup)
+    || text(itemRow?.dataset?.paRowGroup)
+    || normalizeProposalGroup(catalogGroup);
+}
+
 function shouldShowGefenForItem(item = {}, contextGroup = '') {
   const group = normalizeProposalGroup(contextGroup || item.proposal_group || item.activity_type_group);
   return Boolean(proposalTextField(item, 'gefen_number', 'gefenNumber')) && shouldShowGefenForGroup(group);
@@ -6177,6 +6183,10 @@ export const proposalsAgreementsScreen = {
       }).finally(() => { editorDepsPromise = null; });
       return editorDepsPromise;
     };
+    // Start immutable editor lookups as soon as the proposals screen is bound.
+    // Opening the editor still awaits the same memoized request, but no longer
+    // pays the full cold-network latency after the user's click.
+    void ensureEditorDeps().catch(() => {});
     const currentListQuery = () => ({
       search: text(data?._query?.search),
       status: text(data?._query?.status),
@@ -7766,7 +7776,12 @@ export const proposalsAgreementsScreen = {
       setRowValue(itemRow, 'item_name', parentName);
       setRowValue(itemRow, 'item_type', pickedData.item_type || '');
       setRowValue(itemRow, 'unit_price', unitPrice || '');
-      setRowValue(itemRow, 'proposal_group', pickedData.proposal_group || text(itemRow.dataset.paRowGroup) || '');
+      // A catalog workshop can originate in the summer price list, while this
+      // row belongs to the internal תשפ״ז workshop section. The editor section
+      // is the source of truth for the proposal item group; retaining the
+      // catalog group here makes filterItemsByProposalType drop the item from
+      // the live preview and PDF payload.
+      setRowValue(itemRow, 'proposal_group', proposalItemGroupForEditorRow(itemRow, pickedData.proposal_group));
       setRowValue(itemRow, 'description', description);
       setRowValue(itemRow, 'item_display_mode', 'bundle_parent');
       setRowValue(itemRow, 'item_source_pricing_key', pickedData.pricing_key || '');
@@ -8698,7 +8713,7 @@ export const proposalsAgreementsScreen = {
         setRowValue(itemRow, 'item_name', parentName);
         setRowValue(itemRow, 'item_type', picked.item_type || '');
         setRowValue(itemRow, 'unit_price', numberValue(picked.unit_price) || '');
-        setRowValue(itemRow, 'proposal_group', picked.proposal_group || text(itemRow.dataset.paRowGroup) || '');
+        setRowValue(itemRow, 'proposal_group', proposalItemGroupForEditorRow(itemRow, picked.proposal_group));
         setRowValue(itemRow, 'item_display_mode', 'bundle_parent');
         setRowValue(itemRow, 'item_source_pricing_key', text(picked.pricing_key) || '');
         setRowValue(itemRow, 'bundle_pricing_key', text(picked.pricing_key) || '');
@@ -8765,7 +8780,7 @@ export const proposalsAgreementsScreen = {
       setValue('hourly_price', picked.hourly_price ?? '');
       setValue('description', picked.description_for_proposal || '');
       setValue('unit_duration', picked.unit_duration || '');
-      setValue('proposal_group', picked.proposal_group || text(itemRow.dataset.paRowGroup) || '');
+      setValue('proposal_group', proposalItemGroupForEditorRow(itemRow, picked.proposal_group));
       setValue('item_display_mode', 'single');
       setValue('item_source_pricing_key', text(picked.pricing_key) || '');
       setValue('item_selected_bundle_items', '[]');
