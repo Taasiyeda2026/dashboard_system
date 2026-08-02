@@ -36,15 +36,21 @@ export function clearTeamCalendarCache() {
 }
 
 export async function loadTeamCalendarRows() {
-  if (cachedRows) return cachedRows;
+  if (cachedRows !== null) return cachedRows;
   if (inflightRequest) return inflightRequest;
 
   inflightRequest = (async () => {
-    if (!supabase) return [];
+    if (!supabase) {
+      cachedRows = [];
+      return cachedRows;
+    }
     startAuthCacheInvalidation();
 
     const { data: sessionData, error: sessionError } = await supabase.auth.getSession();
-    if (sessionError || !sessionData?.session?.user) return [];
+    if (sessionError || !sessionData?.session?.user) {
+      cachedRows = [];
+      return cachedRows;
+    }
     updateAuthenticatedUser(sessionData.session);
 
     const { data, error } = await supabase
@@ -61,7 +67,8 @@ export async function loadTeamCalendarRows() {
         code: error.code || '',
         message: error.message || ''
       });
-      return [];
+      cachedRows = [];
+      return cachedRows;
     }
 
     cachedRows = Array.isArray(data) ? data : [];
