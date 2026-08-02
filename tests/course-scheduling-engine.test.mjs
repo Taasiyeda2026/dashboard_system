@@ -1,7 +1,7 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
 import { readFile } from 'node:fs/promises';
-import { calculateCourseSchedule, instructorLoad, schedulingCourses } from '../frontend/src/screens/course-scheduling-engine.js';
+import { calculateCourseSchedule, instructorLoad, schedulingCourses, schedulingInstructors } from '../frontend/src/screens/course-scheduling-engine.js';
 import { evaluateInstructor } from '../frontend/src/screens/instructor-matching-engine.js';
 import { createRouteClient, calculateCandidateTravel } from '../frontend/src/screens/course-scheduling-travel.js';
 import { courseSchedulingCounts, detailsHtml } from '../frontend/src/screens/course-scheduling.js';
@@ -49,6 +49,14 @@ test('filters only open, fully unassigned 2027 courses', () => {
     { ...course('closed'), status: 'סגור' },
     { ...course('old'), activity_season: 'regular' }
   ]).map((row) => row.row_id), ['ok']);
+});
+
+test('filters inactive instructors before matching and route calculation', () => {
+  const activeInstructor = instructors[0];
+  const inactiveInstructor = { ...instructors[1], active: 'no' };
+  assert.deepEqual(schedulingInstructors([activeInstructor, inactiveInstructor]).map((row) => row.emp_id), ['1']);
+  const result = calculateCourseSchedule({ ...baseInput([course('active-only')]), instructors: [activeInstructor, inactiveInstructor] })[0];
+  assert.deepEqual(result.checked.map((candidate) => candidate.instructor.emp_id), ['1']);
 });
 
 test('global allocation preserves the only instructor for a constrained course', () => {
@@ -223,6 +231,13 @@ test('course scheduling screen explicitly loads school_2027 and exposes reject/o
   assert.match(source, /data-open-missing-course/);
   assert.match(source, /state\.listFilters\.activities/);
   assert.doesNotMatch(source, /CSS\.escape/);
+});
+
+test('scheduling route reuses cached address pairs without an expiry check', async () => {
+  const source = await readFile(new URL('../supabase/functions/scheduling-route/index.ts', import.meta.url), 'utf8');
+  assert.match(source, /\.eq\('origin_key', originKey\)/);
+  assert.match(source, /\.eq\('destination_key', destinationKey\)/);
+  assert.doesNotMatch(source, /\.gt\('expires_at'/);
 });
 
 test('acceptance: Hila Rosen 1500 remains incomplete, keeps her address, and groups eight Mondays', () => {
