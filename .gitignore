@@ -8,6 +8,8 @@
 
 # Local env
 .env
+.env.*
+!.env.example
 
 # Build artifacts
 node_modules/
@@ -15,3 +17,11 @@ dist/
 coverage/
 .env
 env
+
+# Playwright E2E — temporary auth/session and local reports only
+e2e/.auth/
+e2e/artifacts/
+e2e/test-results/
+playwright-report/
+test-results/
+blob-report/

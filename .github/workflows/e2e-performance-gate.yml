@@ -1,0 +1,97 @@
+name: E2E and Performance Gate
+
+on:
+  pull_request:
+    branches: [main]
+  workflow_dispatch:
+    inputs:
+      update_baseline:
+        description: 'Capture and upload a fresh performance baseline artifact'
+        required: false
+        default: 'false'
+        type: choice
+        options:
+          - 'false'
+          - 'true'
+
+concurrency:
+  group: e2e-performance-${{ github.event.pull_request.number || github.ref }}
+  cancel-in-progress: true
+
+permissions:
+  contents: read
+
+jobs:
+  e2e-performance:
+    name: e2e-performance
+    runs-on: ubuntu-latest
+    timeout-minutes: 45
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Verify required E2E secrets
+        env:
+          E2E_USERNAME: ${{ secrets.E2E_USERNAME }}
+          E2E_PASSWORD: ${{ secrets.E2E_PASSWORD }}
+        run: |
+          missing=0
+          if [ -z "$E2E_USERNAME" ]; then
+            echo '::error::Missing GitHub Secret E2E_USERNAME (dedicated test login username)'
+            missing=1
+          fi
+          if [ -z "$E2E_PASSWORD" ]; then
+            echo '::error::Missing GitHub Secret E2E_PASSWORD (dedicated test login entry code)'
+            missing=1
+          fi
+          if [ "$missing" -ne 0 ]; then
+            echo 'Add repository secrets at Settings → Secrets and variables → Actions:'
+            echo '  E2E_USERNAME, E2E_PASSWORD'
+            echo 'Also set E2E_BASE_URL for post-deploy smoke (live Pages URL).'
+            echo 'VITE_SUPABASE_URL / VITE_SUPABASE_ANON_KEY are used when present; the app also has publishable fallbacks.'
+            exit 1
+          fi
+          echo 'E2E credentials secret presence OK'
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+          cache: npm
+
+      - name: Install dependencies
+        run: npm install
+
+      - name: Install Playwright Chromium
+        run: npx playwright install chromium --with-deps
+
+      - name: Build production
+        env:
+          VITE_BASE: ./
+          VITE_BUILD_SHA: ${{ github.sha }}
+          VITE_SUPABASE_URL: ${{ secrets.VITE_SUPABASE_URL }}
+          VITE_SUPABASE_ANON_KEY: ${{ secrets.VITE_SUPABASE_ANON_KEY }}
+        run: npm run build
+
+      - name: Run Playwright E2E + performance gate
+        env:
+          CI: 'true'
+          E2E_START_PREVIEW: 'true'
+          # PR gate always hits the local production preview, not the live site.
+          E2E_BASE_URL: http://127.0.0.1:4173
+          E2E_USERNAME: ${{ secrets.E2E_USERNAME }}
+          E2E_PASSWORD: ${{ secrets.E2E_PASSWORD }}
+          E2E_UPDATE_BASELINE: ${{ github.event_name == 'workflow_dispatch' && inputs.update_baseline == 'true' && '1' || '0' }}
+        run: npm run test:e2e
+
+      - name: Upload Playwright reports and evidence
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: e2e-performance-evidence-${{ github.sha }}
+          path: |
+            e2e/artifacts/
+            e2e/baselines/performance-baseline.json
+          if-no-files-found: warn
+          retention-days: 14
