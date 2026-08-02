@@ -10,7 +10,11 @@ export const DEFAULT_SCHEDULING_PROFILE = Object.freeze({
   blocked_schools: [],
   friday_allowed: false,
   default_start_time: '08:00',
-  default_end_time: '15:00'
+  default_end_time: '15:00',
+  weekly_target_hours: null,
+  weekly_max_hours: null,
+  preferred_work_days: null,
+  max_fixed_courses: null
 });
 
 export function normalizeSchedulingProfile(profile = {}) {
@@ -87,7 +91,9 @@ export function evaluateInstructor({
   weeklyLoad = 0,
   averageWeeklyLoad = 0,
   workloadRatio = null,
-  averageWorkloadRatio = null
+  averageWorkloadRatio = null,
+  fixedCourseCount = null,
+  weeklyWorkDayCount = null
 }) {
   const profile = normalizeSchedulingProfile(rawProfile);
   const failures = [];
@@ -143,6 +149,8 @@ export function evaluateInstructor({
   let sameAuthority = 0;
   let waitMinutes = 0;
   let separateTrips = 0;
+  let schoolContinuityPoints = 0;
+  let authorityContinuityPoints = 0;
 
   for (const meeting of meetings) {
     const weekday = new Date(`${meeting.date}T12:00:00`).getDay();
@@ -181,8 +189,17 @@ export function evaluateInstructor({
       const label = direction === 'previous' ? 'מהפעילות הקודמת' : 'לפעילות הבאה';
       if (required == null && !same(neighbor.school, activity.school)) addIssue('unverified_transition', direction, `לא ניתן לאמת זמן מעבר ${label}`, meeting.date);
       else if (required != null && gap < required) addIssue('insufficient_transition', `${direction}-${required}-${gap}`, `אין זמן מעבר מספיק ${label} (${gap} דקות זמינות, ${required} דקות נסיעה)`, meeting.date);
-      if (same(neighbor.school, activity.school)) sameSchool += 1;
-      if (same(neighbor.authority, activity.authority)) sameAuthority += 1;
+      // A given neighbor relationship counts once: same-school continuity takes priority
+      // over same-authority continuity so the two point buckets never double-score it.
+      if (same(neighbor.school, activity.school)) {
+        sameSchool += 1;
+        schoolContinuityPoints += gap <= 30 ? 10 : gap <= 90 ? 7 : 4;
+      } else if (same(neighbor.authority, activity.authority)) {
+        sameAuthority += 1;
+        if (required != null && gap - required >= 15) authorityContinuityPoints += 8;
+        else if (required != null) authorityContinuityPoints += 5;
+        else authorityContinuityPoints += 3;
+      }
       waitMinutes += Math.max(0, gap - (required || 0));
       if (gap > 120) separateTrips += 1;
     };
@@ -215,48 +232,81 @@ export function evaluateInstructor({
     (issue.missing ? missingProfileData : failures).push(summary);
   }
 
-  let score = failures.length || missingProfileData.length ? null : 100;
+  // 100-point rubric (spec section 15): school continuity <=30, authority continuity
+  // <=20, load/fairness <=25, distance/travel <=15, daily continuity <=5, professional
+  // experience <=5. Language/gender/blocks are gating conditions above, never points.
+  let score = failures.length || missingProfileData.length ? null : 0;
   if (score !== null) {
     if (language) scoreReasons.push(`מתאים לשפה ${LANGUAGE_LABELS[language]}`);
     scoreReasons.push(profile.gender === 'female' ? 'פנויה בכל המפגשים' : 'פנוי בכל המפגשים');
 
+    if (sameSchool) scoreReasons.push(`${sameSchool} חיבורים באותו בית ספר`);
+    if (sameAuthority) scoreReasons.push(`${sameAuthority} חיבורים באותה רשות`);
+    // A same-day adjacency already earned points above; only add the smaller "same
+    // school/authority on another day" bonus when no adjacency was found, so the same
+    // relationship is never scored twice.
+    const hasOtherDaySchoolMatch = !schoolContinuityPoints && existingActivities.some((other) => same(other.school, activity.school));
+    const hasOtherDayAuthorityMatch = !schoolContinuityPoints && !authorityContinuityPoints && existingActivities.some((other) => same(other.authority, activity.authority));
+    const schoolPoints = Math.min(30, schoolContinuityPoints + (hasOtherDaySchoolMatch ? 4 : 0));
+    const authorityPoints = Math.min(20, authorityContinuityPoints + (hasOtherDayAuthorityMatch ? 3 : 0));
+
+    let distancePoints;
     if (travel?.home?.distance_km != null) {
       scoreReasons.push(`${Math.round(travel.home.distance_km)} ק״מ מהבית, ${Math.round(travel.home.duration_minutes)} דקות נסיעה`);
-      score -= Math.min(30, Math.max(0, travel.home.distance_km - 10) * 0.6);
+      distancePoints = Math.max(0, 15 - Math.max(0, travel.home.distance_km - 5) * 0.3);
       if (travel.home.distance_km > 40) warnings.push('מרחק הבית עולה על 40 ק״מ');
-    } else scoreReasons.push('המרחק טרם חושב');
-
-    if (sameSchool) {
-      score += Math.min(12, sameSchool * 4);
-      scoreReasons.push(`${sameSchool} חיבורים באותו בית ספר`);
-    }
-    if (sameAuthority) {
-      score += Math.min(8, sameAuthority * 2);
-      scoreReasons.push(`${sameAuthority} חיבורים באותה רשות`);
+    } else {
+      distancePoints = 0;
+      scoreReasons.push('המרחק טרם חושב');
     }
     if (waitMinutes) {
-      score -= Math.min(10, Math.floor(waitMinutes / 120));
+      distancePoints = Math.max(0, distancePoints - waitMinutes / 60);
       scoreReasons.push(`${waitMinutes} דקות המתנה מצטברות`);
     }
     if (separateTrips) {
-      score -= Math.min(10, separateTrips * 2);
+      distancePoints = Math.max(0, distancePoints - separateTrips * 2);
       scoreReasons.push(`${separateTrips} נסיעות נפרדות`);
     }
+    distancePoints = Math.min(15, distancePoints);
 
+    const dailyContinuityPoints = Math.max(0, Math.min(5, 5 - Math.floor(waitMinutes / 90)));
+
+    let loadPoints = 25;
     const ratioProvided = workloadRatio !== null && workloadRatio !== undefined && workloadRatio !== '';
     const ratio = ratioProvided ? Number(workloadRatio) : Number.NaN;
     if (ratioProvided && Number.isFinite(ratio)) {
-      score -= Math.min(30, Math.max(0, ratio) * 30);
+      loadPoints = 25 * Math.max(0, 1 - Math.min(1, ratio));
       scoreReasons.push(`עומס שבועי צפוי: ${Math.round(ratio * 100)}% מהזמינות`);
-      if (ratio > 1) warnings.push('העומס השבועי חורג מהיקף הזמינות');
+      if (ratio > 1) { loadPoints = 0; warnings.push('העומס השבועי חורג מהיקף הזמינות'); }
       else if (averageWorkloadRatio !== null && averageWorkloadRatio !== undefined && Number.isFinite(Number(averageWorkloadRatio)) && ratio > Number(averageWorkloadRatio) + 0.2) warnings.push('העומס השבועי גבוה משמעותית מהממוצע');
     } else if (weeklyLoad || averageWeeklyLoad) {
-      score -= Math.min(18, weeklyLoad * 2);
+      loadPoints = Math.max(0, 25 - weeklyLoad * 3.5);
       scoreReasons.push(`עומס שבועי: ${weeklyLoad} מפגשים`);
       if (weeklyLoad > averageWeeklyLoad + 2) warnings.push('עומס שבועי גבוה מהממוצע');
     }
+    if (fixedCourseCount != null && profile.max_fixed_courses != null && Number.isFinite(Number(fixedCourseCount)) && Number.isFinite(Number(profile.max_fixed_courses)) && Number(fixedCourseCount) > Number(profile.max_fixed_courses)) {
+      loadPoints = Math.min(loadPoints, 8);
+      warnings.push('מספר הקורסים הקבועים חורג מהמקסימום שהוגדר למדריך');
+    }
+    if (weeklyWorkDayCount != null && profile.preferred_work_days != null && Number.isFinite(Number(weeklyWorkDayCount)) && Number.isFinite(Number(profile.preferred_work_days)) && Number(weeklyWorkDayCount) > Number(profile.preferred_work_days)) {
+      loadPoints = Math.max(0, loadPoints - 5);
+      warnings.push('מספר ימי העבודה השבועיים חורג מהרצוי למדריך');
+    }
+    loadPoints = Math.max(0, Math.min(25, loadPoints));
 
-    score = Math.max(0, Math.min(120, Math.round(score)));
+    let experiencePoints = 0;
+    const hasPriorCourseExperience = !!String(activity.activity_name || '').trim()
+      && existingActivities.some((other) => same(other.activity_name, activity.activity_name));
+    if (profile.course_restriction_mode === 'allow_only' && courseId && courses.includes(courseId)) {
+      experiencePoints = 5;
+      scoreReasons.push('הוכשר/ה ייעודית לתוכנית');
+    } else if (hasPriorCourseExperience) {
+      experiencePoints = 3;
+      scoreReasons.push('ניסיון קודם בתוכנית');
+    }
+
+    score = Math.round(schoolPoints) + Math.round(authorityPoints) + Math.round(loadPoints) + Math.round(distancePoints) + dailyContinuityPoints + experiencePoints;
+    score = Math.max(0, Math.min(100, score));
   }
 
   return {
@@ -286,7 +336,9 @@ export function rankInstructors(input) {
       weeklyLoad: input.weeklyLoads?.[String(instructor.emp_id)] || 0,
       averageWeeklyLoad: Number(input.averageWeeklyLoad) || 0,
       workloadRatio: input.workloadRatios?.[String(instructor.emp_id)] ?? null,
-      averageWorkloadRatio: input.averageWorkloadRatio ?? null
+      averageWorkloadRatio: input.averageWorkloadRatio ?? null,
+      fixedCourseCount: input.fixedCourseCounts?.[String(instructor.emp_id)] ?? null,
+      weeklyWorkDayCount: input.weeklyWorkDayCounts?.[String(instructor.emp_id)] ?? null
     })
   }));
   return {
