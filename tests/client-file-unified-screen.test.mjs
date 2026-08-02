@@ -68,7 +68,7 @@ function sampleItems() {
 test('client file uses a single native implementation without overlay scripts', async () => {
   const index = await readFile(INDEX_FILE, 'utf8');
   const screen = await readFile(SCREEN_FILE, 'utf8');
-  assert.match(index, /frontend\/src\/main\.js/);
+  assert.match(index, /frontend\/src\/main-with-proposal-pdf-hotfix\.js/);
   assert.doesNotMatch(index, /client-file-overlay\.js/);
   assert.doesNotMatch(index, /client-file-proposal-open\.js/);
   assert.doesNotMatch(index, /client-file-data-adapter\.js/);

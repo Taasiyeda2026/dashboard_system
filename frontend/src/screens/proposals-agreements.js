@@ -5883,6 +5883,8 @@ export const proposalsAgreementsScreen = {
     const proposalTemplateSections = normalizeTemplateSections(Array.isArray(data?.proposalTemplateSections) ? data.proposalTemplateSections : []);
     let contactOptions = Array.isArray(data?.contactOptions) ? data.contactOptions : [];
     let contactOptionsError = text(data?.contactOptionsError || '');
+    // Contacts provided with the screen payload (editor/tests) are already available.
+    if (contactOptions.length) data._contactsLoaded = true;
     const rowWithCentralContact = (row) => {
       if (!row) return row;
       const enriched = enrichProposalRowFromContactOptions(row, contactOptions);
@@ -6353,6 +6355,10 @@ export const proposalsAgreementsScreen = {
       };
     };
     const applyServerListQuery = async (queryPatch = {}, { append = false } = {}) => {
+      if (typeof api.proposalsAgreements !== 'function') {
+        refreshTable();
+        return;
+      }
       const ok = await reloadProposalList(queryPatch, { append });
       if (!ok || signal.aborted || !root.isConnected) return;
       refreshTable();
@@ -6383,18 +6389,25 @@ export const proposalsAgreementsScreen = {
         results.hidden = !query;
         if (!query) {
           results.innerHTML = '';
-          await applyServerListQuery({ search: '' }, { append: false });
+          if (typeof api.proposalsAgreements === 'function') {
+            await applyServerListQuery({ search: '' }, { append: false });
+          }
           return;
         }
-        results.innerHTML = '<p class="ds-client-search-empty">מחפש…</p>';
-        const ok = await reloadProposalList({ search: query }, { append: false });
-        if (signal.aborted || !root.isConnected || !input.isConnected || text(input.value) !== query) return;
-        if (!ok) {
-          results.innerHTML = '<p class="ds-client-search-empty">החיפוש נכשל. נסו שוב.</p>';
+        // Prefer server search when the list API exists; keep local fallback for tests/offline.
+        if (typeof api.proposalsAgreements === 'function') {
+          results.innerHTML = '<p class="ds-client-search-empty">מחפש…</p>';
+          const ok = await reloadProposalList({ search: query }, { append: false });
+          if (signal.aborted || !root.isConnected || !input.isConnected || text(input.value) !== query) return;
+          if (!ok) {
+            results.innerHTML = '<p class="ds-client-search-empty">החיפוש נכשל. נסו שוב.</p>';
+            return;
+          }
+          results.innerHTML = clientSearchResultsHtml(buildClientFiles({ ...data, contactOptions: [] }), query)
+            || '<p class="ds-client-search-empty">לא נמצא תיק לקוח מתאים</p>';
           return;
         }
-        // Keep the search input mounted; only swap result cards from the server page.
-        results.innerHTML = clientSearchResultsHtml(buildClientFiles({ ...data, contactOptions: [] }), query)
+        results.innerHTML = clientSearchResultsHtml(buildClientFiles({ ...data, contactOptions }), query)
           || '<p class="ds-client-search-empty">לא נמצא תיק לקוח מתאים</p>';
       }, SEARCH_DEBOUNCE_MS);
     }, { signal });
@@ -8605,23 +8618,43 @@ export const proposalsAgreementsScreen = {
       if (addClientContactBtn) {
         const file = currentClientFile();
         if (!canManage || !file || !clientWorkspace) return;
+        const openAddContact = () => {
+          clientWorkspace.insertAdjacentHTML('beforeend', clientContactEditorHtml(currentClientFile() || file));
+          clientWorkspace.querySelector('[data-pa-client-contact-form] input')?.focus?.();
+        };
+        const contactsApiMissing = typeof api.proposalsAgreementsContacts !== 'function'
+          && typeof api.proposalsAgreementsEditorDeps !== 'function';
+        if (data._contactsLoaded || contactsApiMissing) {
+          data._contactsLoaded = true;
+          openAddContact();
+          return;
+        }
         await ensureContacts();
         if (signal.aborted || !root.isConnected) return;
-        clientWorkspace.insertAdjacentHTML('beforeend', clientContactEditorHtml(currentClientFile() || file));
-        clientWorkspace.querySelector('[data-pa-client-contact-form] input')?.focus?.();
+        openAddContact();
         return;
       }
 
       const editClientContactBtn = event.target.closest?.('[data-pa-client-edit-contact]');
       if (editClientContactBtn) {
+        const openEditContact = () => {
+          const file = currentClientFile();
+          const index = Number(editClientContactBtn.dataset.paClientEditContact);
+          const contact = file?.contacts[index];
+          if (!canManage || !file || !contact || !clientWorkspace) return;
+          clientWorkspace.insertAdjacentHTML('beforeend', clientContactEditorHtml(file, contact, index));
+          clientWorkspace.querySelector('[data-pa-client-contact-form] input')?.focus?.();
+        };
+        const contactsApiMissing = typeof api.proposalsAgreementsContacts !== 'function'
+          && typeof api.proposalsAgreementsEditorDeps !== 'function';
+        if (data._contactsLoaded || contactsApiMissing) {
+          data._contactsLoaded = true;
+          openEditContact();
+          return;
+        }
         await ensureContacts();
         if (signal.aborted || !root.isConnected) return;
-        const file = currentClientFile();
-        const index = Number(editClientContactBtn.dataset.paClientEditContact);
-        const contact = file?.contacts[index];
-        if (!canManage || !file || !contact || !clientWorkspace) return;
-        clientWorkspace.insertAdjacentHTML('beforeend', clientContactEditorHtml(file, contact, index));
-        clientWorkspace.querySelector('[data-pa-client-contact-form] input')?.focus?.();
+        openEditContact();
         return;
       }
 
