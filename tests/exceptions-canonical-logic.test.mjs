@@ -132,14 +132,14 @@ test('exception relevance follows activity_type before counts and display', () =
   );
 });
 
-test('unassigned manager with valid district is counted under the district and totals are exception instances', () => {
+test('district summary counts one unique activity while totals count exception instances', () => {
   const row = activity({ RowID: 'DIST-1', activity_manager: 'לא משויך', district: 'מחוז דרום', start_date: null, instructor_name: '', emp_id: '' });
   const model = buildExceptionsModelFromRows([row], '2999-05', { include_rows: true });
   assert.equal(model.counts.missing_start_date, 1);
   assert.equal(model.counts.missing_instructor, 1);
   assert.equal(model.totalExceptionRows, 1);
   assert.equal(model.totalExceptionInstances, 2);
-  assert.equal(model.byDistrict['מחוז דרום'], 2);
+  assert.equal(model.byDistrict['מחוז דרום'], 1);
 });
 
 test('late end date threshold creates only approved open activity exception', () => {
