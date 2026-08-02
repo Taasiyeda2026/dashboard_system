@@ -6,6 +6,7 @@ import { loadInstructorSchedulingData } from './instructor-scheduling-data.js';
 import { activityMeetings } from './instructor-scheduling-load.js';
 import { calculateCourseSchedule, preliminaryCourseCandidates } from './course-scheduling-engine.js';
 import { calculateCandidateTravel } from './course-scheduling-travel.js';
+import { formatDateHe, formatTimeRangeShort } from './shared/format-date.js';
 
 const text = (value) => String(value ?? '').trim();
 const emp = (candidate) => text(candidate?.instructor?.emp_id);
@@ -23,7 +24,7 @@ function compactMeetings(activity) {
   if (!meetings.length) return '—';
   const dates = meetings.map((meeting) => text(meeting.date)).sort();
   const weekdays = [...new Set(dates.map((date) => new Intl.DateTimeFormat('he-IL', { weekday: 'long' }).format(new Date(`${date}T12:00:00`))))];
-  return `${meetings.length} מפגשים · ${dates[0]}–${dates.at(-1)} · ${weekdays.join(', ')} · ${text(meetings[0].start_time || activity.start_time)}–${text(meetings[0].end_time || activity.end_time)}`;
+  return `${meetings.length} מפגשים · ${formatDateHe(dates[0])}–${formatDateHe(dates.at(-1))} · ${weekdays.join(', ')} · ${formatTimeRangeShort(meetings[0].start_time || activity.start_time, meetings[0].end_time || activity.end_time)}`;
 }
 
 function optionHtml(candidate, recommended, courseId) {
@@ -78,7 +79,7 @@ function rowsHtml(results) {
   return results.map((result) => {
     const course = result.course;
     const candidate = result.recommended;
-    return `<tr data-course-result="${escapeHtml(idOf(course))}"><td><b>${escapeHtml(course.activity_name || '—')}</b></td><td>${escapeHtml(course.school || '—')}<small>${escapeHtml(course.authority || '')}</small></td><td><details><summary>${escapeHtml(compactMeetings(course))}</summary>${activityMeetings(course).map((meeting) => `<div>${escapeHtml(meeting.date)} · ${escapeHtml(meeting.start_time || course.start_time)}–${escapeHtml(meeting.end_time || course.end_time)}</div>`).join('')}</details></td><td>${candidate ? escapeHtml(candidate.instructor.full_name || emp(candidate)) : '—'}</td><td>${candidate ? candidate.score : '—'}</td><td>${candidate ? escapeHtml(candidate.explanation) : detailsHtml(result)}</td><td><span class="ds-status-chip">${escapeHtml(result.status)}</span></td><td>${rowActions(result)}</td></tr>`;
+    return `<tr data-course-result="${escapeHtml(idOf(course))}"><td><b>${escapeHtml(course.activity_name || '—')}</b></td><td>${escapeHtml(course.school || '—')}<small>${escapeHtml(course.authority || '')}</small></td><td><details><summary><bdi dir="ltr">${escapeHtml(compactMeetings(course))}</bdi></summary>${activityMeetings(course).map((meeting) => `<div><bdi dir="ltr">${escapeHtml(formatDateHe(meeting.date))} · ${escapeHtml(formatTimeRangeShort(meeting.start_time || course.start_time, meeting.end_time || course.end_time))}</bdi></div>`).join('')}</details></td><td>${candidate ? escapeHtml(candidate.instructor.full_name || emp(candidate)) : '—'}</td><td>${candidate ? candidate.score : '—'}</td><td>${candidate ? escapeHtml(candidate.explanation) : detailsHtml(result)}</td><td><span class="ds-status-chip">${escapeHtml(result.status)}</span></td><td>${rowActions(result)}</td></tr>`;
   }).join('');
 }
 

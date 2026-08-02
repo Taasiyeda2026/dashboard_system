@@ -57,4 +57,15 @@ export const ABSOLUTE_BUDGETS = {
 };
 
 export const REGRESSION_RATIO = 1.2;
+
+/**
+ * Hosted runners and live Supabase response times vary between otherwise identical runs.
+ * Timing metrics therefore receive a small fixed allowance in addition to the 20% ratio.
+ * Counts, transferred bytes and runtime probes keep the strict ratio-only comparison.
+ */
+export const REGRESSION_MIN_ALLOWANCE = {
+  timeToContentMs: 400,
+  networkIdleMs: 500
+};
+
 export const SCREEN_TIMEOUT_MS = 90_000;

@@ -39,7 +39,11 @@ export function formatTimeShort(value) {
 export function formatTimeRangeShort(startValue, endValue) {
   const start = formatTimeShort(startValue);
   const end = formatTimeShort(endValue);
-  return start && end ? `${start}-${end}` : (start || end || '—');
+  return start && end ? `${start}–${end}` : (start || end || '—');
+}
+
+export function formatDateDots(iso) {
+  return String(formatDateHe(iso)).replaceAll('/', '.');
 }
 
 /**
