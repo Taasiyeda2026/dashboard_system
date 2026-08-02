@@ -39,8 +39,7 @@ jobs:
         env:
           BASE_SHA: ${{ github.event.pull_request.base.sha }}
           HEAD_SHA: ${{ github.event.pull_request.head.sha }}
-          PR_IS_DRAFT: ${{ github.event_name == 'pull_request' && github.event.pull_request.draft || false }}
-          FORCE_FULL: ${{ github.event_name == 'workflow_dispatch' }}
+          FORCE_FULL: ${{ github.event_name == 'workflow_dispatch' || (github.event_name == 'pull_request' && (github.event.action == 'ready_for_review' || github.event.action == 'reopened' || (github.event.action == 'opened' && github.event.pull_request.draft == false))) }}
         run: |
           if [ "${{ github.event_name }}" = "pull_request" ]; then
             git diff --name-only "$BASE_SHA" "$HEAD_SHA" > /tmp/e2e-changed-files.txt
