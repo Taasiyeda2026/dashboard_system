@@ -650,8 +650,25 @@ function isOpenStatus(row = {}) {
   return isOperationallyActive(row);
 }
 
+const PENDING_DISTRICT_ASSIGNMENT = 'ממתין לשיוך מחוזי';
+
+function isPendingDistrictAssignment(value) {
+  return nullStr(value) === PENDING_DISTRICT_ASSIGNMENT;
+}
+
+function hasActivityAuthority(row = {}) {
+  if (row?.authority_id != null && String(row.authority_id).trim() !== '') return true;
+  return Boolean(nullStr(row?.authority));
+}
+
+function isMissingDistrictValue(value) {
+  const district = nullStr(value);
+  return !district || isPendingDistrictAssignment(district);
+}
+
 function districtDisplayKey(row = {}) {
-  return nullStr(row?.district) || 'ללא מחוז / לא משויך';
+  if (isMissingDistrictValue(row?.district)) return 'ללא מחוז / לא משויך';
+  return nullStr(row?.district);
 }
 function hasAnyActivityDate(row = {}) {
   if (normalizeSupabaseDate(row?.start_date ?? row?.date_start)) return true;
@@ -2533,8 +2550,12 @@ function rowExceptionTypesFromActivity(row, opts = {}) {
   const hasValidInstructor = !!instructorName || !!secondaryInstructorName || isValidId(emp1) || isValidId(emp2);
   if (!inactive && !hasValidInstructor) types.push('missing_instructor');
   if (!inactive && !nullStr(row?.school)) types.push('missing_school');
-  if (!inactive && !nullStr(row?.authority)) types.push('missing_authority');
-  if (!inactive && districtDisplayKey(row) === 'ללא מחוז / לא משויך') types.push('missing_district');
+  // Activities without an authority are a separate exception — never count them as
+  // "missing district / unassigned authority district".
+  if (!inactive && !hasActivityAuthority(row)) types.push('missing_authority');
+  if (!inactive && hasActivityAuthority(row) && isMissingDistrictValue(row?.district)) {
+    types.push('missing_district');
+  }
 
   // Missing start date is based only on start_date; meeting dates do not replace
   // the dedicated start date field for this exception.

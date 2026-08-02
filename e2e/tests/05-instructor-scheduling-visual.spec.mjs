@@ -112,16 +112,19 @@ test('instructor and scheduling requirements modal stays compact and RTL-safe', 
   expect(['', 'elementary', 'middle_school', 'high_school']).toContain(educationValue);
 
   await closeRequirements.click();
-  await expect(scheduling).toHaveAttribute('aria-hidden', 'true');
+  await expect(page.locator('.ds-modal--scheduling')).toHaveCount(0);
+  await expect(page.locator('.ds-modal')).toHaveAttribute('aria-hidden', 'true');
 
   await drawer.locator('[data-find-instructor]:visible').click();
-  await expect(page.locator('.ds-modal--scheduling')).toBeVisible();
-  await expect(page.locator('.ds-modal--scheduling')).toHaveAttribute('aria-hidden', 'false');
-  await expect(page.locator('.ds-modal--scheduling [name="required_instructor_gender"]')).toHaveValue(genderValue);
-  await expect(page.locator('.ds-modal--scheduling [name="instruction_language"]')).toHaveValue(languageValue);
-  await expect(page.locator('.ds-modal--scheduling [name="education_level"]')).toHaveValue(educationValue);
-  await page.locator('.ds-modal--scheduling .ds-modal__footer button.ds-btn[data-ui-close-modal]').click();
-  await expect(page.locator('.ds-modal--scheduling')).toHaveAttribute('aria-hidden', 'true');
+  const schedulingAgain = page.locator('.ds-modal--scheduling');
+  await expect(schedulingAgain).toBeVisible();
+  await expect(schedulingAgain).toHaveAttribute('aria-hidden', 'false');
+  await expect(schedulingAgain.locator('[name="required_instructor_gender"]')).toHaveValue(genderValue);
+  await expect(schedulingAgain.locator('[name="instruction_language"]')).toHaveValue(languageValue);
+  await expect(schedulingAgain.locator('[name="education_level"]')).toHaveValue(educationValue);
+  await schedulingAgain.locator('.ds-modal__footer button.ds-btn[data-ui-close-modal]').click();
+  await expect(page.locator('.ds-modal--scheduling')).toHaveCount(0);
+  await expect(page.locator('.ds-modal')).toHaveAttribute('aria-hidden', 'true');
 
   await navigateToScreen(page, 'instructors');
   await waitForScreenReady(page, 'instructors');
