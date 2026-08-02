@@ -12,7 +12,7 @@ async function screenshot(page, name) {
   await page.screenshot({ path: path.join(screenshotsDir, name), fullPage: true });
 }
 
-test('instructor and scheduling cosmetic flow stays compact and RTL-safe', async ({ page, tracker }) => {
+test('instructor and scheduling requirements modal stays compact and RTL-safe', async ({ page, tracker }) => {
   test.setTimeout(120_000);
   tracker.resetScreen('instructor-scheduling-visual');
   await page.goto('/');
@@ -66,6 +66,9 @@ test('instructor and scheduling cosmetic flow stays compact and RTL-safe', async
   }
   expect(schedulingActivityFound, 'expected an existing activity with real scheduling controls').toBe(true);
   await expect(drawer).toBeVisible();
+  await expect(drawer.getByRole('button', { name: 'דרישות שיבוץ', exact: true })).toBeVisible();
+  await expect(drawer.getByRole('button', { name: 'ניהול שיבוץ', exact: true })).toHaveCount(0);
+  await expect(drawer.getByRole('button', { name: 'איתור מדריך', exact: true })).toHaveCount(0);
   await screenshot(page, 'activity-drawer-restored.png');
   const drawerCssHref = await page.evaluate(() => Array.from(document.styleSheets)
     .find((sheet) => {
@@ -76,13 +79,74 @@ test('instructor and scheduling cosmetic flow stays compact and RTL-safe', async
   const drawerCssResponse = await page.request.get(drawerCssHref);
   expect(drawerCssResponse.ok()).toBe(true);
   expect(drawerCssResponse.headers()['content-type']).toContain('text/css');
+
   await drawer.locator('[data-find-instructor]:visible').click();
   const scheduling = page.locator('.ds-modal--scheduling');
   await expect(scheduling).toBeVisible();
+  await expect(scheduling.locator('.ds-modal__title')).toContainText('דרישות שיבוץ');
+  await expect(scheduling.getByLabel('מגדר המדריך')).toBeVisible();
+  await expect(scheduling.getByLabel('שפת הדרכה')).toBeVisible();
+  await expect(scheduling.getByLabel('שכבת גיל')).toBeVisible();
+  await expect(scheduling.getByRole('button', { name: 'סגירה', exact: true })).toBeVisible();
+  await expect(scheduling.getByRole('button', { name: 'שמירת דרישות השיבוץ', exact: true })).toBeVisible();
+  await expect(scheduling.getByRole('button', { name: 'איתור מדריכים מתאימים', exact: true })).toHaveCount(0);
+  await expect(scheduling.getByText('מדריכים חסומים', { exact: true })).toHaveCount(0);
+  await expect(scheduling.getByText('מדריכים מותרים בלבד', { exact: true })).toHaveCount(0);
+  await expect(scheduling.getByText('הערת שיבוץ פנימית', { exact: true })).toHaveCount(0);
+  await expect(scheduling.getByText('מומלצים', { exact: true })).toHaveCount(0);
+  await expect(scheduling.getByText('מתאימים עם חריגה', { exact: true })).toHaveCount(0);
+  await expect(scheduling.getByText('לא מתאימים', { exact: true })).toHaveCount(0);
+  await expect(scheduling.getByText('אישור ושיבוץ', { exact: true })).toHaveCount(0);
   await expect(scheduling.locator('.scheduling-time-range')).toHaveAttribute('dir', 'ltr');
   await expect(scheduling.locator('.scheduling-time-range')).not.toContainText(/:\d{2}:\d{2}/);
   await expect(scheduling.locator('.scheduling-workspace__dates')).toContainText(/\d{2}\.\d{2}\.\d{4}/);
-  await screenshot(page, 'scheduling-modal-compact.png');
+  await screenshot(page, 'scheduling-requirements-modal.png');
+
+  const genderValue = await scheduling.locator('[name="required_instructor_gender"]').inputValue();
+  const languageValue = await scheduling.locator('[name="instruction_language"]').inputValue();
+  const educationValue = await scheduling.locator('[name="education_level"]').inputValue();
+  expect(['any', 'female', 'male']).toContain(genderValue);
+  expect(['he', 'ar']).toContain(languageValue);
+  expect(['', 'elementary', 'middle_school', 'high_school']).toContain(educationValue);
+
+  await scheduling.getByRole('button', { name: 'סגירה', exact: true }).click();
+  await expect(scheduling).toHaveCount(0);
+
+  await drawer.locator('[data-find-instructor]:visible').click();
+  await expect(page.locator('.ds-modal--scheduling')).toBeVisible();
+  await expect(page.locator('.ds-modal--scheduling [name="required_instructor_gender"]')).toHaveValue(genderValue);
+  await expect(page.locator('.ds-modal--scheduling [name="instruction_language"]')).toHaveValue(languageValue);
+  await expect(page.locator('.ds-modal--scheduling [name="education_level"]')).toHaveValue(educationValue);
+  await page.locator('.ds-modal--scheduling').getByRole('button', { name: 'סגירה', exact: true }).click();
+  await expect(page.locator('.ds-modal--scheduling')).toHaveCount(0);
+
+  await navigateToScreen(page, 'instructors');
+  await waitForScreenReady(page, 'instructors');
+  await navigateToScreen(page, 'activities');
+  await setActivityPeriod(page, 'school_2027');
+  await expect(page.getByText('כל פעילויות תשפ״ז', { exact: true })).toBeVisible();
+  const rowsAfterReturn = page.locator('.ds-activities-row[data-row-id]:visible');
+  const returnCount = await rowsAfterReturn.count();
+  let requirementsVisibleAfterReturn = false;
+  for (let index = 0; index < returnCount; index += 1) {
+    await rowsAfterReturn.nth(index).click();
+    await expect(drawer).toBeVisible();
+    if (await drawer.locator('[data-find-instructor]:visible').count()) {
+      await drawer.locator('[data-find-instructor]:visible').click();
+      const reopened = page.locator('.ds-modal--scheduling');
+      await expect(reopened).toBeVisible();
+      await expect(reopened.getByLabel('מגדר המדריך')).toBeVisible();
+      await expect(reopened.getByText('מדריכים חסומים', { exact: true })).toHaveCount(0);
+      await expect(reopened.getByRole('button', { name: 'שמירת דרישות השיבוץ', exact: true })).toBeVisible();
+      await screenshot(page, 'scheduling-requirements-after-navigation.png');
+      await reopened.getByRole('button', { name: 'סגירה', exact: true }).click();
+      requirementsVisibleAfterReturn = true;
+      break;
+    }
+    const activityDrawerClose = drawer.locator('.activity-drawer__close[data-action="close-drawer"]:visible');
+    if (await activityDrawerClose.count()) await activityDrawerClose.click();
+  }
+  expect(requirementsVisibleAfterReturn).toBe(true);
 
   const bodyWidth = await page.evaluate(() => ({ scroll: document.documentElement.scrollWidth, client: document.documentElement.clientWidth }));
   expect(bodyWidth.scroll).toBeLessThanOrEqual(bodyWidth.client + 1);
