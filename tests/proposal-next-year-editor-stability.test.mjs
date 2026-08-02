@@ -25,6 +25,7 @@ if (!globalThis.localStorage) {
 const {
   pricingRowsForNextYearGroup,
   isBlankNextYearEditorRow,
+  removeBlankNextYearRows,
   stabilizeNextYearForm
 } = await import('../frontend/src/proposal-next-year-editor-stability.js');
 
@@ -122,7 +123,13 @@ function formHtml({ storedPrice = '', includeBlankWorkshop = true } = {}) {
 
 function withDom(html, fn) {
   const dom = new JSDOM(html, { url: 'http://localhost/' });
-  return fn(dom.window.document.querySelector('[data-pa-form]'), dom);
+  const previousEvent = globalThis.Event;
+  globalThis.Event = dom.window.Event;
+  try {
+    return fn(dom.window.document.querySelector('[data-pa-form]'), dom);
+  } finally {
+    globalThis.Event = previousEvent;
+  }
 }
 
 test('internal next-year groups receive separate non-empty pricing lists', () => {
@@ -170,5 +177,27 @@ test('keeps a user-added empty workshop row and populates its workshop options',
     const options = Array.from(row.querySelector('[data-pa-pricing-select]').options).map((option) => option.textContent);
     assert.ok(options.some((label) => label.includes('סדנאות חלל')));
     assert.ok(options.every((label) => !label.includes('אופק יזמות')));
+  });
+});
+
+test('removes blank user-added rows before save or proposal-type switching', () => {
+  withDom(formHtml({ includeBlankWorkshop: false }), (form) => {
+    const body = form.querySelector('[data-pa-items-group-body="next_year_workshops"]');
+    body.insertAdjacentHTML('beforeend', itemRow({ group: 'next_year_workshops', userAdded: true }));
+    stabilizeNextYearForm(form, [course, workshop], { notify: false, removeBlankRows: true });
+    assert.equal(body.querySelectorAll('[data-pa-item-row]').length, 1);
+    assert.equal(removeBlankNextYearRows(form), 1);
+    assert.equal(body.querySelectorAll('[data-pa-item-row]').length, 0);
+  });
+});
+
+test('notifies the screen once after hydration and does not create a preview loop', () => {
+  withDom(formHtml(), (form) => {
+    let inputEvents = 0;
+    form.querySelector('[data-pa-item-price]').addEventListener('input', () => { inputEvents += 1; });
+    stabilizeNextYearForm(form, [course, workshop], { removeBlankRows: true });
+    assert.equal(inputEvents, 1);
+    stabilizeNextYearForm(form, [course, workshop], { removeBlankRows: true });
+    assert.equal(inputEvents, 1);
   });
 });
