@@ -87,7 +87,9 @@ test('instructor and scheduling requirements modal stays compact and RTL-safe', 
   await expect(scheduling.getByLabel('מגדר המדריך')).toBeVisible();
   await expect(scheduling.getByLabel('שפת הדרכה')).toBeVisible();
   await expect(scheduling.getByLabel('שכבת גיל')).toBeVisible();
-  await expect(scheduling.getByRole('button', { name: 'סגירה', exact: true })).toBeVisible();
+  const closeRequirements = scheduling.locator('.ds-modal__footer button.ds-btn[data-ui-close-modal]');
+  await expect(closeRequirements).toBeVisible();
+  await expect(closeRequirements).toHaveText('סגירה');
   await expect(scheduling.getByRole('button', { name: 'שמירת דרישות השיבוץ', exact: true })).toBeVisible();
   await expect(scheduling.getByRole('button', { name: 'איתור מדריכים מתאימים', exact: true })).toHaveCount(0);
   await expect(scheduling.getByText('מדריכים חסומים', { exact: true })).toHaveCount(0);
@@ -109,16 +111,17 @@ test('instructor and scheduling requirements modal stays compact and RTL-safe', 
   expect(['he', 'ar']).toContain(languageValue);
   expect(['', 'elementary', 'middle_school', 'high_school']).toContain(educationValue);
 
-  await scheduling.getByRole('button', { name: 'סגירה', exact: true }).click();
-  await expect(scheduling).toHaveCount(0);
+  await closeRequirements.click();
+  await expect(scheduling).toHaveAttribute('aria-hidden', 'true');
 
   await drawer.locator('[data-find-instructor]:visible').click();
   await expect(page.locator('.ds-modal--scheduling')).toBeVisible();
+  await expect(page.locator('.ds-modal--scheduling')).toHaveAttribute('aria-hidden', 'false');
   await expect(page.locator('.ds-modal--scheduling [name="required_instructor_gender"]')).toHaveValue(genderValue);
   await expect(page.locator('.ds-modal--scheduling [name="instruction_language"]')).toHaveValue(languageValue);
   await expect(page.locator('.ds-modal--scheduling [name="education_level"]')).toHaveValue(educationValue);
-  await page.locator('.ds-modal--scheduling').getByRole('button', { name: 'סגירה', exact: true }).click();
-  await expect(page.locator('.ds-modal--scheduling')).toHaveCount(0);
+  await page.locator('.ds-modal--scheduling .ds-modal__footer button.ds-btn[data-ui-close-modal]').click();
+  await expect(page.locator('.ds-modal--scheduling')).toHaveAttribute('aria-hidden', 'true');
 
   await navigateToScreen(page, 'instructors');
   await waitForScreenReady(page, 'instructors');
@@ -139,7 +142,7 @@ test('instructor and scheduling requirements modal stays compact and RTL-safe', 
       await expect(reopened.getByText('מדריכים חסומים', { exact: true })).toHaveCount(0);
       await expect(reopened.getByRole('button', { name: 'שמירת דרישות השיבוץ', exact: true })).toBeVisible();
       await screenshot(page, 'scheduling-requirements-after-navigation.png');
-      await reopened.getByRole('button', { name: 'סגירה', exact: true }).click();
+      await reopened.locator('.ds-modal__footer button.ds-btn[data-ui-close-modal]').click();
       requirementsVisibleAfterReturn = true;
       break;
     }

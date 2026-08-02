@@ -54,7 +54,7 @@ import {
 } from './shared/activity-readonly-period.js';
 import { showToast } from './shared/toast.js';
 import { canEditDirect, canAddActivityDirect, canRequestEdit, canRequestCreateActivity, canReviewRequests } from '../permissions.js';
-import { bindInstructorScheduling } from './instructor-scheduling-workflow.js?v=20260802-scheduling-requirements-v1';
+import { bindInstructorScheduling } from './instructor-scheduling-workflow.js';
 const taasiyedaLogoSrc = new URL('../../assets/logo1.png', import.meta.url).href;
 
 const inflightActivityDetailRequests = new Map();
@@ -2411,37 +2411,7 @@ export const activitiesScreen = {
       hideShellHeader(contentRoot);
       bindActivityEditForm(contentRoot);
       bindContact2027Section(contentRoot);
-      bindInstructorScheduling(contentRoot, {
-        ui,
-        state,
-        onRequirementsSaved: (activity, requirements = {}) => {
-          const activityId = String(activity?.row_id || activity?.RowID || '').trim();
-          if (!activityId) return;
-          const patch = {
-            required_instructor_gender: requirements.required_instructor_gender ?? activity.required_instructor_gender,
-            instruction_language: requirements.instruction_language ?? activity.instruction_language,
-            education_level: requirements.education_level ?? activity.education_level
-          };
-          const summaryRow = {
-            RowID: activityId,
-            source_sheet: activity.source_sheet || 'activities'
-          };
-          const cachedDetail = getCachedActivityDetail(summaryRow, state);
-          putCachedActivityDetail(summaryRow, { ...(cachedDetail || activity), ...patch }, state);
-          for (const row of activitiesRows) {
-            const rowId = String(row?.row_id || row?.RowID || '').trim();
-            if (rowId === activityId) Object.assign(row, patch);
-          }
-          const periodsEntry = state?.screenDataCache?.['activities:periods'];
-          if (periodsEntry?.data && Array.isArray(periodsEntry.data.rows)) {
-            periodsEntry.data.rows = periodsEntry.data.rows.map((row) => {
-              const rowId = String(row?.row_id || row?.RowID || '').trim();
-              return rowId === activityId ? { ...row, ...patch } : row;
-            });
-            periodsEntry.t = Date.now();
-          }
-        }
-      });
+      bindInstructorScheduling(contentRoot, { ui, state, activitiesRows });
     }
 
     function bindActivitiesReopenBtn(contentRoot, row) {

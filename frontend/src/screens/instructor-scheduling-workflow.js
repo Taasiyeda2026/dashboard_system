@@ -81,10 +81,43 @@ function patchLocalActivity(form, activity, requirements) {
   return next;
 }
 
-export function bindInstructorScheduling(root, { ui, state, onRequirementsSaved } = {}) {
+function patchActivityCaches(state, activitiesRows, activity, requirements) {
+  const activityId = txt(activity?.row_id || activity?.RowID);
+  if (!activityId || !state?.screenDataCache) return;
+  const patch = {
+    required_instructor_gender: requirements.required_instructor_gender ?? activity.required_instructor_gender,
+    instruction_language: requirements.instruction_language ?? activity.instruction_language,
+    education_level: requirements.education_level ?? activity.education_level
+  };
+  const detailKey = `activityDetail:${activity.source_sheet || ''}:${activityId}`;
+  const detailEntry = state.screenDataCache[detailKey];
+  const detailBase = detailEntry?.data && typeof detailEntry.data === 'object'
+    ? detailEntry.data
+    : activity;
+  state.screenDataCache[detailKey] = { data: { ...detailBase, ...patch }, t: Date.now() };
+  if (Array.isArray(activitiesRows)) {
+    for (const row of activitiesRows) {
+      const rowId = txt(row?.row_id || row?.RowID);
+      if (rowId === activityId) Object.assign(row, patch);
+    }
+  }
+  const periodsEntry = state.screenDataCache['activities:periods'];
+  if (periodsEntry?.data && Array.isArray(periodsEntry.data.rows)) {
+    periodsEntry.data.rows = periodsEntry.data.rows.map((row) => {
+      const rowId = txt(row?.row_id || row?.RowID);
+      return rowId === activityId ? { ...row, ...patch } : row;
+    });
+    periodsEntry.t = Date.now();
+  }
+}
+
+export function bindInstructorScheduling(root, { ui, state, activitiesRows, onRequirementsSaved } = {}) {
   const button = root?.querySelector('[data-find-instructor]');
   if (!button || button.dataset.bound) return;
   button.dataset.bound = 'yes';
+  if (txt(button.textContent) && txt(button.textContent) !== 'דרישות שיבוץ') {
+    button.textContent = 'דרישות שיבוץ';
+  }
 
   button.addEventListener('click', async () => {
     const form = button.closest('[data-drawer-form]');
@@ -154,6 +187,7 @@ export function bindInstructorScheduling(root, { ui, state, onRequirementsSaved 
           education_level: txt(saved.education_level) || requirements.education_level
         };
         activity = patchLocalActivity(form, activity, nextRequirements);
+        patchActivityCaches(state, activitiesRows, activity, nextRequirements);
         onRequirementsSaved?.(activity, nextRequirements);
         ui.closeModal();
         showToast('דרישות השיבוץ נשמרו בהצלחה', 'success');
