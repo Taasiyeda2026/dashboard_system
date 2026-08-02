@@ -7,6 +7,7 @@ function asList(rows) {
 export const EXCEPTION_TYPE_ORDER = [
   'end_date_passed',
   'missing_instructor',
+  'missing_authority',
   'missing_district',
   'missing_start_date',
   'missing_end_date',

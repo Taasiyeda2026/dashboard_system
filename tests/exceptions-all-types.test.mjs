@@ -469,6 +469,7 @@ test('exceptions screen totals, district sum, and rendered cards use the same ex
 test('exceptions screen separates all summer rows from general exceptions', () => {
   const data = {
     month: '2026-05',
+    activity_period: 'regular',
     rows: [
       {
         RowID: 'REG-MISSING-DATE',
@@ -513,21 +514,49 @@ test('exceptions screen separates all summer rows from general exceptions', () =
     ]
   };
 
-  const generalHtml = exceptionsScreen.render(data, { state: { listFilters: {}, clientSettings: {} } });
+  const generalHtml = exceptionsScreen.render(data, {
+    state: { activityPeriodTab: 'regular', exceptionsTab: 'general', listFilters: {}, clientSettings: {} }
+  });
   assert.match(generalHtml, /חריגות כלליות[\s\S]*<span>1<\/span>/);
-  assert.match(generalHtml, /חריגות קיץ[\s\S]*<span>4<\/span>/);
+  // Summer tab keeps only summer-relevant exception types (instructor/start/completion).
+  assert.match(generalHtml, /חריגות קיץ 2026[\s\S]*<span>2<\/span>/);
   assert.match(generalHtml, /פעילות רגילה ללא תאריך/);
   assert.doesNotMatch(generalHtml, /הזמנת קיץ ללא תאריך/);
   assert.equal((generalHtml.match(/data-card-action="exception:/g) || []).length, 1);
 
-  const summerHtml = exceptionsScreen.render(data, { state: { exceptionsTab: 'summer_dates', listFilters: {}, clientSettings: {} } });
-  assert.match(summerHtml, /חריגות של פעילויות קיץ מוצגות כאן בנפרד כדי להפריד בין פעילות קיץ לבין פעילות רגילה/);
+  const summerHtml = exceptionsScreen.render(data, {
+    state: { activityPeriodTab: 'regular', exceptionsTab: 'summer_dates', listFilters: {}, clientSettings: {} }
+  });
   assert.match(summerHtml, /הזמנת קיץ ללא תאריך/);
   assert.doesNotMatch(summerHtml, /פעילות רגילה ללא תאריך/);
   assert.match(summerHtml, /פעילות קיץ עם מדריך חסר/);
-  assert.match(summerHtml, /פעילות קיץ עם מחוז חסר/);
-  assert.match(summerHtml, /פעילות קיץ עם תאריך סיום עבר/);
-  assert.equal((summerHtml.match(/data-card-action="exception:/g) || []).length, 4);
+  assert.doesNotMatch(summerHtml, /פעילות קיץ עם מחוז חסר/);
+  assert.doesNotMatch(summerHtml, /פעילות קיץ עם תאריך סיום עבר/);
+  assert.equal((summerHtml.match(/data-card-action="exception:/g) || []).length, 2);
+});
+
+test('2027 working year hides the summer 2026 exceptions tab even when count is zero', () => {
+  const data = {
+    month: '2027-01',
+    activity_period: 'school_2027',
+    rows: [
+      {
+        RowID: 'S27-1',
+        activity_name: 'פעילות 2027',
+        activity_season: 'school_2027',
+        authority: '',
+        district: 'ממתין לשיוך מחוזי',
+        exception_types: ['missing_authority']
+      }
+    ]
+  };
+  const html = exceptionsScreen.render(data, {
+    state: { activityPeriodTab: 'school_2027', exceptionsTab: 'summer_dates', listFilters: {}, clientSettings: {} }
+  });
+  assert.doesNotMatch(html, /חריגות קיץ 2026/);
+  assert.doesNotMatch(html, /חריגות קיץ 2027/);
+  assert.match(html, /פעילויות ללא רשות/);
+  assert.match(html, /פעילות 2027/);
 });
 
 test('frontend drawer shows exception type chip when opening activity detail', async () => {
