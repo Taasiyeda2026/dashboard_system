@@ -85,7 +85,7 @@ test('proposal workflow exposes summer tab, fast editor, live totals and combine
   expect(workshopOption).not.toBe('');
   await workshopSelect.selectOption(workshopOption);
 
-  const livePreview = form.locator('[data-pa-live-preview]');
+  const livePreview = page.getByRole('region', { name: 'תצוגת מסמך A4' });
   await expect(livePreview.locator('.pa-next-year-course-table tbody tr')).not.toHaveCount(0);
   await expect(livePreview.locator('.pa-next-year-workshop-table tbody tr')).not.toHaveCount(0);
   await expect(livePreview.locator('.pa-next-year-combined-total')).toBeVisible();
