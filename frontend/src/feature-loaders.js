@@ -3,8 +3,8 @@
  * Heavy screen modules (PDF, annual reviews, Israa, activity drawers, operations)
  * stay out of the initial bootstrap and load only when their route/feature is used.
  *
- * Most legacy feature CSS is attached via <link>. Proposal editor CSS is imported
- * through Vite so production builds emit and load a real text/css asset.
+ * Feature CSS is imported through Vite so production builds emit and load real
+ * text/css assets instead of serving the application fallback for source paths.
  *
  * Every JS import() below uses a string literal so Rollup/Vite can emit async chunks.
  */
@@ -135,12 +135,12 @@ export function ensureFeature(name) {
         import('./activity-2026-season-query-hotfix.js?v=20260730-restore-2026-summer-v1'),
         import('./month-navigation-runtime.js'),
         import('./activities-tabs-corrections.js'),
-        loadStylesheet('./styles/activity-drawer-inline-layout.css'),
+        import('./styles/activity-drawer-inline-layout.css'),
         import('./activity-drawer-inline-layout.js'),
-        loadStylesheet('./styles/activity-drawer-type-layout-fix.css'),
+        import('./styles/activity-drawer-type-layout-fix.css'),
         import('./activity-drawer-type-layout-fix.js'),
-        loadStylesheet('./styles/activity-drawer-edit-header-polish.css'),
-        loadStylesheet('./styles/activity-drawer-floating-actions.css?v=20260731-floating-overlay-v3'),
+        import('./styles/activity-drawer-edit-header-polish.css'),
+        import('./styles/activity-drawer-floating-actions.css'),
         import('./activity-drawer-edit-dedup.js'),
         import('./activity-drawer-floating-actions.js?v=20260731-floating-overlay-v3')
       ]));

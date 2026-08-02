@@ -1093,8 +1093,8 @@ test('activities inner tabs are scoped to global 2027 and hide 2026 summer tabs/
   ] };
 
   const html = activitiesScreen.render(data, { state });
-  assert.match(html, /כל פעילויות 2027/);
-  assert.match(html, /פעילויות 2027/);
+  assert.match(html, /כל פעילויות תשפ״ז/);
+  assert.match(html, /פעילויות תשפ״ז/);
   assert.doesNotMatch(html, /קיץ 2026/);
   assert.doesNotMatch(html, /שנת 2026/);
   assert.match(html, /פעילות 2027/);

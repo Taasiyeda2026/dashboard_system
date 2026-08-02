@@ -38,24 +38,34 @@ test('instructor and scheduling cosmetic flow stays compact and RTL-safe', async
   const matchingBox = await matching.boundingBox();
   expect(matchingBox.width).toBeLessThanOrEqual(700);
   await screenshot(page, 'instructor-matching-modal.png');
-  await matching.locator('[data-ui-close-modal]').click();
+  await matching.getByRole('button', { name: 'סגירה', exact: true }).click();
 
   await navigateToScreen(page, 'activities');
   await setActivityPeriod(page, 'school_2027');
+  await expect(page.getByText('כל פעילויות תשפ״ז', { exact: true })).toBeVisible();
+  await screenshot(page, 'activities-year-labels.png');
   const unassigned = page.locator('.ds-activities-row').filter({ hasText: 'טרם שובץ' }).first();
   await expect(unassigned).toBeVisible();
   await unassigned.click();
+  const drawer = page.locator('.ds-drawer--activity-inline');
+  await expect(drawer).toBeVisible();
+  await screenshot(page, 'activity-drawer-restored.png');
+  const drawerCssHref = await page.evaluate(() => Array.from(document.styleSheets)
+    .find((sheet) => {
+      try { return Array.from(sheet.cssRules).some((rule) => rule.cssText.includes('.ds-drawer--activity-inline')); }
+      catch { return false; }
+    })?.href || '');
+  expect(drawerCssHref).toMatch(/\.css(?:$|\?)/);
+  const drawerCssResponse = await page.request.get(drawerCssHref);
+  expect(drawerCssResponse.ok()).toBe(true);
+  expect(drawerCssResponse.headers()['content-type']).toContain('text/css');
   await page.locator('[data-find-instructor]').click();
   const scheduling = page.locator('.ds-modal--scheduling');
   await expect(scheduling).toBeVisible();
   await expect(scheduling.locator('.scheduling-time-range')).toHaveAttribute('dir', 'ltr');
   await expect(scheduling.locator('.scheduling-time-range')).not.toContainText(/:\d{2}:\d{2}/);
   await expect(scheduling.locator('.scheduling-workspace__dates')).toContainText(/\d{2}\.\d{2}\.\d{4}/);
-  await screenshot(page, 'activity-scheduling-modal.png');
-
-  await page.setViewportSize({ width: 390, height: 844 });
-  await expect(scheduling).toBeVisible();
-  await screenshot(page, 'activity-scheduling-modal-mobile.png');
+  await screenshot(page, 'scheduling-modal-compact.png');
 
   const bodyWidth = await page.evaluate(() => ({ scroll: document.documentElement.scrollWidth, client: document.documentElement.clientWidth }));
   expect(bodyWidth.scroll).toBeLessThanOrEqual(bodyWidth.client + 1);

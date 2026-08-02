@@ -16,6 +16,6 @@ test('activity edit action is a true overlay above the scrollable drawer body', 
 
 test('floating overlay assets use a new cache version', async () => {
   const featureLoaders = await readFile(featureLoaderUrl, 'utf8');
-  assert.match(featureLoaders, /activity-drawer-floating-actions\.css\?v=20260731-floating-overlay-v3/);
+  assert.match(featureLoaders, /import\('\.\/styles\/activity-drawer-floating-actions\.css'\)/);
   assert.match(featureLoaders, /activity-drawer-floating-actions\.js\?v=20260731-floating-overlay-v3/);
 });

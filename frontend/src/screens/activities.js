@@ -218,9 +218,9 @@ function summer2026Rows(rows) {
 function activityInnerTabsForYear(yearKey) {
   if (yearKey === ACTIVITY_SEASON_SCHOOL_2027) {
     return [
-      { key: ACTIVITIES_INNER_TAB_ALL, label: 'כל פעילויות 2027' },
-      { key: ACTIVITIES_INNER_TAB_2027, label: 'פעילויות 2027' },
-      { key: ACTIVITIES_INNER_TAB_ARCHIVE, label: 'ארכיון 2027' }
+      { key: ACTIVITIES_INNER_TAB_ALL, label: 'כל פעילויות תשפ״ז' },
+      { key: ACTIVITIES_INNER_TAB_2027, label: 'פעילויות תשפ״ז' },
+      { key: ACTIVITIES_INNER_TAB_ARCHIVE, label: 'ארכיון תשפ״ז' }
     ];
   }
   return [

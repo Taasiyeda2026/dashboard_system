@@ -11,6 +11,21 @@
   --pa-editor-line: color-mix(in srgb, var(--ds-accent) 82%, white);
 }
 
+#app .ds-pa-editor-loading,
+#app .ds-pa-editor-load-error {
+  display: grid;
+  justify-items: center;
+  gap: 10px;
+  min-block-size: 240px;
+  padding: 56px 24px;
+  border: 1px solid color-mix(in srgb, var(--ds-accent) 45%, #cbd5e1);
+  border-radius: 12px;
+  background: var(--ds-surface, #fff);
+  text-align: center;
+}
+#app .ds-pa-editor-loading small,
+#app .ds-pa-editor-load-error span { color: var(--ds-text-secondary, #64748b); }
+
 #app .pa-editor-workspace .pa-sidebar {
   border: 1px solid var(--ds-accent);
   border-radius: 12px;
@@ -144,10 +159,19 @@
 #app .pa-editor-workspace .ds-pa-contact-select-field select { inline-size: 210px; }
 #app .pa-editor-workspace .ds-pa-contact-manual-fields,
 #app .pa-editor-workspace .ds-pa-contact-channels-fields { display: flex; align-items: end; gap: 8px; }
-#app .pa-editor-workspace .ds-pa-contact-manual-fields input,
-#app .pa-editor-workspace .ds-pa-contact-channels-fields input { inline-size: 104px; }
+#app .pa-editor-workspace .ds-pa-contact-manual-fields input { inline-size: 150px; }
+#app .pa-editor-workspace .ds-pa-contact-channels-fields input[name="phone"] { inline-size: 170px; }
+#app .pa-editor-workspace .ds-pa-contact-channels-fields input[name="email"] { inline-size: 280px; }
 #app .pa-editor-workspace .ds-pa-contact-channels { display: contents; }
 #app .pa-editor-workspace .ds-pa-contact-channels-status { display: flex; align-items: center; gap: 6px; }
+
+@media (max-width: 760px) {
+  #app .pa-editor-workspace [data-pa-step-panel="contact"] > .ds-pa-form-grid,
+  #app .pa-editor-workspace .ds-pa-contact-manual-fields,
+  #app .pa-editor-workspace .ds-pa-contact-channels-fields { flex-wrap: wrap; inline-size: 100%; }
+  #app .pa-editor-workspace .ds-pa-contact-channels-fields input[name="phone"],
+  #app .pa-editor-workspace .ds-pa-contact-channels-fields input[name="email"] { inline-size: min(100%, 320px); }
+}
 
 #app .pa-editor-workspace .ds-pa-form-type-panel,
 #app .pa-editor-workspace .ds-pa-form-activities-panel { display: grid; grid-template-columns: 110px 1fr; align-items: start; gap: 10px; padding-block: 14px; }
