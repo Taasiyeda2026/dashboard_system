@@ -104,8 +104,8 @@ function installStyles() {
 
 function normalizeInstructorCells(root = document) {
   root.querySelectorAll?.('.ds-chip--instructor-empty').forEach((chip) => {
-    chip.textContent = 'ללא מדריך';
-    chip.removeAttribute('title');
+    if (chip.textContent !== 'ללא מדריך') chip.textContent = 'ללא מדריך';
+    if (chip.hasAttribute('title')) chip.removeAttribute('title');
   });
 }
 
@@ -118,6 +118,16 @@ if (typeof document !== 'undefined') {
   run();
   const app = document.getElementById('app');
   if (app && typeof MutationObserver === 'function') {
-    new MutationObserver(run).observe(app, { childList: true, subtree: true });
+    new MutationObserver((mutations) => {
+      const hasRelevantChange = mutations.some((mutation) => {
+        if (mutation.type !== 'childList') return false;
+        return Array.from(mutation.addedNodes).some((node) => {
+          if (node.nodeType !== 1) return false;
+          return node.matches?.('.ds-chip--instructor-empty')
+            || Boolean(node.querySelector?.('.ds-chip--instructor-empty'));
+        });
+      });
+      if (hasRelevantChange) normalizeInstructorCells(app);
+    }).observe(app, { childList: true, subtree: true });
   }
 }
