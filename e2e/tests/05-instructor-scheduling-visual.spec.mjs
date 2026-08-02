@@ -58,7 +58,11 @@ test('instructor and scheduling cosmetic flow stays compact and RTL-safe', async
     const activityDrawerClose = drawer.locator('.activity-drawer__close[data-action="close-drawer"]:visible');
     await expect(activityDrawerClose).toHaveCount(1);
     await activityDrawerClose.click();
-    await expect(drawer).toBeHidden();
+    const uiLayer = page.locator('#ds-shared-ui-layer');
+    await expect(drawer).toHaveAttribute('aria-hidden', 'true');
+    await expect(uiLayer).not.toHaveClass(/is-drawer-open/);
+    await expect(drawer).toHaveCSS('pointer-events', 'none');
+    await expect(drawer).toHaveCSS('opacity', '0');
   }
   expect(schedulingActivityFound, 'expected an existing activity with real scheduling controls').toBe(true);
   await expect(drawer).toBeVisible();
