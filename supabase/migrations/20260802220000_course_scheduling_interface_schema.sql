@@ -142,6 +142,25 @@ $$;
 revoke all on function public.scheduling_authority_school_locations() from public;
 grant execute on function public.scheduling_authority_school_locations() to authenticated;
 
+-- 8a. Serializes concurrent scheduling writes for the same instructor. Two saves that both
+--     start before either commits could otherwise both pass the overlap check and both
+--     write (a classic check-then-act race). Every write path below takes this
+--     transaction-scoped advisory lock, keyed by instructor, before checking or writing —
+--     a second concurrent call for the same instructor blocks here until the first
+--     transaction ends, then re-runs its own check against the now-committed state.
+--     hashtext() namespaces and bounds the key to a safe int4 regardless of emp_id's range.
+create or replace function public.scheduling_lock_instructor_for_write(p_emp_id bigint)
+returns void
+language plpgsql
+security definer
+set search_path = public
+as $$
+begin
+  perform pg_advisory_xact_lock(hashtext('course_scheduling_instructor'), hashtext(p_emp_id::text));
+end
+$$;
+revoke all on function public.scheduling_lock_instructor_for_write(bigint) from public;
+
 -- 8. Real per-meeting overlap check, shared by draft saving and the confirmed-assignment
 --    path (assign/reassign/replace): checked against every one of the course's meeting
 --    dates, not just the currently open screen, and against both confirmed instructors

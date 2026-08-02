@@ -171,7 +171,22 @@ function draftPanelHtml(course) {
     <div class="course-panel__actions"><button class="ds-btn ds-btn--primary" data-confirm-draft>שבץ (אישור טיוטה)</button><button class="ds-btn" data-cancel-draft>ביטול טיוטה</button><button class="ds-btn ds-btn--ghost" data-open-missing-course>פתח פעילות</button></div>`;
 }
 
-function lockedPanelHtml(row, canEdit, instructors) {
+// Per-meeting instructor list (spec section 29): always reads from
+// scheduling_course_meeting_instructors() rather than assuming activities.emp_id taught
+// every meeting, so a past meeting still shows whoever actually delivered it even after
+// an operational replacement changed the course's current instructor going forward.
+export function meetingInstructorHistoryHtml(meetingRows, replacements) {
+  if (!meetingRows?.length) return '';
+  const effectiveDates = new Set((replacements || []).map((row) => text(row.effective_from)));
+  const rows = meetingRows.map((row) => {
+    const isEffectiveFrom = effectiveDates.has(text(row.meeting_date));
+    const marker = isEffectiveFrom ? ' <span class="ds-status-chip ds-status-chip--warning">מכאן ואילך — החלפה נכנסה לתוקף</span>' : '';
+    return `<tr><td><bdi dir="ltr">${escapeHtml(formatDateHe(row.meeting_date))}</bdi></td><td>${escapeHtml(row.instructor_name || row.emp_id || '—')}${marker}</td></tr>`;
+  }).join('');
+  return `<details class="course-scheduling__meeting-history"><summary>מדריך לפי מפגש</summary>${dsTableWrap(`<table class="ds-table"><thead><tr><th>תאריך</th><th>מדריך</th></tr></thead><tbody>${rows}</tbody></table>`)}</details>`;
+}
+
+function lockedPanelHtml(row, canEdit, instructors, meetingRows, replacements) {
   const c = row.course;
   const activeInstructors = (instructors || []).filter((instructor) => text(instructor.active).toLowerCase() === 'yes' && text(instructor.emp_id) !== text(c.emp_id));
   const replaceForm = canEdit ? `<details class="course-scheduling__replace"><summary>החלפת מדריך עקב צורך תפעולי</summary>
@@ -185,6 +200,7 @@ function lockedPanelHtml(row, canEdit, instructors) {
     <p class="ds-status-chip">${escapeHtml(row.statusLabel)}</p>
     <p>מדריך/ה: <b>${escapeHtml(c.instructor_name || c.emp_id)}</b></p>
     <p>${escapeHtml(meetingStageMessage(row.stage, row.meetingsCompleted))}</p>
+    ${meetingInstructorHistoryHtml(meetingRows, replacements)}
     <div class="course-panel__actions"><button class="ds-btn ds-btn--ghost" data-open-missing-course>פתח פעילות</button></div>
     ${replaceForm}`;
 }
@@ -300,7 +316,7 @@ export const courseSchedulingScreen = {
       clickActivityRowWhenReady(activityId);
     };
 
-    const openCoursePanel = (courseId) => {
+    const openCoursePanel = async (courseId) => {
       const course = courseById.get(courseId);
       if (!course || !ui) return;
       state.courseSchedulingSelectedId = courseId;
@@ -310,7 +326,11 @@ export const courseSchedulingScreen = {
       let content;
       if (isAssigned) {
         const row = courseRowModel(course, resultByCourseId, data.meetingState);
-        content = lockedPanelHtml(row, canEdit, data.instructors);
+        const [meetingInstructors, replacements] = await Promise.all([
+          supabase.rpc('scheduling_course_meeting_instructors', { p_activity_id: courseId }),
+          supabase.from('instructor_assignment_audit').select('effective_from').eq('activity_id', courseId).eq('decision_type', 'operational_replacement')
+        ]);
+        content = lockedPanelHtml(row, canEdit, data.instructors, meetingInstructors.data || [], replacements.data || []);
       } else if (hasDraft) {
         content = draftPanelHtml(course);
       } else {

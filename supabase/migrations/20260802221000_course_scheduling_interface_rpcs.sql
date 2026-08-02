@@ -296,6 +296,10 @@ begin
     and nullif(btrim(p_reason), '') is null
   then raise exception 'scheduling_reason_required'; end if;
 
+  -- Serialize concurrent writes for this instructor before checking or writing anything;
+  -- see scheduling_lock_instructor_for_write().
+  perform public.scheduling_lock_instructor_for_write(p_emp_id);
+
   violations := public.scheduling_course_instructor_violations(p_activity_id, p_emp_id, true);
   if coalesce(array_length(violations, 1), 0) > 0 and p_decision_type <> 'exception_approved' then
     raise exception '%', violations[1];
@@ -360,6 +364,10 @@ begin
   if not found then raise exception 'instructor_not_found'; end if;
   if btrim(coalesce(selected_instructor.full_name, '')) <> btrim(coalesce(p_instructor_name, '')) then raise exception 'instructor_name_mismatch'; end if;
 
+  -- Serialize concurrent writes for this instructor before checking or writing anything;
+  -- see scheduling_lock_instructor_for_write().
+  perform public.scheduling_lock_instructor_for_write(p_emp_id);
+
   select * into result from public.activities where row_id = p_activity_id for update;
   if not found then raise exception 'activity_not_found'; end if;
   if coalesce(result.activity_season, '') <> 'school_2027' then raise exception 'scheduling_activity_not_school_2027'; end if;
@@ -367,7 +375,9 @@ begin
   if result.instructor_assignment_locked or nullif(result.emp_id::text, '') is not null then raise exception 'scheduling_assignment_locked'; end if;
   -- A draft holds a real calendar slot (spec section 21), so it is blocked by a genuine
   -- overlap exactly like a confirmed assignment: against another draft of the same
-  -- instructor, or against an already-confirmed assignment of that instructor.
+  -- instructor, or against an already-confirmed assignment of that instructor. Re-checked
+  -- here, under the instructor lock, so a concurrent writer cannot slip in between the
+  -- check and this write.
   if public.scheduling_course_conflict_exists(p_activity_id, p_emp_id) then raise exception 'scheduling_conflict_detected'; end if;
 
   update public.activities
@@ -495,6 +505,10 @@ begin
     and nullif(btrim(p_reason), '') is null
   then raise exception 'scheduling_reason_required'; end if;
 
+  -- Serialize concurrent writes for the candidate instructor before checking or writing
+  -- anything; see scheduling_lock_instructor_for_write().
+  perform public.scheduling_lock_instructor_for_write(p_new_emp_id);
+
   violations := public.scheduling_course_instructor_violations(p_activity_id, p_new_emp_id, false);
   if coalesce(array_length(violations, 1), 0) > 0 and p_decision_type <> 'exception_approved' then
     raise exception '%', violations[1];
@@ -565,6 +579,10 @@ begin
   select * into result from public.activities where row_id = p_activity_id for update;
   if not found then raise exception 'activity_not_found'; end if;
   if nullif(result.emp_id::text, '') is null then raise exception 'scheduling_no_existing_assignment'; end if;
+
+  -- Serialize concurrent writes for the candidate instructor before checking or writing
+  -- anything; see scheduling_lock_instructor_for_write().
+  perform public.scheduling_lock_instructor_for_write(p_new_emp_id);
 
   violations := public.scheduling_course_instructor_violations(p_activity_id, p_new_emp_id, false);
 
