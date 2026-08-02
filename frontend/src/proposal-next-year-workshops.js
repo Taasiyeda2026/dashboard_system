@@ -1,4 +1,8 @@
 import { api } from './api.js';
+import {
+  PROPOSAL_PDF_RENDER_HOST_ATTRIBUTE,
+  setProposalPdfDocumentNormalizer
+} from './screens/proposals-agreements.js';
 
 const PATCH_KEY = Symbol.for('taasiyeda.proposalNextYearWorkshops');
 const NEXT_YEAR_GROUP = 'next_year';
@@ -304,11 +308,21 @@ function removeInternalGroupOptions(root) {
   });
 }
 
-export function normalizeNextYearWorkshopTables(root = globalThis.document) {
+/**
+ * When the document-wide observer runs, PDF render hosts are skipped: the PDF path
+ * normalizes its own tree once, synchronously, so generation never races the observer.
+ */
+function insidePdfRenderHost(element) {
+  return Boolean(element?.closest?.(`[${PROPOSAL_PDF_RENDER_HOST_ATTRIBUTE}]`));
+}
+
+export function normalizeNextYearWorkshopTables(root = globalThis.document, { skipPdfRenderHosts = false } = {}) {
   const tables = [];
   if (root?.matches?.(TABLE_SELECTOR)) tables.push(root);
   root?.querySelectorAll?.(TABLE_SELECTOR).forEach((table) => tables.push(table));
-  tables.forEach(splitNextYearTable);
+  tables
+    .filter((table) => !skipPdfRenderHosts || !insidePdfRenderHost(table))
+    .forEach(splitNextYearTable);
   normalizeNextYearGroupLabels(root);
   removeInternalGroupOptions(root);
   return root;
@@ -368,6 +382,7 @@ export function installProposalNextYearWorkshops(targetApi = api, scope = global
   const documentRef = scope?.document;
   wrapSnapshotMethod(targetApi, 'uploadProposalFinalPdf', documentRef);
   wrapSnapshotMethod(targetApi, 'lockAndSendProposalAgreement', documentRef);
+  setProposalPdfDocumentNormalizer((host) => normalizeNextYearWorkshopTables(host));
 
   if (documentRef?.documentElement && typeof scope?.MutationObserver === 'function') {
     let queued = false;
@@ -376,7 +391,7 @@ export function installProposalNextYearWorkshops(targetApi = api, scope = global
       queued = true;
       queueMicrotask(() => {
         queued = false;
-        normalizeNextYearWorkshopTables(documentRef);
+        normalizeNextYearWorkshopTables(documentRef, { skipPdfRenderHosts: true });
       });
     };
     if (documentRef.readyState === 'loading') documentRef.addEventListener('DOMContentLoaded', schedule, { once: true });
