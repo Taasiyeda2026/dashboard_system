@@ -30,12 +30,24 @@ async function screenshot(page, name) {
   await page.screenshot({ path: path.join(screenshotsDir, name), fullPage: true });
 }
 
+/**
+ * The live drawer uses the inline layout markup; the base drawer markup is the
+ * fallback for screens that do not load that layout. Read either one.
+ */
 async function drawerFieldValue(page, label) {
-  const field = page.locator('.ds-drawer__content .activity-view-field').filter({
-    has: page.locator('.activity-view-field__label', { hasText: new RegExp(`^${label}$`) })
-  });
-  if (!(await field.count())) return '';
-  return (await field.first().locator('.activity-view-field__value').innerText()).trim();
+  const variants = [
+    { field: '.activity-drawer-inline__field', label: '.activity-drawer-inline__label', value: '.activity-drawer-inline__value' },
+    { field: '.activity-view-field', label: '.activity-view-field__label', value: '.activity-view-field__value' }
+  ];
+  for (const variant of variants) {
+    const field = page.locator(`.ds-drawer__content ${variant.field}`).filter({
+      has: page.locator(variant.label, { hasText: new RegExp(`^${label}$`) })
+    });
+    if (!(await field.count())) continue;
+    const value = (await field.first().locator(variant.value).first().innerText()).trim();
+    if (value) return value;
+  }
+  return '';
 }
 
 async function expectNoMutationControls(page, scope) {
@@ -92,7 +104,7 @@ test('2026 is a complete read-only history and 2027 stays the editable default',
   await expect(drawerContent.locator(`[data-drawer-form][data-row-id="${REGRESSION_ROW_ID}"]`)).toHaveCount(1);
   await expect
     .poll(async () => drawerFieldValue(page, 'מחיר'), { timeout: 30_000, message: 'price must load into the open drawer' })
-    .toBe('650');
+    .toMatch(/^₪?650$/);
   expect(await drawerFieldValue(page, 'מימון')).toBe('רשות');
   expect(await drawerFieldValue(page, 'מספר משתתפים')).toBe('15');
   await expect(drawerContent.locator('[data-drawer-form]')).toHaveAttribute('data-activity-read-only', 'yes');

@@ -228,6 +228,77 @@ test('empty record fields are omitted instead of being invented', () => {
   assert.deepEqual(labels, ['תקופת הפעילות']);
 });
 
+test('the live inline drawer layout shows the record values exactly once', async () => {
+  const detailRow = {
+    RowID: 'summer_2026_row_369',
+    row_id: 'summer_2026_row_369',
+    activity_name: 'חדר בריחה חלל',
+    activity_type: 'escape_room',
+    activity_season: 'summer_2026',
+    authority: 'רשות א',
+    school: 'בית ספר א',
+    status: 'סגור',
+    start_date: '2026-07-05',
+    funding: 'רשות',
+    price: 650,
+    participants_count: 15
+  };
+
+  const dom = new JSDOM(`<!doctype html><html><body>
+    <div class="ds-ui-layer"><aside class="ds-drawer">
+      <header class="ds-drawer__header"><h2></h2></header>
+      <div class="ds-drawer__content">${activityWorkDrawerHtml(detailRow, { settings: {} })}</div>
+    </aside></div>
+  </body></html>`, { url: 'https://example.com/' });
+
+  const previous = {
+    window: globalThis.window,
+    document: globalThis.document,
+    MutationObserver: globalThis.MutationObserver,
+    Element: globalThis.Element,
+    Node: globalThis.Node
+  };
+  globalThis.window = dom.window;
+  globalThis.document = dom.window.document;
+  globalThis.MutationObserver = dom.window.MutationObserver;
+  globalThis.Element = dom.window.Element;
+  globalThis.Node = dom.window.Node;
+  globalThis.__ACTIVITY_DRAWER_INLINE_LAYOUT_TEST__ = true;
+
+  try {
+    const inlineModuleUrl = new URL('../frontend/src/activity-drawer-inline-layout.js', import.meta.url);
+    const { enhanceActivityDrawerForm } = await import(`${inlineModuleUrl.href}?readonly-test=${Date.now()}`);
+    const form = dom.window.document.querySelector('[data-drawer-form]');
+    assert.equal(enhanceActivityDrawerForm(form), true);
+
+    const inlineValues = new Map();
+    form.querySelectorAll('.activity-drawer-inline__field').forEach((field) => {
+      const label = field.querySelector(':scope > .activity-drawer-inline__label')?.textContent.trim();
+      const value = field.querySelector(':scope > .activity-drawer-inline__value')?.textContent.trim();
+      if (label && !inlineValues.has(label)) inlineValues.set(label, value);
+    });
+
+    assert.equal(inlineValues.get('מימון'), 'רשות');
+    assert.match(inlineValues.get('מחיר'), /650/);
+    assert.equal(inlineValues.get('מספר משתתפים'), '15');
+    assert.equal(inlineValues.get('עונת פעילות'), 'קיץ 2026');
+
+    const labels = [...form.querySelectorAll('.activity-drawer-inline__label')].map((node) => node.textContent.trim());
+    ['מימון', 'מחיר', 'מספר משתתפים'].forEach((label) => {
+      assert.equal(labels.filter((item) => item === label).length, 1, `${label} must render once`);
+    });
+    assert.equal(form.querySelectorAll('[data-record-details-section]').length, 0);
+  } finally {
+    delete globalThis.__ACTIVITY_DRAWER_INLINE_LAYOUT_TEST__;
+    dom.window.close();
+    globalThis.window = previous.window;
+    globalThis.document = previous.document;
+    globalThis.MutationObserver = previous.MutationObserver;
+    globalThis.Element = previous.Element;
+    globalThis.Node = previous.Node;
+  }
+});
+
 test('2026 activities are read-only everywhere the drawer is rendered', () => {
   const readOnlyRow = {
     RowID: 'SUMMER-CLOSED',
