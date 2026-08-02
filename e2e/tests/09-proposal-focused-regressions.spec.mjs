@@ -32,7 +32,7 @@ async function openDetailPreview(page, row) {
   await expect(previewAction).toBeVisible();
   await previewAction.click();
   const preview = page.locator('.proposal-preview-area:visible');
-  await expect(preview.locator('.proposal-document')).toBeVisible();
+  await expect(preview.locator('.proposal-document').first()).toBeVisible();
   return { detail, preview };
 }
 
