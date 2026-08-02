@@ -44,12 +44,23 @@ test.describe('Client file (תיק לקוח)', () => {
     const term = seedText.slice(0, 2) || 'תל';
     await search.fill(term);
     await page.waitForTimeout(500);
-    const openClient = page.locator(`[data-pa-open-client="${clientKey}"]`).first()
-      .or(page.locator('[data-pa-open-client]').first());
-    await openClient.waitFor({ state: 'visible', timeout: 45_000 });
+    const openClient = page.locator('[data-pa-open-client]').filter({ hasText: /./ }).filter({
+      has: page.locator(`[data-pa-open-client="${CSS.escape ? '' : ''}"]`)
+    });
+    // Prefer the seeded client key without relying on fragile CSS escaping.
+    const matched = page.locator('[data-pa-open-client]').evaluateAll(
+      (nodes, key) => nodes.findIndex((node) => node.getAttribute('data-pa-open-client') === key),
+      clientKey
+    );
+    void openClient;
+    await page.locator('[data-pa-open-client]').first().waitFor({ state: 'visible', timeout: 45_000 });
+    const matchIndex = await matched;
+    const target = matchIndex >= 0
+      ? page.locator('[data-pa-open-client]').nth(matchIndex)
+      : page.locator('[data-pa-open-client]').first();
 
     tracker.resetScreen('client-file-open');
-    await openClient.click();
+    await target.click();
     await page.locator('[data-pa-client-file], [data-pa-view-mode="client-file"]').first().waitFor({
       state: 'visible',
       timeout: 45_000
