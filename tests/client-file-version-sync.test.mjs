@@ -51,7 +51,7 @@ test('service worker and client-file hotfix versions are current and structurall
   ]);
 
   const cacheVersion = Number(sw.match(/const CACHE_VERSION = (\d+);/)?.[1] || 0);
-  assert.ok(Number.isInteger(cacheVersion) && cacheVersion >= 1361, 'CACHE_VERSION must include the full proposal PDF document rollout');
+  assert.ok(Number.isInteger(cacheVersion) && cacheVersion >= 1362, 'CACHE_VERSION must include the scheduling requirements simplification rollout');
 
   const hotfixVersion = config.match(/HOTFIX_VERSION:\s*'([^']+)'/)?.[1] || '';
   assert.ok(hotfixVersion.trim(), 'HOTFIX_VERSION must be defined');
@@ -67,6 +67,7 @@ test('service worker and client-file hotfix versions are current and structurall
   assert.match(hotfixVersion, /2026-readonly-complete-history-20260802-v1/, 'HOTFIX_VERSION must identify the 2026 read-only history rollout');
   assert.match(hotfixVersion, /proposal-type-tashpaz-totals-20260802-v1/, 'HOTFIX_VERSION must identify the proposal type and תשפ״ז totals rollout');
   assert.match(hotfixVersion, /proposal-pdf-full-document-20260802-v1/, 'HOTFIX_VERSION must identify the full proposal PDF document fix');
+  assert.match(hotfixVersion, /simplify-activity-scheduling-requirements-20260802-v1/, 'HOTFIX_VERSION must identify the activity scheduling requirements simplification');
 
   assert.match(login, /beginLoginServiceWorkerUpdate\(\)/);
   assert.match(login, /await onLogin\(userId, code, errorNode\);[\s\S]*await serviceWorkerUpdate\.reloadIfUpdated\(\);/);
@@ -199,8 +200,8 @@ test('annual review printing uses a compact management-document layout', async (
     readFile(ANNUAL_REVIEW_PRINT_FILE, 'utf8')
   ]);
 
-  assert.match(indexHtml, /main-with-proposal-pdf-hotfix\.js\?v=20260802-proposal-pdf-full-document-v1/);
-  assert.match(indexHtml, /styles\/main\.css\?v=20260802-proposal-pdf-full-document-v1/);
+  assert.match(indexHtml, /main-with-proposal-pdf-hotfix\.js\?v=20260802-scheduling-requirements-v1/);
+  assert.match(indexHtml, /styles\/main\.css\?v=20260802-scheduling-requirements-v1/);
   assert.match(featureLoaders, /annual-reviews-isolated-print\.js\?v=20260730-compact-print-v4/);
   assert.match(printRuntime, /window\.open\('', name/);
   assert.match(printRuntime, /doc\.write\(buildPrintDocument\(sourceRoot\)\)/);
