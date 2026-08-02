@@ -113,5 +113,5 @@ test('frontend hotfix and service worker cache versions are bumped together', as
   ]);
   assert.match(config, /recipient-date-domain-130-20260801-v1/);
   assert.match(config, /proposal-recipient-search-row-fix\.js\?v=20260801-v10/);
-  assert.match(sw, /const CACHE_VERSION = 1359;/);
+  assert.match(sw, /const CACHE_VERSION = 1361;/);
 });
