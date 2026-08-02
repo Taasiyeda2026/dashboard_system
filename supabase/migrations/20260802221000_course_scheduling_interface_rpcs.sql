@@ -173,7 +173,7 @@ begin
       where a.row_id <> target.row_id
         and a.activity_season = 'school_2027'
         and lower(btrim(coalesce(a.status::text, ''))) not in ('סגור','נמחק','בוטל','closed','deleted','cancelled','canceled','inactive','לא פעיל')
-        and (a.emp_id::text = p_emp_id::text or a.emp_id_2::text = p_emp_id::text)
+        and (a.emp_id::text = p_emp_id::text or a.emp_id_2::text = p_emp_id::text or a.draft_emp_id = p_emp_id::text)
         and meeting.meeting_date = any(array(select nullif(to_jsonb(a)->>('date_' || n), '')::date from generate_series(1,35) n))
         and a.start_time < target.end_time and target.start_time < a.end_time
     ) then raise exception 'scheduling_conflict_detected'; end if;
@@ -365,6 +365,10 @@ begin
   if coalesce(result.activity_season, '') <> 'school_2027' then raise exception 'scheduling_activity_not_school_2027'; end if;
   if lower(btrim(coalesce(result.status::text, ''))) not in ('פתוח','open') then raise exception 'scheduling_activity_not_open'; end if;
   if result.instructor_assignment_locked or nullif(result.emp_id::text, '') is not null then raise exception 'scheduling_assignment_locked'; end if;
+  -- A draft holds a real calendar slot (spec section 21), so it is blocked by a genuine
+  -- overlap exactly like a confirmed assignment: against another draft of the same
+  -- instructor, or against an already-confirmed assignment of that instructor.
+  if public.scheduling_course_conflict_exists(p_activity_id, p_emp_id) then raise exception 'scheduling_conflict_detected'; end if;
 
   update public.activities
   set draft_emp_id = p_emp_id::text,
@@ -551,6 +555,7 @@ declare
   prior_instructor_name text;
   violations text[];
   meetings_done integer;
+  target_dates date[];
 begin
   if caller_role is null or caller_role not in ('admin','operation_manager') then raise exception 'scheduling_permission_denied' using errcode='42501'; end if;
   if not exists (select 1 from public.users u where u.auth_user_id = auth.uid() and u.is_active is true) then raise exception 'scheduling_permission_denied' using errcode='42501'; end if;
@@ -570,6 +575,21 @@ begin
   prior_status := result.instructor_assignment_status;
   prior_emp_id := result.emp_id::text;
   prior_instructor_name := result.instructor_name;
+
+  -- Preserve who actually delivered each meeting before the change takes effect: every
+  -- date before p_effective_from is attributed to the previous instructor so displays and
+  -- reports keep showing them for meetings that already happened, instead of silently
+  -- rewriting history to the new instructor once activities.emp_id changes below. A date
+  -- that already has a row (an earlier replacement) keeps its original attribution.
+  select array_agg(d order by d) into target_dates
+  from (select nullif(to_jsonb(result)->>('date_' || n), '')::date as d from generate_series(1, 35) n) dates
+  where d is not null;
+  insert into public.course_meeting_instructor_history (activity_id, meeting_date, emp_id, instructor_name)
+  select p_activity_id, meeting_date, prior_emp_id, prior_instructor_name
+  from unnest(coalesce(target_dates, '{}'::date[])) as meeting_date
+  where meeting_date < p_effective_from
+    and nullif(btrim(coalesce(prior_emp_id, '')), '') is not null
+  on conflict (activity_id, meeting_date) do nothing;
 
   update public.activities
   set emp_id = p_new_emp_id,

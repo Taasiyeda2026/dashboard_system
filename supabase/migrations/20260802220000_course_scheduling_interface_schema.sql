@@ -141,3 +141,105 @@ as $$
 $$;
 revoke all on function public.scheduling_authority_school_locations() from public;
 grant execute on function public.scheduling_authority_school_locations() to authenticated;
+
+-- 8. Real per-meeting overlap check, shared by draft saving and the confirmed-assignment
+--    path (assign/reassign/replace): checked against every one of the course's meeting
+--    dates, not just the currently open screen, and against both confirmed instructors
+--    (emp_id/emp_id_2) and other drafts (draft_emp_id) of the same candidate. Internal
+--    helper only — revoked from public below and never granted to authenticated.
+create or replace function public.scheduling_course_conflict_exists(
+  p_activity_id text,
+  p_emp_id bigint
+) returns boolean
+language plpgsql
+stable
+security definer
+set search_path = public
+as $$
+declare
+  target public.activities;
+  target_dates date[];
+begin
+  select * into target from public.activities where row_id = p_activity_id;
+  if not found then return false; end if;
+  if target.start_time is null or target.end_time is null then return false; end if;
+
+  select array_agg(d order by d) into target_dates
+  from (select nullif(to_jsonb(target)->>('date_' || n), '')::date as d from generate_series(1, 35) n) dates
+  where d is not null;
+  if coalesce(cardinality(target_dates), 0) = 0 then return false; end if;
+
+  return exists (
+    select 1
+    from public.activities a
+    where a.row_id <> target.row_id
+      and a.activity_season = 'school_2027'
+      and lower(btrim(coalesce(a.status::text, ''))) not in ('סגור','נמחק','בוטל','closed','deleted','cancelled','canceled','inactive','לא פעיל')
+      and (
+        a.emp_id::text = p_emp_id::text
+        or a.emp_id_2::text = p_emp_id::text
+        or a.draft_emp_id = p_emp_id::text
+      )
+      and a.start_time is not null and a.end_time is not null
+      and a.start_time < target.end_time
+      and target.start_time < a.end_time
+      and exists (
+        select 1 from unnest(target_dates) as td
+        where td = any(array(select nullif(to_jsonb(a)->>('date_' || n), '')::date from generate_series(1, 35) n))
+      )
+  );
+end
+$$;
+revoke all on function public.scheduling_course_conflict_exists(text, bigint) from public;
+
+-- 9. Per-meeting instructor attribution (section 11/29): an operational replacement must
+--    not silently rewrite who actually delivered meetings that already happened. Only
+--    meetings actually affected by a replacement ever get a row here — the common case
+--    (a course never replaced) has none, and the resolver below falls back to
+--    activities.emp_id, so no parallel bookkeeping is introduced for the normal path.
+create table if not exists public.course_meeting_instructor_history (
+  id uuid primary key default gen_random_uuid(),
+  activity_id text not null,
+  meeting_date date not null,
+  emp_id text not null,
+  instructor_name text,
+  recorded_at timestamptz not null default now(),
+  unique (activity_id, meeting_date)
+);
+create index if not exists course_meeting_instructor_history_activity_idx on public.course_meeting_instructor_history(activity_id);
+alter table public.course_meeting_instructor_history enable row level security;
+drop policy if exists course_meeting_instructor_history_authorized_read on public.course_meeting_instructor_history;
+create policy course_meeting_instructor_history_authorized_read
+  on public.course_meeting_instructor_history for select to authenticated
+  using (public.app_current_role() = any (array['admin'::text, 'operation_manager'::text]));
+
+-- Per-meeting instructor resolver for displays/reports: returns every meeting date with
+-- whoever actually delivered it, so a past meeting keeps its original instructor even
+-- after a later operational replacement changes activities.emp_id going forward.
+create or replace function public.scheduling_course_meeting_instructors(p_activity_id text)
+returns table(meeting_date date, emp_id text, instructor_name text)
+language sql
+stable
+security definer
+set search_path = public
+as $$
+  with target as (
+    select a.* from public.activities a where a.row_id = p_activity_id
+  ),
+  dates as (
+    select distinct nullif(to_jsonb(t)->>('date_' || n), '')::date as meeting_date
+    from target t, generate_series(1, 35) n
+  )
+  select
+    d.meeting_date,
+    coalesce(h.emp_id, t.emp_id::text) as emp_id,
+    coalesce(h.instructor_name, t.instructor_name) as instructor_name
+  from dates d
+  cross join target t
+  left join public.course_meeting_instructor_history h
+    on h.activity_id = p_activity_id and h.meeting_date = d.meeting_date
+  where d.meeting_date is not null
+  order by d.meeting_date
+$$;
+revoke all on function public.scheduling_course_meeting_instructors(text) from public;
+grant execute on function public.scheduling_course_meeting_instructors(text) to authenticated;
