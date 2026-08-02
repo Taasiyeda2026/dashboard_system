@@ -32,7 +32,6 @@ const COURSE_SHORT_NAMES_BY_GEFEN = Object.freeze({
 let cachedPricingRows = [];
 let editorDepsPromise = null;
 let editorDepsValue = null;
-const automaticPdfRequests = new Set();
 
 function text(value) {
   return String(value == null ? '' : value).replace(/\s+/g, ' ').trim();
@@ -395,57 +394,10 @@ function wrapSnapshotMethod(targetApi, methodName, documentRef) {
   };
 }
 
-export function scheduleAutomaticPdf(proposalId, scope = globalThis) {
-  const id = text(proposalId);
-  if (!id || automaticPdfRequests.has(id) || !scope.document) return;
-  automaticPdfRequests.add(id);
-  const startedAt = Date.now();
-  const timer = scope.setInterval(() => {
-    const escapedId = scope.CSS?.escape ? scope.CSS.escape(id) : id.replace(/["\\]/g, '\\$&');
-    const button = scope.document.querySelector(`[data-pa-print="${escapedId}"]`);
-    if (button && !button.disabled) {
-      scope.clearInterval(timer);
-      button.click();
-      scope.setTimeout(() => automaticPdfRequests.delete(id), 5000);
-      return;
-    }
-    if (Date.now() - startedAt > 30000) {
-      scope.clearInterval(timer);
-      automaticPdfRequests.delete(id);
-    }
-  }, 400);
-}
-
-function approvalClick(event, scope = globalThis) {
-  const button = event.target?.closest?.('[data-pa-status-action="approved"]');
-  if (!button) return;
-  const proposalId = text(button.dataset.paActionId || button.closest('[data-pa-row-id]')?.dataset.paRowId);
-  if (proposalId) scheduleAutomaticPdf(proposalId, scope);
-}
-
-function ensureNextYearGefenButtons(root = document) {
-  root.querySelectorAll?.('[data-pa-table] tbody tr[data-pa-row-id]').forEach((row) => {
-    if (proposalTypeFromRow(row) !== 'next_year') return;
-    const id = text(row.dataset.paRowId);
-    if (!id || row.querySelector('[data-pa-generate-gefen-approval]')) return;
-    const actionCell = row.querySelector('.ds-pa-actions-col') || row.lastElementChild;
-    if (!actionCell) return;
-    const button = row.ownerDocument.createElement('button');
-    button.type = 'button';
-    button.className = 'ds-btn ds-btn--sm ds-btn--ghost';
-    button.dataset.paGenerateGefenApproval = id;
-    button.title = 'הפקת אישור גפ״ן מנתוני ההצעה';
-    button.setAttribute('aria-label', 'הפקת אישור גפ״ן מנתוני ההצעה');
-    button.textContent = 'אישור גפ״ן';
-    actionCell.prepend(button);
-  });
-}
-
 function refreshProposalScreen(root = document) {
   ensureTypeFilterOptions(root);
   ensureSummerTab(root);
   updateSummerCounts(root);
-  ensureNextYearGefenButtons(root);
 }
 
 function installObservers(scope = globalThis) {
@@ -487,7 +439,6 @@ export function installProposalWorkflowCompletion(targetApi = api, scope = globa
 
   scope.document?.addEventListener('input', proposalFormEvent, true);
   scope.document?.addEventListener('change', proposalFormEvent, true);
-  scope.document?.addEventListener('click', (event) => approvalClick(event, scope), true);
   installObservers(scope);
   prewarmEditorDeps(targetApi, scope);
 

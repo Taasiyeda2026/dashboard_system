@@ -194,9 +194,19 @@ function scheduleDecoration() {
 }
 
 export function startSchoolCalendarUi() {
+  if (globalThis.__SCHOOL_CALENDAR_UI_STARTED__) return;
+  globalThis.__SCHOOL_CALENDAR_UI_STARTED__ = true;
   ensureSchoolCalendarStyles();
   scheduleDecoration();
-  new MutationObserver(scheduleDecoration).observe(document.documentElement, {
+  const appRoot = document.getElementById('app');
+  if (!appRoot) return;
+  new MutationObserver((mutations) => {
+    const calendarChanged = mutations.some((mutation) => Array.from(mutation.addedNodes).some((node) => (
+      node.nodeType === 1 && (node.matches?.('.ds-cal-grid, .ds-week-col, .ds-cal-nav__label')
+        || node.querySelector?.('.ds-cal-grid, .ds-week-col, .ds-cal-nav__label'))
+    )));
+    if (calendarChanged) scheduleDecoration();
+  }).observe(appRoot, {
     childList: true,
     subtree: true
   });

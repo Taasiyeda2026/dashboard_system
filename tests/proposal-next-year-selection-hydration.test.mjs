@@ -23,6 +23,7 @@ if (!globalThis.localStorage) {
 }
 
 const { hydrateNextYearPricingSelection } = await import('../frontend/src/proposal-next-year-selection-hydration.js');
+const { proposalItemGroupForEditorRow } = await import('../frontend/src/screens/proposals-agreements.js');
 
 const rawSpaceWorkshop = {
   activity_name: 'אסטרונאוט על חוטים',
@@ -148,5 +149,12 @@ test('direct selection dispatches one input notification after complete hydratio
     assert.equal(events, 1);
     hydrateNextYearPricingSelection(row, [rawSpaceWorkshop], { notify: true });
     assert.equal(events, 1);
+  });
+});
+
+test('editor section keeps a selected summer-catalog workshop in the next-year workshop payload', () => {
+  withDom('', (_form, row) => {
+    assert.equal(proposalItemGroupForEditorRow(row, 'פעילויות קיץ'), 'next_year_workshops');
+    assert.equal(proposalItemGroupForEditorRow(row, 'summer'), 'next_year_workshops');
   });
 });

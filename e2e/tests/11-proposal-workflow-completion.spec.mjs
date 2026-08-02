@@ -84,6 +84,10 @@ test('proposal workflow exposes summer tab, fast editor, live totals and combine
   const workshopOption = await positiveOption(workshopSelect);
   expect(workshopOption).not.toBe('');
   await workshopSelect.selectOption(workshopOption);
+  await expect(workshopRow.locator('[name="proposal_group"]')).toHaveValue('next_year_workshops');
+  await expect(workshopRow.locator('[name="item_type"]')).toHaveValue(/סדנה/);
+  await expect(workshopRow.locator('[name="item_name"]')).not.toHaveValue('');
+  await expect(workshopRow.locator('[data-pa-item-price]')).not.toHaveValue('');
 
   const livePreview = page.getByRole('region', { name: 'תצוגת מסמך A4' });
   await expect(livePreview.locator('.pa-next-year-course-table tbody tr')).not.toHaveCount(0);

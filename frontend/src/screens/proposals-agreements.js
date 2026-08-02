@@ -1811,6 +1811,12 @@ function itemBelongsToGroup(item = {}, groupKey = '') {
   return !itemGroup || itemGroup === target;
 }
 
+export function proposalItemGroupForEditorRow(itemRow, catalogGroup = '') {
+  return text(itemRow?.closest?.('[data-pa-items-group]')?.dataset?.paItemsGroup)
+    || text(itemRow?.dataset?.paRowGroup)
+    || normalizeProposalGroup(catalogGroup);
+}
+
 function shouldShowGefenForItem(item = {}, contextGroup = '') {
   const group = normalizeProposalGroup(contextGroup || item.proposal_group || item.activity_type_group);
   return Boolean(proposalTextField(item, 'gefen_number', 'gefenNumber')) && shouldShowGefenForGroup(group);
@@ -2267,8 +2273,12 @@ function extractItemsFromForm(form) {
     };
 
     const pricingSelectVal = text(row.querySelector('[data-pa-pricing-select]')?.value);
-    const rawGroup = fieldText('proposal_group')
+    // The section owns the semantic group. Catalog/runtimes may temporarily
+    // hydrate a workshop with its source group (for example summer), but that
+    // must never remove it from the next-year workshop payload or A4 preview.
+    const rawGroup = text(row.closest('[data-pa-items-group]')?.dataset.paItemsGroup)
       || text(row.dataset.paRowGroup)
+      || fieldText('proposal_group')
       || formGroup;
     const normalizedRowGroup = normalizeProposalGroup(rawGroup);
     const editedName = fieldText('item_name');
@@ -3879,9 +3889,19 @@ export function gefenEligibleItems(items = []) {
   return Array.from(byGefenNumber.values());
 }
 
+export function gefenApprovalItems(row = {}, items = []) {
+  const eligible = gefenEligibleItems(items);
+  if (!isNextYearProposalGroup(row.activity_type_group)) return eligible;
+  return eligible.filter((item) => {
+    const group = normalizeProposalGroup(item.proposal_group || item.group_key);
+    return group !== 'next_year_workshops'
+      && !isWorkshopKindText(itemKindText(item));
+  });
+}
+
 function isGefenApprovalApplicable(row = {}, items = []) {
-  if (inferProposalClientType(row) === 'authority') return false;
   const group = normalizeProposalGroup(row.activity_type_group);
+  if (group === 'gefen' || isNextYearProposalGroup(group)) return true;
   if (group === 'summer') return false;
   const eligibleCount = gefenEligibleItems(items).length;
   if (eligibleCount) return true;
@@ -3897,14 +3917,18 @@ function gefenApprovalStatusDisplay(row = {}, generated = text(row.gefen_approva
 }
 
 function gefenApprovalValidationMessage(row = {}, items = []) {
-  if (inferProposalClientType(row) === 'authority') return '';
+  if (isNextYearProposalGroup(row.activity_type_group) && !gefenApprovalItems(row, items).length) {
+    return 'לא נבחרו קורסים להפקת אישור גפ״ן.';
+  }
   if (!text(row.semel_mosad)) return 'חסר מספר מוסד. יש להשלים אותו לפני הפקת אישור גפ״ן.';
-  if (!gefenEligibleItems(items).length) return 'חסר פירוט קורסים או סיורים עם מספר גפ״ן. לא ניתן להפיק את האישור.';
+  if (!gefenApprovalItems(row, items).length) {
+    return 'חסר פירוט קורסים או סיורים עם מספר גפ״ן. לא ניתן להפיק את האישור.';
+  }
   return '';
 }
 
-function gefenApprovalItemsTableHtml(items = []) {
-  const rows = gefenEligibleItems(items);
+function gefenApprovalItemsTableHtml(row = {}, items = []) {
+  const rows = gefenApprovalItems(row, items);
   if (!rows.length) return '';
   return `<table class="pa-item-details-table pa-gefen-course-table pa-gefen-approval-table">
     <colgroup><col class="pa-choice-col"><col class="pa-course-col"><col class="pa-gefen-col"><col class="pa-meetings-col"><col class="pa-hours-col"><col class="pa-hourly-price-col"><col class="pa-groups-col"><col class="pa-total-price-col"></colgroup>
@@ -3945,7 +3969,7 @@ export function gefenApprovalDocumentHtml(row = {}, items = [], options = {}) {
     `<section class="pa-section">
       <h3 class="pa-section-heading">בחירת התוכניות</h3>
       <p>בית הספר מאשר כי בכוונתו לשלב בתוכנית העבודה הבית-ספרית לשנת הלימודים תשפ״ז את התוכניות המסומנות להלן.</p>
-      ${gefenApprovalItemsTableHtml(items)}
+      ${gefenApprovalItemsTableHtml(row, items)}
     </section>
     <section class="pa-section">
       <h3 class="pa-section-heading">תוקף ההצעה וזמינות הפעילות:</h3>
@@ -6177,6 +6201,10 @@ export const proposalsAgreementsScreen = {
       }).finally(() => { editorDepsPromise = null; });
       return editorDepsPromise;
     };
+    // Start immutable editor lookups as soon as the proposals screen is bound.
+    // Opening the editor still awaits the same memoized request, but no longer
+    // pays the full cold-network latency after the user's click.
+    void ensureEditorDeps().catch(() => {});
     const currentListQuery = () => ({
       search: text(data?._query?.search),
       status: text(data?._query?.status),
@@ -7766,7 +7794,12 @@ export const proposalsAgreementsScreen = {
       setRowValue(itemRow, 'item_name', parentName);
       setRowValue(itemRow, 'item_type', pickedData.item_type || '');
       setRowValue(itemRow, 'unit_price', unitPrice || '');
-      setRowValue(itemRow, 'proposal_group', pickedData.proposal_group || text(itemRow.dataset.paRowGroup) || '');
+      // A catalog workshop can originate in the summer price list, while this
+      // row belongs to the internal תשפ״ז workshop section. The editor section
+      // is the source of truth for the proposal item group; retaining the
+      // catalog group here makes filterItemsByProposalType drop the item from
+      // the live preview and PDF payload.
+      setRowValue(itemRow, 'proposal_group', proposalItemGroupForEditorRow(itemRow, pickedData.proposal_group));
       setRowValue(itemRow, 'description', description);
       setRowValue(itemRow, 'item_display_mode', 'bundle_parent');
       setRowValue(itemRow, 'item_source_pricing_key', pickedData.pricing_key || '');
@@ -8698,7 +8731,7 @@ export const proposalsAgreementsScreen = {
         setRowValue(itemRow, 'item_name', parentName);
         setRowValue(itemRow, 'item_type', picked.item_type || '');
         setRowValue(itemRow, 'unit_price', numberValue(picked.unit_price) || '');
-        setRowValue(itemRow, 'proposal_group', picked.proposal_group || text(itemRow.dataset.paRowGroup) || '');
+        setRowValue(itemRow, 'proposal_group', proposalItemGroupForEditorRow(itemRow, picked.proposal_group));
         setRowValue(itemRow, 'item_display_mode', 'bundle_parent');
         setRowValue(itemRow, 'item_source_pricing_key', text(picked.pricing_key) || '');
         setRowValue(itemRow, 'bundle_pricing_key', text(picked.pricing_key) || '');
@@ -8765,7 +8798,7 @@ export const proposalsAgreementsScreen = {
       setValue('hourly_price', picked.hourly_price ?? '');
       setValue('description', picked.description_for_proposal || '');
       setValue('unit_duration', picked.unit_duration || '');
-      setValue('proposal_group', picked.proposal_group || text(itemRow.dataset.paRowGroup) || '');
+      setValue('proposal_group', proposalItemGroupForEditorRow(itemRow, picked.proposal_group));
       setValue('item_display_mode', 'single');
       setValue('item_source_pricing_key', text(picked.pricing_key) || '');
       setValue('item_selected_bundle_items', '[]');

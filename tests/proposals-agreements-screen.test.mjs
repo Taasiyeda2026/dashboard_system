@@ -71,7 +71,7 @@ const CLIENT_FILE_VERSIONS_MIGRATION_FILE = new URL('../supabase/migrations/2026
 const GEFEN_MIGRATION_FILE = new URL('../supabase/migrations/20260726223144_add_gefen_proposal_template.sql', import.meta.url);
 const GEFEN_DOCUMENT_REFINEMENT_MIGRATION_FILE = new URL('../supabase/migrations/20260726230813_refine_gefen_proposal_document.sql', import.meta.url);
 
-const { proposalsAgreementsScreen, proposalsAgreementsTableRowsHtml, canAccessProposalsAgreements, canManageProposalsAgreements, STATUS_LABELS, STATUS_OPTIONS, buildProposalCatalogPdfEntries, proposalPreviewBodyHtml, normalizeProposalAgreementRow, countPendingApprovedProposals, isProposalApprovedPendingSend, extractItemsFromForm, sortRows, calculateTourTotal, validatePayload, resetRecipientDependentFields, stepComplete, buildProposalDocumentSnapshot, proposalLockedPreviewHtml, proposalHasFinalPdf, isProposalLegacySentWithoutPdf, upsertProposalContactOption, calculateProposalValidityDate, gefenEligibleItems, gefenApprovalDocumentHtml } = await import('../frontend/src/screens/proposals-agreements.js');
+const { proposalsAgreementsScreen, proposalsAgreementsTableRowsHtml, canAccessProposalsAgreements, canManageProposalsAgreements, STATUS_LABELS, STATUS_OPTIONS, buildProposalCatalogPdfEntries, proposalPreviewBodyHtml, normalizeProposalAgreementRow, countPendingApprovedProposals, isProposalApprovedPendingSend, extractItemsFromForm, sortRows, calculateTourTotal, validatePayload, resetRecipientDependentFields, stepComplete, buildProposalDocumentSnapshot, proposalLockedPreviewHtml, proposalHasFinalPdf, isProposalLegacySentWithoutPdf, upsertProposalContactOption, calculateProposalValidityDate, gefenEligibleItems, gefenApprovalItems, gefenApprovalDocumentHtml } = await import('../frontend/src/screens/proposals-agreements.js');
 
 function stateFor(role) {
   const idanIdentity = role === 'admin'
@@ -378,6 +378,44 @@ test('GEFEN approval includes only numbered non-summer rows and displays rounded
   assert.doesNotMatch(html, /☒/);
   assert.doesNotMatch(html, /סדנת קיץ/);
   assert.doesNotMatch(html, /קורס ללא גפן/);
+});
+
+test('mixed next-year GEFEN approval contains courses only and does not mutate the proposal', () => {
+  const row = Object.freeze({
+    id: 'next-year-mixed-1',
+    quote_number: '20261',
+    proposal_date: '2026-08-03',
+    activity_type_group: 'next_year',
+    status: 'approved',
+    school_framework: 'בית ספר משולב',
+    semel_mosad: '123456'
+  });
+  const course = { item_name: 'ביומימיקרי', item_type: 'קורס', proposal_group: 'next_year_courses', gefen_number: '6089', quantity: 1, unit_price: 8000, total_price: 8000 };
+  const workshop = { item_name: 'סדנת חלל', item_type: 'סדנה', proposal_group: 'next_year_workshops', gefen_number: '9999', quantity: 2, unit_price: 500, total_price: 1000 };
+  assert.deepEqual(gefenApprovalItems(row, [course, workshop]).map((item) => item.item_name), ['ביומימיקרי']);
+  const html = gefenApprovalDocumentHtml(row, [course, workshop]);
+  assert.match(html, /ביומימיקרי/);
+  assert.match(html, /6089/);
+  assert.match(html, /8,000/);
+  assert.doesNotMatch(html, /סדנת חלל|9999|1,000/);
+  assert.equal(row.status, 'approved');
+  assert.equal(row.activity_type_group, 'next_year');
+});
+
+test('workshop-only next-year approval produces no empty table and explains that no courses were selected', () => {
+  const row = {
+    id: 'next-year-workshops-only',
+    quote_number: '20262',
+    proposal_date: '2026-08-03',
+    activity_type_group: 'next_year',
+    school_framework: 'בית ספר סדנאות',
+    semel_mosad: '123456'
+  };
+  const workshop = { item_name: 'סדנת חלל', item_type: 'סדנה', proposal_group: 'next_year_workshops', gefen_number: '9999', quantity: 1, unit_price: 500, total_price: 500 };
+  const html = gefenApprovalDocumentHtml(row, [workshop]);
+  assert.match(html, /לא נבחרו קורסים להפקת אישור גפ״ן\./);
+  assert.doesNotMatch(html, /pa-gefen-approval-table/);
+  assert.doesNotMatch(html, /סדנת חלל|9999/);
 });
 
 test('GEFEN approval status is short plain text in the proposals table', () => {

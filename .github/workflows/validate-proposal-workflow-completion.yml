@@ -6,10 +6,13 @@ on:
     paths:
       - 'frontend/src/proposal-workflow-completion.js'
       - 'frontend/src/proposal-workflow-ui-integrity.js'
+      - 'frontend/src/screens/proposals-agreements.js'
       - 'frontend/src/feature-loaders.js'
       - 'supabase/migrations/20260802153000_restore_next_year_activity_intro.sql'
       - 'tests/proposal-workflow-completion.test.mjs'
       - 'tests/proposal-workflow-ui-integrity.test.mjs'
+      - 'tests/proposal-next-year-selection-hydration.test.mjs'
+      - 'tests/proposal-type-display-and-tashpaz-totals.test.mjs'
       - 'e2e/tests/11-proposal-workflow-completion.spec.mjs'
       - '.github/workflows/validate-proposal-workflow-completion.yml'
 
@@ -38,12 +41,15 @@ jobs:
           node --check frontend/src/proposal-workflow-completion.js
           node --check frontend/src/proposal-workflow-ui-integrity.js
           node --check frontend/src/feature-loaders.js
+          node --check frontend/src/screens/proposals-agreements.js
           node --check tests/proposal-workflow-completion.test.mjs
           node --check tests/proposal-workflow-ui-integrity.test.mjs
+          node --check tests/proposal-next-year-selection-hydration.test.mjs
+          node --check tests/proposal-type-display-and-tashpaz-totals.test.mjs
           node --check e2e/tests/11-proposal-workflow-completion.spec.mjs
 
       - name: Run focused proposal tests
-        run: node --test tests/proposal-workflow-completion.test.mjs tests/proposal-workflow-ui-integrity.test.mjs tests/proposal-next-year-editor-stability.test.mjs tests/proposal-next-year-selection-hydration.test.mjs tests/proposal-next-year-workshops.test.mjs tests/proposal-next-year-pricing-display.test.mjs
+        run: node --test tests/proposal-workflow-completion.test.mjs tests/proposal-workflow-ui-integrity.test.mjs tests/proposal-next-year-editor-stability.test.mjs tests/proposal-next-year-selection-hydration.test.mjs tests/proposal-next-year-workshops.test.mjs tests/proposal-next-year-pricing-display.test.mjs tests/proposal-type-display-and-tashpaz-totals.test.mjs
 
       - name: Install Playwright Chromium
         run: npx playwright install chromium --with-deps
