@@ -50,7 +50,11 @@ async function addRowInArea(form, groupKey, { unitPrice = '1500' } = {}) {
     .toBeGreaterThan(0)
     .then(() => true, () => false);
   if (!hasAmount) {
+    // The price lives in the row's collapsed details block.
+    const toggle = row.locator('[data-pa-item-edit-toggle]');
+    if (await toggle.count()) await toggle.first().click();
     const price = row.locator('[data-pa-item-price]');
+    await expect(price).toBeVisible();
     await price.fill(unitPrice);
     await price.dispatchEvent('input');
     await expect.poll(async () => amountOf(await total.innerText()), { timeout: 15_000 }).toBeGreaterThan(0);
@@ -138,8 +142,10 @@ test('proposal types, school alignment, תשפ״ז areas and live totals stay co
 
   // A quantity change updates the area total and the combined total immediately.
   const beforeQuantity = amountOf(await coursesTotal.innerText());
-  await courses.row.locator('[data-pa-item-qty]').fill('3');
-  await courses.row.locator('[data-pa-item-qty]').dispatchEvent('input');
+  const quantity = courses.row.locator('[data-pa-item-qty]');
+  await expect(quantity).toBeVisible();
+  await quantity.fill('3');
+  await quantity.dispatchEvent('input');
   await expect.poll(async () => amountOf(await coursesTotal.innerText()), { timeout: 15_000 })
     .toBeGreaterThan(beforeQuantity);
   await expect.poll(async () => {

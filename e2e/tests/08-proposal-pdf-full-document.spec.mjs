@@ -176,18 +176,34 @@ async function openProposalWithPrintAction(page, table, typeLabel, { preferSent 
 
   for (const candidate of order) {
     const row = rows.nth(candidate.index);
-    await row.click();
-    const preview = page.locator('[data-pa-preview-form]:visible').first();
-    if (await preview.count()) await preview.click();
+    const id = await row.getAttribute('data-pa-row-id');
+
+    // From the all-proposals table the view action opens the details screen; the view
+    // action inside that screen is what opens the A4 preview overlay.
+    let rowAction = row.locator('[data-pa-preview]:visible').first();
+    if (!(await rowAction.count())) {
+      const more = row.locator('.ds-pa-row-more summary');
+      if (await more.count()) await more.click();
+      rowAction = row.locator('[data-pa-preview]').first();
+    }
+    if (!(await rowAction.count())) continue;
+    await rowAction.click();
+
+    const detail = page.locator('[data-pa-proposal-detail]:visible').first();
+    await expect(detail).toBeVisible({ timeout: 30_000 });
+    const detailPreview = detail.locator('[data-pa-preview]').first();
+    if (await detailPreview.count()) await detailPreview.click();
+
     const toolbar = page.locator('.proposal-preview-toolbar');
     if (await toolbar.count()) {
       const print = page.locator('#pa-print-btn');
       const savedPdf = page.locator('#pa-view-final-pdf-btn');
-      if (await print.count()) return { kind: 'print', row, print, id: await row.getAttribute('data-pa-row-id') };
-      if (await savedPdf.count()) return { kind: 'saved', row, savedPdf, id: await row.getAttribute('data-pa-row-id') };
+      if (await print.count()) return { kind: 'print', row, print, id };
+      if (await savedPdf.count()) return { kind: 'saved', row, savedPdf, id };
       await page.locator('#pa-preview-close').first().click().catch(() => {});
     }
-    await page.keyboard.press('Escape').catch(() => {});
+    await page.locator('[data-pa-proposal-detail-back]').first().click().catch(() => {});
+    await expect(table.locator('tbody tr[data-pa-row-id]').first()).toBeVisible({ timeout: 30_000 });
   }
   return null;
 }
@@ -281,7 +297,7 @@ async function generateAndVerify(page, tracker, { label, typeLabel, preferSent =
 
   const result = await verifyProducedPdf(page, tracker, `proposal-${label}`, pdfBuffer);
   await page.locator('#pa-preview-close').first().click().catch(() => {});
-  await page.keyboard.press('Escape').catch(() => {});
+  await page.locator('[data-pa-proposal-detail-back]').first().click().catch(() => {});
   return { ...result, kind: target.kind };
 }
 
