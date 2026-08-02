@@ -4114,22 +4114,17 @@ function enrichProposalRowFromContactOptions(row = {}, contactOptions = []) {
   };
 }
 
-function clientLockedBannerHtml(auth, school, contactName, contactRole, phone, email, clientName = '', schoolMeta = null) {
+export function clientLockedBannerHtml(auth, school, contactName, contactRole, phone, email, clientName = '', schoolMeta = null, recipient = {}) {
   if (!auth && !clientName) return '';
-  const displayName = clientName || school || auth;
   const semelMosad = text(schoolMeta?.semel_mosad);
-  const isSchool = Boolean(school && school !== auth);
-  const isAuthority = Boolean(auth && !isSchool);
+  const clientType = text(recipient.clientType || recipient.client_type);
+  const isSchool = clientType === 'school' || Boolean(recipient.schoolId || recipient.school_id);
+  const isAuthority = clientType === 'authority';
   const modeClass = isSchool ? ' is-school' : (isAuthority ? ' is-authority' : ' is-other');
   return `<div class="ds-pa-client-locked${modeClass}">
     <div class="ds-pa-client-locked-body">
-      ${auth ? `<p class="ds-pa-client-locked-detail"><span>רשות</span><strong>${escapeHtml(auth)}</strong></p>` : ''}
-      ${isSchool
-        ? `<p class="ds-pa-client-locked-name"><span>בית ספר</span><strong>${escapeHtml(school)}</strong></p>`
-        : (!auth ? `<p class="ds-pa-client-locked-name"><span>נמען</span><strong>${escapeHtml(displayName)}</strong></p>` : '')}
       ${isSchool && semelMosad ? `<p class="ds-pa-client-locked-state"><span>סמל מוסד</span><strong>${escapeHtml(semelMosad)}</strong></p>` : ''}
     </div>
-    <div class="ds-pa-client-locked-actions"><button type="button" class="ds-btn ds-btn--xs ds-btn--ghost" data-pa-unlock-client>החלף</button></div>
   </div>`;
 }
 
@@ -4573,7 +4568,7 @@ function formHtml(mode, row = {}, activityNameOptions = [], contactOptions = [],
             ${clientSearchHtml(contactOptions, row)}
             <div class="ds-pa-other-client-section" data-pa-other-client-field${initOther ? '' : ' hidden'}><label class="ds-pa-form-field ds-pa-other-client-field"><span>שם הלקוח / חברה</span><input class="ds-input ds-input--sm" name="other_client_name" value="${escapeHtml(initOther ? (row.client_name || initSchool) : '')}" placeholder="שם הלקוח"></label></div>
           </div>
-          <div data-pa-client-card${isLocked ? '' : ' hidden'}>${isLocked ? clientLockedBannerHtml(initAuth, initSchool, initContact, initRole, initPhone, initEmail, initClientName, initSchoolMeta) : ''}</div>
+          <div data-pa-client-card${isLocked ? '' : ' hidden'}>${isLocked ? clientLockedBannerHtml(initAuth, initSchool, initContact, initRole, initPhone, initEmail, initClientName, initSchoolMeta, { clientType: initClientType, schoolId: initSchoolId }) : ''}</div>
           <div class="ds-pa-client-hidden-values" data-pa-client-fields hidden>
             ${hiddenField('client_authority', row.client_authority)}
             ${hiddenField('school_framework', initOther ? '' : row.school_framework)}
@@ -6540,12 +6535,12 @@ export const proposalsAgreementsScreen = {
       if (noContactNote) noContactNote.hidden = !showNoContactNote;
     };
 
-    const lockClientFields = (form, auth, school, cName, cRole, phone, email, clientName = '', schoolMeta = null) => {
+    const lockClientFields = (form, auth, school, cName, cRole, phone, email, clientName = '', schoolMeta = null, recipient = {}) => {
       const cardEl = form?.querySelector('[data-pa-client-card]');
       const fieldsEl = form?.querySelector('[data-pa-client-fields]');
       const searchRow = form?.querySelector('[data-pa-client-search-row]');
       const results = form?.querySelector('[data-pa-client-results]');
-      if (cardEl) { cardEl.innerHTML = clientLockedBannerHtml(auth, school, cName, cRole, phone, email, clientName, schoolMeta); cardEl.hidden = false; }
+      if (cardEl) { cardEl.innerHTML = clientLockedBannerHtml(auth, school, cName, cRole, phone, email, clientName, schoolMeta, recipient); cardEl.hidden = false; }
       if (fieldsEl) fieldsEl.hidden = true;
       if (searchRow) searchRow.hidden = false;
       if (results) { results.hidden = true; results.innerHTML = ''; }
@@ -6718,7 +6713,8 @@ export const proposalsAgreementsScreen = {
         text(defaultContact?.phone),
         text(defaultContact?.email),
         clientName || school || authority,
-        catalogSchool
+        catalogSchool,
+        { clientType, schoolId: isAuthorityOnly ? null : schoolId }
       );
 
       const searchField = form.querySelector('[data-pa-client-search-field]');
@@ -6866,7 +6862,12 @@ export const proposalsAgreementsScreen = {
             text(form.querySelector('input[name="contact_source_authority"]')?.value),
             text(form.querySelector('input[name="contact_source_school"]')?.value),
             '', '', '', '',
-            text(form.querySelector('input[name="contact_source_client_name"]')?.value)
+            text(form.querySelector('input[name="contact_source_client_name"]')?.value),
+            null,
+            {
+              clientType: text(form.querySelector('input[name="contact_source_client_type"]')?.value),
+              schoolId: text(form.querySelector('input[name="contact_source_school_id"]')?.value)
+            }
           );
           showManualContactFields(form);
           return;
@@ -6882,7 +6883,7 @@ export const proposalsAgreementsScreen = {
           fillContactFields(form, contact);
           setContactSource(form, contact);
           setAddContactRowState(form, { visible: false, showNoContactNote: false });
-          lockClientFields(form, text(contact.authority), text(contact.school), text(contact.contact_name), text(contact.contact_role), text(contact.mobile || ''), text(contact.email || ''), text(contact.client_name) || text(contact.school) || text(contact.authority), contact);
+          lockClientFields(form, text(contact.authority), text(contact.school), text(contact.contact_name), text(contact.contact_role), text(contact.mobile || ''), text(contact.email || ''), text(contact.client_name) || text(contact.school) || text(contact.authority), contact, { clientType: text(contact.client_type), schoolId: text(contact.school_id) });
           if (form) setTimeout(() => calcGrandTotal(form), 0);
         }
       }, { signal });
@@ -9290,7 +9291,12 @@ export const proposalsAgreementsScreen = {
           text(form.querySelector('input[name="contact_source_authority"]')?.value),
           text(form.querySelector('input[name="contact_source_school"]')?.value),
           '', '', '', '',
-          text(form.querySelector('input[name="contact_source_client_name"]')?.value)
+          text(form.querySelector('input[name="contact_source_client_name"]')?.value),
+          null,
+          {
+            clientType: text(form.querySelector('input[name="contact_source_client_type"]')?.value),
+            schoolId: text(form.querySelector('input[name="contact_source_school_id"]')?.value)
+          }
         );
         showManualContactFields(form);
         return;

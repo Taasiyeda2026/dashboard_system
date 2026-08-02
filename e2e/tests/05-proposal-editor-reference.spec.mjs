@@ -8,8 +8,8 @@ async function attachScreenshot(locator, name, testInfo) {
   await testInfo.attach(evidence(name), { body, contentType: 'image/png' });
 }
 
-async function chooseRealSearchResult(input, results) {
-  for (const query of ['ירושלים', 'תל', 'אל', 'מועצה', 'עיריית']) {
+async function chooseRealSearchResult(input, results, queries = ['ירושלים', 'תל', 'אל', 'מועצה', 'עיריית']) {
+  for (const query of queries) {
     await input.fill(query);
     const visibleResults = results.locator('[data-pa-client-result]:visible');
     if (await visibleResults.count()) {
@@ -99,7 +99,8 @@ test('proposal editor recipient flows match the approved reference', async ({ pa
 
   await chooseRealSearchResult(
     form.locator('[data-pa-client-search-input]'),
-    form.locator('[data-pa-client-results]')
+    form.locator('[data-pa-client-results]'),
+    ['אבו גוש']
   );
   await expect(authoritySearch).toBeVisible();
   await expect(schoolPanel).toBeVisible();
@@ -109,10 +110,19 @@ test('proposal editor recipient flows match the approved reference', async ({ pa
   expect(schoolBox.y).toBeGreaterThanOrEqual(authorityBox.y + authorityBox.height);
   await chooseRealSearchResult(
     form.locator('[data-pa-school-search-input]'),
-    form.locator('[data-pa-school-results]')
+    form.locator('[data-pa-school-results]'),
+    ['אבו גוש']
   );
-  await expect(form.locator('.ds-pa-client-locked-state')).toBeVisible();
+  const schoolMarker = form.locator('.ds-pa-client-locked.is-school');
+  await expect(schoolMarker).toBeVisible();
+  await expect(form.locator('.ds-pa-client-locked.is-authority')).toHaveCount(0);
+  await expect(form.locator('[data-pa-school-search-input]')).toHaveValue('אבו גוש');
+  await expect(form.locator('.ds-pa-client-locked-state')).toContainText('118018');
+  await expect(schoolMarker).toHaveCSS('background-color', 'rgba(0, 0, 0, 0)');
+  await expect(schoolMarker).toHaveCSS('border-top-style', 'none');
+  await expect(schoolMarker).toHaveCSS('padding-top', '0px');
   await expect(contactPanel).toBeVisible();
+  await expect(form.locator('[data-pa-contact-select]')).toBeVisible();
   await attachScreenshot(form, 'school', testInfo);
 
   await form.locator('input[name="client_type_selector"][value="authority"]').check();
@@ -121,9 +131,11 @@ test('proposal editor recipient flows match the approved reference', async ({ pa
   await expect(form.locator('[data-pa-other-client-field]')).toBeHidden();
   await chooseRealSearchResult(
     form.locator('[data-pa-client-search-input]'),
-    form.locator('[data-pa-client-results]')
+    form.locator('[data-pa-client-results]'),
+    ['אבו גוש']
   );
   await expect(contactPanel).toBeVisible();
+  await expect(form.locator('.ds-pa-client-locked.is-authority')).toBeHidden();
   await expect(form.locator('[data-pa-school-search-panel]')).toBeHidden();
   await expect(form.locator('.ds-pa-client-locked-state')).toHaveCount(0);
   await attachScreenshot(form, 'authority', testInfo);
