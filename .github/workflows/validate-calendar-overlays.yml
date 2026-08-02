@@ -13,6 +13,7 @@ on:
       - 'frontend/src/config.js'
       - 'frontend/sw.js'
       - 'supabase/migrations/20260802150500_add_team_calendar_events.sql'
+      - 'supabase/migrations/20260802153500_grant_team_calendar_events_select.sql'
       - 'tests/calendar-overlays-and-team-events.test.mjs'
       - 'e2e/tests/10-calendar-overlays.spec.mjs'
       - '.github/workflows/validate-calendar-overlays.yml'
