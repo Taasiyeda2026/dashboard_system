@@ -735,7 +735,9 @@ function shouldShowGefenForGroup(value) {
 
 export function proposalGroupOptions(data = {}, rows = [], pricingOptions = []) {
   const lookups = setProposalGroupLookups(data, rows, pricingOptions);
-  return lookups.groups.map((group) => ({ value: group.group_key, label: group.display_name }));
+  return lookups.groups
+    .filter((group) => group.is_internal !== true)
+    .map((group) => ({ value: group.group_key, label: group.display_name }));
 }
 
 function itemTypeOptions(pricingOptions = []) {
@@ -6008,7 +6010,9 @@ export {
   hideSchoolSearchPanel,
   upsertProposalContactOption,
   proposalGroupDisplayName,
-  isArchivedClientProposal
+  isArchivedClientProposal,
+  drawerHtml,
+  proposalCompactCardHtml
 };
 
 // ─── Screen ───────────────────────────────────────────────────────────────────
@@ -7538,6 +7542,7 @@ export const proposalsAgreementsScreen = {
       });
       const templateSections = filterTemplateSectionsForGroup(proposalTemplateSections, row.activity_type_group);
       previewHost.innerHTML = proposalPreviewBodyHtml(row, payload._items || [], templateSections);
+      proposalPdfDocumentNormalizer?.(previewHost);
     };
 
     // ── Items calc ────────────────────────────────────────────────────────────
@@ -8285,17 +8290,17 @@ export const proposalsAgreementsScreen = {
     };
 
     const openPreview = async (row, items, options = {}) => {
-      await ensureEditorDeps();
       if (options.form) options.form.dataset.paPreviewSeen = 'yes';
       const savedRow = data.rows.find((r) => text(r.id) === text(row.id));
       const mergedRow = savedRow ? { ...savedRow, ...row } : row;
       const freshRow = rowWithCentralContact(mergedRow);
-      items = proposalItemsWithFallback(items, freshRow);
       const isSentLocked = isProposalSentLocked(freshRow);
       if (isSentLocked && proposalHasFinalPdf(freshRow) && options.forceLivePreview !== true) {
         await openProposalFinalPdf(freshRow);
         return;
       }
+      await ensureEditorDeps();
+      items = proposalItemsWithFallback(items, freshRow);
       const lockedPreviewHtml = isSentLocked ? proposalLockedPreviewHtml(freshRow) : '';
       const templateSections = filterTemplateSectionsForGroup(proposalTemplateSections, freshRow.activity_type_group);
       document.getElementById('pa-preview-overlay')?.remove();

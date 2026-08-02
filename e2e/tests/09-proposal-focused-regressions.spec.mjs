@@ -83,10 +83,18 @@ test('real proposal regression path remains stable without saving data or PDFs',
   const savedRow = form.locator('[data-pa-item-row]:has([data-pa-item-price][value="8000"])').first();
   await expect(savedRow.locator('[data-pa-item-price]')).toHaveValue('8000');
   await expect(savedRow.locator('[data-pa-item-qty]')).toHaveValue('1');
-  await expect.poll(async () => amountOf(await form.locator('[data-pa-grand-total]').innerText())).toBe(8000);
+  const expectedBefore = await form.locator('[data-pa-item-row]').evaluateAll((rows) => rows.reduce((sum, row) => {
+    const quantity = Number(row.querySelector('[data-pa-item-qty]')?.value || 0);
+    const price = Number(row.querySelector('[data-pa-item-price]')?.value || 0);
+    return sum + quantity * price;
+  }, 0));
+  const grandBefore = amountOf(await form.locator('[data-pa-grand-total]').innerText());
+  expect(grandBefore).toBe(expectedBefore);
+  await expect(savedRow.locator('[data-pa-item-total-display]')).toContainText('8,000');
   await shot(page, 'proposal-saved-price.png', savedRow);
   await savedRow.locator('[data-pa-item-qty]').fill('2');
-  await expect.poll(async () => amountOf(await form.locator('[data-pa-grand-total]').innerText())).toBe(16000);
+  await expect(savedRow.locator('[data-pa-item-total-display]')).toContainText('16,000');
+  await expect.poll(async () => amountOf(await form.locator('[data-pa-grand-total]').innerText()) - grandBefore).toBe(8000);
 
   // Use the real type controls and real item selectors; never submit the form.
   await form.locator('[data-pa-type-btn="next_year"]').click();
@@ -115,6 +123,10 @@ test('real proposal regression path remains stable without saving data or PDFs',
   await page.setViewportSize({ width: 900, height: 1000 });
   await assertNoOverlap(contact);
   await form.locator('[data-pa-cancel-form]').first().click();
+
+  await tracker.persist('proposal-focused-ui');
+  assertNoTransportErrors(tracker);
+  tracker.resetScreen('proposal-focused-pdf-intercept');
 
   // Return to the approved proposal and run the real PDF action. Storage is aborted,
   // therefore neither the proposal row nor an existing PDF can be updated.
@@ -146,4 +158,5 @@ test('real proposal regression path remains stable without saving data or PDFs',
   hostParts = await page.evaluate(() => window.__proposalPdfProbe);
   expect(hostParts).toEqual({ header: true, recipient: true, title: true, template: true, table: true });
   expect(tracker.state.pageErrors).toEqual([]);
+  await tracker.persist('proposal-focused-pdf-intercept');
 });

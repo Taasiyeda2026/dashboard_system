@@ -9,6 +9,7 @@
   --recipient-control-padding: 0 10px;
   --recipient-control-font-size: 0.84rem;
   --pa-editor-line: color-mix(in srgb, var(--ds-accent) 82%, white);
+  container: pa-editor / inline-size;
 }
 
 #app .ds-pa-editor-loading,
@@ -172,6 +173,10 @@
   #app .pa-editor-workspace .ds-pa-contact-channels-fields { flex-wrap: wrap; inline-size: 100%; }
   #app .pa-editor-workspace .ds-pa-contact-channels-fields input[name="phone"],
   #app .pa-editor-workspace .ds-pa-contact-channels-fields input[name="email"] { inline-size: min(100%, 360px); }
+}
+
+@container pa-editor (max-width: 760px) {
+  #app .pa-editor-workspace [data-pa-contact-channels-status] { grid-column: 1 / -1; }
 }
 
 /* Internal area totals sit under their own rows so each section sums on its own. */

@@ -216,9 +216,20 @@ test('all live document builders await the shared deferred editor dependency pro
   for (const functionName of ['generateAndSaveProposalPdf', 'finalizeSentProposal', 'openSendProposalDialog', 'openPreview']) {
     const start = source.indexOf(`const ${functionName} = async`);
     assert.ok(start > 0, `${functionName} exists`);
-    assert.match(source.slice(start, start + 500), /await ensureEditorDeps\(\)/);
+    const end = source.indexOf(`const ${functionName === 'openPreview' ? 'readSignatureMeta' : functionName === 'openSendProposalDialog' ? 'approvalRequests' : functionName === 'finalizeSentProposal' ? 'openSendProposalDialog' : 'finalizeSentProposal'} =`, start);
+    assert.match(source.slice(start, end > start ? end : start + 1500), /await ensureEditorDeps\(\)/);
   }
   assert.match(source, /if \(editorDepsPromise\) return editorDepsPromise/);
+});
+
+test('a locked proposal opens its stored PDF before editor dependencies are requested', async () => {
+  const source = await readFile(screenUrl, 'utf8');
+  const start = source.indexOf('const openPreview = async');
+  const body = source.slice(start, source.indexOf('document.getElementById', start));
+  const savedPdfBranch = body.indexOf('isSentLocked && proposalHasFinalPdf');
+  const openPdf = body.indexOf('await openProposalFinalPdf', savedPdfBranch);
+  const deps = body.indexOf('await ensureEditorDeps()');
+  assert.ok(savedPdfBranch > 0 && openPdf > savedPdfBranch && deps > openPdf);
 });
 
 test('the final print override releases the PDF host from the single-page flex column', async () => {

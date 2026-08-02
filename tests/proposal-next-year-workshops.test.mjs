@@ -72,6 +72,7 @@ test('next-year payload exposes separate course and workshop sections without es
   assert.equal(workshopAliases.some((row) => row.is_active_for_proposals === false), false);
   assert.equal(workshopAliases.every((row) => row.template_key === 'next_year'), true);
   assert.equal(payload.proposalActivityGroups.find((group) => group.group_key === 'next_year_workshops').template_key, 'next_year');
+  assert.deepEqual(new Set(proposalGroupOptions(payload, [], payload.proposalActivityPricing).map((option) => option.value)), new Set(['next_year', 'summer']));
 });
 
 test('pricing augmentation is idempotent', () => {
@@ -223,6 +224,29 @@ test('real next-year preview renders workshop-only, course-only and mixed saved 
   assert.match(mixed, /סה״כ כולל להצעה/);
   assert.match(mixed, /10,300/);
   assert.equal((mixed.match(/רוטוקופטר/g) || []).length, 1);
+});
+
+test('the editor live preview normalizes only its freshly rendered host', async () => {
+  const screenSource = await readFile(new URL('../frontend/src/screens/proposals-agreements.js', import.meta.url), 'utf8');
+  const renderStart = screenSource.indexOf('const renderLivePreview = (form) =>');
+  const renderBody = screenSource.slice(renderStart, screenSource.indexOf('// ── Items calc', renderStart));
+  assert.match(renderBody, /previewHost\.innerHTML = proposalPreviewBodyHtml/);
+  assert.match(renderBody, /proposalPdfDocumentNormalizer\?\.\(previewHost\)/);
+  assert.doesNotMatch(renderBody, /normalizeNextYearWorkshopTables\(document/);
+
+  const payload = augmentNextYearProposalPayload({ proposalActivityGroups: baseGroups, proposalActivityPricing: basePricing });
+  proposalGroupOptions(payload, [], payload.proposalActivityPricing);
+  const mixed = proposalPreviewBodyHtml(
+    { activity_type_group: 'next_year', proposal_date: '2026-08-02' },
+    [
+      { item_name: 'קורס לדוגמה', proposal_group: 'next_year_courses', quantity: 1, unit_price: 9000, total_price: 9000, gefen_number: '6089' },
+      { item_name: 'רוטוקופטר', proposal_group: 'next_year_workshops', quantity: 1, unit_price: 650, total_price: 650 }
+    ],
+    []
+  );
+  assert.match(mixed, /pa-next-year-course-table/);
+  assert.match(mixed, /pa-next-year-workshop-table/);
+  assert.match(mixed, /pa-next-year-combined-total/);
 });
 
 test('migration creates internal sections and leaves escape room excluded', async () => {

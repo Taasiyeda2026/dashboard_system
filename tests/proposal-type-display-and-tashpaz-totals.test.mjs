@@ -30,7 +30,10 @@ const API_FILE = new URL('../frontend/src/api.js', import.meta.url);
 const {
   proposalsAgreementsTableRowsHtml,
   nextYearInternalSectionTitle,
-  gefenEligibleItems
+  gefenEligibleItems,
+  drawerHtml,
+  proposalCompactCardHtml,
+  gefenApprovalDocumentHtml
 } = await import('../frontend/src/screens/proposals-agreements.js');
 const { normalizeNextYearWorkshopHtml } = await import('../frontend/src/proposal-next-year-workshops.js');
 
@@ -48,6 +51,26 @@ test('תשפ״ז GEFEN eligibility includes numbered courses and always excludes
   assert.match(apiSource, /gefen_approval_applicable: gefenEligibilityByProposalId\.get\(row\.id\) === true/);
 });
 
+test('GEFEN approval action follows computed eligibility in list, client card and drawer HTML', () => {
+  const base = { id: 'proposal-1', quote_number: '20001', activity_type_group: 'next_year', school_framework: 'בית ספר', status: 'approved' };
+  const eligible = { ...base, gefen_approval_applicable: true };
+  const workshopOnly = { ...base, id: 'proposal-2', gefen_approval_applicable: false };
+  const action = /data-pa-generate-gefen-approval/;
+
+  assert.match(proposalsAgreementsTableRowsHtml([eligible], adminState()), action);
+  assert.doesNotMatch(proposalsAgreementsTableRowsHtml([workshopOnly], adminState()), action);
+  assert.match(proposalCompactCardHtml(eligible, { canManage: true }), action);
+  assert.doesNotMatch(proposalCompactCardHtml(workshopOnly, { canManage: true }), action);
+  assert.match(drawerHtml(eligible, [], adminState()), action);
+  assert.doesNotMatch(drawerHtml(workshopOnly, [], adminState()), action);
+
+  const course = { item_name: 'קורס גפן', proposal_group: 'next_year_courses', gefen_number: '6089', quantity: 1, unit_price: 8000, total_price: 8000 };
+  const workshop = { item_name: 'סדנת חלל', proposal_group: 'next_year_workshops', gefen_number: '9999', quantity: 1, unit_price: 650, total_price: 650 };
+  const approval = gefenApprovalDocumentHtml({ ...eligible, semel_mosad: '123456', proposal_date: '2026-08-02' }, [course, workshop]);
+  assert.match(approval, />6089</);
+  assert.doesNotMatch(approval, /סדנת חלל/);
+});
+
 function adminState() {
   return {
     user: {
@@ -56,7 +79,8 @@ function adminState() {
       role: 'admin',
       display_role: 'מנהל מערכת',
       can_edit_direct: true,
-      can_review_requests: true
+      can_review_requests: true,
+      manage_proposals_agreements: true
     },
     clientSettings: { dropdown_options: {} },
     screenDataCache: {}
@@ -262,6 +286,7 @@ test('contact mobile and email fields use container-responsive tracks without ov
   assert.ok(emailWrapper >= 360, `email wrapper must not clip the value, got ${emailWrapper}px`);
 
   assert.match(editorCss, /\.ds-pa-contact-channels-status \{[^}]*grid-column: 2;[^}]*flex-wrap: wrap;/);
+  assert.match(editorCss, /@container pa-editor \(max-width: 760px\)[\s\S]*?\[data-pa-contact-channels-status\] \{ grid-column: 1 \/ -1; \}/);
 });
 
 test('saved proposal rows keep their stored price and hydrate totals once', async () => {
