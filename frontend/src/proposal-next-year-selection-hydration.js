@@ -4,6 +4,7 @@ import { applyNextYearSpaceWorkshopPrice } from './proposal-next-year-space-work
 
 const PATCH_KEY = Symbol.for('taasiyeda.proposalNextYearSelectionHydration');
 const INTERNAL_GROUPS = new Set(['next_year_courses', 'next_year_workshops']);
+const totalsTimers = new WeakMap();
 let cachedPricingRows = [];
 
 function text(value) {
@@ -165,6 +166,22 @@ function calculateTotals(form) {
   return total;
 }
 
+function scheduleTotals(form, delay = 0) {
+  if (!form) return;
+  const previous = totalsTimers.get(form);
+  if (previous) clearTimeout(previous);
+  const timer = setTimeout(() => {
+    totalsTimers.delete(form);
+    if (form.isConnected) calculateTotals(form);
+  }, delay);
+  totalsTimers.set(form, timer);
+}
+
+function settleSelectionTotals(form) {
+  calculateTotals(form);
+  scheduleTotals(form, 80);
+}
+
 export function hydrateNextYearPricingSelection(row, pricingRows = cachedPricingRows, { notify = true } = {}) {
   const group = rowGroup(row);
   if (!row || !INTERNAL_GROUPS.has(group)) return { changed: false, picked: null, total: 0 };
@@ -199,6 +216,7 @@ export function hydrateNextYearPricingSelection(row, pricingRows = cachedPricing
     priceInput.dispatchEvent(new Event('input', { bubbles: true }));
     delete form.dataset.paNextYearDirectHydration;
   }
+  if (notify) scheduleTotals(form, 80);
   return { changed, picked, total };
 }
 
@@ -210,8 +228,15 @@ function installRuntime(scope = globalThis) {
     const row = select?.closest?.('[data-pa-item-row]');
     if (!row || !INTERNAL_GROUPS.has(rowGroup(row))) return;
     queueMicrotask(() => {
-      if (row.isConnected) hydrateNextYearPricingSelection(row, cachedPricingRows, { notify: true });
+      if (!row.isConnected) return;
+      hydrateNextYearPricingSelection(row, cachedPricingRows, { notify: true });
+      settleSelectionTotals(row.closest('[data-pa-form]'));
     });
+  });
+  documentRef.addEventListener('input', (event) => {
+    const target = event.target;
+    if (!target?.matches?.('[data-pa-item-qty], [data-pa-item-price], [data-pa-discount-value], [data-pa-discount-type]')) return;
+    scheduleTotals(target.closest('[data-pa-form]'), 0);
   });
 }
 
