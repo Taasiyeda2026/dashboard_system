@@ -1,9 +1,11 @@
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
+import { readFileSync } from 'node:fs';
 import { JSDOM } from 'jsdom';
 
 import { bindInstructorConstraintsModal, bindInstructorMatchingModal, instructorsScreen } from '../frontend/src/screens/instructors.js';
 import { constraintsForm, matchingForm, profileHtml } from '../frontend/src/screens/instructor-workspace-ui.js';
+import { formatDateDots, formatTimeRangeShort } from '../frontend/src/screens/shared/format-date.js';
 
 function rows() {
   return [
@@ -47,6 +49,30 @@ test('constraints edit action is rendered only when editing is allowed', () => {
   assert.match(editable, /data-edit-instructor-contact/);
   assert.doesNotMatch(readonly, /data-edit-instructor-constraints/);
   assert.doesNotMatch(readonly, /data-edit-instructor-contact/);
+});
+
+test('profile header renders dynamic statuses as plain separated text', () => {
+  const complete = {
+    ...rows()[1], address: 'חיפה', availability_rules: [{ weekday: 0, available: true, start_time: '13:30:00', end_time: '15:00:00' }],
+    scheduling_profile: { gender: 'male', instruction_languages: ['he', 'ar'], education_levels: ['elementary'], course_restriction_mode: 'all' }
+  };
+  const dom = new JSDOM(profileHtml(complete, [], true, true));
+  const status = dom.window.document.querySelector('[data-instructor-status-line]');
+  assert.equal(status.textContent, 'פעיל | לא משובץ | פרופיל שיבוץ מלא');
+  assert.equal(status.querySelectorAll('.ds-status-chip').length, 0);
+  assert.doesNotMatch(dom.window.document.body.textContent, /בשלב זה המערכת מרכזת נתונים/);
+  assert.deepEqual([...dom.window.document.querySelectorAll('[name="language"]')].map((input) => input.nextElementSibling?.textContent), []);
+  dom.window.close();
+});
+
+test('matching languages and scheduling times keep their display labels and RTL-safe formatting', () => {
+  const matching = new JSDOM(matchingForm({ scheduling_profile: {} }));
+  assert.deepEqual([...matching.window.document.querySelectorAll('[name="language"]')].map((input) => input.nextElementSibling.textContent), ['עברית', 'ערבית']);
+  assert.equal(formatTimeRangeShort('13:30:00', '15:00:00'), '13:30–15:00');
+  assert.equal(formatDateDots('2026-11-02'), '02.11.2026');
+  const schedulingSource = readFileSync(new URL('../frontend/src/screens/instructor-scheduling-workflow.js', import.meta.url), 'utf8');
+  assert.match(schedulingSource, /class="scheduling-time-range" dir="ltr"/);
+  matching.window.close();
 });
 
 test('profile opens from every card without requiring an existing assignment', () => {
