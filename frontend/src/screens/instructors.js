@@ -250,7 +250,17 @@ export function bindInstructorConstraintsModal(modalRoot, {
     status.textContent = '';
     try {
       await Promise.all([
-        saveProfile({ emp_id: row.emp_id, default_start_time: input('default_start_time')?.value, default_end_time: input('default_end_time')?.value, friday_allowed: !!input('friday_allowed')?.checked, notes: input('notes')?.value }),
+        saveProfile({
+          emp_id: row.emp_id,
+          default_start_time: input('default_start_time')?.value,
+          default_end_time: input('default_end_time')?.value,
+          friday_allowed: !!input('friday_allowed')?.checked,
+          notes: input('notes')?.value,
+          weekly_target_hours: input('weekly_target_hours')?.value,
+          weekly_max_hours: input('weekly_max_hours')?.value,
+          preferred_work_days: input('preferred_work_days')?.value,
+          max_fixed_courses: input('max_fixed_courses')?.value
+        }),
         saveWeeklyRules(row.emp_id, rules)
       ]);
       await onSuccess?.();

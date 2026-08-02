@@ -1,7 +1,7 @@
 import { evaluateInstructor, adjacentActivities } from './instructor-matching-engine.js';
 import { activityMeetings, isoWeekKey } from './instructor-scheduling-load.js';
 import { routeMatrixKey } from './course-scheduling-travel.js';
-import { isActivitySchedulingEligible, isSchedulingBlockingAssignment } from './shared/activity-scheduling-eligibility.js';
+import { isActivitySchedulingEligible, isSchedulingBlockingAssignment, isSchedulingDraftAssignment } from './shared/activity-scheduling-eligibility.js';
 
 const text = (value) => String(value ?? '').trim();
 const minutes = (value) => {
@@ -39,6 +39,11 @@ function meetingHours(meeting, activity = {}) {
 }
 
 export function availabilityHours(profile = {}, rules = []) {
+  // A personal weekly target/max (spec section 16) takes priority over raw availability
+  // when the instructor's profile has one, but stays fully backward compatible: neither
+  // field is required, and 0/unset falls straight back to summed weekly availability.
+  const personalCapacity = Number(profile?.weekly_max_hours ?? profile?.weekly_target_hours);
+  if (Number.isFinite(personalCapacity) && personalCapacity > 0) return personalCapacity;
   const availableRules = rules.filter((rule) => rule.available && Number(rule.weekday) !== 6);
   if (!availableRules.length) return 0;
   return availableRules.reduce((sum, rule) => sum + Math.max(0, minutes(rule.end_time) - minutes(rule.start_time)) / 60, 0);
@@ -46,6 +51,7 @@ export function availabilityHours(profile = {}, rules = []) {
 
 export function instructorLoad(assignments = [], profile = {}, rules = []) {
   const weekHours = new Map();
+  const weekDays = new Map();
   let hours = 0;
   let meetings = 0;
   const workDates = new Set();
@@ -57,7 +63,12 @@ export function instructorLoad(assignments = [], profile = {}, rules = []) {
       hours += duration;
       meetings += 1;
       workDates.add(text(meeting.date));
-      if (week) weekHours.set(week, (weekHours.get(week) || 0) + duration);
+      if (week) {
+        weekHours.set(week, (weekHours.get(week) || 0) + duration);
+        const weekday = new Date(`${meeting.date}T12:00:00`).getDay();
+        if (!weekDays.has(week)) weekDays.set(week, new Set());
+        weekDays.get(week).add(weekday);
+      }
     }
   }
 
@@ -65,11 +76,14 @@ export function instructorLoad(assignments = [], profile = {}, rules = []) {
   const ratios = capacity > 0 ? [...weekHours.values()].map((value) => value / capacity) : [];
   const maxRatio = capacity > 0 ? Math.max(0, ...ratios) : Number.POSITIVE_INFINITY;
   const averageRatio = ratios.length ? ratios.reduce((sum, value) => sum + value, 0) / ratios.length : 0;
+  const maxWeekDayCount = weekDays.size ? Math.max(0, ...[...weekDays.values()].map((set) => set.size)) : 0;
 
   return {
     hours,
     meetings,
     workDays: workDates.size,
+    maxWeekDayCount,
+    courseCount: assignments.length,
     availabilityHours: capacity,
     weekHours: Object.fromEntries(weekHours),
     maxRatio,
@@ -104,6 +118,11 @@ function assignedRowsByInstructor(rows = [], supplied = {}) {
   for (const row of rows.filter(isSchedulingBlockingAssignment)) {
     add(text(row.emp_id), row);
     add(text(row.emp_id_2), row);
+  }
+  // A saved draft holds its instructor's calendar slot too, so it is never proposed
+  // twice — even though the official activity instructor is not set until approval.
+  for (const row of rows.filter(isSchedulingDraftAssignment)) {
+    add(text(row.draft_emp_id), row);
   }
   return assigned;
 }
@@ -166,7 +185,9 @@ function evaluateCandidate({ course, instructor, assignedRows, draftRows, profil
     travel,
     validateTravel: !input.preliminary,
     workloadRatio: load.maxRatio,
-    averageWorkloadRatio: averageRatio
+    averageWorkloadRatio: averageRatio,
+    fixedCourseCount: load.courseCount,
+    weeklyWorkDayCount: load.maxWeekDayCount
   });
   return { ...result, instructor, load };
 }
