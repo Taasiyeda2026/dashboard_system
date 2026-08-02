@@ -28,8 +28,10 @@ async function openDetailPreview(page, row) {
   await openRowAction(row, '[data-pa-preview]');
   const detail = page.locator('[data-pa-proposal-detail]:visible');
   await expect(detail).toBeVisible();
-  await detail.locator('[data-pa-detail-preview]').click();
-  const preview = page.locator('#pa-preview-overlay .pa-preview-sheet');
+  const previewAction = detail.locator('[data-pa-preview]:visible').first();
+  await expect(previewAction).toBeVisible();
+  await previewAction.click();
+  const preview = page.locator('#pa-preview-overlay .pa-preview-sheet:visible, .proposal-preview-area:visible').first();
   await expect(preview).toBeVisible();
   return { detail, preview };
 }
@@ -84,8 +86,10 @@ test('real proposal regression path remains stable without saving data or PDFs',
   await waitForAppShell(page);
   await navigateToScreen(page, 'proposals-agreements');
   await waitForScreenReady(page, 'proposals-agreements');
+  const proposalsScreen = page.locator('[data-pa-screen]').first();
   await page.locator('[data-pa-client-all-proposals]:visible').first().click();
-  const table = page.locator('[data-pa-all-proposals-table] [data-pa-table]').first();
+  await expect(proposalsScreen).toHaveAttribute('data-pa-view-mode', 'all-proposals');
+  const table = proposalsScreen.locator('[data-pa-all-proposals-table]:visible [data-pa-table]:visible, [data-pa-table]:visible').first();
   await expect(table).toBeVisible();
 
   const approved = table.locator('tbody tr[data-pa-row-id]').filter({ hasText: 'מאושר' }).first();
@@ -95,8 +99,9 @@ test('real proposal regression path remains stable without saving data or PDFs',
   await expect(preview).not.toContainText('לא נמצאה תבנית פעילה לסוג הצעה זה');
   await expect(preview.locator('.pa-section, .pa-org-intro')).not.toHaveCount(0);
   await shot(page, 'proposal-full-template.png', preview);
-  await page.locator('#pa-preview-close').click();
+  await page.locator('#pa-preview-close:visible').click();
   await page.locator('[data-pa-proposal-detail-back]:visible').first().click();
+  await expect(proposalsScreen).toHaveAttribute('data-pa-view-mode', 'all-proposals');
   await expect(table).toBeVisible();
 
   // Use the real new-proposal editor so the regression test does not depend on
@@ -192,7 +197,7 @@ test('real proposal regression path remains stable without saving data or PDFs',
 
   await page.setViewportSize({ width: 1440, height: 1000 });
   const secondPreview = await openDetailPreview(page, approved);
-  await page.locator('#pa-preview-close').click();
+  await page.locator('#pa-preview-close:visible').click();
   await expect(secondPreview.detail).toBeVisible();
   const print = secondPreview.detail.locator('[data-pa-print]').first();
   await expect(print).toBeVisible();
