@@ -1,8 +1,5 @@
 import { api } from './api.js';
-import {
-  PROPOSAL_PDF_RENDER_HOST_ATTRIBUTE,
-  setProposalPdfDocumentNormalizer
-} from './screens/proposals-agreements.js';
+import { setProposalPdfDocumentNormalizer } from './screens/proposals-agreements.js';
 
 const PATCH_KEY = Symbol.for('taasiyeda.proposalNextYearWorkshops');
 const NEXT_YEAR_GROUP = 'next_year';
@@ -25,7 +22,6 @@ const AMBIGUOUS_NEXT_YEAR_LABELS = new Set(['תשפ״ז', 'תשפ"ז']);
 const SUMMER_GROUP_ALIASES = new Set(['summer', 'פעילויות קיץ', 'קיץ תשפ״ו']);
 const NEXT_YEAR_GROUP_ALIASES = new Set(['next_year', 'שנה הבאה', 'שנת הלימודים תשפ״ז', 'תוכניות תשפ״ז', 'תשפ״ז']);
 const WORKSHOP_PARENT_KEYS = new Set(['maker_workshop', 'space_workshop']);
-const INTERNAL_GROUP_KEYS = new Set([NEXT_YEAR_COURSES_GROUP, NEXT_YEAR_WORKSHOPS_GROUP]);
 const TABLE_SELECTOR = '.proposal-document .pa-next-year-course-table';
 const workshopNames = new Set(['סדנאות STEM', 'סדנאות חלל']);
 
@@ -302,29 +298,13 @@ function splitNextYearTable(table) {
   return true;
 }
 
-function removeInternalGroupOptions(root) {
-  root?.querySelectorAll?.('select option').forEach((option) => {
-    if (INTERNAL_GROUP_KEYS.has(text(option.value))) option.remove();
-  });
-}
-
-/**
- * When the document-wide observer runs, PDF render hosts are skipped: the PDF path
- * normalizes its own tree once, synchronously, so generation never races the observer.
- */
-function insidePdfRenderHost(element) {
-  return Boolean(element?.closest?.(`[${PROPOSAL_PDF_RENDER_HOST_ATTRIBUTE}]`));
-}
-
-export function normalizeNextYearWorkshopTables(root = globalThis.document, { skipPdfRenderHosts = false } = {}) {
+export function normalizeNextYearWorkshopTables(root = globalThis.document) {
   const tables = [];
   if (root?.matches?.(TABLE_SELECTOR)) tables.push(root);
   root?.querySelectorAll?.(TABLE_SELECTOR).forEach((table) => tables.push(table));
   tables
-    .filter((table) => !skipPdfRenderHosts || !insidePdfRenderHost(table))
     .forEach(splitNextYearTable);
   normalizeNextYearGroupLabels(root);
-  removeInternalGroupOptions(root);
   return root;
 }
 
@@ -383,21 +363,6 @@ export function installProposalNextYearWorkshops(targetApi = api, scope = global
   wrapSnapshotMethod(targetApi, 'uploadProposalFinalPdf', documentRef);
   wrapSnapshotMethod(targetApi, 'lockAndSendProposalAgreement', documentRef);
   setProposalPdfDocumentNormalizer((host) => normalizeNextYearWorkshopTables(host));
-
-  if (documentRef?.documentElement && typeof scope?.MutationObserver === 'function') {
-    let queued = false;
-    const schedule = () => {
-      if (queued) return;
-      queued = true;
-      queueMicrotask(() => {
-        queued = false;
-        normalizeNextYearWorkshopTables(documentRef, { skipPdfRenderHosts: true });
-      });
-    };
-    if (documentRef.readyState === 'loading') documentRef.addEventListener('DOMContentLoaded', schedule, { once: true });
-    else schedule();
-    new scope.MutationObserver(schedule).observe(documentRef.documentElement, { childList: true, subtree: true });
-  }
 
   Object.defineProperty(targetApi, PATCH_KEY, { value: true, configurable: false, enumerable: false, writable: false });
   return true;

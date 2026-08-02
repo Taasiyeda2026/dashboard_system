@@ -26,7 +26,7 @@ const screenUrl = new URL('../frontend/src/screens/proposals-agreements.js', imp
 const mainCssUrl = new URL('../frontend/src/styles/main.css', import.meta.url);
 const nextYearUrl = new URL('../frontend/src/proposal-next-year-workshops.js', import.meta.url);
 
-const { validateProposalDocumentTree, validateProposalDocumentHtml, PROPOSAL_PDF_RENDER_HOST_ATTRIBUTE } =
+const { validateProposalDocumentTree, validateProposalDocumentHtml, proposalPreviewBodyHtml, PROPOSAL_PDF_RENDER_HOST_ATTRIBUTE } =
   await import('../frontend/src/screens/proposals-agreements.js');
 
 function documentTree(html) {
@@ -64,6 +64,15 @@ test('saved PDF reserves a browser tab before awaiting its signed URL', async ()
   assert.match(source, /link\.download = text\(result\?\.fileName\)/);
 });
 
+test('PDF generation reserves its result window before the first await', async () => {
+  const source = await readFile(screenUrl, 'utf8');
+  const start = source.indexOf('const generateAndSaveProposalPdf = async');
+  const body = source.slice(start, source.indexOf('const finalizeSentProposal = async', start));
+  assert.ok(body.indexOf('const reservedPdfWindow = reservePdfWindow();') < body.indexOf('await ensureEditorDeps();'));
+  const beforeReservation = body.slice(0, body.indexOf('const reservedPdfWindow = reservePdfWindow();')).replace(/\/\/.*$/gm, '');
+  assert.doesNotMatch(beforeReservation, /\bawait\b/);
+});
+
 test('clone handler delegates one atomic item copy and never archives the source locally', async () => {
   const source = await readFile(screenUrl, 'utf8');
   const handler = source.slice(source.indexOf("const cloneBtn = event.target.closest?.('[data-pa-clone-row]')"));
@@ -77,6 +86,33 @@ test('a full proposal document passes the PDF completeness gate', () => {
   assert.deepEqual(result.missing, []);
   assert.equal(result.ok, true);
   assert.ok(result.documentRoot);
+});
+
+test('an image-only logo header passes while a genuinely empty title is blocked', () => {
+  const imageOnlyHeader = FULL_DOCUMENT_HTML.replace('><img src="logo.png" alt="לוגו">תעשיידע</div>', '><img src="logo.png" alt="לוגו"></div>');
+  assert.equal(validateProposalDocumentTree(documentTree(imageOnlyHeader)).ok, true);
+  assert.equal(validateProposalDocumentHtml(imageOnlyHeader.replaceAll('"', "'")).ok, true);
+  const emptyTitle = imageOnlyHeader.replace('הצעת מחיר 10200', '');
+  assert.ok(validateProposalDocumentTree(documentTree(emptyTitle)).missing.includes('כותרת ההצעה'));
+  assert.ok(validateProposalDocumentHtml(emptyTitle).missing.includes('כותרת ההצעה'));
+});
+
+test('non-DOM HTML validation reads nested recipient text and rejects a truly empty region', () => {
+  const nestedRecipient = FULL_DOCUMENT_HTML.replace('לכבוד: מנהלת בית הספר', '<span><b>לכבוד:</b> מנהלת בית הספר</span>');
+  assert.equal(validateProposalDocumentHtml(nestedRecipient.replaceAll('"', "'")).ok, true);
+  const emptyRecipient = nestedRecipient.replace('<span><b>לכבוד:</b> מנהלת בית הספר</span>', '<span><b></b></span>');
+  assert.ok(validateProposalDocumentHtml(emptyRecipient).missing.includes('פרטי הנמען'));
+  const emptyHeader = nestedRecipient.replace(/<div class="proposal-document-header[^>]*>[\s\S]*?<\/div>/, '<div class="proposal-document-header"></div>');
+  assert.ok(validateProposalDocumentHtml(emptyHeader).missing.includes('כותרת ולוגו'));
+});
+
+test('non-DOM validation accepts the real proposal preview HTML', () => {
+  const html = proposalPreviewBodyHtml(
+    { activity_type_group: 'gefen', client_authority: 'רשות', school_framework: 'בית ספר', contact_name: 'מנהלת', proposal_date: '2026-08-02' },
+    [{ item_name: 'בינה מלאכותית', proposal_group: 'gefen', quantity: 1, unit_price: 8000, total_price: 8000 }],
+    [{ template_key: 'gefen', section_key: 'intro', section_title: 'פתיח', section_body: 'תוכן תבנית מלא', is_active: true }]
+  );
+  assert.equal(validateProposalDocumentHtml(html).ok, true);
 });
 
 test('a table-only fragment is blocked before a PDF can be produced', () => {
@@ -167,12 +203,33 @@ test('the PDF path validates the document, normalizes it once and blocks a parti
   assert.match(source, /if \(text\(err\?\.userMessage\)\) \{\s*\n\s*showToast\(err\.userMessage, 'error', 6000\)/);
 });
 
-test('the document observer never rewrites a PDF render host mid-generation', async () => {
+test('next-year normalization is explicit and never installs a document-wide observer', async () => {
   const nextYear = await readFile(nextYearUrl, 'utf8');
   assert.match(nextYear, /setProposalPdfDocumentNormalizer\(\(host\) => normalizeNextYearWorkshopTables\(host\)\)/);
-  assert.match(nextYear, /normalizeNextYearWorkshopTables\(documentRef, \{ skipPdfRenderHosts: true \}\)/);
-  assert.match(nextYear, /skipPdfRenderHosts \|\| !insidePdfRenderHost\(table\)/);
+  assert.doesNotMatch(nextYear, /new scope\.MutationObserver/);
+  assert.doesNotMatch(nextYear, /querySelectorAll\?\.\('select option'\)/);
   assert.equal(PROPOSAL_PDF_RENDER_HOST_ATTRIBUTE, 'data-pdf-render-host');
+});
+
+test('all live document builders await the shared deferred editor dependency promise', async () => {
+  const source = await readFile(screenUrl, 'utf8');
+  for (const functionName of ['generateAndSaveProposalPdf', 'finalizeSentProposal', 'openSendProposalDialog', 'openPreview']) {
+    const start = source.indexOf(`const ${functionName} = async`);
+    assert.ok(start > 0, `${functionName} exists`);
+    const end = source.indexOf(`const ${functionName === 'openPreview' ? 'readSignatureMeta' : functionName === 'openSendProposalDialog' ? 'approvalRequests' : functionName === 'finalizeSentProposal' ? 'openSendProposalDialog' : 'finalizeSentProposal'} =`, start);
+    assert.match(source.slice(start, end > start ? end : start + 1500), /await ensureEditorDeps\(\)/);
+  }
+  assert.match(source, /if \(editorDepsPromise\) return editorDepsPromise/);
+});
+
+test('a locked proposal opens its stored PDF before editor dependencies are requested', async () => {
+  const source = await readFile(screenUrl, 'utf8');
+  const start = source.indexOf('const openPreview = async');
+  const body = source.slice(start, source.indexOf('document.getElementById', start));
+  const savedPdfBranch = body.indexOf('isSentLocked && proposalHasFinalPdf');
+  const openPdf = body.indexOf('await openProposalFinalPdf', savedPdfBranch);
+  const deps = body.indexOf('await ensureEditorDeps()');
+  assert.ok(savedPdfBranch > 0 && openPdf > savedPdfBranch && deps > openPdf);
 });
 
 test('the final print override releases the PDF host from the single-page flex column', async () => {
