@@ -155,21 +155,39 @@ async function openAllProposals(page) {
   return table;
 }
 
-/** Finds a row of the requested type that still offers PDF generation. */
-async function findProposalRow(table, typeLabel, { requireSavedSnapshot = false } = {}) {
+/**
+ * Opens each candidate row of the requested type and keeps the first one whose preview
+ * overlay offers PDF production (`#pa-print-btn`). A sent proposal that only offers its
+ * stored file is reported separately so the saved-snapshot scenario can verify that.
+ */
+async function openProposalWithPrintAction(page, table, typeLabel, { preferSent = false } = {}) {
   const rows = table.locator('tbody tr[data-pa-row-id]');
   const count = await rows.count();
+  const order = [];
   for (let index = 0; index < count; index += 1) {
     const row = rows.nth(index);
     const type = (await row.locator('td').nth(4).innerText()).trim();
     if (type !== typeLabel) continue;
-    const generate = row.locator('[data-pa-generate-pdf], [data-pa-pdf]');
-    if (!(await generate.count())) continue;
-    if (requireSavedSnapshot) {
-      const status = (await row.locator('td').nth(6).innerText()).trim();
-      if (!status) continue;
+    const status = (await row.locator('td').nth(6).innerText()).trim();
+    const isSent = status.includes('נשלח');
+    order.push({ index, isSent });
+  }
+  order.sort((left, right) => Number(right.isSent === preferSent) - Number(left.isSent === preferSent));
+
+  for (const candidate of order) {
+    const row = rows.nth(candidate.index);
+    await row.click();
+    const preview = page.locator('[data-pa-preview-form]:visible').first();
+    if (await preview.count()) await preview.click();
+    const toolbar = page.locator('.proposal-preview-toolbar');
+    if (await toolbar.count()) {
+      const print = page.locator('#pa-print-btn');
+      const savedPdf = page.locator('#pa-view-final-pdf-btn');
+      if (await print.count()) return { kind: 'print', row, print, id: await row.getAttribute('data-pa-row-id') };
+      if (await savedPdf.count()) return { kind: 'saved', row, savedPdf, id: await row.getAttribute('data-pa-row-id') };
+      await page.locator('#pa-preview-close').first().click().catch(() => {});
     }
-    return { row, id: await row.getAttribute('data-pa-row-id'), generate: generate.first() };
+    await page.keyboard.press('Escape').catch(() => {});
   }
   return null;
 }
@@ -223,29 +241,48 @@ async function assertPrintTreeComplete(page, label) {
   expect(probe.hostHeight, `${label}: the print tree must be taller than a table strip`).toBeGreaterThan(600);
 }
 
-async function generateAndVerify(page, tracker, { label, typeLabel, requireSavedSnapshot = false }) {
+/** Downloads a proposal's stored PDF without regenerating or replacing it. */
+async function fetchSavedPdf(page, savedPdfButton) {
+  const [popup] = await Promise.all([
+    page.context().waitForEvent('page', { timeout: 60_000 }),
+    savedPdfButton.click()
+  ]);
+  await popup.waitForLoadState('domcontentloaded').catch(() => {});
+  const url = popup.url();
+  expect(url, 'the saved PDF must resolve to a signed URL').toMatch(/^https?:/);
+  const response = await page.request.get(url);
+  expect(response.ok(), 'the stored PDF must be readable').toBe(true);
+  await popup.close().catch(() => {});
+  return Buffer.from(await response.body());
+}
+
+async function generateAndVerify(page, tracker, { label, typeLabel, preferSent = false }) {
   tracker.resetScreen(`proposal-pdf-${label}`);
   const table = await openAllProposals(page);
-  const target = await findProposalRow(table, typeLabel, { requireSavedSnapshot });
-  expect(target, `expected a ${typeLabel} proposal that can produce a PDF`).not.toBeNull();
+  const target = await openProposalWithPrintAction(page, table, typeLabel, { preferSent });
+  expect(target, `expected a ${typeLabel} proposal offering a PDF action`).not.toBeNull();
 
-  await target.row.click();
-  const drawer = page.locator('[data-pa-drawer]:visible, .ds-drawer__content:visible').first();
-  await expect(drawer).toBeVisible();
+  await expect(page.locator('.proposal-preview-area .proposal-document').first()).toBeVisible();
   await ensureDirs();
   await page.screenshot({ path: path.join(screenshotsDir, `proposal-pdf-preview-${label}.png`), fullPage: true });
 
-  await installPrintHostProbe(page, REQUIRED_PRINT_PARTS);
-  const pdfBuffer = await capturePdfWithoutUpload(page, async () => {
-    const generate = page.locator('[data-pa-generate-pdf]:visible, [data-pa-pdf]:visible').first();
-    await expect(generate).toBeVisible();
-    await generate.click();
-  });
+  let pdfBuffer;
+  if (target.kind === 'print') {
+    await installPrintHostProbe(page, REQUIRED_PRINT_PARTS);
+    pdfBuffer = await capturePdfWithoutUpload(page, async () => {
+      await expect(target.print).toBeVisible();
+      await target.print.click();
+    });
+    await assertPrintTreeComplete(page, label);
+  } else {
+    // A locked proposal keeps its stored document: verify that file, never replace it.
+    pdfBuffer = await fetchSavedPdf(page, target.savedPdf);
+  }
 
-  await assertPrintTreeComplete(page, label);
   const result = await verifyProducedPdf(page, tracker, `proposal-${label}`, pdfBuffer);
+  await page.locator('#pa-preview-close').first().click().catch(() => {});
   await page.keyboard.press('Escape').catch(() => {});
-  return result;
+  return { ...result, kind: target.kind };
 }
 
 test.describe('Proposal PDF contains the full document', () => {
@@ -269,12 +306,12 @@ test.describe('Proposal PDF contains the full document', () => {
     assertNoTransportErrors(tracker);
   });
 
-  test('existing proposal with a saved snapshot produces the full template', async ({ page, tracker }) => {
+  test('existing proposal with a saved snapshot keeps the full template', async ({ page, tracker }) => {
     test.setTimeout(240_000);
     const result = await generateAndVerify(page, tracker, {
       label: 'saved-snapshot',
       typeLabel: 'תשפ״ז',
-      requireSavedSnapshot: true
+      preferSent: true
     });
     expect(result.pageCount).toBeGreaterThan(0);
     assertNoTransportErrors(tracker);

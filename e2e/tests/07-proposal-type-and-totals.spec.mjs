@@ -31,7 +31,7 @@ async function fieldFitsItsValue(locator) {
   return locator.evaluate((element) => element.scrollWidth <= element.clientWidth + 1);
 }
 
-async function addRowInArea(form, groupKey) {
+async function addRowInArea(form, groupKey, { unitPrice = '1500' } = {}) {
   const section = form.locator(`[data-pa-items-group="${groupKey}"]`);
   await expect(section).toHaveCount(1);
   await section.locator('[data-pa-add-item]').first().click();
@@ -42,11 +42,24 @@ async function addRowInArea(form, groupKey) {
     .find((option) => option && !option.startsWith('__')) || '');
   expect(value, `expected a real priced activity for ${groupKey}`).not.toBe('');
   await select.selectOption(value);
+
+  // Catalog entries without a stored unit price leave the row at zero; entering the
+  // price is the same edit a user makes and keeps the totals assertion deterministic.
+  const total = row.locator('[data-pa-item-total-display]');
+  const hasAmount = await expect.poll(async () => amountOf(await total.innerText()), { timeout: 4000 })
+    .toBeGreaterThan(0)
+    .then(() => true, () => false);
+  if (!hasAmount) {
+    const price = row.locator('[data-pa-item-price]');
+    await price.fill(unitPrice);
+    await price.dispatchEvent('input');
+    await expect.poll(async () => amountOf(await total.innerText()), { timeout: 15_000 }).toBeGreaterThan(0);
+  }
   return { section, row };
 }
 
-function amountOf(text) {
-  const match = String(text).replace(/\u00a0/g, ' ').match(/([\d,]+)/);
+function amountOf(value) {
+  const match = String(value).replace(/\u00a0/g, ' ').match(/([\d,]+)/);
   return match ? Number(match[1].replace(/,/g, '')) : 0;
 }
 
