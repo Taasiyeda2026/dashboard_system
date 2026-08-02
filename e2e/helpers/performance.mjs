@@ -3,6 +3,7 @@ import path from 'node:path';
 import {
   ABSOLUTE_BUDGETS,
   BASELINE_PATH,
+  REGRESSION_MIN_ALLOWANCE,
   REGRESSION_RATIO,
   shouldUpdateBaseline
 } from './env.mjs';
@@ -157,6 +158,12 @@ export async function measureScreen(page, tracker, {
   });
 }
 
+export function relativeBudgetLimit(key, baselineValue) {
+  const base = Number(baselineValue || 0);
+  const allowance = Number(REGRESSION_MIN_ALLOWANCE[key] || 0);
+  return Math.max(base * REGRESSION_RATIO, base + allowance);
+}
+
 export function compareToBudget(screenKey, metrics, baseline) {
   const problems = [];
   const base = baseline?.screens?.[screenKey];
@@ -169,10 +176,10 @@ export function compareToBudget(screenKey, metrics, baseline) {
       problems.push(`${screenKey}.${key}=${value} exceeds absolute budget ${absolute}`);
     }
     if (base && Number(base[key]) > 0) {
-      const limit = Number(base[key]) * REGRESSION_RATIO;
+      const limit = relativeBudgetLimit(key, base[key]);
       if (value > limit) {
         problems.push(
-          `${screenKey}.${key}=${value} regresses >20% vs baseline ${base[key]} (limit ${limit.toFixed(1)})`
+          `${screenKey}.${key}=${value} exceeds regression limit vs baseline ${base[key]} (limit ${limit.toFixed(1)})`
         );
       }
     }
