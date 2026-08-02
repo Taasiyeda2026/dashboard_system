@@ -93,10 +93,31 @@ function exceptionGroupKey(type) {
   return 'other';
 }
 
+const EXCEPTION_DISTRICT_ORDER = ['מחוז צפון', 'מחוז דרום', 'מחוז מרכז'];
+const EXCEPTION_DISTRICT_ALIASES = new Map([
+  ['צפון', 'מחוז צפון'],
+  ['הצפון', 'מחוז צפון'],
+  ['מחוז צפון', 'מחוז צפון'],
+  ['מחוז הצפון', 'מחוז צפון'],
+  ['דרום', 'מחוז דרום'],
+  ['הדרום', 'מחוז דרום'],
+  ['מחוז דרום', 'מחוז דרום'],
+  ['מחוז הדרום', 'מחוז דרום'],
+  ['מרכז', 'מחוז מרכז'],
+  ['המרכז', 'מחוז מרכז'],
+  ['מחוז מרכז', 'מחוז מרכז'],
+  ['מחוז המרכז', 'מחוז מרכז']
+]);
+
 function exceptionDistrictKey(row = {}) {
   const district = String(row?.district || '').trim();
   if (!district || district === 'ממתין לשיוך מחוזי') return 'ללא מחוז / לא משויך';
-  return district;
+  return EXCEPTION_DISTRICT_ALIASES.get(district) || district;
+}
+
+function exceptionDistrictSortIndex(district) {
+  const index = EXCEPTION_DISTRICT_ORDER.indexOf(district);
+  return index === -1 ? EXCEPTION_DISTRICT_ORDER.length : index;
 }
 
 function exceptionRowIdentity(row = {}) {
@@ -244,7 +265,11 @@ function exceptionsSummaryHtml(rows = []) {
   });
   const districtsHtml = [...byDistrict.entries()]
     .map(([district, activities]) => [district, activities.size])
-    .sort((a, b) => b[1] - a[1] || a[0].localeCompare(b[0], 'he'))
+    .sort((a, b) => {
+      const orderDiff = exceptionDistrictSortIndex(a[0]) - exceptionDistrictSortIndex(b[0]);
+      if (orderDiff !== 0) return orderDiff;
+      return b[1] - a[1] || a[0].localeCompare(b[0], 'he');
+    })
     .map(([district, count]) => `<button type="button" class="ds-exception-district-chip" data-exception-district-filter="${escapeHtml(district)}"><span>${escapeHtml(district)}</span><strong>${escapeHtml(String(count))}</strong></button>`)
     .join('');
   return `<section class="ds-exceptions-summary" aria-label="סיכום חריגות">
