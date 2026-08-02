@@ -18,7 +18,11 @@ import {
 import { activityManagerDisplayName, getFilterOptionOverrides } from './shared/activity-options.js';
 import { isEmptyValue } from '../utils/empty-value.js';
 import { EXCEPTION_TYPE_ORDER, exceptionActivityKey, normalizedExceptionTypes, uniqueExceptionActivityCount } from './shared/exceptions-metrics.js';
-import { isSummerActivity } from './shared/summer-activity.js';
+import {
+  ACTIVITY_SEASON_REGULAR,
+  isSummerActivity,
+  normalizeGlobalActivityPeriod
+} from './shared/summer-activity.js';
 import { showToast } from './shared/toast.js';
 
 const EXCEPTIONS_SCOPE = 'exceptions';
@@ -34,6 +38,12 @@ function isSummerExceptionsDefaultPeriod() {
   const day = String(now.getDate()).padStart(2, '0');
   const today = `${year}-${month}-${day}`;
   return today >= SUMMER_EXCEPTIONS_DEFAULT_FROM && today <= SUMMER_EXCEPTIONS_DEFAULT_TO;
+}
+
+/** Summer-2026 exceptions tab is only available in the 2026 working year. */
+function showSummerExceptionsTab(state = {}, data = {}) {
+  const period = normalizeGlobalActivityPeriod(state?.activityPeriodTab || data?.activity_period || '');
+  return period === ACTIVITY_SEASON_REGULAR;
 }
 
 const HEBREW_MONTHS = ['ינואר','פברואר','מרץ','אפריל','מאי','יוני','יולי','אוגוסט','ספטמבר','אוקטובר','נובמבר','דצמבר'];
@@ -68,7 +78,7 @@ function exceptionCardTone(row, fallbackTone = 'other') {
   if (type === 'end_date_after_cutoff') return 'end-date-sync';
   if (type === 'missing_instructor') return 'missing-instructor';
   if (type === 'missing_completion_approval') return 'waiting-date';
-  if (type === 'missing_district') return 'missing-assignment';
+  if (type === 'missing_district' || type === 'missing_authority') return 'missing-assignment';
   return 'other';
 }
 
@@ -79,12 +89,14 @@ function exceptionGroupKey(type) {
   if (type === 'end_date_after_cutoff') return 'end-date-sync';
   if (type === 'missing_instructor') return 'missing-instructor';
   if (type === 'missing_completion_approval') return 'waiting-date';
-  if (type === 'missing_district') return 'missing-assignment';
+  if (type === 'missing_district' || type === 'missing_authority') return 'missing-assignment';
   return 'other';
 }
 
 function exceptionDistrictKey(row = {}) {
-  return String(row?.district || '').trim() || 'ללא מחוז / לא משויך';
+  const district = String(row?.district || '').trim();
+  if (!district || district === 'ממתין לשיוך מחוזי') return 'ללא מחוז / לא משויך';
+  return district;
 }
 
 function exceptionRowIdentity(row = {}) {
@@ -148,11 +160,14 @@ function splitRowsByExceptionTab(rows = []) {
   return { general, summerDates };
 }
 
-function exceptionTabsHtml(activeTab, counts) {
+function exceptionTabsHtml(activeTab, counts, { showSummerTab = true } = {}) {
   const tabs = [
-    [EXCEPTIONS_TAB_GENERAL, 'חריגות כלליות', counts.general || 0],
-    [EXCEPTIONS_TAB_SUMMER_DATES, 'חריגות קיץ 2026', counts.summerDates || 0]
+    [EXCEPTIONS_TAB_GENERAL, 'חריגות כלליות', counts.general || 0]
   ];
+  if (showSummerTab) {
+    tabs.push([EXCEPTIONS_TAB_SUMMER_DATES, 'חריגות קיץ 2026', counts.summerDates || 0]);
+  }
+  if (tabs.length < 2) return '';
   return `<nav class="ds-exceptions-tabs" aria-label="חלוקת חריגות">
     ${tabs.map(([key, label, count]) => `<button
       type="button"
@@ -207,7 +222,7 @@ function exceptionGroupCard({ title, rows, key }) {
   const groupTitle = `${title} · ${uniqueCount}`;
   const rowCount = Array.isArray(rows) ? rows.length : 0;
   const countMeta = rowCount !== uniqueCount
-    ? `<span class="ds-exception-group__meta">${escapeHtml(String(uniqueCount))} פעילויות (${escapeHtml(String(rowCount))} רשומות)</span>`
+    ? `<span class="ds-exception-group__meta">${escapeHtml(String(uniqueCount))} פעילויות (${escapeHtml(String(rowCount))} שורות)</span>`
     : '';
   const body = `<div class="ds-exceptions-grid">${rows.map((row) => exceptionCardHtml(row, key)).join('')}</div>`;
   return `<section class="ds-exception-group" data-exception-group="${escapeHtml(key || 'other')}">
@@ -303,13 +318,17 @@ export const exceptionsScreen = {
     prepareRowsForSearch(allRows, ['RowID', 'activity_name', 'activity_manager', 'authority', 'school', 'funding', 'exception_type', 'exception_types']);
     const filteredRows = applyLocalFilters(allRows, filterState, { filterFields: EXCEPTION_FILTER_FIELDS });
     const tabRows = splitRowsByExceptionTab(filteredRows);
+    const showSummerTab = showSummerExceptionsTab(state, data);
     const savedTab = state?.exceptionsTab;
-    const defaultTab = isSummerExceptionsDefaultPeriod()
+    const defaultTab = showSummerTab && isSummerExceptionsDefaultPeriod()
       ? EXCEPTIONS_TAB_SUMMER_DATES
       : EXCEPTIONS_TAB_GENERAL;
-    const activeTab = savedTab === EXCEPTIONS_TAB_SUMMER_DATES || savedTab === EXCEPTIONS_TAB_GENERAL
+    const requestedTab = savedTab === EXCEPTIONS_TAB_SUMMER_DATES || savedTab === EXCEPTIONS_TAB_GENERAL
       ? savedTab
       : defaultTab;
+    const activeTab = requestedTab === EXCEPTIONS_TAB_SUMMER_DATES && !showSummerTab
+      ? EXCEPTIONS_TAB_GENERAL
+      : requestedTab;
     const visibleRows = activeTab === EXCEPTIONS_TAB_SUMMER_DATES ? tabRows.summerDates : tabRows.general;
     const hideRowId = !!state?.clientSettings?.hide_row_id_in_ui;
     const toolbarHtml = filtersToolbarHtml(EXCEPTIONS_SCOPE, allRows, state, {
@@ -342,7 +361,7 @@ export const exceptionsScreen = {
       ${toolbarHtml}
       <section class="ds-exceptions-screen__section"><h2 class="ds-section-title ds-exceptions-screen__title">חריגות</h2></section>
       ${(() => { try { return sessionStorage.getItem('ds_exceptions_save_notice') === '1'; } catch { return false; } })() ? `<div class="ds-exceptions-save-notice" role="status" dir="rtl"><strong>הפעילות נשמרה בהצלחה.</strong> החריגה תוקנה ולכן הפעילות הוסרה ממסך החריגות. <button type="button" class="ds-btn ds-btn--sm" data-exception-go-activities>מעבר למסך פעילויות</button></div>` : ''}
-      ${exceptionTabsHtml(activeTab, { general: uniqueExceptionActivityCount(tabRows.general), summerDates: uniqueExceptionActivityCount(tabRows.summerDates) })}
+      ${exceptionTabsHtml(activeTab, { general: uniqueExceptionActivityCount(tabRows.general), summerDates: uniqueExceptionActivityCount(tabRows.summerDates) }, { showSummerTab })}
       ${exceptionsSummaryHtml(visibleRows)}
       ${!hasAnyRows ? `<section class="ds-exceptions-screen__section">${dsEmptyState(emptyText)}</section>` : groups.map((group) => `<section class="ds-exceptions-screen__section">${exceptionGroupCard(group)}</section>`).join('')}
       </div>

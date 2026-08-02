@@ -80,11 +80,11 @@ test('all counted exceptions are returned as display instances from one source',
   const districtSum = Object.values(model.byDistrict).reduce((sum, value) => sum + Number(value || 0), 0);
 
   assert.equal(model.exceptionInstances.length, model.totalExceptionInstances);
-  assert.equal(districtSum, model.totalExceptionInstances);
-  assert.ok(model.counts.missing_district > 0);
+  assert.equal(districtSum, model.uniqueExceptionActivities);
   assert.ok(model.counts.missing_end_date > 0);
   assert.equal(model.counts.missing_school, undefined);
-  assert.equal(model.counts.missing_authority, undefined);
+  assert.ok(model.counts.missing_authority > 0, 'activities without authority should count as missing_authority');
+  assert.equal(model.counts.missing_district, 0, 'activities without authority must not count as missing_district');
   assert.equal(model.counts.missing_next_meeting, undefined);
   assert.ok(model.byDistrict['ללא מחוז / לא משויך'] > 0);
   assert.ok(model.rows.some((row) => row.RowID === 'SHORT-1'), 'short/workshop activity should not be filtered out');
@@ -167,4 +167,37 @@ test('district summary uses district only and not activity_manager fallback', ()
   assert.equal(model.counts.missing_district, 1);
   assert.equal(model.byDistrict['ללא מחוז / לא משויך'], 1);
   assert.equal(model.byDistrict['מחוז דרום'], undefined);
+});
+
+test('pending district assignment counts as missing_district only when authority exists', () => {
+  const withAuthority = activity({
+    RowID: 'PENDING-DISTRICT',
+    authority: 'רשות לדוגמה',
+    authority_id: 123,
+    district: 'ממתין לשיוך מחוזי'
+  });
+  const withoutAuthority = activity({
+    RowID: 'NO-AUTHORITY',
+    authority: '',
+    authority_id: null,
+    district: 'ממתין לשיוך מחוזי'
+  });
+  const deleted = activity({
+    RowID: 'DELETED-PENDING',
+    authority: 'רשות',
+    authority_id: 9,
+    district: 'ממתין לשיוך מחוזי',
+    status: 'נמחק'
+  });
+
+  const model = buildExceptionsModelFromRows([withAuthority, withoutAuthority, deleted], '2026-05', {
+    include_rows: true
+  });
+
+  assert.equal(model.counts.missing_district, 1);
+  assert.equal(model.counts.missing_authority, 1);
+  assert.ok(model.rows.some((row) => row.RowID === 'PENDING-DISTRICT' && row.exception_types.includes('missing_district')));
+  assert.ok(model.rows.some((row) => row.RowID === 'NO-AUTHORITY' && row.exception_types.includes('missing_authority')));
+  assert.ok(!model.rows.some((row) => row.RowID === 'NO-AUTHORITY' && row.exception_types.includes('missing_district')));
+  assert.ok(!model.rows.some((row) => row.RowID === 'DELETED-PENDING'));
 });

@@ -51,7 +51,7 @@ test('service worker and client-file hotfix versions are current and structurall
   ]);
 
   const cacheVersion = Number(sw.match(/const CACHE_VERSION = (\d+);/)?.[1] || 0);
-  assert.ok(Number.isInteger(cacheVersion) && cacheVersion >= 1360, 'CACHE_VERSION must include the proposal type and totals rollout');
+  assert.ok(Number.isInteger(cacheVersion) && cacheVersion >= 1361, 'CACHE_VERSION must include the full proposal PDF document rollout');
 
   const hotfixVersion = config.match(/HOTFIX_VERSION:\s*'([^']+)'/)?.[1] || '';
   assert.ok(hotfixVersion.trim(), 'HOTFIX_VERSION must be defined');
