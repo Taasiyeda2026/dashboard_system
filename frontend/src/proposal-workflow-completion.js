@@ -33,8 +33,6 @@ let cachedPricingRows = [];
 let editorDepsPromise = null;
 let editorDepsValue = null;
 const automaticPdfRequests = new Set();
-let documentObserver = null;
-let screenObserver = null;
 
 function text(value) {
   return String(value == null ? '' : value).replace(/\s+/g, ' ').trim();
@@ -106,16 +104,16 @@ function memoizeEditorDeps(targetApi) {
   };
 }
 
-function prewarmEditorDeps(targetApi) {
+function prewarmEditorDeps(targetApi, scope = globalThis) {
   const run = () => {
     if (typeof targetApi?.proposalsAgreementsEditorDeps !== 'function') return;
     targetApi.proposalsAgreementsEditorDeps().catch(() => {});
   };
-  if (typeof requestIdleCallback === 'function') requestIdleCallback(run, { timeout: 1200 });
-  else setTimeout(run, 350);
+  if (typeof scope.requestIdleCallback === 'function') scope.requestIdleCallback(run, { timeout: 1200 });
+  else scope.setTimeout?.(run, 350);
 }
 
-function calculateFormTotals(form) {
+export function calculateFormTotals(form) {
   if (!form) return 0;
   let subtotal = 0;
   form.querySelectorAll('[data-pa-items-group]').forEach((section) => {
@@ -127,13 +125,13 @@ function calculateFormTotals(form) {
       const hidden = row.querySelector('[data-pa-item-total]');
       const output = row.querySelector('[data-pa-item-total-display]');
       if (hidden) hidden.value = total > 0 ? total.toFixed(2) : '';
-      if (output) output.textContent = currencyText(total);
+      if (output && output.textContent !== currencyText(total)) output.textContent = currencyText(total);
       groupTotal += total;
     });
     subtotal += groupTotal;
     const groupKey = text(section.dataset.paItemsGroup);
     const groupOutput = section.querySelector(`[data-pa-group-total="${groupKey}"]`);
-    if (groupOutput) groupOutput.textContent = currencyText(groupTotal);
+    if (groupOutput && groupOutput.textContent !== currencyText(groupTotal)) groupOutput.textContent = currencyText(groupTotal);
   });
 
   const discountType = text(form.querySelector('[data-pa-discount-type]')?.value) || 'amount';
@@ -142,14 +140,12 @@ function calculateFormTotals(form) {
     ? subtotal * Math.min(Math.max(discountValue, 0), 100) / 100
     : Math.min(Math.max(discountValue, 0), subtotal);
   const total = Math.max(subtotal - discount, 0);
-
-  const fields = [
+  [
     ['[data-pa-grand-total]', currencyText(total)],
     ['[data-pa-summary-total]', currencyText(total)],
     ['[data-pa-summary-subtotal]', currencyText(subtotal)],
     ['[data-pa-summary-discount]', discount > 0 ? `-₪ ${discount.toLocaleString('he-IL')}` : '₪ 0']
-  ];
-  fields.forEach(([selector, value]) => {
+  ].forEach(([selector, value]) => {
     const element = form.querySelector(selector);
     if (element && element.textContent !== value) element.textContent = value;
   });
@@ -160,11 +156,10 @@ function proposalFormEvent(event) {
   const target = event.target;
   if (!target?.matches?.('[data-pa-item-qty], [data-pa-item-price], [data-pa-discount-value], [data-pa-discount-type], [data-pa-pricing-select]')) return;
   const form = target.closest('[data-pa-form]');
-  if (!form) return;
-  queueMicrotask(() => calculateFormTotals(form));
+  if (form) queueMicrotask(() => calculateFormTotals(form));
 }
 
-function ensureTypeFilterOptions(root = document) {
+export function ensureTypeFilterOptions(root = document) {
   root.querySelectorAll?.('[data-pa-filter="activity_type_group"]').forEach((select) => {
     const current = text(select.value);
     const existing = new Set(Array.from(select.options).map((option) => text(option.value)));
@@ -183,8 +178,7 @@ function proposalTypeFromRow(row) {
   const cells = Array.from(row?.cells || []);
   const explicit = text(row?.dataset?.paProposalType || row?.dataset?.proposalType);
   if (explicit) return normalizeGroup(explicit);
-  const typeText = cells.map((cell) => text(cell.textContent)).find((value) =>
-    /תשפ|גפ|קיץ|סיור|משולב/.test(value));
+  const typeText = cells.map((cell) => text(cell.textContent)).find((value) => /תשפ|גפ|קיץ|סיור|משולב/.test(value));
   return normalizeGroup(typeText);
 }
 
@@ -199,12 +193,10 @@ function applySummerView(screen) {
 function setSummerTabActive(screen, active) {
   screen.dataset.paProposalListMode = active ? 'summer' : 'regular';
   screen.querySelector('[data-pa-summer-tab]')?.classList.toggle('is-active', active);
-  const recordsTab = screen.querySelector('[data-pa-tab="records"]');
-  if (recordsTab) recordsTab.classList.toggle('is-active', !active && !screen.querySelector('[data-pa-tab].is-active:not([data-pa-tab="records"])'));
   applySummerView(screen);
 }
 
-function ensureSummerTab(root = document) {
+export function ensureSummerTab(root = document) {
   root.querySelectorAll?.('.ds-pa-screen').forEach((screen) => {
     if (screen.querySelector('[data-pa-summer-tab]')) {
       applySummerView(screen);
@@ -228,10 +220,7 @@ function ensureSummerTab(root = document) {
       }
       setSummerTabActive(screen, true);
     });
-
-    screen.querySelectorAll('[data-pa-tab]').forEach((tab) => tab.addEventListener('click', () => {
-      setSummerTabActive(screen, false);
-    }));
+    screen.querySelectorAll('[data-pa-tab]').forEach((tab) => tab.addEventListener('click', () => setSummerTabActive(screen, false)));
     applySummerView(screen);
   });
 }
@@ -241,17 +230,17 @@ function updateSummerCounts(root = document) {
     const count = Array.from(screen.querySelectorAll('[data-pa-table] tbody tr[data-pa-row-id]'))
       .filter((row) => proposalTypeFromRow(row) === 'summer').length;
     const output = screen.querySelector('[data-pa-summer-count]');
-    if (output) output.textContent = String(count);
+    const next = String(count);
+    if (output && output.textContent !== next) output.textContent = next;
     applySummerView(screen);
   });
 }
 
 function pricingClassification() {
-  const augmented = augmentNextYearPricingRows(cachedPricingRows);
   const workshops = new Set();
   const courses = new Set();
   const courseShortNames = new Map();
-  augmented.forEach((row) => {
+  augmentNextYearPricingRows(cachedPricingRows).forEach((row) => {
     const name = normalized(row.activity_name);
     if (!name) return;
     const group = normalizeGroup(row.proposal_group || row.group_key);
@@ -291,10 +280,10 @@ function replaceFooter(table, label, total) {
   footer.innerHTML = `<tr><td colspan="${Math.max(columns - 1, 1)}"><strong>${label}</strong></td><td><strong>${currencyText(total)}</strong></td></tr>`;
 }
 
-function tableHeading(documentRef, textValue, className) {
+function tableHeading(documentRef, value, className) {
   const heading = documentRef.createElement('h4');
   heading.className = `pa-section-heading ${className}`;
-  heading.textContent = textValue;
+  heading.textContent = value;
   return heading;
 }
 
@@ -303,7 +292,6 @@ function splitGenericNextYearTable(documentRoot) {
   const classification = pricingClassification();
   const candidates = Array.from(documentRoot.querySelectorAll('.pa-cost-table-block table, table.pa-cost-table, table.pa-activities-table'))
     .filter((table) => !table.classList.contains('pa-gefen-approval-table'));
-
   for (const table of candidates) {
     const rows = Array.from(table.querySelectorAll('tbody > tr'));
     if (rows.length < 2) continue;
@@ -315,12 +303,8 @@ function splitGenericNextYearTable(documentRoot) {
     const workshopTable = table.cloneNode(true);
     courseTable.classList.add('pa-next-year-course-table');
     workshopTable.classList.add('pa-next-year-workshop-table');
-    Array.from(courseTable.querySelectorAll('tbody > tr')).forEach((row) => {
-      if (isWorkshopRow(row, classification)) row.remove();
-    });
-    Array.from(workshopTable.querySelectorAll('tbody > tr')).forEach((row) => {
-      if (!isWorkshopRow(row, classification)) row.remove();
-    });
+    Array.from(courseTable.querySelectorAll('tbody > tr')).forEach((row) => { if (isWorkshopRow(row, classification)) row.remove(); });
+    Array.from(workshopTable.querySelectorAll('tbody > tr')).forEach((row) => { if (!isWorkshopRow(row, classification)) row.remove(); });
     const courseTotal = Array.from(courseTable.querySelectorAll('tbody > tr')).reduce((sum, row) => sum + rowTotal(row), 0);
     const workshopTotal = Array.from(workshopTable.querySelectorAll('tbody > tr')).reduce((sum, row) => sum + rowTotal(row), 0);
     replaceFooter(courseTable, 'סה״כ קורסים', courseTotal);
@@ -341,18 +325,22 @@ function splitGenericNextYearTable(documentRoot) {
   return false;
 }
 
+function escapeHtml(value) {
+  return text(value).replace(/[&<>"']/g, (char) => ({
+    '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;'
+  }[char]));
+}
+
 function selectedCourseNames(documentRoot) {
   const classification = pricingClassification();
-  const names = Array.from(documentRoot.querySelectorAll('.pa-next-year-course-table tbody > tr'))
+  return [...new Set(Array.from(documentRoot.querySelectorAll('.pa-next-year-course-table tbody > tr'))
     .map(rowName)
     .filter(Boolean)
-    .map((name) => classification.courseShortNames.get(normalized(name)) || name);
-  return [...new Set(names)];
+    .map((name) => classification.courseShortNames.get(normalized(name)) || name))];
 }
 
 function normalizeNextYearActivityIntro(documentRoot) {
-  const hasNextYearTables = Boolean(documentRoot.querySelector('.pa-next-year-course-table, .pa-next-year-workshop-table'));
-  if (!hasNextYearTables) return false;
+  if (!documentRoot.querySelector('.pa-next-year-course-table, .pa-next-year-workshop-table')) return false;
   const heading = Array.from(documentRoot.querySelectorAll('.pa-section-heading'))
     .find((element) => /הפעילות המוצעת/.test(text(element.textContent)));
   if (!heading) return false;
@@ -365,13 +353,12 @@ function normalizeNextYearActivityIntro(documentRoot) {
       || /ההצעה יכולה לכלול קורסים, סדנאות או שילוב ביניהם/.test(value)) paragraph.remove();
   });
   section.querySelector('.pa-next-year-selected-summary')?.remove();
-
   const courses = selectedCourseNames(documentRoot);
   const hasWorkshops = Boolean(documentRoot.querySelector('.pa-next-year-workshop-table tbody > tr'));
   const items = [...courses, ...(hasWorkshops ? ['סדנאות מייקרים STEM'] : [])];
   const summary = documentRoot.ownerDocument.createElement('div');
   summary.className = 'pa-next-year-selected-summary';
-  summary.innerHTML = `<p>להלן הפעילויות המוצעות לשנת הלימודים תשפ״ז:</p>${items.length ? `<ul>${items.map((item) => `<li>${item.replace(/[&<>"']/g, (char) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[char]))}</li>`).join('')}</ul>` : ''}`;
+  summary.innerHTML = `<p>להלן הפעילויות המוצעות לשנת הלימודים תשפ״ז:</p>${items.length ? `<ul>${items.map((item) => `<li>${escapeHtml(item)}</li>`).join('')}</ul>` : ''}`;
   heading.after(summary);
   return true;
 }
@@ -388,7 +375,7 @@ export function normalizeProposalWorkflowDocument(root = document) {
   return root;
 }
 
-function normalizeSnapshotHtml(html, documentRef = document) {
+function normalizeSnapshotHtml(html, documentRef) {
   if (!html || !documentRef?.createElement) return html;
   const template = documentRef.createElement('template');
   template.innerHTML = String(html);
@@ -408,31 +395,32 @@ function wrapSnapshotMethod(targetApi, methodName, documentRef) {
   };
 }
 
-function scheduleAutomaticPdf(proposalId) {
+export function scheduleAutomaticPdf(proposalId, scope = globalThis) {
   const id = text(proposalId);
-  if (!id || automaticPdfRequests.has(id)) return;
+  if (!id || automaticPdfRequests.has(id) || !scope.document) return;
   automaticPdfRequests.add(id);
   const startedAt = Date.now();
-  const timer = setInterval(() => {
-    const button = document.querySelector(`[data-pa-print="${CSS.escape(id)}"]`);
+  const timer = scope.setInterval(() => {
+    const escapedId = scope.CSS?.escape ? scope.CSS.escape(id) : id.replace(/["\\]/g, '\\$&');
+    const button = scope.document.querySelector(`[data-pa-print="${escapedId}"]`);
     if (button && !button.disabled) {
-      clearInterval(timer);
+      scope.clearInterval(timer);
       button.click();
-      setTimeout(() => automaticPdfRequests.delete(id), 5000);
+      scope.setTimeout(() => automaticPdfRequests.delete(id), 5000);
       return;
     }
     if (Date.now() - startedAt > 30000) {
-      clearInterval(timer);
+      scope.clearInterval(timer);
       automaticPdfRequests.delete(id);
     }
   }, 400);
 }
 
-function approvalClick(event) {
+function approvalClick(event, scope = globalThis) {
   const button = event.target?.closest?.('[data-pa-status-action="approved"]');
   if (!button) return;
   const proposalId = text(button.dataset.paActionId || button.closest('[data-pa-row-id]')?.dataset.paRowId);
-  if (proposalId) scheduleAutomaticPdf(proposalId);
+  if (proposalId) scheduleAutomaticPdf(proposalId, scope);
 }
 
 function ensureNextYearGefenButtons(root = document) {
@@ -463,28 +451,27 @@ function refreshProposalScreen(root = document) {
 function installObservers(scope = globalThis) {
   const documentRef = scope?.document;
   if (!documentRef?.documentElement || typeof scope.MutationObserver !== 'function') return;
-
-  documentObserver = new scope.MutationObserver((mutations) => {
+  new scope.MutationObserver((mutations) => {
     mutations.forEach((mutation) => mutation.addedNodes.forEach((node) => {
-      if (!(node instanceof Element)) return;
-      if (node.matches?.('.proposal-document') || node.querySelector?.('.proposal-document')) {
-        normalizeProposalWorkflowDocument(node);
-      }
+      if (!(node instanceof scope.Element)) return;
+      if (node.matches?.('.proposal-document') || node.querySelector?.('.proposal-document')) normalizeProposalWorkflowDocument(node);
     }));
-  });
-  documentObserver.observe(documentRef.documentElement, { childList: true, subtree: true });
+  }).observe(documentRef.documentElement, { childList: true, subtree: true });
 
-  let refreshQueued = false;
-  const queueRefresh = () => {
-    if (refreshQueued) return;
-    refreshQueued = true;
-    requestAnimationFrame(() => {
-      refreshQueued = false;
+  let queued = false;
+  const queueRefresh = (mutations = []) => {
+    const relevant = !mutations.length || mutations.some((mutation) => Array.from(mutation.addedNodes)
+      .some((node) => node instanceof scope.Element && (node.matches?.('.ds-pa-screen, [data-pa-table], tr[data-pa-row-id]') || node.querySelector?.('.ds-pa-screen, [data-pa-table], tr[data-pa-row-id]'))));
+    if (!relevant || queued) return;
+    queued = true;
+    const run = () => {
+      queued = false;
       refreshProposalScreen(documentRef);
-    });
+    };
+    if (typeof scope.requestAnimationFrame === 'function') scope.requestAnimationFrame(run);
+    else scope.setTimeout(run, 0);
   };
-  screenObserver = new scope.MutationObserver(queueRefresh);
-  screenObserver.observe(documentRef.getElementById('app') || documentRef.documentElement, { childList: true, subtree: true });
+  new scope.MutationObserver(queueRefresh).observe(documentRef.getElementById('app') || documentRef.documentElement, { childList: true, subtree: true });
   queueRefresh();
 }
 
@@ -500,9 +487,9 @@ export function installProposalWorkflowCompletion(targetApi = api, scope = globa
 
   scope.document?.addEventListener('input', proposalFormEvent, true);
   scope.document?.addEventListener('change', proposalFormEvent, true);
-  scope.document?.addEventListener('click', approvalClick, true);
+  scope.document?.addEventListener('click', (event) => approvalClick(event, scope), true);
   installObservers(scope);
-  prewarmEditorDeps(targetApi);
+  prewarmEditorDeps(targetApi, scope);
 
   Object.defineProperty(targetApi, PATCH_KEY, {
     value: true,
