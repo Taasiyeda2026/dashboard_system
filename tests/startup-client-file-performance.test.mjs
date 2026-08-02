@@ -28,6 +28,33 @@ test('proposals list query supports server-side search and filters', () => {
   assert.match(apiSource, /contact_client_type/);
   assert.match(apiSource, /authority_name\.ilike\.\$\{term\}/);
   assert.match(proposalsSource, /reloadProposalList\(\{\s*search:\s*query\s*\}/);
+
+  const filterStart = apiSource.indexOf('function applyProposalsAgreementsListFilters');
+  const filterEnd = apiSource.indexOf('function applyProposalsAgreementsListSort', filterStart);
+  const filterFn = apiSource.slice(filterStart, filterEnd);
+  assert.match(filterFn, /authority_name\.ilike\.\$\{term\}/);
+  assert.doesNotMatch(filterFn, /authority_code\.ilike/);
+  assert.doesNotMatch(filterFn, /semel_mosad\.ilike/);
+});
+
+test('instructor emp-id reads share the contacts_instructors bootstrap promise', () => {
+  assert.match(apiSource, /async function readInstructorEmpIdsFromSupabase/);
+  assert.match(apiSource, /readInstructorContactsRowsForBootstrap\(\)/);
+  assert.match(apiSource, /instructorEmpIdsCache/);
+  assert.match(apiSource, /instructorEmpIdsPromise/);
+  const empStart = apiSource.indexOf('async function readInstructorEmpIdsFromSupabase');
+  const empEnd = apiSource.indexOf('async function readExceptionsFromSupabase', empStart);
+  const empFn = apiSource.slice(empStart, empEnd);
+  assert.match(empFn, /readInstructorContactsRowsForBootstrap\(\)/);
+  assert.doesNotMatch(empFn, /\.select\(\s*['`]emp_id,active['`]\s*\)/);
+});
+
+test('proposal item reads do not fetch the activity-group catalog', () => {
+  const start = apiSource.indexOf('readProposalAgreementItems: async');
+  const end = apiSource.indexOf('readProposalActivityPricing: async', start);
+  const fn = apiSource.slice(start, end);
+  assert.match(fn, /proposalGroupLookupCache/);
+  assert.doesNotMatch(fn, /await getProposalGroupLookup\(\)/);
 });
 
 test('proposals list does not prefetch contacts or recipient catalog', () => {
@@ -66,7 +93,7 @@ test('bootstrap entry stays minimal and feature modules load on demand', () => {
 });
 
 test('index.html keeps a single app entry and no screen hotfix scripts', () => {
-  assert.match(indexSource, /main-with-proposal-pdf-hotfix\.js\?v=20260801-perf-startup-v1/);
+  assert.match(indexSource, /main-with-proposal-pdf-hotfix\.js\?v=20260802-e2e-gate-fixes-v1/);
   assert.doesNotMatch(indexSource, /dashboard-kpi-corrections\.js/);
   assert.doesNotMatch(indexSource, /proposal-editor-compact-fixes\.js/);
   assert.doesNotMatch(indexSource, /client-file-layout-polish\.js/);

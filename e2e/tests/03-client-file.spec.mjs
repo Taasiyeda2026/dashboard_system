@@ -32,37 +32,30 @@ test.describe('Client file (תיק לקוח)', () => {
     test.setTimeout(90_000);
     await openClientFileHome(page, tracker);
 
-    // Prefer a queue item that opens a client; fall back to search result / open-client control.
-    const queueItem = page.locator('.ds-client-queue-item, [data-pa-open-client]').first();
-    await expect(queueItem).toBeVisible({ timeout: 30_000 });
+    // Open a client file only (not a proposal). Queue items use data-pa-open-proposal-id
+    // and intentionally load proposal detail payloads after that click.
+    const search = page.locator('[data-pa-client-search]');
+    await expect(search).toBeVisible({ timeout: 30_000 });
+    const seed = page.locator('.ds-client-queue-item[data-pa-client-key]').first();
+    await expect(seed).toBeVisible({ timeout: 30_000 });
+    const clientKey = String(await seed.getAttribute('data-pa-client-key') || '').trim();
+    expect(clientKey).toBeTruthy();
+    const seedText = (await seed.innerText()).replace(/\s+/g, ' ').trim();
+    const term = seedText.slice(0, 2) || 'תל';
+    await search.fill(term);
+    await page.waitForTimeout(500);
+    const openClient = page.locator(`[data-pa-open-client="${clientKey}"]`).first()
+      .or(page.locator('[data-pa-open-client]').first());
+    await openClient.waitFor({ state: 'visible', timeout: 45_000 });
 
     tracker.resetScreen('client-file-open');
-    await queueItem.click();
-
-    const fileOrDetails = page.locator(
-      '[data-pa-client-file], [data-pa-view-mode="client-file"], [data-pa-proposal-detail], [data-pa-view-mode="proposal-details"]'
-    );
-    await fileOrDetails.first().waitFor({ state: 'visible', timeout: 45_000 });
+    await openClient.click();
+    await page.locator('[data-pa-client-file], [data-pa-view-mode="client-file"]').first().waitFor({
+      state: 'visible',
+      timeout: 45_000
+    });
+    await expect(page.locator('[data-pa-view-mode="proposal-details"]')).toHaveCount(0);
     await page.waitForLoadState('networkidle', { timeout: 20_000 }).catch(() => {});
-
-    // If we landed on proposal details from a queue proposal, go back and open a client file card if present.
-    const onDetails = await page.locator('[data-pa-view-mode="proposal-details"]').count();
-    if (onDetails) {
-      const back = page.locator('[data-pa-proposal-detail-back], [data-pa-back-to-client-home]');
-      if (await back.count()) {
-        await back.first().click();
-        await page.waitForTimeout(400);
-      }
-      const openClient = page.locator('[data-pa-open-client]').first();
-      if (await openClient.count()) {
-        tracker.resetScreen('client-file-open');
-        await openClient.click();
-        await page.locator('[data-pa-client-file], [data-pa-view-mode="client-file"]').first().waitFor({
-          state: 'visible',
-          timeout: 45_000
-        });
-      }
-    }
 
     await tracker.persist('client-file-open');
     assertNoTransportErrors(tracker);

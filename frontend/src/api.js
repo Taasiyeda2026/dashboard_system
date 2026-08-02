@@ -210,6 +210,8 @@ let listsRowsCache = null;
 let listsRowsPromise = null;
 let instructorContactsCache = null;
 let instructorContactsPromise = null;
+let instructorEmpIdsCache = null;
+let instructorEmpIdsPromise = null;
 
 function assertAdminApi() {
   const role = String(state?.user?.role || state?.user?.display_role || '').trim();
@@ -298,6 +300,8 @@ function clearBootstrapReadCaches() {
   settingsRowsPromise = null;
   listsRowsCache = null;
   listsRowsPromise = null;
+  instructorEmpIdsCache = null;
+  instructorEmpIdsPromise = null;
 }
 
 async function readInstructorContactsRowsForBootstrap() {
@@ -2694,24 +2698,36 @@ function buildExceptionsFromRows(activityRows = [], month = '') {
 }
 
 
-async function readInstructorEmpIdsFromSupabase() {
-  if (!supabase) return [];
-  const columns = 'emp_id,active';
-  const { data, error } = await supabase
-    .from('contacts_instructors')
-    .select(columns);
-  if (error) {
-    const diagnostic = logDashboardSupabaseReadError('[supabase][dashboard] contacts_instructors read failed', error, {
-      table: 'public.contacts_instructors',
-      columns,
-      operation: 'select.instructor_emp_ids_for_exceptions'
-    });
-    throw new Error(`contacts_instructors_read_failed: ${diagnostic.message}`);
-  }
-  return (Array.isArray(data) ? data : [])
+function mapInstructorEmpIdsFromRows(rows = []) {
+  return (Array.isArray(rows) ? rows : [])
     .filter((row) => row?.active !== false && row?.active !== 'false' && row?.active !== 0 && row?.active !== '0')
     .map((row) => ({ emp_id: nullStr(row?.emp_id) }))
     .filter((row) => row.emp_id);
+}
+
+async function readInstructorEmpIdsFromSupabase() {
+  if (!supabase) return [];
+  // Always reuse the shared contacts_instructors bootstrap read (in-flight + cached).
+  // Dashboard snapshot, exception reconciliation, and login bootstrap previously issued
+  // the same emp_id/active query three times because each caller waited for the previous
+  // response before starting the next identical GET.
+  if (instructorEmpIdsCache) return instructorEmpIdsCache;
+  if (instructorEmpIdsPromise) return instructorEmpIdsPromise;
+  instructorEmpIdsPromise = (async () => {
+    try {
+      const rows = await readInstructorContactsRowsForBootstrap();
+      instructorEmpIdsCache = mapInstructorEmpIdsFromRows(rows);
+      return instructorEmpIdsCache;
+    } catch (error) {
+      const diagnostic = logDashboardSupabaseReadError('[supabase][dashboard] contacts_instructors read failed', error, {
+        table: 'public.contacts_instructors',
+        columns: 'emp_id,full_name,active',
+        operation: 'select.instructor_emp_ids_for_exceptions'
+      });
+      throw new Error(`contacts_instructors_read_failed: ${diagnostic.message}`);
+    }
+  })().finally(() => { instructorEmpIdsPromise = null; });
+  return instructorEmpIdsPromise;
 }
 
 async function readExceptionsFromSupabase(params = {}) {
@@ -4193,6 +4209,8 @@ function applyProposalsAgreementsListFilters(query, {
   const safeSearch = sanitizeProposalListSearchTerm(search);
   if (safeSearch) {
     const term = `%${safeSearch}%`;
+    // Text columns only. authority_code / semel_mosad are bigint and break ilike
+    // with PostgREST 404: operator does not exist: bigint ~~* unknown.
     next = next.or([
       `authority_name.ilike.${term}`,
       `legacy_client_authority.ilike.${term}`,
@@ -4204,8 +4222,6 @@ function applyProposalsAgreementsListFilters(query, {
       `phone.ilike.${term}`,
       `email.ilike.${term}`,
       `quote_number.ilike.${term}`,
-      `authority_code.ilike.${term}`,
-      `semel_mosad.ilike.${term}`,
       `notes.ilike.${term}`
     ].join(','));
   }
@@ -7120,7 +7136,14 @@ export const api = {
     assertCanUseProposalsAgreementsApi();
     const rowId = cleanProposalAgreementText(proposalId);
     if (!rowId) return [];
-    const groupLookup = await getProposalGroupLookup();
+    // Display/read path: use an already-warmed lookup if present, but never fetch the
+    // proposal catalog (groups/aliases/templates) just to show proposal/client-file items.
+    const groupLookup = proposalGroupLookupCache || {
+      groups: [],
+      aliases: [],
+      aliasToKey: new Map(),
+      groupByKey: new Map()
+    };
     const { data, error } = await supabase
       .from('proposal_agreement_items')
       .select('id,proposal_agreement_id,item_name,item_type,gefen_number,meetings_count,hours_count,quantity,unit_price,total_price,description,course_note,hourly_price,source_pricing_key,proposal_display_mode,selected_bundle_items,activity_no,unit_duration,proposal_group,sort_order')

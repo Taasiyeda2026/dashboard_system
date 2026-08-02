@@ -47,35 +47,65 @@ function supabaseIdentity(method, url) {
   }
 }
 
+function restTableName(url = '') {
+  try {
+    const parsed = new URL(url, 'http://localhost');
+    const marker = '/rest/v1/';
+    const index = parsed.pathname.indexOf(marker);
+    if (index < 0) return '';
+    return decodeURIComponent(parsed.pathname.slice(index + marker.length)).split('/')[0] || '';
+  } catch {
+    return '';
+  }
+}
+
+function pathEndsWithPdf(url = '') {
+  try {
+    const parsed = new URL(url, 'http://localhost');
+    return parsed.pathname.toLowerCase().endsWith('.pdf');
+  } catch {
+    return /\.pdf(?:$|[?#])/i.test(String(url || ''));
+  }
+}
+
+function selectListIncludesColumn(url = '', column = '') {
+  try {
+    const select = new URL(url, 'http://localhost').searchParams.get('select') || '';
+    return new RegExp(`(?:^|,)${column}(?:$|,)`, 'i').test(select);
+  } catch {
+    return false;
+  }
+}
+
 function looksLikePdfOrSnapshot(url = '', contentType = '') {
-  const u = String(url).toLowerCase();
-  const ct = String(contentType).toLowerCase();
-  return (
-    u.includes('.pdf') ||
-    ct.includes('application/pdf') ||
-    u.includes('document_snapshot') ||
-    u.includes('document_html_snapshot') ||
-    u.includes('final_pdf') ||
-    (u.includes('storage/v1/object') && (u.includes('.pdf') || u.includes('proposal')))
-  );
+  const lower = String(url || '').toLowerCase();
+  const ct = String(contentType || '').toLowerCase();
+  if (ct.includes('application/pdf')) return true;
+  if (pathEndsWithPdf(url)) return true;
+  // Heavy proposal payloads only when those columns are actually selected.
+  if (selectListIncludesColumn(url, 'document_snapshot') || selectListIncludesColumn(url, 'document_html_snapshot')) {
+    return true;
+  }
+  // Real Storage object fetch — not metadata fields like final_pdf_path / final_pdf_file_name.
+  if (lower.includes('/storage/v1/object/') && (pathEndsWithPdf(url) || lower.includes('.pdf') || /\/proposal/i.test(lower))) {
+    return true;
+  }
+  return false;
 }
 
 function looksLikeFullContactsDirectory(url = '') {
-  const u = String(url).toLowerCase();
-  return (
-    u.includes('contacts_schools') ||
-    u.includes('contacts_full') ||
-    (u.includes('/rest/v1/contacts') && !u.includes('limit=') && !u.includes('or='))
-  );
+  const table = restTableName(url);
+  // Exact pathname tables only — never substring-match contacts_instructors as contacts.
+  return table === 'contacts_schools' || table === 'contacts_unified_view' || table === 'contacts_full';
 }
 
 function looksLikeFullCatalog(url = '') {
-  const u = String(url).toLowerCase();
+  const table = restTableName(url);
   return (
-    u.includes('proposal_activity_pricing') ||
-    u.includes('catalog_workshops') ||
-    u.includes('next_year_workshops') ||
-    (u.includes('proposal_activity_groups') && !u.includes('limit='))
+    table === 'proposal_activity_pricing' ||
+    table === 'catalog_workshops' ||
+    table === 'next_year_workshops' ||
+    table === 'proposal_activity_groups'
   );
 }
 
@@ -211,8 +241,23 @@ export function attachNetworkTracker(page, { screen = 'unknown' } = {}) {
     if (kind === 'js') state.bytesByKind.js += size;
     if (kind === 'css') state.bytesByKind.css += size;
 
+    let responseBody = '';
+    if (status >= 400 && kind === 'api') {
+      try {
+        responseBody = String(await response.text()).slice(0, 2000);
+      } catch {
+        responseBody = '';
+      }
+    }
     if (status >= 400 && (kind === 'js' || kind === 'css' || kind === 'api')) {
-      state.jsCssApiErrors.push({ url, status, kind, method: request.method() });
+      state.jsCssApiErrors.push({
+        url,
+        status,
+        kind,
+        method: request.method(),
+        body: responseBody || undefined
+      });
+      if (entry) entry.responseBody = responseBody || undefined;
     }
     if (kind === 'css' && (status === 404 || status >= 400)) {
       state.missingCss.push({ url, status });
@@ -336,7 +381,10 @@ export function assertNoTransportErrors(tracker, { allowPeriodLeakCheck = false,
     problems.push(
       `JS/CSS/API status >= 400: ${s.jsCssApiErrors
         .slice(0, 8)
-        .map((e) => `${e.status} ${e.kind} ${e.url}`)
+        .map((e) => {
+          const body = e.body ? ` body=${e.body.replace(/\s+/g, ' ').slice(0, 300)}` : '';
+          return `${e.status} ${e.kind} ${e.url}${body}`;
+        })
         .join(' | ')}`
     );
   }
