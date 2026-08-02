@@ -77,6 +77,14 @@ function selectListIncludesColumn(url = '', column = '') {
   }
 }
 
+function activitySeasonFilterValue(url = '') {
+  try {
+    return new URL(url, 'http://localhost').searchParams.get('activity_season') || '';
+  } catch {
+    return '';
+  }
+}
+
 function looksLikePdfOrSnapshot(url = '', contentType = '') {
   const lower = String(url || '').toLowerCase();
   const ct = String(contentType || '').toLowerCase();
@@ -281,9 +289,9 @@ export function attachNetworkTracker(page, { screen = 'unknown' } = {}) {
     }
 
     // Cross-period leak heuristic: while working in 2027, requests filtering regular/2026 season.
+    // The 2026 period is queried as a season list, so both eq. and in.(...) forms count.
     if (isSupabase(url) && /activity_season/i.test(url)) {
-      const u = url.toLowerCase();
-      if (u.includes('activity_season=eq.regular') || u.includes('activity_season=eq.summer_2026')) {
+      if (/(?:^|[^a-z_])(?:regular|summer_2026)(?:[^a-z_0-9]|$)/i.test(activitySeasonFilterValue(url))) {
         state.periodLeakCandidates.push({ url, note: '2026-season filter observed' });
       }
     }

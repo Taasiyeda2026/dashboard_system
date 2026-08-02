@@ -154,19 +154,6 @@ function replaceAllTabCounts(html, rows, activityPeriodTab) {
   );
 }
 
-function rowsForAllActivitiesTab(rows, activityPeriodTab) {
-  const yearKey = selectedYearKey(activityPeriodTab);
-  return (Array.isArray(rows) ? rows : [])
-    .filter((row) => rowBelongsToYear(row, yearKey))
-    .filter(isVisibleActivity)
-    .map((row) => {
-      if (!isClosed(row)) return row;
-      // The underlying screen treats "all" as active-only. A render-only clone
-      // lets closed rows participate without changing the stored activity.
-      return { ...row, status: 'פתוח', __activitiesActualStatus: normalizedStatus(row) };
-    });
-}
-
 function ensureDefaultInnerTab(targetState, { force = false } = {}) {
   const current = cleanText(targetState?.activitiesInnerTab);
   if (!force && current) return;
@@ -335,10 +322,9 @@ activitiesScreen.render = function renderWithCorrectTabScopes(data, context = {}
   const originalRows = Array.isArray(data?.rows) ? data.rows : [];
   ensureMonthForTab(targetState, originalRows);
 
-  const isAllTab = cleanText(targetState.activitiesInnerTab) === INNER_TAB_ALL;
-  let renderRows = isAllTab
-    ? rowsForAllActivitiesTab(originalRows, targetState.activityPeriodTab)
-    : originalRows;
+  // The screen itself now returns open and closed rows for the combined tab, so the
+  // rendered rows stay identical to the rows the click handler searches.
+  let renderRows = originalRows;
 
   if (isMonthNavigationTab(targetState)) {
     renderRows = renderRows.filter((row) => rowOccursInMonth(row, targetState.activitiesMonthYm));

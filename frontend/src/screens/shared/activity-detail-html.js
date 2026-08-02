@@ -2,8 +2,9 @@ import { escapeHtml } from './html.js';
 import { formatDateHe, formatDateHeWithWeekday, formatTimeShort, formatTimeRangeShort, formatActivityDateColumnsHe } from './format-date.js';
 import { activityManagerDisplayName, activityTypeDisplayLabel, activityTypeMatches, cleanActivityManagerName, getManagerUsers, getContactsInstructorUsers, getRosterUsers, getValidInstructorUsers, humanDisplayText, INVALID_ACTIVITY_INSTRUCTOR_STATUS, validateInstructorBinding, NO_ACTIVITY_MANAGER_LABEL, normalizeActivityTypeKey, normalizeOneDayActivityType, resolveActivityInstructorName, resolveGradeOptions } from './activity-options.js';
 import { resolveSchool2027Contact } from './school-2027-contact.js';
-import { ACTIVITY_SEASON_OPTIONS, ACTIVITY_SEASON_SCHOOL_2027, activitySeasonLabel, normalizeActivitySeason } from './summer-activity.js';
+import { ACTIVITY_SEASON_OPTIONS, ACTIVITY_SEASON_SCHOOL_2027, activityPeriodDisplayLabel, activitySeasonLabel, normalizeActivitySeason } from './summer-activity.js';
 import { isActivitySchedulingEligible } from './activity-scheduling-eligibility.js';
+import { applyReadOnlyActivityCapabilities, isReadOnlyActivityRow } from './activity-readonly-period.js';
 
 const ONCE_TYPES = ['workshop', 'tour', 'escape_room'];
 const ACTIVITY_EDIT_TYPE_ORDER = ['course', 'workshop', 'escape_room', 'tour', 'after_school'];
@@ -772,6 +773,34 @@ function blockCentralInfo(row, { settings = {}, hideFunding = false } = {}) {
   `;
 }
 
+function presentValueText(value) {
+  if (value === null || value === undefined) return '';
+  return String(value).trim();
+}
+
+/**
+ * Period, funding, price and participant count come from the full activity record.
+ * Each field renders only when the record actually holds a value, so an empty field
+ * is never displayed as an invented value.
+ */
+function blockViewRecordDetails(row, { instructorLimited = false, showFunding = false } = {}) {
+  if (instructorLimited) return '';
+  const candidates = [
+    ['תקופת הפעילות', activityPeriodDisplayLabel(row)],
+    ...(showFunding ? [['מימון', presentValueText(row.funding)]] : []),
+    ['מחיר', presentValueText(row.price)],
+    ['מספר משתתפים', presentValueText(row.participants_count)]
+  ].filter(([, value]) => value);
+  if (!candidates.length) return '';
+  return `
+    <section class="activity-view-card activity-view-card--record" data-mode="view" data-record-details-section>
+      <div class="activity-view-card__grid">
+        ${candidates.map(([label, value]) => viewField(label, value)).join('')}
+      </div>
+    </section>
+  `;
+}
+
 function blockAdditionalSupplemental(row, { hideSeason = false } = {}) {
   if (hideSeason) return '';
   const seasonDisplay = activitySeasonLabel(row.activity_season);
@@ -1148,6 +1177,8 @@ function singleForm(row, { settings = {}, privateNote = null, canEdit = false, c
       data-export-row="${jsonAttr(row)}"
       data-source-sheet="${escapeHtml(String(row.source_sheet || ''))}"
       data-row-id="${escapeHtml(String(row.RowID || row.row_id || row.source_row_id || ''))}"
+      data-activity-season="${escapeHtml(String(row.activity_season || ''))}"
+      data-activity-read-only="${isReadOnlyActivityRow(row) ? 'yes' : 'no'}"
       data-can-direct-edit="${canDirectEdit ? 'yes' : 'no'}"
       data-can-request-edit="${canRequestEdit ? 'yes' : 'no'}"
       data-original-status="${escapeHtml(String(row.status || ''))}"
@@ -1159,6 +1190,7 @@ function singleForm(row, { settings = {}, privateNote = null, canEdit = false, c
       ${isOnce
         ? blockViewOnce(row, { settings, hideFunding: hideFundingInView || instructorLimited })
         : blockViewCourse(row, { settings })}
+      ${blockViewRecordDetails(row, { instructorLimited, showFunding: isOnce ? hideFundingInView : true })}
       ${isOnce && showDates
         ? `<div class="activity-drawer__once-dates-row" data-once-dates-row>${blockDates(row, { canEdit, canDirectEdit, datesLoading, is2027 })}</div>`
         : (showDates ? blockDates(row, { canEdit, canDirectEdit, datesLoading, is2027 }) : '')}
@@ -1196,7 +1228,21 @@ export function activityRowDetailHtml(row, { privateNote = null, hideActivityNo 
 }
 
 export function activityWorkDrawerHtml(row, opts = {}) {
-  const { mode = 'single', summaryDate = '', privateNote = null, canEdit = false, canDirectEdit = false, canRequestEdit = false, canDeleteActivity = false, canSchedule = false, settings = {}, datesLoading = false, exportAction = true, instructorLimited = false } = opts;
+  const { mode = 'single', summaryDate = '', privateNote = null, settings = {}, datesLoading = false, exportAction = true, instructorLimited = false } = opts;
+  /**
+   * 2026 is read-only at the markup level: mutating controls are never rendered for
+   * a historical activity, whatever the calling screen passes in.
+   */
+  const capabilitiesFor = (activityRow) => applyReadOnlyActivityCapabilities(
+    {
+      canEdit: opts.canEdit === true,
+      canDirectEdit: opts.canDirectEdit === true,
+      canRequestEdit: opts.canRequestEdit === true,
+      canDeleteActivity: opts.canDeleteActivity === true,
+      canSchedule: opts.canSchedule === true
+    },
+    { activity: activityRow }
+  );
   if (mode === 'summary') {
     const rows = Array.isArray(row) ? row : [];
     const body = rows
@@ -1212,14 +1258,10 @@ export function activityWorkDrawerHtml(row, opts = {}) {
           ${singleForm(item, {
             settings,
             privateNote,
-            canEdit,
-            canDirectEdit,
-            canRequestEdit,
-            canDeleteActivity,
+            ...capabilitiesFor(item),
             showPrivateNote: privateNote !== null,
             idx,
-            instructorLimited,
-            canSchedule
+            instructorLimited
           })}
         </div>
       `)
@@ -1238,15 +1280,11 @@ export function activityWorkDrawerHtml(row, opts = {}) {
       ${singleForm(one, {
         settings,
         privateNote,
-        canEdit,
-        canDirectEdit,
-        canRequestEdit,
-        canDeleteActivity,
+        ...capabilitiesFor(one),
         showPrivateNote: privateNote !== null,
         datesLoading,
         idx: 0,
-        instructorLimited,
-        canSchedule
+        instructorLimited
       })}
     </div>
   `;

@@ -51,7 +51,7 @@ test('service worker and client-file hotfix versions are current and structurall
   ]);
 
   const cacheVersion = Number(sw.match(/const CACHE_VERSION = (\d+);/)?.[1] || 0);
-  assert.ok(Number.isInteger(cacheVersion) && cacheVersion >= 1358, 'CACHE_VERSION must include the proposal type/totals rollout');
+  assert.ok(Number.isInteger(cacheVersion) && cacheVersion >= 1359, 'CACHE_VERSION must include the proposal type and totals rollout');
 
   const hotfixVersion = config.match(/HOTFIX_VERSION:\s*'([^']+)'/)?.[1] || '';
   assert.ok(hotfixVersion.trim(), 'HOTFIX_VERSION must be defined');
@@ -64,6 +64,7 @@ test('service worker and client-file hotfix versions are current and structurall
   assert.match(hotfixVersion, /performance-cache-20260727-v1/, 'HOTFIX_VERSION must clear persisted data for the performance cache rollout');
   assert.match(hotfixVersion, /login-sw-refresh-20260729-v1/, 'HOTFIX_VERSION must identify the automatic login refresh rollout');
   assert.match(hotfixVersion, /annual-review-isolated-print-20260730-v2/, 'HOTFIX_VERSION must identify isolated annual review printing');
+  assert.match(hotfixVersion, /2026-readonly-complete-history-20260802-v1/, 'HOTFIX_VERSION must identify the 2026 read-only history rollout');
   assert.match(hotfixVersion, /proposal-type-tashpaz-totals-20260802-v1/, 'HOTFIX_VERSION must identify the proposal type and תשפ״ז totals rollout');
 
   assert.match(login, /beginLoginServiceWorkerUpdate\(\)/);

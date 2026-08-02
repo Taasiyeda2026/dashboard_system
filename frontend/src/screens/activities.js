@@ -47,6 +47,11 @@ import { activityMatchesInstructorStatusFilter } from './shared/activity-instruc
 import { renderActivitiesViewSwitcher, bindActivitiesViewSwitcher } from './shared/view-switcher.js';
 import { resolveSchool2027Contact } from './shared/school-2027-contact.js';
 import { ACTIVE_ACTIVITY_SEASON, ACTIVITY_SEASON_OPTIONS, ACTIVITY_SEASON_REGULAR, ACTIVITY_SEASON_SUMMER_2026, ACTIVITY_SEASON_SCHOOL_2027, getActivityPeriodKey, normalizeActivitySeason, normalizeGlobalActivityPeriod, globalActivityPeriodLabel } from './shared/summer-activity.js';
+import {
+  READ_ONLY_ACTIVITY_PERIOD_MESSAGE,
+  isReadOnlyActivityRow,
+  isReadOnlyGlobalActivityPeriod
+} from './shared/activity-readonly-period.js';
 import { showToast } from './shared/toast.js';
 import { canEditDirect, canAddActivityDirect, canRequestEdit, canRequestCreateActivity, canReviewRequests } from '../permissions.js';
 import { bindInstructorScheduling } from './instructor-scheduling-workflow.js';
@@ -120,7 +125,13 @@ function canReviewActivityRequests(state) {
   return canReviewRequests(state?.user);
 }
 
+/** 2026 is historical: no screen affordance may create or change an activity. */
+function isReadOnlyActivitiesPeriod(state) {
+  return isReadOnlyGlobalActivityPeriod(state?.activityPeriodTab);
+}
+
 function canOpenCreateActivity(state) {
+  if (isReadOnlyActivitiesPeriod(state)) return false;
   return canAddActivities(state) || canRequestActivityCreate(state);
 }
 
@@ -161,6 +172,11 @@ function isDeletedActivity(row = {}) {
 function isClosedActivity(row = {}) {
   const status = normalizedActivityStatus(row);
   return status === 'סגור' || status.toLowerCase() === 'closed';
+}
+
+function isCancelledActivity(row = {}) {
+  const status = normalizedActivityStatus(row);
+  return status === 'בוטל' || ['cancelled', 'canceled'].includes(status.toLowerCase());
 }
 
 function isActiveActivity(row = {}) {
@@ -205,6 +221,15 @@ function activeActivitiesYearRows(rows, yearKey) {
 
 function archivedActivitiesYearRows(rows, yearKey) {
   return activityPeriodRows(rows, yearKey).filter((row) => isClosedActivity(row));
+}
+
+/**
+ * Single row source for the combined "all activities" tab: every open and closed
+ * activity of the year. The table and the row-click lookup must read from this
+ * same list so a rendered row is always openable.
+ */
+function allYearActivitiesRows(rows, yearKey) {
+  return activityPeriodRows(rows, yearKey).filter((row) => !isDeletedActivity(row) && !isCancelledActivity(row));
 }
 
 function regular2026Rows(rows) {
@@ -257,6 +282,7 @@ function activityRowsForInnerTab(rows, state = {}) {
   const tabKey = normalizeActivitiesInnerTab(state.activitiesInnerTab, yearKey);
   return cachedRowsValue(activityPeriodRowsCache, rows, `${yearKey}:${tabKey}`, () => {
     if (tabKey === ACTIVITIES_INNER_TAB_ARCHIVE) return archivedActivitiesYearRows(rows, yearKey);
+    if (tabKey === ACTIVITIES_INNER_TAB_ALL) return allYearActivitiesRows(rows, yearKey);
     if (yearKey === ACTIVITY_SEASON_SCHOOL_2027) return activeActivitiesYearRows(rows, yearKey);
     if (tabKey === ACTIVITIES_INNER_TAB_SUMMER_2026) return summer2026Rows(rows);
     if (tabKey === ACTIVITIES_INNER_TAB_REGULAR_2026) return regular2026Rows(rows);
@@ -2437,7 +2463,9 @@ export const activitiesScreen = {
       const cachedDates  = getCachedActivityDates(summaryRow, state);
       const canDirectEdit = canDirectManageActivities(state);
       const canRequestEdit = canRequestActivityChanges(state);
-      const canReopenActivity = canDirectManageActivities(state) && state.activityPeriodTab === 'archive';
+      const canReopenActivity = canDirectManageActivities(state)
+        && state.activityPeriodTab === 'archive'
+        && !isReadOnlyActivityRow(summaryRow);
       const settings = mergeSettingsWithFallback(
         state?.clientSettings || {},
         buildFallbackOptionsFromRows(activitiesRows)
@@ -2506,8 +2534,30 @@ export const activitiesScreen = {
           });
       }
 
+      /**
+       * The drawer opens immediately from the list projection, which carries no
+       * funding/price/participants values. Once the full record arrives, the open
+       * drawer is re-rendered in place so the real values appear without the user
+       * having to close and reopen it.
+       */
+      const applyDetailToOpenDrawer = (detailRow) => {
+        const contentNode = document.querySelector('.ds-drawer__content');
+        const openForm = contentNode?.querySelector('[data-drawer-form]');
+        if (!contentNode || !openForm) return;
+        if (String(openForm.getAttribute('data-row-id') || '').trim() !== String(summaryRow.RowID || '').trim()) return;
+        if (openForm.dataset.editing === 'yes') return;
+        contentNode.innerHTML = buildDrawerContent(detailRow, false);
+        makeOnOpenWithReopen(detailRow)(contentNode);
+        const latestDates = getCachedActivityDates(summaryRow, state);
+        const sectionEl = contentNode.querySelector('[data-dates-section]');
+        if (latestDates && sectionEl) patchDrawerDatesSection(sectionEl, latestDates);
+      };
+
       loadDetailRow(summaryRow)
-        .then((row) => { putCachedActivityDetail(summaryRow, row, state); })
+        .then((row) => {
+          putCachedActivityDetail(summaryRow, row, state);
+          applyDetailToOpenDrawer(row);
+        })
         .catch(() => {});
     }
 
@@ -2783,6 +2833,11 @@ export const activitiesScreen = {
 
     async function submitAddActivityForm(form, submitBtn) {
       const statusEl = form.querySelector('[data-add-activity-status]');
+      if (isReadOnlyActivitiesPeriod(state)) {
+        setAddActivityStatus(statusEl, READ_ONLY_ACTIVITY_PERIOD_MESSAGE, { isError: true });
+        resetAddActivitySavingState(form, submitBtn);
+        return;
+      }
       if (form.dataset.saving === 'yes' || form.dataset.submitting === 'yes') {
         return;
       }

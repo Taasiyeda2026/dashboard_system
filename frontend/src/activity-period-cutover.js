@@ -1,11 +1,9 @@
 import { deletePersistedCacheByPrefixes } from './cache-persist.js';
 import {
   ACTIVE_ACTIVITY_SEASON,
-  ACTIVITY_SEASON_REGULAR,
-  GLOBAL_ACTIVITY_PERIOD_STORAGE_KEY,
-  isValidGlobalActivityPeriod,
-  normalizeGlobalActivityPeriod
+  GLOBAL_ACTIVITY_PERIOD_STORAGE_KEY
 } from './screens/shared/summer-activity.js';
+import { isReadOnlyGlobalActivityPeriod } from './screens/shared/activity-readonly-period.js';
 
 export const ACTIVITY_PERIOD_2027_CUTOVER_KEY = 'dashboard_activity_period_cutover_school_2027_v1';
 
@@ -24,22 +22,19 @@ function isActivityPeriodCacheKey(key) {
   return ACTIVITY_PERIOD_CACHE_PREFIXES.some((prefix) => cacheKey === prefix || cacheKey.startsWith(prefix));
 }
 
+/**
+ * 2027 is the working year, so every fresh entry and every reload starts on 2027.
+ * A stored historical 2026 selection never reopens the app on 2026; picking 2026
+ * by hand stays in effect for the rest of that browsing session only.
+ */
 export function resolveInitialActivityPeriod(storage = localStorage) {
   const stored = storage.getItem(GLOBAL_ACTIVITY_PERIOD_STORAGE_KEY) || '';
-  const cutoverComplete = storage.getItem(ACTIVITY_PERIOD_2027_CUTOVER_KEY) === '1';
+  const hadHistoricalSelection = isReadOnlyGlobalActivityPeriod(stored);
 
-  if (!cutoverComplete) {
-    storage.setItem(ACTIVITY_PERIOD_2027_CUTOVER_KEY, '1');
-    storage.setItem(GLOBAL_ACTIVITY_PERIOD_STORAGE_KEY, ACTIVE_ACTIVITY_SEASON);
-    return { period: ACTIVE_ACTIVITY_SEASON, didCutover: stored === ACTIVITY_SEASON_REGULAR };
-  }
+  storage.setItem(ACTIVITY_PERIOD_2027_CUTOVER_KEY, '1');
+  storage.setItem(GLOBAL_ACTIVITY_PERIOD_STORAGE_KEY, ACTIVE_ACTIVITY_SEASON);
 
-  return {
-    period: isValidGlobalActivityPeriod(stored)
-      ? normalizeGlobalActivityPeriod(stored)
-      : ACTIVE_ACTIVITY_SEASON,
-    didCutover: false
-  };
+  return { period: ACTIVE_ACTIVITY_SEASON, didCutover: hadHistoricalSelection };
 }
 
 export function clearActivityPeriodScreenCache(screenDataCache = {}) {

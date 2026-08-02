@@ -54,16 +54,17 @@ test('a stored legacy 2026 selection migrates once to 2027', () => {
   assert.equal(localStorage.getItem(ACTIVITY_PERIOD_2027_CUTOVER_KEY), '1');
 });
 
-test('manual 2026 selection remains selected after the one-time cutover and reload', () => {
-  localStorage.setItem(GLOBAL_ACTIVITY_PERIOD_STORAGE_KEY, 'regular');
+test('manual 2026 selection stays active during the session but never survives a reload', () => {
   resolveInitialActivityPeriod(localStorage);
 
   setGlobalActivityPeriod('regular');
+  assert.equal(state.activityPeriodTab, 'regular');
+  assert.equal(localStorage.getItem(GLOBAL_ACTIVITY_PERIOD_STORAGE_KEY), 'regular');
+
   const reloaded = resolveInitialActivityPeriod(localStorage);
 
-  assert.equal(state.activityPeriodTab, 'regular');
-  assert.deepEqual(reloaded, { period: 'regular', didCutover: false });
-  assert.equal(localStorage.getItem(GLOBAL_ACTIVITY_PERIOD_STORAGE_KEY), 'regular');
+  assert.deepEqual(reloaded, { period: 'school_2027', didCutover: true });
+  assert.equal(localStorage.getItem(GLOBAL_ACTIVITY_PERIOD_STORAGE_KEY), 'school_2027');
 });
 
 test('2027 selection applies operations range from 01.09.2026 through 31.08.2027', () => {

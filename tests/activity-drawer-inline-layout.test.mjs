@@ -138,7 +138,7 @@ test('activity drawer becomes one inline view/edit template without duplicate he
   assert.equal(seasonSelect.value, 'school_2027');
 
   const labels = [...form.querySelectorAll('.activity-drawer-inline__label')].map((node) => node.textContent.trim());
-  assert.deepEqual(labels.slice(0, 7), ['מנהל פעילות', 'מדריך/ה', 'כיתה / קבוצה', 'שעות', 'מימון', 'מחיר', 'עונת פעילות']);
+  assert.deepEqual(labels.slice(0, 8), ['מנהל פעילות', 'מדריך/ה', 'כיתה / קבוצה', 'שעות', 'מימון', 'מחיר', 'מספר משתתפים', 'עונת פעילות']);
   assert.equal(labels.filter((label) => label === 'איש קשר').length, 1);
   assert.equal(form.textContent.includes('פרטי קשר'), false);
   assert.equal(form.textContent.includes('צוות וזמנים'), false);
