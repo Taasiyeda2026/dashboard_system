@@ -4,6 +4,7 @@ const PATCH_KEY = Symbol.for('taasiyeda.proposalWorkflowUiIntegrity');
 const APPROVAL_WRAP_KEY = Symbol.for('taasiyeda.proposalApprovalAutomaticPdf');
 const pendingForms = new WeakSet();
 const pendingPdfIds = new Set();
+let directApprovalPendingUntil = 0;
 
 function text(value) {
   return String(value == null ? '' : value).replace(/\s+/g, ' ').trim();
@@ -147,7 +148,9 @@ function wrapApprovalStatus(targetApi, scope) {
     const result = await original.apply(this, args);
     const requestedStatus = text(args[1]);
     const row = result?.row;
-    if (requestedStatus === 'approved' && text(row?.id || args[0])) {
+    const directApproval = requestedStatus === 'approved' && Date.now() <= directApprovalPendingUntil;
+    if (directApproval && text(row?.id || args[0])) {
+      directApprovalPendingUntil = 0;
       scheduleAutomaticPdf(text(row?.id || args[0]), scope);
     }
     return result;
@@ -167,6 +170,9 @@ function installDomRuntime(scope) {
   documentRef.addEventListener('input', editorEvent, true);
   documentRef.addEventListener('change', editorEvent, true);
   documentRef.addEventListener('click', (event) => {
+    const directApprove = event.target?.closest?.('[data-pa-save-pending][data-pa-target-status="approved"]');
+    if (directApprove) directApprovalPendingUntil = Date.now() + 120000;
+
     const tab = event.target?.closest?.('[data-pa-tab]');
     const screen = tab?.closest?.('.ds-pa-screen');
     if (!screen || tab?.dataset?.paTab === 'records' && event.target.closest?.('[data-pa-summer-tab]')) return;
