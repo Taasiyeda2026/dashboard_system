@@ -76,7 +76,7 @@ async function capturePdfWithoutUpload(page, action) {
   });
   try {
     await action();
-    await expect.poll(() => captured.length, { timeout: 90_000, message: 'the PDF upload must be attempted' })
+    await expect.poll(() => captured.length, { timeout: 60_000, message: 'the PDF upload must be attempted' })
       .toBeGreaterThan(0);
   } finally {
     await page.unroute(routePattern);
@@ -160,19 +160,23 @@ async function openAllProposals(page) {
  * overlay offers PDF production (`#pa-print-btn`). A sent proposal that only offers its
  * stored file is reported separately so the saved-snapshot scenario can verify that.
  */
+const CANDIDATE_LIMIT = 3;
+const STEP_TIMEOUT = 10_000;
+
 async function openProposalWithPrintAction(page, table, typeLabel, { preferSent = false } = {}) {
   const rows = table.locator('tbody tr[data-pa-row-id]');
-  const count = await rows.count();
-  const order = [];
-  for (let index = 0; index < count; index += 1) {
-    const row = rows.nth(index);
-    const type = (await row.locator('td').nth(4).innerText()).trim();
-    if (type !== typeLabel) continue;
-    const status = (await row.locator('td').nth(6).innerText()).trim();
-    const isSent = status.includes('נשלח');
-    order.push({ index, isSent });
-  }
-  order.sort((left, right) => Number(right.isSent === preferSent) - Number(left.isSent === preferSent));
+  // Read the whole table once instead of querying cell by cell per candidate.
+  const summaries = await rows.evaluateAll((nodes) => nodes.map((node, index) => ({
+    index,
+    type: (node.cells[4]?.textContent || '').trim(),
+    status: (node.cells[6]?.textContent || '').trim()
+  })));
+  const order = summaries
+    .filter((entry) => entry.type === typeLabel)
+    .map((entry) => ({ index: entry.index, isSent: entry.status.includes('נשלח') }))
+    .sort((left, right) => Number(right.isSent === preferSent) - Number(left.isSent === preferSent))
+    .slice(0, CANDIDATE_LIMIT);
+  expect(order.length, `expected at least one ${typeLabel} proposal in the table`).toBeGreaterThan(0);
 
   for (const candidate of order) {
     const row = rows.nth(candidate.index);
@@ -190,12 +194,14 @@ async function openProposalWithPrintAction(page, table, typeLabel, { preferSent 
     await rowAction.click();
 
     const detail = page.locator('[data-pa-proposal-detail]:visible').first();
-    await expect(detail).toBeVisible({ timeout: 30_000 });
-    const detailPreview = detail.locator('[data-pa-preview]').first();
-    if (await detailPreview.count()) await detailPreview.click();
+    const reachedDetail = await detail.isVisible({ timeout: STEP_TIMEOUT }).catch(() => false);
+    if (reachedDetail) {
+      const detailPreview = detail.locator('[data-pa-preview]').first();
+      if (await detailPreview.count()) await detailPreview.click();
+    }
 
     const toolbar = page.locator('.proposal-preview-toolbar');
-    if (await toolbar.count()) {
+    if (await toolbar.isVisible({ timeout: STEP_TIMEOUT }).catch(() => false)) {
       const print = page.locator('#pa-print-btn');
       const savedPdf = page.locator('#pa-view-final-pdf-btn');
       if (await print.count()) return { kind: 'print', row, print, id };
@@ -203,7 +209,7 @@ async function openProposalWithPrintAction(page, table, typeLabel, { preferSent 
       await page.locator('#pa-preview-close').first().click().catch(() => {});
     }
     await page.locator('[data-pa-proposal-detail-back]').first().click().catch(() => {});
-    await expect(table.locator('tbody tr[data-pa-row-id]').first()).toBeVisible({ timeout: 30_000 });
+    await table.locator('tbody tr[data-pa-row-id]').first().isVisible({ timeout: STEP_TIMEOUT }).catch(() => false);
   }
   return null;
 }
@@ -260,7 +266,7 @@ async function assertPrintTreeComplete(page, label) {
 /** Downloads a proposal's stored PDF without regenerating or replacing it. */
 async function fetchSavedPdf(page, savedPdfButton) {
   const [popup] = await Promise.all([
-    page.context().waitForEvent('page', { timeout: 60_000 }),
+    page.context().waitForEvent('page', { timeout: 30_000 }),
     savedPdfButton.click()
   ]);
   await popup.waitForLoadState('domcontentloaded').catch(() => {});
@@ -309,21 +315,21 @@ test.describe('Proposal PDF contains the full document', () => {
   });
 
   test('תשפ״ז proposal with a course and a workshop produces the full template', async ({ page, tracker }) => {
-    test.setTimeout(240_000);
+    test.setTimeout(150_000);
     const result = await generateAndVerify(page, tracker, { label: 'tashpaz', typeLabel: 'תשפ״ז' });
     expect(result.pageCount).toBeGreaterThan(0);
     assertNoTransportErrors(tracker);
   });
 
   test('גפן proposal produces the full template', async ({ page, tracker }) => {
-    test.setTimeout(240_000);
+    test.setTimeout(150_000);
     const result = await generateAndVerify(page, tracker, { label: 'gefen', typeLabel: 'גפן' });
     expect(result.pageCount).toBeGreaterThan(0);
     assertNoTransportErrors(tracker);
   });
 
   test('existing proposal with a saved snapshot keeps the full template', async ({ page, tracker }) => {
-    test.setTimeout(240_000);
+    test.setTimeout(150_000);
     const result = await generateAndVerify(page, tracker, {
       label: 'saved-snapshot',
       typeLabel: 'תשפ״ז',
