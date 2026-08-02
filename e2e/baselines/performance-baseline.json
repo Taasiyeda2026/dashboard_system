@@ -1,0 +1,6 @@
+{
+  "version": 1,
+  "capturedAt": null,
+  "note": "Performance metrics only. No usernames, school names, contacts, proposals, or business data. Populate by running npm run test:e2e:baseline on main with E2E credentials.",
+  "screens": {}
+}
