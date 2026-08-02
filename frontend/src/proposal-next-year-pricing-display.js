@@ -137,32 +137,9 @@ function wrapSnapshotMethod(targetApi, methodName, documentRef) {
 
 export function installProposalNextYearPricingDisplay(targetApi = api, scope = globalThis) {
   if (!targetApi || targetApi[PATCH_KEY]) return false;
-
   const documentRef = scope?.document;
   wrapSnapshotMethod(targetApi, 'uploadProposalFinalPdf', documentRef);
   wrapSnapshotMethod(targetApi, 'lockAndSendProposalAgreement', documentRef);
-
-  if (documentRef?.documentElement && typeof scope?.MutationObserver === 'function') {
-    let queued = false;
-    const schedule = () => {
-      if (queued) return;
-      queued = true;
-      queueMicrotask(() => {
-        queued = false;
-        normalizeProposalPricingTables(documentRef);
-      });
-    };
-
-    if (documentRef.readyState === 'loading') {
-      documentRef.addEventListener('DOMContentLoaded', schedule, { once: true });
-    } else {
-      schedule();
-    }
-
-    const observer = new scope.MutationObserver(schedule);
-    observer.observe(documentRef.documentElement, { childList: true, subtree: true });
-  }
-
   Object.defineProperty(targetApi, PATCH_KEY, {
     value: true,
     configurable: false,

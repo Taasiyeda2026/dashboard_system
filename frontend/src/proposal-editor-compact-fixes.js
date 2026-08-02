@@ -1,3 +1,5 @@
+import './proposal-next-year-editor-stability.js';
+
 function editorFormFromNode(node) {
   if (!(node instanceof Element)) return null;
   if (node.matches?.('[data-pa-form]')) return node;
@@ -254,6 +256,17 @@ function scheduleCompact(root = document) {
   }
 }
 
+function addedEditorRoots(mutations = []) {
+  const roots = new Set();
+  mutations.forEach((mutation) => {
+    mutation.addedNodes.forEach((node) => {
+      if (!(node instanceof Element)) return;
+      if (node.matches?.('[data-pa-form]') || node.querySelector?.('[data-pa-form]')) roots.add(node);
+    });
+  });
+  return roots;
+}
+
 if (typeof document !== 'undefined') {
   if (document.readyState === 'loading') {
     document.addEventListener('DOMContentLoaded', () => scheduleCompact(document), { once: true });
@@ -285,8 +298,7 @@ if (typeof document !== 'undefined') {
 
   const app = document.getElementById('app') || document.documentElement;
   compactObserver = new MutationObserver((mutations) => {
-    if (!mutations.some((mutation) => mutation.type === 'childList')) return;
-    scheduleCompact(app);
+    addedEditorRoots(mutations).forEach((root) => scheduleCompact(root));
   });
   compactObserver.observe(app, {
     childList: true,
@@ -311,5 +323,6 @@ export {
   hydrateContactSourceFromPicker,
   ensureContactSaveButton,
   triggerContactSave,
-  scheduleCompact
+  scheduleCompact,
+  addedEditorRoots
 };
