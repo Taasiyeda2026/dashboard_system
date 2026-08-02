@@ -89,10 +89,13 @@ test('summer tab replaces the earlier listener and filters locally without a bac
   assert.equal(screen.querySelector('tr[data-pa-row-id="2"]').hidden, true);
 });
 
-test('approved status response schedules the existing PDF action', async () => {
-  const dom = new JSDOM('<button data-pa-print="proposal-1"></button>', { url: 'http://localhost/' });
-  let clicks = 0;
-  dom.window.document.querySelector('button').addEventListener('click', () => { clicks += 1; });
+test('direct signed approval schedules the existing PDF action once', async () => {
+  const dom = new JSDOM(`
+    <button data-pa-save-pending data-pa-target-status="approved">חתום ואשר</button>
+    <button data-pa-print="proposal-1">PDF</button>
+  `, { url: 'http://localhost/' });
+  let pdfClicks = 0;
+  dom.window.document.querySelector('[data-pa-print]').addEventListener('click', () => { pdfClicks += 1; });
   const fakeApi = {
     updateProposalAgreementStatus: async () => ({ row: { id: 'proposal-1', status: 'approved' } })
   };
@@ -106,7 +109,8 @@ test('approved status response schedules the existing PDF action', async () => {
     setTimeout,
     requestAnimationFrame: (callback) => setTimeout(callback, 0)
   });
+  dom.window.document.querySelector('[data-pa-save-pending]').click();
   await fakeApi.updateProposalAgreementStatus('proposal-1', 'approved', '', { signature_data_url: 'data:image/png;base64,AA==' });
   await new Promise((resolve) => setTimeout(resolve, 450));
-  assert.equal(clicks, 1);
+  assert.equal(pdfClicks, 1);
 });
