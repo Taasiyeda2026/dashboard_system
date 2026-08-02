@@ -5,6 +5,7 @@ import { readFile } from 'node:fs/promises';
 const INDEX_FILE = new URL('../index.html', import.meta.url);
 const CSS_FILE = new URL('../frontend/src/styles/proposal-editor-compact-fixes.css', import.meta.url);
 const RUNTIME_FILE = new URL('../frontend/src/proposal-editor-compact-fixes.js', import.meta.url);
+const NEXT_YEAR_STABILITY_FILE = new URL('../frontend/src/proposal-next-year-editor-stability.js', import.meta.url);
 const SCREEN_FILE = new URL('../frontend/src/screens/proposals-agreements.js', import.meta.url);
 const CONFIG_FILE = new URL('../frontend/src/config.js', import.meta.url);
 const SW_FILE = new URL('../frontend/sw.js', import.meta.url);
@@ -49,12 +50,26 @@ test('runtime does not reparent live template controls during proposal type chan
   assert.doesNotMatch(runtime, /activitiesPanel\.appendChild\(summary\)/);
 });
 
-test('runtime observer is child-list only and avoids the previous mutation loop', async () => {
+test('runtime observer only schedules newly mounted editor roots', async () => {
   const runtime = await readFile(RUNTIME_FILE, 'utf8');
+  assert.match(runtime, /function addedEditorRoots/);
+  assert.match(runtime, /node\.matches\?\.\('\[data-pa-form\]'\)/);
   assert.match(runtime, /compactObserver\.observe\(app, \{[\s\S]*childList:\s*true,[\s\S]*subtree:\s*true/);
+  assert.doesNotMatch(runtime, /scheduleCompact\(app\)/);
   assert.doesNotMatch(runtime, /attributeFilter:\s*\['hidden', 'open', 'value'\]/);
-  assert.doesNotMatch(runtime, /document\.addEventListener\('click', \(event\) => \{\s*const form = event\.target\?\.closest\?\.\('\[data-pa-form\]'\)/);
   assert.doesNotMatch(runtime, /Supabase|fetch\(|localStorage|sessionStorage/);
+});
+
+test('compact runtime loads the focused next-year editor stabilizer', async () => {
+  const [runtime, stability] = await Promise.all([
+    readFile(RUNTIME_FILE, 'utf8'),
+    readFile(NEXT_YEAR_STABILITY_FILE, 'utf8')
+  ]);
+  assert.match(runtime, /import '\.\/proposal-next-year-editor-stability\.js'/);
+  assert.match(stability, /stabilizeNextYearForm/);
+  assert.match(stability, /data-pa-next-year-user-added/);
+  assert.match(stability, /pricingRowsForNextYearGroup/);
+  assert.doesNotMatch(stability, /document\.body\.innerHTML\s*=/);
 });
 
 test('contact channel editing restores the selected contact source and includes an explicit save button', async () => {
@@ -113,6 +128,6 @@ test('frontend hotfix and service worker cache versions are bumped together', as
   ]);
   assert.match(config, /recipient-date-domain-130-20260801-v1/);
   assert.match(config, /proposal-recipient-search-row-fix\.js\?v=20260801-v10/);
-  assert.match(config, /proposal-focused-regressions-20260802-v1/);
-  assert.match(sw, /const CACHE_VERSION = 1362;/);
+  assert.match(config, /next-year-editor-stability-20260802-v1/);
+  assert.match(sw, /const CACHE_VERSION = 1363;/);
 });
