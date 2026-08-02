@@ -16,6 +16,10 @@ export function schedulingCourses(rows = []) {
   return rows.filter(isActivitySchedulingEligible);
 }
 
+export function schedulingInstructors(rows = []) {
+  return rows.filter((row) => text(row?.active).toLowerCase() === 'yes');
+}
+
 export function missingCourseInformation(activity) {
   const missing = [];
   if (!text(activity?.school)) missing.push('בית ספר');
@@ -201,6 +205,7 @@ function draftRowsForInstructor(state, empId, ordered, excludeCourseId = '') {
 export function calculateCourseSchedule(input = {}) {
   const activities = input.activities || [];
   const courses = schedulingCourses(activities);
+  const instructors = schedulingInstructors(input.instructors || []);
   const assignedRows = assignedRowsByInstructor(activities, input.assignments || {});
   const profiles = input.profiles || {};
   const rules = input.rules || {};
@@ -209,7 +214,7 @@ export function calculateCourseSchedule(input = {}) {
   const ready = courses.filter((course) => !incomplete.get(idOf(course)).length);
   const { output: maps, baselineLoads, averageRatio } = candidateMap({
     courses: ready,
-    instructors: input.instructors || [],
+    instructors,
     profiles,
     rules,
     exceptions,
