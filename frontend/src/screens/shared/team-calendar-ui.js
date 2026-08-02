@@ -84,6 +84,13 @@ function eventLine(row) {
   return `${icon} ${title}${owner && !ownerAlreadyShown ? ` · ${owner}` : ''}`.trim();
 }
 
+function eventSignature(rows, maxVisible) {
+  return JSON.stringify({
+    lines: rows.slice(0, maxVisible).map((row) => [eventLine(row), String(row.event_type || 'task')]),
+    remaining: Math.max(rows.length - maxVisible, 0)
+  });
+}
+
 function renderEventList(container, rows, { maxVisible = 4, scope = 'month' } = {}) {
   let list = container.querySelector(`[data-team-calendar-label="${scope}"]`);
   if (!rows.length) {
@@ -100,27 +107,29 @@ function renderEventList(container, rows, { maxVisible = 4, scope = 'month' } = 
     else container.appendChild(list);
   }
 
+  const signature = eventSignature(rows, maxVisible);
+  if (list.dataset.teamCalendarSignature === signature) return;
+  list.dataset.teamCalendarSignature = signature;
+
   const visibleRows = rows.slice(0, maxVisible);
-  const lines = visibleRows.map((row) => ({
-    text: eventLine(row),
-    type: String(row.event_type || 'task')
-  }));
-  list.replaceChildren(...lines.map((line) => {
+  const fragment = document.createDocumentFragment();
+  visibleRows.forEach((row) => {
     const item = document.createElement('span');
     item.className = 'team-calendar-item';
-    item.dataset.eventType = line.type;
-    item.textContent = line.text;
-    return item;
-  }));
+    item.dataset.eventType = String(row.event_type || 'task');
+    item.textContent = eventLine(row);
+    fragment.appendChild(item);
+  });
 
   const remaining = rows.length - visibleRows.length;
   if (remaining > 0) {
     const more = document.createElement('span');
     more.className = 'team-calendar-more';
     more.textContent = `ועוד ${remaining}`;
-    list.appendChild(more);
+    fragment.appendChild(more);
   }
 
+  list.replaceChildren(fragment);
   list.title = rows.map(eventLine).join('\n');
 }
 
@@ -147,14 +156,9 @@ function decorateWeek(rows) {
   });
 }
 
-function clearStaleLabels() {
-  document.querySelectorAll('#app [data-team-calendar-label]').forEach((label) => label.remove());
-}
-
 async function decorateTeamCalendarViews() {
   ensureStyles();
   const rows = await loadTeamCalendarRows();
-  clearStaleLabels();
   decorateMonth(rows);
   decorateWeek(rows);
 }
