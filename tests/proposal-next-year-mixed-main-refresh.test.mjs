@@ -47,12 +47,16 @@ test('mixed next-year editor preserves new rows and guards hydration notificatio
   assert.equal(count(selectionHydration, 'export function calculateNextYearTotals'), 1);
 });
 
-test('mixed next-year document keeps separate course and workshop tables', () => {
-  assert.match(approvedFix, /INSTALL_KEY = Symbol\.for\('taasiyeda\.nextYearMixedProposalTables\.v3'\)/);
-  assert.match(approvedFix, /if \(!courses\.length \|\| !workshops\.length\)/);
+test('mixed next-year document replaces the complete cost group atomically', () => {
+  assert.match(approvedFix, /INSTALL_KEY = Symbol\.for\('taasiyeda\.nextYearMixedProposalTables\.v4'\)/);
+  assert.match(approvedFix, /if \(!courses\.length \|\| !workshops\.length\) return/);
+  assert.match(approvedFix, /closest\('\.pa-next-year-cost-group'\)/);
+  assert.match(approvedFix, /region\.replaceWith\(wrapper\)/);
+  assert.doesNotMatch(approvedFix, /clearNativeNextYearTables/);
   assert.match(approvedFix, /courseTableHtml\(courses\)/);
   assert.match(approvedFix, /workshopTableHtml\(workshops\)/);
   assert.match(approvedFix, /pa-next-year-combined-total/);
+  assert.match(approvedFix, /approvedNextYearNormalizing/);
   assert.match(approvedFix, /if \(refreshRunning\) return/);
   assert.equal(count(approvedFix, "document.addEventListener('change'"), 1);
   assert.equal(count(approvedFix, "document.addEventListener('input'"), 1);
