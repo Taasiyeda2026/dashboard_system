@@ -209,8 +209,14 @@ function ensureInstalledAndRerender(detail = {}) {
   }).catch(() => { rerenderQueued = false; });
 }
 
-document.addEventListener('app:navigate', (event) => {
-  const detail = event?.detail || {};
-  if (detail.route !== ROUTE || detail.courseSchedulingUsabilityReady) return;
-  ensureInstalledAndRerender(detail);
-});
+const canRunInBrowser = typeof document !== 'undefined'
+  && typeof sessionStorage !== 'undefined'
+  && typeof localStorage !== 'undefined';
+
+if (canRunInBrowser) {
+  document.addEventListener('app:navigate', (event) => {
+    const detail = event?.detail || {};
+    if (detail.route !== ROUTE || detail.courseSchedulingUsabilityReady) return;
+    ensureInstalledAndRerender(detail);
+  });
+}
