@@ -10,17 +10,24 @@ const {
   updateProposalSchoolPdfDocumentTitle
 } = await import('../frontend/src/proposal-pdf-school-filename-runtime.js');
 
-test('GEFEN and next-year PDF titles use institution code and school name', () => {
+test('GEFEN and next-year PDF titles use the school name only', () => {
   assert.equal(isSchoolProposalPdfFilenameType('gefen'), true);
   assert.equal(isSchoolProposalPdfFilenameType('next_year'), true);
   assert.equal(isSchoolProposalPdfFilenameType('summer'), false);
   assert.equal(
     proposalSchoolPdfTitle({ typeKey: 'gefen', semelMosad: '640672', schoolName: "מקיף ה' כללי" }),
-    "הצעת מחיר - 640672 - מקיף ה' כללי"
+    "הצעת מחיר מקיף ה' כללי"
   );
   assert.equal(
     proposalSchoolPdfTitle({ typeKey: 'תשפ״ז', semelMosad: '441212', schoolName: 'חט"ב תיכון ריגלר' }),
-    'הצעת מחיר - 441212 - חט_ב תיכון ריגלר'
+    'הצעת מחיר חטב תיכון ריגלר'
+  );
+});
+
+test('school code is used only as a fallback when the school name is missing', () => {
+  assert.equal(
+    proposalSchoolPdfTitle({ typeKey: 'gefen', semelMosad: '288209', schoolName: '' }),
+    'הצעת מחיר 288209'
   );
 });
 
@@ -33,18 +40,18 @@ test('preview runtime reads the proposal form and updates the browser PDF title'
     </form>
     <div id="pa-preview-overlay"><button id="pa-print-btn">PDF</button></div>
   `, { url: 'http://localhost/' });
-  assert.equal(resolveProposalSchoolPdfTitle(dom.window.document), 'הצעת מחיר - 218321 - אלביארוני');
+  assert.equal(resolveProposalSchoolPdfTitle(dom.window.document), 'הצעת מחיר אלביארוני');
   assert.equal(updateProposalSchoolPdfDocumentTitle(dom.window.document), true);
-  assert.equal(dom.window.document.title, 'הצעת מחיר - 218321 - אלביארוני');
+  assert.equal(dom.window.document.title, 'הצעת מחיר אלביארוני');
 });
 
 test('database migration keeps the same filename contract and backfills saved PDFs', async () => {
   const sql = await readFile(
-    new URL('../supabase/migrations/20260730023500_proposal_pdf_filename_semel_school.sql', import.meta.url),
+    new URL('../supabase/migrations/20260803121500_proposal_pdf_filename_school_name_only.sql', import.meta.url),
     'utf8'
   );
-  assert.match(sql, /הצעת מחיר/);
-  assert.match(sql, /semel_mosad/);
+  assert.match(sql, /הצעת מחיר /);
+  assert.match(sql, /school_filename_name/);
   assert.match(sql, /school_name/);
   assert.match(sql, /next_year/);
   assert.match(sql, /gefen/);
