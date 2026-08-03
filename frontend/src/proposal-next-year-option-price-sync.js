@@ -1,6 +1,6 @@
 import { hydrateNextYearPricingSelection } from './proposal-next-year-selection-hydration.js';
 
-const INSTALL_KEY = Symbol.for('taasiyeda.nextYearOptionPriceSync.v2');
+const INSTALL_KEY = Symbol.for('taasiyeda.nextYearOptionPriceSync.v3');
 const NEXT_YEAR_GROUPS = new Set(['next_year_courses', 'next_year_workshops']);
 
 function text(value) {
@@ -25,6 +25,15 @@ function rowGroup(row) {
     || row?.dataset?.paRowGroup
     || row?.querySelector?.('[name="proposal_group"]')?.value
   );
+}
+
+function setRowValue(row, name, value) {
+  const input = row?.querySelector?.(`[name="${name}"]`);
+  if (!input) return false;
+  const next = value == null ? '' : String(value);
+  if (input.value === next) return false;
+  input.value = next;
+  return true;
 }
 
 export function syncSelectedNextYearOptionPrice(row) {
@@ -53,6 +62,39 @@ function refreshNextYearPreview(row) {
   delete form.dataset.paNextYearOptionSelection;
 }
 
+/**
+ * The screen's native pricing handler owns the complete editor update, including
+ * compact row text and bundle-parent details. Some next-year options are injected
+ * after that handler built its lookup, so their compound option key is unknown to
+ * it. Temporarily expose the activity name as the option value during the native
+ * change event. The native lookup already knows the source pricing row by name.
+ * After the event completes, restore the exact compound identity and displayed
+ * next-year price, then trigger one totals/live-preview refresh.
+ */
+export function bridgeNextYearPricingSelection(row) {
+  if (!row || !NEXT_YEAR_GROUPS.has(rowGroup(row))) return null;
+  const select = row.querySelector('[data-pa-pricing-select]');
+  const option = select?.selectedOptions?.[0];
+  const originalValue = text(option?.value);
+  if (!option || !originalValue || originalValue.startsWith('__')) return null;
+
+  const parts = originalValue.split('||').map(text);
+  const activityName = parts[1] || text(option.textContent).split('—')[0].trim();
+  if (!activityName || activityName === originalValue) return null;
+  const embeddedPrice = numberValue(parts[5]);
+
+  option.value = activityName;
+
+  return () => {
+    option.value = originalValue;
+    hydrateNextYearPricingSelection(row, undefined, { notify: false });
+    setRowValue(row, 'pricing_option_key', originalValue);
+    if (embeddedPrice > 0) setRowValue(row, 'unit_price', embeddedPrice);
+    refreshNextYearPreview(row);
+    syncSelectedNextYearOptionPrice(row);
+  };
+}
+
 function install(scope = globalThis) {
   const documentRef = scope?.document;
   if (!documentRef || documentRef[INSTALL_KEY]) return;
@@ -63,20 +105,11 @@ function install(scope = globalThis) {
     const row = select?.closest?.('[data-pa-item-row]');
     if (!row || !NEXT_YEAR_GROUPS.has(rowGroup(row))) return;
 
-    const selectedValue = text(select.value);
-    const selectedOption = select.selectedOptions?.[0];
-    const isBundleParent = selectedOption?.dataset?.bundleParent === '1';
-
-    // Single next-year rows can be injected after the screen built its original
-    // pricing lookup. Own those selections here so the stale screen lookup cannot
-    // discard the chosen workshop. Bundle parents still use the native bundle UI.
-    if (selectedValue && !selectedValue.startsWith('__') && !isBundleParent) {
-      event.stopPropagation();
-      hydrateNextYearPricingSelection(row, undefined, { notify: false });
-      refreshNextYearPreview(row);
-    }
-
-    queueMicrotask(() => syncSelectedNextYearOptionPrice(row));
+    const restore = bridgeNextYearPricingSelection(row);
+    queueMicrotask(() => {
+      if (restore) restore();
+      else syncSelectedNextYearOptionPrice(row);
+    });
   }, true);
 }
 
