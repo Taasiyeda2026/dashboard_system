@@ -6,6 +6,8 @@ const INDEX_FILE = new URL('../index.html', import.meta.url);
 const CSS_FILE = new URL('../frontend/src/styles/proposal-editor-compact-fixes.css', import.meta.url);
 const RUNTIME_FILE = new URL('../frontend/src/proposal-editor-compact-fixes.js', import.meta.url);
 const NEXT_YEAR_STABILITY_FILE = new URL('../frontend/src/proposal-next-year-editor-stability.js', import.meta.url);
+const NEXT_YEAR_SELECTION_FILE = new URL('../frontend/src/proposal-next-year-selection-hydration.js', import.meta.url);
+const NEXT_YEAR_APPROVED_FIX_FILE = new URL('../frontend/src/proposal-next-year-approved-fix.js', import.meta.url);
 const SCREEN_FILE = new URL('../frontend/src/screens/proposals-agreements.js', import.meta.url);
 const CONFIG_FILE = new URL('../frontend/src/config.js', import.meta.url);
 const SW_FILE = new URL('../frontend/sw.js', import.meta.url);
@@ -72,6 +74,23 @@ test('compact runtime loads the focused next-year editor stabilizer', async () =
   assert.doesNotMatch(stability, /document\.body\.innerHTML\s*=/);
 });
 
+test('mixed next-year runtimes have one selection owner and no document feedback loop', async () => {
+  const [stability, selection, approvedFix] = await Promise.all([
+    readFile(NEXT_YEAR_STABILITY_FILE, 'utf8'),
+    readFile(NEXT_YEAR_SELECTION_FILE, 'utf8'),
+    readFile(NEXT_YEAR_APPROVED_FIX_FILE, 'utf8')
+  ]);
+  assert.doesNotMatch(stability, /normalizeProposalPricingTables/);
+  assert.doesNotMatch(stability, /\[name="activity_type_group"\], \[data-pa-pricing-select\]/);
+  assert.match(stability, /notify:\s*false/);
+  assert.match(selection, /scheduleBoundedTotals/);
+  assert.match(selection, /\[0, 90, 240\]/);
+  assert.match(approvedFix, /if \(!courses\.length \|\| !workshops\.length\)/);
+  assert.match(approvedFix, /pa-gefen-approval-table/);
+  assert.match(approvedFix, /documentRootsFromNode/);
+  assert.doesNotMatch(approvedFix, /document\.addEventListener\('(change|input|click)'/);
+});
+
 test('contact channel editing restores the selected contact source and includes an explicit save button', async () => {
   const runtime = await readFile(RUNTIME_FILE, 'utf8');
   assert.match(runtime, /selectedContactPayload/);
@@ -132,5 +151,5 @@ test('frontend hotfix and service worker cache versions are bumped together', as
   assert.match(config, /next-year-editor-stability-20260802-v1/);
   assert.match(config, /proposal-summer-list-complete-20260802-v1/);
   assert.match(featureLoaders, /proposal-summer-list-runtime\.js\?v=20260802-v1/);
-  assert.match(sw, /const CACHE_VERSION = 1370;/);
+  assert.match(sw, /const CACHE_VERSION = 1371;/);
 });
