@@ -177,7 +177,7 @@ function scheduleTotals(form, delay = 0) {
   totalsTimers.set(form, timer);
 }
 
-export function hydrateNextYearPricingSelection(row, pricingRows = cachedPricingRows) {
+export function hydrateNextYearPricingSelection(row, pricingRows = cachedPricingRows, { notify = true } = {}) {
   const group = rowGroup(row);
   if (!row || !INTERNAL_GROUPS.has(group)) return { changed: false, picked: null, total: 0 };
   const picked = resolvePicked(row, rowsForGroup(pricingRows, group));
@@ -205,7 +205,12 @@ export function hydrateNextYearPricingSelection(row, pricingRows = cachedPricing
   changed = setValue(row, 'item_selected_bundle_items', '[]') || changed;
 
   const total = calculateNextYearTotals(form);
-  scheduleTotals(form, 0);
+  const priceInput = row.querySelector('[data-pa-item-price]');
+  if (changed && notify && form && priceInput && form.dataset.paNextYearDirectHydration !== 'yes') {
+    form.dataset.paNextYearDirectHydration = 'yes';
+    priceInput.dispatchEvent(new Event('input', { bubbles: true }));
+    delete form.dataset.paNextYearDirectHydration;
+  }
   scheduleTotals(form, 100);
   return { changed, picked, total };
 }
@@ -218,7 +223,7 @@ function installRuntime(scope = globalThis) {
     const select = event.target?.closest?.('[data-pa-pricing-select]');
     const row = select?.closest?.('[data-pa-item-row]');
     if (!row || !INTERNAL_GROUPS.has(rowGroup(row))) return;
-    hydrateNextYearPricingSelection(row, cachedPricingRows);
+    hydrateNextYearPricingSelection(row, cachedPricingRows, { notify: false });
   }, true);
 
   documentRef.addEventListener('input', (event) => {
