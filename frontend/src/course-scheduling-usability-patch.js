@@ -1,6 +1,10 @@
 const SNAPSHOT_KEY = 'dashboard:course-scheduling-calculation-v1';
+const ROUTE = 'course-scheduling';
 const text = (value) => String(value ?? '').trim();
 const idOf = (row) => text(row?.row_id || row?.RowID || row?.id);
+let installPromise = null;
+let installed = false;
+let rerenderQueued = false;
 
 async function installCourseSchedulingUsabilityPatch() {
   const [screenModule, eligibilityModule, htmlModule] = await Promise.all([
@@ -184,12 +188,29 @@ async function installCourseSchedulingUsabilityPatch() {
       });
     }
   };
-
-  if (document.querySelector('[data-calculate-course-schedule]')) {
-    document.dispatchEvent(new CustomEvent('app:navigate', { detail: { route: 'course-scheduling' } }));
-  }
 }
 
-installCourseSchedulingUsabilityPatch().catch((error) => {
-  console.error('[course-scheduling-usability] install failed', error);
+function ensureInstalledAndRerender(detail = {}) {
+  if (installed) return;
+  installPromise ||= installCourseSchedulingUsabilityPatch()
+    .then(() => { installed = true; })
+    .catch((error) => {
+      installPromise = null;
+      console.error('[course-scheduling-usability] install failed', error);
+      throw error;
+    });
+  if (rerenderQueued) return;
+  rerenderQueued = true;
+  installPromise.then(() => {
+    rerenderQueued = false;
+    document.dispatchEvent(new CustomEvent('app:navigate', {
+      detail: { ...detail, route: ROUTE, courseSchedulingUsabilityReady: true }
+    }));
+  }).catch(() => { rerenderQueued = false; });
+}
+
+document.addEventListener('app:navigate', (event) => {
+  const detail = event?.detail || {};
+  if (detail.route !== ROUTE || detail.courseSchedulingUsabilityReady) return;
+  ensureInstalledAndRerender(detail);
 });
