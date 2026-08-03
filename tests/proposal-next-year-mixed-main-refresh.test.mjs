@@ -17,16 +17,17 @@ test('mixed next-year preview classifies item metadata before generic group and 
   assert.match(source, /approvedNextYearSignature/);
 });
 
-test('selection hydration is the only next-year price and totals owner', async () => {
+test('runtime uses one next-year selection and totals owner without synthetic event loops', async () => {
   const [selection, stability] = await Promise.all([
     readFile(SELECTION, 'utf8'),
     readFile(STABILITY, 'utf8')
   ]);
   assert.match(selection, /addEventListener\('change',[\s\S]*true\);/);
+  assert.match(selection, /hydrateNextYearPricingSelection\(row, cachedPricingRows, \{ notify: false \}\)/);
   assert.match(selection, /calculateNextYearTotals/);
-  assert.doesNotMatch(selection, /dispatchEvent\(new Event\('input'/);
+  assert.match(selection, /dispatchEvent\(new Event\('input'/);
+  assert.match(stability, /stabilizeNextYearForm\(form, cachedPricingRows, \{ \.\.\.options, notify: false \}\)/);
   assert.doesNotMatch(stability, /event\.target\?\.matches\?\.\('\[data-pa-pricing-select\]'\)/);
-  assert.doesNotMatch(stability, /dispatchEvent\(new Event\('input'/);
   assert.match(stability, /ensurePricingOptions/);
   assert.match(stability, /removeBlankNextYearRows/);
 });
