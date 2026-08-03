@@ -256,7 +256,8 @@ function installRuntime(scope = globalThis) {
     const select = event.target?.closest?.('[data-pa-pricing-select]');
     const row = select?.closest?.('[data-pa-item-row]');
     if (!row || !INTERNAL_GROUPS.has(rowGroup(row))) return;
-    hydrateNextYearPricingSelection(row, cachedPricingRows, { notify: true });
+    const result = hydrateNextYearPricingSelection(row, cachedPricingRows, { notify: true });
+    if (result.picked) event.stopPropagation();
   }, true);
 }
 
