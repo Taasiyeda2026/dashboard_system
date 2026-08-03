@@ -6,8 +6,6 @@ const dom = new JSDOM('<!doctype html><html><body></body></html>', { url: 'https
 globalThis.document = dom.window.document;
 globalThis.Event = dom.window.Event;
 globalThis.MutationObserver = dom.window.MutationObserver;
-globalThis.sessionStorage = dom.window.sessionStorage;
-globalThis.localStorage = dom.window.localStorage;
 globalThis.queueMicrotask = globalThis.queueMicrotask || dom.window.queueMicrotask.bind(dom.window);
 
 const { cleanupInstructorsHeader } = await import('../frontend/src/instructors-header-cleanup.js');
