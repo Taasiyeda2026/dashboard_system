@@ -25,10 +25,10 @@ function sliceBetween(source, start, end) {
   return source.slice(from, to);
 }
 
-test('mixed next-year editor keeps one hydration and totals owner', () => {
+test('mixed next-year editor preserves new rows and guards hydration notifications', () => {
   assert.match(editorStability, /proposalNextYearEditorStability\.v3/);
-  assert.doesNotMatch(editorStability, /calculateFormTotals/);
-  assert.doesNotMatch(editorStability, /dispatchEvent\s*\(\s*new Event\s*\(\s*['"]input/);
+  assert.match(editorStability, /calculateFormTotals/);
+  assert.match(editorStability, /paNextYearHydrating/);
   assert.match(editorStability, /scheduleForm\(addForm, \{ removeBlankRows: false \}\)/);
   assert.match(editorStability, /forms\.forEach\(\(form\) => scheduleForm\(form, \{ removeBlankRows: false \}\)\)/);
 
@@ -41,10 +41,9 @@ test('mixed next-year editor keeps one hydration and totals owner', () => {
   assert.doesNotMatch(editorClickHandler, /event\.stopImmediatePropagation/);
 
   assert.match(selectionHydration, /proposalNextYearSelectionHydration\.v3/);
-  assert.match(selectionHydration, /function pickedFromOptionValue/);
-  assert.match(selectionHydration, /queueMicrotask\(\(\) =>/);
-  assert.match(selectionHydration, /scheduleTotals\(form, 80\)/);
-  assert.doesNotMatch(selectionHydration, /dispatchEvent\s*\(\s*new Event\s*\(\s*['"]input/);
+  assert.match(selectionHydration, /paNextYearDirectHydration/);
+  assert.match(selectionHydration, /item_source_pricing_key/);
+  assert.match(selectionHydration, /scheduleTotals\(form, 100\)/);
   assert.equal(count(selectionHydration, 'export function calculateNextYearTotals'), 1);
 });
 
