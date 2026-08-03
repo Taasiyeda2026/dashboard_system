@@ -1,6 +1,6 @@
 const COURSE_GROUP = 'next_year_courses';
 const WORKSHOP_GROUP = 'next_year_workshops';
-const INSTALL_KEY = Symbol.for('taasiyeda.nextYearMixedProposalTables.v3');
+const INSTALL_KEY = Symbol.for('taasiyeda.nextYearMixedProposalTables.v4');
 let refreshTimer = null;
 let refreshRunning = false;
 
@@ -117,59 +117,48 @@ function workshopTableHtml(rows) {
   </table>`;
 }
 
-function documentTarget(documentRoot) {
+function replacementRegion(documentRoot) {
   const previous = documentRoot.querySelector('.pa-next-year-approved-tables');
-  if (previous?.parentElement) return previous.parentElement;
-  const existing = documentRoot.querySelector(
-    '.pa-next-year-course-table, .pa-next-year-workshop-table, .pa-item-details-table, .pa-cost-table-block'
-  );
-  return existing?.closest?.('.pa-cost-table-block') || existing?.parentElement || documentRoot;
-}
+  if (previous) return previous;
 
-function clearNativeNextYearTables(target) {
-  const selectors = [
-    '.pa-next-year-course-heading',
-    '.pa-next-year-workshop-heading',
-    '.pa-next-year-course-table',
-    '.pa-next-year-workshop-table',
-    '.pa-next-year-combined-total',
-    '.pa-item-details-table:not(.pa-gefen-approval-table)'
-  ].join(', ');
-  target.querySelectorAll(selectors).forEach((node) => {
-    if (!node.closest('.pa-next-year-approved-tables')) node.remove();
-  });
+  const existingTable = documentRoot.querySelector(
+    '.pa-next-year-course-table, .pa-next-year-workshop-table, '
+    + '.pa-item-details-table:not(.pa-gefen-approval-table), .pa-cost-table-block table'
+  );
+  if (!existingTable) return null;
+  return existingTable.closest('.pa-next-year-cost-group') || existingTable;
 }
 
 function normalizeDocument(documentRoot) {
-  if (!documentRoot?.isConnected) return;
+  if (!documentRoot?.isConnected || documentRoot.dataset.approvedNextYearNormalizing === 'yes') return;
   const form = currentNextYearForm(documentRoot.ownerDocument);
   if (!form) return;
 
   const { courses, workshops } = selectedRows(form);
-  const previous = documentRoot.querySelector('.pa-next-year-approved-tables');
-
-  if (!courses.length || !workshops.length) {
-    previous?.remove();
-    delete documentRoot.dataset.approvedNextYearSignature;
-    return;
-  }
+  if (!courses.length || !workshops.length) return;
 
   const signature = JSON.stringify([courses, workshops]);
+  const previous = documentRoot.querySelector('.pa-next-year-approved-tables');
   if (documentRoot.dataset.approvedNextYearSignature === signature && previous) return;
 
-  const target = documentTarget(documentRoot);
-  if (!target) return;
-  previous?.remove();
-  clearNativeNextYearTables(target);
+  const region = replacementRegion(documentRoot);
+  if (!region) return;
 
   const total = [...courses, ...workshops].reduce((sum, row) => sum + row.total, 0);
   const wrapper = documentRoot.ownerDocument.createElement('div');
-  wrapper.className = 'pa-next-year-approved-tables';
+  wrapper.className = 'pa-next-year-cost-group pa-next-year-approved-tables';
+  wrapper.style.cssText = 'width:100%;max-width:100%;margin-inline:0;';
   wrapper.innerHTML = courseTableHtml(courses)
     + workshopTableHtml(workshops)
     + `<table class="pa-cost-table pa-activities-table pa-next-year-combined-total"><tbody><tr><td><strong>סה״כ לתשלום</strong></td><td><strong>${money(total)}</strong></td></tr></tbody></table>`;
-  target.appendChild(wrapper);
+
   documentRoot.dataset.approvedNextYearSignature = signature;
+  documentRoot.dataset.approvedNextYearNormalizing = 'yes';
+  try {
+    region.replaceWith(wrapper);
+  } finally {
+    delete documentRoot.dataset.approvedNextYearNormalizing;
+  }
 }
 
 function runRefresh() {
@@ -186,7 +175,7 @@ function runRefresh() {
   else run();
 }
 
-function refreshDocuments(delay = 120) {
+function refreshDocuments(delay = 160) {
   clearTimeout(refreshTimer);
   refreshTimer = setTimeout(runRefresh, delay);
 }
@@ -204,14 +193,14 @@ function install() {
   Object.defineProperty(document, INSTALL_KEY, { value: true, configurable: false });
 
   document.addEventListener('change', (event) => {
-    if (isRelevantEditorEvent(event.target)) refreshDocuments(140);
+    if (isRelevantEditorEvent(event.target)) refreshDocuments(180);
   }, true);
   document.addEventListener('input', (event) => {
-    if (isRelevantEditorEvent(event.target)) refreshDocuments(180);
+    if (isRelevantEditorEvent(event.target)) refreshDocuments(220);
   }, true);
   document.addEventListener('click', (event) => {
     if (event.target?.closest?.('[data-pa-add-item], [data-pa-remove-item], [data-pa-preview], [data-pa-print]')) {
-      refreshDocuments(180);
+      refreshDocuments(220);
     }
   }, true);
 
@@ -222,11 +211,11 @@ function install() {
         if (node.nodeType !== 1) return false;
         return node.matches?.('.proposal-document') || Boolean(node.querySelector?.('.proposal-document'));
       }));
-      if (addedDocument) refreshDocuments(80);
+      if (addedDocument) refreshDocuments(100);
     }).observe(root, { childList: true, subtree: true });
   }
 
-  refreshDocuments(80);
+  refreshDocuments(100);
 }
 
 if (typeof document !== 'undefined') install();
