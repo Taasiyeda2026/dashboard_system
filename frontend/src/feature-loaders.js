@@ -91,7 +91,7 @@ export function ensureFeature(name) {
         import('./proposal-next-year-table-alignment.js?v=20260729-next-year-compact-tables-v1'),
         import('./proposal-next-year-workshops.js?v=20260802-proposal-pdf-full-document-v1'),
         import('./proposal-next-year-space-workshop-pricing.js?v=20260801-space-workshop-editor-deps-v1'),
-        import('./proposal-next-year-selection-hydration.js?v=20260803-v3'),
+        import('./proposal-next-year-selection-hydration.js?v=20260803-v4'),
         import('./proposal-next-year-option-price-sync.js?v=20260803-v1'),
         import('./proposal-workflow-completion.js?v=20260802-v1'),
         import('./proposal-workflow-ui-integrity.js?v=20260803-v2'),

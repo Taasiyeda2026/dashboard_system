@@ -263,7 +263,14 @@ function installRuntime(scope = globalThis) {
     const select = event.target?.closest?.('[data-pa-pricing-select]');
     const row = select?.closest?.('[data-pa-item-row]');
     if (!row || !INTERNAL_GROUPS.has(rowGroup(row))) return;
-    hydrateNextYearPricingSelection(row, cachedPricingRows, { notify: false });
+    // notify: true (default) - once every field on the row is hydrated, this
+    // dispatches exactly one 'input' event on the price field (guarded by
+    // paNextYearDirectHydration so it can never fire twice), which is what
+    // the screen's own generic form 'input' listener uses to recompute
+    // totals and rebuild the live document preview. Without it the preview
+    // can render once too early (before the row has a price) and never get
+    // rebuilt, permanently omitting the item from the document.
+    hydrateNextYearPricingSelection(row, cachedPricingRows, { notify: true });
   }, true);
 
   documentRef.addEventListener('input', (event) => {
