@@ -282,13 +282,17 @@ export function hydrateNextYearPricingSelection(row, pricingRows = cachedPricing
 function installRuntime(scope = globalThis) {
   const documentRef = scope?.document;
   if (!documentRef) return;
-  documentRef.addEventListener('change', (event) => {
+
+  const handleSelection = (event) => {
     const select = event.target?.closest?.('[data-pa-pricing-select]');
     const row = select?.closest?.('[data-pa-item-row]');
     if (!row || !INTERNAL_GROUPS.has(rowGroup(row))) return;
     const result = hydrateNextYearPricingSelection(row, cachedPricingRows, { notify: true });
     if (result.picked) event.stopPropagation();
-  }, true);
+  };
+
+  documentRef.addEventListener('input', handleSelection, true);
+  documentRef.addEventListener('change', handleSelection, true);
 }
 
 export function installNextYearSelectionHydration(targetApi = api, scope = globalThis) {
