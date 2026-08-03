@@ -2,8 +2,9 @@ import { api } from './api.js';
 import { augmentNextYearPricingRows } from './proposal-next-year-workshops.js';
 import { applyNextYearSpaceWorkshopPrice } from './proposal-next-year-space-workshop-pricing.js';
 
-const PATCH_KEY = Symbol.for('taasiyeda.proposalNextYearSelectionHydration');
+const PATCH_KEY = Symbol.for('taasiyeda.proposalNextYearSelectionHydration.v2');
 const INTERNAL_GROUPS = new Set(['next_year_courses', 'next_year_workshops']);
+const totalsTimers = new WeakMap();
 let cachedPricingRows = [];
 
 function text(value) {
@@ -23,15 +24,8 @@ function formatCurrency(value) {
 }
 
 function optionKey(row = {}) {
-  return [
-    row.activity_no,
-    row.activity_name,
-    row.item_type,
-    row.proposal_group,
-    row.unit_duration,
-    row.unit_price,
-    row.sort_order
-  ].map(text).join('||');
+  return [row.activity_no, row.activity_name, row.item_type, row.proposal_group, row.unit_duration, row.unit_price, row.sort_order]
+    .map(text).join('||');
 }
 
 function normalizePricingRows(rows = []) {
@@ -73,14 +67,20 @@ function rowGroup(row) {
   );
 }
 
+function isWorkshopEntry(entry = {}) {
+  const kind = text([entry.item_type, entry.activity_name, entry.pricing_key, entry.parent_pricing_key].join(' ')).toLowerCase();
+  return text(entry.proposal_group || entry.group_key) === 'next_year_workshops'
+    || text(entry.proposal_display_mode) === 'bundle_parent'
+    || /סדנ|workshop|stem|חלל|maker/.test(kind);
+}
+
 function rowsForGroup(rows, group) {
   const normalized = normalizePricingRows(rows);
   const exact = normalized.filter((entry) => text(entry.proposal_group || entry.group_key) === group);
-  return exact.length ? exact : normalized.filter((entry) => {
-    const kind = text([entry.item_type, entry.activity_name, entry.pricing_key, entry.parent_pricing_key].join(' ')).toLowerCase();
-    const workshop = text(entry.proposal_display_mode) === 'bundle_parent' || /סדנ|workshop|stem|חלל|maker/.test(kind);
-    return group === 'next_year_workshops' ? workshop : !workshop && Boolean(text(entry.activity_no || entry.gefen_number));
-  });
+  if (exact.length) return exact;
+  return normalized.filter((entry) => group === 'next_year_workshops'
+    ? isWorkshopEntry(entry)
+    : !isWorkshopEntry(entry) && Boolean(text(entry.activity_no || entry.gefen_number)));
 }
 
 function pricingIndex(rows) {
@@ -138,9 +138,10 @@ function calculateRow(row) {
   return total;
 }
 
-function calculateTotals(form) {
+export function calculateNextYearTotals(form) {
+  if (!form) return 0;
   let subtotal = 0;
-  form?.querySelectorAll?.('[data-pa-items-group]').forEach((section) => {
+  form.querySelectorAll('[data-pa-items-group]').forEach((section) => {
     let groupTotal = 0;
     section.querySelectorAll('[data-pa-item-row]').forEach((row) => { groupTotal += calculateRow(row); });
     subtotal += groupTotal;
@@ -148,16 +149,16 @@ function calculateTotals(form) {
     const output = section.querySelector(`[data-pa-group-total="${group}"]`);
     if (output) output.textContent = `₪ ${formatCurrency(groupTotal)}`;
   });
-  const discountType = text(form?.querySelector?.('[data-pa-discount-type]')?.value) || 'amount';
-  const discountValue = numberOrNull(form?.querySelector?.('[data-pa-discount-value]')?.value) ?? 0;
+  const discountType = text(form.querySelector('[data-pa-discount-type]')?.value) || 'amount';
+  const discountValue = numberOrNull(form.querySelector('[data-pa-discount-value]')?.value) ?? 0;
   const discount = discountType === 'percent'
     ? subtotal * (Math.min(discountValue, 100) / 100)
     : Math.min(discountValue, subtotal);
   const total = Math.max(subtotal - discount, 0);
-  const grand = form?.querySelector?.('[data-pa-grand-total]');
-  const summary = form?.querySelector?.('[data-pa-summary-total]');
-  const subtotalOutput = form?.querySelector?.('[data-pa-summary-subtotal]');
-  const discountOutput = form?.querySelector?.('[data-pa-summary-discount]');
+  const grand = form.querySelector('[data-pa-grand-total]');
+  const summary = form.querySelector('[data-pa-summary-total]');
+  const subtotalOutput = form.querySelector('[data-pa-summary-subtotal]');
+  const discountOutput = form.querySelector('[data-pa-summary-discount]');
   if (grand) grand.textContent = `₪ ${formatCurrency(total)}`;
   if (summary) summary.textContent = `₪ ${formatCurrency(total)}`;
   if (subtotalOutput) subtotalOutput.textContent = `₪ ${formatCurrency(subtotal)}`;
@@ -165,11 +166,23 @@ function calculateTotals(form) {
   return total;
 }
 
-export function hydrateNextYearPricingSelection(row, pricingRows = cachedPricingRows, { notify = true } = {}) {
+function scheduleTotals(form, delay = 0) {
+  if (!form) return;
+  const previous = totalsTimers.get(form);
+  if (previous) clearTimeout(previous);
+  const timer = setTimeout(() => {
+    totalsTimers.delete(form);
+    if (form.isConnected) calculateNextYearTotals(form);
+  }, delay);
+  totalsTimers.set(form, timer);
+}
+
+export function hydrateNextYearPricingSelection(row, pricingRows = cachedPricingRows) {
   const group = rowGroup(row);
   if (!row || !INTERNAL_GROUPS.has(group)) return { changed: false, picked: null, total: 0 };
   const picked = resolvePicked(row, rowsForGroup(pricingRows, group));
-  if (!picked) return { changed: false, picked: null, total: calculateTotals(row.closest('[data-pa-form]')) };
+  const form = row.closest('[data-pa-form]');
+  if (!picked) return { changed: false, picked: null, total: calculateNextYearTotals(form) };
 
   const selectedValue = text(row.querySelector('[data-pa-pricing-select]')?.value);
   let changed = false;
@@ -191,28 +204,30 @@ export function hydrateNextYearPricingSelection(row, pricingRows = cachedPricing
   changed = setValue(row, 'bundle_pricing_key', picked.pricing_key || '') || changed;
   changed = setValue(row, 'item_selected_bundle_items', '[]') || changed;
 
-  const form = row.closest('[data-pa-form]');
-  const total = calculateTotals(form);
-  const priceInput = row.querySelector('[data-pa-item-price]');
-  if (changed && notify && form && priceInput && form.dataset.paNextYearDirectHydration !== 'yes') {
-    form.dataset.paNextYearDirectHydration = 'yes';
-    priceInput.dispatchEvent(new Event('input', { bubbles: true }));
-    delete form.dataset.paNextYearDirectHydration;
-  }
+  const total = calculateNextYearTotals(form);
+  scheduleTotals(form, 0);
+  scheduleTotals(form, 100);
   return { changed, picked, total };
 }
 
 function installRuntime(scope = globalThis) {
   const documentRef = scope?.document;
   if (!documentRef) return;
+
   documentRef.addEventListener('change', (event) => {
     const select = event.target?.closest?.('[data-pa-pricing-select]');
     const row = select?.closest?.('[data-pa-item-row]');
     if (!row || !INTERNAL_GROUPS.has(rowGroup(row))) return;
-    queueMicrotask(() => {
-      if (row.isConnected) hydrateNextYearPricingSelection(row, cachedPricingRows, { notify: true });
-    });
-  });
+    hydrateNextYearPricingSelection(row, cachedPricingRows);
+  }, true);
+
+  documentRef.addEventListener('input', (event) => {
+    const target = event.target;
+    if (!target?.matches?.('[data-pa-item-qty], [data-pa-item-price], [data-pa-discount-value], [data-pa-discount-type]')) return;
+    const form = target.closest('[data-pa-form]');
+    calculateNextYearTotals(form);
+    scheduleTotals(form, 80);
+  }, true);
 }
 
 export function installNextYearSelectionHydration(targetApi = api, scope = globalThis) {
@@ -221,12 +236,7 @@ export function installNextYearSelectionHydration(targetApi = api, scope = globa
   wrapPayloadMethod(targetApi, 'proposalsAgreementsEditorDeps');
   wrapPricingMethod(targetApi, 'readProposalActivityPricing');
   installRuntime(scope);
-  Object.defineProperty(targetApi, PATCH_KEY, {
-    value: true,
-    configurable: false,
-    enumerable: false,
-    writable: false
-  });
+  Object.defineProperty(targetApi, PATCH_KEY, { value: true, configurable: false, enumerable: false, writable: false });
   return true;
 }
 
