@@ -4,6 +4,7 @@ import { applyNextYearSpaceWorkshopPrice } from './proposal-next-year-space-work
 
 const PATCH_KEY = Symbol.for('taasiyeda.proposalNextYearSelectionHydration');
 const INTERNAL_GROUPS = new Set(['next_year_courses', 'next_year_workshops']);
+const settleTokens = new WeakMap();
 let cachedPricingRows = [];
 
 function text(value) {
@@ -138,7 +139,7 @@ function calculateRow(row) {
   return total;
 }
 
-function calculateTotals(form) {
+export function calculateNextYearTotals(form) {
   let subtotal = 0;
   form?.querySelectorAll?.('[data-pa-items-group]').forEach((section) => {
     let groupTotal = 0;
@@ -165,11 +166,29 @@ function calculateTotals(form) {
   return total;
 }
 
+function scheduleBoundedTotals(form) {
+  if (!form) return;
+  const screen = form.closest('[data-pa-screen], .ds-pa-screen');
+  const key = screen || form;
+  const token = (settleTokens.get(key) || 0) + 1;
+  settleTokens.set(key, token);
+
+  [0, 90, 240].forEach((delay) => {
+    setTimeout(() => {
+      if (settleTokens.get(key) !== token) return;
+      const activeForm = form.isConnected
+        ? form
+        : screen?.querySelector?.('[data-pa-form]:not([hidden])');
+      if (activeForm?.isConnected) calculateNextYearTotals(activeForm);
+    }, delay);
+  });
+}
+
 export function hydrateNextYearPricingSelection(row, pricingRows = cachedPricingRows, { notify = true } = {}) {
   const group = rowGroup(row);
   if (!row || !INTERNAL_GROUPS.has(group)) return { changed: false, picked: null, total: 0 };
   const picked = resolvePicked(row, rowsForGroup(pricingRows, group));
-  if (!picked) return { changed: false, picked: null, total: calculateTotals(row.closest('[data-pa-form]')) };
+  if (!picked) return { changed: false, picked: null, total: calculateNextYearTotals(row.closest('[data-pa-form]')) };
 
   const selectedValue = text(row.querySelector('[data-pa-pricing-select]')?.value);
   let changed = false;
@@ -192,13 +211,14 @@ export function hydrateNextYearPricingSelection(row, pricingRows = cachedPricing
   changed = setValue(row, 'item_selected_bundle_items', '[]') || changed;
 
   const form = row.closest('[data-pa-form]');
-  const total = calculateTotals(form);
+  const total = calculateNextYearTotals(form);
   const priceInput = row.querySelector('[data-pa-item-price]');
   if (changed && notify && form && priceInput && form.dataset.paNextYearDirectHydration !== 'yes') {
     form.dataset.paNextYearDirectHydration = 'yes';
     priceInput.dispatchEvent(new Event('input', { bubbles: true }));
     delete form.dataset.paNextYearDirectHydration;
   }
+  if (notify) scheduleBoundedTotals(form);
   return { changed, picked, total };
 }
 
