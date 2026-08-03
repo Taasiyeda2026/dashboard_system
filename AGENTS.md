@@ -41,3 +41,11 @@ Reporting:
 - Summarize changed files, focused checks run, whether `npm run check:build` passed, and whether SW/cache was updated when applicable.
 - If a relevant focused check fails, fix it or report it.
 - If an unrelated legacy check fails, mention it briefly and do not spend time debugging it unless requested.
+
+## CI Workflow Policy
+
+- Do not create a new workflow that runs Playwright, installs a browser (e.g. Chromium), or runs E2E tests automatically on `pull_request` without an explicit user request.
+- Browser/E2E tests are manual-only. Keep them runnable via `npm run test:e2e` and friends, but do not wire them into an automatic `pull_request` trigger.
+- Every PR should trigger exactly one automatic quick-check workflow (`quick-pr-check.yml`). Do not add a second automatic workflow next to it.
+- Do not expand automatic CI just because a shared file changed, e.g. `frontend/src/feature-loaders.js`, `frontend/src/config.js`, or `frontend/sw.js`. Do not reintroduce per-feature/path-triggered heavy workflows.
+- Do not run tests that are not directly related to the task at hand.
