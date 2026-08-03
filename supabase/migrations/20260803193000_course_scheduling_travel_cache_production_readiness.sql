@@ -25,12 +25,13 @@ stable
 security definer
 set search_path = public
 as $$
+  -- Return every active instructor. address may be null so the Edge Function can
+  -- count missing-address skips without reading contacts_instructors directly.
   select
     ci.emp_id,
-    btrim(ci.address) as address
+    nullif(btrim(coalesce(ci.address, '')), '') as address
   from public.contacts_instructors ci
   where lower(btrim(coalesce(ci.active::text, ''))) in ('yes', 'true', '1')
-    and nullif(btrim(coalesce(ci.address, '')), '') is not null
   order by ci.emp_id
 $$;
 revoke all on function public.scheduling_active_instructor_locations() from public;

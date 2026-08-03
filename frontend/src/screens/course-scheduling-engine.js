@@ -10,7 +10,8 @@ const minutes = (value) => {
 };
 const idOf = (row) => text(row?.row_id || row?.RowID || row?.id);
 const empOf = (row) => text(row?.emp_id);
-const placeOf = (row = {}) => text(row.school_address || row.school);
+// Canonical resolved address only — school display names are not travel locations.
+const placeOf = (row = {}) => text(row.school_address);
 
 export function schedulingCourses(rows = []) {
   return rows.filter(isActivitySchedulingEligible);
@@ -155,8 +156,8 @@ function dynamicTravel(course, instructor, existingMeetings, input = {}) {
   for (const meeting of activityMeetings(course)) {
     const { previous, next } = adjacentActivities(existingMeetings, meeting);
     transitions[meeting.date] = {
-      previous: previous ? routeLeg(input.routeMatrix, previous.school_address || previous.school, destination, sameSchool(previous, course)) : null,
-      next: next ? routeLeg(input.routeMatrix, destination, next.school_address || next.school, sameSchool(course, next)) : null
+      previous: previous ? routeLeg(input.routeMatrix, placeOf(previous), destination, sameSchool(previous, course)) : null,
+      next: next ? routeLeg(input.routeMatrix, destination, placeOf(next), sameSchool(course, next)) : null
     };
   }
   return { home: base?.home || null, transitions };

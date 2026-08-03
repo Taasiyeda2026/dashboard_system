@@ -146,4 +146,7 @@ test('travel-cache readiness migration exposes a narrow instructor-location RPC 
   assert.match(sql, /revoke all on function public\.scheduling_active_instructor_locations\(\) from anon/i);
   assert.doesNotMatch(sql, /grant select on public\.contacts_instructors/i);
   assert.match(sql, /returns table\(emp_id bigint, address text\)/i);
+  // Active instructors without an address are returned with null so skips can be counted.
+  assert.match(sql, /nullif\(btrim\(coalesce\(ci\.address, ''\)\), ''\) as address/i);
+  assert.doesNotMatch(sql, /and nullif\(btrim\(coalesce\(ci\.address, ''\)\), ''\) is not null/);
 });

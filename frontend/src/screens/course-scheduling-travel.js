@@ -7,7 +7,8 @@ const text = (value) => String(value ?? '').trim();
 const normalizePlace = (value) => text(value).toLowerCase().replace(/\s+/g, ' ');
 const activityId = (activity) => text(activity?.row_id || activity?.RowID || activity?.id);
 const instructorId = (candidate) => text(candidate?.instructor?.emp_id);
-const activityPlace = (activity = {}) => text(activity.school_address || activity.school);
+// Canonical resolved address only — never fall back to the school display name.
+export const activityPlace = (activity = {}) => text(activity.school_address);
 const minutes = (value) => {
   const [hours, mins] = text(value).split(':').map(Number);
   return hours * 60 + mins;
@@ -22,6 +23,9 @@ export function createRouteClient({ invoke = (body) => supabase.functions.invoke
   let active = 0;
   const queue = [];
   let unavailableReason = '';
+  let googleCalls = 0;
+  let cacheHits = 0;
+  const requests = [];
 
   const pump = () => {
     while (active < concurrency && queue.length) {
@@ -46,14 +50,18 @@ export function createRouteClient({ invoke = (body) => supabase.functions.invoke
         resolve,
         reject,
         run: async () => {
+          requests.push({ origin: text(origin), destination: text(destination) });
           const { data, error } = await invoke({ origin, destination });
           if (error || !data?.calculated) {
             unavailableReason ||= data?.reason || error?.message || 'route_service_unavailable';
             return null;
           }
+          if (data.cached) cacheHits += 1;
+          else googleCalls += 1;
           return {
             distance_km: Number(data.distance_km),
-            duration_minutes: Number(data.duration_minutes)
+            duration_minutes: Number(data.duration_minutes),
+            cached: !!data.cached
           };
         }
       });
@@ -65,7 +73,10 @@ export function createRouteClient({ invoke = (body) => supabase.functions.invoke
 
   return {
     request,
-    get unavailableReason() { return unavailableReason; }
+    get unavailableReason() { return unavailableReason; },
+    get googleCalls() { return googleCalls; },
+    get cacheHits() { return cacheHits; },
+    get requests() { return requests.slice(); }
   };
 }
 
@@ -91,14 +102,17 @@ function assignedMeetings(activities = []) {
 
 function sharedMeetingTransitions(firstCourse, secondCourse) {
   const transitions = [];
+  const origin = activityPlace(firstCourse);
+  const destination = activityPlace(secondCourse);
+  if (!origin || !destination) return transitions;
   const secondByDate = new Map(activityMeetings(secondCourse).map((meeting) => [text(meeting.date), meeting]));
   for (const first of activityMeetings(firstCourse)) {
     const second = secondByDate.get(text(first.date));
     if (!second) continue;
     if (minutes(first.end_time || firstCourse.end_time) <= minutes(second.start_time || secondCourse.start_time)) {
-      transitions.push({ origin: activityPlace(firstCourse), destination: activityPlace(secondCourse) });
+      transitions.push({ origin, destination });
     } else if (minutes(second.end_time || secondCourse.end_time) <= minutes(first.start_time || firstCourse.start_time)) {
-      transitions.push({ origin: activityPlace(secondCourse), destination: activityPlace(firstCourse) });
+      transitions.push({ origin: destination, destination: origin });
     }
   }
   return transitions;
@@ -129,15 +143,18 @@ export async function calculateCandidateTravel(preliminary, activities, routeCli
   await Promise.all(uniquePairs.map(async ({ course, candidate }) => {
     const empId = instructorId(candidate);
     const destination = activityPlace(course);
+    const homeOrigin = text(candidate.instructor.address);
     const result = {
-      home: await route(candidate.instructor.address, destination),
+      home: homeOrigin && destination ? await route(homeOrigin, destination) : null,
       transitions: {}
     };
     for (const meeting of activityMeetings(course)) {
       const { previous, next } = adjacentActivities(assigned[empId] || [], meeting);
+      const previousPlace = previous ? activityPlace(previous) : '';
+      const nextPlace = next ? activityPlace(next) : '';
       result.transitions[meeting.date] = {
-        previous: previous ? await route(previous.school_address || previous.school, destination) : null,
-        next: next ? await route(destination, next.school_address || next.school) : null
+        previous: previousPlace && destination ? await route(previousPlace, destination) : null,
+        next: destination && nextPlace ? await route(destination, nextPlace) : null
       };
     }
     (travel[activityId(course)] ||= {})[empId] = result;
@@ -163,5 +180,12 @@ export async function calculateCandidateTravel(preliminary, activities, routeCli
   }
   await Promise.all(draftRouteJobs);
 
-  return { travel, routeMatrix, unavailableReason: routeClient.unavailableReason };
+  return {
+    travel,
+    routeMatrix,
+    unavailableReason: routeClient.unavailableReason,
+    googleCalls: routeClient.googleCalls,
+    cacheHits: routeClient.cacheHits,
+    requests: routeClient.requests
+  };
 }

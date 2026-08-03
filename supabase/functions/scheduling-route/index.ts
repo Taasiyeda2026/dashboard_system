@@ -163,6 +163,7 @@ function emptyStats() {
     renewed_count: 0,
     already_valid_count: 0,
     skipped_count: 0,
+    skipped_instructors_missing_address_count: 0,
     failed_count: 0,
     remaining_count: 0,
     done: false,
@@ -459,19 +460,40 @@ async function loadAuthoritySchools(db: DbClient) {
 
 async function loadActiveInstructorsWithAddress(db: DbClient) {
   // Narrow SECURITY DEFINER RPC — never SELECT contacts_instructors directly.
+  // RPC returns all active instructors; address may be null/empty.
   const { data, error } = await db.rpc('scheduling_active_instructor_locations');
-  if (error) return { error, instructors: [] as InstructorRow[], skippedEmptyAddress: 0 };
+  if (error) {
+    return {
+      error,
+      instructors: [] as InstructorRow[],
+      skippedEmptyAddress: 0,
+      skippedFailures: [] as FailureRow[]
+    };
+  }
 
   const instructors: InstructorRow[] = [];
+  const skippedFailures: FailureRow[] = [];
   for (const row of data || []) {
-    const address = text(row.address);
-    if (!address) continue;
     const empId = Number(row.emp_id);
     if (!Number.isFinite(empId)) continue;
+    const address = text(row.address);
+    if (!address) {
+      skippedFailures.push({
+        entity_type: 'instructor',
+        entity_id: instructorEntityKey(empId),
+        reason: 'missing_address'
+      });
+      continue;
+    }
     instructors.push({ emp_id: empId, address });
   }
   instructors.sort((a, b) => a.emp_id - b.emp_id);
-  return { error: null, instructors, skippedEmptyAddress: 0 };
+  return {
+    error: null,
+    instructors,
+    skippedEmptyAddress: skippedFailures.length,
+    skippedFailures
+  };
 }
 
 async function mapWithConcurrency<T, R>(
@@ -518,18 +540,6 @@ type PairOutcome = {
 };
 
 async function processPair(db: DbClient, pair: TravelPair, key: string): Promise<PairOutcome> {
-  // Same normalized address stays local zero — no Maps API call.
-  if (pair.origin_key === pair.destination_key) {
-    const write = await replaceCacheRow(db, pair, cacheRowPayload(pair, 0, 0, 'same_school'));
-    if (write.error) return { dbError: write.error };
-    return {
-      dbError: null,
-      inserted: !!write.inserted,
-      renewed: !!write.renewed,
-      alreadyValid: !write.inserted && !write.renewed
-    };
-  }
-
   const existing = await findCachedByEntities(db, pair);
   if (existing.error) return { dbError: existing.error };
 
@@ -542,6 +552,19 @@ async function processPair(db: DbClient, pair: TravelPair, key: string): Promise
 
   if (isCacheValid(matching, pair)) {
     return { dbError: null, alreadyValid: true };
+  }
+
+  // Same normalized address stays local zero — no Maps API call. Still skip upsert
+  // when a valid same-address row already exists (checked above).
+  if (pair.origin_key === pair.destination_key) {
+    const write = await replaceCacheRow(db, pair, cacheRowPayload(pair, 0, 0, 'same_school'));
+    if (write.error) return { dbError: write.error };
+    return {
+      dbError: null,
+      inserted: !!write.inserted,
+      renewed: !!write.renewed,
+      alreadyValid: !write.inserted && !write.renewed
+    };
   }
 
   const route = await computeRoute(pair.query_origin_address, pair.query_destination_address, key);
@@ -580,6 +603,7 @@ async function runBuildCache(db: DbClient, key: string, payload: Record<string, 
 
   let instructors: InstructorRow[] = [];
   let skippedEmptyInstructorAddress = 0;
+  let skippedInstructorFailures: FailureRow[] = [];
   if (scope === 'instructor_school' || scope === 'all') {
     const instructorsResult = await loadActiveInstructorsWithAddress(db);
     if (instructorsResult.error) {
@@ -587,6 +611,7 @@ async function runBuildCache(db: DbClient, key: string, payload: Record<string, 
     }
     instructors = instructorsResult.instructors;
     skippedEmptyInstructorAddress = instructorsResult.skippedEmptyAddress;
+    skippedInstructorFailures = instructorsResult.skippedFailures || [];
   }
 
   const schoolsWithAddress = schoolsResult.schools.filter((school) => text(school.address));
@@ -602,7 +627,9 @@ async function runBuildCache(db: DbClient, key: string, payload: Record<string, 
 
   const stats = emptyStats();
   stats.scope = scope;
+  stats.skipped_instructors_missing_address_count = skippedEmptyInstructorAddress;
   stats.skipped_count = skippedEmptyInstructorAddress + skippedEmptySchoolAddress + deduped.duplicateCount;
+  stats.failures.push(...skippedInstructorFailures.slice(0, 50));
   stats.total_count = instructorPairs.length + schoolPairs.length;
 
   const initialPhase: BuildCursor['phase'] = scope === 'school_school'

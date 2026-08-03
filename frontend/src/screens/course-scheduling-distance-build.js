@@ -17,7 +17,9 @@ export const SCHEDULING_ROUTE_ERROR_HE = {
   instructor_lookup_failed: 'לא ניתן לטעון את רשימת המדריכים לחישוב מרחקים. נסו שוב.',
   invalid_authentication: 'ההתחברות אינה תקפה. יש להתחבר מחדש.',
   server_configuration_missing: 'הגדרות השרת לחישוב מסלולים חסרות. פנו לתמיכה טכנית.',
-  missing_or_invalid_locations: 'חסרות כתובות תקינות לחישוב המסלול.'
+  missing_or_invalid_locations: 'חסרות כתובות תקינות לחישוב המסלול.',
+  missing_address: 'חסרה כתובת למדריך פעיל. המסלולים שלו דולגו עד להשלמת הכתובת במקור הנתונים.',
+  school_address_lookup_failed: 'לא ניתן לטעון את כתובות בתי הספר לשיבוץ. חישוב המרחקים הופסק כדי לא להשתמש בשם בית ספר ככתובת.'
 };
 
 export function translateSchedulingRouteError(codeOrMessage, fallback = 'פעולת המרחקים נכשלה. נסו שוב.') {
@@ -220,6 +222,82 @@ export function dedupeAuthoritySchools(schools = []) {
     duplicateCount,
     uniqueCount: byKey.size
   };
+}
+
+export function buildSchoolLocationLookup(schoolRows = []) {
+  const { schools, duplicateCount, uniqueCount } = dedupeAuthoritySchools(schoolRows);
+  const bySchoolId = new Map();
+  const byAuthorityAndName = new Map();
+  for (const school of schools) {
+    if (school.school_id != null && Number.isFinite(Number(school.school_id))) {
+      bySchoolId.set(Number(school.school_id), school);
+    }
+    const nameKey = `${normalizePlaceKey(school.authority_name || '')}|${normalizePlaceKey(school.school_name || '')}`;
+    if (nameKey !== '|') byAuthorityAndName.set(nameKey, school);
+  }
+  return { schools, bySchoolId, byAuthorityAndName, duplicateCount, uniqueCount };
+}
+
+export function resolveCanonicalSchoolAddress(activity = {}, lookup) {
+  const schoolId = activity.school_id == null ? null : Number(activity.school_id);
+  if (schoolId != null && Number.isFinite(schoolId) && lookup?.bySchoolId?.has(schoolId)) {
+    return text(lookup.bySchoolId.get(schoolId).address);
+  }
+  const nameKey = `${normalizePlaceKey(activity.authority || activity.authority_name || '')}|${normalizePlaceKey(activity.school || activity.school_name || '')}`;
+  if (nameKey !== '|' && lookup?.byAuthorityAndName?.has(nameKey)) {
+    return text(lookup.byAuthorityAndName.get(nameKey).address);
+  }
+  return '';
+}
+
+export function enrichActivitiesWithSchoolAddresses(activities = [], schoolRows = []) {
+  const lookup = buildSchoolLocationLookup(schoolRows);
+  let missingCount = 0;
+  const enriched = (activities || []).map((activity) => {
+    const school_address = resolveCanonicalSchoolAddress(activity, lookup);
+    if (!school_address) missingCount += 1;
+    return {
+      ...activity,
+      school_address,
+      school_address_missing: !school_address
+    };
+  });
+  return {
+    activities: enriched,
+    lookup,
+    missingCount,
+    uniqueSchoolCount: lookup.uniqueCount,
+    duplicateSchoolCount: lookup.duplicateCount
+  };
+}
+
+export function travelCacheKey(originAddress, destinationAddress) {
+  return `${normalizePlaceKey(originAddress)}|${normalizePlaceKey(destinationAddress)}`;
+}
+
+// Pure single-pair cache resolver used by integration tests to prove the consumer
+// hits the same address keys produced by the distance-build repository.
+export function resolveSinglePairFromTravelCache(cacheRows = [], originAddress, destinationAddress, now = Date.now()) {
+  const originKey = normalizePlaceKey(originAddress);
+  const destinationKey = normalizePlaceKey(destinationAddress);
+  if (!originKey || !destinationKey) {
+    return { calculated: false, reason: 'missing_or_invalid_locations', mapsCall: false };
+  }
+  const cached = (cacheRows || []).find((row) => (
+    normalizePlaceKey(row.origin_key || row.origin_address) === originKey
+    && normalizePlaceKey(row.destination_key || row.destination_address) === destinationKey
+  ));
+  if (shouldSkipValidCacheEntry(cached, text(cached?.origin_address) || originAddress, text(cached?.destination_address) || destinationAddress, now)
+    || (cached && Number.isFinite(Number(cached.distance_km)) && Number.isFinite(Number(cached.duration_minutes)))) {
+    return {
+      calculated: true,
+      cached: true,
+      mapsCall: false,
+      distance_km: Number(cached.distance_km),
+      duration_minutes: Number(cached.duration_minutes)
+    };
+  }
+  return { calculated: false, reason: 'route_not_found', mapsCall: true };
 }
 
 export function buildGoogleAddressQuery({ schoolName = '', address = '', authorityName = '' } = {}) {

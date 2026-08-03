@@ -13,6 +13,7 @@ import { weekRange, shiftWeek, buildWeekRows, weekCalendarHtml, fixedScheduleHtm
 import {
   collectMissingScheduleCourseIds,
   courseSchedulingDataReadiness,
+  enrichActivitiesWithSchoolAddresses,
   formatDistanceBuildProgress,
   MISSING_SCHEDULE_FILTER_STORAGE_KEY,
   pickNearestActionableCourse,
@@ -236,13 +237,31 @@ function clickActivityRowWhenReady(rowId, attempts = 40) {
 
 export const courseSchedulingScreen = {
   async load({ api }) {
-    const [activities, contacts, scheduling, meetingState] = await Promise.all([
+    const [activities, contacts, scheduling, meetingState, schoolLocations] = await Promise.all([
       api.activities({ activity_period: 'school_2027', activity_type: 'all', include_inactive: true }),
       api.instructorContacts(),
       loadInstructorSchedulingData(),
-      loadCourseMeetingState()
+      loadCourseMeetingState(),
+      supabase.rpc('scheduling_authority_school_locations')
     ]);
-    return { activities: activities?.rows || [], instructors: contacts?.rows || [], scheduling, meetingState };
+    const schoolRows = schoolLocations?.data || [];
+    const schoolAddressLookupError = schoolLocations?.error
+      ? translateSchedulingRouteError('school_address_lookup_failed')
+      : '';
+    const enriched = enrichActivitiesWithSchoolAddresses(activities?.rows || [], schoolRows);
+    return {
+      activities: enriched.activities,
+      instructors: contacts?.rows || [],
+      scheduling,
+      meetingState,
+      schoolLocations: schoolRows,
+      schoolAddressStats: {
+        uniqueSchoolCount: enriched.uniqueSchoolCount,
+        duplicateSchoolCount: enriched.duplicateSchoolCount,
+        missingCount: enriched.missingCount
+      },
+      schoolAddressLookupError
+    };
   },
 
   render(data, { state }) {
@@ -262,6 +281,7 @@ export const courseSchedulingScreen = {
     const meetingStateError = data.meetingState && data.meetingState.loaded === false
       ? (data.meetingState.error || 'unknown')
       : '';
+    const schoolAddressLookupError = data.schoolAddressLookupError || '';
 
     const anchor = state.courseSchedulingWeek || (interfaceCourses.find((c) => idOf(c) === selectedId)?.start_date) || today();
     const { start, end, days } = weekRange(anchor);
@@ -277,6 +297,9 @@ export const courseSchedulingScreen = {
       : '';
     const meetingWarningHtml = meetingStateError
       ? '<p class="scheduling-warning" role="alert">אזהרה: מידע על מפגשים שהתקיימו או בוטלו לא נטען. נתוני מפגשים חלקיים אינם מוצגים כמלאים.</p>'
+      : '';
+    const schoolAddressWarningHtml = schoolAddressLookupError
+      ? `<p class="scheduling-warning" role="alert">${escapeHtml(schoolAddressLookupError)}</p>`
       : '';
     const distanceSummaryClass = state.courseSchedulingDistanceError
       ? 'scheduling-warning'
@@ -320,6 +343,7 @@ export const courseSchedulingScreen = {
     <section class="course-scheduling__summary">${summaryHtml}</section>
     ${readinessHtml}
     ${meetingWarningHtml}
+    ${schoolAddressWarningHtml}
     <p data-course-scheduling-error class="scheduling-warning"${state.courseSchedulingError ? '' : ' hidden'}>${escapeHtml(state.courseSchedulingError || '')}</p>
     <p data-course-scheduling-distance-summary class="${distanceSummaryClass}"${state.courseSchedulingDistanceSummary ? '' : ' hidden'}>${escapeHtml(state.courseSchedulingDistanceSummary || '')}</p>
     <div class="course-scheduling-layout">
@@ -592,22 +616,34 @@ export const courseSchedulingScreen = {
       state.courseSchedulingError = '';
       rerender();
       try {
+        if (data.schoolAddressLookupError) {
+          throw new Error(data.schoolAddressLookupError);
+        }
+        const enriched = enrichActivitiesWithSchoolAddresses(data.activities || [], data.schoolLocations || []);
+        data.activities = enriched.activities;
+        data.schoolAddressStats = {
+          uniqueSchoolCount: enriched.uniqueSchoolCount,
+          duplicateSchoolCount: enriched.duplicateSchoolCount,
+          missingCount: enriched.missingCount
+        };
         const scheduling = data.scheduling || {};
         const profiles = Object.fromEntries((scheduling.profiles || []).map((row) => [text(row.emp_id), row]));
         const input = {
-          activities: data.activities,
+          activities: enriched.activities,
           instructors: data.instructors,
           profiles,
           rules: group(scheduling.rules || [], 'emp_id'),
           exceptions: group(scheduling.exceptions || [], 'emp_id')
         };
         const preliminary = preliminaryCourseCandidates(input);
-        const routed = await calculateCandidateTravel(preliminary, data.activities);
+        const routed = await calculateCandidateTravel(preliminary, enriched.activities);
         state.courseSchedulingResults = calculateCourseSchedule({ ...input, travel: routed.travel, routeMatrix: routed.routeMatrix });
         if (routed.unavailableReason === 'google_key_not_configured') {
           state.courseSchedulingError = translateSchedulingRouteError('google_key_not_configured');
         } else if (routed.unavailableReason) {
           state.courseSchedulingError = translateSchedulingRouteError(routed.unavailableReason, 'לא ניתן היה לחשב חלק מהמסלולים. מעברים בין בתי ספר שלא אומתו נפסלו באופן בטוח.');
+        } else if (enriched.missingCount) {
+          state.courseSchedulingError = `${enriched.missingCount} פעילויות ללא כתובת בית ספר קנונית — מעברים שלא ניתן לאמת נפסלו בבטחה. שם בית הספר אינו משמש ככתובת.`;
         }
         state.courseSchedulingCalculatedAt = new Intl.DateTimeFormat('he-IL', { dateStyle: 'short', timeStyle: 'short' }).format(new Date());
       } catch (error) {
