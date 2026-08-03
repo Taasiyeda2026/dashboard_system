@@ -2,6 +2,8 @@ import { SCHEDULING_SEASON, BLOCKED_SCHEDULING_STATUSES, normalizeSchedulingStat
 
 const text = (value) => String(value ?? '').trim();
 
+export const MISSING_SCHEDULE_FILTER_STORAGE_KEY = 'dashboard:course-scheduling-missing-schedule-ids';
+
 export const SCHEDULING_ROUTE_ERROR_HE = {
   authority_school_lookup_failed: 'לא ניתן לטעון את רשימת בתי הספר לחישוב מרחקים. נסו שוב; אם התקלה חוזרת, בדקו את הרשאות המסד.',
   cache_read_failed: 'קריאת מטמון המרחקים נכשלה. נסו שוב בעוד רגע.',
@@ -87,24 +89,58 @@ export function isOpenSchool2027Course(activity = {}) {
   return ['פתוח', 'open'].includes(status);
 }
 
+export function isMissingScheduleCourse(activity = {}) {
+  if (!isOpenSchool2027Course(activity)) return false;
+  return !text(activity.start_date) || !text(activity.start_time);
+}
+
+export function collectMissingScheduleCourseIds(activities = []) {
+  return (activities || [])
+    .filter(isMissingScheduleCourse)
+    .map((course) => text(course.row_id || course.RowID || course.id))
+    .filter(Boolean);
+}
+
+export function readMissingScheduleIdSet(storage = globalThis.sessionStorage) {
+  try {
+    const raw = storage?.getItem?.(MISSING_SCHEDULE_FILTER_STORAGE_KEY);
+    const ids = JSON.parse(raw || '[]');
+    return new Set((Array.isArray(ids) ? ids : []).map((value) => text(value)).filter(Boolean));
+  } catch {
+    return new Set();
+  }
+}
+
+export function applyMissingScheduleFilter(rows, state = {}, storage = globalThis.sessionStorage) {
+  if (!state?.activitiesMissingScheduleOnly) return rows;
+  const idSet = readMissingScheduleIdSet(storage);
+  return (Array.isArray(rows) ? rows : []).filter((row) => {
+    const id = text(row?.row_id || row?.RowID || row?.id);
+    if (idSet.size && idSet.has(id)) return true;
+    return isMissingScheduleCourse(row);
+  });
+}
+
 export function courseSchedulingDataReadiness(activities = []) {
   const openCourses = (activities || []).filter(isOpenSchool2027Course);
   let missingStartDate = 0;
   let missingStartTime = 0;
+  let missingScheduleCount = 0;
   let readyForInterface = 0;
   for (const course of openCourses) {
     const hasDate = !!text(course.start_date);
     const hasTime = !!text(course.start_time);
     if (hasDate && hasTime) readyForInterface += 1;
     if (!hasDate) missingStartDate += 1;
-    else if (!hasTime) missingStartTime += 1;
+    if (!hasTime) missingStartTime += 1;
+    if (!hasDate || !hasTime) missingScheduleCount += 1;
   }
   return {
     openCount: openCourses.length,
     readyForInterface,
     missingStartDate,
     missingStartTime,
-    missingScheduleCount: missingStartDate + missingStartTime
+    missingScheduleCount
   };
 }
 
@@ -130,6 +166,62 @@ export function normalizePlaceKey(value) {
   return text(value).toLowerCase().replace(/\s+/g, ' ');
 }
 
+export function schoolEntityKey(school = {}) {
+  if (school.school_id != null && Number.isFinite(Number(school.school_id))) {
+    return `school_id:${Number(school.school_id)}`;
+  }
+  return [
+    'school_ref',
+    normalizePlaceKey(school.authority_name || ''),
+    normalizePlaceKey(school.school_name || ''),
+    normalizePlaceKey(school.address || '')
+  ].join('|');
+}
+
+export function instructorEntityKey(empId) {
+  return `instructor:${Number(empId)}`;
+}
+
+export function pairFailureId(originEntityKey, destinationEntityKey) {
+  return `${originEntityKey}->${destinationEntityKey}`;
+}
+
+function addressScore(address) {
+  return text(address).length;
+}
+
+export function preferSchoolRow(current, candidate) {
+  if (!current) return candidate;
+  const currentAuthority = current.authority_id != null ? 1 : 0;
+  const candidateAuthority = candidate.authority_id != null ? 1 : 0;
+  if (candidateAuthority !== currentAuthority) return candidateAuthority > currentAuthority ? candidate : current;
+  if (addressScore(candidate.address) !== addressScore(current.address)) {
+    return addressScore(candidate.address) > addressScore(current.address) ? candidate : current;
+  }
+  return current;
+}
+
+export function dedupeAuthoritySchools(schools = []) {
+  const byKey = new Map();
+  let duplicateCount = 0;
+  for (const school of schools || []) {
+    const address = text(school.address);
+    if (!address) continue;
+    const key = schoolEntityKey({ ...school, address });
+    if (byKey.has(key)) {
+      duplicateCount += 1;
+      byKey.set(key, preferSchoolRow(byKey.get(key), { ...school, address }));
+      continue;
+    }
+    byKey.set(key, { ...school, address });
+  }
+  return {
+    schools: [...byKey.values()],
+    duplicateCount,
+    uniqueCount: byKey.size
+  };
+}
+
 export function buildGoogleAddressQuery({ schoolName = '', address = '', authorityName = '' } = {}) {
   const chunks = [schoolName, address, authorityName, 'ישראל'].map(text).filter(Boolean);
   const unique = [];
@@ -139,23 +231,36 @@ export function buildGoogleAddressQuery({ schoolName = '', address = '', authori
   return unique.join(', ');
 }
 
+function enrichSchool(school) {
+  const address = text(school.address);
+  return {
+    ...school,
+    address,
+    entity_key: schoolEntityKey({ ...school, address })
+  };
+}
+
 export function buildInstructorSchoolPairs(instructors = [], schools = []) {
+  const { schools: uniqueSchools } = dedupeAuthoritySchools(schools);
   const pairs = [];
   for (const instructor of instructors) {
     const originAddress = text(instructor.address);
     if (!originAddress) continue;
-    for (const school of schools) {
-      const destinationAddress = text(school.address);
-      if (!destinationAddress) continue;
+    const originEntityKey = instructorEntityKey(instructor.emp_id);
+    for (const rawSchool of uniqueSchools) {
+      const school = enrichSchool(rawSchool);
+      if (!school.address) continue;
       pairs.push({
         pair_kind: 'instructor_school',
         origin_instructor_emp_id: instructor.emp_id ?? null,
         destination_school_id: school.school_id ?? null,
         origin_address: originAddress,
-        destination_address: destinationAddress,
+        destination_address: school.address,
+        origin_entity_key: originEntityKey,
+        destination_entity_key: school.entity_key,
         query_destination_address: buildGoogleAddressQuery({
           schoolName: school.school_name,
-          address: destinationAddress,
+          address: school.address,
           authorityName: school.authority_name
         })
       });
@@ -165,10 +270,11 @@ export function buildInstructorSchoolPairs(instructors = [], schools = []) {
 }
 
 export function buildSchoolSchoolPairs(schools = []) {
+  const { schools: uniqueSchools } = dedupeAuthoritySchools(schools);
   const groups = new Map();
-  for (const school of schools) {
-    const address = text(school.address);
-    if (!address) continue;
+  for (const raw of uniqueSchools) {
+    const school = enrichSchool(raw);
+    if (!school.address) continue;
     const groupKey = school.authority_id != null
       ? `id:${school.authority_id}`
       : `name:${normalizePlaceKey(school.authority_name || '')}`;
@@ -184,6 +290,7 @@ export function buildSchoolSchoolPairs(schools = []) {
         if (i === j) continue;
         const origin = list[i];
         const destination = list[j];
+        if (origin.entity_key === destination.entity_key) continue;
         if (
           origin.school_id != null
           && destination.school_id != null
@@ -194,8 +301,10 @@ export function buildSchoolSchoolPairs(schools = []) {
           origin_school_id: origin.school_id ?? null,
           destination_school_id: destination.school_id ?? null,
           authority_id: origin.authority_id ?? null,
-          origin_address: text(origin.address),
-          destination_address: text(destination.address)
+          origin_address: origin.address,
+          destination_address: destination.address,
+          origin_entity_key: origin.entity_key,
+          destination_entity_key: destination.entity_key
         });
       }
     }
@@ -216,6 +325,82 @@ export function shouldRenewCacheForAddressChange(cached, originAddress, destinat
   if (!cached) return false;
   return text(cached.origin_address) !== text(originAddress)
     || text(cached.destination_address) !== text(destinationAddress);
+}
+
+export function findCachedRowForPair(cacheRows = [], pair = {}) {
+  const originEntityKey = text(pair.origin_entity_key);
+  const destinationEntityKey = text(pair.destination_entity_key);
+  if (originEntityKey && destinationEntityKey) {
+    const byEntity = (cacheRows || []).find((row) => (
+      text(row.origin_entity_key) === originEntityKey
+      && text(row.destination_entity_key) === destinationEntityKey
+    ));
+    if (byEntity) return byEntity;
+  }
+  return (cacheRows || []).find((row) => (
+    text(row.origin_key) === normalizePlaceKey(pair.origin_address)
+    && text(row.destination_key) === normalizePlaceKey(pair.destination_address)
+  )) || null;
+}
+
+// Pure classifier used by tests to verify insert → already_valid across two builds
+// without calling Google Maps.
+export function classifyTravelCachePair(cacheRows = [], pair = {}, now = Date.now()) {
+  const existing = findCachedRowForPair(cacheRows, pair);
+  if (shouldSkipValidCacheEntry(existing, pair.origin_address, pair.destination_address, now)) {
+    return { action: 'already_valid', mapsCall: false, existing };
+  }
+  if (!existing) return { action: 'insert', mapsCall: true, existing: null };
+  if (shouldRenewCacheForAddressChange(existing, pair.origin_address, pair.destination_address)) {
+    return { action: 'renew', mapsCall: true, existing };
+  }
+  return { action: 'renew', mapsCall: true, existing };
+}
+
+export function simulateConsecutiveTravelBuilds(pairs = [], { now = Date.now(), routeFactory } = {}) {
+  const cache = [];
+  const runs = [];
+  const makeRoute = routeFactory || (() => ({ distance_km: 1.5, duration_minutes: 8 }));
+  for (let runIndex = 0; runIndex < 2; runIndex += 1) {
+    const stats = emptyDistanceBuildStats();
+    stats.total_count = pairs.length;
+    let mapsCalls = 0;
+    for (const pair of pairs) {
+      const decision = classifyTravelCachePair(cache, pair, now);
+      if (decision.action === 'already_valid') {
+        stats.already_valid_count += 1;
+        stats.processed_count += 1;
+        continue;
+      }
+      mapsCalls += 1;
+      const route = makeRoute(pair);
+      const row = {
+        origin_key: normalizePlaceKey(pair.origin_address),
+        destination_key: normalizePlaceKey(pair.destination_address),
+        origin_address: pair.origin_address,
+        destination_address: pair.destination_address,
+        origin_entity_key: pair.origin_entity_key,
+        destination_entity_key: pair.destination_entity_key,
+        destination_school_id: pair.destination_school_id ?? null,
+        origin_school_id: pair.origin_school_id ?? null,
+        distance_km: route.distance_km,
+        duration_minutes: route.duration_minutes,
+        expires_at: new Date(now + 30 * 86400000).toISOString()
+      };
+      if (decision.existing) {
+        const index = cache.indexOf(decision.existing);
+        if (index >= 0) cache.splice(index, 1, row);
+        else cache.push(row);
+        stats.renewed_count += 1;
+      } else {
+        cache.push(row);
+        stats.inserted_count += 1;
+      }
+      stats.processed_count += 1;
+    }
+    runs.push({ stats, mapsCalls, cacheSize: cache.length });
+  }
+  return { runs, cache };
 }
 
 export async function invokeSchedulingRouteBuild(invoke, body) {

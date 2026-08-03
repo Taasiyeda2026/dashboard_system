@@ -22,6 +22,7 @@ type SchoolRow = {
   school_id: number | null;
   school_name: string;
   address: string;
+  entity_key: string;
 };
 
 type InstructorRow = {
@@ -43,6 +44,8 @@ type TravelPair = {
   query_destination_address: string;
   origin_key: string;
   destination_key: string;
+  origin_entity_key: string;
+  destination_entity_key: string;
 };
 
 type FailureRow = {
@@ -66,12 +69,6 @@ function text(value: unknown) {
   return String(value ?? '').trim();
 }
 
-function isActiveInstructor(value: unknown) {
-  if (value === true) return true;
-  const normalized = text(value).toLowerCase();
-  return normalized === 'yes' || normalized === 'true' || normalized === '1';
-}
-
 function buildGoogleAddressQuery(parts: {
   schoolName?: string;
   address?: string;
@@ -86,6 +83,48 @@ function buildGoogleAddressQuery(parts: {
     if (!unique.some((existing) => cacheKey(existing) === cacheKey(chunk))) unique.push(chunk);
   }
   return unique.join(', ');
+}
+
+function schoolEntityKey(school: { school_id?: number | null; authority_name?: string; school_name?: string; address?: string }) {
+  if (school.school_id != null && Number.isFinite(Number(school.school_id))) {
+    return `school_id:${Number(school.school_id)}`;
+  }
+  return [
+    'school_ref',
+    cacheKey(school.authority_name || ''),
+    cacheKey(school.school_name || ''),
+    cacheKey(school.address || '')
+  ].join('|');
+}
+
+function instructorEntityKey(empId: number) {
+  return `instructor:${empId}`;
+}
+
+function preferSchoolRow(current: SchoolRow, candidate: SchoolRow) {
+  const currentAuthority = current.authority_id != null ? 1 : 0;
+  const candidateAuthority = candidate.authority_id != null ? 1 : 0;
+  if (candidateAuthority !== currentAuthority) return candidateAuthority > currentAuthority ? candidate : current;
+  if (text(candidate.address).length !== text(current.address).length) {
+    return text(candidate.address).length > text(current.address).length ? candidate : current;
+  }
+  return current;
+}
+
+function dedupeAuthoritySchools(schools: SchoolRow[]) {
+  const byKey = new Map<string, SchoolRow>();
+  let duplicateCount = 0;
+  for (const school of schools) {
+    if (!text(school.address)) continue;
+    const key = school.entity_key || schoolEntityKey(school);
+    if (byKey.has(key)) {
+      duplicateCount += 1;
+      byKey.set(key, preferSchoolRow(byKey.get(key)!, school));
+      continue;
+    }
+    byKey.set(key, school);
+  }
+  return { schools: [...byKey.values()], duplicateCount };
 }
 
 async function computeRoute(origin: string, destination: string, key: string) {
@@ -159,19 +198,15 @@ function pairSortKey(pair: TravelPair) {
 }
 
 function buildInstructorSchoolPairs(instructors: InstructorRow[], schools: SchoolRow[]): TravelPair[] {
+  const { schools: uniqueSchools } = dedupeAuthoritySchools(schools);
   const pairs: TravelPair[] = [];
   for (const instructor of instructors) {
     const originAddress = text(instructor.address);
     if (!originAddress) continue;
-    for (const school of schools) {
+    const originEntityKey = instructorEntityKey(instructor.emp_id);
+    for (const school of uniqueSchools) {
       const destinationAddress = text(school.address);
       if (!destinationAddress) continue;
-      const queryOrigin = originAddress;
-      const queryDestination = buildGoogleAddressQuery({
-        schoolName: school.school_name,
-        address: destinationAddress,
-        authorityName: school.authority_name
-      });
       pairs.push({
         pair_kind: 'instructor_school',
         origin_type: 'instructor',
@@ -182,10 +217,16 @@ function buildInstructorSchoolPairs(instructors: InstructorRow[], schools: Schoo
         authority_id: school.authority_id,
         origin_address: originAddress,
         destination_address: destinationAddress,
-        query_origin_address: queryOrigin,
-        query_destination_address: queryDestination,
+        query_origin_address: originAddress,
+        query_destination_address: buildGoogleAddressQuery({
+          schoolName: school.school_name,
+          address: destinationAddress,
+          authorityName: school.authority_name
+        }),
         origin_key: cacheKey(originAddress),
-        destination_key: cacheKey(destinationAddress)
+        destination_key: cacheKey(destinationAddress),
+        origin_entity_key: originEntityKey,
+        destination_entity_key: school.entity_key || schoolEntityKey(school)
       });
     }
   }
@@ -193,8 +234,9 @@ function buildInstructorSchoolPairs(instructors: InstructorRow[], schools: Schoo
 }
 
 function buildSchoolSchoolPairs(schools: SchoolRow[]): TravelPair[] {
+  const { schools: uniqueSchools } = dedupeAuthoritySchools(schools);
   const groups = new Map<string, SchoolRow[]>();
-  for (const school of schools) {
+  for (const school of uniqueSchools) {
     const address = text(school.address);
     if (!address) continue;
     const groupKey = school.authority_id != null
@@ -213,7 +255,10 @@ function buildSchoolSchoolPairs(schools: SchoolRow[]): TravelPair[] {
         if (i === j) continue;
         const origin = list[i];
         const destination = list[j];
-        // Never pair a school with itself, even if two rows somehow share an id.
+        const originEntity = origin.entity_key || schoolEntityKey(origin);
+        const destinationEntity = destination.entity_key || schoolEntityKey(destination);
+        // Never pair a school with itself by id or by stable entity key.
+        if (originEntity === destinationEntity) continue;
         if (
           origin.school_id != null
           && destination.school_id != null
@@ -243,7 +288,9 @@ function buildSchoolSchoolPairs(schools: SchoolRow[]): TravelPair[] {
             authorityName: destination.authority_name
           }),
           origin_key: cacheKey(originAddress),
-          destination_key: cacheKey(destinationAddress)
+          destination_key: cacheKey(destinationAddress),
+          origin_entity_key: originEntity,
+          destination_entity_key: destinationEntity
         });
       }
     }
@@ -252,16 +299,9 @@ function buildSchoolSchoolPairs(schools: SchoolRow[]): TravelPair[] {
 }
 
 function failureForPair(pair: TravelPair, reason: string): FailureRow {
-  if (pair.pair_kind === 'instructor_school') {
-    return {
-      entity_type: 'instructor_school',
-      entity_id: `${pair.origin_instructor_emp_id ?? 'unknown'}->${pair.destination_school_id ?? 'unknown'}`,
-      reason
-    };
-  }
   return {
-    entity_type: 'school_school',
-    entity_id: `${pair.origin_school_id ?? 'unknown'}->${pair.destination_school_id ?? 'unknown'}`,
+    entity_type: pair.pair_kind,
+    entity_id: `${pair.origin_entity_key}->${pair.destination_entity_key}`,
     reason
   };
 }
@@ -285,7 +325,9 @@ function cacheRowPayload(pair: TravelPair, distanceKm: number, durationMinutes: 
     destination_type: pair.destination_type,
     origin_instructor_emp_id: pair.origin_instructor_emp_id,
     query_origin_address: pair.query_origin_address,
-    query_destination_address: pair.query_destination_address
+    query_destination_address: pair.query_destination_address,
+    origin_entity_key: pair.origin_entity_key,
+    destination_entity_key: pair.destination_entity_key
   };
 }
 
@@ -306,7 +348,25 @@ function isCacheValid(cached: Record<string, unknown> | null | undefined, pair: 
 }
 
 async function findCachedByEntities(db: DbClient, pair: TravelPair) {
-  if (pair.pair_kind === 'instructor_school' && pair.origin_instructor_emp_id != null) {
+  // Stable identity uses entity keys so schools without school_id still match on rerun.
+  // Never call .eq('*_school_id', null) — Supabase requires .is(..., null) for NULL, and
+  // entity keys already cover that case.
+  if (pair.origin_entity_key && pair.destination_entity_key) {
+    const { data, error } = await db
+      .from('scheduling_travel_cache')
+      .select('*')
+      .eq('origin_entity_key', pair.origin_entity_key)
+      .eq('destination_entity_key', pair.destination_entity_key)
+      .limit(5);
+    if (error) return { error, rows: [] as Record<string, unknown>[] };
+    if ((data || []).length) return { error: null, rows: (data || []) as Record<string, unknown>[] };
+  }
+
+  if (
+    pair.pair_kind === 'instructor_school'
+    && pair.origin_instructor_emp_id != null
+    && pair.destination_school_id != null
+  ) {
     const { data, error } = await db
       .from('scheduling_travel_cache')
       .select('*')
@@ -315,23 +375,24 @@ async function findCachedByEntities(db: DbClient, pair: TravelPair) {
       .eq('destination_school_id', pair.destination_school_id)
       .limit(5);
     if (error) return { error, rows: [] as Record<string, unknown>[] };
-    return { error: null, rows: (data || []) as Record<string, unknown>[] };
+    if ((data || []).length) return { error: null, rows: (data || []) as Record<string, unknown>[] };
   }
 
-  if (pair.pair_kind === 'school_school') {
-    let query = db
+  if (
+    pair.pair_kind === 'school_school'
+    && pair.origin_school_id != null
+    && pair.destination_school_id != null
+  ) {
+    const { data, error } = await db
       .from('scheduling_travel_cache')
       .select('*')
       .eq('origin_type', 'school')
-      .eq('destination_type', 'school');
-    if (pair.origin_school_id != null) query = query.eq('origin_school_id', pair.origin_school_id);
-    if (pair.destination_school_id != null) query = query.eq('destination_school_id', pair.destination_school_id);
-    if (pair.origin_school_id == null || pair.destination_school_id == null) {
-      query = query.eq('origin_key', pair.origin_key).eq('destination_key', pair.destination_key);
-    }
-    const { data, error } = await query.limit(5);
+      .eq('destination_type', 'school')
+      .eq('origin_school_id', pair.origin_school_id)
+      .eq('destination_school_id', pair.destination_school_id)
+      .limit(5);
     if (error) return { error, rows: [] as Record<string, unknown>[] };
-    return { error: null, rows: (data || []) as Record<string, unknown>[] };
+    if ((data || []).length) return { error: null, rows: (data || []) as Record<string, unknown>[] };
   }
 
   const { data, error } = await db
@@ -380,38 +441,37 @@ async function loadAuthoritySchools(db: DbClient) {
   if (error) return { error, schools: [] as SchoolRow[] };
   const schools: SchoolRow[] = [];
   for (const row of data || []) {
+    const school_id = row.school_id == null ? null : Number(row.school_id);
+    const address = text(row.address);
+    const authority_name = text(row.authority_name);
+    const school_name = text(row.school_name);
     schools.push({
       authority_id: row.authority_id == null ? null : Number(row.authority_id),
-      authority_name: text(row.authority_name),
-      school_id: row.school_id == null ? null : Number(row.school_id),
-      school_name: text(row.school_name),
-      address: text(row.address)
+      authority_name,
+      school_id: Number.isFinite(school_id as number) ? school_id : null,
+      school_name,
+      address,
+      entity_key: schoolEntityKey({ school_id, authority_name, school_name, address })
     });
   }
   return { error: null, schools };
 }
 
 async function loadActiveInstructorsWithAddress(db: DbClient) {
-  const { data, error } = await db
-    .from('contacts_instructors')
-    .select('emp_id, address, active');
+  // Narrow SECURITY DEFINER RPC — never SELECT contacts_instructors directly.
+  const { data, error } = await db.rpc('scheduling_active_instructor_locations');
   if (error) return { error, instructors: [] as InstructorRow[], skippedEmptyAddress: 0 };
 
-  let skippedEmptyAddress = 0;
   const instructors: InstructorRow[] = [];
   for (const row of data || []) {
-    if (!isActiveInstructor(row.active)) continue;
     const address = text(row.address);
-    if (!address) {
-      skippedEmptyAddress += 1;
-      continue;
-    }
+    if (!address) continue;
     const empId = Number(row.emp_id);
     if (!Number.isFinite(empId)) continue;
     instructors.push({ emp_id: empId, address });
   }
   instructors.sort((a, b) => a.emp_id - b.emp_id);
-  return { error: null, instructors, skippedEmptyAddress };
+  return { error: null, instructors, skippedEmptyAddress: 0 };
 }
 
 async function mapWithConcurrency<T, R>(
@@ -474,6 +534,9 @@ async function processPair(db: DbClient, pair: TravelPair, key: string): Promise
   if (existing.error) return { dbError: existing.error };
 
   const matching = existing.rows.find((row) => (
+    text(row.origin_entity_key) === pair.origin_entity_key
+    && text(row.destination_entity_key) === pair.destination_entity_key
+  )) || existing.rows.find((row) => (
     text(row.origin_key) === pair.origin_key && text(row.destination_key) === pair.destination_key
   )) || existing.rows[0] || null;
 
@@ -528,17 +591,18 @@ async function runBuildCache(db: DbClient, key: string, payload: Record<string, 
 
   const schoolsWithAddress = schoolsResult.schools.filter((school) => text(school.address));
   const skippedEmptySchoolAddress = schoolsResult.schools.length - schoolsWithAddress.length;
+  const deduped = dedupeAuthoritySchools(schoolsWithAddress);
 
   const instructorPairs = (scope === 'instructor_school' || scope === 'all')
-    ? buildInstructorSchoolPairs(instructors, schoolsWithAddress)
+    ? buildInstructorSchoolPairs(instructors, deduped.schools)
     : [];
   const schoolPairs = (scope === 'school_school' || scope === 'all')
-    ? buildSchoolSchoolPairs(schoolsWithAddress)
+    ? buildSchoolSchoolPairs(deduped.schools)
     : [];
 
   const stats = emptyStats();
   stats.scope = scope;
-  stats.skipped_count = skippedEmptyInstructorAddress + skippedEmptySchoolAddress;
+  stats.skipped_count = skippedEmptyInstructorAddress + skippedEmptySchoolAddress + deduped.duplicateCount;
   stats.total_count = instructorPairs.length + schoolPairs.length;
 
   const initialPhase: BuildCursor['phase'] = scope === 'school_school'

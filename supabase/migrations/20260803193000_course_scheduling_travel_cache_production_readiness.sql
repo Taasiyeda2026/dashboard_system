@@ -14,16 +14,44 @@ grant select on public.course_meeting_cancellations to authenticated;
 grant select on public.course_meeting_instructor_history to authenticated;
 
 -- ---------------------------------------------------------------------------
+-- 1b. Narrow instructor-address reader for the Edge Function.
+--     service_role must NOT receive broad SELECT on contacts_instructors.
+--     This SECURITY DEFINER RPC returns only emp_id + address for active instructors.
+-- ---------------------------------------------------------------------------
+create or replace function public.scheduling_active_instructor_locations()
+returns table(emp_id bigint, address text)
+language sql
+stable
+security definer
+set search_path = public
+as $$
+  select
+    ci.emp_id,
+    btrim(ci.address) as address
+  from public.contacts_instructors ci
+  where lower(btrim(coalesce(ci.active::text, ''))) in ('yes', 'true', '1')
+    and nullif(btrim(coalesce(ci.address, '')), '') is not null
+  order by ci.emp_id
+$$;
+revoke all on function public.scheduling_active_instructor_locations() from public;
+revoke all on function public.scheduling_active_instructor_locations() from anon;
+revoke all on function public.scheduling_active_instructor_locations() from authenticated;
+grant execute on function public.scheduling_active_instructor_locations() to service_role;
+
+-- ---------------------------------------------------------------------------
 -- 2. Travel-cache metadata for route provenance (nullable / backward compatible).
 --    Existing PK on origin_key+destination_key is unchanged. Entity ids let the builder
 --    find and renew a row when an address changes without leaving a stale valid row.
+--    origin_entity_key / destination_entity_key support schools without school_id.
 -- ---------------------------------------------------------------------------
 alter table public.scheduling_travel_cache
   add column if not exists origin_type text,
   add column if not exists destination_type text,
   add column if not exists origin_instructor_emp_id bigint,
   add column if not exists query_origin_address text,
-  add column if not exists query_destination_address text;
+  add column if not exists query_destination_address text,
+  add column if not exists origin_entity_key text,
+  add column if not exists destination_entity_key text;
 
 alter table public.scheduling_travel_cache
   drop constraint if exists scheduling_travel_cache_origin_type_check;
@@ -43,3 +71,6 @@ create index if not exists scheduling_travel_cache_instructor_school_idx
 
 create index if not exists scheduling_travel_cache_origin_type_idx
   on public.scheduling_travel_cache (origin_type, destination_type);
+
+create index if not exists scheduling_travel_cache_entity_keys_idx
+  on public.scheduling_travel_cache (origin_entity_key, destination_entity_key);

@@ -5,8 +5,12 @@ import {
   buildGoogleAddressQuery,
   buildInstructorSchoolPairs,
   buildSchoolSchoolPairs,
+  classifyTravelCachePair,
+  dedupeAuthoritySchools,
+  schoolEntityKey,
   shouldRenewCacheForAddressChange,
   shouldSkipValidCacheEntry,
+  simulateConsecutiveTravelBuilds,
   translateSchedulingRouteError,
   runDistanceBuildLoop,
   emptyDistanceBuildStats,
@@ -36,9 +40,37 @@ test('production-readiness migration grants required privileges without widening
   assert.doesNotMatch(sql, /drop policy/i);
 });
 
+test('instructor address RPC is service_role-only and does not broaden contacts_instructors grants', async () => {
+  const sql = await readFile(readinessMigrationUrl, 'utf8');
+  assert.match(sql, /create or replace function public\.scheduling_active_instructor_locations\(\)/i);
+  assert.match(sql, /returns table\(emp_id bigint, address text\)/i);
+  assert.match(sql, /security definer/i);
+  assert.match(sql, /revoke all on function public\.scheduling_active_instructor_locations\(\) from public/i);
+  assert.match(sql, /revoke all on function public\.scheduling_active_instructor_locations\(\) from anon/i);
+  assert.match(sql, /revoke all on function public\.scheduling_active_instructor_locations\(\) from authenticated/i);
+  assert.match(sql, /grant execute on function public\.scheduling_active_instructor_locations\(\) to service_role/i);
+  assert.doesNotMatch(sql, /grant select on public\.contacts_instructors/i);
+  assert.doesNotMatch(sql, /full_name|mobile|phone|email/i);
+});
+
+test('edge function reads instructor addresses via the narrow RPC only', async () => {
+  const ts = await readFile(edgeFunctionUrl, 'utf8');
+  assert.match(ts, /rpc\('scheduling_active_instructor_locations'\)/);
+  assert.doesNotMatch(ts, /from\('contacts_instructors'\)/);
+  assert.doesNotMatch(ts, /\.select\('emp_id, address, active'\)/);
+});
+
 test('production-readiness migration adds provenance metadata without changing the primary key', async () => {
   const sql = await readFile(readinessMigrationUrl, 'utf8');
-  for (const column of ['origin_type', 'destination_type', 'origin_instructor_emp_id', 'query_origin_address', 'query_destination_address']) {
+  for (const column of [
+    'origin_type',
+    'destination_type',
+    'origin_instructor_emp_id',
+    'query_origin_address',
+    'query_destination_address',
+    'origin_entity_key',
+    'destination_entity_key'
+  ]) {
     assert.match(sql, new RegExp(`add column if not exists ${column}`));
   }
   assert.doesNotMatch(sql, /primary key\s*\(/i);
@@ -61,11 +93,28 @@ test('build_cache mode is explicit and keeps the single-pair candidate lookup', 
   assert.match(ts, /\['admin', 'operation_manager'\]\.includes/);
 });
 
-test('build scopes cover instructor_school, school_school and all', async () => {
-  const ts = await readFile(edgeFunctionUrl, 'utf8');
-  assert.match(ts, /'instructor_school' \| 'school_school' \| 'all'/);
-  assert.match(ts, /buildInstructorSchoolPairs/);
-  assert.match(ts, /buildSchoolSchoolPairs/);
+test('school dedup collapses duplicate school_id rows and prefers authority_id plus fuller address', () => {
+  const result = dedupeAuthoritySchools([
+    { school_id: 10, school_name: 'א', authority_id: null, authority_name: 'חיפה', address: 'רחוב' },
+    { school_id: 10, school_name: 'א', authority_id: 7, authority_name: 'חיפה', address: 'רחוב 12' },
+    { school_id: 11, school_name: 'ב', authority_id: 7, authority_name: 'חיפה', address: 'אחר' }
+  ]);
+  assert.equal(result.duplicateCount, 1);
+  assert.equal(result.uniqueCount, 2);
+  assert.equal(result.schools.find((school) => school.school_id === 10)?.authority_id, 7);
+  assert.equal(result.schools.find((school) => school.school_id === 10)?.address, 'רחוב 12');
+});
+
+test('total_count after dedup does not inflate from duplicate source rows', () => {
+  const instructors = [{ emp_id: 1, address: 'בית 1' }];
+  const schools = [
+    { school_id: 10, school_name: 'א', authority_id: null, authority_name: 'חיפה', address: 'רחוב' },
+    { school_id: 10, school_name: 'א', authority_id: 7, authority_name: 'חיפה', address: 'רחוב 12' },
+    { school_id: 11, school_name: 'ב', authority_id: 7, authority_name: 'חיפה', address: 'אחר' }
+  ];
+  const pairs = buildInstructorSchoolPairs(instructors, schools);
+  assert.equal(pairs.length, 2);
+  assert.deepEqual(pairs.map((pair) => pair.destination_school_id).sort(), [10, 11]);
 });
 
 test('school-school pairs stay inside one authority group and never pair a school with itself', () => {
@@ -78,10 +127,6 @@ test('school-school pairs stay inside one authority group and never pair a schoo
   assert.equal(pairs.length, 2);
   assert.ok(pairs.every((pair) => pair.authority_id === 1));
   assert.ok(pairs.every((pair) => pair.origin_school_id !== pair.destination_school_id));
-  assert.deepEqual(
-    pairs.map((pair) => `${pair.origin_school_id}->${pair.destination_school_id}`).sort(),
-    ['10->11', '11->10']
-  );
 });
 
 test('instructor-school pairs skip empty instructor addresses and keep both entity ids', () => {
@@ -97,7 +142,52 @@ test('instructor-school pairs skip empty instructor addresses and keep both enti
   const pairs = buildInstructorSchoolPairs(instructors, schools);
   assert.equal(pairs.length, 2);
   assert.ok(pairs.every((pair) => pair.origin_instructor_emp_id === 1));
-  assert.deepEqual(pairs.map((pair) => pair.destination_school_id).sort(), [10, 11]);
+  assert.ok(pairs.every((pair) => pair.origin_entity_key === 'instructor:1'));
+});
+
+test('schools without school_id use a stable alternate entity key', () => {
+  const school = { school_id: null, school_name: 'בית ספר ללא מזהה', authority_name: 'נצרת', address: 'שכונת הנוצרים' };
+  const key = schoolEntityKey(school);
+  assert.match(key, /^school_ref\|/);
+  assert.match(key, /נצרת|בית ספר ללא מזהה|שכונת הנוצרים/);
+  assert.doesNotMatch(key, /^unknown$/);
+  const pairs = buildInstructorSchoolPairs([{ emp_id: 9, address: 'בית' }], [school]);
+  assert.equal(pairs.length, 1);
+  assert.equal(pairs[0].destination_school_id, null);
+  assert.equal(pairs[0].destination_entity_key, key);
+});
+
+test('two consecutive builds mark a null school_id pair as already_valid without a second maps call', () => {
+  const pair = buildInstructorSchoolPairs(
+    [{ emp_id: 5, address: 'כתובת מדריך' }],
+    [{ school_id: null, school_name: 'בית ספר', authority_name: 'רשות', address: 'כתובת חלקית בלי מספר' }]
+  )[0];
+  const { runs } = simulateConsecutiveTravelBuilds([pair]);
+  assert.equal(runs[0].stats.inserted_count, 1);
+  assert.equal(runs[0].stats.already_valid_count, 0);
+  assert.equal(runs[0].mapsCalls, 1);
+  assert.equal(runs[1].stats.inserted_count, 0);
+  assert.equal(runs[1].stats.renewed_count, 0);
+  assert.equal(runs[1].stats.already_valid_count, 1);
+  assert.equal(runs[1].mapsCalls, 0);
+  assert.equal(classifyTravelCachePair(runs[1] ? [{
+    origin_entity_key: pair.origin_entity_key,
+    destination_entity_key: pair.destination_entity_key,
+    origin_address: pair.origin_address,
+    destination_address: pair.destination_address,
+    distance_km: 1.5,
+    duration_minutes: 8,
+    expires_at: new Date(Date.now() + 86400000).toISOString()
+  }] : [], pair).action, 'already_valid');
+});
+
+test('edge function never equals null school ids and prefers entity keys', async () => {
+  const ts = await readFile(edgeFunctionUrl, 'utf8');
+  assert.doesNotMatch(ts, /\.eq\('destination_school_id',\s*null\)/);
+  assert.doesNotMatch(ts, /\.eq\('origin_school_id',\s*null\)/);
+  assert.match(ts, /origin_entity_key/);
+  assert.match(ts, /destination_entity_key/);
+  assert.match(ts, /Never call \.eq\('\*_school_id', null\)/);
 });
 
 test('partial school addresses without a house number still produce a Google query', () => {

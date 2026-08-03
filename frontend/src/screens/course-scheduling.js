@@ -11,8 +11,10 @@ import { isCourseSchedulingInterfaceEligible } from './shared/activity-schedulin
 import { formatDateHe, formatTimeRangeShort } from './shared/format-date.js';
 import { weekRange, shiftWeek, buildWeekRows, weekCalendarHtml, fixedScheduleHtml, weekNavLabel } from './course-scheduling-calendar.js';
 import {
+  collectMissingScheduleCourseIds,
   courseSchedulingDataReadiness,
   formatDistanceBuildProgress,
+  MISSING_SCHEDULE_FILTER_STORAGE_KEY,
   pickNearestActionableCourse,
   runDistanceBuildLoop,
   translateSchedulingRouteError
@@ -377,10 +379,15 @@ export const courseSchedulingScreen = {
     };
 
     const openMissingScheduleCourses = () => {
+      const missingIds = collectMissingScheduleCourseIds(data.activities || []);
+      try {
+        sessionStorage.setItem(MISSING_SCHEDULE_FILTER_STORAGE_KEY, JSON.stringify(missingIds));
+      } catch { /* storage may be unavailable */ }
+      state.activitiesMissingScheduleOnly = true;
       state.activityPeriodTab = 'school_2027';
       state.activitiesInnerTab = 'year_all';
       state.activitiesMonthYm = '';
-      state.allActivitiesStatusFilter = 'open';
+      state.allActivitiesStatusFilter = 'all';
       state.listFilters ||= {};
       state.listFilters.activities = {
         ...(state.listFilters.activities || {}),

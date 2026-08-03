@@ -137,3 +137,13 @@ test('travel-cache readiness migration grants service_role and meeting-table sel
   assert.match(sql, /origin_instructor_emp_id/);
   assert.doesNotMatch(sql, /using\s*\(\s*true\s*\)/i);
 });
+
+test('travel-cache readiness migration exposes a narrow instructor-location RPC to service_role only', async () => {
+  const sql = await readFile(travelCacheReadinessMigrationUrl, 'utf8');
+  assert.match(sql, /scheduling_active_instructor_locations/);
+  assert.match(sql, /grant execute on function public\.scheduling_active_instructor_locations\(\) to service_role/i);
+  assert.match(sql, /revoke all on function public\.scheduling_active_instructor_locations\(\) from authenticated/i);
+  assert.match(sql, /revoke all on function public\.scheduling_active_instructor_locations\(\) from anon/i);
+  assert.doesNotMatch(sql, /grant select on public\.contacts_instructors/i);
+  assert.match(sql, /returns table\(emp_id bigint, address text\)/i);
+});
