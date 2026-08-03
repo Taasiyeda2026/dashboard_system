@@ -312,6 +312,7 @@ test('cache versions on this branch are ahead of origin/main after sync', async 
   const mainCache = Number(/const CACHE_VERSION = (\d+);/.exec(mainSw)?.[1] || 0);
   assert.ok(branchCache > mainCache, `expected CACHE_VERSION ${branchCache} > main ${mainCache}`);
   assert.match(branchConfig, /course-scheduling-blocking-fixes-20260803-v2/);
+  assert.match(branchConfig, /single-route-expiry-ui-20260803-v4/);
   assert.ok(branchConfig.includes('HOTFIX_VERSION'));
   assert.ok(mainConfig.includes('HOTFIX_VERSION'));
 });
