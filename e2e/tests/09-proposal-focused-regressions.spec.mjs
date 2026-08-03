@@ -53,7 +53,7 @@ async function firstPositivePriceOption(select) {
   return select.locator('option:not([value=""])').evaluateAll((options) => {
     const option = options.find((item) => !item.value.startsWith('__') && /₪\s*[1-9]|[1-9][\d,]*(?:\.\d+)?\s*₪/.test(item.textContent || ''));
     const label = option?.textContent || '';
-    const priceMatch = label.match(/([\d,]+(?:\.\d+)?)\s*₪/);
+    const priceMatch = label.match(/₪\s*([\d,]+(?:\.\d+)?)/) || label.match(/([\d,]+(?:\.\d+)?)\s*₪/);
     return {
       value: option?.value || '',
       price: Number((priceMatch?.[1] || '').replace(/,/g, '')) || 0
