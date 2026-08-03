@@ -104,6 +104,38 @@ function pricingIndex(rows) {
   return { byOption, byActivityNo, byPricingKey, byName };
 }
 
+/**
+ * Option values already embed the full pricing identity (activity_no, name,
+ * item_type, proposal_group, unit_duration, unit_price, sort_order joined by
+ * "||" — see optionKey above), and the visible label always carries the same
+ * price. When the pricing catalog cache hasn't populated yet (or no longer
+ * has a matching row), this reconstructs a pricing row straight from what's
+ * already selected on screen instead of leaving the row unpriced.
+ */
+function pickedFromSelectedOption(select) {
+  const selected = text(select?.value);
+  if (!selected) return null;
+  const parts = selected.split('||');
+  const [activityNo, activityName, itemType, proposalGroup, unitDuration, unitPriceRaw, sortOrder] = parts.map(text);
+  const label = text(select.selectedOptions?.[0]?.textContent);
+  const labelPrice = numberOrNull(label.replace(/[^0-9.,-]/g, ''));
+  const embeddedPrice = numberOrNull(unitPriceRaw);
+  const unitPrice = embeddedPrice != null && embeddedPrice > 0 ? embeddedPrice : labelPrice;
+  const name = activityName || text(label.split('—')[0]);
+  if (!name || unitPrice == null || unitPrice <= 0) return null;
+  return {
+    activity_no: activityNo,
+    activity_name: name,
+    item_type: itemType,
+    proposal_group: proposalGroup,
+    unit_duration: unitDuration,
+    unit_price: unitPrice,
+    hourly_price: unitPrice,
+    sort_order: numberOrNull(sortOrder),
+    pricing_key: ''
+  };
+}
+
 function resolvePicked(row, rows) {
   const select = row?.querySelector?.('[data-pa-pricing-select]');
   const selected = text(select?.value);
@@ -118,7 +150,8 @@ function resolvePicked(row, rows) {
   if (activityNo && index.byActivityNo.has(activityNo)) return index.byActivityNo.get(activityNo);
   if (name && index.byName.has(name)) return index.byName.get(name);
   const selectedName = text(select.selectedOptions?.[0]?.textContent?.split('—')?.[0]).toLowerCase();
-  return selectedName ? index.byName.get(selectedName) || null : null;
+  if (selectedName && index.byName.has(selectedName)) return index.byName.get(selectedName);
+  return pickedFromSelectedOption(select);
 }
 
 function setValue(row, name, value) {
@@ -218,6 +251,10 @@ export function hydrateNextYearPricingSelection(row, pricingRows = cachedPricing
   return { changed, picked, total };
 }
 
+function isNextYearForm(form) {
+  return Boolean(form?.querySelector?.('[data-pa-items-group]'));
+}
+
 function installRuntime(scope = globalThis) {
   const documentRef = scope?.document;
   if (!documentRef) return;
@@ -233,6 +270,11 @@ function installRuntime(scope = globalThis) {
     const target = event.target;
     if (!target?.matches?.('[data-pa-item-qty], [data-pa-item-price], [data-pa-discount-value], [data-pa-discount-type]')) return;
     const form = target.closest('[data-pa-form]');
+    // Scoped to next-year forms only: this module owns totals for
+    // next_year_courses/next_year_workshops rows exclusively. Other proposal
+    // types (gefen, summer, tour...) keep using the generic calculator in
+    // screens/proposals-agreements.js so there is exactly one owner per form.
+    if (!isNextYearForm(form)) return;
     calculateNextYearTotals(form);
     scheduleTotals(form, 80);
   }, true);

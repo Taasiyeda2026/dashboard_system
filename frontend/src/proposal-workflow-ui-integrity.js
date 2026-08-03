@@ -340,18 +340,28 @@ function installDomRuntime(scope) {
   const documentRef = scope?.document;
   if (!documentRef?.documentElement || typeof scope.MutationObserver !== 'function') return;
 
+  const isNextYearScoped = (form, row) => {
+    if (row) return NEXT_YEAR_INTERNAL_GROUPS.has(rowGroup(row));
+    return Boolean(form?.querySelector?.('[data-pa-items-group]'));
+  };
+
   const editorEvent = (event) => {
     if (!event.target?.matches?.('[data-pa-item-qty], [data-pa-item-price], [data-pa-pricing-select], [data-pa-discount-type], [data-pa-discount-value]')) return;
     const form = event.target.closest('[data-pa-form]');
+    const row = event.target.closest('[data-pa-item-row]');
+    // next_year_courses/next_year_workshops rows and forms are owned exclusively by
+    // proposal-next-year-selection-hydration.js (hydration + totals). Skipping the
+    // duplicate recalculation here keeps a single mechanism responsible for those
+    // totals; every other proposal type keeps its existing behavior unchanged.
+    const nextYearScoped = isNextYearScoped(form, row);
     if (event.type === 'change' && event.target.matches('[data-pa-pricing-select]')) {
-      const row = event.target.closest('[data-pa-item-row]');
       queueMicrotask(() => {
         if (row?.isConnected) hydrateGenericPricingSelection(row, cachedPricingRows, { notify: true });
-        scheduleTotals(form, scope);
+        if (!nextYearScoped) scheduleTotals(form, scope);
       });
       return;
     }
-    scheduleTotals(form, scope);
+    if (!nextYearScoped) scheduleTotals(form, scope);
   };
   documentRef.addEventListener('input', editorEvent, true);
   documentRef.addEventListener('change', editorEvent, true);

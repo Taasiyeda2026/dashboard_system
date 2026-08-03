@@ -1,5 +1,6 @@
 import { api } from './api.js';
 import { augmentNextYearPricingRows } from './proposal-next-year-workshops.js';
+import { calculateNextYearTotals } from './proposal-next-year-selection-hydration.js';
 
 const PATCH_KEY = Symbol.for('taasiyeda.proposalNextYearEditorStability.v3');
 const COURSE_GROUP = 'next_year_courses';
@@ -237,44 +238,6 @@ function hydrateRowFromPricing(row, pricingRows) {
   return changed;
 }
 
-function calculateRow(row) {
-  const quantity = numberOrNull(row?.querySelector?.('[data-pa-item-qty]')?.value) ?? 0;
-  const price = numberOrNull(row?.querySelector?.('[data-pa-item-price]')?.value) ?? 0;
-  const total = quantity > 0 && price > 0 ? quantity * price : 0;
-  const hidden = row?.querySelector?.('[data-pa-item-total]');
-  const display = row?.querySelector?.('[data-pa-item-total-display]');
-  if (hidden) hidden.value = total > 0 ? total.toFixed(2) : '';
-  if (display) display.textContent = total > 0 ? `₪ ${formatCurrency(total)}` : '₪ 0';
-  return total;
-}
-
-function calculateFormTotals(form) {
-  let subtotal = 0;
-  form.querySelectorAll('[data-pa-items-group]').forEach((section) => {
-    let groupTotal = 0;
-    section.querySelectorAll('[data-pa-item-row]').forEach((row) => { groupTotal += calculateRow(row); });
-    subtotal += groupTotal;
-    const groupKey = text(section.dataset.paItemsGroup);
-    const groupTotalElement = section.querySelector(`[data-pa-group-total="${groupKey}"]`);
-    if (groupTotalElement) groupTotalElement.textContent = `₪ ${formatCurrency(groupTotal)}`;
-  });
-  const discountType = text(form.querySelector('[data-pa-discount-type]')?.value) || 'amount';
-  const discountValue = numberOrNull(form.querySelector('[data-pa-discount-value]')?.value) ?? 0;
-  const discount = discountType === 'percent'
-    ? subtotal * (Math.min(discountValue, 100) / 100)
-    : Math.min(discountValue, subtotal);
-  const total = Math.max(subtotal - discount, 0);
-  const grand = form.querySelector('[data-pa-grand-total]');
-  const summary = form.querySelector('[data-pa-summary-total]');
-  const subtotalElement = form.querySelector('[data-pa-summary-subtotal]');
-  const discountElement = form.querySelector('[data-pa-summary-discount]');
-  if (grand) grand.textContent = `₪ ${formatCurrency(total)}`;
-  if (summary) summary.textContent = `₪ ${formatCurrency(total)}`;
-  if (subtotalElement) subtotalElement.textContent = `₪ ${formatCurrency(subtotal)}`;
-  if (discountElement) discountElement.textContent = discount > 0 ? `-₪ ${formatCurrency(discount)}` : '₪ 0';
-  return total;
-}
-
 function nextYearForm(form) {
   const type = text(form?.querySelector?.('[name="activity_type_group"]')?.value);
   return NEXT_YEAR_TYPE_ALIASES.has(type)
@@ -301,7 +264,7 @@ export function removeBlankNextYearRows(form) {
       removed += 1;
     });
   });
-  if (removed) calculateFormTotals(form);
+  if (removed) calculateNextYearTotals(form);
   return removed;
 }
 
@@ -328,7 +291,7 @@ export function stabilizeNextYearForm(form, pricingRows = cachedPricingRows, opt
     });
   });
 
-  const total = calculateFormTotals(form);
+  const total = calculateNextYearTotals(form);
   if (options.notify !== false && (changed || removed > 0)) {
     const target = form.querySelector('[data-pa-item-price]') || form.querySelector('[data-pa-item-qty]');
     if (target && form.dataset.paNextYearHydrating !== 'yes') {

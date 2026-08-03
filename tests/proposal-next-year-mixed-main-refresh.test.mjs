@@ -27,7 +27,13 @@ function sliceBetween(source, start, end) {
 
 test('mixed next-year editor preserves new rows and guards hydration notifications', () => {
   assert.match(editorStability, /proposalNextYearEditorStability\.v3/);
-  assert.match(editorStability, /calculateFormTotals/);
+  // Totals must have exactly one owner: editor-stability delegates to the
+  // canonical calculator instead of keeping its own duplicate re-implementation
+  // (that duplication is what let next-year totals drift out of sync with the
+  // selected option's price - see proposal-next-year-selection-hydration.js).
+  assert.match(editorStability, /import \{ calculateNextYearTotals \} from '\.\/proposal-next-year-selection-hydration\.js';/);
+  assert.doesNotMatch(editorStability, /function calculateFormTotals/);
+  assert.doesNotMatch(editorStability, /function calculateRow/);
   assert.match(editorStability, /paNextYearHydrating/);
   assert.match(editorStability, /scheduleForm\(addForm, \{ removeBlankRows: false \}\)/);
   assert.match(editorStability, /forms\.forEach\(\(form\) => scheduleForm\(form, \{ removeBlankRows: false \}\)\)/);

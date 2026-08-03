@@ -209,3 +209,95 @@ test('real proposal regression path remains stable without saving data or PDFs',
   expect(tracker.state.pageErrors).toEqual([]);
   await tracker.persist('proposal-focused-pdf-intercept');
 });
+
+test('a workshop-only next-year proposal prices, totals and previews correctly with nothing else on the form', async ({ page, tracker }) => {
+  // Regression coverage for a reported bug: selecting a workshop as the very
+  // first and only item on a brand-new תשפ״ז proposal left "סה״כ סדנאות" and
+  // "סה״כ לתשלום" stuck at 0 ₪ even though the dropdown's own option and the
+  // document preview both showed the workshop's real price. Every other
+  // next-year test in this suite adds a course first, which happened to mask
+  // the failure - this test intentionally never adds a course.
+  test.setTimeout(180_000);
+  tracker.resetScreen('proposal-workshop-only-pricing');
+  await page.setViewportSize({ width: 1440, height: 1000 });
+  await page.goto('/');
+  await waitForAppShell(page);
+  await navigateToScreen(page, 'proposals-agreements');
+  await waitForScreenReady(page, 'proposals-agreements');
+  await page.locator('[data-pa-client-all-proposals]:visible').first().click();
+  const table = page.locator('[data-pa-all-proposals-table] [data-pa-table]').first();
+  await expect(table).toBeVisible();
+
+  await page.locator('[data-pa-tab="new"]:visible').first().click();
+  const form = page.locator('[data-pa-form]:visible').first();
+  await expect(form).toBeVisible();
+  await form.locator('[data-pa-type-btn="next_year"]').click();
+
+  const courses = form.locator('[data-pa-items-group="next_year_courses"]');
+  const workshops = form.locator('[data-pa-items-group="next_year_workshops"]');
+  await expect(courses).toHaveCount(1);
+  await expect(workshops).toHaveCount(1);
+  await expect(courses.locator('[data-pa-item-row]')).toHaveCount(0);
+  await expect(workshops.locator('[data-pa-item-row]')).toHaveCount(0);
+
+  await workshops.locator('[data-pa-add-item]').click();
+  const workshopRow = workshops.locator('[data-pa-item-row]').first();
+  await expect(workshopRow).toBeVisible();
+  await expect(workshops.locator('[data-pa-item-row]')).toHaveCount(1);
+
+  const select = workshopRow.locator('[data-pa-pricing-select]');
+  // Prefer the exact workshop from the bug report when the catalog has it;
+  // otherwise fall back to any positively-priced workshop so the test still
+  // proves the same mechanism against whatever data the environment seeds.
+  const namedOption = await select.locator('option').evaluateAll((options) => {
+    const match = options.find((item) => /מערכת השמש תלת מימד/.test(item.textContent || '') && /650/.test(item.textContent || ''));
+    return match?.value || '';
+  });
+  const workshopOption = namedOption || await select.locator('option:not([value=""])').evaluateAll((options) => {
+    const option = options.find((item) => !item.value.startsWith('__') && /₪\s*[1-9]/.test(item.textContent || ''));
+    return option?.value || '';
+  });
+  expect(workshopOption, 'a positive-price workshop must be available').not.toBe('');
+  await select.selectOption(workshopOption);
+
+  const selectedLabel = await select.locator('option:checked').innerText();
+  const labelPrice = amountOf(selectedLabel);
+  expect(labelPrice).toBeGreaterThan(0);
+
+  // 1) Line price matches the selected option, with no page refresh anywhere below.
+  await expect.poll(async () => amountOf(await workshopRow.locator('[data-pa-item-price]').inputValue()))
+    .toBe(labelPrice);
+  // 2) Total workshops.
+  await expect.poll(async () => amountOf(await workshops.locator('[data-pa-group-total="next_year_workshops"]').innerText()))
+    .toBe(labelPrice);
+  // 3) Total to pay (nothing else is on the form, so it equals the workshop alone).
+  await expect.poll(async () => amountOf(await form.locator('[data-pa-grand-total]').innerText()))
+    .toBe(labelPrice);
+  await shot(page, 'proposal-workshop-only-editor.png', form);
+
+  // 4) Document preview below the editor shows the same price.
+  const preview = form.locator('[data-pa-live-preview]');
+  await expect(preview).toBeVisible();
+  await expect.poll(async () => amountOf(await preview.innerText())).toBeGreaterThanOrEqual(labelPrice);
+  await expect(preview).toContainText(String(labelPrice).replace(/\B(?=(\d{3})+(?!\d))/g, ','));
+  await shot(page, 'proposal-workshop-only-preview.png', preview);
+
+  // Quantity change updates every total immediately, still no course present.
+  const qty = workshopRow.locator('[data-pa-item-qty]');
+  await qty.fill('2');
+  await qty.dispatchEvent('input');
+  await expect.poll(async () => amountOf(await workshops.locator('[data-pa-group-total="next_year_workshops"]').innerText()))
+    .toBe(labelPrice * 2);
+  await expect.poll(async () => amountOf(await form.locator('[data-pa-grand-total]').innerText()))
+    .toBe(labelPrice * 2);
+
+  // Removing the only row brings every total back to zero.
+  page.on('dialog', (dialog) => dialog.accept());
+  await workshopRow.locator('[data-pa-remove-item]').click();
+  await expect(workshops.locator('[data-pa-item-row]')).toHaveCount(0);
+  await expect.poll(async () => amountOf(await form.locator('[data-pa-grand-total]').innerText())).toBe(0);
+
+  await form.locator('[data-pa-cancel-form]').first().click();
+  await tracker.persist('proposal-workshop-only-pricing');
+  assertNoTransportErrors(tracker);
+});
