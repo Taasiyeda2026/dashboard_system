@@ -2,11 +2,8 @@ const AUTHORITIES_TAB_KEY = 'authorities';
 const SCHOOLS_TAB_KEY = 'schools';
 const SCHEDULE_TAB_KEY = 'instructors';
 const WORKSHOPS_TAB_KEY = 'workshops';
-const FIXED_PERIOD = 'summer_2026';
-const FIXED_FROM = '2026-06-15';
-const FIXED_TO = '2026-08-31';
 let operationsCleanupQueued = false;
-let enforcingRange = false;
+let operationsObserver = null;
 
 function getActiveOpsTab(root) {
   const active = root?.querySelector?.('.ds-ops-mgmt-tab.is-active[data-ops-tab]');
@@ -154,35 +151,11 @@ function resetHiddenSearch(root) {
   searchInput.dispatchEvent(new Event('input', { bubbles: true }));
 }
 
-function setFieldValue(element, value) {
-  if (!element || element.value === value) return false;
-  element.value = value;
-  element.dispatchEvent(new Event('change', { bubbles: true }));
-  return true;
-}
-
-function enforceFixedOperationsRange(root) {
-  if (!root || enforcingRange) return;
-  enforcingRange = true;
-
-  const periodSelect = root.querySelector('[data-ops-period]');
-  if (periodSelect) {
-    const hasSummerOption = Array.from(periodSelect.options || []).some((option) => option.value === FIXED_PERIOD);
-    if (hasSummerOption) setFieldValue(periodSelect, FIXED_PERIOD);
-  }
-
-  setFieldValue(root.querySelector('[data-ops-date="from"]'), FIXED_FROM);
-  setFieldValue(root.querySelector('[data-ops-date="to"]'), FIXED_TO);
-
-  setTimeout(() => { enforcingRange = false; }, 0);
-}
-
 function cleanOperationsPage() {
   const root = document.querySelector('.ds-ops-mgmt-screen');
   if (!root) return;
   ensureOperationsCleanupStyle();
   resetHiddenSearch(root);
-  enforceFixedOperationsRange(root);
   root.classList.toggle('ops-authorities-clean', isAuthoritiesView(root));
   root.classList.toggle('ops-schedule-clean', isScheduleView(root));
   root.classList.toggle('ops-hide-filter-panel', shouldHideFilters(root));
@@ -191,17 +164,40 @@ function cleanOperationsPage() {
 function scheduleOperationsCleanup() {
   if (operationsCleanupQueued) return;
   operationsCleanupQueued = true;
-  setTimeout(() => {
+  requestAnimationFrame(() => {
     operationsCleanupQueued = false;
     cleanOperationsPage();
-  }, 80);
+  });
+}
+
+function observeOperationsScreen() {
+  const app = document.getElementById('app');
+  if (!app || typeof MutationObserver !== 'function') return;
+  operationsObserver?.disconnect?.();
+  operationsObserver = new MutationObserver((mutations) => {
+    const needsCleanup = mutations.some((mutation) => Array.from(mutation.addedNodes || []).some((node) => (
+      node?.nodeType === 1
+      && (node.matches?.('.ds-ops-mgmt-screen, .ds-ops-mgmt-tab, .ds-ops-mgmt-filters')
+        || node.querySelector?.('.ds-ops-mgmt-screen, .ds-ops-mgmt-tab, .ds-ops-mgmt-filters'))
+    )));
+    if (needsCleanup) scheduleOperationsCleanup();
+  });
+  operationsObserver.observe(app, { childList: true, subtree: true });
 }
 
 if (typeof document !== 'undefined') {
   if (document.readyState === 'loading') {
-    document.addEventListener('DOMContentLoaded', scheduleOperationsCleanup, { once: true });
+    document.addEventListener('DOMContentLoaded', () => {
+      scheduleOperationsCleanup();
+      observeOperationsScreen();
+    }, { once: true });
   } else {
     scheduleOperationsCleanup();
+    observeOperationsScreen();
   }
-  new MutationObserver(scheduleOperationsCleanup).observe(document.documentElement, { childList: true, subtree: true, attributes: true, attributeFilter: ['class', 'aria-pressed', 'value'] });
+  document.addEventListener('click', (event) => {
+    if (event.target?.closest?.('.ds-ops-mgmt-screen [data-ops-tab], .ds-ops-mgmt-screen [data-ops-training-tab]')) {
+      scheduleOperationsCleanup();
+    }
+  }, true);
 }
