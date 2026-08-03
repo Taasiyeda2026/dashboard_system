@@ -113,6 +113,7 @@ export function augmentNextYearPricingRows(rows = []) {
     if (isEligibleWorkshopRow(row)) {
       const name = text(row.activity_name);
       if (name) workshopNames.add(name);
+      const isBundleParent = WORKSHOP_PARENT_KEYS.has(text(row.pricing_key));
       aliases.push({
         ...row,
         proposal_group: NEXT_YEAR_WORKSHOPS_GROUP,
@@ -123,7 +124,9 @@ export function augmentNextYearPricingRows(rows = []) {
         meetings_count: null,
         hours_count: null,
         unit_duration: text(row.unit_duration) || '45 דקות',
-        hourly_price: row.hourly_price != null ? row.hourly_price : row.unit_price
+        hourly_price: row.hourly_price != null ? row.hourly_price : row.unit_price,
+        proposal_display_mode: isBundleParent ? 'bundle_parent' : 'single',
+        is_bundle_parent: isBundleParent
       });
     }
   });
