@@ -95,6 +95,7 @@ export function ensureFeature(name) {
         import('./proposal-workflow-completion.js?v=20260802-v1'),
         import('./proposal-workflow-ui-integrity.js?v=20260802-v1'),
         import('./proposal-summer-list-runtime.js?v=20260802-v1'),
+        import('./proposal-client-home-load-more-fix.js?v=20260803-v1'),
         import('./proposal-next-year-approved-fix.js?v=20260802-v1'),
         import('./proposal-approval-runtime.js'),
         import('./client-contact-persistence-hotfix.js'),
