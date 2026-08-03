@@ -46,6 +46,8 @@ export async function loadCourseMeetingState() {
 // meeting date that has already passed and was not marked cancelled; a cancellation
 // marker always removes a date from the count regardless of the other two signals.
 export function meetingsCompletedForCourse(course, meetingState = {}) {
+  // When meeting-state load failed, do not invent a completed count from partial data.
+  if (!meetingState?.loaded) return null;
   const courseId = idOf(course);
   const approved = meetingState.approvedDates?.get(courseId) || new Set();
   const cancelled = meetingState.cancelledDates?.get(courseId) || new Set();

@@ -44,6 +44,10 @@ import {
 import { readActivitiesGapFromQuery, syncActivitiesGapQuery, isActivitiesGapQueryValue } from './shared/route-query.js';
 import { rowMatchesActivityGapFilter } from './shared/activity-gap-filter.js';
 import { activityMatchesInstructorStatusFilter } from './shared/activity-instructor-filter.js';
+import {
+  applyMissingScheduleFilter,
+  MISSING_SCHEDULE_FILTER_STORAGE_KEY
+} from './course-scheduling-distance-build.js';
 import { renderActivitiesViewSwitcher, bindActivitiesViewSwitcher } from './shared/view-switcher.js';
 import { resolveSchool2027Contact } from './shared/school-2027-contact.js';
 import { ACTIVE_ACTIVITY_SEASON, ACTIVITY_SEASON_OPTIONS, ACTIVITY_SEASON_REGULAR, ACTIVITY_SEASON_SUMMER_2026, ACTIVITY_SEASON_SCHOOL_2027, getActivityPeriodKey, normalizeActivitySeason, normalizeGlobalActivityPeriod, globalActivityPeriodLabel } from './shared/summer-activity.js';
@@ -1050,13 +1054,19 @@ function applyActivitiesGapFilter(rows, gapFilter) {
   return rows.filter((row) => rowMatchesActivityGapFilter(row, gap));
 }
 
+function clearMissingScheduleFilter(state = {}) {
+  state.activitiesMissingScheduleOnly = false;
+  try { sessionStorage.removeItem(MISSING_SCHEDULE_FILTER_STORAGE_KEY); } catch { /* storage may be unavailable */ }
+}
+
 function applyActivitiesLocalFilters(rows, state, settings) {
   const filters = ensureActivityListFilters(state, ACTIVITIES_SCOPE);
   const familyRows = applyClientFilters(rows, state, settings);
   const gapRows = applyActivitiesGapFilter(familyRows, state.activitiesGapFilter);
   prepareRowsForSearch(gapRows, ACTIVITY_SEARCH_FIELDS);
   const assignmentRows = gapRows.filter((row) => activityMatchesInstructorStatusFilter(row, state.allActivitiesStatusFilter));
-  return applyLocalFilters(assignmentRows, filters, { filterFields: ACTIVITY_FILTER_FIELDS }).sort(compareActivityDefaultOrder);
+  const scheduleRows = applyMissingScheduleFilter(assignmentRows, state);
+  return applyLocalFilters(scheduleRows, filters, { filterFields: ACTIVITY_FILTER_FIELDS }).sort(compareActivityDefaultOrder);
 }
 
 function buildActivitiesDiagnostics(allRows, state, finalRows) {
@@ -1871,7 +1881,10 @@ export const activitiesScreen = {
     const navLoadingChip = isNavLoading ? '<span class="ds-inline-loading-dot is-inline-loading" aria-hidden="true"></span>' : '';
     const viewSwitcher = renderActivitiesViewSwitcher(state, 'activities');
     const instructorStatusFilter = activityInstructorStatusFilterHtml(state);
-    const mainToolbar = `<div class="ds-activities-main-toolbar" dir="rtl" data-local-filters="${ACTIVITIES_SCOPE}">
+    const missingScheduleBanner = state.activitiesMissingScheduleOnly
+      ? `<p class="scheduling-warning" role="status" data-missing-schedule-filter-banner>מוצגים רק קורסים פתוחים של תשפ״ז שחסר להם תאריך התחלה או שעת התחלה. <button type="button" class="ds-link-btn" data-clear-missing-schedule-filter>הצג את כל הפעילויות</button></p>`
+      : '';
+    const mainToolbar = `${missingScheduleBanner}<div class="ds-activities-main-toolbar" dir="rtl" data-local-filters="${ACTIVITIES_SCOPE}">
       <input type="search" class="ds-input ds-input--sm ds-activities-search-sm" data-filter-search="${ACTIVITIES_SCOPE}" value="${escapeHtml(listFilters.q || '')}" placeholder="חיפוש" aria-label="חיפוש פעילויות" title="חיפוש לפי מזהה, פעילות, מדריך, רשות, בית ספר, סטטוס, תאריך או סמל מוסד" />
       ${instructorStatusFilter}
       ${bareFilters}
@@ -2652,6 +2665,14 @@ export const activitiesScreen = {
       state.allActivitiesStatusFilter = normalizeAllActivitiesStatusFilter(ev.currentTarget?.value);
       ensureActivityListFilters(state, ACTIVITIES_SCOPE).visibleCount = 200;
       rerenderLocal();
+    });
+    root.querySelector('[data-clear-missing-schedule-filter]')?.addEventListener('click', () => {
+      clearMissingScheduleFilter(state);
+      ensureActivityListFilters(state, ACTIVITIES_SCOPE).visibleCount = 200;
+      rerenderLocal();
+    });
+    root.querySelector(`[data-filter-clear="${ACTIVITIES_SCOPE}"]`)?.addEventListener('click', () => {
+      if (state.activitiesMissingScheduleOnly) clearMissingScheduleFilter(state);
     });
     root.querySelector(`[data-list-show-more="${ACTIVITIES_SCOPE}"]`)?.addEventListener('click', (ev) => {
       const next = Number(ev.currentTarget?.dataset?.nextCount || 200);

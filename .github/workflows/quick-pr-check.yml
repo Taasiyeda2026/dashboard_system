@@ -35,3 +35,9 @@ jobs:
 
       - name: PWA cache guardrails check
         run: npm run check:pwa
+
+      - name: Focused course scheduling tests
+        run: |
+          # shallow PR checkouts omit origin/main; the cache-version guard compares against it
+          git fetch --no-tags --depth=1 origin main
+          node --test tests/course-scheduling-*.test.mjs

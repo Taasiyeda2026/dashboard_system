@@ -5,6 +5,7 @@ import { readFile } from 'node:fs/promises';
 const permissionMigrationUrl = new URL('../supabase/migrations/20260730120000_course_scheduling_2027_permission_rls_fix.sql', import.meta.url);
 const executionMigrationUrl = new URL('../supabase/migrations/20260730160000_course_scheduling_execution_hardening.sql', import.meta.url);
 const revalidationMigrationUrl = new URL('../supabase/migrations/20260730170000_course_scheduling_post_edit_revalidation.sql', import.meta.url);
+const travelCacheReadinessMigrationUrl = new URL('../supabase/migrations/20260803193000_course_scheduling_travel_cache_production_readiness.sql', import.meta.url);
 
 test('RPC rejects NULL and unauthorized roles while retaining authorized roles and safety checks', async () => {
   const sql = await readFile(permissionMigrationUrl, 'utf8');
@@ -125,4 +126,27 @@ test('manual revalidation is restricted to active admin and operation manager us
   assert.match(sql, /auth_user_id = auth\.uid\(\) and is_active is true/);
   assert.match(sql, /revoke all on function public\.revalidate_course_instructor_assignment\(text\) from public/);
   assert.match(sql, /grant execute on function public\.revalidate_course_instructor_assignment\(text\) to authenticated/);
+});
+
+test('travel-cache readiness migration grants service_role and meeting-table select privileges', async () => {
+  const sql = await readFile(travelCacheReadinessMigrationUrl, 'utf8');
+  assert.match(sql, /grant execute on function public\.scheduling_authority_school_locations\(\) to service_role/i);
+  assert.match(sql, /grant select, insert, update, delete on public\.scheduling_travel_cache to service_role/i);
+  assert.match(sql, /grant select on public\.course_meeting_cancellations to authenticated/i);
+  assert.match(sql, /grant select on public\.course_meeting_instructor_history to authenticated/i);
+  assert.match(sql, /origin_instructor_emp_id/);
+  assert.doesNotMatch(sql, /using\s*\(\s*true\s*\)/i);
+});
+
+test('travel-cache readiness migration exposes a narrow instructor-location RPC to service_role only', async () => {
+  const sql = await readFile(travelCacheReadinessMigrationUrl, 'utf8');
+  assert.match(sql, /scheduling_active_instructor_locations/);
+  assert.match(sql, /grant execute on function public\.scheduling_active_instructor_locations\(\) to service_role/i);
+  assert.match(sql, /revoke all on function public\.scheduling_active_instructor_locations\(\) from authenticated/i);
+  assert.match(sql, /revoke all on function public\.scheduling_active_instructor_locations\(\) from anon/i);
+  assert.doesNotMatch(sql, /grant select on public\.contacts_instructors/i);
+  assert.match(sql, /returns table\(emp_id bigint, address text\)/i);
+  // Active instructors without an address are returned with null so skips can be counted.
+  assert.match(sql, /nullif\(btrim\(coalesce\(ci\.address, ''\)\), ''\) as address/i);
+  assert.doesNotMatch(sql, /and nullif\(btrim\(coalesce\(ci\.address, ''\)\), ''\) is not null/);
 });

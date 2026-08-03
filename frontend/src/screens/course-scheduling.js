@@ -10,6 +10,16 @@ import { loadCourseMeetingState, meetingsCompletedForCourse, courseMeetingStage 
 import { isCourseSchedulingInterfaceEligible } from './shared/activity-scheduling-eligibility.js';
 import { formatDateHe, formatTimeRangeShort } from './shared/format-date.js';
 import { weekRange, shiftWeek, buildWeekRows, weekCalendarHtml, fixedScheduleHtml, weekNavLabel } from './course-scheduling-calendar.js';
+import {
+  collectMissingScheduleCourseIds,
+  courseSchedulingDataReadiness,
+  enrichActivitiesWithSchoolAddresses,
+  formatDistanceBuildProgress,
+  MISSING_SCHEDULE_FILTER_STORAGE_KEY,
+  pickNearestActionableCourse,
+  runDistanceBuildLoop,
+  translateSchedulingRouteError
+} from './course-scheduling-distance-build.js';
 
 const text = (value) => String(value ?? '').trim();
 const emp = (candidate) => text(candidate?.instructor?.emp_id);
@@ -22,12 +32,15 @@ const idOf = (row) => text(row.row_id || row.RowID || row.id);
 const today = () => new Date().toISOString().slice(0, 10);
 export const PENDING_ACTIVITY_STORAGE_KEY = 'dashboard:pending-course-activity-id';
 
-function compactMeetings(activity) {
+// Wrap only date/time/numeric ranges in bdi — never a full Hebrew sentence.
+export function compactMeetingsHtml(activity) {
   const meetings = activityMeetings(activity);
   if (!meetings.length) return '—';
   const dates = meetings.map((meeting) => text(meeting.date)).sort();
   const weekdays = [...new Set(dates.map((date) => new Intl.DateTimeFormat('he-IL', { weekday: 'long' }).format(new Date(`${date}T12:00:00`))))];
-  return `${meetings.length} מפגשים · ${formatDateHe(dates[0])}–${formatDateHe(dates.at(-1))} · ${weekdays.join(', ')} · ${formatTimeRangeShort(meetings[0].start_time || activity.start_time, meetings[0].end_time || activity.end_time)}`;
+  const dateRange = `<bdi dir="ltr">${escapeHtml(formatDateHe(dates[0]))}–${escapeHtml(formatDateHe(dates.at(-1)))}</bdi>`;
+  const timeRange = `<bdi dir="ltr">${escapeHtml(formatTimeRangeShort(meetings[0].start_time || activity.start_time, meetings[0].end_time || activity.end_time))}</bdi>`;
+  return `${meetings.length} מפגשים · ${dateRange} · ${escapeHtml(weekdays.join(', '))} · ${timeRange}`;
 }
 
 function optionHtml(candidate, recommended, courseId) {
@@ -85,7 +98,8 @@ function courseRowModel(course, resultByCourseId, meetingState) {
   const isAssigned = !!text(course.emp_id);
   const hasDraft = !isAssigned && !!text(course.draft_emp_id);
   const meetingsCompleted = isAssigned ? meetingsCompletedForCourse(course, meetingState) : 0;
-  const stage = isAssigned ? courseMeetingStage(meetingsCompleted) : null;
+  const meetingStateLoaded = meetingState?.loaded !== false;
+  const stage = isAssigned && meetingsCompleted != null ? courseMeetingStage(meetingsCompleted) : null;
   const result = resultByCourseId.get(id) || null;
   let bucket = null;
   let statusLabel = 'ממתין לשיבוץ';
@@ -108,7 +122,7 @@ function courseRowModel(course, resultByCourseId, meetingState) {
     statusLabel = 'הצעה מוכנה';
   }
 
-  return { course, id, result, isAssigned, hasDraft, meetingsCompleted, stage, bucket, statusLabel };
+  return { course, id, result, isAssigned, hasDraft, meetingsCompleted, meetingStateLoaded, stage, bucket, statusLabel };
 }
 
 const LIST_GROUPS = [
@@ -126,7 +140,7 @@ function courseListCardHtml(row, selectedId) {
   return `<button type="button" class="course-list__card${row.id === selectedId ? ' is-selected' : ''}" data-course-card="${escapeHtml(row.id)}">
     <strong>${escapeHtml(c.activity_name || '—')}</strong>
     <span class="course-list__card-meta">${escapeHtml(c.school || '—')} · ${escapeHtml(c.authority || '—')}</span>
-    <span class="course-list__card-meta"><bdi dir="ltr">${escapeHtml(formatDateHe(c.start_date))} · ${escapeHtml(compactMeetings(c))}</bdi></span>
+    <span class="course-list__card-meta"><bdi dir="ltr">${escapeHtml(formatDateHe(c.start_date))}</bdi> · ${compactMeetingsHtml(c)}</span>
     <span class="ds-status-chip">${escapeHtml(row.statusLabel)}</span>
   </button>`;
 }
@@ -137,7 +151,10 @@ function courseListHtml(rowModels, selectedId) {
   return groups.map((group) => `<section class="course-list__group"><h3>${escapeHtml(group.label)} <span class="ds-badge">${group.rows.length}</span></h3>${group.rows.map((row) => courseListCardHtml(row, selectedId)).join('')}</section>`).join('');
 }
 
-function meetingStageMessage(stage, meetingsCompleted) {
+function meetingStageMessage(stage, meetingsCompleted, meetingStateLoaded = true) {
+  if (!meetingStateLoaded || meetingsCompleted == null) {
+    return 'מידע על מפגשים שהתקיימו או בוטלו לא נטען במלואו — לא מוצג סטטוס מפגשים חלקי.';
+  }
   if (stage === 'locked') return `התקיימו ${meetingsCompleted} מפגשים. הקורס פעיל ונעול — החלפת מדריך אפשרית רק כפעולה חריגה עקב צורך תפעולי.`;
   if (stage === 'one_completed') return 'התקיים כבר מפגש אחד. ניתן להציע החלפה רק עם שיפור משמעותי, אזהרה ואישור מפורש.';
   return 'הקורס טרם התחיל. ניתן להציע שינוי רגיל של המדריך.';
@@ -156,7 +173,7 @@ function exceptionalPickerHtml(result, canEdit) {
 
 function pendingPanelHtml(result, canEdit) {
   const c = result.course;
-  const header = `<header class="course-panel__header"><h2>${escapeHtml(c.activity_name || '—')}</h2><p>${escapeHtml(c.school || '—')} · ${escapeHtml(c.authority || '—')}</p><p><bdi dir="ltr">${escapeHtml(compactMeetings(c))}</bdi></p></header>`;
+  const header = `<header class="course-panel__header"><h2>${escapeHtml(c.activity_name || '—')}</h2><p>${escapeHtml(c.school || '—')} · ${escapeHtml(c.authority || '—')}</p><p>${compactMeetingsHtml(c)}</p></header>`;
   const actions = result.recommended
     ? `<div class="course-panel__actions"><button class="ds-btn ds-btn--primary" data-assign-course>שבץ</button>${canEdit ? '<button class="ds-btn" data-save-draft>שמור בטיוטה</button>' : ''}<button class="ds-btn" data-reject-course-suggestion>דחה הצעה</button><button class="ds-btn ds-btn--ghost" data-open-missing-course>פתח פעילות</button></div>`
     : `<div class="course-panel__actions">${result.status === 'חסר מידע' || result.status === 'נדרש גיוס' ? '<button class="ds-btn" data-open-missing-course>פתח פעילות</button>' : ''}</div>`;
@@ -199,7 +216,7 @@ function lockedPanelHtml(row, canEdit, instructors, meetingRows, replacements) {
   return `<header class="course-panel__header"><h2>${escapeHtml(c.activity_name || '—')}</h2><p>${escapeHtml(c.school || '—')} · ${escapeHtml(c.authority || '—')}</p></header>
     <p class="ds-status-chip">${escapeHtml(row.statusLabel)}</p>
     <p>מדריך/ה: <b>${escapeHtml(c.instructor_name || c.emp_id)}</b></p>
-    <p>${escapeHtml(meetingStageMessage(row.stage, row.meetingsCompleted))}</p>
+    <p>${escapeHtml(meetingStageMessage(row.stage, row.meetingsCompleted, row.meetingStateLoaded))}</p>
     ${meetingInstructorHistoryHtml(meetingRows, replacements)}
     <div class="course-panel__actions"><button class="ds-btn ds-btn--ghost" data-open-missing-course>פתח פעילות</button></div>
     ${replaceForm}`;
@@ -220,13 +237,31 @@ function clickActivityRowWhenReady(rowId, attempts = 40) {
 
 export const courseSchedulingScreen = {
   async load({ api }) {
-    const [activities, contacts, scheduling, meetingState] = await Promise.all([
+    const [activities, contacts, scheduling, meetingState, schoolLocations] = await Promise.all([
       api.activities({ activity_period: 'school_2027', activity_type: 'all', include_inactive: true }),
       api.instructorContacts(),
       loadInstructorSchedulingData(),
-      loadCourseMeetingState()
+      loadCourseMeetingState(),
+      supabase.rpc('scheduling_authority_school_locations')
     ]);
-    return { activities: activities?.rows || [], instructors: contacts?.rows || [], scheduling, meetingState };
+    const schoolRows = schoolLocations?.data || [];
+    const schoolAddressLookupError = schoolLocations?.error
+      ? translateSchedulingRouteError('school_address_lookup_failed')
+      : '';
+    const enriched = enrichActivitiesWithSchoolAddresses(activities?.rows || [], schoolRows);
+    return {
+      activities: enriched.activities,
+      instructors: contacts?.rows || [],
+      scheduling,
+      meetingState,
+      schoolLocations: schoolRows,
+      schoolAddressStats: {
+        uniqueSchoolCount: enriched.uniqueSchoolCount,
+        duplicateSchoolCount: enriched.duplicateSchoolCount,
+        missingCount: enriched.missingCount
+      },
+      schoolAddressLookupError
+    };
   },
 
   render(data, { state }) {
@@ -236,27 +271,55 @@ export const courseSchedulingScreen = {
     const canEdit = true;
 
     const results = state.courseSchedulingResults || [];
+    const hasCalculated = !!state.courseSchedulingCalculatedAt;
     const counts = courseSchedulingCounts(results);
     const resultByCourseId = new Map(results.map((result) => [idOf(result.course), result]));
     const interfaceCourses = (data.activities || []).filter(isCourseSchedulingInterfaceEligible);
     const rowModels = interfaceCourses.map((course) => courseRowModel(course, resultByCourseId, data.meetingState));
     const selectedId = state.courseSchedulingSelectedId || '';
+    const readiness = courseSchedulingDataReadiness(data.activities || []);
+    const meetingStateError = data.meetingState && data.meetingState.loaded === false
+      ? (data.meetingState.error || 'unknown')
+      : '';
+    const schoolAddressLookupError = data.schoolAddressLookupError || '';
 
     const anchor = state.courseSchedulingWeek || (interfaceCourses.find((c) => idOf(c) === selectedId)?.start_date) || today();
     const { start, end, days } = weekRange(anchor);
     const view = state.courseSchedulingCalendarView === 'fixed' ? 'fixed' : 'week';
     const weekRows = buildWeekRows(interfaceCourses, days);
     const calendarBody = view === 'fixed' ? fixedScheduleHtml(interfaceCourses, selectedId) : weekCalendarHtml({ days, rows: weekRows, selectedCourseId: selectedId });
+    const distanceBusy = !!state.courseSchedulingDistanceLoading;
+    const summaryHtml = hasCalculated
+      ? `<span>חישוב אחרון: ${escapeHtml(state.courseSchedulingCalculatedAt)}</span><b>${results.length} קורסים נבדקו</b><b>${counts.ready} הצעה מוכנה</b><b>${counts.treatment} נדרש טיפול</b><b>${counts.recruit} נדרש גיוס</b><b>${counts.missing} חסר מידע</b>`
+      : `<span>חישוב אחרון: טרם בוצע</span><b>${interfaceCourses.length} קורסים בממשק</b><b>טרם בוצע חישוב</b>`;
+    const readinessHtml = readiness.missingScheduleCount
+      ? `<p class="scheduling-warning course-scheduling__readiness" role="alert">${readiness.openCount} קורסים פתוחים · ${readiness.readyForInterface} מוכנים להצגה בממשק · ${readiness.missingStartDate} חסרים תאריך התחלה · ${readiness.missingStartTime} חסרים שעת התחלה. <button type="button" class="ds-link-btn" data-open-missing-schedule-courses>פתח את רשימת הפעילויות החסרות</button></p>`
+      : '';
+    const meetingWarningHtml = meetingStateError
+      ? '<p class="scheduling-warning" role="alert">אזהרה: מידע על מפגשים שהתקיימו או בוטלו לא נטען. נתוני מפגשים חלקיים אינם מוצגים כמלאים.</p>'
+      : '';
+    const schoolAddressWarningHtml = schoolAddressLookupError
+      ? `<p class="scheduling-warning" role="alert">${escapeHtml(schoolAddressLookupError)}</p>`
+      : '';
+    const distanceSummaryClass = state.courseSchedulingDistanceError
+      ? 'scheduling-warning'
+      : (distanceBusy ? 'course-scheduling__distance-progress' : 'ds-muted');
 
     return dsScreenStack(`<style>
-      .course-scheduling-layout{display:grid;grid-template-columns:300px 1fr;gap:14px;align-items:start}
+      .course-scheduling-layout{display:grid;grid-template-columns:300px 1fr;gap:12px;align-items:start}
       @media (max-width:1100px){.course-scheduling-layout{grid-template-columns:1fr}}
-      .course-list__group{margin-bottom:14px}
+      .course-scheduling .ds-page-header{margin-bottom:8px;padding-bottom:6px}
+      .course-scheduling .ds-page-header__subtitle{margin:2px 0 0;font-size:.85rem}
+      .course-scheduling__summary{display:flex;gap:10px;flex-wrap:wrap;align-items:center;margin:0 0 8px;font-size:.9rem}
+      .course-scheduling__summary b{font-weight:600}
+      .course-scheduling__readiness,.course-scheduling [data-course-scheduling-error],.course-scheduling [data-course-scheduling-distance-summary].scheduling-warning{margin:0 0 8px;padding:8px 10px;border:1px solid #f0c2c2;border-radius:8px;background:#fff5f5;color:#8a1f1f}
+      .course-scheduling__distance-progress{margin:0 0 8px;color:#334155}
+      .course-list__group{margin-bottom:12px}
       .course-list__group h3{font-size:.85rem;color:#536278;margin:0 0 6px}
-      .course-list__card{display:grid;gap:3px;width:100%;text-align:right;padding:9px 10px;margin-bottom:6px;border:1px solid #e1e8f1;border-radius:8px;background:#fff;cursor:pointer}
+      .course-list__card{display:grid;gap:3px;width:100%;text-align:right;padding:8px 10px;margin-bottom:6px;border:1px solid #e1e8f1;border-radius:8px;background:#fff;cursor:pointer}
       .course-list__card.is-selected{border-color:#3d6bd6;box-shadow:0 0 0 1px #3d6bd6 inset}
       .course-list__card-meta{font-size:.78rem;color:#69778b}
-      .course-calendar__toolbar{display:flex;gap:8px;align-items:center;flex-wrap:wrap;margin-bottom:10px}
+      .course-calendar__toolbar{display:flex;gap:8px;align-items:center;flex-wrap:wrap;margin-bottom:8px}
       .course-calendar__scroll{overflow:auto;max-height:70vh}
       .course-calendar__table{border-collapse:collapse;width:100%;min-width:760px}
       .course-calendar__table th,.course-calendar__table td{border:1px solid #e6ecf3;padding:6px;vertical-align:top;font-size:.8rem}
@@ -275,10 +338,14 @@ export const courseSchedulingScreen = {
       .course-scheduling__exceptional select,.course-scheduling__replace select,.course-scheduling__replace input,.course-scheduling__replace textarea{margin:6px 0;width:100%}
       .course-calendar__fixed-row--draft{opacity:.8}
     </style>
-    <header class="ds-page-header"><div><h1 class="ds-page-header__title">שיבוצים</h1><p class="ds-page-header__subtitle">קורסים פתוחים של 2027 שעדיין לא שובצו</p></div><div style="display:flex;gap:8px;flex-wrap:wrap"><button class="ds-btn" data-update-distances ${state.courseSchedulingDistanceLoading ? 'disabled' : ''}>${state.courseSchedulingDistanceLoading ? 'מעדכן מרחקים…' : 'עדכון מרחקים בין בתי ספר'}</button><button class="ds-btn ds-btn--primary" data-calculate-course-schedule ${state.courseSchedulingLoading ? 'disabled' : ''}>${state.courseSchedulingLoading ? 'מחשב…' : 'חשב הצעות שיבוץ מחדש'}</button></div></header>
-    <section class="course-scheduling__summary"><span>חישוב אחרון: ${escapeHtml(state.courseSchedulingCalculatedAt || 'טרם בוצע')}</span><b>${results.length} קורסים נבדקו</b><b>${counts.ready} הצעה מוכנה</b><b>${counts.treatment} נדרש טיפול</b><b>${counts.recruit} נדרש גיוס</b><b>${counts.missing} חסר מידע</b></section>
-    <p data-course-scheduling-error class="scheduling-warning">${escapeHtml(state.courseSchedulingError || '')}</p>
-    <p data-course-scheduling-distance-summary class="ds-muted">${escapeHtml(state.courseSchedulingDistanceSummary || '')}</p>
+    <div class="course-scheduling">
+    <header class="ds-page-header"><div><h1 class="ds-page-header__title">שיבוצים</h1><p class="ds-page-header__subtitle">קורסים פתוחים של 2027 שעדיין לא שובצו</p></div><div style="display:flex;gap:8px;flex-wrap:wrap"><button class="ds-btn" data-update-distances ${distanceBusy ? 'disabled' : ''}>${distanceBusy ? 'בונה מאגר מרחקים…' : 'בניית ועדכון מאגר מרחקים'}</button>${distanceBusy ? '<button type="button" class="ds-btn" data-stop-distance-build>עצור</button>' : ''}<button class="ds-btn ds-btn--primary" data-calculate-course-schedule ${state.courseSchedulingLoading ? 'disabled' : ''}>${state.courseSchedulingLoading ? 'מחשב…' : 'חשב הצעות שיבוץ מחדש'}</button></div></header>
+    <section class="course-scheduling__summary">${summaryHtml}</section>
+    ${readinessHtml}
+    ${meetingWarningHtml}
+    ${schoolAddressWarningHtml}
+    <p data-course-scheduling-error class="scheduling-warning"${state.courseSchedulingError ? '' : ' hidden'}>${escapeHtml(state.courseSchedulingError || '')}</p>
+    <p data-course-scheduling-distance-summary class="${distanceSummaryClass}"${state.courseSchedulingDistanceSummary ? '' : ' hidden'}>${escapeHtml(state.courseSchedulingDistanceSummary || '')}</p>
     <div class="course-scheduling-layout">
       <aside class="course-list">${courseListHtml(rowModels, selectedId)}</aside>
       <section class="course-calendar">
@@ -295,6 +362,7 @@ export const courseSchedulingScreen = {
         </div>
         ${calendarBody}
       </section>
+    </div>
     </div>`);
   },
 
@@ -303,6 +371,24 @@ export const courseSchedulingScreen = {
     const resultByCourseId = new Map((state.courseSchedulingResults || []).map((result) => [idOf(result.course), result]));
     const interfaceCourses = (data.activities || []).filter(isCourseSchedulingInterfaceEligible);
     const courseById = new Map(interfaceCourses.map((course) => [idOf(course), course]));
+    const rowModels = interfaceCourses.map((course) => courseRowModel(course, resultByCourseId, data.meetingState));
+
+    if (!state.courseSchedulingSelectedId) {
+      const nearest = pickNearestActionableCourse(rowModels, today());
+      if (nearest) {
+        state.courseSchedulingSelectedId = nearest.id;
+        state.courseSchedulingWeek = nearest.course.start_date || state.courseSchedulingWeek;
+        rerender();
+        return;
+      }
+    } else if (!state.courseSchedulingWeek) {
+      const selected = courseById.get(state.courseSchedulingSelectedId);
+      if (selected?.start_date) {
+        state.courseSchedulingWeek = selected.start_date;
+        rerender();
+        return;
+      }
+    }
 
     const openMissingCourse = (activityId) => {
       try { sessionStorage.setItem(PENDING_ACTIVITY_STORAGE_KEY, activityId); } catch { /* storage may be unavailable */ }
@@ -314,6 +400,26 @@ export const courseSchedulingScreen = {
       state.listFilters.activities = { ...(state.listFilters.activities || {}), q: activityId, appliedQ: activityId, visibleCount: 10000 };
       document.dispatchEvent(new CustomEvent('app:navigate', { detail: { route: 'activities' } }));
       clickActivityRowWhenReady(activityId);
+    };
+
+    const openMissingScheduleCourses = () => {
+      const missingIds = collectMissingScheduleCourseIds(data.activities || []);
+      try {
+        sessionStorage.setItem(MISSING_SCHEDULE_FILTER_STORAGE_KEY, JSON.stringify(missingIds));
+      } catch { /* storage may be unavailable */ }
+      state.activitiesMissingScheduleOnly = true;
+      state.activityPeriodTab = 'school_2027';
+      state.activitiesInnerTab = 'year_all';
+      state.activitiesMonthYm = '';
+      state.allActivitiesStatusFilter = 'all';
+      state.listFilters ||= {};
+      state.listFilters.activities = {
+        ...(state.listFilters.activities || {}),
+        q: '',
+        appliedQ: '',
+        visibleCount: 10000
+      };
+      document.dispatchEvent(new CustomEvent('app:navigate', { detail: { route: 'activities' } }));
     };
 
     const openCoursePanel = async (courseId) => {
@@ -487,6 +593,7 @@ export const courseSchedulingScreen = {
 
     root.querySelectorAll('[data-course-card]').forEach((button) => button.addEventListener('click', () => openCoursePanel(button.dataset.courseCard)));
     root.querySelectorAll('[data-calendar-course]').forEach((button) => button.addEventListener('click', () => openCoursePanel(button.dataset.calendarCourse)));
+    root.querySelector('[data-open-missing-schedule-courses]')?.addEventListener('click', openMissingScheduleCourses);
 
     root.querySelectorAll('[data-week-nav]').forEach((button) => button.addEventListener('click', () => {
       const anchor = state.courseSchedulingWeek || today();
@@ -509,44 +616,84 @@ export const courseSchedulingScreen = {
       state.courseSchedulingError = '';
       rerender();
       try {
+        if (data.schoolAddressLookupError) {
+          throw new Error(data.schoolAddressLookupError);
+        }
+        const enriched = enrichActivitiesWithSchoolAddresses(data.activities || [], data.schoolLocations || []);
+        data.activities = enriched.activities;
+        data.schoolAddressStats = {
+          uniqueSchoolCount: enriched.uniqueSchoolCount,
+          duplicateSchoolCount: enriched.duplicateSchoolCount,
+          missingCount: enriched.missingCount
+        };
         const scheduling = data.scheduling || {};
         const profiles = Object.fromEntries((scheduling.profiles || []).map((row) => [text(row.emp_id), row]));
         const input = {
-          activities: data.activities,
+          activities: enriched.activities,
           instructors: data.instructors,
           profiles,
           rules: group(scheduling.rules || [], 'emp_id'),
           exceptions: group(scheduling.exceptions || [], 'emp_id')
         };
         const preliminary = preliminaryCourseCandidates(input);
-        const routed = await calculateCandidateTravel(preliminary, data.activities);
+        const routed = await calculateCandidateTravel(preliminary, enriched.activities);
         state.courseSchedulingResults = calculateCourseSchedule({ ...input, travel: routed.travel, routeMatrix: routed.routeMatrix });
-        if (routed.unavailableReason === 'google_key_not_configured') state.courseSchedulingError = 'מפתח Google Maps אינו מוגדר. מרחקים שלא דורשים אימות מעבר סומנו כלא מחושבים; מעבר בין בתי ספר לא יאושר ללא אימות.';
-        else if (routed.unavailableReason) state.courseSchedulingError = 'לא ניתן היה לחשב חלק מהמסלולים. מעברים בין בתי ספר שלא אומתו נפסלו באופן בטוח.';
+        if (routed.unavailableReason === 'google_key_not_configured') {
+          state.courseSchedulingError = translateSchedulingRouteError('google_key_not_configured');
+        } else if (routed.unavailableReason) {
+          state.courseSchedulingError = translateSchedulingRouteError(routed.unavailableReason, 'לא ניתן היה לחשב חלק מהמסלולים. מעברים בין בתי ספר שלא אומתו נפסלו באופן בטוח.');
+        } else if (enriched.missingCount) {
+          state.courseSchedulingError = `${enriched.missingCount} פעילויות ללא כתובת בית ספר קנונית — מעברים שלא ניתן לאמת נפסלו בבטחה. שם בית הספר אינו משמש ככתובת.`;
+        }
         state.courseSchedulingCalculatedAt = new Intl.DateTimeFormat('he-IL', { dateStyle: 'short', timeStyle: 'short' }).format(new Date());
       } catch (error) {
-        state.courseSchedulingError = `החישוב נכשל: ${error.message}`;
+        state.courseSchedulingError = `החישוב נכשל: ${translateSchedulingRouteError(error.message, error.message)}`;
       } finally {
         state.courseSchedulingLoading = false;
         rerender();
       }
     });
 
+    root.querySelector('[data-stop-distance-build]')?.addEventListener('click', () => {
+      state.courseSchedulingDistanceStopRequested = true;
+      state.courseSchedulingDistanceSummary = formatDistanceBuildProgress(state.courseSchedulingDistanceStats || {}, { stopped: true, done: false });
+      rerender();
+    });
+
     root.querySelector('[data-update-distances]')?.addEventListener('click', async () => {
       if (state.courseSchedulingDistanceLoading) return;
       state.courseSchedulingDistanceLoading = true;
-      state.courseSchedulingDistanceSummary = '';
+      state.courseSchedulingDistanceStopRequested = false;
+      state.courseSchedulingDistanceError = false;
+      state.courseSchedulingDistanceStats = null;
+      state.courseSchedulingDistanceSummary = 'מתחיל בניית מאגר מרחקים…';
       rerender();
       try {
-        const { data: summary, error } = await supabase.functions.invoke('scheduling-route', { body: { batch: true } });
-        if (error) throw new Error(error.message);
-        if (summary?.reason === 'google_key_not_configured') state.courseSchedulingDistanceSummary = 'מפתח Google Maps אינו מוגדר — לא ניתן לעדכן מרחקים כרגע.';
-        else if (!summary?.calculated) state.courseSchedulingDistanceSummary = `העדכון נכשל: ${summary?.reason || 'שגיאה לא ידועה'}.`;
-        else state.courseSchedulingDistanceSummary = `נוספו ${summary.new_count} מסלולים · חודשו ${summary.renewed_count} · כבר היו מעודכנים ${summary.already_valid_count} · ${summary.missing_address_count} בתי ספר ללא כתובת · ${summary.failed_count} מסלולים לא חושבו${summary.capped ? ' (הריצו שוב להשלמת השאר)' : ''}.`;
+        const result = await runDistanceBuildLoop({
+          invoke: (body) => supabase.functions.invoke('scheduling-route', { body }),
+          scope: 'all',
+          limit: 25,
+          shouldStop: () => !!state.courseSchedulingDistanceStopRequested,
+          onProgress: async ({ stats, done, stopped }) => {
+            state.courseSchedulingDistanceStats = stats;
+            state.courseSchedulingDistanceSummary = formatDistanceBuildProgress(stats, { done, stopped });
+            state.courseSchedulingDistanceError = (Number(stats?.failed_count) || 0) > 0;
+            rerender();
+          }
+        });
+        state.courseSchedulingDistanceStats = result.stats;
+        state.courseSchedulingDistanceSummary = formatDistanceBuildProgress(result.stats, {
+          done: result.done,
+          stopped: result.stopped
+        });
+        // Any failed pairs — including a completed build — must surface as a clear warning.
+        state.courseSchedulingDistanceError = (Number(result.stats?.failed_count) || 0) > 0;
       } catch (error) {
-        state.courseSchedulingDistanceSummary = `עדכון המרחקים נכשל: ${error.message}`;
+        state.courseSchedulingDistanceError = true;
+        state.courseSchedulingDistanceSummary = translateSchedulingRouteError(error.code || error.message, error.message);
       } finally {
         state.courseSchedulingDistanceLoading = false;
+        state.courseSchedulingDistanceStopRequested = false;
         rerender();
       }
     });
