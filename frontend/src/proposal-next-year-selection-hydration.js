@@ -229,10 +229,8 @@ function installRuntime(scope = globalThis) {
     const select = event.target?.closest?.('[data-pa-pricing-select]');
     const row = select?.closest?.('[data-pa-item-row]');
     if (!row || !INTERNAL_GROUPS.has(rowGroup(row))) return;
-    queueMicrotask(() => {
-      if (row.isConnected) hydrateNextYearPricingSelection(row, cachedPricingRows, { notify: true });
-    });
-  });
+    hydrateNextYearPricingSelection(row, cachedPricingRows, { notify: true });
+  }, true);
 }
 
 export function installNextYearSelectionHydration(targetApi = api, scope = globalThis) {
