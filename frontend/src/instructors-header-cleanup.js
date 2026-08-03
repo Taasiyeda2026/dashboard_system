@@ -1,4 +1,5 @@
 import './activity-2027-contact-list-runtime.js?v=20260802-v1';
+import './instructor-course-scheduling-usability.js?v=20260803-v1';
 
 function instructorsAppRoot(root = document) {
   if (!root) return null;
