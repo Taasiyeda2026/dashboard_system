@@ -1,6 +1,11 @@
 import './activity-2027-contact-list-runtime.js?v=20260802-v1';
 
-if (typeof window !== 'undefined' && window.sessionStorage && window.localStorage) {
+const isRealBrowser = typeof window !== 'undefined'
+  && window === globalThis
+  && window.sessionStorage
+  && window.localStorage;
+
+if (isRealBrowser) {
   import('./instructor-course-scheduling-usability.js?v=20260803-v1').catch((error) => {
     console.error('[course-scheduling-usability] load failed', error);
   });
