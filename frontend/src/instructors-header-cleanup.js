@@ -1,5 +1,3 @@
-import './activity-2027-contact-list-runtime.js?v=20260802-v1';
-
 const SCHEDULING_SNAPSHOT_KEY = 'dashboard:course-scheduling-calculation-v1';
 const SCHEDULING_ROUTE = 'course-scheduling';
 const schedulingText = (value) => String(value ?? '').trim();
@@ -272,6 +270,9 @@ const isRealBrowser = typeof window !== 'undefined'
   && typeof localStorage !== 'undefined';
 
 if (isRealBrowser) {
+  import('./activity-2027-contact-list-runtime.js?v=20260802-v1').catch((error) => {
+    console.error('[activity-2027-contact-list] load failed', error);
+  });
   document.addEventListener('app:navigate', (event) => {
     const detail = event?.detail || {};
     if (detail.route !== SCHEDULING_ROUTE || detail.courseSchedulingUsabilityReady) return;
