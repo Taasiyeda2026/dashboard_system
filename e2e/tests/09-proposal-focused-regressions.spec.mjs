@@ -261,6 +261,7 @@ test('a workshop-only next-year proposal prices, totals and previews correctly w
   await select.selectOption(workshopOption);
 
   const selectedLabel = await select.locator('option:checked').innerText();
+  const selectedName = selectedLabel.split('—')[0].trim();
   const labelPrice = amountOf(selectedLabel);
   expect(labelPrice).toBeGreaterThan(0);
 
@@ -275,11 +276,17 @@ test('a workshop-only next-year proposal prices, totals and previews correctly w
     .toBe(labelPrice);
   await shot(page, 'proposal-workshop-only-editor.png', form);
 
-  // 4) Document preview below the editor shows the same price.
+  // 4) Document preview below the editor shows the selected workshop and its exact total.
+  // Do not parse the entire A4 document as one number because it also contains
+  // dates, headings and other numeric text. Assert against the billed row itself.
   const preview = form.locator('[data-pa-live-preview]');
   await expect(preview).toBeVisible();
-  await expect.poll(async () => amountOf(await preview.innerText())).toBeGreaterThanOrEqual(labelPrice);
-  await expect(preview).toContainText(String(labelPrice).replace(/\B(?=(\d{3})+(?!\d))/g, ','));
+  const previewTable = preview.locator('.pa-next-year-workshop-table');
+  await expect(previewTable).toBeVisible();
+  const previewRow = previewTable.locator('tbody tr').filter({ hasText: selectedName }).first();
+  await expect(previewRow).toBeVisible();
+  await expect.poll(async () => amountOf(await previewRow.locator('td').last().innerText())).toBe(labelPrice);
+  await expect(previewRow).toContainText(String(labelPrice).replace(/\B(?=(\d{3})+(?!\d))/g, ','));
   await shot(page, 'proposal-workshop-only-preview.png', preview);
 
   // Quantity change updates every total immediately, still no course present.
