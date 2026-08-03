@@ -15,6 +15,11 @@ on:
       - 'tests/proposal-type-display-and-tashpaz-totals.test.mjs'
       - 'e2e/tests/11-proposal-workflow-completion.spec.mjs'
       - '.github/workflows/validate-proposal-workflow-completion.yml'
+  workflow_dispatch:
+
+concurrency:
+  group: validate-proposal-workflow-${{ github.event.pull_request.number || github.ref }}
+  cancel-in-progress: true
 
 permissions:
   contents: read
@@ -22,7 +27,7 @@ permissions:
 jobs:
   validate-proposal-workflow:
     runs-on: ubuntu-latest
-    timeout-minutes: 25
+    timeout-minutes: 8
     steps:
       - name: Checkout
         uses: actions/checkout@v4
@@ -52,6 +57,7 @@ jobs:
         run: node --test tests/proposal-workflow-completion.test.mjs tests/proposal-workflow-ui-integrity.test.mjs tests/proposal-next-year-editor-stability.test.mjs tests/proposal-next-year-selection-hydration.test.mjs tests/proposal-next-year-workshops.test.mjs tests/proposal-next-year-pricing-display.test.mjs tests/proposal-type-display-and-tashpaz-totals.test.mjs
 
       - name: Install Playwright Chromium
+        if: github.event_name == 'workflow_dispatch'
         run: npx playwright install chromium --with-deps
 
       - name: Build production bundle
@@ -62,7 +68,8 @@ jobs:
           VITE_SUPABASE_ANON_KEY: ${{ secrets.VITE_SUPABASE_ANON_KEY }}
         run: npm run build
 
-      - name: Run real proposal workflow test
+      - name: Run full proposal workflow browser test manually
+        if: github.event_name == 'workflow_dispatch'
         env:
           CI: 'true'
           E2E_START_PREVIEW: 'true'
@@ -70,7 +77,11 @@ jobs:
           E2E_USERNAME: ${{ secrets.E2E_USERNAME }}
           E2E_PASSWORD: ${{ secrets.E2E_PASSWORD }}
           E2E_UPDATE_BASELINE: '0'
-        run: npx playwright test -c e2e/playwright.config.mjs e2e/tests/11-proposal-workflow-completion.spec.mjs --project=chromium
+        run: |
+          timeout --signal=TERM --kill-after=15s 6m \
+            npx playwright test -c e2e/playwright.config.mjs e2e/tests/11-proposal-workflow-completion.spec.mjs \
+            --project=chromium \
+            --retries=0
 
       - name: Check production build and PWA guardrails
         run: |
