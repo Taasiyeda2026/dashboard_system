@@ -1,6 +1,8 @@
 const COURSE_GROUP = 'next_year_courses';
 const WORKSHOP_GROUP = 'next_year_workshops';
+const INSTALL_KEY = Symbol.for('taasiyeda.nextYearMixedProposalTables.v3');
 let refreshTimer = null;
+let refreshRunning = false;
 
 function text(value) {
   return String(value == null ? '' : value).replace(/\s+/g, ' ').trim();
@@ -28,21 +30,29 @@ function field(row, name) {
 function rowGroup(row) {
   return text(
     row?.closest?.('[data-pa-items-group]')?.dataset?.paItemsGroup
+    || row?.dataset?.paRowGroup
     || row?.querySelector?.('[name="proposal_group"]')?.value
-  );
+  ).toLowerCase();
+}
+
+function selectedOptionText(row) {
+  return text(row?.querySelector?.('[data-pa-pricing-select]')?.selectedOptions?.[0]?.textContent);
 }
 
 function rowKind(row) {
-  const group = rowGroup(row).toLowerCase();
+  const itemType = field(row, 'item_type').toLowerCase();
+  const optionText = selectedOptionText(row).toLowerCase();
+  const group = rowGroup(row);
+
+  if (/סדנ|workshop/.test(itemType) || /(?:—|-|\s)סדנ/.test(optionText)) return 'workshop';
+  if (/קורס|תוכנית|תכנית|course/.test(itemType)) return 'course';
   if (group === WORKSHOP_GROUP || /workshop|סדנ/.test(group)) return 'workshop';
-  if (group === COURSE_GROUP || /course|קורס|next_year/.test(group)) return 'course';
-  const itemType = text(field(row, 'item_type')).toLowerCase();
-  return /סדנ|workshop/.test(itemType) ? 'workshop' : 'course';
+  if (group === COURSE_GROUP || /course|קורס/.test(group)) return 'course';
+  return 'course';
 }
 
 function selectedLabel(row) {
-  const option = row?.querySelector?.('[data-pa-pricing-select]')?.selectedOptions?.[0];
-  return text(option?.textContent).split('—')[0].trim();
+  return selectedOptionText(row).split('—')[0].trim();
 }
 
 function rowData(row) {
@@ -109,12 +119,7 @@ function workshopTableHtml(rows) {
 
 function documentTarget(documentRoot) {
   const previous = documentRoot.querySelector('.pa-next-year-approved-tables');
-  if (previous) {
-    const parent = previous.parentElement;
-    previous.remove();
-    return parent || documentRoot;
-  }
-
+  if (previous?.parentElement) return previous.parentElement;
   const existing = documentRoot.querySelector(
     '.pa-next-year-course-table, .pa-next-year-workshop-table, .pa-item-details-table, .pa-cost-table-block'
   );
@@ -122,13 +127,17 @@ function documentTarget(documentRoot) {
 }
 
 function clearNativeNextYearTables(target) {
-  target.querySelectorAll(
-    '.pa-next-year-course-heading, .pa-next-year-workshop-heading, '
-    + '.pa-next-year-course-table, .pa-next-year-workshop-table, .pa-next-year-combined-total'
-  ).forEach((node) => node.remove());
-
-  const generic = target.querySelector('.pa-item-details-table, table.pa-activities-table');
-  if (generic && !generic.classList.contains('pa-gefen-approval-table')) generic.remove();
+  const selectors = [
+    '.pa-next-year-course-heading',
+    '.pa-next-year-workshop-heading',
+    '.pa-next-year-course-table',
+    '.pa-next-year-workshop-table',
+    '.pa-next-year-combined-total',
+    '.pa-item-details-table:not(.pa-gefen-approval-table)'
+  ].join(', ');
+  target.querySelectorAll(selectors).forEach((node) => {
+    if (!node.closest('.pa-next-year-approved-tables')) node.remove();
+  });
 }
 
 function normalizeDocument(documentRoot) {
@@ -137,52 +146,72 @@ function normalizeDocument(documentRoot) {
   if (!form) return;
 
   const { courses, workshops } = selectedRows(form);
-  if (!courses.length && !workshops.length) return;
+  const previous = documentRoot.querySelector('.pa-next-year-approved-tables');
+
+  if (!courses.length || !workshops.length) {
+    previous?.remove();
+    delete documentRoot.dataset.approvedNextYearSignature;
+    return;
+  }
 
   const signature = JSON.stringify([courses, workshops]);
-  if (documentRoot.dataset.approvedNextYearSignature === signature
-    && documentRoot.querySelector('.pa-next-year-approved-tables')) return;
+  if (documentRoot.dataset.approvedNextYearSignature === signature && previous) return;
 
   const target = documentTarget(documentRoot);
   if (!target) return;
+  previous?.remove();
   clearNativeNextYearTables(target);
 
   const total = [...courses, ...workshops].reduce((sum, row) => sum + row.total, 0);
   const wrapper = documentRoot.ownerDocument.createElement('div');
   wrapper.className = 'pa-next-year-approved-tables';
-  wrapper.innerHTML = `${courses.length ? courseTableHtml(courses) : ''}`
-    + `${workshops.length ? workshopTableHtml(workshops) : ''}`
-    + `${courses.length && workshops.length
-      ? `<table class="pa-cost-table pa-activities-table pa-next-year-combined-total"><tbody><tr><td><strong>סה״כ לתשלום</strong></td><td><strong>${money(total)}</strong></td></tr></tbody></table>`
-      : ''}`;
+  wrapper.innerHTML = courseTableHtml(courses)
+    + workshopTableHtml(workshops)
+    + `<table class="pa-cost-table pa-activities-table pa-next-year-combined-total"><tbody><tr><td><strong>סה״כ לתשלום</strong></td><td><strong>${money(total)}</strong></td></tr></tbody></table>`;
   target.appendChild(wrapper);
   documentRoot.dataset.approvedNextYearSignature = signature;
 }
 
-function refreshDocuments(delay = 80) {
+function runRefresh() {
+  if (refreshRunning) return;
+  refreshRunning = true;
+  const run = () => {
+    try {
+      document.querySelectorAll('.proposal-document').forEach(normalizeDocument);
+    } finally {
+      refreshRunning = false;
+    }
+  };
+  if (typeof requestAnimationFrame === 'function') requestAnimationFrame(run);
+  else run();
+}
+
+function refreshDocuments(delay = 120) {
   clearTimeout(refreshTimer);
-  refreshTimer = setTimeout(() => {
-    document.querySelectorAll('.proposal-document').forEach(normalizeDocument);
-  }, delay);
+  refreshTimer = setTimeout(runRefresh, delay);
 }
 
 function isRelevantEditorEvent(target) {
-  return Boolean(target?.matches?.(
+  if (!target?.closest?.('[data-pa-form]') || target.closest('.proposal-document')) return false;
+  return Boolean(target.matches?.(
     '[data-pa-pricing-select], [data-pa-item-qty], [data-pa-item-price], '
     + '[data-pa-discount-value], [data-pa-discount-type], [name="activity_type_group"]'
   ));
 }
 
 function install() {
+  if (document[INSTALL_KEY]) return;
+  Object.defineProperty(document, INSTALL_KEY, { value: true, configurable: false });
+
   document.addEventListener('change', (event) => {
-    if (isRelevantEditorEvent(event.target)) refreshDocuments();
+    if (isRelevantEditorEvent(event.target)) refreshDocuments(140);
   }, true);
   document.addEventListener('input', (event) => {
-    if (isRelevantEditorEvent(event.target)) refreshDocuments(120);
+    if (isRelevantEditorEvent(event.target)) refreshDocuments(180);
   }, true);
   document.addEventListener('click', (event) => {
     if (event.target?.closest?.('[data-pa-add-item], [data-pa-remove-item], [data-pa-preview], [data-pa-print]')) {
-      refreshDocuments(120);
+      refreshDocuments(180);
     }
   }, true);
 
@@ -193,14 +222,11 @@ function install() {
         if (node.nodeType !== 1) return false;
         return node.matches?.('.proposal-document') || Boolean(node.querySelector?.('.proposal-document'));
       }));
-      if (addedDocument) {
-        refreshDocuments(0);
-        setTimeout(() => refreshDocuments(0), 180);
-      }
+      if (addedDocument) refreshDocuments(80);
     }).observe(root, { childList: true, subtree: true });
   }
 
-  refreshDocuments(0);
+  refreshDocuments(80);
 }
 
 if (typeof document !== 'undefined') install();
