@@ -51,19 +51,23 @@ async function assertNoOverlap(container) {
 
 async function firstPositivePriceOption(select) {
   return select.locator('option:not([value=""])').evaluateAll((options) => {
-    const option = options.find((item) => !item.value.startsWith('__') && /₪\s*[1-9]/.test(item.textContent || ''));
-    return option?.value || '';
+    const option = options.find((item) => !item.value.startsWith('__') && /₪\s*[1-9]|[1-9][\d,]*(?:\.\d+)?\s*₪/.test(item.textContent || ''));
+    const label = option?.textContent || '';
+    const priceMatch = label.match(/([\d,]+(?:\.\d+)?)\s*₪/);
+    return {
+      value: option?.value || '',
+      price: Number((priceMatch?.[1] || '').replace(/,/g, '')) || 0
+    };
   });
 }
 
-async function expectSelectedLabelMatchesInternalPrice(row) {
-  const select = row.locator('[data-pa-pricing-select]');
-  await expect(select).toBeVisible();
-  const selectedLabel = await select.evaluate((element) => element.selectedOptions?.[0]?.textContent || '');
-  const labelPrice = amountOf(selectedLabel);
-  const internalPrice = amountOf(await row.locator('[data-pa-item-price]').inputValue());
-  expect(labelPrice).toBeGreaterThan(0);
-  expect(internalPrice).toBe(labelPrice);
+async function expectInternalPrice(row, expectedPrice) {
+  expect(expectedPrice).toBeGreaterThan(0);
+  await expect.poll(async () => {
+    const price = row.locator('[data-pa-item-price]');
+    if (!(await price.count())) return 0;
+    return amountOf(await price.inputValue());
+  }).toBe(expectedPrice);
 }
 
 test('real proposal regression path remains stable without saving data or PDFs', async ({ page, tracker }) => {
@@ -115,8 +119,7 @@ test('real proposal regression path remains stable without saving data or PDFs',
   });
   expect(premiumOption, 'the 13,500 ₪ next-year course must be available').not.toBe('');
   await courseSelect.selectOption(premiumOption);
-  await expect(courseRow.locator('[data-pa-item-price]')).toHaveValue('13500');
-  await expectSelectedLabelMatchesInternalPrice(courseRow);
+  await expectInternalPrice(courseRow, 13500);
   await expect(courseRow.locator('[data-pa-item-total-display]')).toContainText('13,500');
   await expect(courses.locator('[data-pa-group-total="next_year_courses"]')).toContainText('13,500');
   await expect(form.locator('[data-pa-grand-total]')).toContainText('13,500');
@@ -131,18 +134,18 @@ test('real proposal regression path remains stable without saving data or PDFs',
   await expect(courses.locator('[data-pa-item-row]')).toHaveCount(2);
   const secondCourse = courses.locator('[data-pa-item-row]').nth(1);
   const secondCourseOption = await firstPositivePriceOption(secondCourse.locator('[data-pa-pricing-select]'));
-  expect(secondCourseOption).not.toBe('');
-  await secondCourse.locator('[data-pa-pricing-select]').selectOption(secondCourseOption);
-  await expectSelectedLabelMatchesInternalPrice(secondCourse);
+  expect(secondCourseOption.value).not.toBe('');
+  await secondCourse.locator('[data-pa-pricing-select]').selectOption(secondCourseOption.value);
+  await expectInternalPrice(secondCourse, secondCourseOption.price);
 
   await workshops.locator('[data-pa-add-item]').click();
   const workshopRow = workshops.locator('[data-pa-item-row]').first();
   await expect(workshopRow).toBeVisible();
   await expect(workshops.locator('[data-pa-item-row]')).toHaveCount(1);
   const workshopOption = await firstPositivePriceOption(workshopRow.locator('[data-pa-pricing-select]'));
-  expect(workshopOption, 'a positive-price workshop must be available').not.toBe('');
-  await workshopRow.locator('[data-pa-pricing-select]').selectOption(workshopOption);
-  await expectSelectedLabelMatchesInternalPrice(workshopRow);
+  expect(workshopOption.value, 'a positive-price workshop must be available').not.toBe('');
+  await workshopRow.locator('[data-pa-pricing-select]').selectOption(workshopOption.value);
+  await expectInternalPrice(workshopRow, workshopOption.price);
   await expect.poll(async () => amountOf(await workshops.locator('[data-pa-group-total="next_year_workshops"]').innerText())).toBeGreaterThan(0);
   await expect.poll(async () => amountOf(await form.locator('[data-pa-grand-total]').innerText())).toBeGreaterThan(27000);
 
@@ -150,9 +153,9 @@ test('real proposal regression path remains stable without saving data or PDFs',
   await expect(workshops.locator('[data-pa-item-row]')).toHaveCount(2);
   const secondWorkshop = workshops.locator('[data-pa-item-row]').nth(1);
   const secondWorkshopOption = await firstPositivePriceOption(secondWorkshop.locator('[data-pa-pricing-select]'));
-  expect(secondWorkshopOption).not.toBe('');
-  await secondWorkshop.locator('[data-pa-pricing-select]').selectOption(secondWorkshopOption);
-  await expectSelectedLabelMatchesInternalPrice(secondWorkshop);
+  expect(secondWorkshopOption.value).not.toBe('');
+  await secondWorkshop.locator('[data-pa-pricing-select]').selectOption(secondWorkshopOption.value);
+  await expectInternalPrice(secondWorkshop, secondWorkshopOption.price);
   await shot(page, 'proposal-next-year-two-areas.png', form.locator('[data-pa-items-host]'));
 
   page.on('dialog', (dialog) => dialog.accept());
