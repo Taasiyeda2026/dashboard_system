@@ -14,7 +14,8 @@ const TARGET_PROPOSAL_TYPES = new Set([
 
 function cleanFilenamePart(value = '') {
   return String(value || '')
-    .replace(/[\\/:*?"<>|]/g, '_')
+    .replace(/["“”״]/g, '')
+    .replace(/[\\/:*?<>|]/g, ' ')
     .replace(/[\u0000-\u001f\u007f]/g, '')
     .replace(/\s+/g, ' ')
     .trim();
@@ -26,12 +27,8 @@ export function isSchoolProposalPdfFilenameType(value = '') {
 
 export function proposalSchoolPdfTitle({ typeKey = '', semelMosad = '', schoolName = '' } = {}) {
   if (!isSchoolProposalPdfFilenameType(typeKey)) return '';
-  const parts = [
-    'הצעת מחיר',
-    cleanFilenamePart(semelMosad),
-    cleanFilenamePart(schoolName)
-  ].filter(Boolean);
-  return parts.join(' - ');
+  const recipient = cleanFilenamePart(schoolName) || cleanFilenamePart(semelMosad);
+  return recipient ? `הצעת מחיר ${recipient}` : 'הצעת מחיר';
 }
 
 function visibleProposalForms(root = document) {
