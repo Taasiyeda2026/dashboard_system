@@ -35,3 +35,6 @@ jobs:
 
       - name: PWA cache guardrails check
         run: npm run check:pwa
+
+      - name: Focused course scheduling tests
+        run: node --test tests/course-scheduling-*.test.mjs

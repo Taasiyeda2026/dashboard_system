@@ -6,6 +6,7 @@ import {
   buildSchoolSchoolPairs,
   dedupeAuthoritySchools,
   enrichActivitiesWithSchoolAddresses,
+  isLookupTravelCacheValid,
   resolveCanonicalSchoolAddress,
   resolveSinglePairFromTravelCache,
   simulateConsecutiveTravelBuilds,
@@ -294,4 +295,109 @@ test('preliminary candidates receive enriched school_address before travel calcu
   });
   assert.ok(preliminary.length);
   assert.equal(preliminary[0].course.school_address, 'רחוב הנביאים 12, חיפה');
+});
+
+test('valid single-pair cache hit returns cached=true without a Google call', () => {
+  const origin = 'כתובת מדריך';
+  const destination = 'כתובת בית ספר';
+  const now = Date.now();
+  const rows = [{
+    origin_key: origin.toLowerCase(),
+    destination_key: destination.toLowerCase(),
+    origin_address: origin,
+    destination_address: destination,
+    distance_km: 3.5,
+    duration_minutes: 9,
+    expires_at: new Date(now + 86400000).toISOString()
+  }];
+  const hit = resolveSinglePairFromTravelCache(rows, origin, destination, now);
+  assert.equal(hit.cached, true);
+  assert.equal(hit.mapsCall, false);
+  assert.equal(hit.distance_km, 3.5);
+  assert.equal(isLookupTravelCacheValid(rows[0], origin, destination, now), true);
+});
+
+test('expired cache row is not treated as valid even when distance/duration are numeric', () => {
+  const origin = 'א';
+  const destination = 'ב';
+  const now = Date.now();
+  const expired = {
+    origin_key: 'א',
+    destination_key: 'ב',
+    origin_address: origin,
+    destination_address: destination,
+    distance_km: 4,
+    duration_minutes: 10,
+    expires_at: new Date(now - 1000).toISOString()
+  };
+  assert.equal(isLookupTravelCacheValid(expired, origin, destination, now), false);
+  const resolved = resolveSinglePairFromTravelCache([expired], origin, destination, now);
+  assert.equal(resolved.cached, false);
+  assert.equal(resolved.mapsCall, true);
+  assert.equal(resolved.renewed, true);
+});
+
+test('invalid distance or duration forces a single-pair recompute', () => {
+  const now = Date.now();
+  const badDistance = {
+    origin_key: 'א',
+    destination_key: 'ב',
+    origin_address: 'א',
+    destination_address: 'ב',
+    distance_km: 'not-a-number',
+    duration_minutes: 10,
+    expires_at: new Date(now + 86400000).toISOString()
+  };
+  const badDuration = {
+    origin_key: 'א',
+    destination_key: 'ב',
+    origin_address: 'א',
+    destination_address: 'ב',
+    distance_km: 2,
+    duration_minutes: null,
+    expires_at: new Date(now + 86400000).toISOString()
+  };
+  assert.equal(isLookupTravelCacheValid(badDistance, 'א', 'ב', now), false);
+  assert.equal(isLookupTravelCacheValid(badDuration, 'א', 'ב', now), false);
+  assert.equal(resolveSinglePairFromTravelCache([badDistance], 'א', 'ב', now).mapsCall, true);
+  assert.equal(resolveSinglePairFromTravelCache([badDuration], 'א', 'ב', now).mapsCall, true);
+});
+
+test('same-address pair never calls Google and is cached on the second lookup after persist', () => {
+  const address = 'אותה כתובת';
+  const now = Date.now();
+  const first = resolveSinglePairFromTravelCache([], address, address, now);
+  assert.equal(first.mapsCall, false);
+  assert.equal(first.cached, false);
+  assert.equal(first.distance_km, 0);
+  assert.equal(first.duration_minutes, 0);
+  assert.equal(first.provider, 'same_school');
+
+  const persisted = [{
+    origin_key: address.toLowerCase(),
+    destination_key: address.toLowerCase(),
+    origin_address: address,
+    destination_address: address,
+    distance_km: 0,
+    duration_minutes: 0,
+    expires_at: new Date(now + 86400000).toISOString()
+  }];
+  const second = resolveSinglePairFromTravelCache(persisted, address, address, now);
+  assert.equal(second.cached, true);
+  assert.equal(second.mapsCall, false);
+  assert.equal(second.distance_km, 0);
+});
+
+test('edge function single-pair path validates expiry before returning cached=true', async () => {
+  const ts = await readFile(edgeFunctionUrl, 'utf8');
+  assert.match(ts, /function isLookupCacheValid/);
+  assert.match(ts, /if \(isLookupCacheValid\(cached, origin, destination\)\)/);
+  assert.match(ts, /renewed: hadPrevious/);
+  assert.match(ts, /provider: 'same_school'/);
+  const serveTail = ts.split("const origin = text(payload.origin);")[1] || '';
+  assert.doesNotMatch(serveTail, /if \(cached\) return jsonResponse\(\{ calculated: true, cached: true, \.\.\.cached \}\)/);
+  const validReturn = serveTail.indexOf('isLookupCacheValid(cached, origin, destination)');
+  const googleCall = serveTail.indexOf('computeRoute(origin, destination, key)');
+  const sameSchool = serveTail.indexOf("provider: 'same_school'");
+  assert.ok(validReturn > -1 && sameSchool > validReturn && googleCall > sameSchool);
 });

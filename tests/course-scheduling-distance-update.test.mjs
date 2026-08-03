@@ -7,6 +7,8 @@ import {
   buildSchoolSchoolPairs,
   classifyTravelCachePair,
   dedupeAuthoritySchools,
+  dedupeDistanceBuildFailures,
+  formatDistanceBuildProgress,
   schoolEntityKey,
   shouldRenewCacheForAddressChange,
   shouldSkipValidCacheEntry,
@@ -336,4 +338,101 @@ test('batch endpoint still requires the admin/operation_manager role before buil
   const roleCheckIndex = ts.indexOf("['admin', 'operation_manager'].includes");
   const buildDispatchIndex = ts.indexOf('runBuildCache(db, key, payload)');
   assert.ok(roleCheckIndex > -1 && buildDispatchIndex > roleCheckIndex, 'role check must happen before build mode can run');
+});
+
+test('merge keeps a stable skipped_instructors_missing_address_count across batches', () => {
+  let stats = emptyDistanceBuildStats();
+  stats = mergeDistanceBuildStats(stats, {
+    total_count: 10,
+    processed_count: 5,
+    inserted_count: 5,
+    renewed_count: 0,
+    already_valid_count: 0,
+    skipped_count: 8,
+    skipped_instructors_missing_address_count: 1,
+    failed_count: 0,
+    remaining_count: 5,
+    failures: [{ entity_type: 'instructor', entity_id: 'instructor:1525', reason: 'missing_address' }]
+  });
+  stats = mergeDistanceBuildStats(stats, {
+    total_count: 10,
+    processed_count: 5,
+    inserted_count: 5,
+    renewed_count: 0,
+    already_valid_count: 0,
+    skipped_count: 8,
+    skipped_instructors_missing_address_count: 1,
+    failed_count: 1,
+    remaining_count: 0,
+    failures: [{ entity_type: 'instructor', entity_id: 'instructor:1525', reason: 'missing_address' }]
+  });
+  assert.equal(stats.skipped_instructors_missing_address_count, 1);
+  assert.equal(stats.skipped_count, 8);
+  assert.equal(stats.failures.length, 1);
+  assert.equal(stats.failures[0].entity_id, 'instructor:1525');
+});
+
+test('failure dedupe collapses duplicate instructor missing_address alerts', () => {
+  const failures = dedupeDistanceBuildFailures([
+    { entity_type: 'instructor', entity_id: 'instructor:1525', reason: 'missing_address' },
+    { entity_type: 'instructor', entity_id: 'instructor:1525', reason: 'missing_address' },
+    { entity_type: 'school_school', entity_id: 'a->b', reason: 'route_not_found' }
+  ]);
+  assert.equal(failures.length, 2);
+  assert.equal(failures.filter((row) => row.entity_id === 'instructor:1525').length, 1);
+});
+
+test('distance build progress texts cover success, failures, and stopped states', () => {
+  const success = formatDistanceBuildProgress({
+    total_count: 10,
+    processed_count: 10,
+    inserted_count: 8,
+    renewed_count: 1,
+    already_valid_count: 1,
+    skipped_count: 3,
+    skipped_instructors_missing_address_count: 1,
+    failed_count: 0,
+    remaining_count: 0,
+    failures: []
+  }, { done: true });
+  assert.match(success, /הושלמה בהצלחה/);
+  assert.match(success, /מדריכים פעילים ללא כתובת: 1/);
+  assert.match(success, /דולגו מסיבות אחרות: 2/);
+  assert.doesNotMatch(success, /דולגו: /);
+
+  const withFailures = formatDistanceBuildProgress({
+    total_count: 10,
+    processed_count: 10,
+    inserted_count: 7,
+    renewed_count: 0,
+    already_valid_count: 0,
+    skipped_count: 1,
+    skipped_instructors_missing_address_count: 1,
+    failed_count: 2,
+    remaining_count: 0,
+    failures: [{ entity_type: 'instructor', entity_id: 'instructor:1525', reason: 'missing_address' }]
+  }, { done: true });
+  assert.match(withFailures, /הושלמה עם כשלים/);
+  assert.match(withFailures, /instructor:1525/);
+  assert.doesNotMatch(withFailures, /full_name|mobile|phone|email|רחוב/);
+
+  const stopped = formatDistanceBuildProgress({
+    total_count: 10,
+    processed_count: 4,
+    inserted_count: 2,
+    renewed_count: 0,
+    already_valid_count: 0,
+    skipped_count: 1,
+    skipped_instructors_missing_address_count: 1,
+    failed_count: 0,
+    remaining_count: 6,
+    failures: []
+  }, { stopped: true, done: false });
+  assert.match(stopped, /נעצרה וניתן להמשיך בהרצה נוספת/);
+});
+
+test('course scheduling screen treats completed builds with failures as an error/warning', async () => {
+  const source = await readFile(new URL('../frontend/src/screens/course-scheduling.js', import.meta.url), 'utf8');
+  assert.match(source, /courseSchedulingDistanceError = \(Number\(result\.stats\?\.failed_count\) \|\| 0\) > 0/);
+  assert.doesNotMatch(source, /failed_count \|\| 0\) > 0 && !result\.done/);
 });

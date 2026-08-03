@@ -677,6 +677,7 @@ export const courseSchedulingScreen = {
           onProgress: async ({ stats, done, stopped }) => {
             state.courseSchedulingDistanceStats = stats;
             state.courseSchedulingDistanceSummary = formatDistanceBuildProgress(stats, { done, stopped });
+            state.courseSchedulingDistanceError = (Number(stats?.failed_count) || 0) > 0;
             rerender();
           }
         });
@@ -685,7 +686,8 @@ export const courseSchedulingScreen = {
           done: result.done,
           stopped: result.stopped
         });
-        state.courseSchedulingDistanceError = (result.stats.failed_count || 0) > 0 && !result.done;
+        // Any failed pairs — including a completed build — must surface as a clear warning.
+        state.courseSchedulingDistanceError = (Number(result.stats?.failed_count) || 0) > 0;
       } catch (error) {
         state.courseSchedulingDistanceError = true;
         state.courseSchedulingDistanceSummary = translateSchedulingRouteError(error.code || error.message, error.message);

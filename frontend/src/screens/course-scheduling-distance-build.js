@@ -43,10 +43,23 @@ export function emptyDistanceBuildStats() {
     renewed_count: 0,
     already_valid_count: 0,
     skipped_count: 0,
+    skipped_instructors_missing_address_count: 0,
     failed_count: 0,
     remaining_count: 0,
     failures: []
   };
+}
+
+export function dedupeDistanceBuildFailures(failures = []) {
+  const seen = new Set();
+  const unique = [];
+  for (const row of failures || []) {
+    const key = `${text(row?.entity_type)}|${text(row?.entity_id)}|${text(row?.reason)}`;
+    if (!key || key === '||' || seen.has(key)) continue;
+    seen.add(key);
+    unique.push(row);
+  }
+  return unique;
 }
 
 export function mergeDistanceBuildStats(acc, batch) {
@@ -56,26 +69,43 @@ export function mergeDistanceBuildStats(acc, batch) {
   next.inserted_count += Number(batch?.inserted_count) || 0;
   next.renewed_count += Number(batch?.renewed_count) || 0;
   next.already_valid_count += Number(batch?.already_valid_count) || 0;
+  // Skip counters are absolute per build, not per-batch deltas — keep a stable max.
   next.skipped_count = Math.max(next.skipped_count, Number(batch?.skipped_count) || 0);
+  next.skipped_instructors_missing_address_count = Math.max(
+    next.skipped_instructors_missing_address_count,
+    Number(batch?.skipped_instructors_missing_address_count) || 0
+  );
   next.failed_count += Number(batch?.failed_count) || 0;
   next.remaining_count = Number(batch?.remaining_count) || 0;
   const failures = Array.isArray(batch?.failures) ? batch.failures : [];
-  next.failures = [...(next.failures || []), ...failures].slice(0, 100);
+  next.failures = dedupeDistanceBuildFailures([...(next.failures || []), ...failures]).slice(0, 100);
   return next;
 }
 
 export function formatDistanceBuildProgress(stats = {}, { stopped = false, done = false } = {}) {
+  const missingInstructors = Number(stats.skipped_instructors_missing_address_count) || 0;
+  const skippedTotal = Number(stats.skipped_count) || 0;
+  const skippedOther = Math.max(0, skippedTotal - missingInstructors);
+  const failedCount = Number(stats.failed_count) || 0;
   const lines = [
     `סך מסלולים: ${Number(stats.total_count) || 0}`,
     `עובדו: ${Number(stats.processed_count) || 0}`,
     `נוספו: ${Number(stats.inserted_count) || 0}`,
     `חודשו: ${Number(stats.renewed_count) || 0}`,
     `כבר היו תקפים: ${Number(stats.already_valid_count) || 0}`,
-    `דולגו: ${Number(stats.skipped_count) || 0}`,
-    `נכשלו: ${Number(stats.failed_count) || 0}`,
+    `מדריכים פעילים ללא כתובת: ${missingInstructors}`,
+    `דולגו מסיבות אחרות: ${skippedOther}`,
+    `נכשלו: ${failedCount}`,
     `נותרו: ${Number(stats.remaining_count) || 0}`
   ];
-  const prefix = stopped ? 'הבנייה נעצרה.' : done ? 'בניית מאגר המרחקים הושלמה.' : 'בונה את מאגר המרחקים…';
+  let prefix = 'בונה את מאגר המרחקים…';
+  if (stopped) {
+    prefix = 'בניית מאגר המרחקים נעצרה וניתן להמשיך בהרצה נוספת.';
+  } else if (done && failedCount > 0) {
+    prefix = 'בניית מאגר המרחקים הושלמה עם כשלים.';
+  } else if (done) {
+    prefix = 'בניית מאגר המרחקים הושלמה בהצלחה.';
+  }
   const failureNote = (stats.failures || []).length
     ? ` כשלים לדוגמה: ${(stats.failures || []).slice(0, 5).map((row) => `${row.entity_type} ${row.entity_id} (${translateSchedulingRouteError(row.reason, row.reason)})`).join(' · ')}.`
     : '';
@@ -275,6 +305,24 @@ export function travelCacheKey(originAddress, destinationAddress) {
   return `${normalizePlaceKey(originAddress)}|${normalizePlaceKey(destinationAddress)}`;
 }
 
+function isFiniteMetric(value) {
+  // Reject null/'' explicitly — Number(null) is 0 and must not count as a valid metric.
+  if (value == null || value === '') return false;
+  return Number.isFinite(Number(value));
+}
+
+export function isLookupTravelCacheValid(cached, originAddress, destinationAddress, now = Date.now()) {
+  if (!cached) return false;
+  const cachedOrigin = text(cached.origin_address);
+  const cachedDestination = text(cached.destination_address);
+  // Address fields are enforced only when present (legacy rows may omit them).
+  if (cachedOrigin && cachedOrigin !== text(originAddress)) return false;
+  if (cachedDestination && cachedDestination !== text(destinationAddress)) return false;
+  const expiresAt = new Date(String(cached.expires_at || '')).getTime();
+  if (!Number.isFinite(expiresAt) || expiresAt <= now) return false;
+  return isFiniteMetric(cached.distance_km) && isFiniteMetric(cached.duration_minutes);
+}
+
 // Pure single-pair cache resolver used by integration tests to prove the consumer
 // hits the same address keys produced by the distance-build repository.
 export function resolveSinglePairFromTravelCache(cacheRows = [], originAddress, destinationAddress, now = Date.now()) {
@@ -286,18 +334,39 @@ export function resolveSinglePairFromTravelCache(cacheRows = [], originAddress, 
   const cached = (cacheRows || []).find((row) => (
     normalizePlaceKey(row.origin_key || row.origin_address) === originKey
     && normalizePlaceKey(row.destination_key || row.destination_address) === destinationKey
-  ));
-  if (shouldSkipValidCacheEntry(cached, text(cached?.origin_address) || originAddress, text(cached?.destination_address) || destinationAddress, now)
-    || (cached && Number.isFinite(Number(cached.distance_km)) && Number.isFinite(Number(cached.duration_minutes)))) {
+  )) || null;
+
+  if (isLookupTravelCacheValid(cached, originAddress, destinationAddress, now)) {
     return {
       calculated: true,
       cached: true,
+      renewed: false,
       mapsCall: false,
       distance_km: Number(cached.distance_km),
       duration_minutes: Number(cached.duration_minutes)
     };
   }
-  return { calculated: false, reason: 'route_not_found', mapsCall: true };
+
+  // Same normalized address never calls Google — persist/renew a zero same_school row.
+  if (originKey === destinationKey) {
+    return {
+      calculated: true,
+      cached: false,
+      renewed: !!cached,
+      mapsCall: false,
+      distance_km: 0,
+      duration_minutes: 0,
+      provider: 'same_school'
+    };
+  }
+
+  return {
+    calculated: false,
+    cached: false,
+    reason: cached ? 'cache_expired_or_invalid' : 'route_not_found',
+    mapsCall: true,
+    renewed: !!cached
+  };
 }
 
 export function buildGoogleAddressQuery({ schoolName = '', address = '', authorityName = '' } = {}) {
@@ -396,7 +465,7 @@ export function shouldSkipValidCacheEntry(cached, originAddress, destinationAddr
   if (text(cached.destination_address) !== text(destinationAddress)) return false;
   const expiresAt = new Date(String(cached.expires_at || '')).getTime();
   if (!Number.isFinite(expiresAt) || expiresAt <= now) return false;
-  return Number.isFinite(Number(cached.distance_km)) && Number.isFinite(Number(cached.duration_minutes));
+  return isFiniteMetric(cached.distance_km) && isFiniteMetric(cached.duration_minutes);
 }
 
 export function shouldRenewCacheForAddressChange(cached, originAddress, destinationAddress) {

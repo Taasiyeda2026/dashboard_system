@@ -338,14 +338,36 @@ function addressesMatch(cached: Record<string, unknown> | null | undefined, pair
     && text(cached.destination_address) === pair.destination_address;
 }
 
+function isFiniteMetric(value: unknown) {
+  // Reject null/'' explicitly — Number(null) is 0 and must not count as a valid metric.
+  if (value == null || value === '') return false;
+  return Number.isFinite(Number(value));
+}
+
 function isCacheValid(cached: Record<string, unknown> | null | undefined, pair: TravelPair) {
   if (!cached) return false;
   if (!addressesMatch(cached, pair)) return false;
   const expiresAt = new Date(String(cached.expires_at || '')).getTime();
   if (!Number.isFinite(expiresAt) || expiresAt <= Date.now()) return false;
-  const distanceOk = Number.isFinite(Number(cached.distance_km));
-  const durationOk = Number.isFinite(Number(cached.duration_minutes));
-  return distanceOk && durationOk;
+  return isFiniteMetric(cached.distance_km) && isFiniteMetric(cached.duration_minutes);
+}
+
+// Single-pair lookup: only treat a row as a hit when it is unexpired, numeric, and
+// (when address fields are present) matches the requested origin/destination.
+function isLookupCacheValid(
+  cached: Record<string, unknown> | null | undefined,
+  origin: string,
+  destination: string,
+  now = Date.now()
+) {
+  if (!cached) return false;
+  const cachedOrigin = text(cached.origin_address);
+  const cachedDestination = text(cached.destination_address);
+  if (cachedOrigin && cachedOrigin !== origin) return false;
+  if (cachedDestination && cachedDestination !== destination) return false;
+  const expiresAt = new Date(String(cached.expires_at || '')).getTime();
+  if (!Number.isFinite(expiresAt) || expiresAt <= now) return false;
+  return isFiniteMetric(cached.distance_km) && isFiniteMetric(cached.duration_minutes);
 }
 
 async function findCachedByEntities(db: DbClient, pair: TravelPair) {
@@ -771,7 +793,44 @@ Deno.serve(async (req) => {
     .eq('destination_key', destinationKey)
     .maybeSingle();
   if (cacheReadError) return jsonResponse({ calculated: false, reason: 'cache_read_failed', error: 'cache_read_failed' }, 500);
-  if (cached) return jsonResponse({ calculated: true, cached: true, ...cached });
+
+  const hadPrevious = !!cached;
+  if (isLookupCacheValid(cached, origin, destination)) {
+    return jsonResponse({
+      calculated: true,
+      cached: true,
+      renewed: false,
+      distance_km: Number(cached.distance_km),
+      duration_minutes: Number(cached.duration_minutes)
+    });
+  }
+
+  // Same normalized address: zero local route, never call Google Maps.
+  if (originKey === destinationKey) {
+    const { error: cacheWriteError } = await db.from('scheduling_travel_cache').upsert({
+      origin_key: originKey,
+      destination_key: destinationKey,
+      distance_km: 0,
+      duration_minutes: 0,
+      provider: 'same_school',
+      calculated_at: new Date().toISOString(),
+      expires_at: new Date(Date.now() + CACHE_TTL_MS).toISOString(),
+      origin_address: origin,
+      destination_address: destination,
+      query_origin_address: origin,
+      query_destination_address: destination
+    });
+    if (cacheWriteError) {
+      return jsonResponse({ calculated: false, reason: 'cache_write_failed', error: 'cache_write_failed' }, 500);
+    }
+    return jsonResponse({
+      calculated: true,
+      cached: false,
+      renewed: hadPrevious,
+      distance_km: 0,
+      duration_minutes: 0
+    });
+  }
 
   const route = await computeRoute(origin, destination, key);
   if (!route.ok) {
@@ -801,6 +860,7 @@ Deno.serve(async (req) => {
   return jsonResponse({
     calculated: true,
     cached: false,
+    renewed: hadPrevious,
     distance_km: route.distance_km,
     duration_minutes: route.duration_minutes
   });
