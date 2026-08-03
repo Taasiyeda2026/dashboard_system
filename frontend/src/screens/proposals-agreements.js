@@ -4281,6 +4281,15 @@ function filterItemsByProposalType(items, activityTypeGroup) {
     if (!children.length) return sourceItems;
     return sourceItems.filter((item) => children.some((groupKey) => itemBelongsToGroup(item, groupKey)));
   }
+  if (isNextYearProposalGroup(normalizedGroup)) {
+    const children = includedProposalGroups(normalizedGroup);
+    if (children.length) {
+      return sourceItems.filter((item) =>
+        itemBelongsToGroup(item, normalizedGroup)
+        || children.some((groupKey) => itemBelongsToGroup(item, groupKey))
+      );
+    }
+  }
   return sourceItems.filter((item) => itemBelongsToGroup(item, normalizedGroup));
 }
 

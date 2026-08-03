@@ -71,6 +71,10 @@ test('next-year payload exposes separate course and workshop sections without es
   assert.equal(workshopAliases.some((row) => /בריחה/.test(row.activity_name)), false);
   assert.equal(workshopAliases.some((row) => row.is_active_for_proposals === false), false);
   assert.equal(workshopAliases.every((row) => row.template_key === 'next_year'), true);
+  assert.equal(workshopAliases.find((row) => row.activity_name === 'מערכת השמש').proposal_display_mode, 'single');
+  assert.equal(workshopAliases.find((row) => row.activity_name === 'רוטוקופטר').proposal_display_mode, 'single');
+  assert.equal(workshopAliases.find((row) => row.activity_name === 'סדנאות STEM').proposal_display_mode, 'bundle_parent');
+  assert.equal(workshopAliases.find((row) => row.activity_name === 'סדנאות חלל').proposal_display_mode, 'bundle_parent');
   assert.equal(payload.proposalActivityGroups.find((group) => group.group_key === 'next_year_workshops').template_key, 'next_year');
   assert.deepEqual(new Set(proposalGroupOptions(payload, [], payload.proposalActivityPricing).map((option) => option.value)), new Set(['next_year', 'summer']));
 });
