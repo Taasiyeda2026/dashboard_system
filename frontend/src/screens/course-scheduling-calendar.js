@@ -76,27 +76,27 @@ export function buildWeekRows(activities = [], days = []) {
 
 function blockHtml(block) {
   const course = block.course;
-  const classes = ['course-calendar__block', `course-calendar__block--${block.kind}`];
+  const classes = ['course-scheduling-calendar-block', `course-scheduling-calendar-block--${block.kind}`];
   const title = block.kind === 'draft' ? `${course.activity_name || ''} (טיוטה)` : (course.activity_name || '');
   return `<button type="button" class="${classes.join(' ')}" data-calendar-course="${escapeHtml(idOf(course))}" title="${escapeHtml(course.school || '')}">
-    <span class="course-calendar__block-time"><bdi dir="ltr">${escapeHtml(formatTimeRangeShort(block.start, block.end))}</bdi></span>
-    <span class="course-calendar__block-name">${escapeHtml(title)}</span>
-    <span class="course-calendar__block-school">${escapeHtml(course.school || '')}</span>
+    <span class="course-scheduling-calendar-block-time"><bdi dir="ltr">${escapeHtml(formatTimeRangeShort(block.start, block.end))}</bdi></span>
+    <span class="course-scheduling-calendar-block-name">${escapeHtml(title)}</span>
+    <span class="course-scheduling-calendar-block-school">${escapeHtml(course.school || '')}</span>
   </button>`;
 }
 
 export function weekCalendarHtml({ days, rows, selectedCourseId } = {}) {
-  if (!rows.length) return '<p class="ds-muted course-calendar__empty">אין מדריכים משובצים או בטיוטה בשבוע זה.</p>';
+  if (!rows.length) return '<p class="course-scheduling-calendar-empty">אין מדריכים משובצים או בטיוטה בשבוע זה.</p>';
   const header = days.map((day, index) => `<th><span>${escapeHtml(WEEKDAY_LABELS[index])}</span><bdi dir="ltr">${escapeHtml(formatDateHe(day))}</bdi></th>`).join('');
   const bodyRows = rows.map((row) => {
     const cells = days.map((day) => {
       const blocks = row.byDay.get(day) || [];
       const highlighted = selectedCourseId && blocks.some((block) => idOf(block.course) === selectedCourseId);
-      return `<td class="course-calendar__cell${highlighted ? ' is-selected-day' : ''}">${blocks.map(blockHtml).join('')}</td>`;
+      return `<td class="course-scheduling-calendar-cell${highlighted ? ' is-selected-day' : ''}">${blocks.map(blockHtml).join('')}</td>`;
     }).join('');
-    return `<tr><th class="course-calendar__instructor" scope="row">${escapeHtml(row.name)}</th>${cells}</tr>`;
+    return `<tr><th class="course-scheduling-calendar-instructor" scope="row">${escapeHtml(row.name)}</th>${cells}</tr>`;
   }).join('');
-  return `<div class="course-calendar__scroll"><table class="course-calendar__table"><thead><tr><th></th>${header}</tr></thead><tbody>${bodyRows}</tbody></table></div>`;
+  return `<div class="course-scheduling-calendar-scroll"><table class="course-scheduling-calendar-table"><thead><tr><th></th>${header}</tr></thead><tbody>${bodyRows}</tbody></table></div>`;
 }
 
 /**
@@ -116,8 +116,8 @@ export function fixedScheduleHtml(activities = [], selectedCourseId) {
     rows.get(instructor.empId).items.push({ course, kind: instructor.kind, weekday, start: course.start_time, end: course.end_time, from: dates[0], to: dates.at(-1) });
   }
   const sortedRows = [...rows.values()].sort((a, b) => a.name.localeCompare(b.name, 'he'));
-  if (!sortedRows.length) return '<p class="ds-muted course-calendar__empty">אין מדריכים משובצים או בטיוטה עדיין.</p>';
-  return `<div class="course-calendar__scroll"><table class="ds-table course-calendar__fixed-table"><thead><tr><th>מדריך</th><th>יום ושעה</th><th>קורס</th><th>בית ספר</th><th>טווח תאריכים</th></tr></thead><tbody>${sortedRows.map((row) => row.items.map((item, index) => `<tr${item.kind === 'draft' ? ' class="course-calendar__fixed-row--draft"' : ''}${idOf(item.course) === selectedCourseId ? ' class="is-selected-day"' : ''}><td>${index === 0 ? escapeHtml(row.name) : ''}</td><td>${escapeHtml(item.weekday)} <bdi dir="ltr">${escapeHtml(formatTimeRangeShort(item.start, item.end))}</bdi></td><td><button type="button" class="ds-link-btn" data-calendar-course="${escapeHtml(idOf(item.course))}">${escapeHtml(item.course.activity_name || '—')}</button>${item.kind === 'draft' ? ' <span class="ds-status-chip">טיוטה</span>' : ''}</td><td>${escapeHtml(item.course.school || '—')}</td><td><bdi dir="ltr">${escapeHtml(formatDateHe(item.from))}–${escapeHtml(formatDateHe(item.to))}</bdi></td></tr>`).join('')).join('')}</tbody></table></div>`;
+  if (!sortedRows.length) return '<p class="course-scheduling-calendar-empty">אין מדריכים משובצים או בטיוטה עדיין.</p>';
+  return `<div class="course-scheduling-calendar-scroll"><table class="ds-table course-scheduling-calendar-fixed-table"><thead><tr><th>מדריך</th><th>יום ושעה</th><th>קורס</th><th>בית ספר</th><th>טווח תאריכים</th></tr></thead><tbody>${sortedRows.map((row) => row.items.map((item, index) => `<tr class="${[item.kind === 'draft' ? 'course-scheduling-calendar-fixed-row--draft' : '', idOf(item.course) === selectedCourseId ? 'is-selected-day' : ''].filter(Boolean).join(' ')}"><td>${index === 0 ? escapeHtml(row.name) : ''}</td><td>${escapeHtml(item.weekday)} <bdi dir="ltr">${escapeHtml(formatTimeRangeShort(item.start, item.end))}</bdi></td><td><button type="button" class="ds-link-btn" data-calendar-course="${escapeHtml(idOf(item.course))}">${escapeHtml(item.course.activity_name || '—')}</button>${item.kind === 'draft' ? ' <span class="ds-status-chip">טיוטה</span>' : ''}</td><td>${escapeHtml(item.course.school || '—')}</td><td><bdi dir="ltr">${escapeHtml(formatDateHe(item.from))}–${escapeHtml(formatDateHe(item.to))}</bdi></td></tr>`).join('')).join('')}</tbody></table></div>`;
 }
 
 export function weekNavLabel({ start, end } = {}) {
