@@ -60,8 +60,10 @@ test('summary before calculation shows interface course count and טרם בוצ�
     meetingState: { loaded: true, approvedDates: new Map(), cancelledDates: new Map(), error: '' }
   }, { state: { user: { role: 'admin' } } });
 
-  assert.match(html, /2 קורסים בממשק/);
+  assert.match(html, /<b>2<\/b><span>קורסים בממשק<\/span>/);
   assert.match(html, /טרם בוצע חישוב/);
+  assert.match(html, /course-scheduling-screen/);
+  assert.match(html, /course-scheduling-summary-card/);
   assert.doesNotMatch(html, /0 קורסים נבדקו/);
   assert.doesNotMatch(html, /0 הצעה מוכנה/);
   assert.match(html, /בניית ועדכון מאגר מרחקים/);
@@ -313,6 +315,7 @@ test('cache versions on this branch are ahead of origin/main after sync', async 
   assert.ok(branchCache > mainCache, `expected CACHE_VERSION ${branchCache} > main ${mainCache}`);
   assert.match(branchConfig, /course-scheduling-blocking-fixes-20260803-v2/);
   assert.match(branchConfig, /single-route-expiry-ui-20260803-v4/);
+  assert.match(branchConfig, /course-scheduling-isolated-design-20260803-v1/);
   assert.ok(branchConfig.includes('HOTFIX_VERSION'));
   assert.ok(mainConfig.includes('HOTFIX_VERSION'));
 });
