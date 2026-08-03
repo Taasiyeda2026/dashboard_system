@@ -47,6 +47,17 @@ const displayedSpaceWorkshop = {
   unit_price: 500
 };
 
+const displayedCourse = {
+  activity_name: 'אופק יזמות פרימיום',
+  activity_no: '52279',
+  pricing_key: 'course_52279',
+  proposal_group: 'next_year_courses',
+  item_type: 'קורס',
+  unit_duration: '90 דקות',
+  unit_price: 13500,
+  sort_order: 1
+};
+
 function optionKey(row) {
   return [
     row.activity_no,
@@ -57,6 +68,34 @@ function optionKey(row) {
     row.unit_price,
     row.sort_order
   ].map((value) => String(value == null ? '' : value).trim()).join('||');
+}
+
+function totalsHtml() {
+  return `<strong data-pa-grand-total>₪ 0</strong>
+    <strong data-pa-summary-total>₪ 0</strong>
+    <span data-pa-summary-subtotal>₪ 0</span>
+    <span data-pa-summary-discount>₪ 0</span>
+    <select data-pa-discount-type><option value="amount" selected>₪</option></select>
+    <input data-pa-discount-value value="0">`;
+}
+
+function hiddenFields(group) {
+  return `<input name="pricing_option_key" value="">
+    <input name="activity_no" value="">
+    <input name="item_name" value="">
+    <input name="item_type" value="">
+    <input name="gefen_number" value="">
+    <input name="gefen_number_display" value="">
+    <input name="meetings_count" value="">
+    <input name="hours_count" value="">
+    <input name="unit_duration" value="">
+    <input name="hourly_price" value="">
+    <input name="description" value="">
+    <input name="proposal_group" value="${group}">
+    <input name="item_display_mode" value="single">
+    <input name="item_source_pricing_key" value="">
+    <input name="bundle_pricing_key" value="">
+    <input name="item_selected_bundle_items" value="[]">`;
 }
 
 function formHtml(stalePrice = '') {
@@ -75,37 +114,42 @@ function formHtml(stalePrice = '') {
           <input name="unit_price" data-pa-item-price value="${stalePrice}">
           <input name="total_price" data-pa-item-total value="">
           <output data-pa-item-total-display>₪ 0</output>
-          <input name="pricing_option_key" value="">
-          <input name="activity_no" value="">
-          <input name="item_name" value="">
-          <input name="item_type" value="">
-          <input name="gefen_number" value="">
-          <input name="gefen_number_display" value="">
-          <input name="meetings_count" value="">
-          <input name="hours_count" value="">
-          <input name="unit_duration" value="">
-          <input name="hourly_price" value="">
-          <input name="description" value="">
-          <input name="proposal_group" value="next_year_workshops">
-          <input name="item_display_mode" value="single">
-          <input name="item_source_pricing_key" value="">
-          <input name="bundle_pricing_key" value="">
-          <input name="item_selected_bundle_items" value="[]">
+          ${hiddenFields('next_year_workshops')}
         </article>
       </div>
       <strong data-pa-group-total="next_year_workshops">₪ 0</strong>
     </section>
-    <strong data-pa-grand-total>₪ 0</strong>
-    <strong data-pa-summary-total>₪ 0</strong>
-    <span data-pa-summary-subtotal>₪ 0</span>
-    <span data-pa-summary-discount>₪ 0</span>
-    <select data-pa-discount-type><option value="amount" selected>₪</option></select>
-    <input data-pa-discount-value value="0">
+    ${totalsHtml()}
   </form>`;
 }
 
-function withDom(stalePrice, fn) {
-  const dom = new JSDOM(formHtml(stalePrice), { url: 'http://localhost/' });
+function courseFallbackFormHtml() {
+  const value = optionKey(displayedCourse);
+  return `<form data-pa-form>
+    <input name="activity_type_group" value="next_year">
+    <section data-pa-items-group="next_year_courses">
+      <div data-pa-items-body>
+        <article data-pa-item-row data-pa-row-group="next_year_courses">
+          <select data-pa-pricing-select><option value="${value}" selected>אופק יזמות פרימיום — קורס — ₪ 13,500</option></select>
+          <input name="quantity" data-pa-item-qty value="1">
+          <input name="unit_price" data-pa-item-price value="">
+          <input name="total_price" data-pa-item-total value="">
+          <output data-pa-item-total-display>₪ 0</output>
+          ${hiddenFields('next_year_courses')}
+        </article>
+      </div>
+      <strong data-pa-group-total="next_year_courses">₪ 0</strong>
+    </section>
+    <section data-pa-items-group="next_year_workshops">
+      <div data-pa-items-body></div>
+      <strong data-pa-group-total="next_year_workshops">₪ 0</strong>
+    </section>
+    ${totalsHtml()}
+  </form>`;
+}
+
+function withHtml(html, fn) {
+  const dom = new JSDOM(html, { url: 'http://localhost/' });
   const previousEvent = globalThis.Event;
   globalThis.Event = dom.window.Event;
   try {
@@ -115,6 +159,10 @@ function withDom(stalePrice, fn) {
   } finally {
     globalThis.Event = previousEvent;
   }
+}
+
+function withDom(stalePrice, fn) {
+  return withHtml(formHtml(stalePrice), fn);
 }
 
 test('direct space-workshop selection applies the displayed 500 ₪ price and all totals', () => {
@@ -129,6 +177,20 @@ test('direct space-workshop selection applies the displayed 500 ₪ price and al
     assert.equal(row.querySelector('[data-pa-item-total-display]').textContent, '₪ 1,000');
     assert.equal(form.querySelector('[data-pa-group-total="next_year_workshops"]').textContent, '₪ 1,000');
     assert.equal(form.querySelector('[data-pa-grand-total]').textContent, '₪ 1,000');
+  });
+});
+
+test('selected compound option hydrates a 13,500 course without a pricing lookup row', () => {
+  withHtml(courseFallbackFormHtml(), (form, row) => {
+    const result = hydrateNextYearPricingSelection(row, [], { notify: false });
+    assert.equal(result.changed, true);
+    assert.equal(row.querySelector('[data-pa-item-price]').value, '13500');
+    assert.equal(row.querySelector('[name="item_name"]').value, 'אופק יזמות פרימיום');
+    assert.equal(row.querySelector('[name="item_type"]').value, 'קורס');
+    assert.equal(row.querySelector('[name="gefen_number"]').value, '52279');
+    assert.equal(row.querySelector('[data-pa-item-total]').value, '13500.00');
+    assert.equal(form.querySelector('[data-pa-group-total="next_year_courses"]').textContent, '₪ 13,500');
+    assert.equal(form.querySelector('[data-pa-grand-total]').textContent, '₪ 13,500');
   });
 });
 
