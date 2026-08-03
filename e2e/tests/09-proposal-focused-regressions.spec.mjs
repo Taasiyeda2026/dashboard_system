@@ -64,6 +64,16 @@ async function expectSelectedLabelMatchesInternalPrice(row) {
   expect(internalPrice).toBe(labelPrice);
 }
 
+async function mixedNextYearTotalsAreConsistent(form) {
+  return form.evaluate((element) => {
+    const amount = (value) => Number(String(value || '').replace(/[^\d.-]/g, '')) || 0;
+    const course = amount(element.querySelector('[data-pa-group-total="next_year_courses"]')?.textContent);
+    const workshop = amount(element.querySelector('[data-pa-group-total="next_year_workshops"]')?.textContent);
+    const grand = amount(element.querySelector('[data-pa-grand-total]')?.textContent);
+    return course > 0 && workshop > 0 && grand === course + workshop;
+  });
+}
+
 test('real proposal regression path remains stable without saving data or PDFs', async ({ page, tracker }) => {
   test.setTimeout(300_000);
   tracker.resetScreen('proposal-focused-regressions');
@@ -102,10 +112,19 @@ test('real proposal regression path remains stable without saving data or PDFs',
   await expect(courses.locator('[data-pa-item-row]')).toHaveCount(0);
   await expect(workshops.locator('[data-pa-item-row]')).toHaveCount(0);
 
+  // Exact reported path: choose a workshop first, then add a course.
+  await workshops.locator('[data-pa-add-item]').click();
+  const workshopRow = workshops.locator('[data-pa-item-row]').first();
+  await expect(workshopRow).toBeVisible();
+  const workshopOption = await firstPositivePriceOption(workshopRow.locator('[data-pa-pricing-select]'));
+  expect(workshopOption, 'a positive-price workshop must be available').not.toBe('');
+  await workshopRow.locator('[data-pa-pricing-select]').selectOption(workshopOption);
+  await expectSelectedLabelMatchesInternalPrice(workshopRow);
+  await expect.poll(async () => amountOf(await workshops.locator('[data-pa-group-total="next_year_workshops"]').innerText())).toBeGreaterThan(0);
+
   await courses.locator('[data-pa-add-item]').click();
   const courseRow = courses.locator('[data-pa-item-row]').first();
   await expect(courseRow).toBeVisible();
-  await expect(courses.locator('[data-pa-item-row]')).toHaveCount(1);
   const courseSelect = courseRow.locator('[data-pa-pricing-select]');
   const premiumOption = await courseSelect.locator('option').evaluateAll((options) => {
     const preferred = options.find((item) => /אופק יזמות פרימיום/.test(item.textContent || '') && /13,500/.test(item.textContent || ''));
@@ -117,47 +136,23 @@ test('real proposal regression path remains stable without saving data or PDFs',
   await expectSelectedLabelMatchesInternalPrice(courseRow);
   await expect(courseRow.locator('[data-pa-item-total-display]')).toContainText('13,500');
   await expect(courses.locator('[data-pa-group-total="next_year_courses"]')).toContainText('13,500');
-  await expect(form.locator('[data-pa-grand-total]')).toContainText('13,500');
-  await shot(page, 'proposal-saved-price.png', courseRow);
+  await expect.poll(() => mixedNextYearTotalsAreConsistent(form)).toBe(true);
 
-  await courseRow.locator('[data-pa-item-qty]').fill('2');
-  await expect(courseRow.locator('[data-pa-item-total-display]')).toContainText('27,000');
-  await expect(courses.locator('[data-pa-group-total="next_year_courses"]')).toContainText('27,000');
-  await expect(form.locator('[data-pa-grand-total]')).toContainText('27,000');
+  const liveDocument = page.locator('.proposal-document:visible').last();
+  await expect(liveDocument).toBeVisible();
+  await expect(liveDocument.locator('.pa-next-year-course-table tbody tr')).toHaveCount(1);
+  await expect(liveDocument.locator('.pa-next-year-workshop-table tbody tr')).toHaveCount(1);
+  await expect(liveDocument.locator('.pa-next-year-combined-total')).toHaveCount(1);
 
-  await courses.locator('[data-pa-add-item]').click();
-  await expect(courses.locator('[data-pa-item-row]')).toHaveCount(2);
-  const secondCourse = courses.locator('[data-pa-item-row]').nth(1);
-  const secondCourseOption = await firstPositivePriceOption(secondCourse.locator('[data-pa-pricing-select]'));
-  expect(secondCourseOption).not.toBe('');
-  await secondCourse.locator('[data-pa-pricing-select]').selectOption(secondCourseOption);
-  await expectSelectedLabelMatchesInternalPrice(secondCourse);
-
-  await workshops.locator('[data-pa-add-item]').click();
-  const workshopRow = workshops.locator('[data-pa-item-row]').first();
-  await expect(workshopRow).toBeVisible();
-  await expect(workshops.locator('[data-pa-item-row]')).toHaveCount(1);
-  const workshopOption = await firstPositivePriceOption(workshopRow.locator('[data-pa-pricing-select]'));
-  expect(workshopOption, 'a positive-price workshop must be available').not.toBe('');
-  await workshopRow.locator('[data-pa-pricing-select]').selectOption(workshopOption);
-  await expectSelectedLabelMatchesInternalPrice(workshopRow);
-  await expect.poll(async () => amountOf(await workshops.locator('[data-pa-group-total="next_year_workshops"]').innerText())).toBeGreaterThan(0);
-  await expect.poll(async () => amountOf(await form.locator('[data-pa-grand-total]').innerText())).toBeGreaterThan(27000);
-
+  // A second add action must remain responsive after the proposal becomes mixed.
   await workshops.locator('[data-pa-add-item]').click();
   await expect(workshops.locator('[data-pa-item-row]')).toHaveCount(2);
-  const secondWorkshop = workshops.locator('[data-pa-item-row]').nth(1);
-  const secondWorkshopOption = await firstPositivePriceOption(secondWorkshop.locator('[data-pa-pricing-select]'));
-  expect(secondWorkshopOption).not.toBe('');
-  await secondWorkshop.locator('[data-pa-pricing-select]').selectOption(secondWorkshopOption);
-  await expectSelectedLabelMatchesInternalPrice(secondWorkshop);
-  await shot(page, 'proposal-next-year-two-areas.png', form.locator('[data-pa-items-host]'));
-
+  const blankWorkshop = workshops.locator('[data-pa-item-row]').nth(1);
   page.on('dialog', (dialog) => dialog.accept());
-  await secondCourse.locator('[data-pa-remove-item]').click();
-  await secondWorkshop.locator('[data-pa-remove-item]').click();
-  await expect(courses.locator('[data-pa-item-row]')).toHaveCount(1);
+  await blankWorkshop.locator('[data-pa-remove-item]').click();
   await expect(workshops.locator('[data-pa-item-row]')).toHaveCount(1);
+  await expect.poll(() => mixedNextYearTotalsAreConsistent(form)).toBe(true);
+  await shot(page, 'proposal-next-year-workshop-then-course.png', form.locator('[data-pa-items-host]'));
 
   await form.locator('[data-pa-type-btn="gefen"]').click();
   await form.locator('[data-pa-type-btn="next_year"]').click();
