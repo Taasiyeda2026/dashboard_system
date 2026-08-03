@@ -3,9 +3,7 @@ import { augmentNextYearPricingRows } from './proposal-next-year-workshops.js';
 import { applyNextYearSpaceWorkshopPrice } from './proposal-next-year-space-workshop-pricing.js';
 
 const PATCH_KEY = Symbol.for('taasiyeda.proposalNextYearSelectionHydration.v3');
-const COURSE_GROUP = 'next_year_courses';
-const WORKSHOP_GROUP = 'next_year_workshops';
-const INTERNAL_GROUPS = new Set([COURSE_GROUP, WORKSHOP_GROUP]);
+const INTERNAL_GROUPS = new Set(['next_year_courses', 'next_year_workshops']);
 const totalsTimers = new WeakMap();
 let cachedPricingRows = [];
 
@@ -26,21 +24,12 @@ function formatCurrency(value) {
 }
 
 function optionKey(row = {}) {
-  return [
-    row.activity_no,
-    row.activity_name,
-    row.item_type,
-    row.proposal_group,
-    row.unit_duration,
-    row.unit_price,
-    row.sort_order
-  ].map(text).join('||');
+  return [row.activity_no, row.activity_name, row.item_type, row.proposal_group, row.unit_duration, row.unit_price, row.sort_order]
+    .map(text).join('||');
 }
 
 function normalizePricingRows(rows = []) {
-  return applyNextYearSpaceWorkshopPrice(
-    augmentNextYearPricingRows(Array.isArray(rows) ? rows : [])
-  );
+  return applyNextYearSpaceWorkshopPrice(augmentNextYearPricingRows(Array.isArray(rows) ? rows : []));
 }
 
 function cachePricing(rows = []) {
@@ -80,14 +69,9 @@ function rowGroup(row) {
 
 function isWorkshopEntry(entry = {}) {
   const group = text(entry.proposal_group || entry.group_key);
-  if (group === WORKSHOP_GROUP) return true;
-  if (group === COURSE_GROUP) return false;
-  const kind = text([
-    entry.item_type,
-    entry.activity_name,
-    entry.pricing_key,
-    entry.parent_pricing_key
-  ].join(' ')).toLowerCase();
+  if (group === 'next_year_workshops') return true;
+  if (group === 'next_year_courses') return false;
+  const kind = text([entry.item_type, entry.activity_name, entry.pricing_key, entry.parent_pricing_key].join(' ')).toLowerCase();
   return text(entry.proposal_display_mode) === 'bundle_parent'
     || entry.is_bundle_parent === true
     || /סדנ|workshop|stem|חלל|maker/.test(kind);
@@ -97,7 +81,7 @@ function rowsForGroup(rows, group) {
   const normalized = normalizePricingRows(rows);
   const exact = normalized.filter((entry) => text(entry.proposal_group || entry.group_key) === group);
   if (exact.length) return exact;
-  return normalized.filter((entry) => group === WORKSHOP_GROUP
+  return normalized.filter((entry) => group === 'next_year_workshops'
     ? isWorkshopEntry(entry)
     : !isWorkshopEntry(entry) && Boolean(text(entry.activity_no || entry.gefen_number)));
 }
@@ -120,22 +104,6 @@ function pricingIndex(rows) {
   return { byOption, byActivityNo, byPricingKey, byName };
 }
 
-function pickedFromOptionValue(selected, group) {
-  const parts = String(selected || '').split('||');
-  if (parts.length < 6) return null;
-  const [activityNo, activityName, itemType, proposalGroup, unitDuration, unitPrice, sortOrder] = parts;
-  if (!text(activityName)) return null;
-  return {
-    activity_no: text(activityNo),
-    activity_name: text(activityName),
-    item_type: text(itemType) || (group === WORKSHOP_GROUP ? 'סדנה' : 'קורס'),
-    proposal_group: text(proposalGroup) || group,
-    unit_duration: text(unitDuration),
-    unit_price: numberOrNull(unitPrice),
-    sort_order: numberOrNull(sortOrder)
-  };
-}
-
 function resolvePicked(row, rows) {
   const select = row?.querySelector?.('[data-pa-pricing-select]');
   const selected = text(select?.value);
@@ -144,16 +112,13 @@ function resolvePicked(row, rows) {
   if (index.byOption.has(selected)) return index.byOption.get(selected);
   if (index.byActivityNo.has(selected)) return index.byActivityNo.get(selected);
   if (index.byPricingKey.has(selected)) return index.byPricingKey.get(selected);
-
   const parts = selected.split('||');
   const activityNo = text(parts[0]);
   const name = text(parts[1]).toLowerCase();
   if (activityNo && index.byActivityNo.has(activityNo)) return index.byActivityNo.get(activityNo);
   if (name && index.byName.has(name)) return index.byName.get(name);
-
   const selectedName = text(select.selectedOptions?.[0]?.textContent?.split('—')?.[0]).toLowerCase();
-  if (selectedName && index.byName.has(selectedName)) return index.byName.get(selectedName);
-  return pickedFromOptionValue(selected, rowGroup(row));
+  return selectedName ? index.byName.get(selectedName) || null : null;
 }
 
 function setValue(row, name, value) {
@@ -163,11 +128,6 @@ function setValue(row, name, value) {
   if (input.value === next) return false;
   input.value = next;
   return true;
-}
-
-function setPresentValue(row, name, value) {
-  if (value == null || text(value) === '') return false;
-  return setValue(row, name, value);
 }
 
 function calculateRow(row) {
@@ -186,22 +146,18 @@ export function calculateNextYearTotals(form) {
   let subtotal = 0;
   form.querySelectorAll('[data-pa-items-group]').forEach((section) => {
     let groupTotal = 0;
-    section.querySelectorAll('[data-pa-item-row]').forEach((row) => {
-      groupTotal += calculateRow(row);
-    });
+    section.querySelectorAll('[data-pa-item-row]').forEach((row) => { groupTotal += calculateRow(row); });
     subtotal += groupTotal;
     const group = text(section.dataset.paItemsGroup);
     const output = section.querySelector(`[data-pa-group-total="${group}"]`);
     if (output) output.textContent = `₪ ${formatCurrency(groupTotal)}`;
   });
-
   const discountType = text(form.querySelector('[data-pa-discount-type]')?.value) || 'amount';
   const discountValue = numberOrNull(form.querySelector('[data-pa-discount-value]')?.value) ?? 0;
   const discount = discountType === 'percent'
     ? subtotal * (Math.min(discountValue, 100) / 100)
     : Math.min(discountValue, subtotal);
   const total = Math.max(subtotal - discount, 0);
-
   const grand = form.querySelector('[data-pa-grand-total]');
   const summary = form.querySelector('[data-pa-summary-total]');
   const subtotalOutput = form.querySelector('[data-pa-summary-subtotal]');
@@ -224,58 +180,42 @@ function scheduleTotals(form, delay = 0) {
   totalsTimers.set(form, timer);
 }
 
-export function hydrateNextYearPricingSelection(row, pricingRows = cachedPricingRows) {
+export function hydrateNextYearPricingSelection(row, pricingRows = cachedPricingRows, { notify = true } = {}) {
   const group = rowGroup(row);
-  if (!row || !INTERNAL_GROUPS.has(group)) {
-    return { changed: false, picked: null, total: 0 };
-  }
-
+  if (!row || !INTERNAL_GROUPS.has(group)) return { changed: false, picked: null, total: 0 };
   const picked = resolvePicked(row, rowsForGroup(pricingRows, group));
   const form = row.closest('[data-pa-form]');
-  if (!picked) {
-    const total = calculateNextYearTotals(form);
-    scheduleTotals(form, 80);
-    return { changed: false, picked: null, total };
-  }
+  if (!picked) return { changed: false, picked: null, total: calculateNextYearTotals(form) };
 
   const selectedValue = text(row.querySelector('[data-pa-pricing-select]')?.value);
   let changed = false;
-  const pickedPrice = numberOrNull(picked.unit_price);
   changed = setValue(row, 'pricing_option_key', selectedValue) || changed;
-  changed = setPresentValue(row, 'activity_no', picked.activity_no) || changed;
-  changed = setPresentValue(row, 'item_name', picked.activity_name) || changed;
-  changed = setPresentValue(
-    row,
-    'item_type',
-    picked.item_type || (group === WORKSHOP_GROUP ? 'סדנה' : 'קורס')
-  ) || changed;
-  changed = setPresentValue(row, 'gefen_number', picked.gefen_number) || changed;
-  changed = setPresentValue(row, 'gefen_number_display', picked.gefen_number) || changed;
-  changed = setPresentValue(row, 'meetings_count', picked.meetings_count) || changed;
-  changed = setPresentValue(row, 'hours_count', picked.hours_count) || changed;
-  changed = setPresentValue(
-    row,
-    'unit_duration',
-    picked.unit_duration || (group === WORKSHOP_GROUP ? '45 דקות' : '')
-  ) || changed;
-  if (pickedPrice != null) changed = setValue(row, 'unit_price', pickedPrice) || changed;
-  changed = setPresentValue(row, 'hourly_price', picked.hourly_price) || changed;
-  changed = setPresentValue(row, 'description', picked.description_for_proposal) || changed;
+  changed = setValue(row, 'activity_no', picked.activity_no) || changed;
+  changed = setValue(row, 'item_name', picked.activity_name) || changed;
+  changed = setValue(row, 'item_type', picked.item_type) || changed;
+  changed = setValue(row, 'gefen_number', picked.gefen_number) || changed;
+  changed = setValue(row, 'gefen_number_display', picked.gefen_number) || changed;
+  changed = setValue(row, 'meetings_count', picked.meetings_count) || changed;
+  changed = setValue(row, 'hours_count', picked.hours_count) || changed;
+  changed = setValue(row, 'unit_duration', picked.unit_duration) || changed;
+  changed = setValue(row, 'unit_price', numberOrNull(picked.unit_price) ?? '') || changed;
+  changed = setValue(row, 'hourly_price', picked.hourly_price ?? '') || changed;
+  changed = setValue(row, 'description', picked.description_for_proposal || '') || changed;
   changed = setValue(row, 'proposal_group', group) || changed;
+  changed = setValue(row, 'item_display_mode', picked.proposal_display_mode || 'single') || changed;
+  changed = setValue(row, 'item_source_pricing_key', picked.pricing_key || '') || changed;
+  changed = setValue(row, 'bundle_pricing_key', picked.pricing_key || '') || changed;
+  changed = setValue(row, 'item_selected_bundle_items', '[]') || changed;
 
   const total = calculateNextYearTotals(form);
-  scheduleTotals(form, 80);
+  const priceInput = row.querySelector('[data-pa-item-price]');
+  if (changed && notify && form && priceInput && form.dataset.paNextYearDirectHydration !== 'yes') {
+    form.dataset.paNextYearDirectHydration = 'yes';
+    priceInput.dispatchEvent(new Event('input', { bubbles: true }));
+    delete form.dataset.paNextYearDirectHydration;
+  }
+  scheduleTotals(form, 100);
   return { changed, picked, total };
-}
-
-function findCurrentRow(form, group, selectedValue, fallbackRow) {
-  if (fallbackRow?.isConnected) return fallbackRow;
-  const rows = Array.from(
-    form?.querySelectorAll?.(`[data-pa-items-group="${group}"] [data-pa-item-row]`) || []
-  );
-  return rows.find((candidate) => text(candidate.querySelector('[data-pa-pricing-select]')?.value) === selectedValue)
-    || rows.at(-1)
-    || null;
 }
 
 function installRuntime(scope = globalThis) {
@@ -285,21 +225,13 @@ function installRuntime(scope = globalThis) {
   documentRef.addEventListener('change', (event) => {
     const select = event.target?.closest?.('[data-pa-pricing-select]');
     const row = select?.closest?.('[data-pa-item-row]');
-    const group = rowGroup(row);
-    if (!row || !INTERNAL_GROUPS.has(group)) return;
-    const form = row.closest('[data-pa-form]');
-    const selectedValue = text(select.value);
-    queueMicrotask(() => {
-      const currentRow = findCurrentRow(form, group, selectedValue, row);
-      if (currentRow) hydrateNextYearPricingSelection(currentRow, cachedPricingRows);
-    });
-  });
+    if (!row || !INTERNAL_GROUPS.has(rowGroup(row))) return;
+    hydrateNextYearPricingSelection(row, cachedPricingRows, { notify: false });
+  }, true);
 
   documentRef.addEventListener('input', (event) => {
     const target = event.target;
-    if (!target?.matches?.(
-      '[data-pa-item-qty], [data-pa-item-price], [data-pa-discount-value], [data-pa-discount-type]'
-    )) return;
+    if (!target?.matches?.('[data-pa-item-qty], [data-pa-item-price], [data-pa-discount-value], [data-pa-discount-type]')) return;
     const form = target.closest('[data-pa-form]');
     calculateNextYearTotals(form);
     scheduleTotals(form, 80);
@@ -312,12 +244,7 @@ export function installNextYearSelectionHydration(targetApi = api, scope = globa
   wrapPayloadMethod(targetApi, 'proposalsAgreementsEditorDeps');
   wrapPricingMethod(targetApi, 'readProposalActivityPricing');
   installRuntime(scope);
-  Object.defineProperty(targetApi, PATCH_KEY, {
-    value: true,
-    configurable: false,
-    enumerable: false,
-    writable: false
-  });
+  Object.defineProperty(targetApi, PATCH_KEY, { value: true, configurable: false, enumerable: false, writable: false });
   return true;
 }
 
