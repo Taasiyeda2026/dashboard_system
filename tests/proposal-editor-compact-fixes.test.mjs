@@ -132,7 +132,8 @@ test('frontend hotfix and service worker cache versions are bumped together', as
   assert.match(config, /next-year-editor-stability-20260802-v1/);
   assert.match(config, /proposal-summer-list-complete-20260802-v1/);
   assert.match(config, /proposal-pdf-school-name-only-20260803-v1/);
+  assert.match(config, /next-year-workshop-live-refresh-20260803-v1/);
   assert.match(featureLoaders, /proposal-summer-list-runtime\.js\?v=20260802-v1/);
   assert.match(featureLoaders, /proposal-pdf-school-filename-runtime\.js\?v=20260803-school-name-only-v2/);
-  assert.match(sw, /const CACHE_VERSION = 1374;/);
+  assert.match(sw, /const CACHE_VERSION = 1375;/);
 });
