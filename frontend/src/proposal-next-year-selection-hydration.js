@@ -127,21 +127,39 @@ function pickedFromSelectedOption(select) {
   };
 }
 
+function mergeEmbeddedPrice(catalogRow, embedded) {
+  if (!embedded) return catalogRow || null;
+  if (!catalogRow) return embedded;
+  return {
+    ...catalogRow,
+    activity_no: embedded.activity_no || catalogRow.activity_no,
+    gefen_number: embedded.gefen_number || catalogRow.gefen_number,
+    activity_name: embedded.activity_name || catalogRow.activity_name,
+    item_type: embedded.item_type || catalogRow.item_type,
+    proposal_group: embedded.proposal_group || catalogRow.proposal_group,
+    unit_duration: embedded.unit_duration || catalogRow.unit_duration,
+    unit_price: embedded.unit_price,
+    sort_order: embedded.sort_order ?? catalogRow.sort_order
+  };
+}
+
 function resolvePicked(row, rows) {
   const select = row?.querySelector?.('[data-pa-pricing-select]');
   const selected = text(select?.value);
   if (!selected) return null;
   const index = pricingIndex(rows);
-  if (index.byOption.has(selected)) return index.byOption.get(selected);
-  if (index.byActivityNo.has(selected)) return index.byActivityNo.get(selected);
-  if (index.byPricingKey.has(selected)) return index.byPricingKey.get(selected);
+  const exact = index.byOption.get(selected) || index.byPricingKey.get(selected) || null;
+  const embedded = pickedFromSelectedOption(select);
+  if (exact && (numberOrNull(exact.unit_price) ?? 0) > 0) return mergeEmbeddedPrice(exact, embedded);
+
   const parts = selected.split('||');
   const activityNo = text(parts[0]);
   const name = text(parts[1]).toLowerCase();
-  if (activityNo && index.byActivityNo.has(activityNo)) return index.byActivityNo.get(activityNo);
-  if (name && index.byName.has(name)) return index.byName.get(name);
-  const embedded = pickedFromSelectedOption(select);
-  if (embedded) return embedded;
+  const catalogMatch = (activityNo && index.byActivityNo.get(activityNo))
+    || (name && index.byName.get(name))
+    || null;
+  if (embedded) return mergeEmbeddedPrice(catalogMatch, embedded);
+  if (catalogMatch) return catalogMatch;
   const selectedName = text(select.selectedOptions?.[0]?.textContent?.split('—')?.[0]).toLowerCase();
   return selectedName ? index.byName.get(selectedName) || null : null;
 }
@@ -153,6 +171,17 @@ function setValue(row, name, value) {
   if (input.value === next) return false;
   input.value = next;
   return true;
+}
+
+function syncSelectedOptionPrice(row, price) {
+  const option = row?.querySelector?.('[data-pa-pricing-select] option:checked');
+  const amount = numberOrNull(price);
+  if (!option || amount == null || amount <= 0) return;
+  const label = text(option.textContent);
+  const formatted = `₪ ${formatCurrency(amount)}`;
+  option.textContent = /₪\s*[\d,.]+/.test(label)
+    ? label.replace(/₪\s*[\d,.]+/, formatted)
+    : `${label} — ${formatted}`;
 }
 
 function calculateRow(row) {
@@ -236,6 +265,7 @@ export function hydrateNextYearPricingSelection(row, pricingRows = cachedPricing
   changed = setValue(row, 'item_source_pricing_key', picked.pricing_key || '') || changed;
   changed = setValue(row, 'bundle_pricing_key', picked.pricing_key || '') || changed;
   changed = setValue(row, 'item_selected_bundle_items', '[]') || changed;
+  syncSelectedOptionPrice(row, picked.unit_price);
 
   const form = row.closest('[data-pa-form]');
   const total = calculateNextYearTotals(form);
