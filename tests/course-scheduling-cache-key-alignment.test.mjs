@@ -241,8 +241,9 @@ test('edge function checks valid cache before upserting same-address pairs', asy
   const ts = await readFile(edgeFunctionUrl, 'utf8');
   const processPair = ts.split('async function processPair')[1].split('async function runBuildCache')[0];
   const validCheck = processPair.indexOf('isCacheValid(matching, pair)');
-  const sameKeyUpsert = processPair.indexOf("provider: 'same_school'");
-  assert.ok(validCheck > -1 && sameKeyUpsert > validCheck);
+  const sameKeyUpsert = processPair.indexOf("'same_school'");
+  assert.ok(validCheck > -1, 'expected isCacheValid check in processPair');
+  assert.ok(sameKeyUpsert > validCheck, 'same-address pairs must check valid cache before upsert');
 });
 
 test('total_count is computed from deduped schools dynamically', () => {

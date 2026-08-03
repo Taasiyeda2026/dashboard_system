@@ -242,7 +242,7 @@ test('edge function counts active instructors with null address as missing_addre
   assert.match(ts, /instructorEntityKey\(empId\)/);
   const processPair = ts.split('async function processPair')[1].split('async function runBuildCache')[0];
   const validCheck = processPair.indexOf('isCacheValid(matching, pair)');
-  const sameKeyUpsert = processPair.indexOf("provider: 'same_school'");
+  const sameKeyUpsert = processPair.indexOf("'same_school'");
   assert.ok(validCheck > -1 && sameKeyUpsert > validCheck, 'same-address pairs must check valid cache before upsert');
 });
 
