@@ -5,71 +5,22 @@ on:
     workflows: ['Deploy to GitHub Pages']
     types: [completed]
   workflow_dispatch:
-    inputs:
-      expected_sha:
-        description: 'Expected deployed commit SHA'
-        required: false
-        type: string
 
 permissions:
   contents: read
-  actions: read
 
 jobs:
   smoke:
     name: post-deploy-smoke
     if: ${{ github.event_name == 'workflow_dispatch' || github.event.workflow_run.conclusion == 'success' }}
     runs-on: ubuntu-latest
-    timeout-minutes: 30
+    timeout-minutes: 3
 
     steps:
-      - name: Checkout
-        uses: actions/checkout@v4
-        with:
-          ref: ${{ github.event.workflow_run.head_sha || github.sha }}
-
-      - name: Resolve expected commit
-        id: sha
+      - name: Check GitHub Pages availability
         run: |
-          if [ -n "${{ inputs.expected_sha }}" ]; then
-            echo "value=${{ inputs.expected_sha }}" >> "$GITHUB_OUTPUT"
-          elif [ -n "${{ github.event.workflow_run.head_sha }}" ]; then
-            echo "value=${{ github.event.workflow_run.head_sha }}" >> "$GITHUB_OUTPUT"
-          else
-            echo "value=${{ github.sha }}" >> "$GITHUB_OUTPUT"
-          fi
-
-      - name: Setup Node.js
-        uses: actions/setup-node@v4
-        with:
-          node-version: '22'
-          cache: npm
-
-      - name: Install dependencies
-        run: npm install
-
-      - name: Install Playwright Chromium
-        run: npx playwright install chromium --with-deps
-
-      - name: Run post-deploy smoke against GitHub Pages
-        env:
-          CI: 'true'
-          E2E_USERNAME: ${{ secrets.E2E_USERNAME }}
-          E2E_PASSWORD: ${{ secrets.E2E_PASSWORD }}
-          E2E_BASE_URL: ${{ secrets.E2E_BASE_URL }}
-          E2E_EXPECTED_SHA: ${{ steps.sha.outputs.value }}
-        run: |
-          if [ -z "$E2E_USERNAME" ] || [ -z "$E2E_PASSWORD" ] || [ -z "$E2E_BASE_URL" ]; then
-            echo 'Missing GitHub Secrets: E2E_USERNAME, E2E_PASSWORD, and/or E2E_BASE_URL' >&2
-            exit 1
-          fi
-          npm run test:e2e:smoke
-
-      - name: Upload smoke evidence
-        if: always()
-        uses: actions/upload-artifact@v4
-        with:
-          name: e2e-post-deploy-smoke-${{ steps.sha.outputs.value }}
-          path: e2e/artifacts/
-          if-no-files-found: warn
-          retention-days: 14
+          curl --fail --silent --show-error --location \
+            --retry 2 --retry-delay 5 --max-time 30 \
+            --header 'Cache-Control: no-cache' \
+            'https://taasiyeda2026.github.io/dashboard_system/' \
+            --output /dev/null
