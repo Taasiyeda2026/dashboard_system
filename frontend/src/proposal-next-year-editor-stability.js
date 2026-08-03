@@ -1,21 +1,16 @@
 import { api } from './api.js';
 import { augmentNextYearPricingRows } from './proposal-next-year-workshops.js';
-import { normalizeProposalPricingTables } from './proposal-next-year-pricing-display.js';
 
-const PATCH_KEY = Symbol.for('taasiyeda.proposalNextYearEditorStability');
+const PATCH_KEY = Symbol.for('taasiyeda.proposalNextYearEditorStability.v3');
 const COURSE_GROUP = 'next_year_courses';
 const WORKSHOP_GROUP = 'next_year_workshops';
 const NEXT_YEAR_GROUPS = new Set([COURSE_GROUP, WORKSHOP_GROUP]);
 const NEXT_YEAR_TYPE_ALIASES = new Set([
-  'next_year',
-  'שנה הבאה',
-  'שנת הלימודים תשפ״ז',
-  'תוכניות תשפ״ז',
-  'תשפ״ז'
+  'next_year', 'שנה הבאה', 'שנת הלימודים תשפ״ז', 'תוכניות תשפ״ז', 'תשפ״ז'
 ]);
 
 let cachedPricingRows = [];
-let scheduledForms = new WeakSet();
+const scheduledForms = new WeakSet();
 
 function text(value) {
   return String(value == null ? '' : value).replace(/\s+/g, ' ').trim();
@@ -33,20 +28,13 @@ function formatCurrency(value) {
   return number.toLocaleString('he-IL', { minimumFractionDigits: 0, maximumFractionDigits: 2 });
 }
 
-function pricingOptionKey(row = {}) {
-  return [
-    row.activity_no,
-    row.activity_name,
-    row.item_type,
-    row.proposal_group,
-    row.unit_duration,
-    row.unit_price,
-    row.sort_order
-  ].map(text).join('||');
-}
-
 function normalizedName(value) {
   return text(value).replace(/[״"׳'`]/g, '').toLowerCase();
+}
+
+function pricingOptionKey(row = {}) {
+  return [row.activity_no, row.activity_name, row.item_type, row.proposal_group, row.unit_duration, row.unit_price, row.sort_order]
+    .map(text).join('||');
 }
 
 function pricingGroup(row = {}) {
@@ -57,16 +45,10 @@ function isWorkshopPricingRow(row = {}) {
   const group = pricingGroup(row);
   if (group === WORKSHOP_GROUP) return true;
   if (group === COURSE_GROUP) return false;
-  const displayMode = text(row.proposal_display_mode);
-  if (displayMode === 'bundle_parent' || row.is_bundle_parent === true) return true;
-  const kind = normalizedName([
-    row.item_type,
-    row.activity_name,
-    row.catalog_type,
-    row.pricing_key,
-    row.parent_pricing_key
-  ].map(text).join(' '));
-  return /סדנ|workshop|stem|חלל|maker/.test(kind);
+  const kind = normalizedName([row.item_type, row.activity_name, row.catalog_type, row.pricing_key, row.parent_pricing_key].join(' '));
+  return text(row.proposal_display_mode) === 'bundle_parent'
+    || row.is_bundle_parent === true
+    || /סדנ|workshop|stem|חלל|maker/.test(kind);
 }
 
 function isCoursePricingRow(row = {}) {
@@ -74,8 +56,9 @@ function isCoursePricingRow(row = {}) {
   if (group === COURSE_GROUP) return true;
   if (group === WORKSHOP_GROUP || isWorkshopPricingRow(row)) return false;
   if (!NEXT_YEAR_TYPE_ALIASES.has(group)) return false;
-  const kind = normalizedName([row.item_type, row.activity_name].map(text).join(' '));
-  return /קורס|תוכנית|תכנית|program|course|הדרכה/.test(kind) || Boolean(text(row.gefen_number || row.activity_no));
+  const kind = normalizedName([row.item_type, row.activity_name].join(' '));
+  return /קורס|תוכנית|תכנית|program|course|הדרכה/.test(kind)
+    || Boolean(text(row.gefen_number || row.activity_no));
 }
 
 export function pricingRowsForNextYearGroup(rows = [], groupKey = '') {
@@ -99,29 +82,32 @@ export function pricingRowsForNextYearGroup(rows = [], groupKey = '') {
   });
 }
 
-function cachePricingPayload(payload = {}) {
-  if (!payload || typeof payload !== 'object') return payload;
-  const rows = payload.proposalActivityPricing || payload.proposal_activity_pricing;
+function cachePayload(payload = {}) {
+  const rows = payload?.proposalActivityPricing || payload?.proposal_activity_pricing;
   if (Array.isArray(rows)) cachedPricingRows = augmentNextYearPricingRows(rows);
   return payload;
 }
 
-function wrapPayloadMethod(targetApi, methodName) {
-  const original = targetApi?.[methodName];
+function wrapPayloadMethod(targetApi, name) {
+  const original = targetApi?.[name];
   if (typeof original !== 'function') return;
-  targetApi[methodName] = async function nextYearEditorStabilityPayload(...args) {
-    return cachePricingPayload(await original.apply(this, args));
+  targetApi[name] = async function nextYearEditorPayload(...args) {
+    return cachePayload(await original.apply(this, args));
   };
 }
 
-function wrapPricingMethod(targetApi, methodName) {
-  const original = targetApi?.[methodName];
+function wrapPricingMethod(targetApi, name) {
+  const original = targetApi?.[name];
   if (typeof original !== 'function') return;
-  targetApi[methodName] = async function nextYearEditorStabilityPricing(...args) {
+  targetApi[name] = async function nextYearEditorPricing(...args) {
     const rows = await original.apply(this, args);
     if (Array.isArray(rows)) cachedPricingRows = augmentNextYearPricingRows(rows);
     return rows;
   };
+}
+
+function rowField(row, name) {
+  return text(row?.querySelector?.(`[name="${name}"]`)?.value);
 }
 
 function setInputValue(row, name, value, { overwrite = false } = {}) {
@@ -133,10 +119,6 @@ function setInputValue(row, name, value, { overwrite = false } = {}) {
   if (input.value === next) return false;
   input.value = next;
   return true;
-}
-
-function rowField(row, name) {
-  return text(row?.querySelector?.(`[name="${name}"]`)?.value);
 }
 
 function rowHasMeaningfulSelection(row) {
@@ -295,7 +277,8 @@ function calculateFormTotals(form) {
 
 function nextYearForm(form) {
   const type = text(form?.querySelector?.('[name="activity_type_group"]')?.value);
-  return NEXT_YEAR_TYPE_ALIASES.has(type) || Boolean(form?.querySelector?.(`[data-pa-items-group="${COURSE_GROUP}"]`));
+  return NEXT_YEAR_TYPE_ALIASES.has(type)
+    || Boolean(form?.querySelector?.(`[data-pa-items-group="${COURSE_GROUP}"]`));
 }
 
 function markPendingUserRow(form) {
@@ -303,8 +286,7 @@ function markPendingUserRow(form) {
   if (!NEXT_YEAR_GROUPS.has(group)) return;
   const section = form.querySelector(`[data-pa-items-group="${group}"]`);
   const rows = Array.from(section?.querySelectorAll?.('[data-pa-item-row]') || []);
-  const unmarked = rows.filter((row) => row.dataset.paNextYearUserAdded !== 'yes');
-  const row = unmarked[unmarked.length - 1];
+  const row = rows.filter((item) => item.dataset.paNextYearUserAdded !== 'yes').at(-1);
   if (row) row.dataset.paNextYearUserAdded = 'yes';
   delete form.dataset.paNextYearPendingAddGroup;
 }
@@ -326,16 +308,16 @@ export function removeBlankNextYearRows(form) {
 export function stabilizeNextYearForm(form, pricingRows = cachedPricingRows, options = {}) {
   if (!form || !nextYearForm(form)) return { changed: false, removed: 0, total: 0 };
   markPendingUserRow(form);
-  let removed = 0;
   let changed = false;
+  let removed = 0;
 
   NEXT_YEAR_GROUPS.forEach((groupKey) => {
     const section = form.querySelector(`[data-pa-items-group="${groupKey}"]`);
     if (!section) return;
     const groupRows = pricingRowsForNextYearGroup(pricingRows, groupKey);
     section.querySelectorAll('[data-pa-item-row]').forEach((row) => {
-      const isUserAdded = row.dataset.paNextYearUserAdded === 'yes';
-      if (options.removeBlankRows !== false && !isUserAdded && isBlankNextYearEditorRow(row)) {
+      const userAdded = row.dataset.paNextYearUserAdded === 'yes';
+      if (options.removeBlankRows === true && !userAdded && isBlankNextYearEditorRow(row)) {
         row.remove();
         removed += 1;
         changed = true;
@@ -363,8 +345,7 @@ function scheduleForm(form, options = {}) {
   scheduledForms.add(form);
   const run = () => {
     scheduledForms.delete(form);
-    if (!form.isConnected) return;
-    stabilizeNextYearForm(form, cachedPricingRows, options);
+    if (form.isConnected) stabilizeNextYearForm(form, cachedPricingRows, { ...options, notify: false });
   };
   if (typeof requestAnimationFrame === 'function') requestAnimationFrame(run);
   else setTimeout(run, 0);
@@ -378,12 +359,6 @@ function formsInNode(node) {
   const closest = node.closest?.('[data-pa-form]');
   if (closest) forms.push(closest);
   return [...new Set(forms)];
-}
-
-function addedNodeNeedsStabilization(node) {
-  if (!(node instanceof Element)) return false;
-  return node.matches?.('[data-pa-form], [data-pa-items-group], [data-pa-item-row], [data-pa-items-host]')
-    || Boolean(node.querySelector?.('[data-pa-items-group], [data-pa-item-row]'));
 }
 
 function installDomRuntime(scope = globalThis) {
@@ -402,16 +377,14 @@ function installDomRuntime(scope = globalThis) {
     const group = text(addButton.dataset.paAddItemGroup);
     if (!addForm || !NEXT_YEAR_GROUPS.has(group)) return;
     addForm.dataset.paNextYearPendingAddGroup = group;
-    queueMicrotask(() => scheduleForm(addForm, { removeBlankRows: true }));
+    queueMicrotask(() => scheduleForm(addForm, { removeBlankRows: false }));
   }, true);
 
   documentRef.addEventListener('change', (event) => {
     const form = event.target?.closest?.('[data-pa-form]');
-    if (!form) return;
-    if (event.target?.matches?.('[name="activity_type_group"]')) removeBlankNextYearRows(form);
-    if (event.target?.matches?.('[name="activity_type_group"], [data-pa-pricing-select]')) {
-      queueMicrotask(() => scheduleForm(form, { removeBlankRows: true }));
-    }
+    if (!form || !event.target?.matches?.('[name="activity_type_group"]')) return;
+    removeBlankNextYearRows(form);
+    queueMicrotask(() => scheduleForm(form, { removeBlankRows: false }));
   }, true);
 
   const observer = new scope.MutationObserver((mutations) => {
@@ -419,14 +392,12 @@ function installDomRuntime(scope = globalThis) {
     mutations.forEach((mutation) => {
       mutation.addedNodes.forEach((node) => {
         if (!(node instanceof Element)) return;
-        if (node.matches?.('.proposal-document') || node.querySelector?.('.proposal-document')) {
-          normalizeProposalPricingTables(node);
-        }
-        if (!addedNodeNeedsStabilization(node)) return;
+        if (!node.matches?.('[data-pa-form], [data-pa-items-group], [data-pa-item-row], [data-pa-items-host]')
+          && !node.querySelector?.('[data-pa-items-group], [data-pa-item-row]')) return;
         formsInNode(node).forEach((form) => forms.add(form));
       });
     });
-    forms.forEach((form) => scheduleForm(form, { removeBlankRows: true }));
+    forms.forEach((form) => scheduleForm(form, { removeBlankRows: false }));
   });
   observer.observe(documentRef.getElementById('app') || documentRef.body || documentRef.documentElement, {
     childList: true,
@@ -440,12 +411,7 @@ export function installNextYearEditorStability(targetApi = api, scope = globalTh
   wrapPayloadMethod(targetApi, 'proposalsAgreementsEditorDeps');
   wrapPricingMethod(targetApi, 'readProposalActivityPricing');
   installDomRuntime(scope);
-  Object.defineProperty(targetApi, PATCH_KEY, {
-    value: true,
-    configurable: false,
-    enumerable: false,
-    writable: false
-  });
+  Object.defineProperty(targetApi, PATCH_KEY, { value: true, configurable: false, enumerable: false, writable: false });
   return true;
 }
 
