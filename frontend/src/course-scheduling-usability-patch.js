@@ -47,7 +47,7 @@ function restoreSnapshot(state, courses) {
     });
     state.courseSchedulingCalculatedAt = text(snapshot.calculatedAt);
   } catch {
-    localStorage.removeItem(SNAPSHOT_KEY);
+    try { localStorage.removeItem(SNAPSHOT_KEY); } catch { /* local storage may be unavailable */ }
   }
 }
 
@@ -159,11 +159,10 @@ courseSchedulingScreen.bind = function patchedBind(args) {
     calculateButton.dataset.snapshotBound = 'true';
     calculateButton.addEventListener('click', () => {
       const startedAt = Date.now();
-      const previousCalculatedAt = text(state.courseSchedulingCalculatedAt);
+      let sawLoading = !!state.courseSchedulingLoading;
       const timer = window.setInterval(() => {
-        const completed = !state.courseSchedulingLoading
-          && text(state.courseSchedulingCalculatedAt)
-          && text(state.courseSchedulingCalculatedAt) !== previousCalculatedAt;
+        sawLoading ||= !!state.courseSchedulingLoading;
+        const completed = sawLoading && !state.courseSchedulingLoading && !!text(state.courseSchedulingCalculatedAt);
         if (completed) {
           saveSnapshot(state, courses);
           window.clearInterval(timer);
