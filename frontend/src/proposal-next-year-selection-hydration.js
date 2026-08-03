@@ -102,6 +102,31 @@ function pricingIndex(rows) {
   return { byOption, byActivityNo, byPricingKey, byName };
 }
 
+function pickedFromSelectedOption(select) {
+  const parts = text(select?.value).split('||');
+  if (parts.length < 6) return null;
+  const [activityNo, activityName, itemType, proposalGroup, unitDuration, unitPrice, sortOrder] = parts;
+  const name = text(activityName);
+  const price = numberOrNull(unitPrice);
+  if (!name || price == null || price <= 0) return null;
+  return {
+    activity_no: text(activityNo),
+    gefen_number: text(activityNo),
+    activity_name: name,
+    item_type: text(itemType),
+    proposal_group: text(proposalGroup),
+    unit_duration: text(unitDuration),
+    unit_price: price,
+    sort_order: numberOrNull(sortOrder),
+    pricing_key: '',
+    proposal_display_mode: 'single',
+    meetings_count: '',
+    hours_count: '',
+    hourly_price: '',
+    description_for_proposal: ''
+  };
+}
+
 function resolvePicked(row, rows) {
   const select = row?.querySelector?.('[data-pa-pricing-select]');
   const selected = text(select?.value);
@@ -115,6 +140,8 @@ function resolvePicked(row, rows) {
   const name = text(parts[1]).toLowerCase();
   if (activityNo && index.byActivityNo.has(activityNo)) return index.byActivityNo.get(activityNo);
   if (name && index.byName.has(name)) return index.byName.get(name);
+  const embedded = pickedFromSelectedOption(select);
+  if (embedded) return embedded;
   const selectedName = text(select.selectedOptions?.[0]?.textContent?.split('—')?.[0]).toLowerCase();
   return selectedName ? index.byName.get(selectedName) || null : null;
 }
