@@ -57,7 +57,9 @@ async function firstPositivePriceOption(select) {
 }
 
 async function expectSelectedLabelMatchesInternalPrice(row) {
-  const selectedLabel = await row.locator('[data-pa-pricing-select] option:checked').innerText();
+  const select = row.locator('[data-pa-pricing-select]');
+  await expect(select).toBeVisible();
+  const selectedLabel = await select.evaluate((element) => element.selectedOptions?.[0]?.textContent || '');
   const labelPrice = amountOf(selectedLabel);
   const internalPrice = amountOf(await row.locator('[data-pa-item-price]').inputValue());
   expect(labelPrice).toBeGreaterThan(0);
