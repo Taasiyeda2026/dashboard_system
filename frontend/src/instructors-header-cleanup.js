@@ -1,5 +1,10 @@
 import './activity-2027-contact-list-runtime.js?v=20260802-v1';
-import './instructor-course-scheduling-usability.js?v=20260803-v1';
+
+if (typeof window !== 'undefined' && window.sessionStorage && window.localStorage) {
+  import('./instructor-course-scheduling-usability.js?v=20260803-v1').catch((error) => {
+    console.error('[course-scheduling-usability] load failed', error);
+  });
+}
 
 function instructorsAppRoot(root = document) {
   if (!root) return null;
