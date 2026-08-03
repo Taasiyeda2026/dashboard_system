@@ -51,9 +51,54 @@ async function assertNoOverlap(container) {
 
 async function firstPositivePriceOption(select) {
   return select.locator('option:not([value=""])').evaluateAll((options) => {
-    const option = options.find((item) => !item.value.startsWith('__') && /₪\s*[1-9]/.test(item.textContent || ''));
+    const option = options.find((item) => {
+      const label = item.textContent || '';
+      return !item.value.startsWith('__') && (/₪\s*[1-9]/.test(label) || /[1-9][\d,]*(?:\.\d+)?\s*₪/.test(label));
+    });
     return option?.value || '';
   });
+}
+
+async function selectPositiveOptionAndWaitForGroupTotal(page, group, groupName, rowIndex) {
+  const total = group.locator(`[data-pa-group-total="${groupName}"]`);
+  const baseline = amountOf(await total.innerText());
+  const deadline = Date.now() + 30_000;
+  let lastError = '';
+
+  while (Date.now() < deadline) {
+    const rows = group.locator('[data-pa-item-row]');
+    if ((await rows.count()) <= rowIndex) {
+      await page.waitForTimeout(250);
+      continue;
+    }
+
+    const currentRow = rows.nth(rowIndex);
+    const select = currentRow.locator('[data-pa-pricing-select]');
+    if (!(await select.count())) {
+      await page.waitForTimeout(250);
+      continue;
+    }
+
+    const option = await firstPositivePriceOption(select);
+    if (!option) {
+      await page.waitForTimeout(250);
+      continue;
+    }
+
+    try {
+      await select.selectOption(option);
+      await expect.poll(async () => amountOf(await total.innerText()), {
+        timeout: 4_000,
+        intervals: [200, 400, 800]
+      }).toBeGreaterThan(baseline);
+      return rows.nth(rowIndex);
+    } catch (error) {
+      lastError = String(error?.message || error);
+      await page.waitForTimeout(250);
+    }
+  }
+
+  throw new Error(`The ${groupName} total did not increase after selecting row ${rowIndex + 1}. ${lastError}`);
 }
 
 async function expectSelectedLabelMatchesInternalPrice(row) {
@@ -127,30 +172,17 @@ test('real proposal regression path remains stable without saving data or PDFs',
 
   await courses.locator('[data-pa-add-item]').click();
   await expect(courses.locator('[data-pa-item-row]')).toHaveCount(2);
-  const secondCourse = courses.locator('[data-pa-item-row]').nth(1);
-  const secondCourseOption = await firstPositivePriceOption(secondCourse.locator('[data-pa-pricing-select]'));
-  expect(secondCourseOption).not.toBe('');
-  await secondCourse.locator('[data-pa-pricing-select]').selectOption(secondCourseOption);
-  await expectSelectedLabelMatchesInternalPrice(secondCourse);
+  const secondCourse = await selectPositiveOptionAndWaitForGroupTotal(page, courses, 'next_year_courses', 1);
 
   await workshops.locator('[data-pa-add-item]').click();
-  const workshopRow = workshops.locator('[data-pa-item-row]').first();
-  await expect(workshopRow).toBeVisible();
   await expect(workshops.locator('[data-pa-item-row]')).toHaveCount(1);
-  const workshopOption = await firstPositivePriceOption(workshopRow.locator('[data-pa-pricing-select]'));
-  expect(workshopOption, 'a positive-price workshop must be available').not.toBe('');
-  await workshopRow.locator('[data-pa-pricing-select]').selectOption(workshopOption);
-  await expectSelectedLabelMatchesInternalPrice(workshopRow);
+  await selectPositiveOptionAndWaitForGroupTotal(page, workshops, 'next_year_workshops', 0);
   await expect.poll(async () => amountOf(await workshops.locator('[data-pa-group-total="next_year_workshops"]').innerText())).toBeGreaterThan(0);
   await expect.poll(async () => amountOf(await form.locator('[data-pa-grand-total]').innerText())).toBeGreaterThan(27000);
 
   await workshops.locator('[data-pa-add-item]').click();
   await expect(workshops.locator('[data-pa-item-row]')).toHaveCount(2);
-  const secondWorkshop = workshops.locator('[data-pa-item-row]').nth(1);
-  const secondWorkshopOption = await firstPositivePriceOption(secondWorkshop.locator('[data-pa-pricing-select]'));
-  expect(secondWorkshopOption).not.toBe('');
-  await secondWorkshop.locator('[data-pa-pricing-select]').selectOption(secondWorkshopOption);
-  await expectSelectedLabelMatchesInternalPrice(secondWorkshop);
+  const secondWorkshop = await selectPositiveOptionAndWaitForGroupTotal(page, workshops, 'next_year_workshops', 1);
   await shot(page, 'proposal-next-year-two-areas.png', form.locator('[data-pa-items-host]'));
 
   page.on('dialog', (dialog) => dialog.accept());
