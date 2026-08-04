@@ -286,7 +286,7 @@ test('selected course shows find-instructors CTA and waiting card before results
   assert.doesNotMatch(html, /openDrawer|course-panel/);
 });
 
-test('calendar tab empty state points users back to courses', () => {
+test('calendar tab empty state points users back to courses', async () => {
   const html = courseSchedulingScreen.render({
     activities: [openCourse({ row_id: 'a1', start_date: '2026-09-01', start_time: '10:00', date_1: '2026-09-01' })],
     instructors: [],
@@ -306,11 +306,11 @@ test('calendar tab empty state points users back to courses', () => {
   assert.doesNotMatch(html, /course-scheduling-empty-action[^"]*course-scheduling-btn--primary|course-scheduling-btn--primary[^"]*course-scheduling-empty-action/);
   assert.match(html, /מעבר לקורסים לשיבוץ/);
   const css = await readFile(new URL('../frontend/src/screens/course-scheduling.css', import.meta.url), 'utf8');
-  assert.match(css, /\.course-scheduling-empty-action\s*\{[^}]*width:\s*auto;/s);
+  assert.match(css, /\.course-scheduling-empty-action\s*\{[^}]*\bwidth:\s*auto;/s);
   assert.match(css, /\.course-scheduling-empty-action\s*\{[^}]*align-self:\s*center;/s);
   assert.match(css, /\.course-scheduling-empty-action\s*\{[^}]*padding:\s*9px\s+18px;/s);
-  assert.doesNotMatch(css, /\.course-scheduling-empty-action\s*\{[^}]*width:\s*100%/s);
-  assert.doesNotMatch(css, /\.course-scheduling-empty-action\s*\{[^}]*flex:\s*1(?!\s*0)/s);
+  assert.match(css, /\.course-scheduling-empty-action\s*\{[^}]*flex:\s*0\s+0\s+auto;/s);
+  assert.doesNotMatch(css, /\.course-scheduling-empty-action\s*\{[^}]*(?<!max-)\bwidth:\s*100%/s);
   assert.match(html, /⚙ תחזוקת המערכת/);
   assert.match(html, /course-scheduling-calendar-toolbar-nav/);
   assert.match(html, /course-scheduling-calendar-toolbar-center/);
