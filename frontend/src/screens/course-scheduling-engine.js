@@ -149,6 +149,15 @@ function routeLeg(routeMatrix = {}, origin, destination, sameLocation = false) {
     : null;
 }
 
+function travelUnavailableReason(course, instructor, home, input = {}) {
+  if (home && Number.isFinite(Number(home.distance_km)) && Number.isFinite(Number(home.duration_minutes))) return '';
+  if (!text(instructor?.address)) return 'missing_instructor_address';
+  if (!placeOf(course)) return 'missing_school_address';
+  if (input.preliminary) return 'not_calculated';
+  if (input.travelUnavailableReason) return 'service_unavailable';
+  return 'no_route';
+}
+
 function dynamicTravel(course, instructor, existingMeetings, input = {}) {
   const base = input.travel?.[idOf(course)]?.[text(instructor.emp_id)] || null;
   const transitions = {};
@@ -160,7 +169,13 @@ function dynamicTravel(course, instructor, existingMeetings, input = {}) {
       next: next ? routeLeg(input.routeMatrix, destination, placeOf(next), sameSchool(course, next)) : null
     };
   }
-  return { home: base?.home || null, transitions };
+  const home = base?.home || null;
+  const unavailableReason = travelUnavailableReason(course, instructor, home, input);
+  return {
+    home,
+    transitions,
+    ...(unavailableReason ? { unavailableReason } : {})
+  };
 }
 
 function fairnessVariance(loads = new Map()) {
@@ -190,7 +205,8 @@ function evaluateCandidate({ course, instructor, assignedRows, draftRows, profil
     fixedCourseCount: load.courseCount,
     weeklyWorkDayCount: load.maxWeekDayCount
   });
-  return { ...result, instructor, load };
+  // Persist the exact travel object used for scoring so the UI never shows a different route.
+  return { ...result, instructor, load, travel };
 }
 
 function candidateMap({ courses, instructors, profiles = {}, rules = {}, exceptions = {}, assignedRows, input }) {

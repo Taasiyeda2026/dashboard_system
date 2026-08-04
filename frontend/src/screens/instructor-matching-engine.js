@@ -1,6 +1,11 @@
 import { instructionLanguageLabel, profileSpeaksLanguage, resolveInstructionLanguage } from './shared/instruction-language.js';
 
 const LANGUAGE_LABELS = { he: 'עברית', ar: 'ערבית' };
+const EDUCATION_LEVEL_LABELS = {
+  elementary: 'יסודי',
+  middle_school: 'חטיבת ביניים',
+  high_school: 'תיכון'
+};
 
 export const DEFAULT_SCHEDULING_PROFILE = Object.freeze({
   gender: null,
@@ -19,12 +24,41 @@ export const DEFAULT_SCHEDULING_PROFILE = Object.freeze({
   max_fixed_courses: null
 });
 
+export function normalizeGender(value) {
+  const raw = String(value ?? '').trim();
+  if (!raw) return null;
+  const lower = raw.toLocaleLowerCase('he-IL');
+  if (lower === 'any' || raw === 'ללא' || raw === 'ללא דרישה') return 'any';
+  if (lower === 'female' || lower === 'f' || raw === 'נקבה' || raw === 'מדריכה' || raw === 'אישה') return 'female';
+  if (lower === 'male' || lower === 'm' || raw === 'זכר' || raw === 'מדריך' || raw === 'גבר') return 'male';
+  return null;
+}
+
+export function normalizeEducationLevel(value) {
+  const raw = String(value ?? '').trim();
+  if (!raw) return '';
+  const lower = raw.toLocaleLowerCase('he-IL');
+  if (lower === 'elementary' || raw === 'יסודי') return 'elementary';
+  if (lower === 'middle_school' || raw === 'חטיבת ביניים' || raw === 'חטיבה' || raw === 'חט"ב' || raw === 'חט״ב') return 'middle_school';
+  if (lower === 'high_school' || raw === 'תיכון') return 'high_school';
+  return deriveEducationLevel(raw) || '';
+}
+
+export function educationLevelLabel(value) {
+  const normalized = normalizeEducationLevel(value);
+  return EDUCATION_LEVEL_LABELS[normalized] || String(value || '').trim() || '—';
+}
+
 export function normalizeSchedulingProfile(profile = {}) {
+  const gender = normalizeGender(profile?.gender);
   return {
     ...DEFAULT_SCHEDULING_PROFILE,
     ...(profile || {}),
+    gender: gender === 'any' ? null : gender,
     instruction_languages: Array.isArray(profile?.instruction_languages) ? profile.instruction_languages : [],
-    education_levels: Array.isArray(profile?.education_levels) ? profile.education_levels : [],
+    education_levels: Array.isArray(profile?.education_levels)
+      ? profile.education_levels.map(normalizeEducationLevel).filter(Boolean)
+      : [],
     course_ids: Array.isArray(profile?.course_ids) ? profile.course_ids : [],
     blocked_authorities: Array.isArray(profile?.blocked_authorities) ? profile.blocked_authorities : [],
     blocked_schools: Array.isArray(profile?.blocked_schools) ? profile.blocked_schools : []
@@ -61,6 +95,10 @@ function meetingRows(activity) {
 
 function overlaps(a, b) {
   return minutes(a.start_time) < minutes(b.end_time) && minutes(b.start_time) < minutes(a.end_time);
+}
+
+function checkResult(passed, label, reason = '') {
+  return { passed, label, reason };
 }
 
 export function defaultAvailabilityForWeekday(weekday, profile = {}) {
@@ -106,35 +144,100 @@ export function evaluateInstructor({
   const issues = [];
   const meetings = meetingRows(activity);
   const language = resolveInstructionLanguage(activity);
-  const gender = activity.required_instructor_gender || 'any';
+  const requiredGender = normalizeGender(activity.required_instructor_gender) || 'any';
+  const profileGender = normalizeGender(profile.gender);
   const empId = String(instructor.emp_id || '');
+  const femaleInstructor = profileGender === 'female';
 
   if (String(instructor.active ?? 'yes').toLowerCase() === 'no' || instructor.active === false) failures.push('המדריך אינו פעיל');
   if (!String(instructor.address || '').trim()) missingProfileData.push('כתובת');
 
-  if (!profile.instruction_languages.length) missingProfileData.push('שפות הדרכה');
-  else if (!profileSpeaksLanguage(profile.instruction_languages, language)) {
-    failures.push(`המדריך אינו דובר ${LANGUAGE_LABELS[language] || instructionLanguageLabel(language)}, שפת ההדרכה של הקורס`);
+  let languageCheck = checkResult(null, 'שפה', 'לא נבדק');
+  if (!profile.instruction_languages.length) {
+    missingProfileData.push('שפות הדרכה');
+    languageCheck = checkResult(null, 'שפה', 'לא נבדק — חסרות שפות הדרכה בפרופיל');
+  } else if (!profileSpeaksLanguage(profile.instruction_languages, language)) {
+    const reason = `המדריך אינו דובר ${LANGUAGE_LABELS[language] || instructionLanguageLabel(language)}, שפת ההדרכה של הקורס`;
+    failures.push(reason);
+    languageCheck = checkResult(false, `${LANGUAGE_LABELS[language] || instructionLanguageLabel(language)} - לא מתאים`, reason);
+  } else {
+    languageCheck = checkResult(true, `${LANGUAGE_LABELS[language] || instructionLanguageLabel(language)} - מתאים`, '');
   }
 
-  if (gender !== 'any' && !profile.gender) missingProfileData.push('מגדר');
-  else if (gender !== 'any' && profile.gender !== gender) failures.push(gender === 'female'
-    ? 'הקורס דורש מדריכה והמדריך אינו עומד בדרישת המגדר.'
-    : 'הקורס דורש מדריך והמדריך אינו עומד בדרישת המגדר.');
+  let genderCheck = checkResult(null, 'מגדר', 'לא נבדק');
+  if (requiredGender === 'any') {
+    genderCheck = checkResult(true, 'ללא דרישת מגדר', '');
+  } else if (!profileGender) {
+    missingProfileData.push('מגדר');
+    genderCheck = checkResult(null, 'מגדר', 'לא נבדק — חסר מגדר בפרופיל');
+  } else if (profileGender !== requiredGender) {
+    const reason = requiredGender === 'female' ? 'הקורס דורש מדריכה' : 'הקורס דורש מדריך';
+    failures.push(reason);
+    genderCheck = checkResult(false, femaleInstructor ? 'אינה עומדת בדרישה' : 'אינו עומד בדרישה', reason);
+  } else {
+    genderCheck = checkResult(true, femaleInstructor ? 'עומדת בדרישה' : 'עומד בדרישה', '');
+  }
 
-  const educationLevel = String(activity.education_level || deriveEducationLevel(activity.grade));
-  if (educationLevel && !profile.education_levels.length) missingProfileData.push('שכבות גיל');
-  else if (educationLevel && !profile.education_levels.includes(educationLevel)) failures.push('המדריך אינו מתאים לשכבת הגיל');
+  const educationLevel = normalizeEducationLevel(activity.education_level) || deriveEducationLevel(activity.grade);
+  let educationCheck = checkResult(null, 'שכבת גיל', 'לא נבדק');
+  if (!educationLevel) {
+    educationCheck = checkResult(null, 'שכבת גיל', 'לא נבדק');
+  } else if (!profile.education_levels.length) {
+    missingProfileData.push('שכבות גיל');
+    educationCheck = checkResult(null, educationLevelLabel(educationLevel), 'לא נבדק — חסרות שכבות גיל בפרופיל');
+  } else if (!profile.education_levels.includes(educationLevel)) {
+    const reason = 'המדריך אינו מתאים לשכבת הגיל';
+    failures.push(reason);
+    educationCheck = checkResult(false, `${educationLevelLabel(educationLevel)} - לא מתאים`, reason);
+  } else {
+    educationCheck = checkResult(true, `${educationLevelLabel(educationLevel)} - מתאים`, '');
+  }
 
   const courseId = String(activity.course_id || activity.activity_no || activity.activity_name || '');
   const courses = list(profile.course_ids);
+  const courseEligibilityFailures = [];
   if (!rawProfile || !Object.prototype.hasOwnProperty.call(rawProfile, 'course_restriction_mode')) missingProfileData.push('התאמה לקורסים');
-  if (profile.course_restriction_mode === 'allow_only' && !courses.includes(courseId)) failures.push('המדריך מתאים רק לקורסים אחרים');
-  if (profile.course_restriction_mode === 'block_selected' && courses.includes(courseId)) failures.push('הקורס חסום עבור המדריך');
-  if (list(profile.blocked_authorities).some((value) => same(value, activity.authority_id || activity.authority))) failures.push('הרשות חסומה עבור המדריך');
-  if (list(profile.blocked_schools).some((value) => same(value, activity.school_id || activity.school))) failures.push('בית הספר חסום עבור המדריך');
-  if (list(activity.blocked_instructor_ids).includes(empId)) failures.push('המדריך חסום בפעילות זו');
-  if (list(activity.allowed_instructor_ids).length && !list(activity.allowed_instructor_ids).includes(empId)) failures.push('המדריך אינו ברשימת המדריכים המותרים');
+  if (profile.course_restriction_mode === 'allow_only' && !courses.includes(courseId)) {
+    const reason = 'המדריך מתאים רק לקורסים אחרים';
+    failures.push(reason);
+    courseEligibilityFailures.push(reason);
+  }
+  if (profile.course_restriction_mode === 'block_selected' && courses.includes(courseId)) {
+    const reason = 'הקורס חסום עבור המדריך';
+    failures.push(reason);
+    courseEligibilityFailures.push(reason);
+  }
+  if (list(profile.blocked_authorities).some((value) => same(value, activity.authority_id || activity.authority))) {
+    const reason = 'הרשות חסומה עבור המדריך';
+    failures.push(reason);
+    courseEligibilityFailures.push(reason);
+  }
+  if (list(profile.blocked_schools).some((value) => same(value, activity.school_id || activity.school))) {
+    const reason = 'בית הספר חסום עבור המדריך';
+    failures.push(reason);
+    courseEligibilityFailures.push(reason);
+  }
+  if (list(activity.blocked_instructor_ids).includes(empId)) {
+    const reason = 'המדריך חסום בפעילות זו';
+    failures.push(reason);
+    courseEligibilityFailures.push(reason);
+  }
+  if (list(activity.allowed_instructor_ids).length && !list(activity.allowed_instructor_ids).includes(empId)) {
+    const reason = 'המדריך אינו ברשימת המדריכים המותרים';
+    failures.push(reason);
+    courseEligibilityFailures.push(reason);
+  }
+
+  let courseEligibilityCheck;
+  if (!rawProfile || !Object.prototype.hasOwnProperty.call(rawProfile, 'course_restriction_mode')) {
+    courseEligibilityCheck = checkResult(null, 'התאמה לתוכנית', 'לא נבדק');
+  } else if (courseEligibilityFailures.length) {
+    courseEligibilityCheck = checkResult(false, 'לא מתאים', courseEligibilityFailures[0]);
+  } else if (profile.course_restriction_mode === 'all') {
+    courseEligibilityCheck = checkResult(true, 'לא הוגבלה התאמה', '');
+  } else {
+    courseEligibilityCheck = checkResult(true, 'מתאים', '');
+  }
 
   const ruleMap = new Map(rules.map((rule) => [Number(rule.weekday), rule]));
   const exceptionMap = new Map(exceptions.map((exception) => [String(exception.exception_date).slice(0, 10), exception]));
@@ -155,6 +258,9 @@ export function evaluateInstructor({
   let separateTrips = 0;
   let schoolContinuityPoints = 0;
   let authorityContinuityPoints = 0;
+  let availableMeetings = 0;
+  const availabilityIssueKinds = new Set(['missing_availability', 'hours_unavailable', 'day_blocked', 'overlap']);
+  const travelIssueKinds = new Set(['unverified_transition', 'insufficient_transition']);
 
   for (const meeting of meetings) {
     const weekday = new Date(`${meeting.date}T12:00:00`).getDay();
@@ -177,6 +283,8 @@ export function evaluateInstructor({
         availability.available ? `הזמינות המוגדרת אינה מכסה את שעות ${meeting.start_time}–${meeting.end_time}` : 'היום הקבוע חסום',
         meeting.date
       );
+    } else {
+      availableMeetings += 1;
     }
 
     const { previous, next, day } = adjacentActivities(existingActivities, meeting);
@@ -236,13 +344,59 @@ export function evaluateInstructor({
     (issue.missing ? missingProfileData : failures).push(summary);
   }
 
+  const availabilityIssues = issues.filter((issue) => availabilityIssueKinds.has(issue.kind));
+  let availabilityCheck;
+  if (!rules.length) {
+    availabilityCheck = checkResult(null, 'זמינות', 'לא נבדק — חסרה זמינות שבועית');
+  } else if (availabilityIssues.length) {
+    availabilityCheck = checkResult(false, 'לא זמין במלואו', availabilityIssues[0].message);
+  } else if (meetings.length && availableMeetings === meetings.length) {
+    availabilityCheck = checkResult(
+      true,
+      femaleInstructor ? `פנויה בכל ${meetings.length} המפגשים` : `פנוי בכל ${meetings.length} המפגשים`,
+      ''
+    );
+  } else {
+    availabilityCheck = checkResult(false, 'לא זמין במלואו', 'לא כל מועדי הקורס מכוסים בזמינות');
+  }
+
+  let travelCheck = checkResult(null, 'מרחק', 'לא נבדק');
+  const travelIssues = issues.filter((issue) => travelIssueKinds.has(issue.kind));
+  const homeKm = travel?.home?.distance_km;
+  const homeMinutes = travel?.home?.duration_minutes;
+  if (!validateTravel) {
+    travelCheck = checkResult(null, 'מרחק', 'לא נבדק');
+  } else if (travelIssues.length) {
+    travelCheck = checkResult(false, 'מרחק', travelIssues[0].message);
+  } else if (homeKm != null && Number.isFinite(Number(homeKm)) && homeMinutes != null && Number.isFinite(Number(homeMinutes))) {
+    travelCheck = checkResult(true, `${Math.round(Number(homeKm))} ק״מ, ${Math.round(Number(homeMinutes))} דקות`, '');
+  } else if (travel?.unavailableReason === 'missing_instructor_address') {
+    travelCheck = checkResult(null, 'מרחק', 'חסרה כתובת מדריך');
+  } else if (travel?.unavailableReason === 'missing_school_address') {
+    travelCheck = checkResult(null, 'מרחק', 'חסרה כתובת בית ספר');
+  } else if (travel?.unavailableReason === 'service_unavailable') {
+    travelCheck = checkResult(null, 'מרחק', 'שירות המרחקים לא היה זמין');
+  } else if (travel && Object.prototype.hasOwnProperty.call(travel, 'home') && travel.home == null) {
+    travelCheck = checkResult(null, 'מרחק', 'לא נמצא מסלול');
+  }
+
+  const checks = {
+    gender: genderCheck,
+    language: languageCheck,
+    educationLevel: educationCheck,
+    availability: availabilityCheck,
+    courseEligibility: courseEligibilityCheck,
+    travel: travelCheck
+  };
+
   // 100-point rubric (spec section 15): school continuity <=30, authority continuity
   // <=20, load/fairness <=25, distance/travel <=15, daily continuity <=5, professional
   // experience <=5. Language/gender/blocks are gating conditions above, never points.
   let score = failures.length || missingProfileData.length ? null : 0;
+  let scoreBreakdown = null;
   if (score !== null) {
     if (language) scoreReasons.push(`מתאים לשפה ${LANGUAGE_LABELS[language]}`);
-    scoreReasons.push(profile.gender === 'female' ? 'פנויה בכל המפגשים' : 'פנוי בכל המפגשים');
+    scoreReasons.push(femaleInstructor ? 'פנויה בכל המפגשים' : 'פנוי בכל המפגשים');
 
     if (sameSchool) scoreReasons.push(`${sameSchool} חיבורים באותו בית ספר`);
     if (sameAuthority) scoreReasons.push(`${sameAuthority} חיבורים באותה רשות`);
@@ -309,8 +463,30 @@ export function evaluateInstructor({
       scoreReasons.push('ניסיון קודם בתוכנית');
     }
 
-    score = Math.round(schoolPoints) + Math.round(authorityPoints) + Math.round(loadPoints) + Math.round(distancePoints) + dailyContinuityPoints + experiencePoints;
+    const roundedSchool = Math.round(schoolPoints);
+    const roundedAuthority = Math.round(authorityPoints);
+    const roundedLoad = Math.round(loadPoints);
+    const roundedDistance = Math.round(distancePoints);
+    score = roundedSchool + roundedAuthority + roundedLoad + roundedDistance + dailyContinuityPoints + experiencePoints;
     score = Math.max(0, Math.min(100, score));
+    scoreBreakdown = {
+      continuity: {
+        points: roundedSchool + roundedAuthority,
+        label: 'רציפות באותו בית ספר או רשות',
+        schoolPoints: roundedSchool,
+        authorityPoints: roundedAuthority
+      },
+      workload: { points: roundedLoad, label: 'עומס עבודה' },
+      distance: {
+        points: roundedDistance,
+        label: 'מרחק',
+        distance_km: travel?.home?.distance_km ?? null,
+        duration_minutes: travel?.home?.duration_minutes ?? null
+      },
+      availability: { points: dailyContinuityPoints, label: 'זמינות' },
+      experience: { points: experiencePoints, label: 'ניסיון קודם בתוכנית' },
+      gateNote: 'מגדר, שפה, שכבת גיל וחסימות הם תנאי סף ואינם מוסיפים נקודות.'
+    };
   }
 
   return {
@@ -321,6 +497,8 @@ export function evaluateInstructor({
     warnings: [...new Set(warnings)],
     explanation: [...scoreReasons, ...warnings].join(', '),
     scoreReasons,
+    scoreBreakdown,
+    checks,
     schedule,
     issues
   };

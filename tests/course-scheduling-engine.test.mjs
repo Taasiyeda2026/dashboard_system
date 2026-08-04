@@ -221,8 +221,8 @@ test('status counters and candidate radio names are isolated per course', () => 
   const candidate = { instructor: instructors[0], eligible: true, score: 90, explanation: 'מתאימה', warnings: [], failures: [], missingProfileData: [], issues: [] };
   const firstHtml = detailsHtml({ course: course('first'), status: 'הצעה מוכנה', recommended: candidate, alternatives: [], checked: [candidate] });
   const secondHtml = detailsHtml({ course: course('second'), status: 'הצעה מוכנה', recommended: candidate, alternatives: [], checked: [candidate] });
-  assert.match(firstHtml, /name="candidate-first"/);
-  assert.match(secondHtml, /name="candidate-second"/);
+  assert.match(firstHtml, /name="course-candidate-first"/);
+  assert.match(secondHtml, /name="course-candidate-second"/);
 });
 
 test('course scheduling screen explicitly loads school_2027 and exposes reject/open workflows', async () => {
