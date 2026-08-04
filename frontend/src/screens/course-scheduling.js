@@ -592,7 +592,7 @@ export const courseSchedulingScreen = {
       : 'בחרו קורס, מצאו מדריך מתאים ושמרו כטיוטה או שבצו.';
 
     return dsScreenStack(`
-    <div class="course-scheduling-screen" dir="rtl" data-cs-ui="ux-polish-20260804-v2" data-cs-tab="${tab}">
+    <div class="course-scheduling-screen" dir="rtl" data-cs-ui="ux-polish-20260804-v3" data-cs-tab="${tab}">
       <header class="course-scheduling-header">
         <div class="course-scheduling-header-copy">
           <h1 class="course-scheduling-title">${title}</h1>

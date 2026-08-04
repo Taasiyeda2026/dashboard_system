@@ -20,7 +20,11 @@
   color: var(--cs-text);
   display: grid;
   gap: 10px;
+  align-content: start;
+  align-items: stretch;
   min-width: 0;
+  min-height: 0;
+  height: auto;
   max-width: 100%;
   overflow-x: hidden;
 }
@@ -183,9 +187,14 @@
 }
 
 .course-scheduling-calendar-pane--empty {
+  display: grid;
+  grid-template-rows: auto auto;
+  align-content: start;
+  justify-items: stretch;
+  align-self: start;
   min-height: 0;
   height: auto;
-  align-self: start;
+  max-height: none;
 }
 
 .course-scheduling-courses {
@@ -427,21 +436,26 @@
   display: flex;
   justify-content: center;
   align-items: flex-start;
-  padding: 20px 12px;
+  align-self: start;
+  padding: 16px 12px 8px;
   min-height: 0;
   height: auto;
+  max-height: none;
+  flex: 0 0 auto;
 }
 
 .course-scheduling-empty-wrap .course-scheduling-empty,
 .course-scheduling-empty--compact {
-  width: auto;
-  max-width: 340px;
+  width: max-content;
+  max-width: min(340px, 100%);
   min-height: 0;
   height: auto;
+  max-height: none;
   justify-items: start;
   align-content: start;
   text-align: right;
-  padding: 16px 18px;
+  padding: 14px 16px;
+  box-sizing: border-box;
 }
 
 .course-scheduling-empty-wrap .course-scheduling-btn,

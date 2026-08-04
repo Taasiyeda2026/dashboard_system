@@ -296,7 +296,7 @@ test('calendar tab empty state points users back to courses', () => {
   assert.match(html, /<h1 class="course-scheduling-title">מערכת שבועית<\/h1>/);
   assert.match(html, /צפו בקורסים ששובצו ובטיוטות לפי שבוע\./);
   assert.doesNotMatch(html, /בחרו קורס, מצאו מדריך מתאים ושמרו כטיוטה או שבצו\./);
-  assert.match(html, /data-cs-ui="ux-polish-20260804-v2"/);
+  assert.match(html, /data-cs-ui="ux-polish-20260804-v3"/);
   assert.match(html, /data-cs-tab="calendar"/);
   assert.match(html, /course-scheduling-calendar-pane--empty/);
   assert.match(html, /course-scheduling-empty-wrap/);
