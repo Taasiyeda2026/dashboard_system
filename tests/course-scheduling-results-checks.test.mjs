@@ -366,6 +366,6 @@ test('integration school_2027_019: only matching Hebrew middle-school females ar
   assert.match(html, /פירוט הציון/);
   assert.match(html, /רציפות באותו בית ספר או רשות/);
   assert.match(html, /עומס עבודה/);
-  assert.match(html, /ניסיון קודם בתוכנית/);
+  assert.match(html, /ניסיון קודם בקורס/);
   assert.match(html, /תנאי סף ואינם מוסיפים נקודות/);
 });
