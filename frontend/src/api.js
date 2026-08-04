@@ -20,6 +20,7 @@ import { resolveActiveUserRowAfterAuth } from './auth-user-resolve.js';
 import { supabase, supabaseConfig, waitForSupabaseAuthSession, resetSupabaseAuthSessionWait } from './supabase-client.js';
 import { isEmptyValue, nonEmptyString } from './utils/empty-value.js';
 import { withResolvedSchool2027Contact } from './screens/shared/school-2027-contact.js';
+import { normalizeOperationalDistrict } from './screens/shared/district-normalization.js';
 import { permissionFlagYes, canEditDirect, canAddActivityDirect, canRequestEdit, canRequestCreateActivity, canReviewRequests } from './permissions.js';
 import { mapWithConcurrency } from './bounded-concurrency.js';
 
@@ -2352,7 +2353,9 @@ async function dashboardReadModelFromSupabase(month) {
       if (instructor1 || emp1) instructorNames.add(instructor1 || emp1);
       if (instructor2 || emp2) instructorNames.add(instructor2 || emp2);
 
-      const stats = managerStats(row?.district);
+      const normalizedDistrict = normalizeOperationalDistrict(row?.district);
+      if (!normalizedDistrict) continue;
+      const stats = managerStats(normalizedDistrict);
       stats.total_activities += 1;
       if (isProgramActivity(row)) stats.total_long += 1;
       if (isOneDayActivity(row)) stats.total_short += 1;
@@ -2362,10 +2365,12 @@ async function dashboardReadModelFromSupabase(month) {
     }
 
     for (const row of endingRows) {
-      managerStats(row?.district).course_endings += 1;
+      const normalizedDistrict = normalizeOperationalDistrict(row?.district);
+      if (normalizedDistrict) managerStats(normalizedDistrict).course_endings += 1;
     }
     for (const [district, count] of Object.entries(exceptionsByDistrict)) {
-      managerStats(district).exceptions = Number(count || 0);
+      const normalizedDistrict = normalizeOperationalDistrict(district);
+      if (normalizedDistrict) managerStats(normalizedDistrict).exceptions = Number(count || 0);
     }
 
     const by_activity_manager = [...byManagerMap.values()].map((stats) => {

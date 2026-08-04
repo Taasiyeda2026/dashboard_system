@@ -57,7 +57,7 @@ test('sanitizeActivityPayloadForSupabase normalizes bigint/time empty values to 
   const source = await readApiSource();
   assert.match(source, /function normalizeBigintFieldForSupabase\(value\)/);
   assert.match(source, /function normalizeTimeFieldForSupabase\(value\)/);
-  assert.match(source, /const bigintFields = new Set\(\['activity_no', 'sessions', 'price', 'emp_id', 'emp_id_2'\]\)/);
+  assert.match(source, /const bigintFields = new Set\(\['activity_no', 'sessions', 'price', 'emp_id', 'emp_id_2', 'school_contact_id'\]\)/);
   assert.match(source, /const timeFields = new Set\(\['start_time', 'end_time'\]\)/);
   assert.match(source, /sanitized\[key\] = nextValue === undefined \? null : nextValue;/);
 });

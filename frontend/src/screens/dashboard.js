@@ -4,6 +4,7 @@ import { computeOperationalExceptionsTotal } from './shared/exceptions-metrics.j
 import { syncActivitiesGapQuery } from './shared/route-query.js';
 import { ACTIVE_ACTIVITY_SEASON, defaultMonthForGlobalActivityPeriod, ACTIVITY_SEASON_REGULAR } from './shared/summer-activity.js';
 import { activityTypeIconSvg } from './shared/activity-type-icons.js';
+import { normalizeOperationalDistrict } from './shared/district-normalization.js';
 
 const HEBREW_MONTHS = [
   'ינואר',
@@ -140,17 +141,19 @@ function renderStructuredSummary(summary, ym, byManager) {
     })
     .join('');
 
-  const districtRows = (Array.isArray(byManager) ? byManager : []).filter(
-    (row) => row.activity_manager && row.activity_manager !== 'activity_manager' && row.activity_manager !== 'unassigned' && row.activity_manager !== 'ללא' && row.activity_manager !== 'ללא מנהל'
-  );
+  const districtRows = (Array.isArray(byManager) ? byManager : []).filter((row) => normalizeOperationalDistrict(row.activity_manager));
   const districtByName = districtRows.reduce((acc, row) => {
-    const label = row.activity_manager;
-    acc[label] = row;
+    const label = normalizeOperationalDistrict(row.activity_manager);
+    const target = acc[label] ||= { total_activities: 0, total_long: 0 };
+    target.total_activities += Number(row.total_activities ?? row.total_long ?? 0) || 0;
+    target.total_long += Number(row.total_long ?? 0) || 0;
     return acc;
   }, {});
-  const northRow = districtByName['מחוז צפון'] || {};
-  const southRow = districtByName['מחוז דרום'] || {};
+  const northRow = districtByName['צפון'] || {};
+  const centerRow = districtByName['מרכז'] || {};
+  const southRow = districtByName['דרום'] || {};
   const northActive = escapeHtml(String(northRow.total_activities ?? northRow.total_long ?? 0));
+  const centerActive = escapeHtml(String(centerRow.total_activities ?? centerRow.total_long ?? 0));
   const southActive = escapeHtml(String(southRow.total_activities ?? southRow.total_long ?? 0));
 
   const allInstructors = normalizeNames(Array.isArray(summary?.active_instructors) ? summary.active_instructors : []);
@@ -160,7 +163,7 @@ function renderStructuredSummary(summary, ym, byManager) {
 
     <h4 class="ds-summary-panel__inner-title"><strong>פעילויות פעילות החודש:</strong></h4>
     ${typeRows || '<p class="ds-summary-panel__text ds-muted">אין פעילויות פעילות</p>'}
-    <p class="ds-summary-panel__text">מחוז צפון: <strong>${northActive}</strong> פעילויות · מחוז דרום: <strong>${southActive}</strong> פעילויות</p>
+    <p class="ds-summary-panel__text">צפון: <strong>${northActive}</strong> פעילויות · מרכז: <strong>${centerActive}</strong> פעילויות · דרום: <strong>${southActive}</strong> פעילויות</p>
     <p class="ds-summary-panel__text">סיומי קורסים החודש: <strong>${endingCurrent}</strong></p>
 
     <h4 class="ds-summary-panel__inner-title"><strong>המדריכים הפעילים החודש:</strong></h4>
@@ -376,15 +379,21 @@ export const dashboardScreen = {
       return dashboardErrorHtml(data, ym);
     }
 
-    const _seenMgr = new Set();
-    const managers = (Array.isArray(data.by_activity_manager) ? data.by_activity_manager : []).filter(
-      (row) => {
-        if (!row.activity_manager || row.activity_manager === 'activity_manager' || row.activity_manager === 'unassigned' || row.activity_manager === 'ללא' || row.activity_manager === 'ללא מנהל') return false;
-        if (_seenMgr.has(row.activity_manager)) return false;
-        _seenMgr.add(row.activity_manager);
-        return true;
+    const managerTotals = new Map();
+    for (const row of Array.isArray(data.by_activity_manager) ? data.by_activity_manager : []) {
+      const district = normalizeOperationalDistrict(row?.activity_manager);
+      if (!district) continue;
+      if (!managerTotals.has(district)) {
+        managerTotals.set(district, { activity_manager: district, total_activities: 0, total_long: 0, num_instructors: 0, exceptions: 0, course_endings: 0 });
       }
-    );
+      const target = managerTotals.get(district);
+      target.total_activities += Number(row.total_activities ?? row.total_long ?? 0) || 0;
+      target.total_long += Number(row.total_long ?? 0) || 0;
+      target.num_instructors += Number(row.num_instructors ?? 0) || 0;
+      target.exceptions += Number(row.exceptions ?? 0) || 0;
+      target.course_endings += Number(row.course_endings ?? 0) || 0;
+    }
+    const managers = ['צפון', 'מרכז', 'דרום'].map((district) => managerTotals.get(district)).filter(Boolean);
     const showOnly = !!data?.show_only_nonzero_kpis;
     let _kpiSource = data?.kpi_cards;
     if (!Array.isArray(_kpiSource) || _kpiSource.filter(c => c && ALLOWED_KPI_ACTIONS.has(c.action)).length === 0) {
