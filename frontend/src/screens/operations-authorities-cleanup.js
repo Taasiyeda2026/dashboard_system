@@ -22,13 +22,13 @@ function isScheduleView(root) {
 function isInventoryView(root) {
   const tab = getActiveOpsTab(root);
   const activeText = String(root?.querySelector?.('.ds-ops-mgmt-tab.is-active')?.textContent || '').trim();
-  return tab === WORKSHOPS_TAB_KEY || activeText === 'ציוד ומלאי' || activeText === 'כמויות סדנאות';
+  return tab === WORKSHOPS_TAB_KEY || ['ציוד ומלאי', 'כמויות סדנאות', 'מלאי סדנאות'].includes(activeText);
 }
 
 function isTrainingView(root) {
-  const trainingTab = root?.querySelector?.('.ds-ops-mgmt-tab.is-active[data-ops-training-tab]');
+  const customTab = root?.querySelector?.('.ds-ops-mgmt-tab.is-active[data-ops-training-tab], .ds-ops-mgmt-tab.is-active[data-ops-custom-tab]');
   const activeText = String(root?.querySelector?.('.ds-ops-mgmt-tab.is-active')?.textContent || '').trim();
-  return Boolean(trainingTab) || activeText === 'הכשרות קיץ';
+  return Boolean(customTab) || ['הכשרות קיץ', 'הכשרות סדנאות', 'הכשרות קורסים', 'ערכות דפוס'].includes(activeText);
 }
 
 function shouldHideFilters(root) {
@@ -196,7 +196,7 @@ if (typeof document !== 'undefined') {
     observeOperationsScreen();
   }
   document.addEventListener('click', (event) => {
-    if (event.target?.closest?.('.ds-ops-mgmt-screen [data-ops-tab], .ds-ops-mgmt-screen [data-ops-training-tab]')) {
+    if (event.target?.closest?.('.ds-ops-mgmt-screen [data-ops-tab], .ds-ops-mgmt-screen [data-ops-training-tab], .ds-ops-mgmt-screen [data-ops-custom-tab]')) {
       scheduleOperationsCleanup();
     }
   }, true);
