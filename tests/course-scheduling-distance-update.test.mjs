@@ -433,6 +433,8 @@ test('distance build progress texts cover success, failures, and stopped states'
 
 test('course scheduling screen treats completed builds with failures as an error/warning', async () => {
   const source = await readFile(new URL('../frontend/src/screens/course-scheduling.js', import.meta.url), 'utf8');
-  assert.match(source, /courseSchedulingDistanceError = \(Number\(result\.stats\?\.failed_count\) \|\| 0\) > 0/);
+  assert.match(source, /function distanceDoneMessage/);
+  assert.match(source, /const failed = Number\(stats\.failed_count\) \|\| 0;/);
+  assert.match(source, /state\.courseSchedulingDistanceError = info\.error/);
   assert.doesNotMatch(source, /failed_count \|\| 0\) > 0 && !result\.done/);
 });

@@ -398,8 +398,13 @@ function incompleteProfilesHtml(result) {
   if (!incomplete.length) return '';
   return `<details class="course-scheduling-details" open><summary>פרופילים חסרים להשלמה</summary>
     ${incomplete.map((candidate) => {
-      const missing = (candidate.missingProfileData || []).filter((item) => item !== 'כתובת');
       const issues = (candidate.issues || []).filter((issue) => issue.missing);
+      const issuePrefixes = issues.map((issue) => issue.message);
+      // Keep short field labels only; issue summaries are rendered once below with dates.
+      const missing = (candidate.missingProfileData || []).filter((item) => {
+        if (item === 'כתובת') return false;
+        return !issuePrefixes.some((prefix) => text(item).startsWith(prefix));
+      });
       return `<div class="course-scheduling-incomplete-profile">
         <p><b>${escapeHtml(candidate.instructor?.full_name || '—')} | ${escapeHtml(emp(candidate))}</b></p>
         ${text(candidate.instructor?.address) ? `<p>${escapeHtml(candidate.instructor.address)}</p>` : ''}
