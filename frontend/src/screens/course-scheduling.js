@@ -13,7 +13,9 @@ import { weekRange, shiftWeek, buildWeekRows, weekCalendarHtml, fixedScheduleHtm
 import {
   collectMissingScheduleCourseIds,
   courseSchedulingDataReadiness,
+  courseReadinessRows,
   enrichActivitiesWithSchoolAddresses,
+  instructorReadinessRows,
   MISSING_SCHEDULE_FILTER_STORAGE_KEY,
   pickNearestActionableCourse,
   runDistanceBuildLoop,
@@ -349,7 +351,7 @@ export function requirementsFitHtml(candidate, course = {}) {
       ${checkRowHtml('שכבת גיל', checks.educationLevel)}
       ${checkRowHtml('זמינות', { ...availability, label: availabilityLabelText, passed: availability.passed })}
       ${checkRowHtml('מרחק', { ...travel, label: travelLabel, passed: travel.passed })}
-      ${checkRowHtml('התאמה לתוכנית', checks.courseEligibility)}
+      ${checkRowHtml('התאמה לקורס', checks.courseEligibility)}
     </ul>
   </div>`;
 }
@@ -551,30 +553,58 @@ function missingCoursesAlertHtml(readiness, state) {
   </section>`;
 }
 
-function dataReadinessHtml(data) {
-  const instructors = (data?.instructors || []).filter((row) => {
-    const value = text(row.active).toLowerCase();
-    return value === 'yes' || value === 'true' || value === '1';
-  });
-  if (!instructors.length) return '<p class="course-scheduling-muted">לא נמצאו מדריכים פעילים לבדיקה.</p>';
-  const profiles = new Map((data?.scheduling?.profiles || []).map((row) => [text(row.emp_id), row]));
-  const ruleCounts = new Map();
-  for (const rule of (data?.scheduling?.rules || [])) {
-    const empId = text(rule.emp_id);
-    if (empId) ruleCounts.set(empId, (ruleCounts.get(empId) || 0) + 1);
-  }
-  const missingProfile = instructors.filter((row) => !profiles.has(text(row.emp_id))).length;
-  const missingAddress = instructors.filter((row) => !text(row.address)).length;
-  const missingAvailability = instructors.filter((row) => (ruleCounts.get(text(row.emp_id)) || 0) < 5).length;
-  const ready = instructors.filter((row) => profiles.has(text(row.emp_id)) && text(row.address) && (ruleCounts.get(text(row.emp_id)) || 0) >= 5).length;
-  return `<div class="course-scheduling-maintenance-panel">
-    <h3>בדיקת נתונים</h3>
-    <p><b>${ready}</b> מתוך ${instructors.length} מדריכים מוכנים לשיבוץ</p>
-    <ul>
-      <li>${missingAvailability} ללא זמינות שבועית מלאה</li>
-      <li>${missingProfile} ללא פרופיל שיבוץ</li>
-      <li>${missingAddress} ללא כתובת</li>
-    </ul>
+function readinessValue(value, fallback = '—') {
+  return text(value) || fallback;
+}
+
+function genderLabel(value) {
+  const raw = text(value || 'any');
+  if (raw === 'female') return 'מדריכה';
+  if (raw === 'male') return 'מדריך';
+  return 'ללא דרישה';
+}
+
+function courseReadinessListHtml(rows = []) {
+  if (!rows.length) return '<p class="course-scheduling-muted">כל הקורסים הפתוחים מוכנים לשיבוץ.</p>';
+  return rows.map(({ course, missing }) => `<article class="course-scheduling-readiness-row">
+    <h4>${escapeHtml(readinessValue(course.activity_name || course.program_name || course.name || course.title))}</h4>
+    <p>${escapeHtml(readinessValue(course.authority))} · ${escapeHtml(readinessValue(course.school))} · שכבה: ${escapeHtml(readinessValue(course.education_level || course.grade))}</p>
+    <p>${activityMeetings(course).length} מפגשים · שפה: ${escapeHtml(instructionLanguageLabel(course.instruction_language || 'he'))} · מגדר: ${escapeHtml(genderLabel(course.required_instructor_gender || 'any'))}</p>
+    <p>${compactMeetingsHtml(course)}</p>
+    <p><b>חסר להשלמה:</b> ${escapeHtml(missing.join(' · '))}</p>
+    <button type="button" class="course-scheduling-btn course-scheduling-btn--secondary course-scheduling-btn--sm" data-open-readiness-course="${escapeHtml(idOf(course))}">השלמת פרטים</button>
+  </article>`).join('');
+}
+
+function instructorReadinessListHtml(rows = []) {
+  if (!rows.length) return '<p class="course-scheduling-muted">כל המדריכים הפעילים מוכנים לשיבוץ.</p>';
+  const labels = { all: 'כל הקורסים', allow_only: 'רק קורסים מותרים', block_selected: 'חסימת קורסים נבחרים' };
+  return rows.map(({ instructor, profile, rules, missing }) => `<article class="course-scheduling-readiness-row">
+    <h4>${escapeHtml(readinessValue(instructor.full_name || instructor.emp_id))}</h4>
+    <p>כתובת: ${escapeHtml(readinessValue(instructor.address))} · מגדר: ${escapeHtml(genderLabel(profile?.gender))}</p>
+    <p>שפות: ${escapeHtml((profile?.instruction_languages || []).map(instructionLanguageLabel).join(', ') || '—')} · שכבות: ${escapeHtml((profile?.education_levels || []).map(educationLevelLabel).join(', ') || '—')}</p>
+    <p>התאמה לקורסים: ${escapeHtml(labels[profile?.course_restriction_mode] || '—')} · ימים זמינים: ${rules.filter((rule) => rule.available && text(rule.start_time) && text(rule.end_time) && text(rule.start_time) < text(rule.end_time)).length}</p>
+    <p><b>חסר להשלמה:</b> ${escapeHtml(missing.join(' · '))}</p>
+    <button type="button" class="course-scheduling-btn course-scheduling-btn--secondary course-scheduling-btn--sm" data-open-instructor-matching="${escapeHtml(text(instructor.emp_id))}">עריכת התאמה</button>
+    <button type="button" class="course-scheduling-btn course-scheduling-btn--secondary course-scheduling-btn--sm" data-open-instructor-constraints="${escapeHtml(text(instructor.emp_id))}">עדכון זמינות ואילוצים</button>
+  </article>`).join('');
+}
+
+function dataReadinessHtml(data, state = {}) {
+  const courseRows = courseReadinessRows(data?.activities || []);
+  const instructorRows = instructorReadinessRows(data || {});
+  const tab = state.courseSchedulingReadinessTab === 'instructors' ? 'instructors' : 'courses';
+  return `<div class="course-scheduling-maintenance-panel course-scheduling-readiness" data-readiness-panel>
+    <h3>מוכנות לשיבוץ</h3>
+    <div class="course-scheduling-summary course-scheduling-summary--compact">
+      <article class="course-scheduling-summary-card"><b>${courseRows.length}</b><span>קורסים אינם מוכנים</span></article>
+      <article class="course-scheduling-summary-card"><b>${instructorRows.length}</b><span>מדריכים פעילים אינם מוכנים</span></article>
+    </div>
+    <nav class="course-scheduling-tabs course-scheduling-tabs--inner" aria-label="מוכנות לשיבוץ">
+      <button type="button" class="course-scheduling-tab${tab === 'courses' ? ' is-active' : ''}" data-readiness-tab="courses">קורסים להשלמה</button>
+      <button type="button" class="course-scheduling-tab${tab === 'instructors' ? ' is-active' : ''}" data-readiness-tab="instructors">מדריכים להשלמה</button>
+    </nav>
+    <div class="course-scheduling-readiness-list">${tab === 'courses' ? courseReadinessListHtml(courseRows) : instructorReadinessListHtml(instructorRows)}</div>
   </div>`;
 }
 
@@ -599,7 +629,7 @@ function maintenanceMenuHtml(state, data) {
         ${doneMessage ? `<p class="${doneError ? 'course-scheduling-alert' : 'course-scheduling-success'}">${escapeHtml(doneMessage)}</p>
           ${text(state.courseSchedulingDistanceDetails) ? `<details class="course-scheduling-details"><summary>הצגת פרטים</summary><p>${escapeHtml(state.courseSchedulingDistanceDetails)}</p></details>` : ''}` : ''}
       </div>` : ''}
-      ${showReadiness ? dataReadinessHtml(data) : ''}
+      ${showReadiness ? dataReadinessHtml(data, state) : ''}
     </div>` : ''}
   </div>`;
 }
@@ -856,6 +886,19 @@ export const courseSchedulingScreen = {
       }
       rerender();
     });
+    root.querySelectorAll('[data-readiness-tab]').forEach((button) => button.addEventListener('click', () => {
+      state.courseSchedulingReadinessTab = button.dataset.readinessTab === 'instructors' ? 'instructors' : 'courses';
+      rerender();
+    }));
+    root.querySelectorAll('[data-open-readiness-course]').forEach((button) => button.addEventListener('click', () => openMissingCourse(button.dataset.openReadinessCourse)));
+    root.querySelectorAll('[data-open-instructor-matching],[data-open-instructor-constraints]').forEach((button) => button.addEventListener('click', () => {
+      const empId = button.dataset.openInstructorMatching || button.dataset.openInstructorConstraints || '';
+      state.instructorsWorkspace = { ...(state.instructorsWorkspace || {}), q: empId, active: 'yes', assignment: '' };
+      state.pendingInstructorEmpId = empId;
+      state.pendingInstructorEdit = button.dataset.openInstructorMatching ? 'matching' : 'constraints';
+      document.dispatchEvent(new CustomEvent('app:navigate', { detail: { route: 'instructors' } }));
+    }));
+
     root.querySelectorAll('[data-maintenance-action]').forEach((button) => {
       button.addEventListener('click', () => {
         if (button.dataset.maintenanceAction === 'distances') {

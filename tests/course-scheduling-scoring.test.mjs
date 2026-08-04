@@ -51,11 +51,11 @@ test('a personal weekly_max_hours profile target changes the load score instead 
   assert.ok(withTightTarget.score < withoutTarget.score, 'a tighter personal weekly cap should reduce the load score for the same booking');
 });
 
-test('professional experience in the same program adds a small, capped bonus', () => {
+test('professional experience in the same course adds a small, capped bonus', () => {
   const priorSameCourse = { date: '2026-01-05', start_time: '09:00', end_time: '10:00', activity_name: activity.activity_name, school: 'בית ספר אחר', authority: 'ירושלים' };
   const withExperience = evaluateInstructor({ instructor, profile, rules, activity, existingActivities: [priorSameCourse], travel: { home: null, transitions: {} } });
   const withoutExperience = evaluateInstructor({ instructor, profile, rules, activity, travel: { home: null, transitions: {} } });
   assert.ok(withExperience.score > withoutExperience.score);
   assert.ok(withExperience.score - withoutExperience.score <= 5, 'professional experience must stay a minor, capped bonus');
-  assert.match(withExperience.explanation, /ניסיון קודם בתוכנית/);
+  assert.match(withExperience.explanation, /ניסיון קודם בקורס/);
 });

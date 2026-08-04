@@ -176,6 +176,67 @@ export function courseSchedulingDataReadiness(activities = []) {
   };
 }
 
+export function courseReadinessMissingFields(course = {}) {
+  const missing = [];
+  const meetings = Array.isArray(course.meetings) && course.meetings.length
+    ? course.meetings
+    : Array.from({ length: 35 }, (_, index) => course[`date_${index + 1}`]).filter(Boolean).map((date) => ({ date, start_time: course.start_time, end_time: course.end_time }));
+  if (!text(course.activity_name || course.program_name || course.name || course.title)) missing.push('שם קורס');
+  if (!text(course.school)) missing.push('בית ספר');
+  if (!text(course.school_address)) missing.push('כתובת בית ספר תקינה');
+  if (!text(course.education_level || course.grade)) missing.push('שכבת גיל');
+  if (!meetings.length) missing.push('תאריכי המפגשים');
+  if (!text(course.start_time) || meetings.some((meeting) => !text(meeting.start_time || course.start_time))) missing.push('שעת התחלה');
+  if (!text(course.end_time) || meetings.some((meeting) => !text(meeting.end_time || course.end_time))) missing.push('שעת סיום');
+  if (!text(course.instruction_language || 'he')) missing.push('שפת הדרכה');
+  if (!text(course.required_instructor_gender || 'any')) missing.push('דרישת מגדר');
+  return [...new Set(missing)];
+}
+
+export function courseReadinessRows(activities = []) {
+  return (activities || [])
+    .filter(isOpenSchool2027Course)
+    .map((course) => ({ course, missing: courseReadinessMissingFields(course) }))
+    .filter((row) => row.missing.length);
+}
+
+function hasValidAvailabilityRule(rule = {}) {
+  if (!rule.available) return false;
+  const start = text(rule.start_time);
+  const end = text(rule.end_time);
+  return start && end && start < end;
+}
+
+export function instructorReadinessMissingFields(instructor = {}, profile = null, rules = []) {
+  const missing = [];
+  if (!text(instructor.address)) missing.push('כתובת');
+  if (!text(profile?.gender)) missing.push('מגדר');
+  if (!Array.isArray(profile?.instruction_languages) || !profile.instruction_languages.length) missing.push('שפות הדרכה');
+  if (!Array.isArray(profile?.education_levels) || !profile.education_levels.length) missing.push('שכבות גיל');
+  if (!profile || !Object.prototype.hasOwnProperty.call(profile, 'course_restriction_mode')) missing.push('התאמה לקורסים');
+  if (profile?.course_restriction_mode === 'allow_only' && (!Array.isArray(profile.course_ids) || !profile.course_ids.length)) missing.push('קורסים מותרים');
+  if (!rules.length) missing.push('זמינות שבועית');
+  if (!rules.some(hasValidAvailabilityRule)) missing.push('יום זמין אחד לפחות עם שעות תקינות');
+  return [...new Set(missing)];
+}
+
+export function instructorReadinessRows(data = {}) {
+  const profiles = new Map((data?.scheduling?.profiles || []).map((row) => [text(row.emp_id), row]));
+  const rules = new Map();
+  for (const rule of (data?.scheduling?.rules || [])) {
+    const empId = text(rule.emp_id);
+    if (empId) (rules.get(empId) || rules.set(empId, []).get(empId)).push(rule);
+  }
+  return (data?.instructors || [])
+    .filter((row) => ['yes', 'true', '1'].includes(text(row.active).toLowerCase()))
+    .map((instructor) => {
+      const empId = text(instructor.emp_id);
+      const profile = profiles.get(empId) || null;
+      return { instructor, profile, rules: rules.get(empId) || [], missing: instructorReadinessMissingFields(instructor, profile, rules.get(empId) || []) };
+    })
+    .filter((row) => row.missing.length);
+}
+
 export function pickNearestActionableCourse(rowModels = [], todayStr = new Date().toISOString().slice(0, 10)) {
   const actionable = (rowModels || []).filter((row) => row?.bucket && row?.course);
   if (!actionable.length) return null;

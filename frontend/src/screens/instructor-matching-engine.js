@@ -230,7 +230,7 @@ export function evaluateInstructor({
 
   let courseEligibilityCheck;
   if (!rawProfile || !Object.prototype.hasOwnProperty.call(rawProfile, 'course_restriction_mode')) {
-    courseEligibilityCheck = checkResult(null, 'התאמה לתוכנית', 'לא נבדק');
+    courseEligibilityCheck = checkResult(null, 'התאמה לקורס', 'לא נבדק');
   } else if (courseEligibilityFailures.length) {
     courseEligibilityCheck = checkResult(false, 'לא מתאים', courseEligibilityFailures[0]);
   } else if (profile.course_restriction_mode === 'all') {
@@ -442,14 +442,6 @@ export function evaluateInstructor({
       scoreReasons.push(`עומס שבועי: ${weeklyLoad} מפגשים`);
       if (weeklyLoad > averageWeeklyLoad + 2) warnings.push('עומס שבועי גבוה מהממוצע');
     }
-    if (fixedCourseCount != null && profile.max_fixed_courses != null && Number.isFinite(Number(fixedCourseCount)) && Number.isFinite(Number(profile.max_fixed_courses)) && Number(fixedCourseCount) > Number(profile.max_fixed_courses)) {
-      loadPoints = Math.min(loadPoints, 8);
-      warnings.push('מספר הקורסים הקבועים חורג מהמקסימום שהוגדר למדריך');
-    }
-    if (weeklyWorkDayCount != null && profile.preferred_work_days != null && Number.isFinite(Number(weeklyWorkDayCount)) && Number.isFinite(Number(profile.preferred_work_days)) && Number(weeklyWorkDayCount) > Number(profile.preferred_work_days)) {
-      loadPoints = Math.max(0, loadPoints - 5);
-      warnings.push('מספר ימי העבודה השבועיים חורג מהרצוי למדריך');
-    }
     loadPoints = Math.max(0, Math.min(25, loadPoints));
 
     let experiencePoints = 0;
@@ -457,10 +449,10 @@ export function evaluateInstructor({
       && existingActivities.some((other) => same(other.activity_name, activity.activity_name));
     if (profile.course_restriction_mode === 'allow_only' && courseId && courses.includes(courseId)) {
       experiencePoints = 5;
-      scoreReasons.push('הוכשר/ה ייעודית לתוכנית');
+      scoreReasons.push('הוכשר/ה ייעודית לקורס');
     } else if (hasPriorCourseExperience) {
       experiencePoints = 3;
-      scoreReasons.push('ניסיון קודם בתוכנית');
+      scoreReasons.push('ניסיון קודם בקורס');
     }
 
     const roundedSchool = Math.round(schoolPoints);
@@ -484,7 +476,7 @@ export function evaluateInstructor({
         duration_minutes: travel?.home?.duration_minutes ?? null
       },
       availability: { points: dailyContinuityPoints, label: 'זמינות' },
-      experience: { points: experiencePoints, label: 'ניסיון קודם בתוכנית' },
+      experience: { points: experiencePoints, label: 'ניסיון קודם בקורס' },
       gateNote: 'מגדר, שפה, שכבת גיל וחסימות הם תנאי סף ואינם מוסיפים נקודות.'
     };
   }

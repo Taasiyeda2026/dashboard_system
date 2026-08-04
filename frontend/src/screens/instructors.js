@@ -411,6 +411,17 @@ export const instructorsScreen = {
       });
     };
 
+    if (state.pendingInstructorEmpId && ui) {
+      const pendingRow = rows.find((item) => text(item.emp_id) === text(state.pendingInstructorEmpId));
+      const pendingEdit = state.pendingInstructorEdit;
+      state.pendingInstructorEmpId = '';
+      state.pendingInstructorEdit = '';
+      if (pendingRow) requestAnimationFrame(() => {
+        if (pendingEdit === 'constraints') openConstraints(pendingRow);
+        else openMatching(pendingRow);
+      });
+    }
+
     root.querySelectorAll('[data-instructor-profile]').forEach((button) => button.addEventListener('click', async () => {
       const empId = text(button.dataset.instructorProfile || button.dataset.instructorCard);
       const row = rows.find((item) => text(item.emp_id) === empId);
