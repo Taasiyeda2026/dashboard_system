@@ -1,0 +1,86 @@
+name: Temporary PR 1339 conflict resolver
+
+on:
+  push:
+    branches:
+      - codex/fix-issues-in-operations-2027
+
+permissions:
+  contents: write
+
+jobs:
+  resolve:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout PR branch
+        uses: actions/checkout@v4
+        with:
+          ref: codex/fix-issues-in-operations-2027
+          fetch-depth: 0
+
+      - name: Merge main and resolve known conflicts
+        shell: bash
+        run: |
+          set -euo pipefail
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git fetch origin main
+
+          set +e
+          git merge --no-ff --no-commit origin/main
+          merge_status=$?
+          set -e
+
+          unresolved="$(git diff --name-only --diff-filter=U || true)"
+          unexpected="$(printf '%s\n' "$unresolved" | grep -Ev '^(frontend/src/config\.js|frontend/sw\.js)$' || true)"
+          if [ -n "$unexpected" ]; then
+            echo "Unexpected merge conflicts:"
+            printf '%s\n' "$unexpected"
+            git merge --abort || true
+            exit 1
+          fi
+
+          git show origin/main:frontend/src/config.js > frontend/src/config.js
+
+          node <<'NODE'
+          const fs = require('fs');
+
+          const configPath = 'frontend/src/config.js';
+          const marker = '-pr1337-followup-ops2027-20260804-v1';
+          let config = fs.readFileSync(configPath, 'utf8');
+          if (!config.includes('pr1337-followup-ops2027-20260804-v1')) {
+            config = config.replace(/(HOTFIX_VERSION:\s*')([^']*)(')/, (_match, start, value, end) => `${start}${value}${marker}${end}`);
+          }
+          fs.writeFileSync(configPath, config);
+
+          const swPath = 'frontend/sw.js';
+          let sw = fs.readFileSync(swPath, 'utf8');
+          sw = sw.replace(/const CACHE_VERSION = \d+;/, 'const CACHE_VERSION = 1397;');
+          fs.writeFileSync(swPath, sw);
+
+          const cacheTestPath = 'tests/course-scheduling-2027-status-policy.test.mjs';
+          if (fs.existsSync(cacheTestPath)) {
+            let test = fs.readFileSync(cacheTestPath, 'utf8');
+            test = test.replace(/CACHE_VERSION = 139\d/g, 'CACHE_VERSION = 1397');
+            fs.writeFileSync(cacheTestPath, test);
+          }
+          NODE
+
+          git add frontend/src/config.js frontend/sw.js tests/course-scheduling-2027-status-policy.test.mjs
+
+          remaining="$(git diff --name-only --diff-filter=U || true)"
+          if [ -n "$remaining" ]; then
+            echo "Unresolved conflicts remain:"
+            printf '%s\n' "$remaining"
+            git merge --abort || true
+            exit 1
+          fi
+
+          node --test tests/operations-2027-training-kits.test.mjs tests/course-scheduling-2027-status-policy.test.mjs
+          npm run check:build
+          npm run check:pwa
+
+          rm -f .github/workflows/temporary-resolve-pr-1339.yml
+          git add -A
+          git commit -m "Merge main and resolve PR 1339 conflicts"
+          git push origin HEAD:codex/fix-issues-in-operations-2027
