@@ -216,16 +216,14 @@ const PROPOSAL_GROUP_LEGACY_ALIASES = Object.freeze({
 });
 
 /**
- * `next_year_courses` / `next_year_workshops` remain internal row scopes for
- * management/reporting. In the תשפ״ז editor and printed document they are shown
- * together as one activities list under "פעילויות ומחירים".
+ * `next_year_courses` / `next_year_workshops` remain internal row scopes.
+ * תשפ״ז uses one shared add/picker, then keeps separate program and workshop tables.
  */
 const NEXT_YEAR_INTERNAL_SUBGROUPS = Object.freeze([
-  { key: 'next_year_courses', legacyLabel: 'תשפ״ז (קורסים)', sectionTitle: 'פעילויות ומחירים' },
-  { key: 'next_year_workshops', legacyLabel: 'תשפ״ז (סדנאות)', sectionTitle: 'פעילויות ומחירים' }
+  { key: 'next_year_courses', legacyLabel: 'תשפ״ז (קורסים)', sectionTitle: 'קורסים ותוכניות' },
+  { key: 'next_year_workshops', legacyLabel: 'תשפ״ז (סדנאות)', sectionTitle: 'סדנאות' }
 ]);
 const NEXT_YEAR_INTERNAL_COMBINED_LABEL = 'תשפ״ז (קורסים וסדנאות)';
-const NEXT_YEAR_UNIFIED_SECTION_TITLE = 'פעילויות ומחירים';
 const NEXT_YEAR_UNIFIED_ADD_LABEL = '+ הוסף פעילות';
 const NEXT_YEAR_UNIFIED_MANUAL_LABEL = 'פעילות אחרת / טקסט חופשי';
 
@@ -1723,13 +1721,13 @@ function isNextYearInternalRowGroup(value = '') {
   return isNextYearCoursesGroup(value) || isNextYearWorkshopsGroup(value);
 }
 
-/** תשפ״ז editor/document use one activities list; internal course/workshop keys stay for storage. */
+/** Pure תשפ״ז groups share one add/picker; rows still stay in course/workshop tables. */
 function isNextYearUnifiedActivitiesGroup(value = '') {
   const normalized = normalizeProposalGroup(value);
   if (!normalized) return false;
   if (isNextYearInternalRowGroup(normalized)) return true;
   if (!isNextYearProposalGroup(normalized)) return false;
-  // Combined summer+next_year keeps separate parent sections; only pure תשפ״ז unifies.
+  // Combined summer+next_year keeps separate parent sections; only pure תשפ״ז shares the picker.
   if (normalized === COMBINED_INTERNAL_KEY || text(value) === COMBINED_INTERNAL_KEY) return false;
   const children = includedProposalGroups(normalized);
   if (!children.length) return true;
@@ -2239,7 +2237,7 @@ function itemsEditorHtml(items = [], pricingOptions = [], activityTypeGroup = ''
   const footer = `<datalist id="pa-item-type-list">${itemTypeOptions(pricingOptions).map((v) => `<option value="${escapeHtml(v)}">`).join('')}</datalist>
     <div class="ds-pa-items-total-row">סה״כ כללי: <strong data-pa-grand-total></strong></div>`;
 
-  // תשפ״ז: one activities list for programs and workshops (internal type kept per row).
+  // תשפ״ז: one shared add/picker; programs and workshops stay in separate tables.
   if (isNextYearUnifiedActivitiesGroup(normalizedGroup)) {
     const unifiedItems = (Array.isArray(items) ? items : []).filter((item) => {
       const group = normalizeProposalGroup(item.proposal_group);
@@ -2249,20 +2247,37 @@ function itemsEditorHtml(items = [], pricingOptions = [], activityTypeGroup = ''
         || isNextYearProposalGroup(group);
     });
     const mergedPricing = nextYearUnifiedPricingOptions(pricingOptions);
-    const rowsHtml = unifiedItems.map((item, idx) => {
+    const courseItems = [];
+    const workshopItems = [];
+    unifiedItems.forEach((item) => {
       const rowGroup = resolveNextYearInternalRowGroup(item, 'next_year_courses');
-      return itemRowHtml({ ...item, proposal_group: rowGroup }, idx, mergedPricing, {
-        groupKey: 'next_year',
-        rowGroup,
+      (rowGroup === 'next_year_workshops' ? workshopItems : courseItems).push({ ...item, proposal_group: rowGroup });
+    });
+    const renderGroupSection = (groupKey, label, groupItems, idxOffset) => {
+      const rowsHtml = groupItems.map((item, i) => itemRowHtml(item, idxOffset + i, mergedPricing, {
+        groupKey,
+        rowGroup: groupKey,
         allowManualCourse: editorOptions.allowManualCourse,
         unifiedNextYear: true
-      });
-    }).join('');
-    return `<div class="ds-pa-items-section ds-pa-items-unified-next-year" data-pa-next-year-unified="yes" data-pa-items-group="next_year">
+      })).join('');
+      const hiddenAttr = groupItems.length ? '' : ' hidden';
+      return `<div class="ds-pa-items-section ds-pa-items-section--group" data-pa-items-group="${escapeHtml(groupKey)}"${hiddenAttr}>
+        <div class="ds-pa-items-header">
+          <span class="ds-pa-items-section-label">${escapeHtml(label)}</span>
+        </div>
+        <div class="ds-pa-items-list" data-pa-items-body data-pa-items-group-body="${escapeHtml(groupKey)}">${rowsHtml}</div>
+        <div class="ds-pa-items-group-total-row" data-pa-items-group-total-row="${escapeHtml(groupKey)}"${hiddenAttr}>
+          <span>${escapeHtml(`סה״כ ${label}`)}</span>
+          <strong data-pa-group-total="${escapeHtml(groupKey)}">₪ 0</strong>
+        </div>
+      </div>`;
+    };
+    return `<div class="ds-pa-items-section ds-pa-items-unified-next-year" data-pa-next-year-unified="yes" data-pa-next-year-shared-picker="yes">
       <div class="ds-pa-items-header">
         <button type="button" class="ds-btn ds-btn--xs" data-pa-add-item data-pa-add-item-group="next_year">${NEXT_YEAR_UNIFIED_ADD_LABEL}</button>
       </div>
-      <div class="ds-pa-items-list" data-pa-items-body data-pa-items-group-body="next_year">${rowsHtml}</div>
+      ${renderGroupSection('next_year_courses', 'קורסים ותוכניות', courseItems, 0)}
+      ${renderGroupSection('next_year_workshops', 'סדנאות', workshopItems, courseItems.length || 0)}
       ${footer}
     </div>`;
   }
@@ -2778,82 +2793,32 @@ function proposalCostTableHtml(items = [], options = {}) {
   </table>`;
 }
 
-function nextYearUnifiedActivitiesTableHtml(items = [], contextGroup = 'next_year') {
-  const allVisibleItems = (Array.isArray(items) ? items : []).filter((item) =>
-    !isTestHoursItem(item) && text(item.proposal_display_mode) !== 'bundle_child');
-  const visibleItems = allVisibleItems.filter((item) => !isDiscountItem(item));
-  const discountAmount = Math.abs(allVisibleItems.filter(isDiscountItem).reduce((sum, item) => {
-    const quantity = Number(proposalField(item, 'quantity', 'quantity')) || 1;
-    const unitPrice = numberValue(item.unit_price);
-    const total = numberValue(item.total_price) ?? (unitPrice != null ? quantity * unitPrice : null);
-    return sum + (Number(total) || 0);
-  }, 0));
-  let totalPrice = 0;
-  let hasTotalPrice = false;
-  const rows = visibleItems.map((item) => {
-    const hasRowData = Boolean(
-      text(item.item_name)
-      || proposalTextField(item, 'gefen_number', 'gefenNumber')
-      || item.meetings_count != null
-      || item.hours_count != null
-      || item.hourly_price != null
-      || item.unit_price != null
-      || item.total_price != null
-      || text(item.unit_duration)
-    );
-    if (!hasRowData) return '';
-    const quantity = itemQuantity(item);
-    const quantityTotal = itemQuantityTotal(item);
-    if (quantityTotal != null) {
-      hasTotalPrice = true;
-      totalPrice += quantityTotal;
-    }
-    const activityName = courseShortNameForItem(item) || text(item.item_name);
-    const courseNote = cleanCustomerText(text(item.course_note || item.manual_note || ''));
-    const nameCellHtml = courseNote
-      ? `<div class="pa-course-name">${escapeHtml(activityName)}</div><div class="pa-course-note">${escapeHtml(courseNote)}</div>`
-      : escapeHtml(activityName);
-    const unitPrice = numberValue(item.unit_price) ?? numberValue(item.hourly_price);
-    const cells = [
-      { value: nameCellHtml, html: true },
-      { value: shouldShowGefenForItem(item, item.proposal_group || contextGroup) ? proposalTextField(item, 'gefen_number', 'gefenNumber') : '' },
-      { value: item.meetings_count != null ? formatCurrency(item.meetings_count) : (text(item.unit_duration) || '') },
-      { value: formatCurrency(quantity) },
-      { value: item.hours_count != null ? formatCurrency(item.hours_count) : '' },
-      { value: unitPrice != null ? currencyAmountHtml(unitPrice) : '', html: true },
-      { value: quantityTotal != null ? currencyAmountHtml(quantityTotal) : '', html: true }
-    ];
-    if (!cells.some((cell) => cell.value)) return '';
-    return `<tr>${cells.map((cell) => `<td>${cell.html ? (cell.value || '') : escapeHtml(cell.value || '')}</td>`).join('')}</tr>`;
-  }).filter(Boolean);
+function nextYearWorkshopTableHtml(items = [], options = {}) {
+  const billedItems = (Array.isArray(items) ? items : []).filter((item) =>
+    !isTestHoursItem(item) && !isDiscountItem(item) && text(item.proposal_display_mode) !== 'bundle_child');
+  const rows = billedItems.flatMap((item) => {
+    const duration = text(item.unit_duration) || '45 דקות';
+    return costTableRowsFromItem(item).map((costRow) => ({ ...costRow, duration }));
+  });
   if (!rows.length) return '';
-  const payablePrice = discountAmount > 0 ? Math.max(totalPrice - discountAmount, 0) : totalPrice;
-  const footerRow = discountAmount > 0
-    ? `<tr class="pa-course-total-row"><td colspan="6">סה״כ לפני הנחה</td><td>${hasTotalPrice ? currencyAmountHtml(totalPrice) : ''}</td></tr>
-       <tr class="pa-course-total-row"><td colspan="6">הנחה</td><td>${currencyAmountHtml(-discountAmount)}</td></tr>
-       <tr class="pa-course-total-row"><td colspan="6">סה״כ לתשלום</td><td>${hasTotalPrice ? currencyAmountHtml(payablePrice) : ''}</td></tr>`
-    : `<tr class="pa-course-total-row"><td colspan="6">סה״כ לתשלום</td><td>${hasTotalPrice ? currencyAmountHtml(totalPrice) : ''}</td></tr>`;
-  return `<div class="pa-next-year-cost-group pa-next-year-unified-activities">
-    <h4 class="pa-section-heading pa-next-year-activities-heading">${escapeHtml(NEXT_YEAR_UNIFIED_SECTION_TITLE)}</h4>
-    <table class="pa-item-details-table pa-activities-table pa-next-year-course-table pa-next-year-activities-table" style="width:85%;margin-inline:auto;table-layout:fixed;" data-pa-next-year-unified-table="yes">
-      <colgroup>
-        <col class="pa-course-col" style="width:20%">
-        <col class="pa-gefen-col" style="width:12%">
-        <col class="pa-meetings-col" style="width:12%">
-        <col class="pa-groups-col" style="width:12%">
-        <col class="pa-hours-col" style="width:12%">
-        <col class="pa-hourly-price-col" style="width:16%">
-        <col class="pa-total-price-col" style="width:16%">
-      </colgroup>
-      <thead><tr><th>פעילות</th><th>מס׳ גפ״ן</th><th>מפגשים / משך</th><th>קבוצות</th><th>שעות</th><th>מחיר יחידה</th><th>סה״כ</th></tr></thead>
-      <tbody>${rows.join('')}</tbody>
-      <tfoot>${footerRow}</tfoot>
-    </table>
-  </div>`;
+  const subtotal = rows.reduce((sum, costRow) => sum + costRow.total, 0);
+  const totalLabel = options.soleTable ? 'סה״כ לתשלום' : 'סה״כ סדנאות';
+  return `<table class="pa-item-details-table pa-activities-table pa-next-year-workshop-table" style="width:85%;margin-inline:auto;table-layout:fixed;">
+    <colgroup><col style="width:32%"><col style="width:17%"><col style="width:14%"><col style="width:18%"><col style="width:19%"></colgroup>
+    <thead><tr><th>שם הסדנה</th><th>משך הפעילות</th><th>כמות</th><th>מחיר להפעלה</th><th>סה״כ</th></tr></thead>
+    <tbody>${rows.map((costRow) => `<tr>
+      <td>${escapeHtml(costRow.name)}</td><td>${escapeHtml(costRow.duration)}</td><td>${escapeHtml(formatCurrency(costRow.quantity))}</td>
+      <td>${currencyAmountHtml(costRow.unitPrice)}</td><td>${currencyAmountHtml(costRow.total)}</td>
+    </tr>`).join('')}</tbody>
+    <tfoot><tr><td colspan="4">${totalLabel}</td><td>${currencyAmountHtml(subtotal)}</td></tr></tfoot>
+  </table>`;
 }
 
 function nextYearGroupedCostTablesHtml(row = {}, items = []) {
   if (!isNextYearUnifiedActivitiesGroup(row.activity_type_group) && !isNextYearProposalGroup(row.activity_type_group)) return '';
+  if (text(row.activity_type_group) === COMBINED_INTERNAL_KEY || normalizeProposalGroup(row.activity_type_group) === COMBINED_INTERNAL_KEY) {
+    return '';
+  }
   const sourceItems = (Array.isArray(items) ? items : []).filter((item) => {
     const group = normalizeProposalGroup(item.proposal_group || item.activity_type_group);
     return !group
@@ -2861,7 +2826,35 @@ function nextYearGroupedCostTablesHtml(row = {}, items = []) {
       || isNextYearProposalGroup(group)
       || itemBelongsToGroup(item, row.activity_type_group);
   });
-  return nextYearUnifiedActivitiesTableHtml(sourceItems, row.activity_type_group || 'next_year');
+  const courseItems = [];
+  const workshopItems = [];
+  sourceItems.forEach((item) => {
+    const rowGroup = resolveNextYearInternalRowGroup(item, 'next_year_courses');
+    (rowGroup === 'next_year_workshops' ? workshopItems : courseItems).push(item);
+  });
+  let courseTable = courseItems.length ? proposalItemDetailsTableHtml(courseItems, 'next_year_courses') : '';
+  const workshopTable = nextYearWorkshopTableHtml(workshopItems, { soleTable: !courseItems.length });
+  if (courseTable && workshopTable) {
+    courseTable = courseTable.replace(/>סה״כ לתשלום</g, '>סה״כ קורסים<');
+  }
+  const sections = [
+    courseTable ? `<div class="pa-next-year-cost-group"><h4 class="pa-section-heading pa-next-year-course-heading">קורסים ותוכניות</h4>${courseTable}</div>` : '',
+    workshopTable ? `<div class="pa-next-year-cost-group"><h4 class="pa-section-heading pa-next-year-workshop-heading">סדנאות</h4>${workshopTable}</div>` : ''
+  ].filter(Boolean);
+  if (!sections.length) return '';
+  const regularTotal = [...courseItems, ...workshopItems]
+    .filter((item) => !isDiscountItem(item))
+    .reduce((sum, item) => sum + costTableRowsFromItem(item).reduce((rowSum, costRow) => rowSum + costRow.total, 0), 0);
+  const discount = Math.abs((Array.isArray(items) ? items : []).filter(isDiscountItem)
+    .reduce((sum, item) => sum + (Number(proposalField(item, 'total_price', 'totalPrice')) || Number(proposalField(item, 'unit_price', 'unitPrice')) || 0), 0));
+  const grandTotal = Math.max(regularTotal - discount, 0);
+  const totalTable = courseTable && workshopTable
+    ? `<table class="pa-cost-table pa-activities-table pa-next-year-combined-total" style="width:85%;margin:8px auto 0;"><tbody>
+        ${discount ? `<tr><td>הנחה</td><td>${currencyAmountHtml(-discount)}</td></tr>` : ''}
+        <tr><td><strong>סה״כ כולל להצעה</strong></td><td><strong>${currencyAmountHtml(grandTotal)}</strong></td></tr>
+      </tbody></table>`
+    : '';
+  return `${sections.join('')}${totalTable}`;
 }
 
 
@@ -3009,7 +3002,7 @@ function proposalItemDetailsTableHtml(items = [], contextGroup = '') {
       <col class="pa-hourly-price-col"${nextYearHourlyColStyle}>
       <col class="pa-total-price-col"${nextYearTotalColStyle}>
     </colgroup>
-    <thead><tr><th>${isNextYearTable ? 'פעילות' : 'קורס / תוכנית'}</th><th>מס׳ גפ״ן</th><th>מפגשים</th><th>קבוצות</th><th>שעות</th><th>${isNextYearTable ? 'מחיר יחידה' : 'מחיר לשעה'}</th><th>סה״כ</th></tr></thead>
+    <thead><tr><th>קורס / תוכנית</th><th>מס׳ גפ״ן</th><th>מפגשים</th><th>קבוצות</th><th>שעות</th><th>מחיר לשעה</th><th>סה״כ</th></tr></thead>
     <tbody>${rows.join('')}</tbody>
     <tfoot>${footerRow}</tfoot>
   </table>`;
@@ -3264,8 +3257,10 @@ const PROPOSAL_DOCUMENT_REQUIRED_PARTS = Object.freeze([
   }
 ]);
 
-const NEXT_YEAR_UNIFIED_REQUIRED_PARTS = Object.freeze([
-  { key: 'next_year_activities_table', label: 'טבלת פעילויות', selector: '.pa-next-year-activities-table, .pa-next-year-course-table, .pa-next-year-workshop-table' }
+const NEXT_YEAR_DUAL_REQUIRED_PARTS = Object.freeze([
+  { key: 'next_year_courses_table', label: 'טבלת קורסים', selector: '.pa-next-year-course-table' },
+  { key: 'next_year_workshops_table', label: 'טבלת סדנאות', selector: '.pa-next-year-workshop-table' },
+  { key: 'next_year_combined_total', label: 'סה״כ משותף', selector: '.pa-next-year-combined-total' }
 ]);
 
 function elementHasVisibleBox(element) {
@@ -3332,15 +3327,14 @@ export function validateProposalDocumentTree(root, { requireVisibleBox = false }
   else if (requireVisibleBox && ![...headerElements].some(elementHasVisibleBox)) missing.push('כותרת ולוגו (מוסתר)');
   checkParts(PROPOSAL_DOCUMENT_REQUIRED_PARTS.filter(({ key }) => key !== 'header'));
 
-  const hasUnifiedNextYearTable = documentRoot.querySelector(
-    '.pa-next-year-activities-table tbody tr, .pa-next-year-course-table tbody tr, .pa-next-year-workshop-table tbody tr'
-  );
-  if (hasUnifiedNextYearTable) {
-    checkParts(NEXT_YEAR_UNIFIED_REQUIRED_PARTS);
-    const footerText = text(
-      documentRoot.querySelector('.pa-next-year-activities-table tfoot, .pa-next-year-course-table tfoot, .pa-next-year-workshop-table tfoot, .pa-next-year-combined-total')?.textContent
-    );
-    if (footerText && !/סה״כ לתשלום|סה״כ כולל|סה״כ/.test(footerText)) missing.push('סיכום פעילויות');
+  const hasCourseTable = documentRoot.querySelector('.pa-next-year-course-table tbody tr');
+  const hasWorkshopTable = documentRoot.querySelector('.pa-next-year-workshop-table tbody tr');
+  if (hasCourseTable && hasWorkshopTable) {
+    checkParts(NEXT_YEAR_DUAL_REQUIRED_PARTS);
+    const courseFooter = text(documentRoot.querySelector('.pa-next-year-course-table tfoot')?.textContent);
+    const workshopFooter = text(documentRoot.querySelector('.pa-next-year-workshop-table tfoot')?.textContent);
+    if (!courseFooter.includes('סה״כ קורסים')) missing.push('סיכום קורסים');
+    if (!workshopFooter.includes('סה״כ סדנאות')) missing.push('סיכום סדנאות');
   }
 
   return { ok: missing.length === 0, missing, documentRoot };
@@ -9579,27 +9573,35 @@ export const proposalsAgreementsScreen = {
         const groupKey = text(addItemBtn.dataset.paAddItemGroup);
         const groupSection = groupKey ? form?.querySelector(`[data-pa-items-group="${groupKey}"]`) : null;
         const unifiedHost = form?.querySelector('[data-pa-next-year-unified]');
-        const tbody = unifiedHost?.querySelector('[data-pa-items-body]')
+        const sharedPicker = Boolean(unifiedHost?.hasAttribute?.('data-pa-next-year-shared-picker') || unifiedHost?.dataset?.paNextYearSharedPicker === 'yes');
+        const currentType = text(form?.querySelector('[name="activity_type_group"]')?.value);
+        if (!normalizeProposalGroup(currentType)) return;
+        const unifiedNextYear = Boolean(unifiedHost) || isNextYearUnifiedActivitiesGroup(currentType) || isNextYearUnifiedActivitiesGroup(groupKey);
+        // Shared תשפ״ז picker lands new blank rows in the programs table until classified.
+        const landingGroup = unifiedNextYear ? 'next_year_courses' : (groupKey || currentType);
+        const landingSection = sharedPicker
+          ? form?.querySelector(`[data-pa-items-group="${landingGroup}"]`)
+          : groupSection;
+        if (landingSection) landingSection.hidden = false;
+        const tbody = landingSection?.querySelector('[data-pa-items-body]')
           || groupSection?.querySelector('[data-pa-items-body]')
           || form?.querySelector('[data-pa-items-body]');
         if (!tbody) return;
         const idx = form ? form.querySelectorAll('[data-pa-item-row]').length : 0;
         const tmp = document.createElement('div');
-        const currentType = text(form?.querySelector('[name="activity_type_group"]')?.value);
-        if (!normalizeProposalGroup(currentType)) return;
-        const unifiedNextYear = Boolean(unifiedHost) || isNextYearUnifiedActivitiesGroup(currentType) || isNextYearUnifiedActivitiesGroup(groupKey);
-        const rowGroup = unifiedNextYear ? 'next_year_courses' : (groupKey || currentType);
         const rowPricing = unifiedNextYear
           ? nextYearUnifiedPricingOptions(proposalActivityPricing)
-          : filterPricingByProposalType(proposalActivityPricing, rowGroup || currentType);
+          : filterPricingByProposalType(proposalActivityPricing, landingGroup || currentType);
         const allowManualCourse = formAllowsManualCourse(form);
-        tmp.innerHTML = itemRowHtml({ proposal_group: rowGroup }, idx, rowPricing, {
-          groupKey: unifiedNextYear ? 'next_year' : rowGroup,
-          rowGroup,
+        tmp.innerHTML = itemRowHtml({ proposal_group: landingGroup }, idx, rowPricing, {
+          groupKey: unifiedNextYear ? 'next_year' : landingGroup,
+          rowGroup: landingGroup,
           allowManualCourse,
           unifiedNextYear
         });
         tbody.appendChild(tmp.firstElementChild);
+        const totalRow = landingSection?.querySelector(`[data-pa-items-group-total-row="${landingGroup}"]`);
+        if (totalRow) totalRow.hidden = false;
         if (form) calcGrandTotal(form);
         if (form) updateProposalStepper(form);
         tbody.querySelector(`[data-pa-item-idx="${idx}"] [data-pa-pricing-select]`)?.focus();

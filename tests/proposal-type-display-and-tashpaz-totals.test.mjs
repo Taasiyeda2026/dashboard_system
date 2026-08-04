@@ -157,9 +157,9 @@ test('the internal subgroup labels never reach the proposals list', () => {
   });
 });
 
-test('the internal keys map to the unified activities title inside the proposal', () => {
-  assert.equal(nextYearInternalSectionTitle('next_year_courses'), 'פעילויות ומחירים');
-  assert.equal(nextYearInternalSectionTitle('next_year_workshops'), 'פעילויות ומחירים');
+test('the internal keys stay available as area titles inside the proposal', () => {
+  assert.equal(nextYearInternalSectionTitle('next_year_courses'), 'קורסים ותוכניות');
+  assert.equal(nextYearInternalSectionTitle('next_year_workshops'), 'סדנאות');
   assert.equal(nextYearInternalSectionTitle('next_year'), '');
   assert.equal(nextYearInternalSectionTitle('gefen'), '');
 });
@@ -195,7 +195,7 @@ test('the school column header and values are right aligned', async () => {
   assert.equal(row.school.textContent.trim(), 'בית ספר אלון');
 });
 
-test('mixed תשפ״ז rows stay in one activities table with one payable total', () => {
+test('both תשפ״ז tables are produced with their own summary and one combined total', () => {
   const dom = new JSDOM('<!doctype html><body></body>');
   const html = `<section class="proposal-document"><table class="pa-next-year-course-table">
     <tbody>
@@ -208,16 +208,30 @@ test('mixed תשפ״ז rows stay in one activities table with one payable total'
   const normalized = normalizeNextYearWorkshopHtml(html, dom.window.document);
   const parsed = new JSDOM(normalized).window.document;
 
-  const table = parsed.querySelector('.pa-next-year-activities-table, .pa-next-year-course-table');
-  assert.ok(table, 'one activities table must be present');
-  assert.equal(parsed.querySelectorAll('.pa-next-year-workshop-table').length, 0);
-  assert.equal(table.querySelectorAll('tbody > tr').length, 2);
-  assert.match(parsed.body.textContent, /פעילויות ומחירים|סה״כ לתשלום/);
-  assert.doesNotMatch(parsed.body.textContent, /סה״כ קורסים|סה״כ סדנאות/);
-  assert.equal(moneyValues(table.querySelector('tfoot').textContent).pop(), 7000);
+  const courseTable = parsed.querySelector('.pa-next-year-course-table');
+  const workshopTable = parsed.querySelector('.pa-next-year-workshop-table');
+  assert.ok(courseTable, 'the courses table must be present');
+  assert.ok(workshopTable, 'the workshops table must be present');
+  assert.equal(courseTable.querySelectorAll('tbody > tr').length, 1);
+  assert.equal(workshopTable.querySelectorAll('tbody > tr').length, 1);
+
+  const headings = [...parsed.querySelectorAll('.pa-section-heading')].map((node) => node.textContent.trim());
+  assert.deepEqual(headings, ['קורסים ותוכניות', 'סדנאות']);
+
+  const courseTotal = moneyValues(courseTable.querySelector('tfoot').textContent).pop();
+  const workshopTotal = moneyValues(workshopTable.querySelector('tfoot').textContent).pop();
+  assert.match(courseTable.querySelector('tfoot').textContent, /סה״כ קורסים/);
+  assert.match(workshopTable.querySelector('tfoot').textContent, /סה״כ סדנאות/);
+
+  const combined = parsed.querySelector('.pa-next-year-combined-total');
+  assert.ok(combined, 'a combined total row must be present');
+  const combinedTotal = moneyValues(combined.textContent).pop();
+  assert.equal(courseTotal, 4000);
+  assert.equal(workshopTotal, 3000);
+  assert.equal(combinedTotal, courseTotal + workshopTotal);
 });
 
-test('a single-area תשפ״ז document shows one unified activities table', () => {
+test('a single-area תשפ״ז document shows one table and no empty table', () => {
   const dom = new JSDOM('<!doctype html><body></body>');
   const html = `<section class="proposal-document"><table class="pa-next-year-course-table">
     <tbody><tr><td>סדנאות STEM</td><td></td><td></td><td>2</td><td></td><td>₪ 1,500</td><td>₪ 3,000</td></tr></tbody>
@@ -225,23 +239,37 @@ test('a single-area תשפ״ז document shows one unified activities table', () 
   </table></section>`;
 
   const parsed = new JSDOM(normalizeNextYearWorkshopHtml(html, dom.window.document)).window.document;
-  const table = parsed.querySelector('.pa-next-year-activities-table, .pa-next-year-course-table');
-  assert.ok(table);
-  assert.equal(parsed.querySelectorAll('.pa-next-year-workshop-table').length, 0);
-  assert.equal(table.querySelectorAll('tbody > tr').length, 1);
-  assert.match(table.querySelector('tfoot').textContent, /סה״כ לתשלום/);
-  assert.equal(moneyValues(table.querySelector('tfoot').textContent).pop(), 3000);
+  assert.equal(parsed.querySelectorAll('.pa-next-year-course-table').length, 0);
+  const workshopTable = parsed.querySelector('.pa-next-year-workshop-table');
+  assert.ok(workshopTable);
+  assert.equal(workshopTable.querySelectorAll('tbody > tr').length, 1);
+  assert.match(workshopTable.querySelector('tfoot').textContent, /סה״כ לתשלום/);
+  assert.equal(moneyValues(workshopTable.querySelector('tfoot').textContent).pop(), 3000);
   assert.equal(parsed.querySelectorAll('.pa-next-year-combined-total').length, 0);
 });
 
-test('תשפ״ז uses one activities list and a shared grand-total calculation', async () => {
+test('תשפ״ז keeps dual tables with one shared add-activity action', async () => {
   const screenSource = await readFile(SCREEN_FILE, 'utf8');
 
-  assert.match(screenSource, /data-pa-next-year-unified="yes"/, 'תשפ״ז editor must render a unified activities host');
+  assert.match(screenSource, /data-pa-next-year-shared-picker="yes"/, 'תשפ״ז editor must expose a shared activity picker host');
   assert.match(screenSource, /\+ הוסף פעילות/, 'תשפ״ז must expose a single add-activity action');
+  assert.match(screenSource, /renderGroupSection\('next_year_courses'/);
+  assert.match(screenSource, /renderGroupSection\('next_year_workshops'/);
+  assert.match(screenSource, /data-pa-items-group="\$\{escapeHtml\(groupKey\)\}"/);
+  assert.match(
+    screenSource,
+    /data-pa-items-group-total-row="\$\{escapeHtml\(groupKey\)\}"[\s\S]*?data-pa-group-total="\$\{escapeHtml\(groupKey\)\}"/,
+    'every internal area section must render its own total element'
+  );
+  assert.match(
+    screenSource,
+    /const calcGroupTotals = \(container\) => \{[\s\S]*?section\.querySelectorAll\('\[data-pa-item-row\]'\)\.forEach\(\(rowEl\) => \{ groupTotal \+= calcItemRow\(rowEl\); \}\);/,
+    'area totals must reuse the existing row calculation'
+  );
 
   const grandTotal = screenSource.match(/const calcGrandTotal = \(container\) => \{[\s\S]*?\n    \};/)?.[0] || '';
   assert.ok(grandTotal, 'calcGrandTotal must be present');
+  assert.match(grandTotal, /calcGroupTotals\(container\);/, 'the grand total must refresh the area totals');
   assert.match(grandTotal, /\[data-pa-grand-total\]/);
   assert.match(grandTotal, /updateLivePreview\(form\);/, 'the preview must refresh with the totals');
 

@@ -1,5 +1,6 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
+import { readFile } from 'node:fs/promises';
 import { JSDOM } from 'jsdom';
 
 if (!globalThis.sessionStorage) {
@@ -31,6 +32,8 @@ const {
   nextYearInternalSectionTitle
 } = await import('../frontend/src/screens/proposals-agreements.js');
 
+const SCREEN_FILE = new URL('../frontend/src/screens/proposals-agreements.js', import.meta.url);
+
 const baseGroups = [
   { group_key: 'summer', display_name: 'פעילויות קיץ', template_key: 'summer', included_group_keys: [] },
   { group_key: 'next_year', display_name: 'שנה הבאה', template_key: 'next_year', included_group_keys: [] },
@@ -59,14 +62,14 @@ function preview(items) {
   );
 }
 
-test('internal section titles are unified under פעילויות ומחירים', () => {
-  assert.equal(nextYearInternalSectionTitle('next_year_courses'), 'פעילויות ומחירים');
-  assert.equal(nextYearInternalSectionTitle('next_year_workshops'), 'פעילויות ומחירים');
+test('internal section titles keep separate program and workshop labels', () => {
+  assert.equal(nextYearInternalSectionTitle('next_year_courses'), 'קורסים ותוכניות');
+  assert.equal(nextYearInternalSectionTitle('next_year_workshops'), 'סדנאות');
   assert.equal(nextYearInternalSectionTitle('gefen'), '');
   assert.equal(nextYearInternalSectionTitle('tour'), '');
 });
 
-test('תשפ״ז preview keeps programs and workshops in one activities table', () => {
+test('תשפ״ז preview keeps programs and workshops in separate tables', () => {
   const course = {
     item_name: 'קורס לדוגמה', proposal_group: 'next_year_courses', quantity: 1,
     unit_price: 9000, total_price: 9000, meetings_count: 10, hours_count: 15,
@@ -79,70 +82,74 @@ test('תשפ״ז preview keeps programs and workshops in one activities table', 
   };
 
   const courseOnly = preview([course]);
-  assert.match(courseOnly, /פעילויות ומחירים/);
-  assert.match(courseOnly, /pa-next-year-activities-table|pa-next-year-course-table/);
-  assert.match(courseOnly, /6089|ביומימיקרי|קורס לדוגמה/);
+  assert.match(courseOnly, /קורסים ותוכניות/);
+  assert.match(courseOnly, /pa-next-year-course-table/);
+  assert.match(courseOnly, /6089|קורס לדוגמה/);
   assert.match(courseOnly, /9,000/);
-  assert.doesNotMatch(courseOnly, /קורסים ותוכניות/);
-  assert.doesNotMatch(courseOnly, /סה״כ קורסים/);
+  assert.doesNotMatch(courseOnly, /pa-next-year-workshop-table/);
+  assert.doesNotMatch(courseOnly, /pa-next-year-combined-total/);
 
   const workshopOnly = preview([workshop]);
-  assert.match(workshopOnly, /פעילויות ומחירים/);
+  assert.match(workshopOnly, /סדנאות/);
+  assert.match(workshopOnly, /pa-next-year-workshop-table/);
+  assert.match(workshopOnly, /שם הסדנה/);
   assert.match(workshopOnly, /רוטוקופטר/);
   assert.match(workshopOnly, /1,300/);
-  assert.doesNotMatch(workshopOnly, /שם הסדנה/);
-  assert.doesNotMatch(workshopOnly, /סה״כ סדנאות/);
-  assert.doesNotMatch(workshopOnly, /pa-next-year-workshop-table/);
+  assert.doesNotMatch(workshopOnly, /pa-next-year-course-table/);
+  assert.doesNotMatch(workshopOnly, /pa-next-year-combined-total/);
 
   const mixed = preview([course, workshop]);
-  assert.match(mixed, /פעילויות ומחירים/);
-  assert.match(mixed, /6089|ביומימיקרי|קורס לדוגמה/);
-  assert.match(mixed, /רוטוקופטר/);
+  assert.match(mixed, /pa-next-year-course-table/);
+  assert.match(mixed, /pa-next-year-workshop-table/);
+  assert.match(mixed, /קורסים ותוכניות/);
+  assert.match(mixed, /סדנאות/);
+  assert.match(mixed, /סה״כ קורסים/);
+  assert.match(mixed, /סה״כ סדנאות/);
+  assert.match(mixed, /סה״כ כולל להצעה/);
   assert.match(mixed, /10,300/);
-  assert.equal((mixed.match(/פעילויות ומחירים/g) || []).length, 1);
-  assert.doesNotMatch(mixed, /קורסים ותוכניות/);
-  assert.doesNotMatch(mixed, /pa-next-year-workshop-heading|>סדנאות</);
-  assert.doesNotMatch(mixed, /pa-next-year-combined-total/);
-  assert.doesNotMatch(mixed, /סה״כ קורסים|סה״כ סדנאות/);
+  assert.doesNotMatch(mixed, /פעילויות ומחירים/);
+  assert.doesNotMatch(mixed, /pa-next-year-activities-table|data-pa-next-year-unified-table/);
 });
 
-test('legacy dual-table snapshots collapse into one activities table', () => {
+test('legacy mixed snapshots stay split into course and workshop tables', () => {
   augmentNextYearProposalPayload({
     proposalActivityGroups: baseGroups,
     proposalActivityPricing: basePricing
   });
   const dom = new JSDOM('<!doctype html><body></body>');
   const html = `<section class="proposal-document">
-    <h4 class="pa-section-heading pa-next-year-course-heading">קורסים ותוכניות</h4>
     <table class="pa-item-details-table pa-activities-table pa-next-year-course-table">
       <thead><tr><th>קורס / תוכנית</th><th>מס׳ גפ״ן</th><th>מפגשים</th><th>קבוצות</th><th>שעות</th><th>מחיר לשעה</th><th>סה״כ</th></tr></thead>
       <tbody>
         <tr><td>קורס לדוגמה</td><td>6089</td><td>10</td><td>1</td><td>15</td><td>₪ 600</td><td>₪ 9,000</td></tr>
+        <tr><td>סדנאות STEM</td><td></td><td></td><td>2</td><td></td><td>₪ 650</td><td>₪ 1,300</td></tr>
       </tbody>
-      <tfoot><tr><td colspan="6">סה״כ קורסים</td><td><span class="pa-currency-amount">₪ 9,000</span></td></tr></tfoot>
+      <tfoot><tr><td colspan="6">סה״כ לתשלום</td><td><span class="pa-currency-amount">₪ 10,300</span></td></tr></tfoot>
     </table>
-    <h4 class="pa-section-heading pa-next-year-workshop-heading">סדנאות</h4>
-    <table class="pa-item-details-table pa-activities-table pa-next-year-workshop-table">
-      <thead><tr><th>סדנה</th><th>משך פעילות</th><th>כמות</th><th>מחיר להפעלה</th><th>סה״כ</th></tr></thead>
-      <tbody><tr><td>סדנאות STEM</td><td>45 דקות</td><td>2</td><td>₪ 650</td><td>₪ 1,300</td></tr></tbody>
-      <tfoot><tr><td colspan="4">סה״כ סדנאות</td><td>₪ 1,300</td></tr></tfoot>
-    </table>
-    <table class="pa-cost-table pa-next-year-combined-total"><tbody><tr><td>סה״כ לתשלום</td><td>₪ 10,300</td></tr></tbody></table>
   </section>`;
 
   const normalized = normalizeNextYearWorkshopHtml(html, dom.window.document);
   const parsed = new JSDOM(normalized).window.document;
-  assert.equal(parsed.querySelectorAll('.pa-next-year-workshop-table').length, 0);
-  assert.equal(parsed.querySelectorAll('.pa-next-year-combined-total').length, 0);
-  assert.match(parsed.body.textContent, /פעילויות ומחירים/);
-  assert.match(parsed.body.textContent, /קורס לדוגמה/);
-  assert.match(parsed.body.textContent, /סדנאות STEM/);
-  assert.doesNotMatch(parsed.body.textContent, /קורסים ותוכניות/);
-  assert.doesNotMatch(parsed.body.textContent, /סה״כ קורסים/);
-  assert.doesNotMatch(parsed.body.textContent, /סה״כ סדנאות/);
+  assert.equal(parsed.querySelectorAll('.pa-next-year-course-table').length, 1);
+  assert.equal(parsed.querySelectorAll('.pa-next-year-workshop-table').length, 1);
+  assert.match(parsed.body.textContent, /קורסים ותוכניות/);
+  assert.match(parsed.body.textContent, /סדנאות/);
+  assert.match(parsed.body.textContent, /סה״כ קורסים/);
+  assert.match(parsed.body.textContent, /סה״כ סדנאות/);
+  assert.match(parsed.body.textContent, /10,300/);
 });
 
-test('gefen and tour proposal types are unchanged by the תשפ״ז unifier payload', () => {
+test('editor keeps one shared add button and two typed sections', async () => {
+  const screenSource = await readFile(SCREEN_FILE, 'utf8');
+  assert.match(screenSource, /data-pa-next-year-shared-picker="yes"/);
+  assert.match(screenSource, /\+ הוסף פעילות/);
+  assert.match(screenSource, /renderGroupSection\('next_year_courses'/);
+  assert.match(screenSource, /renderGroupSection\('next_year_workshops'/);
+  assert.match(screenSource, /data-pa-items-group="\$\{escapeHtml\(groupKey\)\}"/);
+  assert.doesNotMatch(screenSource, /NEXT_YEAR_UNIFIED_SECTION_TITLE = 'פעילויות ומחירים'/);
+});
+
+test('gefen and tour proposal types are unchanged by the תשפ״ז shared-picker payload', () => {
   const payload = augmentNextYearProposalPayload({
     proposalActivityGroups: baseGroups,
     proposalActivityPricing: basePricing

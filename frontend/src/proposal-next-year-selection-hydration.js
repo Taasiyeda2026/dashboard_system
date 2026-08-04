@@ -2,7 +2,7 @@ import { api } from './api.js';
 import { augmentNextYearPricingRows } from './proposal-next-year-workshops.js';
 import { applyNextYearSpaceWorkshopPrice } from './proposal-next-year-space-workshop-pricing.js';
 
-const PATCH_KEY = Symbol.for('taasiyeda.proposalNextYearSelectionHydration.v5');
+const PATCH_KEY = Symbol.for('taasiyeda.proposalNextYearSelectionHydration.v6');
 const INTERNAL_GROUPS = new Set(['next_year_courses', 'next_year_workshops']);
 const NEXT_YEAR_TYPE_ALIASES = new Set([
   'next_year', 'שנה הבאה', 'שנת הלימודים תשפ״ז', 'תוכניות תשפ״ז', 'תשפ״ז'
@@ -208,13 +208,39 @@ function calculateRow(row) {
   return total;
 }
 
+function hideEmptyNextYearSections(form) {
+  if (!form?.querySelector?.('[data-pa-next-year-shared-picker], [data-pa-next-year-unified]')) return;
+  INTERNAL_GROUPS.forEach((groupKey) => {
+    const section = form.querySelector(`[data-pa-items-group="${groupKey}"]`);
+    if (!section) return;
+    const hasRows = Boolean(section.querySelector('[data-pa-item-row]'));
+    section.hidden = !hasRows;
+    const totalRow = section.querySelector(`[data-pa-items-group-total-row="${groupKey}"]`);
+    if (totalRow) totalRow.hidden = !hasRows;
+  });
+}
+
+function moveRowToNextYearSection(row, resolvedGroup) {
+  const form = row?.closest?.('[data-pa-form]');
+  if (!form?.querySelector?.('[data-pa-next-year-shared-picker], [data-pa-next-year-unified]')) return false;
+  if (!INTERNAL_GROUPS.has(resolvedGroup)) return false;
+  const targetSection = form.querySelector(`[data-pa-items-group="${resolvedGroup}"]`);
+  const targetBody = targetSection?.querySelector('[data-pa-items-body]');
+  if (!targetBody) return false;
+  if (row.parentElement !== targetBody) targetBody.appendChild(row);
+  targetSection.hidden = false;
+  const totalRow = targetSection.querySelector(`[data-pa-items-group-total-row="${resolvedGroup}"]`);
+  if (totalRow) totalRow.hidden = false;
+  hideEmptyNextYearSections(form);
+  return true;
+}
+
 export function calculateNextYearTotals(form) {
   if (!form) return 0;
   let subtotal = 0;
-  if (form.querySelector('[data-pa-next-year-unified]')) {
-    form.querySelectorAll('[data-pa-item-row]').forEach((row) => { subtotal += calculateRow(row); });
-  } else {
-    form.querySelectorAll('[data-pa-items-group]').forEach((section) => {
+  const groupSections = form.querySelectorAll('[data-pa-items-group]');
+  if (groupSections.length) {
+    groupSections.forEach((section) => {
       let groupTotal = 0;
       section.querySelectorAll('[data-pa-item-row]').forEach((row) => { groupTotal += calculateRow(row); });
       subtotal += groupTotal;
@@ -222,6 +248,8 @@ export function calculateNextYearTotals(form) {
       const output = section.querySelector(`[data-pa-group-total="${group}"]`);
       if (output) output.textContent = `₪ ${formatCurrency(groupTotal)}`;
     });
+  } else {
+    form.querySelectorAll('[data-pa-item-row]').forEach((row) => { subtotal += calculateRow(row); });
   }
   const discountType = text(form.querySelector('[data-pa-discount-type]')?.value) || 'amount';
   const discountValue = numberOrNull(form.querySelector('[data-pa-discount-value]')?.value) ?? 0;
@@ -282,6 +310,7 @@ export function hydrateNextYearPricingSelection(row, pricingRows = cachedPricing
     row.dataset.paRowGroup = resolvedGroup;
     changed = true;
   }
+  if (moveRowToNextYearSection(row, resolvedGroup)) changed = true;
   changed = setValue(row, 'item_display_mode', picked.proposal_display_mode || 'single') || changed;
   changed = setValue(row, 'item_source_pricing_key', picked.pricing_key || '') || changed;
   changed = setValue(row, 'bundle_pricing_key', picked.pricing_key || '') || changed;
