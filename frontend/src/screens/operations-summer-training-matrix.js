@@ -133,9 +133,20 @@ function is2027(root = rootElement()) {
 
 function hidePeriodFor2027(root) {
   const control = findPeriodControl(root);
+  const in2027 = is2027(root);
   if (!control) return;
   const field = control.closest('.ds-filter-field, .ds-ops-mgmt-field, label, .ds-form-field') || control.parentElement;
-  if (field) field.hidden = is2027(root);
+  if (field) field.hidden = in2027;
+}
+
+function currentStoredUser() {
+  try { return JSON.parse(localStorage.getItem('dashboard_user') || '{}') || {}; } catch { return {}; }
+}
+
+function canEditOperationsQuantities() {
+  const user = currentStoredUser();
+  const roles = [user.role, user.display_role].map((role) => normalize(role));
+  return roles.includes('admin') || roles.includes('operation_manager');
 }
 
 function setNativeTabVisibility(root) {
@@ -169,7 +180,7 @@ function ensureStyle() {
       max-width: 100%;
       overflow-x: auto;
       margin-inline-end: 0;
-      margin-inline-start: auto;
+      margin-inline-start: 0;
       border: 1px solid var(--ds-border, #dbe3ec);
       border-radius: 10px;
       background: var(--ds-surface, #fff);
@@ -240,7 +251,7 @@ function ensureStyle() {
     .ds-ops-mgmt-screen .ops2027-out { display: inline-block; padding: 4px 6px; border-radius: 6px; color: #b91c1c; background: #fee2e2; font-size: .72rem; font-weight: 800; }
     .ds-ops-mgmt-screen .ops2027-empty,
     .ds-ops-mgmt-screen .ops2027-error,
-    .ds-ops-mgmt-screen .ops2027-loading { padding: 18px; border: 1px solid var(--ds-border, #e2e8f0); border-radius: 10px; background: #fff; }
+    .ds-ops-mgmt-screen .ops2027-loading { width: fit-content; max-width: 100%; margin-inline-start: 0; margin-inline-end: 0; padding: 18px; border: 1px solid var(--ds-border, #e2e8f0); border-radius: 10px; background: #fff; box-sizing: border-box; }
     .ops2027-modal-backdrop {
       position: fixed; inset: 0; z-index: 9999; display: grid; place-items: center;
       padding: 20px; background: rgba(15, 23, 42, .42);
@@ -510,20 +521,27 @@ function waitingCounts(base, distributions) {
 function stockTableHtml(base, inventoryRows, distributionRows) {
   const stockMap = inventoryMap(inventoryRows);
   const waits = waitingCounts(base, distributionRows);
-  const body = base.courses.map((course) => {
+  const editable = canEditOperationsQuantities();
+  const requiredCourses = base.courses.filter((course) => course.requires_print_kit === true);
+  if (!requiredCourses.length) return emptyHtml('אין קורסים שמוגדרים כבעלי ערכת דפוס.');
+  const body = requiredCourses.map((course) => {
     const stock = stockMap.get(String(course.id)) || {};
-    const required = course.requires_print_kit === true;
     const total = inventoryTotal(stock);
     const waiting = waits.get(String(course.id)) || 0;
-    const locationCells = KIT_LOCATIONS.map((location) => `<td class="ops2027-number-col">${required ? `<input type="number" min="0" step="1" class="ds-input ops2027-stock-input" data-kit-stock-input data-course-id="${escapeHtml(course.id)}" data-location="${escapeHtml(location.key)}" value="${Math.max(0, Number(stock?.[location.field] || 0))}">` : ''}</td>`).join('');
+    const locationCells = KIT_LOCATIONS.map((location) => {
+      const value = Math.max(0, Number(stock?.[location.field] || 0));
+      const content = editable
+        ? `<input type="number" min="0" step="1" class="ds-input ops2027-stock-input" data-kit-stock-input data-course-id="${escapeHtml(course.id)}" data-location="${escapeHtml(location.key)}" value="${value}">`
+        : `<span class="ops2027-stock-text">${value}</span>`;
+      return `<td class="ops2027-number-col">${content}</td>`;
+    }).join('');
     return `<tr>
       <td class="ops2027-course-col">${escapeHtml(courseDisplayName(course))}</td>
-      <td class="ops2027-toggle-col"><button type="button" class="ops2027-toggle-button ${required ? 'is-yes' : 'is-no'}" data-kit-required-toggle data-course-id="${escapeHtml(course.id)}" data-required="${required ? '1' : '0'}">${required ? 'כן' : 'לא'}</button></td>
       ${locationCells}
-      <td class="ops2027-number-col"><span class="ops2027-stock-total ${required && total === 0 ? 'is-empty' : ''}">${required ? (total === 0 ? 'נגמר' : total) : ''}</span>${required && total === 0 && waiting > 0 ? `<span class="ops2027-waiting">ממתינים: ${waiting}</span>` : ''}</td>
+      <td class="ops2027-number-col"><span class="ops2027-stock-total ${total === 0 ? 'is-empty' : ''}">${total === 0 ? 'נגמר' : total}</span>${total === 0 && waiting > 0 ? `<span class="ops2027-waiting">ממתינים: ${waiting}</span>` : ''}</td>
     </tr>`;
   }).join('');
-  return `<div class="ops2027-table-shell"><table class="ops2027-table"><thead><tr><th class="ops2027-course-col">שם קורס</th><th class="ops2027-toggle-col">ערכות</th>${KIT_LOCATIONS.map((location) => `<th class="ops2027-number-col">${escapeHtml(location.label)}</th>`).join('')}<th class="ops2027-number-col">סה״כ</th></tr></thead><tbody>${body}</tbody></table></div>`;
+  return `<div class="ops2027-table-shell"><table class="ops2027-table"><thead><tr><th class="ops2027-course-col">שם קורס</th>${KIT_LOCATIONS.map((location) => `<th class="ops2027-number-col">${escapeHtml(location.label)}</th>`).join('')}<th class="ops2027-number-col">סה״כ</th></tr></thead><tbody>${body}</tbody></table></div>`;
 }
 
 function kitMatrixHtml(base, inventoryRows, distributionRows) {
@@ -579,9 +597,6 @@ async function renderPrintKits(root, token) {
 }
 
 function bindKitEvents(content) {
-  content.querySelectorAll('[data-kit-required-toggle]').forEach((button) => {
-    button.addEventListener('click', () => toggleKitRequirement(button));
-  });
   content.querySelectorAll('[data-kit-stock-input]').forEach((input) => {
     input.addEventListener('change', () => saveStockInput(input));
   });
@@ -591,21 +606,6 @@ function bindKitEvents(content) {
   content.querySelectorAll('[data-kit-return]').forEach((button) => {
     button.addEventListener('click', () => returnKit(button));
   });
-}
-
-async function toggleKitRequirement(button) {
-  const next = button.dataset.required !== '1';
-  button.disabled = true;
-  const result = await supabase.rpc('set_course_print_kit_requirement', {
-    p_course_id: button.dataset.courseId,
-    p_required: next
-  });
-  if (result.error) {
-    button.disabled = false;
-    window.alert(result.error.message || 'שמירת הגדרת הערכה נכשלה');
-    return;
-  }
-  renderCustomTab(rootElement(), TAB_PRINT_KITS);
 }
 
 async function saveStockInput(input) {

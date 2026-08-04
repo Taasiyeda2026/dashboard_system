@@ -1200,7 +1200,7 @@ test('collectWorkshopStockEditorItems exposes only real stock_group_key inventor
   assert.equal(items.some((item) => item.label === 'ללא מיפוי'), false);
 });
 
-test('workshops tab shows stock edit button only for admin', () => {
+test('workshops tab shows stock edit button for admin and operation_manager', () => {
   const adminListsData = { categories: [{ category: 'workshop_stock', items: [
     { value: 'frog', label: 'פרוגי המקפצת', _row: { category: 'workshop_stock', value: 'frog', label: 'פרוגי המקפצת', active: true, stock_group_key: 'frog_stock', stock_quantity: 120 } }
   ] }] };
@@ -1215,7 +1215,7 @@ test('workshops tab shows stock edit button only for admin', () => {
   const managerHtml = operationsManagementScreen.render(payload, { state: managerState });
   assert.match(adminHtml, /data-ops-open-stock-edit/);
   assert.match(adminHtml, /עריכת מלאי/);
-  assert.doesNotMatch(managerHtml, /data-ops-open-stock-edit/);
+  assert.match(managerHtml, /data-ops-open-stock-edit/);
 });
 
 test('service worker keeps CACHE_VERSION only in frontend implementation', async () => {

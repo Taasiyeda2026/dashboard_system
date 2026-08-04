@@ -94,6 +94,10 @@ function isOperationsAdmin(state = {}) {
   return String(state?.user?.role || state?.user?.display_role || '').trim() === 'admin';
 }
 
+function canEditOperationsInventory(state = {}) {
+  const roles = [state?.user?.role, state?.user?.display_role].map((role) => String(role || '').trim());
+  return roles.includes('admin') || roles.includes('operation_manager');
+}
 
 let _opsNeedsEntryReset = false;
 
@@ -2044,7 +2048,7 @@ function workshopsTabHtml(activitiesRowsForRequiredInventory, state, stockMap, c
       ? `<div role="alert" style="margin:16px 0;padding:12px 16px;background:#fef3c7;border:1px solid #f59e0b;border-radius:6px;color:#92400e;font-size:13px;direction:rtl;text-align:right;">⚠️ קטלוג המלאי לא נטען. יש לרענן את הדף או לבדוק הרשאות/חיבור.${listsData?._loadError || listsData?.error ? `<br><span style="font-size:11px;opacity:.75">שגיאה: ${escapeHtml(String(listsData._loadError || listsData.error))}</span>` : ''}</div>`
       : dsEmptyState('לא נמצאו סדנאות בטווח הנבחר');
 
-  const editButton = isOperationsAdmin(state)
+  const editButton = canEditOperationsInventory(state)
     ? '<button type="button" class="ds-btn ds-btn--sm ds-btn--secondary" data-ops-open-stock-edit>עריכת מלאי</button>'
     : '';
   return `<section class="ds-ops-mgmt-panel ds-ops-workshops-panel" dir="rtl">
@@ -2936,7 +2940,7 @@ export const operationsManagementScreen = {
     root.querySelector('[data-ops-print-workshops]')?.addEventListener('click', () => printWorkshopsFromDom(root));
 
     const openStockEditDrawer = (searchQuery = '') => {
-      if (!isOperationsAdmin(state) || !ui?.openDrawer) return;
+      if (!canEditOperationsInventory(state) || !ui?.openDrawer) return;
       const editorItems = collectWorkshopStockEditorItems(data?.adminListsData);
       ui.openDrawer({
         title: 'עריכת מלאי סדנאות',
