@@ -1137,7 +1137,9 @@ function closeMobileNav() {
 function buildScreenDataCacheKey(route, cacheState = state) {
   const activityPeriod = normalizeGlobalActivityPeriod(cacheState?.activityPeriodTab || 'regular');
   // Projection/version stamp so 2026/2027 and list-shape changes never share one cache entry.
-  const projection = 'p2';
+  // Bump when activities list projection columns change (e.g. funding) so stale
+  // cached rows without the new fields are not reused.
+  const projection = 'p3';
   const withActivityPeriod = (base) => `${base}:period:${activityPeriod}:proj:${projection}`;
   if (route === 'activities') {
     return `activities:periods:proj:${projection}`;
