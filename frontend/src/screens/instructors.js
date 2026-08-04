@@ -9,9 +9,10 @@ import {
   saveInstructorAvailabilityException,
   deleteInstructorAvailabilityException
 } from './instructor-scheduling-data.js';
+import { loadInstructorSeniorityData, saveInstructorContactDetails } from './instructor-contact-data.js';
 import {
   text, activeFlag, assigned, instructorCard, profileHtml, contactForm, constraintsForm, matchingForm
-} from './instructor-workspace-ui.js?v=20260730-instructor-constraints-modal-v1';
+} from './instructor-workspace-ui.js?v=20260804-instructor-seniority-v1';
 
 const ACTIVE_FILTERS = [{ value: 'yes', label: 'פעילים' }, { value: '', label: 'הכול' }, { value: 'no', label: 'לא פעילים' }];
 const ASSIGNMENT_FILTERS = [{ value: '', label: 'כל השיבוצים' }, { value: 'assigned', label: 'משובצים' }, { value: 'unassigned', label: 'לא משובצים' }];
@@ -55,7 +56,7 @@ function canEditScheduling(state) {
   return ['admin', 'operation_manager'].includes(text(state?.user?.role || state?.user?.display_role));
 }
 
-function mergeRows(base, contacts, scheduling) {
+function mergeRows(base, contacts, scheduling, seniorityRows = []) {
   const map = new Map();
   const ensure = (id, name = '') => {
     const key = text(id || name);
@@ -65,6 +66,7 @@ function mergeRows(base, contacts, scheduling) {
   };
   (base?.rows || []).forEach((row) => Object.assign(ensure(row.emp_id || row.full_name, row.full_name || row.instructor_name), row));
   (contacts?.rows || []).forEach((row) => Object.assign(ensure(row.emp_id || row.full_name, row.full_name), row));
+  (seniorityRows || []).forEach((row) => Object.assign(ensure(row.emp_id), { seniority_years: row.seniority_years ?? null }));
   const profiles = new Map((scheduling?.profiles || []).map((row) => [text(row.emp_id), row]));
   return [...map.values()].map((row) => ({
     ...row,
@@ -277,8 +279,8 @@ export function bindInstructorConstraintsModal(modalRoot, {
 export const instructorsScreen = {
   async load({ api }) {
     // List entry: instructor cards + contacts only. Scheduling rules/exceptions load on open.
-    const [base, contacts] = await Promise.all([api.instructors(), api.instructorContacts()]);
-    return { ...base, rows: mergeRows(base, contacts, null), scheduling: null, _schedulingLoaded: false };
+    const [base, contacts, seniorityRows] = await Promise.all([api.instructors(), api.instructorContacts(), loadInstructorSeniorityData()]);
+    return { ...base, rows: mergeRows(base, contacts, null, seniorityRows), scheduling: null, _schedulingLoaded: false };
   },
 
   render(data, { state } = {}) {
@@ -388,10 +390,10 @@ export const instructorsScreen = {
       button.onclick = async () => {
         const modal = document.querySelector('.ds-modal__content');
         const get = (name) => text(modal?.querySelector(`[name="${name}"]`)?.value);
-        const payload = { emp_id: row.emp_id, full_name: get('full_name'), mobile: get('mobile'), email: get('email'), address: get('address'), employment_type: get('employment_type'), direct_manager: get('direct_manager') || 'ללא', active: get('active') || 'yes' };
+        const payload = { emp_id: row.emp_id, full_name: get('full_name'), mobile: get('mobile'), email: get('email'), address: get('address'), employment_type: get('employment_type'), seniority_years: get('seniority_years'), direct_manager: get('direct_manager') || 'ללא', active: get('active') || 'yes' };
         const status = modal?.querySelector('[data-instructor-form-status]');
         if (!payload.full_name) { status.textContent = 'יש להזין שם מלא.'; return; }
-        try { button.disabled = true; await api.saveContact({ kind: 'instructor', row: payload }); Object.assign(row, payload); clearScreenDataCache?.(); ui.closeModal(); showToast('פרטי המדריך נשמרו', 'success', 1800); rerender(); reopen?.(); } catch (error) { status.textContent = `שגיאה: ${String(error?.message || '')}`; } finally { button.disabled = false; }
+        try { button.disabled = true; const saved = await saveInstructorContactDetails(payload); Object.assign(row, payload, saved || {}); clearScreenDataCache?.(); ui.closeModal(); showToast('פרטי המדריך נשמרו', 'success', 1800); rerender(); reopen?.(); } catch (error) { status.textContent = `שגיאה: ${String(error?.message || '')}`; } finally { button.disabled = false; }
       };
     };
 
