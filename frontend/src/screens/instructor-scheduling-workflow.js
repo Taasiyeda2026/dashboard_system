@@ -4,6 +4,7 @@ import { activityMeetings } from './instructor-scheduling-load.js';
 import { isActivitySchedulingEligible } from './shared/activity-scheduling-eligibility.js';
 import { showToast } from './shared/toast.js';
 import { formatDateDots, formatTimeRangeShort } from './shared/format-date.js';
+import { resolveInstructionLanguage } from './shared/instruction-language.js';
 
 const txt = (value) => String(value ?? '').trim();
 const EDUCATION_LEVELS = new Set(['elementary', 'middle_school', 'high_school']);
@@ -22,8 +23,7 @@ function genderSelectValue(activity) {
 }
 
 function languageSelectValue(activity) {
-  const value = txt(activity?.instruction_language);
-  return value === 'ar' || value === 'he' ? value : 'he';
+  return resolveInstructionLanguage(activity);
 }
 
 function educationSelectValue(activity) {

@@ -1,3 +1,5 @@
+import { instructionLanguageLabel, profileSpeaksLanguage, resolveInstructionLanguage } from './shared/instruction-language.js';
+
 const LANGUAGE_LABELS = { he: 'עברית', ar: 'ערבית' };
 
 export const DEFAULT_SCHEDULING_PROFILE = Object.freeze({
@@ -103,15 +105,17 @@ export function evaluateInstructor({
   const schedule = [];
   const issues = [];
   const meetings = meetingRows(activity);
-  const language = String(activity.instruction_language || '').trim();
+  const language = resolveInstructionLanguage(activity);
   const gender = activity.required_instructor_gender || 'any';
   const empId = String(instructor.emp_id || '');
 
   if (String(instructor.active ?? 'yes').toLowerCase() === 'no' || instructor.active === false) failures.push('המדריך אינו פעיל');
   if (!String(instructor.address || '').trim()) missingProfileData.push('כתובת');
 
-  if (language && !profile.instruction_languages.length) missingProfileData.push('שפות הדרכה');
-  else if (language && !profile.instruction_languages.includes(language)) failures.push(`המדריך אינו דובר ${LANGUAGE_LABELS[language] || language}, שפת ההדרכה של הקורס`);
+  if (!profile.instruction_languages.length) missingProfileData.push('שפות הדרכה');
+  else if (!profileSpeaksLanguage(profile.instruction_languages, language)) {
+    failures.push(`המדריך אינו דובר ${LANGUAGE_LABELS[language] || instructionLanguageLabel(language)}, שפת ההדרכה של הקורס`);
+  }
 
   if (gender !== 'any' && !profile.gender) missingProfileData.push('מגדר');
   else if (gender !== 'any' && profile.gender !== gender) failures.push(gender === 'female'

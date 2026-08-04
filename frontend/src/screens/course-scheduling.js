@@ -19,6 +19,7 @@ import {
   runDistanceBuildLoop,
   translateSchedulingRouteError
 } from './course-scheduling-distance-build.js';
+import { instructionLanguageLabel } from './shared/instruction-language.js';
 
 const text = (value) => String(value ?? '').trim();
 const emp = (candidate) => text(candidate?.instructor?.emp_id);
@@ -227,9 +228,8 @@ function specialRequirementsHtml(course) {
   if (text(course.required_instructor_gender) && text(course.required_instructor_gender) !== 'any') {
     parts.push(course.required_instructor_gender === 'female' ? 'נדרשת מדריכה' : 'נדרש מדריך');
   }
-  if (text(course.instruction_language)) parts.push(`שפה: ${course.instruction_language}`);
+  parts.push(`שפת הדרכה: ${instructionLanguageLabel(course)}`);
   if (text(course.education_level || course.grade)) parts.push(`שכבה: ${course.education_level || course.grade}`);
-  if (!parts.length) return '';
   return `<p class="course-scheduling-requirements"><span>דרישות מיוחדות:</span> ${escapeHtml(parts.join(' · '))}</p>`;
 }
 
@@ -285,7 +285,7 @@ function instructorsResultsHtml(result, state) {
       <h3>לא נמצא מדריך מתאים</h3>
       <p>נבדקו מדריכים קיימים, אך אף אחד מהם אינו עומד בכל תנאי הקורס. ייתכן שנדרש גיוס.</p>
       <details class="course-scheduling-details"><summary>הצגת פרטים</summary>
-        <p>שפה: ${escapeHtml(result.course.instruction_language || '—')} · שכבה: ${escapeHtml(result.course.education_level || result.course.grade || '—')} · מגדר: ${escapeHtml(result.course.required_instructor_gender || 'ללא')}</p>
+        <p>שפת הדרכה: ${escapeHtml(instructionLanguageLabel(result.course))} · שכבה: ${escapeHtml(result.course.education_level || result.course.grade || '—')} · מגדר: ${escapeHtml(result.course.required_instructor_gender || 'ללא')}</p>
       </details>
       <button type="button" class="course-scheduling-btn course-scheduling-btn--secondary" data-open-missing-course>פתח פעילות</button>
     </div>`;
@@ -592,7 +592,7 @@ export const courseSchedulingScreen = {
       : 'בחרו קורס, מצאו מדריך מתאים ושמרו כטיוטה או שבצו.';
 
     return dsScreenStack(`
-    <div class="course-scheduling-screen" dir="rtl" data-cs-ui="ux-polish-20260804-v4" data-cs-tab="${tab}">
+    <div class="course-scheduling-screen" dir="rtl" data-cs-ui="ux-polish-20260804-v5" data-cs-tab="${tab}">
       <header class="course-scheduling-header">
         <div class="course-scheduling-header-copy">
           <h1 class="course-scheduling-title">${title}</h1>

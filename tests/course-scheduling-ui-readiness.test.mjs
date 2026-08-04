@@ -296,7 +296,7 @@ test('calendar tab empty state points users back to courses', async () => {
   assert.match(html, /<h1 class="course-scheduling-title">מערכת שבועית<\/h1>/);
   assert.match(html, /צפו בקורסים ששובצו ובטיוטות לפי שבוע\./);
   assert.doesNotMatch(html, /בחרו קורס, מצאו מדריך מתאים ושמרו כטיוטה או שבצו\./);
-  assert.match(html, /data-cs-ui="ux-polish-20260804-v4"/);
+  assert.match(html, /data-cs-ui="ux-polish-20260804-v5"/);
   assert.match(html, /data-cs-tab="calendar"/);
   assert.match(html, /course-scheduling-calendar-pane--empty/);
   assert.match(html, /course-scheduling-empty-wrap/);
@@ -364,6 +364,7 @@ test('cache versions on this branch are ahead of origin/main after sync', async 
   assert.match(branchConfig, /course-scheduling-ux-redesign-20260804-v1/);
   assert.match(branchConfig, /course-scheduling-ux-polish-20260804-v1/);
   assert.match(branchConfig, /course-scheduling-empty-action-btn-20260804-v4/);
+  assert.match(branchConfig, /instruction-language-default-he-20260804-v1/);
   assert.ok(branchConfig.includes('HOTFIX_VERSION'));
   assert.ok(mainConfig.includes('HOTFIX_VERSION'));
 });
