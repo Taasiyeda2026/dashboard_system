@@ -1,0 +1,86 @@
+name: Resolve PR 1338 conflicts
+
+on:
+  push:
+    branches:
+      - codex/remove-authorization-mechanisms-from-instructor-matching
+
+permissions:
+  contents: write
+
+jobs:
+  resolve:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout feature branch
+        uses: actions/checkout@v4
+        with:
+          ref: codex/remove-authorization-mechanisms-from-instructor-matching
+          fetch-depth: 0
+
+      - name: Merge main and resolve known conflicts
+        shell: bash
+        run: |
+          set -euo pipefail
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git fetch origin main
+
+          set +e
+          git merge --no-ff --no-commit origin/main
+          merge_status=$?
+          set -e
+
+          unresolved="$(git diff --name-only --diff-filter=U || true)"
+          unexpected="$(printf '%s\n' "$unresolved" | grep -Ev '^(frontend/src/config\.js|frontend/sw\.js|tests/course-scheduling-2027-status-policy\.test\.mjs)$' || true)"
+          if [ -n "$unexpected" ]; then
+            echo "Unexpected merge conflicts:"
+            printf '%s\n' "$unexpected"
+            exit 1
+          fi
+
+          # Keep the latest main hotfix chain and append this PR's two markers.
+          git show origin/main:frontend/src/config.js > frontend/src/config.js
+          node <<'NODE'
+          const fs = require('fs');
+          const path = 'frontend/src/config.js';
+          const marker = '-scheduling-permission-removal-20260804-v1-scheduling-age-layer-removal-20260804-v1';
+          let source = fs.readFileSync(path, 'utf8');
+          if (!source.includes('scheduling-permission-removal-20260804-v1')) {
+            source = source.replace(/(HOTFIX_VERSION:\s*')([^']*)(')/, (_match, start, value, end) => `${start}${value}${marker}${end}`);
+          }
+          fs.writeFileSync(path, source);
+          NODE
+
+          # Keep the feature cache bump above main and align its focused expectation.
+          git show HEAD:frontend/sw.js > frontend/sw.js
+          node <<'NODE'
+          const fs = require('fs');
+          const swPath = 'frontend/sw.js';
+          let sw = fs.readFileSync(swPath, 'utf8').replace(/const CACHE_VERSION = \d+;/, 'const CACHE_VERSION = 1396;');
+          fs.writeFileSync(swPath, sw);
+
+          const testPath = 'tests/course-scheduling-2027-status-policy.test.mjs';
+          let test = fs.readFileSync(testPath, 'utf8').replace(/const CACHE_VERSION = \d+;/g, 'const CACHE_VERSION = 1396;').replace(/CACHE_VERSION = 139\d/g, 'CACHE_VERSION = 1396');
+          fs.writeFileSync(testPath, test);
+          NODE
+
+          git add frontend/src/config.js frontend/sw.js tests/course-scheduling-2027-status-policy.test.mjs
+
+          remaining="$(git diff --name-only --diff-filter=U || true)"
+          if [ -n "$remaining" ]; then
+            echo "Unresolved conflicts remain:"
+            printf '%s\n' "$remaining"
+            exit 1
+          fi
+
+          rm -f .github/workflows/resolve-pr-1338.yml
+          git add -A
+
+          if git diff --cached --quiet && [ "$merge_status" -eq 0 ]; then
+            echo "Nothing to commit."
+            exit 0
+          fi
+
+          git commit -m "Merge main and resolve PR 1338 conflicts"
+          git push origin HEAD:codex/remove-authorization-mechanisms-from-instructor-matching
