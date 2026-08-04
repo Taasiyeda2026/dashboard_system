@@ -82,7 +82,8 @@ test('checks every meeting and keeps missing weekday availability out of recruit
 test('missing essential data is reported exactly and never proposed', () => {
   const result = calculateCourseSchedule(baseInput([{ ...course('missing'), school_address: '', instruction_language: '' }]))[0];
   assert.equal(result.status, 'חסר מידע');
-  assert.deepEqual(result.missing, ['כתובת בית הספר', 'שפת הדרכה']);
+  assert.deepEqual(result.missing, ['כתובת בית הספר']);
+  assert.ok(!result.missing.includes('שפת הדרכה'));
 });
 
 test('weekly workload compares each ISO week with one declared weekly capacity', () => {

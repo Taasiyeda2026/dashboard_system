@@ -19,10 +19,19 @@ test('new scheduling is strictly limited to open canonical school_2027 activitie
   assert.equal(isActivitySchedulingEligible({ activity_season: '', start_date: '2027-01-01', status: 'פתוח' }), false);
 });
 
-test('empty language and gender do not filter or add matching explanations', () => {
-  const result = evaluateInstructor({ instructor, profile, rules, activity: { ...base, instruction_language: null, required_instructor_gender: 'any' } });
-  assert.equal(result.eligible, true);
-  assert.doesNotMatch(result.explanation, /שפה|עברית|מגדר/);
+test('empty language defaults to Hebrew and still enforces instructor language match', () => {
+  const arabicOnly = evaluateInstructor({ instructor, profile, rules, activity: { ...base, instruction_language: null, required_instructor_gender: 'any' } });
+  assert.equal(arabicOnly.eligible, false);
+  assert.match(arabicOnly.failures.join('|'), /עברית/);
+
+  const hebrewSpeaker = evaluateInstructor({
+    instructor,
+    profile: { ...profile, instruction_languages: ['he'] },
+    rules,
+    activity: { ...base, instruction_language: '', required_instructor_gender: 'any' }
+  });
+  assert.equal(hebrewSpeaker.eligible, true);
+  assert.doesNotMatch(hebrewSpeaker.explanation, /מגדר/);
 });
 
 test('education level is a hard matching constraint', () => {
@@ -43,6 +52,7 @@ test('requirements modal keeps activity summary and only three editable fields',
   assert.match(workflow, /scheduling-time-range/);
   assert.match(workflow, /מגדר המדריך/);
   assert.match(workflow, /שפת הדרכה/);
+  assert.match(workflow, /resolveInstructionLanguage/);
   assert.match(workflow, /שכבת גיל/);
   assert.match(workflow, /value="any"[^>]*>כולם</);
   assert.match(workflow, /value="he"[^>]*>עברית</);
