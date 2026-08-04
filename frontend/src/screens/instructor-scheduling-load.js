@@ -1,15 +1,18 @@
-export function activityMeetings(activity = {}) {
+export function activityMeetings(activity = {}, options = {}) {
+  const periodFilter = typeof options.filter === 'function' ? options.filter : null;
   if (Array.isArray(activity.meetings)) {
-    return activity.meetings
+    const rows = activity.meetings
       .map((meeting) => typeof meeting === 'string'
         ? { date: meeting, start_time: activity.start_time, end_time: activity.end_time }
         : meeting)
       .filter((meeting) => meeting?.date);
+    return periodFilter ? rows.filter(periodFilter) : rows;
   }
 
-  return Array.from({ length: 35 }, (_, index) => activity[`date_${index + 1}`])
+  const rows = Array.from({ length: 35 }, (_, index) => activity[`date_${index + 1}`])
     .filter(Boolean)
     .map((date) => ({ date, start_time: activity.start_time, end_time: activity.end_time }));
+  return periodFilter ? rows.filter(periodFilter) : rows;
 }
 
 export function isoWeekKey(value) {
