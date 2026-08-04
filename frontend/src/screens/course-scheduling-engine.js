@@ -40,11 +40,7 @@ function meetingHours(meeting, activity = {}) {
 }
 
 export function availabilityHours(profile = {}, rules = []) {
-  // A personal weekly target/max (spec section 16) takes priority over raw availability
-  // when the instructor's profile has one, but stays fully backward compatible: neither
-  // field is required, and 0/unset falls straight back to summed weekly availability.
-  const personalCapacity = Number(profile?.weekly_max_hours ?? profile?.weekly_target_hours);
-  if (Number.isFinite(personalCapacity) && personalCapacity > 0) return personalCapacity;
+  void profile;
   const availableRules = rules.filter((rule) => rule.available && Number(rule.weekday) !== 6);
   if (!availableRules.length) return 0;
   return availableRules.reduce((sum, rule) => sum + Math.max(0, minutes(rule.end_time) - minutes(rule.start_time)) / 60, 0);
