@@ -314,8 +314,8 @@ export function evaluateInstructor({
       scoreReasons.push(`${Math.round(km)} ק״מ מהבית, ${Math.round(Number(travel.home.duration_minutes) || 0)} דקות נסיעה`);
       if (km > 40 && !sameSchool && !sameAuthority) failures.push('הפעילות הראשונה ביום רחוקה יותר מ-40 ק״מ מהבית');
       distancePoints = Math.max(0, 40 - km);
-    } else if (validateTravel) {
-      failures.push('אין נתוני מרחק וזמן נסיעה אמינים');
+    } else {
+      scoreReasons.push('המרחק טרם חושב');
     }
 
     const workloadBreakdown = workloadPoints || { points: 20, totalHoursPoints: 12, courseWeeksPoints: 8, label: 'עומס וחלוקה שוויונית' };

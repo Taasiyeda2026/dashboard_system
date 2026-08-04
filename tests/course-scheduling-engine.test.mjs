@@ -6,7 +6,7 @@ import { evaluateInstructor } from '../frontend/src/screens/instructor-matching-
 import { createRouteClient, calculateCandidateTravel } from '../frontend/src/screens/course-scheduling-travel.js';
 import { courseSchedulingCounts, detailsHtml } from '../frontend/src/screens/course-scheduling.js';
 
-const course = (id, date = '2027-09-05', extra = {}) => ({
+const course = (id, date = '2026-09-06', extra = {}) => ({
   row_id: id,
   activity_name: id,
   activity_no: id,
@@ -63,15 +63,15 @@ test('global allocation ignores deprecated course restrictions while still balan
     1: { ...profiles[1], course_restriction_mode: 'allow_only', course_ids: ['only'] },
     2: { ...profiles[2], course_restriction_mode: 'block_selected', course_ids: ['flex'] }
   };
-  const results = calculateCourseSchedule({ ...baseInput([course('flex'), course('only', '2027-09-06')]), profiles: deprecatedProfiles });
+  const results = calculateCourseSchedule({ ...baseInput([course('flex'), course('only', '2026-09-07')]), profiles: deprecatedProfiles });
   assert.equal(results.filter((result) => result.recommended).length, 2);
   assert.equal(new Set(results.map((result) => result.recommended.instructor.emp_id)).size, 2);
 });
 
 test('checks every meeting and keeps missing weekday availability out of recruitment', () => {
   const result = calculateCourseSchedule(baseInput([{ ...course('flex'), meetings: [
-    { date: '2027-09-05', start_time: '10:00', end_time: '11:00' },
-    { date: '2027-09-07', start_time: '10:00', end_time: '11:00' }
+    { date: '2026-09-06', start_time: '10:00', end_time: '11:00' },
+    { date: '2026-09-08', start_time: '10:00', end_time: '11:00' }
   ] }]))[0];
   assert.equal(result.status, 'נדרש טיפול');
   assert.ok(result.checked.every((candidate) => candidate.missingProfileData.some((reason) => /זמינות/.test(reason))));
@@ -86,8 +86,8 @@ test('missing essential data is reported exactly and never proposed', () => {
 
 test('weekly workload compares each ISO week with one declared weekly capacity', () => {
   const load = instructorLoad([
-    course('week-one', '2027-09-05'),
-    course('week-two', '2027-09-12')
+    course('week-one', '2026-09-06'),
+    course('week-two', '2026-09-13')
   ], profiles[1], rules[1]);
   assert.equal(load.hours, 2);
   assert.equal(load.availabilityHours, 16);
@@ -97,8 +97,8 @@ test('weekly workload compares each ISO week with one declared weekly capacity',
 
 test('the draft dynamically balances otherwise equivalent courses between instructors', () => {
   const results = calculateCourseSchedule(baseInput([
-    course('first', '2027-09-05'),
-    course('second', '2027-09-06')
+    course('first', '2026-09-06'),
+    course('second', '2026-09-07')
   ]));
   assert.equal(results.filter((result) => result.recommended).length, 2);
   assert.equal(new Set(results.map((result) => result.recommended.instructor.emp_id)).size, 2);
@@ -128,7 +128,7 @@ test('missing profile fields are separate from professional failures and receive
     assert.equal(result.failures.length, 0);
   }
 
-  const ageOnlyMissing = evaluateInstructor({ instructor: instructors[0], profile: { gender: 'female', instruction_languages: ['he'], education_levels: [] }, rules: rules[1], activity: course('age-missing', '2027-09-05', { education_level: '', grade: '' }) });
+  const ageOnlyMissing = evaluateInstructor({ instructor: instructors[0], profile: { gender: 'female', instruction_languages: ['he'], education_levels: [] }, rules: rules[1], activity: course('age-missing', '2026-09-06', { education_level: '', grade: '' }) });
   assert.equal(ageOnlyMissing.eligible, true);
   assert.doesNotMatch(ageOnlyMissing.missingProfileData.join(' '), /שכבות גיל|שכבת גיל/);
 });
@@ -145,7 +145,7 @@ test('defined availability outside course hours is a failure, while no weekly ru
 
 test('eight missing Monday availability dates are grouped once and expanded only in details', () => {
   const meetings = Array.from({ length: 8 }, (_, index) => {
-    const date = new Date('2027-09-06T12:00:00Z');
+    const date = new Date('2026-09-07T12:00:00Z');
     date.setUTCDate(date.getUTCDate() + index * 7);
     return { date: date.toISOString().slice(0, 10), start_time: '10:00', end_time: '11:30' };
   });
@@ -189,8 +189,8 @@ test('route requests are deduplicated, capped at four, and only threshold candid
 });
 
 test('travel is precomputed between two draft courses proposed for the same instructor', async () => {
-  const first = course('a', '2027-09-05', { school: 'א', school_address: 'כתובת א', start_time: '08:00', end_time: '09:00', meetings: [{ date: '2027-09-05', start_time: '08:00', end_time: '09:00' }] });
-  const second = course('b', '2027-09-05', { school: 'ב', school_address: 'כתובת ב', start_time: '10:00', end_time: '11:00', meetings: [{ date: '2027-09-05', start_time: '10:00', end_time: '11:00' }] });
+  const first = course('a', '2026-09-06', { school: 'א', school_address: 'כתובת א', start_time: '08:00', end_time: '09:00', meetings: [{ date: '2026-09-06', start_time: '08:00', end_time: '09:00' }] });
+  const second = course('b', '2026-09-06', { school: 'ב', school_address: 'כתובת ב', start_time: '10:00', end_time: '11:00', meetings: [{ date: '2026-09-06', start_time: '10:00', end_time: '11:00' }] });
   const requested = [];
   const client = createRouteClient({ invoke: async ({ origin, destination }) => {
     requested.push(`${origin}→${destination}`);
@@ -203,14 +203,14 @@ test('travel is precomputed between two draft courses proposed for the same inst
 });
 
 test('a missing route between two draft schools safely prevents assigning both to one instructor', () => {
-  const first = course('a', '2027-09-05', { school: 'א', school_address: 'כתובת א', start_time: '08:00', end_time: '09:00', meetings: [{ date: '2027-09-05', start_time: '08:00', end_time: '09:00' }] });
-  const second = course('b', '2027-09-05', { school: 'ב', school_address: 'כתובת ב', start_time: '10:00', end_time: '11:00', meetings: [{ date: '2027-09-05', start_time: '10:00', end_time: '11:00' }] });
+  const first = course('a', '2026-09-06', { school: 'א', school_address: 'כתובת א', start_time: '08:00', end_time: '09:00', meetings: [{ date: '2026-09-06', start_time: '08:00', end_time: '09:00' }] });
+  const second = course('b', '2026-09-06', { school: 'ב', school_address: 'כתובת ב', start_time: '10:00', end_time: '11:00', meetings: [{ date: '2026-09-06', start_time: '10:00', end_time: '11:00' }] });
   const results = calculateCourseSchedule({ activities: [first, second], instructors: [instructors[0]], profiles: { 1: profiles[1] }, rules: { 1: rules[1] }, exceptions: {}, travel: {}, routeMatrix: {} });
   assert.equal(results.filter((result) => result.recommended).length, 1);
 });
 
 test('unverified transition between existing schools fails safely', () => {
-  const result = evaluateInstructor({ instructor: instructors[0], profile: profiles[1], rules: rules[1], activity: course('transition'), existingActivities: [{ date: '2027-09-05', start_time: '08:00', end_time: '09:00', school: 'אחר' }], travel: { home: null, transitions: { '2027-09-05': { previous: null } } } });
+  const result = evaluateInstructor({ instructor: instructors[0], profile: profiles[1], rules: rules[1], activity: course('transition'), existingActivities: [{ date: '2026-09-06', start_time: '08:00', end_time: '09:00', school: 'אחר' }], travel: { home: null, transitions: { '2026-09-06': { previous: null } } } });
   assert.equal(result.eligible, false);
   assert.match(result.failures.join(' '), /לא ניתן לאמת זמן מעבר/);
 });
@@ -245,7 +245,7 @@ test('scheduling route reuses cached address pairs without an expiry check', asy
 
 test('acceptance: Hila Rosen 1500 remains incomplete, keeps her address, and groups eight Mondays', () => {
   const dates = Array.from({ length: 8 }, (_, index) => {
-    const date = new Date('2027-09-06T12:00:00Z');
+    const date = new Date('2026-09-07T12:00:00Z');
     date.setUTCDate(date.getUTCDate() + index * 7);
     return { date: date.toISOString().slice(0, 10), start_time: '10:00', end_time: '11:30' };
   });

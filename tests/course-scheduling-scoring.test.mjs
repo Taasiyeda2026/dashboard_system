@@ -8,15 +8,15 @@ const rules = [{ weekday: 3, available: true, start_time: '08:00', end_time: '16
 const activity = {
   activity_name: 'קורס מדעים', instruction_language: 'he', required_instructor_gender: 'female', education_level: 'elementary',
   start_time: '10:00', end_time: '11:00', school: 'בית ספר א', authority: 'חיפה',
-  meetings: [{ date: '2027-09-01', start_time: '10:00', end_time: '11:00' }] // Wednesday, matches weekday 3
+  meetings: [{ date: '2026-09-02', start_time: '10:00', end_time: '11:00' }] // Wednesday, matches weekday 3
 };
 
 test('score is capped at 100 and never at the old 120 ceiling', () => {
-  const previous = { date: '2027-09-01', start_time: '08:30', end_time: '09:55', school: 'בית ספר א', authority: 'חיפה', activity_name: 'קודמת' };
+  const previous = { date: '2026-09-02', start_time: '08:30', end_time: '09:55', school: 'בית ספר א', authority: 'חיפה', activity_name: 'קודמת' };
   const result = evaluateInstructor({
     instructor, profile, rules, activity,
     existingActivities: [previous],
-    travel: { home: { distance_km: 1, duration_minutes: 2 }, transitions: { '2027-09-01': { previous: { distance_km: 0, duration_minutes: 0 } } } },
+    travel: { home: { distance_km: 1, duration_minutes: 2 }, transitions: { '2026-09-02': { previous: { distance_km: 0, duration_minutes: 0 } } } },
     workloadRatio: 0
   });
   assert.equal(result.eligible, true);
@@ -24,10 +24,10 @@ test('score is capped at 100 and never at the old 120 ceiling', () => {
 });
 
 test('same-school continuity does not also earn the full same-authority bonus (no double counting)', () => {
-  const sameSchoolNeighbor = { date: '2027-09-01', start_time: '08:30', end_time: '09:55', school: 'בית ספר א', authority: 'חיפה', activity_name: 'קודמת' };
+  const sameSchoolNeighbor = { date: '2026-09-02', start_time: '08:30', end_time: '09:55', school: 'בית ספר א', authority: 'חיפה', activity_name: 'קודמת' };
   const withSameSchool = evaluateInstructor({
     instructor, profile, rules, activity, existingActivities: [sameSchoolNeighbor],
-    travel: { home: null, transitions: { '2027-09-01': { previous: { distance_km: 0, duration_minutes: 0 } } } }
+    travel: { home: null, transitions: { '2026-09-02': { previous: { distance_km: 0, duration_minutes: 0 } } } }
   });
   const bare = evaluateInstructor({ instructor, profile, rules, activity, travel: { home: null, transitions: {} } });
   assert.ok(withSameSchool.score > bare.score, 'same-school continuity should raise the score');
@@ -44,18 +44,17 @@ test('language, gender and blocks stay gating conditions, never point contributi
   assert.equal(mismatched.score, null);
 });
 
-test('a personal weekly_max_hours profile target changes the load score instead of raw availability', () => {
-  const heavyDay = [{ weekday: 3, available: true, start_time: '08:00', end_time: '20:00' }]; // 12h available
+test('manual weekly_max_hours does not change the new workload score', () => {
+  const heavyDay = [{ weekday: 3, available: true, start_time: '08:00', end_time: '20:00' }];
   const withoutTarget = evaluateInstructor({ instructor, profile, rules: heavyDay, activity, workloadRatio: 1 / 12 });
   const withTightTarget = evaluateInstructor({ instructor, profile: { ...profile, weekly_max_hours: 1 }, rules: heavyDay, activity, workloadRatio: 1 / 1 });
-  assert.ok(withTightTarget.score < withoutTarget.score, 'a tighter personal weekly cap should reduce the load score for the same booking');
+  assert.equal(withTightTarget.scoreBreakdown.workload.points, withoutTarget.scoreBreakdown.workload.points);
 });
 
-test('professional experience in the same course adds a small, capped bonus', () => {
+test('prior course experience is not a separate score component', () => {
   const priorSameCourse = { date: '2026-01-05', start_time: '09:00', end_time: '10:00', activity_name: activity.activity_name, school: 'בית ספר אחר', authority: 'ירושלים' };
   const withExperience = evaluateInstructor({ instructor, profile, rules, activity, existingActivities: [priorSameCourse], travel: { home: null, transitions: {} } });
   const withoutExperience = evaluateInstructor({ instructor, profile, rules, activity, travel: { home: null, transitions: {} } });
-  assert.ok(withExperience.score > withoutExperience.score);
-  assert.ok(withExperience.score - withoutExperience.score <= 5, 'professional experience must stay a minor, capped bonus');
-  assert.match(withExperience.explanation, /ניסיון קודם בקורס/);
+  assert.equal(withExperience.score, withoutExperience.score);
+  assert.doesNotMatch(withExperience.explanation, /ניסיון קודם בקורס/);
 });

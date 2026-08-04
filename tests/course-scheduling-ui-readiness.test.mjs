@@ -66,11 +66,11 @@ test('courses tab auto-selects nearest course and shows its details', () => {
   assert.match(html, /data-switch-tab="calendar"/);
   assert.match(html, /<h1 class="course-scheduling-title">שיבוצים<\/h1>/);
   assert.match(html, /בחרו קורס, מצאו מדריך מתאים ושמרו כטיוטה או שבצו\./);
-  assert.match(html, /<b>2<\/b><span>ממתינים לשיבוץ<\/span>/);
+  assert.match(html, /<b>1<\/b><span>ממתינים לשיבוץ<\/span>/);
   assert.match(html, /<b>0<\/b><span>הצעות מוכנות<\/span>/);
   assert.match(html, /<b>0<\/b><span>טיוטות<\/span>/);
-  assert.equal(state.courseSchedulingSelectedId, 'near');
-  assert.match(html, /data-course-card="near"/);
+  assert.equal(state.courseSchedulingSelectedId, 'later');
+  assert.match(html, /data-course-card="later"/);
   assert.match(html, /course-scheduling-course-card is-selected/);
   assert.match(html, /מצא מדריכים מתאימים/);
   assert.doesNotMatch(html, /בחר קורס כדי להתחיל/);

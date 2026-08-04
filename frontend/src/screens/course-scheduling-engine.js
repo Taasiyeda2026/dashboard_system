@@ -412,13 +412,15 @@ export function calculateCourseSchedule(input = {}) {
     return {
       course,
       status: recommended
-        ? 'הצעה מוכנה'
-        : 'נדרש גיוס',
+        ? (recommended.warnings.length ? 'נדרש טיפול' : 'הצעה מוכנה')
+        : incompleteProfiles.length ? 'נדרש טיפול' : 'נדרש גיוס',
       recommended,
       alternatives,
       checked,
       incompleteProfiles,
-      treatmentReason: !recommended ? primaryRejectionReason(checked) : ''
+      treatmentReason: !recommended && incompleteProfiles.length
+        ? 'לא ניתן להשלים את בדיקת השיבוץ משום שחסרים נתונים בפרופילי מדריכים.'
+        : !recommended ? primaryRejectionReason(checked) : ''
     };
   });
 }
