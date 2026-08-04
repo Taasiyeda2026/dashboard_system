@@ -642,12 +642,20 @@ function getActivitySchoolDisplayName(row) {
   return ls || 'לא משויך';
 }
 
-const ACTIVITY_FILTER_FIELDS = [
+/** Client-only sentinel for empty/null funding filter options. Never written to Supabase. */
+export const EMPTY_FUNDING_FILTER_VALUE = 'ללא מימון מוגדר';
+
+export function activityFundingFilterValue(row = {}) {
+  const text = humanDisplayText(row?.funding);
+  return text || EMPTY_FUNDING_FILTER_VALUE;
+}
+
+export const ACTIVITY_FILTER_FIELDS = [
   { key: 'activity_manager', label: 'מנהל פעילות', getValues: (row) => [activityManagerDisplayName(row?.activity_manager)] },
   { key: 'instructor', label: 'מדריך', getValues: (row) => [humanDisplayText(row?.instructor_name), humanDisplayText(row?.instructor_name_2)] },
   { key: 'activity_name', label: 'תוכנית', getValues: (row) => [humanDisplayText(row?.activity_name)] },
   { key: 'authority', label: 'רשות', getValues: (row) => [humanDisplayText(row?.authority)] },
-  { key: 'funding', label: 'מימון' },
+  { key: 'funding', label: 'מימון', getValues: (row) => [activityFundingFilterValue(row)] },
   { key: 'school', label: 'בית ספר', getValues: getActivitySchoolNames },
   { key: 'activity_type', label: 'סוג הפעילות', getOptionLabel: (value) => visibleActivityCategoryLabel(value) }
 ];
@@ -1059,14 +1067,23 @@ function clearMissingScheduleFilter(state = {}) {
   try { sessionStorage.removeItem(MISSING_SCHEDULE_FILTER_STORAGE_KEY); } catch { /* storage may be unavailable */ }
 }
 
-function applyActivitiesLocalFilters(rows, state, settings) {
-  const filters = ensureActivityListFilters(state, ACTIVITIES_SCOPE);
+/**
+ * Rows used both for dependent filter options and as the input to local field
+ * filters. Scoped by family/gap/assignment/schedule, but not by dropdown filters,
+ * so one selected filter can still narrow other filters' option lists.
+ */
+function prepareActivitiesFilterBaseRows(rows, state, settings) {
   const familyRows = applyClientFilters(rows, state, settings);
   const gapRows = applyActivitiesGapFilter(familyRows, state.activitiesGapFilter);
   prepareRowsForSearch(gapRows, ACTIVITY_SEARCH_FIELDS);
   const assignmentRows = gapRows.filter((row) => activityMatchesInstructorStatusFilter(row, state.allActivitiesStatusFilter));
-  const scheduleRows = applyMissingScheduleFilter(assignmentRows, state);
-  return applyLocalFilters(scheduleRows, filters, { filterFields: ACTIVITY_FILTER_FIELDS }).sort(compareActivityDefaultOrder);
+  return applyMissingScheduleFilter(assignmentRows, state);
+}
+
+function applyActivitiesLocalFilters(rows, state, settings) {
+  const filters = ensureActivityListFilters(state, ACTIVITIES_SCOPE);
+  const baseRows = prepareActivitiesFilterBaseRows(rows, state, settings);
+  return applyLocalFilters(baseRows, filters, { filterFields: ACTIVITY_FILTER_FIELDS }).sort(compareActivityDefaultOrder);
 }
 
 function buildActivitiesDiagnostics(allRows, state, finalRows) {
@@ -1683,9 +1700,19 @@ export const activitiesScreen = {
     const periodRows    = activityRowsForInnerTab(allRows, state);
     if (!isAllMode) ensureActivityPeriodMonth(state, allRows);
     const monthRows     = activityRowsForPeriodAndMonth(allRows, state);
-    const filteredRows  = applyActivitiesLocalFilters(monthRows, state, state?.clientSettings);
-
     const listFilters   = ensureActivityListFilters(state, ACTIVITIES_SCOPE);
+    // Build dependent options from pre-dropdown rows first so stale selections
+    // (e.g. funding from another year) are cleared before the table is filtered.
+    const filterOptionRows = prepareActivitiesFilterBaseRows(monthRows, state, state?.clientSettings);
+    const bareFilters = filtersToolbarHtml(ACTIVITIES_SCOPE, filterOptionRows, state, {
+      filterFields: ACTIVITY_FILTER_FIELDS,
+      search: false,
+      clear: false,
+      bare: true,
+      dependent: true
+    });
+    const filteredRows = applyLocalFilters(filterOptionRows, listFilters, { filterFields: ACTIVITY_FILTER_FIELDS })
+      .sort(compareActivityDefaultOrder);
     const { visible: safeRows, hasMore, total, nextCount } = splitVisibleRows(filteredRows, listFilters);
     const canSeePrivateNotes = canReviewActivityRequests(state);
     const hideEmpIds    = !!state?.clientSettings?.hide_emp_id_on_screens;
@@ -1817,13 +1844,6 @@ export const activitiesScreen = {
 
     const fundingOptions = mergeOptions(state?.clientSettings || {}, ['funding', 'fundings']);
     const centralOptions = getFilterOptionOverrides(state?.clientSettings || {});
-    const bareFilters = filtersToolbarHtml(ACTIVITIES_SCOPE, filteredRows, state, {
-      filterFields: ACTIVITY_FILTER_FIELDS,
-      search: false,
-      clear: false,
-      bare: true,
-      dependent: true
-    });
     const loadMoreHtml = hasMore
       ? `<div style="display:flex;justify-content:center;padding:12px 0"><button type="button" class="ds-btn ds-btn--sm" data-list-show-more="${ACTIVITIES_SCOPE}" data-next-count="${nextCount}">הצג עוד</button></div>`
       : '';
