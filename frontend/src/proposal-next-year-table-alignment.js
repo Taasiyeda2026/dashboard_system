@@ -5,10 +5,11 @@ const COMPACT_TABLE_WIDTH = '72%';
 const GROUP_SELECTOR = '.proposal-document .pa-next-year-cost-group';
 const TABLE_SELECTOR = [
   '.proposal-document .pa-next-year-course-table',
+  '.proposal-document .pa-next-year-activities-table',
   '.proposal-document .pa-next-year-workshop-table',
   '.proposal-document .pa-next-year-combined-total'
 ].join(', ');
-const HEADING_SELECTOR = '.proposal-document .pa-next-year-course-heading, .proposal-document .pa-next-year-workshop-heading';
+const HEADING_SELECTOR = '.proposal-document .pa-next-year-course-heading, .proposal-document .pa-next-year-workshop-heading, .proposal-document .pa-next-year-activities-heading';
 
 function text(value) {
   return String(value == null ? '' : value).replace(/\s+/g, ' ').trim();
@@ -54,8 +55,10 @@ function normalizeTable(table) {
 
 function normalizeHeading(heading) {
   if (!heading) return;
-  if (heading.classList?.contains('pa-next-year-course-heading') && text(heading.textContent) === 'קורסים ותוכניות') {
-    heading.textContent = 'קורסים';
+  const value = text(heading.textContent);
+  if (/^(?:קורסים ותוכניות|קורסים|סדנאות)$/.test(value)) {
+    heading.textContent = 'פעילויות ומחירים';
+    heading.classList?.add('pa-next-year-activities-heading');
   }
   setImportantStyle(heading, 'width', COMPACT_TABLE_WIDTH);
   setImportantStyle(heading, 'max-width', COMPACT_TABLE_WIDTH);
@@ -71,7 +74,9 @@ export function normalizeNextYearTableAlignment(root = globalThis.document) {
   elementsMatching(root, HEADING_SELECTOR).forEach(normalizeHeading);
 
   elementsMatching(root, '.proposal-document .pa-section-heading').forEach((heading) => {
-    if (text(heading.textContent) === 'קורסים ותוכניות') normalizeHeading(heading);
+    if (/^(?:קורסים ותוכניות|קורסים|סדנאות|פעילויות ומחירים)$/.test(text(heading.textContent))) {
+      normalizeHeading(heading);
+    }
   });
   return root;
 }

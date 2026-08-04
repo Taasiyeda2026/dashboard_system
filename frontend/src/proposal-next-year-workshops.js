@@ -10,19 +10,20 @@ const NEXT_YEAR_GROUP_LABELS = Object.freeze({
   [NEXT_YEAR_WORKSHOPS_GROUP]: 'תשפ״ז (סדנאות)'
 });
 /**
- * Displayed titles of the two internal areas. The proposal type itself always reads
- * תשפ״ז, so the areas are named by their own content in the editor, the preview and
- * the produced document.
+ * Internal course/workshop keys remain for storage. The editor and printed
+ * document show one shared "פעילויות ומחירים" list for תשפ״ז.
  */
+const NEXT_YEAR_UNIFIED_TITLE = 'פעילויות ומחירים';
 const NEXT_YEAR_SECTION_TITLES = Object.freeze({
-  [NEXT_YEAR_COURSES_GROUP]: 'קורסים ותוכניות',
-  [NEXT_YEAR_WORKSHOPS_GROUP]: 'סדנאות'
+  [NEXT_YEAR_COURSES_GROUP]: NEXT_YEAR_UNIFIED_TITLE,
+  [NEXT_YEAR_WORKSHOPS_GROUP]: NEXT_YEAR_UNIFIED_TITLE,
+  [NEXT_YEAR_GROUP]: NEXT_YEAR_UNIFIED_TITLE
 });
-const AMBIGUOUS_NEXT_YEAR_LABELS = new Set(['תשפ״ז', 'תשפ"ז']);
+const AMBIGUOUS_NEXT_YEAR_LABELS = new Set(['תשפ״ז', 'תשפ"ז', 'קורסים ותוכניות', 'סדנאות', 'קורסים']);
 const SUMMER_GROUP_ALIASES = new Set(['summer', 'פעילויות קיץ', 'קיץ תשפ״ו']);
 const NEXT_YEAR_GROUP_ALIASES = new Set(['next_year', 'שנה הבאה', 'שנת הלימודים תשפ״ז', 'תוכניות תשפ״ז', 'תשפ״ז']);
 const WORKSHOP_PARENT_KEYS = new Set(['maker_workshop', 'space_workshop']);
-const TABLE_SELECTOR = '.proposal-document .pa-next-year-course-table';
+const TABLE_SELECTOR = '.proposal-document .pa-next-year-course-table, .proposal-document .pa-next-year-activities-table, .proposal-document .pa-next-year-workshop-table';
 const workshopNames = new Set(['סדנאות STEM', 'סדנאות חלל']);
 
 function text(value) {
@@ -251,62 +252,106 @@ export function normalizeNextYearGroupLabels(root = globalThis.document) {
   });
 
   elementsMatching(root, '.proposal-document').forEach((documentElement) => {
-    const ambiguousHeadings = Array.from(documentElement.querySelectorAll('.pa-section > .pa-section-heading'))
-      .filter((element) => AMBIGUOUS_NEXT_YEAR_LABELS.has(text(element.textContent)));
-    if (ambiguousHeadings.length < 2) return;
-    setElementText(ambiguousHeadings[0], NEXT_YEAR_SECTION_TITLES[NEXT_YEAR_COURSES_GROUP]);
-    setElementText(ambiguousHeadings[1], NEXT_YEAR_SECTION_TITLES[NEXT_YEAR_WORKSHOPS_GROUP]);
+    Array.from(documentElement.querySelectorAll(
+      '.pa-next-year-course-heading, .pa-next-year-workshop-heading, .pa-next-year-activities-heading, .pa-section > .pa-section-heading'
+    )).forEach((element) => {
+      const value = text(element.textContent);
+      if (AMBIGUOUS_NEXT_YEAR_LABELS.has(value) || value === 'קורסים ותוכניות' || value === 'סדנאות') {
+        setElementText(element, NEXT_YEAR_UNIFIED_TITLE);
+      }
+    });
+    Array.from(documentElement.querySelectorAll(
+      '.pa-next-year-course-table thead th:first-child, .pa-next-year-activities-table thead th:first-child'
+    )).forEach((element) => {
+      if (/קורס|תוכנית|סדנ/.test(text(element.textContent))) setElementText(element, 'פעילות');
+    });
+    Array.from(documentElement.querySelectorAll(
+      '.pa-next-year-course-table tfoot td:first-child, .pa-next-year-activities-table tfoot td:first-child, .pa-next-year-workshop-table tfoot td:first-child'
+    )).forEach((element) => {
+      if (/סה״כ קורסים|סה״כ סדנאות/.test(text(element.textContent))) setElementText(element, 'סה״כ לתשלום');
+    });
   });
   return root;
+}
+
+/**
+ * Legacy dual course/workshop tables are collapsed into one activities table.
+ * New documents already render a unified table; this keeps saved snapshots compatible.
+ */
+function unifyLegacyNextYearTables(documentRoot) {
+  if (!documentRoot) return false;
+  const courseTable = documentRoot.querySelector('.pa-next-year-course-table');
+  const workshopTable = documentRoot.querySelector('.pa-next-year-workshop-table');
+  if (!courseTable && !workshopTable) return false;
+  if (documentRoot.querySelector('[data-pa-next-year-unified-table="yes"]')) {
+    documentRoot.querySelectorAll('.pa-next-year-combined-total, .pa-next-year-course-heading, .pa-next-year-workshop-heading')
+      .forEach((element) => {
+        if (element.classList?.contains('pa-next-year-activities-heading')) return;
+        if (element.classList?.contains('pa-next-year-combined-total')) element.remove();
+        else if (/קורסים ותוכניות|סדנאות/.test(text(element.textContent))) setElementText(element, NEXT_YEAR_UNIFIED_TITLE);
+      });
+    return false;
+  }
+
+  const primary = courseTable || workshopTable;
+  normalizeNextYearTableLayout(primary);
+  primary.classList.add('pa-next-year-activities-table');
+  primary.dataset.paNextYearUnifiedTable = 'yes';
+  primary.dataset.nextYearWorkshopsSplit = 'skipped';
+
+  if (courseTable && workshopTable && courseTable !== workshopTable) {
+    const body = courseTable.tBodies?.[0] || courseTable.querySelector('tbody');
+    Array.from(workshopTable.querySelectorAll('tbody > tr')).forEach((row) => body?.appendChild(row));
+    workshopTable.remove();
+  }
+
+  documentRoot.querySelectorAll('.pa-next-year-course-heading, .pa-next-year-workshop-heading').forEach((element, index) => {
+    if (index === 0) {
+      element.classList.add('pa-next-year-activities-heading');
+      setElementText(element, NEXT_YEAR_UNIFIED_TITLE);
+    } else {
+      element.remove();
+    }
+  });
+  if (!documentRoot.querySelector('.pa-next-year-activities-heading, .pa-next-year-course-heading')) {
+    primary.parentNode?.insertBefore(heading(primary.ownerDocument, NEXT_YEAR_UNIFIED_TITLE, 'pa-next-year-activities-heading'), primary);
+  }
+  documentRoot.querySelectorAll('.pa-next-year-combined-total').forEach((element) => element.remove());
+
+  const total = courseRowsTotal(primary) || tableGrandTotal(primary) || 0;
+  replaceCourseFooter(primary, 'סה״כ לתשלום', total);
+  const firstHeader = primary.querySelector('thead th');
+  if (firstHeader) setElementText(firstHeader, 'פעילות');
+  return true;
 }
 
 function splitNextYearTable(table) {
   if (!table) return false;
   normalizeNextYearTableLayout(table);
-  if (table.dataset.nextYearWorkshopsSplit === 'yes') return false;
-  const documentRef = table.ownerDocument;
-  const workshopRows = Array.from(table.querySelectorAll('tbody > tr')).map(workshopRowData).filter(Boolean);
-  if (!workshopRows.length) return false;
-
-  const originalGrandTotal = tableGrandTotal(table);
-  workshopRows.forEach((row) => row.sourceRow.remove());
-  const hasCourseRows = Boolean(table.querySelector('tbody > tr'));
-  const workshopTotal = sumRows(workshopRows);
-  const effectiveGrandTotal = originalGrandTotal ?? (workshopTotal + courseRowsTotal(table));
-  const template = documentRef.createElement('template');
-  template.innerHTML = workshopTableHtml(
-    workshopRows,
-    hasCourseRows ? 'סה״כ סדנאות' : 'סה״כ לתשלום',
-    hasCourseRows ? workshopTotal : effectiveGrandTotal
-  );
-  const workshopTable = template.content.firstElementChild;
-  workshopTable.dataset.nextYearWorkshopsSplit = 'yes';
-
-  if (!hasCourseRows) {
-    table.replaceWith(heading(documentRef, 'סדנאות', 'pa-next-year-workshop-heading'), workshopTable);
-    return true;
-  }
-
-  table.dataset.nextYearWorkshopsSplit = 'yes';
-  replaceCourseFooter(table, 'סה״כ קורסים', courseRowsTotal(table));
-  table.parentNode.insertBefore(heading(documentRef, 'קורסים ותוכניות', 'pa-next-year-course-heading'), table);
-  const workshopHeading = heading(documentRef, 'סדנאות', 'pa-next-year-workshop-heading');
-  table.after(workshopHeading, workshopTable);
-
-  const summary = documentRef.createElement('table');
-  summary.className = 'pa-cost-table pa-activities-table pa-next-year-combined-total';
-  summary.style.cssText = 'width:85%;margin:8px auto 0;';
-  summary.innerHTML = `<tbody><tr><td><strong>סה״כ לתשלום</strong></td><td><strong>${currencyHtml(effectiveGrandTotal)}</strong></td></tr></tbody>`;
-  workshopTable.after(summary);
-  return true;
+  table.classList.add('pa-next-year-activities-table');
+  table.dataset.paNextYearUnifiedTable = 'yes';
+  table.dataset.nextYearWorkshopsSplit = 'skipped';
+  const documentRoot = table.closest?.('.proposal-document') || table.parentElement;
+  unifyLegacyNextYearTables(documentRoot);
+  return false;
 }
 
 export function normalizeNextYearWorkshopTables(root = globalThis.document) {
-  const tables = [];
-  if (root?.matches?.(TABLE_SELECTOR)) tables.push(root);
-  root?.querySelectorAll?.(TABLE_SELECTOR).forEach((table) => tables.push(table));
-  tables
-    .forEach(splitNextYearTable);
+  const documents = [];
+  if (root?.matches?.('.proposal-document')) documents.push(root);
+  root?.querySelectorAll?.('.proposal-document').forEach((documentRoot) => documents.push(documentRoot));
+  if (!documents.length) {
+    const tables = [];
+    if (root?.matches?.(TABLE_SELECTOR)) tables.push(root);
+    root?.querySelectorAll?.(TABLE_SELECTOR).forEach((table) => tables.push(table));
+    tables.forEach((table) => {
+      normalizeNextYearTableLayout(table);
+      table.classList.add('pa-next-year-activities-table');
+      table.dataset.paNextYearUnifiedTable = 'yes';
+    });
+  } else {
+    documents.forEach(unifyLegacyNextYearTables);
+  }
   normalizeNextYearGroupLabels(root);
   return root;
 }
