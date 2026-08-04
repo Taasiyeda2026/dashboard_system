@@ -617,10 +617,12 @@
 }
 
 .course-scheduling-score-list li {
-  display: flex;
-  justify-content: space-between;
+  display: grid;
+  grid-template-columns: 1fr auto;
   gap: 10px;
+  align-items: baseline;
   font-size: 0.8rem;
+  max-width: 22rem;
 }
 
 .course-scheduling-score-note {
