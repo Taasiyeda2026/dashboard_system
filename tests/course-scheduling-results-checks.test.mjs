@@ -61,8 +61,6 @@ const matchingProfile = {
   gender: 'female',
   instruction_languages: ['he'],
   education_levels: ['middle_school'],
-  course_restriction_mode: 'all',
-  course_ids: []
 };
 
 const travelHome = { distance_km: 4.2, duration_minutes: 11 };
@@ -215,21 +213,26 @@ test('availability and gender checks stay independent in labels', () => {
   assert.equal(availabilityLabel(matchingUnavailable), 'לא זמין במלואו');
 });
 
-test('blocked course is never recommended', () => {
-  const result = calculateCourseSchedule(baseInput(
-    [femaleInstructor],
-    {
-      f1: {
-        ...matchingProfile,
-        course_restriction_mode: 'block_selected',
-        course_ids: ['school_2027_019']
-      }
-    },
-    travelFor('school_2027_019', 'f1')
-  ))[0];
-  assert.equal(result.recommended, null);
-  assert.equal(result.checked[0].eligible, false);
-  assert.ok(result.checked[0].failures.includes('הקורס חסום עבור המדריך'));
+test('course and instructor allow/block lists no longer gate scheduling eligibility', () => {
+  for (const profileExtra of [
+    { course_restriction_mode: 'allow_only', course_ids: ['other-course'] },
+    { course_restriction_mode: 'block_selected', course_ids: ['school_2027_019'] },
+    { blocked_authorities: ['נתניה'] },
+    { blocked_schools: ['תורני ואולפנת בר אילן'] }
+  ]) {
+    const result = evaluateInstructor({ instructor: femaleInstructor, profile: { ...matchingProfile, ...profileExtra }, rules: weekdayRules, activity: course019(), travel: { home: travelHome, transitions: {} } });
+    assert.equal(result.eligible, true);
+    assert.equal(result.checks.courseEligibility, undefined);
+  }
+
+  for (const activityExtra of [
+    { blocked_instructor_ids: ['f1'] },
+    { allowed_instructor_ids: ['other-instructor'] }
+  ]) {
+    const result = evaluateInstructor({ instructor: femaleInstructor, profile: matchingProfile, rules: weekdayRules, activity: course019(activityExtra), travel: { home: travelHome, transitions: {} } });
+    assert.equal(result.eligible, true);
+    assert.equal(result.checks.courseEligibility, undefined);
+  }
 });
 
 test('recommended and alternatives always include travel and checks', () => {
@@ -255,7 +258,7 @@ test('recommended and alternatives always include travel and checks', () => {
     assert.ok(candidate.checks.educationLevel);
     assert.ok(candidate.checks.availability);
     assert.ok(candidate.checks.travel);
-    assert.ok(candidate.checks.courseEligibility);
+    assert.equal(candidate.checks.courseEligibility, undefined);
   }
 });
 

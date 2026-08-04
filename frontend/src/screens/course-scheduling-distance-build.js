@@ -213,8 +213,6 @@ export function instructorReadinessMissingFields(instructor = {}, profile = null
   if (!text(profile?.gender)) missing.push('מגדר');
   if (!Array.isArray(profile?.instruction_languages) || !profile.instruction_languages.length) missing.push('שפות הדרכה');
   if (!Array.isArray(profile?.education_levels) || !profile.education_levels.length) missing.push('שכבות גיל');
-  if (!profile || !Object.prototype.hasOwnProperty.call(profile, 'course_restriction_mode')) missing.push('התאמה לקורסים');
-  if (profile?.course_restriction_mode === 'allow_only' && (!Array.isArray(profile.course_ids) || !profile.course_ids.length)) missing.push('קורסים מותרים');
   if (!rules.length) missing.push('זמינות שבועית');
   if (!rules.some(hasValidAvailabilityRule)) missing.push('יום זמין אחד לפחות עם שעות תקינות');
   return [...new Set(missing)];

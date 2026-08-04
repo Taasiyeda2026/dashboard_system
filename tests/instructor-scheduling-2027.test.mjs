@@ -5,8 +5,8 @@ import { isActivitySchedulingEligible } from '../frontend/src/screens/shared/act
 import { evaluateInstructor } from '../frontend/src/screens/instructor-matching-engine.js';
 
 const instructor = { emp_id: '10', full_name: 'נועה', active: 'yes', address: 'חיפה' };
-const profile = { gender: 'female', instruction_languages: ['ar'], course_restriction_mode: 'all' };
-const base = { activity_name: 'מדעים', activity_type: 'קורס', start_time: '10:00', end_time: '11:00', meetings: [{ date: '2027-01-03', start_time: '10:00', end_time: '11:00' }] };
+const profile = { gender: 'female', instruction_languages: ['ar'], education_levels: ['elementary'] };
+const base = { activity_name: 'מדעים', activity_type: 'קורס', instruction_language: 'ar', start_time: '10:00', end_time: '11:00', meetings: [{ date: '2027-01-03', start_time: '10:00', end_time: '11:00' }] };
 const rules = [{ weekday: 0, available: true, start_time: '08:00', end_time: '16:00' }];
 const workflow = fs.readFileSync(new URL('../frontend/src/screens/instructor-scheduling-workflow.js', import.meta.url), 'utf8');
 
@@ -40,9 +40,9 @@ test('education level is a hard matching constraint', () => {
   assert.match(result.failures.join(' '), /שכבת/);
 });
 
-test('blocked and allow-only activity lists remain hard constraints', () => {
-  assert.equal(evaluateInstructor({ instructor, profile, rules, activity: { ...base, blocked_instructor_ids: ['10'] } }).eligible, false);
-  assert.equal(evaluateInstructor({ instructor, profile, rules, activity: { ...base, allowed_instructor_ids: ['11'] } }).eligible, false);
+test('blocked and allow-only activity lists no longer constrain instructor matching', () => {
+  assert.equal(evaluateInstructor({ instructor, profile, rules, activity: { ...base, blocked_instructor_ids: ['10'] } }).eligible, true);
+  assert.equal(evaluateInstructor({ instructor, profile, rules, activity: { ...base, allowed_instructor_ids: ['11'] } }).eligible, true);
 });
 
 test('requirements modal keeps activity summary and only three editable fields', () => {

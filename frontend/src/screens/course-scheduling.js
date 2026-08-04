@@ -351,7 +351,6 @@ export function requirementsFitHtml(candidate, course = {}) {
       ${checkRowHtml('שכבת גיל', checks.educationLevel)}
       ${checkRowHtml('זמינות', { ...availability, label: availabilityLabelText, passed: availability.passed })}
       ${checkRowHtml('מרחק', { ...travel, label: travelLabel, passed: travel.passed })}
-      ${checkRowHtml('התאמה לקורס', checks.courseEligibility)}
     </ul>
   </div>`;
 }
@@ -578,12 +577,11 @@ function courseReadinessListHtml(rows = []) {
 
 function instructorReadinessListHtml(rows = []) {
   if (!rows.length) return '<p class="course-scheduling-muted">כל המדריכים הפעילים מוכנים לשיבוץ.</p>';
-  const labels = { all: 'כל הקורסים', allow_only: 'רק קורסים מותרים', block_selected: 'חסימת קורסים נבחרים' };
   return rows.map(({ instructor, profile, rules, missing }) => `<article class="course-scheduling-readiness-row">
     <h4>${escapeHtml(readinessValue(instructor.full_name || instructor.emp_id))}</h4>
     <p>כתובת: ${escapeHtml(readinessValue(instructor.address))} · מגדר: ${escapeHtml(genderLabel(profile?.gender))}</p>
     <p>שפות: ${escapeHtml((profile?.instruction_languages || []).map(instructionLanguageLabel).join(', ') || '—')} · שכבות: ${escapeHtml((profile?.education_levels || []).map(educationLevelLabel).join(', ') || '—')}</p>
-    <p>התאמה לקורסים: ${escapeHtml(labels[profile?.course_restriction_mode] || '—')} · ימים זמינים: ${rules.filter((rule) => rule.available && text(rule.start_time) && text(rule.end_time) && text(rule.start_time) < text(rule.end_time)).length}</p>
+    <p>ימים זמינים: ${rules.filter((rule) => rule.available && text(rule.start_time) && text(rule.end_time) && text(rule.start_time) < text(rule.end_time)).length}</p>
     <p><b>חסר להשלמה:</b> ${escapeHtml(missing.join(' · '))}</p>
     <button type="button" class="course-scheduling-btn course-scheduling-btn--secondary course-scheduling-btn--sm" data-open-instructor-matching="${escapeHtml(text(instructor.emp_id))}">עריכת התאמה</button>
     <button type="button" class="course-scheduling-btn course-scheduling-btn--secondary course-scheduling-btn--sm" data-open-instructor-constraints="${escapeHtml(text(instructor.emp_id))}">עדכון זמינות ואילוצים</button>
