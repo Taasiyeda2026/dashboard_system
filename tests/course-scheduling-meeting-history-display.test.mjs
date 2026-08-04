@@ -29,8 +29,8 @@ test('the meeting on or after an operational replacement is marked as the effect
   const rows = html.split('<tr>').slice(1);
   const pastRow = rows.find((row) => row.includes('נועה'));
   const futureRow = rows.find((row) => row.includes('דנה'));
-  assert.doesNotMatch(pastRow, /נכנסה לתוקף/);
-  assert.match(futureRow, /נכנסה לתוקף/);
+  assert.doesNotMatch(pastRow, /מכאן ואילך/);
+  assert.match(futureRow, /מכאן ואילך/);
 });
 
 test('an empty or not-yet-fetched meeting list renders no meeting-history section instead of guessing', () => {
@@ -40,7 +40,10 @@ test('an empty or not-yet-fetched meeting list renders no meeting-history sectio
 
 test('the course panel fetches per-meeting instructors from the RPC instead of inferring from activities.emp_id', async () => {
   const source = await readFile(new URL('../frontend/src/screens/course-scheduling.js', import.meta.url), 'utf8');
-  assert.match(source, /supabase\.rpc\('scheduling_course_meeting_instructors', \{ p_activity_id: courseId \}\)/);
-  assert.match(source, /\.eq\('decision_type', 'operational_replacement'\)/);
-  assert.match(source, /lockedPanelHtml\(row, canEdit, data\.instructors, meetingInstructors\.data \|\| \[\], replacements\.data \|\| \[\]\)/);
+  const meetingsSource = await readFile(new URL('../frontend/src/screens/course-scheduling-meetings.js', import.meta.url), 'utf8');
+  assert.match(source, /loadCourseMeetingState/);
+  assert.match(source, /meetingInstructorHistoryHtml/);
+  assert.match(meetingsSource, /activity_completion_approval_uploads/);
+  assert.match(meetingsSource, /course_meeting_cancellations/);
+  assert.doesNotMatch(source, /activities\.emp_id.*meeting_date/);
 });

@@ -573,6 +573,71 @@
   color: var(--cs-text-muted);
 }
 
+.course-scheduling-requirements-fit,
+.course-scheduling-score-breakdown {
+  margin-top: 8px;
+  padding-top: 8px;
+  border-top: 1px solid var(--cs-border);
+}
+
+.course-scheduling-requirements-fit h4,
+.course-scheduling-score-breakdown h4 {
+  margin: 0 0 6px;
+  font-size: 0.86rem;
+}
+
+.course-scheduling-check-list,
+.course-scheduling-score-list {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  display: grid;
+  gap: 4px;
+}
+
+.course-scheduling-check-row {
+  display: grid;
+  grid-template-columns: 1.1rem 1fr;
+  gap: 6px;
+  align-items: start;
+  font-size: 0.8rem;
+  color: var(--cs-text);
+}
+
+.course-scheduling-check-row.is-pass .course-scheduling-check-mark {
+  color: #21663d;
+}
+
+.course-scheduling-check-row.is-fail .course-scheduling-check-mark {
+  color: #9b2c2c;
+}
+
+.course-scheduling-check-row.is-unknown .course-scheduling-check-mark {
+  color: var(--cs-text-muted);
+}
+
+.course-scheduling-score-list li {
+  display: grid;
+  grid-template-columns: 1fr auto;
+  gap: 10px;
+  align-items: baseline;
+  font-size: 0.8rem;
+  max-width: 22rem;
+}
+
+.course-scheduling-score-note {
+  margin: 6px 0 0;
+  font-size: 0.74rem;
+  color: var(--cs-text-muted);
+}
+
+.course-scheduling-incomplete-profile {
+  display: grid;
+  gap: 4px;
+  margin-top: 8px;
+  font-size: 0.82rem;
+}
+
 .course-scheduling-alternatives {
   display: grid;
   gap: 8px;

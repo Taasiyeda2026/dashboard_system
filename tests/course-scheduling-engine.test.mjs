@@ -221,14 +221,15 @@ test('status counters and candidate radio names are isolated per course', () => 
   const candidate = { instructor: instructors[0], eligible: true, score: 90, explanation: 'מתאימה', warnings: [], failures: [], missingProfileData: [], issues: [] };
   const firstHtml = detailsHtml({ course: course('first'), status: 'הצעה מוכנה', recommended: candidate, alternatives: [], checked: [candidate] });
   const secondHtml = detailsHtml({ course: course('second'), status: 'הצעה מוכנה', recommended: candidate, alternatives: [], checked: [candidate] });
-  assert.match(firstHtml, /name="candidate-first"/);
-  assert.match(secondHtml, /name="candidate-second"/);
+  assert.match(firstHtml, /name="course-candidate-first"/);
+  assert.match(secondHtml, /name="course-candidate-second"/);
 });
 
 test('course scheduling screen explicitly loads school_2027 and exposes reject/open workflows', async () => {
   const source = await readFile(new URL('../frontend/src/screens/course-scheduling.js', import.meta.url), 'utf8');
   assert.match(source, /activity_period:\s*'school_2027'/);
-  assert.match(source, /reject_activity_instructor_suggestion/);
+  assert.match(source, /data-assign-course/);
+  assert.match(source, /data-save-draft/);
   assert.match(source, /data-open-missing-course/);
   assert.match(source, /state\.listFilters\.activities/);
   assert.doesNotMatch(source, /CSS\.escape/);

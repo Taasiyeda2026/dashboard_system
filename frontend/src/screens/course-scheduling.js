@@ -20,6 +20,7 @@ import {
   translateSchedulingRouteError
 } from './course-scheduling-distance-build.js';
 import { instructionLanguageLabel } from './shared/instruction-language.js';
+import { educationLevelLabel } from './instructor-matching-engine.js';
 
 const text = (value) => String(value ?? '').trim();
 const emp = (candidate) => text(candidate?.instructor?.emp_id);
@@ -31,7 +32,11 @@ const group = (rows, key) => rows.reduce((output, row) => {
 const idOf = (row) => text(row.row_id || row.RowID || row.id);
 const today = () => new Date().toISOString().slice(0, 10);
 export const PENDING_ACTIVITY_STORAGE_KEY = 'dashboard:pending-course-activity-id';
-const SCHEDULING_SNAPSHOT_KEY = 'dashboard:course-scheduling-calculation-v1';
+export const SCHEDULING_SNAPSHOT_KEY = 'dashboard:course-scheduling-calculation-v2';
+export const SCHEDULING_SNAPSHOT_SCHEMA_VERSION = 2;
+const LEGACY_SCHEDULING_SNAPSHOT_KEYS = [
+  'dashboard:course-scheduling-calculation-v1'
+];
 
 const STATUS = {
   waiting: 'ממתין לבדיקת מדריכים',
@@ -51,12 +56,36 @@ function ensureCourseSchedulingStyles() {
   });
 }
 
+function clearLegacySchedulingSnapshots() {
+  if (typeof localStorage === 'undefined') return;
+  for (const key of LEGACY_SCHEDULING_SNAPSHOT_KEYS) {
+    try { localStorage.removeItem(key); } catch { /* local storage may be unavailable */ }
+  }
+}
+
+function snapshotHasTravelAndChecks(results = []) {
+  return results.every((result) => {
+    const candidates = [result?.recommended, ...(result?.alternatives || []), ...(result?.checked || [])].filter(Boolean);
+    if (!candidates.length) return true;
+    return candidates.every((candidate) => candidate.travel && candidate.checks);
+  });
+}
+
 function restoreCalculationSnapshot(state, courses) {
   if ((state.courseSchedulingResults || []).length) return;
   if (typeof localStorage === 'undefined') return;
+  clearLegacySchedulingSnapshots();
   try {
     const snapshot = JSON.parse(localStorage.getItem(SCHEDULING_SNAPSHOT_KEY) || 'null');
     if (!snapshot || !Array.isArray(snapshot.results)) return;
+    if (Number(snapshot.schemaVersion) !== SCHEDULING_SNAPSHOT_SCHEMA_VERSION) {
+      localStorage.removeItem(SCHEDULING_SNAPSHOT_KEY);
+      return;
+    }
+    if (!snapshotHasTravelAndChecks(snapshot.results)) {
+      localStorage.removeItem(SCHEDULING_SNAPSHOT_KEY);
+      return;
+    }
     const courseById = new Map(courses.map((course) => [idOf(course), course]));
     state.courseSchedulingResults = snapshot.results.flatMap((result) => {
       const course = courseById.get(idOf(result?.course));
@@ -79,9 +108,11 @@ function saveCalculationSnapshot(state, courses) {
       return course && !text(course.emp_id) && !text(course.draft_emp_id);
     });
     localStorage.setItem(SCHEDULING_SNAPSHOT_KEY, JSON.stringify({
+      schemaVersion: SCHEDULING_SNAPSHOT_SCHEMA_VERSION,
       calculatedAt: state.courseSchedulingCalculatedAt || '',
       results
     }));
+    clearLegacySchedulingSnapshots();
   } catch {
     // Persistence is optional.
   }
@@ -244,18 +275,107 @@ function selectedCourseMetaHtml(course) {
   </header>`;
 }
 
-function distanceLabel(candidate) {
-  const km = candidate?.travel?.home?.distance_km;
-  if (km == null || !Number.isFinite(Number(km))) return 'מרחק לא זמין';
-  return `${Math.round(Number(km))} ק״מ מהבית`;
+const DISTANCE_UNAVAILABLE_LABELS = {
+  missing_instructor_address: 'חסרה כתובת מדריך',
+  missing_school_address: 'חסרה כתובת בית ספר',
+  service_unavailable: 'שירות המרחקים לא היה זמין',
+  not_calculated: 'שירות המרחקים לא היה זמין',
+  no_route: 'לא נמצא מסלול'
+};
+
+export function distanceUnavailableReason(candidate) {
+  const reason = text(candidate?.travel?.unavailableReason);
+  if (DISTANCE_UNAVAILABLE_LABELS[reason]) return DISTANCE_UNAVAILABLE_LABELS[reason];
+  if (!text(candidate?.instructor?.address)) return DISTANCE_UNAVAILABLE_LABELS.missing_instructor_address;
+  return DISTANCE_UNAVAILABLE_LABELS.no_route;
 }
 
-function availabilityLabel(candidate) {
-  if (candidate?.eligible) return 'זמין בכל מועדי הקורס';
-  return 'לא זמין במלואו';
+export function distanceLabel(candidate) {
+  const home = candidate?.travel?.home;
+  const km = home?.distance_km;
+  const minutes = home?.duration_minutes;
+  if (km != null && Number.isFinite(Number(km)) && minutes != null && Number.isFinite(Number(minutes))) {
+    return `מרחק מהבית: ${Math.round(Number(km))} ק״מ · זמן נסיעה משוער: ${Math.round(Number(minutes))} דקות`;
+  }
+  return `מרחק לא זמין — ${distanceUnavailableReason(candidate)}`;
 }
 
-function candidateCardHtml(candidate, { recommended = false, selectedId = '', name = 'course-candidate' } = {}) {
+export function availabilityLabel(candidate) {
+  const availability = candidate?.checks?.availability;
+  if (availability?.passed === true) return availability.label || 'זמין בכל מועדי הקורס';
+  if (availability?.passed === false) return availability.label || 'לא זמין במלואו';
+  if (availability?.passed == null && availability?.reason) return availability.reason;
+  return 'לא נבדק';
+}
+
+function checkMark(passed) {
+  if (passed === true) return '✓';
+  if (passed === false) return '✗';
+  return '•';
+}
+
+function checkRowHtml(label, check) {
+  const passed = check?.passed;
+  const value = passed == null
+    ? (check?.reason || 'לא נבדק')
+    : (check?.label || (passed ? 'מתאים' : 'לא מתאים'));
+  const detail = passed === false && check?.reason && check.reason !== value
+    ? ` — ${check.reason}`
+    : '';
+  const stateClass = passed === true ? ' is-pass' : passed === false ? ' is-fail' : ' is-unknown';
+  return `<li class="course-scheduling-check-row${stateClass}"><span class="course-scheduling-check-mark">${checkMark(passed)}</span><span><b>${escapeHtml(label)}:</b> ${escapeHtml(value)}${escapeHtml(detail)}</span></li>`;
+}
+
+export function requirementsFitHtml(candidate, course = {}) {
+  const checks = candidate?.checks || {};
+  const meetingCount = activityMeetings(course).length;
+  const availability = checks.availability || {};
+  const availabilityLabelText = availability.passed === true
+    ? (availability.label || (meetingCount ? `פנויה בכל ${meetingCount} המפגשים` : 'מתאים'))
+    : availability.passed === false
+      ? (availability.label || 'לא זמין במלואו')
+      : (availability.reason || 'לא נבדק');
+  const travel = checks.travel || {};
+  const travelLabel = travel.passed === true
+    ? travel.label
+    : travel.passed === false
+      ? (travel.reason || travel.label || 'לא מתאים')
+      : (travel.reason || 'לא נבדק');
+  return `<div class="course-scheduling-requirements-fit">
+    <h4>התאמה לדרישות הקורס</h4>
+    <ul class="course-scheduling-check-list">
+      ${checkRowHtml('מגדר', checks.gender)}
+      ${checkRowHtml('שפה', checks.language)}
+      ${checkRowHtml('שכבת גיל', checks.educationLevel)}
+      ${checkRowHtml('זמינות', { ...availability, label: availabilityLabelText, passed: availability.passed })}
+      ${checkRowHtml('מרחק', { ...travel, label: travelLabel, passed: travel.passed })}
+      ${checkRowHtml('התאמה לתוכנית', checks.courseEligibility)}
+    </ul>
+  </div>`;
+}
+
+export function scoreBreakdownHtml(candidate) {
+  const breakdown = candidate?.scoreBreakdown;
+  if (!breakdown) {
+    return `<div class="course-scheduling-score-breakdown"><h4>פירוט הציון</h4><p class="course-scheduling-muted">אין ציון להצגה — תנאי סף לא התקיימו.</p></div>`;
+  }
+  const rows = [
+    breakdown.continuity,
+    breakdown.workload,
+    breakdown.distance,
+    breakdown.availability,
+    breakdown.experience
+  ].filter(Boolean);
+  return `<div class="course-scheduling-score-breakdown">
+    <h4>פירוט הציון · ${candidate.score ?? '—'}</h4>
+    <ul class="course-scheduling-score-list">
+      ${rows.map((row) => `<li><span>${escapeHtml(row.label)}</span><b>${Number(row.points) || 0}</b></li>`).join('')}
+    </ul>
+    <p class="course-scheduling-score-note">${escapeHtml(breakdown.gateNote || 'מגדר, שפה, שכבת גיל וחסימות הם תנאי סף ואינם מוסיפים נקודות.')}</p>
+  </div>`;
+}
+
+function candidateCardHtml(candidate, { recommended = false, selectedId = '', name = 'course-candidate', course = null } = {}) {
   const id = emp(candidate);
   const checked = id && id === selectedId ? ' checked' : '';
   const title = recommended ? 'מדריך מומלץ' : 'מדריך נוסף';
@@ -266,13 +386,36 @@ function candidateCardHtml(candidate, { recommended = false, selectedId = '', na
       <strong>${escapeHtml(candidate.instructor.full_name || id)}</strong>
       <span class="course-scheduling-instructor-meta">ציון התאמה: ${candidate.score ?? '—'}</span>
       <span class="course-scheduling-instructor-meta">${escapeHtml(distanceLabel(candidate))}</span>
-      <span class="course-scheduling-instructor-meta">${escapeHtml(availabilityLabel(candidate))}</span>
-      <span class="course-scheduling-instructor-explain">${escapeHtml(candidate.explanation || 'התאמה כללית לקורס')}</span>
+      <span class="course-scheduling-instructor-meta">זמינות: ${escapeHtml(availabilityLabel(candidate))}</span>
+      ${recommended ? requirementsFitHtml(candidate, course || {}) : ''}
+      ${recommended ? scoreBreakdownHtml(candidate) : `<span class="course-scheduling-instructor-explain">${escapeHtml(candidate.explanation || 'התאמה כללית לקורס')}</span>`}
     </span>
   </label>`;
 }
 
-function instructorsResultsHtml(result, state) {
+function incompleteProfilesHtml(result) {
+  const incomplete = result?.incompleteProfiles || [];
+  if (!incomplete.length) return '';
+  return `<details class="course-scheduling-details" open><summary>פרופילים חסרים להשלמה</summary>
+    ${incomplete.map((candidate) => {
+      const issues = (candidate.issues || []).filter((issue) => issue.missing);
+      const issuePrefixes = issues.map((issue) => issue.message);
+      // Keep short field labels only; issue summaries are rendered once below with dates.
+      const missing = (candidate.missingProfileData || []).filter((item) => {
+        if (item === 'כתובת') return false;
+        return !issuePrefixes.some((prefix) => text(item).startsWith(prefix));
+      });
+      return `<div class="course-scheduling-incomplete-profile">
+        <p><b>${escapeHtml(candidate.instructor?.full_name || '—')} | ${escapeHtml(emp(candidate))}</b></p>
+        ${text(candidate.instructor?.address) ? `<p>${escapeHtml(candidate.instructor.address)}</p>` : ''}
+        ${missing.length ? `<p><b>חסר להשלמה:</b> ${escapeHtml(missing.join(' · '))}</p>` : ''}
+        ${issues.map((issue) => `<p>${escapeHtml(issue.message)} — משפיע על ${issue.dates.length} מפגשים.<br>${issue.dates.map((date) => escapeHtml(date)).join(', ')}</p>`).join('')}
+      </div>`;
+    }).join('')}
+  </details>`;
+}
+
+export function instructorsResultsHtml(result, state = {}) {
   if (!result?.recommended && result?.status === 'חסר מידע') {
     return `<div class="course-scheduling-result-block">
       <h3>חסרים פרטים לקורס זה</h3>
@@ -285,7 +428,7 @@ function instructorsResultsHtml(result, state) {
       <h3>לא נמצא מדריך מתאים</h3>
       <p>נבדקו מדריכים קיימים, אך אף אחד מהם אינו עומד בכל תנאי הקורס. ייתכן שנדרש גיוס.</p>
       <details class="course-scheduling-details"><summary>הצגת פרטים</summary>
-        <p>שפת הדרכה: ${escapeHtml(instructionLanguageLabel(result.course))} · שכבה: ${escapeHtml(result.course.education_level || result.course.grade || '—')} · מגדר: ${escapeHtml(result.course.required_instructor_gender || 'ללא')}</p>
+        <p>שפת הדרכה: ${escapeHtml(instructionLanguageLabel(result.course))} · שכבה: ${escapeHtml(educationLevelLabel(result.course?.education_level || result.course?.grade) || '—')} · מגדר: ${escapeHtml(result.course.required_instructor_gender || 'ללא')}</p>
       </details>
       <button type="button" class="course-scheduling-btn course-scheduling-btn--secondary" data-open-missing-course>פתח פעילות</button>
     </div>`;
@@ -294,6 +437,7 @@ function instructorsResultsHtml(result, state) {
     return `<div class="course-scheduling-result-block">
       <h3>נדרשת בדיקה נוספת</h3>
       <p>${escapeHtml(result.treatmentReason || 'לא ניתן להציע שיבוץ אוטומטי לקורס זה כרגע.')}</p>
+      ${incompleteProfilesHtml(result)}
       <button type="button" class="course-scheduling-btn course-scheduling-btn--secondary" data-open-missing-course>פתח פעילות</button>
     </div>`;
   }
@@ -309,18 +453,24 @@ function instructorsResultsHtml(result, state) {
   const visibleAlts = alternatives.slice(0, 3);
   const hiddenAlts = alternatives.slice(3);
   const showMore = !!state.courseSchedulingShowAllCandidates;
+  const radioName = `course-candidate-${idOf(result.course)}`;
   const moreChecked = (result.checked || []).filter((item) => item.eligible && emp(item) !== emp(result.recommended) && !alternatives.some((alt) => emp(alt) === emp(item)));
 
   return `<div class="course-scheduling-result-block" data-course-options>
-    ${candidateCardHtml(result.recommended, { recommended: true, selectedId, name: `course-candidate-${idOf(result.course)}` })}
-    ${visibleAlts.length ? `<div class="course-scheduling-alternatives"><h3>מדריכים נוספים</h3>${visibleAlts.map((item) => candidateCardHtml(item, { selectedId, name: `course-candidate-${idOf(result.course)}` })).join('')}</div>` : ''}
-    ${(hiddenAlts.length || moreChecked.length) ? `<details class="course-scheduling-details" data-more-candidates ${showMore ? 'open' : ''}><summary>הצגת מדריכים נוספים</summary>${[...hiddenAlts, ...moreChecked].map((item) => candidateCardHtml(item, { selectedId, name: `course-candidate-${idOf(result.course)}` })).join('')}</details>` : ''}
+    ${candidateCardHtml(result.recommended, { recommended: true, selectedId, name: radioName, course: result.course })}
+    ${visibleAlts.length ? `<div class="course-scheduling-alternatives"><h3>מדריכים נוספים</h3>${visibleAlts.map((item) => candidateCardHtml(item, { selectedId, name: radioName, course: result.course })).join('')}</div>` : ''}
+    ${(hiddenAlts.length || moreChecked.length) ? `<details class="course-scheduling-details" data-more-candidates ${showMore ? 'open' : ''}><summary>הצגת מדריכים נוספים</summary>${[...hiddenAlts, ...moreChecked].map((item) => candidateCardHtml(item, { selectedId, name: radioName, course: result.course })).join('')}</details>` : ''}
     <div class="course-scheduling-detail-actions">
       <button type="button" class="course-scheduling-btn course-scheduling-btn--primary" data-assign-course>שבץ מדריך</button>
       <button type="button" class="course-scheduling-btn course-scheduling-btn--secondary" data-save-draft>שמור כטיוטה</button>
       <button type="button" class="course-scheduling-text-btn" data-clear-candidate>בטל בחירה</button>
     </div>
   </div>`;
+}
+
+/** Compatibility export used by focused engine/UI tests. */
+export function detailsHtml(result, state = {}) {
+  return instructorsResultsHtml(result, state);
 }
 
 function loadingInstructorsHtml(step = 1) {
@@ -787,7 +937,12 @@ export const courseSchedulingScreen = {
         state.courseSchedulingProgressStep = 3;
         rerender();
         const routed = await calculateCandidateTravel(preliminary, enriched.activities);
-        state.courseSchedulingResults = calculateCourseSchedule({ ...input, travel: routed.travel, routeMatrix: routed.routeMatrix });
+        state.courseSchedulingResults = calculateCourseSchedule({
+          ...input,
+          travel: routed.travel,
+          routeMatrix: routed.routeMatrix,
+          travelUnavailableReason: routed.unavailableReason || ''
+        });
         if (routed.unavailableReason === 'google_key_not_configured') {
           state.courseSchedulingError = 'לא ניתן לבדוק מרחקים כרגע. ניתן להמשיך לפי זמינות והתאמה בלבד.';
         } else if (routed.unavailableReason) {
@@ -949,4 +1104,4 @@ export const courseSchedulingScreen = {
 };
 
 // Keep helper export used by older readiness tests around selection preference.
-export { pickNearestActionableCourse, userFacingStatus, STATUS };
+export { pickNearestActionableCourse, userFacingStatus, STATUS, restoreCalculationSnapshot, saveCalculationSnapshot };
