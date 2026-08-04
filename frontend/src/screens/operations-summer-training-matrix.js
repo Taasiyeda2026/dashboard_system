@@ -169,7 +169,9 @@ function ensureStyle() {
   style.id = 'ops-2027-workflows-style';
   style.textContent = `
     .ds-ops-mgmt-screen .ops2027-view { text-align: right; }
-    .ds-ops-mgmt-screen .ops2027-header { margin: 0 0 12px; }
+    .ds-ops-mgmt-screen .ops2027-view > .ops2027-header,
+    .ds-ops-mgmt-screen .ops2027-section { width: fit-content; max-width: 100%; margin-inline: auto; box-sizing: border-box; }
+    .ds-ops-mgmt-screen .ops2027-header { margin-block: 0 12px; }
     .ds-ops-mgmt-screen .ops2027-title { margin: 0; font-size: 1.12rem; font-weight: 800; }
     .ds-ops-mgmt-screen .ops2027-note { margin: 4px 0 0; color: var(--ds-text-muted, #64748b); font-size: .86rem; }
     .ds-ops-mgmt-screen .ops2027-section + .ops2027-section { margin-top: 22px; }
@@ -179,8 +181,7 @@ function ensureStyle() {
       width: fit-content;
       max-width: 100%;
       overflow-x: auto;
-      margin-inline-end: 0;
-      margin-inline-start: 0;
+      margin-inline: auto;
       border: 1px solid var(--ds-border, #dbe3ec);
       border-radius: 10px;
       background: var(--ds-surface, #fff);
@@ -251,7 +252,7 @@ function ensureStyle() {
     .ds-ops-mgmt-screen .ops2027-out { display: inline-block; padding: 4px 6px; border-radius: 6px; color: #b91c1c; background: #fee2e2; font-size: .72rem; font-weight: 800; }
     .ds-ops-mgmt-screen .ops2027-empty,
     .ds-ops-mgmt-screen .ops2027-error,
-    .ds-ops-mgmt-screen .ops2027-loading { width: fit-content; max-width: 100%; margin-inline-start: 0; margin-inline-end: 0; padding: 18px; border: 1px solid var(--ds-border, #e2e8f0); border-radius: 10px; background: #fff; box-sizing: border-box; }
+    .ds-ops-mgmt-screen .ops2027-loading { width: fit-content; max-width: 100%; margin-inline: auto; padding: 18px; border: 1px solid var(--ds-border, #e2e8f0); border-radius: 10px; background: #fff; box-sizing: border-box; }
     .ops2027-modal-backdrop {
       position: fixed; inset: 0; z-index: 9999; display: grid; place-items: center;
       padding: 20px; background: rgba(15, 23, 42, .42);
@@ -267,15 +268,21 @@ function ensureStyle() {
 }
 
 function setCustomActive(root, tabKey) {
-  root.querySelectorAll('.ds-ops-mgmt-tab').forEach((button) => button.classList.remove('is-active'));
-  root.querySelector(`[data-ops-custom-tab="${tabKey}"]`)?.classList.add('is-active');
+  root.querySelectorAll('.ds-ops-mgmt-tab').forEach((button) => {
+    button.classList.remove('is-active');
+    button.setAttribute('aria-pressed', 'false');
+  });
+  const active = root.querySelector(`[data-ops-custom-tab="${tabKey}"]`);
+  active?.classList.add('is-active');
+  active?.setAttribute('aria-pressed', 'true');
 }
 
 function createCustomButton(tabKey, label) {
   const button = document.createElement('button');
   button.type = 'button';
-  button.className = 'ds-ops-mgmt-tab';
+  button.className = 'ds-exceptions-tab ds-ops-mgmt-tab';
   button.dataset.opsCustomTab = tabKey;
+  button.setAttribute('aria-pressed', 'false');
   button.textContent = label;
   button.addEventListener('click', (event) => {
     event.preventDefault();
@@ -545,6 +552,7 @@ function stockTableHtml(base, inventoryRows, distributionRows) {
 }
 
 function kitMatrixHtml(base, inventoryRows, distributionRows) {
+  const editable = canEditOperationsQuantities();
   const requiredCourses = base.courses.filter((course) => course.requires_print_kit === true);
   const requiredCourseIds = new Set(requiredCourses.map((course) => String(course.id)));
   const relevantAssignments = new Map(Array.from(base.assignments.entries()).filter(([, item]) => requiredCourseIds.has(String(item.courseId))));
@@ -560,11 +568,11 @@ function kitMatrixHtml(base, inventoryRows, distributionRows) {
       if (!relevantAssignments.has(key)) return '';
       const delivery = distributed.get(key);
       if (delivery) {
-        return `<button type="button" class="ops2027-cell-button is-yes" data-kit-return data-course-id="${escapeHtml(course.id)}" data-instructor="${escapeHtml(instructor)}" aria-label="הערכה נמסרה">✓</button>`;
+        return editable ? `<button type="button" class="ops2027-cell-button is-yes" data-kit-return data-course-id="${escapeHtml(course.id)}" data-instructor="${escapeHtml(instructor)}" aria-label="הערכה נמסרה">✓</button>` : '<span class="ops2027-cell-button is-yes" aria-label="הערכה נמסרה">✓</span>';
       }
       const total = inventoryTotal(stockMap.get(String(course.id)) || {});
       if (total <= 0) return '<span class="ops2027-out">אין מלאי</span>';
-      return `<button type="button" class="ops2027-cell-button is-no" data-kit-deliver data-course-id="${escapeHtml(course.id)}" data-instructor="${escapeHtml(instructor)}" aria-label="טרם קיבל ערכה">✕</button>`;
+      return editable ? `<button type="button" class="ops2027-cell-button is-no" data-kit-deliver data-course-id="${escapeHtml(course.id)}" data-instructor="${escapeHtml(instructor)}" aria-label="טרם קיבל ערכה">✕</button>` : '<span class="ops2027-cell-button is-no" aria-label="טרם קיבל ערכה">✕</span>';
     }
   });
 }
