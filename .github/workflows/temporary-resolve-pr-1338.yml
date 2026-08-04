@@ -1,0 +1,86 @@
+name: Temporary PR 1338 conflict resolver
+
+on:
+  pull_request_target:
+    types: [edited, reopened, ready_for_review, synchronize]
+
+permissions:
+  contents: write
+  pull-requests: read
+
+jobs:
+  resolve:
+    if: github.event.pull_request.number == 1338 && github.event.pull_request.head.repo.full_name == github.repository
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout PR branch
+        uses: actions/checkout@v4
+        with:
+          ref: codex/remove-authorization-mechanisms-from-instructor-matching
+          fetch-depth: 0
+
+      - name: Merge main and resolve known conflicts
+        shell: bash
+        run: |
+          set -euo pipefail
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git fetch origin main
+
+          set +e
+          git merge --no-ff --no-commit origin/main
+          merge_status=$?
+          set -e
+
+          unresolved="$(git diff --name-only --diff-filter=U || true)"
+          unexpected="$(printf '%s\n' "$unresolved" | grep -Ev '^(frontend/src/config\.js|frontend/sw\.js|tests/course-scheduling-2027-status-policy\.test\.mjs)$' || true)"
+          if [ -n "$unexpected" ]; then
+            echo "Unexpected merge conflicts:"
+            printf '%s\n' "$unexpected"
+            exit 1
+          fi
+
+          git show origin/main:frontend/src/config.js > frontend/src/config.js
+          node <<'NODE'
+          const fs = require('fs');
+          const configPath = 'frontend/src/config.js';
+          const marker = '-scheduling-permission-removal-20260804-v1-scheduling-age-layer-removal-20260804-v1';
+          let config = fs.readFileSync(configPath, 'utf8');
+          if (!config.includes('scheduling-permission-removal-20260804-v1')) {
+            config = config.replace(/(HOTFIX_VERSION:\s*')([^']*)(')/, (_match, start, value, end) => `${start}${value}${marker}${end}`);
+          }
+          fs.writeFileSync(configPath, config);
+
+          const swPath = 'frontend/sw.js';
+          let sw;
+          try { sw = require('child_process').execFileSync('git', ['show', 'HEAD:frontend/sw.js'], { encoding: 'utf8' }); }
+          catch { sw = fs.readFileSync(swPath, 'utf8'); }
+          sw = sw.replace(/const CACHE_VERSION = \d+;/, 'const CACHE_VERSION = 1396;');
+          fs.writeFileSync(swPath, sw);
+
+          const testPath = 'tests/course-scheduling-2027-status-policy.test.mjs';
+          let test;
+          try { test = require('child_process').execFileSync('git', ['show', `HEAD:${testPath}`], { encoding: 'utf8' }); }
+          catch { test = fs.readFileSync(testPath, 'utf8'); }
+          test = test.replace(/CACHE_VERSION = 139\d/g, 'CACHE_VERSION = 1396');
+          fs.writeFileSync(testPath, test);
+          NODE
+
+          git add frontend/src/config.js frontend/sw.js tests/course-scheduling-2027-status-policy.test.mjs
+          rm -f .github/workflows/resolve-pr-1338.yml
+          git add -A
+
+          remaining="$(git diff --name-only --diff-filter=U || true)"
+          if [ -n "$remaining" ]; then
+            echo "Unresolved conflicts remain:"
+            printf '%s\n' "$remaining"
+            exit 1
+          fi
+
+          if git diff --cached --quiet && [ "$merge_status" -eq 0 ]; then
+            echo "Branch is already synchronized."
+            exit 0
+          fi
+
+          git commit -m "Merge main and resolve PR 1338 conflicts"
+          git push origin HEAD:codex/remove-authorization-mechanisms-from-instructor-matching
