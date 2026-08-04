@@ -363,7 +363,7 @@ function selectedCoursePanelHtml(row, state) {
   if (!row) {
     return `<div class="course-scheduling-empty course-scheduling-empty--center">
       <strong>בחר קורס כדי להתחיל</strong>
-      <p>לאחר בחירת קורס ניתן למצוא מדריכים מתאימים ולבצע שיבוץ.</p>
+      <p>בחרו קורס מהרשימה כדי לראות פרטים ולמצוא מדריכים מתאימים.</p>
     </div>`;
   }
   if (row.isAssigned) return assignedDetailHtml(row);
@@ -388,15 +388,15 @@ function selectedCoursePanelHtml(row, state) {
 function missingCoursesAlertHtml(readiness, state) {
   if (!readiness.missingScheduleCount) return '';
   const expanded = !!state.courseSchedulingShowMissingDetails;
-  return `<section class="course-scheduling-alert-compact">
+  return `<section class="course-scheduling-alert-compact course-scheduling-alert-compact--warning">
     <div>
       <strong>${readiness.missingScheduleCount} קורסים אינם מוכנים לשיבוץ</strong>
-      <button type="button" class="course-scheduling-text-btn" data-toggle-missing-details>${expanded ? 'הסתרת פירוט' : 'הצגת הקורסים לתיקון'}</button>
+      <button type="button" class="course-scheduling-btn course-scheduling-btn--secondary course-scheduling-btn--sm" data-toggle-missing-details>${expanded ? 'הסתרת פירוט' : 'הצגת הקורסים לתיקון'}</button>
     </div>
     ${expanded ? `<ul class="course-scheduling-alert-details">
       <li>${readiness.missingStartDate} חסר תאריך התחלה</li>
       <li>${readiness.missingStartTime} חסרה שעת התחלה</li>
-      <li><button type="button" class="course-scheduling-text-btn" data-open-missing-schedule-courses>מעבר לרשימת הקורסים לתיקון</button></li>
+      <li><button type="button" class="course-scheduling-btn course-scheduling-btn--secondary course-scheduling-btn--sm" data-open-missing-schedule-courses>מעבר לרשימת הקורסים לתיקון</button></li>
     </ul>` : ''}
   </section>`;
 }
@@ -436,10 +436,10 @@ function maintenanceMenuHtml(state, data) {
   const doneMessage = text(state.courseSchedulingDistanceDoneMessage);
   const doneError = !!state.courseSchedulingDistanceError;
   return `<div class="course-scheduling-maintenance">
-    <button type="button" class="course-scheduling-text-btn" data-toggle-maintenance aria-expanded="${open ? 'true' : 'false'}">תחזוקת המערכת</button>
+    <button type="button" class="course-scheduling-btn course-scheduling-btn--secondary course-scheduling-btn--sm course-scheduling-maintenance-trigger" data-toggle-maintenance aria-expanded="${open ? 'true' : 'false'}">⚙ תחזוקת המערכת</button>
     ${open ? `<div class="course-scheduling-maintenance-menu">
-      <button type="button" class="course-scheduling-menu-item" data-maintenance-action="distances">עדכון מאגר מרחקים</button>
-      <button type="button" class="course-scheduling-menu-item" data-maintenance-action="readiness">בדיקת מוכנות נתונים</button>
+      <button type="button" class="course-scheduling-menu-item" data-maintenance-action="distances">עדכון מרחקים</button>
+      <button type="button" class="course-scheduling-menu-item" data-maintenance-action="readiness">בדיקת נתונים</button>
       ${confirmDistance ? `<div class="course-scheduling-maintenance-panel">
         <p>פעולה זו מעדכנת את זמני הנסיעה בין כתובות המדריכים ובתי הספר. בדרך כלל אין צורך להפעיל אותה לפני כל שיבוץ.</p>
         <div class="course-scheduling-detail-actions">
@@ -464,24 +464,30 @@ function calendarTabHtml({ interfaceCourses, selectedId, state }) {
     : weekCalendarHtml({ days, rows: weekRows, selectedCourseId: selectedId });
 
   if (calendarBody.includes('course-scheduling-calendar-empty')) {
-    calendarBody = `<div class="course-scheduling-empty course-scheduling-calendar-empty">
-      <strong>אין שיבוצים בשבוע זה</strong>
-      <p>שיבוצים שבוצעו במסך "קורסים לשיבוץ" יופיעו כאן.</p>
-      <button type="button" class="course-scheduling-btn course-scheduling-btn--primary" data-switch-tab="courses">מעבר לקורסים לשיבוץ</button>
+    calendarBody = `<div class="course-scheduling-empty-wrap">
+      <div class="course-scheduling-empty course-scheduling-calendar-empty">
+        <strong>אין שיבוצים בשבוע זה</strong>
+        <p>שיבוצים שבוצעו במסך "קורסים לשיבוץ" יופיעו כאן.</p>
+        <button type="button" class="course-scheduling-btn course-scheduling-btn--primary" data-switch-tab="courses">מעבר לקורסים לשיבוץ</button>
+      </div>
     </div>`;
   }
 
   return `<section class="course-scheduling-calendar-pane">
     <div class="course-scheduling-calendar-toolbar">
-      <button type="button" class="course-scheduling-btn course-scheduling-btn--secondary course-scheduling-btn--sm" data-week-nav="prev">השבוע הקודם</button>
-      <button type="button" class="course-scheduling-btn course-scheduling-btn--secondary course-scheduling-btn--sm" data-week-nav="today">היום</button>
-      <button type="button" class="course-scheduling-btn course-scheduling-btn--secondary course-scheduling-btn--sm" data-week-nav="next">השבוע הבא</button>
-      <input class="course-scheduling-input" type="date" data-week-pick value="${escapeHtml(start)}" aria-label="בחירת תאריך">
-      <span class="course-scheduling-calendar-label">${weekNavLabel({ start, end })}</span>
-      <span class="course-scheduling-calendar-toolbar-views">
+      <div class="course-scheduling-calendar-toolbar-nav">
+        <button type="button" class="course-scheduling-btn course-scheduling-btn--secondary course-scheduling-btn--sm" data-week-nav="prev">השבוע הקודם</button>
+        <button type="button" class="course-scheduling-btn course-scheduling-btn--secondary course-scheduling-btn--sm" data-week-nav="today">היום</button>
+        <button type="button" class="course-scheduling-btn course-scheduling-btn--secondary course-scheduling-btn--sm" data-week-nav="next">השבוע הבא</button>
+      </div>
+      <div class="course-scheduling-calendar-toolbar-center">
+        <input class="course-scheduling-input" type="date" data-week-pick value="${escapeHtml(start)}" aria-label="בחירת תאריך">
+        <span class="course-scheduling-calendar-label">${weekNavLabel({ start, end })}</span>
+      </div>
+      <div class="course-scheduling-calendar-toolbar-views">
         <button type="button" class="course-scheduling-btn course-scheduling-btn--sm${view === 'week' ? ' course-scheduling-btn--primary' : ' course-scheduling-btn--secondary'}" data-calendar-view="week">תצוגה שבועית</button>
-        <button type="button" class="course-scheduling-btn course-scheduling-btn--sm${view === 'fixed' ? ' course-scheduling-btn--primary' : ' course-scheduling-btn--secondary'}" data-calendar-view="fixed">תצוגת מערכת קבועה</button>
-      </span>
+        <button type="button" class="course-scheduling-btn course-scheduling-btn--sm${view === 'fixed' ? ' course-scheduling-btn--primary' : ' course-scheduling-btn--secondary'}" data-calendar-view="fixed">מערכת קבועה</button>
+      </div>
     </div>
     ${calendarBody}
   </section>`;
@@ -566,19 +572,30 @@ export const courseSchedulingScreen = {
     const results = state.courseSchedulingResults || [];
     const resultByCourseId = new Map(results.map((result) => [idOf(result.course), result]));
     const rowModels = interfaceCourses.map((course) => courseRowModel(course, resultByCourseId, data.meetingState));
+    const tab = activeTab(state);
+    if (tab === 'courses' && !text(state.courseSchedulingSelectedId) && rowModels.length) {
+      const nearest = pickNearestActionableCourse(rowModels, today()) || rowModels[0];
+      if (nearest) {
+        state.courseSchedulingSelectedId = nearest.id;
+        state.courseSchedulingWeek = nearest.course?.start_date || state.courseSchedulingWeek;
+      }
+    }
     const selectedId = state.courseSchedulingSelectedId || '';
     const selectedRow = rowModels.find((row) => row.id === selectedId)
       || (selectedId ? courseRowModel(interfaceCourses.find((course) => idOf(course) === selectedId) || { row_id: selectedId }, resultByCourseId, data.meetingState) : null);
     const readiness = courseSchedulingDataReadiness(data.activities || []);
-    const tab = activeTab(state);
     const isAdminRole = ['admin', 'operation_manager'].includes(text(state?.user?.role));
+    const title = tab === 'calendar' ? 'מערכת שבועית' : 'שיבוצים';
+    const subtitle = tab === 'calendar'
+      ? 'צפו בקורסים ששובצו ובטיוטות לפי שבוע.'
+      : 'בחרו קורס, מצאו מדריך מתאים ושמרו כטיוטה או שבצו.';
 
     return dsScreenStack(`
     <div class="course-scheduling-screen" dir="rtl">
       <header class="course-scheduling-header">
         <div class="course-scheduling-header-copy">
-          <h1 class="course-scheduling-title">שיבוצים</h1>
-          <p class="course-scheduling-subtitle">בחרו קורס, מצאו מדריך מתאים, ושמרו כטיוטה או שבצו</p>
+          <h1 class="course-scheduling-title">${title}</h1>
+          <p class="course-scheduling-subtitle">${subtitle}</p>
         </div>
         ${isAdminRole ? maintenanceMenuHtml(state, data) : ''}
       </header>
@@ -594,7 +611,14 @@ export const courseSchedulingScreen = {
         <p data-course-scheduling-error class="course-scheduling-alert"${state.courseSchedulingError ? '' : ' hidden'}>${escapeHtml(state.courseSchedulingError || '')}</p>
         <div class="course-scheduling-layout course-scheduling-layout--courses">
           <aside class="course-scheduling-courses">${courseListHtml(rowModels, selectedId)}</aside>
-          <section class="course-scheduling-detail" data-course-detail>${selectedCoursePanelHtml(selectedRow?.course ? selectedRow : null, state)}</section>
+          <section class="course-scheduling-detail" data-course-detail>${
+            !interfaceCourses.length
+              ? `<div class="course-scheduling-empty course-scheduling-empty--center">
+                  <strong>אין קורסים לשיבוץ כרגע</strong>
+                  <p>כשיופיעו קורסים ממתינים, תוכלו לבחור קורס ולהתחיל שיבוץ.</p>
+                </div>`
+              : selectedCoursePanelHtml(selectedRow?.course ? selectedRow : null, state)
+          }</section>
         </div>
       ` : calendarTabHtml({ interfaceCourses, selectedId, state })}
     </div>`);
