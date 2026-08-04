@@ -135,7 +135,7 @@ const DASHBOARD_ACTIVITY_MIN_COLUMNS = 'row_id,activity_family,activity_manager,
 const ACTIVITY_LIST_COLUMNS = [
   'row_id', 'activity_family', 'activity_manager', 'district', 'authority_id', 'school_id',
   'authority', 'school', 'grade', 'class_group', 'activity_type', 'item_type',
-  'activity_season', 'activity_no', 'activity_name', 'sessions',
+  'activity_season', 'activity_no', 'activity_name', 'sessions', 'funding',
   'start_time', 'end_time', 'emp_id', 'instructor_name', 'emp_id_2', 'instructor_name_2',
   'start_date', 'end_date', 'status', 'participants_count', 'school_contact_id',
   ...ACTIVITY_MEETING_DATE_COLUMNS
@@ -144,7 +144,7 @@ const ACTIVITY_LIST_COLUMNS = [
 const ACTIVITY_TABLE_COLUMNS = [
   'row_id', 'activity_family', 'activity_manager', 'authority', 'school', 'school_id',
   'grade', 'class_group', 'activity_type', 'item_type', 'activity_season', 'activity_name',
-  'sessions', 'start_time', 'end_time', 'emp_id', 'instructor_name', 'emp_id_2', 'instructor_name_2',
+  'sessions', 'funding', 'start_time', 'end_time', 'emp_id', 'instructor_name', 'emp_id_2', 'instructor_name_2',
   'start_date', 'end_date', 'status',
   ...ACTIVITY_MEETING_DATE_COLUMNS
 ].join(',');
@@ -535,6 +535,8 @@ function normalizeActivityRow(row = {}) {
     row?.school ||
     ''
   ).trim();
+  const fundingRaw = row?.funding;
+  const funding = fundingRaw == null ? '' : String(fundingRaw).trim();
   const normalized = {
     ...row,
     row_id: rowId,
@@ -543,6 +545,7 @@ function normalizeActivityRow(row = {}) {
     source_table: ACTIVITIES_TABLE,
     authority: authorityName,
     school: schoolName,
+    funding,
     activity_season: activitySeason,
     activitySeason,
     activity_name: nonEmptyString(row?.activity_name) || nonEmptyString(row?.title) || nonEmptyString(row?.name) || nonEmptyString(row?.program_name) || 'ללא שם פעילות',
