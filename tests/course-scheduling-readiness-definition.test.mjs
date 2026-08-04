@@ -11,17 +11,18 @@ import { evaluateInstructor } from '../frontend/src/screens/instructor-matching-
 const readyCourse = {
   row_id: 'c1', activity_season: 'school_2027', activity_type: 'program', status: 'פתוח',
   activity_name: 'רובוטיקה', authority: 'רשות', school: 'בית ספר', school_address: 'רחוב 1',
-  education_level: 'elementary', start_time: '09:00', end_time: '10:00', date_1: '2027-01-04',
+  grade: '', start_time: '09:00', end_time: '10:00', date_1: '2027-01-04',
   instruction_language: '', required_instructor_gender: '', activity_manager: ''
 };
 const rules = [{ emp_id: 1, weekday: 1, available: true, start_time: '08:00', end_time: '14:00' }];
-const matchingProfile = { gender: 'female', instruction_languages: ['he'], education_levels: ['elementary'], course_restriction_mode: 'all', course_ids: [], weekly_max_hours: 1, preferred_work_days: 1, max_fixed_courses: 0 };
+const matchingProfile = { gender: 'female', instruction_languages: ['he'], weekly_max_hours: 1, preferred_work_days: 1, max_fixed_courses: 0 };
 const instructor = { emp_id: 1, full_name: 'מדריכה', active: 'yes', address: 'בית' };
 
-test('course readiness requires scheduling blockers only and manager is not mandatory', () => {
+test('course readiness ignores age fields and manager is not mandatory', () => {
   assert.deepEqual(courseReadinessMissingFields(readyCourse), []);
   assert.equal(courseReadinessRows([readyCourse, { ...readyCourse, row_id: 'closed', status: 'סגור', school: '' }]).length, 0);
-  const missing = courseReadinessMissingFields({ ...readyCourse, school_address: '', start_time: '', activity_manager: '' });
+  assert.deepEqual(courseReadinessMissingFields({ ...readyCourse, education_level: '', grade: '' }), []);
+  const missing = courseReadinessMissingFields({ ...readyCourse, school_address: '', start_time: '', activity_manager: '', education_level: '', grade: '' });
   assert.deepEqual(missing, ['כתובת בית ספר תקינה', 'שעת התחלה']);
   assert.ok(!missing.includes('מנהל פעילות'));
 });
@@ -29,7 +30,9 @@ test('course readiness requires scheduling blockers only and manager is not mand
 test('instructor readiness ignores manual workload quota fields', () => {
   const missing = instructorReadinessMissingFields(instructor, { ...matchingProfile, weekly_target_hours: null, weekly_max_hours: null, preferred_work_days: null, max_fixed_courses: null }, rules);
   assert.deepEqual(missing, []);
-  assert.deepEqual(instructorReadinessMissingFields(instructor, { ...matchingProfile, course_restriction_mode: 'allow_only', course_ids: [] }, rules), ['קורסים מותרים']);
+  assert.deepEqual(instructorReadinessMissingFields(instructor, { ...matchingProfile, course_restriction_mode: 'allow_only', course_ids: [] }, rules), []);
+  assert.deepEqual(instructorReadinessMissingFields(instructor, { ...matchingProfile }, rules), []);
+  assert.deepEqual(instructorReadinessMissingFields(instructor, { ...matchingProfile, education_levels: [] }, rules), []);
 });
 
 test('language and gender are absolute gates and rejected candidates are not alternatives', () => {

@@ -99,57 +99,10 @@ function replaceScheduling(row, scheduling) {
 }
 
 export function bindInstructorMatchingModal(modalRoot, { row, saveProfile, onSuccess } = {}) {
-  const content = modalRoot?.querySelector('.ds-modal__content');
-  const form = content?.querySelector('[data-instructor-matching-form]');
+  const form = modalRoot?.querySelector('.ds-modal__content [data-instructor-matching-form]');
   const saveButton = modalRoot?.querySelector('.ds-modal__footer [data-save-instructor-matching]');
   if (!form || !saveButton || saveButton.dataset.matchingSaveBound === '1') return;
   saveButton.dataset.matchingSaveBound = '1';
-
-  const closeMenus = (except = null) => form.querySelectorAll('[data-multiselect-menu]').forEach((menu) => {
-    if (menu !== except) menu.hidden = true;
-    const search = menu.closest('[data-multiselect]')?.querySelector('[data-multiselect-search]');
-    if (search && menu !== except) search.setAttribute('aria-expanded', 'false');
-  });
-  const renderTags = (widget) => {
-    const tags = widget.querySelector('[data-multiselect-tags]');
-    if (!tags) return;
-    const checked = [...widget.querySelectorAll('input[type="checkbox"]:checked')];
-    tags.innerHTML = checked.map((input) => `<span class="instructor-multiselect__tag">${escapeHtml(input.dataset.optionLabel || input.value)}<button type="button" data-remove-multiselect="${escapeHtml(input.value)}" aria-label="הסרת ${escapeHtml(input.dataset.optionLabel || input.value)}">✕</button></span>`).join('');
-    tags.hidden = checked.length === 0;
-  };
-  form.querySelectorAll('[data-multiselect]').forEach((widget) => {
-    const search = widget.querySelector('[data-multiselect-search]');
-    const menu = widget.querySelector('[data-multiselect-menu]');
-    renderTags(widget);
-    search?.addEventListener('focus', () => { closeMenus(menu); menu.hidden = false; search.setAttribute('aria-expanded', 'true'); });
-    search?.addEventListener('input', () => {
-      menu.hidden = false;
-      search.setAttribute('aria-expanded', 'true');
-      const query = text(search.value).toLowerCase();
-      menu.querySelectorAll('[data-search-text]').forEach((option) => { option.hidden = !!query && !option.dataset.searchText.includes(query); });
-    });
-    widget.addEventListener('change', () => renderTags(widget));
-    widget.addEventListener('click', (event) => {
-      const remove = event.target.closest?.('[data-remove-multiselect]');
-      if (!remove) return;
-      const input = [...widget.querySelectorAll('input[type="checkbox"]')].find((item) => item.value === remove.dataset.removeMultiselect);
-      if (input) input.checked = false;
-      renderTags(widget);
-    });
-  });
-  const outsideHandler = (event) => { if (!event.target.closest?.('[data-multiselect]')) closeMenus(); };
-  modalRoot.addEventListener('click', outsideHandler);
-
-  const syncCourseMode = () => {
-    const mode = form.querySelector('[name="course_restriction_mode"]:checked')?.value || 'all';
-    const picker = form.querySelector('[data-course-picker]');
-    picker.hidden = mode === 'all';
-    const heading = picker.querySelector('[data-course-picker-title]');
-    if (heading) heading.textContent = mode === 'block_selected' ? 'קורסים חסומים' : 'קורסים מותרים';
-  };
-  form.querySelectorAll('[name="course_restriction_mode"]').forEach((radio) => radio.addEventListener('change', syncCourseMode));
-  syncCourseMode();
-
   saveButton.addEventListener('click', async () => {
     if (saveButton.disabled) return;
     const status = form.querySelector('[data-matching-status]');
@@ -161,17 +114,11 @@ export function bindInstructorMatchingModal(modalRoot, { row, saveProfile, onSuc
     status.hidden = true;
     status.textContent = '';
     const selected = (name) => [...form.querySelectorAll(`[name="${name}"]:checked`)].map((input) => input.value).filter(Boolean);
-    const courseMode = form.querySelector('[name="course_restriction_mode"]:checked')?.value || 'all';
     try {
       await saveProfile({
         ...(row.scheduling_profile || {}), emp_id: row.emp_id,
         gender: form.querySelector('[name="gender"]:checked')?.value || '',
         instruction_languages: selected('language'),
-        education_levels: selected('education_level'),
-        course_restriction_mode: courseMode,
-        course_ids: courseMode === 'all' ? [] : selected('course_ids'),
-        blocked_authorities: selected('blocked_authorities'),
-        blocked_schools: selected('blocked_schools'),
         matching_note: form.querySelector('[name="matching_note"]')?.value || ''
       });
       await onSuccess?.();
@@ -253,7 +200,7 @@ export function bindInstructorConstraintsModal(modalRoot, {
     try {
       await Promise.all([
         saveProfile({
-          emp_id: row.emp_id,
+          ...(row.scheduling_profile || {}), emp_id: row.emp_id,
           default_start_time: input('default_start_time')?.value,
           default_end_time: input('default_end_time')?.value,
           friday_allowed: !!input('friday_allowed')?.checked,

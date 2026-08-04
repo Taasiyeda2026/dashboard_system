@@ -17,7 +17,6 @@ const course = (id, date = '2027-09-05', extra = {}) => ({
   school_address: `רחוב ${id}, חיפה`,
   authority: 'חיפה',
   instruction_language: 'he',
-  education_level: 'elementary',
   required_instructor_gender: 'female',
   start_time: '10:00',
   end_time: '11:00',
@@ -29,8 +28,8 @@ const instructors = [
   { emp_id: '2', full_name: 'דנה', active: 'yes', address: 'חיפה' }
 ];
 const profiles = {
-  1: { gender: 'female', instruction_languages: ['he'], education_levels: ['elementary'], course_restriction_mode: 'all', course_ids: [] },
-  2: { gender: 'female', instruction_languages: ['he'], education_levels: ['elementary'], course_restriction_mode: 'all', course_ids: [] }
+  1: { gender: 'female', instruction_languages: ['he'] },
+  2: { gender: 'female', instruction_languages: ['he'] }
 };
 const rules = {
   1: [{ weekday: 0, available: true, start_time: '08:00', end_time: '16:00' }, { weekday: 1, available: true, start_time: '08:00', end_time: '16:00' }],
@@ -59,15 +58,14 @@ test('filters inactive instructors before matching and route calculation', () =>
   assert.deepEqual(result.checked.map((candidate) => candidate.instructor.emp_id), ['1']);
 });
 
-test('global allocation preserves the only instructor for a constrained course', () => {
-  const constrainedProfiles = {
-    1: { ...profiles[1], course_restriction_mode: 'allow_only', course_ids: ['flex', 'only'] },
-    2: { ...profiles[2], course_restriction_mode: 'allow_only', course_ids: ['flex'] }
+test('global allocation ignores deprecated course restrictions while still balancing courses', () => {
+  const deprecatedProfiles = {
+    1: { ...profiles[1], course_restriction_mode: 'allow_only', course_ids: ['only'] },
+    2: { ...profiles[2], course_restriction_mode: 'block_selected', course_ids: ['flex'] }
   };
-  const results = calculateCourseSchedule({ ...baseInput([course('flex'), course('only', '2027-09-06')]), profiles: constrainedProfiles });
+  const results = calculateCourseSchedule({ ...baseInput([course('flex'), course('only', '2027-09-06')]), profiles: deprecatedProfiles });
   assert.equal(results.filter((result) => result.recommended).length, 2);
-  assert.equal(results.find((result) => result.course.row_id === 'only').recommended.instructor.emp_id, '1');
-  assert.equal(results.find((result) => result.course.row_id === 'flex').recommended.instructor.emp_id, '2');
+  assert.equal(new Set(results.map((result) => result.recommended.instructor.emp_id)).size, 2);
 });
 
 test('checks every meeting and keeps missing weekday availability out of recruitment', () => {
@@ -120,16 +118,19 @@ test('closed, cancelled and other-season assignments do not block or inflate wor
 
 test('missing profile fields are separate from professional failures and receive no score', () => {
   for (const [field, partial] of [
-    ['מגדר', { instruction_languages: ['he'], education_levels: ['elementary'] }],
-    ['שפות הדרכה', { gender: 'female', education_levels: ['elementary'] }],
-    ['שכבות גיל', { gender: 'female', instruction_languages: ['he'] }]
+    ['מגדר', { instruction_languages: ['he'] }],
+    ['שפות הדרכה', { gender: 'female' }]
   ]) {
-    const result = evaluateInstructor({ instructor: instructors[0], profile: { ...partial, course_restriction_mode: 'all' }, rules: rules[1], activity: course('missing-profile') });
+    const result = evaluateInstructor({ instructor: instructors[0], profile: partial, rules: rules[1], activity: course('missing-profile') });
     assert.equal(result.eligible, false);
     assert.equal(result.score, null);
     assert.ok(result.missingProfileData.includes(field));
     assert.equal(result.failures.length, 0);
   }
+
+  const ageOnlyMissing = evaluateInstructor({ instructor: instructors[0], profile: { gender: 'female', instruction_languages: ['he'], education_levels: [] }, rules: rules[1], activity: course('age-missing', '2027-09-05', { education_level: '', grade: '' }) });
+  assert.equal(ageOnlyMissing.eligible, true);
+  assert.doesNotMatch(ageOnlyMissing.missingProfileData.join(' '), /שכבות גיל|שכבת גיל/);
 });
 
 test('defined availability outside course hours is a failure, while no weekly rules is missing data', () => {

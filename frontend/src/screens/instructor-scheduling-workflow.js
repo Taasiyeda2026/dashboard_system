@@ -7,8 +7,6 @@ import { formatDateDots, formatTimeRangeShort } from './shared/format-date.js';
 import { resolveInstructionLanguage } from './shared/instruction-language.js';
 
 const txt = (value) => String(value ?? '').trim();
-const EDUCATION_LEVELS = new Set(['elementary', 'middle_school', 'high_school']);
-
 function datesText(activity) {
   return activityMeetings(activity).map((meeting) => formatDateDots(meeting.date)).filter(Boolean).join(', ') || '—';
 }
@@ -26,15 +24,9 @@ function languageSelectValue(activity) {
   return resolveInstructionLanguage(activity);
 }
 
-function educationSelectValue(activity) {
-  const value = txt(activity?.education_level);
-  return EDUCATION_LEVELS.has(value) ? value : '';
-}
-
 function modalHtml(activity) {
   const gender = genderSelectValue(activity);
   const language = languageSelectValue(activity);
-  const education = educationSelectValue(activity);
   return `<div class="scheduling-workspace" dir="rtl" data-scheduling-workspace>
     ${schedulingActivitySummaryHtml(activity)}
     <section class="scheduling-workspace__requirements">
@@ -52,14 +44,6 @@ function modalHtml(activity) {
             <option value="ar"${language === 'ar' ? ' selected' : ''}>ערבית</option>
           </select>
         </label>
-        <label>שכבת גיל
-          <select class="ds-input" name="education_level" required>
-            <option value=""${!education ? ' selected' : ''}>יש לבחור</option>
-            <option value="elementary"${education === 'elementary' ? ' selected' : ''}>יסודי</option>
-            <option value="middle_school"${education === 'middle_school' ? ' selected' : ''}>חטיבה</option>
-            <option value="high_school"${education === 'high_school' ? ' selected' : ''}>תיכון</option>
-          </select>
-        </label>
       </div>
     </section>
     <p class="scheduling-workspace__status" data-scheduling-status role="alert"></p>
@@ -69,8 +53,7 @@ function modalHtml(activity) {
 function readRequirements(workspace) {
   return {
     required_instructor_gender: txt(workspace.querySelector('[name="required_instructor_gender"]')?.value) || 'any',
-    instruction_language: txt(workspace.querySelector('[name="instruction_language"]')?.value) || 'he',
-    education_level: txt(workspace.querySelector('[name="education_level"]')?.value)
+    instruction_language: txt(workspace.querySelector('[name="instruction_language"]')?.value) || 'he'
   };
 }
 
@@ -86,8 +69,7 @@ function patchActivityCaches(state, activitiesRows, activity, requirements) {
   if (!activityId || !state?.screenDataCache) return;
   const patch = {
     required_instructor_gender: requirements.required_instructor_gender ?? activity.required_instructor_gender,
-    instruction_language: requirements.instruction_language ?? activity.instruction_language,
-    education_level: requirements.education_level ?? activity.education_level
+    instruction_language: requirements.instruction_language ?? activity.instruction_language
   };
   const detailKey = `activityDetail:${activity.source_sheet || ''}:${activityId}`;
   const detailEntry = state.screenDataCache[detailKey];
@@ -150,10 +132,6 @@ export function bindInstructorScheduling(root, { ui, state, activitiesRows, onRe
       const requirements = readRequirements(workspace);
       if (status) status.textContent = '';
 
-      if (!EDUCATION_LEVELS.has(requirements.education_level)) {
-        if (status) status.textContent = 'יש לבחור שכבת גיל לפני השמירה';
-        return;
-      }
       if (!['any', 'female', 'male'].includes(requirements.required_instructor_gender)) {
         if (status) status.textContent = 'ערך מגדר המדריך אינו תקין';
         return;
@@ -175,16 +153,14 @@ export function bindInstructorScheduling(root, { ui, state, activitiesRows, onRe
         const save = await supabase.rpc('save_activity_scheduling_requirements', {
           p_activity_id: activityId,
           p_instruction_language: requirements.instruction_language,
-          p_required_instructor_gender: requirements.required_instructor_gender,
-          p_education_level: requirements.education_level
+          p_required_instructor_gender: requirements.required_instructor_gender
         });
         if (save.error) throw new Error(`שמירת דרישות השיבוץ נכשלה: ${save.error.message}`);
 
         const saved = save.data && typeof save.data === 'object' ? save.data : {};
         const nextRequirements = {
           required_instructor_gender: txt(saved.required_instructor_gender) || requirements.required_instructor_gender,
-          instruction_language: txt(saved.instruction_language) || requirements.instruction_language,
-          education_level: txt(saved.education_level) || requirements.education_level
+          instruction_language: txt(saved.instruction_language) || requirements.instruction_language
         };
         activity = patchLocalActivity(form, activity, nextRequirements);
         patchActivityCaches(state, activitiesRows, activity, nextRequirements);
