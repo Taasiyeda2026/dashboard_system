@@ -2564,8 +2564,9 @@ test('next_year admin manual course option appears only for admin in pricing sel
   const source = await readFile(SCREEN_FILE, 'utf8');
   assert.match(source, /MANUAL_COURSE_OPTION_KEY = '__manual_course__'/);
   assert.match(source, /MANUAL_COURSE_OPTION_LABEL = 'קורס אחר \/ טקסט חופשי'/);
+  assert.match(source, /NEXT_YEAR_UNIFIED_MANUAL_LABEL = 'פעילות אחרת \/ טקסט חופשי'/);
   assert.match(source, /data-pa-allow-manual-course="\$\{allowManualCourse \? 'yes' : 'no'\}"/);
-  assert.match(source, /allowManualCourse && isNextYearProposalGroup\(options\.groupKey\)/);
+  assert.match(source, /allowManualCourse && isNextYearProposalGroup\(groupKey\)/);
   assert.match(source, /selectedKey === MANUAL_COURSE_OPTION_KEY[\s\S]*applyManualCourseToRow/);
 });
 
@@ -2595,7 +2596,8 @@ test('extractItemsFromForm keeps next_year manual course rows without catalog id
     assert.equal(items[0].unit_price, 450);
     assert.equal(items[0].total_price, 900);
     assert.equal(items[0].course_note, 'הערה לתוכנית');
-    assert.equal(items[0].proposal_group, 'next_year');
+    // Unified תשפ״ז keeps the internal course/workshop scope on each row.
+    assert.equal(items[0].proposal_group, 'next_year_courses');
     assert.equal(items[0].pricing_option_key, '');
     assert.equal(items[0].activity_no, '');
     assert.equal(items[0].source_pricing_key, '');

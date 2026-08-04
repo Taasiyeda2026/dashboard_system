@@ -2,10 +2,11 @@ import { api } from './api.js';
 import { augmentNextYearPricingRows } from './proposal-next-year-workshops.js';
 import { calculateNextYearTotals } from './proposal-next-year-selection-hydration.js';
 
-const PATCH_KEY = Symbol.for('taasiyeda.proposalNextYearEditorStability.v3');
+const PATCH_KEY = Symbol.for('taasiyeda.proposalNextYearEditorStability.v5');
 const COURSE_GROUP = 'next_year_courses';
 const WORKSHOP_GROUP = 'next_year_workshops';
-const NEXT_YEAR_GROUPS = new Set([COURSE_GROUP, WORKSHOP_GROUP]);
+const UNIFIED_GROUP = 'next_year';
+const NEXT_YEAR_GROUPS = new Set([COURSE_GROUP, WORKSHOP_GROUP, UNIFIED_GROUP]);
 const NEXT_YEAR_TYPE_ALIASES = new Set([
   'next_year', 'שנה הבאה', 'שנת הלימודים תשפ״ז', 'תוכניות תשפ״ז', 'תשפ״ז'
 ]);
@@ -66,6 +67,12 @@ export function pricingRowsForNextYearGroup(rows = [], groupKey = '') {
   const group = text(groupKey);
   if (!NEXT_YEAR_GROUPS.has(group)) return [];
   const augmented = augmentNextYearPricingRows(Array.isArray(rows) ? rows : []);
+  if (group === UNIFIED_GROUP) {
+    const merged = new Map();
+    pricingRowsForNextYearGroup(augmented, COURSE_GROUP).forEach((row) => merged.set(pricingOptionKey(row), row));
+    pricingRowsForNextYearGroup(augmented, WORKSHOP_GROUP).forEach((row) => merged.set(pricingOptionKey(row), row));
+    return [...merged.values()];
+  }
   const exact = augmented.filter((row) => pricingGroup(row) === group);
   const candidates = exact.length
     ? exact
@@ -241,13 +248,13 @@ function hydrateRowFromPricing(row, pricingRows) {
 function nextYearForm(form) {
   const type = text(form?.querySelector?.('[name="activity_type_group"]')?.value);
   return NEXT_YEAR_TYPE_ALIASES.has(type)
-    || Boolean(form?.querySelector?.(`[data-pa-items-group="${COURSE_GROUP}"]`));
+    || Boolean(form?.querySelector?.(`[data-pa-items-group="${COURSE_GROUP}"], [data-pa-items-group="${WORKSHOP_GROUP}"], [data-pa-next-year-unified]`));
 }
 
 function markPendingUserRow(form) {
   const group = text(form?.dataset?.paNextYearPendingAddGroup);
   if (!NEXT_YEAR_GROUPS.has(group)) return;
-  const section = form.querySelector(`[data-pa-items-group="${group}"]`);
+  const section = form.querySelector(`[data-pa-items-group="${group}"], [data-pa-next-year-unified]`);
   const rows = Array.from(section?.querySelectorAll?.('[data-pa-item-row]') || []);
   const row = rows.filter((item) => item.dataset.paNextYearUserAdded !== 'yes').at(-1);
   if (row) row.dataset.paNextYearUserAdded = 'yes';
@@ -257,12 +264,13 @@ function markPendingUserRow(form) {
 export function removeBlankNextYearRows(form) {
   if (!form || !nextYearForm(form)) return 0;
   let removed = 0;
-  NEXT_YEAR_GROUPS.forEach((groupKey) => {
-    form.querySelectorAll(`[data-pa-items-group="${groupKey}"] [data-pa-item-row]`).forEach((row) => {
-      if (!isBlankNextYearEditorRow(row)) return;
-      row.remove();
-      removed += 1;
-    });
+  const rowSelector = form.querySelector('[data-pa-next-year-unified]')
+    ? '[data-pa-next-year-unified] [data-pa-item-row]'
+    : `[data-pa-items-group="${COURSE_GROUP}"] [data-pa-item-row], [data-pa-items-group="${WORKSHOP_GROUP}"] [data-pa-item-row]`;
+  form.querySelectorAll(rowSelector).forEach((row) => {
+    if (!isBlankNextYearEditorRow(row)) return;
+    row.remove();
+    removed += 1;
   });
   if (removed) calculateNextYearTotals(form);
   return removed;
@@ -273,11 +281,14 @@ export function stabilizeNextYearForm(form, pricingRows = cachedPricingRows, opt
   markPendingUserRow(form);
   let changed = false;
   let removed = 0;
+  const unifiedSection = form.querySelector('[data-pa-next-year-unified]');
+  const sections = unifiedSection
+    ? [unifiedSection]
+    : [COURSE_GROUP, WORKSHOP_GROUP].map((groupKey) => form.querySelector(`[data-pa-items-group="${groupKey}"]`)).filter(Boolean);
 
-  NEXT_YEAR_GROUPS.forEach((groupKey) => {
-    const section = form.querySelector(`[data-pa-items-group="${groupKey}"]`);
-    if (!section) return;
-    const groupRows = pricingRowsForNextYearGroup(pricingRows, groupKey);
+  sections.forEach((section) => {
+    const groupKey = text(section.dataset.paItemsGroup) || UNIFIED_GROUP;
+    const groupRows = pricingRowsForNextYearGroup(pricingRows, groupKey === UNIFIED_GROUP || section.matches?.('[data-pa-next-year-unified]') ? UNIFIED_GROUP : groupKey);
     section.querySelectorAll('[data-pa-item-row]').forEach((row) => {
       const userAdded = row.dataset.paNextYearUserAdded === 'yes';
       if (options.removeBlankRows === true && !userAdded && isBlankNextYearEditorRow(row)) {
@@ -334,10 +345,10 @@ function installDomRuntime(scope = globalThis) {
       removeBlankNextYearRows(form);
     }
 
-    const addButton = event.target?.closest?.('[data-pa-add-item][data-pa-add-item-group]');
+    const addButton = event.target?.closest?.('[data-pa-add-item][data-pa-add-item-group], [data-pa-next-year-unified] [data-pa-add-item]');
     if (!addButton) return;
     const addForm = addButton.closest('[data-pa-form]');
-    const group = text(addButton.dataset.paAddItemGroup);
+    const group = text(addButton.dataset.paAddItemGroup) || (addButton.closest('[data-pa-next-year-unified]') ? UNIFIED_GROUP : '');
     if (!addForm || !NEXT_YEAR_GROUPS.has(group)) return;
     addForm.dataset.paNextYearPendingAddGroup = group;
     queueMicrotask(() => scheduleForm(addForm, { removeBlankRows: false }));
