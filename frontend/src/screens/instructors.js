@@ -119,7 +119,6 @@ export function bindInstructorMatchingModal(modalRoot, { row, saveProfile, onSuc
         ...(row.scheduling_profile || {}), emp_id: row.emp_id,
         gender: form.querySelector('[name="gender"]:checked')?.value || '',
         instruction_languages: selected('language'),
-        education_levels: selected('education_level'),
         matching_note: form.querySelector('[name="matching_note"]')?.value || ''
       });
       await onSuccess?.();

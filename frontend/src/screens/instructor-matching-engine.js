@@ -1,16 +1,9 @@
 import { instructionLanguageLabel, profileSpeaksLanguage, resolveInstructionLanguage } from './shared/instruction-language.js';
 
 const LANGUAGE_LABELS = { he: 'עברית', ar: 'ערבית' };
-const EDUCATION_LEVEL_LABELS = {
-  elementary: 'יסודי',
-  middle_school: 'חטיבת ביניים',
-  high_school: 'תיכון'
-};
-
 export const DEFAULT_SCHEDULING_PROFILE = Object.freeze({
   gender: null,
   instruction_languages: [],
-  education_levels: [],
   friday_allowed: false,
   default_start_time: '08:00',
   default_end_time: '15:00',
@@ -30,20 +23,6 @@ export function normalizeGender(value) {
   return null;
 }
 
-export function normalizeEducationLevel(value) {
-  const raw = String(value ?? '').trim();
-  if (!raw) return '';
-  const lower = raw.toLocaleLowerCase('he-IL');
-  if (lower === 'elementary' || raw === 'יסודי') return 'elementary';
-  if (lower === 'middle_school' || raw === 'חטיבת ביניים' || raw === 'חטיבה' || raw === 'חט"ב' || raw === 'חט״ב') return 'middle_school';
-  if (lower === 'high_school' || raw === 'תיכון') return 'high_school';
-  return deriveEducationLevel(raw) || '';
-}
-
-export function educationLevelLabel(value) {
-  const normalized = normalizeEducationLevel(value);
-  return EDUCATION_LEVEL_LABELS[normalized] || String(value || '').trim() || '—';
-}
 
 export function normalizeSchedulingProfile(profile = {}) {
   const gender = normalizeGender(profile?.gender);
@@ -51,19 +30,8 @@ export function normalizeSchedulingProfile(profile = {}) {
     ...DEFAULT_SCHEDULING_PROFILE,
     ...(profile || {}),
     gender: gender === 'any' ? null : gender,
-    instruction_languages: Array.isArray(profile?.instruction_languages) ? profile.instruction_languages : [],
-    education_levels: Array.isArray(profile?.education_levels)
-      ? profile.education_levels.map(normalizeEducationLevel).filter(Boolean)
-      : []
+    instruction_languages: Array.isArray(profile?.instruction_languages) ? profile.instruction_languages : []
   };
-}
-
-export function deriveEducationLevel(grade) {
-  const value = String(grade || '').trim().toLowerCase();
-  if (/^(א|ב|ג|ד|ה|ו|1|2|3|4|5|6)$/.test(value)) return 'elementary';
-  if (/^(ז|ח|ט|7|8|9)$/.test(value)) return 'middle_school';
-  if (/^(י|יא|יב|10|11|12)$/.test(value)) return 'high_school';
-  return '';
 }
 
 const minutes = (value) => {
@@ -167,21 +135,6 @@ export function evaluateInstructor({
     genderCheck = checkResult(false, femaleInstructor ? 'אינה עומדת בדרישה' : 'אינו עומד בדרישה', reason);
   } else {
     genderCheck = checkResult(true, femaleInstructor ? 'עומדת בדרישה' : 'עומד בדרישה', '');
-  }
-
-  const educationLevel = normalizeEducationLevel(activity.education_level) || deriveEducationLevel(activity.grade);
-  let educationCheck = checkResult(null, 'שכבת גיל', 'לא נבדק');
-  if (!educationLevel) {
-    educationCheck = checkResult(null, 'שכבת גיל', 'לא נבדק');
-  } else if (!profile.education_levels.length) {
-    missingProfileData.push('שכבות גיל');
-    educationCheck = checkResult(null, educationLevelLabel(educationLevel), 'לא נבדק — חסרות שכבות גיל בפרופיל');
-  } else if (!profile.education_levels.includes(educationLevel)) {
-    const reason = 'המדריך אינו מתאים לשכבת הגיל';
-    failures.push(reason);
-    educationCheck = checkResult(false, `${educationLevelLabel(educationLevel)} - לא מתאים`, reason);
-  } else {
-    educationCheck = checkResult(true, `${educationLevelLabel(educationLevel)} - מתאים`, '');
   }
 
   const ruleMap = new Map(rules.map((rule) => [Number(rule.weekday), rule]));
@@ -328,7 +281,6 @@ export function evaluateInstructor({
   const checks = {
     gender: genderCheck,
     language: languageCheck,
-    educationLevel: educationCheck,
     availability: availabilityCheck,
     travel: travelCheck
   };
@@ -418,7 +370,7 @@ export function evaluateInstructor({
       },
       availability: { points: dailyContinuityPoints, label: 'זמינות' },
       experience: { points: experiencePoints, label: 'ניסיון קודם בקורס' },
-      gateNote: 'מגדר, שפה, שכבת גיל וחסימות הם תנאי סף ואינם מוסיפים נקודות.'
+      gateNote: 'מגדר ושפה הם תנאי סף ואינם מוסיפים נקודות.'
     };
   }
 

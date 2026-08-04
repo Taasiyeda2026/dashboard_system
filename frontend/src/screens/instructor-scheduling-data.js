@@ -69,7 +69,6 @@ export async function saveInstructorSchedulingProfile(row) {
     notes: String(row?.notes || '').trim() || null,
     gender: ['female', 'male'].includes(row?.gender) ? row.gender : null,
     instruction_languages: Array.isArray(row?.instruction_languages) ? row.instruction_languages.filter(v => ['he', 'ar'].includes(v)) : ['he'],
-    education_levels: Array.isArray(row?.education_levels) ? row.education_levels.filter(v => ['elementary', 'middle_school', 'high_school'].includes(v)) : [],
     matching_note: String(row?.matching_note || '').trim() || null,
     weekly_target_hours: normalizePositiveNumberOrNull(row?.weekly_target_hours),
     weekly_max_hours: normalizePositiveNumberOrNull(row?.weekly_max_hours),

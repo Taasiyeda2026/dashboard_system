@@ -1,14 +1,13 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
-import { deriveEducationLevel, evaluateInstructor, rankInstructors, normalizeSchedulingProfile } from '../frontend/src/screens/instructor-matching-engine.js';
+import { evaluateInstructor, rankInstructors, normalizeSchedulingProfile } from '../frontend/src/screens/instructor-matching-engine.js';
 import { isoWeekKey, projectedWeeklyLoad, averageWeeklyLoad } from '../frontend/src/screens/instructor-scheduling-load.js';
 
 const activity={activity_name:'קורס מדעים',instruction_language:'he',required_instructor_gender:'female',grade:'ח',start_time:'10:00',end_time:'11:30',meetings:[{date:'2026-08-02',start_time:'10:00',end_time:'11:30'}]};
 const instructor={emp_id:'10',full_name:'נועה',active:'yes',address:'חיפה'};
-const profile={gender:'female',instruction_languages:['he','ar'],education_levels:['middle_school'],friday_allowed:false};
+const profile={gender:'female',instruction_languages:['he','ar'],friday_allowed:false};
 const rules=[{weekday:0,available:true,start_time:'08:00',end_time:'16:00'}];
 
-test('derives education level from Hebrew and numeric grades',()=>{assert.equal(deriveEducationLevel('ח'),'middle_school');assert.equal(deriveEducationLevel('12'),'high_school');});
 test('eligible instructor receives explained score while missing distance is informational',()=>{const result=evaluateInstructor({instructor,profile,rules,activity});assert.equal(result.eligible,true);assert.equal(typeof result.score,'number');assert.match(result.explanation,/פנויה בכל המפגשים/);assert.deepEqual(result.warnings,[]);assert.match(result.explanation,/טרם חושב/);});
 test('rejects language, gender, exception and overlap with exact reasons',()=>{const result=evaluateInstructor({instructor,profile:{...profile,gender:'male',instruction_languages:['ar']},rules,exceptions:[{exception_date:'2026-08-02',available:false}],activity,existingActivities:[{date:'2026-08-02',start_time:'10:30',end_time:'12:00'}]});assert.equal(result.score,null);assert.match(result.failures.join('|'),/עברית|מדריכה|זמינות|חפיפה/);});
 test('Saturday always disqualifies and ranking separates rejected candidates',()=>{const saturday={...activity,meetings:[{date:'2026-08-01',start_time:'10:00',end_time:'11:30'}]};const ranked=rankInstructors({instructors:[instructor],profiles:{10:profile},rules:{10:rules},activity:saturday});assert.equal(ranked.rejected.length,1);assert.match(ranked.rejected[0].failures[0],/שבת/);});

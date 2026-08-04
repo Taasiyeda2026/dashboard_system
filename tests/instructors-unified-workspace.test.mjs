@@ -54,7 +54,7 @@ test('constraints edit action is rendered only when editing is allowed', () => {
 test('profile header renders dynamic statuses as plain separated text', () => {
   const complete = {
     ...rows()[1], address: 'חיפה', availability_rules: [{ weekday: 0, available: true, start_time: '13:30:00', end_time: '15:00:00' }],
-    scheduling_profile: { gender: 'male', instruction_languages: ['he', 'ar'], education_levels: ['elementary'] }
+    scheduling_profile: { gender: 'male', instruction_languages: ['he', 'ar'] }
   };
   const dom = new JSDOM(profileHtml(complete, [], true, true));
   const status = dom.window.document.querySelector('[data-instructor-status-line]');
@@ -162,7 +162,7 @@ function constraintsModal(row) {
 }
 
 test('constraints footer save binds once, locks during saving, and submits all weekdays', async () => {
-  const row = { emp_id: '1500', scheduling_profile: { friday_allowed: false, gender: 'female', instruction_languages: ['he'], education_levels: ['elementary'] }, availability_rules: [], availability_exceptions: [] };
+  const row = { emp_id: '1500', scheduling_profile: { friday_allowed: false, gender: 'female', instruction_languages: ['he'] }, availability_rules: [], availability_exceptions: [] };
   const dom = constraintsModal(row);
   let profileCalls = 0;
   let rulesCalls = 0;

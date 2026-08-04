@@ -22,7 +22,6 @@ import {
   translateSchedulingRouteError
 } from './course-scheduling-distance-build.js';
 import { instructionLanguageLabel } from './shared/instruction-language.js';
-import { educationLevelLabel } from './instructor-matching-engine.js';
 
 const text = (value) => String(value ?? '').trim();
 const emp = (candidate) => text(candidate?.instructor?.emp_id);
@@ -262,7 +261,6 @@ function specialRequirementsHtml(course) {
     parts.push(course.required_instructor_gender === 'female' ? 'נדרשת מדריכה' : 'נדרש מדריך');
   }
   parts.push(`שפת הדרכה: ${instructionLanguageLabel(course)}`);
-  if (text(course.education_level || course.grade)) parts.push(`שכבה: ${course.education_level || course.grade}`);
   return `<p class="course-scheduling-requirements"><span>דרישות מיוחדות:</span> ${escapeHtml(parts.join(' · '))}</p>`;
 }
 
@@ -348,7 +346,6 @@ export function requirementsFitHtml(candidate, course = {}) {
     <ul class="course-scheduling-check-list">
       ${checkRowHtml('מגדר', checks.gender)}
       ${checkRowHtml('שפה', checks.language)}
-      ${checkRowHtml('שכבת גיל', checks.educationLevel)}
       ${checkRowHtml('זמינות', { ...availability, label: availabilityLabelText, passed: availability.passed })}
       ${checkRowHtml('מרחק', { ...travel, label: travelLabel, passed: travel.passed })}
     </ul>
@@ -372,7 +369,7 @@ export function scoreBreakdownHtml(candidate) {
     <ul class="course-scheduling-score-list">
       ${rows.map((row) => `<li><span>${escapeHtml(row.label)}</span><b>${Number(row.points) || 0}</b></li>`).join('')}
     </ul>
-    <p class="course-scheduling-score-note">${escapeHtml(breakdown.gateNote || 'מגדר, שפה, שכבת גיל וחסימות הם תנאי סף ואינם מוסיפים נקודות.')}</p>
+    <p class="course-scheduling-score-note">${escapeHtml(breakdown.gateNote || 'מגדר ושפה הם תנאי סף ואינם מוסיפים נקודות.')}</p>
   </div>`;
 }
 
@@ -429,7 +426,7 @@ export function instructorsResultsHtml(result, state = {}) {
       <h3>לא נמצא מדריך מתאים</h3>
       <p>נבדקו מדריכים קיימים, אך אף אחד מהם אינו עומד בכל תנאי הקורס. ייתכן שנדרש גיוס.</p>
       <details class="course-scheduling-details"><summary>הצגת פרטים</summary>
-        <p>שפת הדרכה: ${escapeHtml(instructionLanguageLabel(result.course))} · שכבה: ${escapeHtml(educationLevelLabel(result.course?.education_level || result.course?.grade) || '—')} · מגדר: ${escapeHtml(result.course.required_instructor_gender || 'ללא')}</p>
+        <p>שפת הדרכה: ${escapeHtml(instructionLanguageLabel(result.course))} · מגדר: ${escapeHtml(result.course.required_instructor_gender || 'ללא')}</p>
       </details>
       <button type="button" class="course-scheduling-btn course-scheduling-btn--secondary" data-open-missing-course>פתח פעילות</button>
     </div>`;
@@ -567,7 +564,7 @@ function courseReadinessListHtml(rows = []) {
   if (!rows.length) return '<p class="course-scheduling-muted">כל הקורסים הפתוחים מוכנים לשיבוץ.</p>';
   return rows.map(({ course, missing }) => `<article class="course-scheduling-readiness-row">
     <h4>${escapeHtml(readinessValue(course.activity_name || course.program_name || course.name || course.title))}</h4>
-    <p>${escapeHtml(readinessValue(course.authority))} · ${escapeHtml(readinessValue(course.school))} · שכבה: ${escapeHtml(readinessValue(course.education_level || course.grade))}</p>
+    <p>${escapeHtml(readinessValue(course.authority))} · ${escapeHtml(readinessValue(course.school))}</p>
     <p>${activityMeetings(course).length} מפגשים · שפה: ${escapeHtml(instructionLanguageLabel(course.instruction_language || 'he'))} · מגדר: ${escapeHtml(genderLabel(course.required_instructor_gender || 'any'))}</p>
     <p>${compactMeetingsHtml(course)}</p>
     <p><b>חסר להשלמה:</b> ${escapeHtml(missing.join(' · '))}</p>
@@ -580,7 +577,7 @@ function instructorReadinessListHtml(rows = []) {
   return rows.map(({ instructor, profile, rules, missing }) => `<article class="course-scheduling-readiness-row">
     <h4>${escapeHtml(readinessValue(instructor.full_name || instructor.emp_id))}</h4>
     <p>כתובת: ${escapeHtml(readinessValue(instructor.address))} · מגדר: ${escapeHtml(genderLabel(profile?.gender))}</p>
-    <p>שפות: ${escapeHtml((profile?.instruction_languages || []).map(instructionLanguageLabel).join(', ') || '—')} · שכבות: ${escapeHtml((profile?.education_levels || []).map(educationLevelLabel).join(', ') || '—')}</p>
+    <p>שפות: ${escapeHtml((profile?.instruction_languages || []).map(instructionLanguageLabel).join(', ') || '—')}</p>
     <p>ימים זמינים: ${rules.filter((rule) => rule.available && text(rule.start_time) && text(rule.end_time) && text(rule.start_time) < text(rule.end_time)).length}</p>
     <p><b>חסר להשלמה:</b> ${escapeHtml(missing.join(' · '))}</p>
     <button type="button" class="course-scheduling-btn course-scheduling-btn--secondary course-scheduling-btn--sm" data-open-instructor-matching="${escapeHtml(text(instructor.emp_id))}">עריכת התאמה</button>
