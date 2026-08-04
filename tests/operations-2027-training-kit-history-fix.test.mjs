@@ -25,8 +25,7 @@ test('course training uses all active instructors and all active courses instead
 });
 
 test('kit view includes inactive kit items and separates active instructors from inactive holders', () => {
-  assert.match(featureSource, /\.eq\('requires_print_kit', true\)/);
-  assert.doesNotMatch(featureSource, /\.eq\('is_active', true\)[\s\S]*requires_print_kit/);
+  assert.match(featureSource, /select\('id, short_name, full_name, gefen_number, sort_order, is_active, requires_print_kit'\)[\s\S]*\.eq\('requires_print_kit', true\)/);
   assert.match(featureSource, /inactiveHolders/);
   assert.match(featureSource, /מדריכים פעילים/);
   assert.match(featureSource, /מדריכים לא פעילים שמחזיקים ערכה/);
