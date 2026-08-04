@@ -1,7 +1,7 @@
 import { hydrateNextYearPricingSelection } from './proposal-next-year-selection-hydration.js';
 
-const INSTALL_KEY = Symbol.for('taasiyeda.nextYearOptionPriceSync.v3');
-const NEXT_YEAR_GROUPS = new Set(['next_year_courses', 'next_year_workshops']);
+const INSTALL_KEY = Symbol.for('taasiyeda.nextYearOptionPriceSync.v5');
+const NEXT_YEAR_GROUPS = new Set(['next_year', 'next_year_courses', 'next_year_workshops']);
 
 function text(value) {
   return String(value == null ? '' : value).replace(/\s+/g, ' ').trim();
@@ -19,7 +19,20 @@ function formatPrice(value) {
   });
 }
 
+function isNextYearRow(row) {
+  if (!row) return false;
+  if (row.closest?.('[data-pa-next-year-unified]') || text(row.dataset?.paNextYearUnifiedRow) === 'yes') return true;
+  return NEXT_YEAR_GROUPS.has(rowGroup(row));
+}
+
 function rowGroup(row) {
+  if (row?.closest?.('[data-pa-next-year-unified]')) {
+    return text(
+      row?.dataset?.paRowGroup
+      || row?.querySelector?.('[name="proposal_group"]')?.value
+      || 'next_year'
+    );
+  }
   return text(
     row?.closest?.('[data-pa-items-group]')?.dataset?.paItemsGroup
     || row?.dataset?.paRowGroup
@@ -37,7 +50,7 @@ function setRowValue(row, name, value) {
 }
 
 export function syncSelectedNextYearOptionPrice(row) {
-  if (!row || !NEXT_YEAR_GROUPS.has(rowGroup(row))) return false;
+  if (!row || !isNextYearRow(row)) return false;
   const select = row.querySelector('[data-pa-pricing-select]');
   const option = select?.selectedOptions?.[0];
   const price = numberValue(row.querySelector('[data-pa-item-price]')?.value);
@@ -72,7 +85,7 @@ function refreshNextYearPreview(row) {
  * next-year price, then trigger one totals/live-preview refresh.
  */
 export function bridgeNextYearPricingSelection(row) {
-  if (!row || !NEXT_YEAR_GROUPS.has(rowGroup(row))) return null;
+  if (!row || !isNextYearRow(row)) return null;
   const select = row.querySelector('[data-pa-pricing-select]');
   const option = select?.selectedOptions?.[0];
   const originalValue = text(option?.value);
@@ -103,7 +116,7 @@ function install(scope = globalThis) {
   documentRef.addEventListener('change', (event) => {
     const select = event.target?.closest?.('[data-pa-pricing-select]');
     const row = select?.closest?.('[data-pa-item-row]');
-    if (!row || !NEXT_YEAR_GROUPS.has(rowGroup(row))) return;
+    if (!row || !isNextYearRow(row)) return;
 
     const restore = bridgeNextYearPricingSelection(row);
     queueMicrotask(() => {

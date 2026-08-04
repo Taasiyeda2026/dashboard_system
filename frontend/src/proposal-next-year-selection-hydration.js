@@ -2,8 +2,11 @@ import { api } from './api.js';
 import { augmentNextYearPricingRows } from './proposal-next-year-workshops.js';
 import { applyNextYearSpaceWorkshopPrice } from './proposal-next-year-space-workshop-pricing.js';
 
-const PATCH_KEY = Symbol.for('taasiyeda.proposalNextYearSelectionHydration.v3');
+const PATCH_KEY = Symbol.for('taasiyeda.proposalNextYearSelectionHydration.v5');
 const INTERNAL_GROUPS = new Set(['next_year_courses', 'next_year_workshops']);
+const NEXT_YEAR_TYPE_ALIASES = new Set([
+  'next_year', 'שנה הבאה', 'שנת הלימודים תשפ״ז', 'תוכניות תשפ״ז', 'תשפ״ז'
+]);
 const totalsTimers = new WeakMap();
 let cachedPricingRows = [];
 
@@ -59,12 +62,39 @@ function wrapPricingMethod(targetApi, name) {
   };
 }
 
+function isUnifiedNextYearHost(node) {
+  return Boolean(node?.closest?.('[data-pa-next-year-unified]') || node?.matches?.('[data-pa-next-year-unified]'));
+}
+
 function rowGroup(row) {
+  if (isUnifiedNextYearHost(row)) {
+    return text(
+      row?.dataset?.paRowGroup
+      || row?.querySelector?.('[name="proposal_group"]')?.value
+    );
+  }
   return text(
     row?.closest?.('[data-pa-items-group]')?.dataset?.paItemsGroup
     || row?.dataset?.paRowGroup
     || row?.querySelector?.('[name="proposal_group"]')?.value
   );
+}
+
+function isNextYearEditorRow(row) {
+  if (!row) return false;
+  const group = rowGroup(row);
+  if (INTERNAL_GROUPS.has(group)) return true;
+  if (isUnifiedNextYearHost(row) || text(row.dataset?.paNextYearUnifiedRow) === 'yes') return true;
+  const form = row.closest?.('[data-pa-form]');
+  const type = text(form?.querySelector?.('[name="activity_type_group"]')?.value);
+  return NEXT_YEAR_TYPE_ALIASES.has(type);
+}
+
+function resolveInternalGroup(entry = {}, fallback = 'next_year_courses') {
+  if (isWorkshopEntry(entry)) return 'next_year_workshops';
+  const group = text(entry.proposal_group || entry.group_key || fallback);
+  if (INTERNAL_GROUPS.has(group)) return group;
+  return 'next_year_courses';
 }
 
 function isWorkshopEntry(entry = {}) {
@@ -117,12 +147,14 @@ function pickedFromSelectedOption(select) {
   if (!selected) return null;
   const parts = selected.split('||');
   const [activityNo, activityName, itemType, proposalGroup, unitDuration, unitPriceRaw, sortOrder] = parts.map(text);
-  const label = text(select.selectedOptions?.[0]?.textContent);
+  const option = select.selectedOptions?.[0];
+  const label = text(option?.textContent);
   const labelPrice = numberOrNull(label.replace(/[^0-9.,-]/g, ''));
   const embeddedPrice = numberOrNull(unitPriceRaw);
   const unitPrice = embeddedPrice != null && embeddedPrice > 0 ? embeddedPrice : labelPrice;
   const name = activityName || text(label.split('—')[0]);
   if (!name || unitPrice == null || unitPrice <= 0) return null;
+  const isBundleParent = option?.dataset?.bundleParent === '1' || /הגדרה כוללת/.test(label);
   return {
     activity_no: activityNo,
     activity_name: name,
@@ -132,7 +164,9 @@ function pickedFromSelectedOption(select) {
     unit_price: unitPrice,
     hourly_price: unitPrice,
     sort_order: numberOrNull(sortOrder),
-    pricing_key: ''
+    pricing_key: '',
+    proposal_display_mode: isBundleParent ? 'bundle_parent' : 'single',
+    is_bundle_parent: isBundleParent
   };
 }
 
@@ -177,14 +211,18 @@ function calculateRow(row) {
 export function calculateNextYearTotals(form) {
   if (!form) return 0;
   let subtotal = 0;
-  form.querySelectorAll('[data-pa-items-group]').forEach((section) => {
-    let groupTotal = 0;
-    section.querySelectorAll('[data-pa-item-row]').forEach((row) => { groupTotal += calculateRow(row); });
-    subtotal += groupTotal;
-    const group = text(section.dataset.paItemsGroup);
-    const output = section.querySelector(`[data-pa-group-total="${group}"]`);
-    if (output) output.textContent = `₪ ${formatCurrency(groupTotal)}`;
-  });
+  if (form.querySelector('[data-pa-next-year-unified]')) {
+    form.querySelectorAll('[data-pa-item-row]').forEach((row) => { subtotal += calculateRow(row); });
+  } else {
+    form.querySelectorAll('[data-pa-items-group]').forEach((section) => {
+      let groupTotal = 0;
+      section.querySelectorAll('[data-pa-item-row]').forEach((row) => { groupTotal += calculateRow(row); });
+      subtotal += groupTotal;
+      const group = text(section.dataset.paItemsGroup);
+      const output = section.querySelector(`[data-pa-group-total="${group}"]`);
+      if (output) output.textContent = `₪ ${formatCurrency(groupTotal)}`;
+    });
+  }
   const discountType = text(form.querySelector('[data-pa-discount-type]')?.value) || 'amount';
   const discountValue = numberOrNull(form.querySelector('[data-pa-discount-value]')?.value) ?? 0;
   const discount = discountType === 'percent'
@@ -214,13 +252,18 @@ function scheduleTotals(form, delay = 0) {
 }
 
 export function hydrateNextYearPricingSelection(row, pricingRows = cachedPricingRows, { notify = true } = {}) {
+  if (!row || !isNextYearEditorRow(row)) return { changed: false, picked: null, total: 0 };
   const group = rowGroup(row);
-  if (!row || !INTERNAL_GROUPS.has(group)) return { changed: false, picked: null, total: 0 };
-  const picked = resolvePicked(row, rowsForGroup(pricingRows, group));
+  const unified = isUnifiedNextYearHost(row) || text(row.dataset?.paNextYearUnifiedRow) === 'yes';
+  const searchRows = unified
+    ? [...rowsForGroup(pricingRows, 'next_year_courses'), ...rowsForGroup(pricingRows, 'next_year_workshops')]
+    : rowsForGroup(pricingRows, INTERNAL_GROUPS.has(group) ? group : 'next_year_courses');
+  const picked = resolvePicked(row, searchRows);
   const form = row.closest('[data-pa-form]');
   if (!picked) return { changed: false, picked: null, total: calculateNextYearTotals(form) };
 
   const selectedValue = text(row.querySelector('[data-pa-pricing-select]')?.value);
+  const resolvedGroup = resolveInternalGroup(picked, INTERNAL_GROUPS.has(group) ? group : 'next_year_courses');
   let changed = false;
   changed = setValue(row, 'pricing_option_key', selectedValue) || changed;
   changed = setValue(row, 'activity_no', picked.activity_no) || changed;
@@ -234,7 +277,11 @@ export function hydrateNextYearPricingSelection(row, pricingRows = cachedPricing
   changed = setValue(row, 'unit_price', numberOrNull(picked.unit_price) ?? '') || changed;
   changed = setValue(row, 'hourly_price', picked.hourly_price ?? '') || changed;
   changed = setValue(row, 'description', picked.description_for_proposal || '') || changed;
-  changed = setValue(row, 'proposal_group', group) || changed;
+  changed = setValue(row, 'proposal_group', resolvedGroup) || changed;
+  if (row.dataset && row.dataset.paRowGroup !== resolvedGroup) {
+    row.dataset.paRowGroup = resolvedGroup;
+    changed = true;
+  }
   changed = setValue(row, 'item_display_mode', picked.proposal_display_mode || 'single') || changed;
   changed = setValue(row, 'item_source_pricing_key', picked.pricing_key || '') || changed;
   changed = setValue(row, 'bundle_pricing_key', picked.pricing_key || '') || changed;
@@ -252,7 +299,11 @@ export function hydrateNextYearPricingSelection(row, pricingRows = cachedPricing
 }
 
 function isNextYearForm(form) {
-  return Boolean(form?.querySelector?.('[data-pa-items-group]'));
+  if (!form) return false;
+  if (form.querySelector?.('[data-pa-next-year-unified]')) return true;
+  if (form.querySelector?.('[data-pa-items-group="next_year_courses"], [data-pa-items-group="next_year_workshops"], [data-pa-items-group="next_year"]')) return true;
+  const type = text(form.querySelector?.('[name="activity_type_group"]')?.value);
+  return NEXT_YEAR_TYPE_ALIASES.has(type);
 }
 
 function installRuntime(scope = globalThis) {
@@ -262,7 +313,7 @@ function installRuntime(scope = globalThis) {
   documentRef.addEventListener('change', (event) => {
     const select = event.target?.closest?.('[data-pa-pricing-select]');
     const row = select?.closest?.('[data-pa-item-row]');
-    if (!row || !INTERNAL_GROUPS.has(rowGroup(row))) return;
+    if (!row || !isNextYearEditorRow(row)) return;
     // The native form change path owns the final total and live-preview refresh.
     hydrateNextYearPricingSelection(row, cachedPricingRows, { notify: false });
   }, true);
