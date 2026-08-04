@@ -23,6 +23,7 @@ import {
 } from './course-scheduling-distance-build.js';
 import { instructionLanguageLabel } from './shared/instruction-language.js';
 import { DEFAULT_COURSE_SCHEDULING_PERIOD_KEY, filterMeetingsByCourseSchedulingPeriod, periodOptions, resolveCourseSchedulingPeriod } from './course-scheduling-periods.js';
+import { OPERATIONAL_DISTRICTS, normalizeOperationalDistrict } from './shared/district-normalization.js';
 
 const text = (value) => String(value ?? '').trim();
 const emp = (candidate) => text(candidate?.instructor?.emp_id);
@@ -134,11 +135,7 @@ function authorityOptions(courses = []) {
 }
 
 function districtValue(row = {}) {
-  return text(row.district || row.school_district || row.authority_district);
-}
-
-function hasReliableDistrictData(courses = []) {
-  return courses.some((course) => districtValue(course));
+  return normalizeOperationalDistrict(row.district || row.school_district || row.authority_district);
 }
 
 function filteredInterfaceCourses(courses = [], state = {}) {
@@ -156,10 +153,8 @@ function schedulingScopeHtml(allCourses = [], state = {}) {
   const periodKey = selectedPeriodKey(state);
   const period = resolveCourseSchedulingPeriod(periodKey);
   const periodButtons = periodOptions().map((option) => `<button type="button" class="course-scheduling-tab${option.key === periodKey ? ' is-active' : ''}" data-period-key="${escapeHtml(option.key)}">${escapeHtml(option.label)}</button>`).join('');
-  const reliableDistrict = hasReliableDistrictData(allCourses);
-  const district = text(state.courseSchedulingDistrict || '');
-  const districts = [...new Set(allCourses.map(districtValue).filter(Boolean))].sort((a, b) => a.localeCompare(b, 'he'));
-  const districtOptions = reliableDistrict ? `<label>מחוז<select class="course-scheduling-input" data-district-filter><option value="">כל המחוזות</option>${districts.map((item) => `<option value="${escapeHtml(item)}"${item === district ? ' selected' : ''}>${escapeHtml(item)}</option>`).join('')}</select></label>` : '<span class="course-scheduling-muted">לא נמצא נתון מחוז אמין; עובדים לפי רשות.</span>';
+  const district = normalizeOperationalDistrict(state.courseSchedulingDistrict || '');
+  const districtOptions = `<label>מחוז<select class="course-scheduling-input" data-district-filter><option value="">כל המחוזות</option>${OPERATIONAL_DISTRICTS.map((item) => `<option value="${escapeHtml(item)}"${item === district ? ' selected' : ''}>${escapeHtml(item)}</option>`).join('')}</select></label>`;
   const scopedForAuthority = allCourses.filter((course) => filterMeetingsByCourseSchedulingPeriod(activityMeetings(course), periodKey).length).filter((course) => !district || districtValue(course) === district);
   const selectedAuthority = text(state.courseSchedulingAuthority || '');
   const authorities = authorityOptions(scopedForAuthority);
@@ -758,7 +753,7 @@ function distanceDoneMessage(stats = {}, { done = false, stopped = false, errorM
 export const courseSchedulingScreen = {
   async load({ api }) {
     const [activities, contacts, scheduling, meetingState, schoolLocations] = await Promise.all([
-      api.activities({ activity_period: 'school_2027', activity_type: 'all', include_inactive: true }),
+      api.activities({ activity_period: 'school_2027', activity_type: 'all', include_inactive: true, select: 'row_id,district,authority_id,authority,school,school_id,activity_name,activity_type,item_type,activity_season,grade,class_group,sessions,start_time,end_time,emp_id,instructor_name,emp_id_2,instructor_name_2,start_date,end_date,status,date_1,date_2,date_3,date_4,date_5,date_6,date_7,date_8,date_9,date_10,date_11,date_12,date_13,date_14,date_15,date_16,date_17,date_18,date_19,date_20,date_21,date_22,date_23,date_24,date_25,date_26,date_27,date_28,date_29,date_30,date_31,date_32,date_33,date_34,date_35' }),
       api.instructorContacts(),
       loadInstructorSchedulingData(),
       loadCourseMeetingState(),

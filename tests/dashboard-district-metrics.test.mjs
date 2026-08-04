@@ -53,7 +53,7 @@ test('dashboard district cards display total active activities including summer/
   }, { state: state() });
 
   assert.match(html, /פעילויות פעילות/);
-  assert.match(html, /mstat\|%D7%9E%D7%97%D7%95%D7%96%20%D7%A6%D7%A4%D7%95%D7%9F\|activities/);
+  assert.match(html, /mstat\|%D7%A6%D7%A4%D7%95%D7%9F\|activities/);
   assert.match(html, /<span class="ds-manager-stat__value">2<\/span>/);
 });
 
@@ -99,4 +99,26 @@ test('dashboard summer KPI drill opens activities on July 2026 with summer filte
   assert.equal(appState.activitiesGapFilter, '');
   assert.deepEqual(appState.listFilters.activities, { q: '', appliedQ: '', visibleCount: 150 });
   assert.equal(rerenders, 1);
+});
+
+test('dashboard canonicalizes district aliases into north center and south only', () => {
+  const html = dashboardScreen.render({
+    month: '2026-04',
+    summary: { active_type_counts: { course: 4 }, active_instructors: [], ending_courses_current_month: 0, exceptions_count: 0, totalExceptionInstances: 0 },
+    kpi_cards: [],
+    totals: { total_activities: 4 },
+    by_activity_manager: [
+      { activity_manager: 'מחוז צפון', total_activities: 1 },
+      { activity_manager: 'הצפון', total_activities: 2 },
+      { activity_manager: 'ירושלים', total_activities: 3 },
+      { activity_manager: 'אזור יהודה והשומרון', total_activities: 4 },
+      { activity_manager: 'הדרום', total_activities: 5 },
+      { activity_manager: 'ללא מחוז', total_activities: 99 }
+    ]
+  }, { state: state() });
+
+  assert.match(html, /<p class="ds-manager-card__name">צפון<\/p>[\s\S]*<span class="ds-manager-stat__value">3<\/span>/);
+  assert.match(html, /<p class="ds-manager-card__name">מרכז<\/p>[\s\S]*<span class="ds-manager-stat__value">7<\/span>/);
+  assert.match(html, /<p class="ds-manager-card__name">דרום<\/p>[\s\S]*<span class="ds-manager-stat__value">5<\/span>/);
+  assert.doesNotMatch(html, /ללא מחוז/);
 });

@@ -368,3 +368,50 @@ test('cache versions on this branch are ahead of origin/main after sync', async 
   assert.ok(branchConfig.includes('HOTFIX_VERSION'));
   assert.ok(mainConfig.includes('HOTFIX_VERSION'));
 });
+
+test('district filter keeps only operational districts and no reliability warning', () => {
+  const html = courseSchedulingScreen.render({
+    activities: [
+      openCourse({ row_id: 'n1', authority: 'א', district: 'מחוז צפון' }),
+      openCourse({ row_id: 'c1', authority: 'ב', district: 'ירושלים' }),
+      openCourse({ row_id: 'x1', authority: 'ג', district: 'מחוז לא תקין' })
+    ],
+    instructors: [],
+    scheduling: {},
+    meetingState: { loaded: true, approvedDates: new Map(), cancelledDates: new Map(), error: '' }
+  }, { state: { user: { role: 'admin' } } });
+
+  assert.match(html, /data-district-filter/);
+  assert.match(html, /<option value="">כל המחוזות<\/option><option value="צפון">צפון<\/option><option value="מרכז">מרכז<\/option><option value="דרום">דרום<\/option>/);
+  assert.doesNotMatch(html, /לא נמצא נתון מחוז אמין/);
+  assert.doesNotMatch(html, /מחוז לא תקין/);
+});
+
+test('district selection filters authorities and courses by normalized district only', () => {
+  const html = courseSchedulingScreen.render({
+    activities: [
+      openCourse({ row_id: 'n1', authority: 'רשות צפון', district: 'מחוז צפון', activity_name: 'קורס צפון', date_1: '2026-09-02', start_date: '2026-09-02', start_time: '10:00' }),
+      openCourse({ row_id: 'c1', authority: 'רשות מרכז', district: 'ירושלים', activity_name: 'קורס מרכז', date_1: '2026-09-03', start_date: '2026-09-03', start_time: '10:00' }),
+      openCourse({ row_id: 'x1', authority: 'רשות חסרה', district: '', activity_name: 'קורס חסר', date_1: '2026-09-04', start_date: '2026-09-04', start_time: '10:00' })
+    ],
+    instructors: [],
+    scheduling: {},
+    meetingState: { loaded: true, approvedDates: new Map(), cancelledDates: new Map(), error: '' }
+  }, { state: { user: { role: 'admin' }, courseSchedulingDistrict: 'מרכז' } });
+
+  assert.match(html, /<option value="מרכז" selected>מרכז<\/option>/);
+  assert.match(html, /רשות מרכז/);
+  assert.match(html, /קורס מרכז/);
+  assert.doesNotMatch(html, /רשות צפון/);
+  assert.doesNotMatch(html, /קורס צפון/);
+  assert.doesNotMatch(html, /רשות חסרה/);
+  assert.doesNotMatch(html, /קורס חסר/);
+});
+
+test('course scheduling load requests district and authority_id projection', async () => {
+  const source = await readFile(new URL('../frontend/src/screens/course-scheduling.js', import.meta.url), 'utf8');
+  assert.match(source, /api\.activities\(\{[^}]*activity_period:\s*'school_2027'[^}]*select:\s*'[^']*\bdistrict\b[^']*'/s);
+  assert.match(source, /select:\s*'[^']*\bauthority_id\b[^']*'/s);
+  assert.match(source, /select:\s*'[^']*\bauthority\b[^']*'/s);
+  assert.match(source, /select:\s*'[^']*\bschool\b[^']*'/s);
+});
