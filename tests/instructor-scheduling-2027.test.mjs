@@ -52,6 +52,7 @@ test('requirements modal keeps activity summary and only three editable fields',
   assert.match(workflow, /scheduling-time-range/);
   assert.match(workflow, /מגדר המדריך/);
   assert.match(workflow, /שפת הדרכה/);
+  assert.match(workflow, /resolveInstructionLanguage/);
   assert.match(workflow, /שכבת גיל/);
   assert.match(workflow, /value="any"[^>]*>כולם</);
   assert.match(workflow, /value="he"[^>]*>עברית</);
