@@ -469,7 +469,7 @@ function calendarTabHtml({ interfaceCourses, selectedId, state }) {
       <div class="course-scheduling-empty course-scheduling-empty--compact course-scheduling-calendar-empty">
         <strong>אין שיבוצים בשבוע זה</strong>
         <p>שיבוצים שבוצעו במסך "קורסים לשיבוץ" יופיעו כאן.</p>
-        <button type="button" class="course-scheduling-btn course-scheduling-btn--primary course-scheduling-btn--inline" data-switch-tab="courses">מעבר לקורסים לשיבוץ</button>
+        <button type="button" class="course-scheduling-btn course-scheduling-btn--secondary course-scheduling-empty-action" data-switch-tab="courses">מעבר לקורסים לשיבוץ</button>
       </div>
     </div>`;
   }
@@ -592,7 +592,7 @@ export const courseSchedulingScreen = {
       : 'בחרו קורס, מצאו מדריך מתאים ושמרו כטיוטה או שבצו.';
 
     return dsScreenStack(`
-    <div class="course-scheduling-screen" dir="rtl" data-cs-ui="ux-polish-20260804-v3" data-cs-tab="${tab}">
+    <div class="course-scheduling-screen" dir="rtl" data-cs-ui="ux-polish-20260804-v4" data-cs-tab="${tab}">
       <header class="course-scheduling-header">
         <div class="course-scheduling-header-copy">
           <h1 class="course-scheduling-title">${title}</h1>
