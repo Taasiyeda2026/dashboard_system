@@ -22,6 +22,7 @@ import {
   translateSchedulingRouteError
 } from './course-scheduling-distance-build.js';
 import { instructionLanguageLabel } from './shared/instruction-language.js';
+import { DEFAULT_COURSE_SCHEDULING_PERIOD_KEY, filterMeetingsByCourseSchedulingPeriod, periodOptions, resolveCourseSchedulingPeriod } from './course-scheduling-periods.js';
 
 const text = (value) => String(value ?? '').trim();
 const emp = (candidate) => text(candidate?.instructor?.emp_id);
@@ -34,16 +35,16 @@ const idOf = (row) => text(row.row_id || row.RowID || row.id);
 const today = () => new Date().toISOString().slice(0, 10);
 export const PENDING_ACTIVITY_STORAGE_KEY = 'dashboard:pending-course-activity-id';
 export const SCHEDULING_SNAPSHOT_KEY = 'dashboard:course-scheduling-calculation-v2';
-export const SCHEDULING_SNAPSHOT_SCHEMA_VERSION = 2;
+export const SCHEDULING_SNAPSHOT_SCHEMA_VERSION = 3;
 const LEGACY_SCHEDULING_SNAPSHOT_KEYS = [
   'dashboard:course-scheduling-calculation-v1'
 ];
 
 const STATUS = {
   waiting: 'ממתין לבדיקת מדריכים',
-  ready: 'נמצאה הצעת שיבוץ',
-  missing: 'חסרים פרטים',
-  recruit: 'נדרש גיוס',
+  ready: 'נמצאה המלצה',
+  missing: 'חסר מידע',
+  recruit: 'לא נמצא מדריך מתאים',
   draft: 'שמור כטיוטה',
   assigned: 'שובץ',
   problem: 'נדרשת בדיקה'
@@ -119,6 +120,53 @@ function saveCalculationSnapshot(state, courses) {
   }
 }
 
+
+function selectedPeriodKey(state = {}) {
+  return state.courseSchedulingPeriodKey || DEFAULT_COURSE_SCHEDULING_PERIOD_KEY;
+}
+
+function withSelectedPeriod(course, state = {}) {
+  return { ...course, periodKey: selectedPeriodKey(state) };
+}
+
+function authorityOptions(courses = []) {
+  return [...new Set(courses.map((course) => text(course.authority)).filter(Boolean))].sort((a, b) => a.localeCompare(b, 'he'));
+}
+
+function districtValue(row = {}) {
+  return text(row.district || row.school_district || row.authority_district);
+}
+
+function hasReliableDistrictData(courses = []) {
+  return courses.some((course) => districtValue(course));
+}
+
+function filteredInterfaceCourses(courses = [], state = {}) {
+  const periodKey = selectedPeriodKey(state);
+  const district = text(state.courseSchedulingDistrict || '');
+  const authority = text(state.courseSchedulingAuthority || '');
+  return courses
+    .filter((course) => filterMeetingsByCourseSchedulingPeriod(activityMeetings(course), periodKey).length)
+    .filter((course) => !district || districtValue(course) === district)
+    .filter((course) => !authority || text(course.authority) === authority)
+    .map((course) => withSelectedPeriod(course, state));
+}
+
+function schedulingScopeHtml(allCourses = [], state = {}) {
+  const periodKey = selectedPeriodKey(state);
+  const period = resolveCourseSchedulingPeriod(periodKey);
+  const periodButtons = periodOptions().map((option) => `<button type="button" class="course-scheduling-tab${option.key === periodKey ? ' is-active' : ''}" data-period-key="${escapeHtml(option.key)}">${escapeHtml(option.label)}</button>`).join('');
+  const reliableDistrict = hasReliableDistrictData(allCourses);
+  const district = text(state.courseSchedulingDistrict || '');
+  const districts = [...new Set(allCourses.map(districtValue).filter(Boolean))].sort((a, b) => a.localeCompare(b, 'he'));
+  const districtOptions = reliableDistrict ? `<label>מחוז<select class="course-scheduling-input" data-district-filter><option value="">כל המחוזות</option>${districts.map((item) => `<option value="${escapeHtml(item)}"${item === district ? ' selected' : ''}>${escapeHtml(item)}</option>`).join('')}</select></label>` : '<span class="course-scheduling-muted">לא נמצא נתון מחוז אמין; עובדים לפי רשות.</span>';
+  const scopedForAuthority = allCourses.filter((course) => filterMeetingsByCourseSchedulingPeriod(activityMeetings(course), periodKey).length).filter((course) => !district || districtValue(course) === district);
+  const selectedAuthority = text(state.courseSchedulingAuthority || '');
+  const authorities = authorityOptions(scopedForAuthority);
+  const authoritySelect = `<label>רשות<select class="course-scheduling-input" data-authority-filter><option value="">כל הרשויות</option>${authorities.map((item) => `<option value="${escapeHtml(item)}"${item === selectedAuthority ? ' selected' : ''}>${escapeHtml(item)}</option>`).join('')}</select></label>`;
+  return `<section class="course-scheduling-scope"><div class="course-scheduling-tabs course-scheduling-tabs--inner">${periodButtons}</div><p>טווח: <bdi dir="ltr">${escapeHtml(period.start)}</bdi>–<bdi dir="ltr">${escapeHtml(period.end)}</bdi>. 30.01.2027 אינו משויך למחצית.</p><div class="course-scheduling-filter-row">${districtOptions}${authoritySelect}</div></section>`;
+}
+
 function activeTab(state) {
   return state.courseSchedulingTab === 'calendar' ? 'calendar' : 'courses';
 }
@@ -156,7 +204,7 @@ function daysUntil(dateStr) {
 }
 
 function courseDayTimeHtml(activity) {
-  const meetings = activityMeetings(activity);
+  const meetings = filterMeetingsByCourseSchedulingPeriod(activityMeetings(activity), activity?.periodKey || DEFAULT_COURSE_SCHEDULING_PERIOD_KEY);
   if (!meetings.length) {
     const time = formatTimeRangeShort(activity.start_time, activity.end_time);
     return time ? `<bdi dir="ltr">${escapeHtml(time)}</bdi>` : '—';
@@ -168,7 +216,7 @@ function courseDayTimeHtml(activity) {
 
 // Wrap only date/time/numeric ranges in bdi — never a full Hebrew sentence.
 export function compactMeetingsHtml(activity) {
-  const meetings = activityMeetings(activity);
+  const meetings = filterMeetingsByCourseSchedulingPeriod(activityMeetings(activity), activity?.periodKey || DEFAULT_COURSE_SCHEDULING_PERIOD_KEY);
   if (!meetings.length) return '—';
   const dates = meetings.map((meeting) => text(meeting.date)).sort();
   const weekdays = [...new Set(dates.map((date) => new Intl.DateTimeFormat('he-IL', { weekday: 'long' }).format(new Date(`${date}T12:00:00`))))];
@@ -265,7 +313,7 @@ function specialRequirementsHtml(course) {
 }
 
 function selectedCourseMetaHtml(course) {
-  const meetings = activityMeetings(course);
+  const meetings = filterMeetingsByCourseSchedulingPeriod(activityMeetings(course), course?.periodKey || DEFAULT_COURSE_SCHEDULING_PERIOD_KEY);
   return `<header class="course-scheduling-detail-header">
     <h2 class="course-scheduling-detail-title">${escapeHtml(course.activity_name || '—')}</h2>
     <p>${escapeHtml(course.school || '—')} · ${escapeHtml(course.authority || '—')}</p>
@@ -361,8 +409,7 @@ export function scoreBreakdownHtml(candidate) {
     breakdown.continuity,
     breakdown.workload,
     breakdown.distance,
-    breakdown.availability,
-    breakdown.experience
+    breakdown.seniority
   ].filter(Boolean);
   return `<div class="course-scheduling-score-breakdown">
     <h4>פירוט הציון · ${candidate.score ?? '—'}</h4>
@@ -424,7 +471,7 @@ export function instructorsResultsHtml(result, state = {}) {
   if (!result?.recommended && result?.status === 'נדרש גיוס') {
     return `<div class="course-scheduling-result-block">
       <h3>לא נמצא מדריך מתאים</h3>
-      <p>נבדקו מדריכים קיימים, אך אף אחד מהם אינו עומד בכל תנאי הקורס. ייתכן שנדרש גיוס.</p>
+      <p>${escapeHtml(result.treatmentReason || 'כל המדריכים הפעילים והמוכנים נבדקו וחישובי המסלולים הושלמו, אך אף מדריך אינו עומד בכל תנאי הסף.')}</p>
       <details class="course-scheduling-details"><summary>הצגת פרטים</summary>
         <p>שפת הדרכה: ${escapeHtml(instructionLanguageLabel(result.course))} · מגדר: ${escapeHtml(result.course.required_instructor_gender || 'ללא')}</p>
       </details>
@@ -743,7 +790,8 @@ export const courseSchedulingScreen = {
       return dsScreenStack(dsEmptyState('אין הרשאה לצפייה בשיבוץ קורסים.'));
     }
 
-    const interfaceCourses = (data.activities || []).filter(isCourseSchedulingInterfaceEligible);
+    const allInterfaceCourses = (data.activities || []).filter(isCourseSchedulingInterfaceEligible);
+    const interfaceCourses = filteredInterfaceCourses(allInterfaceCourses, state);
     restoreCalculationSnapshot(state, interfaceCourses);
     const results = state.courseSchedulingResults || [];
     const resultByCourseId = new Map(results.map((result) => [idOf(result.course), result]));
@@ -781,6 +829,7 @@ export const courseSchedulingScreen = {
         <button type="button" class="course-scheduling-tab${tab === 'calendar' ? ' is-active' : ''}" data-switch-tab="calendar">מערכת שבועית</button>
       </nav>
 
+      ${schedulingScopeHtml(allInterfaceCourses, state)}
       ${tab === 'courses' ? `
         <section class="course-scheduling-summary">${summaryCardsHtml(interfaceCourses, results)}</section>
         ${missingCoursesAlertHtml(readiness, state)}
@@ -803,7 +852,8 @@ export const courseSchedulingScreen = {
   bind({ root, data, state, rerender, clearScreenDataCache }) {
     const canEdit = ['admin', 'operation_manager'].includes(text(state?.user?.role));
     const resultByCourseId = new Map((state.courseSchedulingResults || []).map((result) => [idOf(result.course), result]));
-    const interfaceCourses = (data.activities || []).filter(isCourseSchedulingInterfaceEligible);
+    const allInterfaceCourses = (data.activities || []).filter(isCourseSchedulingInterfaceEligible);
+    const interfaceCourses = filteredInterfaceCourses(allInterfaceCourses, state);
     const courseById = new Map(interfaceCourses.map((course) => [idOf(course), course]));
 
     const openMissingCourse = (activityId) => {
@@ -837,6 +887,26 @@ export const courseSchedulingScreen = {
       };
       document.dispatchEvent(new CustomEvent('app:navigate', { detail: { route: 'activities' } }));
     };
+
+    root.querySelectorAll('[data-period-key]').forEach((button) => button.addEventListener('click', () => {
+      state.courseSchedulingPeriodKey = button.dataset.periodKey || DEFAULT_COURSE_SCHEDULING_PERIOD_KEY;
+      state.courseSchedulingSelectedId = '';
+      state.courseSchedulingResults = [];
+      rerender();
+    }));
+    root.querySelector('[data-district-filter]')?.addEventListener('change', (event) => {
+      state.courseSchedulingDistrict = event.target.value;
+      state.courseSchedulingAuthority = '';
+      state.courseSchedulingSelectedId = '';
+      state.courseSchedulingResults = [];
+      rerender();
+    });
+    root.querySelector('[data-authority-filter]')?.addEventListener('change', (event) => {
+      state.courseSchedulingAuthority = event.target.value;
+      state.courseSchedulingSelectedId = '';
+      state.courseSchedulingResults = [];
+      rerender();
+    });
 
     root.querySelectorAll('[data-switch-tab]').forEach((button) => {
       button.addEventListener('click', () => {
@@ -964,6 +1034,8 @@ export const courseSchedulingScreen = {
         const profiles = Object.fromEntries((scheduling.profiles || []).map((row) => [text(row.emp_id), row]));
         const input = {
           activities: enriched.activities,
+          periodKey: selectedPeriodKey(state),
+          authority: text(state.courseSchedulingAuthority || ''),
           instructors: data.instructors,
           profiles,
           rules: group(scheduling.rules || [], 'emp_id'),

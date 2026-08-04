@@ -33,11 +33,11 @@ const course019 = (extra = {}) => ({
   instruction_language: 'he',
   grade: '',
   required_instructor_gender: 'female',
-  start_date: '2027-09-05',
+  start_date: '2026-09-06',
   start_time: '10:00',
   end_time: '11:00',
   meetings: Array.from({ length: 8 }, (_, index) => {
-    const date = new Date('2027-09-05T12:00:00Z');
+    const date = new Date('2026-09-06T12:00:00Z');
     date.setUTCDate(date.getUTCDate() + index * 7);
     return { date: date.toISOString().slice(0, 10), start_time: '10:00', end_time: '11:00' };
   }),
@@ -201,7 +201,7 @@ test('availability and gender checks stay independent in labels', () => {
     instructor: femaleInstructor,
     profile: matchingProfile,
     rules: [{ weekday: 0, available: true, start_time: '12:00', end_time: '14:00' }],
-    activity: course019({ meetings: [{ date: '2027-09-05', start_time: '10:00', end_time: '11:00' }] }),
+    activity: course019({ meetings: [{ date: '2026-09-06', start_time: '10:00', end_time: '11:00' }] }),
     travel: { home: travelHome, transitions: {} }
   });
   assert.equal(matchingUnavailable.checks.gender.passed, true);
@@ -361,8 +361,9 @@ test('integration school_2027_019: matching Hebrew females are recommended witho
   assert.match(html, /מרחק מהבית: 6 ק״מ/);
   assert.match(html, /זמן נסיעה משוער: 14 דקות/);
   assert.match(html, /פירוט הציון/);
-  assert.match(html, /רציפות באותו בית ספר או רשות/);
-  assert.match(html, /עומס עבודה/);
-  assert.match(html, /ניסיון קודם בקורס/);
+  assert.match(html, /אין רציפות בבית הספר או ברשות|רציפות באותו בית ספר|רציפות באותה רשות/);
+  assert.match(html, /עומס וחלוקה שוויונית/);
+  assert.match(html, /ותק/);
+  assert.doesNotMatch(html, /ניסיון קודם בקורס/);
   assert.match(html, /תנאי סף ואינם מוסיפים נקודות/);
 });

@@ -2,6 +2,7 @@ import { evaluateInstructor, adjacentActivities } from './instructor-matching-en
 import { activityMeetings, isoWeekKey } from './instructor-scheduling-load.js';
 import { routeMatrixKey } from './course-scheduling-travel.js';
 import { isActivitySchedulingEligible, isSchedulingBlockingAssignment, isSchedulingDraftAssignment } from './shared/activity-scheduling-eligibility.js';
+import { DEFAULT_COURSE_SCHEDULING_PERIOD_KEY, isDateInCourseSchedulingPeriod } from './course-scheduling-periods.js';
 
 const text = (value) => String(value ?? '').trim();
 const minutes = (value) => {
@@ -13,19 +14,24 @@ const empOf = (row) => text(row?.emp_id);
 // Canonical resolved address only — school display names are not travel locations.
 const placeOf = (row = {}) => text(row.school_address);
 
-export function schedulingCourses(rows = []) {
-  return rows.filter(isActivitySchedulingEligible);
+export function schedulingCourses(rows = [], options = {}) {
+  const periodKey = options.periodKey || DEFAULT_COURSE_SCHEDULING_PERIOD_KEY;
+  const authority = text(options.authority);
+  return rows.filter(isActivitySchedulingEligible)
+    .filter((row) => !authority || text(row.authority) === authority)
+    .filter((row) => activityMeetings(row).some((meeting) => isDateInCourseSchedulingPeriod(meeting.date, periodKey)));
 }
 
 export function schedulingInstructors(rows = []) {
   return rows.filter((row) => text(row?.active).toLowerCase() === 'yes');
 }
 
-export function missingCourseInformation(activity) {
+export function missingCourseInformation(activity, options = {}) {
   const missing = [];
   if (!text(activity?.school)) missing.push('בית ספר');
   if (!text(activity?.school_address)) missing.push('כתובת בית הספר');
-  const meetings = activityMeetings(activity);
+  const periodKey = options.periodKey || DEFAULT_COURSE_SCHEDULING_PERIOD_KEY;
+  const meetings = activityMeetings(activity).filter((meeting) => isDateInCourseSchedulingPeriod(meeting.date, periodKey));
   if (!meetings.length) missing.push('תאריכי מפגשים');
   if (!meetings.length || meetings.some((meeting) => !text(meeting.start_time || activity?.start_time) || !text(meeting.end_time || activity?.end_time))) missing.push('שעות');
   // Missing instruction_language is not a blocker: resolveInstructionLanguage defaults to he.
@@ -45,7 +51,8 @@ export function availabilityHours(profile = {}, rules = []) {
   return availableRules.reduce((sum, rule) => sum + Math.max(0, minutes(rule.end_time) - minutes(rule.start_time)) / 60, 0);
 }
 
-export function instructorLoad(assignments = [], profile = {}, rules = []) {
+export function instructorLoad(assignments = [], profile = {}, rules = [], options = {}) {
+  const periodKey = options.periodKey || DEFAULT_COURSE_SCHEDULING_PERIOD_KEY;
   const weekHours = new Map();
   const weekDays = new Map();
   let hours = 0;
@@ -53,7 +60,7 @@ export function instructorLoad(assignments = [], profile = {}, rules = []) {
   const workDates = new Set();
 
   for (const activity of assignments) {
-    for (const meeting of activityMeetings(activity)) {
+    for (const meeting of activityMeetings(activity).filter((item) => isDateInCourseSchedulingPeriod(item.date, periodKey))) {
       const duration = meetingHours(meeting, activity);
       const week = isoWeekKey(meeting.date);
       hours += duration;
@@ -88,8 +95,11 @@ export function instructorLoad(assignments = [], profile = {}, rules = []) {
   };
 }
 
-function meetingAssignments(rows = []) {
-  return rows.flatMap((activity) => activityMeetings(activity).map((meeting) => ({
+function meetingAssignments(rows = [], options = {}) {
+  const periodKey = options.periodKey || DEFAULT_COURSE_SCHEDULING_PERIOD_KEY;
+  return rows.flatMap((activity) => activityMeetings(activity)
+    .filter((meeting) => isDateInCourseSchedulingPeriod(meeting.date, periodKey))
+    .map((meeting) => ({
     ...meeting,
     activity_id: idOf(activity),
     school: activity.school,
@@ -180,40 +190,90 @@ function fairnessVariance(loads = new Map()) {
   return values.reduce((sum, value) => sum + ((value - average) ** 2), 0) / values.length;
 }
 
+
+function courseWeekHours(load = {}, course = {}, periodKey = DEFAULT_COURSE_SCHEDULING_PERIOD_KEY) {
+  const weeks = new Set(activityMeetings(course).filter((meeting) => isDateInCourseSchedulingPeriod(meeting.date, periodKey)).map((meeting) => isoWeekKey(meeting.date)).filter(Boolean));
+  const weekHours = load.weekHours || {};
+  return [...weeks].reduce((sum, week) => sum + (Number(weekHours[week]) || 0), 0);
+}
+
+function linearLowLoadPoints(value, min, max, points) {
+  if (!Number.isFinite(value)) return 0;
+  if (min === max) return points;
+  return Math.max(0, Math.min(points, points * (max - value) / (max - min)));
+}
+
+function applyWorkloadPoints(candidates = [], course = {}, periodKey = DEFAULT_COURSE_SCHEDULING_PERIOD_KEY) {
+  const eligible = candidates.filter((candidate) => candidate.eligible);
+  const totals = eligible.map((candidate) => Number(candidate.load?.hours) || 0);
+  const weeks = eligible.map((candidate) => courseWeekHours(candidate.load, course, periodKey));
+  const minTotal = Math.min(...totals);
+  const maxTotal = Math.max(...totals);
+  const minWeek = Math.min(...weeks);
+  const maxWeek = Math.max(...weeks);
+  return candidates.map((candidate) => {
+    if (!candidate.eligible) return candidate;
+    const totalHours = Number(candidate.load?.hours) || 0;
+    const courseWeeksHours = courseWeekHours(candidate.load, course, periodKey);
+    const totalHoursPoints = linearLowLoadPoints(totalHours, minTotal, maxTotal, 12);
+    const courseWeeksPoints = linearLowLoadPoints(courseWeeksHours, minWeek, maxWeek, 8);
+    const workload = {
+      points: totalHoursPoints + courseWeeksPoints,
+      totalHoursPoints,
+      courseWeeksPoints,
+      totalHours,
+      courseWeeksHours
+    };
+    const baseWithoutWorkload = (candidate.scoreBreakdown?.distance?.points || 0)
+      + (candidate.scoreBreakdown?.continuity?.points || 0)
+      + (candidate.scoreBreakdown?.seniority?.points || 0);
+    return {
+      ...candidate,
+      score: Math.round(baseWithoutWorkload + workload.points),
+      workloadPoints: workload,
+      scoreBreakdown: candidate.scoreBreakdown ? { ...candidate.scoreBreakdown, workload: { ...candidate.scoreBreakdown.workload, ...workload, points: Math.round(workload.points) } } : candidate.scoreBreakdown
+    };
+  });
+}
+
 function evaluateCandidate({ course, instructor, assignedRows, draftRows, profiles, rules, exceptions, input, averageRatio }) {
   const empId = text(instructor.emp_id);
   const occupiedRows = [...(assignedRows[empId] || []), ...(draftRows || [])];
-  const load = instructorLoad([...occupiedRows, course], profiles[empId], rules[empId] || []);
-  const occupiedMeetings = meetingAssignments(occupiedRows);
-  const travel = dynamicTravel(course, instructor, occupiedMeetings, input);
+  const periodKey = input.periodKey || DEFAULT_COURSE_SCHEDULING_PERIOD_KEY;
+  const periodMeetings = activityMeetings(course).filter((meeting) => isDateInCourseSchedulingPeriod(meeting.date, periodKey));
+  const periodCourse = { ...course, meetings: periodMeetings };
+  const load = instructorLoad([...occupiedRows, periodCourse], profiles[empId], rules[empId] || [], { periodKey });
+  const occupiedMeetings = meetingAssignments(occupiedRows, { periodKey });
+  const travel = dynamicTravel(periodCourse, instructor, occupiedMeetings, input);
   const result = evaluateInstructor({
     instructor,
     profile: profiles[empId],
     rules: rules[empId] || [],
     exceptions: exceptions[empId] || [],
-    activity: course,
+    activity: periodCourse,
     existingActivities: occupiedMeetings,
     travel,
-    validateTravel: !input.preliminary,
+    validateTravel: !input.preliminary && (input.travel !== undefined || input.routeMatrix !== undefined),
     workloadRatio: load.maxRatio,
     averageWorkloadRatio: averageRatio,
     fixedCourseCount: load.courseCount,
     weeklyWorkDayCount: load.maxWeekDayCount
   });
   // Persist the exact travel object used for scoring so the UI never shows a different route.
-  return { ...result, instructor, load, travel };
+  return { ...result, instructor, load, travel, periodCourse };
 }
 
 function candidateMap({ courses, instructors, profiles = {}, rules = {}, exceptions = {}, assignedRows, input }) {
+  const periodKey = input.periodKey || DEFAULT_COURSE_SCHEDULING_PERIOD_KEY;
   const baselineLoads = new Map(instructors.map((instructor) => {
     const empId = text(instructor.emp_id);
-    return [empId, instructorLoad(assignedRows[empId] || [], profiles[empId], rules[empId] || []).maxRatio];
+    return [empId, instructorLoad(assignedRows[empId] || [], profiles[empId], rules[empId] || [], { periodKey }).hours];
   }));
   const averageRatio = averageFinite([...baselineLoads.values()]);
   const output = new Map();
 
   for (const course of courses) {
-    output.set(idOf(course), instructors.map((instructor) => evaluateCandidate({
+    const rawCandidates = instructors.map((instructor) => evaluateCandidate({
       course,
       instructor,
       assignedRows,
@@ -223,9 +283,24 @@ function candidateMap({ courses, instructors, profiles = {}, rules = {}, excepti
       exceptions,
       input,
       averageRatio
-    })));
+    }));
+    output.set(idOf(course), applyWorkloadPoints(rawCandidates, course, periodKey));
   }
   return { output, baselineLoads, averageRatio };
+}
+
+
+function primaryRejectionReason(checked = []) {
+  const reasons = checked.flatMap((candidate) => [...(candidate.failures || []), ...(candidate.missingProfileData || [])]);
+  if (!reasons.length) return 'כל המדריכים הפעילים והמוכנים נבדקו ולא נמצא מדריך שעובר את כל תנאי הסף.';
+  const joined = reasons.join(' ');
+  if (/שפה|דובר/.test(joined)) return 'אין מדריך המתאים לשפה.';
+  if (/מגדר|מדריכה|מדריך/.test(joined)) return 'אין מדריך המתאים לדרישת המגדר.';
+  if (/זמינות|זמין|פנוי|פנויה/.test(joined)) return 'אין מדריך זמין בכל המפגשים.';
+  if (/חפיפה/.test(joined)) return 'קיימת חפיפה אצל כל המדריכים.';
+  if (/מרחק|מסלול|40/.test(joined)) return 'אין מדריך בטווח המרחק או עם מסלול אמין.';
+  if (/מעבר/.test(joined)) return 'אין זמן מעבר אפשרי.';
+  return reasons[0];
 }
 
 function draftRowsForInstructor(state, empId, ordered, excludeCourseId = '') {
@@ -237,13 +312,14 @@ function draftRowsForInstructor(state, empId, ordered, excludeCourseId = '') {
 
 export function calculateCourseSchedule(input = {}) {
   const activities = input.activities || [];
-  const courses = schedulingCourses(activities);
+  const periodKey = input.periodKey || DEFAULT_COURSE_SCHEDULING_PERIOD_KEY;
+  const courses = schedulingCourses(activities, { periodKey, authority: input.authority });
   const instructors = schedulingInstructors(input.instructors || []);
   const assignedRows = assignedRowsByInstructor(activities, input.assignments || {});
   const profiles = input.profiles || {};
   const rules = input.rules || {};
   const exceptions = input.exceptions || {};
-  const incomplete = new Map(courses.map((course) => [idOf(course), missingCourseInformation(course)]));
+  const incomplete = new Map(courses.map((course) => [idOf(course), missingCourseInformation(course, { periodKey })]));
   const ready = courses.filter((course) => !incomplete.get(idOf(course)).length);
   const { output: maps, baselineLoads, averageRatio } = candidateMap({
     courses: ready,
@@ -271,7 +347,7 @@ export function calculateCourseSchedule(input = {}) {
       for (const candidate of candidates) {
         const empId = text(candidate.instructor.emp_id);
         const draftRows = draftRowsForInstructor(state, empId, ordered);
-        const evaluated = evaluateCandidate({
+        const evaluated = applyWorkloadPoints([evaluateCandidate({
           course,
           instructor: candidate.instructor,
           assignedRows,
@@ -281,7 +357,7 @@ export function calculateCourseSchedule(input = {}) {
           exceptions,
           input,
           averageRatio
-        });
+        })], course, periodKey)[0];
         if (!evaluated.eligible) continue;
 
         const draft = new Map(state.draft);
@@ -304,7 +380,7 @@ export function calculateCourseSchedule(input = {}) {
   const bestState = states[0] || { draft: new Map() };
   const refreshCandidate = (course, instructor) => {
     const empId = text(instructor.emp_id);
-    return evaluateCandidate({
+    return applyWorkloadPoints([evaluateCandidate({
       course,
       instructor,
       assignedRows,
@@ -314,7 +390,7 @@ export function calculateCourseSchedule(input = {}) {
       exceptions,
       input,
       averageRatio
-    });
+    })], course, periodKey)[0];
   };
 
   return courses.map((course) => {
@@ -344,7 +420,7 @@ export function calculateCourseSchedule(input = {}) {
       incompleteProfiles,
       treatmentReason: !recommended && incompleteProfiles.length
         ? 'לא ניתן להשלים את בדיקת השיבוץ משום שחסרים נתונים בפרופילי מדריכים.'
-        : ''
+        : !recommended ? primaryRejectionReason(checked) : ''
     };
   });
 }

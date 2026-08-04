@@ -93,7 +93,8 @@ export function evaluateInstructor({
   workloadRatio = null,
   averageWorkloadRatio = null,
   fixedCourseCount = null,
-  weeklyWorkDayCount = null
+  weeklyWorkDayCount = null,
+  workloadPoints = null
 }) {
   const profile = normalizeSchedulingProfile(rawProfile);
   const failures = [];
@@ -285,93 +286,60 @@ export function evaluateInstructor({
     travel: travelCheck
   };
 
-  // 100-point rubric (spec section 15): school continuity <=30, authority continuity
-  // <=20, load/fairness <=25, distance/travel <=15, daily continuity <=5, professional
-  // experience <=5. Language/gender/blocks are gating conditions above, never points.
+  // 100-point rubric: distance/travel 40, continuity 30, load/fairness 20,
+  // seniority 10. Availability, language and gender are gating checks only.
   let score = failures.length || missingProfileData.length ? null : 0;
   let scoreBreakdown = null;
   if (score !== null) {
     if (language) scoreReasons.push(`מתאים לשפה ${LANGUAGE_LABELS[language]}`);
     scoreReasons.push(femaleInstructor ? 'פנויה בכל המפגשים' : 'פנוי בכל המפגשים');
 
-    if (sameSchool) scoreReasons.push(`${sameSchool} חיבורים באותו בית ספר`);
-    if (sameAuthority) scoreReasons.push(`${sameAuthority} חיבורים באותה רשות`);
-    // A same-day adjacency already earned points above; only add the smaller "same
-    // school/authority on another day" bonus when no adjacency was found, so the same
-    // relationship is never scored twice.
-    const hasOtherDaySchoolMatch = !schoolContinuityPoints && existingActivities.some((other) => same(other.school, activity.school));
-    const hasOtherDayAuthorityMatch = !schoolContinuityPoints && !authorityContinuityPoints && existingActivities.some((other) => same(other.authority, activity.authority));
-    const schoolPoints = Math.min(30, schoolContinuityPoints + (hasOtherDaySchoolMatch ? 4 : 0));
-    const authorityPoints = Math.min(20, authorityContinuityPoints + (hasOtherDayAuthorityMatch ? 3 : 0));
+    let continuityPoints = 0;
+    let continuityLabel = 'אין רציפות בבית הספר או ברשות';
+    const hasSchoolContinuity = sameSchool || existingActivities.some((other) => same(other.school, activity.school));
+    const hasAuthorityContinuity = !hasSchoolContinuity && (sameAuthority || existingActivities.some((other) => same(other.authority, activity.authority)));
+    if (hasSchoolContinuity) {
+      continuityPoints = 30;
+      continuityLabel = 'רציפות באותו בית ספר';
+      scoreReasons.push('רציפות באותו בית ספר במחצית הנבחרת');
+    } else if (hasAuthorityContinuity) {
+      continuityPoints = 20;
+      continuityLabel = 'רציפות באותה רשות';
+      scoreReasons.push('רציפות באותה רשות במחצית הנבחרת');
+    }
 
-    let distancePoints;
-    if (travel?.home?.distance_km != null) {
-      scoreReasons.push(`${Math.round(travel.home.distance_km)} ק״מ מהבית, ${Math.round(travel.home.duration_minutes)} דקות נסיעה`);
-      distancePoints = Math.max(0, 15 - Math.max(0, travel.home.distance_km - 5) * 0.3);
-      if (travel.home.distance_km > 40) warnings.push('מרחק הבית עולה על 40 ק״מ');
+    let distancePoints = 0;
+    if (travel?.home?.distance_km != null && Number.isFinite(Number(travel.home.distance_km))) {
+      const km = Number(travel.home.distance_km);
+      scoreReasons.push(`${Math.round(km)} ק״מ מהבית, ${Math.round(Number(travel.home.duration_minutes) || 0)} דקות נסיעה`);
+      if (km > 40 && !sameSchool && !sameAuthority) failures.push('הפעילות הראשונה ביום רחוקה יותר מ-40 ק״מ מהבית');
+      distancePoints = Math.max(0, 40 - km);
     } else {
-      distancePoints = 0;
       scoreReasons.push('המרחק טרם חושב');
     }
-    if (waitMinutes) {
-      distancePoints = Math.max(0, distancePoints - waitMinutes / 60);
-      scoreReasons.push(`${waitMinutes} דקות המתנה מצטברות`);
-    }
-    if (separateTrips) {
-      distancePoints = Math.max(0, distancePoints - separateTrips * 2);
-      scoreReasons.push(`${separateTrips} נסיעות נפרדות`);
-    }
-    distancePoints = Math.min(15, distancePoints);
 
-    const dailyContinuityPoints = Math.max(0, Math.min(5, 5 - Math.floor(waitMinutes / 90)));
+    const workloadBreakdown = workloadPoints || { points: 20, totalHoursPoints: 12, courseWeeksPoints: 8, label: 'עומס וחלוקה שוויונית' };
+    const seniorityYears = Math.max(0, Math.floor(Number(profile.seniority_years ?? profile.years_of_experience ?? instructor.seniority_years ?? 0) || 0));
+    const seniorityPoints = Math.min(10, seniorityYears);
+    if (seniorityPoints) scoreReasons.push(`${seniorityPoints} נקודות ותק`);
 
-    let loadPoints = 25;
-    const ratioProvided = workloadRatio !== null && workloadRatio !== undefined && workloadRatio !== '';
-    const ratio = ratioProvided ? Number(workloadRatio) : Number.NaN;
-    if (ratioProvided && Number.isFinite(ratio)) {
-      loadPoints = 25 * Math.max(0, 1 - Math.min(1, ratio));
-      scoreReasons.push(`עומס שבועי צפוי: ${Math.round(ratio * 100)}% מהזמינות`);
-      if (ratio > 1) { loadPoints = 0; warnings.push('העומס השבועי חורג מהיקף הזמינות'); }
-      else if (averageWorkloadRatio !== null && averageWorkloadRatio !== undefined && Number.isFinite(Number(averageWorkloadRatio)) && ratio > Number(averageWorkloadRatio) + 0.2) warnings.push('העומס השבועי גבוה משמעותית מהממוצע');
-    } else if (weeklyLoad || averageWeeklyLoad) {
-      loadPoints = Math.max(0, 25 - weeklyLoad * 3.5);
-      scoreReasons.push(`עומס שבועי: ${weeklyLoad} מפגשים`);
-      if (weeklyLoad > averageWeeklyLoad + 2) warnings.push('עומס שבועי גבוה מהממוצע');
+    if (failures.length || missingProfileData.length) {
+      score = null;
+      scoreBreakdown = null;
+    } else {
+      const roundedDistance = Math.round(Math.max(0, Math.min(40, distancePoints)));
+      const roundedContinuity = Math.round(continuityPoints);
+      const roundedWorkload = Math.round(Math.max(0, Math.min(20, Number(workloadBreakdown.points) || 0)));
+      const roundedSeniority = Math.round(seniorityPoints);
+      score = roundedDistance + roundedContinuity + roundedWorkload + roundedSeniority;
+      scoreBreakdown = {
+        distance: { points: roundedDistance, label: 'מרחק ונסיעה', distance_km: travel?.home?.distance_km ?? null, duration_minutes: travel?.home?.duration_minutes ?? null },
+        continuity: { points: roundedContinuity, label: continuityLabel },
+        workload: { points: roundedWorkload, label: 'עומס וחלוקה שוויונית', totalHoursPoints: workloadBreakdown.totalHoursPoints, courseWeeksPoints: workloadBreakdown.courseWeeksPoints, totalHours: workloadBreakdown.totalHours, courseWeeksHours: workloadBreakdown.courseWeeksHours },
+        seniority: { points: roundedSeniority, label: 'ותק' },
+        gateNote: 'זמינות, שפה ומגדר הם תנאי סף ואינם מוסיפים נקודות.'
+      };
     }
-    loadPoints = Math.max(0, Math.min(25, loadPoints));
-
-    let experiencePoints = 0;
-    const hasPriorCourseExperience = !!String(activity.activity_name || '').trim()
-      && existingActivities.some((other) => same(other.activity_name, activity.activity_name));
-    if (hasPriorCourseExperience) {
-      experiencePoints = 3;
-      scoreReasons.push('ניסיון קודם בקורס');
-    }
-
-    const roundedSchool = Math.round(schoolPoints);
-    const roundedAuthority = Math.round(authorityPoints);
-    const roundedLoad = Math.round(loadPoints);
-    const roundedDistance = Math.round(distancePoints);
-    score = roundedSchool + roundedAuthority + roundedLoad + roundedDistance + dailyContinuityPoints + experiencePoints;
-    score = Math.max(0, Math.min(100, score));
-    scoreBreakdown = {
-      continuity: {
-        points: roundedSchool + roundedAuthority,
-        label: 'רציפות באותו בית ספר או רשות',
-        schoolPoints: roundedSchool,
-        authorityPoints: roundedAuthority
-      },
-      workload: { points: roundedLoad, label: 'עומס עבודה' },
-      distance: {
-        points: roundedDistance,
-        label: 'מרחק',
-        distance_km: travel?.home?.distance_km ?? null,
-        duration_minutes: travel?.home?.duration_minutes ?? null
-      },
-      availability: { points: dailyContinuityPoints, label: 'זמינות' },
-      experience: { points: experiencePoints, label: 'ניסיון קודם בקורס' },
-      gateNote: 'מגדר ושפה הם תנאי סף ואינם מוסיפים נקודות.'
-    };
   }
 
   return {
