@@ -2010,6 +2010,7 @@ function workshopStockEditDrawerHtml(items = [], searchQuery = '') {
 
 function workshopsTabHtml(activitiesRowsForRequiredInventory, state, stockMap, catalogRows = [], workshopStockDistributions = [], listsData = null) {
   const ops = ensureOpsState(state);
+  const isSchool2027 = ops.period === ACTIVITY_SEASON_SCHOOL_2027;
   const allMetrics = sortByConfig(workshopMetricsRows(activitiesRowsForRequiredInventory, stockMap, catalogRows, workshopStockDistributions, { from: WORKSHOPS_SUMMER_FROM, to: WORKSHOPS_SUMMER_TO }), state, TAB_WORKSHOPS, {
     workshopNo: (row) => row.workshopNo || row.workshopName,
     workshopName: (row) => row.workshopName,
@@ -2022,7 +2023,7 @@ function workshopsTabHtml(activitiesRowsForRequiredInventory, state, stockMap, c
     ? dsTableWrap(`<table class="ds-table ds-table--compact ds-ops-mgmt-data-table ds-ops-workshops-table"><colgroup><col class="ds-ops-workshop-col--no"><col class="ds-ops-workshop-col--name"><col class="ds-ops-workshop-col--metric"><col class="ds-ops-workshop-col--metric"><col class="ds-ops-workshop-col--metric"><col class="ds-ops-workshop-col--metric"><col class="ds-ops-workshop-col--status"></colgroup><thead><tr>
         ${sortableTh(state, TAB_WORKSHOPS, 'workshopNo', 'מס׳ סדנה', 'ds-ops-workshop-col--no')}
         ${sortableTh(state, TAB_WORKSHOPS, 'workshopName', 'שם הסדנה', 'ds-ops-workshop-col--name')}
-        <th class="ds-ops-workshop-col--metric">כמות קיימת</th>
+        <th class="ds-ops-workshop-col--metric">${isSchool2027 ? 'מלאי פתיחה' : 'כמות קיימת'}</th>
         ${sortableTh(state, TAB_WORKSHOPS, 'usedQuantity', 'ניצול בפועל', 'ds-ops-workshop-col--metric')}
         ${sortableTh(state, TAB_WORKSHOPS, 'estimatedQuantity', 'צפי נדרש', 'ds-ops-workshop-col--metric')}
         <th class="ds-ops-workshop-col--metric">יתרה צפויה</th>
@@ -2032,7 +2033,7 @@ function workshopsTabHtml(activitiesRowsForRequiredInventory, state, stockMap, c
         const mainRow = `<tr class="${isExpanded ? 'ds-ops-row--expanded' : ''}" data-ops-workshop-toggle="${escapeHtml(row.stockGroupKey || '')}" data-ops-stock-group="${escapeHtml(row.stockGroupKey || '')}" tabindex="0" role="button" aria-expanded="${isExpanded ? 'true' : 'false'}">
           <td class="ds-ops-workshop-col--no">${escapeHtml(row.workshopNoDisplay || row.workshopNo || row.stockGroupKey || '—')}</td>
           <td class="ds-ops-workshop-col--name">${escapeHtml(row.workshopName)}${row.activitiesWithoutParticipants ? ` <span class="ds-ops-estimate-mark" title="חסר מספר משתתפים ב-${row.activitiesWithoutParticipants} פעילויות; הן חושבו כ-0 במלאי נדרש">!</span>` : ''}</td>
-          <td class="ds-ops-workshop-col--metric">${row.stockQuantity === null ? '<span class="ds-ops-mgmt-cell-muted">—</span>' : formatSignedNumberForRtl(row.stockQuantity)}</td>
+          <td class="ds-ops-workshop-col--metric">${isSchool2027 ? formatGapCell(row.expectedBalance, true) : (row.stockQuantity === null ? '<span class="ds-ops-mgmt-cell-muted">—</span>' : formatSignedNumberForRtl(row.stockQuantity))}</td>
           <td class="ds-ops-workshop-col--metric">${formatSignedNumberForRtl(row.usedQuantity)}</td>
           <td class="ds-ops-workshop-col--metric">${formatSignedNumberForRtl(row.requiredQuantity)}</td>
           <td class="ds-ops-workshop-col--metric">${formatGapCell(row.expectedBalance, true)}</td>
@@ -2664,7 +2665,10 @@ function renderTab(rows, state, data, allPreparedRows = []) {
       // eslint-disable-next-line no-console
       console.warn('[ציוד ומלאי] קטלוג ריק. categories:', Array.isArray(adminListsData?.categories) ? adminListsData.categories.map((c) => c.category) : 'none', 'error:', adminListsData?.error || adminListsData?._loadError || 'none');
     }
-    const activitiesRowsForRequiredInventory = allPreparedRows.filter((row) =>
+    const workshopInventorySourceRows = ops.period === ACTIVITY_SEASON_SCHOOL_2027
+      ? prepareRows(Array.isArray(data?.workshopInventorySourceRows) ? data.workshopInventorySourceRows : [])
+      : allPreparedRows;
+    const activitiesRowsForRequiredInventory = workshopInventorySourceRows.filter((row) =>
       isOpenOrClosedActivity(row) &&
       !isTamirActivity(row) &&
       activityMatchesAnyOfficialWorkshop(row, catalogRows) &&
@@ -2752,17 +2756,26 @@ export const operationsManagementScreen = {
     const tabKey = operationsTabDataKey(_opsNeedsEntryReset ? TAB_INSTRUCTORS : ops.tab);
     const dateFrom = String(ops.dateFrom || '').trim();
     const dateTo = String(ops.dateTo || '').trim();
-    const [activities, tabData] = await Promise.all([
+    const needs2027WorkshopOpeningStock = ops.period === ACTIVITY_SEASON_SCHOOL_2027 && tabKey === TAB_WORKSHOPS;
+    const [activities, tabData, workshopInventorySource] = await Promise.all([
       api.allActivities({
         activity_period: state?.activityPeriodTab,
         startDate: dateFrom,
         endDate: dateTo
       }),
-      loadOperationsTabData(api, tabKey)
+      loadOperationsTabData(api, tabKey),
+      needs2027WorkshopOpeningStock
+        ? api.allActivities({
+            activity_period: ACTIVITY_SEASON_REGULAR,
+            startDate: WORKSHOPS_SUMMER_FROM,
+            endDate: WORKSHOPS_SUMMER_TO
+          }).catch(() => ({ rows: [] }))
+        : Promise.resolve({ rows: [] })
     ]);
     return {
       ...activities,
       ...tabData,
+      workshopInventorySourceRows: workshopInventorySource?.rows || [],
       _loadedOperationsTabs: [tabKey],
       _operationsTabLoadPromises: new Map()
     };
@@ -2783,7 +2796,7 @@ export const operationsManagementScreen = {
       ${isCompletionApprovalTab ? '' : topFiltersHtml(filterRows, state)}
       ${tabsHtml(ops.tab)}
       <div class="ds-ops-mgmt-content">${renderTab(activeRows, state, data, prepared)}</div>
-      ${isCompletionApprovalTab ? '' : `<p class="ds-muted ds-ops-mgmt-count no-print" dir="rtl">מציג ${filteredRows.length} פעילויות מתוך ${allRows.length}</p>`}
+      ${isCompletionApprovalTab || ops.period === ACTIVITY_SEASON_SCHOOL_2027 ? '' : `<p class="ds-muted ds-ops-mgmt-count no-print" dir="rtl">מציג ${filteredRows.length} פעילויות מתוך ${allRows.length}</p>`}
     </div>`;
   },
   bind({ root, data = {}, api, state, rerender, clearScreenDataCache, ui }) {
