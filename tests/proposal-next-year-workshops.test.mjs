@@ -86,7 +86,7 @@ test('pricing augmentation is idempotent', () => {
   assert.equal(new Set(identities).size, identities.length);
 });
 
-test('mixed next-year document keeps workshops in one unified activities table', () => {
+test('mixed next-year document splits workshops into a dedicated table', () => {
   augmentNextYearPricingRows(basePricing);
   const dom = new JSDOM('<!doctype html><body></body>');
   const html = `<section class="proposal-document"><table class="pa-item-details-table pa-activities-table pa-next-year-course-table">
@@ -99,15 +99,18 @@ test('mixed next-year document keeps workshops in one unified activities table',
   </table></section>`;
 
   const normalized = normalizeNextYearWorkshopHtml(html, dom.window.document);
-  assert.match(normalized, /pa-next-year-activities-table|pa-next-year-course-table/);
-  assert.match(normalized, /פעילויות ומחירים/);
-  assert.doesNotMatch(normalized, /pa-next-year-workshop-table/);
-  assert.doesNotMatch(normalized, /סה״כ קורסים|סה״כ סדנאות/);
+  assert.match(normalized, /pa-next-year-workshop-table/);
+  assert.match(normalized, /קורסים ותוכניות/);
+  assert.match(normalized, /סדנאות/);
+  assert.match(normalized, /משך פעילות/);
+  assert.match(normalized, /45 דקות/);
+  assert.match(normalized, /סה״כ קורסים/);
+  assert.match(normalized, /סה״כ סדנאות/);
   assert.match(normalized, /10,300/);
   assert.equal((normalized.match(/סדנאות STEM/g) || []).length, 1);
 });
 
-test('next-year editor and preview labels use the unified activities title', () => {
+test('next-year editor and preview labels distinguish the two groups and align legacy tables', () => {
   const dom = new JSDOM('<!doctype html><body></body>');
   const html = `<div>
     <div data-pa-items-group="next_year_courses"><div class="ds-pa-items-header"><span class="ds-pa-items-section-label">תשפ״ז</span></div></div>
@@ -120,17 +123,18 @@ test('next-year editor and preview labels use the unified activities title', () 
   </div>`;
   const normalized = normalizeNextYearWorkshopHtml(html, dom.window.document);
   const parsed = new JSDOM(normalized).window.document;
-  assert.equal(parsed.querySelector('[data-pa-items-group="next_year_courses"] .ds-pa-items-section-label').textContent, 'פעילויות ומחירים');
-  assert.equal(parsed.querySelector('[data-pa-items-group="next_year_workshops"] .ds-pa-items-section-label').textContent, 'פעילויות ומחירים');
+  // The proposal type is always תשפ״ז; the two internal areas carry their own titles.
+  assert.equal(parsed.querySelector('[data-pa-items-group="next_year_courses"] .ds-pa-items-section-label').textContent, 'קורסים ותוכניות');
+  assert.equal(parsed.querySelector('[data-pa-items-group="next_year_workshops"] .ds-pa-items-section-label').textContent, 'סדנאות');
   const headings = Array.from(parsed.querySelectorAll('.proposal-document .pa-section > .pa-section-heading')).map((element) => element.textContent);
-  assert.deepEqual(headings, ['פעילויות ומחירים', 'פעילויות ומחירים']);
-  const table = parsed.querySelector('.pa-next-year-course-table, .pa-next-year-activities-table');
+  assert.deepEqual(headings, ['קורסים ותוכניות', 'סדנאות']);
+  const table = parsed.querySelector('.pa-next-year-course-table');
   assert.equal(table.style.width, '85%');
   assert.equal(table.style.marginInline, 'auto');
   assert.equal(table.style.tableLayout, 'fixed');
 });
 
-test('workshop-only next-year document stays on one unified activities table', () => {
+test('workshop-only next-year document removes the empty course table', () => {
   augmentNextYearPricingRows(basePricing);
   const dom = new JSDOM('<!doctype html><body></body>');
   const html = `<section class="proposal-document"><table class="pa-next-year-course-table">
@@ -139,8 +143,8 @@ test('workshop-only next-year document stays on one unified activities table', (
     <tfoot><tr><td colspan="6">סה״כ לתשלום</td><td>₪ 500</td></tr></tfoot>
   </table></section>`;
   const normalized = normalizeNextYearWorkshopHtml(html, dom.window.document);
-  assert.match(normalized, /pa-next-year-activities-table|pa-next-year-course-table/);
-  assert.doesNotMatch(normalized, /pa-next-year-workshop-table/);
+  assert.match(normalized, /pa-next-year-workshop-table/);
+  assert.doesNotMatch(normalized, /pa-next-year-course-table/);
   assert.match(normalized, /סה״כ לתשלום/);
 });
 
@@ -175,8 +179,7 @@ test('installer augments loaders and normalizes saved snapshots', async () => {
     <tr><td>סדנאות STEM</td><td></td><td></td><td>1</td><td></td><td>₪ 650</td><td>₪ 650</td></tr>
   </tbody><tfoot><tr><td colspan="6">סה״כ</td><td>₪ 650</td></tr></tfoot></table></section>`;
   await fakeApi.uploadProposalFinalPdf('proposal-1', { documentHtmlSnapshot: source });
-  assert.match(saved[0].payload.documentHtmlSnapshot, /pa-next-year-activities-table|pa-next-year-course-table/);
-  assert.doesNotMatch(saved[0].payload.documentHtmlSnapshot, /pa-next-year-workshop-table/);
+  assert.match(saved[0].payload.documentHtmlSnapshot, /pa-next-year-workshop-table/);
 });
 
 test('normalization leaves internal editor select options untouched', () => {
@@ -186,7 +189,7 @@ test('normalization leaves internal editor select options untouched', () => {
   assert.match(normalized, /value="next_year_workshops"/);
 });
 
-test('real next-year preview renders workshop-only, course-only and mixed saved items in one table', () => {
+test('real next-year preview renders workshop-only, course-only and mixed saved items', () => {
   const payload = augmentNextYearProposalPayload({
     proposalActivityGroups: baseGroups,
     proposalActivityPricing: basePricing
@@ -205,23 +208,24 @@ test('real next-year preview renders workshop-only, course-only and mixed saved 
   };
 
   const workshopOnly = proposalPreviewBodyHtml(row, [workshop], []);
-  assert.match(workshopOnly, /פעילויות ומחירים/);
+  assert.match(workshopOnly, /pa-next-year-workshop-table/);
+  assert.match(workshopOnly, /שם הסדנה/);
+  assert.match(workshopOnly, /משך הפעילות/);
   assert.match(workshopOnly, /רוטוקופטר/);
   assert.match(workshopOnly, /1,300/);
-  assert.doesNotMatch(workshopOnly, /pa-next-year-workshop-table/);
-  assert.doesNotMatch(workshopOnly, /שם הסדנה/);
+  assert.doesNotMatch(workshopOnly, /מס׳ גפ״ן/);
 
   const courseOnly = proposalPreviewBodyHtml(row, [course], []);
-  assert.match(courseOnly, /pa-next-year-course-table|pa-next-year-activities-table/);
-  assert.match(courseOnly, /פעילויות ומחירים/);
+  assert.match(courseOnly, /pa-next-year-course-table/);
+  assert.match(courseOnly, /קורסים ותוכניות/);
   assert.doesNotMatch(courseOnly, /pa-next-year-workshop-table/);
-  assert.doesNotMatch(courseOnly, /קורסים ותוכניות/);
 
   const mixed = proposalPreviewBodyHtml(row, [course, workshop], []);
-  assert.match(mixed, /pa-next-year-course-table|pa-next-year-activities-table/);
-  assert.doesNotMatch(mixed, /pa-next-year-workshop-table/);
-  assert.match(mixed, /סה״כ לתשלום/);
-  assert.doesNotMatch(mixed, /סה״כ קורסים|סה״כ סדנאות|סה״כ כולל להצעה/);
+  assert.match(mixed, /pa-next-year-course-table/);
+  assert.match(mixed, /pa-next-year-workshop-table/);
+  assert.match(mixed, /סה״כ קורסים|סה״כ לתשלום/);
+  assert.match(mixed, /סה״כ סדנאות/);
+  assert.match(mixed, /סה״כ כולל להצעה/);
   assert.match(mixed, /10,300/);
   assert.equal((mixed.match(/רוטוקופטר/g) || []).length, 1);
 });
@@ -244,9 +248,9 @@ test('the editor live preview normalizes only its freshly rendered host', async 
     ],
     []
   );
-  assert.match(mixed, /pa-next-year-course-table|pa-next-year-activities-table/);
-  assert.doesNotMatch(mixed, /pa-next-year-workshop-table/);
-  assert.doesNotMatch(mixed, /pa-next-year-combined-total/);
+  assert.match(mixed, /pa-next-year-course-table/);
+  assert.match(mixed, /pa-next-year-workshop-table/);
+  assert.match(mixed, /pa-next-year-combined-total/);
 });
 
 test('migration creates internal sections and leaves escape room excluded', async () => {

@@ -2,7 +2,7 @@ import { api } from './api.js';
 import { augmentNextYearPricingRows } from './proposal-next-year-workshops.js';
 import { calculateNextYearTotals } from './proposal-next-year-selection-hydration.js';
 
-const PATCH_KEY = Symbol.for('taasiyeda.proposalNextYearEditorStability.v5');
+const PATCH_KEY = Symbol.for('taasiyeda.proposalNextYearEditorStability.v6');
 const COURSE_GROUP = 'next_year_courses';
 const WORKSHOP_GROUP = 'next_year_workshops';
 const UNIFIED_GROUP = 'next_year';
@@ -281,14 +281,19 @@ export function stabilizeNextYearForm(form, pricingRows = cachedPricingRows, opt
   markPendingUserRow(form);
   let changed = false;
   let removed = 0;
+  const childSections = [COURSE_GROUP, WORKSHOP_GROUP]
+    .map((groupKey) => form.querySelector(`[data-pa-items-group="${groupKey}"]`))
+    .filter(Boolean);
   const unifiedSection = form.querySelector('[data-pa-next-year-unified]');
-  const sections = unifiedSection
-    ? [unifiedSection]
-    : [COURSE_GROUP, WORKSHOP_GROUP].map((groupKey) => form.querySelector(`[data-pa-items-group="${groupKey}"]`)).filter(Boolean);
+  // Shared picker host wraps two typed sections; prefer those so options stay complete.
+  const sections = childSections.length
+    ? childSections
+    : (unifiedSection ? [unifiedSection] : []);
 
   sections.forEach((section) => {
     const groupKey = text(section.dataset.paItemsGroup) || UNIFIED_GROUP;
-    const groupRows = pricingRowsForNextYearGroup(pricingRows, groupKey === UNIFIED_GROUP || section.matches?.('[data-pa-next-year-unified]') ? UNIFIED_GROUP : groupKey);
+    const useUnifiedOptions = Boolean(unifiedSection) || groupKey === UNIFIED_GROUP;
+    const groupRows = pricingRowsForNextYearGroup(pricingRows, useUnifiedOptions ? UNIFIED_GROUP : groupKey);
     section.querySelectorAll('[data-pa-item-row]').forEach((row) => {
       const userAdded = row.dataset.paNextYearUserAdded === 'yes';
       if (options.removeBlankRows === true && !userAdded && isBlankNextYearEditorRow(row)) {

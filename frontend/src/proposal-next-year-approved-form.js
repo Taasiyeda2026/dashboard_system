@@ -1,6 +1,6 @@
 const COURSE_GROUP = 'next_year_courses';
 const WORKSHOP_GROUP = 'next_year_workshops';
-const INSTALL_KEY = Symbol.for('taasiyeda.nextYearMixedProposalTables.v5');
+const INSTALL_KEY = Symbol.for('taasiyeda.nextYearMixedProposalTables.v6');
 let refreshTimer = null;
 let refreshRunning = false;
 
@@ -83,7 +83,7 @@ function currentNextYearForm(documentRef = document) {
     const type = text(form.querySelector('[name="activity_type_group"]')?.value);
     return type === 'next_year'
       || /תשפ/.test(type)
-      || Boolean(form.querySelector(`[data-pa-items-group="${COURSE_GROUP}"], [data-pa-items-group="${WORKSHOP_GROUP}"]`));
+      || Boolean(form.querySelector(`[data-pa-items-group="${COURSE_GROUP}"], [data-pa-items-group="${WORKSHOP_GROUP}"], [data-pa-next-year-unified]`));
   }) || null;
 }
 
@@ -92,23 +92,58 @@ function selectedRows(form) {
     .map(rowData)
     .filter(Boolean);
   return {
-    activities: rows,
     courses: rows.filter((row) => row.kind === 'course'),
     workshops: rows.filter((row) => row.kind === 'workshop')
   };
 }
 
-function unifiedActivitiesTableHtml(rows) {
+function courseTableHtml(rows) {
   const total = rows.reduce((sum, row) => sum + row.total, 0);
-  return `<h4 class="pa-section-heading pa-next-year-activities-heading">פעילויות ומחירים</h4>
-  <table class="pa-item-details-table pa-activities-table pa-next-year-course-table pa-next-year-activities-table" data-pa-next-year-unified-table="yes">
-    <thead><tr><th>פעילות</th><th>מס׳ גפ״ן</th><th>מפגשים / משך</th><th>קבוצות</th><th>שעות</th><th>מחיר יחידה</th><th>סה״כ</th></tr></thead>
-    <tbody>${rows.map((row) => {
-      const meetingsOrDuration = row.meetings || row.duration || '—';
-      return `<tr><td>${escapeHtml(row.name)}</td><td>${escapeHtml(row.activityNo || '')}</td><td>${escapeHtml(meetingsOrDuration)}</td><td>${row.quantity}</td><td>${escapeHtml(row.hours || '')}</td><td>${money(row.price)}</td><td>${money(row.total)}</td></tr>`;
-    }).join('')}</tbody>
-    <tfoot><tr><td colspan="6">סה״כ לתשלום</td><td>${money(total)}</td></tr></tfoot>
+  return `<h4 class="pa-section-heading pa-next-year-course-heading">קורסים ותוכניות</h4>
+  <table class="pa-item-details-table pa-activities-table pa-next-year-course-table">
+    <thead><tr><th>קורס / תוכנית</th><th>מס׳ גפ״ן</th><th>מפגשים</th><th>קבוצות</th><th>שעות</th><th>מחיר לשעה</th><th>סה״כ</th></tr></thead>
+    <tbody>${rows.map((row) => `<tr>
+      <td>${escapeHtml(row.name)}</td>
+      <td>${escapeHtml(row.activityNo || '')}</td>
+      <td>${escapeHtml(row.meetings || '')}</td>
+      <td>${row.quantity}</td>
+      <td>${escapeHtml(row.hours || '')}</td>
+      <td>${money(row.price)}</td>
+      <td>${money(row.total)}</td>
+    </tr>`).join('')}</tbody>
+    <tfoot><tr><td colspan="6">סה״כ קורסים</td><td>${money(total)}</td></tr></tfoot>
   </table>`;
+}
+
+function workshopTableHtml(rows) {
+  const total = rows.reduce((sum, row) => sum + row.total, 0);
+  return `<h4 class="pa-section-heading pa-next-year-workshop-heading">סדנאות</h4>
+  <table class="pa-item-details-table pa-activities-table pa-next-year-workshop-table">
+    <thead><tr><th>שם הסדנה</th><th>משך הפעילות</th><th>כמות</th><th>מחיר להפעלה</th><th>סה״כ</th></tr></thead>
+    <tbody>${rows.map((row) => `<tr>
+      <td>${escapeHtml(row.name)}</td>
+      <td>${escapeHtml(row.duration || '45 דקות')}</td>
+      <td>${row.quantity}</td>
+      <td>${money(row.price)}</td>
+      <td>${money(row.total)}</td>
+    </tr>`).join('')}</tbody>
+    <tfoot><tr><td colspan="4">סה״כ סדנאות</td><td>${money(total)}</td></tr></tfoot>
+  </table>`;
+}
+
+function dualTablesHtml(courses, workshops) {
+  const parts = [];
+  if (courses.length) parts.push(courseTableHtml(courses));
+  if (workshops.length) parts.push(workshopTableHtml(workshops));
+  if (courses.length && workshops.length) {
+    const total = [...courses, ...workshops].reduce((sum, row) => sum + row.total, 0);
+    parts.push(`<table class="pa-cost-table pa-activities-table pa-next-year-combined-total" style="width:85%;margin:8px auto 0;">
+      <tbody><tr><td><strong>סה״כ כולל להצעה</strong></td><td><strong>${money(total)}</strong></td></tr></tbody>
+    </table>`);
+  } else if (courses.length === 1 || workshops.length) {
+    // Single-area documents keep the table's own payable footer.
+  }
+  return parts.join('');
 }
 
 function replacementRegion(documentRoot) {
@@ -128,10 +163,10 @@ function normalizeDocument(documentRoot) {
   const form = currentNextYearForm(documentRoot.ownerDocument);
   if (!form) return;
 
-  const { activities } = selectedRows(form);
-  if (!activities.length) return;
+  const { courses, workshops } = selectedRows(form);
+  if (!courses.length && !workshops.length) return;
 
-  const signature = JSON.stringify(activities);
+  const signature = JSON.stringify({ courses, workshops });
   const previous = documentRoot.querySelector('.pa-next-year-approved-tables');
   if (documentRoot.dataset.approvedNextYearSignature === signature && previous) return;
 
@@ -139,9 +174,9 @@ function normalizeDocument(documentRoot) {
   if (!region) return;
 
   const wrapper = documentRoot.ownerDocument.createElement('div');
-  wrapper.className = 'pa-next-year-cost-group pa-next-year-approved-tables pa-next-year-unified-activities';
+  wrapper.className = 'pa-next-year-cost-group pa-next-year-approved-tables';
   wrapper.style.cssText = 'width:100%;max-width:100%;margin-inline:0;';
-  wrapper.innerHTML = unifiedActivitiesTableHtml(activities);
+  wrapper.innerHTML = dualTablesHtml(courses, workshops);
 
   documentRoot.dataset.approvedNextYearSignature = signature;
   documentRoot.dataset.approvedNextYearNormalizing = 'yes';

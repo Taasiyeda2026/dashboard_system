@@ -2,10 +2,6 @@ import { test } from 'node:test';
 import assert from 'node:assert/strict';
 import { readFile } from 'node:fs/promises';
 
-const approvedFix = await readFile(
-  new URL('../frontend/src/proposal-next-year-approved-fix.js', import.meta.url),
-  'utf8'
-);
 const editorStability = await readFile(
   new URL('../frontend/src/proposal-next-year-editor-stability.js', import.meta.url),
   'utf8'
@@ -26,7 +22,7 @@ function sliceBetween(source, start, end) {
 }
 
 test('mixed next-year editor preserves new rows and guards hydration notifications', () => {
-  assert.match(editorStability, /proposalNextYearEditorStability\.v3/);
+  assert.match(editorStability, /proposalNextYearEditorStability\.v6/);
   // Totals must have exactly one owner: editor-stability delegates to the
   // canonical calculator instead of keeping its own duplicate re-implementation
   // (that duplication is what let next-year totals drift out of sync with the
@@ -46,25 +42,32 @@ test('mixed next-year editor preserves new rows and guards hydration notificatio
   assert.doesNotMatch(editorClickHandler, /event\.preventDefault/);
   assert.doesNotMatch(editorClickHandler, /event\.stopImmediatePropagation/);
 
-  assert.match(selectionHydration, /proposalNextYearSelectionHydration\.v3/);
+  assert.match(selectionHydration, /proposalNextYearSelectionHydration\.v6/);
   assert.match(selectionHydration, /paNextYearDirectHydration/);
   assert.match(selectionHydration, /item_source_pricing_key/);
   assert.match(selectionHydration, /scheduleTotals\(form, 100\)/);
   assert.equal(count(selectionHydration, 'export function calculateNextYearTotals'), 1);
 });
 
-test('mixed next-year document replaces the complete cost group atomically', () => {
-  assert.match(approvedFix, /INSTALL_KEY = Symbol\.for\('taasiyeda\.nextYearMixedProposalTables\.v4'\)/);
-  assert.match(approvedFix, /if \(!courses\.length \|\| !workshops\.length\) return/);
-  assert.match(approvedFix, /closest\('\.pa-next-year-cost-group'\)/);
-  assert.match(approvedFix, /region\.replaceWith\(wrapper\)/);
-  assert.doesNotMatch(approvedFix, /clearNativeNextYearTables/);
-  assert.match(approvedFix, /courseTableHtml\(courses\)/);
-  assert.match(approvedFix, /workshopTableHtml\(workshops\)/);
-  assert.match(approvedFix, /pa-next-year-combined-total/);
-  assert.match(approvedFix, /approvedNextYearNormalizing/);
-  assert.match(approvedFix, /if \(refreshRunning\) return/);
-  assert.equal(count(approvedFix, "document.addEventListener('change'"), 1);
-  assert.equal(count(approvedFix, "document.addEventListener('input'"), 1);
-  assert.equal(count(approvedFix, "document.addEventListener('click'"), 1);
+test('mixed next-year document replaces the complete cost group atomically', async () => {
+  const source = await readFile(
+    new URL('../frontend/src/proposal-next-year-approved-form.js', import.meta.url),
+    'utf8'
+  );
+  assert.match(source, /INSTALL_KEY = Symbol\.for\('taasiyeda\.nextYearMixedProposalTables\.v6'\)/);
+  assert.match(source, /if \(!courses\.length && !workshops\.length\) return/);
+  assert.match(source, /closest\('\.pa-next-year-cost-group'\)/);
+  assert.match(source, /region\.replaceWith\(wrapper\)/);
+  assert.doesNotMatch(source, /clearNativeNextYearTables/);
+  assert.match(source, /courseTableHtml\(courses\)/);
+  assert.match(source, /workshopTableHtml\(workshops\)/);
+  assert.match(source, /pa-next-year-combined-total/);
+  assert.match(source, /pa-next-year-course-table/);
+  assert.match(source, /pa-next-year-workshop-table/);
+  assert.doesNotMatch(source, /pa-next-year-activities-table|data-pa-next-year-unified-table/);
+  assert.match(source, /approvedNextYearNormalizing/);
+  assert.match(source, /if \(refreshRunning\) return/);
+  assert.equal(count(source, "document.addEventListener('change'"), 1);
+  assert.equal(count(source, "document.addEventListener('input'"), 1);
+  assert.equal(count(source, "document.addEventListener('click'"), 1);
 });
