@@ -174,10 +174,18 @@
 .course-scheduling-detail,
 .course-scheduling-calendar-pane {
   min-width: 0;
+  min-height: 0;
+  height: auto;
   border: 1px solid var(--cs-border);
   border-radius: 14px;
   background: var(--cs-surface);
   padding: 10px;
+}
+
+.course-scheduling-calendar-pane--empty {
+  min-height: 0;
+  height: auto;
+  align-self: start;
 }
 
 .course-scheduling-courses {
@@ -371,6 +379,14 @@
   font-size: 1rem;
 }
 
+.course-scheduling-btn--inline {
+  display: inline-flex;
+  width: fit-content;
+  max-width: 100%;
+  justify-content: center;
+  align-items: center;
+}
+
 .course-scheduling-text-btn {
   border: 0;
   background: transparent;
@@ -403,25 +419,39 @@
 
 .course-scheduling-empty--center {
   place-items: start;
-  min-height: 120px;
-  align-content: center;
+  min-height: 0;
+  align-content: start;
 }
 
 .course-scheduling-empty-wrap {
   display: flex;
   justify-content: center;
-  padding: 18px 12px;
+  align-items: flex-start;
+  padding: 20px 12px;
+  min-height: 0;
+  height: auto;
 }
 
-.course-scheduling-empty-wrap .course-scheduling-empty {
-  width: min(420px, 100%);
-  justify-items: start;
-  text-align: right;
-}
-
-.course-scheduling-empty-wrap .course-scheduling-btn {
+.course-scheduling-empty-wrap .course-scheduling-empty,
+.course-scheduling-empty--compact {
   width: auto;
+  max-width: 340px;
+  min-height: 0;
+  height: auto;
+  justify-items: start;
+  align-content: start;
+  text-align: right;
+  padding: 16px 18px;
+}
+
+.course-scheduling-empty-wrap .course-scheduling-btn,
+.course-scheduling-empty--compact .course-scheduling-btn,
+.course-scheduling-btn--inline {
+  display: inline-flex;
+  width: fit-content;
+  max-width: 100%;
   flex: 0 0 auto;
+  justify-self: start;
   align-self: start;
 }
 
@@ -545,6 +575,11 @@
 
 .course-scheduling-maintenance {
   position: relative;
+  flex: 0 0 auto;
+}
+
+.course-scheduling-maintenance-trigger {
+  white-space: nowrap;
 }
 
 .course-scheduling-maintenance-menu {

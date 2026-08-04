@@ -296,14 +296,22 @@ test('calendar tab empty state points users back to courses', () => {
   assert.match(html, /<h1 class="course-scheduling-title">מערכת שבועית<\/h1>/);
   assert.match(html, /צפו בקורסים ששובצו ובטיוטות לפי שבוע\./);
   assert.doesNotMatch(html, /בחרו קורס, מצאו מדריך מתאים ושמרו כטיוטה או שבצו\./);
+  assert.match(html, /data-cs-ui="ux-polish-20260804-v2"/);
+  assert.match(html, /data-cs-tab="calendar"/);
+  assert.match(html, /course-scheduling-calendar-pane--empty/);
   assert.match(html, /course-scheduling-empty-wrap/);
+  assert.match(html, /course-scheduling-empty--compact/);
   assert.match(html, /אין שיבוצים בשבוע זה/);
+  assert.match(html, /course-scheduling-btn--inline[^"]*"[^>]*data-switch-tab="courses"|data-switch-tab="courses"[^>]*course-scheduling-btn--inline/);
   assert.match(html, /מעבר לקורסים לשיבוץ/);
+  assert.match(html, /⚙ תחזוקת המערכת/);
   assert.match(html, /course-scheduling-calendar-toolbar-nav/);
   assert.match(html, /course-scheduling-calendar-toolbar-center/);
+  assert.match(html, /course-scheduling-calendar-toolbar-views/);
   assert.match(html, /תצוגה שבועית/);
   assert.match(html, /מערכת קבועה/);
   assert.doesNotMatch(html, /מצא מדריכים מתאימים/);
+  assert.doesNotMatch(html, /בחרו קורס, מצאו מדריך מתאים/);
 });
 
 test('activities screen wires the missing-schedule filter into local filtering', async () => {

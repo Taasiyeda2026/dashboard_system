@@ -463,17 +463,18 @@ function calendarTabHtml({ interfaceCourses, selectedId, state }) {
     ? fixedScheduleHtml(interfaceCourses, selectedId)
     : weekCalendarHtml({ days, rows: weekRows, selectedCourseId: selectedId });
 
-  if (calendarBody.includes('course-scheduling-calendar-empty')) {
+  const isEmptyWeek = calendarBody.includes('course-scheduling-calendar-empty');
+  if (isEmptyWeek) {
     calendarBody = `<div class="course-scheduling-empty-wrap">
-      <div class="course-scheduling-empty course-scheduling-calendar-empty">
+      <div class="course-scheduling-empty course-scheduling-empty--compact course-scheduling-calendar-empty">
         <strong>אין שיבוצים בשבוע זה</strong>
         <p>שיבוצים שבוצעו במסך "קורסים לשיבוץ" יופיעו כאן.</p>
-        <button type="button" class="course-scheduling-btn course-scheduling-btn--primary" data-switch-tab="courses">מעבר לקורסים לשיבוץ</button>
+        <button type="button" class="course-scheduling-btn course-scheduling-btn--primary course-scheduling-btn--inline" data-switch-tab="courses">מעבר לקורסים לשיבוץ</button>
       </div>
     </div>`;
   }
 
-  return `<section class="course-scheduling-calendar-pane">
+  return `<section class="course-scheduling-calendar-pane${isEmptyWeek ? ' course-scheduling-calendar-pane--empty' : ''}">
     <div class="course-scheduling-calendar-toolbar">
       <div class="course-scheduling-calendar-toolbar-nav">
         <button type="button" class="course-scheduling-btn course-scheduling-btn--secondary course-scheduling-btn--sm" data-week-nav="prev">השבוע הקודם</button>
@@ -591,7 +592,7 @@ export const courseSchedulingScreen = {
       : 'בחרו קורס, מצאו מדריך מתאים ושמרו כטיוטה או שבצו.';
 
     return dsScreenStack(`
-    <div class="course-scheduling-screen" dir="rtl">
+    <div class="course-scheduling-screen" dir="rtl" data-cs-ui="ux-polish-20260804-v2" data-cs-tab="${tab}">
       <header class="course-scheduling-header">
         <div class="course-scheduling-header-copy">
           <h1 class="course-scheduling-title">${title}</h1>
