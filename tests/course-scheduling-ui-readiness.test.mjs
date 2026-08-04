@@ -49,7 +49,7 @@ const openCourse = (overrides = {}) => ({
   ...overrides
 });
 
-test('summary before calculation shows interface course count and טרם בוצע חישוב', () => {
+test('courses tab shows only three summary metrics and empty selection prompt', () => {
   const html = courseSchedulingScreen.render({
     activities: [
       openCourse({ row_id: 'a', start_date: '2026-09-01', start_time: '10:00', date_1: '2026-09-01' }),
@@ -60,13 +60,18 @@ test('summary before calculation shows interface course count and טרם בוצ�
     meetingState: { loaded: true, approvedDates: new Map(), cancelledDates: new Map(), error: '' }
   }, { state: { user: { role: 'admin' } } });
 
-  assert.match(html, /<b>2<\/b><span>קורסים בממשק<\/span>/);
-  assert.match(html, /טרם בוצע חישוב/);
   assert.match(html, /course-scheduling-screen/);
-  assert.match(html, /course-scheduling-summary-card/);
-  assert.doesNotMatch(html, /0 קורסים נבדקו/);
-  assert.doesNotMatch(html, /0 הצעה מוכנה/);
-  assert.match(html, /בניית ועדכון מאגר מרחקים/);
+  assert.match(html, /data-switch-tab="courses"/);
+  assert.match(html, /data-switch-tab="calendar"/);
+  assert.match(html, /<b>2<\/b><span>ממתינים לשיבוץ<\/span>/);
+  assert.match(html, /<b>0<\/b><span>הצעות מוכנות<\/span>/);
+  assert.match(html, /<b>0<\/b><span>טיוטות<\/span>/);
+  assert.match(html, /בחר קורס כדי להתחיל/);
+  assert.match(html, /מצא מדריכים מתאימים|בחר קורס/);
+  assert.doesNotMatch(html, /טרם בוצע חישוב/);
+  assert.doesNotMatch(html, /בניית ועדכון מאגר מרחקים/);
+  assert.doesNotMatch(html, /מוכנות לשיבוץ/);
+  assert.match(html, /תחזוקת המערכת/);
 });
 
 test('readiness counts missing date and missing time separately without double-counting schedule gaps', () => {
@@ -102,9 +107,8 @@ test('nearest actionable course is preferred and week jumps to its start date', 
   assert.equal(picked.id, 'soon');
 });
 
-test('auto-select on bind chooses nearest actionable course and sets the week', () => {
+test('bind does not auto-select a course so the empty prompt can appear', () => {
   const state = { user: { role: 'admin' } };
-  let renders = 0;
   courseSchedulingScreen.bind({
     root: { querySelector: () => null, querySelectorAll: () => [] },
     data: {
@@ -117,14 +121,12 @@ test('auto-select on bind chooses nearest actionable course and sets the week', 
       meetingState: { loaded: true, approvedDates: new Map(), cancelledDates: new Map(), error: '' }
     },
     state,
-    rerender: () => { renders += 1; },
+    rerender: () => {},
     api: {},
     ui: null,
     clearScreenDataCache: () => {}
   });
-  assert.equal(state.courseSchedulingSelectedId, 'near');
-  assert.equal(state.courseSchedulingWeek, '2026-08-20');
-  assert.equal(renders, 1);
+  assert.equal(state.courseSchedulingSelectedId, undefined);
 });
 
 test('compact meetings wraps only date and time ranges for RTL', () => {
@@ -160,18 +162,21 @@ test('fixed schedule keeps Hebrew weekday outside ltr bdi', () => {
   assert.match(html, /<bdi dir="ltr">/);
 });
 
-test('meeting-state load failure surfaces a warning and not fake zeros in the panel path', () => {
+test('meeting-state load failure does not dump technical warnings into the main UX', () => {
   const html = courseSchedulingScreen.render({
     activities: [openCourse({ row_id: 'a', start_date: '2026-09-01', start_time: '10:00', date_1: '2026-09-01' })],
     instructors: [],
     scheduling: {},
     meetingState: { loaded: false, approvedDates: new Map(), cancelledDates: new Map(), error: 'permission denied' }
   }, { state: { user: { role: 'admin' } } });
-  assert.match(html, /מידע על מפגשים שהתקיימו או בוטלו לא נטען/);
+  assert.match(html, /קורסים לשיבוץ/);
+  assert.doesNotMatch(html, /permission denied/);
+  assert.doesNotMatch(html, /מידע על מפגשים שהתקיימו או בוטלו לא נטען/);
 });
 
-test('readiness warning is dynamic and exposes an action to open missing activities', () => {
-  const html = courseSchedulingScreen.render({
+test('missing-courses alert is compact and expands into clear fix details', () => {
+  const baseState = { user: { role: 'admin' } };
+  const data = {
     activities: [
       openCourse({ row_id: 'ready', start_date: '2026-09-01', start_time: '10:00', date_1: '2026-09-01' }),
       openCourse({ row_id: 'missing-date', start_date: '', start_time: '' }),
@@ -180,13 +185,17 @@ test('readiness warning is dynamic and exposes an action to open missing activit
     instructors: [],
     scheduling: {},
     meetingState: { loaded: true, approvedDates: new Map(), cancelledDates: new Map(), error: '' }
-  }, { state: { user: { role: 'admin' } } });
-  assert.match(html, /3 קורסים פתוחים/);
-  assert.match(html, /1 מוכנים להצגה בממשק/);
-  assert.match(html, /1 חסרים תאריך התחלה/);
-  assert.match(html, /2 חסרים שעת התחלה/);
-  assert.match(html, /data-open-missing-schedule-courses/);
-  assert.doesNotMatch(html, /117/);
+  };
+  const compact = courseSchedulingScreen.render(data, { state: baseState });
+  assert.match(compact, /2 קורסים אינם מוכנים לשיבוץ/);
+  assert.match(compact, /הצגת הקורסים לתיקון/);
+  assert.doesNotMatch(compact, /3 קורסים פתוחים/);
+  assert.doesNotMatch(compact, /חסר תאריך התחלה/);
+
+  const expanded = courseSchedulingScreen.render(data, { state: { ...baseState, courseSchedulingShowMissingDetails: true } });
+  assert.match(expanded, /חסר תאריך התחלה/);
+  assert.match(expanded, /חסרה שעת התחלה/);
+  assert.match(expanded, /data-open-missing-schedule-courses/);
 });
 
 test('opening missing activities stores only missing course ids and filters the activities list', () => {
@@ -198,7 +207,7 @@ test('opening missing activities stores only missing course ids and filters the 
   ];
   assert.deepEqual(collectMissingScheduleCourseIds(activities).sort(), ['missing-date', 'missing-time']);
 
-  const state = { user: { role: 'admin' }, activitiesMissingScheduleOnly: false };
+  const state = { user: { role: 'admin' }, activitiesMissingScheduleOnly: false, courseSchedulingShowMissingDetails: true };
   const root = {
     handlers: {},
     querySelector(selector) {
@@ -237,27 +246,6 @@ test('opening missing activities stores only missing course ids and filters the 
       ui: null,
       clearScreenDataCache: () => {}
     });
-    // Auto-select rerenders once before listeners attach; call bind again after selection.
-    if (!root.handlers.open) {
-      courseSchedulingScreen.bind({
-        root,
-        data: {
-          activities: [
-            openCourse({ row_id: 'ready', start_date: '2026-09-01', start_time: '10:00', date_1: '2026-09-01' }),
-            openCourse({ row_id: 'missing-date', start_date: '', start_time: '' }),
-            openCourse({ row_id: 'missing-time', start_date: '2026-09-02', start_time: '', date_1: '2026-09-02' })
-          ],
-          instructors: [],
-          scheduling: {},
-          meetingState: { loaded: true, approvedDates: new Map(), cancelledDates: new Map(), error: '' }
-        },
-        state,
-        rerender: () => {},
-        api: {},
-        ui: null,
-        clearScreenDataCache: () => {}
-      });
-    }
     assert.ok(root.handlers.open);
     root.handlers.open();
     assert.equal(state.activitiesMissingScheduleOnly, true);
@@ -274,6 +262,33 @@ test('opening missing activities stores only missing course ids and filters the 
     document.dispatchEvent = originalDispatch;
     sessionStorage.removeItem(MISSING_SCHEDULE_FILTER_STORAGE_KEY);
   }
+});
+
+test('selected course shows find-instructors CTA and waiting card before results', () => {
+  const html = courseSchedulingScreen.render({
+    activities: [openCourse({ row_id: 'a1', start_date: '2026-09-01', start_time: '10:00', date_1: '2026-09-01' })],
+    instructors: [],
+    scheduling: {},
+    meetingState: { loaded: true, approvedDates: new Map(), cancelledDates: new Map(), error: '' }
+  }, { state: { user: { role: 'admin' }, courseSchedulingSelectedId: 'a1' } });
+  assert.match(html, /מצא מדריכים מתאימים/);
+  assert.match(html, /טרם נבדקו מדריכים לקורס זה/);
+  assert.doesNotMatch(html, /חשב הצעות שיבוץ/);
+  assert.doesNotMatch(html, /openDrawer|course-panel/);
+});
+
+test('calendar tab empty state points users back to courses', () => {
+  const html = courseSchedulingScreen.render({
+    activities: [openCourse({ row_id: 'a1', start_date: '2026-09-01', start_time: '10:00', date_1: '2026-09-01' })],
+    instructors: [],
+    scheduling: {},
+    meetingState: { loaded: true, approvedDates: new Map(), cancelledDates: new Map(), error: '' }
+  }, { state: { user: { role: 'admin' }, courseSchedulingTab: 'calendar', courseSchedulingWeek: '2026-08-02' } });
+  assert.match(html, /אין שיבוצים בשבוע זה/);
+  assert.match(html, /מעבר לקורסים לשיבוץ/);
+  assert.match(html, /תצוגה שבועית/);
+  assert.match(html, /תצוגת מערכת קבועה/);
+  assert.doesNotMatch(html, /מצא מדריכים מתאימים/);
 });
 
 test('activities screen wires the missing-schedule filter into local filtering', async () => {
@@ -316,6 +331,7 @@ test('cache versions on this branch are ahead of origin/main after sync', async 
   assert.match(branchConfig, /course-scheduling-blocking-fixes-20260803-v2/);
   assert.match(branchConfig, /single-route-expiry-ui-20260803-v4/);
   assert.match(branchConfig, /course-scheduling-isolated-design-20260803-v1/);
+  assert.match(branchConfig, /course-scheduling-ux-redesign-20260804-v1/);
   assert.ok(branchConfig.includes('HOTFIX_VERSION'));
   assert.ok(mainConfig.includes('HOTFIX_VERSION'));
 });
