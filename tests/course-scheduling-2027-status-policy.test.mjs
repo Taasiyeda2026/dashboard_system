@@ -33,13 +33,9 @@ test('dashboard entrypoint loads the status policy and refreshes the cache key',
   ]);
   assert.match(indexHtml, /school-2027-course-status-policy\.js\?v=20260804-course-status-v1/);
   assert.match(indexHtml, /main-with-proposal-pdf-hotfix\.js\?v=20260804-course-status-v1/);
-<<<<<<< HEAD
-  assert.match(serviceWorker, /const CACHE_VERSION = 1396;/);
-=======
   assert.match(serviceWorker, /const CACHE_VERSION = \d+;/);
   const cacheVersion = Number(serviceWorker.match(/const CACHE_VERSION = (\d+);/)?.[1] || 0);
   assert.ok(cacheVersion >= 1395);
->>>>>>> origin/main
 });
 
 test('migration permanently purges deleted 2027 courses and enforces two statuses', async () => {
