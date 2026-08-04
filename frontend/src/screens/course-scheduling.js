@@ -371,11 +371,15 @@ function selectedCoursePanelHtml(row, state) {
 
   const finding = !!state.courseSchedulingLoading;
   const result = row.result;
+  const hasSuggestion = !!result?.recommended;
+  const findButtonClass = hasSuggestion
+    ? 'course-scheduling-btn course-scheduling-btn--secondary'
+    : 'course-scheduling-btn course-scheduling-btn--primary course-scheduling-btn--xl';
   return `${selectedCourseMetaHtml(row.course)}
     <p class="course-scheduling-status-chip${cardStatusClass(row.statusLabel)}">${escapeHtml(row.statusLabel)}</p>
     <div class="course-scheduling-primary-action">
-      <button type="button" class="course-scheduling-btn course-scheduling-btn--primary course-scheduling-btn--xl" data-find-instructors ${finding ? 'disabled' : ''}>
-        ${finding ? 'בודק מדריכים...' : 'מצא מדריכים מתאימים'}
+      <button type="button" class="${findButtonClass}" data-find-instructors ${finding ? 'disabled' : ''}>
+        ${finding ? 'בודק מדריכים...' : (hasSuggestion ? 'בדיקה מחדש של מדריכים' : 'מצא מדריכים מתאימים')}
       </button>
     </div>
     ${finding ? loadingInstructorsHtml(state.courseSchedulingProgressStep || 1) : instructorsResultsHtml(result, state)}`;
