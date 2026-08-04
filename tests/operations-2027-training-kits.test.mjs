@@ -5,14 +5,12 @@ import { readFile } from 'node:fs/promises';
 const featurePath = new URL('../frontend/src/screens/operations-summer-training-matrix.js', import.meta.url);
 const cleanupPath = new URL('../frontend/src/screens/operations-authorities-cleanup.js', import.meta.url);
 const managementPath = new URL('../frontend/src/screens/operations-management.js', import.meta.url);
-const configPath = new URL('../frontend/src/config.js', import.meta.url);
 const swPath = new URL('../frontend/sw.js', import.meta.url);
 
-const [featureSource, cleanupSource, managementSource, configSource, swSource] = await Promise.all([
+const [featureSource, cleanupSource, managementSource, swSource] = await Promise.all([
   readFile(featurePath, 'utf8'),
   readFile(cleanupPath, 'utf8'),
   readFile(managementPath, 'utf8'),
-  readFile(configPath, 'utf8'),
   readFile(swPath, 'utf8')
 ]);
 
@@ -68,8 +66,7 @@ test('tables, section headers and empty states are horizontally centered', () =>
   assert.match(featureSource, /\.ops2027-empty,[\s\S]*width: fit-content; max-width: 100%; margin-inline: auto/);
 });
 
-test('2027 new tabs do not render result-count messages and cache markers were refreshed', () => {
+test('2027 new tabs do not render result-count messages and cache version was refreshed', () => {
   assert.match(managementSource, /ops\.period === ACTIVITY_SEASON_SCHOOL_2027 \? '' : `<p class="ds-muted ds-ops-mgmt-count/);
-  assert.match(configSource, /pr1337-followup-ops2027-20260804-v1/);
-  assert.match(swSource, /const CACHE_VERSION = 1396;/);
+  assert.match(swSource, /const CACHE_VERSION = 1397;/);
 });

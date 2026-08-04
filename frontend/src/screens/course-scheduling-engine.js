@@ -29,7 +29,6 @@ export function missingCourseInformation(activity) {
   if (!meetings.length) missing.push('תאריכי מפגשים');
   if (!meetings.length || meetings.some((meeting) => !text(meeting.start_time || activity?.start_time) || !text(meeting.end_time || activity?.end_time))) missing.push('שעות');
   // Missing instruction_language is not a blocker: resolveInstructionLanguage defaults to he.
-  if (!text(activity?.education_level) && !text(activity?.grade)) missing.push('שכבת גיל');
   return [...new Set(missing)];
 }
 

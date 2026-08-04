@@ -2,7 +2,7 @@ import test from 'node:test';
 import assert from 'node:assert/strict';
 import fs from 'node:fs';
 
-const sql = fs.readFileSync(new URL('../supabase/migrations/20260802090000_save_activity_scheduling_requirements_education_level.sql', import.meta.url), 'utf8');
+const sql = fs.readFileSync(new URL('../supabase/migrations/20260804120000_remove_scheduling_age_and_legacy_gates.sql', import.meta.url), 'utf8');
 const assignmentSql = fs.readFileSync(new URL('../supabase/migrations/20260729180000_school_2027_scheduling_workspace.sql', import.meta.url), 'utf8');
 const workflow = fs.readFileSync(new URL('../frontend/src/screens/instructor-scheduling-workflow.js', import.meta.url), 'utf8');
 const detailHtml = fs.readFileSync(new URL('../frontend/src/screens/shared/activity-detail-html.js', import.meta.url), 'utf8');
@@ -21,13 +21,14 @@ test('assignment and requirement RPCs enforce canonical 2027 season and open sta
   assert.match(assignmentSql, /scheduling_activity_not_open/);
 });
 
-test('requirements RPC saves only gender language and education level', () => {
-  assert.match(sql, /p_education_level text/);
-  assert.match(sql, /education_level = normalized_education/);
-  assert.doesNotMatch(sql, /blocked_instructor_ids\s*=/);
-  assert.doesNotMatch(sql, /allowed_instructor_ids\s*=/);
-  assert.doesNotMatch(sql, /scheduling_note\s*=/);
-  assert.doesNotMatch(sql, /emp_id\s*=/);
+test('requirements RPC saves only gender and language', () => {
+  const saveRpc = sql.slice(sql.indexOf('create or replace function public.save_activity_scheduling_requirements'), sql.indexOf('create or replace function public.scheduling_course_instructor_violations'));
+  assert.doesNotMatch(saveRpc, /p_education_level text/);
+  assert.doesNotMatch(saveRpc, /education_level = normalized_education/);
+  assert.doesNotMatch(saveRpc, /blocked_instructor_ids\s*=/);
+  assert.doesNotMatch(saveRpc, /allowed_instructor_ids\s*=/);
+  assert.doesNotMatch(saveRpc, /scheduling_note\s*=/);
+  assert.doesNotMatch(saveRpc, /emp_id\s*=/);
 });
 
 test('client never writes activities.emp_id directly and does not assign from requirements modal', () => {

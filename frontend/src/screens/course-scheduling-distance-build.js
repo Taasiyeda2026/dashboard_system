@@ -184,7 +184,6 @@ export function courseReadinessMissingFields(course = {}) {
   if (!text(course.activity_name || course.program_name || course.name || course.title)) missing.push('שם קורס');
   if (!text(course.school)) missing.push('בית ספר');
   if (!text(course.school_address)) missing.push('כתובת בית ספר תקינה');
-  if (!text(course.education_level || course.grade)) missing.push('שכבת גיל');
   if (!meetings.length) missing.push('תאריכי המפגשים');
   if (!text(course.start_time) || meetings.some((meeting) => !text(meeting.start_time || course.start_time))) missing.push('שעת התחלה');
   if (!text(course.end_time) || meetings.some((meeting) => !text(meeting.end_time || course.end_time))) missing.push('שעת סיום');
@@ -212,9 +211,6 @@ export function instructorReadinessMissingFields(instructor = {}, profile = null
   if (!text(instructor.address)) missing.push('כתובת');
   if (!text(profile?.gender)) missing.push('מגדר');
   if (!Array.isArray(profile?.instruction_languages) || !profile.instruction_languages.length) missing.push('שפות הדרכה');
-  if (!Array.isArray(profile?.education_levels) || !profile.education_levels.length) missing.push('שכבות גיל');
-  if (!profile || !Object.prototype.hasOwnProperty.call(profile, 'course_restriction_mode')) missing.push('התאמה לקורסים');
-  if (profile?.course_restriction_mode === 'allow_only' && (!Array.isArray(profile.course_ids) || !profile.course_ids.length)) missing.push('קורסים מותרים');
   if (!rules.length) missing.push('זמינות שבועית');
   if (!rules.some(hasValidAvailabilityRule)) missing.push('יום זמין אחד לפחות עם שעות תקינות');
   return [...new Set(missing)];
