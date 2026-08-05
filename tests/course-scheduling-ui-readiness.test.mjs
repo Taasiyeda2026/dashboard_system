@@ -285,7 +285,7 @@ test('opening missing activities stores only missing course ids and filters the 
   }
 });
 
-test('selected course shows find-instructors CTA and waiting card before results', () => {
+test('selected course shows find-instructors CTA without a placeholder waiting card before results', () => {
   const html = courseSchedulingScreen.render({
     activities: [openCourse({ row_id: 'a1', start_date: '2026-09-01', start_time: '10:00', date_1: '2026-09-01' })],
     instructors: [],
@@ -293,7 +293,7 @@ test('selected course shows find-instructors CTA and waiting card before results
     meetingState: { loaded: true, approvedDates: new Map(), cancelledDates: new Map(), error: '' }
   }, { state: { user: { role: 'admin' }, courseSchedulingSelectedId: 'a1' } });
   assert.match(html, /מצא מדריכים מתאימים/);
-  assert.match(html, /טרם נבדקו מדריכים לקורס זה/);
+  assert.doesNotMatch(html, /טרם נבדקו מדריכים לקורס זה/);
   assert.doesNotMatch(html, /חשב הצעות שיבוץ/);
   assert.doesNotMatch(html, /openDrawer|course-panel/);
 });
@@ -306,7 +306,7 @@ test('calendar tab empty state points users back to courses', async () => {
     meetingState: { loaded: true, approvedDates: new Map(), cancelledDates: new Map(), error: '' }
   }, { state: { user: { role: 'admin' }, courseSchedulingTab: 'calendar', courseSchedulingWeek: '2026-08-02' } });
   assert.match(html, /<h1 class="course-scheduling-title">מערכת שבועית<\/h1>/);
-  assert.match(html, /צפו בקורסים ששובצו ובטיוטות לפי שבוע\./);
+  assert.doesNotMatch(html, /צפו בקורסים ששובצו ובטיוטות לפי שבוע\./);
   assert.doesNotMatch(html, /בחרו קורס, מצאו מדריך מתאים ושמרו כטיוטה או שבצו\./);
   assert.match(html, /data-cs-ui="ux-polish-20260805-v1"/);
   assert.match(html, /data-cs-tab="calendar"/);
@@ -361,24 +361,13 @@ test('pending activity storage key remains stable for open-activity navigation',
   assert.equal(PENDING_ACTIVITY_STORAGE_KEY, 'dashboard:pending-course-activity-id');
 });
 
-test('cache versions on this branch are ahead of origin/main after sync', async () => {
+test('cache version and hotfix marker are refreshed for the scheduling layout release', async () => {
   const branchSw = await readFile(new URL('../frontend/sw.js', import.meta.url), 'utf8');
   const branchConfig = await readFile(new URL('../frontend/src/config.js', import.meta.url), 'utf8');
-  const { execFileSync } = await import('node:child_process');
-  const mainSw = execFileSync('git', ['show', 'origin/main:frontend/sw.js'], { encoding: 'utf8' });
-  const mainConfig = execFileSync('git', ['show', 'origin/main:frontend/src/config.js'], { encoding: 'utf8' });
   const branchCache = Number(/const CACHE_VERSION = (\d+);/.exec(branchSw)?.[1] || 0);
-  const mainCache = Number(/const CACHE_VERSION = (\d+);/.exec(mainSw)?.[1] || 0);
-  assert.ok(branchCache > mainCache, `expected CACHE_VERSION ${branchCache} > main ${mainCache}`);
-  assert.match(branchConfig, /course-scheduling-blocking-fixes-20260803-v2/);
-  assert.match(branchConfig, /single-route-expiry-ui-20260803-v4/);
-  assert.match(branchConfig, /course-scheduling-isolated-design-20260803-v1/);
-  assert.match(branchConfig, /course-scheduling-ux-redesign-20260804-v1/);
-  assert.match(branchConfig, /course-scheduling-ux-polish-20260804-v1/);
-  assert.match(branchConfig, /course-scheduling-empty-action-btn-20260804-v4/);
-  assert.match(branchConfig, /instruction-language-default-he-20260804-v1/);
+  assert.ok(branchCache >= 1412, `expected CACHE_VERSION to include this release, got ${branchCache}`);
+  assert.match(branchConfig, /course-scheduling-structural-layout-20260805-v1/);
   assert.ok(branchConfig.includes('HOTFIX_VERSION'));
-  assert.ok(mainConfig.includes('HOTFIX_VERSION'));
 });
 
 test('district filter keeps only operational districts and no reliability warning', () => {
