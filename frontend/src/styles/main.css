@@ -11178,9 +11178,6 @@ select.ds-input {
 }
 
 .ds-pa-domain-col {
-  width: 56px;
-  min-width: 56px;
-  max-width: 56px;
   text-align: center !important;
   white-space: nowrap;
   padding-inline: 4px !important;
@@ -11188,8 +11185,6 @@ select.ds-input {
 
 .ds-pa-actions-col,
 .ds-pa-actions-cell {
-  width: 160px;
-  min-width: 120px;
   white-space: nowrap;
   text-align: center;
 }
@@ -21487,12 +21482,14 @@ details[open] > .ds-fin-acc__summary::before { transform: rotate(90deg); }
 .ds-pa-clear-inline { min-height: 32px; align-self: end; white-space: nowrap; }
 .ds-pa-table { border-collapse: separate; border-spacing: 0; background: #fff; }
 .ds-pa-table th { background: #f8fbff; color: #475569; font-size: .78rem; font-weight: 700; border-bottom: 1px solid #dbe7f3; }
+.ds-pa-table th + th,
+.ds-pa-table td + td { border-inline-start: 1px solid #eef4fa; }
 .ds-pa-table td { padding: 7px 8px; border-bottom: 1px solid #eef2f7; font-size: .82rem; vertical-align: middle; }
 .ds-pa-table tbody tr:nth-child(even) { background: #fbfdff; }
 .ds-pa-table tbody tr:hover { background: #f0fdfa; }
 .ds-pa-col-center { text-align: center; }
 .ds-pa-authority-col { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
-.ds-pa-gfen-signed-col { width: 90px; min-width: 90px; max-width: 90px; text-align: center; vertical-align: middle; white-space: nowrap; }
+.ds-pa-gfen-signed-col { text-align: center; vertical-align: middle; white-space: nowrap; }
 .ds-pa-table th.ds-pa-gfen-signed-col { padding-inline: 4px; line-height: 1.1; }
 .ds-pa-gfen-signed-check { inline-size: 16px; block-size: 16px; margin: 0; vertical-align: middle; cursor: pointer; }
 .ds-pa-gfen-signed-check:disabled { cursor: wait; opacity: .65; }
@@ -21570,8 +21567,7 @@ details[open] > .ds-fin-acc__summary::before { transform: rotate(90deg); }
 }
 .ds-pa-actions-col,
 .ds-pa-actions-cell {
-  width: 104px;
-  min-width: 104px;
+  text-align: center;
 }
 .ds-pa-row-action--icon,
 .ds-pa-row-more summary {
