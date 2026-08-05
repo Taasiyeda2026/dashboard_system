@@ -3,7 +3,7 @@ name: Apply activity meetings autofill fix
 on:
   pull_request:
     branches: [main]
-    types: [opened]
+    types: [opened, synchronize]
 
 permissions:
   contents: write
@@ -330,7 +330,12 @@ jobs:
               sort_order:    Number.isFinite(Number(i._row?.sort_order)) ? Number(i._row?.sort_order) : null
             };
           });"""
-          replace_once(api_path, old_activity_names, new_activity_names)
+          regex_once(
+              api_path,
+              r"""  const activityNames = activityNameItems\.map\(\(i\) => \(\{.*?\n  \}\)\);""",
+              new_activity_names,
+              flags=re.S
+          )
 
           replace_all(
               api_path,
@@ -392,6 +397,24 @@ jobs:
           globalThis.window = dom.window;
           globalThis.document = dom.window.document;
           globalThis.CustomEvent = dom.window.CustomEvent;
+          if (!globalThis.sessionStorage) {
+            const sessionStore = new Map();
+            globalThis.sessionStorage = {
+              getItem: (key) => sessionStore.has(key) ? sessionStore.get(key) : null,
+              setItem: (key, value) => sessionStore.set(key, String(value)),
+              removeItem: (key) => sessionStore.delete(key),
+              clear: () => sessionStore.clear()
+            };
+          }
+          if (!globalThis.localStorage) {
+            const localStore = new Map();
+            globalThis.localStorage = {
+              getItem: (key) => localStore.has(key) ? localStore.get(key) : null,
+              setItem: (key, value) => localStore.set(key, String(value)),
+              removeItem: (key) => localStore.delete(key),
+              clear: () => localStore.clear()
+            };
+          }
 
           const {
             applyActivityCatalogSelectionToAddForm,
