@@ -62,5 +62,5 @@ test('tables, narrow matrix columns and centered symbols are rendered directly',
 
 test('2027 tabs keep the result count hidden and cache version is refreshed', () => {
   assert.match(managementSource, /ops\.period === ACTIVITY_SEASON_SCHOOL_2027 \? '' : `<p class="ds-muted ds-ops-mgmt-count/);
-  assert.match(swSource, /const CACHE_VERSION = 1418;/);
+  assert.match(swSource, /const CACHE_VERSION = 1419;/);
 });
