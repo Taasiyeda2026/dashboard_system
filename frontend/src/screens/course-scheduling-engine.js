@@ -409,7 +409,7 @@ export function calculateCourseSchedule(input = {}) {
       .filter((candidate) => candidate.eligible)
       .sort((first, second) => second.score - first.score)
       .slice(0, 3);
-    const incompleteProfiles = checked.filter((candidate) => candidate.missingProfileData.length);
+    const incompleteProfiles = checked.filter((candidate) => !candidate.failures.length && candidate.missingProfileData.length);
 
     return {
       course,

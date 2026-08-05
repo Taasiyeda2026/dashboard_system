@@ -468,7 +468,7 @@ export function rankInstructors(input) {
   return {
     recommended: candidates.filter((candidate) => candidate.eligible && !candidate.warnings.length).sort((a, b) => b.score - a.score),
     exceptions: candidates.filter((candidate) => candidate.eligible && candidate.warnings.length).sort((a, b) => b.score - a.score),
-    incomplete: candidates.filter((candidate) => candidate.missingProfileData.length),
-    rejected: candidates.filter((candidate) => !candidate.eligible && !candidate.missingProfileData.length)
+    incomplete: candidates.filter((candidate) => !candidate.failures.length && candidate.missingProfileData.length),
+    rejected: candidates.filter((candidate) => candidate.failures.length)
   };
 }

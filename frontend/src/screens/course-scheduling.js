@@ -502,13 +502,15 @@ function candidateRowHtml(candidate, { recommended = false, selectedId = '', nam
 }
 
 function rejectedCandidatesHtml(result) {
-  const rejected = (result.checked || []).filter((candidate) => !candidate.eligible);
+  const rejected = (result.checked || []).filter((candidate) => (candidate.failures || []).length);
   if (!rejected.length) return '';
-  return `<details class="course-scheduling-rejected" data-rejected-candidates><summary>מדריכים שלא התאימו (${rejected.length})</summary>
+  return `<details class="course-scheduling-rejected" data-rejected-candidates><summary>לא עברו תנאי סף (${rejected.length})</summary>
     <div class="course-scheduling-rejected-list">
       ${rejected.map((candidate) => {
-        const reason = candidateHardBlockReason(candidate) || [...(candidate.failures || []), ...(candidate.missingProfileData || [])][0] || 'לא עומד בתנאי הסף';
-        return `<div class="course-scheduling-rejected-row"><strong>${escapeHtml(candidate.instructor?.full_name || emp(candidate) || '—')}</strong><span>${escapeHtml(reason)}</span></div>`;
+        const reasons = (candidate.failures || []).length
+          ? candidate.failures
+          : [candidateHardBlockReason(candidate) || 'לא עומד בתנאי הסף'];
+        return `<div class="course-scheduling-rejected-row"><strong>${escapeHtml(candidate.instructor?.full_name || emp(candidate) || '—')}</strong><span>${escapeHtml(reasons.join(', '))}</span></div>`;
       }).join('')}
     </div>
   </details>`;
@@ -551,6 +553,7 @@ export function instructorsResultsHtml(result, state = {}) {
       <details class="course-scheduling-details"><summary>הצגת פרטים</summary>
         <p>שפת הדרכה: ${escapeHtml(instructionLanguageLabel(result.course))} · מגדר: ${escapeHtml(result.course.required_instructor_gender || 'ללא')}</p>
       </details>
+      ${rejectedCandidatesHtml(result)}
       <button type="button" class="course-scheduling-btn course-scheduling-btn--secondary" data-open-missing-course>פתח פעילות</button>
     </div>`;
   }
@@ -559,6 +562,7 @@ export function instructorsResultsHtml(result, state = {}) {
       <h3>נדרשת בדיקה נוספת</h3>
       <p>${escapeHtml(result.treatmentReason || 'לא ניתן להציע שיבוץ אוטומטי לקורס זה כרגע.')}</p>
       ${incompleteProfilesHtml(result)}
+      ${rejectedCandidatesHtml(result)}
       <button type="button" class="course-scheduling-btn course-scheduling-btn--secondary" data-open-missing-course>פתח פעילות</button>
     </div>`;
   }
