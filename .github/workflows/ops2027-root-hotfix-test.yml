@@ -1,0 +1,28 @@
+name: Operations 2027 Root Hotfix Test
+
+on:
+  push:
+    branches:
+      - hotfix/operations-2027-custom-tabs-visible-v2
+
+permissions:
+  contents: read
+
+jobs:
+  root-hotfix-test:
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@v7
+      - uses: actions/setup-node@v6
+        with:
+          node-version: '22'
+          cache: npm
+      - run: npm ci
+      - name: Run nested screen binding test
+        run: node --test --test-force-exit tests/operations-2027-root-bind-hotfix.test.mjs
+      - name: Syntax and build checks
+        run: |
+          node --check frontend/src/screens/operations-2027-root-bind-hotfix.js
+          npm run check:build
+          npm run check:pwa
