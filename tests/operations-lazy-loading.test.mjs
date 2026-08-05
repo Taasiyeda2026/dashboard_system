@@ -11,6 +11,16 @@ global.Element = dom.window.Element;
 global.HTMLElement = dom.window.HTMLElement;
 const { operationsManagementScreen, loadOperationsTabData } = await import('../frontend/src/screens/operations-management.js');
 
+test.after(() => {
+  dom.window.close();
+  delete global.window;
+  delete global.document;
+  delete global.localStorage;
+  delete global.sessionStorage;
+  delete global.Element;
+  delete global.HTMLElement;
+});
+
 function trackedApi(calls) {
   const hit = (name, value) => async () => { calls.push(name); return value; };
   return {
@@ -24,20 +34,33 @@ function trackedApi(calls) {
   };
 }
 
-test('inventory entry loads inventory dependencies but defers approval dependencies', async () => {
+test('inventory entry loads current activities plus 2026 closing and 2027 inventory dependencies, while deferring approvals', async () => {
   const calls = [];
   const data = await operationsManagementScreen.load({
     api: trackedApi(calls),
-    state: { operationsManagement: { tab: 'workshops' } }
+    state: { activityPeriodTab: 'school_2027', operationsManagement: { tab: 'workshops', period: 'school_2027' } }
   });
-  assert.deepEqual(calls.sort(), ['adminLists', 'allActivities', 'workshopStockDistributions']);
+  assert.deepEqual(calls.sort(), [
+    'adminLists',
+    'allActivities',
+    'allActivities',
+    'allActivities',
+    'workshopStockDistributions'
+  ]);
   assert.deepEqual(data._loadedOperationsTabs, ['workshops']);
 });
 
-test('inventory tab loader does not read schedule or approval data', async () => {
+test('inventory tab loader reads only catalog, distributions, 2026 closing activities and 2027 activities', async () => {
   const calls = [];
-  await loadOperationsTabData(trackedApi(calls), 'workshops');
-  assert.deepEqual(calls.sort(), ['adminLists', 'workshopStockDistributions']);
+  await loadOperationsTabData(trackedApi(calls), 'workshops', {
+    state: { operationsManagement: { period: 'school_2027' } }
+  });
+  assert.deepEqual(calls.sort(), [
+    'adminLists',
+    'allActivities',
+    'allActivities',
+    'workshopStockDistributions'
+  ]);
 });
 
 test('schedule entry defers school, contact, print and approval dependencies', async () => {
