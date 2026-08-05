@@ -1,5 +1,5 @@
 -- Restore professional instructor matching gates for course scheduling.
--- Draft only: do not apply manually until reviewed.
+-- Reviewed for production application.
 
 create or replace function public.scheduling_course_instructor_violations(
   p_activity_id text,
@@ -92,7 +92,7 @@ begin
       end if;
     end if;
 
-    course_key := coalesce(nullif(btrim(target.catalog_slug), ''), nullif(btrim(target.activity_no), ''), nullif(btrim(target.proposal_item_id), ''), nullif(btrim(target.row_id), ''), nullif(btrim(target.activity_name), ''), '');
+    course_key := coalesce(nullif(btrim(target.catalog_slug), ''), nullif(btrim(target.activity_no), ''), nullif(btrim(target.proposal_item_id::text), ''), nullif(btrim(target.row_id), ''), nullif(btrim(target.activity_name), ''), '');
     if profile.course_restriction_mode = 'allow_only' then
       if course_key = '' or coalesce(cardinality(profile.course_ids), 0) = 0 then
         violations := array_append(violations, 'scheduling_instructor_profile_incomplete');
