@@ -161,7 +161,7 @@ function schedulingScopeHtml(allCourses = [], state = {}) {
   const authorities = authorityOptions(scopedForAuthority);
   const authoritySelect = `<label>רשות<select class="course-scheduling-input" data-authority-filter><option value="">כל הרשויות</option>${authorities.map((item) => `<option value="${escapeHtml(item)}"${item === selectedAuthority ? ' selected' : ''}>${escapeHtml(item)}</option>`).join('')}</select></label>`;
   const periodRange = `${period.label} | ${formatDateHeDots(period.start)} עד ${formatDateHeDots(period.end)}`;
-  return `<section class="course-scheduling-scope"><div class="course-scheduling-tabs course-scheduling-tabs--inner">${periodButtons}</div><p class="course-scheduling-period-range">${escapeHtml(periodRange)}</p><div class="course-scheduling-filter-row">${districtOptions}${authoritySelect}</div></section>`;
+  return `<section class="course-scheduling-scope"><div class="course-scheduling-scope-row"><div class="course-scheduling-tabs course-scheduling-tabs--inner">${periodButtons}</div><p class="course-scheduling-period-range">${escapeHtml(periodRange)}</p></div><div class="course-scheduling-filter-row">${districtOptions}${authoritySelect}</div></section>`;
 }
 
 function activeTab(state) {
@@ -272,20 +272,20 @@ function summaryCardsHtml(interfaceCourses, results, readiness = {}) {
   const drafts = interfaceCourses.filter((course) => !text(course.emp_id) && text(course.draft_emp_id)).length;
   const ready = results.filter((result) => result.status === 'הצעה מוכנה').length;
   const missing = Number(readiness.missingScheduleCount) || 0;
-  return `<article class="course-scheduling-summary-card is-accent"><b>${waiting}</b><span>ממתינים לשיבוץ</span></article>
-    <article class="course-scheduling-summary-card"><b>${ready}</b><span>הצעות מוכנות</span></article>
-    <article class="course-scheduling-summary-card"><b>${drafts}</b><span>טיוטות</span></article>
-    <button type="button" class="course-scheduling-summary-card course-scheduling-summary-card--button" data-open-readiness-drawer><b>${missing}</b><span>חסרי מידע</span></button>`;
+  return `<article class="course-scheduling-summary-card course-scheduling-summary-card--waiting"><b>${waiting}</b><span>ממתינים לשיבוץ</span></article>
+    <article class="course-scheduling-summary-card course-scheduling-summary-card--ready"><b>${ready}</b><span>הצעות מוכנות</span></article>
+    <article class="course-scheduling-summary-card course-scheduling-summary-card--draft"><b>${drafts}</b><span>טיוטות</span></article>
+    <button type="button" class="course-scheduling-summary-card course-scheduling-summary-card--missing course-scheduling-summary-card--button" data-open-readiness-drawer><b>${missing}</b><span>חסרי מידע</span></button>`;
 }
 
 function courseListCardHtml(row, selectedId) {
   const c = row.course;
   const selectedClass = row.id === selectedId ? ' is-selected' : '';
-  return `<button type="button" class="course-scheduling-course-card${selectedClass}${cardStatusClass(row.statusLabel)}" data-course-card="${escapeHtml(row.id)}">
+  return `<button type="button" class="course-scheduling-course-card${selectedClass}" data-course-card="${escapeHtml(row.id)}">
     <strong>${escapeHtml(c.activity_name || '—')}</strong>
     <span class="course-scheduling-course-card-meta">${escapeHtml(c.school || '—')} · ${escapeHtml(c.authority || '—')}</span>
     <span class="course-scheduling-course-card-meta"><bdi dir="ltr">${escapeHtml(formatDateHe(c.start_date))}</bdi> · ${courseDayTimeHtml(c)}</span>
-    <span class="course-scheduling-status-chip">${escapeHtml(row.statusLabel)}</span>
+    <span class="course-scheduling-status-chip${cardStatusClass(row.statusLabel)}">${escapeHtml(row.statusLabel)}</span>
   </button>`;
 }
 
@@ -300,23 +300,29 @@ function courseListHtml(rowModels, selectedId) {
   return groups.map((group) => `<section class="course-scheduling-course-group"><h3>${escapeHtml(group.label)} <span class="course-scheduling-badge">${group.rows.length}</span></h3>${group.rows.map((row) => courseListCardHtml(row, selectedId)).join('')}</section>`).join('');
 }
 
-function specialRequirementsHtml(course) {
-  const parts = [];
-  if (text(course.required_instructor_gender) && text(course.required_instructor_gender) !== 'any') {
-    parts.push(course.required_instructor_gender === 'female' ? 'נדרשת מדריכה' : 'נדרש מדריך');
-  }
-  parts.push(`שפת הדרכה: ${instructionLanguageLabel(course)}`);
-  return `<p class="course-scheduling-requirements"><span>דרישות מיוחדות:</span> ${escapeHtml(parts.join(' · '))}</p>`;
+function courseFactRows(course) {
+  const meetings = filterMeetingsByCourseSchedulingPeriod(activityMeetings(course), course?.periodKey || DEFAULT_COURSE_SCHEDULING_PERIOD_KEY);
+  return [
+    ['בית ספר', escapeHtml(course.school || '—')],
+    ['רשות', escapeHtml(course.authority || '—')],
+    ['תאריך התחלה', `<bdi dir="ltr">${escapeHtml(formatDateHe(course.start_date))}</bdi>`],
+    ['מפגשים', escapeHtml(String(meetings.length || '—'))],
+    ['יום ושעה', courseDayTimeHtml(course)],
+    ['שפת הדרכה', escapeHtml(instructionLanguageLabel(course))]
+  ];
+}
+
+function specialRequirementTagsHtml(course) {
+  if (!text(course.required_instructor_gender) || text(course.required_instructor_gender) === 'any') return '';
+  const label = course.required_instructor_gender === 'female' ? 'נדרשת מדריכה' : 'נדרש מדריך';
+  return `<div class="course-scheduling-requirement-tags"><span class="course-scheduling-requirement-tag">${escapeHtml(label)}</span></div>`;
 }
 
 function selectedCourseMetaHtml(course) {
-  const meetings = filterMeetingsByCourseSchedulingPeriod(activityMeetings(course), course?.periodKey || DEFAULT_COURSE_SCHEDULING_PERIOD_KEY);
   return `<header class="course-scheduling-detail-header">
     <h2 class="course-scheduling-detail-title">${escapeHtml(course.activity_name || '—')}</h2>
-    <p>${escapeHtml(course.school || '—')} · ${escapeHtml(course.authority || '—')}</p>
-    <p>תאריך התחלה: <bdi dir="ltr">${escapeHtml(formatDateHe(course.start_date))}</bdi></p>
-    <p>${meetings.length || '—'} מפגשים · ${courseDayTimeHtml(course)}</p>
-    ${specialRequirementsHtml(course)}
+    <dl class="course-scheduling-detail-facts">${courseFactRows(course).map(([label, value]) => `<div class="course-scheduling-detail-fact"><dt>${escapeHtml(label)}</dt><dd>${value}</dd></div>`).join('')}</dl>
+    ${specialRequirementTagsHtml(course)}
   </header>`;
 }
 
@@ -484,9 +490,7 @@ export function instructorsResultsHtml(result, state = {}) {
     </div>`;
   }
   if (!result?.recommended) {
-    return `<div class="course-scheduling-waiting-card">
-      <strong>טרם נבדקו מדריכים לקורס זה</strong>
-    </div>`;
+    return `<p class="course-scheduling-waiting-note">טרם נבדקו מדריכים לקורס זה</p>`;
   }
 
   const selectedId = text(state.courseSchedulingSelectedCandidateId) || emp(result.recommended);
@@ -567,7 +571,6 @@ function selectedCoursePanelHtml(row, state) {
     ? 'course-scheduling-btn course-scheduling-btn--secondary'
     : 'course-scheduling-btn course-scheduling-btn--primary course-scheduling-btn--xl';
   return `${selectedCourseMetaHtml(row.course)}
-    <p class="course-scheduling-status-chip${cardStatusClass(row.statusLabel)}">${escapeHtml(row.statusLabel)}</p>
     <div class="course-scheduling-primary-action">
       <button type="button" class="${findButtonClass}" data-find-instructors ${finding ? 'disabled' : ''}>
         ${finding ? 'בודק מדריכים...' : (hasSuggestion ? 'בדיקה מחדש של מדריכים' : 'מצא מדריכים מתאימים')}
@@ -576,44 +579,27 @@ function selectedCoursePanelHtml(row, state) {
     ${finding ? loadingInstructorsHtml(state.courseSchedulingProgressStep || 1) : instructorsResultsHtml(result, state)}`;
 }
 
-function missingCoursesAlertHtml(readiness) {
-  if (!readiness.missingScheduleCount) return '';
-  return `<button type="button" class="course-scheduling-alert-compact course-scheduling-alert-compact--warning course-scheduling-missing-strip" data-open-readiness-drawer>
-    <strong>${readiness.missingScheduleCount} קורסים חסרים פרטים ואינם משתתפים בשיבוץ</strong>
-    <span class="course-scheduling-text-btn">הצגת הקורסים</span>
-  </button>`;
-}
-
 function readinessValue(value, fallback = '—') {
   return text(value) || fallback;
-}
-
-function genderLabel(value) {
-  const raw = text(value || 'any');
-  if (raw === 'female') return 'מדריכה';
-  if (raw === 'male') return 'מדריך';
-  return 'ללא דרישה';
 }
 
 function courseReadinessListHtml(rows = []) {
   if (!rows.length) return '<p class="course-scheduling-muted">כל הקורסים הפתוחים מוכנים לשיבוץ.</p>';
   return rows.map(({ course, missing }) => `<article class="course-scheduling-readiness-row">
     <h4>${escapeHtml(readinessValue(course.activity_name || course.program_name || course.name || course.title))}</h4>
-    <p>${escapeHtml(readinessValue(course.authority))} · ${escapeHtml(readinessValue(course.school))}</p>
-    <p>${activityMeetings(course).length} מפגשים · שפה: ${escapeHtml(instructionLanguageLabel(course.instruction_language || 'he'))} · מגדר: ${escapeHtml(genderLabel(course.required_instructor_gender || 'any'))}</p>
-    <p>${compactMeetingsHtml(course)}</p>
+    <p>${escapeHtml(readinessValue(course.school))} · ${escapeHtml(readinessValue(course.authority))}</p>
     <p><b>חסר להשלמה:</b> ${escapeHtml(missing.join(' · '))}</p>
-    <button type="button" class="course-scheduling-btn course-scheduling-btn--secondary course-scheduling-btn--sm" data-open-readiness-course="${escapeHtml(idOf(course))}">השלמת פרטים</button>
+    <div class="course-scheduling-readiness-actions">
+      <button type="button" class="course-scheduling-btn course-scheduling-btn--secondary course-scheduling-btn--sm" data-open-readiness-course="${escapeHtml(idOf(course))}">השלמת פרטים</button>
+    </div>
   </article>`).join('');
 }
 
 function instructorReadinessListHtml(rows = []) {
   if (!rows.length) return '<p class="course-scheduling-muted">כל המדריכים הפעילים מוכנים לשיבוץ.</p>';
-  return rows.map(({ instructor, profile, rules, missing }) => `<article class="course-scheduling-readiness-row">
+  return rows.map(({ instructor, missing }) => `<article class="course-scheduling-readiness-row">
     <h4>${escapeHtml(readinessValue(instructor.full_name || instructor.emp_id))}</h4>
-    <p>כתובת: ${escapeHtml(readinessValue(instructor.address))} · מגדר: ${escapeHtml(genderLabel(profile?.gender))}</p>
-    <p>שפות: ${escapeHtml((profile?.instruction_languages || []).map(instructionLanguageLabel).join(', ') || '—')}</p>
-    <p>ימים זמינים: ${rules.filter((rule) => rule.available && text(rule.start_time) && text(rule.end_time) && text(rule.start_time) < text(rule.end_time)).length}</p>
+    ${text(instructor.address) ? `<p>${escapeHtml(instructor.address)}</p>` : ''}
     <p><b>חסר להשלמה:</b> ${escapeHtml(missing.join(' · '))}</p>
     <div class="course-scheduling-readiness-actions">
       <button type="button" class="course-scheduling-btn course-scheduling-btn--secondary course-scheduling-btn--sm" data-open-instructor-matching="${escapeHtml(text(instructor.emp_id))}">עריכת התאמה</button>
@@ -627,14 +613,10 @@ function dataReadinessHtml(data, state = {}) {
   const instructorRows = instructorReadinessRows(data || {});
   const tab = state.courseSchedulingReadinessTab === 'instructors' ? 'instructors' : 'courses';
   return `<div class="course-scheduling-maintenance-panel course-scheduling-readiness" data-readiness-panel>
-    <h3>מוכנות לשיבוץ</h3>
-    <div class="course-scheduling-summary course-scheduling-summary--compact">
-      <article class="course-scheduling-summary-card"><b>${courseRows.length}</b><span>קורסים אינם מוכנים</span></article>
-      <article class="course-scheduling-summary-card"><b>${instructorRows.length}</b><span>מדריכים פעילים אינם מוכנים</span></article>
-    </div>
+    <h3 id="course-scheduling-readiness-title" class="course-scheduling-readiness-title">מוכנות לשיבוץ</h3>
     <nav class="course-scheduling-tabs course-scheduling-tabs--inner" aria-label="מוכנות לשיבוץ">
-      <button type="button" class="course-scheduling-tab${tab === 'courses' ? ' is-active' : ''}" data-readiness-tab="courses">קורסים להשלמה</button>
-      <button type="button" class="course-scheduling-tab${tab === 'instructors' ? ' is-active' : ''}" data-readiness-tab="instructors">מדריכים להשלמה</button>
+      <button type="button" class="course-scheduling-tab${tab === 'courses' ? ' is-active' : ''}" data-readiness-tab="courses">קורסים להשלמה (${courseRows.length})</button>
+      <button type="button" class="course-scheduling-tab${tab === 'instructors' ? ' is-active' : ''}" data-readiness-tab="instructors">מדריכים להשלמה (${instructorRows.length})</button>
     </nav>
     <div class="course-scheduling-readiness-list">${tab === 'courses' ? courseReadinessListHtml(courseRows) : instructorReadinessListHtml(instructorRows)}</div>
   </div>`;
@@ -664,7 +646,7 @@ function dataReadinessDrawerHtml(data, state = {}) {
   return `<div class="course-scheduling-overlay course-scheduling-overlay--drawer" data-course-scheduling-overlay>
     <aside class="course-scheduling-drawer" role="dialog" aria-modal="true" aria-labelledby="course-scheduling-readiness-title">
       <button type="button" class="course-scheduling-close" data-close-course-scheduling-overlay aria-label="סגירה">×</button>
-      ${dataReadinessHtml(data, state).replace('data-readiness-panel>', 'data-readiness-panel><span id="course-scheduling-readiness-title" hidden>מוכנות לשיבוץ</span>')}
+      ${dataReadinessHtml(data, state)}
     </aside>
   </div>`;
 }
@@ -672,7 +654,7 @@ function dataReadinessDrawerHtml(data, state = {}) {
 function maintenanceMenuHtml(state) {
   const open = !!state.courseSchedulingMaintenanceOpen;
   return `<div class="course-scheduling-maintenance">
-    <button type="button" class="course-scheduling-btn course-scheduling-btn--secondary course-scheduling-btn--sm course-scheduling-maintenance-trigger" data-toggle-maintenance aria-expanded="${open ? 'true' : 'false'}">⚙ תחזוקת המערכת</button>
+    <button type="button" class="course-scheduling-btn course-scheduling-btn--secondary course-scheduling-btn--sm course-scheduling-maintenance-trigger" data-toggle-maintenance aria-expanded="${open ? 'true' : 'false'}">⚙ תחזוקה</button>
     ${open ? `<div class="course-scheduling-maintenance-menu">
       <button type="button" class="course-scheduling-menu-item" data-maintenance-action="distances">עדכון מרחקים</button>
       <button type="button" class="course-scheduling-menu-item" data-maintenance-action="readiness">בדיקת נתונים</button>
@@ -814,16 +796,15 @@ export const courseSchedulingScreen = {
     const readiness = courseSchedulingDataReadiness(data.activities || []);
     const isAdminRole = ['admin', 'operation_manager'].includes(text(state?.user?.role));
     const title = tab === 'calendar' ? 'מערכת שבועית' : 'שיבוצים';
-    const subtitle = tab === 'calendar'
-      ? 'צפו בקורסים ששובצו ובטיוטות לפי שבוע.'
-      : 'בחרו קורס, מצאו מדריך מתאים ושמרו כטיוטה או שבצו.';
+    // Courses tab keeps only the title (spec: no subtitle, not replaced by another sentence).
+    const subtitle = tab === 'calendar' ? 'צפו בקורסים ששובצו ובטיוטות לפי שבוע.' : '';
 
     return dsScreenStack(`
-    <div class="course-scheduling-screen" dir="rtl" data-cs-ui="ux-polish-20260804-v5" data-cs-tab="${tab}">
+    <div class="course-scheduling-screen" dir="rtl" data-cs-ui="ux-polish-20260805-v1" data-cs-tab="${tab}">
       <header class="course-scheduling-header">
         <div class="course-scheduling-header-copy">
           <h1 class="course-scheduling-title">${title}</h1>
-          <p class="course-scheduling-subtitle">${subtitle}</p>
+          ${subtitle ? `<p class="course-scheduling-subtitle">${escapeHtml(subtitle)}</p>` : ''}
         </div>
         ${isAdminRole ? maintenanceMenuHtml(state) : ''}
       </header>
@@ -836,7 +817,6 @@ export const courseSchedulingScreen = {
       ${schedulingScopeHtml(allInterfaceCourses, state)}
       ${tab === 'courses' ? `
         <section class="course-scheduling-summary">${summaryCardsHtml(interfaceCourses, results, readiness)}</section>
-        ${missingCoursesAlertHtml(readiness)}
         <p data-course-scheduling-error class="course-scheduling-alert"${state.courseSchedulingError ? '' : ' hidden'}>${escapeHtml(state.courseSchedulingError || '')}</p>
         <div class="course-scheduling-layout course-scheduling-layout--courses">
           <aside class="course-scheduling-courses">${courseListHtml(rowModels, selectedId)}</aside>

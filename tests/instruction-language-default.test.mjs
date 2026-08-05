@@ -136,6 +136,6 @@ test('course details UI shows Hebrew default label', () => {
       courseSchedulingSelectedId: 'lang-1'
     }
   });
-  assert.match(html, /שפת הדרכה: עברית/);
+  assert.match(html, /<dt>שפת הדרכה<\/dt><dd>עברית<\/dd>/);
   assert.doesNotMatch(html, /לא הוגדר|חסר מידע|נדרש עדכון/);
 });
