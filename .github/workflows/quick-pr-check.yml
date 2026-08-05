@@ -1,5 +1,4 @@
 name: Quick PR Check
-# Final Operations 2027 validation before restoring the standard workflow.
 
 on:
   pull_request:
@@ -10,7 +9,7 @@ concurrency:
   cancel-in-progress: true
 
 permissions:
-  contents: write
+  contents: read
 
 jobs:
   quick-check:
@@ -19,76 +18,8 @@ jobs:
     timeout-minutes: 10
 
     steps:
-      - name: Checkout PR branch
+      - name: Checkout
         uses: actions/checkout@v7
-        with:
-          ref: ${{ github.event.pull_request.head.sha }}
-          fetch-depth: 0
-
-      - name: Update branch onto latest main
-        run: |
-          git config user.name github-actions[bot]
-          git config user.email 41898282+github-actions[bot]@users.noreply.github.com
-          git fetch --no-tags origin main
-          if git merge-base --is-ancestor origin/main HEAD; then
-            echo "Branch already contains latest main"
-          else
-            set +e
-            git merge --no-edit origin/main
-            merge_status=$?
-            set -e
-            if [ "$merge_status" -ne 0 ]; then
-              conflicts="$(git diff --name-only --diff-filter=U)"
-              echo "Conflicts: $conflicts"
-              for file in $conflicts; do
-                case "$file" in
-                  frontend/src/config.js|frontend/sw.js)
-                    git checkout --theirs -- "$file"
-                    ;;
-                  *)
-                    echo "Unexpected conflict: $file"
-                    exit 1
-                    ;;
-                esac
-              done
-            fi
-            python - <<'PY'
-          from pathlib import Path
-          import re
-          import subprocess
-
-          marker = '-operations-2027-loading-cache-cleanup-20260805-v1'
-          config = Path('frontend/src/config.js')
-          text = config.read_text()
-          match = re.search(r"(HOTFIX_VERSION:\s*')([^']*)(')", text)
-          if not match:
-              raise SystemExit('HOTFIX_VERSION not found')
-          value = match.group(2)
-          if marker not in value:
-              value += marker
-          config.write_text(text[:match.start(2)] + value + text[match.end(2):])
-
-          base_sw = subprocess.check_output(['git', 'show', 'origin/main:frontend/sw.js'], text=True)
-          base_match = re.search(r'const CACHE_VERSION = (\d+);', base_sw)
-          if not base_match:
-              raise SystemExit('Base CACHE_VERSION not found')
-          next_version = int(base_match.group(1)) + 1
-          sw = Path('frontend/sw.js')
-          sw_text = sw.read_text()
-          sw.write_text(re.sub(r'const CACHE_VERSION = \d+;', f'const CACHE_VERSION = {next_version};', sw_text, count=1))
-
-          for path in Path('tests').glob('operations-*.test.mjs'):
-              test_text = path.read_text()
-              test_text = re.sub(r'const CACHE_VERSION = 1418;', f'const CACHE_VERSION = {next_version};', test_text)
-              test_text = re.sub(r'CACHE_VERSION = 1418', f'CACHE_VERSION = {next_version}', test_text)
-              path.write_text(test_text)
-          print(f'Prepared CACHE_VERSION {next_version}')
-          PY
-            git add -A
-            git commit --no-edit || git commit -m "Update Operations 2027 cleanup onto latest main"
-            git push origin HEAD:${{ github.event.pull_request.head.ref }}
-            exit 0
-          fi
 
       - name: Setup Node.js
         uses: actions/setup-node@v6
@@ -99,18 +30,6 @@ jobs:
       - name: Install dependencies
         run: npm ci
 
-      - name: Operations 2027 syntax check
-        run: |
-          node --check frontend/src/screens/operations-2027-loading-controller.js
-          node --check frontend/src/screens/operations-summer-training-matrix.js
-
-      - name: Operations 2027 focused tests
-        run: |
-          for test_file in tests/operations-2027-*.test.mjs tests/operations-lazy-loading.test.mjs; do
-            echo "=== $test_file ==="
-            timeout 40s node --test "$test_file"
-          done
-
       - name: Build check
         run: npm run check:build
 
@@ -118,4 +37,7 @@ jobs:
         run: npm run check:pwa
 
       - name: Focused course scheduling tests
-        run: node --test tests/course-scheduling-*.test.mjs
+        run: |
+          # shallow PR checkouts omit origin/main; the cache-version guard compares against it
+          git fetch --no-tags --depth=1 origin main
+          node --test tests/course-scheduling-*.test.mjs
