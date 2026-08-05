@@ -1,0 +1,169 @@
+name: Finalize proposals signed column alignment
+
+on:
+  push:
+    branches:
+      - fix/proposals-signed-column-final-alignment
+
+permissions:
+  contents: write
+
+jobs:
+  apply-and-verify:
+    if: github.actor != 'github-actions[bot]'
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: fix/proposals-signed-column-final-alignment
+          fetch-depth: 0
+
+      - name: Apply focused layout and cache updates
+        shell: bash
+        run: |
+          set -euo pipefail
+          python <<'PY'
+          from pathlib import Path
+          import re
+
+          screen_path = Path('frontend/src/screens/proposals-agreements.js')
+          screen = screen_path.read_text(encoding='utf-8')
+          old_cols = '<colgroup><col style="width:50px"><col style="width:50px"><col style="width:105px"><col style="width:145px"><col style="width:95px"><col style="width:95px"><col style="width:95px"><col style="width:95px"><col style="width:95px"><col style="width:100px"><col style="width:123px"></colgroup>'
+          new_cols = '<colgroup><col style="width:50px"><col style="width:50px"><col style="width:105px"><col style="width:145px"><col style="width:95px"><col style="width:95px"><col style="width:95px"><col style="width:95px"><col style="width:95px"><col style="width:95px"><col style="width:128px"></colgroup>'
+          if old_cols not in screen:
+              raise SystemExit('Expected proposals table colgroup was not found')
+          screen = screen.replace(old_cols, new_cols, 1)
+          screen_path.write_text(screen, encoding='utf-8')
+
+          css_path = Path('frontend/src/styles/main.css')
+          css = css_path.read_text(encoding='utf-8')
+          old_css = '''.ds-pa-gfen-signed-col { text-align: center; vertical-align: middle; white-space: nowrap; }
+          .ds-pa-table th.ds-pa-gfen-signed-col { padding-inline: 4px; line-height: 1.1; }
+          .ds-pa-gfen-signed-check { inline-size: 16px; block-size: 16px; margin: 0; vertical-align: middle; cursor: pointer; }
+          .ds-pa-gfen-signed-check:disabled { cursor: wait; opacity: .65; }
+          .ds-pa-unavailable { display: inline-flex; align-items: center; justify-content: center; min-width: 16px; color: #94a3b8; font-weight: 700; }'''.replace('          ', '')
+          new_css = '''.ds-pa-gfen-signed-col { text-align: center !important; vertical-align: middle !important; white-space: nowrap; }
+          .ds-pa-table th.ds-pa-gfen-signed-col,
+          .ds-pa-table td.ds-pa-gfen-signed-col { text-align: center !important; vertical-align: middle !important; }
+          .ds-pa-table th.ds-pa-gfen-signed-col { padding-inline: 4px; line-height: 1.1; }
+          .ds-pa-table td.ds-pa-gfen-signed-col { padding-inline: 0; }
+          .ds-pa-gfen-signed-check { inline-size: 16px; block-size: 16px; display: block; margin-inline: auto; vertical-align: middle; cursor: pointer; }
+          .ds-pa-gfen-signed-check:disabled { cursor: wait; opacity: .65; }
+          .ds-pa-unavailable { display: inline-flex; align-items: center; justify-content: center; min-width: 16px; margin-inline: auto; color: #94a3b8; font-weight: 700; }'''.replace('          ', '')
+          if old_css not in css:
+              raise SystemExit('Expected Gefen signed column CSS block was not found')
+          css = css.replace(old_css, new_css, 1)
+          css_path.write_text(css, encoding='utf-8')
+
+          config_path = Path('frontend/src/config.js')
+          config = config_path.read_text(encoding='utf-8')
+          marker = '-proposals-signed-column-final-align-20260805-v1'
+          if marker not in config:
+              config, count = re.subn(
+                  r"(HOTFIX_VERSION:\s*'[^']*)(')",
+                  lambda match: match.group(1) + marker + match.group(2),
+                  config,
+                  count=1
+              )
+              if count != 1:
+                  raise SystemExit('Could not append HOTFIX_VERSION marker')
+          config_path.write_text(config, encoding='utf-8')
+
+          sw_path = Path('frontend/sw.js')
+          sw = sw_path.read_text(encoding='utf-8')
+          match = re.search(r'const CACHE_VERSION = (\d+);', sw)
+          if not match:
+              raise SystemExit('Could not find CACHE_VERSION')
+          old_version = int(match.group(1))
+          new_version = old_version + 1
+          sw = sw[:match.start(1)] + str(new_version) + sw[match.end(1):]
+          sw_path.write_text(sw, encoding='utf-8')
+
+          index_path = Path('index.html')
+          index = index_path.read_text(encoding='utf-8')
+          index, count = re.subn(
+              r'frontend/src/styles/main\.css\?v=[^"\']+',
+              'frontend/src/styles/main.css?v=20260805-proposals-signed-final-align-v1',
+              index,
+              count=1
+          )
+          if count != 1:
+              raise SystemExit('Could not update main.css cache-busting query')
+          index_path.write_text(index, encoding='utf-8')
+
+          for test_name in [
+              'tests/operations-2027-training-kit-history-fix.test.mjs',
+              'tests/operations-2027-training-kits.test.mjs'
+          ]:
+              test_path = Path(test_name)
+              test_source = test_path.read_text(encoding='utf-8')
+              test_source, replacements = re.subn(
+                  r'assert\.match\(swSource, /const CACHE_VERSION = \d+;/\);',
+                  f'assert.match(swSource, /const CACHE_VERSION = {new_version};/);',
+                  test_source
+              )
+              if replacements != 1:
+                  raise SystemExit(f'Expected one CACHE_VERSION assertion in {test_name}, found {replacements}')
+              test_path.write_text(test_source, encoding='utf-8')
+
+          focused_test = f'''import test from 'node:test';
+          import assert from 'node:assert/strict';
+          import {{ readFile }} from 'node:fs/promises';
+
+          const [screen, css, config, sw, index] = await Promise.all([
+            readFile(new URL('../frontend/src/screens/proposals-agreements.js', import.meta.url), 'utf8'),
+            readFile(new URL('../frontend/src/styles/main.css', import.meta.url), 'utf8'),
+            readFile(new URL('../frontend/src/config.js', import.meta.url), 'utf8'),
+            readFile(new URL('../frontend/sw.js', import.meta.url), 'utf8'),
+            readFile(new URL('../index.html', import.meta.url), 'utf8')
+          ]);
+
+          test('final proposals widths keep total 1048px with signed 95px and actions 128px', () => {{
+            const match = screen.match(/<colgroup>([\\s\\S]*?)<\\/colgroup>/);
+            assert.ok(match);
+            const widths = [...match[1].matchAll(/width:(\\d+)px/g)].map((item) => Number(item[1]));
+            assert.deepEqual(widths, [50, 50, 105, 145, 95, 95, 95, 95, 95, 95, 128]);
+            assert.equal(widths.reduce((sum, width) => sum + width, 0), 1048);
+          }});
+
+          test('signed header, cells, checkbox and unavailable marker are centered', () => {{
+            assert.match(css, /th\\.ds-pa-gfen-signed-col,[\\s\\S]*td\\.ds-pa-gfen-signed-col \\{{ text-align: center !important; vertical-align: middle !important; \\}}/);
+            assert.match(css, /td\\.ds-pa-gfen-signed-col \\{{ padding-inline: 0; \\}}/);
+            assert.match(css, /ds-pa-gfen-signed-check \\{{[^}}]*display: block;[^}}]*margin-inline: auto;/);
+            assert.match(css, /ds-pa-unavailable \\{{[^}}]*margin-inline: auto;/);
+          }});
+
+          test('frontend release markers are refreshed', () => {{
+            assert.match(config, /proposals-signed-column-final-align-20260805-v1/);
+            assert.match(sw, /const CACHE_VERSION = {new_version};/);
+            assert.match(index, /main\\.css\\?v=20260805-proposals-signed-final-align-v1/);
+          }});
+          '''.replace('          ', '')
+          Path('tests/proposals-table-final-alignment.test.mjs').write_text(focused_test, encoding='utf-8')
+
+          Path('.github/workflows/proposals-final-align.yml').unlink()
+          print(f'CACHE_VERSION updated from {{old_version}} to {{new_version}}')
+          PY
+
+      - name: Run focused verification
+        shell: bash
+        run: |
+          set -euo pipefail
+          node --check frontend/src/screens/proposals-agreements.js
+          node --check frontend/src/config.js
+          node --check frontend/sw.js
+          node --test tests/proposals-table-final-alignment.test.mjs
+          npm ci
+          npm run check:build
+          npm run check:pwa
+          git diff --check
+
+      - name: Commit focused changes
+        shell: bash
+        run: |
+          set -euo pipefail
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add frontend/src/screens/proposals-agreements.js frontend/src/styles/main.css frontend/src/config.js frontend/sw.js index.html tests/operations-2027-training-kit-history-fix.test.mjs tests/operations-2027-training-kits.test.mjs tests/proposals-table-final-alignment.test.mjs .github/workflows/proposals-final-align.yml
+          git commit -m "Finalize signed column width and alignment"
+          git push origin HEAD:fix/proposals-signed-column-final-alignment
