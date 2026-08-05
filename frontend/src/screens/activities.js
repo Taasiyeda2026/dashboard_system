@@ -719,7 +719,7 @@ export function applyActivityCatalogSelectionToAddForm(form, catalogItem, activi
   const noInput = form?.querySelector?.('[data-add-activity-no]');
   const sessionsInput = form?.querySelector?.('[data-add-sessions]');
   const type = normalizeActivityTypeKey(activityType);
-  if (noInput) noInput.value = String(catalogItem?.activity_no || catalogItem?.gefen_number || '');
+  if (noInput) noInput.value = String(catalogItem?.gefen_number || catalogItem?.activity_no || '');
   const meetingsCount = normalizeActivityMeetingsCount(catalogItem?.meetings_count);
   if ((type === 'course' || type === 'after_school') && sessionsInput && meetingsCount != null) {
     sessionsInput.value = String(meetingsCount);
@@ -773,11 +773,10 @@ export function syncSessionDateRows(form) {
 }
 
 export function bindAddActivitySessionCountSync(form, listenerOptions) {
-  form?.querySelector?.('[data-add-sessions]')?.addEventListener(
-    'change',
-    () => syncSessionDateRows(form),
-    listenerOptions
-  );
+  const sessionsInput = form?.querySelector?.('[data-add-sessions]');
+  const sync = () => syncSessionDateRows(form);
+  sessionsInput?.addEventListener('input', sync, listenerOptions);
+  sessionsInput?.addEventListener('change', sync, listenerOptions);
 }
 
 function optionsHtml(values, selected = '', placeholder = '—', labelFn = null) {

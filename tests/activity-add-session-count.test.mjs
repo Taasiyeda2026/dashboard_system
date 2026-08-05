@@ -73,13 +73,25 @@ test('switching from an 11-session course to an 8-session course shrinks date ro
   assert.equal(rowCount(form), 8);
 });
 
+test('switching from an 8-session course to an 11-session course adds date rows', () => {
+  const form = createForm('course');
+  applyActivityCatalogSelectionToAddForm(form, { activity_no: '9545', meetings_count: 8 }, 'course');
+  syncSessionDateRows(form);
+  applyActivityCatalogSelectionToAddForm(form, { gefen_number: '6089', activity_no: 'legacy-6089', meetings_count: 11 }, 'course');
+  syncSessionDateRows(form);
+
+  assert.equal(form.querySelector('[data-add-activity-no]').value, '6089');
+  assert.equal(form.querySelector('[data-add-sessions]').value, '11');
+  assert.equal(rowCount(form), 11);
+});
+
 test('manual session count change triggers date-row synchronization', () => {
   const form = createForm('course', '11');
   syncSessionDateRows(form);
   bindAddActivitySessionCountSync(form);
   const input = form.querySelector('[data-add-sessions]');
   input.value = '6';
-  input.dispatchEvent(new window.Event('change', { bubbles: true }));
+  input.dispatchEvent(new window.Event('input', { bubbles: true }));
 
   assert.equal(rowCount(form), 6);
 });
