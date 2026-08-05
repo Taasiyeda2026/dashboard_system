@@ -59,6 +59,7 @@ const MUTATING_ACTIONS = {
   saveClientSetting: true,
   addProposalAgreement: true,
   updateProposalAgreement: true,
+  updateProposalAgreementGfenSignedOrOrdered: true,
   updateProposalAgreementStatus: true,
   lockAndSendProposalAgreement: true,
   uploadProposalFinalPdf: true,
@@ -2957,6 +2958,7 @@ function invalidateScreenDataByAction(action) {
     saveClientSetting: ['adminSettings', 'dashboard:', 'activities:', 'week:', 'month:'],
     addProposalAgreement: ['proposals-agreements'],
     updateProposalAgreement: ['proposals-agreements'],
+    updateProposalAgreementGfenSignedOrOrdered: ['proposals-agreements'],
     updateProposalAgreementStatus: ['proposals-agreements'],
     lockAndSendProposalAgreement: ['proposals-agreements'],
     uploadProposalFinalPdf: ['proposals-agreements'],
@@ -3059,11 +3061,11 @@ function normalizeData(data) {
 
 const PROPOSALS_AGREEMENTS_ALLOWED_ROLES = new Set(['domain_manager', 'operation_manager', 'admin', 'business_development_manager']);
 const PROPOSALS_AGREEMENTS_MANAGE_ROLES = new Set(['domain_manager', 'operation_manager', 'admin']);
-const PROPOSALS_AGREEMENTS_COLUMNS = 'id,authority_id,school_id,contact_school_id,client_authority,school_framework,document_type,activity_type_group,proposal_domain,proposal_date,activity_names,contact_name,contact_role,phone,email,contact_phone,contact_email,notes,status,approval_note,total_amount,custom_document_sections,include_catalog,signature_meta,approved_by,approved_at,sent_by,sent_at,locked_at,locked_by,locked_reason,final_pdf_path,final_pdf_file_name,final_pdf_created_at,final_pdf_created_by,document_snapshot,document_html_snapshot,proposal_series_id,version_number,supersedes_proposal_id,archived_at,quote_number,valid_until,combine_gefen_approval,created_at,updated_at';
+const PROPOSALS_AGREEMENTS_COLUMNS = 'id,authority_id,school_id,contact_school_id,client_authority,school_framework,document_type,activity_type_group,proposal_domain,proposal_date,activity_names,contact_name,contact_role,phone,email,contact_phone,contact_email,notes,status,approval_note,total_amount,custom_document_sections,include_catalog,signature_meta,approved_by,approved_at,sent_by,sent_at,locked_at,locked_by,locked_reason,final_pdf_path,final_pdf_file_name,final_pdf_created_at,final_pdf_created_by,document_snapshot,document_html_snapshot,proposal_series_id,version_number,supersedes_proposal_id,archived_at,quote_number,valid_until,combine_gefen_approval,gfen_signed_or_ordered,created_at,updated_at';
 // List/directory projection — no snapshots/HTML/signature payloads.
-const PROPOSALS_AGREEMENTS_LIST_COLUMNS = 'id,authority_id,authority_code,school_id,contact_school_id,semel_mosad,authority_name,legacy_client_authority,contact_client_type,contact_client_name,school_name,legacy_school_framework,document_type,activity_type_group,proposal_domain,proposal_date,activity_names,contact_name,contact_role,phone,email,notes,status,approval_note,total_amount,include_catalog,approved_by,approved_at,sent_by,sent_at,locked_at,locked_by,locked_reason,final_pdf_path,final_pdf_file_name,final_pdf_created_at,final_pdf_created_by,proposal_series_id,version_number,supersedes_proposal_id,archived_at,quote_number,valid_until,combine_gefen_approval,created_at,updated_at';
+const PROPOSALS_AGREEMENTS_LIST_COLUMNS = 'id,authority_id,authority_code,school_id,contact_school_id,semel_mosad,authority_name,legacy_client_authority,contact_client_type,contact_client_name,school_name,legacy_school_framework,document_type,activity_type_group,proposal_domain,proposal_date,activity_names,contact_name,contact_role,phone,email,notes,status,approval_note,total_amount,include_catalog,approved_by,approved_at,sent_by,sent_at,locked_at,locked_by,locked_reason,final_pdf_path,final_pdf_file_name,final_pdf_created_at,final_pdf_created_by,proposal_series_id,version_number,supersedes_proposal_id,archived_at,quote_number,valid_until,combine_gefen_approval,gfen_signed_or_ordered,created_at,updated_at';
 const PROPOSALS_AGREEMENTS_DIRECTORY_COLUMNS = PROPOSALS_AGREEMENTS_LIST_COLUMNS;
-const PROPOSALS_AGREEMENTS_DETAIL_COLUMNS = 'id,authority_id,authority_code,school_id,contact_school_id,semel_mosad,authority_name,legacy_client_authority,contact_client_type,contact_client_name,school_name,legacy_school_framework,document_type,activity_type_group,proposal_domain,proposal_date,activity_names,contact_name,contact_role,phone,email,notes,status,approval_note,total_amount,custom_document_sections,include_catalog,signature_meta,approved_by,approved_at,sent_by,sent_at,locked_at,locked_by,locked_reason,final_pdf_path,final_pdf_file_name,final_pdf_created_at,final_pdf_created_by,document_snapshot,document_html_snapshot,proposal_series_id,version_number,supersedes_proposal_id,archived_at,quote_number,valid_until,combine_gefen_approval,created_at,updated_at';
+const PROPOSALS_AGREEMENTS_DETAIL_COLUMNS = 'id,authority_id,authority_code,school_id,contact_school_id,semel_mosad,authority_name,legacy_client_authority,contact_client_type,contact_client_name,school_name,legacy_school_framework,document_type,activity_type_group,proposal_domain,proposal_date,activity_names,contact_name,contact_role,phone,email,notes,status,approval_note,total_amount,custom_document_sections,include_catalog,signature_meta,approved_by,approved_at,sent_by,sent_at,locked_at,locked_by,locked_reason,final_pdf_path,final_pdf_file_name,final_pdf_created_at,final_pdf_created_by,document_snapshot,document_html_snapshot,proposal_series_id,version_number,supersedes_proposal_id,archived_at,quote_number,valid_until,combine_gefen_approval,gfen_signed_or_ordered,created_at,updated_at';
 const PROPOSAL_FINAL_PDF_BUCKET = 'proposal-final-pdfs';
 const GEFEN_APPROVAL_DOCUMENT_TYPE = 'gefen_approval';
 const IDAN_NAHUM_AUTH_USER_ID = 'e9ca304a-4e66-4774-830e-14f1318c4908';
@@ -3308,6 +3310,7 @@ function normalizeProposalAgreementRow(row = {}) {
     gefen_approval_path: cleanProposalAgreementText(row.gefen_approval_path),
     gefen_approval_file_name: cleanProposalAgreementText(row.gefen_approval_file_name),
     gefen_approval_combined: row.gefen_approval_combined === true,
+    gfen_signed_or_ordered: row.gfen_signed_or_ordered === true,
     created_at:          cleanProposalAgreementText(row.created_at),
     updated_at:          cleanProposalAgreementText(row.updated_at)
   };
@@ -6944,6 +6947,7 @@ export const api = {
     if (error) throw new Error(error.message || 'proposals_agreement_add_failed');
     return { ok: true, row: normalizeProposalAgreementRow(data) };
   },
+
   updateProposalAgreement: async (id, payload) => {
     assertCanManageProposalsAgreementsApi();
     const rowId = cleanProposalAgreementText(id);
@@ -6976,6 +6980,24 @@ export const api = {
     if (error) throw new Error(error.message || 'proposals_agreement_update_failed');
     return { ok: true, row: normalizeProposalAgreementRow(data) };
   },
+  updateProposalAgreementGfenSignedOrOrdered: async (id, value) => {
+    assertCanManageProposalsAgreementsApi();
+    const rowId = cleanProposalAgreementText(id);
+    if (!rowId) throw new Error('missing_proposal_agreement_id');
+    const patch = {
+      gfen_signed_or_ordered: value === true,
+      updated_at: new Date().toISOString()
+    };
+    const { data, error } = await supabase
+      .from('proposals_agreements')
+      .update(patch)
+      .eq('id', rowId)
+      .select(PROPOSALS_AGREEMENTS_COLUMNS)
+      .single();
+    if (error) throw new Error(error.message || 'proposal_gfen_signed_or_ordered_update_failed');
+    return { ok: true, row: normalizeProposalAgreementRow(data) };
+  },
+
 
   deleteProposalAgreement: async (id) => {
     assertCanManageProposalsAgreementsApi();
