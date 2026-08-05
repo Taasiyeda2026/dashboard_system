@@ -195,3 +195,25 @@ test('inventory implementation does not calculate opening stock from DOM cells o
   assert.doesNotMatch(source, /row\.cells\[[25]\]/);
   assert.doesNotMatch(buildWorkshopOpeningStock2027.toString(), /\.insert\s*\(|\.update\s*\(|\.upsert\s*\(|\.rpc\s*\(/);
 });
+
+test('2027 workshops table uses the same seven main columns as 2026 and keeps stock locations in detail', () => {
+  const state = school2027State();
+  state.operationsManagement.expandedWorkshop = 'stock-a';
+  const html = operationsManagementScreen.render({
+    rows: [],
+    adminListsData: { categories: [{ category: 'activity_names', items: catalogRows.map((item) => ({ value: item.workshopNo, label: item.workshopName, _row: { category: 'activity_names', type: 'workshop', activity_type: 'workshop', active: true, activity_no: item.workshopNo, activity_name: item.workshopName, stock_group_key: item.stockGroupKey, stock_group_name: item.stockGroupName } })) }] },
+    workshopStockDistributions: [{ stock_group_key: 'stock-a', instructor_name: 'מלאי עידן', quantity_received: 10 }],
+    workshopInventorySourceRows: [
+      row({ status: 'סגור', participants_count: 3 }),
+      row({ status: 'פתוח', participants_count: 2 })
+    ],
+    workshopInventory2027Rows: [row({ activity_season: 'school_2027', start_date: '2026-10-01', status: 'פתוח', participants_count: 1 })]
+  }, { state });
+  const mainTable = html.slice(html.indexOf('<table class="ds-table ds-table--compact ds-ops-mgmt-data-table ds-ops-workshops-table"'), html.indexOf('</thead>'));
+  const headers = [...mainTable.matchAll(/<th[^>]*>([\s\S]*?)<\/th>/g)].map((match) => match[1].replace(/<[^>]+>/g, '').replace(/[▲▼]/g, '').trim());
+  assert.deepEqual(headers, ['מס׳ סדנה', 'שם הסדנה', 'כמות קיימת', 'ניצול בפועל', 'צפי נדרש', 'יתרה צפויה', 'סטטוס']);
+  assert.doesNotMatch(mainTable, /מלאי פתיחה|מיקום מלאי הפתיחה/);
+  assert.match(html, /סיכום מיקום מלאי/);
+  assert.match(html, /מלאי עידן/);
+  assert.match(html, /סדנת מלאי[\s\S]*?<td class="ds-ops-workshop-col--metric">5<\/td>[\s\S]*?<td class="ds-ops-workshop-col--metric">0<\/td>[\s\S]*?<td class="ds-ops-workshop-col--metric">1<\/td>[\s\S]*?<span class="ds-ops-gap ds-ops-gap--ok">4<\/span>/);
+});
