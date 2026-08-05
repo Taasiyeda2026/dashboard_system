@@ -1,5 +1,6 @@
 import { supabase } from '../supabase-client.js';
 import { escapeHtml } from './shared/html.js';
+import { buildPrintKitSummary, isActiveInstructor, resolveCourseForActivity } from './shared/operations-2027-domain.js';
 
 const TAB_COURSE_TRAINING = 'course_training_matrix';
 const TAB_PRINT_KITS = 'course_print_kits';
@@ -8,6 +9,9 @@ const INSTRUCTOR_TABLE = 'contacts_instructors';
 const TRAINING_TABLE = 'course_instructor_trainings';
 const KIT_INVENTORY_TABLE = 'course_print_kit_inventory';
 const KIT_DISTRIBUTION_TABLE = 'course_print_kit_distributions';
+const ACTIVITY_TABLE = 'activities';
+const SCHOOL_2027 = 'school_2027';
+const BIOMIMICRY_ESCAPE_ROOM_KIT = 'ביומימיקרי חדר בריחה';
 const KIT_LOCATIONS = [
   { key: 'warehouse', field: 'warehouse_quantity', label: 'מחסן' },
   { key: 'hila', field: 'hila_quantity', label: 'הילה' },
@@ -65,6 +69,8 @@ function ensureStyle() {
     .ops2027-history-status { display: inline-block; min-width: 30px; min-height: 28px; padding: 5px 8px; border-radius: 7px; box-sizing: border-box; font-weight: 900; }
     .ops2027-history-status.is-yes { color: #166534; background: #dcfce7; }
     .ops2027-history-status.is-no { color: #b91c1c; background: #fee2e2; }
+    .ops2027-need-status.is-ok { color: #166534; font-weight: 800; }
+    .ops2027-need-status.is-missing { color: #b91c1c; font-weight: 800; }
   `;
   document.head.appendChild(style);
 }
@@ -86,7 +92,7 @@ async function loadInstructors() {
     .order('full_name', { ascending: true });
   if (result.error) throw result.error;
   return (result.data || [])
-    .map((row) => ({ name: cleanText(row?.full_name), active: normalize(row?.active) === 'yes' }))
+    .map((row) => ({ full_name: cleanText(row?.full_name), name: cleanText(row?.full_name), active: normalize(row?.active) === 'yes', activeRaw: row?.active, isActive: isActiveInstructor(row?.active) }))
     .filter((row) => row.name);
 }
 
@@ -209,7 +215,7 @@ function inventoryTotal(row) {
 }
 
 async function loadKitData() {
-  const [coursesResult, instructors, inventoryResult, distributionResult, editable] = await Promise.all([
+  const [coursesResult, instructors, inventoryResult, distributionResult, activitiesResult, editable] = await Promise.all([
     supabase
       .from(COURSE_TABLE)
       .select('id, short_name, full_name, gefen_number, sort_order, is_active, requires_print_kit')
@@ -218,13 +224,19 @@ async function loadKitData() {
     loadInstructors(),
     supabase.from(KIT_INVENTORY_TABLE).select('course_id, warehouse_quantity, hila_quantity, idan_quantity, gil_quantity'),
     supabase.from(KIT_DISTRIBUTION_TABLE).select('course_id, instructor_name, source_location'),
+    supabase
+      .from(ACTIVITY_TABLE)
+      .select('*')
+      .eq('activity_season', SCHOOL_2027)
+      .eq('activity_type', 'course'),
     canEditOperations()
   ]);
   if (coursesResult.error) throw coursesResult.error;
   if (inventoryResult.error) throw inventoryResult.error;
   if (distributionResult.error) throw distributionResult.error;
+  if (activitiesResult.error) throw activitiesResult.error;
 
-  const activeNames = instructors.filter((row) => row.active).map((row) => row.name);
+  const activeNames = instructors.filter((row) => row.isActive).map((row) => row.name);
   const activeKeys = new Set(activeNames.map(normalize));
   const distributions = distributionResult.data || [];
   const inactiveHolders = Array.from(new Set(
@@ -233,21 +245,74 @@ async function loadKitData() {
       .filter((name) => name && !activeKeys.has(normalize(name)))
   )).sort((a, b) => a.localeCompare(b, 'he', { numeric: true }));
 
+  const courses = coursesResult.data || [];
+  const distributionMap = new Map(distributions.map((row) => [pairKey(row.course_id, row.instructor_name), row]));
   return {
-    courses: coursesResult.data || [],
+    courses,
     activeNames,
     inactiveHolders,
+    activeInstructors: instructors.map((row) => ({ full_name: row.full_name, active: row.activeRaw ?? row.active })),
     inventoryMap: new Map((inventoryResult.data || []).map((row) => [String(row.course_id), row])),
-    distributionMap: new Map(distributions.map((row) => [pairKey(row.course_id, row.instructor_name), row])),
+    distributionMap,
+    assignedMap: buildPrintKitAssignedMap(activitiesResult.data || [], courses),
     editable
   };
+}
+
+function activityInstructorNames(row) {
+  return Array.from(new Set([
+    row?.instructor_name,
+    row?.instructorName,
+    row?.instructor,
+    row?.guide_name,
+    row?.guide,
+    row?.instructor_name_2,
+    row?.instructor_2,
+    row?.guide_name_2,
+    row?.guide_2
+  ].map(cleanText).filter(Boolean)));
+}
+
+function isInactiveActivity(row) {
+  const status = cleanText(row?.status).toLowerCase();
+  return Boolean(row?.deleted_at || row?.is_deleted === true || row?.cancelled_at || row?.is_cancelled === true)
+    || ['נמחק', 'מחוק', 'בוטל', 'מבוטל', 'deleted', 'cancelled', 'canceled'].includes(status);
+}
+
+function isAutomaticNeedKit(course) {
+  return courseLabel(course) !== BIOMIMICRY_ESCAPE_ROOM_KIT;
+}
+
+export function buildPrintKitAssignedMap(activities = [], courses = []) {
+  const assignedMap = new Map();
+  activities.forEach((row) => {
+    if (isInactiveActivity(row)) return;
+    const course = resolveCourseForActivity(row, courses);
+    if (!course || !isAutomaticNeedKit(course)) return;
+    activityInstructorNames(row).forEach((name) => {
+      const courseId = String(course.id || '');
+      if (!courseId || !name) return;
+      if (!assignedMap.has(courseId)) assignedMap.set(courseId, new Set());
+      assignedMap.get(courseId).add(normalize(name));
+    });
+  });
+  return assignedMap;
 }
 
 function stockTableHtml(data) {
   if (!data.courses.length) return '<div class="ops2027-empty">אין ערכות להצגה.</div>';
   const body = data.courses.map((course) => {
     const stock = data.inventoryMap.get(String(course.id)) || {};
-    const total = inventoryTotal(stock);
+    const holders = Array.from(data.distributionMap.values()).filter((row) => String(row?.course_id) === String(course.id));
+    const summary = buildPrintKitSummary({
+      warehouse: stock?.warehouse_quantity,
+      hila: stock?.hila_quantity,
+      idan: stock?.idan_quantity,
+      gil: stock?.gil_quantity,
+      holders,
+      activeInstructors: data.activeInstructors
+    });
+    const total = summary.totalUnique;
     const locations = KIT_LOCATIONS.map((location) => {
       const value = Math.max(0, Number(stock?.[location.field] || 0));
       const control = data.editable
@@ -256,51 +321,105 @@ function stockTableHtml(data) {
       return `<td class="ops2027-number-col">${control}</td>`;
     }).join('');
     return `<tr><td class="ops2027-course-col">${escapeHtml(courseLabel(course))}</td>${locations}
+      <td class="ops2027-number-col">${summary.activeInstructorKits}</td>
+      <td class="ops2027-number-col">${summary.inactiveInstructorKits}</td>
       <td class="ops2027-number-col"><span class="ops2027-stock-total ${total === 0 ? 'is-empty' : ''}">${total}</span></td></tr>`;
   }).join('');
   return `<div class="ops2027-table-shell"><table class="ops2027-table"><thead><tr>
     <th class="ops2027-course-col">שם ערכה</th>
     ${KIT_LOCATIONS.map((location) => `<th class="ops2027-number-col">${escapeHtml(location.label)}</th>`).join('')}
+    <th class="ops2027-number-col">אצל מדריכים פעילים</th>
+    <th class="ops2027-number-col">אצל מדריכים לא פעילים</th>
     <th class="ops2027-number-col">סה״כ</th>
   </tr></thead><tbody>${body}</tbody></table></div>`;
 }
 
-function kitCellHtml(data, course, instructor, allowDelivery) {
+export function printKitCellState({ holds = false, assigned = false, inactive = false } = {}) {
+  if (holds) return { text: '✓', tone: 'green', state: 'held' };
+  if (!inactive && assigned) return { text: '✕', tone: 'red', state: 'assigned_missing' };
+  return { text: '', tone: 'empty', state: 'empty' };
+}
+
+function kitCellHtml(data, course, instructor, inactive = false) {
   const key = pairKey(course.id, instructor);
   const distribution = data.distributionMap.get(key);
+  const assigned = data.assignedMap.get(String(course.id))?.has(normalize(instructor)) === true;
+  const cell = printKitCellState({ holds: Boolean(distribution), assigned, inactive });
   if (distribution) {
     if (!data.editable) return '<span class="ops2027-history-status is-yes" aria-label="יש ערכה">✓</span>';
     return `<button type="button" class="ops2027-cell-button is-yes" data-history-kit-return data-course-id="${escapeHtml(course.id)}" data-instructor="${escapeHtml(instructor)}" aria-label="יש ערכה">✓</button>`;
   }
-  if (!allowDelivery) return '';
-  const available = inventoryTotal(data.inventoryMap.get(String(course.id)) || {});
-  if (available <= 0) return '<span class="ops2027-out">אין מלאי</span>';
-  if (!data.editable) return '<span class="ops2027-history-status is-no" aria-label="אין ערכה">✕</span>';
+  if (cell.state !== 'assigned_missing') return '';
+  if (!data.editable) return '<span class="ops2027-history-status is-no" aria-label="משובץ וחסרה ערכה">✕</span>';
   return `<button type="button" class="ops2027-cell-button is-no" data-history-kit-deliver data-course-id="${escapeHtml(course.id)}" data-instructor="${escapeHtml(instructor)}" aria-label="אין ערכה">✕</button>`;
+}
+
+function needSummaryHtml(data) {
+  const rows = data.courses.filter(isAutomaticNeedKit).map((course) => {
+    const assigned = data.assignedMap.get(String(course.id)) || new Set();
+    const assignedCount = assigned.size;
+    const heldAssignedCount = Array.from(assigned).filter((nameKey) => data.distributionMap.has(pairKey(course.id, nameKey))).length;
+    const needed = Math.max(0, assignedCount - heldAssignedCount);
+    const available = inventoryTotal(data.inventoryMap.get(String(course.id)) || {});
+    const balance = available - needed;
+    const ok = balance >= 0;
+    return `<tr>
+      <td class="ops2027-course-col">${escapeHtml(courseLabel(course))}</td>
+      <td class="ops2027-number-col">${assignedCount}</td>
+      <td class="ops2027-number-col">${heldAssignedCount}</td>
+      <td class="ops2027-number-col">${needed}</td>
+      <td class="ops2027-number-col">${available}</td>
+      <td class="ops2027-number-col">${balance}</td>
+      <td class="ops2027-number-col"><span class="ops2027-need-status ${ok ? 'is-ok' : 'is-missing'}">${ok ? 'תקין' : 'חסר מלאי'}</span></td>
+    </tr>`;
+  }).join('');
+  if (!rows) return '<div class="ops2027-empty">אין ערכות מקושרות לקורסים לסיכום צורך.</div>';
+  return `<div class="ops2027-table-shell"><table class="ops2027-table"><thead><tr>
+    <th class="ops2027-course-col">שם ערכה</th>
+    <th class="ops2027-number-col">משובצים ייחודיים</th>
+    <th class="ops2027-number-col">כבר מחזיקים</th>
+    <th class="ops2027-number-col">עדיין צריכים</th>
+    <th class="ops2027-number-col">זמין מרכזי</th>
+    <th class="ops2027-number-col">יתרה/חוסר</th>
+    <th class="ops2027-number-col">סטטוס</th>
+  </tr></thead><tbody>${rows}</tbody></table></div>`;
+}
+
+function kitMatrixHtml({ courses, instructors, emptyMessage, cellHtml }) {
+  if (!courses.length || !instructors.length) return `<div class="ops2027-empty">${escapeHtml(emptyMessage)}</div>`;
+  const head = courses
+    .map((course) => `<th class="ops2027-course-col">${escapeHtml(courseLabel(course))}</th>`)
+    .join('');
+  const body = instructors.map((instructor) => `<tr>
+    <td class="ops2027-instructor-col"><span class="ops2027-instructor-name">${escapeHtml(instructor)}</span></td>
+    ${courses.map((course) => `<td class="ops2027-course-col">${cellHtml(course, instructor)}</td>`).join('')}
+  </tr>`).join('');
+  return `<div class="ops2027-table-shell"><table class="ops2027-table"><thead><tr>
+    <th class="ops2027-instructor-col">שם מדריך</th>${head}
+  </tr></thead><tbody>${body}</tbody></table></div>`;
 }
 
 async function renderPrintKits(sequence) {
   const data = await loadKitData();
   if (sequence !== renderSequence || activeCustomTab() !== TAB_PRINT_KITS) return;
-  const activeMatrix = matrixHtml({
-    rows: data.courses,
+  const activeMatrix = kitMatrixHtml({
+    courses: data.courses,
     instructors: data.activeNames,
     emptyMessage: 'אין מדריכים פעילים להצגה.',
-    firstColumnLabel: 'שם ערכה',
-    cellHtml: (course, instructor) => kitCellHtml(data, course, instructor, true)
+    cellHtml: (course, instructor) => kitCellHtml(data, course, instructor, false)
   });
-  const inactiveMatrix = matrixHtml({
-    rows: data.courses,
+  const inactiveMatrix = kitMatrixHtml({
+    courses: data.courses,
     instructors: data.inactiveHolders,
     emptyMessage: 'אין ערכות אצל מדריכים לא פעילים.',
-    firstColumnLabel: 'שם ערכה',
-    cellHtml: (course, instructor) => kitCellHtml(data, course, instructor, false)
+    cellHtml: (course, instructor) => kitCellHtml(data, course, instructor, true)
   });
   const content = contentElement();
   if (!content) return;
   content.innerHTML = `<div class="ops2027-view" data-ops-history-fix="${TAB_PRINT_KITS}">
     <div class="ops2027-header"><h2 class="ops2027-title">ערכות דפוס</h2></div>
     <section class="ops2027-section ops2027-history-group"><h3 class="ops2027-history-group-title">מלאי ערכות</h3>${stockTableHtml(data)}</section>
+    <section class="ops2027-section ops2027-history-group"><h3 class="ops2027-history-group-title">סיכום צורך בערכות</h3>${needSummaryHtml(data)}</section>
     <section class="ops2027-section ops2027-history-group"><h3 class="ops2027-history-group-title">מדריכים פעילים</h3>${activeMatrix}</section>
     <section class="ops2027-section ops2027-history-group"><h3 class="ops2027-history-group-title">מדריכים לא פעילים שמחזיקים ערכה</h3>${inactiveMatrix}</section>
   </div>`;
