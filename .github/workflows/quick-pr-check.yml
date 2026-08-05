@@ -9,7 +9,7 @@ concurrency:
   cancel-in-progress: true
 
 permissions:
-  contents: write
+  contents: read
 
 jobs:
   quick-check:
@@ -20,27 +20,6 @@ jobs:
     steps:
       - name: Checkout
         uses: actions/checkout@v7
-        with:
-          ref: ${{ github.event.pull_request.head.sha }}
-
-      - name: Fix controller syntax on branch
-        run: |
-          python - <<'PY'
-          from pathlib import Path
-          path = Path('frontend/src/screens/operations-2027-loading-controller.js')
-          text = path.read_text()
-          old = "const displayedIds = new Set(data.courses.map((course) => String(course.id || ''));"
-          new = "const displayedIds = new Set(data.courses.map((course) => String(course.id || '')));"
-          if old in text:
-              path.write_text(text.replace(old, new, 1))
-          PY
-          if ! git diff --quiet; then
-            git config user.name github-actions[bot]
-            git config user.email 41898282+github-actions[bot]@users.noreply.github.com
-            git add frontend/src/screens/operations-2027-loading-controller.js
-            git commit -m "Fix Operations 2027 controller syntax"
-            git push origin HEAD:${{ github.event.pull_request.head.ref }}
-          fi
 
       - name: Setup Node.js
         uses: actions/setup-node@v6
@@ -52,7 +31,13 @@ jobs:
         run: npm ci
 
       - name: Operations 2027 syntax check
-        run: node --check frontend/src/screens/operations-2027-loading-controller.js
+        run: |
+          node --check frontend/src/screens/operations-2027-loading-controller.js
+          node --check frontend/src/screens/operations-summer-training-matrix.js
+
+      - name: Operations 2027 focused tests
+        run: |
+          node --test tests/operations-2027-*.test.mjs tests/operations-lazy-loading.test.mjs
 
       - name: Build check
         run: npm run check:build
