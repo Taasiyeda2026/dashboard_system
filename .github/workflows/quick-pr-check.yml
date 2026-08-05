@@ -30,6 +30,9 @@ jobs:
       - name: Install dependencies
         run: npm ci
 
+      - name: Operations 2027 syntax check
+        run: node --check frontend/src/screens/operations-2027-loading-controller.js
+
       - name: Build check
         run: npm run check:build
 
