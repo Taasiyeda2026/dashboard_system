@@ -65,7 +65,8 @@ test('courses tab auto-selects nearest course and shows its details', () => {
   assert.match(html, /data-switch-tab="courses"/);
   assert.match(html, /data-switch-tab="calendar"/);
   assert.match(html, /<h1 class="course-scheduling-title">שיבוצים<\/h1>/);
-  assert.match(html, /בחרו קורס, מצאו מדריך מתאים ושמרו כטיוטה או שבצו\./);
+  assert.doesNotMatch(html, /בחרו קורס, מצאו מדריך מתאים ושמרו כטיוטה או שבצו\./);
+  assert.doesNotMatch(html, /course-scheduling-subtitle/);
   assert.match(html, /<b>1<\/b><span>ממתינים לשיבוץ<\/span>/);
   assert.match(html, /<b>0<\/b><span>הצעות מוכנות<\/span>/);
   assert.match(html, /<b>0<\/b><span>טיוטות<\/span>/);
@@ -77,7 +78,7 @@ test('courses tab auto-selects nearest course and shows its details', () => {
   assert.doesNotMatch(html, /טרם בוצע חישוב/);
   assert.doesNotMatch(html, /בניית ועדכון מאגר מרחקים/);
   assert.doesNotMatch(html, /מוכנות לשיבוץ/);
-  assert.match(html, /⚙ תחזוקת המערכת/);
+  assert.match(html, /⚙ תחזוקה</);
 });
 
 test('readiness counts missing date and missing time separately without double-counting schedule gaps', () => {
@@ -132,7 +133,7 @@ test('non-admin users do not reach maintenance controls', () => {
     meetingState: { loaded: true, approvedDates: new Map(), cancelledDates: new Map(), error: '' }
   }, { state: { user: { role: 'instructor' } } });
   assert.match(html, /אין הרשאה/);
-  assert.doesNotMatch(html, /תחזוקת המערכת/);
+  assert.doesNotMatch(html, /⚙ תחזוקה/);
   assert.doesNotMatch(html, /data-maintenance-action/);
 });
 
@@ -181,7 +182,7 @@ test('meeting-state load failure does not dump technical warnings into the main 
   assert.doesNotMatch(html, /מידע על מפגשים שהתקיימו או בוטלו לא נטען/);
 });
 
-test('missing-courses alert is compact and expands into clear fix details', () => {
+test('missing-info count appears once as a compact clickable counter, not a wide banner', () => {
   const baseState = { user: { role: 'admin' } };
   const data = {
     activities: [
@@ -194,16 +195,25 @@ test('missing-courses alert is compact and expands into clear fix details', () =
     meetingState: { loaded: true, approvedDates: new Map(), cancelledDates: new Map(), error: '' }
   };
   const compact = courseSchedulingScreen.render(data, { state: baseState });
-  assert.match(compact, /course-scheduling-alert-compact--warning/);
-  assert.match(compact, /2 קורסים חסרים פרטים ואינם משתתפים בשיבוץ/);
+  // The old wide alert strip (and its separate "הצגת הקורסים" link) must be gone entirely.
+  assert.doesNotMatch(compact, /course-scheduling-alert-compact/);
+  assert.doesNotMatch(compact, /קורסים חסרים פרטים ואינם משתתפים בשיבוץ/);
+  assert.doesNotMatch(compact, /הצגת הקורסים/);
+  // The count shows exactly once, inside the compact clickable "חסרי מידע" counter.
+  assert.match(compact, /course-scheduling-summary-card--missing/);
   assert.match(compact, /data-open-readiness-drawer/);
-  assert.match(compact, /הצגת הקורסים/);
+  const missingCountMatches = compact.match(/<b>2<\/b><span>חסרי מידע<\/span>/g) || [];
+  assert.equal(missingCountMatches.length, 1);
   assert.doesNotMatch(compact, /3 קורסים פתוחים/);
   assert.doesNotMatch(compact, /חסר תאריך התחלה/);
 
   const expanded = courseSchedulingScreen.render(data, { state: { ...baseState, courseSchedulingShowDataReadiness: true } });
   assert.match(expanded, /course-scheduling-drawer/);
   assert.match(expanded, /מוכנות לשיבוץ/);
+  // Exactly one visible heading carries the drawer title — no duplicate h-tag and no duplicate hidden span.
+  const headingMatches = expanded.match(/<h[1-6][^>]*>מוכנות לשיבוץ<\/h[1-6]>/g) || [];
+  assert.equal(headingMatches.length, 1);
+  assert.doesNotMatch(expanded, /<span[^>]*hidden[^>]*>מוכנות לשיבוץ</);
   assert.match(expanded, /תאריכי המפגשים/);
   assert.match(expanded, /שעת התחלה/);
   assert.match(expanded, /data-open-readiness-course/);
@@ -298,7 +308,7 @@ test('calendar tab empty state points users back to courses', async () => {
   assert.match(html, /<h1 class="course-scheduling-title">מערכת שבועית<\/h1>/);
   assert.match(html, /צפו בקורסים ששובצו ובטיוטות לפי שבוע\./);
   assert.doesNotMatch(html, /בחרו קורס, מצאו מדריך מתאים ושמרו כטיוטה או שבצו\./);
-  assert.match(html, /data-cs-ui="ux-polish-20260804-v5"/);
+  assert.match(html, /data-cs-ui="ux-polish-20260805-v1"/);
   assert.match(html, /data-cs-tab="calendar"/);
   assert.match(html, /course-scheduling-calendar-pane--empty/);
   assert.match(html, /course-scheduling-empty-wrap/);
@@ -313,7 +323,7 @@ test('calendar tab empty state points users back to courses', async () => {
   assert.match(css, /\.course-scheduling-empty-action\s*\{[^}]*padding:\s*9px\s+18px;/s);
   assert.match(css, /\.course-scheduling-empty-action\s*\{[^}]*flex:\s*0\s+0\s+auto;/s);
   assert.doesNotMatch(css, /\.course-scheduling-empty-action\s*\{[^}]*(?<!max-)\bwidth:\s*100%/s);
-  assert.match(html, /⚙ תחזוקת המערכת/);
+  assert.match(html, /⚙ תחזוקה</);
   assert.match(html, /course-scheduling-calendar-toolbar-nav/);
   assert.match(html, /course-scheduling-calendar-toolbar-center/);
   assert.match(html, /course-scheduling-calendar-toolbar-views/);
