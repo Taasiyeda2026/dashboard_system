@@ -1,0 +1,85 @@
+name: Run final activity meetings fix
+
+on:
+  pull_request:
+    branches: [main]
+    types: [opened, synchronize]
+
+permissions:
+  contents: write
+
+jobs:
+  apply-test-commit:
+    if: github.event.pull_request.head.repo.full_name == github.repository
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+
+    steps:
+      - name: Checkout PR branch
+        uses: actions/checkout@v7
+        with:
+          ref: ${{ github.event.pull_request.head.ref }}
+          fetch-depth: 0
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v6
+        with:
+          node-version: '22'
+          cache: npm
+
+      - name: Apply focused source patch
+        shell: bash
+        run: |
+          if grep -q "export function normalizeActivityMeetingsCount" frontend/src/screens/shared/activity-options.js; then
+            echo "Focused source patch already applied"
+            exit 0
+          fi
+
+          python - <<'PY'
+          from pathlib import Path
+
+          workflow = Path('.github/workflows/apply-activity-meetings-fix.yml').read_text(encoding='utf-8')
+          marker_start = "          python - <<'PY'\n"
+          marker_end = "\n          PY\n\n      - name: Install dependencies"
+          start = workflow.index(marker_start) + len(marker_start)
+          end = workflow.index(marker_end, start)
+          block = workflow[start:end]
+          code = '\n'.join(line[10:] if line.startswith('          ') else line for line in block.splitlines())
+          Path('/tmp/apply_activity_fix.py').write_text(code + '\n', encoding='utf-8')
+          PY
+
+          python /tmp/apply_activity_fix.py
+
+          python - <<'PY'
+          from pathlib import Path
+
+          path = Path('tests/activity-add-session-count.test.mjs')
+          content = path.read_text(encoding='utf-8')
+          old = 'globalThis.navigator = dom.window.navigator;'
+          new = """Object.defineProperty(globalThis, 'navigator', {
+            value: dom.window.navigator,
+            configurable: true
+          });"""
+          if content.count(old) != 1:
+              raise RuntimeError('Expected one navigator assignment in generated focused test')
+          path.write_text(content.replace(old, new, 1), encoding='utf-8')
+          PY
+
+      - name: Install dependencies
+        run: npm ci
+
+      - name: Run focused activity tests
+        run: node --test tests/activity-options-catalog.test.mjs tests/activity-add-session-count.test.mjs tests/activity-course-meetings-bootstrap.test.mjs
+
+      - name: Commit focused fix
+        shell: bash
+        run: |
+          if git diff --quiet; then
+            echo "No source changes to commit"
+            exit 0
+          fi
+          git config user.name "OpenAI Codex"
+          git config user.email "codex@openai.com"
+          git add frontend/src/api.js frontend/src/screens/activities.js frontend/src/screens/shared/activity-options.js tests/activity-options-catalog.test.mjs tests/activity-add-session-count.test.mjs tests/activity-course-meetings-bootstrap.test.mjs
+          git commit -m "Fix activity meetings autofill regression"
+          git push origin HEAD:${{ github.event.pull_request.head.ref }}
