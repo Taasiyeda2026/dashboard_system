@@ -71,6 +71,8 @@ function ensureStyle() {
     .ops2027-history-status.is-no { color: #b91c1c; background: #fee2e2; }
     .ops2027-need-status.is-ok { color: #166534; font-weight: 800; }
     .ops2027-need-status.is-missing { color: #b91c1c; font-weight: 800; }
+    .ops2027-cell-button.is-empty { color: transparent !important; background: transparent !important; }
+    .ops2027-cell-button.is-empty:focus-visible { outline: 2px solid #2563eb !important; outline-offset: 2px; }
   `;
   document.head.appendChild(style);
 }
@@ -92,7 +94,13 @@ async function loadInstructors() {
     .order('full_name', { ascending: true });
   if (result.error) throw result.error;
   return (result.data || [])
-    .map((row) => ({ full_name: cleanText(row?.full_name), name: cleanText(row?.full_name), active: normalize(row?.active) === 'yes', activeRaw: row?.active, isActive: isActiveInstructor(row?.active) }))
+    .map((row) => ({
+      full_name: cleanText(row?.full_name),
+      name: cleanText(row?.full_name),
+      active: normalize(row?.active) === 'yes',
+      activeRaw: row?.active,
+      isActive: isActiveInstructor(row?.active)
+    }))
     .filter((row) => row.name);
 }
 
@@ -214,6 +222,17 @@ function inventoryTotal(row) {
   return KIT_LOCATIONS.reduce((sum, location) => sum + Math.max(0, Number(row?.[location.field] || 0)), 0);
 }
 
+export function inactivePrintKitHolderNames(distributions = [], activeNames = [], courses = []) {
+  const displayedCourseIds = new Set(courses.map((course) => String(course?.id || '')).filter(Boolean));
+  const activeKeys = new Set(activeNames.map(normalize).filter(Boolean));
+  return Array.from(new Set(
+    distributions
+      .filter((row) => displayedCourseIds.has(String(row?.course_id || '')))
+      .map((row) => cleanText(row?.instructor_name))
+      .filter((name) => name && !activeKeys.has(normalize(name)))
+  )).sort((a, b) => a.localeCompare(b, 'he', { numeric: true }));
+}
+
 async function loadKitData() {
   const [coursesResult, instructors, inventoryResult, distributionResult, activitiesResult, editable] = await Promise.all([
     supabase
@@ -236,17 +255,14 @@ async function loadKitData() {
   if (distributionResult.error) throw distributionResult.error;
   if (activitiesResult.error) throw activitiesResult.error;
 
-  const activeNames = instructors.filter((row) => row.isActive).map((row) => row.name);
-  const activeKeys = new Set(activeNames.map(normalize));
-  const distributions = distributionResult.data || [];
-  const inactiveHolders = Array.from(new Set(
-    distributions
-      .map((row) => cleanText(row?.instructor_name))
-      .filter((name) => name && !activeKeys.has(normalize(name)))
-  )).sort((a, b) => a.localeCompare(b, 'he', { numeric: true }));
-
   const courses = coursesResult.data || [];
+  const displayedCourseIds = new Set(courses.map((course) => String(course?.id || '')).filter(Boolean));
+  const activeNames = instructors.filter((row) => row.isActive).map((row) => row.name);
+  const distributions = (distributionResult.data || [])
+    .filter((row) => displayedCourseIds.has(String(row?.course_id || '')));
+  const inactiveHolders = inactivePrintKitHolderNames(distributions, activeNames, courses);
   const distributionMap = new Map(distributions.map((row) => [pairKey(row.course_id, row.instructor_name), row]));
+
   return {
     courses,
     activeNames,
@@ -340,18 +356,26 @@ export function printKitCellState({ holds = false, assigned = false, inactive = 
   return { text: '', tone: 'empty', state: 'empty' };
 }
 
-function kitCellHtml(data, course, instructor, inactive = false) {
+export function printKitCellHtml(data, course, instructor, inactive = false) {
   const key = pairKey(course.id, instructor);
   const distribution = data.distributionMap.get(key);
   const assigned = data.assignedMap.get(String(course.id))?.has(normalize(instructor)) === true;
   const cell = printKitCellState({ holds: Boolean(distribution), assigned, inactive });
+
   if (distribution) {
     if (!data.editable) return '<span class="ops2027-history-status is-yes" aria-label="יש ערכה">✓</span>';
     return `<button type="button" class="ops2027-cell-button is-yes" data-history-kit-return data-course-id="${escapeHtml(course.id)}" data-instructor="${escapeHtml(instructor)}" aria-label="יש ערכה">✓</button>`;
   }
-  if (cell.state !== 'assigned_missing') return '';
-  if (!data.editable) return '<span class="ops2027-history-status is-no" aria-label="משובץ וחסרה ערכה">✕</span>';
-  return `<button type="button" class="ops2027-cell-button is-no" data-history-kit-deliver data-course-id="${escapeHtml(course.id)}" data-instructor="${escapeHtml(instructor)}" aria-label="אין ערכה">✕</button>`;
+
+  if (inactive) return '';
+
+  if (cell.state === 'assigned_missing') {
+    if (!data.editable) return '<span class="ops2027-history-status is-no" aria-label="משובץ וחסרה ערכה">✕</span>';
+    return `<button type="button" class="ops2027-cell-button is-no" data-history-kit-deliver data-course-id="${escapeHtml(course.id)}" data-instructor="${escapeHtml(instructor)}" aria-label="משובץ וחסרה ערכה - מסירת ערכה" title="מסירת ערכה">✕</button>`;
+  }
+
+  if (!data.editable) return '';
+  return `<button type="button" class="ops2027-cell-button is-empty" data-history-kit-deliver data-course-id="${escapeHtml(course.id)}" data-instructor="${escapeHtml(instructor)}" aria-label="מסירת ערכה למדריך שאינו משובץ" title="מסירת ערכה"></button>`;
 }
 
 function needSummaryHtml(data) {
@@ -406,13 +430,13 @@ async function renderPrintKits(sequence) {
     courses: data.courses,
     instructors: data.activeNames,
     emptyMessage: 'אין מדריכים פעילים להצגה.',
-    cellHtml: (course, instructor) => kitCellHtml(data, course, instructor, false)
+    cellHtml: (course, instructor) => printKitCellHtml(data, course, instructor, false)
   });
   const inactiveMatrix = kitMatrixHtml({
     courses: data.courses,
     instructors: data.inactiveHolders,
     emptyMessage: 'אין ערכות אצל מדריכים לא פעילים.',
-    cellHtml: (course, instructor) => kitCellHtml(data, course, instructor, true)
+    cellHtml: (course, instructor) => printKitCellHtml(data, course, instructor, true)
   });
   const content = contentElement();
   if (!content) return;
