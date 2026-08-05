@@ -1,8 +1,6 @@
 import './operations-authorities-cleanup-base.js';
-import './operations-2027-remaining-fix.js';
-import './operations-2027-training-kit-history-fix.js';
-import './operations-2027-custom-tabs-click-fix.js';
-import './operations-2027-table-layout-fix.js';
-import './operations-2027-training-assignment-fix.js';
 
-// The base cleanup module still handles data-ops-custom-tab and the existing 2026 layout rules.
+// 2027 operations tabs are now rendered by operations-management.js through the
+// shared in-memory data manager. Legacy DOM repair modules remain as historical
+// files but are intentionally not imported here to avoid MutationObserver or
+// delayed post-render corrections on the 2027 tabs.

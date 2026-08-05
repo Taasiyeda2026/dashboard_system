@@ -83,6 +83,9 @@ const TAB_INSTRUCTORS = 'instructors';
 const TAB_SUMMER = 'summer';
 const TAB_COMPLETION_APPROVAL = 'completion_approval';
 const TAB_WORKSHOPS = 'workshops';
+const TAB_WORKSHOP_TRAININGS_2027 = 'workshop_training_matrix';
+const TAB_COURSE_TRAININGS_2027 = 'course_training_matrix';
+const TAB_PRINT_KITS_2027 = 'course_print_kits';
 const TAB_AUTHORITIES = 'authorities';
 const TAB_SCHOOLS = 'schools';
 const SUMMER_TRAINING_SESSION_KEY = 'opsSummerTrainingActive';
@@ -618,9 +621,10 @@ function normalizeInventoryUsage(value) {
 function tabsHtml(activeTab) {
   const tabs = [
     [TAB_INSTRUCTORS, 'סידור עבודה'],
-    [TAB_COMPLETION_APPROVAL, 'אישורי ביצוע'],
-    [TAB_AUTHORITIES, 'רשויות'],
-    [TAB_WORKSHOPS, 'ציוד ומלאי']
+    [TAB_WORKSHOPS, 'מלאי סדנאות'],
+    [TAB_WORKSHOP_TRAININGS_2027, 'הכשרות סדנאות'],
+    [TAB_COURSE_TRAININGS_2027, 'הכשרות קורסים'],
+    [TAB_PRINT_KITS_2027, 'ערכות דפוס']
   ];
   return `<nav class="ds-exceptions-tabs ds-ops-mgmt-tabs no-print" aria-label="לשוניות ניהול תפעול" dir="rtl">
     ${tabs.map(([key, label]) => `<button type="button" class="ds-exceptions-tab ds-ops-mgmt-tab${activeTab === key ? ' is-active' : ''}" data-ops-tab="${escapeHtml(key)}" aria-pressed="${activeTab === key ? 'true' : 'false'}">${escapeHtml(label)}</button>`).join('')}
@@ -2642,6 +2646,178 @@ function completionApprovalTabHtml(rows, state, data = {}, directory = buildScho
   </section>`;
 }
 
+
+const OPS_2027_DATASETS = ['activities2027', 'activeInstructors', 'courseCatalog', 'workshopCatalog', 'workshopInventory', 'workshopTrainings', 'courseTrainings', 'printKitInventory', 'printKitDistributions', 'permissions'];
+const OPS_DATA_NOT_LOADED = 'not_loaded';
+const OPS_DATA_LOADING = 'loading';
+const OPS_DATA_LOADED = 'loaded';
+const OPS_DATA_ERROR = 'error';
+const KIT_LOCATION_FIELDS_2027 = [
+  ['warehouse_quantity', 'מחסן'],
+  ['hila_quantity', 'הילה'],
+  ['idan_quantity', 'עידן'],
+  ['gil_quantity', 'גיל']
+];
+
+function normalizeOps2027Name(value) {
+  return normalizeOpsText(value);
+}
+
+function isActiveInstructorRow(row = {}) {
+  const active = normalizeOps2027Name(row.active ?? row.is_active ?? row.status);
+  return row.active === true || row.is_active === true || active === 'yes' || active === 'active' || active === 'פעיל';
+}
+
+function instructorRowName(row = {}) {
+  return nonEmptyOpsValue(row.full_name, row.name, row.instructor_name);
+}
+
+function validApprovedOps2027Assignments(activity = {}) {
+  const season = normalizeActivitySeason(activity?.activity_season ?? activity?.activitySeason);
+  const status = normalizeOps2027Name(activity.status);
+  if (season !== ACTIVITY_SEASON_SCHOOL_2027 || isActivityDeleted(activity) || status === 'cancelled' || status === 'מבוטל') return [];
+  return [activity.instructor_name, activity.instructor_name_2].map((name) => String(name || '').trim()).filter(isValidInstructorName);
+}
+
+function courseIdForActivity(activity = {}) {
+  return String(activity.course_id || activity.gefen_course_id || activity.proposal_course_id || activity.course_catalog_id || '').trim();
+}
+
+function workshopKeyForActivity(activity = {}) {
+  return normalizeOps2027Name(activity.workshop_id || activity.workshop_name || activity.activity_name || activity.name);
+}
+
+function courseLabel(course = {}) {
+  return nonEmptyOpsValue(course.short_name, course.full_name, course.gefen_number, course.name, 'קורס');
+}
+
+export function operationTrainingCellState({ trained = false, assigned = false } = {}) {
+  if (trained) return { symbol: '✓', className: 'is-yes', label: 'עבר הכשרה' };
+  if (assigned) return { symbol: '✕', className: 'is-no', label: 'משובץ ללא הכשרה' };
+  return { symbol: '', className: 'is-empty', label: '' };
+}
+
+export function buildPrintKitSummary2027({ courses = [], inventoryRows = [], distributionRows = [], activeInstructors = [], activities2027 = [] } = {}) {
+  const activeNames = new Set(activeInstructors.map(instructorRowName).filter(Boolean).map(normalizeOps2027Name));
+  const inventoryMap = new Map((inventoryRows || []).map((row) => [String(row.course_id || row.id || ''), row]));
+  const uniqueDistributions = new Map();
+  (distributionRows || []).forEach((row) => {
+    const key = `${String(row.course_id || '')}::${normalizeOps2027Name(row.instructor_name)}`;
+    if (row.course_id && row.instructor_name && !uniqueDistributions.has(key)) uniqueDistributions.set(key, row);
+  });
+  const assignedByCourse = new Map();
+  (activities2027 || []).forEach((activity) => {
+    const courseId = courseIdForActivity(activity);
+    if (!courseId) return;
+    validApprovedOps2027Assignments(activity).forEach((name) => {
+      if (!assignedByCourse.has(courseId)) assignedByCourse.set(courseId, new Set());
+      assignedByCourse.get(courseId).add(normalizeOps2027Name(name));
+    });
+  });
+  return (courses || []).filter((course) => course?.requires_print_kit === true).map((course) => {
+    const courseId = String(course.id || '');
+    const stock = inventoryMap.get(courseId) || {};
+    const locationTotals = Object.fromEntries(KIT_LOCATION_FIELDS_2027.map(([field]) => [field, Math.max(0, Number(stock[field] || 0))]));
+    let activeHeld = 0;
+    let inactiveHeld = 0;
+    const holders = new Set();
+    uniqueDistributions.forEach((row) => {
+      if (String(row.course_id || '') !== courseId) return;
+      const nameKey = normalizeOps2027Name(row.instructor_name);
+      holders.add(nameKey);
+      if (activeNames.has(nameKey)) activeHeld += 1; else inactiveHeld += 1;
+    });
+    const assigned = assignedByCourse.get(courseId) || new Set();
+    const assignedHolding = Array.from(assigned).filter((name) => holders.has(name)).length;
+    const assignedMissing = Math.max(0, assigned.size - assignedHolding);
+    const centralAvailable = KIT_LOCATION_FIELDS_2027.reduce((sum, [field]) => sum + locationTotals[field], 0);
+    const afterDistribution = centralAvailable - assignedMissing;
+    const status = assigned.size === 0 ? 'ללא שיבוצים' : (assignedMissing === 0 ? 'תקין' : (afterDistribution >= 0 ? 'נדרש לחלק' : 'חסר מלאי'));
+    return { course, ...locationTotals, activeHeld, inactiveHeld, total: centralAvailable + activeHeld + inactiveHeld, assignedCount: assigned.size, assignedHolding, assignedMissing, centralAvailable, afterDistribution, status };
+  });
+}
+
+export function createOperations2027DataManager(api = {}) {
+  const state = new Map(OPS_2027_DATASETS.map((key) => [key, { status: OPS_DATA_NOT_LOADED, value: null, promise: null, error: null }]));
+  const read = async (key, loader) => {
+    const entry = state.get(key);
+    if (entry.status === OPS_DATA_LOADED) return entry.value;
+    if (entry.status === OPS_DATA_LOADING && entry.promise) return entry.promise;
+    entry.status = OPS_DATA_LOADING;
+    entry.promise = Promise.resolve().then(loader).then((value) => {
+      entry.status = OPS_DATA_LOADED; entry.value = value; entry.promise = null; return value;
+    }).catch((error) => { entry.status = OPS_DATA_ERROR; entry.error = error; entry.promise = null; throw error; });
+    return entry.promise;
+  };
+  const tableRows = async (dataset, table, select = '*', query = (q) => q) => read(dataset, async () => {
+    if (api[dataset]) return api[dataset]();
+    if (!supabase) return [];
+    const result = await query(supabase.from(table).select(select));
+    if (result.error) throw result.error;
+    return result.data || [];
+  });
+  return {
+    status: (key) => state.get(key)?.status || OPS_DATA_NOT_LOADED,
+    clear: () => state.forEach((entry) => { entry.status = OPS_DATA_NOT_LOADED; entry.value = null; entry.promise = null; entry.error = null; }),
+    loadSchedule: () => read('activities2027', async () => (api.allActivities ? (await api.allActivities({ activity_period: ACTIVITY_SEASON_SCHOOL_2027 }))?.rows || [] : [])),
+    loadActiveInstructors: () => tableRows('activeInstructors', 'contacts_instructors', 'full_name, active', (q) => q.order('full_name', { ascending: true })),
+    loadCourseCatalog: () => tableRows('courseCatalog', 'proposal_gefen_courses', 'id, short_name, full_name, gefen_number, sort_order, is_active, requires_print_kit', (q) => q.order('sort_order', { ascending: true })),
+    loadWorkshopCatalog: () => tableRows('workshopCatalog', 'admin_lists', '*'),
+    loadPermissions: () => read('permissions', async () => api.permissions ? api.permissions() : canEditOperationsInventory({ user: {} })),
+    loadWorkshopInventory: () => tableRows('workshopInventory', 'workshop_stock_distributions', '*'),
+    loadWorkshopTrainings: () => tableRows('workshopTrainings', 'summer_workshop_trainings', '*'),
+    loadCourseTrainings: () => tableRows('courseTrainings', 'course_instructor_trainings', '*'),
+    loadPrintKitInventory: () => tableRows('printKitInventory', 'course_print_kit_inventory', '*'),
+    loadPrintKitDistributions: () => tableRows('printKitDistributions', 'course_print_kit_distributions', '*'),
+    async loadTab(tab) {
+      if (tab === TAB_INSTRUCTORS || tab === 'schedule') return { activities2027: await this.loadSchedule() };
+      if (tab === TAB_WORKSHOPS) return { workshopCatalog: await this.loadWorkshopCatalog(), workshopInventory: await this.loadWorkshopInventory() };
+      if (tab === TAB_WORKSHOP_TRAININGS_2027) return { activities2027: await this.loadSchedule(), activeInstructors: await this.loadActiveInstructors(), workshopCatalog: await this.loadWorkshopCatalog(), workshopTrainings: await this.loadWorkshopTrainings(), permissions: await this.loadPermissions() };
+      if (tab === TAB_COURSE_TRAININGS_2027) return { activities2027: await this.loadSchedule(), activeInstructors: await this.loadActiveInstructors(), courseCatalog: await this.loadCourseCatalog(), courseTrainings: await this.loadCourseTrainings(), permissions: await this.loadPermissions() };
+      if (tab === TAB_PRINT_KITS_2027) return { activities2027: await this.loadSchedule(), activeInstructors: await this.loadActiveInstructors(), courseCatalog: await this.loadCourseCatalog(), printKitInventory: await this.loadPrintKitInventory(), printKitDistributions: await this.loadPrintKitDistributions(), permissions: await this.loadPermissions() };
+      return {};
+    }
+  };
+}
+
+function ops2027MatrixHtml({ title, rows = [], columns = [], cellState }) {
+  if (!rows.length || !columns.length) return `<section class="ops2027-view" dir="rtl"><h2>${escapeHtml(title)}</h2>${dsEmptyState('אין נתונים להצגה')}</section>`;
+  const head = columns.map((column) => `<th class="ops2027-instructor-col">${escapeHtml(column.label)}</th>`).join('');
+  const body = rows.map((row) => `<tr><td class="ops2027-course-col">${escapeHtml(row.label)}</td>${columns.map((column) => {
+    const cell = cellState(row, column);
+    return `<td class="ops2027-instructor-col"><span class="ops2027-history-status ${escapeHtml(cell.className)}" aria-label="${escapeHtml(cell.label)}">${escapeHtml(cell.symbol)}</span></td>`;
+  }).join('')}</tr>`).join('');
+  return `<section class="ops2027-view" dir="rtl"><div class="ops2027-header"><h2 class="ops2027-title">${escapeHtml(title)}</h2></div>${dsTableWrap(`<table class="ops2027-table ds-table ds-table--compact"><thead><tr><th>${escapeHtml(title.includes('סדנאות') ? 'שם סדנה' : 'שם קורס')}</th>${head}</tr></thead><tbody>${body}</tbody></table>`)}</section>`;
+}
+
+function operations2027WorkshopTrainingHtml(data = {}) {
+  const instructors = (data.activeInstructors || []).filter(isActiveInstructorRow).map((row) => ({ label: instructorRowName(row), key: normalizeOps2027Name(instructorRowName(row)) })).filter((row) => row.label);
+  const trainingRows = data.workshopTrainings || [];
+  const historicalWorkshopNames = trainingRows.map((row) => nonEmptyOpsValue(row.workshop_name, row.workshop_id)).filter(Boolean);
+  const catalogNames = extractWorkshopCatalogRows(data.adminListsData || data.workshopCatalog || {}, [], []).map((row) => row.label || row.name).filter(Boolean);
+  const workshops = uniqueSorted([...catalogNames, ...historicalWorkshopNames]).map((name) => ({ label: name, key: normalizeOps2027Name(name) }));
+  const trained = new Set(trainingRows.filter((row) => row.is_trained !== false).map((row) => `${normalizeOps2027Name(nonEmptyOpsValue(row.workshop_name, row.workshop_id))}::${normalizeOps2027Name(row.instructor_name)}`));
+  const assigned = new Set();
+  (data.activities2027 || data.rows || []).forEach((activity) => validApprovedOps2027Assignments(activity).forEach((name) => assigned.add(`${workshopKeyForActivity(activity)}::${normalizeOps2027Name(name)}`)));
+  return ops2027MatrixHtml({ title: 'הכשרות סדנאות', rows: workshops, columns: instructors, cellState: (workshop, instructor) => operationTrainingCellState({ trained: trained.has(`${workshop.key}::${instructor.key}`), assigned: assigned.has(`${workshop.key}::${instructor.key}`) }) });
+}
+
+function operations2027CourseTrainingHtml(data = {}) {
+  const instructors = (data.activeInstructors || []).filter(isActiveInstructorRow).map((row) => ({ label: instructorRowName(row), key: normalizeOps2027Name(instructorRowName(row)) })).filter((row) => row.label);
+  const courses = (data.courseCatalog || []).filter((course) => course.is_active !== false).map((course) => ({ label: courseLabel(course), key: String(course.id || '') })).filter((row) => row.key);
+  const trained = new Set((data.courseTrainings || []).filter((row) => row.is_trained !== false).map((row) => `${String(row.course_id || '')}::${normalizeOps2027Name(row.instructor_name)}`));
+  const assigned = new Set();
+  (data.activities2027 || data.rows || []).forEach((activity) => validApprovedOps2027Assignments(activity).forEach((name) => assigned.add(`${courseIdForActivity(activity)}::${normalizeOps2027Name(name)}`)));
+  return ops2027MatrixHtml({ title: 'הכשרות קורסים', rows: courses, columns: instructors, cellState: (course, instructor) => operationTrainingCellState({ trained: trained.has(`${course.key}::${instructor.key}`), assigned: assigned.has(`${course.key}::${instructor.key}`) }) });
+}
+
+function operations2027PrintKitsHtml(data = {}) {
+  const summary = buildPrintKitSummary2027({ courses: data.courseCatalog || [], inventoryRows: data.printKitInventory || [], distributionRows: data.printKitDistributions || [], activeInstructors: (data.activeInstructors || []).filter(isActiveInstructorRow), activities2027: data.activities2027 || data.rows || [] });
+  const rows = summary.map((item) => `<tr><td>${escapeHtml(courseLabel(item.course))}</td><td>${item.warehouse_quantity}</td><td>${item.hila_quantity}</td><td>${item.idan_quantity}</td><td>${item.gil_quantity}</td><td>${item.activeHeld}</td><td>${item.inactiveHeld}</td><td>${item.total}</td><td>${item.assignedCount}</td><td>${item.assignedHolding}</td><td>${item.assignedMissing}</td><td>${item.centralAvailable}</td><td>${item.afterDistribution}</td><td>${escapeHtml(item.status)}</td></tr>`).join('');
+  const table = rows ? dsTableWrap(`<table class="ops2027-table ds-table ds-table--compact"><thead><tr><th>שם ערכה</th><th>מחסן</th><th>הילה</th><th>עידן</th><th>גיל</th><th>אצל מדריכים פעילים</th><th>אצל מדריכים לא פעילים</th><th>סה״כ כולל</th><th>מספר מדריכים משובצים</th><th>משובצים שמחזיקים</th><th>טרם קיבלו</th><th>מלאי מרכזי זמין</th><th>יתרה לאחר חלוקה</th><th>סטטוס</th></tr></thead><tbody>${rows}</tbody></table>`) : dsEmptyState('אין ערכות להצגה');
+  return `<section class="ops2027-view" dir="rtl"><div class="ops2027-header"><h2 class="ops2027-title">ערכות דפוס</h2></div>${table}</section>`;
+}
+
 function renderTab(rows, state, data, allPreparedRows = []) {
   const ops = ensureOpsState(state);
   const stockMap = data?.workshopStockMap instanceof Map ? data.workshopStockMap : new Map();
@@ -2650,6 +2826,9 @@ function renderTab(rows, state, data, allPreparedRows = []) {
   const summerPrintContactsIndex = buildSummerPrintContactsIndex(data?.instructorSchedulePrintContactsRows || []);
   if (ops.tab === TAB_SUMMER) ops.tab = TAB_INSTRUCTORS;
   if (ops.tab === TAB_AUTHORITIES || ops.tab === TAB_SCHOOLS) return schoolsTabHtml(rows, state, directory, contactsIndex, summerPrintContactsIndex);
+  if (ops.tab === TAB_WORKSHOP_TRAININGS_2027) return operations2027WorkshopTrainingHtml(data);
+  if (ops.tab === TAB_COURSE_TRAININGS_2027) return operations2027CourseTrainingHtml(data);
+  if (ops.tab === TAB_PRINT_KITS_2027) return operations2027PrintKitsHtml(data);
   if (ops.tab === TAB_COMPLETION_APPROVAL) {
     const approvalRows = allPreparedRows.filter((row) => !isActivityDeleted(row));
     return completionApprovalTabHtml(approvalRows, state, data, directory, contactsIndex, summerPrintContactsIndex);
@@ -2681,14 +2860,21 @@ function renderTab(rows, state, data, allPreparedRows = []) {
 }
 
 function operationsTabDataKey(tab) {
+  if (tab === TAB_WORKSHOP_TRAININGS_2027) return TAB_WORKSHOP_TRAININGS_2027;
+  if (tab === TAB_COURSE_TRAININGS_2027) return TAB_COURSE_TRAININGS_2027;
+  if (tab === TAB_PRINT_KITS_2027) return TAB_PRINT_KITS_2027;
   if (tab === TAB_WORKSHOPS) return TAB_WORKSHOPS;
   if (tab === TAB_COMPLETION_APPROVAL) return TAB_COMPLETION_APPROVAL;
   if (tab === TAB_AUTHORITIES || tab === TAB_SCHOOLS) return 'directory';
   return 'schedule';
 }
 
-export async function loadOperationsTabData(api, tab) {
+export async function loadOperationsTabData(api, tab, manager = null) {
   const key = operationsTabDataKey(tab);
+  if ([TAB_WORKSHOP_TRAININGS_2027, TAB_COURSE_TRAININGS_2027, TAB_PRINT_KITS_2027].includes(key)) {
+    const opsManager = manager || createOperations2027DataManager(api);
+    return opsManager.loadTab(key);
+  }
   if (key === TAB_WORKSHOPS) {
     const [lists, workshopStockDistributions] = await Promise.all([
       api.adminLists().catch((err) => ({ categories: [], _loadError: String(err?.message || 'load_failed') })),
@@ -2757,13 +2943,14 @@ export const operationsManagementScreen = {
     const dateFrom = String(ops.dateFrom || '').trim();
     const dateTo = String(ops.dateTo || '').trim();
     const needs2027WorkshopOpeningStock = ops.period === ACTIVITY_SEASON_SCHOOL_2027 && tabKey === TAB_WORKSHOPS;
+    const operations2027DataManager = createOperations2027DataManager(api);
     const [activities, tabData, workshopInventorySource] = await Promise.all([
       api.allActivities({
         activity_period: state?.activityPeriodTab,
         startDate: dateFrom,
         endDate: dateTo
       }),
-      loadOperationsTabData(api, tabKey),
+      loadOperationsTabData(api, tabKey, operations2027DataManager),
       needs2027WorkshopOpeningStock
         ? api.allActivities({
             activity_period: ACTIVITY_SEASON_REGULAR,
@@ -2777,7 +2964,8 @@ export const operationsManagementScreen = {
       ...tabData,
       workshopInventorySourceRows: workshopInventorySource?.rows || [],
       _loadedOperationsTabs: [tabKey],
-      _operationsTabLoadPromises: new Map()
+      _operationsTabLoadPromises: new Map(),
+      _operations2027DataManager: operations2027DataManager
     };
   },
   render(data, { state } = {}) {
@@ -2805,6 +2993,13 @@ export const operationsManagementScreen = {
     const ops = ensureOpsState(state);
     const filters = ensureActivityListFilters(state, SCOPE);
 
+    if (data?._operations2027DataManager && !data._operations2027ClearBound && typeof document !== 'undefined') {
+      data._operations2027ClearBound = true;
+      document.addEventListener('app:navigate', (event) => {
+        if (event?.detail?.route !== 'operations-management') data._operations2027DataManager.clear();
+      }, { once: true });
+    }
+
     if (_opsNeedsEntryReset) {
       _opsNeedsEntryReset = false;
       resetOperationsManagementEntry(state);
@@ -2825,7 +3020,7 @@ export const operationsManagementScreen = {
           data._operationsTabLoadPromises = promises;
           let request = promises.get(tabKey);
           if (!request) {
-            request = loadOperationsTabData(api, tabKey).finally(() => promises.delete(tabKey));
+            request = loadOperationsTabData(api, tabKey, data._operations2027DataManager).finally(() => promises.delete(tabKey));
             promises.set(tabKey, request);
           }
           try {
