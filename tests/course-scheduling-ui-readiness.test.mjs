@@ -195,16 +195,18 @@ test('missing-courses alert is compact and expands into clear fix details', () =
   };
   const compact = courseSchedulingScreen.render(data, { state: baseState });
   assert.match(compact, /course-scheduling-alert-compact--warning/);
-  assert.match(compact, /2 קורסים אינם מוכנים לשיבוץ/);
-  assert.match(compact, /course-scheduling-btn--secondary[^"]*course-scheduling-btn--sm[^"]*"[^>]*data-toggle-missing-details|data-toggle-missing-details[^>]*course-scheduling-btn--sm/);
-  assert.match(compact, /הצגת הקורסים לתיקון/);
+  assert.match(compact, /2 קורסים חסרים פרטים ואינם משתתפים בשיבוץ/);
+  assert.match(compact, /data-open-readiness-drawer/);
+  assert.match(compact, /הצגת הקורסים/);
   assert.doesNotMatch(compact, /3 קורסים פתוחים/);
   assert.doesNotMatch(compact, /חסר תאריך התחלה/);
 
-  const expanded = courseSchedulingScreen.render(data, { state: { ...baseState, courseSchedulingShowMissingDetails: true } });
-  assert.match(expanded, /חסר תאריך התחלה/);
-  assert.match(expanded, /חסרה שעת התחלה/);
-  assert.match(expanded, /data-open-missing-schedule-courses/);
+  const expanded = courseSchedulingScreen.render(data, { state: { ...baseState, courseSchedulingShowDataReadiness: true } });
+  assert.match(expanded, /course-scheduling-drawer/);
+  assert.match(expanded, /מוכנות לשיבוץ/);
+  assert.match(expanded, /תאריכי המפגשים/);
+  assert.match(expanded, /שעת התחלה/);
+  assert.match(expanded, /data-open-readiness-course/);
 });
 
 test('opening missing activities stores only missing course ids and filters the activities list', () => {
