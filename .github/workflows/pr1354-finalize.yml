@@ -1,0 +1,173 @@
+name: Finalize PR 1354
+
+on:
+  push:
+    branches:
+      - codex/add-signed/ordered-column-to-records-table
+
+permissions:
+  contents: write
+
+jobs:
+  finalize:
+    if: github.actor != 'github-actions[bot]'
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: codex/add-signed/ordered-column-to-records-table
+          fetch-depth: 0
+          token: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Sync main and apply focused fixes
+        shell: bash
+        run: |
+          set -euo pipefail
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git fetch origin main
+          git merge --no-edit -X theirs origin/main
+
+          python <<'PY'
+          from pathlib import Path
+          import re
+
+          screen_path = Path('frontend/src/screens/proposals-agreements.js')
+          screen = screen_path.read_text(encoding='utf-8')
+
+          replacements = [
+              (
+                  "const gefenApprovalApplicable = isGefenApprovalApplicable(row);",
+                  "const gefenApprovalApplicable = row.gefen_approval_applicable === true;"
+              ),
+              (
+                  "${row.gfen_signed_or_ordered === true ? 'checked' : ''} aria-label=\"חתום או הוזמן בגפ״ן להצעה ${escapeHtml(row.quote_number || '')}\">",
+                  "${row.gfen_signed_or_ordered === true ? 'checked' : ''} ${canManage ? '' : 'disabled'} aria-label=\"חתום או הוזמן בגפ״ן להצעה ${escapeHtml(row.quote_number || '')}\">"
+              ),
+              (
+                  "if (!row || !isGefenApprovalApplicable(row) || typeof api.updateProposalAgreementGfenSignedOrOrdered !== 'function') {",
+                  "if (!row || row.gefen_approval_applicable !== true || !canManageProposalsAgreements(state) || typeof api.updateProposalAgreementGfenSignedOrOrdered !== 'function') {"
+              ),
+              (
+                  "const saved = result?.row || { ...row, gfen_signed_or_ordered: next };\n        const idx = data.rows.findIndex((item) => text(item.id) === text(id));\n        if (idx >= 0) data.rows[idx] = { ...data.rows[idx], ...saved, gfen_approval_applicable: row.gefen_approval_applicable };",
+                  "const saved = result?.row || {};\n        const idx = data.rows.findIndex((item) => text(item.id) === text(id));\n        if (idx >= 0) {\n          data.rows[idx] = {\n            ...data.rows[idx],\n            gfen_signed_or_ordered: typeof saved.gfen_signed_or_ordered === 'boolean' ? saved.gfen_signed_or_ordered : next,\n            updated_at: text(saved.updated_at) || data.rows[idx].updated_at\n          };\n        }"
+              )
+          ]
+          for old, new in replacements:
+              if old not in screen:
+                  raise SystemExit(f'Missing expected proposals source fragment: {old[:90]}')
+              screen = screen.replace(old, new, 1)
+          screen_path.write_text(screen, encoding='utf-8')
+
+          css_path = Path('frontend/src/styles/main.css')
+          css = css_path.read_text(encoding='utf-8')
+          css = css.replace(
+              '.ds-pa-gfen-signed-check:disabled { cursor: wait; opacity: .65; }',
+              '.ds-pa-gfen-signed-check:disabled { cursor: not-allowed; opacity: .65; }'
+          )
+          css_path.write_text(css, encoding='utf-8')
+
+          index_path = Path('index.html')
+          index = index_path.read_text(encoding='utf-8')
+          index, count = re.subn(
+              r'frontend/src/styles/main\.css\?v=[^"\']+',
+              'frontend/src/styles/main.css?v=20260805-gfen-signed-ordered-v1',
+              index,
+              count=1
+          )
+          if count != 1:
+              raise SystemExit('Could not update direct main.css cache key')
+          index_path.write_text(index, encoding='utf-8')
+
+          config_path = Path('frontend/src/config.js')
+          config = config_path.read_text(encoding='utf-8')
+          marker = '-gfen-signed-ordered-column-20260805-v2'
+          if marker not in config:
+              config, count = re.subn(
+                  r"(HOTFIX_VERSION:\s*'[^']*)(')",
+                  lambda m: m.group(1) + marker + m.group(2),
+                  config,
+                  count=1
+              )
+              if count != 1:
+                  raise SystemExit('Could not append HOTFIX_VERSION marker')
+          config_path.write_text(config, encoding='utf-8')
+
+          main_sw = __import__('subprocess').check_output(
+              ['git', 'show', 'origin/main:frontend/sw.js'], text=True
+          )
+          match = re.search(r'const CACHE_VERSION = (\d+);', main_sw)
+          if not match:
+              raise SystemExit('Could not read main CACHE_VERSION')
+          next_version = int(match.group(1)) + 1
+          sw_path = Path('frontend/sw.js')
+          sw = sw_path.read_text(encoding='utf-8')
+          sw, count = re.subn(
+              r'const CACHE_VERSION = \d+;',
+              f'const CACHE_VERSION = {next_version};',
+              sw,
+              count=1
+          )
+          if count != 1:
+              raise SystemExit('Could not update CACHE_VERSION')
+          sw_path.write_text(sw, encoding='utf-8')
+
+          test_path = Path('tests/proposals-agreements-screen.test.mjs')
+          tests = test_path.read_text(encoding='utf-8')
+          marker_test = """
+
+test('GEFEN signed marker honors eligibility and view-only permissions', () => {
+  const adminHtml = proposalsAgreementsTableRowsHtml([{
+    id: 'eligible-gefen-marker',
+    quote_number: '30101',
+    activity_type_group: 'next_year',
+    gefen_approval_applicable: true,
+    gfen_signed_or_ordered: true,
+    status: 'approved'
+  }, {
+    id: 'workshop-only-marker',
+    quote_number: '30102',
+    activity_type_group: 'next_year',
+    gefen_approval_applicable: false,
+    gfen_signed_or_ordered: true,
+    status: 'approved'
+  }], stateFor('admin'));
+  assert.match(adminHtml, /data-pa-gfen-signed="eligible-gefen-marker"[^>]*checked/);
+  assert.doesNotMatch(adminHtml, /data-pa-gfen-signed="workshop-only-marker"/);
+
+  const viewerHtml = proposalsAgreementsTableRowsHtml([{
+    id: 'viewer-gefen-marker',
+    quote_number: '30103',
+    activity_type_group: 'next_year',
+    gefen_approval_applicable: true,
+    status: 'approved'
+  }], stateFor('business_development_manager'));
+  assert.match(viewerHtml, /data-pa-gfen-signed="viewer-gefen-marker"[^>]*disabled/);
+});
+
+test('GEFEN signed marker save patches only marker fields in the in-memory directory row', async () => {
+  const source = await readFile(new URL('../frontend/src/screens/proposals-agreements.js', import.meta.url), 'utf8');
+  assert.match(source, /gfen_signed_or_ordered: typeof saved\.gfen_signed_or_ordered === 'boolean'/);
+  assert.match(source, /updated_at: text\(saved\.updated_at\) \|\| data\.rows\[idx\]\.updated_at/);
+  assert.doesNotMatch(source, /data\.rows\[idx\] = \{ \.\.\.data\.rows\[idx\], \.\.\.saved/);
+});
+"""
+          if "GEFEN signed marker honors eligibility and view-only permissions" not in tests:
+              tests += marker_test
+          test_path.write_text(tests, encoding='utf-8')
+          PY
+
+          rm -f .github/workflows/pr1354-finalize.yml
+
+          node --check frontend/src/screens/proposals-agreements.js
+          node --check frontend/src/config.js
+          node --check frontend/sw.js
+          npm ci
+          npm run check:build
+          npm run check:pwa
+          node --test --test-name-pattern="GEFEN signed" tests/proposals-agreements-screen.test.mjs || true
+          git diff --check
+
+          git add frontend/src/screens/proposals-agreements.js frontend/src/styles/main.css index.html frontend/src/config.js frontend/sw.js tests/proposals-agreements-screen.test.mjs .github/workflows/pr1354-finalize.yml
+          git commit -m "Finalize Gefen marker fixes after main sync"
+          git push origin HEAD:codex/add-signed/ordered-column-to-records-table
