@@ -2,7 +2,7 @@ import test from 'node:test';
 import assert from 'node:assert/strict';
 import { readFile } from 'node:fs/promises';
 import { calculateCourseSchedule, instructorLoad, schedulingCourses, schedulingInstructors } from '../frontend/src/screens/course-scheduling-engine.js';
-import { evaluateInstructor } from '../frontend/src/screens/instructor-matching-engine.js';
+import { evaluateInstructor, rankInstructors } from '../frontend/src/screens/instructor-matching-engine.js';
 import { createRouteClient, calculateCandidateTravel } from '../frontend/src/screens/course-scheduling-travel.js';
 import { courseSchedulingCounts, detailsHtml } from '../frontend/src/screens/course-scheduling.js';
 
@@ -115,6 +115,42 @@ test('closed, cancelled and other-season assignments do not block or inflate wor
   assert.equal(result.checked.find((candidate) => candidate.instructor.emp_id === '1').load.hours, 1);
 });
 
+
+test('rankInstructors classifies candidates by failures before missing profile data', () => {
+  const ranked = rankInstructors({
+    instructors: [
+      { emp_id: 'reject-missing', full_name: 'נכשל וחסר', active: 'yes', address: 'חיפה' },
+      { emp_id: 'incomplete-only', full_name: 'חסר בלבד', active: 'yes', address: 'חיפה' },
+      { emp_id: 'warning', full_name: 'מתאים עם אזהרה', active: 'yes', address: 'חיפה' },
+      { emp_id: 'recommended', full_name: 'מתאים', active: 'yes', address: 'חיפה' }
+    ],
+    profiles: {
+      'reject-missing': { gender: 'male', instruction_languages: ['he'], education_levels: ['elementary'] },
+      'incomplete-only': { gender: 'female', instruction_languages: ['he'], education_levels: ['middle_school'] },
+      warning: { gender: 'female', instruction_languages: ['he'], education_levels: ['middle_school'] },
+      recommended: { gender: 'female', instruction_languages: ['he'], education_levels: ['middle_school'] }
+    },
+    rules: {
+      warning: rules[1],
+      recommended: rules[1]
+    },
+    exceptions: {},
+    assignments: {},
+    travel: {},
+    weeklyLoads: { warning: 12, recommended: 1 },
+    averageWeeklyLoad: 4,
+    activity: course('classification', '2026-09-06', { education_level: 'middle_school', required_instructor_gender: 'female' })
+  });
+
+  assert.deepEqual(ranked.rejected.map((candidate) => candidate.instructor.emp_id), ['reject-missing']);
+  assert.ok(ranked.rejected[0].failures.includes('הקורס דורש מדריכה'));
+  assert.ok(ranked.rejected[0].failures.includes('אינו מתאים לרמת החינוך של הפעילות'));
+  assert.ok(ranked.rejected[0].missingProfileData.includes('זמינות שבועית'));
+  assert.deepEqual(ranked.incomplete.map((candidate) => candidate.instructor.emp_id), ['incomplete-only']);
+  assert.deepEqual(ranked.exceptions.map((candidate) => candidate.instructor.emp_id), ['warning']);
+  assert.deepEqual(ranked.recommended.map((candidate) => candidate.instructor.emp_id), ['recommended']);
+});
+
 test('missing profile fields are separate from professional failures and receive no score', () => {
   for (const [field, partial] of [
     ['לא ניתן לאמת התאמה לדרישת המגדר', { instruction_languages: ['he'] }],
@@ -156,6 +192,35 @@ test('eight missing Monday availability dates are grouped once and expanded only
   const html = detailsHtml(result);
   assert.equal((html.match(/לא הוגדרה זמינות/g) || []).length, 1);
   for (const meeting of meetings) assert.match(html, new RegExp(meeting.date));
+});
+
+
+test('real classification case rejects hard-gated instructor instead of showing availability-only profile completion', () => {
+  const activity = course('real-classification', '2026-09-06', { education_level: 'middle_school', required_instructor_gender: 'female' });
+  const maleElementary = { emp_id: 'male-elementary', full_name: 'אלדר מיכאל טייב', active: 'yes', address: 'חיפה' };
+  const result = calculateCourseSchedule({
+    activities: [activity],
+    instructors: [maleElementary],
+    profiles: { 'male-elementary': { gender: 'male', instruction_languages: ['he'], education_levels: ['elementary'] } },
+    rules: {},
+    exceptions: {}
+  })[0];
+  const candidate = result.checked[0];
+
+  assert.equal(candidate.eligible, false);
+  assert.ok(candidate.failures.includes('הקורס דורש מדריכה'));
+  assert.ok(candidate.failures.includes('אינו מתאים לרמת החינוך של הפעילות'));
+  assert.ok(candidate.missingProfileData.includes('זמינות שבועית'));
+  assert.equal(result.incompleteProfiles.length, 0);
+  assert.equal(result.status, 'נדרש גיוס');
+
+  const html = detailsHtml(result);
+  assert.match(html, /לא עברו תנאי סף \(1\)/);
+  assert.match(html, /אלדר מיכאל טייב/);
+  assert.match(html, /הקורס דורש מדריכה/);
+  assert.match(html, /אינו מתאים לרמת החינוך של הפעילות/);
+  assert.doesNotMatch(html, /פרופילים חסרים להשלמה/);
+  assert.doesNotMatch(html, /חסר להשלמה:[^<]*זמינות שבועית/);
 });
 
 test('course status distinguishes incomplete-only candidates from fully rejected candidates', () => {

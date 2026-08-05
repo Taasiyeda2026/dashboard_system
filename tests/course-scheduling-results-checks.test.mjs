@@ -428,7 +428,7 @@ test('candidate details render compact table, closed rejections, and initially d
   const rejected = { instructor: maleInstructor, eligible: false, score: null, failures: ['שפת ההדרכה אינה תואמת'], missingProfileData: [], checks: { language: { passed: false, reason: 'שפת ההדרכה אינה תואמת' }, gender: { passed: true }, availability: { passed: true } }, travel: { home: travelHome, transitions: {} } };
   const html = detailsHtml({ course: course019({ required_instructor_gender: 'any' }), status: 'הצעה מוכנה', recommended, alternatives: [], checked: [recommended, rejected] }, { courseSchedulingSelectedCandidateId: '' });
   assert.match(html, /course-scheduling-candidates-table/);
-  assert.match(html, /מדריכים שלא התאימו \(1\)/);
+  assert.match(html, /לא עברו תנאי סף \(1\)/);
   assert.doesNotMatch(html, /<details class="course-scheduling-rejected"[^>]*open/);
   assert.match(html, /data-assign-course disabled title="בחרו מדריך כשיר"/);
   assert.doesNotMatch(html, /course-scheduling-instructor-card/);
