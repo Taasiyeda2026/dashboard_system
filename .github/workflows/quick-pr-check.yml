@@ -37,7 +37,10 @@ jobs:
 
       - name: Operations 2027 focused tests
         run: |
-          node --test tests/operations-2027-*.test.mjs tests/operations-lazy-loading.test.mjs
+          for test_file in tests/operations-2027-*.test.mjs tests/operations-lazy-loading.test.mjs; do
+            echo "=== $test_file ==="
+            timeout 40s node --test "$test_file"
+          done
 
       - name: Build check
         run: npm run check:build
