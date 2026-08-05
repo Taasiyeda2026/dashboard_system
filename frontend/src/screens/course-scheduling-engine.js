@@ -34,7 +34,7 @@ export function missingCourseInformation(activity, options = {}) {
   const meetings = activityMeetings(activity).filter((meeting) => isDateInCourseSchedulingPeriod(meeting.date, periodKey));
   if (!meetings.length) missing.push('תאריכי מפגשים');
   if (!meetings.length || meetings.some((meeting) => !text(meeting.start_time || activity?.start_time) || !text(meeting.end_time || activity?.end_time))) missing.push('שעות');
-  // Missing instruction_language is not a blocker: resolveInstructionLanguage defaults to he.
+  if (!text(activity?.instruction_language)) missing.push('שפת הדרכה');
   return [...new Set(missing)];
 }
 

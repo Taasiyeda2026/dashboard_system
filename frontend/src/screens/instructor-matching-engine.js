@@ -9,6 +9,12 @@ export const DEFAULT_SCHEDULING_PROFILE = Object.freeze({
   default_end_time: '15:00',
   weekly_target_hours: null,
   weekly_max_hours: null,
+  education_levels: [],
+  course_restriction_mode: 'all',
+  course_ids: [],
+  blocked_authorities: [],
+  blocked_schools: [],
+  matching_note: null,
   preferred_work_days: null,
   max_fixed_courses: null
 });
@@ -30,7 +36,11 @@ export function normalizeSchedulingProfile(profile = {}) {
     ...DEFAULT_SCHEDULING_PROFILE,
     ...(profile || {}),
     gender: gender === 'any' ? null : gender,
-    instruction_languages: Array.isArray(profile?.instruction_languages) ? profile.instruction_languages : []
+    instruction_languages: Array.isArray(profile?.instruction_languages) ? profile.instruction_languages : [],
+    education_levels: Array.isArray(profile?.education_levels) ? profile.education_levels : [],
+    course_ids: Array.isArray(profile?.course_ids) ? profile.course_ids : [],
+    blocked_authorities: Array.isArray(profile?.blocked_authorities) ? profile.blocked_authorities : [],
+    blocked_schools: Array.isArray(profile?.blocked_schools) ? profile.blocked_schools : []
   };
 }
 
@@ -39,6 +49,28 @@ const minutes = (value) => {
   return hours * 60 + mins;
 };
 const same = (a, b) => String(a || '').trim() === String(b || '').trim();
+
+function normText(value) {
+  return String(value ?? '').trim().replace(/\s+/g, ' ').toLocaleLowerCase('he-IL');
+}
+
+function normId(value) {
+  return String(value ?? '').trim();
+}
+
+function listHasNormalized(list, value, normalize = normId) {
+  const wanted = normalize(value);
+  if (!wanted) return false;
+  return (Array.isArray(list) ? list : []).some((entry) => normalize(entry) === wanted);
+}
+
+function courseKey(activity = {}) {
+  return normId(activity.catalog_slug) || normId(activity.activity_no) || normId(activity.proposal_item_id) || normId(activity.row_id) || normId(activity.activity_name);
+}
+
+function educationLevel(activity = {}) {
+  return normId(activity.education_level);
+}
 
 function meetingRows(activity) {
   const dates = Array.isArray(activity.meetings)
@@ -112,6 +144,43 @@ export function evaluateInstructor({
   if (String(instructor.active ?? 'yes').toLowerCase() === 'no' || instructor.active === false) failures.push('המדריך אינו פעיל');
   if (!String(instructor.address || '').trim()) missingProfileData.push('כתובת');
 
+  const empId = normId(instructor.emp_id);
+  const blockedInstructorIds = Array.isArray(activity.blocked_instructor_ids) ? activity.blocked_instructor_ids : [];
+  const allowedInstructorIds = Array.isArray(activity.allowed_instructor_ids) ? activity.allowed_instructor_ids : [];
+  let courseEligibilityCheck = checkResult(true, 'הרשאות קורס ופעילות', '');
+  if (listHasNormalized(blockedInstructorIds, empId, normId)) {
+    failures.push('המדריך חסום לפעילות זו');
+    courseEligibilityCheck = checkResult(false, 'המדריך חסום לפעילות זו', 'חסימה בפעילות גוברת על הרשאות אחרות');
+  } else if (allowedInstructorIds.length && !listHasNormalized(allowedInstructorIds, empId, normId)) {
+    failures.push('הפעילות מוגבלת לרשימת מדריכים אחרת');
+    courseEligibilityCheck = checkResult(false, 'הפעילות מוגבלת לרשימת מדריכים אחרת', 'המדריך אינו ברשימת המותרים לפעילות');
+  }
+
+  const mode = normId(profile.course_restriction_mode || 'all');
+  const key = courseKey(activity);
+  if (!mode) {
+    missingProfileData.push('חסר מידע על הכשרות הקורס בפרופיל המדריך');
+    courseEligibilityCheck = checkResult(false, 'חסר מידע על הכשרות הקורס בפרופיל המדריך', 'חסר מצב הגבלת קורסים');
+  } else if (mode === 'allow_only') {
+    if (!key || !profile.course_ids.length) {
+      missingProfileData.push('חסר מידע על הכשרות הקורס בפרופיל המדריך');
+      courseEligibilityCheck = checkResult(false, 'חסר מידע על הכשרות הקורס בפרופיל המדריך', 'נדרשת רשימת קורסים מותרים');
+    } else if (!listHasNormalized(profile.course_ids, key, normId)) {
+      failures.push('אינו מורשה להעביר את הקורס');
+      courseEligibilityCheck = checkResult(false, 'אינו מורשה להעביר את הקורס', 'הקורס אינו ברשימת הקורסים המותרים למדריך');
+    }
+  } else if (mode === 'block_selected' && key && listHasNormalized(profile.course_ids, key, normId)) {
+    failures.push('אינו מורשה להעביר את הקורס');
+    courseEligibilityCheck = checkResult(false, 'אינו מורשה להעביר את הקורס', 'הקורס נמצא ברשימת הקורסים החסומים למדריך');
+  }
+
+  if (listHasNormalized(profile.blocked_authorities, activity.authority_id, normText) || listHasNormalized(profile.blocked_authorities, activity.authority, normText)) {
+    failures.push('חסום ברשות זו');
+  }
+  if (listHasNormalized(profile.blocked_schools, activity.school_id, normText) || listHasNormalized(profile.blocked_schools, activity.school, normText)) {
+    failures.push('חסום בבית ספר זה');
+  }
+
   let languageCheck = checkResult(null, 'שפה', 'לא נבדק');
   if (!profile.instruction_languages.length) {
     missingProfileData.push('לא ניתן לאמת שפת הדרכה');
@@ -122,6 +191,18 @@ export function evaluateInstructor({
     languageCheck = checkResult(false, `${LANGUAGE_LABELS[language] || instructionLanguageLabel(language)} - לא מתאים`, `${reason}: נדרשת ${LANGUAGE_LABELS[language] || instructionLanguageLabel(language)}`);
   } else {
     languageCheck = checkResult(true, `${LANGUAGE_LABELS[language] || instructionLanguageLabel(language)} - מתאים`, '');
+  }
+
+  let educationLevelCheck = checkResult(true, 'רמת חינוך', '');
+  const requiredEducationLevel = educationLevel(activity);
+  if (requiredEducationLevel) {
+    if (!profile.education_levels.length) {
+      missingProfileData.push('לא ניתן לאמת התאמה לרמת החינוך');
+      educationLevelCheck = checkResult(false, 'לא ניתן לאמת התאמה לרמת החינוך', 'חסרות רמות חינוך בפרופיל');
+    } else if (!listHasNormalized(profile.education_levels, requiredEducationLevel, normId)) {
+      failures.push('אינו מתאים לרמת החינוך של הפעילות');
+      educationLevelCheck = checkResult(false, 'אינו מתאים לרמת החינוך של הפעילות', `נדרשת רמת חינוך ${requiredEducationLevel}`);
+    }
   }
 
   let genderCheck = checkResult(null, 'מגדר', 'לא נבדק');
@@ -279,11 +360,19 @@ export function evaluateInstructor({
     travelCheck = checkResult(null, 'מרחק', 'לא נמצא מסלול');
   }
 
+  if ((workloadRatio != null && averageWorkloadRatio != null && Number(workloadRatio) > Number(averageWorkloadRatio) * 1.5)
+    || (weeklyLoad != null && averageWeeklyLoad != null && Number(weeklyLoad) > Number(averageWeeklyLoad) * 1.5)) {
+    warnings.push('עומס שבועי גבוה ביחס לממוצע');
+  }
+
   const checks = {
     gender: genderCheck,
     language: languageCheck,
     availability: availabilityCheck,
-    travel: travelCheck
+    travel: travelCheck,
+    courseEligibility: courseEligibilityCheck,
+    educationLevel: educationLevelCheck,
+    notes: checkResult(true, 'הערות', [activity.scheduling_note, profile.matching_note].filter(Boolean).join(' · '))
   };
 
   // 100-point rubric: distance/travel 40, continuity 30, load/fairness 20,
@@ -337,7 +426,7 @@ export function evaluateInstructor({
         continuity: { points: roundedContinuity, label: continuityLabel },
         workload: { points: roundedWorkload, label: 'עומס וחלוקה שוויונית', totalHoursPoints: workloadBreakdown.totalHoursPoints, courseWeeksPoints: workloadBreakdown.courseWeeksPoints, totalHours: workloadBreakdown.totalHours, courseWeeksHours: workloadBreakdown.courseWeeksHours },
         seniority: { points: roundedSeniority, label: 'ותק' },
-        gateNote: 'זמינות, שפה ומגדר הם תנאי סף ואינם מוסיפים נקודות.'
+        gateNote: 'הרשאות מקצועיות, זמינות, שפה, מגדר ורמת חינוך הם תנאי סף ואינם מוסיפים נקודות.'
       };
     }
   }
