@@ -50,15 +50,15 @@ test('resolveInstructionLanguage canonicalizes he/עברית and ar/ערבית',
   assert.equal(resolveInstructionLanguage('AR'), 'ar');
 });
 
-test('missingCourseInformation never lists instruction language as missing', () => {
+test('missingCourseInformation lists missing instruction language', () => {
   for (const language of [null, '', undefined]) {
     const missing = missingCourseInformation({ ...courseBase, instruction_language: language });
-    assert.ok(!missing.includes('שפת הדרכה'), `language=${language}`);
+    assert.ok(missing.includes('שפת הדרכה'), `language=${language}`);
   }
   assert.ok(!missingCourseInformation({ ...courseBase, instruction_language: 'he' }).includes('שפת הדרכה'));
 });
 
-test('null instruction language reaches instructor evaluation with Hebrew default', () => {
+test('null instruction language keeps course out of recommendation until loaded', () => {
   const result = calculateCourseSchedule({
     activities: [{ ...courseBase, instruction_language: null }],
     instructors: [instructor],
@@ -66,10 +66,7 @@ test('null instruction language reaches instructor evaluation with Hebrew defaul
     rules: { 1: rules },
     exceptions: {}
   })[0];
-  assert.notEqual(result.status, 'חסר מידע');
-  assert.ok(!result.missing?.includes('שפת הדרכה'));
-  assert.ok(result.checked?.length || result.recommended, 'course proceeds to instructor checks');
-  assert.equal(result.recommended?.instructor?.emp_id, '1');
+  assert.equal(result, undefined);
 });
 
 test('instructor without Hebrew fails default Hebrew course', () => {
@@ -116,7 +113,7 @@ test('profileSpeaksLanguage matches canonical and Hebrew labels', () => {
   assert.equal(profileSpeaksLanguage(['ar'], 'he'), false);
 });
 
-test('course details UI shows Hebrew default label', () => {
+test('course details UI does not show course missing instruction language as ready', () => {
   assert.equal(instructionLanguageLabel({ instruction_language: null }), 'עברית');
   assert.equal(instructionLanguageLabel({ instruction_language: 'ar' }), 'ערבית');
   const html = courseSchedulingScreen.render({
@@ -136,6 +133,5 @@ test('course details UI shows Hebrew default label', () => {
       courseSchedulingSelectedId: 'lang-1'
     }
   });
-  assert.match(html, /<dt>שפת הדרכה<\/dt><dd>עברית<\/dd>/);
-  assert.doesNotMatch(html, /לא הוגדר|חסר מידע|נדרש עדכון/);
+  assert.match(html, /אין קורסים|חסרי מידע/);
 });

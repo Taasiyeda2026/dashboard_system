@@ -58,14 +58,14 @@ test('filters inactive instructors before matching and route calculation', () =>
   assert.deepEqual(result.checked.map((candidate) => candidate.instructor.emp_id), ['1']);
 });
 
-test('global allocation ignores deprecated course restrictions while still balancing courses', () => {
+test('global allocation applies course restrictions before balancing courses', () => {
   const deprecatedProfiles = {
     1: { ...profiles[1], course_restriction_mode: 'allow_only', course_ids: ['only'] },
-    2: { ...profiles[2], course_restriction_mode: 'block_selected', course_ids: ['flex'] }
+    2: { ...profiles[2], course_restriction_mode: 'block_selected', course_ids: ['blocked-other'] }
   };
   const results = calculateCourseSchedule({ ...baseInput([course('flex'), course('only', '2026-09-07')]), profiles: deprecatedProfiles });
   assert.equal(results.filter((result) => result.recommended).length, 2);
-  assert.equal(new Set(results.map((result) => result.recommended.instructor.emp_id)).size, 2);
+  assert.deepEqual(results.map((result) => result.recommended.instructor.emp_id).sort(), ['1', '2']);
 });
 
 test('checks every meeting and keeps missing weekday availability out of recruitment', () => {
@@ -80,8 +80,7 @@ test('checks every meeting and keeps missing weekday availability out of recruit
 test('missing essential data is reported exactly and never proposed', () => {
   const result = calculateCourseSchedule(baseInput([{ ...course('missing'), school_address: '', instruction_language: '' }]))[0];
   assert.equal(result.status, 'חסר מידע');
-  assert.deepEqual(result.missing, ['כתובת בית הספר']);
-  assert.ok(!result.missing.includes('שפת הדרכה'));
+  assert.deepEqual(result.missing, ['כתובת בית הספר', 'שפת הדרכה']);
 });
 
 test('weekly workload compares each ISO week with one declared weekly capacity', () => {
