@@ -39,6 +39,6 @@ test('editing permission is verified by the server and clickable controls bind t
   assert.match(featureSource, /addEventListener\('click'/);
 });
 
-test('service worker cache version is 1400', () => {
-  assert.match(swSource, /const CACHE_VERSION = 1412;/);
+test('service worker cache version is current', () => {
+  assert.match(swSource, /const CACHE_VERSION = 1413;/);
 });
