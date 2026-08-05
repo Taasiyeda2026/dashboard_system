@@ -30,6 +30,9 @@ jobs:
       - name: Install dependencies
         run: npm ci
 
+      - name: Operations 2027 nested root test
+        run: node --test --test-force-exit tests/operations-2027-root-bind-hotfix.test.mjs
+
       - name: Build check
         run: npm run check:build
 
