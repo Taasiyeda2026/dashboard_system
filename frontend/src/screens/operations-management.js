@@ -2194,11 +2194,10 @@ function workshopsTabHtml(activitiesRowsForRequiredInventory, state, stockMap, c
     ? allMetrics.filter((row) => row.linkedWorkshops?.length || Number(row.openingStock || row.stockQuantity || 0) > 0)
     : allMetrics.filter((row) => (row.stockQuantity !== null && Number(row.stockQuantity) > 0) || row.requiredQuantity !== 0 || row.deliveredQuantity !== 0);
   const table = metrics.length
-    ? dsTableWrap(`<table class="ds-table ds-table--compact ds-ops-mgmt-data-table ds-ops-workshops-table"><colgroup><col class="ds-ops-workshop-col--no"><col class="ds-ops-workshop-col--name"><col class="ds-ops-workshop-col--metric">${isSchool2027 ? '<col class="ds-ops-workshop-col--location">' : ''}<col class="ds-ops-workshop-col--metric"><col class="ds-ops-workshop-col--metric"><col class="ds-ops-workshop-col--metric"><col class="ds-ops-workshop-col--status"></colgroup><thead><tr>
+    ? dsTableWrap(`<table class="ds-table ds-table--compact ds-ops-mgmt-data-table ds-ops-workshops-table"><colgroup><col class="ds-ops-workshop-col--no"><col class="ds-ops-workshop-col--name"><col class="ds-ops-workshop-col--metric"><col class="ds-ops-workshop-col--metric"><col class="ds-ops-workshop-col--metric"><col class="ds-ops-workshop-col--metric"><col class="ds-ops-workshop-col--status"></colgroup><thead><tr>
         ${sortableTh(state, TAB_WORKSHOPS, 'workshopNo', 'מס׳ סדנה', 'ds-ops-workshop-col--no')}
         ${sortableTh(state, TAB_WORKSHOPS, 'workshopName', 'שם הסדנה', 'ds-ops-workshop-col--name')}
-        <th class="ds-ops-workshop-col--metric">${isSchool2027 ? 'מלאי פתיחה' : 'כמות קיימת'}</th>
-        ${isSchool2027 ? '<th class="ds-ops-workshop-col--location" title="מקור: יתרת הסגירה של קיץ 2026">מיקום מלאי הפתיחה</th>' : ''}
+        <th class="ds-ops-workshop-col--metric">כמות קיימת</th>
         ${sortableTh(state, TAB_WORKSHOPS, 'usedQuantity', 'ניצול בפועל', 'ds-ops-workshop-col--metric')}
         ${sortableTh(state, TAB_WORKSHOPS, 'estimatedQuantity', 'צפי נדרש', 'ds-ops-workshop-col--metric')}
         <th class="ds-ops-workshop-col--metric">יתרה צפויה</th>
@@ -2209,7 +2208,6 @@ function workshopsTabHtml(activitiesRowsForRequiredInventory, state, stockMap, c
           <td class="ds-ops-workshop-col--no">${escapeHtml(row.workshopNoDisplay || row.workshopNo || row.stockGroupKey || '—')}</td>
           <td class="ds-ops-workshop-col--name">${escapeHtml(row.workshopName)}${row.activitiesWithoutParticipants ? ` <span class="ds-ops-estimate-mark" title="חסר מספר משתתפים ב-${row.activitiesWithoutParticipants} פעילויות; הן חושבו כ-0 במלאי נדרש">!</span>` : ''}</td>
           <td class="ds-ops-workshop-col--metric">${isSchool2027 ? formatSignedNumberForRtl(row.openingStock ?? row.stockQuantity ?? 0) : (row.stockQuantity === null ? '<span class="ds-ops-mgmt-cell-muted">—</span>' : formatSignedNumberForRtl(row.stockQuantity))}</td>
-          ${isSchool2027 ? `<td class="ds-ops-workshop-col--location" title="${escapeHtml((row.openingLocations || []).map((item) => `${item.location}: ${formatSignedNumberForRtl(item.quantity)}`).join(' | '))}">${openingLocationsHtml(row.openingLocations || [])}</td>` : ''}
           <td class="ds-ops-workshop-col--metric">${formatSignedNumberForRtl(row.usedQuantity)}</td>
           <td class="ds-ops-workshop-col--metric">${formatSignedNumberForRtl(row.requiredQuantity)}</td>
           <td class="ds-ops-workshop-col--metric">${formatGapCell(row.expectedBalance, true)}</td>
