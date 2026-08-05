@@ -1,0 +1,93 @@
+name: Patch activity login meetings sequencing
+
+on:
+  pull_request:
+    branches: [main]
+    types: [opened, synchronize]
+
+permissions:
+  contents: write
+
+jobs:
+  patch-test-commit:
+    if: github.event.pull_request.head.repo.full_name == github.repository
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+
+    steps:
+      - name: Checkout PR branch
+        uses: actions/checkout@v7
+        with:
+          ref: ${{ github.event.pull_request.head.ref }}
+          fetch-depth: 0
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v6
+        with:
+          node-version: '22'
+          cache: npm
+
+      - name: Sequence authenticated course meeting read
+        shell: bash
+        run: |
+          python - <<'PY'
+          from pathlib import Path
+
+          api_path = Path('frontend/src/api.js')
+          source = api_path.read_text(encoding='utf-8')
+          old = """  login: async (user_id, entry_code) => {
+    const [{ userRow: user, profileRow }, listsData, settingsRows, instructorContactsRows, courseMeetingsRows] = await Promise.all([
+      loginWithSupabaseAuth(user_id, entry_code),
+      readListsFromSupabase().catch(() => null),
+      readSettingsRowsFromSupabase().catch(() => []),
+      readInstructorContactsRowsForBootstrap().catch(() => []),
+      readCourseMeetingsRowsForBootstrap().catch(() => [])
+    ]);
+    const token = makeSessionToken(user);"""
+          new = """  login: async (user_id, entry_code) => {
+    const [{ userRow: user, profileRow }, listsData, settingsRows, instructorContactsRows] = await Promise.all([
+      loginWithSupabaseAuth(user_id, entry_code),
+      readListsFromSupabase().catch(() => null),
+      readSettingsRowsFromSupabase().catch(() => []),
+      readInstructorContactsRowsForBootstrap().catch(() => [])
+    ]);
+    const courseMeetingsRows = await readCourseMeetingsRowsForBootstrap().catch(() => []);
+    const token = makeSessionToken(user);"""
+          if source.count(old) != 1:
+              raise RuntimeError(f'Expected one login bootstrap block, found {source.count(old)}')
+          api_path.write_text(source.replace(old, new, 1), encoding='utf-8')
+
+          test_path = Path('tests/activity-course-meetings-bootstrap.test.mjs')
+          test_source = test_path.read_text(encoding='utf-8')
+          addition = """
+
+test('login reads protected course meeting data only after authentication completes', () => {
+  const loginStart = source.indexOf('login: async (user_id, entry_code) => {');
+  const bootstrapStart = source.indexOf('bootstrap: async () => {', loginStart);
+  const loginSource = source.slice(loginStart, bootstrapStart);
+  const loginPromiseEnd = loginSource.indexOf(']);');
+  const meetingsRead = loginSource.indexOf('const courseMeetingsRows = await readCourseMeetingsRowsForBootstrap()');
+
+  assert.ok(loginPromiseEnd >= 0);
+  assert.ok(meetingsRead > loginPromiseEnd);
+  assert.doesNotMatch(loginSource.slice(0, loginPromiseEnd), /readCourseMeetingsRowsForBootstrap/);
+});
+"""
+          if "login reads protected course meeting data only after authentication completes" not in test_source:
+              test_path.write_text(test_source.rstrip() + addition, encoding='utf-8')
+          PY
+
+      - name: Install dependencies
+        run: npm ci
+
+      - name: Run focused activity tests
+        run: node --test --test-force-exit tests/activity-options-catalog.test.mjs tests/activity-add-session-count.test.mjs tests/activity-course-meetings-bootstrap.test.mjs
+
+      - name: Commit sequencing fix
+        shell: bash
+        run: |
+          git config user.name "OpenAI Codex"
+          git config user.email "codex@openai.com"
+          git add frontend/src/api.js tests/activity-course-meetings-bootstrap.test.mjs
+          git commit -m "Sequence activity meeting catalog after login"
+          git push origin HEAD:${{ github.event.pull_request.head.ref }}
