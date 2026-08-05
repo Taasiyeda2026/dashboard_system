@@ -40,5 +40,5 @@ test('editing permission is cached and existing writes bind their controls', () 
 });
 
 test('service worker cache version is current', () => {
-  assert.match(swSource, /const CACHE_VERSION = 1419;/);
+  assert.match(swSource, /const CACHE_VERSION = 1423;/);
 });
