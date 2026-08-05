@@ -542,7 +542,7 @@ function distributionMap(rows = []) {
 function printKitViewModel(data) {
   const activeNames = activeInstructorRows(data.instructors).map((row) => row.name);
   const activeKeys = new Set(activeNames.map(normalize));
-  const displayedIds = new Set(data.courses.map((course) => String(course.id || ''));
+  const displayedIds = new Set(data.courses.map((course) => String(course.id || '')));
   const distributions = data.distributionRows.filter((row) => displayedIds.has(String(row?.course_id || '')));
   const inactiveNames = Array.from(new Set(distributions
     .map((row) => cleanText(row?.instructor_name))
