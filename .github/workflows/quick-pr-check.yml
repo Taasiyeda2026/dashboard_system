@@ -1,5 +1,5 @@
 name: Quick PR Check
-# Full Operations 2027 validation before restoring the standard workflow.
+# Final Operations 2027 validation before restoring the standard workflow.
 
 on:
   pull_request:
