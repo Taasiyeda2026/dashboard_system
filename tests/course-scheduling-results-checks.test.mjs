@@ -367,3 +367,67 @@ test('integration school_2027_019: matching Hebrew females are recommended witho
   assert.doesNotMatch(html, /ניסיון קודם בקורס/);
   assert.match(html, /תנאי סף ואינם מוסיפים נקודות/);
 });
+
+test('language hard gates Hebrew, Arabic, and missing instructor languages', () => {
+  const hebrew = calculateCourseSchedule({
+    activities: [course019({ row_id: 'he-course', activity_no: 'he-course', instruction_language: 'he', required_instructor_gender: 'any' })],
+    instructors: [femaleInstructor, maleInstructor],
+    profiles: { f1: { ...matchingProfile, instruction_languages: ['he'] }, m1: { gender: 'male', instruction_languages: ['ar'] } },
+    rules: { f1: weekdayRules, m1: weekdayRules },
+    exceptions: {},
+    travel: { ...travelFor('he-course', 'f1'), ...travelFor('he-course', 'm1') },
+    routeMatrix: {}
+  })[0];
+  assert.deepEqual(hebrew.checked.filter((item) => item.eligible).map((item) => item.instructor.emp_id), ['f1']);
+  assert.equal(hebrew.checked.find((item) => item.instructor.emp_id === 'm1').score, null);
+  assert.match(hebrew.checked.find((item) => item.instructor.emp_id === 'm1').failures.join(' '), /שפת ההדרכה אינה תואמת/);
+
+  const arabic = calculateCourseSchedule({
+    activities: [course019({ row_id: 'ar-course', activity_no: 'ar-course', instruction_language: 'ar', required_instructor_gender: 'any' })],
+    instructors: [femaleInstructor, maleInstructor],
+    profiles: { f1: { ...matchingProfile, instruction_languages: ['he'] }, m1: { gender: 'male', instruction_languages: ['ar'] } },
+    rules: { f1: weekdayRules, m1: weekdayRules },
+    exceptions: {},
+    travel: { ...travelFor('ar-course', 'f1'), ...travelFor('ar-course', 'm1') },
+    routeMatrix: {}
+  })[0];
+  assert.deepEqual(arabic.checked.filter((item) => item.eligible).map((item) => item.instructor.emp_id), ['m1']);
+
+  const missing = evaluateInstructor({ instructor: femaleInstructor, profile: { gender: 'female' }, rules: weekdayRules, activity: course019() });
+  assert.equal(missing.eligible, false);
+  assert.equal(missing.score, null);
+  assert.ok(missing.missingProfileData.includes('לא ניתן לאמת שפת הדרכה'));
+});
+
+test('gender hard gates male, female, and missing profile gender only when required', () => {
+  const maleCourse = course019({ row_id: 'male-course', activity_no: 'male-course', required_instructor_gender: 'male' });
+  const result = calculateCourseSchedule({
+    activities: [maleCourse],
+    instructors: [femaleInstructor, maleInstructor],
+    profiles: { f1: matchingProfile, m1: { ...matchingProfile, gender: 'male' } },
+    rules: { f1: weekdayRules, m1: weekdayRules },
+    exceptions: {},
+    travel: { ...travelFor('male-course', 'f1'), ...travelFor('male-course', 'm1') },
+    routeMatrix: {}
+  })[0];
+  assert.deepEqual(result.checked.filter((item) => item.eligible).map((item) => item.instructor.emp_id), ['m1']);
+  assert.equal(result.checked.find((item) => item.instructor.emp_id === 'f1').score, null);
+
+  const missingRequired = evaluateInstructor({ instructor: femaleInstructor, profile: { instruction_languages: ['he'] }, rules: weekdayRules, activity: course019({ required_instructor_gender: 'female' }) });
+  assert.ok(missingRequired.missingProfileData.includes('לא ניתן לאמת התאמה לדרישת המגדר'));
+
+  const missingAny = evaluateInstructor({ instructor: femaleInstructor, profile: { instruction_languages: ['he'] }, rules: weekdayRules, activity: course019({ required_instructor_gender: 'any' }) });
+  assert.equal(missingAny.checks.gender.passed, true);
+  assert.doesNotMatch(missingAny.missingProfileData.join(' '), /מגדר/);
+});
+
+test('candidate details render compact table, closed rejections, and initially disabled actions with explanation', () => {
+  const recommended = { instructor: femaleInstructor, eligible: true, score: 88, explanation: 'מתאימה', warnings: [], failures: [], missingProfileData: [], issues: [], checks: { language: { passed: true }, gender: { passed: true }, availability: { passed: true } }, scoreBreakdown: { continuity: { points: 20 } }, travel: { home: travelHome, transitions: {} } };
+  const rejected = { instructor: maleInstructor, eligible: false, score: null, failures: ['שפת ההדרכה אינה תואמת'], missingProfileData: [], checks: { language: { passed: false, reason: 'שפת ההדרכה אינה תואמת' }, gender: { passed: true }, availability: { passed: true } }, travel: { home: travelHome, transitions: {} } };
+  const html = detailsHtml({ course: course019({ required_instructor_gender: 'any' }), status: 'הצעה מוכנה', recommended, alternatives: [], checked: [recommended, rejected] }, { courseSchedulingSelectedCandidateId: '' });
+  assert.match(html, /course-scheduling-candidates-table/);
+  assert.match(html, /מדריכים שלא התאימו \(1\)/);
+  assert.doesNotMatch(html, /<details class="course-scheduling-rejected"[^>]*open/);
+  assert.match(html, /data-assign-course disabled title="בחרו מדריך כשיר"/);
+  assert.doesNotMatch(html, /course-scheduling-instructor-card/);
+});
