@@ -3,7 +3,7 @@ name: Patch activity login meetings sequencing
 on:
   pull_request:
     branches: [main]
-    types: [opened, synchronize]
+    types: [opened, reopened, synchronize]
 
 permissions:
   contents: write
