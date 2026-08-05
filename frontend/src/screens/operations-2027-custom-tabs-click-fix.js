@@ -21,9 +21,13 @@ function ensureRuntimeMarker(root) {
   const field = document.createElement('span');
   field.hidden = true;
   field.setAttribute(MARKER_ATTR, '');
-  field.className = 'ds-filter-field';
   field.setAttribute('aria-hidden', 'true');
-  field.innerHTML = '<select tabindex="-1"><option value="school_2027" selected>2027</option></select>';
+  field.style.setProperty('display', 'none', 'important');
+  field.style.setProperty('position', 'absolute', 'important');
+  field.style.setProperty('width', '0', 'important');
+  field.style.setProperty('height', '0', 'important');
+  field.style.setProperty('overflow', 'hidden', 'important');
+  field.innerHTML = '<select tabindex="-1" aria-hidden="true"><option value="school_2027" selected>2027</option></select>';
   root.appendChild(field);
 }
 
