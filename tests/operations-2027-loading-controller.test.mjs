@@ -2,7 +2,22 @@ import test from 'node:test';
 import assert from 'node:assert/strict';
 import { readFile } from 'node:fs/promises';
 
-import {
+function storageStub() {
+  const values = new Map();
+  return {
+    get length() { return values.size; },
+    getItem(key) { return values.has(String(key)) ? values.get(String(key)) : null; },
+    setItem(key, value) { values.set(String(key), String(value)); },
+    removeItem(key) { values.delete(String(key)); },
+    clear() { values.clear(); },
+    key(index) { return Array.from(values.keys())[index] ?? null; }
+  };
+}
+
+globalThis.localStorage = storageStub();
+globalThis.sessionStorage = storageStub();
+
+const {
   TAB_LOAD_STATES,
   buildCourseTrainingAssignedPairs,
   createOperations2027Store,
@@ -13,7 +28,7 @@ import {
   patchPrintKitDelivery,
   patchPrintKitReturn,
   patchPrintKitStock
-} from '../frontend/src/screens/operations-2027-loading-controller.js';
+} = await import('../frontend/src/screens/operations-2027-loading-controller.js');
 
 const source = await readFile(new URL('../frontend/src/screens/operations-2027-loading-controller.js', import.meta.url), 'utf8');
 const wrapper = await readFile(new URL('../frontend/src/screens/operations-authorities-cleanup.js', import.meta.url), 'utf8');
