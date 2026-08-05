@@ -283,10 +283,8 @@ function courseListCardHtml(row, selectedId) {
   const selectedClass = row.id === selectedId ? ' is-selected' : '';
   return `<button type="button" class="course-scheduling-course-card${selectedClass}${cardStatusClass(row.statusLabel)}" data-course-card="${escapeHtml(row.id)}">
     <strong>${escapeHtml(c.activity_name || '—')}</strong>
-    <span class="course-scheduling-course-card-meta">${escapeHtml(c.school || '—')}</span>
-    <span class="course-scheduling-course-card-meta">${escapeHtml(c.authority || '—')}</span>
-    <span class="course-scheduling-course-card-meta"><bdi dir="ltr">${escapeHtml(formatDateHe(c.start_date))}</bdi></span>
-    <span class="course-scheduling-course-card-meta">${courseDayTimeHtml(c)}</span>
+    <span class="course-scheduling-course-card-meta">${escapeHtml(c.school || '—')} · ${escapeHtml(c.authority || '—')}</span>
+    <span class="course-scheduling-course-card-meta"><bdi dir="ltr">${escapeHtml(formatDateHe(c.start_date))}</bdi> · ${courseDayTimeHtml(c)}</span>
     <span class="course-scheduling-status-chip">${escapeHtml(row.statusLabel)}</span>
   </button>`;
 }
@@ -488,7 +486,6 @@ export function instructorsResultsHtml(result, state = {}) {
   if (!result?.recommended) {
     return `<div class="course-scheduling-waiting-card">
       <strong>טרם נבדקו מדריכים לקורס זה</strong>
-      <p>לחץ על "מצא מדריכים מתאימים" כדי לראות מדריכים זמינים ומתאימים.</p>
     </div>`;
   }
 
@@ -618,8 +615,10 @@ function instructorReadinessListHtml(rows = []) {
     <p>שפות: ${escapeHtml((profile?.instruction_languages || []).map(instructionLanguageLabel).join(', ') || '—')}</p>
     <p>ימים זמינים: ${rules.filter((rule) => rule.available && text(rule.start_time) && text(rule.end_time) && text(rule.start_time) < text(rule.end_time)).length}</p>
     <p><b>חסר להשלמה:</b> ${escapeHtml(missing.join(' · '))}</p>
-    <button type="button" class="course-scheduling-btn course-scheduling-btn--secondary course-scheduling-btn--sm" data-open-instructor-matching="${escapeHtml(text(instructor.emp_id))}">עריכת התאמה</button>
-    <button type="button" class="course-scheduling-btn course-scheduling-btn--secondary course-scheduling-btn--sm" data-open-instructor-constraints="${escapeHtml(text(instructor.emp_id))}">עדכון זמינות ואילוצים</button>
+    <div class="course-scheduling-readiness-actions">
+      <button type="button" class="course-scheduling-btn course-scheduling-btn--secondary course-scheduling-btn--sm" data-open-instructor-matching="${escapeHtml(text(instructor.emp_id))}">עריכת התאמה</button>
+      <button type="button" class="course-scheduling-text-btn" data-open-instructor-constraints="${escapeHtml(text(instructor.emp_id))}">עדכון זמינות ואילוצים</button>
+    </div>
   </article>`).join('');
 }
 
