@@ -1299,7 +1299,7 @@ function contactDetailRowsHtml(row = {}) {
 
 export function proposalsAgreementsTableRowsHtml(rows, state) {
   if (!rows.length) {
-    return `<tr class="ds-pa-empty-row"><td colspan="10">אין רשומות להצגה</td></tr>`;
+    return `<tr class="ds-pa-empty-row"><td colspan="11">אין רשומות להצגה</td></tr>`;
   }
   const canManage = canManageProposalsAgreements(state);
   const isAdmin = canApproveProposalsAgreements(state);
@@ -1363,13 +1363,14 @@ export function proposalsAgreementsTableRowsHtml(rows, state) {
     <tr data-pa-row-id="${escapeHtml(row.id)}" tabindex="0">
       <td class="ds-pa-domain-col">${escapeHtml(row.proposal_domain || 'Y')}</td>
       <td class="ds-pa-col-center ds-pa-quote-number">${escapeHtml(row.quote_number || '—')}</td>
-      <td>${escapeHtml(row.client_name || row.client_authority || row.school_framework || '—')}</td>
+      <td class="ds-pa-authority-col" title="${escapeHtml(row.client_name || row.client_authority || row.school_framework || '—')}">${escapeHtml(row.client_name || row.client_authority || row.school_framework || '—')}</td>
       <td class="ds-pa-school-col">${inferProposalClientType(row) === 'other' ? '' : escapeHtml(row.school_framework || '—')}</td>
       <td>${escapeHtml(proposalGroupDisplayName(row.activity_type_group) || '—')}</td>
       <td class="ds-pa-col-center">${escapeHtml(formatDateDisplay(row.proposal_date) || '')}</td>
       <td class="ds-pa-col-center">${statusSelectHtml(row, canManage, isAdmin, state)}</td>
       <td class="ds-pa-col-money">${row.total_amount != null ? `₪ ${escapeHtml(formatCurrency(row.total_amount))}` : ''}</td>
       <td class="ds-pa-col-center">${gefenApprovalApplicable ? `<span class="ds-pa-gefen-status-text ds-pa-gefen-status-text--${gefenApprovalGenerated ? 'generated' : 'missing'}">${gefenApprovalGenerated ? 'הופק' : 'חסר'}</span>` : '—'}</td>
+      <td class="ds-pa-gfen-signed-col">${gefenApprovalApplicable ? `<input type="checkbox" class="ds-pa-gfen-signed-check" data-pa-gfen-signed="${escapeHtml(row.id)}" ${row.gfen_signed_or_ordered === true ? 'checked' : ''} aria-label="חתום או הוזמן בגפ״ן להצעה ${escapeHtml(row.quote_number || '')}">` : '<span class="ds-pa-unavailable" aria-label="לא זמין">—</span>'}</td>
       <td class="ds-pa-actions-cell"><div class="ds-pa-actions-inner ds-pa-actions-inner--clean">${quickActions}${moreMenu}</div></td>
     </tr>`;
   }).join('');
@@ -1378,8 +1379,8 @@ export function proposalsAgreementsTableRowsHtml(rows, state) {
 function tableHtml(rows, state) {
   return dsTableWrap(`
     <table class="ds-table ds-pa-table" data-pa-table>
-      <colgroup><col style="width:42px"><col style="width:72px"><col style="width:142px"><col style="width:142px"><col style="width:96px"><col style="width:104px"><col style="width:112px"><col style="width:104px"><col style="width:86px"><col style="width:118px"></colgroup>
-      <thead><tr><th class="ds-pa-domain-col">תחום</th><th class="ds-pa-col-center">מס׳</th><th>רשות</th><th class="ds-pa-school-col">בית הספר</th><th class="ds-pa-col-center">סוג הצעה</th><th class="ds-pa-col-center">תאריך</th><th class="ds-pa-col-center">סטטוס</th><th class="ds-pa-col-center">סה״כ</th><th class="ds-pa-col-center">אישור גפ״ן</th><th class="ds-pa-actions-col ds-pa-col-center">פעולות</th></tr></thead>
+      <colgroup><col style="width:42px"><col style="width:72px"><col style="width:118px"><col style="width:142px"><col style="width:96px"><col style="width:94px"><col style="width:104px"><col style="width:86px"><col style="width:86px"><col style="width:90px"><col style="width:118px"></colgroup>
+      <thead><tr><th class="ds-pa-domain-col">תחום</th><th class="ds-pa-col-center">מס׳</th><th>רשות</th><th class="ds-pa-school-col">בית הספר</th><th class="ds-pa-col-center">סוג הצעה</th><th class="ds-pa-col-center">תאריך</th><th class="ds-pa-col-center">סטטוס</th><th class="ds-pa-col-money">סה״כ</th><th class="ds-pa-col-center">אישור גפ״ן</th><th class="ds-pa-gfen-signed-col">חתום / הוזמן</th><th class="ds-pa-actions-col ds-pa-col-center">פעולות</th></tr></thead>
       <tbody data-pa-table-body>${proposalsAgreementsTableRowsHtml(rows, state)}</tbody>
     </table>
   `);
@@ -9020,10 +9021,40 @@ export const proposalsAgreementsScreen = {
       }
     }, { signal });
 
+
+    root.addEventListener('change', async (event) => {
+      const checkbox = event.target.closest?.('[data-pa-gfen-signed]');
+      if (!checkbox) return;
+      const id = checkbox.dataset.paGfenSigned;
+      const row = data.rows.find((item) => text(item.id) === text(id));
+      const previous = row?.gfen_signed_or_ordered === true;
+      const next = checkbox.checked === true;
+      if (!row || !isGefenApprovalApplicable(row) || typeof api.updateProposalAgreementGfenSignedOrOrdered !== 'function') {
+        checkbox.checked = previous;
+        showToast('שמירת סימון חתום / הוזמן אינה זמינה כרגע.', 'error');
+        return;
+      }
+      checkbox.disabled = true;
+      try {
+        const result = await api.updateProposalAgreementGfenSignedOrOrdered(id, next);
+        const saved = result?.row || { ...row, gfen_signed_or_ordered: next };
+        const idx = data.rows.findIndex((item) => text(item.id) === text(id));
+        if (idx >= 0) data.rows[idx] = { ...data.rows[idx], ...saved, gfen_approval_applicable: row.gefen_approval_applicable };
+        refreshTable();
+        showToast('סימון חתום / הוזמן נשמר.', 'success', 1800);
+      } catch (err) {
+        console.error('[proposal gfen signed/order update failed]', err);
+        checkbox.checked = previous;
+        checkbox.disabled = false;
+        showToast(err?.message || 'שמירת סימון חתום / הוזמן נכשלה. הסימון הוחזר למצב הקודם.', 'error');
+      }
+    }, { signal });
+
     // ── Click handler ─────────────────────────────────────────────────────────
     root.addEventListener('click', async (event) => {
       // Resolve nested SVG/path clicks before ancestor-based proposal navigation.
       const delegatedStatusAction = event.target.closest?.('[data-pa-status-action]');
+      if (event.target.closest?.('[data-pa-gfen-signed]')) return;
       if (event.target.closest?.('[data-pa-client-contact-close]')) {
         event.target.closest('[data-pa-client-contact-modal]')?.remove();
         return;
