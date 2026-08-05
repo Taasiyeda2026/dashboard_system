@@ -1,0 +1,521 @@
+name: Apply activity meetings autofill fix
+
+on:
+  pull_request:
+    branches: [main]
+    types: [opened]
+
+permissions:
+  contents: write
+
+jobs:
+  apply-fix:
+    if: github.event.pull_request.head.repo.full_name == github.repository
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+
+    steps:
+      - name: Checkout PR branch
+        uses: actions/checkout@v7
+        with:
+          ref: ${{ github.event.pull_request.head.ref }}
+          fetch-depth: 0
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v6
+        with:
+          node-version: '22'
+          cache: npm
+
+      - name: Apply focused fix and tests
+        shell: bash
+        run: |
+          python - <<'PY'
+          from pathlib import Path
+          import re
+
+          def read(path):
+              return Path(path).read_text(encoding='utf-8')
+
+          def write(path, content):
+              Path(path).write_text(content, encoding='utf-8')
+
+          def replace_once(path, old, new):
+              content = read(path)
+              count = content.count(old)
+              if count != 1:
+                  raise RuntimeError(f'{path}: expected one exact match, found {count}')
+              write(path, content.replace(old, new, 1))
+
+          def replace_all(path, old, new, expected):
+              content = read(path)
+              count = content.count(old)
+              if count != expected:
+                  raise RuntimeError(f'{path}: expected {expected} matches, found {count}')
+              write(path, content.replace(old, new))
+
+          def regex_once(path, pattern, replacement, flags=0):
+              content = read(path)
+              updated, count = re.subn(pattern, replacement, content, count=1, flags=flags)
+              if count != 1:
+                  raise RuntimeError(f'{path}: expected one regex match, found {count}')
+              write(path, updated)
+
+          options_path = 'frontend/src/screens/shared/activity-options.js'
+          replace_once(
+              options_path,
+              """function text(value) {
+            return String(value == null ? '' : value).trim();
+          }
+
+          export function humanDisplayText(value) {""",
+              """function text(value) {
+            return String(value == null ? '' : value).trim();
+          }
+
+          export function normalizeActivityMeetingsCount(value) {
+            if (value == null || value === '') return null;
+            const parsed = Number(value);
+            if (!Number.isInteger(parsed) || parsed < 1 || parsed > 35) return null;
+            return parsed;
+          }
+
+          export function humanDisplayText(value) {"""
+          )
+          replace_once(
+              options_path,
+              """      activity_name: humanDisplayText(row?.activity_name || row?.value || row?.label),
+                activity_no: text(row?.activity_no),
+                activity_type: normalizeActivityTypeKey(row?.activity_type || row?.parent_value || row?.type),""",
+              """      activity_name: humanDisplayText(row?.activity_name || row?.value || row?.label),
+                gefen_number: text(row?.gefen_number || row?.activity_no),
+                activity_no: text(row?.activity_no || row?.gefen_number),
+                meetings_count: normalizeActivityMeetingsCount(row?.meetings_count),
+                activity_type: normalizeActivityTypeKey(row?.activity_type || row?.parent_value || row?.type),"""
+          )
+
+          activities_path = 'frontend/src/screens/activities.js'
+          replace_once(
+              activities_path,
+              """  normalizeActivityTypeKey,
+            normalizeOneDayActivityType,""",
+              """  normalizeActivityTypeKey,
+            normalizeActivityMeetingsCount,
+            normalizeOneDayActivityType,"""
+          )
+
+          helper_code = r"""
+          export function applyActivityCatalogSelectionToAddForm(form, catalogItem, activityType) {
+            const noInput = form?.querySelector?.('[data-add-activity-no]');
+            const sessionsInput = form?.querySelector?.('[data-add-sessions]');
+            const type = normalizeActivityTypeKey(activityType);
+            if (noInput) noInput.value = String(catalogItem?.activity_no || catalogItem?.gefen_number || '');
+            const meetingsCount = normalizeActivityMeetingsCount(catalogItem?.meetings_count);
+            if ((type === 'course' || type === 'after_school') && sessionsInput && meetingsCount != null) {
+              sessionsInput.value = String(meetingsCount);
+            }
+            return meetingsCount;
+          }
+
+          function computeNextSessionDate(baseIso, index) {
+            if (!/^\d{4}-\d{2}-\d{2}$/.test(String(baseIso || ''))) return '';
+            const base = new Date(`${baseIso}T00:00:00`);
+            base.setDate(base.getDate() + (index * 7));
+            return `${base.getFullYear()}-${String(base.getMonth() + 1).padStart(2, '0')}-${String(base.getDate()).padStart(2, '0')}`;
+          }
+
+          export function syncSessionDateRows(form) {
+            const typeValue = String(form.querySelector('[name="activity_type"]')?.value || '').trim();
+            const isOneDay = isOneDayActivityTypeValue(typeValue);
+            const sessionsInput = form.querySelector('[data-add-sessions]');
+            const sessionsField = form.querySelector('[data-field-sessions]');
+            const oneDayDateField = form.querySelector('[data-field-one-day-date]');
+            const startDateField = form.querySelector('[data-field-start-date]');
+            const endDateField = form.querySelector('[data-field-end-date]');
+            const sessionsDatesWrap = form.querySelector('[data-add-date-rows-wrap]');
+            const startDateInput = form.querySelector('[name="start_date"]');
+            const endDateInput = form.querySelector('[name="end_date"]');
+            const oneDayDateInput = form.querySelector('[name="one_day_date"]');
+            if (isOneDay) {
+              const fallbackDate = String(oneDayDateInput?.value || startDateInput?.value || endDateInput?.value || '').trim();
+              if (oneDayDateInput) oneDayDateInput.value = fallbackDate;
+              if (startDateInput) startDateInput.value = fallbackDate;
+              if (endDateInput) endDateInput.value = fallbackDate;
+            }
+            if (oneDayDateField) oneDayDateField.style.display = isOneDay ? '' : 'none';
+            if (startDateField) startDateField.style.display = isOneDay ? 'none' : '';
+            if (endDateField) endDateField.style.display = isOneDay ? 'none' : '';
+            if (sessionsDatesWrap) sessionsDatesWrap.style.display = isOneDay ? 'none' : '';
+            if (sessionsInput) {
+              sessionsInput.value = isOneDay ? '1' : String(sessionsInput.value || '1');
+              sessionsInput.disabled = isOneDay;
+            }
+            if (sessionsField) sessionsField.style.display = isOneDay ? 'none' : '';
+            const sessions = isOneDay ? 1 : Math.max(1, Number(sessionsInput?.value || '1'));
+            const container = form.querySelector('[data-add-date-rows]');
+            if (!container) return;
+            const startDate = String(form.querySelector('[name="start_date"]')?.value || '').trim();
+            const prev = Array.from(container.querySelectorAll('input[data-add-session-date]')).map((input) => String(input.value || '').trim());
+            container.innerHTML = Array.from({ length: sessions }, (_, idx) => {
+              const value = idx === 0 ? (startDate || prev[idx] || '') : (prev[idx] || computeNextSessionDate(startDate, idx));
+              return `<label class="ds-add-date-row"><span>מפגש ${idx + 1}</span><input class="ds-input ds-input--sm" type="date" data-add-session-date="${idx + 1}" value="${escapeHtml(value)}"></label>`;
+            }).join('');
+          }
+
+          export function bindAddActivitySessionCountSync(form, listenerOptions) {
+            form?.querySelector?.('[data-add-sessions]')?.addEventListener(
+              'change',
+              () => syncSessionDateRows(form),
+              listenerOptions
+            );
+          }
+          """
+
+          replace_once(
+              activities_path,
+              """function isOneDayActivityTypeValue(value) {
+            return Boolean(normalizeOneDayActivityType(value));
+          }
+
+          function optionsHtml(values, selected = '', placeholder = '—', labelFn = null) {""",
+              """function isOneDayActivityTypeValue(value) {
+            return Boolean(normalizeOneDayActivityType(value));
+          }
+          """ + helper_code + """
+          function optionsHtml(values, selected = '', placeholder = '—', labelFn = null) {"""
+          )
+
+          regex_once(
+              activities_path,
+              r"""\n    function computeNextSessionDate\(baseIso, index\) \{.*?\n    \}\n\n    function syncSessionDateRows\(form\) \{.*?\n    \}\n\n    function bindAddActivityForm\(\) \{""",
+              "\n\n    function bindAddActivityForm() {",
+              flags=re.S
+          )
+
+          replace_once(
+              activities_path,
+              """      const hit = list.find((o) => String(o?.label || '').trim() === String(nameSel.value || '').trim());
+                noInput.value = String(hit?.activity_no || '');
+              }""",
+              """      const hit = list.find((o) => String(o?.label || '').trim() === String(nameSel.value || '').trim());
+                applyActivityCatalogSelectionToAddForm(form, hit, type);
+                syncSessionDateRows(form);
+              }"""
+          )
+
+          replace_once(
+              activities_path,
+              """      form.querySelector('[data-add-sessions]')?.addEventListener('change', () => syncSessionDateRows(form), addActivitySig);""",
+              """      bindAddActivitySessionCountSync(form, addActivitySig);"""
+          )
+
+          api_path = 'frontend/src/api.js'
+          replace_once(
+              api_path,
+              """validateInstructorIdentityPayload } from './screens/shared/activity-options.js';""",
+              """validateInstructorIdentityPayload, normalizeActivityMeetingsCount } from './screens/shared/activity-options.js';"""
+          )
+          replace_once(
+              api_path,
+              """const SETTINGS_BOOTSTRAP_COLUMNS = 'key,value,description';
+          const LISTS_BOOTSTRAP_COLUMNS = 'list_id,category,value,label,active,is_active,category_order,sort_order,activity_no,activity_name,activity_type,type,stock_quantity,stock_group_key,stock_group_name,stock_item_name,stock_label,parent_value';""",
+              """const SETTINGS_BOOTSTRAP_COLUMNS = 'key,value,description';
+          const LISTS_BOOTSTRAP_COLUMNS = 'list_id,category,value,label,active,is_active,category_order,sort_order,activity_no,activity_name,activity_type,type,stock_quantity,stock_group_key,stock_group_name,stock_item_name,stock_label,parent_value';
+          const COURSE_MEETINGS_BOOTSTRAP_COLUMNS = 'gefen_number,meetings_count';"""
+          )
+          replace_once(
+              api_path,
+              """let listsRowsCache = null;
+          let listsRowsPromise = null;
+          let instructorContactsCache = null;""",
+              """let listsRowsCache = null;
+          let listsRowsPromise = null;
+          let courseMeetingsRowsCache = null;
+          let courseMeetingsRowsPromise = null;
+          let instructorContactsCache = null;"""
+          )
+          replace_once(
+              api_path,
+              """  listsRowsCache = null;
+            listsRowsPromise = null;
+            instructorEmpIdsCache = null;""",
+              """  listsRowsCache = null;
+            listsRowsPromise = null;
+            courseMeetingsRowsCache = null;
+            courseMeetingsRowsPromise = null;
+            instructorEmpIdsCache = null;"""
+          )
+
+          course_loader = r"""
+          async function readCourseMeetingsRowsForBootstrap() {
+            if (!supabase) return [];
+            if (courseMeetingsRowsCache) return courseMeetingsRowsCache;
+            if (courseMeetingsRowsPromise) return courseMeetingsRowsPromise;
+            courseMeetingsRowsPromise = (async () => {
+              try {
+                const { data, error } = await supabase
+                  .from('proposal_gefen_courses')
+                  .select(COURSE_MEETINGS_BOOTSTRAP_COLUMNS)
+                  .eq('is_active', true);
+                if (error) {
+                  console.error('[supabase] proposal_gefen_courses meetings fetch failed:', error);
+                  return [];
+                }
+                courseMeetingsRowsCache = Array.isArray(data) ? data : [];
+                return courseMeetingsRowsCache;
+              } catch (error) {
+                console.error('[supabase] Unexpected proposal_gefen_courses meetings fetch error:', error);
+                return [];
+              } finally {
+                courseMeetingsRowsPromise = null;
+              }
+            })();
+            return courseMeetingsRowsPromise;
+          }
+
+          """
+
+          replace_once(
+              api_path,
+              """/**
+           * Converts the lists table data into the clientSettings shape expected by
+           * activity-options.js and the add-activity form.""",
+              course_loader + """/**
+           * Converts the lists table data into the clientSettings shape expected by
+           * activity-options.js and the add-activity form."""
+          )
+
+          replace_once(
+              api_path,
+              """function buildClientSettingsFromLists(listsData, settingsRows = [], instructorContactsRows = []) {
+            const categories = Array.isArray(listsData?.categories) ? listsData.categories : [];""",
+              """function buildClientSettingsFromLists(listsData, settingsRows = [], instructorContactsRows = [], courseMeetingsRows = []) {
+            const categories = Array.isArray(listsData?.categories) ? listsData.categories : [];
+            const courseMeetingsByGefenNumber = new Map(
+              (Array.isArray(courseMeetingsRows) ? courseMeetingsRows : [])
+                .map((row) => [
+                  String(row?.gefen_number || '').trim(),
+                  normalizeActivityMeetingsCount(row?.meetings_count)
+                ])
+                .filter(([gefenNumber, meetingsCount]) => gefenNumber && meetingsCount != null)
+            );"""
+          )
+
+          old_activity_names = """  const activityNames = activityNameItems.map((i) => ({
+            label:         i.label || i.value,
+            label_he:      String(i._row?.label_he || i.label || i.value || '').trim(),
+            value:         i.value || String(i._row?.activity_name || i.label || '').trim(),
+            activity_name: String(i._row?.activity_name || i.value || i.label || '').trim(),
+            activity_no:   String(i._row?.activity_no  || i._row?.number      || '').trim(),
+            activity_type: String(i._row?.activity_type || i._row?.parent_value || i._row?.type || '').trim(),
+            parent_value:  String(i._row?.parent_value  || i._row?.activity_type || i._row?.type || '').trim(),
+            type:          String(i._row?.type || i._row?.activity_type || i._row?.parent_value || '').trim(),
+            active:        (typeof i._row?.is_active === 'boolean') ? i._row?.is_active : (i._row?.active ?? i.active),
+            sort_order:    Number.isFinite(Number(i._row?.sort_order)) ? Number(i._row?.sort_order) : null
+          }));"""
+          new_activity_names = """  const activityNames = activityNameItems.map((i) => {
+            const gefenNumber = String(i._row?.gefen_number || i._row?.activity_no || i._row?.number || '').trim();
+            return {
+              label:         i.label || i.value,
+              label_he:      String(i._row?.label_he || i.label || i.value || '').trim(),
+              value:         i.value || String(i._row?.activity_name || i.label || '').trim(),
+              activity_name: String(i._row?.activity_name || i.value || i.label || '').trim(),
+              gefen_number:  gefenNumber,
+              activity_no:   String(i._row?.activity_no || i._row?.gefen_number || i._row?.number || '').trim(),
+              meetings_count: courseMeetingsByGefenNumber.get(gefenNumber) ?? null,
+              activity_type: String(i._row?.activity_type || i._row?.parent_value || i._row?.type || '').trim(),
+              parent_value:  String(i._row?.parent_value || i._row?.activity_type || i._row?.type || '').trim(),
+              type:          String(i._row?.type || i._row?.activity_type || i._row?.parent_value || '').trim(),
+              active:        (typeof i._row?.is_active === 'boolean') ? i._row?.is_active : (i._row?.active ?? i.active),
+              sort_order:    Number.isFinite(Number(i._row?.sort_order)) ? Number(i._row?.sort_order) : null
+            };
+          });"""
+          replace_once(api_path, old_activity_names, new_activity_names)
+
+          replace_all(
+              api_path,
+              """const [{ userRow: user, profileRow }, listsData, settingsRows, instructorContactsRows] = await Promise.all([""",
+              """const [{ userRow: user, profileRow }, listsData, settingsRows, instructorContactsRows, courseMeetingsRows] = await Promise.all([""",
+              expected=2
+          )
+          replace_all(
+              api_path,
+              """      readInstructorContactsRowsForBootstrap().catch(() => [])
+              ]);""",
+              """      readInstructorContactsRowsForBootstrap().catch(() => []),
+                readCourseMeetingsRowsForBootstrap().catch(() => [])
+              ]);""",
+              expected=2
+          )
+          replace_all(
+              api_path,
+              """buildClientSettingsFromLists(listsData, settingsRows, instructorContactsRows)""",
+              """buildClientSettingsFromLists(listsData, settingsRows, instructorContactsRows, courseMeetingsRows)""",
+              expected=2
+          )
+
+          catalog_test = 'tests/activity-options-catalog.test.mjs'
+          replace_once(
+              catalog_test,
+              """const { getActivityCatalog, getActivityTypes, getActivityNamesForType } = await import('../frontend/src/screens/shared/activity-options.js');""",
+              """const { getActivityCatalog, getActivityTypes, getActivityNamesForType, normalizeActivityMeetingsCount } = await import('../frontend/src/screens/shared/activity-options.js');"""
+          )
+          replace_once(
+              catalog_test,
+              """{ label: 'פעילות א', activity_name: 'פעילות א', activity_no: '100', activity_type: 'course', parent_value: '', type: 'course', label_he: 'פעילות א', active: true, sort_order: 2 },""",
+              """{ label: 'פעילות א', activity_name: 'פעילות א', activity_no: '100', gefen_number: '100', meetings_count: '11.00', activity_type: 'course', parent_value: '', type: 'course', label_he: 'פעילות א', active: true, sort_order: 2 },"""
+          )
+          replace_once(
+              catalog_test,
+              """  assert.equal(catalog[0].type, 'course');
+          });""",
+              """  assert.equal(catalog[0].type, 'course');
+            assert.equal(catalog[0].gefen_number, '100');
+            assert.equal(catalog[0].meetings_count, 11);
+          });
+
+          test('meeting count normalization accepts only whole values from 1 to 35', () => {
+            assert.equal(normalizeActivityMeetingsCount('8.00'), 8);
+            assert.equal(normalizeActivityMeetingsCount(35), 35);
+            assert.equal(normalizeActivityMeetingsCount(0), null);
+            assert.equal(normalizeActivityMeetingsCount(36), null);
+            assert.equal(normalizeActivityMeetingsCount('8.5'), null);
+            assert.equal(normalizeActivityMeetingsCount(''), null);
+          });"""
+          )
+
+          ui_test = r"""import { test } from 'node:test';
+          import assert from 'node:assert/strict';
+          import { JSDOM } from 'jsdom';
+
+          const dom = new JSDOM('<!doctype html><html><body></body></html>');
+          globalThis.window = dom.window;
+          globalThis.document = dom.window.document;
+          globalThis.CustomEvent = dom.window.CustomEvent;
+
+          const {
+            applyActivityCatalogSelectionToAddForm,
+            bindAddActivitySessionCountSync,
+            syncSessionDateRows
+          } = await import('../frontend/src/screens/activities.js');
+
+          function createForm(type = 'course', sessions = '1') {
+            document.body.innerHTML = `
+              <form>
+                <select name="activity_type" data-add-activity-type>
+                  <option value="${type}" selected>${type}</option>
+                </select>
+                <input name="activity_no" data-add-activity-no>
+                <label data-field-sessions><input name="sessions" data-add-sessions value="${sessions}"></label>
+                <label data-field-one-day-date style="display:none"><input name="one_day_date" type="date"></label>
+                <label data-field-start-date><input name="start_date" type="date" value="2026-09-01"></label>
+                <label data-field-end-date><input name="end_date" type="date"></label>
+                <div data-add-date-rows-wrap><div data-add-date-rows></div></div>
+              </form>
+            `;
+            return document.querySelector('form');
+          }
+
+          function rowCount(form) {
+            return form.querySelectorAll('input[data-add-session-date]').length;
+          }
+
+          test('course 6089 autofills 11 sessions and creates 11 date rows', () => {
+            const form = createForm('course');
+            applyActivityCatalogSelectionToAddForm(
+              form,
+              { gefen_number: '6089', activity_no: '6089', meetings_count: 11 },
+              'course'
+            );
+            syncSessionDateRows(form);
+
+            assert.equal(form.querySelector('[data-add-activity-no]').value, '6089');
+            assert.equal(form.querySelector('[data-add-sessions]').value, '11');
+            assert.equal(rowCount(form), 11);
+            assert.notEqual(form.querySelector('[data-field-sessions]').style.display, 'none');
+          });
+
+          test('switching from an 11-session course to an 8-session course shrinks date rows', () => {
+            const form = createForm('course');
+            applyActivityCatalogSelectionToAddForm(form, { activity_no: '6089', meetings_count: 11 }, 'course');
+            syncSessionDateRows(form);
+            applyActivityCatalogSelectionToAddForm(form, { activity_no: '9545', meetings_count: 8 }, 'course');
+            syncSessionDateRows(form);
+
+            assert.equal(form.querySelector('[data-add-activity-no]').value, '9545');
+            assert.equal(form.querySelector('[data-add-sessions]').value, '8');
+            assert.equal(rowCount(form), 8);
+          });
+
+          test('manual session count change triggers date-row synchronization', () => {
+            const form = createForm('course', '11');
+            syncSessionDateRows(form);
+            bindAddActivitySessionCountSync(form);
+            const input = form.querySelector('[data-add-sessions]');
+            input.value = '6';
+            input.dispatchEvent(new window.Event('change', { bubbles: true }));
+
+            assert.equal(rowCount(form), 6);
+          });
+
+          test('workshop hides sessions and remains a single-day activity', () => {
+            const form = createForm('workshop', '9');
+            syncSessionDateRows(form);
+
+            assert.equal(form.querySelector('[data-add-sessions]').value, '1');
+            assert.equal(form.querySelector('[data-add-sessions]').disabled, true);
+            assert.equal(form.querySelector('[data-field-sessions]').style.display, 'none');
+            assert.equal(form.querySelector('[data-add-date-rows-wrap]').style.display, 'none');
+            assert.equal(rowCount(form), 1);
+          });
+
+          test('missing meetings_count keeps the existing manual session value without crashing', () => {
+            const form = createForm('course', '4');
+            applyActivityCatalogSelectionToAddForm(form, { activity_no: '9999' }, 'course');
+            syncSessionDateRows(form);
+
+            assert.equal(form.querySelector('[data-add-sessions]').value, '4');
+            assert.equal(rowCount(form), 4);
+          });
+          """
+          write('tests/activity-add-session-count.test.mjs', ui_test)
+
+          api_test = r"""import { test } from 'node:test';
+          import assert from 'node:assert/strict';
+          import fs from 'node:fs/promises';
+
+          const source = await fs.readFile(new URL('../frontend/src/api.js', import.meta.url), 'utf8');
+
+          test('bootstrap reads active Gefen course meeting counts without schema changes', () => {
+            assert.match(source, /COURSE_MEETINGS_BOOTSTRAP_COLUMNS = 'gefen_number,meetings_count'/);
+            assert.match(
+              source,
+              /\.from\('proposal_gefen_courses'\)[\s\S]{0,240}\.select\(COURSE_MEETINGS_BOOTSTRAP_COLUMNS\)[\s\S]{0,160}\.eq\('is_active', true\)/
+            );
+            assert.match(source, /readCourseMeetingsRowsForBootstrap\(\)\.catch\(\(\) => \[\]\)/);
+          });
+
+          test('bootstrap joins meeting counts by Gefen number and exposes them to the activity catalog', () => {
+            assert.match(source, /const courseMeetingsByGefenNumber = new Map\(/);
+            assert.match(source, /const gefenNumber = String\(i\._row\?\.gefen_number \|\| i\._row\?\.activity_no/);
+            assert.match(source, /meetings_count:\s*courseMeetingsByGefenNumber\.get\(gefenNumber\) \?\? null/);
+          });
+          """
+          write('tests/activity-course-meetings-bootstrap.test.mjs', api_test)
+          PY
+
+      - name: Install dependencies
+        run: npm ci
+
+      - name: Run focused activity tests
+        run: node --test tests/activity-options-catalog.test.mjs tests/activity-add-session-count.test.mjs tests/activity-course-meetings-bootstrap.test.mjs
+
+      - name: Commit focused fix
+        shell: bash
+        run: |
+          git config user.name "OpenAI Codex"
+          git config user.email "codex@openai.com"
+          git rm .github/workflows/apply-activity-meetings-fix.yml
+          git add frontend/src/api.js frontend/src/screens/activities.js frontend/src/screens/shared/activity-options.js tests/activity-options-catalog.test.mjs tests/activity-add-session-count.test.mjs tests/activity-course-meetings-bootstrap.test.mjs
+          git commit -m "Fix activity meetings autofill regression"
+          git push origin HEAD:${{ github.event.pull_request.head.ref }}
