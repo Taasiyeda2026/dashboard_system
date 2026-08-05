@@ -267,9 +267,11 @@ function candidateMap({ courses, instructors, profiles = {}, rules = {}, excepti
   const periodKey = input.periodKey || DEFAULT_COURSE_SCHEDULING_PERIOD_KEY;
   const baselineLoads = new Map(instructors.map((instructor) => {
     const empId = text(instructor.emp_id);
-    return [empId, instructorLoad(assignedRows[empId] || [], profiles[empId], rules[empId] || [], { periodKey }).hours];
+    const load = instructorLoad(assignedRows[empId] || [], profiles[empId], rules[empId] || [], { periodKey });
+    return [empId, load.maxRatio];
   }));
-  const averageRatio = averageFinite([...baselineLoads.values()]);
+  const baselineAverageRatio = averageFinite([...baselineLoads.values()]);
+  const averageRatio = baselineAverageRatio > 0 ? baselineAverageRatio : null;
   const output = new Map();
 
   for (const course of courses) {
