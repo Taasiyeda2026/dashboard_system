@@ -1,4 +1,5 @@
 import { supabase } from '../supabase-client.js';
+import { resolveCourseForActivity, trainingCellState } from './shared/operations-2027-domain.js';
 
 const SCHOOL_2027 = 'school_2027';
 const COURSE_TABLE = 'proposal_gefen_courses';
@@ -42,32 +43,23 @@ function activityInstructorNames(row) {
   ].map(cleanText).filter(Boolean)));
 }
 
-function activityCourseNumber(row) {
-  return cleanText(row?.activity_no || row?.activityNo || row?.gefen_number || row?.course_number);
+function isInactiveActivity(row) {
+  const status = cleanText(row?.status).toLowerCase();
+  return Boolean(row?.deleted_at || row?.is_deleted === true || row?.cancelled_at || row?.is_cancelled === true)
+    || ['נמחק', 'מחוק', 'בוטל', 'מבוטל', 'deleted', 'cancelled', 'canceled'].includes(status);
 }
 
-function activityCourseName(row) {
-  return cleanText(row?.activity_name || row?.activityName || row?.course_name || row?.program_name);
-}
-
-function courseAliases(course) {
-  return [course?.short_name, course?.full_name, course?.gefen_number]
-    .map(normalize)
-    .filter(Boolean);
-}
-
-function findCourseForActivity(row, courses) {
-  const number = normalize(activityCourseNumber(row));
-  if (number) {
-    const byNumber = courses.find((course) => normalize(course?.gefen_number) === number);
-    if (byNumber) return byNumber;
-  }
-
-  const activityName = normalize(activityCourseName(row));
-  if (!activityName) return null;
-  return courses.find((course) => courseAliases(course).some((alias) => (
-    alias === activityName || alias.includes(activityName) || activityName.includes(alias)
-  ))) || null;
+export function buildCourseTrainingAssignedPairs(activities = [], courses = []) {
+  const assignedPairs = new Set();
+  activities.forEach((row) => {
+    if (isInactiveActivity(row)) return;
+    const instructorNames = activityInstructorNames(row);
+    if (!instructorNames.length) return;
+    const course = resolveCourseForActivity(row, courses);
+    if (!course) return;
+    instructorNames.forEach((name) => assignedPairs.add(pairKey(course.id, name)));
+  });
+  return assignedPairs;
 }
 
 function operationsRoot() {
@@ -113,15 +105,7 @@ async function loadAssignedPairs({ force = false } = {}) {
     if (coursesResult.error) throw coursesResult.error;
     if (activitiesResult.error) throw activitiesResult.error;
 
-    const courses = coursesResult.data || [];
-    const assignedPairs = new Set();
-    (activitiesResult.data || []).forEach((row) => {
-      if (row?.deleted_at || row?.is_deleted === true) return;
-      const course = findCourseForActivity(row, courses);
-      if (!course) return;
-      activityInstructorNames(row).forEach((name) => assignedPairs.add(pairKey(course.id, name)));
-    });
-    return assignedPairs;
+    return buildCourseTrainingAssignedPairs(activitiesResult.data || [], coursesResult.data || []);
   }).catch((error) => {
     assignmentPromise = null;
     throw error;
@@ -131,19 +115,19 @@ async function loadAssignedPairs({ force = false } = {}) {
 }
 
 function setTrainingVisual(button, { trained, assigned }) {
-  const wantedClass = trained ? 'is-yes' : (assigned ? 'is-no' : 'is-empty');
-  const wantedText = trained ? '✓' : (assigned ? '✕' : '');
-  const wantedLabel = trained
+  const cell = trainingCellState({ trained, assigned });
+  const wantedClass = cell.state === 'trained' ? 'is-yes' : (cell.state === 'assigned_untrained' ? 'is-no' : 'is-empty');
+  const wantedLabel = cell.state === 'trained'
     ? 'עבר הכשרה'
-    : (assigned ? 'משובץ וטרם עבר הכשרה' : 'לא משובץ ולא עבר הכשרה');
+    : (cell.state === 'assigned_untrained' ? 'משובץ וטרם עבר הכשרה' : 'לא משובץ ולא עבר הכשרה');
 
   ['is-yes', 'is-no', 'is-empty'].forEach((className) => {
     button.classList.toggle(className, className === wantedClass);
   });
-  if (button.textContent !== wantedText) button.textContent = wantedText;
+  if (button.textContent !== cell.text) button.textContent = cell.text;
   if (button.getAttribute('aria-label') !== wantedLabel) button.setAttribute('aria-label', wantedLabel);
   button.dataset.assigned = assigned ? '1' : '0';
-  if (!trained && !assigned) button.title = 'לא משובץ - לחיצה לסימון הכשרה';
+  if (cell.state === 'empty') button.title = 'לא משובץ - לחיצה לסימון הכשרה';
   else button.removeAttribute('title');
 }
 
