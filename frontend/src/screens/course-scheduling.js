@@ -320,21 +320,55 @@ function courseListHtml(rowModels, selectedId) {
   return groups.map((group) => `<section class="course-scheduling-course-group"><h3>${escapeHtml(group.label)} <span class="course-scheduling-badge">${group.rows.length}</span></h3>${group.rows.map((row) => courseListCardHtml(row, selectedId)).join('')}</section>`).join('');
 }
 
+
+function genderRequirementLabel(course = {}) {
+  const value = text(course.required_instructor_gender).toLocaleLowerCase('he-IL');
+  if (!value || value === 'any' || value === 'ללא' || value === 'ללא דרישה') return 'ללא דרישה';
+  if (value === 'female' || value === 'f' || value === 'נקבה' || value === 'מדריכה') return 'מדריכה';
+  if (value === 'male' || value === 'm' || value === 'זכר' || value === 'מדריך') return 'מדריך';
+  return text(course.required_instructor_gender);
+}
+
+function candidateHardBlockReason(candidate) {
+  if (!candidate) return 'לא נבחר מועמד';
+  const checks = candidate.checks || {};
+  if (checks.language?.passed !== true) return checks.language?.reason || checks.language?.label || 'שפת ההדרכה אינה תואמת';
+  if (checks.gender?.passed === false || (checks.gender?.passed == null && genderRequirementLabel(candidate.periodCourse || {}) !== 'ללא דרישה')) return checks.gender?.reason || checks.gender?.label || 'לא ניתן לאמת התאמה לדרישת המגדר';
+  if (!candidate.eligible) return [...(candidate.failures || []), ...(candidate.missingProfileData || [])][0] || 'המועמד אינו עומד בתנאי הסף';
+  return '';
+}
+
+function actionDisabledReason({ candidate, busy = false, canEdit = true } = {}) {
+  if (!canEdit) return 'אין הרשאת עריכה';
+  if (busy) return 'פעולה מתבצעת כעת';
+  return candidateHardBlockReason(candidate);
+}
+
+function candidateConstraintBadgesHtml(candidate, course = {}) {
+  const checks = candidate?.checks || {};
+  const genderRequired = genderRequirementLabel(course) !== 'ללא דרישה';
+  const rows = [
+    ['שפה מתאימה', checks.language?.passed === true, `שפה: ${checks.language?.label || 'מתאימה'}`],
+    ...(genderRequired ? [['מגדר מתאים', checks.gender?.passed === true, `מגדר: ${checks.gender?.label || 'מתאים'}`]] : []),
+    ['זמינות מתאימה', checks.availability?.passed === true, `זמינות: ${checks.availability?.label || 'מתאימה'}`]
+  ];
+  return `<span class="course-scheduling-candidate-badges" aria-label="התאמה לדרישות הקורס">${rows.map(([label, passed, title]) => `<span class="course-scheduling-mini-check${passed ? ' is-pass' : ' is-fail'}" title="${escapeHtml(title)}">${passed ? '✓' : '✗'} ${escapeHtml(label)}<span class="sr-only"> ${escapeHtml(title)}</span></span>`).join('')}</span>`;
+}
+
 function courseFactRows(course) {
   const meetings = filterMeetingsByCourseSchedulingPeriod(activityMeetings(course), course?.periodKey || DEFAULT_COURSE_SCHEDULING_PERIOD_KEY);
   return [
     ['בית ספר', escapeHtml(course.school || '—')],
-    ['רשות', escapeHtml(course.authority || '—')],
-    ['תאריך התחלה', `<bdi dir="ltr">${escapeHtml(formatDateHe(course.start_date))}</bdi>`],
-    ['מפגשים', escapeHtml(String(meetings.length || '—'))],
-    ['יום ושעה', courseDayTimeHtml(course)],
-    ['שפת הדרכה', escapeHtml(instructionLanguageLabel(course))]
+    ['קורס', escapeHtml(course.activity_name || '—')],
+    ['תאריך ושעה', `${courseDayTimeHtml(course)}`],
+    ['שפת הדרכה', escapeHtml(instructionLanguageLabel(course))],
+    ['דרישת מגדר', escapeHtml(genderRequirementLabel(course))]
   ];
 }
 
 function specialRequirementTagsHtml(course) {
-  if (!text(course.required_instructor_gender) || text(course.required_instructor_gender) === 'any') return '';
-  const label = course.required_instructor_gender === 'female' ? 'נדרשת מדריכה' : 'נדרש מדריך';
+  if (genderRequirementLabel(course) === 'ללא דרישה') return '';
+  const label = genderRequirementLabel(course) === 'מדריכה' ? 'נדרשת מדריכה' : 'נדרש מדריך';
   return `<div class="course-scheduling-requirement-tags"><span class="course-scheduling-requirement-tag">${escapeHtml(label)}</span></div>`;
 }
 
@@ -445,22 +479,39 @@ export function scoreBreakdownHtml(candidate) {
   </div>`;
 }
 
-function candidateCardHtml(candidate, { recommended = false, selectedId = '', name = 'course-candidate', course = null } = {}) {
+function candidateRowHtml(candidate, { recommended = false, selectedId = '', name = 'course-candidate', course = null } = {}) {
   const id = emp(candidate);
   const checked = id && id === selectedId ? ' checked' : '';
-  const title = recommended ? 'מדריך מומלץ' : 'מדריך נוסף';
-  return `<label class="course-scheduling-instructor-card${recommended ? ' is-recommended' : ''}${id === selectedId ? ' is-selected' : ''}">
-    <input type="radio" name="${escapeHtml(name)}" value="${escapeHtml(id)}"${checked}>
-    <span class="course-scheduling-instructor-card-body">
-      <span class="course-scheduling-instructor-kicker">${title}</span>
-      <strong>${escapeHtml(candidate.instructor.full_name || id)}</strong>
-      <span class="course-scheduling-instructor-meta">ציון התאמה: ${candidate.score ?? '—'}</span>
-      <span class="course-scheduling-instructor-meta">${escapeHtml(distanceLabel(candidate))}</span>
-      <span class="course-scheduling-instructor-meta">זמינות: ${escapeHtml(availabilityLabel(candidate))}</span>
-      ${recommended ? requirementsFitHtml(candidate, course || {}) : ''}
-      ${recommended ? scoreBreakdownHtml(candidate) : `<span class="course-scheduling-instructor-explain">${escapeHtml(candidate.explanation || 'התאמה כללית לקורס')}</span>`}
-    </span>
-  </label>`;
+  const selected = id && id === selectedId ? ' is-selected' : '';
+  const title = recommended ? 'מומלץ' : 'חלופה';
+  const breakdown = candidate?.scoreBreakdown || {};
+  const continuity = breakdown.continuity?.points ?? '—';
+  const distance = distanceLabel(candidate);
+  const hardBlock = candidateHardBlockReason(candidate);
+  const disabled = hardBlock ? ' disabled' : '';
+  const tooltip = hardBlock ? ` title="${escapeHtml(hardBlock)}"` : '';
+  return `<tr class="course-scheduling-candidate-row${selected}" data-candidate-row="${escapeHtml(id)}">
+    <td class="course-scheduling-candidate-select"><input type="radio" name="${escapeHtml(name)}" value="${escapeHtml(id)}"${checked}${disabled}${tooltip}></td>
+    <td class="course-scheduling-candidate-name"><strong title="${escapeHtml(candidate.instructor.full_name || id)}">${escapeHtml(candidate.instructor.full_name || id)}</strong><span>${title}</span></td>
+    <td class="course-scheduling-candidate-score"><b>${candidate.score ?? '—'}</b><span class="sr-only"> פירוט הציון עומס וחלוקה שוויונית ותק תנאי סף ואינם מוסיפים נקודות</span></td>
+    <td>${escapeHtml(availabilityLabel(candidate))}</td>
+    <td title="${escapeHtml(breakdown.continuity?.label || 'אין רציפות בבית הספר או ברשות')}">התאמה ${escapeHtml(String(continuity))}<span class="sr-only"> ${escapeHtml(breakdown.continuity?.label || 'אין רציפות בבית הספר או ברשות')}</span></td>
+    <td title="${escapeHtml(distance)}">${escapeHtml(distance)}</td>
+    <td>${candidateConstraintBadgesHtml(candidate, course || {})}</td>
+  </tr>`;
+}
+
+function rejectedCandidatesHtml(result) {
+  const rejected = (result.checked || []).filter((candidate) => !candidate.eligible);
+  if (!rejected.length) return '';
+  return `<details class="course-scheduling-rejected" data-rejected-candidates><summary>מדריכים שלא התאימו (${rejected.length})</summary>
+    <div class="course-scheduling-rejected-list">
+      ${rejected.map((candidate) => {
+        const reason = candidateHardBlockReason(candidate) || [...(candidate.failures || []), ...(candidate.missingProfileData || [])][0] || 'לא עומד בתנאי הסף';
+        return `<div class="course-scheduling-rejected-row"><strong>${escapeHtml(candidate.instructor?.full_name || emp(candidate) || '—')}</strong><span>${escapeHtml(reason)}</span></div>`;
+      }).join('')}
+    </div>
+  </details>`;
 }
 
 function incompleteProfilesHtml(result) {
@@ -513,7 +564,7 @@ export function instructorsResultsHtml(result, state = {}) {
   }
   if (!result?.recommended) return '';
 
-  const selectedId = text(state.courseSchedulingSelectedCandidateId) || emp(result.recommended);
+  const selectedId = text(state.courseSchedulingSelectedCandidateId);
   const alternatives = result.alternatives || [];
   const visibleAlts = alternatives.slice(0, 3);
   const hiddenAlts = alternatives.slice(3);
@@ -522,13 +573,17 @@ export function instructorsResultsHtml(result, state = {}) {
   const moreChecked = (result.checked || []).filter((item) => item.eligible && emp(item) !== emp(result.recommended) && !alternatives.some((alt) => emp(alt) === emp(item)));
 
   return `<div class="course-scheduling-result-block" data-course-options>
-    ${candidateCardHtml(result.recommended, { recommended: true, selectedId, name: radioName, course: result.course })}
-    ${visibleAlts.length ? `<div class="course-scheduling-alternatives"><h3>חלופות מתאימות</h3>${visibleAlts.map((item) => candidateCardHtml(item, { selectedId, name: radioName, course: result.course })).join('')}</div>` : ''}
-    ${(hiddenAlts.length || moreChecked.length) ? `<details class="course-scheduling-details" data-more-candidates ${showMore ? 'open' : ''}><summary>הצגת מדריכים נוספים</summary>${[...hiddenAlts, ...moreChecked].map((item) => candidateCardHtml(item, { selectedId, name: radioName, course: result.course })).join('')}</details>` : ''}
+    <div class="course-scheduling-candidates-table-wrap"><table class="course-scheduling-candidates-table"><thead><tr><th>בחירה</th><th>שם המדריך</th><th>ציון</th><th>זמינות</th><th>התאמה מקצועית</th><th>מרחק</th><th>אילוצים</th></tr></thead><tbody>
+      ${candidateRowHtml(result.recommended, { recommended: true, selectedId, name: radioName, course: result.course })}
+      ${visibleAlts.map((item) => candidateRowHtml(item, { selectedId, name: radioName, course: result.course })).join('')}
+    </tbody></table></div>
+    ${(hiddenAlts.length || moreChecked.length) ? `<details class="course-scheduling-details" data-more-candidates ${showMore ? 'open' : ''}><summary>הצגת מדריכים נוספים</summary><div class="course-scheduling-candidates-table-wrap"><table class="course-scheduling-candidates-table"><tbody>${[...hiddenAlts, ...moreChecked].map((item) => candidateRowHtml(item, { selectedId, name: radioName, course: result.course })).join('')}</tbody></table></div></details>` : ''}
+    ${rejectedCandidatesHtml(result)}
+    <div class="course-scheduling-selection-note" data-selection-note>${selectedId ? `נבחרה: ${escapeHtml(([result.recommended, ...(result.alternatives || []), ...(result.checked || [])].find((item) => emp(item) === selectedId)?.instructor?.full_name) || selectedId)}` : 'בחרו מדריך כדי להפעיל את הפעולות'}</div>
     <div class="course-scheduling-detail-actions">
-      <button type="button" class="course-scheduling-btn course-scheduling-btn--primary" data-assign-course>שבץ מדריך</button>
-      <button type="button" class="course-scheduling-btn course-scheduling-btn--secondary" data-save-draft>שמור כטיוטה</button>
-      <button type="button" class="course-scheduling-text-btn" data-clear-candidate>בטל בחירה</button>
+      <button type="button" class="course-scheduling-btn course-scheduling-btn--secondary" data-save-draft disabled title="בחרו מדריך כשיר">שמור כטיוטה</button>
+      <button type="button" class="course-scheduling-btn course-scheduling-btn--primary" data-assign-course disabled title="בחרו מדריך כשיר">שבץ מדריך</button>
+      <button type="button" class="course-scheduling-text-btn" data-clear-candidate>ביטול</button>
     </div>
   </div>`;
 }
@@ -1039,12 +1094,41 @@ export const courseSchedulingScreen = {
       rerender();
     });
 
-    detailRoot.querySelectorAll('input[type="radio"][name^="course-candidate"]').forEach((input) => {
-      input.addEventListener('change', () => {
-        state.courseSchedulingSelectedCandidateId = text(input.value);
-        rerender();
+    const currentCandidateResult = () => resultByCourseId.get(selectedCourseId);
+    const allCandidatesForResult = (result) => [result?.recommended, ...(result?.alternatives || []), ...(result?.checked || [])].filter(Boolean);
+    const selectedCandidateForResult = (result) => {
+      const selectedId = text(state.courseSchedulingSelectedCandidateId) || text(detailRoot.querySelector('input[type="radio"][name^="course-candidate"]:checked')?.value);
+      return allCandidatesForResult(result).find((item) => emp(item) === selectedId) || null;
+    };
+    const updateCandidateActions = (busy = false) => {
+      const result = currentCandidateResult();
+      const candidate = selectedCandidateForResult(result);
+      const reason = actionDisabledReason({ candidate, busy, canEdit });
+      detailRoot.querySelectorAll('[data-assign-course], [data-save-draft]').forEach((button) => {
+        button.disabled = !!reason;
+        button.title = reason || '';
+        button.setAttribute('aria-disabled', reason ? 'true' : 'false');
       });
+      const note = detailRoot.querySelector('[data-selection-note]');
+      if (note) note.textContent = candidate ? `נבחרה: ${candidate.instructor?.full_name || emp(candidate)}${reason ? ` — ${reason}` : ''}` : (reason || 'בחרו מדריך כדי להפעיל את הפעולות');
+    };
+    if (typeof detailRoot.addEventListener === 'function') detailRoot.addEventListener('change', (event) => {
+      const input = event.target?.closest?.('input[type="radio"][name^="course-candidate"]');
+      if (!input) return;
+      state.courseSchedulingSelectedCandidateId = text(input.value);
+      detailRoot.querySelectorAll('[data-candidate-row]').forEach((row) => row.classList.toggle('is-selected', row.dataset.candidateRow === state.courseSchedulingSelectedCandidateId));
+      updateCandidateActions(false);
     });
+    if (typeof detailRoot.addEventListener === 'function') detailRoot.addEventListener('click', (event) => {
+      const row = event.target?.closest?.('[data-candidate-row]');
+      if (!row || event.target?.matches?.('input,button,a,summary')) return;
+      const radio = row.querySelector('input[type="radio"]');
+      if (radio && !radio.disabled) {
+        radio.checked = true;
+        radio.dispatchEvent(new Event('change', { bubbles: true }));
+      }
+    });
+    updateCandidateActions(false);
 
     const runFindInstructors = async () => {
       if (state.courseSchedulingLoading) return;
@@ -1113,18 +1197,17 @@ export const courseSchedulingScreen = {
       const result = resultByCourseId.get(selectedCourseId);
       if (!result?.recommended) return;
       const selectedId = text(state.courseSchedulingSelectedCandidateId)
-        || text(detailRoot.querySelector('input[type="radio"]:checked')?.value)
-        || emp(result.recommended);
-      const selected = [result.recommended, ...(result.alternatives || [])].find((item) => emp(item) === selectedId)
-        || (result.checked || []).find((item) => emp(item) === selectedId);
-      if (!selected) return;
+        || text(detailRoot.querySelector('input[type="radio"][name^="course-candidate"]:checked')?.value);
+      const selected = allCandidatesForResult(result).find((item) => emp(item) === selectedId);
+      const blockReason = actionDisabledReason({ candidate: selected, canEdit });
+      if (blockReason) { showToast(blockReason, 'error'); updateCandidateActions(false); return; }
       let reason = null;
       if (selectedId !== emp(result.recommended)) {
         reason = window.prompt('יש להזין נימוק קצר לבחירת מדריך שאינו המומלץ:')?.trim();
         if (!reason) return;
       }
       if (!window.confirm(`לשבץ את ${selected.instructor.full_name} לקורס ${result.course.activity_name}?`)) return;
-      event.target.disabled = true;
+      updateCandidateActions(true);
       const { error } = await supabase.rpc('assign_activity_instructor', {
         p_activity_id: selectedCourseId,
         p_emp_id: Number(selectedId),
@@ -1135,7 +1218,7 @@ export const courseSchedulingScreen = {
         p_decision_type: selectedId === emp(result.recommended) ? 'approved' : 'overridden',
         p_reason: reason
       });
-      if (error) { showToast(`השיבוץ נכשל: ${error.message}`, 'error'); event.target.disabled = false; return; }
+      if (error) { showToast(`השיבוץ נכשל: ${error.message}`, 'error'); updateCandidateActions(false); return; }
       state.courseSchedulingResults = (state.courseSchedulingResults || []).filter((item) => idOf(item.course) !== selectedCourseId);
       state.courseSchedulingSelectedCandidateId = '';
       clearScreenDataCache?.();
@@ -1148,11 +1231,11 @@ export const courseSchedulingScreen = {
       const result = resultByCourseId.get(selectedCourseId);
       if (!result?.recommended) return;
       const selectedId = text(state.courseSchedulingSelectedCandidateId)
-        || text(detailRoot.querySelector('input[type="radio"]:checked')?.value)
-        || emp(result.recommended);
-      const selected = [result.recommended, ...(result.alternatives || [])].find((item) => emp(item) === selectedId);
-      if (!selected) return;
-      event.target.disabled = true;
+        || text(detailRoot.querySelector('input[type="radio"][name^="course-candidate"]:checked')?.value);
+      const selected = allCandidatesForResult(result).find((item) => emp(item) === selectedId);
+      const blockReason = actionDisabledReason({ candidate: selected, canEdit });
+      if (blockReason) { showToast(blockReason, 'error'); updateCandidateActions(false); return; }
+      updateCandidateActions(true);
       const { error } = await supabase.rpc('save_course_assignment_draft', {
         p_activity_id: selectedCourseId,
         p_emp_id: Number(selectedId),
@@ -1161,7 +1244,7 @@ export const courseSchedulingScreen = {
         p_selected_score: selected.score,
         p_top_score: result.recommended.score
       });
-      if (error) { showToast(`שמירת הטיוטה נכשלה: ${error.message}`, 'error'); event.target.disabled = false; return; }
+      if (error) { showToast(`שמירת הטיוטה נכשלה: ${error.message}`, 'error'); updateCandidateActions(false); return; }
       clearScreenDataCache?.();
       showToast('נשמר כטיוטה', 'success');
       rerender();

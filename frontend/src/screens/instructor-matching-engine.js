@@ -114,12 +114,12 @@ export function evaluateInstructor({
 
   let languageCheck = checkResult(null, 'שפה', 'לא נבדק');
   if (!profile.instruction_languages.length) {
-    missingProfileData.push('שפות הדרכה');
-    languageCheck = checkResult(null, 'שפה', 'לא נבדק — חסרות שפות הדרכה בפרופיל');
+    missingProfileData.push('לא ניתן לאמת שפת הדרכה');
+    languageCheck = checkResult(false, 'לא ניתן לאמת שפת הדרכה', 'חסרה הגדרת שפת הדרכה בפרופיל');
   } else if (!profileSpeaksLanguage(profile.instruction_languages, language)) {
-    const reason = `המדריך אינו דובר ${LANGUAGE_LABELS[language] || instructionLanguageLabel(language)}, שפת ההדרכה של הקורס`;
-    failures.push(reason);
-    languageCheck = checkResult(false, `${LANGUAGE_LABELS[language] || instructionLanguageLabel(language)} - לא מתאים`, reason);
+    const reason = 'שפת ההדרכה אינה תואמת';
+    failures.push(`${reason}: נדרשת ${LANGUAGE_LABELS[language] || instructionLanguageLabel(language)}`);
+    languageCheck = checkResult(false, `${LANGUAGE_LABELS[language] || instructionLanguageLabel(language)} - לא מתאים`, `${reason}: נדרשת ${LANGUAGE_LABELS[language] || instructionLanguageLabel(language)}`);
   } else {
     languageCheck = checkResult(true, `${LANGUAGE_LABELS[language] || instructionLanguageLabel(language)} - מתאים`, '');
   }
@@ -128,8 +128,8 @@ export function evaluateInstructor({
   if (requiredGender === 'any') {
     genderCheck = checkResult(true, 'ללא דרישת מגדר', '');
   } else if (!profileGender) {
-    missingProfileData.push('מגדר');
-    genderCheck = checkResult(null, 'מגדר', 'לא נבדק — חסר מגדר בפרופיל');
+    missingProfileData.push('לא ניתן לאמת התאמה לדרישת המגדר');
+    genderCheck = checkResult(false, 'לא ניתן לאמת התאמה לדרישת המגדר', 'חסר מגדר בפרופיל');
   } else if (profileGender !== requiredGender) {
     const reason = requiredGender === 'female' ? 'הקורס דורש מדריכה' : 'הקורס דורש מדריך';
     failures.push(reason);

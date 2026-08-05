@@ -118,8 +118,8 @@ test('closed, cancelled and other-season assignments do not block or inflate wor
 
 test('missing profile fields are separate from professional failures and receive no score', () => {
   for (const [field, partial] of [
-    ['מגדר', { instruction_languages: ['he'] }],
-    ['שפות הדרכה', { gender: 'female' }]
+    ['לא ניתן לאמת התאמה לדרישת המגדר', { instruction_languages: ['he'] }],
+    ['לא ניתן לאמת שפת הדרכה', { gender: 'female' }]
   ]) {
     const result = evaluateInstructor({ instructor: instructors[0], profile: partial, rules: rules[1], activity: course('missing-profile') });
     assert.equal(result.eligible, false);
