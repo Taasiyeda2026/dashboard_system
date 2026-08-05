@@ -33,11 +33,12 @@ test('new 2027 tabs use the existing operations tab structure, styling and press
 });
 
 test('2027 workshop inventory is based on the 2026 expected balance and existing location distributions', () => {
-  assert.match(managementSource, /needs2027WorkshopOpeningStock/);
-  assert.match(managementSource, /activity_period: ACTIVITY_SEASON_REGULAR/);
-  assert.match(managementSource, /workshopInventorySourceRows/);
-  assert.match(managementSource, /isSchool2027 \? formatGapCell\(row\.expectedBalance, true\)/);
+  assert.match(managementSource, /export function buildWorkshopOpeningStock2027/);
+  assert.match(managementSource, /activity_period: ACTIVITY_SEASON_REGULAR, startDate: WORKSHOPS_SUMMER_FROM, endDate: WORKSHOPS_SUMMER_TO/);
+  assert.match(managementSource, /activity_period: ACTIVITY_SEASON_SCHOOL_2027, startDate: SCHOOL_2027_FROM, endDate: SCHOOL_2027_TO/);
+  assert.match(managementSource, /const expectedBalance = group\.openingStock - usedQuantity - requiredQuantity/);
   assert.match(managementSource, /\$\{isSchool2027 \? 'מלאי פתיחה' : 'כמות קיימת'\}/);
+  assert.match(managementSource, /מיקום מלאי הפתיחה/);
   assert.match(managementSource, /stockLocationSummaryRows/);
   assert.match(managementSource, /סיכום מיקום מלאי/);
 });
@@ -68,5 +69,5 @@ test('tables, section headers and empty states are horizontally centered', () =>
 
 test('2027 new tabs do not render result-count messages and cache version was refreshed', () => {
   assert.match(managementSource, /ops\.period === ACTIVITY_SEASON_SCHOOL_2027 \? '' : `<p class="ds-muted ds-ops-mgmt-count/);
-  assert.match(swSource, /const CACHE_VERSION = 1413;/);
+  assert.match(swSource, /const CACHE_VERSION = 1414;/);
 });
