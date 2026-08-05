@@ -3,7 +3,25 @@ import assert from 'node:assert/strict';
 import { readFileSync } from 'node:fs';
 import { JSDOM } from 'jsdom';
 
-import { buildWorkshopTrainingMatrix, matrixTableHtml } from '../frontend/src/screens/operations-summer-training-matrix.js';
+function storageStub() {
+  const values = new Map();
+  return {
+    get length() { return values.size; },
+    getItem(key) { return values.has(String(key)) ? values.get(String(key)) : null; },
+    setItem(key, value) { values.set(String(key), String(value)); },
+    removeItem(key) { values.delete(String(key)); },
+    clear() { values.clear(); },
+    key(index) { return Array.from(values.keys())[index] ?? null; }
+  };
+}
+
+globalThis.localStorage = storageStub();
+globalThis.sessionStorage = storageStub();
+
+const {
+  buildWorkshopTrainingMatrix,
+  matrixTableHtml
+} = await import('../frontend/src/screens/operations-summer-training-matrix.js');
 
 function fixture(overrides = {}) {
   return {
@@ -130,8 +148,8 @@ test('instructors-first workshop table is marked as already transposed and keeps
   const dom = new JSDOM(html);
   const table = dom.window.document.querySelector('table');
   assert.equal(table?.dataset.opsMatrixTransposed, '1');
-  assert.deepEqual(Array.from(table.querySelectorAll('tbody tr > td:first-child')).map((cell) => cell.textContent), ['מדריך פעיל א', 'מדריך פעיל ב']);
-  assert.deepEqual(Array.from(table.querySelectorAll('thead th')).map((cell) => cell.textContent), ['שם מדריך', 'סדנה היסטורית', 'סדנה פעילה']);
+  assert.deepEqual(Array.from(table.querySelectorAll('tbody tr > td:first-child')).map((item) => item.textContent), ['מדריך פעיל א', 'מדריך פעיל ב']);
+  assert.deepEqual(Array.from(table.querySelectorAll('thead th')).map((item) => item.textContent), ['שם מדריך', 'סדנה היסטורית', 'סדנה פעילה']);
 
   const layoutSource = readFileSync(new URL('../frontend/src/screens/operations-2027-table-layout-fix.js', import.meta.url), 'utf8');
   assert.match(layoutSource, /if \(!table \|\| table\.dataset\.opsMatrixTransposed === '1'\) return;/);

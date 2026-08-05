@@ -163,8 +163,8 @@ export function ensureFeature(name) {
 
     case 'operations':
       return loadOnce('operations', () => Promise.all([
-        import('./screens/operations-summer-training-matrix.js?v=20260805-pr1333-ops2027-v1'),
-        import('./screens/operations-authorities-cleanup.js?v=20260720-proposal-pdf-tainted-canvas-v1'),
+        import('./screens/operations-summer-training-matrix.js?v=20260805-operations-2027-loading-controller-v1'),
+        import('./screens/operations-authorities-cleanup.js?v=20260805-operations-2027-loading-controller-v1'),
         import('./screens/operations-visual-tweaks.js?v=20260720-operations-toolbar-compact-v1'),
         import('./screens/operations-completion-toolbar-compact.js?v=20260720-single-row-v1'),
         import('./screens/operations-inventory-polish.js?v=20260720-proposal-pdf-tainted-canvas-v1'),
