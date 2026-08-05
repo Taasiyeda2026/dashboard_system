@@ -1,7 +1,9 @@
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
+import { readFileSync } from 'node:fs';
+import { JSDOM } from 'jsdom';
 
-import { buildWorkshopTrainingMatrix } from '../frontend/src/screens/operations-summer-training-matrix.js';
+import { buildWorkshopTrainingMatrix, matrixTableHtml } from '../frontend/src/screens/operations-summer-training-matrix.js';
 
 function fixture(overrides = {}) {
   return {
@@ -112,4 +114,36 @@ test('workshop matching rejects partial names, applies explicit aliases, and kee
 test('workshop training matrix builder is read-only and does not expose write or RPC operations', () => {
   const source = buildWorkshopTrainingMatrix.toString();
   assert.doesNotMatch(source, /\.insert\s*\(|\.update\s*\(|\.upsert\s*\(|\.rpc\s*\(/);
+});
+
+
+test('instructors-first workshop table is marked as already transposed and keeps instructors in rows', () => {
+  const html = matrixTableHtml({
+    rows: ['מדריך פעיל א', 'מדריך פעיל ב'],
+    instructors: [{ name: 'סדנה היסטורית' }, { name: 'סדנה פעילה' }],
+    rowLabel: (name) => name,
+    firstColumnLabel: 'שם מדריך',
+    orientation: 'instructors-first',
+    columnLabel: (workshop) => workshop.name,
+    cellHtml: (instructor, workshop) => `${instructor}:${workshop.name}`
+  });
+  const dom = new JSDOM(html);
+  const table = dom.window.document.querySelector('table');
+  assert.equal(table?.dataset.opsMatrixTransposed, '1');
+  assert.deepEqual(Array.from(table.querySelectorAll('tbody tr > td:first-child')).map((cell) => cell.textContent), ['מדריך פעיל א', 'מדריך פעיל ב']);
+  assert.deepEqual(Array.from(table.querySelectorAll('thead th')).map((cell) => cell.textContent), ['שם מדריך', 'סדנה היסטורית', 'סדנה פעילה']);
+
+  const layoutSource = readFileSync(new URL('../frontend/src/screens/operations-2027-table-layout-fix.js', import.meta.url), 'utf8');
+  assert.match(layoutSource, /if \(!table \|\| table\.dataset\.opsMatrixTransposed === '1'\) return;/);
+});
+
+test('regular matrix tables are not marked as already transposed', () => {
+  const html = matrixTableHtml({
+    rows: ['סדנה פעילה'],
+    instructors: ['מדריך פעיל א'],
+    rowLabel: (name) => name,
+    cellHtml: () => ''
+  });
+  const dom = new JSDOM(html);
+  assert.equal(dom.window.document.querySelector('table')?.hasAttribute('data-ops-matrix-transposed'), false);
 });
