@@ -21491,7 +21491,13 @@ details[open] > .ds-fin-acc__summary::before { transform: rotate(90deg); }
 .ds-pa-table tbody tr:nth-child(even) { background: #fbfdff; }
 .ds-pa-table tbody tr:hover { background: #f0fdfa; }
 .ds-pa-col-center { text-align: center; }
-.ds-pa-col-money { text-align: center; white-space: nowrap; font-variant-numeric: tabular-nums; }
+.ds-pa-authority-col { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.ds-pa-gfen-signed-col { width: 90px; min-width: 90px; max-width: 90px; text-align: center; vertical-align: middle; white-space: nowrap; }
+.ds-pa-table th.ds-pa-gfen-signed-col { padding-inline: 4px; line-height: 1.1; }
+.ds-pa-gfen-signed-check { inline-size: 16px; block-size: 16px; margin: 0; vertical-align: middle; cursor: pointer; }
+.ds-pa-gfen-signed-check:disabled { cursor: wait; opacity: .65; }
+.ds-pa-unavailable { display: inline-flex; align-items: center; justify-content: center; min-width: 16px; color: #94a3b8; font-weight: 700; }
+.ds-pa-col-money { text-align: right; white-space: nowrap; font-variant-numeric: tabular-nums; padding-inline: 4px 6px; }
 .ds-pa-status-text { font-weight: 700; background: transparent !important; border: 0 !important; border-radius: 0 !important; padding: 0 !important; white-space: nowrap; }
 .ds-pa-status-text--sent { color: #0f766e; }
 .ds-pa-status-text--approved { color: #16a34a; }
