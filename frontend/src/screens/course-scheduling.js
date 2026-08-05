@@ -160,8 +160,8 @@ function schedulingScopeHtml(allCourses = [], state = {}) {
   const selectedAuthority = text(state.courseSchedulingAuthority || '');
   const authorities = authorityOptions(scopedForAuthority);
   const authoritySelect = `<label>רשות<select class="course-scheduling-input" data-authority-filter><option value="">כל הרשויות</option>${authorities.map((item) => `<option value="${escapeHtml(item)}"${item === selectedAuthority ? ' selected' : ''}>${escapeHtml(item)}</option>`).join('')}</select></label>`;
-  const periodRange = `${period.label} | ${formatDateHeDots(period.start)} עד ${formatDateHeDots(period.end)}`;
-  return `<section class="course-scheduling-scope"><div class="course-scheduling-scope-row"><div class="course-scheduling-tabs course-scheduling-tabs--inner">${periodButtons}</div><p class="course-scheduling-period-range">${escapeHtml(periodRange)}</p></div><div class="course-scheduling-filter-row">${districtOptions}${authoritySelect}</div></section>`;
+  const periodRange = `${formatDateHeDots(period.start)} עד ${formatDateHeDots(period.end)}`;
+  return `<section class="course-scheduling-scope"><div class="course-scheduling-scope-inner"><div class="course-scheduling-tabs course-scheduling-tabs--inner">${periodButtons}</div><p class="course-scheduling-period-range">${escapeHtml(periodRange)}</p><div class="course-scheduling-filter-row">${districtOptions}${authoritySelect}</div></div></section>`;
 }
 
 function activeTab(state) {
@@ -320,7 +320,9 @@ function specialRequirementTagsHtml(course) {
 
 function selectedCourseMetaHtml(course) {
   return `<header class="course-scheduling-detail-header">
-    <h2 class="course-scheduling-detail-title">${escapeHtml(course.activity_name || '—')}</h2>
+    <div class="course-scheduling-detail-title-row">
+      <h2 class="course-scheduling-detail-title">${escapeHtml(course.activity_name || '—')}</h2>
+    </div>
     <dl class="course-scheduling-detail-facts">${courseFactRows(course).map(([label, value]) => `<div class="course-scheduling-detail-fact"><dt>${escapeHtml(label)}</dt><dd>${value}</dd></div>`).join('')}</dl>
     ${specialRequirementTagsHtml(course)}
   </header>`;
@@ -489,9 +491,7 @@ export function instructorsResultsHtml(result, state = {}) {
       <button type="button" class="course-scheduling-btn course-scheduling-btn--secondary" data-open-missing-course>פתח פעילות</button>
     </div>`;
   }
-  if (!result?.recommended) {
-    return `<p class="course-scheduling-waiting-note">טרם נבדקו מדריכים לקורס זה</p>`;
-  }
+  if (!result?.recommended) return '';
 
   const selectedId = text(state.courseSchedulingSelectedCandidateId) || emp(result.recommended);
   const alternatives = result.alternatives || [];
@@ -503,7 +503,7 @@ export function instructorsResultsHtml(result, state = {}) {
 
   return `<div class="course-scheduling-result-block" data-course-options>
     ${candidateCardHtml(result.recommended, { recommended: true, selectedId, name: radioName, course: result.course })}
-    ${visibleAlts.length ? `<div class="course-scheduling-alternatives"><h3>מדריכים נוספים</h3>${visibleAlts.map((item) => candidateCardHtml(item, { selectedId, name: radioName, course: result.course })).join('')}</div>` : ''}
+    ${visibleAlts.length ? `<div class="course-scheduling-alternatives"><h3>חלופות מתאימות</h3>${visibleAlts.map((item) => candidateCardHtml(item, { selectedId, name: radioName, course: result.course })).join('')}</div>` : ''}
     ${(hiddenAlts.length || moreChecked.length) ? `<details class="course-scheduling-details" data-more-candidates ${showMore ? 'open' : ''}><summary>הצגת מדריכים נוספים</summary>${[...hiddenAlts, ...moreChecked].map((item) => candidateCardHtml(item, { selectedId, name: radioName, course: result.course })).join('')}</details>` : ''}
     <div class="course-scheduling-detail-actions">
       <button type="button" class="course-scheduling-btn course-scheduling-btn--primary" data-assign-course>שבץ מדריך</button>
@@ -796,23 +796,19 @@ export const courseSchedulingScreen = {
     const readiness = courseSchedulingDataReadiness(data.activities || []);
     const isAdminRole = ['admin', 'operation_manager'].includes(text(state?.user?.role));
     const title = tab === 'calendar' ? 'מערכת שבועית' : 'שיבוצים';
-    // Courses tab keeps only the title (spec: no subtitle, not replaced by another sentence).
-    const subtitle = tab === 'calendar' ? 'צפו בקורסים ששובצו ובטיוטות לפי שבוע.' : '';
 
     return dsScreenStack(`
     <div class="course-scheduling-screen" dir="rtl" data-cs-ui="ux-polish-20260805-v1" data-cs-tab="${tab}">
       <header class="course-scheduling-header">
         <div class="course-scheduling-header-copy">
           <h1 class="course-scheduling-title">${title}</h1>
-          ${subtitle ? `<p class="course-scheduling-subtitle">${escapeHtml(subtitle)}</p>` : ''}
+          <nav class="course-scheduling-tabs" aria-label="ניווט ממשק השיבוצים">
+        <button type="button" class="course-scheduling-tab${tab === 'courses' ? ' is-active' : ''}" data-switch-tab="courses">קורסים לשיבוץ</button>
+        <button type="button" class="course-scheduling-tab${tab === 'calendar' ? ' is-active' : ''}" data-switch-tab="calendar">מערכת שבועית</button>
+          </nav>
         </div>
         ${isAdminRole ? maintenanceMenuHtml(state) : ''}
       </header>
-
-      <nav class="course-scheduling-tabs" aria-label="ניווט ממשק השיבוצים">
-        <button type="button" class="course-scheduling-tab${tab === 'courses' ? ' is-active' : ''}" data-switch-tab="courses">קורסים לשיבוץ</button>
-        <button type="button" class="course-scheduling-tab${tab === 'calendar' ? ' is-active' : ''}" data-switch-tab="calendar">מערכת שבועית</button>
-      </nav>
 
       ${schedulingScopeHtml(allInterfaceCourses, state)}
       ${tab === 'courses' ? `

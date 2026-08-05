@@ -1,5 +1,6 @@
 import { supabase } from '../supabase-client.js';
 import { escapeHtml } from './shared/html.js';
+import { isActiveInstructor, resolveWorkshopStockKey, trainingCellState } from './shared/operations-2027-domain.js';
 
 const SCHOOL_2027 = 'school_2027';
 const TAB_WORKSHOP_TRAINING = 'summer_training_matrix';
@@ -11,6 +12,14 @@ const KIT_DISTRIBUTION_TABLE = 'course_print_kit_distributions';
 const COURSE_TABLE = 'proposal_gefen_courses';
 const ACTIVITY_TABLE = 'activities';
 const WORKSHOP_TRAINING_TABLE = 'summer_workshop_trainings';
+const INSTRUCTOR_TABLE = 'contacts_instructors';
+const LISTS_TABLE = 'lists';
+const WORKSHOP_STOCK_ALIASES = Object.freeze({
+  'פרוגי המקפצת': 'froggy',
+  'ציפור שיווי משקל': 'bird-balance',
+  'קלידוסקופ': 'kaleidoscope',
+  'שעון רובוט - הזמן שלנו': 'robot-clock'
+});
 const KIT_LOCATIONS = [
   { key: 'warehouse', field: 'warehouse_quantity', label: 'מחסן' },
   { key: 'hila', field: 'hila_quantity', label: 'הילה' },
@@ -374,54 +383,123 @@ async function loadCoursesAndAssignments() {
   };
 }
 
+function isInactiveListValue(value) {
+  if (value === false) return true;
+  const text = normalize(value);
+  return ['false', '0', 'no', 'inactive', 'לא פעיל'].includes(text);
+}
+
+function isOpenSchool2027WorkshopActivity(row = {}) {
+  const type = normalize(row?.activity_type || row?.item_type || row?.type);
+  const status = normalize(row?.status);
+  if (row?.deleted_at || row?.is_deleted === true || row?.deleted === true) return false;
+  if (['נמחק', 'מחוק', 'deleted', 'בוטל', 'מבוטל', 'cancelled', 'canceled'].includes(status)) return false;
+  return type === 'workshop' || type === 'סדנה';
+}
+
+function workshopDisplayName(row = {}) {
+  return cleanText(row?.stock_group_name || row?.stock_item_name || row?.stock_label || row?.activity_name || row?.short_name || row?.full_name || row?.name || row?.label || row?.workshop_name);
+}
+
+function addWorkshopColumn(columns, row = {}, fallbackName = '') {
+  const name = workshopDisplayName(row) || cleanText(fallbackName);
+  const key = resolveWorkshopStockKey({ ...row, short_name: name, activity_name: row?.activity_name || name, name }, { aliases: WORKSHOP_STOCK_ALIASES });
+  if (!key || columns.has(key)) return key || null;
+  columns.set(key, { key, name });
+  return key;
+}
+
+function isActiveWorkshopCatalogRow(row = {}) {
+  const category = normalize(row?.category);
+  const type = normalize(row?.activity_type || row?.type || row?.item_type || row?.parent_value);
+  return category === 'activity_names' && type === 'workshop' && !isInactiveListValue(row?.active ?? row?.is_active);
+}
+
+export function buildWorkshopTrainingMatrix({ instructors = [], catalogRows = [], trainings = [], activities = [] } = {}) {
+  const activeInstructorNames = new Map();
+  for (const instructor of instructors || []) {
+    const name = cleanText(instructor?.full_name || instructor?.instructor_name || instructor?.name);
+    if (!name || !isActiveInstructor(instructor?.active ?? instructor?.is_active)) continue;
+    activeInstructorNames.set(normalize(name), name);
+  }
+
+  const workshopColumns = new Map();
+  const catalogActivityNoToKey = new Map();
+  const catalogNameToKey = new Map();
+  for (const row of catalogRows || []) {
+    if (!isActiveWorkshopCatalogRow(row)) continue;
+    const key = addWorkshopColumn(workshopColumns, row);
+    const activityNo = cleanText(row?.activity_no);
+    const nameKey = normalize(workshopDisplayName(row));
+    if (key && activityNo && !catalogActivityNoToKey.has(activityNo)) catalogActivityNoToKey.set(activityNo, key);
+    if (key && nameKey && !catalogNameToKey.has(nameKey)) catalogNameToKey.set(nameKey, key);
+  }
+
+  const trainingMap = new Map();
+  for (const row of trainings || []) {
+    const instructor = cleanText(row?.instructor_name);
+    const instructorKey = normalize(instructor);
+    if (!activeInstructorNames.has(instructorKey)) continue;
+    const workshopName = cleanText(row?.workshop_name);
+    if (!workshopName) continue;
+    const workshopKey = catalogNameToKey.get(normalize(workshopName)) || addWorkshopColumn(workshopColumns, { workshop_name: workshopName, name: workshopName }, workshopName);
+    if (workshopKey && row?.is_trained === true) trainingMap.set(`${workshopKey}::${instructorKey}`, true);
+  }
+
+  const assignedPairs = new Set();
+  for (const row of activities || []) {
+    if (!isOpenSchool2027WorkshopActivity(row)) continue;
+    const resolvedKey = resolveWorkshopStockKey(row, { aliases: WORKSHOP_STOCK_ALIASES });
+    const workshopKey = workshopColumns.has(resolvedKey) ? resolvedKey : catalogActivityNoToKey.get(cleanText(row?.activity_no));
+    if (!workshopKey || !workshopColumns.has(workshopKey)) continue;
+    activityInstructorNames(row).forEach((name) => {
+      const instructorKey = normalize(name);
+      if (!activeInstructorNames.has(instructorKey)) return;
+      assignedPairs.add(`${workshopKey}::${instructorKey}`);
+    });
+  }
+
+  const rows = Array.from(activeInstructorNames.values()).sort((a, b) => a.localeCompare(b, 'he', { numeric: true }));
+  const workshops = Array.from(workshopColumns.values()).sort((a, b) => a.name.localeCompare(b.name, 'he', { numeric: true }));
+
+  return { rows, workshops, assignedPairs, trainingMap };
+}
+
 async function loadWorkshopMatrixData() {
-  const [trainingResult, activitiesResult] = await Promise.all([
+  const [trainingResult, activitiesResult, instructorsResult, catalogResult] = await Promise.all([
     supabase.from(WORKSHOP_TRAINING_TABLE).select('workshop_name, instructor_name, is_trained'),
     supabase
       .from(ACTIVITY_TABLE)
       .select('*')
       .eq('activity_season', SCHOOL_2027)
-      .eq('activity_type', 'workshop')
+      .eq('activity_type', 'workshop'),
+    supabase.from(INSTRUCTOR_TABLE).select('emp_id, full_name, active'),
+    supabase
+      .from(LISTS_TABLE)
+      .select('list_id,category,value,label,active,is_active,sort_order,activity_no,activity_name,activity_type,type,stock_group_key,stock_group_name,stock_item_name,stock_label,parent_value')
+      .eq('category', 'activity_names')
+      .order('sort_order', { ascending: true, nullsFirst: false })
   ]);
   if (trainingResult.error) throw trainingResult.error;
   if (activitiesResult.error) throw activitiesResult.error;
+  if (instructorsResult.error) throw instructorsResult.error;
+  if (catalogResult.error) throw catalogResult.error;
 
-  const assignedPairs = new Set();
-  const workshopNames = new Set();
-  const instructors = new Set();
-  (activitiesResult.data || []).forEach((row) => {
-    if (row?.deleted_at || row?.is_deleted === true) return;
-    const workshop = cleanText(row?.activity_name);
-    if (!workshop) return;
-    workshopNames.add(workshop);
-    activityInstructorNames(row).forEach((name) => {
-      instructors.add(name);
-      assignedPairs.add(`${normalize(workshop)}::${normalize(name)}`);
-    });
+  return buildWorkshopTrainingMatrix({
+    instructors: instructorsResult.data || [],
+    catalogRows: catalogResult.data || [],
+    trainings: trainingResult.data || [],
+    activities: activitiesResult.data || []
   });
-
-  const trainingMap = new Map();
-  (trainingResult.data || []).forEach((row) => {
-    const workshop = cleanText(row?.workshop_name);
-    const instructor = cleanText(row?.instructor_name);
-    if (!workshop || !isValidInstructor(instructor)) return;
-    trainingMap.set(`${normalize(workshop)}::${normalize(instructor)}`, row?.is_trained === true);
-  });
-
-  return {
-    workshopNames: Array.from(workshopNames).sort((a, b) => a.localeCompare(b, 'he', { numeric: true })),
-    instructors: Array.from(instructors).sort((a, b) => a.localeCompare(b, 'he', { numeric: true })),
-    assignedPairs,
-    trainingMap
-  };
 }
-
-function matrixTableHtml({ rows, instructors, rowLabel, cellHtml, firstColumnLabel = 'שם קורס' }) {
+export function matrixTableHtml({ rows, instructors, rowLabel, cellHtml, firstColumnLabel = 'שם קורס', orientation = 'rows-first', columnLabel = (name) => name }) {
   if (!instructors.length) return emptyHtml('עדיין אין מדריכים משובצים.');
   if (!rows.length) return emptyHtml('עדיין אין נתונים להצגה.');
-  const head = instructors.map((name) => `<th class="ops2027-instructor-col"><span class="ops2027-instructor-name">${escapeHtml(name)}</span></th>`).join('');
+  const head = instructors.map((name) => `<th class="ops2027-instructor-col"><span class="ops2027-instructor-name">${escapeHtml(columnLabel(name))}</span></th>`).join('');
   const body = rows.map((row) => `<tr><td class="ops2027-course-col">${escapeHtml(rowLabel(row))}</td>${instructors.map((name) => `<td class="ops2027-instructor-col">${cellHtml(row, name)}</td>`).join('')}</tr>`).join('');
-  return `<div class="ops2027-table-shell"><table class="ops2027-table"><thead><tr><th class="ops2027-course-col">${escapeHtml(firstColumnLabel)}</th>${head}</tr></thead><tbody>${body}</tbody></table></div>`;
+  const firstClass = orientation === 'instructors-first' ? 'ops2027-instructor-col' : 'ops2027-course-col';
+  const tableAttributes = orientation === 'instructors-first' ? ' data-ops-matrix-transposed="1"' : '';
+  return `<div class="ops2027-table-shell"><table class="ops2027-table"${tableAttributes}><thead><tr><th class="${firstClass}">${escapeHtml(firstColumnLabel)}</th>${head}</tr></thead><tbody>${body}</tbody></table></div>`;
 }
 
 async function renderWorkshopTraining(root, token) {
@@ -432,16 +510,19 @@ async function renderWorkshopTraining(root, token) {
     const data = await loadWorkshopMatrixData();
     if (token !== renderToken || customTab !== TAB_WORKSHOP_TRAINING) return;
     const table = matrixTableHtml({
-      rows: data.workshopNames,
-      instructors: data.instructors,
+      rows: data.rows,
+      instructors: data.workshops,
       rowLabel: (name) => name,
-      firstColumnLabel: 'שם סדנה',
-      cellHtml: (workshop, instructor) => {
-        const key = `${normalize(workshop)}::${normalize(instructor)}`;
-        if (!data.assignedPairs.has(key)) return '';
-        return data.trainingMap.get(key) === true
-          ? '<span class="ops2027-cell-button is-yes" aria-label="עבר הכשרה">✓</span>'
-          : '<span class="ops2027-cell-button is-no" aria-label="טרם עבר הכשרה">✕</span>';
+      firstColumnLabel: 'שם מדריך',
+      orientation: 'instructors-first',
+      columnLabel: (workshop) => workshop.name,
+      cellHtml: (instructor, workshop) => {
+        const key = `${workshop.key}::${normalize(instructor)}`;
+        const state = trainingCellState({ trained: data.trainingMap.get(key) === true, assigned: data.assignedPairs.has(key) });
+        if (state.state === 'empty') return '';
+        const className = state.tone === 'green' ? 'is-yes' : 'is-no';
+        const label = state.state === 'trained' ? 'עבר הכשרה' : 'טרם עבר הכשרה';
+        return `<span class="ops2027-cell-button ${className}" aria-label="${label}">${state.text}</span>`;
       }
     });
     content.innerHTML = `<div class="ops2027-view">${headerHtml('הכשרות סדנאות')}${table}</div>`;
