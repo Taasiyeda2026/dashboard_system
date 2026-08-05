@@ -434,6 +434,30 @@ test('GEFEN approval status is short plain text in the proposals table', () => {
   assert.match(html, /הפקה מחדש של אישור גפ״ן להצעה 10169/);
 });
 
+
+test('GEFEN signed or ordered marker column renders active checkbox only for GEFEN rows', () => {
+  const html = proposalsAgreementsTableRowsHtml([
+    {
+      id: 'gefen-signed-1',
+      quote_number: '10171',
+      activity_type_group: 'gefen',
+      gfen_signed_or_ordered: true,
+      status: 'approved'
+    },
+    {
+      id: 'summer-not-gefen-1',
+      quote_number: '20171',
+      activity_type_group: 'summer',
+      gfen_signed_or_ordered: true,
+      status: 'approved'
+    }
+  ], stateFor('admin'));
+  assert.match(html, /data-pa-gfen-signed="gefen-signed-1"[^>]*checked/);
+  assert.match(html, /aria-label="חתום או הוזמן בגפ״ן להצעה 10171"/);
+  assert.doesNotMatch(html, /data-pa-gfen-signed="summer-not-gefen-1"/);
+  assert.match(html, /<span class="ds-pa-unavailable" aria-label="לא זמין">—<\/span>/);
+});
+
 test('GEFEN approval generation is a visible table action and not hidden only in the overflow menu', () => {
   const html = proposalsAgreementsTableRowsHtml([{
     id: 'gefen-action-1',
