@@ -23,7 +23,7 @@
   direction: rtl;
   color: var(--cs-text);
   display: grid;
-  gap: 8px;
+  gap: 12px;
   align-content: start;
   align-items: stretch;
   min-width: 0;
@@ -51,12 +51,16 @@
 
 .course-scheduling-header-copy {
   min-width: 0;
-  flex: 1 1 240px;
+  flex: 1 1 auto;
+  display: flex;
+  align-items: center;
+  gap: 16px;
+  flex-wrap: wrap;
 }
 
 .course-scheduling-title {
   margin: 0;
-  font-size: 1.4rem;
+  font-size: 1.65rem;
   line-height: 1.2;
   font-weight: 800;
 }
@@ -96,27 +100,25 @@
   box-shadow: 0 1px 2px rgba(31, 42, 55, 0.08);
 }
 
-/* ——— Compact scope bar: half-year tabs + range on one row, district/authority on the next ——— */
+/* ——— Balanced scope bar: full-width shell with right-aligned controls ——— */
 .course-scheduling-scope {
-  display: flex;
-  flex-direction: column;
-  gap: 6px;
-  padding: 6px 10px;
+  padding: 8px 12px;
   border: 1px solid var(--cs-border);
-  border-radius: 10px;
+  border-radius: 12px;
   background: var(--cs-surface);
 }
 
-.course-scheduling-scope-row {
+.course-scheduling-scope-inner {
   display: flex;
   align-items: center;
-  gap: 8px 12px;
+  justify-content: flex-start;
+  gap: 10px 14px;
   flex-wrap: wrap;
 }
 
 .course-scheduling-period-range {
   margin: 0;
-  font-size: 0.86rem;
+  font-size: 0.9rem;
   font-weight: 700;
   color: var(--cs-text-muted);
   white-space: nowrap;
@@ -134,15 +136,17 @@
   align-items: center;
   gap: 5px;
   margin: 0;
-  font-size: 0.82rem;
+  font-size: 0.88rem;
   font-weight: 700;
   color: var(--cs-text-muted);
 }
 
-.course-scheduling-filter-row .course-scheduling-input {
-  width: auto;
-  min-width: 120px;
-  max-width: 180px;
+.course-scheduling-filter-row label:first-child .course-scheduling-input {
+  width: 150px;
+}
+
+.course-scheduling-filter-row label:last-child .course-scheduling-input {
+  width: 190px;
 }
 
 /* ——— Compact summary counters: content-width, right-aligned, subtle semantic colors ——— */
@@ -157,10 +161,10 @@
   display: flex;
   align-items: center;
   gap: 8px;
-  min-width: 108px;
+  min-width: 142px;
   flex: 0 0 auto;
-  padding: 8px 14px;
-  min-height: 48px;
+  padding: 10px 16px;
+  min-height: 62px;
   border: 1px solid var(--cs-border);
   border-radius: 10px;
   background: var(--cs-surface);
@@ -171,13 +175,13 @@
 }
 
 .course-scheduling-summary-card b {
-  font-size: 1.15rem;
+  font-size: 1.5rem;
   font-weight: 800;
   line-height: 1.1;
 }
 
 .course-scheduling-summary-card span {
-  font-size: 0.76rem;
+  font-size: 0.86rem;
   color: var(--cs-text-muted);
   line-height: 1.2;
 }
@@ -238,7 +242,7 @@
 /* ——— Two-column work area: course list (fixed compact width) + course details (rest) ——— */
 .course-scheduling-layout--courses {
   display: grid;
-  grid-template-columns: minmax(330px, 380px) minmax(0, 1fr);
+  grid-template-columns: minmax(360px, 400px) minmax(0, 1fr);
   gap: 12px;
   align-items: start;
   min-width: 0;
@@ -268,7 +272,7 @@
 }
 
 .course-scheduling-courses {
-  max-height: calc(100vh - 240px);
+  max-height: calc(100vh - 224px);
   overflow: auto;
   scrollbar-width: thin;
   scrollbar-color: #d5dee8 transparent;
@@ -325,10 +329,10 @@
 /* Course cards are full-width list items by design — they are the selectable unit. */
 .course-scheduling-course-card {
   display: grid;
-  gap: 2px;
+  gap: 5px;
   width: 100%;
-  margin: 0 0 5px;
-  padding: 8px 10px;
+  margin: 0 0 7px;
+  padding: 11px 12px;
   border: 1px solid var(--cs-border);
   border-radius: 10px;
   background: var(--cs-surface);
@@ -350,11 +354,11 @@
 }
 
 .course-scheduling-course-card strong {
-  font-size: 0.92rem;
+  font-size: 1rem;
 }
 
 .course-scheduling-course-card-meta {
-  font-size: 0.76rem;
+  font-size: 0.86rem;
   color: var(--cs-text-muted);
 }
 
@@ -367,7 +371,7 @@
   padding: 2px 8px;
   border-radius: 999px;
   background: #e8eef5;
-  font-size: 0.7rem;
+  font-size: 0.78rem;
   font-weight: 700;
 }
 
@@ -380,7 +384,15 @@
 
 .course-scheduling-detail-header {
   display: grid;
-  gap: 6px;
+  gap: 12px;
+  padding-bottom: 2px;
+}
+
+.course-scheduling-detail-title-row {
+  display: flex;
+  align-items: start;
+  justify-content: space-between;
+  gap: 16px;
 }
 
 .course-scheduling-detail-title {
@@ -392,15 +404,14 @@
 /* Compact facts grid — uses the details area's full width instead of stacking narrow lines. */
 .course-scheduling-detail-facts {
   display: grid;
-  grid-template-columns: repeat(auto-fit, minmax(160px, 1fr));
-  gap: 4px 18px;
+  grid-template-columns: repeat(3, minmax(160px, 1fr));
+  gap: 10px 16px;
   margin: 0;
 }
 
 .course-scheduling-detail-fact {
-  display: flex;
-  align-items: baseline;
-  gap: 6px;
+  display: grid;
+  gap: 3px;
   min-width: 0;
   font-size: 0.86rem;
 }
@@ -507,12 +518,6 @@
 }
 
 /* Small secondary note instead of a full-width dashed card. */
-.course-scheduling-waiting-note {
-  margin: 0;
-  font-size: 0.82rem;
-  color: var(--cs-text-muted);
-}
-
 .course-scheduling-empty,
 .course-scheduling-loading,
 .course-scheduling-result-block {
@@ -611,9 +616,9 @@
 .course-scheduling-instructor-card {
   display: grid;
   grid-template-columns: auto 1fr;
-  gap: 10px;
+  gap: 12px;
   align-items: start;
-  padding: 12px;
+  padding: 14px 16px;
   border: 1px solid var(--cs-border);
   border-radius: 12px;
   background: var(--cs-surface);
@@ -623,6 +628,7 @@
 .course-scheduling-instructor-card.is-recommended {
   border-color: #9dcfb0;
   background: #f4fbf6;
+  box-shadow: 0 4px 14px rgba(45, 138, 85, 0.08);
 }
 
 .course-scheduling-instructor-card.is-selected {
@@ -805,8 +811,9 @@
 
 .course-scheduling-calendar-toolbar {
   display: grid;
-  grid-template-columns: auto minmax(0, 1fr) auto;
-  gap: 8px;
+  grid-template-columns: auto auto auto;
+  justify-content: start;
+  gap: 10px 18px;
   align-items: center;
   margin: 0 0 10px;
 }
@@ -957,8 +964,8 @@
 }
 
 .course-scheduling-drawer {
-  width: min(480px, 90vw);
-  min-width: min(440px, 100vw);
+  width: min(560px, 92vw);
+  min-width: min(480px, 100vw);
   max-width: 100vw;
   height: 100vh;
   border-radius: 0 14px 14px 0;
@@ -1090,4 +1097,11 @@
     min-width: 0;
     border-radius: 0;
   }
+}
+
+@media (max-width: 900px) {
+  .course-scheduling-layout--courses { grid-template-columns: 1fr; }
+  .course-scheduling-courses { max-height: none; }
+  .course-scheduling-detail-facts { grid-template-columns: repeat(2, minmax(150px, 1fr)); }
+  .course-scheduling-calendar-toolbar { grid-template-columns: 1fr; }
 }
