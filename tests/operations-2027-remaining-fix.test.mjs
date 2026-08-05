@@ -33,6 +33,16 @@ test('2027 opening stock is separated from current-year usage and forecast', () 
   assert.match(fixSource, /row\.cells\[5\]\.textContent = displayNumber\(expected\)/);
 });
 
+test('2027 opening stock includes the positive closing balance at every 2026 location', () => {
+  assert.match(fixSource, /function closingLocationsByGroup/);
+  assert.match(fixSource, /data-workshop-detail/);
+  assert.match(fixSource, /ds-ops-dist-table--instructors/);
+  assert.match(fixSource, /balance === null \|\| balance <= 0/);
+  assert.match(fixSource, /מיקום המלאי בסוף 2026/);
+  assert.match(fixSource, /addOpeningLocationColumn\(template, locationsByGroup\)/);
+  assert.match(fixSource, /colspan', '8'/);
+});
+
 test('2027 removes the period field and the two unsupported tabs only', () => {
   assert.match(fixSource, /HIDDEN_2027_TABS = new Set\(\['authorities', 'completion_approval'\]\)/);
   assert.match(fixSource, /periodControl\?\.closest\?\.\('\.ds-filter-field'\)\?\.remove/);
