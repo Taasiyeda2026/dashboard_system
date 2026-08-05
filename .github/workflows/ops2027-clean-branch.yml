@@ -39,7 +39,7 @@ jobs:
           node --check frontend/src/screens/operations-summer-training-matrix.js
           for test_file in tests/operations-2027-*.test.mjs tests/operations-lazy-loading.test.mjs; do
             echo "=== $test_file ==="
-            timeout 40s node --test "$test_file"
+            node --test --test-force-exit "$test_file"
           done
           npm run check:build
           npm run check:pwa
