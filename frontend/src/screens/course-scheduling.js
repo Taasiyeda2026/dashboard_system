@@ -278,15 +278,35 @@ function summaryCardsHtml(interfaceCourses, results, readiness = {}) {
     <button type="button" class="course-scheduling-summary-card course-scheduling-summary-card--missing course-scheduling-summary-card--button" data-open-readiness-drawer><b>${missing}</b><span>חסרי מידע</span></button>`;
 }
 
+function instructorCellLabel(row) {
+  const course = row?.course || {};
+  const assignedName = text(course.instructor_name || course.instructor_full_name || course.emp_name || course.employee_name);
+  if (assignedName) return assignedName;
+  if (row?.statusLabel === STATUS.assigned) return STATUS.assigned;
+  if (row?.statusLabel === STATUS.draft) return 'טיוטת מדריך';
+  return 'טרם שובץ';
+}
+
+function actionLabelForRow(row) {
+  if (row?.statusLabel === STATUS.assigned) return 'החלף מדריך';
+  if (row?.statusLabel === STATUS.draft) return 'פתח טיוטה';
+  if (row?.statusLabel === STATUS.ready) return 'בדוק מדריכים';
+  return 'מצא מדריך';
+}
+
 function courseListCardHtml(row, selectedId) {
   const c = row.course;
   const selectedClass = row.id === selectedId ? ' is-selected' : '';
-  return `<button type="button" class="course-scheduling-course-card${selectedClass}" data-course-card="${escapeHtml(row.id)}">
-    <strong>${escapeHtml(c.activity_name || '—')}</strong>
-    <span class="course-scheduling-course-card-meta">${escapeHtml(c.school || '—')} · ${escapeHtml(c.authority || '—')}</span>
-    <span class="course-scheduling-course-card-meta"><bdi dir="ltr">${escapeHtml(formatDateHe(c.start_date))}</bdi> · ${courseDayTimeHtml(c)}</span>
-    <span class="course-scheduling-status-chip${cardStatusClass(row.statusLabel)}">${escapeHtml(row.statusLabel)}</span>
-  </button>`;
+  const school = text(c.school) || '—';
+  const courseName = text(c.activity_name) || '—';
+  const instructor = instructorCellLabel(row);
+  return `<div class="course-scheduling-compact-row course-scheduling-course-card${selectedClass}" data-course-card="${escapeHtml(row.id)}" role="button" tabindex="0" aria-label="${escapeHtml(`${school}, ${courseName}`)}">
+    <span class="course-scheduling-compact-cell course-scheduling-compact-school" title="${escapeHtml(school)}">${escapeHtml(school)}</span>
+    <strong class="course-scheduling-compact-cell course-scheduling-compact-course" title="${escapeHtml(courseName)}">${escapeHtml(courseName)}</strong>
+    <span class="course-scheduling-compact-cell course-scheduling-compact-instructor" title="${escapeHtml(instructor)}">${escapeHtml(instructor)}</span>
+    <span class="course-scheduling-compact-cell course-scheduling-compact-status"><span class="course-scheduling-status-chip${cardStatusClass(row.statusLabel)}">${escapeHtml(row.statusLabel)}</span></span>
+    <span class="course-scheduling-compact-cell course-scheduling-compact-action-cell"><button type="button" class="course-scheduling-compact-action" data-course-row-action="${escapeHtml(row.id)}">${escapeHtml(actionLabelForRow(row))}</button></span>
+  </div>`;
 }
 
 function courseListHtml(rowModels, selectedId) {
@@ -901,7 +921,8 @@ export const courseSchedulingScreen = {
     });
 
     root.querySelectorAll('[data-course-card]').forEach((button) => {
-      button.addEventListener('click', () => {
+      button.addEventListener('click', (event) => {
+        if (event.target.closest('[data-course-row-action]')) return;
         state.courseSchedulingSelectedId = button.dataset.courseCard;
         state.courseSchedulingSelectedCandidateId = '';
         state.courseSchedulingShowAllCandidates = false;
@@ -909,6 +930,14 @@ export const courseSchedulingScreen = {
         const course = courseById.get(state.courseSchedulingSelectedId);
         if (course?.start_date) state.courseSchedulingWeek = course.start_date;
         rerender();
+      });
+    });
+
+    root.querySelectorAll('[data-course-card][role="button"]').forEach((row) => {
+      row.addEventListener('keydown', (event) => {
+        if (event.key !== 'Enter' && event.key !== ' ') return;
+        event.preventDefault();
+        row.click();
       });
     });
 
