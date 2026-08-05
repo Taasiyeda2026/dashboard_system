@@ -10,8 +10,11 @@ global.sessionStorage = dom.window.sessionStorage;
 global.Element = dom.window.Element;
 global.HTMLElement = dom.window.HTMLElement;
 const { operationsManagementScreen, loadOperationsTabData } = await import('../frontend/src/screens/operations-management.js');
+const { supabase } = await import('../frontend/src/supabase-client.js');
 
 test.after(() => {
+  try { supabase?.auth?.stopAutoRefresh?.(); } catch { /* ignore */ }
+  try { supabase?.removeAllChannels?.(); } catch { /* ignore */ }
   dom.window.close();
   delete global.window;
   delete global.document;
