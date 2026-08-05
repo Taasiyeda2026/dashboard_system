@@ -69,7 +69,7 @@ jobs:
         run: npm ci
 
       - name: Run focused activity tests
-        run: node --test tests/activity-options-catalog.test.mjs tests/activity-add-session-count.test.mjs tests/activity-course-meetings-bootstrap.test.mjs
+        run: node --test --test-force-exit tests/activity-options-catalog.test.mjs tests/activity-add-session-count.test.mjs tests/activity-course-meetings-bootstrap.test.mjs
 
       - name: Commit focused fix
         shell: bash
