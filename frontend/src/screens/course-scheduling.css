@@ -383,9 +383,9 @@
 }
 
 .course-scheduling-btn--xl {
-  min-height: 46px;
+  min-height: 40px;
   padding-inline: 18px;
-  font-size: 1rem;
+  font-size: 0.95rem;
 }
 
 .course-scheduling-btn--inline {
@@ -977,10 +977,6 @@
   background: #f3fafc;
 }
 
-.course-scheduling-waiting-card p {
-  display: none;
-}
-
 .course-scheduling-overlay {
   position: fixed;
   inset: 0;
@@ -1071,6 +1067,17 @@
 .course-scheduling-readiness-row p {
   font-size: 0.8rem;
   color: var(--cs-text-muted);
+}
+
+.course-scheduling-readiness-actions {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  flex-wrap: wrap;
+}
+
+.course-scheduling-readiness-row .course-scheduling-text-btn {
+  font-size: 0.8rem;
 }
 
 @media (max-width: 720px) {
