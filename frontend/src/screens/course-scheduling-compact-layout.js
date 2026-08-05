@@ -7,6 +7,10 @@ function statusText(card) {
   return String(card.querySelector('.course-scheduling-status-chip')?.textContent || '').trim();
 }
 
+function isNativeCompactRow(card) {
+  return card.classList.contains('course-scheduling-compact-row');
+}
+
 function instructorLabelFor(status) {
   if (status === 'שובץ') return 'שובץ';
   if (status === 'שמור כטיוטה') return 'טיוטת מדריך';
@@ -45,9 +49,23 @@ function createTableHeader(coursesRoot) {
 }
 
 function enhanceCourseCard(screen, card) {
+  const courseId = String(card.dataset.courseCard || '').trim();
+  if (isNativeCompactRow(card)) {
+    card.classList.toggle('is-selected', card.classList.contains('is-selected'));
+    card.querySelector('[data-course-row-action]')?.addEventListener('click', (event) => {
+      event.preventDefault();
+      event.stopPropagation();
+      pendingFindCourseId = courseId;
+      if (card.classList.contains('is-selected')) {
+        triggerFindAction(screen, courseId);
+        return;
+      }
+      card.click();
+    }, { once: true });
+    return;
+  }
   if (card.closest('.course-scheduling-compact-row')) return;
 
-  const courseId = String(card.dataset.courseCard || '').trim();
   const status = statusText(card);
   const metas = card.querySelectorAll('.course-scheduling-course-card-meta');
   const schoolMeta = metas[0];
@@ -118,6 +136,7 @@ function enhanceScreen(screen) {
 
   const rows = coursesRoot.querySelectorAll('.course-scheduling-compact-row');
   rows.forEach((row) => {
+    if (row.matches('[data-course-card]')) return;
     row.classList.toggle('is-selected', Boolean(row.querySelector('[data-course-card].is-selected')));
   });
 
