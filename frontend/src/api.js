@@ -2,7 +2,7 @@ import { state, setSession, clearScreenDataCache } from './state.js';
 import { deletePersistedCacheByPrefixes } from './cache-persist.js';
 import { hebrewRole } from './screens/shared/ui-hebrew.js';
 import { getActivityAuthorityName, getActivityContactName, getActivityContactPhone, getActivitySchoolNames } from './screens/shared/operations-activity-helpers.js';
-import { cleanActivityManagerName, getContactsInstructorUsers, getRosterUsers, NO_ACTIVITY_MANAGER_LABEL, normalizeOneDayActivityType, resolveActivityInstructorName, buildContactsInstructorLookup, resolveCanonicalInstructorPair, validateInstructorIdentityPayload } from './screens/shared/activity-options.js';
+import { cleanActivityManagerName, getContactsInstructorUsers, getRosterUsers, NO_ACTIVITY_MANAGER_LABEL, normalizeOneDayActivityType, resolveActivityInstructorName, buildContactsInstructorLookup, resolveCanonicalInstructorPair, validateInstructorIdentityPayload, normalizeActivityMeetingsCount } from './screens/shared/activity-options.js';
 import { EXCEPTION_TYPE_ORDER, normalizedExceptionTypes } from './screens/shared/exceptions-metrics.js';
 import { ACTIVITY_SEASON_SCHOOL_2027, activityMatchesPeriodKey, activitySeasonQueryValues, isSummerActivity, normalizeActivitySeason, normalizeGlobalActivityPeriod } from './screens/shared/summer-activity.js';
 import { assertActivityMutationAllowed } from './screens/shared/activity-readonly-period.js';
@@ -209,10 +209,13 @@ const PROPOSALS_LIST_PAGE_SIZE = 50;
 const COMPLETION_APPROVALS_PAGE_SIZE = 50;
 const SETTINGS_BOOTSTRAP_COLUMNS = 'key,value,description';
 const LISTS_BOOTSTRAP_COLUMNS = 'list_id,category,value,label,active,is_active,category_order,sort_order,activity_no,activity_name,activity_type,type,stock_quantity,stock_group_key,stock_group_name,stock_item_name,stock_label,parent_value';
+const COURSE_MEETINGS_BOOTSTRAP_COLUMNS = 'gefen_number,meetings_count';
 let settingsRowsCache = null;
 let settingsRowsPromise = null;
 let listsRowsCache = null;
 let listsRowsPromise = null;
+let courseMeetingsRowsCache = null;
+let courseMeetingsRowsPromise = null;
 let instructorContactsCache = null;
 let instructorContactsPromise = null;
 let instructorEmpIdsCache = null;
@@ -305,6 +308,8 @@ function clearBootstrapReadCaches() {
   settingsRowsPromise = null;
   listsRowsCache = null;
   listsRowsPromise = null;
+  courseMeetingsRowsCache = null;
+  courseMeetingsRowsPromise = null;
   instructorEmpIdsCache = null;
   instructorEmpIdsPromise = null;
 }
@@ -1731,13 +1736,48 @@ async function readListsFromSupabase() {
   return listsRowsPromise;
 }
 
+
+async function readCourseMeetingsRowsForBootstrap() {
+  if (!supabase) return [];
+  if (courseMeetingsRowsCache) return courseMeetingsRowsCache;
+  if (courseMeetingsRowsPromise) return courseMeetingsRowsPromise;
+  courseMeetingsRowsPromise = (async () => {
+    try {
+      const { data, error } = await supabase
+        .from('proposal_gefen_courses')
+        .select(COURSE_MEETINGS_BOOTSTRAP_COLUMNS)
+        .eq('is_active', true);
+      if (error) {
+        console.error('[supabase] proposal_gefen_courses meetings fetch failed:', error);
+        return [];
+      }
+      courseMeetingsRowsCache = Array.isArray(data) ? data : [];
+      return courseMeetingsRowsCache;
+    } catch (error) {
+      console.error('[supabase] Unexpected proposal_gefen_courses meetings fetch error:', error);
+      return [];
+    } finally {
+      courseMeetingsRowsPromise = null;
+    }
+  })();
+  return courseMeetingsRowsPromise;
+}
+
 /**
  * Converts the lists table data into the clientSettings shape expected by
  * activity-options.js and the add-activity form.
  * Handles many category name variants so the lists table can use any naming.
  */
-function buildClientSettingsFromLists(listsData, settingsRows = [], instructorContactsRows = []) {
+function buildClientSettingsFromLists(listsData, settingsRows = [], instructorContactsRows = [], courseMeetingsRows = []) {
   const categories = Array.isArray(listsData?.categories) ? listsData.categories : [];
+  const courseMeetingsByGefenNumber = new Map(
+    (Array.isArray(courseMeetingsRows) ? courseMeetingsRows : [])
+      .map((row) => [
+        String(row?.gefen_number || '').trim(),
+        normalizeActivityMeetingsCount(row?.meetings_count)
+      ])
+      .filter(([gefenNumber, meetingsCount]) => gefenNumber && meetingsCount != null)
+  );
   const settingValue = (key) => {
     const row = (Array.isArray(settingsRows) ? settingsRows : []).find((item) => String(item?.key || '').trim() === key);
     return String(row?.value || '').trim();
@@ -1792,18 +1832,23 @@ function buildClientSettingsFromLists(listsData, settingsRows = [], instructorCo
     })
     .filter((user) => user.full_name && user.emp_id);
 
-  const activityNames = activityNameItems.map((i) => ({
+  const activityNames = activityNameItems.map((i) => {
+  const gefenNumber = String(i._row?.gefen_number || i._row?.activity_no || i._row?.number || '').trim();
+  return {
     label:         i.label || i.value,
     label_he:      String(i._row?.label_he || i.label || i.value || '').trim(),
     value:         i.value || String(i._row?.activity_name || i.label || '').trim(),
     activity_name: String(i._row?.activity_name || i.value || i.label || '').trim(),
-    activity_no:   String(i._row?.activity_no  || i._row?.number      || '').trim(),
+    gefen_number:  gefenNumber,
+    activity_no:   String(i._row?.activity_no || i._row?.gefen_number || i._row?.number || '').trim(),
+    meetings_count: courseMeetingsByGefenNumber.get(gefenNumber) ?? null,
     activity_type: String(i._row?.activity_type || i._row?.parent_value || i._row?.type || '').trim(),
-    parent_value:  String(i._row?.parent_value  || i._row?.activity_type || i._row?.type || '').trim(),
+    parent_value:  String(i._row?.parent_value || i._row?.activity_type || i._row?.type || '').trim(),
     type:          String(i._row?.type || i._row?.activity_type || i._row?.parent_value || '').trim(),
     active:        (typeof i._row?.is_active === 'boolean') ? i._row?.is_active : (i._row?.active ?? i.active),
     sort_order:    Number.isFinite(Number(i._row?.sort_order)) ? Number(i._row?.sort_order) : null
-  }));
+  };
+});
   const activityTypes = [...new Set(activityNames.map((row) => String(row.activity_type || row.parent_value || row.type || '').trim()).filter(Boolean))];
   const schoolRecords = schoolItems.map((i) => ({
     name:        String(i._row?.school || i._row?.school_name || i.label || i.value || '').trim(),
@@ -6301,11 +6346,12 @@ async function readCatalogProgramsFromSupabase() {
 }
 export const api = {
   login: async (user_id, entry_code) => {
-    const [{ userRow: user, profileRow }, listsData, settingsRows, instructorContactsRows] = await Promise.all([
+    const [{ userRow: user, profileRow }, listsData, settingsRows, instructorContactsRows, courseMeetingsRows] = await Promise.all([
       loginWithSupabaseAuth(user_id, entry_code),
       readListsFromSupabase().catch(() => null),
       readSettingsRowsFromSupabase().catch(() => []),
-      readInstructorContactsRowsForBootstrap().catch(() => [])
+      readInstructorContactsRowsForBootstrap().catch(() => []),
+      readCourseMeetingsRowsForBootstrap().catch(() => [])
     ]);
     const token = makeSessionToken(user);
     const flat = flattenUserRow(user);
@@ -6341,20 +6387,21 @@ export const api = {
         ...proposalFlags
       },
       ...buildBootstrapFromUser(user, profileRow),
-      client_settings: buildClientSettingsFromLists(listsData, settingsRows, instructorContactsRows)
+      client_settings: buildClientSettingsFromLists(listsData, settingsRows, instructorContactsRows, courseMeetingsRows)
     };
   },
   bootstrap: async () => {
     await waitForSupabaseAuthSession();
-    const [{ userRow: user, profileRow }, listsData, settingsRows, instructorContactsRows] = await Promise.all([
+    const [{ userRow: user, profileRow }, listsData, settingsRows, instructorContactsRows, courseMeetingsRows] = await Promise.all([
       readCurrentUserBySession(),
       readListsFromSupabase().catch(() => null),
       readSettingsRowsFromSupabase().catch(() => []),
-      readInstructorContactsRowsForBootstrap().catch(() => [])
+      readInstructorContactsRowsForBootstrap().catch(() => []),
+      readCourseMeetingsRowsForBootstrap().catch(() => [])
     ]);
     return {
       ...buildBootstrapFromUser(user, profileRow),
-      client_settings: buildClientSettingsFromLists(listsData, settingsRows, instructorContactsRows)
+      client_settings: buildClientSettingsFromLists(listsData, settingsRows, instructorContactsRows, courseMeetingsRows)
     };
   },
   dashboard: (filters) => api.dashboardReadModel(filters || {}),
