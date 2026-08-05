@@ -28,8 +28,9 @@ test('course assignments are loaded only from 2027 course activities', () => {
 });
 
 test('training state is green when trained, red only when assigned, and blank otherwise', () => {
-  assert.match(fixSource, /trained \? 'is-yes' : \(assigned \? 'is-no' : 'is-empty'\)/);
-  assert.match(fixSource, /trained \? '✓' : \(assigned \? '✕' : ''\)/);
+  assert.match(fixSource, /trainingCellState\(\{ trained, assigned \}\)/);
+  assert.match(fixSource, /cell\.state === 'trained'/);
+  assert.match(fixSource, /cell\.state === 'assigned_untrained'/);
   assert.match(fixSource, /לא משובץ ולא עבר הכשרה/);
   assert.match(fixSource, /ops2027-cell-button\.is-empty/);
 });
@@ -39,14 +40,21 @@ test('course-training explanatory sentence is removed from the rendered view', (
   assert.match(fixSource, /note\.remove\(\)/);
 });
 
+
+test('course training fix does not change existing save operations', () => {
+  assert.doesNotMatch(fixSource, /\.update\(/);
+  assert.doesNotMatch(fixSource, /\.insert\(/);
+  assert.doesNotMatch(fixSource, /\.upsert\(/);
+});
+
 test('duplicate print-kit page title is removed when an attached title exists', () => {
   assert.match(fixSource, /PRINT_KITS_TAB = 'course_print_kits'/);
   assert.match(fixSource, /duplicateAttachedTitle/);
   assert.match(fixSource, /if \(duplicateAttachedTitle\) header\.remove\(\)/);
 });
 
-test('service worker cache version is at least 1405', () => {
+test('service worker cache version is at least 1411', () => {
   const match = swSource.match(/const CACHE_VERSION = (\d+);/);
   assert.ok(match);
-  assert.ok(Number(match[1]) >= 1405);
+  assert.ok(Number(match[1]) >= 1411);
 });
