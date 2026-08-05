@@ -14,7 +14,7 @@ test('bootstrap reads active Gefen course meeting counts without schema changes'
 });
 
 test('bootstrap joins meeting counts by Gefen number and exposes them to the activity catalog', () => {
-  assert.match(source, /const courseMeetingsByGefenNumber = new Map\(/);
-  assert.match(source, /const gefenNumber = String\(i\._row\?\.gefen_number \|\| i\._row\?\.activity_no/);
-  assert.match(source, /meetings_count:\s*courseMeetingsByGefenNumber\.get\(gefenNumber\) \?\? null/);
+  assert.match(source, /const courseMeetingsByStableId = new Map\(/);
+  assert.match(source, /\[gefenNumber, activityNo\][\s\S]{0,180}courseMeetingsByStableId\.get\(stableId\)/);
+  assert.match(source, /meetings_count:\s*meetingsCount/);
 });

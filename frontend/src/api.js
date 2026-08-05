@@ -1770,7 +1770,7 @@ async function readCourseMeetingsRowsForBootstrap() {
  */
 function buildClientSettingsFromLists(listsData, settingsRows = [], instructorContactsRows = [], courseMeetingsRows = []) {
   const categories = Array.isArray(listsData?.categories) ? listsData.categories : [];
-  const courseMeetingsByGefenNumber = new Map(
+  const courseMeetingsByStableId = new Map(
     (Array.isArray(courseMeetingsRows) ? courseMeetingsRows : [])
       .map((row) => [
         String(row?.gefen_number || '').trim(),
@@ -1833,22 +1833,27 @@ function buildClientSettingsFromLists(listsData, settingsRows = [], instructorCo
     .filter((user) => user.full_name && user.emp_id);
 
   const activityNames = activityNameItems.map((i) => {
-  const gefenNumber = String(i._row?.gefen_number || i._row?.activity_no || i._row?.number || '').trim();
-  return {
-    label:         i.label || i.value,
-    label_he:      String(i._row?.label_he || i.label || i.value || '').trim(),
-    value:         i.value || String(i._row?.activity_name || i.label || '').trim(),
-    activity_name: String(i._row?.activity_name || i.value || i.label || '').trim(),
-    gefen_number:  gefenNumber,
-    activity_no:   String(i._row?.activity_no || i._row?.gefen_number || i._row?.number || '').trim(),
-    meetings_count: courseMeetingsByGefenNumber.get(gefenNumber) ?? null,
-    activity_type: String(i._row?.activity_type || i._row?.parent_value || i._row?.type || '').trim(),
-    parent_value:  String(i._row?.parent_value || i._row?.activity_type || i._row?.type || '').trim(),
-    type:          String(i._row?.type || i._row?.activity_type || i._row?.parent_value || '').trim(),
-    active:        (typeof i._row?.is_active === 'boolean') ? i._row?.is_active : (i._row?.active ?? i.active),
-    sort_order:    Number.isFinite(Number(i._row?.sort_order)) ? Number(i._row?.sort_order) : null
-  };
-});
+    const gefenNumber = String(i._row?.gefen_number || '').trim();
+    const activityNo = String(i._row?.activity_no || i._row?.number || '').trim();
+    const meetingsCount = [gefenNumber, activityNo]
+      .filter(Boolean)
+      .map((stableId) => courseMeetingsByStableId.get(stableId))
+      .find((count) => count != null) ?? null;
+    return {
+      label:         i.label || i.value,
+      label_he:      String(i._row?.label_he || i.label || i.value || '').trim(),
+      value:         i.value || String(i._row?.activity_name || i.label || '').trim(),
+      activity_name: String(i._row?.activity_name || i.value || i.label || '').trim(),
+      gefen_number:  gefenNumber,
+      activity_no:   activityNo || gefenNumber,
+      meetings_count: meetingsCount,
+      activity_type: String(i._row?.activity_type || i._row?.parent_value || i._row?.type || '').trim(),
+      parent_value:  String(i._row?.parent_value || i._row?.activity_type || i._row?.type || '').trim(),
+      type:          String(i._row?.type || i._row?.activity_type || i._row?.parent_value || '').trim(),
+      active:        (typeof i._row?.is_active === 'boolean') ? i._row?.is_active : (i._row?.active ?? i.active),
+      sort_order:    Number.isFinite(Number(i._row?.sort_order)) ? Number(i._row?.sort_order) : null
+    };
+  });
   const activityTypes = [...new Set(activityNames.map((row) => String(row.activity_type || row.parent_value || row.type || '').trim()).filter(Boolean))];
   const schoolRecords = schoolItems.map((i) => ({
     name:        String(i._row?.school || i._row?.school_name || i.label || i.value || '').trim(),
