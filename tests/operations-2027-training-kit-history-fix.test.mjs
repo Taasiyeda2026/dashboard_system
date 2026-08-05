@@ -40,5 +40,5 @@ test('editing permission is verified by the server and clickable controls bind t
 });
 
 test('service worker cache version is current', () => {
-  assert.match(swSource, /const CACHE_VERSION = 1413;/);
+  assert.match(swSource, /const CACHE_VERSION = 1414;/);
 });

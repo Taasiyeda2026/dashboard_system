@@ -1,11 +1,6 @@
 import { operationsManagementScreen } from './operations-management.js';
-import {
-  ACTIVITY_SEASON_REGULAR,
-  ACTIVITY_SEASON_SCHOOL_2027
-} from './shared/summer-activity.js';
+import { ACTIVITY_SEASON_SCHOOL_2027 } from './shared/summer-activity.js';
 
-const WORKSHOPS_2026_FROM = '2026-06-15';
-const WORKSHOPS_2026_TO = '2026-08-30';
 const HIDDEN_2027_TABS = new Set(['authorities', 'completion_approval']);
 const FIX_MARKER = '__operations2027RemainingFixApplied';
 
@@ -18,171 +13,53 @@ function activeOperationsTab(state = {}) {
   return String(state?.operationsManagement?.tab || '').trim();
 }
 
-async function ensure2026OpeningStockRows(data, context = {}) {
-  if (!is2027State(context.state)) return data;
-  if (Array.isArray(data?.workshopInventorySourceRows) && data.workshopInventorySourceRows.length) return data;
-  if (!context.api?.allActivities) return data;
-
-  const response = await context.api.allActivities({
-    activity_period: ACTIVITY_SEASON_REGULAR,
-    startDate: WORKSHOPS_2026_FROM,
-    endDate: WORKSHOPS_2026_TO
-  }).catch(() => ({ rows: [] }));
-
-  data.workshopInventorySourceRows = Array.isArray(response?.rows) ? response.rows : [];
-  return data;
-}
-
-function numberFromCell(cell) {
-  const raw = String(cell?.textContent || '')
-    .replace(/[\u200e\u200f,\s]/g, '')
-    .replace(/−/g, '-')
-    .replace(/[^0-9.+-]/g, '');
-  const value = Number(raw);
-  return Number.isFinite(value) ? value : null;
-}
-
-function displayNumber(value) {
-  if (!Number.isFinite(value)) return '0';
-  return Number.isInteger(value) ? String(value) : String(Math.round(value * 100) / 100);
-}
-
-function workshopRows(root) {
-  return Array.from(root?.querySelectorAll?.('tr[data-ops-stock-group]') || []);
-}
-
-function openingStockByGroup(html) {
-  if (typeof document === 'undefined') return new Map();
-  const template = document.createElement('template');
-  template.innerHTML = html;
-  const result = new Map();
-  workshopRows(template.content).forEach((row) => {
-    const key = String(row.getAttribute('data-ops-stock-group') || '').trim();
-    const value = numberFromCell(row.cells?.[2]);
-    if (key && value !== null) result.set(key, value);
-  });
-  return result;
-}
-
-function closingLocationsByGroup(html) {
-  if (typeof document === 'undefined') return new Map();
-  const template = document.createElement('template');
-  template.innerHTML = html;
-  const result = new Map();
-
-  template.content.querySelectorAll('tr[data-workshop-detail]').forEach((detailRow) => {
-    const key = String(detailRow.getAttribute('data-workshop-detail') || '').trim();
-    if (!key) return;
-
-    const locations = [];
-    detailRow.querySelectorAll('.ds-ops-dist-table--instructors tbody tr').forEach((row) => {
-      const cells = Array.from(row.cells || []);
-      if (cells.length < 5) return;
-      const location = String(cells[0]?.textContent || '').trim();
-      const balance = numberFromCell(cells[cells.length - 1]);
-      if (!location || balance === null || balance <= 0) return;
-      locations.push({ location, quantity: balance });
-    });
-
-    locations.sort((a, b) => {
-      const locationRank = (name) => {
-        if (name === 'מלאי עידן') return 0;
-        if (name === 'מלאי הילה') return 1;
-        return 2;
-      };
-      const rankDiff = locationRank(a.location) - locationRank(b.location);
-      return rankDiff || a.location.localeCompare(b.location, 'he', { numeric: true });
-    });
-    result.set(key, locations);
-  });
-
-  return result;
-}
-
-function addOpeningLocationColumn(template, locationsByGroup) {
-  const table = template.content.querySelector('.ds-ops-workshops-table');
-  if (!table || table.dataset.opsOpeningLocations === '1') return;
-  table.dataset.opsOpeningLocations = '1';
-
-  const colgroup = table.querySelector('colgroup');
-  if (colgroup) {
-    const col = document.createElement('col');
-    col.className = 'ds-ops-workshop-col--location';
-    colgroup.insertBefore(col, colgroup.children[3] || null);
+function distributionQuantity(row = {}) {
+  for (const field of ['quantity_received', 'quantity', 'qty', 'amount']) {
+    const value = row?.[field];
+    if (value !== undefined && value !== '' && Number.isFinite(Number(value))) return Number(value);
   }
+  return 0;
+}
 
-  const headerRow = table.tHead?.rows?.[0];
-  if (headerRow) {
-    const th = document.createElement('th');
-    th.className = 'ds-ops-workshop-col--location';
-    th.textContent = 'מיקום המלאי בסוף 2026';
-    headerRow.insertBefore(th, headerRow.cells[3] || null);
-  }
+function distributionGroupKey(row = {}) {
+  return String(row?.stock_group_key || row?.stockGroupKey || row?.workshop_stock_group_key || '').trim();
+}
 
-  workshopRows(template.content).forEach((row) => {
-    const key = String(row.getAttribute('data-ops-stock-group') || '').trim();
-    const locations = locationsByGroup.get(key) || [];
-    const cell = document.createElement('td');
-    cell.className = 'ds-ops-workshop-col--location';
+function distributionLocation(row = {}) {
+  return String(row?.instructor_name || row?.instructor || row?.guide_name || row?.guide || row?.recipient_name || row?.employee_name || '').trim();
+}
 
-    if (!locations.length) {
-      cell.textContent = 'אין יתרת מלאי במיקום';
-      cell.classList.add('ds-ops-opening-location-empty');
-    } else {
-      const list = document.createElement('div');
-      list.className = 'ds-ops-opening-location-list';
-      locations.forEach((item) => {
-        const locationItem = document.createElement('span');
-        locationItem.className = 'ds-ops-opening-location-item';
-        const name = document.createElement('strong');
-        name.textContent = item.location;
-        const quantity = document.createElement('span');
-        quantity.textContent = displayNumber(item.quantity);
-        locationItem.append(name, document.createTextNode(' '), quantity);
-        list.appendChild(locationItem);
-      });
-      cell.appendChild(list);
-      cell.title = locations.map((item) => `${item.location}: ${displayNumber(item.quantity)}`).join(' | ');
+function isSchool2027Activity(row = {}) {
+  const season = String(row?.activity_season || row?.activity_period || '').trim();
+  return season === ACTIVITY_SEASON_SCHOOL_2027;
+}
+
+function aggregatePositiveDistributions(rows = []) {
+  const byLocation = new Map();
+  (Array.isArray(rows) ? rows : []).forEach((row, index) => {
+    const quantity = distributionQuantity(row);
+    if (quantity <= 0) return;
+    const group = distributionGroupKey(row);
+    const location = distributionLocation(row);
+    const key = group && location ? `${group}::${location}` : `unmatched::${index}`;
+    const current = byLocation.get(key);
+    if (!current) {
+      byLocation.set(key, { ...row, quantity_received: quantity });
+      return;
     }
-
-    row.insertBefore(cell, row.cells[3] || null);
+    current.quantity_received = distributionQuantity(current) + quantity;
   });
-
-  template.content.querySelectorAll('tr[data-workshop-detail] > td[colspan]').forEach((cell) => {
-    cell.setAttribute('colspan', '8');
-  });
+  return Array.from(byLocation.values());
 }
 
-function applyOpeningStockToCurrentYear(currentHtml, carryoverHtml) {
-  if (typeof document === 'undefined') return currentHtml;
-  const openingByGroup = openingStockByGroup(carryoverHtml);
-  if (!openingByGroup.size) return currentHtml;
-  const locationsByGroup = closingLocationsByGroup(carryoverHtml);
-
-  const template = document.createElement('template');
-  template.innerHTML = currentHtml;
-  workshopRows(template.content).forEach((row) => {
-    const key = String(row.getAttribute('data-ops-stock-group') || '').trim();
-    if (!openingByGroup.has(key) || !row.cells || row.cells.length < 7) return;
-
-    const opening = openingByGroup.get(key);
-    const used = numberFromCell(row.cells[3]) || 0;
-    const required = numberFromCell(row.cells[4]) || 0;
-    const expected = opening - used - required;
-
-    row.cells[2].textContent = displayNumber(opening);
-    row.cells[2].setAttribute('dir', 'ltr');
-    row.cells[5].textContent = displayNumber(expected);
-    row.cells[5].setAttribute('dir', 'ltr');
-    row.dataset.opsOpeningStock = displayNumber(opening);
-
-    const currentStatus = String(row.cells[6].textContent || '').trim();
-    if (expected < 0) row.cells[6].textContent = 'חסר מלאי';
-    else if (currentStatus === 'חסר מלאי') row.cells[6].textContent = 'תקין';
-  });
-
-  addOpeningLocationColumn(template, locationsByGroup);
-  return template.innerHTML;
+export function normalizeWorkshopInventory2027Data(data = {}, state = {}) {
+  if (!is2027State(state) || activeOperationsTab(state) !== 'workshops') return data;
+  return {
+    ...data,
+    workshopStockDistributions: aggregatePositiveDistributions(data?.workshopStockDistributions),
+    workshopInventory2027Rows: (Array.isArray(data?.workshopInventory2027Rows) ? data.workshopInventory2027Rows : [])
+      .filter(isSchool2027Activity)
+  };
 }
 
 function mark2027Root(html) {
@@ -206,7 +83,7 @@ function installScreenWrappers() {
   const originalLoad = operationsManagementScreen.load;
   operationsManagementScreen.load = async function wrappedOperationsLoad(context = {}) {
     const data = await originalLoad.call(this, context);
-    return ensure2026OpeningStockRows(data || {}, context);
+    return normalizeWorkshopInventory2027Data(data || {}, context.state || {});
   };
 
   const originalRender = operationsManagementScreen.render;
@@ -216,21 +93,8 @@ function installScreenWrappers() {
 
     if (!is2027State(state)) return originalRender.call(this, data, context);
 
-    let html;
-    const isWorkshopInventory = activeOperationsTab(state) === 'workshops';
-    const sourceRows = Array.isArray(data?.workshopInventorySourceRows) ? data.workshopInventorySourceRows : [];
-    if (isWorkshopInventory && sourceRows.length && typeof document !== 'undefined') {
-      const carryoverHtml = originalRender.call(this, data, context);
-      const currentYearData = {
-        ...data,
-        workshopInventorySourceRows: Array.isArray(data?.rows) ? data.rows : []
-      };
-      const currentYearHtml = originalRender.call(this, currentYearData, context);
-      html = applyOpeningStockToCurrentYear(currentYearHtml, carryoverHtml);
-    } else {
-      html = originalRender.call(this, data, context);
-    }
-
+    const normalizedData = normalizeWorkshopInventory2027Data(data || {}, state);
+    const html = originalRender.call(this, normalizedData, context);
     return mark2027Root(html);
   };
 }
@@ -320,8 +184,3 @@ function installDomCleanup() {
 
 installScreenWrappers();
 installDomCleanup();
-
-export {
-  closingLocationsByGroup,
-  applyOpeningStockToCurrentYear
-};
