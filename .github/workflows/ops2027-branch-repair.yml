@@ -1,4 +1,4 @@
-name: Operations 2027 Branch Repair
+name: Operations 2027 Branch Cleanup
 
 on:
   push:
@@ -9,7 +9,7 @@ permissions:
   contents: write
 
 jobs:
-  repair:
+  cleanup:
     runs-on: ubuntu-latest
     timeout-minutes: 10
     steps:
@@ -19,69 +19,12 @@ jobs:
           ref: codex/clean-loading-and-cache-mechanisms
           fetch-depth: 0
 
-      - name: Merge latest main and resolve release markers
+      - name: Restore standard workflow and remove temporary files
         run: |
           git config user.name github-actions[bot]
           git config user.email 41898282+github-actions[bot]@users.noreply.github.com
           git fetch --no-tags origin main
-          if git merge-base --is-ancestor origin/main HEAD; then
-            echo "Latest main is already present"
-            exit 0
-          fi
-
-          set +e
-          git merge --no-edit origin/main
-          merge_status=$?
-          set -e
-
-          if [ "$merge_status" -ne 0 ]; then
-            conflicts="$(git diff --name-only --diff-filter=U)"
-            echo "Conflicts: $conflicts"
-            for file in $conflicts; do
-              case "$file" in
-                frontend/src/config.js|frontend/sw.js)
-                  git checkout --theirs -- "$file"
-                  ;;
-                *)
-                  echo "Unexpected conflict: $file"
-                  exit 1
-                  ;;
-              esac
-            done
-          fi
-
-          python - <<'PY'
-          from pathlib import Path
-          import re
-          import subprocess
-
-          marker = '-operations-2027-loading-cache-cleanup-20260805-v1'
-          config = Path('frontend/src/config.js')
-          config_text = config.read_text()
-          match = re.search(r"(HOTFIX_VERSION:\s*')([^']*)(')", config_text)
-          if not match:
-              raise SystemExit('HOTFIX_VERSION not found')
-          value = match.group(2)
-          if marker not in value:
-              value += marker
-          config.write_text(config_text[:match.start(2)] + value + config_text[match.end(2):])
-
-          base_sw = subprocess.check_output(['git', 'show', 'origin/main:frontend/sw.js'], text=True)
-          base_match = re.search(r'const CACHE_VERSION = (\d+);', base_sw)
-          if not base_match:
-              raise SystemExit('Base CACHE_VERSION not found')
-          next_version = int(base_match.group(1)) + 1
-          sw = Path('frontend/sw.js')
-          sw.write_text(re.sub(r'const CACHE_VERSION = \d+;', f'const CACHE_VERSION = {next_version};', sw.read_text(), count=1))
-
-          for path in Path('tests').glob('operations-*.test.mjs'):
-              text = path.read_text()
-              text = re.sub(r'const CACHE_VERSION = \d+;', f'const CACHE_VERSION = {next_version};', text)
-              text = re.sub(r'CACHE_VERSION = \d+', f'CACHE_VERSION = {next_version}', text)
-              path.write_text(text)
-          print(f'Prepared CACHE_VERSION {next_version}')
-          PY
-
-          git add -A
-          git commit --no-edit
+          git checkout origin/main -- .github/workflows/quick-pr-check.yml tests/operations-management-screen.test.mjs
+          git rm .github/workflows/ops2027-branch-repair.yml
+          git commit -m "Clean temporary Operations 2027 validation files"
           git push origin HEAD:codex/clean-loading-and-cache-mechanisms
