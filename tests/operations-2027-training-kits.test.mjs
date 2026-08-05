@@ -69,5 +69,5 @@ test('tables, section headers and empty states are horizontally centered', () =>
 
 test('2027 new tabs do not render result-count messages and cache version was refreshed', () => {
   assert.match(managementSource, /ops\.period === ACTIVITY_SEASON_SCHOOL_2027 \? '' : `<p class="ds-muted ds-ops-mgmt-count/);
-  assert.match(swSource, /const CACHE_VERSION = 1415;/);
+  assert.match(swSource, /const CACHE_VERSION = 1417;/);
 });
