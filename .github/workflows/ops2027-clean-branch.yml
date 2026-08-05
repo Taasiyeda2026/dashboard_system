@@ -1,4 +1,4 @@
-name: Build Clean Operations 2027 Branch
+name: Validate Clean Operations 2027 Branch
 
 on:
   push:
@@ -9,38 +9,52 @@ permissions:
   contents: write
 
 jobs:
-  build-clean-branch:
+  validate-clean-branch:
     runs-on: ubuntu-latest
     timeout-minutes: 10
     steps:
-      - name: Checkout source branch
+      - name: Checkout validation branch
         uses: actions/checkout@v7
         with:
           ref: codex/clean-loading-and-cache-mechanisms
           fetch-depth: 0
 
-      - name: Create one-commit branch from latest main
+      - name: Checkout clean target branch
         run: |
+          git fetch --no-tags origin fix/operations-2027-loading-cache-final
+          git switch --detach origin/fix/operations-2027-loading-cache-final
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v6
+        with:
+          node-version: '22'
+          cache: npm
+
+      - name: Install dependencies
+        run: npm ci
+
+      - name: Validate Operations 2027
+        run: |
+          node --check frontend/src/screens/operations-2027-loading-controller.js
+          node --check frontend/src/screens/operations-summer-training-matrix.js
+          for test_file in tests/operations-2027-*.test.mjs tests/operations-lazy-loading.test.mjs; do
+            echo "=== $test_file ==="
+            timeout 40s node --test "$test_file"
+          done
+          npm run check:build
+          npm run check:pwa
+
+      - name: Record successful validation
+        run: |
+          target_sha="$(git rev-parse HEAD)"
+          git switch codex/clean-loading-and-cache-mechanisms
+          printf '%s\n' "$target_sha" > .ops2027-validation-success
           git config user.name github-actions[bot]
           git config user.email 41898282+github-actions[bot]@users.noreply.github.com
-          source_head="$(git rev-parse HEAD)"
-          git fetch --no-tags origin main
-          git switch -C fix/operations-2027-loading-cache-final origin/main
-          git checkout "$source_head" -- \
-            frontend/src/config.js \
-            frontend/src/feature-loaders.js \
-            frontend/src/screens/operations-2027-loading-controller.js \
-            frontend/src/screens/operations-authorities-cleanup.js \
-            frontend/src/screens/operations-summer-training-matrix.js \
-            frontend/sw.js \
-            tests/operations-2027-custom-tabs-click-fix.test.mjs \
-            tests/operations-2027-loading-controller.test.mjs \
-            tests/operations-2027-table-layout-fix.test.mjs \
-            tests/operations-2027-training-assignment-fix.test.mjs \
-            tests/operations-2027-training-kit-history-fix.test.mjs \
-            tests/operations-2027-training-kits.test.mjs \
-            tests/operations-2027-workshop-training-matrix.test.mjs \
-            tests/operations-lazy-loading.test.mjs
-          git add -A
-          git commit -m "Finalize Operations 2027 loading and cache cleanup"
-          git push --force origin fix/operations-2027-loading-cache-final
+          git add .ops2027-validation-success
+          if git diff --cached --quiet; then
+            echo "Validation marker already current"
+          else
+            git commit -m "Record clean Operations 2027 validation"
+            git push origin codex/clean-loading-and-cache-mechanisms
+          fi
