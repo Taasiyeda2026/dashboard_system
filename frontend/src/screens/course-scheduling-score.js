@@ -139,12 +139,28 @@ export function courseUrgency(course = {}, referenceDate) {
   };
 }
 
-export function isSafeEligibleCandidate(candidate = {}) {
+function hasReliableHomeRoute(travel = null) {
+  const home = travel?.home;
+  return !!(home
+    && Number.isFinite(Number(home.duration_minutes))
+    && Number.isFinite(Number(home.distance_km)));
+}
+
+/**
+ * Safe eligible = passed gates and (in final mode) has reliable routes where required.
+ * Preliminary candidates may remain eligible without home routes so travel can be built.
+ */
+export function isSafeEligibleCandidate(candidate = {}, { preliminary = false } = {}) {
   if (!candidate?.eligible) return false;
   const failures = candidate.failures || [];
-  if (failures.some((failure) => /לא ניתן לאמת זמן מעבר|transition_unverified|מסלול לא/.test(String(failure)))) {
+  if (failures.some((failure) => /לא ניתן לאמת זמן מעבר|לא ניתן לאמת מסלול|transition_unverified|מסלול לא/.test(String(failure)))) {
     return false;
   }
+  // Preliminary candidates (flag on the candidate or caller option) may lack home routes.
+  if (preliminary || candidate.preliminary) return true;
+  // Final calculation: unknown/missing home route is never a safe recommendation.
+  if (candidate.requiresHomeRoute && !hasReliableHomeRoute(candidate.travel)) return false;
+  if (candidate.travel?.unavailableReason === 'no_route' && candidate.requiresHomeRoute) return false;
   return true;
 }
 
@@ -223,6 +239,7 @@ export function analyzeDayPlacement({
     const prevLeg = previous ? transition.previous : null;
     const nextLeg = next ? transition.next : null;
     const homeLeg = travel?.home || null;
+    const homeReturnLeg = travel?.homeReturn || null;
 
     const considerNeighbor = (neighbor, gap, travelMin, direction) => {
       if (!neighbor) return;
@@ -269,10 +286,12 @@ export function analyzeDayPlacement({
         nonTravelWaitingMinutes += Math.max(0, gap - (Number(travelMin) || 0));
       }
       considerNeighbor(previous, gap, travelMin, 'previous');
-    } else if (homeLeg && Number.isFinite(Number(homeLeg.duration_minutes))) {
+    } else if (homeLeg && Number.isFinite(Number(homeLeg.duration_minutes)) && Number.isFinite(Number(homeLeg.distance_km))) {
       // Arrival path: home only when this is the first activity of the day.
       dayTravelMinutes += Number(homeLeg.duration_minutes) || 0;
       dayTravelDistance += Number(homeLeg.distance_km) || 0;
+    } else if (!previous) {
+      unknownRoute = true;
     }
 
     if (next) {
@@ -287,6 +306,14 @@ export function analyzeDayPlacement({
         nonTravelWaitingMinutes += Math.max(0, gap - (Number(travelMin) || 0));
       }
       considerNeighbor(next, gap, travelMin, 'next');
+    } else if (
+      homeReturnLeg
+      && Number.isFinite(Number(homeReturnLeg.duration_minutes))
+      && Number.isFinite(Number(homeReturnLeg.distance_km))
+    ) {
+      // Last activity of the day: add reliable home-return when present (never invent a reverse of home).
+      dayTravelMinutes += Number(homeReturnLeg.duration_minutes) || 0;
+      dayTravelDistance += Number(homeReturnLeg.distance_km) || 0;
     }
 
     relevantTravelMinutes += dayTravelMinutes;
@@ -670,13 +697,33 @@ function emptyMetricFields() {
   };
 }
 
+function compareNumberArrays(left = [], right = []) {
+  const len = Math.max(left.length, right.length);
+  for (let index = 0; index < len; index += 1) {
+    const a = Number(left[index]) || 0;
+    const b = Number(right[index]) || 0;
+    if (a < b) return -1;
+    if (a > b) return 1;
+  }
+  return 0;
+}
+
 /** Lexicographic comparison: negative if a is better than b. */
 export function compareOptimizationStates(a, b) {
+  const assigned = (Number(b.assignedCount) || 0) - (Number(a.assignedCount) || 0);
+  if (assigned) return assigned < 0 ? -1 : 1;
+
+  const urgency7 = (Number(a.urgency7Missed) || 0) - (Number(b.urgency7Missed) || 0);
+  if (urgency7) return urgency7 < 0 ? -1 : 1;
+  const urgency14 = (Number(a.urgency14Missed) || 0) - (Number(b.urgency14Missed) || 0);
+  if (urgency14) return urgency14 < 0 ? -1 : 1;
+
+  // Gradual scarcity: unassigned courses with fewer eligible candidates are worse.
+  // scarcityMissedByCount[k] = how many unassigned courses have exactly k eligible candidates.
+  const scarcity = compareNumberArrays(a.scarcityMissedByCount || [], b.scarcityMissedByCount || []);
+  if (scarcity) return scarcity;
+
   const tuple = (state) => [
-    -(Number(state.assignedCount) || 0),
-    Number(state.urgency7Missed) || 0,
-    Number(state.urgency14Missed) || 0,
-    Number(state.scarceMissed) || 0,
     -(Number(state.sameSchoolCount) || 0),
     -(Number(state.sameAuthorityCount) || 0),
     Number(state.totalTravelMinutes) || 0,

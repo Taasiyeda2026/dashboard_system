@@ -144,8 +144,13 @@ export async function calculateCandidateTravel(preliminary, activities, routeCli
     const empId = instructorId(candidate);
     const destination = activityPlace(course);
     const homeOrigin = text(candidate.instructor.address);
+    // Request both directions separately — never assume the reverse equals the outbound leg.
+    const [home, homeReturn] = homeOrigin && destination
+      ? await Promise.all([route(homeOrigin, destination), route(destination, homeOrigin)])
+      : [null, null];
     const result = {
-      home: homeOrigin && destination ? await route(homeOrigin, destination) : null,
+      home,
+      homeReturn,
       transitions: {}
     };
     for (const meeting of activityMeetings(course)) {

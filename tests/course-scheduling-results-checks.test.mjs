@@ -164,10 +164,8 @@ test('course without gender requirement accepts male or female instructors', () 
     },
     rules: { m1: weekdayRules, f1: weekdayRules },
     exceptions: {},
-    travel: {
-      ...travelFor('any-gender', 'm1'),
-      ...travelFor('any-gender', 'f1')
-    }
+    travel: mergeTravel(travelFor('any-gender', 'm1'), travelFor('any-gender', 'f1')),
+    routeMatrix: {}
   })[0];
   const eligibleIds = result.checked.filter((item) => item.eligible).map((item) => item.instructor.emp_id).sort();
   assert.deepEqual(eligibleIds, ['f1', 'm1']);
@@ -353,7 +351,12 @@ test('integration school_2027_019: matching Hebrew females are recommended witho
       f1: weekdayRules
     },
     exceptions: {},
-    travel: travelFor('school_2027_019', 'f1', { distance_km: 6.4, duration_minutes: 14 })
+    travel: mergeTravel(
+      travelFor('school_2027_019', 'f1', { distance_km: 6.4, duration_minutes: 14 }),
+      // Farther than f1 so the matching Hebrew female remains the recommendation.
+      travelFor('school_2027_019', 'f-el', { distance_km: 40, duration_minutes: 70 })
+    ),
+    routeMatrix: {}
   })[0];
 
   assert.equal(result.course.row_id, 'school_2027_019');
@@ -390,7 +393,7 @@ test('language hard gates Hebrew, Arabic, and missing instructor languages', () 
     profiles: { f1: { ...matchingProfile, instruction_languages: ['he'] }, m1: { gender: 'male', instruction_languages: ['ar'], education_levels: ['high_school'] } },
     rules: { f1: weekdayRules, m1: weekdayRules },
     exceptions: {},
-    travel: { ...travelFor('he-course', 'f1'), ...travelFor('he-course', 'm1') },
+    travel: mergeTravel(travelFor('he-course', 'f1'), travelFor('he-course', 'm1')),
     routeMatrix: {}
   })[0];
   assert.deepEqual(hebrew.checked.filter((item) => item.eligible).map((item) => item.instructor.emp_id), ['f1']);
@@ -403,7 +406,7 @@ test('language hard gates Hebrew, Arabic, and missing instructor languages', () 
     profiles: { f1: { ...matchingProfile, instruction_languages: ['he'] }, m1: { gender: 'male', instruction_languages: ['ar'], education_levels: ['high_school'] } },
     rules: { f1: weekdayRules, m1: weekdayRules },
     exceptions: {},
-    travel: { ...travelFor('ar-course', 'f1'), ...travelFor('ar-course', 'm1') },
+    travel: mergeTravel(travelFor('ar-course', 'f1'), travelFor('ar-course', 'm1')),
     routeMatrix: {}
   })[0];
   assert.deepEqual(arabic.checked.filter((item) => item.eligible).map((item) => item.instructor.emp_id), ['m1']);
@@ -414,7 +417,7 @@ test('language hard gates Hebrew, Arabic, and missing instructor languages', () 
   assert.ok(missing.missingProfileData.includes('לא ניתן לאמת שפת הדרכה'));
 });
 
-test('gender hard gates male, female, and missing profile gender only when required', () => {
+test('gender hard gates male, female, and missing profile gender even when required is any', () => {
   const maleCourse = course019({ row_id: 'male-course', activity_no: 'male-course', required_instructor_gender: 'male' });
   const result = calculateCourseSchedule({
     activities: [maleCourse],
@@ -422,18 +425,23 @@ test('gender hard gates male, female, and missing profile gender only when requi
     profiles: { f1: matchingProfile, m1: { ...matchingProfile, gender: 'male' } },
     rules: { f1: weekdayRules, m1: weekdayRules },
     exceptions: {},
-    travel: { ...travelFor('male-course', 'f1'), ...travelFor('male-course', 'm1') },
+    travel: mergeTravel(travelFor('male-course', 'f1'), travelFor('male-course', 'm1')),
     routeMatrix: {}
   })[0];
   assert.deepEqual(result.checked.filter((item) => item.eligible).map((item) => item.instructor.emp_id), ['m1']);
   assert.equal(result.checked.find((item) => item.instructor.emp_id === 'f1').score, null);
 
   const missingRequired = evaluateInstructor({ instructor: femaleInstructor, profile: { instruction_languages: ['he'] }, rules: weekdayRules, activity: course019({ required_instructor_gender: 'female' }) });
+  assert.equal(missingRequired.eligible, false);
+  assert.equal(missingRequired.score, null);
   assert.ok(missingRequired.missingProfileData.includes('לא ניתן לאמת התאמה לדרישת המגדר'));
+  assert.equal(missingRequired.checks.gender.passed, false);
 
   const missingAny = evaluateInstructor({ instructor: femaleInstructor, profile: { instruction_languages: ['he'] }, rules: weekdayRules, activity: course019({ required_instructor_gender: 'any' }) });
-  assert.equal(missingAny.checks.gender.passed, true);
-  assert.doesNotMatch(missingAny.missingProfileData.join(' '), /מגדר/);
+  assert.equal(missingAny.eligible, false);
+  assert.equal(missingAny.score, null);
+  assert.ok(missingAny.missingProfileData.includes('לא ניתן לאמת התאמה לדרישת המגדר'));
+  assert.equal(missingAny.checks.gender.passed, false);
 });
 
 test('candidate details render compact table, closed rejections, and initially disabled actions with explanation', () => {

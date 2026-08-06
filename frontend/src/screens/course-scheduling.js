@@ -1189,6 +1189,7 @@ export const courseSchedulingScreen = {
         };
         const scheduling = data.scheduling || {};
         const profiles = Object.fromEntries((scheduling.profiles || []).map((row) => [text(row.emp_id), row]));
+        const referenceDate = today();
         const input = {
           activities: enriched.activities,
           periodKey: selectedPeriodKey(state),
@@ -1197,7 +1198,8 @@ export const courseSchedulingScreen = {
           profiles,
           rules: group(scheduling.rules || [], 'emp_id'),
           exceptions: group(scheduling.exceptions || [], 'emp_id'),
-          schoolCalendar: data.schoolCalendar || []
+          schoolCalendar: data.schoolCalendar || [],
+          referenceDate
         };
         state.courseSchedulingProgressStep = 2;
         rerender();
@@ -1207,6 +1209,7 @@ export const courseSchedulingScreen = {
         const routed = await calculateCandidateTravel(preliminary, enriched.activities);
         state.courseSchedulingResults = calculateCourseSchedule({
           ...input,
+          referenceDate,
           travel: routed.travel,
           routeMatrix: routed.routeMatrix,
           travelUnavailableReason: routed.unavailableReason || ''

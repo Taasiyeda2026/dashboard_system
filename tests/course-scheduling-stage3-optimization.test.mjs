@@ -6,6 +6,7 @@ import {
   computeSchedulingScore,
   courseUrgency,
   compareOptimizationStates,
+  isSafeEligibleCandidate,
   scoreTravelDistance,
   scoreOriginalSchedulePreservation,
   scoreGapsAndNewDays
@@ -13,6 +14,7 @@ import {
 import { calculateCourseSchedule, schedulingCourses } from '../frontend/src/screens/course-scheduling-engine.js';
 import { evaluateInstructor, schedulingQualityBand } from '../frontend/src/screens/instructor-matching-engine.js';
 import { routeMatrixKey } from '../frontend/src/screens/course-scheduling-travel.js';
+import { readFileSync } from 'node:fs';
 
 const instructor = (id, name = `מדריך ${id}`) => ({ emp_id: String(id), full_name: name, active: 'yes', address: `כתובת ${id}` });
 const profile = (extra = {}) => ({ gender: 'female', instruction_languages: ['he'], friday_allowed: false, ...extra });
@@ -42,9 +44,25 @@ const course = (id, date = '2026-09-06', extra = {}) => ({
   ...extra
 });
 
-const homeTravel = (courseId, empId, distance_km = 5, duration_minutes = 10) => ({
-  [courseId]: { [empId]: { home: { distance_km, duration_minutes } } }
+const homeTravel = (courseId, empId, distance_km = 5, duration_minutes = 10, returnMinutes = duration_minutes + 2) => ({
+  [courseId]: {
+    [empId]: {
+      home: { distance_km, duration_minutes },
+      homeReturn: { distance_km: distance_km + 0.5, duration_minutes: returnMinutes },
+      transitions: {}
+    }
+  }
 });
+
+function mergeTravel(...parts) {
+  const merged = {};
+  for (const part of parts) {
+    for (const [courseId, byEmp] of Object.entries(part || {})) {
+      merged[courseId] = { ...(merged[courseId] || {}), ...byEmp };
+    }
+  }
+  return merged;
+}
 
 test('score weights total exactly 100 and every component stays in range', () => {
   assert.equal(assertScoreWeightsTotal(), true);
@@ -221,7 +239,7 @@ test('actual workload uses meeting hours, includes approved/drafts/proposed, ign
     profiles: { 1: profile({ weekly_max_hours: 1, weekly_target_hours: 1 }), 2: profile() },
     rules: { 1: multiDayRules, 2: multiDayRules },
     exceptions: {},
-    travel: { ...homeTravel('short', '1', 4, 8), ...homeTravel('short', '2', 4, 8) },
+    travel: mergeTravel(homeTravel('short', '1', 4, 8), homeTravel('short', '2', 4, 8)),
     routeMatrix: {},
     referenceDate: '2026-09-01'
   });
@@ -342,11 +360,11 @@ test('urgent and scarce courses get global priority over higher raw scores', () 
       3: mondayRules
     },
     exceptions: {},
-    travel: {
-      ...homeTravel('urgent', '1', 30, 45),
-      ...homeTravel('relaxed', '2', 2, 5),
-      ...homeTravel('relaxed', '3', 2, 5)
-    },
+    travel: mergeTravel(
+      homeTravel('urgent', '1', 30, 45),
+      homeTravel('relaxed', '2', 2, 5),
+      homeTravel('relaxed', '3', 2, 5)
+    ),
     routeMatrix: {},
     referenceDate: '2026-09-06'
   });
@@ -373,7 +391,7 @@ test('eligibleCandidateCount includes warning/technical/bestAvailable/date-adjus
     },
     rules: { 1: sundayRules, 2: sundayRules, 3: sundayRules },
     exceptions: {},
-    travel: { ...homeTravel('count', '1', 40, 70), ...homeTravel('count', '3', 5, 10) },
+    travel: mergeTravel(homeTravel('count', '1', 40, 70), homeTravel('count', '3', 5, 10)),
     routeMatrix: {},
     referenceDate: '2026-09-01',
     preliminary: true
@@ -400,7 +418,7 @@ test('global optimization maximizes assigned courses before total score', () => 
     profiles: { 1: profile() },
     rules: { 1: sundayRules },
     exceptions: {},
-    travel: { ...homeTravel('a', '1', 2, 4), ...homeTravel('b', '1', 2, 4) },
+    travel: mergeTravel(homeTravel('a', '1', 2, 4), homeTravel('b', '1', 2, 4)),
     routeMatrix: {},
     referenceDate: '2026-09-01'
   });
@@ -412,10 +430,10 @@ test('global optimization maximizes assigned courses before total score', () => 
     profiles: { 1: profile(), 2: profile() },
     rules: { 1: sundayRules, 2: sundayRules },
     exceptions: {},
-    travel: {
-      ...homeTravel('a', '1', 2, 4), ...homeTravel('a', '2', 2, 4),
-      ...homeTravel('b', '1', 2, 4), ...homeTravel('b', '2', 2, 4)
-    },
+    travel: mergeTravel(
+      homeTravel('a', '1', 2, 4), homeTravel('a', '2', 2, 4),
+      homeTravel('b', '1', 2, 4), homeTravel('b', '2', 2, 4)
+    ),
     routeMatrix: {},
     referenceDate: '2026-09-01'
   });
@@ -444,7 +462,7 @@ test('approved and draft courses stay fixed, continue blocking, and do not re-en
     profiles: { 1: profile(), 2: profile() },
     rules: { 1: multiDayRules, 2: multiDayRules },
     exceptions: {},
-    travel: { ...homeTravel('open', '1', 3, 6), ...homeTravel('open', '2', 3, 6) },
+    travel: mergeTravel(homeTravel('open', '1', 3, 6), homeTravel('open', '2', 3, 6)),
     routeMatrix: {},
     referenceDate: '2026-09-01'
   });
@@ -507,10 +525,10 @@ test('deterministic output for identical inputs', () => {
     profiles: { 1: profile(), 2: profile() },
     rules: { 1: multiDayRules, 2: multiDayRules },
     exceptions: {},
-    travel: {
-      ...homeTravel('d1', '1', 5, 10), ...homeTravel('d1', '2', 5, 10),
-      ...homeTravel('d2', '1', 5, 10), ...homeTravel('d2', '2', 5, 10)
-    },
+    travel: mergeTravel(
+      homeTravel('d1', '1', 5, 10), homeTravel('d1', '2', 5, 10),
+      homeTravel('d2', '1', 5, 10), homeTravel('d2', '2', 5, 10)
+    ),
     routeMatrix: {},
     referenceDate: '2026-09-01'
   };
@@ -594,4 +612,385 @@ test('15 minute safety buffer is not double-counted in travel score', () => {
   assert.ok(Number.isFinite(scoredMinutes));
   assert.notEqual(scoredMinutes, 25);
   assert.ok(scoredMinutes < 15 + 10 || scoredMinutes === 0 || scoredMinutes === 4 || scoredMinutes === 8);
+});
+
+test('production-shaped screen input injects referenceDate and classifies urgency bands', () => {
+  // Mirrors course-scheduling.js: referenceDate: today() as YYYY-MM-DD — never rely on system clock here.
+  const referenceDate = '2026-09-10';
+  const within7 = course('prod-7', '2026-09-14');
+  const within14 = course('prod-14', '2026-09-22');
+  const later = course('prod-later', '2026-10-20');
+  const screenShapedInput = {
+    activities: [within7, within14, later],
+    periodKey: 'first',
+    authority: '',
+    instructors: [instructor(1), instructor(2), instructor(3)],
+    profiles: { 1: profile(), 2: profile(), 3: profile() },
+    rules: { 1: multiDayRules, 2: multiDayRules, 3: multiDayRules },
+    exceptions: {},
+    schoolCalendar: [],
+    referenceDate,
+    travel: mergeTravel(
+      homeTravel('prod-7', '1'), homeTravel('prod-7', '2'), homeTravel('prod-7', '3'),
+      homeTravel('prod-14', '1'), homeTravel('prod-14', '2'), homeTravel('prod-14', '3'),
+      homeTravel('prod-later', '1'), homeTravel('prod-later', '2'), homeTravel('prod-later', '3')
+    ),
+    routeMatrix: {}
+  };
+  const results = calculateCourseSchedule(screenShapedInput);
+  const byId = Object.fromEntries(results.map((row) => [row.course.row_id, row]));
+  assert.equal(byId['prod-7'].urgencyBand, 'within_7');
+  assert.equal(byId['prod-14'].urgencyBand, 'within_14');
+  assert.equal(byId['prod-later'].urgencyBand, 'later');
+  for (const row of results) {
+    assert.notEqual(row.urgencyBand, 'none');
+    assert.ok(row.daysUntilNextMeeting != null);
+    assert.notEqual(courseUrgency(row.course, referenceDate).reason, 'missing_reference_date');
+  }
+  assert.match(
+    readFileSync(new URL('../frontend/src/screens/course-scheduling.js', import.meta.url), 'utf8'),
+    /referenceDate:\s*today\(\)|const referenceDate = today\(\)/
+  );
+});
+
+test('solo activity without home route is unsafe in final calculation and safe home stays eligible', () => {
+  const target = course('home-gate', '2026-09-06');
+  const noHome = calculateCourseSchedule({
+    activities: [target],
+    instructors: [instructor(1)],
+    profiles: { 1: profile() },
+    rules: { 1: sundayRules },
+    exceptions: {},
+    travel: { 'home-gate': { 1: { home: null, transitions: {} } } },
+    routeMatrix: {},
+    referenceDate: '2026-09-01'
+  })[0];
+  const unsafe = noHome.checked[0];
+  assert.equal(unsafe.eligible, false);
+  assert.equal(isSafeEligibleCandidate(unsafe, { preliminary: false }), false);
+  assert.equal(noHome.eligibleCandidateCount, 0);
+  assert.equal(noHome.recommended, null);
+  assert.equal(noHome.bestAvailable, null);
+  assert.equal(noHome.alternatives.length, 0);
+
+  const preliminary = calculateCourseSchedule({
+    activities: [target],
+    instructors: [instructor(1)],
+    profiles: { 1: profile() },
+    rules: { 1: sundayRules },
+    exceptions: {},
+    preliminary: true,
+    referenceDate: '2026-09-01'
+  })[0];
+  assert.equal(preliminary.checked[0].eligible, true);
+  assert.equal(isSafeEligibleCandidate(preliminary.checked[0], { preliminary: true }), true);
+
+  const withHome = calculateCourseSchedule({
+    activities: [target],
+    instructors: [instructor(1)],
+    profiles: { 1: profile() },
+    rules: { 1: sundayRules },
+    exceptions: {},
+    travel: homeTravel('home-gate', '1', 4, 8),
+    routeMatrix: {},
+    referenceDate: '2026-09-01'
+  })[0];
+  assert.equal(withHome.checked[0].eligible, true);
+  assert.equal(isSafeEligibleCandidate(withHome.checked[0]), true);
+  assert.ok(withHome.recommended || withHome.bestAvailable);
+});
+
+test('final recommended and alternatives actualWorkload differ across heavy and light peers', () => {
+  const target = course('wl-out', '2026-09-06', {
+    school: 'משותף',
+    school_address: 'משותף 1',
+    authority: 'רשות א'
+  });
+  const heavyApproved = Array.from({ length: 8 }, (_, index) => {
+    const date = new Date(Date.UTC(2026, 8, 7 + index));
+    while (date.getUTCDay() === 6) date.setUTCDate(date.getUTCDate() + 1);
+    return {
+      ...course(`busy-${index}`, date.toISOString().slice(0, 10), {
+        emp_id: '1',
+        school: `עמוס ${index}`,
+        school_address: `עמוס ${index}`,
+        authority: 'רשות ב',
+        start_time: '08:00',
+        end_time: '12:00',
+        meetings: [{ date: date.toISOString().slice(0, 10), start_time: '08:00', end_time: '12:00' }]
+      })
+    };
+  });
+  const result = calculateCourseSchedule({
+    activities: [target, ...heavyApproved],
+    instructors: [instructor(1, 'עמוסה'), instructor(2, 'פנויה')],
+    profiles: { 1: profile(), 2: profile() },
+    rules: { 1: multiDayRules, 2: multiDayRules },
+    exceptions: {},
+    travel: mergeTravel(homeTravel('wl-out', '1', 5, 10), homeTravel('wl-out', '2', 5, 10)),
+    routeMatrix: {},
+    referenceDate: '2026-09-01'
+  })[0];
+  const primary = result.recommended || result.bestAvailable;
+  assert.ok(primary, 'expected a primary recommendation');
+  assert.ok(result.alternatives.length >= 1, 'expected an alternative peer');
+  const alt = result.alternatives[0];
+  const primaryLoad = primary.scoreBreakdown.actualWorkload.points;
+  const altLoad = alt.scoreBreakdown.actualWorkload.points;
+  assert.ok(primaryLoad >= 0 && primaryLoad <= 20);
+  assert.ok(altLoad >= 0 && altLoad <= 20);
+  assert.notEqual(primaryLoad, altLoad, 'recommended/alternatives must reflect real peer workload comparison');
+  const light = [primary, alt].find((row) => row.instructor.emp_id === '2');
+  const heavy = [primary, alt].find((row) => row.instructor.emp_id === '1');
+  assert.ok(light && heavy);
+  assert.ok(light.scoreBreakdown.actualWorkload.points > heavy.scoreBreakdown.actualWorkload.points);
+});
+
+test('scarcer eligible count (2) beats abundant eligible count (10) when earlier objectives tie', () => {
+  const preferMissAbundant = compareOptimizationStates(
+    {
+      assignedCount: 1, urgency7Missed: 0, urgency14Missed: 0,
+      scarcityMissedByCount: [, , 0, , , , , , , , 1],
+      sameSchoolCount: 0, sameAuthorityCount: 0, totalTravelMinutes: 0, totalNonTravelWaiting: 0,
+      newWorkDaysOpened: 0, workloadVariance: 0, totalShiftDays: 0, totalScore: 50,
+      tieProjectedHours: 0, tieTravel: 0, tieNewDays: 0, tieMovedMeetings: 0, tieEmpId: 'x'
+    },
+    {
+      assignedCount: 1, urgency7Missed: 0, urgency14Missed: 0,
+      scarcityMissedByCount: [, , 1],
+      sameSchoolCount: 0, sameAuthorityCount: 0, totalTravelMinutes: 0, totalNonTravelWaiting: 0,
+      newWorkDaysOpened: 0, workloadVariance: 0, totalShiftDays: 0, totalScore: 50,
+      tieProjectedHours: 0, tieTravel: 0, tieNewDays: 0, tieMovedMeetings: 0, tieEmpId: 'y'
+    }
+  );
+  // Prefer missing the 10-candidate course over missing the 2-candidate course.
+  assert.ok(preferMissAbundant < 0);
+
+  const sharedDate = '2026-09-06';
+  const slot = { start_time: '10:00', end_time: '11:00', meetings: [{ date: sharedDate, start_time: '10:00', end_time: '11:00' }] };
+  // Two specialists, three same-slot courses: max assignments = 2.
+  // Prefer assigning the two 1-eligible courses and leaving the 2-eligible course unassigned
+  // (missing count-2 is better than missing count-1). The 2-vs-10 lexicographic case is covered above.
+  const oneA = course('one-a', sharedDate, { school: 'א', school_address: 'א 1', ...slot });
+  const oneB = course('one-b', sharedDate, { school: 'ב', school_address: 'ב 1', ...slot });
+  const two = course('two', sharedDate, { school: 'ג', school_address: 'ג 1', ...slot });
+  const results = calculateCourseSchedule({
+    activities: [oneA, oneB, two],
+    instructors: [instructor('i1'), instructor('i2')],
+    profiles: { i1: profile(), i2: profile() },
+    rules: { i1: sundayRules, i2: sundayRules },
+    exceptions: {},
+    travel: mergeTravel(
+      homeTravel('one-a', 'i1'),
+      homeTravel('one-b', 'i2'),
+      homeTravel('two', 'i1'),
+      homeTravel('two', 'i2')
+    ),
+    routeMatrix: {},
+    referenceDate: '2026-09-01'
+  });
+  const byId = Object.fromEntries(results.map((row) => [row.course.row_id, row]));
+  assert.equal(byId['one-a'].eligibleCandidateCount, 1);
+  assert.equal(byId['one-b'].eligibleCandidateCount, 1);
+  assert.equal(byId['two'].eligibleCandidateCount, 2);
+  assert.ok(byId['one-a'].recommended || byId['one-a'].bestAvailable);
+  assert.ok(byId['one-b'].recommended || byId['one-b'].bestAvailable);
+  assert.equal(byId['two'].recommended || byId['two'].bestAvailable, null);
+});
+
+test('branch-and-bound keeps max assignments when intermediate states exceed old beam width of 200', () => {
+  const engineSource = readFileSync(new URL('../frontend/src/screens/course-scheduling-engine.js', import.meta.url), 'utf8');
+  assert.doesNotMatch(engineSource, /\.slice\(\s*0\s*,\s*200\s*\)/);
+
+  // Adversarial for old beam (.slice(0, 200)):
+  // - Hub is within_7 so it is ordered before later exclusive courses.
+  // - 201 hub candidates expand to >200 states; beam keeps assigned hub states and drops the
+  //   unassigned branch that alone reaches the true maximum (2 exclusive courses per instructor).
+  // - Exclusive courses conflict with the hub's later meetings (Sep 20–21).
+  // Precomputed maps avoid an O(courses×instructors) preprocess blow-up while still running the
+  // real assignment search (which re-evaluates candidates along each branch).
+  const instructorCount = 201;
+  const instructors = Array.from({ length: instructorCount }, (_, index) => instructor(`i${index + 1}`));
+  const profiles = Object.fromEntries(instructors.map((row) => [row.emp_id, profile()]));
+  const weekRules = [
+    { weekday: 0, available: true, start_time: '08:00', end_time: '16:00' },
+    { weekday: 1, available: true, start_time: '08:00', end_time: '16:00' }
+  ];
+  const rules = Object.fromEntries(instructors.map((row) => [row.emp_id, weekRules]));
+  const hub = course('hub-early', '2026-09-06', {
+    school: 'מוקד',
+    school_address: 'מוקד 1',
+    meetings: [
+      { date: '2026-09-06', start_time: '10:00', end_time: '11:00' },
+      { date: '2026-09-07', start_time: '10:00', end_time: '11:00' },
+      { date: '2026-09-20', start_time: '10:00', end_time: '11:00' },
+      { date: '2026-09-21', start_time: '10:00', end_time: '11:00' }
+    ],
+    date_1: '2026-09-06',
+    date_2: '2026-09-07',
+    date_3: '2026-09-20',
+    date_4: '2026-09-21'
+  });
+  const laterCourses = [];
+  const travel = { 'hub-early': {} };
+  for (const row of instructors) {
+    travel['hub-early'][row.emp_id] = {
+      home: { distance_km: 3, duration_minutes: 6 },
+      homeReturn: { distance_km: 3.5, duration_minutes: 8 },
+      transitions: {}
+    };
+  }
+  for (let index = 0; index < instructorCount; index += 1) {
+    const empId = `i${index + 1}`;
+    const aId = `zz-L${String(index + 1).padStart(3, '0')}a`;
+    const bId = `zz-L${String(index + 1).padStart(3, '0')}b`;
+    laterCourses.push(course(aId, '2026-09-20', {
+      school: `לא-${index + 1}-א`,
+      school_address: `לא ${index + 1} א`,
+      meetings: [{ date: '2026-09-20', start_time: '10:00', end_time: '11:00' }]
+    }));
+    laterCourses.push(course(bId, '2026-09-21', {
+      school: `לא-${index + 1}-ב`,
+      school_address: `לא ${index + 1} ב`,
+      meetings: [{ date: '2026-09-21', start_time: '10:00', end_time: '11:00' }]
+    }));
+    const leg = {
+      home: { distance_km: 3, duration_minutes: 6 },
+      homeReturn: { distance_km: 3.5, duration_minutes: 8 },
+      transitions: {}
+    };
+    travel[aId] = { [empId]: leg };
+    travel[bId] = { [empId]: { ...leg } };
+  }
+
+  const stub = (instructorRow, eligibleCount, urgency) => ({
+    instructor: instructorRow,
+    eligible: true,
+    score: 40,
+    failures: [],
+    missingProfileData: [],
+    warnings: [],
+    requiresHomeRoute: false,
+    projectedHalfHours: 1,
+    currentHalfHours: 0,
+    eligibleCandidateCount: eligibleCount,
+    rank: 1,
+    urgencyBand: urgency.urgencyBand,
+    daysUntilNextMeeting: urgency.daysUntilNextMeeting,
+    nextUpcomingMeetingDate: urgency.nextUpcomingMeetingDate
+  });
+
+  const referenceDate = '2026-09-01';
+  const hubUrgency = courseUrgency(hub, referenceDate);
+  const maps = new Map();
+  maps.set('hub-early', instructors.map((row) => stub(row, instructorCount, hubUrgency)));
+  for (let index = 0; index < instructorCount; index += 1) {
+    const a = laterCourses[index * 2];
+    const b = laterCourses[index * 2 + 1];
+    const urgencyA = courseUrgency(a, referenceDate);
+    const urgencyB = courseUrgency(b, referenceDate);
+    maps.set(a.row_id, [stub(instructors[index], 1, urgencyA)]);
+    maps.set(b.row_id, [stub(instructors[index], 1, urgencyB)]);
+  }
+  const urgencyByCourse = new Map([['hub-early', hubUrgency]]);
+  for (const row of laterCourses) urgencyByCourse.set(row.row_id, courseUrgency(row, referenceDate));
+
+  // Model the old beam cut at the hub course: >200 assigned children drop the unassigned max path.
+  const oldBeamHubStates = [
+    { assignedCount: 0, skippedHub: true },
+    ...instructors.map((_, index) => ({ assignedCount: 1, skippedHub: false, index }))
+  ]
+    .sort((left, right) => right.assignedCount - left.assignedCount || (left.index || 0) - (right.index || 0))
+    .slice(0, 200);
+  assert.equal(oldBeamHubStates.length, 200);
+  assert.equal(oldBeamHubStates.some((state) => state.skippedHub), false);
+
+  const results = calculateCourseSchedule({
+    activities: [hub, ...laterCourses],
+    instructors,
+    profiles,
+    rules,
+    exceptions: {},
+    travel,
+    routeMatrix: {},
+    referenceDate,
+    precomputedCandidateMaps: { output: maps, urgencyByCourse }
+  });
+  const assigned = results.filter((row) => row.recommended || row.bestAvailable).length;
+  assert.equal(assigned, instructorCount * 2);
+  assert.equal(
+    results.find((row) => row.course.row_id === 'hub-early').recommended
+      || results.find((row) => row.course.row_id === 'hub-early').bestAvailable,
+    null
+  );
+});
+
+test('home return is scored for solo and last-of-day, not mid-day, and daily travel sums legs', () => {
+  const solo = evaluateInstructor({
+    instructor: instructor(1),
+    profile: profile(),
+    rules: sundayRules,
+    activity: course('solo-day', '2026-09-06', { school_address: 'יעד 1' }),
+    existingActivities: [],
+    travel: {
+      home: { distance_km: 5, duration_minutes: 10 },
+      homeReturn: { distance_km: 6, duration_minutes: 12 },
+      transitions: {}
+    }
+  });
+  assert.equal(solo.relevantTravelMinutes, 22);
+  assert.equal(solo.dailyTravelMinutes, 22);
+  assert.ok(solo.scoreBreakdown.travelDistance.duration_minutes === 22);
+
+  const firstWithNext = evaluateInstructor({
+    instructor: instructor(1),
+    profile: profile(),
+    rules: sundayRules,
+    activity: course('first', '2026-09-06', {
+      school: 'יעד',
+      school_address: 'יעד 1',
+      start_time: '10:00',
+      end_time: '11:00',
+      meetings: [{ date: '2026-09-06', start_time: '10:00', end_time: '11:00' }]
+    }),
+    existingActivities: [
+      { date: '2026-09-06', start_time: '12:00', end_time: '13:00', school: 'הבא', school_address: 'הבא 1' }
+    ],
+    travel: {
+      home: { distance_km: 5, duration_minutes: 10 },
+      homeReturn: { distance_km: 6, duration_minutes: 12 },
+      transitions: {
+        '2026-09-06': { next: { distance_km: 2, duration_minutes: 7 } }
+      }
+    }
+  });
+  assert.equal(firstWithNext.relevantTravelMinutes, 17);
+  assert.ok(firstWithNext.relevantTravelMinutes < 10 + 12, 'must not charge home return mid-day');
+
+  const lastWithPrev = evaluateInstructor({
+    instructor: instructor(1),
+    profile: profile(),
+    rules: sundayRules,
+    activity: course('last', '2026-09-06', {
+      school: 'יעד',
+      school_address: 'יעד 1',
+      start_time: '12:00',
+      end_time: '13:00',
+      meetings: [{ date: '2026-09-06', start_time: '12:00', end_time: '13:00' }]
+    }),
+    existingActivities: [
+      { date: '2026-09-06', start_time: '08:00', end_time: '09:00', school: 'קודם', school_address: 'קודם 1' }
+    ],
+    travel: {
+      home: { distance_km: 40, duration_minutes: 70 },
+      homeReturn: { distance_km: 6, duration_minutes: 12 },
+      transitions: {
+        '2026-09-06': { previous: { distance_km: 3, duration_minutes: 8 } }
+      }
+    }
+  });
+  assert.equal(lastWithPrev.relevantTravelMinutes, 20);
+  assert.ok(lastWithPrev.relevantTravelMinutes < 70, 'arrival uses previous activity, not home');
+  // +15 safety buffer is operational only and must not appear in the scored minute total.
+  assert.notEqual(lastWithPrev.scoreBreakdown.travelDistance.duration_minutes, 20 + 15);
 });

@@ -149,11 +149,12 @@ export function evaluateInstructor({
   }
 
   let genderCheck = checkResult(null, 'מגדר', 'לא נבדק');
-  if (requiredGender === 'any') {
-    genderCheck = checkResult(true, 'ללא דרישת מגדר', '');
-  } else if (!profileGender) {
+  // Gender is always required on the profile, even when the activity accepts any gender.
+  if (!profileGender) {
     missingProfileData.push('לא ניתן לאמת התאמה לדרישת המגדר');
     genderCheck = checkResult(false, 'לא ניתן לאמת התאמה לדרישת המגדר', 'חסר מגדר בפרופיל');
+  } else if (requiredGender === 'any') {
+    genderCheck = checkResult(true, 'ללא דרישת מגדר', '');
   } else if (profileGender !== requiredGender) {
     const reason = requiredGender === 'female' ? 'הקורס דורש מדריכה' : 'הקורס דורש מדריך';
     failures.push(reason);
@@ -220,6 +221,15 @@ export function evaluateInstructor({
       else if (required != null && gap < required) addIssue('insufficient_transition', `${direction}-${required}-${gap}`, `אין זמן מעבר מספיק ${label} (${gap} דקות זמינות, ${required} דקות נסיעה)`, meeting.date);
     };
     if (validateTravel) {
+      // When a travel payload is present (final calculation), the first/only activity of the day
+      // requires a reliable home→activity route. Calls without travel keep distance informational.
+      if (!previous && travel != null) {
+        const home = travel?.home;
+        const homeOk = home
+          && Number.isFinite(Number(home.duration_minutes))
+          && Number.isFinite(Number(home.distance_km));
+        if (!homeOk) addIssue('unverified_transition', 'home', 'לא ניתן לאמת מסלול נסיעה מהבית לפעילות', meeting.date);
+      }
       inspect(previous, transition.previous, 'previous');
       inspect(next, transition.next, 'next');
     }
