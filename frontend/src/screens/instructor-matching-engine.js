@@ -7,17 +7,15 @@ export const DEFAULT_SCHEDULING_PROFILE = Object.freeze({
   friday_allowed: false,
   default_start_time: '08:00',
   default_end_time: '15:00',
-  weekly_target_hours: null,
-  weekly_max_hours: null,
-  education_levels: [],
-  course_restriction_mode: 'all',
-  course_ids: [],
-  blocked_authorities: [],
-  blocked_schools: [],
   matching_note: null,
-  preferred_work_days: null,
-  max_fixed_courses: null
 });
+
+export function schedulingQualityBand(score, eligible = true) {
+  if (!eligible || !Number.isFinite(Number(score))) return null;
+  if (Number(score) >= 60) return { qualityBand: 'recommended', qualityLabel: 'מומלץ' };
+  if (Number(score) >= 40) return { qualityBand: 'warning', qualityLabel: 'מתאים עם אזהרה' };
+  return { qualityBand: 'technical', qualityLabel: 'מתאים טכנית בלבד' };
+}
 
 export function normalizeGender(value) {
   const raw = String(value ?? '').trim();
@@ -36,11 +34,7 @@ export function normalizeSchedulingProfile(profile = {}) {
     ...DEFAULT_SCHEDULING_PROFILE,
     ...(profile || {}),
     gender: gender === 'any' ? null : gender,
-    instruction_languages: Array.isArray(profile?.instruction_languages) ? profile.instruction_languages : [],
-    education_levels: Array.isArray(profile?.education_levels) ? profile.education_levels : [],
-    course_ids: Array.isArray(profile?.course_ids) ? profile.course_ids : [],
-    blocked_authorities: Array.isArray(profile?.blocked_authorities) ? profile.blocked_authorities : [],
-    blocked_schools: Array.isArray(profile?.blocked_schools) ? profile.blocked_schools : []
+    instruction_languages: Array.isArray(profile?.instruction_languages) ? profile.instruction_languages : []
   };
 }
 
@@ -56,20 +50,6 @@ function normText(value) {
 
 function normId(value) {
   return String(value ?? '').trim();
-}
-
-function listHasNormalized(list, value, normalize = normId) {
-  const wanted = normalize(value);
-  if (!wanted) return false;
-  return (Array.isArray(list) ? list : []).some((entry) => normalize(entry) === wanted);
-}
-
-function courseKey(activity = {}) {
-  return normId(activity.catalog_slug) || normId(activity.activity_no) || normId(activity.proposal_item_id) || normId(activity.row_id) || normId(activity.activity_name);
-}
-
-function educationLevel(activity = {}) {
-  return normId(activity.education_level);
 }
 
 function meetingRows(activity) {
@@ -144,43 +124,6 @@ export function evaluateInstructor({
   if (String(instructor.active ?? 'yes').toLowerCase() === 'no' || instructor.active === false) failures.push('המדריך אינו פעיל');
   if (!String(instructor.address || '').trim()) missingProfileData.push('כתובת');
 
-  const empId = normId(instructor.emp_id);
-  const blockedInstructorIds = Array.isArray(activity.blocked_instructor_ids) ? activity.blocked_instructor_ids : [];
-  const allowedInstructorIds = Array.isArray(activity.allowed_instructor_ids) ? activity.allowed_instructor_ids : [];
-  let courseEligibilityCheck = checkResult(true, 'הרשאות קורס ופעילות', '');
-  if (listHasNormalized(blockedInstructorIds, empId, normId)) {
-    failures.push('המדריך חסום לפעילות זו');
-    courseEligibilityCheck = checkResult(false, 'המדריך חסום לפעילות זו', 'חסימה בפעילות גוברת על הרשאות אחרות');
-  } else if (allowedInstructorIds.length && !listHasNormalized(allowedInstructorIds, empId, normId)) {
-    failures.push('הפעילות מוגבלת לרשימת מדריכים אחרת');
-    courseEligibilityCheck = checkResult(false, 'הפעילות מוגבלת לרשימת מדריכים אחרת', 'המדריך אינו ברשימת המותרים לפעילות');
-  }
-
-  const mode = normId(profile.course_restriction_mode || 'all');
-  const key = courseKey(activity);
-  if (!mode) {
-    missingProfileData.push('חסר מידע על הכשרות הקורס בפרופיל המדריך');
-    courseEligibilityCheck = checkResult(false, 'חסר מידע על הכשרות הקורס בפרופיל המדריך', 'חסר מצב הגבלת קורסים');
-  } else if (mode === 'allow_only') {
-    if (!key || !profile.course_ids.length) {
-      missingProfileData.push('חסר מידע על הכשרות הקורס בפרופיל המדריך');
-      courseEligibilityCheck = checkResult(false, 'חסר מידע על הכשרות הקורס בפרופיל המדריך', 'נדרשת רשימת קורסים מותרים');
-    } else if (!listHasNormalized(profile.course_ids, key, normId)) {
-      failures.push('אינו מורשה להעביר את הקורס');
-      courseEligibilityCheck = checkResult(false, 'אינו מורשה להעביר את הקורס', 'הקורס אינו ברשימת הקורסים המותרים למדריך');
-    }
-  } else if (mode === 'block_selected' && key && listHasNormalized(profile.course_ids, key, normId)) {
-    failures.push('אינו מורשה להעביר את הקורס');
-    courseEligibilityCheck = checkResult(false, 'אינו מורשה להעביר את הקורס', 'הקורס נמצא ברשימת הקורסים החסומים למדריך');
-  }
-
-  if (listHasNormalized(profile.blocked_authorities, activity.authority_id, normText) || listHasNormalized(profile.blocked_authorities, activity.authority, normText)) {
-    failures.push('חסום ברשות זו');
-  }
-  if (listHasNormalized(profile.blocked_schools, activity.school_id, normText) || listHasNormalized(profile.blocked_schools, activity.school, normText)) {
-    failures.push('חסום בבית ספר זה');
-  }
-
   let languageCheck = checkResult(null, 'שפה', 'לא נבדק');
   if (!profile.instruction_languages.length) {
     missingProfileData.push('לא ניתן לאמת שפת הדרכה');
@@ -191,18 +134,6 @@ export function evaluateInstructor({
     languageCheck = checkResult(false, `${LANGUAGE_LABELS[language] || instructionLanguageLabel(language)} - לא מתאים`, `${reason}: נדרשת ${LANGUAGE_LABELS[language] || instructionLanguageLabel(language)}`);
   } else {
     languageCheck = checkResult(true, `${LANGUAGE_LABELS[language] || instructionLanguageLabel(language)} - מתאים`, '');
-  }
-
-  let educationLevelCheck = checkResult(true, 'רמת חינוך', '');
-  const requiredEducationLevel = educationLevel(activity);
-  if (requiredEducationLevel) {
-    if (!profile.education_levels.length) {
-      missingProfileData.push('לא ניתן לאמת התאמה לרמת החינוך');
-      educationLevelCheck = checkResult(false, 'לא ניתן לאמת התאמה לרמת החינוך', 'חסרות רמות חינוך בפרופיל');
-    } else if (!listHasNormalized(profile.education_levels, requiredEducationLevel, normId)) {
-      failures.push('אינו מתאים לרמת החינוך של הפעילות');
-      educationLevelCheck = checkResult(false, 'אינו מתאים לרמת החינוך של הפעילות', `נדרשת רמת חינוך ${requiredEducationLevel}`);
-    }
   }
 
   let genderCheck = checkResult(null, 'מגדר', 'לא נבדק');
@@ -370,8 +301,6 @@ export function evaluateInstructor({
     language: languageCheck,
     availability: availabilityCheck,
     travel: travelCheck,
-    courseEligibility: courseEligibilityCheck,
-    educationLevel: educationLevelCheck,
     notes: checkResult(true, 'הערות', [activity.scheduling_note, profile.matching_note].filter(Boolean).join(' · '))
   };
 
@@ -401,7 +330,6 @@ export function evaluateInstructor({
     if (travel?.home?.distance_km != null && Number.isFinite(Number(travel.home.distance_km))) {
       const km = Number(travel.home.distance_km);
       scoreReasons.push(`${Math.round(km)} ק״מ מהבית, ${Math.round(Number(travel.home.duration_minutes) || 0)} דקות נסיעה`);
-      if (km > 40 && !sameSchool && !sameAuthority) failures.push('הפעילות הראשונה ביום רחוקה יותר מ-40 ק״מ מהבית');
       distancePoints = Math.max(0, 40 - km);
     } else {
       scoreReasons.push('המרחק טרם חושב');
@@ -426,14 +354,16 @@ export function evaluateInstructor({
         continuity: { points: roundedContinuity, label: continuityLabel },
         workload: { points: roundedWorkload, label: 'עומס וחלוקה שוויונית', totalHoursPoints: workloadBreakdown.totalHoursPoints, courseWeeksPoints: workloadBreakdown.courseWeeksPoints, totalHours: workloadBreakdown.totalHours, courseWeeksHours: workloadBreakdown.courseWeeksHours },
         seniority: { points: roundedSeniority, label: 'ותק' },
-        gateNote: 'הרשאות מקצועיות, זמינות, שפה, מגדר ורמת חינוך הם תנאי סף ואינם מוסיפים נקודות.'
+        gateNote: 'פעילות, כתובת, זמינות, שפה ומגדר כאשר נדרש הם תנאי סף ואינם מוסיפים נקודות.'
       };
     }
   }
 
+  const eligible = !failures.length && !missingProfileData.length;
   return {
-    eligible: !failures.length && !missingProfileData.length,
+    eligible,
     score,
+    ...schedulingQualityBand(score, eligible),
     failures: [...new Set(failures)],
     missingProfileData: [...new Set(missingProfileData)],
     warnings: [...new Set(warnings)],
@@ -466,8 +396,8 @@ export function rankInstructors(input) {
     })
   }));
   return {
-    recommended: candidates.filter((candidate) => candidate.eligible && !candidate.warnings.length).sort((a, b) => b.score - a.score),
-    exceptions: candidates.filter((candidate) => candidate.eligible && candidate.warnings.length).sort((a, b) => b.score - a.score),
+    recommended: candidates.filter((candidate) => candidate.qualityBand === 'recommended' && !candidate.warnings.length).sort((a, b) => b.score - a.score),
+    exceptions: candidates.filter((candidate) => candidate.eligible && (candidate.qualityBand !== 'recommended' || candidate.warnings.length)).sort((a, b) => b.score - a.score),
     incomplete: candidates.filter((candidate) => !candidate.failures.length && candidate.missingProfileData.length),
     rejected: candidates.filter((candidate) => candidate.failures.length)
   };

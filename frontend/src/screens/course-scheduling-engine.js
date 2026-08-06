@@ -1,4 +1,4 @@
-import { evaluateInstructor, adjacentActivities } from './instructor-matching-engine.js';
+import { evaluateInstructor, adjacentActivities, schedulingQualityBand } from './instructor-matching-engine.js';
 import { activityMeetings, isoWeekKey } from './instructor-scheduling-load.js';
 import { routeMatrixKey } from './course-scheduling-travel.js';
 import { isActivitySchedulingEligible, isSchedulingBlockingAssignment, isSchedulingDraftAssignment } from './shared/activity-scheduling-eligibility.js';
@@ -230,6 +230,7 @@ function applyWorkloadPoints(candidates = [], course = {}, periodKey = DEFAULT_C
     return {
       ...candidate,
       score: Math.round(baseWithoutWorkload + workload.points),
+      ...schedulingQualityBand(Math.round(baseWithoutWorkload + workload.points), true),
       workloadPoints: workload,
       scoreBreakdown: candidate.scoreBreakdown ? { ...candidate.scoreBreakdown, workload: { ...candidate.scoreBreakdown.workload, ...workload, points: Math.round(workload.points) } } : candidate.scoreBreakdown
     };
@@ -402,25 +403,31 @@ export function calculateCourseSchedule(input = {}) {
 
     const checked = maps.get(id) || [];
     const selected = bestState.draft.get(id) || null;
-    const recommended = selected ? refreshCandidate(course, selected.instructor) : null;
+    const selectedCandidate = selected ? refreshCandidate(course, selected.instructor) : null;
+    const recommended = selectedCandidate?.score >= 60 ? selectedCandidate : null;
+    const bestAvailable = recommended ? null : selectedCandidate;
+    const primary = recommended || bestAvailable;
     const alternatives = checked
-      .filter((candidate) => candidate.eligible && text(candidate.instructor.emp_id) !== text(recommended?.instructor?.emp_id))
+      .filter((candidate) => candidate.eligible && text(candidate.instructor.emp_id) !== text(primary?.instructor?.emp_id))
       .map((candidate) => refreshCandidate(course, candidate.instructor))
       .filter((candidate) => candidate.eligible)
       .sort((first, second) => second.score - first.score)
-      .slice(0, 3);
+      .slice(0, bestAvailable ? 2 : 3);
     const incompleteProfiles = checked.filter((candidate) => !candidate.failures.length && candidate.missingProfileData.length);
 
     return {
       course,
       status: recommended
         ? (recommended.warnings.length ? 'נדרש טיפול' : 'הצעה מוכנה')
-        : incompleteProfiles.length ? 'נדרש טיפול' : 'נדרש גיוס',
+        : bestAvailable || incompleteProfiles.length ? 'נדרש טיפול' : 'נדרש גיוס',
       recommended,
+      bestAvailable,
       alternatives,
       checked,
       incompleteProfiles,
-      treatmentReason: !recommended && incompleteProfiles.length
+      treatmentReason: bestAvailable
+        ? 'נמצאו מדריכים שעומדים בתנאי הסף, אך הציון שלהם נמוך מסף ההמלצה.'
+        : !recommended && incompleteProfiles.length
         ? 'לא ניתן להשלים את בדיקת השיבוץ משום שחסרים נתונים בפרופילי מדריכים.'
         : !recommended ? primaryRejectionReason(checked) : ''
     };
