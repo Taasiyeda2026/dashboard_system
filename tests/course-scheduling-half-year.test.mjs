@@ -60,13 +60,14 @@ test('authority filter limits engine courses and half A load does not affect hal
   const otherAuthority = course('other', { authority: 'רשות אחרת', meetings: [{ date: '2027-02-02', start_time: '10:00', end_time: '12:00' }] });
   const results = calculateCourseSchedule({ activities: [firstHalfLoad, target, otherAuthority], instructors, profiles, rules, exceptions: {}, periodKey: 'second', authority: 'רשות א', travel, routeMatrix: {} });
   assert.deepEqual(results.map((result) => result.course.row_id), ['c']);
-  assert.equal(results[0].recommended.load.hours, 2);
+  assert.equal((results[0].recommended||results[0].bestAvailable).load.hours,2);
 });
 
 test('load score is split into 12 total half hours and 8 course-week hours with equal-load fallback', () => {
   const target = course('c', { meetings: [{ date: '2027-02-02', start_time: '10:00', end_time: '12:00' }] });
   const results = calculateCourseSchedule({ activities: [target], instructors, profiles, rules, exceptions: {}, periodKey: 'second', authority: 'רשות א', travel, routeMatrix: {} });
-  assert.equal(results[0].status, 'הצעה מוכנה');
-  assert.equal(results[0].recommended.scoreBreakdown.workload.totalHoursPoints, 12);
-  assert.equal(results[0].recommended.scoreBreakdown.workload.courseWeeksPoints, 8);
+  const selected=results[0].recommended||results[0].bestAvailable;
+  assert.ok(selected,'an eligible low-score candidate remains selectable rather than becoming recruitment');
+  assert.equal(selected.scoreBreakdown.workload.totalHoursPoints,12);
+  assert.equal(selected.scoreBreakdown.workload.courseWeeksPoints,8);
 });

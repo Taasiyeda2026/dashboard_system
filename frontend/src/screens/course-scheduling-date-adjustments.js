@@ -27,7 +27,11 @@ export function proposeDateAdjustments({ meetings = [], rules = [], exceptions =
   const ordered = meetings.map((meeting) => ({ ...meeting, date: text(meeting.date) }));
   const firstBlocked = ordered.findIndex((meeting) => {
     const exception = exceptionMap.get(meeting.date);
-    return exception?.available === false && weeklyAllows(meeting, rules);
+    if (!exception || !weeklyAllows(meeting, rules)) return false;
+    return exception.available === false
+      || !exception.start_time || !exception.end_time
+      || minutes(meeting.start_time) < minutes(exception.start_time)
+      || minutes(meeting.end_time) > minutes(exception.end_time);
   });
   if (firstBlocked < 0) return null;
 
@@ -59,6 +63,7 @@ export function proposeDateAdjustments({ meetings = [], rules = [], exceptions =
       if (!neighbor) continue;
       if (neighbor.duration_minutes == null) return { valid: false, reason: 'transition_unverified', meetings: proposed };
       const gap = direction === 'previous' ? minutes(meeting.start_time) - minutes(neighbor.end_time) : minutes(neighbor.start_time) - minutes(meeting.end_time);
+      // Route durations are raw travel times. This is the sole safety-buffer source.
       if (gap < Number(neighbor.duration_minutes) + 15) return { valid: false, reason: 'transition_insufficient', meetings: proposed };
     }
   }

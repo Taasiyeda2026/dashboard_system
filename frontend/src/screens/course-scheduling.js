@@ -367,7 +367,7 @@ function dateAdjustmentHtml(candidate) {
   return `<details class="course-scheduling-details course-scheduling-date-adjustment">
     <summary>${escapeHtml(adjustment.label)} · ${adjustment.movedCount} מפגשים יוזזו · סיום חדש ${escapeHtml(formatDateHe(adjustment.newEndDate))}</summary>
     <p>${escapeHtml(adjustment.reason)}. המועדים טרם נשמרו ואינם מהווים אישור.</p>
-    ${adjustment.exceedsHalf ? '<p class="scheduling-warning"><b>אזהרה:</b> מועד הסיום המוצע חורג מהמחצית. השמירה לאחר האזהרה מהווה אישור לחריגה.</p>' : ''}
+    ${adjustment.exceedsHalf ? '<p class="scheduling-warning"><b>אזהרה:</b> מועד הסיום המוצע חורג מהמחצית. שמירת טיוטה אינה מאשרת את החריגה; אישור סופי ידרוש אישור מפורש.</p>' : ''}
     <ul>${adjustment.meetings.filter((meeting) => meeting.moved).map((meeting) => `<li>${escapeHtml(formatDateHe(meeting.original_date))} ← ${escapeHtml(formatDateHe(meeting.date))}</li>`).join('')}</ul>
   </details>`;
 }
@@ -1245,9 +1245,13 @@ export const courseSchedulingScreen = {
         reason = window.prompt('יש להזין נימוק קצר לבחירה הידנית:')?.trim();
         if (!reason) return;
       }
-      if (!window.confirm(`לשבץ את ${selected.instructor.full_name} לקורס ${result.course.activity_name}?`)) return;
+      const adjustment = selected.dateAdjustment;
+      const approvalMessage = adjustment?.exceedsHalf
+        ? `המועדים המוצעים חורגים מהמחצית ומסתיימים בתאריך ${formatDateHe(adjustment.newEndDate)}. לאשר סופית את שינוי המועדים ואת שיבוץ ${selected.instructor.full_name}?`
+        : `לשבץ את ${selected.instructor.full_name} לקורס ${result.course.activity_name}?`;
+      if (!window.confirm(approvalMessage)) return;
       updateCandidateActions(true);
-      const proposedMeetings = selected.dateAdjustment?.meetings?.map(({ date, start_time, end_time }) => ({ date, start_time, end_time })) || null;
+      const proposedMeetings = adjustment?.meetings?.map(({ date }) => ({ date })) || null;
       const { error } = await supabase.rpc(proposedMeetings ? 'assign_activity_instructor_with_dates' : 'assign_activity_instructor', {
         p_activity_id: selectedCourseId,
         p_emp_id: Number(selectedId),
@@ -1278,7 +1282,7 @@ export const courseSchedulingScreen = {
       const blockReason = actionDisabledReason({ candidate: selected, canEdit });
       if (blockReason) { showToast(blockReason, 'error'); updateCandidateActions(false); return; }
       updateCandidateActions(true);
-      const proposedMeetings = selected.dateAdjustment?.meetings?.map(({ date, start_time, end_time }) => ({ date, start_time, end_time })) || null;
+      const proposedMeetings = selected.dateAdjustment?.meetings?.map(({ date }) => ({ date })) || null;
       const { error } = await supabase.rpc(proposedMeetings ? 'save_course_assignment_draft_with_dates' : 'save_course_assignment_draft', {
         p_activity_id: selectedCourseId,
         p_emp_id: Number(selectedId),
@@ -1296,10 +1300,16 @@ export const courseSchedulingScreen = {
 
     detailRoot.querySelector('[data-confirm-draft]')?.addEventListener('click', async (event) => {
       if (!canEdit || !selectedCourse) return;
-      if (!window.confirm(`לאשר את שיבוץ ${selectedCourse.draft_instructor_name}?`)) return;
+      const proposedMeetings = Array.isArray(selectedCourse.draft_proposed_meetings) ? selectedCourse.draft_proposed_meetings : null;
+      const proposedEnd = proposedMeetings?.at(-1)?.date || '';
+      const halfEnd = resolveCourseSchedulingPeriod(selectedPeriodKey(state))?.end || '';
+      const exceedsHalf = !!proposedEnd && !!halfEnd && proposedEnd > halfEnd;
+      const approvalMessage = exceedsHalf
+        ? `המועדים המוצעים חורגים מהמחצית ומסתיימים בתאריך ${formatDateHe(proposedEnd)}. לאשר סופית את שינוי המועדים ואת שיבוץ ${selectedCourse.draft_instructor_name}?`
+        : `לאשר את שיבוץ ${selectedCourse.draft_instructor_name}?`;
+      if (!window.confirm(approvalMessage)) return;
       event.target.disabled = true;
       const empId = Number(selectedCourse.draft_emp_id);
-      const proposedMeetings = Array.isArray(selectedCourse.draft_proposed_meetings) ? selectedCourse.draft_proposed_meetings : null;
       const { error } = await supabase.rpc(proposedMeetings ? 'assign_activity_instructor_with_dates' : 'assign_activity_instructor', {
         p_activity_id: selectedCourseId,
         p_emp_id: empId,
