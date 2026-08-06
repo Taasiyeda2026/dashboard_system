@@ -10,14 +10,22 @@ const activity = {
   start_time: '10:00', end_time: '11:00', school: 'בית ספר א', authority: 'חיפה',
   meetings: [{ date: '2026-09-02', start_time: '10:00', end_time: '11:00' }] // Wednesday, matches weekday 3
 };
+const reliableTravel = {
+  home: { distance_km: 1, duration_minutes: 2 },
+  homeReturn: { distance_km: 1.2, duration_minutes: 3 },
+  transitions: {}
+};
 
 test('score is capped at 100 and never at the old 120 ceiling', () => {
-  const previous = { date: '2026-09-02', start_time: '08:30', end_time: '09:55', school: 'בית ספר א', authority: 'חיפה', activity_name: 'קודמת' };
+  // Gap must be ≥ TRAVEL_SAFETY_BUFFER_MINUTES (15) even for same-school raw travel 0.
+  const previous = { date: '2026-09-02', start_time: '08:30', end_time: '09:45', school: 'בית ספר א', authority: 'חיפה', activity_name: 'קודמת' };
   const result = evaluateInstructor({
     instructor, profile, rules, activity,
     existingActivities: [previous],
-    travel: { home: { distance_km: 1, duration_minutes: 2 },
-      homeReturn: { distance_km: 1, duration_minutes: 2 }, transitions: { '2026-09-02': { previous: { distance_km: 0, duration_minutes: 0 } } } },
+    travel: {
+      ...reliableTravel,
+      transitions: { '2026-09-02': { previous: { distance_km: 0, duration_minutes: 0 } } }
+    },
     workloadRatio: 0
   });
   assert.equal(result.eligible, true);
@@ -25,14 +33,18 @@ test('score is capped at 100 and never at the old 120 ceiling', () => {
 });
 
 test('same-school continuity does not also earn the full same-authority bonus (no double counting)', () => {
-  const sameSchoolNeighbor = { date: '2026-09-02', start_time: '08:30', end_time: '09:55', school: 'בית ספר א', authority: 'חיפה', activity_name: 'קודמת' };
+  const sameSchoolNeighbor = { date: '2026-09-02', start_time: '08:30', end_time: '09:45', school: 'בית ספר א', authority: 'חיפה', activity_name: 'קודמת' };
   const withSameSchool = evaluateInstructor({
     instructor, profile, rules, activity, existingActivities: [sameSchoolNeighbor],
-    travel: { home: null, transitions: { '2026-09-02': { previous: { distance_km: 0, duration_minutes: 0 } } },
-      homeReturn: { '2026-09-02': { previous: { distance_km: 0, duration_minutes: 0 } } } }
+    travel: {
+      ...reliableTravel,
+      transitions: { '2026-09-02': { previous: { distance_km: 0, duration_minutes: 0 } } }
+    }
   });
-  const bare = evaluateInstructor({ instructor, profile, rules, activity, travel: { home: null, transitions: {},
-      homeReturn: {} } });
+  const bare = evaluateInstructor({
+    instructor, profile, rules, activity,
+    travel: reliableTravel
+  });
   assert.ok(withSameSchool.score > bare.score, 'same-school continuity should raise the score');
   // Stage 3: same-school continuity is capped at the 35-point continuityEfficiency weight.
   assert.ok(
@@ -43,26 +55,24 @@ test('same-school continuity does not also earn the full same-authority bonus (n
 });
 
 test('language, gender and blocks stay gating conditions, never point contributions', () => {
-  const eligible = evaluateInstructor({ instructor, profile, rules, activity });
+  const eligible = evaluateInstructor({ instructor, profile, rules, activity, travel: reliableTravel });
   assert.equal(eligible.eligible, true);
-  const mismatched = evaluateInstructor({ instructor, profile: { ...profile, gender: 'male' }, rules, activity });
+  const mismatched = evaluateInstructor({ instructor, profile: { ...profile, gender: 'male' }, rules, activity, travel: reliableTravel });
   assert.equal(mismatched.eligible, false);
   assert.equal(mismatched.score, null);
 });
 
 test('manual weekly_max_hours does not change the new workload score', () => {
   const heavyDay = [{ weekday: 3, available: true, start_time: '08:00', end_time: '20:00' }];
-  const withoutTarget = evaluateInstructor({ instructor, profile, rules: heavyDay, activity, workloadRatio: 1 / 12 });
-  const withTightTarget = evaluateInstructor({ instructor, profile: { ...profile, weekly_max_hours: 1 }, rules: heavyDay, activity, workloadRatio: 1 / 1 });
+  const withoutTarget = evaluateInstructor({ instructor, profile, rules: heavyDay, activity, workloadRatio: 1 / 12, travel: reliableTravel });
+  const withTightTarget = evaluateInstructor({ instructor, profile: { ...profile, weekly_max_hours: 1 }, rules: heavyDay, activity, workloadRatio: 1 / 1, travel: reliableTravel });
   assert.equal(withTightTarget.scoreBreakdown.actualWorkload.points, withoutTarget.scoreBreakdown.actualWorkload.points);
 });
 
 test('prior course experience is not a separate score component', () => {
   const priorSameCourse = { date: '2026-01-05', start_time: '09:00', end_time: '10:00', activity_name: activity.activity_name, school: 'בית ספר אחר', authority: 'ירושלים' };
-  const withExperience = evaluateInstructor({ instructor, profile, rules, activity, existingActivities: [priorSameCourse], travel: { home: null, transitions: {},
-      homeReturn: {} } });
-  const withoutExperience = evaluateInstructor({ instructor, profile, rules, activity, travel: { home: null, transitions: {},
-      homeReturn: {} } });
+  const withExperience = evaluateInstructor({ instructor, profile, rules, activity, existingActivities: [priorSameCourse], travel: reliableTravel });
+  const withoutExperience = evaluateInstructor({ instructor, profile, rules, activity, travel: reliableTravel });
   assert.equal(withExperience.score, withoutExperience.score);
   assert.doesNotMatch(withExperience.explanation, /ניסיון קודם בקורס/);
 });

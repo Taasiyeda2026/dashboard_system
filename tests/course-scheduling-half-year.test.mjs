@@ -34,9 +34,17 @@ const rules = {
   1: [{ emp_id: '1', weekday: 2, available: true, start_time: '08:00', end_time: '16:00' }],
   2: [{ emp_id: '2', weekday: 2, available: true, start_time: '08:00', end_time: '16:00' }]
 };
+const homeLeg = { distance_km: 5, duration_minutes: 10 };
+const homeReturnLeg = { distance_km: 5.5, duration_minutes: 12 };
 const travel = {
-  c: { 1: { home: { distance_km: 5, duration_minutes: 10 } }, 2: { home: { distance_km: 5, duration_minutes: 10 } } },
-  cross: { 1: { home: { distance_km: 5, duration_minutes: 10 } }, 2: { home: { distance_km: 5, duration_minutes: 10 } } }
+  c: {
+    1: { home: homeLeg, homeReturn: homeReturnLeg, transitions: {} },
+    2: { home: homeLeg, homeReturn: homeReturnLeg, transitions: {} }
+  },
+  cross: {
+    1: { home: homeLeg, homeReturn: homeReturnLeg, transitions: {} },
+    2: { home: homeLeg, homeReturn: homeReturnLeg, transitions: {} }
+  }
 };
 
 test('filters meetings to first and second half-year without assigning 2027-01-30', () => {
