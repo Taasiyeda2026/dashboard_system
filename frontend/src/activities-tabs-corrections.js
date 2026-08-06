@@ -29,6 +29,7 @@ const MONTH_NAVIGATION_TABS = new Set([
 ]);
 
 const SUMMER_MONTH_RANGE = { start: '2026-06', end: '2026-08' };
+const SCHOOL_2027_MONTH_RANGE = { start: '2026-09', end: '2027-06' };
 const HEBREW_MONTHS = [
   'ינואר', 'פברואר', 'מרץ', 'אפריל', 'מאי', 'יוני',
   'יולי', 'אוגוסט', 'ספטמבר', 'אוקטובר', 'נובמבר', 'דצמבר'
@@ -107,8 +108,8 @@ function rowsForSelectedInnerTab(rows, targetState = {}) {
   return yearRows.filter((row) => isOpenRow(row) && getActivityPeriodKey(row) === ACTIVITY_SEASON_REGULAR);
 }
 
-function tabCounts(rows, activityPeriodTab) {
-  const yearKey = selectedYearKey(activityPeriodTab);
+function tabCounts(rows, targetState = {}) {
+  const yearKey = selectedYearKey(targetState.activityPeriodTab);
   const yearRows = (Array.isArray(rows) ? rows : [])
     .filter((row) => rowBelongsToYear(row, yearKey))
     .filter(isVisibleActivity);
@@ -119,7 +120,14 @@ function tabCounts(rows, activityPeriodTab) {
   };
 
   if (yearKey === ACTIVITY_SEASON_SCHOOL_2027) {
-    counts[INNER_TAB_2027] = yearRows.filter(isOpenRow).length;
+    const monthlyState = { ...targetState, activitiesInnerTab: INNER_TAB_2027 };
+    const month = monthWithinRange(targetState.activitiesMonthYm, SCHOOL_2027_MONTH_RANGE)
+      ? targetState.activitiesMonthYm
+      : preferredMonthForTab(rows, monthlyState);
+    counts[INNER_TAB_2027] = yearRows
+      .filter(isOpenRow)
+      .filter((row) => rowOccursInMonth(row, month))
+      .length;
   } else {
     counts[INNER_TAB_REGULAR_2026] = yearRows.filter((row) => isOpenRow(row) && getActivityPeriodKey(row) === ACTIVITY_SEASON_REGULAR).length;
     counts[INNER_TAB_SUMMER_2026] = yearRows.filter((row) => isOpenRow(row) && getActivityPeriodKey(row) === ACTIVITY_SEASON_SUMMER_2026).length;
@@ -146,8 +154,8 @@ function replaceTabCount(html, tabKey, count) {
   return html.replace(pattern, `$1${count}$2`);
 }
 
-function replaceAllTabCounts(html, rows, activityPeriodTab) {
-  const counts = tabCounts(rows, activityPeriodTab);
+function replaceAllTabCounts(html, rows, targetState) {
+  const counts = tabCounts(rows, targetState);
   return Object.entries(counts).reduce(
     (result, [tabKey, count]) => replaceTabCount(result, tabKey, count),
     html
@@ -199,6 +207,7 @@ function isMonthNavigationTab(targetState = {}) {
 function monthRangeForState(targetState = {}) {
   const innerTab = cleanText(targetState.activitiesInnerTab);
   if (innerTab === INNER_TAB_SUMMER_2026) return SUMMER_MONTH_RANGE;
+  if (innerTab === INNER_TAB_2027) return SCHOOL_2027_MONTH_RANGE;
 
   const yearKey = selectedYearKey(targetState.activityPeriodTab);
   if (yearKey === ACTIVITY_SEASON_SCHOOL_2027) {
@@ -214,8 +223,7 @@ function monthRangeForState(targetState = {}) {
   };
 }
 
-function currentMonthYm() {
-  const now = new Date();
+function currentMonthYm(now = new Date()) {
   return `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, '0')}`;
 }
 
@@ -230,23 +238,12 @@ function monthWithinRange(month, range) {
   return /^\d{4}-\d{2}$/.test(cleanText(month)) && month >= range.start && month <= range.end;
 }
 
-function preferredMonthForTab(rows, targetState) {
+export function preferredMonthForTab(_rows, targetState, now = new Date()) {
   const range = monthRangeForState(targetState);
-  const available = [...new Set(
-    rowsForSelectedInnerTab(rows, targetState)
-      .flatMap(activityDatePoints)
-      .map((date) => date.slice(0, 7))
-      .filter((month) => monthWithinRange(month, range))
-  )].sort();
-
-  const current = currentMonthYm();
-  if (available.includes(current)) return current;
-
-  const pastOrCurrent = available.filter((month) => month <= current);
-  if (pastOrCurrent.length) return pastOrCurrent[pastOrCurrent.length - 1];
-  if (available.length) return available[0];
-  if (monthWithinRange(current, range)) return current;
-  return range.start;
+  const current = currentMonthYm(now);
+  if (current < range.start) return range.start;
+  if (current > range.end) return range.end;
+  return current;
 }
 
 function ensureMonthForTab(targetState, rows, { force = false } = {}) {
@@ -295,7 +292,8 @@ function monthNavigationHtml(targetState, visibleCount, totalCount) {
   const loading = !!targetState.activitiesNavLoading;
   const disablePrev = loading || currentMonth <= range.start;
   const disableNext = loading || currentMonth >= range.end;
-  const countText = `${visibleCount} פעילויות${visibleCount !== totalCount ? ` מתוך ${totalCount}` : ''}`;
+  const isSchool2027Monthly = cleanText(targetState.activitiesInnerTab) === INNER_TAB_2027;
+  const countText = `${visibleCount} פעילויות${!isSchool2027Monthly && visibleCount !== totalCount ? ` מתוך ${totalCount}` : ''}`;
   const loadingChip = loading ? ' <span class="ds-inline-loading-dot is-inline-loading" aria-hidden="true"></span>' : '';
 
   return `<nav class="ds-activities-title-row${loading ? ' is-nav-loading' : ''}" aria-label="ניווט חודשי לפעילויות" dir="rtl">
@@ -332,7 +330,7 @@ activitiesScreen.render = function renderWithCorrectTabScopes(data, context = {}
 
   const renderData = { ...data, rows: renderRows };
   let html = originalRender(renderData, context);
-  html = replaceAllTabCounts(html, originalRows, targetState.activityPeriodTab);
+  html = replaceAllTabCounts(html, originalRows, targetState);
 
   if (isMonthNavigationTab(targetState)) {
     const tabRows = rowsForSelectedInnerTab(originalRows, targetState);
