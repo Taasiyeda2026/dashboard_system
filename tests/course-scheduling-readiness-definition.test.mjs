@@ -34,6 +34,7 @@ test('instructor readiness ignores manual workload quota fields', () => {
   assert.deepEqual(instructorReadinessMissingFields(instructor, { ...matchingProfile, course_restriction_mode: 'allow_only', course_ids: [] }, rules), []);
   assert.deepEqual(instructorReadinessMissingFields(instructor, { ...matchingProfile }, rules), []);
   assert.deepEqual(instructorReadinessMissingFields(instructor, { ...matchingProfile, education_levels: [] }, rules), []);
+  assert.deepEqual(instructorReadinessMissingFields(instructor, { ...matchingProfile, gender: null }, rules), ['מגדר']);
 });
 
 test('language and gender are absolute gates and rejected candidates are not alternatives', () => {

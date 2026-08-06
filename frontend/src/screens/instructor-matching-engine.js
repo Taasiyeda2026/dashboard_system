@@ -330,7 +330,6 @@ export function evaluateInstructor({
     if (travel?.home?.distance_km != null && Number.isFinite(Number(travel.home.distance_km))) {
       const km = Number(travel.home.distance_km);
       scoreReasons.push(`${Math.round(km)} ק״מ מהבית, ${Math.round(Number(travel.home.duration_minutes) || 0)} דקות נסיעה`);
-      if (km > 40 && !sameSchool && !sameAuthority) failures.push('הפעילות הראשונה ביום רחוקה יותר מ-40 ק״מ מהבית');
       distancePoints = Math.max(0, 40 - km);
     } else {
       scoreReasons.push('המרחק טרם חושב');
