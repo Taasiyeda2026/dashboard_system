@@ -89,6 +89,28 @@ function numericOrNull(value) {
   return Number.isFinite(n) ? n : null;
 }
 
+/** Resolve the persisted number of meetings without treating an empty dates response as zero. */
+export function resolveActivitySessionTotal(row, schedule = row?.meeting_schedule) {
+  const activityType = normalizeActivityTypeKey(row?.activity_type || row?.item_type);
+  if (ONCE_TYPES.includes(activityType)) return 1;
+
+  const validCount = (value) => {
+    const count = Number(value);
+    return Number.isInteger(count) && count >= 1 && count <= 35 ? count : null;
+  };
+  const persisted = validCount(row?.sessions) ?? validCount(row?.meetings_total);
+  if (persisted != null) return persisted;
+
+  let lastPopulatedDate = 0;
+  for (let index = 1; index <= 35; index += 1) {
+    if (String(row?.[`date_${index}`] || '').trim()) lastPopulatedDate = index;
+  }
+  if (lastPopulatedDate) return lastPopulatedDate;
+
+  const scheduleCount = Array.isArray(schedule) && schedule.length ? Math.min(35, schedule.length) : null;
+  return scheduleCount || 1;
+}
+
 function normStatus(v) {
   const raw = String(v || '').trim().toLowerCase();
   if (raw === 'closed' || raw === 'סגור') return 'closed';
@@ -874,12 +896,18 @@ function buildOneDayViewHtml(schedule, row, datesLoading) {
 }
 
 function blockDates(row, { canEdit = false, canDirectEdit = false, datesLoading = false, is2027 = false } = {}) {
-  const schedule = Array.isArray(row?.meeting_schedule) ? row.meeting_schedule : [];
+  const loadedSchedule = Array.isArray(row?.meeting_schedule) ? row.meeting_schedule : [];
   const activityType = normalizeActivityTypeKey(row.activity_type || row.item_type);
   const isOnce = ONCE_TYPES.includes(activityType);
   const isCourse = activityType === 'course';
   const isAfterSchool = activityType === 'after_school';
   if (!isOnce && !isCourse && !isAfterSchool) return '';
+  const total = resolveActivitySessionTotal(row, loadedSchedule);
+  const schedule = Array.from({ length: isOnce ? 1 : total }, (_, index) => loadedSchedule[index] || {
+    date: String(row?.[`date_${index + 1}`] || '').trim(),
+    performed: 'no',
+    note: ''
+  });
   const loadingAttr = datesLoading ? ' data-dates-loading="true"' : '';
 
   if (isOnce) {
@@ -923,7 +951,6 @@ function blockDates(row, { canEdit = false, canDirectEdit = false, datesLoading 
   // `sessions` is the persisted activity-level contract.  The dates endpoint can
   // legitimately return an empty/partial schedule, so it must not collapse an
   // existing 11-session course back to "0 מתוך 1" while dates are loading.
-  const total = numericOrNull(row?.sessions) ?? numericOrNull(row?.meetings_total) ?? schedule.length ?? 0;
   const progressPct = total > 0 ? Math.min(100, Math.round((done / total) * 100)) : 0;
   const viewChips = buildDateChipsHtml(schedule, false);
   const datePickers = schedule
@@ -986,7 +1013,7 @@ function blockDates(row, { canEdit = false, canDirectEdit = false, datesLoading 
 
   const progressTitle = isCourse ? 'התקדמות הקורס' : 'מפגשים ותאריכים';
   return `
-    <section class="activity-drawer__section activity-drawer__section--course-dates" data-dates-section${loadingAttr}>
+    <section class="activity-drawer__section activity-drawer__section--course-dates" data-dates-section data-session-total="${total}"${loadingAttr}>
       <div class="activity-drawer__section-head">
         <h3 class="activity-drawer__section-title">${escapeHtml(progressTitle)}</h3>
       </div>
@@ -1065,7 +1092,11 @@ export function patchDrawerDatesSection(sectionEl, datesData) {
   const doneFromSchedule = countDoneMeetings(schedule);
   const doneFallback = numericOrNull(datesData?.meetings_done);
   const done = doneFromSchedule > 0 ? doneFromSchedule : (doneFallback ?? 0);
-  const total = numericOrNull(datesData?.sessions) ?? numericOrNull(datesData?.meetings_total) ?? schedule.length ?? 0;
+  const total = resolveActivitySessionTotal({
+    ...datesData,
+    sessions: sectionEl.dataset.sessionTotal || datesData?.sessions
+  }, schedule);
+  sectionEl.dataset.sessionTotal = String(total);
   const progressPct = total > 0 ? Math.min(100, Math.round((done / total) * 100)) : 0;
   const computedEnd = autoEndDate({ meeting_schedule: schedule }) || String(datesData?.end_date || '');
 
@@ -1085,6 +1116,14 @@ export function patchDrawerDatesSection(sectionEl, datesData) {
 
   const editGrid = sectionEl.querySelector('[data-meeting-dates-edit]');
   if (editGrid) {
+    while (editGrid.children.length < total) {
+      const index = editGrid.children.length;
+      const card = editGrid.ownerDocument.createElement('div');
+      card.className = 'activity-drawer__date-card';
+      card.dataset.meetingIndex = String(index);
+      card.innerHTML = `<div class="activity-drawer__date-card-top"><span class="activity-drawer__meeting-index">מפגש ${index + 1}</span><span class="activity-drawer__date-card-top-aside"><button type="button" class="activity-drawer__date-remove" data-action="remove-meeting" aria-label="הסר מפגש">🗑</button><span class="activity-drawer__weekday"></span></span></div>${inputHtml({ name: `meeting_date_${index}`, value: '', type: 'date', attrs: `data-role="meeting-date" data-meeting-index="${index}" data-meeting-idx="${index}"` })}<input type="hidden" name="meeting_performed_${index}" value="no">`;
+      editGrid.append(card);
+    }
     schedule.forEach((item, index) => {
       const input = editGrid.querySelector(`input[data-meeting-idx="${index}"]`);
       if (input) input.value = String(item?.date || '').trim();
