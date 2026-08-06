@@ -1,8 +1,9 @@
-import { evaluateInstructor, adjacentActivities } from './instructor-matching-engine.js';
+import { evaluateInstructor, adjacentActivities, schedulingQualityBand } from './instructor-matching-engine.js';
 import { activityMeetings, isoWeekKey } from './instructor-scheduling-load.js';
 import { routeMatrixKey } from './course-scheduling-travel.js';
 import { isActivitySchedulingEligible, isSchedulingBlockingAssignment, isSchedulingDraftAssignment } from './shared/activity-scheduling-eligibility.js';
 import { DEFAULT_COURSE_SCHEDULING_PERIOD_KEY, isDateInCourseSchedulingPeriod } from './course-scheduling-periods.js';
+import { proposeDateAdjustments } from './course-scheduling-date-adjustments.js';
 
 const text = (value) => String(value ?? '').trim();
 const minutes = (value) => {
@@ -97,7 +98,9 @@ export function instructorLoad(assignments = [], profile = {}, rules = [], optio
 
 function meetingAssignments(rows = [], options = {}) {
   const periodKey = options.periodKey || DEFAULT_COURSE_SCHEDULING_PERIOD_KEY;
-  return rows.flatMap((activity) => activityMeetings(activity)
+  return rows.flatMap((activity) => activityMeetings(activity?.draft_emp_id && Array.isArray(activity.draft_proposed_meetings)
+    ? { ...activity, meetings: activity.draft_proposed_meetings }
+    : activity)
     .filter((meeting) => isDateInCourseSchedulingPeriod(meeting.date, periodKey))
     .map((meeting) => ({
     ...meeting,
@@ -163,15 +166,16 @@ function travelUnavailableReason(course, instructor, home, input = {}) {
   return 'no_route';
 }
 
-function dynamicTravel(course, instructor, existingMeetings, input = {}) {
+function dynamicTravel(course, instructor, existingMeetings, input = {}, transitionBufferMinutes = 0) {
   const base = input.travel?.[idOf(course)]?.[text(instructor.emp_id)] || null;
   const transitions = {};
   const destination = placeOf(course);
   for (const meeting of activityMeetings(course)) {
     const { previous, next } = adjacentActivities(existingMeetings, meeting);
+    const withBuffer = (leg) => leg?.duration_minutes == null ? leg : { ...leg, duration_minutes: Number(leg.duration_minutes) + transitionBufferMinutes };
     transitions[meeting.date] = {
-      previous: previous ? routeLeg(input.routeMatrix, placeOf(previous), destination, sameSchool(previous, course)) : null,
-      next: next ? routeLeg(input.routeMatrix, destination, placeOf(next), sameSchool(course, next)) : null
+      previous: previous ? withBuffer(routeLeg(input.routeMatrix, placeOf(previous), destination, sameSchool(previous, course))) : null,
+      next: next ? withBuffer(routeLeg(input.routeMatrix, destination, placeOf(next), sameSchool(course, next))) : null
     };
   }
   const home = base?.home || null;
@@ -230,6 +234,7 @@ function applyWorkloadPoints(candidates = [], course = {}, periodKey = DEFAULT_C
     return {
       ...candidate,
       score: Math.round(baseWithoutWorkload + workload.points),
+      ...schedulingQualityBand(Math.round(baseWithoutWorkload + workload.points), true),
       workloadPoints: workload,
       scoreBreakdown: candidate.scoreBreakdown ? { ...candidate.scoreBreakdown, workload: { ...candidate.scoreBreakdown.workload, ...workload, points: Math.round(workload.points) } } : candidate.scoreBreakdown
     };
@@ -241,10 +246,20 @@ function evaluateCandidate({ course, instructor, assignedRows, draftRows, profil
   const occupiedRows = [...(assignedRows[empId] || []), ...(draftRows || [])];
   const periodKey = input.periodKey || DEFAULT_COURSE_SCHEDULING_PERIOD_KEY;
   const periodMeetings = activityMeetings(course).filter((meeting) => isDateInCourseSchedulingPeriod(meeting.date, periodKey));
-  const periodCourse = { ...course, meetings: periodMeetings };
+  const originalPeriodCourse = { ...course, meetings: periodMeetings };
+  const adjustment = proposeDateAdjustments({
+    meetings: periodMeetings,
+    rules: rules[empId] || [],
+    exceptions: exceptions[empId] || [],
+    schoolCalendar: input.schoolCalendar || [],
+    existingActivities: meetingAssignments(occupiedRows, { periodKey }),
+    transitions: input.proposedTransitions?.[idOf(course)]?.[empId] || {},
+    halfEnd: input.periodEnd || ''
+  });
+  const periodCourse = adjustment?.valid ? { ...course, meetings: adjustment.meetings } : originalPeriodCourse;
   const load = instructorLoad([...occupiedRows, periodCourse], profiles[empId], rules[empId] || [], { periodKey });
   const occupiedMeetings = meetingAssignments(occupiedRows, { periodKey });
-  const travel = dynamicTravel(periodCourse, instructor, occupiedMeetings, input);
+  const travel = dynamicTravel(periodCourse, instructor, occupiedMeetings, input, adjustment?.valid ? 15 : 0);
   const result = evaluateInstructor({
     instructor,
     profile: profiles[empId],
@@ -260,7 +275,12 @@ function evaluateCandidate({ course, instructor, assignedRows, draftRows, profil
     weeklyWorkDayCount: load.maxWeekDayCount
   });
   // Persist the exact travel object used for scoring so the UI never shows a different route.
-  return { ...result, instructor, load, travel, periodCourse };
+  if (adjustment && !adjustment.valid) {
+    result.failures = [...new Set([...result.failures, adjustment.reason])];
+    result.eligible = false;
+    result.score = null;
+  }
+  return { ...result, instructor, load, travel, periodCourse, originalPeriodCourse, dateAdjustment: adjustment?.valid ? adjustment : null };
 }
 
 function candidateMap({ courses, instructors, profiles = {}, rules = {}, exceptions = {}, assignedRows, input }) {
@@ -402,25 +422,31 @@ export function calculateCourseSchedule(input = {}) {
 
     const checked = maps.get(id) || [];
     const selected = bestState.draft.get(id) || null;
-    const recommended = selected ? refreshCandidate(course, selected.instructor) : null;
+    const selectedCandidate = selected ? refreshCandidate(course, selected.instructor) : null;
+    const recommended = selectedCandidate?.score >= 60 ? selectedCandidate : null;
+    const bestAvailable = recommended ? null : selectedCandidate;
+    const primary = recommended || bestAvailable;
     const alternatives = checked
-      .filter((candidate) => candidate.eligible && text(candidate.instructor.emp_id) !== text(recommended?.instructor?.emp_id))
+      .filter((candidate) => candidate.eligible && text(candidate.instructor.emp_id) !== text(primary?.instructor?.emp_id))
       .map((candidate) => refreshCandidate(course, candidate.instructor))
       .filter((candidate) => candidate.eligible)
       .sort((first, second) => second.score - first.score)
-      .slice(0, 3);
+      .slice(0, bestAvailable ? 2 : 3);
     const incompleteProfiles = checked.filter((candidate) => !candidate.failures.length && candidate.missingProfileData.length);
 
     return {
       course,
       status: recommended
         ? (recommended.warnings.length ? 'נדרש טיפול' : 'הצעה מוכנה')
-        : incompleteProfiles.length ? 'נדרש טיפול' : 'נדרש גיוס',
+        : bestAvailable || incompleteProfiles.length ? 'נדרש טיפול' : 'נדרש גיוס',
       recommended,
+      bestAvailable,
       alternatives,
       checked,
       incompleteProfiles,
-      treatmentReason: !recommended && incompleteProfiles.length
+      treatmentReason: bestAvailable
+        ? 'נמצאו מדריכים שעומדים בתנאי הסף, אך הציון שלהם נמוך מסף ההמלצה.'
+        : !recommended && incompleteProfiles.length
         ? 'לא ניתן להשלים את בדיקת השיבוץ משום שחסרים נתונים בפרופילי מדריכים.'
         : !recommended ? primaryRejectionReason(checked) : ''
     };

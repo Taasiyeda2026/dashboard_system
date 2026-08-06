@@ -29,13 +29,6 @@ function normalizeEmpId(value) {
   return numeric;
 }
 
-function normalizePositiveNumberOrNull(value) {
-  const text = String(value ?? '').trim();
-  if (!text) return null;
-  const numeric = Number(text);
-  return Number.isFinite(numeric) && numeric >= 0 ? numeric : null;
-}
-
 export async function loadInstructorSchedulingData() {
   if (!supabase) return emptySchedulingData('no_supabase_client');
   await waitForSupabaseAuthSession({ timeoutMs: 6000 });
@@ -70,10 +63,6 @@ export async function saveInstructorSchedulingProfile(row) {
     gender: ['female', 'male'].includes(row?.gender) ? row.gender : null,
     instruction_languages: Array.isArray(row?.instruction_languages) ? row.instruction_languages.filter(v => ['he', 'ar'].includes(v)) : ['he'],
     matching_note: String(row?.matching_note || '').trim() || null,
-    weekly_target_hours: normalizePositiveNumberOrNull(row?.weekly_target_hours),
-    weekly_max_hours: normalizePositiveNumberOrNull(row?.weekly_max_hours),
-    preferred_work_days: normalizePositiveNumberOrNull(row?.preferred_work_days),
-    max_fixed_courses: normalizePositiveNumberOrNull(row?.max_fixed_courses),
     updated_at: new Date().toISOString()
   };
   const { data, error } = await supabase
