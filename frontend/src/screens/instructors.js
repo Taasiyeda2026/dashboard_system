@@ -204,11 +204,7 @@ export function bindInstructorConstraintsModal(modalRoot, {
           default_start_time: input('default_start_time')?.value,
           default_end_time: input('default_end_time')?.value,
           friday_allowed: !!input('friday_allowed')?.checked,
-          notes: input('notes')?.value,
-          weekly_target_hours: input('weekly_target_hours')?.value,
-          weekly_max_hours: input('weekly_max_hours')?.value,
-          preferred_work_days: input('preferred_work_days')?.value,
-          max_fixed_courses: input('max_fixed_courses')?.value
+          notes: input('notes')?.value
         }),
         saveWeeklyRules(row.emp_id, rules)
       ]);
