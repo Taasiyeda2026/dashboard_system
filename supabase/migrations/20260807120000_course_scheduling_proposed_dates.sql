@@ -46,6 +46,7 @@ begin
   if nullif(btrim(coalesce(selected.address,'')),'') is null then raise exception 'scheduling_instructor_profile_incomplete'; end if;
   select * into profile from public.instructor_scheduling_profiles where emp_id=p_emp_id;
   if not found then raise exception 'scheduling_instructor_profile_incomplete'; end if;
+  if nullif(btrim(coalesce(profile.gender,'')),'') is null then raise exception 'scheduling_instructor_profile_incomplete'; end if;
   if nullif(btrim(coalesce(target.instruction_language,'')),'') is not null
     and not (target.instruction_language=any(coalesce(profile.instruction_languages,'{}'::text[]))) then raise exception 'scheduling_language_mismatch'; end if;
   if coalesce(target.required_instructor_gender,'any') in ('male','female')
@@ -208,7 +209,9 @@ begin
   perform public.scheduling_lock_instructor_for_write(p_emp_id);
   select * into result from public.activities where row_id=p_activity_id for update;
   if not found then raise exception 'activity_not_found'; end if;
-  if result.activity_season<>'school_2027' or lower(btrim(coalesce(result.status::text,''))) not in ('פתוח','open') then raise exception 'scheduling_activity_not_open'; end if;
+  if result.activity_season<>'school_2027' then raise exception 'scheduling_activity_not_school_2027'; end if;
+  if lower(btrim(coalesce(result.activity_type::text,''))) not in ('קורס','course','program') then raise exception 'scheduling_activity_not_course'; end if;
+  if lower(btrim(coalesce(result.status::text,''))) not in ('פתוח','open') then raise exception 'scheduling_activity_not_open'; end if;
   if result.instructor_assignment_locked or nullif(result.emp_id::text,'') is not null then raise exception 'scheduling_assignment_locked'; end if;
   canonical:=public.scheduling_validate_proposed_meetings(p_activity_id,p_proposed_meetings);
   perform public.scheduling_assert_proposed_eligibility(p_activity_id,p_emp_id,canonical);
@@ -230,10 +233,14 @@ create or replace function public.assign_activity_instructor_with_dates(
   p_top_emp_id bigint default null,p_selected_score integer default null,p_top_score integer default null,
   p_decision_type text default 'approved',p_reason text default null
 ) returns public.activities language plpgsql security definer set search_path=public as $$
-declare result public.activities; canonical jsonb;
+declare result public.activities; target public.activities; canonical jsonb;
 begin
   perform public.scheduling_lock_instructor_for_write(p_emp_id);
-  perform 1 from public.activities where row_id=p_activity_id for update;
+  select * into target from public.activities where row_id=p_activity_id for update;
+  if not found then raise exception 'activity_not_found'; end if;
+  if target.activity_season<>'school_2027' then raise exception 'scheduling_activity_not_school_2027'; end if;
+  if lower(btrim(coalesce(target.activity_type::text,''))) not in ('קורס','course','program') then raise exception 'scheduling_activity_not_course'; end if;
+  if lower(btrim(coalesce(target.status::text,''))) not in ('פתוח','open') then raise exception 'scheduling_activity_not_open'; end if;
   canonical:=public.scheduling_validate_proposed_meetings(p_activity_id,p_proposed_meetings);
   perform public.scheduling_assert_proposed_eligibility(p_activity_id,p_emp_id,canonical);
   perform public.scheduling_assert_assignment_calendar(p_activity_id,p_emp_id,canonical);

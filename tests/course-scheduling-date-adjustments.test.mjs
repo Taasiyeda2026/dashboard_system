@@ -88,6 +88,13 @@ test('SQL validation preserves the official meeting count and proposed-date elig
   for(const gate of ['instructor_inactive','scheduling_instructor_profile_incomplete','scheduling_language_mismatch','scheduling_gender_mismatch','scheduling_friday_not_allowed','scheduling_instructor_unavailable']) assert.match(eligibility,new RegExp(gate));
   assert.match(eligibility,/instructor_availability_exceptions/);
   assert.match(eligibility,/instructor_availability_rules/);
+  assert.match(eligibility,/nullif\(btrim\(coalesce\(profile\.gender,''\)\),''\) is null then raise exception 'scheduling_instructor_profile_incomplete'/);
+  assert.match(eligibility,/required_instructor_gender.*in \('male','female'\)/s);
+  const draftRpc=sql.split('create or replace function public.save_course_assignment_draft_with_dates')[1].split('create or replace function public.assign_activity_instructor_with_dates')[0];
+  const assignRpc=sql.split('create or replace function public.assign_activity_instructor_with_dates')[1].split('create or replace function public.cancel_course_assignment_draft_with_dates')[0];
+  assert.match(draftRpc,/activity_type::text.*scheduling_activity_not_course/s);
+  assert.match(assignRpc,/activity_type::text.*scheduling_activity_not_course/s);
+  assert.ok(assignRpc.indexOf('scheduling_activity_not_course')<assignRpc.indexOf('scheduling_set_activity_meetings'),'course type is checked before official dates change');
 });
 
 test('final half overflow confirmation happens before RPC and draft payloads contain dates only',async()=>{
