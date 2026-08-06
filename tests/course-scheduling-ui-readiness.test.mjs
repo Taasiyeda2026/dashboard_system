@@ -64,6 +64,7 @@ test('courses tab auto-selects nearest course and shows its details', () => {
   assert.match(html, /course-scheduling-screen/);
   assert.match(html, /data-switch-tab="courses"/);
   assert.match(html, /data-switch-tab="calendar"/);
+  assert.match(html, /data-switch-tab="maintenance"/);
   assert.match(html, /<h1 class="course-scheduling-title">שיבוצים<\/h1>/);
   assert.doesNotMatch(html, /בחרו קורס, מצאו מדריך מתאים ושמרו כטיוטה או שבצו\./);
   assert.doesNotMatch(html, /course-scheduling-subtitle/);
@@ -78,7 +79,7 @@ test('courses tab auto-selects nearest course and shows its details', () => {
   assert.doesNotMatch(html, /טרם בוצע חישוב/);
   assert.doesNotMatch(html, /בניית ועדכון מאגר מרחקים/);
   assert.doesNotMatch(html, /מוכנות לשיבוץ/);
-  assert.match(html, /⚙ תחזוקה</);
+  assert.doesNotMatch(html, /⚙ תחזוקה</);
 });
 
 test('readiness counts missing date and missing time separately without double-counting schedule gaps', () => {
@@ -323,7 +324,7 @@ test('calendar tab empty state points users back to courses', async () => {
   assert.match(css, /\.course-scheduling-empty-action\s*\{[^}]*padding:\s*9px\s+18px;/s);
   assert.match(css, /\.course-scheduling-empty-action\s*\{[^}]*flex:\s*0\s+0\s+auto;/s);
   assert.doesNotMatch(css, /\.course-scheduling-empty-action\s*\{[^}]*(?<!max-)\bwidth:\s*100%/s);
-  assert.match(html, /⚙ תחזוקה</);
+  assert.match(html, /data-switch-tab="maintenance">תחזוקה<\/button>/);
   assert.match(html, /course-scheduling-calendar-toolbar-nav/);
   assert.match(html, /course-scheduling-calendar-toolbar-center/);
   assert.match(html, /course-scheduling-calendar-toolbar-views/);
@@ -331,6 +332,54 @@ test('calendar tab empty state points users back to courses', async () => {
   assert.match(html, /מערכת קבועה/);
   assert.doesNotMatch(html, /מצא מדריכים מתאימים/);
   assert.doesNotMatch(html, /בחרו קורס, מצאו מדריך מתאים/);
+});
+
+test('course table renders authority as the second of six compact columns', async () => {
+  const html = courseSchedulingScreen.render({
+    activities: [
+      openCourse({ row_id: 'with-authority', school: 'בית ספר השקמה', authority: 'רשות השרון', activity_name: 'רובוטיקה', date_1: '2026-09-01', start_date: '2026-09-01', start_time: '10:00' }),
+      openCourse({ row_id: 'without-authority', school: 'בית ספר גנים', authority: '', activity_name: 'מדעים', date_1: '2026-09-02', start_date: '2026-09-02', start_time: '10:00' })
+    ],
+    instructors: [], scheduling: {},
+    meetingState: { loaded: true, approvedDates: new Map(), cancelledDates: new Map(), error: '' }
+  }, { state: { user: { role: 'admin' } } });
+
+  assert.match(html, /<div class="course-scheduling-compact-table-head"[^>]*><span>בית ספר<\/span><span>רשות<\/span><span>קורס<\/span><span>מדריך<\/span><span>סטטוס<\/span><span>פעולה<\/span><\/div>/);
+  assert.match(html, /course-scheduling-compact-school[^>]*>בית ספר השקמה<\/span>\s*<span class="course-scheduling-compact-cell course-scheduling-compact-authority" title="רשות השרון">רשות השרון<\/span>\s*<strong[^>]*>רובוטיקה<\/strong>/);
+  assert.match(html, /course-scheduling-compact-authority" title="—">—<\/span>/);
+  assert.match(html, /aria-label="בית ספר השקמה, רשות השרון, רובוטיקה"/);
+  const row = /<div class="course-scheduling-compact-row[^>]*data-course-card="with-authority"[\s\S]*?<\/div>/.exec(html)?.[0] || '';
+  assert.equal((row.match(/course-scheduling-compact-cell/g) || []).length, 6);
+
+  const compactCss = await readFile(new URL('../frontend/src/screens/course-scheduling-compact-layout.css', import.meta.url), 'utf8');
+  assert.match(compactCss, /--course-scheduling-row-columns:\s*minmax\(0,\s*1\.35fr\)[^;]*minmax\(0,\s*\.62fr\);/);
+  assert.match(compactCss, /\.course-scheduling-compact-authority/);
+  assert.match(compactCss, /grid-row:\s*1\s*\/\s*span\s*5/);
+  assert.doesNotMatch(compactCss, /--course-scheduling-row-columns:[^;]*minmax\((?:1[5-9]\d|[2-9]\d\d)px/);
+});
+
+test('maintenance is a main tab with inline actions and no legacy dropdown', async () => {
+  const html = courseSchedulingScreen.render({
+    activities: [openCourse({ date_1: '2026-09-01', start_date: '2026-09-01', start_time: '10:00' })],
+    instructors: [], scheduling: {},
+    meetingState: { loaded: true, approvedDates: new Map(), cancelledDates: new Map(), error: '' }
+  }, { state: { user: { role: 'admin' }, courseSchedulingTab: 'maintenance', courseSchedulingDistrict: 'מרכז', courseSchedulingAuthority: 'רשות' } });
+
+  assert.match(html, /data-cs-tab="maintenance"/);
+  assert.match(html, /course-scheduling-tab is-active" data-switch-tab="maintenance"/);
+  assert.match(html, /course-scheduling-maintenance-tab/);
+  assert.match(html, /חישוב ועדכון מרחקי הנסיעה/);
+  assert.match(html, /data-maintenance-action="distances">עדכן מרחקים/);
+  assert.match(html, /data-maintenance-action="readiness">פתח בדיקת נתונים/);
+  assert.doesNotMatch(html, /data-toggle-maintenance|course-scheduling-maintenance-menu|⚙/);
+  assert.match(html, /data-district-filter/);
+  assert.match(html, /data-authority-filter/);
+
+  const source = await readFile(new URL('../frontend/src/screens/course-scheduling.js', import.meta.url), 'utf8');
+  assert.match(source, /\['courses', 'calendar', 'maintenance'\]\.includes\(button\.dataset\.switchTab\)/);
+  assert.match(source, /courseSchedulingShowDistanceConfirm = true/);
+  assert.match(source, /courseSchedulingShowDataReadiness = true/);
+  assert.doesNotMatch(source, /courseSchedulingMaintenanceOpen|maintenanceMenuHtml|data-toggle-maintenance/);
 });
 
 test('activities screen wires the missing-schedule filter into local filtering', async () => {

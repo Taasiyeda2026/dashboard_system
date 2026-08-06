@@ -165,7 +165,9 @@ function schedulingScopeHtml(allCourses = [], state = {}) {
 }
 
 function activeTab(state) {
-  return state.courseSchedulingTab === 'calendar' ? 'calendar' : 'courses';
+  return ['courses', 'calendar', 'maintenance'].includes(state.courseSchedulingTab)
+    ? state.courseSchedulingTab
+    : 'courses';
 }
 
 function cardStatusClass(statusLabel) {
@@ -298,10 +300,12 @@ function courseListCardHtml(row, selectedId) {
   const c = row.course;
   const selectedClass = row.id === selectedId ? ' is-selected' : '';
   const school = text(c.school) || '—';
+  const authority = text(c.authority) || '—';
   const courseName = text(c.activity_name) || '—';
   const instructor = instructorCellLabel(row);
-  return `<div class="course-scheduling-compact-row course-scheduling-course-card${selectedClass}" data-course-card="${escapeHtml(row.id)}" role="button" tabindex="0" aria-label="${escapeHtml(`${school}, ${courseName}`)}">
+  return `<div class="course-scheduling-compact-row course-scheduling-course-card${selectedClass}" data-course-card="${escapeHtml(row.id)}" role="button" tabindex="0" aria-label="${escapeHtml(`${school}, ${authority}, ${courseName}`)}">
     <span class="course-scheduling-compact-cell course-scheduling-compact-school" title="${escapeHtml(school)}">${escapeHtml(school)}</span>
+    <span class="course-scheduling-compact-cell course-scheduling-compact-authority" title="${escapeHtml(authority)}">${escapeHtml(authority)}</span>
     <strong class="course-scheduling-compact-cell course-scheduling-compact-course" title="${escapeHtml(courseName)}">${escapeHtml(courseName)}</strong>
     <span class="course-scheduling-compact-cell course-scheduling-compact-instructor" title="${escapeHtml(instructor)}">${escapeHtml(instructor)}</span>
     <span class="course-scheduling-compact-cell course-scheduling-compact-status"><span class="course-scheduling-status-chip${cardStatusClass(row.statusLabel)}">${escapeHtml(row.statusLabel)}</span></span>
@@ -317,7 +321,8 @@ function courseListHtml(rowModels, selectedId) {
       <p>שיבוצים שבוצעו יופיעו בלשונית המערכת השבועית.</p>
     </div>`;
   }
-  return groups.map((group) => `<section class="course-scheduling-course-group"><h3>${escapeHtml(group.label)} <span class="course-scheduling-badge">${group.rows.length}</span></h3>${group.rows.map((row) => courseListCardHtml(row, selectedId)).join('')}</section>`).join('');
+  const header = '<div class="course-scheduling-compact-table-head" aria-hidden="true"><span>בית ספר</span><span>רשות</span><span>קורס</span><span>מדריך</span><span>סטטוס</span><span>פעולה</span></div>';
+  return header + groups.map((group) => `<section class="course-scheduling-course-group"><h3>${escapeHtml(group.label)} <span class="course-scheduling-badge">${group.rows.length}</span></h3>${group.rows.map((row) => courseListCardHtml(row, selectedId)).join('')}</section>`).join('');
 }
 
 
@@ -730,15 +735,18 @@ function dataReadinessDrawerHtml(data, state = {}) {
   </div>`;
 }
 
-function maintenanceMenuHtml(state) {
-  const open = !!state.courseSchedulingMaintenanceOpen;
-  return `<div class="course-scheduling-maintenance">
-    <button type="button" class="course-scheduling-btn course-scheduling-btn--secondary course-scheduling-btn--sm course-scheduling-maintenance-trigger" data-toggle-maintenance aria-expanded="${open ? 'true' : 'false'}">⚙ תחזוקה</button>
-    ${open ? `<div class="course-scheduling-maintenance-menu">
-      <button type="button" class="course-scheduling-menu-item" data-maintenance-action="distances">עדכון מרחקים</button>
-      <button type="button" class="course-scheduling-menu-item" data-maintenance-action="readiness">בדיקת נתונים</button>
-    </div>` : ''}
-  </div>`;
+function maintenanceTabHtml() {
+  return `<section class="course-scheduling-maintenance-tab" aria-labelledby="course-scheduling-maintenance-heading">
+    <h2 id="course-scheduling-maintenance-heading" class="course-scheduling-visually-hidden">פעולות תחזוקה</h2>
+    <article class="course-scheduling-maintenance-card">
+      <div><h3>עדכון מרחקים</h3><p>חישוב ועדכון מרחקי הנסיעה בין כתובות המדריכים לבתי הספר.</p></div>
+      <button type="button" class="course-scheduling-btn course-scheduling-btn--primary" data-maintenance-action="distances">עדכן מרחקים</button>
+    </article>
+    <article class="course-scheduling-maintenance-card">
+      <div><h3>בדיקת נתונים</h3><p>איתור פעילויות, מדריכים או כתובות שחסר בהם מידע הנדרש לשיבוץ.</p></div>
+      <button type="button" class="course-scheduling-btn course-scheduling-btn--secondary" data-maintenance-action="readiness">פתח בדיקת נתונים</button>
+    </article>
+  </section>`;
 }
 
 function calendarTabHtml({ interfaceCourses, selectedId, state }) {
@@ -873,8 +881,7 @@ export const courseSchedulingScreen = {
     const selectedRow = rowModels.find((row) => row.id === selectedId)
       || (selectedId ? courseRowModel(interfaceCourses.find((course) => idOf(course) === selectedId) || { row_id: selectedId }, resultByCourseId, data.meetingState) : null);
     const readiness = courseSchedulingDataReadiness(data.activities || []);
-    const isAdminRole = ['admin', 'operation_manager'].includes(text(state?.user?.role));
-    const title = tab === 'calendar' ? 'מערכת שבועית' : 'שיבוצים';
+    const title = tab === 'calendar' ? 'מערכת שבועית' : (tab === 'maintenance' ? 'תחזוקה' : 'שיבוצים');
 
     return dsScreenStack(`
     <div class="course-scheduling-screen" dir="rtl" data-cs-ui="ux-polish-20260805-v1" data-cs-tab="${tab}">
@@ -884,9 +891,9 @@ export const courseSchedulingScreen = {
           <nav class="course-scheduling-tabs" aria-label="ניווט ממשק השיבוצים">
         <button type="button" class="course-scheduling-tab${tab === 'courses' ? ' is-active' : ''}" data-switch-tab="courses">קורסים לשיבוץ</button>
         <button type="button" class="course-scheduling-tab${tab === 'calendar' ? ' is-active' : ''}" data-switch-tab="calendar">מערכת שבועית</button>
+        <button type="button" class="course-scheduling-tab${tab === 'maintenance' ? ' is-active' : ''}" data-switch-tab="maintenance">תחזוקה</button>
           </nav>
         </div>
-        ${isAdminRole ? maintenanceMenuHtml(state) : ''}
       </header>
 
       ${schedulingScopeHtml(allInterfaceCourses, state)}
@@ -904,7 +911,7 @@ export const courseSchedulingScreen = {
               : selectedCoursePanelHtml(selectedRow?.course ? selectedRow : null, state)
           }</section>
         </div>
-      ` : calendarTabHtml({ interfaceCourses, selectedId, state })}
+      ` : (tab === 'calendar' ? calendarTabHtml({ interfaceCourses, selectedId, state }) : maintenanceTabHtml())}
       ${state.courseSchedulingShowDistanceConfirm ? distanceMaintenanceDialogHtml(state) : ''}
       ${dataReadinessDrawerHtml(data, state)}
     </div>`);
@@ -971,8 +978,9 @@ export const courseSchedulingScreen = {
 
     root.querySelectorAll('[data-switch-tab]').forEach((button) => {
       button.addEventListener('click', () => {
-        state.courseSchedulingTab = button.dataset.switchTab === 'calendar' ? 'calendar' : 'courses';
-        state.courseSchedulingMaintenanceOpen = false;
+        state.courseSchedulingTab = ['courses', 'calendar', 'maintenance'].includes(button.dataset.switchTab)
+          ? button.dataset.switchTab
+          : 'courses';
         state.courseSchedulingShowDistanceConfirm = false;
         state.courseSchedulingShowDataReadiness = false;
         rerender();
@@ -1012,20 +1020,11 @@ export const courseSchedulingScreen = {
     root.querySelectorAll('[data-open-readiness-drawer]').forEach((button) => button.addEventListener('click', () => {
       state.courseSchedulingShowDataReadiness = true;
       state.courseSchedulingShowDistanceConfirm = false;
-      state.courseSchedulingMaintenanceOpen = false;
       state.courseSchedulingReadinessTab = 'courses';
       rerender();
     }));
     root.querySelector('[data-open-missing-schedule-courses]')?.addEventListener('click', openMissingScheduleCourses);
 
-    root.querySelector('[data-toggle-maintenance]')?.addEventListener('click', () => {
-      state.courseSchedulingMaintenanceOpen = !state.courseSchedulingMaintenanceOpen;
-      if (!state.courseSchedulingMaintenanceOpen) {
-        state.courseSchedulingShowDistanceConfirm = false;
-        state.courseSchedulingShowDataReadiness = false;
-      }
-      rerender();
-    });
     root.querySelectorAll('[data-readiness-tab]').forEach((button) => button.addEventListener('click', () => {
       state.courseSchedulingReadinessTab = button.dataset.readinessTab === 'instructors' ? 'instructors' : 'courses';
       rerender();
@@ -1044,11 +1043,9 @@ export const courseSchedulingScreen = {
         if (button.dataset.maintenanceAction === 'distances') {
           state.courseSchedulingShowDistanceConfirm = true;
           state.courseSchedulingShowDataReadiness = false;
-          state.courseSchedulingMaintenanceOpen = false;
         } else {
           state.courseSchedulingShowDataReadiness = true;
           state.courseSchedulingShowDistanceConfirm = false;
-          state.courseSchedulingMaintenanceOpen = false;
           state.courseSchedulingReadinessTab = 'courses';
         }
         rerender();
