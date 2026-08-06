@@ -482,17 +482,18 @@ export function scoreBreakdownHtml(candidate) {
     return `<div class="course-scheduling-score-breakdown"><h4>פירוט הציון</h4><p class="course-scheduling-muted">אין ציון להצגה — תנאי סף לא התקיימו.</p></div>`;
   }
   const rows = [
-    breakdown.continuity,
-    breakdown.workload,
-    breakdown.distance,
-    breakdown.seniority
+    breakdown.continuityEfficiency,
+    breakdown.travelDistance,
+    breakdown.actualWorkload,
+    breakdown.originalSchedulePreservation,
+    breakdown.gapsAndNewDays
   ].filter(Boolean);
   return `<div class="course-scheduling-score-breakdown">
     <h4>פירוט הציון · ${candidate.score ?? '—'}</h4>
     <ul class="course-scheduling-score-list">
       ${rows.map((row) => `<li><span>${escapeHtml(row.label)}</span><b>${Number(row.points) || 0}</b></li>`).join('')}
     </ul>
-    <p class="course-scheduling-score-note">${escapeHtml(breakdown.gateNote || 'מגדר ושפה הם תנאי סף ואינם מוסיפים נקודות.')}</p>
+    <p class="course-scheduling-score-note">פעילות, כתובת, זמינות, שפה ומגדר כאשר נדרש הם תנאי סף ואינם מוסיפים נקודות.</p>
   </div>`;
 }
 
@@ -502,7 +503,7 @@ function candidateRowHtml(candidate, { recommended = false, selectedId = '', nam
   const selected = id && id === selectedId ? ' is-selected' : '';
   const title = recommended ? 'מומלץ' : (candidate.qualityLabel || 'חלופה');
   const breakdown = candidate?.scoreBreakdown || {};
-  const continuity = breakdown.continuity?.points ?? '—';
+  const continuity = breakdown.continuityEfficiency?.points ?? '—';
   const distance = distanceLabel(candidate);
   const hardBlock = candidateHardBlockReason(candidate);
   const disabled = hardBlock ? ' disabled' : '';
@@ -512,7 +513,7 @@ function candidateRowHtml(candidate, { recommended = false, selectedId = '', nam
     <td class="course-scheduling-candidate-name"><strong title="${escapeHtml(candidate.instructor.full_name || id)}">${escapeHtml(candidate.instructor.full_name || id)}</strong><span>${title}</span></td>
     <td class="course-scheduling-candidate-score"><b>${candidate.score ?? '—'}</b><span class="sr-only"> פירוט הציון עומס וחלוקה שוויונית ותק תנאי סף ואינם מוסיפים נקודות</span></td>
     <td>${escapeHtml(availabilityLabel(candidate))}</td>
-    <td title="${escapeHtml(breakdown.continuity?.label || 'אין רציפות בבית הספר או ברשות')}">התאמה ${escapeHtml(String(continuity))}<span class="sr-only"> ${escapeHtml(breakdown.continuity?.label || 'אין רציפות בבית הספר או ברשות')}</span></td>
+    <td title="${escapeHtml(breakdown.continuityEfficiency?.label || 'אין רציפות בבית הספר או ברשות')}">התאמה ${escapeHtml(String(continuity))}<span class="sr-only"> ${escapeHtml(breakdown.continuityEfficiency?.label || 'אין רציפות בבית הספר או ברשות')}</span></td>
     <td title="${escapeHtml(distance)}">${escapeHtml(distance)}</td>
     <td>${candidateConstraintBadgesHtml(candidate, course || {})}</td>
   </tr>`;
@@ -1202,6 +1203,12 @@ export const courseSchedulingScreen = {
         const routed = await calculateCandidateTravel(preliminary, enriched.activities);
         state.courseSchedulingResults = calculateCourseSchedule({
           ...input,
+          referenceDate: new Intl.DateTimeFormat('en-CA', {
+            timeZone: 'Asia/Jerusalem',
+            year: 'numeric',
+            month: '2-digit',
+            day: '2-digit'
+          }).format(new Date()),
           travel: routed.travel,
           routeMatrix: routed.routeMatrix,
           travelUnavailableReason: routed.unavailableReason || ''
