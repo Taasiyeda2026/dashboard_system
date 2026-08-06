@@ -50,7 +50,7 @@ test('no eligible candidate is recruitment while missing-only remains treatment'
 });
 
 test('focused SQL migration removes legacy gates and preserves operational validation', async () => {
-  const sql = await readFile(new URL('../supabase/migrations/20260806120000_simplify_scheduling_gates.sql', import.meta.url), 'utf8');
+  const sql = await readFile(new URL('../supabase/migrations/20260806191204_simplify_scheduling_gates.sql', import.meta.url), 'utf8');
   for (const removed of ['education_levels', 'course_restriction_mode', 'course_ids', 'allowed_instructor_ids', 'blocked_instructor_ids', 'blocked_authorities', 'blocked_schools', 'weekly_target_hours', 'weekly_max_hours', 'preferred_work_days', 'max_fixed_courses']) assert.doesNotMatch(sql, new RegExp(removed));
   for (const kept of ['instructor_inactive', 'scheduling_language_mismatch', 'scheduling_gender_mismatch', 'scheduling_availability_missing', 'scheduling_conflict_detected', 'scheduling_transition_insufficient', 'scheduling_daily_sequence_exceeded', 'scheduling_instructor_profile_incomplete']) assert.match(sql, new RegExp(kept));
 });
