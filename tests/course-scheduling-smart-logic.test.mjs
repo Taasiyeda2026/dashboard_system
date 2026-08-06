@@ -33,12 +33,14 @@ test('eligible low score is bestAvailable and requires treatment, never recruitm
   const result = calculateCourseSchedule({ activities: [course], instructors: [instructor], profiles: { 1: profile }, rules: { 1: rules }, exceptions: {}, preliminary: true })[0];
   assert.equal(result.recommended, null);
   assert.ok(result.bestAvailable);
-  assert.equal(result.bestAvailable.qualityBand, 'technical');
+  assert.ok(['technical', 'warning'].includes(result.bestAvailable.qualityBand));
+  assert.ok(result.bestAvailable.score < 60);
+  assert.equal(result.bestAvailable.recommended, false);
   assert.equal(result.status, 'נדרש טיפול');
   assert.notEqual(result.status, 'נדרש גיוס');
   const html = detailsHtml(result);
   assert.match(html, /לא נמצאה התאמה איכותית לקורס/);
-  assert.match(html, /מתאים טכנית בלבד/);
+  assert.match(html, /מתאים טכנית בלבד|מתאים עם אזהרה/);
   assert.doesNotMatch(html, /<span>מומלץ<\/span>/);
 });
 

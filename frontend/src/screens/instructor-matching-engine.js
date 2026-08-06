@@ -1,4 +1,7 @@
 import { instructionLanguageLabel, profileSpeaksLanguage, resolveInstructionLanguage } from './shared/instruction-language.js';
+import { computeSchedulingScore, SCORE_WEIGHTS } from './course-scheduling-score.js';
+
+export { SCORE_WEIGHTS };
 
 const LANGUAGE_LABELS = { he: 'עברית', ar: 'ערבית' };
 export const DEFAULT_SCHEDULING_PROFILE = Object.freeze({
@@ -106,8 +109,17 @@ export function evaluateInstructor({
   averageWorkloadRatio = null,
   fixedCourseCount = null,
   weeklyWorkDayCount = null,
-  workloadPoints = null
+  workloadPoints = null,
+  dateAdjustment = null,
+  currentHalfHours = null,
+  projectedHalfHours = null,
+  peerProjectedHours = null,
+  activeWorkDays = null,
+  workDates = null
 }) {
+  void workloadPoints;
+  void fixedCourseCount;
+  void weeklyWorkDayCount;
   const profile = normalizeSchedulingProfile(rawProfile);
   const failures = [];
   const missingProfileData = [];
@@ -163,12 +175,6 @@ export function evaluateInstructor({
     if (date && !issue.dates.includes(date)) issue.dates.push(date);
   };
 
-  let sameSchool = 0;
-  let sameAuthority = 0;
-  let waitMinutes = 0;
-  let separateTrips = 0;
-  let schoolContinuityPoints = 0;
-  let authorityContinuityPoints = 0;
   let availableMeetings = 0;
   const availabilityIssueKinds = new Set(['missing_availability', 'hours_unavailable', 'day_blocked', 'overlap']);
   const travelIssueKinds = new Set(['unverified_transition', 'insufficient_transition']);
@@ -212,19 +218,6 @@ export function evaluateInstructor({
       const label = direction === 'previous' ? 'מהפעילות הקודמת' : 'לפעילות הבאה';
       if (required == null && !same(neighbor.school, activity.school)) addIssue('unverified_transition', direction, `לא ניתן לאמת זמן מעבר ${label}`, meeting.date);
       else if (required != null && gap < required) addIssue('insufficient_transition', `${direction}-${required}-${gap}`, `אין זמן מעבר מספיק ${label} (${gap} דקות זמינות, ${required} דקות נסיעה)`, meeting.date);
-      // A given neighbor relationship counts once: same-school continuity takes priority
-      // over same-authority continuity so the two point buckets never double-score it.
-      if (same(neighbor.school, activity.school)) {
-        sameSchool += 1;
-        schoolContinuityPoints += gap <= 30 ? 10 : gap <= 90 ? 7 : 4;
-      } else if (same(neighbor.authority, activity.authority)) {
-        sameAuthority += 1;
-        if (required != null && gap - required >= 15) authorityContinuityPoints += 8;
-        else if (required != null) authorityContinuityPoints += 5;
-        else authorityContinuityPoints += 3;
-      }
-      waitMinutes += Math.max(0, gap - (required || 0));
-      if (gap > 120) separateTrips += 1;
     };
     if (validateTravel) {
       inspect(previous, transition.previous, 'previous');
@@ -304,75 +297,78 @@ export function evaluateInstructor({
     notes: checkResult(true, 'הערות', [activity.scheduling_note, profile.matching_note].filter(Boolean).join(' · '))
   };
 
-  // 100-point rubric: distance/travel 40, continuity 30, load/fairness 20,
-  // seniority 10. Availability, language and gender are gating checks only.
-  let score = failures.length || missingProfileData.length ? null : 0;
-  let scoreBreakdown = null;
-  if (score !== null) {
-    if (language) scoreReasons.push(`מתאים לשפה ${LANGUAGE_LABELS[language]}`);
-    scoreReasons.push(femaleInstructor ? 'פנויה בכל המפגשים' : 'פנוי בכל המפגשים');
-
-    let continuityPoints = 0;
-    let continuityLabel = 'אין רציפות בבית הספר או ברשות';
-    const hasSchoolContinuity = sameSchool || existingActivities.some((other) => same(other.school, activity.school));
-    const hasAuthorityContinuity = !hasSchoolContinuity && (sameAuthority || existingActivities.some((other) => same(other.authority, activity.authority)));
-    if (hasSchoolContinuity) {
-      continuityPoints = 30;
-      continuityLabel = 'רציפות באותו בית ספר';
-      scoreReasons.push('רציפות באותו בית ספר במחצית הנבחרת');
-    } else if (hasAuthorityContinuity) {
-      continuityPoints = 20;
-      continuityLabel = 'רציפות באותה רשות';
-      scoreReasons.push('רציפות באותה רשות במחצית הנבחרת');
-    }
-
-    let distancePoints = 0;
-    if (travel?.home?.distance_km != null && Number.isFinite(Number(travel.home.distance_km))) {
-      const km = Number(travel.home.distance_km);
-      scoreReasons.push(`${Math.round(km)} ק״מ מהבית, ${Math.round(Number(travel.home.duration_minutes) || 0)} דקות נסיעה`);
-      distancePoints = Math.max(0, 40 - km);
-    } else {
-      scoreReasons.push('המרחק טרם חושב');
-    }
-
-    const workloadBreakdown = workloadPoints || { points: 20, totalHoursPoints: 12, courseWeeksPoints: 8, label: 'עומס וחלוקה שוויונית' };
-    const seniorityYears = Math.max(0, Math.floor(Number(profile.seniority_years ?? profile.years_of_experience ?? instructor.seniority_years ?? 0) || 0));
-    const seniorityPoints = Math.min(10, seniorityYears);
-    if (seniorityPoints) scoreReasons.push(`${seniorityPoints} נקודות ותק`);
-
-    if (failures.length || missingProfileData.length) {
-      score = null;
-      scoreBreakdown = null;
-    } else {
-      const roundedDistance = Math.round(Math.max(0, Math.min(40, distancePoints)));
-      const roundedContinuity = Math.round(continuityPoints);
-      const roundedWorkload = Math.round(Math.max(0, Math.min(20, Number(workloadBreakdown.points) || 0)));
-      const roundedSeniority = Math.round(seniorityPoints);
-      score = roundedDistance + roundedContinuity + roundedWorkload + roundedSeniority;
-      scoreBreakdown = {
-        distance: { points: roundedDistance, label: 'מרחק ונסיעה', distance_km: travel?.home?.distance_km ?? null, duration_minutes: travel?.home?.duration_minutes ?? null },
-        continuity: { points: roundedContinuity, label: continuityLabel },
-        workload: { points: roundedWorkload, label: 'עומס וחלוקה שוויונית', totalHoursPoints: workloadBreakdown.totalHoursPoints, courseWeeksPoints: workloadBreakdown.courseWeeksPoints, totalHours: workloadBreakdown.totalHours, courseWeeksHours: workloadBreakdown.courseWeeksHours },
-        seniority: { points: roundedSeniority, label: 'ותק' },
-        gateNote: 'פעילות, כתובת, זמינות, שפה ומגדר כאשר נדרש הם תנאי סף ואינם מוסיפים נקודות.'
-      };
-    }
-  }
-
   const eligible = !failures.length && !missingProfileData.length;
+  if (language && eligible) scoreReasons.push(`מתאים לשפה ${LANGUAGE_LABELS[language]}`);
+  if (eligible) scoreReasons.push(femaleInstructor ? 'פנויה בכל המפגשים' : 'פנוי בכל המפגשים');
+
+  const inferredCurrentHours = currentHalfHours != null
+    ? Number(currentHalfHours)
+    : existingActivities.reduce((sum, row) => {
+      const start = minutes(row.start_time);
+      const end = minutes(row.end_time);
+      return sum + (Number.isFinite(start) && Number.isFinite(end) && end > start ? (end - start) / 60 : 0);
+    }, 0);
+  const meetingHours = meetings.reduce((sum, meeting) => {
+    const start = minutes(meeting.start_time || activity.start_time);
+    const end = minutes(meeting.end_time || activity.end_time);
+    return sum + (Number.isFinite(start) && Number.isFinite(end) && end > start ? (end - start) / 60 : 0);
+  }, 0);
+  const inferredProjected = projectedHalfHours != null ? Number(projectedHalfHours) : inferredCurrentHours + meetingHours;
+  const inferredWorkDays = activeWorkDays != null
+    ? Number(activeWorkDays)
+    : new Set([
+      ...existingActivities.map((row) => String(row.date || '').slice(0, 10)),
+      ...meetings.map((meeting) => String(meeting.date || '').slice(0, 10))
+    ].filter(Boolean)).size;
+
+  const scored = computeSchedulingScore({
+    eligible,
+    activity,
+    meetings,
+    existingActivities,
+    travel,
+    workDates: workDates || new Set(existingActivities.map((row) => String(row.date || '').slice(0, 10)).filter(Boolean)),
+    dateAdjustment,
+    currentHalfHours: inferredCurrentHours,
+    projectedHalfHours: inferredProjected,
+    peerProjectedHours: peerProjectedHours || [inferredProjected],
+    activeWorkDays: inferredWorkDays,
+    scoreReasons
+  });
+
+  if (scored.recommendationReason) scoreReasons.push(scored.recommendationReason);
+
   return {
     eligible,
-    score,
-    ...schedulingQualityBand(score, eligible),
+    score: scored.score,
+    ...schedulingQualityBand(scored.score, eligible),
     failures: [...new Set(failures)],
     missingProfileData: [...new Set(missingProfileData)],
     warnings: [...new Set(warnings)],
-    explanation: [...scoreReasons, ...warnings].join(', '),
+    explanation: [...new Set([...scoreReasons, ...warnings])].join(', '),
+    recommendationReason: scored.recommendationReason || '',
     scoreReasons,
-    scoreBreakdown,
+    scoreBreakdown: scored.scoreBreakdown,
     checks,
     schedule,
-    issues
+    issues,
+    currentHalfHours: scored.currentHalfHours,
+    projectedHalfHours: scored.projectedHalfHours,
+    activeWorkDays: scored.activeWorkDays,
+    relevantTravelMinutes: scored.relevantTravelMinutes,
+    relevantTravelDistance: scored.relevantTravelDistance,
+    dailyTravelMinutes: scored.dailyTravelMinutes,
+    movedMeetingsCount: scored.movedMeetingsCount,
+    totalShiftDays: scored.totalShiftDays,
+    originalEndDate: scored.originalEndDate,
+    proposedEndDate: scored.proposedEndDate,
+    halfOverflow: scored.halfOverflow,
+    opensNewWorkDay: scored.opensNewWorkDay,
+    gapBeforeMinutes: scored.gapBeforeMinutes,
+    gapAfterMinutes: scored.gapAfterMinutes,
+    nonTravelWaitingMinutes: scored.nonTravelWaitingMinutes,
+    hasSameSchoolDay: scored.hasSameSchoolDay,
+    hasSameAuthorityDay: scored.hasSameAuthorityDay
   };
 }
 

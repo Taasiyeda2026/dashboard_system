@@ -63,11 +63,13 @@ test('authority filter limits engine courses and half A load does not affect hal
   assert.equal((results[0].recommended||results[0].bestAvailable).load.hours,2);
 });
 
-test('load score is split into 12 total half hours and 8 course-week hours with equal-load fallback', () => {
+test('stage 3 workload uses actual half hours, not the old 12+8 week split', () => {
   const target = course('c', { meetings: [{ date: '2027-02-02', start_time: '10:00', end_time: '12:00' }] });
   const results = calculateCourseSchedule({ activities: [target], instructors, profiles, rules, exceptions: {}, periodKey: 'second', authority: 'רשות א', travel, routeMatrix: {} });
   const selected=results[0].recommended||results[0].bestAvailable;
   assert.ok(selected,'an eligible low-score candidate remains selectable rather than becoming recruitment');
-  assert.equal(selected.scoreBreakdown.workload.totalHoursPoints,12);
-  assert.equal(selected.scoreBreakdown.workload.courseWeeksPoints,8);
+  assert.ok(selected.scoreBreakdown.actualWorkload);
+  assert.equal(selected.scoreBreakdown.actualWorkload.points <= 20, true);
+  assert.equal(selected.projectedHalfHours, 2);
+  assert.equal(selected.scoreBreakdown.workload, undefined);
 });

@@ -482,17 +482,18 @@ export function scoreBreakdownHtml(candidate) {
     return `<div class="course-scheduling-score-breakdown"><h4>פירוט הציון</h4><p class="course-scheduling-muted">אין ציון להצגה — תנאי סף לא התקיימו.</p></div>`;
   }
   const rows = [
-    breakdown.continuity,
-    breakdown.workload,
-    breakdown.distance,
-    breakdown.seniority
+    breakdown.continuityEfficiency,
+    breakdown.travelDistance,
+    breakdown.actualWorkload,
+    breakdown.originalSchedulePreservation,
+    breakdown.gapsAndNewDays
   ].filter(Boolean);
   return `<div class="course-scheduling-score-breakdown">
-    <h4>פירוט הציון · ${candidate.score ?? '—'}</h4>
+    <h4>פירוט הציון · ${candidate.score ?? candidate.totalScore ?? '—'}</h4>
     <ul class="course-scheduling-score-list">
       ${rows.map((row) => `<li><span>${escapeHtml(row.label)}</span><b>${Number(row.points) || 0}</b></li>`).join('')}
     </ul>
-    <p class="course-scheduling-score-note">${escapeHtml(breakdown.gateNote || 'מגדר ושפה הם תנאי סף ואינם מוסיפים נקודות.')}</p>
+    <p class="course-scheduling-score-note">${escapeHtml(breakdown.gateNote || 'פעילות, כתובת, זמינות, שפה ומגדר כאשר נדרש הם תנאי סף ואינם מוסיפים נקודות.')}</p>
   </div>`;
 }
 
@@ -502,17 +503,18 @@ function candidateRowHtml(candidate, { recommended = false, selectedId = '', nam
   const selected = id && id === selectedId ? ' is-selected' : '';
   const title = recommended ? 'מומלץ' : (candidate.qualityLabel || 'חלופה');
   const breakdown = candidate?.scoreBreakdown || {};
-  const continuity = breakdown.continuity?.points ?? '—';
+  const continuity = breakdown.continuityEfficiency?.points ?? '—';
   const distance = distanceLabel(candidate);
   const hardBlock = candidateHardBlockReason(candidate);
   const disabled = hardBlock ? ' disabled' : '';
   const tooltip = hardBlock ? ` title="${escapeHtml(hardBlock)}"` : '';
+  const continuityLabel = breakdown.continuityEfficiency?.label || 'אין רציפות בבית הספר או ברשות';
   return `<tr class="course-scheduling-candidate-row${selected}" data-candidate-row="${escapeHtml(id)}">
     <td class="course-scheduling-candidate-select"><input type="radio" name="${escapeHtml(name)}" value="${escapeHtml(id)}"${checked}${disabled}${tooltip}></td>
     <td class="course-scheduling-candidate-name"><strong title="${escapeHtml(candidate.instructor.full_name || id)}">${escapeHtml(candidate.instructor.full_name || id)}</strong><span>${title}</span></td>
-    <td class="course-scheduling-candidate-score"><b>${candidate.score ?? '—'}</b><span class="sr-only"> פירוט הציון עומס וחלוקה שוויונית ותק תנאי סף ואינם מוסיפים נקודות</span></td>
+    <td class="course-scheduling-candidate-score"><b>${candidate.score ?? '—'}</b><span class="sr-only"> פירוט הציון ${escapeHtml(candidate.recommendationReason || '')} תנאי סף ואינם מוסיפים נקודות</span></td>
     <td>${escapeHtml(availabilityLabel(candidate))}</td>
-    <td title="${escapeHtml(breakdown.continuity?.label || 'אין רציפות בבית הספר או ברשות')}">התאמה ${escapeHtml(String(continuity))}<span class="sr-only"> ${escapeHtml(breakdown.continuity?.label || 'אין רציפות בבית הספר או ברשות')}</span></td>
+    <td title="${escapeHtml(continuityLabel)}">התאמה ${escapeHtml(String(continuity))}<span class="sr-only"> ${escapeHtml(continuityLabel)}</span></td>
     <td title="${escapeHtml(distance)}">${escapeHtml(distance)}</td>
     <td>${candidateConstraintBadgesHtml(candidate, course || {})}</td>
   </tr>`;
@@ -585,6 +587,7 @@ export function instructorsResultsHtml(result, state = {}) {
           ${candidateRowHtml(result.bestAvailable, { selectedId, name: radioName, course: result.course })}
           ${(result.alternatives || []).map((item) => candidateRowHtml(item, { selectedId, name: radioName, course: result.course })).join('')}
         </tbody></table></div>
+        ${scoreBreakdownHtml(result.bestAvailable)}
         ${dateAdjustmentHtml(result.bestAvailable)}
         ${rejectedCandidatesHtml(result)}
         <div class="course-scheduling-selection-note" data-selection-note>${selectedId ? 'נבחר מדריך לשיבוץ ידני' : 'בחרו מדריך כדי להפעיל את הפעולות'}</div>
@@ -618,6 +621,8 @@ export function instructorsResultsHtml(result, state = {}) {
       ${candidateRowHtml(result.recommended, { recommended: true, selectedId, name: radioName, course: result.course })}
       ${visibleAlts.map((item) => candidateRowHtml(item, { selectedId, name: radioName, course: result.course })).join('')}
     </tbody></table></div>
+    ${scoreBreakdownHtml(result.recommended)}
+    ${requirementsFitHtml(result.recommended, result.course)}
     ${dateAdjustmentHtml(result.recommended)}
     ${(hiddenAlts.length || moreChecked.length) ? `<details class="course-scheduling-details" data-more-candidates ${showMore ? 'open' : ''}><summary>הצגת מדריכים נוספים</summary><div class="course-scheduling-candidates-table-wrap"><table class="course-scheduling-candidates-table"><tbody>${[...hiddenAlts, ...moreChecked].map((item) => candidateRowHtml(item, { selectedId, name: radioName, course: result.course })).join('')}</tbody></table></div></details>` : ''}
     ${rejectedCandidatesHtml(result)}

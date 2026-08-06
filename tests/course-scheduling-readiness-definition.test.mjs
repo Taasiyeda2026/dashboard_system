@@ -53,6 +53,6 @@ test('manual workload quotas are not readiness or scoring inputs; actual assignm
   assert.equal(availabilityHours({ weekly_max_hours: 1 }, rules), 6);
   const noQuota = evaluateInstructor({ instructor, profile: { ...matchingProfile, max_fixed_courses: null, preferred_work_days: null }, rules, activity: readyCourse, workloadRatio: 0.1, fixedCourseCount: 99, weeklyWorkDayCount: 7 });
   const withQuota = evaluateInstructor({ instructor, profile: matchingProfile, rules, activity: readyCourse, workloadRatio: 0.1, fixedCourseCount: 99, weeklyWorkDayCount: 7 });
-  assert.equal(withQuota.scoreBreakdown.workload.points, noQuota.scoreBreakdown.workload.points);
+  assert.equal(withQuota.scoreBreakdown.actualWorkload.points, noQuota.scoreBreakdown.actualWorkload.points);
   assert.equal(instructorLoad([{ ...readyCourse, row_id: 'assigned' }], {}, rules).meetings, 1);
 });

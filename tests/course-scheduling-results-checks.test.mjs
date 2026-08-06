@@ -71,6 +71,16 @@ const travelFor = (courseId, empId, home = travelHome) => ({
   }
 });
 
+function mergeTravel(...parts) {
+  const merged = {};
+  for (const part of parts) {
+    for (const [courseId, byEmp] of Object.entries(part || {})) {
+      merged[courseId] = { ...(merged[courseId] || {}), ...byEmp };
+    }
+  }
+  return merged;
+}
+
 function baseInput(instructors, profiles, travel = {}) {
   return {
     activities: [course019()],
@@ -115,9 +125,9 @@ test('the same travel object is used for scoring and display', () => {
   ))[0];
   const candidate = result.recommended;
   assert.equal(candidate.travel.home.distance_km, 12);
-  assert.equal(candidate.scoreBreakdown.distance.distance_km, 12);
-  assert.equal(candidate.scoreBreakdown.distance.duration_minutes, 22);
-  assert.match(candidate.explanation, /12 ק״מ מהבית, 22 דקות נסיעה/);
+  assert.equal(candidate.scoreBreakdown.travelDistance.distance_km, 12);
+  assert.equal(candidate.scoreBreakdown.travelDistance.duration_minutes, 22);
+  assert.match(candidate.recommendationReason || candidate.explanation, /12 ק״מ/);
   assert.match(detailsHtml(result), /מרחק מהבית: 12 ק״מ/);
   assert.match(detailsHtml(result), /זמן נסיעה משוער: 22 דקות/);
 });
@@ -129,10 +139,10 @@ test('female-required course never recommends a male instructor', () => {
       m1: { ...matchingProfile, gender: 'male' },
       f1: matchingProfile
     },
-    {
-      ...travelFor('school_2027_019', 'f1'),
-      ...travelFor('school_2027_019', 'm1')
-    }
+    mergeTravel(
+      travelFor('school_2027_019', 'f1'),
+      travelFor('school_2027_019', 'm1')
+    )
   ))[0];
   assert.equal(result.recommended.instructor.emp_id, 'f1');
   assert.ok(!result.alternatives.some((item) => item.instructor.emp_id === 'm1'));
@@ -163,16 +173,17 @@ test('course without gender requirement accepts male or female instructors', () 
   assert.deepEqual(eligibleIds, ['f1', 'm1']);
 });
 
-test('language and education remain hard matching constraints', () => {
+test('language remains a hard gate while education level does not', () => {
+  // Stage 1 removed education-level gating; stage 3 must not restore it.
   const mismatchedAge = evaluateInstructor({
     instructor: femaleInstructor,
     profile: { ...matchingProfile, education_levels: ['elementary'] },
     rules: weekdayRules,
     activity: course019({ education_level: 'high_school', grade: 'יב' })
   });
-  assert.equal(mismatchedAge.eligible, false);
-  assert.equal(mismatchedAge.checks.educationLevel.passed, false);
-  assert.match(mismatchedAge.failures.join(' '), /רמת החינוך/);
+  assert.equal(mismatchedAge.eligible, true);
+  assert.equal(mismatchedAge.checks.educationLevel, undefined);
+  assert.doesNotMatch(mismatchedAge.failures.join(' '), /רמת החינוך/);
 
   const wrongLanguage = evaluateInstructor({
     instructor: femaleInstructor,
@@ -211,7 +222,8 @@ test('availability and gender checks stay independent in labels', () => {
   assert.equal(availabilityLabel(matchingUnavailable), 'לא זמין במלואו');
 });
 
-test('course and instructor allow/block lists gate scheduling eligibility', () => {
+test('course and instructor allow/block lists no longer gate scheduling eligibility', () => {
+  // Stage 1 removed course/school/authority allow-block lists; stage 3 must not restore them.
   for (const profileExtra of [
     { course_restriction_mode: 'allow_only', course_ids: ['other-course'] },
     { course_restriction_mode: 'block_selected', course_ids: ['school_2027_019'] },
@@ -219,8 +231,8 @@ test('course and instructor allow/block lists gate scheduling eligibility', () =
     { blocked_schools: ['תורני ואולפנת בר אילן'] }
   ]) {
     const result = evaluateInstructor({ instructor: femaleInstructor, profile: { ...matchingProfile, ...profileExtra }, rules: weekdayRules, activity: course019(), travel: { home: travelHome, transitions: {} } });
-    assert.equal(result.eligible, false);
-    assert.ok(result.checks.courseEligibility || result.failures.length);
+    assert.equal(result.eligible, true);
+    assert.equal(result.checks.courseEligibility, undefined);
   }
 
   for (const activityExtra of [
@@ -228,8 +240,8 @@ test('course and instructor allow/block lists gate scheduling eligibility', () =
     { allowed_instructor_ids: ['other-instructor'] }
   ]) {
     const result = evaluateInstructor({ instructor: femaleInstructor, profile: matchingProfile, rules: weekdayRules, activity: course019(activityExtra), travel: { home: travelHome, transitions: {} } });
-    assert.equal(result.eligible, false);
-    assert.equal(result.checks.courseEligibility.passed, false);
+    assert.equal(result.eligible, true);
+    assert.equal(result.checks.courseEligibility, undefined);
   }
 });
 
@@ -241,10 +253,10 @@ test('recommended and alternatives always include travel and checks', () => {
     profiles: { f1: matchingProfile, f2: matchingProfile },
     rules: { f1: weekdayRules, f2: weekdayRules },
     exceptions: {},
-    travel: {
-      ...travelFor('school_2027_019', 'f1', { distance_km: 3, duration_minutes: 8 }),
-      ...travelFor('school_2027_019', 'f2', { distance_km: 9, duration_minutes: 18 })
-    }
+    travel: mergeTravel(
+      travelFor('school_2027_019', 'f1', { distance_km: 3, duration_minutes: 8 }),
+      travelFor('school_2027_019', 'f2', { distance_km: 9, duration_minutes: 18 })
+    )
   })[0];
   assert.ok(result.recommended.travel);
   assert.ok(result.recommended.checks);
@@ -253,10 +265,10 @@ test('recommended and alternatives always include travel and checks', () => {
     assert.ok(candidate.checks, `missing checks for ${candidate.instructor.emp_id}`);
     assert.ok(candidate.checks.gender);
     assert.ok(candidate.checks.language);
-    assert.ok(candidate.checks.educationLevel);
+    assert.equal(candidate.checks.educationLevel, undefined);
     assert.ok(candidate.checks.availability);
     assert.ok(candidate.checks.travel);
-    assert.ok(candidate.checks.courseEligibility);
+    assert.equal(candidate.checks.courseEligibility, undefined);
   }
 });
 
@@ -346,15 +358,15 @@ test('integration school_2027_019: matching Hebrew females are recommended witho
 
   assert.equal(result.course.row_id, 'school_2027_019');
   assert.equal(result.recommended.instructor.emp_id, 'f1');
-  assert.equal(result.checked.find((candidate) => candidate.instructor.emp_id === 'f-el').eligible, false);
+  assert.equal(result.checked.find((candidate) => candidate.instructor.emp_id === 'f-el').eligible, true);
   assert.equal(result.checked.find((candidate) => candidate.instructor.emp_id === 'm1').eligible, false);
   assert.equal(result.checked.find((candidate) => candidate.instructor.emp_id === 'f-ar').eligible, false);
   assert.equal(result.recommended.checks.gender.passed, true);
   assert.equal(result.recommended.checks.language.passed, true);
-  assert.equal(result.recommended.checks.educationLevel.passed, true);
+  assert.equal(result.recommended.checks.educationLevel, undefined);
   assert.match(result.recommended.checks.language.label, /עברית/);
   assert.equal(result.recommended.travel.home.distance_km, 6.4);
-  assert.equal(result.recommended.scoreBreakdown.distance.distance_km, 6.4);
+  assert.equal(result.recommended.scoreBreakdown.travelDistance.distance_km, 6.4);
   const html = detailsHtml(result);
   assert.match(html, /התאמה לדרישות הקורס/);
   assert.match(html, /מגדר:[\s\S]*עומדת בדרישה/);
@@ -363,10 +375,11 @@ test('integration school_2027_019: matching Hebrew females are recommended witho
   assert.match(html, /מרחק מהבית: 6 ק״מ/);
   assert.match(html, /זמן נסיעה משוער: 14 דקות/);
   assert.match(html, /פירוט הציון/);
-  assert.match(html, /אין רציפות בבית הספר או ברשות|רציפות באותו בית ספר|רציפות באותה רשות/);
-  assert.match(html, /עומס וחלוקה שוויונית/);
-  assert.match(html, /ותק/);
+  assert.match(html, /רציפות ויעילות ביום|פתיחת יום עבודה חדש|רציפות באותו בית ספר|רציפות באותה רשות/);
+  assert.match(html, /עומס עבודה בפועל/);
+  assert.match(html, /שמירה על המועדים המקוריים/);
   assert.doesNotMatch(html, /ניסיון קודם בקורס/);
+  assert.doesNotMatch(html, />ותק</);
   assert.match(html, /תנאי סף ואינם מוסיפים נקודות/);
 });
 
@@ -424,7 +437,7 @@ test('gender hard gates male, female, and missing profile gender only when requi
 });
 
 test('candidate details render compact table, closed rejections, and initially disabled actions with explanation', () => {
-  const recommended = { instructor: femaleInstructor, eligible: true, score: 88, explanation: 'מתאימה', warnings: [], failures: [], missingProfileData: [], issues: [], checks: { language: { passed: true }, gender: { passed: true }, availability: { passed: true } }, scoreBreakdown: { continuity: { points: 20 } }, travel: { home: travelHome, transitions: {} } };
+  const recommended = { instructor: femaleInstructor, eligible: true, score: 88, explanation: 'מתאימה', warnings: [], failures: [], missingProfileData: [], issues: [], checks: { language: { passed: true }, gender: { passed: true }, availability: { passed: true } }, scoreBreakdown: { continuityEfficiency: { points: 20, label: 'רציפות באותה רשות באותו יום' } }, travel: { home: travelHome, transitions: {} } };
   const rejected = { instructor: maleInstructor, eligible: false, score: null, failures: ['שפת ההדרכה אינה תואמת'], missingProfileData: [], checks: { language: { passed: false, reason: 'שפת ההדרכה אינה תואמת' }, gender: { passed: true }, availability: { passed: true } }, travel: { home: travelHome, transitions: {} } };
   const html = detailsHtml({ course: course019({ required_instructor_gender: 'any' }), status: 'הצעה מוכנה', recommended, alternatives: [], checked: [recommended, rejected] }, { courseSchedulingSelectedCandidateId: '' });
   assert.match(html, /course-scheduling-candidates-table/);

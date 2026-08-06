@@ -28,7 +28,10 @@ export function isActivitySchedulingEligible(activity) {
   const type = String(activity.activity_type ?? activity.type ?? '').trim().toLocaleLowerCase('he-IL');
   const isCourse = ['קורס', 'course', 'program'].includes(type);
   const isOpen = ['פתוח', 'open'].includes(status);
-  return isCourse && isOpen && !BLOCKED_SCHEDULING_STATUSES.has(status) && !hasAssignedInstructor(activity);
+  // Approved assignments and saved drafts stay fixed; only unassigned non-draft courses enter optimization.
+  return isCourse && isOpen && !BLOCKED_SCHEDULING_STATUSES.has(status)
+    && !hasAssignedInstructor(activity)
+    && !hasDraftInstructor(activity);
 }
 
 // Entry criteria for the scheduling interface itself (spec section 4): a course only

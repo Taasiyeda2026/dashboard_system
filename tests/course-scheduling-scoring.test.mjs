@@ -31,9 +31,12 @@ test('same-school continuity does not also earn the full same-authority bonus (n
   });
   const bare = evaluateInstructor({ instructor, profile, rules, activity, travel: { home: null, transitions: {} } });
   assert.ok(withSameSchool.score > bare.score, 'same-school continuity should raise the score');
-  // A same-school connection is worth at most the 30-point school bucket, never
-  // school (30) plus authority (20) for the very same neighbor relationship.
-  assert.ok(withSameSchool.score - bare.score <= 30, `continuity bonus ${withSameSchool.score - bare.score} exceeds the 30-point school cap, suggesting double counting`);
+  // Stage 3: same-school continuity is capped at the 35-point continuityEfficiency weight.
+  assert.ok(
+    withSameSchool.scoreBreakdown.continuityEfficiency.points <= 35,
+    `continuity points ${withSameSchool.scoreBreakdown.continuityEfficiency.points} exceed the 35-point cap`
+  );
+  assert.equal(withSameSchool.scoreBreakdown.continuityEfficiency.points >= withSameSchool.scoreBreakdown.gapsAndNewDays.points, true);
 });
 
 test('language, gender and blocks stay gating conditions, never point contributions', () => {
@@ -48,7 +51,7 @@ test('manual weekly_max_hours does not change the new workload score', () => {
   const heavyDay = [{ weekday: 3, available: true, start_time: '08:00', end_time: '20:00' }];
   const withoutTarget = evaluateInstructor({ instructor, profile, rules: heavyDay, activity, workloadRatio: 1 / 12 });
   const withTightTarget = evaluateInstructor({ instructor, profile: { ...profile, weekly_max_hours: 1 }, rules: heavyDay, activity, workloadRatio: 1 / 1 });
-  assert.equal(withTightTarget.scoreBreakdown.workload.points, withoutTarget.scoreBreakdown.workload.points);
+  assert.equal(withTightTarget.scoreBreakdown.actualWorkload.points, withoutTarget.scoreBreakdown.actualWorkload.points);
 });
 
 test('prior course experience is not a separate score component', () => {
