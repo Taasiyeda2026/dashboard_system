@@ -214,6 +214,39 @@ function candidateRequiresHomeRoute(course, existingMeetings = []) {
   });
 }
 
+function candidateRequiresHomeReturn(course, existingMeetings = []) {
+  return activityMeetings(course).some((meeting) => {
+    const { next } = adjacentActivities(existingMeetings, meeting);
+    return !next;
+  });
+}
+
+/** Activity row used for blocking/load — prefers proposed meetings from a selected candidate. */
+function draftActivityFromCandidate(course, candidate) {
+  if (!course) return null;
+  const meetings = (candidate?.proposedMeetings && candidate.proposedMeetings.length)
+    ? candidate.proposedMeetings
+    : (candidate?.periodCourse?.meetings && candidate.periodCourse.meetings.length)
+      ? candidate.periodCourse.meetings
+      : activityMeetings(course);
+  return {
+    ...course,
+    meetings,
+    start_time: course.start_time || meetings[0]?.start_time || '',
+    end_time: course.end_time || meetings[0]?.end_time || '',
+    school: course.school,
+    school_id: course.school_id,
+    authority: course.authority,
+    school_address: course.school_address
+  };
+}
+
+function meetingSignature(meetings = []) {
+  return (meetings || [])
+    .map((meeting) => `${text(meeting.date).slice(0, 10)}@${text(meeting.start_time)}-${text(meeting.end_time)}`)
+    .join(',');
+}
+
 function fairnessVariance(loads = new Map()) {
   const values = [...loads.values()].map(Number).filter(Number.isFinite);
   if (!values.length) return 0;
@@ -288,7 +321,20 @@ function applyScoreToCandidate(candidate, course, peerProjectedHours = []) {
     gapAfterMinutes: scored.gapAfterMinutes,
     nonTravelWaitingMinutes: scored.nonTravelWaitingMinutes,
     hasSameSchoolDay: scored.hasSameSchoolDay,
-    hasSameAuthorityDay: scored.hasSameAuthorityDay
+    hasSameAuthorityDay: scored.hasSameAuthorityDay,
+    sameSchoolMeetingCount: scored.sameSchoolMeetingCount,
+    sameAuthorityMeetingCount: scored.sameAuthorityMeetingCount,
+    nearbyMeetingCount: scored.nearbyMeetingCount,
+    existingWorkDayMeetingCount: scored.existingWorkDayMeetingCount,
+    newWorkDayMeetingCount: scored.newWorkDayMeetingCount,
+    continuityMeetingCount: scored.continuityMeetingCount,
+    continuityAverage: scored.continuityAverage,
+    homeRouteVerified: !!(candidate.travel?.home
+      && Number.isFinite(Number(candidate.travel.home.duration_minutes))
+      && Number.isFinite(Number(candidate.travel.home.distance_km))),
+    homeReturnVerified: !!(candidate.travel?.homeReturn
+      && Number.isFinite(Number(candidate.travel.homeReturn.duration_minutes))
+      && Number.isFinite(Number(candidate.travel.homeReturn.distance_km)))
   };
 }
 
@@ -336,8 +382,15 @@ function evaluateCandidate({ course, instructor, assignedRows, draftRows, profil
   const occupiedPeriodMeetings = meetingAssignments(occupiedRows, { periodKey });
   const travel = dynamicTravel(periodCourse, instructor, occupiedPeriodMeetings, input);
   const validateTravel = !input.preliminary && (input.travel !== undefined || input.routeMatrix !== undefined);
-  // Home-route safety applies only when this run is validating travel (final routed calculation).
+  // Home/home-return safety applies only when this run is validating travel (final routed calculation).
   const requiresHomeRoute = validateTravel && candidateRequiresHomeRoute(periodCourse, occupiedPeriodMeetings);
+  const requiresHomeReturn = validateTravel && candidateRequiresHomeReturn(periodCourse, occupiedPeriodMeetings);
+  const homeRouteVerified = !!(travel?.home
+    && Number.isFinite(Number(travel.home.duration_minutes))
+    && Number.isFinite(Number(travel.home.distance_km)));
+  const homeReturnVerified = !!(travel?.homeReturn
+    && Number.isFinite(Number(travel.homeReturn.duration_minutes))
+    && Number.isFinite(Number(travel.homeReturn.distance_km)));
   const result = evaluateInstructor({
     instructor,
     profile: profiles[empId],
@@ -374,6 +427,9 @@ function evaluateCandidate({ course, instructor, assignedRows, draftRows, profil
     projectedHalfHours: projectedLoad.hours,
     activeWorkDays: projectedLoad.workDays,
     requiresHomeRoute,
+    requiresHomeReturn,
+    homeRouteVerified,
+    homeReturnVerified,
     preliminary: !!input.preliminary
   };
 }
@@ -454,43 +510,65 @@ function primaryRejectionReason(checked = []) {
 function draftRowsForInstructor(state, empId, ordered, excludeCourseId = '') {
   return [...state.draft.entries()]
     .filter(([courseId, candidate]) => courseId !== excludeCourseId && text(candidate.instructor.emp_id) === empId)
-    .map(([courseId]) => ordered.find((row) => idOf(row) === courseId))
+    .map(([courseId, candidate]) => {
+      const course = ordered.find((row) => idOf(row) === courseId);
+      return draftActivityFromCandidate(course, candidate);
+    })
     .filter(Boolean);
 }
 
-function buildWorkloadPeerHours({
+/**
+ * State-aware peer projected hours: re-evaluate each baseline peer against the current draft
+ * (including proposedMeetings). Only currently safe/eligible peers contribute.
+ */
+function buildStateAwarePeerHours({
   course,
-  peerInstructors,
+  maps,
   assignedRows,
   state,
   ordered,
   profiles,
   rules,
-  periodKey,
-  excludeCourseId = ''
+  exceptions,
+  input,
+  cache,
+  excludeCourseId = '',
+  evalCache = null
 }) {
   const hours = [];
-  for (const instructor of peerInstructors || []) {
-    const empId = text(instructor.emp_id);
-    const draftRows = draftRowsForInstructor(state, empId, ordered, excludeCourseId);
-    const occupiedRows = [...(assignedRows[empId] || []), ...draftRows];
-    const load = instructorLoad([...occupiedRows, course], profiles[empId], rules[empId] || [], { periodKey });
-    hours.push(Number(load.hours) || 0);
+  const courseId = idOf(course);
+  const baselines = maps.get(courseId) || [];
+  for (const baseline of baselines) {
+    const empId = text(baseline.instructor?.emp_id);
+    const draftSig = assignmentSignature(state.draft, empId);
+    const cacheKey = `${courseId}|${empId}|${draftSig}|${excludeCourseId}`;
+    let evaluated = evalCache?.get(cacheKey);
+    if (!evaluated) {
+      evaluated = evaluateCandidate({
+        course,
+        instructor: baseline.instructor,
+        assignedRows,
+        draftRows: draftRowsForInstructor(state, empId, ordered, excludeCourseId || courseId),
+        profiles,
+        rules,
+        exceptions,
+        input,
+        cache
+      });
+      evalCache?.set(cacheKey, evaluated);
+    }
+    if (!isSafeEligibleCandidate(evaluated)) continue;
+    hours.push(Number(evaluated.projectedHalfHours) || 0);
   }
   return hours;
-}
-
-function safePeerInstructors(maps, courseId) {
-  return (maps.get(courseId) || [])
-    .filter((candidate) => isSafeEligibleCandidate(candidate))
-    .map((candidate) => candidate.instructor);
 }
 
 function summarizeState(state, ordered, urgencyByCourse, maps) {
   let urgency7Missed = 0;
   let urgency14Missed = 0;
-  let sameSchoolCount = 0;
-  let sameAuthorityCount = 0;
+  let sameSchoolMeetingCount = 0;
+  let sameAuthorityMeetingCount = 0;
+  let newWorkDayMeetingCount = 0;
   let totalTravelMinutes = 0;
   let totalNonTravelWaiting = 0;
   let newWorkDaysOpened = 0;
@@ -516,8 +594,9 @@ function summarizeState(state, ordered, urgencyByCourse, maps) {
       }
       continue;
     }
-    sameSchoolCount += selected.hasSameSchoolDay ? 1 : 0;
-    sameAuthorityCount += selected.hasSameAuthorityDay ? 1 : 0;
+    sameSchoolMeetingCount += Number(selected.sameSchoolMeetingCount) || (selected.hasSameSchoolDay ? 1 : 0);
+    sameAuthorityMeetingCount += Number(selected.sameAuthorityMeetingCount) || (selected.hasSameAuthorityDay ? 1 : 0);
+    newWorkDayMeetingCount += Number(selected.newWorkDayMeetingCount) || (selected.opensNewWorkDay ? 1 : 0);
     const travelUnknown = selected.relevantTravelMinutes == null
       || selected.scoreBreakdown?.travelDistance?.note === 'המרחק טרם חושב'
       || selected.scoreBreakdown?.travelDistance?.note === 'מסלול לא ידוע — ללא ניקוד נסיעה רגיל';
@@ -539,8 +618,12 @@ function summarizeState(state, ordered, urgencyByCourse, maps) {
     urgency7Missed,
     urgency14Missed,
     scarcityMissedByCount,
-    sameSchoolCount,
-    sameAuthorityCount,
+    sameSchoolMeetingCount,
+    sameAuthorityMeetingCount,
+    newWorkDayMeetingCount,
+    // Keep legacy booleans for older compare fixtures.
+    sameSchoolCount: sameSchoolMeetingCount,
+    sameAuthorityCount: sameAuthorityMeetingCount,
     totalTravelMinutes,
     totalNonTravelWaiting,
     newWorkDaysOpened,
@@ -555,17 +638,61 @@ function summarizeState(state, ordered, urgencyByCourse, maps) {
   };
 }
 
-function assignmentSignature(draft) {
+/** Signature includes proposed meeting dates so different adjustments are distinct states. */
+function assignmentSignature(draft, onlyEmpId = '') {
   return [...draft.entries()]
-    .map(([courseId, candidate]) => `${courseId}:${text(candidate.instructor?.emp_id)}`)
+    .filter(([, candidate]) => !onlyEmpId || text(candidate.instructor?.emp_id) === onlyEmpId)
+    .map(([courseId, candidate]) => {
+      const meetings = candidate.proposedMeetings || candidate.periodCourse?.meetings || [];
+      return `${courseId}:${text(candidate.instructor?.emp_id)}:${meetingSignature(meetings)}`;
+    })
     .sort()
     .join('|');
 }
 
 /**
- * Exact max-assignment search with upper-bound pruning and memoization.
- * Uses mutable backtracking (no per-node Map clones) so deep paths stay memory-safe.
- * Never uses a fixed beam width that can discard a path to more assignments.
+ * Partition courses into independent components: two courses share a component when they
+ * share any baseline-safe instructor. Components have no shared instructors, so no travel /
+ * overlap / proposed-date interaction across them — solving separately is exact.
+ */
+function independentCourseComponents(ordered, maps) {
+  const parent = ordered.map((_, index) => index);
+  const find = (index) => {
+    while (parent[index] !== index) {
+      parent[index] = parent[parent[index]];
+      index = parent[index];
+    }
+    return index;
+  };
+  const unite = (a, b) => {
+    const rootA = find(a);
+    const rootB = find(b);
+    if (rootA !== rootB) parent[rootB] = rootA;
+  };
+  const instructorCourses = new Map();
+  ordered.forEach((course, index) => {
+    for (const candidate of (maps.get(idOf(course)) || []).filter((row) => isSafeEligibleCandidate(row))) {
+      const empId = text(candidate.instructor?.emp_id);
+      if (!instructorCourses.has(empId)) instructorCourses.set(empId, []);
+      instructorCourses.get(empId).push(index);
+    }
+  });
+  for (const indexes of instructorCourses.values()) {
+    for (let i = 1; i < indexes.length; i += 1) unite(indexes[0], indexes[i]);
+  }
+  const groups = new Map();
+  ordered.forEach((course, index) => {
+    const root = find(index);
+    if (!groups.has(root)) groups.set(root, []);
+    groups.get(root).push(course);
+  });
+  return [...groups.values()];
+}
+
+/**
+ * Max-assignment search with admissible upper-bound pruning and memoization.
+ * Never uses a fixed beam width. Never prunes using original-date conflicts
+ * (date adjustments can move meetings). Time-budgeted for browser safety.
  */
 function optimizeAssignments({
   ordered,
@@ -579,32 +706,100 @@ function optimizeAssignments({
   input,
   cache,
   baselineLoads,
-  periodKey
+  periodKey,
+  timeBudgetMs = 4000
 }) {
+  // Solve instructor-disjoint components separately first (exact merge).
+  // Share one deadline across components — do not divide the budget into slices that
+  // falsely mark complete components as incomplete.
+  const components = independentCourseComponents(ordered, maps);
+  if (components.length > 1) {
+    const mergedDraft = new Map();
+    const mergedLoads = new Map(baselineLoads);
+    let allComplete = true;
+    let totalNodes = 0;
+    let totalPruned = 0;
+    const deadline = Date.now() + timeBudgetMs;
+    for (const component of components) {
+      const remainingMs = Math.max(50, deadline - Date.now());
+      const partial = optimizeAssignments({
+        ordered: component,
+        maps,
+        urgencyByCourse,
+        instructors,
+        assignedRows,
+        profiles,
+        rules,
+        exceptions,
+        input,
+        cache,
+        baselineLoads,
+        periodKey,
+        timeBudgetMs: remainingMs
+      });
+      for (const [courseId, candidate] of partial.draft.entries()) mergedDraft.set(courseId, candidate);
+      for (const [empId, hours] of partial.loads.entries()) mergedLoads.set(empId, hours);
+      allComplete = allComplete && partial.optimizationComplete !== false;
+      totalNodes += Number(partial.nodesVisited) || 0;
+      totalPruned += Number(partial.branchesPruned) || 0;
+    }
+    const mergedState = { draft: mergedDraft, loads: mergedLoads };
+    const mergedSummary = summarizeState(mergedState, ordered, urgencyByCourse, maps);
+    return {
+      ...mergedSummary,
+      draft: mergedDraft,
+      loads: mergedLoads,
+      optimizationComplete: allComplete,
+      nodesVisited: totalNodes,
+      branchesPruned: totalPruned
+    };
+  }
+
+  const startedAt = Date.now();
+  let nodesVisited = 0;
+  let branchesPruned = 0;
+  let optimizationComplete = true;
   const draft = new Map();
   const loads = new Map(baselineLoads);
   const state = { draft, loads };
+  const evalCache = new Map();
   let bestSummary = summarizeState(state, ordered, urgencyByCourse, maps);
   let bestDraft = new Map();
   let bestLoads = new Map(baselineLoads);
   const memo = new Set();
 
-  // Greedy warm-start: establish a strong assignedCount lower bound before branching.
+  const peerHoursFor = (course) => buildStateAwarePeerHours({
+    course,
+    maps,
+    assignedRows,
+    state,
+    ordered,
+    profiles,
+    rules,
+    exceptions,
+    input,
+    cache,
+    evalCache
+  });
+
+  // Greedy warm-start: admissible lower bound on assignedCount (and a full lex state).
   {
     const warmDraft = new Map();
     const warmLoads = new Map(baselineLoads);
     const warmState = { draft: warmDraft, loads: warmLoads };
     for (const course of ordered) {
-      const peerInstructors = safePeerInstructors(maps, idOf(course));
-      const peerHours = buildWorkloadPeerHours({
+      const peerHours = buildStateAwarePeerHours({
         course,
-        peerInstructors,
+        maps,
         assignedRows,
         state: warmState,
         ordered,
         profiles,
         rules,
-        periodKey
+        exceptions,
+        input,
+        cache,
+        evalCache
       });
       const candidates = (maps.get(idOf(course)) || [])
         .filter((candidate) => isSafeEligibleCandidate(candidate))
@@ -640,9 +835,61 @@ function optimizeAssignments({
     }
   }
 
+  /**
+   * Admissible remaining capacity: number of yet-unprocessed courses that still have at least
+   * one baseline-safe candidate. Does NOT subtract conflict assumptions (date moves may free slots).
+   */
+  const remainingAssignable = (fromIndex) => {
+    let count = 0;
+    for (let index = fromIndex; index < ordered.length; index += 1) {
+      if ((maps.get(idOf(ordered[index])) || []).some((candidate) => isSafeEligibleCandidate(candidate))) {
+        count += 1;
+      }
+    }
+    return count;
+  };
+
+  // Admissible: forced urgency misses among courses already decided unassigned (index < courseIndex).
+  const countForcedMisses = (courseIndex) => {
+    let miss7 = 0;
+    let miss14 = 0;
+    for (let index = 0; index < courseIndex; index += 1) {
+      const courseId = idOf(ordered[index]);
+      if (draft.has(courseId)) continue;
+      const urgency = urgencyByCourse.get(courseId) || {};
+      if (urgency.urgencyRank === 1) miss7 += 1;
+      else if (urgency.urgencyRank === 2) miss14 += 1;
+    }
+    return { miss7, miss14 };
+  };
+
   const search = (courseIndex) => {
-    const remaining = ordered.length - courseIndex;
-    if (draft.size + remaining < bestSummary.assignedCount) return;
+    nodesVisited += 1;
+    if (Date.now() - startedAt > timeBudgetMs) {
+      optimizationComplete = false;
+      return;
+    }
+
+    // Admissible: assigned + remaining courses that still have ≥1 baseline-safe candidate.
+    // Does not assume original-date conflicts (date adjustments may free slots).
+    const remainingCap = remainingAssignable(courseIndex);
+    if (draft.size + remainingCap < bestSummary.assignedCount) {
+      branchesPruned += 1;
+      return;
+    }
+
+    // Admissible urgency prune when cardinality cannot beat best: current forced misses already worse.
+    if (draft.size + remainingCap === bestSummary.assignedCount) {
+      const { miss7, miss14 } = countForcedMisses(courseIndex);
+      if (miss7 > (bestSummary.urgency7Missed || 0)) {
+        branchesPruned += 1;
+        return;
+      }
+      if (miss7 === (bestSummary.urgency7Missed || 0) && miss14 > (bestSummary.urgency14Missed || 0)) {
+        branchesPruned += 1;
+        return;
+      }
+    }
 
     if (courseIndex >= ordered.length) {
       const summary = summarizeState(state, ordered, urgencyByCourse, maps);
@@ -654,59 +901,35 @@ function optimizeAssignments({
       return;
     }
 
+    // Memo includes proposed meeting signatures via assignmentSignature — distinct adjustments ≠ same state.
     const memoKey = `${courseIndex}|${assignmentSignature(draft)}`;
-    if (memo.has(memoKey)) return;
+    if (memo.has(memoKey)) {
+      branchesPruned += 1;
+      return;
+    }
     memo.add(memoKey);
 
     const course = ordered[courseIndex];
-    const peerInstructors = safePeerInstructors(maps, idOf(course));
-    const peerHours = buildWorkloadPeerHours({
-      course,
-      peerInstructors,
-      assignedRows,
-      state,
-      ordered,
-      profiles,
-      rules,
-      periodKey
-    });
-
+    const peerHours = peerHoursFor(course);
     const candidates = (maps.get(idOf(course)) || [])
       .filter((candidate) => isSafeEligibleCandidate(candidate))
       .sort((first, second) => (second.score - first.score) || compareCandidatesStable(first, second));
 
-    const courseMeetings = activityMeetings(course);
-    const soleCoursesBlockedBy = (empId) => {
-      let blocked = 0;
-      for (let index = courseIndex + 1; index < ordered.length; index += 1) {
-        const later = ordered[index];
-        const laterCandidates = (maps.get(idOf(later)) || []).filter((row) => isSafeEligibleCandidate(row));
-        if (laterCandidates.length !== 1 || text(laterCandidates[0].instructor?.emp_id) !== empId) continue;
-        const overlapsCourse = activityMeetings(later).some((meeting) => courseMeetings.some((hubMeeting) => (
-          text(meeting.date).slice(0, 10) === text(hubMeeting.date).slice(0, 10)
-          && !(text(meeting.end_time) <= text(hubMeeting.start_time) || text(hubMeeting.end_time) <= text(meeting.start_time))
-        )));
-        if (overlapsCourse) blocked += 1;
-      }
-      return blocked;
-    };
-
     const exploreUnassigned = () => search(courseIndex + 1);
     const exploreAssignments = () => {
       for (const candidate of candidates) {
-        if (draft.size + remaining < bestSummary.assignedCount) break;
+        if (!optimizationComplete && Date.now() - startedAt > timeBudgetMs) break;
+        // Admissible cardinality prune only (no original-date conflict assumptions).
+        if (draft.size + remainingCap < bestSummary.assignedCount) {
+          branchesPruned += 1;
+          break;
+        }
         const empId = text(candidate.instructor.emp_id);
-        // Conflict-aware upper bound: sole later courses that time-conflict with this assignment
-        // cannot stay available, so they are removed from the optimistic remaining count.
-        const assignmentUpperBound = draft.size + remaining - soleCoursesBlockedBy(empId);
-        if (assignmentUpperBound < bestSummary.assignedCount) continue;
-
-        const draftRows = draftRowsForInstructor(state, empId, ordered);
         const evaluatedRaw = evaluateCandidate({
           course,
           instructor: candidate.instructor,
           assignedRows,
-          draftRows,
+          draftRows: draftRowsForInstructor(state, empId, ordered),
           profiles,
           rules,
           exceptions,
@@ -731,9 +954,7 @@ function optimizeAssignments({
       }
     };
 
-    // High-branching courses: try leaving unassigned first so paths that skip a crowded course
-    // can establish/retain a high assignedCount before expanding many assignment children.
-    // Low-branching courses: try assignments first to reach dense solutions quickly.
+    // High branching: try unassigned first to lock a strong cardinality lower bound quickly.
     if (candidates.length > 20) {
       exploreUnassigned();
       exploreAssignments();
@@ -744,7 +965,14 @@ function optimizeAssignments({
   };
 
   search(0);
-  return { ...bestSummary, draft: bestDraft, loads: bestLoads };
+  return {
+    ...bestSummary,
+    draft: bestDraft,
+    loads: bestLoads,
+    optimizationComplete,
+    nodesVisited,
+    branchesPruned
+  };
 }
 
 export function calculateCourseSchedule(input = {}) {
@@ -801,69 +1029,102 @@ export function calculateCourseSchedule(input = {}) {
     input,
     cache,
     baselineLoads,
-    periodKey
+    periodKey,
+    timeBudgetMs: Number(input.timeBudgetMs) > 0 ? Number(input.timeBudgetMs) : 4000
   });
+  const finalEvalCache = new Map();
 
-  const refreshCandidate = (course, instructor, peerHours) => {
+  const refreshCandidate = (course, instructor, peerHours, excludeCourseId = '') => {
     const empId = text(instructor.emp_id);
-    const evaluatedRaw = evaluateCandidate({
-      course,
-      instructor,
-      assignedRows,
-      draftRows: draftRowsForInstructor(bestState, empId, ordered, idOf(course)),
-      profiles,
-      rules,
-      exceptions,
-      input,
-      cache
-    });
+    const courseId = idOf(course);
+    const cacheKey = `final|${courseId}|${empId}|${assignmentSignature(bestState.draft, empId)}|${excludeCourseId}`;
+    let evaluatedRaw = finalEvalCache.get(cacheKey);
+    if (!evaluatedRaw) {
+      evaluatedRaw = evaluateCandidate({
+        course,
+        instructor,
+        assignedRows,
+        draftRows: draftRowsForInstructor(bestState, empId, ordered, excludeCourseId || courseId),
+        profiles,
+        rules,
+        exceptions,
+        input,
+        cache
+      });
+      finalEvalCache.set(cacheKey, evaluatedRaw);
+    }
     const evaluated = applyScoreToCandidate(evaluatedRaw, course, peerHours);
-    const baseline = (maps.get(idOf(course)) || []).find((row) => text(row.instructor?.emp_id) === empId);
-    return enrichCandidate(evaluated, {
-      eligibleCandidateCount: baseline?.eligibleCandidateCount
-        || (maps.get(idOf(course)) || []).filter((candidate) => isSafeEligibleCandidate(candidate)).length,
-      urgency: urgencyByCourse.get(idOf(course)),
-      rank: baseline?.rank || null
-    });
+    return evaluated;
   };
 
   return courses.map((course) => {
     const id = idOf(course);
     const missing = incomplete.get(id);
-    if (missing.length) return { course, status: 'חסר מידע', missing, recommended: null, alternatives: [], checked: [] };
+    if (missing.length) {
+      return {
+        course,
+        status: 'חסר מידע',
+        missing,
+        recommended: null,
+        alternatives: [],
+        checked: [],
+        optimizationComplete: bestState.optimizationComplete !== false,
+        nodesVisited: bestState.nodesVisited || 0,
+        branchesPruned: bestState.branchesPruned || 0
+      };
+    }
 
-    const checked = maps.get(id) || [];
-    const peerHours = buildWorkloadPeerHours({
+    const peerHours = buildStateAwarePeerHours({
       course,
-      peerInstructors: safePeerInstructors(maps, id),
+      maps,
       assignedRows,
       state: bestState,
       ordered,
       profiles,
       rules,
-      periodKey,
-      excludeCourseId: id
+      exceptions,
+      input,
+      cache,
+      excludeCourseId: id,
+      evalCache: finalEvalCache
     });
+
+    // Re-evaluate every baseline candidate against bestState (not the stale preliminary map).
+    const baselines = maps.get(id) || [];
+    const refreshedChecked = baselines.map((baseline) => {
+      const evaluated = refreshCandidate(course, baseline.instructor, peerHours, id);
+      return evaluated;
+    });
+    const safeEligible = refreshedChecked
+      .filter((candidate) => isSafeEligibleCandidate(candidate))
+      .sort((first, second) => (second.score - first.score) || compareCandidatesStable(first, second));
+    const safeEligibleCount = safeEligible.length;
+    const rankMap = new Map(safeEligible.map((candidate, index) => [text(candidate.instructor.emp_id), index + 1]));
+    const urgency = urgencyByCourse.get(id);
+    const checked = refreshedChecked.map((candidate) => enrichCandidate(candidate, {
+      eligibleCandidateCount: safeEligibleCount,
+      urgency,
+      rank: rankMap.get(text(candidate.instructor?.emp_id)) || null,
+      preliminary: !!input.preliminary
+    }));
+
     const selected = bestState.draft.get(id) || null;
-    const selectedCandidate = selected && isSafeEligibleCandidate(selected)
-      ? refreshCandidate(course, selected.instructor, peerHours)
+    const selectedEmp = text(selected?.instructor?.emp_id);
+    const selectedCandidate = selectedEmp
+      ? checked.find((candidate) => text(candidate.instructor?.emp_id) === selectedEmp)
       : null;
     const safeSelected = selectedCandidate && isSafeEligibleCandidate(selectedCandidate) ? selectedCandidate : null;
     const recommended = safeSelected?.score >= 60 ? { ...safeSelected, recommended: true, bestAvailable: false } : null;
     const bestAvailable = recommended ? null : (safeSelected ? { ...safeSelected, recommended: false, bestAvailable: true } : null);
     const primary = recommended || bestAvailable;
     const alternativeLimit = bestAvailable ? 2 : 3;
+    // Refresh all peers first, then filter/sort, then slice — never slice before re-evaluation.
     const alternatives = checked
       .filter((candidate) => isSafeEligibleCandidate(candidate) && text(candidate.instructor.emp_id) !== text(primary?.instructor?.emp_id))
       .sort((first, second) => (second.score - first.score) || compareCandidatesStable(first, second))
-      .slice(0, alternativeLimit + 2)
-      .map((candidate) => refreshCandidate(course, candidate.instructor, peerHours))
-      .filter((candidate) => isSafeEligibleCandidate(candidate))
-      .sort((first, second) => (second.score - first.score) || compareCandidatesStable(first, second))
-      .slice(0, alternativeLimit);
+      .slice(0, alternativeLimit)
+      .map((candidate) => ({ ...candidate, recommended: false, bestAvailable: false }));
     const incompleteProfiles = checked.filter((candidate) => !candidate.failures.length && candidate.missingProfileData.length);
-    const urgency = urgencyByCourse.get(id);
-    const safeEligibleCount = checked.filter((candidate) => isSafeEligibleCandidate(candidate)).length;
 
     return {
       course,
@@ -879,6 +1140,9 @@ export function calculateCourseSchedule(input = {}) {
       urgencyBand: urgency?.urgencyBand ?? null,
       daysUntilNextMeeting: urgency?.daysUntilNextMeeting ?? null,
       nextUpcomingMeetingDate: urgency?.nextUpcomingMeetingDate ?? null,
+      optimizationComplete: bestState.optimizationComplete !== false,
+      nodesVisited: bestState.nodesVisited || 0,
+      branchesPruned: bestState.branchesPruned || 0,
       treatmentReason: bestAvailable
         ? 'נמצאו מדריכים שעומדים בתנאי הסף, אך הציון שלהם נמוך מסף ההמלצה.'
         : !recommended && incompleteProfiles.length

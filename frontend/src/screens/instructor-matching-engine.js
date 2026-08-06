@@ -1,4 +1,5 @@
 import { instructionLanguageLabel, profileSpeaksLanguage, resolveInstructionLanguage } from './shared/instruction-language.js';
+import { TRAVEL_SAFETY_BUFFER_MINUTES } from './shared/travel-safety-buffer.js';
 import { computeSchedulingScore, SCORE_WEIGHTS } from './course-scheduling-score.js';
 
 export { SCORE_WEIGHTS };
@@ -215,20 +216,39 @@ export function evaluateInstructor({
       const gap = direction === 'previous'
         ? minutes(meeting.start_time) - minutes(neighbor.end_time)
         : minutes(neighbor.start_time) - minutes(meeting.end_time);
-      const required = leg?.duration_minutes;
+      const sameSchoolNeighbor = same(neighbor.school, activity.school);
+      // Same school ⇒ raw travel 0 when no leg; otherwise require a known raw duration.
+      const rawTravel = leg?.duration_minutes != null
+        ? Number(leg.duration_minutes)
+        : (sameSchoolNeighbor ? 0 : null);
       const label = direction === 'previous' ? 'מהפעילות הקודמת' : 'לפעילות הבאה';
-      if (required == null && !same(neighbor.school, activity.school)) addIssue('unverified_transition', direction, `לא ניתן לאמת זמן מעבר ${label}`, meeting.date);
-      else if (required != null && gap < required) addIssue('insufficient_transition', `${direction}-${required}-${gap}`, `אין זמן מעבר מספיק ${label} (${gap} דקות זמינות, ${required} דקות נסיעה)`, meeting.date);
+      if (rawTravel == null) {
+        addIssue('unverified_transition', direction, `לא ניתן לאמת זמן מעבר ${label}`, meeting.date);
+      } else if (gap < rawTravel + TRAVEL_SAFETY_BUFFER_MINUTES) {
+        addIssue(
+          'insufficient_transition',
+          `${direction}-${rawTravel}-${gap}`,
+          `אין זמן מעבר מספיק ${label} (${gap} דקות זמינות, ${rawTravel}+${TRAVEL_SAFETY_BUFFER_MINUTES} דקות נדרשות)`,
+          meeting.date
+        );
+      }
     };
     if (validateTravel) {
-      // When a travel payload is present (final calculation), the first/only activity of the day
-      // requires a reliable home→activity route. Calls without travel keep distance informational.
+      // When a travel payload is present (final calculation), first/only needs home→activity
+      // and last/only needs activity→home. Calls without travel keep distance informational.
       if (!previous && travel != null) {
         const home = travel?.home;
         const homeOk = home
           && Number.isFinite(Number(home.duration_minutes))
           && Number.isFinite(Number(home.distance_km));
         if (!homeOk) addIssue('unverified_transition', 'home', 'לא ניתן לאמת מסלול נסיעה מהבית לפעילות', meeting.date);
+      }
+      if (!next && travel != null) {
+        const homeReturn = travel?.homeReturn;
+        const returnOk = homeReturn
+          && Number.isFinite(Number(homeReturn.duration_minutes))
+          && Number.isFinite(Number(homeReturn.distance_km));
+        if (!returnOk) addIssue('unverified_transition', 'homeReturn', 'לא ניתן לאמת מסלול נסיעה מהפעילות חזרה לבית', meeting.date);
       }
       inspect(previous, transition.previous, 'previous');
       inspect(next, transition.next, 'next');
@@ -378,7 +398,14 @@ export function evaluateInstructor({
     gapAfterMinutes: scored.gapAfterMinutes,
     nonTravelWaitingMinutes: scored.nonTravelWaitingMinutes,
     hasSameSchoolDay: scored.hasSameSchoolDay,
-    hasSameAuthorityDay: scored.hasSameAuthorityDay
+    hasSameAuthorityDay: scored.hasSameAuthorityDay,
+    sameSchoolMeetingCount: scored.sameSchoolMeetingCount,
+    sameAuthorityMeetingCount: scored.sameAuthorityMeetingCount,
+    nearbyMeetingCount: scored.nearbyMeetingCount,
+    existingWorkDayMeetingCount: scored.existingWorkDayMeetingCount,
+    newWorkDayMeetingCount: scored.newWorkDayMeetingCount,
+    continuityMeetingCount: scored.continuityMeetingCount,
+    continuityAverage: scored.continuityAverage
   };
 }
 

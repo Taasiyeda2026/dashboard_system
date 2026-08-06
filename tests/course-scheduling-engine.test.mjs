@@ -69,7 +69,8 @@ test('date adjustment keeps the full course and enforces raw travel plus one 15 
     activities: [target, previous], instructors: [instructors[0]], profiles: { 1: profiles[1] },
     rules: { 1: [{ weekday: 0, available: true, start_time: '08:00', end_time: '16:00' }] },
     exceptions: { 1: [{ exception_date: '2027-01-24', available: false }] }, assignments: { 1: [previous] }, periodKey: 'first',
-    travel: { 'adjusted-full': { 1: { home: { distance_km: 1, duration_minutes: 2 } } } }
+    travel: { 'adjusted-full': { 1: { home: { distance_km: 1, duration_minutes: 2 },
+      homeReturn: { distance_km: 1, duration_minutes: 2 } } } }
   };
   const candidateWith = (routeMatrix) => calculateCourseSchedule({ ...input, routeMatrix })[0].checked[0];
   const exact = candidateWith({ [routeMatrixKey('מוצא 1', 'יעד 1')]: { distance_km: 1, duration_minutes: 10 } });
@@ -311,7 +312,8 @@ test('a missing route between two draft schools safely prevents assigning both t
 });
 
 test('unverified transition between existing schools fails safely', () => {
-  const result = evaluateInstructor({ instructor: instructors[0], profile: profiles[1], rules: rules[1], activity: course('transition'), existingActivities: [{ date: '2026-09-06', start_time: '08:00', end_time: '09:00', school: 'אחר' }], travel: { home: null, transitions: { '2026-09-06': { previous: null } } } });
+  const result = evaluateInstructor({ instructor: instructors[0], profile: profiles[1], rules: rules[1], activity: course('transition'), existingActivities: [{ date: '2026-09-06', start_time: '08:00', end_time: '09:00', school: 'אחר' }], travel: { home: null, transitions: { '2026-09-06': { previous: null } },
+      homeReturn: { '2026-09-06': { previous: null } } } });
   assert.equal(result.eligible, false);
   assert.match(result.failures.join(' '), /לא ניתן לאמת זמן מעבר/);
 });

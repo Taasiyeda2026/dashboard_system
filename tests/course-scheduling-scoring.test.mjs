@@ -16,7 +16,8 @@ test('score is capped at 100 and never at the old 120 ceiling', () => {
   const result = evaluateInstructor({
     instructor, profile, rules, activity,
     existingActivities: [previous],
-    travel: { home: { distance_km: 1, duration_minutes: 2 }, transitions: { '2026-09-02': { previous: { distance_km: 0, duration_minutes: 0 } } } },
+    travel: { home: { distance_km: 1, duration_minutes: 2 },
+      homeReturn: { distance_km: 1, duration_minutes: 2 }, transitions: { '2026-09-02': { previous: { distance_km: 0, duration_minutes: 0 } } } },
     workloadRatio: 0
   });
   assert.equal(result.eligible, true);
@@ -27,9 +28,11 @@ test('same-school continuity does not also earn the full same-authority bonus (n
   const sameSchoolNeighbor = { date: '2026-09-02', start_time: '08:30', end_time: '09:55', school: 'בית ספר א', authority: 'חיפה', activity_name: 'קודמת' };
   const withSameSchool = evaluateInstructor({
     instructor, profile, rules, activity, existingActivities: [sameSchoolNeighbor],
-    travel: { home: null, transitions: { '2026-09-02': { previous: { distance_km: 0, duration_minutes: 0 } } } }
+    travel: { home: null, transitions: { '2026-09-02': { previous: { distance_km: 0, duration_minutes: 0 } } },
+      homeReturn: { '2026-09-02': { previous: { distance_km: 0, duration_minutes: 0 } } } }
   });
-  const bare = evaluateInstructor({ instructor, profile, rules, activity, travel: { home: null, transitions: {} } });
+  const bare = evaluateInstructor({ instructor, profile, rules, activity, travel: { home: null, transitions: {},
+      homeReturn: {} } });
   assert.ok(withSameSchool.score > bare.score, 'same-school continuity should raise the score');
   // Stage 3: same-school continuity is capped at the 35-point continuityEfficiency weight.
   assert.ok(
@@ -56,8 +59,10 @@ test('manual weekly_max_hours does not change the new workload score', () => {
 
 test('prior course experience is not a separate score component', () => {
   const priorSameCourse = { date: '2026-01-05', start_time: '09:00', end_time: '10:00', activity_name: activity.activity_name, school: 'בית ספר אחר', authority: 'ירושלים' };
-  const withExperience = evaluateInstructor({ instructor, profile, rules, activity, existingActivities: [priorSameCourse], travel: { home: null, transitions: {} } });
-  const withoutExperience = evaluateInstructor({ instructor, profile, rules, activity, travel: { home: null, transitions: {} } });
+  const withExperience = evaluateInstructor({ instructor, profile, rules, activity, existingActivities: [priorSameCourse], travel: { home: null, transitions: {},
+      homeReturn: {} } });
+  const withoutExperience = evaluateInstructor({ instructor, profile, rules, activity, travel: { home: null, transitions: {},
+      homeReturn: {} } });
   assert.equal(withExperience.score, withoutExperience.score);
   assert.doesNotMatch(withExperience.explanation, /ניסיון קודם בקורס/);
 });

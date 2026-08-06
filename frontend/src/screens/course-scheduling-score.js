@@ -146,6 +146,13 @@ function hasReliableHomeRoute(travel = null) {
     && Number.isFinite(Number(home.distance_km)));
 }
 
+function hasReliableHomeReturn(travel = null) {
+  const homeReturn = travel?.homeReturn;
+  return !!(homeReturn
+    && Number.isFinite(Number(homeReturn.duration_minutes))
+    && Number.isFinite(Number(homeReturn.distance_km)));
+}
+
 /**
  * Safe eligible = passed gates and (in final mode) has reliable routes where required.
  * Preliminary candidates may remain eligible without home routes so travel can be built.
@@ -158,9 +165,12 @@ export function isSafeEligibleCandidate(candidate = {}, { preliminary = false } 
   }
   // Preliminary candidates (flag on the candidate or caller option) may lack home routes.
   if (preliminary || candidate.preliminary) return true;
-  // Final calculation: unknown/missing home route is never a safe recommendation.
-  if (candidate.requiresHomeRoute && !hasReliableHomeRoute(candidate.travel)) return false;
-  if (candidate.travel?.unavailableReason === 'no_route' && candidate.requiresHomeRoute) return false;
+  const homeVerified = hasReliableHomeRoute(candidate.travel);
+  const homeReturnVerified = hasReliableHomeReturn(candidate.travel);
+  if (candidate.requiresHomeRoute && !homeVerified) return false;
+  if (candidate.requiresHomeReturn && !homeReturnVerified) return false;
+  if (candidate.travel?.unavailableReason === 'no_route'
+    && (candidate.requiresHomeRoute || candidate.requiresHomeReturn)) return false;
   return true;
 }
 
@@ -175,6 +185,7 @@ function gapQualityFactor(gapMinutes, travelMinutes = 0) {
 
 /**
  * Analyze day placement for continuity, travel, and gap metrics.
+ * Continuity is the average of per-meeting tiers (never the single best meeting).
  * Travel safety buffer (+15) is never added here — operational gates own that.
  */
 export function analyzeDayPlacement({
@@ -184,7 +195,6 @@ export function analyzeDayPlacement({
   travel = null,
   workDates = new Set()
 } = {}) {
-  let bestContinuity = CONTINUITY_TIERS.newWorkDay;
   let continuityLabel = 'פתיחת יום עבודה חדש';
   let opensNewWorkDay = false;
   let gapBeforeMinutes = 0;
@@ -198,15 +208,24 @@ export function analyzeDayPlacement({
   let hasSameSchoolDay = false;
   let hasSameAuthorityDay = false;
   let fillsExistingGap = false;
-  let scoredDays = 0;
+  let sameSchoolMeetingCount = 0;
+  let sameAuthorityMeetingCount = 0;
+  let nearbyMeetingCount = 0;
+  let existingWorkDayMeetingCount = 0;
+  let newWorkDayMeetingCount = 0;
+  const meetingContinuityScores = [];
   const meetingList = meetings.length ? meetings : [];
   // Baseline work days only — never include the candidate course's own projected dates.
   const baselineWorkDates = workDates instanceof Set ? workDates : new Set(workDates || []);
+  const halfHasSameSchool = existingActivities.some((row) => sameSchool(row, activity));
+  const halfHasSameAuthority = existingActivities.some((row) => sameAuthority(row, activity));
 
   if (!meetingList.length) {
     return {
       continuityPoints: 0,
       continuityLabel,
+      continuityAverage: 0,
+      continuityMeetingCount: 0,
       opensNewWorkDay: true,
       gapBeforeMinutes: 0,
       gapAfterMinutes: 0,
@@ -218,7 +237,12 @@ export function analyzeDayPlacement({
       unknownRoute: false,
       hasSameSchoolDay: false,
       hasSameAuthorityDay: false,
-      fillsExistingGap: false
+      fillsExistingGap: false,
+      sameSchoolMeetingCount: 0,
+      sameAuthorityMeetingCount: 0,
+      nearbyMeetingCount: 0,
+      existingWorkDayMeetingCount: 0,
+      newWorkDayMeetingCount: 0
     };
   }
 
@@ -232,7 +256,6 @@ export function analyzeDayPlacement({
     const transition = travel?.transitions?.[date] || {};
     const dayAlreadyWorked = dayActivities.length > 0 || baselineWorkDates.has(date);
     if (!dayAlreadyWorked) opensNewWorkDay = true;
-    scoredDays += 1;
     let dayTravelMinutes = 0;
     let dayTravelDistance = 0;
 
@@ -241,35 +264,46 @@ export function analyzeDayPlacement({
     const homeLeg = travel?.home || null;
     const homeReturnLeg = travel?.homeReturn || null;
 
-    const considerNeighbor = (neighbor, gap, travelMin, direction) => {
+    // Exactly one continuity tier per meeting (highest applicable).
+    let meetingTier = CONTINUITY_TIERS.newWorkDay;
+    let meetingLabel = 'פתיחת יום עבודה חדש';
+    let meetingGapFactor = 1;
+    let tierKind = 'newWorkDay';
+
+    const applyNeighborTier = (neighbor, gap, travelMin) => {
       if (!neighbor) return;
+      const factor = gapQualityFactor(gap, travelMin || 0);
       if (sameSchool(neighbor, activity)) {
-        hasSameSchoolDay = true;
-        const points = CONTINUITY_TIERS.sameSchool * gapQualityFactor(gap, travelMin || 0);
-        if (points >= bestContinuity) {
-          bestContinuity = points;
-          continuityLabel = 'רציפות באותו בית ספר באותו יום';
+        const points = CONTINUITY_TIERS.sameSchool * factor;
+        if (points >= meetingTier) {
+          meetingTier = points;
+          meetingLabel = 'רציפות באותו בית ספר באותו יום';
+          meetingGapFactor = factor;
+          tierKind = 'sameSchool';
         }
       } else if (sameAuthority(neighbor, activity)) {
-        hasSameAuthorityDay = true;
-        const points = CONTINUITY_TIERS.sameAuthority * gapQualityFactor(gap, travelMin || 0);
-        if (points >= bestContinuity) {
-          bestContinuity = points;
-          continuityLabel = 'רציפות באותה רשות באותו יום';
+        const points = CONTINUITY_TIERS.sameAuthority * factor;
+        if (points >= meetingTier) {
+          meetingTier = points;
+          meetingLabel = 'רציפות באותה רשות באותו יום';
+          meetingGapFactor = factor;
+          tierKind = 'sameAuthority';
         }
       } else if (travelMin != null && travelMin <= GEOGRAPHIC_NEARBY_MINUTES) {
-        const points = CONTINUITY_TIERS.geographicNearby * gapQualityFactor(gap, travelMin);
-        if (points >= bestContinuity) {
-          bestContinuity = points;
-          continuityLabel = 'קרבה גאוגרפית באותו יום';
+        const points = CONTINUITY_TIERS.geographicNearby * factor;
+        if (points >= meetingTier) {
+          meetingTier = points;
+          meetingLabel = 'קרבה גאוגרפית באותו יום';
+          meetingGapFactor = factor;
+          tierKind = 'nearby';
         }
       } else if (dayAlreadyWorked) {
-        const points = CONTINUITY_TIERS.existingWorkDay * gapQualityFactor(gap, travelMin || 0);
-        if (points >= bestContinuity) {
-          bestContinuity = points;
-          continuityLabel = direction === 'previous'
-            ? 'התאמה אחרי פעילות קיימת'
-            : 'התאמה לפני פעילות קיימת';
+        const points = CONTINUITY_TIERS.existingWorkDay * factor;
+        if (points >= meetingTier) {
+          meetingTier = points;
+          meetingLabel = 'יום עבודה קיים';
+          meetingGapFactor = factor;
+          tierKind = 'existingWorkDay';
         }
       }
     };
@@ -285,12 +319,11 @@ export function analyzeDayPlacement({
         dayTravelDistance += Number(travelKm) || 0;
         nonTravelWaitingMinutes += Math.max(0, gap - (Number(travelMin) || 0));
       }
-      considerNeighbor(previous, gap, travelMin, 'previous');
+      applyNeighborTier(previous, gap, travelMin);
     } else if (homeLeg && Number.isFinite(Number(homeLeg.duration_minutes)) && Number.isFinite(Number(homeLeg.distance_km))) {
-      // Arrival path: home only when this is the first activity of the day.
       dayTravelMinutes += Number(homeLeg.duration_minutes) || 0;
       dayTravelDistance += Number(homeLeg.distance_km) || 0;
-    } else if (!previous) {
+    } else {
       unknownRoute = true;
     }
 
@@ -305,57 +338,81 @@ export function analyzeDayPlacement({
         dayTravelDistance += Number(travelKm) || 0;
         nonTravelWaitingMinutes += Math.max(0, gap - (Number(travelMin) || 0));
       }
-      considerNeighbor(next, gap, travelMin, 'next');
+      applyNeighborTier(next, gap, travelMin);
     } else if (
       homeReturnLeg
       && Number.isFinite(Number(homeReturnLeg.duration_minutes))
       && Number.isFinite(Number(homeReturnLeg.distance_km))
     ) {
-      // Last activity of the day: add reliable home-return when present (never invent a reverse of home).
       dayTravelMinutes += Number(homeReturnLeg.duration_minutes) || 0;
       dayTravelDistance += Number(homeReturnLeg.distance_km) || 0;
+    } else {
+      // Last/only activity of the day without a reliable return is an unknown route.
+      unknownRoute = true;
+    }
+
+    if (!previous && !next) {
+      if (dayAlreadyWorked) {
+        meetingTier = CONTINUITY_TIERS.isolatedDay;
+        meetingLabel = 'פעילות בודדת ביום עבודה קיים';
+        tierKind = 'existingWorkDay';
+      } else {
+        meetingTier = CONTINUITY_TIERS.newWorkDay;
+        meetingLabel = 'פתיחת יום עבודה חדש';
+        tierKind = 'newWorkDay';
+      }
+    } else if (tierKind === 'newWorkDay' && dayAlreadyWorked) {
+      meetingTier = CONTINUITY_TIERS.existingWorkDay * meetingGapFactor;
+      meetingLabel = 'יום עבודה קיים';
+      tierKind = 'existingWorkDay';
+    } else if (tierKind === 'newWorkDay' && halfHasSameSchool) {
+      meetingTier = CONTINUITY_TIERS.existingWorkDay;
+      meetingLabel = 'רציפות באותו בית ספר במחצית';
+      tierKind = 'existingWorkDay';
+    } else if (tierKind === 'newWorkDay' && halfHasSameAuthority) {
+      meetingTier = 10;
+      meetingLabel = 'רציפות באותה רשות במחצית';
+      tierKind = 'sameAuthority';
+    }
+
+    if (tierKind === 'sameSchool') {
+      sameSchoolMeetingCount += 1;
+      hasSameSchoolDay = true;
+    } else if (tierKind === 'sameAuthority') {
+      sameAuthorityMeetingCount += 1;
+      hasSameAuthorityDay = true;
+    } else if (tierKind === 'nearby') {
+      nearbyMeetingCount += 1;
+    } else if (tierKind === 'existingWorkDay') {
+      existingWorkDayMeetingCount += 1;
+    } else {
+      newWorkDayMeetingCount += 1;
+    }
+
+    meetingContinuityScores.push(meetingTier);
+    if (meetingTier >= (meetingContinuityScores.reduce((a, b) => a + b, 0) / meetingContinuityScores.length)) {
+      continuityLabel = meetingLabel;
     }
 
     relevantTravelMinutes += dayTravelMinutes;
     relevantTravelDistance += dayTravelDistance;
     dailyTravelMinutes = Math.max(dailyTravelMinutes, dayTravelMinutes);
     dailyTravelDistance = Math.max(dailyTravelDistance, dayTravelDistance);
-
     if (previous && next) fillsExistingGap = true;
-
-    if (!previous && !next) {
-      if (dayAlreadyWorked) {
-        if (bestContinuity < CONTINUITY_TIERS.isolatedDay) {
-          bestContinuity = CONTINUITY_TIERS.isolatedDay;
-          continuityLabel = 'פעילות בודדת ביום עבודה קיים';
-        }
-      } else if (bestContinuity <= CONTINUITY_TIERS.newWorkDay) {
-        bestContinuity = CONTINUITY_TIERS.newWorkDay;
-        continuityLabel = 'פתיחת יום עבודה חדש';
-      }
-    }
   }
 
-  // Same-school / same-authority elsewhere in the half still help slightly below same-day tiers.
-  if (!hasSameSchoolDay && existingActivities.some((row) => sameSchool(row, activity))) {
-    if (bestContinuity < CONTINUITY_TIERS.existingWorkDay) {
-      bestContinuity = Math.max(bestContinuity, CONTINUITY_TIERS.existingWorkDay);
-      continuityLabel = 'רציפות באותו בית ספר במחצית';
-    }
-  } else if (!hasSameSchoolDay && !hasSameAuthorityDay && existingActivities.some((row) => sameAuthority(row, activity))) {
-    if (bestContinuity < 10) {
-      bestContinuity = Math.max(bestContinuity, 10);
-      continuityLabel = 'רציפות באותה רשות במחצית';
-    }
-  }
-
-  // Score travel from the typical day (average across meeting days), not the sum of every meeting.
+  const scoredDays = meetingContinuityScores.length;
+  const continuityAverage = scoredDays
+    ? meetingContinuityScores.reduce((sum, value) => sum + value, 0) / scoredDays
+    : 0;
   const avgTravelMinutes = scoredDays ? relevantTravelMinutes / scoredDays : 0;
   const avgTravelDistance = scoredDays ? relevantTravelDistance / scoredDays : 0;
 
   return {
-    continuityPoints: roundPoints(bestContinuity, SCORE_WEIGHTS.continuityEfficiency),
+    continuityPoints: roundPoints(continuityAverage, SCORE_WEIGHTS.continuityEfficiency),
     continuityLabel,
+    continuityAverage: Math.round(continuityAverage * 100) / 100,
+    continuityMeetingCount: scoredDays,
     opensNewWorkDay,
     gapBeforeMinutes: Math.round(gapBeforeMinutes / Math.max(1, scoredDays)),
     gapAfterMinutes: Math.round(gapAfterMinutes / Math.max(1, scoredDays)),
@@ -367,7 +424,12 @@ export function analyzeDayPlacement({
     unknownRoute,
     hasSameSchoolDay,
     hasSameAuthorityDay,
-    fillsExistingGap
+    fillsExistingGap,
+    sameSchoolMeetingCount,
+    sameAuthorityMeetingCount,
+    nearbyMeetingCount,
+    existingWorkDayMeetingCount,
+    newWorkDayMeetingCount
   };
 }
 
@@ -595,17 +657,28 @@ export function computeSchedulingScore({
     workDates
   });
 
-  const hasKnownRoute = (placement.relevantTravelMinutes > 0 || placement.relevantTravelDistance > 0)
-    || (travel?.home && Number.isFinite(Number(travel.home.duration_minutes)))
+  // Partial routes (e.g. outbound without required return) stay unknown — no regular travel score.
+  const hasKnownRoute = !placement.unknownRoute && (
+    (placement.relevantTravelMinutes > 0 || placement.relevantTravelDistance > 0)
+    || (travel?.home && Number.isFinite(Number(travel.home.duration_minutes))
+      && travel?.homeReturn && Number.isFinite(Number(travel.homeReturn.duration_minutes)))
     || Object.values(travel?.transitions || {}).some((row) =>
       (row?.previous && row.previous.duration_minutes != null)
-      || (row?.next && row.next.duration_minutes != null));
+      || (row?.next && row.next.duration_minutes != null))
+  );
 
   const continuityEfficiency = {
     points: placement.continuityPoints,
     label: placement.continuityLabel || SCORE_COMPONENT_LABELS.continuityEfficiency,
     hasSameSchoolDay: placement.hasSameSchoolDay,
-    hasSameAuthorityDay: placement.hasSameAuthorityDay
+    hasSameAuthorityDay: placement.hasSameAuthorityDay,
+    sameSchoolMeetingCount: placement.sameSchoolMeetingCount,
+    sameAuthorityMeetingCount: placement.sameAuthorityMeetingCount,
+    nearbyMeetingCount: placement.nearbyMeetingCount,
+    existingWorkDayMeetingCount: placement.existingWorkDayMeetingCount,
+    newWorkDayMeetingCount: placement.newWorkDayMeetingCount,
+    continuityMeetingCount: placement.continuityMeetingCount,
+    continuityAverage: placement.continuityAverage
   };
   const travelDistance = scoreTravelDistance({
     relevantTravelMinutes: placement.relevantTravelMinutes,
@@ -671,7 +744,14 @@ export function computeSchedulingScore({
     gapAfterMinutes: gapsAndNewDays.gapAfterMinutes,
     nonTravelWaitingMinutes: gapsAndNewDays.nonTravelWaitingMinutes,
     hasSameSchoolDay: placement.hasSameSchoolDay,
-    hasSameAuthorityDay: placement.hasSameAuthorityDay
+    hasSameAuthorityDay: placement.hasSameAuthorityDay,
+    sameSchoolMeetingCount: placement.sameSchoolMeetingCount,
+    sameAuthorityMeetingCount: placement.sameAuthorityMeetingCount,
+    nearbyMeetingCount: placement.nearbyMeetingCount,
+    existingWorkDayMeetingCount: placement.existingWorkDayMeetingCount,
+    newWorkDayMeetingCount: placement.newWorkDayMeetingCount,
+    continuityMeetingCount: placement.continuityMeetingCount,
+    continuityAverage: placement.continuityAverage
   };
 }
 
@@ -693,7 +773,14 @@ function emptyMetricFields() {
     gapAfterMinutes: 0,
     nonTravelWaitingMinutes: 0,
     hasSameSchoolDay: false,
-    hasSameAuthorityDay: false
+    hasSameAuthorityDay: false,
+    sameSchoolMeetingCount: 0,
+    sameAuthorityMeetingCount: 0,
+    nearbyMeetingCount: 0,
+    existingWorkDayMeetingCount: 0,
+    newWorkDayMeetingCount: 0,
+    continuityMeetingCount: 0,
+    continuityAverage: 0
   };
 }
 
@@ -724,11 +811,12 @@ export function compareOptimizationStates(a, b) {
   if (scarcity) return scarcity;
 
   const tuple = (state) => [
-    -(Number(state.sameSchoolCount) || 0),
-    -(Number(state.sameAuthorityCount) || 0),
+    // Prefer more same-school / same-authority meetings (counts, not booleans).
+    -(Number(state.sameSchoolMeetingCount) || 0),
+    -(Number(state.sameAuthorityMeetingCount) || 0),
     Number(state.totalTravelMinutes) || 0,
     Number(state.totalNonTravelWaiting) || 0,
-    Number(state.newWorkDaysOpened) || 0,
+    Number(state.newWorkDayMeetingCount) || Number(state.newWorkDaysOpened) || 0,
     Number(state.workloadVariance) || 0,
     Number(state.totalShiftDays) || 0,
     -(Number(state.totalScore) || 0),
