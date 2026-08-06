@@ -568,8 +568,9 @@ export function calculateCourseSchedule(input = {}) {
         : !recommended ? primaryRejectionReason(checked) : ''
     });
 
-    // Add only the primary proposal to temporary planning state for later courses.
-    if (primary) planningDraft.set(courseId, primary);
+    // Final calculation only: temporary recommendations must not block later courses
+    // during preliminary candidate collection (before travel data is loaded).
+    if (!input.preliminary && primary) planningDraft.set(courseId, primary);
   }
 
   const incompleteResults = courses

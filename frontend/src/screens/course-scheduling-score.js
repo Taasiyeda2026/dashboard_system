@@ -517,28 +517,48 @@ export function computeSchedulingScore({
   };
 }
 
+function compareEmpIdsStable(firstId, secondId) {
+  const first = text(firstId);
+  const second = text(secondId);
+  const firstNumber = Number(first);
+  const secondNumber = Number(second);
+  const bothNumeric = first !== ''
+    && second !== ''
+    && Number.isFinite(firstNumber)
+    && Number.isFinite(secondNumber)
+    && String(firstNumber) === first
+    && String(secondNumber) === second;
+  if (bothNumeric) {
+    if (firstNumber < secondNumber) return -1;
+    if (firstNumber > secondNumber) return 1;
+    return 0;
+  }
+  return first.localeCompare(second, 'en');
+}
+
 export function compareCandidatesStable(first, second) {
   const a = [
     -(Number(first.score) || 0),
     -(Number(first.scoreBreakdown?.continuityEfficiency?.points) || 0),
     -(Number(first.scoreBreakdown?.travelDistance?.points) || 0),
     Number(first.projectedHalfHours) || 0,
-    Number(first.movedMeetingsCount) || 0,
-    text(first.instructor?.emp_id || first.empId)
+    Number(first.movedMeetingsCount) || 0
   ];
   const b = [
     -(Number(second.score) || 0),
     -(Number(second.scoreBreakdown?.continuityEfficiency?.points) || 0),
     -(Number(second.scoreBreakdown?.travelDistance?.points) || 0),
     Number(second.projectedHalfHours) || 0,
-    Number(second.movedMeetingsCount) || 0,
-    text(second.instructor?.emp_id || second.empId)
+    Number(second.movedMeetingsCount) || 0
   ];
   for (let index = 0; index < a.length; index += 1) {
     if (a[index] < b[index]) return -1;
     if (a[index] > b[index]) return 1;
   }
-  return 0;
+  return compareEmpIdsStable(
+    first.instructor?.emp_id || first.empId,
+    second.instructor?.emp_id || second.empId
+  );
 }
 
 export function assertScoreWeightsTotal() {

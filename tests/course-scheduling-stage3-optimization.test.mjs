@@ -3,6 +3,7 @@ import assert from 'node:assert/strict';
 import { readFile } from 'node:fs/promises';
 import {
   calculateCourseSchedule,
+  preliminaryCourseCandidates,
   schedulingCourses
 } from '../frontend/src/screens/course-scheduling-engine.js';
 import {
@@ -448,6 +449,87 @@ test('stable candidate comparator is deterministic', () => {
   };
   assert.equal(compareCandidatesStable(b, a), -1);
 });
+
+test('compareCandidatesStable ranks numeric emp_id 2 before 10 and keeps non-numeric order stable', () => {
+  const base = {
+    score: 70,
+    scoreBreakdown: { continuityEfficiency: { points: 20 }, travelDistance: { points: 10 } },
+    projectedHalfHours: 3,
+    movedMeetingsCount: 0
+  };
+  assert.equal(compareCandidatesStable({ ...base, empId: '2' }, { ...base, empId: '10' }), -1);
+  assert.equal(compareCandidatesStable({ ...base, empId: '10' }, { ...base, empId: '2' }), 1);
+  assert.equal(compareCandidatesStable({ ...base, empId: '2' }, { ...base, empId: 10 }), -1);
+  const nonNumeric = ['emp-b', 'emp-a', 'emp-c']
+    .map((empId) => ({ ...base, empId }))
+    .sort(compareCandidatesStable)
+    .map((row) => row.empId);
+  assert.deepEqual(nonNumeric, ['emp-a', 'emp-b', 'emp-c']);
+  const mixedInput = ['10', 'emp-a', '2'].map((empId) => ({ ...base, empId }));
+  const mixedFirst = [...mixedInput].sort(compareCandidatesStable).map((row) => row.empId);
+  const mixedSecond = [...mixedInput].sort(compareCandidatesStable).map((row) => row.empId);
+  assert.deepEqual(mixedFirst, mixedSecond);
+  assert.ok(mixedFirst.indexOf('2') < mixedFirst.indexOf('10'));
+});
+
+test('preliminary does not block later courses with temporary primary picks before travel loads', () => {
+  const first = course('prelim-first', '2026-09-06', {
+    school: 'משותף',
+    school_id: 'shared-prelim',
+    school_address: 'כתובת משותפת'
+  });
+  const second = course('prelim-second', '2026-09-06', {
+    school: 'משותף',
+    school_id: 'shared-prelim',
+    school_address: 'כתובת משותפת'
+  });
+  const trio = instructors.slice(0, 3);
+  const baseInput = {
+    activities: [first, second],
+    instructors: trio,
+    profiles: Object.fromEntries(trio.map((row) => [row.emp_id, profiles[row.emp_id]])),
+    rules: Object.fromEntries(trio.map((row) => [row.emp_id, sundayRules[row.emp_id]])),
+    exceptions: {},
+    referenceDate: '2026-09-01'
+  };
+
+  const preliminary = preliminaryCourseCandidates(baseInput);
+  const prelimSecondIds = preliminary
+    .filter((row) => row.course.row_id === 'prelim-second')
+    .map((row) => textEmp(row.candidate));
+  assert.ok(prelimSecondIds.includes('1'), 'instructor 1 must remain a preliminary candidate for the second overlapping course');
+  assert.ok(prelimSecondIds.includes('2'));
+  assert.ok(prelimSecondIds.includes('3'));
+
+  const travel = {
+    'prelim-first': {
+      1: { home: { distance_km: 40, duration_minutes: 70 }, transitions: {} },
+      2: { home: { distance_km: 1, duration_minutes: 2 }, transitions: {} },
+      3: { home: { distance_km: 20, duration_minutes: 35 }, transitions: {} }
+    },
+    'prelim-second': {
+      1: { home: { distance_km: 1, duration_minutes: 2 }, transitions: {} },
+      2: { home: { distance_km: 40, duration_minutes: 70 }, transitions: {} },
+      3: { home: { distance_km: 20, duration_minutes: 35 }, transitions: {} }
+    }
+  };
+  const finalResults = calculateCourseSchedule({
+    ...baseInput,
+    travel,
+    routeMatrix: {}
+  });
+  const firstPrimary = finalResults.find((row) => row.course.row_id === 'prelim-first');
+  const secondPrimary = finalResults.find((row) => row.course.row_id === 'prelim-second');
+  const firstPick = firstPrimary.recommended || firstPrimary.bestAvailable;
+  const secondPick = secondPrimary.recommended || secondPrimary.bestAvailable;
+  assert.equal(firstPick.instructor.emp_id, '2');
+  assert.equal(secondPick.instructor.emp_id, '1');
+  assert.ok(secondPrimary.checked.some((candidate) => candidate.eligible && candidate.instructor.emp_id === '1'));
+});
+
+function textEmp(candidate) {
+  return String(candidate?.instructor?.emp_id || candidate?.empId || '').trim();
+}
 
 test('same input five times yields identical course order, primary, alternatives, scores and proposedMeetings', () => {
   const activities = [
