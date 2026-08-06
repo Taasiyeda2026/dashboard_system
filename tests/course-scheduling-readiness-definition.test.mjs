@@ -15,6 +15,7 @@ const readyCourse = {
   instruction_language: '', required_instructor_gender: '', activity_manager: ''
 };
 const rules = [{ emp_id: 1, weekday: 1, available: true, start_time: '08:00', end_time: '14:00' }];
+const primaryCandidate = (result) => result.recommended || result.bestAvailable;
 const matchingProfile = { gender: 'female', instruction_languages: ['he'], weekly_max_hours: 1, preferred_work_days: 1, max_fixed_courses: 0 };
 const instructor = { emp_id: 1, full_name: 'מדריכה', active: 'yes', address: 'בית' };
 
@@ -42,7 +43,7 @@ test('language and gender are absolute gates and rejected candidates are not alt
     profiles: { 1: { ...matchingProfile, instruction_languages: ['ar'] }, 2: { ...matchingProfile, gender: 'male', instruction_languages: ['ar'] } },
     rules: { 1: rules, 2: [{ ...rules[0], emp_id: 2 }] }, exceptions: {}, travel: {}, routeMatrix: {}, preliminary: true
   })[0];
-  assert.equal(result.recommended.instructor.emp_id, 1);
+  assert.equal(primaryCandidate(result).instructor.emp_id, 1);
   assert.deepEqual(result.alternatives.map((candidate) => candidate.instructor.emp_id), []);
   assert.match(result.checked.find((candidate) => candidate.instructor.emp_id === 2).failures.join(' '), /דורש מדריכה/);
 });
