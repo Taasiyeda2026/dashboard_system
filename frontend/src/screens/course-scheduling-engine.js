@@ -166,16 +166,15 @@ function travelUnavailableReason(course, instructor, home, input = {}) {
   return 'no_route';
 }
 
-function dynamicTravel(course, instructor, existingMeetings, input = {}, transitionBufferMinutes = 0) {
+function dynamicTravel(course, instructor, existingMeetings, input = {}) {
   const base = input.travel?.[idOf(course)]?.[text(instructor.emp_id)] || null;
   const transitions = {};
   const destination = placeOf(course);
   for (const meeting of activityMeetings(course)) {
     const { previous, next } = adjacentActivities(existingMeetings, meeting);
-    const withBuffer = (leg) => leg?.duration_minutes == null ? leg : { ...leg, duration_minutes: Number(leg.duration_minutes) + transitionBufferMinutes };
     transitions[meeting.date] = {
-      previous: previous ? withBuffer(routeLeg(input.routeMatrix, placeOf(previous), destination, sameSchool(previous, course))) : null,
-      next: next ? withBuffer(routeLeg(input.routeMatrix, destination, placeOf(next), sameSchool(course, next))) : null
+      previous: previous ? routeLeg(input.routeMatrix, placeOf(previous), destination, sameSchool(previous, course)) : null,
+      next: next ? routeLeg(input.routeMatrix, destination, placeOf(next), sameSchool(course, next)) : null
     };
   }
   const home = base?.home || null;
@@ -259,7 +258,7 @@ function evaluateCandidate({ course, instructor, assignedRows, draftRows, profil
   const periodCourse = adjustment?.valid ? { ...course, meetings: adjustment.meetings } : originalPeriodCourse;
   const load = instructorLoad([...occupiedRows, periodCourse], profiles[empId], rules[empId] || [], { periodKey });
   const occupiedMeetings = meetingAssignments(occupiedRows, { periodKey });
-  const travel = dynamicTravel(periodCourse, instructor, occupiedMeetings, input, adjustment?.valid ? 15 : 0);
+  const travel = dynamicTravel(periodCourse, instructor, occupiedMeetings, input);
   const result = evaluateInstructor({
     instructor,
     profile: profiles[empId],
