@@ -49,3 +49,12 @@ Reporting:
 - Every PR should trigger exactly one automatic quick-check workflow (`quick-pr-check.yml`). Do not add a second automatic workflow next to it.
 - Do not expand automatic CI just because a shared file changed, e.g. `frontend/src/feature-loaders.js`, `frontend/src/config.js`, or `frontend/sw.js`. Do not reintroduce per-feature/path-triggered heavy workflows.
 - Do not run tests that are not directly related to the task at hand.
+
+## Cursor Cloud specific instructions
+
+- Architecture recap: this is a static Vite SPA (vanilla JS) that talks directly to a hosted Supabase project from the browser. There is **no local backend server and no local database to start** — the only local process is the Vite dev/preview server. Do not look for/spin up Postgres, Redis, Docker, etc.
+- Run/build/lint/test commands live in `package.json` and are documented in `README.md`; use those rather than duplicating here. Common ones: `npm run dev` (Vite dev, port **5173**), `npm run build` (build to `dist/`), `npm run preview` (serves the build; E2E uses port **4173**), `npm run check:frontend` / `npm run check:build` for focused checks.
+- `dist/` and `node_modules/` are gitignored, so running `npm run build` locally leaves the working tree clean — no need to revert build output.
+- Supabase config: `frontend/src/supabase-client.js` has a **hardcoded fallback** project URL + publishable (anon) key, so the app boots and reaches a shared Supabase project even with no env vars set. To point at a controlled project, set `VITE_SUPABASE_URL` and `VITE_SUPABASE_ANON_KEY` (aliases in `.env.example`). The fallback Supabase project was reachable from the Cloud VM.
+- Login is gated: authentication needs an admin-provisioned row in the Supabase `users` table plus matching Supabase Auth credentials (`api.js` → `loginWithSupabaseAuth`). There is **no self-signup**, so without real credentials you can only exercise the login flow up to the backend rejecting invalid credentials (a red Hebrew error confirms the frontend↔Supabase wiring works). Full logged-in E2E/manual testing requires valid `E2E_USERNAME` / `E2E_PASSWORD` (and `E2E_BASE_URL`).
+- Playwright E2E (`npm run test:e2e`) is optional and manual-only; it needs a one-off `npx playwright install chromium` (see README) and can auto-start its own preview server via `E2E_START_PREVIEW=true`.
