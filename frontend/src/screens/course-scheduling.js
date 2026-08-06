@@ -24,6 +24,7 @@ import {
 import { instructionLanguageLabel } from './shared/instruction-language.js';
 import { DEFAULT_COURSE_SCHEDULING_PERIOD_KEY, filterMeetingsByCourseSchedulingPeriod, periodOptions, resolveCourseSchedulingPeriod } from './course-scheduling-periods.js';
 import { OPERATIONAL_DISTRICTS, normalizeOperationalDistrict } from './shared/district-normalization.js';
+import { loadSchoolCalendarRows } from './shared/school-calendar-data.js';
 
 const text = (value) => String(value ?? '').trim();
 const emp = (candidate) => text(candidate?.instructor?.emp_id);
@@ -360,6 +361,17 @@ function candidateConstraintBadgesHtml(candidate, course = {}) {
   return `<span class="course-scheduling-candidate-badges" aria-label="התאמה לדרישות הקורס">${rows.map(([label, passed, title]) => `<span class="course-scheduling-mini-check${passed ? ' is-pass' : ' is-fail'}" title="${escapeHtml(title)}">${passed ? '✓' : '✗'} ${escapeHtml(label)}<span class="sr-only"> ${escapeHtml(title)}</span></span>`).join('')}</span>`;
 }
 
+function dateAdjustmentHtml(candidate) {
+  const adjustment = candidate?.dateAdjustment;
+  if (!adjustment) return '';
+  return `<details class="course-scheduling-details course-scheduling-date-adjustment">
+    <summary>${escapeHtml(adjustment.label)} · ${adjustment.movedCount} מפגשים יוזזו · סיום חדש ${escapeHtml(formatDateHe(adjustment.newEndDate))}</summary>
+    <p>${escapeHtml(adjustment.reason)}. המועדים טרם נשמרו ואינם מהווים אישור.</p>
+    ${adjustment.exceedsHalf ? '<p class="scheduling-warning"><b>אזהרה:</b> מועד הסיום המוצע חורג מהמחצית. השמירה לאחר האזהרה מהווה אישור לחריגה.</p>' : ''}
+    <ul>${adjustment.meetings.filter((meeting) => meeting.moved).map((meeting) => `<li>${escapeHtml(formatDateHe(meeting.original_date))} ← ${escapeHtml(formatDateHe(meeting.date))}</li>`).join('')}</ul>
+  </details>`;
+}
+
 function courseFactRows(course) {
   const meetings = filterMeetingsByCourseSchedulingPeriod(activityMeetings(course), course?.periodKey || DEFAULT_COURSE_SCHEDULING_PERIOD_KEY);
   return [
@@ -573,6 +585,7 @@ export function instructorsResultsHtml(result, state = {}) {
           ${candidateRowHtml(result.bestAvailable, { selectedId, name: radioName, course: result.course })}
           ${(result.alternatives || []).map((item) => candidateRowHtml(item, { selectedId, name: radioName, course: result.course })).join('')}
         </tbody></table></div>
+        ${dateAdjustmentHtml(result.bestAvailable)}
         ${rejectedCandidatesHtml(result)}
         <div class="course-scheduling-selection-note" data-selection-note>${selectedId ? 'נבחר מדריך לשיבוץ ידני' : 'בחרו מדריך כדי להפעיל את הפעולות'}</div>
         <div class="course-scheduling-detail-actions">
@@ -605,6 +618,7 @@ export function instructorsResultsHtml(result, state = {}) {
       ${candidateRowHtml(result.recommended, { recommended: true, selectedId, name: radioName, course: result.course })}
       ${visibleAlts.map((item) => candidateRowHtml(item, { selectedId, name: radioName, course: result.course })).join('')}
     </tbody></table></div>
+    ${dateAdjustmentHtml(result.recommended)}
     ${(hiddenAlts.length || moreChecked.length) ? `<details class="course-scheduling-details" data-more-candidates ${showMore ? 'open' : ''}><summary>הצגת מדריכים נוספים</summary><div class="course-scheduling-candidates-table-wrap"><table class="course-scheduling-candidates-table"><tbody>${[...hiddenAlts, ...moreChecked].map((item) => candidateRowHtml(item, { selectedId, name: radioName, course: result.course })).join('')}</tbody></table></div></details>` : ''}
     ${rejectedCandidatesHtml(result)}
     <div class="course-scheduling-selection-note" data-selection-note>${selectedId ? `נבחרה: ${escapeHtml(([result.recommended, ...(result.alternatives || []), ...(result.checked || [])].find((item) => emp(item) === selectedId)?.instructor?.full_name) || selectedId)}` : 'בחרו מדריך כדי להפעיל את הפעולות'}</div>
@@ -849,12 +863,13 @@ function distanceDoneMessage(stats = {}, { done = false, stopped = false, errorM
 
 export const courseSchedulingScreen = {
   async load({ api }) {
-    const [activities, contacts, scheduling, meetingState, schoolLocations] = await Promise.all([
-      api.activities({ activity_period: 'school_2027', activity_type: 'all', include_inactive: true, select: 'row_id,district,authority_id,authority,school,school_id,activity_name,catalog_slug,activity_no,proposal_item_id,activity_type,item_type,activity_season,grade,education_level,class_group,sessions,start_time,end_time,instruction_language,required_instructor_gender,scheduling_note,instructor_assignment_status,instructor_assignment_locked,draft_emp_id,draft_instructor_name,draft_created_at,emp_id,instructor_name,emp_id_2,instructor_name_2,start_date,end_date,status,date_1,date_2,date_3,date_4,date_5,date_6,date_7,date_8,date_9,date_10,date_11,date_12,date_13,date_14,date_15,date_16,date_17,date_18,date_19,date_20,date_21,date_22,date_23,date_24,date_25,date_26,date_27,date_28,date_29,date_30,date_31,date_32,date_33,date_34,date_35' }),
+    const [activities, contacts, scheduling, meetingState, schoolLocations, schoolCalendar] = await Promise.all([
+      api.activities({ activity_period: 'school_2027', activity_type: 'all', include_inactive: true, select: 'row_id,district,authority_id,authority,school,school_id,activity_name,catalog_slug,activity_no,proposal_item_id,activity_type,item_type,activity_season,grade,education_level,class_group,sessions,start_time,end_time,instruction_language,required_instructor_gender,scheduling_note,instructor_assignment_status,instructor_assignment_locked,draft_emp_id,draft_instructor_name,draft_created_at,draft_proposed_meetings,emp_id,instructor_name,emp_id_2,instructor_name_2,start_date,end_date,status,date_1,date_2,date_3,date_4,date_5,date_6,date_7,date_8,date_9,date_10,date_11,date_12,date_13,date_14,date_15,date_16,date_17,date_18,date_19,date_20,date_21,date_22,date_23,date_24,date_25,date_26,date_27,date_28,date_29,date_30,date_31,date_32,date_33,date_34,date_35' }),
       api.instructorContacts(),
       loadInstructorSchedulingData(),
       loadCourseMeetingState(),
-      supabase.rpc('scheduling_authority_school_locations')
+      supabase.rpc('scheduling_authority_school_locations'),
+      loadSchoolCalendarRows()
     ]);
     const schoolRows = schoolLocations?.data || [];
     const schoolAddressLookupError = schoolLocations?.error
@@ -867,6 +882,7 @@ export const courseSchedulingScreen = {
       scheduling,
       meetingState,
       schoolLocations: schoolRows,
+      schoolCalendar,
       schoolAddressStats: {
         uniqueSchoolCount: enriched.uniqueSchoolCount,
         duplicateSchoolCount: enriched.duplicateSchoolCount,
@@ -1175,7 +1191,8 @@ export const courseSchedulingScreen = {
           instructors: data.instructors,
           profiles,
           rules: group(scheduling.rules || [], 'emp_id'),
-          exceptions: group(scheduling.exceptions || [], 'emp_id')
+          exceptions: group(scheduling.exceptions || [], 'emp_id'),
+          schoolCalendar: data.schoolCalendar || []
         };
         state.courseSchedulingProgressStep = 2;
         rerender();
@@ -1230,7 +1247,8 @@ export const courseSchedulingScreen = {
       }
       if (!window.confirm(`לשבץ את ${selected.instructor.full_name} לקורס ${result.course.activity_name}?`)) return;
       updateCandidateActions(true);
-      const { error } = await supabase.rpc('assign_activity_instructor', {
+      const proposedMeetings = selected.dateAdjustment?.meetings?.map(({ date, start_time, end_time }) => ({ date, start_time, end_time })) || null;
+      const { error } = await supabase.rpc(proposedMeetings ? 'assign_activity_instructor_with_dates' : 'assign_activity_instructor', {
         p_activity_id: selectedCourseId,
         p_emp_id: Number(selectedId),
         p_instructor_name: selected.instructor.full_name,
@@ -1238,7 +1256,8 @@ export const courseSchedulingScreen = {
         p_selected_score: selected.score,
         p_top_score: topCandidate.score,
         p_decision_type: selectedId === emp(result.recommended) ? 'approved' : 'overridden',
-        p_reason: reason
+        p_reason: reason,
+        ...(proposedMeetings ? { p_proposed_meetings: proposedMeetings } : {})
       });
       if (error) { showToast(`השיבוץ נכשל: ${error.message}`, 'error'); updateCandidateActions(false); return; }
       state.courseSchedulingResults = (state.courseSchedulingResults || []).filter((item) => idOf(item.course) !== selectedCourseId);
@@ -1259,13 +1278,15 @@ export const courseSchedulingScreen = {
       const blockReason = actionDisabledReason({ candidate: selected, canEdit });
       if (blockReason) { showToast(blockReason, 'error'); updateCandidateActions(false); return; }
       updateCandidateActions(true);
-      const { error } = await supabase.rpc('save_course_assignment_draft', {
+      const proposedMeetings = selected.dateAdjustment?.meetings?.map(({ date, start_time, end_time }) => ({ date, start_time, end_time })) || null;
+      const { error } = await supabase.rpc(proposedMeetings ? 'save_course_assignment_draft_with_dates' : 'save_course_assignment_draft', {
         p_activity_id: selectedCourseId,
         p_emp_id: Number(selectedId),
         p_instructor_name: selected.instructor.full_name,
         p_top_emp_id: Number(emp(topCandidate)),
         p_selected_score: selected.score,
-        p_top_score: topCandidate.score
+        p_top_score: topCandidate.score,
+        ...(proposedMeetings ? { p_proposed_meetings: proposedMeetings } : {})
       });
       if (error) { showToast(`שמירת הטיוטה נכשלה: ${error.message}`, 'error'); updateCandidateActions(false); return; }
       clearScreenDataCache?.();
@@ -1278,7 +1299,8 @@ export const courseSchedulingScreen = {
       if (!window.confirm(`לאשר את שיבוץ ${selectedCourse.draft_instructor_name}?`)) return;
       event.target.disabled = true;
       const empId = Number(selectedCourse.draft_emp_id);
-      const { error } = await supabase.rpc('assign_activity_instructor', {
+      const proposedMeetings = Array.isArray(selectedCourse.draft_proposed_meetings) ? selectedCourse.draft_proposed_meetings : null;
+      const { error } = await supabase.rpc(proposedMeetings ? 'assign_activity_instructor_with_dates' : 'assign_activity_instructor', {
         p_activity_id: selectedCourseId,
         p_emp_id: empId,
         p_instructor_name: selectedCourse.draft_instructor_name,
@@ -1286,7 +1308,8 @@ export const courseSchedulingScreen = {
         p_selected_score: null,
         p_top_score: null,
         p_decision_type: 'approved',
-        p_reason: null
+        p_reason: null,
+        ...(proposedMeetings ? { p_proposed_meetings: proposedMeetings } : {})
       });
       if (error) { showToast(`אישור הטיוטה נכשל: ${error.message}`, 'error'); event.target.disabled = false; return; }
       clearScreenDataCache?.();
@@ -1298,7 +1321,7 @@ export const courseSchedulingScreen = {
       if (!canEdit || !selectedCourseId) return;
       if (!window.confirm('לבטל את הטיוטה?')) return;
       event.target.disabled = true;
-      const { error } = await supabase.rpc('cancel_course_assignment_draft', { p_activity_id: selectedCourseId });
+      const { error } = await supabase.rpc(selectedCourse.draft_proposed_meetings ? 'cancel_course_assignment_draft_with_dates' : 'cancel_course_assignment_draft', { p_activity_id: selectedCourseId });
       if (error) { showToast(`ביטול הטיוטה נכשל: ${error.message}`, 'error'); event.target.disabled = false; return; }
       clearScreenDataCache?.();
       showToast('הטיוטה בוטלה', 'success');
