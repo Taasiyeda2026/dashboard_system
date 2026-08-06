@@ -335,8 +335,9 @@ function evaluateCandidate({ course, instructor, assignedRows, draftRows, profil
   const projectedLoad = instructorLoad([...occupiedRows, periodCourse], profiles[empId], rules[empId] || [], { periodKey });
   const occupiedPeriodMeetings = meetingAssignments(occupiedRows, { periodKey });
   const travel = dynamicTravel(periodCourse, instructor, occupiedPeriodMeetings, input);
-  const requiresHomeRoute = candidateRequiresHomeRoute(periodCourse, occupiedPeriodMeetings);
   const validateTravel = !input.preliminary && (input.travel !== undefined || input.routeMatrix !== undefined);
+  // Home-route safety applies only when this run is validating travel (final routed calculation).
+  const requiresHomeRoute = validateTravel && candidateRequiresHomeRoute(periodCourse, occupiedPeriodMeetings);
   const result = evaluateInstructor({
     instructor,
     profile: profiles[empId],
