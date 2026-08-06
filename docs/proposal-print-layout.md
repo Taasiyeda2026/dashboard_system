@@ -101,6 +101,17 @@ file.**
   by `buildProposalDocumentHtml` (in `frontend/src/screens/proposals-agreements.js`)
   anymore, or its declarations are fully superseded by a later, more specific
   rule, delete it instead of leaving it to silently affect layout math later.
+- `padding-top: 17mm` (or any nonzero value) on
+  `.proposal-document.pa-document.pa-document--next-year`. A pre-redesign
+  leftover rule with this exact 3-class selector used to survive past the
+  final override block because it matches with equal specificity — being
+  last in the file is what makes the override win, not lower specificity.
+  Confirmed via real computed styles: it pushed the next-year variant's logo
+  ~17mm below the top of the content box, with the base/summer variants
+  unaffected (already at 0). The final override block now pins padding-top
+  and padding-bottom to `0` for the base document and both the
+  `--next-year` / `--summer` modifier classes explicitly — extend that list
+  instead of adding a new, lower-specificity rule elsewhere.
 
 ## How to verify a future change
 

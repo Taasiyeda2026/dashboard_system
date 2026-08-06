@@ -519,6 +519,10 @@ function collectSimForm(tr) {
 const ISRAA_CSS = `<style data-israa-styles>
 .israa-mgmt{
   direction:rtl;
+  width:100%;
+  max-width:100%;
+  min-width:0;
+  box-sizing:border-box;
 }
 
 .israa-tabbar{

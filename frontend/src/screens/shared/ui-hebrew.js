@@ -74,13 +74,14 @@ export function financeStatusVariant(value) {
 export function exceptionTypeVariant(exceptionType) {
   const k = String(exceptionType || '').trim();
   if (k === 'end_date_after_cutoff' || k === 'end_date_passed' || k === 'summer_ended_open') return 'danger';
-  if (k === 'missing_instructor' || k === 'missing_start_date' || k === 'missing_completion_approval') return 'warning';
+  if (k === 'missing_instructor' || k === 'missing_authority' || k === 'missing_district' || k === 'missing_start_date' || k === 'missing_completion_approval') return 'warning';
   return 'neutral';
 }
 
 export const HEBREW_EXCEPTION_TYPE = {
   missing_instructor:       'ללא מדריך',
-  missing_district:         'ללא מחוז / לא משויך',
+  missing_authority:        'פעילויות ללא רשות',
+  missing_district:         'ללא שיוך מחוזי',
   missing_start_date:       'ללא תאריך התחלה',
   missing_end_date:         'ללא תאריך סיום',
   end_date_after_cutoff:    'תאריך סיום מאוחר',

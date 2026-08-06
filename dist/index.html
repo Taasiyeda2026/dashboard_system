@@ -12,9 +12,39 @@
   <link rel="manifest" href="./manifest.json" />
   <link rel="icon" href="./assets/favicon-D0Y9bj5H.ico" sizes="any" />
   <link rel="apple-touch-icon" href="./assets/apple-touch-icon-DZF9rhdV.png" />
+  <style id="client-file-row-alignment-v2">
+    #app .ds-client-file.is-layout-polished {
+      grid-template-columns: minmax(360px, .9fr) minmax(500px, 1.45fr) !important;
+      grid-template-rows: auto auto !important;
+      column-gap: 18px !important;
+      row-gap: 12px !important;
+      max-width: 1200px !important;
+    }
+    #app .ds-client-file.is-layout-polished > .ds-client-file__header {
+      grid-column: 1 / -1 !important;
+      grid-row: 1 !important;
+    }
+    #app .ds-client-file.is-layout-polished > .ds-client-file__identity,
+    #app .ds-client-file.is-layout-polished > .ds-client-file__proposals {
+      grid-row: 2 !important;
+      align-self: start !important;
+    }
+    @media (max-width: 1000px) {
+      #app .ds-client-file.is-layout-polished {
+        grid-template-columns: 1fr !important;
+        grid-template-rows: auto auto auto !important;
+      }
+      #app .ds-client-file.is-layout-polished > .ds-client-file__identity {
+        grid-row: 2 !important;
+      }
+      #app .ds-client-file.is-layout-polished > .ds-client-file__proposals {
+        grid-row: 3 !important;
+      }
+    }
+  </style>
   <title>Dashboard-Taasiyeda</title>
-  <script type="module" crossorigin src="./assets/index-Dh7S0jHq.js"></script>
-  <link rel="stylesheet" crossorigin href="./assets/style-DjqZulif.css">
+  <script type="module" crossorigin src="./assets/index-DPNdIJag.js"></script>
+  <link rel="stylesheet" crossorigin href="./assets/style-agg2BFqo.css">
 </head>
 <body>
   <main id="app"></main>

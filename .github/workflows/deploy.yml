@@ -17,6 +17,8 @@ concurrency:
 jobs:
   build:
     runs-on: ubuntu-latest
+    outputs:
+      cache-version: ${{ steps.cache-version.outputs.value }}
 
     steps:
       - name: Checkout
@@ -34,9 +36,32 @@ jobs:
       - name: Build
         env:
           VITE_BASE: /dashboard_system/
+          VITE_BUILD_SHA: ${{ github.sha }}
           VITE_SUPABASE_URL: ${{ secrets.VITE_SUPABASE_URL }}
           VITE_SUPABASE_ANON_KEY: ${{ secrets.VITE_SUPABASE_ANON_KEY }}
         run: npm run build
+
+      - name: Read Service Worker cache version
+        id: cache-version
+        run: |
+          CACHE_VERSION="$(sed -n 's/^const CACHE_VERSION = \([0-9][0-9]*\);$/\1/p' frontend/sw.js)"
+          test -n "$CACHE_VERSION"
+          echo "value=$CACHE_VERSION" >> "$GITHUB_OUTPUT"
+
+      - name: Verify proposal workshops in Pages artifact
+        env:
+          EXPECTED_CACHE_VERSION: ${{ steps.cache-version.outputs.value }}
+        run: |
+          node --test tests/proposal-next-year-workshops.test.mjs tests/service-worker-pwa-cache.test.mjs
+          test "$(find dist/assets -maxdepth 1 -type f -name '*.js' -print -quit)"
+          grep -R --include='*.js' -q 'next_year_workshops' dist/assets
+          grep -R --include='*.js' -q 'סדנאות' dist/assets
+          grep -q "const CACHE_VERSION = ${EXPECTED_CACHE_VERSION};" dist/sw.js
+          node -e "const m=require('./dist/build-metadata.json'); if(m.commit !== process.env.GITHUB_SHA || m.cacheVersion !== Number(process.env.EXPECTED_CACHE_VERSION) || !m.nextYearCourses || !m.nextYearWorkshops) process.exit(1)"
+          if grep -q 'ignoreSearch[[:space:]]*:[[:space:]]*true' dist/sw.js; then
+            echo 'Pages artifact must preserve query-string cache busting' >&2
+            exit 1
+          fi
 
       - name: Upload Pages artifact (dist)
         uses: actions/upload-pages-artifact@v5
@@ -54,3 +79,23 @@ jobs:
       - name: Deploy to GitHub Pages
         id: deployment
         uses: actions/deploy-pages@v5
+
+      - name: Verify deployed commit and proposal sections
+        env:
+          PAGE_URL: ${{ steps.deployment.outputs.page_url }}
+          EXPECTED_CACHE_VERSION: ${{ needs.build.outputs.cache-version }}
+        run: |
+          for attempt in 1 2 3 4 5 6; do
+            curl --fail --silent --show-error --location \
+              --header 'Cache-Control: no-cache' \
+              "${PAGE_URL}build-metadata.json?commit=${GITHUB_SHA}" \
+              --output live-build-metadata.json || true
+            if node -e "const m=require('./live-build-metadata.json'); if(m.commit !== process.env.GITHUB_SHA || m.cacheVersion !== Number(process.env.EXPECTED_CACHE_VERSION) || !m.nextYearCourses || !m.nextYearWorkshops) process.exit(1)" 2>/dev/null; then
+              cat live-build-metadata.json
+              exit 0
+            fi
+            sleep 10
+          done
+          echo 'GitHub Pages is not serving the deployed commit' >&2
+          cat live-build-metadata.json 2>/dev/null || true
+          exit 1

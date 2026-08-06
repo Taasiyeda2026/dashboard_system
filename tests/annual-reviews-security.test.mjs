@@ -1,0 +1,221 @@
+import test from 'node:test';
+import assert from 'node:assert/strict';
+import { readFile } from 'node:fs/promises';
+
+const usersMigration = await readFile(new URL('../supabase/migrations/20260717100000_secure_users_read_columns.sql', import.meta.url), 'utf8');
+const reviewsMigration = await readFile(new URL('../supabase/migrations/20260717110000_create_annual_reviews.sql', import.meta.url), 'utf8');
+const openReviewMigration = await readFile(new URL('../supabase/migrations/20260718120000_open_annual_review_to_manager_preparation.sql', import.meta.url), 'utf8');
+const hardeningMigration = await readFile(new URL('../supabase/migrations/20260719120000_harden_annual_review_workflow.sql', import.meta.url), 'utf8');
+const unifiedMetricsMigration = await readFile(new URL('../supabase/migrations/20260719150000_unify_annual_review_metrics.sql', import.meta.url), 'utf8');
+const managerNameMigration = await readFile(new URL('../supabase/migrations/20260719170000_resolve_annual_review_manager_name.sql', import.meta.url), 'utf8');
+const screen = await readFile(new URL('../frontend/src/screens/personal-reports.js', import.meta.url), 'utf8');
+const css = await readFile(new URL('../frontend/src/styles/main.css', import.meta.url), 'utf8');
+
+test('authenticated REST cannot select entry_code for self or other users', () => {
+  assert.match(usersMigration, /revoke select\s+on table public\.users\s+from public, anon, authenticated/i);
+  assert.match(usersMigration, /execute format\([\s\S]*revoke select \(%s\) on table public\.users from anon, authenticated/i);
+  assert.doesNotMatch(usersMigration.match(/grant select \(([\s\S]*?)\)\s+on table public\.users\s+to authenticated/i)?.[1] || '', /entry_code/i);
+  assert.match(usersMigration, /has_column_privilege\([\s\S]*'authenticated'[\s\S]*'entry_code'[\s\S]*'select'[\s\S]*\)/i);
+  assert.match(usersMigration, /raise exception[\s\S]*'Security invariant failed: authenticated can read entry_code'/i);
+});
+
+test('safe directory is invoker-secured and excludes sensitive identity columns', () => {
+  assert.match(usersMigration, /create view public\.app_user_directory\s+with \(security_barrier = true\)/i);
+  const view = usersMigration.match(/create view public\.app_user_directory([\s\S]*?)comment on view/i)?.[1] || '';
+  assert.doesNotMatch(view, /entry_code|email|auth_user_id|permissions/i);
+  assert.match(view, /user_id[\s\S]*coalesce\(full_name, name\) as name[\s\S]*display_role[\s\S]*emp_id[\s\S]*is_active/i);
+});
+
+test('review assignment is UUID-only, exactly four employees, and browser cannot provision it', () => {
+  for (const key of ['tony_naim','hila_rozen','gil_neeman','eden_cohen']) assert.match(reviewsMigration, new RegExp(key));
+  assert.match(reviewsMigration, /p_manager_id uuid, p_tony_id uuid, p_hila_id uuid, p_gil_id uuid, p_eden_id uuid/i);
+  assert.match(reviewsMigration, /count\(distinct x\)[\s\S]*<> 5/i);
+  assert.match(reviewsMigration, /revoke all on function public\.provision_annual_review_assignments[\s\S]*authenticated/i);
+});
+
+test('all four employees receive the same 16 general annual-review metrics', () => {
+  const definitions = unifiedMetricsMigration.match(/from unnest\(array\[([\s\S]*?)\]\) with ordinality as metric/i)?.[1] || '';
+  const labels = [...definitions.matchAll(/'([^']+)'/g)].map((match) => match[1]);
+  assert.equal(labels.length, 16);
+  assert.equal(new Set(labels).size, 16);
+  assert.equal(labels.filter((label) => label === 'התמודדות עם בעיות, הפעלת שיקול דעת וטיפול עצמאי עד לפתרון').length, 1);
+  const metricsByEmployee = Object.fromEntries(['tony_naim', 'hila_rozen', 'gil_neeman', 'eden_cohen'].map((employeeKey) => {
+    assert.match(unifiedMetricsMigration, new RegExp(employeeKey));
+    return [employeeKey, [...labels]];
+  }));
+  for (const employeeMetrics of Object.values(metricsByEmployee)) assert.equal(employeeMetrics.length, 16);
+  assert.equal(new Set(Object.values(metricsByEmployee).map((employeeMetrics) => JSON.stringify(employeeMetrics))).size, 1);
+  assert.match(unifiedMetricsMigration, /'common'::text/);
+  assert.doesNotMatch(definitions, /when\s+'(?:tony_naim|hila_rozen|gil_neeman|eden_cohen)'|metric_group[^\n]*'role'/i);
+});
+
+test('metric reconciliation creates missing 2026 reviews and protects started reviews', () => {
+  assert.match(unifiedMetricsMigration, /insert into public\.annual_reviews\(employee_id, manager_id, review_year, status\)/i);
+  assert.match(unifiedMetricsMigration, /2026, 'not_opened'/i);
+  assert.match(unifiedMetricsMigration, /on conflict \(employee_id, review_year\) do nothing/i);
+  assert.match(unifiedMetricsMigration, /review\.status = 'not_opened'/i);
+  assert.match(unifiedMetricsMigration, /evaluation\.rating is not null[\s\S]*evaluation\.not_applicable[\s\S]*btrim\(evaluation\.comment\)/i);
+  for (const table of ['review_conversation_summary', 'review_goals', 'employee_review_response']) {
+    assert.match(unifiedMetricsMigration, new RegExp(`not exists \\(select 1 from public\\.${table}`));
+  }
+  assert.doesNotMatch(unifiedMetricsMigration, /select\s+public\.provision_annual_review_assignments|call\s+public\.provision_annual_review_assignments/i);
+});
+
+test('empty Hila review remains visible and role definitions are not loaded by the UI', () => {
+  const landing = screen.match(/function annualReviewLandingHtml\(rows\)([\s\S]*?)\n}/)?.[1] || '';
+  assert.match(landing, /rows\.filter\(\(row\) => row\.manager_id === uid\)/);
+  assert.doesNotMatch(landing, /rows\.(?:filter|find)\([^\n]*status|evaluations|employee_role/);
+  assert.match(screen, /select\('employee_id,manager_id,employee_name'\)/);
+  assert.doesNotMatch(screen.slice(screen.indexOf('// ─── Annual review module')), /employee_role/);
+});
+
+test('each review participant is scoped by auth.uid and admin role gets no bypass', () => {
+  assert.match(reviewsMigration, /reviews_participant_select[\s\S]*auth\.uid\(\) in \(employee_id,manager_id\)/i);
+  assert.match(reviewsMigration, /assignments_participant_select[\s\S]*auth\.uid\(\) in \(employee_id,manager_id\)/i);
+  assert.doesNotMatch(reviewsMigration, /role\s*=\s*'admin'|role\s+in\s*\([^)]*admin/i);
+});
+
+test('employee cannot see an unshared manager draft', () => {
+  assert.match(reviewsMigration, /evaluations_participant_select[\s\S]*annual_review_is_employee\(review_id\)[\s\S]*manager_shared_at is not null/i);
+  assert.match(reviewsMigration, /evaluations_manager_update[\s\S]*annual_review_is_manager\(review_id\)/i);
+  assert.match(screen, /const evaluationVisible = isManager \|\| Boolean\(review\.manager_shared_at\)/);
+  assert.match(screen, /המשוב נמצא בהכנת המנהל וטרם שותף איתך\./);
+  assert.match(screen, /evaluationVisible \? `<section class="pr-card ar-section"><h2>הערכת המנהל/);
+  assert.match(screen, /sharedContentVisible \? `<section class="pr-card ar-section"><h2>סיכום המנהל/);
+  assert.match(screen, /share_manager_evaluation/);
+});
+
+test('locked review children reject writes and reopening is explicit and audited', () => {
+  assert.match(reviewsMigration, /annual_review_is_editable[\s\S]*locked_at is null/i);
+  assert.match(reviewsMigration, /raise exception 'annual_review_locked'/i);
+  assert.match(reviewsMigration, /reopen_annual_review\(p_review_id uuid,p_expected_version bigint,p_reason text\)/i);
+  assert.match(reviewsMigration, /reopen_reason_required/i);
+  assert.match(reviewsMigration, /insert into public\.review_audit_log/i);
+});
+
+test('autosave uses optimistic version and cannot overwrite newer content', () => {
+  assert.match(screen, /\.eq\('version', Number\(previous\)\)/);
+  assert.match(screen, /המידע השתנה במקום אחר/);
+  assert.match(screen, /data-version=/);
+});
+
+test('annual review workflow uses database operations instead of direct review updates', () => {
+  for (const operation of [
+    'open_review_for_employee', 'share_manager_evaluation', 'start_review_conversation',
+    'finish_review_conversation', 'approve_review_as_employee', 'approve_review_as_manager',
+    'complete_and_lock_review', 'reopen_annual_review'
+  ]) assert.match(screen, new RegExp(operation));
+  assert.doesNotMatch(screen, /submit_employee_preparation/);
+  assert.doesNotMatch(screen, /employee_review_preparation/);
+  assert.doesNotMatch(screen, /from\('annual_reviews'\)\.update\(/);
+  assert.match(screen, /p_expected_version: review\.version/);
+});
+
+test('opening annual review routes directly to manager preparation through guarded transition', () => {
+  assert.match(openReviewMigration, /create or replace function public\.open_review_for_employee/i);
+  assert.match(openReviewMigration, /transition_annual_review\(\s*p_review_id,\s*p_expected_version,\s*'manager',\s*'not_opened',\s*'manager_preparation'/i);
+  assert.doesNotMatch(openReviewMigration, /employee_preparation|submitted_to_manager/);
+  assert.match(screen, /פתיחת המשוב והתחלת הכנת המנהל/);
+});
+
+test('database enforces field ownership and exact workflow stages', () => {
+  assert.match(hardeningMigration, /r\.status<>'manager_preparation'/);
+  for (const field of ['achievements','strengths','improvements','process_changes','support_needed','manager_summary']) {
+    assert.match(hardeningMigration, new RegExp(`new\\.${field}`));
+  }
+  assert.match(hardeningMigration, /manager_fields_manager_only/);
+  assert.match(hardeningMigration, /employee_voice_employee_only/);
+  assert.match(hardeningMigration, /r\.status<>'conversation_in_progress'/);
+  assert.match(hardeningMigration, /before insert or update or delete on public\.review_goals/);
+  assert.match(hardeningMigration, /r\.status<>'awaiting_employee_response'/);
+  assert.match(hardeningMigration, /employee_approved_at is not null/);
+  assert.match(hardeningMigration, /revoke insert, update, delete on public\.annual_reviews/);
+});
+
+test('workflow guidance, goals, approvals and accessible confirmations are explicit', () => {
+  assert.match(screen, /מה עושים עכשיו\?/);
+  assert.match(screen, /הוספת מטרה/);
+  assert.match(screen, /canEditGoals \? '<button[^']*data-ar-add-goal/);
+  assert.match(screen, /עדיין לא הוגדרו מטרות להמשך/);
+  assert.match(screen, /שני הצדדים אישרו את המשוב/);
+  assert.match(screen, /review\.employee_approved_at && review\.manager_approved_at/);
+  assert.match(screen, /נעילת המשוב וסיום התהליך/);
+  assert.match(screen, /<dialog class="ar-modal"/);
+  assert.match(screen, /לאחר השיתוף העובד יוכל לראות את הערכת המנהל/);
+  assert.match(screen, /פעולה זו תנעל את המשוב ותמנע עריכה נוספת/);
+  assert.doesNotMatch(screen.slice(screen.indexOf('// ─── Annual review module')), /window\.(?:prompt|confirm)/);
+});
+
+test('approvals do not auto-lock and completion remains a separate manager RPC', () => {
+  const approval = hardeningMigration.match(/create or replace function public\.approve_review_as_employee[\s\S]*?end \$\$;/i)?.[0] || '';
+  assert.doesNotMatch(approval, /completed_locked|locked_at/);
+  assert.match(reviewsMigration, /complete_and_lock_review[\s\S]*employee_approved_at is not null[\s\S]*manager_approved_at is not null/i);
+  assert.match(screen, /bothApproved[\s\S]*complete_and_lock_review/);
+});
+
+
+test('annual review UI gates editable fields by status and participant ownership', () => {
+  assert.match(screen, /canEditManagerEvaluation = isManager && review\.status === 'manager_preparation' && !locked/);
+  assert.match(screen, /canEditManagerConversation = isManager && canEditConversation/);
+  assert.match(screen, /canEditEmployeeVoice = isEmployee && canEditConversation/);
+  assert.match(screen, /canEditEmployeeResponse = isEmployee && review\.status === 'awaiting_employee_response' && !review\.employee_approved_at && !locked/);
+  assert.match(screen, /data-ar-form="conversation-manager"/);
+  assert.match(screen, /data-ar-form="conversation-employee-voice"/);
+  assert.match(screen, /data-can-edit="\$\{canEditGoals \? 'true' : 'false'\}"/);
+});
+
+test('conversation autosave sends only fields owned by the active participant', () => {
+  assert.match(screen, /if \(form\.dataset\.arForm === 'conversation-manager'\) table = 'review_conversation_summary'/);
+  assert.match(screen, /if \(form\.dataset\.arForm === 'conversation-employee-voice'\)[\s\S]*values\.employee_voice = Object\.fromEntries/);
+  assert.match(screen, /Object\.keys\(values\)\.filter\(\(key\) => key\.startsWith\('employee_voice_'\)\)\.forEach/);
+  assert.doesNotMatch(screen, /form\.dataset\.arForm === 'conversation'[\s\S]*values\.employee_voice/);
+});
+
+test('annual review saves expose visible save states and clear failures', () => {
+  assert.match(screen, /setAnnualSaveState\(form, 'שומר\.\.\.', 'saving'\)/);
+  assert.match(screen, /setAnnualSaveState\(form, 'נשמר', 'saved'\)/);
+  assert.match(screen, /שמירת הטופס נכשלה/);
+  assert.match(screen, /שמירת היעד נכשלה/);
+  assert.match(screen, /שמירת הדירוג נכשלה/);
+});
+
+test('ratings comments and goals use version checks and conflict messaging', () => {
+  assert.match(screen, /function updateVersionedRow\(table, idField, id, values, previousVersion\)/);
+  assert.match(screen, /query = query\.eq\('version', Number\(previousVersion\)\)/);
+  assert.match(screen, /annualReviewConflictMessage\(\)/);
+  assert.match(screen, /data-evaluation-version/);
+  assert.match(screen, /data-version="\$\{escapeHtml\(g\.version \|\| ''\)\}"/);
+  assert.match(screen, /supabase\.from\('review_goals'\)\.delete\(\)\.eq\('id', id\)[\s\S]*\.eq\('version', Number\(row\.dataset\.version\)\)/);
+});
+
+test('annual review print is Hebrew RTL A4 and hides navigation', () => {
+  assert.match(screen, /class="pr-screen ar-screen" dir="rtl"/);
+  assert.match(screen, /הדפסה \/ שמירה כ-PDF/);
+  assert.match(screen, /body\.classList\.add\(printClass\)/);
+  assert.match(screen, /window\.addEventListener\('afterprint', cleanup, \{ once: true \}\)/);
+  assert.match(screen, /catch \(error\)[\s\S]*cleanup\(\)/);
+  assert.match(css, /@page\{size:A4/i);
+  assert.match(css, /body\.is-annual-review-print\{direction:rtl/i);
+  assert.match(css, /body\.is-annual-review-print \.pr-screen\.ar-screen \*,body\.is-annual-review-print \.ar-document,body\.is-annual-review-print \.ar-document \*\{visibility:visible!important/i);
+  assert.match(css, /body\.is-annual-review-print \.no-print[\s\S]*display:none!important/i);
+  assert.match(css, /white-space:pre-wrap/i);
+  assert.match(css, /page-break-inside:avoid/i);
+});
+
+test('manager full name is securely resolved and shown on screen and in print', () => {
+  assert.match(managerNameMigration, /resolve_annual_review_manager_name\(p_manager_id uuid\)/i);
+  assert.match(managerNameMigration, /u\.auth_user_id = p_manager_id/i);
+  assert.match(managerNameMigration, /coalesce\(nullif\(btrim\(u\.full_name\), ''\), nullif\(btrim\(u\.name\), ''\)\)/i);
+  assert.match(managerNameMigration, /auth\.uid\(\) in \(review\.employee_id, review\.manager_id\)/i);
+  assert.match(screen, /resolve_annual_review_manager_name'[\s\S]*p_manager_id: managerId/);
+  assert.doesNotMatch(screen.slice(screen.indexOf('// ─── Annual review module')), /\|\|\s*['"]עידן['"]/);
+  assert.match(screen, /const managerDisplayName = review\.manager_name \|\| 'שם המנהל לא זמין'/);
+  const detail = screen.match(/function annualReviewDetailHtml[\s\S]*?\n}/)?.[0] || '';
+  assert.equal((detail.match(/שם המנהל: \$\{escapeHtml\(managerDisplayName\)\}/g) || []).length, 2);
+});
+
+test('existing personal reports remain mounted and annual review is additive', () => {
+  assert.match(screen, /renderInto\(root, myReportsDashboardHtml/);
+  assert.match(screen, /await loadAnnualReviewAccess\(\)/);
+  assert.match(screen, /not-yet-applied review migration must not break the existing reports screen/i);
+});

@@ -112,6 +112,13 @@ function text(value) {
   return String(value == null ? '' : value).trim();
 }
 
+export function normalizeActivityMeetingsCount(value) {
+  if (value == null || value === '') return null;
+  const parsed = Number(value);
+  if (!Number.isInteger(parsed) || parsed < 1 || parsed > 35) return null;
+  return parsed;
+}
+
 export function humanDisplayText(value) {
   return text(value).replace(/\u00A0/g, ' ').replace(/_/g, ' ').replace(/\s+/g, ' ').trim();
 }
@@ -194,7 +201,9 @@ export function getActivityCatalog(settings) {
       label_he: humanDisplayText(row?.label_he || row?.label || row?.activity_name || row?.value),
       value: humanDisplayText(row?.value || row?.activity_name || row?.label),
       activity_name: humanDisplayText(row?.activity_name || row?.value || row?.label),
-      activity_no: text(row?.activity_no),
+      gefen_number: text(row?.gefen_number || row?.activity_no),
+      activity_no: text(row?.activity_no || row?.gefen_number),
+      meetings_count: normalizeActivityMeetingsCount(row?.meetings_count),
       activity_type: normalizeActivityTypeKey(row?.activity_type || row?.parent_value || row?.type),
       parent_value: normalizeActivityTypeKey(row?.parent_value || row?.activity_type || row?.type),
       type: normalizeActivityTypeKey(row?.type || row?.activity_type || row?.parent_value),
@@ -202,6 +211,7 @@ export function getActivityCatalog(settings) {
       sort_order: row?.sort_order
     }))
     .filter((row) => row.label)
+    .filter((row) => !isExplicitlyInactive(row.active))
     .filter((row) => {
       const sig = `${row.label}|${row.activity_no}|${row.parent_value}`;
       if (seen.has(sig)) return false;

@@ -11,8 +11,9 @@
 - **Frontend:** Vanilla JS עם ES Modules, בנוי ב-Vite, מוגש כאתר סטטי מ-`dist/`
 - **Backend / נתונים:** Supabase (PostgreSQL + Auth)
 - **PWA:** `manifest.json` + `sw.js` עם precache
+- **בדיקות דפדפן:** Playwright עם Chromium, בדיקות E2E, בדיקות ביצועים ו-Smoke לאחר פריסה
 
-כל הקריאות (קריאה וכתיבה) מתבצעות ישירות מה-frontend ל-Supabase דרך `frontend/src/api.js`.
+כל הקריאות, לקריאה ולכתיבה, מתבצעות ישירות מה-frontend ל-Supabase דרך `frontend/src/api.js`.
 
 ---
 
@@ -34,21 +35,31 @@ npx serve dist -l 5000
 
 ```text
 .
+├── .github/workflows/
+│   ├── e2e-performance-gate.yml      ← בדיקות E2E מדורגות ושער ביצועים ל-PRים אל main
+│   └── e2e-post-deploy-smoke.yml     ← בדיקת Smoke לאחר פריסה ל-GitHub Pages
+├── e2e/
+│   ├── tests/                         ← בדיקות מסכים, פעולות וביצועים
+│   ├── helpers/                       ← ניווט, ניטור רשת, מדידה וכלי עזר
+│   ├── smoke/                         ← בדיקות האתר החי לאחר פריסה
+│   ├── baselines/                     ← baseline ביצועים מחויב לריפו
+│   └── artifacts/                     ← דוחות וראיות מקומיות, לא נשמרים ב-Git
 ├── frontend/
 │   ├── src/
-│   │   ├── api.js              ← כל הקריאות ל-Supabase
-│   │   ├── main.js             ← app shell, routing, login
+│   │   ├── api.js                     ← כל הקריאות ל-Supabase
+│   │   ├── main.js                    ← app shell, routing, login
 │   │   ├── state.js
-│   │   ├── supabase-client.js  ← אתחול Supabase
-│   │   ├── config.js           ← legacy (GAS URL) — לא בשימוש
+│   │   ├── supabase-client.js         ← אתחול Supabase
+│   │   ├── config.js                  ← legacy (GAS URL) — לא בשימוש
 │   │   ├── styles/main.css
-│   │   └── screens/            ← קובץ אחד לכל מסך
-│   └── sw.js                   ← Service Worker (CACHE_VERSION כאן)
-├── dist/                       ← פלט ה-build (מוגש בייצור)
-├── tests/                      ← Node test-runner (node --test tests/*.test.mjs)
-├── supabase/migrations/        ← קבצי SQL להרצה ידנית ב-Supabase
-├── docs/proposal-print-layout.md ← הדפסת/PDF הצעות מחיר: מה לא להחזיר ואיך לבדוק
-└── OLD-GAS/                    ← ארכיב בלבד — קבצי Apps Script ישנים
+│   │   └── screens/                   ← קובץ אחד לכל מסך
+│   └── sw.js                          ← Service Worker, כולל CACHE_VERSION
+├── scripts/select-e2e-scope.mjs       ← מיפוי קבצים שהשתנו להיקף בדיקות מתאים
+├── dist/                              ← פלט ה-build שמוגש בייצור
+├── tests/                             ← Node test-runner ובדיקות helpers
+├── supabase/migrations/               ← קבצי SQL להרצה ידנית ב-Supabase
+├── docs/proposal-print-layout.md      ← הדפסת/PDF הצעות מחיר: מה לא להחזיר ואיך לבדוק
+└── OLD-GAS/                           ← ארכיב בלבד, קבצי Apps Script ישנים
 ```
 
 ---
@@ -57,7 +68,7 @@ npx serve dist -l 5000
 
 | טבלה | תוכן |
 |---|---|
-| `activities` | מקור האמת היחיד לפעילויות — נטען ידנית מ-`activities_system_ready.csv`; `row_id` הוא המזהה הייחודי |
+| `activities` | מקור האמת היחיד לפעילויות — נטען ידנית מ-`activities_system_ready.csv`, `row_id` הוא המזהה הייחודי |
 | `contacts_instructors` | אנשי קשר — מדריכים |
 | `contacts_schools` | אנשי קשר — בתי ספר |
 | `lists` | רשימות dropdown |
@@ -78,35 +89,118 @@ npx serve dist -l 5000
 
 `dist/` הוא מקור האמת להרצה ולפריסה. אין להגיש את root כאתר production, כי זה עלול לעקוף את פלט ה-build ולחשוף קבצים לא מעודכנים.
 
-אחרי כל שינוי ב-JS/CSS/Service Worker:
+אחרי כל שינוי ב-JS, CSS או Service Worker:
+
 1. העלו את `CACHE_VERSION` ב-`frontend/sw.js` בלבד.
 2. הריצו `npm run build`.
 3. פרסו את `dist/`.
 
-Root `sw.js` הוא entry בלבד שטוען את המימוש המרכזי מ-`frontend/sw.js`; אין להוסיף לו גרסת cache נפרדת.
+Root `sw.js` הוא entry בלבד שטוען את המימוש המרכזי מ-`frontend/sw.js`. אין להוסיף לו גרסת cache נפרדת.
 
 ---
 
-## בדיקות
+## בדיקות ממוקדות ובנייה
 
 ```bash
 npm run check:changed
 ```
 
-ברירת המחדל היא בדיקות ממוקדות בלבד כדי לא לבזבז זמן על suite רחב/ישן:
+ברירת המחדל היא בדיקות ממוקדות בלבד כדי לא לבזבז זמן על suite רחב או ישן:
 
-- `npm run check:changed` — `node --check` לקבצי JS/MJS ששונו, ובדיקת מסך רלוונטית אם קיימת.
+- `npm run check:changed` — `node --check` לקבצי JS ו-MJS ששונו, כולל בדיקת מסך רלוונטית כאשר קיימת.
 - `npm run check:frontend` — בדיקת syntax לכל קבצי ה-frontend.
-- `npm run check:build` — build מלא (`npm run build`).
-- `npm run test:all:legacy` — suite מלא של `tests/*.test.mjs`; להריץ רק כשמבקשים במפורש או כשמתקנים את בדיקות ה-legacy.
+- `npm run check:build` — build מלא באמצעות `npm run build`.
+- `npm run test:all:legacy` — suite מלא של `tests/*.test.mjs`. יש להריץ רק כשמבקשים במפורש או כשמתקנים את בדיקות ה-legacy.
 
-מדיניות עבודה: במשימות רגילות של Cursor/Codex לא מריצים `npm run test:all:legacy` ולא מריצים suite מלא כברירת מחדל. מריצים בדיקות ממוקדות לפי הקבצים ששונו, ו-`npm run check:build` כאשר יש שינוי בפרונט/Service Worker/קבצי build.
+מדיניות עבודה: במשימות רגילות של Cursor או Codex לא מריצים `npm run test:all:legacy` כברירת מחדל. מריצים בדיקות ממוקדות לפי הקבצים ששונו, וכן `npm run check:build` כאשר יש שינוי בפרונט, ב-Service Worker או בקובצי build.
+
+---
+
+## בדיקות Playwright E2E וביצועים
+
+תשתית Playwright מריצה Chromium אמיתי, מתחברת באמצעות משתמש בדיקה ייעודי ובודקת מסכים מרכזיים, ניווט, פעולות, בקשות רשת, שגיאות Console, טעינות כבדות ומדדי ביצועים.
+
+בהרצה מקומית ראשונה:
+
+```bash
+npm install
+npx playwright install chromium
+```
+
+פקודות זמינות:
+
+```bash
+npm run test:e2e
+npm run test:e2e:smoke
+npm run test:e2e:baseline
+npm run test:e2e:helpers
+```
+
+- `npm run test:e2e` — מריץ את בדיקות ה-E2E ואת שער הביצועים.
+- `npm run test:e2e:smoke` — מריץ Smoke מול האתר החי לאחר פריסה.
+- `npm run test:e2e:baseline` — מודד וכותב baseline ביצועים חדש.
+- `npm run test:e2e:helpers` — בודק את כלי העזר של ניטור הרשת והביצועים.
+
+כשל בבדיקה שומר לפי הצורך דוח HTML, צילום מסך, וידאו, Trace, נתוני Network ונתוני Console תחת `e2e/artifacts/`. ב-GitHub Actions הראיות מועלות כ-artifact לתקופה מוגבלת.
+
+### מדיניות לשינויים חדשים
+
+בכל שינוי שמשפיע על ממשק, נתונים, ניווט, טעינה או ביצועים:
+
+1. יש לבדוק אם קיימת בדיקת Playwright מתאימה ולעדכן אותה.
+2. כאשר אין כיסוי מתאים, יש להוסיף בדיקה ממוקדת לתרחיש החדש.
+3. אין ליצור תשתית בדיקות מקבילה כאשר ניתן להרחיב את התשתית הקיימת.
+4. אין להחליש assertion, סף ביצועים או בדיקת רשת רק כדי להעביר CI.
+5. אין לעדכן baseline בעקבות הרצה כושלת.
+6. baseline חדש נוצר רק לאחר הרצה ירוקה ובדיקה שהמדידה מייצגת התנהגות תקינה.
+7. אין לשמור credentials, קובצי `storageState` או ערכי Secrets בריפו או ב-artifacts.
+
+---
+
+## GitHub Actions לבדיקות
+
+### E2E and Performance Gate
+
+ה-workflow `.github/workflows/e2e-performance-gate.yml` פועל בכל Pull Request אל `main`, מזהה את הקבצים שהשתנו ובוחר אוטומטית את היקף הבדיקה:
+
+- שינויי תיעוד וקבצים שאינם משפיעים על המערכת מסיימים בדיקה קצרה ללא Chromium וללא Playwright.
+- פתיחת PR חדש שאינו Draft מריצה נקודת בדיקה מלאה אחת.
+- עדכון רגיל של PR קיים מריץ בדיקות ממוקדות למסכים שהושפעו.
+- מעבר מ-Draft למוכן לבדיקה או פתיחה מחדש של PR מריצים נקודת בדיקה מלאה.
+- שינוי בקוד משותף, בתשתית, בבסיס הנתונים, בבדיקות או בקובץ מערכת שלא מופיע במיפוי מריץ את כל הבדיקות.
+- הפעלה ידנית של ה-workflow מריצה את כל הבדיקות ויכולה לשמש גם לעדכון baseline מאושר.
+
+מנגנון הבחירה מנוהל בקובץ `scripts/select-e2e-scope.mjs`. קובץ שאינו מזוהה כשינוי מקומי למסך מסוים נשלח כברירת מחדל להרצה מלאה.
+
+שם בדיקת ה-status המדויק:
+
+```text
+E2E and Performance Gate / e2e-performance
+```
+
+זהו השם שיש להגדיר כ-required status check בהגנת הענף.
+
+### E2E Post-Deploy Smoke
+
+ה-workflow `.github/workflows/e2e-post-deploy-smoke.yml` מופעל לאחר הצלחה של `Deploy to GitHub Pages`. הוא בודק את האתר החי ומוודא שהגרסה שנפרסה תואמת ל-commit הצפוי.
+
+### GitHub Actions Secrets
+
+ה-workflows משתמשים ב-Secrets הבאים:
+
+- `E2E_USERNAME`
+- `E2E_PASSWORD`
+- `E2E_BASE_URL`
+- `VITE_SUPABASE_URL`
+- `VITE_SUPABASE_ANON_KEY`
+
+אין לכתוב את הערכים שלהם ב-README, בקוד, בלוגים, בתגובות PR או בקובצי בדיקה.
 
 ---
 
 ## Supabase — צעדים ידניים
 
-שני קבצי migration חייבים להיות מורצים ב-Supabase SQL editor לפני שה-login יעבוד:
+קובצי migration שחייבים להיות מורצים ב-Supabase SQL editor לפני שה-login יעבוד:
 
 - `supabase/migrations/20260505_users_auth_bootstrap.sql`
 - `supabase/migrations/20260505_settings_admin_config.sql`
@@ -114,5 +208,6 @@ npm run check:changed
 - `supabase/migrations/20260506_activities_single_source_cleanup.sql`
 
 לאחר ההרצה:
+
 1. העלו ידנית את `activities_system_ready.csv` לטבלת `public.activities` ב-Supabase.
-2. הזינו משתמשים לטבלת `users` (user_id, entry_code, role, name).
+2. הזינו משתמשים לטבלת `users` לפי השדות `user_id`, `entry_code`, `role`, `name`.

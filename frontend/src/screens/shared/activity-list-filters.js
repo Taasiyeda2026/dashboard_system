@@ -4,9 +4,24 @@ export const MIN_SEARCH_CHARS = 1;
 export const SEARCH_DEBOUNCE_MS = 150;
 const DEFAULT_SEARCH_DEBOUNCE_MS = SEARCH_DEBOUNCE_MS;
 const DEFAULT_VISIBLE_LIMIT = 200;
+const OPERATIONS_MANAGEMENT_STATUS_OPTIONS = ['פתוח', 'סגור'];
+const OPERATIONS_MANAGEMENT_EXCLUDED_STATUSES = ['בוטל', 'cancelled', 'canceled'];
+const OPERATIONS_AUTHORITIES_TAB = 'authorities';
+const OPERATIONS_SUMMER_SEASON = 'summer_2026';
+const OPERATIONS_SUMMER_FROM = '2026-06-15';
+const OPERATIONS_SUMMER_TO = '2026-08-31';
 const FILTER_OPTIONS_CACHE = new WeakMap();
 const SEARCH_FIELDS_IDS = new WeakMap();
 let searchFieldsIdSeq = 0;
+
+// The operations screen historically treats an empty status as "use the default",
+// while the status select also uses an empty value for "הכל". This truthy object
+// stringifies to an empty string, so the screen preserves the explicit "all"
+// selection without changing its public filtering contract.
+const OPERATIONS_ALL_STATUS = Object.freeze({
+  toString: () => '',
+  valueOf: () => ''
+});
 
 function searchFieldsKey(fields) {
   if (!Array.isArray(fields)) return 'default';
@@ -62,14 +77,43 @@ export function prepareRowsForSearch(rows, fields) {
 export function ensureActivityListFilters(state, scope) {
   state.listFilters = state.listFilters || {};
   state.listFilters[scope] = state.listFilters[scope] || { q: '', appliedQ: '', visibleCount: DEFAULT_VISIBLE_LIMIT };
-  if (!Object.prototype.hasOwnProperty.call(state.listFilters[scope], 'appliedQ')) {
-    const q = normalizeText(state.listFilters[scope].q || '');
-    state.listFilters[scope].appliedQ = q.length >= MIN_SEARCH_CHARS ? state.listFilters[scope].q : '';
+  const filters = state.listFilters[scope];
+
+  if (scope === 'operations-management') {
+    // Convert only an explicitly selected empty status to the all-status marker.
+    // A missing status property is left untouched so the operations screen may
+    // still apply its initial default of "פתוח".
+    if (Object.prototype.hasOwnProperty.call(filters, 'status') && filters.status === '') {
+      filters.status = OPERATIONS_ALL_STATUS;
+    }
+    filters.optionOverrides = {
+      ...(filters.optionOverrides || {}),
+      status: OPERATIONS_MANAGEMENT_STATUS_OPTIONS
+    };
+    filters.excludedValues = {
+      ...(filters.excludedValues || {}),
+      status: OPERATIONS_MANAGEMENT_EXCLUDED_STATUSES
+    };
+
+    const isAuthoritiesTab = state?.operationsManagement?.tab === OPERATIONS_AUTHORITIES_TAB;
+    if (isAuthoritiesTab) {
+      filters.requiredActivitySeason = OPERATIONS_SUMMER_SEASON;
+      state.operationsManagement.period = 'regular';
+      state.operationsManagement.dateFrom = OPERATIONS_SUMMER_FROM;
+      state.operationsManagement.dateTo = OPERATIONS_SUMMER_TO;
+    } else {
+      delete filters.requiredActivitySeason;
+    }
   }
-  if (typeof state.listFilters[scope].visibleCount !== 'number') {
-    state.listFilters[scope].visibleCount = DEFAULT_VISIBLE_LIMIT;
+
+  if (!Object.prototype.hasOwnProperty.call(filters, 'appliedQ')) {
+    const q = normalizeText(filters.q || '');
+    filters.appliedQ = q.length >= MIN_SEARCH_CHARS ? filters.q : '';
   }
-  return state.listFilters[scope];
+  if (typeof filters.visibleCount !== 'number') {
+    filters.visibleCount = DEFAULT_VISIBLE_LIMIT;
+  }
+  return filters;
 }
 
 export function collectFilterOptions(rows, fields) {
@@ -103,6 +147,30 @@ export function collectFilterOptions(rows, fields) {
 
 const DEPENDENT_EXCLUDE = new Set(['-', 'לא משויך', 'ללא שיוך']);
 
+function rowMatchesRequiredActivitySeason(row, filters) {
+  const requiredSeason = String(filters?.requiredActivitySeason || '').trim().toLowerCase();
+  if (!requiredSeason) return true;
+
+  const activitySeason = String(row?.activity_season ?? row?.activitySeason ?? '').trim().toLowerCase();
+  if (activitySeason === requiredSeason || (requiredSeason === OPERATIONS_SUMMER_SEASON && activitySeason === 'summer')) return true;
+
+  const rowId = String(row?.row_id ?? row?.RowID ?? row?.id ?? '').trim().toLowerCase();
+  return requiredSeason === OPERATIONS_SUMMER_SEASON && rowId.startsWith('summer_');
+}
+
+function rowPassesConfiguredExclusions(row, filters) {
+  if (!rowMatchesRequiredActivitySeason(row, filters)) return false;
+
+  const excludedValues = filters?.excludedValues;
+  if (!excludedValues || typeof excludedValues !== 'object') return true;
+
+  return Object.entries(excludedValues).every(([key, rawValues]) => {
+    const values = Array.isArray(rawValues) ? rawValues : [rawValues];
+    const blocked = new Set(values.map(normalizeText).filter(Boolean));
+    return !blocked.has(normalizeText(row?.[key]));
+  });
+}
+
 /**
  * Builds filter options where each field's options come from rows that pass
  * all OTHER active filters (and the active free-text search), so the user
@@ -116,7 +184,18 @@ export function collectDependentFilterOptions(rows, filterFields, activeFilters,
 
   const result = {};
   fields.forEach((field) => {
+    const overrideValues = filters?.optionOverrides?.[field.key];
+    if (Array.isArray(overrideValues)) {
+      result[field.key] = Array.from(new Set(
+        overrideValues
+          .map((value) => String(value || '').trim())
+          .filter((value) => value && !DEPENDENT_EXCLUDE.has(value))
+      ));
+      return;
+    }
+
     const subset = list.filter((row) => {
+      if (!rowPassesConfiguredExclusions(row, filters)) return false;
       if (search && !String(row?.__searchText || '').includes(search)) return false;
       for (const f of fields) {
         if (f.key === field.key) continue;
@@ -151,6 +230,7 @@ export function applyLocalFilters(rows, filters, config = {}) {
   const filterFields = Array.isArray(config.filterFields) ? config.filterFields : [];
 
   return list.filter((row) => {
+    if (!rowPassesConfiguredExclusions(row, scoped)) return false;
     if (search && !String(row?.__searchText || '').includes(search)) return false;
     for (const field of filterFields) {
       const selected = String(scoped[field.key] || '').trim();
@@ -200,8 +280,6 @@ export function filtersToolbarHtml(scope, rows, state, config = {}) {
   if (config.dependent) {
     const searchText = Object.prototype.hasOwnProperty.call(filters, 'appliedQ') ? filters.appliedQ : (filters.q || '');
     optionsMap = collectDependentFilterOptions(rows, filterFields, filters, searchText);
-    // Auto-clear stale selections: if the currently selected value is no longer
-    // in the available options for that field, clear it silently.
     filterFields.forEach((field) => {
       const selected = String(filters[field.key] || '').trim();
       if (selected && !(optionsMap[field.key] || []).includes(selected)) {
@@ -211,9 +289,9 @@ export function filtersToolbarHtml(scope, rows, state, config = {}) {
   } else {
     optionsMap = collectFilterOptions(rows, filterFields);
     if (config.optionsOverrides && typeof config.optionsOverrides === 'object') {
-      Object.keys(config.optionsOverrides).forEach((k) => {
-        if (Array.isArray(config.optionsOverrides[k]) && config.optionsOverrides[k].length) {
-          optionsMap[k] = Array.from(new Set([...(optionsMap[k] || []), ...config.optionsOverrides[k]]))
+      Object.keys(config.optionsOverrides).forEach((key) => {
+        if (Array.isArray(config.optionsOverrides[key]) && config.optionsOverrides[key].length) {
+          optionsMap[key] = Array.from(new Set([...(optionsMap[key] || []), ...config.optionsOverrides[key]]))
             .sort((a, b) => a.localeCompare(b, 'he'));
         }
       });
@@ -224,8 +302,7 @@ export function filtersToolbarHtml(scope, rows, state, config = {}) {
   const showClear = config.clear !== false;
   const searchPlaceholder = config.searchPlaceholder || 'חיפוש…';
 
-  const isPanel = config.layout === 'panel';
-  if (isPanel) {
+  if (config.layout === 'panel') {
     return `<section class="ds-filter-panel ds-filter-panel--grid-only" dir="rtl" data-local-filters="${escapeHtml(scope)}">
       <div class="ds-filter-panel__grid">
         ${filterFields.map((field) => selectInlineHtml(scope, field, filters, optionsMap)).join('')}
@@ -251,13 +328,10 @@ export function bindLocalFilters(root, state, scope, rerender, options = {}) {
   const debounceMs = Number(options.debounceMs ?? DEFAULT_SEARCH_DEBOUNCE_MS);
 
   let searchTimer;
-  searchInput?.addEventListener('input', (ev) => {
-    const nextValue = ev.target?.value || '';
-    const cursorPos = ev.target?.selectionStart ?? nextValue.length;
+  searchInput?.addEventListener('input', (event) => {
+    const nextValue = event.target?.value || '';
+    const cursorPos = event.target?.selectionStart ?? nextValue.length;
     clearTimeout(searchTimer);
-
-    // Keep the typed value in state immediately and debounce only the local
-    // filtering/rerendering work so one-character searches feel responsive.
     filters.q = nextValue;
 
     const apply = () => {
@@ -267,7 +341,7 @@ export function bindLocalFilters(root, state, scope, rerender, options = {}) {
       const newInput = root.querySelector(`[data-filter-search="${scope}"]`);
       if (newInput) {
         newInput.focus();
-        try { newInput.setSelectionRange(cursorPos, cursorPos); } catch (_) {}
+        try { newInput.setSelectionRange(cursorPos, cursorPos); } catch (_) { /* ignore */ }
       }
     };
 
@@ -280,10 +354,10 @@ export function bindLocalFilters(root, state, scope, rerender, options = {}) {
   });
 
   root.querySelectorAll(`[data-filter-scope="${scope}"][data-filter-field]`).forEach((node) => {
-    node.addEventListener('change', (ev) => {
-      const field = ev.target?.dataset?.filterField;
+    node.addEventListener('change', (event) => {
+      const field = event.target?.dataset?.filterField;
       if (!field) return;
-      state.listFilters[scope][field] = ev.target?.value || '';
+      state.listFilters[scope][field] = event.target?.value || '';
       state.listFilters[scope].visibleCount = DEFAULT_VISIBLE_LIMIT;
       rerender();
     });
@@ -291,7 +365,11 @@ export function bindLocalFilters(root, state, scope, rerender, options = {}) {
 
   clearBtn?.addEventListener('click', () => {
     const prevVisibleCount = state.listFilters?.[scope]?.visibleCount;
-    state.listFilters[scope] = { q: '', appliedQ: '', visibleCount: typeof prevVisibleCount === 'number' ? prevVisibleCount : DEFAULT_VISIBLE_LIMIT };
+    state.listFilters[scope] = {
+      q: '',
+      appliedQ: '',
+      visibleCount: typeof prevVisibleCount === 'number' ? prevVisibleCount : DEFAULT_VISIBLE_LIMIT
+    };
     if (typeof options.onClear === 'function') options.onClear();
     rerender();
   });

@@ -16,8 +16,12 @@ const jsExtensions = new Set(['.js', '.mjs', '.cjs']);
 // If a mapped test file goes missing, the runner warns and skips it rather than failing.
 const screenTestMap = new Map([
   ['frontend/src/screens/proposals-agreements.js', ['tests/proposals-agreements-screen.test.mjs']],
+  ['frontend/src/proposal-next-year-pricing-display.js', ['tests/proposal-next-year-pricing-display.test.mjs']],
+  ['frontend/src/proposal-next-year-workshops.js', ['tests/proposal-next-year-workshops.test.mjs']],
   ['frontend/src/screens/activities.js', ['tests/activities-screen.test.mjs']],
   ['frontend/src/api.js', ['tests/api-mutations.test.mjs']],
+  ['frontend/src/styles/dashboard-layout.css', ['tests/dashboard-layout-polish.test.mjs']],
+  ['index.html', ['tests/dashboard-layout-polish.test.mjs']],
   ['frontend/sw.js', ['tests/service-worker-pwa-cache.test.mjs']],
   ['sw.js', ['tests/service-worker-pwa-cache.test.mjs']]
 ]);

@@ -120,4 +120,14 @@ sw = sw.replace(/const PRECACHE_URLS = \[[\s\S]*?\];/, `const PRECACHE_URLS = ${
 writeFileSync(join(dist, 'sw.js'), sw);
 writeFileSync(join(dist, 'frontend', 'sw.js'), sw);
 
+const cacheVersion = sw.match(/const CACHE_VERSION = (\d+);/)?.[1];
+const buildSha = String(process.env.VITE_BUILD_SHA || process.env.GITHUB_SHA || 'local').trim();
+writeFileSync(join(dist, 'build-metadata.json'), JSON.stringify({
+  commit: buildSha,
+  cacheVersion: Number(cacheVersion),
+  nextYearCourses: true,
+  nextYearWorkshops: true,
+  builtAt: new Date().toISOString()
+}, null, 2));
+
 console.info('[postbuild-dist] precache entries:', sorted.length);

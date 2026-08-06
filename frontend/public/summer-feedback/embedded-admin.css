@@ -1,0 +1,44 @@
+html.summer-feedback-embedded,
+html.summer-feedback-embedded body {
+  background: #ffffff;
+}
+
+html.summer-feedback-embedded body {
+  padding-bottom: 0 !important;
+}
+
+html.summer-feedback-embedded .shell > header {
+  display: none !important;
+}
+
+html.summer-feedback-embedded .container {
+  width: 100%;
+  max-width: none;
+  margin: 0 auto 18px;
+  padding: 6px;
+}
+
+html.summer-feedback-embedded .center {
+  min-height: 560px;
+  padding: 12px;
+}
+
+html.summer-feedback-embedded .hero {
+  margin-top: 0;
+}
+
+html.summer-feedback-embedded .submit-bar {
+  bottom: 4px;
+}
+
+@media (max-width: 820px) {
+  html.summer-feedback-embedded .container {
+    width: 100%;
+    margin: 0 auto 12px;
+    padding: 4px;
+  }
+
+  html.summer-feedback-embedded .panel {
+    margin-top: 8px;
+  }
+}

@@ -30,6 +30,7 @@ import {
   activityTypeDisplayLabel,
   activityTypeMatches,
   normalizeActivityTypeKey,
+  normalizeActivityMeetingsCount,
   normalizeOneDayActivityType,
   getManagerUsers,
   getFilterOptionOverrides,
@@ -43,27 +44,43 @@ import {
 } from './shared/activity-options.js';
 import { readActivitiesGapFromQuery, syncActivitiesGapQuery, isActivitiesGapQueryValue } from './shared/route-query.js';
 import { rowMatchesActivityGapFilter } from './shared/activity-gap-filter.js';
+import { activityMatchesInstructorStatusFilter } from './shared/activity-instructor-filter.js';
+import {
+  applyMissingScheduleFilter,
+  MISSING_SCHEDULE_FILTER_STORAGE_KEY
+} from './course-scheduling-distance-build.js';
 import { renderActivitiesViewSwitcher, bindActivitiesViewSwitcher } from './shared/view-switcher.js';
-import { ACTIVITY_SEASON_OPTIONS, SUMMER_DEFAULT_MONTH_YM, isSummerActivity, normalizeActivitySeason } from './shared/summer-activity.js';
+import { resolveSchool2027Contact } from './shared/school-2027-contact.js';
+import { ACTIVE_ACTIVITY_SEASON, ACTIVITY_SEASON_OPTIONS, ACTIVITY_SEASON_REGULAR, ACTIVITY_SEASON_SUMMER_2026, ACTIVITY_SEASON_SCHOOL_2027, getActivityPeriodKey, normalizeActivitySeason, normalizeGlobalActivityPeriod, globalActivityPeriodLabel } from './shared/summer-activity.js';
+import {
+  READ_ONLY_ACTIVITY_PERIOD_MESSAGE,
+  isReadOnlyActivityRow,
+  isReadOnlyGlobalActivityPeriod
+} from './shared/activity-readonly-period.js';
 import { showToast } from './shared/toast.js';
 import { canEditDirect, canAddActivityDirect, canRequestEdit, canRequestCreateActivity, canReviewRequests } from '../permissions.js';
+import { bindInstructorScheduling } from './instructor-scheduling-workflow.js';
 const taasiyedaLogoSrc = new URL('../../assets/logo1.png', import.meta.url).href;
 
 const inflightActivityDetailRequests = new Map();
-const ADD_ACTIVITY_TYPE_ORDER = ['workshop', 'escape_room', 'tour', 'after_school'];
+const ADD_ACTIVITY_TYPE_ORDER = ['course', 'workshop', 'escape_room', 'tour', 'after_school'];
 
 const ALL_ACTIVITIES_TAB_KEY = 'all_activities';
+const ACTIVITIES_INNER_TAB_ALL = 'year_all';
+const ACTIVITIES_INNER_TAB_REGULAR_2026 = 'regular_2026';
+const ACTIVITIES_INNER_TAB_SUMMER_2026 = 'summer_2026';
+const ACTIVITIES_INNER_TAB_ARCHIVE = 'year_archive';
+const ACTIVITIES_INNER_TAB_2027 = 'school_2027';
 const ALL_ACTIVITIES_STATUS_FILTERS = [
   { key: 'all', label: 'הכל' },
   { key: 'open', label: 'פתוח' },
   { key: 'closed', label: 'סגור' },
-  { key: 'undated', label: 'ללא תאריך' }
+  { key: 'undated', label: 'ללא תאריך' },
+  { key: 'unassigned', label: 'ללא מדריך' }
 ];
 const ACTIVITY_PERIOD_TABS = [
-  { key: 'school_2026', label: 'תשפ״ו / 2026', start: '', end: '2026-06-30' },
-  { key: 'summer_2026', label: 'קיץ 2026', start: '2026-07-01', end: '2026-08-31' },
-  { key: 'school_2027', label: 'תשפ״ז / 2027', start: '2026-09-01', end: '2027-06-30' },
-  { key: 'archive', label: 'ארכיון', archive: true }
+  { key: ACTIVITY_SEASON_REGULAR, label: '2026', start: '2025-09-01', end: '2026-08-31' },
+  { key: ACTIVITY_SEASON_SCHOOL_2027, label: '2027', start: '2026-09-01', end: '2027-08-31' }
 ];
 const SUMMER_2026_DEFAULT_FROM = '2026-06-28';
 
@@ -80,9 +97,7 @@ function todayYmdForActivityDefaults() {
 }
 
 function defaultActivityPeriodTab() {
-  return todayYmdForActivityDefaults() >= SUMMER_2026_DEFAULT_FROM
-    ? 'summer_2026'
-    : 'school_2026';
+  return ACTIVE_ACTIVITY_SEASON;
 }
 const INACTIVE_ACTIVITY_STATUSES = new Set(['סגור', 'נמחק', 'בוטל', 'closed', 'deleted', 'inactive', 'cancelled', 'canceled']);
 const ACTIVITY_LAYOUT_SEASON = 'summer_2026';
@@ -115,18 +130,22 @@ function canReviewActivityRequests(state) {
   return canReviewRequests(state?.user);
 }
 
+/** 2026 is historical: no screen affordance may create or change an activity. */
+function isReadOnlyActivitiesPeriod(state) {
+  return isReadOnlyGlobalActivityPeriod(state?.activityPeriodTab);
+}
+
 function canOpenCreateActivity(state) {
+  if (isReadOnlyActivitiesPeriod(state)) return false;
   return canAddActivities(state) || canRequestActivityCreate(state);
 }
 
 function normalizeActivityPeriodTab(value) {
-  const key = String(value || '').trim();
-  if (key === ALL_ACTIVITIES_TAB_KEY) return key;
-  return ACTIVITY_PERIOD_TABS.some((tab) => tab.key === key) ? key : defaultActivityPeriodTab();
+  return normalizeGlobalActivityPeriod(value || defaultActivityPeriodTab());
 }
 
-function isAllActivitiesMode(state = {}) {
-  return normalizeActivityPeriodTab(state.activityPeriodTab) === ALL_ACTIVITIES_TAB_KEY;
+function isAllActivitiesMode() {
+  return false;
 }
 
 function normalizeAllActivitiesStatusFilter(value) {
@@ -160,25 +179,24 @@ function isClosedActivity(row = {}) {
   return status === 'סגור' || status.toLowerCase() === 'closed';
 }
 
+function isCancelledActivity(row = {}) {
+  const status = normalizedActivityStatus(row);
+  return status === 'בוטל' || ['cancelled', 'canceled'].includes(status.toLowerCase());
+}
+
 function isActiveActivity(row = {}) {
   return !isInactiveActivityStatus(row);
 }
 
 function activityPeriodKey(row = {}) {
   if (isDeletedActivity(row)) return 'deleted';
-  if (isClosedActivity(row)) return 'archive';
-  if (!isActiveActivity(row)) return 'inactive';
-  const hasExplicitSeason = String(row?.activity_season ?? row?.activitySeason ?? '').trim() !== '';
-  const season = normalizeActivitySeason(row?.activity_season ?? row?.activitySeason);
-  if (season === 'summer_2026' || isSummerActivity(row)) return 'summer_2026';
-  if (season === 'school_2027') return 'school_2027';
-  const start = normalizedActivityStartDate(row);
-  if (hasExplicitSeason && season === 'regular') return start >= '2026-09-01' ? 'school_2027' : 'school_2026';
-  if (!start) return 'school_2026';
-  if (start >= '2026-09-01') return 'school_2027';
-  if (start >= '2026-07-01') return 'summer_2026';
-  return 'school_2026';
+  if (!isActiveActivity(row) && !isClosedActivity(row)) return 'inactive';
+  const period = getActivityPeriodKey(row);
+  if (period === ACTIVITY_SEASON_SUMMER_2026 || period === ACTIVITY_SEASON_REGULAR) return ACTIVITY_SEASON_REGULAR;
+  if (period === ACTIVITY_SEASON_SCHOOL_2027) return ACTIVITY_SEASON_SCHOOL_2027;
+  return 'unknown';
 }
+
 
 function activityMatchesSelectedStartMonth(row = {}, ym = '') {
   const month = String(ym || '').trim().slice(0, 7);
@@ -190,9 +208,91 @@ function activityPeriodLabelForKey(key) {
   return ACTIVITY_PERIOD_TABS.find((tab) => tab.key === key)?.label || '';
 }
 
+function activityYearKey(row = {}) {
+  const period = getActivityPeriodKey(row);
+  if (period === ACTIVITY_SEASON_SUMMER_2026 || period === ACTIVITY_SEASON_REGULAR) return ACTIVITY_SEASON_REGULAR;
+  if (period === ACTIVITY_SEASON_SCHOOL_2027) return ACTIVITY_SEASON_SCHOOL_2027;
+  return '';
+}
+
 function activityPeriodRows(rows, periodKey) {
   const activeKey = normalizeActivityPeriodTab(periodKey);
-  return (Array.isArray(rows) ? rows : []).filter((row) => activityPeriodKey(row) === activeKey);
+  return (Array.isArray(rows) ? rows : []).filter((row) => activityYearKey(row) === activeKey);
+}
+
+function activeActivitiesYearRows(rows, yearKey) {
+  return activityPeriodRows(rows, yearKey).filter((row) => !isDeletedActivity(row) && !isClosedActivity(row) && isActiveActivity(row));
+}
+
+function archivedActivitiesYearRows(rows, yearKey) {
+  return activityPeriodRows(rows, yearKey).filter((row) => isClosedActivity(row));
+}
+
+/**
+ * Single row source for the combined "all activities" tab: every open and closed
+ * activity of the year. The table and the row-click lookup must read from this
+ * same list so a rendered row is always openable.
+ */
+function allYearActivitiesRows(rows, yearKey) {
+  return activityPeriodRows(rows, yearKey).filter((row) => !isDeletedActivity(row) && !isCancelledActivity(row));
+}
+
+function regular2026Rows(rows) {
+  return activeActivitiesYearRows(rows, ACTIVITY_SEASON_REGULAR).filter((row) => getActivityPeriodKey(row) === ACTIVITY_SEASON_REGULAR);
+}
+
+function summer2026Rows(rows) {
+  return activeActivitiesYearRows(rows, ACTIVITY_SEASON_REGULAR).filter((row) => getActivityPeriodKey(row) === ACTIVITY_SEASON_SUMMER_2026);
+}
+
+function activityInnerTabsForYear(yearKey) {
+  if (yearKey === ACTIVITY_SEASON_SCHOOL_2027) {
+    return [
+      { key: ACTIVITIES_INNER_TAB_ALL, label: 'כל פעילויות תשפ״ז' },
+      { key: ACTIVITIES_INNER_TAB_2027, label: 'פעילויות תשפ״ז' },
+      { key: ACTIVITIES_INNER_TAB_ARCHIVE, label: 'ארכיון תשפ״ז' }
+    ];
+  }
+  return [
+    { key: ACTIVITIES_INNER_TAB_ALL, label: 'כל פעילויות 2026' },
+    { key: ACTIVITIES_INNER_TAB_REGULAR_2026, label: 'שנת 2026' },
+    { key: ACTIVITIES_INNER_TAB_SUMMER_2026, label: 'קיץ 2026' },
+    { key: ACTIVITIES_INNER_TAB_ARCHIVE, label: 'ארכיון 2026' }
+  ];
+}
+
+function normalizeActivitiesInnerTab(value, yearKey) {
+  const key = String(value || '').trim();
+  const tabs = activityInnerTabsForYear(yearKey);
+  return tabs.some((tab) => tab.key === key) ? key : ACTIVITIES_INNER_TAB_ALL;
+}
+
+const activityPeriodRowsCache = new WeakMap();
+const activityMonthRowsCache = new WeakMap();
+const activityAvailableMonthsCache = new WeakMap();
+
+function cachedRowsValue(cache, rows, key, create) {
+  if (!Array.isArray(rows)) return create();
+  let entries = cache.get(rows);
+  if (!entries) {
+    entries = new Map();
+    cache.set(rows, entries);
+  }
+  if (!entries.has(key)) entries.set(key, create());
+  return entries.get(key);
+}
+
+function activityRowsForInnerTab(rows, state = {}) {
+  const yearKey = normalizeActivityPeriodTab(state.activityPeriodTab);
+  const tabKey = normalizeActivitiesInnerTab(state.activitiesInnerTab, yearKey);
+  return cachedRowsValue(activityPeriodRowsCache, rows, `${yearKey}:${tabKey}`, () => {
+    if (tabKey === ACTIVITIES_INNER_TAB_ARCHIVE) return archivedActivitiesYearRows(rows, yearKey);
+    if (tabKey === ACTIVITIES_INNER_TAB_ALL) return allYearActivitiesRows(rows, yearKey);
+    if (yearKey === ACTIVITY_SEASON_SCHOOL_2027) return activeActivitiesYearRows(rows, yearKey);
+    if (tabKey === ACTIVITIES_INNER_TAB_SUMMER_2026) return summer2026Rows(rows);
+    if (tabKey === ACTIVITIES_INNER_TAB_REGULAR_2026) return regular2026Rows(rows);
+    return activeActivitiesYearRows(rows, yearKey);
+  });
 }
 
 function allActivitiesRows(rows, state = {}) {
@@ -210,11 +310,13 @@ function shouldApplyActivitiesMonthFilter(state = {}) {
   return activityPeriodUsesMonthNavigation(state);
 }
 
-function activityRowsForPeriodAndMonth(rows, state = {}) {
-  if (isAllActivitiesMode(state)) return allActivitiesRows(rows, state);
-  const periodRows = activityPeriodRows(rows, state.activityPeriodTab);
+export function activityRowsForPeriodAndMonth(rows, state = {}) {
+  const periodRows = activityRowsForInnerTab(rows, state);
   if (!shouldApplyActivitiesMonthFilter(state)) return periodRows;
-  return periodRows.filter((row) => activityOccursInSelectedMonth(row, state.activitiesMonthYm));
+  const key = `${normalizeActivityPeriodTab(state.activityPeriodTab)}:${normalizeActivitiesInnerTab(state.activitiesInnerTab, state.activityPeriodTab)}:${state.activitiesMonthYm || ''}`;
+  return cachedRowsValue(activityMonthRowsCache, rows, key, () =>
+    periodRows.filter((row) => activityOccursInSelectedMonth(row, state.activitiesMonthYm))
+  );
 }
 
 function firstActivityMonthYm(rows) {
@@ -233,19 +335,22 @@ function firstActivityMonthYm(rows) {
 }
 
 function availableActivityMonthsForPeriod(rows, periodKey) {
-  const pRows = activityPeriodRows(rows, periodKey);
-  const months = new Set();
-  pRows.forEach((row) => {
-    [
-      normalizedActivityStartDate(row),
-      String(row?.end_date ?? row?.date_end ?? '').trim().slice(0, 10),
-      ...activityMeetingDates(row)
-    ].forEach((date) => {
-      const val = String(date || '').trim().slice(0, 10);
-      if (/^\d{4}-\d{2}-\d{2}$/.test(val)) months.add(val.slice(0, 7));
+  const normalizedPeriod = normalizeActivityPeriodTab(periodKey);
+  return cachedRowsValue(activityAvailableMonthsCache, rows, normalizedPeriod, () => {
+    const pRows = activityPeriodRows(rows, normalizedPeriod);
+    const months = new Set();
+    pRows.forEach((row) => {
+      [
+        normalizedActivityStartDate(row),
+        String(row?.end_date ?? row?.date_end ?? '').trim().slice(0, 10),
+        ...activityMeetingDates(row)
+      ].forEach((date) => {
+        const val = String(date || '').trim().slice(0, 10);
+        if (/^\d{4}-\d{2}-\d{2}$/.test(val)) months.add(val.slice(0, 7));
+      });
     });
+    return [...months].sort().filter((ym) => pRows.some((row) => activityOccursInSelectedMonth(row, ym)));
   });
-  return [...months].sort().filter((ym) => pRows.some((row) => activityOccursInSelectedMonth(row, ym)));
 }
 
 function pickBestMonthForPeriod(rows, periodKey) {
@@ -281,35 +386,29 @@ function ensureActivityPeriodMonth(state, rows, { force = false } = {}) {
   }
 }
 
-function allActivitiesStatusFilterHtml(state = {}) {
-  if (!isAllActivitiesMode(state)) return '';
+function activityInstructorStatusFilterHtml(state = {}) {
   const selected = normalizeAllActivitiesStatusFilter(state.allActivitiesStatusFilter);
-  return `<select class="ds-input ds-input--sm ds-filter-select-inline ds-filter-select-inline--all-status" data-all-activities-status-filter aria-label="סינון סטטוס בכל הפעילויות" title="סטטוס" dir="rtl">
-      ${ALL_ACTIVITIES_STATUS_FILTERS.map((filter) => `<option value="${escapeHtml(filter.key)}"${filter.key === selected ? ' selected' : ''}>${escapeHtml(filter.key === 'all' ? 'סטטוס: הכל' : filter.label)}</option>`).join('')}
+  const filters = ALL_ACTIVITIES_STATUS_FILTERS.filter((filter) => ['all', 'unassigned'].includes(filter.key));
+  return `<select class="ds-input ds-input--sm ds-filter-select-inline ds-filter-select-inline--assignment" data-activities-instructor-status-filter aria-label="סינון פעילויות לפי שיבוץ מדריך" title="שיבוץ מדריך" dir="rtl">
+      ${filters.map((filter) => `<option value="${escapeHtml(filter.key)}"${filter.key === selected ? ' selected' : ''}>${escapeHtml(filter.key === 'all' ? 'שיבוץ: הכול' : filter.label)}</option>`).join('')}
     </select>`;
 }
 
 function activityPeriodUsesMonthNavigation(state = {}) {
-  const tab = normalizeActivityPeriodTab(state.activityPeriodTab);
-  return tab === 'school_2026' || tab === 'summer_2026' || tab === 'school_2027';
+  return false;
 }
 
-function activityPeriodTabsHtml(rows, activeKey, state = {}) {
-  const safeActiveKey = normalizeActivityPeriodTab(activeKey);
-  const counts = ACTIVITY_PERIOD_TABS.reduce((acc, tab) => ({ ...acc, [tab.key]: 0 }), {});
-  ACTIVITY_PERIOD_TABS.forEach((tab) => {
-    counts[tab.key] = activityPeriodRows(rows, tab.key).length;
-  });
-  const allCount = allActivitiesRows(rows, { allActivitiesStatusFilter: 'all' }).length;
-  return `<div class="ds-activities-period-tabs" role="tablist" aria-label="תקופות פעילות" dir="rtl">
-    <button type="button" class="ds-chip ds-chip--tab ds-activities-period-tab ds-activities-period-tab--all${safeActiveKey === ALL_ACTIVITIES_TAB_KEY ? ' is-active' : ''}" role="tab" aria-selected="${safeActiveKey === ALL_ACTIVITIES_TAB_KEY ? 'true' : 'false'}" data-activity-period-tab="${ALL_ACTIVITIES_TAB_KEY}">
-      <span>כל הפעילויות</span><strong>${escapeHtml(String(allCount))}</strong>
-    </button>
-    ${ACTIVITY_PERIOD_TABS.map((tab) => `<button type="button" class="ds-chip ds-chip--tab ds-activities-period-tab${tab.key === safeActiveKey ? ' is-active' : ''}" role="tab" aria-selected="${tab.key === safeActiveKey ? 'true' : 'false'}" data-activity-period-tab="${escapeHtml(tab.key)}">
-      <span>${escapeHtml(tab.label)}</span><strong>${escapeHtml(String(counts[tab.key] || 0))}</strong>
+function activityPeriodTabsHtml(rows, activeYearKey, state = {}) {
+  const yearKey = normalizeActivityPeriodTab(activeYearKey);
+  const activeTab = normalizeActivitiesInnerTab(state.activitiesInnerTab, yearKey);
+  const countFor = (tabKey) => activityRowsForInnerTab(rows, { ...state, activityPeriodTab: yearKey, activitiesInnerTab: tabKey }).length;
+  return `<div class="ds-activities-period-tabs" role="tablist" aria-label="חלוקה פנימית לפעילויות ${escapeHtml(globalActivityPeriodLabel(yearKey))}" dir="rtl">
+    ${activityInnerTabsForYear(yearKey).map((tab) => `<button type="button" class="ds-chip ds-chip--tab ds-activities-period-tab${tab.key === activeTab ? ' is-active' : ''}" role="tab" aria-selected="${tab.key === activeTab ? 'true' : 'false'}" data-activity-period-tab="${escapeHtml(tab.key)}">
+      <span>${escapeHtml(tab.label)}</span><strong>${escapeHtml(String(countFor(tab.key)))}</strong>
     </button>`).join('')}
   </div>`;
 }
+
 
 
 function isAdminUser(state) {
@@ -544,12 +643,20 @@ function getActivitySchoolDisplayName(row) {
   return ls || 'לא משויך';
 }
 
-const ACTIVITY_FILTER_FIELDS = [
+/** Client-only sentinel for empty/null funding filter options. Never written to Supabase. */
+export const EMPTY_FUNDING_FILTER_VALUE = 'ללא מימון מוגדר';
+
+export function activityFundingFilterValue(row = {}) {
+  const text = humanDisplayText(row?.funding);
+  return text || EMPTY_FUNDING_FILTER_VALUE;
+}
+
+export const ACTIVITY_FILTER_FIELDS = [
   { key: 'activity_manager', label: 'מנהל פעילות', getValues: (row) => [activityManagerDisplayName(row?.activity_manager)] },
   { key: 'instructor', label: 'מדריך', getValues: (row) => [humanDisplayText(row?.instructor_name), humanDisplayText(row?.instructor_name_2)] },
   { key: 'activity_name', label: 'תוכנית', getValues: (row) => [humanDisplayText(row?.activity_name)] },
   { key: 'authority', label: 'רשות', getValues: (row) => [humanDisplayText(row?.authority)] },
-  { key: 'funding', label: 'מימון' },
+  { key: 'funding', label: 'מימון', getValues: (row) => [activityFundingFilterValue(row)] },
   { key: 'school', label: 'בית ספר', getValues: getActivitySchoolNames },
   { key: 'activity_type', label: 'סוג הפעילות', getOptionLabel: (value) => visibleActivityCategoryLabel(value) }
 ];
@@ -606,6 +713,70 @@ const TIME_OPTIONS = Array.from({ length: 48 }, (_, i) => {
 const GENERIC_ONE_DAY_ACTIVITY_NAMES = new Set(['סדנה', 'סדנאות', 'סיור', 'סיורים', 'חדר בריחה', 'חדרי בריחה']);
 function isOneDayActivityTypeValue(value) {
   return Boolean(normalizeOneDayActivityType(value));
+}
+
+export function applyActivityCatalogSelectionToAddForm(form, catalogItem, activityType) {
+  const noInput = form?.querySelector?.('[data-add-activity-no]');
+  const sessionsInput = form?.querySelector?.('[data-add-sessions]');
+  const type = normalizeActivityTypeKey(activityType);
+  if (noInput) noInput.value = String(catalogItem?.gefen_number || catalogItem?.activity_no || '');
+  const meetingsCount = normalizeActivityMeetingsCount(catalogItem?.meetings_count);
+  if ((type === 'course' || type === 'after_school') && sessionsInput && meetingsCount != null) {
+    sessionsInput.value = String(meetingsCount);
+  }
+  return meetingsCount;
+}
+
+function computeNextSessionDate(baseIso, index) {
+  if (!/^\d{4}-\d{2}-\d{2}$/.test(String(baseIso || ''))) return '';
+  const base = new Date(`${baseIso}T00:00:00`);
+  base.setDate(base.getDate() + (index * 7));
+  return `${base.getFullYear()}-${String(base.getMonth() + 1).padStart(2, '0')}-${String(base.getDate()).padStart(2, '0')}`;
+}
+
+export function syncSessionDateRows(form) {
+  const typeValue = String(form.querySelector('[name="activity_type"]')?.value || '').trim();
+  const isOneDay = isOneDayActivityTypeValue(typeValue);
+  const sessionsInput = form.querySelector('[data-add-sessions]');
+  const sessionsField = form.querySelector('[data-field-sessions]');
+  const oneDayDateField = form.querySelector('[data-field-one-day-date]');
+  const startDateField = form.querySelector('[data-field-start-date]');
+  const endDateField = form.querySelector('[data-field-end-date]');
+  const sessionsDatesWrap = form.querySelector('[data-add-date-rows-wrap]');
+  const startDateInput = form.querySelector('[name="start_date"]');
+  const endDateInput = form.querySelector('[name="end_date"]');
+  const oneDayDateInput = form.querySelector('[name="one_day_date"]');
+  if (isOneDay) {
+    const fallbackDate = String(oneDayDateInput?.value || startDateInput?.value || endDateInput?.value || '').trim();
+    if (oneDayDateInput) oneDayDateInput.value = fallbackDate;
+    if (startDateInput) startDateInput.value = fallbackDate;
+    if (endDateInput) endDateInput.value = fallbackDate;
+  }
+  if (oneDayDateField) oneDayDateField.style.display = isOneDay ? '' : 'none';
+  if (startDateField) startDateField.style.display = isOneDay ? 'none' : '';
+  if (endDateField) endDateField.style.display = isOneDay ? 'none' : '';
+  if (sessionsDatesWrap) sessionsDatesWrap.style.display = isOneDay ? 'none' : '';
+  if (sessionsInput) {
+    sessionsInput.value = isOneDay ? '1' : String(sessionsInput.value || '1');
+    sessionsInput.disabled = isOneDay;
+  }
+  if (sessionsField) sessionsField.style.display = isOneDay ? 'none' : '';
+  const sessions = isOneDay ? 1 : Math.max(1, Number(sessionsInput?.value || '1'));
+  const container = form.querySelector('[data-add-date-rows]');
+  if (!container) return;
+  const startDate = String(form.querySelector('[name="start_date"]')?.value || '').trim();
+  const prev = Array.from(container.querySelectorAll('input[data-add-session-date]')).map((input) => String(input.value || '').trim());
+  container.innerHTML = Array.from({ length: sessions }, (_, idx) => {
+    const value = idx === 0 ? (startDate || prev[idx] || '') : (prev[idx] || computeNextSessionDate(startDate, idx));
+    return `<label class="ds-add-date-row"><span>מפגש ${idx + 1}</span><input class="ds-input ds-input--sm" type="date" data-add-session-date="${idx + 1}" value="${escapeHtml(value)}"></label>`;
+  }).join('');
+}
+
+export function bindAddActivitySessionCountSync(form, listenerOptions) {
+  const sessionsInput = form?.querySelector?.('[data-add-sessions]');
+  const sync = () => syncSessionDateRows(form);
+  sessionsInput?.addEventListener('input', sync, listenerOptions);
+  sessionsInput?.addEventListener('change', sync, listenerOptions);
 }
 
 function optionsHtml(values, selected = '', placeholder = '—', labelFn = null) {
@@ -706,7 +877,7 @@ function instructorOptionsHtml(rosterUsers, selected = '', placeholder = '—') 
     .join('');
 }
 
-function addActivityModalHtml(settings) {
+function addActivityModalHtml(settings, activityPeriodTab = '') {
   const allActivityNames = getActivityCatalog(settings);
   const allTypes = ADD_ACTIVITY_TYPE_ORDER.slice();
   const rosterUsers = getValidInstructorUsers(settings);
@@ -722,6 +893,15 @@ function addActivityModalHtml(settings) {
   const initialType = '';
   const initialActivityNames = [];
   const sessionsList = Array.from({ length: 35 }, (_, i) => String(i + 1));
+  const initialSeason = activityPeriodTab === 'school_2027'
+    ? ACTIVITY_SEASON_SCHOOL_2027
+    : activityPeriodTab === 'summer_2026'
+      ? ACTIVITY_SEASON_SUMMER_2026
+      : ACTIVITY_SEASON_REGULAR;
+  const statusOptions = initialSeason === ACTIVITY_SEASON_SCHOOL_2027
+    ? ['פתוח', 'בתהליך', 'סגור']
+    : ['פתוח', 'מאושר - ממתין לשיבוץ', 'סגור'];
+  const initialStatus = initialSeason === ACTIVITY_SEASON_SCHOOL_2027 ? 'בתהליך' : 'פתוח';
 
   const authorityField = `
     <div class="ds-activity-add-field ds-activity-add-field--entity" data-entity-field="authority">
@@ -766,7 +946,11 @@ function addActivityModalHtml(settings) {
         </label>
         <input type="hidden" name="activity_no" value="" data-add-activity-no>
         <label class="ds-activity-add-field ds-activity-add-field--compact" data-field-sessions><span>מספר מפגשים</span><select class="ds-input" name="sessions" data-add-sessions>${optionsHtml(sessionsList, '1')}</select></label>
-        <label class="ds-activity-add-field ds-activity-add-field--compact"><span>עונת פעילות</span><select class="ds-input" name="activity_season">${activitySeasonSelectHtml(settings, 'regular')}</select></label>
+        ${initialSeason === ACTIVITY_SEASON_SCHOOL_2027
+          ? `<input type="hidden" name="activity_season" value="${escapeHtml(ACTIVITY_SEASON_SCHOOL_2027)}">`
+          : `<label class="ds-activity-add-field ds-activity-add-field--compact"><span>עונת פעילות</span><select class="ds-input" name="activity_season">${activitySeasonSelectHtml(settings, initialSeason)}</select></label>`
+        }
+        <label class="ds-activity-add-field ds-activity-add-field--compact"><span>סטטוס</span><select class="ds-input" name="status">${optionsHtml(statusOptions, initialStatus)}</select></label>
         <label class="ds-activity-add-field ds-activity-add-field--compact"><span>מימון</span><select class="ds-input" name="funding">${optionsHtml(fundingOptions)}</select></label>
         <label class="ds-activity-add-field ds-activity-add-field--compact"><span>מחיר</span><input class="ds-input" name="price" type="number" min="0" step="1"></label>
         <label class="ds-activity-add-field"><span>קבוצה / כיתה</span><input class="ds-input" name="class_group" type="text"></label>
@@ -943,12 +1127,28 @@ function applyActivitiesGapFilter(rows, gapFilter) {
   return rows.filter((row) => rowMatchesActivityGapFilter(row, gap));
 }
 
-function applyActivitiesLocalFilters(rows, state, settings) {
-  const filters = ensureActivityListFilters(state, ACTIVITIES_SCOPE);
+function clearMissingScheduleFilter(state = {}) {
+  state.activitiesMissingScheduleOnly = false;
+  try { sessionStorage.removeItem(MISSING_SCHEDULE_FILTER_STORAGE_KEY); } catch { /* storage may be unavailable */ }
+}
+
+/**
+ * Rows used both for dependent filter options and as the input to local field
+ * filters. Scoped by family/gap/assignment/schedule, but not by dropdown filters,
+ * so one selected filter can still narrow other filters' option lists.
+ */
+function prepareActivitiesFilterBaseRows(rows, state, settings) {
   const familyRows = applyClientFilters(rows, state, settings);
   const gapRows = applyActivitiesGapFilter(familyRows, state.activitiesGapFilter);
   prepareRowsForSearch(gapRows, ACTIVITY_SEARCH_FIELDS);
-  return applyLocalFilters(gapRows, filters, { filterFields: ACTIVITY_FILTER_FIELDS }).sort(compareActivityDefaultOrder);
+  const assignmentRows = gapRows.filter((row) => activityMatchesInstructorStatusFilter(row, state.allActivitiesStatusFilter));
+  return applyMissingScheduleFilter(assignmentRows, state);
+}
+
+function applyActivitiesLocalFilters(rows, state, settings) {
+  const filters = ensureActivityListFilters(state, ACTIVITIES_SCOPE);
+  const baseRows = prepareActivitiesFilterBaseRows(rows, state, settings);
+  return applyLocalFilters(baseRows, filters, { filterFields: ACTIVITY_FILTER_FIELDS }).sort(compareActivityDefaultOrder);
 }
 
 function buildActivitiesDiagnostics(allRows, state, finalRows) {
@@ -976,7 +1176,7 @@ function activitiesDiagnosticsHtml(diag) {
   </div>`;
 }
 
-function activityDrawerContent(row, canSeePrivateNotes, canEdit, canDirectEdit, canRequestEdit, canDeleteActivity, hideEmpIds, hideRowId, hideActivityNo, settings, { datesLoading = false } = {}) {
+function activityDrawerContent(row, canSeePrivateNotes, canEdit, canDirectEdit, canRequestEdit, canDeleteActivity, hideEmpIds, hideRowId, hideActivityNo, settings, { datesLoading = false, canSchedule = false } = {}) {
   const privateNote = canSeePrivateNotes ? row.private_note || '—' : null;
   return activityWorkDrawerHtml(row, {
     privateNote,
@@ -984,6 +1184,7 @@ function activityDrawerContent(row, canSeePrivateNotes, canEdit, canDirectEdit, 
     canDirectEdit,
     canRequestEdit,
     canDeleteActivity,
+    canSchedule,
     hideEmpIds: !!hideEmpIds,
     hideRowId,
     hideActivityNo,
@@ -1539,6 +1740,7 @@ function activityLayoutListHtml(groups = []) {
 export const activitiesScreen = {
   async load({ api, state }) {
     state.activityPeriodTab = normalizeActivityPeriodTab(state.activityPeriodTab);
+    state.activitiesInnerTab = normalizeActivitiesInnerTab(state.activitiesInnerTab, state.activityPeriodTab);
     const result = await api.activities({
       activity_type: 'all',
       include_inactive: true
@@ -1556,15 +1758,26 @@ export const activitiesScreen = {
 
     const allRows       = Array.isArray(data?.rows) ? data.rows : [];
     state.activityPeriodTab = normalizeActivityPeriodTab(state.activityPeriodTab);
+    state.activitiesInnerTab = normalizeActivitiesInnerTab(state.activitiesInnerTab, state.activityPeriodTab);
     ensureActivityPeriodMonth(state, allRows);
     state.allActivitiesStatusFilter = normalizeAllActivitiesStatusFilter(state.allActivitiesStatusFilter);
     const isAllMode = isAllActivitiesMode(state);
-    const periodRows    = isAllMode ? allActivitiesRows(allRows, state) : activityPeriodRows(allRows, state.activityPeriodTab);
+    const periodRows    = activityRowsForInnerTab(allRows, state);
     if (!isAllMode) ensureActivityPeriodMonth(state, allRows);
     const monthRows     = activityRowsForPeriodAndMonth(allRows, state);
-    const filteredRows  = applyActivitiesLocalFilters(monthRows, state, state?.clientSettings);
-
     const listFilters   = ensureActivityListFilters(state, ACTIVITIES_SCOPE);
+    // Build dependent options from pre-dropdown rows first so stale selections
+    // (e.g. funding from another year) are cleared before the table is filtered.
+    const filterOptionRows = prepareActivitiesFilterBaseRows(monthRows, state, state?.clientSettings);
+    const bareFilters = filtersToolbarHtml(ACTIVITIES_SCOPE, filterOptionRows, state, {
+      filterFields: ACTIVITY_FILTER_FIELDS,
+      search: false,
+      clear: false,
+      bare: true,
+      dependent: true
+    });
+    const filteredRows = applyLocalFilters(filterOptionRows, listFilters, { filterFields: ACTIVITY_FILTER_FIELDS })
+      .sort(compareActivityDefaultOrder);
     const { visible: safeRows, hasMore, total, nextCount } = splitVisibleRows(filteredRows, listFilters);
     const canSeePrivateNotes = canReviewActivityRequests(state);
     const hideEmpIds    = !!state?.clientSettings?.hide_emp_id_on_screens;
@@ -1575,7 +1788,7 @@ export const activitiesScreen = {
     const canAddActivity = canOpenCreateActivity(state);
     const isCreateRequestOnly = canAddActivity && !canAddActivities(state);
     const isAdmin = isAdminUser(state);
-    const canUseLayout = canUseActivityLayout(state) && state.activityPeriodTab === ACTIVITY_LAYOUT_SEASON;
+    const canUseLayout = canUseActivityLayout(state) && state.activityPeriodTab === ACTIVITY_SEASON_REGULAR && state.activitiesInnerTab === ACTIVITIES_INNER_TAB_SUMMER_2026;
 
     const rosterUsers = getRosterUsers(state?.clientSettings || {});
     const instructorByEmpId = rosterUsers.reduce((acc, user) => {
@@ -1584,13 +1797,19 @@ export const activitiesScreen = {
       if (empId && fullName && !acc[empId]) acc[empId] = fullName;
       return acc;
     }, {});
-    const isSummerTab = state.activityPeriodTab === 'summer_2026';
+    const isSummerTab = state.activityPeriodTab === ACTIVITY_SEASON_REGULAR && state.activitiesInnerTab === ACTIVITIES_INNER_TAB_SUMMER_2026;
+    const is2027Tab = state.activityPeriodTab === ACTIVITY_SEASON_SCHOOL_2027;
     const tableRows = safeRows
       .map((row) => {
         const instructorMeta = activityInstructorMeta(row, { hideEmpIds, instructorByEmpId });
+        const schedulingSummary = state?.instructorSchedulingSummaries?.[String(row.RowID || row.row_id || '')];
+        const missingScheduling = [row.school ? '' : 'חסר בית ספר', (row.start_time && row.end_time) ? '' : 'חסרות שעות', (row.date_1 || row.start_date) ? '' : 'חסרים תאריכים'].filter(Boolean);
+        const unassignedSchedulingHtml = schedulingSummary
+          ? `<small class="ds-muted">${schedulingSummary.ready ? `מוכנה לשיבוץ · ${schedulingSummary.candidateCount} מועמדים${schedulingSummary.topName ? ` · ${escapeHtml(schedulingSummary.topName)}` : ''}` : `חסר מידע · ${escapeHtml(schedulingSummary.reason)}`}</small>`
+          : `<small class="ds-muted">${missingScheduling.length ? `חסר מידע · ${escapeHtml(missingScheduling.join(' · '))}` : 'מוכנה לחישוב מועמדים'}</small>`;
         const instructorDisplay = instructorMeta.hasInstructor
           ? `<span class="ds-activities-instructor-name${instructorMeta.hasName ? '' : ' is-derived'}">${escapeHtml(instructorMeta.text)}</span>`
-          : '<span class="ds-chip ds-chip--status ds-chip--warn ds-chip--instructor-empty">ללא מדריך</span>';
+          : `<span style="display:grid;gap:3px"><span class="ds-chip ds-chip--status ds-chip--warn ds-chip--instructor-empty">ללא מדריך</span>${unassignedSchedulingHtml}</span>`;
         const activityTypeLabel = escapeHtml(visibleActivityCategoryLabel(row.activity_type));
         const rawActivityName = displayActivityName(row);
         const activityName = escapeHtml(rawActivityName);
@@ -1618,6 +1837,35 @@ export const activitiesScreen = {
         ]
           .filter(Boolean)
           .join(' ');
+
+        if (is2027Tab) {
+          const startHe2027 = formatDateHe(row.start_date) || '—';
+          const endRaw2027 = String(row?.end_date || row?.date_end || '').trim() || String(row?.start_date || '').trim();
+          const endHe2027 = endRaw2027 ? formatDateHe(endRaw2027) || '—' : '—';
+          const resolvedContact = row.resolved_school_2027_contact || resolveSchool2027Contact(row, []);
+          const rawContactName = String(resolvedContact.name || '').trim();
+          const rawContactPhone = String(resolvedContact.phone || '').trim();
+          const contactName2027 = escapeHtml(rawContactName || '—');
+          const contactPhone2027 = escapeHtml(rawContactPhone);
+          const contactEmail2027 = escapeHtml(String(resolvedContact.email || '').trim());
+          const phoneLine2027 = rawContactPhone ? `<span class="ds-activities-contact-phone">${contactPhone2027}</span>` : '';
+          const contactCell2027 = rawContactName
+            ? `<button class="ds-contact-popover-btn" type="button" data-contact-popover data-cname="${contactName2027}" data-cphone="${contactPhone2027}" data-cemail="${contactEmail2027}"><span>${contactName2027}</span>${phoneLine2027}</button>`
+            : '<span>—</span>';
+          const notes2027 = escapeHtml(String(row.notes || '—'));
+          return `
+      <tr class="ds-data-row ds-activities-row" data-list-item data-search="${escapeHtml(rowSearch)}" data-filter="" data-row-id="${escapeHtml(row.RowID)}">
+        <td class="ds-activities-col ds-activities-col--program"><div class="ds-activities-program-cell"><strong class="ds-activities-program-name" title="${activityName}">${activityName}</strong><span class="ds-activities-program-type" title="${activityTypeLabel}">${activityTypeLabel}</span>${editStatusBadge}</div></td>
+        <td class="ds-activities-col ds-activities-col--authority"><span class="ds-activities-cell-ellipsis" title="${escapeHtml(row.authority || '—')}">${escapeHtml(row.authority || '—')}</span></td>
+        <td class="ds-activities-col ds-activities-col--school"><span class="ds-activities-cell-ellipsis" title="${escapeHtml(getActivitySchoolDisplayName(row) || '—')}">${escapeHtml(getActivitySchoolDisplayName(row) || '—')}</span></td>
+        <td class="ds-activities-col ds-activities-col--contact-name">${contactCell2027}</td>
+        <td class="ds-activities-col ds-activities-col--date"><time class="ds-activities-date">${escapeHtml(startHe2027)}</time></td>
+        <td class="ds-activities-col ds-activities-col--date"><time class="ds-activities-date">${escapeHtml(endHe2027)}</time></td>
+        <td class="ds-activities-col ds-activities-col--instructor">${instructorDisplay}</td>
+        <td class="ds-activities-col ds-activities-col--notes"><span class="ds-activities-cell-ellipsis" title="${notes2027}">${notes2027}</span></td>
+      </tr>
+    `;
+        }
 
         if (isSummerTab) {
           const activityDateRaw = String(row.date_1 || row.start_date || '').trim();
@@ -1661,13 +1909,6 @@ export const activitiesScreen = {
 
     const fundingOptions = mergeOptions(state?.clientSettings || {}, ['funding', 'fundings']);
     const centralOptions = getFilterOptionOverrides(state?.clientSettings || {});
-    const bareFilters = filtersToolbarHtml(ACTIVITIES_SCOPE, filteredRows, state, {
-      filterFields: ACTIVITY_FILTER_FIELDS,
-      search: false,
-      clear: false,
-      bare: true,
-      dependent: true
-    });
     const loadMoreHtml = hasMore
       ? `<div style="display:flex;justify-content:center;padding:12px 0"><button type="button" class="ds-btn ds-btn--sm" data-list-show-more="${ACTIVITIES_SCOPE}" data-next-count="${nextCount}">הצג עוד</button></div>`
       : '';
@@ -1684,7 +1925,19 @@ export const activitiesScreen = {
                   <col class="ds-activities-col--notes">
                 </colgroup>
                 <thead><tr><th>תוכנית / סוג</th><th>רשות</th><th>בית ספר</th><th style="text-align:center">כיתה</th><th class="ds-activities-col--instructor">מדריך</th><th style="text-align:center">תאריך פעילות</th><th style="text-align:center">שעות</th><th>הערות</th></tr></thead>`
-      : `<colgroup>
+      : is2027Tab
+        ? `<colgroup>
+                  <col class="ds-activities-col--program">
+                  <col class="ds-activities-col--authority">
+                  <col class="ds-activities-col--school">
+                  <col class="ds-activities-col--contact-name">
+                  <col class="ds-activities-col--date">
+                  <col class="ds-activities-col--date">
+                  <col class="ds-activities-col--instructor">
+                  <col class="ds-activities-col--notes">
+                </colgroup>
+                <thead><tr><th>תוכנית / סוג</th><th>רשות</th><th>בית ספר</th><th>איש קשר</th><th>תאריך התחלה</th><th>תאריך סיום</th><th>מדריך</th><th>הערות</th></tr></thead>`
+        : `<colgroup>
                   <col class="ds-activities-col--program">
                   <col class="ds-activities-col--authority">
                   <col class="ds-activities-col--school">
@@ -1704,7 +1957,7 @@ export const activitiesScreen = {
               : (monthRows.length === 0)
                 ? 'אין פעילויות להצגה בחודש הנבחר'
                 : 'לא נמצאו פעילויות התואמות לסינון הנוכחי')
-        : dsTableWrap(`<table class="ds-table ds-table--interactive ds-table--activities-list" dir="rtl">
+        : dsTableWrap(`<table class="ds-table ds-table--interactive ds-table--activities-list${is2027Tab ? ' ds-table--activities-2027' : ''}" dir="rtl">
                 ${tableColsHtml}
                 <tbody>${tableRows}</tbody>
               </table>`) + loadMoreHtml;
@@ -1712,10 +1965,13 @@ export const activitiesScreen = {
     const isNavLoading = !!state.activitiesNavLoading;
     const navLoadingChip = isNavLoading ? '<span class="ds-inline-loading-dot is-inline-loading" aria-hidden="true"></span>' : '';
     const viewSwitcher = renderActivitiesViewSwitcher(state, 'activities');
-    const allActivitiesStatusFilter = allActivitiesStatusFilterHtml(state);
-    const mainToolbar = `<div class="ds-activities-main-toolbar" dir="rtl" data-local-filters="${ACTIVITIES_SCOPE}">
+    const instructorStatusFilter = activityInstructorStatusFilterHtml(state);
+    const missingScheduleBanner = state.activitiesMissingScheduleOnly
+      ? `<p class="scheduling-warning" role="status" data-missing-schedule-filter-banner>מוצגים רק קורסים פתוחים של תשפ״ז שחסר להם תאריך התחלה או שעת התחלה. <button type="button" class="ds-link-btn" data-clear-missing-schedule-filter>הצג את כל הפעילויות</button></p>`
+      : '';
+    const mainToolbar = `${missingScheduleBanner}<div class="ds-activities-main-toolbar" dir="rtl" data-local-filters="${ACTIVITIES_SCOPE}">
       <input type="search" class="ds-input ds-input--sm ds-activities-search-sm" data-filter-search="${ACTIVITIES_SCOPE}" value="${escapeHtml(listFilters.q || '')}" placeholder="חיפוש" aria-label="חיפוש פעילויות" title="חיפוש לפי מזהה, פעילות, מדריך, רשות, בית ספר, סטטוס, תאריך או סמל מוסד" />
-      ${allActivitiesStatusFilter}
+      ${instructorStatusFilter}
       ${bareFilters}
       <div class="ds-activities-main-toolbar__actions">
         <button type="button" class="ds-btn ds-btn--sm ds-btn--ghost ds-activities-toolbar-btn" data-filter-clear="${ACTIVITIES_SCOPE}" aria-label="ניקוי כל הסינונים" title="ניקוי כל הסינונים">ניקוי כל הסינונים</button>
@@ -1731,8 +1987,8 @@ export const activitiesScreen = {
     const selectedMonthIndex = availableMonths.indexOf(state.activitiesMonthYm);
     const disablePrevMonth = isNavLoading || selectedMonthIndex <= 0;
     const disableNextMonth = isNavLoading || selectedMonthIndex < 0 || selectedMonthIndex >= availableMonths.length - 1;
-    const periodLabel = activityPeriodLabelForKey(state.activityPeriodTab) || 'פעילויות';
-    const periodTotal = usesMonthNavigation ? activityPeriodRows(allRows, state.activityPeriodTab).length : total;
+    const periodLabel = globalActivityPeriodLabel(state.activityPeriodTab);
+    const periodTotal = usesMonthNavigation ? activityRowsForInnerTab(allRows, state).length : total;
     const monthTitleCount = `${total} פעילויות${periodTotal !== total ? ` מתוך ${periodTotal}` : ''}`;
     const diagnostics = buildActivitiesDiagnostics(allRows, state, filteredRows);
     const isDebugMode = typeof window !== 'undefined' && new URLSearchParams(window?.location?.search || '').get('debug') === 'activities';
@@ -1740,9 +1996,7 @@ export const activitiesScreen = {
     const prevMonthTitle = disablePrevMonth ? 'אין חודש קודם עם פעילויות בתקופה זו' : 'חודש קודם';
     const nextMonthTitle = disableNextMonth ? 'אין חודש הבא עם פעילויות בתקופה זו' : 'חודש הבא';
     const monthNavLabel = heMonthLabel(state.activitiesMonthYm);
-    const allSummerBtn = isSummerTab
-      ? `<button type="button" class="ds-btn ds-btn--sm ds-btn--ghost ds-activities-toolbar-btn${summerShowAll ? ' is-active' : ''}" data-activities-all-summer aria-pressed="${summerShowAll ? 'true' : 'false'}">כל הקיץ</button>`
-      : '';
+    const allSummerBtn = '';
     const titleNavRow = isAllMode
       ? `<nav class="ds-activities-title-row" aria-label="חיפוש בכל הפעילויות" dir="rtl">
       <h2 class="ds-activities-page-title">חיפוש בכל הפעילויות · ${total} פעילויות</h2>
@@ -1755,12 +2009,12 @@ export const activitiesScreen = {
     </nav>`
           : `<nav class="ds-activities-title-row${isNavLoading ? ' is-nav-loading' : ''}" aria-label="ניווט חודשי לפעילויות" dir="rtl">
       <button type="button" class="ds-btn ds-btn--sm ds-btn--nav-arrow" data-activities-month-prev aria-label="${escapeHtml(prevMonthTitle)}" title="${escapeHtml(prevMonthTitle)}" ${disablePrevMonth ? 'disabled' : ''}>▶</button>
-      <h2 class="ds-activities-page-title">ניהול פעילויות${monthNavLabel ? ` · ${escapeHtml(monthNavLabel)}` : ''} · ${escapeHtml(monthTitleCount)} ${escapeHtml(periodLabel)} ${navLoadingChip}</h2>
+      <h2 class="ds-activities-page-title">ניהול פעילויות - ${escapeHtml(periodLabel)} · ${escapeHtml(monthTitleCount)} ${navLoadingChip}</h2>
       <button type="button" class="ds-btn ds-btn--sm ds-btn--nav-arrow" data-activities-month-next aria-label="${escapeHtml(nextMonthTitle)}" title="${escapeHtml(nextMonthTitle)}" ${disableNextMonth ? 'disabled' : ''}>◀</button>
       ${allSummerBtn}
     </nav>`
         : `<nav class="ds-activities-title-row" aria-label="${escapeHtml(periodLabel)}" dir="rtl">
-      <h2 class="ds-activities-page-title">${escapeHtml(periodLabel)} · ${total} פעילויות</h2>
+      <h2 class="ds-activities-page-title">ניהול פעילויות - ${escapeHtml(periodLabel)} · ${total} פעילויות</h2>
     </nav>`;
     const periodTabs = activityPeriodTabsHtml(allRows, state.activityPeriodTab, state);
 
@@ -1869,7 +2123,7 @@ export const activitiesScreen = {
 
     async function renderActivityLayoutDrawerContent() {
       const statuses = await loadActivityLayoutStatuses();
-      activityLayoutGroups = readyActivityLayoutSchools(activityPeriodRows(activitiesRows, ACTIVITY_LAYOUT_SEASON), statuses);
+      activityLayoutGroups = readyActivityLayoutSchools(summer2026Rows(activitiesRows), statuses);
       const content = document.querySelector('.ds-drawer__content');
       if (content) content.innerHTML = activityLayoutListHtml(activityLayoutGroups);
     }
@@ -2025,7 +2279,7 @@ export const activitiesScreen = {
           const entry = state?.screenDataCache?.[key];
           if (entry?.data && typeof entry.data === 'object') Object.assign(entry.data, row || changes || {});
         },
-        onSaveSuccess: async ({ sourceSheet, sourceRowId, contentRoot }) => {
+        onSaveSuccess: async ({ sourceSheet, sourceRowId, changes, contentRoot }) => {
           try {
             const rsp = await api.activityDetail(sourceRowId, sourceSheet || 'activities');
             const freshRow = rsp?.row;
@@ -2036,7 +2290,7 @@ export const activitiesScreen = {
                 canDeleteActivity,
                 hideEmpIds, hideRowId, hideActivityNo,
                 mergeSettingsWithFallback(state?.clientSettings || {}, buildFallbackOptionsFromRows(activitiesRows)),
-                { datesLoading: false }
+                { datesLoading: false, canSchedule: ['admin', 'operation_manager'].includes(String(state?.user?.role || '')) }
               );
               hideShellHeader(contentRoot);
               bindActivityEditForm(contentRoot);
@@ -2079,9 +2333,183 @@ export const activitiesScreen = {
       if (shellHdr) shellHdr.hidden = true;
     }
 
+    function bindContact2027Section(contentRoot) {
+      const section = contentRoot.querySelector('[data-contact-2027-section]');
+      if (!section) return;
+
+      const schoolId  = section.dataset.schoolId  || '';
+      const school    = section.dataset.school    || '';
+      const authority = section.dataset.authority || '';
+
+      const select       = section.querySelector('[data-contact-2027-select]');
+      const preview      = section.querySelector('[data-contact-2027-preview]');
+      const addBtn       = section.querySelector('[data-contact-2027-add-btn]');
+      const addForm      = section.querySelector('[data-contact-2027-add-form]');
+      const saveNewBtn   = section.querySelector('[data-contact-2027-save-new]');
+      const cancelNewBtn = section.querySelector('[data-contact-2027-cancel-new]');
+      const idInput      = section.querySelector('[data-contact-2027-id-input]');
+      const hiddenName   = section.querySelector('[data-contact-2027-hidden-name]');
+      const hiddenPhone  = section.querySelector('[data-contact-2027-hidden-phone]');
+      const hiddenEmail  = section.querySelector('[data-contact-2027-hidden-email]');
+      const errorEl      = section.querySelector('[data-new-contact-error]');
+
+      let loadedContacts = [];
+
+      const updatePreview = () => {
+        const val = select ? select.value : '';
+        const c = loadedContacts.find((x) => String(x.id) === val);
+        if (c) {
+          const ph = String(c.mobile || c.phone || '').trim();
+          const em = String(c.email || '').trim();
+          const role = String(c.contact_role || '').trim();
+          section.querySelector('[data-contact-2027-pname]').textContent  = String(c.contact_name || '').trim();
+          section.querySelector('[data-contact-2027-prole]').textContent  = role;
+          section.querySelector('[data-contact-2027-pphone]').textContent = ph;
+          section.querySelector('[data-contact-2027-pemail]').textContent = em;
+          if (preview) preview.style.display = 'block';
+          if (idInput)    idInput.value    = String(c.id);
+          if (hiddenName) hiddenName.value = String(c.contact_name || '').trim();
+          if (hiddenPhone) hiddenPhone.value = ph;
+          if (hiddenEmail) hiddenEmail.value = em;
+        } else {
+          if (preview) preview.style.display = 'none';
+          if (idInput)    idInput.value    = '';
+          if (hiddenName) hiddenName.value = '';
+          if (hiddenPhone) hiddenPhone.value = '';
+          if (hiddenEmail) hiddenEmail.value = '';
+        }
+      };
+
+      const populateSelect = (contacts, currentId) => {
+        if (!select) return;
+        select.innerHTML = '';
+        if (!contacts.length) {
+          select.innerHTML = '<option value="">לא נמצא איש קשר לבית הספר</option>';
+          return;
+        }
+        const placeholder = document.createElement('option');
+        placeholder.value = '';
+        placeholder.textContent = '— בחר איש קשר —';
+        select.appendChild(placeholder);
+        contacts.forEach((c) => {
+          const opt = document.createElement('option');
+          opt.value = String(c.id);
+          const ph = String(c.mobile || c.phone || '').trim();
+          opt.textContent = [String(c.contact_name || '').trim(), String(c.contact_role || '').trim(), ph].filter(Boolean).join(' — ');
+          select.appendChild(opt);
+        });
+        if (currentId && contacts.find((c) => String(c.id) === String(currentId))) {
+          select.value = String(currentId);
+        } else if (contacts.length === 1) {
+          select.value = String(contacts[0].id);
+        }
+        updatePreview();
+      };
+
+      const loadContacts = async (overrideSchool, overrideAuthority) => {
+        const s  = overrideSchool    || school;
+        const au = overrideAuthority || authority;
+        if (!select) return;
+        select.innerHTML = '<option value="">טוען...</option>';
+        if (preview) preview.style.display = 'none';
+        try {
+          const contacts = await api.contactsForSchool(schoolId, s, au);
+          loadedContacts = contacts;
+          const currentId = idInput ? idInput.value : section.dataset.currentContactId || '';
+          populateSelect(contacts, currentId);
+        } catch (_) {
+          if (select) select.innerHTML = '<option value="">שגיאה בטעינה</option>';
+        }
+      };
+
+      select?.addEventListener('change', updatePreview);
+
+      addBtn?.addEventListener('click', () => {
+        if (addForm) addForm.style.display = 'block';
+        if (addBtn)  addBtn.style.display  = 'none';
+        if (errorEl) errorEl.textContent   = '';
+      });
+
+      cancelNewBtn?.addEventListener('click', () => {
+        if (addForm) addForm.style.display = 'none';
+        if (addBtn)  addBtn.style.display  = '';
+        if (errorEl) errorEl.textContent   = '';
+      });
+
+      saveNewBtn?.addEventListener('click', async () => {
+        if (!addForm) return;
+        const nameVal  = (addForm.querySelector('[data-new-contact-name]')?.value  || '').trim();
+        const roleVal  = (addForm.querySelector('[data-new-contact-role]')?.value  || '').trim();
+        const phoneVal = (addForm.querySelector('[data-new-contact-phone]')?.value || '').trim();
+        const emailVal = (addForm.querySelector('[data-new-contact-email]')?.value || '').trim();
+
+        if (errorEl) errorEl.textContent = '';
+        if (!nameVal) { if (errorEl) errorEl.textContent = 'שם איש קשר הוא שדה חובה'; return; }
+        if (!phoneVal && !emailVal) { if (errorEl) errorEl.textContent = 'יש להזין נייד או מייל לפחות'; return; }
+
+        const dup = loadedContacts.find((c) =>
+          (phoneVal && (String(c.phone||'') === phoneVal || String(c.mobile||'') === phoneVal)) ||
+          (emailVal && String(c.email||'') === emailVal)
+        );
+        if (dup) {
+          if (errorEl) errorEl.textContent = `קיים איש קשר עם פרטים אלו: ${dup.contact_name}. בוחר אותו.`;
+          if (select) select.value = String(dup.id);
+          updatePreview();
+          if (addForm) addForm.style.display = 'none';
+          if (addBtn)  addBtn.style.display  = '';
+          return;
+        }
+
+        if (saveNewBtn) { saveNewBtn.disabled = true; saveNewBtn.textContent = 'שומר...'; }
+        try {
+          const newC = await api.createSchoolContact({
+            school_id: schoolId || undefined,
+            school,
+            authority,
+            contact_name: nameVal,
+            contact_role: roleVal,
+            phone: phoneVal,
+            email: emailVal
+          });
+          loadedContacts.push(newC);
+          const opt = document.createElement('option');
+          opt.value = String(newC.id);
+          const ph = String(newC.mobile || newC.phone || '').trim();
+          opt.textContent = [String(newC.contact_name||'').trim(), String(newC.contact_role||'').trim(), ph].filter(Boolean).join(' — ');
+          if (select) { select.appendChild(opt); select.value = String(newC.id); }
+          updatePreview();
+          if (addForm) addForm.style.display = 'none';
+          if (addBtn)  addBtn.style.display  = '';
+          addForm.querySelector('[data-new-contact-name]').value  = '';
+          addForm.querySelector('[data-new-contact-role]').value  = '';
+          addForm.querySelector('[data-new-contact-phone]').value = '';
+          addForm.querySelector('[data-new-contact-email]').value = '';
+        } catch (err) {
+          if (errorEl) errorEl.textContent = err?.message || 'שמירת איש הקשר נכשלה';
+        } finally {
+          if (saveNewBtn) { saveNewBtn.disabled = false; saveNewBtn.textContent = 'שמור איש קשר'; }
+        }
+      });
+
+      const drawerForm = contentRoot.querySelector('[data-drawer-form]');
+      if (drawerForm) {
+        drawerForm.addEventListener('change', (ev) => {
+          if (ev.target.name === 'school') {
+            const newSchool    = ev.target.value;
+            const newAuthority = drawerForm.querySelector('[name="authority"]')?.value || authority;
+            loadContacts(newSchool, newAuthority);
+          }
+        });
+      }
+
+      loadContacts();
+    }
+
     function makeOnOpen(contentRoot) {
       hideShellHeader(contentRoot);
       bindActivityEditForm(contentRoot);
+      bindContact2027Section(contentRoot);
+      bindInstructorScheduling(contentRoot, { ui, state, activitiesRows });
     }
 
     function bindActivitiesReopenBtn(contentRoot, row) {
@@ -2133,7 +2561,9 @@ export const activitiesScreen = {
       const cachedDates  = getCachedActivityDates(summaryRow, state);
       const canDirectEdit = canDirectManageActivities(state);
       const canRequestEdit = canRequestActivityChanges(state);
-      const canReopenActivity = canDirectManageActivities(state) && state.activityPeriodTab === 'archive';
+      const canReopenActivity = canDirectManageActivities(state)
+        && state.activityPeriodTab === 'archive'
+        && !isReadOnlyActivityRow(summaryRow);
       const settings = mergeSettingsWithFallback(
         state?.clientSettings || {},
         buildFallbackOptionsFromRows(activitiesRows)
@@ -2142,7 +2572,7 @@ export const activitiesScreen = {
       const buildDrawerContent = (row, datesLoading) => {
         const base = activityDrawerContent(
           row, canSeePrivateNotes, canEditActivity, canDirectEdit, canRequestEdit,
-          canDeleteActivity, hideEmpIds, hideRowId, hideActivityNo, settings, { datesLoading }
+          canDeleteActivity, hideEmpIds, hideRowId, hideActivityNo, settings, { datesLoading, canSchedule: ['admin', 'operation_manager'].includes(String(state?.user?.role || '')) }
         );
         if (!canReopenActivity) return base;
         return `<div style="padding:12px 16px 0;text-align:right">
@@ -2202,8 +2632,30 @@ export const activitiesScreen = {
           });
       }
 
+      /**
+       * The drawer opens immediately from the list projection, which carries no
+       * funding/price/participants values. Once the full record arrives, the open
+       * drawer is re-rendered in place so the real values appear without the user
+       * having to close and reopen it.
+       */
+      const applyDetailToOpenDrawer = (detailRow) => {
+        const contentNode = document.querySelector('.ds-drawer__content');
+        const openForm = contentNode?.querySelector('[data-drawer-form]');
+        if (!contentNode || !openForm) return;
+        if (String(openForm.getAttribute('data-row-id') || '').trim() !== String(summaryRow.RowID || '').trim()) return;
+        if (openForm.dataset.editing === 'yes') return;
+        contentNode.innerHTML = buildDrawerContent(detailRow, false);
+        makeOnOpenWithReopen(detailRow)(contentNode);
+        const latestDates = getCachedActivityDates(summaryRow, state);
+        const sectionEl = contentNode.querySelector('[data-dates-section]');
+        if (latestDates && sectionEl) patchDrawerDatesSection(sectionEl, latestDates);
+      };
+
       loadDetailRow(summaryRow)
-        .then((row) => { putCachedActivityDetail(summaryRow, row, state); })
+        .then((row) => {
+          putCachedActivityDetail(summaryRow, row, state);
+          applyDetailToOpenDrawer(row);
+        })
         .catch(() => {});
     }
 
@@ -2221,6 +2673,7 @@ export const activitiesScreen = {
       state.activitiesGapFilter = '';
       syncActivitiesGapQuery('');
       state.activityFinanceStatus = '';
+      state.allActivitiesStatusFilter = 'all';
     } });
     async function loadAllActivitiesForAdmin() {
       return typeof api.allActivities === 'function' ? api.allActivities() : api.activities({ activity_type: 'all' });
@@ -2235,8 +2688,9 @@ export const activitiesScreen = {
       try {
         const res = await loadAllActivitiesForAdmin();
         const sourceRows = Array.isArray(res?.rows) ? res.rows : [];
-        const rows = isAllActivitiesMode(state) ? allActivitiesRows(sourceRows, state) : activityPeriodRows(sourceRows, state.activityPeriodTab);
-        const exportLabel = isAllActivitiesMode(state) ? 'כל_הפעילויות' : (activityPeriodLabelForKey(state.activityPeriodTab) || 'תקופה');
+        const rows = activityRowsForInnerTab(sourceRows, state);
+        const activeInnerTab = normalizeActivitiesInnerTab(state.activitiesInnerTab, state.activityPeriodTab);
+        const exportLabel = activityInnerTabsForYear(state.activityPeriodTab).find((tab) => tab.key === activeInnerTab)?.label || globalActivityPeriodLabel(state.activityPeriodTab);
         exportActivitiesToExcel(rows, `פעילויות_${exportLabel}`);
       } catch (err) {
         console.error('Failed to export all activities to Excel', err);
@@ -2248,7 +2702,7 @@ export const activitiesScreen = {
 
 
     root.querySelector('[data-activity-layout-list]')?.addEventListener('click', async (ev) => {
-      if (!canUseActivityLayout(state) || state.activityPeriodTab !== ACTIVITY_LAYOUT_SEASON || !ui) return;
+      if (!canUseActivityLayout(state) || state.activityPeriodTab !== ACTIVITY_SEASON_REGULAR || state.activitiesInnerTab !== ACTIVITIES_INNER_TAB_SUMMER_2026 || !ui) return;
       const btn = ev.currentTarget;
       btn.disabled = true;
       ui.openDrawer({
@@ -2279,7 +2733,8 @@ export const activitiesScreen = {
 
     root.querySelectorAll('[data-activity-period-tab]').forEach((btn) => {
       btn.addEventListener('click', () => {
-        state.activityPeriodTab = normalizeActivityPeriodTab(btn.getAttribute('data-activity-period-tab'));
+        state.activitiesInnerTab = normalizeActivitiesInnerTab(btn.getAttribute('data-activity-period-tab'), state.activityPeriodTab);
+        clearScreenDataCache?.();
         state.activitiesSummerShowAll = false;
         if (activityPeriodUsesMonthNavigation(state)) {
           ensureActivityPeriodMonth(state, activitiesRows, { force: true });
@@ -2291,10 +2746,18 @@ export const activitiesScreen = {
       });
     });
 
-    root.querySelector('[data-all-activities-status-filter]')?.addEventListener('change', (ev) => {
+    root.querySelector('[data-activities-instructor-status-filter]')?.addEventListener('change', (ev) => {
       state.allActivitiesStatusFilter = normalizeAllActivitiesStatusFilter(ev.currentTarget?.value);
       ensureActivityListFilters(state, ACTIVITIES_SCOPE).visibleCount = 200;
       rerenderLocal();
+    });
+    root.querySelector('[data-clear-missing-schedule-filter]')?.addEventListener('click', () => {
+      clearMissingScheduleFilter(state);
+      ensureActivityListFilters(state, ACTIVITIES_SCOPE).visibleCount = 200;
+      rerenderLocal();
+    });
+    root.querySelector(`[data-filter-clear="${ACTIVITIES_SCOPE}"]`)?.addEventListener('click', () => {
+      if (state.activitiesMissingScheduleOnly) clearMissingScheduleFilter(state);
     });
     root.querySelector(`[data-list-show-more="${ACTIVITIES_SCOPE}"]`)?.addEventListener('click', (ev) => {
       const next = Number(ev.currentTarget?.dataset?.nextCount || 200);
@@ -2323,7 +2786,8 @@ export const activitiesScreen = {
       nameSel.disabled = !type;
       nameSel.value = nextValue;
       const hit = list.find((o) => String(o?.label || '').trim() === String(nameSel.value || '').trim());
-      noInput.value = String(hit?.activity_no || '');
+      applyActivityCatalogSelectionToAddForm(form, hit, type);
+      syncSessionDateRows(form);
     }
 
     function updateAddFormByFamily(form) {
@@ -2344,50 +2808,6 @@ export const activitiesScreen = {
       syncSessionDateRows(form);
     }
 
-    function computeNextSessionDate(baseIso, index) {
-      if (!/^\d{4}-\d{2}-\d{2}$/.test(String(baseIso || ''))) return '';
-      const base = new Date(`${baseIso}T00:00:00`);
-      base.setDate(base.getDate() + (index * 7));
-      return `${base.getFullYear()}-${String(base.getMonth() + 1).padStart(2, '0')}-${String(base.getDate()).padStart(2, '0')}`;
-    }
-
-    function syncSessionDateRows(form) {
-      const typeValue = String(form.querySelector('[name="activity_type"]')?.value || '').trim();
-      const isOneDay = isOneDayActivityTypeValue(typeValue);
-      const sessionsInput = form.querySelector('[data-add-sessions]');
-      const sessionsField = form.querySelector('[data-field-sessions]');
-      const oneDayDateField = form.querySelector('[data-field-one-day-date]');
-      const startDateField = form.querySelector('[data-field-start-date]');
-      const endDateField = form.querySelector('[data-field-end-date]');
-      const sessionsDatesWrap = form.querySelector('[data-add-date-rows-wrap]');
-      const startDateInput = form.querySelector('[name="start_date"]');
-      const endDateInput = form.querySelector('[name="end_date"]');
-      const oneDayDateInput = form.querySelector('[name="one_day_date"]');
-      if (isOneDay) {
-        const fallbackDate = String(oneDayDateInput?.value || startDateInput?.value || endDateInput?.value || '').trim();
-        if (oneDayDateInput) oneDayDateInput.value = fallbackDate;
-        if (startDateInput) startDateInput.value = fallbackDate;
-        if (endDateInput) endDateInput.value = fallbackDate;
-      }
-      if (oneDayDateField) oneDayDateField.style.display = isOneDay ? '' : 'none';
-      if (startDateField) startDateField.style.display = isOneDay ? 'none' : '';
-      if (endDateField) endDateField.style.display = isOneDay ? 'none' : '';
-      if (sessionsDatesWrap) sessionsDatesWrap.style.display = isOneDay ? 'none' : '';
-      if (sessionsInput) {
-        sessionsInput.value = isOneDay ? '1' : String(sessionsInput.value || '1');
-        sessionsInput.disabled = isOneDay;
-      }
-      if (sessionsField) sessionsField.style.display = isOneDay ? 'none' : '';
-      const sessions = isOneDay ? 1 : Math.max(1, Number(sessionsInput?.value || '1'));
-      const container = form.querySelector('[data-add-date-rows]');
-      if (!container) return;
-      const startDate = String(form.querySelector('[name="start_date"]')?.value || '').trim();
-      const prev = Array.from(container.querySelectorAll('input[data-add-session-date]')).map((input) => String(input.value || '').trim());
-      container.innerHTML = Array.from({ length: sessions }, (_, idx) => {
-        const value = idx === 0 ? (startDate || prev[idx] || '') : (prev[idx] || computeNextSessionDate(startDate, idx));
-        return `<label class="ds-add-date-row"><span>מפגש ${idx + 1}</span><input class="ds-input ds-input--sm" type="date" data-add-session-date="${idx + 1}" value="${escapeHtml(value)}"></label>`;
-      }).join('');
-    }
 
     function bindAddActivityForm() {
       const modalContent = document.querySelector('.ds-modal__content');
@@ -2405,7 +2825,7 @@ export const activitiesScreen = {
       form.querySelector('[data-add-activity-name]')?.addEventListener('change', () => {
         refreshActivityNameSelect(form);
       }, addActivitySig);
-      form.querySelector('[data-add-sessions]')?.addEventListener('change', () => syncSessionDateRows(form), addActivitySig);
+      bindAddActivitySessionCountSync(form, addActivitySig);
       form.querySelector('[name="start_date"]')?.addEventListener('change', () => syncSessionDateRows(form), addActivitySig);
       form.querySelector('[name="one_day_date"]')?.addEventListener('change', () => syncSessionDateRows(form), addActivitySig);
       form.querySelector('[data-add-date-rows]')?.addEventListener('change', (ev) => {
@@ -2476,6 +2896,11 @@ export const activitiesScreen = {
 
     async function submitAddActivityForm(form, submitBtn) {
       const statusEl = form.querySelector('[data-add-activity-status]');
+      if (isReadOnlyActivitiesPeriod(state)) {
+        setAddActivityStatus(statusEl, READ_ONLY_ACTIVITY_PERIOD_MESSAGE, { isError: true });
+        resetAddActivitySavingState(form, submitBtn);
+        return;
+      }
       if (form.dataset.saving === 'yes' || form.dataset.submitting === 'yes') {
         return;
       }
@@ -2562,7 +2987,7 @@ export const activitiesScreen = {
         emp_id_2: instructor2.emp_id,
         start_date: isOneDay ? oneDayDate : get('start_date'),
         end_date: isOneDay ? oneDayDate || null : get('end_date') || null,
-        status: 'פתוח',
+        status: get('status') || 'פתוח',
         notes: get('notes')
       };
       if (isOneDay) {
@@ -2629,22 +3054,23 @@ export const activitiesScreen = {
         resetAddActivitySavingState(form, submitBtn);
         return;
       }
-      if (isOneDay && !String(payload.date_1 || payload.start_date || '').trim()) {
+      const isSchool2027Activity = normalizeActivitySeason(payload.activity_season) === ACTIVITY_SEASON_SCHOOL_2027;
+      if (isOneDay && !isSchool2027Activity && !String(payload.date_1 || payload.start_date || '').trim()) {
         setAddActivityStatus(statusEl, 'יש למלא תאריך פעילות', { isError: true });
         resetAddActivitySavingState(form, submitBtn);
         return;
       }
-      if (!isOneDay && !meetingDateValues.some((dateValue) => String(dateValue || '').trim())) {
+      if (!isOneDay && !isSchool2027Activity && !meetingDateValues.some((dateValue) => String(dateValue || '').trim())) {
         setAddActivityStatus(statusEl, 'יש למלא לפחות תאריך מפגש אחד', { isError: true });
         resetAddActivitySavingState(form, submitBtn);
         return;
       }
-      if (!String(payload.start_time || '').trim()) {
+      if (!isSchool2027Activity && !String(payload.start_time || '').trim()) {
         setAddActivityStatus(statusEl, 'יש לבחור שעת התחלה', { isError: true });
         resetAddActivitySavingState(form, submitBtn);
         return;
       }
-      if (!String(payload.end_time || '').trim()) {
+      if (!isSchool2027Activity && !String(payload.end_time || '').trim()) {
         setAddActivityStatus(statusEl, 'יש לבחור שעת סיום', { isError: true });
         resetAddActivitySavingState(form, submitBtn);
         return;
@@ -2654,7 +3080,7 @@ export const activitiesScreen = {
         ['activity_type', 'סוג פעילות'],
         ['activity_name', 'שם פעילות'],
         ['authority', 'רשות'],
-        ['school', 'בית ספר'],
+        ...(isSchool2027Activity ? [] : [['school', 'בית ספר']]),
         ...(isOneDay ? [['start_date', 'תאריך פעילות'], ['end_date', 'תאריך סיום'], ['date_1', 'תאריך פעילות']] : [])
       ];
       const missing = required.filter(([key]) => !String(payload[key] || '').trim()).map(([, label]) => label);
@@ -2663,7 +3089,7 @@ export const activitiesScreen = {
         resetAddActivitySavingState(form, submitBtn);
         return;
       }
-      if (!String(payload.activity_no || '').trim()) {
+      if (!isSchool2027Activity && !String(payload.activity_no || '').trim()) {
         setAddActivityStatus(statusEl, 'לא ניתן לשמור: חסר מזהה פעילות מקור', { isError: true });
         resetAddActivitySavingState(form, submitBtn);
         return;
@@ -2787,7 +3213,7 @@ export const activitiesScreen = {
           title: isCreateRequestOnly ? 'בקשה להוספת פעילות' : 'הוספת פעילות',
           // חשוב: חלון הוספת פעילות חייב להשתמש ב-client settings האחידים
           // (כמו admin), ללא בניית רשימות fallback מתוך rows חלקיים של המסך.
-          content: addActivityModalHtml(state?.clientSettings || {}),
+          content: addActivityModalHtml(state?.clientSettings || {}, state.activityPeriodTab),
           actions: `
             <button type="button" class="ds-btn ds-btn--primary" data-add-activity-submit>${isCreateRequestOnly ? 'שליחת בקשה לאישור' : 'שמור'}</button>
             <button type="button" class="ds-btn" data-ui-close-modal>ביטול</button>
@@ -2809,9 +3235,46 @@ export const activitiesScreen = {
     if (root._rowAbort) root._rowAbort.abort();
     root._rowAbort = new AbortController();
     const rowSig = { signal: root._rowAbort.signal };
+    if (!document._contactPopoverEl) {
+      const pop = document.createElement('div');
+      pop.className = 'ds-contact-popover';
+      document.body.appendChild(pop);
+      document._contactPopoverEl = pop;
+      document.addEventListener('click', (e) => {
+        if (!e.target.closest('[data-contact-popover]') && !e.target.closest('.ds-contact-popover')) {
+          pop.classList.remove('is-open');
+        }
+      });
+      document.addEventListener('keydown', (e) => {
+        if (e.key === 'Escape') pop.classList.remove('is-open');
+      });
+    }
+    root.addEventListener('click', (ev) => {
+      const btn = ev.target.closest('[data-contact-popover]');
+      if (!btn) return;
+      ev.stopPropagation();
+      const pop = document._contactPopoverEl;
+      if (!pop) return;
+      const name = btn.dataset.cname || '';
+      const phone = btn.dataset.cphone || '';
+      const email = btn.dataset.cemail || '';
+      const lines = [];
+      if (name && name !== '—') lines.push(`<span class="ds-contact-popover__name">${name}</span>`);
+      if (phone) lines.push(`<span class="ds-contact-popover__phone">נייד: ${phone}</span>`);
+      if (email) lines.push(`<span class="ds-contact-popover__email">מייל: ${email}</span>`);
+      pop.innerHTML = lines.length ? lines.join('') : '<span class="ds-contact-popover__name">אין פרטים</span>';
+      const rect = btn.getBoundingClientRect();
+      const scrollY = window.scrollY || document.documentElement.scrollTop;
+      pop.style.top = `${rect.bottom + scrollY + 4}px`;
+      pop.style.right = `${document.documentElement.clientWidth - rect.right}px`;
+      pop.style.left = 'auto';
+      pop.classList.add('is-open');
+    }, rowSig);
+
     root.addEventListener('click', (ev) => {
       const rowNode = ev.target.closest('.ds-data-row');
       if (!rowNode) return;
+      if (ev.target.closest('[data-contact-popover]')) return;
       ev.stopPropagation();
       const rowId = rowNode.dataset.rowId;
       const hit = filteredRows.find((row) => row.RowID === rowId);

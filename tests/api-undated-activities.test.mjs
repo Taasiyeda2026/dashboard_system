@@ -155,7 +155,8 @@ test('Supabase exceptions read uses a single activities source and computes in c
   const block = source.match(/async function readExceptionsFromSupabase[\s\S]*?function syncContactToSupabase/);
   assert.ok(block, 'readExceptionsFromSupabase should exist');
   assert.match(block[0], /supabase\.from\('activities'\)\.select\('\*'\)/);
-  assert.match(block[0], /buildExceptionsModelFromRows\(allRows/);
+  assert.match(block[0], /const periodRows = filterRowsByGlobalActivityPeriod\(allRows, activityPeriod\)/);
+  assert.match(block[0], /buildExceptionsModelFromRows\(periodRows/);
   assert.match(block[0], /late_end_date_threshold/);
   assert.doesNotMatch(block[0], /missingStartResult|lateEndDateResult/);
 });
@@ -234,4 +235,34 @@ test('ended summer activity with closed status and uploaded completion approval 
   });
   assert.equal(model.totalExceptionRows, 0);
   assert.equal(model.rows.length, 0);
+});
+
+test('completion approval upload with a row id never satisfies a different activity on the same date and school', () => {
+  const sameDaySchool = {
+    activity_type: 'workshop',
+    item_type: 'workshop',
+    activity_season: 'summer_2026',
+    status: 'בוצע',
+    start_date: '2026-06-23',
+    end_date: '2026-06-23',
+    date_1: '2026-06-23',
+    school: 'בית ספר קיץ',
+    instructor_name: 'מדריך קיץ'
+  };
+  const rowA = activeCourse({ ...sameDaySchool, RowID: 'SAME-DAY-A' });
+  const rowB = activeCourse({ ...sameDaySchool, RowID: 'SAME-DAY-B' });
+
+  const model = buildExceptionsModelFromRows([rowA, rowB], '2026-07', {
+    include_rows: true,
+    completionApprovalUploads: [{
+      activity_row_id: 'SAME-DAY-A',
+      activity_date: '2026-06-23',
+      school: 'בית ספר קיץ',
+      instructor_name: 'מדריך קיץ',
+      file_path: 'signed/approval-a.pdf',
+      status: 'uploaded'
+    }]
+  });
+
+  assert.deepEqual(model.rows.map((row) => row.RowID), ['SAME-DAY-B']);
 });

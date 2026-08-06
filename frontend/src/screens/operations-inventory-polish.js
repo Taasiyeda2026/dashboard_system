@@ -2,6 +2,11 @@ import { normalizeOneDayActivityType } from './shared/activity-options.js';
 
 const PARTICIPANTS_FIELD = 'participants_count';
 const PARTICIPANT_ACTIVITY_TYPES = new Set(['workshop', 'escape_room']);
+const SAVE_NOTICE_DISMISS_MS = 3600;
+const SAVE_STATUS_DISMISS_MS = 3200;
+
+let participantsUiBound = false;
+let inventoryPolishTimer = null;
 
 function normalizeParticipantActivityType(value) {
   return normalizeOneDayActivityType(value) || String(value || '').trim();
@@ -17,6 +22,7 @@ function addInventoryPolishStyle() {
   style.id = 'ops-inventory-polish-style';
   style.textContent = `
     .ds-ops-workshops-panel [data-ops-print-workshops] { display: none !important; }
+    .ds-ops-workshops-panel [data-ops-open-stock-edit] { display: none !important; }
     .ds-ops-workshops-panel .ds-ops-usage-cell {
       text-align: center !important;
     }
@@ -35,6 +41,12 @@ function addInventoryPolishStyle() {
 
 function escapeAttr(value) {
   return String(value ?? '').replace(/&/g, '&amp;').replace(/"/g, '&quot;').replace(/</g, '&lt;');
+}
+
+function setTextIfChanged(element, value) {
+  if (!element) return;
+  const next = String(value ?? '');
+  if (element.textContent !== next) element.textContent = next;
 }
 
 function parseDrawerRow(form) {
@@ -113,9 +125,9 @@ function syncParticipantsCountForm(form) {
   section.hidden = !supported;
   if (input) {
     input.disabled = !supported;
-    if (!supported) input.value = '';
+    if (!supported && input.value !== '') input.value = '';
   }
-  if (view) view.textContent = participantsDisplay(input?.value || currentParticipantsCount(form));
+  setTextIfChanged(view, participantsDisplay(input?.value || currentParticipantsCount(form)));
 }
 
 function syncParticipantsCountForms(root = document) {
@@ -126,7 +138,40 @@ function syncParticipantsCountForms(root = document) {
   });
 }
 
+function restoreDrawerViewActions(root = document) {
+  root.querySelectorAll?.('[data-drawer-form]').forEach((form) => {
+    if (String(form.dataset.editing || 'no') === 'yes') return;
+    const editButton = form.querySelector('[data-action="start-edit"]');
+    if (editButton) editButton.hidden = false;
+    form.querySelectorAll('[data-edit-actions]').forEach((actions) => {
+      actions.hidden = true;
+    });
+  });
+}
+
+function scheduleSaveUiCleanup(root = document) {
+  root.querySelectorAll?.('.ds-exceptions-save-notice').forEach((notice) => {
+    if (notice.dataset.autoDismissScheduled === 'yes') return;
+    notice.dataset.autoDismissScheduled = 'yes';
+    window.setTimeout(() => notice.remove(), SAVE_NOTICE_DISMISS_MS);
+  });
+
+  root.querySelectorAll?.('.ds-activity-edit-status.is-success').forEach((status) => {
+    if (status.dataset.autoDismissScheduled === 'yes') return;
+    status.dataset.autoDismissScheduled = 'yes';
+    window.setTimeout(() => {
+      if (!status.isConnected) return;
+      status.textContent = '';
+      status.classList.remove('is-success');
+      delete status.dataset.autoDismissScheduled;
+    }, SAVE_STATUS_DISMISS_MS);
+  });
+}
+
 function bindParticipantsCountUi() {
+  if (participantsUiBound) return;
+  participantsUiBound = true;
+
   document.addEventListener('change', (event) => {
     const form = event.target?.closest?.('form');
     if (!form) return;
@@ -134,14 +179,14 @@ function bindParticipantsCountUi() {
       syncParticipantsCountForm(form);
     }
   }, true);
+
   document.addEventListener('input', (event) => {
     const input = event.target?.closest?.('[data-participants-count-input]');
     if (!input) return;
     const form = input.closest('form');
     const view = form?.querySelector('[data-participants-count-view]');
-    if (view) view.textContent = participantsDisplay(input.value);
+    setTextIfChanged(view, participantsDisplay(input.value));
   }, true);
-  syncParticipantsCountForms(document);
 }
 
 function renameInventoryTab() {
@@ -150,21 +195,32 @@ function renameInventoryTab() {
   });
 }
 
+export function removeAdminInventoryShortcut(root = document) {
+  root.querySelectorAll?.('[data-ops-open-stock-edit]').forEach((button) => button.remove());
+}
+
 function runInventoryPolish() {
   addInventoryPolishStyle();
   bindParticipantsCountUi();
+  syncParticipantsCountForms(document);
+  restoreDrawerViewActions(document);
+  scheduleSaveUiCleanup(document);
   renameInventoryTab();
+  removeAdminInventoryShortcut(document);
 }
 
 function scheduleInventoryPolish() {
-  setTimeout(() => {
+  if (inventoryPolishTimer !== null) window.clearTimeout(inventoryPolishTimer);
+  inventoryPolishTimer = window.setTimeout(() => {
+    inventoryPolishTimer = null;
     runInventoryPolish();
-    syncParticipantsCountForms(document);
   }, 90);
 }
 
 if (typeof document !== 'undefined') {
   if (document.readyState === 'loading') document.addEventListener('DOMContentLoaded', scheduleInventoryPolish, { once: true });
   else scheduleInventoryPolish();
-  new MutationObserver(scheduleInventoryPolish).observe(document.documentElement, { childList: true, subtree: true });
+
+  const observer = new MutationObserver(scheduleInventoryPolish);
+  observer.observe(document.documentElement, { childList: true, subtree: true });
 }

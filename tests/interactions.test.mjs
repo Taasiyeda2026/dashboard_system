@@ -14,6 +14,7 @@ function setupDOM() {
   global.window = dom.window;
   global.document = dom.window.document;
   global.Element = dom.window.Element;
+  global.requestAnimationFrame = (callback) => callback();
   return dom;
 }
 
@@ -161,4 +162,34 @@ test('closeAll() invokes the modal onClose callback', async () => {
   ui.openModal({ content: '<p>x</p>', onClose: () => { called = true; } });
   ui.closeAll();
   assert.equal(called, true);
+});
+
+test('all consumers receive the same shared interaction layer instance', async () => {
+  setupDOM();
+  const mod = await import(`${MODULE_PATH}?singleton=${Date.now()}`);
+  assert.equal(mod.createSharedInteractionLayer(), mod.createSharedInteractionLayer());
+});
+
+test('drawer close control closes active drawer exactly once and hides its backdrop', async () => {
+  const ui = await freshLayer();
+  let closeCount = 0;
+  ui.openDrawer({ content: '<p>active</p>', onClose: () => { closeCount += 1; } });
+  document.querySelector('[data-ui-close-drawer]').click();
+  const host = document.getElementById('ds-shared-ui-layer');
+  assert.equal(host.querySelector('.ds-drawer').getAttribute('aria-hidden'), 'true');
+  assert.equal(host.classList.contains('is-drawer-open'), false);
+  assert.equal(host.querySelector('.ds-ui-backdrop').hidden, true);
+  assert.equal(closeCount, 1);
+  document.querySelector('[data-ui-close-drawer]').click();
+  assert.equal(closeCount, 1);
+});
+
+test('Escape and backdrop close the active drawer', async () => {
+  const ui = await freshLayer();
+  ui.openDrawer({ content: '<p>escape</p>' });
+  window.dispatchEvent(new window.KeyboardEvent('keydown', { key: 'Escape' }));
+  assert.equal(ui.isDrawerOpen, false);
+  ui.openDrawer({ content: '<p>backdrop</p>' });
+  document.querySelector('[data-ui-close-all]').click();
+  assert.equal(ui.isDrawerOpen, false);
 });

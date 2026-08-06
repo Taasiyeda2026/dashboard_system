@@ -1,0 +1,40 @@
+#app .ds-interactive-card--day-cell.is-birthday-calendar-day {
+  border-color: rgba(190, 74, 140, 0.48);
+}
+
+#app .birthday-calendar-label {
+  display: block;
+  width: 100%;
+  max-width: 100%;
+  min-width: 0;
+  margin-top: 3px;
+  padding: 2px 4px;
+  border: 1px solid rgba(194, 86, 151, 0.16);
+  border-radius: 7px;
+  background: linear-gradient(135deg, rgba(255, 224, 240, 0.92), rgba(230, 224, 255, 0.92));
+  color: #71365f;
+  font-size: 0.58rem;
+  font-weight: 700;
+  line-height: 1.18;
+  text-align: right;
+  white-space: normal;
+  overflow: hidden;
+  overflow-wrap: anywhere;
+  word-break: break-word;
+  box-sizing: border-box;
+}
+
+#app .birthday-calendar-label--month {
+  order: 3;
+}
+
+#app .birthday-calendar-label--week {
+  margin-top: 4px;
+}
+
+@media (max-width: 640px) {
+  #app .birthday-calendar-label {
+    padding: 2px 3px;
+    font-size: 0.55rem;
+  }
+}

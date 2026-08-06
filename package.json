@@ -14,6 +14,11 @@
     "check:frontend": "node scripts/check_changed.mjs --frontend",
     "check:build": "npm run build",
     "check:pwa": "node --test tests/service-worker-pwa-cache.test.mjs",
+    "test:e2e": "playwright test -c e2e/playwright.config.mjs",
+    "test:e2e:smoke": "playwright test -c e2e/playwright.smoke.config.mjs",
+    "test:e2e:baseline": "E2E_UPDATE_BASELINE=1 playwright test -c e2e/playwright.config.mjs e2e/tests/04-performance.spec.mjs",
+    "test:e2e:helpers": "node --test tests/e2e-performance-helpers.test.mjs",
+    "baseline:report": "node scripts/write-local-baseline-report.mjs",
     "build:workbook": "node scripts/build_system_dashboard_workbook.mjs",
     "sync:sheet-to-supabase:once": "node scripts/sync_supabase_from_sheets_once.mjs",
     "migrate:users-to-auth:once": "node scripts/migrate_users_to_auth_once.mjs",
@@ -24,7 +29,9 @@
   "author": "",
   "license": "ISC",
   "devDependencies": {
+    "@playwright/test": "^1.62.1",
     "jsdom": "^29.1.1",
+    "pg": "^8.22.0",
     "vite": "^6.0.3",
     "xlsx": "^0.18.5"
   },

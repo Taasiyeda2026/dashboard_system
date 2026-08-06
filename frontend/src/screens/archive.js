@@ -15,23 +15,47 @@ import {
   normalizeText,
   splitVisibleRows
 } from './shared/activity-list-filters.js';
-import { activityManagerDisplayName, getRosterUsers } from './shared/activity-options.js';
+import { activityManagerDisplayName, getRosterUsers, normalizeActivityTypeKey } from './shared/activity-options.js';
+import { isReadOnlyActivityRow } from './shared/activity-readonly-period.js';
 
 const ARCHIVE_SCOPE = 'archive';
 const ARCHIVE_SEARCH_DEBOUNCE_MS = 280;
 const ARCHIVE_MIN_SEARCH_CHARS = 2;
 const ARCHIVE_DEFAULT_VISIBLE_LIMIT = 200;
 
-const ARCHIVE_TYPE_KPIS = [
+export const ARCHIVE_TYPE_KPIS = [
   { label: 'קורסים',      keys: ['course', 'קורס', 'קורסים'],                                              color: 'blue'   },
   { label: 'סדנאות',      keys: ['workshop', 'סדנה', 'סדנאות'],                                           color: 'purple' },
+  { label: 'חדרי בריחה',  keys: ['escape_room', 'חדר בריחה', 'חדרי בריחה'],                                color: 'red'    },
   { label: 'סיורים',      keys: ['tour', 'סיור', 'סיורים'],                                               color: 'green'  },
   { label: 'אפטרסקול',   keys: ['after_school', 'after school', 'afterschool', 'חוג אפטרסקול', 'אפטרסקול'], color: 'orange' },
 ];
 
+/**
+ * Cards must count real stored values, so every raw spelling of a type is matched
+ * through the canonical activity-type key as well as the literal source values.
+ */
+export function archiveRowMatchesTypeKpi(row, keys = []) {
+  const raw = String(row?.activity_type || '').trim();
+  if (!raw) return false;
+  if (keys.includes(raw)) return true;
+  const canonicalRow = normalizeActivityTypeKey(raw);
+  if (!canonicalRow) return false;
+  return keys.some((key) => normalizeActivityTypeKey(key) === canonicalRow);
+}
+
+export function archiveTypeKpiCounts(rows = []) {
+  const list = Array.isArray(rows) ? rows : [];
+  return ARCHIVE_TYPE_KPIS.map(({ label, keys }) => ({
+    label,
+    count: list.filter((row) => archiveRowMatchesTypeKpi(row, keys)).length
+  }));
+}
+
 function archiveTypeKpiHtml(rows, activeLabel = '') {
-  const cells = ARCHIVE_TYPE_KPIS.map(({ label, keys, color }) => {
-    const count = rows.filter((r) => keys.includes(String(r.activity_type || '').trim())).length;
+  const counts = new Map(archiveTypeKpiCounts(rows).map(({ label, count }) => [label, count]));
+  const cells = ARCHIVE_TYPE_KPIS.map(({ label, color }) => {
+    const count = counts.get(label) || 0;
     const activeClass = activeLabel === label ? ' is-active' : '';
     return `<button type="button" class="ds-archive-kpi ds-archive-kpi--${color}${activeClass}" data-archive-kpi="${escapeHtml(label)}">
       <span class="ds-archive-kpi__value">${count}</span>
@@ -142,7 +166,7 @@ function applyArchiveFilters(rows, state) {
   const typeFilterLabel = String(state.archiveTypeFilter || '').trim();
   if (typeFilterLabel) {
     const matchType = ARCHIVE_TYPE_KPIS.find((k) => k.label === typeFilterLabel);
-    if (matchType) out = out.filter((row) => matchType.keys.includes(String(row.activity_type || '').trim()));
+    if (matchType) out = out.filter((row) => archiveRowMatchesTypeKpi(row, matchType.keys));
   }
   return applyLocalFilters(out, archiveEffectiveFilters(filters), { filterFields: ARCHIVE_FILTER_FIELDS });
 }
@@ -227,8 +251,13 @@ function renderArchiveTableSection(rows, state, allRowsCount = rows.length) {
 }
 
 export const archiveScreen = {
-  async load({ api }) {
-    return api.archiveActivities();
+  async load({ api, state }) {
+    // Staged full load: cards, filters and counts must describe the whole period,
+    // never only the first page of closed activities.
+    return api.archiveActivities({
+      activity_period: state?.archiveActivityPeriod || state?.activityPeriodTab,
+      limit: ARCHIVE_DEFAULT_VISIBLE_LIMIT
+    });
   },
 
   render(data, { state }) {
@@ -270,7 +299,8 @@ export const archiveScreen = {
         <h2 class="ds-activities-page-title">ארכיון פעילויות · ${filteredRows.length} פעילויות סגורות</h2>
       </div>`;
 
-    const tableSection = `<div data-archive-table-section>${renderArchiveTableSection(filteredRows, state, allRows.length)}</div>`;
+    const loadedCount = allRows.length + (data?._hasMore ? 1 : 0);
+    const tableSection = `<div data-archive-table-section>${renderArchiveTableSection(filteredRows, state, loadedCount)}</div>`;
 
     return dsScreenStack(`
       <section class="ds-activities-screen ds-activities-screen--archive">
@@ -283,7 +313,7 @@ export const archiveScreen = {
   },
 
   bind({ root, data, state, rerender, ui, api }) {
-    const allRows = Array.isArray(data?.rows) ? data.rows : [];
+    const rowsRef = () => (Array.isArray(data?.rows) ? data.rows : []);
     const canSeePrivateNotes = ['operation_manager', 'admin'].includes(state?.user?.display_role);
     const hideEmpIds = !!state?.clientSettings?.hide_emp_id_on_screens;
     const hideRowId = !!state?.clientSettings?.hide_row_id_in_ui;
@@ -297,18 +327,22 @@ export const archiveScreen = {
       return acc;
     }, {});
 
-    prepareRowsForSearch(allRows, ARCHIVE_SEARCH_FIELDS);
+    prepareRowsForSearch(rowsRef(), ARCHIVE_SEARCH_FIELDS);
 
     const rerenderLocal = () => rerender();
     const tableContainer = root.querySelector('[data-archive-table-section]');
     let searchTimer;
     let searchFrame;
+    let archivePageInFlight = false;
 
     const replaceArchiveView = () => {
+      const allRows = rowsRef();
+      prepareRowsForSearch(allRows, ARCHIVE_SEARCH_FIELDS);
       const filteredRows = applyArchiveFilters(allRows, state);
       const yearScopedRows = applyArchiveYearFilter(allRows, state);
+      const loadedCount = allRows.length + (data?._hasMore ? 1 : 0);
       if (tableContainer) {
-        tableContainer.innerHTML = renderArchiveTableSection(filteredRows, state, allRows.length);
+        tableContainer.innerHTML = renderArchiveTableSection(filteredRows, state, loadedCount);
       }
       const kpiRow = root.querySelector('.ds-archive-kpi-row');
       if (kpiRow) {
@@ -367,11 +401,39 @@ export const archiveScreen = {
       rerenderLocal();
     });
 
-    root.addEventListener('click', (ev) => {
+    root.addEventListener('click', async (ev) => {
       const showMoreBtn = ev.target.closest(`[data-list-show-more="${ARCHIVE_SCOPE}"]`);
       if (!showMoreBtn) return;
       const next = Number(showMoreBtn.dataset?.nextCount || ARCHIVE_DEFAULT_VISIBLE_LIMIT);
       ensureActivityListFilters(state, ARCHIVE_SCOPE).visibleCount = next;
+      if (data?._hasMore && !archivePageInFlight && typeof api?.archiveActivities === 'function') {
+        archivePageInFlight = true;
+        showMoreBtn.disabled = true;
+        try {
+          const page = await api.archiveActivities({
+            activity_period: state?.archiveActivityPeriod || state?.activityPeriodTab,
+            limit: ARCHIVE_DEFAULT_VISIBLE_LIMIT,
+            offset: rowsRef().length,
+            paged: true
+          });
+          const incoming = Array.isArray(page?.rows) ? page.rows : [];
+          const seen = new Set(rowsRef().map((row) => String(row?.RowID || row?.row_id || '').trim()).filter(Boolean));
+          data.rows = [
+            ...rowsRef(),
+            ...incoming.filter((row) => {
+              const id = String(row?.RowID || row?.row_id || '').trim();
+              if (!id || seen.has(id)) return false;
+              seen.add(id);
+              return true;
+            })
+          ];
+          data._hasMore = Boolean(page?._hasMore) && incoming.length > 0;
+        } catch {
+          /* keep already loaded pages */
+        } finally {
+          archivePageInFlight = false;
+        }
+      }
       replaceArchiveView();
     });
 
@@ -399,9 +461,12 @@ export const archiveScreen = {
       const cachedDetail = state?.screenDataCache?.[detailCacheKey(summaryRow)]?.data;
       const cachedDates = state?.screenDataCache?.[datesCacheKey(summaryRow)]?.data;
 
+      // Reopening is a data change: it stays unavailable for the historical 2026 period.
+      const canReopenRow = canReopen && !isReadOnlyActivityRow(summaryRow);
+
       const drawerContent = (row, datesLoading) => {
         const privateNote = canSeePrivateNotes ? row.private_note || '—' : null;
-        const reopenBtn = canReopen
+        const reopenBtn = canReopenRow && !isReadOnlyActivityRow(row)
           ? `<div style="padding:12px 16px 0;text-align:right">
                <button type="button" class="ds-btn ds-btn--sm ds-archive-reopen-btn" data-archive-reopen="${escapeHtml(String(row.RowID || ''))}">
                  🔓 פתח מחדש
@@ -423,8 +488,13 @@ export const archiveScreen = {
         });
       };
 
+      const openDrawerContent = (contentRoot, row) => {
+        hideShellHeader(contentRoot);
+        bindReopenBtn(contentRoot, row, canReopenRow);
+      };
+
       if (cachedDetail) {
-        ui.openDrawer({ title: '', content: drawerContent(cachedDetail, false), onOpen: (contentRoot) => { hideShellHeader(contentRoot); bindReopenBtn(contentRoot, cachedDetail); } });
+        ui.openDrawer({ title: '', content: drawerContent(cachedDetail, false), onOpen: (contentRoot) => openDrawerContent(contentRoot, cachedDetail) });
         return;
       }
 
@@ -432,7 +502,7 @@ export const archiveScreen = {
       ui.openDrawer({
         title: '',
         content: drawerContent(summaryRow, needDates),
-        onOpen: (contentRoot) => { hideShellHeader(contentRoot); bindReopenBtn(contentRoot, summaryRow); },
+        onOpen: (contentRoot) => openDrawerContent(contentRoot, summaryRow),
         onClose: () => {
           const shellHdr = document.querySelector('.ds-drawer > header');
           if (shellHdr) shellHdr.hidden = false;
@@ -470,8 +540,48 @@ export const archiveScreen = {
         .then((rsp) => {
           const row = rsp?.row || summaryRow;
           if (state?.screenDataCache) state.screenDataCache[key] = { data: row, t: Date.now() };
+          applyDetailToOpenDrawer(summaryRow, row);
         })
         .catch(() => {});
+    }
+
+    /**
+     * Refreshes the already-open drawer with the full activity record so funding,
+     * price and participant values appear without closing and reopening it.
+     */
+    function applyDetailToOpenDrawer(summaryRow, detailRow) {
+      const contentNode = document.querySelector('.ds-drawer__content');
+      const openForm = contentNode?.querySelector('[data-drawer-form]');
+      if (!contentNode || !openForm) return;
+      if (String(openForm.getAttribute('data-row-id') || '').trim() !== String(summaryRow?.RowID || '').trim()) return;
+      const canReopenRow = ['admin', 'operation_manager'].includes(state?.user?.display_role)
+        && !isReadOnlyActivityRow(detailRow);
+      const privateNote = canSeePrivateNotes ? detailRow.private_note || '—' : null;
+      const reopenBtn = canReopenRow
+        ? `<div style="padding:12px 16px 0;text-align:right">
+             <button type="button" class="ds-btn ds-btn--sm ds-archive-reopen-btn" data-archive-reopen="${escapeHtml(String(detailRow.RowID || ''))}">
+               🔓 פתח מחדש
+             </button>
+           </div>`
+        : '';
+      contentNode.innerHTML = reopenBtn + activityWorkDrawerHtml(detailRow, {
+        privateNote,
+        canEdit: false,
+        canDirectEdit: false,
+        canRequestEdit: false,
+        hideEmpIds,
+        hideRowId,
+        hideActivityNo,
+        settings,
+        showFinance: false,
+        showFinanceFields: false,
+        datesLoading: false
+      });
+      hideShellHeader(contentNode);
+      bindReopenBtn(contentNode, detailRow, canReopenRow);
+      const latestDates = state?.screenDataCache?.[datesCacheKey(summaryRow)]?.data;
+      const sectionEl = contentNode.querySelector('[data-dates-section]');
+      if (latestDates && sectionEl) patchDrawerDatesSection(sectionEl, latestDates);
     }
 
     function hideShellHeader(contentRoot) {
@@ -479,8 +589,8 @@ export const archiveScreen = {
       if (shellHdr) shellHdr.hidden = true;
     }
 
-    function bindReopenBtn(contentRoot, row) {
-      if (!canReopen) return;
+    function bindReopenBtn(contentRoot, row, allowReopen = canReopen) {
+      if (!allowReopen || isReadOnlyActivityRow(row)) return;
       const btn = contentRoot.querySelector('[data-archive-reopen]');
       if (!btn) return;
       btn.addEventListener('click', () => {
@@ -526,7 +636,7 @@ export const archiveScreen = {
       const row = ev.target.closest('[data-row-id]');
       if (!row) return;
       const rowId = String(row.dataset.rowId || '').trim();
-      const summaryRow = allRows.find((r) => String(r?.RowID || '') === rowId);
+      const summaryRow = rowsRef().find((r) => String(r?.RowID || '') === rowId);
       if (summaryRow) openDetail(summaryRow);
     });
   }

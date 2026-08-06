@@ -1,5 +1,11 @@
 import { resetSupabaseAuthSessionWait } from './supabase-client.js';
 import { permissionFlagYes } from './permissions.js';
+import {
+  ACTIVE_ACTIVITY_SEASON,
+  GLOBAL_ACTIVITY_PERIOD_STORAGE_KEY,
+  defaultMonthForGlobalActivityPeriod,
+  normalizeGlobalActivityPeriod
+} from './screens/shared/summer-activity.js';
 
 function defaultClientSettings() {
   return {
@@ -27,9 +33,14 @@ function defaultClientSettings() {
   };
 }
 
+// A new browser tab shares localStorage and the Supabase session with the other
+// tabs. Do not delete that shared identity merely because this tab has no local
+// session marker yet; adopt the valid stored dashboard session instead.
 if (!sessionStorage.getItem('ds_session_alive')) {
-  localStorage.removeItem('dashboard_token');
-  localStorage.removeItem('dashboard_user');
+  const hasStoredDashboardSession = Boolean(
+    localStorage.getItem('dashboard_token') && localStorage.getItem('dashboard_user')
+  );
+  if (hasStoredDashboardSession) sessionStorage.setItem('ds_session_alive', '1');
 }
 
 function legacyCalendarMonthStorageKey(userId) {
@@ -75,22 +86,7 @@ function normalizeStoredUserFlags(user) {
   };
 }
 
-const ACTIVITY_PERIOD_SUMMER_2026_DEFAULT_FROM = '2026-06-28';
-
-function initialActivityPeriodTab() {
-  const now = new Date();
-  const parts = new Intl.DateTimeFormat('en-CA', {
-    timeZone: 'Asia/Jerusalem',
-    year: 'numeric',
-    month: '2-digit',
-    day: '2-digit'
-  }).formatToParts(now);
-  const byType = Object.fromEntries(parts.map(p => [p.type, p.value]));
-  const today = `${byType.year}-${byType.month}-${byType.day}`;
-  return today >= ACTIVITY_PERIOD_SUMMER_2026_DEFAULT_FROM
-    ? 'summer_2026'
-    : 'school_2026';
-}
+const DEFAULT_GLOBAL_ACTIVITY_PERIOD = ACTIVE_ACTIVITY_SEASON;
 
 const _initStoredUser = normalizeStoredUserFlags(JSON.parse(localStorage.getItem('dashboard_user') || 'null'));
 const _initCalKey = calendarMonthSessionKey(_initStoredUser?.user_id);
@@ -104,7 +100,9 @@ export const state = {
   routes: [],
   effectiveRoutes: [],
   activityTab: 'all',
-  activityPeriodTab: initialActivityPeriodTab(),
+  activityPeriodTab: DEFAULT_GLOBAL_ACTIVITY_PERIOD,
+  /** Historical period is used only after an explicit archive selection. */
+  archiveActivityPeriod: null,
   activityFinanceStatus: '',
   activityQuickFamily: '',
   activityQuickManager: '',
@@ -175,13 +173,15 @@ export function clearScreenDataCache() {
 
 export function setSession(session) {
   if (!session) {
+    const previousUserId = state.user?.user_id;
     state.token = '';
     state.user = null;
     state.routes = [];
     state.effectiveRoutes = [];
     state.route = 'login';
     state.activityTab = 'all';
-    state.activityPeriodTab = 'school_2026';
+    setGlobalActivityPeriod(DEFAULT_GLOBAL_ACTIVITY_PERIOD, { persist: false });
+    state.archiveActivityPeriod = null;
     state.activityFinanceStatus = '';
     state.activityQuickFamily = '';
     state.activityQuickManager = '';
@@ -199,7 +199,7 @@ export function setSession(session) {
     resetSupabaseAuthSessionWait();
     localStorage.removeItem('dashboard_token');
     localStorage.removeItem('dashboard_user');
-    cleanupLegacyCalendarMonthLocalStorage(state.user?.user_id);
+    cleanupLegacyCalendarMonthLocalStorage(previousUserId);
     try {
       Object.keys(sessionStorage)
         .filter((key) => key === 'dashboard_calendar_month_ym_session' || key.startsWith('dashboard_calendar_month_ym_session:'))
@@ -242,6 +242,32 @@ export function setSession(session) {
   localStorage.setItem('dashboard_token', session.token);
   localStorage.setItem('dashboard_user', JSON.stringify(state.user));
   sessionStorage.setItem('ds_session_alive', '1');
+}
+
+export function setGlobalActivityPeriod(value, { persist = true } = {}) {
+  const nextPeriod = normalizeGlobalActivityPeriod(value || DEFAULT_GLOBAL_ACTIVITY_PERIOD);
+  state.activityPeriodTab = nextPeriod;
+  state.activitiesInnerTab = 'year_all';
+  const periodMonth = defaultMonthForGlobalActivityPeriod(nextPeriod);
+  state.dashboardMonthYm = periodMonth;
+  state.activitiesMonthYm = periodMonth;
+  if (state.operationsManagement) {
+    state.operationsManagement.period = nextPeriod;
+    const from = nextPeriod === 'school_2027' ? '2026-09-01' : '2025-09-01';
+    const to = nextPeriod === 'school_2027' ? '2027-08-31' : '2026-08-31';
+    state.operationsManagement.dateFrom = from;
+    state.operationsManagement.dateTo = to;
+  }
+  if (persist) {
+    try { localStorage.setItem(GLOBAL_ACTIVITY_PERIOD_STORAGE_KEY, nextPeriod); } catch { /* ignore */ }
+  }
+  return nextPeriod;
+}
+
+export function setArchiveActivityPeriod(value) {
+  const period = normalizeGlobalActivityPeriod(value);
+  state.archiveActivityPeriod = period === ACTIVE_ACTIVITY_SEASON ? null : period;
+  return state.archiveActivityPeriod;
 }
 
 export { defaultClientSettings, calendarMonthSessionKey, cleanupLegacyCalendarMonthLocalStorage };

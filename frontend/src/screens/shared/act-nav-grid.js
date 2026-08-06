@@ -18,6 +18,7 @@ function itemLabelHtml(item, counts = {}) {
 export const ACT_SUBNAV_ITEMS = [
   { route: 'activities',    label: 'כל הפעילויות',  icon: '📋' },
   { route: 'operations-management', label: 'ניהול תפעול', icon: '🛠️' },
+  { route: 'course-scheduling', label: 'שיבוצים', icon: '🗓️' },
   { route: 'end-dates',     label: 'תאריכי סיום',   icon: '🏁' },
   { route: 'exceptions',    label: 'חריגות',         icon: '⚠️' },
   { route: 'instructors',   label: 'מדריכים',        icon: '👥' },
@@ -25,6 +26,11 @@ export const ACT_SUBNAV_ITEMS = [
   { route: 'contacts',      label: 'אנשי קשר',       icon: '📇' },
   { route: 'edit-requests', label: 'אישורי עריכה',   icon: '✅' },
 ];
+
+function visibleSubnavItems(availableRoutes) {
+  const hasUnifiedClientFile = availableRoutes.has('proposals-agreements');
+  return ACT_SUBNAV_ITEMS.filter((item) => availableRoutes.has(item.route) && !(hasUnifiedClientFile && item.route === 'contacts'));
+}
 
 /**
  * מחזיר HTML של גריד ניווט הפעילויות.
@@ -34,7 +40,7 @@ export const ACT_SUBNAV_ITEMS = [
 export function actNavGridHtml(state, counts = {}) {
   const availableRoutes = new Set(Array.isArray(state?.routes) ? state.routes : []);
   const currentRoute = state?.route || '';
-  const items = ACT_SUBNAV_ITEMS.filter((item) => availableRoutes.has(item.route));
+  const items = visibleSubnavItems(availableRoutes);
   if (!items.length) return '';
   const buttons = items
     .map(
@@ -61,7 +67,7 @@ export function actNavGridHtml(state, counts = {}) {
 export function headerNavGridHtml(state, counts = {}) {
   const availableRoutes = new Set(Array.isArray(state?.routes) ? state.routes : []);
   const currentRoute = state?.route || '';
-  const items = ACT_SUBNAV_ITEMS.filter((item) => availableRoutes.has(item.route));
+  const items = visibleSubnavItems(availableRoutes);
   if (!items.length) return '';
   const buttons = items
     .map(

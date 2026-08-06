@@ -40,26 +40,26 @@ test('service worker entry imports the implementation without a second manual ve
 
   assert.doesNotMatch(rootSw, /SW_ENTRY_VERSION/, 'root service worker should not require a second manual version');
   assert.ok(cacheVersion, 'frontend service worker should expose a cache version');
-  assert.ok(Number(cacheVersion[1]) >= 355, 'cache version should be bumped past the previous v354 cache');
+  assert.ok(Number(cacheVersion[1]) > 1329, 'cache version should be bumped past the previous v1329 cache');
   assert.match(rootSw, /importScripts\(new URL\('frontend\/sw\.js', self\.location\)\.href\);/, 'root SW should import the central implementation directly');
 });
 
-test('service worker removes old dashboard caches during install and activate', async () => {
+test('service worker removes old dashboard caches during activate without interrupting open tabs', async () => {
   const frontendSw = await read(FRONTEND_SW_FILE);
+  const installStart = frontendSw.indexOf("self.addEventListener('install'");
+  const activateStart = frontendSw.indexOf("self.addEventListener('activate'");
+  const installBlock = installStart >= 0 && activateStart > installStart
+    ? frontendSw.slice(installStart, activateStart)
+    : '';
 
+  assert.ok(installBlock, 'service worker should define install before activate');
   assert.match(frontendSw, /const CACHE_PREFIX = 'dashboard-static-v';/);
   assert.match(frontendSw, /key\.startsWith\(CACHE_PREFIX\) && key !== CACHE_NAME/, 'cleanup should target old dashboard cache versions');
-  assert.match(frontendSw, /await deleteOutdatedCaches\(\);[\s\S]*self\.skipWaiting\(\);/, 'install should clean old caches before taking control');
-  assert.match(frontendSw, /deleteOutdatedCaches\(\)\.then\(async \(deletedKeys\) => \{[\s\S]*await self\.clients\.claim\(\);[\s\S]*await reloadClientsAfterCacheUpgrade\(deletedKeys\);/, 'activate should clean old caches, claim clients, and reload windows after a cache upgrade');
-});
-
-test('service worker reloads open dashboard windows after deleting old cache versions', async () => {
-  const frontendSw = await read(FRONTEND_SW_FILE);
-
-  assert.match(frontendSw, /return outdatedKeys;/, 'cache cleanup should report deleted old cache names');
-  assert.match(frontendSw, /async function reloadClientsAfterCacheUpgrade\(deletedKeys\)/, 'service worker should define forced client reload after cache upgrade');
-  assert.match(frontendSw, /self\.clients\.matchAll\(\{ type: 'window', includeUncontrolled: true \}\)/, 'reload should include currently open dashboard windows');
-  assert.match(frontendSw, /client\.navigate\(client\.url\)/, 'open clients should be navigated to fetch the fresh app shell and assets');
+  assert.doesNotMatch(installBlock, /deleteOutdatedCaches/, 'install must not delete outdated caches before activate');
+  assert.match(frontendSw, /self\.addEventListener\('activate'[\s\S]*await deleteOutdatedCaches\(\);[\s\S]*await self\.clients\.claim\(\);/, 'activate should clean old caches and claim clients silently');
+  assert.doesNotMatch(frontendSw, /reloadClientsAfterCacheUpgrade/, 'service worker must not keep a forced client reload helper');
+  assert.doesNotMatch(frontendSw, /client\.navigate\(/, 'service worker must not navigate or reload open dashboard tabs');
+  assert.doesNotMatch(frontendSw, /SW_UPDATED/, 'service worker should not display an update message or request a manual refresh');
 });
 
 test('service worker fetches app shell and manifest fresh after deploy', async () => {
@@ -69,6 +69,7 @@ test('service worker fetches app shell and manifest fresh after deploy', async (
   assert.match(frontendSw, /new Request\(request, \{ cache: 'no-store' \}\)/, 'network-first requests should bypass stale browser cache');
   assert.match(frontendSw, /\|\| isManifestUrl\(url\)/, 'manifest should use the network-first path');
   assert.match(frontendSw, /if \(isApiLikeUrl\(url\) \|\| isBlockedCachePath\(url\)\) \{[\s\S]*event\.respondWith\(fetch\(request\)\)/, 'API-like and blocked requests should remain network-only');
+  assert.doesNotMatch(frontendSw, /ignoreSearch\s*:\s*true/, 'cache-busting query strings must remain part of the cache key');
 });
 
 test('PWA manifest and icon files still point to existing dashboard assets', async () => {

@@ -1,11 +1,13 @@
 import { api } from './api.js';
 import { config } from './config.js';
-import { state, setSession, defaultClientSettings } from './state.js';
+import { ACTIVE_ACTIVITY_SEASON, globalActivityPeriodLabel, globalActivityPeriodFullLabel, globalActivityPeriodOptions, normalizeGlobalActivityPeriod } from './screens/shared/summer-activity.js';
+import { state, setSession, defaultClientSettings, setGlobalActivityPeriod, setArchiveActivityPeriod } from './state.js';
 import { SCREEN_CACHE_STORAGE_PREFIX, persistCacheEntry, deletePersistedCacheEntry, deletePersistedCacheByPrefixes } from './cache-persist.js';
 import { escapeHtml } from './screens/shared/html.js';
 import { hebrewRole, translateApiErrorForUser } from './screens/shared/ui-hebrew.js';
 import { createSharedInteractionLayer } from './screens/shared/interactions.js';
 import { headerNavGridHtml } from './screens/shared/act-nav-grid.js';
+import { syncGlobalActivityPeriodSelector as syncGlobalActivityPeriodSelectorDom } from './screens/shared/shell-period-selector.js';
 import { uniqueExceptionActivityCount } from './screens/shared/exceptions-metrics.js';
 import { loginScreen } from './screens/login.js';
 import { clearFinancePrefsIfUserChanged } from './screens/shared/finance-prefs-storage.js';
@@ -13,8 +15,21 @@ import { applyGlobalAccent, accentNameFromStorage, bindAccentPickerOnce as bindA
 import { waitForSupabaseAuthSession } from './supabase-client.js';
 import { permissionFlagYes as permissionEnabled } from './permissions.js';
 import { countPendingApprovedProposals } from './screens/shared/proposals-pending-count.js';
+import { bootstrapLocalBaselineMonitor } from './local-baseline-monitor.js';
 
 const app = document.getElementById('app');
+bootstrapLocalBaselineMonitor({
+  buildEnabled: import.meta.env.DEV || import.meta.env.VITE_DS_BASELINE_MONITOR === 'true',
+  getContext: () => ({
+    route: state.route,
+    activity_period: state.activityPeriodTab,
+    tab: state.operationsManagement?.tab || 'unknown',
+    drawer_open: !!document.querySelector('[role="dialog"],.ds-drawer.is-open'),
+    document_open: !!document.querySelector('[data-pa-document-detail],[data-pa-preview-modal]'),
+    navigation_id: String(activeNavigationToken || navigationToken || 0)
+  }),
+  document
+});
 const loginLogoSrc  = new URL('../assets/logo1.png',      import.meta.url).href;
 const systemLogoSrc = new URL('../assets/logo_system.png', import.meta.url).href;
 
@@ -35,6 +50,13 @@ const PERF_MAX_RENDERS = 150;
 
 export { applyGlobalAccent };
 
+export function syncGlobalActivityPeriodSelector(root = document) {
+  const visiblePeriod = state.route === 'archive' && state.archiveActivityPeriod
+    ? state.archiveActivityPeriod
+    : state.activityPeriodTab;
+  syncGlobalActivityPeriodSelectorDom(root, visiblePeriod);
+}
+
 export function bindAccentPickerOnce() {
   bindAccentPickerListenerOnce({
     getClientSettings: () => state.clientSettings,
@@ -46,13 +68,9 @@ export function bindAccentPickerOnce() {
 
 applyGlobalAccent(accentNameFromStorage(state.clientSettings));
 
-/** Timer handle for deferred prefetch — cancelled on every new navigation. */
-let prefetchTimer = null;
-let prefetchIdleId = null;
 let firstAuthenticatedRenderTimerStarted = false;
 let firstLoadTimerStarted = false;
 let firstDashboardSnapshotTimerStarted = false;
-let firstPrefetchTimerStarted = false;
 let fastRerenderVersion = 0;
 let navigationToken = 0;
 let activeNavigationToken = 0;
@@ -160,90 +178,6 @@ function setRouteRefreshing(active) {
   }
 }
 
-/** Injects the one-time CSS needed for the background-prefetch sidebar indicator. */
-function ensurePrefetchIndicatorStyle() {
-  if (ensurePrefetchIndicatorStyle._done) return;
-  ensurePrefetchIndicatorStyle._done = true;
-  if (typeof document === 'undefined') return;
-  const el = document.createElement('style');
-  el.setAttribute('data-ds', 'prefetch-indicator');
-  el.textContent =
-    '@keyframes ds-prefetch-sweep{0%{transform:translateX(100%)}100%{transform:translateX(-100%)}}' +
-    '.app-shell.is-prefetching .shell-sidebar{position:relative;overflow:hidden}' +
-    '.app-shell.is-prefetching .shell-sidebar::after{content:"";position:absolute;bottom:0;inset-inline-start:0;inset-inline-end:0;height:2px;' +
-    'background:linear-gradient(90deg,transparent 0%,rgba(99,179,237,0.55) 50%,transparent 100%);' +
-    'animation:ds-prefetch-sweep 1.6s linear infinite;pointer-events:none}';
-  document.head.appendChild(el);
-}
-
-/** Reference count of in-flight prefetch runs — indicator stays visible until it reaches zero. */
-let _prefetchIndicatorCount = 0;
-
-/** Shows or hides the subtle sidebar prefetch indicator (no spinner, no blocking UI).
- *  Reference-counted so overlapping runs don't prematurely clear the indicator. */
-function setPrefetchIndicator(active) {
-  if (typeof document === 'undefined') return;
-  if (active) {
-    ensurePrefetchIndicatorStyle();
-    _prefetchIndicatorCount = Math.max(0, _prefetchIndicatorCount) + 1;
-  } else {
-    _prefetchIndicatorCount = Math.max(0, _prefetchIndicatorCount - 1);
-  }
-  document.querySelector('.app-shell')?.classList.toggle('is-prefetching', _prefetchIndicatorCount > 0);
-}
-
-function cancelPrefetchSchedule() {
-  clearTimeout(prefetchTimer);
-  prefetchTimer = null;
-  if (typeof window !== 'undefined' && typeof window.cancelIdleCallback === 'function' && prefetchIdleId != null) {
-    window.cancelIdleCallback(prefetchIdleId);
-  }
-  prefetchIdleId = null;
-}
-
-function schedulePostLoginPrefetch() {
-  if (STABILITY_HOTFIX_DISABLE_BACKGROUND_REFRESH) return;
-  cancelPrefetchSchedule();
-  const run = () => {
-    prefetchTimer = null;
-    prefetchIdleId = null;
-    if (!state.token) return;
-    if (_isRendering || _pendingRender) return;
-    if (!firstPrefetchTimerStarted) {
-      firstPrefetchTimerStarted = true;
-      beginPerfTimer('prefetch:firstRun');
-      try {
-        prefetchFromDashboardIfNeeded();
-      } finally {
-        endPerfTimer('prefetch:firstRun');
-      }
-      return;
-    }
-    prefetchFromDashboardIfNeeded();
-  };
-
-  // When any of the prefetch-target screens already has a fresh cache entry the
-  // dashboard painted immediately from localStorage — there is no hydration
-  // competition to worry about, so we can start much sooner.  The 4 s floor is
-  // preserved only when the caches are fully cold (very first load / hard clear).
-  const _PREFETCH_WARM_SCREENS = ['activities', 'week', 'month', 'end-dates', 'archive'];
-  const _prefetchAnyWarm = _PREFETCH_WARM_SCREENS.some((r) => {
-    if (!isAllowedRoute(r)) return false;
-    const hit = state.screenDataCache[buildScreenDataCacheKey(r, state)];
-    const ttl = SCREEN_CACHE_TTL_MS[r] ?? DEFAULT_CACHE_TTL_MS;
-    return !!(hit && Date.now() - hit.t < ttl);
-  });
-  const _prefetchDelay = _prefetchAnyWarm ? 1200 : 3500;
-
-  prefetchTimer = setTimeout(() => {
-    prefetchTimer = null;
-    if (typeof window !== 'undefined' && typeof window.requestIdleCallback === 'function') {
-      prefetchIdleId = window.requestIdleCallback(run, { timeout: 1000 });
-    } else {
-      run();
-    }
-  }, _prefetchDelay);
-}
 
 function recordRenderPerf(route, phase, durationMs, extra = {}) {
   if (typeof window === 'undefined') return;
@@ -330,12 +264,16 @@ function perfStore() {
       if (!currentStore) return null;
       const requests = Array.isArray(currentStore.requests) ? currentStore.requests : [];
       const renders = Array.isArray(currentStore.renders) ? currentStore.renders : [];
+      const interactions = Array.isArray(currentStore.interactions) ? currentStore.interactions : [];
       const slowestRequests = [...requests]
         .sort((a, b) => (b?.duration_ms || 0) - (a?.duration_ms || 0))
         .slice(0, 5);
       const slowestScreens = [...renders]
         .sort((a, b) => (b?.duration_ms || 0) - (a?.duration_ms || 0))
         .slice(0, 5);
+      const slowestInteractions = [...interactions]
+        .sort((a, b) => (b?.click_to_next_paint_ms || 0) - (a?.click_to_next_paint_ms || 0))
+        .slice(0, 10);
       const actionCounts = requests.reduce((acc, item) => {
         const key = String(item?.action || 'unknown');
         acc[key] = (acc[key] || 0) + 1;
@@ -344,12 +282,14 @@ function perfStore() {
       const summary = {
         slowest_requests: slowestRequests,
         slowest_screens: slowestScreens,
+        slowest_interactions: slowestInteractions,
         action_counts: actionCounts
       };
       if (typeof console !== 'undefined' && typeof console.table === 'function') {
         console.info('DS Perf Summary');
         console.table(slowestRequests);
         console.table(slowestScreens);
+        console.table(slowestInteractions);
         console.table(Object.entries(actionCounts).map(([action, count]) => ({ action, count })));
       } else if (typeof console !== 'undefined' && typeof console.info === 'function') {
         console.info('DS Perf Summary', summary);
@@ -526,6 +466,7 @@ function applyBootstrapFromLoginData(data) {
   state.routes = effectiveRoutes;
   state.effectiveRoutes = effectiveRoutes;
   enforceProposalsAgreementsRoute();
+  enforceCourseSchedulingRoute();
   state.route = resolveAllowedDefaultRoute(data.default_route, state.effectiveRoutes);
   saveRoutesToStorage(state.routes, state.route, state.clientSettings);
   consumePendingRouteFromUrlOrSession();
@@ -538,6 +479,7 @@ const screenLabels = {
   month: 'חודש',
   exceptions: 'חריגות',
   instructors: 'מדריכים',
+  'course-scheduling': 'שיבוץ קורסים',
   'instructor-contacts': 'אנשי קשר מדריכים',
   contacts: 'אנשי קשר',
   'end-dates': 'תאריכי סיום',
@@ -553,7 +495,7 @@ const screenLabels = {
   'admin-settings': 'הגדרות מערכת',
   'admin-lists': 'ניהול רשימות',
   archive: 'ארכיון',
-  'proposals-agreements': 'הצעות מחיר',
+  'proposals-agreements': 'תיק לקוח',
   finance: 'כספים',
   invitations: 'הזמנות לאירועים',
   orders: 'הזמנות לאירועים',
@@ -611,6 +553,10 @@ async function refreshPendingApprovedProposalsCount() {
     return;
   }
   try {
+    if (typeof api.proposalsPendingApprovedCount === 'function') {
+      setPendingApprovedProposalsCount(await api.proposalsPendingApprovedCount());
+      return;
+    }
     const data = await api.proposalsAgreements();
     const rows = Array.isArray(data?.rows) ? data.rows : [];
     setPendingApprovedProposalsCount(countPendingApprovedProposals(rows));
@@ -625,7 +571,8 @@ const screenLoaders = {
   week: () => import('./screens/week.js').then((m) => m.weekScreen),
   month: () => import('./screens/month.js').then((m) => m.monthScreen),
   exceptions: () => import('./screens/exceptions.js').then((m) => m.exceptionsScreen),
-  instructors: () => import('./screens/instructors.js').then((m) => m.instructorsScreen),
+  instructors: () => import('./screens/instructors.js?v=20260806-scheduling-quality-tiers-v1').then((m) => m.instructorsScreen),
+  'course-scheduling': () => import('./screens/course-scheduling.js?v=20260807-proposed-date-adjustments-v3').then((m) => m.courseSchedulingScreen),
   'instructor-contacts': () => import('./screens/instructor-contacts.js').then((m) => m.instructorContactsScreen),
   contacts: () => import('./screens/contacts.js').then((m) => m.contactsScreen),
   'end-dates': () => import('./screens/end-dates.js').then((m) => m.endDatesScreen),
@@ -1007,7 +954,7 @@ function shellUserRoleLine() {
 }
 
 // מסכים אלו מגיעים מניווט גריד בלבד — לא מוצגים בסרגל הצד
-const ACTIVITIES_CHILD_ROUTES = new Set(['week', 'month', 'instructors', 'end-dates', 'exceptions', 'instructor-contacts', 'archive', 'contacts', 'edit-requests']);
+const ACTIVITIES_CHILD_ROUTES = new Set(['week', 'month', 'instructors', 'course-scheduling', 'end-dates', 'exceptions', 'instructor-contacts', 'archive', 'contacts', 'edit-requests']);
 
 const PROPOSALS_AGREEMENTS_NAV_ROLES = new Set(['admin', 'operation_manager', 'domain_manager', 'business_development_manager']);
 
@@ -1025,11 +972,18 @@ function enforceProposalsAgreementsRoute() {
   }
 }
 
+function enforceCourseSchedulingRoute() {
+  if (!state.token || !['admin', 'operation_manager'].includes(String(state?.user?.role || '').trim())) return;
+  if (!(state.effectiveRoutes || []).includes('course-scheduling')) state.effectiveRoutes = [...(state.effectiveRoutes || []), 'course-scheduling'];
+  state.routes = state.effectiveRoutes;
+}
+
 // מסכי ניהול — נגישים למי שיש לו הרשאה, אך לא מוצגים בסרגל הצד
 const ADMIN_SIDEBAR_HIDDEN_ROUTES = new Set(['admin-home', 'admin-settings', 'admin-lists']);
 
 function shell(content) {
   enforceProposalsAgreementsRoute();
+  enforceCourseSchedulingRoute();
   const hiddenSet = navSidebarHiddenRoutesSet();
   const contextualSet = navContextualRoutesSet();
   const isAdminUser = state?.user?.role === 'admin';
@@ -1063,9 +1017,10 @@ function shell(content) {
 
   const HEADER_ALWAYS_EXCLUDE = new Set(['instructor-contacts', 'proposals-agreements', 'week', 'month']);
   const adminHeaderExclude = isAdminUser ? new Set(['operations', ...(isActiveInstructorPilotUser() ? [] : ['my-data']), 'permissions']) : new Set();
+  const hasUnifiedClientFile = effectiveRoutes().includes('proposals-agreements');
   const headerNavHtml = headerNavGridHtml({
     route: state.route,
-    routes: effectiveRoutes().filter((r) => !adminHeaderExclude.has(r) && !HEADER_ALWAYS_EXCLUDE.has(r))
+    routes: effectiveRoutes().filter((r) => !adminHeaderExclude.has(r) && !HEADER_ALWAYS_EXCLUDE.has(r) && !(hasUnifiedClientFile && r === 'contacts'))
   }, { exceptions: exceptionsNavCount(), editRequests: Number(state.openEditRequestsCount) || 0 });
   const headerTechHtml = '';
   const instructorMobileHeader = isInstructorUser
@@ -1091,6 +1046,12 @@ function shell(content) {
         <hr class="shell-sidebar__divider" />
         <nav class="shell-nav">${nav}${attendanceNavBtn}</nav>
         <div class="shell-sidebar__footer" dir="rtl">
+          <div class="shell-period-wrap" data-global-period-wrap>
+            <button type="button" class="shell-period-btn" data-global-period-toggle aria-haspopup="listbox" aria-expanded="false" aria-label="תקופת פעילות גלובלית" title="${escapeHtml(globalActivityPeriodFullLabel(state.activityPeriodTab))}">${escapeHtml(globalActivityPeriodLabel(state.activityPeriodTab))}</button>
+            <div class="shell-period-menu" data-global-period-menu hidden role="listbox" aria-label="בחירת תקופת פעילות">
+              ${globalActivityPeriodOptions().map((option) => `<button type="button" class="shell-period-option${normalizeGlobalActivityPeriod(state.activityPeriodTab) === option.value ? ' is-active' : ''}" data-global-period-option="${escapeHtml(option.value)}" role="option" aria-selected="${normalizeGlobalActivityPeriod(state.activityPeriodTab) === option.value ? 'true' : 'false'}"><span>${escapeHtml(option.label)}</span><strong>${escapeHtml(option.shortLabel)}</strong></button>`).join('')}
+            </div>
+          </div>
           <div class="ds-accent-picker-wrap" data-accent-picker-wrap>
             <button type="button" class="ds-accent-picker-btn" data-accent-picker-btn aria-label="צבע ממשק" title="צבע ממשק"></button>
             <div class="ds-accent-picker-popover" data-accent-picker-popover hidden>
@@ -1174,21 +1135,49 @@ function closeMobileNav() {
 }
 
 function buildScreenDataCacheKey(route, cacheState = state) {
+  const activityPeriod = normalizeGlobalActivityPeriod(cacheState?.activityPeriodTab || 'regular');
+  // Projection/version stamp so 2026/2027 and list-shape changes never share one cache entry.
+  // Bump when activities list projection columns change (e.g. funding) so stale
+  // cached rows without the new fields are not reused.
+  const projection = 'p3';
+  const withActivityPeriod = (base) => `${base}:period:${activityPeriod}:proj:${projection}`;
   if (route === 'activities') {
-    return 'activities:periods';
+    return `activities:periods:proj:${projection}`;
   }
   if (route === 'dashboard') {
     const ym = cacheState.dashboardMonthYm && /^\d{4}-\d{2}$/.test(cacheState.dashboardMonthYm) ? cacheState.dashboardMonthYm : 'default';
-    return `dashboard:${ym}`;
+    return withActivityPeriod(`dashboard:${ym}`);
+  }
+  if (route === 'archive') {
+    const archivePeriod = normalizeGlobalActivityPeriod(cacheState?.archiveActivityPeriod || activityPeriod);
+    return `archive:period:${archivePeriod}:proj:${projection}`;
   }
   if (route === 'week') {
-    return `week:${cacheState.weekOffset || 0}`;
+    return withActivityPeriod(`week:${cacheState.weekOffset || 0}`);
   }
   if (route === 'month') {
     const ym = cacheState.monthYm && /^\d{4}-\d{2}$/.test(cacheState.monthYm) ? cacheState.monthYm : 'current';
-    return `month:${ym}`;
+    return withActivityPeriod(`month:${ym}`);
   }
-  return route;
+  if (route === 'exceptions') {
+    return withActivityPeriod(route);
+  }
+  if (route === 'end-dates') {
+    return withActivityPeriod('end-dates');
+  }
+  if (['operations-management', 'instructor-completion-approvals'].includes(route)) {
+    return withActivityPeriod(route);
+  }
+  if (route === 'proposals-agreements') {
+    return `proposals-agreements:list:proj:${projection}`;
+  }
+  if (route === 'contacts') {
+    return `contacts:list:proj:${projection}`;
+  }
+  if (route === 'instructors') {
+    return withActivityPeriod('instructors:list');
+  }
+  return `${route}:proj:${projection}`;
 }
 
 function screenDataCacheKey() {
@@ -1205,7 +1194,7 @@ const SCREEN_CACHE_TTL_MS = {
   week: 8 * 60 * 1000,
   month: 8 * 60 * 1000,
   exceptions: 8 * 60 * 1000,
-  'proposals-agreements': 0,
+  'proposals-agreements': 2 * 60 * 1000,
 };
 const DEFAULT_CACHE_TTL_MS = 15 * 60 * 1000;
 
@@ -1299,12 +1288,9 @@ function maybePersistScreenCacheEntry(key, entry) {
 async function loadScreenDataWithCache(screen) {
   if (!screen.load) return {};
   const routeName = String(state.route || '');
-  const routePerfEnabled = routeName === 'dashboard' || routeName === 'activities' || routeName === 'week' || routeName === 'month' || routeName === 'contacts';
+  const routePerfEnabled = routeName === 'dashboard' || routeName === 'activities' || routeName === 'week' || routeName === 'month' || routeName === 'contacts' || routeName === 'proposals-agreements';
   const routePerfStart = routePerfEnabled ? (typeof performance !== 'undefined' ? performance.now() : Date.now()) : 0;
   const key = screenDataCacheKey();
-  if (routeName === 'proposals-agreements') {
-    purgeProposalsRelatedCaches();
-  }
   const hit = state.screenDataCache[key];
   const ttl = screenCacheTtl();
   const age = hit ? Date.now() - hit.t : 0;
@@ -1358,12 +1344,11 @@ async function loadScreenDataWithCache(screen) {
         });
       }
       const entry = { data, t: Date.now() };
+      state.screenDataCache[key] = entry;
+      maybePersistScreenCacheEntry(key, entry);
       if (routeName === 'proposals-agreements') {
         logProposalsAgreementsContactOptions(data);
         syncPendingApprovedProposalsCountFromRows(data?.rows);
-      } else {
-        state.screenDataCache[key] = entry;
-        maybePersistScreenCacheEntry(key, entry);
       }
       if (key === 'exceptions') updateExceptionNavCount();
       inflightRequests.delete(key);
@@ -1398,10 +1383,8 @@ async function backgroundRefreshScreen(screen, cacheKey) {
     const data = await p;
     inflightRequests.delete(cacheKey);
     const entry = { data, t: Date.now() };
-    if (cacheKey !== 'proposals-agreements') {
-      state.screenDataCache[cacheKey] = entry;
-      maybePersistScreenCacheEntry(cacheKey, entry);
-    }
+    state.screenDataCache[cacheKey] = entry;
+    maybePersistScreenCacheEntry(cacheKey, entry);
     if (cacheKey === 'exceptions') updateExceptionNavCount();
     if (cacheKey === 'proposals-agreements') syncPendingApprovedProposalsCountFromRows(data?.rows);
     if (
@@ -1429,90 +1412,6 @@ async function backgroundRefreshScreen(screen, cacheKey) {
   }
 }
 
-async function prefetchFromDashboardIfNeeded() {
-  if (!state.token) return;
-  if (state.route !== 'dashboard') return;
-
-  const PREFETCH_SCREENS = ['activities', 'week', 'month', 'end-dates', 'archive'];
-  const toFetch = PREFETCH_SCREENS.filter((r) => isAllowedRoute(r));
-  if (!toFetch.length) return;
-
-  const capturedToken = activeNavigationToken;
-  const capturedSessionToken = state.token;
-  const capturedUserId = state.user?.user_id || '';
-
-  // activitiesScreen.load() synchronously sets state.activitiesMonthYm = currentYm()
-  // before its first await, so normalise it here before computing cache keys so
-  // the inflightRequests key and the final cache key stay in sync.
-  if (!state.activitiesMonthYm) {
-    const _n = new Date();
-    state.activitiesMonthYm = `${_n.getFullYear()}-${String(_n.getMonth() + 1).padStart(2, '0')}`;
-  }
-
-  let screenModules;
-  try {
-    screenModules = await Promise.all(toFetch.map((r) => getScreen(r).catch(() => null)));
-  } catch {
-    return;
-  }
-
-  if (activeNavigationToken !== capturedToken) return;
-  if (!state.token) return;
-
-  setPrefetchIndicator(true);
-  const fetchPromises = toFetch.map((route, idx) => {
-    const screen = screenModules[idx];
-    if (!screen || !screen.load) return Promise.resolve();
-
-    // Key is captured before load() so user changes to weekOffset/monthYm during
-    // the request do not shift the write to a different period's cache slot.
-    const cacheKey = buildScreenDataCacheKey(route, state);
-    const ttl = SCREEN_CACHE_TTL_MS[route] ?? DEFAULT_CACHE_TTL_MS;
-
-    const hit = state.screenDataCache[cacheKey];
-    if (hit && Date.now() - hit.t < ttl) return Promise.resolve();
-    if (inflightRequests.has(cacheKey)) return Promise.resolve();
-
-    const p = screen.load({ api, state })
-      .then((data) => {
-        inflightRequests.delete(cacheKey);
-        // Discard if navigation happened or the session changed mid-flight.
-        if (activeNavigationToken !== capturedToken) return data;
-        if (!state.token || state.token !== capturedSessionToken) return data;
-        if (capturedUserId && (state.user?.user_id || '') !== capturedUserId) return data;
-        // Keep a fresher entry if navigation already wrote one.
-        const existing = state.screenDataCache[cacheKey];
-        if (existing && Date.now() - existing.t < ttl) return existing.data ?? data;
-        const entry = { data, t: Date.now() };
-        state.screenDataCache[cacheKey] = entry;
-        maybePersistScreenCacheEntry(cacheKey, entry);
-        return data;
-      })
-      .catch((err) => {
-        inflightRequests.delete(cacheKey);
-        throw err;
-      });
-
-    // Registering in inflightRequests lets loadScreenDataWithCache reuse this
-    // promise if navigation arrives while the request is in flight.
-    inflightRequests.set(cacheKey, p);
-    return p;
-  });
-
-  try {
-    await Promise.allSettled(fetchPromises);
-  } finally {
-    setPrefetchIndicator(false);
-  }
-}
-
-function maybePrefetchFromDashboard() {
-  if (STABILITY_HOTFIX_DISABLE_BACKGROUND_REFRESH) return;
-  if (!hasMountedAuthenticatedShell) return;
-  if (_isRendering || _pendingRender) return;
-  schedulePostLoginPrefetch();
-}
-
 function setShellNavBusy(busy) {
   document.querySelectorAll('.app-shell [data-route]').forEach((b) => {
     b.disabled = busy;
@@ -1534,6 +1433,7 @@ function updateNavActiveClasses() {
     btn.classList.toggle('is-active', btn.dataset.route === state.route);
   });
   updateExceptionNavCount();
+  syncGlobalActivityPeriodSelector();
   const mobileBrand = document.querySelector('.shell-top__mobile-brand');
   if (mobileBrand) {
     mobileBrand.textContent = screenLabels[state.route] || systemNameDisplay();
@@ -1696,6 +1596,7 @@ function tryRestoreRoutesInstant() {
     state.routes = effectiveR;
     state.effectiveRoutes = effectiveR;
     enforceProposalsAgreementsRoute();
+    enforceCourseSchedulingRoute();
     state.route = resolveAllowedDefaultRoute(saved.defaultRoute || '', state.effectiveRoutes);
     restoreScreenCacheFromStorage();
     return true;
@@ -1752,6 +1653,7 @@ function applyBootstrapRoutes(bootstrap) {
   state.routes = normalizedRoutes;
   state.effectiveRoutes = normalizedRoutes;
   enforceProposalsAgreementsRoute();
+  enforceCourseSchedulingRoute();
   const newDefault = resolveAllowedDefaultRoute(bootstrap.default_route, state.effectiveRoutes);
   saveRoutesToStorage(state.routes, newDefault, state.clientSettings);
   applyBootstrapUserFlags(bootstrap);
@@ -1813,12 +1715,12 @@ async function mountScreen() {
   const transitionToken = ++navigationToken;
   activeNavigationToken = transitionToken;
   latestNavigationRoute = requestedRoute;
+  window.__dsLocalBaseline?.markNavigation?.({ route: requestedRoute });
   const transitionLabel = `route:transition:${transitionToken}`;
   activeRouteTransitionLabel = transitionLabel;
   beginPerfTimer('route:transition');
   beginPerfTimer(transitionLabel);
   const mountStartMs = performance.now();
-  cancelPrefetchSchedule();
   if (isDesktopViewport()) {
     isMobileNavOpen = false;
     document.body.classList.remove('is-shell-nav-open');
@@ -1872,14 +1774,9 @@ async function mountScreen() {
 
   const cacheKey = screenDataCacheKey();
   const routeLoadStartMs = typeof performance !== 'undefined' ? performance.now() : Date.now();
-  if (requestedRoute === 'proposals-agreements') {
-    purgeProposalsRelatedCaches();
-  }
   // eslint-disable-next-line no-console
   console.info('[route-load:start]', { route: requestedRoute, cacheKey });
-  const rawEntry = (requestedRoute === 'proposals-agreements' || !screen.load)
-    ? null
-    : state.screenDataCache[cacheKey];
+  const rawEntry = !screen.load ? null : state.screenDataCache[cacheKey];
   const isStale = rawEntry && (Date.now() - rawEntry.t >= screenCacheTtl() || rawEntry.data?._is_stale === true);
 
   const shellExists = !!(state.token && document.querySelector('.app-shell #screenRoot'));
@@ -1913,7 +1810,6 @@ async function mountScreen() {
       });
       if (routeChanged) lastRenderedRoute = state.route;
       if (isStale) backgroundRefreshScreen(screen, cacheKey);
-      maybePrefetchFromDashboard();
       finishRouteTransition(transitionLabel, requestedRoute, cacheKey, mountStartMs, transitionToken);
       return;
     }
@@ -1937,7 +1833,6 @@ async function mountScreen() {
     });
     if (routeChanged) lastRenderedRoute = state.route;
     if (isStale) backgroundRefreshScreen(screen, cacheKey);
-    maybePrefetchFromDashboard();
     finishRouteTransition(transitionLabel, requestedRoute, cacheKey, mountStartMs, transitionToken);
     return;
   } else {
@@ -1988,6 +1883,7 @@ async function mountScreen() {
       phase: 'fresh-data-render',
       cacheKey
     });
+    window.__dsLocalBaseline?.markContent?.({ route: requestedRoute });
     endPerfTimer('route:renderScreen');
     // eslint-disable-next-line no-console
     console.info('[route-load:success]', {
@@ -2004,7 +1900,6 @@ async function mountScreen() {
         }
       }, 3000);
     }
-    maybePrefetchFromDashboard();
   } catch (err) {
     inflightRequests.delete(cacheKey);
     endPerfTimer('route:loadData');
@@ -2042,7 +1937,6 @@ async function mountScreen() {
       hasMountedAuthenticatedShell = true;
       endPerfTimer('login:firstAuthenticatedRender');
       endPerfTimer('screen:firstLoad');
-      schedulePostLoginPrefetch();
     }
     setShellNavBusy(false);
     finishRouteTransition(transitionLabel, requestedRoute, cacheKey, mountStartMs, transitionToken);
@@ -2127,6 +2021,43 @@ function bindShell() {
     localStorage.removeItem('dashboard_routes');
     render();
   };
+  document.addEventListener('click', (ev) => {
+    const toggle = ev.target?.closest?.('[data-global-period-toggle]');
+    const option = ev.target?.closest?.('[data-global-period-option]');
+    const wrap = ev.target?.closest?.('[data-global-period-wrap]');
+    const currentWrap = document.querySelector('[data-global-period-wrap]');
+    const periodToggle = currentWrap?.querySelector('[data-global-period-toggle]');
+    const periodMenu = currentWrap?.querySelector('[data-global-period-menu]');
+    const setPeriodMenuOpen = (open) => {
+      if (!periodMenu || !periodToggle) return;
+      periodMenu.hidden = !open;
+      periodToggle.setAttribute('aria-expanded', open ? 'true' : 'false');
+    };
+    if (toggle) {
+      ev.stopPropagation();
+      setPeriodMenuOpen(!!periodMenu?.hidden);
+      return;
+    }
+    if (option) {
+      ev.stopPropagation();
+      const selected = normalizeGlobalActivityPeriod(option.getAttribute('data-global-period-option'));
+      if (selected !== ACTIVE_ACTIVITY_SEASON) {
+        setArchiveActivityPeriod(selected);
+        state.route = 'archive';
+        clearScreenDataCache();
+        scheduleRender();
+      } else if (state.activityPeriodTab !== selected || state.route === 'archive') {
+        setArchiveActivityPeriod(ACTIVE_ACTIVITY_SEASON);
+        setGlobalActivityPeriod(ACTIVE_ACTIVITY_SEASON);
+        syncGlobalActivityPeriodSelector();
+        clearScreenDataCache();
+        scheduleRender();
+      }
+      setPeriodMenuOpen(false);
+      return;
+    }
+    if (!wrap) setPeriodMenuOpen(false);
+  });
   document.getElementById('logoutBtn')?.addEventListener('click', handleLogout);
   document.querySelectorAll('.shell-logout-btn--mobile').forEach((btn) => {
     btn.addEventListener('click', handleLogout);
@@ -2187,7 +2118,6 @@ async function render() {
             firstAuthenticatedRenderTimerStarted = false;
             firstLoadTimerStarted = false;
             firstDashboardSnapshotTimerStarted = false;
-            firstPrefetchTimerStarted = false;
             beginPerfTimer('login:setSession');
             setSession({ token: data.token, user: data.user });
             state.authSessionReady = true;
@@ -2213,7 +2143,6 @@ async function render() {
             console.info('[first-route-render:start]', { route: state.route });
             loginInlineError = '';
             endPerfTimer('login:applyBootstrap');
-            scheduleRender();
             mountScreen().then(() => {
               // eslint-disable-next-line no-console
               console.info('[first-route-render:success]', { route: state.route });

@@ -1,0 +1,105 @@
+יש תקלה בשמירת עדכון סטטוס לסדנאות מתוך מסך חריגות במערכת הדשבורד.
+
+קישור מערכת:
+https://taasiyeda2026.github.io/dashboard_system/
+
+Supabase project:
+szinlhjuwyiyszdpsdop
+
+הבעיה בפועל:
+כאשר נכנסים לסדנאות שמופיעות בחריגות ומשנים להן סטטוס מ־"פתוח" ל־"סגור", מתקבלת הודעת שגיאת שרת והשמירה לא מתבצעת.
+
+ממצא בדיקה:
+הבעיה כנראה אינה במסך חריגות עצמו, אלא בעדכון `public.activities`.
+
+בעת עדכון פעילות בטבלת `public.activities`, מופעל טריגר בשם:
+
+`sync_lists_after_activities`
+
+הטריגר מפעיל את הפונקציה:
+
+`public.sync_dynamic_dropdown_lists()`
+
+הפונקציה הזו מוחקת ובונה מחדש רשומות דינמיות בטבלת:
+
+`public.lists`
+
+בקטגוריות:
+
+* instructor_users
+* school
+* authority
+
+נמצא שבטבלת `public.lists`, העמודה `list_id` מוגדרת כ־NOT NULL ו־PRIMARY KEY, אבל אין לה DEFAULT / auto increment.
+
+לעומת זאת, הפונקציה `sync_dynamic_dropdown_lists()` מבצעת INSERT ל־`public.lists` בלי לשלוח `list_id`.
+
+לכן כל עדכון ב־`public.activities` שמפעיל את הטריגר עלול להיכשל בצד השרת, גם אם בפועל המשתמש רק שינה סטטוס מ־"פתוח" ל־"סגור".
+
+נדרש לבצע תיקון ממוקד בלבד:
+
+1. לבדוק ולאמת את מבנה טבלת `public.lists`, במיוחד את העמודה `list_id`.
+2. אם `list_id` היא bigint / NOT NULL ללא default, להוסיף לה sequence/default בטוח.
+3. לא למחוק נתונים קיימים.
+4. לא לשנות נתוני פעילויות.
+5. לא לשנות מסכים.
+6. לא לשנות הרשאות.
+7. לא לבצע ריפקטורינג.
+8. לא לגעת בלוגיקת חריגות, אישורי ביצוע, מדריכים, הצעות מחיר או מלאי.
+9. לאחר התיקון לוודא ששינוי סטטוס פעילות מסוג workshop מ־"פתוח" ל־"סגור" נשמר בהצלחה.
+10. לוודא שהרשימות הדינמיות ב־`public.lists` עדיין נבנות כראוי.
+11. אם מבוצע שינוי קוד בפרונט, לעדכן גם Service Worker ו־Cache. אם התיקון הוא SQL בלבד — אין צורך לשנות פרונט.
+
+SQL מוצע לתיקון:
+
+```sql
+DO $$
+DECLARE
+  v_next bigint;
+BEGIN
+  SELECT COALESCE(MAX(list_id), 0) + 1
+  INTO v_next
+  FROM public.lists;
+
+  IF NOT EXISTS (
+    SELECT 1
+    FROM pg_class c
+    JOIN pg_namespace n ON n.oid = c.relnamespace
+    WHERE n.nspname = 'public'
+      AND c.relname = 'lists_list_id_seq'
+  ) THEN
+    CREATE SEQUENCE public.lists_list_id_seq;
+  END IF;
+
+  PERFORM setval('public.lists_list_id_seq', v_next, false);
+
+  ALTER TABLE public.lists
+    ALTER COLUMN list_id SET DEFAULT nextval('public.lists_list_id_seq'::regclass);
+
+  ALTER SEQUENCE public.lists_list_id_seq
+    OWNED BY public.lists.list_id;
+END $$;
+```
+
+בדיקת אימות לאחר התיקון:
+
+```sql
+SELECT column_name, data_type, is_nullable, column_default
+FROM information_schema.columns
+WHERE table_schema = 'public'
+  AND table_name = 'lists'
+  AND column_name = 'list_id';
+```
+
+לאחר מכן לבדוק דרך המערכת:
+
+* להיכנס למסך חריגות.
+* לפתוח סדנה שהסתיימה ועדיין פתוחה.
+* לשנות סטטוס מ־"פתוח" ל־"סגור".
+* לשמור.
+* לוודא שאין שגיאת שרת.
+* לוודא שהפעילות נעלמת/מתעדכנת בהתאם מהחריגות.
+* לוודא שלא נפגעה טעינת רשימות בתי ספר, רשויות ומדריכים.
+
+חשוב:
+זה תיקון תשתיתי ממוקד ב־Supabase סביב `public.lists.list_id` והטריגר שמופעל אחרי עדכון פעילויות. לא לשנות שום דבר אחר במערכת.

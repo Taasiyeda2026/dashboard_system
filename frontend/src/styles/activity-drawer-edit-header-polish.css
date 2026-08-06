@@ -1,0 +1,70 @@
+.activity-drawer-inline-layout .activity-drawer__title {
+  color: #fff !important;
+  text-shadow: 0 1px 2px rgba(15, 23, 42, 0.22);
+}
+
+/* In edit mode the editor replaces the display heading and tags; it must not stack below them. */
+.activity-drawer-inline-layout[data-editing="yes"] .activity-drawer__heading,
+.activity-drawer-inline-layout[data-editing="yes"] .activity-drawer__heading[hidden] {
+  display: none !important;
+}
+
+.activity-drawer-inline-layout[data-editing="yes"] .activity-drawer__header-top {
+  display: grid !important;
+  grid-template-columns: minmax(0, 1fr) auto;
+  align-items: start !important;
+  gap: 10px 16px !important;
+}
+
+.activity-drawer-inline-layout[data-editing="yes"] .activity-drawer__header-actions {
+  grid-column: 2;
+  grid-row: 1;
+  justify-self: end;
+}
+
+.activity-drawer-inline-layout[data-editing="yes"] .activity-drawer-inline__header-edit {
+  grid-column: 1 / -1;
+  grid-row: 2;
+  inline-size: 100%;
+  width: 100%;
+  max-inline-size: none;
+}
+
+.activity-drawer-inline-layout[data-editing="yes"] .activity-drawer-inline__header-grid {
+  inline-size: 100%;
+  grid-template-columns: repeat(4, minmax(0, 1fr));
+  gap: 10px 12px;
+}
+
+.activity-drawer-inline-layout[data-editing="yes"] .activity-drawer-inline__header-field {
+  min-inline-size: 0;
+}
+
+.activity-drawer-inline-layout[data-editing="yes"] .activity-drawer-inline__header-label {
+  white-space: nowrap;
+}
+
+@media (max-width: 900px) {
+  .activity-drawer-inline-layout[data-editing="yes"] .activity-drawer-inline__header-grid {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+
+  .activity-drawer-inline-layout[data-editing="yes"] .activity-drawer-inline__header-field--name {
+    grid-column: 1 / -1;
+  }
+}
+
+@media (max-width: 560px) {
+  .activity-drawer-inline-layout[data-editing="yes"] .activity-drawer__header-top {
+    grid-template-columns: minmax(0, 1fr) auto;
+    gap: 8px;
+  }
+
+  .activity-drawer-inline-layout[data-editing="yes"] .activity-drawer-inline__header-grid {
+    grid-template-columns: 1fr;
+  }
+
+  .activity-drawer-inline-layout[data-editing="yes"] .activity-drawer-inline__header-field--name {
+    grid-column: auto;
+  }
+}

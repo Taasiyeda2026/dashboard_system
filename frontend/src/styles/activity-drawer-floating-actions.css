@@ -1,0 +1,100 @@
+.ds-drawer.ds-drawer--activity-inline > .ds-drawer__content {
+  position: relative !important;
+  display: flex !important;
+  flex-direction: column !important;
+  min-block-size: 0 !important;
+  overflow: hidden !important;
+}
+
+/*
+ * The drawer can contain a status banner above the activity form.
+ * The form must fill only the remaining height, otherwise a 100% height form
+ * starts below the banner and its floating action button is pushed below the
+ * visible drawer edge.
+ */
+.activity-drawer-inline-layout {
+  position: relative !important;
+  flex: 1 1 auto !important;
+  block-size: auto !important;
+  max-block-size: none !important;
+  min-block-size: 0 !important;
+  overflow: hidden !important;
+}
+
+.activity-drawer-inline-layout > .activity-drawer-inline__body {
+  padding-block-end: 96px !important;
+}
+
+.activity-drawer-inline-layout > [data-activity-actions-docked][hidden] {
+  display: none !important;
+}
+
+.activity-drawer-inline-layout > .activity-drawer__section--actions,
+.activity-drawer-inline-layout > .activity-drawer__view-footer {
+  position: absolute !important;
+  inset-block-start: auto !important;
+  inset-block-end: 16px !important;
+  z-index: 40 !important;
+  margin: 0 !important;
+}
+
+.activity-drawer-inline-layout > .activity-drawer__view-footer {
+  inset-inline-start: auto !important;
+  inset-inline-end: 18px !important;
+  inline-size: auto !important;
+  padding: 0 !important;
+  border: 0 !important;
+  background: transparent !important;
+  box-shadow: none !important;
+  backdrop-filter: none !important;
+}
+
+.activity-drawer-inline-layout > .activity-drawer__view-footer:not([hidden]) {
+  display: flex !important;
+  align-items: center;
+  justify-content: flex-start;
+}
+
+.activity-drawer-inline-layout > .activity-drawer__view-footer .activity-drawer__view-footer__btn {
+  min-inline-size: 132px;
+  min-block-size: 44px;
+  border-radius: 999px;
+  box-shadow: 0 10px 28px rgba(15, 118, 110, 0.3) !important;
+}
+
+.activity-drawer-inline-layout > .activity-drawer__section--actions {
+  inset-inline: 18px !important;
+  padding: 10px 12px !important;
+  border: 1px solid rgba(203, 213, 225, 0.95) !important;
+  border-radius: 14px !important;
+  background: rgba(255, 255, 255, 0.98) !important;
+  box-shadow: 0 12px 30px rgba(15, 23, 42, 0.18) !important;
+  backdrop-filter: blur(12px);
+}
+
+.activity-drawer-inline-layout > .activity-drawer__section--actions:not([hidden]) {
+  display: block !important;
+}
+
+.activity-drawer-inline-layout > .activity-drawer__section--actions .activity-drawer__edit-actions {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  flex-wrap: wrap;
+}
+
+@media (max-width: 640px) {
+  .activity-drawer-inline-layout > .activity-drawer-inline__body {
+    padding-block-end: 88px !important;
+  }
+
+  .activity-drawer-inline-layout > .activity-drawer__view-footer {
+    inset-inline-end: 12px !important;
+    inset-block-end: 12px !important;
+  }
+
+  .activity-drawer-inline-layout > .activity-drawer__section--actions {
+    inset-inline: 12px !important;
+    inset-block-end: 12px !important;
+  }
+}

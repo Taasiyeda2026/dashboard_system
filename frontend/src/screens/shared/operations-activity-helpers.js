@@ -1,5 +1,5 @@
 import { getActivityDateColumns, formatTimeRangeShort } from './format-date.js';
-import { isSummerActivity, normalizeActivitySeason, ACTIVITY_SEASON_SUMMER_2026, ACTIVITY_SEASON_SCHOOL_2027 } from './summer-activity.js';
+import { isSummerActivity, normalizeActivitySeason, ACTIVITY_SEASON_SUMMER_2026, ACTIVITY_SEASON_SCHOOL_2027, activityMatchesPeriodKey } from './summer-activity.js';
 
 const INVALID_INSTRUCTOR_NAMES = new Set(['-', 'לא משויך', 'ללא שיוך']);
 
@@ -240,11 +240,9 @@ function addStockToMap(map, names, stock) {
 export function buildWorkshopStockMapFromLists(listsData) {
   const map = new Map();
   const categories = Array.isArray(listsData?.categories) ? listsData.categories : [];
-  let sawWorkshopStock = false;
   categories.forEach(({ category, items }) => {
     const cat = String(category || '').trim().toLowerCase();
     if (!WORKSHOP_STOCK_LIST_CATEGORIES.has(cat)) return;
-    sawWorkshopStock = true;
     const list = Array.isArray(items) ? items : [];
     list.forEach((item) => {
       const row = item?._row && typeof item._row === 'object' ? item._row : item;
@@ -254,22 +252,92 @@ export function buildWorkshopStockMapFromLists(listsData) {
       addStockToMap(map, [row?.label, row?.value, item?.label, item?.value], stock);
     });
   });
-  if (!sawWorkshopStock) {
-    categories.forEach(({ category, items }) => {
-      const cat = String(category || '').trim().toLowerCase();
-      if (cat !== 'activity_names') return;
-      const list = Array.isArray(items) ? items : [];
-      list.forEach((item) => {
-        const row = item?._row && typeof item._row === 'object' ? item._row : item;
-        if (!isActivityNameWorkshopListRow(row, cat) || row?.active === false) return;
-        const stock = parseStockQuantityFromRow(row);
-        if (stock === null) return;
-        addStockToMap(map, [row?.activity_name, row?.label, row?.value, item?.label, item?.value], stock);
-      });
+  categories.forEach(({ category, items }) => {
+    const cat = String(category || '').trim().toLowerCase();
+    if (cat !== 'activity_names') return;
+    const list = Array.isArray(items) ? items : [];
+    list.forEach((item) => {
+      const row = item?._row && typeof item._row === 'object' ? item._row : item;
+      if (!isActivityNameWorkshopListRow(row, cat) || row?.active === false) return;
+      const stock = parseStockQuantityFromRow(row);
+      if (stock === null) return;
+      addStockToMap(map, [row?.activity_name, row?.label, row?.value, item?.label, item?.value], stock);
     });
-  }
+  });
   return map;
 }
+
+function canonicalWorkshopStockGroupKey(value) {
+  const raw = String(value || '').trim();
+  if (!raw) return '';
+  const activityMatch = raw.match(/^activity_0*(\d+)$/i);
+  if (activityMatch) return `activity_${Number(activityMatch[1])}`;
+  const numericMatch = raw.match(/^0*(\d+)$/);
+  if (numericMatch) return `activity_${Number(numericMatch[1])}`;
+  return raw;
+}
+
+function explicitWorkshopStockGroupKey(row = {}) {
+  return canonicalWorkshopStockGroupKey(row?.stock_group_key || row?.stockGroupKey || row?.workshop_stock_group_key || '');
+}
+
+export function collectWorkshopStockEditorItems(listsData = {}) {
+  const items = [];
+  const seenKeys = new Set();
+  const categories = Array.isArray(listsData?.categories) ? listsData.categories : [];
+
+  const addItem = ({ row = {}, item = {}, source = '', value = '', label = '', stockQuantity = null, sortOrder = 0 } = {}) => {
+    const stockGroupKey = explicitWorkshopStockGroupKey(row);
+    if (!stockGroupKey || seenKeys.has(stockGroupKey)) return;
+    const name = String(
+      row?.stock_group_name ||
+      row?.stock_item_name ||
+      row?.stock_label ||
+      label ||
+      row?.label ||
+      row?.activity_name ||
+      item?.label ||
+      stockGroupKey
+    ).trim();
+    if (!name) return;
+    seenKeys.add(stockGroupKey);
+    const qty = stockQuantity ?? parseStockQuantityFromRow(row);
+    items.push({
+      key: stockGroupKey,
+      stock_group_key: stockGroupKey,
+      list_id: row?.list_id || null,
+      value: String(value || row?.value || item?.value || stockGroupKey).trim(),
+      label: name,
+      activity_no: String(row?.activity_no || '').trim(),
+      stock_quantity: qty ?? 0,
+      source,
+      sort_order: Number(sortOrder ?? row?.sort_order) || 0,
+      _row: row
+    });
+  };
+
+  categories.forEach(({ category, items: catItems }) => {
+    const cat = String(category || '').trim().toLowerCase();
+    if (cat !== 'workshop_stock' && cat !== 'activity_names') return;
+    (Array.isArray(catItems) ? catItems : []).forEach((item) => {
+      const row = item?._row && typeof item._row === 'object' ? item._row : item;
+      if (row?.active === false) return;
+      if (cat === 'activity_names' && !isActivityNameWorkshopListRow(row, cat)) return;
+      addItem({
+        row,
+        item,
+        source: cat,
+        value: row?.value || item?.value,
+        label: row?.label || row?.activity_name || item?.label,
+        stockQuantity: parseStockQuantityFromRow(row),
+        sortOrder: row?.sort_order
+      });
+    });
+  });
+
+  return items.sort((a, b) => a.label.localeCompare(b.label, 'he'));
+}
+
 
 export function getWorkshopStockQuantity(productName, stockMap) {
   if (!(stockMap instanceof Map)) return null;
@@ -379,13 +447,7 @@ export function getActivityOperationalNotes(activity) {
 }
 
 export function activityMatchesPeriod(activity, periodKey) {
-  const key = String(periodKey || 'all').trim();
-  if (!key || key === 'all') return true;
-  const season = normalizeActivitySeason(activity?.activity_season ?? activity?.activitySeason);
-  if (key === ACTIVITY_SEASON_SUMMER_2026) return season === ACTIVITY_SEASON_SUMMER_2026 || isSummerActivity(activity);
-  if (key === ACTIVITY_SEASON_SCHOOL_2027) return season === ACTIVITY_SEASON_SCHOOL_2027;
-  if (key === 'school_2026') return season !== ACTIVITY_SEASON_SUMMER_2026 && season !== ACTIVITY_SEASON_SCHOOL_2027;
-  return true;
+  return activityMatchesPeriodKey(activity, periodKey);
 }
 
 export function isActivityDeleted(activity) {

@@ -1,0 +1,96 @@
+{
+  "version": 1,
+  "capturedAt": "2026-08-02T01:25:04.653Z",
+  "note": "Performance metrics only. No usernames, school names, contacts, proposals, or business data. Captured from green CI run 30726952822 on cursor/e2e-performance-gate-8c1a after all 25 Playwright tests passed.",
+  "sourceRunUrl": "https://github.com/Taasiyeda2026/dashboard_system/actions/runs/30726952822",
+  "screens": {
+    "dashboard": {
+      "timeToContentMs": 104,
+      "networkIdleMs": 1131,
+      "requestCount": 7,
+      "supabaseRequestCount": 7,
+      "jsBytes": 0,
+      "cssBytes": 0,
+      "longTasksOver50ms": 0,
+      "renderCount": 0,
+      "activeMutationObservers": 0
+    },
+    "activities": {
+      "timeToContentMs": 1293,
+      "networkIdleMs": 1435,
+      "requestCount": 56,
+      "supabaseRequestCount": 35,
+      "jsBytes": 2310,
+      "cssBytes": 0,
+      "longTasksOver50ms": 0,
+      "renderCount": 0,
+      "activeMutationObservers": 0
+    },
+    "week": {
+      "timeToContentMs": 1892,
+      "networkIdleMs": 2333,
+      "requestCount": 58,
+      "supabaseRequestCount": 36,
+      "jsBytes": 2310,
+      "cssBytes": 0,
+      "longTasksOver50ms": 0,
+      "renderCount": 0,
+      "activeMutationObservers": 0
+    },
+    "month": {
+      "timeToContentMs": 1683,
+      "networkIdleMs": 2136,
+      "requestCount": 57,
+      "supabaseRequestCount": 36,
+      "jsBytes": 2310,
+      "cssBytes": 0,
+      "longTasksOver50ms": 0,
+      "renderCount": 0,
+      "activeMutationObservers": 0
+    },
+    "proposals-agreements": {
+      "timeToContentMs": 559,
+      "networkIdleMs": 1206,
+      "requestCount": 34,
+      "supabaseRequestCount": 8,
+      "jsBytes": 535,
+      "cssBytes": 0,
+      "longTasksOver50ms": 0,
+      "renderCount": 0,
+      "activeMutationObservers": 0
+    },
+    "operations-management": {
+      "timeToContentMs": 576,
+      "networkIdleMs": 1110,
+      "requestCount": 18,
+      "supabaseRequestCount": 8,
+      "jsBytes": 0,
+      "cssBytes": 0,
+      "longTasksOver50ms": 0,
+      "renderCount": 0,
+      "activeMutationObservers": 0
+    },
+    "instructors": {
+      "timeToContentMs": 416,
+      "networkIdleMs": 1073,
+      "requestCount": 14,
+      "supabaseRequestCount": 9,
+      "jsBytes": 1311,
+      "cssBytes": 0,
+      "longTasksOver50ms": 0,
+      "renderCount": 0,
+      "activeMutationObservers": 0
+    },
+    "contacts": {
+      "timeToContentMs": 594,
+      "networkIdleMs": 1366,
+      "requestCount": 12,
+      "supabaseRequestCount": 9,
+      "jsBytes": 535,
+      "cssBytes": 0,
+      "longTasksOver50ms": 0,
+      "renderCount": 0,
+      "activeMutationObservers": 0
+    }
+  }
+}

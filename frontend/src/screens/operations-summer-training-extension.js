@@ -131,7 +131,12 @@ async function readTrainingRows() {
 
 async function readSummerActivities(from, to) {
   if (!supabase) return [];
-  const { data, error } = await supabase.from('activities').select('*');
+  const summerColumns = [
+    'row_id', 'activity_name', 'activity_type', 'item_type', 'activity_season', 'status',
+    'instructor_name', 'instructor_name_2', 'start_date', 'end_date',
+    ...Array.from({ length: 35 }, (_, i) => `date_${i + 1}`)
+  ].join(',');
+  const { data, error } = await supabase.from('activities').select(summerColumns).eq('activity_season', 'summer_2026');
   if (error) throw error;
   return (Array.isArray(data) ? data : [])
     .filter((row) => !isActivityDeleted(row))

@@ -1,0 +1,635 @@
+/* Proposal create/edit editor only. No document preview, print or PDF selectors. */
+#app .pa-editor-workspace {
+  --pa-compact-gap: 10px;
+  --pa-choice-width: 92px;
+  --pa-control-height: 36px;
+  --recipient-control-height: 40px;
+  --recipient-border-color: #cbd5e1;
+  --recipient-border-radius: 5px;
+  --recipient-control-padding: 0 10px;
+  --recipient-control-font-size: 0.84rem;
+  --pa-editor-line: color-mix(in srgb, var(--ds-accent) 82%, white);
+  container: pa-editor / inline-size;
+}
+
+#app .ds-pa-editor-loading,
+#app .ds-pa-editor-load-error {
+  display: grid;
+  justify-items: center;
+  gap: 10px;
+  min-block-size: 240px;
+  padding: 56px 24px;
+  border: 1px solid color-mix(in srgb, var(--ds-accent) 45%, #cbd5e1);
+  border-radius: 12px;
+  background: var(--ds-surface, #fff);
+  text-align: center;
+}
+#app .ds-pa-editor-loading small,
+#app .ds-pa-editor-load-error span { color: var(--ds-text-secondary, #64748b); }
+
+#app .pa-editor-workspace .pa-sidebar {
+  border: 1px solid var(--ds-accent);
+  border-radius: 12px;
+  padding: 10px 14px;
+}
+
+#app .pa-editor-workspace .pa-sidebar-heading {
+  border-block-end: 2px solid var(--ds-accent);
+  margin-block-end: 16px;
+  padding-block-end: 5px;
+}
+
+#app .pa-editor-workspace .pa-sidebar-heading strong { font-size: 1.45rem; font-weight: 800; }
+#app .pa-editor-workspace .pa-editor-heading-actions .ds-btn { inline-size: auto; min-block-size: 28px; }
+
+#app .pa-editor-workspace .ds-pa-form-meta-panel,
+#app .pa-editor-workspace .ds-pa-form-type-panel,
+#app .pa-editor-workspace .ds-pa-form-activities-panel,
+#app .pa-editor-workspace .ds-pa-form-bottom-panel {
+  inline-size: 100%;
+  max-inline-size: 100%;
+  padding: 0 0 14px;
+  border: 0;
+  border-block-end: 1px solid var(--pa-editor-line);
+  border-radius: 0;
+  background: transparent;
+  box-shadow: none;
+}
+
+#app .pa-editor-workspace .ds-pa-recipient-main-row {
+  display: grid;
+  grid-template-columns: 150px 150px minmax(300px, 1fr);
+  align-items: start;
+  gap: 28px;
+  inline-size: 100%;
+}
+
+#app .pa-editor-workspace .ds-pa-recipient-general,
+#app .pa-editor-workspace .ds-pa-recipient-type-field,
+#app .pa-editor-workspace .ds-pa-recipient-flow,
+#app .pa-editor-workspace .ds-pa-client-search,
+#app .pa-editor-workspace .ds-pa-school-search-panel,
+#app .pa-editor-workspace .ds-pa-client-locked-body {
+  display: grid;
+  align-content: start;
+  gap: 9px;
+  min-inline-size: 0;
+}
+
+#app .pa-editor-workspace .pa-sidebar-section-title,
+#app .pa-editor-workspace .ds-pa-recipient-type-label {
+  margin: 0 0 8px;
+  color: #111827;
+  font-size: .82rem;
+  font-weight: 800;
+  text-decoration: underline;
+}
+
+#app .pa-editor-workspace .ds-pa-recipient-type {
+  display: grid;
+  grid-template-columns: 1fr;
+  gap: 9px;
+  inline-size: 92px;
+}
+
+#app .pa-editor-workspace .ds-pa-recipient-type-option,
+#app .pa-editor-workspace .ds-pa-type-card {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  inline-size: 92px;
+  min-block-size: 36px;
+  padding: 0 10px;
+  border: 1px solid var(--ds-accent);
+  border-radius: 5px;
+  background: #fff;
+  color: var(--ds-accent);
+  font-size: .86rem;
+  cursor: pointer;
+}
+
+#app .pa-editor-workspace .ds-pa-recipient-type-option input { position: absolute; opacity: 0; pointer-events: none; }
+#app .pa-editor-workspace .ds-pa-recipient-type-option:has(input:checked),
+#app .pa-editor-workspace .ds-pa-type-card.is-selected {
+  border-color: var(--ds-accent);
+  background: color-mix(in srgb, var(--ds-accent) 15%, white);
+  color: var(--ds-accent);
+  font-weight: 700;
+}
+#app .pa-editor-workspace .ds-pa-recipient-type-option:hover,
+#app .pa-editor-workspace .ds-pa-type-card:hover,
+#app .pa-editor-workspace .ds-pa-recipient-type-option:focus-within,
+#app .pa-editor-workspace .ds-pa-type-card:focus-visible { background: color-mix(in srgb, var(--ds-accent) 10%, white); outline: 2px solid color-mix(in srgb, var(--ds-accent) 35%, transparent); }
+
+#app .pa-editor-workspace .ds-pa-form-field { margin: 0; }
+#app .pa-editor-workspace .ds-pa-recipient-main-row .ds-pa-form-field,
+#app .pa-editor-workspace .ds-pa-school-step-text,
+#app .pa-editor-workspace .ds-pa-client-locked p {
+  display: grid;
+  gap: 4px;
+}
+#app .pa-editor-workspace .ds-pa-recipient-main-row .ds-pa-form-field > span,
+#app .pa-editor-workspace .ds-pa-school-step-text > span,
+#app .pa-editor-workspace .ds-pa-client-locked p > span { color: #475569; font-size: .76rem; font-weight: 700; }
+#app .pa-editor-workspace .ds-pa-recipient-general input,
+#app .pa-editor-workspace .ds-pa-recipient-general select { inline-size: 130px; block-size: 36px; }
+
+#app .pa-editor-workspace [data-pa-client-search-row],
+#app .pa-editor-workspace [data-pa-client-search-wrap] { inline-size: 100%; }
+#app .pa-editor-workspace [data-pa-client-search-field-wrap],
+#app .pa-editor-workspace [data-pa-school-search-field-wrap] { position: relative; inline-size: 100%; max-inline-size: 320px; }
+#app .pa-editor-workspace [data-pa-client-search-input],
+#app .pa-editor-workspace [data-pa-school-search-input] { inline-size: 100%; block-size: 36px; }
+#app .pa-editor-workspace .ds-pa-school-step-text { grid-template-columns: 1fr auto; margin: 0; }
+#app .pa-editor-workspace .ds-pa-school-step-text > span { grid-column: 1 / -1; }
+#app .pa-editor-workspace .ds-pa-client-locked { display: block; inline-size: 110px; margin-block-start: 9px; }
+#app .pa-editor-workspace .ds-pa-client-locked.is-authority,
+#app .pa-editor-workspace .ds-pa-client-locked.is-other { display: none; }
+#app .pa-editor-workspace .ds-pa-client-locked-body { display: block; }
+#app .pa-editor-workspace .ds-pa-client-locked-state { margin: 0; }
+#app .pa-editor-workspace .ds-pa-client-locked-state > strong { display: flex; align-items: center; block-size: 36px; padding-inline: 10px; border: 1px solid var(--recipient-border-color); border-radius: var(--recipient-border-radius); background: #fff; font-size: var(--recipient-control-font-size); font-weight: 500; }
+
+#app .pa-editor-workspace [hidden] { display: none !important; }
+#app .pa-editor-workspace [data-pa-client-results],
+#app .pa-editor-workspace [data-pa-school-results] { position: absolute; inset: calc(100% + 4px) 0 auto; z-index: 2000; max-block-size: 240px; overflow: auto; background: white; border: 1px solid var(--ds-accent); border-radius: 5px; box-shadow: 0 10px 24px rgb(15 23 42 / 16%); }
+#app .pa-editor-workspace .ds-pa-other-client-section { max-inline-size: 320px; }
+
+#app .pa-editor-workspace [data-pa-step-panel="contact"]:not([hidden]) { display: grid; grid-template-columns: minmax(150px, 1fr) minmax(0, 4fr); align-items: end; gap: 10px; inline-size: 100%; min-inline-size: 0; margin-block-start: 14px; padding-block-start: 12px; border-block-start: 1px solid var(--pa-editor-line); }
+#app .pa-editor-workspace [data-pa-step-panel="contact"] > .ds-pa-form-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(140px, 1fr)); align-items: end; gap: 8px; inline-size: 100%; min-inline-size: 0; }
+#app .pa-editor-workspace [data-pa-contact-picker-host],
+#app .pa-editor-workspace .ds-pa-contact-select-field select { inline-size: 210px; }
+#app .pa-editor-workspace .ds-pa-contact-manual-fields,
+#app .pa-editor-workspace .ds-pa-contact-channels-fields { display: grid; grid-template-columns: repeat(auto-fit, minmax(140px, 1fr)); align-items: end; gap: 8px; min-inline-size: 0; inline-size: 100%; }
+#app .pa-editor-workspace .ds-pa-contact-manual-fields > *,
+#app .pa-editor-workspace .ds-pa-contact-channels-fields > *,
+#app .pa-editor-workspace .ds-pa-contact-manual-fields input,
+#app .pa-editor-workspace .ds-pa-contact-channels-fields input { min-inline-size: 0; inline-size: 100%; }
+#app .pa-editor-workspace .ds-pa-contact-channels { display: contents; }
+#app .pa-editor-workspace .ds-pa-contact-channels-status { display: flex; align-items: center; align-self: start; gap: 6px; grid-column: 2; flex-wrap: wrap; }
+
+@media (max-width: 760px) {
+  #app .pa-editor-workspace [data-pa-step-panel="contact"] > .ds-pa-form-grid,
+  #app .pa-editor-workspace .ds-pa-contact-manual-fields,
+  #app .pa-editor-workspace .ds-pa-contact-channels-fields { flex-wrap: wrap; inline-size: 100%; }
+  #app .pa-editor-workspace .ds-pa-contact-channels-fields input[name="phone"],
+  #app .pa-editor-workspace .ds-pa-contact-channels-fields input[name="email"] { inline-size: min(100%, 360px); }
+}
+
+@container pa-editor (max-width: 760px) {
+  #app .pa-editor-workspace [data-pa-contact-channels-status] { grid-column: 1 / -1; }
+}
+
+/* Internal area totals sit under their own rows so each section sums on its own. */
+#app .pa-editor-workspace .ds-pa-items-group-total-row {
+  display: flex;
+  align-items: baseline;
+  justify-content: flex-start;
+  gap: 8px;
+  padding-block: 6px 2px;
+  font-size: 0.8rem;
+  color: var(--ds-color-text, #0f172a);
+}
+#app .pa-editor-workspace .ds-pa-items-group-total-row[hidden] { display: none; }
+#app .pa-editor-workspace .ds-pa-items-group-total-row strong { font-variant-numeric: tabular-nums; }
+
+#app .pa-editor-workspace .ds-pa-form-type-panel,
+#app .pa-editor-workspace .ds-pa-form-activities-panel { display: grid; grid-template-columns: 110px 1fr; align-items: start; gap: 10px; padding-block: 14px; }
+#app .pa-editor-workspace .ds-pa-type-meta-grid { inline-size: fit-content; }
+#app .pa-editor-workspace .ds-pa-type-chips { display: grid; grid-template-columns: repeat(3, 92px); gap: 18px; }
+#app .pa-editor-workspace .ds-pa-type-row:empty,
+#app .pa-editor-workspace .ds-pa-template-mode[hidden] { display: none; }
+#app .pa-editor-workspace [data-pa-items-host] { min-inline-size: 0; }
+
+/* Next-year workshop rows stay one content-sized line without runtime style writes. */
+#app .pa-editor-workspace [data-pa-items-group="next_year_workshops"] [data-pa-item-row] {
+  inline-size: max-content !important;
+  max-inline-size: 100% !important;
+  min-block-size: 0 !important;
+}
+
+#app .pa-editor-workspace [data-pa-items-group="next_year_workshops"] .ds-pa-item-quick-row {
+  display: grid !important;
+  grid-template-columns: 400px 72px max-content 34px !important;
+  grid-template-rows: 36px !important;
+  grid-auto-flow: column !important;
+  align-items: center !important;
+  justify-content: start !important;
+  inline-size: max-content !important;
+  max-inline-size: 100% !important;
+  gap: 8px !important;
+  overflow: visible !important;
+}
+
+#app .pa-editor-workspace [data-pa-items-group="next_year_workshops"] .ds-pa-item-quick-row > .ds-pa-item-field--select,
+#app .pa-editor-workspace [data-pa-items-group="next_year_workshops"] .ds-pa-item-quick-row > .ds-pa-item-field--qty,
+#app .pa-editor-workspace [data-pa-items-group="next_year_workshops"] .ds-pa-item-quick-row > .ds-pa-item-edit,
+#app .pa-editor-workspace [data-pa-items-group="next_year_workshops"] .ds-pa-item-quick-row > .ds-pa-item-remove--quick {
+  margin: 0 !important;
+  align-self: center !important;
+}
+
+/* Activities use one outer panel. Inner sections and rows are flat. */
+#app .pa-editor-workspace .ds-pa-form-activities-panel {
+  display: block !important;
+  inline-size: fit-content !important;
+  max-inline-size: 100% !important;
+  min-inline-size: 640px !important;
+  min-block-size: 0 !important;
+  padding: 11px 13px !important;
+}
+
+#app .pa-editor-workspace .ds-pa-compact-activities-heading {
+  display: flex !important;
+  flex-flow: row nowrap !important;
+  justify-content: flex-start !important;
+  align-items: center !important;
+  inline-size: 100% !important;
+  gap: 10px !important;
+  margin: 0 0 8px !important;
+  padding: 0 0 8px !important;
+  border-block-end: 1px solid var(--pa-editor-line) !important;
+}
+
+#app .pa-editor-workspace .ds-pa-compact-activities-heading .pa-sidebar-section-title {
+  margin: 0 !important;
+  padding: 0 !important;
+  border: 0 !important;
+}
+
+#app .pa-editor-workspace .ds-pa-compact-activities-heading .ds-btn {
+  inline-size: auto !important;
+  min-inline-size: max-content !important;
+}
+
+#app .pa-editor-workspace [data-pa-items-host],
+#app .pa-editor-workspace .ds-pa-items-section,
+#app .pa-editor-workspace .ds-pa-items-list,
+#app .pa-editor-workspace .ds-pa-tour-details,
+#app .pa-editor-workspace .ds-pa-tour-components {
+  inline-size: fit-content !important;
+  max-inline-size: 100% !important;
+  min-block-size: 0 !important;
+  margin: 0 !important;
+  padding: 0 !important;
+  border: 0 !important;
+  border-radius: 0 !important;
+  background: transparent !important;
+  box-shadow: none !important;
+}
+
+#app .pa-editor-workspace .ds-pa-items-header {
+  display: flex !important;
+  flex-flow: row nowrap !important;
+  justify-content: flex-start !important;
+  align-items: center !important;
+  inline-size: fit-content !important;
+  gap: 8px !important;
+  margin: 0 !important;
+  padding: 6px 0 !important;
+  border: 0 !important;
+  background: transparent !important;
+}
+
+#app .pa-editor-workspace .ds-pa-items-header:empty {
+  display: none !important;
+}
+
+#app .pa-editor-workspace .ds-pa-items-header .ds-btn {
+  inline-size: auto !important;
+  min-inline-size: max-content !important;
+}
+
+#app .pa-editor-workspace .ds-pa-items-section--group {
+  display: grid !important;
+  inline-size: fit-content !important;
+  max-inline-size: 100% !important;
+  gap: 5px !important;
+  margin: 0 !important;
+  padding: 8px 0 !important;
+  border: 0 !important;
+  border-radius: 0 !important;
+  background: transparent !important;
+  box-shadow: none !important;
+}
+
+#app .pa-editor-workspace .ds-pa-items-section--group + .ds-pa-items-section--group {
+  margin-block-start: 4px !important;
+  border-block-start: 1px solid var(--pa-editor-line) !important;
+}
+
+#app .pa-editor-workspace .ds-pa-item-card {
+  inline-size: fit-content !important;
+  max-inline-size: 100% !important;
+  min-block-size: 0 !important;
+  margin: 0 !important;
+  padding: 8px 0 !important;
+  border: 0 !important;
+  border-block-end: 1px solid var(--pa-editor-line) !important;
+  border-radius: 0 !important;
+  background: transparent !important;
+  box-shadow: none !important;
+}
+
+#app .pa-editor-workspace .ds-pa-item-card:last-child {
+  border-block-end: 0 !important;
+}
+
+#app .pa-editor-workspace .ds-pa-item-quick-row {
+  display: grid !important;
+  grid-template-columns: minmax(300px, 400px) 72px max-content 34px !important;
+  justify-content: start !important;
+  align-items: center !important;
+  inline-size: fit-content !important;
+  max-inline-size: 100% !important;
+  gap: 8px !important;
+  overflow: visible !important;
+}
+
+#app .pa-editor-workspace .ds-pa-item-quick-row .ds-pa-item-field--select,
+#app .pa-editor-workspace .ds-pa-item-quick-row .ds-pa-item-field--select select {
+  inline-size: 400px !important;
+  max-inline-size: 400px !important;
+}
+
+#app .pa-editor-workspace .ds-pa-item-quick-row .ds-pa-item-field--qty,
+#app .pa-editor-workspace .ds-pa-item-quick-row .ds-pa-item-field--qty input {
+  inline-size: 72px !important;
+  max-inline-size: 72px !important;
+}
+
+#app .pa-editor-workspace .ds-pa-item-edit {
+  inline-size: auto !important;
+  min-inline-size: max-content !important;
+}
+
+#app .pa-editor-workspace .ds-pa-item-remove--quick {
+  inline-size: 34px !important;
+  min-inline-size: 34px !important;
+  padding: 0 !important;
+}
+
+#app .pa-editor-workspace .ds-pa-item-extra {
+  margin: 7px 0 0 !important;
+  padding: 0 !important;
+  border: 0 !important;
+  border-radius: 0 !important;
+  background: transparent !important;
+  box-shadow: none !important;
+}
+
+#app .pa-editor-workspace .ds-pa-item-extra > summary {
+  display: none !important;
+}
+
+#app .pa-editor-workspace .ds-pa-item-extra:not([open]) > .ds-pa-item-extra-body {
+  display: none !important;
+}
+
+#app .pa-editor-workspace .ds-pa-item-extra-body {
+  inline-size: fit-content !important;
+  max-inline-size: 100% !important;
+  margin: 0 !important;
+  padding: 8px 0 0 !important;
+  border: 0 !important;
+  border-block-start: 1px dashed var(--pa-editor-line) !important;
+  border-radius: 0 !important;
+  background: transparent !important;
+  box-shadow: none !important;
+}
+
+#app .pa-editor-workspace .ds-pa-item-grid--extras {
+  display: grid !important;
+  grid-template-columns: 190px 90px 90px 110px 120px !important;
+  justify-content: start !important;
+  align-items: end !important;
+  inline-size: fit-content !important;
+  max-inline-size: 100% !important;
+  gap: 8px !important;
+}
+
+#app .pa-editor-workspace .ds-pa-note-details {
+  margin-block-start: 8px !important;
+  border: 0 !important;
+  background: transparent !important;
+}
+
+#app .pa-editor-workspace .ds-pa-item-field--full {
+  display: block !important;
+  inline-size: 560px !important;
+  max-inline-size: 100% !important;
+  margin-block-start: 8px !important;
+}
+
+#app .pa-editor-workspace .ds-pa-item-field--full textarea {
+  inline-size: 100% !important;
+  min-block-size: 52px !important;
+}
+
+#app .pa-editor-workspace .ds-pa-line-total {
+  inline-size: 120px !important;
+}
+
+#app .pa-editor-workspace .ds-pa-line-total output {
+  min-block-size: var(--pa-control-height) !important;
+  padding: 4px 8px !important;
+}
+
+/* The final total is shown once in the summary row below the activities. */
+#app .pa-editor-workspace .ds-pa-items-total-row,
+#app .pa-editor-workspace .ds-pa-tour-grand-total-field,
+#app .pa-editor-workspace .is-duplicate-editor-total {
+  display: none !important;
+}
+
+#app .pa-editor-workspace .ds-pa-tour-details {
+  display: grid !important;
+  justify-content: start !important;
+  gap: 7px !important;
+}
+
+#app .pa-editor-workspace .ds-pa-tour-summary-row {
+  display: flex !important;
+  justify-content: flex-start !important;
+  align-items: center !important;
+  inline-size: fit-content !important;
+  margin: 0 !important;
+  gap: 8px !important;
+}
+
+#app .pa-editor-workspace .ds-pa-tour-components .ds-pa-items-header {
+  margin: 0 !important;
+}
+
+#app .pa-editor-workspace [data-pa-tour-components-body]:empty {
+  display: none !important;
+}
+
+/* Summary and discount now live inside the single activities panel. */
+#app .pa-editor-workspace .ds-pa-summary.is-compact-relocated {
+  inline-size: fit-content !important;
+  max-inline-size: 100% !important;
+  min-block-size: 0 !important;
+  margin: 10px 0 0 !important;
+  padding: 10px 0 0 !important;
+  border: 0 !important;
+  border-block-start: 1px solid var(--pa-editor-line) !important;
+  border-radius: 0 !important;
+  background: transparent !important;
+  box-shadow: none !important;
+}
+
+#app .pa-editor-workspace .ds-pa-summary-bar--compact {
+  display: flex !important;
+  flex-flow: row nowrap !important;
+  justify-content: flex-start !important;
+  align-items: center !important;
+  inline-size: fit-content !important;
+  max-inline-size: 100% !important;
+  gap: 10px !important;
+  margin: 0 !important;
+  padding: 0 !important;
+  border: 0 !important;
+  background: transparent !important;
+  box-shadow: none !important;
+}
+
+#app .pa-editor-workspace .ds-pa-summary-pill--total {
+  display: inline-flex !important;
+  align-items: center !important;
+  gap: 8px !important;
+  inline-size: auto !important;
+  min-inline-size: 0 !important;
+  margin: 0 !important;
+  padding: 0 !important;
+  border: 0 !important;
+  border-radius: 0 !important;
+  background: transparent !important;
+  box-shadow: none !important;
+}
+
+#app .pa-editor-workspace [data-pa-discount-toggle] {
+  inline-size: auto !important;
+  min-inline-size: max-content !important;
+}
+
+#app .pa-editor-workspace .ds-pa-discount-details {
+  display: grid !important;
+  grid-template-columns: 110px 100px 220px 260px !important;
+  justify-content: start !important;
+  align-items: end !important;
+  inline-size: fit-content !important;
+  max-inline-size: 100% !important;
+  gap: 8px !important;
+  margin: 8px 0 0 !important;
+  padding: 8px 0 0 !important;
+  border: 0 !important;
+  border-block-start: 1px dashed var(--pa-editor-line) !important;
+  border-radius: 0 !important;
+  background: transparent !important;
+  box-shadow: none !important;
+}
+
+#app .pa-editor-workspace .ds-pa-discount-details[hidden] {
+  display: none !important;
+}
+
+#app .pa-editor-workspace .ds-pa-discount-row {
+  display: contents !important;
+}
+
+#app .pa-editor-workspace .ds-pa-discount-row .ds-pa-form-field,
+#app .pa-editor-workspace .ds-pa-compact-notes-field {
+  inline-size: auto !important;
+  min-inline-size: 0 !important;
+  margin: 0 !important;
+}
+
+#app .pa-editor-workspace .ds-pa-compact-notes-field,
+#app .pa-editor-workspace .ds-pa-compact-notes-field textarea {
+  inline-size: 260px !important;
+  max-inline-size: 260px !important;
+}
+
+#app .pa-editor-workspace .ds-pa-compact-notes-field textarea {
+  min-block-size: var(--pa-control-height) !important;
+  block-size: var(--pa-control-height) !important;
+  resize: vertical;
+}
+
+/* The old bottom wrapper is retained only for validation and errors. */
+#app .pa-editor-workspace .ds-pa-form-bottom-panel.is-summary-relocated {
+  inline-size: 100% !important;
+  min-block-size: 0 !important;
+  margin: 0 !important;
+  padding: 0 !important;
+  border: 0 !important;
+  border-radius: 0 !important;
+  background: transparent !important;
+  box-shadow: none !important;
+}
+
+#app .pa-editor-workspace .ds-pa-notes-details.is-compact-relocated {
+  display: none !important;
+}
+
+#app .pa-editor-workspace .ds-pa-form-bottom-panel.is-summary-relocated .ds-pa-form-error:empty,
+#app .pa-editor-workspace .ds-pa-form-bottom-panel.is-summary-relocated .ds-pa-validation-notice[hidden] {
+  display: none !important;
+}
+
+@media (max-width: 900px) {
+  #app .pa-editor-workspace .ds-pa-client-search-block,
+  #app .pa-editor-workspace .ds-pa-client-locked,
+  #app .pa-editor-workspace [data-pa-step-panel="contact"] > .ds-pa-form-grid,
+  #app .pa-editor-workspace .ds-pa-type-meta-grid,
+  #app .pa-editor-workspace .ds-pa-item-grid--extras,
+  #app .pa-editor-workspace .ds-pa-discount-details {
+    grid-template-columns: repeat(2, minmax(0, max-content)) !important;
+  }
+
+  #app .pa-editor-workspace .ds-pa-form-activities-panel {
+    min-inline-size: 0 !important;
+  }
+}
+
+@media (max-width: 640px) {
+  #app .pa-editor-workspace .pa-editor-heading-actions .ds-btn {
+    inline-size: 145px !important;
+    min-inline-size: 145px !important;
+  }
+
+  #app .pa-editor-workspace .ds-pa-client-search-block,
+  #app .pa-editor-workspace .ds-pa-client-locked,
+  #app .pa-editor-workspace [data-pa-step-panel="contact"] > .ds-pa-form-grid,
+  #app .pa-editor-workspace .ds-pa-type-meta-grid,
+  #app .pa-editor-workspace .ds-pa-item-quick-row,
+  #app .pa-editor-workspace .ds-pa-item-grid--extras,
+  #app .pa-editor-workspace .ds-pa-discount-details {
+    grid-template-columns: minmax(0, 1fr) !important;
+    inline-size: 100% !important;
+  }
+
+  #app .pa-editor-workspace .ds-pa-form-meta-panel,
+  #app .pa-editor-workspace .ds-pa-form-type-panel,
+  #app .pa-editor-workspace .ds-pa-form-activities-panel,
+  #app .pa-editor-workspace .ds-pa-summary,
+  #app .pa-editor-workspace .ds-pa-summary-bar--compact {
+    inline-size: 100% !important;
+  }
+
+  #app .pa-editor-workspace .ds-pa-compact-activities-heading,
+  #app .pa-editor-workspace .ds-pa-summary-bar--compact {
+    flex-wrap: wrap !important;
+  }
+
+  #app .pa-editor-workspace .ds-pa-item-quick-row .ds-pa-item-field--select,
+  #app .pa-editor-workspace .ds-pa-item-quick-row .ds-pa-item-field--select select,
+  #app .pa-editor-workspace .ds-pa-item-quick-row .ds-pa-item-field--qty,
+  #app .pa-editor-workspace .ds-pa-item-quick-row .ds-pa-item-field--qty input,
+  #app .pa-editor-workspace .ds-pa-item-field--full,
+  #app .pa-editor-workspace .ds-pa-compact-notes-field,
+  #app .pa-editor-workspace .ds-pa-compact-notes-field textarea {
+    inline-size: 100% !important;
+    max-inline-size: 100% !important;
+  }
+}

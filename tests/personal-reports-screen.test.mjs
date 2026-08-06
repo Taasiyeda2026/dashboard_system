@@ -110,6 +110,20 @@ test('source uses only existing personal report tables for monthly report data',
   assert.match(source, /expense_entry_id/);
 });
 
+test('annual reviews are isolated behind their tab and never expose employee role text', async () => {
+  const source = await readFile(new URL('../frontend/src/screens/personal-reports.js', import.meta.url), 'utf8');
+
+  assert.match(source, /REVIEWS: 'annual-reviews'/);
+  assert.match(source, />הדוחות שלי<\/button>/);
+  assert.match(source, />ניהול דוחות עובדים<\/button>/);
+  assert.match(source, />משובים<\/button>/);
+  assert.match(source, /if \(prScreenMode === PR_SCREEN_MODES\.REVIEWS/);
+  assert.match(source, /await renderAnnualReviewsScreen\(root\)/);
+  assert.doesNotMatch(source, /mountAnnualReviewLanding/);
+  assert.match(source, /bundle\.evaluations\.map/);
+  assert.equal(source.match(/employee_role/g)?.length, 1, 'employee_role remains query-only internal metadata');
+});
+
 test('source keeps absence days automatic and weekday-only', async () => {
   const source = await readFile(new URL('../frontend/src/screens/personal-reports.js', import.meta.url), 'utf8');
 

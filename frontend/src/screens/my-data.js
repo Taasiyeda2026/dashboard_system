@@ -1,10 +1,13 @@
 import { escapeHtml } from './shared/html.js';
+import { bindSummerContactsModalEvents, renderSummerContactsButton } from './shared/summer-contacts-modal.js';
 import { formatDateHe, formatTimeShort } from './shared/format-date.js';
 import { dsPageHeader, dsCard, dsScreenStack, dsTableWrap, dsEmptyState } from './shared/layout.js';
+import { isInstructorSummerVisibleActivity } from './shared/summer-activity.js';
 import { activityDetailHtml, assignedToCurrentInstructor, bindActivityDetailActions, completionStatusFromUpload, contactGroupsByDateSchool, currentInstructorIds, findCompletionUploadForRow, findPhotoUploadForRow, groupForRow, isoDate, isResponsibleForGroup, norm, statusChipHtml } from './instructor-utils.js';
 
 const VISIBLE_COLS = ['completion_approval_status', 'start_date', 'activity_hours', 'school', 'grade', 'activity_name'];
 const COL_LABELS = { start_date: 'תאריך', activity_hours: 'שעות', school: 'בית ספר', grade: 'שכבה', activity_name: 'שם פעילות', completion_approval_status: 'סטטוס' };
+
 
 function cellValue(row, column) {
   if (column === 'activity_hours') {
@@ -47,7 +50,7 @@ function sortActivitiesChronologically(rows) {
 
 function rowMeta(row, userEmpId, teamMap, state, uploads = []) {
   const rawType = String(row.activity_type || '').trim();
-  const status = completionStatusFromUpload(findCompletionUploadForRow(row, uploads), row);
+  const status = completionStatusFromUpload(findCompletionUploadForRow(row, uploads, currentInstructorIds(state)));
   const rowDate = String(row?.start_date || row?.activity_date || '').slice(0, 10);
   const responsible = isResponsibleForGroup(groupForRow(row, teamMap), currentInstructorIds(state));
   const searchHay = buildSearchHaystack(row);
@@ -71,16 +74,16 @@ function activityCardHtml(row, meta) {
 export const myDataScreen = {
   load: async ({ api }) => {
     const [myData, uploads, photoUploads] = await Promise.all([
-      api.myData(),
+      api.myData({ includeClosedForApprovals: true }),
       api.completionApprovalUploads().catch(() => ({ rows: [] })),
       api.photoApprovalUploads ? api.photoApprovalUploads().catch(() => ({ rows: [] })) : Promise.resolve({ rows: [] })
     ]);
-    return { rows: myData?.rows || [], teamGroups: myData?.teamGroups || [], uploads: uploads?.rows || [], photoUploads: photoUploads?.rows || [] };
+    return { rows: myData?.rows || [], teamGroups: myData?.teamGroups || [], summerContacts: myData?.summerContacts || myData?.contactRows || [], uploads: uploads?.rows || [], photoUploads: photoUploads?.rows || [] };
   },
   render(data, { state } = {}) {
     const userEmpId = String(state?.user?.emp_id || state?.user?.employee_id || '').trim();
     const rowsAll = Array.isArray(data?.rows) ? data.rows : [];
-    const rows = rowsAll.filter((row) => assignedToCurrentInstructor(row, currentInstructorIds(state)));
+    const rows = rowsAll.filter((row) => isInstructorSummerVisibleActivity(row) && assignedToCurrentInstructor(row, currentInstructorIds(state)));
     const teamMap = contactGroupsByDateSchool(data?.teamGroups || []);
     const uploads = data?.uploads || [];
     const preparedRows = sortActivitiesChronologically(rows.map((row) => {
@@ -109,6 +112,9 @@ export const myDataScreen = {
     return dsScreenStack(`
       <section class="instructor-area instructor-area--table">
         ${dsPageHeader('הפעילויות שלי', 'כל הפעילויות שמשויכות אליך')}
+        <div class="instr-my-data-actions">
+          ${renderSummerContactsButton()}
+        </div>
         <div class="instr-filter-bar">
           <input class="ds-input instr-filter-search" data-instr-search placeholder="חיפוש לפי בית ספר / פעילות / רשות">
           <input class="ds-input instr-filter-date" type="date" data-instr-date aria-label="תאריך פעילות">
@@ -130,6 +136,8 @@ export const myDataScreen = {
     `);
   },
   bind({ root, data, ui, state, api }) {
+    bindSummerContactsModalEvents(root, { ui, api, rows: data?.summerContacts || data?.contactRows || [], logPrefix: 'my-data' });
+
     const applyFilters = () => {
       const q = String(root.querySelector('[data-instr-search]')?.value || '').trim().toLowerCase();
       const selectedDate = String(root.querySelector('[data-instr-date]')?.value || '').trim();
@@ -155,7 +163,7 @@ export const myDataScreen = {
       applyFilters();
     });
 
-    const rows = (Array.isArray(data?.rows) ? data.rows : []).filter((row) => assignedToCurrentInstructor(row, currentInstructorIds(state)));
+    const rows = (Array.isArray(data?.rows) ? data.rows : []).filter((row) => isInstructorSummerVisibleActivity(row) && assignedToCurrentInstructor(row, currentInstructorIds(state)));
     const teamMap = contactGroupsByDateSchool(data?.teamGroups || []);
     const uploads = data?.uploads || [];
     const photoUploads = data?.photoUploads || [];
@@ -168,7 +176,7 @@ export const myDataScreen = {
         const photoUpload = findPhotoUploadForRow(hit, userEmpIdForPhoto, photoUploads);
         ui.openDrawer({
           title: 'פירוט פעילות',
-          content: activityDetailHtml(hit, { ids: currentInstructorIds(state), teamMap, upload: findCompletionUploadForRow(hit, uploads), photoUpload }),
+          content: activityDetailHtml(hit, { ids: currentInstructorIds(state), teamMap, upload: findCompletionUploadForRow(hit, uploads, currentInstructorIds(state)), photoUpload }),
           onOpen: (contentNode) => {
             bindActivityDetailActions(contentNode, { ui, row: hit, rows, allInstructorRows: rows, teamMap, state, api, photoUpload });
           }

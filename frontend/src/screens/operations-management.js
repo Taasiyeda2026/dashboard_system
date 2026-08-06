@@ -1,5 +1,7 @@
 import { escapeHtml } from './shared/html.js';
+import { bindSummerContactsModalEvents, renderSummerContactsButton } from './shared/summer-contacts-modal.js';
 import { supabase } from '../supabase-client.js';
+import { setGlobalActivityPeriod } from '../state.js';
 import { formatDateHe, formatDateHeWithWeekday } from './shared/format-date.js';
 import {
   dsPageHeader,
@@ -15,9 +17,13 @@ import {
   collectDependentFilterOptions
 } from './shared/activity-list-filters.js';
 import {
+  ACTIVITY_SEASON_REGULAR,
+  ACTIVE_ACTIVITY_SEASON,
   ACTIVITY_SEASON_SUMMER_2026,
   ACTIVITY_SEASON_SCHOOL_2027,
-  normalizeActivitySeason
+  defaultMonthForGlobalActivityPeriod,
+  normalizeActivitySeason,
+  normalizeGlobalActivityPeriod
 } from './shared/summer-activity.js';
 import {
   parseLinkedSchoolsJson,
@@ -44,11 +50,11 @@ import {
   schoolGroupKey,
   buildActivitySearchText,
   buildWorkshopStockMapFromLists,
+  collectWorkshopStockEditorItems,
   getActivityActualParticipantCount,
   getActivityOperationalQuantity,
   getActivityRequiredInventoryQuantity,
-  sumRequiredInventoryQuantitiesFromActivities,
-  isTamirCompletionApprovalActivity
+  sumRequiredInventoryQuantitiesFromActivities
 } from './shared/operations-activity-helpers.js';
 import {
   approvalFileTitle,
@@ -58,6 +64,20 @@ import {
   completionApprovalPrintCss,
   completionApprovalsPrintHtml
 } from './shared/activity-completion-approval-print.js';
+import {
+  completionApprovalStatusInfo,
+  findMatchingCompletionApprovalUpload
+} from './shared/completion-approval-status.js';
+import {
+  buildContactResponsibleIndex,
+  findContactResponsibleGroup,
+  contactResponsibleGroupsArray,
+  buildSummerContactIndex,
+  buildContactsSchoolsIndex as buildSharedContactsSchoolsIndex,
+  buildSchoolsCatalogContactIndex,
+  resolveSchoolContact
+} from './shared/contact-responsible.js';
+import { resolveWorkshopStockKey } from './shared/operations-2027-domain.js';
 
 const SCOPE = 'operations-management';
 const TAB_INSTRUCTORS = 'instructors';
@@ -69,8 +89,16 @@ const TAB_SCHOOLS = 'schools';
 const SUMMER_TRAINING_SESSION_KEY = 'opsSummerTrainingActive';
 const COMPLETION_APPROVAL_SUMMER_FROM = '2026-06-20';
 const COMPLETION_APPROVAL_SUMMER_TO = '2026-08-31';
-const COMPLETION_APPROVAL_MANAGER_ROLES = new Set(['admin', 'operation_manager', 'domain_manager', 'activities_manager', 'instructor_manager']);
+const COMPLETION_APPROVAL_MANAGER_ROLES = new Set(['admin', 'operation_manager', 'domain_manager', 'activities_manager', 'instructor_manager', 'finance']);
 
+function isOperationsAdmin(state = {}) {
+  return String(state?.user?.role || state?.user?.display_role || '').trim() === 'admin';
+}
+
+function canEditOperationsInventory(state = {}) {
+  const roles = [state?.user?.role, state?.user?.display_role].map((role) => String(role || '').trim());
+  return roles.includes('admin') || roles.includes('operation_manager');
+}
 
 let _opsNeedsEntryReset = false;
 
@@ -102,10 +130,8 @@ const WORKSHOPS_SUMMER_FROM = '2026-06-15';
 const WORKSHOPS_SUMMER_TO = '2026-08-30';
 
 const PERIOD_OPTIONS = [
-  { value: ACTIVITY_SEASON_SUMMER_2026, label: 'קיץ 2026' },
-  { value: 'school_2026', label: 'תשפ״ו / 2026' },
-  { value: ACTIVITY_SEASON_SCHOOL_2027, label: 'תשפ״ז / 2027' },
-  { value: 'all', label: 'כל הפעילויות' }
+  { value: ACTIVITY_SEASON_REGULAR, label: '2026' },
+  { value: ACTIVITY_SEASON_SCHOOL_2027, label: '2027' }
 ];
 
 const FILTER_FIELDS = [
@@ -148,25 +174,25 @@ function addDaysIso(iso, days) {
   return date.toISOString().slice(0, 10);
 }
 
-function defaultPeriodKey() {
-  const month = isoToday().slice(0, 7);
-  if (month >= '2026-06' && month <= '2026-08') return ACTIVITY_SEASON_SUMMER_2026;
-  return 'school_2026';
+function defaultPeriodKey(state = {}) {
+  return normalizeGlobalActivityPeriod(state.activityPeriodTab || ACTIVE_ACTIVITY_SEASON);
 }
 
 function defaultDateRange(periodKey) {
-  if (periodKey === ACTIVITY_SEASON_SUMMER_2026) {
-    return { from: '2026-07-01', to: '2026-08-31' };
-  }
-  const from = isoToday();
-  return { from, to: addDaysIso(from, 30) };
+  if (periodKey === ACTIVITY_SEASON_SCHOOL_2027) return { from: '2026-09-01', to: '2027-08-31' };
+  return { from: '2025-09-01', to: '2026-08-31' };
 }
 
 function ensureOpsState(state = {}) {
   state.operationsManagement = state.operationsManagement || {};
   const ops = state.operationsManagement;
   if (!ops.tab || ops.tab === TAB_SUMMER) ops.tab = TAB_INSTRUCTORS;
-  if (!ops.period) ops.period = defaultPeriodKey();
+  const globalPeriod = defaultPeriodKey(state);
+  if (ops.period !== globalPeriod) {
+    ops.period = globalPeriod;
+    ops.dateFrom = '';
+    ops.dateTo = '';
+  }
   if (!ops.dateFrom || !ops.dateTo) {
     const range = defaultDateRange(ops.period);
     ops.dateFrom = ops.dateFrom || range.from;
@@ -188,6 +214,7 @@ function ensureOpsState(state = {}) {
   if (!ops.completionApproval.subtab) ops.completionApproval.subtab = 'approvals';
   if (!ops.completionApproval.printInstructor) ops.completionApproval.printInstructor = '';
   if (!ops.completionApproval.approvalType) ops.completionApproval.approvalType = '';
+  if (!ops.completionApproval.approvalStatus) ops.completionApproval.approvalStatus = '';
   ops.sorts = ops.sorts || {};
   Object.entries(SORT_DEFAULTS).forEach(([tab, sort]) => {
     if (!ops.sorts[tab]) ops.sorts[tab] = { ...sort };
@@ -288,30 +315,52 @@ function normalizeSchoolRow(row = {}) {
   };
 }
 
-async function readOperationsSchoolsDirectory() {
+let _opsSchoolsDirCache = null;
+let _opsSchoolsDirCacheAt = 0;
+const _OPS_SCHOOLS_DIR_TTL_MS = 5 * 60 * 1000;
+
+async function readOperationsSchoolsDirectory({ forceRefresh = false } = {}) {
   if (!supabase) return { rows: [], source: 'none' };
+  const now = Date.now();
+  if (!forceRefresh && _opsSchoolsDirCache && (now - _opsSchoolsDirCacheAt) < _OPS_SCHOOLS_DIR_TTL_MS) {
+    return _opsSchoolsDirCache;
+  }
   try {
     const { data, error } = await supabase
       .from('schools')
       .select('id, semel_mosad, school_name, authority, authority_id, district, principal_name, school_phone, institution_address, city')
       .limit(10000);
     if (error) throw error;
-    return { rows: Array.isArray(data) ? data : [], source: 'schools' };
+    const result = { rows: Array.isArray(data) ? data : [], source: 'schools' };
+    _opsSchoolsDirCache = result;
+    _opsSchoolsDirCacheAt = Date.now();
+    return result;
   } catch (error) {
     console.warn('[operations-management] schools directory read failed', error?.message || error);
     return { rows: [], source: 'error' };
   }
 }
 
-async function readContactsSchools() {
+let _opsContactsSchoolsCache = null;
+let _opsContactsSchoolsCacheAt = 0;
+const _OPS_CONTACTS_SCHOOLS_TTL_MS = 5 * 60 * 1000;
+
+async function readContactsSchools({ forceRefresh = false } = {}) {
   if (!supabase) return [];
+  const now = Date.now();
+  if (!forceRefresh && _opsContactsSchoolsCache && (now - _opsContactsSchoolsCacheAt) < _OPS_CONTACTS_SCHOOLS_TTL_MS) {
+    return _opsContactsSchoolsCache;
+  }
   try {
     const { data, error } = await supabase
       .from('contacts_schools')
       .select('authority, school, school_id, contact_name, contact_role, phone')
       .limit(10000);
     if (error) throw error;
-    return Array.isArray(data) ? data : [];
+    const rows = Array.isArray(data) ? data : [];
+    _opsContactsSchoolsCache = rows;
+    _opsContactsSchoolsCacheAt = Date.now();
+    return rows;
   } catch (err) {
     console.warn('[operations-management] contacts_schools read failed', err?.message || err);
     return [];
@@ -697,42 +746,29 @@ function buildScheduleRows(rows, state, directory) {
 }
 
 
-function normalizePrintContactMatchText(value) {
-  return String(value || '')
-    .trim()
-    .replace(/[״"]/g, '"')
-    .replace(/[׳']/g, "'")
-    .replace(/[\u2010-\u2015־]/g, '-')
-    .replace(/\s+/g, ' ')
-    .toLowerCase();
-}
-
-function loosePrintContactMatchText(value) {
-  return normalizePrintContactMatchText(value)
-    .replace(/["'`´]/g, '')
-    .replace(/[-–—־]/g, '')
-    .replace(/\b(בית ספר|ביהס|בי"ס|מקיף|חטיבת ביניים|חטיבה|יסודי)\b/g, '')
-    .replace(/\s+/g, '')
-    .trim();
-}
-
 function activitySchoolIdForPrint(activity = {}) {
   return String(activity?.school_id || activity?.single_school_id || activity?.single_semel_mosad || '').trim();
 }
 
-function buildPrintContactRowsForGroup(group, printContacts = [], contactResponsibles = []) {
+// School contact resolution for the printed schedule: same shared 3-tier resolver
+// (dedicated summer contact -> contacts_schools -> school catalog, missing fields
+// only) used by the instructor's own screens, so the printed sheet a manager hands
+// out never disagrees with what instructors see for themselves.
+function buildPrintContactRowsForGroup(group, schoolContactIndices) {
   const authority = group?.authority || '';
-  const date = group?.date || '';
   const schools = uniqueSorted((group?.entries || []).map((entry) => getActivitySchoolDisplayNameClean(entry.activity)).filter(Boolean));
   return schools.map((school) => {
-    const contact = findInstructorSchedulePrintContact(printContacts, { authority, school, date });
-    const responsible = findPrintContactResponsible(contactResponsibles, group?.entries || [], group?.date || '', school);
+    const representative = (group?.entries || []).find((entry) => getActivitySchoolDisplayNameClean(entry.activity) === school)?.activity;
+    const schoolCatalogId = activitySchoolIdForPrint(representative || {});
+    const resolved = resolveSchoolContact({ authority, schoolNames: [school], schoolCatalogId }, schoolContactIndices);
+    if (!resolved.name && !resolved.phone) {
+      warnSummerPrintContactDev({ authority, school, date: group?.date || '', reason: 'no_summer_print_contact_match' });
+    }
     return {
       school,
-      address: contact?.school_address || '',
-      contactName: contact?.contact_name || '',
-      contactPhone: contact?.contact_phone || '',
-      responsibleName: responsible?.responsible_name || ''
+      address: resolved.address || '',
+      contactName: resolved.name || '',
+      contactPhone: resolved.phone || ''
     };
   });
 }
@@ -740,35 +776,6 @@ function buildPrintContactRowsForGroup(group, printContacts = [], contactRespons
 function warnSummerPrintContactDev(payload) {
   if (typeof import.meta === 'undefined' || !import.meta.env?.DEV) return;
   console.warn('[schedule-print-contacts]', payload);
-}
-
-function findInstructorSchedulePrintContact(printContacts = [], { authority = '', school = '', date = '' } = {}) {
-  const authNorm = normalizePrintContactMatchText(authority);
-  const schoolNorm = normalizePrintContactMatchText(school);
-  const schoolLoose = loosePrintContactMatchText(school);
-  const activeRows = (Array.isArray(printContacts) ? printContacts : []).filter((row) => row?.active !== false);
-  const match = activeRows.find((row) => normalizePrintContactMatchText(row?.authority) === authNorm && normalizePrintContactMatchText(row?.school) === schoolNorm)
-    || activeRows.find((row) => normalizePrintContactMatchText(row?.authority) === authNorm && loosePrintContactMatchText(row?.school) === schoolLoose)
-    || activeRows.find((row) => loosePrintContactMatchText(row?.school) === schoolLoose)
-    || null;
-  if (!match) {
-    warnSummerPrintContactDev({ authority, school, date, reason: 'no_summer_print_contact_match' });
-  } else if (!String(match.contact_name || '').trim() || !String(match.contact_phone || '').trim()) {
-    warnSummerPrintContactDev({ authority, school, date, reason: 'empty_summer_print_contact' });
-  }
-  return match;
-}
-
-function findPrintContactResponsible(contactResponsibles = [], entries = [], date = '', school = '') {
-  const activityDate = String(date || '').slice(0, 10);
-  const schoolNorm = normalizePrintContactMatchText(school);
-  const schoolLoose = loosePrintContactMatchText(school);
-  const ids = new Set((entries || []).map((entry) => activitySchoolIdForPrint(entry.activity)).filter(Boolean));
-  const rows = (Array.isArray(contactResponsibles) ? contactResponsibles : []).filter((row) => String(row?.activity_date || '').slice(0, 10) === activityDate);
-  return rows.find((row) => ids.has(String(row?.school_id || '').trim()))
-    || rows.find((row) => normalizePrintContactMatchText(row?.school) === schoolNorm)
-    || rows.find((row) => loosePrintContactMatchText(row?.school) === schoolLoose)
-    || null;
 }
 
 function printContactFallback(value) {
@@ -821,10 +828,10 @@ function normalizeWorkshopKey(name) {
   return String(name || '').trim().toLowerCase();
 }
 
-function isTruthyListValue(value) {
-  if (value === true || value === 1) return true;
+function isInactiveListValue(value) {
+  if (value === false || value === 0) return true;
   const normalized = String(value ?? '').trim().toLowerCase();
-  return ['true', '1', 'yes', 'y', 'active', 'פעיל', 'כן'].includes(normalized);
+  return ['false', '0', 'no', 'inactive', 'לא פעיל', 'לא'].includes(normalized);
 }
 
 function isWorkshopInventoryRequired(workshopName) {
@@ -847,6 +854,11 @@ function isTamirActivity(row) {
 function isOpenOrClosedActivity(row) {
   const status = String(row?.status || '').trim();
   return status === 'פתוח' || status === 'סגור';
+}
+
+function isWorkshopActivity(row = {}) {
+  const type = String(row?.activity_type || row?.type || row?.item_type || '').trim().toLowerCase();
+  return type === 'workshop' || type === 'סדנה';
 }
 
 function isOfficialWorkshopListRow(row = {}, category = '') {
@@ -910,23 +922,59 @@ function formatInventoryRemainder(stockValue, usageValue) {
   return `<span class="ds-ops-gap ${tone}">${formatSignedNumberForRtl(remainder)}</span>`;
 }
 
-function extractWorkshopCatalogRows(listsData, activityRows = []) {
+function resolveWorkshopStockDisplayName(stockGroupKey, stockGroupKeyToName) {
+  const direct = stockGroupKeyToName.get(stockGroupKey);
+  if (direct) return direct;
+  const match = stockGroupKey.match(/^activity_(\d+)$/i);
+  if (match) {
+    const normNo = String(Number(match[1]));
+    const byNo = stockGroupKeyToName.get(`_actno_${normNo}`);
+    if (byNo) return byNo;
+  }
+  return `מלאי ללא שם (${stockGroupKey})`;
+}
+
+function extractWorkshopCatalogRows(listsData, activityRows = [], workshopStockDistributions = []) {
   const rows = [];
   const seen = new Set();
   const categories = Array.isArray(listsData?.categories) ? listsData.categories : [];
-  const workshopStockLookup = new Map();
+  const stockGroupKeyToName = new Map();
+
   categories.forEach(({ category, items }) => {
     const cat = String(category || '').trim().toLowerCase();
-    if (cat !== 'workshop_stock') return;
+    if (cat !== 'workshop_stock' && cat !== 'activity_names') return;
     (Array.isArray(items) ? items : []).forEach((item) => {
       const row = item?._row && typeof item._row === 'object' ? item._row : item;
-      if (row?.active === false || !isTruthyListValue(row?.active)) return;
-      const name = String(row?.label || item?.label || row?.value || item?.value || '').trim();
-      const key = normalizeWorkshopKey(name);
-      if (key && !workshopStockLookup.has(key)) workshopStockLookup.set(key, stockMapValue(row));
+      if (isInactiveListValue(row?.active)) return;
+      const displayName = String(
+        row?.stock_group_name || row?.stock_item_name || row?.stock_label ||
+        row?.activity_name || row?.label || item?.label ||
+        row?.value || item?.value || ''
+      ).trim();
+      if (!displayName) return;
+      const rawSgk = String(row?.stock_group_key || '').trim();
+      if (rawSgk) {
+        const canonSgk = canonicalStockGroupKey(rawSgk);
+        if (canonSgk && !stockGroupKeyToName.has(canonSgk)) stockGroupKeyToName.set(canonSgk, displayName);
+      }
+      if (cat === 'activity_names') {
+        const actNo = String(row?.activity_no || '').trim();
+        if (actNo) {
+          const normNo = String(Number(actNo));
+          if (normNo && normNo !== 'NaN') {
+            const actNoKey = `_actno_${normNo}`;
+            if (!stockGroupKeyToName.has(actNoKey)) stockGroupKeyToName.set(actNoKey, displayName);
+            if (!rawSgk) {
+              const genKey = canonicalStockGroupKey(`activity_${actNo}`);
+              if (genKey && !stockGroupKeyToName.has(genKey)) stockGroupKeyToName.set(genKey, displayName);
+            }
+          }
+        }
+      }
     });
   });
-  const add = ({ no = '', name = '', stock = null, stockGroupKey = '', stockGroupName = '' } = {}) => {
+
+  const add = ({ no = '', name = '', stockGroupKey = '', stockGroupName = '' } = {}) => {
     const cleanName = String(name || '').trim();
     if (!cleanName || !isWorkshopInventoryRequired(cleanName)) return;
     const canonicalGroupKey = canonicalStockGroupKey(stockGroupKey);
@@ -936,29 +984,28 @@ function extractWorkshopCatalogRows(listsData, activityRows = []) {
     rows.push({
       workshopNo: String(no || '').trim(),
       workshopName: cleanName,
-      stockQuantity: stock,
+      stockQuantity: null,
       stockGroupKey: canonicalGroupKey,
       stockGroupName: String(stockGroupName || cleanName).trim()
     });
   };
+
   categories.forEach(({ category, items }) => {
     const cat = String(category || '').trim().toLowerCase();
     if (cat !== 'activity_names') return;
     (Array.isArray(items) ? items : []).forEach((item) => {
       const row = item?._row && typeof item._row === 'object' ? item._row : item;
-      if (!isOfficialWorkshopListRow(row, cat) || row?.active === false || !isTruthyListValue(row?.active)) return;
+      if (!isOfficialWorkshopListRow(row, cat) || isInactiveListValue(row?.active)) return;
       const name = row?.activity_name || row?.label || item?.label || row?.value || item?.value || '';
-      const stockKey = normalizeWorkshopKey(name);
-      const stock = workshopStockLookup.has(stockKey) ? workshopStockLookup.get(stockKey) : stockMapValue(row);
       add({
         no: row?.activity_no || row?.value || item?.value,
         name,
-        stock,
         stockGroupKey: officialWorkshopStockGroupKey(row),
-        stockGroupName: officialWorkshopStockGroupName(row)
+        stockGroupName: officialWorkshopStockGroupName(row) || name
       });
     });
   });
+
   return rows.sort((a, b) => compareValues(a.workshopNo || a.workshopName, b.workshopNo || b.workshopName, 'asc'));
 }
 
@@ -986,6 +1033,14 @@ function activityMatchesOfficialWorkshop(activity = {}, workshop = {}) {
     const normW = normalizeActivityNo(workshopNo);
     if (normA && normA === normW) return true;
   }
+  if (activityNo && workshop.stockGroupKey) {
+    const canonActivityKey = canonicalStockGroupKey(`activity_${activityNo}`);
+    if (canonActivityKey && canonActivityKey === workshop.stockGroupKey) return true;
+  }
+  const activityStockGroupKey = canonicalStockGroupKey(
+    activity?.stock_group_key || activity?.stockGroupKey || activity?.workshop_stock_group_key || ''
+  );
+  if (activityStockGroupKey && workshop.stockGroupKey && activityStockGroupKey === workshop.stockGroupKey) return true;
   return normalizeWorkshopKey(getActivityName(activity)) === normalizeWorkshopKey(workshop.workshopName);
 }
 
@@ -994,7 +1049,7 @@ function activityMatchesAnyOfficialWorkshop(activity = {}, catalogRows = []) {
 }
 
 function distributionStockGroupKey(row = {}) {
-  return canonicalStockGroupKey(row?.stock_group_key || row?.stockGroupKey || row?.workshop_stock_group_key || row?.activity_no || '');
+  return canonicalStockGroupKey(row?.stock_group_key || row?.stockGroupKey || row?.workshop_stock_group_key || '');
 }
 
 function distributionInstructorName(row = {}) {
@@ -1051,10 +1106,184 @@ function isWorkshopStockLocationName(name) {
   return value === 'מלאי עידן' || value === 'מלאי הילה';
 }
 
+function isActivityEffectivelyClosed(activity) {
+  if (String(activity?.status || '').trim() === 'סגור') return true;
+  if (isActivityDeleted(activity)) return false;
+  const today = new Date().toISOString().slice(0, 10);
+  const dates = getActivityScheduleDates(activity);
+  const lastDate = dates.length ? dates[dates.length - 1] : '';
+  if (lastDate && lastDate < today) return true;
+  return false;
+}
+
+const WORKSHOP_STOCK_ALIASES = Object.freeze({
+  'פרוגי המקפצת': 'froggy',
+  'ציפור שיווי משקל': 'bird-balance',
+  'קלידוסקופ': 'kaleidoscope',
+  'שעון רובוט - הזמן שלנו': 'robot-clock'
+});
+const SCHOOL_2027_FROM = '2026-09-01';
+const SCHOOL_2027_TO = '2027-08-31';
+
+function positiveOpeningLocationsFromClosingRow(row = {}) {
+  const closingBalance = Math.max(0, Number(row.expectedBalance) || 0);
+  if (closingBalance <= 0) return [];
+  const byLocation = new Map();
+  const add = (location, quantity) => {
+    const name = String(location || '').trim();
+    const value = Number(quantity) || 0;
+    if (!name || value <= 0) return;
+    byLocation.set(name, (byLocation.get(name) || 0) + value);
+  };
+  (row.stockLocationRows || []).forEach((item) => {
+    if (item?.location === 'סה״כ מלאי כולל' || item?.location === 'יתרת מלאי מדריכים') return;
+    add(item?.location, item?.quantity);
+  });
+  (row.instructorRows || []).forEach((item) => add(item?.instructor, item?.balance));
+
+  let remaining = closingBalance;
+  const locations = [];
+  Array.from(byLocation.entries()).forEach(([location, quantity]) => {
+    if (remaining <= 0) return;
+    const carried = Math.min(quantity, remaining);
+    if (carried > 0) locations.push({ location, quantity: carried });
+    remaining -= carried;
+  });
+  return locations;
+}
+
+export function buildWorkshopOpeningStock2027({ summer2026Rows = [], school2027Rows = [], catalogRows = [], workshopStockDistributions = [] } = {}) {
+  const catalogRowsForMetrics = (catalogRows || []).map((catalog) => ({
+    ...catalog,
+    stockGroupKey: canonicalStockGroupKey(resolveWorkshopStockKey({ stock_group_key: catalog.stockGroupKey, activity_no: catalog.workshopNo, activity_name: catalog.workshopName }, { aliases: WORKSHOP_STOCK_ALIASES }))
+  }));
+  const seenDistributionLocations = new Set();
+  const positiveDistributions = (workshopStockDistributions || []).filter((dist) => {
+    const quantity = distributionQuantity(dist);
+    if (quantity <= 0) return false;
+    const locationKey = `${distributionStockGroupKey(dist)}::${distributionInstructorName(dist)}`;
+    if (seenDistributionLocations.has(locationKey)) return false;
+    seenDistributionLocations.add(locationKey);
+    return true;
+  });
+  const closingRows = workshopMetricsRows(summer2026Rows, new Map(), catalogRowsForMetrics, positiveDistributions, { from: WORKSHOPS_SUMMER_FROM, to: WORKSHOPS_SUMMER_TO });
+  const openingByGroup = new Map();
+  closingRows.forEach((row) => {
+    const key = canonicalStockGroupKey(resolveWorkshopStockKey({ stock_group_key: row.stockGroupKey, activity_name: row.workshopName }, { aliases: WORKSHOP_STOCK_ALIASES }));
+    const openingStock = Math.max(0, Number(row.expectedBalance) || 0);
+    const locations = positiveOpeningLocationsFromClosingRow(row);
+    if (openingStock > 0 || locations.length) openingByGroup.set(key, { openingStock, locations, closingRow: row });
+  });
+
+  const groups = new Map();
+  const ensureGroup = (key, seed = {}) => {
+    const cleanKey = canonicalStockGroupKey(key);
+    if (!cleanKey) return null;
+    if (!groups.has(cleanKey)) {
+      groups.set(cleanKey, {
+        stockGroupKey: cleanKey,
+        workshopName: seed.workshopName || seed.stockGroupName || cleanKey,
+        linkedWorkshops: [],
+        openingStock: 0,
+        openingLocations: [],
+        activities: []
+      });
+    }
+    return groups.get(cleanKey);
+  };
+
+  catalogRowsForMetrics.forEach((catalog) => {
+    const key = canonicalStockGroupKey(resolveWorkshopStockKey({ stock_group_key: catalog.stockGroupKey, activity_no: catalog.workshopNo, activity_name: catalog.workshopName }, { aliases: WORKSHOP_STOCK_ALIASES }));
+    const group = ensureGroup(key, catalog);
+    if (!group) return;
+    group.linkedWorkshops.push(catalog);
+    group.workshopName = group.workshopName || catalog.stockGroupName || catalog.workshopName;
+  });
+
+  openingByGroup.forEach((opening, key) => {
+    const group = ensureGroup(key, opening.closingRow);
+    if (!group) return;
+    group.openingStock = opening.openingStock;
+    group.openingLocations = opening.locations;
+    if (!group.linkedWorkshops.length && opening.closingRow?.linkedWorkshops?.length) group.linkedWorkshops = opening.closingRow.linkedWorkshops;
+    group.workshopName = group.workshopName || opening.closingRow?.workshopName || key;
+  });
+
+  const schoolRows = Array.isArray(school2027Rows) ? school2027Rows : [];
+  schoolRows.forEach((row) => {
+    if (!isOpenOrClosedActivity(row) || isTamirActivity(row) || isActivityDeleted(row)) return;
+    if (!activityOverlapsDateRange(row, SCHOOL_2027_FROM, SCHOOL_2027_TO)) return;
+    groups.forEach((group) => {
+      if (!group.linkedWorkshops.some((workshop) => activityMatchesOfficialWorkshop(row, workshop))) return;
+      group.activities.push(row);
+    });
+  });
+
+  return Array.from(groups.values()).map((group) => {
+    const closedActivities = group.activities.filter((activity) => isActivityEffectivelyClosed(activity));
+    const openActivities = group.activities.filter((activity) => !isActivityEffectivelyClosed(activity) && !isActivityDeleted(activity));
+    const usedQuantity = sumRequiredInventoryQuantitiesFromActivities(closedActivities);
+    const requiredQuantity = sumRequiredInventoryQuantitiesFromActivities(openActivities);
+    const expectedBalance = group.openingStock - usedQuantity - requiredQuantity;
+    const instructorMap = new Map();
+    const ensureInstructor = (name) => {
+      const key = String(name || '').trim() || 'לא משויך';
+      if (!instructorMap.has(key)) instructorMap.set(key, { instructor: key, received: 0, usedQuantity: 0, required: 0 });
+      return instructorMap.get(key);
+    };
+    group.openingLocations.forEach((location) => {
+      ensureInstructor(location.location).received += location.quantity;
+    });
+    group.activities.forEach((activity) => {
+      const activityQuantity = getActivityRequiredInventoryQuantity(activity);
+      const isClosed = isActivityEffectivelyClosed(activity);
+      const instructors = getActivityInstructorNames(activity).filter((name) => !isWorkshopStockLocationName(name));
+      const names = instructors.length ? instructors : ['לא משויך'];
+      names.forEach((name) => {
+        const instructor = ensureInstructor(name);
+        if (isClosed) instructor.usedQuantity += activityQuantity;
+        else if (!isActivityDeleted(activity)) instructor.required += activityQuantity;
+      });
+    });
+    const instructorRows = Array.from(instructorMap.values()).map((item) => {
+      const balance = Math.max(0, item.received) - item.usedQuantity - item.required;
+      return { ...item, balance, status: workshopInstructorStatus({ ...item, balance }) };
+    }).sort((a, b) => a.instructor.localeCompare(b.instructor, 'he'));
+    const row = {
+      stockGroupKey: group.stockGroupKey,
+      workshopNo: group.linkedWorkshops.map((workshop) => workshop.workshopNo).filter(Boolean).join(', '),
+      workshopNoDisplay: group.linkedWorkshops.map((workshop) => workshop.workshopNo).filter(Boolean).join(', '),
+      workshopName: group.workshopName,
+      linkedWorkshops: group.linkedWorkshops,
+      activities: group.activities,
+      activityCount: group.activities.length,
+      estimatedQuantity: requiredQuantity,
+      requiredQuantity,
+      actualQuantity: requiredQuantity,
+      stockQuantity: group.openingStock,
+      openingStock: group.openingStock,
+      openingLocations: group.openingLocations,
+      idanStock: group.openingLocations.find((item) => item.location === 'מלאי עידן')?.quantity || 0,
+      hilaStock: group.openingLocations.find((item) => item.location === 'מלאי הילה')?.quantity || 0,
+      deliveredQuantity: group.openingLocations.reduce((sum, item) => sum + item.quantity, 0),
+      warehouseBalance: group.openingStock,
+      expectedBalance,
+      deliveryGap: requiredQuantity,
+      usedQuantity,
+      activitiesWithoutParticipants: group.activities.filter((activity) => getActivityActualParticipantCount(activity) === null).length,
+      instructorRows,
+      stockLocationRows: group.openingLocations,
+      gap: expectedBalance
+    };
+    row.status = workshopMainStatus(row);
+    return row;
+  });
+}
+
 function workshopMetricsRows(activitiesRowsForRequiredInventory, stockMap, catalogRows = [], workshopStockDistributions = [], dateRange = {}) {
   const groups = new Map();
   catalogRows.forEach((catalog) => {
-    const key = canonicalStockGroupKey(catalog.stockGroupKey || `activity_${catalog.workshopNo || normalizeWorkshopKey(catalog.workshopName)}`);
+    const key = canonicalStockGroupKey(catalog.stockGroupKey);
     if (!groups.has(key)) {
       groups.set(key, {
         stockGroupKey: key,
@@ -1079,8 +1308,8 @@ function workshopMetricsRows(activitiesRowsForRequiredInventory, stockMap, catal
 
   return Array.from(groups.values()).map((group) => {
     const activityCount = group.activities.length;
-    const closedActivities = group.activities.filter((activity) => String(activity?.status || '').trim() === 'סגור');
-    const openActivities = group.activities.filter((activity) => String(activity?.status || '').trim() !== 'סגור' && !isActivityDeleted(activity));
+    const closedActivities = group.activities.filter((activity) => isActivityEffectivelyClosed(activity));
+    const openActivities = group.activities.filter((activity) => !isActivityEffectivelyClosed(activity) && !isActivityDeleted(activity));
     const requiredQuantity = sumRequiredInventoryQuantitiesFromActivities(openActivities);
     const usedQuantity = sumRequiredInventoryQuantitiesFromActivities(closedActivities);
     const activitiesWithoutParticipants = group.activities.filter((activity) => getActivityActualParticipantCount(activity) === null).length;
@@ -1116,7 +1345,7 @@ function workshopMetricsRows(activitiesRowsForRequiredInventory, stockMap, catal
     });
     group.activities.forEach((activity) => {
       const activityQuantity = getActivityRequiredInventoryQuantity(activity);
-      const isClosed = String(activity?.status || '').trim() === 'סגור';
+      const isClosed = isActivityEffectivelyClosed(activity);
       const instructors = getActivityInstructorNames(activity).filter((name) => !isWorkshopStockLocationName(name));
       const names = instructors.length ? instructors : ['לא משויך'];
       names.forEach((name) => {
@@ -1305,6 +1534,15 @@ function opsManagementStylesHtml() {
     .ds-ops-mgmt-screen .ds-ops-stock-input { width:64px; text-align:center; font-size:12px; padding:2px 4px; border:1px solid #94a3b8; border-radius:4px; background:#fff; }
     .ds-ops-mgmt-screen .ds-ops-stock-save-btn { background:#0369a1; color:#fff; border:none; border-radius:4px; padding:2px 6px; cursor:pointer; font-size:11px; margin-inline-start:2px; }
     .ds-ops-mgmt-screen .ds-ops-stock-cancel-btn { background:#94a3b8; color:#fff; border:none; border-radius:4px; padding:2px 6px; cursor:pointer; font-size:11px; margin-inline-start:2px; }
+    .ds-ops-mgmt-screen .ds-ops-stock-edit-intro { margin:0 0 10px; font-size:0.84rem; }
+    .ds-ops-mgmt-screen .ds-ops-stock-edit-search { margin-bottom:10px; }
+    .ds-ops-mgmt-screen .ds-ops-stock-edit-table-wrap { max-height:min(62vh,520px); overflow:auto; margin-bottom:12px; }
+    .ds-ops-mgmt-screen .ds-ops-stock-edit-table td, .ds-ops-mgmt-screen .ds-ops-stock-edit-table th { white-space:nowrap; }
+    .ds-ops-mgmt-screen .ds-ops-stock-edit-qty { width:88px; text-align:center; }
+    .ds-ops-mgmt-screen .ds-ops-stock-edit-actions { display:flex; justify-content:flex-start; gap:8px; }
+    .ds-ops-mgmt-screen .ds-ops-stock-edit-status { margin:0 0 8px; font-size:0.82rem; }
+    .ds-ops-mgmt-screen .ds-ops-stock-edit-status.is-error { color:#b91c1c; }
+    .ds-ops-mgmt-screen .ds-ops-stock-edit-status.is-success { color:#047857; }
     .ds-ops-mgmt-screen .ds-ops-schools-authority { margin-block:14px; border:1px solid #d8e5ee; border-radius:16px; background:#fff; overflow:hidden; }
     .ds-ops-mgmt-screen .ds-ops-schools-authority__header { display:flex; align-items:center; justify-content:space-between; gap:16px; padding:12px 16px; background:#eefaff; border-bottom:1px solid #d8e5ee; font-weight:700; }
     .ds-ops-mgmt-screen .ds-ops-schools-authority__stats,
@@ -1333,29 +1571,36 @@ function opsManagementStylesHtml() {
     .ds-ops-mgmt-screen .ds-ops-authorities-table .ds-ops-col--activity { width:33%; white-space:normal; word-break:break-word; }
     .ds-ops-mgmt-screen .ds-ops-authorities-table th,.ds-ops-mgmt-screen .ds-ops-authorities-table td { padding-top:0.25rem; padding-bottom:0.25rem; padding-inline:0.35rem; }
     .ds-ops-mgmt-screen .ds-ops-completion-panel { display:flex; justify-content:center; width:100%; }
-    .ds-ops-mgmt-screen .ds-ops-completion-workspace { width:min(100%,1280px); max-width:100%; margin-inline:auto; display:flex; flex-direction:column; gap:8px; align-items:stretch; box-sizing:border-box; padding-inline:12px; }
-    .ds-ops-mgmt-screen .ds-ops-completion-control-card { width:100%; box-sizing:border-box; display:flex; flex-direction:column; align-items:flex-start; gap:6px; padding:8px 14px 8px; border:1px solid #d8e5ee; border-radius:14px; background:#f8fbfd; box-shadow:0 1px 2px rgba(15,23,42,0.04); }
-    .ds-ops-mgmt-screen .ds-ops-completion-title-bar { display:flex; flex-direction:row; align-items:center; gap:10px; flex-wrap:nowrap; width:100%; min-width:0; }
+    .ds-ops-mgmt-screen .ds-ops-completion-workspace { width:min(100%,1280px); max-width:100%; margin-inline:auto; display:flex; flex-direction:column; gap:6px; align-items:stretch; box-sizing:border-box; padding-inline:8px; }
+    .ds-ops-mgmt-screen .ds-ops-completion-control-card { width:100%; box-sizing:border-box; display:flex; flex-direction:column; align-items:flex-start; gap:5px; padding:6px 10px; border:1px solid #d8e5ee; border-radius:12px; background:#f8fbfd; box-shadow:0 1px 2px rgba(15,23,42,0.04); }
+    .ds-ops-mgmt-screen .ds-ops-completion-title-bar { display:flex; flex-direction:row; align-items:center; gap:6px; flex-wrap:wrap; width:100%; min-width:0; }
     .ds-ops-mgmt-screen .ds-ops-completion-summary { position:relative; flex:0 0 auto; text-align:right; color:#0f172a; }
-    .ds-ops-mgmt-screen .ds-ops-completion-summary__title { appearance:none; border:0; background:transparent; color:#0f172a; margin:0; padding:0 0 1px; font:inherit; font-size:17px; line-height:1.25; font-weight:800; cursor:pointer; border-bottom:1px dashed transparent; white-space:nowrap; }
+    .ds-ops-mgmt-screen .ds-ops-completion-summary__title { appearance:none; border:0; background:transparent; color:#0f172a; margin:0; padding:0 2px 1px; font:inherit; font-size:14px; line-height:1.2; font-weight:800; cursor:pointer; border-bottom:1px dashed transparent; white-space:nowrap; }
     .ds-ops-mgmt-screen .ds-ops-completion-summary__title:hover,
     .ds-ops-mgmt-screen .ds-ops-completion-summary__title:focus-visible { color:#0f8fa8; border-bottom-color:#8bd3df; outline:none; }
     .ds-ops-mgmt-screen .ds-ops-completion-summary-popover { position:absolute; inset-block-start:calc(100% + 8px); inset-inline-start:0; inset-inline-end:auto; z-index:5; width:320px; max-width:min(90vw, 320px); box-sizing:border-box; padding:10px 14px; border:1px solid #d8e5ee; border-radius:14px; background:#fff; box-shadow:0 14px 30px rgba(15,23,42,0.14); color:#334155; font-size:13px; line-height:1.45; }
     .ds-ops-mgmt-screen .ds-ops-completion-summary-popover p { margin:0; }
     .ds-ops-mgmt-screen .ds-ops-completion-summary-popover p + p { margin-top:4px; }
     .ds-ops-mgmt-screen .ds-ops-completion-control-row { display:flex; flex-wrap:wrap; align-items:center; justify-content:flex-start; gap:6px; width:100%; }
+    .ds-ops-mgmt-screen .ds-ops-completion-toolbar-stack { display:flex; flex:1 1 720px; flex-direction:row; align-items:center; flex-wrap:wrap; gap:6px; width:auto; min-width:0; }
+    .ds-ops-mgmt-screen .ds-ops-completion-toolbar-section { display:flex; flex-direction:row; align-items:center; flex-wrap:wrap; gap:5px; width:auto; min-width:0; }
+    .ds-ops-mgmt-screen .ds-ops-completion-toolbar-label { display:none; }
+    .ds-ops-mgmt-screen .ds-ops-completion-filter-toolbar { display:flex; flex-wrap:wrap; align-items:center; gap:5px; width:auto; min-width:0; }
+    .ds-ops-mgmt-screen .ds-ops-completion-actions-toolbar { display:flex; flex-wrap:wrap; align-items:center; justify-content:flex-start; gap:5px; width:auto; padding-top:0; border-top:0; }
     .ds-ops-mgmt-screen .ds-ops-completion-control-row label,
     .ds-ops-mgmt-screen .ds-ops-approval-print-filter { display:flex; flex-wrap:nowrap; align-items:center; justify-content:flex-start; gap:6px; margin:0; font-weight:700; color:#334155; }
-    .ds-ops-mgmt-screen .ds-ops-completion-date-filter input[type="date"] { width:140px; min-width:130px; }
-    .ds-ops-mgmt-screen .ds-ops-approval-print-filter select { width:130px; min-width:110px; max-width:160px; }
-    .ds-ops-mgmt-screen .ds-ops-completion-control-row .ds-btn { flex:0 0 auto; width:auto; min-width:0; white-space:nowrap; }
-    .ds-ops-mgmt-screen .ds-ops-completion-filter-toolbar { flex:1 1 auto; flex-wrap:nowrap; min-width:0; }
+    .ds-ops-mgmt-screen .ds-ops-completion-date-filter input[type="date"] { width:160px; min-width:150px; height:30px; }
+    .ds-ops-mgmt-screen .ds-ops-approval-print-filter select { width:160px; min-width:150px; max-width:180px; height:30px; }
+    .ds-ops-mgmt-screen .ds-ops-completion-control-row .ds-btn,
+    .ds-ops-mgmt-screen .ds-ops-completion-actions-toolbar .ds-btn { flex:0 0 auto; width:auto; min-width:0; white-space:nowrap; }
+    .ds-ops-mgmt-screen .ds-ops-completion-filter-toolbar .ds-btn,
+    .ds-ops-mgmt-screen .ds-ops-completion-actions-toolbar .ds-btn { justify-content:center; min-height:30px; height:30px; padding:4px 10px; font-size:12px; }
     .ds-ops-mgmt-screen .ds-ops-completion-selected-date { width:100%; margin:0; padding:8px 10px; border:1px solid #dbeafe; border-radius:10px; background:#eff6ff; color:#1e3a8a; font-size:13px; line-height:1.45; text-align:right; }
-    .ds-ops-mgmt-screen .ds-ops-completion-subtabs { display:flex; flex-wrap:wrap; justify-content:flex-start; gap:6px; width:100%; padding-top:4px; border-top:1px solid #e2e8f0; }
+    .ds-ops-mgmt-screen .ds-ops-completion-subtabs { display:flex; flex-wrap:wrap; justify-content:flex-start; gap:5px; width:auto; padding-top:0; border-top:0; }
     .ds-ops-mgmt-screen .ds-ops-completion-subtabs .ds-btn { border-radius:999px; }
     .ds-ops-mgmt-screen .ds-ops-completion-approvals-card { width:100%; margin:0; box-sizing:border-box; }
     .ds-ops-mgmt-screen .ds-ops-completion-approvals-card .ds-card { width:100%; margin:0; box-sizing:border-box; overflow:hidden; border-radius:16px; }
-    .ds-ops-mgmt-screen .ds-ops-completion-approvals-card .ds-card__body { padding:8px 10px 10px; }
+    .ds-ops-mgmt-screen .ds-ops-completion-approvals-card .ds-card__body { padding:4px 8px 8px; }
     .ds-ops-mgmt-screen .ds-ops-completion-approvals-card .ds-table-wrap { width:100%; max-width:100%; box-sizing:border-box; overflow-x:hidden; }
     .ds-ops-mgmt-screen .ds-ops-completion-preview { width:100%; min-width:0; table-layout:fixed; }
     .ds-ops-mgmt-screen .ds-ops-completion-preview th { white-space:nowrap; vertical-align:middle; text-align:right; }
@@ -1394,6 +1639,7 @@ function opsManagementStylesHtml() {
     .ds-ops-mgmt-screen .ds-ops-completion-col--photo .ds-ops-photo-indicator { display:flex; flex-wrap:wrap; align-items:center; justify-content:center; gap:4px; white-space:normal; overflow-wrap:anywhere; font-size:0.82em; line-height:1.3; }
     .ds-ops-mgmt-screen .ds-ops-completion-col-contact-cell { text-align:right; }
     .ds-ops-mgmt-screen .ds-ops-completion-col-contact-cell select { width:100%; max-width:100%; box-sizing:border-box; text-align:right; direction:rtl; height:30px; min-height:30px; padding-top:3px; padding-bottom:3px; }
+    .ds-ops-mgmt-screen .ds-ops-contact-fallback-note { display:block; font-size:0.76em; color:#64748b; margin-top:2px; }
     .ds-ops-mgmt-screen .ds-ops-completion-col-who-cell { white-space:normal; line-height:1.35; }
     .ds-ops-mgmt-screen .ds-ops-completion-actions-cell { text-align:center; vertical-align:middle; white-space:nowrap; padding-inline:4px; }
     .ds-ops-mgmt-screen .ds-ops-completion-actions { display:inline-flex; align-items:center; justify-content:center; gap:3px; flex-wrap:nowrap; white-space:nowrap; }
@@ -1424,13 +1670,20 @@ function opsManagementStylesHtml() {
       .ds-ops-mgmt-screen .ds-ops-completion-workspace { width:100%; }
       .ds-ops-mgmt-screen .ds-ops-completion-control-card { padding:8px 10px; }
       .ds-ops-mgmt-screen .ds-ops-completion-title-bar { flex-wrap:wrap; }
-      .ds-ops-mgmt-screen .ds-ops-completion-filter-toolbar { flex:1 1 100%; flex-wrap:wrap; }
+      .ds-ops-mgmt-screen .ds-ops-completion-filter-toolbar { grid-template-columns:repeat(2, minmax(0, 1fr)); }
+      .ds-ops-mgmt-screen .ds-ops-completion-actions-toolbar { grid-template-columns:repeat(2, minmax(0, 1fr)); justify-content:stretch; }
       .ds-ops-mgmt-screen .ds-ops-completion-control-row { align-items:stretch; }
       .ds-ops-mgmt-screen .ds-ops-completion-control-row label,
       .ds-ops-mgmt-screen .ds-ops-approval-print-filter { width:100%; align-items:flex-start; }
       .ds-ops-mgmt-screen .ds-ops-completion-date-filter input[type="date"],
-      .ds-ops-mgmt-screen .ds-ops-approval-print-filter select { width:min(100%, 220px); }
+      .ds-ops-mgmt-screen .ds-ops-approval-print-filter select,
+      .ds-ops-mgmt-screen .ds-ops-completion-filter-toolbar .ds-btn,
+      .ds-ops-mgmt-screen .ds-ops-completion-actions-toolbar .ds-btn { width:100%; min-width:0; max-width:100%; }
       .ds-ops-mgmt-screen .ds-ops-completion-approvals-card .ds-table-wrap { overflow-x:auto; }
+    }
+    @media (max-width: 460px) {
+      .ds-ops-mgmt-screen .ds-ops-completion-filter-toolbar,
+      .ds-ops-mgmt-screen .ds-ops-completion-actions-toolbar { grid-template-columns:1fr; }
     }
     @media print {
       .ds-ops-mgmt-screen .ds-ops-schools-authority:not(:first-child) { break-before:page; page-break-before:always; }
@@ -1517,10 +1770,20 @@ function sumScheduleStudentCounts(scheduleRows = []) {
   }, 0);
 }
 
-function buildGroupedScheduleHtml({ scheduleRows, state, selectedInstructorFilter, directory, contactsIndex, printContacts = [], contactResponsiblesRows = [], allRows = [] }) {
+function buildGroupedScheduleHtml({ scheduleRows, state, selectedInstructorFilter, printContacts = [], contactsSchoolsRows = [], schoolsDirectoryRows = [], contactResponsiblesRows = [], allRows = [] }) {
   if (!scheduleRows || !scheduleRows.length) return '<p>אין פעילויות להדפסה.</p>';
   const ops = ensureOpsState(state);
   const showInstructor = !selectedInstructorFilter;
+
+  // Single source of truth for both "who's with me" / "contact responsible" and the
+  // school's own contact person, computed once from the full activities dataset so this
+  // printed sheet always matches the admin table and the instructor's own screens.
+  const responsibleIndex = buildContactResponsibleIndex(allRows, contactResponsiblesRows);
+  const schoolContactIndices = {
+    summerIndex: buildSummerContactIndex(printContacts),
+    contactsSchoolsIndex: buildSharedContactsSchoolsIndex(contactsSchoolsRows),
+    schoolsCatalogIndex: buildSchoolsCatalogContactIndex(schoolsDirectoryRows)
+  };
 
   const groups = [];
   const groupMap = new Map();
@@ -1564,31 +1827,19 @@ function buildGroupedScheduleHtml({ scheduleRows, state, selectedInstructorFilte
       return `<tr><td>${escapeHtml(entry.time || '—')}</td><td>${escapeHtml(getActivityName(a))}</td><td>${escapeHtml(studentCountLabel)}</td><td>${escapeHtml(getActivityGradeLabel(a) || '—')}</td>${instrCell}</tr>`;
     }).join('');
     const tableClass = showInstructor ? 'pb-act has-instructor' : 'pb-act';
-    const contactRows = buildPrintContactRowsForGroup(group, printContacts, contactResponsiblesRows);
+    const contactRows = buildPrintContactRowsForGroup(group, schoolContactIndices);
     const contactRowsHtml = contactRows.map((row) => `<tr><td>${escapeHtml(printContactFallback(row.school))}</td><td>${escapeHtml(printContactFallback(row.address))}</td><td>${escapeHtml(printContactFallback(row.contactName))}</td><td>${escapeHtml(printContactFallback(row.contactPhone))}</td></tr>`).join('');
     const contactsHtml = contactRowsHtml ? `<section class="pb-contacts"><h3>פרטי קשר ואימות פעילות</h3><table><thead><tr><th>בית ספר</th><th>כתובת</th><th>איש קשר</th><th>טלפון</th></tr></thead><tbody>${contactRowsHtml}</tbody></table></section>` : '';
-    const groupDateStr = group.date || '';
-    const groupSchoolNorm = normalizePrintContactMatchText(group.school);
-    const groupSchoolIds = new Set((group.entries || []).map((entry) => activitySchoolIdForPrint(entry.activity)).filter(Boolean));
-    const teamSet = new Set();
-    (allRows || []).forEach((activity) => {
-      const actSchoolId = activitySchoolIdForPrint(activity);
-      const schoolMatch = (actSchoolId && groupSchoolIds.has(actSchoolId))
-        || normalizePrintContactMatchText(getActivitySchoolDisplayNameClean(activity)) === groupSchoolNorm;
-      if (!schoolMatch) return;
-      const dates = activityDatesInRange(activity, ops.dateFrom, ops.dateTo);
-      const primary = getActivityPrimaryDate(activity);
-      const actDates = dates.length ? dates : (primary ? [primary] : []);
-      if (!actDates.includes(groupDateStr)) return;
-      getActivityInstructorNames(activity).forEach((name) => { if (name) teamSet.add(name); });
-    });
-    const teamList = [...teamSet].filter(Boolean);
+    // Same canonical group the admin table and instructor screens resolve for this
+    // date+school - any representative activity in the group resolves to it.
+    const representativeActivity = group.entries[0]?.activity;
+    const responsibleGroup = representativeActivity ? findContactResponsibleGroup(representativeActivity, responsibleIndex) : null;
+    const teamList = responsibleGroup?.instructors?.map((entry) => entry.name).filter(Boolean) || [];
     const teamText = teamList.length ? teamList.join(', ') : 'ללא מדריכים';
-    const overrideMap = opsContactOverrideMap(contactResponsiblesRows);
-    const overrideKey = [...groupSchoolIds].map((id) => overrideMap.get(`${groupDateStr}|${id}`)).find(Boolean)
-      || overrideMap.get(`${groupDateStr}|${normalizePrintContactMatchText(group.school).replace(/[״"׳']/g, '').replace(/\s+/g, ' ').toLowerCase()}`);
-    const responsibleName = String(overrideKey?.responsible_name || (contactRows.length && contactRows[0].responsibleName) || teamList[0] || '').trim() || 'לא הוגדר';
-    const teamHtml = `<div class="pb-team-block"><div class="pb-team"><strong>מי איתי היום:</strong> ${escapeHtml(teamText)}</div><div class="pb-team"><strong>האחראי לאישור קיום הפעילות מול איש הקשר בבית הספר הוא:</strong> ${escapeHtml(responsibleName)}</div></div>`;
+    const responsibleIsFallback = responsibleGroup?.responsibleSource === 'fallback';
+    const responsibleName = String(responsibleGroup?.responsibleName || '').trim() || 'לא הוגדר';
+    const responsibleFallbackNote = responsibleIsFallback ? ' (ברירת מחדל - לא הוגדר ידנית)' : '';
+    const teamHtml = `<div class="pb-team-block"><div class="pb-team"><strong>מי איתי היום:</strong> ${escapeHtml(teamText)}</div><div class="pb-team"><strong>האחראי לאישור קיום הפעילות מול איש הקשר בבית הספר הוא:</strong> ${escapeHtml(responsibleName)}${escapeHtml(responsibleFallbackNote)}</div></div>`;
     return `<div class="pb">
       <div class="pb-hdr">
         <span class="pb-date">${escapeHtml(dateLabel)}</span>
@@ -1812,7 +2063,18 @@ function instructorsTabHtml(rows, state, data = {}, directory = buildSchoolsDire
   const scheduleRows = buildScheduleRows(rows, state, directory);
   const selectedInstructorFilter = String(filters.instructor || '').trim();
   const printTitle = selectedInstructorFilter ? selectedInstructorFilter : 'כל המדריכים';
-  _schedulePrintContext = { scheduleRows, state, selectedInstructorFilter, directory, contactsIndex, printContacts: data?.instructorSchedulePrintContactsRows || [], contactResponsiblesRows: data?.contactResponsiblesRows || [], allRows: allPreparedRows.length ? allPreparedRows : rows };
+  _schedulePrintContext = {
+    scheduleRows,
+    state,
+    selectedInstructorFilter,
+    directory,
+    contactsIndex,
+    printContacts: data?.instructorSchedulePrintContactsRows || [],
+    contactsSchoolsRows: data?.contactsSchoolsRows || [],
+    schoolsDirectoryRows: data?.schoolsDirectoryRows || [],
+    contactResponsiblesRows: data?.contactResponsiblesRows || [],
+    allRows: allPreparedRows.length ? allPreparedRows : rows
+  };
 
   const tableRows = scheduleRows.map((entry) => {
     const activity = entry.activity;
@@ -1887,16 +2149,50 @@ function workshopInstructorDetailHtml(row) {
   </div></td></tr>`;
 }
 
-function workshopsTabHtml(activitiesRowsForRequiredInventory, state, stockMap, catalogRows = [], workshopStockDistributions = []) {
+function workshopStockEditDrawerHtml(items = [], searchQuery = '') {
+  const q = String(searchQuery || '').trim().toLowerCase();
+  const filtered = q
+    ? items.filter((item) => String(item.label || '').toLowerCase().includes(q) || String(item.value || '').toLowerCase().includes(q))
+    : items;
+  const rowsHtml = filtered.length
+    ? filtered.map((item) => {
+        const qty = Number.isFinite(Number(item.stock_quantity)) ? Number(item.stock_quantity) : 0;
+        return `<tr data-ops-stock-edit-row data-stock-key="${escapeHtml(item.key || '')}">
+          <td>${escapeHtml(item.label || '—')}<br><span class="ds-muted" dir="ltr">${escapeHtml(item.stock_group_key || item.key || '')}</span></td>
+          <td class="ds-ops-stock-edit-current">${formatSignedNumberForRtl(qty)}</td>
+          <td><input class="ds-input ds-input--sm ds-ops-stock-edit-qty" type="number" min="0" step="1" inputmode="numeric" data-ops-stock-edit-qty data-original-qty="${qty}" data-list-id="${escapeHtml(String(item.list_id || ''))}" data-source="${escapeHtml(item.source || '')}" data-stock-group-key="${escapeHtml(item.stock_group_key || item.key || '')}" data-value="${escapeHtml(item.value || '')}" data-label="${escapeHtml(item.label || '')}" data-activity-no="${escapeHtml(item.activity_no || '')}" data-sort-order="${Number(item.sort_order) || 0}" value="${qty}" aria-label="כמות מלאי"></td>
+        </tr>`;
+      }).join('')
+    : `<tr><td colspan="3">${dsEmptyState(q ? 'לא נמצאו פריטים בחיפוש' : 'אין פריטי מלאי לעריכה')}</td></tr>`;
+  return `<div class="ds-ops-stock-edit-drawer" data-ops-stock-edit-drawer dir="rtl">
+    <p class="ds-muted ds-ops-stock-edit-intro">עדכון הכמות יישמר ב-Supabase וישפיע על חישובי ציוד ומלאי.</p>
+    <label class="ds-filter-field ds-ops-stock-edit-search"><span class="ds-filter-field__label">חיפוש</span><input class="ds-input ds-input--sm" type="search" data-ops-stock-edit-search value="${escapeHtml(searchQuery)}" placeholder="שם פעילות / פריט"></label>
+    <div class="ds-ops-stock-edit-table-wrap">${dsTableWrap(`<table class="ds-table ds-table--compact ds-ops-stock-edit-table"><thead><tr><th>פריט מלאי</th><th>מלאי נוכחי</th><th>כמות חדשה</th></tr></thead><tbody>${rowsHtml}</tbody></table>`)}</div>
+    <p class="ds-ops-stock-edit-status" data-ops-stock-edit-status hidden role="status"></p>
+    <div class="ds-ops-stock-edit-actions"><button type="button" class="ds-btn ds-btn--primary" data-ops-stock-edit-save>שמור שינויים</button></div>
+  </div>`;
+}
+
+function openingLocationsHtml(locations = []) {
+  const positive = (locations || []).filter((item) => Number(item?.quantity) > 0);
+  if (!positive.length) return '<span class="ds-ops-mgmt-cell-muted">—</span>';
+  return `<div class="ds-ops-opening-location-list">${positive.map((item) => `<span class="ds-ops-opening-location-item"><strong>${escapeHtml(item.location)}</strong> ${formatSignedNumberForRtl(item.quantity)}</span>`).join('')}</div>`;
+}
+
+function workshopsTabHtml(activitiesRowsForRequiredInventory, state, stockMap, catalogRows = [], workshopStockDistributions = [], listsData = null, prebuiltMetrics = null) {
   const ops = ensureOpsState(state);
-  const allMetrics = sortByConfig(workshopMetricsRows(activitiesRowsForRequiredInventory, stockMap, catalogRows, workshopStockDistributions, { from: WORKSHOPS_SUMMER_FROM, to: WORKSHOPS_SUMMER_TO }), state, TAB_WORKSHOPS, {
+  const isSchool2027 = ops.period === ACTIVITY_SEASON_SCHOOL_2027;
+  const metricRows = Array.isArray(prebuiltMetrics) ? prebuiltMetrics : workshopMetricsRows(activitiesRowsForRequiredInventory, stockMap, catalogRows, workshopStockDistributions, { from: WORKSHOPS_SUMMER_FROM, to: WORKSHOPS_SUMMER_TO });
+  const allMetrics = sortByConfig(metricRows, state, TAB_WORKSHOPS, {
     workshopNo: (row) => row.workshopNo || row.workshopName,
     workshopName: (row) => row.workshopName,
     activityCount: (row) => row.activityCount,
     estimatedQuantity: (row) => row.requiredQuantity,
     usedQuantity: (row) => row.usedQuantity,
   });
-  const metrics = allMetrics.filter((row) => (row.stockQuantity !== null && Number(row.stockQuantity) > 0) || row.requiredQuantity !== 0 || row.deliveredQuantity !== 0);
+  const metrics = isSchool2027
+    ? allMetrics.filter((row) => row.linkedWorkshops?.length || Number(row.openingStock || row.stockQuantity || 0) > 0)
+    : allMetrics.filter((row) => (row.stockQuantity !== null && Number(row.stockQuantity) > 0) || row.requiredQuantity !== 0 || row.deliveredQuantity !== 0);
   const table = metrics.length
     ? dsTableWrap(`<table class="ds-table ds-table--compact ds-ops-mgmt-data-table ds-ops-workshops-table"><colgroup><col class="ds-ops-workshop-col--no"><col class="ds-ops-workshop-col--name"><col class="ds-ops-workshop-col--metric"><col class="ds-ops-workshop-col--metric"><col class="ds-ops-workshop-col--metric"><col class="ds-ops-workshop-col--metric"><col class="ds-ops-workshop-col--status"></colgroup><thead><tr>
         ${sortableTh(state, TAB_WORKSHOPS, 'workshopNo', 'מס׳ סדנה', 'ds-ops-workshop-col--no')}
@@ -1911,7 +2207,7 @@ function workshopsTabHtml(activitiesRowsForRequiredInventory, state, stockMap, c
         const mainRow = `<tr class="${isExpanded ? 'ds-ops-row--expanded' : ''}" data-ops-workshop-toggle="${escapeHtml(row.stockGroupKey || '')}" data-ops-stock-group="${escapeHtml(row.stockGroupKey || '')}" tabindex="0" role="button" aria-expanded="${isExpanded ? 'true' : 'false'}">
           <td class="ds-ops-workshop-col--no">${escapeHtml(row.workshopNoDisplay || row.workshopNo || row.stockGroupKey || '—')}</td>
           <td class="ds-ops-workshop-col--name">${escapeHtml(row.workshopName)}${row.activitiesWithoutParticipants ? ` <span class="ds-ops-estimate-mark" title="חסר מספר משתתפים ב-${row.activitiesWithoutParticipants} פעילויות; הן חושבו כ-0 במלאי נדרש">!</span>` : ''}</td>
-          <td class="ds-ops-workshop-col--metric">${row.stockQuantity === null ? '<span class="ds-ops-mgmt-cell-muted">—</span>' : formatSignedNumberForRtl(row.stockQuantity)}</td>
+          <td class="ds-ops-workshop-col--metric">${isSchool2027 ? formatSignedNumberForRtl(row.openingStock ?? row.stockQuantity ?? 0) : (row.stockQuantity === null ? '<span class="ds-ops-mgmt-cell-muted">—</span>' : formatSignedNumberForRtl(row.stockQuantity))}</td>
           <td class="ds-ops-workshop-col--metric">${formatSignedNumberForRtl(row.usedQuantity)}</td>
           <td class="ds-ops-workshop-col--metric">${formatSignedNumberForRtl(row.requiredQuantity)}</td>
           <td class="ds-ops-workshop-col--metric">${formatGapCell(row.expectedBalance, true)}</td>
@@ -1923,11 +2219,17 @@ function workshopsTabHtml(activitiesRowsForRequiredInventory, state, stockMap, c
         );
         return mainRow + detailHtml;
       }).join('')}</tbody></table>`)
-    : dsEmptyState('לא נמצאו סדנאות בטווח הנבחר');
+    : (listsData?._loadError || listsData?.error || !catalogRows.length)
+      ? `<div role="alert" style="margin:16px 0;padding:12px 16px;background:#fef3c7;border:1px solid #f59e0b;border-radius:6px;color:#92400e;font-size:13px;direction:rtl;text-align:right;">⚠️ קטלוג המלאי לא נטען. יש לרענן את הדף או לבדוק הרשאות/חיבור.${listsData?._loadError || listsData?.error ? `<br><span style="font-size:11px;opacity:.75">שגיאה: ${escapeHtml(String(listsData._loadError || listsData.error))}</span>` : ''}</div>`
+      : dsEmptyState('לא נמצאו סדנאות בטווח הנבחר');
 
+  const editButton = canEditOperationsInventory(state)
+    ? '<button type="button" class="ds-btn ds-btn--sm ds-btn--secondary" data-ops-open-stock-edit>עריכת מלאי</button>'
+    : '';
   return `<section class="ds-ops-mgmt-panel ds-ops-workshops-panel" dir="rtl">
     <div class="ds-ops-mgmt-panel__toolbar no-print">
       <button type="button" class="ds-btn ds-btn--sm ds-btn--primary" data-ops-print-workshops>הדפס מלאי סדנאות</button>
+      ${editButton}
     </div>
     <div class="ds-ops-mgmt-print-header only-print"><h2>מלאי סדנאות</h2><p>טווח קיץ: ${escapeHtml(formatDateHe(WORKSHOPS_SUMMER_FROM))} – ${escapeHtml(formatDateHe(WORKSHOPS_SUMMER_TO))}</p></div>
     <div class="ds-ops-workshops-card">${dsCard({ title: 'מלאי סדנאות', badge: String(metrics.length), body: `<div class="ds-ops-workshops-table-wrap">${table}</div>`, padded: false })}</div>
@@ -2058,6 +2360,7 @@ function schoolsTabHtml(rows, state, directory = buildSchoolsDirectory([]), cont
 }
 
 
+
 let _completionApprovalPrintContext = null;
 
 function printCompletionApprovals(approvals = [], title = 'אישור ביצוע פעילות') {
@@ -2093,12 +2396,15 @@ function completionApprovalsForState(rows, state, directory, contactsIndex, summ
 
 
 
+function completionApprovalHasFileRef(upload) {
+  return !!(upload?.file_path || upload?.file_name || upload?.file_ref_exists);
+}
 function completionApprovalStorageExists(upload) {
-  return !!upload?.file_path && upload.storage_exists !== false && String(upload?.storage_status || '').trim() !== 'missing';
+  return completionApprovalHasFileRef(upload);
 }
 function completionApprovalIsHandled(upload) {
   const status = String(upload?.status || '').trim();
-  return completionApprovalStorageExists(upload) || (status === 'uploaded' || status === 'approved') && completionApprovalStorageExists(upload);
+  return completionApprovalHasFileRef(upload) || ['uploaded', 'approved'].includes(status);
 }
 
 function completionApprovalSortBucket(dateIso, handled, todayIso = localTodayIso()) {
@@ -2141,71 +2447,41 @@ function dedupeCompletionApprovals(approvals = []) {
   return result;
 }
 
-function completionApprovalUploadKey(approval) {
-  const normalize = (value) => String(value || '').trim().replace(/[״"]/g, '').replace(/[׳']/g, '').replace(/\s+/g, ' ').toLowerCase();
-  if (approval?.isTamirTeamApproval) {
-    return `tamir|${String(approval?.date || '').trim()}|${normalize(approval?.authority)}|${normalize(approval?.school)}`;
-  }
-  return `${String(approval?.date || '').trim()}|${normalize(approval?.authority)}|${normalize(approval?.school)}|${normalize(approval?.instructorName)}`;
-}
-function completionApprovalUploadMap(rows = []) {
-  const normalize = (value) => String(value || '').trim().replace(/[״"]/g, '').replace(/[׳']/g, '').replace(/\s+/g, ' ').toLowerCase();
-  const map = new Map();
-  (Array.isArray(rows) ? rows : []).forEach((row) => {
-    const key = `${String(row?.activity_date || '').trim()}|${normalize(row?.authority)}|${normalize(row?.school)}|${normalize(row?.instructor_name)}`;
-    if (!map.has(key)) map.set(key, row);
-    // Tamir activities require two instructors but the upload is tracked per-activity, not per-uploader;
-    // whoever uploads (as recorded on authority/school) satisfies the shared team approval.
-    if (isTamirCompletionApprovalActivity(row)) {
-      const tamirKey = `tamir|${String(row?.activity_date || '').trim()}|${normalize(row?.authority)}|${normalize(row?.school)}`;
-      if (!map.has(tamirKey)) map.set(tamirKey, row);
-    }
-    // Also index by covered activity row ids so legacy uploads (recorded under a single instructor
-    // before this fix) can still be matched to the Tamir team approval that covers the same activity.
-    String(row?.activity_row_id || '').split(',').map((value) => value.trim()).filter(Boolean).forEach((rowId) => {
-      const rowIdKey = `tamir-row:${rowId}`;
-      if (!map.has(rowIdKey)) map.set(rowIdKey, row);
-    });
-  });
-  return map;
-}
-
-function completionApprovalLookupUpload(approval, uploadMap) {
-  const direct = uploadMap.get(completionApprovalUploadKey(approval));
-  if (direct || !approval?.isTamirTeamApproval) return direct;
+// Row-id first plus the specific instructor_emp_id: each real instructor uploads
+// their own approval file. date+authority+school is only a fallback for legacy
+// uploads that never recorded an activity_row_id at all — this avoids mixing up
+// two activities on the same day/school when their row ids differ.
+function completionApprovalLookupUpload(approval, uploads) {
   const rowIds = (Array.isArray(approval?.activities) ? approval.activities : [])
-    .map((activity) => String(activity?.rowId || activity?.row_id || activity?.RowID || '').trim())
+    .map((activity) => activity?.rowId || activity?.row_id || activity?.RowID)
     .filter(Boolean);
-  for (const rowId of rowIds) {
-    const hit = uploadMap.get(`tamir-row:${rowId}`);
-    if (hit) return hit;
-  }
-  return undefined;
+  return findMatchingCompletionApprovalUpload(uploads, {
+    rowIds,
+    instructorEmpId: approval?.instructorEmpId,
+    instructorName: approval?.instructorName,
+    date: approval?.date,
+    authority: approval?.authority,
+    school: approval?.school
+  });
 }
 function completionApprovalUploadStatusLabel(upload) {
-  const status = String(upload?.status || '').trim();
-  if (upload?.file_path && !completionApprovalStorageExists(upload)) return 'הקובץ חסר באחסון';
-  if (status === 'approved') return 'אושר';
-  if (status === 'rejected') return 'נדחה';
-  if (status === 'uploaded' || completionApprovalStorageExists(upload)) return 'הועלה';
-  return 'טרם הועלה';
+  return completionApprovalStatusInfo(upload).label;
 }
 
 function completionApprovalUploadStatusChip(upload) {
-  const status = String(upload?.status || '').trim();
-  if (upload?.file_path && !completionApprovalStorageExists(upload)) return '<span class="ds-ops-status-rejected">⚠ הקובץ חסר באחסון</span>';
-  if (status === 'approved') return '<span class="ds-ops-status-approved">✓ אושר</span>';
-  if (status === 'rejected') return '<span class="ds-ops-status-rejected">✕ נדחה</span>';
-  if (status === 'uploaded' || completionApprovalStorageExists(upload)) return '<span class="ds-ops-status-uploaded">↑ הועלה</span>';
-  return '<span class="ds-muted">טרם הועלה</span>';
+  const info = completionApprovalStatusInfo(upload);
+  if (info.key === 'approved') return `<span class="ds-ops-status-approved">✓ ${escapeHtml(info.label)}</span>`;
+  if (info.key === 'rejected') return `<span class="ds-ops-status-rejected">✕ ${escapeHtml(info.label)}</span>`;
+  if (info.key === 'uploaded') return `<span class="ds-ops-status-uploaded">↑ ${escapeHtml(info.label)}</span>`;
+  return `<span class="ds-muted">${escapeHtml(info.label)}</span>`;
 }
 
 function completionApprovalTypeLabel(approval) {
-  return approval?.isTamirTeamApproval ? 'תמיר' : 'רגיל';
+  return approval?.isTamirTeamApproval || approval?.isTamirActivity ? 'תמיר' : 'רגיל';
 }
 
 function completionApprovalTypeChip(approval) {
-  return approval?.isTamirTeamApproval
+  return approval?.isTamirTeamApproval || approval?.isTamirActivity
     ? '<span class="ds-chip ds-chip--warn">תמיר</span>'
     : '<span class="ds-chip ds-chip--neutral">רגיל</span>';
 }
@@ -2216,9 +2492,8 @@ function completionApprovalInstructorCellHtml(approval) {
   const primary = names[0] || approval?.instructorName || '—';
   return `<span class="ds-ops-completion-instructor-line">מדריך: ${escapeHtml(primary)}</span>`;
 }
-function photoApprovalIndicatorHtml(approval, photoUploads) {
-  const noUploadHtml = '<div class="ds-ops-photo-indicator ds-ops-photo-indicator--no">📷 לא הועלה</div>';
-  if (!Array.isArray(photoUploads)) return noUploadHtml;
+function findPhotoApprovalUpload(approval, photoUploads) {
+  if (!Array.isArray(photoUploads)) return null;
   const approvalEmpId = String(approval?.instructorEmpId || '').trim();
   const approvalSchoolId = String(approval?.schoolId || '').trim();
   const instrName = normalizeOpsText(approval?.instructorName || '');
@@ -2239,9 +2514,14 @@ function photoApprovalIndicatorHtml(approval, photoUploads) {
     if (instrNames.length && instrNames.includes(uName)) return true;
     return false;
   };
-  const found = photoUploads.find(matchUpload);
+  return photoUploads.find(matchUpload) || null;
+}
+
+function photoApprovalIndicatorHtml(approval, photoUploads, displayIndex) {
+  const noUploadHtml = `<div class="ds-ops-photo-indicator ds-ops-photo-indicator--no">📷 לא הועלה <button type="button" class="ds-ops-icon-btn ds-ops-icon-btn--add" data-ops-photo-upload="${displayIndex}" title="העלאת אישור צילום" aria-label="העלאת אישור צילום">＋</button></div>`;
+  const found = findPhotoApprovalUpload(approval, photoUploads);
   if (found?.file_path) {
-    return `<div class="ds-ops-photo-indicator ds-ops-photo-indicator--has">📷 יש אישור צילום <button type="button" class="ds-ops-icon-btn" data-ops-photo-view="${escapeHtml(String(found.id))}" title="צפייה באישור צילום" aria-label="צפייה באישור צילום">👁</button></div>`;
+    return `<div class="ds-ops-photo-indicator ds-ops-photo-indicator--has">📷 יש אישור צילום <button type="button" class="ds-ops-icon-btn" data-ops-photo-view="${escapeHtml(String(found.id))}" title="צפייה באישור צילום" aria-label="צפייה באישור צילום">👁</button> <button type="button" class="ds-ops-icon-btn ds-ops-icon-btn--add" data-ops-photo-replace="${escapeHtml(String(found.id))}" title="החלפת אישור צילום" aria-label="החלפת אישור צילום">↻</button></div>`;
   }
   return noUploadHtml;
 }
@@ -2332,127 +2612,54 @@ function completionApprovalZipFileName(approval, upload, index) {
   return `${base || index}-${index + 1}.${ext}`;
 }
 
-function opsContactGroupKey(row) {
-  const normalize = (value) => String(value || '').trim().replace(/[״"]/g, '').replace(/[׳']/g, '').replace(/\s+/g, ' ').toLowerCase();
-  const date = String(row?.start_date || row?.activity_date || row?.date || '').trim().slice(0, 10);
-  const schoolId = String(row?.school_id || row?.single_school_id || '').trim();
-  const school = schoolId || normalize(row?.school || row?.single_school_name || row?.legacy_school || '');
-  return date && school ? `${date}|${school}` : '';
-}
-function opsInstructorEntries(row) {
-  const entries = [];
-  [[row?.instructor_name || row?.instructor, row?.emp_id], [row?.instructor_name_2 || row?.instructor_2, row?.emp_id_2]].forEach(([name, empId]) => {
-    const cleanName = String(name || '').trim();
-    const cleanId = String(empId || '').trim();
-    if (!cleanName && !cleanId) return;
-    if (!entries.some((entry) => entry.empId === cleanId && entry.name === cleanName)) entries.push({ name: cleanName || cleanId, empId: cleanId });
-  });
-  return entries;
-}
-function opsContactOverrideMap(rows = []) {
-  const normalize = (value) => String(value || '').trim().replace(/[״"]/g, '').replace(/[׳']/g, '').replace(/\s+/g, ' ').toLowerCase();
-  const map = new Map();
-  (Array.isArray(rows) ? rows : []).forEach((row) => {
-    const key = `${String(row?.activity_date || '').trim().slice(0, 10)}|${String(row?.school_id || '').trim() || normalize(row?.school)}`;
-    if (key && key !== '|') map.set(key, row);
-  });
-  return map;
-}
+// Thin adapter over the canonical resolver: keeps returning a Map keyed by
+// `${date}|${schoolId}` and `${date}|${normalizeOpsText(school-or-alias)}` so the
+// two existing call sites below don't need their own lookup logic rewritten, while
+// the grouping/fallback/override computation itself is the single shared resolver.
 function buildContactContextMap(allRows, overrides) {
-  const grouped = new Map();
-  (Array.isArray(allRows) ? allRows : []).forEach((row) => {
-    const date = String(row?.start_date || row?.activity_date || '').trim().slice(0, 10);
-    const rawSchool = String(row?.school || row?.single_school_name || row?.legacy_school || '').trim();
-    if (!date || !rawSchool) return;
-    const key = `${date}|${normalizeOpsText(rawSchool)}`;
-    if (!grouped.has(key)) grouped.set(key, { rows: [], schoolId: String(row?.school_id || row?.single_school_id || '').trim(), school: rawSchool });
-    grouped.get(key).rows.push(row);
-  });
-  const overrideMap = opsContactOverrideMap(overrides);
-  const instrKey = (entry) => entry.empId || entry.name;
-
-  // Pass 1: collect group metadata and instructors, sorted stably by key
-  const groupData = [];
-  grouped.forEach(({ rows: groupRows, schoolId, school }, key) => {
-    const first = groupRows.slice().sort((a, b) => String(a?.start_time || a?.StartTime || '').localeCompare(String(b?.start_time || b?.StartTime || '')))[0] || groupRows[0];
-    const instructors = [];
-    groupRows.forEach((row) => opsInstructorEntries(row).forEach((entry) => {
-      if (!instructors.some((item) => (item.empId && item.empId === entry.empId) || (!item.empId && item.name === entry.name))) instructors.push(entry);
-    }));
-    const date = String(first?.start_date || first?.activity_date || '').slice(0, 10);
-    const overrideKey = schoolId ? `${date}|${schoolId}` : `${date}|${normalizeOpsText(school)}`;
-    const override = overrideMap.get(overrideKey) || overrideMap.get(`${date}|${normalizeOpsText(school)}`);
-    groupData.push({ key, date, schoolId, school, instructors, override });
-  });
-  groupData.sort((a, b) => a.key.localeCompare(b.key));
-
-  // Pass 2: init load counter for all known instructors
-  const loadCounter = new Map();
-  const incr = (k) => loadCounter.set(k, (loadCounter.get(k) || 0) + 1);
-  groupData.forEach(({ instructors }) => instructors.forEach((e) => { if (!loadCounter.has(instrKey(e))) loadCounter.set(instrKey(e), 0); }));
-
-  // Pass 3: count manual overrides into load, then auto-assign the rest (stable, lowest-load)
-  const assignments = new Map();
-  groupData.forEach(({ key, instructors, override }) => {
-    if (override) {
-      const responsibleEmpId = String(override.responsible_emp_id || '').trim();
-      const responsibleName = String(override.responsible_name || responsibleEmpId || '').trim();
-      const matched = instructors.find((e) => (e.empId && e.empId === responsibleEmpId) || e.name === responsibleName || e.name === responsibleEmpId);
-      incr(matched ? instrKey(matched) : (responsibleEmpId || responsibleName));
-      assignments.set(key, { responsibleEmpId, responsibleName });
-      return;
-    }
-    if (!instructors.length) { assignments.set(key, { responsibleEmpId: '', responsibleName: '' }); return; }
-    let best = instructors[0];
-    for (let i = 1; i < instructors.length; i++) {
-      if ((loadCounter.get(instrKey(instructors[i])) || 0) < (loadCounter.get(instrKey(best)) || 0)) best = instructors[i];
-    }
-    incr(instrKey(best));
-    assignments.set(key, { responsibleEmpId: best.empId || '', responsibleName: best.name || best.empId || '' });
-  });
-
-  // Pass 4: build result — options show final load count per instructor
+  const index = buildContactResponsibleIndex(allRows, overrides);
   const result = new Map();
-  groupData.forEach(({ key, date, schoolId, school, instructors }) => {
-    const { responsibleEmpId, responsibleName } = assignments.get(key);
-    const options = instructors.map((entry) => {
-      const cnt = loadCounter.get(instrKey(entry)) || 0;
-      const label = cnt > 0 ? `${entry.name} (${cnt})` : entry.name;
-      const isSelected = (entry.empId && entry.empId === responsibleEmpId) || entry.name === responsibleName;
-      return `<option value="${escapeHtml(entry.empId || entry.name)}" data-name="${escapeHtml(entry.name)}"${isSelected ? ' selected' : ''}>${escapeHtml(label)}</option>`;
+  contactResponsibleGroupsArray(index).forEach((group) => {
+    const options = group.instructors.map((entry) => {
+      const isSelected = (entry.empId && entry.empId === group.responsibleEmpId) || (!entry.empId && entry.name === group.responsibleName);
+      return `<option value="${escapeHtml(entry.empId || entry.name)}" data-name="${escapeHtml(entry.name)}"${isSelected ? ' selected' : ''}>${escapeHtml(entry.name)}</option>`;
     }).join('');
-    const ctx = { instructors, responsibleEmpId, responsibleName, date, schoolId, school, options };
-    result.set(key, ctx);
-    if (schoolId && !result.has(`${date}|${schoolId}`)) result.set(`${date}|${schoolId}`, ctx);
+    const ctx = {
+      instructors: group.instructors,
+      responsibleEmpId: group.responsibleEmpId,
+      responsibleName: group.responsibleName,
+      responsibleSource: group.responsibleSource,
+      date: group.date,
+      schoolId: group.schoolId,
+      school: group.school,
+      options
+    };
+    if (group.schoolId) result.set(`${group.date}|${group.schoolId}`, ctx);
+    result.set(`${group.date}|${normalizeOpsText(group.school)}`, ctx);
+    (group.schoolAliases || []).forEach((alias) => result.set(`${group.date}|${normalizeOpsText(alias)}`, ctx));
   });
   return result;
 }
 function opsContactGroupsHtml(rows = [], overrides = [], uploadMap = new Map()) {
-  const grouped = new Map();
-  rows.forEach((row) => {
-    const key = opsContactGroupKey(row);
-    if (!key) return;
-    if (!grouped.has(key)) grouped.set(key, []);
-    grouped.get(key).push(row);
-  });
   const todayIso = localTodayIso();
-  const ctxMap = buildContactContextMap(rows, overrides);
-  const body = Array.from(grouped.entries()).map(([key, groupRows]) => {
-    const first = groupRows.slice().sort((a, b) => String(a?.start_time || a?.StartTime || '').localeCompare(String(b?.start_time || b?.StartTime || '')))[0] || groupRows[0];
-    const date = String(first?.start_date || first?.activity_date || '').slice(0, 10);
-    const school = String(first?.school || first?.single_school_name || first?.legacy_school || '').trim();
-    const schoolId = String(first?.school_id || first?.single_school_id || '').trim();
-    const ctxKey = `${date}|${normalizeOpsText(school)}`;
-    const ctx = ctxMap.get(ctxKey) || ctxMap.get(`${date}|${schoolId}`);
-    const instructors = ctx?.instructors || [];
-    const responsibleEmpId = ctx?.responsibleEmpId || '';
-    const responsibleName = ctx?.responsibleName || '';
-    const options = ctx?.options || '';
-    const handled = groupRows.some((row) => opsInstructorEntries(row).some((entry) => Array.from(uploadMap.values()).some((upload) => String(upload?.activity_date || '').trim().slice(0, 10) === date && normalizeOpsText(upload?.school) === normalizeOpsText(school) && normalizeOpsText(upload?.instructor_name) === normalizeOpsText(entry.name) && completionApprovalIsHandled(upload))));
+  const groups = contactResponsibleGroupsArray(buildContactResponsibleIndex(rows, overrides));
+  const body = groups.map((group) => {
+    const { date, school, schoolId, instructors, responsibleEmpId, responsibleName, responsibleSource } = group;
+    const options = instructors.map((entry) => {
+      const isSelected = (entry.empId && entry.empId === responsibleEmpId) || (!entry.empId && entry.name === responsibleName);
+      return `<option value="${escapeHtml(entry.empId || entry.name)}" data-name="${escapeHtml(entry.name)}"${isSelected ? ' selected' : ''}>${escapeHtml(entry.name)}</option>`;
+    }).join('');
+    const handled = instructors.some((entry) => Array.from(uploadMap.values()).some((upload) => String(upload?.activity_date || '').trim().slice(0, 10) === date && normalizeOpsText(upload?.school) === normalizeOpsText(school) && normalizeOpsText(upload?.instructor_name) === normalizeOpsText(entry.name) && completionApprovalIsHandled(upload)));
     const highlightToday = date === todayIso && !handled;
     const rowClass = highlightToday ? ' class="ds-ops-work-today-row"' : '';
     const todayChip = highlightToday ? ' <span class="ds-chip ds-chip--info ds-ops-today-chip">TODAY</span>' : '';
-    return { date, school, html: `<tr${rowClass}><td class="ds-table-cell-truncate">${escapeHtml(formatDateHe(date) || date)}${todayChip}</td><td class="ds-table-cell-wrap">${escapeHtml(school)}</td><td class="ds-table-cell-wrap">${escapeHtml(instructors.map((i) => i.name).join(', '))}</td><td><select class="ds-input ds-input--sm ds-ops-contact-responsible-select" data-contact-responsible-select data-date="${escapeHtml(date)}" data-school-id="${escapeHtml(schoolId)}" data-school="${escapeHtml(school)}"><option value="">בחרו אחראי קשר</option>${options}</select></td></tr>`, bucket: completionApprovalSortBucket(date, handled, todayIso) };
+    const fallbackNote = responsibleSource === 'fallback' ? ' <span class="ds-ops-contact-fallback-note">(ברירת מחדל, לא הוגדר ידנית)</span>' : '';
+    return {
+      date,
+      school,
+      html: `<tr${rowClass}><td class="ds-table-cell-truncate">${escapeHtml(formatDateHe(date) || date)}${todayChip}</td><td class="ds-table-cell-wrap">${escapeHtml(school)}</td><td class="ds-table-cell-wrap">${escapeHtml(instructors.map((i) => i.name).join(', '))}</td><td><select class="ds-input ds-input--sm ds-ops-contact-responsible-select" data-contact-responsible-select data-date="${escapeHtml(date)}" data-school-id="${escapeHtml(schoolId)}" data-school="${escapeHtml(school)}"><option value="">בחרו אחראי קשר</option>${options}</select>${fallbackNote}</td></tr>`,
+      bucket: completionApprovalSortBucket(date, handled, todayIso)
+    };
   }).sort((a, b) => (a.bucket - b.bucket) || a.date.localeCompare(b.date) || a.school.localeCompare(b.school, 'he', { numeric: true })).map((item) => item.html).join('');
   if (!body) return '';
   return `<div class="ds-ops-contact-responsible-card">${dsCard({ title: 'אחראי קשר מול בית הספר', body: dsTableWrap(`<table class="ds-table ds-table--compact ds-ops-contact-responsible-table"><colgroup><col class="ds-ops-contact-col--date"><col class="ds-ops-contact-col--school"><col class="ds-ops-contact-col--team"><col class="ds-ops-contact-col--responsible"></colgroup><thead><tr><th>תאריך</th><th>בית ספר / מסגרת</th><th>מי איתי היום</th><th>אחראי קשר</th></tr></thead><tbody>${body}</tbody></table>`), padded: false })}</div>`;
@@ -2516,16 +2723,18 @@ function completionApprovalTabHtml(rows, state, data = {}, directory = buildScho
   const instructors = completionApprovalInstructorOptions(summerRows);
   const scopedInstructors = approvalState.instructor ? instructors.filter((name) => name === approvalState.instructor) : instructors;
   const approvals = dedupeCompletionApprovals(scopedInstructors.flatMap((instructor) => buildCompletionApprovals(summerRows, { instructor, dateMode: 'range', dateFrom: COMPLETION_APPROVAL_SUMMER_FROM, dateTo: COMPLETION_APPROVAL_SUMMER_TO, directory, contactsIndex, summerPrintContactsIndex })));
-  const uploadMap = completionApprovalUploadMap(data?.completionApprovalUploads || []);
+  const uploads = data?.completionApprovalUploads || [];
   const todayIso = localTodayIso();
-  const allItems = approvals.map((approval, originalIndex) => ({ approval, upload: completionApprovalLookupUpload(approval, uploadMap), originalIndex })).sort((a, b) => compareCompletionApprovalWorkItems(a, b, todayIso));
+  const allItems = approvals.map((approval, originalIndex) => ({ approval, upload: completionApprovalLookupUpload(approval, uploads), originalIndex })).sort((a, b) => compareCompletionApprovalWorkItems(a, b, todayIso));
   const selectedPrintInstructor = String(approvalState.printInstructor || '').trim();
   const selectedAuthority = String(approvalState.selectedAuthority || '').trim();
   const selectedApprovalType = String(approvalState.approvalType || '').trim();
+  const selectedApprovalStatus = String(approvalState.approvalStatus || '').trim();
   const dateFilteredItems = selectedDate ? allItems.filter((item) => String(item.approval?.date || '').slice(0, 10) === selectedDate) : allItems;
   const authorityFilteredItems = selectedAuthority ? dateFilteredItems.filter((item) => (item.approval?.authority || '') === selectedAuthority) : dateFilteredItems;
-  const typeFilteredItems = selectedApprovalType ? authorityFilteredItems.filter((item) => (selectedApprovalType === 'tamir' ? !!item.approval?.isTamirTeamApproval : !item.approval?.isTamirTeamApproval)) : authorityFilteredItems;
-  const items = selectedPrintInstructor ? typeFilteredItems.filter((item) => item.approval?.instructorName === selectedPrintInstructor) : typeFilteredItems;
+  const typeFilteredItems = selectedApprovalType ? authorityFilteredItems.filter((item) => (selectedApprovalType === 'tamir' ? !!(item.approval?.isTamirTeamApproval || item.approval?.isTamirActivity) : !(item.approval?.isTamirTeamApproval || item.approval?.isTamirActivity))) : authorityFilteredItems;
+  const statusFilteredItems = selectedApprovalStatus ? typeFilteredItems.filter((item) => completionApprovalStatusInfo(item.upload).key === selectedApprovalStatus) : typeFilteredItems;
+  const items = selectedPrintInstructor ? statusFilteredItems.filter((item) => item.approval?.instructorName === selectedPrintInstructor) : statusFilteredItems;
   const effectiveTodayIso = todayIso < COMPLETION_APPROVAL_SUMMER_FROM ? '' : (todayIso > COMPLETION_APPROVAL_SUMMER_TO ? COMPLETION_APPROVAL_SUMMER_TO : todayIso);
   const throughTodayItems = effectiveTodayIso ? allItems.filter((item) => String(item.approval?.date || '').slice(0, 10) <= effectiveTodayIso) : [];
   const selectedDateItems = selectedDate ? dateFilteredItems : [];
@@ -2534,6 +2743,7 @@ function completionApprovalTabHtml(rows, state, data = {}, directory = buildScho
   const dateFilterHtml = `<label class="ds-ops-completion-date-filter"><input class="ds-input ds-input--sm" type="date" min="${COMPLETION_APPROVAL_SUMMER_FROM}" max="${COMPLETION_APPROVAL_SUMMER_TO}" value="${escapeHtml(selectedDate)}" data-ops-completion-date-filter></label><button type="button" class="ds-btn ds-btn--sm ds-btn--ghost" data-ops-completion-date-clear>כל התאריכים</button>`;
   const authorityOptions = [...new Set(allItems.map((item) => item.approval?.authority || '').filter(Boolean))].sort((a, b) => a.localeCompare(b, 'he'));
   const authoritySelectHtml = `<label class="ds-ops-approval-print-filter"><select class="ds-input ds-input--sm" aria-label="סינון רשות" data-ops-completion-authority-filter><option value="">כל הרשויות</option>${authorityOptions.map((a) => `<option value="${escapeHtml(a)}"${selectedAuthority === a ? ' selected' : ''}>${escapeHtml(a)}</option>`).join('')}</select></label>`;
+  const statusSelectHtml = `<label class="ds-ops-approval-print-filter"><select class="ds-input ds-input--sm" aria-label="סינון סטטוס אישור" data-ops-completion-status-filter><option value=""${selectedApprovalStatus === '' ? ' selected' : ''}>כל הסטטוסים</option><option value="missing"${selectedApprovalStatus === 'missing' ? ' selected' : ''}>טרם הועלה</option><option value="uploaded"${selectedApprovalStatus === 'uploaded' ? ' selected' : ''}>הועלה לבדיקה</option><option value="approved"${selectedApprovalStatus === 'approved' ? ' selected' : ''}>אושר</option><option value="rejected"${selectedApprovalStatus === 'rejected' ? ' selected' : ''}>נדחה</option></select></label>`;
   const typeSelectHtml = `<label class="ds-ops-approval-print-filter"><select class="ds-input ds-input--sm" aria-label="סינון סוג אישור" data-ops-completion-type-filter><option value=""${selectedApprovalType === '' ? ' selected' : ''}>כל האישורים</option><option value="regular"${selectedApprovalType === 'regular' ? ' selected' : ''}>רגילים</option><option value="tamir"${selectedApprovalType === 'tamir' ? ' selected' : ''}>תמיר</option></select></label>`;
   const activeSubtab = approvalState.subtab === 'contacts' ? 'contacts' : 'approvals';
   const printInstructorOptions = completionApprovalPrintInstructorOptions(approvals);
@@ -2541,13 +2751,18 @@ function completionApprovalTabHtml(rows, state, data = {}, directory = buildScho
   const downloadBtnHtml = isManager
     ? `<button type="button" class="ds-btn ds-btn--sm ds-btn--ghost" data-ops-approval-download-zip${selectedAuthority ? '' : ' disabled'} title="${selectedAuthority ? `הורדת כל האישורים החתומים לרשות: ${escapeHtml(selectedAuthority)}` : 'יש לבחור רשות לפני הורדת אישורים'}" style="${selectedAuthority ? '' : 'opacity:0.45;cursor:default;'}">⬇ הורדת אישורים</button>`
     : '';
+  const subtabsHtml = `<div class="ds-ops-completion-subtabs no-print">
+    <button type="button" class="ds-btn ds-btn--sm ${activeSubtab === 'approvals' ? 'ds-btn--primary' : 'ds-btn--ghost'}" data-ops-completion-subtab="approvals" aria-pressed="${activeSubtab === 'approvals'}">אישורי ביצוע</button>
+    <button type="button" class="ds-btn ds-btn--sm ${activeSubtab === 'contacts' ? 'ds-btn--primary' : 'ds-btn--ghost'}" data-ops-completion-subtab="contacts" aria-pressed="${activeSubtab === 'contacts'}">אנשי קשר ואחראי קשר</button>
+  </div>`;
   const titleBar = `<div class="ds-ops-completion-title-bar no-print" dir="rtl">
     <header class="ds-ops-completion-summary"><button type="button" class="ds-ops-completion-summary__title" aria-haspopup="dialog" aria-expanded="${approvalState.summaryOpen ? 'true' : 'false'}" data-ops-completion-summary-toggle>אישורי ביצוע</button>${summaryPopoverHtml}</header>
-    <div class="ds-ops-completion-control-row ds-ops-completion-filter-toolbar ds-ops-approval-print-toolbar">${dateFilterHtml}${authoritySelectHtml}${typeSelectHtml}${printInstructorSelect}<button type="button" class="ds-btn ds-btn--sm ds-btn--ghost" data-ops-completion-clear-filters title="ניקוי סינונים">✕ ניקוי</button><button type="button" class="ds-btn ds-btn--sm ds-btn--primary ds-ops-approval-print-btn" data-ops-approval-print-all>הדפסה</button>${downloadBtnHtml}</div>
+    ${activeSubtab === 'approvals' ? `<div class="ds-ops-completion-toolbar-stack"><section class="ds-ops-completion-toolbar-section" aria-label="סינון אישורי ביצוע"><span class="ds-ops-completion-toolbar-label">סינונים</span><div class="ds-ops-completion-filter-toolbar ds-ops-approval-print-toolbar">${dateFilterHtml}${statusSelectHtml}${typeSelectHtml}${authoritySelectHtml}${printInstructorSelect}<button type="button" class="ds-btn ds-btn--sm ds-btn--ghost" data-ops-completion-clear-filters title="ניקוי סינונים">✕ ניקוי</button></div></section><section class="ds-ops-completion-toolbar-section" aria-label="פעולות אישורי ביצוע"><span class="ds-ops-completion-toolbar-label">פעולות</span><div class="ds-ops-completion-actions-toolbar">${renderSummerContactsButton()}<button type="button" class="ds-btn ds-btn--sm ds-btn--primary ds-ops-approval-print-btn" data-ops-approval-print-all>הדפסה</button>${downloadBtnHtml}</div></section></div>` : ''}
+    ${subtabsHtml}
   </div>`;
   const contactContextMap = buildContactContextMap(summerRows, data?.contactResponsiblesRows || []);
   const body = items.map(({ approval, upload }, displayIndex) => {
-    const hasFile = completionApprovalStorageExists(upload);
+    const hasFile = completionApprovalHasFileRef(upload);
     const hasUploadRecord = !!upload?.id;
     const uploadStatus = String(upload?.status || '').trim();
     const isApproved = uploadStatus === 'approved';
@@ -2563,12 +2778,12 @@ function completionApprovalTabHtml(rows, state, data = {}, directory = buildScho
     const contactCtx = contactContextMap.get(contactKey) || contactContextMap.get(`${approvalDate}|${normalizeOpsText(approval.school || '')}`);
     const whoIsWithMe = contactCtx && contactCtx.instructors.length ? escapeHtml(contactCtx.instructors.map((i) => i.name).join(', ')) : '—';
     const contactDropdown = contactCtx
-      ? `<select class="ds-input ds-input--sm ds-ops-contact-responsible-select" data-contact-responsible-select data-date="${escapeHtml(contactCtx.date)}" data-school-id="${escapeHtml(contactCtx.schoolId)}" data-school="${escapeHtml(contactCtx.school)}"><option value="">בחרו</option>${contactCtx.options}</select>`
+      ? `<select class="ds-input ds-input--sm ds-ops-contact-responsible-select" data-contact-responsible-select data-date="${escapeHtml(contactCtx.date)}" data-school-id="${escapeHtml(contactCtx.schoolId)}" data-school="${escapeHtml(contactCtx.school)}"><option value="">בחרו</option>${contactCtx.options}</select>${contactCtx.responsibleSource === 'fallback' ? '<span class="ds-ops-contact-fallback-note">(ברירת מחדל)</span>' : ''}`
       : '<span class="ds-muted">—</span>';
     return `<tr${highlightToday ? ' class="ds-ops-work-today-row"' : ''}>
       <td class="ds-ops-completion-col--status ds-table-cell-truncate">${completionApprovalUploadStatusChip(upload)}</td>
       <td class="ds-ops-completion-col--type ds-table-cell-truncate">${completionApprovalTypeChip(approval)}</td>
-      <td class="ds-ops-completion-col--photo ds-table-cell-wrap">${photoApprovalIndicatorHtml(approval, data?.photoApprovalUploads || [])}</td>
+      <td class="ds-ops-completion-col--photo ds-table-cell-wrap">${photoApprovalIndicatorHtml(approval, data?.photoApprovalUploads || [], displayIndex)}</td>
       <td class="ds-ops-completion-col--date ds-table-cell-truncate">${escapeHtml(formatDateHe(approval.date) || approval.date || '')}${todayChip}</td>
       <td class="ds-ops-completion-col--authority ds-table-cell-truncate">${escapeHtml(approval.authority || '—')}</td>
       <td class="ds-ops-completion-col--school ds-table-cell-wrap">${escapeHtml(approval.school || '')}</td>
@@ -2586,12 +2801,15 @@ function completionApprovalTabHtml(rows, state, data = {}, directory = buildScho
   const table = items.length
     ? dsTableWrap(`<table class="ds-table ds-table--compact ds-ops-completion-preview"><colgroup><col class="ds-ops-completion-col--status"><col class="ds-ops-completion-col--type"><col class="ds-ops-completion-col--photo"><col class="ds-ops-completion-col--date"><col class="ds-ops-completion-col--authority"><col class="ds-ops-completion-col--school"><col class="ds-ops-completion-col--instructor"><col class="ds-ops-completion-col--contact"><col class="ds-ops-completion-col--actions no-print"></colgroup><thead><tr><th class="ds-ops-completion-col--status">סטטוס אישור</th><th class="ds-ops-completion-col--type">סוג אישור</th><th class="ds-ops-completion-col--photo">אישור צילום</th><th class="ds-ops-completion-col--date">תאריך</th><th class="ds-ops-completion-col--authority">רשות</th><th class="ds-ops-completion-col--school">בית ספר</th><th class="ds-ops-completion-col--instructor">צוות הדרכה</th><th class="ds-ops-completion-col--contact">אחראי קשר</th><th class="ds-ops-completion-col--actions no-print">פעולות</th></tr></thead><tbody>${body}</tbody></table>`)
     : dsEmptyState('לא נמצאו אישורי ביצוע בטווח הנוכחי');
-  const activePanel = `<div class="ds-ops-completion-approvals-card">${dsCard({ body: table, padded: false })}</div>`;
+  const contactsPanel = opsContactGroupsHtml(contactRows, data?.contactResponsiblesRows || [], uploads) || dsEmptyState('לא נמצאו בתי ספר להצגה בטווח הנוכחי');
+  const activePanel = activeSubtab === 'contacts'
+    ? `<div class="ds-ops-contact-responsible-panel">${contactsPanel}</div>`
+    : `<div class="ds-ops-completion-approvals-card">${dsCard({ body: table, padded: false })}</div>`;
   return `<section class="ds-ops-mgmt-panel ds-ops-completion-panel" dir="rtl">
     <div class="ds-ops-completion-workspace">
       <div class="ds-ops-completion-control-card no-print">
         ${titleBar}
-        ${selectedDateHtml}
+        ${activeSubtab === 'approvals' ? selectedDateHtml : ''}
       </div>
       ${activePanel}
     </div>
@@ -2611,44 +2829,143 @@ function renderTab(rows, state, data, allPreparedRows = []) {
     return completionApprovalTabHtml(approvalRows, state, data, directory, contactsIndex, summerPrintContactsIndex);
   }
   if (ops.tab === TAB_WORKSHOPS) {
-    const catalogRows = extractWorkshopCatalogRows(data?.adminListsData, allPreparedRows);
+    const adminListsData = data?.adminListsData;
+    if (adminListsData?.error || adminListsData?._loadError) {
+      // eslint-disable-next-line no-console
+      console.warn('[ציוד ומלאי] adminListsData נטען עם שגיאה:', adminListsData.error || adminListsData._loadError);
+    }
+    const catalogRows = extractWorkshopCatalogRows(adminListsData, allPreparedRows, data?.workshopStockDistributions || []);
+    if (!catalogRows.length) {
+      // eslint-disable-next-line no-console
+      console.warn('[ציוד ומלאי] קטלוג ריק. categories:', Array.isArray(adminListsData?.categories) ? adminListsData.categories.map((c) => c.category) : 'none', 'error:', adminListsData?.error || adminListsData?._loadError || 'none');
+    }
+    const workshopStockDistributions = data?.workshopStockDistributions || [];
+    if (ops.period === ACTIVITY_SEASON_SCHOOL_2027) {
+      const summer2026Rows = prepareRows(Array.isArray(data?.workshopInventorySourceRows) ? data.workshopInventorySourceRows : []).filter((row) =>
+        isOpenOrClosedActivity(row) &&
+        !isTamirActivity(row) &&
+        activityMatchesAnyOfficialWorkshop(row, catalogRows) &&
+        activityOverlapsDateRange(row, WORKSHOPS_SUMMER_FROM, WORKSHOPS_SUMMER_TO)
+      );
+      const school2027Rows = prepareRows(Array.isArray(data?.workshopInventory2027Rows) ? data.workshopInventory2027Rows : allPreparedRows).filter((row) =>
+        isOpenOrClosedActivity(row) &&
+        !isTamirActivity(row) &&
+        activityMatchesAnyOfficialWorkshop(row, catalogRows) &&
+        activityOverlapsDateRange(row, SCHOOL_2027_FROM, SCHOOL_2027_TO)
+      );
+      const metrics2027 = buildWorkshopOpeningStock2027({ summer2026Rows, school2027Rows, catalogRows, workshopStockDistributions });
+      return workshopsTabHtml(school2027Rows, state, stockMap, catalogRows, workshopStockDistributions, adminListsData, metrics2027);
+    }
     const activitiesRowsForRequiredInventory = allPreparedRows.filter((row) =>
       isOpenOrClosedActivity(row) &&
       !isTamirActivity(row) &&
       activityMatchesAnyOfficialWorkshop(row, catalogRows) &&
       activityOverlapsDateRange(row, WORKSHOPS_SUMMER_FROM, WORKSHOPS_SUMMER_TO)
     );
-    const workshopStockDistributions = data?.workshopStockDistributions || [];
-    return workshopsTabHtml(activitiesRowsForRequiredInventory, state, stockMap, catalogRows, workshopStockDistributions);
+    return workshopsTabHtml(activitiesRowsForRequiredInventory, state, stockMap, catalogRows, workshopStockDistributions, adminListsData);
   }
   return instructorsTabHtml(rows, state, data, directory, contactsIndex, allPreparedRows);
 }
 
+function operationsTabDataKey(tab) {
+  if (tab === TAB_WORKSHOPS) return TAB_WORKSHOPS;
+  if (tab === TAB_COMPLETION_APPROVAL) return TAB_COMPLETION_APPROVAL;
+  if (tab === TAB_AUTHORITIES || tab === TAB_SCHOOLS) return 'directory';
+  return 'schedule';
+}
+
+export async function loadOperationsTabData(api, tab, { state } = {}) {
+  const key = operationsTabDataKey(tab);
+  if (key === TAB_WORKSHOPS) {
+    const ops = ensureOpsState(state || {});
+    const needs2027 = ops.period === ACTIVITY_SEASON_SCHOOL_2027;
+    const [lists, workshopStockDistributions, openingRows, school2027Rows] = await Promise.all([
+      api.adminLists().catch((err) => ({ categories: [], _loadError: String(err?.message || 'load_failed') })),
+      api.workshopStockDistributions
+        ? api.workshopStockDistributions().catch((err) => ({ rows: [], _loadError: String(err?.message || 'load_failed') }))
+        : Promise.resolve({ rows: [] }),
+      needs2027 && api.allActivities
+        ? api.allActivities({ activity_period: ACTIVITY_SEASON_REGULAR, startDate: WORKSHOPS_SUMMER_FROM, endDate: WORKSHOPS_SUMMER_TO }).catch(() => ({ rows: [] }))
+        : Promise.resolve({ rows: [] }),
+      needs2027 && api.allActivities
+        ? api.allActivities({ activity_period: ACTIVITY_SEASON_SCHOOL_2027, startDate: SCHOOL_2027_FROM, endDate: SCHOOL_2027_TO }).catch(() => ({ rows: [] }))
+        : Promise.resolve({ rows: [] })
+    ]);
+    return {
+      workshopStockMap: buildWorkshopStockMapFromLists(lists),
+      adminListsData: lists,
+      workshopStockDistributions: workshopStockDistributions?.rows || [],
+      workshopInventorySourceRows: openingRows?.rows || [],
+      workshopInventory2027Rows: school2027Rows?.rows || []
+    };
+  }
+
+  // The schedule is rendered from activity summary fields. Large school/contact
+  // directories are detail/print dependencies and must not block first paint.
+  if (key === 'schedule') {
+    return {
+      schoolsDirectoryRows: [],
+      schoolsDirectorySource: 'deferred',
+      contactsSchoolsRows: [],
+      instructorSchedulePrintContactsRows: []
+    };
+  }
+
+  const sharedReads = [
+    readOperationsSchoolsDirectory(),
+    readContactsSchools(),
+    api.instructorSchedulePrintContacts ? api.instructorSchedulePrintContacts().catch(() => ({ rows: [] })) : Promise.resolve({ rows: [] })
+  ];
+  if (key === TAB_COMPLETION_APPROVAL) {
+    // Summer-2026 window only; metadata without signed URLs. Directory/contacts stay tab-scoped.
+    sharedReads.push(
+      api.completionApprovalUploads({
+        fromDate: SUMMER_2026_FROM,
+        toDate: SUMMER_2026_TO,
+        limit: null
+      }).catch(() => ({ rows: [] })),
+      api.schoolContactResponsibles({
+        fromDate: SUMMER_2026_FROM,
+        toDate: SUMMER_2026_TO
+      }).catch(() => ({ rows: [] })),
+      api.photoApprovalUploads
+        ? api.photoApprovalUploads({ limit: null }).catch(() => ({ rows: [] }))
+        : Promise.resolve({ rows: [] })
+    );
+  }
+  const [schoolsDirectory, contactsSchoolsRows, instructorSchedulePrintContacts, completionApprovalUploads, contactResponsibles, photoApprovalUploads] = await Promise.all(sharedReads);
+  return {
+    schoolsDirectoryRows: schoolsDirectory.rows,
+    schoolsDirectorySource: schoolsDirectory.source,
+    contactsSchoolsRows,
+    instructorSchedulePrintContactsRows: instructorSchedulePrintContacts?.rows || [],
+    ...(key === TAB_COMPLETION_APPROVAL ? {
+      completionApprovalUploads: completionApprovalUploads?.rows || [],
+      photoApprovalUploads: photoApprovalUploads?.rows || [],
+      contactResponsiblesRows: contactResponsibles?.rows || []
+    } : {})
+  };
+}
+
 export const operationsManagementScreen = {
-  load: async ({ api }) => {
-    const [activities, lists, schoolsDirectory, contactsSchoolsRows, completionApprovalUploads, contactResponsibles, workshopStockDistributions, instructorSchedulePrintContacts, photoApprovalUploads] = await Promise.all([
-      api.allActivities(),
-      api.adminLists().catch(() => ({ categories: [] })),
-      readOperationsSchoolsDirectory(),
-      readContactsSchools(),
-      api.completionApprovalUploads().catch(() => ({ rows: [] })),
-      api.schoolContactResponsibles().catch(() => ({ rows: [] })),
-      api.workshopStockDistributions ? api.workshopStockDistributions().catch(() => ({ rows: [] })) : Promise.resolve({ rows: [] }),
-      api.instructorSchedulePrintContacts ? api.instructorSchedulePrintContacts().catch(() => ({ rows: [] })) : Promise.resolve({ rows: [] }),
-      api.photoApprovalUploads ? api.photoApprovalUploads().catch(() => ({ rows: [] })) : Promise.resolve({ rows: [] })
+  load: async ({ api, state }) => {
+    const ops = ensureOpsState(state || {});
+    const tabKey = operationsTabDataKey(_opsNeedsEntryReset ? TAB_INSTRUCTORS : ops.tab);
+    const dateFrom = String(ops.dateFrom || '').trim();
+    const dateTo = String(ops.dateTo || '').trim();
+    const [activities, tabData] = await Promise.all([
+      api.allActivities({
+        activity_period: state?.activityPeriodTab,
+        startDate: dateFrom,
+        endDate: dateTo
+      }),
+      loadOperationsTabData(api, tabKey, { state })
     ]);
     return {
       ...activities,
-      schoolsDirectoryRows: schoolsDirectory.rows,
-      schoolsDirectorySource: schoolsDirectory.source,
-      workshopStockMap: buildWorkshopStockMapFromLists(lists),
-      adminListsData: lists,
-      contactsSchoolsRows,
-      completionApprovalUploads: completionApprovalUploads?.rows || [],
-      photoApprovalUploads: photoApprovalUploads?.rows || [],
-      contactResponsiblesRows: contactResponsibles?.rows || [],
-      workshopStockDistributions: workshopStockDistributions?.rows || [],
-      instructorSchedulePrintContactsRows: instructorSchedulePrintContacts?.rows || []
+      ...tabData,
+      _loadedOperationsTabs: [tabKey],
+      _operationsTabLoadPromises: new Map()
     };
   },
   render(data, { state } = {}) {
@@ -2660,17 +2977,17 @@ export const operationsManagementScreen = {
     const baseRows = applyBaseFilters(prepared, state);
     const filteredRows = isCompletionApprovalTab ? baseRows : applyAllFilters(baseRows, state);
     const filterRows = ops.tab === TAB_WORKSHOPS
-      ? baseRows.filter((row) => activityMatchesAnyOfficialWorkshop(row, extractWorkshopCatalogRows(data?.adminListsData, prepared)))
+      ? baseRows.filter((row) => activityMatchesAnyOfficialWorkshop(row, extractWorkshopCatalogRows(data?.adminListsData, prepared, data?.workshopStockDistributions || [])))
       : baseRows;
     const activeRows = isCompletionApprovalTab ? baseRows : filteredRows;
     return `<div class="ds-screen-stack ds-ops-mgmt-screen">${opsManagementStylesHtml()}${dsPageHeader(isCompletionApprovalTab ? 'בקרת אישורי ביצוע לקיץ 2026' : 'ניהול תפעול')}
       ${isCompletionApprovalTab ? '' : topFiltersHtml(filterRows, state)}
       ${tabsHtml(ops.tab)}
       <div class="ds-ops-mgmt-content">${renderTab(activeRows, state, data, prepared)}</div>
-      ${isCompletionApprovalTab ? '' : `<p class="ds-muted ds-ops-mgmt-count no-print" dir="rtl">מציג ${filteredRows.length} פעילויות מתוך ${allRows.length}</p>`}
+      ${isCompletionApprovalTab || ops.period === ACTIVITY_SEASON_SCHOOL_2027 ? '' : `<p class="ds-muted ds-ops-mgmt-count no-print" dir="rtl">מציג ${filteredRows.length} פעילויות מתוך ${allRows.length}</p>`}
     </div>`;
   },
-  bind({ root, data = {}, api, state, rerender, clearScreenDataCache }) {
+  bind({ root, data = {}, api, state, rerender, clearScreenDataCache, ui }) {
     if (!root) return;
     state = state || {};
     const ops = ensureOpsState(state);
@@ -2681,12 +2998,30 @@ export const operationsManagementScreen = {
       resetOperationsManagementEntry(state);
     }
 
+    bindSummerContactsModalEvents(root, { ui, api, rows: data?.instructorSchedulePrintContactsRows || [], logPrefix: 'operations-management' });
+
     root.querySelectorAll('[data-ops-tab]').forEach((btn) => {
-      btn.addEventListener('click', () => {
+      btn.addEventListener('click', async () => {
         ops.tab = btn.getAttribute('data-ops-tab') || TAB_INSTRUCTORS;
         if (ops.tab === TAB_SUMMER) ops.tab = TAB_INSTRUCTORS;
         try { sessionStorage.removeItem(SUMMER_TRAINING_SESSION_KEY); } catch { /* ignore */ }
         document.dispatchEvent(new CustomEvent('ops-mgmt-standard-tab', { detail: { tab: ops.tab } }));
+        const tabKey = operationsTabDataKey(ops.tab);
+        const loadedTabs = new Set(Array.isArray(data?._loadedOperationsTabs) ? data._loadedOperationsTabs : []);
+        if (!loadedTabs.has(tabKey)) {
+          const promises = data._operationsTabLoadPromises instanceof Map ? data._operationsTabLoadPromises : new Map();
+          data._operationsTabLoadPromises = promises;
+          let request = promises.get(tabKey);
+          if (!request) {
+            request = loadOperationsTabData(api, tabKey, { state }).finally(() => promises.delete(tabKey));
+            promises.set(tabKey, request);
+          }
+          try {
+            Object.assign(data, await request);
+            loadedTabs.add(tabKey);
+            data._loadedOperationsTabs = [...loadedTabs];
+          } catch (_) { /* existing empty-state behavior remains available */ }
+        }
         rerender?.();
       });
     });
@@ -2712,10 +3047,15 @@ export const operationsManagementScreen = {
       ops.completionApproval.selectedAuthority = '';
       ops.completionApproval.printInstructor = '';
       ops.completionApproval.approvalType = '';
+      ops.completionApproval.approvalStatus = '';
       rerender?.();
     });
     root.querySelector('[data-ops-completion-type-filter]')?.addEventListener('change', (ev) => {
       ops.completionApproval.approvalType = ev.target.value || '';
+      rerender?.();
+    });
+    root.querySelector('[data-ops-completion-status-filter]')?.addEventListener('change', (ev) => {
+      ops.completionApproval.approvalStatus = ev.target.value || '';
       rerender?.();
     });
 
@@ -2747,10 +3087,11 @@ export const operationsManagementScreen = {
     }
 
     root.querySelector('[data-ops-period]')?.addEventListener('change', (ev) => {
-      ops.period = ev.target.value || 'all';
+      ops.period = setGlobalActivityPeriod(ev.target.value || ACTIVITY_SEASON_REGULAR);
       const range = defaultDateRange(ops.period);
       ops.dateFrom = range.from;
       ops.dateTo = range.to;
+      state.dashboardMonthYm = defaultMonthForGlobalActivityPeriod(ops.period);
       rerender?.();
     });
 
@@ -2798,6 +3139,80 @@ export const operationsManagementScreen = {
       printInstructorSchedule();
     });
     root.querySelector('[data-ops-print-workshops]')?.addEventListener('click', () => printWorkshopsFromDom(root));
+
+    const openStockEditDrawer = (searchQuery = '') => {
+      if (!canEditOperationsInventory(state) || !ui?.openDrawer) return;
+      const editorItems = collectWorkshopStockEditorItems(data?.adminListsData);
+      ui.openDrawer({
+        title: 'עריכת מלאי סדנאות',
+        content: workshopStockEditDrawerHtml(editorItems, searchQuery),
+        onOpen: (contentNode) => {
+          const searchInput = contentNode.querySelector('[data-ops-stock-edit-search]');
+          const statusEl = contentNode.querySelector('[data-ops-stock-edit-status]');
+          const saveBtn = contentNode.querySelector('[data-ops-stock-edit-save]');
+          searchInput?.addEventListener('input', () => {
+            const q = String(searchInput.value || '').trim().toLowerCase();
+            contentNode.querySelectorAll('[data-ops-stock-edit-row]').forEach((row) => {
+              const label = String(row.querySelector('td')?.textContent || '').trim().toLowerCase();
+              row.hidden = Boolean(q) && !label.includes(q);
+            });
+          });
+          saveBtn?.addEventListener('click', async () => {
+            if (!api?.updateWorkshopStockItems) return;
+            const updates = Array.from(contentNode.querySelectorAll('[data-ops-stock-edit-qty]')).map((input) => {
+              const raw = String(input.value ?? '').trim();
+              if (raw === '') return null;
+              const stockQuantity = Number(raw);
+              if (!Number.isFinite(stockQuantity) || stockQuantity < 0) return null;
+              const original = Number(input.dataset.originalQty);
+              if (Number.isFinite(original) && original === stockQuantity) return null;
+              const fieldText = (value) => String(value ?? '').trim();
+              return {
+                list_id: fieldText(input.dataset.listId),
+                source: fieldText(input.dataset.source),
+                stock_group_key: fieldText(input.dataset.stockGroupKey),
+                value: fieldText(input.dataset.value),
+                label: fieldText(input.dataset.label),
+                activity_no: fieldText(input.dataset.activityNo),
+                sort_order: Number(input.dataset.sortOrder) || 0,
+                stock_quantity: stockQuantity
+              };
+            }).filter(Boolean);
+            if (!updates.length) {
+              if (statusEl) {
+                statusEl.hidden = false;
+                statusEl.className = 'ds-ops-stock-edit-status is-error';
+                statusEl.textContent = 'לא נמצאו שינויים לשמירה.';
+              }
+              return;
+            }
+            if (saveBtn) saveBtn.disabled = true;
+            if (statusEl) {
+              statusEl.hidden = false;
+              statusEl.className = 'ds-ops-stock-edit-status';
+              statusEl.textContent = 'שומר...';
+            }
+            try {
+              await api.updateWorkshopStockItems(updates);
+              clearScreenDataCache?.('operations-management');
+              ui.closeDrawer?.();
+              showOpsToast('מלאי הסדנאות נשמר בהצלחה ✓');
+              rerender?.();
+            } catch (error) {
+              if (statusEl) {
+                statusEl.hidden = false;
+                statusEl.className = 'ds-ops-stock-edit-status is-error';
+                statusEl.textContent = `שמירת המלאי נכשלה: ${error?.message || error}`;
+              }
+            } finally {
+              if (saveBtn) saveBtn.disabled = false;
+            }
+          });
+        }
+      });
+    };
+
+    root.querySelector('[data-ops-open-stock-edit]')?.addEventListener('click', () => openStockEditDrawer(''));
     root.querySelector('[data-ops-print-schools]')?.addEventListener('click', () => printSchoolsSchedule());
 
     const workshopsWrap = root.querySelector('.ds-ops-workshops-table-wrap');
@@ -2874,9 +3289,8 @@ export const operationsManagementScreen = {
       const uploadById = new Map(uploads.map((u) => [String(u.id), u]));
       const authorityName = ops.completionApproval.selectedAuthority || '';
       if (!authorityName) { alert('יש לבחור רשות לפני הורדת אישורים'); return; }
-      const uploadMap2 = completionApprovalUploadMap(uploads);
       const itemsWithFile = approvals.map((approval, i) => {
-        const upload = completionApprovalLookupUpload(approval, uploadMap2);
+        const upload = completionApprovalLookupUpload(approval, uploads);
         return upload?.file_path ? { approval, upload, index: i } : null;
       }).filter(Boolean);
       if (!itemsWithFile.length) { alert('לא נמצאו אישורים חתומים להורדה עבור הבחירה הנוכחית'); return; }
@@ -2938,8 +3352,7 @@ export const operationsManagementScreen = {
         const origText = btn.textContent;
         btn.textContent = '…';
         try {
-          const uploadMap2 = completionApprovalUploadMap(_completionApprovalPrintContext?.uploads || []);
-          const existingUpload = completionApprovalLookupUpload(approval, uploadMap2);
+          const existingUpload = completionApprovalLookupUpload(approval, _completionApprovalPrintContext?.uploads || []);
           if (existingUpload?.id) {
             await api.replaceCompletionApprovalUpload({ id: existingUpload.id, file });
           } else {
@@ -2997,7 +3410,7 @@ export const operationsManagementScreen = {
         const result = await api.completionApprovalSignedUrl({ filePath: upload.file_path, download });
         if (result?.signedUrl) window.open(result.signedUrl, '_blank', 'noopener,noreferrer');
       } catch (error) {
-        alert(`פתיחת הקובץ נכשלה: ${error?.message || error}`);
+        alert('לא ניתן לפתוח את הקובץ כרגע. ייתכן שיש בעיית הרשאת Storage.');
       }
     };
     root.querySelectorAll('[data-ops-upload-view]').forEach((btn) => btn.addEventListener('click', () => openSignedUpload(btn.getAttribute('data-ops-upload-view'), false)));
@@ -3013,6 +3426,72 @@ export const operationsManagementScreen = {
         const result = await api.photoApprovalSignedUrl({ filePath: upload.file_path });
         if (result?.signedUrl) window.open(result.signedUrl, '_blank', 'noopener,noreferrer');
       } catch (err) { alert('שגיאה בפתיחת קובץ אישור הצילום: ' + (err?.message || '')); }
+    }));
+
+    root.querySelectorAll('[data-ops-photo-upload]').forEach((btn) => btn.addEventListener('click', () => {
+      const index = Number(btn.getAttribute('data-ops-photo-upload'));
+      const approval = (_completionApprovalPrintContext?.approvals || [])[index];
+      if (!approval) return;
+      const input = document.createElement('input');
+      input.type = 'file';
+      input.accept = '.pdf,.jpg,.jpeg,.png';
+      input.style.display = 'none';
+      document.body.appendChild(input);
+      input.addEventListener('change', async () => {
+        const file = input.files?.[0];
+        document.body.removeChild(input);
+        if (!file) return;
+        btn.disabled = true;
+        const origText = btn.textContent;
+        btn.textContent = '…';
+        try {
+          await api.uploadPhotoApproval({
+            instructorEmpId: approval.instructorEmpId,
+            instructorName: approval.instructorName,
+            school: approval.school,
+            authority: approval.authority,
+            schoolId: approval.schoolId,
+            file
+          });
+          showOpsToast('אישור הצילום הועלה בהצלחה ✓');
+          clearScreenDataCache?.('operations-management');
+          rerender?.();
+        } catch (error) {
+          alert(`העלאת אישור הצילום נכשלה: ${error?.message || error}`);
+          btn.disabled = false;
+          btn.textContent = origText;
+        }
+      });
+      input.click();
+    }));
+
+    root.querySelectorAll('[data-ops-photo-replace]').forEach((btn) => btn.addEventListener('click', () => {
+      const id = btn.getAttribute('data-ops-photo-replace');
+      if (!id) return;
+      const input = document.createElement('input');
+      input.type = 'file';
+      input.accept = '.pdf,.jpg,.jpeg,.png';
+      input.style.display = 'none';
+      document.body.appendChild(input);
+      input.addEventListener('change', async () => {
+        const file = input.files?.[0];
+        document.body.removeChild(input);
+        if (!file) return;
+        btn.disabled = true;
+        const origText = btn.textContent;
+        btn.textContent = '…';
+        try {
+          await api.replacePhotoApproval({ id, file });
+          showOpsToast('אישור הצילום הועלה בהצלחה ✓');
+          clearScreenDataCache?.('operations-management');
+          rerender?.();
+        } catch (error) {
+          alert(`החלפת אישור הצילום נכשלה: ${error?.message || error}`);
+          btn.disabled = false;
+          btn.textContent = origText;
+        }
+      });
+      input.click();
     }));
 
     root.querySelectorAll('[data-ops-upload-delete]').forEach((btn) => btn.addEventListener('click', async () => {

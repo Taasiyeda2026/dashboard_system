@@ -1,48 +1,167 @@
 import { escapeHtml } from './shared/html.js';
-import { hebrewColumn, hebrewEmploymentType, hebrewSheetLabel } from './shared/ui-hebrew.js';
+import { hebrewColumn, hebrewEmploymentType } from './shared/ui-hebrew.js';
 import {
-  dsPageHeader,
-  dsCard,
   dsScreenStack,
   dsEmptyState,
   dsStatusChip
 } from './shared/layout.js';
+import { showToast } from './shared/toast.js';
+import { getManagerUsers } from './shared/activity-options.js';
+
 const MIN_SEARCH_CHARS = 1;
 const SEARCH_DEBOUNCE_MS = 150;
-
+const COMPACT_GRID_STYLE = [
+  'display:grid',
+  'grid-template-columns:repeat(auto-fill,minmax(180px,1fr))',
+  'gap:10px',
+  'align-items:stretch'
+].join(';');
+const COMPACT_CARD_STYLE = [
+  'min-height:48px !important',
+  'height:auto !important',
+  'padding:10px 14px !important',
+  'display:flex !important',
+  'align-items:center !important',
+  'justify-content:center !important',
+  'text-align:center !important'
+].join(';');
 const AVATAR_PALETTE = [
-  '#ef4444','#f97316','#eab308','#22c55e',
-  '#3b82f6','#8b5cf6','#ec4899','#14b8a6',
-  '#f43f5e','#a855f7','#0ea5e9','#10b981'
+  '#ef4444', '#f97316', '#eab308', '#22c55e',
+  '#3b82f6', '#8b5cf6', '#ec4899', '#14b8a6',
+  '#f43f5e', '#a855f7', '#0ea5e9', '#10b981'
 ];
 
-function avatarColor(seed) {
-  let h = 0;
-  for (let i = 0; i < seed.length; i++) h = (h * 31 + seed.charCodeAt(i)) & 0x7fffffff;
-  return AVATAR_PALETTE[h % AVATAR_PALETTE.length];
+/** Normalizes the `active` column (stored as yes/no, but tolerates boolean/numeric) to 'yes' | 'no'. */
+function normalizeActiveFlag(value) {
+  if (value === false || value === 0) return 'no';
+  if (value === true || value === 1) return 'yes';
+  const s = String(value ?? '').trim().toLowerCase();
+  return s === 'no' || s === 'false' || s === '0' ? 'no' : 'yes';
+}
+
+function textValue(value) {
+  const s = String(value ?? '').trim();
+  return s && s !== '—' ? s : '';
 }
 
 function avatarInitials(name) {
   const parts = String(name || '').trim().split(/\s+/).filter(Boolean);
-  if (parts.length >= 2) return parts[0][0] + parts[1][0];
+  if (parts.length >= 2) return `${parts[0][0]}${parts[1][0]}`;
   if (parts.length === 1) return parts[0].slice(0, 2);
   return '??';
 }
 
-function drawerHtml(row, hideEmpIds) {
-  const columns = ['emp_id', 'full_name', 'mobile', 'email', 'address', 'employment_type', 'direct_manager', 'active'];
-  const lines = columns.map((col) => {
-    if (hideEmpIds && col === 'emp_id') return '';
-    const raw = row?.[col] ?? '';
-    if (col === 'active') {
-      const label = String(raw).toLowerCase() === 'yes' ? 'כן' : 'לא';
-      const kind = String(raw).toLowerCase() === 'yes' ? 'success' : 'neutral';
-      return `<p><strong>${escapeHtml(hebrewColumn(col))}:</strong> ${dsStatusChip(label, kind)}</p>`;
+function avatarColor(seed) {
+  const s = String(seed ?? '');
+  let hash = 0;
+  for (let i = 0; i < s.length; i++) hash = (hash * 31 + s.charCodeAt(i)) & 0x7fffffff;
+  return AVATAR_PALETTE[hash % AVATAR_PALETTE.length];
+}
+
+function detailField(icon, label, value, { dir = 'rtl', href = '', copyValue = '' } = {}) {
+  const safe = textValue(value);
+  if (!safe) return '';
+  const valueHtml = href
+    ? `<a href="${escapeHtml(href)}" style="color:#1d4ed8;text-decoration:none;font-weight:650" dir="${dir}">${escapeHtml(safe)}</a>`
+    : `<span dir="${dir}" style="color:#263449;font-weight:620">${escapeHtml(safe)}</span>`;
+  const valueWrapHtml = copyValue
+    ? `<span style="min-width:0;display:flex;align-items:center;gap:8px;flex-wrap:wrap;direction:ltr;overflow-wrap:anywhere">${valueHtml}<button type="button" class="ds-btn ds-btn--ghost" data-copy-instructor-email="${escapeHtml(copyValue)}" aria-label="העתקת כתובת המייל" title="העתקת כתובת המייל" style="width:28px;height:28px;min-width:28px;padding:0;border-radius:8px;display:inline-grid;place-items:center;line-height:1;flex:0 0 28px"><svg aria-hidden="true" viewBox="0 0 24 24" width="14" height="14" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" focusable="false"><rect x="8" y="8" width="11" height="11" rx="2"></rect><path d="M16 8V6a2 2 0 0 0-2-2H6a2 2 0 0 0-2 2v8a2 2 0 0 0 2 2h2"></path></svg></button></span>`
+    : `<span style="min-width:0;overflow-wrap:anywhere">${valueHtml}</span>`;
+  return `<div style="display:grid;grid-template-columns:38px 112px minmax(0,1fr);align-items:center;gap:10px;padding:11px 12px;border:1px solid #e1e8f1;border-radius:12px;background:#fff;box-shadow:0 1px 2px rgba(15,23,42,.035)">
+    <span aria-hidden="true" style="width:34px;height:34px;border-radius:10px;display:grid;place-items:center;background:#edf5ff;font-size:18px">${icon}</span>
+    <span style="color:#526174;font-size:.88rem;font-weight:700">${escapeHtml(label)}</span>
+    ${valueWrapHtml}
+  </div>`;
+}
+
+async function copyTextToClipboard(value) {
+  const safe = textValue(value);
+  if (!safe) return false;
+  const clipboard = globalThis.navigator?.clipboard || globalThis.window?.navigator?.clipboard;
+  if (clipboard?.writeText) {
+    try {
+      await clipboard.writeText(safe);
+      return true;
+    } catch (_) {
+      // Continue to the legacy path when Clipboard API access is rejected.
     }
-    const val = col === 'employment_type' ? hebrewEmploymentType(raw) : (raw || '—');
-    return `<p><strong>${escapeHtml(hebrewColumn(col))}:</strong> ${escapeHtml(String(val))}</p>`;
-  }).join('');
-  return `<div class="ds-details-grid" dir="rtl">${lines}</div>`;
+  }
+  const activeDocument = globalThis.document;
+  if (!activeDocument?.body || typeof activeDocument.execCommand !== 'function') return false;
+  const textarea = activeDocument.createElement('textarea');
+  textarea.value = safe;
+  textarea.setAttribute('readonly', '');
+  textarea.style.position = 'fixed';
+  textarea.style.opacity = '0';
+  activeDocument.body.appendChild(textarea);
+  textarea.select();
+  const copied = activeDocument.execCommand('copy');
+  textarea.remove();
+  return copied;
+}
+
+function drawerHtml(row, hideEmpIds, canEdit) {
+  const name = textValue(row.full_name) || textValue(row.emp_id) || 'מדריך';
+  const isActive = normalizeActiveFlag(row.active) === 'yes';
+  const color = avatarColor(row.emp_id || name);
+  const phone = textValue(row.mobile || row.phone);
+  const email = textValue(row.email);
+  const manager = textValue(row.direct_manager) || 'ללא';
+  const fields = [
+    detailField('📱', hebrewColumn('mobile'), phone, { dir: 'ltr', href: phone ? `tel:${phone.replace(/[^0-9+]/g, '')}` : '' }),
+    detailField('✉️', hebrewColumn('email'), email, { dir: 'ltr', href: email ? `mailto:${email}` : '', copyValue: email }),
+    detailField('📍', hebrewColumn('address'), row.address),
+    detailField('💼', hebrewColumn('employment_type'), textValue(row.employment_type) ? hebrewEmploymentType(row.employment_type) : ''),
+    detailField('👤', hebrewColumn('direct_manager'), manager),
+    !hideEmpIds ? detailField('#️⃣', hebrewColumn('emp_id'), row.emp_id, { dir: 'ltr' }) : ''
+  ].filter(Boolean).join('');
+
+  const editButton = canEdit
+    ? `<button type="button" class="ds-btn ds-btn--primary" data-edit-instructor-contact="${escapeHtml(String(row.emp_id || ''))}" style="min-width:120px">✎ עריכה</button>`
+    : '';
+
+  return `<div dir="rtl" style="display:grid;gap:14px">
+    <section style="display:flex;align-items:center;gap:14px;padding:15px;border:1px solid #dce7f2;border-radius:16px;background:linear-gradient(135deg,#f7fbff 0%,#edf6ff 100%)">
+      <span aria-hidden="true" style="width:58px;height:58px;flex:0 0 58px;border-radius:50%;display:grid;place-items:center;background:${color};color:#fff;font-size:1.08rem;font-weight:800;box-shadow:0 5px 14px rgba(15,23,42,.16)">${escapeHtml(avatarInitials(name))}</span>
+      <span style="display:grid;gap:7px;min-width:0">
+        <strong style="font-size:1.08rem;color:#162235;overflow-wrap:anywhere">${escapeHtml(name)}</strong>
+        <span>${dsStatusChip(isActive ? 'פעיל' : 'לא פעיל', isActive ? 'success' : 'neutral')}</span>
+      </span>
+    </section>
+    <div style="display:grid;gap:9px">${fields}</div>
+    ${editButton ? `<div style="display:flex;justify-content:flex-start;padding-top:2px">${editButton}</div>` : ''}
+  </div>`;
+}
+
+function selectOptionsHtml(values, selected = '', placeholder = '—') {
+  const safe = String(selected || '');
+  const unique = [...new Set((Array.isArray(values) ? values : []).map((v) => String(v || '').trim()).filter(Boolean))];
+  const merged = safe && !unique.includes(safe) ? [safe, ...unique] : unique;
+  return [`<option value="">${escapeHtml(placeholder)}</option>`]
+    .concat(merged.map((value) => `<option value="${escapeHtml(value)}"${value === safe ? ' selected' : ''}>${escapeHtml(value)}</option>`))
+    .join('');
+}
+
+function instructorFormHtml(row = {}, managerOptions = [], hideEmpIds = false) {
+  const employmentOptions = ['תעשיידע', 'מעוף', 'מנפוואר'];
+  const managers = ['ללא', ...managerOptions];
+  const empIdField = hideEmpIds
+    ? `<input type="hidden" name="emp_id" value="${escapeHtml(String(row.emp_id || ''))}">`
+    : `<div class="ds-perm-field"><span class="ds-muted">מזהה מדריך</span><input class="ds-input ds-input--sm" name="emp_id" value="${escapeHtml(String(row.emp_id || ''))}" readonly></div>`;
+  return `<div class="ds-perm-edit-form ds-contact-edit-form" dir="rtl">
+    ${empIdField}
+    <div class="ds-perm-field"><span class="ds-muted">שם מלא</span><input class="ds-input ds-input--sm" name="full_name" value="${escapeHtml(String(row.full_name || ''))}"></div>
+    <div class="ds-perm-field"><span class="ds-muted">נייד</span><input class="ds-input ds-input--sm" name="mobile" value="${escapeHtml(String(row.mobile || ''))}" dir="ltr"></div>
+    <div class="ds-perm-field"><span class="ds-muted">אימייל</span><input class="ds-input ds-input--sm" name="email" value="${escapeHtml(String(row.email || ''))}" dir="ltr"></div>
+    <div class="ds-perm-field"><span class="ds-muted">כתובת</span><input class="ds-input ds-input--sm" name="address" value="${escapeHtml(String(row.address || ''))}"></div>
+    <div class="ds-perm-field"><span class="ds-muted">סוג העסקה</span><select class="ds-input ds-input--sm" name="employment_type">${selectOptionsHtml(employmentOptions, String(row.employment_type || ''), 'בחרו סוג העסקה')}</select></div>
+    <div class="ds-perm-field"><span class="ds-muted">מנהל ישיר</span><select class="ds-input ds-input--sm" name="direct_manager">${selectOptionsHtml(managers, String(row.direct_manager || 'ללא'), 'בחרו מנהל')}</select></div>
+    <div class="ds-perm-field"><span class="ds-muted">סטטוס</span><select class="ds-input ds-input--sm" name="active">
+      <option value="yes" ${normalizeActiveFlag(row.active) === 'yes' ? 'selected' : ''}>פעיל</option>
+      <option value="no" ${normalizeActiveFlag(row.active) === 'no' ? 'selected' : ''}>לא פעיל</option>
+    </select></div>
+    <p class="ds-muted" data-contact-form-status role="status"></p>
+  </div>`;
 }
 
 function normalizeSearch(value) {
@@ -61,25 +180,23 @@ function applySearch(rows, q) {
 }
 
 function renderContactCard(row) {
-  const name = row.full_name || row.emp_id || '—';
-  const initials = avatarInitials(name);
-  const color = avatarColor(row.emp_id || name);
-  const phone = row.mobile || row.email || '';
-  const activeClass = String(row.active || '').toLowerCase() === 'no' ? ' ds-person-card--inactive' : '';
-  const phoneHtml = phone
-    ? `<span class="ds-person-phone">${escapeHtml(phone)}</span>`
-    : '';
+  const nameRaw = textValue(row.full_name) || textValue(row.emp_id) || 'מדריך';
+  const isActive = normalizeActiveFlag(row.active) === 'yes';
+  const inactiveClass = isActive ? '' : ' ic-contact-card--inactive';
+
   return `
-    <button type="button" class="ds-person-card ds-person-card--contact${activeClass}" data-card-action="icontact:${encodeURIComponent(row.emp_id)}">
-      <span class="ds-person-avatar" style="background:${color}" aria-hidden="true">${escapeHtml(initials)}</span>
-      <span class="ds-person-card__info">
-        <span class="ds-person-name">${escapeHtml(name)}</span>
-        ${phoneHtml}
-      </span>
+    <button
+      type="button"
+      class="ic-contact-card ic-contact-card--compact${inactiveClass}"
+      style="${COMPACT_CARD_STYLE}"
+      data-card-action="icontact:${encodeURIComponent(row.emp_id || '')}"
+      aria-label="פתיחת פרטי מדריך: ${escapeHtml(nameRaw)}"
+    >
+      <span class="ic-contact-card__name" style="font-size:0.98rem;line-height:1.25">${escapeHtml(nameRaw)}</span>
     </button>`;
 }
 
-/** אנשי קשר של מדריכים — לפי גיליון contacts_instructors במקור הנתונים (צפייה בלבד). */
+/** אנשי קשר של מדריכים — רשימה קומפקטית, צפייה ועריכה לפי הרשאה. */
 export const instructorContactsScreen = {
   load: ({ api }) => api.instructorContacts(),
   render(data, { state } = {}) {
@@ -89,41 +206,37 @@ export const instructorContactsScreen = {
       state.instrContactsAppliedSearch = normalizeSearch(searchQ).length >= MIN_SEARCH_CHARS ? searchQ : '';
     }
     const appliedSearchQ = state?.instrContactsAppliedSearch || '';
-    const activeFilter = state?.instrContactsActiveFilter || '';
-
-    const contactsSource = state?.clientSettings?.instructor_contacts_source;
-    const contactsLabel = hebrewSheetLabel(contactsSource || 'contacts_instructors');
-    const sourceSheetName = escapeHtml(contactsSource || 'contacts_instructors');
+    if (!Object.prototype.hasOwnProperty.call(state, 'instrContactsActiveFilter')) {
+      state.instrContactsActiveFilter = 'yes';
+    }
+    const activeFilter = state?.instrContactsActiveFilter ?? 'yes';
 
     let rows = applySearch(allRows, appliedSearchQ);
-    if (activeFilter) {
-      rows = rows.filter((r) => String(r.active || '').toLowerCase() === activeFilter);
-    }
+    if (activeFilter) rows = rows.filter((r) => normalizeActiveFlag(r.active) === activeFilter);
 
     const activeChips = [
       { val: '', label: 'הכל' },
       { val: 'yes', label: 'פעיל' },
       { val: 'no', label: 'לא פעיל' }
-    ].map((c) =>
-      `<button type="button" class="ds-chip ${c.val === activeFilter ? 'is-active' : ''}" data-active-filter="${c.val}">${escapeHtml(c.label)}</button>`
+    ].map((chip) =>
+      `<button type="button" class="ds-chip ${chip.val === activeFilter ? 'is-active' : ''}" data-active-filter="${chip.val}">${escapeHtml(chip.label)}</button>`
     ).join('');
 
     const cardsHtml = rows.length === 0
       ? dsEmptyState('לא נמצאו אנשי קשר')
-      : `<div class="ds-person-grid">${rows.map(renderContactCard).join('')}</div>`;
-
-    const sourcesBanner = `<div class="ds-info-banner" dir="rtl">
-      <span>📇 <strong>מקור נתונים:</strong> ${escapeHtml(contactsLabel)}</span>
-      <span class="ds-info-banner__sep">|</span>
-      <span class="ds-muted">גיליון: <code>${sourceSheetName}</code></span>
-      <span class="ds-info-banner__sep">|</span>
-      <span class="ds-muted">רשימה עצמאית — אינה נגזרת מפעילויות</span>
-    </div>`;
+      : `<div class="ic-contact-grid ic-contact-grid--compact" style="${COMPACT_GRID_STYLE}" dir="rtl">${rows.map(renderContactCard).join('')}</div>`;
 
     return dsScreenStack(`
-      ${dsPageHeader('אנשי קשר מדריכים', 'ספר כתובות — לא תלוי בפעילויות')}
-      ${sourcesBanner}
-      <div class="ds-screen-top-row">
+      <div style="display:flex;justify-content:flex-start;margin-bottom:2px">
+        <button type="button" class="ds-btn ds-btn--sm ds-btn--ghost" data-route="instructors" style="font-weight:800;min-width:92px">← חזרה</button>
+      </div>
+
+      <header class="ds-page-header" style="padding-top:2px">
+        <h1 class="ds-page-header__title" style="font-weight:850">אנשי קשר מדריכים</h1>
+        <p class="ds-page-header__subtitle" style="font-weight:700;color:#344256">לחצו על שם מדריך להצגת פרטי הקשר והמידע הנוסף</p>
+      </header>
+
+      <div class="ds-screen-top-row" style="display:flex;align-items:center;justify-content:flex-start;gap:12px;flex-wrap:wrap">
         <input
           id="instr-contacts-search"
           type="search"
@@ -131,24 +244,34 @@ export const instructorContactsScreen = {
           placeholder="חיפוש..."
           value="${escapeHtml(searchQ)}"
           dir="rtl"
+          style="flex:1 1 320px;max-width:520px;min-width:220px"
         />
+        <div class="ds-filter-bar" role="toolbar" style="display:flex;align-items:center;gap:8px;flex-wrap:wrap;margin:0;padding:0;border:0;background:transparent">
+          ${activeChips}
+          <span class="ds-badge" style="font-weight:800">${rows.length} מדריכים</span>
+        </div>
       </div>
-      <div class="ds-filter-bar" role="toolbar">${activeChips}</div>
-      ${dsCard({
-        title: `אנשי קשר מדריכים · ${rows.length}`,
-        body: cardsHtml,
-        padded: rows.length === 0
-      })}
+
+      <section class="ds-card">
+        <div class="ds-card__body${rows.length === 0 ? ' ds-card__body--padded' : ''}">${cardsHtml}</div>
+      </section>
     `);
   },
-  bind({ root, data, state, ui, rerender, clearScreenDataCache }) {
+  bind({ root, data, state, ui, rerender, clearScreenDataCache, api }) {
     const allRows = Array.isArray(data?.rows) ? data.rows : [];
     const hideEmpIds = !!state?.clientSettings?.hide_emp_id_on_screens;
+    const canEdit = String(state?.user?.role || '').trim() !== 'instructor';
+    const managerOptions = getManagerUsers(state?.clientSettings || {});
+
+    root.querySelector('[data-route="instructors"]')?.addEventListener('click', (event) => {
+      event.preventDefault();
+      document.dispatchEvent(new CustomEvent('app:navigate', { detail: { route: 'instructors' } }));
+    });
 
     let searchTimer;
-    root.querySelector('#instr-contacts-search')?.addEventListener('input', (ev) => {
-      const next = ev.target.value || '';
-      const cursorPos = ev.target?.selectionStart ?? next.length;
+    root.querySelector('#instr-contacts-search')?.addEventListener('input', (event) => {
+      const next = event.target.value || '';
+      const cursorPos = event.target?.selectionStart ?? next.length;
       clearTimeout(searchTimer);
       state.instrContactsSearch = next;
 
@@ -162,27 +285,93 @@ export const instructorContactsScreen = {
         }
       };
 
-      const len = normalizeSearch(next).length;
-      if (len === 0) {
+      if (normalizeSearch(next).length === 0) {
         apply();
         return;
       }
       searchTimer = setTimeout(apply, SEARCH_DEBOUNCE_MS);
     });
 
-    root.querySelectorAll('[data-active-filter]').forEach((btn) => {
-      btn.addEventListener('click', () => {
-        state.instrContactsActiveFilter = btn.dataset.activeFilter || '';
+    root.querySelectorAll('[data-active-filter]').forEach((button) => {
+      button.addEventListener('click', () => {
+        state.instrContactsActiveFilter = button.dataset.activeFilter || '';
         rerender();
       });
     });
 
+    const openEditor = (row) => {
+      if (!ui || !row || !canEdit) return;
+      const originalEmpId = String(row.emp_id || '').trim();
+      ui.closeDrawer?.();
+      ui.openModal({
+        title: `עריכת איש קשר — ${row.full_name || originalEmpId}`,
+        content: instructorFormHtml(row, managerOptions, hideEmpIds),
+        actions: `<button type="button" class="ds-btn ds-btn--primary" data-save-instructor-contact>שמירה</button>
+                  <button type="button" class="ds-btn" data-ui-close-modal>ביטול</button>`
+      });
+
+      const saveButton = document.querySelector('[data-save-instructor-contact]');
+      if (!saveButton) return;
+      saveButton.onclick = async () => {
+        const modal = document.querySelector('.ds-modal__content');
+        if (!modal) return;
+        const statusElement = modal.querySelector('[data-contact-form-status]');
+        const get = (name) => String(modal.querySelector(`[name="${name}"]`)?.value || '').trim();
+        const payload = {
+          emp_id: originalEmpId || get('emp_id'),
+          full_name: get('full_name'),
+          mobile: get('mobile'),
+          email: get('email'),
+          address: get('address'),
+          employment_type: get('employment_type'),
+          direct_manager: get('direct_manager') || 'ללא',
+          active: get('active') || 'yes'
+        };
+        if (!payload.emp_id || !payload.full_name) {
+          if (statusElement) statusElement.textContent = 'יש להזין שם מלא ומזהה מדריך.';
+          return;
+        }
+        try {
+          saveButton.disabled = true;
+          if (statusElement) statusElement.textContent = 'שומר...';
+          await api.saveContact({ kind: 'instructor', row: payload });
+          Object.assign(row, payload);
+          clearScreenDataCache?.();
+          ui.closeModal();
+          showToast('נשמר בהצלחה', 'success', 1800);
+          rerender();
+        } catch (error) {
+          if (statusElement) statusElement.textContent = `שגיאה: ${String(error?.message || '')}`;
+        } finally {
+          saveButton.disabled = false;
+        }
+      };
+    };
+
     const openRow = (empId) => {
-      const hit = allRows.find((r) => String(r.emp_id) === String(empId));
+      const hit = allRows.find((row) => String(row.emp_id) === String(empId));
       if (!hit || !ui) return;
       ui.openDrawer({
         title: hit.full_name || hit.emp_id,
-        content: drawerHtml(hit, hideEmpIds)
+        content: drawerHtml(hit, hideEmpIds, canEdit)
+      });
+      const drawerDocument = globalThis.document;
+      requestAnimationFrame(() => {
+        if (!drawerDocument) return;
+        const editButton = drawerDocument.querySelector('[data-edit-instructor-contact]');
+        if (editButton) editButton.onclick = () => openEditor(hit);
+        const copyEmailButton = drawerDocument.querySelector('[data-copy-instructor-email]');
+        if (copyEmailButton) {
+          copyEmailButton.onclick = async () => {
+            const emailToCopy = copyEmailButton.dataset.copyInstructorEmail || '';
+            try {
+              const copied = await copyTextToClipboard(emailToCopy);
+              showToast(copied ? 'המייל הועתק' : 'לא ניתן להעתיק את המייל', copied ? 'success' : 'error', 1800);
+            } catch (_) {
+              showToast('לא ניתן להעתיק את המייל', 'error', 2200);
+            }
+          };
+        }
       });
     };
 

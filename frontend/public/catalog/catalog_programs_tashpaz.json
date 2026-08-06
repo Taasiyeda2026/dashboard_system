@@ -3,8 +3,8 @@
     "catalog": "קטלוג תוכניות תלמידים תשפ״ז",
     "sourceType": "json",
     "note": "קובץ זה הוא מקור המידע של הקטלוג. אין לקרוא אקסל בזמן ריצה.",
-    "programCount": 15,
-    "totalSyllabusItems": 124
+    "programCount": 14,
+    "totalSyllabusItems": 116
   },
   "programs": [
     {
@@ -406,7 +406,7 @@
     {
       "id": "program-07",
       "programNumber": 7,
-      "title": "יזמות פרימיום",
+      "title": "אופק יזמות פרימיום לתעשייה",
       "audienceLevel": "חטיבות",
       "audienceLevelNeedsReview": true,
       "productType": "תוכנית",
@@ -414,7 +414,7 @@
         {
           "meeting": "1",
           "topic": "מהי יזמות?",
-          "description": "היכרות עם הקורס ועם תהליך פיתוח רעיון מצורך ועד פתרון.",
+          "description": "התוכנית פותחת לתלמידים אופק יזמי־תעשייתי, ומלווה אותם בתהליך פיתוח רעיון מצורך ועד פתרון.",
           "sourcePage": "עמ׳ 8"
         },
         {
@@ -856,65 +856,6 @@
         }
       ],
       "syllabusCount": 9
-    },
-    {
-      "id": "program-15",
-      "programNumber": 15,
-      "title": "אופק לתעשייה – מחברים בין חינוך לתעשייה",
-      "audienceLevel": "חטיבות",
-      "audienceLevelNeedsReview": true,
-      "productType": "תוכנית",
-      "syllabus": [
-        {
-          "meeting": "1",
-          "topic": "התעשייה בישראל",
-          "description": "התפתחות התעשייה בישראל, תמונת מצב ומגמות לעתיד.",
-          "sourcePage": "עמ׳ 15"
-        },
-        {
-          "meeting": "2",
-          "topic": "המצאות פורצות דרך",
-          "description": "היכרות עם המצאות ישראליות ששינו את העולם.",
-          "sourcePage": "עמ׳ 15"
-        },
-        {
-          "meeting": "3",
-          "topic": "מפתחות למצוינות",
-          "description": "מהי תעשייה מצוינת ומהם הגורמים שמובילים למצוינות.",
-          "sourcePage": "עמ׳ 15"
-        },
-        {
-          "meeting": "4",
-          "topic": "חדשנות ויזמות",
-          "description": "למידה על תרבות חדשנות ויזמות בתעשייה הישראלית.",
-          "sourcePage": "עמ׳ 15"
-        },
-        {
-          "meeting": "5",
-          "topic": "תעשייה 4.0",
-          "description": "היכרות עם מרכיבי התעשייה החכמה והשפעתה הצפויה.",
-          "sourcePage": "עמ׳ 15"
-        },
-        {
-          "meeting": "6",
-          "topic": "מפגש עם תעשיין/ית",
-          "description": "מפגש השראה עם דמות מפתח מהתעשייה.",
-          "sourcePage": "עמ׳ 15"
-        },
-        {
-          "meeting": "7",
-          "topic": "רב־שיח",
-          "description": "שיח בין התלמידים לבין פאנל תעשיינים על מסרים לבני נוער.",
-          "sourcePage": "עמ׳ 15"
-        },
-        {
-          "meeting": "8–9",
-          "topic": "סיור בתעשייה",
-          "description": "ביקור בחברה תעשייתית, היכרות עם מתקנים ושיחה עם עובדים ומנהלים.",
-          "sourcePage": "עמ׳ 15"
-        }
-      ],
-      "syllabusCount": 8
     }
   ]
 }

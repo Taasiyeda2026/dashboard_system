@@ -1,0 +1,82 @@
+מצאנו את מקור התקלה האמיתי בשמירת סטטוס סדנאות מתוך מסך חריגות.
+
+הבעיה אינה במסך, אינה בהרשאות, ואינה ב־lists.
+
+בעת שמירה מתוך מסך חריגות, הטופס שולח גם שדות תאריך כגון date_1 / meeting_date_0.
+בגלל זה מופעל טריגר על public.activities:
+
+trg_activities_sync_end_date_from_meetings
+
+הטריגר מפעיל את הפונקציה:
+
+public.activities_sync_end_date_from_meetings()
+
+שקוראת לפונקציה:
+
+public.activities_calculated_end_date_from_meetings(p_row activities)
+
+הפונקציה הזו שבורה כי היא עושה btrim על שדות date:
+
+btrim(p_row.date_1)
+btrim(p_row.date_2)
+וכו׳
+
+אבל שדות date_1 עד date_35 בטבלת activities הם מסוג date, לא text.
+לכן מתקבלת שגיאת DB:
+
+function btrim(date) does not exist
+
+וזו הסיבה שבממשק מופיעה:
+"שגיאת שרת — נסו שוב מאוחר יותר"
+
+חשוב:
+כבר קיים טריגר תקין נוסף בשם:
+
+trg_sync_activity_end_date
+
+שמפעיל פונקציה תקינה:
+
+public.sync_activity_end_date()
+
+הפונקציה הזו כבר מחשבת max(date_1...date_35) בצורה נכונה על שדות date.
+
+נדרש תיקון ממוקד בלבד:
+
+אפשרות מומלצת:
+להסיר את הטריגר הישן והשבור:
+
+DROP TRIGGER IF EXISTS trg_activities_sync_end_date_from_meetings ON public.activities;
+
+לא למחוק טבלאות.
+לא לשנות מסכים.
+לא לשנות הרשאות.
+לא לשנות לוגיקת חריגות.
+לא לשנות נתוני פעילויות.
+לא לבצע ריפקטורינג.
+
+לאחר מכן לבדוק:
+1. מסך חריגות.
+2. לפתוח סדנה שהסתיימה ועדיין פתוחה.
+3. לשנות סטטוס מ־"פתוח" ל־"סגור".
+4. לשמור.
+5. לוודא שאין שגיאת שרת.
+6. לוודא שהפעילות יורדת מהחריגות.
+7. לוודא שתאריך סיום עדיין מחושב תקין דרך trg_sync_activity_end_date.
+
+SQL לתיקון:
+
+DROP TRIGGER IF EXISTS trg_activities_sync_end_date_from_meetings ON public.activities;
+
+בדיקת אימות:
+
+SELECT tgname, pg_get_triggerdef(t.oid) AS def
+FROM pg_trigger t
+JOIN pg_class c ON c.oid = t.tgrelid
+JOIN pg_namespace n ON n.oid = c.relnamespace
+WHERE n.nspname = 'public'
+  AND c.relname = 'activities'
+  AND NOT t.tgisinternal
+ORDER BY tgname;
+
+צריך לוודא שהטריגר trg_activities_sync_end_date_from_meetings כבר לא קיים,
+ושהטריגר trg_sync_activity_end_date עדיין קיים.

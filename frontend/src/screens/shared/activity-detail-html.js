@@ -1,10 +1,13 @@
 import { escapeHtml } from './html.js';
 import { formatDateHe, formatDateHeWithWeekday, formatTimeShort, formatTimeRangeShort, formatActivityDateColumnsHe } from './format-date.js';
 import { activityManagerDisplayName, activityTypeDisplayLabel, activityTypeMatches, cleanActivityManagerName, getManagerUsers, getContactsInstructorUsers, getRosterUsers, getValidInstructorUsers, humanDisplayText, INVALID_ACTIVITY_INSTRUCTOR_STATUS, validateInstructorBinding, NO_ACTIVITY_MANAGER_LABEL, normalizeActivityTypeKey, normalizeOneDayActivityType, resolveActivityInstructorName, resolveGradeOptions } from './activity-options.js';
-import { ACTIVITY_SEASON_OPTIONS, activitySeasonLabel, normalizeActivitySeason } from './summer-activity.js';
+import { resolveSchool2027Contact } from './school-2027-contact.js';
+import { ACTIVITY_SEASON_OPTIONS, ACTIVITY_SEASON_SCHOOL_2027, activityPeriodDisplayLabel, activitySeasonLabel, normalizeActivitySeason } from './summer-activity.js';
+import { isActivitySchedulingEligible } from './activity-scheduling-eligibility.js';
+import { applyReadOnlyActivityCapabilities, isReadOnlyActivityRow } from './activity-readonly-period.js';
 
 const ONCE_TYPES = ['workshop', 'tour', 'escape_room'];
-const ACTIVITY_EDIT_TYPE_ORDER = ['workshop', 'escape_room', 'tour', 'after_school'];
+const ACTIVITY_EDIT_TYPE_ORDER = ['course', 'workshop', 'escape_room', 'tour', 'after_school'];
 
 const ACTIVITY_TYPE_PILL_LABEL = {
   course: 'קורס',
@@ -84,6 +87,28 @@ function countDoneMeetings(schedule) {
 function numericOrNull(value) {
   const n = Number(value);
   return Number.isFinite(n) ? n : null;
+}
+
+/** Resolve the persisted number of meetings without treating an empty dates response as zero. */
+export function resolveActivitySessionTotal(row, schedule = row?.meeting_schedule) {
+  const activityType = normalizeActivityTypeKey(row?.activity_type || row?.item_type);
+  if (ONCE_TYPES.includes(activityType)) return 1;
+
+  const validCount = (value) => {
+    const count = Number(value);
+    return Number.isInteger(count) && count >= 1 && count <= 35 ? count : null;
+  };
+  const persisted = validCount(row?.sessions) ?? validCount(row?.meetings_total);
+  if (persisted != null) return persisted;
+
+  let lastPopulatedDate = 0;
+  for (let index = 1; index <= 35; index += 1) {
+    if (String(row?.[`date_${index}`] || '').trim()) lastPopulatedDate = index;
+  }
+  if (lastPopulatedDate) return lastPopulatedDate;
+
+  const scheduleCount = Array.isArray(schedule) && schedule.length ? Math.min(35, schedule.length) : null;
+  return scheduleCount || 1;
 }
 
 function normStatus(v) {
@@ -281,7 +306,7 @@ function resolveActivityNameOptions(settings, activityType) {
   const opts = (settings && settings.dropdown_options) ? settings.dropdown_options : {};
   const keys = [
     'activity_names', 'activity_name',
-    'program_names', 'workshop_names', 'tour_names', 'escape_room_names'
+    'program_names', 'course_names', 'workshop_names', 'tour_names', 'escape_room_names'
   ];
   let all = [];
   for (let i = 0; i < keys.length; i++) {
@@ -305,6 +330,10 @@ function buildActivityNameOpts(options, safeValue, activityType) {
   const hasTagged = sourceOptions.some((o) => String(o?.parent_value || o?.activity_type || '').trim());
   if (!filtered.length && !hasTagged) filtered = sourceOptions;
   const all = filtered.slice();
+  const labelsInList = new Set(all.map((o) => String(o?.label || '').trim()).filter(Boolean));
+  if (safeValue && !labelsInList.has(safeValue)) {
+    all.unshift({ label: safeValue, activity_no: '', parent_value: normalizedType, activity_type: normalizedType });
+  }
   return [`<option value="">—</option>`]
     .concat(
       all.map((o) => {
@@ -443,8 +472,15 @@ function blockActivityDetails(row, { settings = {} } = {}) {
     console.warn('[activity-edit] activity name options missing from client settings');
   }
   const isOneDay = Boolean(normalizeOneDayActivityType(activityType));
-  const statusOptions = ['פתוח', 'סגור'];
-  const normalizedStatus = normStatus(row.status) === 'closed' ? 'סגור' : 'פתוח';
+  const is2027Row = normalizeActivitySeason(row.activity_season) === ACTIVITY_SEASON_SCHOOL_2027;
+  const statusOptions = is2027Row
+    ? ['פתוח', 'בתהליך', 'סגור']
+    : ['פתוח', 'מאושר - ממתין לשיבוץ', 'סגור'];
+  const rawStatus = String(row.status || '').trim();
+  const status2027Normalized = rawStatus === 'מוכן לשיבוץ' ? 'בתהליך' : rawStatus;
+  const normalizedStatus = statusOptions.includes(is2027Row ? status2027Normalized : rawStatus)
+    ? (is2027Row ? status2027Normalized : rawStatus)
+    : (is2027Row ? 'בתהליך' : (normStatus(row.status) === 'closed' ? 'סגור' : 'פתוח'));
 
   return `
     <section class="activity-drawer__section activity-drawer__section--edit-group" data-mode="edit" hidden>
@@ -456,7 +492,7 @@ function blockActivityDetails(row, { settings = {} } = {}) {
         )}
         ${fieldEditOnly(
           activityNameLabel(activityType),
-          activityNameSelectHtml('activity_name', row.activity_name, allActivityNames, activityType),
+          activityNameSelectHtml('activity_name', row.program_name || row.activity_name || row.title || row.name, allActivityNames, activityType),
           'activity-drawer__field--full'
         )}
         ${fieldEditOnly(
@@ -506,7 +542,7 @@ function blockAssignment(row, { settings = {} } = {}) {
   `;
 }
 
-function blockTeamTimes(row, { settings = {} } = {}) {
+function blockTeamTimes(row, { settings = {}, schedulingManaged = false } = {}) {
   const options = settings?.dropdown_options || {};
   const managers = getManagerUsers(settings || {});
   const rosterUsers = getValidInstructorUsers(settings || {});
@@ -534,7 +570,9 @@ function blockTeamTimes(row, { settings = {} } = {}) {
   ].some((result) => !result.valid)
     ? '<p class="ds-error-text">בפעילות זו קיים שיוך למדריך שאינו קיים בטבלת המדריכים. יש לבחור מדריך מחדש.</p>'
     : '';
-  const instructorEditHtml = twoInstructors
+  const instructorEditHtml = schedulingManaged
+    ? `<div class="activity-drawer__view">${escapeHtml(instructor1Display || 'טרם שובץ')}</div>`
+    : twoInstructors
     ? `<div class="activity-drawer__field-controls activity-drawer__field-controls--stacked">
         <input type="hidden" name="instructor_name" value="${escapeHtml(instructor1Display)}">
         <input type="hidden" name="instructor_name_2" value="${escapeHtml(instructor2Display)}">
@@ -581,6 +619,87 @@ function blockExtraEditInfo(row, { settings = {} } = {}) {
             : inputHtml({ name: 'funding', value: row.funding })
         )}
         ${fieldEditOnly('מחיר', inputHtml({ name: 'price', value: row.price }))}
+      </div>
+    </section>
+  `;
+}
+
+function blockContact2027(row) {
+  const resolvedContact = row.resolved_school_2027_contact || resolveSchool2027Contact(row, []);
+  const contactName  = String(resolvedContact.name || row.contact_name || '').trim();
+  const contactPhone = String(resolvedContact.phone || row.contact_phone || '').trim();
+  const contactEmail = String(resolvedContact.email || row.contact_email || '').trim();
+  const schoolContactId = String(row.school_contact_id || '').trim();
+  const schoolId   = String(row.school_id  || '').trim();
+  const school     = String(row.school     || '').trim();
+  const authority  = String(row.authority  || '').trim();
+
+  const viewParts = [
+    contactName  ? `<span class="activity-view-field__value">${escapeHtml(contactName)}</span>`  : '',
+    contactPhone ? `<a class="activity-view-field__value" href="tel:${escapeHtml(contactPhone)}">${escapeHtml(contactPhone)}</a>` : '',
+    contactEmail ? `<a class="activity-view-field__value" href="mailto:${escapeHtml(contactEmail)}">${escapeHtml(contactEmail)}</a>` : ''
+  ].filter(Boolean);
+  const viewHtml = viewParts.join('<br>') || '<span class="activity-view-field__value" style="color:var(--color-text-muted)">—</span>';
+
+  return `
+    <section class="activity-drawer__section" data-contact-2027-section
+      data-school-id="${escapeHtml(schoolId)}"
+      data-school="${escapeHtml(school)}"
+      data-authority="${escapeHtml(authority)}"
+      data-current-contact-id="${escapeHtml(schoolContactId)}">
+
+      <h3 class="activity-drawer__section-title">איש קשר</h3>
+
+      <!-- Always-present hidden inputs — submitted with every form save -->
+      <input type="hidden" name="school_contact_id" data-contact-2027-id-input value="${escapeHtml(schoolContactId)}">
+      <input type="hidden" name="contact_name"      data-contact-2027-hidden-name  value="${escapeHtml(contactName)}">
+      <input type="hidden" name="contact_phone"     data-contact-2027-hidden-phone value="${escapeHtml(contactPhone)}">
+      <input type="hidden" name="contact_email"     data-contact-2027-hidden-email value="${escapeHtml(contactEmail)}">
+
+      <!-- View mode -->
+      <div class="activity-view-card__grid" data-mode="view">
+        <div class="activity-view-field">
+          <span class="activity-view-field__label">פרטי קשר</span>
+          <span data-contact-2027-view-wrap>${viewHtml}</span>
+        </div>
+      </div>
+
+      <!-- Edit mode UI (no named inputs here — updates hidden inputs above) -->
+      <div class="activity-drawer__details-edit-grid" data-mode="edit" hidden>
+        <div style="padding:2px 0 8px">
+          <label style="display:block;font-size:0.82em;font-weight:600;margin-bottom:4px;color:var(--color-text-muted,#64748b)">איש קשר</label>
+
+          <!-- Dropdown (no name — JS updates the hidden input) -->
+          <select class="ds-input" data-contact-2027-select style="width:100%">
+            <option value="">טוען אנשי קשר...</option>
+          </select>
+
+          <!-- Preview of selected contact -->
+          <div data-contact-2027-preview style="display:none;margin-top:6px;font-size:0.85em;padding:6px 10px;background:var(--color-bg-secondary,#f1f5f9);border-radius:6px;line-height:1.5">
+            <div data-contact-2027-pname style="font-weight:600"></div>
+            <div data-contact-2027-prole style="color:var(--color-text-muted,#64748b)"></div>
+            <div data-contact-2027-pphone style="color:var(--color-text-muted,#64748b)"></div>
+            <div data-contact-2027-pemail style="color:var(--color-text-muted,#64748b)"></div>
+          </div>
+
+          <!-- Inline add-new form (hidden by default) -->
+          <div data-contact-2027-add-form style="display:none;margin-top:8px;padding:10px;border:1px solid var(--color-border,#e2e8f0);border-radius:8px">
+            <div style="font-size:0.85em;font-weight:600;margin-bottom:8px;color:var(--color-text,#1e293b)">הוספת איש קשר חדש</div>
+            <input type="text"  class="ds-input" placeholder="שם איש קשר *"  data-new-contact-name  style="margin-bottom:4px;width:100%">
+            <input type="text"  class="ds-input" placeholder="תפקיד"          data-new-contact-role  style="margin-bottom:4px;width:100%">
+            <input type="tel"   class="ds-input" placeholder="נייד"           data-new-contact-phone style="margin-bottom:4px;width:100%" dir="ltr">
+            <input type="email" class="ds-input" placeholder="מייל"           data-new-contact-email style="margin-bottom:6px;width:100%" dir="ltr">
+            <div data-new-contact-error style="color:var(--color-danger,#e53e3e);font-size:0.8em;min-height:1em;margin-bottom:4px"></div>
+            <div style="display:flex;gap:8px">
+              <button type="button" class="ds-btn ds-btn--primary ds-btn--sm" data-contact-2027-save-new>שמור איש קשר</button>
+              <button type="button" class="ds-btn ds-btn--sm"                 data-contact-2027-cancel-new>ביטול</button>
+            </div>
+          </div>
+
+          <!-- Add-new trigger -->
+          <button type="button" class="ds-btn ds-btn--ghost ds-btn--sm" data-contact-2027-add-btn
+            style="margin-top:8px;font-size:0.82em;padding:4px 8px">+ הוסף איש קשר חדש</button>
+        </div>
       </div>
     </section>
   `;
@@ -676,6 +795,34 @@ function blockCentralInfo(row, { settings = {}, hideFunding = false } = {}) {
   `;
 }
 
+function presentValueText(value) {
+  if (value === null || value === undefined) return '';
+  return String(value).trim();
+}
+
+/**
+ * Period, funding, price and participant count come from the full activity record.
+ * Each field renders only when the record actually holds a value, so an empty field
+ * is never displayed as an invented value.
+ */
+function blockViewRecordDetails(row, { instructorLimited = false, showFunding = false } = {}) {
+  if (instructorLimited) return '';
+  const candidates = [
+    ['תקופת הפעילות', activityPeriodDisplayLabel(row)],
+    ...(showFunding ? [['מימון', presentValueText(row.funding)]] : []),
+    ['מחיר', presentValueText(row.price)],
+    ['מספר משתתפים', presentValueText(row.participants_count)]
+  ].filter(([, value]) => value);
+  if (!candidates.length) return '';
+  return `
+    <section class="activity-view-card activity-view-card--record" data-mode="view" data-record-details-section>
+      <div class="activity-view-card__grid">
+        ${candidates.map(([label, value]) => viewField(label, value)).join('')}
+      </div>
+    </section>
+  `;
+}
+
 function blockAdditionalSupplemental(row, { hideSeason = false } = {}) {
   if (hideSeason) return '';
   const seasonDisplay = activitySeasonLabel(row.activity_season);
@@ -711,9 +858,13 @@ function buildDateChipsHtml(schedule, isOnce) {
     .map(({ item, count, doneCount }) => {
       const isDone = doneCount > 0;
       const countLabel = count > 1 ? ` · ${count} מפגשים` : '';
+      const noteText = String(item?.note || '').trim();
+      const noteDot = noteText
+        ? `<span class="activity-drawer__date-note-dot" title="${escapeHtml(noteText)}" aria-label="הערה: ${escapeHtml(noteText)}" style="margin-right:4px;font-size:0.65em;color:var(--color-primary,#2563eb);cursor:help;vertical-align:middle">●</span>`
+        : '';
       return `
         <div class="activity-drawer__date-chip ${isDone ? 'is-done' : ''}" data-date-card>
-          <span>${escapeHtml(`${formatDateHeWithWeekday(item?.date || '')}${countLabel}`)}</span>
+          <span>${escapeHtml(`${formatDateHeWithWeekday(item?.date || '')}${countLabel}`)}</span>${noteDot}
         </div>
       `;
     })
@@ -730,23 +881,33 @@ function buildOneDayViewHtml(schedule, row, datesLoading) {
   const dateVal = String(firstMeeting?.date || '').trim();
   const dateDisplay = dateVal ? formatDateHe(dateVal) : '';
   const weekdayDisplay = dateVal ? fmtWeekdayShort(dateVal) : '';
+  const noteText = String(firstMeeting?.note || '').trim();
+  const noteDot = noteText
+    ? `<span class="activity-drawer__date-note-dot" title="${escapeHtml(noteText)}" aria-label="הערה: ${escapeHtml(noteText)}" style="margin-right:4px;font-size:0.65em;color:var(--color-primary,#2563eb);cursor:help;vertical-align:middle">●</span>`
+    : '';
   return `<div class="activity-drawer__oneday-info" data-mode="view" data-dates-view-chips>
     ${dateDisplay || weekdayDisplay ? `<div class="activity-drawer__date-chip">
       <span data-oneday-date-display>${escapeHtml(dateDisplay)}</span>
-      ${weekdayDisplay ? `<span class="activity-drawer__weekday" data-oneday-weekday-display>${escapeHtml(weekdayDisplay)}</span>` : `<span data-oneday-weekday-display></span>`}
+      ${weekdayDisplay ? `<span class="activity-drawer__weekday" data-oneday-weekday-display>${escapeHtml(weekdayDisplay)}</span>` : `<span data-oneday-weekday-display></span>`}${noteDot}
     </div>` : `<div class="activity-drawer__date-chip activity-drawer__date-chip--empty">
       <span data-oneday-date-display></span><span data-oneday-weekday-display></span>
     </div>`}
   </div>`;
 }
 
-function blockDates(row, { canEdit = false, canDirectEdit = false, datesLoading = false } = {}) {
-  const schedule = Array.isArray(row?.meeting_schedule) ? row.meeting_schedule : [];
+function blockDates(row, { canEdit = false, canDirectEdit = false, datesLoading = false, is2027 = false } = {}) {
+  const loadedSchedule = Array.isArray(row?.meeting_schedule) ? row.meeting_schedule : [];
   const activityType = normalizeActivityTypeKey(row.activity_type || row.item_type);
   const isOnce = ONCE_TYPES.includes(activityType);
   const isCourse = activityType === 'course';
   const isAfterSchool = activityType === 'after_school';
   if (!isOnce && !isCourse && !isAfterSchool) return '';
+  const total = resolveActivitySessionTotal(row, loadedSchedule);
+  const schedule = Array.from({ length: isOnce ? 1 : total }, (_, index) => loadedSchedule[index] || {
+    date: String(row?.[`date_${index + 1}`] || '').trim(),
+    performed: 'no',
+    note: ''
+  });
   const loadingAttr = datesLoading ? ' data-dates-loading="true"' : '';
 
   if (isOnce) {
@@ -767,6 +928,7 @@ function blockDates(row, { canEdit = false, canDirectEdit = false, datesLoading 
           attrs: 'data-role="meeting-date" data-meeting-index="0" data-meeting-idx="0" data-oneday-date',
         })}
         <input type="hidden" name="meeting_performed_0" value="${escapeHtml(String(firstMeeting?.performed || 'no'))}">
+        ${is2027 ? `<textarea class="ds-input" name="meeting_note_0" rows="1" placeholder="הערה לתאריך זה" data-meeting-note-idx="0" style="margin-top:4px;font-size:0.85em;resize:vertical">${escapeHtml(String(firstMeeting?.note || ''))}</textarea>` : ''}
       </div>
     `;
     return `
@@ -786,7 +948,9 @@ function blockDates(row, { canEdit = false, canDirectEdit = false, datesLoading 
   const doneFromSchedule = countDoneMeetings(schedule);
   const doneFallback = numericOrNull(row?.meetings_done);
   const done = doneFromSchedule > 0 ? doneFromSchedule : (doneFallback ?? 0);
-  const total = numericOrNull(row?.meetings_total) ?? schedule.length ?? 0;
+  // `sessions` is the persisted activity-level contract.  The dates endpoint can
+  // legitimately return an empty/partial schedule, so it must not collapse an
+  // existing 11-session course back to "0 מתוך 1" while dates are loading.
   const progressPct = total > 0 ? Math.min(100, Math.round((done / total) * 100)) : 0;
   const viewChips = buildDateChipsHtml(schedule, false);
   const datePickers = schedule
@@ -806,6 +970,7 @@ function blockDates(row, { canEdit = false, canDirectEdit = false, datesLoading 
           attrs: `data-role="meeting-date" data-meeting-index="${i}" data-meeting-idx="${i}"`,
         })}
         <input type="hidden" name="meeting_performed_${i}" value="${escapeHtml(String(item?.performed || 'no'))}">
+        ${is2027 ? `<textarea class="ds-input" name="meeting_note_${i}" rows="1" placeholder="הערה למפגש זה" data-meeting-note-idx="${i}" style="margin-top:4px;font-size:0.85em;resize:vertical">${escapeHtml(String(item?.note || ''))}</textarea>` : ''}
       </div>
     `)
     .join('');
@@ -848,7 +1013,7 @@ function blockDates(row, { canEdit = false, canDirectEdit = false, datesLoading 
 
   const progressTitle = isCourse ? 'התקדמות הקורס' : 'מפגשים ותאריכים';
   return `
-    <section class="activity-drawer__section activity-drawer__section--course-dates" data-dates-section${loadingAttr}>
+    <section class="activity-drawer__section activity-drawer__section--course-dates" data-dates-section data-session-total="${total}"${loadingAttr}>
       <div class="activity-drawer__section-head">
         <h3 class="activity-drawer__section-title">${escapeHtml(progressTitle)}</h3>
       </div>
@@ -914,6 +1079,8 @@ export function patchDrawerDatesSection(sectionEl, datesData) {
     if (weekdayEl) weekdayEl.textContent = dateVal ? fmtWeekdayShort(dateVal) : '';
     const oneDayInput = sectionEl.querySelector('[data-meeting-dates-edit] input[data-meeting-idx="0"]');
     if (oneDayInput) oneDayInput.value = dateVal;
+    const oneDayNoteEl = sectionEl.querySelector('[data-meeting-dates-edit] textarea[data-meeting-note-idx="0"]');
+    if (oneDayNoteEl) oneDayNoteEl.value = String(firstMeeting?.note || '').trim();
     const form = sectionEl.closest('[data-drawer-form]');
     if (form && typeof form._refreshInitialValues === 'function') {
       form._refreshInitialValues();
@@ -925,7 +1092,11 @@ export function patchDrawerDatesSection(sectionEl, datesData) {
   const doneFromSchedule = countDoneMeetings(schedule);
   const doneFallback = numericOrNull(datesData?.meetings_done);
   const done = doneFromSchedule > 0 ? doneFromSchedule : (doneFallback ?? 0);
-  const total = numericOrNull(datesData?.meetings_total) ?? schedule.length ?? 0;
+  const total = resolveActivitySessionTotal({
+    ...datesData,
+    sessions: sectionEl.dataset.sessionTotal || datesData?.sessions
+  }, schedule);
+  sectionEl.dataset.sessionTotal = String(total);
   const progressPct = total > 0 ? Math.min(100, Math.round((done / total) * 100)) : 0;
   const computedEnd = autoEndDate({ meeting_schedule: schedule }) || String(datesData?.end_date || '');
 
@@ -945,9 +1116,19 @@ export function patchDrawerDatesSection(sectionEl, datesData) {
 
   const editGrid = sectionEl.querySelector('[data-meeting-dates-edit]');
   if (editGrid) {
+    while (editGrid.children.length < total) {
+      const index = editGrid.children.length;
+      const card = editGrid.ownerDocument.createElement('div');
+      card.className = 'activity-drawer__date-card';
+      card.dataset.meetingIndex = String(index);
+      card.innerHTML = `<div class="activity-drawer__date-card-top"><span class="activity-drawer__meeting-index">מפגש ${index + 1}</span><span class="activity-drawer__date-card-top-aside"><button type="button" class="activity-drawer__date-remove" data-action="remove-meeting" aria-label="הסר מפגש">🗑</button><span class="activity-drawer__weekday"></span></span></div>${inputHtml({ name: `meeting_date_${index}`, value: '', type: 'date', attrs: `data-role="meeting-date" data-meeting-index="${index}" data-meeting-idx="${index}"` })}<input type="hidden" name="meeting_performed_${index}" value="no">`;
+      editGrid.append(card);
+    }
     schedule.forEach((item, index) => {
       const input = editGrid.querySelector(`input[data-meeting-idx="${index}"]`);
       if (input) input.value = String(item?.date || '').trim();
+      const noteEl = editGrid.querySelector(`textarea[data-meeting-note-idx="${index}"]`);
+      if (noteEl) noteEl.value = String(item?.note || '').trim();
     });
     const form = sectionEl.closest('[data-drawer-form]');
     if (form && typeof form._refreshInitialValues === 'function') {
@@ -1008,9 +1189,13 @@ function jsonAttr(value) {
   }
 }
 
-function singleForm(row, { settings = {}, privateNote = null, canEdit = false, canDirectEdit = false, canRequestEdit = false, canDeleteActivity = false, showPrivateNote = false, idx = 0, datesLoading = false, instructorLimited = false } = {}) {
+function singleForm(row, { settings = {}, privateNote = null, canEdit = false, canDirectEdit = false, canRequestEdit = false, canDeleteActivity = false, canSchedule = false, showPrivateNote = false, idx = 0, datesLoading = false, instructorLimited = false } = {}) {
   const computedEnd = autoEndDate(row);
   const activityType = normalizeActivityTypeKey(row.activity_type || row.item_type);
+  const is2027 = normalizeActivitySeason(row.activity_season) === ACTIVITY_SEASON_SCHOOL_2027;
+  const schedulingEligible = isActivitySchedulingEligible(row);
+  const schedulingInstructorName = resolveActivityInstructorName(row)
+    || resolveInstructorDisplayName(row.instructor_name, row.emp_id, buildInstructorLookup(settings));
   const isOnce = ONCE_TYPES.includes(activityType);
   const isCourse = activityType === 'course';
   const isAfterSchool = activityType === 'after_school';
@@ -1034,6 +1219,8 @@ function singleForm(row, { settings = {}, privateNote = null, canEdit = false, c
       data-export-row="${jsonAttr(row)}"
       data-source-sheet="${escapeHtml(String(row.source_sheet || ''))}"
       data-row-id="${escapeHtml(String(row.RowID || row.row_id || row.source_row_id || ''))}"
+      data-activity-season="${escapeHtml(String(row.activity_season || ''))}"
+      data-activity-read-only="${isReadOnlyActivityRow(row) ? 'yes' : 'no'}"
       data-can-direct-edit="${canDirectEdit ? 'yes' : 'no'}"
       data-can-request-edit="${canRequestEdit ? 'yes' : 'no'}"
       data-original-status="${escapeHtml(String(row.status || ''))}"
@@ -1045,15 +1232,21 @@ function singleForm(row, { settings = {}, privateNote = null, canEdit = false, c
       ${isOnce
         ? blockViewOnce(row, { settings, hideFunding: hideFundingInView || instructorLimited })
         : blockViewCourse(row, { settings })}
+      ${blockViewRecordDetails(row, { instructorLimited, showFunding: isOnce ? hideFundingInView : true })}
       ${isOnce && showDates
-        ? `<div class="activity-drawer__once-dates-row" data-once-dates-row>${blockDates(row, { canEdit, canDirectEdit, datesLoading })}</div>`
-        : (showDates ? blockDates(row, { canEdit, canDirectEdit, datesLoading }) : '')}
+        ? `<div class="activity-drawer__once-dates-row" data-once-dates-row>${blockDates(row, { canEdit, canDirectEdit, datesLoading, is2027 })}</div>`
+        : (showDates ? blockDates(row, { canEdit, canDirectEdit, datesLoading, is2027 }) : '')}
       ${blockNotes(row, { hidden: instructorLimited })}
+      ${schedulingEligible ? `<section class="activity-drawer__section activity-scheduling-summary" data-scheduling-summary>
+        <div data-mode="view"><div class="activity-view-field"><span class="activity-view-field__label">מדריך/ה:</span><span class="activity-view-field__value">${escapeHtml(schedulingInstructorName || 'טרם שובץ')}</span></div>${canSchedule ? '<button type="button" class="ds-btn ds-btn--primary" data-find-instructor>דרישות שיבוץ</button>' : ''}</div>
+        <div data-mode="edit" hidden><p class="ds-muted">שני השדות אינם חובה.</p><div class="activity-scheduling-summary__fields"><label>דרישת מגדר (לא חובה)<select class="ds-input" name="required_instructor_gender"><option value="any">ללא דרישה</option><option value="female"${(row.required_instructor_gender || 'any') === 'female' ? ' selected' : ''}>מדריכה</option><option value="male"${(row.required_instructor_gender || 'any') === 'male' ? ' selected' : ''}>מדריך</option></select></label><label>שפת הדרכה (לא חובה)<select class="ds-input" name="instruction_language"><option value="he"${(row.instruction_language || 'he') === 'he' ? ' selected' : ''}>עברית</option><option value="ar"${row.instruction_language === 'ar' ? ' selected' : ''}>ערבית</option></select></label></div></div>
+      </section>` : ''}
       ${blockPrivateNote(row, { privateNote, showPrivateNote })}
       ${blockActivityDetails(row, { settings })}
       ${blockAssignment(row, { settings })}
-      ${blockTeamTimes(row, { settings })}
+      ${blockTeamTimes(row, { settings, schedulingManaged: is2027 })}
       ${instructorLimited ? '' : blockExtraEditInfo(row, { settings })}
+      ${is2027 ? blockContact2027(row) : ''}
       ${blockEditActions({ canEdit, canDirectEdit, canDeleteActivity })}
       ${blockViewFooter({ canEdit, canDirectEdit })}
     </form>
@@ -1077,7 +1270,21 @@ export function activityRowDetailHtml(row, { privateNote = null, hideActivityNo 
 }
 
 export function activityWorkDrawerHtml(row, opts = {}) {
-  const { mode = 'single', summaryDate = '', privateNote = null, canEdit = false, canDirectEdit = false, canRequestEdit = false, canDeleteActivity = false, settings = {}, datesLoading = false, exportAction = true, instructorLimited = false } = opts;
+  const { mode = 'single', summaryDate = '', privateNote = null, settings = {}, datesLoading = false, exportAction = true, instructorLimited = false } = opts;
+  /**
+   * 2026 is read-only at the markup level: mutating controls are never rendered for
+   * a historical activity, whatever the calling screen passes in.
+   */
+  const capabilitiesFor = (activityRow) => applyReadOnlyActivityCapabilities(
+    {
+      canEdit: opts.canEdit === true,
+      canDirectEdit: opts.canDirectEdit === true,
+      canRequestEdit: opts.canRequestEdit === true,
+      canDeleteActivity: opts.canDeleteActivity === true,
+      canSchedule: opts.canSchedule === true
+    },
+    { activity: activityRow }
+  );
   if (mode === 'summary') {
     const rows = Array.isArray(row) ? row : [];
     const body = rows
@@ -1093,10 +1300,7 @@ export function activityWorkDrawerHtml(row, opts = {}) {
           ${singleForm(item, {
             settings,
             privateNote,
-            canEdit,
-            canDirectEdit,
-            canRequestEdit,
-            canDeleteActivity,
+            ...capabilitiesFor(item),
             showPrivateNote: privateNote !== null,
             idx,
             instructorLimited
@@ -1118,10 +1322,7 @@ export function activityWorkDrawerHtml(row, opts = {}) {
       ${singleForm(one, {
         settings,
         privateNote,
-        canEdit,
-        canDirectEdit,
-        canRequestEdit,
-        canDeleteActivity,
+        ...capabilitiesFor(one),
         showPrivateNote: privateNote !== null,
         datesLoading,
         idx: 0,

@@ -15,7 +15,8 @@ const TEST_HOURS_REGEX = /(?:שעות\s*)?בדיק(?:ה|ות)?/i;
 const PUBLIC_BASE = import.meta.env?.BASE_URL || './';
 const PROPOSAL_SIGNATURE_IMAGE = 'proposals/signature-idan-nahum.png';
 const DEFAULT_SIGNATURE_META = Object.freeze({ image: PROPOSAL_SIGNATURE_IMAGE });
-const DEFAULT_SIGNER_NAME = 'עידן נחום, סמנכ״ל כספים ותפעול';
+const DEFAULT_SIGNER_NAME = 'עידן נחום, סמנכ״ל כספים';
+const IDAN_NAHUM_AUTH_USER_ID = 'e9ca304a-4e66-4774-830e-14f1318c4908';
 
 const COURSE_SHORT_NAMES_BY_GEFEN = Object.freeze({
   '6089': 'ביומימיקרי',
@@ -27,9 +28,8 @@ const COURSE_SHORT_NAMES_BY_GEFEN = Object.freeze({
   '57646': 'השמיים אינם הגבול',
   '53819': 'יישומי הבינה המלאכותית',
   '3604': 'פורצות דרך',
-  '960': 'יזמות פרימיום',
   '46091': 'רוקחים עולם',
-  '52279': 'אופק לתעשייה'
+  '52279': 'אופק יזמות פרימיום לתעשייה'
 });
 const OLD_CANCELLATION_SENTENCE = 'במקרה של הפסקת הקורס ביוזמת בית הספר, ייגבה תשלום מלא עבור המפגשים שהתקיימו בפועל וכן 10% מעלות יתרת המפגשים שלא התקיימו.';
 const NEW_CANCELLATION_SENTENCE = 'ביטול הקורס ביוזמת המזמין, ייגבה תשלום מלא על מפגשים שהתקיימו ו-10% מעלות יתרת המפגשים שלא התקיימו.';
@@ -126,11 +126,23 @@ export function canManageProposalsAgreements(state) {
 }
 
 function canApproveProposalsAgreements(state) {
-  return userRole(state) === 'admin' || permFlag(state?.user?.approve_proposals_agreements);
+  const user = state?.user || {};
+  const userId = text(user.user_id || user.emp_id || user.employee_id);
+  const username = text(user.username_for_login || user.username || user.username_display).toLowerCase();
+  const authUserId = text(user.auth_user_id).toLowerCase();
+  return userId === '8000'
+    || username === 'idann'
+    || authUserId === IDAN_NAHUM_AUTH_USER_ID;
 }
 
 function text(value) {
   return String(value == null ? '' : value).replace(/\s+/g, ' ').trim();
+}
+
+export function normalizeProposalSignedOrOrdered(value) {
+  if (value === true || value === 1) return true;
+  if (value === false || value === 0 || value == null) return false;
+  return ['true', '1', 'yes', 'y', 'on'].includes(String(value).trim().toLowerCase());
 }
 
 function normalizeHebrewQuoteVariants(value) {
@@ -175,31 +187,96 @@ let proposalGroupLookups = EMPTY_PROPOSAL_GROUP_LOOKUPS;
 const COMBINED_TEMPLATE_GROUP_KEYS = Object.freeze(['summer', 'next_year']);
 
 const PROPOSAL_GROUP_DISPLAY_FALLBACKS = Object.freeze({
-  summer: 'פעילויות קיץ',
-  next_year: 'שנה הבאה',
-  combined: 'הצעה משולבת',
-  tour: 'סיור'
+  summer: 'קיץ',
+  next_year: 'תשפ״ז',
+  tour: 'סיור',
+  gefen: 'גפן'
 });
+/** Internal template key only — never shown to users. */
+const COMBINED_INTERNAL_KEY = 'combined';
+const CLIENT_FACING_TYPE_OPTIONS = Object.freeze([
+  { value: 'next_year', label: 'תשפ״ז' },
+  { value: 'gefen', label: 'גפן' },
+  { value: 'summer', label: 'קיץ' },
+  { value: 'tour', label: 'סיור' }
+]);
 const PROPOSAL_GROUP_LEGACY_ALIASES = Object.freeze({
   'קיץ תשפ״ו': 'summer',
   'פעילויות קיץ': 'summer',
   'שנת הלימודים תשפ״ז': 'next_year',
   'תוכניות תשפ״ז': 'next_year',
   'שנה הבאה': 'next_year',
-  'הצעה משולבת': 'combined',
+  'תשפ״ז': 'next_year',
+  'הצעה משולבת': COMBINED_INTERNAL_KEY,
   'סיור': 'tour',
-  'קיץ תשפ״ו ושנת הלימודים תשפ״ז': 'combined',
-  'קיץ תשפ״ו ותוכניות תשפ״ז': 'combined',
-  'קיץ תשפ״ו + תשפ״ז': 'combined'
+  'סיורים': 'tour',
+  'סיור לימודי': 'tour',
+  'סיור לימודי חווייתי': 'tour',
+  'התנסות בתעשייה – סיור לימודי חווייתי': 'tour',
+  'גפן': 'gefen',
+  'גפ״ן': 'gefen',
+  'GEFEN': 'gefen',
+  'קיץ תשפ״ו ושנת הלימודים תשפ״ז': COMBINED_INTERNAL_KEY,
+  'קיץ תשפ״ו ותוכניות תשפ״ז': COMBINED_INTERNAL_KEY,
+  'קיץ תשפ״ו + תשפ״ז': COMBINED_INTERNAL_KEY
 });
+
+/**
+ * `next_year_courses` / `next_year_workshops` remain internal row scopes.
+ * תשפ״ז uses one shared add/picker, then keeps separate program and workshop tables.
+ */
+const NEXT_YEAR_INTERNAL_SUBGROUPS = Object.freeze([
+  { key: 'next_year_courses', legacyLabel: 'תשפ״ז (קורסים)', sectionTitle: 'קורסים ותוכניות' },
+  { key: 'next_year_workshops', legacyLabel: 'תשפ״ז (סדנאות)', sectionTitle: 'סדנאות' }
+]);
+const NEXT_YEAR_INTERNAL_COMBINED_LABEL = 'תשפ״ז (קורסים וסדנאות)';
+const NEXT_YEAR_UNIFIED_ADD_LABEL = '+ הוסף פעילות';
+const NEXT_YEAR_UNIFIED_MANUAL_LABEL = 'פעילות אחרת / טקסט חופשי';
+
+function matchNextYearInternalSubgroup(value = '') {
+  const raw = text(value);
+  if (!raw) return null;
+  const normalized = normalizeHebrewQuoteVariants(raw);
+  return NEXT_YEAR_INTERNAL_SUBGROUPS.find((subgroup) =>
+    subgroup.key === raw || normalizeHebrewQuoteVariants(subgroup.legacyLabel) === normalized) || null;
+}
+
+function isNextYearInternalSubgroup(value = '') {
+  if (matchNextYearInternalSubgroup(value)) return true;
+  const normalized = normalizeHebrewQuoteVariants(text(value));
+  return Boolean(normalized) && normalized === normalizeHebrewQuoteVariants(NEXT_YEAR_INTERNAL_COMBINED_LABEL);
+}
+
+/** Title of an internal area inside a תשפ״ז proposal; empty for anything else. */
+export function nextYearInternalSectionTitle(value = '') {
+  return matchNextYearInternalSubgroup(value)?.sectionTitle || '';
+}
+
+function userFacingProposalGroupLabel(value = '') {
+  return text(value)
+    .replace(/פעילויות קיץ/g, PROPOSAL_GROUP_DISPLAY_FALLBACKS.summer)
+    .replace(/שנה הבאה/g, PROPOSAL_GROUP_DISPLAY_FALLBACKS.next_year);
+}
 
 function proposalGroupSafeDisplayName(groupKey = '', displayName = '') {
   const key = text(groupKey);
-  const label = text(displayName);
-  if (label && label !== key) return label;
-  return PROPOSAL_GROUP_DISPLAY_FALLBACKS[key] || label || key;
+  const label = userFacingProposalGroupLabel(displayName);
+  if (key === COMBINED_INTERNAL_KEY || label === 'הצעה משולבת') {
+    return '—';
+  }
+  if (Object.prototype.hasOwnProperty.call(PROPOSAL_GROUP_DISPLAY_FALLBACKS, key)) {
+    return PROPOSAL_GROUP_DISPLAY_FALLBACKS[key];
+  }
+  const alias = PROPOSAL_GROUP_LEGACY_ALIASES[key] || PROPOSAL_GROUP_LEGACY_ALIASES[label] || PROPOSAL_GROUP_LEGACY_ALIASES[normalizeHebrewQuoteVariants(label)];
+  if (alias === COMBINED_INTERNAL_KEY) {
+    return '—';
+  }
+  if (alias && PROPOSAL_GROUP_DISPLAY_FALLBACKS[alias]) return PROPOSAL_GROUP_DISPLAY_FALLBACKS[alias];
+  if (label && label !== key && !/combined|משולב/i.test(label)) return label;
+  return userFacingProposalGroupLabel(label || key) || '—';
 }
 let proposalTemplateSectionsLookup = [];
+let proposalSchoolCalendarRows = [];
 
 const TOUR_TEMPLATE_KEY = 'tour';
 const TOUR_ACTIVITY_NAME = 'התנסות בתעשייה – סיור לימודי חווייתי';
@@ -208,8 +285,7 @@ const TOUR_ACTIVITY_LINE = `${TOUR_ACTIVITY_NAME} – גפ״ן ${TOUR_GEFEN_NUMB
 const TOUR_INTRO_BODY = `תעשיידע היא עמותה חינוכית-טכנולוגית הפועלת לחיבור בין מערכת החינוך לבין התעשייה, החדשנות ועולמות התעסוקה. במסגרת פעילותה מובילה העמותה סיורים לימודיים-חווייתיים המאפשרים לתלמידים חשיפה לסביבות עבודה אמיתיות, לטכנולוגיות מתקדמות ולבעלי תפקידים מגוונים.
 
 הסיור מחבר בין הלמידה בבית הספר לבין היישום המעשי בשטח, מעודד סקרנות וחשיבה יזמית ומסייע לתלמידות ולתלמידים להיחשף לאפשרויות עתידיות בלימודים ובעולם העבודה. הסיור מותאם לשכבת הגיל, למגמות הלימוד, למטרות החינוכיות של בית הספר ולאופי הגוף המארח.`;
-const TOUR_ACTIVITY_INTRO_BODY = `להלן הפעילות המוצעת לשנת הלימודים תשפ״ז:
-${TOUR_ACTIVITY_LINE}`;
+const TOUR_ACTIVITY_INTRO_BODY = TOUR_ACTIVITY_LINE;
 const TOUR_CANCELLATION_TERMS_BODY = `ביטול סיור בהתראה של פחות משני ימי עבודה יחויב כסיור שהתקיים בפועל.
 
 שינוי מועד הסיור בשל הנחיות, מצב חירום או אילוצי הגוף המארח יתואם למועד חלופי מוסכם בין הצדדים.
@@ -375,6 +451,7 @@ function collectGroupRecords(data = {}, rows = [], pricingOptions = []) {
 }
 
 function setProposalGroupLookups(data = {}, rows = [], pricingOptions = []) {
+  proposalSchoolCalendarRows = Array.isArray(data?.schoolCalendarRows) ? data.schoolCalendarRows : [];
   proposalTemplateSectionsLookup = normalizeTemplateSections(Array.isArray(data?.proposalTemplateSections)
     ? data.proposalTemplateSections
     : Array.isArray(data?.proposal_template_sections) ? data.proposal_template_sections : []);
@@ -382,14 +459,24 @@ function setProposalGroupLookups(data = {}, rows = [], pricingOptions = []) {
   const groups = collectGroupRecords({ ...data, proposalTemplateSections: proposalTemplateSectionsLookup }, rows, pricingOptions);
   const groupByKey = new Map();
   const aliasToKey = new Map();
+  const canonicalGroupKeys = new Set(groups.map((group) => group.group_key));
   groups.forEach((group) => {
     groupByKey.set(group.group_key, group);
     aliasToKey.set(group.group_key, group.group_key);
     aliasToKey.set(normalizeHebrewQuoteVariants(group.group_key), group.group_key);
     aliasToKey.set(group.display_name, group.group_key);
     aliasToKey.set(normalizeHebrewQuoteVariants(group.display_name), group.group_key);
-    if (group.template_key) { aliasToKey.set(group.template_key, group.group_key); aliasToKey.set(normalizeHebrewQuoteVariants(group.template_key), group.group_key); }
+    if (group.template_key && !canonicalGroupKeys.has(group.template_key)) {
+      aliasToKey.set(group.template_key, group.group_key);
+      aliasToKey.set(normalizeHebrewQuoteVariants(group.template_key), group.group_key);
+    }
     group.aliases.forEach((alias) => { aliasToKey.set(alias, group.group_key); aliasToKey.set(normalizeHebrewQuoteVariants(alias), group.group_key); });
+  });
+  // Internal subgroups can share their parent's template_key. Canonical group
+  // keys must always win over those template aliases (for example next_year).
+  groups.forEach((group) => {
+    aliasToKey.set(group.group_key, group.group_key);
+    aliasToKey.set(normalizeHebrewQuoteVariants(group.group_key), group.group_key);
   });
   dataGroupAliasRows(data)
     .forEach((aliasRow) => {
@@ -470,11 +557,12 @@ function normalizeProposalGroup(value) {
 function proposalGroupMeta(value) {
   const key = normalizeProposalGroup(value);
   return proposalGroupLookups.groupByKey.get(key)
-    || (PROPOSAL_GROUP_DISPLAY_FALLBACKS[key] ? normalizeProposalGroupRecord({
+    || ((PROPOSAL_GROUP_DISPLAY_FALLBACKS[key] || key === COMBINED_INTERNAL_KEY) ? normalizeProposalGroupRecord({
       group_key: key,
-      display_name: PROPOSAL_GROUP_DISPLAY_FALLBACKS[key],
+      display_name: PROPOSAL_GROUP_DISPLAY_FALLBACKS[key] || '',
       template_key: key,
-      included_group_keys: key === 'combined' ? [...COMBINED_TEMPLATE_GROUP_KEYS] : [],
+      included_group_keys: key === COMBINED_INTERNAL_KEY ? [...COMBINED_TEMPLATE_GROUP_KEYS] : [],
+      is_combined: key === COMBINED_INTERNAL_KEY,
       is_active: true
     }) : null);
 }
@@ -484,11 +572,124 @@ function normalizeProposalDomain(raw) {
   return (v === 'N' || v === 'E') ? 'E' : 'Y';
 }
 
+function inferClientFacingTypeKeyFromText(value = '') {
+  const raw = text(value);
+  if (!raw) return '';
+  const directAlias = PROPOSAL_GROUP_LEGACY_ALIASES[raw] || PROPOSAL_GROUP_LEGACY_ALIASES[normalizeHebrewQuoteVariants(raw)];
+  if (directAlias && PROPOSAL_GROUP_DISPLAY_FALLBACKS[directAlias]) return directAlias;
+  if (Object.prototype.hasOwnProperty.call(PROPOSAL_GROUP_DISPLAY_FALLBACKS, raw)) return raw;
+  const lowered = normalizeHebrewQuoteVariants(raw).toLowerCase();
+  if (/סיור|tour/.test(lowered)) return 'tour';
+  if (/גפ['״]?ן|gefen/.test(lowered)) return 'gefen';
+  if (/קיץ|summer/.test(lowered)) return 'summer';
+  if (/תשפ|שנה הבאה|תוכניות|next[_-]?year/.test(lowered)) return 'next_year';
+  return '';
+}
+
+/** Resolve a displayable type key; never returns combined. */
+export function resolveClientFacingTypeKey(row = {}, items = []) {
+  const hints = [
+    row.template_key,
+    row.activity_type_group,
+    row.proposal_group,
+    row.document_type,
+    ...(Array.isArray(row.activity_names) ? row.activity_names : []),
+    ...(Array.isArray(items) ? items.flatMap((item) => [
+      item.item_name ?? item.itemName,
+      item.proposal_group ?? item.proposalGroup,
+      item.item_type ?? item.itemType
+    ]) : [])
+  ].map(text).filter(Boolean);
+
+  const hits = new Set();
+  hints.forEach((hint) => {
+    const key = inferClientFacingTypeKeyFromText(hint);
+    if (key) hits.add(key);
+  });
+
+  const normalized = normalizeProposalGroup(row.activity_type_group || row.proposal_group || '');
+  const isCombined = normalized === COMBINED_INTERNAL_KEY
+    || isCombinedProposalGroup(row.activity_type_group)
+    || /combined|משולב/i.test(text(row.activity_type_group));
+
+  if (isCombined) {
+    if (hits.size === 1) return [...hits][0];
+    return '';
+  }
+  if (hits.size === 1) return [...hits][0];
+  if (PROPOSAL_GROUP_DISPLAY_FALLBACKS[normalized]) return normalized;
+  return inferClientFacingTypeKeyFromText(row.activity_type_group || row.proposal_group || '');
+}
+
+/** User-facing proposal type label — only תשפ״ז / גפן / קיץ / סיור / —. */
+export function clientFacingProposalTypeLabel(row = {}, items = []) {
+  const key = resolveClientFacingTypeKey(row, items);
+  if (key && PROPOSAL_GROUP_DISPLAY_FALLBACKS[key]) return PROPOSAL_GROUP_DISPLAY_FALLBACKS[key];
+  const raw = text(row.activity_type_group || row.proposal_group || row.document_type || row.template_key);
+  if (raw) {
+    // eslint-disable-next-line no-console
+    console.warn('[client-file] unknown proposal type value', raw);
+  }
+  return '—';
+}
+
 function proposalGroupDisplayName(value) {
   const raw = text(value);
   if (!raw) return '';
+  // Internal תשפ״ז areas are row scoping only — the displayed type stays תשפ״ז.
+  if (isNextYearInternalSubgroup(raw)) return PROPOSAL_GROUP_DISPLAY_FALLBACKS.next_year;
+  if (/^combined$/i.test(raw) || /הצעה משולבת|משולב/.test(raw)) {
+    return clientFacingProposalTypeLabel({ activity_type_group: raw, document_type: raw });
+  }
+  const directAlias = PROPOSAL_GROUP_LEGACY_ALIASES[raw] || PROPOSAL_GROUP_LEGACY_ALIASES[normalizeHebrewQuoteVariants(raw)];
+  if (directAlias === COMBINED_INTERNAL_KEY) {
+    return clientFacingProposalTypeLabel({ activity_type_group: raw, document_type: raw });
+  }
+  if (directAlias && PROPOSAL_GROUP_DISPLAY_FALLBACKS[directAlias]) {
+    return PROPOSAL_GROUP_DISPLAY_FALLBACKS[directAlias];
+  }
+  if (Object.prototype.hasOwnProperty.call(PROPOSAL_GROUP_DISPLAY_FALLBACKS, raw)) {
+    return PROPOSAL_GROUP_DISPLAY_FALLBACKS[raw];
+  }
+  const key = normalizeProposalGroup(raw);
+  if (key === COMBINED_INTERNAL_KEY) {
+    return clientFacingProposalTypeLabel({ activity_type_group: raw, document_type: raw });
+  }
+  if (Object.prototype.hasOwnProperty.call(PROPOSAL_GROUP_DISPLAY_FALLBACKS, key)) {
+    return PROPOSAL_GROUP_DISPLAY_FALLBACKS[key];
+  }
   const meta = proposalGroupMeta(raw);
-  return meta?.display_name || raw;
+  const subgroupLabel = userFacingProposalGroupLabel(meta?.display_name || '');
+  const templateKey = text(meta?.template_key || meta?.group_key);
+  if (templateKey === COMBINED_INTERNAL_KEY) {
+    return clientFacingProposalTypeLabel({ activity_type_group: raw, template_key: templateKey, document_type: meta?.display_name });
+  }
+  if (Object.prototype.hasOwnProperty.call(PROPOSAL_GROUP_DISPLAY_FALLBACKS, templateKey)) {
+    return PROPOSAL_GROUP_DISPLAY_FALLBACKS[templateKey];
+  }
+  const label = subgroupLabel;
+  const labelAlias = PROPOSAL_GROUP_LEGACY_ALIASES[label] || PROPOSAL_GROUP_LEGACY_ALIASES[normalizeHebrewQuoteVariants(label)];
+  if (labelAlias === COMBINED_INTERNAL_KEY) {
+    return clientFacingProposalTypeLabel({ activity_type_group: raw, document_type: label });
+  }
+  if (labelAlias && PROPOSAL_GROUP_DISPLAY_FALLBACKS[labelAlias]) {
+    return PROPOSAL_GROUP_DISPLAY_FALLBACKS[labelAlias];
+  }
+  if (/גפ[״"']?ן|gefen/i.test(label) || /גפ[״"']?ן|gefen/i.test(raw)) return PROPOSAL_GROUP_DISPLAY_FALLBACKS.gefen;
+  if (/סיור/.test(label) || /סיור/.test(raw)) return PROPOSAL_GROUP_DISPLAY_FALLBACKS.tour;
+  if (/קיץ/.test(label) || /קיץ/.test(raw) || /summer/i.test(raw)) return PROPOSAL_GROUP_DISPLAY_FALLBACKS.summer;
+  if (/תשפ|שנה הבאה|תוכניות|next[_-]?year/i.test(label) || /תשפ|שנה הבאה|תוכניות|next[_-]?year/i.test(raw)) {
+    return PROPOSAL_GROUP_DISPLAY_FALLBACKS.next_year;
+  }
+  if (label && label !== key && !/^[a-z][a-z0-9_]*$/i.test(label) && !/combined|משולב/i.test(label)) return label;
+  // eslint-disable-next-line no-console
+  console.warn('[client-file] unknown proposal type value', raw);
+  return '—';
+}
+
+/** Heading for a group section rendered inside a proposal, not a proposal type. */
+function proposalGroupSectionTitle(value) {
+  return nextYearInternalSectionTitle(value) || proposalGroupDisplayName(value);
 }
 
 function resolveProposalTemplateKey(value) {
@@ -541,7 +742,9 @@ function shouldShowGefenForGroup(value) {
 
 export function proposalGroupOptions(data = {}, rows = [], pricingOptions = []) {
   const lookups = setProposalGroupLookups(data, rows, pricingOptions);
-  return lookups.groups.map((group) => ({ value: group.group_key, label: group.display_name }));
+  return lookups.groups
+    .filter((group) => group.is_internal !== true)
+    .map((group) => ({ value: group.group_key, label: group.display_name }));
 }
 
 function itemTypeOptions(pricingOptions = []) {
@@ -666,7 +869,7 @@ function normalizeSearch(value) {
 
 export function buildProposalsAgreementsSearchText(row = {}) {
   return [
-    row.id, row.client_name, row.client_authority, row.school_framework, row.authority_code, row.semel_mosad,
+    row.id, row.quote_number, row.client_name, row.client_authority, row.school_framework, row.authority_code, row.semel_mosad,
     row.document_type,
     row.proposal_domain,
     row.activity_type_group, proposalGroupDisplayName(row.activity_type_group),
@@ -702,6 +905,9 @@ export function normalizeProposalAgreementRow(row = {}) {
     activity_type_group: normalizeProposalGroup(rawGroup),
     proposal_domain:     normalizeProposalDomain(row.proposal_domain),
     proposal_date:       text(row.proposal_date),
+    quote_number:        text(row.quote_number),
+    valid_until:         text(row.valid_until),
+    combine_gefen_approval: row.combine_gefen_approval === true,
     activity_names:      normalizeActivityNames(row.activity_names),
     contact_name:        text(row.contact_name),
     contact_role:        text(row.contact_role),
@@ -721,6 +927,23 @@ export function normalizeProposalAgreementRow(row = {}) {
     approved_at:         text(row.approved_at),
     sent_by:             text(row.sent_by),
     sent_at:             text(row.sent_at),
+    locked_at:           text(row.locked_at),
+    locked_by:           text(row.locked_by),
+    locked_reason:       text(row.locked_reason),
+    final_pdf_path:      text(row.final_pdf_path),
+    final_pdf_file_name: text(row.final_pdf_file_name),
+    final_pdf_created_at: text(row.final_pdf_created_at),
+    final_pdf_created_by: text(row.final_pdf_created_by),
+    document_snapshot:   (row.document_snapshot && typeof row.document_snapshot === 'object' && !Array.isArray(row.document_snapshot)) ? row.document_snapshot : null,
+    document_html_snapshot: text(row.document_html_snapshot),
+    gefen_approval_status: text(row.gefen_approval_status) || 'missing',
+    gefen_approval_path: text(row.gefen_approval_path),
+    gefen_approval_file_name: text(row.gefen_approval_file_name),
+    gefen_approval_combined: row.gefen_approval_combined === true,
+    proposal_series_id: text(row.proposal_series_id),
+    version_number: Math.max(1, Number(row.version_number) || 1),
+    supersedes_proposal_id: text(row.supersedes_proposal_id),
+    archived_at: text(row.archived_at),
     updated_at:          text(row.updated_at)
   };
   normalized._searchText = buildProposalsAgreementsSearchText(normalized);
@@ -847,6 +1070,11 @@ function rowMatches(row, filters) {
   if (filters.activity_type_group && normalizeProposalGroup(row.activity_type_group) !== normalizeProposalGroup(filters.activity_type_group)) return false;
   if (filters.status && normalizeProposalStatus(row.status) !== filters.status) return false;
   if (filters.proposal_domain && (row.proposal_domain || 'Y') !== filters.proposal_domain) return false;
+  if (filters.client_authority && text(row.client_authority) !== filters.client_authority) return false;
+  if (filters.school_framework && text(row.school_framework) !== filters.school_framework) return false;
+  const rowDate = text(row.proposal_date).slice(0, 10);
+  if (filters.date_from && (!rowDate || rowDate < filters.date_from)) return false;
+  if (filters.date_to && (!rowDate || rowDate > filters.date_to)) return false;
   return true;
 }
 
@@ -870,26 +1098,18 @@ function filterSelectHtml(key, label, values) {
 
 function statusFilterHtml() {
   const options = ['<option value="">הכול</option>',
-    ...STATUS_OPTIONS.map((s) => `<option value="${escapeHtml(s)}">${escapeHtml(STATUS_LABELS[s] || s)}</option>`)
+    ...STATUS_OPTIONS
+      .filter((status) => status !== 'sent')
+      .map((s) => `<option value="${escapeHtml(s)}">${escapeHtml(STATUS_LABELS[s] || s)}</option>`)
   ].join('');
-  return `<label class="ds-pa-filter"><span>סטטוס</span><select class="ds-input ds-input--sm" data-pa-filter="status">${options}</select></label>`;
+  return `<label class="ds-pa-filter" data-pa-status-filter><span>סטטוס</span><select class="ds-input ds-input--sm" data-pa-filter="status">${options}</select></label>`;
 }
 
 function statusBadgeHtml(status) {
   const normalizedStatus = normalizeProposalStatus(status);
   const label = STATUS_LABELS[status] || STATUS_LABELS[normalizedStatus] || status || '—';
-  if (normalizedStatus === 'sent') {
-    return `<span class="ds-pa-badge ds-pa-badge--sent">✓ ${escapeHtml(label)}</span>`;
-  }
-  const colorMap = {
-    draft:                '#888',
-    pending_approval:     '#d97706',
-    returned_for_changes: '#dc2626',
-    approved:             '#16a34a',
-    cancelled:            '#6b7280'
-  };
-  const color = colorMap[status] || colorMap[normalizedStatus] || '#888';
-  return `<span class="ds-pa-badge" style="display:inline-block;padding:1px 7px;border-radius:10px;font-size:0.78rem;background:${color};color:#fff;white-space:nowrap">${escapeHtml(label)}</span>`;
+  const displayLabel = normalizedStatus === 'sent' ? `✓ ${label}` : label;
+  return `<span class="ds-pa-status-text ds-pa-status-text--${escapeHtml(normalizedStatus || 'unknown')}">${escapeHtml(displayLabel)}</span>`;
 }
 
 
@@ -922,22 +1142,126 @@ function canDeleteProposal(row, state) {
 }
 
 function canGenerateProposalPdf(row, state) {
-  return canManageProposalsAgreements(state) && ['approved', 'sent'].includes(normalizeProposalStatus(row?.status || 'draft'));
+  const status = normalizeProposalStatus(row?.status || 'draft');
+  const hasSnapshot = Boolean(text(row?.document_html_snapshot) || (row?.document_snapshot && typeof row.document_snapshot === 'object'));
+  return canManageProposalsAgreements(state) && (status === 'approved' || (status === 'sent' && !proposalHasFinalPdf(row) && hasSnapshot));
+}
+
+export function proposalHasFinalPdf(row = {}) {
+  return Boolean(text(row.final_pdf_path));
+}
+
+export function isProposalSentLocked(row = {}) {
+  return normalizeProposalStatus(row?.status) === 'sent';
+}
+
+export function isProposalLegacySentWithoutPdf(row = {}) {
+  return isProposalSentLocked(row) && !proposalHasFinalPdf(row);
+}
+
+function canViewSentProposalPdf(row, state) {
+  return canAccessProposalsAgreements(state) && isProposalSentLocked(row) && proposalHasFinalPdf(row);
+}
+
+function serializeProposalSnapshotSection(section = {}) {
+  return {
+    section_key: proposalTextField(section, 'section_key', 'sectionKey'),
+    section_title: proposalTextField(section, 'section_title', 'sectionTitle'),
+    section_body: normalizeMultilineText(proposalField(section, 'section_body', 'sectionBody'))
+  };
+}
+
+export function buildProposalDocumentSnapshot(row = {}, items = [], templateSections = []) {
+  const activityTypeGroup = normalizeProposalGroup(row.activity_type_group);
+  const templateKey = proposalGroupTemplateKey(activityTypeGroup);
+  const filteredSections = filterTemplateSectionsForGroup(templateSections, activityTypeGroup);
+  const sectionsSource = resolveDocumentSections(row, filteredSections);
+  const normalizedRow = {
+    id: text(row.id),
+    client_authority: text(row.client_authority),
+    school_framework: text(row.school_framework),
+    document_type: text(row.document_type),
+    activity_type_group: activityTypeGroup,
+    proposal_domain: normalizeProposalDomain(row.proposal_domain),
+    proposal_date: text(row.proposal_date),
+    quote_number: text(row.quote_number),
+    valid_until: text(row.valid_until),
+    semel_mosad: text(row.semel_mosad),
+    combine_gefen_approval: row.combine_gefen_approval === true,
+    activity_names: normalizeActivityNames(row.activity_names),
+    contact_name: text(row.contact_name),
+    contact_role: text(row.contact_role),
+    phone: text(row.phone),
+    email: text(row.email),
+    notes: text(row.notes),
+    status: normalizeProposalStatus(row.status),
+    total_amount: row.total_amount != null ? Number(row.total_amount) || null : null,
+    include_catalog: includeCatalogValue(row.include_catalog),
+    signature_meta: row.signature_meta && typeof row.signature_meta === 'object' ? row.signature_meta : {},
+    approved_by: text(row.approved_by),
+    approved_at: text(row.approved_at),
+    custom_document_sections: Array.isArray(row.custom_document_sections)
+      ? row.custom_document_sections.map(serializeProposalSnapshotSection)
+      : []
+  };
+  const serializedItems = (Array.isArray(items) ? items : []).map((item) => ({
+    item_name: text(item.item_name ?? item.itemName),
+    item_type: text(item.item_type ?? item.itemType),
+    proposal_group: text(item.proposal_group ?? item.proposalGroup),
+    quantity: Number(item.quantity) || 1,
+    unit_price: item.unit_price != null ? Number(item.unit_price) : null,
+    total_price: item.total_price != null ? Number(item.total_price) : null,
+    meetings_count: item.meetings_count != null ? Number(item.meetings_count) : null,
+    hours_count: item.hours_count != null ? Number(item.hours_count) : null,
+    hourly_price: item.hourly_price != null ? Number(item.hourly_price) : null,
+    gefen_number: text(item.gefen_number ?? item.gefenNumber),
+    description: text(item.description),
+    course_note: text(item.course_note ?? item.courseNote),
+    activity_no: text(item.activity_no ?? item.activityNo),
+    unit_duration: text(item.unit_duration ?? item.unitDuration),
+    proposal_display_mode: text(item.proposal_display_mode ?? item.proposalDisplayMode),
+    selected_bundle_items: Array.isArray(item.selected_bundle_items) ? item.selected_bundle_items : []
+  }));
+  return {
+    version: 1,
+    template_key: templateKey,
+    activity_type_group: activityTypeGroup,
+    row: normalizedRow,
+    items: serializedItems,
+    template_sections: sectionsSource.map(serializeProposalSnapshotSection),
+    built_at: new Date().toISOString()
+  };
+}
+
+export function proposalPreviewHtmlFromSnapshot(snapshot = null) {
+  if (!snapshot || typeof snapshot !== 'object') return '';
+  const row = snapshot.row && typeof snapshot.row === 'object' ? snapshot.row : {};
+  const items = Array.isArray(snapshot.items) ? snapshot.items : [];
+  const sections = Array.isArray(snapshot.template_sections) ? snapshot.template_sections : [];
+  return proposalPreviewBodyHtml({ ...row, status: row.status || 'sent' }, items, sections, { showSignatureImage: true });
+}
+
+export function proposalLockedPreviewHtml(row = {}) {
+  const htmlSnapshot = text(row.document_html_snapshot);
+  if (htmlSnapshot) return htmlSnapshot;
+  const snapshot = row.document_snapshot && typeof row.document_snapshot === 'object' ? row.document_snapshot : null;
+  if (snapshot) return proposalPreviewHtmlFromSnapshot(snapshot);
+  return '';
 }
 
 function statusSelectHtml(row, enabled, canApprove = false, state = null) {
   const currentStatus = STATUS_OPTIONS.includes(normalizeProposalStatus(row?.status)) ? normalizeProposalStatus(row.status) : 'draft';
+  const visibleStatus = statusBadgeHtml(currentStatus);
   if (!enabled || currentStatus === 'sent' || currentStatus === 'cancelled') {
-    return statusBadgeHtml(currentStatus);
+    return visibleStatus;
   }
   const effectiveState = state || { user: { role: canApprove ? 'admin' : 'operation_manager', manage_proposals_agreements: enabled, approve_proposals_agreements: canApprove } };
   const selectableStatuses = currentStatus === 'approved' && !canApprove
     ? STATUS_OPTIONS.filter((status) => status !== currentStatus && canTransitionProposalStatus(row, status, effectiveState))
     : STATUS_OPTIONS.filter((status) => status === currentStatus || canTransitionProposalStatus(row, status, effectiveState));
-  const options = selectableStatuses.map((status) => optionHtml(status, currentStatus, STATUS_LABELS[status] || status)).join('');
-  const disabled = enabled ? '' : ' disabled aria-disabled="true"';
-  if (selectableStatuses.length <= 1 && !(currentStatus === 'approved' && selectableStatuses[0] === 'sent')) return statusBadgeHtml(currentStatus);
-  return `<select class="ds-pa-status-select" data-pa-row-status data-pa-status-id="${escapeHtml(row?.id || '')}" data-pa-previous-status="${escapeHtml(currentStatus)}" aria-label="עדכון סטטוס הצעה"${disabled}>${options}</select>`;
+  if (selectableStatuses.length <= 1 && !(currentStatus === 'approved' && selectableStatuses[0] === 'sent')) return visibleStatus;
+  // Status changes are exposed through the compact actions menu; table cells remain plain text only.
+  return visibleStatus;
 }
 
 function detailRowsHtml(row) {
@@ -981,48 +1305,79 @@ function contactDetailRowsHtml(row = {}) {
 
 export function proposalsAgreementsTableRowsHtml(rows, state) {
   if (!rows.length) {
-    return `<tr class="ds-pa-empty-row"><td colspan="8">אין רשומות להצגה</td></tr>`;
+    return `<tr class="ds-pa-empty-row"><td colspan="11">אין רשומות להצגה</td></tr>`;
   }
   const canManage = canManageProposalsAgreements(state);
   const isAdmin = canApproveProposalsAgreements(state);
+  const iconSvg = {
+    eye: '<path d="M1 12s4-8 11-8 11 8 11 8-4 8-11 8-11-8-11-8z"/><circle cx="12" cy="12" r="3"/>',
+    edit: '<path d="M11 4H4a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2v-7"/><path d="M18.5 2.5a2.121 2.121 0 0 1 3 3L12 15l-4 1 1-4 9.5-9.5z"/>',
+    clone: '<rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/>',
+    approve: '<path d="M22 11.08V12a10 10 0 1 1-5.93-9.14"/><polyline points="22 4 12 14.01 9 11.01"/>',
+    return: '<polyline points="9 14 4 9 9 4"/><path d="M20 20v-7a4 4 0 0 0-4-4H4"/>',
+    cancel: '<circle cx="12" cy="12" r="10"/><line x1="15" y1="9" x2="9" y2="15"/><line x1="9" y1="9" x2="15" y2="15"/>',
+    send: '<line x1="22" y1="2" x2="11" y2="13"/><polygon points="22 2 15 22 11 13 2 9 22 2"/>',
+    print: '<path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><polyline points="14 2 14 8 20 8"/><line x1="16" y1="13" x2="8" y2="13"/><line x1="16" y1="17" x2="8" y2="17"/>',
+    delete: '<polyline points="3 6 5 6 21 6"/><path d="M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6m3 0V4a1 1 0 0 1 1-1h4a1 1 0 0 1 1 1v2"/>'
+  };
+  const rowAction = (attrs, title, icon, danger = false) => `<button type="button" class="ds-pa-more-action${danger ? ' ds-pa-more-action--danger' : ''}" ${attrs}><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">${icon}</svg><span>${escapeHtml(title)}</span></button>`;
+  const quickAction = (attrs, title, icon) => `<button type="button" class="ds-btn ds-btn--xs ds-btn--ghost ds-pa-row-action ds-pa-row-action--icon" ${attrs} title="${escapeHtml(title)}" aria-label="${escapeHtml(title)}"><svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">${icon}</svg></button>`;
   return rows.map((row) => {
     const status = normalizeProposalStatus(row.status || 'draft');
     const isSent = status === 'sent';
-    const actionBtns = [];
-    actionBtns.push(`<button type="button" class="ds-btn ds-btn--xs ds-btn--ghost ds-pa-row-action ds-pa-row-action--icon" data-pa-preview="${escapeHtml(row.id)}" title="תצוגה מקדימה"><svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M1 12s4-8 11-8 11 8 11 8-4 8-11 8-11-8-11-8z"/><circle cx="12" cy="12" r="3"/></svg></button>`);
-    if (isProposalEditable(row, state)) {
-      actionBtns.push(`<button type="button" class="ds-btn ds-btn--xs ds-pa-row-action ds-pa-row-action--icon" data-pa-edit-row="${escapeHtml(row.id)}" title="עריכה"><svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M11 4H4a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2v-7"/><path d="M18.5 2.5a2.121 2.121 0 0 1 3 3L12 15l-4 1 1-4 9.5-9.5z"/></svg></button>`);
-    }
-    if (canManage && (status === 'approved' || isSent)) {
-      actionBtns.push(`<button type="button" class="ds-btn ds-btn--xs ds-btn--ghost ds-pa-row-action ds-pa-row-action--icon" data-pa-clone-row="${escapeHtml(row.id)}" title="שכפול להצעה חדשה"><svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button>`);
-    }
+    const moreActions = [];
+    const showQuickClone = canManage && (status === 'approved' || isSent);
+    const showQuickPrint = canGenerateProposalPdf(row, state);
+    const showViewSentPdf = canViewSentProposalPdf(row, state);
+    const gefenApprovalApplicable = isGefenApprovalApplicable(row);
+    const gefenApprovalGenerated = text(row.gefen_approval_status) === 'generated' && Boolean(text(row.gefen_approval_path));
+    const quickActions = [
+      isSent
+        ? (showViewSentPdf
+          ? quickAction(`data-pa-view-final-pdf="${escapeHtml(row.id)}"`, 'צפייה ב־PDF שנשלח', iconSvg.eye)
+          : quickAction(`data-pa-preview="${escapeHtml(row.id)}"`, 'צפייה במסמך שנשלח', iconSvg.eye))
+        : quickAction(`data-pa-preview="${escapeHtml(row.id)}"`, 'תצוגה מקדימה', iconSvg.eye),
+      showQuickPrint ? quickAction(`data-pa-print="${escapeHtml(row.id)}"`, 'PDF', iconSvg.print) : '',
+      showQuickClone ? quickAction(`data-pa-clone-row="${escapeHtml(row.id)}"`, 'שכפול להצעה חדשה', iconSvg.clone) : '',
+      gefenApprovalApplicable && canManage
+        ? quickAction(
+          `data-pa-generate-gefen-approval="${escapeHtml(row.id)}"`,
+          gefenApprovalGenerated ? `הפקה מחדש של אישור גפ״ן להצעה ${text(row.quote_number)}` : `הפקת אישור גפ״ן להצעה ${text(row.quote_number)}`,
+          iconSvg.print
+        )
+        : ''
+    ].filter(Boolean).join('');
+    if (isProposalEditable(row, state)) moreActions.push(rowAction(`data-pa-edit-row="${escapeHtml(row.id)}"`, 'עריכה', iconSvg.edit));
     if (isAdmin && status === 'pending_approval') {
-      actionBtns.push(`<button type="button" class="ds-btn ds-btn--xs ds-pa-row-action ds-pa-row-action--icon" data-pa-status-action="approved" data-pa-action-id="${escapeHtml(row.id)}" title="חתום ואשר"><svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M22 11.08V12a10 10 0 1 1-5.93-9.14"/><polyline points="22 4 12 14.01 9 11.01"/></svg></button>`);
-      actionBtns.push(`<button type="button" class="ds-btn ds-btn--xs ds-btn--ghost ds-pa-row-action ds-pa-row-action--icon" data-pa-status-action="returned_for_changes" data-pa-action-id="${escapeHtml(row.id)}" title="החזרה לתיקון"><svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><polyline points="9 14 4 9 9 4"/><path d="M20 20v-7a4 4 0 0 0-4-4H4"/></svg></button>`);
-      actionBtns.push(`<button type="button" class="ds-btn ds-btn--xs ds-btn--ghost ds-pa-row-action ds-pa-row-action--icon ds-pa-row-action--danger" data-pa-status-action="cancelled" data-pa-action-id="${escapeHtml(row.id)}" title="ביטול"><svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><circle cx="12" cy="12" r="10"/><line x1="15" y1="9" x2="9" y2="15"/><line x1="9" y1="9" x2="15" y2="15"/></svg></button>`);
+      moreActions.push(rowAction(`data-pa-status-action="approved" data-pa-action-id="${escapeHtml(row.id)}"`, 'חתום ואשר', iconSvg.approve));
+      moreActions.push(rowAction(`data-pa-status-action="returned_for_changes" data-pa-action-id="${escapeHtml(row.id)}"`, 'החזרה לתיקון', iconSvg.return));
+      moreActions.push(rowAction(`data-pa-status-action="cancelled" data-pa-action-id="${escapeHtml(row.id)}"`, 'ביטול', iconSvg.cancel, true));
     }
-    if (isAdmin && status === 'approved' && !proposalHasSavedApprovalSignature(row)) {
-      actionBtns.push(`<button type="button" class="ds-btn ds-btn--xs ds-pa-row-action ds-pa-row-action--icon" data-pa-status-action="approved" data-pa-action-id="${escapeHtml(row.id)}" title="אשר וחתום מחדש — ההצעה מאושרת אך חסרה חתימה/זמן אישור ולכן לא ניתן לסמן כנשלחה"><svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M22 11.08V12a10 10 0 1 1-5.93-9.14"/><polyline points="22 4 12 14.01 9 11.01"/></svg></button>`);
+    if (isAdmin && status === 'approved' && !proposalHasSavedApprovalSignature(row)) moreActions.push(rowAction(`data-pa-status-action="approved" data-pa-action-id="${escapeHtml(row.id)}"`, 'אשר וחתום מחדש', iconSvg.approve));
+    if (canTransitionProposalStatus(row, 'sent', state)) moreActions.push(rowAction(`data-pa-status-action="sent" data-pa-action-id="${escapeHtml(row.id)}"`, 'סימון כנשלח', iconSvg.send));
+    if (gefenApprovalApplicable && gefenApprovalGenerated) {
+      moreActions.push(rowAction(`data-pa-view-gefen-approval="${escapeHtml(row.id)}"`, `צפייה באישור גפ״ן להצעה ${text(row.quote_number)}`, iconSvg.eye));
+      if (canManage) moreActions.push(rowAction(`data-pa-generate-gefen-approval="${escapeHtml(row.id)}"`, `הפקה מחדש של אישור גפ״ן להצעה ${text(row.quote_number)}`, iconSvg.print));
+    } else if (gefenApprovalApplicable && canManage) {
+      moreActions.push(rowAction(`data-pa-generate-gefen-approval="${escapeHtml(row.id)}"`, `הפקת אישור גפ״ן להצעה ${text(row.quote_number)}`, iconSvg.print));
     }
-    if (canTransitionProposalStatus(row, 'sent', state)) {
-      actionBtns.push(`<button type="button" class="ds-btn ds-btn--xs ds-pa-row-action ds-pa-row-action--icon" data-pa-status-action="sent" data-pa-action-id="${escapeHtml(row.id)}" title="סימון כנשלח"><svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><line x1="22" y1="2" x2="11" y2="13"/><polygon points="22 2 15 22 11 13 2 9 22 2"/></svg></button>`);
-    }
-    if (canGenerateProposalPdf(row, state)) {
-      actionBtns.push(`<button type="button" class="ds-btn ds-btn--xs ds-btn--ghost ds-pa-row-action ds-pa-row-action--icon" data-pa-print="${escapeHtml(row.id)}" title="PDF"><svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><polyline points="14 2 14 8 20 8"/><line x1="16" y1="13" x2="8" y2="13"/><line x1="16" y1="17" x2="8" y2="17"/></svg></button>`);
-    }
-    if (canDeleteProposal(row, state)) {
-      actionBtns.push(`<button type="button" class="ds-btn ds-btn--xs ds-btn--ghost ds-pa-row-action ds-pa-row-action--icon ds-pa-row-action--danger" data-pa-delete-row="${escapeHtml(row.id)}" title="מחיקה"><svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><polyline points="3 6 5 6 21 6"/><path d="M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6m3 0V4a1 1 0 0 1 1-1h4a1 1 0 0 1 1 1v2"/></svg></button>`);
-    }
+    if (canDeleteProposal(row, state)) moreActions.push(rowAction(`data-pa-delete-row="${escapeHtml(row.id)}"`, 'מחיקה', iconSvg.delete, true));
+    const moreMenu = moreActions.length
+      ? `<details class="ds-pa-row-more"><summary aria-label="פעולות נוספות">⋯</summary><div class="ds-pa-row-more-menu">${moreActions.join('')}</div></details>`
+      : '';
     return `
     <tr data-pa-row-id="${escapeHtml(row.id)}" tabindex="0">
       <td class="ds-pa-domain-col">${escapeHtml(row.proposal_domain || 'Y')}</td>
-      <td>${escapeHtml(row.client_name || row.client_authority || row.school_framework || '—')}</td>
-      <td>${inferProposalClientType(row) === 'other' ? '' : escapeHtml(row.school_framework || '—')}</td>
+      <td class="ds-pa-col-center ds-pa-quote-number">${escapeHtml(row.quote_number || '—')}</td>
+      <td class="ds-pa-authority-col" title="${escapeHtml(row.client_name || row.client_authority || row.school_framework || '—')}">${escapeHtml(row.client_name || row.client_authority || row.school_framework || '—')}</td>
+      <td class="ds-pa-school-col">${inferProposalClientType(row) === 'other' ? '' : escapeHtml(row.school_framework || '—')}</td>
       <td>${escapeHtml(proposalGroupDisplayName(row.activity_type_group) || '—')}</td>
-      <td style="text-align:center">${escapeHtml(formatDateDisplay(row.proposal_date) || '')}</td>
-      <td>${statusSelectHtml(row, canManage, isAdmin, state)}</td>
-      <td style="text-align:center">${row.total_amount != null ? `₪ ${escapeHtml(formatCurrency(row.total_amount))}` : ''}</td>
-      <td class="ds-pa-actions-cell"><div class="ds-pa-actions-inner">${actionBtns.join('')}</div></td>
+      <td class="ds-pa-col-center">${escapeHtml(formatDateDisplay(row.proposal_date) || '')}</td>
+      <td class="ds-pa-col-center">${statusSelectHtml(row, canManage, isAdmin, state)}</td>
+      <td class="ds-pa-col-money">${row.total_amount != null ? `₪ ${escapeHtml(formatCurrency(row.total_amount))}` : ''}</td>
+      <td class="ds-pa-col-center">${gefenApprovalApplicable ? `<span class="ds-pa-gefen-status-text ds-pa-gefen-status-text--${gefenApprovalGenerated ? 'generated' : 'missing'}">${gefenApprovalGenerated ? 'הופק' : 'חסר'}</span>` : '—'}</td>
+      <td class="ds-pa-gfen-signed-col">${gefenApprovalApplicable ? `<input type="checkbox" class="ds-pa-gfen-signed-check" data-pa-gfen-signed="${escapeHtml(row.id)}" ${normalizeProposalSignedOrOrdered(row.gfen_signed_or_ordered) ? 'checked' : ''} aria-label="חתום או הוזמן בגפ״ן להצעה ${escapeHtml(row.quote_number || '')}">` : '<span class="ds-pa-unavailable" aria-label="לא זמין">—</span>'}</td>
+      <td class="ds-pa-actions-cell"><div class="ds-pa-actions-inner ds-pa-actions-inner--clean">${quickActions}${moreMenu}</div></td>
     </tr>`;
   }).join('');
 }
@@ -1030,8 +1385,8 @@ export function proposalsAgreementsTableRowsHtml(rows, state) {
 function tableHtml(rows, state) {
   return dsTableWrap(`
     <table class="ds-table ds-pa-table" data-pa-table>
-      <colgroup><col style="width:55px"><col style="width:160px"><col style="width:180px"><col style="width:130px"><col style="width:120px"><col style="width:130px"><col style="width:110px"><col style="width:160px"></colgroup>
-      <thead><tr><th class="ds-pa-domain-col">תחום</th><th>רשות / מועצה / עירייה</th><th>בית ספר / מסגרת</th><th class="ds-pa-col-center">סוג הצעה</th><th class="ds-pa-col-center">תאריך הצעה</th><th class="ds-pa-col-center">סטטוס</th><th class="ds-pa-col-center">סה״כ</th><th class="ds-pa-actions-col ds-pa-col-center">פעולות</th></tr></thead>
+      <colgroup><col style="width:50px"><col style="width:50px"><col style="width:105px"><col style="width:145px"><col style="width:95px"><col style="width:95px"><col style="width:95px"><col style="width:95px"><col style="width:95px"><col style="width:95px"><col style="width:128px"></colgroup>
+      <thead><tr><th class="ds-pa-domain-col">תחום</th><th class="ds-pa-col-center">מס׳</th><th>רשות</th><th class="ds-pa-school-col">בית הספר</th><th class="ds-pa-col-center">סוג הצעה</th><th class="ds-pa-col-center">תאריך</th><th class="ds-pa-col-center">סטטוס</th><th class="ds-pa-col-money">סה״כ</th><th class="ds-pa-col-center">אישור גפ״ן</th><th class="ds-pa-gfen-signed-col">חתום / הוזמן</th><th class="ds-pa-actions-col ds-pa-col-center">פעולות</th></tr></thead>
       <tbody data-pa-table-body>${proposalsAgreementsTableRowsHtml(rows, state)}</tbody>
     </table>
   `);
@@ -1112,11 +1467,37 @@ function catalogSchoolName(row = {}) {
 
 
 function inferProposalClientType(row = {}) {
+  const explicitType = text(row.contact_client_type || row.client_type);
+  if (explicitType === 'other') return 'other';
+  if (explicitType === 'authority') return 'authority';
+  if (explicitType === 'school') return 'school';
   if (text(row.school_id)) return 'school';
   if (text(row.authority_id) && !text(row.school_id)) return 'authority';
-  if (text(row.client_type) === 'other') return 'other';
+  if (text(row.client_name) && !text(row.authority_id) && !text(row.school_id) && !text(row.client_authority)) return 'other';
   if (!text(row.authority_id) && !text(row.school_id) && !text(row.client_authority) && text(row.school_framework)) return 'other';
   return 'school';
+}
+
+function selectedRecipientType(form) {
+  return text(form?.querySelector('input[name="client_type_selector"]:checked')?.value) || 'school';
+}
+
+function hideSchoolSearchPanel(form) {
+  if (!form) return;
+  const schoolSearchPanel = form.querySelector('[data-pa-school-search-panel]');
+  if (schoolSearchPanel) schoolSearchPanel.hidden = true;
+  const schoolResults = form.querySelector('[data-pa-school-results]');
+  if (schoolResults) { schoolResults.hidden = true; schoolResults.innerHTML = ''; }
+  const schoolSearchInput = form.querySelector('[data-pa-school-search-input]');
+  if (schoolSearchInput) schoolSearchInput.value = '';
+  if (text(form.dataset.paSearchStep) === 'school') form.dataset.paSearchStep = 'authority';
+}
+
+function syncOtherRecipientSchoolFieldVisibility(form) {
+  if (!form) return;
+  const hideSchool = selectedRecipientType(form) === 'other';
+  const roSchoolField = form.querySelector('[data-pa-contact-ro-school]')?.closest('label');
+  if (roSchoolField) roSchoolField.hidden = hideSchool;
 }
 
 function clientTypeSelectorHtml(selected = 'school') {
@@ -1126,9 +1507,11 @@ function clientTypeSelectorHtml(selected = 'school') {
     ['authority', 'רשות'],
     ['other', 'אחר']
   ];
-  return `<span class="ds-pa-recipient-type-label">למי מיועדת ההצעה?</span>
-  <div class="ds-pa-recipient-type" data-pa-recipient-type role="radiogroup" aria-label="למי מיועדת ההצעה?">
-    ${options.map(([key, label]) => `<label class="ds-pa-recipient-type-option"><input type="radio" name="client_type_selector" value="${key}"${value === key ? ' checked' : ''}> <span>${escapeHtml(label)}</span></label>`).join('')}
+  return `<div class="ds-pa-recipient-type-field">
+    <span class="ds-pa-recipient-type-label">סוג נמען</span>
+    <div class="ds-pa-recipient-type" data-pa-recipient-type role="radiogroup" aria-label="סוג נמען">
+      ${options.map(([key, label]) => `<label class="ds-pa-recipient-type-option"><input type="radio" name="client_type_selector" value="${key}"${value === key ? ' checked' : ''}> <span>${escapeHtml(label)}</span></label>`).join('')}
+    </div>
   </div>`;
 }
 
@@ -1145,8 +1528,8 @@ function clientSearchHtml(_contactOptions, row = {}) {
       <div class="ds-pa-client-results" data-pa-client-results hidden></div>
     </div>
     <div class="ds-pa-school-search-panel" data-pa-school-search-panel hidden>
-      <p class="ds-pa-school-step-text">רשות נבחרה: <strong data-pa-step-authority-name-school></strong>
-        <button type="button" class="ds-btn ds-btn--xs ds-btn--ghost" data-pa-change-authority-step>שנה רשות</button>
+      <p class="ds-pa-school-step-text"><span>רשות</span><strong data-pa-step-authority-name-school></strong>
+        <button type="button" class="ds-btn ds-btn--xs ds-btn--ghost" data-pa-change-authority-step>החלף</button>
       </p>
       <div class="ds-pa-client-search-field-wrap" data-pa-school-search-field-wrap>
         <label class="ds-pa-form-field ds-pa-form-field--client-search" data-pa-school-search-field>
@@ -1177,7 +1560,7 @@ function dedupeContactPickerOptions(contacts = []) {
       normalizeHebrewQuoteVariants(contactName),
       normalizeHebrewQuoteVariants(text(contact?.contact_role)),
       text(contact?.email).toLowerCase(),
-      text(contact?.phone || contact?.mobile || '')
+      contactDisplayPhone(contact)
     ].join('||');
     if (seen.has(key)) return;
     seen.add(key);
@@ -1207,8 +1590,9 @@ function contactPickerHtml(contactOptions, authority, school, selectedContactNam
       const val = contactOptionKey(c);
       const contactName = text(c.contact_name);
       const label = c.contact_role ? `${contactName} (${text(c.contact_role)})` : contactName;
+      // Do not preselect a contact automatically when a school/authority is chosen.
       const contactPayload = encodeURIComponent(JSON.stringify(c));
-      return `<option value="${escapeHtml(val)}" data-pa-contact-option="${escapeHtml(contactPayload)}"${contactName === selectedName || val === selectedName ? ' selected' : ''}>${escapeHtml(label)}</option>`;
+      return `<option value="${escapeHtml(val)}" data-pa-contact-option="${escapeHtml(contactPayload)}"${selectedName && (contactName === selectedName || val === selectedName) ? ' selected' : ''}>${escapeHtml(label)}</option>`;
     }),
     '<option value="__pa_other_contact__">אחר</option>'
   ].join('');
@@ -1221,6 +1605,23 @@ function contactPickerHtml(contactOptions, authority, school, selectedContactNam
 }
 
 const CONTACT_CHANNELS_HINT_MESSAGE = 'מומלץ להשלים מייל ונייד להמשך טיפול';
+
+function contactDisplayPhone(contact = {}) {
+  return text(contact?.mobile || contact?.phone || '');
+}
+
+function isMobilePhoneNumber(value) {
+  return /^05\d{8}$/.test(text(value).replace(/\D/g, ''));
+}
+
+function contactPhonePresentation(contact = {}) {
+  const mobile = text(contact.mobile);
+  const phone = text(contact.phone);
+  if (isMobilePhoneNumber(mobile)) return { label: 'נייד', value: mobile };
+  if (phone) return { label: isMobilePhoneNumber(phone) ? 'נייד' : 'טלפון', value: phone };
+  if (mobile) return { label: 'טלפון', value: mobile };
+  return { label: 'טלפון', value: '' };
+}
 
 function contactChannelsStatusHtml(hasEmail, hasMobile, fieldsOpen = false) {
   const chip = (label, ok) => `<span class="ds-pa-contact-channel-chip${ok ? '' : ' is-missing'}">${escapeHtml(label)}: ${ok ? 'קיים' : 'חסר'}</span>`;
@@ -1240,7 +1641,7 @@ function contactOptionKey(contact = {}) {
     text(contact.school),
     text(contact.contact_name),
     text(contact.email),
-    text(contact.phone || contact.mobile || '')
+    contactDisplayPhone(contact)
   ].join('||');
 }
 
@@ -1311,12 +1712,80 @@ function isNextYearProposalGroup(value = '') {
   return proposalGroupTemplateKey(value) === 'next_year';
 }
 
+const MANUAL_COURSE_OPTION_KEY = '__manual_course__';
+const MANUAL_COURSE_OPTION_LABEL = 'קורס אחר / טקסט חופשי';
+const MANUAL_WORKSHOP_OPTION_LABEL = 'סדנה אחרת / טקסט חופשי';
+
+function isNextYearWorkshopsGroup(value = '') {
+  return normalizeProposalGroup(value) === 'next_year_workshops';
+}
+
+function isNextYearCoursesGroup(value = '') {
+  return normalizeProposalGroup(value) === 'next_year_courses';
+}
+
+function isNextYearInternalRowGroup(value = '') {
+  return isNextYearCoursesGroup(value) || isNextYearWorkshopsGroup(value);
+}
+
+/** Pure תשפ״ז groups share one add/picker; rows still stay in course/workshop tables. */
+function isNextYearUnifiedActivitiesGroup(value = '') {
+  const normalized = normalizeProposalGroup(value);
+  if (!normalized) return false;
+  if (isNextYearInternalRowGroup(normalized)) return true;
+  if (!isNextYearProposalGroup(normalized)) return false;
+  // Combined summer+next_year keeps separate parent sections; only pure תשפ״ז shares the picker.
+  if (normalized === COMBINED_INTERNAL_KEY || text(value) === COMBINED_INTERNAL_KEY) return false;
+  const children = includedProposalGroups(normalized);
+  if (!children.length) return true;
+  return children.every((groupKey) => isNextYearInternalRowGroup(groupKey) || isNextYearProposalGroup(groupKey));
+}
+
+function resolveNextYearInternalRowGroup(item = {}, fallbackGroup = '') {
+  const explicit = normalizeProposalGroup(item.proposal_group || item.group_key || item.activity_type_group || fallbackGroup);
+  if (isNextYearInternalRowGroup(explicit)) return explicit;
+  if (isWorkshopKindText(itemKindText(item)) || text(item.proposal_display_mode) === 'bundle_parent' || item.is_bundle_parent) {
+    return 'next_year_workshops';
+  }
+  return 'next_year_courses';
+}
+
+function nextYearUnifiedPricingOptions(pricingOptions = []) {
+  const merged = new Map();
+  ['next_year', 'next_year_courses', 'next_year_workshops'].forEach((groupKey) => {
+    filterPricingByProposalType(pricingOptions, groupKey).forEach((row) => {
+      const key = pricingOptionKey(row);
+      if (key && !merged.has(key)) merged.set(key, row);
+    });
+  });
+  if (!merged.size) {
+    (Array.isArray(pricingOptions) ? pricingOptions : []).forEach((row, idx) => {
+      const key = pricingOptionKey(row, idx);
+      if (key && !merged.has(key)) merged.set(key, row);
+    });
+  }
+  return [...merged.values()];
+}
+
+function manualActivityOptionLabel(groupKey = '') {
+  if (isNextYearUnifiedActivitiesGroup(groupKey) && !isNextYearWorkshopsGroup(groupKey) && !isNextYearCoursesGroup(groupKey)) {
+    return NEXT_YEAR_UNIFIED_MANUAL_LABEL;
+  }
+  return isNextYearWorkshopsGroup(groupKey) ? MANUAL_WORKSHOP_OPTION_LABEL : MANUAL_COURSE_OPTION_LABEL;
+}
+
+function isProposalManualCourseItem(item = {}, options = {}) {
+  if (!options.allowManualCourse || !isNextYearProposalGroup(options.groupKey || item.proposal_group || item.proposalGroup)) return false;
+  if (text(item.pricing_option_key || item.pricingOptionKey) === MANUAL_COURSE_OPTION_KEY) return true;
+  return isManualCourseWithoutGefen(item);
+}
+
 function isWorkshopKindText(value = '') {
   return /סדנ|workshop|stem|חלל/.test(value);
 }
 
 function isCourseKindText(value = '') {
-  return /קורס|תוכנית|תכנית|הדרכה|שנת|שנה הבאה|תשפ|program|course/.test(value);
+  return /קורס|תוכנית|תכנית|הדרכה|שנת|שנה הבאה|תשפ|גפן|gefen|program|course/.test(value);
 }
 
 function isNonCourseActivityKindText(value = '') {
@@ -1400,6 +1869,12 @@ function itemBelongsToGroup(item = {}, groupKey = '') {
   return !itemGroup || itemGroup === target;
 }
 
+export function proposalItemGroupForEditorRow(itemRow, catalogGroup = '') {
+  return text(itemRow?.closest?.('[data-pa-items-group]')?.dataset?.paItemsGroup)
+    || text(itemRow?.dataset?.paRowGroup)
+    || normalizeProposalGroup(catalogGroup);
+}
+
 function shouldShowGefenForItem(item = {}, contextGroup = '') {
   const group = normalizeProposalGroup(contextGroup || item.proposal_group || item.activity_type_group);
   return Boolean(proposalTextField(item, 'gefen_number', 'gefenNumber')) && shouldShowGefenForGroup(group);
@@ -1422,6 +1897,9 @@ function buildInfoStripInnerHtml(item = {}, contextGroup = '') {
   const numVal = paNumberOrNull;
   const showGefen = shouldShowGefenForItem(item, contextGroup);
   const parts = [];
+
+  const duration = text(item.unit_duration);
+  if (duration) parts.push(`משך פעילות ${duration}`);
 
   // Gefen (annual / combined only)
   const gefenNumber = showGefen ? proposalTextField(item, 'gefen_number', 'gefenNumber') : '';
@@ -1476,16 +1954,25 @@ function itemRowHtml(item = {}, idx = 0, pricingOptions = [], options = {}) {
   const calcTotal = (Number(proposalField(item, 'quantity', 'quantity')) || 0) && (Number(proposalField(item, 'unit_price', 'unitPrice')) || 0)
     ? String(((Number(proposalField(item, 'quantity', 'quantity')) || 0) * (Number(proposalField(item, 'unit_price', 'unitPrice')) || 0)).toFixed(2))
     : n(item.total_price);
-  const selectedPricingKey = text(item.pricing_option_key || item.pricing_activity_no || item.activity_no || item.pricing_activity_name || item.item_name);
-  const pricingSelectOptionsHtml = buildPricingSelectOptionsHtml(pricingOptions, selectedPricingKey);
   const contextGroup = text(options.groupKey || item.proposal_group || '');
+  const unifiedNextYear = options.unifiedNextYear === true || isNextYearUnifiedActivitiesGroup(contextGroup);
+  const storedRowGroup = text(options.rowGroup || item.proposal_group || '');
+  const rowGroup = unifiedNextYear
+    ? resolveNextYearInternalRowGroup({ ...item, proposal_group: storedRowGroup || item.proposal_group }, storedRowGroup || 'next_year_courses')
+    : (storedRowGroup || contextGroup);
+  const isManualCourseRow = isProposalManualCourseItem(item, { allowManualCourse: options.allowManualCourse, groupKey: contextGroup });
+  const selectedPricingKey = isManualCourseRow
+    ? MANUAL_COURSE_OPTION_KEY
+    : text(item.pricing_option_key || item.pricing_activity_no || item.activity_no || item.pricing_activity_name || item.item_name);
+  const pricingSelectOptionsHtml = buildPricingSelectOptionsHtml(pricingOptions, selectedPricingKey, {
+    allowManualCourse: options.allowManualCourse,
+    groupKey: unifiedNextYear ? 'next_year' : contextGroup,
+    savedItem: item,
+    unifiedNextYear
+  });
   const isSummerRow = isSummerItemRowContext(contextGroup);
   const gefenValue = proposalTextField(item, 'gefen_number', 'gefenNumber');
-  const hasActivity = Boolean(text(item.item_name));
-  const selectedName = text(item.item_name) || 'בחרו פעילות';
-  const selectedType = text(proposalField(item, 'item_type', 'itemType'));
-  const typeBadgeHtml = selectedType ? `<span class="ds-pa-item-type-badge" style="font-size:0.72rem;border:1px solid #e5e7eb;border-radius:999px;padding:1px 6px;color:#64748b;background:#f8fafc">${escapeHtml(selectedType)}</span>` : '';
-  const isNextYearRow = !isSummerRow && isNextYearProposalGroup(contextGroup);
+  const isNextYearRow = !isSummerRow && (unifiedNextYear || isNextYearProposalGroup(contextGroup));
   const hasExistingNote = isNextYearRow && Boolean(text(item.course_note || item.manual_note || ''));
   const meetingsHoursFieldsHtml = isSummerRow
     ? `<input type="hidden" name="meetings_count" value="${n(item.meetings_count)}">
@@ -1500,21 +1987,28 @@ function itemRowHtml(item = {}, idx = 0, pricingOptions = [], options = {}) {
       </summary>
       <textarea class="ds-input ds-input--sm ds-pa-note-textarea" name="course_note" rows="2" placeholder="הערה לתוכנית">${escapeHtml(item.course_note || item.manual_note || '')}</textarea>
     </details>` : '';
-  return `<article class="ds-pa-item-card ds-pa-item-row${isSummerRow ? ' ds-pa-item-row--summer' : ''}" data-pa-item-row data-pa-item-idx="${idx}" data-pa-row-group="${escapeHtml(contextGroup)}"${isSummerRow ? ' data-pa-summer-row' : ''}>
-    <div class="ds-pa-item-quick-row" style="display:grid;grid-template-columns:minmax(0,1fr) 96px 34px;gap:8px;align-items:end">
+  const manualNameRowHtml = isNextYearRow && options.allowManualCourse
+    ? `<div class="ds-pa-item-manual-name" data-pa-manual-name-row${isManualCourseRow ? '' : ' hidden'}>
+      <label class="ds-pa-item-field ds-pa-item-field--manual-name"><span>שם הקורס</span><input class="ds-input ds-input--sm"${isManualCourseRow ? ' name="item_name"' : ''} data-pa-manual-item-name value="${escapeHtml(item.item_name || '')}" placeholder="הזינו שם קורס ידני"></label>
+    </div>`
+    : '';
+  return `<article class="ds-pa-item-card ds-pa-item-row${isSummerRow ? ' ds-pa-item-row--summer' : ''}${isManualCourseRow ? ' ds-pa-item-row--manual' : ''}${unifiedNextYear ? ' ds-pa-item-row--next-year-unified' : ''}" data-pa-item-row data-pa-item-idx="${idx}" data-pa-row-group="${escapeHtml(rowGroup)}"${unifiedNextYear ? ' data-pa-next-year-unified-row="yes"' : ''}${isSummerRow ? ' data-pa-summer-row' : ''}${isManualCourseRow ? ' data-pa-manual-course="yes"' : ''}>
+    <div class="ds-pa-item-quick-row">
       <label class="ds-pa-item-field ds-pa-item-field--select ds-pa-item-field--select-no-label"><select class="ds-input ds-input--sm" name="pricing_activity_name" data-pa-pricing-select>${pricingSelectOptionsHtml}</select></label>
       <label class="ds-pa-item-field ds-pa-item-field--qty"><input class="ds-input ds-input--sm" type="number" name="quantity" value="${n(item.quantity) || '1'}" min="0" step="any" data-pa-item-qty aria-label="כמות"></label>
+      <button type="button" class="ds-btn ds-btn--xs ds-btn--ghost ds-pa-item-edit" data-pa-item-edit-toggle aria-expanded="${isManualCourseRow ? 'true' : 'false'}">${isManualCourseRow ? 'פרטי פעילות' : 'עריכה'}</button>
       <button type="button" class="ds-btn ds-btn--xs ds-btn--ghost ds-pa-item-remove ds-pa-item-remove--quick" data-pa-remove-item aria-label="הסר שורה" title="מחיקת שורה"><svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><polyline points="3 6 5 6 21 6"/><path d="M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6m3 0V4a1 1 0 0 1 1-1h4a1 1 0 0 1 1 1v2"/></svg></button>
     </div>
+    ${manualNameRowHtml}
     ${nextYearNoteHtml}
     <div class="ds-pa-bundle-prompt" data-pa-bundle-prompt hidden></div>
-    <details class="ds-pa-item-extra" data-pa-item-details>
-      <summary class="ds-pa-item-extra-toggle">עריכה</summary>
+    <details class="ds-pa-item-extra" data-pa-item-details${isManualCourseRow ? ' open' : ''}>
+      <summary class="ds-pa-item-extra-toggle">${isManualCourseRow ? 'פרטי קורס' : 'עריכה'}</summary>
       <div class="ds-pa-item-extra-body">
         <div class="ds-pa-item-grid ds-pa-item-grid--extras">
-          <label class="ds-pa-item-field ds-pa-item-field--name"><span>שם פעילות / תוכנית</span><input class="ds-input ds-input--sm" name="item_name" value="${escapeHtml(item.item_name || '')}" placeholder="שם פעילות"></label>
+          <label class="ds-pa-item-field ds-pa-item-field--name" data-pa-details-item-name${isManualCourseRow ? ' hidden' : ''}><span>שם פעילות / תוכנית</span><input class="ds-input ds-input--sm"${isManualCourseRow ? '' : ' name="item_name"'} data-pa-details-item-name-input value="${escapeHtml(item.item_name || '')}" placeholder="שם פעילות"></label>
           ${meetingsHoursFieldsHtml}
-          <label class="ds-pa-item-field ds-pa-item-field--price"><span>מחיר יחידה</span><input class="ds-input ds-input--sm" type="number" name="unit_price" value="${n(item.unit_price)}" min="0" step="any" data-pa-item-price></label>
+          <label class="ds-pa-item-field ds-pa-item-field--price"><span>${isSummerRow ? 'מחיר להפעלה' : 'מחיר יחידה'}</span><input class="ds-input ds-input--sm" type="number" name="unit_price" value="${n(item.unit_price)}" min="0" step="any" data-pa-item-price></label>
           <label class="ds-pa-item-field ds-pa-item-field--total ds-pa-line-total"><span>סה״כ שורה</span><output data-pa-item-total-display>${calcTotal ? `₪ ${formatCurrency(calcTotal)}` : '₪ 0'}</output><input type="hidden" name="total_price" value="${calcTotal}" data-pa-item-total></label>
         </div>
         ${isNextYearRow ? '' : `<label class="ds-pa-item-field ds-pa-item-field--full"><span>הערות או התאמות</span><textarea class="ds-input ds-input--sm" name="description" rows="2" placeholder="תיאור קצר, אם נדרש">${escapeHtml(item.description || '')}</textarea></label>`}
@@ -1533,19 +2027,24 @@ function itemRowHtml(item = {}, idx = 0, pricingOptions = [], options = {}) {
     <input type="hidden" name="gefen_number_display" value="${escapeHtml(gefenValue)}">
     <input type="hidden" name="unit_duration" value="${escapeHtml(item.unit_duration || '')}">
     <input type="hidden" name="hourly_price" value="${n(item.hourly_price)}">
-    <input type="hidden" name="proposal_group" value="${escapeHtml(item.proposal_group || contextGroup || '')}">
+    <input type="hidden" name="proposal_group" value="${escapeHtml(item.proposal_group || rowGroup || contextGroup || '')}">
   </article>`;
 }
 
-function combinedItemsSectionHtml(label, groupKey, items, pricingOptions, idxOffset) {
+function combinedItemsSectionHtml(label, groupKey, items, pricingOptions, idxOffset, editorOptions = {}) {
   const startItems = Array.isArray(items) ? items : [];
-  const rowsHtml = startItems.map((item, i) => itemRowHtml({ ...item, proposal_group: item.proposal_group || groupKey }, idxOffset + i, pricingOptions, { groupKey })).join('');
+  const rowOptions = { groupKey, allowManualCourse: editorOptions.allowManualCourse };
+  const rowsHtml = startItems.map((item, i) => itemRowHtml({ ...item, proposal_group: item.proposal_group || groupKey }, idxOffset + i, pricingOptions, rowOptions)).join('');
   return `<div class="ds-pa-items-section ds-pa-items-section--group" data-pa-items-group="${escapeHtml(groupKey)}">
     <div class="ds-pa-items-header">
       <span class="ds-pa-items-section-label">${escapeHtml(label)}</span>
       <button type="button" class="ds-btn ds-btn--xs" data-pa-add-item data-pa-add-item-group="${escapeHtml(groupKey)}">+ הוסף שורה</button>
     </div>
     <div class="ds-pa-items-list" data-pa-items-body data-pa-items-group-body="${escapeHtml(groupKey)}">${rowsHtml}</div>
+    <div class="ds-pa-items-group-total-row" data-pa-items-group-total-row="${escapeHtml(groupKey)}">
+      <span>${escapeHtml(`סה״כ ${label}`)}</span>
+      <strong data-pa-group-total="${escapeHtml(groupKey)}">₪ 0</strong>
+    </div>
   </div>`;
 }
 
@@ -1590,7 +2089,8 @@ function tourCostComponentsFromDetails(details = {}) {
     ? (details.cost_components ?? details.costComponents).map(normalizeTourCostComponent)
     : [];
   // Backward compat: convert old class/students structure to a 'class' component
-  if (!existing.some((c) => c.component_type === 'class')) {
+  const isStructuredTourV2 = text(details.kind) === 'tour_table_v2' || details.students_total != null || details.studentsTotal != null;
+  if (!isStructuredTourV2 && !existing.some((c) => c.component_type === 'class')) {
     const className = text(details.class_name ?? details.className);
     const students = numberValue(details.students_count ?? details.studentsCount);
     const unitPrice = numberValue(details.price_per_student ?? details.pricePerStudent);
@@ -1697,14 +2197,14 @@ function tourCostComponentEditorRowHtml(component = {}, idx = 0) {
   const options = TOUR_COST_COMPONENT_OPTIONS.map((option) => `<option value="${escapeHtml(option.component_type)}"${option.component_type === c.component_type ? ' selected' : ''}>${escapeHtml(option.label)}</option>`).join('');
   const classNameValue = isClass && c.label !== 'כיתה / קבוצה' ? c.label : '';
   return `<div class="ds-pa-tour-component-row" data-pa-tour-component-row>
-    <label class="ds-pa-item-field"><span>רכיב</span><select class="ds-input ds-input--sm" name="tour_component_type_${idx}" data-pa-tour-component-type>${options}</select></label>
+    <label class="ds-pa-item-field ds-pa-tour-component-type-field"><span>רכיב</span><select class="ds-input ds-input--sm" name="tour_component_type_${idx}" data-pa-tour-component-type>${options}</select></label>
     <input type="hidden" name="tour_component_label_${idx}" value="${escapeHtml(c.label)}" data-pa-tour-component-label>
     <label class="ds-pa-item-field ds-pa-tour-class-name-field" data-pa-tour-class-name-field${isClass ? '' : ' hidden'}>
       <span>שם כיתה / קבוצה</span>
       <input class="ds-input ds-input--sm" type="text" name="tour_component_class_name_${idx}" value="${escapeHtml(classNameValue)}" placeholder="שם הכיתה או הקבוצה" data-pa-tour-component-class-name>
     </label>
-    <label class="ds-pa-item-field"><span>מחיר יחידה</span><input class="ds-input ds-input--sm" type="number" min="0" step="any" name="tour_component_unit_price_${idx}" value="${val(c.unit_price)}" data-pa-tour-component-price></label>
-    <label class="ds-pa-item-field"><span>כמות</span><input class="ds-input ds-input--sm" type="number" min="0" step="any" name="tour_component_quantity_${idx}" value="${val(c.quantity) || '1'}" data-pa-tour-component-quantity></label>
+    <label class="ds-pa-item-field ds-pa-tour-component-price-field"><span>מחיר יחידה</span><input class="ds-input ds-input--sm" type="number" min="0" step="any" name="tour_component_unit_price_${idx}" value="${val(c.unit_price)}" data-pa-tour-component-price></label>
+    <label class="ds-pa-item-field ds-pa-tour-component-quantity-field"><span>כמות</span><input class="ds-input ds-input--sm" type="number" min="0" step="any" name="tour_component_quantity_${idx}" value="${val(c.quantity) || '1'}" data-pa-tour-component-quantity></label>
     <label class="ds-pa-item-field"><span>סה״כ</span><input class="ds-input ds-input--sm" type="number" min="0" step="any" name="tour_component_total_${idx}" value="${val(c.total_price)}" data-pa-tour-component-total readonly aria-readonly="true"></label>
     <div class="ds-pa-tour-component-delete-cell"><button type="button" class="ds-btn ds-btn--xs ds-btn--ghost" data-pa-remove-tour-component>מחיקה</button></div>
     <span></span>
@@ -1718,7 +2218,7 @@ function tourDetailsEditorHtml(items = []) {
   const total = val(d.total_price);
   return `<div class="ds-pa-items-section ds-pa-tour-details" data-pa-tour-details>
     <div class="ds-pa-items-header"><span class="ds-pa-items-section-label">פרטי טבלת הסיור</span></div>
-    <p class="ds-muted" style="font-size:0.8rem;margin:0 0 8px">הפעילות קבועה: ${escapeHtml(TOUR_ACTIVITY_LINE)}</p>
+    <p class="ds-muted" style="font-size:0.8rem;margin:0 0 8px">${escapeHtml(TOUR_ACTIVITY_LINE)}</p>
     <div class="ds-pa-tour-summary-row" style="display:flex;align-items:center;gap:12px;margin-bottom:6px">
       <div class="ds-pa-item-field ds-pa-tour-grand-total-field"><span>סה״כ כללי</span><strong class="ds-pa-tour-grand-total-display" data-pa-grand-total>${total ? `₪ ${formatCurrency(total)}` : '₪ 0'}</strong></div>
     </div>
@@ -1730,7 +2230,7 @@ function tourDetailsEditorHtml(items = []) {
   </div>`;
 }
 
-function itemsEditorHtml(items = [], pricingOptions = [], activityTypeGroup = '') {
+function itemsEditorHtml(items = [], pricingOptions = [], activityTypeGroup = '', editorOptions = {}) {
   const hasProposalType = Boolean(normalizeProposalGroup(activityTypeGroup));
   if (!hasProposalType) {
     return `<div class="ds-pa-items-section ds-pa-items-section--locked" data-pa-items-locked>
@@ -1744,13 +2244,58 @@ function itemsEditorHtml(items = [], pricingOptions = [], activityTypeGroup = ''
   const footer = `<datalist id="pa-item-type-list">${itemTypeOptions(pricingOptions).map((v) => `<option value="${escapeHtml(v)}">`).join('')}</datalist>
     <div class="ds-pa-items-total-row">סה״כ כללי: <strong data-pa-grand-total></strong></div>`;
 
+  // תשפ״ז: one shared add/picker; programs and workshops stay in separate tables.
+  if (isNextYearUnifiedActivitiesGroup(normalizedGroup)) {
+    const unifiedItems = (Array.isArray(items) ? items : []).filter((item) => {
+      const group = normalizeProposalGroup(item.proposal_group);
+      return !group
+        || group === normalizedGroup
+        || isNextYearInternalRowGroup(group)
+        || isNextYearProposalGroup(group);
+    });
+    const mergedPricing = nextYearUnifiedPricingOptions(pricingOptions);
+    const courseItems = [];
+    const workshopItems = [];
+    unifiedItems.forEach((item) => {
+      const rowGroup = resolveNextYearInternalRowGroup(item, 'next_year_courses');
+      (rowGroup === 'next_year_workshops' ? workshopItems : courseItems).push({ ...item, proposal_group: rowGroup });
+    });
+    const renderGroupSection = (groupKey, label, groupItems, idxOffset) => {
+      const rowsHtml = groupItems.map((item, i) => itemRowHtml(item, idxOffset + i, mergedPricing, {
+        groupKey,
+        rowGroup: groupKey,
+        allowManualCourse: editorOptions.allowManualCourse,
+        unifiedNextYear: true
+      })).join('');
+      const hiddenAttr = groupItems.length ? '' : ' hidden';
+      return `<div class="ds-pa-items-section ds-pa-items-section--group" data-pa-items-group="${escapeHtml(groupKey)}"${hiddenAttr}>
+        <div class="ds-pa-items-header">
+          <span class="ds-pa-items-section-label">${escapeHtml(label)}</span>
+        </div>
+        <div class="ds-pa-items-list" data-pa-items-body data-pa-items-group-body="${escapeHtml(groupKey)}">${rowsHtml}</div>
+        <div class="ds-pa-items-group-total-row" data-pa-items-group-total-row="${escapeHtml(groupKey)}"${hiddenAttr}>
+          <span>${escapeHtml(`סה״כ ${label}`)}</span>
+          <strong data-pa-group-total="${escapeHtml(groupKey)}">₪ 0</strong>
+        </div>
+      </div>`;
+    };
+    return `<div class="ds-pa-items-section ds-pa-items-unified-next-year" data-pa-next-year-unified="yes" data-pa-next-year-shared-picker="yes">
+      <div class="ds-pa-items-header">
+        <button type="button" class="ds-btn ds-btn--xs" data-pa-add-item data-pa-add-item-group="next_year">${NEXT_YEAR_UNIFIED_ADD_LABEL}</button>
+      </div>
+      ${renderGroupSection('next_year_courses', 'קורסים ותוכניות', courseItems, 0)}
+      ${renderGroupSection('next_year_workshops', 'סדנאות', workshopItems, courseItems.length || 0)}
+      ${footer}
+    </div>`;
+  }
+
   const childGroups = isCombinedProposalGroup(normalizedGroup) ? includedProposalGroups(normalizedGroup) : [];
   if (childGroups.length) {
     let idxOffset = 0;
     const sections = childGroups.map((groupKey) => {
       const groupItems = (Array.isArray(items) ? items : []).filter((item) => itemBelongsToGroup(item, groupKey));
       const groupPricing = filterPricingByProposalType(pricingOptions, groupKey);
-      const sectionHtml = combinedItemsSectionHtml(proposalGroupDisplayName(groupKey), groupKey, groupItems, groupPricing, idxOffset);
+      const sectionHtml = combinedItemsSectionHtml(proposalGroupSectionTitle(groupKey), groupKey, groupItems, groupPricing, idxOffset, editorOptions);
       idxOffset += groupItems.length || 1;
       return sectionHtml;
     }).join('');
@@ -1761,7 +2306,7 @@ function itemsEditorHtml(items = [], pricingOptions = [], activityTypeGroup = ''
   }
 
   const editableItems = (Array.isArray(items) && items.length) ? items : (pricingOptions.length ? [{ proposal_group: normalizedGroup, quantity: 1 }] : []);
-  const rowsHtml = editableItems.map((item, idx) => itemRowHtml({ ...item, proposal_group: item.proposal_group || normalizedGroup }, idx, pricingOptions, { groupKey: normalizedGroup })).join('');
+  const rowsHtml = editableItems.map((item, idx) => itemRowHtml({ ...item, proposal_group: item.proposal_group || normalizedGroup }, idx, pricingOptions, { groupKey: normalizedGroup, allowManualCourse: editorOptions.allowManualCourse })).join('');
   return `<div class="ds-pa-items-section">
     <div class="ds-pa-items-header">
       <button type="button" class="ds-btn ds-btn--xs" data-pa-add-item>+ הוסף שורה</button>
@@ -1811,6 +2356,11 @@ function extractItemsFromForm(form) {
       return normalizeTourCostComponent({ component_type, label, unit_price, quantity });
     }).filter((component) => component.unit_price > 0 || component.total_price > 0);
     const details = {
+      class_name: text(get('tour_class_name')),
+      students_count: numberValue(get('tour_students_count')),
+      price_per_student: numberValue(get('tour_price_per_student')),
+      quantity: numberValue(get('tour_quantity')) ?? 1,
+      students_total: numberValue(get('tour_students_total')),
       cost_components,
       total_price: numberValue(get('tour_total_price'))
     };
@@ -1831,11 +2381,42 @@ function extractItemsFromForm(form) {
       return Number.isFinite(n) ? n : null;
     };
 
+    const pricingSelectVal = text(row.querySelector('[data-pa-pricing-select]')?.value);
+    // Unified תשפ״ז keeps one list; each row still carries its internal
+    // course/workshop group via data-pa-row-group / proposal_group.
+    const unifiedNextYearRow = Boolean(row.closest('[data-pa-next-year-unified]'))
+      || text(row.dataset.paNextYearUnifiedRow) === 'yes'
+      || isNextYearUnifiedActivitiesGroup(formGroup);
+    const rawGroup = unifiedNextYearRow
+      ? (text(row.dataset.paRowGroup) || fieldText('proposal_group') || 'next_year_courses')
+      : (text(row.closest('[data-pa-items-group]')?.dataset.paItemsGroup)
+        || text(row.dataset.paRowGroup)
+        || fieldText('proposal_group')
+        || formGroup);
+    const normalizedRowGroup = unifiedNextYearRow
+      ? resolveNextYearInternalRowGroup({
+        proposal_group: rawGroup,
+        item_type: fieldText('item_type'),
+        item_name: fieldText('item_name'),
+        proposal_display_mode: fieldText('item_display_mode')
+      }, rawGroup)
+      : normalizeProposalGroup(rawGroup);
+    const editedName = fieldText('item_name');
+    const isManualCourseRow = pricingSelectVal === MANUAL_COURSE_OPTION_KEY
+      || text(row.dataset.paManualCourse) === 'yes'
+      || (isNextYearProposalGroup(normalizedRowGroup) && isManualCourseWithoutGefen({
+        item_name: editedName,
+        gefen_number: fieldText('gefen_number'),
+        source_pricing_key: fieldText('item_source_pricing_key'),
+        pricing_option_key: fieldText('pricing_option_key'),
+        activity_no: fieldText('activity_no'),
+        list_id: fieldText('list_id')
+      }));
+
     // Resolve the pricing row picked in the select so saved items always carry
     // the catalog item_name / pricing_key / unit_price instead of relying on free text.
-    const optionKey = fieldText('pricing_option_key') || text(row.querySelector('[data-pa-pricing-select]')?.value);
-    const editedName = fieldText('item_name');
-    const pricingRow = lookupPricingRow({ optionKey, activityNo: fieldText('activity_no'), itemName: editedName });
+    const optionKey = isManualCourseRow ? '' : (fieldText('pricing_option_key') || pricingSelectVal);
+    const pricingRow = isManualCourseRow ? null : lookupPricingRow({ optionKey, activityNo: fieldText('activity_no'), itemName: editedName });
     const pricingName = publicActivityName(pricingRow?.activity_name);
 
     const itemName = editedName || pricingName;
@@ -1851,33 +2432,29 @@ function extractItemsFromForm(form) {
 
     const rawDisplayMode = fieldText('item_display_mode');
     const displayMode = PROPOSAL_DISPLAY_MODES.has(rawDisplayMode) ? rawDisplayMode : 'single';
-    const rawGroup = fieldText('proposal_group')
-      || text(row.dataset.paRowGroup)
-      || text(pricingRow?.proposal_group)
-      || formGroup;
 
     const extracted = {
-      activity_no:            fieldText('activity_no') || text(pricingRow?.activity_no),
-      pricing_activity_no:    fieldText('activity_no') || text(pricingRow?.activity_no),
-      pricing_option_key:     text(optionKey),
+      activity_no:            isManualCourseRow ? '' : (fieldText('activity_no') || text(pricingRow?.activity_no)),
+      pricing_activity_no:    isManualCourseRow ? '' : (fieldText('activity_no') || text(pricingRow?.activity_no)),
+      pricing_option_key:     isManualCourseRow ? '' : text(optionKey),
       item_name:              itemName,
-      item_type:              fieldText('item_type') || text(pricingRow?.item_type),
-      gefen_number:           fieldText('gefen_number') || text(pricingRow?.gefen_number),
-      meetings_count:         fieldNumber('meetings_count') ?? numberValue(pricingRow?.meetings_count),
+      item_type:              isManualCourseRow ? '' : (fieldText('item_type') || text(pricingRow?.item_type)),
+      gefen_number:           isManualCourseRow ? '' : (fieldText('gefen_number') || text(pricingRow?.gefen_number)),
+      meetings_count:         fieldNumber('meetings_count') ?? (isManualCourseRow ? null : numberValue(pricingRow?.meetings_count)),
       hours_count:            hoursCount,
       quantity:               quantity || 1,
-      unit_duration:          fieldText('unit_duration') || text(pricingRow?.unit_duration),
+      unit_duration:          isManualCourseRow ? '' : (fieldText('unit_duration') || text(pricingRow?.unit_duration)),
       unit_price:             unitPrice,
       hourly_price:           hourlyPrice,
       total_price:            totalPrice,
       description:            fieldText('description') || '',
       course_note:            fieldText('course_note') || '',
-      proposal_group:         normalizeProposalGroup(rawGroup),
+      proposal_group:         normalizedRowGroup,
       sort_order:             rowIdx,
-      proposal_display_mode:  displayMode,
-      source_pricing_key:     fieldText('item_source_pricing_key') || text(pricingRow?.pricing_key),
-      list_id:                fieldText('list_id') || text(pricingRow?.list_id),
-      selected_bundle_items:  selectedBundleItems
+      proposal_display_mode:  isManualCourseRow ? 'single' : displayMode,
+      source_pricing_key:     isManualCourseRow ? '' : (fieldText('item_source_pricing_key') || text(pricingRow?.pricing_key)),
+      list_id:                isManualCourseRow ? '' : (fieldText('list_id') || text(pricingRow?.list_id)),
+      selected_bundle_items:  isManualCourseRow ? [] : selectedBundleItems
     };
     return {
       ...extracted,
@@ -1994,35 +2571,29 @@ function itemsSummaryHtml(items = []) {
     return '<p class="ds-pa-no-items-alert" role="alert" style="font-size:0.8rem;margin:4px 0;color:#b45309;background:#fffbeb;border:1px solid #fde68a;border-radius:8px;padding:6px 10px">לא נשמרו שורות פעילות להצעה זו</p>';
   }
   const visibleSummaryItems = activeItems.filter((item) => !isTestHoursItem(item));
-  const total = visibleSummaryItems.reduce((s, i) => {
-    const t = Number(proposalField(i, 'total_price', 'totalPrice')) || ((Number(proposalField(i, 'quantity', 'quantity')) || 1) * (Number(proposalField(i, 'unit_price', 'unitPrice')) || 0));
-    return s + t;
-  }, 0);
-  const chip = (label, val) => val != null && val !== ''
-    ? `<span class="ds-pa-item-meta-chip"><span class="ds-pa-info-label">${escapeHtml(label)}</span> <span style="white-space:nowrap">${escapeHtml(String(val))}</span></span>`
+  const itemFieldHtml = (label, value) => value != null && value !== ''
+    ? `<span class="ds-pa-item-summary-field"><span>${escapeHtml(label)}</span><strong>${escapeHtml(String(value))}</strong></span>`
     : '';
-  const priceChip = (label, amount) => amount
-    ? `<span class="ds-pa-item-meta-chip"><span class="ds-pa-info-label">${escapeHtml(label)}</span> <span style="white-space:nowrap">₪ ${escapeHtml(formatCurrency(amount))}</span></span>`
+  const itemPriceHtml = (label, amount) => amount
+    ? `<span class="ds-pa-item-summary-field"><span>${escapeHtml(label)}</span><strong>₪ ${escapeHtml(formatCurrency(amount))}</strong></span>`
     : '';
   const cards = visibleSummaryItems.map((item) => {
     const t = Number(proposalField(item, 'total_price', 'totalPrice')) || ((Number(proposalField(item, 'quantity', 'quantity')) || 1) * (Number(proposalField(item, 'unit_price', 'unitPrice')) || 0));
     const manualNote = cleanCustomerText(text(item.course_note || item.manual_note || ''));
     const noteHtml = manualNote ? `<div class="ds-muted" style="font-size:0.72rem;margin-top:2px">${escapeHtml(manualNote)}</div>` : '';
     const meta = [
-      chip('סוג', proposalField(item, 'item_type', 'itemType')),
-      chip('כמות', proposalField(item, 'quantity', 'quantity') != null ? proposalField(item, 'quantity', 'quantity') : null),
-      priceChip('מחיר יח׳', proposalField(item, 'unit_price', 'unitPrice') != null ? Number(proposalField(item, 'unit_price', 'unitPrice')) : 0),
-      priceChip('סה״כ', t)
+      itemFieldHtml('כמות', proposalField(item, 'quantity', 'quantity') != null ? proposalField(item, 'quantity', 'quantity') : null),
+      itemPriceHtml('מחיר יחידה', proposalField(item, 'unit_price', 'unitPrice') != null ? Number(proposalField(item, 'unit_price', 'unitPrice')) : 0),
+      itemPriceHtml('סה״כ', t)
     ].filter(Boolean).join('');
     return `<div class="ds-pa-item-card">
-      <div class="ds-pa-item-card-name">${escapeHtml(publicActivityName(proposalField(item, 'item_name', 'itemName')) || '')}${noteHtml}</div>
+      <div class="ds-pa-item-card-name"><strong>${escapeHtml(publicActivityName(proposalField(item, 'item_name', 'itemName')) || '—')}</strong>${noteHtml}</div>
       ${meta ? `<div class="ds-pa-item-card-meta">${meta}</div>` : ''}
     </div>`;
   }).join('');
   return `<div class="ds-pa-items-summary">
     <h4 class="ds-pa-card-title" style="margin-bottom:8px">שורות הצעה</h4>
     <div class="ds-pa-item-cards">${cards}</div>
-    <div class="ds-pa-items-total">סה״כ לתשלום: <strong style="white-space:nowrap">₪ ${formatCurrency(total)}</strong></div>
   </div>`;
 }
 
@@ -2046,14 +2617,28 @@ function focusedProposalTitle(title, templateKey = '') {
 function proposalTitle(row, templateSections = []) {
   const templateKey = proposalGroupTemplateKey(normalizeProposalGroup(row.activity_type_group));
   const fromRow = text(row.proposal_title || row.document_title || row.title);
-  if (fromRow) return focusedProposalTitle(fromRow, templateKey);
   const fromTemplate = (Array.isArray(templateSections) ? templateSections : [])
     .map((section) => text(section?.template_name))
     .find(Boolean);
-  if (fromTemplate) return focusedProposalTitle(fromTemplate, templateKey);
   const meta = proposalGroupMeta(row.activity_type_group);
-  // Last resort is the row's own document_type column (a DB value), never a hardcoded literal.
-  return focusedProposalTitle(text(meta?.document_title || meta?.proposal_title || meta?.title) || text(row.document_type) || '', templateKey);
+  const baseTitle = focusedProposalTitle(
+    fromRow
+      || fromTemplate
+      || text(meta?.document_title || meta?.proposal_title || meta?.title)
+      || text(row.document_type)
+      || '',
+    templateKey
+  );
+  const quoteNumber = text(row.quote_number);
+  if (/\(מספר\)|\{\{quote_number\}\}/.test(baseTitle)) {
+    const displayedQuoteNumber = quoteNumber || '_____';
+    return baseTitle
+      .replace(/\(מספר\)/g, displayedQuoteNumber)
+      .replace(/\{\{quote_number\}\}/g, displayedQuoteNumber);
+  }
+  if (!quoteNumber) return baseTitle;
+  if (baseTitle.includes(quoteNumber)) return baseTitle;
+  return baseTitle.replace(/^הצעת מחיר\b/, `הצעת מחיר ${quoteNumber}`);
 }
 function sectionBodyHtml(value, options = {}) {
   return renderSectionBodyHtml(value, options);
@@ -2215,6 +2800,70 @@ function proposalCostTableHtml(items = [], options = {}) {
   </table>`;
 }
 
+function nextYearWorkshopTableHtml(items = [], options = {}) {
+  const billedItems = (Array.isArray(items) ? items : []).filter((item) =>
+    !isTestHoursItem(item) && !isDiscountItem(item) && text(item.proposal_display_mode) !== 'bundle_child');
+  const rows = billedItems.flatMap((item) => {
+    const duration = text(item.unit_duration) || '45 דקות';
+    return costTableRowsFromItem(item).map((costRow) => ({ ...costRow, duration }));
+  });
+  if (!rows.length) return '';
+  const subtotal = rows.reduce((sum, costRow) => sum + costRow.total, 0);
+  const totalLabel = options.soleTable ? 'סה״כ לתשלום' : 'סה״כ סדנאות';
+  return `<table class="pa-item-details-table pa-activities-table pa-next-year-workshop-table" style="width:85%;margin-inline:auto;table-layout:fixed;">
+    <colgroup><col style="width:32%"><col style="width:17%"><col style="width:14%"><col style="width:18%"><col style="width:19%"></colgroup>
+    <thead><tr><th>שם הסדנה</th><th>משך הפעילות</th><th>כמות</th><th>מחיר להפעלה</th><th>סה״כ</th></tr></thead>
+    <tbody>${rows.map((costRow) => `<tr>
+      <td>${escapeHtml(costRow.name)}</td><td>${escapeHtml(costRow.duration)}</td><td>${escapeHtml(formatCurrency(costRow.quantity))}</td>
+      <td>${currencyAmountHtml(costRow.unitPrice)}</td><td>${currencyAmountHtml(costRow.total)}</td>
+    </tr>`).join('')}</tbody>
+    <tfoot><tr><td colspan="4">${totalLabel}</td><td>${currencyAmountHtml(subtotal)}</td></tr></tfoot>
+  </table>`;
+}
+
+function nextYearGroupedCostTablesHtml(row = {}, items = []) {
+  if (!isNextYearUnifiedActivitiesGroup(row.activity_type_group) && !isNextYearProposalGroup(row.activity_type_group)) return '';
+  if (text(row.activity_type_group) === COMBINED_INTERNAL_KEY || normalizeProposalGroup(row.activity_type_group) === COMBINED_INTERNAL_KEY) {
+    return '';
+  }
+  const sourceItems = (Array.isArray(items) ? items : []).filter((item) => {
+    const group = normalizeProposalGroup(item.proposal_group || item.activity_type_group);
+    return !group
+      || isNextYearInternalRowGroup(group)
+      || isNextYearProposalGroup(group)
+      || itemBelongsToGroup(item, row.activity_type_group);
+  });
+  const courseItems = [];
+  const workshopItems = [];
+  sourceItems.forEach((item) => {
+    const rowGroup = resolveNextYearInternalRowGroup(item, 'next_year_courses');
+    (rowGroup === 'next_year_workshops' ? workshopItems : courseItems).push(item);
+  });
+  let courseTable = courseItems.length ? proposalItemDetailsTableHtml(courseItems, 'next_year_courses') : '';
+  const workshopTable = nextYearWorkshopTableHtml(workshopItems, { soleTable: !courseItems.length });
+  if (courseTable && workshopTable) {
+    courseTable = courseTable.replace(/>סה״כ לתשלום</g, '>סה״כ קורסים<');
+  }
+  const sections = [
+    courseTable ? `<div class="pa-next-year-cost-group"><h4 class="pa-section-heading pa-next-year-course-heading">קורסים ותוכניות</h4>${courseTable}</div>` : '',
+    workshopTable ? `<div class="pa-next-year-cost-group"><h4 class="pa-section-heading pa-next-year-workshop-heading">סדנאות</h4>${workshopTable}</div>` : ''
+  ].filter(Boolean);
+  if (!sections.length) return '';
+  const regularTotal = [...courseItems, ...workshopItems]
+    .filter((item) => !isDiscountItem(item))
+    .reduce((sum, item) => sum + costTableRowsFromItem(item).reduce((rowSum, costRow) => rowSum + costRow.total, 0), 0);
+  const discount = Math.abs((Array.isArray(items) ? items : []).filter(isDiscountItem)
+    .reduce((sum, item) => sum + (Number(proposalField(item, 'total_price', 'totalPrice')) || Number(proposalField(item, 'unit_price', 'unitPrice')) || 0), 0));
+  const grandTotal = Math.max(regularTotal - discount, 0);
+  const totalTable = courseTable && workshopTable
+    ? `<table class="pa-cost-table pa-activities-table pa-next-year-combined-total" style="width:85%;margin:8px auto 0;"><tbody>
+        ${discount ? `<tr><td>הנחה</td><td>${currencyAmountHtml(-discount)}</td></tr>` : ''}
+        <tr><td><strong>סה״כ כולל להצעה</strong></td><td><strong>${currencyAmountHtml(grandTotal)}</strong></td></tr>
+      </tbody></table>`
+    : '';
+  return `${sections.join('')}${totalTable}`;
+}
+
 
 
 function proposalDiscountSummaryHtml(items = []) {
@@ -2251,7 +2900,8 @@ function itemQuantityTotal(item = {}) {
 function proposalItemDetailsTableHtml(items = [], contextGroup = '') {
   if (!isCourseKindText(groupKindText(contextGroup))) return '';
   const isNextYearTable = isNextYearProposalGroup(contextGroup);
-  const tableClass = `pa-item-details-table pa-activities-table${isNextYearTable ? ' pa-next-year-course-table' : ''}`;
+  const isGefenTable = normalizeProposalGroup(contextGroup) === 'gefen';
+  const tableClass = `pa-item-details-table pa-activities-table${isNextYearTable ? ' pa-next-year-course-table' : ''}${isGefenTable ? ' pa-gefen-course-table' : ''}`;
   const allVisibleItems = (Array.isArray(items) ? items : []).filter((item) =>
     !isTestHoursItem(item) && text(item.proposal_display_mode) !== 'bundle_child');
   const visibleItems = allVisibleItems.filter((item) => !isDiscountItem(item));
@@ -2309,7 +2959,7 @@ function proposalItemDetailsTableHtml(items = [], contextGroup = '') {
       { value: item.meetings_count != null ? formatCurrency(item.meetings_count) : '' },
       { value: formatCurrency(quantity) },
       { value: item.hours_count != null ? formatCurrency(item.hours_count) : '' },
-      { value: item.hourly_price != null ? currencyAmountHtml(item.hourly_price) : '', html: true },
+      { value: item.hourly_price != null ? currencyAmountHtml(isGefenTable ? Math.round(Number(item.hourly_price) || 0) : item.hourly_price) : '', html: true },
       { value: quantityTotal != null ? currencyAmountHtml(quantityTotal) : '', html: true }
     ];
     if (!cells.some((cell) => cell.value)) return '';
@@ -2328,7 +2978,7 @@ function proposalItemDetailsTableHtml(items = [], contextGroup = '') {
         const footerCells = [
           { value: totalLabel },
           { value: '' },
-          { value: hasMeetings ? formatCurrency(totalMeetings) : '' },
+          { value: hasMeetings && !isGefenTable ? formatCurrency(totalMeetings) : '' },
           { value: hasQuantity ? formatCurrency(totalQuantity) : '' },
           { value: hasHours ? formatCurrency(totalHours) : '' },
           { value: '' },
@@ -2345,8 +2995,10 @@ function proposalItemDetailsTableHtml(items = [], contextGroup = '') {
   const nextYearTableStyle = isNextYearTable
     ? ' style="width:85%;margin-inline:auto;table-layout:fixed;"'
     : '';
-  const nextYearFirstColStyle = isNextYearTable ? ' style="width:34%"' : '';
-  const nextYearOtherColStyle = isNextYearTable ? ' style="width:11%"' : '';
+  const nextYearFirstColStyle = isNextYearTable ? ' style="width:20%"' : '';
+  const nextYearOtherColStyle = isNextYearTable ? ' style="width:12%"' : '';
+  const nextYearHourlyColStyle = isNextYearTable ? ' style="width:16%"' : '';
+  const nextYearTotalColStyle = isNextYearTable ? ' style="width:16%"' : '';
   return `<table class="${tableClass}"${nextYearTableStyle}>
     <colgroup>
       <col class="pa-course-col"${nextYearFirstColStyle}>
@@ -2354,8 +3006,8 @@ function proposalItemDetailsTableHtml(items = [], contextGroup = '') {
       <col class="pa-meetings-col"${nextYearOtherColStyle}>
       <col class="pa-groups-col"${nextYearOtherColStyle}>
       <col class="pa-hours-col"${nextYearOtherColStyle}>
-      <col class="pa-hourly-price-col"${nextYearOtherColStyle}>
-      <col class="pa-total-price-col"${nextYearOtherColStyle}>
+      <col class="pa-hourly-price-col"${nextYearHourlyColStyle}>
+      <col class="pa-total-price-col"${nextYearTotalColStyle}>
     </colgroup>
     <thead><tr><th>קורס / תוכנית</th><th>מס׳ גפ״ן</th><th>מפגשים</th><th>קבוצות</th><th>שעות</th><th>מחיר לשעה</th><th>סה״כ</th></tr></thead>
     <tbody>${rows.join('')}</tbody>
@@ -2442,20 +3094,21 @@ function proposalRecipientLines(row = {}) {
     : inferProposalClientType(row);
   const schoolName = safeVal(row.school_framework) || safeVal(row.school_name);
   const authorityName = safeVal(row.client_authority) || safeVal(row.authority_name);
+  const otherName = safeVal(row.client_name);
 
-  if (clientType === 'school') {
-    return [recipientLine(schoolName, authorityName)].filter(Boolean);
-  }
-
-  if (clientType === 'authority') {
+  // Authority-only: no real school name → keep existing authority-only display.
+  if (clientType === 'authority' && !schoolName) {
     return [authorityName].filter(Boolean);
   }
 
+  // "Other" recipient: prefer school/mframework label, then saved client name.
   if (clientType === 'other') {
-    return [];
+    const primary = schoolName || otherName;
+    return [primary].filter(Boolean);
   }
 
-  return [];
+  // School proposals and authority proposals that include a school name — show school + authority (deduped).
+  return [recipientLine(schoolName, authorityName)].filter(Boolean);
 }
 
 function recipientBlockHtml(row = {}) {
@@ -2469,9 +3122,31 @@ function recipientBlockHtml(row = {}) {
   if (contactRole && contactRole !== contactName) contactParts.push(escapeHtml(contactRole));
   const contactLine = contactParts.length ? `<p>${contactParts.join(', ')}</p>` : '';
   const contactDetailParts = [];
-  if (phone) contactDetailParts.push(`טלפון: ${escapeHtml(phone)}`);
+  if (phone) contactDetailParts.push(`${isMobilePhoneNumber(phone) ? 'נייד' : 'טלפון'}: ${escapeHtml(phone)}`);
   if (email) contactDetailParts.push(`דוא״ל: ${escapeHtml(email)}`);
   const contactDetailsLine = contactDetailParts.length ? `<p class="pa-contact-details pa-print-hidden-contact-details">${contactDetailParts.join(' | ')}</p>` : '';
+  if (normalizeProposalGroup(row.activity_type_group) === 'gefen') {
+    const schoolName = safeVal(row.school_framework || row.school_name);
+    const authorityName = safeVal(row.client_authority || row.authority_name);
+    const semelMosad = safeVal(row.semel_mosad);
+    const schoolMetaParts = [];
+    if (schoolName) schoolMetaParts.push(`<strong>בית ספר:</strong> ${escapeHtml(schoolName)}`);
+    if (semelMosad) schoolMetaParts.push(`<strong>סמל מוסד:</strong> ${escapeHtml(semelMosad)}`);
+    if (authorityName) schoolMetaParts.push(`<strong>רשות:</strong> ${escapeHtml(authorityName)}`);
+    const schoolMetaLine = schoolMetaParts.length
+      ? `<p class="pa-gefen-school-meta">${schoolMetaParts.join(' | ')}</p>`
+      : '';
+    const gefenContactDetails = [
+      phone ? `<span>${isMobilePhoneNumber(phone) ? 'נייד' : 'טלפון'}: <bdi dir="ltr">${escapeHtml(phone)}</bdi></span>` : '',
+      email ? `<span>דוא״ל: <bdi dir="ltr">${escapeHtml(email)}</bdi></span>` : ''
+    ].filter(Boolean).join('<span class="pa-gefen-contact-separator" aria-hidden="true"> | </span>');
+    return `<div class="pa-doc-address pa-to-block pa-gefen-recipient" style="margin:0 0 4mm 0;">
+      <p class="pa-label-to" style="margin:0;"><strong>לכבוד:</strong></p>
+      <div class="pa-recipient-lines" style="margin-top:0.2em;">
+        ${contactLine}${schoolMetaLine}${gefenContactDetails ? `<p class="pa-contact-details pa-gefen-contact-details">${gefenContactDetails}</p>` : ''}
+      </div>
+    </div>`;
+  }
   const orgLines = proposalRecipientLines(row).map((line) => recipientLineHtml(line));
   const lines = [contactLine, contactDetailsLine, ...orgLines].filter(Boolean);
   const recipientLinesHtml = lines.join('\n    ');
@@ -2500,6 +3175,394 @@ function sanitizeProposalPdfFileLabel(value = '') {
 function proposalPdfDocumentTitle(row = {}) {
   const label = sanitizeProposalPdfFileLabel(proposalRecipientFileLabel(row));
   return label ? `הצעת מחיר - ${label}` : 'הצעת מחיר';
+}
+
+function proposalPdfFileName(row = {}, items = []) {
+  const client = sanitizeProposalPdfFileLabel(proposalRecipientFileLabel(row)).replace(/\s+/g, '_') || 'לקוח';
+  const typeLabels = { next_year: 'תשפז', summer: 'קיץ', tour: 'סיור', gefen: 'גפן' };
+  const typeKey = resolveClientFacingTypeKey(row, items) || text(row.activity_type_group);
+  const type = typeLabels[typeKey] || sanitizeProposalPdfFileLabel(typeKey).replace(/\s+/g, '_');
+  const dateValue = text(row.proposal_date).slice(0, 10) || new Date().toISOString().slice(0, 10);
+  const [year, month, day] = dateValue.split('-');
+  const quoteNumber = sanitizeProposalPdfFileLabel(row.quote_number);
+  return `הצעת_מחיר${quoteNumber ? `_${quoteNumber}` : ''}_${client}${type ? `_${type}` : ''}_${day}-${month}-${year}.pdf`;
+}
+
+async function proposalPdfAssetUrlToDataUrl(value, label) {
+  const rawUrl = text(value);
+  if (!rawUrl || /^(?:data:|blob:|#)/i.test(rawUrl)) return rawUrl;
+  let absoluteUrl;
+  try {
+    absoluteUrl = new URL(rawUrl, window.location.href);
+  } catch {
+    throw new Error(`proposal_pdf_external_asset_unresolved:${label}`);
+  }
+  if (!/^https?:$/i.test(absoluteUrl.protocol)) return rawUrl;
+  let response;
+  try {
+    response = await fetch(absoluteUrl.href, {
+      mode: 'cors',
+      credentials: absoluteUrl.origin === window.location.origin ? 'same-origin' : 'omit'
+    });
+  } catch {
+    throw new Error(`proposal_pdf_external_asset_unresolved:${label}`);
+  }
+  if (!response.ok) throw new Error(`proposal_pdf_asset_fetch_failed:${label}:${response.status}`);
+  const blob = await response.blob();
+  const dataUrl = await new Promise((resolve, reject) => {
+    const reader = new FileReader();
+    reader.onload = () => resolve(String(reader.result || ''));
+    reader.onerror = () => reject(new Error(`proposal_pdf_asset_read_failed:${label}`));
+    reader.readAsDataURL(blob);
+  });
+  if (!dataUrl.startsWith('data:')) throw new Error(`proposal_pdf_external_asset_unresolved:${label}`);
+  return dataUrl;
+}
+
+async function inlineProposalPdfCssUrls(value, label) {
+  const cssValue = String(value || '');
+  const matches = [...cssValue.matchAll(/url\(\s*(["']?)(.*?)\1\s*\)/gi)];
+  let result = cssValue;
+  for (let index = 0; index < matches.length; index += 1) {
+    const original = matches[index][2].trim();
+    if (!original || /^(?:data:|blob:|#)/i.test(original)) continue;
+    const replacement = await proposalPdfAssetUrlToDataUrl(original, `${label}-${index + 1}`);
+    result = result.split(matches[index][0]).join(`url("${replacement}")`);
+  }
+  return result;
+}
+
+function markProposalPdfErrorLogged(error) {
+  if (!error || (typeof error !== 'object' && typeof error !== 'function')) return false;
+  if (error.__proposalPdfLogged) return true;
+  try { Object.defineProperty(error, '__proposalPdfLogged', { value: true, configurable: true }); } catch { /* ignore */ }
+  return false;
+}
+
+/**
+ * The next-year course/workshop split normally runs from a document-wide observer.
+ * The PDF render host must not depend on that timing, so the runtime module
+ * registers its normalizer here and the PDF path applies it once, synchronously.
+ */
+let proposalPdfDocumentNormalizer = null;
+
+export function setProposalPdfDocumentNormalizer(normalizer) {
+  proposalPdfDocumentNormalizer = typeof normalizer === 'function' ? normalizer : null;
+}
+
+export const PROPOSAL_PDF_RENDER_HOST_ATTRIBUTE = 'data-pdf-render-host';
+
+const PROPOSAL_DOCUMENT_REQUIRED_PARTS = Object.freeze([
+  { key: 'header', label: 'כותרת ולוגו', selector: '.proposal-document-header, .pa-page-header' },
+  { key: 'recipient', label: 'פרטי הנמען', selector: '.pa-to-block, .pa-doc-address' },
+  { key: 'title', label: 'כותרת ההצעה', selector: '.pa-doc-title, .pa-doc-subject' },
+  { key: 'template_content', label: 'תוכן תבנית', selector: '.pa-section, .pa-org-intro' },
+  {
+    key: 'activity_table',
+    label: 'טבלת פעילות',
+    selector: '.pa-item-details-table, .pa-activities-table, .pa-cost-table, .pa-tour-cost-table, .pa-next-year-course-table, .pa-next-year-workshop-table'
+  }
+]);
+
+const NEXT_YEAR_DUAL_REQUIRED_PARTS = Object.freeze([
+  { key: 'next_year_courses_table', label: 'טבלת קורסים', selector: '.pa-next-year-course-table' },
+  { key: 'next_year_workshops_table', label: 'טבלת סדנאות', selector: '.pa-next-year-workshop-table' },
+  { key: 'next_year_combined_total', label: 'סה״כ משותף', selector: '.pa-next-year-combined-total' }
+]);
+
+function elementHasVisibleBox(element) {
+  if (!element) return false;
+  if (typeof element.getBoundingClientRect !== 'function') return true;
+  const rect = element.getBoundingClientRect();
+  if (rect.width <= 0 || rect.height <= 0) return false;
+  const view = element.ownerDocument?.defaultView;
+  if (!view || typeof view.getComputedStyle !== 'function') return true;
+  const computed = view.getComputedStyle(element);
+  if (computed.display === 'none' || computed.visibility === 'hidden') return false;
+  return Number(computed.opacity || '1') > 0;
+}
+
+function proposalDocumentRoots(root) {
+  if (!root) return [];
+  const roots = [];
+  if (root.matches?.('.proposal-document')) roots.push(root);
+  root.querySelectorAll?.('.proposal-document').forEach((element) => {
+    if (!roots.includes(element)) roots.push(element);
+  });
+  return roots;
+}
+
+function hasNonEmptyText(elements = []) {
+  return [...elements].some((element) => text(element.textContent));
+}
+
+/**
+ * Structural gate for a produced proposal document. A partial document — a bare
+ * activities table or an inner fragment — must never reach the PDF file or the
+ * upload, so this runs before both.
+ */
+export function validateProposalDocumentTree(root, { requireVisibleBox = false } = {}) {
+  const missing = [];
+  const allRoots = proposalDocumentRoots(root);
+  // A combined document intentionally appends the GEFEN approval page; the proposal
+  // itself must still be exactly one root. A standalone approval document is its own
+  // single root.
+  const proposalRoots = allRoots.filter((element) => !element.classList?.contains('pa-gefen-approval-document'));
+  const roots = proposalRoots.length ? proposalRoots : allRoots;
+  if (roots.length !== 1) {
+    missing.push(roots.length === 0 ? 'שורש מסמך ההצעה' : 'שורש מסמך יחיד');
+    return { ok: false, missing, documentRoot: roots[0] || null };
+  }
+
+  const documentRoot = roots[0];
+  const checkParts = (parts) => {
+    parts.forEach(({ label, selector }) => {
+      const found = documentRoot.querySelectorAll(selector);
+      if (!found.length || !hasNonEmptyText(found)) {
+        missing.push(label);
+        return;
+      }
+      if (requireVisibleBox && ![...found].some((element) => elementHasVisibleBox(element))) {
+        missing.push(`${label} (מוסתר)`);
+      }
+    });
+  };
+  const headerElements = documentRoot.querySelectorAll('.proposal-document-header, .pa-page-header');
+  const validHeader = [...headerElements].some((element) => text(element.textContent)
+    || [...element.querySelectorAll('img')].some((image) => text(image.getAttribute('src')) && image.getAttribute('aria-hidden') !== 'true'));
+  if (!headerElements.length || !validHeader) missing.push('כותרת ולוגו');
+  else if (requireVisibleBox && ![...headerElements].some(elementHasVisibleBox)) missing.push('כותרת ולוגו (מוסתר)');
+  checkParts(PROPOSAL_DOCUMENT_REQUIRED_PARTS.filter(({ key }) => key !== 'header'));
+
+  const hasCourseTable = documentRoot.querySelector('.pa-next-year-course-table tbody tr');
+  const hasWorkshopTable = documentRoot.querySelector('.pa-next-year-workshop-table tbody tr');
+  if (hasCourseTable && hasWorkshopTable) {
+    checkParts(NEXT_YEAR_DUAL_REQUIRED_PARTS);
+    const courseFooter = text(documentRoot.querySelector('.pa-next-year-course-table tfoot')?.textContent);
+    const workshopFooter = text(documentRoot.querySelector('.pa-next-year-workshop-table tfoot')?.textContent);
+    if (!courseFooter.includes('סה״כ קורסים')) missing.push('סיכום קורסים');
+    if (!workshopFooter.includes('סה״כ סדנאות')) missing.push('סיכום סדנאות');
+  }
+
+  return { ok: missing.length === 0, missing, documentRoot };
+}
+
+export function proposalDocumentIncompleteError(missing = []) {
+  const error = new Error(`proposal_pdf_document_incomplete:${missing.join('|')}`);
+  error.userMessage = `לא ניתן להפיק PDF — חסרים במסמך: ${missing.join(', ')}.`;
+  error.missingParts = [...missing];
+  return error;
+}
+
+const PROPOSAL_DOCUMENT_HTML_MARKERS = Object.freeze([
+  { label: 'שורש מסמך ההצעה', pattern: /class\s*=\s*(['"])[^'"]*\bproposal-document\b[^'"]*\1/i },
+  { label: 'פרטי הנמען', pattern: /class\s*=\s*(['"])[^'"]*\b(?:pa-to-block|pa-doc-address)\b[^'"]*\1/i },
+  { label: 'כותרת ההצעה', pattern: /class\s*=\s*(['"])[^'"]*\b(?:pa-doc-title|pa-doc-subject)\b[^'"]*\1/i },
+  { label: 'תוכן תבנית', pattern: /class\s*=\s*(['"])[^'"]*\b(?:pa-section|pa-org-intro)\b[^'"]*\1[^>]*>[\s\S]*?[^<\s][\s\S]*?<\//i },
+  {
+    label: 'טבלת פעילות',
+    pattern: /class\s*=\s*(['"])[^'"]*\b(?:pa-item-details-table|pa-activities-table|pa-cost-table|pa-tour-cost-table|pa-next-year-course-table|pa-next-year-workshop-table)\b[^'"]*\1[\s\S]*?<tr\b[^>]*>[\s\S]*?<\/tr>/i
+  }
+]);
+
+function htmlRegionText(source, classNames = []) {
+  const classPattern = classNames.join('|');
+  const region = String(source || '').match(new RegExp(`<([a-z][\\w:-]*)[^>]*class\\s*=\\s*(['"])[^'"]*\\b(?:${classPattern})\\b[^'"]*\\2[^>]*>([\\s\\S]*?)<\\/\\1\\s*>`, 'i'));
+  return region ? text(region[3].replace(/<[^>]*>/g, ' ').replace(/&nbsp;|&#160;/gi, ' ')) : '';
+}
+
+/**
+ * Validates an HTML snapshot without rendering it, used before the file is created and
+ * again before the upload. Falls back to marker matching where no DOM is available, so
+ * the gate never silently passes a partial document.
+ */
+export function validateProposalDocumentHtml(html) {
+  const source = String(html || '');
+  if (!source.trim()) return { ok: false, missing: ['שורש מסמך ההצעה'] };
+  if (typeof document !== 'undefined' && typeof document.createElement === 'function') {
+    const template = document.createElement('template');
+    template.innerHTML = source;
+    return validateProposalDocumentTree(template.content);
+  }
+  const missing = PROPOSAL_DOCUMENT_HTML_MARKERS
+    .filter(({ pattern }) => !pattern.test(source))
+    .map(({ label }) => label);
+  if (!htmlRegionText(source, ['pa-to-block', 'pa-doc-address']) && !missing.includes('פרטי הנמען')) missing.push('פרטי הנמען');
+  if (!htmlRegionText(source, ['pa-doc-title', 'pa-doc-subject']) && !missing.includes('כותרת ההצעה')) missing.push('כותרת ההצעה');
+  const header = source.match(/<[^>]+class\s*=\s*(['"])[^'"]*\b(?:proposal-document-header|pa-page-header)\b[^'"]*\1[^>]*>([\s\S]*?)<\/[^>]+>/i);
+  if (!header || (!/<img\b[^>]*\bsrc\s*=\s*(['"])[^'"]+\1/i.test(header[2]) && !text(header[2].replace(/<[^>]*>/g, ' ')))) {
+    missing.splice(Math.min(1, missing.length), 0, 'כותרת ולוגו');
+  }
+  return { ok: missing.length === 0, missing };
+}
+
+async function proposalHtmlToPdfBlob(html, { proposalId = '', onStage = null } = {}) {
+  const width = 794;
+  const pageHeight = 1123;
+  let pdfStage = 'start';
+  const setStage = (stage) => { pdfStage = stage; onStage?.(stage); };
+  const host = document.createElement('div');
+  let activeObjectUrl = '';
+  try {
+    setStage('mount-render-host');
+    host.style.cssText = `position:fixed;right:-10000px;top:0;width:${width}px;background:#fff;z-index:-1`;
+    host.setAttribute(PROPOSAL_PDF_RENDER_HOST_ATTRIBUTE, 'true');
+    host.innerHTML = html;
+    document.body.appendChild(host);
+    setStage('normalize-document');
+    // Apply the course/workshop split here instead of waiting for the document
+    // observer, so the render tree is final before it is measured and serialized.
+    try {
+      proposalPdfDocumentNormalizer?.(host);
+    } catch (error) {
+      throw new Error(`proposal_pdf_document_normalize_failed:${error?.message || 'unknown'}`);
+    }
+    setStage('wait-fonts');
+    await document.fonts?.ready;
+    setStage('validate-document');
+    const mountedCheck = validateProposalDocumentTree(host, { requireVisibleBox: true });
+    if (!mountedCheck.ok) throw proposalDocumentIncompleteError(mountedCheck.missing);
+    const hostTop = host.getBoundingClientRect().top;
+    host.querySelectorAll('[data-pdf-page-break]').forEach((element) => {
+      const top = Math.max(0, Math.round(element.getBoundingClientRect().top - hostTop));
+      const remainder = top % pageHeight;
+      const spacer = remainder ? pageHeight - remainder : 0;
+      if (spacer > 1) element.style.marginTop = `${spacer}px`;
+    });
+    setStage('prepare-assets');
+    const clean = host.cloneNode(true);
+    const sourceElements = [host, ...host.querySelectorAll('*')];
+    const clonedElements = [clean, ...clean.querySelectorAll('*')];
+    const sourceByClone = new Map(clonedElements.map((element, index) => [element, sourceElements[index]]));
+    clean.querySelectorAll('button,iframe,object,script,[data-pdf-exclude],.ds-pa-pdf-spinner').forEach((node) => node.remove());
+    clean.style.cssText = `position:static;inset:auto;transform:none;width:${width}px;direction:rtl;background:#fff`;
+    const cleanElements = [clean, ...clean.querySelectorAll('*')];
+    await Promise.all(cleanElements.map(async (element, index) => {
+      const sourceElement = sourceByClone.get(element);
+      if (!sourceElement) return;
+      const computed = getComputedStyle(sourceElement);
+      for (const property of ['background-image', 'background', 'list-style-image', 'content']) {
+        const cssValue = computed.getPropertyValue(property);
+        if (cssValue && cssValue !== 'none' && /url\(/i.test(cssValue)) {
+          element.style.setProperty(property, await inlineProposalPdfCssUrls(cssValue, `computed-${property}-${index + 1}`));
+        }
+      }
+      const inlineStyle = element.getAttribute('style');
+      if (inlineStyle && /url\(/i.test(inlineStyle)) {
+        element.setAttribute('style', await inlineProposalPdfCssUrls(inlineStyle, `inline-style-${index + 1}`));
+      }
+    }));
+    const assetElements = Array.from(clean.querySelectorAll('img[src],source[src],svg image[href],svg image[xlink\\:href],image[href],image[xlink\\:href]'));
+    await Promise.all(assetElements.map(async (assetElement, index) => {
+      const attribute = assetElement.hasAttribute('src') ? 'src'
+        : (assetElement.hasAttribute('href') ? 'href' : 'xlink:href');
+      const label = `${assetElement.localName || 'asset'}-${index + 1}`;
+      const dataUrl = await proposalPdfAssetUrlToDataUrl(assetElement.getAttribute(attribute), label);
+      assetElement.setAttribute(attribute, dataUrl);
+      if (assetElement.hasAttribute('srcset')) assetElement.removeAttribute('srcset');
+      if (attribute === 'xlink:href') assetElement.setAttributeNS('http://www.w3.org/1999/xlink', 'xlink:href', dataUrl);
+    }));
+    const images = Array.from(clean.querySelectorAll('img'));
+    await Promise.all(images.map(async (img, index) => {
+      const label = `image-${index + 1}`;
+      try {
+        if (typeof img.decode === 'function') await img.decode();
+        else if (!img.complete) await new Promise((resolve, reject) => { img.onload = resolve; img.onerror = reject; });
+      } catch (error) {
+        throw new Error(`proposal_pdf_asset_failed:${label}:${error?.message || 'load'}`);
+      }
+      if (!img.complete || !img.naturalWidth) throw new Error(`proposal_pdf_asset_failed:${label}:empty`);
+    }));
+    // Measure the sanitized, serialization-safe tree rather than the off-screen host.
+    host.replaceChildren(clean);
+    setStage('validate-print-tree');
+    const printCheck = validateProposalDocumentTree(clean, { requireVisibleBox: true });
+    if (!printCheck.ok) throw proposalDocumentIncompleteError(printCheck.missing);
+    const height = Math.max(1123, Math.ceil(host.scrollHeight));
+    const rawCss = Array.from(document.styleSheets).flatMap((sheet) => {
+      try { return Array.from(sheet.cssRules || []).map((rule) => rule.cssText); } catch { return []; }
+    }).join('\n');
+    const css = await inlineProposalPdfCssUrls(rawCss, 'stylesheet');
+    const pages = [];
+    for (let top = 0; top < height; top += pageHeight) {
+      setStage('serialize-html');
+      const pageRoot = document.createElement('div');
+      pageRoot.style.cssText = `position:static;inset:auto;transform:none;width:${width}px;height:${pageHeight}px;overflow:hidden;direction:rtl;background:#fff`;
+      const pageContent = clean.cloneNode(true);
+      pageContent.style.cssText += `;position:relative;inset:auto;transform:translateY(-${top}px);width:${width}px;direction:rtl;background:#fff`;
+      pageRoot.appendChild(pageContent);
+      const serialized = new XMLSerializer().serializeToString(pageRoot);
+      setStage('build-svg');
+      const svg = `<svg xmlns="http://www.w3.org/2000/svg" width="${width}" height="${pageHeight}"><foreignObject width="100%" height="100%"><div xmlns="http://www.w3.org/1999/xhtml"><style>${css}</style>${serialized}</div></foreignObject></svg>`;
+      const svgWithoutNamespaces = svg.replace(/xmlns(?::\w+)?="https?:\/\/[^"\s]+"/gi, '');
+      if (/(?:https?:\/\/|url\(\s*["']?https?:|(?:href|src)\s*=\s*["']https?:)/i.test(svgWithoutNamespaces)) {
+        throw new Error('proposal_pdf_external_asset_remaining');
+      }
+      const image = new Image();
+      image.crossOrigin = 'anonymous';
+      activeObjectUrl = URL.createObjectURL(new Blob([svg], { type: 'image/svg+xml;charset=utf-8' }));
+      setStage('load-svg-image');
+      image.src = activeObjectUrl;
+      if (typeof image.decode === 'function') await image.decode();
+      else await new Promise((resolve, reject) => { image.onload = resolve; image.onerror = () => reject(new Error('proposal_pdf_svg_image_load_failed')); });
+      setStage('create-canvas');
+      const canvas = document.createElement('canvas');
+      canvas.width = width * 2; canvas.height = pageHeight * 2;
+      setStage('get-canvas-context');
+      const context = canvas.getContext('2d');
+      if (!context) throw new Error('proposal_pdf_canvas_context_unavailable');
+      context.fillStyle = '#fff'; context.fillRect(0, 0, canvas.width, canvas.height);
+      setStage('draw-image');
+      context.drawImage(image, 0, 0, canvas.width, canvas.height);
+      setStage('canvas-to-jpeg');
+      const jpeg = await new Promise((resolve, reject) => {
+        try { canvas.toBlob((blob) => blob ? resolve(blob) : reject(new Error('proposal_pdf_jpeg_blob_empty')), 'image/jpeg', 0.94); }
+        catch (error) {
+          if (error?.name === 'SecurityError' && !markProposalPdfErrorLogged(error)) {
+            console.error('[proposal-pdf-failed]', { stage: 'canvas-to-jpeg', proposalId, name: error?.name, message: error?.message, cause: 'tainted-canvas' });
+          }
+          reject(error);
+        }
+      });
+      if (!jpeg.size) throw new Error('proposal_pdf_jpeg_empty');
+      setStage('jpeg-array-buffer');
+      const jpegBytes = new Uint8Array(await jpeg.arrayBuffer());
+      if (!jpegBytes.length) throw new Error('proposal_pdf_jpeg_bytes_empty');
+      pages.push(jpegBytes);
+      URL.revokeObjectURL(activeObjectUrl); activeObjectUrl = '';
+    }
+    if (!pages.length) throw new Error('proposal_pdf_pages_empty');
+    setStage('assemble-pdf');
+    const encoder = new TextEncoder(); const chunks = []; const offsets = [0]; let length = 0;
+    const push = (value) => { const bytes = typeof value === 'string' ? encoder.encode(value) : value; chunks.push(bytes); length += bytes.length; };
+    push('%PDF-1.4\n');
+    const objectCount = 2 + pages.length * 3;
+    const object = (id, body) => { offsets[id] = length; push(`${id} 0 obj\n${body}\nendobj\n`); };
+    object(1, '<< /Type /Catalog /Pages 2 0 R >>');
+    object(2, `<< /Type /Pages /Count ${pages.length} /Kids [${pages.map((_, i) => `${3 + i * 3} 0 R`).join(' ')}] >>`);
+    pages.forEach((jpeg, i) => {
+      const pageId = 3 + i * 3, imageId = pageId + 1, contentId = pageId + 2;
+      object(pageId, `<< /Type /Page /Parent 2 0 R /MediaBox [0 0 595.28 841.89] /Resources << /XObject << /Im${i} ${imageId} 0 R >> >> /Contents ${contentId} 0 R >>`);
+      offsets[imageId] = length; push(`${imageId} 0 obj\n<< /Type /XObject /Subtype /Image /Width 1588 /Height 2246 /ColorSpace /DeviceRGB /BitsPerComponent 8 /Filter /DCTDecode /Length ${jpeg.length} >>\nstream\n`); push(jpeg); push('\nendstream\nendobj\n');
+      const command = `q 595.28 0 0 841.89 0 0 cm /Im${i} Do Q`;
+      object(contentId, `<< /Length ${command.length} >>\nstream\n${command}\nendstream`);
+    });
+    const xref = length; push(`xref\n0 ${objectCount + 1}\n0000000000 65535 f \n`);
+    for (let i = 1; i <= objectCount; i += 1) push(`${String(offsets[i]).padStart(10, '0')} 00000 n \n`);
+    push(`trailer\n<< /Size ${objectCount + 1} /Root 1 0 R >>\nstartxref\n${xref}\n%%EOF`);
+    const pdf = new Blob(chunks, { type: 'application/pdf' });
+    setStage('validate-pdf');
+    if (!pdf.size) throw new Error('pdf_blob_empty');
+    const signature = new TextDecoder().decode(await pdf.slice(0, 5).arrayBuffer());
+    if (signature !== '%PDF-') throw new Error('pdf_signature_invalid');
+    return pdf;
+  } catch (error) {
+    if (!markProposalPdfErrorLogged(error)) console.error('[proposal-pdf-failed]', { stage: pdfStage, proposalId, name: error?.name, message: error?.message });
+    throw error;
+  } finally {
+    if (activeObjectUrl) URL.revokeObjectURL(activeObjectUrl);
+    host.remove();
+  }
 }
 
 function parseSectionBodyStructure(value, options = {}) {
@@ -2689,42 +3752,102 @@ function documentSectionsEditorHtml(sections = [], isCustom = false) {
   return `<div class="ds-pa-doc-editor" data-pa-doc-editor>${indicator}${rows}</div>`;
 }
 
-function buildProposalDocumentHtml({ dateDisplay, documentTitle, row, introText, sections, orgResponsibility, schoolResponsibility, paymentTerms, changesCancellation, remarks, signatureHtml, sectionLinesHtml: sectionLines }) {
+function buildProposalDocumentHtml({
+  dateDisplay,
+  documentTitle,
+  row,
+  introText,
+  sections,
+  orgResponsibility,
+  schoolResponsibility,
+  paymentTerms,
+  changesCancellation,
+  remarks,
+  signatureHtml,
+  sectionLinesHtml: sectionLines,
+  documentClassName = '',
+  rootAttributes = ''
+}) {
   const title = text(documentTitle);
   const isNextYear = isNextYearProposalGroup(row?.activity_type_group);
   const isSummerDocument = isSummerProposalGroup(row?.activity_type_group);
-  const documentModifierClass = `${isNextYear ? ' pa-document--next-year' : ''}${isSummerDocument ? ' pa-document--summer' : ''}`;
+  const isTourDocument = isTourProposalGroup(row?.activity_type_group);
+  const isGefenDocument = normalizeProposalGroup(row?.activity_type_group) === 'gefen';
+  const isGefenApprovalDocument = text(documentClassName).split(' ').includes('pa-gefen-approval-document');
+  const documentModifierClass = `${isNextYear ? ' pa-document--next-year' : ''}${isSummerDocument ? ' pa-document--summer' : ''}${isTourDocument ? ' pa-proposal-doc--tour pa-document--tour' : ''}${isGefenDocument ? ' pa-proposal-doc--gefen pa-pdf-page' : ''}`;
   return `
-    <div class="proposal-document pa-document pa-a4-page${documentModifierClass}" data-build="20260703c" dir="rtl" style="position:relative;box-sizing:border-box;">
+    <div class="proposal-document pa-document pa-a4-page${documentModifierClass}${documentClassName ? ` ${escapeHtml(documentClassName)}` : ''}" data-build="20260704a"${rootAttributes ? ` ${rootAttributes}` : ''} dir="rtl" style="position:relative;box-sizing:border-box;">
       <style>
         .pa-org-intro {
           padding-inline: 4mm !important;
           box-sizing: border-box !important;
         }
 
-        .pa-tour-cost-table {
-          width: 370px;
-          max-width: 100%;
-          margin-inline: auto;
-          table-layout: fixed;
+        .pa-proposal-doc--tour .pa-section {
+          margin-top: 2mm;
+          margin-bottom: 2mm;
+        }
+        .pa-proposal-doc--tour .pa-section-heading {
+          margin-top: 0;
+          margin-bottom: 1mm;
+          line-height: 1.15;
+        }
+        .pa-proposal-doc--tour .pa-section p {
+          margin-top: 0;
+          margin-bottom: 1mm;
+          line-height: 1.2;
+        }
+        .pa-proposal-doc--tour .pa-section ul,
+        .pa-proposal-doc--tour .pa-section ol {
+          margin-top: 0.8mm;
+          margin-bottom: 1.5mm;
+          padding-inline-start: 5mm;
+        }
+        .pa-proposal-doc--tour .pa-section li {
+          margin-bottom: 0.6mm;
+          line-height: 1.18;
+        }
+        .pa-proposal-doc--tour .pa-cost-table,
+        .pa-proposal-doc--tour .pa-tour-cost-table {
+          margin-top: 1.5mm;
+          margin-bottom: 2mm;
           border-collapse: collapse;
+        }
+        .pa-proposal-doc--tour .pa-tour-payment-block {
+          margin-top: 0;
+          margin-bottom: 0;
+        }
+        .pa-proposal-doc--tour .pa-cost-table th,
+        .pa-proposal-doc--tour .pa-cost-table td,
+        .pa-proposal-doc--tour .pa-tour-cost-table th,
+        .pa-proposal-doc--tour .pa-tour-cost-table td {
+          padding-top: 2px;
+          padding-bottom: 2px;
+          line-height: 1.12;
+        }
+        .pa-proposal-doc--tour .pa-tour-cost-table {
+          width: 60%;
+          min-width: 0;
+          max-width: 60%;
+          margin-right: 0;
+          margin-left: auto;
+          table-layout: fixed;
           direction: rtl;
         }
-        .pa-tour-cost-table th,
-        .pa-tour-cost-table td {
+        .pa-proposal-doc--tour .pa-tour-cost-table th,
+        .pa-proposal-doc--tour .pa-tour-cost-table td {
           box-sizing: border-box;
-          text-align: center;
           vertical-align: middle;
           white-space: normal;
           overflow-wrap: anywhere;
-        }
-        .pa-tour-cost-table .pa-tour-col--component,
-        .pa-tour-cost-table th:first-child,
-        .pa-tour-cost-table td:first-child {
           text-align: right;
         }
-        .pa-tour-cost-table .pa-currency-amount,
-        .pa-tour-cost-table .money-amount {
+        .pa-proposal-doc--tour .pa-tour-cost-table .pa-tour-col--price,
+        .pa-proposal-doc--tour .pa-tour-cost-table .pa-tour-col--total {
+          text-align: center;
+        }
+        .pa-proposal-doc--tour .pa-tour-cost-table .pa-currency-amount,
+        .pa-proposal-doc--tour .pa-tour-cost-table .money-amount {
           display: inline-block;
           max-width: 100%;
           white-space: nowrap;
@@ -2738,23 +3861,25 @@ function buildProposalDocumentHtml({ dateDisplay, documentTitle, row, introText,
             padding-inline: 4mm !important;
             box-sizing: border-box !important;
           }
-          .pa-tour-cost-table {
-            width: 370px !important;
-            max-width: 100% !important;
-            margin-inline: auto !important;
+          .pa-proposal-doc--tour .pa-tour-cost-table {
+            width: 60% !important;
+            min-width: 0 !important;
+            max-width: 60% !important;
+            margin-right: 0 !important;
+            margin-left: auto !important;
             table-layout: fixed !important;
           }
-          .pa-tour-cost-table th,
-          .pa-tour-cost-table td {
-            padding: 2mm 1.5mm !important;
+          .pa-proposal-doc--tour .pa-tour-cost-table th,
+          .pa-proposal-doc--tour .pa-tour-cost-table td {
+            padding: 2px 1.2mm !important;
             font-size: 8.5pt !important;
-            line-height: 1.25 !important;
+            line-height: 1.12 !important;
             white-space: normal !important;
             overflow: hidden !important;
             text-overflow: clip !important;
           }
-          .pa-tour-cost-table .pa-currency-amount,
-          .pa-tour-cost-table .money-amount {
+          .pa-proposal-doc--tour .pa-tour-cost-table .pa-currency-amount,
+          .pa-proposal-doc--tour .pa-tour-cost-table .money-amount {
             white-space: nowrap !important;
           }
         }
@@ -2780,10 +3905,13 @@ function buildProposalDocumentHtml({ dateDisplay, documentTitle, row, introText,
       </div>
       ${recipientBlockHtml(row)}
       <hr class="pa-doc-divider pa-divider">
-      ${dateDisplay ? `<div class="pa-doc-date pa-date-area">${escapeHtml(dateDisplay)}</div>` : ''}
+      ${!isGefenDocument && dateDisplay ? `<div class="pa-doc-date pa-date-area">${escapeHtml(dateDisplay)}</div>` : ''}
+      <div class="pa-proposal-body-footer-shell">
       <div class="proposal-document-body">
         <div class="proposal-document-content">
+          ${isGefenApprovalDocument && dateDisplay ? `<div class="pa-doc-date pa-date-area pa-gefen-approval-date">${escapeHtml(dateDisplay)}</div>` : ''}
           ${title ? `<h1 class="pa-doc-subject pa-doc-title">${escapeHtml(title)}</h1>` : ''}
+          ${isGefenDocument && !isGefenApprovalDocument && dateDisplay ? `<div class="pa-doc-date pa-date-area">${escapeHtml(dateDisplay)}</div>` : ''}
           ${introText ? sectionLines(introText, { className: 'pa-doc-intro pa-intro-text pa-org-intro' }) : ''}
           ${sections.join('')}
           ${orgResponsibility}
@@ -2794,8 +3922,6 @@ function buildProposalDocumentHtml({ dateDisplay, documentTitle, row, introText,
           ${signatureHtml}
         </div>
       </div>
-      <div class="pa-page-footer">
-        <span>תעשיידע — תעשייה למען חינוך מתקדם (ע״ר) | <span dir="ltr">www.think.org.il</span></span>
       </div>
     </div>`;
 }
@@ -2809,8 +3935,270 @@ function catalogAppendixNoticeHtml(row = {}, items = []) {
   return `<section class="pa-catalog-appendix-notice" data-pa-catalog-appendix-notice>${escapeHtml(message)}</section>`;
 }
 
+function isoDateFromUtc(date) {
+  return date instanceof Date && Number.isFinite(date.getTime())
+    ? date.toISOString().slice(0, 10)
+    : '';
+}
+
+function utcDateFromIso(value) {
+  const iso = text(value).slice(0, 10);
+  if (!/^\d{4}-\d{2}-\d{2}$/.test(iso)) return null;
+  const date = new Date(`${iso}T00:00:00Z`);
+  return Number.isFinite(date.getTime()) ? date : null;
+}
+
+function addUtcDays(date, days) {
+  const next = new Date(date.getTime());
+  next.setUTCDate(next.getUTCDate() + Number(days || 0));
+  return next;
+}
+
+function utcDayDiff(start, end) {
+  return Math.round((end.getTime() - start.getTime()) / 86400000);
+}
+
+export function calculateProposalValidityDate(proposalDate, calendarRows = proposalSchoolCalendarRows) {
+  const quoteDate = utcDateFromIso(proposalDate);
+  if (!quoteDate) return '';
+  const month = quoteDate.getUTCMonth() + 1;
+  const validityDays = month >= 5 && month <= 7 ? 60 : month >= 8 && month <= 11 ? 30 : 21;
+  const rawPeriods = (Array.isArray(calendarRows) ? calendarRows : [])
+    .filter((row) => row?.is_active !== false && row?.blocks_scheduling !== false)
+    .map((row) => {
+      const start = utcDateFromIso(row?.start_date);
+      const end = utcDateFromIso(row?.end_date) || start;
+      return start && end ? { start, end: end < start ? start : end } : null;
+    })
+    .filter(Boolean)
+    .sort((a, b) => a.start - b.start || a.end - b.end);
+  const mergedPeriods = [];
+  rawPeriods.forEach((period) => {
+    const previous = mergedPeriods[mergedPeriods.length - 1];
+    if (!previous || period.start > addUtcDays(previous.end, 1)) {
+      mergedPeriods.push({ ...period });
+    } else if (period.end > previous.end) {
+      previous.end = period.end;
+    }
+  });
+  const firstBlockingPeriod = mergedPeriods.find((period) =>
+    period.start > quoteDate && utcDayDiff(period.start, period.end) + 1 >= 5);
+  let candidate = addUtcDays(quoteDate, validityDays);
+  if (firstBlockingPeriod && utcDayDiff(quoteDate, firstBlockingPeriod.start) <= 10) {
+    candidate = addUtcDays(candidate, utcDayDiff(firstBlockingPeriod.start, firstBlockingPeriod.end) + 1);
+  } else if (firstBlockingPeriod && candidate >= firstBlockingPeriod.start) {
+    candidate = addUtcDays(firstBlockingPeriod.start, -1);
+  }
+  const isClosed = (date) => rawPeriods.some((period) => date >= period.start && date <= period.end);
+  while ([5, 6].includes(candidate.getUTCDay()) || isClosed(candidate)) {
+    candidate = addUtcDays(candidate, -1);
+  }
+  return isoDateFromUtc(candidate);
+}
+
+export function gefenEligibleItems(items = []) {
+  const eligible = (Array.isArray(items) ? items : [])
+    .map((item) => normalizeProposalItemRow(item))
+    .filter((item) => {
+      const group = normalizeProposalGroup(item.proposal_group || item.group_key);
+      return group !== 'summer'
+        && group !== 'next_year_workshops'
+        && Boolean(text(item.gefen_number))
+        && !isTestHoursItem(item)
+        && text(item.proposal_display_mode) !== 'bundle_child';
+    });
+  const score = (item) => [
+    item.total_price,
+    item.unit_price,
+    item.hourly_price,
+    item.meetings_count,
+    item.hours_count,
+    item.quantity
+  ].filter((value) => value != null && value !== '' && Number.isFinite(Number(value))).length;
+  const byGefenNumber = new Map();
+  eligible.forEach((item) => {
+    const key = `${text(item.gefen_number)}|${normalizedClientPart(item.item_name || item.course_name || item.activity_name)}`;
+    const existing = byGefenNumber.get(key);
+    if (!existing || score(item) > score(existing)) byGefenNumber.set(key, item);
+  });
+  return Array.from(byGefenNumber.values());
+}
+
+export function gefenApprovalItems(row = {}, items = []) {
+  const eligible = gefenEligibleItems(items);
+  if (!isNextYearProposalGroup(row.activity_type_group)) return eligible;
+  return eligible.filter((item) => {
+    const group = normalizeProposalGroup(item.proposal_group || item.group_key);
+    return group !== 'next_year_workshops'
+      && !isWorkshopKindText(itemKindText(item));
+  });
+}
+
+function isGefenApprovalApplicable(row = {}, items = []) {
+  const group = normalizeProposalGroup(row.activity_type_group);
+  if (group === 'gefen' || isNextYearProposalGroup(group)) return true;
+  if (group === 'summer') return false;
+  const eligibleCount = gefenEligibleItems(items).length;
+  if (eligibleCount) return true;
+  if (group === 'gefen') return true;
+  if (Array.isArray(items) && items.length) return false;
+  if (typeof row.gefen_approval_applicable === 'boolean') return row.gefen_approval_applicable;
+  return ['gefen', 'tour', COMBINED_INTERNAL_KEY].includes(group);
+}
+
+function gefenApprovalStatusDisplay(row = {}, generated = text(row.gefen_approval_status) === 'generated') {
+  const quoteNumber = text(row.quote_number);
+  return `${generated ? 'הופק' : 'חסר'}${quoteNumber ? ` · הצעה ${quoteNumber}` : ''}`;
+}
+
+function gefenApprovalValidationMessage(row = {}, items = []) {
+  if (isNextYearProposalGroup(row.activity_type_group) && !gefenApprovalItems(row, items).length) {
+    return 'לא נבחרו קורסים להפקת אישור גפ״ן.';
+  }
+  if (!text(row.semel_mosad)) return 'חסר מספר מוסד. יש להשלים אותו לפני הפקת אישור גפ״ן.';
+  if (!gefenApprovalItems(row, items).length) {
+    return 'חסר פירוט קורסים או סיורים עם מספר גפ״ן. לא ניתן להפיק את האישור.';
+  }
+  return '';
+}
+
+function gefenApprovalItemsTableHtml(row = {}, items = []) {
+  const rows = gefenApprovalItems(row, items);
+  if (!rows.length) return '';
+  return `<table class="pa-item-details-table pa-gefen-course-table pa-gefen-approval-table">
+    <colgroup><col class="pa-choice-col"><col class="pa-course-col"><col class="pa-gefen-col"><col class="pa-meetings-col"><col class="pa-hours-col"><col class="pa-hourly-price-col"><col class="pa-groups-col"><col class="pa-total-price-col"></colgroup>
+    <thead><tr><th>בחירה</th><th>תוכנית</th><th>מס׳ גפ״ן</th><th>מפגשים</th><th>שעות</th><th>מחיר לשעה</th><th>קבוצות</th><th>סה״כ</th></tr></thead>
+    <tbody>${rows.map((item) => {
+      const quantity = itemQuantity(item);
+      const total = itemQuantityTotal(item);
+      return `<tr>
+        <td class="pa-gefen-choice" aria-label="לבחירה">☐</td>
+        <td>${escapeHtml(courseShortNameForItem(item))}</td>
+        <td>${escapeHtml(text(item.gefen_number))}</td>
+        <td>${item.meetings_count != null ? escapeHtml(formatCurrency(item.meetings_count)) : ''}</td>
+        <td>${item.hours_count != null ? escapeHtml(formatCurrency(item.hours_count)) : ''}</td>
+        <td>${item.hourly_price != null ? currencyAmountHtml(Math.round(Number(item.hourly_price) || 0)) : ''}</td>
+        <td>${escapeHtml(formatCurrency(quantity))}</td>
+        <td>${total != null ? currencyAmountHtml(total) : ''}</td>
+      </tr>`;
+    }).join('')}</tbody>
+  </table>
+  <div class="pa-gefen-table-summary">
+    <span>תוכניות לבחירה: <strong>${rows.length}</strong></span>
+    <span>היקף מלא: <strong>${currencyAmountHtml(rows.reduce((sum, item) => sum + (Number(itemQuantityTotal(item)) || 0), 0))}</strong></span>
+  </div>`;
+}
+
+export function gefenApprovalDocumentHtml(row = {}, items = [], options = {}) {
+  const quoteNumber = text(row.quote_number);
+  const approvalRow = { ...row, activity_type_group: 'gefen' };
+  const validityIso = text(row.valid_until) || calculateProposalValidityDate(row.proposal_date);
+  const validityDisplay = formatDateDisplay(validityIso);
+  const validationMessage = gefenApprovalValidationMessage(row, items);
+  const linkedQuoteNumber = escapeHtml(quoteNumber || '____________________');
+  const sections = [
+    `<div class="pa-gefen-linked-document" aria-label="קישור למסמך המקורי">
+      <span>מקושר להצעת מחיר מספר <bdi dir="ltr">${linkedQuoteNumber}</bdi></span>
+    </div>`,
+    validationMessage ? `<p class="pa-gefen-document-warning" role="alert">${escapeHtml(validationMessage)}</p>` : '',
+    `<section class="pa-section">
+      <h3 class="pa-section-heading">בחירת התוכניות</h3>
+      <p>בית הספר מאשר כי בכוונתו לשלב בתוכנית העבודה הבית-ספרית לשנת הלימודים תשפ״ז את התוכניות המסומנות להלן.</p>
+      ${gefenApprovalItemsTableHtml(row, items)}
+    </section>
+    <section class="pa-section">
+      <h3 class="pa-section-heading">תוקף ההצעה וזמינות הפעילות:</h3>
+      <ul class="pa-gefen-validity-list">
+        <li>הצעה זו בתוקף עד ליום ${escapeHtml(validityDisplay || '___ / ___ / ______')}.</li>
+        <li>שריון צוותי ההדרכה, מועדי הפעילות והיקף התוכנית יבוצע לפי סדר השלמת הזמנות העבודה במערכת גפ״ן ובכפוף לזמינות.</li>
+        <li>כל עוד לא אושרה הזמנת העבודה, לא ניתן להבטיח את השריון ולאחר תום תוקף ההצעה תהיה תעשיידע רשאית להקצות את הקיבולת לבתי ספר אחרים.</li>
+      </ul>
+    </section>
+    <section class="pa-section">
+      <h3 class="pa-section-heading">מעמד המסמך</h3>
+      <p>מסמך זה נועד לצורכי תיאום והיערכות בלבד. הוא אינו מהווה חוזה או הזמנת עבודה, אינו יוצר התחייבות כספית ולא תידרש או תשולם תמורה מכוחו. ההתקשרות תיכנס לתוקף רק לאחר אישור הזמנת עבודה דיגיטלית במערכת גפ״ן ובהתאם להוראותיה.</p>
+    </section>
+    <section class="pa-section pa-gefen-school-approval">
+      <h3 class="pa-section-heading">אישור בית הספר</h3>
+      <p>אני מאשר/ת את הכוונה לשלב את התוכניות המסומנות לעיל בתוכנית העבודה הבית-ספרית ולפעול להשלמת הזמנת העבודה במערכת גפ״ן עד למועד המצוין לעיל.</p>
+      <div class="pa-gefen-signature-grid">
+        <div class="pa-gefen-signature-field pa-gefen-signature-field--date"><span>תאריך</span><i aria-hidden="true"></i></div>
+        <div class="pa-gefen-signature-field pa-gefen-signature-field--name"><span>שם מנהל/ת בית הספר</span><i aria-hidden="true"></i></div>
+        <div class="pa-gefen-signature-field pa-gefen-signature-field--signature"><span>חתימה</span><i aria-hidden="true"></i></div>
+      </div>
+    </section>`
+  ].filter(Boolean);
+  return buildProposalDocumentHtml({
+    dateDisplay: formatDateDisplay(row.proposal_date),
+    documentTitle: 'אישור כוונות להזמנה במערכת גפ״ן | תשפ״ז',
+    row: approvalRow,
+    introText: '',
+    sections,
+    orgResponsibility: '',
+    schoolResponsibility: '',
+    paymentTerms: '',
+    changesCancellation: '',
+    remarks: '',
+    signatureHtml: '',
+    sectionLinesHtml,
+    documentClassName: 'pa-gefen-approval-document pa-pdf-page',
+    rootAttributes: options.pageBreak ? 'data-pdf-page-break="true"' : ''
+  });
+}
+
+function gefenProposalDocumentHtml(row, items = [], templateSections = [], renderOptions = {}) {
+  const templateKey = 'gefen';
+  const sourceSections = filterTemplateSectionsForGroup(templateSections, templateKey);
+  const sectionsSource = resolveDocumentSections(row, sourceSections);
+  const byKey = new Map(sectionsSource.map((section) => [proposalTextField(section, 'section_key', 'sectionKey'), section]));
+  const sectionTitle = (key) => text(byKey.get(key)?.section_title);
+  const sectionBody = (key) => {
+    const body = applyProposalTemplatePlaceholders(templateBodyText(byKey.get(key)), row, items);
+    const validityIso = text(row.valid_until) || calculateProposalValidityDate(row.proposal_date);
+    return body.replaceAll('{{valid_until}}', formatDateDisplay(validityIso) || '___ / ___ / ______');
+  };
+  const activityBlocks = sectionBody('activity_intro').split(/\n\n+/).filter(Boolean);
+  const activityPreface = activityBlocks.shift() || '';
+  const activityAfterTable = activityBlocks.join('\n');
+  const validationMessage = gefenApprovalValidationMessage(row, items);
+  const orderedSections = [
+    activityPreface ? `<section class="pa-section pa-gefen-purpose">${sectionBodyHtml(activityPreface)}</section>` : '',
+    `<section class="pa-section pa-gefen-programs">
+      <h3 class="pa-section-heading">${escapeHtml(sectionHeadingText(sectionTitle('activity_intro') || 'התוכניות המוצעות'))}</h3>
+      ${proposalItemDetailsTableHtml(items, 'gefen')}
+      ${activityAfterTable ? sectionBodyHtml(activityAfterTable) : ''}
+      ${validationMessage ? `<p class="pa-gefen-document-warning" role="alert">${escapeHtml(validationMessage)}</p>` : ''}
+    </section>`,
+    sectionHtml(sectionTitle('validity'), sectionBody('validity'), '', { alwaysBullet: true }),
+    sectionHtml(sectionTitle('school_responsibility'), sectionBody('school_responsibility'), '', { alwaysBullet: true }),
+    sectionHtml(sectionTitle('taasiyeda_responsibility'), sectionBody('taasiyeda_responsibility'), '', { alwaysBullet: true }),
+    sectionHtml(sectionTitle('payment_terms'), sectionBody('payment_terms'), '', { alwaysBullet: true }),
+    sectionHtml(sectionTitle('cancellation_terms'), sectionBody('cancellation_terms'), '', { alwaysBullet: true }),
+    sectionHtml(sectionTitle('precedence'), sectionBody('precedence'))
+  ].filter(Boolean);
+  const proposalHtml = buildProposalDocumentHtml({
+    dateDisplay: formatDateDisplay(row.proposal_date),
+    documentTitle: proposalTitle(row, sourceSections),
+    row,
+    introText: sectionBody('intro'),
+    sections: orderedSections,
+    orgResponsibility: '',
+    schoolResponsibility: '',
+    paymentTerms: '',
+    changesCancellation: '',
+    remarks: '',
+    signatureHtml: signatureSectionHtml(sectionBody('signature'), row, renderOptions),
+    sectionLinesHtml,
+  });
+  if (renderOptions.includeGefenApproval === false) return proposalHtml;
+  return `<div class="pa-gefen-combined-document">${proposalHtml}${gefenApprovalDocumentHtml(row, items, { pageBreak: true })}</div>`;
+}
+
 export function proposalPreviewBodyHtml(row, items = [], templateSections = [], renderOptions = {}) {
   const activityTypeGroup = normalizeProposalGroup(row.activity_type_group);
+  if (activityTypeGroup === 'gefen') {
+    return gefenProposalDocumentHtml(row, items, templateSections, renderOptions);
+  }
   const templateKey = proposalGroupTemplateKey(activityTypeGroup);
   // Date comes only from the proposal row — no "today" fallback in customer documents.
   const dateDisplay = formatDateDisplay(row.proposal_date);
@@ -2849,7 +4237,7 @@ export function proposalPreviewBodyHtml(row, items = [], templateSections = [], 
       const introBody = isNextYearProposalGroup(groupKey)
         ? nextYearActivityIntroWithCourseNames(body, row, items, groupKey)
         : body;
-      const heading = sectionTitle(key) || proposalGroupDisplayName(groupKey);
+      const heading = sectionTitle(key) || proposalGroupSectionTitle(groupKey);
       const section = renderActivitySection(heading, introBody);
       if (section) sections.push(section);
     });
@@ -2879,11 +4267,12 @@ export function proposalPreviewBodyHtml(row, items = [], templateSections = [], 
   // breakdown is always built dynamically from proposal_agreement_items.
   const paymentTermsBody = isTourProposalGroup(activityTypeGroup) ? '' : stripTableIntroFromPaymentTermsBody(sectionBody('payment_terms'), templateKey);
   const proposalKind = proposalActivityKind(row, items);
-  const costTableHtml = isTourProposalGroup(activityTypeGroup)
+  const groupedNextYearCostTables = nextYearGroupedCostTablesHtml(row, items);
+  const costTableHtml = groupedNextYearCostTables || (isTourProposalGroup(activityTypeGroup)
     ? tourCostTableHtml(items)
     : proposalKind === 'course'
       ? proposalItemDetailsTableHtml(items, activityTypeGroup)
-      : proposalCostTableHtml(items, { isSummer: isSummerProposalGroup(activityTypeGroup) });
+      : proposalCostTableHtml(items, { isSummer: isSummerProposalGroup(activityTypeGroup) }));
   const costsIntro = costsIntroBody(row, items);
   const costTableBlock = costTableHtml
     ? `<div class="pa-cost-table-block">${costsIntro ? `<p class="pa-costs-intro-heading">${escapeHtml(costsIntro)}</p>` : ''}${costTableHtml}</div>`
@@ -2899,7 +4288,7 @@ export function proposalPreviewBodyHtml(row, items = [], templateSections = [], 
       ? 'pa-summer-cancellation-terms'
       : '';
 
-  return buildProposalDocumentHtml({
+  const proposalHtml = buildProposalDocumentHtml({
     dateDisplay,
     documentTitle: proposalTitle(row, sourceTemplateSections),
     row,
@@ -2915,6 +4304,10 @@ export function proposalPreviewBodyHtml(row, items = [], templateSections = [], 
     signatureHtml,
     sectionLinesHtml,
   });
+  if (row.combine_gefen_approval === true && isGefenApprovalApplicable(row, items)) {
+    return `<div class="pa-gefen-combined-document">${proposalHtml}${gefenApprovalDocumentHtml(row, items, { pageBreak: true })}</div>`;
+  }
+  return proposalHtml;
 }
 
 // ─── Form ─────────────────────────────────────────────────────────────────────
@@ -2976,15 +4369,25 @@ function filterPricingByActivityType(pricing, activityType) {
   return pricing.filter((row) => text(row.item_type) === activityType);
 }
 
-function buildPricingSelectOptionsHtml(pricingOptions, selectedPricingKey) {
+function buildPricingSelectOptionsHtml(pricingOptions, selectedPricingKey, options = {}) {
+  const groupKey = text(options.groupKey || '');
+  const workshopsGroup = isNextYearWorkshopsGroup(groupKey);
+  const unifiedNextYear = options.unifiedNextYear === true || isNextYearUnifiedActivitiesGroup(groupKey);
+  // Workshops list must expose catalog activities (including bundle children).
+  // Unified תשפ״ז and courses keep parent rows; bundle children already aliased as single.
   const visibleRows = pricingOptions.filter((row) =>
     !isTestHoursItem(row) &&
-    text(row.proposal_display_mode) !== 'bundle_child' &&
+    (workshopsGroup || unifiedNextYear || text(row.proposal_display_mode) !== 'bundle_child') &&
     !/^תמיר/i.test(text(row.activity_name))
   );
-  return ['<option value="">— בחר פעילות מהרשימה —</option>', ...visibleRows.map((row, optionIdx) => {
+  const manualOptionHtml = options.allowManualCourse && isNextYearProposalGroup(groupKey)
+    ? `<option value="${MANUAL_COURSE_OPTION_KEY}"${selectedPricingKey === MANUAL_COURSE_OPTION_KEY ? ' selected' : ''}>${escapeHtml(manualActivityOptionLabel(groupKey))}</option>`
+    : '';
+  let foundSavedSelection = false;
+  const activityOptionsHtml = visibleRows.map((row, optionIdx) => {
     const value = pricingOptionKey(row, optionIdx);
     const legacySelected = selectedPricingKey && [value, text(row.activity_no), text(row.activity_name), publicActivityName(row.activity_name)].includes(selectedPricingKey);
+    if (legacySelected) foundSavedSelection = true;
     const isBundleParent = row.proposal_display_mode === 'bundle_parent' || row.is_bundle_parent;
     const name = publicActivityLabelFromRow(row) || value;
     const price = numberValue(row.unit_price);
@@ -2994,7 +4397,15 @@ function buildPricingSelectOptionsHtml(pricingOptions, selectedPricingKey) {
       price != null && price > 0 ? `₪ ${formatCurrency(price)}` : ''
     ].filter(Boolean);
     return `<option value="${escapeHtml(value)}"${legacySelected ? ' selected' : ''}${isBundleParent ? ' data-bundle-parent="1"' : ''}>${escapeHtml(labelParts.join(' — '))}</option>`;
-  })].join('');
+  });
+  const savedItem = options.savedItem || {};
+  const savedName = publicActivityName(savedItem.item_name || savedItem.pricing_activity_name);
+  const savedPrice = numberValue(savedItem.unit_price);
+  const savedOptionHtml = selectedPricingKey && !foundSavedSelection && selectedPricingKey !== MANUAL_COURSE_OPTION_KEY && savedName
+    ? `<option value="${escapeHtml(selectedPricingKey)}" selected data-pa-saved-item="true">${escapeHtml([savedName, text(savedItem.item_type), savedPrice != null ? `₪ ${formatCurrency(savedPrice)}` : ''].filter(Boolean).join(' — '))}</option>`
+    : '';
+  // Manual free-text option always appears at the end of the list.
+  return ['<option value="">— בחר פעילות מהרשימה —</option>', savedOptionHtml, ...activityOptionsHtml, manualOptionHtml].filter(Boolean).join('');
 }
 
 function filterItemsByProposalType(items, activityTypeGroup) {
@@ -3005,6 +4416,15 @@ function filterItemsByProposalType(items, activityTypeGroup) {
     const children = includedProposalGroups(normalizedGroup);
     if (!children.length) return sourceItems;
     return sourceItems.filter((item) => children.some((groupKey) => itemBelongsToGroup(item, groupKey)));
+  }
+  if (isNextYearProposalGroup(normalizedGroup)) {
+    const children = includedProposalGroups(normalizedGroup);
+    if (children.length) {
+      return sourceItems.filter((item) =>
+        itemBelongsToGroup(item, normalizedGroup)
+        || children.some((groupKey) => itemBelongsToGroup(item, groupKey))
+      );
+    }
   }
   return sourceItems.filter((item) => itemBelongsToGroup(item, normalizedGroup));
 }
@@ -3035,7 +4455,7 @@ function defaultContactFromSchoolMeta(schoolMeta = {}) {
     id: '',
     contact_name: principalName,
     contact_role: 'מנהל/ת בית הספר',
-    phone: text(schoolMeta.phone) || text(schoolMeta.school_phone || schoolMeta.mobile || ''),
+    phone: text(schoolMeta.mobile),
     mobile: text(schoolMeta.mobile),
     email: text(schoolMeta.email)
   };
@@ -3047,7 +4467,7 @@ function schoolDetailsLines(contact = {}) {
     catalogAuthorityName(contact) ? ['רשות', catalogAuthorityName(contact)] : null,
     text(contact.semel_mosad) ? ['סמל מוסד', text(contact.semel_mosad)] : null,
     text(contact.principal_name || contact.contact_name) ? ['מנהל/ת', text(contact.principal_name || contact.contact_name)] : null,
-    text(contact.school_phone || contact.phone || contact.mobile) ? ['טלפון', text(contact.school_phone || contact.phone || contact.mobile)] : null,
+    text(contact.mobile) ? ['נייד', text(contact.mobile)] : null,
     text(contact.school_address || contact.address || contact.institution_address) ? ['כתובת', text(contact.school_address || contact.address || contact.institution_address)] : null,
     text(contact.city) ? ['עיר', text(contact.city)] : null
   ].filter(Boolean);
@@ -3079,28 +4499,22 @@ function enrichProposalRowFromContactOptions(row = {}, contactOptions = []) {
     school_id: row.school_id ?? schoolContact.school_id ?? null,
     semel_mosad: text(row.semel_mosad) || text(schoolContact.semel_mosad),
     principal_name: text(row.principal_name) || text(schoolContact.principal_name || schoolContact.contact_name),
-    school_phone: text(row.school_phone) || text(schoolContact.school_phone || schoolContact.phone || schoolContact.mobile),
+    school_phone: text(row.school_phone) || text(schoolContact.school_phone || schoolContact.phone),
     school_address: text(row.school_address) || text(schoolContact.school_address || schoolContact.address || schoolContact.institution_address),
     city: text(row.city) || text(schoolContact.city)
   };
 }
 
-function clientLockedBannerHtml(auth, school, contactName, contactRole, phone, email, clientName = '', schoolMeta = null) {
+export function clientLockedBannerHtml(auth, school, contactName, contactRole, phone, email, clientName = '', schoolMeta = null, recipient = {}) {
   if (!auth && !clientName) return '';
-  const displayName = clientName || school || auth;
-  const city = text(schoolMeta?.city);
-  const secondaryParts = [
-    auth && auth !== displayName ? auth : '',
-    city && city !== auth && city !== displayName ? city : ''
-  ].filter(Boolean);
-  return `<div class="ds-pa-client-locked">
+  const semelMosad = text(schoolMeta?.semel_mosad);
+  const clientType = text(recipient.clientType || recipient.client_type);
+  const isSchool = clientType === 'school' || Boolean(recipient.schoolId || recipient.school_id);
+  const isAuthority = clientType === 'authority';
+  const modeClass = isSchool ? ' is-school' : (isAuthority ? ' is-authority' : ' is-other');
+  return `<div class="ds-pa-client-locked${modeClass}">
     <div class="ds-pa-client-locked-body">
-      <p class="ds-pa-client-locked-name">נבחר: ${escapeHtml(displayName)}</p>
-      ${secondaryParts.length ? `<p class="ds-pa-client-locked-state">${escapeHtml(secondaryParts.join(' / '))}</p>` : ''}
-    </div>
-    <div class="ds-pa-client-locked-actions">
-      <button type="button" class="ds-btn ds-btn--xs ds-btn--ghost" data-pa-unlock-client>שינוי</button>
-      <button type="button" class="ds-btn ds-btn--xs ds-btn--ghost" data-pa-clear-client>נקה בחירה</button>
+      ${isSchool && semelMosad ? `<p class="ds-pa-client-locked-state"><span>סמל מוסד</span><strong>${escapeHtml(semelMosad)}</strong></p>` : ''}
     </div>
   </div>`;
 }
@@ -3110,7 +4524,14 @@ function contactMatchesProposalRow(contact = {}, row = {}) {
   const schoolMatch = text(contact.school) === text(row.school_framework);
   const nameMatch = text(contact.contact_name) === text(row.contact_name);
   const emailMatch = text(contact.email) && text(contact.email) === text(row.email);
-  const phoneMatch = text(contact.phone || contact.mobile || '') && text(contact.phone || contact.mobile || '') === text(row.phone);
+  // contact_school_id is a contacts_schools.id and must only ever be matched against a contact
+  // sourced from contacts_schools. Ids are not unique across tables (e.g. contacts_schools.id 404
+  // and schools.id 404 can be unrelated clients), so matching by numeric id alone without checking
+  // source_table can silently substitute the wrong authority/school.
+  const contactSourceId = text(row.contact_school_id || row.contact_source_id);
+  const idMatch = Boolean(contactSourceId && text(contact.id) && text(contact.source_table) === 'contacts_schools' && contactSourceId === text(contact.id));
+  if (idMatch) return true;
+  const phoneMatch = contactDisplayPhone(contact) && contactDisplayPhone(contact) === text(row.phone);
   // Name must match; email/phone/authority+school provide additional confirmation.
   // Never match solely by email or phone when names differ — prevents wrong-contact substitution.
   return Boolean(nameMatch && (emailMatch || phoneMatch || (authorityMatch && schoolMatch)));
@@ -3120,12 +4541,62 @@ function findContactForProposalRow(contactOptions = [], row = {}) {
   return (Array.isArray(contactOptions) ? contactOptions : []).find((contact) => contactMatchesProposalRow(contact, row)) || null;
 }
 
+
+function upsertProposalContactOption(contactOptions = [], row = {}) {
+  if (!Array.isArray(contactOptions) || !row || typeof row !== 'object') return null;
+  const contactSchoolId = text(row.contact_school_id);
+  if (!contactSchoolId) return null;
+  const authorityName = text(row.client_authority || row.authority || row.authority_name);
+  const schoolName = text(row.school_framework || row.school || row.school_name);
+  const contactName = text(row.contact_name);
+  if (!authorityName || !contactName) return null;
+  const next = {
+    id: contactSchoolId,
+    source_id: contactSchoolId,
+    source_table: 'contacts_schools',
+    client_type: text(row.client_type) || (text(row.school_id) || schoolName ? 'school' : 'authority'),
+    client_name: text(row.client_name) || schoolName || authorityName,
+    authority_id: row.authority_id ?? null,
+    school_id: row.school_id ?? null,
+    authority: authorityName,
+    authority_name: authorityName,
+    school: schoolName,
+    school_name: schoolName,
+    contact_name: contactName,
+    contact_role: text(row.contact_role),
+    mobile: text(row.mobile || row.phone),
+    phone: text(row.phone),
+    email: text(row.email),
+    active: row.active ?? true
+  };
+  const sameContactSchoolId = (contact) => (
+    text(contact?.source_table) === 'contacts_schools'
+    && text(contact?.id)
+    && text(contact.id) === contactSchoolId
+  );
+  const sameClientAndContact = (contact) => (
+    !text(contact?.id)
+    && text(contact?.authority_id) === text(next.authority_id)
+    && text(contact?.school_id) === text(next.school_id)
+    && text(contact?.authority || contact?.authority_name) === authorityName
+    && text(contact?.school || contact?.school_name) === schoolName
+    && text(contact?.contact_name) === contactName
+  );
+  const idx = contactOptions.findIndex((contact) => sameContactSchoolId(contact) || sameClientAndContact(contact));
+  if (idx >= 0) {
+    contactOptions[idx] = { ...contactOptions[idx], ...next };
+  } else {
+    contactOptions.push(next);
+  }
+  return next;
+}
+
 function buildContactSourceFromRow(row = {}) {
   const inferredClientType = inferProposalClientType(row);
   if (inferredClientType === 'other') {
     return {
-      id: null, authority_id: null, school_id: null, semel_mosad: null, school_required: 'no',
-      client_type: 'other', client_name: '', authority: '', school: '',
+      id: null, authority_id: row.authority_id || null, school_id: null, semel_mosad: null, school_required: 'no',
+      client_type: 'other', client_name: text(row.client_name || row.school_framework), authority: text(row.client_authority), school: '',
       contact_name: text(row.contact_name), contact_role: text(row.contact_role), phone: text(row.phone), email: text(row.email), mobile: ''
     };
   }
@@ -3154,7 +4625,7 @@ function emptyContactSourceForRecipientType(nextClientType, otherName = '') {
     return {
       id: null, authority_id: null, school_id: null, semel_mosad: null,
       school_required: 'no', client_type: 'other',
-      client_name: '', authority: '', school: '',
+      client_name: otherName, authority: '', school: '',
       contact_name: '', contact_role: '', phone: '', mobile: '', email: '', source_table: ''
     };
   }
@@ -3229,8 +4700,8 @@ function resetRecipientDependentFields(form, nextClientType) {
   const schoolSearchPanel = form.querySelector('[data-pa-school-search-panel]');
   const results = form.querySelector('[data-pa-client-results]');
   const schoolResults = form.querySelector('[data-pa-school-results]');
-  if (searchFieldWrap) searchFieldWrap.hidden = type === 'other';
-  if (schoolSearchPanel) schoolSearchPanel.hidden = true;
+  if (searchFieldWrap) searchFieldWrap.hidden = false;
+  hideSchoolSearchPanel(form);
   if (results) { results.hidden = true; results.innerHTML = ''; }
   if (schoolResults) { schoolResults.hidden = true; schoolResults.innerHTML = ''; }
   const searchInput = form.querySelector('[data-pa-client-search-input]');
@@ -3239,7 +4710,7 @@ function resetRecipientDependentFields(form, nextClientType) {
   if (schoolSearchInput) schoolSearchInput.value = '';
 
   const otherField = form.querySelector('[data-pa-other-client-field]');
-  if (otherField) otherField.hidden = true;
+  if (otherField) otherField.hidden = type !== 'other';
 
   const contactPanel = form.querySelector('[data-pa-step-panel="contact"]');
   if (contactPanel) contactPanel.hidden = type !== 'other';
@@ -3264,7 +4735,7 @@ function stepComplete(form) {
 
   let clientDone = false;
   if (clientType === 'other') {
-    clientDone = true;
+    clientDone = Boolean(otherName);
   } else if (clientType === 'authority') {
     clientDone = Boolean(authorityId);
   } else {
@@ -3291,7 +4762,7 @@ function contactSourceInputsHtml(contact = {}) {
     <input type="hidden" name="contact_source_school" value="${escapeHtml(text(source.school))}">
     <input type="hidden" name="contact_source_name" value="${escapeHtml(text(source.contact_name))}">
     <input type="hidden" name="contact_source_role" value="${escapeHtml(text(source.contact_role))}">
-    <input type="hidden" name="contact_source_phone" value="${escapeHtml(text(source.phone || source.mobile || ''))}">
+    <input type="hidden" name="contact_source_phone" value="${escapeHtml(text(source.mobile || ''))}">
     <input type="hidden" name="contact_source_mobile" value="${escapeHtml(text(source.mobile))}">
     <input type="hidden" name="contact_source_email" value="${escapeHtml(text(source.email))}">
     <input type="hidden" name="contact_source_table" value="${escapeHtml(text(source.source_table))}">`;
@@ -3309,18 +4780,23 @@ function showValidationNotice(form, errors, isPending) {
   if (errorEl) errorEl.textContent = '';
 }
 
-export function proposalTypeCardsHtml(selected) {
+export function proposalTypeCardsHtml(selected, { includeSummer = true } = {}) {
   const normalizedSelected = normalizeProposalGroup(selected);
-  const options = proposalGroupLookups.groups.filter(o => o.group_key !== 'combined');
+  const options = proposalGroupLookups.groups.filter((o) => (
+    o.group_key !== COMBINED_INTERNAL_KEY
+    && PROPOSAL_GROUP_DISPLAY_FALLBACKS[o.group_key]
+    && (includeSummer || o.group_key !== 'summer')
+  ));
   if (!options.length) {
-    return `<div class="ds-pa-type-chips" data-pa-type-cards style="display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:4px;margin:0"></div><input type="hidden" name="activity_type_group" value="${escapeHtml(normalizedSelected)}" data-pa-type-hidden>`;
+    return `<div class="ds-pa-type-chips" data-pa-type-cards></div><input type="hidden" name="activity_type_group" value="${escapeHtml(normalizedSelected === COMBINED_INTERNAL_KEY ? '' : normalizedSelected)}" data-pa-type-hidden>`;
   }
-  return `<div class="ds-pa-type-chips" data-pa-type-cards style="display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:4px;margin:0">
+  return `<div class="ds-pa-type-chips" data-pa-type-cards>
     ${options.map((opt) => {
       const isSel = normalizedSelected === opt.group_key;
-      return `<button type="button" class="ds-pa-type-card${isSel ? ' is-selected' : ''}" data-pa-type-btn="${escapeHtml(opt.group_key)}" style="width:100%;min-height:auto;padding:4px 6px;border-radius:12px;border:1.5px solid ${isSel ? '#6366f1' : '#d1d5db'};background:${isSel ? '#eef2ff' : '#f9fafb'};color:${isSel ? '#4f46e5' : '#374151'};font-weight:${isSel ? '600' : '400'};font-size:0.8rem;cursor:pointer;text-align:center;line-height:1.2;transition:all .15s">${escapeHtml(opt.display_name)}</button>`;
+      const label = PROPOSAL_GROUP_DISPLAY_FALLBACKS[opt.group_key] || clientFacingProposalTypeLabel({ activity_type_group: opt.group_key, document_type: opt.display_name });
+      return `<button type="button" class="ds-pa-type-card${isSel ? ' is-selected' : ''}" data-pa-type-btn="${escapeHtml(opt.group_key)}">${escapeHtml(label)}</button>`;
     }).join('')}
-  </div><input type="hidden" name="activity_type_group" value="${escapeHtml(normalizedSelected)}" data-pa-type-hidden>`;
+  </div><input type="hidden" name="activity_type_group" value="${escapeHtml(normalizedSelected === COMBINED_INTERNAL_KEY ? '' : normalizedSelected)}" data-pa-type-hidden>`;
 }
 
 function proposalStepperHtml() {
@@ -3431,7 +4907,7 @@ function formHtml(mode, row = {}, activityNameOptions = [], contactOptions = [],
   }) || row;
   const contactPanelVisible = initOther || (isLocked && (initAuthorityOnly ? Boolean(initAuthorityId) : Boolean(initSchoolId)));
   const channelsStatusVisible = contactPanelVisible && Boolean(initContact);
-  const initPickerHtml = contactPanelVisible ? contactPickerHtml(
+  const initPickerHtml = contactPanelVisible && !initOther ? contactPickerHtml(
     contactOptions,
     initAuth,
     initSchool,
@@ -3449,6 +4925,7 @@ function formHtml(mode, row = {}, activityNameOptions = [], contactOptions = [],
   const canApproveDirectly = canApproveProposalsAgreements(state) && !rowIsAlreadyApproved;
   const primaryActionLabel = canApproveDirectly ? 'חתום ואשר' : 'שליחה לאישור';
   const primaryActionStatus = canApproveDirectly ? 'approved' : 'pending_approval';
+  const allowManualCourse = userRole(state) === 'admin';
 
   const initialPreviewRow = normalizeProposalAgreementRow({
     ...row,
@@ -3456,31 +4933,37 @@ function formHtml(mode, row = {}, activityNameOptions = [], contactOptions = [],
     activity_type_group: normalizedActivityGroup,
     proposal_date: proposalDate
   });
-  const initialTemplateKey = proposalGroupTemplateKey(normalizedActivityGroup);
-  const initialTemplateSections = resolveDocumentSections(row, [])
-    .filter((section) => !proposalTextField(section, 'template_key', 'templateKey') || proposalTextField(section, 'template_key', 'templateKey') === initialTemplateKey);
+  const initialTemplateSections = resolveDocumentSections(row, filterTemplateSectionsForGroup(proposalTemplateSectionsLookup, normalizedActivityGroup));
   const initialPreviewHtml = proposalPreviewBodyHtml(initialPreviewRow, items, initialTemplateSections);
 
-  return `<form class="ds-pa-form ds-pa-form--compact pa-editor" data-pa-form data-pa-mode="${escapeHtml(mode)}" data-pa-id="${escapeHtml(row.id || '')}" data-pa-original-type="${escapeHtml(normalizedActivityGroup)}" dir="rtl">
+  return `<form class="ds-pa-form ds-pa-form--compact pa-editor" data-pa-form data-pa-mode="${escapeHtml(mode)}" data-pa-id="${escapeHtml(row.id || '')}" data-pa-original-type="${escapeHtml(normalizedActivityGroup)}" data-pa-allow-manual-course="${allowManualCourse ? 'yes' : 'no'}" dir="rtl">
     <div class="pa-editor-workspace">
-      <aside class="pa-sidebar" aria-label="עריכת פרטי הצעת מחיר">
+      <section class="pa-sidebar" aria-label="עריכת פרטי הצעת מחיר" data-pa-editor-fields>
         <div class="pa-sidebar-heading">
-          <span class="pa-sidebar-kicker">עורך הצעה</span>
           <strong>${escapeHtml(title)}</strong>
+          <div class="pa-editor-heading-actions no-print">
+            <button type="button" class="ds-btn ds-btn--sm ds-btn--ghost" data-pa-cancel-form>← חזרה לתיק הלקוח</button>
+            <button type="button" class="ds-btn ds-btn--sm" data-pa-save-draft>שמירת טיוטה</button>
+          </div>
         </div>
     <div class="ds-pa-form-meta-panel">
-      <h4 class="pa-sidebar-section-title">פרטי נמען</h4>
-      <div data-pa-step-panel="client">
-        <div class="ds-pa-client-search-block" data-pa-client-search-row${isLocked ? ' hidden' : ''}>
-          ${clientTypeSelectorHtml(initClientType)}
-          ${contactOptionsLoadErrorHtml(contactOptionsError)}
-          ${clientSearchHtml(contactOptions, row)}
-          <label class="ds-pa-form-field ds-pa-other-client-field" data-pa-other-client-field${initOther ? '' : ' hidden'}><span>שם הגורם / הלקוח</span><input class="ds-input ds-input--sm" name="other_client_name" value="${escapeHtml(initOther ? initSchool : '')}" placeholder="שם הגורם / הלקוח"></label>
+      <div class="ds-pa-recipient-meta-row ds-pa-recipient-main-row" data-pa-recipient-meta-row>
+        <div class="ds-pa-recipient-general"><h4 class="pa-sidebar-section-title">פרטים כלליים</h4>
+          <label class="ds-pa-form-field ds-pa-recipient-date-field"><span>${escapeHtml(FIELD_LABELS.proposal_date)}</span><input class="ds-input ds-input--sm" type="date" name="proposal_date" value="${escapeHtml(proposalDate)}"></label>
+          <label class="ds-pa-form-field ds-pa-recipient-domain-field"><span>תחום</span><select class="ds-input ds-input--sm" name="proposal_domain">${optionHtml('Y', row.proposal_domain || 'Y', 'Y')}${optionHtml('E', row.proposal_domain || 'Y', 'E')}</select></label>
         </div>
-        <div data-pa-client-card${isLocked ? '' : ' hidden'}>${isLocked ? clientLockedBannerHtml(initAuth, initSchool, initContact, initRole, initPhone, initEmail, initClientName, initSchoolMeta) : ''}</div>
-        <div class="ds-pa-client-hidden-values" data-pa-client-fields hidden>
-          ${hiddenField('client_authority', row.client_authority)}
-          ${hiddenField('school_framework', row.school_framework)}
+        ${clientTypeSelectorHtml(initClientType)}
+        <div class="ds-pa-recipient-flow" data-pa-step-panel="client">
+          <div class="ds-pa-client-search-block" data-pa-client-search-row>
+            ${contactOptionsLoadErrorHtml(contactOptionsError)}
+            ${clientSearchHtml(contactOptions, row)}
+            <div class="ds-pa-other-client-section" data-pa-other-client-field${initOther ? '' : ' hidden'}><label class="ds-pa-form-field ds-pa-other-client-field"><span>שם הלקוח / חברה</span><input class="ds-input ds-input--sm" name="other_client_name" value="${escapeHtml(initOther ? (row.client_name || initSchool) : '')}" placeholder="שם הלקוח"></label></div>
+          </div>
+          <div data-pa-client-card${isLocked ? '' : ' hidden'}>${isLocked ? clientLockedBannerHtml(initAuth, initSchool, initContact, initRole, initPhone, initEmail, initClientName, initSchoolMeta, { clientType: initClientType, schoolId: initSchoolId }) : ''}</div>
+          <div class="ds-pa-client-hidden-values" data-pa-client-fields hidden>
+            ${hiddenField('client_authority', row.client_authority)}
+            ${hiddenField('school_framework', initOther ? '' : row.school_framework)}
+          </div>
         </div>
       </div>
       <div data-pa-step-panel="contact"${contactPanelVisible ? '' : ' hidden'}>
@@ -3495,7 +4978,7 @@ function formHtml(mode, row = {}, activityNameOptions = [], contactOptions = [],
             <input type="hidden" name="contact_selection_mode" value="">
             ${textField('contact_name', 'שם', row.contact_name, false)}
             ${textField('contact_role', FIELD_LABELS.contact_role, normalizeContactRoleDisplay(row.contact_role), false)}
-          </div>
+            </div>
           <div class="ds-pa-contact-channels" data-pa-contact-channels-wrap>
             <div class="ds-pa-contact-channels-status" data-pa-contact-channels-status${channelsStatusVisible ? '' : ' hidden'}>${channelsStatusVisible ? contactChannelsStatusHtml(Boolean(initEmail), Boolean(initPhone), initOther) : ''}</div>
             <div class="ds-pa-form-grid ds-pa-contact-channels-fields" data-pa-contact-channels-fields${initOther ? '' : ' hidden'}>
@@ -3511,15 +4994,13 @@ function formHtml(mode, row = {}, activityNameOptions = [], contactOptions = [],
       </div>
     </div>
 
-    <div class="ds-pa-form-type-panel" data-pa-step-panel="proposal" style="padding-top:4px">
+    <div class="ds-pa-form-type-panel" data-pa-step-panel="proposal">
+      <h4 class="pa-sidebar-section-title">פרטי ההצעה</h4>
       <div class="ds-pa-type-meta-grid">
         <div class="ds-pa-form-field">
-          ${proposalTypeCardsHtml(normalizedActivityGroup)}
+          ${proposalTypeCardsHtml(normalizedActivityGroup, { includeSummer: mode === 'edit' || normalizedActivityGroup === 'summer' })}
         </div>
-        <div class="ds-pa-type-meta-aux">
-          <label class="ds-pa-form-field"><span>${escapeHtml(FIELD_LABELS.proposal_date)}</span><input class="ds-input ds-input--sm" type="date" name="proposal_date" value="${escapeHtml(proposalDate)}"></label><label class="ds-pa-form-field"><span>${escapeHtml(FIELD_LABELS.proposal_domain)}: Y / E</span><select class="ds-input ds-input--sm" name="proposal_domain">${optionHtml('Y', row.proposal_domain || 'Y', 'Y')}${optionHtml('E', row.proposal_domain || 'Y', 'E')}</select></label>
-          <input type="hidden" name="document_type" value="${escapeHtml(text(row.document_type) || 'הצעת מחיר')}">
-        </div>
+        <input type="hidden" name="document_type" value="${escapeHtml(text(row.document_type) || 'הצעת מחיר')}">
       </div>
       <div class="ds-pa-type-row">${templateIndicatorHtml(normalizedActivityGroup)}</div>
       <p class="ds-pa-template-mode ${hasCustomSections ? 'ds-pa-template-mode--custom' : ''}" data-pa-template-mode${hasCustomSections ? '' : ' hidden'}>${hasCustomSections ? 'נוסח מותאם אישית' : ''}</p>
@@ -3527,7 +5008,7 @@ function formHtml(mode, row = {}, activityNameOptions = [], contactOptions = [],
 
     <div class="ds-pa-form-activities-panel" data-pa-step-panel="activity">
       <h4 class="pa-sidebar-section-title">פעילויות ומחירים</h4>
-      <div data-pa-items-host>${itemsEditorHtml(items, filteredPricing, normalizedActivityGroup)}</div>
+      <div data-pa-items-host>${itemsEditorHtml(items, filteredPricing, normalizedActivityGroup, { allowManualCourse })}</div>
     </div>
 
     <div class="ds-pa-form-bottom-panel" data-pa-step-panel="summary">
@@ -3538,24 +5019,24 @@ function formHtml(mode, row = {}, activityNameOptions = [], contactOptions = [],
       ${proposalSummaryHtml(row.total_amount)}
       <div class="ds-pa-validation-notice" data-pa-validation-notice hidden></div>
       <p class="ds-pa-form-error" data-pa-form-error role="alert"></p>
-      <div class="ds-pa-form-actions ds-pa-form-actions--workflow">
-        <div class="ds-pa-form-actions-main">
-          <button type="button" class="ds-btn ds-btn--sm" data-pa-preview-form>תצוגה מקדימה</button>
-          <button type="button" class="ds-btn ds-btn--primary ds-btn--sm" data-pa-save-pending data-pa-target-status="${primaryActionStatus}">${escapeHtml(primaryActionLabel)}</button>
-          <button type="button" class="ds-btn ds-btn--sm ds-btn--ghost" data-pa-cancel-form>ביטול</button>
-        </div>
-      </div>
     </div>
-      </aside>
+      </section>
       <section class="pa-preview" aria-label="תצוגת מסמך A4">
         <div class="pa-preview-toolbar no-print">
-          <span>תצוגה מקדימה חיה</span>
+          <h2>תצוגה מלאה של הצעת המחיר</h2>
           <button type="button" class="ds-btn ds-btn--xs ds-btn--ghost" data-pa-preview-form>פתח לתצוגה / PDF</button>
         </div>
         <div class="pa-preview-canvas" data-pa-live-preview>
           ${initialPreviewHtml}
         </div>
       </section>
+      <footer class="ds-pa-form-actions ds-pa-form-actions--workflow no-print" aria-label="פעולות סופיות להצעת המחיר">
+        <div class="ds-pa-form-actions-main">
+          <button type="button" class="ds-btn ds-btn--sm ds-btn--ghost" data-pa-back-to-editor>חזרה לעריכה</button>
+          <button type="button" class="ds-btn ds-btn--sm" data-pa-save-draft>שמירת טיוטה</button>
+          <button type="button" class="ds-btn ds-btn--primary ds-btn--sm" data-pa-save-pending data-pa-target-status="${primaryActionStatus}">${escapeHtml(primaryActionLabel)}</button>
+        </div>
+      </footer>
     </div>
 
     <input type="hidden" name="status" data-pa-status-input value="${escapeHtml(currentStatus)}">
@@ -3587,7 +5068,7 @@ function drawerActionButtons(row, state) {
   const PRINT = '<polyline points="6 9 6 2 18 2 18 9"/><path d="M6 18H4a2 2 0 0 1-2-2v-5a2 2 0 0 1 2-2h16a2 2 0 0 1 2 2v5a2 2 0 0 1-2 2h-2"/><rect x="6" y="14" width="12" height="8"/>';
   const CLONE = '<rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/>';
 
-  buttons.push(iconBtn(`data-pa-preview="${escapeHtml(row.id)}"`, 'תצוגה מקדימה', EYE));
+  buttons.push(iconBtn(`data-pa-preview="${escapeHtml(row.id)}"`, isProposalSentLocked(row) ? 'צפייה במסמך שנשלח' : 'תצוגה מקדימה', EYE));
 
   if (isProposalEditable(row, state)) {
     buttons.push(iconBtn(`data-pa-edit-row="${escapeHtml(row.id)}"`, 'עריכה', PENCIL));
@@ -3613,11 +5094,24 @@ function drawerActionButtons(row, state) {
   if (isAdminRole && normalizeProposalStatus(status) === 'approved' && !proposalHasSavedApprovalSignature(row)) {
     buttons.push(iconBtn(`data-pa-status-action="approved" data-pa-action-id="${escapeHtml(row.id)}"`, 'אשר וחתום מחדש', CHECK));
   }
-  if (canTransitionProposalStatus(row, 'sent', state)) {
+  if (canTransitionProposalStatus(row, 'sent', state) && proposalHasFinalPdf(row)) {
     buttons.push(iconBtn(`data-pa-status-action="sent" data-pa-action-id="${escapeHtml(row.id)}"`, 'סימון כנשלח', SENT));
   }
+  if (canViewSentProposalPdf(row, state)) {
+    buttons.push(iconBtn(`data-pa-view-final-pdf="${escapeHtml(row.id)}"`, 'צפייה ב־PDF שנשלח', EYE));
+  }
+  if (isGefenApprovalApplicable(row)) {
+    if (text(row.gefen_approval_status) === 'generated' && text(row.gefen_approval_path)) {
+      buttons.push(iconBtn(`data-pa-view-gefen-approval="${escapeHtml(row.id)}"`, `צפייה באישור גפ״ן להצעה ${text(row.quote_number)}`, EYE));
+      if (canManage) buttons.push(iconBtn(`data-pa-generate-gefen-approval="${escapeHtml(row.id)}"`, `הפקה מחדש של אישור גפ״ן להצעה ${text(row.quote_number)}`, DOC));
+    } else if (canManage) {
+      buttons.push(iconBtn(`data-pa-generate-gefen-approval="${escapeHtml(row.id)}"`, `הפקת אישור גפ״ן להצעה ${text(row.quote_number)}`, DOC));
+    }
+  }
   if (canGenerateProposalPdf(row, state)) {
-    buttons.push(iconBtn(`data-pa-print="${escapeHtml(row.id)}"`, 'הדפסה / שמירה כ-PDF', PRINT));
+    buttons.push(iconBtn(`data-pa-print="${escapeHtml(row.id)}"`, 'הפקת PDF ושמירה אוטומטית', PRINT));
+    buttons.push(iconBtn(`data-pa-clone-row="${escapeHtml(row.id)}"`, 'שכפול להצעה חדשה', CLONE));
+  } else if (isProposalSentLocked(row) && canManageProposalsAgreements(state)) {
     buttons.push(iconBtn(`data-pa-clone-row="${escapeHtml(row.id)}"`, 'שכפול להצעה חדשה', CLONE));
   }
   return buttons.join('');
@@ -3628,66 +5122,85 @@ function drawerHtml(row, activityNameOptions = [], state = null) {
 
   const hasCustomSections = Array.isArray(row.custom_document_sections) && row.custom_document_sections.length > 0;
   const customBadge = hasCustomSections
-    ? `<span class="ds-pa-badge" title="המסמך הזה כולל עריכה מותאמת אישית" style="display:inline-block;padding:1px 7px;border-radius:10px;font-size:0.75rem;background:#6366f1;color:#fff">מסמך מותאם</span>`
+    ? `<span class="ds-pa-state-note" title="המסמך הזה כולל עריכה מותאמת אישית">מסמך מותאם</span>`
     : '';
   const drawerRowStatus = normalizeProposalStatus(text(row.status));
   const drawerHasSig = proposalHasSavedApprovalSignature(row);
   const drawerNeedsResign = drawerRowStatus === 'approved' && !drawerHasSig;
-  const signedBadge = (drawerRowStatus === 'sent' || (drawerRowStatus === 'approved' && drawerHasSig))
-    ? `<span style="display:inline-flex;align-items:center;gap:3px;padding:1px 7px;border-radius:10px;font-size:0.75rem;background:#d1fae5;color:#065f46;border:1px solid #6ee7b7">✓ מאושר וחתום</span>`
-    : drawerNeedsResign
-      ? `<span style="display:inline-flex;align-items:center;gap:3px;padding:1px 7px;border-radius:10px;font-size:0.75rem;background:#fef3c7;color:#92400e;border:1px solid #fde68a">ההצעה מאושרת אך חסרה חתימה/זמן אישור ולכן לא ניתן לסמן כנשלחה</span>`
-      : '';
+  const signatureWarning = drawerNeedsResign
+    ? `<span class="ds-pa-state-note ds-pa-state-note--warn">ההצעה מאושרת אך חסרה חתימה/זמן אישור ולכן לא ניתן לסמן כנשלחה</span>`
+    : '';
 
-  const clientDisplayName = text(row.client_name) || text(row.school_framework) || text(row.client_authority) || '—';
   const drawerClientType = inferProposalClientType(row);
-  const schoolSub = drawerClientType !== 'other' && text(row.school_framework) && text(row.school_framework) !== clientDisplayName
-    ? `<p class="ds-pa-drawer-sub">${escapeHtml(row.school_framework)}</p>` : '';
-  const authSub = drawerClientType !== 'other' && text(row.client_authority) && text(row.client_authority) !== clientDisplayName && text(row.client_authority) !== text(row.school_framework)
-    ? `<p class="ds-pa-drawer-sub">רשות: ${escapeHtml(row.client_authority)}</p>` : '';
+  const schoolName = drawerClientType === 'other'
+    ? (text(row.school_framework) || text(row.client_name) || '—')
+    : (text(row.school_framework) || text(row.client_name) || '—');
+  const authorityName = text(row.client_authority) || '—';
+  const proposalDate = formatDateDisplay(row.proposal_date) || '—';
+  const proposalDomain = normalizeProposalDomain(row.proposal_domain) || '—';
+  const statusText = drawerRowStatus === 'sent'
+    ? `✓ ${STATUS_LABELS.sent}`
+    : (STATUS_LABELS[drawerRowStatus] || STATUS_LABELS[row.status] || text(row.status) || '—');
 
-  // ── compact metadata strip ──
-  const metaChip = (label, value) => value
-    ? `<span class="ds-pa-meta-chip"><span class="ds-pa-meta-chip-label">${escapeHtml(label)}</span><span class="ds-pa-meta-chip-value">${escapeHtml(value)}</span></span>`
+  const infoCell = (label, value, wide = false, options = {}) => {
+    const display = text(value) || (options.emptyText || '');
+    if (!display && !options.showEmpty) return '';
+    return `<div class="ds-pa-info-cell${wide ? ' ds-pa-info-cell--wide' : ''}"><span class="ds-pa-info-label">${escapeHtml(label)}</span><span class="ds-pa-info-value">${escapeHtml(display || 'לא הוזן')}</span></div>`;
+  };
+  const metaSep = '<span class="ds-pa-drawer-meta-sep" aria-hidden="true">|</span>';
+  const drawerMetaLine = [
+    `<span class="ds-pa-drawer-meta-item">${escapeHtml(authorityName)}</span>`,
+    `<span class="ds-pa-drawer-meta-item">${escapeHtml(proposalDate)}</span>`,
+    `<span class="ds-pa-drawer-meta-item">${escapeHtml(proposalDomain)}</span>`,
+    `<span class="ds-pa-drawer-meta-item ds-pa-drawer-meta-item--status"><span class="ds-pa-drawer-status-text">${escapeHtml(statusText)}</span></span>`
+  ].join(metaSep);
+
+  const hasSendingInfo = Boolean(text(row.sent_by) || text(row.sent_at) || text(row.approved_by) || text(row.approved_at) || proposalHasFinalPdf(row));
+  const missingHistoricalPdf = isProposalLegacySentWithoutPdf(row) && !canGenerateProposalPdf(row, state)
+    ? '<p class="ds-muted">לא קיים PDF שמור להצעה זו</p>' : '';
+  const sendingCard = hasSendingInfo || missingHistoricalPdf
+    ? `<div class="ds-pa-info-card ds-pa-info-card--sending ds-pa-info-card--flat">
+    <h4 class="ds-pa-card-title">פרטי שליחה</h4>${missingHistoricalPdf}
+    <div class="ds-pa-info-grid">
+      ${infoCell('נשלח על ידי', text(row.sent_by), false, { showEmpty: true })}
+      ${infoCell('תאריך שליחה', text(row.sent_at) ? formatDateDisplay(row.sent_at) : '', false, { showEmpty: true })}
+      ${infoCell('אושר על ידי', text(row.approved_by), false, { showEmpty: true })}
+      ${infoCell('תאריך אישור', text(row.approved_at) ? formatDateDisplay(row.approved_at) : '', false, { showEmpty: true })}
+      ${infoCell('נעול בתאריך', text(row.locked_at) ? formatDateDisplay(row.locked_at) : '', false, { showEmpty: true })}
+      ${infoCell('סטטוס PDF', proposalHasFinalPdf(row) ? 'נשמר' : 'לא נשמר', false, { showEmpty: true })}
+      ${infoCell('שם קובץ PDF', text(row.final_pdf_file_name), false, { showEmpty: true })}
+    </div>
+  </div>`
     : '';
-  const drawerSentBy = text(row.sent_by);
-  const showSentBy = drawerRowStatus === 'sent' && drawerSentBy;
-  const metaStripChips = [
-    metaChip('סוג', proposalGroupDisplayName(row.activity_type_group)),
-    metaChip('תחום', normalizeProposalDomain(row.proposal_domain)),
-    metaChip('תאריך', formatDateDisplay(row.proposal_date)),
-    showSentBy ? metaChip('נשלח ע״י', drawerSentBy) : '',
-    showSentBy && text(row.sent_at) ? metaChip('תאריך שליחה', formatDateDisplay(row.sent_at)) : ''
-  ].filter(Boolean).join('');
-  const metaStrip = metaStripChips
-    ? `<div class="ds-pa-meta-strip" dir="rtl">${metaStripChips}</div>`
-    : '';
 
-  // ── פעילויות card ──
-  const infoCell = (label, value, wide = false) => value
-    ? `<div class="ds-pa-info-cell${wide ? ' ds-pa-info-cell--wide' : ''}"><span class="ds-pa-info-label">${escapeHtml(label)}</span><span class="ds-pa-info-value">${escapeHtml(value)}</span></div>`
-    : '';
-  const activityNames = (Array.isArray(row.activity_names) ? row.activity_names : []).map(text).filter(Boolean);
-  const activitiesCard = activityNames.length
-    ? `<div class="ds-pa-info-card">
-        <h4 class="ds-pa-card-title">פעילויות</h4>
-        <div class="ds-pa-activity-tags">${activityNames.map((n) => `<span class="ds-pa-activity-tag">${escapeHtml(n)}</span>`).join('')}</div>
-      </div>` : '';
+  const sourceId = text(row.contact_school_id || row.contact_source_id);
+  const contactCanUpdate = Boolean(sourceId) && canManageProposalsAgreements(state);
+  const contactCard = `<form class="ds-pa-info-card ds-pa-contact-update-card" data-pa-drawer-contact-form data-pa-contact-source-id="${escapeHtml(sourceId)}" data-pa-contact-source-table="contacts_schools">
+    <div class="ds-pa-info-grid ds-pa-contact-view-grid">
+      ${infoCell('איש קשר', text(row.contact_name), false, { showEmpty: true })}
+      ${infoCell('תפקיד', text(row.contact_role), false, { showEmpty: true })}
+      <div class="ds-pa-info-cell"><span class="ds-pa-info-label">דוא״ל</span><span class="ds-pa-info-value">${text(row.email) ? `<a href="mailto:${escapeHtml(text(row.email))}">${escapeHtml(text(row.email))}</a>` : 'לא הוזן'}</span></div>
+      <div class="ds-pa-info-cell"><span class="ds-pa-info-label">${isMobilePhoneNumber(row.phone) ? 'נייד' : 'טלפון'}</span><span class="ds-pa-info-value">${text(row.phone) ? `<a href="tel:${escapeHtml(text(row.phone))}">${escapeHtml(text(row.phone))}</a>` : 'לא הוזן'}</span></div>
+    </div>
+    ${contactCanUpdate ? `<details class="ds-pa-contact-edit-details"><summary>עדכון פרטי איש קשר</summary>
+      <div class="ds-pa-contact-edit-grid">
+        <label class="ds-pa-form-field"><span>שם איש קשר</span><input class="ds-input ds-input--sm" name="contact_name" value="${escapeHtml(text(row.contact_name))}"></label>
+        <label class="ds-pa-form-field"><span>תפקיד</span><input class="ds-input ds-input--sm" name="contact_role" value="${escapeHtml(text(row.contact_role))}"></label>
+        <label class="ds-pa-form-field"><span>מייל</span><input class="ds-input ds-input--sm" name="email" value="${escapeHtml(text(row.email))}"></label>
+        <label class="ds-pa-form-field"><span>טלפון</span><input class="ds-input ds-input--sm" name="phone" value="${escapeHtml(text(row.phone))}"></label>
+      </div>
+      <button type="submit" class="ds-btn ds-btn--sm ds-btn--primary">שמור פרטי קשר</button>
+      <p class="ds-pa-contact-update-msg" data-pa-contact-update-msg></p>
+    </details>` : `<p class="ds-muted" style="font-size:.78rem;margin:8px 0 0">לא נמצא מזהה איש קשר קיים לעדכון.</p>`}
+  </form>`;
 
-  // ── פרטי קשר card ──
-  const contactFields = [
-    infoCell('איש קשר', text(row.contact_name)),
-    infoCell('תפקיד', text(row.contact_role)),
-    infoCell('טלפון', text(row.phone)),
-    infoCell('דוא״ל', text(row.email))
-  ].filter(Boolean).join('');
-  const contactCard = contactFields
-    ? `<div class="ds-pa-info-card">
-        <h4 class="ds-pa-card-title">פרטי קשר</h4>
-        <div class="ds-pa-info-grid">${contactFields}</div>
-      </div>` : '';
+  const itemsHost = `<div class="ds-pa-drawer-items-host" data-pa-drawer-items><span class="ds-muted" style="font-size:0.8rem">טוען שורות הצעה...</span></div>`;
 
-  // ── הערות card ──
+  const financialCard = `<div class="ds-pa-info-card ds-pa-info-card--financial-summary">
+    <h4 class="ds-pa-card-title">סה״כ לתשלום</h4>
+    <div class="ds-pa-total-amount">${row.total_amount != null ? `₪ ${escapeHtml(formatCurrency(row.total_amount))}` : 'לא הוזן'}</div>
+  </div>`;
+
   const notesFields = [
     infoCell('הערת אישור', text(row.approval_note), true),
     infoCell('הערות', text(row.notes), true)
@@ -3698,28 +5211,41 @@ function drawerHtml(row, activityNameOptions = [], state = null) {
 
   return `<aside class="ds-pa-drawer" data-pa-drawer data-pa-drawer-id="${escapeHtml(row.id)}" aria-live="polite" dir="rtl">
     <div class="ds-pa-drawer-panel">
-      <header class="ds-pa-drawer-head">
+      <header class="ds-pa-drawer-head ds-pa-drawer-head--hero">
         <div class="ds-pa-drawer-head-info">
-          <h3 class="ds-pa-drawer-name">${escapeHtml(clientDisplayName)}</h3>
-          ${schoolSub}${authSub}
+          <h3 class="ds-pa-drawer-name ds-pa-drawer-name--hero">${escapeHtml(schoolName)}</h3>
+          <p class="ds-pa-drawer-meta-line">${drawerMetaLine}</p>
         </div>
         <button type="button" class="ds-btn ds-btn--xs ds-btn--ghost" data-pa-close-drawer aria-label="סגירת פרטי רשומה" style="flex-shrink:0;font-size:1rem;padding:2px 8px">✕</button>
       </header>
       <div class="ds-pa-drawer-action-bar">
-        <span class="ds-pa-drawer-badges">${statusBadgeHtml(row.status)}${signedBadge ? '&ensp;' + signedBadge : ''}${customBadge ? '&ensp;' + customBadge : ''}</span>
+        <span class="ds-pa-drawer-badges">${signatureWarning ? signatureWarning : ''}${customBadge ? '&ensp;' + customBadge : ''}</span>
         <span class="ds-pa-drawer-icon-btns">${drawerActionButtons(row, state)}</span>
       </div>
-      ${metaStrip}
       <div class="ds-pa-drawer-body">
-        ${contactCard}
-        <div data-pa-activities-fallback>${activitiesCard}</div>
-        <div data-pa-drawer-items><span class="ds-muted" style="font-size:0.8rem">טוען שורות הצעה...</span></div>
+        <div class="ds-pa-proposal-info-grid">
+          <section class="ds-pa-info-card"><h4 class="ds-pa-card-title">פרטי ההצעה</h4><div class="ds-pa-info-grid">${infoCell('רשות', authorityName, false, { showEmpty: true })}${infoCell('בית ספר / גוף', schoolName, false, { showEmpty: true })}${infoCell('סוג הצעה', clientFacingProposalTypeLabel(row), false, { showEmpty: true })}${infoCell('תאריך הצעה', proposalDate, false, { showEmpty: true })}${infoCell('תוקף עד', formatDateDisplay(row.valid_until), false, { showEmpty: true })}${infoCell('סטטוס', statusText, false, { showEmpty: true })}${infoCell('תחום', proposalDomain, false, { showEmpty: true })}${infoCell('סמל מוסד', text(row.semel_mosad), false, { showEmpty: true })}${infoCell('מספר הצעה', text(row.quote_number), false, { showEmpty: true })}${infoCell('אישור גפ״ן', isGefenApprovalApplicable(row) ? gefenApprovalStatusDisplay(row) : '—', false, { showEmpty: true })}${infoCell('הערות', text(row.notes), true)}</div></section>
+          ${contactCard}
+          ${sendingCard || '<section class="ds-pa-info-card"><h4 class="ds-pa-card-title">פרטי שליחה</h4><p class="ds-muted">טרם נשלחה</p></section>'}
+        </div>
+        <section class="ds-pa-activities-wide"><h4 class="ds-pa-card-title">פעילויות ומחירים</h4>${itemsHost}${financialCard}</section>
         ${notesCard}
       </div>
       <p class="ds-pa-form-error" data-pa-drawer-error role="alert" style="color:#dc2626;font-size:0.8rem;padding:4px 16px 0"></p>
       <div data-pa-inline-form></div>
     </div>
   </aside>`;
+}
+
+/** Full-page proposal details for the unified client-file UI (board / client / all / archive). */
+function proposalDetailViewHtml(row, activityNameOptions = [], state = null, { returnTo = 'home' } = {}) {
+  const backLabel = returnTo === 'all' ? 'חזרה לכל ההצעות' : 'חזרה לתיק הלקוח';
+  return `<div class="ds-pa-proposal-detail" data-pa-proposal-detail data-pa-return-to="${escapeHtml(returnTo)}" data-pa-detail-id="${escapeHtml(text(row?.id))}">
+    <div class="ds-pa-proposal-detail-toolbar">
+      <button type="button" class="ds-btn ds-btn--ghost" data-pa-proposal-detail-back>← ${escapeHtml(backLabel)}</button>
+    </div>
+    ${drawerHtml(row, activityNameOptions, state)}
+  </div>`;
 }
 
 // ─── Helpers ──────────────────────────────────────────────────────────────────
@@ -3734,13 +5260,472 @@ function dedupeById(rows) {
   });
 }
 
-function allDisplayRows(data) {
-  const rows = Array.isArray(data?.rows) ? data.rows : [];
-  return dedupeById(sortRows(rows));
+function normalizedSemanticPart(value) {
+  return text(value)
+    .toLowerCase()
+    .normalize('NFKD')
+    .replace(/[\u0591-\u05C7]/g, '')
+    .replace(/[״"׳`]/g, "'")
+    .replace(/\s+/g, ' ')
+    .trim();
 }
 
-function displayRows(data, filters = {}) {
-  return allDisplayRows(data).filter((row) => rowMatches(row, filters));
+function proposalItemsForSemantic(row = {}, itemsByProposalId = {}) {
+  const id = text(row?.id);
+  const fromMap = id && itemsByProposalId ? itemsByProposalId[id] : null;
+  if (Array.isArray(fromMap) && fromMap.length) return fromMap;
+  const snapItems = row?.document_snapshot && Array.isArray(row.document_snapshot.items)
+    ? row.document_snapshot.items
+    : [];
+  if (snapItems.length) return snapItems;
+  const fromJson = parseProposalItemsJsonFallback(row);
+  if (fromJson.length) return fromJson;
+  return [];
+}
+
+function itemsSemanticSignature(items = []) {
+  const normalized = (Array.isArray(items) ? items : []).map((item) => ([
+    normalizedSemanticPart(item.item_name ?? item.itemName),
+    normalizedSemanticPart(item.gefen_number ?? item.gefenNumber),
+    String(Number(item.quantity) || 0),
+    String(Number(item.unit_price ?? item.unitPrice) || 0),
+    String(Number(item.total_price ?? item.totalPrice) || 0),
+    String(Number(item.sort_order ?? item.sortOrder) || 0)
+  ].join('\u001f'))).filter((line) => line.replace(/\u001f/g, '').trim()).sort();
+  return normalized.join('\u001e');
+}
+
+/** Stable key for semantic duplicates (same client/school/type/date/amount/status/items). */
+export function semanticDuplicateKey(row = {}, items = []) {
+  const authorityId = text(row.authority_id);
+  const schoolId = text(row.school_id || row.contact_school_id);
+  const semel = text(row.semel_mosad);
+  const authority = normalizedSemanticPart(row.client_authority || row.authority_name || row.authority);
+  const school = normalizedSemanticPart(row.school_framework || row.school_name || row.school);
+  const typeKey = resolveClientFacingTypeKey(row, items) || normalizedSemanticPart(row.activity_type_group);
+  const date = text(row.proposal_date).slice(0, 10);
+  const amount = String(Number(row.total_amount) || 0);
+  const status = normalizeProposalStatus(row.status || 'draft');
+  const version = String(Math.max(1, Number(row.version_number) || 1));
+  const series = text(row.proposal_series_id);
+  const itemSig = itemsSemanticSignature(items);
+  return [
+    authorityId || authority,
+    schoolId || semel || school,
+    typeKey,
+    date,
+    amount,
+    status,
+    series,
+    version,
+    itemSig
+  ].join('|');
+}
+
+function semanticSoftKey(row = {}) {
+  const authorityId = text(row.authority_id);
+  const schoolId = text(row.school_id || row.contact_school_id);
+  const semel = text(row.semel_mosad);
+  const authority = normalizedSemanticPart(row.client_authority || row.authority_name || row.authority);
+  const school = normalizedSemanticPart(row.school_framework || row.school_name || row.school);
+  const typeKey = resolveClientFacingTypeKey(row, proposalItemsForSemantic(row)) || normalizedSemanticPart(row.activity_type_group);
+  const date = text(row.proposal_date).slice(0, 10);
+  const amount = String(Number(row.total_amount) || 0);
+  const status = normalizeProposalStatus(row.status || 'draft');
+  const version = String(Math.max(1, Number(row.version_number) || 1));
+  const series = text(row.proposal_series_id);
+  return [authorityId || authority, schoolId || semel || school, typeKey, date, amount, status, series, version].join('|');
+}
+
+function semanticCanonicalScore(row = {}) {
+  const hasPdf = Boolean(text(row.final_pdf_path) || text(row.final_pdf_file_name));
+  const hasSnapshot = Boolean(
+    (row.document_snapshot && typeof row.document_snapshot === 'object')
+    || text(row.document_html_snapshot)
+  );
+  const hasSentAt = Boolean(text(row.sent_at));
+  const identityFilled = [row.contact_school_id, row.school_id, row.authority_id].filter((v) => text(v)).length;
+  const updated = Date.parse(text(row.updated_at)) || 0;
+  const created = Date.parse(text(row.created_at)) || 0;
+  return [
+    hasPdf ? 1 : 0,
+    hasSnapshot ? 1 : 0,
+    hasSentAt ? 1 : 0,
+    identityFilled,
+    updated,
+    created,
+    text(row.id)
+  ];
+}
+
+function compareSemanticCanonical(a, b) {
+  const sa = semanticCanonicalScore(a);
+  const sb = semanticCanonicalScore(b);
+  for (let i = 0; i < sa.length; i += 1) {
+    if (sa[i] === sb[i]) continue;
+    if (typeof sa[i] === 'string') return String(sb[i]).localeCompare(String(sa[i]));
+    return sb[i] > sa[i] ? 1 : -1;
+  }
+  return 0;
+}
+
+/**
+ * Display-only collapse of semantic duplicates. Does not delete rows from storage.
+ * Returns { rows, duplicateIds }.
+ */
+export function collapseSemanticDuplicates(rows = [], itemsByProposalId = {}) {
+  const list = dedupeById(Array.isArray(rows) ? rows : []);
+  const softGroups = new Map();
+  list.forEach((row) => {
+    const soft = semanticSoftKey(row);
+    if (!softGroups.has(soft)) softGroups.set(soft, []);
+    softGroups.get(soft).push(row);
+  });
+
+  const kept = [];
+  const duplicateIds = [];
+
+  softGroups.forEach((group) => {
+    if (group.length === 1) {
+      kept.push(group[0]);
+      return;
+    }
+    const withItems = group.map((row) => {
+      const items = proposalItemsForSemantic(row, itemsByProposalId);
+      return { row, items, itemSig: itemsSemanticSignature(items), fullKey: semanticDuplicateKey(row, items) };
+    });
+    const nonEmptySigs = [...new Set(withItems.map((entry) => entry.itemSig).filter(Boolean))];
+    const buckets = new Map();
+    withItems.forEach((entry) => {
+      let bucketKey = entry.fullKey;
+      if (!entry.itemSig && nonEmptySigs.length === 1) {
+        bucketKey = semanticDuplicateKey(entry.row, withItems.find((other) => other.itemSig)?.items || []);
+      } else if (!entry.itemSig && nonEmptySigs.length > 1) {
+        bucketKey = `${semanticSoftKey(entry.row)}|__empty__|${text(entry.row.id)}`;
+      }
+      if (!buckets.has(bucketKey)) buckets.set(bucketKey, []);
+      buckets.get(bucketKey).push(entry.row);
+    });
+    buckets.forEach((bucket) => {
+      const sorted = [...bucket].sort(compareSemanticCanonical);
+      kept.push(sorted[0]);
+      sorted.slice(1).forEach((dup) => {
+        const id = text(dup.id);
+        if (id) duplicateIds.push(id);
+      });
+    });
+  });
+
+  return {
+    rows: sortRows(kept),
+    duplicateIds
+  };
+}
+
+function indexProposalItemsById(data = {}) {
+  const map = {};
+  const push = (proposalId, item) => {
+    const id = text(proposalId);
+    if (!id) return;
+    if (!map[id]) map[id] = [];
+    map[id].push(item);
+  };
+  (Array.isArray(data?.proposalAgreementItems) ? data.proposalAgreementItems : []).forEach((item) => {
+    push(item.proposal_agreement_id ?? item.proposalAgreementId, item);
+  });
+  (Array.isArray(data?.rows) ? data.rows : []).forEach((row) => {
+    const id = text(row?.id);
+    if (!id || map[id]?.length) return;
+    const items = proposalItemsForSemantic(row, {});
+    if (items.length) map[id] = items;
+  });
+  return map;
+}
+
+function allDisplayRows(data) {
+  const rows = Array.isArray(data?.rows) ? data.rows : [];
+  const itemsByProposalId = data?._itemsByProposalId || indexProposalItemsById(data);
+  return collapseSemanticDuplicates(sortRows(rows), itemsByProposalId).rows;
+}
+
+function normalizedClientPart(value) {
+  return text(value).trim().toLocaleLowerCase('he-IL');
+}
+
+function clientFileKey(row = {}) {
+  const authorityId = text(row.authority_id);
+  const schoolId = text(row.school_id);
+  const semel = text(row.semel_mosad);
+  const authority = text(row.client_authority || row.authority_name || row.authority);
+  const school = text(row.school_framework || row.school_name || row.school || row.contact_client_name);
+  const rawType = text(row.client_type || row.contact_client_type);
+  const isSchool = rawType === 'school' || Boolean(schoolId || semel || (school && normalizedClientPart(school) !== normalizedClientPart(authority)));
+  if (isSchool) return `school:${schoolId || semel || `${normalizedClientPart(authority)}|${normalizedClientPart(school)}`}`;
+  if (rawType === 'other') return `other:${normalizedClientPart(school || authority)}`;
+  return `authority:${authorityId || normalizedClientPart(authority || school)}`;
+}
+
+function mergeClientFileIdentity(file, row = {}) {
+  const authority = text(row.client_authority || row.authority_name || row.authority);
+  const school = text(row.school_framework || row.school_name || row.school || row.contact_client_name);
+  const type = text(row.client_type || row.contact_client_type) || (row.school_id || row.semel_mosad ? 'school' : 'authority');
+  file.client_type = file.client_type || type;
+  file.authority_id = file.authority_id || row.authority_id || null;
+  file.school_id = file.school_id || row.school_id || null;
+  file.authority = file.authority || authority;
+  file.school = file.school || (type === 'authority' ? '' : school);
+  file.semel_mosad = file.semel_mosad || text(row.semel_mosad);
+  file.domain = file.domain || text(row.proposal_domain || row.contact_domain);
+  file.city = file.city || text(row.city);
+  file.district = file.district || text(row.district);
+  return file;
+}
+
+function clientContactIdentity(contact = {}) {
+  return normalizedClientPart(normalizeHebrewQuoteVariants(text(contact.contact_name)));
+}
+
+function mergeDisplayedClientContact(existing = {}, candidate = {}) {
+  const existingIsExplicit = text(existing.source_table) === 'contacts_schools';
+  const candidateIsExplicit = text(candidate.source_table) === 'contacts_schools';
+  const preferred = candidateIsExplicit && !existingIsExplicit ? candidate : existing;
+  const fallback = preferred === candidate ? existing : candidate;
+  return {
+    ...fallback,
+    ...preferred,
+    contact_role: text(preferred.contact_role) || text(fallback.contact_role),
+    mobile: text(preferred.mobile) || text(fallback.mobile),
+    phone: text(preferred.phone) || text(fallback.phone),
+    email: text(preferred.email) || text(fallback.email),
+    _clientContactKey: clientContactIdentity(preferred)
+  };
+}
+
+function buildClientFiles(data = {}) {
+  const files = new Map();
+  const ensureFile = (row) => {
+    const key = clientFileKey(row);
+    if (!key || key.endsWith(':')) return null;
+    if (!files.has(key)) files.set(key, { key, client_type: '', authority_id: null, school_id: null, authority: '', school: '', semel_mosad: '', domain: '', city: '', district: '', contacts: [], proposals: [] });
+    return mergeClientFileIdentity(files.get(key), row);
+  };
+
+  (Array.isArray(data?.contactOptions) ? data.contactOptions : []).forEach((contact) => {
+    if (text(contact.source_table) === 'contacts_schools') {
+      const sourceId = contact.source_id ?? contact.id;
+      contact = { ...contact, id: sourceId, source_id: sourceId, source_table: 'contacts_schools' };
+    }
+    const file = ensureFile(contact);
+    if (!file || !text(contact.contact_name)) return;
+    const contactKey = clientContactIdentity(contact);
+    const existingIndex = file.contacts.findIndex((item) => item._clientContactKey === contactKey);
+    if (existingIndex === -1) {
+      file.contacts.push({ ...contact, _clientContactKey: contactKey });
+    } else {
+      file.contacts[existingIndex] = mergeDisplayedClientContact(file.contacts[existingIndex], contact);
+    }
+  });
+
+  allDisplayRows(data).forEach((proposal) => {
+    const file = ensureFile(proposal);
+    if (!file) return;
+    file.proposals.push(proposal);
+    // List view uses saved proposal contact fields; full contacts_schools catalog loads on editor/contact actions.
+    if (!text(proposal.contact_name)) return;
+    const fromProposal = {
+      contact_name: text(proposal.contact_name),
+      contact_role: text(proposal.contact_role),
+      mobile: text(proposal.phone),
+      phone: text(proposal.phone),
+      email: text(proposal.email),
+      authority_id: proposal.authority_id,
+      school_id: proposal.school_id,
+      source_table: 'proposal_row',
+      source_id: text(proposal.id)
+    };
+    const contactKey = clientContactIdentity(fromProposal);
+    const existingIndex = file.contacts.findIndex((item) => item._clientContactKey === contactKey);
+    if (existingIndex === -1) {
+      file.contacts.push({ ...fromProposal, _clientContactKey: contactKey });
+    } else {
+      file.contacts[existingIndex] = mergeDisplayedClientContact(file.contacts[existingIndex], fromProposal);
+    }
+  });
+
+  return Array.from(files.values()).sort((a, b) => {
+    const aLabel = `${a.authority} ${a.school}`.trim();
+    const bLabel = `${b.authority} ${b.school}`.trim();
+    return aLabel.localeCompare(bLabel, 'he');
+  });
+}
+
+function clientFileSearchText(file = {}) {
+  return [
+    file.authority, file.school, file.semel_mosad, file.domain, file.city, file.district,
+    ...(file.contacts || []).flatMap((contact) => [contact.contact_name, contact.contact_role, contact.mobile, contact.phone, contact.email])
+  ].map(normalizedClientPart).filter(Boolean).join(' ');
+}
+
+function clientFileLabel(file = {}) {
+  return text(file.school) || text(file.authority) || 'לקוח ללא שם';
+}
+
+function isArchivedClientProposal(row, allRows = []) {
+  if (text(row?.archived_at)) return true;
+  if (normalizeProposalStatus(row?.status) === 'cancelled') return true;
+  const id = text(row?.id);
+  if (!id) return false;
+  if (allRows.some((other) => text(other?.supersedes_proposal_id) === id)) return true;
+  const series = text(row?.proposal_series_id);
+  if (series) {
+    const siblings = allRows.filter((other) => text(other?.proposal_series_id) === series);
+    const maxVersion = Math.max(0, ...siblings.map((other) => Math.max(1, Number(other?.version_number) || 1)));
+    if (Math.max(1, Number(row?.version_number) || 1) < maxVersion) return true;
+  }
+  return false;
+}
+
+function proposalCompactCardHtml(row, { archived = false, canManage = false } = {}) {
+  const status = normalizeProposalStatus(row.status);
+  const version = Math.max(1, Number(row.version_number) || 1);
+  const amount = row.total_amount != null ? `₪${escapeHtml(formatCurrency(row.total_amount))}` : '';
+  const typeLabel = clientFacingProposalTypeLabel(row) || '—';
+  const hasPdf = Boolean(text(row.final_pdf_path) || text(row.final_pdf_file_name));
+  const gefenApplicable = isGefenApprovalApplicable(row);
+  const gefenGenerated = text(row.gefen_approval_status) === 'generated' && Boolean(text(row.gefen_approval_path));
+  return `<article class="ds-client-proposal${archived ? ' is-archived' : ''}">
+    <button type="button" class="ds-client-proposal__main" data-pa-open-proposal-id="${escapeHtml(row.id)}" data-pa-return-to="client" aria-label="פתיחת הצעה">
+      <span class="ds-client-proposal__icon" aria-hidden="true">📄</span>
+      <span><strong>${row.quote_number ? `#${escapeHtml(row.quote_number)} · ` : ''}${escapeHtml(typeLabel)}</strong><small>${escapeHtml(formatDateDisplay(row.proposal_date || row.created_at))} · ${escapeHtml(STATUS_LABELS[status] || status)}${version > 1 ? ` · גרסה ${version}` : ''}${gefenApplicable ? ` · אישור גפ״ן: ${escapeHtml(gefenApprovalStatusDisplay(row, gefenGenerated))}` : ''}</small></span>
+      ${amount ? `<b>${amount}</b>` : ''}
+    </button>
+    <div class="ds-client-proposal__actions">
+      <button type="button" class="ds-client-proposal__version" data-pa-open-proposal-id="${escapeHtml(row.id)}" data-pa-return-to="client">צפייה</button>
+      ${hasPdf ? `<button type="button" class="ds-client-proposal__version" data-pa-view-final-pdf="${escapeHtml(row.id)}" title="פתיחת PDF שמור">PDF</button>` : (!archived && canManage && normalizeProposalStatus(row.status) === 'approved' ? `<button type="button" class="ds-client-proposal__version" data-pa-print="${escapeHtml(row.id)}" title="הפקת PDF ושמירה אוטומטית">PDF</button>` : '')}
+      ${gefenApplicable && gefenGenerated ? `<button type="button" class="ds-client-proposal__version" data-pa-view-gefen-approval="${escapeHtml(row.id)}">אישור גפ״ן · ${escapeHtml(text(row.quote_number))}</button>` : ''}
+      ${gefenApplicable && !gefenGenerated && canManage ? `<button type="button" class="ds-client-proposal__version" data-pa-generate-gefen-approval="${escapeHtml(row.id)}">הפקת אישור · ${escapeHtml(text(row.quote_number))}</button>` : ''}
+      ${!archived && canManage ? `<button type="button" class="ds-client-proposal__version" data-pa-clone-row="${escapeHtml(row.id)}" title="יצירת גרסה חדשה">גרסה חדשה</button>` : ''}
+    </div>
+  </article>`;
+}
+
+function clientQueueCardHtml(row) {
+  const fileKey = clientFileKey(row);
+  const school = text(row.school_framework) || text(row.school_name) || '';
+  const authority = text(row.client_authority) || text(row.authority_name) || '';
+  const typeLabel = clientFacingProposalTypeLabel(row) || '—';
+  return `<button type="button" class="ds-client-queue-item" data-pa-open-proposal-id="${escapeHtml(row.id)}" data-pa-return-to="home" data-pa-client-key="${escapeHtml(fileKey)}">
+    <strong>${escapeHtml(school || authority || 'לקוח ללא שם')}</strong>
+    <span>${escapeHtml([authority && school ? authority : '', typeLabel, formatDateDisplay(row.proposal_date || row.created_at), row.total_amount != null ? `₪${formatCurrency(row.total_amount)}` : ''].filter(Boolean).join(' · '))}</span>
+  </button>`;
+}
+
+const CLIENT_QUEUE_COLUMNS = [
+  ['draft', 'טיוטות'],
+  ['pending_approval', 'ממתינות לאישור'],
+  ['returned_for_changes', 'הוחזרו לתיקון'],
+  ['approved', 'מאושרות וממתינות לשליחה']
+];
+
+function clientFileLandingHtml(data = {}, state = {}) {
+  const displayRowsList = allDisplayRows(data);
+  const activeRows = displayRowsList.filter((row) => !isArchivedClientProposal(row, displayRowsList));
+  const queues = CLIENT_QUEUE_COLUMNS.map(([status, label]) => {
+    const rows = activeRows.filter((row) => normalizeProposalStatus(row.status) === status);
+    return `<section class="ds-client-queue"><header><span>${escapeHtml(label)}</span><b>${rows.length}</b></header><div>${rows.length ? rows.map(clientQueueCardHtml).join('') : '<p>אין הצעות</p>'}</div></section>`;
+  }).join('');
+  const canManage = canManageProposalsAgreements(state);
+  const hasMore = Boolean(data?._hasMore);
+  const pagingBusy = Boolean(data?._pagingInFlight);
+  return `<div class="ds-client-home" data-pa-client-home>
+    <div class="ds-client-toolbar">
+      <button type="button" class="ds-btn ds-client-toolbar-button ds-btn--primary" data-pa-client-add-proposal title="יצירת הצעת מחיר חדשה">+ הצעה חדשה</button>
+      <button type="button" class="ds-btn ds-client-toolbar-button ds-btn--ghost" data-pa-client-all-proposals>כל ההצעות</button>
+      <label class="ds-client-search"><input class="ds-input" data-pa-client-search aria-label="חיפוש לפי פרטי לקוח" placeholder="חיפוש לפי רשות, בית ספר, סמל מוסד, איש קשר, נייד או דוא״ל" autocomplete="off"></label>
+    </div>
+    <div class="ds-client-search-results" data-pa-client-search-results hidden></div>
+    <div class="ds-client-queues" data-pa-client-queues>${queues}</div>
+    ${hasMore ? `<div class="ds-client-load-more" data-pa-load-more-wrap><button type="button" class="ds-btn ds-btn--ghost" data-pa-load-more-proposals ${pagingBusy ? 'disabled' : ''}>${pagingBusy ? 'טוען…' : 'הצגת תיקים נוספים'}</button></div>` : ''}
+  </div>`;
+}
+
+function clientSearchResultsHtml(files, query) {
+  const needle = normalizedClientPart(query);
+  if (!needle) return '';
+  const matches = files.filter((file) => clientFileSearchText(file).includes(needle)).slice(0, 30);
+  if (!matches.length) return '<p class="ds-client-search-empty">לא נמצא תיק לקוח מתאים</p>';
+  return matches.map((file) => `<button type="button" class="ds-client-search-result" data-pa-open-client="${escapeHtml(file.key)}">
+    <strong>${escapeHtml(clientFileLabel(file))}</strong>
+    <span>${escapeHtml([file.authority && file.authority !== clientFileLabel(file) ? file.authority : '', file.semel_mosad ? `סמל ${file.semel_mosad}` : '', file.contacts.length ? `${file.contacts.length} אנשי קשר` : ''].filter(Boolean).join(' · '))}</span>
+  </button>`).join('');
+}
+
+function clientContactsHtml(file = {}, canManage = false) {
+  if (!file.contacts.length) return '<p class="ds-client-empty">לא הוגדרו אנשי קשר לתיק זה.</p>';
+  return file.contacts.map((contact, index) => {
+    const name = text(contact.contact_name) || 'איש קשר';
+    const role = text(contact.contact_role) || 'ללא תפקיד';
+    const phone = contactPhonePresentation(contact);
+    const email = text(contact.email);
+    return `<article class="ds-client-contact">
+    <div class="ds-client-contact__identity"><strong>${escapeHtml(name)}</strong><span>${escapeHtml(role)}</span></div>
+    <div class="ds-client-contact__channels">${phone.value ? `<span>${escapeHtml(phone.label)}: <a href="tel:${escapeHtml(phone.value)}">${escapeHtml(phone.value)}</a></span>` : '<span>אין טלפון</span>'}${email ? `<a href="mailto:${escapeHtml(email)}">${escapeHtml(email)}</a>` : '<span>אין דוא״ל</span>'}</div>
+    ${canManage ? `<div class="ds-client-contact__actions"><button type="button" data-pa-client-edit-contact="${index}" title="עריכת איש קשר" aria-label="עריכת איש קשר">✎</button><button type="button" data-pa-client-delete-contact="${index}" title="הסרת איש קשר" aria-label="הסרת איש קשר">🗑</button></div>` : ''}
+  </article>`;
+  }).join('');
+}
+
+function selectedClientFileHtml(file, state = {}) {
+  const canManage = canManageProposalsAgreements(state);
+  const proposals = collapseSemanticDuplicates(dedupeById(file.proposals || []), {}).rows;
+  const current = proposals.filter((row) => !isArchivedClientProposal(row, proposals));
+  const archive = proposals.filter((row) => isArchivedClientProposal(row, proposals));
+  return `<div class="ds-client-file" data-pa-client-file="${escapeHtml(file.key)}">
+    <button type="button" class="ds-client-file__close" data-pa-client-close aria-label="סגירת תיק לקוח">✕</button>
+    <section class="ds-client-file__identity">
+      <h2 class="ds-client-file__title">${escapeHtml(file.school || file.authority || 'לקוח ללא שם')}</h2>
+      <p><span>רשות</span><strong>${escapeHtml(file.authority || 'לא הוגדרה')}</strong></p>
+      <p><span>תחום</span><strong>${escapeHtml(file.domain || 'לא הוגדר')}</strong></p>
+      ${file.school ? `<p><span>בית ספר</span><strong>${escapeHtml(file.school)}</strong></p>` : ''}
+      <p><span>סמל מוסד</span><strong>${escapeHtml(file.semel_mosad || 'לא הוגדר')}</strong></p>
+      <div class="ds-client-file__contacts-head"><h3>אנשי קשר</h3>${canManage ? '<button type="button" class="ds-btn ds-btn--sm ds-btn--ghost" data-pa-client-add-contact>＋ איש קשר</button>' : ''}</div>
+      <div class="ds-client-contacts">${clientContactsHtml(file, canManage)}</div>
+    </section>
+    <aside class="ds-client-file__proposals">
+      <div class="ds-client-file__proposals-head"><h3>הצעות עדכניות</h3><button type="button" class="ds-btn ds-btn--sm ds-btn--primary" data-pa-client-add-proposal>+ הצעה חדשה</button></div>
+      <div>${current.length ? current.map((row) => proposalCompactCardHtml(row, { canManage })).join('') : '<p class="ds-client-empty">אין הצעות עדכניות</p>'}</div>
+      <hr>
+      <details class="ds-client-archive"><summary>ארכיון הצעות מחיר — ${archive.length}</summary><div>${archive.length ? archive.map((row) => proposalCompactCardHtml(row, { archived: true, canManage })).join('') : '<p class="ds-client-empty">הארכיון ריק</p>'}</div></details>
+    </aside>
+  </div>`;
+}
+
+function clientContactEditorHtml(file, contact = {}, index = -1) {
+  const contactId = contact.source_id ?? contact.id ?? '';
+  return `<div class="ds-client-contact-modal" data-pa-client-contact-modal role="dialog" aria-modal="true" aria-label="${index >= 0 ? 'עריכת' : 'הוספת'} איש קשר">
+    <form class="ds-client-contact-form" data-pa-client-contact-form data-pa-contact-index="${index}" data-pa-contact-id="${escapeHtml(contactId)}">
+      <button type="button" class="ds-client-file__close" data-pa-client-contact-close aria-label="סגירה">✕</button>
+      <h3>${index >= 0 ? 'עריכת' : 'הוספת'} איש קשר</h3>
+      <label>שם מלא<input class="ds-input" name="contact_name" required value="${escapeHtml(contact.contact_name || '')}"></label>
+      <label>תפקיד<input class="ds-input" name="contact_role" value="${escapeHtml(contact.contact_role || '')}"></label>
+      <label>טלפון / נייד<input class="ds-input" name="mobile" value="${escapeHtml(contact.mobile || contact.phone || '')}"></label>
+      <label>טלפון נוסף<input class="ds-input" name="phone" value="${escapeHtml(contact.phone || '')}"></label>
+      <label>מייל<input class="ds-input" type="email" name="email" value="${escapeHtml(contact.email || '')}"></label>
+      <p data-pa-client-contact-error role="alert"></p>
+      <div><button type="submit" class="ds-btn ds-btn--primary">שמירה</button><button type="button" class="ds-btn" data-pa-client-contact-close>ביטול</button></div>
+    </form>
+  </div>`;
+}
+
+function rowsForProposalListView(data, listView = 'records') {
+  return allDisplayRows(data).filter((row) => {
+    const isSent = normalizeProposalStatus(row.status) === 'sent';
+    return listView === 'sent' ? isSent : !isSent;
+  });
+}
+
+function displayRows(data, filters = {}, listView = 'records') {
+  return rowsForProposalListView(data, listView).filter((row) => rowMatches(row, filters));
 }
 
 function currentFilters(root) {
@@ -3748,16 +5733,24 @@ function currentFilters(root) {
     q:                   root.querySelector('[data-pa-search]')?.value || '',
     activity_type_group: root.querySelector('[data-pa-filter="activity_type_group"]')?.value || '',
     status:              root.querySelector('[data-pa-filter="status"]')?.value || '',
-    proposal_domain:     root.querySelector('[data-pa-filter="proposal_domain"]')?.value || ''
+    proposal_domain:     root.querySelector('[data-pa-filter="proposal_domain"]')?.value || '',
+    client_authority:    root.querySelector('[data-pa-filter="client_authority"]')?.value || '',
+    school_framework:    root.querySelector('[data-pa-filter="school_framework"]')?.value || '',
+    date_from:           root.querySelector('[data-pa-filter="date_from"]')?.value || '',
+    date_to:             root.querySelector('[data-pa-filter="date_to"]')?.value || ''
   };
 }
 
 function activeFilters(filters = {}) {
   return [
     text(filters.q) ? { key: 'q', label: 'חיפוש', value: text(filters.q) } : null,
+    text(filters.client_authority) ? { key: 'client_authority', label: 'רשות', value: text(filters.client_authority) } : null,
+    text(filters.school_framework) ? { key: 'school_framework', label: 'בית ספר / גוף', value: text(filters.school_framework) } : null,
     text(filters.activity_type_group) ? { key: 'activity_type_group', label: 'סוג הצעה', value: proposalGroupDisplayName(filters.activity_type_group) } : null,
     text(filters.status) ? { key: 'status', label: 'סטטוס', value: STATUS_LABELS[normalizeProposalStatus(filters.status)] || filters.status } : null,
-    text(filters.proposal_domain) ? { key: 'proposal_domain', label: 'תחום', value: filters.proposal_domain } : null
+    text(filters.proposal_domain) ? { key: 'proposal_domain', label: 'תחום', value: filters.proposal_domain } : null,
+    text(filters.date_from) ? { key: 'date_from', label: 'מתאריך', value: formatDateDisplay(filters.date_from) } : null,
+    text(filters.date_to) ? { key: 'date_to', label: 'עד תאריך', value: formatDateDisplay(filters.date_to) } : null
   ].filter(Boolean);
 }
 
@@ -3790,13 +5783,37 @@ export function updateProposalsAgreementsTableOnly(root, rows, state, options = 
   const totalCounter = root?.querySelector('[data-pa-total-count]');
   const activeHost = root?.querySelector('[data-pa-active-filters]');
   const emptyHost = root?.querySelector('[data-pa-filtered-empty-host]');
+  const tableRegion = root?.querySelector('[data-pa-table-region]');
   const totalRows = Number(options.totalRows ?? rows.length);
   if (body) body.innerHTML = proposalsAgreementsTableRowsHtml(rows, state);
   if (counter) counter.textContent = String(rows.length);
   if (totalCounter) totalCounter.textContent = String(totalRows);
   if (activeHost) activeHost.outerHTML = activeFiltersHtml(options.filters || {});
   if (emptyHost) emptyHost.innerHTML = rows.length === 0 && totalRows > 0 ? filteredOutMessageHtml(totalRows) : '';
+  if (tableRegion) {
+    let moreHost = tableRegion.querySelector('[data-pa-load-more-wrap]');
+    if (options.hasMore) {
+      if (!moreHost) {
+        moreHost = document.createElement('div');
+        moreHost.className = 'ds-pa-load-more';
+        moreHost.dataset.paLoadMoreWrap = 'true';
+        tableRegion.appendChild(moreHost);
+      }
+      moreHost.hidden = false;
+      moreHost.innerHTML = `<button type="button" class="ds-btn ds-btn--ghost" data-pa-load-more-proposals ${options.pagingBusy ? 'disabled' : ''}>${options.pagingBusy ? 'טוען…' : 'הצגת תיקים נוספים'}</button>`;
+    } else if (moreHost) {
+      moreHost.remove();
+    }
+  }
 }
+
+function updateProposalListTabCounts(root, data) {
+  ['records', 'sent'].forEach((listView) => {
+    const count = root?.querySelector(`[data-pa-tab-count="${listView}"]`);
+    if (count) count.textContent = String(rowsForProposalListView(data, listView).length);
+  });
+}
+
 
 
 function setDocumentEditMode(root, enabled) {
@@ -3850,11 +5867,12 @@ function payloadFromForm(form) {
   const selectedClientType = text(formData.get('client_type_selector')) || text(formData.get('contact_source_client_type')) || (text(formData.get('contact_source_school_id')) ? 'school' : 'authority');
   payload.client_type = ['school', 'authority', 'other'].includes(selectedClientType) ? selectedClientType : 'school';
   if (payload.client_type === 'other') {
+    const otherClientName = text(formData.get('other_client_name'));
     payload.school_framework = '';
-    payload.client_authority = '';
-    payload.client_name = '';
-    payload.other_client_name = '';
-    payload.authority_id = null;
+    payload.client_authority = text(formData.get('contact_source_authority'));
+    payload.client_name = otherClientName;
+    payload.other_client_name = otherClientName;
+    payload.authority_id = text(formData.get('contact_source_authority_id')) || null;
     payload.school_id = null;
     payload.contact_school_id = null;
     payload.semel_mosad = null;
@@ -3864,9 +5882,9 @@ function payloadFromForm(form) {
     payload.semel_mosad = text(formData.get('contact_source_semel_mosad')) || null;
     const schoolRequired = text(formData.get('contact_source_school_required'));
     payload._school_required = schoolRequired === 'no' ? 'no' : 'yes';
-    const isAuthorityOnlyPayload = payload.client_type === 'authority';
+    const isAuthorityOnlyPayload = payload.client_type === 'authority' || payload.client_type === 'other';
     payload.school_id = isAuthorityOnlyPayload ? null : (text(formData.get('contact_source_school_id')) || null);
-    payload.contact_school_id = isAuthorityOnlyPayload ? null : (text(formData.get('contact_source_id')) || null);
+    payload.contact_school_id = text(formData.get('contact_source_id')) || null;
   }
   payload._contact_selection_mode = text(formData.get('contact_selection_mode'));
   payload._contact_original = {
@@ -3903,6 +5921,11 @@ function isManualCourseWithoutGefen(item = {}) {
     && !proposalItemHasCatalogIdentity(item);
 }
 
+function shouldValidateManualCourseGefenForItem(item = {}, fallbackGroup = '') {
+  const itemGroup = text(item.proposal_group || item.proposalGroup || item.activity_type_group || item.activityTypeGroup);
+  return isNextYearProposalGroup(itemGroup || fallbackGroup);
+}
+
 function validatePayload(payload, statusOverride, options = {}) {
   const targetStatus = statusOverride || payload.status || 'draft';
   const requiresCompleteProposal = targetStatus === 'sent' || targetStatus === 'pending_approval' || targetStatus === 'approved';
@@ -3910,13 +5933,16 @@ function validatePayload(payload, statusOverride, options = {}) {
   const isOtherProposal = clientType === 'other';
   const isAuthorityOnlyProposal = clientType === 'authority';
   const baseRequiredFields = requiresCompleteProposal ? REQUIRED_FIELDS_PENDING : REQUIRED_FIELDS_DRAFT;
-  const requiredFields = baseRequiredFields.filter((key) => !(isOtherProposal && ['client_authority', 'school_framework', 'other_client_name'].includes(key)));
+  const requiredFields = baseRequiredFields;
   const missing = requiredFields.filter((key) => !text(payload[key]));
   const errors = missing.map((key) => FIELD_LABELS[key] || key);
+  if (isOtherProposal && !text(payload.client_name || payload.school_framework)) {
+    errors.push('שם הלקוח');
+  }
+  if (!text(payload.authority_id)) {
+    errors.push('יש לבחור רשות מתוך רשימת הרשויות.');
+  }
   if (!isOtherProposal) {
-    if (!text(payload.authority_id)) {
-      errors.push('יש לבחור רשות מתוך רשימת הרשויות.');
-    }
     if (!text(payload.school_id) && !isAuthorityOnlyProposal) {
       errors.push('יש לבחור בית ספר מתוך רשימת בתי הספר של הרשות.');
     }
@@ -3927,7 +5953,7 @@ function validatePayload(payload, statusOverride, options = {}) {
     errors.push('יש להזין שם איש קשר חדש.');
   }
   if (hasManualContact && !text(payload.contact_school_id)) {
-    if (!isOtherProposal && (!text(payload.authority_id) || (!isAuthorityOnlyProposal && !text(payload.school_id)))) {
+    if (!text(payload.authority_id) || (!isOtherProposal && !isAuthorityOnlyProposal && !text(payload.school_id))) {
       errors.push('ניתן להוסיף איש קשר רק לאחר בחירת רשות ובית ספר.');
     }
   }
@@ -3944,7 +5970,7 @@ function validatePayload(payload, statusOverride, options = {}) {
       if (missingGroup) errors.push('שיוך קבוצה בכל שורה');
     }
     if (options.canAddManualCourseWithoutGefen === false) {
-      const manualCourseWithoutGefen = items.find(isManualCourseWithoutGefen);
+      const manualCourseWithoutGefen = items.find((item) => shouldValidateManualCourseGefenForItem(item, grp) && isManualCourseWithoutGefen(item));
       if (manualCourseWithoutGefen) errors.push('רק מנהל מערכת יכול להוסיף קורס חדש שאינו מהרשימה וללא מספר גפ״ן.');
     }
   }
@@ -4148,7 +6174,14 @@ export {
   calculateTourTotal,
   validatePayload,
   resetRecipientDependentFields,
-  stepComplete
+  stepComplete,
+  selectedRecipientType,
+  hideSchoolSearchPanel,
+  upsertProposalContactOption,
+  proposalGroupDisplayName,
+  isArchivedClientProposal,
+  drawerHtml,
+  proposalCompactCardHtml
 };
 
 // ─── Screen ───────────────────────────────────────────────────────────────────
@@ -4156,44 +6189,61 @@ export {
 export const proposalsAgreementsScreen = {
   load: ({ api, state }) => {
     if (!canAccessProposalsAgreements(state)) return Promise.resolve({ rows: [], unauthorized: true });
-    return api.proposalsAgreements();
+    // First metadata page only. Additional pages load only on explicit user action.
+    return api.proposalsAgreements({ limit: 50, offset: 0, includeLinkedDocuments: false });
   },
   render(data = {}, { state } = {}) {
     if (data?.unauthorized || !canAccessProposalsAgreements(state)) {
-      return dsScreenStack(`${dsPageHeader('הצעות מחיר', 'גישה מוגבלת למורשים בלבד')}${dsEmptyState('אין לך הרשאה לצפות במסך זה')}`);
+      return dsScreenStack(`${dsPageHeader('תיק לקוח', 'גישה מוגבלת למורשים בלבד')}${dsEmptyState('אין לך הרשאה לצפות במסך זה')}`);
     }
     setProposalGroupLookups(data, Array.isArray(data?.rows) ? data.rows : [], Array.isArray(data?.proposalActivityPricing) ? data.proposalActivityPricing : []);
     setProposalPricingLookup(Array.isArray(data?.proposalActivityPricing) ? data.proposalActivityPricing : []);
-    const totalRows = allDisplayRows(data).length;
-    const rows = displayRows(data, {});
+    const rows = displayRows(data, {}, 'records');
+    const recordsCount = rowsForProposalListView(data, 'records').length;
+    const sentCount = rowsForProposalListView(data, 'sent').length;
     const proposalGroupFilterOptions = proposalGroupOptions(data, Array.isArray(data?.rows) ? data.rows : [], Array.isArray(data?.proposalActivityPricing) ? data.proposalActivityPricing : []);
+    const allRowsForFilters = allDisplayRows(data);
+    const authorityFilterOptions = uniqueValues(allRowsForFilters, 'client_authority');
+    const schoolFilterOptions = uniqueValues(allRowsForFilters, 'school_framework');
     const canManage = canManageProposalsAgreements(state);
-    const rawRows = Array.isArray(data?.rows) ? data.rows.map(normalizeProposalAgreementRow) : [];
     return dsScreenStack(`
-      ${dsPageHeader('הצעות מחיר')}
-      <section class="ds-pa-screen" data-pa-screen dir="rtl">
+      ${dsPageHeader('תיק לקוח')}
+      <section class="ds-pa-screen" data-pa-screen data-pa-view-mode="client-home" dir="rtl">
         <style>
-          .ds-pa-screen-tab{border-radius:10px 10px 0 0;transition:background .15s,color .15s,border-color .15s}.ds-pa-screen-tab:hover{background:rgba(14,165,233,.08)}
+          .ds-pa-pdf-spinner{display:inline-block;width:12px;height:12px;border:2px solid currentColor;border-inline-end-color:transparent;border-radius:50%;animation:ds-pa-spin .7s linear infinite}@keyframes ds-pa-spin{to{transform:rotate(360deg)}}.ds-pa-screen-tab{border-radius:10px 10px 0 0;transition:background .15s,color .15s,border-color .15s}.ds-pa-screen-tab.is-active{color:var(--ds-accent)!important;border-bottom-color:var(--ds-accent)!important}.ds-pa-screen-tab:focus-visible{outline:3px solid color-mix(in srgb,var(--ds-accent) 24%,transparent);outline-offset:2px}.ds-pa-screen-tab:hover{background:color-mix(in srgb,var(--ds-accent) 8%,transparent)}.ds-pa-tab-count{display:inline-flex;min-width:19px;height:19px;padding:0 5px;align-items:center;justify-content:center;border-radius:999px;background:#e2e8f0;color:#475569;font-size:.72rem;margin-inline-start:4px}.ds-pa-screen-tab.is-active .ds-pa-tab-count{background:var(--ds-accent-soft);color:var(--ds-accent)}
           .ds-pa-form{max-width:1080px;margin-inline:auto}.ds-pa-form .ds-pa-form-grid{max-width:100%}.ds-pa-item-card{border:1px solid #dbe7f3;border-radius:10px;background:#fff;padding:5px 8px;margin:3px 0;box-shadow:0 1px 3px rgba(15,23,42,.04)}
-          .ds-pa-item-quick-row{display:grid;grid-template-columns:minmax(0,1fr) 96px;gap:6px;align-items:end}.ds-pa-item-extra{margin-top:4px}.ds-pa-item-extra-toggle{cursor:pointer;color:#2563eb;font-size:.78rem}.ds-pa-type-chips{grid-template-columns:repeat(2,minmax(0,1fr))}.ds-pa-type-card{min-height:28px!important;padding:3px 5px!important;font-size:.76rem!important}.ds-pa-summary-bar--compact{display:flex;align-items:center;gap:8px;justify-content:space-between}.ds-pa-summary-bar--compact .ds-pa-summary-pill{flex:1}.ds-pa-item-field--select select{overflow:hidden;text-overflow:ellipsis}.ds-pa-item-field--select-no-label{gap:0}.ds-pa-item-field span{display:block;font-size:.74rem;color:#64748b;margin-bottom:3px;font-weight:600}.ds-pa-line-total output{min-height:34px;display:flex;align-items:center;justify-content:center;border:1px solid #dbe7f3;border-radius:10px;background:#f8fbff;font-weight:700;color:#0f766e}.ds-pa-items-total-row{margin-top:10px;padding:10px 12px;border-radius:12px;background:#eef8ff;font-size:.9rem}.ds-pa-items-total-row strong{color:#0369a1}
+          .ds-pa-item-quick-row{display:grid;grid-template-columns:minmax(0,1fr) 96px;gap:6px;align-items:end}.ds-pa-item-extra{margin-top:4px}.ds-pa-item-extra-toggle{cursor:pointer;color:#2563eb;font-size:.78rem}.ds-pa-summary-bar--compact{display:flex;align-items:center;gap:8px;justify-content:space-between}.ds-pa-summary-bar--compact .ds-pa-summary-pill{flex:1}.ds-pa-item-field--select select{overflow:hidden;text-overflow:ellipsis}.ds-pa-item-field--select-no-label{gap:0}.ds-pa-item-field span{display:block;font-size:.74rem;color:#64748b;margin-bottom:3px;font-weight:600}.ds-pa-line-total output{min-height:34px;display:flex;align-items:center;justify-content:center;border:1px solid #dbe7f3;border-radius:10px;background:#f8fbff;font-weight:700;color:#0f766e}.ds-pa-items-total-row{margin-top:10px;padding:10px 12px;border-radius:12px;background:#eef8ff;font-size:.9rem}.ds-pa-items-total-row strong{color:#0369a1}
           .ds-pa-bundle-prompt{margin-top:12px}.ds-pa-bundle-panel{border:1px solid #b7e0f5;background:#f8fdff;border-radius:14px;padding:12px}.ds-pa-bundle-head{display:flex;justify-content:space-between;gap:10px;align-items:center;margin-bottom:6px}.ds-pa-bundle-head strong{font-size:.9rem;color:#0f172a}.ds-pa-bundle-head span,.ds-pa-bundle-help,.ds-pa-bundle-empty{font-size:.78rem;color:#64748b}.ds-pa-bundle-grid{display:grid;grid-template-columns:repeat(auto-fit,minmax(220px,1fr));gap:8px;margin-top:10px}.ds-pa-bundle-child-card{display:grid;grid-template-columns:auto 1fr auto;align-items:center;gap:8px;border:1px solid #dbe7f3;border-radius:12px;background:#fff;padding:9px 10px;cursor:pointer;min-height:42px}.ds-pa-bundle-child-card:hover{border-color:#38bdf8;background:#f0f9ff}.ds-pa-bundle-child-card:has(input:checked){border-color:#0ea5e9;background:#e0f2fe;box-shadow:0 0 0 1px #0ea5e9 inset}.ds-pa-bundle-child-name{font-size:.82rem;color:#0f172a;line-height:1.25}.ds-pa-bundle-child-price{font-size:.8rem;font-weight:700;color:#0f766e;white-space:nowrap}.ds-pa-bundle-footer{display:flex;justify-content:space-between;align-items:center;gap:10px;margin-top:10px;flex-wrap:wrap}.ds-pa-bundle-actions{display:flex;gap:6px}.ds-pa-bundle-selection-summary{font-size:.78rem;color:#0369a1;font-weight:700}.ds-pa-summary-bundle-list{margin:4px 0 0;padding-right:16px;font-size:.72rem}.ds-pa-items-summary-table{width:100%;border-collapse:collapse;font-size:.78rem}.ds-pa-items-summary-table th,.ds-pa-items-summary-table td{border-bottom:1px solid #e5eef6;padding:6px;text-align:right}.ds-pa-items-summary-table th{color:#64748b;font-weight:700;background:#f8fbff}
           .ds-pa-active-filters{display:flex;flex-wrap:wrap;align-items:center;gap:6px 8px;border:1px solid #dbe7f3;background:#f8fbff;border-radius:10px;padding:6px 10px;margin:8px 0 10px}.ds-pa-active-filters[hidden]{display:none}.ds-pa-active-filters-label{color:#475569;font-weight:700;font-size:.82rem;flex-shrink:0}.ds-pa-active-filter-chips{display:flex;flex-wrap:wrap;gap:6px}.ds-pa-active-filter-chip{border:1px solid #bfdbfe;background:#eff6ff;color:#1e3a8a;border-radius:999px;padding:3px 9px;font-size:.78rem}.ds-pa-active-filters [data-pa-clear-filters]{margin-inline-start:auto}.ds-pa-filtered-empty{margin:12px;border:1px solid #fed7aa;background:#fff7ed;color:#9a3412;border-radius:12px;padding:14px;text-align:center}.ds-pa-filtered-empty p{margin:0 0 10px;font-weight:700}
-          @media (max-width:900px){.ds-pa-bundle-grid{grid-template-columns:1fr}}@media (max-width:640px){.ds-pa-type-chips{grid-template-columns:repeat(2,minmax(0,1fr))}.ds-pa-item-quick-row{grid-template-columns:1fr}}
+          .ds-pa-legacy-list .ds-pa-toolbar{display:flex;flex-wrap:nowrap;align-items:end;gap:6px}.ds-pa-legacy-list .ds-pa-toolbar>*{min-width:0}.ds-pa-legacy-list .ds-pa-search{flex:1 1 170px;min-width:140px;max-width:190px}.ds-pa-legacy-list .ds-pa-filter{flex:0 1 112px;min-width:0;max-width:none}.ds-pa-legacy-list .ds-pa-filter:has([data-pa-filter="client_authority"]){flex-basis:130px}.ds-pa-legacy-list .ds-pa-filter:has([data-pa-filter="school_framework"]){flex-basis:150px}.ds-pa-legacy-list .ds-pa-filter:has([data-pa-filter="proposal_domain"]){flex-basis:90px}.ds-pa-legacy-list .ds-pa-filter:has([data-pa-filter="date_from"]),.ds-pa-legacy-list .ds-pa-filter:has([data-pa-filter="date_to"]){flex-basis:128px}.ds-pa-legacy-list .ds-pa-toolbar .ds-input,.ds-pa-legacy-list .ds-pa-clear-inline{width:100%;height:34px;min-height:34px;box-sizing:border-box}.ds-pa-legacy-list .ds-pa-clear-inline{flex:0 0 auto;width:auto;padding-inline:10px}
+          .ds-pa-legacy-list{display:none}.ds-pa-screen[data-pa-view-mode="all-proposals"] .ds-pa-legacy-list{display:block}.ds-pa-screen[data-pa-view-mode="all-proposals"] .ds-client-workspace,.ds-pa-screen[data-pa-view-mode="proposal-editor"] .ds-client-workspace{display:none}.ds-pa-screen[data-pa-view-mode="proposal-details"] .ds-pa-legacy-list,.ds-pa-screen[data-pa-view-mode="proposal-editor"] .ds-pa-legacy-list{display:none}.ds-pa-all-back{margin:0 0 12px}.ds-client-workspace{max-width:1360px;margin:0 auto}.ds-client-home{padding:12px 10px 8px}.ds-client-toolbar{display:flex;flex-direction:row;justify-content:center;align-items:center;flex-wrap:nowrap;gap:9px;width:100%;margin:0 auto 22px}.ds-client-toolbar-button{width:140px;height:42px;min-height:42px;padding:0 14px;border-radius:12px;font-size:.9rem;flex:0 0 140px}.ds-client-search{display:block;width:420px;flex:0 1 420px;margin:0}.ds-client-search input{display:block;width:100%;height:42px;border:2px solid var(--ds-accent);border-radius:12px;padding-inline:16px;background:#fff;box-sizing:border-box}.ds-client-search input:focus{border-color:var(--ds-accent);box-shadow:0 0 0 3px color-mix(in srgb,var(--ds-accent) 20%,transparent);outline:0}.ds-client-actions{display:flex;justify-content:center;flex-wrap:wrap;gap:10px}.ds-client-add{width:42px;height:42px;border:0;background:transparent;color:var(--ds-accent);font-size:2rem;cursor:pointer}.ds-client-search-results{max-width:760px;margin:0 auto 18px;border:1px solid color-mix(in srgb,var(--ds-accent) 30%,var(--ds-border));background:#fff;border-radius:16px;box-shadow:0 12px 30px color-mix(in srgb,var(--ds-accent) 12%,transparent);padding:6px;max-height:380px;overflow:auto}.ds-client-search-result{display:flex;width:100%;justify-content:space-between;align-items:center;text-align:right;padding:12px 14px;border:0;border-bottom:1px solid var(--ds-border);background:#fff;cursor:pointer;border-radius:10px}.ds-client-search-result:hover,.ds-client-search-result:focus-visible{background:var(--ds-accent-soft);outline:3px solid color-mix(in srgb,var(--ds-accent) 28%,transparent);outline-offset:1px}.ds-client-search-result span{color:#64748b;font-size:.8rem}.ds-client-queues{display:grid;grid-template-columns:repeat(4,minmax(190px,1fr));gap:18px}.ds-client-queue{border:2px solid var(--ds-accent);border-radius:16px;background:#fff;min-height:150px;overflow:hidden;box-shadow:0 4px 14px color-mix(in srgb,var(--ds-accent) 6%,transparent)}.ds-client-queue header{display:flex;justify-content:space-between;align-items:center;padding:12px 14px;background:var(--ds-accent-soft);color:var(--ds-accent)}.ds-client-queue header b{display:inline-grid;place-items:center;min-width:24px;height:24px;border-radius:999px;background:var(--ds-accent);color:#fff}.ds-client-queue>div{padding:8px}.ds-client-queue>div>p,.ds-client-empty,.ds-client-search-empty{text-align:center;color:#94a3b8;font-size:.84rem}.ds-client-queue-item{display:block;width:100%;text-align:right;border:0;border-bottom:1px solid var(--ds-border);background:#fff;padding:10px 8px;cursor:pointer;border-radius:8px;transition:background .15s,box-shadow .15s}.ds-client-queue-item:hover,.ds-client-queue-item:focus-visible{background:color-mix(in srgb,var(--ds-accent) 7%,var(--ds-surface));box-shadow:0 0 0 3px color-mix(in srgb,var(--ds-accent) 20%,transparent);outline:0}.ds-client-queue-item strong,.ds-client-queue-item span{display:block}.ds-client-queue-item span{font-size:.75rem;color:#64748b;margin-top:3px}.ds-client-home__hint{text-align:center;color:#64748b;font-size:.8rem;margin-top:16px}.ds-client-file{position:relative;display:grid;grid-template-columns:minmax(380px,40%) minmax(0,1fr);gap:26px;border:2px solid var(--ds-accent);border-radius:18px;background:#fff;padding:32px;margin:14px 4px;box-shadow:0 8px 28px color-mix(in srgb,var(--ds-accent) 8%,transparent)}.ds-client-file__close{position:absolute;top:10px;left:12px;border:0;background:transparent;color:#dc2626;font-size:1.05rem;cursor:pointer}.ds-client-file__identity>p{display:grid;grid-template-columns:120px 1fr;gap:10px;margin:0 0 12px}.ds-client-file__identity>p span,.ds-client-file h3{color:var(--ds-accent);font-weight:700}.ds-client-file__contacts-head,.ds-client-file__proposals-head{display:flex;justify-content:space-between;align-items:center;margin-top:22px}.ds-client-file h3{margin:0;font-size:1.05rem}.ds-client-contacts{display:grid;gap:8px;margin-top:10px}.ds-client-contact{display:grid;grid-template-columns:minmax(130px,1fr) minmax(180px,1fr) auto;gap:14px;align-items:center;padding:10px 12px;border:1px solid color-mix(in srgb,var(--ds-accent) 20%,var(--ds-border));border-radius:12px;background:color-mix(in srgb,var(--ds-accent) 3%,var(--ds-surface))}.ds-client-contact strong,.ds-client-contact span,.ds-client-contact a{display:block}.ds-client-contact span,.ds-client-contact a{font-size:.8rem;color:#64748b}.ds-client-contact button{border:0;background:transparent;color:var(--ds-accent);cursor:pointer;font-size:1rem}.ds-client-file__proposals{border:2px solid var(--ds-accent);border-radius:16px;padding:16px;background:color-mix(in srgb,var(--ds-accent) 3%,var(--ds-surface));align-self:start}.ds-client-file__proposals-head{margin:0 0 10px}.ds-client-file__proposals hr{border:0;border-top:1px solid #1f2937;margin:20px 10px}.ds-client-proposal{border:1px solid color-mix(in srgb,var(--ds-accent) 20%,var(--ds-border));background:#fff;border-radius:12px;margin:8px 0;padding:5px}.ds-client-proposal.is-archived{opacity:.78}.ds-client-proposal__main{display:grid;grid-template-columns:auto 1fr auto;gap:8px;align-items:center;width:100%;text-align:right;border:0;background:transparent;padding:7px;cursor:pointer}.ds-client-proposal__main span strong,.ds-client-proposal__main span small{display:block}.ds-client-proposal__main small{color:#64748b;font-size:.7rem;margin-top:2px}.ds-client-proposal__main b{font-size:.76rem;color:#0f766e}.ds-client-proposal__actions{display:flex;flex-wrap:wrap;gap:4px;justify-content:flex-end;padding:0 7px 6px}.ds-client-proposal__version{display:inline-block;margin-inline-start:auto;border:0;background:transparent;color:var(--ds-accent);font-size:.72rem;cursor:pointer;padding:2px 7px}.ds-client-archive summary{cursor:pointer;color:#64748b;font-weight:700;font-size:.84rem}.ds-client-archive summary b{display:inline-grid;place-items:center;min-width:20px;height:20px;border-radius:999px;background:#e2e8f0;margin-inline-start:4px}.ds-client-contact-modal{position:fixed;inset:0;z-index:10000;display:grid;place-items:center;background:rgba(15,23,42,.45);padding:20px}.ds-client-contact-form{position:relative;width:min(520px,100%);display:grid;grid-template-columns:1fr 1fr;gap:12px;background:#fff;border-radius:18px;padding:26px;box-shadow:0 24px 60px rgba(15,23,42,.25)}.ds-client-contact-form h3,.ds-client-contact-form>div,.ds-client-contact-form>p{grid-column:1/-1}.ds-client-contact-form label{display:grid;gap:5px;font-size:.8rem;color:#475569}.ds-client-contact-form>p{color:#dc2626;margin:0}.ds-client-contact-form>div{display:flex;gap:8px;justify-content:flex-start}
+          .ds-pa-proposal-detail{width:94%;max-width:1360px;margin:0 auto;padding:8px 10px 24px}.ds-pa-proposal-detail-toolbar{display:flex;align-items:center;gap:12px;flex-wrap:wrap;margin-bottom:14px}.ds-pa-proposal-detail .ds-pa-drawer{position:static;inset:auto;z-index:auto;display:block;background:transparent;justify-content:stretch}.ds-pa-proposal-detail .ds-pa-drawer-panel{width:100%;max-width:100%;height:auto;max-height:none;overflow:visible;border:2px solid var(--ds-accent);border-radius:18px;box-shadow:0 8px 28px color-mix(in srgb,var(--ds-accent) 8%,transparent)}.ds-pa-proposal-detail .ds-pa-drawer-head [data-pa-close-drawer]{display:none}.ds-pa-proposal-info-grid{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:18px}.ds-pa-proposal-info-grid>.ds-pa-info-card{margin:0;border:1px solid var(--ds-border);background:var(--ds-surface);box-shadow:0 3px 12px color-mix(in srgb,var(--ds-accent) 8%,transparent)}.ds-pa-activities-wide{margin-top:18px;border:1px solid var(--ds-border);border-radius:14px;padding:16px;background:var(--ds-surface)}.ds-client-contact__actions{display:flex;gap:6px}.ds-client-contact button:focus-visible{outline:3px solid color-mix(in srgb,var(--ds-accent) 28%,transparent);outline-offset:2px;border-radius:6px}
+          @media (max-width:1100px){.ds-pa-proposal-info-grid{grid-template-columns:repeat(2,minmax(0,1fr))}.ds-pa-legacy-list .ds-pa-toolbar{flex-wrap:wrap}.ds-pa-legacy-list .ds-pa-search,.ds-pa-legacy-list .ds-pa-filter{flex:1 1 150px;max-width:none}}@media (max-width:1000px){.ds-client-toolbar{flex-wrap:wrap}.ds-client-search{order:3;flex-basis:100%;width:min(100%,440px)}.ds-client-queues{grid-template-columns:repeat(2,1fr)}.ds-client-file{grid-template-columns:1fr}.ds-client-file__proposals{width:auto}}@media (max-width:900px){.ds-pa-bundle-grid{grid-template-columns:1fr}}@media (max-width:640px){.ds-pa-proposal-info-grid{grid-template-columns:1fr}.ds-pa-proposal-detail{width:100%;padding-inline:0}.ds-pa-item-quick-row{grid-template-columns:1fr}.ds-client-queues{grid-template-columns:1fr}.ds-client-search{width:calc(100% - 8px);max-width:460px}.ds-client-actions{gap:8px}.ds-client-file{padding:26px 16px}.ds-client-contact{grid-template-columns:1fr auto}.ds-client-contact__channels{grid-column:1/-1}.ds-client-contact-form{grid-template-columns:1fr}.ds-pa-legacy-list .ds-pa-search,.ds-pa-legacy-list .ds-pa-filter{flex-basis:calc(50% - 3px)}.ds-pa-legacy-list .ds-pa-clear-inline{flex:1 1 100%}}
         </style>
-        <div class="ds-pa-screen-tabs" data-pa-screen-tabs style="display:flex;gap:4px;border-bottom:2px solid var(--ds-border,#e5e7eb);margin-bottom:12px">
-          <button type="button" class="ds-pa-screen-tab is-active" data-pa-tab="records" style="padding:6px 16px;border:none;background:none;cursor:pointer;font-weight:600;border-bottom:2px solid transparent;margin-bottom:-2px;color:inherit;font-size:0.9rem">📋 רשומות</button>
+        <div class="ds-client-workspace" data-pa-client-workspace>${clientFileLandingHtml(data, state)}</div>
+        <div class="ds-pa-screen-tabs" data-pa-screen-tabs hidden aria-hidden="true">
+          <button type="button" class="ds-pa-screen-tab is-active" data-pa-tab="records" style="padding:6px 16px;border:none;background:none;cursor:pointer;font-weight:600;border-bottom:2px solid transparent;margin-bottom:-2px;color:inherit;font-size:0.9rem">📋 רשומות <span class="ds-pa-tab-count" data-pa-tab-count="records">${recordsCount}</span></button>
+          <button type="button" class="ds-pa-screen-tab" data-pa-tab="sent" style="padding:6px 16px;border:none;background:none;cursor:pointer;font-weight:500;border-bottom:2px solid transparent;margin-bottom:-2px;color:var(--ds-text-muted,#6b7280);font-size:0.9rem">✓ הצעות שנשלחו <span class="ds-pa-tab-count" data-pa-tab-count="sent">${sentCount}</span></button>
           ${canManage ? '<button type="button" class="ds-pa-screen-tab" data-pa-tab="new" style="padding:6px 16px;border:none;background:none;cursor:pointer;font-weight:500;border-bottom:2px solid transparent;margin-bottom:-2px;color:var(--ds-text-muted,#6b7280);font-size:0.9rem">+ הצעה חדשה</button>' : ''}
         </div>
-        <div data-pa-tab-panel="records">
+        <div class="ds-pa-legacy-list" data-pa-tab-panel="list" data-pa-all-proposals-table aria-hidden="true">
+          <div class="ds-pa-all-back">
+            <button type="button" class="ds-btn ds-btn--ghost" data-pa-back-to-client-home>← חזרה לתיק הלקוח</button>
+          </div>
           <div class="ds-pa-toolbar">
             <label class="ds-pa-search"><span>חיפוש</span><input class="ds-input ds-input--sm" data-pa-search placeholder="חיפוש מקומי" autocomplete="off"></label>
+            ${filterSelectHtml('client_authority', 'רשות', authorityFilterOptions)}
+            ${filterSelectHtml('school_framework', 'בית ספר / גוף', schoolFilterOptions)}
             ${filterSelectHtml('activity_type_group', 'סוג הצעה', proposalGroupFilterOptions)}
             ${statusFilterHtml()}
             <label class="ds-pa-filter"><span>תחום</span><select class="ds-input ds-input--sm" data-pa-filter="proposal_domain"><option value="">הכול</option><option value="Y">Y</option><option value="E">E</option></select></label>
+            <label class="ds-pa-filter"><span>מתאריך</span><input class="ds-input ds-input--sm" type="date" data-pa-filter="date_from"></label>
+            <label class="ds-pa-filter"><span>עד תאריך</span><input class="ds-input ds-input--sm" type="date" data-pa-filter="date_to"></label>
+            <button type="button" class="ds-btn ds-btn--sm ds-btn--ghost ds-pa-clear-inline" data-pa-clear-filters>ניקוי סינון</button>
           </div>
           ${activeFiltersHtml({})}
-          <div class="ds-pa-local-status" aria-live="polite">מציג <strong data-pa-results-count>${rows.length}</strong> מתוך <strong data-pa-total-count>${totalRows}</strong> הצעות</div>
-          ${dsCard({ title: 'רשומות', padded: false, body: `<div data-pa-filtered-empty-host></div><div class="ds-pa-records-shell" data-pa-table-region>${tableHtml(rows, state)}</div>` })}
+          <div class="ds-pa-local-status" aria-live="polite" hidden><strong data-pa-results-count>${rows.length}</strong><strong data-pa-total-count>${recordsCount}</strong></div>
+          <div data-pa-filtered-empty-host></div><div class="ds-pa-records-shell" data-pa-table-region>${tableHtml(rows, state)}</div>
           ${drawerHtml(null, [], state)}
         </div>
         <div data-pa-tab-panel="new" hidden>
@@ -4213,76 +6263,581 @@ export const proposalsAgreementsScreen = {
     data.rows = sortRows((Array.isArray(data.rows) ? data.rows : [])
       .map(normalizeProposalAgreementRow)
       .filter((r) => { const k = text(r.id); if (!k || seenIds.has(k)) return false; seenIds.add(k); return true; }));
+    data._itemsByProposalId = indexProposalItemsById(data);
+    {
+      const collapsed = collapseSemanticDuplicates(data.rows, data._itemsByProposalId);
+      data._semanticDuplicateIds = collapsed.duplicateIds;
+    }
     notifyPendingProposalsNav(data.rows);
     const activityNameOptions = Array.from(new Set((Array.isArray(data?.activityNameOptions) ? data.activityNameOptions : []).map((v) => text(v)).filter(Boolean)));
     const proposalActivityPricing = Array.isArray(data?.proposalActivityPricing) ? data.proposalActivityPricing : [];
     setProposalGroupLookups(data, data.rows, proposalActivityPricing);
     setProposalPricingLookup(proposalActivityPricing);
     const proposalTemplateSections = normalizeTemplateSections(Array.isArray(data?.proposalTemplateSections) ? data.proposalTemplateSections : []);
-    const contactOptions = Array.isArray(data?.contactOptions) ? data.contactOptions : [];
-    const contactOptionsError = text(data?.contactOptionsError || '');
-    const proposalLoaderDebug = data?._debug?.proposal_loader || {};
-    const proposalLoaderError = (key) => proposalLoaderDebug?.[key]?.errorDetails || proposalLoaderDebug?.[key]?.error || null;
-    // eslint-disable-next-line no-console
-    console.info('[proposal-load-debug]', {
-      templateSectionsCount: proposalTemplateSections.length,
-      agreementItemsCount: Array.isArray(data?.proposalAgreementItems) ? data.proposalAgreementItems.length : 0,
-      activityGroupsCount: Array.isArray(data?.proposalActivityGroups) ? data.proposalActivityGroups.length : 0,
-      groupAliasesCount: Array.isArray(data?.proposalGroupAliases) ? data.proposalGroupAliases.length : 0,
-      activityPricingCount: proposalActivityPricing.length,
-      proposalsCount: data.rows.length,
-      directoryRowsCount: proposalLoaderDebug?.rows?.count ?? data.rows.length,
-      templateSectionsError: proposalLoaderError('templateSectionsError') || proposalLoaderError('proposalTemplateSections'),
-      agreementItemsError: proposalLoaderError('agreementItemsError') || null,
-      activityGroupsError: proposalLoaderError('activityGroupsError') || proposalLoaderError('proposalActivityGroups'),
-      groupAliasesError: proposalLoaderError('groupAliasesError') || proposalLoaderError('proposalGroupAliases'),
-      activityPricingError: proposalLoaderError('activityPricingError') || proposalLoaderError('proposalActivityPricing')
-    });
-    // eslint-disable-next-line no-console
-    console.info('[proposal-authorities-debug]', {
-      totalContactOptions: contactOptions.length,
-      authoritiesCount: contactOptions.filter((c) => c._catalog_source === 'authorities').length,
-      firstAuthorities: contactOptions
-        .filter((c) => c._catalog_source === 'authorities')
-        .slice(0, 10)
-    });
+    let contactOptions = Array.isArray(data?.contactOptions) ? data.contactOptions : [];
+    let contactOptionsError = text(data?.contactOptionsError || '');
+    // Contacts provided with the screen payload (editor/tests) are already available.
+    if (contactOptions.length) data._contactsLoaded = true;
     const rowWithCentralContact = (row) => {
       if (!row) return row;
       const enriched = enrichProposalRowFromContactOptions(row, contactOptions);
-      // The contact saved on the proposal is the source of truth — never override it.
-      if (text(enriched.contact_name)) return enriched;
       const contact = findContactForProposalRow(contactOptions, enriched);
       if (!contact) return enriched;
+      const savedContactName = text(enriched.contact_name);
+      // Live-display enrichment only: client_authority, school_framework, client_name, client_type,
+      // authority_id, school_id and contact_school_id are the saved proposal's own identity fields —
+      // they are the single source of truth for table/drawer/preview/print and must never be replaced
+      // by a matched contact. Only missing contact channels are filled in here, and phone is only
+      // ever taken from mobile (never a landline).
       return {
         ...enriched,
-        client_name:      text(contact.client_name) || enriched.client_name || text(contact.school) || text(contact.authority),
-        client_type:      text(contact.client_type) || enriched.client_type,
-        client_authority: text(contact.authority) || enriched.client_authority,
-        school_framework: text(contact.school) || enriched.school_framework,
-        contact_name:     text(contact.contact_name) || enriched.contact_name,
-        contact_role:     text(contact.contact_role) || enriched.contact_role,
-        phone:            text(contact.phone || contact.mobile || '') || enriched.phone,
-        email:            text(contact.email) || enriched.email
+        contact_name: savedContactName || text(contact.contact_name),
+        contact_role: text(enriched.contact_role) || text(contact.contact_role),
+        phone:        text(enriched.phone) || contactDisplayPhone(contact),
+        email:        text(enriched.email) || text(contact.email)
       };
     };
+    const syncContactOptions = (nextOptions = [], error = null) => {
+      contactOptions = Array.isArray(nextOptions) ? nextOptions : [];
+      contactOptionsError = text(error || '');
+      data.contactOptions = contactOptions;
+      data.contactOptionsError = contactOptionsError;
+      data._contactsLoaded = true;
+    };
+    const ensureContacts = async () => {
+      if (data?._contactsLoaded) return;
+      if (typeof api.proposalsAgreementsContacts !== 'function'
+        && typeof api.proposalsAgreementsEditorDeps !== 'function') {
+        data._contactsLoaded = true;
+        return;
+      }
+      if (typeof api.proposalsAgreementsContacts === 'function') {
+        const contacts = await api.proposalsAgreementsContacts();
+        syncContactOptions(contacts?.contactOptions, contacts?.contactOptionsError);
+        return;
+      }
+      const deps = await api.proposalsAgreementsEditorDeps();
+      syncContactOptions(deps?.contactOptions, deps?.contactOptionsError);
+      data._editorDepsLoaded = true;
+    };
+    let editorDepsPromise = null;
+    const ensureEditorDeps = async () => {
+      if (data?._editorDepsLoaded) return;
+      if (editorDepsPromise) return editorDepsPromise;
+      if (typeof api.proposalsAgreementsEditorDeps !== 'function') {
+        data._editorDepsLoaded = true;
+        return;
+      }
+      editorDepsPromise = api.proposalsAgreementsEditorDeps().then((deps) => {
+        data.activityNameOptions = Array.isArray(deps?.activityNameOptions) ? deps.activityNameOptions : [];
+        data.proposalActivityPricing = Array.isArray(deps?.proposalActivityPricing) ? deps.proposalActivityPricing : [];
+        data.proposalTemplateSections = Array.isArray(deps?.proposalTemplateSections) ? deps.proposalTemplateSections : [];
+        data.proposalActivityGroups = Array.isArray(deps?.proposalActivityGroups) ? deps.proposalActivityGroups : data.proposalActivityGroups;
+        data.proposalGroupAliases = Array.isArray(deps?.proposalGroupAliases) ? deps.proposalGroupAliases : data.proposalGroupAliases;
+        data.schoolCalendarRows = Array.isArray(deps?.schoolCalendarRows) ? deps.schoolCalendarRows : [];
+        syncContactOptions(deps?.contactOptions, deps?.contactOptionsError);
+        data._editorDepsLoaded = true;
+        activityNameOptions.splice(0, activityNameOptions.length, ...Array.from(new Set(data.activityNameOptions.map((v) => text(v)).filter(Boolean))));
+        proposalActivityPricing.splice(0, proposalActivityPricing.length, ...data.proposalActivityPricing);
+        setProposalGroupLookups(data, data.rows, proposalActivityPricing);
+        setProposalPricingLookup(proposalActivityPricing);
+        proposalTemplateSections.splice(0, proposalTemplateSections.length, ...normalizeTemplateSections(data.proposalTemplateSections));
+        proposalSchoolCalendarRows = data.schoolCalendarRows;
+      }).finally(() => { editorDepsPromise = null; });
+      return editorDepsPromise;
+    };
+    // Start immutable editor lookups as soon as the proposals screen is bound.
+    // Opening the editor still awaits the same memoized request, but no longer
+    // pays the full cold-network latency after the user's click.
+    void ensureEditorDeps().catch(() => {});
+    const currentListQuery = () => ({
+      search: text(data?._query?.search),
+      status: text(data?._query?.status),
+      authorityId: text(data?._query?.authorityId),
+      schoolId: text(data?._query?.schoolId),
+      clientType: text(data?._query?.clientType),
+      sort: text(data?._query?.sort) || 'updated_at_desc',
+      limit: Number(data?._limit || 50),
+      includeLinkedDocuments: false
+    });
+    const mergeProposalPageRows = (incoming = []) => {
+      const seen = new Set((data.rows || []).map((row) => text(row?.id)).filter(Boolean));
+      const merged = (Array.isArray(incoming) ? incoming : []).filter((row) => {
+        const id = text(row?.id);
+        if (!id || seen.has(id)) return false;
+        seen.add(id);
+        return true;
+      }).map(normalizeProposalAgreementRow);
+      data.rows = [...(data.rows || []), ...merged];
+      data._itemsByProposalId = indexProposalItemsById(data);
+      {
+        const collapsed = collapseSemanticDuplicates(data.rows, data._itemsByProposalId);
+        data._semanticDuplicateIds = collapsed.duplicateIds;
+      }
+      notifyPendingProposalsNav(data.rows);
+      return merged.length;
+    };
+    const loadNextProposalPage = async () => {
+      if (!data?._hasMore || data._pagingInFlight || typeof api.proposalsAgreements !== 'function') return false;
+      data._pagingInFlight = true;
+      try {
+        const offset = Number(data._offset || 0) + Number(data._limit || 50);
+        const next = await api.proposalsAgreements({
+          ...currentListQuery(),
+          offset
+        });
+        const nextRows = Array.isArray(next?.rows) ? next.rows : [];
+        mergeProposalPageRows(nextRows);
+        data._hasMore = Boolean(next?._hasMore) && nextRows.length > 0;
+        data._offset = Number(next?._offset || offset);
+        data._limit = Number(next?._limit || data._limit || 50);
+        data._query = next?._query || data._query;
+        return true;
+      } catch {
+        return false;
+      } finally {
+        data._pagingInFlight = false;
+      }
+    };
+    const reloadProposalList = async (queryPatch = {}, { append = false } = {}) => {
+      if (data._pagingInFlight || typeof api.proposalsAgreements !== 'function') return false;
+      data._pagingInFlight = true;
+      try {
+        const nextQuery = {
+          ...currentListQuery(),
+          ...queryPatch,
+          offset: append ? Number(data._offset || 0) + Number(data._limit || 50) : 0
+        };
+        const page = await api.proposalsAgreements(nextQuery);
+        const pageRows = Array.isArray(page?.rows) ? page.rows : [];
+        if (append) mergeProposalPageRows(pageRows);
+        else {
+          const seenIdsLocal = new Set();
+          data.rows = pageRows
+            .map(normalizeProposalAgreementRow)
+            .filter((r) => { const k = text(r.id); if (!k || seenIdsLocal.has(k)) return false; seenIdsLocal.add(k); return true; });
+          data._itemsByProposalId = indexProposalItemsById(data);
+          {
+            const collapsed = collapseSemanticDuplicates(data.rows, data._itemsByProposalId);
+            data._semanticDuplicateIds = collapsed.duplicateIds;
+          }
+          notifyPendingProposalsNav(data.rows);
+        }
+        data._hasMore = Boolean(page?._hasMore) && pageRows.length > 0;
+        data._offset = Number(page?._offset || nextQuery.offset || 0);
+        data._limit = Number(page?._limit || data._limit || 50);
+        data._query = page?._query || {
+          search: nextQuery.search,
+          status: nextQuery.status,
+          authorityId: nextQuery.authorityId,
+          schoolId: nextQuery.schoolId,
+          clientType: nextQuery.clientType,
+          sort: nextQuery.sort
+        };
+        return true;
+      } catch {
+        return false;
+      } finally {
+        data._pagingInFlight = false;
+      }
+    };
+    const ensureProposalDetailRow = async (row) => {
+      const id = text(row?.id);
+      if (!id || typeof api.proposalAgreementDetail !== 'function') return row;
+      const needsDetail = !(row?.document_snapshot && typeof row.document_snapshot === 'object')
+        && !text(row?.document_html_snapshot);
+      if (!needsDetail && row?.signature_meta != null && row?.custom_document_sections != null) return row;
+      try {
+        const detailed = await api.proposalAgreementDetail(id);
+        if (!detailed) return row;
+        const merged = { ...row, ...detailed };
+        const idx = data.rows.findIndex((item) => text(item.id) === id);
+        if (idx >= 0) data.rows[idx] = { ...data.rows[idx], ...detailed };
+        return merged;
+      } catch {
+        return row;
+      }
+    };
     let debounceTimer = null;
+    let clientSearchDebounceTimer = null;
+    let activeListView = 'records';
+    let selectedClientKey = '';
+    let viewingAllProposals = false;
+    let viewMode = 'client-home';
+    let editorReturnContext = null;
+    let listViewState = null;
+    /** @type {{ returnTo: string, openSource: string, clientKey: string, proposalId: string } | null} */
+    let proposalDetailContext = null;
+    const clientWorkspace = root.querySelector('[data-pa-client-workspace]');
+    const screenRoot = root.querySelector('[data-pa-screen]') || root;
+    const legacyList = root.querySelector('[data-pa-all-proposals-table]') || root.querySelector('.ds-pa-legacy-list');
+    const clearPendingTimers = () => {
+      clearTimeout(debounceTimer);
+      clearTimeout(clientSearchDebounceTimer);
+    };
+    signal.addEventListener('abort', clearPendingTimers, { once: true });
+    const screenTabs = root.querySelector('[data-pa-screen-tabs]');
+    const screenHeaderTitle = () => root.querySelector('.ds-page-header__title');
+    const setScreenTitle = (title) => {
+      const el = screenHeaderTitle();
+      if (el) el.textContent = title;
+    };
+    const setViewMode = (mode) => {
+      const allowed = new Set(['client-home', 'client-file', 'all-proposals', 'proposal-editor', 'proposal-details']);
+      viewMode = allowed.has(mode) ? mode : 'client-home';
+      screenRoot.dataset.paViewMode = viewMode;
+      const showList = viewMode === 'all-proposals';
+      const showEditor = viewMode === 'proposal-editor';
+      if (legacyList) {
+        legacyList.hidden = !showList;
+        legacyList.setAttribute('aria-hidden', showList ? 'false' : 'true');
+      }
+      if (screenTabs) {
+        screenTabs.hidden = !showList;
+        screenTabs.setAttribute('aria-hidden', showList ? 'false' : 'true');
+      }
+      const editorPanel = root.querySelector('[data-pa-tab-panel="new"]');
+      if (editorPanel) {
+        editorPanel.hidden = !showEditor;
+        editorPanel.setAttribute('aria-hidden', showEditor ? 'false' : 'true');
+      }
+    };
+    const captureListViewState = () => ({
+      activeListView,
+      scrollY: Number(window.scrollY) || 0,
+      search: text(root.querySelector('[data-pa-search]')?.value),
+      filters: Object.fromEntries(Array.from(root.querySelectorAll('[data-pa-filter]')).map((el) => [el.dataset.paFilter, el.value]))
+    });
+    const restoreListViewState = (snapshot) => {
+      if (!snapshot) return;
+      activeListView = snapshot.activeListView || 'records';
+      const search = root.querySelector('[data-pa-search]');
+      if (search) search.value = snapshot.search || '';
+      root.querySelectorAll('[data-pa-filter]').forEach((el) => { el.value = snapshot.filters?.[el.dataset.paFilter] || ''; });
+      (window.requestAnimationFrame || window.setTimeout)(() => window.scrollTo?.(0, snapshot.scrollY || 0), 0);
+    };
+    const setProposalDetailMode = (enabled) => {
+      screenRoot.classList.toggle('is-proposal-detail', Boolean(enabled));
+    };
+    const setAllProposalsMode = (enabled) => {
+      viewingAllProposals = Boolean(enabled);
+      screenRoot.classList.toggle('is-all-proposals', viewingAllProposals);
+      if (viewingAllProposals) setViewMode('all-proposals');
+    };
+
+    const currentClientFile = () => buildClientFiles({ ...data, contactOptions }).find((file) => file.key === selectedClientKey) || null;
+    const fillProposalDetailItems = async (row) => {
+      const id = text(row?.id);
+      const itemsHost = clientWorkspace?.querySelector('[data-pa-drawer-items]');
+      if (!itemsHost || !id) return;
+      if (typeof api.readProposalAgreementItems === 'function') {
+        try {
+          const items = proposalItemsWithFallback(await api.readProposalAgreementItems(id), row);
+          if (itemsHost.isConnected) {
+            itemsHost.innerHTML = itemsSummaryHtml(items);
+            const hasActiveItems = (Array.isArray(items) ? items : []).filter(hasMeaningfulProposalItemValue).filter((i) => !isTestHoursItem(i)).length > 0;
+            const fallback = clientWorkspace?.querySelector('[data-pa-activities-fallback]');
+            if (fallback && hasActiveItems) fallback.hidden = true;
+          }
+        } catch {
+          if (itemsHost?.isConnected) itemsHost.innerHTML = '';
+        }
+      } else {
+        itemsHost.innerHTML = '';
+      }
+    };
+    const renderProposalDetailWorkspace = (row) => {
+      if (!clientWorkspace || !row) return;
+      const returnTo = proposalDetailContext?.returnTo || 'home';
+      setScreenTitle('תיק לקוח');
+      setViewMode('proposal-details');
+      setProposalDetailMode(true);
+      clientWorkspace.hidden = false;
+      clientWorkspace.innerHTML = proposalDetailViewHtml(row, activityNameOptions, state, { returnTo });
+    };
+    const showClientFileHome = () => {
+      proposalDetailContext = null;
+      selectedClientKey = '';
+      setProposalDetailMode(false);
+      setAllProposalsMode(false);
+      setScreenTitle('תיק לקוח');
+      setViewMode('client-home');
+      if (clientWorkspace) {
+        clientWorkspace.hidden = false;
+        clientWorkspace.innerHTML = clientFileLandingHtml({ ...data, contactOptions }, state);
+      }
+    };
+    const showAllProposalsTable = () => {
+      proposalDetailContext = null;
+      selectedClientKey = '';
+      setProposalDetailMode(false);
+      setAllProposalsMode(true);
+      setScreenTitle('תיק לקוח');
+      setViewMode('all-proposals');
+      if (clientWorkspace) {
+        clientWorkspace.hidden = true;
+        clientWorkspace.innerHTML = '';
+      }
+      // Keep existing search/filter DOM values; only refresh table body for the active list tab.
+      const filters = currentFilters(root);
+      const listRows = rowsForProposalListView(data, activeListView);
+      updateProposalsAgreementsTableOnly(root, displayRows(data, filters, activeListView), state, { filters, totalRows: listRows.length });
+      updateProposalListTabCounts(root, data);
+      root.querySelectorAll('[data-pa-tab]').forEach((btn) => {
+        const active = btn.dataset.paTab === activeListView;
+        btn.classList.toggle('is-active', active);
+        btn.style.fontWeight = active ? '700' : '500';
+        btn.style.color = active ? '' : 'var(--ds-text-muted,#6b7280)';
+        btn.style.borderBottomColor = active ? 'var(--ds-primary,#6366f1)' : 'transparent';
+      });
+      root.querySelectorAll('[data-pa-tab-panel]').forEach((panel) => {
+        panel.hidden = panel.dataset.paTabPanel !== 'list';
+      });
+      const statusFilterWrap = root.querySelector('[data-pa-status-filter]');
+      if (statusFilterWrap) statusFilterWrap.hidden = activeListView === 'sent';
+    };
+    const closeProposalDetail = () => {
+      const ctx = proposalDetailContext;
+      proposalDetailContext = null;
+      setDocumentEditMode(root, false);
+      setProposalDetailMode(false);
+      if (!ctx) {
+        showClientFileHome();
+        return;
+      }
+      if (ctx.openSource === 'all-proposals' || ctx.returnTo === 'all') {
+        restoreListViewState(listViewState);
+        showAllProposalsTable();
+        return;
+      }
+      if (ctx.returnTo === 'client') {
+        selectedClientKey = text(ctx.clientKey) || selectedClientKey;
+        setAllProposalsMode(false);
+        setScreenTitle('תיק לקוח');
+        setViewMode('client-file');
+        if (clientWorkspace) {
+          clientWorkspace.hidden = false;
+          const file = currentClientFile();
+          clientWorkspace.innerHTML = file
+            ? `${selectedClientFileHtml(file, state)}${drawerHtml(null, activityNameOptions, state)}`
+            : clientFileLandingHtml({ ...data, contactOptions }, state);
+        }
+        return;
+      }
+      showClientFileHome();
+    };
+    const renderClientWorkspace = () => {
+      if (!clientWorkspace) return;
+      if (proposalDetailContext?.proposalId) {
+        const detailRow = rowWithCentralContact(data.rows.find((item) => text(item.id) === text(proposalDetailContext.proposalId)));
+        if (detailRow) {
+          renderProposalDetailWorkspace(detailRow);
+          fillProposalDetailItems(detailRow);
+          return;
+        }
+        proposalDetailContext = null;
+        setProposalDetailMode(false);
+      }
+      if (viewingAllProposals) {
+        showAllProposalsTable();
+        return;
+      }
+      setScreenTitle('תיק לקוח');
+      setAllProposalsMode(false);
+      setProposalDetailMode(false);
+      clientWorkspace.hidden = false;
+      const file = currentClientFile();
+      setViewMode(file ? 'client-file' : 'client-home');
+      clientWorkspace.innerHTML = file
+        ? `${selectedClientFileHtml(file, state)}${drawerHtml(null, activityNameOptions, state)}`
+        : clientFileLandingHtml({ ...data, contactOptions }, state);
+    };
+    const resolveProposalReturnTo = (explicitReturnTo = '', clientKeyHint = '') => {
+      const requested = text(explicitReturnTo);
+      if (requested === 'home' || requested === 'client' || requested === 'all') return requested;
+      if (viewingAllProposals) return 'all';
+      if (text(clientKeyHint) || selectedClientKey) return 'client';
+      return 'home';
+    };
+    const openProposalDetails = async (proposalId, { clientKeyHint = '', returnTo = '', openSource = '' } = {}) => {
+      const id = text(proposalId);
+      if (!id) return;
+      let row = rowWithCentralContact(data.rows.find((item) => text(item.id) === id));
+      if (!row) return;
+      row = rowWithCentralContact(await ensureProposalDetailRow(row));
+      const resolvedReturnTo = resolveProposalReturnTo(returnTo, clientKeyHint);
+      const nextClientKey = text(clientKeyHint) || selectedClientKey || clientFileKey(row);
+      const resolvedOpenSource = text(openSource)
+        || (resolvedReturnTo === 'all' || viewingAllProposals ? 'all-proposals' : 'client-file');
+      proposalDetailContext = {
+        returnTo: resolvedReturnTo,
+        openSource: resolvedOpenSource,
+        clientKey: nextClientKey,
+        proposalId: id
+      };
+      if (resolvedOpenSource === 'all-proposals') {
+        listViewState = captureListViewState();
+        viewingAllProposals = true;
+      }
+      else setAllProposalsMode(false);
+      if (resolvedReturnTo === 'client') selectedClientKey = nextClientKey;
+      renderProposalDetailWorkspace(row);
+      await fillProposalDetailItems(row);
+    };
+    const openClientFile = (key, proposalId = '') => {
+      setAllProposalsMode(false);
+      selectedClientKey = text(key);
+      if (proposalId) {
+        openProposalDetails(proposalId, {
+          returnTo: 'client',
+          openSource: 'client-file',
+          clientKeyHint: selectedClientKey
+        });
+        return;
+      }
+      proposalDetailContext = null;
+      setProposalDetailMode(false);
+      setScreenTitle('תיק לקוח');
+      setViewMode('client-file');
+      renderClientWorkspace();
+    };
+    const proposalPrefillForClient = (file) => ({
+      client_type: file.client_type || (file.school_id ? 'school' : 'authority'),
+      authority_id: file.authority_id,
+      school_id: file.school_id,
+      client_authority: file.authority,
+      school_framework: file.school || file.authority,
+      semel_mosad: file.semel_mosad,
+      proposal_domain: file.domain || 'Y',
+      contact_name: text(file.contacts[0]?.contact_name),
+      contact_role: text(file.contacts[0]?.contact_role),
+      phone: text(file.contacts[0]?.mobile || file.contacts[0]?.phone),
+      email: text(file.contacts[0]?.email),
+      contact_school_id: file.contacts[0]?.source_table === 'contacts_schools' ? (file.contacts[0]?.source_id || null) : null
+    });
 
     const refreshTable = () => {
       const filters = currentFilters(root);
-      updateProposalsAgreementsTableOnly(root, displayRows(data, filters), state, { filters, totalRows: allDisplayRows(data).length });
+      const listRows = rowsForProposalListView(data, activeListView);
+      updateProposalsAgreementsTableOnly(root, displayRows(data, filters, activeListView), state, {
+        filters,
+        totalRows: listRows.length,
+        hasMore: Boolean(data?._hasMore),
+        pagingBusy: Boolean(data?._pagingInFlight)
+      });
+      updateProposalListTabCounts(root, data);
+      if (proposalDetailContext?.proposalId) {
+        const detailRow = rowWithCentralContact(data.rows.find((item) => text(item.id) === text(proposalDetailContext.proposalId)));
+        if (detailRow) {
+          renderProposalDetailWorkspace(detailRow);
+          fillProposalDetailItems(detailRow);
+          return;
+        }
+      }
+      if (viewingAllProposals) return;
+      renderClientWorkspace();
     };
     const debouncedRefresh = () => {
       clearTimeout(debounceTimer);
-      debounceTimer = setTimeout(refreshTable, SEARCH_DEBOUNCE_MS);
+      debounceTimer = setTimeout(() => {
+        if (!signal.aborted && root.isConnected) refreshTable();
+      }, SEARCH_DEBOUNCE_MS);
     };
 
-    root.querySelector('[data-pa-search]')?.addEventListener('input', debouncedRefresh, { signal });
-    root.querySelectorAll('[data-pa-filter]').forEach((el) => el.addEventListener('change', refreshTable, { signal }));
-    root.addEventListener('click', (ev) => {
+    const listQueryFromUi = () => {
+      const filters = currentFilters(root);
+      return {
+        search: text(filters.q),
+        status: text(filters.status),
+        authorityId: '',
+        schoolId: '',
+        clientType: '',
+        sort: text(data?._query?.sort) || 'updated_at_desc'
+      };
+    };
+    const applyServerListQuery = async (queryPatch = {}, { append = false } = {}) => {
+      if (typeof api.proposalsAgreements !== 'function') {
+        refreshTable();
+        return;
+      }
+      const ok = await reloadProposalList(queryPatch, { append });
+      if (!ok || signal.aborted || !root.isConnected) return;
+      refreshTable();
+    };
+    root.querySelector('[data-pa-search]')?.addEventListener('input', () => {
+      clearTimeout(debounceTimer);
+      debounceTimer = setTimeout(() => {
+        if (signal.aborted || !root.isConnected) return;
+        applyServerListQuery(listQueryFromUi(), { append: false });
+      }, SEARCH_DEBOUNCE_MS);
+    }, { signal });
+    root.querySelectorAll('[data-pa-filter]').forEach((el) => el.addEventListener('change', () => {
+      applyServerListQuery(listQueryFromUi(), { append: false });
+    }, { signal }));
+    root.addEventListener('input', (event) => {
+      const input = event.target.closest?.('[data-pa-client-search]');
+      if (!input) return;
+      clearTimeout(clientSearchDebounceTimer);
+      const query = text(input.value);
+      // Toggle the queues visibility immediately (cheap, no re-render), only the
+      // results list itself — which never touches the input — is debounced.
+      const queues = root.querySelector('[data-pa-client-queues]');
+      if (queues) queues.hidden = Boolean(query);
+      clientSearchDebounceTimer = setTimeout(async () => {
+        if (signal.aborted || !root.isConnected || !input.isConnected || text(input.value) !== query) return;
+        const results = root.querySelector('[data-pa-client-search-results]');
+        if (!results?.isConnected) return;
+        results.hidden = !query;
+        if (!query) {
+          results.innerHTML = '';
+          if (typeof api.proposalsAgreements === 'function') {
+            await applyServerListQuery({ search: '' }, { append: false });
+          }
+          return;
+        }
+        // Prefer server search when the list API exists; keep local fallback for tests/offline.
+        if (typeof api.proposalsAgreements === 'function') {
+          results.innerHTML = '<p class="ds-client-search-empty">מחפש…</p>';
+          const ok = await reloadProposalList({ search: query }, { append: false });
+          if (signal.aborted || !root.isConnected || !input.isConnected || text(input.value) !== query) return;
+          if (!ok) {
+            results.innerHTML = '<p class="ds-client-search-empty">החיפוש נכשל. נסו שוב.</p>';
+            return;
+          }
+          results.innerHTML = clientSearchResultsHtml(buildClientFiles({ ...data, contactOptions: [] }), query)
+            || '<p class="ds-client-search-empty">לא נמצא תיק לקוח מתאים</p>';
+          return;
+        }
+        results.innerHTML = clientSearchResultsHtml(buildClientFiles({ ...data, contactOptions }), query)
+          || '<p class="ds-client-search-empty">לא נמצא תיק לקוח מתאים</p>';
+      }, SEARCH_DEBOUNCE_MS);
+    }, { signal });
+    root.addEventListener('click', async (ev) => {
+      const loadMoreBtn = ev.target?.closest?.('[data-pa-load-more-proposals]');
+      if (loadMoreBtn) {
+        ev.preventDefault();
+        if (data._pagingInFlight || !data._hasMore) return;
+        loadMoreBtn.disabled = true;
+        loadMoreBtn.textContent = 'טוען…';
+        const ok = await loadNextProposalPage();
+        if (signal.aborted || !root.isConnected) return;
+        refreshTable();
+        if (!ok) {
+          loadMoreBtn.disabled = false;
+          loadMoreBtn.textContent = 'הצגת תיקים נוספים';
+        }
+        return;
+      }
       if (!ev.target?.closest?.('[data-pa-clear-filters]')) return;
       clearTimeout(debounceTimer);
       resetLocalFilters();
-      refreshTable();
+      applyServerListQuery({
+        search: '',
+        status: '',
+        authorityId: '',
+        schoolId: '',
+        clientType: ''
+      }, { append: false });
     }, { signal });
     
 
@@ -4362,7 +6917,7 @@ export const proposalsAgreementsScreen = {
         const itemsHost = form.querySelector('[data-pa-items-host]');
         if (!itemsHost) return;
         const filteredPricing = filterPricingByProposalType(proposalActivityPricing, newType);
-        itemsHost.innerHTML = itemsEditorHtml(currentItems, filteredPricing, newType);
+        itemsHost.innerHTML = itemsEditorHtml(currentItems, filteredPricing, newType, { allowManualCourse: text(form.dataset.paAllowManualCourse) === 'yes' });
         const modeEl = form.querySelector('[data-pa-template-mode]');
         if (modeEl && text(form.dataset.paOriginalType) && text(form.dataset.paOriginalType) !== newType) {
           modeEl.textContent = 'סוג ההצעה השתנה';
@@ -4381,14 +6936,14 @@ export const proposalsAgreementsScreen = {
       if (noContactNote) noContactNote.hidden = !showNoContactNote;
     };
 
-    const lockClientFields = (form, auth, school, cName, cRole, phone, email, clientName = '', schoolMeta = null) => {
+    const lockClientFields = (form, auth, school, cName, cRole, phone, email, clientName = '', schoolMeta = null, recipient = {}) => {
       const cardEl = form?.querySelector('[data-pa-client-card]');
       const fieldsEl = form?.querySelector('[data-pa-client-fields]');
       const searchRow = form?.querySelector('[data-pa-client-search-row]');
       const results = form?.querySelector('[data-pa-client-results]');
-      if (cardEl) { cardEl.innerHTML = clientLockedBannerHtml(auth, school, cName, cRole, phone, email, clientName, schoolMeta); cardEl.hidden = false; }
+      if (cardEl) { cardEl.innerHTML = clientLockedBannerHtml(auth, school, cName, cRole, phone, email, clientName, schoolMeta, recipient); cardEl.hidden = false; }
       if (fieldsEl) fieldsEl.hidden = true;
-      if (searchRow) searchRow.hidden = true;
+      if (searchRow) searchRow.hidden = false;
       if (results) { results.hidden = true; results.innerHTML = ''; }
       const roAuth = form?.querySelector('[data-pa-contact-ro-authority]');
       const roSchoolEl = form?.querySelector('[data-pa-contact-ro-school]');
@@ -4430,11 +6985,78 @@ export const proposalsAgreementsScreen = {
         semel_mosad = '',
         schoolMeta = null
       } = ctx;
-      const isAuthorityOnly = clientType === 'authority';
+
+      if (clientType === 'other') {
+        const authInput = form.querySelector('input[name="client_authority"]');
+        const schoolInput = form.querySelector('input[name="school_framework"]');
+        if (authInput) authInput.value = authority;
+        if (schoolInput) schoolInput.value = '';
+        const otherName = text(form.querySelector('[name="other_client_name"]')?.value);
+        setContactSource(form, {
+          id: null,
+          authority_id: authorityId || null,
+          school_id: null,
+          semel_mosad: null,
+          school_required: 'no',
+          client_type: 'other',
+          client_name: otherName || clientName || '',
+          authority,
+          school: '',
+          contact_name: text(form.querySelector('input[name="contact_name"]')?.value),
+          contact_role: text(form.querySelector('input[name="contact_role"]')?.value),
+          phone: text(form.querySelector('input[name="phone"]')?.value),
+          mobile: '',
+          email: text(form.querySelector('input[name="email"]')?.value)
+        });
+        form.dataset.paAuthorityId = authorityId;
+        form.dataset.paAuthorityName = authority;
+        hideSchoolSearchPanel(form);
+        const searchField = form.querySelector('[data-pa-client-search-field]');
+        const searchFieldWrap = form.querySelector('[data-pa-client-search-field-wrap]');
+        const results = form.querySelector('[data-pa-client-results]');
+        const input = form.querySelector('[data-pa-client-search-input]');
+        if (searchField) searchField.hidden = false;
+        if (searchFieldWrap) searchFieldWrap.hidden = false;
+        if (input) input.value = authority;
+        if (results) { results.hidden = true; results.innerHTML = ''; }
+        const pickerHost = form.querySelector('[data-pa-contact-picker-host]');
+        if (pickerHost) pickerHost.innerHTML = '';
+        setAddContactRowState(form, { visible: false, showNoContactNote: false });
+        const card = form.querySelector('[data-pa-client-card]');
+        if (card) { card.hidden = true; card.innerHTML = ''; }
+        const searchRow = form.querySelector('[data-pa-client-search-row]');
+        if (searchRow) searchRow.hidden = false;
+        const otherField = form.querySelector('[data-pa-other-client-field]');
+        if (otherField) otherField.hidden = false;
+        const contactPanel = form.querySelector('[data-pa-step-panel="contact"]');
+        if (contactPanel) contactPanel.hidden = false;
+        form.querySelectorAll('[data-pa-contact-manual-fields]').forEach((el) => { el.hidden = false; });
+        const roCtx = form.querySelector('[data-pa-contact-ro-ctx]');
+        if (roCtx) {
+          roCtx.hidden = false;
+          const roAuth = form.querySelector('[data-pa-contact-ro-authority]');
+          const roSchool = form.querySelector('[data-pa-contact-ro-school]');
+          if (roAuth) roAuth.value = authority;
+          if (roSchool) roSchool.value = '';
+        }
+        syncOtherRecipientSchoolFieldVisibility(form);
+        const channelsFields = form.querySelector('[data-pa-contact-channels-fields]');
+        if (channelsFields) channelsFields.hidden = false;
+        setContactSelectionMode(form, 'other');
+        setPanelOpen(form, 'contact', true);
+        setTimeout(() => {
+          calcGrandTotal(form);
+          updateProposalStepper(form);
+          updateLivePreview(form);
+        }, 0);
+        return;
+      }
+
+      const isAuthorityOnly = clientType === 'authority' || clientType === 'other';
       const authInput = form.querySelector('input[name="client_authority"]');
       const schoolInput = form.querySelector('input[name="school_framework"]');
       if (authInput) authInput.value = authority;
-      if (schoolInput) schoolInput.value = school;
+      if (schoolInput) schoolInput.value = clientType === 'other' ? '' : school;
 
       const catalogSchool = schoolMeta || findSchoolCatalogContact(contactOptions, {
         authorityId,
@@ -4492,7 +7114,8 @@ export const proposalsAgreementsScreen = {
         text(defaultContact?.phone),
         text(defaultContact?.email),
         clientName || school || authority,
-        catalogSchool
+        catalogSchool,
+        { clientType, schoolId: isAuthorityOnly ? null : schoolId }
       );
 
       const searchField = form.querySelector('[data-pa-client-search-field]');
@@ -4501,10 +7124,10 @@ export const proposalsAgreementsScreen = {
       const schoolSearchInput = form.querySelector('[data-pa-school-search-input]');
       const results = form.querySelector('[data-pa-client-results]');
       const schoolResults = form.querySelector('[data-pa-school-results]');
-      if (searchField) searchField.hidden = true;
-      if (schoolSearchPanel) schoolSearchPanel.hidden = true;
-      if (input) input.value = '';
-      if (schoolSearchInput) schoolSearchInput.value = '';
+      if (searchField) searchField.hidden = false;
+      if (schoolSearchPanel) schoolSearchPanel.hidden = clientType !== 'school';
+      if (input) input.value = authority;
+      if (schoolSearchInput) schoolSearchInput.value = isAuthorityOnly ? '' : school;
       if (results) { results.hidden = true; results.innerHTML = ''; }
       if (schoolResults) { schoolResults.hidden = true; schoolResults.innerHTML = ''; }
       setPanelOpen(form, 'contact', true);
@@ -4520,9 +7143,8 @@ export const proposalsAgreementsScreen = {
       const map = {
         contact_name: text(contact.contact_name),
         contact_role: text(contact.contact_role),
-        // Mobile is the central channel for follow-up; keep an existing landline
-        // as a fallback only, never drop it from the source record.
-        phone:        text(contact.mobile || contact.phone || ''),
+        // The proposal phone field stores business mobile only; never fall back to a landline.
+        phone:        text(contact.mobile || ''),
         email:        text(contact.email || '')
       };
       for (const [name, value] of Object.entries(map)) {
@@ -4641,7 +7263,12 @@ export const proposalsAgreementsScreen = {
             text(form.querySelector('input[name="contact_source_authority"]')?.value),
             text(form.querySelector('input[name="contact_source_school"]')?.value),
             '', '', '', '',
-            text(form.querySelector('input[name="contact_source_client_name"]')?.value)
+            text(form.querySelector('input[name="contact_source_client_name"]')?.value),
+            null,
+            {
+              clientType: text(form.querySelector('input[name="contact_source_client_type"]')?.value),
+              schoolId: text(form.querySelector('input[name="contact_source_school_id"]')?.value)
+            }
           );
           showManualContactFields(form);
           return;
@@ -4657,7 +7284,7 @@ export const proposalsAgreementsScreen = {
           fillContactFields(form, contact);
           setContactSource(form, contact);
           setAddContactRowState(form, { visible: false, showNoContactNote: false });
-          lockClientFields(form, text(contact.authority), text(contact.school), text(contact.contact_name), text(contact.contact_role), text(contact.phone || contact.mobile || ''), text(contact.email || ''), text(contact.client_name) || text(contact.school) || text(contact.authority), contact);
+          lockClientFields(form, text(contact.authority), text(contact.school), text(contact.contact_name), text(contact.contact_role), text(contact.mobile || ''), text(contact.email || ''), text(contact.client_name) || text(contact.school) || text(contact.authority), contact, { clientType: text(contact.client_type), schoolId: text(contact.school_id) });
           if (form) setTimeout(() => calcGrandTotal(form), 0);
         }
       }, { signal });
@@ -4755,28 +7382,26 @@ export const proposalsAgreementsScreen = {
       delete form.dataset.paAuthorityId;
       delete form.dataset.paAuthorityName;
       const searchField = form.querySelector('[data-pa-client-search-field]');
-      const schoolSearchPanel = form.querySelector('[data-pa-school-search-panel]');
       const results = form.querySelector('[data-pa-client-results]');
-      const schoolResults = form.querySelector('[data-pa-school-results]');
       if (searchField) searchField.hidden = false;
-      if (schoolSearchPanel) schoolSearchPanel.hidden = true;
+      hideSchoolSearchPanel(form);
       if (results) { results.hidden = true; results.innerHTML = ''; }
-      if (schoolResults) { schoolResults.hidden = true; schoolResults.innerHTML = ''; }
       const searchInput = form.querySelector('[data-pa-client-search-input]');
-      const schoolSearchInput = form.querySelector('[data-pa-school-search-input]');
       if (searchInput) searchInput.value = '';
-      if (schoolSearchInput) schoolSearchInput.value = '';
-      setPanelOpen(form, 'contact', false);
+      setPanelOpen(form, 'contact', selectedRecipientType(form) === 'other');
       const pickerHost = form.querySelector('[data-pa-contact-picker-host]');
       if (pickerHost) pickerHost.innerHTML = '';
-      form.querySelectorAll('[data-pa-contact-manual-fields]').forEach((el) => { el.hidden = true; });
+      if (selectedRecipientType(form) !== 'other') {
+        form.querySelectorAll('[data-pa-contact-manual-fields]').forEach((el) => { el.hidden = true; });
+      }
     };
 
     const showSchoolSearchPanel = (form, authorityName) => {
+      if (selectedRecipientType(form) !== 'school') return;
       const searchField = form.querySelector('[data-pa-client-search-field]');
       const results = form.querySelector('[data-pa-client-results]');
       const schoolSearchPanel = form.querySelector('[data-pa-school-search-panel]');
-      if (searchField) searchField.hidden = true;
+      if (searchField) searchField.hidden = false;
       if (results) { results.hidden = true; results.innerHTML = ''; }
       if (schoolSearchPanel) {
         schoolSearchPanel.hidden = false;
@@ -4797,6 +7422,7 @@ export const proposalsAgreementsScreen = {
     const applyClientSearchMode = (form) => {
       if (!form) return;
       if (!form.dataset.paSearchStep) form.dataset.paSearchStep = 'authority';
+      if (selectedRecipientType(form) === 'other') hideSchoolSearchPanel(form);
       const clientFieldsEl = form?.querySelector('[data-pa-client-fields]');
       const clientCardEl = form?.querySelector('[data-pa-client-card]');
       const isLocked = clientCardEl && !clientCardEl.hidden && clientCardEl.children.length > 0;
@@ -4810,23 +7436,12 @@ export const proposalsAgreementsScreen = {
 
     const applyAuthoritySelection = (form, contact) => {
       if (!form || !contact) return;
+      if (selectedRecipientType(form) !== 'school') return;
       const authorityName = catalogAuthorityName(contact);
       const authorityId = text(contact.authority_id) || '';
       form.dataset.paAuthorityId = authorityId;
       form.dataset.paAuthorityName = authorityName;
       form.dataset.paNewClient = 'no';
-      // eslint-disable-next-line no-console
-      console.info('[proposal-schools-filter]', {
-        selectedAuthority: { id: authorityId, name: authorityName },
-        selectedAuthorityId: authorityId,
-        allSchoolsCount: contactOptions.filter((c) => c._catalog_source === 'schools').length,
-        matchingSchoolsCount: contactOptions
-          .filter((c) => c._catalog_source === 'schools' && String(c.authority_id) === String(authorityId))
-          .length,
-        sampleMatchingSchools: contactOptions
-          .filter((c) => c._catalog_source === 'schools' && String(c.authority_id) === String(authorityId))
-          .slice(0, 10)
-      });
 
       const authInput = form.querySelector('input[name="client_authority"]');
       const schoolInput = form.querySelector('input[name="school_framework"]');
@@ -4857,7 +7472,18 @@ export const proposalsAgreementsScreen = {
 
       if (step === 'authority') {
         const selectedType = text(form.querySelector('input[name="client_type_selector"]:checked')?.value) || 'school';
-        if (selectedType === 'authority') {
+        if (selectedType === 'other') {
+          const authorityName = catalogAuthorityName(contact);
+          const authorityId = text(contact.authority_id) || '';
+          const otherClientName = text(form.querySelector('[name="other_client_name"]')?.value);
+          form.dataset.paAuthorityId = authorityId;
+          form.dataset.paAuthorityName = authorityName;
+          form.dataset.paNewClient = 'no';
+          applyContactSelectionAfterClient(form, {
+            authority: authorityName, school: '', authorityId, schoolId: '',
+            clientType: 'other', clientName: otherClientName || authorityName
+          });
+        } else if (selectedType === 'authority') {
           const authorityName = catalogAuthorityName(contact);
           const authorityId = text(contact.authority_id) || '';
           form.dataset.paAuthorityId = authorityId;
@@ -4878,6 +7504,7 @@ export const proposalsAgreementsScreen = {
       }
 
       if (step === 'school') {
+        if (selectedRecipientType(form) !== 'school') return;
         form.dataset.paNewClient = 'no';
         const storedAuthorityId = form.dataset.paAuthorityId || '';
         const storedAuthorityName = form.dataset.paAuthorityName || '';
@@ -4959,19 +7586,20 @@ export const proposalsAgreementsScreen = {
       if (selected === 'other') {
         if (searchRow) searchRow.hidden = false;
         if (searchFieldWrap) searchFieldWrap.hidden = true;
-        if (schoolSearchPanel) schoolSearchPanel.hidden = true;
-        if (otherField) otherField.hidden = true;
+        hideSchoolSearchPanel(form);
+        if (otherField) otherField.hidden = false;
         if (contactPanel) contactPanel.hidden = false;
         manualFields.forEach((el) => { el.hidden = false; });
-        if (roCtx) roCtx.hidden = true;
+        if (roCtx) roCtx.hidden = locked || !text(form.querySelector('input[name="contact_source_authority_id"]')?.value);
+        syncOtherRecipientSchoolFieldVisibility(form);
         if (channelsFields) channelsFields.hidden = false;
         if (!locked) setContactSelectionMode(form, 'other');
         renderContactChannelsStatus(form);
       } else if (selected === 'authority') {
         if (otherField) otherField.hidden = true;
-        if (searchRow) searchRow.hidden = locked;
+        if (searchRow) searchRow.hidden = false;
         if (searchFieldWrap) searchFieldWrap.hidden = false;
-        if (schoolSearchPanel) schoolSearchPanel.hidden = true;
+        hideSchoolSearchPanel(form);
         if (!locked) {
           if (contactPanel) contactPanel.hidden = true;
           manualFields.forEach((el) => { el.hidden = true; });
@@ -4982,9 +7610,9 @@ export const proposalsAgreementsScreen = {
         applyClientSearchMode(form);
       } else {
         if (otherField) otherField.hidden = true;
-        if (searchRow) searchRow.hidden = locked;
-        if (searchFieldWrap) searchFieldWrap.hidden = locked || text(form.dataset.paSearchStep) === 'school';
-        if (schoolSearchPanel) schoolSearchPanel.hidden = locked || text(form.dataset.paSearchStep) !== 'school';
+        if (searchRow) searchRow.hidden = false;
+        if (searchFieldWrap) searchFieldWrap.hidden = false;
+        if (schoolSearchPanel) schoolSearchPanel.hidden = text(form.dataset.paSearchStep) !== 'school' && !locked;
         if (!locked) {
           if (contactPanel) contactPanel.hidden = true;
           manualFields.forEach((el) => { el.hidden = true; });
@@ -5009,11 +7637,19 @@ export const proposalsAgreementsScreen = {
       form.querySelector('[name="other_client_name"]')?.addEventListener('input', () => {
         const selected = text(form.querySelector('input[name="client_type_selector"]:checked')?.value);
         if (selected !== 'other') return;
-        const authInput = form.querySelector('input[name="client_authority"]');
-        const schoolInput = form.querySelector('input[name="school_framework"]');
-        if (authInput) authInput.value = '';
-        if (schoolInput) schoolInput.value = '';
-        setContactSourceFields(form, emptyContactSourceForRecipientType('other'));
+        const otherName = text(form.querySelector('[name="other_client_name"]')?.value);
+        const currentSource = contactSourceFromForm(form);
+        const nextSource = {
+          ...emptyContactSourceForRecipientType('other', otherName),
+          authority_id: currentSource.authority_id,
+          authority: currentSource.authority,
+          client_name: otherName,
+          contact_name: text(form.querySelector('input[name="contact_name"]')?.value),
+          contact_role: text(form.querySelector('input[name="contact_role"]')?.value),
+          phone: text(form.querySelector('input[name="phone"]')?.value),
+          email: text(form.querySelector('input[name="email"]')?.value)
+        };
+        setContactSourceFields(form, nextSource);
         calcGrandTotal(form);
         updateLivePreview(form);
       }, { signal });
@@ -5039,17 +7675,36 @@ export const proposalsAgreementsScreen = {
         if (roCtxInit) roCtxInit.hidden = false;
       }
       renderContactChannelsStatus(form);
+      const runClientSearch = async (step, inputSelector, resultsSelector) => {
+        await ensureContacts();
+        if (signal.aborted || !form.isConnected) return;
+        renderClientResults(form, step, form.querySelector(inputSelector), form.querySelector(resultsSelector));
+      };
       form.querySelector('[data-pa-client-search-input]')?.addEventListener('input', () => {
-        renderClientResults(form, 'authority', form.querySelector('[data-pa-client-search-input]'), form.querySelector('[data-pa-client-results]'));
+        runClientSearch('authority', '[data-pa-client-search-input]', '[data-pa-client-results]');
       }, { signal });
       form.querySelector('[data-pa-school-search-input]')?.addEventListener('input', () => {
-        renderClientResults(form, 'school', form.querySelector('[data-pa-school-search-input]'), form.querySelector('[data-pa-school-results]'));
+        runClientSearch('school', '[data-pa-school-search-input]', '[data-pa-school-results]');
       }, { signal });
     };
 
 
+    let previewFrame = 0;
+    let pendingPreviewForm = null;
     const updateLivePreview = (container) => {
       const form = container?.closest?.('[data-pa-form]') || (container?.matches?.('[data-pa-form]') ? container : null);
+      if (!form) return;
+      pendingPreviewForm = form;
+      if (previewFrame) return;
+      previewFrame = requestAnimationFrame(() => {
+        previewFrame = 0;
+        const nextForm = pendingPreviewForm;
+        pendingPreviewForm = null;
+        renderLivePreview(nextForm);
+      });
+    };
+
+    const renderLivePreview = (form) => {
       const previewHost = form?.querySelector?.('[data-pa-live-preview]');
       if (!form || !previewHost) return;
       const payload = payloadFromForm(form);
@@ -5060,6 +7715,7 @@ export const proposalsAgreementsScreen = {
       });
       const templateSections = filterTemplateSectionsForGroup(proposalTemplateSections, row.activity_type_group);
       previewHost.innerHTML = proposalPreviewBodyHtml(row, payload._items || [], templateSections);
+      proposalPdfDocumentNormalizer?.(previewHost);
     };
 
     // ── Items calc ────────────────────────────────────────────────────────────
@@ -5102,12 +7758,31 @@ export const proposalsAgreementsScreen = {
       return calculated ?? 0;
     };
 
+    /**
+     * Per-area totals for proposals split into internal groups (תשפ״ז courses and
+     * workshops). Reuses the same row calculation as the grand total so the two can
+     * never disagree.
+     */
+    const calcGroupTotals = (container) => {
+      container.querySelectorAll('[data-pa-items-group]').forEach((section) => {
+        const groupKey = text(section.dataset.paItemsGroup);
+        const totalEl = section.querySelector(`[data-pa-group-total="${groupKey}"]`);
+        if (!totalEl) return;
+        let groupTotal = 0;
+        section.querySelectorAll('[data-pa-item-row]').forEach((rowEl) => { groupTotal += calcItemRow(rowEl); });
+        totalEl.textContent = groupTotal ? `₪ ${formatCurrency(groupTotal)}` : '₪ 0';
+        const row = section.querySelector(`[data-pa-items-group-total-row="${groupKey}"]`);
+        if (row) row.hidden = !section.querySelector('[data-pa-item-row]');
+      });
+    };
+
     const calcGrandTotal = (container) => {
       let subtotal = calcTourTotal(container);
       if (subtotal == null) {
         subtotal = 0;
         container.querySelectorAll('[data-pa-item-row]').forEach((rowEl) => { subtotal += calcItemRow(rowEl); });
       }
+      calcGroupTotals(container);
       const discountType = text(container.querySelector('[data-pa-discount-type]')?.value) || 'amount';
       const discountValue = parseFloat(container.querySelector('[data-pa-discount-value]')?.value || '0') || 0;
       const discount = discountType === 'percent' ? subtotal * (Math.min(discountValue, 100) / 100) : Math.min(discountValue, subtotal);
@@ -5169,6 +7844,64 @@ export const proposalsAgreementsScreen = {
       if (input) input.value = value == null ? '' : String(value);
     };
 
+    const formAllowsManualCourse = (form) => text(form?.dataset?.paAllowManualCourse) === 'yes';
+
+    const setManualCourseNameFieldActive = (itemRow, active) => {
+      const manualInput = itemRow?.querySelector?.('[data-pa-manual-item-name]');
+      const detailsInput = itemRow?.querySelector?.('[data-pa-details-item-name-input]');
+      const manualRow = itemRow?.querySelector?.('[data-pa-manual-name-row]');
+      const detailsName = itemRow?.querySelector?.('[data-pa-details-item-name]');
+      const details = itemRow?.querySelector?.('[data-pa-item-details]');
+      const summary = itemRow?.querySelector?.('.ds-pa-item-extra-toggle');
+      if (active) {
+        const currentName = text(detailsInput?.value || manualInput?.value);
+        if (manualInput) {
+          manualInput.name = 'item_name';
+          if (currentName) manualInput.value = currentName;
+        }
+        if (detailsInput) detailsInput.removeAttribute('name');
+        if (manualRow) manualRow.hidden = false;
+        if (detailsName) detailsName.hidden = true;
+        if (details) details.open = true;
+        if (summary) summary.textContent = 'פרטי קורס';
+        itemRow.classList.add('ds-pa-item-row--manual');
+        itemRow.dataset.paManualCourse = 'yes';
+      } else {
+        const currentName = text(manualInput?.value || detailsInput?.value);
+        if (manualInput) manualInput.removeAttribute('name');
+        if (detailsInput) {
+          detailsInput.name = 'item_name';
+          if (currentName) detailsInput.value = currentName;
+        }
+        if (manualRow) manualRow.hidden = true;
+        if (detailsName) detailsName.hidden = false;
+        if (summary) summary.textContent = 'עריכה';
+        itemRow.classList.remove('ds-pa-item-row--manual');
+        delete itemRow.dataset.paManualCourse;
+      }
+    };
+
+    const applyManualCourseToRow = (itemRow, form) => {
+      const rowGroup = text(itemRow.dataset.paRowGroup) || 'next_year';
+      [
+        'pricing_option_key', 'activity_no', 'item_type', 'gefen_number', 'gefen_number_display',
+        'item_source_pricing_key', 'bundle_pricing_key', 'list_id', 'description', 'unit_duration', 'hourly_price'
+      ].forEach((name) => setRowValue(itemRow, name, ''));
+      setRowValue(itemRow, 'item_display_mode', 'single');
+      setRowValue(itemRow, 'proposal_group', rowGroup);
+      setRowValue(itemRow, 'item_selected_bundle_items', '[]');
+      const bundlePrompt = itemRow.querySelector('[data-pa-bundle-prompt]');
+      if (bundlePrompt) {
+        bundlePrompt.hidden = true;
+        bundlePrompt.innerHTML = '';
+      }
+      setManualCourseNameFieldActive(itemRow, true);
+      itemRow.querySelector('[data-pa-manual-item-name]')?.focus();
+      calcItemRow(itemRow);
+      if (form) calcGrandTotal(form);
+      if (form) updateProposalStepper(form);
+    };
+
     const selectedBundleChildren = (itemRow) => Array.from(itemRow?.querySelectorAll?.('[data-pa-bundle-child-check]:checked') || [])
       .map((cb) => {
         try {
@@ -5206,7 +7939,12 @@ export const proposalsAgreementsScreen = {
       setRowValue(itemRow, 'item_name', parentName);
       setRowValue(itemRow, 'item_type', pickedData.item_type || '');
       setRowValue(itemRow, 'unit_price', unitPrice || '');
-      setRowValue(itemRow, 'proposal_group', pickedData.proposal_group || text(itemRow.dataset.paRowGroup) || '');
+      // A catalog workshop can originate in the summer price list, while this
+      // row belongs to the internal תשפ״ז workshop section. The editor section
+      // is the source of truth for the proposal item group; retaining the
+      // catalog group here makes filterItemsByProposalType drop the item from
+      // the live preview and PDF payload.
+      setRowValue(itemRow, 'proposal_group', proposalItemGroupForEditorRow(itemRow, pickedData.proposal_group));
       setRowValue(itemRow, 'description', description);
       setRowValue(itemRow, 'item_display_mode', 'bundle_parent');
       setRowValue(itemRow, 'item_source_pricing_key', pickedData.pricing_key || '');
@@ -5230,11 +7968,26 @@ export const proposalsAgreementsScreen = {
 
     const openForm = async (mode, row = {}, preloadedItems = []) => {
       if (!formHost) return;
-      row = enrichProposalRowFromContactOptions(row, contactOptions);
-      // Switch to the "new" tab panel so formHost is visible (add and edit share the
-      // same full-width work area).
+      const originMode = viewMode;
+      editorReturnContext = {
+        mode: originMode,
+        clientKey: selectedClientKey,
+        list: originMode === 'all-proposals' ? captureListViewState() : null
+      };
       setFormTabLabel(mode);
-      switchTab('new');
+      setViewMode('proposal-editor');
+      setScreenTitle(mode === 'edit' ? 'עריכת הצעה' : 'הצעה חדשה');
+      formHost.hidden = false;
+      formHost.innerHTML = `<div class="ds-pa-editor-loading" role="status" aria-live="polite"><span class="ds-spinner" aria-hidden="true"></span><strong>מכינים את עורך ההצעה…</strong><small>הפרטים יוצגו מיד בסיום הטעינה</small></div>`;
+      try {
+        await ensureEditorDeps();
+        if (mode === 'edit' && text(row.id)) row = await ensureProposalDetailRow(row);
+      } catch (error) {
+        const errorBackLabel = originMode === 'all-proposals' ? 'חזרה לכל ההצעות' : 'חזרה לתיק הלקוח';
+        formHost.innerHTML = `<div class="ds-empty ds-pa-editor-load-error" role="alert"><strong>לא הצלחנו לטעון את נתוני ההצעה.</strong><span>ניתן לחזור ולנסות שוב.</span><button type="button" class="ds-btn ds-btn--primary" data-pa-cancel-form>← ${errorBackLabel}</button></div>`;
+        return;
+      }
+      row = enrichProposalRowFromContactOptions(row, contactOptions);
       let items = preloadedItems;
       if (mode === 'edit' && text(row.id) && !preloadedItems.length) {
         try {
@@ -5244,21 +7997,32 @@ export const proposalsAgreementsScreen = {
         } catch { items = []; }
       }
       items = proposalItemsWithFallback(items, row);
-      formHost.hidden = false;
-      formHost.innerHTML = formHtml(mode, row, activityNameOptions, contactOptions, items, proposalActivityPricing, state, contactOptionsError);
+      const backLabel = originMode === 'all-proposals' ? 'חזרה לכל ההצעות' : 'חזרה לתיק הלקוח';
+      formHost.innerHTML = formHtml(mode, row, activityNameOptions, contactOptions, items, proposalActivityPricing, state, contactOptionsError)
+        .replace('← חזרה לתיק הלקוח', `← ${backLabel}`);
       setupTypeChangeHandler(formHost);
       setupClientSelector(formHost);
       setupActivityPickers(formHost);
-      setupItemCalc(formHost);
+      formHost.querySelectorAll('[data-pa-item-row]').forEach((itemRow) => calcItemRow(itemRow));
+      calcGrandTotal(formHost);
       setupFormStepper(formHost);
       const pickerHost = formHost.querySelector('[data-pa-contact-picker-host]');
       if (pickerHost && pickerHost.children.length) {
         setupContactPicker(pickerHost, formHost.querySelector('[data-pa-form]'));
       }
       formHost.querySelector('select,input,textarea')?.focus?.();
+      formHost.scrollIntoView?.({ block: 'start' });
     };
 
     const switchTab = (tabName) => {
+      const isListTab = tabName === 'records' || tabName === 'sent';
+      if (isListTab) {
+        activeListView = tabName;
+        const statusFilter = root.querySelector('[data-pa-filter="status"]');
+        if (statusFilter) statusFilter.value = '';
+        const statusFilterWrap = root.querySelector('[data-pa-status-filter]');
+        if (statusFilterWrap) statusFilterWrap.hidden = tabName === 'sent';
+      }
       root.querySelectorAll('[data-pa-tab]').forEach((btn) => {
         const active = btn.dataset.paTab === tabName;
         btn.classList.toggle('is-active', active);
@@ -5267,8 +8031,14 @@ export const proposalsAgreementsScreen = {
         btn.style.borderBottomColor = active ? 'var(--ds-primary,#6366f1)' : 'transparent';
       });
       root.querySelectorAll('[data-pa-tab-panel]').forEach((panel) => {
-        panel.hidden = panel.dataset.paTabPanel !== tabName;
+        const targetPanel = isListTab ? 'list' : tabName;
+        panel.hidden = panel.dataset.paTabPanel !== targetPanel;
       });
+      if (clientWorkspace) {
+        // All-proposals mode keeps the legacy table panel; client workspace stays hidden unless detail is open.
+        clientWorkspace.hidden = viewingAllProposals ? Boolean(!proposalDetailContext) : !isListTab;
+      }
+      if (isListTab) refreshTable();
     };
 
     const resetLocalFilters = () => {
@@ -5295,16 +8065,421 @@ export const proposalsAgreementsScreen = {
       formHost.hidden = true;
       formHost.innerHTML = '';
       setFormTabLabel('add');
-      switchTab('records');
+      const returnContext = editorReturnContext;
+      editorReturnContext = null;
+      if (proposalDetailContext?.proposalId) {
+        const detailRow = rowWithCentralContact(data.rows.find((item) => text(item.id) === text(proposalDetailContext.proposalId)));
+        if (detailRow) {
+          root.querySelectorAll('[data-pa-tab-panel]').forEach((panel) => {
+            panel.hidden = panel.dataset.paTabPanel === 'new';
+          });
+          renderProposalDetailWorkspace(detailRow);
+          fillProposalDetailItems(detailRow);
+          return;
+        }
+      }
+      if (returnContext?.mode === 'all-proposals') {
+        restoreListViewState(returnContext.list);
+        viewingAllProposals = true;
+        showAllProposalsTable();
+        return;
+      }
+      if (returnContext?.mode === 'client-file' && returnContext.clientKey) selectedClientKey = returnContext.clientKey;
+      renderClientWorkspace();
     };
 
+    root.addEventListener('submit', async (event) => {
+      const contactForm = event.target.closest?.('[data-pa-client-contact-form]');
+      if (!contactForm) return;
+      event.preventDefault();
+      const file = currentClientFile();
+      if (!file) return;
+      const formData = new FormData(contactForm);
+      const get = (name) => text(formData.get(name));
+      const index = Number(contactForm.dataset.paContactIndex);
+      const original = index >= 0 ? file.contacts[index] : null;
+      const contactFields = {
+        client_type: file.client_type || (file.school_id ? 'school' : 'authority'),
+        client_name: file.school || file.authority,
+        authority_id: file.authority_id || null,
+        school_id: file.school_id || null,
+        semel_mosad: file.semel_mosad || null,
+        authority: file.authority,
+        school: file.school || null,
+        contact_name: get('contact_name'),
+        contact_role: get('contact_role'),
+        mobile: get('mobile'),
+        phone: get('phone'),
+        email: get('email')
+      };
+      const directExistingIdValue = original && (text(original.source_table) === 'contacts_schools' || !text(original.source_table))
+        ? (original.source_id ?? original.id ?? contactForm.dataset.paContactId)
+        : null;
+      const directExistingId = text(directExistingIdValue) ? directExistingIdValue : null;
+      const legacyMatches = original && directExistingId == null
+        ? contactOptions.filter((contact) => (
+          text(contact.source_table) === 'contacts_schools'
+          && normalizedClientPart(contact.authority_id || contact.authority) === normalizedClientPart(original.authority_id || original.authority || file.authority)
+          && normalizedClientPart(contact.school_id || contact.school) === normalizedClientPart(original.school_id || original.school || file.school)
+          && normalizedClientPart(contact.contact_name) === normalizedClientPart(original.contact_name)
+          && (contact.source_id ?? contact.id) != null
+        ))
+        : [];
+      const existingId = directExistingId ?? (legacyMatches.length === 1 ? (legacyMatches[0].source_id ?? legacyMatches[0].id) : null);
+      const errorEl = contactForm.querySelector('[data-pa-client-contact-error]');
+      const submitBtn = contactForm.querySelector('[type="submit"]');
+      if (!contactFields.contact_name) {
+        if (errorEl) errorEl.textContent = 'יש להזין שם איש קשר';
+        return;
+      }
+      if (submitBtn) submitBtn.disabled = true;
+      try {
+        if (!original) {
+          const result = await api.addContact({ kind: 'school', row: contactFields });
+          const insertedId = result?.row?.id;
+          contactOptions = [...contactOptions, { ...contactFields, id: insertedId, source_id: insertedId, source_table: 'contacts_schools' }];
+          showToast('איש הקשר נוסף בהצלחה', 'success', 1800);
+        } else if (existingId != null && existingId !== '') {
+          const updateRow = { ...contactFields, id: existingId };
+          await api.saveContact({ kind: 'school', row: updateRow, _supabase_orig: original });
+          contactOptions = contactOptions.map((contact) => (
+            (text(contact.source_table) === 'contacts_schools' || !text(contact.source_table))
+            && text(contact.source_id ?? contact.id) === text(existingId)
+          ) ? { ...contact, ...contactFields, id: existingId, source_id: existingId, source_table: 'contacts_schools' } : contact);
+          showToast('פרטי איש הקשר עודכנו בהצלחה', 'success', 1800);
+        } else if (typeof api.updateUnifiedContactRecord === 'function' && original.source_table && original.source_id != null) {
+          await api.updateUnifiedContactRecord({ source_table: original.source_table, source_id: original.source_id, fields: contactFields });
+          contactOptions = contactOptions.map((contact) => text(contact.source_table) === text(original.source_table) && text(contact.source_id) === text(original.source_id) ? { ...contact, ...contactFields } : contact);
+          showToast('פרטי איש הקשר עודכנו בהצלחה', 'success', 1800);
+        } else {
+          const identityError = new Error('client_contact_update_identity_missing');
+          console.error('[client-file contact identity missing]', { original, file, legacyMatches });
+          throw identityError;
+        }
+        data.contactOptions = contactOptions;
+        renderClientWorkspace();
+      } catch (err) {
+        console.error('[client-file contact save failed]', err);
+        if (errorEl) errorEl.textContent = err?.message === 'client_contact_update_identity_missing'
+          ? 'לא ניתן לזהות את רשומת איש הקשר לעדכון. יש לרענן את תיק הלקוח ולנסות שוב.'
+          : 'לא ניתן היה לשמור את פרטי איש הקשר. הפרטים שהוזנו נשמרו בטופס וניתן לנסות שוב.';
+        if (submitBtn) submitBtn.disabled = false;
+      }
+    }, { signal });
+
     // ── Preview ───────────────────────────────────────────────────────────────
+    const reservePdfWindow = () => {
+      try {
+        return window.open('', '_blank');
+      } catch {
+        return null;
+      }
+    };
+
+    const closeReservedPdfWindow = (reservedWindow) => {
+      try { reservedWindow?.close?.(); } catch { /* best effort */ }
+    };
+
+    const openProposalFinalPdf = async (row, onStage = null, reservedWindow = null) => {
+      const id = text(row?.id);
+      if (!id || typeof api.getProposalFinalPdfSignedUrl !== 'function') {
+        showToast('לא ניתן לפתוח PDF שנשלח', 'error');
+        return;
+      }
+      try {
+        onStage?.('signed-url');
+        const result = await api.getProposalFinalPdfSignedUrl(id);
+        const url = text(result?.signedUrl);
+        if (!url) throw new Error('proposal_final_pdf_missing');
+        onStage?.('open-result');
+        if (reservedWindow && !reservedWindow.closed) {
+          reservedWindow.opener = null;
+          reservedWindow.location.replace(url);
+        } else {
+          const link = document.createElement('a');
+          link.href = url;
+          link.target = '_blank';
+          link.rel = 'noopener noreferrer';
+          link.download = text(result?.fileName);
+          document.body.appendChild(link);
+          link.click();
+          link.remove();
+        }
+      } catch (err) {
+        closeReservedPdfWindow(reservedWindow);
+        showToast('לא ניתן ליצור קישור מאובטח או לפתוח את קובץ ה־PDF.', 'error');
+        console.error('[proposal PDF open failed]', { stage: 'signed-url-or-open', proposalId: id, error: err });
+      }
+    };
+
+    const openGefenApprovalPdf = async (row) => {
+      const id = text(row?.id);
+      if (!id || typeof api.getGefenApprovalSignedUrl !== 'function') {
+        showToast('לא ניתן לפתוח את אישור גפ״ן', 'error');
+        return;
+      }
+      try {
+        const result = await api.getGefenApprovalSignedUrl(id);
+        const url = text(result?.signedUrl);
+        if (!url) throw new Error('gefen_approval_missing');
+        window.open(url, '_blank', 'noopener,noreferrer');
+      } catch (err) {
+        showToast('לא ניתן לפתוח את אישור גפ״ן', 'error');
+        console.error('[GEFEN approval open failed]', err);
+      }
+    };
+
+    const generateGefenApprovalPdf = async (row, items = [], button = null) => {
+      const freshRow = rowWithCentralContact(row);
+      const mergedItems = proposalItemsWithFallback(items, freshRow);
+      const validationMessage = gefenApprovalValidationMessage(freshRow, mergedItems);
+      if (validationMessage) {
+        showToast(validationMessage, 'warning');
+        return;
+      }
+      if (typeof api.uploadGefenApprovalDocument !== 'function') {
+        showToast('הפקת אישור גפ״ן אינה זמינה כרגע', 'error');
+        return;
+      }
+      const originalHtml = button?.innerHTML;
+      if (button) {
+        button.disabled = true;
+        button.innerHTML = '<span class="ds-pa-pdf-spinner" aria-hidden="true"></span> מפיק...';
+      }
+      try {
+        const documentHtmlSnapshot = gefenApprovalDocumentHtml(freshRow, mergedItems);
+        const documentSnapshot = {
+          ...buildProposalDocumentSnapshot(freshRow, mergedItems, proposalTemplateSections),
+          document_type: 'gefen_approval',
+          linked_proposal_id: text(freshRow.id)
+        };
+        const blob = await proposalHtmlToPdfBlob(documentHtmlSnapshot, { proposalId: text(freshRow.id) });
+        const quoteNumber = sanitizeProposalPdfFileLabel(freshRow.quote_number) || text(freshRow.id).slice(0, 8);
+        const pdfFile = new File([blob], `אישור_גפן_${quoteNumber}.pdf`, { type: 'application/pdf' });
+        const result = await api.uploadGefenApprovalDocument(text(freshRow.id), {
+          pdfFile,
+          documentSnapshot,
+          documentHtmlSnapshot
+        });
+        replaceLocalRow(data, {
+          ...freshRow,
+          gefen_approval_status: 'generated',
+          gefen_approval_path: text(result?.row?.file_path),
+          gefen_approval_file_name: text(result?.row?.file_name),
+          gefen_approval_combined: false
+        });
+        refreshTable();
+        renderClientWorkspace();
+        showToast('אישור גפ״ן הופק ונשמר', 'success');
+        const updated = data.rows.find((item) => text(item.id) === text(freshRow.id)) || freshRow;
+        await openGefenApprovalPdf(updated);
+      } catch (err) {
+        const message = text(err?.message);
+        showToast(message && !/^(?:gefen_|proposal_|invalid_|missing_)/i.test(message)
+          ? message
+          : 'לא ניתן היה להפיק את אישור גפ״ן. יש לרענן את המסך ולנסות שוב.', 'error');
+        console.error('[GEFEN approval generation failed]', err);
+      } finally {
+        if (button?.isConnected) {
+          button.disabled = false;
+          button.innerHTML = originalHtml || 'הפקת אישור';
+        }
+      }
+    };
+
+    const generateAndSaveProposalPdf = async (row, items = [], button = null) => {
+      const freshRow = rowWithCentralContact(row);
+      const proposalId = text(freshRow.id);
+      // Reserve the tab before the first await so browser popup blockers do not
+      // discard the eventual signed URL returned after generation/upload.
+      const reservedPdfWindow = reservePdfWindow();
+      await ensureEditorDeps();
+      let pdfStage = 'start';
+      const setPdfStage = (stage) => { pdfStage = stage; };
+      const historicalSnapshotBackfill = isProposalLegacySentWithoutPdf(freshRow) && canGenerateProposalPdf(freshRow, state);
+      if ((isProposalSentLocked(freshRow) && !historicalSnapshotBackfill) || !canManage) {
+        if (proposalHasFinalPdf(freshRow)) await openProposalFinalPdf(freshRow, null, reservedPdfWindow);
+        else closeReservedPdfWindow(reservedPdfWindow);
+        return;
+      }
+      if (typeof api.uploadProposalFinalPdf !== 'function') {
+        showToast('לא ניתן היה להפיק את ה־PDF. ניתן לנסות שוב.', 'error');
+        return;
+      }
+      const originalHtml = button?.innerHTML;
+      if (button) { button.disabled = true; button.innerHTML = '<span class="ds-pa-pdf-spinner" aria-hidden="true"></span> מפיק...'; }
+      try {
+        setPdfStage('build-html');
+        const mergedItems = proposalItemsWithFallback(items, freshRow);
+        if (
+          isGefenApprovalApplicable(freshRow, mergedItems)
+          && (
+            normalizeProposalGroup(freshRow.activity_type_group) === 'gefen'
+            || freshRow.combine_gefen_approval === true
+          )
+        ) {
+          const validationMessage = gefenApprovalValidationMessage(freshRow, mergedItems);
+          if (validationMessage) {
+            showToast(validationMessage, 'warning');
+            return;
+          }
+        }
+        const templateSections = filterTemplateSectionsForGroup(proposalTemplateSections, freshRow.activity_type_group);
+        const documentHtmlSnapshot = historicalSnapshotBackfill && text(freshRow.document_html_snapshot)
+          ? text(freshRow.document_html_snapshot)
+          : proposalPreviewBodyHtml(freshRow, mergedItems, templateSections, { showSignatureImage: true });
+        const documentSnapshot = historicalSnapshotBackfill && freshRow.document_snapshot
+          ? freshRow.document_snapshot
+          : buildProposalDocumentSnapshot(freshRow, mergedItems, templateSections);
+        setPdfStage('validate-document-html');
+        const htmlCheck = validateProposalDocumentHtml(documentHtmlSnapshot);
+        if (!htmlCheck.ok) throw proposalDocumentIncompleteError(htmlCheck.missing);
+        const blob = await proposalHtmlToPdfBlob(documentHtmlSnapshot, { proposalId, onStage: setPdfStage });
+        setPdfStage('validate-pdf');
+        if (blob.type !== 'application/pdf' || blob.size < 5) throw new Error('pdf_blob_invalid');
+        const signature = new TextDecoder().decode(await blob.slice(0, 5).arrayBuffer());
+        if (signature !== '%PDF-') throw new Error('pdf_signature_invalid');
+        setPdfStage('create-file');
+        const pdfFile = new File([blob], proposalPdfFileName(freshRow, mergedItems), { type: 'application/pdf' });
+        if (!pdfFile.size) throw new Error('pdf_file_empty');
+        setPdfStage('validate-before-upload');
+        const uploadCheck = validateProposalDocumentHtml(documentHtmlSnapshot);
+        if (!uploadCheck.ok) throw proposalDocumentIncompleteError(uploadCheck.missing);
+        setPdfStage('call-upload-api');
+        const result = await api.uploadProposalFinalPdf(proposalId, { pdfFile, documentSnapshot, documentHtmlSnapshot });
+        const savedRow = result?.row || freshRow;
+        const generatedCombinedGefen = isGefenApprovalApplicable(freshRow, mergedItems)
+          && (
+            normalizeProposalGroup(freshRow.activity_type_group) === 'gefen'
+            || freshRow.combine_gefen_approval === true
+          );
+        replaceLocalRow(data, generatedCombinedGefen
+          ? {
+            ...savedRow,
+            gefen_approval_status: 'generated',
+            gefen_approval_path: text(savedRow.final_pdf_path),
+            gefen_approval_file_name: text(savedRow.final_pdf_file_name),
+            gefen_approval_combined: true
+          }
+          : savedRow);
+        refreshTable();
+        showToast(generatedCombinedGefen
+          ? 'ההצעה ואישור גפ״ן הופקו יחד ונשמרו'
+          : 'ה־PDF הופק ונשמר בהצלחה', 'success');
+        await openProposalFinalPdf(savedRow, setPdfStage, reservedPdfWindow);
+      } catch (err) {
+        closeReservedPdfWindow(reservedPdfWindow);
+        if (!markProposalPdfErrorLogged(err)) console.error('[proposal-pdf-failed]', {
+          stage: pdfStage,
+          proposalId,
+          name: err?.name,
+          message: err?.message,
+          stack: err?.stack,
+          error: err
+        });
+        // A blocked partial document explains exactly what is missing.
+        if (text(err?.userMessage)) {
+          showToast(err.userMessage, 'error', 6000);
+          return;
+        }
+        const stageMessages = {
+          'build-html': 'יצירת מסמך ה־HTML נכשלה.',
+          'render-canvas': 'יצירת ה־PDF נכשלה.',
+          'build-pdf': 'יצירת ה־PDF נכשלה.',
+          'call-upload-api': 'העלאת ה־PDF או שמירת נתוניו נכשלה.',
+          'signed-url': 'יצירת הקישור המאובטח ל־PDF נכשלה.',
+          'open-result': 'פתיחת קובץ ה־PDF נכשלה.'
+        };
+        showToast(stageMessages[pdfStage] || 'הפקת ה־PDF נכשלה. ניתן לנסות שוב.', 'error');
+      } finally {
+        if (button?.isConnected) { button.disabled = false; button.innerHTML = originalHtml || 'PDF'; }
+      }
+    };
+
+    const finalizeSentProposal = async (row, items = [], { pdfFile = null, previewHtml: suppliedPreviewHtml = '', templateSections: suppliedTemplateSections = null } = {}) => {
+      await ensureEditorDeps();
+      const freshRow = rowWithCentralContact(row);
+      const mergedItems = proposalItemsWithFallback(items, freshRow);
+      const templateSections = Array.isArray(suppliedTemplateSections)
+        ? suppliedTemplateSections
+        : filterTemplateSectionsForGroup(proposalTemplateSections, freshRow.activity_type_group);
+      const previewHtml = suppliedPreviewHtml || proposalPreviewBodyHtml(freshRow, mergedItems, templateSections, { showSignatureImage: true });
+      const documentSnapshot = buildProposalDocumentSnapshot(freshRow, mergedItems, templateSections);
+      const documentHtmlSnapshot = previewHtml;
+      const payload = proposalHasFinalPdf(freshRow)
+        ? { documentSnapshot, documentHtmlSnapshot }
+        : { pdfFile, documentSnapshot, documentHtmlSnapshot };
+      const result = await api.lockAndSendProposalAgreement(text(freshRow.id), payload);
+      replaceLocalRow(data, result?.row || { ...freshRow, status: 'sent' });
+      refreshTable();
+      const updated = data.rows.find((item) => text(item.id) === text(freshRow.id));
+      const drawer = root.querySelector('[data-pa-drawer]');
+      if (drawer && updated) drawer.outerHTML = drawerHtml(updated, activityNameOptions, state);
+      showToast('ההצעה נשלחה וננעלה בהצלחה', 'success');
+      return updated || result?.row || { ...freshRow, status: 'sent' };
+    };
+
+    const openSendProposalDialog = async (row, items = []) => {
+      await ensureEditorDeps();
+      const freshRow = rowWithCentralContact(row);
+      const mergedItems = proposalItemsWithFallback(items, freshRow);
+      const templateSections = filterTemplateSectionsForGroup(proposalTemplateSections, freshRow.activity_type_group);
+      const previewHtml = proposalPreviewBodyHtml(freshRow, mergedItems, templateSections, { showSignatureImage: true });
+      if (proposalHasFinalPdf(freshRow)) {
+        if (typeof api.lockAndSendProposalAgreement !== 'function') {
+          showToast('פעולת שליחה ונעילה אינה זמינה.', 'error');
+          return;
+        }
+        try {
+          await finalizeSentProposal(freshRow, mergedItems, { previewHtml, templateSections });
+        } catch (err) {
+          showToast('שגיאה בעדכון סטטוס ההצעה', 'error');
+          console.error('[proposal lock and send failed]', err);
+        }
+        return;
+      }
+      showToast('יש להפיק ולשמור PDF לפני שליחה ונעילה.', 'warning');
+    };
+
+    const approvalRequests = new Set();
+    const approveProposalWithSignature = async (proposalId, signatureMeta) => {
+      const id = text(proposalId);
+      if (!id) throw new Error('לא נמצא מזהה להצעה. יש לשמור אותה ולנסות שוב.');
+      if (approvalRequests.has(id)) throw new Error('האישור והחתימה כבר מתבצעים. יש להמתין לסיום הפעולה.');
+      approvalRequests.add(id);
+      let timeoutId;
+      try {
+        const timeout = new Promise((_, reject) => {
+          timeoutId = setTimeout(() => reject(new Error('שמירת החתימה נמשכה זמן רב מדי. יש לבדוק את החיבור ולנסות שוב.')), 15000);
+        });
+        const result = await Promise.race([
+          api.updateProposalAgreementStatus(id, 'approved', '', signatureMeta),
+          timeout
+        ]);
+        const savedRow = result?.row;
+        if (!savedRow || normalizeProposalStatus(savedRow.status) !== 'approved' || !proposalHasSavedApprovalSignature(savedRow) || !text(savedRow.approved_at)) {
+          throw new Error('החתימה לא נשמרה במלואה ולכן סטטוס ההצעה לא עודכן בממשק.');
+        }
+        return savedRow;
+      } finally {
+        clearTimeout(timeoutId);
+        approvalRequests.delete(id);
+      }
+    };
+
     const openPreview = async (row, items, options = {}) => {
       if (options.form) options.form.dataset.paPreviewSeen = 'yes';
       const savedRow = data.rows.find((r) => text(r.id) === text(row.id));
       const mergedRow = savedRow ? { ...savedRow, ...row } : row;
       const freshRow = rowWithCentralContact(mergedRow);
+      const isSentLocked = isProposalSentLocked(freshRow);
+      if (isSentLocked && proposalHasFinalPdf(freshRow) && options.forceLivePreview !== true) {
+        await openProposalFinalPdf(freshRow);
+        return;
+      }
+      await ensureEditorDeps();
       items = proposalItemsWithFallback(items, freshRow);
+      const lockedPreviewHtml = isSentLocked ? proposalLockedPreviewHtml(freshRow) : '';
       const templateSections = filterTemplateSectionsForGroup(proposalTemplateSections, freshRow.activity_type_group);
       document.getElementById('pa-preview-overlay')?.remove();
       const overlay = document.createElement('div');
@@ -5321,44 +8496,50 @@ export const proposalsAgreementsScreen = {
       const submitBtnHtml = options.onSubmit ? `<button type="button" class="ds-btn ds-btn--primary ds-btn--sm no-print" id="pa-preview-submit">${escapeHtml(options.submitLabel || 'שליחה לאישור')}</button>` : '';
       const approvePreviewBtnHtml = canApproveFromPreview ? '<button type="button" class="ds-btn ds-btn--primary ds-btn--sm no-print" id="pa-preview-approve-sign">אישור וחתימה</button>' : '';
       const hasCustomSections = Array.isArray(freshRow.custom_document_sections) && freshRow.custom_document_sections.length > 0;
-      const missingTemplateNotice = (!templateSections.length && !hasCustomSections)
+      const missingTemplateNotice = (!templateSections.length && !hasCustomSections && !isTourProposalGroup(freshRow.activity_type_group))
         ? '<p class="ds-pa-template-missing-notice no-print" role="alert" style="margin:6px 0 0;color:#b45309;font-size:0.85rem">לא נמצאה תבנית פעילה לסוג הצעה זה</p>'
         : '';
       // Admin-only notice (never printed) when the proposal has no saved item rows.
       const missingItemsNotice = (!Array.isArray(items) || !items.length)
         ? '<p class="ds-pa-no-items-notice no-print" role="alert" style="margin:6px 0 0;color:#b45309;font-size:0.85rem">לא נשמרו שורות פעילות להצעה זו</p>'
         : '';
+      const legacyNotice = isSentLocked && !lockedPreviewHtml && !proposalHasFinalPdf(freshRow)
+        ? `<p class="ds-pa-legacy-sent-notice no-print" role="status" style="margin:6px 0 0;color:#92400e;font-size:0.85rem">לא נמצא PDF סופי — מוצגת תצוגה מתוך הנתונים הקיימים.</p>`
+        : '';
+      const lockedNotice = isSentLocked && lockedPreviewHtml
+        ? '<p class="ds-pa-locked-view-notice no-print" role="status" style="margin:6px 0 0;color:var(--ds-accent);font-size:0.85rem">מוצג מסמך נעול שנשמר בעת השליחה — לא תצוגה חיה מתבנית Supabase.</p>'
+        : '';
+      const showPrintBtn = !isSentLocked || (!lockedPreviewHtml && !proposalHasFinalPdf(freshRow));
       overlay.innerHTML = `
         <div class="proposal-preview-toolbar no-print">
-          <button type="button" class="ds-btn ds-btn--sm no-print" id="pa-preview-close">← חזרה לעריכה</button>
+          <button type="button" class="ds-btn ds-btn--sm no-print" id="pa-preview-close">← חזרה</button>
           ${saveBtnHtml}
           ${submitBtnHtml}
           ${approvePreviewBtnHtml}
           ${signingMode ? '<button type="button" class="ds-btn ds-btn--primary ds-btn--sm no-print" id="pa-signature-confirm">אישור וחתימה</button><button type="button" class="ds-btn ds-btn--sm ds-btn--ghost no-print" id="pa-signature-cancel">ביטול</button>' : ''}
-          <button type="button" class="ds-btn ds-btn--sm no-print" id="pa-print-btn">הדפסה / שמירה כ-PDF</button>
+          ${showPrintBtn ? '<button type="button" class="ds-btn ds-btn--sm no-print" id="pa-print-btn" title="הפקת PDF ושמירה אוטומטית">PDF</button>' : ''}
+          ${isSentLocked && proposalHasFinalPdf(freshRow) ? '<button type="button" class="ds-btn ds-btn--sm no-print" id="pa-view-final-pdf-btn">צפייה ב־PDF שנשלח</button>' : ''}
           <span class="ds-pa-preview-client no-print">${clientLabel}</span>
+          ${legacyNotice}
+          ${lockedNotice}
           ${missingTemplateNotice}
           ${missingItemsNotice}
         </div>
         <div class="proposal-preview-area">
-          ${proposalPreviewBodyHtml(freshRow, items, templateSections, signingMode ? { showSignatureImage: true } : {})}
+          ${lockedPreviewHtml || proposalPreviewBodyHtml(freshRow, items, templateSections, signingMode ? { showSignatureImage: true } : {})}
         </div>`;
+      proposalPdfDocumentNormalizer?.(overlay.querySelector('.proposal-preview-area'));
       document.body.appendChild(overlay);
       document.body.classList.add('is-print-preview');
       const previousDocumentTitle = document.title;
       document.title = proposalPdfDocumentTitle(freshRow);
       const readSignatureMeta = () => defaultSignatureMeta();
       if (options.form) options.form.dataset.paPreviewSeen = 'yes';
-      if (options.autoPrint) {
-        requestAnimationFrame(() => setTimeout(() => {
-          document.title = proposalPdfDocumentTitle(freshRow);
-          window.print();
-        }, 150));
-      }
       const printButton = overlay.querySelector('#pa-print-btn');
-      printButton?.addEventListener('click', () => {
-        document.title = proposalPdfDocumentTitle(freshRow);
-        window.print();
+      printButton?.addEventListener('click', () => generateAndSaveProposalPdf(freshRow, items, printButton));
+      overlay.querySelector('#pa-view-final-pdf-btn')?.addEventListener('click', () => {
+        const reservedWindow = reservePdfWindow();
+        openProposalFinalPdf(freshRow, null, reservedWindow);
       });
       const closeOverlay = () => {
         overlay.remove();
@@ -5367,23 +8548,41 @@ export const proposalsAgreementsScreen = {
       };
       overlay.querySelector('#pa-preview-close')?.addEventListener('click', closeOverlay);
       overlay.querySelector('#pa-signature-cancel')?.addEventListener('click', closeOverlay);
-      overlay.querySelector('#pa-signature-confirm')?.addEventListener('click', () => options.onSignatureConfirm?.(readSignatureMeta(), closeOverlay));
+      overlay.querySelector('#pa-signature-confirm')?.addEventListener('click', async (event) => {
+        const btn = event.currentTarget;
+        if (btn.disabled) return;
+        btn.disabled = true;
+        btn.setAttribute('aria-busy', 'true');
+        try {
+          await options.onSignatureConfirm?.(readSignatureMeta(), closeOverlay);
+        } catch (err) {
+          const message = text(err?.message) || 'לא ניתן היה לשמור את החתימה ולאשר את ההצעה. ניתן לנסות שוב.';
+          showToast(message, 'error');
+          console.error('[proposal approval failed]', err);
+        } finally {
+          if (btn.isConnected) {
+            btn.disabled = false;
+            btn.removeAttribute('aria-busy');
+          }
+        }
+      });
       overlay.querySelector('#pa-preview-approve-sign')?.addEventListener('click', async (event) => {
         const btn = event.currentTarget;
         btn.disabled = true;
         try {
           const signatureMeta = readSignatureMeta();
-          const result = await api.updateProposalAgreementStatus(text(freshRow.id), 'approved', '', signatureMeta);
-          replaceLocalRow(data, result?.row || { ...freshRow, status: 'approved', approval_note: '', signature_meta: signatureMeta });
+          const savedApproval = await approveProposalWithSignature(text(freshRow.id), signatureMeta);
+          replaceLocalRow(data, savedApproval);
           refreshTable();
           const approvedRow = data.rows.find((item) => text(item.id) === text(freshRow.id)) || { ...freshRow, status: 'approved', signature_meta: signatureMeta };
           overlay.querySelector('.proposal-preview-area').innerHTML = proposalPreviewBodyHtml(approvedRow, items, templateSections, { showSignatureImage: true });
           btn.remove();
           showToast('ההצעה אושרה ונחתמה', 'success');
         } catch (err) {
-          btn.disabled = false;
-          showToast('שגיאה באישור וחתימה', 'error');
-          window.alert?.(`שגיאה באישור וחתימה: ${err?.message || err}`);
+          showToast(text(err?.message) || 'שגיאה באישור וחתימה', 'error');
+          console.error('[proposal approval failed]', err);
+        } finally {
+          if (btn.isConnected) btn.disabled = false;
         }
       });
       if (options.onSubmit) overlay.querySelector('#pa-preview-submit')?.addEventListener('click', () => { closeOverlay(); options.onSubmit(); });
@@ -5435,24 +8634,17 @@ export const proposalsAgreementsScreen = {
         }
       }
       try {
-        console.info('[proposal-save-payload]', {
-          activity_type_group: payload.activity_type_group,
-          activity_names: payload.activity_names,
-          total_amount: payload.total_amount
-        });
         const result = mode === 'edit'
           ? await api.updateProposalAgreement(id, payload)
           : await api.addProposalAgreement(payload);
         const savedId = text(result?.row?.id || id);
         const items = Array.isArray(payload._items) ? payload._items : filterItemsByProposalType(extractItemsFromForm(form), payload.activity_type_group);
         if (savedId && typeof api.saveProposalAgreementItems === 'function') {
-          console.debug('[PA_SAVE_ITEMS]', { savedId, activity_type_group: payload.activity_type_group, items });
           await api.saveProposalAgreementItems(savedId, items);
         }
         let finalRow = result?.row || { ...payload, id: savedId };
         if (approvingWithSignature && savedId) {
-          const approval = await api.updateProposalAgreementStatus(savedId, 'approved', '', signatureMeta || defaultSignatureMeta());
-          finalRow = approval?.row || { ...finalRow, status: 'approved', signature_meta: signatureMeta || defaultSignatureMeta(), approved_at: new Date().toISOString() };
+          finalRow = await approveProposalWithSignature(savedId, signatureMeta || defaultSignatureMeta());
           showToast('ההצעה אושרה ונחתמה', 'success');
         } else if (targetStatus === 'pending_approval') {
           showToast('ההצעה נשמרה ונשלחה לאישור', 'success');
@@ -5460,21 +8652,26 @@ export const proposalsAgreementsScreen = {
           showToast('הטיוטה נשמרה בהצלחה', 'success');
         }
         replaceLocalRow(data, finalRow);
-        resetLocalFilters();
-        switchTab('records');
-        highlightProposalRow(savedId);
+        upsertProposalContactOption(contactOptions, finalRow);
         refreshTable();
         closeForm();
+        if (viewMode === 'all-proposals') highlightProposalRow(savedId);
         const drawer = root.querySelector('[data-pa-drawer]');
         if (drawer && mode === 'edit') {
           const updated = data.rows.find((item) => text(item.id) === id);
           if (updated) drawer.outerHTML = drawerHtml(updated, activityNameOptions, state);
         }
       } catch (err) {
-        if (errorEl) errorEl.textContent = `שגיאה בשמירה: ${err?.message || err}`;
-        form.dataset.saving = '';
-        allBtns.forEach((b) => { b.disabled = false; });
+        console.error('[proposal save failed]', err);
+        if (errorEl) errorEl.textContent = 'לא ניתן היה לשמור את ההצעה. הפרטים נשארו בטופס וניתן לנסות שוב.';
+        return false;
+      } finally {
+        if (form.isConnected) {
+          form.dataset.saving = '';
+          allBtns.forEach((b) => { b.disabled = false; });
+        }
       }
+      return true;
     };
 
     // ── Tab switching ──────────────────────────────────────────────────────────
@@ -5484,10 +8681,10 @@ export const proposalsAgreementsScreen = {
       const tabName = btn.dataset.paTab;
       if (tabName === 'new' && canManage) {
         openForm('add'); // openForm calls switchTab('new') internally
-      } else if (tabName === 'records') {
-        // Clear the new-proposal form and switch back to records
+      } else if (tabName === 'records' || tabName === 'sent') {
+        // Clear the proposal form and switch to the selected list view.
         if (formHost) { formHost.hidden = true; formHost.innerHTML = ''; }
-        switchTab('records');
+        switchTab(tabName);
       }
     }, { signal });
 
@@ -5566,18 +8763,30 @@ export const proposalsAgreementsScreen = {
             onSignatureConfirm: async (signatureMeta, closeOverlay) => {
               rowStatusSelect.disabled = true;
               try {
-                const result = await api.updateProposalAgreementStatus(id, 'approved', '', signatureMeta);
-                replaceLocalRow(data, result?.row || { id, status: 'approved', approval_note: '', signature_meta: signatureMeta, updated_at: new Date().toISOString() });
+                const savedApproval = await approveProposalWithSignature(id, signatureMeta);
+                replaceLocalRow(data, savedApproval);
                 refreshTable();
                 closeOverlay?.();
                 showToast('ההצעה אושרה ונחתמה', 'success');
               } catch (err) {
-                rowStatusSelect.disabled = false;
-                showToast('שגיאה בעדכון סטטוס ההצעה', 'error');
-                window.alert?.(`שגיאה בעדכון סטטוס: ${err?.message || err}`);
+                throw err;
+              } finally {
+                if (rowStatusSelect.isConnected) rowStatusSelect.disabled = false;
               }
             }
           });
+          return;
+        }
+        if (newStatus === 'sent') {
+          rowStatusSelect.value = previousStatus;
+          const row = data.rows.find((r) => text(r.id) === id);
+          if (!row || !canTransitionProposalStatus(row, 'sent', state)) {
+            showToast('אין הרשאה או שהמעבר אינו מותר בסטטוס הנוכחי.', 'error');
+            return;
+          }
+          let items = [];
+          try { if (typeof api.readProposalAgreementItems === 'function') items = await api.readProposalAgreementItems(id); } catch { items = []; }
+          await openSendProposalDialog(row, items);
           return;
         }
         rowStatusSelect.disabled = true;
@@ -5590,7 +8799,7 @@ export const proposalsAgreementsScreen = {
           rowStatusSelect.value = previousStatus;
           rowStatusSelect.disabled = false;
           showToast('שגיאה בעדכון סטטוס ההצעה', 'error');
-          window.alert?.(`שגיאה בעדכון סטטוס: ${err?.message || err}`);
+          console.error('[proposal status update failed]', err);
         }
         return;
       }
@@ -5605,8 +8814,13 @@ export const proposalsAgreementsScreen = {
         const basePricing = filterPricingByProposalType(proposalActivityPricing, contractType);
         const filteredPricing = filterPricingByActivityType(basePricing, selectedActivityType);
         form.querySelectorAll('[data-pa-pricing-select]').forEach((sel) => {
+          const itemRow = sel.closest('[data-pa-item-row]');
+          const rowGroup = text(itemRow?.dataset?.paRowGroup);
           const currentVal = text(sel.value);
-          sel.innerHTML = buildPricingSelectOptionsHtml(filteredPricing, currentVal);
+          sel.innerHTML = buildPricingSelectOptionsHtml(filteredPricing, currentVal, {
+            allowManualCourse: formAllowsManualCourse(form),
+            groupKey: rowGroup
+          });
         });
         return;
       }
@@ -5630,6 +8844,14 @@ export const proposalsAgreementsScreen = {
       const itemRow = pricingSelect.closest('[data-pa-item-row]');
       const form = pricingSelect.closest('[data-pa-form]');
       const selectedKey = text(pricingSelect.value);
+      if (!itemRow) return;
+      const bundlePrompt = itemRow.querySelector('[data-pa-bundle-prompt]');
+      if (selectedKey === MANUAL_COURSE_OPTION_KEY) {
+        if (!formAllowsManualCourse(form)) return;
+        applyManualCourseToRow(itemRow, form);
+        return;
+      }
+      setManualCourseNameFieldActive(itemRow, false);
       const itemTypeInput = itemRow?.querySelector?.('[name="item_type"]');
       const picked = resolvePricingRow({
         optionKey: selectedKey,
@@ -5637,8 +8859,6 @@ export const proposalsAgreementsScreen = {
         activityName: selectedKey,
         itemType: itemTypeInput?.value
       });
-      if (!itemRow) return;
-      const bundlePrompt = itemRow.querySelector('[data-pa-bundle-prompt]');
       if (!picked) { if (bundlePrompt) bundlePrompt.hidden = true; return; }
       const isBundle = picked.proposal_display_mode === 'bundle_parent' || picked.is_bundle_parent;
       if (isBundle && bundlePrompt) {
@@ -5656,7 +8876,7 @@ export const proposalsAgreementsScreen = {
         setRowValue(itemRow, 'item_name', parentName);
         setRowValue(itemRow, 'item_type', picked.item_type || '');
         setRowValue(itemRow, 'unit_price', numberValue(picked.unit_price) || '');
-        setRowValue(itemRow, 'proposal_group', picked.proposal_group || text(itemRow.dataset.paRowGroup) || '');
+        setRowValue(itemRow, 'proposal_group', proposalItemGroupForEditorRow(itemRow, picked.proposal_group));
         setRowValue(itemRow, 'item_display_mode', 'bundle_parent');
         setRowValue(itemRow, 'item_source_pricing_key', text(picked.pricing_key) || '');
         setRowValue(itemRow, 'bundle_pricing_key', text(picked.pricing_key) || '');
@@ -5723,7 +8943,7 @@ export const proposalsAgreementsScreen = {
       setValue('hourly_price', picked.hourly_price ?? '');
       setValue('description', picked.description_for_proposal || '');
       setValue('unit_duration', picked.unit_duration || '');
-      setValue('proposal_group', picked.proposal_group || text(itemRow.dataset.paRowGroup) || '');
+      setValue('proposal_group', proposalItemGroupForEditorRow(itemRow, picked.proposal_group));
       setValue('item_display_mode', 'single');
       setValue('item_source_pricing_key', text(picked.pricing_key) || '');
       setValue('item_selected_bundle_items', '[]');
@@ -5757,8 +8977,215 @@ export const proposalsAgreementsScreen = {
       if (form) updateProposalStepper(form);
     }, { signal });
 
+    root.addEventListener('submit', async (event) => {
+
+      const drawerContactForm = event.target.closest?.('[data-pa-drawer-contact-form]');
+      if (drawerContactForm && event.type === 'submit') {
+        event.preventDefault();
+        const msg = drawerContactForm.querySelector('[data-pa-contact-update-msg]');
+        const sourceId = text(drawerContactForm.dataset.paContactSourceId);
+        const sourceTable = text(drawerContactForm.dataset.paContactSourceTable) || 'contacts_schools';
+        if (!sourceId) {
+          if (msg) msg.textContent = 'לא נמצא איש קשר קיים לעדכון.';
+          return;
+        }
+        const fields = {
+          contact_name: text(drawerContactForm.querySelector('[name="contact_name"]')?.value),
+          contact_role: text(drawerContactForm.querySelector('[name="contact_role"]')?.value),
+          email: text(drawerContactForm.querySelector('[name="email"]')?.value),
+          phone: text(drawerContactForm.querySelector('[name="phone"]')?.value),
+          mobile: text(drawerContactForm.querySelector('[name="phone"]')?.value)
+        };
+        try {
+          if (msg) msg.textContent = 'שומר...';
+          await api.updateUnifiedContactRecord({ source_table: sourceTable, source_id: sourceId, fields });
+          const openId = text(drawerContactForm.closest('[data-pa-drawer]')?.dataset?.paDrawerId);
+          const existing = data.rows.find((item) => text(item.id) === openId);
+          if (existing) {
+            existing.contact_name = fields.contact_name;
+            existing.contact_role = fields.contact_role;
+            existing.email = fields.email;
+            existing.phone = fields.phone;
+          }
+          const contactMatch = contactOptions.find((c) => text(c.id) === sourceId && text(c.source_table || 'contacts_schools') === sourceTable);
+          if (contactMatch) {
+            contactMatch.contact_name = fields.contact_name;
+            contactMatch.contact_role = fields.contact_role;
+            contactMatch.email = fields.email;
+            contactMatch.phone = fields.phone;
+            contactMatch.mobile = fields.mobile;
+          }
+          if (msg) msg.textContent = 'פרטי איש הקשר עודכנו.';
+          if (existing) drawerContactForm.closest('[data-pa-drawer]').outerHTML = drawerHtml(normalizeProposalAgreementRow(existing), activityNameOptions, state);
+          refreshTable();
+          showToast('פרטי איש הקשר עודכנו', 'success', 1800);
+        } catch (err) {
+          console.error('[proposal contact update failed]', err);
+          if (msg) msg.textContent = 'לא ניתן היה לשמור את פרטי איש הקשר. הפרטים נשארו בטופס.';
+        }
+        return;
+      }
+    }, { signal });
+
+
+    root.addEventListener('change', async (event) => {
+      const checkbox = event.target.closest?.('[data-pa-gfen-signed]');
+      if (!checkbox) return;
+      const id = checkbox.dataset.paGfenSigned;
+      const row = data.rows.find((item) => text(item.id) === text(id));
+      const previous = normalizeProposalSignedOrOrdered(row?.gfen_signed_or_ordered);
+      const next = checkbox.checked === true;
+      if (!row || !isGefenApprovalApplicable(row) || typeof api.updateProposalAgreementGfenSignedOrOrdered !== 'function') {
+        checkbox.checked = previous;
+        showToast('שמירת סימון חתום / הוזמן אינה זמינה כרגע.', 'error');
+        return;
+      }
+      checkbox.disabled = true;
+      try {
+        const result = await api.updateProposalAgreementGfenSignedOrOrdered(id, next);
+        const saved = result?.row || { ...row, gfen_signed_or_ordered: next };
+        const idx = data.rows.findIndex((item) => text(item.id) === text(id));
+        if (idx >= 0) data.rows[idx] = { ...data.rows[idx], ...saved, gfen_approval_applicable: row.gefen_approval_applicable };
+        refreshTable();
+        showToast('סימון חתום / הוזמן נשמר.', 'success', 1800);
+      } catch (err) {
+        console.error('[proposal gfen signed/order update failed]', err);
+        checkbox.checked = previous;
+        checkbox.disabled = false;
+        showToast(err?.message || 'שמירת סימון חתום / הוזמן נכשלה. הסימון הוחזר למצב הקודם.', 'error');
+      }
+    }, { signal });
+
     // ── Click handler ─────────────────────────────────────────────────────────
     root.addEventListener('click', async (event) => {
+      // Resolve nested SVG/path clicks before ancestor-based proposal navigation.
+      const delegatedStatusAction = event.target.closest?.('[data-pa-status-action]');
+      if (event.target.closest?.('[data-pa-gfen-signed]')) return;
+      if (event.target.closest?.('[data-pa-client-contact-close]')) {
+        event.target.closest('[data-pa-client-contact-modal]')?.remove();
+        return;
+      }
+
+      const openClientBtn = event.target.closest?.('[data-pa-open-client]');
+      if (openClientBtn) {
+        openClientFile(openClientBtn.dataset.paOpenClient, openClientBtn.dataset.paOpenProposal);
+        return;
+      }
+
+      if (event.target.closest?.('[data-pa-client-close]')) {
+        showClientFileHome();
+        return;
+      }
+
+      if (event.target.closest?.('[data-pa-back-to-client-home]')) {
+        showClientFileHome();
+        return;
+      }
+
+      const addClientProposalBtn = event.target.closest?.('[data-pa-client-add-proposal]');
+      if (addClientProposalBtn) {
+        const file = currentClientFile();
+        await openForm('add', file ? proposalPrefillForClient(file) : {});
+        return;
+      }
+
+
+      const allProposalsBtn = event.target.closest?.('[data-pa-client-all-proposals]');
+      if (allProposalsBtn) {
+        showAllProposalsTable();
+        return;
+      }
+
+      if (event.target.closest?.('[data-pa-proposal-detail-back]')) {
+        closeProposalDetail();
+        return;
+      }
+
+      const openProposalBtn = event.target.closest?.('[data-pa-open-proposal-id]');
+      if (openProposalBtn && !delegatedStatusAction && !event.target.closest?.('[data-pa-view-final-pdf],[data-pa-view-gefen-approval],[data-pa-generate-gefen-approval],[data-pa-clone-row]')) {
+        await openProposalDetails(openProposalBtn.dataset.paOpenProposalId, {
+          returnTo: openProposalBtn.dataset.paReturnTo || '',
+          openSource: openProposalBtn.dataset.paReturnTo === 'all' ? 'all-proposals' : 'client-file',
+          clientKeyHint: openProposalBtn.dataset.paClientKey
+            || selectedClientKey
+            || openProposalBtn.closest?.('[data-pa-client-file]')?.dataset?.paClientFile
+            || ''
+        });
+        return;
+      }
+
+      const addClientContactBtn = event.target.closest?.('[data-pa-client-add-contact]');
+      if (addClientContactBtn) {
+        const file = currentClientFile();
+        if (!canManage || !file || !clientWorkspace) return;
+        const openAddContact = () => {
+          clientWorkspace.insertAdjacentHTML('beforeend', clientContactEditorHtml(currentClientFile() || file));
+          clientWorkspace.querySelector('[data-pa-client-contact-form] input')?.focus?.();
+        };
+        const contactsApiMissing = typeof api.proposalsAgreementsContacts !== 'function'
+          && typeof api.proposalsAgreementsEditorDeps !== 'function';
+        if (data._contactsLoaded || contactsApiMissing) {
+          data._contactsLoaded = true;
+          openAddContact();
+          return;
+        }
+        await ensureContacts();
+        if (signal.aborted || !root.isConnected) return;
+        openAddContact();
+        return;
+      }
+
+      const editClientContactBtn = event.target.closest?.('[data-pa-client-edit-contact]');
+      if (editClientContactBtn) {
+        const openEditContact = () => {
+          const file = currentClientFile();
+          const index = Number(editClientContactBtn.dataset.paClientEditContact);
+          const contact = file?.contacts[index];
+          if (!canManage || !file || !contact || !clientWorkspace) return;
+          clientWorkspace.insertAdjacentHTML('beforeend', clientContactEditorHtml(file, contact, index));
+          clientWorkspace.querySelector('[data-pa-client-contact-form] input')?.focus?.();
+        };
+        const contactsApiMissing = typeof api.proposalsAgreementsContacts !== 'function'
+          && typeof api.proposalsAgreementsEditorDeps !== 'function';
+        if (data._contactsLoaded || contactsApiMissing) {
+          data._contactsLoaded = true;
+          openEditContact();
+          return;
+        }
+        await ensureContacts();
+        if (signal.aborted || !root.isConnected) return;
+        openEditContact();
+        return;
+      }
+
+      const deleteClientContactBtn = event.target.closest?.('[data-pa-client-delete-contact]');
+      if (deleteClientContactBtn) {
+        const file = currentClientFile();
+        const index = Number(deleteClientContactBtn.dataset.paClientDeleteContact);
+        const contact = file?.contacts[index];
+        if (!canManage || !file || !contact) return;
+        const contactId = contact.source_id ?? contact.id;
+        if (contactId == null || text(contactId) === '') {
+          showToast('לא ניתן לזהות את רשומת איש הקשר להסרה. יש לרענן את תיק הלקוח ולנסות שוב.', 'error');
+          return;
+        }
+        const approved = window.confirm?.(`הסרת איש קשר\n\nהאם להסיר את ${text(contact.contact_name) || 'איש הקשר'} מתיק הלקוח?`);
+        if (!approved) return;
+        deleteClientContactBtn.disabled = true;
+        try {
+          await api.deleteSchoolContact(contactId);
+          contactOptions = contactOptions.filter((item) => text(item.source_id ?? item.id) !== text(contactId));
+          data.contactOptions = contactOptions;
+          renderClientWorkspace();
+          showToast('איש הקשר הוסר בהצלחה', 'success', 1800);
+        } catch (err) {
+          console.error('[client-file contact delete failed]', err);
+          deleteClientContactBtn.disabled = false;
+          showToast('לא ניתן היה להסיר את איש הקשר. ניתן לנסות שוב.', 'error');
+        }
+        return;
+      }
+
       // Discount / notes section toggle
       const discountToggle = event.target.closest?.('[data-pa-discount-toggle]');
       if (discountToggle) {
@@ -5782,10 +9209,6 @@ export const proposalsAgreementsScreen = {
           typeCardBtn.closest('[data-pa-type-cards]')?.querySelectorAll('[data-pa-type-btn]').forEach((btn) => {
             const isSel = text(btn.dataset.paTypeBtn) === val;
             btn.classList.toggle('is-selected', isSel);
-            btn.style.border = `1.5px solid ${isSel ? '#6366f1' : '#d1d5db'}`;
-            btn.style.background = isSel ? '#eef2ff' : '#f9fafb';
-            btn.style.color = isSel ? '#4f46e5' : '#374151';
-            btn.style.fontWeight = isSel ? '600' : '400';
           });
           typeInput.dispatchEvent(new Event('change', { bubbles: true }));
         }
@@ -5793,38 +9216,28 @@ export const proposalsAgreementsScreen = {
       }
 
       // Row click — skip if clicking an inline action button inside the row
-      const rowEl = !event.target.closest?.('[data-pa-preview],[data-pa-edit-row],[data-pa-print],[data-pa-delete-row],[data-pa-clone-row]')
+      const rowEl = !event.target.closest?.('[data-pa-preview],[data-pa-view-final-pdf],[data-pa-view-gefen-approval],[data-pa-generate-gefen-approval],[data-pa-edit-row],[data-pa-print],[data-pa-delete-row],[data-pa-clone-row],[data-pa-row-more],[data-pa-status-action],[data-pa-open-proposal-id],.ds-pa-row-more')
         ? event.target.closest?.('[data-pa-row-id]')
         : null;
       if (rowEl) {
-        const row = rowWithCentralContact(data.rows.find((item) => text(item.id) === text(rowEl.dataset.paRowId)));
-        const drawer = root.querySelector('[data-pa-drawer]');
-        if (drawer && row) {
-          drawer.outerHTML = drawerHtml(row, activityNameOptions, state);
-          // Load items for drawer display
-          const newDrawer = root.querySelector('[data-pa-drawer]');
-          const itemsHost = newDrawer?.querySelector('[data-pa-drawer-items]');
-          if (itemsHost && text(row.id) && typeof api.readProposalAgreementItems === 'function') {
-            try {
-              const items = proposalItemsWithFallback(await api.readProposalAgreementItems(text(row.id)), row);
-              if (itemsHost.isConnected) {
-                itemsHost.innerHTML = itemsSummaryHtml(items);
-                const hasActiveItems = (Array.isArray(items) ? items : []).filter(hasMeaningfulProposalItemValue).filter((i) => !isTestHoursItem(i)).length > 0;
-                const fallback = newDrawer?.querySelector('[data-pa-activities-fallback]');
-                if (fallback && hasActiveItems) fallback.hidden = true;
-              }
-            } catch { if (itemsHost.isConnected) itemsHost.innerHTML = ''; }
-          } else if (itemsHost) {
-            itemsHost.innerHTML = '';
-          }
-        }
+        await openProposalDetails(rowEl.dataset.paRowId, {
+          returnTo: viewingAllProposals ? 'all' : (selectedClientKey ? 'client' : 'home'),
+          openSource: viewingAllProposals ? 'all-proposals' : 'client-file',
+          clientKeyHint: selectedClientKey || clientFileKey(data.rows.find((item) => text(item.id) === text(rowEl.dataset.paRowId)) || {})
+        });
         return;
       }
 
       if (event.target.closest?.('[data-pa-close-drawer]')) {
+        if (proposalDetailContext) {
+          closeProposalDetail();
+          return;
+        }
         const drawer = root.querySelector('[data-pa-drawer]');
         if (drawer) drawer.outerHTML = drawerHtml(null, activityNameOptions, state);
         setDocumentEditMode(root, false);
+        // Keep the selected client file after closing a proposal drawer.
+        if (selectedClientKey) renderClientWorkspace();
         return;
       }
 
@@ -5924,12 +9337,16 @@ export const proposalsAgreementsScreen = {
         return;
       }
 
-      // Preview button (drawer or inline form)
+      // Preview button (drawer or inline form). From the all-proposals table, "צפייה" opens details.
       const previewBtn = event.target.closest?.('[data-pa-preview]');
       if (previewBtn) {
         const id = text(previewBtn.dataset.paPreview);
         const row = data.rows.find((r) => text(r.id) === id);
         if (!row) return;
+        if (viewingAllProposals && !previewBtn.closest?.('[data-pa-proposal-detail],[data-pa-form]')) {
+          await openProposalDetails(id, { returnTo: 'all', openSource: 'all-proposals' });
+          return;
+        }
         previewBtn.disabled = true;
         let items = [];
         try {
@@ -5958,12 +9375,14 @@ export const proposalsAgreementsScreen = {
           }
         } catch { items = []; }
         printBtn.disabled = false;
-        await openPreview(row, proposalItemsWithFallback(items, row), { autoPrint: true });
+        await generateAndSaveProposalPdf(row, proposalItemsWithFallback(items, row), printBtn);
         return;
       }
 
-      const statusActionBtn = event.target.closest?.('[data-pa-status-action]');
+      const statusActionBtn = delegatedStatusAction;
       if (statusActionBtn) {
+        event.preventDefault();
+        event.stopPropagation();
         if (!canManage) return;
         const newStatus = text(statusActionBtn.dataset.paStatusAction);
         const id = text(statusActionBtn.dataset.paActionId);
@@ -5985,27 +9404,52 @@ export const proposalsAgreementsScreen = {
           }
           const row = data.rows.find((r) => text(r.id) === id);
           if (!row) return;
-          let items = [];
-          try { if (typeof api.readProposalAgreementItems === 'function') items = await api.readProposalAgreementItems(id); } catch { items = []; }
-          await openPreview(row, items, {
-            signatureMode: true,
-            onSignatureConfirm: async (signatureMeta, closeOverlay) => {
-              statusActionBtn.disabled = true;
-              try {
-                const result = await api.updateProposalAgreementStatus(id, 'approved', '', signatureMeta);
-                replaceLocalRow(data, result?.row || { id, status: 'approved', approval_note: '', signature_meta: signatureMeta, updated_at: new Date().toISOString() });
+          if (statusActionBtn.dataset.paApprovalOpening === 'true') return;
+          statusActionBtn.dataset.paApprovalOpening = 'true';
+          statusActionBtn.setAttribute('aria-busy', 'true');
+          try {
+            const items = typeof api.readProposalAgreementItems === 'function'
+              ? await api.readProposalAgreementItems(id)
+              : [];
+            await openPreview(row, items, {
+              signatureMode: true,
+              onSignatureConfirm: async (signatureMeta, closeOverlay) => {
+                const savedApproval = await approveProposalWithSignature(id, signatureMeta);
+                replaceLocalRow(data, savedApproval);
                 refreshTable();
                 const updated = data.rows.find((item) => text(item.id) === id);
                 const drawer = root.querySelector('[data-pa-drawer]');
                 if (drawer && updated) drawer.outerHTML = drawerHtml(updated, activityNameOptions, state);
                 closeOverlay?.();
                 showToast('ההצעה אושרה ונחתמה', 'success');
-              } catch (err) {
-                statusActionBtn.disabled = false;
-                window.alert?.(`שגיאה באישור וחתימה: ${err?.message || err}`);
               }
+            });
+            const signatureOverlay = document.querySelector('#pa-preview-overlay');
+            const signatureConfirm = document.querySelector('#pa-signature-confirm');
+            if (!signatureOverlay || !signatureConfirm) {
+              signatureOverlay?.remove();
+              document.body.classList.remove('is-print-preview');
+              throw new Error('Signature preview did not render its overlay and confirmation control.');
             }
-          });
+          } catch (err) {
+            console.error('[proposal approval preview failed]', err);
+            showToast('לא ניתן היה לפתוח את מסך החתימה. הכפתור שוחרר וניתן לנסות שוב.', 'error');
+          } finally {
+            if (statusActionBtn.isConnected) {
+              statusActionBtn.disabled = false;
+              delete statusActionBtn.dataset.paApprovalOpening;
+              statusActionBtn.removeAttribute('aria-busy');
+            }
+          }
+          return;
+        }
+        if (newStatus === 'sent') {
+          const row = data.rows.find((r) => text(r.id) === id);
+          if (!row) return;
+          let items = [];
+          try { if (typeof api.readProposalAgreementItems === 'function') items = await api.readProposalAgreementItems(id); } catch { items = []; }
+          await openSendProposalDialog(row, items);
+          statusActionBtn.disabled = false;
           return;
         }
         if (newStatus === 'returned_for_changes') {
@@ -6036,9 +9480,45 @@ export const proposalsAgreementsScreen = {
         } catch (err) {
           statusActionBtn.disabled = false;
           const drawerErrEl = root.querySelector('[data-pa-drawer-error]');
-          if (drawerErrEl) drawerErrEl.textContent = `שגיאה בעדכון סטטוס: ${err?.message || err}`;
-          else window.alert(`שגיאה בעדכון סטטוס: ${err?.message || err}`);
+          console.error('[proposal status update failed]', err);
+          if (drawerErrEl) drawerErrEl.textContent = 'לא ניתן היה לעדכן את סטטוס ההצעה. ניתן לנסות שוב.';
         }
+        return;
+      }
+
+      const viewFinalPdfBtn = event.target.closest?.('[data-pa-view-final-pdf]');
+      if (viewFinalPdfBtn) {
+        const id = text(viewFinalPdfBtn.dataset.paViewFinalPdf);
+        const row = data.rows.find((r) => text(r.id) === id);
+        if (!row) return;
+        const reservedWindow = reservePdfWindow();
+        viewFinalPdfBtn.disabled = true;
+        await openProposalFinalPdf(row, null, reservedWindow);
+        viewFinalPdfBtn.disabled = false;
+        return;
+      }
+
+      const viewGefenApprovalBtn = event.target.closest?.('[data-pa-view-gefen-approval]');
+      if (viewGefenApprovalBtn) {
+        const id = text(viewGefenApprovalBtn.dataset.paViewGefenApproval);
+        const row = data.rows.find((item) => text(item.id) === id);
+        if (!row) return;
+        viewGefenApprovalBtn.disabled = true;
+        await openGefenApprovalPdf(row);
+        viewGefenApprovalBtn.disabled = false;
+        return;
+      }
+
+      const generateGefenApprovalBtn = event.target.closest?.('[data-pa-generate-gefen-approval]');
+      if (generateGefenApprovalBtn) {
+        const id = text(generateGefenApprovalBtn.dataset.paGenerateGefenApproval);
+        const row = data.rows.find((item) => text(item.id) === id);
+        if (!row || !canManage) return;
+        let items = data?._itemsByProposalId?.[id] || [];
+        if (!items.length && typeof api.readProposalAgreementItems === 'function') {
+          try { items = await api.readProposalAgreementItems(id); } catch { items = []; }
+        }
+        await generateGefenApprovalPdf(row, proposalItemsWithFallback(items, row), generateGefenApprovalBtn);
         return;
       }
 
@@ -6058,7 +9538,8 @@ export const proposalsAgreementsScreen = {
           if (drawer && updated) drawer.outerHTML = drawerHtml(updated, activityNameOptions, state);
         } catch (err) {
           returnConfirmBtn.disabled = false;
-          if (errorEl) errorEl.textContent = `שגיאה: ${err?.message || err}`;
+          console.error('[proposal action failed]', err);
+          if (errorEl) errorEl.textContent = 'לא ניתן היה להשלים את הפעולה. ניתן לנסות שוב.';
         }
         return;
       }
@@ -6128,17 +9609,36 @@ export const proposalsAgreementsScreen = {
         if (addItemBtn.disabled || addItemBtn.getAttribute('aria-disabled') === 'true') return;
         const groupKey = text(addItemBtn.dataset.paAddItemGroup);
         const groupSection = groupKey ? form?.querySelector(`[data-pa-items-group="${groupKey}"]`) : null;
-        const tbody = groupSection?.querySelector('[data-pa-items-body]') || form?.querySelector('[data-pa-items-body]');
+        const unifiedHost = form?.querySelector('[data-pa-next-year-unified]');
+        const sharedPicker = Boolean(unifiedHost?.hasAttribute?.('data-pa-next-year-shared-picker') || unifiedHost?.dataset?.paNextYearSharedPicker === 'yes');
+        const currentType = text(form?.querySelector('[name="activity_type_group"]')?.value);
+        if (!normalizeProposalGroup(currentType)) return;
+        const unifiedNextYear = Boolean(unifiedHost) || isNextYearUnifiedActivitiesGroup(currentType) || isNextYearUnifiedActivitiesGroup(groupKey);
+        // Shared תשפ״ז picker lands new blank rows in the programs table until classified.
+        const landingGroup = unifiedNextYear ? 'next_year_courses' : (groupKey || currentType);
+        const landingSection = sharedPicker
+          ? form?.querySelector(`[data-pa-items-group="${landingGroup}"]`)
+          : groupSection;
+        if (landingSection) landingSection.hidden = false;
+        const tbody = landingSection?.querySelector('[data-pa-items-body]')
+          || groupSection?.querySelector('[data-pa-items-body]')
+          || form?.querySelector('[data-pa-items-body]');
         if (!tbody) return;
         const idx = form ? form.querySelectorAll('[data-pa-item-row]').length : 0;
         const tmp = document.createElement('div');
-        const currentType = text(form?.querySelector('[name="activity_type_group"]')?.value);
-        if (!normalizeProposalGroup(currentType)) return;
-        const rowGroup = groupKey || currentType;
-        const basePricing = filterPricingByProposalType(proposalActivityPricing, rowGroup || currentType);
-        const rowPricing = basePricing;
-        tmp.innerHTML = itemRowHtml({ proposal_group: rowGroup }, idx, rowPricing, { groupKey: rowGroup });
+        const rowPricing = unifiedNextYear
+          ? nextYearUnifiedPricingOptions(proposalActivityPricing)
+          : filterPricingByProposalType(proposalActivityPricing, landingGroup || currentType);
+        const allowManualCourse = formAllowsManualCourse(form);
+        tmp.innerHTML = itemRowHtml({ proposal_group: landingGroup }, idx, rowPricing, {
+          groupKey: unifiedNextYear ? 'next_year' : landingGroup,
+          rowGroup: landingGroup,
+          allowManualCourse,
+          unifiedNextYear
+        });
         tbody.appendChild(tmp.firstElementChild);
+        const totalRow = landingSection?.querySelector(`[data-pa-items-group-total-row="${landingGroup}"]`);
+        if (totalRow) totalRow.hidden = false;
         if (form) calcGrandTotal(form);
         if (form) updateProposalStepper(form);
         tbody.querySelector(`[data-pa-item-idx="${idx}"] [data-pa-pricing-select]`)?.focus();
@@ -6147,6 +9647,14 @@ export const proposalsAgreementsScreen = {
 
       // Items: remove row
       const removeItemBtn = event.target.closest?.('[data-pa-remove-item]');
+      const editItemBtn = event.target.closest?.('[data-pa-item-edit-toggle]');
+      if (editItemBtn) {
+        const details = editItemBtn.closest('[data-pa-item-row]')?.querySelector('[data-pa-item-details]');
+        if (!details) return;
+        details.open = !details.open;
+        editItemBtn.setAttribute('aria-expanded', String(details.open));
+        return;
+      }
       if (removeItemBtn) {
         const itemRow = removeItemBtn.closest('[data-pa-item-row]');
         const form = removeItemBtn.closest('[data-pa-form]');
@@ -6186,10 +9694,11 @@ export const proposalsAgreementsScreen = {
               signatureMode: true,
               onSignatureConfirm: async (signatureMeta, closeOverlay) => {
                 try {
-                  await saveForm(form, 'approved', signatureMeta);
-                  closeOverlay?.();
+                  const saved = await saveForm(form, 'approved', signatureMeta);
+                  if (saved) closeOverlay?.();
+                  else throw new Error('לא ניתן היה לשמור את החתימה ולאשר את ההצעה. הפרטים נשארו בטופס.');
                 } catch (e) {
-                  console.warn('[PA] saveForm error (approved flow):', e);
+                  throw e;
                 }
               }
             });
@@ -6202,6 +9711,14 @@ export const proposalsAgreementsScreen = {
           form.dataset.paPreviewSeen = 'yes';
           await saveForm(form, targetStatus);
         }
+        return;
+      }
+
+      const saveDraftBtn = event.target.closest?.('[data-pa-save-draft]');
+      if (saveDraftBtn) {
+        const form = saveDraftBtn.closest('[data-pa-form]');
+        if (!form) return;
+        await saveForm(form, 'draft');
         return;
       }
 
@@ -6225,7 +9742,8 @@ export const proposalsAgreementsScreen = {
         setDocumentEditMode(root, false);
         } catch (err) {
           deleteBtn.disabled = false;
-          window.alert(`שגיאה במחיקה: ${err?.message || err}`);
+          console.error('[proposal delete failed]', err);
+          showToast('לא ניתן היה למחוק את ההצעה. ניתן לנסות שוב.', 'error');
         }
         return;
       }
@@ -6238,12 +9756,6 @@ export const proposalsAgreementsScreen = {
         if (!sourceRow) return;
         cloneBtn.disabled = true;
         try {
-          let sourceItems = [];
-          try {
-            if (typeof api.readProposalAgreementItems === 'function') {
-              sourceItems = await api.readProposalAgreementItems(id);
-            }
-          } catch { sourceItems = []; }
           const clonePayload = {
             authority_id: sourceRow.authority_id || null,
             school_id: sourceRow.school_id || null,
@@ -6261,22 +9773,14 @@ export const proposalsAgreementsScreen = {
             notes: text(sourceRow.notes),
             custom_document_sections: Array.isArray(sourceRow.custom_document_sections) ? sourceRow.custom_document_sections : [],
             include_catalog: includeCatalogValue(sourceRow.include_catalog),
+            supersedes_proposal_id: text(sourceRow.id),
             status: 'draft',
           };
-          const cloneItems = sourceItems.map(({ id: _id, ...rest }) => rest);
-          console.info('[proposal-save-payload]', {
-            activity_type_group: clonePayload.activity_type_group,
-            activity_names: clonePayload.activity_names,
-            total_amount: clonePayload.total_amount
-          });
           const result = await api.addProposalAgreement(clonePayload);
           if (!result?.ok || !result?.row?.id) throw new Error('clone_failed');
-          const newId = result.row.id;
-          if (cloneItems.length) {
-            await api.saveProposalAgreementItems(newId, cloneItems);
-          }
           data.rows = dedupeById([result.row, ...(Array.isArray(data.rows) ? data.rows : []).map(normalizeProposalAgreementRow)]);
           refreshTable();
+          renderClientWorkspace();
           cloneBtn.disabled = false;
           const newRow = rowWithCentralContact(normalizeProposalAgreementRow(result.row));
           // The cloned draft opens straight in the full-width edit form.
@@ -6285,8 +9789,8 @@ export const proposalsAgreementsScreen = {
         } catch (err) {
           cloneBtn.disabled = false;
           const drawerErrEl = root.querySelector('[data-pa-drawer-error]');
-          if (drawerErrEl) drawerErrEl.textContent = `שגיאה בשכפול: ${err?.message || err}`;
-          else window.alert(`שגיאה בשכפול: ${err?.message || err}`);
+          console.error('[proposal clone failed]', err);
+          if (drawerErrEl) drawerErrEl.textContent = 'לא ניתן היה לשכפל את ההצעה. ניתן לנסות שוב.';
         }
         return;
       }
@@ -6299,7 +9803,12 @@ export const proposalsAgreementsScreen = {
           text(form.querySelector('input[name="contact_source_authority"]')?.value),
           text(form.querySelector('input[name="contact_source_school"]')?.value),
           '', '', '', '',
-          text(form.querySelector('input[name="contact_source_client_name"]')?.value)
+          text(form.querySelector('input[name="contact_source_client_name"]')?.value),
+          null,
+          {
+            clientType: text(form.querySelector('input[name="contact_source_client_type"]')?.value),
+            schoolId: text(form.querySelector('input[name="contact_source_school_id"]')?.value)
+          }
         );
         showManualContactFields(form);
         return;
@@ -6326,6 +9835,7 @@ export const proposalsAgreementsScreen = {
         if (pickerHost) pickerHost.innerHTML = '';
         resetClientSearchPanels(form);
         applyClientSearchMode(form);
+        applyRecipientTypeMode(form);
         updateProposalStepper(form);
         form.querySelector('[data-pa-client-search-input]')?.focus();
         return;
@@ -6336,6 +9846,7 @@ export const proposalsAgreementsScreen = {
         if (!form) return;
         resetClientSearchPanels(form);
         applyClientSearchMode(form);
+        applyRecipientTypeMode(form);
         updateProposalStepper(form);
         form.querySelector('[data-pa-client-search-input]')?.focus();
         return;
@@ -6363,6 +9874,7 @@ export const proposalsAgreementsScreen = {
         if (pickerHost) pickerHost.innerHTML = '';
         resetClientSearchPanels(form);
         applyClientSearchMode(form);
+        applyRecipientTypeMode(form);
         updateProposalStepper(form);
         form.querySelector('[data-pa-client-search-input]')?.focus();
         return;
@@ -6398,6 +9910,11 @@ export const proposalsAgreementsScreen = {
         } catch (e) {
           console.warn('[PA] openPreview error:', e);
         }
+        return;
+      }
+
+      if (event.target.closest?.('[data-pa-back-to-editor]')) {
+        event.target.closest('[data-pa-form]')?.querySelector('[data-pa-editor-fields]')?.scrollIntoView?.({ behavior: 'smooth', block: 'start' });
         return;
       }
 

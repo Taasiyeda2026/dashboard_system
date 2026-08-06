@@ -2,13 +2,27 @@ import { state, setSession, clearScreenDataCache } from './state.js';
 import { deletePersistedCacheByPrefixes } from './cache-persist.js';
 import { hebrewRole } from './screens/shared/ui-hebrew.js';
 import { getActivityAuthorityName, getActivityContactName, getActivityContactPhone, getActivitySchoolNames } from './screens/shared/operations-activity-helpers.js';
-import { cleanActivityManagerName, getContactsInstructorUsers, getRosterUsers, NO_ACTIVITY_MANAGER_LABEL, normalizeOneDayActivityType, resolveActivityInstructorName, buildContactsInstructorLookup, resolveCanonicalInstructorPair, validateInstructorIdentityPayload } from './screens/shared/activity-options.js';
+import { cleanActivityManagerName, getContactsInstructorUsers, getRosterUsers, NO_ACTIVITY_MANAGER_LABEL, normalizeOneDayActivityType, resolveActivityInstructorName, buildContactsInstructorLookup, resolveCanonicalInstructorPair, validateInstructorIdentityPayload, normalizeActivityMeetingsCount } from './screens/shared/activity-options.js';
 import { EXCEPTION_TYPE_ORDER, normalizedExceptionTypes } from './screens/shared/exceptions-metrics.js';
-import { isSummerActivity, normalizeActivitySeason } from './screens/shared/summer-activity.js';
+import { ACTIVITY_SEASON_SCHOOL_2027, activityMatchesPeriodKey, activitySeasonQueryValues, isSummerActivity, normalizeActivitySeason, normalizeGlobalActivityPeriod } from './screens/shared/summer-activity.js';
+import { assertActivityMutationAllowed } from './screens/shared/activity-readonly-period.js';
+import {
+  normalizeContactMatchText,
+  buildContactResponsibleIndex,
+  findContactResponsibleGroup,
+  contactResponsibleGroupsArray,
+  buildSummerContactIndex,
+  buildContactsSchoolsIndex,
+  buildSchoolsCatalogContactIndex,
+  resolveSchoolContact
+} from './screens/shared/contact-responsible.js';
 import { resolveActiveUserRowAfterAuth } from './auth-user-resolve.js';
-import { supabase, supabaseConfig, waitForSupabaseAuthSession } from './supabase-client.js';
+import { supabase, supabaseConfig, waitForSupabaseAuthSession, resetSupabaseAuthSessionWait } from './supabase-client.js';
 import { isEmptyValue, nonEmptyString } from './utils/empty-value.js';
+import { withResolvedSchool2027Contact } from './screens/shared/school-2027-contact.js';
+import { normalizeOperationalDistrict } from './screens/shared/district-normalization.js';
 import { permissionFlagYes, canEditDirect, canAddActivityDirect, canRequestEdit, canRequestCreateActivity, canReviewRequests } from './permissions.js';
+import { mapWithConcurrency } from './bounded-concurrency.js';
 
 /**
  * Actions that modify server-side data.
@@ -30,6 +44,7 @@ const MUTATING_ACTIONS = {
   addActivity: true,
   addContact: true,
   saveContact: true,
+  deleteSchoolContact: true,
   updateUnifiedContactRecord: true,
   submitEditRequest: true,
   submitCreateActivityRequest: true,
@@ -44,7 +59,11 @@ const MUTATING_ACTIONS = {
   saveClientSetting: true,
   addProposalAgreement: true,
   updateProposalAgreement: true,
+  updateProposalAgreementGfenSignedOrOrdered: true,
   updateProposalAgreementStatus: true,
+  lockAndSendProposalAgreement: true,
+  uploadProposalFinalPdf: true,
+  uploadGefenApprovalDocument: true,
   deleteProposalAgreement: true,
   saveProposalAgreementItems: true,
   uploadCompletionApproval: true,
@@ -107,26 +126,192 @@ function isActiveInstructorPilotUser(user = state?.user || {}) {
 const ACTIVITY_REQUEST_ROLES = new Set(['activities_manager', 'instructor_manager', 'business_development_manager']);
 const COMPLETION_APPROVAL_MANAGER_ROLES = new Set(['admin', 'operation_manager', 'domain_manager', 'activities_manager', 'instructor_manager']);
 
+const ACTIVITY_MEETING_DATE_COLUMNS = Array.from({ length: 35 }, (_, index) => `date_${index + 1}`);
 const DASHBOARD_ACTIVITY_COLUMNS = [
   'row_id', 'activity_family', 'activity_manager', 'activity_name', 'authority', 'school',
   'instructor_name', 'instructor_name_2', 'emp_id', 'emp_id_2', 'start_date', 'end_date',
-  'status', 'activity_type', 'district', ...Array.from({ length: 35 }, (_, index) => `date_${index + 1}`)
+  'status', 'activity_type', 'district', ...ACTIVITY_MEETING_DATE_COLUMNS
 ].join(',');
 const DASHBOARD_ACTIVITY_MIN_COLUMNS = 'row_id,activity_family,activity_manager,activity_name,authority,school,instructor_name,instructor_name_2,emp_id,emp_id_2,start_date,end_date,status,activity_type';
+// Explicit list/read-model projections. Full activity rows are fetched only by activityDetail.
+const ACTIVITY_LIST_COLUMNS = [
+  'row_id', 'activity_family', 'activity_manager', 'district', 'authority_id', 'school_id',
+  'authority', 'school', 'grade', 'class_group', 'activity_type', 'item_type',
+  'activity_season', 'activity_no', 'activity_name', 'sessions', 'funding',
+  'start_time', 'end_time', 'emp_id', 'instructor_name', 'emp_id_2', 'instructor_name_2',
+  'start_date', 'end_date', 'status', 'participants_count', 'school_contact_id',
+  ...ACTIVITY_MEETING_DATE_COLUMNS
+].join(',');
+// Activities table / list: fields shown or used for month/status filters (no finance/contact blobs).
+const ACTIVITY_TABLE_COLUMNS = [
+  'row_id', 'activity_family', 'activity_manager', 'authority', 'school', 'school_id',
+  'grade', 'class_group', 'activity_type', 'item_type', 'activity_season', 'activity_name',
+  'sessions', 'funding', 'start_time', 'end_time', 'emp_id', 'instructor_name', 'emp_id_2', 'instructor_name_2',
+  'start_date', 'end_date', 'status',
+  ...ACTIVITY_MEETING_DATE_COLUMNS
+].join(',');
+const ACTIVITY_CALENDAR_COLUMNS = [
+  'row_id', 'activity_name', 'activity_type', 'activity_family', 'activity_season',
+  'authority', 'school', 'school_id', 'grade', 'class_group',
+  'instructor_name', 'instructor_name_2', 'emp_id', 'emp_id_2',
+  'start_time', 'end_time', 'start_date', 'end_date', 'status',
+  ...ACTIVITY_MEETING_DATE_COLUMNS
+].join(',');
+// End-dates screen: only columns required for the ending-dates table.
+const ACTIVITY_END_DATES_COLUMNS = [
+  'row_id', 'activity_name', 'authority', 'school',
+  'instructor_name', 'instructor_name_2', 'end_date', 'status', 'activity_season'
+].join(',');
+const ACTIVITY_EXCEPTIONS_COLUMNS = [
+  'row_id', 'activity_manager', 'district', 'authority', 'school', 'grade', 'class_group',
+  'activity_type', 'item_type', 'activity_season', 'activity_name', 'sessions',
+  'emp_id', 'instructor_name', 'emp_id_2', 'instructor_name_2',
+  'start_date', 'end_date', 'status',
+  ...ACTIVITY_MEETING_DATE_COLUMNS
+].join(',');
+const ACTIVITY_OPERATIONS_COLUMNS = [
+  'row_id', 'activity_name', 'activity_type', 'item_type', 'activity_season',
+  'authority', 'school', 'school_id', 'grade', 'class_group',
+  'instructor_name', 'instructor_name_2', 'emp_id', 'emp_id_2',
+  'start_time', 'end_time', 'start_date', 'end_date', 'status', 'participants_count',
+  ...ACTIVITY_MEETING_DATE_COLUMNS
+].join(',');
+const ACTIVITY_ARCHIVE_COLUMNS = [
+  'row_id', 'activity_name', 'activity_type', 'activity_family', 'activity_season',
+  'authority', 'school', 'instructor_name', 'instructor_name_2', 'activity_manager',
+  'start_date', 'end_date', 'status',
+  ...ACTIVITY_MEETING_DATE_COLUMNS
+].join(',');
+// List cards: assignment stats without meeting-date payload.
+const ACTIVITY_INSTRUCTOR_STATS_COLUMNS = [
+  'row_id', 'activity_name', 'activity_type', 'item_type', 'activity_season',
+  'authority', 'school', 'activity_manager',
+  'instructor_name', 'instructor_name_2', 'emp_id', 'emp_id_2',
+  'start_date', 'end_date', 'status'
+].join(',');
+// Instructor profile history: include meeting dates for month filtering.
+const ACTIVITY_INSTRUCTOR_HISTORY_COLUMNS = [
+  'row_id', 'activity_name', 'activity_type', 'item_type', 'activity_season',
+  'authority', 'school', 'activity_manager',
+  'instructor_name', 'instructor_name_2', 'emp_id', 'emp_id_2',
+  'start_date', 'end_date', 'status',
+  ...ACTIVITY_MEETING_DATE_COLUMNS
+].join(',');
+const ACTIVITY_DATES_ONLY_COLUMNS = ['row_id', 'start_date', 'end_date', ...ACTIVITY_MEETING_DATE_COLUMNS].join(',');
+const COMPLETION_APPROVAL_METADATA_COLUMNS = 'id,activity_row_id,activity_date,instructor_emp_id,instructor_name,authority,school,file_path,file_name,mime_type,file_size,uploaded_by_user_id,uploaded_at,status,reviewed_by,reviewed_at,review_note';
+const COMPLETION_APPROVAL_EXCEPTIONS_COLUMNS = 'id,activity_row_id,activity_date,instructor_name,school,file_path,file_name,status';
+const PHOTO_APPROVAL_METADATA_COLUMNS = 'id,instructor_emp_id,instructor_name,authority,school,school_id,file_path,file_name,mime_type,file_size,uploaded_at,status';
+const SCHOOL_CONTACT_RESPONSIBLES_COLUMNS = 'id,activity_date,school_id,school,authority,responsible_emp_id,responsible_name';
+const ARCHIVE_PAGE_SIZE = 200;
+/** Safety ceiling for the staged archive load (200 * 40 = 8000 closed activities). */
+const ARCHIVE_MAX_PAGES = 40;
+const PROPOSALS_LIST_PAGE_SIZE = 50;
+const COMPLETION_APPROVALS_PAGE_SIZE = 50;
 const SETTINGS_BOOTSTRAP_COLUMNS = 'key,value,description';
-const LISTS_BOOTSTRAP_COLUMNS = 'category,value,label,active,category_order,sort_order,activity_no,activity_name,activity_type,type,stock_quantity,stock_group_key,stock_group_name,stock_item_name,stock_label';
+const LISTS_BOOTSTRAP_COLUMNS = 'list_id,category,value,label,active,is_active,category_order,sort_order,activity_no,activity_name,activity_type,type,stock_quantity,stock_group_key,stock_group_name,stock_item_name,stock_label,parent_value';
+const COURSE_MEETINGS_BOOTSTRAP_COLUMNS = 'gefen_number,meetings_count';
 let settingsRowsCache = null;
 let settingsRowsPromise = null;
 let listsRowsCache = null;
 let listsRowsPromise = null;
+let courseMeetingsRowsCache = null;
+let courseMeetingsRowsPromise = null;
 let instructorContactsCache = null;
 let instructorContactsPromise = null;
+let instructorEmpIdsCache = null;
+let instructorEmpIdsPromise = null;
+
+function assertAdminApi() {
+  const role = String(state?.user?.role || state?.user?.display_role || '').trim();
+  if (role !== 'admin') throw new Error('admin_only');
+}
+
+function normalizeWorkshopStockQuantity(value) {
+  if (value == null || value === '') return null;
+  const n = Number(value);
+  if (!Number.isFinite(n) || n < 0) return null;
+  return Math.floor(n);
+}
+
+function buildListStockQuantityPatch(existingRow = {}, stockQuantity) {
+  const patch = { stock_quantity: stockQuantity };
+  const rawMeta = existingRow?.metadata;
+  if (rawMeta && typeof rawMeta === 'object' && !Array.isArray(rawMeta)) {
+    patch.metadata = { ...rawMeta, stock_quantity: stockQuantity };
+  } else if (typeof rawMeta === 'string' && rawMeta.trim()) {
+    try {
+      const parsed = JSON.parse(rawMeta);
+      if (parsed && typeof parsed === 'object' && !Array.isArray(parsed)) {
+        patch.metadata = { ...parsed, stock_quantity: stockQuantity };
+      }
+    } catch {
+      // keep column-only update
+    }
+  }
+  return patch;
+}
+
+async function updateWorkshopStockItemsInSupabase(updates = []) {
+  assertAdminApi();
+  if (!supabase) throw new Error('no_supabase_client');
+  const rows = Array.isArray(updates) ? updates : [];
+  const editableCategories = ['workshop_stock', 'activity_names'];
+  const saved = await mapWithConcurrency(rows, 4, async (item) => {
+    const stockQuantity = normalizeWorkshopStockQuantity(item?.stock_quantity ?? item?.stockQuantity);
+    if (stockQuantity == null) return null;
+    const stockGroupKey = String(item?.stock_group_key || item?.stockGroupKey || '').trim();
+    if (!stockGroupKey) throw new Error('workshop_stock_group_key_required');
+    const listId = String(item?.list_id || item?.listId || '').trim();
+    const source = String(item?.source || '').trim();
+
+    if (listId && editableCategories.includes(source)) {
+      const { data, error } = await supabase
+        .from('lists')
+        .update(buildListStockQuantityPatch(item?._row || item, stockQuantity))
+        .eq('list_id', listId)
+        .eq('category', source)
+        .eq('stock_group_key', stockGroupKey)
+        .select('list_id,category,value,label,stock_quantity,stock_group_key,stock_group_name,metadata')
+        .single();
+      if (error) throw new Error(error.message || 'workshop_stock_update_failed');
+      return data;
+    }
+
+    const { data: existing, error: existingError } = await supabase
+      .from('lists')
+      .select('list_id,category,value,label,stock_quantity,stock_group_key,stock_group_name,metadata')
+      .in('category', editableCategories)
+      .eq('stock_group_key', stockGroupKey)
+      .limit(1)
+      .maybeSingle();
+    if (existingError) throw new Error(existingError.message || 'workshop_stock_lookup_failed');
+    if (!existing?.list_id) throw new Error('workshop_stock_mapping_not_found');
+
+    const { data, error } = await supabase
+      .from('lists')
+      .update(buildListStockQuantityPatch(existing, stockQuantity))
+      .eq('list_id', existing.list_id)
+      .eq('category', existing.category)
+      .eq('stock_group_key', stockGroupKey)
+      .select('list_id,category,value,label,stock_quantity,stock_group_key,stock_group_name,metadata')
+      .single();
+    if (error) throw new Error(error.message || 'workshop_stock_update_failed');
+    return data;
+  });
+  clearBootstrapReadCaches();
+  return { ok: true, rows: saved.filter(Boolean) };
+}
+
 
 function clearBootstrapReadCaches() {
   settingsRowsCache = null;
   settingsRowsPromise = null;
   listsRowsCache = null;
   listsRowsPromise = null;
+  courseMeetingsRowsCache = null;
+  courseMeetingsRowsPromise = null;
+  instructorEmpIdsCache = null;
+  instructorEmpIdsPromise = null;
 }
 
 async function readInstructorContactsRowsForBootstrap() {
@@ -198,22 +383,82 @@ function rowMatchesActivitiesFilters(row, filters = {}) {
   return true;
 }
 
-async function readArchiveActivitiesFromSupabase() {
+async function readArchiveActivitiesFromSupabase(activityPeriod = currentGlobalActivityPeriod(), { limit = ARCHIVE_PAGE_SIZE, offset = 0 } = {}) {
   if (!supabase) return null;
   try {
+    const pageSize = Math.max(1, Number(limit) || ARCHIVE_PAGE_SIZE);
+    const pageOffset = Math.max(0, Number(offset) || 0);
     const { data, error } = await supabase
       .from('activities')
-      .select('*')
-      .eq('status', CLOSED_STATUS);
+      .select(ACTIVITY_ARCHIVE_COLUMNS)
+      .in('activity_season', activitySeasonQueryValues(activityPeriod))
+      .eq('status', CLOSED_STATUS)
+      .order('end_date', { ascending: false, nullsFirst: false })
+      .order('start_date', { ascending: false, nullsFirst: false })
+      .range(pageOffset, pageOffset + pageSize - 1);
     if (error) throw new Error(error.message || 'archive_read_failed');
     const rawRows = Array.isArray(data) ? data : [];
-    const rows = rawRows
-      .map(normalizeActivityRow)
-      .sort((a, b) => String(b?.end_date || b?.start_date || '').localeCompare(String(a?.end_date || a?.start_date || '')));
-    return { rows, _source: 'supabase', _debug: { activities_loaded_from_supabase: rawRows.length, source_table: 'public.activities' } };
+    const rows = filterRowsByGlobalActivityPeriod(rawRows.map(normalizeActivityRow), activityPeriod);
+    return {
+      rows,
+      _source: 'supabase',
+      _hasMore: rawRows.length >= pageSize,
+      _offset: pageOffset,
+      _limit: pageSize,
+      _debug: { activities_loaded_from_supabase: rawRows.length, source_table: 'public.activities', projection: 'ACTIVITY_ARCHIVE_COLUMNS' }
+    };
   } catch (err) {
     console.error('[supabase] archive fetch error:', err);
     return null;
+  }
+}
+
+/**
+ * Archive KPI cards, filters and counts must describe the whole period, not the
+ * first page. Pages through the existing archive reader until the period is fully
+ * loaded, keeping one projection and one API path.
+ */
+async function readAllArchiveActivitiesFromSupabase(activityPeriod = currentGlobalActivityPeriod(), { pageSize = ARCHIVE_PAGE_SIZE, maxPages = ARCHIVE_MAX_PAGES } = {}) {
+  const size = Math.max(1, Number(pageSize) || ARCHIVE_PAGE_SIZE);
+  const pageLimit = Math.max(1, Number(maxPages) || ARCHIVE_MAX_PAGES);
+  const rows = [];
+  const seenRowIds = new Set();
+  let loadedRawRows = 0;
+  let pages = 0;
+  let truncated = false;
+
+  for (let page = 0; page < pageLimit; page += 1) {
+    const result = await readArchiveActivitiesFromSupabase(activityPeriod, { limit: size, offset: page * size });
+    if (!result) return page === 0 ? null : finishArchivePages();
+    pages += 1;
+    loadedRawRows += Number(result?._debug?.activities_loaded_from_supabase || 0);
+    (Array.isArray(result.rows) ? result.rows : []).forEach((row) => {
+      const rowId = String(row?.RowID || row?.row_id || '').trim();
+      if (rowId && seenRowIds.has(rowId)) return;
+      if (rowId) seenRowIds.add(rowId);
+      rows.push(row);
+    });
+    if (!result._hasMore) return finishArchivePages();
+    truncated = page === pageLimit - 1;
+  }
+
+  return finishArchivePages();
+
+  function finishArchivePages() {
+    return {
+      rows,
+      _source: 'supabase',
+      _hasMore: truncated,
+      _offset: 0,
+      _limit: rows.length,
+      _debug: {
+        activities_loaded_from_supabase: loadedRawRows,
+        source_table: 'public.activities',
+        projection: 'ACTIVITY_ARCHIVE_COLUMNS',
+        archive_pages_loaded: pages,
+        archive_fully_loaded: !truncated
+      }
+    };
   }
 }
 
@@ -221,19 +466,33 @@ async function readActivitiesFromSupabase(filters = {}) {
   if (!supabase) return null;
 
   try {
-    const { data, error } = await supabase.from('activities').select('*');
+    const selectedSeason = normalizeGlobalActivityPeriod(filters?.activity_period || currentGlobalActivityPeriod());
+    const select = filters?.select || ACTIVITY_TABLE_COLUMNS;
+    const { data, error } = await supabase.from('activities').select(select).in('activity_season', activitySeasonQueryValues(selectedSeason));
     if (error) throw new Error(error.message || 'activities_read_failed');
     const rawRows = Array.isArray(data) ? data : [];
-    const rows = rawRows
-      .map(normalizeActivityRow)
+    const normalizedRows = rawRows.map(normalizeActivityRow);
+    const contactRows = await readContactsForSchool2027Activities(normalizedRows);
+    const rows = normalizedRows
+      .map((row) => withResolvedSchool2027Contact(row, contactRows))
+      .filter((row) => filters?.include_all_periods ? true : activityMatchesPeriodKey(row, filters?.activity_period || currentGlobalActivityPeriod()))
       .filter((row) => filters?.include_inactive ? true : !isActivityInactive(row))
       .filter((row) => rowMatchesActivitiesFilters(row, filters));
-    return { rows, _source: 'supabase', _debug: { activities_loaded_from_supabase: rawRows.length, source_table: 'public.activities' } };
+    return { rows, _source: 'supabase', _debug: { activities_loaded_from_supabase: rawRows.length, source_table: 'public.activities', projection: 'ACTIVITY_TABLE_COLUMNS' } };
   } catch (error) {
     // eslint-disable-next-line no-console
     console.error('[supabase] Unexpected activities fetch error:', error);
     return null;
   }
+}
+
+
+function currentGlobalActivityPeriod() {
+  return normalizeGlobalActivityPeriod(state?.activityPeriodTab || 'regular');
+}
+
+function filterRowsByGlobalActivityPeriod(rows = [], period = currentGlobalActivityPeriod()) {
+  return (Array.isArray(rows) ? rows : []).filter((row) => activityMatchesPeriodKey(row, period));
 }
 
 function buildSupabaseErrorPayload(base, error, extra = {}) {
@@ -252,6 +511,7 @@ const CLOSED_STATUS = 'סגור';
 const OPEN_STATUS = 'פתוח';
 const LEGACY_ACTIVE_STATUS = 'פעיל';
 const DELETED_STATUS = 'נמחק';
+const APPROVED_PENDING_PLACEMENT_STATUS = 'מאושר - ממתין לשיבוץ';
 const GENERIC_ONE_DAY_ACTIVITY_NAMES = new Set(['סדנה', 'סדנאות', 'סיור', 'סיורים', 'חדר בריחה', 'חדרי בריחה']);
 
 function oneDayTypeFromActivityFields(activityType, itemType) {
@@ -282,6 +542,8 @@ function normalizeActivityRow(row = {}) {
     row?.school ||
     ''
   ).trim();
+  const fundingRaw = row?.funding;
+  const funding = fundingRaw == null ? '' : String(fundingRaw).trim();
   const normalized = {
     ...row,
     row_id: rowId,
@@ -290,6 +552,7 @@ function normalizeActivityRow(row = {}) {
     source_table: ACTIVITIES_TABLE,
     authority: authorityName,
     school: schoolName,
+    funding,
     activity_season: activitySeason,
     activitySeason,
     activity_name: nonEmptyString(row?.activity_name) || nonEmptyString(row?.title) || nonEmptyString(row?.name) || nonEmptyString(row?.program_name) || 'ללא שם פעילות',
@@ -397,8 +660,25 @@ function isOpenStatus(row = {}) {
   return isOperationallyActive(row);
 }
 
+const PENDING_DISTRICT_ASSIGNMENT = 'ממתין לשיוך מחוזי';
+
+function isPendingDistrictAssignment(value) {
+  return nullStr(value) === PENDING_DISTRICT_ASSIGNMENT;
+}
+
+function hasActivityAuthority(row = {}) {
+  if (row?.authority_id != null && String(row.authority_id).trim() !== '') return true;
+  return Boolean(nullStr(row?.authority));
+}
+
+function isMissingDistrictValue(value) {
+  const district = nullStr(value);
+  return !district || isPendingDistrictAssignment(district);
+}
+
 function districtDisplayKey(row = {}) {
-  return nullStr(row?.district) || 'ללא מחוז / לא משויך';
+  if (isMissingDistrictValue(row?.district)) return 'ללא מחוז / לא משויך';
+  return nullStr(row?.district);
 }
 function hasAnyActivityDate(row = {}) {
   if (normalizeSupabaseDate(row?.start_date ?? row?.date_start)) return true;
@@ -450,8 +730,8 @@ function activityHasDatePointInMonth(row, monthPrefix) {
   return allDates.length > 0 && allDates.some((d) => d >= startDate && d <= endDate);
 }
 
-async function selectActivitiesFromSupabase(select = '*') {
-  const result = await supabase.from('activities').select(select);
+async function selectActivitiesFromSupabase(select = ACTIVITY_LIST_COLUMNS, activitySeason = currentGlobalActivityPeriod()) {
+  const result = await supabase.from('activities').select(select).in('activity_season', activitySeasonQueryValues(activitySeason));
   if (result.error) throw new Error(result.error.message || 'activities_read_failed');
   return (Array.isArray(result.data) ? result.data : []).map(normalizeActivityRow);
 }
@@ -483,7 +763,7 @@ async function selectActivitiesByDateRangeFromSupabase({
   endDate,
   activityType = '',
   includeEndDate = false,
-  select = '*',
+  select = ACTIVITY_LIST_COLUMNS,
   overlapByStartEnd = false,
   fallbackSelect = ''
 } = {}) {
@@ -493,7 +773,8 @@ async function selectActivitiesByDateRangeFromSupabase({
   }
   let query = supabase
     .from('activities')
-    .select(select);
+    .select(select)
+    .in('activity_season', activitySeasonQueryValues(currentGlobalActivityPeriod()));
   if (overlapByStartEnd) {
     query = query.lte('start_date', endDate).gte('end_date', startDate);
   } else {
@@ -557,13 +838,14 @@ function normalizeCatalogText(value) {
 
 const SUPABASE_CATALOG_PAGE_SIZE = 1000;
 
-async function readSupabaseCatalogPages({ table, columns, applyOrder, pageSize = SUPABASE_CATALOG_PAGE_SIZE }) {
+async function readSupabaseCatalogPages({ table, columns, applyFilter, applyOrder, pageSize = SUPABASE_CATALOG_PAGE_SIZE }) {
   const rows = [];
   for (let from = 0; ; from += pageSize) {
     const to = from + pageSize - 1;
     let query = supabase
       .from(table)
       .select(columns);
+    if (typeof applyFilter === 'function') query = applyFilter(query);
     if (typeof applyOrder === 'function') query = applyOrder(query);
     const { data, error } = await query.range(from, to);
     if (error) return { data: rows, error, pageIndex: Math.floor(from / pageSize) };
@@ -948,23 +1230,46 @@ function mergeClientSettingsWithAuthoritySchoolCatalog(baseSettings, catalogOver
 }
 
 function buildProposalClientSearchOptions(contactRows, authorityLookup, schoolLookup) {
-  const options = (Array.isArray(contactRows) ? contactRows : [])
-    .map((row) => enrichSchoolContactRow(row, authorityLookup, schoolLookup));
-  const seen = new Set();
+  const options = [];
+  const optionIndexByKey = new Map();
 
   const addOption = (opt) => {
-    const key = [
-      normalizeCatalogText(opt.authority),
-      normalizeCatalogText(opt.school),
-      normalizeCatalogText(opt.contact_name),
-      normalizeCatalogText(opt.phone || opt.mobile),
-      normalizeCatalogText(opt.email),
-      normalizeCatalogText(opt._catalog_source || 'contact')
-    ].join('||');
-    if (seen.has(key)) return;
-    seen.add(key);
+    const contactName = normalizeCatalogText(opt.contact_name);
+    const key = contactName
+      ? [
+        String(opt.authority_id ?? normalizeCatalogText(opt.authority)),
+        String(opt.school_id ?? normalizeCatalogText(opt.school)),
+        contactName.toLocaleLowerCase('he')
+      ].join('||')
+      : [
+        normalizeCatalogText(opt._catalog_source || opt.source_table || 'contact'),
+        String(opt.authority_id ?? normalizeCatalogText(opt.authority)),
+        String(opt.school_id ?? normalizeCatalogText(opt.school))
+      ].join('||');
+    const existingIndex = optionIndexByKey.get(key);
+    if (existingIndex != null) {
+      const existing = options[existingIndex];
+      const optIsExplicit = normalizeCatalogText(opt.source_table) === 'contacts_schools';
+      const existingIsExplicit = normalizeCatalogText(existing.source_table) === 'contacts_schools';
+      const preferred = optIsExplicit && !existingIsExplicit ? opt : existing;
+      const fallback = preferred === opt ? existing : opt;
+      options[existingIndex] = {
+        ...fallback,
+        ...preferred,
+        contact_role: normalizeCatalogText(preferred.contact_role) || normalizeCatalogText(fallback.contact_role),
+        phone: normalizeCatalogText(preferred.phone) || normalizeCatalogText(fallback.phone),
+        mobile: normalizeCatalogText(preferred.mobile) || normalizeCatalogText(fallback.mobile),
+        email: normalizeCatalogText(preferred.email) || normalizeCatalogText(fallback.email)
+      };
+      return;
+    }
+    optionIndexByKey.set(key, options.length);
     options.push(opt);
   };
+
+  (Array.isArray(contactRows) ? contactRows : [])
+    .map((row) => enrichSchoolContactRow(row, authorityLookup, schoolLookup))
+    .forEach(addOption);
 
   for (const auth of authorityLookup.list) {
     if (!isCatalogActive(auth.active) || !auth.authority_name) continue;
@@ -1090,39 +1395,44 @@ async function readUnifiedContactsFromSupabase({ requireAuth = false, letter = '
     if (!session?.user?.id) throw new Error('contacts_unified_view_requires_auth_session');
   }
   try {
-    let query = supabase
-      .from('contacts_unified_view')
-      .select(CONTACTS_UNIFIED_VIEW_COLUMNS);
     const safeLetter = String(letter || '').trim().replace(/[%,()]/g, '');
-    if (safeLetter) {
-      query = query.or(`authority_name.ilike.${safeLetter}%,authority.ilike.${safeLetter}%,client_name.ilike.${safeLetter}%`);
-    }
     const safeSearch = String(search || '').trim().replace(/[%,()]/g, '');
-    if (safeSearch) {
-      const term = `%${safeSearch}%`;
-      query = query.or([
-        `client_name.ilike.${term}`,
-        `authority_name.ilike.${term}`,
-        `authority.ilike.${term}`,
-        `school_name.ilike.${term}`,
-        `school.ilike.${term}`,
-        `contact_name.ilike.${term}`,
-        `contact_role.ilike.${term}`,
-        `phone.ilike.${term}`,
-        `mobile.ilike.${term}`,
-        `email.ilike.${term}`,
-        `authority_code.ilike.${term}`,
-        `semel_mosad.ilike.${term}`
-      ].join(','));
-    }
-    const { data, error } = await query
-      .order('authority_name', { ascending: true })
-      .order('school_name', { ascending: true })
-      .order('contact_domain', { ascending: true })
-      .order('contact_name', { ascending: true });
+    const { data, error, pageIndex } = await readSupabaseCatalogPages({
+      table: 'contacts_unified_view',
+      columns: CONTACTS_UNIFIED_VIEW_COLUMNS,
+      applyFilter: (baseQuery) => {
+        let query = baseQuery;
+        if (safeLetter) {
+          query = query.or(`authority_name.ilike.${safeLetter}%,authority.ilike.${safeLetter}%,client_name.ilike.${safeLetter}%`);
+        }
+        if (safeSearch) {
+          const term = `%${safeSearch}%`;
+          query = query.or([
+            `client_name.ilike.${term}`,
+            `authority_name.ilike.${term}`,
+            `authority.ilike.${term}`,
+            `school_name.ilike.${term}`,
+            `school.ilike.${term}`,
+            `contact_name.ilike.${term}`,
+            `contact_role.ilike.${term}`,
+            `phone.ilike.${term}`,
+            `mobile.ilike.${term}`,
+            `email.ilike.${term}`,
+            `authority_code.ilike.${term}`,
+            `semel_mosad.ilike.${term}`
+          ].join(','));
+        }
+        return query;
+      },
+      applyOrder: (query) => query
+        .order('authority_name', { ascending: true })
+        .order('school_name', { ascending: true })
+        .order('contact_domain', { ascending: true })
+        .order('contact_name', { ascending: true })
+    });
     if (error) {
       // eslint-disable-next-line no-console
-      console.warn('[supabase] Failed to load contacts_unified_view:', error);
+      console.warn('[supabase] Failed to load contacts_unified_view:', { pageIndex, error });
       if (requireAuth && isSupabasePermissionDeniedError(error)) {
         throw new Error('contacts_unified_view_permission_denied');
       }
@@ -1150,16 +1460,20 @@ async function readUnifiedContactsFromSupabase({ requireAuth = false, letter = '
  * ⚠️ permissions table is intentionally excluded — login credentials must never be read client-side.
  */
 
-function normalizeMyDataContactText(value) {
-  return String(value == null ? '' : value).trim().replace(/[״"]/g, '').replace(/[׳']/g, '').replace(/\s+/g, ' ').toLowerCase();
-}
+// Single column list for every read of public.instructor_schedule_print_contacts -
+// admin (operations-management) and instructor (my-data) must select the exact same
+// columns so they can never resolve a different summer contact for the same row.
+// contact_status/status are NOT real columns on this table; selecting them makes
+// Supabase reject the whole query, which silently drops the dedicated summer
+// contact and falls back to contacts_schools/schools catalog for everyone.
+const INSTRUCTOR_SCHEDULE_PRINT_CONTACTS_SELECT = 'id,season,external_key,authority,school,contact_name,contact_phone,school_address,city_or_authority,active,source_note,notes';
 
 async function readMyDataSummerPrintContactRows() {
   if (!supabase) return [];
   try {
     const { data, error } = await supabase
       .from('instructor_schedule_print_contacts')
-      .select('season, authority, school, contact_name, contact_phone, school_address, city_or_authority, active, contact_status, status')
+      .select(INSTRUCTOR_SCHEDULE_PRINT_CONTACTS_SELECT)
       .eq('season', 'summer_2026')
       .eq('active', true)
       .limit(10000);
@@ -1187,63 +1501,9 @@ async function readMyDataContactsSchoolsRows() {
 }
 
 
-function buildMyDataSummerPrintContactsIndex(rows = []) {
-  const index = new Map();
-  (Array.isArray(rows) ? rows : []).forEach((row) => {
-    if (String(row?.season || '').trim() !== 'summer_2026' || row?.active !== true) return;
-    const name = String(row?.contact_name || '').trim();
-    const phone = String(row?.contact_phone || '').trim();
-    if (!name && !phone) return;
-    const key = `${normalizeMyDataContactText(row?.authority || '')}|${normalizeMyDataContactText(row?.school || '')}`;
-    if (key === '|') return;
-    if (!index.has(key)) index.set(key, []);
-    index.get(key).push({
-      name,
-      phone,
-      role: '',
-      school_address: String(row?.summer_school_address || row?.school_address || '').trim(),
-      city_or_authority: String(row?.summer_contact_city_or_authority || row?.city_or_authority || '').trim(),
-      summer_contact_status: String(row?.summer_contact_status || row?.contact_status || row?.status || '').trim()
-    });
-  });
-  return index;
-}
-
-function buildMyDataContactsIndex(rows = []) {
-  const index = new Map();
-  (Array.isArray(rows) ? rows : []).forEach((row) => {
-    const name = String(row?.contact_name || '').trim();
-    if (!name) return;
-    const key = `${normalizeMyDataContactText(row?.authority || '')}|${normalizeMyDataContactText(row?.school || '')}`;
-    if (!index.has(key)) index.set(key, []);
-    index.get(key).push({
-      name,
-      phone: String(row?.phone || '').trim(),
-      role: String(row?.contact_role || '').trim()
-    });
-  });
-  return index;
-}
-
-function buildMyDataSchoolsContactIndex(rows = []) {
-  const index = new Map();
-  (Array.isArray(rows) ? rows : []).forEach((row) => {
-    const name = String(row?.principal_name || '').trim();
-    if (!name) return;
-    const school = String(row?.school_name || '').trim();
-    const authority = String(row?.authority || '').trim();
-    const id = String(row?.id || '').trim();
-    const entry = { name, phone: String(row?.school_phone || '').trim(), role: 'מנהל/ת בית ספר' };
-    [
-      id ? `id|${id}` : '',
-      `${normalizeMyDataContactText(authority)}|${normalizeMyDataContactText(school)}`
-    ].filter(Boolean).forEach((key) => {
-      if (!index.has(key)) index.set(key, []);
-      index.get(key).push(entry);
-    });
-  });
-  return index;
-}
+// Index builders now live in screens/shared/contact-responsible.js (buildSummerContactIndex,
+// buildContactsSchoolsIndex, buildSchoolsCatalogContactIndex) so the instructor data path and
+// the operations-management admin path resolve school contacts from the exact same logic.
 
 function firstMyDataContact(options = []) {
   const seen = new Set();
@@ -1251,7 +1511,7 @@ function firstMyDataContact(options = []) {
     const name = String(option?.name || '').trim();
     const phone = String(option?.phone || '').trim();
     if (!name && !phone) continue;
-    const key = `${normalizeMyDataContactText(name)}|${normalizeMyDataContactText(phone)}`;
+    const key = `${normalizeContactMatchText(name)}|${normalizeContactMatchText(phone)}`;
     if (seen.has(key)) continue;
     seen.add(key);
     return { name, phone, role: String(option?.role || '').trim() };
@@ -1262,60 +1522,59 @@ function firstMyDataContact(options = []) {
 function enrichRowsWithSchoolContact(rows = [], contactsIndex = new Map(), schoolsIndex = new Map(), summerPrintContactsIndex = new Map()) {
   return (Array.isArray(rows) ? rows : []).map((row) => {
     const isSummerRow = String(row?.activity_season ?? row?.activitySeason ?? '').trim() === 'summer_2026';
+    const authority = getActivityAuthorityName(row);
+    const schoolNames = getActivitySchoolNames(row);
+    const schoolId = String(row?.school_id || row?.single_school_id || '').trim();
+
+    if (isSummerRow) {
+      // Single source of truth for summer contacts: dedicated summer contact first,
+      // then contacts_schools, then the school catalog - only for fields the
+      // higher-priority source left empty. Identical resolver used by the admin
+      // operations-management screen and its printed schedule.
+      const resolved = resolveSchoolContact(
+        { authority, schoolNames, schoolCatalogId: schoolId },
+        { summerIndex: summerPrintContactsIndex, contactsSchoolsIndex: contactsIndex, schoolsCatalogIndex: schoolsIndex }
+      );
+      return {
+        ...row,
+        contact_name: resolved.name,
+        contact_phone: resolved.phone,
+        school_contact_name: resolved.name,
+        school_contact_phone: resolved.phone,
+        school_contact_role: resolved.role,
+        school_address: resolved.address,
+        city_or_authority: resolved.cityOrAuthority,
+        summer_contact_name: resolved.name,
+        summer_contact_phone: resolved.phone,
+        summer_school_address: resolved.address,
+        summer_contact_city_or_authority: resolved.cityOrAuthority,
+        summer_contact_status: resolved.status
+      };
+    }
+
     const options = [];
     const add = (name, phone = '', role = '') => {
       if (!String(name || '').trim() && !String(phone || '').trim()) return;
       options.push({ name: String(name || '').trim(), phone: String(phone || '').trim(), role: String(role || '').trim() });
     };
-    const authorityKey = normalizeMyDataContactText(getActivityAuthorityName(row));
-    const schoolId = String(row?.school_id || row?.single_school_id || '').trim();
-    const schoolNames = getActivitySchoolNames(row);
+    const authorityKey = normalizeContactMatchText(authority);
+    add(getActivityContactName(row), getActivityContactPhone(row));
     schoolNames.forEach((schoolName) => {
-      const key = `${authorityKey}|${normalizeMyDataContactText(schoolName)}`;
-      (summerPrintContactsIndex.get(key) || []).forEach((c) => add(c.name, c.phone, c.role));
+      const key = `${authorityKey}|${normalizeContactMatchText(schoolName)}`;
+      (contactsIndex.get(key) || []).forEach((c) => add(c.name, c.phone, c.role));
     });
-    if (!isSummerRow) {
-      add(getActivityContactName(row), getActivityContactPhone(row));
-      schoolNames.forEach((schoolName) => {
-        const key = `${authorityKey}|${normalizeMyDataContactText(schoolName)}`;
-        (contactsIndex.get(key) || []).forEach((c) => add(c.name, c.phone, c.role));
-      });
-      if (schoolId) (schoolsIndex.get(`id|${schoolId}`) || []).forEach((c) => add(c.name, c.phone, c.role));
-      schoolNames.forEach((schoolName) => {
-        const key = `${authorityKey}|${normalizeMyDataContactText(schoolName)}`;
-        (schoolsIndex.get(key) || []).forEach((c) => add(c.name, c.phone, c.role));
-      });
-      if (authorityKey) (contactsIndex.get(`${authorityKey}|`) || []).forEach((c) => add(c.name, c.phone, c.role));
-    }
+    if (schoolId) (schoolsIndex.get(`id:${schoolId}`) || []).forEach((c) => add(c.name, c.phone, c.role));
+    schoolNames.forEach((schoolName) => {
+      const key = `${authorityKey}|${normalizeContactMatchText(schoolName)}`;
+      (schoolsIndex.get(key) || []).forEach((c) => add(c.name, c.phone, c.role));
+    });
+    if (authorityKey) (contactsIndex.get(`${authorityKey}|`) || []).forEach((c) => add(c.name, c.phone, c.role));
+
     const contact = firstMyDataContact(options);
-    let summerExtra = {};
-    if (isSummerRow) {
-      for (const schoolName of schoolNames) {
-        const key = `${authorityKey}|${normalizeMyDataContactText(schoolName)}`;
-        const entries = summerPrintContactsIndex.get(key) || [];
-        if (entries.length) {
-          summerExtra = {
-            contact_name: entries[0].name || '',
-            contact_phone: entries[0].phone || '',
-            school_contact_name: entries[0].name || '',
-            school_contact_phone: entries[0].phone || '',
-            school_address: entries[0].school_address || '',
-            city_or_authority: entries[0].city_or_authority || '',
-            summer_contact_name: entries[0].name || '',
-            summer_contact_phone: entries[0].phone || '',
-            summer_school_address: entries[0].school_address || '',
-            summer_contact_city_or_authority: entries[0].city_or_authority || '',
-            summer_contact_status: entries[0].summer_contact_status || ''
-          };
-          break;
-        }
-      }
-    }
     return {
       ...row,
       school_contact_name: contact.name,
       school_contact_phone: contact.phone,
-      ...summerExtra,
       school_contact_role: contact.role
     };
   });
@@ -1477,13 +1736,48 @@ async function readListsFromSupabase() {
   return listsRowsPromise;
 }
 
+
+async function readCourseMeetingsRowsForBootstrap() {
+  if (!supabase) return [];
+  if (courseMeetingsRowsCache) return courseMeetingsRowsCache;
+  if (courseMeetingsRowsPromise) return courseMeetingsRowsPromise;
+  courseMeetingsRowsPromise = (async () => {
+    try {
+      const { data, error } = await supabase
+        .from('proposal_gefen_courses')
+        .select(COURSE_MEETINGS_BOOTSTRAP_COLUMNS)
+        .eq('is_active', true);
+      if (error) {
+        console.error('[supabase] proposal_gefen_courses meetings fetch failed:', error);
+        return [];
+      }
+      courseMeetingsRowsCache = Array.isArray(data) ? data : [];
+      return courseMeetingsRowsCache;
+    } catch (error) {
+      console.error('[supabase] Unexpected proposal_gefen_courses meetings fetch error:', error);
+      return [];
+    } finally {
+      courseMeetingsRowsPromise = null;
+    }
+  })();
+  return courseMeetingsRowsPromise;
+}
+
 /**
  * Converts the lists table data into the clientSettings shape expected by
  * activity-options.js and the add-activity form.
  * Handles many category name variants so the lists table can use any naming.
  */
-function buildClientSettingsFromLists(listsData, settingsRows = [], instructorContactsRows = []) {
+function buildClientSettingsFromLists(listsData, settingsRows = [], instructorContactsRows = [], courseMeetingsRows = []) {
   const categories = Array.isArray(listsData?.categories) ? listsData.categories : [];
+  const courseMeetingsByStableId = new Map(
+    (Array.isArray(courseMeetingsRows) ? courseMeetingsRows : [])
+      .map((row) => [
+        String(row?.gefen_number || '').trim(),
+        normalizeActivityMeetingsCount(row?.meetings_count)
+      ])
+      .filter(([gefenNumber, meetingsCount]) => gefenNumber && meetingsCount != null)
+  );
   const settingValue = (key) => {
     const row = (Array.isArray(settingsRows) ? settingsRows : []).find((item) => String(item?.key || '').trim() === key);
     return String(row?.value || '').trim();
@@ -1538,18 +1832,28 @@ function buildClientSettingsFromLists(listsData, settingsRows = [], instructorCo
     })
     .filter((user) => user.full_name && user.emp_id);
 
-  const activityNames = activityNameItems.map((i) => ({
-    label:         i.label || i.value,
-    label_he:      String(i._row?.label_he || i.label || i.value || '').trim(),
-    value:         i.value || String(i._row?.activity_name || i.label || '').trim(),
-    activity_name: String(i._row?.activity_name || i.value || i.label || '').trim(),
-    activity_no:   String(i._row?.activity_no  || i._row?.number      || '').trim(),
-    activity_type: String(i._row?.activity_type || i._row?.parent_value || i._row?.type || '').trim(),
-    parent_value:  String(i._row?.parent_value  || i._row?.activity_type || i._row?.type || '').trim(),
-    type:          String(i._row?.type || i._row?.activity_type || i._row?.parent_value || '').trim(),
-    active:        i._row?.active ?? i._row?.is_active ?? i.active,
-    sort_order:    Number.isFinite(Number(i._row?.sort_order)) ? Number(i._row?.sort_order) : null
-  }));
+  const activityNames = activityNameItems.map((i) => {
+    const gefenNumber = String(i._row?.gefen_number || '').trim();
+    const activityNo = String(i._row?.activity_no || i._row?.number || '').trim();
+    const meetingsCount = [gefenNumber, activityNo]
+      .filter(Boolean)
+      .map((stableId) => courseMeetingsByStableId.get(stableId))
+      .find((count) => count != null) ?? null;
+    return {
+      label:         i.label || i.value,
+      label_he:      String(i._row?.label_he || i.label || i.value || '').trim(),
+      value:         i.value || String(i._row?.activity_name || i.label || '').trim(),
+      activity_name: String(i._row?.activity_name || i.value || i.label || '').trim(),
+      gefen_number:  gefenNumber,
+      activity_no:   activityNo || gefenNumber,
+      meetings_count: meetingsCount,
+      activity_type: String(i._row?.activity_type || i._row?.parent_value || i._row?.type || '').trim(),
+      parent_value:  String(i._row?.parent_value || i._row?.activity_type || i._row?.type || '').trim(),
+      type:          String(i._row?.type || i._row?.activity_type || i._row?.parent_value || '').trim(),
+      active:        (typeof i._row?.is_active === 'boolean') ? i._row?.is_active : (i._row?.active ?? i.active),
+      sort_order:    Number.isFinite(Number(i._row?.sort_order)) ? Number(i._row?.sort_order) : null
+    };
+  });
   const activityTypes = [...new Set(activityNames.map((row) => String(row.activity_type || row.parent_value || row.type || '').trim()).filter(Boolean))];
   const schoolRecords = schoolItems.map((i) => ({
     name:        String(i._row?.school || i._row?.school_name || i.label || i.value || '').trim(),
@@ -1627,11 +1931,40 @@ function buildClientSettingsFromLists(listsData, settingsRows = [], instructorCo
  * Computes per-instructor activity stats from public.activities only.
  * Returns { rows, _source: 'supabase' } or null on any failure.
  */
+async function readInstructorActivityHistoryFromSupabase({ empId = '', instructorName = '' } = {}) {
+  if (!supabase) return [];
+  const selectedSeason = currentGlobalActivityPeriod();
+  const emp = String(empId || '').trim();
+  const name = String(instructorName || '').trim().toLowerCase();
+  let query = supabase
+    .from('activities')
+    .select(ACTIVITY_INSTRUCTOR_HISTORY_COLUMNS)
+    .in('activity_season', activitySeasonQueryValues(selectedSeason));
+  if (emp) {
+    // Prefer emp_id filter; names may contain characters unsafe for PostgREST .or() literals.
+    query = query.or(`emp_id.eq.${emp},emp_id_2.eq.${emp}`);
+  }
+  const { data, error } = await query;
+  if (error) throw new Error(error.message || 'instructor_activity_history_failed');
+  const rows = (Array.isArray(data) ? data : []).map(normalizeActivityRow).filter((row) => !isActivityInactive(row));
+  if (!emp && name) {
+    return rows.filter((row) => [row?.instructor_name, row?.instructor_name_2]
+      .map((value) => String(value || '').trim().toLowerCase())
+      .some((value) => value === name));
+  }
+  if (emp && name) {
+    // Keep emp matches; also include name-only matches from a second pass if needed later.
+    return rows;
+  }
+  return rows;
+}
+
 async function readInstructorsFromSupabase() {
   if (!supabase) return null;
   try {
+    // List entry: contacts + thin season stats (no meeting-date payload / no scheduling).
     const [activityRows, contactsResult] = await Promise.all([
-      selectActivitiesFromSupabase('*'),
+      selectActivitiesFromSupabase(ACTIVITY_INSTRUCTOR_STATS_COLUMNS),
       supabase.from('contacts_instructors').select(CONTACTS_INSTRUCTORS_SCREEN_COLUMNS)
     ]);
 
@@ -1743,7 +2076,8 @@ async function readInstructorsFromSupabase() {
     }));
 
     rows.sort((a, b) => String(a.full_name || '').localeCompare(String(b.full_name || ''), 'he'));
-    return { rows, detail_rows: activeRows, activities_loaded: true, _source: 'supabase' };
+    // Keep activity history off the list payload; load on instructor open by period.
+    return { rows, detail_rows: [], activities_loaded: false, _source: 'supabase' };
   } catch (error) {
     // eslint-disable-next-line no-console
     console.error('[supabase] Unexpected instructors fetch error:', error);
@@ -1771,7 +2105,7 @@ function buildDashboardKpiCardsFromSupabase(totals, activeTypeCounts, exceptionC
   return [
     ...typeCards,
     { id: 'endings',     action: 'kpi|endings',     title: String(courseEndings),         subtitle: 'סיומי קורסים',   value: courseEndings },
-    { id: 'instructors', action: 'kpi|instructors', title: String(uniqueInstructorCount), subtitle: 'מדריכים משובצים החודש', value: uniqueInstructorCount },
+    { id: 'instructors', action: 'kpi|instructors', title: String(uniqueInstructorCount), subtitle: 'מדריכים משובצים', value: uniqueInstructorCount },
     { id: 'exceptions',  action: 'kpi|exceptions',  title: String(exceptionCount),        subtitle: 'חריגות',          value: exceptionCount }
   ];
 }
@@ -1871,7 +2205,7 @@ async function readWeekFromSupabase(weekOffset) {
   if (!supabase) return emptyWeekPayload(startDate, endDate, { error: 'no_supabase_client' });
 
   try {
-    const rows = (await selectActivitiesByDateRangeFromSupabase({ startDate, endDate }))
+    const rows = filterRowsByGlobalActivityPeriod(await selectActivitiesByDateRangeFromSupabase({ startDate, endDate, select: ACTIVITY_CALENDAR_COLUMNS }))
       .filter((row) => !isActivityInactive(row));
     const matchingRows = rows.filter((row) => activityHasDateInRange(row, startDate, endDate));
     const itemsById = buildItemsById(matchingRows);
@@ -1908,9 +2242,10 @@ async function readMonthFromSupabase(ym) {
     const range = monthDateRange(monthPrefix);
     const [yStr, mStr] = monthPrefix.split('-');
     const lastDay = new Date(Number(yStr), Number(mStr), 0).getDate();
-    const rows = (await selectActivitiesByDateRangeFromSupabase({
+    const rows = filterRowsByGlobalActivityPeriod(await selectActivitiesByDateRangeFromSupabase({
       startDate: range.startDate,
-      endDate: range.endDate
+      endDate: range.endDate,
+      select: ACTIVITY_CALENDAR_COLUMNS
     })).filter((row) => !isActivityInactive(row));
     const matchingRows = rows.filter((row) => activityHasDateInMonth(row, monthPrefix));
     const itemsById = buildItemsById(matchingRows);
@@ -2000,11 +2335,12 @@ async function dashboardReadModelFromSupabase(month) {
       fallbackSelect: DASHBOARD_ACTIVITY_MIN_COLUMNS
     });
     // Open-only rows (not closed) — used for summary, instructor/manager stats, exceptions
-    const openRows = allRangeRows.filter((row) => !isActivityInactive(row));
+    const scopedRangeRows = filterRowsByGlobalActivityPeriod(allRangeRows);
+    const openRows = scopedRangeRows.filter((row) => !isActivityInactive(row));
     // Open-only rows that have a specific date (start/end/meeting) in this month — matches activities screen
     const monthRows = openRows.filter((row) => activityHasDatePointInMonth(row, monthPrefix));
     // All rows (open + closed) with a specific date in this month — for KPI base counts
-    const allMonthRows = allRangeRows.filter((row) => activityHasDatePointInMonth(row, monthPrefix));
+    const allMonthRows = scopedRangeRows.filter((row) => activityHasDatePointInMonth(row, monthPrefix));
     // Course/afterschool endings: open activities of that type whose end_date falls in this month
     const endingRows = openRows.filter((row) => (rowActivityType(row) === 'course' || rowActivityType(row) === 'after_school') && String(row?.end_date || '').slice(0, 7) === monthPrefix);
 
@@ -2019,7 +2355,7 @@ async function dashboardReadModelFromSupabase(month) {
       .filter(isSummerActivity)
       .map((row, index) => String(row?.RowID || row?.row_id || '').trim() || `summer:${index}`)).size;
 
-    const exceptionSummary = await readExceptionsFromSupabase({ month: monthPrefix, activityRows: allRangeRows });
+    const exceptionSummary = await readExceptionsFromSupabase({ month: monthPrefix, activityRows: scopedRangeRows });
     const exceptionError = exceptionSummary?.error || exceptionSummary?._debug?.error;
     const exceptionsUnavailable = !exceptionSummary || !!exceptionError;
     if (exceptionsUnavailable) {
@@ -2068,7 +2404,9 @@ async function dashboardReadModelFromSupabase(month) {
       if (instructor1 || emp1) instructorNames.add(instructor1 || emp1);
       if (instructor2 || emp2) instructorNames.add(instructor2 || emp2);
 
-      const stats = managerStats(row?.district);
+      const normalizedDistrict = normalizeOperationalDistrict(row?.district);
+      if (!normalizedDistrict) continue;
+      const stats = managerStats(normalizedDistrict);
       stats.total_activities += 1;
       if (isProgramActivity(row)) stats.total_long += 1;
       if (isOneDayActivity(row)) stats.total_short += 1;
@@ -2078,10 +2416,12 @@ async function dashboardReadModelFromSupabase(month) {
     }
 
     for (const row of endingRows) {
-      managerStats(row?.district).course_endings += 1;
+      const normalizedDistrict = normalizeOperationalDistrict(row?.district);
+      if (normalizedDistrict) managerStats(normalizedDistrict).course_endings += 1;
     }
     for (const [district, count] of Object.entries(exceptionsByDistrict)) {
-      managerStats(district).exceptions = Number(count || 0);
+      const normalizedDistrict = normalizeOperationalDistrict(district);
+      if (normalizedDistrict) managerStats(normalizedDistrict).exceptions = Number(count || 0);
     }
 
     const by_activity_manager = [...byManagerMap.values()].map((stats) => {
@@ -2206,10 +2546,19 @@ function emptyDashboardPayload(month, debug = {}) {
 async function readEndDatesFromSupabase() {
   if (!supabase) throw new Error('no_supabase_client');
   try {
-    const rows = (await selectActivitiesFromSupabase('*'))
+    const selectedSeason = currentGlobalActivityPeriod();
+    const { data, error } = await supabase
+      .from('activities')
+      .select(ACTIVITY_END_DATES_COLUMNS)
+      .in('activity_season', activitySeasonQueryValues(selectedSeason))
+      .in('activity_type', ['course', 'קורס', 'קורסים', 'after_school', 'צהרון', 'צהרונים']);
+    if (error) throw new Error(error.message || 'end_dates_read_failed');
+    const rows = (Array.isArray(data) ? data : [])
+      .map(normalizeActivityRow)
       .filter((row) => !isActivityInactive(row))
-      .map((row) => ({ ...row, meeting_dates: getActivityDateColumns(row), date_cols: getActivityDateColumns(row) }));
-    return { rows, _source: 'supabase' };
+      .filter((row) => String(row?.status || '').trim() !== CLOSED_STATUS)
+      .map((row) => ({ ...row, meeting_dates: [], date_cols: [] }));
+    return { rows, _source: 'supabase', _debug: { projection: 'ACTIVITY_END_DATES_COLUMNS' } };
   } catch (error) {
     throw new Error(error?.message || 'end_dates_supabase_failed');
   }
@@ -2260,8 +2609,12 @@ function rowExceptionTypesFromActivity(row, opts = {}) {
   const hasValidInstructor = !!instructorName || !!secondaryInstructorName || isValidId(emp1) || isValidId(emp2);
   if (!inactive && !hasValidInstructor) types.push('missing_instructor');
   if (!inactive && !nullStr(row?.school)) types.push('missing_school');
-  if (!inactive && !nullStr(row?.authority)) types.push('missing_authority');
-  if (!inactive && districtDisplayKey(row) === 'ללא מחוז / לא משויך') types.push('missing_district');
+  // Activities without an authority are a separate exception — never count them as
+  // "missing district / unassigned authority district".
+  if (!inactive && !hasActivityAuthority(row)) types.push('missing_authority');
+  if (!inactive && hasActivityAuthority(row) && isMissingDistrictValue(row?.district)) {
+    types.push('missing_district');
+  }
 
   // Missing start date is based only on start_date; meeting dates do not replace
   // the dedicated start date field for this exception.
@@ -2339,7 +2692,10 @@ function normalizeApprovalText(value) {
 function approvalUploadMatchesActivity(upload = {}, row = {}) {
   const rowId = String(row?.RowID || row?.row_id || row?.id || '').trim();
   const uploadRowIds = String(upload?.activity_row_id || upload?.activity_id || '').split(',').map((value) => value.trim()).filter(Boolean);
-  if (rowId && uploadRowIds.includes(rowId)) return true;
+  // An upload that carries row ids is scoped to those specific activities: never fall
+  // through to the looser date+school match below, or two activities on the same
+  // day/school (with different row ids) could get mixed up.
+  if (uploadRowIds.length) return !!rowId && uploadRowIds.includes(rowId);
 
   const rowDate = firstNormalizedDate(row?.start_date, row?.activity_date, row?.date, row?.date_1, row?.Date1);
   const uploadDate = firstNormalizedDate(upload?.activity_date, upload?.date);
@@ -2368,9 +2724,7 @@ function approvalUploadMatchesActivity(upload = {}, row = {}) {
 }
 
 function completionApprovalStorageExists(upload = {}) {
-  if (!upload?.file_path) return false;
-  if (upload.storage_exists === false || String(upload.storage_status || '').trim() === 'missing') return false;
-  return true;
+  return !!(upload?.file_path || upload?.file_name || upload?.file_ref_exists);
 }
 
 function hasCompletionApprovalForActivity(row = {}, approvalUploads = []) {
@@ -2395,11 +2749,16 @@ function summerCompletionExceptionTypes(row = {}, opts = {}) {
   return types;
 }
 
+function isActivityInPreparation(row = {}) {
+  return String(row?.status || '').trim() === 'היערכות';
+}
+
 function getActivityExceptions(activityRows = [], month = '', opts = {}) {
   const knownInstructorIds = opts.knownInstructorIds; // Set<string> | undefined
   const rows = [];
   const instances = [];
   for (const row of activityRows) {
+    if (isActivityInPreparation(row)) continue;
     if (isActivityDeleted(row) || isActivityCancelled(row)) continue;
     if (isActivityInactive(row) && !isSummerCompletionTrackedActivity(row)) continue;
     if (!activityOverlapsMonthForExceptions(row, month)) continue;
@@ -2471,24 +2830,36 @@ function buildExceptionsFromRows(activityRows = [], month = '') {
 }
 
 
-async function readInstructorEmpIdsFromSupabase() {
-  if (!supabase) return [];
-  const columns = 'emp_id,active';
-  const { data, error } = await supabase
-    .from('contacts_instructors')
-    .select(columns);
-  if (error) {
-    const diagnostic = logDashboardSupabaseReadError('[supabase][dashboard] contacts_instructors read failed', error, {
-      table: 'public.contacts_instructors',
-      columns,
-      operation: 'select.instructor_emp_ids_for_exceptions'
-    });
-    throw new Error(`contacts_instructors_read_failed: ${diagnostic.message}`);
-  }
-  return (Array.isArray(data) ? data : [])
+function mapInstructorEmpIdsFromRows(rows = []) {
+  return (Array.isArray(rows) ? rows : [])
     .filter((row) => row?.active !== false && row?.active !== 'false' && row?.active !== 0 && row?.active !== '0')
     .map((row) => ({ emp_id: nullStr(row?.emp_id) }))
     .filter((row) => row.emp_id);
+}
+
+async function readInstructorEmpIdsFromSupabase() {
+  if (!supabase) return [];
+  // Always reuse the shared contacts_instructors bootstrap read (in-flight + cached).
+  // Dashboard snapshot, exception reconciliation, and login bootstrap previously issued
+  // the same emp_id/active query three times because each caller waited for the previous
+  // response before starting the next identical GET.
+  if (instructorEmpIdsCache) return instructorEmpIdsCache;
+  if (instructorEmpIdsPromise) return instructorEmpIdsPromise;
+  instructorEmpIdsPromise = (async () => {
+    try {
+      const rows = await readInstructorContactsRowsForBootstrap();
+      instructorEmpIdsCache = mapInstructorEmpIdsFromRows(rows);
+      return instructorEmpIdsCache;
+    } catch (error) {
+      const diagnostic = logDashboardSupabaseReadError('[supabase][dashboard] contacts_instructors read failed', error, {
+        table: 'public.contacts_instructors',
+        columns: 'emp_id,full_name,active',
+        operation: 'select.instructor_emp_ids_for_exceptions'
+      });
+      throw new Error(`contacts_instructors_read_failed: ${diagnostic.message}`);
+    }
+  })().finally(() => { instructorEmpIdsPromise = null; });
+  return instructorEmpIdsPromise;
 }
 
 async function readExceptionsFromSupabase(params = {}) {
@@ -2497,12 +2868,16 @@ async function readExceptionsFromSupabase(params = {}) {
   const now = new Date();
   const currentYm = `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, '0')}`;
   const month = /^\d{4}-\d{2}$/.test(candidate) ? candidate : currentYm;
+  const activityPeriod = normalizeGlobalActivityPeriod(params?.activity_period || currentGlobalActivityPeriod());
   try {
     const suppliedActivityRows = Array.isArray(params?.activityRows) ? params.activityRows : null;
+    const needsSummerCompletionUploads = activityPeriod === 'summer_2026';
     const [activitiesResult, instrListResult, approvalsResult, settingsRows] = await Promise.all([
-      suppliedActivityRows ? Promise.resolve({ data: suppliedActivityRows, error: null }) : supabase.from('activities').select('*'),
+      suppliedActivityRows ? Promise.resolve({ data: suppliedActivityRows, error: null }) : supabase.from('activities').select(ACTIVITY_EXCEPTIONS_COLUMNS).in('activity_season', activitySeasonQueryValues(activityPeriod)),
       readInstructorEmpIdsFromSupabase().then((data) => ({ data, error: null })),
-      supabase.from('activity_completion_approval_uploads').select('*').then(({ data, error }) => ({ data: error ? [] : data, error })),
+      needsSummerCompletionUploads
+        ? supabase.from('activity_completion_approval_uploads').select(COMPLETION_APPROVAL_EXCEPTIONS_COLUMNS).gte('activity_date', '2026-06-01').lte('activity_date', '2026-09-30').then(({ data, error }) => ({ data: error ? [] : data, error }))
+        : Promise.resolve({ data: [], error: null }),
       readSettingsRowsFromSupabase().catch((error) => {
         logDashboardSupabaseReadError('[supabase][dashboard] settings read failed', error, {
           table: 'public.settings',
@@ -2525,17 +2900,20 @@ async function readExceptionsFromSupabase(params = {}) {
         .filter(Boolean)
     );
     const allRows = (Array.isArray(activitiesResult.data) ? activitiesResult.data : []).map(normalizeActivityRow);
-    const exceptionSummary = buildExceptionsModelFromRows(allRows, month, {
+    const periodRows = filterRowsByGlobalActivityPeriod(allRows, activityPeriod);
+    const exceptionSummary = buildExceptionsModelFromRows(periodRows, month, {
       include_rows: true,
       knownInstructorIds: knownInstructorIds.size > 0 ? knownInstructorIds : undefined,
       lateEndDateThreshold,
       completionApprovalUploads: Array.isArray(approvalsResult.data) ? approvalsResult.data : []
     });
-    const undatedRows = allRows
+    const undatedRows = periodRows
+      .filter((row) => !isActivityInPreparation(row))
       .filter((row) => !isActivityInactive(row))
       .filter((row) => !hasAnyActivityDate(row));
     return {
       month,
+      activity_period: activityPeriod,
       ...exceptionSummary,
       undatedRows,
       undatedCount: undatedRows.length,
@@ -2624,12 +3002,18 @@ function invalidateScreenDataByAction(action) {
     savePermission: ['permissions'],
     addContact: ['contacts', 'instructor-contacts'],
     saveContact: ['contacts', 'instructor-contacts'],
+    deleteSchoolContact: ['contacts', 'instructor-contacts', 'proposals-agreements'],
     updateUnifiedContactRecord: ['contacts', 'instructor-contacts'],
     saveSheetMapping: ['adminSettings', 'listSheets', 'dashboard:', 'activities:', 'week:', 'month:'],
     saveClientSetting: ['adminSettings', 'dashboard:', 'activities:', 'week:', 'month:'],
     addProposalAgreement: ['proposals-agreements'],
     updateProposalAgreement: ['proposals-agreements'],
+    updateProposalAgreementGfenSignedOrOrdered: ['proposals-agreements'],
     updateProposalAgreementStatus: ['proposals-agreements'],
+    lockAndSendProposalAgreement: ['proposals-agreements'],
+    uploadProposalFinalPdf: ['proposals-agreements'],
+    uploadGefenApprovalDocument: ['proposals-agreements'],
+    getProposalFinalPdfSignedUrl: ['proposals-agreements'],
     deleteProposalAgreement: ['proposals-agreements'],
     saveProposalAgreementItems: ['proposals-agreements'],
     uploadCompletionApproval: ['instructor-completion-approvals', 'my-data', 'instructor-calendar'],
@@ -2637,7 +3021,11 @@ function invalidateScreenDataByAction(action) {
     deleteCompletionApprovalUpload: ['instructor-completion-approvals', 'my-data', 'instructor-calendar'],
     reviewCompletionApprovalUpload: ['instructor-completion-approvals', 'my-data', 'instructor-calendar'],
     uploadPhotoApproval: ['my-data', 'instructor-calendar', 'operations-management'],
-    replacePhotoApproval: ['my-data', 'instructor-calendar', 'operations-management']
+    replacePhotoApproval: ['my-data', 'instructor-calendar', 'operations-management'],
+    // Contact responsible overrides affect every screen that shows the resolved
+    // responsible/school contact for a date+school - not just operations-management,
+    // which was the only one cleared before (see saveSchoolContactResponsible below).
+    saveSchoolContactResponsible: ['my-data', 'instructor-calendar', 'instructor-completion-approvals', 'operations-management']
   };
   const prefixes = targetedMutations[action];
   if (!prefixes || !prefixes.length) return;
@@ -2723,13 +3111,19 @@ function normalizeData(data) {
 
 const PROPOSALS_AGREEMENTS_ALLOWED_ROLES = new Set(['domain_manager', 'operation_manager', 'admin', 'business_development_manager']);
 const PROPOSALS_AGREEMENTS_MANAGE_ROLES = new Set(['domain_manager', 'operation_manager', 'admin']);
-const PROPOSALS_AGREEMENTS_COLUMNS = 'id,authority_id,school_id,contact_school_id,client_authority,school_framework,document_type,activity_type_group,proposal_domain,proposal_date,activity_names,contact_name,contact_role,phone,email,contact_phone,contact_email,notes,status,approval_note,total_amount,custom_document_sections,include_catalog,signature_meta,approved_by,approved_at,sent_by,sent_at,created_at,updated_at';
-const PROPOSALS_AGREEMENTS_DIRECTORY_COLUMNS = 'id,authority_id,authority_code,school_id,contact_school_id,authority_name,legacy_client_authority,contact_client_type,contact_client_name,school_name,legacy_school_framework,document_type,activity_type_group,proposal_domain,proposal_date,activity_names,contact_name,contact_role,phone,email,notes,status,approval_note,total_amount,custom_document_sections,include_catalog,signature_meta,approved_by,approved_at,sent_by,sent_at,created_at,updated_at';
+const PROPOSALS_AGREEMENTS_COLUMNS = 'id,authority_id,school_id,contact_school_id,client_authority,school_framework,document_type,activity_type_group,proposal_domain,proposal_date,activity_names,contact_name,contact_role,phone,email,contact_phone,contact_email,notes,status,approval_note,total_amount,custom_document_sections,include_catalog,signature_meta,approved_by,approved_at,sent_by,sent_at,locked_at,locked_by,locked_reason,final_pdf_path,final_pdf_file_name,final_pdf_created_at,final_pdf_created_by,document_snapshot,document_html_snapshot,proposal_series_id,version_number,supersedes_proposal_id,archived_at,quote_number,valid_until,combine_gefen_approval,gfen_signed_or_ordered,created_at,updated_at';
+// List/directory projection — no snapshots/HTML/signature payloads.
+const PROPOSALS_AGREEMENTS_LIST_COLUMNS = 'id,authority_id,authority_code,school_id,contact_school_id,semel_mosad,authority_name,legacy_client_authority,contact_client_type,contact_client_name,school_name,legacy_school_framework,document_type,activity_type_group,proposal_domain,proposal_date,activity_names,contact_name,contact_role,phone,email,notes,status,approval_note,total_amount,include_catalog,approved_by,approved_at,sent_by,sent_at,locked_at,locked_by,locked_reason,final_pdf_path,final_pdf_file_name,final_pdf_created_at,final_pdf_created_by,proposal_series_id,version_number,supersedes_proposal_id,archived_at,quote_number,valid_until,combine_gefen_approval,gfen_signed_or_ordered,created_at,updated_at';
+const PROPOSALS_AGREEMENTS_DIRECTORY_COLUMNS = PROPOSALS_AGREEMENTS_LIST_COLUMNS;
+const PROPOSALS_AGREEMENTS_DETAIL_COLUMNS = 'id,authority_id,authority_code,school_id,contact_school_id,semel_mosad,authority_name,legacy_client_authority,contact_client_type,contact_client_name,school_name,legacy_school_framework,document_type,activity_type_group,proposal_domain,proposal_date,activity_names,contact_name,contact_role,phone,email,notes,status,approval_note,total_amount,custom_document_sections,include_catalog,signature_meta,approved_by,approved_at,sent_by,sent_at,locked_at,locked_by,locked_reason,final_pdf_path,final_pdf_file_name,final_pdf_created_at,final_pdf_created_by,document_snapshot,document_html_snapshot,proposal_series_id,version_number,supersedes_proposal_id,archived_at,quote_number,valid_until,combine_gefen_approval,gfen_signed_or_ordered,created_at,updated_at';
+const PROPOSAL_FINAL_PDF_BUCKET = 'proposal-final-pdfs';
+const GEFEN_APPROVAL_DOCUMENT_TYPE = 'gefen_approval';
+const IDAN_NAHUM_AUTH_USER_ID = 'e9ca304a-4e66-4774-830e-14f1318c4908';
 const PROPOSALS_AGREEMENTS_WRITABLE_COLUMNS = new Set([
   'authority_id', 'school_id', 'contact_school_id', 'client_authority', 'school_framework',
   'document_type', 'activity_type_group', 'proposal_date', 'activity_names', 'contact_name',
   'contact_role', 'phone', 'email', 'contact_phone', 'contact_email', 'notes', 'status', 'approval_note', 'total_amount',
-  'custom_document_sections', 'include_catalog', 'proposal_domain'
+  'custom_document_sections', 'include_catalog', 'proposal_domain', 'supersedes_proposal_id'
 ]);
 const PROPOSALS_AGREEMENTS_APPROVAL_COLUMNS = new Set(['approved_by', 'approved_at', 'signature_position', 'signature_meta']);
 const PA_ACTIVITY_NAMES_MARKER = '\u001ePA_ACTIVITY_NAMES:';
@@ -2780,8 +3174,13 @@ function assertCanUseProposalsAgreementsApi() {
 }
 
 function canApproveProposalsAgreementsApi() {
-  const role = String(state?.user?.display_role || state?.user?.role || '').trim();
-  return role === 'admin' || permissionFlagYes(state?.user?.approve_proposals_agreements);
+  const user = state?.user || {};
+  const userId = cleanProposalAgreementText(user.user_id || user.emp_id || user.employee_id);
+  const username = cleanProposalAgreementText(user.username_for_login || user.username || user.username_display).toLowerCase();
+  const authUserId = cleanProposalAgreementText(user.auth_user_id).toLowerCase();
+  return userId === '8000'
+    || username === 'idann'
+    || authUserId === IDAN_NAHUM_AUTH_USER_ID;
 }
 
 function assertCanManageProposalsAgreementsApi() {
@@ -2867,6 +3266,7 @@ function buildProposalAgreementSearchText(row = {}) {
   const statusLabel = PA_STATUS_LABELS[cleanProposalAgreementText(row.status)] || cleanProposalAgreementText(row.status);
   return [
     row.id,
+    row.quote_number,
     row.client_authority,
     row.school_framework,
     row.authority_code,
@@ -2888,12 +3288,23 @@ function normalizeProposalAgreementActivityNames(value) {
   return cleanProposalAgreementText(value).split(',').map(cleanProposalAgreementText).filter(Boolean);
 }
 
+function normalizeStoredBoolean(value) {
+  if (value === true || value === 1) return true;
+  if (value === false || value === 0 || value == null) return false;
+  return ['true', '1', 'yes', 'y', 'on'].includes(String(value).trim().toLowerCase());
+}
+
 function normalizeProposalAgreementRow(row = {}) {
   const parsedNotes = parseActivityNamesFromNotes(row.notes);
   const PA_VALID_STATUSES = new Set(['draft', 'sent', 'pending_approval', 'returned_for_changes', 'approved', 'cancelled']);
   let rawStatus = cleanProposalAgreementText(row.status);
-  const authorityName = cleanProposalAgreementText(row.client_authority || row.authority_name || row.legacy_client_authority || row.authority);
-  const schoolFramework = cleanProposalAgreementText(row.school_framework || row.school_name || row.contact_client_name || row.legacy_school_framework || row.school);
+  // proposals_agreements_directory_view exposes both the raw saved values (client_authority direct
+  // on base-table reads, legacy_client_authority/legacy_school_framework on the view) and catalog-joined
+  // convenience columns (authority_name/school_name, coalesced from authorities/contacts_schools/schools).
+  // The saved proposal row is always the source of truth, so raw/legacy fields must be checked first —
+  // otherwise a stale or coincidentally-colliding catalog join could override the proposal's own client.
+  const authorityName = cleanProposalAgreementText(row.client_authority || row.legacy_client_authority || row.authority_name || row.authority);
+  const schoolFramework = cleanProposalAgreementText(row.school_framework || row.legacy_school_framework || row.school_name || row.contact_client_name || row.school);
   const normalized = {
     id:                  cleanProposalAgreementText(row.id),
     client_type:         cleanProposalAgreementText(row.contact_client_type) || (row.school_id ? 'school' : 'authority'),
@@ -2910,6 +3321,9 @@ function normalizeProposalAgreementRow(row = {}) {
     activity_type_group: normalizeProposalGroupValue(row.activity_type_group),
     proposal_domain:     normalizeProposalDomain(row.proposal_domain, 'Y'),
     proposal_date:       cleanProposalAgreementText(row.proposal_date),
+    quote_number:        cleanProposalAgreementText(row.quote_number),
+    valid_until:         cleanProposalAgreementText(row.valid_until),
+    combine_gefen_approval: row.combine_gefen_approval === true,
     activity_names:      normalizeProposalAgreementActivityNames(
       Array.isArray(row.activity_names) && row.activity_names.length
         ? row.activity_names
@@ -2930,16 +3344,74 @@ function normalizeProposalAgreementRow(row = {}) {
       }))
       : [],
     include_catalog:     row.include_catalog === true || row.include_catalog === 'yes',
+    proposal_series_id:  cleanProposalAgreementText(row.proposal_series_id),
+    version_number:      Math.max(1, Number(row.version_number) || 1),
+    supersedes_proposal_id: cleanProposalAgreementText(row.supersedes_proposal_id),
+    archived_at:         cleanProposalAgreementText(row.archived_at),
     signature_meta:      (row.signature_meta && typeof row.signature_meta === 'object' && !Array.isArray(row.signature_meta)) ? row.signature_meta : {},
     approved_by:         cleanProposalAgreementText(row.approved_by),
     approved_at:         cleanProposalAgreementText(row.approved_at),
     sent_by:             cleanProposalAgreementText(row.sent_by),
     sent_at:             cleanProposalAgreementText(row.sent_at),
+    locked_at:           cleanProposalAgreementText(row.locked_at),
+    locked_by:           cleanProposalAgreementText(row.locked_by),
+    locked_reason:       cleanProposalAgreementText(row.locked_reason),
+    final_pdf_path:      cleanProposalAgreementText(row.final_pdf_path),
+    final_pdf_file_name: cleanProposalAgreementText(row.final_pdf_file_name),
+    final_pdf_created_at: cleanProposalAgreementText(row.final_pdf_created_at),
+    final_pdf_created_by: cleanProposalAgreementText(row.final_pdf_created_by),
+    document_snapshot:   (row.document_snapshot && typeof row.document_snapshot === 'object' && !Array.isArray(row.document_snapshot)) ? row.document_snapshot : null,
+    document_html_snapshot: cleanProposalAgreementText(row.document_html_snapshot),
+    gefen_approval_status: cleanProposalAgreementText(row.gefen_approval_status) || 'missing',
+    gefen_approval_path: cleanProposalAgreementText(row.gefen_approval_path),
+    gefen_approval_file_name: cleanProposalAgreementText(row.gefen_approval_file_name),
+    gefen_approval_combined: row.gefen_approval_combined === true,
+    gfen_signed_or_ordered: normalizeStoredBoolean(row.gfen_signed_or_ordered),
     created_at:          cleanProposalAgreementText(row.created_at),
     updated_at:          cleanProposalAgreementText(row.updated_at)
   };
   normalized._searchText = buildProposalAgreementSearchText(normalized);
   return normalized;
+}
+
+function proposalFinalPdfAllowedFile(file) {
+  if (!file || typeof file !== 'object') return false;
+  const mime = String(file.type || '').trim().toLowerCase();
+  const name = String(file.name || '').trim().toLowerCase();
+  return mime === 'application/pdf' || name.endsWith('.pdf');
+}
+
+function proposalFinalPdfStoragePath(proposalId, fileName = 'proposal.pdf') {
+  const rowId = cleanProposalAgreementText(proposalId);
+  if (!rowId) throw new Error('missing_proposal_agreement_id');
+  const now = new Date();
+  const stamp = [
+    now.getUTCFullYear(),
+    String(now.getUTCMonth() + 1).padStart(2, '0'),
+    String(now.getUTCDate()).padStart(2, '0'),
+    '-',
+    String(now.getUTCHours()).padStart(2, '0'),
+    String(now.getUTCMinutes()).padStart(2, '0'),
+    String(now.getUTCSeconds()).padStart(2, '0')
+  ].join('');
+  const safeName = String(fileName || 'proposal.pdf').replace(/[^\w.\-א-ת]+/g, '_').slice(0, 120) || 'proposal.pdf';
+  return `proposals/${rowId}/${stamp}-${Date.now()}/${safeName}`;
+}
+
+function gefenApprovalPdfStoragePath(proposalId) {
+  const rowId = cleanProposalAgreementText(proposalId);
+  if (!rowId) throw new Error('missing_proposal_agreement_id');
+  return `gefen-approvals/${rowId}/${Date.now()}/gefen-approval.pdf`;
+}
+
+function proposalLockActorName() {
+  return firstNameOnly(
+    state?.user?.full_name ||
+    state?.user?.name ||
+    state?.user?.username ||
+    state?.user?.user_id ||
+    ''
+  );
 }
 
 
@@ -2966,10 +3438,7 @@ function canTransitionProposalAgreementStatus(currentRow = {}, cleanStatus = '')
     return true;
   }
   if (targetStatus === 'sent') {
-    if (currentStatus !== 'approved' || !hasProposalAgreementSignature(currentRow) || !cleanProposalAgreementText(currentRow.approved_at)) {
-      throw new Error('ניתן לסמן כנשלח רק הצעה מאושרת וחתומה.');
-    }
-    return true;
+    throw new Error('שליחת הצעה דורשת נעילת מסמך והעלאת PDF סופי. השתמשו בפעולת "סימון כנשלח".');
   }
   if (targetStatus === 'cancelled') {
     if (!canApproveProposalsAgreementsApi()) throw new Error('proposals_agreements_approval_forbidden');
@@ -3244,6 +3713,13 @@ export function uuidOrNull(value) {
   return isValidUuid(raw) ? raw : null;
 }
 
+export function bigintIdOrNull(value) {
+  if (value == null || value === '') return null;
+  if (typeof value === 'object') return null;
+  const n = Number(value);
+  return Number.isSafeInteger(n) && n > 0 ? n : null;
+}
+
 function assertProposalAgreementApprovalPayloadAllowed(payload = {}) {
   const requestedStatus = cleanProposalAgreementText(payload.status);
   const touchesApprovalField = Object.keys(payload || {}).some((key) => PROPOSALS_AGREEMENTS_APPROVAL_COLUMNS.has(key));
@@ -3264,10 +3740,10 @@ function sanitizeProposalAgreementPayload(payload = {}, groupLookup = proposalGr
   const clientAuthority = cleanProposalAgreementText(payload.client_authority || payload.authority_name || payload.authority);
   const schoolFramework = cleanProposalAgreementText(payload.school_framework || payload.school_name || payload.school) || (clientType === 'other' ? cleanProposalAgreementText(payload.client_name) : clientAuthority);
   const row = {
-    authority_id:        clientType === 'other' ? null : uuidOrNull(payload.authority_id),
-    school_id:           clientType === 'school' ? uuidOrNull(payload.school_id) : null,
-    contact_school_id:   clientType === 'other' ? null : (payload.contact_school_id != null ? (Number.isInteger(Number(payload.contact_school_id)) && Number(payload.contact_school_id) > 0 ? Number(payload.contact_school_id) : null) : null),
-    client_authority:    clientType === 'other' ? '' : clientAuthority,
+    authority_id:        bigintIdOrNull(payload.authority_id),
+    school_id:           clientType === 'school' ? bigintIdOrNull(payload.school_id) : null,
+    contact_school_id:   bigintIdOrNull(payload.contact_school_id),
+    client_authority:    clientAuthority,
     school_framework:    schoolFramework,
     document_type:       cleanProposalAgreementText(payload.document_type) || 'הצעת מחיר',
     activity_type_group: normalizeProposalActivityGroupForSave(rawGroup, groupLookup),
@@ -3287,6 +3763,9 @@ function sanitizeProposalAgreementPayload(payload = {}, groupLookup = proposalGr
     custom_document_sections: Array.isArray(payload.custom_document_sections) ? payload.custom_document_sections : [],
     include_catalog:     payload.include_catalog === true || payload.include_catalog === 'yes'
   };
+  if (Object.prototype.hasOwnProperty.call(payload, 'supersedes_proposal_id')) {
+    row.supersedes_proposal_id = cleanProposalAgreementText(payload.supersedes_proposal_id) || null;
+  }
   const requiredKeys = clientType === 'other'
     ? ['school_framework', 'document_type', 'activity_type_group']
     : ['client_authority', 'document_type', 'activity_type_group'];
@@ -3339,14 +3818,14 @@ async function resolveProposalSchoolCatalogIds(payload = {}, catalog = null) {
   const clientType = cleanProposalAgreementText(payload.client_type) || (payload.school_id ? 'school' : 'authority');
   if (clientType !== 'school') {
     return {
-      authority_id: uuidOrNull(payload.authority_id),
+      authority_id: bigintIdOrNull(payload.authority_id),
       school_id: null,
       semel_mosad: null
     };
   }
-  let authority_id = uuidOrNull(payload.authority_id);
-  let school_id = uuidOrNull(payload.school_id);
-  let semel_mosad = cleanProposalAgreementText(payload.semel_mosad) || (!uuidOrNull(payload.school_id) ? cleanProposalAgreementText(payload.school_id) : null) || null;
+  let authority_id = bigintIdOrNull(payload.authority_id);
+  let school_id = bigintIdOrNull(payload.school_id);
+  let semel_mosad = bigintIdOrNull(payload.semel_mosad) || (!bigintIdOrNull(payload.school_id) ? bigintIdOrNull(payload.school_id) : null) || null;
   const schoolLookup = catalog?.schoolLookup || (await readAuthoritySchoolCatalog()).schoolLookup;
   const schoolMeta = resolveSchoolCatalogEntry(schoolLookup, {
     school_id,
@@ -3355,9 +3834,9 @@ async function resolveProposalSchoolCatalogIds(payload = {}, catalog = null) {
     authority: cleanProposalAgreementText(payload.client_authority || payload.authority_name || payload.authority)
   });
   if (schoolMeta) {
-    school_id = school_id || uuidOrNull(schoolMeta.id);
-    authority_id = authority_id || uuidOrNull(schoolMeta.authority_id);
-    semel_mosad = semel_mosad || schoolMeta.semel_mosad || null;
+    school_id = school_id || bigintIdOrNull(schoolMeta.id);
+    authority_id = authority_id || bigintIdOrNull(schoolMeta.authority_id);
+    semel_mosad = semel_mosad || bigintIdOrNull(schoolMeta.semel_mosad) || null;
   }
   return { authority_id, school_id, semel_mosad };
 }
@@ -3391,11 +3870,11 @@ async function ensureContactSchoolFromProposal(payload = {}) {
     ? payload._contact_original
     : {};
   const authority = cleanProposalAgreementText(payload.client_authority);
-  const school = cleanProposalAgreementText(payload.school_framework);
+  const school = cleanProposalAgreementText(payload.client_type) === 'other' ? '' : cleanProposalAgreementText(payload.school_framework);
   if (!authority) return null;
   const resolvedSchool = await resolveProposalSchoolCatalogIds(payload);
   const clientType = cleanProposalAgreementText(orig.client_type) || cleanProposalAgreementText(payload.client_type) || (resolvedSchool.school_id || school ? 'school' : 'authority');
-  const clientName = cleanProposalAgreementText(orig.client_name) || (clientType === 'school' ? school : authority);
+  const clientName = cleanProposalAgreementText(orig.client_name) || cleanProposalAgreementText(payload.client_name) || (clientType === 'school' ? school : authority);
   const rpcArgs = {
     p_client_type:   clientType,
     p_client_name:   clientName || authority,
@@ -3404,14 +3883,17 @@ async function ensureContactSchoolFromProposal(payload = {}) {
     p_contact_name:  cleanProposalAgreementText(payload.contact_name) || null,
     p_contact_role:  cleanProposalAgreementText(payload.contact_role) || null,
     p_phone:         cleanProposalAgreementText(payload.phone) || null,
-    p_mobile:        cleanProposalAgreementText(orig.mobile) || null,
+    p_mobile:        cleanProposalAgreementText(orig.mobile) || cleanProposalAgreementText(payload.phone) || null,
     p_email:         cleanProposalAgreementText(payload.email) || null,
     p_address:       null,
     p_notes:         cleanProposalAgreementText(payload.notes) || null
   };
-  if (uuidOrNull(resolvedSchool.school_id)) rpcArgs.p_school_id = uuidOrNull(resolvedSchool.school_id);
-  if (uuidOrNull(resolvedSchool.authority_id)) rpcArgs.p_authority_id = uuidOrNull(resolvedSchool.authority_id);
-  if (resolvedSchool.semel_mosad) rpcArgs.p_semel_mosad = resolvedSchool.semel_mosad;
+  const rpcSchoolId = bigintIdOrNull(resolvedSchool.school_id);
+  const rpcAuthorityId = bigintIdOrNull(resolvedSchool.authority_id);
+  const rpcSemelMosad = bigintIdOrNull(resolvedSchool.semel_mosad);
+  if (rpcSchoolId) rpcArgs.p_school_id = rpcSchoolId;
+  if (rpcAuthorityId) rpcArgs.p_authority_id = rpcAuthorityId;
+  if (rpcSemelMosad) rpcArgs.p_semel_mosad = rpcSemelMosad;
   const { data: contactSchoolId, error } = await supabase.rpc(
     'ensure_contact_school_from_proposal',
     rpcArgs
@@ -3421,8 +3903,8 @@ async function ensureContactSchoolFromProposal(payload = {}) {
 }
 
 async function resolveValidProposalContactSchoolId(value) {
-  const id = Number(value);
-  if (!Number.isInteger(id) || id <= 0) return null;
+  const id = bigintIdOrNull(value);
+  if (!id) return null;
   const { data, error } = await supabase
     .from('contacts_schools')
     .select('id')
@@ -3517,6 +3999,82 @@ async function readProposalActivityPricingFromSupabase() {
   }
 }
 
+async function readProposalGefenCoursesFromSupabase() {
+  try {
+    const { data, error } = await supabase
+      .from('proposal_gefen_courses')
+      .select('id,short_name,full_name,gefen_number,meetings_count,hourly_price,hours_count,total_price,sort_order,is_active')
+      .eq('is_active', true)
+      .order('sort_order', { ascending: true });
+    if (error) throwProposalLoadError('gefenCoursesError', 'proposal_gefen_courses', error);
+    const rows = (Array.isArray(data) ? data : []).map((row) => {
+      const gefenNumber = cleanProposalAgreementText(row?.gefen_number);
+      return {
+        id: cleanProposalAgreementText(row?.id),
+        activity_no: gefenNumber,
+        activity_name: cleanProposalAgreementText(row?.short_name),
+        proposal_group: 'gefen',
+        item_type: 'קורס',
+        gefen_number: gefenNumber,
+        hours_count: row?.hours_count != null ? Number(row.hours_count) : null,
+        meetings_count: row?.meetings_count != null ? Number(row.meetings_count) : null,
+        unit_duration: '',
+        unit_price: row?.total_price != null ? Number(row.total_price) : null,
+        hourly_price: row?.hourly_price != null ? Number(row.hourly_price) : null,
+        description_short: cleanProposalAgreementText(row?.short_name),
+        description_for_proposal: cleanProposalAgreementText(row?.full_name),
+        is_active_for_proposals: row?.is_active !== false,
+        sort_order: Number(row?.sort_order) || 0,
+        pricing_key: `gefen:${gefenNumber}`,
+        parent_pricing_key: '',
+        proposal_display_mode: 'single',
+        proposal_bundle_label: '',
+        is_bundle_parent: false,
+        _source_table: 'proposal_gefen_courses'
+      };
+    });
+    noteProposalRead('proposalGefenCourses', rows, null);
+    return rows;
+  } catch (error) {
+    throwProposalLoadError('gefenCoursesError', 'proposal_gefen_courses', error);
+  }
+}
+
+async function readProposalAgreementItemsForLoader() {
+  const { data, error } = await supabase
+    .from('proposal_agreement_items')
+    .select('id,proposal_agreement_id,item_name,item_type,gefen_number,meetings_count,hours_count,quantity,unit_price,total_price,description,course_note,hourly_price,source_pricing_key,proposal_display_mode,selected_bundle_items,activity_no,unit_duration,proposal_group,sort_order')
+    .order('sort_order', { ascending: true });
+  if (error) throwProposalLoadError('agreementItemsError', 'proposal_agreement_items', error);
+  return Array.isArray(data) ? data : [];
+}
+
+async function readProposalLinkedDocumentsFromSupabase({ proposalIds = null } = {}) {
+  let query = supabase
+    .from('proposal_linked_documents')
+    .select('id,proposal_agreement_id,document_type,status,combined_with_proposal,file_path,file_name,created_at,updated_at')
+    .eq('document_type', GEFEN_APPROVAL_DOCUMENT_TYPE);
+  const ids = Array.isArray(proposalIds)
+    ? proposalIds.map((id) => cleanProposalAgreementText(id)).filter(Boolean)
+    : null;
+  if (ids && ids.length) query = query.in('proposal_agreement_id', ids);
+  if (ids && !ids.length) return [];
+  const { data, error } = await query;
+  if (error) throwProposalLoadError('linkedDocumentsError', 'proposal_linked_documents', error);
+  return Array.isArray(data) ? data : [];
+}
+
+async function readSchoolCalendarForProposalValidity() {
+  const { data, error } = await supabase
+    .from('school_calendar')
+    .select('id,title,start_date,end_date,blocks_scheduling,is_active')
+    .eq('is_active', true)
+    .eq('blocks_scheduling', true)
+    .order('start_date', { ascending: true });
+  if (error) throwProposalLoadError('schoolCalendarError', 'school_calendar', error);
+  return Array.isArray(data) ? data : [];
+}
+
 function mapProposalTemplateSectionRow(row = {}) {
   const templateKey = cleanProposalAgreementText(row?.template_key ?? row?.templateKey);
   const templateName = cleanProposalAgreementText(row?.template_name ?? row?.templateName);
@@ -3586,6 +4144,7 @@ function mapUnifiedContactsForProposals(unifiedRows) {
       mobile:       cleanProposalAgreementText(c.mobile || ''),
       email:        cleanProposalAgreementText(c.email || ''),
       source_table: cleanProposalAgreementText(c.source_table),
+      source_id:    cleanProposalAgreementText(c.source_id || c.id),
       active:       'yes'
     };
   }).filter((c) => c.authority_name || c.school_name || c.authority || c.school);
@@ -3700,57 +4259,272 @@ async function readContactsSchoolsForProposals() {
   };
 }
 
-async function readProposalsAgreementsFromSupabase() {
+async function readProposalAgreementDetailFromSupabase(proposalId) {
+  assertCanUseProposalsAgreementsApi();
+  const id = cleanProposalAgreementText(proposalId);
+  if (!id) throw new Error('missing_proposal_id');
+  await waitForSupabaseAuthSession();
+  const { data, error } = await supabase
+    .from('proposals_agreements_directory_view')
+    .select(PROPOSALS_AGREEMENTS_DETAIL_COLUMNS)
+    .eq('id', id)
+    .maybeSingle();
+  if (error) throw new Error(error.message || 'proposal_detail_read_failed');
+  if (!data) return null;
+  return normalizeProposalAgreementRow(data);
+}
+
+async function readProposalsAgreementsEditorDepsFromSupabase() {
   assertCanUseProposalsAgreementsApi();
   await waitForSupabaseAuthSession();
-  lastProposalLoaderDebug = {};
-  const [paResult, contactsResult, rawProposalActivityPricing, proposalTemplateSections, proposalActivityGroups, proposalGroupAliases] = await Promise.all([
-    supabase
-      .from('proposals_agreements_directory_view')
-      .select(PROPOSALS_AGREEMENTS_DIRECTORY_COLUMNS)
-      .order('authority_name', { ascending: true })
-      .order('school_name', { ascending: true })
-      .order('document_type', { ascending: true })
-      .order('activity_type_group', { ascending: true }),
-    readContactsSchoolsForProposals(),
+  const [
+    rawProposalActivityPricing,
+    rawProposalGefenCourses,
+    proposalTemplateSections,
+    proposalActivityGroups,
+    proposalGroupAliases,
+    schoolCalendarRows,
+    contactsResult
+  ] = await Promise.all([
     readProposalActivityPricingFromSupabase(),
+    readProposalGefenCoursesFromSupabase(),
     readProposalTemplateSectionsFromSupabase(),
     readProposalActivityGroupsFromSupabase(),
-    readProposalGroupAliasesFromSupabase()
+    readProposalGroupAliasesFromSupabase(),
+    readSchoolCalendarForProposalValidity(),
+    readContactsSchoolsForProposals()
   ]);
-  if (paResult.error) throw new Error(paResult.error.message || 'proposals_agreements_read_failed');
-  noteProposalRead('rows', Array.isArray(paResult.data) ? paResult.data : [], null);
-  const contactOptions = Array.isArray(contactsResult?.contactOptions) ? contactsResult.contactOptions : [];
-  const contactOptionsError = contactsResult?.contactOptionsError || null;
-  let proposalCatalog = null;
-  try {
-    proposalCatalog = await readAuthoritySchoolCatalog();
-  } catch {
-    proposalCatalog = null;
-  }
-  // Group/alias normalization happens here in the loader so the frontend receives
-  // logical group keys (e.g. summer/next_year/combined) instead of legacy Hebrew labels.
   proposalGroupLookupCache = mergeProposalGroupLookups(
     buildProposalGroupLookup(proposalActivityGroups, proposalGroupAliases),
     buildProposalGroupHintsFromTemplateSections(proposalTemplateSections)
   );
-  const proposalActivityPricing = enrichProposalPricingRows(rawProposalActivityPricing, proposalGroupLookupCache);
-  const activityNameOptions = await readProposalActivityNamesFromSupabase();
+  const proposalActivityPricing = enrichProposalPricingRows([
+    ...rawProposalActivityPricing.filter((row) => normalizeProposalGroupValue(row?.proposal_group, proposalGroupLookupCache) !== 'gefen'),
+    ...rawProposalGefenCourses
+  ], proposalGroupLookupCache);
+  const activityNameOptions = Array.from(new Set([
+    ...await readProposalActivityNamesFromSupabase(),
+    ...rawProposalGefenCourses.map((row) => cleanProposalAgreementText(row?.activity_name)).filter(Boolean)
+  ])).sort((a, b) => a.localeCompare(b, 'he'));
   return {
-    rows: (Array.isArray(paResult.data) ? paResult.data : [])
-      .map(normalizeProposalAgreementRow)
-      .map((row) => enrichProposalAgreementRowFromCatalog(row, proposalCatalog)),
     activityNameOptions,
-    contactOptions,
-    contactOptionsError,
     proposalActivityGroups,
     proposalGroupAliases,
     proposalActivityPricing,
     proposalTemplateSections,
+    schoolCalendarRows,
+    contactOptions: Array.isArray(contactsResult?.contactOptions) ? contactsResult.contactOptions : [],
+    contactOptionsError: contactsResult?.contactOptionsError || null,
+    _contactsDebug: contactsResult?._debug || null,
+    _source: 'supabase'
+  };
+}
+
+function sanitizeProposalListSearchTerm(value) {
+  return String(value || '').trim().replace(/[%*,()]/g, ' ').replace(/\s+/g, ' ').trim();
+}
+
+function applyProposalsAgreementsListFilters(query, {
+  search = '',
+  status = '',
+  authorityId = '',
+  schoolId = '',
+  clientType = ''
+} = {}) {
+  let next = query;
+  const statusFilter = cleanProposalAgreementText(status);
+  if (statusFilter) next = next.eq('status', statusFilter);
+
+  const authorityFilter = bigintIdOrNull(authorityId);
+  if (authorityFilter != null) next = next.eq('authority_id', authorityFilter);
+
+  const schoolFilter = bigintIdOrNull(schoolId);
+  if (schoolFilter != null) next = next.eq('school_id', schoolFilter);
+
+  const clientTypeFilter = cleanProposalAgreementText(clientType).toLowerCase();
+  if (clientTypeFilter && ['school', 'authority', 'other'].includes(clientTypeFilter)) {
+    next = next.eq('contact_client_type', clientTypeFilter);
+  }
+
+  const safeSearch = sanitizeProposalListSearchTerm(search);
+  if (safeSearch) {
+    const term = `%${safeSearch}%`;
+    // Text columns only. authority_code / semel_mosad are bigint and break ilike
+    // with PostgREST 404: operator does not exist: bigint ~~* unknown.
+    next = next.or([
+      `authority_name.ilike.${term}`,
+      `legacy_client_authority.ilike.${term}`,
+      `school_name.ilike.${term}`,
+      `legacy_school_framework.ilike.${term}`,
+      `contact_client_name.ilike.${term}`,
+      `contact_name.ilike.${term}`,
+      `contact_role.ilike.${term}`,
+      `phone.ilike.${term}`,
+      `email.ilike.${term}`,
+      `quote_number.ilike.${term}`,
+      `notes.ilike.${term}`
+    ].join(','));
+  }
+  return next;
+}
+
+function applyProposalsAgreementsListSort(query, sort = '') {
+  const key = cleanProposalAgreementText(sort).toLowerCase() || 'updated_at_desc';
+  if (key === 'updated_at_asc') {
+    return query
+      .order('updated_at', { ascending: true, nullsFirst: false })
+      .order('authority_name', { ascending: true })
+      .order('school_name', { ascending: true });
+  }
+  if (key === 'proposal_date_desc') {
+    return query
+      .order('proposal_date', { ascending: false, nullsFirst: false })
+      .order('updated_at', { ascending: false, nullsFirst: false });
+  }
+  if (key === 'proposal_date_asc') {
+    return query
+      .order('proposal_date', { ascending: true, nullsFirst: false })
+      .order('updated_at', { ascending: false, nullsFirst: false });
+  }
+  if (key === 'authority_asc') {
+    return query
+      .order('authority_name', { ascending: true })
+      .order('school_name', { ascending: true })
+      .order('updated_at', { ascending: false, nullsFirst: false });
+  }
+  return query
+    .order('updated_at', { ascending: false, nullsFirst: false })
+    .order('authority_name', { ascending: true })
+    .order('school_name', { ascending: true });
+}
+
+async function readProposalsPendingApprovedCountFromSupabase() {
+  assertCanUseProposalsAgreementsApi();
+  await waitForSupabaseAuthSession();
+  const { count, error } = await supabase
+    .from('proposals_agreements_directory_view')
+    .select('id', { count: 'exact', head: true })
+    .eq('status', 'approved')
+    .is('archived_at', null);
+  if (error) throw new Error(error.message || 'proposals_pending_count_failed');
+  return Number.isFinite(count) ? Number(count) : 0;
+}
+
+async function readProposalsAgreementsFromSupabase({
+  limit = PROPOSALS_LIST_PAGE_SIZE,
+  offset = 0,
+  search = '',
+  status = '',
+  authorityId = '',
+  schoolId = '',
+  clientType = '',
+  sort = 'updated_at_desc',
+  includeLinkedDocuments = false,
+  paginate = true
+} = {}) {
+  assertCanUseProposalsAgreementsApi();
+  await waitForSupabaseAuthSession();
+  lastProposalLoaderDebug = {};
+  const usePaging = paginate !== false && limit != null;
+  const pageSize = usePaging ? Math.max(1, Number(limit) || PROPOSALS_LIST_PAGE_SIZE) : null;
+  const pageOffset = Math.max(0, Number(offset) || 0);
+  const listQuery = {
+    search: sanitizeProposalListSearchTerm(search),
+    status: cleanProposalAgreementText(status),
+    authorityId: authorityId == null ? '' : String(authorityId).trim(),
+    schoolId: schoolId == null ? '' : String(schoolId).trim(),
+    clientType: cleanProposalAgreementText(clientType).toLowerCase(),
+    sort: cleanProposalAgreementText(sort).toLowerCase() || 'updated_at_desc'
+  };
+  // List entry: one metadata page only. Contacts/catalog/groups/editor deps load on demand.
+  let proposalsQuery = supabase
+    .from('proposals_agreements_directory_view')
+    .select(PROPOSALS_AGREEMENTS_LIST_COLUMNS);
+  proposalsQuery = applyProposalsAgreementsListFilters(proposalsQuery, listQuery);
+  proposalsQuery = applyProposalsAgreementsListSort(proposalsQuery, listQuery.sort);
+  if (usePaging) proposalsQuery = proposalsQuery.range(pageOffset, pageOffset + pageSize - 1);
+  const paResult = await proposalsQuery;
+  if (paResult.error) throw new Error(paResult.error.message || 'proposals_agreements_read_failed');
+  const rawRows = Array.isArray(paResult.data) ? paResult.data : [];
+  noteProposalRead('rows', rawRows, null);
+  const pageIds = rawRows.map((row) => cleanProposalAgreementText(row?.id)).filter(Boolean);
+  const gefenEligibilityByProposalId = new Map();
+  if (pageIds.length) {
+    const { data: eligibilityRows, error: eligibilityError } = await supabase
+      .from('proposal_agreement_items')
+      .select('proposal_agreement_id,proposal_group,item_type,gefen_number,proposal_display_mode')
+      .in('proposal_agreement_id', pageIds);
+    if (eligibilityError) throw new Error(eligibilityError.message || 'proposal_gefen_eligibility_read_failed');
+    pageIds.forEach((id) => gefenEligibilityByProposalId.set(id, false));
+    (Array.isArray(eligibilityRows) ? eligibilityRows : []).forEach((item) => {
+      const proposalId = cleanProposalAgreementText(item?.proposal_agreement_id);
+      const group = cleanProposalAgreementText(item?.proposal_group).toLowerCase();
+      const displayMode = cleanProposalAgreementText(item?.proposal_display_mode).toLowerCase();
+      const hasGefenNumber = Boolean(cleanProposalAgreementText(item?.gefen_number));
+      const isWorkshop = group === 'next_year_workshops' || /סדנ|workshop/i.test(cleanProposalAgreementText(item?.item_type));
+      if (proposalId && hasGefenNumber && !isWorkshop && displayMode !== 'bundle_child') {
+        gefenEligibilityByProposalId.set(proposalId, true);
+      }
+    });
+  }
+  const proposalLinkedDocuments = includeLinkedDocuments
+    ? await readProposalLinkedDocumentsFromSupabase({ proposalIds: pageIds })
+    : [];
+  const linkedDocumentByProposalId = new Map(
+    proposalLinkedDocuments.map((row) => [
+      cleanProposalAgreementText(row?.proposal_agreement_id),
+      row
+    ])
+  );
+  return {
+    rows: rawRows
+      .map(normalizeProposalAgreementRow)
+      .map((row) => {
+        const linked = linkedDocumentByProposalId.get(row.id);
+        return {
+          ...row,
+          has_final_pdf: Boolean(cleanProposalAgreementText(row.final_pdf_path)),
+          has_document_snapshot: false,
+          has_document_html_snapshot: false,
+          has_linked_documents: Boolean(linked),
+          gefen_approval_status: cleanProposalAgreementText(linked?.status) || 'missing',
+          gefen_approval_path: cleanProposalAgreementText(linked?.file_path),
+          gefen_approval_file_name: cleanProposalAgreementText(linked?.file_name),
+          gefen_approval_combined: linked?.combined_with_proposal === true,
+          gefen_approval_applicable: gefenEligibilityByProposalId.get(row.id) === true
+        };
+      }),
+    activityNameOptions: [],
+    contactOptions: [],
+    contactOptionsError: null,
+    proposalActivityGroups: [],
+    proposalGroupAliases: [],
+    proposalActivityPricing: [],
+    proposalTemplateSections: [],
+    proposalAgreementItems: [],
+    proposalLinkedDocuments,
+    schoolCalendarRows: [],
+    _editorDepsLoaded: false,
+    _contactsLoaded: false,
+    _hasMore: usePaging ? rawRows.length >= pageSize : false,
+    _offset: pageOffset,
+    _limit: pageSize,
+    _query: listQuery,
     _debug: {
-      ...(contactsResult?._debug || {}),
-      ...(contactOptionsError ? { contacts_error: contactOptionsError } : {}),
-      proposal_loader: { ...lastProposalLoaderDebug }
+      proposal_loader: {
+        ...lastProposalLoaderDebug,
+        list_projection: 'metadata',
+        page_size: pageSize,
+        paginated: usePaging,
+        server_search: Boolean(listQuery.search),
+        filters: {
+          status: listQuery.status || null,
+          authorityId: listQuery.authorityId || null,
+          schoolId: listQuery.schoolId || null,
+          clientType: listQuery.clientType || null,
+          sort: listQuery.sort
+        }
+      }
     },
     _source: 'supabase'
   };
@@ -3811,24 +4585,41 @@ function profileCanAccessPersonalReports(profileRow) {
   return personalReportsProfileFlagYes(profileRow.can_access_personal_reports);
 }
 
-async function readPersonalReportsProfile(authUserId) {
+function userCanAccessPersonalReportsFromPermissions(flat = {}) {
+  return permissionFlagYes(flat.can_access_personal_reports);
+}
+
+async function readPersonalReportsProfile(authUserId, options = {}) {
   const id = String(authUserId || '').trim();
   if (!supabase || !id) return null;
-  const session = await waitForSupabaseAuthSession();
+  const retryDelayMs = Number.isFinite(options.retryDelayMs) ? options.retryDelayMs : 250;
+  const session = await waitForSupabaseAuthSession({ timeoutMs: options.timeoutMs || 6000 });
   if (!session?.user?.id) {
     try { console.warn('[personal-reports-profile] skipped: no supabase auth session'); } catch { /* ignore */ }
     return null;
   }
-  const { data, error } = await supabase
-    .from('profiles')
-    .select(PROFILE_PERSONAL_REPORTS_COLUMNS)
-    .eq('id', id)
-    .maybeSingle();
-  if (error) {
-    try { console.warn('[personal-reports-profile]', error.message); } catch { /* ignore */ }
-    return null;
-  }
-  return data;
+
+  const readProfileById = async () => {
+    const { data, error } = await supabase
+      .from('profiles')
+      .select(PROFILE_PERSONAL_REPORTS_COLUMNS)
+      .eq('id', id)
+      .maybeSingle();
+    if (error) {
+      try { console.warn('[personal-reports-profile]', error.message); } catch { /* ignore */ }
+      return null;
+    }
+    return data || null;
+  };
+
+  const firstRow = await readProfileById();
+  if (firstRow || options.retryIfMissing === false) return firstRow;
+
+  // Supabase Auth session restoration can lag immediately after sign-in.
+  // Retry once before treating a missing profile as genuinely absent, so a
+  // transient empty RLS result does not persist can_access_personal_reports=false.
+  await new Promise((resolve) => setTimeout(resolve, retryDelayMs));
+  return readProfileById();
 }
 
 async function readPersonalReportsProfilesByAuthIds(authUserIds = []) {
@@ -3999,7 +4790,9 @@ function buildBootstrapFromUser(userRow, profileRow = null) {
   if (canViewEditRequests && !allowedRoutes.includes('edit-requests')) {
     allowedRoutes.push('edit-requests');
   }
-  const hasPersonalReportsAccess = profileCanAccessPersonalReports(profileRow);
+  const hasPersonalReportsAccess =
+    profileCanAccessPersonalReports(profileRow) ||
+    userCanAccessPersonalReportsFromPermissions(flat);
   const hasPersonalReportsManager = canManagePersonalReportsUser(flat);
   const personalReportsIdx = allowedRoutes.indexOf('personal-reports');
   if (hasPersonalReportsAccess && personalReportsIdx === -1) allowedRoutes.push('personal-reports');
@@ -4138,6 +4931,12 @@ async function loginWithSupabaseAuth(username, password) {
     throwLoginError('invalid_credentials', { login: submittedUsername, message: String(authError?.message || '') });
   }
 
+  resetSupabaseAuthSessionWait();
+  const postSignInSession = await waitForSupabaseAuthSession({ timeoutMs: 6000 });
+  if (!postSignInSession?.user?.id) {
+    resetSupabaseAuthSessionWait();
+  }
+
   const authUserId = String(authData.user.id || '').trim();
   const rowAuthUserId = String(loginUser.auth_user_id || '').trim();
   if (!authUserId || !rowAuthUserId || authUserId !== rowAuthUserId) {
@@ -4185,7 +4984,9 @@ async function loginWithSupabaseAuth(username, password) {
 
   userRow.auth_user_id = authUserId;
   assertValidLoginUserRow(userRow);
-  const profileRow = await readPersonalReportsProfile(authUserId);
+  resetSupabaseAuthSessionWait();
+  await waitForSupabaseAuthSession({ timeoutMs: 6000 });
+  const profileRow = await readPersonalReportsProfile(authUserId, { retryIfMissing: true, retryDelayMs: 300 });
   return { userRow, profileRow };
 }
 
@@ -4218,7 +5019,9 @@ async function readCurrentUserBySession() {
   });
   if (!userRow) throw new Error('unauthorized');
   userRow.auth_user_id = String(userRow.auth_user_id || authUserId || '').trim();
-  const profileRow = await readPersonalReportsProfile(authUserId);
+  resetSupabaseAuthSessionWait();
+  await waitForSupabaseAuthSession({ timeoutMs: 6000 });
+  const profileRow = await readPersonalReportsProfile(authUserId, { retryIfMissing: true, retryDelayMs: 300 });
   return { userRow, profileRow };
 }
 
@@ -4310,12 +5113,15 @@ function assertValidOneDayActivityRow(row = {}) {
   const name = String(row.activity_name || '').trim();
   if (!name || GENERIC_ONE_DAY_ACTIVITY_NAMES.has(name)) throw new Error('יש לבחור שם פעילות מתוך הרשימה');
   const selectedDate = normalizeDateFieldForSupabase(row.date_1 || row.start_date || row.end_date);
-  if (!selectedDate) throw new Error('יש לבחור תאריך תקין לפעילות חד־יומית לפני השמירה');
-  row.start_date = selectedDate;
-  row.end_date = selectedDate;
-  row.date_1 = selectedDate;
+  const isSchool2027 = normalizeActivitySeason(row.activity_season) === ACTIVITY_SEASON_SCHOOL_2027;
+  if (!selectedDate && !isSchool2027) throw new Error('יש לבחור תאריך תקין לפעילות חד־יומית לפני השמירה');
+  if (selectedDate) {
+    row.start_date = selectedDate;
+    row.end_date = selectedDate;
+    row.date_1 = selectedDate;
+  }
   if (String(row.status || '').trim() === LEGACY_ACTIVE_STATUS) row.status = OPEN_STATUS;
-  if (![OPEN_STATUS, CLOSED_STATUS, DELETED_STATUS].includes(String(row.status || '').trim())) row.status = OPEN_STATUS;
+  if (![OPEN_STATUS, APPROVED_PENDING_PLACEMENT_STATUS, CLOSED_STATUS, DELETED_STATUS].includes(String(row.status || '').trim())) row.status = OPEN_STATUS;
   return row;
 }
 
@@ -4360,7 +5166,8 @@ function sanitizeActivityPayload(act = {}) {
   }
   row.status = String(row.status || (normalizedType ? OPEN_STATUS : LEGACY_ACTIVE_STATUS));
   if (normalizedType && row.status === LEGACY_ACTIVE_STATUS) row.status = OPEN_STATUS;
-  row.activity_season = normalizeActivitySeason(row.activity_season ?? act.activitySeason);
+  if (!String(row.activity_season ?? act.activitySeason ?? '').trim() && currentGlobalActivityPeriod() === ACTIVITY_SEASON_SCHOOL_2027) row.activity_season = ACTIVITY_SEASON_SCHOOL_2027;
+  else row.activity_season = normalizeActivitySeason(row.activity_season ?? act.activitySeason);
   for (let i = 1; i <= 35; i++) {
     const lower = `date_${i}`;
     const oldDateKey = `Date${i}`;
@@ -4401,7 +5208,11 @@ const ALLOWED_ACTIVITY_COLUMNS = new Set([
   'finance_status',
   'finance_notes',
   'operations_private_notes',
-  'participants_count'
+  'participants_count',
+  'school_contact_id',
+  'contact_name',
+  'contact_phone',
+  'contact_email'
 ]);
 for (let i = 1; i <= 35; i++) ALLOWED_ACTIVITY_COLUMNS.add(`date_${i}`);
 
@@ -4425,6 +5236,10 @@ function mapMeetingDateFieldNamesToSupabase(changes = {}) {
       continue;
     }
     if (/^meeting_performed_\d+$/.test(key)) {
+      delete out[key];
+      continue;
+    }
+    if (/^meeting_note_\d+$/.test(key)) {
       delete out[key];
     }
   }
@@ -4496,7 +5311,7 @@ function synchronizeStartDateAndFirstMeeting(payload = {}, existing = {}) {
 function sanitizeActivityPayloadForSupabase(payload = {}, { includeRowId = true } = {}) {
   const sanitized = {};
   const source = payload && typeof payload === 'object' ? payload : {};
-  const bigintFields = new Set(['activity_no', 'sessions', 'price', 'emp_id', 'emp_id_2']);
+  const bigintFields = new Set(['activity_no', 'sessions', 'price', 'emp_id', 'emp_id_2', 'school_contact_id']);
   const timeFields = new Set(['start_time', 'end_time']);
   const humanNameFields = new Set(['instructor_name', 'instructor_name_2', 'activity_manager', 'previous_activity_manager']);
   for (const [key, rawValue] of Object.entries(source)) {
@@ -4616,6 +5431,7 @@ async function upsertActivityToSupabase(payload = {}) {
   }
   await saveActivitySchoolsForActivity(data || row, act);
   const normalized = normalizeActivityRow(data || row);
+  invalidateAllActivitiesRowsCache();
   logActivityMutationDebug('success', 'addActivity', { source_sheet: 'activities', source_row_id: normalized.row_id, changes: row });
   return { RowID: normalized.RowID, row_id: normalized.row_id, source_sheet: 'activities', row: normalized };
 }
@@ -4652,18 +5468,178 @@ function assertSupabaseActivityUpdateApplied(operation, requestedChanges = {}, r
   }
 }
 
+
+async function readContactsForSchool2027Activities(rows = []) {
+  if (!supabase) return [];
+  const school2027Rows = (Array.isArray(rows) ? rows : []).filter((row) => normalizeActivitySeason(row?.activity_season) === ACTIVITY_SEASON_SCHOOL_2027);
+  if (!school2027Rows.length) return [];
+  try {
+    const schoolIds = [...new Set(school2027Rows.map((row) => String(row?.school_id || '').trim()).filter(Boolean))];
+    const contactIds = [...new Set(school2027Rows.map((row) => String(row?.school_contact_id || '').trim()).filter(Boolean))];
+    const pairs = school2027Rows
+      .filter((row) => !String(row?.school_id || '').trim())
+      .map((row) => ({ authority: String(row?.authority || '').trim(), school: String(row?.school || '').trim() }))
+      .filter((pair) => pair.authority && pair.school);
+    const requests = [];
+    if (contactIds.length) {
+      requests.push(
+        supabase
+          .from('contacts_schools')
+          .select('id,school_id,authority,school,contact_name,contact_role,phone,mobile,email,active')
+          .in('id', contactIds)
+          .neq('active', 'לא פעיל')
+          .limit(1000)
+      );
+    }
+    if (schoolIds.length) {
+      requests.push(
+        supabase
+          .from('contacts_schools')
+          .select('id,school_id,authority,school,contact_name,contact_role,phone,mobile,email,active')
+          .in('school_id', schoolIds)
+          .neq('active', 'לא פעיל')
+          .limit(1000)
+      );
+    }
+    for (const pair of pairs) {
+      requests.push(
+        supabase
+          .from('contacts_schools')
+          .select('id,school_id,authority,school,contact_name,contact_role,phone,mobile,email,active')
+          .eq('authority', pair.authority)
+          .eq('school', pair.school)
+          .neq('active', 'לא פעיל')
+          .limit(200)
+      );
+    }
+    if (!requests.length) return [];
+    const results = await Promise.all(requests);
+    const byId = new Map();
+    for (const result of results) {
+      if (result?.error) throw result.error;
+      for (const contact of (Array.isArray(result?.data) ? result.data : [])) byId.set(String(contact.id), contact);
+    }
+    return [...byId.values()];
+  } catch (err) {
+    console.warn('[contacts] readContactsForSchool2027Activities failed', err?.message || err);
+    return [];
+  }
+}
+
+async function readContactsForSchoolActivity(schoolId, school, authority) {
+  if (!supabase) return [];
+  try {
+    let query = supabase
+      .from('contacts_schools')
+      .select('id,contact_name,contact_role,phone,mobile,email')
+      .neq('active', 'לא פעיל')
+      .order('contact_name', { ascending: true })
+      .limit(200);
+    if (schoolId && String(schoolId).trim()) {
+      query = query.eq('school_id', String(schoolId).trim());
+    } else if (school && String(school).trim()) {
+      query = query.eq('school', String(school).trim());
+      if (authority && String(authority).trim()) query = query.eq('authority', String(authority).trim());
+    } else {
+      return [];
+    }
+    const { data, error } = await query;
+    if (error) throw error;
+    return Array.isArray(data) ? data : [];
+  } catch (err) {
+    console.warn('[contacts] readContactsForSchoolActivity failed', err?.message || err);
+    return [];
+  }
+}
+
+async function createSchoolContactForActivity({ school_id, school, authority, contact_name, contact_role, phone, email } = {}) {
+  if (!supabase) throw new Error('supabase_not_initialized');
+  const row = {
+    school_id: school_id || null,
+    school: String(school || '').trim(),
+    authority: String(authority || '').trim(),
+    contact_name: String(contact_name || '').trim(),
+    contact_role: String(contact_role || '').trim(),
+    phone: String(phone || '').trim(),
+    mobile: String(phone || '').trim(),
+    email: String(email || '').trim(),
+    active: 'פעיל'
+  };
+  const { data, error } = await supabase
+    .from('contacts_schools')
+    .insert(row)
+    .select('id,contact_name,contact_role,phone,mobile,email')
+    .single();
+  if (error) throw new Error(error.message || 'create_contact_failed');
+  return data;
+}
+
+async function upsertMeetingNotesToSupabase(rowId, notesMap = {}) {
+  const entries = Object.entries(notesMap);
+  if (!entries.length) return;
+  const rows = entries.map(([idx0, note]) => ({
+    source_row_id: rowId,
+    meeting_no: String(Number(idx0) + 1),
+    notes: String(note || '')
+  }));
+  try {
+    await supabase
+      .from('activity_meetings')
+      .upsert(rows, { onConflict: 'source_row_id,meeting_no' });
+  } catch (e) {
+    console.warn('[activity-meetings] upsertMeetingNotesToSupabase failed', e?.message || e);
+  }
+}
+
+function extractMeetingNotes(changes = {}) {
+  const notes = {};
+  for (const [key, val] of Object.entries(changes)) {
+    const m = /^meeting_note_(\d+)$/.exec(key);
+    if (m) {
+      const idx0 = Number(m[1]);
+      if (Number.isFinite(idx0) && idx0 >= 0 && idx0 < 35) notes[idx0] = String(val || '');
+    }
+  }
+  return notes;
+}
+
+/**
+ * Central write guard for the historical 2026 period. Blocks a mutation when the
+ * selected global period, the requested season, or the stored activity row is 2026,
+ * so a direct call from the UI cannot bypass the read-only state.
+ */
+function assertActivityPeriodEditable({ activity = null, changes = null } = {}) {
+  assertActivityMutationAllowed({
+    activityPeriod: String(state?.activityPeriodTab || ''),
+    activitySeason: changes?.activity_season ?? '',
+    activity
+  });
+}
+
+async function activityRowSeasonSnapshot(rowId) {
+  const { data, error } = await supabase
+    .from('activities')
+    .select('activity_season,start_date')
+    .eq('row_id', rowId)
+    .maybeSingle();
+  if (error) throw new Error(error.message || 'activity_season_read_failed');
+  return data || null;
+}
+
 async function updateActivityInSupabase(payload = {}) {
   const rowId = String(payload?.source_row_id || payload?.row_id || payload?.RowID || '').trim();
   const sourceSheet = String(payload?.source_sheet || 'activities').trim() || 'activities';
   if (!rowId) throw new Error('missing_row_id');
   const rawChanges = applyInstructorEmpSync({ ...(payload?.changes || {}) });
+  const meetingNotes = extractMeetingNotes(rawChanges);
   const mappedChanges = mapMeetingDateFieldNamesToSupabase(rawChanges);
   const { data: existingInstructorRow, error: existingInstructorError } = await supabase
     .from('activities')
-    .select('instructor_name,instructor_name_2,emp_id,emp_id_2')
+    .select('instructor_name,instructor_name_2,emp_id,emp_id_2,activity_season,start_date')
     .eq('row_id', rowId)
     .maybeSingle();
   if (existingInstructorError) throw buildSupabaseMutationError('saveActivity', existingInstructorError, 'save_failed');
+  assertActivityPeriodEditable({ activity: existingInstructorRow, changes: rawChanges });
   await validateActivityInstructorBindingsOrThrow({ ...(existingInstructorRow || {}), ...rawChanges });
   let existingForNormalization = null;
   const needsExisting = Object.keys(mappedChanges).some((key) => ['activity_type', 'item_type', 'activity_family', 'activity_name', 'start_date', 'end_date', 'date_1', 'status'].includes(key) || /^date_\d+$/.test(key));
@@ -4708,7 +5684,14 @@ async function updateActivityInSupabase(payload = {}) {
     const derivedEnd = deriveEndDateFromDates(mergedDates);
     if (derivedEnd) changes.end_date = derivedEnd;
   }
-  if (!Object.keys(changes).length) throw new Error('No changes to submit');
+  const hasMeetingNotes = Object.keys(meetingNotes).length > 0;
+  if (!Object.keys(changes).length && !hasMeetingNotes) throw new Error('No changes to submit');
+  if (!Object.keys(changes).length) {
+    await upsertMeetingNotesToSupabase(rowId, meetingNotes);
+    const { data: notesOnlyRow } = await supabase.from('activities').select('*').eq('row_id', rowId).maybeSingle();
+    const notesOnlyNormalized = normalizeActivityRow(notesOnlyRow || {});
+    return { ok: true, RowID: rowId, row_id: rowId, source_sheet: 'activities', row: notesOnlyNormalized };
+  }
   const debugPayload = { source_sheet: sourceSheet, source_row_id: rowId, changes };
   const { data: rowIdMatches, error: rowIdMatchesError } = await supabase
     .from('activities')
@@ -4796,6 +5779,10 @@ async function updateActivityInSupabase(payload = {}) {
     throw dbVerifyError;
   }
   const normalized = normalizeActivityRow({ ...(data || {}), ...(freshDbRow || {}) });
+  if (hasMeetingNotes) {
+    await upsertMeetingNotesToSupabase(rowId, meetingNotes);
+  }
+  invalidateAllActivitiesRowsCache();
   logActivityMutationDebug('success', 'saveActivity', debugPayload, { table: 'activities', returned_row_id: normalized.row_id });
   return { ok: true, RowID: rowId, row_id: rowId, source_sheet: 'activities', row: normalized };
 }
@@ -4806,7 +5793,9 @@ async function readActivityDetailFromSupabase(source_row_id, source_sheet) {
   const { data, error } = await supabase.from('activities').select('*').eq('row_id', rowId).single();
   if (error) throw new Error(error.message || 'detail_failed');
   const normalized = normalizeActivityRow(data || {});
-  return { row: { ...normalized, private_note: normalized.operations_private_notes || '' } };
+  const contactRows = await readContactsForSchool2027Activities([normalized]);
+  const resolved = withResolvedSchool2027Contact(normalized, contactRows);
+  return { row: { ...resolved, private_note: resolved.operations_private_notes || '' } };
 }
 
 async function readActivityDatesFromSupabase(source_row_id, source_sheet) {
@@ -4814,13 +5803,26 @@ async function readActivityDatesFromSupabase(source_row_id, source_sheet) {
   const rowId = String(source_row_id || '').trim();
   const { data, error } = await supabase
     .from('activities')
-    .select('*')
+    .select(ACTIVITY_DATES_ONLY_COLUMNS)
     .eq('row_id', rowId)
     .maybeSingle();
   if (error) throw new Error(error.message || 'dates_failed');
   const row = normalizeActivityRow(data || {});
   const meeting_dates = getActivityDateColumns(row);
-  const meeting_schedule = meeting_dates.map((d) => ({ date: d, performed: 'no' }));
+  const notesMap = {};
+  try {
+    const { data: meetingNoteRows } = await supabase
+      .from('activity_meetings')
+      .select('meeting_no,notes')
+      .eq('source_row_id', rowId);
+    if (Array.isArray(meetingNoteRows)) {
+      meetingNoteRows.forEach((m) => {
+        const idx = Number(m.meeting_no) - 1;
+        if (Number.isFinite(idx) && idx >= 0 && m.notes) notesMap[idx] = String(m.notes);
+      });
+    }
+  } catch (_) { /* notes are optional — do not fail dates load */ }
+  const meeting_schedule = meeting_dates.map((d, i) => ({ date: d, performed: 'no', note: notesMap[i] || '' }));
   return {
     meeting_dates,
     date_cols: meeting_dates,
@@ -4832,30 +5834,13 @@ async function readActivityDatesFromSupabase(source_row_id, source_sheet) {
 }
 
 
-function normalizeContactGroupText(value) {
-  return String(value || '').trim().replace(/[״"]/g, '').replace(/[׳']/g, '').replace(/\s+/g, ' ').toLowerCase();
-}
-function activityContactGroupKey(row) {
-  const date = String(row?.start_date || row?.activity_date || row?.date || row?.date_1 || '').trim().slice(0, 10);
-  const schoolId = String(row?.school_id || row?.single_school_id || '').trim();
-  const school = schoolId || normalizeContactGroupText(row?.school || row?.single_school_name || row?.legacy_school || '');
-  return date && school ? `${date}|${school}` : '';
-}
-function activityInstructorEntries(row) {
-  const entries = [];
-  const add = (name, empId) => {
-    const cleanName = String(name || '').trim();
-    const cleanId = String(empId || '').trim();
-    if (!cleanName && !cleanId) return;
-    if (entries.some((entry) => entry.empId === cleanId && entry.name === cleanName)) return;
-    entries.push({ name: cleanName || cleanId, empId: cleanId });
-  };
-  add(row?.instructor_name || row?.instructor, row?.emp_id);
-  add(row?.instructor_name_2 || row?.instructor_2, row?.emp_id_2);
-  return entries;
-}
-async function readSchoolContactResponsiblesRows() {
-  const { data, error } = await supabase.from('activity_school_contact_responsibles').select('*');
+async function readSchoolContactResponsiblesRows({ fromDate = '', toDate = '', schoolIds = [] } = {}) {
+  let query = supabase.from('activity_school_contact_responsibles').select(SCHOOL_CONTACT_RESPONSIBLES_COLUMNS);
+  if (fromDate) query = query.gte('activity_date', fromDate);
+  if (toDate) query = query.lte('activity_date', toDate);
+  const ids = (Array.isArray(schoolIds) ? schoolIds : []).map((id) => String(id || '').trim()).filter(Boolean);
+  if (ids.length && ids.length <= 80) query = query.in('school_id', ids);
+  const { data, error } = await query;
   if (error) return [];
   return Array.isArray(data) ? data : [];
 }
@@ -4863,46 +5848,72 @@ async function readInstructorSchedulePrintContactsRows() {
   // Dedicated source for Summer 2026 workshop print/schedule contact details.
   const { data, error } = await supabase
     .from('instructor_schedule_print_contacts')
-    .select('id,season,external_key,authority,school,contact_name,contact_phone,school_address,city_or_authority,active,contact_status,status,source_note,notes')
+    .select(INSTRUCTOR_SCHEDULE_PRINT_CONTACTS_SELECT)
     .eq('active', true);
   if (error) return [];
   return Array.isArray(data) ? data : [];
 }
-function contactResponsibleOverrideMap(rows = []) {
-  const map = new Map();
-  rows.forEach((row) => {
-    const key = `${String(row?.activity_date || '').trim().slice(0, 10)}|${String(row?.school_id || '').trim() || normalizeContactGroupText(row?.school)}`;
-    if (key && key !== '|') map.set(key, row);
-  });
-  return map;
-}
+
+// Single source of truth for "who confirms the activity with the school" (אחראי קשר):
+// grouping, fallback and override resolution all live in screens/shared/contact-responsible.js
+// and are shared verbatim with operations-management.js's admin screen and printed schedule.
+// `allRows` (the FULL activities dataset) decides who the responsible is; `ownRows` only
+// decides which of those groups this instructor gets to see.
 function buildInstructorTeamGroups(allRows, ownRows, overrides = []) {
-  const ownKeys = new Set(ownRows.map(activityContactGroupKey).filter(Boolean));
-  const grouped = new Map();
-  allRows.forEach((row) => {
-    const key = activityContactGroupKey(row);
-    if (!ownKeys.has(key)) return;
-    if (!grouped.has(key)) grouped.set(key, []);
-    grouped.get(key).push(row);
+  const index = buildContactResponsibleIndex(allRows, overrides);
+  const visibleKeys = new Set();
+  (Array.isArray(ownRows) ? ownRows : []).forEach((row) => {
+    const group = findContactResponsibleGroup(row, index);
+    if (group) visibleKeys.add(group.key);
   });
-  const overrideMap = contactResponsibleOverrideMap(overrides);
-  return Array.from(grouped.entries()).map(([key, rows]) => {
-    const first = rows.slice().sort((a, b) => String(a?.start_time || a?.StartTime || '').localeCompare(String(b?.start_time || b?.StartTime || '')))[0] || rows[0];
-    const instructors = [];
-    rows.forEach((row) => activityInstructorEntries(row).forEach((entry) => {
-      if (!instructors.some((item) => (item.empId && item.empId === entry.empId) || (!item.empId && item.name === entry.name))) instructors.push(entry);
+  return contactResponsibleGroupsArray(index)
+    .filter((group) => visibleKeys.has(group.key))
+    .map((group) => ({
+      key: group.key,
+      activity_date: group.date,
+      school_id: group.schoolId,
+      school: group.school,
+      schoolAliases: group.schoolAliases,
+      instructors: group.instructors,
+      responsibleEmpId: group.responsibleEmpId,
+      responsibleName: group.responsibleName,
+      responsibleSource: group.responsibleSource
     }));
-    const override = overrideMap.get(key);
-    const defaultResp = activityInstructorEntries(first)[0] || instructors[0] || { name: '', empId: '' };
-    const responsibleEmpId = String(override?.responsible_emp_id || defaultResp.empId || '').trim();
-    const responsibleName = String(override?.responsible_name || defaultResp.name || responsibleEmpId || '').trim();
-    const [activity_date] = key.split('|');
-    return { key, activity_date, school_id: String(first?.school_id || first?.single_school_id || '').trim(), school: String(first?.school || first?.single_school_name || first?.legacy_school || '').trim(), instructors, responsibleEmpId, responsibleName };
-  });
 }
 
-async function readAllActivitiesRowsSupabase() {
-  return selectActivitiesFromSupabase('*');
+const _allActivitiesRowsCache = new Map();
+const _ALL_ACTIVITIES_ROWS_CACHE_TTL_MS = 2 * 60 * 1000; // 2 דקות
+
+async function readAllActivitiesRowsSupabase({
+  forceRefresh = false,
+  activityPeriod = currentGlobalActivityPeriod(),
+  select = ACTIVITY_OPERATIONS_COLUMNS,
+  startDate = '',
+  endDate = ''
+} = {}) {
+  const selectedSeason = normalizeGlobalActivityPeriod(activityPeriod);
+  const rangeKey = (startDate && endDate) ? `${startDate}:${endDate}` : 'season';
+  const cacheKey = `${selectedSeason}|${select}|${rangeKey}`;
+  const cached = _allActivitiesRowsCache.get(cacheKey);
+  if (!forceRefresh && cached && (Date.now() - cached.at) < _ALL_ACTIVITIES_ROWS_CACHE_TTL_MS) return cached.rows;
+  let rows;
+  if (startDate && endDate) {
+    rows = await selectActivitiesByDateRangeFromSupabase({
+      startDate,
+      endDate,
+      select,
+      includeEndDate: true
+    });
+    rows = filterRowsByGlobalActivityPeriod(rows, selectedSeason);
+  } else {
+    rows = await selectActivitiesFromSupabase(select, selectedSeason);
+  }
+  _allActivitiesRowsCache.set(cacheKey, { rows, at: Date.now() });
+  return rows;
+}
+
+export function invalidateAllActivitiesRowsCache() {
+  _allActivitiesRowsCache.clear();
 }
 
 
@@ -5346,15 +6357,18 @@ async function readCatalogProgramsFromSupabase() {
 }
 export const api = {
   login: async (user_id, entry_code) => {
-    const [{ userRow: user, profileRow }, listsData, settingsRows, instructorContactsRows] = await Promise.all([
+    const [{ userRow: user, profileRow }, listsData, settingsRows, instructorContactsRows, courseMeetingsRows] = await Promise.all([
       loginWithSupabaseAuth(user_id, entry_code),
       readListsFromSupabase().catch(() => null),
       readSettingsRowsFromSupabase().catch(() => []),
-      readInstructorContactsRowsForBootstrap().catch(() => [])
+      readInstructorContactsRowsForBootstrap().catch(() => []),
+      readCourseMeetingsRowsForBootstrap().catch(() => [])
     ]);
     const token = makeSessionToken(user);
     const flat = flattenUserRow(user);
-    const hasPersonalReportsAccess = profileCanAccessPersonalReports(profileRow);
+    const hasPersonalReportsAccess =
+      profileCanAccessPersonalReports(profileRow) ||
+      userCanAccessPersonalReportsFromPermissions(flat);
     const proposalFlags = proposalSessionUserFlagsFromFlatUser(flat);
     return {
       token,
@@ -5384,20 +6398,21 @@ export const api = {
         ...proposalFlags
       },
       ...buildBootstrapFromUser(user, profileRow),
-      client_settings: buildClientSettingsFromLists(listsData, settingsRows, instructorContactsRows)
+      client_settings: buildClientSettingsFromLists(listsData, settingsRows, instructorContactsRows, courseMeetingsRows)
     };
   },
   bootstrap: async () => {
     await waitForSupabaseAuthSession();
-    const [{ userRow: user, profileRow }, listsData, settingsRows, instructorContactsRows] = await Promise.all([
+    const [{ userRow: user, profileRow }, listsData, settingsRows, instructorContactsRows, courseMeetingsRows] = await Promise.all([
       readCurrentUserBySession(),
       readListsFromSupabase().catch(() => null),
       readSettingsRowsFromSupabase().catch(() => []),
-      readInstructorContactsRowsForBootstrap().catch(() => [])
+      readInstructorContactsRowsForBootstrap().catch(() => []),
+      readCourseMeetingsRowsForBootstrap().catch(() => [])
     ]);
     return {
       ...buildBootstrapFromUser(user, profileRow),
-      client_settings: buildClientSettingsFromLists(listsData, settingsRows, instructorContactsRows)
+      client_settings: buildClientSettingsFromLists(listsData, settingsRows, instructorContactsRows, courseMeetingsRows)
     };
   },
   dashboard: (filters) => api.dashboardReadModel(filters || {}),
@@ -5427,13 +6442,22 @@ export const api = {
     }
     return { ...supabasePayload, ...canonical, month };
   },
-  archiveActivities: async () => {
-    const data = await readArchiveActivitiesFromSupabase();
+  archiveActivities: async (params = {}) => {
+    const activityPeriod = params?.activity_period || currentGlobalActivityPeriod();
+    // A single page is requested only when the caller explicitly pages itself.
+    const data = params?.offset === undefined && params?.paged !== true
+      ? await readAllArchiveActivitiesFromSupabase(activityPeriod, { pageSize: params?.limit })
+      : await readArchiveActivitiesFromSupabase(activityPeriod, { limit: params?.limit, offset: params?.offset });
     if (data) return data;
     throw new Error('archive_supabase_failed');
   },
-  allActivities: async () => {
-    const rows = await readAllActivitiesRowsSupabase();
+  allActivities: async (params = {}) => {
+    const rows = await readAllActivitiesRowsSupabase({
+      activityPeriod: params?.activity_period || currentGlobalActivityPeriod(),
+      select: params?.select || ACTIVITY_OPERATIONS_COLUMNS,
+      startDate: params?.startDate || params?.dateFrom || '',
+      endDate: params?.endDate || params?.dateTo || ''
+    });
     return { rows, _source: 'supabase' };
   },
   activities: async (filters, options) => {
@@ -5477,6 +6501,8 @@ export const api = {
   },
   activityDetail: (source_row_id, source_sheet) => readActivityDetailFromSupabase(source_row_id, source_sheet),
   activityDates: (source_row_id, source_sheet) => readActivityDatesFromSupabase(source_row_id, source_sheet),
+  contactsForSchool: (schoolId, school, authority) => readContactsForSchoolActivity(schoolId, school, authority),
+  createSchoolContact: (params) => createSchoolContactForActivity(params),
   week: async (params) => {
     const resolved = (params && typeof params === 'object') ? params : {};
     const weekOffset = Number.parseInt(resolved.week_offset, 10);
@@ -5528,19 +6554,24 @@ export const api = {
     ]);
     const idsSet = getInstructorIdentitySet();
     const includeClosedForApprovals = Boolean(params?.includeClosedForApprovals);
+    const periodRows = filterRowsByGlobalActivityPeriod(allRows);
     const openRows = includeClosedForApprovals
-      ? allRows.filter((row) => !isActivityDeleted(row) && !isActivityCancelled(row))
-      : allRows.filter((row) => !isActivityClosed(row));
-    const summerPrintContactsIndex = buildMyDataSummerPrintContactsIndex(summerPrintContactRows);
-    const contactsIndex = buildMyDataContactsIndex(contactsSchoolsRows);
-    const schoolsIndex = buildMyDataSchoolsContactIndex(schoolsRows);
+      ? periodRows.filter((row) => !isActivityDeleted(row) && !isActivityCancelled(row))
+      : periodRows.filter((row) => !isActivityClosed(row));
+    const summerPrintContactsIndex = buildSummerContactIndex(summerPrintContactRows);
+    const contactsIndex = buildContactsSchoolsIndex(contactsSchoolsRows);
+    const schoolsIndex = buildSchoolsCatalogContactIndex(schoolsRows);
     const rows = enrichRowsWithSchoolContact(openRows.filter((row) => isInstructorAssignedRow(row, idsSet)), contactsIndex, schoolsIndex, summerPrintContactsIndex);
-    return { rows, teamGroups: buildInstructorTeamGroups(openRows, rows, contactResponsibles), _source: 'supabase' };
+    return { rows, teamGroups: buildInstructorTeamGroups(openRows, rows, contactResponsibles), summerContacts: summerPrintContactRows, contactRows: summerPrintContactRows, _source: 'supabase' };
   },
 
 
-  schoolContactResponsibles: async () => {
-    const rows = await readSchoolContactResponsiblesRows();
+  schoolContactResponsibles: async (params = {}) => {
+    const rows = await readSchoolContactResponsiblesRows({
+      fromDate: params?.fromDate || params?.dateFrom || '',
+      toDate: params?.toDate || params?.dateTo || '',
+      schoolIds: params?.schoolIds || []
+    });
     return { rows, _source: 'supabase' };
   },
   instructorSchedulePrintContacts: async () => {
@@ -5559,38 +6590,47 @@ export const api = {
       updated_by: String(state?.user?.user_id || state?.user?.username || '').trim(),
       updated_at: new Date().toISOString()
     };
-    let existingQuery = supabase.from('activity_school_contact_responsibles').select('id').eq('activity_date', row.activity_date).limit(1);
-    existingQuery = row.school_id ? existingQuery.eq('school_id', row.school_id) : existingQuery.eq('school', row.school).eq('school_id', '');
-    const existing = await existingQuery.maybeSingle();
-    if (existing.error) throw new Error(existing.error.message || 'school_contact_responsible_read_failed');
-    const request = existing.data?.id
-      ? supabase.from('activity_school_contact_responsibles').update(row).eq('id', existing.data.id).select('*').single()
+    // Match an existing override by school_id OR by normalized school text (whichever
+    // side has it), not both at once - a strict AND match let the same school accumulate
+    // duplicate override rows whenever one save carried a school_id and another didn't.
+    const existingRows = await supabase.from('activity_school_contact_responsibles').select('id, school_id, school').eq('activity_date', row.activity_date);
+    if (existingRows.error) throw new Error(existingRows.error.message || 'school_contact_responsible_read_failed');
+    const normalizedSchool = normalizeContactMatchText(row.school);
+    const existingMatch = (existingRows.data || []).find((candidate) => {
+      const candidateId = String(candidate?.school_id || '').trim();
+      if (row.school_id && candidateId && candidateId === row.school_id) return true;
+      return Boolean(normalizedSchool) && normalizeContactMatchText(candidate?.school) === normalizedSchool;
+    });
+    const request = existingMatch?.id
+      ? supabase.from('activity_school_contact_responsibles').update(row).eq('id', existingMatch.id).select('*').single()
       : supabase.from('activity_school_contact_responsibles').insert(row).select('*').single();
     const { data, error } = await request;
     if (error) throw new Error(error.message || 'school_contact_responsible_save_failed');
     return { row: data, _source: 'supabase' };
   },
-  completionApprovalUploads: async () => {
+  completionApprovalUploads: async ({ limit = null, offset = 0, fromDate = '', toDate = '' } = {}) => {
     const role = String(state?.user?.role || '').trim();
-    const query = supabase
+    let query = supabase
       .from('activity_completion_approval_uploads')
-      .select('*')
+      .select(COMPLETION_APPROVAL_METADATA_COLUMNS)
+      .order('activity_date', { ascending: false, nullsFirst: false })
       .order('uploaded_at', { ascending: false });
+    if (fromDate) query = query.gte('activity_date', fromDate);
+    if (toDate) query = query.lte('activity_date', toDate);
+    // null/undefined limit = full metadata set for the filtered window (ops matching).
+    if (limit != null) {
+      const pageSize = Math.max(1, Number(limit) || COMPLETION_APPROVALS_PAGE_SIZE);
+      const pageOffset = Math.max(0, Number(offset) || 0);
+      query = query.range(pageOffset, pageOffset + pageSize - 1);
+    }
     if (role === 'instructor') {
       if (!isActiveInstructorPilotUser()) return { rows: [], _source: 'supabase' };
-      query.in('instructor_emp_id', currentUserIdentityValues());
+      query = query.in('instructor_emp_id', currentUserIdentityValues());
     }
     const { data, error } = await query;
     if (error) throw new Error(error.message || 'completion_approval_uploads_read_failed');
-    const rows = Array.isArray(data) ? data : [];
-    const rowsWithStorage = await Promise.all(rows.map(async (row) => {
-      const filePath = String(row?.file_path || '').trim();
-      if (!filePath) return { ...row, storage_exists: false, storage_status: 'missing' };
-      const signed = await supabase.storage.from('completion-approvals').createSignedUrl(filePath, 30);
-      const exists = !signed.error && !!signed.data?.signedUrl;
-      return { ...row, storage_exists: exists, storage_status: exists ? 'exists' : 'missing' };
-    }));
-    return { rows: rowsWithStorage, _source: 'supabase' };
+    // Metadata only — signed URLs are created on explicit open/download.
+    return { rows: Array.isArray(data) ? data : [], _source: 'supabase' };
   },
   completionApprovalSignedUrl: async ({ filePath, download = false } = {}) => {
     const path = String(filePath || '').trim();
@@ -5701,15 +6741,22 @@ export const api = {
     if (error) throw new Error(error.message || 'completion_approval_upload_record_failed');
     return { row: data, _source: 'supabase' };
   },
-  photoApprovalUploads: async () => {
+  photoApprovalUploads: async ({ schoolIds = [], limit = null, offset = 0 } = {}) => {
     const role = String(state?.user?.role || '').trim();
-    const query = supabase
+    let query = supabase
       .from('photo_approval_uploads')
-      .select('*')
+      .select(PHOTO_APPROVAL_METADATA_COLUMNS)
       .order('uploaded_at', { ascending: false });
+    const ids = (Array.isArray(schoolIds) ? schoolIds : []).map((id) => String(id || '').trim()).filter(Boolean);
+    if (ids.length && ids.length <= 80) query = query.in('school_id', ids);
+    if (limit != null) {
+      const pageSize = Math.max(1, Number(limit) || COMPLETION_APPROVALS_PAGE_SIZE);
+      const pageOffset = Math.max(0, Number(offset) || 0);
+      query = query.range(pageOffset, pageOffset + pageSize - 1);
+    }
     if (role === 'instructor') {
       if (!isActiveInstructorPilotUser()) return { rows: [], _source: 'supabase' };
-      query.in('instructor_emp_id', currentUserIdentityValues());
+      query = query.in('instructor_emp_id', currentUserIdentityValues());
     }
     const { data, error } = await query;
     if (error) throw new Error(error.message || 'photo_approval_uploads_read_failed');
@@ -5790,7 +6837,7 @@ export const api = {
     return { row: data, _source: 'supabase' };
   },
   operations: async (params = {}) => {
-    const allRows = await readAllActivitiesRowsSupabase();
+    const allRows = await readAllActivitiesRowsSupabase({ activityPeriod: params?.activity_period || currentGlobalActivityPeriod() });
     const rows = filterOperationsRows(allRows, params || {});
     return { rows, _source: 'supabase' };
   },
@@ -5838,7 +6885,30 @@ export const api = {
     if (error) throw new Error(error.message || 'edit_requests_open_count_failed');
     return Number.isFinite(count) ? Number(count) : 0;
   },
-  proposalsAgreements: async () => readProposalsAgreementsFromSupabase(),
+  proposalsAgreements: async (params = {}) => readProposalsAgreementsFromSupabase(params || {}),
+  proposalsAgreementsEditorDeps: async () => readProposalsAgreementsEditorDepsFromSupabase(),
+  proposalsAgreementsContacts: async () => readContactsSchoolsForProposals(),
+  proposalAgreementDetail: async (proposalId) => {
+    const row = await readProposalAgreementDetailFromSupabase(proposalId);
+    if (!row) return null;
+    const linked = await readProposalLinkedDocumentsFromSupabase({ proposalIds: [row.id] });
+    const first = linked[0] || null;
+    return {
+      ...row,
+      has_document_snapshot: Boolean(row?.document_snapshot && typeof row.document_snapshot === 'object'),
+      has_document_html_snapshot: Boolean(String(row?.document_html_snapshot || '').trim()),
+      gefen_approval_status: cleanProposalAgreementText(first?.status) || row.gefen_approval_status || 'missing',
+      gefen_approval_path: cleanProposalAgreementText(first?.file_path) || row.gefen_approval_path || '',
+      gefen_approval_file_name: cleanProposalAgreementText(first?.file_name) || row.gefen_approval_file_name || '',
+      gefen_approval_combined: first ? first.combined_with_proposal === true : row.gefen_approval_combined === true,
+      proposalLinkedDocuments: linked
+    };
+  },
+  instructorActivityHistory: async (params = {}) => {
+    const rows = await readInstructorActivityHistoryFromSupabase(params || {});
+    return { rows, _source: 'supabase' };
+  },
+  proposalsPendingApprovedCount: async () => readProposalsPendingApprovedCountFromSupabase(),
   permissions: async () => {
     if (!supabase) throw new Error('no_supabase_client');
     const { data, error } = await supabase.from('users').select(USER_PUBLIC_COLUMNS).order('created_at', { ascending: false });
@@ -5912,6 +6982,7 @@ export const api = {
     if (error) throw new Error(error.message || 'workshop_stock_distributions_read_failed');
     return { rows: Array.isArray(data) ? data : [], _source: 'supabase' };
   },
+  updateWorkshopStockItems: updateWorkshopStockItemsInSupabase,
   addProposalAgreement: async (payload) => {
     assertCanManageProposalsAgreementsApi();
     const groupLookup = await getProposalGroupLookup();
@@ -5923,8 +6994,8 @@ export const api = {
       client_type: cleanProposalAgreementText(payload.client_type) || (resolvedSchool.school_id ? 'school' : 'authority')
     };
     const insert = sanitizeProposalAgreementPayload(enrichedPayload, groupLookup);
-    if (enrichedPayload.client_type !== 'other') {
-      insert.contact_school_id = await ensureValidProposalContactSchoolId({ ...insert, _contact_original: enrichedPayload?._contact_original });
+    if (cleanProposalAgreementText(enrichedPayload.contact_name) && cleanProposalAgreementText(enrichedPayload.client_authority)) {
+      insert.contact_school_id = await ensureValidProposalContactSchoolId({ ...enrichedPayload, ...insert, _contact_original: enrichedPayload?._contact_original });
     }
     const { data, error } = await supabase
       .from('proposals_agreements')
@@ -5934,6 +7005,7 @@ export const api = {
     if (error) throw new Error(error.message || 'proposals_agreement_add_failed');
     return { ok: true, row: normalizeProposalAgreementRow(data) };
   },
+
   updateProposalAgreement: async (id, payload) => {
     assertCanManageProposalsAgreementsApi();
     const rowId = cleanProposalAgreementText(id);
@@ -5954,8 +7026,8 @@ export const api = {
     };
     const patch = sanitizeProposalAgreementPayload(enrichedPayload, groupLookup);
     patch.updated_at = new Date().toISOString();
-    if (enrichedPayload.client_type !== 'other') {
-      patch.contact_school_id = await ensureValidProposalContactSchoolId({ ...patch, _contact_original: enrichedPayload?._contact_original });
+    if (cleanProposalAgreementText(enrichedPayload.contact_name) && cleanProposalAgreementText(enrichedPayload.client_authority)) {
+      patch.contact_school_id = await ensureValidProposalContactSchoolId({ ...enrichedPayload, ...patch, _contact_original: enrichedPayload?._contact_original });
     }
     const { data, error } = await supabase
       .from('proposals_agreements')
@@ -5966,6 +7038,24 @@ export const api = {
     if (error) throw new Error(error.message || 'proposals_agreement_update_failed');
     return { ok: true, row: normalizeProposalAgreementRow(data) };
   },
+  updateProposalAgreementGfenSignedOrOrdered: async (id, value) => {
+    assertCanManageProposalsAgreementsApi();
+    const rowId = cleanProposalAgreementText(id);
+    if (!rowId) throw new Error('missing_proposal_agreement_id');
+    const patch = {
+      gfen_signed_or_ordered: value === true,
+      updated_at: new Date().toISOString()
+    };
+    const { data, error } = await supabase
+      .from('proposals_agreements')
+      .update(patch)
+      .eq('id', rowId)
+      .select(PROPOSALS_AGREEMENTS_COLUMNS)
+      .single();
+    if (error) throw new Error(error.message || 'proposal_gfen_signed_or_ordered_update_failed');
+    return { ok: true, row: normalizeProposalAgreementRow(data) };
+  },
+
 
   deleteProposalAgreement: async (id) => {
     assertCanManageProposalsAgreementsApi();
@@ -6016,15 +7106,7 @@ export const api = {
       patch.signature_meta = (signatureMeta && typeof signatureMeta === 'object' && !Array.isArray(signatureMeta)) ? signatureMeta : {};
     }
     if (cleanStatus === 'sent') {
-      const senderName = firstNameOnly(
-        state?.user?.full_name ||
-        state?.user?.name ||
-        state?.user?.username ||
-        state?.user?.user_id ||
-        ''
-      );
-      patch.sent_by = senderName;
-      patch.sent_at = new Date().toISOString();
+      throw new Error('שליחת הצעה דורשת נעילת מסמך והעלאת PDF סופי. השתמשו בפעולת "סימון כנשלח".');
     }
     if (cleanStatus === 'draft') {
       patch.signature_meta = {};
@@ -6041,11 +7123,233 @@ export const api = {
     if (error) throw new Error(error.message || 'proposals_agreement_status_update_failed');
     return { ok: true, row: normalizeProposalAgreementRow(data) };
   },
+  lockAndSendProposalAgreement: async (id, payload = {}) => {
+    assertCanManageProposalsAgreementsApi();
+    const rowId = cleanProposalAgreementText(id);
+    if (!rowId) throw new Error('missing_proposal_agreement_id');
+    const pdfFile = payload?.pdfFile || payload?.file || null;
+    const documentSnapshot = payload?.documentSnapshot ?? payload?.document_snapshot ?? null;
+    const documentHtmlSnapshot = cleanProposalAgreementText(payload?.documentHtmlSnapshot ?? payload?.document_html_snapshot);
+    if (!documentSnapshot || typeof documentSnapshot !== 'object' || Array.isArray(documentSnapshot)) {
+      throw new Error('חסר snapshot מסמך לנעילה.');
+    }
+    if (!documentHtmlSnapshot) throw new Error('חסר HTML snapshot לנעילה.');
+    const { data: currentRow, error: currentRowError } = await supabase
+      .from('proposals_agreements')
+      .select(PROPOSALS_AGREEMENTS_COLUMNS)
+      .eq('id', rowId)
+      .single();
+    if (currentRowError) {
+      console.error('[proposals_agreements] lockAndSendProposalAgreement fetch failed', {
+        code: currentRowError.code,
+        message: currentRowError.message,
+        details: currentRowError.details,
+        hint: currentRowError.hint
+      });
+      throw new Error('proposals_agreement_not_found');
+    }
+    if (!currentRow) throw new Error('proposals_agreement_not_found');
+    const currentStatus = normalizeProposalAgreementStatusForDb(currentRow.status || 'draft');
+    if (currentStatus === 'sent') throw new Error('הצעה שנשלחה נעולה ולא ניתן לשנות את סטטוסה.');
+    const existingFinalPdfPath = cleanProposalAgreementText(currentRow.final_pdf_path);
+    if (currentStatus !== 'approved' || !hasProposalAgreementSignature(currentRow) || !cleanProposalAgreementText(currentRow.approved_at)) {
+      throw new Error('ניתן לסמן כנשלח רק הצעה מאושרת וחתומה.');
+    }
+    if (!existingFinalPdfPath && !proposalFinalPdfAllowedFile(pdfFile)) {
+      throw new Error('יש להעלות קובץ PDF סופי לפני שליחת ההצעה.');
+    }
+    const nowIso = new Date().toISOString();
+    const actorName = proposalLockActorName();
+    const patch = {
+      status: 'sent',
+      sent_by: actorName,
+      sent_at: nowIso,
+      locked_at: nowIso,
+      locked_by: actorName,
+      locked_reason: 'sent',
+      document_snapshot: documentSnapshot,
+      document_html_snapshot: documentHtmlSnapshot,
+      updated_at: nowIso
+    };
+    if (!existingFinalPdfPath) {
+      const filePath = proposalFinalPdfStoragePath(rowId, pdfFile?.name);
+      const uploaded = await supabase.storage
+        .from(PROPOSAL_FINAL_PDF_BUCKET)
+        .upload(filePath, pdfFile, { contentType: 'application/pdf', upsert: false });
+      if (uploaded.error) throw new Error(uploaded.error.message || 'proposal_final_pdf_upload_failed');
+      patch.final_pdf_path = filePath;
+      patch.final_pdf_file_name = String(pdfFile?.name || 'proposal.pdf').trim();
+      patch.final_pdf_created_at = nowIso;
+      patch.final_pdf_created_by = actorName;
+    }
+    const { data, error } = await supabase
+      .from('proposals_agreements')
+      .update(patch)
+      .eq('id', rowId)
+      .select(PROPOSALS_AGREEMENTS_COLUMNS)
+      .single();
+    if (error) throw new Error(error.message || 'proposal_lock_and_send_failed');
+    return { ok: true, row: normalizeProposalAgreementRow(data) };
+  },
+  uploadProposalFinalPdf: async (id, payload = {}) => {
+    const rowId = cleanProposalAgreementText(id);
+    let pdfStage = 'start';
+    try {
+      assertCanManageProposalsAgreementsApi();
+      const pdfFile = payload?.pdfFile || payload?.file || null;
+      const documentSnapshot = payload?.documentSnapshot ?? payload?.document_snapshot ?? null;
+      const documentHtmlSnapshot = cleanProposalAgreementText(payload?.documentHtmlSnapshot ?? payload?.document_html_snapshot);
+      if (!rowId) throw new Error('missing_proposal_agreement_id');
+      if (!proposalFinalPdfAllowedFile(pdfFile)) throw new Error('invalid_proposal_final_pdf');
+      if (!documentSnapshot || typeof documentSnapshot !== 'object' || Array.isArray(documentSnapshot)) throw new Error('missing_document_snapshot');
+      if (!documentHtmlSnapshot) throw new Error('missing_document_html_snapshot');
+      const { data: currentRow, error: currentRowError } = await supabase.from('proposals_agreements').select(PROPOSALS_AGREEMENTS_COLUMNS).eq('id', rowId).single();
+      if (currentRowError || !currentRow) throw new Error('proposals_agreement_not_found');
+      const isHistoricalSnapshotBackfill = normalizeProposalAgreementStatusForDb(currentRow.status) === 'sent'
+        && !cleanProposalAgreementText(currentRow.final_pdf_path)
+        && Boolean(cleanProposalAgreementText(currentRow.document_html_snapshot) || currentRow.document_snapshot);
+      if (!isHistoricalSnapshotBackfill && (normalizeProposalAgreementStatusForDb(currentRow.status) === 'sent' || cleanProposalAgreementText(currentRow.locked_at))) throw new Error('proposal_is_locked');
+      const filePath = proposalFinalPdfStoragePath(rowId, pdfFile.name);
+      pdfStage = 'storage-upload';
+      const uploaded = await supabase.storage.from(PROPOSAL_FINAL_PDF_BUCKET).upload(filePath, pdfFile, { contentType: 'application/pdf', upsert: false });
+      if (uploaded.error) throw new Error(uploaded.error.message || 'proposal_final_pdf_upload_failed');
+      const nowIso = new Date().toISOString();
+      const patch = {
+        final_pdf_path: filePath, final_pdf_file_name: String(pdfFile.name || 'proposal.pdf').trim(),
+        final_pdf_created_at: nowIso, final_pdf_created_by: proposalLockActorName(),
+        document_snapshot: documentSnapshot, document_html_snapshot: documentHtmlSnapshot, updated_at: nowIso
+      };
+      pdfStage = 'proposal-row-update';
+      const { data, error } = await supabase.from('proposals_agreements').update(patch).eq('id', rowId).select(PROPOSALS_AGREEMENTS_COLUMNS).single();
+      if (error) throw new Error(error.message || 'proposal_final_pdf_save_failed');
+      return { ok: true, row: normalizeProposalAgreementRow(data) };
+    } catch (error) {
+      if (!error?.__proposalPdfLogged) console.error('[proposal-pdf-failed]', { stage: pdfStage, proposalId: rowId, name: error?.name, message: error?.message });
+      throw error;
+    }
+  },
+  getProposalFinalPdfSignedUrl: async (id) => {
+    assertCanUseProposalsAgreementsApi();
+    const rowId = cleanProposalAgreementText(id);
+    if (!rowId) throw new Error('missing_proposal_agreement_id');
+    const { data: currentRow, error: currentRowError } = await supabase
+      .from('proposals_agreements')
+      .select('final_pdf_path,final_pdf_file_name,status')
+      .eq('id', rowId)
+      .single();
+    if (currentRowError || !currentRow) throw new Error('proposals_agreement_not_found');
+    const filePath = cleanProposalAgreementText(currentRow.final_pdf_path);
+    if (!filePath) throw new Error('proposal_final_pdf_missing');
+    const { data, error } = await supabase.storage
+      .from(PROPOSAL_FINAL_PDF_BUCKET)
+      .createSignedUrl(filePath, 60 * 5, { download: false });
+    if (error) throw new Error(error.message || 'proposal_final_pdf_signed_url_failed');
+    return {
+      signedUrl: data?.signedUrl || '',
+      fileName: cleanProposalAgreementText(currentRow.final_pdf_file_name) || 'proposal.pdf'
+    };
+  },
+  uploadGefenApprovalDocument: async (id, payload = {}) => {
+    assertCanManageProposalsAgreementsApi();
+    const rowId = cleanProposalAgreementText(id);
+    const pdfFile = payload?.pdfFile || payload?.file || null;
+    const documentSnapshot = payload?.documentSnapshot ?? payload?.document_snapshot ?? null;
+    const documentHtmlSnapshot = String(payload?.documentHtmlSnapshot ?? payload?.document_html_snapshot ?? '').trim();
+    if (!rowId) throw new Error('missing_proposal_agreement_id');
+    if (!proposalFinalPdfAllowedFile(pdfFile)) throw new Error('invalid_gefen_approval_pdf');
+    if (!documentSnapshot || typeof documentSnapshot !== 'object' || Array.isArray(documentSnapshot)) {
+      throw new Error('missing_gefen_approval_snapshot');
+    }
+    if (!documentHtmlSnapshot) throw new Error('missing_gefen_approval_html_snapshot');
+
+    const [{ data: proposalRow, error: proposalError }, { data: itemRows, error: itemsError }] = await Promise.all([
+      supabase
+        .from('proposals_agreements_directory_view')
+        .select('id,quote_number,semel_mosad,activity_type_group,final_pdf_path')
+        .eq('id', rowId)
+        .single(),
+      supabase
+        .from('proposal_agreement_items')
+        .select('id,gefen_number,proposal_group,item_type,item_name')
+        .eq('proposal_agreement_id', rowId)
+    ]);
+    if (proposalError || !proposalRow) throw new Error('proposals_agreement_not_found');
+    if (itemsError) throw new Error(itemsError.message || 'proposal_items_read_failed');
+    if (!cleanProposalAgreementText(proposalRow.semel_mosad)) {
+      throw new Error('חסר מספר מוסד. יש להשלים אותו לפני הפקת אישור גפ״ן.');
+    }
+    const eligibleItems = (Array.isArray(itemRows) ? itemRows : []).filter((item) => {
+      const group = normalizeProposalGroupValue(item?.proposal_group);
+      return group !== 'summer'
+        && Boolean(cleanProposalAgreementText(item?.gefen_number))
+        && !isProposalTestHoursItem(item);
+    });
+    if (!eligibleItems.length) {
+      throw new Error('חסר פירוט קורסים עם מספר גפ״ן. לא ניתן להפיק את האישור.');
+    }
+
+    const filePath = gefenApprovalPdfStoragePath(rowId);
+    const uploaded = await supabase.storage
+      .from(PROPOSAL_FINAL_PDF_BUCKET)
+      .upload(filePath, pdfFile, { contentType: 'application/pdf', upsert: false });
+    if (uploaded.error) throw new Error(uploaded.error.message || 'gefen_approval_pdf_upload_failed');
+    const nowIso = new Date().toISOString();
+    const linkedPayload = {
+      proposal_agreement_id: rowId,
+      document_type: GEFEN_APPROVAL_DOCUMENT_TYPE,
+      status: 'generated',
+      combined_with_proposal: false,
+      file_path: filePath,
+      file_name: String(pdfFile.name || 'gefen-approval.pdf').trim(),
+      document_snapshot: documentSnapshot,
+      document_html_snapshot: documentHtmlSnapshot,
+      created_by: proposalLockActorName(),
+      updated_at: nowIso
+    };
+    const { data, error } = await supabase
+      .from('proposal_linked_documents')
+      .upsert(linkedPayload, { onConflict: 'proposal_agreement_id,document_type' })
+      .select('id,proposal_agreement_id,document_type,status,combined_with_proposal,file_path,file_name,created_at,updated_at')
+      .single();
+    if (error) throw new Error(error.message || 'gefen_approval_save_failed');
+    return { ok: true, row: data };
+  },
+  getGefenApprovalSignedUrl: async (id) => {
+    assertCanUseProposalsAgreementsApi();
+    const rowId = cleanProposalAgreementText(id);
+    if (!rowId) throw new Error('missing_proposal_agreement_id');
+    const { data: linkedRow, error: linkedError } = await supabase
+      .from('proposal_linked_documents')
+      .select('file_path,file_name,status')
+      .eq('proposal_agreement_id', rowId)
+      .eq('document_type', GEFEN_APPROVAL_DOCUMENT_TYPE)
+      .single();
+    if (linkedError || !linkedRow) throw new Error('gefen_approval_missing');
+    const filePath = cleanProposalAgreementText(linkedRow.file_path);
+    if (cleanProposalAgreementText(linkedRow.status) !== 'generated' || !filePath) {
+      throw new Error('gefen_approval_missing');
+    }
+    const { data, error } = await supabase.storage
+      .from(PROPOSAL_FINAL_PDF_BUCKET)
+      .createSignedUrl(filePath, 60 * 5, { download: false });
+    if (error) throw new Error(error.message || 'gefen_approval_signed_url_failed');
+    return {
+      signedUrl: data?.signedUrl || '',
+      fileName: cleanProposalAgreementText(linkedRow.file_name) || 'gefen-approval.pdf'
+    };
+  },
   readProposalAgreementItems: async (proposalId) => {
     assertCanUseProposalsAgreementsApi();
     const rowId = cleanProposalAgreementText(proposalId);
     if (!rowId) return [];
-    const groupLookup = await getProposalGroupLookup();
+    // Display/read path: use an already-warmed lookup if present, but never fetch the
+    // proposal catalog (groups/aliases/templates) just to show proposal/client-file items.
+    const groupLookup = proposalGroupLookupCache || {
+      groups: [],
+      aliases: [],
+      aliasToKey: new Map(),
+      groupByKey: new Map()
+    };
     const { data, error } = await supabase
       .from('proposal_agreement_items')
       .select('id,proposal_agreement_id,item_name,item_type,gefen_number,meetings_count,hours_count,quantity,unit_price,total_price,description,course_note,hourly_price,source_pricing_key,proposal_display_mode,selected_bundle_items,activity_no,unit_duration,proposal_group,sort_order')
@@ -6122,7 +7426,14 @@ export const api = {
   readProposalActivityPricing: async () => {
     assertCanUseProposalsAgreementsApi();
     const groupLookup = await getProposalGroupLookup();
-    return enrichProposalPricingRows(await readProposalActivityPricingFromSupabase(), groupLookup);
+    const [generalRows, gefenRows] = await Promise.all([
+      readProposalActivityPricingFromSupabase(),
+      readProposalGefenCoursesFromSupabase()
+    ]);
+    return enrichProposalPricingRows([
+      ...generalRows.filter((row) => normalizeProposalGroupValue(row?.proposal_group, groupLookup) !== 'gefen'),
+      ...gefenRows
+    ], groupLookup);
   },
   readProposalActivityGroups: async () => {
     assertCanUseProposalsAgreementsApi();
@@ -6241,6 +7552,9 @@ export const api = {
     }
     if (kind === 'school') {
       const nextRow = { ...row };
+      if (nextRow.id == null || nextRow.id === '') delete nextRow.id;
+      delete nextRow.source_id;
+      delete nextRow.source_table;
       if (nextRow.role !== undefined && nextRow.contact_role === undefined) nextRow.contact_role = nextRow.role;
       delete nextRow.role;
       if (!nextRow.client_type) nextRow.client_type = 'school';
@@ -6252,9 +7566,9 @@ export const api = {
           : (nextRow.school || nextRow.authority || null);
       }
       if (!nextRow.active) nextRow.active = 'פעיל';
-      const { error } = await supabase.from('contacts_schools').upsert(nextRow, { onConflict: 'authority,school,contact_name' });
+      const { data, error } = await supabase.from('contacts_schools').insert(nextRow).select().single();
       if (error) throw new Error(error.message || 'add_contact_failed');
-      return { ok: true };
+      return { ok: true, row: data };
     }
     throw new Error('invalid_contact_kind');
   },
@@ -6312,6 +7626,13 @@ export const api = {
       return { ok: true };
     }
     throw new Error('invalid_contact_kind');
+  },
+  deleteSchoolContact: async (contactId) => {
+    const id = cleanProposalAgreementText(contactId);
+    if (!id) throw new Error('missing_school_contact_id');
+    const { error } = await supabase.from('contacts_schools').delete().eq('id', id);
+    if (error) throw new Error(error.message || 'delete_school_contact_failed');
+    return { ok: true, id };
   },
   updateUnifiedContactRecord: async (payload) => {
     const sourceTable = String(payload?.source_table || '').trim();
@@ -6396,10 +7717,12 @@ export const api = {
     const payload = (typeof target === 'object' && target !== null && data === undefined)
       ? { activity: target }
       : { activity: { ...(data || {}), source: target } };
+    assertActivityPeriodEditable({ activity: payload.activity, changes: payload.activity });
     return upsertActivityToSupabase(payload);
   },
   submitCreateActivityRequest: async (activity) => {
     if (!canSubmitCreateActivityRequestsUser()) throw new Error('forbidden_create_activity_request');
+    assertActivityPeriodEditable({ activity: activity || {}, changes: activity || {} });
     const currentUser = state?.user || {};
     const requestedPayload = sanitizeActivityPayloadForSupabase(
       synchronizeStartDateAndFirstMeeting(sanitizeActivityPayload(activity || {})),
@@ -6453,6 +7776,7 @@ export const api = {
     if (!rowId) throw new Error('missing_row_id');
     const role = String(state?.user?.role || '').trim();
     if (!ACTIVITY_DIRECT_MANAGE_ROLES.has(role)) throw new Error('forbidden_delete_activity');
+    assertActivityPeriodEditable({ activity: await activityRowSeasonSnapshot(rowId) });
     const { data, error } = await supabase
       .from('activities')
       .update({ status: DELETED_STATUS })
@@ -6473,10 +7797,11 @@ export const api = {
     const syncedChanges = applyInstructorEmpSync(rawChanges);
     const { data: existingInstructorRow, error: existingInstructorError } = await supabase
       .from('activities')
-      .select('instructor_name,instructor_name_2,emp_id,emp_id_2')
+      .select('instructor_name,instructor_name_2,emp_id,emp_id_2,activity_season,start_date')
       .eq('row_id', rowId)
       .maybeSingle();
     if (existingInstructorError) throw buildSupabaseMutationError('submitEditRequest', existingInstructorError, 'submit_edit_request_failed');
+    assertActivityPeriodEditable({ activity: existingInstructorRow, changes: syncedChanges });
     await validateActivityInstructorBindingsOrThrow({ ...(existingInstructorRow || {}), ...syncedChanges });
     const reducedChanges = Object.entries(syncedChanges).reduce((acc, [key, value]) => {
       if (value === undefined) return acc;
@@ -6874,6 +8199,7 @@ export {
   rowMatchesActivitiesFilters,
   rowExceptionTypesFromActivity,
   getActivityExceptions,
+  isActivityInPreparation,
   buildExceptionsModelFromRows,
   normalizeActivityRow,
   sanitizeActivityPayload,

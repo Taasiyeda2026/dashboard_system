@@ -35,20 +35,27 @@ async function withJSDOM(html, fn) {
     document: globalThis.document,
     window: globalThis.window,
     FormData: globalThis.FormData,
-    AbortController: globalThis.AbortController
+    AbortController: globalThis.AbortController,
+    requestAnimationFrame: globalThis.requestAnimationFrame,
+    cancelAnimationFrame: globalThis.cancelAnimationFrame
   };
   globalThis.window = dom.window;
   globalThis.document = dom.window.document;
   globalThis.FormData = dom.window.FormData;
   globalThis.AbortController = dom.window.AbortController;
+  globalThis.requestAnimationFrame = (callback) => dom.window.setTimeout(() => callback(dom.window.performance.now()), 0);
+  globalThis.cancelAnimationFrame = (handle) => dom.window.clearTimeout(handle);
   try {
     const root = dom.window.document.getElementById('root');
     await fn(root, dom);
   } finally {
+    await new Promise((resolve) => dom.window.setTimeout(resolve, 0));
     globalThis.document = saved.document;
     globalThis.window = saved.window;
     globalThis.FormData = saved.FormData;
     globalThis.AbortController = saved.AbortController;
+    globalThis.requestAnimationFrame = saved.requestAnimationFrame;
+    globalThis.cancelAnimationFrame = saved.cancelAnimationFrame;
   }
 }
 
@@ -56,15 +63,26 @@ const MAIN_FILE = new URL('../frontend/src/main.js', import.meta.url);
 const API_FILE = new URL('../frontend/src/api.js', import.meta.url);
 const ACT_NAV_FILE = new URL('../frontend/src/screens/shared/act-nav-grid.js', import.meta.url);
 const SCREEN_FILE = new URL('../frontend/src/screens/proposals-agreements.js', import.meta.url);
+const STYLES_FILE = new URL('../frontend/src/styles/main.css', import.meta.url);
 const MIGRATION_FILE = new URL('../supabase/migrations/20260518_create_proposals_agreements.sql', import.meta.url);
 const ROLE_UPDATE_MIGRATION_FILE = new URL('../supabase/migrations/20260602_add_business_development_manager_role.sql', import.meta.url);
 const APPROVAL_GUARD_MIGRATION_FILE = new URL('../supabase/migrations/20260616_proposals_agreements_approval_guard.sql', import.meta.url);
+const CLIENT_FILE_VERSIONS_MIGRATION_FILE = new URL('../supabase/migrations/20260720143000_proposal_versions_for_client_file.sql', import.meta.url);
+const GEFEN_MIGRATION_FILE = new URL('../supabase/migrations/20260726223144_add_gefen_proposal_template.sql', import.meta.url);
+const GEFEN_DOCUMENT_REFINEMENT_MIGRATION_FILE = new URL('../supabase/migrations/20260726230813_refine_gefen_proposal_document.sql', import.meta.url);
 
-const { proposalsAgreementsScreen, canAccessProposalsAgreements, canManageProposalsAgreements, STATUS_LABELS, STATUS_OPTIONS, buildProposalCatalogPdfEntries, proposalPreviewBodyHtml, normalizeProposalAgreementRow, countPendingApprovedProposals, isProposalApprovedPendingSend, extractItemsFromForm, sortRows, calculateTourTotal, validatePayload, resetRecipientDependentFields, stepComplete } = await import('../frontend/src/screens/proposals-agreements.js');
+const { proposalsAgreementsScreen, proposalsAgreementsTableRowsHtml, canAccessProposalsAgreements, canManageProposalsAgreements, STATUS_LABELS, STATUS_OPTIONS, buildProposalCatalogPdfEntries, proposalPreviewBodyHtml, normalizeProposalAgreementRow, countPendingApprovedProposals, isProposalApprovedPendingSend, extractItemsFromForm, sortRows, calculateTourTotal, validatePayload, resetRecipientDependentFields, stepComplete, buildProposalDocumentSnapshot, proposalLockedPreviewHtml, proposalHasFinalPdf, isProposalLegacySentWithoutPdf, upsertProposalContactOption, calculateProposalValidityDate, gefenEligibleItems, gefenApprovalItems, gefenApprovalDocumentHtml } = await import('../frontend/src/screens/proposals-agreements.js');
 
 function stateFor(role) {
+  const idanIdentity = role === 'admin'
+    ? {
+      user_id: 8000,
+      username: 'idann',
+      auth_user_id: 'e9ca304a-4e66-4774-830e-14f1318c4908'
+    }
+    : {};
   return {
-    user: { display_role: role, role },
+    user: { display_role: role, role, ...idanIdentity },
     clientSettings: {
       dropdown_options: {
         activity_names: [
@@ -297,6 +315,391 @@ test('screen authorization includes business development manager', () => {
   }
 });
 
+test('GEFEN migration backfills immutable numbering from 10055 and keeps old PDFs untouched', async () => {
+  const migration = await readFile(GEFEN_MIGRATION_FILE, 'utf8');
+  assert.match(migration, /row_number\(\) over \(order by pa\.created_at, pa\.id\)/i);
+  assert.match(migration, /10054 \+ ordered_proposals\.sequence_offset/i);
+  assert.match(migration, /proposal_quote_number_immutable/);
+  assert.match(migration, /combine_gefen_approval = false/);
+  assert.doesNotMatch(migration, /update public\.proposals_agreements[\s\S]*set final_pdf_/i);
+});
+
+test('GEFEN dedicated catalog includes the intentional 9545 values and rounded display remains separate from totals', async () => {
+  const migration = await readFile(GEFEN_MIGRATION_FILE, 'utf8');
+  assert.match(migration, /create table if not exists public\.proposal_gefen_courses/i);
+  assert.match(migration, /\('בינה מלאכותית', 'סודות ויסודות הבינה המלאכותית - חשיבה ביקורתית', '9545', 8, 640, 12\.5, 8000/);
+  assert.match(migration, /proposal_gefen_courses[\s\S]*enable row level security/i);
+  assert.match(migration, /grant select on table public\.proposal_gefen_courses to authenticated/i);
+});
+
+test('proposal validity uses 60, 30 and 21 day seasonal windows and skips Friday', () => {
+  assert.equal(calculateProposalValidityDate('2026-05-04', []), '2026-07-02');
+  assert.equal(calculateProposalValidityDate('2026-08-03', []), '2026-09-02');
+  assert.equal(calculateProposalValidityDate('2026-12-01', []), '2026-12-22');
+});
+
+test('proposal validity merges a nearby closed block and skips across it', () => {
+  const closed = [
+    { start_date: '2026-09-20', end_date: '2026-09-22', is_active: true, blocks_scheduling: true },
+    { start_date: '2026-09-23', end_date: '2026-09-26', is_active: true, blocks_scheduling: true }
+  ];
+  assert.equal(calculateProposalValidityDate('2026-09-15', closed), '2026-10-22');
+});
+
+test('GEFEN approval includes only numbered non-summer rows and displays rounded hourly prices', () => {
+  const row = {
+    id: 'gefen-1',
+    quote_number: '10167',
+    proposal_date: '2026-08-03',
+    valid_until: '2026-09-02',
+    activity_type_group: 'gefen',
+    school_framework: 'בית ספר גפן',
+    semel_mosad: '123456'
+  };
+  const items = [
+    { item_name: 'רוקחים עולם', proposal_group: 'gefen', gefen_number: '46091', meetings_count: 14, hours_count: 21, hourly_price: 571.428571, quantity: 1, unit_price: 12000, total_price: 12000 },
+    { item_name: 'רוקחים עולם', proposal_group: 'gefen', gefen_number: '46091', meetings_count: 14, hours_count: 21, hourly_price: null, quantity: 1, unit_price: null, total_price: null },
+    { item_name: 'סדנת קיץ', proposal_group: 'summer', gefen_number: '9999', quantity: 1, unit_price: 500, total_price: 500 },
+    { item_name: 'קורס ללא גפן', proposal_group: 'next_year', quantity: 1, unit_price: 700, total_price: 700 }
+  ];
+  assert.deepEqual(gefenEligibleItems(items).map((item) => item.item_name), ['רוקחים עולם']);
+  const html = gefenApprovalDocumentHtml(row, items);
+  assert.match(html, /אישור כוונות להזמנה במערכת גפ״ן \| תשפ״ז/);
+  assert.match(html, /מקושר להצעת מחיר מספר <bdi dir="ltr">10167<\/bdi>/);
+  assert.equal((html.match(/10167/g) || []).length, 1);
+  assert.match(html, /סמל מוסד:<\/strong> 123456/);
+  assert.match(html, /רוקחים עולם/);
+  assert.match(html, /571/);
+  assert.match(html, /12,000/);
+  assert.match(html, /תוכניות לבחירה: <strong>1<\/strong>/);
+  assert.match(html, /היקף מלא: <strong>[\s\S]*12,000/);
+  assert.equal((html.match(/רוקחים עולם/g) || []).length, 1);
+  assert.match(html, /aria-label="לבחירה">☐/);
+  assert.doesNotMatch(html, /☒/);
+  assert.doesNotMatch(html, /סדנת קיץ/);
+  assert.doesNotMatch(html, /קורס ללא גפן/);
+});
+
+test('mixed next-year GEFEN approval contains courses only and does not mutate the proposal', () => {
+  const row = Object.freeze({
+    id: 'next-year-mixed-1',
+    quote_number: '20261',
+    proposal_date: '2026-08-03',
+    activity_type_group: 'next_year',
+    status: 'approved',
+    school_framework: 'בית ספר משולב',
+    semel_mosad: '123456'
+  });
+  const course = { item_name: 'ביומימיקרי', item_type: 'קורס', proposal_group: 'next_year_courses', gefen_number: '6089', quantity: 1, unit_price: 8000, total_price: 8000 };
+  const workshop = { item_name: 'סדנת חלל', item_type: 'סדנה', proposal_group: 'next_year_workshops', gefen_number: '9999', quantity: 2, unit_price: 500, total_price: 1000 };
+  assert.deepEqual(gefenApprovalItems(row, [course, workshop]).map((item) => item.item_name), ['ביומימיקרי']);
+  const html = gefenApprovalDocumentHtml(row, [course, workshop]);
+  assert.match(html, /ביומימיקרי/);
+  assert.match(html, /6089/);
+  assert.match(html, /8,000/);
+  assert.doesNotMatch(html, /סדנת חלל|9999|1,000/);
+  assert.equal(row.status, 'approved');
+  assert.equal(row.activity_type_group, 'next_year');
+});
+
+test('workshop-only next-year approval produces no empty table and explains that no courses were selected', () => {
+  const row = {
+    id: 'next-year-workshops-only',
+    quote_number: '20262',
+    proposal_date: '2026-08-03',
+    activity_type_group: 'next_year',
+    school_framework: 'בית ספר סדנאות',
+    semel_mosad: '123456'
+  };
+  const workshop = { item_name: 'סדנת חלל', item_type: 'סדנה', proposal_group: 'next_year_workshops', gefen_number: '9999', quantity: 1, unit_price: 500, total_price: 500 };
+  const html = gefenApprovalDocumentHtml(row, [workshop]);
+  assert.match(html, /לא נבחרו קורסים להפקת אישור גפ״ן\./);
+  assert.doesNotMatch(html, /pa-gefen-approval-table/);
+  assert.doesNotMatch(html, /סדנת חלל|9999/);
+});
+
+test('GEFEN approval status is short plain text in the proposals table', () => {
+  const html = proposalsAgreementsTableRowsHtml([{
+    id: 'gefen-status-1',
+    quote_number: '10169',
+    activity_type_group: 'gefen',
+    gefen_approval_status: 'generated',
+    gefen_approval_path: 'proposal-linked-documents/gefen-status-1/approval.pdf',
+    status: 'approved'
+  }], stateFor('admin'));
+  assert.match(html, /ds-pa-gefen-status-text ds-pa-gefen-status-text--generated">הופק<\/span>/);
+  assert.doesNotMatch(html, /ds-pa-gefen-status(?:\s|")/);
+  assert.doesNotMatch(html, /הופק · הצעה 10169/);
+  assert.match(html, /צפייה באישור גפ״ן להצעה 10169/);
+  assert.match(html, /הפקה מחדש של אישור גפ״ן להצעה 10169/);
+});
+
+
+test('GEFEN signed or ordered marker column renders active checkbox only for GEFEN rows', () => {
+  const html = proposalsAgreementsTableRowsHtml([
+    {
+      id: 'gefen-signed-1',
+      quote_number: '10171',
+      activity_type_group: 'gefen',
+      gfen_signed_or_ordered: true,
+      status: 'approved'
+    },
+    {
+      id: 'summer-not-gefen-1',
+      quote_number: '20171',
+      activity_type_group: 'summer',
+      gfen_signed_or_ordered: true,
+      status: 'approved'
+    }
+  ], stateFor('admin'));
+  assert.match(html, /data-pa-gfen-signed="gefen-signed-1"[^>]*checked/);
+  assert.match(html, /aria-label="חתום או הוזמן בגפ״ן להצעה 10171"/);
+  assert.doesNotMatch(html, /data-pa-gfen-signed="summer-not-gefen-1"/);
+  assert.match(html, /<span class="ds-pa-unavailable" aria-label="לא זמין">—<\/span>/);
+});
+
+test('GEFEN signed or ordered marker normalizes persisted legacy boolean values', async () => {
+  const { normalizeProposalSignedOrOrdered } = await import('../frontend/src/screens/proposals-agreements.js');
+  assert.equal(normalizeProposalSignedOrOrdered(true), true);
+  assert.equal(normalizeProposalSignedOrOrdered(1), true);
+  assert.equal(normalizeProposalSignedOrOrdered('true'), true);
+  assert.equal(normalizeProposalSignedOrOrdered('1'), true);
+  assert.equal(normalizeProposalSignedOrOrdered(false), false);
+  assert.equal(normalizeProposalSignedOrOrdered(0), false);
+  assert.equal(normalizeProposalSignedOrOrdered(null), false);
+
+  const html = proposalsAgreementsTableRowsHtml([{
+    id: 'legacy-signed-1',
+    quote_number: '10172',
+    activity_type_group: 'gefen',
+    gfen_signed_or_ordered: '1',
+    status: 'sent'
+  }], stateFor('admin'));
+  assert.match(html, /data-pa-gfen-signed="legacy-signed-1"[^>]*checked/);
+});
+
+test('GEFEN signed marker persists by proposal id and restores the prior state on failure', async () => {
+  const source = await readFile(new URL('../frontend/src/screens/proposals-agreements.js', import.meta.url), 'utf8');
+  assert.match(source, /updateProposalAgreementGfenSignedOrOrdered\(id, next\)/);
+  assert.match(source, /const id = checkbox\.dataset\.paGfenSigned/);
+  assert.match(source, /checkbox\.checked = previous;[\s\S]{0,180}שמירת סימון חתום \/ הוזמן נכשלה/);
+  assert.match(source, /data\.rows\[idx\] = \{ \.\.\.data\.rows\[idx\], \.\.\.saved/);
+});
+
+test('GEFEN approval generation is a visible table action and not hidden only in the overflow menu', () => {
+  const html = proposalsAgreementsTableRowsHtml([{
+    id: 'gefen-action-1',
+    quote_number: '10170',
+    activity_type_group: 'gefen',
+    gefen_approval_status: 'missing',
+    status: 'approved'
+  }], stateFor('admin'));
+  assert.match(html, /ds-pa-row-action[\s\S]*data-pa-generate-gefen-approval="gefen-action-1"/);
+  assert.match(html, /title="הפקת אישור גפ״ן להצעה 10170"/);
+});
+
+test('generated GEFEN approvals can be replaced without creating a second linked record', async () => {
+  const apiSource = await readFile(API_FILE, 'utf8');
+  const uploadMethod = apiSource.match(/uploadGefenApprovalDocument:\s*async[\s\S]*?\n  getGefenApprovalSignedUrl:/)?.[0] || '';
+  assert.ok(uploadMethod);
+  assert.doesNotMatch(uploadMethod, /gefen_approval_already_generated/);
+  assert.match(uploadMethod, /\.upsert\(linkedPayload,\s*\{\s*onConflict:\s*'proposal_agreement_id,document_type'\s*\}\)/);
+  assert.match(apiSource, /gefen-approvals\/\$\{rowId\}\/\$\{Date\.now\(\)\}\/gefen-approval\.pdf/);
+  assert.match(uploadMethod, /file_name:\s*String\(pdfFile\.name/);
+  assert.doesNotMatch(uploadMethod, /gefenApprovalPdfStoragePath\(rowId,\s*pdfFile\.name\)/);
+});
+
+test('new unsaved GEFEN preview never exposes the raw quote-number placeholder', () => {
+  const html = proposalPreviewBodyHtml({
+    activity_type_group: 'gefen',
+    proposal_date: '2026-07-27'
+  }, [], [{
+    template_key: 'gefen',
+    template_name: 'הצעת מחיר {{quote_number}} פעילויות תעשיידע | תשפ"ז',
+    section_key: 'intro',
+    section_title: 'פתיח',
+    section_body: 'פתיח'
+  }], { includeGefenApproval: false });
+  assert.match(html, /הצעת מחיר _____ פעילויות תעשיידע/);
+  assert.doesNotMatch(html, /\{\{quote_number\}\}/);
+});
+
+test('standalone GEFEN approval for an existing proposal uses the same GEFEN document shell', () => {
+  const html = gefenApprovalDocumentHtml({
+    id: 'legacy-tour-1',
+    quote_number: '10073',
+    activity_type_group: 'tour',
+    school_framework: 'בית ספר ותיק',
+    client_authority: 'רשות ותיקה',
+    semel_mosad: '630046'
+  }, [
+    { item_name: 'סיור תעשייה', proposal_group: 'tour', gefen_number: '9988', quantity: 1, unit_price: 1000, total_price: 1000 }
+  ]);
+  assert.match(html, /pa-proposal-doc--gefen/);
+  assert.match(html, /pa-gefen-recipient/);
+  assert.match(html, /אישור כוונות להזמנה במערכת גפ״ן \| תשפ״ז/);
+  assert.match(html, /מקושר להצעת מחיר מספר <bdi dir="ltr">10073<\/bdi>/);
+});
+
+test('new GEFEN proposal preview links proposal and approval in one compact document', async () => {
+  const row = {
+    id: 'gefen-2',
+    quote_number: '10168',
+    proposal_date: '2026-08-03',
+    valid_until: '2026-09-02',
+    activity_type_group: 'gefen',
+    school_framework: 'בית ספר גפן',
+    client_authority: 'רשות גפן',
+    semel_mosad: '654321',
+    contact_name: 'שחר ברט',
+    contact_role: 'מנהלת בית ספר',
+    phone: '08-666-6666',
+    email: 'school-mgr@n-e.org.il',
+    combine_gefen_approval: true,
+    status: 'approved',
+    signature_meta: { signature: { image: 'proposals/signature-idan-nahum.png' } }
+  };
+  const items = [
+    { item_name: 'בינה מלאכותית', proposal_group: 'gefen', gefen_number: '9545', meetings_count: 8, hours_count: 12.5, hourly_price: 640, quantity: 1, unit_price: 8000, total_price: 8000 }
+  ];
+  const sections = [
+    { template_key: 'gefen', template_name: 'הצעת מחיר {{quote_number}} פעילויות תעשיידע | תשפ"ז', section_key: 'intro', section_title: 'פתיח', section_body: 'תעשיידע היא עמותה חינוכית-טכנולוגית מיסודה של התאחדות התעשיינים בישראל.' },
+    { template_key: 'gefen', template_name: 'הצעת מחיר {{quote_number}} פעילויות תעשיידע | תשפ"ז', section_key: 'activity_intro', section_title: 'התוכניות המוצעות', section_body: 'הצעה זו מיועדת לפתיחת הזמנה.\n\nהמחירים סופיים.' },
+    { template_key: 'gefen', template_name: 'הצעת מחיר {{quote_number}} פעילויות תעשיידע | תשפ"ז', section_key: 'validity', section_title: 'תוקף ההצעה וזמינות הפעילות', section_body: ' הצעה זו בתוקף עד ליום {{valid_until}}.\n שריון צוותי ההדרכה, מועדי הפעילות והיקף התוכנית יבוצע לפי סדר השלמת הזמנות העבודה במערכת גפ״ן ובכפוף לזמינות.\n כל עוד לא אושרה הזמנת העבודה, לא ניתן להבטיח את השריון ולאחר תום תוקף ההצעה תהיה תעשיידע רשאית להקצות את הקיבולת לבתי ספר אחרים.' },
+    { template_key: 'gefen', template_name: 'הצעת מחיר {{quote_number}} פעילויות תעשיידע | תשפ"ז', section_key: 'cancellation_terms', section_title: 'שינויים, ביטולים והפחתת היקף', section_body: ' בקשה לשינוי או לדחיית מועד תימסר מוקדם ככל האפשר ורצוי לפחות 3 ימי עבודה מראש.\n מפגש שבוטל ביוזמת בית הספר יתואם למועד חלופי במהלך תקופת הפעילות.\n ביטול או שינוי שנמסרו פחות מ-48 שעות לפני המפגש יחייבו אישור בכתב של מנהל/ת בית הספר ויטופלו בתיאום בין הצדדים.\n הפסקת תוכנית או הפחתת היקפה לאחר תחילת הפעילות ייעשו בהודעה בכתב לפחות 30 ימים מראש או בהסכמה בכתב בין הצדדים.\n בתקופת ההודעה המוקדמת יישא בית הספר בתשלום עבור פעילויות שבוצעו או שתוכננו לתקופה זו, בהתאם להזמנת העבודה המאושרת ולהוראות גפ״ן.\n מפגש לא ידווח כמבוצע אלא אם התקיים בפועל או אם הדיווח מותר לפי הוראות גפ״ן.\n במקרה של מצב חירום או הנחיות רשות מוסמכת, יתואם מתווה חלופי בהתאם להוראות גפ״ן, לרבות דחייה, התאמה או מעבר לפעילות מקוונת. פעילות מקוונת תתומחר לפי התעריף החל בגפ״ן, לרבות הפחתה של 10%, ככל שנדרש.' },
+    { template_key: 'gefen', template_name: 'הצעת מחיר {{quote_number}} פעילויות תעשיידע | תשפ"ז', section_key: 'signature', section_title: 'חתימה', section_body: 'עידן נחום, סמנכ״ל כספים' }
+  ];
+  const html = proposalPreviewBodyHtml(row, items, sections, { showSignatureImage: true });
+  assert.match(html, /pa-gefen-combined-document/);
+  assert.match(html, /הצעת מחיר 10168 פעילויות תעשיידע/);
+  assert.match(html, /אישור כוונות להזמנה במערכת גפ״ן/);
+  assert.match(html, /data-pdf-page-break="true"/);
+  assert.match(html, /עידן נחום, סמנכ״ל כספים/);
+  await withJSDOM(html, async (_root, dom) => {
+    const proposal = dom.window.document.querySelector('.pa-proposal-doc--gefen');
+    const approval = dom.window.document.querySelector('.pa-gefen-approval-document');
+    assert.ok(approval.classList.contains('proposal-document'));
+    assert.ok(approval.classList.contains('pa-proposal-doc--gefen'));
+    assert.equal(
+      approval.querySelector('.pa-doc-title').textContent,
+      'אישור כוונות להזמנה במערכת גפ״ן | תשפ״ז'
+    );
+    assert.equal(approval.querySelector('.pa-gefen-linked-document span').textContent.trim(), 'מקושר להצעת מחיר מספר 10168');
+    assert.equal(approval.querySelector('.pa-gefen-linked-document bdi').textContent.trim(), '10168');
+    assert.equal((approval.textContent.match(/10168/g) || []).length, 1);
+    assert.doesNotMatch(approval.querySelector('.pa-doc-title').textContent, /הצעת מחיר/);
+    const approvalDate = approval.querySelector('.pa-gefen-approval-date');
+    const approvalTitle = approval.querySelector('.pa-doc-title');
+    assert.ok(approvalDate.compareDocumentPosition(approvalTitle) & dom.window.Node.DOCUMENT_POSITION_FOLLOWING);
+    const recipientLines = Array.from(proposal.querySelectorAll('.pa-gefen-recipient p')).map((p) => p.textContent.trim());
+    const approvalRecipientLines = Array.from(approval.querySelectorAll('.pa-gefen-recipient p')).map((p) => p.textContent.trim());
+    assert.deepEqual(recipientLines, [
+      'לכבוד:',
+      'שחר ברט, מנהלת בית ספר',
+      'בית ספר: בית ספר גפן | סמל מוסד: 654321 | רשות: רשות גפן',
+      'טלפון: 08-666-6666 | דוא״ל: school-mgr@n-e.org.il'
+    ]);
+    assert.deepEqual(approvalRecipientLines, recipientLines);
+    const divider = proposal.querySelector('.pa-doc-divider');
+    const title = proposal.querySelector('.pa-doc-title');
+    assert.ok(divider.compareDocumentPosition(title) & dom.window.Node.DOCUMENT_POSITION_FOLLOWING);
+    assert.equal(title.textContent, 'הצעת מחיר 10168 פעילויות תעשיידע | תשפ"ז');
+    const validity = Array.from(proposal.querySelectorAll('.pa-section'))
+      .find((section) => section.querySelector('.pa-section-heading')?.textContent.includes('תוקף ההצעה'));
+    const cancellation = Array.from(proposal.querySelectorAll('.pa-section'))
+      .find((section) => section.querySelector('.pa-section-heading')?.textContent.includes('שינויים, ביטולים'));
+    assert.equal(validity.querySelectorAll('li').length, 3);
+    assert.equal(cancellation.querySelectorAll('li').length, 7);
+    const footerCells = Array.from(proposal.querySelectorAll('.pa-gefen-course-table tfoot td')).map((cell) => cell.textContent.trim());
+    assert.equal(footerCells[2], '', 'GEFEN meetings column must not show a total');
+    assert.equal(approval.querySelectorAll('.pa-gefen-signature-field').length, 3);
+    assert.equal(approval.querySelectorAll('.pa-gefen-signature-field i').length, 3);
+    assert.deepEqual(
+      Array.from(approval.querySelectorAll('.pa-gefen-signature-field span')).map((node) => node.textContent.trim()),
+      ['תאריך', 'שם מנהל/ת בית הספר', 'חתימה']
+    );
+    const approvalValidity = Array.from(approval.querySelectorAll('.pa-section'))
+      .find((section) => section.querySelector('.pa-section-heading')?.textContent.includes('תוקף ההצעה'));
+    assert.equal(approvalValidity.querySelector('.pa-section-heading').textContent.trim(), 'תוקף ההצעה וזמינות הפעילות:');
+    assert.deepEqual(
+      Array.from(approvalValidity.querySelectorAll('.pa-gefen-validity-list li')).map((node) => node.textContent.trim()),
+      [
+        'הצעה זו בתוקף עד ליום 02/09/2026.',
+        'שריון צוותי ההדרכה, מועדי הפעילות והיקף התוכנית יבוצע לפי סדר השלמת הזמנות העבודה במערכת גפ״ן ובכפוף לזמינות.',
+        'כל עוד לא אושרה הזמנת העבודה, לא ניתן להבטיח את השריון ולאחר תום תוקף ההצעה תהיה תעשיידע רשאית להקצות את הקיבולת לבתי ספר אחרים.'
+      ]
+    );
+  });
+});
+
+test('GEFEN approval removes an incomplete duplicate row and keeps the complete quote total', () => {
+  const html = gefenApprovalDocumentHtml({
+    id: '42896768-9eff-433a-bc88-278aa172b7fe',
+    quote_number: '10165',
+    proposal_date: '2026-07-26',
+    valid_until: '2026-09-17',
+    activity_type_group: 'gefen',
+    school_framework: 'שמש גבולות',
+    client_authority: 'אשכול',
+    semel_mosad: '682211',
+    contact_name: 'אורית אמסלם',
+    contact_role: 'רכזת פדגוגית',
+    phone: '0525925005',
+    email: '1002120044@edu-darom.org.il'
+  }, [
+    { item_name: 'בינה מלאכותית', proposal_group: 'gefen', gefen_number: '9545', meetings_count: 8, hours_count: 12.5, hourly_price: 640, quantity: 1, unit_price: 8000, total_price: 8000 },
+    { item_name: 'בינה מלאכותית', proposal_group: 'gefen', gefen_number: '9545', meetings_count: 8, hours_count: 12.5, hourly_price: null, quantity: 1, unit_price: null, total_price: null },
+    { item_name: 'ביומימיקרי', proposal_group: 'gefen', gefen_number: '6089', meetings_count: 11, hours_count: 16.5, hourly_price: 575.7576, quantity: 1, unit_price: 9500, total_price: 9500 }
+  ]);
+  assert.equal((html.match(/<td>9545<\/td>/g) || []).length, 1);
+  assert.equal((html.match(/בינה מלאכותית/g) || []).length, 1);
+  assert.match(html, /תוכניות לבחירה: <strong>2<\/strong>/);
+  assert.match(html, /היקף מלא: <strong>[\s\S]*17,500/);
+  assert.match(html, /<colgroup><col class="pa-choice-col"><col class="pa-course-col"><col class="pa-gefen-col"><col class="pa-meetings-col"><col class="pa-hours-col"><col class="pa-hourly-price-col"><col class="pa-groups-col"><col class="pa-total-price-col"><\/colgroup>/);
+  assert.match(html, /נייד: <bdi dir="ltr">0525925005<\/bdi>/);
+  assert.match(html, /דוא״ל: <bdi dir="ltr">1002120044@edu-darom\.org\.il<\/bdi>/);
+  assert.doesNotMatch(html, /_{3,}/);
+});
+
+test('GEFEN document refinement keeps compact equal numeric columns and bullet wording', async () => {
+  const [styles, migration] = await Promise.all([
+    readFile(STYLES_FILE, 'utf8'),
+    readFile(GEFEN_DOCUMENT_REFINEMENT_MIGRATION_FILE, 'utf8')
+  ]);
+  assert.match(styles, /\.pa-gefen-course-table \.pa-course-col\s*\{\s*width:\s*31%/);
+  for (const column of ['pa-gefen-col', 'pa-meetings-col', 'pa-groups-col', 'pa-hours-col', 'pa-hourly-price-col', 'pa-total-price-col']) {
+    assert.match(styles, new RegExp(`\\.${column}`));
+  }
+  assert.match(styles, /width:\s*11\.5%/);
+  assert.match(styles, /\.pa-proposal-doc--gefen \.pa-doc-title[\s\S]*color:\s*#0f5b8d/i);
+  assert.match(styles, /\.pa-proposal-doc--gefen \.pa-doc-divider[\s\S]*border-top:\s*0\.35px solid #dbe4ec/i);
+  assert.match(styles, /\.pa-gefen-approval-table \.pa-gefen-col[\s\S]*width:\s*10\.667%/);
+  assert.match(styles, /\.pa-gefen-approval-table \.pa-choice-col\s*\{\s*width:\s*6%/);
+  assert.match(styles, /\.pa-gefen-approval-table \.pa-course-col\s*\{\s*width:\s*22\.592%/);
+  assert.match(styles, /\.pa-hourly-price-col,[\s\S]*\.pa-total-price-col[\s\S]*width:\s*14\.37%/);
+  assert.match(styles, /\.pa-gefen-approval-table th:nth-child\(6\),[\s\S]*\.pa-gefen-approval-table td:nth-child\(6\)[\s\S]*text-align:\s*center\s*!important/);
+  assert.match(styles, /\.proposal-document\.pa-gefen-approval-document \.pa-gefen-approval-table[\s\S]*width:\s*90%\s*!important/i);
+  assert.match(styles, /\.pa-gefen-linked-document[\s\S]*background:\s*transparent/i);
+  assert.match(styles, /\.proposal-document\.pa-gefen-approval-document \.pa-doc-title[\s\S]*font-size:\s*14pt\s*!important[\s\S]*text-decoration:\s*none\s*!important/i);
+  assert.match(styles, /\.pa-gefen-signature-field i[\s\S]*border-bottom:\s*0\.7px solid #64748b/i);
+  assert.match(styles, /\.proposal-document\.pa-gefen-approval-document \.pa-doc-title[\s\S]*text-align:\s*center\s*!important/i);
+  assert.match(styles, /\.pa-gefen-signature-grid[\s\S]*gap:\s*3\.5mm[\s\S]*width:\s*56%[\s\S]*border:\s*0/i);
+  assert.match(styles, /\.pa-gefen-signature-field\s*\{[\s\S]*display:\s*flex[\s\S]*align-items:\s*flex-end[\s\S]*gap:\s*2mm/i);
+  assert.match(styles, /\.pa-gefen-approval-document \.pa-section\s*\{[\s\S]*margin-block:\s*1\.2mm/i);
+  assert.match(styles, /\.pa-gefen-signature-field--date[\s\S]*width:\s*42%/i);
+  assert.match(styles, /\.pa-gefen-signature-field--name,[\s\S]*\.pa-gefen-signature-field--signature[\s\S]*width:\s*76%/i);
+  assert.match(styles, /\.pa-gefen-signature-field--signature\s*\{[\s\S]*margin-top:\s*8mm/i);
+  assert.match(styles, /\.pa-gefen-signature-field--signature i[\s\S]*min-height:\s*0/i);
+  assert.match(styles, /\.pa-gefen-validity-list li[\s\S]*line-height:\s*1\.38\s*!important/i);
+  assert.match(styles, /\.pa-gefen-table-summary[\s\S]*font-size:\s*9pt/i);
+  assert.match(styles, /\.pa-gefen-combined-document\s*\{[\s\S]*width:\s*100%[\s\S]*max-width:\s*794px/i);
+  assert.match(styles, /\.pa-gefen-combined-document > \.proposal-document\s*\{[\s\S]*width:\s*100%[\s\S]*max-width:\s*100%/i);
+  assert.match(styles, /\.proposal-document\.pa-gefen-approval-document\[data-pdf-page-break\][\s\S]*break-before:\s*page\s*!important/i);
+  assert.match(migration, /section_key in \('validity', 'cancellation_terms'\)/i);
+  assert.match(migration, / הצעה זו בתוקף עד ליום \{\{valid_until\}\}/);
+  assert.match(migration, / במקרה של מצב חירום או הנחיות רשות מוסמכת/);
+});
+
 test('proposals-agreements route is registered and role-gated in route definitions', async () => {
   const mainSource = await readFile(MAIN_FILE, 'utf8');
   const apiSource = await readFile(API_FILE, 'utf8');
@@ -362,31 +765,35 @@ test('role update migration allows business development manager for login and pr
 
 
 
-test('proposal approval UI is limited to admin or approve permission users', async () => {
+test('proposal approval UI is limited to Idan Nahum', async () => {
   const pendingRow = { ...sampleRows[0], status: 'pending_approval' };
   const sentRow = { ...sampleRows[0], status: 'sent' };
   const draftRow = { ...sampleRows[0], status: 'draft' };
   const regularManager = stateFor('operation_manager');
   regularManager.user.manage_proposals_agreements = true;
-  const privilegedManager = stateFor('operation_manager');
-  privilegedManager.user.manage_proposals_agreements = true;
-  privilegedManager.user.approve_proposals_agreements = true;
+  const flaggedManager = stateFor('operation_manager');
+  flaggedManager.user.manage_proposals_agreements = true;
+  flaggedManager.user.approve_proposals_agreements = true;
+  const idan = stateFor('admin');
 
   const regularHtml = proposalsAgreementsScreen.render({ rows: [pendingRow] }, { state: regularManager });
   assert.doesNotMatch(regularHtml, /חתום ואשר/, 'unprivileged manager should not see sign-and-approve action');
   const regularTable = regularHtml.match(/<tbody data-pa-table-body>[\s\S]*?<\/tbody>/)?.[0] || '';
   assert.doesNotMatch(regularTable, /<option value="approved"/, 'unprivileged manager should not be able to select approved status');
 
-  const privilegedDraftHtml = proposalsAgreementsScreen.render({ rows: [draftRow] }, { state: privilegedManager });
-  assert.doesNotMatch(privilegedDraftHtml, /חתום ואשר/, 'privileged user should only see sign-and-approve for pending approval proposals');
+  const flaggedPendingHtml = proposalsAgreementsScreen.render({ rows: [pendingRow] }, { state: flaggedManager });
+  assert.doesNotMatch(flaggedPendingHtml, /חתום ואשר/, 'legacy approval flag must not grant signature authority');
 
-  const privilegedPendingHtml = proposalsAgreementsScreen.render({ rows: [pendingRow] }, { state: privilegedManager });
-  assert.match(privilegedPendingHtml, /חתום ואשר/, 'approve permission should reveal sign-and-approve for pending approval proposals');
+  const idanDraftHtml = proposalsAgreementsScreen.render({ rows: [draftRow] }, { state: idan });
+  assert.doesNotMatch(idanDraftHtml, /חתום ואשר/, 'Idan should only see sign-and-approve for pending approval proposals');
 
-  const privilegedSentHtml = proposalsAgreementsScreen.render({ rows: [sentRow] }, { state: privilegedManager });
-  assert.doesNotMatch(privilegedSentHtml, /חתום ואשר/, 'sent proposals are final and should not expose sign-and-approve');
-  const privilegedTable = privilegedPendingHtml.match(/<tbody data-pa-table-body>[\s\S]*?<\/tbody>/)?.[0] || '';
-  assert.match(privilegedTable, /<option value="approved"/, 'approve permission should allow selecting approved status');
+  const idanPendingHtml = proposalsAgreementsScreen.render({ rows: [pendingRow] }, { state: idan });
+  assert.match(idanPendingHtml, /חתום ואשר/, 'Idan should see sign-and-approve for pending approval proposals');
+
+  const idanSentHtml = proposalsAgreementsScreen.render({ rows: [sentRow] }, { state: idan });
+  assert.doesNotMatch(idanSentHtml, /חתום ואשר/, 'sent proposals are final and should not expose sign-and-approve');
+  const idanTable = idanPendingHtml.match(/<tbody data-pa-table-body>[\s\S]*?<\/tbody>/)?.[0] || '';
+  assert.match(idanTable, /data-pa-status-action="approved"/, 'Idan should be able to approve a pending proposal');
 });
 
 test('proposal managers can mark approved signed proposals as sent without approve permission', () => {
@@ -404,7 +811,6 @@ test('proposal managers can mark approved signed proposals as sent without appro
   const tableBody = html.match(/<tbody data-pa-table-body>[\s\S]*?<\/tbody>/)?.[0] || '';
 
   assert.match(tableBody, /data-pa-status-action="sent"/, 'manager should see mark-as-sent table action for signed approved proposals');
-  assert.match(tableBody, /<option value="sent"/, 'manager should be able to select sent for an approved proposal');
   assert.doesNotMatch(tableBody, /<option value="approved"/, 'manager without approve permission should not be able to select approved');
   assert.doesNotMatch(html, /אישור וחתימה/, 'manager without approve permission should not see sign-and-approve action');
 });
@@ -422,7 +828,6 @@ test('approved proposal with signature and approved_at but no approved_by can st
   const tableBody = html.match(/<tbody data-pa-table-body>[\s\S]*?<\/tbody>/)?.[0] || '';
 
   assert.match(tableBody, /data-pa-status-action="sent"/, 'a missing approved_by audit field must not block the sent action');
-  assert.match(tableBody, /<option value="sent"/, 'sent must be selectable in the status dropdown');
   assert.doesNotMatch(tableBody, /אשר וחתום מחדש/, 'a fully signed approval should not be treated as needing a re-sign');
 
   await withJSDOM(html, async (root) => {
@@ -500,6 +905,139 @@ test('after a new approval the sent action appears in the table without a page r
   );
 });
 
+test('proposal approval from drawer SVG completes one saved approval', async () => {
+  const pendingRow = { ...sampleRows[1], status: 'pending_approval' };
+  const adminState = stateFor('admin');
+  const data = { rows: [pendingRow], activityNameOptions: [], contactOptions: [] };
+  const approvalCalls = [];
+
+  await withJSDOM(
+    proposalsAgreementsScreen.render(data, { state: adminState }),
+    async (root, dom) => {
+      proposalsAgreementsScreen.bind({
+        root,
+        data,
+        state: adminState,
+        api: {
+          readProposalAgreementItems: async () => [],
+          updateProposalAgreementStatus: async (...args) => {
+            approvalCalls.push(args);
+            await delay(5);
+            return {
+              ok: true,
+              row: {
+                ...pendingRow,
+                status: 'approved',
+                approved_at: '2026-07-28T10:00:00.000Z',
+                approved_by: adminState.user.auth_user_id,
+                signature_meta: args[3]
+              }
+            };
+          }
+        }
+      });
+
+      root.querySelector(`[data-pa-row-id="${pendingRow.id}"]`)?.dispatchEvent(new dom.window.MouseEvent('click', { bubbles: true }));
+      await delay(20);
+      const details = root.querySelector('[data-pa-proposal-detail]') || root.querySelector('[data-pa-drawer]');
+      const approveButton = details?.querySelector(`[data-pa-status-action="approved"][data-pa-action-id="${pendingRow.id}"]`);
+      assert.ok(approveButton, 'opened proposal details should expose its approval action');
+      const nestedIconTarget = approveButton.querySelector('path, polyline');
+      assert.ok(nestedIconTarget, 'approval action should contain an SVG drawing element');
+      nestedIconTarget.dispatchEvent(new dom.window.MouseEvent('click', { bubbles: true }));
+      assert.equal(approveButton.getAttribute('aria-busy'), 'true', 'approval action should become busy before loading items');
+      assert.equal(approveButton.disabled, false, 'opening the signature preview must not visually disable the approval action');
+      await delay(20);
+
+      const overlay = dom.window.document.getElementById('pa-preview-overlay');
+      assert.ok(overlay, 'approval action should open the proposal signature preview');
+      const confirmButton = overlay.querySelector('#pa-signature-confirm');
+      assert.ok(confirmButton, 'signature preview should expose a confirmation button');
+      assert.equal(approveButton.disabled, false, 'approval action must be released once the signature preview is open');
+      assert.equal(approvalCalls.length, 0, 'opening the signature preview must not send an approval request');
+      confirmButton.dispatchEvent(new dom.window.MouseEvent('click', { bubbles: true }));
+      await delay(30);
+
+      assert.equal(approvalCalls.length, 1, 'signature confirmation must issue exactly one approval request');
+      assert.equal(approvalCalls[0][0], pendingRow.id);
+      assert.equal(approvalCalls[0][1], 'approved');
+      assert.ok(approvalCalls[0][3]?.signature?.image, 'approval request must include the signature before the approved status');
+      assert.equal(data.rows[0].status, 'approved');
+      assert.ok(data.rows[0].signature_meta?.signature?.image, 'local approved row must come from the response containing the saved signature');
+      assert.ok(data.rows[0].approved_at, 'local approved row must contain its approval timestamp');
+      assert.equal(data.rows[0].approved_by, adminState.user.auth_user_id);
+      assert.equal(dom.window.document.getElementById('pa-preview-overlay'), null, 'preview overlay should close after the saved approval completes');
+    }
+  );
+});
+
+test('proposal approval item-load failure releases the drawer button and shows an error', async () => {
+  const pendingRow = { ...sampleRows[1], status: 'pending_approval' };
+  const adminState = stateFor('admin');
+  const data = { rows: [pendingRow], activityNameOptions: [], contactOptions: [] };
+
+  await withJSDOM(
+    proposalsAgreementsScreen.render(data, { state: adminState }),
+    async (root, dom) => {
+      proposalsAgreementsScreen.bind({
+        root,
+        data,
+        state: adminState,
+        api: { readProposalAgreementItems: async () => { throw new Error('items unavailable'); } }
+      });
+
+      root.querySelector(`[data-pa-row-id="${pendingRow.id}"]`)?.dispatchEvent(new dom.window.MouseEvent('click', { bubbles: true }));
+      await delay(20);
+      const details = root.querySelector('[data-pa-proposal-detail]') || root.querySelector('[data-pa-drawer]');
+      const approveButton = details?.querySelector(`[data-pa-status-action="approved"][data-pa-action-id="${pendingRow.id}"]`);
+      assert.ok(approveButton);
+      approveButton.querySelector('svg')?.dispatchEvent(new dom.window.MouseEvent('click', { bubbles: true }));
+      await delay(20);
+
+      assert.equal(approveButton.disabled, false, 'failed item loading must release the approval action');
+      assert.equal(approveButton.hasAttribute('aria-busy'), false);
+      assert.equal(dom.window.document.getElementById('pa-preview-overlay'), null);
+      const toast = dom.window.document.querySelector('.ds-toast--error');
+      assert.match(toast?.textContent || '', /הכפתור שוחרר/);
+      assert.equal(dom.window.document.body.classList.contains('is-print-preview'), false);
+    }
+  );
+});
+
+test('proposal approval preview render failure releases the button and cleans body state', async () => {
+  const pendingRow = { ...sampleRows[1], status: 'pending_approval' };
+  const adminState = stateFor('admin');
+  const data = { rows: [pendingRow], activityNameOptions: [], contactOptions: [] };
+
+  await withJSDOM(proposalsAgreementsScreen.render(data, { state: adminState }), async (root, dom) => {
+    proposalsAgreementsScreen.bind({
+      root,
+      data,
+      state: adminState,
+      api: { readProposalAgreementItems: async () => [] }
+    });
+    root.querySelector(`[data-pa-row-id="${pendingRow.id}"]`)?.dispatchEvent(new dom.window.MouseEvent('click', { bubbles: true }));
+    await delay(20);
+    const details = root.querySelector('[data-pa-proposal-detail]') || root.querySelector('[data-pa-drawer]');
+    const approveButton = details?.querySelector(`[data-pa-status-action="approved"][data-pa-action-id="${pendingRow.id}"]`);
+    assert.ok(approveButton);
+
+    const originalAppendChild = dom.window.document.body.appendChild.bind(dom.window.document.body);
+    dom.window.document.body.appendChild = (node) => node.id === 'pa-preview-overlay' ? node : originalAppendChild(node);
+    approveButton.querySelector('path, polyline')?.dispatchEvent(new dom.window.MouseEvent('click', { bubbles: true }));
+    await delay(20);
+    dom.window.document.body.appendChild = originalAppendChild;
+
+    assert.equal(dom.window.document.querySelector('#pa-preview-overlay'), null);
+    assert.equal(dom.window.document.querySelector('#pa-signature-confirm'), null);
+    assert.equal(dom.window.document.body.classList.contains('is-print-preview'), false, 'failed preview must not leave print-preview body state behind');
+    assert.equal(approveButton.disabled, false);
+    assert.equal(approveButton.hasAttribute('aria-busy'), false);
+    assert.equal(approveButton.dataset.paApprovalOpening, undefined);
+    assert.match(dom.window.document.querySelector('.ds-toast--error')?.textContent || '', /לפתוח את מסך החתימה/);
+  });
+});
+
 test('unprivileged users cannot open signature mode or save signature from forged approve actions', async () => {
   const sentRow = { ...sampleRows[0], status: 'sent' };
   const managerState = stateFor('operation_manager');
@@ -562,13 +1100,52 @@ test('table structure includes all required columns including status', () => {
   assert.match(html, /ds-pa-table/);
 });
 
-test('sent status row keeps green badge only without row highlight', () => {
+test('sent proposals are separated into their own tab and keep the sent badge', async () => {
   const sentRow = { ...sampleRows[0], status: 'sent' };
-  const html = proposalsAgreementsScreen.render({ rows: [sentRow] }, { state: stateFor('admin') });
-  const tableBody = html.match(/<tbody data-pa-table-body>[\s\S]*?<\/tbody>/)?.[0] || '';
-  assert.match(tableBody, /ds-pa-badge--sent/);
-  assert.match(tableBody, /✓ נשלח/);
-  assert.doesNotMatch(tableBody, /proposal-row--sent/);
+  const rows = [{ ...sampleRows[1], status: 'approved' }, sentRow];
+  const html = proposalsAgreementsScreen.render({ rows }, { state: stateFor('admin') });
+
+  assert.match(html, /data-pa-tab="sent"/);
+  assert.match(html, /הצעות שנשלחו/);
+  assert.match(html, /data-pa-tab-count="records">1</);
+  assert.match(html, /data-pa-tab-count="sent">1</);
+
+  await withJSDOM(html, async (root, dom) => {
+    proposalsAgreementsScreen.bind({ root, data: { rows }, state: stateFor('admin'), api: {} });
+    assert.doesNotMatch(root.querySelector('[data-pa-table-region]').textContent, /רשות א/, 'sent proposal should not render in the workflow records tab');
+    assert.match(root.querySelector('[data-pa-table-region]').textContent, /רשות ב/);
+
+    root.querySelector('[data-pa-tab="sent"]').dispatchEvent(new dom.window.MouseEvent('click', { bubbles: true }));
+    const tableBody = root.querySelector('[data-pa-table-body]')?.innerHTML || '';
+    assert.match(tableBody, /ds-pa-status-text--sent/);
+    assert.match(tableBody, /✓ נשלח/);
+    assert.doesNotMatch(tableBody, /proposal-row--sent/);
+    assert.match(root.querySelector('[data-pa-table-region]').textContent, /רשות א/);
+    assert.doesNotMatch(root.querySelector('[data-pa-table-region]').textContent, /רשות ב/);
+    assert.equal(root.querySelector('[data-pa-status-filter]').hidden, true, 'status filter is redundant in the sent-only tab');
+  });
+});
+
+test('a proposal that changes to sent leaves records and appears in the sent tab on refresh', async () => {
+  const movingRow = { ...sampleRows[0], id: 'moving-to-sent', status: 'approved' };
+  const existingSentRow = { ...sampleRows[1], id: 'already-sent', status: 'sent' };
+  const data = { rows: [movingRow, existingSentRow] };
+
+  await withJSDOM(proposalsAgreementsScreen.render(data, { state: stateFor('admin') }), async (root, dom) => {
+    proposalsAgreementsScreen.bind({ root, data, state: stateFor('admin'), api: {} });
+    assert.match(root.querySelector('[data-pa-table-region]').textContent, /רשות א/);
+
+    data.rows.find((row) => row.id === movingRow.id).status = 'sent';
+    root.querySelector('[data-pa-filter="proposal_domain"]').dispatchEvent(new dom.window.Event('change', { bubbles: true }));
+
+    assert.doesNotMatch(root.querySelector('[data-pa-table-region]').textContent, /רשות א/);
+    assert.equal(root.querySelector('[data-pa-tab-count="records"]').textContent, '0');
+    assert.equal(root.querySelector('[data-pa-tab-count="sent"]').textContent, '2');
+
+    root.querySelector('[data-pa-tab="sent"]').dispatchEvent(new dom.window.MouseEvent('click', { bubbles: true }));
+    assert.match(root.querySelector('[data-pa-table-region]').textContent, /רשות א/);
+    assert.match(root.querySelector('[data-pa-table-region]').textContent, /רשות ב/);
+  });
 });
 
 test('contact details are hidden from the outer table and available only in drawer markup', () => {
@@ -590,6 +1167,129 @@ test('page is excluded from header nav and ACT_SUBNAV_ITEMS', async () => {
 
   const subnavBlock = actNavSource.match(/export const ACT_SUBNAV_ITEMS = \[[\s\S]*?\];/)?.[0] || '';
   assert.doesNotMatch(subnavBlock, /proposals-agreements/);
+  assert.match(actNavSource, /hasUnifiedClientFile[\s\S]*item\.route === 'contacts'/, 'school contacts should be hidden only when the unified client file is available');
+});
+
+test('client file landing consolidates proposal queues under one screen', () => {
+  const html = proposalsAgreementsScreen.render({ rows: sampleRows, contactOptions: sampleContactOptions }, { state: stateFor('admin') });
+  assert.match(html, /תיק לקוח/);
+  assert.doesNotMatch(html, /ממתינות לטיפול/);
+  assert.doesNotMatch(html, /\d+\s*הצעות\s*\|/);
+  assert.doesNotMatch(html, /ds-page-header__subtitle/);
+  assert.match(html, /data-pa-client-search/);
+  assert.match(html, /ds-client-toolbar/);
+  assert.match(html, /ds-client-actions/);
+  assert.match(html, /טיוטות/);
+  assert.match(html, /ממתינות לאישור/);
+  assert.match(html, /הוחזרו לתיקון/);
+  assert.match(html, /ממתינות לשליחה/);
+  assert.match(html, /data-pa-client-queues/);
+  // Search sits alone in its row; action buttons are in a separate centered actions row.
+  assert.match(html, /ds-client-search-row[\s\S]*?data-pa-client-search[\s\S]*?<\/div>\s*<div class="ds-client-actions">[\s\S]*?data-pa-client-all-proposals/);
+  assert.doesNotMatch(html, /ds-client-search-row[\s\S]*?data-pa-client-all-proposals[\s\S]*?ds-client-actions/);
+});
+
+test('client search opens a closed customer file and x returns to search', async () => {
+  const rows = [{ ...sampleRows[0], authority_id: 'auth-a', school_id: 'school-a', semel_mosad: '11111' }];
+  const data = { rows, contactOptions: sampleContactOptions, activityNameOptions: [] };
+  await withJSDOM(proposalsAgreementsScreen.render(data, { state: stateFor('admin') }), async (root, dom) => {
+    proposalsAgreementsScreen.bind({ root, data, state: stateFor('admin'), api: {} });
+    const search = root.querySelector('[data-pa-client-search]');
+    search.value = 'מיכל כהן';
+    search.dispatchEvent(new dom.window.Event('input', { bubbles: true }));
+    await delay(300);
+    const results = root.querySelector('[data-pa-client-search-results]');
+    assert.equal(results.hidden, false);
+    assert.match(results.textContent, /בית ספר א/);
+    results.querySelector('[data-pa-open-client]')?.dispatchEvent(new dom.window.MouseEvent('click', { bubbles: true }));
+    assert.ok(root.querySelector('[data-pa-client-file]'));
+    assert.match(root.querySelector('[data-pa-client-file]').textContent, /רשות א/);
+    assert.match(root.querySelector('[data-pa-client-file]').textContent, /11111/);
+    assert.match(root.querySelector('[data-pa-client-file]').textContent, /מיכל כהן/);
+    root.querySelector('[data-pa-client-close]')?.dispatchEvent(new dom.window.MouseEvent('click', { bubbles: true }));
+    assert.ok(root.querySelector('[data-pa-client-search]'));
+    assert.equal(root.querySelector('[data-pa-client-file]'), null);
+  });
+});
+
+test('client file separates current proposal versions from archive', async () => {
+  const rows = [
+    { ...sampleRows[0], id: 'current-version', authority_id: 'auth-a', school_id: 'school-a', version_number: 2 },
+    { ...sampleRows[0], id: 'archived-version', authority_id: 'auth-a', school_id: 'school-a', version_number: 1, archived_at: '2026-07-20T10:00:00.000Z' }
+  ];
+  const data = { rows, contactOptions: sampleContactOptions, activityNameOptions: [] };
+  await withJSDOM(proposalsAgreementsScreen.render(data, { state: stateFor('admin') }), async (root, dom) => {
+    proposalsAgreementsScreen.bind({ root, data, state: stateFor('admin'), api: {} });
+    const search = root.querySelector('[data-pa-client-search]');
+    search.value = '11111';
+    search.dispatchEvent(new dom.window.Event('input', { bubbles: true }));
+    await delay(300);
+    root.querySelector('[data-pa-open-client]')?.dispatchEvent(new dom.window.MouseEvent('click', { bubbles: true }));
+    const file = root.querySelector('[data-pa-client-file]');
+    assert.match(file.textContent, /הצעות עדכניות/);
+    assert.match(file.textContent, /ארכיון הצעות מחיר\s*[—-]?\s*1/);
+    assert.match(file.querySelector('.ds-client-proposal:not(.is-archived)')?.textContent || '', /גרסה 2/);
+    assert.match(file.querySelector('.ds-client-proposal.is-archived')?.textContent || '', /קיץ/);
+  });
+});
+
+test('client file creates contacts inside the selected school without leaving the screen', async () => {
+  const rows = [{ ...sampleRows[0], authority_id: 'auth-a', school_id: 'school-a', semel_mosad: '11111' }];
+  const data = { rows, contactOptions: sampleContactOptions, activityNameOptions: [] };
+  let savedContact = null;
+  await withJSDOM(proposalsAgreementsScreen.render(data, { state: stateFor('admin') }), async (root, dom) => {
+    proposalsAgreementsScreen.bind({
+      root,
+      data,
+      state: stateFor('admin'),
+      api: { addContact: async (payload) => { savedContact = payload; return { ok: true }; } }
+    });
+    const search = root.querySelector('[data-pa-client-search]');
+    search.value = '11111';
+    search.dispatchEvent(new dom.window.Event('input', { bubbles: true }));
+    await delay(300);
+    root.querySelector('[data-pa-open-client]')?.dispatchEvent(new dom.window.MouseEvent('click', { bubbles: true }));
+    root.querySelector('[data-pa-client-add-contact]')?.dispatchEvent(new dom.window.MouseEvent('click', { bubbles: true }));
+    const form = root.querySelector('[data-pa-client-contact-form]');
+    form.querySelector('[name="contact_name"]').value = 'נועה לוי';
+    form.querySelector('[name="contact_role"]').value = 'רכזת';
+    form.querySelector('[name="mobile"]').value = '050-9876543';
+    form.dispatchEvent(new dom.window.Event('submit', { bubbles: true, cancelable: true }));
+    await delay(20);
+    assert.equal(savedContact?.kind, 'school');
+    assert.equal(savedContact?.row.school_id, 'school-a');
+    assert.equal(savedContact?.row.contact_name, 'נועה לוי');
+    assert.match(root.querySelector('[data-pa-client-file]')?.textContent || '', /נועה לוי/);
+  });
+});
+
+test('new proposal from client file opens the existing editor with client prefilled', async () => {
+  const rows = [{ ...sampleRows[0], authority_id: 'auth-a', school_id: 'school-a', semel_mosad: '11111' }];
+  const data = { rows, contactOptions: sampleContactOptions, activityNameOptions: [] };
+  await withJSDOM(proposalsAgreementsScreen.render(data, { state: stateFor('admin') }), async (root, dom) => {
+    proposalsAgreementsScreen.bind({ root, data, state: stateFor('admin'), api: {} });
+    const search = root.querySelector('[data-pa-client-search]');
+    search.value = '11111';
+    search.dispatchEvent(new dom.window.Event('input', { bubbles: true }));
+    await delay(300);
+    root.querySelector('[data-pa-open-client]')?.dispatchEvent(new dom.window.MouseEvent('click', { bubbles: true }));
+    root.querySelector('[data-pa-client-add-proposal]')?.dispatchEvent(new dom.window.MouseEvent('click', { bubbles: true }));
+    await delay(20);
+    const form = root.querySelector('[data-pa-form]');
+    assert.ok(form, 'existing proposal editor should open');
+    assert.equal(form.querySelector('[name="client_authority"]')?.value, 'רשות א');
+    assert.equal(form.querySelector('[name="school_framework"]')?.value, 'בית ספר א');
+    assert.equal(root.querySelector('[data-pa-client-workspace]').hidden, true);
+  });
+});
+
+test('proposal version migration preserves superseded proposals in archive', async () => {
+  const migration = await readFile(CLIENT_FILE_VERSIONS_MIGRATION_FILE, 'utf8');
+  const screenSource = await readFile(SCREEN_FILE, 'utf8');
+  assert.match(migration, /proposal_series_id uuid/);
+  assert.match(migration, /supersedes_proposal_id uuid REFERENCES public\.proposals_agreements/);
+  assert.match(migration, /SET archived_at = COALESCE\(archived_at, now\(\)\)/);
+  assert.match(screenSource, /supersedes_proposal_id:\s*text\(sourceRow\.id\)/);
 });
 
 test('local search debounces 280ms and updates only table region and counter', async () => {
@@ -735,7 +1435,7 @@ test('preview uses only existing proposal template section keys and required key
   }
 });
 
-test('new proposal tab opens compact form with preview and role-aware primary action', async () => {
+test('new proposal tab opens full-width editor with preview and role-aware primary action', async () => {
   await withJSDOM(
     proposalsAgreementsScreen.render({ rows: sampleRows, contactOptions: sampleContactOptions }, { state: stateFor('admin') }),
     (root, dom) => {
@@ -754,9 +1454,9 @@ test('new proposal tab opens compact form with preview and role-aware primary ac
       assert.equal(newPanel.hidden, false, 'new proposal panel should be visible after clicking add');
       const form = formHost.querySelector('[data-pa-form]');
       assert.ok(form, 'form element should exist');
-      assert.doesNotMatch(form.innerHTML, /שמירת טיוטה/);
-      assert.match(form.innerHTML, /תצוגה מקדימה/);
-      assert.match(form.innerHTML, /אישור והפקת הצעה/);
+      assert.match(form.innerHTML, /שמירת טיוטה/);
+      assert.match(form.innerHTML, /תצוגה מלאה של הצעת המחיר/);
+      assert.match(form.innerHTML, /חתום ואשר/);
       assert.doesNotMatch(form.innerHTML, /שליחה לאישור/);
       assert.match(form.innerHTML, /data-pa-client-search-input/);
       assert.match(form.innerHTML, /הוסף איש קשר ידנית/);
@@ -764,7 +1464,65 @@ test('new proposal tab opens compact form with preview and role-aware primary ac
   );
 });
 
-test('new proposal editor renders two-pane A4 layout and live preview updates key fields', async () => {
+test('proposal workspace keeps recipient heading spanning both columns and compact proposal types', async () => {
+  const css = await readFile(new URL('../frontend/src/styles/main.css', import.meta.url), 'utf8');
+  assert.match(css, /ds-pa-form-meta-panel > \.pa-sidebar-section-title\s*\{\s*grid-column:\s*1 \/ -1;/);
+  assert.match(css, /ds-pa-type-chips[\s\S]*display:\s*flex !important;[\s\S]*width:\s*max-content;/);
+  assert.doesNotMatch(css, /grid-template-columns:\s*repeat\(4,\s*minmax\(110px,\s*1fr\)\)/);
+  assert.match(css, /@media \(max-width: 900px\)[\s\S]*ds-pa-item-grid--extras\s*\{\s*grid-template-columns:\s*repeat\(2,\s*minmax\(0,\s*1fr\)\);\s*width:\s*100%;/);
+  assert.match(css, /@media \(max-width: 640px\)[\s\S]*ds-pa-item-grid--extras\s*\{\s*grid-template-columns:\s*1fr;\s*width:\s*100%;/);
+});
+
+test('proposal final actions follow the preview and return-to-editor scrolls to editing fields', async () => {
+  await withJSDOM(
+    proposalsAgreementsScreen.render({ rows: [], contactOptions: [] }, { state: stateFor('admin') }),
+    (root, dom) => {
+      proposalsAgreementsScreen.bind({
+        root,
+        data: { rows: [], activityNameOptions: [], contactOptions: [] },
+        state: stateFor('admin'),
+        api: {}
+      });
+      const form = openNewProposalForm(root, dom);
+      const editor = form.querySelector('[data-pa-editor-fields]');
+      const preview = form.querySelector('.pa-preview');
+      const actions = form.querySelector('.ds-pa-form-actions--workflow');
+      assert.ok(form.querySelector('.pa-editor-heading-actions')?.classList.contains('no-print'));
+      assert.ok(form.querySelector('.pa-preview-toolbar')?.classList.contains('no-print'));
+      assert.ok(actions?.classList.contains('no-print'));
+      assert.ok(editor.compareDocumentPosition(preview) & dom.window.Node.DOCUMENT_POSITION_FOLLOWING);
+      assert.ok(preview.compareDocumentPosition(actions) & dom.window.Node.DOCUMENT_POSITION_FOLLOWING);
+      let scrolled = false;
+      editor.scrollIntoView = () => { scrolled = true; };
+      form.querySelector('[data-pa-back-to-editor]').dispatchEvent(new dom.window.MouseEvent('click', { bubbles: true }));
+      assert.equal(scrolled, true);
+    }
+  );
+});
+
+test('draft proposal opens the same full-width edit workspace', async () => {
+  const draft = sampleRows[0];
+  await withJSDOM(
+    proposalsAgreementsScreen.render({ rows: [draft], contactOptions: sampleContactOptions }, { state: stateFor('admin') }),
+    async (root, dom) => {
+      proposalsAgreementsScreen.bind({
+        root,
+        data: { rows: [draft], activityNameOptions: [], contactOptions: sampleContactOptions },
+        state: stateFor('admin'),
+        api: { readProposalAgreementItems: async () => [] }
+      });
+      root.querySelector(`[data-pa-row-id="${draft.id}"]`)?.dispatchEvent(new dom.window.MouseEvent('click', { bubbles: true }));
+      root.querySelector(`[data-pa-edit-row="${draft.id}"]`)?.dispatchEvent(new dom.window.MouseEvent('click', { bubbles: true }));
+      await delay(20);
+      const form = root.querySelector('[data-pa-form-host] [data-pa-form]');
+      assert.equal(form?.dataset.paMode, 'edit');
+      assert.ok(form?.querySelector('[data-pa-editor-fields]'));
+      assert.ok(form?.querySelector('[data-pa-live-preview] .proposal-document'));
+    }
+  );
+});
+
+test('new proposal editor renders editor then full A4 preview and live preview updates key fields', async () => {
   await withJSDOM(
     proposalsAgreementsScreen.render({ rows: [], contactOptions: sampleContactOptions }, { state: stateFor('admin') }),
     async (root, dom) => {
@@ -792,15 +1550,22 @@ test('new proposal editor renders two-pane A4 layout and live preview updates ke
       });
 
       const form = openNewProposalForm(root, dom);
-      assert.ok(form.classList.contains('pa-editor'), 'form should use the official two-pane editor shell');
-      assert.ok(form.querySelector('.pa-sidebar'), 'editing sidebar should be present');
+      assert.ok(form.classList.contains('pa-editor'), 'form should use the official editor shell');
+      const editorFields = form.querySelector('[data-pa-editor-fields]');
+      const preview = form.querySelector('.pa-preview');
+      const finalActions = form.querySelector('.ds-pa-form-actions--workflow');
+      assert.ok(editorFields, 'full-width editing fields should be present');
+      assert.ok(preview, 'full document preview should be present');
+      assert.ok(finalActions, 'final actions should be present');
+      assert.ok(editorFields.compareDocumentPosition(preview) & dom.window.Node.DOCUMENT_POSITION_FOLLOWING, 'preview should follow all editing fields');
+      assert.ok(preview.compareDocumentPosition(finalActions) & dom.window.Node.DOCUMENT_POSITION_FOLLOWING, 'final actions should follow the document preview');
       const liveDocument = form.querySelector('[data-pa-live-preview] .proposal-document');
       assert.ok(liveDocument, 'live A4 preview should be present');
       assert.ok(liveDocument.classList.contains('pa-document'), 'document should use the scoped Proposaleditor document class');
       assert.ok(liveDocument.querySelector('.pa-page-header .pa-logo-area .proposal-logo'), 'document should render the Proposaleditor-style logo area');
-      assert.equal(liveDocument.querySelectorAll('.pa-page-footer').length, 1, 'document should render exactly one Proposaleditor-style footer');
+      assert.equal(liveDocument.querySelectorAll('.pa-page-footer, .pa-page-footer-area, .pa-page-footer-gap').length, 0, 'proposal document should not render footer markup');
       assert.equal(liveDocument.querySelectorAll('.proposal-document-footer, .proposal-footer, .proposal-footer-logo').length, 0, 'new proposal document should not render legacy footer classes');
-      assert.match(liveDocument.querySelector('.pa-page-footer')?.textContent || '', /www\.think\.org\.il/);
+      assert.doesNotMatch(liveDocument.textContent || '', /www\.think\.org\.il/);
       assert.equal(liveDocument.querySelectorAll('.pa-footer-signature').length, 1, 'document should render exactly one signature block');
       assert.ok(liveDocument.querySelector('.pa-footer-signature .pa-signature-rule'), 'document should render the Proposaleditor-style signature rule');
       assert.ok(liveDocument.querySelector('.pa-footer-signature .pa-signer-name'), 'document should render the signer name below the signature rule');
@@ -919,7 +1684,7 @@ test('approved proposals render flow signature block inside the document', () =>
   const doc = new JSDOM(approvedHtml).window.document;
   const signature = doc.querySelector('.pa-footer-signature');
   assert.ok(signature, 'signature block should render in document flow');
-  assert.equal(doc.querySelectorAll('.pa-page-footer').length, 1);
+  assert.equal(doc.querySelectorAll('.pa-page-footer, .pa-page-footer-area, .pa-page-footer-gap').length, 0);
   assert.equal(signature.querySelectorAll('.pa-signature-image').length, 1);
   assert.equal(signature.querySelectorAll('.pa-signature-rule').length, 1);
   assert.equal(signature.querySelectorAll('.pa-signer-name').length, 1);
@@ -931,7 +1696,6 @@ test('approved proposals render flow signature block inside the document', () =>
     ['pa-signature-image', 'pa-signature-rule', 'pa-signer-name'],
     'signature image, rule, and signer name should render in fixed vertical order'
   );
-  assert.ok(signature.compareDocumentPosition(doc.querySelector('.pa-page-footer')) & doc.defaultView.Node.DOCUMENT_POSITION_FOLLOWING, 'signature should appear before page footer');
   assert.doesNotMatch(signature.textContent || '', /אושר בתאריך/);
   assert.doesNotMatch(signature.textContent || '', /אושר ונחתם דיגיטלית/);
 });
@@ -1096,12 +1860,49 @@ test('switching recipient type from school to other clears authority and school 
       form.querySelector('input[name="other_client_name"]').dispatchEvent(new dom.window.Event('input', { bubbles: true }));
       await delay(20);
 
-      assert.equal(stepComplete(form).client, true, 'other recipient is complete without client_authority');
+      assert.equal(stepComplete(form).client, false, 'other recipient requires authority as well as client name');
 
       const preview = previewText(form);
       assert.match(preview, new RegExp(otherName));
       assert.doesNotMatch(preview, /רשות א/);
       assert.doesNotMatch(preview, /בית ספר א/);
+    }
+  );
+});
+
+test('other recipient shows authority search only and never school search panel', async () => {
+  await withJSDOM(
+    proposalsAgreementsScreen.render({ rows: [], contactOptions: sampleContactOptions }, { state: stateFor('admin') }),
+    async (root, dom) => {
+      proposalsAgreementsScreen.bind({
+        root,
+        data: { rows: [], activityNameOptions: [], contactOptions: sampleContactOptions },
+        state: stateFor('admin'),
+        api: {}
+      });
+
+      const form = openNewProposalForm(root, dom);
+      selectRecipientType(form, dom, 'other');
+      await delay(20);
+
+      const schoolPanel = form.querySelector('[data-pa-school-search-panel]');
+      assert.equal(schoolPanel.hidden, true, 'school panel hidden when other is selected');
+      assert.equal(form.querySelector('[data-pa-other-client-field]').hidden, false);
+      assert.equal(form.querySelector('[data-pa-contact-manual-fields]').hidden, false);
+
+      selectClientResult(form, dom, 'רשות א');
+      await delay(20);
+
+      assert.equal(schoolPanel.hidden, true, 'school panel stays hidden after authority selection for other');
+      assert.equal(form.querySelector('[data-pa-school-search-input]').value, '');
+      assert.equal(form.querySelector('input[name="school_framework"]').value, '');
+      assert.equal(form.querySelector('input[name="contact_source_school_id"]').value, '');
+      assert.equal(form.querySelector('input[name="contact_source_client_type"]').value, 'other');
+      assert.equal(form.querySelector('[data-pa-other-client-field]').hidden, false);
+
+      form.querySelector('input[name="other_client_name"]').value = 'חברת בדיקה';
+      form.querySelector('input[name="contact_name"]').value = 'איש קשר';
+      assert.equal(stepComplete(form).client, true);
     }
   );
 });
@@ -1139,7 +1940,8 @@ test('stepComplete returns clientDone per recipient type', async () => {
       form.querySelector('input[name="other_client_name"]').value = 'גורם אחר';
       form.querySelector('input[name="school_framework"]').value = 'גורם אחר';
       form.querySelector('input[name="contact_source_client_type"]').value = 'other';
-      assert.equal(stepComplete(form).client, true, 'other complete with client name');
+      form.querySelector('input[name="contact_source_authority_id"]').value = 'auth-a';
+      assert.equal(stepComplete(form).client, true, 'other complete with authority id and client name');
     }
   );
 });
@@ -1161,7 +1963,7 @@ test('validatePayload enforces recipient-specific requirements', () => {
     authority_id: null,
     school_id: null
   });
-  assert.ok(!otherErrors.some((e) => /רשות/.test(e)), 'other proposal should not require authority');
+  assert.ok(otherErrors.some((e) => /רשות/.test(e)), 'other proposal should require authority');
 
   const authorityErrors = validatePayload({
     ...base,
@@ -1426,11 +2228,10 @@ test('authority search finds אשכול with type district and code metadata', a
   );
 });
 
-test('proposals screen logs proposal-authorities-debug on bind', async () => {
+test('proposals screen omits routine authority debug payloads', async () => {
   const screenSource = await readFile(SCREEN_FILE, 'utf8');
-  assert.match(screenSource, /\[proposal-authorities-debug\]/);
-  assert.match(screenSource, /authoritiesCount/);
-  assert.match(screenSource, /firstAuthorities/);
+  assert.doesNotMatch(screenSource, /\[proposal-authorities-debug\]/);
+  assert.doesNotMatch(screenSource, /\[proposal-load-debug\]/);
 });
 
 test('authority search shows only catalog authorities without contact details', async () => {
@@ -1728,7 +2529,7 @@ test('manual contact toggle appears when selected school has no contacts', async
   );
 });
 
-test('proposal form has no draft save and admin primary action approves directly', async () => {
+test('proposal form offers and persists draft save', async () => {
   const savedPayloads = [];
   const mockApi = {
     addProposalAgreement: async (payload) => {
@@ -1749,7 +2550,7 @@ test('proposal form has no draft save and admin primary action approves directly
       });
 
       const form = openNewProposalForm(root, dom);
-      assert.equal(form.querySelector('[data-pa-save-draft]'), null, 'draft save control should not exist');
+      assert.ok(form.querySelector('[data-pa-save-draft]'), 'draft save control should exist');
       fillPendingMinimum(form, dom, {
         client_authority: 'רשות בדיקה',
         school_framework: 'בית ספר בדיקה',
@@ -1758,11 +2559,11 @@ test('proposal form has no draft save and admin primary action approves directly
         unit_price: '100'
       });
 
-      form.querySelector('[data-pa-save-pending]').dispatchEvent(new dom.window.MouseEvent('click', { bubbles: true }));
+      form.querySelector('[data-pa-save-draft]').dispatchEvent(new dom.window.MouseEvent('click', { bubbles: true }));
       await delay(100);
 
       assert.equal(savedPayloads.length, 1, 'one save call');
-      assert.equal(savedPayloads[0].status, 'approved', 'admin primary action should approve directly');
+      assert.equal(savedPayloads[0].status, 'draft', 'draft action should preserve draft status');
       assert.notEqual(savedPayloads[0].is_new_client, true, 'default save should not mark as new client');
     }
   );
@@ -1777,8 +2578,8 @@ test('pending flow send handler saves directly without requiring preview first',
   assert.match(source, /showToast\('ההצעה נשמרה ונשלחה לאישור', 'success'\)/);
 });
 
-test('manual course without gefen is blocked for non-admin and allowed for admin validation', () => {
-  const payload = {
+test('manual course without gefen is validated only for next_year proposals', () => {
+  const basePayload = {
     client_type: 'school',
     client_authority: 'רשות',
     school_framework: 'בית ספר',
@@ -1786,19 +2587,74 @@ test('manual course without gefen is blocked for non-admin and allowed for admin
     school_id: 'school-test',
     document_type: 'הצעת מחיר',
     proposal_date: '2026-07-03',
-    activity_type_group: 'summer',
-    total_amount: 100,
-    _items: [{ item_name: 'קורס ידני חדש', quantity: 1, unit_price: 100, total_price: 100, proposal_group: 'summer' }]
+    total_amount: 100
+  };
+  const nextYearPayload = {
+    ...basePayload,
+    activity_type_group: 'next_year',
+    _items: [{ item_name: 'קורס ידני חדש', quantity: 1, unit_price: 100, total_price: 100, proposal_group: 'next_year' }]
   };
   assert.match(
-    validatePayload(payload, 'pending_approval', { canAddManualCourseWithoutGefen: false }).join(' | '),
+    validatePayload(nextYearPayload, 'pending_approval', { canAddManualCourseWithoutGefen: false }).join(' | '),
     /רק מנהל מערכת יכול להוסיף קורס חדש שאינו מהרשימה וללא מספר גפ״ן/
   );
-  assert.deepEqual(validatePayload(payload, 'pending_approval', { canAddManualCourseWithoutGefen: true }), []);
+  assert.deepEqual(validatePayload(nextYearPayload, 'pending_approval', { canAddManualCourseWithoutGefen: true }), []);
   assert.deepEqual(validatePayload({
-    ...payload,
-    _items: [{ ...payload._items[0], source_pricing_key: 'price-1' }]
+    ...nextYearPayload,
+    _items: [{ ...nextYearPayload._items[0], source_pricing_key: 'price-1' }]
   }, 'pending_approval', { canAddManualCourseWithoutGefen: false }), []);
+
+  const summerPayload = {
+    ...basePayload,
+    activity_type_group: 'summer',
+    _items: [{ item_name: 'פעילות קיץ ללא גפן', quantity: 1, unit_price: 100, total_price: 100, proposal_group: 'summer' }]
+  };
+  assert.deepEqual(validatePayload(summerPayload, 'pending_approval', { canAddManualCourseWithoutGefen: false }), []);
+});
+
+test('next_year admin manual course option appears only for admin in pricing select', async () => {
+  const source = await readFile(SCREEN_FILE, 'utf8');
+  assert.match(source, /MANUAL_COURSE_OPTION_KEY = '__manual_course__'/);
+  assert.match(source, /MANUAL_COURSE_OPTION_LABEL = 'קורס אחר \/ טקסט חופשי'/);
+  assert.match(source, /NEXT_YEAR_UNIFIED_MANUAL_LABEL = 'פעילות אחרת \/ טקסט חופשי'/);
+  assert.match(source, /data-pa-allow-manual-course="\$\{allowManualCourse \? 'yes' : 'no'\}"/);
+  assert.match(source, /allowManualCourse && isNextYearProposalGroup\(groupKey\)/);
+  assert.match(source, /selectedKey === MANUAL_COURSE_OPTION_KEY[\s\S]*applyManualCourseToRow/);
+});
+
+test('extractItemsFromForm keeps next_year manual course rows without catalog identity', async () => {
+  await withJSDOM(`<form data-pa-form>
+    <select name="activity_type_group"><option value="next_year" selected>next_year</option></select>
+    <article data-pa-item-row data-pa-row-group="next_year" data-pa-manual-course="yes">
+      <select data-pa-pricing-select><option value="__manual_course__" selected>manual</option></select>
+      <input name="item_name" value="קורס ייחודי שלא בקטלוג">
+      <input name="proposal_group" value="next_year">
+      <input name="quantity" value="2">
+      <input name="meetings_count" value="8">
+      <input name="hours_count" value="16">
+      <input name="unit_price" value="450">
+      <input data-pa-item-total name="total_price" value="900">
+      <textarea name="course_note">הערה לתוכנית</textarea>
+      <input name="item_selected_bundle_items" value="[]">
+      <input name="item_display_mode" value="single">
+    </article>
+  </form>`, async (root) => {
+    const items = extractItemsFromForm(root.querySelector('[data-pa-form]'));
+    assert.equal(items.length, 1);
+    assert.equal(items[0].item_name, 'קורס ייחודי שלא בקטלוג');
+    assert.equal(items[0].quantity, 2);
+    assert.equal(items[0].meetings_count, 8);
+    assert.equal(items[0].hours_count, 16);
+    assert.equal(items[0].unit_price, 450);
+    assert.equal(items[0].total_price, 900);
+    assert.equal(items[0].course_note, 'הערה לתוכנית');
+    // Unified תשפ״ז keeps the internal course/workshop scope on each row.
+    assert.equal(items[0].proposal_group, 'next_year_courses');
+    assert.equal(items[0].pricing_option_key, '');
+    assert.equal(items[0].activity_no, '');
+    assert.equal(items[0].source_pricing_key, '');
+    assert.equal(items[0].gefen_number, '');
+  });
 });
 
 test('saving manual contact keeps authority and school ids in pending payload', async () => {
@@ -1885,43 +2741,22 @@ test('status filter shows only matching rows', async () => {
   );
 });
 
-test('table status dropdown updates status through the API and refreshes the row', async () => {
-  const localData = { rows: [{ ...sampleRows[0], status: 'draft' }] };
-  const saves = [];
-  await withJSDOM(
-    proposalsAgreementsScreen.render(localData, { state: stateFor('admin') }),
-    async (root, dom) => {
-      proposalsAgreementsScreen.bind({
-        root,
-        data: localData,
-        state: stateFor('admin'),
-        api: {
-          updateProposalAgreementStatus: async (id, status, note) => {
-            saves.push({ id, status, note });
-            return { ok: true, row: { ...localData.rows[0], id, status } };
-          }
-        }
-      });
-
-      const select = root.querySelector('[data-pa-row-status]');
-      assert.ok(select, 'status select should exist in the table row');
-      select.value = 'sent';
-      select.dispatchEvent(new dom.window.Event('change', { bubbles: true }));
-      await delay(30);
-
-      assert.deepEqual(saves, [{ id: sampleRows[0].id, status: 'sent', note: '' }]);
-      assert.equal(localData.rows[0].status, 'sent');
-      assert.equal(root.querySelector('[data-pa-row-status]').value, 'sent');
-    }
-  );
+test('approved signed proposals expose mark-as-sent action for lock-and-send flow', () => {
+  const approvedRow = {
+    ...sampleRows[0],
+    status: 'approved',
+    signature_meta: { signature: { image: 'proposals/signature-idan-nahum.png' } },
+    approved_at: '2026-06-30T10:00:00.000Z'
+  };
+  const html = proposalsAgreementsScreen.render({ rows: [approvedRow] }, { state: stateFor('admin') });
+  assert.match(html, /data-pa-status-action="sent"/);
+  assert.match(html, /סימון כנשלח/);
 });
 
 test('status badge is rendered in table rows with correct labels', () => {
   const html = proposalsAgreementsScreen.render({ rows: sampleRows }, { state: stateFor('admin') });
   assert.match(html, /טיוטה/);
   assert.match(html, /נשלח/);
-  // Inline table status control
-  assert.match(html, /data-pa-row-status/);
   assert.doesNotMatch(html, /נחתם/);
 });
 
@@ -1982,18 +2817,18 @@ test('proposal preview recipient block respects selected recipient type', async 
   const cases = [
     {
       client_type: 'school',
-      expectedLines: ['לכבוד:', 'דנה ישראלי, מנהלת', 'טלפון: 050-1234567 | דוא״ל: dana@example.com', 'בית ספר אופק, אשכול'],
+      expectedLines: ['לכבוד:', 'דנה ישראלי, מנהלת', 'נייד: 050-1234567 | דוא״ל: dana@example.com', 'בית ספר אופק, אשכול'],
       absent: []
     },
     {
       client_type: 'authority',
-      expectedLines: ['לכבוד:', 'דנה ישראלי, מנהלת', 'טלפון: 050-1234567 | דוא״ל: dana@example.com', 'אשכול'],
-      absent: ['בית ספר אופק', 'לקוח ישן']
+      expectedLines: ['לכבוד:', 'דנה ישראלי, מנהלת', 'נייד: 050-1234567 | דוא״ל: dana@example.com', 'בית ספר אופק, אשכול'],
+      absent: ['לקוח ישן']
     },
     {
       client_type: 'other',
-      expectedLines: ['לכבוד:', 'דנה ישראלי, מנהלת', 'טלפון: 050-1234567 | דוא״ל: dana@example.com'],
-      absent: ['בית ספר אופק', 'אשכול', 'לקוח ישן']
+      expectedLines: ['לכבוד:', 'דנה ישראלי, מנהלת', 'נייד: 050-1234567 | דוא״ל: dana@example.com', 'בית ספר אופק'],
+      absent: ['אשכול', 'לקוח ישן']
     }
   ];
 
@@ -2010,7 +2845,7 @@ test('proposal preview recipient block respects selected recipient type', async 
   }
 });
 
-test('proposal preview for other recipient omits stale organization fields and empty labels', () => {
+test('proposal preview for other recipient shows school framework and omits stale client fields', () => {
   const html = proposalPreviewBodyHtml({
     client_type: 'other',
     client_authority: 'רשות ישנה',
@@ -2023,12 +2858,71 @@ test('proposal preview for other recipient omits stale organization fields and e
     status: 'approved'
   }, [], []);
   assert.match(html, /איש קשר/);
-  assert.doesNotMatch(html, /עמותת בדיקה|רשות ישנה|לקוח ישן/);
+  assert.match(html, /עמותת בדיקה/);
+  assert.doesNotMatch(html, /רשות ישנה|לקוח ישן/);
   assert.doesNotMatch(html, /רשות:\s*—/);
   assert.doesNotMatch(html, /בית ספר:\s*—/);
 });
 
-test('proposal DB payload for other recipient keeps client name in school_framework only', async () => {
+test('proposal recipient block shows school name across all template types when school and authority exist', async () => {
+  const baseRow = {
+    document_type: 'הצעת מחיר',
+    proposal_date: '2026-06-30',
+    status: 'approved',
+    contact_name: 'דנה ישראלי',
+    contact_role: 'מנהלת',
+    school_framework: 'מרחבי אשכול',
+    client_authority: 'אשכול',
+    client_type: 'authority'
+  };
+  const templateGroups = [
+    { activity_type_group: 'summer', label: 'summer' },
+    { activity_type_group: 'next_year', label: 'next_year' },
+    { activity_type_group: 'הצעה משולבת', label: 'combined' },
+    { activity_type_group: 'סיור', label: 'tour' }
+  ];
+
+  for (const entry of templateGroups) {
+    await withJSDOM(proposalPreviewBodyHtml({ ...baseRow, activity_type_group: entry.activity_type_group }, [], []), async (_root, dom) => {
+      const address = dom.window.document.querySelector('.pa-doc-address');
+      assert.ok(address, `recipient block should render for ${entry.label}`);
+      const orgLine = Array.from(address.querySelectorAll('.pa-recipient-lines p'))
+        .map((p) => p.textContent)
+        .find((line) => line.includes('מרחבי אשכול'));
+      assert.equal(orgLine, 'מרחבי אשכול, אשכול', `${entry.label} should show school and authority`);
+    });
+  }
+});
+
+test('proposal recipient block hides invalid school placeholders and dedupes identical school and authority', async () => {
+  await withJSDOM(proposalPreviewBodyHtml({
+    document_type: 'הצעת מחיר',
+    activity_type_group: 'summer',
+    proposal_date: '2026-06-30',
+    status: 'approved',
+    client_type: 'authority',
+    client_authority: 'אשכול',
+    school_framework: 'ללא בית ספר'
+  }, [], []), async (_root, dom) => {
+    const lines = Array.from(dom.window.document.querySelectorAll('.pa-doc-address p')).map((p) => p.textContent);
+    assert.deepEqual(lines, ['לכבוד:', 'אשכול']);
+  });
+
+  await withJSDOM(proposalPreviewBodyHtml({
+    document_type: 'הצעת מחיר',
+    activity_type_group: 'summer',
+    proposal_date: '2026-06-30',
+    status: 'approved',
+    client_type: 'school',
+    client_authority: 'אשכול',
+    school_framework: 'אשכול'
+  }, [], []), async (_root, dom) => {
+    const lines = Array.from(dom.window.document.querySelectorAll('.pa-doc-address p')).map((p) => p.textContent);
+    assert.deepEqual(lines, ['לכבוד:', 'אשכול']);
+  });
+});
+
+test('proposal DB payload for other recipient keeps client name in client_name and leaves school_framework empty', async () => {
   const { sanitizeProposalAgreementPayload } = await import('../frontend/src/api.js');
   const emptyLookup = { aliasToKey: new Map(), groupByKey: new Map() };
   const dbPayload = sanitizeProposalAgreementPayload({
@@ -2069,7 +2963,9 @@ test('proposal records sort actionable statuses before sent even when sent was u
 
   const html = proposalsAgreementsScreen.render({ rows: sorted }, { state: stateFor('admin') });
   const rowIds = [...html.matchAll(/data-pa-row-id="([^"]+)"/g)].map((match) => match[1]);
-  assert.deepEqual(rowIds, ['pending-old', 'approved-old', 'returned', 'draft', 'sent-newest']);
+  assert.deepEqual(rowIds, ['pending-old', 'approved-old', 'returned', 'draft']);
+  assert.match(html, /data-pa-tab-count="records">4</);
+  assert.match(html, /data-pa-tab-count="sent">1</);
 });
 
 test('reading pending_approval from DB displays awaiting approval in UI', () => {
@@ -2087,8 +2983,35 @@ test('updateProposalAgreementStatus uses statusForDb before Supabase write', asy
   );
 });
 
-test('proposal UUID fields reject numeric business ids and approval uses only auth UUID', async () => {
-  const { sanitizeProposalAgreementPayload, isValidUuid, uuidOrNull } = await import('../frontend/src/api.js');
+
+test('proposal agreement table writes do not request or persist semel_mosad', async () => {
+  const apiSource = await readFile(API_FILE, 'utf8');
+  const tableColumnsMatch = apiSource.match(/const PROPOSALS_AGREEMENTS_COLUMNS = '([^']+)'/);
+  const directoryColumnsMatch = apiSource.match(/const PROPOSALS_AGREEMENTS_DIRECTORY_COLUMNS = '([^']+)'/);
+  const writableColumnsMatch = apiSource.match(/const PROPOSALS_AGREEMENTS_WRITABLE_COLUMNS = new Set\(\[([\s\S]*?)\]\);/);
+  assert.ok(tableColumnsMatch, 'table columns constant should be defined');
+  assert.ok(directoryColumnsMatch, 'directory columns constant should be defined');
+  assert.ok(writableColumnsMatch, 'writable columns constant should be defined');
+
+  const tableColumns = tableColumnsMatch[1].split(',').map((column) => column.trim());
+  const directoryColumns = directoryColumnsMatch[1].split(',').map((column) => column.trim());
+  assert.ok(!tableColumns.includes('semel_mosad'), 'direct proposals_agreements selects must not request semel_mosad');
+  assert.ok(directoryColumns.includes('semel_mosad'), 'directory view selects should include semel_mosad');
+  assert.doesNotMatch(writableColumnsMatch[1], /['"]semel_mosad['"]/, 'direct writes must not include semel_mosad');
+  const sanitizeBody = apiSource.slice(
+    apiSource.indexOf('function sanitizeProposalAgreementPayload'),
+    apiSource.indexOf('function proposalContactMatches')
+  );
+  assert.doesNotMatch(
+    sanitizeBody,
+    /semel_mosad:/,
+    'sanitizeProposalAgreementPayload must not add semel_mosad to the DB row'
+  );
+  assert.match(apiSource, /if \(rpcSemelMosad\) rpcArgs\.p_semel_mosad = rpcSemelMosad;/, 'contact-school RPC may still receive semel_mosad');
+});
+
+test('proposal payload preserves numeric bigint business ids while approval uses only auth UUID', async () => {
+  const { sanitizeProposalAgreementPayload, isValidUuid, uuidOrNull, bigintIdOrNull } = await import('../frontend/src/api.js');
   const { state } = await import('../frontend/src/state.js');
   const previousUser = state.user;
   state.user = { role: 'admin', user_id: '537', auth_user_id: '' };
@@ -2096,6 +3019,7 @@ test('proposal UUID fields reject numeric business ids and approval uses only au
   try {
     assert.equal(isValidUuid('537'), false);
     assert.equal(uuidOrNull('537'), null);
+    assert.equal(bigintIdOrNull('537'), 537);
     assert.equal(uuidOrNull('550e8400-e29b-41d4-a716-446655440000'), '550e8400-e29b-41d4-a716-446655440000');
     const dbPayload = sanitizeProposalAgreementPayload({
       client_authority: 'רשות בדיקה',
@@ -2105,11 +3029,14 @@ test('proposal UUID fields reject numeric business ids and approval uses only au
       authority_id: '537',
       school_id: '537',
       contact_school_id: '537',
+      semel_mosad: '123456',
       status: 'pending_approval'
     }, emptyLookup);
-    assert.equal(dbPayload.authority_id, null);
-    assert.equal(dbPayload.school_id, null);
-    assert.equal(dbPayload.contact_school_id, null);
+    assert.equal(dbPayload.authority_id, 537);
+    assert.equal(dbPayload.school_id, 537);
+    assert.equal(dbPayload.contact_school_id, 537);
+    assert.equal(dbPayload.semel_mosad, undefined, 'semel_mosad is not written directly to proposals_agreements');
+    assert.equal(dbPayload.id, undefined, 'proposal id remains outside the bigint sanitizer payload');
   } finally {
     state.user = previousUser;
   }
@@ -2122,6 +3049,27 @@ test('proposal UUID fields reject numeric business ids and approval uses only au
   assert.match(apiSource, /patch\.status = 'approved'/);
 });
 
+
+
+test('proposal client type inference honors explicit other before authority fallback', async () => {
+  const screenSource = await readFile(SCREEN_FILE, 'utf8');
+  assert.match(screenSource, /const explicitType = text\(row\.contact_client_type \|\| row\.client_type\)/);
+  assert.match(screenSource, /if \(explicitType === 'other'\) return 'other';[\s\S]*if \(text\(row\.authority_id\) && !text\(row\.school_id\)\) return 'authority';/);
+  const otherRow = {
+    ...sampleRows[0],
+    id: 'other-row',
+    contact_client_type: 'other',
+    authority_id: 537,
+    school_id: null,
+    school_framework: 'לקוח חברה'
+  };
+  const authorityRow = { ...sampleRows[0], id: 'auth-row', contact_client_type: 'authority', authority_id: 537, school_id: null };
+  const schoolRow = { ...sampleRows[0], id: 'school-row', contact_client_type: 'school', authority_id: 537, school_id: 42 };
+  const html = proposalsAgreementsScreen.render({ rows: [otherRow, authorityRow, schoolRow] }, { state: stateFor('admin') });
+  assert.match(html, /other-row/);
+  assert.match(html, /auth-row/);
+  assert.match(html, /school-row/);
+});
 
 test('multiple proposal item names are preserved on save', async () => {
   const savedPayloads = [];
@@ -2879,6 +3827,7 @@ test('proposal preview renders recipient block before title without empty commas
     assert.deepEqual(Array.from(address.querySelectorAll('p')).map((p) => p.textContent), [
       'לכבוד:',
       'יונית לוי, מנהלת',
+      'נייד: 050-1111111 | דוא״ל: dana@example.com',
       'בית ספר אורט, רשות הדוגמה'
     ]);
     assert.doesNotMatch(address.textContent, /undefined|null|NaN|,,|,\s*$/);
@@ -2922,6 +3871,249 @@ test('proposal preview preserves saved contact details and does not override wit
     // Saved role (not the directory's updated role) must appear
     assert.match(address.textContent, /תפקיד ישן/);
     assert.doesNotMatch(address.textContent, /מנהלת מעודכנת|undefined|null|NaN/);
+  });
+});
+
+// ─── Authority/school display-consistency regression suite ─────────────────
+// contacts_schools.id and schools.id are independent numeric sequences that can collide by
+// coincidence (e.g. id 404 exists in both tables for unrelated clients). contact_school_id must
+// only ever be resolved against contacts_schools, and enrichment must never replace the saved
+// proposal's own client_authority/school_framework/client_name/client_type/authority_id/school_id.
+test('table, drawer and print/preview all show the proposal\'s own client_authority/school_framework even when contact_school_id collides with a different schools.id record', async () => {
+  const row = {
+    id: 'row-404-collision',
+    client_authority: 'חורה',
+    school_framework: 'עמל עהד חורה למצוינות',
+    contact_school_id: '404',
+    document_type: 'הצעת מחיר',
+    activity_type_group: 'פעילויות קיץ',
+    status: 'draft',
+    contact_name: '',
+    contact_role: '',
+    phone: '',
+    email: '',
+    notes: ''
+  };
+  // Deliberately ordered so the wrong (schools-sourced) record with the colliding id comes first —
+  // a plain id lookup (Array.find) must not pick it just because it appears earlier in the list.
+  const contactOptions = [
+    {
+      id: '404',
+      source_table: 'schools',
+      authority: 'ג\'דיידה-מכר',
+      school: 'מקיף גדידה',
+      contact_name: 'מנהל גדידה',
+      contact_role: 'מנהל/ת',
+      phone: '',
+      mobile: '03-9999999',
+      email: 'jadeida@example.com'
+    },
+    {
+      id: '404',
+      source_table: 'contacts_schools',
+      authority: 'חורה',
+      school: 'עמל עהד חורה למצוינות',
+      contact_name: 'מנהל חורה',
+      contact_role: 'מנהל/ת',
+      phone: '',
+      mobile: '050-4040404',
+      email: 'hura@example.com'
+    }
+  ];
+
+  const initialHtml = proposalsAgreementsScreen.render({ rows: [row] }, { state: stateFor('admin') });
+  const tableBody = initialHtml.match(/<tbody data-pa-table-body>[\s\S]*?<\/tbody>/)?.[0] || '';
+  assert.match(tableBody, /עמל עהד חורה למצוינות/, 'table must show the proposal\'s own school');
+  assert.doesNotMatch(tableBody, /ג'דיידה|גדידה/, 'table must never show the colliding schools.id record');
+
+  await withJSDOM(initialHtml, async (root, dom) => {
+    proposalsAgreementsScreen.bind({
+      root,
+      data: { rows: [row], contactOptions },
+      state: stateFor('admin'),
+      api: { readProposalAgreementItems: async () => [] }
+    });
+
+    // Side panel (drawer)
+    root.querySelector(`[data-pa-row-id="${row.id}"]`)?.dispatchEvent(new dom.window.MouseEvent('click', { bubbles: true }));
+    await delay(20);
+    const drawer = root.querySelector('[data-pa-drawer]');
+    assert.match(drawer.innerHTML, /חורה/);
+    assert.match(drawer.innerHTML, /עמל עהד חורה למצוינות/);
+    assert.doesNotMatch(drawer.innerHTML, /ג'דיידה|גדידה/, 'drawer must never show the colliding schools.id record');
+    // Missing contact channels are filled only from the correctly matched contacts_schools record.
+    assert.match(drawer.innerHTML, /מנהל חורה/);
+    assert.match(drawer.innerHTML, /050-4040404/);
+    assert.doesNotMatch(drawer.innerHTML, /מנהל גדידה|03-9999999|jadeida@example\.com/);
+
+    // Preview (identical row must flow through unchanged)
+    root.querySelector(`[data-pa-preview="${row.id}"]`)?.dispatchEvent(new dom.window.MouseEvent('click', { bubbles: true }));
+    await delay(20);
+    const address = dom.window.document.querySelector('.pa-doc-address');
+    assert.ok(address, 'preview recipient block should render');
+    assert.match(address.textContent, /חורה/);
+    assert.match(address.textContent, /עמל עהד חורה למצוינות/);
+    assert.doesNotMatch(address.textContent, /ג'דיידה|גדידה/, 'preview must never show the colliding schools.id record');
+  });
+});
+
+test('print preview uses the same recipient row as the table/drawer despite a colliding contact_school_id', async () => {
+  const row = {
+    ...sampleRows[0],
+    id: 'row-404-print',
+    status: 'approved',
+    client_authority: 'חורה',
+    school_framework: 'עמל עהד חורה למצוינות',
+    contact_school_id: '404',
+    approved_by: 'מנהל',
+    approved_at: '2026-07-01T00:00:00.000Z',
+    signature_meta: { signature: { image: '/img/sig.png' } }
+  };
+  const contactOptions = [
+    { id: '404', source_table: 'schools', authority: 'ג\'דיידה-מכר', school: 'מקיף גדידה', contact_name: 'מנהל גדידה', mobile: '03-9999999', email: 'jadeida@example.com' },
+    { id: '404', source_table: 'contacts_schools', authority: 'חורה', school: 'עמל עהד חורה למצוינות', contact_name: 'מנהל חורה', mobile: '050-4040404', email: 'hura@example.com' }
+  ];
+
+  // jsdom does not put requestAnimationFrame on the global scope; openPreview's autoPrint branch
+  // calls the bare identifier, so stub it for the duration of this test only (print fires ~150ms
+  // after that callback, well past our short delay below, so window.print() itself is never reached).
+  const savedRAF = globalThis.requestAnimationFrame;
+  globalThis.requestAnimationFrame = (cb) => setTimeout(cb, 0);
+  try {
+    await withJSDOM(proposalsAgreementsScreen.render({ rows: [row] }, { state: stateFor('admin') }), async (root, dom) => {
+      proposalsAgreementsScreen.bind({
+        root,
+        data: { rows: [row], contactOptions },
+        state: stateFor('admin'),
+        api: { readProposalAgreementItems: async () => [] }
+      });
+      // print shares openPreview() with the preview button (only differing by an auto window.print()
+      // fired ~150ms later), so asserting on the same overlay here proves print and preview never diverge.
+      root.querySelector(`[data-pa-print="${row.id}"]`)?.dispatchEvent(new dom.window.MouseEvent('click', { bubbles: true }));
+      await delay(20);
+      const address = dom.window.document.querySelector('.pa-doc-address');
+      assert.ok(address, 'print preview recipient block should render');
+      assert.match(address.textContent, /חורה/);
+      assert.match(address.textContent, /עמל עהד חורה למצוינות/);
+      assert.doesNotMatch(address.textContent, /ג'דיידה|גדידה/, 'print must never show the colliding schools.id record');
+    });
+  } finally {
+    globalThis.requestAnimationFrame = savedRAF;
+  }
+});
+
+test('contact enrichment fills only missing mobile/email and never replaces an existing recipient', async () => {
+  const row = {
+    ...sampleRows[0],
+    contact_school_id: '9001',
+    contact_name: 'קשר קיים',
+    contact_role: 'תפקיד קיים',
+    phone: '',
+    email: ''
+  };
+  const contactOptions = [{
+    id: '9001',
+    source_table: 'contacts_schools',
+    authority: row.client_authority,
+    school: row.school_framework,
+    contact_name: 'קשר אחר לגמרי',
+    contact_role: 'תפקיד אחר',
+    phone: '03-1234567',
+    mobile: '052-7654321',
+    email: 'new@example.com'
+  }];
+
+  await withJSDOM(proposalsAgreementsScreen.render({ rows: [row] }, { state: stateFor('admin') }), async (root, dom) => {
+    proposalsAgreementsScreen.bind({
+      root,
+      data: { rows: [row], contactOptions },
+      state: stateFor('admin'),
+      api: { readProposalAgreementItems: async () => [] }
+    });
+    root.querySelector(`[data-pa-row-id="${row.id}"]`)?.dispatchEvent(new dom.window.MouseEvent('click', { bubbles: true }));
+    await delay(20);
+    const drawer = root.querySelector('[data-pa-drawer]');
+    // The saved recipient must never be swapped for a differently-named contact.
+    assert.match(drawer.innerHTML, /קשר קיים/);
+    assert.match(drawer.innerHTML, /תפקיד קיים/);
+    assert.doesNotMatch(drawer.innerHTML, /קשר אחר לגמרי|תפקיד אחר/);
+    // Missing channels are filled in, and phone only ever comes from mobile — never the landline.
+    assert.match(drawer.innerHTML, /052-7654321/);
+    assert.match(drawer.innerHTML, /new@example\.com/);
+    assert.doesNotMatch(drawer.innerHTML, /03-1234567/);
+  });
+});
+
+test('contact_school_id never matches a contact record with an unclear or missing source_table', async () => {
+  const row = {
+    ...sampleRows[0],
+    contact_school_id: '777',
+    contact_name: '',
+    contact_role: '',
+    phone: '',
+    email: ''
+  };
+  const ambiguousContact = {
+    id: '777',
+    // source_table intentionally omitted: identity cannot be confirmed, so this must never be
+    // treated as a contacts_schools match just because the numeric id happens to line up.
+    authority: 'רשות אחרת',
+    school: 'בית ספר אחר',
+    contact_name: 'לא אמור להיטען',
+    mobile: '050-0000000',
+    email: 'ambiguous@example.com'
+  };
+
+  await withJSDOM(proposalsAgreementsScreen.render({ rows: [row] }, { state: stateFor('admin') }), async (root, dom) => {
+    proposalsAgreementsScreen.bind({
+      root,
+      data: { rows: [row], contactOptions: [ambiguousContact] },
+      state: stateFor('admin'),
+      api: { readProposalAgreementItems: async () => [] }
+    });
+    root.querySelector(`[data-pa-row-id="${row.id}"]`)?.dispatchEvent(new dom.window.MouseEvent('click', { bubbles: true }));
+    await delay(20);
+    const drawer = root.querySelector('[data-pa-drawer]');
+    assert.doesNotMatch(drawer.innerHTML, /לא אמור להיטען|ambiguous@example\.com|050-0000000/);
+    assert.match(drawer.innerHTML, new RegExp(row.client_authority));
+  });
+});
+
+test('sent proposal with a saved final PDF opens the existing file and never rebuilds a live preview or print', async () => {
+  const sentRow = {
+    ...sampleRows[0],
+    status: 'sent',
+    final_pdf_path: 'proposal-final-pdfs/existing-file.pdf',
+    final_pdf_file_name: 'proposal.pdf',
+    sent_by: 'מנהל מערכת',
+    sent_at: '2026-07-01T00:00:00.000Z'
+  };
+  let requestedIds = [];
+  const api = {
+    readProposalAgreementItems: async () => [],
+    getProposalFinalPdfSignedUrl: async (id) => { requestedIds.push(id); return { signedUrl: 'https://example.com/signed.pdf' }; }
+  };
+
+  // Manager role renders the dedicated "view sent PDF" quick action.
+  await withJSDOM(proposalsAgreementsScreen.render({ rows: [sentRow] }, { state: stateFor('admin') }), async (root, dom) => {
+    dom.window.open = () => {};
+    proposalsAgreementsScreen.bind({ root, data: { rows: [sentRow] }, state: stateFor('admin'), api });
+    root.querySelector(`[data-pa-view-final-pdf="${sentRow.id}"]`)?.dispatchEvent(new dom.window.MouseEvent('click', { bubbles: true }));
+    await delay(20);
+    assert.deepEqual(requestedIds, [sentRow.id], 'view action should fetch the saved final PDF by id');
+    assert.equal(dom.window.document.getElementById('pa-preview-overlay'), null, 'no live preview should be built for a locked sent proposal');
+  });
+
+  // Non-manager viewer role falls back to the generic preview button, which must still redirect to
+  // the saved final PDF instead of rebuilding (and thereby changing) a live document.
+  requestedIds = [];
+  await withJSDOM(proposalsAgreementsScreen.render({ rows: [sentRow] }, { state: stateFor('business_development_manager') }), async (root, dom) => {
+    dom.window.open = () => {};
+    proposalsAgreementsScreen.bind({ root, data: { rows: [sentRow] }, state: stateFor('business_development_manager'), api });
+    root.querySelector(`[data-pa-preview="${sentRow.id}"]`)?.dispatchEvent(new dom.window.MouseEvent('click', { bubbles: true }));
+    await delay(20);
+    assert.deepEqual(requestedIds, [sentRow.id], 'preview action must redirect to the saved final PDF for a locked sent proposal');
+    assert.equal(dom.window.document.getElementById('pa-preview-overlay'), null, 'no live preview should be rebuilt once the proposal is sent with a saved PDF');
   });
 });
 
@@ -3057,7 +4249,7 @@ test('bundle parent cost table uses parent quantity in print preview', async () 
 });
 
 
-test('tour proposal preview uses scoped 85 percent cost table and omits generic cost intro', () => {
+test('tour proposal preview uses scoped 60 percent cost table and omits generic cost intro', () => {
   const row = {
     id: 'tour-preview-1',
     activity_type_group: 'סיור',
@@ -3098,28 +4290,29 @@ test('tour proposal preview uses scoped 85 percent cost table and omits generic 
   const table = doc.querySelector('.pa-tour-cost-table');
 
   assert.ok(table, 'tour cost table should still render');
-  assert.equal(table.querySelectorAll('colgroup col').length, 5);
-  assert.match(styleText, /\.pa-tour-cost-table\s*\{[^}]*width:\s*85%/s);
-  assert.match(styleText, /\.pa-tour-cost-table\s*\{[^}]*max-width:\s*85%/s);
-  assert.match(styleText, /\.pa-tour-cost-table\s*\{[^}]*margin-inline:\s*auto/s);
-  assert.match(styleText, /\.pa-tour-cost-table th,\s*\.pa-tour-cost-table td\s*\{[^}]*text-align:\s*center/s);
-  assert.match(styleText, /\.pa-tour-cost-table th:first-child,\s*\.pa-tour-cost-table td:first-child\s*\{[^}]*text-align:\s*right/s);
-  assert.match(styleText, /@media print[\s\S]*\.pa-tour-cost-table\s*\{[\s\S]*width:\s*85% !important/);
-  assert.match(styleText, /\.pa-tour-class-col\s*\{\s*width:\s*24%;\s*\}/);
-  assert.match(styleText, /\.pa-tour-total-col\s*\{\s*width:\s*14%;\s*\}/);
+  assert.equal(table.querySelectorAll('colgroup col').length, 4);
+  assert.ok(doc.querySelector('.pa-proposal-doc--tour'), 'tour documents should receive a tour-only print styling hook');
+  assert.match(styleText, /\.pa-proposal-doc--tour \.pa-section\s*\{[^}]*margin-top:\s*2mm[^}]*margin-bottom:\s*2mm/s);
+  assert.match(styleText, /\.pa-proposal-doc--tour \.pa-section-heading\s*\{[^}]*margin-bottom:\s*1mm[^}]*line-height:\s*1\.15/s);
+  assert.match(styleText, /\.pa-proposal-doc--tour \.pa-section li\s*\{[^}]*margin-bottom:\s*0\.6mm[^}]*line-height:\s*1\.18/s);
+  assert.match(styleText, /\.pa-proposal-doc--tour \.pa-tour-cost-table\s*\{[^}]*width:\s*60%/s);
+  assert.match(styleText, /\.pa-proposal-doc--tour \.pa-tour-cost-table\s*\{[^}]*max-width:\s*60%/s);
+  assert.match(styleText, /\.pa-proposal-doc--tour \.pa-tour-cost-table\s*\{[^}]*margin-right:\s*0/s);
+  assert.match(styleText, /\.pa-proposal-doc--tour \.pa-tour-cost-table\s*\{[^}]*margin-left:\s*auto/s);
+  assert.match(styleText, /\.pa-proposal-doc--tour \.pa-cost-table th,[\s\S]*padding-top:\s*2px[\s\S]*padding-bottom:\s*2px[\s\S]*line-height:\s*1\.12/s);
+  assert.match(styleText, /\.pa-proposal-doc--tour \.pa-tour-cost-table th,\s*\.pa-proposal-doc--tour \.pa-tour-cost-table td\s*\{[^}]*text-align:\s*right/s);
+  assert.match(styleText, /\.pa-proposal-doc--tour \.pa-tour-cost-table \.pa-tour-col--price,\s*\.pa-proposal-doc--tour \.pa-tour-cost-table \.pa-tour-col--total\s*\{[^}]*text-align:\s*center/s);
+  assert.match(styleText, /@media print[\s\S]*\.pa-proposal-doc--tour \.pa-tour-cost-table\s*\{[\s\S]*width:\s*60% !important/);
+  assert.match(styleText, /\.pa-tour-col--component\s*\{[^}]*width:\s*125px/s);
+  assert.match(styleText, /\.pa-tour-col--total\s*\{[^}]*width:\s*85px[^}]*text-align:\s*center/s);
   const docText = doc.documentElement.textContent || '';
   assert.doesNotMatch(docText, /פירוט הפעילויות והעלויות מוצג בטבלת העלויות שלהלן\./);
   assert.match(docText, /התשלום עבור הסיור יבוצע בהתאם לטבלה שלהלן:/);
   const headers = Array.from(table.querySelectorAll('th')).map((th) => th.textContent.trim());
-  assert.deepEqual(headers, ['כיתה', 'מספר תלמידים', 'מחיר לתלמיד', 'כמות', 'סה״כ']);
-  assert.doesNotMatch(table.textContent || '', /מדריך|הסעה/);
-  const componentText = doc.querySelector('.pa-tour-components-table')?.textContent || '';
-  assert.match(componentText, /מדריך/);
-  assert.match(componentText, /הסעה אוטובוס/);
-  assert.match(componentText, /הסעה מיניבוס/);
-  assert.match(docText, /סה״כ כללי/);
+  assert.deepEqual(headers, ['רכיב', 'כמות', 'מחיר', 'סה״כ']);
+  assert.match(table.textContent || '', /מדריך/);
+  assert.match(table.textContent || '', /הסעה/);
   assert.ok(doc.querySelector('.pa-signature-spacer'), 'signature spacer should render');
-  assert.equal(doc.querySelector('.pa-signature-spacer')?.querySelectorAll('br').length, 2);
 });
 
 test('legacy tour_table guide and transport are rendered as separate cost components', () => {
@@ -3804,6 +4997,86 @@ test('proposal form has no catalog attach control and saves include_catalog fals
   );
 });
 
+
+test('saved manual proposal contact is added to current contact options and appears in next proposal without page refresh', () => {
+  const contactOptions = [...sampleCatalogAuthorities, ...sampleCatalogSchools];
+  const row = {
+    id: 'saved-1',
+    contact_school_id: '9001',
+    client_type: 'school',
+    client_name: 'בית ספר א',
+    client_authority: 'רשות א',
+    school_framework: 'בית ספר א',
+    authority_id: 'auth-a',
+    school_id: 'school-a',
+    contact_name: 'נועה חדשה',
+    contact_role: 'רכזת',
+    phone: '050-9001000',
+    email: 'noa@example.com'
+  };
+
+  const inserted = upsertProposalContactOption(contactOptions, row);
+
+  assert.equal(row.contact_school_id, '9001', 'saved proposal row should carry the returned contact_school_id');
+  assert.ok(inserted, 'saved contact should be upserted into in-memory contactOptions');
+  assert.equal(inserted.id, '9001');
+  assert.equal(inserted.source_table, 'contacts_schools');
+  assert.equal(inserted.client_type, 'school');
+  assert.equal(inserted.client_name, 'בית ספר א');
+  assert.equal(inserted.authority_id, 'auth-a');
+  assert.equal(inserted.school_id, 'school-a');
+  assert.equal(inserted.authority, 'רשות א');
+  assert.equal(inserted.authority_name, 'רשות א');
+  assert.equal(inserted.school, 'בית ספר א');
+  assert.equal(inserted.school_name, 'בית ספר א');
+  assert.equal(inserted.contact_name, 'נועה חדשה');
+  assert.equal(inserted.contact_role, 'רכזת');
+  assert.equal(inserted.mobile, '050-9001000');
+  assert.equal(inserted.phone, '050-9001000');
+  assert.equal(inserted.email, 'noa@example.com');
+  assert.equal(inserted.active, true);
+  assert.ok(contactOptions.some((contact) => contact.source_table === 'contacts_schools' && contact.id === '9001' && contact.contact_name === 'נועה חדשה'), 'next proposal opened in the same screen reads from the updated contactOptions array');
+});
+
+test('saved manual proposal contact upsert does not duplicate or overwrite unrelated client rows', () => {
+  const rows = [{ id: 'existing-row', client_authority: 'רשות ב', school_framework: 'מסגרת ב', contact_name: 'יוסי קשר' }];
+  const contactOptions = [
+    ...sampleCatalogAuthorities,
+    ...sampleCatalogSchools,
+    { id: '9001', source_table: 'schools', authority_id: 'other-auth', school_id: '9001', authority: 'רשות אחרת', school: 'בית ספר אחר', contact_name: '', mobile: '' },
+    { authority_id: 'auth-a', school_id: 'school-a', authority: 'רשות א', school: 'בית ספר א', contact_name: 'נועה חדשה', mobile: '' }
+  ];
+
+  upsertProposalContactOption(contactOptions, {
+    id: 'saved-contact',
+    contact_school_id: '9001',
+    client_type: 'school',
+    client_authority: 'רשות א',
+    school_framework: 'בית ספר א',
+    authority_id: 'auth-a',
+    school_id: 'school-a',
+    contact_name: 'נועה חדשה',
+    phone: '050-9001000'
+  });
+  upsertProposalContactOption(contactOptions, {
+    id: 'saved-contact-again',
+    contact_school_id: '9001',
+    client_type: 'school',
+    client_authority: 'רשות א',
+    school_framework: 'בית ספר א',
+    authority_id: 'auth-a',
+    school_id: 'school-a',
+    contact_name: 'נועה חדשה',
+    phone: '050-9001000'
+  });
+
+  const contactsSchoolsMatches = contactOptions.filter((contact) => contact.source_table === 'contacts_schools' && contact.id === '9001');
+  assert.equal(contactsSchoolsMatches.length, 1, 'same manual client/contact should be updated instead of duplicated');
+  assert.equal(contactOptions.find((contact) => contact.source_table === 'schools' && contact.school_id === '9001')?.authority, 'רשות אחרת', 'contacts_schools id must not update a schools row with the same numeric id');
+  assert.equal(rows.find((row) => row.id === 'existing-row')?.client_authority, 'רשות ב', 'new contact upsert must not overwrite an existing proposal authority');
+  assert.equal(rows.find((row) => row.id === 'existing-row')?.school_framework, 'מסגרת ב', 'new contact upsert must not overwrite an existing proposal school');
+});
+
 test('next_year proposal title uses template_name תוכניות from Supabase', async () => {
   const row = {
     ...sampleRows[0],
@@ -3915,7 +5188,7 @@ test('proposal preview replaces selected course placeholder and renders one cost
     assert.ok(paymentSection?.contains(tables[0]), 'cost table should be inside payment section');
     assert.ok((paymentSection.textContent || '').indexOf('טקסט תנאי תשלום') < (paymentSection.textContent || '').indexOf('סה״כ לתשלום'));
     assert.equal(doc.querySelectorAll('.pa-footer-signature').length, 1);
-    assert.equal(doc.querySelectorAll('.pa-page-footer').length, 1);
+    assert.equal(doc.querySelectorAll('.pa-page-footer, .pa-page-footer-area, .pa-page-footer-gap').length, 0);
   });
 });
 
@@ -3950,7 +5223,7 @@ test('exact timestamp proposal templates multiline migration matches stable SQL 
 });
 
 const STABLE_COMMIT = '2c772f835cc19da52fd76528c0b19f667f23de79';
-const STABLE_DIRECTORY_COLUMNS = 'id,authority_id,authority_code,school_id,contact_school_id,authority_name,legacy_client_authority,contact_client_type,contact_client_name,school_name,legacy_school_framework,document_type,activity_type_group,proposal_domain,proposal_date,activity_names,contact_name,contact_role,phone,email,notes,status,approval_note,total_amount,custom_document_sections,include_catalog,signature_meta,approved_by,approved_at,sent_by,sent_at,created_at,updated_at';
+const STABLE_DIRECTORY_COLUMNS = 'id,authority_id,authority_code,school_id,contact_school_id,semel_mosad,authority_name,legacy_client_authority,contact_client_type,contact_client_name,school_name,legacy_school_framework,document_type,activity_type_group,proposal_domain,proposal_date,activity_names,contact_name,contact_role,phone,email,notes,status,approval_note,total_amount,custom_document_sections,include_catalog,signature_meta,approved_by,approved_at,sent_by,sent_at,locked_at,locked_by,locked_reason,final_pdf_path,final_pdf_file_name,final_pdf_created_at,final_pdf_created_by,document_snapshot,document_html_snapshot,created_at,updated_at';
 
 test('rollback: proposals directory select fields match stable commit before emergency cleanup', async () => {
   const apiSource = await readFile(API_FILE, 'utf8');
@@ -3976,12 +5249,14 @@ test('rollback: manage permission does not expose approve actions for non-admin'
   assert.doesNotMatch(html, /אישור וחתימה/);
 });
 
-test('rollback: approve permission exposes sign-and-approve only for pending approval proposals', () => {
+test('legacy approve permission does not replace Idan signature authority', () => {
   const pendingRow = { id: '44444444-4444-4444-4444-444444444444', status: 'pending_approval', client_authority: 'רשות', school_framework: 'בית ספר' };
   const sentRow = { ...pendingRow, id: '55555555-5555-5555-5555-555555555555', status: 'sent' };
   const approverState = { user: { role: 'authorized_user', view_proposals_agreements: 'yes', approve_proposals_agreements: 'yes' } };
   const pendingHtml = proposalsAgreementsScreen.render({ rows: [pendingRow] }, { state: approverState });
-  assert.match(pendingHtml, /חתום ואשר/);
+  assert.doesNotMatch(pendingHtml, /חתום ואשר/);
+  const idanHtml = proposalsAgreementsScreen.render({ rows: [pendingRow] }, { state: stateFor('admin') });
+  assert.match(idanHtml, /חתום ואשר/);
   const sentHtml = proposalsAgreementsScreen.render({ rows: [sentRow] }, { state: approverState });
   assert.doesNotMatch(sentHtml, /חתום ואשר/);
 });
@@ -4148,18 +5423,18 @@ test('proposal type activity group selector renders exactly canonical display_na
     ]
   }, [{ activity_type_group: 'קיץ תשפ״ו' }], [{ proposal_group: 'pricing-alias' }]);
   assert.deepEqual(options, [
-    { value: 'summer', label: 'קיץ תשפ״ו' },
-    { value: 'next_year', label: 'תוכניות תשפ״ז' },
-    { value: 'combined', label: 'קיץ תשפ״ו ותוכניות תשפ״ז' }
+    { value: 'summer', label: 'קיץ' },
+    { value: 'next_year', label: 'תשפ״ז' },
+    { value: 'combined', label: 'הצעה משולבת' }
   ]);
 
   const html = proposalTypeCardsHtml('קיץ תשפ״ו');
-  assert.equal((html.match(/data-pa-type-btn=/g) || []).length, 3);
+  // Combined proposals are created separately; type cards expose only summer + next_year.
+  assert.equal((html.match(/data-pa-type-btn=/g) || []).length, 2);
   assert.match(html, /data-pa-type-btn="summer"/);
   assert.match(html, /value="summer"/);
-  assert.match(html, /קיץ תשפ״ו/);
-  assert.match(html, /תוכניות תשפ״ז/);
-  assert.match(html, /קיץ תשפ״ו ותוכניות תשפ״ז/);
+  assert.match(html, /קיץ/);
+  assert.match(html, /תשפ״ז/);
   assert.doesNotMatch(html, />summer</);
   assert.doesNotMatch(html, />next_year</);
   assert.doesNotMatch(html, />combined</);
@@ -4213,16 +5488,19 @@ test('upgraded selector fallback shows Hebrew display labels only, not internal 
     proposalActivityGroups: [
       { group_key: 'summer', template_key: 'summer', sort_order: 1, is_active: true },
       { group_key: 'next_year', template_key: 'next_year', sort_order: 2, is_active: true },
-      { group_key: 'combined', template_key: 'combined', included_group_keys: ['summer', 'next_year'], sort_order: 3, is_active: true }
+      { group_key: 'tour', template_key: 'tour', sort_order: 3, is_active: true },
+      { group_key: 'combined', template_key: 'combined', included_group_keys: ['summer', 'next_year'], sort_order: 4, is_active: true }
     ]
   }, [], []);
   const html = proposalTypeCardsHtml('summer');
-  assert.match(html, />פעילויות קיץ</);
-  assert.match(html, />שנה הבאה</);
-  assert.match(html, />הצעה משולבת</);
+  assert.match(html, />קיץ</);
+  assert.match(html, />תשפ״ז</);
+  assert.match(html, />סיור</);
+  assert.doesNotMatch(html, /הצעה משולבת/);
   assert.doesNotMatch(html, />summer</);
   assert.doesNotMatch(html, />next_year</);
   assert.doesNotMatch(html, />combined</);
+  assert.doesNotMatch(html, />tour</);
 });
 
 test('legacy activity_type_group values resolve to canonical keys for summer and next_year templates', () => {
@@ -4364,9 +5642,7 @@ test('proposal load diagnostics include permission and RLS errors distinctly', a
   assert.match(apiSource, /console\.error\('\[proposal-load-error\]'/);
   assert.match(apiSource, /console\.error\('\[proposal-permission-error\]'/);
   assert.match(apiSource, /isSupabasePermissionDeniedError\(error\)/);
-  assert.match(screenSource, /console\.info\('\[proposal-load-debug\]'/);
-  assert.match(screenSource, /templateSectionsCount/);
-  assert.match(screenSource, /activityPricingCount/);
+  assert.doesNotMatch(screenSource, /console\.info\('\[proposal-load-debug\]'/);
 });
 
 test('missing-template warning is not shown when matching template sections exist', () => {
@@ -4426,8 +5702,8 @@ test('package 2 workflow locks status actions by role and status', () => {
   assert.match(approvedHtml, /data-pa-status-action="sent"/, 'approved signed proposals can be marked sent');
 
   const sentHtml = proposalsAgreementsScreen.render({ rows: [{ ...sampleRows[0], status: 'sent', signature_meta: signed, approved_by: '11111111-1111-4111-8111-111111111111', approved_at: '2026-06-30T10:00:00.000Z' }] }, { state: manager });
-  assert.doesNotMatch(sentHtml, /data-pa-edit-row=|data-pa-delete-row=|data-pa-status-action="sent"/, 'sent proposals are terminal and locked from edit/delete/status changes');
-  assert.match(sentHtml, /data-pa-print=/, 'sent proposals can be printed to PDF');
+  assert.doesNotMatch(sentHtml, /data-pa-edit-row=|data-pa-delete-row=|data-pa-status-action="sent"|data-pa-print=/, 'sent proposals are terminal and locked from edit/delete/status changes/print');
+  assert.match(sentHtml, /data-pa-clone-row=/, 'sent proposals can be duplicated to a new draft');
 
   const cancelledHtml = proposalsAgreementsScreen.render({ rows: [{ ...sampleRows[0], status: 'cancelled' }] }, { state: manager });
   assert.doesNotMatch(cancelledHtml, /data-pa-edit-row=|data-pa-print=/, 'cancelled proposals are locked from edit and PDF');
@@ -4457,11 +5733,216 @@ test('sent metadata stays out of table status and appears only in drawer metadat
   });
 });
 
-test('package 2 status API validates terminal states and sent metadata source', async () => {
+test('package 2 status API validates terminal states and lock-and-send flow', async () => {
   const apiSource = await readFile(new URL('../frontend/src/api.js', import.meta.url), 'utf8');
   assert.match(apiSource, /if \(currentStatus === 'sent'\) throw new Error\('הצעה שנשלחה נעולה/);
   assert.match(apiSource, /if \(currentStatus === 'cancelled'\) throw new Error\('הצעה שבוטלה נעולה/);
-  assert.match(apiSource, /targetStatus === 'sent'[\s\S]*currentStatus !== 'approved'[\s\S]*approved_at/);
-  assert.match(apiSource, /patch\.sent_by = senderName;/, 'sent_by is written only when marking sent');
-  assert.match(apiSource, /patch\.sent_at = new Date\(\)\.toISOString\(\);/, 'sent_at is written when marking sent');
+  assert.match(apiSource, /lockAndSendProposalAgreement: async/);
+  assert.match(apiSource, /sent_by: actorName/);
+  assert.match(apiSource, /sent_at: nowIso/);
+  assert.match(apiSource, /document_snapshot: documentSnapshot/);
+  assert.match(apiSource, /proposal-final-pdfs/);
+});
+
+test('proposal final pdf locking migration defines lock columns and private bucket', async () => {
+  const migration = await readFile(new URL('../supabase/migrations/20260705140000_proposal_final_pdf_locking.sql', import.meta.url), 'utf8');
+  assert.match(migration, /locked_at timestamptz/);
+  assert.match(migration, /locked_by text/);
+  assert.match(migration, /locked_reason text/);
+  assert.match(migration, /final_pdf_path text/);
+  assert.match(migration, /document_snapshot jsonb/);
+  assert.match(migration, /document_html_snapshot text/);
+  assert.match(migration, /'proposal-final-pdfs'/);
+  assert.match(migration, /public = false/);
+  assert.doesNotMatch(migration, /UPDATE public\.proposals_agreements[\s\S]*final_pdf_path/);
+});
+
+test('buildProposalDocumentSnapshot captures row, items and template sections', () => {
+  const row = {
+    ...sampleRows[0],
+    status: 'approved',
+    proposal_date: '2026-07-01',
+    total_amount: 1500,
+    custom_document_sections: [{ section_key: 'intro', section_title: 'פתיח', section_body: 'טקסט קבוע' }]
+  };
+  const items = [{ item_name: 'סדנה', quantity: 1, unit_price: 1500, total_price: 1500, proposal_group: 'summer' }];
+  const sections = [{ template_key: 'summer', section_key: 'intro', section_title: 'פתיח', section_body: 'טקסט תבנית' }];
+  const snapshot = buildProposalDocumentSnapshot(row, items, sections);
+  assert.equal(snapshot.version, 1);
+  assert.equal(snapshot.row.client_authority, row.client_authority);
+  assert.equal(snapshot.items.length, 1);
+  assert.equal(snapshot.template_sections[0].section_body, 'טקסט קבוע');
+});
+
+test('proposalLockedPreviewHtml prefers stored html snapshot over live template', () => {
+  const liveIntro = 'טקסט חי מתבנית';
+  const lockedIntro = 'טקסט נעול שנשמר';
+  const row = {
+    ...sampleRows[0],
+    status: 'sent',
+    document_html_snapshot: `<div class="proposal-document"><p>${lockedIntro}</p></div>`
+  };
+  const liveHtml = proposalPreviewBodyHtml(row, [], [{ template_key: 'summer', section_key: 'intro', section_body: liveIntro }]);
+  const lockedHtml = proposalLockedPreviewHtml(row);
+  assert.match(lockedHtml, /טקסט נעול שנשמר/);
+  assert.doesNotMatch(lockedHtml, /טקסט חי מתבנית/);
+  assert.match(liveHtml, /טקסט חי מתבנית/);
+});
+
+test('sent proposals with final pdf expose view-sent-pdf action', () => {
+  const manager = stateFor('operation_manager');
+  const sentRow = {
+    ...sampleRows[0],
+    status: 'sent',
+    final_pdf_path: 'proposals/11111111-1111-1111-1111-111111111111/sent/20260705-120000.pdf',
+    locked_at: '2026-07-05T12:00:00.000Z'
+  };
+  const html = proposalsAgreementsScreen.render({ rows: [sentRow] }, { state: manager });
+  assert.match(html, /data-pa-view-final-pdf=/);
+  assert.match(html, /צפייה ב־PDF שנשלח|צפייה במסמך שנשלח/);
+  assert.doesNotMatch(html, /data-pa-print=/);
+});
+
+test('legacy sent proposals without final pdf show legacy notice in drawer', async () => {
+  const manager = stateFor('operation_manager');
+  const legacyRow = { ...sampleRows[0], status: 'sent', sent_by: 'דנה', sent_at: '2026-06-30T10:00:00.000Z' };
+  assert.equal(isProposalLegacySentWithoutPdf(legacyRow), true);
+  assert.equal(proposalHasFinalPdf(legacyRow), false);
+  await withJSDOM(
+    proposalsAgreementsScreen.render({ rows: [legacyRow] }, { state: manager }),
+    async (root, dom) => {
+      proposalsAgreementsScreen.bind({
+        root,
+        data: { rows: [legacyRow], activityNameOptions: [] },
+        state: manager,
+        api: { readProposalAgreementItems: async () => [] }
+      });
+      root.querySelector('[data-pa-row-id]')?.dispatchEvent(new dom.window.MouseEvent('click', { bubbles: true }));
+      await delay(20);
+      const drawer = root.querySelector('[data-pa-drawer]');
+      assert.match(drawer?.innerHTML || '', /לפני מנגנון שמירת PDF סופי/);
+      assert.match(drawer?.innerHTML || '', /העלאת PDF סופי להצעה ישנה/);
+    }
+  );
+});
+
+test('mark as sent skips final PDF upload dialog when final_pdf_path already exists', async () => {
+  const screenSource = await readFile(SCREEN_FILE, 'utf8');
+  assert.match(screenSource, /if \(proposalHasFinalPdf\(freshRow\)\) \{/,
+    'send flow should check final_pdf_path before rendering the upload dialog');
+  const existingPdfBranch = screenSource.match(/if \(proposalHasFinalPdf\(freshRow\)\) \{[\s\S]*?\n      \}\n      document\.getElementById\('pa-send-dialog-overlay'\)/)?.[0] || '';
+  assert.match(existingPdfBranch, /finalizeSentProposal\(freshRow, mergedItems, \{ previewHtml, templateSections \}\)/,
+    'existing final PDF should go straight to lock-and-send without a pdfFile');
+  assert.doesNotMatch(existingPdfBranch, /pa-send-pdf-input|קובץ PDF סופי/,
+    'existing final PDF path must not ask the user to choose another file');
+});
+
+test('mark as sent without final_pdf_path uploads one PDF and then closes the upload dialog', async () => {
+  const screenSource = await readFile(SCREEN_FILE, 'utf8');
+  const dialogBlock = screenSource.match(/const openSendProposalDialog = async[\s\S]*?const openPreview = async/)?.[0] || '';
+  assert.match(dialogBlock, /id="pa-send-pdf-input" required/,
+    'missing final PDF should still require a PDF file in the dialog');
+  assert.match(dialogBlock, /await finalizeSentProposal\(freshRow, mergedItems, \{ pdfFile, previewHtml, templateSections \}\);\n\s*closeDialog\(\);/,
+    'successful upload should update status to sent and close the dialog once');
+});
+
+test('lock-and-send API treats an existing final_pdf_path as ready to send', async () => {
+  const apiSource = await readFile(new URL('../frontend/src/api.js', import.meta.url), 'utf8');
+  const lockBlock = apiSource.match(/lockAndSendProposalAgreement: async[\s\S]*?uploadLegacyProposalFinalPdf: async/)?.[0] || '';
+  assert.match(lockBlock, /const existingFinalPdfPath = cleanProposalAgreementText\(currentRow\.final_pdf_path\)/,
+    'API should inspect existing final_pdf_path before deciding whether upload is required');
+  assert.match(lockBlock, /if \(!existingFinalPdfPath && !proposalFinalPdfAllowedFile\(pdfFile\)\)/,
+    'API should require a PDF upload only when no final PDF exists');
+  assert.doesNotMatch(lockBlock, /כבר קיים PDF סופי להצעה זו\.'/,
+    'API should not block sending approved proposals that already have a final PDF');
+});
+
+test('mark as sent with an existing final PDF calls lock/send without reopening upload UI', async () => {
+  const approvedRow = {
+    ...sampleRows[0],
+    status: 'approved',
+    approved_at: '2026-06-16T10:30:00.000Z',
+    signature_meta: { signature: { image: 'proposals/signature-idan-nahum.png' } },
+    final_pdf_path: 'proposals/existing/sent.pdf',
+    final_pdf_file_name: 'sent.pdf'
+  };
+  const managerState = stateFor('operation_manager');
+  managerState.user.manage_proposals_agreements = true;
+  const data = { rows: [approvedRow], activityNameOptions: [] };
+  let payloadSeen = null;
+
+  await withJSDOM(
+    proposalsAgreementsScreen.render(data, { state: managerState }),
+    async (root, dom) => {
+      proposalsAgreementsScreen.bind({
+        root,
+        data,
+        state: managerState,
+        api: {
+          readProposalAgreementItems: async () => [],
+          lockAndSendProposalAgreement: async (id, payload) => {
+            payloadSeen = { id, payload };
+            return { ok: true, row: { ...approvedRow, status: 'sent', locked_at: '2026-07-07T10:00:00.000Z' } };
+          }
+        }
+      });
+
+      root.querySelector('[data-pa-status-action="sent"]')?.dispatchEvent(new dom.window.MouseEvent('click', { bubbles: true }));
+      await delay(30);
+
+      assert.equal(root.ownerDocument.getElementById('pa-send-dialog-overlay'), null, 'existing final PDF must not open upload dialog');
+      assert.equal(payloadSeen?.id, approvedRow.id);
+      assert.equal(Object.hasOwn(payloadSeen?.payload || {}, 'pdfFile'), false, 'existing final PDF should send without a new pdfFile');
+      assert.equal(data.rows[0].status, 'sent');
+    }
+  );
+});
+
+test('mark as sent without final PDF uploads once and closes the upload UI', async () => {
+  const approvedRow = {
+    ...sampleRows[0],
+    status: 'approved',
+    approved_at: '2026-06-16T10:30:00.000Z',
+    signature_meta: { signature: { image: 'proposals/signature-idan-nahum.png' } },
+    final_pdf_path: ''
+  };
+  const managerState = stateFor('operation_manager');
+  managerState.user.manage_proposals_agreements = true;
+  const data = { rows: [approvedRow], activityNameOptions: [] };
+  let uploadCalls = 0;
+
+  await withJSDOM(
+    proposalsAgreementsScreen.render(data, { state: managerState }),
+    async (root, dom) => {
+      proposalsAgreementsScreen.bind({
+        root,
+        data,
+        state: managerState,
+        api: {
+          readProposalAgreementItems: async () => [],
+          lockAndSendProposalAgreement: async (id, payload) => {
+            uploadCalls += 1;
+            assert.equal(id, approvedRow.id);
+            assert.equal(payload.pdfFile?.name, 'final.pdf');
+            return { ok: true, row: { ...approvedRow, status: 'sent', final_pdf_path: 'proposals/new/final.pdf' } };
+          }
+        }
+      });
+
+      root.querySelector('[data-pa-status-action="sent"]')?.dispatchEvent(new dom.window.MouseEvent('click', { bubbles: true }));
+      await delay(30);
+      const overlay = root.ownerDocument.getElementById('pa-send-dialog-overlay');
+      assert.ok(overlay, 'missing final PDF should open upload dialog');
+
+      const input = overlay.querySelector('#pa-send-pdf-input');
+      const pdf = new dom.window.File(['%PDF-1.4'], 'final.pdf', { type: 'application/pdf' });
+      Object.defineProperty(input, 'files', { value: [pdf], configurable: true });
+      overlay.querySelector('#pa-send-dialog-confirm')?.dispatchEvent(new dom.window.MouseEvent('click', { bubbles: true }));
+      await delay(30);
+
+      assert.equal(uploadCalls, 1, 'successful send should upload exactly once');
+      assert.equal(root.ownerDocument.getElementById('pa-send-dialog-overlay'), null, 'dialog should close after successful upload/send');
+      assert.equal(data.rows[0].status, 'sent');
+    }
+  );
 });

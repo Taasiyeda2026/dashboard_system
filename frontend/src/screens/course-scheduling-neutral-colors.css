@@ -1,0 +1,24 @@
+.course-scheduling-screen.is-compact-symmetric-layout {
+  --cs-warning: #52677a;
+  --cs-warning-soft: #edf2f6;
+}
+
+.course-scheduling-screen.is-compact-symmetric-layout .course-scheduling-summary-card--missing {
+  background: #f6f8fa;
+  color: #52677a;
+}
+
+.course-scheduling-screen.is-compact-symmetric-layout .course-scheduling-summary-card--missing b,
+.course-scheduling-screen.is-compact-symmetric-layout .course-scheduling-summary-card--missing span {
+  color: #52677a;
+}
+
+.course-scheduling-screen.is-compact-symmetric-layout .course-scheduling-summary-card--missing:hover {
+  background: #eef3f6;
+  border-color: transparent;
+}
+
+.course-scheduling-screen.is-compact-symmetric-layout .course-scheduling-status-chip.is-status-warning {
+  background: #edf2f6;
+  color: #43586a;
+}

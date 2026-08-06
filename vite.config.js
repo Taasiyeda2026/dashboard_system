@@ -33,7 +33,7 @@ export default defineConfig(() => {
       rollupOptions: {
         input: resolve(__dirname, 'index.html'),
         output: {
-          inlineDynamicImports: true,
+          // Do not inline dynamic imports: feature/screen bundles must stay async chunks.
           entryFileNames: 'assets/[name]-[hash].js',
           chunkFileNames: 'assets/[name]-[hash].js',
           assetFileNames: 'assets/[name]-[hash][extname]'

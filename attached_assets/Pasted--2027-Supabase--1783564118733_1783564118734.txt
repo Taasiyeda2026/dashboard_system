@@ -1,0 +1,55 @@
+תוספת חובה לאפיון 2027 - מקור הנתונים לכל עמודה
+
+לפני ביצוע, לבדוק בקוד וב-Supabase מאיפה כל שדה נמשך בפועל.
+אין להמציא מקור נתונים.
+אם שדה לא קיים בטבלת activities, יש לחבר אותו ממקור קיים מתאים בלבד.
+
+טבלת מקורות נתונים ל-2027:
+
+שדה בתצוגה	מקור נתונים מומלץ / קיים
+תוכנית / שם פעילות	activities.activity_name
+סוג פעילות	activities.activity_type
+רשות	activities.authority
+בית ספר	activities.school
+מדריך	activities.instructor_name + activities.emp_id
+מדריך נוסף	activities.instructor_name_2 + activities.emp_id_2
+מנהל פעילות	activities.activity_manager
+תאריך התחלה	activities.start_date או חישוב מתוך date_1 / meeting_schedule אם start_date ריק
+תאריך סיום	activities.end_date או חישוב מתוך תאריכי מפגשים אם end_date ריק
+המפגש הבא	חישוב מתוך meeting_schedule / date_1-date_35
+תאריך פעילות	activities.date_1 או מתוך meeting_schedule לפי סוג הפעילות
+שעות	activities.start_time + activities.end_time
+כיתה / קבוצה	activities.grade + activities.class_group
+סטטוס	activities.status
+עונת פעילות	activities.activity_season
+מימון	activities.funding
+מחיר	activities.price
+הערות	activities.notes
+הערה תפעולית	operations_private_notes / המקור הקיים של הערה תפעולית במערכת
+תאריכי מפגשים	activities.meeting_schedule / activities.date_1-date_35
+RowID / row_id	activities.RowID / activities.row_id
+activity_no	activities.activity_no
+school_id	activities.school_id אם קיים
+סמל מוסד	מטבלת בתי ספר / school_id / semel_mosad - מאחורי הקלעים בלבד
+איש קשר	מטבלת אנשי קשר קיימת, לפי בית ספר / רשות / school_id / סמל מוסד
+נייד	מטבלת אנשי קשר קיימת, לפי איש הקשר שנבחר
+מייל	מטבלת אנשי קשר קיימת, לפי איש הקשר שנבחר
+הערה לכל תאריך	לא להשתמש ב-notes הכללי. לבדוק אם קיים מבנה הערות למפגש. אם לא קיים, להציע פתרון מינימלי נפרד לפי תאריך / מפגש
+
+כללי חיבור:
+1. activities היא טבלת הבסיס לפעילות.
+2. אנשי קשר לא נשמרים כטקסט חופשי אם כבר קיימת טבלת אנשי קשר.
+3. איש קשר, נייד ומייל צריכים להישלף מטבלת אנשי הקשר.
+4. הבחירה של איש קשר צריכה להישמר כך שהמערכת תדע איזה איש קשר נבחר לפעילות.
+5. אם נדרש שדה מזהה כמו contact_id כדי לשמור את איש הקשר שנבחר - לציין זאת לפני שינוי DB.
+6. סמל מוסד נשאר מאחורי הקלעים ומשמש רק לחיבור נכון בין בית ספר לאנשי קשר.
+7. לא לערבב הערות כלליות עם הערות לפי תאריך.
+8. לא להציג שדות טכניים בטבלה החיצונית.
+
+לפני ביצוע:
+להחזיר מיפוי קצר:
+- אילו שדות כבר קיימים ב-activities
+- אילו שדות מגיעים מאנשי קשר
+- אילו שדות מגיעים מבתי ספר
+- האם חסר שדה קשר כמו contact_id או meeting_notes
+- האם נדרש שינוי DB או שאפשר לבצע רק בקוד

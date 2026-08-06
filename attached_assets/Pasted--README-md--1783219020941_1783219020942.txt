@@ -1,0 +1,159 @@
+קרא קודם README.md.
+
+תיקון חירום — הצעות מחיר: לא לחסום צפייה בהצעה קיימת.
+
+חשוב מאוד:
+מקור הנתונים של הצעת מחיר הוא לא ה-PDF.
+
+מקור הנתונים להצעה:
+1. public.proposals_agreements_directory_view
+   זה מקור הקריאה למסך הצעות מחיר.
+
+2. public.proposals_agreements
+   זו טבלת הבסיס של ההצעה.
+
+3. public.proposal_agreement_items
+   זו טבלת שורות/פריטי ההצעה:
+   - proposal_agreement_id
+   - item_name
+   - item_type
+   - gefen_number
+   - meetings_count
+   - hours_count
+   - quantity
+   - unit_price
+   - total_price
+   - description
+
+4. proposalTemplateSections / proposal_template_sections
+   זה מקור סעיפי המסמך והתבניות.
+
+5. proposal-final-pdfs
+   זה bucket של PDF סופי בלבד.
+   הוא לא מקור הנתונים של ההצעה.
+   אסור לחסום צפייה אם אין PDF.
+
+הבעיה:
+אחרי שינוי נעילת הצעות שנשלחו עם PDF סופי / snapshot, הצעות קיימות או legacy יכולות להיחסם לצפייה אם חסר:
+- final_pdf_path
+- signed URL
+- document_snapshot
+- document_html_snapshot
+- תבנית פעילה
+- חלק מהשדות
+
+זה לא תקין.
+
+דרישת המשתמש:
+תמיד לראות את ההצעה עם הנתונים שקיימים.
+לא לחסום צפייה.
+
+זה חייב לעבוד:
+- בתצוגה מקדימה
+- בצפייה במסמך
+- בחלון צד
+- בפרטי ההצעה בטבלה
+
+מה לעשות:
+
+1. אם יש final_pdf_path תקין:
+   להציג PDF סופי כעדיפות ראשונה.
+
+2. אם אין final_pdf_path:
+   לא לחסום.
+   לבנות את ההצעה מתוך:
+   - public.proposals_agreements_directory_view / row
+   - public.proposal_agreement_items
+   - custom_document_sections אם קיימים
+   - proposalTemplateSections אם קיימים
+
+3. אם יש final_pdf_path אבל signed URL נכשל:
+   לא לחסום.
+   להציג fallback מהנתונים הקיימים.
+
+4. אם אין document_snapshot או document_html_snapshot:
+   לא לחסום.
+   לבנות תצוגה מחדש מהנתונים הקיימים.
+
+5. אם חסרה תבנית פעילה:
+   לא לחסום.
+   להציג לפחות:
+   - רשות
+   - בית ספר / שם לקוח
+   - סוג הצעה
+   - תאריך
+   - סטטוס
+   - איש קשר
+   - טלפון
+   - דוא"ל
+   - פריטים מתוך proposal_agreement_items
+   - סכומים
+   - הערות
+
+6. בחלון צד:
+   תמיד להציג את הנתונים הקיימים של ההצעה.
+   גם אם:
+   - status = sent
+   - אין PDF
+   - אין snapshot
+   - זו הצעת legacy
+   - חסרה תבנית
+
+7. לבטל הודעות חסימה כמו:
+   - חייבים להעלות PDF סופי
+   - לא ניתן לצפות ללא PDF
+   - חסר snapshot
+   - חסרה תבנית
+
+אפשר להשאיר הודעת מידע לא חוסמת:
+"לא נמצא PDF סופי, מוצגת תצוגה מתוך הנתונים הקיימים."
+
+8. עריכה מול צפייה:
+   אפשר להשאיר הצעה בסטטוס sent נעולה לעריכה.
+   אבל צפייה, תצוגה מקדימה וחלון צד אסור לחסום.
+
+לא לעשות:
+- לא SQL.
+- לא לשנות נתוני Supabase.
+- לא למחוק מנגנון PDF.
+- לא למחוק snapshot.
+- לא לשנות סטטוסים.
+- לא לשנות חישובי סכומים.
+- לא לשנות תבניות.
+- לא לערבב עם תיקון המלאי.
+
+קבצים לבדיקה:
+- frontend/src/screens/proposals-agreements.js
+- frontend/src/api.js
+- tests/proposals-agreements-screen.test.mjs
+
+בדיקות קבלה:
+1. הצעה sent בלי final_pdf_path נפתחת לצפייה.
+2. הצעה legacy בלי snapshot נפתחת מתוך הנתונים הקיימים.
+3. חלון צד מציג את נתוני ההצעה גם אם אין PDF.
+4. הצעה שיש לה PDF תקין עדיין מציגה PDF כעדיפות ראשונה.
+5. אם signed URL נכשל — מוצג fallback מהנתונים הקיימים.
+6. אם חסרה תבנית — עדיין רואים פרטי הצעה ופריטים.
+7. שורות ההצעה מגיעות מ-public.proposal_agreement_items.
+8. פרטי ההצעה מגיעים מ-public.proposals_agreements_directory_view / public.proposals_agreements.
+9. אין שינוי בחישובי סכומים.
+10. אין שינוי סטטוס.
+11. אין SQL.
+
+חובה בסיום:
+- לעדכן frontend/sw.js
+- להעלות CACHE_VERSION
+- להריץ:
+  npm run check:changed
+  npm run check:build
+  npm run check:pwa
+- לעדכן dist/build לפי README
+
+בסיכום להחזיר:
+1. אישור שמקור הנתונים הוא proposals_agreements / proposals_agreements_directory_view / proposal_agreement_items.
+2. אישור שה-PDF הוא רק מקור תצוגה אם קיים, לא תנאי לצפייה.
+3. איפה הייתה החסימה.
+4. איך עובד fallback בלי PDF/snapshot.
+5. האם sent נשאר נעול לעריכה בלבד.
+6. CACHE_VERSION לפני ואחרי.
+7. תוצאות בדיקות.

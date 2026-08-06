@@ -4,6 +4,30 @@ import { formatDateHe } from './format-date.js';
 import { escapeHtml } from './html.js';
 import { activityTypeMatches, getValidInstructorUsers, humanDisplayText, INSTRUCTOR_CONTACTS_MISSING_ERROR_MESSAGE, INSTRUCTOR_IDENTITY_ERROR_MESSAGE, normalizeActivityTypeKey, normalizeOneDayActivityType, resolveInstructorSelectionByEmpId, validateInstructorIdentityPayload } from './activity-options.js';
 import { state } from '../../state.js';
+import {
+  READ_ONLY_ACTIVITY_PERIOD_MESSAGE,
+  isActivityMutationBlocked
+} from './activity-readonly-period.js';
+
+/**
+ * Event-level guard for the historical 2026 period: even a direct click handler call
+ * must not be able to start an edit, save, or delete a read-only activity.
+ */
+function isReadOnlyActivityForm(form) {
+  if (!form) return false;
+  if (String(form.dataset.activityReadOnly || '') === 'yes') return true;
+  return isActivityMutationBlocked({
+    activityPeriod: String(state?.activityPeriodTab || ''),
+    activitySeason: String(form.getAttribute('data-activity-season') || '')
+  });
+}
+
+function blockReadOnlyActivityMutation(form) {
+  if (!isReadOnlyActivityForm(form)) return false;
+  setStatus(form?.querySelector?.('.ds-activity-edit-status'), 'is-error', READ_ONLY_ACTIVITY_PERIOD_MESSAGE);
+  showToast(READ_ONLY_ACTIVITY_PERIOD_MESSAGE, 'error', 3200);
+  return true;
+}
 
 function setEditMode(form, editing) {
   form.dataset.editing = editing ? 'yes' : 'no';
@@ -325,9 +349,13 @@ function collectMeetingDateChanges(form, initialValues = {}, changes = {}) {
   }
 
   const snapshot = buildMeetingDatesSnapshot(form);
+  const previousStartDate = String(initialValues.start_date || initialMeetingDateValue(initialValues, 0) || '').slice(0, 10);
+  if (snapshot.startDate !== previousStartDate) {
+    changes.start_date = snapshot.startDate || null;
+  }
   const computedEndDate = isOnce ? snapshot.startDate : snapshot.endDate;
-  if (computedEndDate && computedEndDate !== prevEndDate) {
-    changes.end_date = computedEndDate;
+  if (computedEndDate !== prevEndDate) {
+    changes.end_date = computedEndDate || null;
   }
 }
 
@@ -350,6 +378,7 @@ export function bindActivityEditForm(contentRoot, {
   const { signal } = abortController;
 
   async function saveActivityForm(form) {
+    if (blockReadOnlyActivityMutation(form)) return;
     if (form.dataset.saveInFlight === 'yes') {
       // eslint-disable-next-line no-console
       console.warn('[activity-save:duplicate-submit-blocked]', {
@@ -374,6 +403,12 @@ export function bindActivityEditForm(contentRoot, {
       if (!name || name.startsWith('_')) return;
       if (/^meeting_date_\d+$/.test(name) || /^meeting_performed_\d+$/.test(name)) return;
       if (el.closest('[hidden]')) return;
+      if (el.matches('select[multiple][data-scheduling-multi]')) {
+        const nextValues = [...el.selectedOptions].map((option) => String(option.value).trim()).filter(Boolean);
+        const previousValues = Array.isArray(initialValues[name]) ? initialValues[name].map(String) : [];
+        if (JSON.stringify(nextValues) !== JSON.stringify(previousValues)) changes[name] = nextValues;
+        return;
+      }
       const rawValue = el.value;
       if (rawValue === undefined || rawValue === null) return;
       const rawNextValue = String(rawValue).trim();
@@ -384,6 +419,11 @@ export function bindActivityEditForm(contentRoot, {
       if (nextValue === prevValue) return;
       changes[name] = nextValue;
     });
+
+    // An empty scheduling language is a real optional value, never an implicit Hebrew default.
+    if (Object.prototype.hasOwnProperty.call(changes, 'instruction_language') && changes.instruction_language === '') {
+      changes.instruction_language = null;
+    }
 
     if (String(form.dataset.originalStatus || '').trim() === 'פעיל' && !Object.prototype.hasOwnProperty.call(changes, 'status')) {
       changes.status = 'פתוח';
@@ -595,6 +635,7 @@ export function bindActivityEditForm(contentRoot, {
       if (!form) return;
 
       if (ev.target.closest('[data-action="start-edit"]')) {
+        if (blockReadOnlyActivityMutation(form)) return;
         setEditMode(form, true);
         captureFormInitialValues(form);
         const nameSel = form.querySelector('[data-role="activity-name-select"]');
@@ -617,11 +658,13 @@ export function bindActivityEditForm(contentRoot, {
 
       if (ev.target.closest('[data-action="save-edit"]')) {
         ev.preventDefault();
+        if (blockReadOnlyActivityMutation(form)) return;
         void saveActivityForm(form);
         return;
       }
       if (ev.target.closest('[data-action="delete-activity"]')) {
         ev.preventDefault();
+        if (blockReadOnlyActivityMutation(form)) return;
         const rowId = String(form.getAttribute('data-row-id') || '').trim();
         if (!rowId) return;
         const ok = window.confirm('האם למחוק את הפעילות? הפעילות תוסתר מהמסכים ולא תימחק פיזית מהמערכת.');

@@ -39,6 +39,7 @@ if (supabaseUrl && supabaseAnonKey) {
 
 export const supabaseConfig = {
   url: supabaseUrl,
+  publishableKey: supabaseAnonKey,
   hasAnonKey: Boolean(supabaseAnonKey),
   isConfigured: Boolean(supabaseUrl && supabaseAnonKey),
   usesFallbackUrl: supabaseUrl === FALLBACK_SUPABASE_URL,
@@ -73,7 +74,9 @@ export function waitForSupabaseAuthSession(options = {}) {
       } catch {
         /* ignore */
       }
-      resolve(session?.user?.id ? session : null);
+      const resolvedSession = session?.user?.id ? session : null;
+      if (!resolvedSession) authSessionWaitPromise = null;
+      resolve(resolvedSession);
     };
 
     timer = setTimeout(() => {

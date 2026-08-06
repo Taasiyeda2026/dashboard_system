@@ -1,0 +1,1268 @@
+/* Isolated styles for the course-scheduling screen only.
+   All selectors are prefixed with .course-scheduling- and scoped under .course-scheduling-screen. */
+
+.course-scheduling-screen {
+  --cs-border: #d7e0ea;
+  --cs-border-strong: #b7c6d8;
+  --cs-surface: #ffffff;
+  --cs-surface-soft: #f4f7fb;
+  --cs-surface-tint: #eef4fa;
+  --cs-text: #1f2a37;
+  --cs-text-muted: #5f6f82;
+  --cs-accent: #1f6f8b;
+  --cs-accent-soft: #e5f3f7;
+  --cs-ready: #2d8a55;
+  --cs-ready-soft: #e5f6ec;
+  --cs-warning: #b7791f;
+  --cs-warning-soft: #fff4df;
+  --cs-danger: #b42318;
+  --cs-danger-soft: #fdecec;
+  --cs-draft: #5b6b8c;
+  --cs-draft-soft: #eceff5;
+  --cs-radius: 12px;
+  direction: rtl;
+  color: var(--cs-text);
+  display: grid;
+  gap: 12px;
+  align-content: start;
+  align-items: stretch;
+  min-width: 0;
+  min-height: 0;
+  height: auto;
+  max-width: 100%;
+  overflow-x: hidden;
+}
+
+.course-scheduling-screen *,
+.course-scheduling-screen *::before,
+.course-scheduling-screen *::after {
+  box-sizing: border-box;
+}
+
+.course-scheduling-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  flex-wrap: wrap;
+  margin: 0;
+  padding: 0;
+}
+
+.course-scheduling-header-copy {
+  min-width: 0;
+  flex: 1 1 auto;
+  display: flex;
+  align-items: center;
+  gap: 16px;
+  flex-wrap: wrap;
+}
+
+.course-scheduling-title {
+  margin: 0;
+  font-size: 1.65rem;
+  line-height: 1.2;
+  font-weight: 800;
+}
+
+.course-scheduling-subtitle {
+  margin: 4px 0 0;
+  font-size: 0.88rem;
+  color: var(--cs-text-muted);
+}
+
+.course-scheduling-tabs {
+  display: flex;
+  gap: 6px;
+  flex-wrap: wrap;
+  padding: 4px;
+  border: 1px solid var(--cs-border);
+  border-radius: 999px;
+  background: var(--cs-surface-soft);
+  width: fit-content;
+  max-width: 100%;
+}
+
+.course-scheduling-tab {
+  border: 0;
+  background: transparent;
+  color: var(--cs-text-muted);
+  border-radius: 999px;
+  padding: 7px 12px;
+  font: inherit;
+  font-weight: 700;
+  cursor: pointer;
+}
+
+.course-scheduling-tab.is-active {
+  background: var(--cs-surface);
+  color: var(--cs-accent);
+  box-shadow: 0 1px 2px rgba(31, 42, 55, 0.08);
+}
+
+.course-scheduling-visually-hidden {
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  padding: 0;
+  margin: -1px;
+  overflow: hidden;
+  clip: rect(0, 0, 0, 0);
+  white-space: nowrap;
+  border: 0;
+}
+
+.course-scheduling-maintenance-tab {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 12px;
+}
+
+.course-scheduling-maintenance-card {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 18px;
+  min-width: 0;
+  padding: 18px;
+  border: 1px solid var(--cs-border);
+  border-radius: var(--cs-radius);
+  background: var(--cs-surface);
+}
+
+.course-scheduling-maintenance-card h3,
+.course-scheduling-maintenance-card p { margin: 0; }
+.course-scheduling-maintenance-card h3 { margin-bottom: 5px; font-size: 1rem; }
+.course-scheduling-maintenance-card p { color: var(--cs-text-muted); font-size: .88rem; line-height: 1.5; }
+.course-scheduling-maintenance-card .course-scheduling-btn { flex: 0 0 auto; }
+
+@media (max-width: 760px) {
+  .course-scheduling-maintenance-tab { grid-template-columns: 1fr; }
+  .course-scheduling-maintenance-card { align-items: stretch; flex-direction: column; }
+  .course-scheduling-maintenance-card .course-scheduling-btn { align-self: flex-start; }
+}
+
+/* ——— Balanced scope bar: full-width shell with right-aligned controls ——— */
+.course-scheduling-scope {
+  padding: 8px 12px;
+  border: 1px solid var(--cs-border);
+  border-radius: 12px;
+  background: var(--cs-surface);
+}
+
+.course-scheduling-scope-inner {
+  display: flex;
+  align-items: center;
+  justify-content: flex-start;
+  gap: 10px 14px;
+  flex-wrap: wrap;
+}
+
+.course-scheduling-period-range {
+  margin: 0;
+  font-size: 0.9rem;
+  font-weight: 700;
+  color: var(--cs-text-muted);
+  white-space: nowrap;
+}
+
+.course-scheduling-filter-row {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  flex-wrap: wrap;
+}
+
+.course-scheduling-filter-row label {
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+  margin: 0;
+  font-size: 0.88rem;
+  font-weight: 700;
+  color: var(--cs-text-muted);
+}
+
+.course-scheduling-filter-row label:first-child .course-scheduling-input {
+  width: 150px;
+}
+
+.course-scheduling-filter-row label:last-child .course-scheduling-input {
+  width: 190px;
+}
+
+/* ——— Compact summary counters: content-width, right-aligned, subtle semantic colors ——— */
+.course-scheduling-summary {
+  display: flex;
+  flex-wrap: wrap;
+  justify-content: flex-start;
+  gap: 8px;
+}
+
+.course-scheduling-summary-card {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  min-width: 142px;
+  flex: 0 0 auto;
+  padding: 10px 16px;
+  min-height: 62px;
+  border: 1px solid var(--cs-border);
+  border-radius: 10px;
+  background: var(--cs-surface);
+  color: inherit;
+  font: inherit;
+  text-align: right;
+  cursor: default;
+}
+
+.course-scheduling-summary-card b {
+  font-size: 1.5rem;
+  font-weight: 800;
+  line-height: 1.1;
+}
+
+.course-scheduling-summary-card span {
+  font-size: 0.86rem;
+  color: var(--cs-text-muted);
+  line-height: 1.2;
+}
+
+.course-scheduling-summary-card--waiting {
+  background: var(--cs-accent-soft);
+  border-color: #c5e0e8;
+}
+.course-scheduling-summary-card--waiting b { color: var(--cs-accent); }
+
+.course-scheduling-summary-card--ready {
+  background: var(--cs-ready-soft);
+  border-color: #bfe3cc;
+}
+.course-scheduling-summary-card--ready b { color: var(--cs-ready); }
+
+.course-scheduling-summary-card--draft {
+  background: var(--cs-draft-soft);
+  border-color: #d7dcee;
+}
+.course-scheduling-summary-card--draft b { color: var(--cs-draft); }
+
+.course-scheduling-summary-card--missing {
+  background: var(--cs-warning-soft);
+  border-color: #f0d9a8;
+}
+.course-scheduling-summary-card--missing b { color: var(--cs-warning); }
+
+.course-scheduling-summary-card--button {
+  cursor: pointer;
+}
+
+.course-scheduling-summary-card--button:hover {
+  border-color: var(--cs-warning);
+}
+
+.course-scheduling-alert,
+.course-scheduling-success {
+  margin: 0;
+  padding: 10px 12px;
+  border-radius: 10px;
+  font-size: 0.88rem;
+  line-height: 1.4;
+}
+
+.course-scheduling-alert {
+  border: 1px solid #f0c2c2;
+  background: #fff5f5;
+  color: #8a1f1f;
+}
+
+.course-scheduling-success {
+  border: 1px solid #b7e0c5;
+  background: #f2fbf5;
+  color: #21663d;
+}
+
+/* ——— Two-column work area: course list (fixed compact width) + course details (rest) ——— */
+.course-scheduling-layout--courses {
+  display: grid;
+  grid-template-columns: minmax(360px, 400px) minmax(0, 1fr);
+  gap: 12px;
+  align-items: start;
+  min-width: 0;
+}
+
+.course-scheduling-courses,
+.course-scheduling-detail,
+.course-scheduling-calendar-pane {
+  min-width: 0;
+  min-height: 0;
+  height: auto;
+  border: 1px solid var(--cs-border);
+  border-radius: 14px;
+  background: var(--cs-surface);
+  padding: 10px;
+}
+
+.course-scheduling-calendar-pane--empty {
+  display: grid;
+  grid-template-rows: auto auto;
+  align-content: start;
+  justify-items: stretch;
+  align-self: start;
+  min-height: 0;
+  height: auto;
+  max-height: none;
+}
+
+.course-scheduling-courses {
+  max-height: calc(100vh - 224px);
+  overflow: auto;
+  scrollbar-width: thin;
+  scrollbar-color: #d5dee8 transparent;
+}
+
+.course-scheduling-courses::-webkit-scrollbar {
+  width: 6px;
+}
+
+.course-scheduling-courses::-webkit-scrollbar-track {
+  background: transparent;
+}
+
+.course-scheduling-courses::-webkit-scrollbar-thumb {
+  background: #d5dee8;
+  border-radius: 999px;
+}
+
+.course-scheduling-detail {
+  display: grid;
+  gap: 10px;
+  align-content: start;
+  min-height: 0;
+}
+
+.course-scheduling-course-group {
+  margin: 0 0 10px;
+}
+
+.course-scheduling-course-group:last-child {
+  margin-bottom: 0;
+}
+
+.course-scheduling-course-group h3 {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  margin: 0 0 6px;
+  font-size: 0.8rem;
+  color: var(--cs-text-muted);
+}
+
+.course-scheduling-badge {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  min-width: 1.4em;
+  padding: 0 6px;
+  border-radius: 999px;
+  background: #dfe7f0;
+  font-size: 0.72rem;
+}
+
+/* Course cards are full-width list items by design — they are the selectable unit. */
+.course-scheduling-course-card {
+  display: grid;
+  gap: 5px;
+  width: 100%;
+  margin: 0 0 7px;
+  padding: 11px 12px;
+  border: 1px solid var(--cs-border);
+  border-radius: 10px;
+  background: var(--cs-surface);
+  text-align: right;
+  cursor: pointer;
+  color: inherit;
+  font: inherit;
+}
+
+.course-scheduling-course-card:hover {
+  border-color: var(--cs-border-strong);
+  background: var(--cs-surface-soft);
+}
+
+/* Single, unambiguous selection indicator: soft blue fill + subtle blue border only. */
+.course-scheduling-course-card.is-selected {
+  border-color: var(--cs-accent);
+  background: var(--cs-accent-soft);
+}
+
+.course-scheduling-course-card strong {
+  font-size: 1rem;
+}
+
+.course-scheduling-course-card-meta {
+  font-size: 0.86rem;
+  color: var(--cs-text-muted);
+}
+
+/* Status color lives on the chip only — never on the card border/background too. */
+.course-scheduling-status-chip {
+  justify-self: start;
+  margin-top: 2px;
+  display: inline-flex;
+  align-items: center;
+  padding: 2px 8px;
+  border-radius: 999px;
+  background: #e8eef5;
+  font-size: 0.78rem;
+  font-weight: 700;
+}
+
+.course-scheduling-status-chip.is-ready,
+.course-scheduling-status-chip.is-status-ready { background: var(--cs-ready-soft); color: #21663d; }
+.course-scheduling-status-chip.is-draft,
+.course-scheduling-status-chip.is-status-draft { background: var(--cs-draft-soft); color: #44506a; }
+.course-scheduling-status-chip.is-status-warning { background: var(--cs-warning-soft); color: #8a5a00; }
+.course-scheduling-status-chip.is-status-danger { background: var(--cs-danger-soft); color: #8a1f1f; }
+
+.course-scheduling-detail-header {
+  display: grid;
+  gap: 12px;
+  padding-bottom: 2px;
+}
+
+.course-scheduling-detail-title-row {
+  display: flex;
+  align-items: start;
+  justify-content: space-between;
+  gap: 16px;
+}
+
+.course-scheduling-detail-title {
+  margin: 0;
+  font-size: 1.2rem;
+  line-height: 1.25;
+}
+
+/* Compact facts grid — uses the details area's full width instead of stacking narrow lines. */
+.course-scheduling-detail-facts {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(160px, 1fr));
+  gap: 10px 16px;
+  margin: 0;
+}
+
+.course-scheduling-detail-fact {
+  display: grid;
+  gap: 3px;
+  min-width: 0;
+  font-size: 0.86rem;
+}
+
+.course-scheduling-detail-fact dt {
+  flex: 0 0 auto;
+  margin: 0;
+  color: var(--cs-text-muted);
+}
+
+.course-scheduling-detail-fact dd {
+  margin: 0;
+  min-width: 0;
+  font-weight: 600;
+  color: var(--cs-text);
+}
+
+.course-scheduling-requirement-tags {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+}
+
+.course-scheduling-requirement-tag {
+  display: inline-flex;
+  align-items: center;
+  padding: 2px 9px;
+  border-radius: 999px;
+  background: var(--cs-accent-soft);
+  color: var(--cs-accent);
+  font-size: 0.74rem;
+  font-weight: 700;
+}
+
+.course-scheduling-primary-action {
+  display: flex;
+  justify-content: flex-start;
+}
+
+/* Base action-button rule: every .course-scheduling-btn is content-width by default,
+   regardless of a flex or grid ancestor — no separate opt-in class required. */
+.course-scheduling-btn {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: fit-content;
+  max-width: 100%;
+  flex: 0 0 auto;
+  justify-self: start;
+  align-self: start;
+  appearance: none;
+  border: 1px solid var(--cs-border-strong);
+  background: var(--cs-surface);
+  color: var(--cs-text);
+  border-radius: 10px;
+  padding: 8px 14px;
+  font: inherit;
+  font-weight: 700;
+  cursor: pointer;
+}
+
+.course-scheduling-btn:disabled {
+  opacity: 0.65;
+  cursor: wait;
+}
+
+.course-scheduling-btn--primary {
+  background: var(--cs-accent);
+  border-color: var(--cs-accent);
+  color: #fff;
+}
+
+.course-scheduling-btn--secondary {
+  background: var(--cs-surface);
+}
+
+.course-scheduling-btn--sm {
+  padding: 6px 10px;
+  font-size: 0.82rem;
+}
+
+.course-scheduling-btn--xl {
+  min-height: 39px;
+  padding-inline: 18px;
+  font-size: 0.95rem;
+}
+
+.course-scheduling-text-btn {
+  border: 0;
+  background: transparent;
+  color: var(--cs-accent);
+  font: inherit;
+  font-weight: 700;
+  text-decoration: underline;
+  cursor: pointer;
+  padding: 0;
+}
+
+.course-scheduling-input {
+  border: 1px solid var(--cs-border-strong);
+  border-radius: 8px;
+  padding: 6px 8px;
+  font: inherit;
+}
+
+/* Small secondary note instead of a full-width dashed card. */
+.course-scheduling-empty,
+.course-scheduling-loading,
+.course-scheduling-result-block {
+  display: grid;
+  gap: 8px;
+  padding: 14px;
+  border: 1px dashed #cbd7e6;
+  border-radius: 12px;
+  background: var(--cs-surface-soft);
+}
+
+.course-scheduling-empty--center {
+  place-items: start;
+  min-height: 0;
+  align-content: start;
+}
+
+.course-scheduling-empty-wrap {
+  display: flex;
+  justify-content: center;
+  align-items: flex-start;
+  align-self: start;
+  padding: 16px 12px 8px;
+  min-height: 0;
+  height: auto;
+  max-height: none;
+  flex: 0 0 auto;
+}
+
+.course-scheduling-empty-wrap .course-scheduling-empty,
+.course-scheduling-empty--compact {
+  width: max-content;
+  max-width: min(340px, 100%);
+  min-height: 0;
+  height: auto;
+  max-height: none;
+  justify-items: start;
+  align-content: start;
+  text-align: right;
+  padding: 14px 16px;
+  box-sizing: border-box;
+}
+
+.course-scheduling-empty-wrap .course-scheduling-empty-action,
+.course-scheduling-empty--compact .course-scheduling-empty-action,
+.course-scheduling-empty-action {
+  width: auto;
+  min-width: 0;
+  flex: 0 0 auto;
+  align-self: center;
+  justify-self: center;
+  padding: 9px 18px;
+}
+
+.course-scheduling-empty strong,
+.course-scheduling-loading strong,
+.course-scheduling-result-block h3 {
+  margin: 0;
+  font-size: 1.02rem;
+}
+
+.course-scheduling-empty p,
+.course-scheduling-muted {
+  margin: 0;
+  color: var(--cs-text-muted);
+  font-size: 0.88rem;
+}
+
+.course-scheduling-progress {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  display: grid;
+  gap: 6px;
+}
+
+.course-scheduling-progress li {
+  padding: 7px 10px;
+  border-radius: 8px;
+  background: #e8eef5;
+  color: var(--cs-text-muted);
+  font-size: 0.86rem;
+}
+
+.course-scheduling-progress li.is-active {
+  background: var(--cs-accent-soft);
+  color: var(--cs-accent);
+  font-weight: 700;
+}
+
+.course-scheduling-progress li.is-done {
+  background: var(--cs-ready-soft);
+  color: #21663d;
+}
+
+.course-scheduling-instructor-card {
+  display: grid;
+  grid-template-columns: auto 1fr;
+  gap: 12px;
+  align-items: start;
+  padding: 14px 16px;
+  border: 1px solid var(--cs-border);
+  border-radius: 12px;
+  background: var(--cs-surface);
+  cursor: pointer;
+}
+
+.course-scheduling-instructor-card.is-recommended {
+  border-color: #9dcfb0;
+  background: #f4fbf6;
+  box-shadow: 0 4px 14px rgba(45, 138, 85, 0.08);
+}
+
+.course-scheduling-instructor-card.is-selected {
+  border-color: var(--cs-accent);
+  box-shadow: inset 0 0 0 1px var(--cs-accent);
+}
+
+.course-scheduling-instructor-card input {
+  margin-top: 4px;
+}
+
+.course-scheduling-instructor-card-body {
+  display: grid;
+  gap: 3px;
+  min-width: 0;
+}
+
+.course-scheduling-instructor-kicker {
+  font-size: 0.72rem;
+  font-weight: 800;
+  color: var(--cs-accent);
+  text-transform: none;
+}
+
+.course-scheduling-instructor-meta,
+.course-scheduling-instructor-explain {
+  font-size: 0.82rem;
+  color: var(--cs-text-muted);
+}
+
+.course-scheduling-requirements-fit,
+.course-scheduling-score-breakdown {
+  margin-top: 8px;
+  padding-top: 8px;
+  border-top: 1px solid var(--cs-border);
+}
+
+.course-scheduling-requirements-fit h4,
+.course-scheduling-score-breakdown h4 {
+  margin: 0 0 6px;
+  font-size: 0.86rem;
+}
+
+.course-scheduling-check-list,
+.course-scheduling-score-list {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  display: grid;
+  gap: 4px;
+}
+
+.course-scheduling-check-row {
+  display: grid;
+  grid-template-columns: 1.1rem 1fr;
+  gap: 6px;
+  align-items: start;
+  font-size: 0.8rem;
+  color: var(--cs-text);
+}
+
+.course-scheduling-check-row.is-pass .course-scheduling-check-mark {
+  color: #21663d;
+}
+
+.course-scheduling-check-row.is-fail .course-scheduling-check-mark {
+  color: #9b2c2c;
+}
+
+.course-scheduling-check-row.is-unknown .course-scheduling-check-mark {
+  color: var(--cs-text-muted);
+}
+
+.course-scheduling-score-list li {
+  display: grid;
+  grid-template-columns: 1fr auto;
+  gap: 10px;
+  align-items: baseline;
+  font-size: 0.8rem;
+  max-width: 22rem;
+}
+
+.course-scheduling-score-note {
+  margin: 6px 0 0;
+  font-size: 0.74rem;
+  color: var(--cs-text-muted);
+}
+
+.course-scheduling-incomplete-profile {
+  display: grid;
+  gap: 4px;
+  margin-top: 8px;
+  font-size: 0.82rem;
+}
+
+.course-scheduling-alternatives {
+  display: grid;
+  gap: 8px;
+}
+
+.course-scheduling-alternatives h3 {
+  margin: 4px 0 0;
+  font-size: 0.95rem;
+}
+
+.course-scheduling-detail-actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+  align-items: center;
+  margin-top: 4px;
+}
+
+.course-scheduling-details {
+  border: 1px solid var(--cs-border);
+  border-radius: 10px;
+  padding: 8px 10px;
+  background: var(--cs-surface);
+}
+
+.course-scheduling-details summary {
+  cursor: pointer;
+  font-weight: 700;
+}
+
+.course-scheduling-maintenance-panel {
+  display: grid;
+  gap: 8px;
+  padding: 10px;
+  border: 1px solid var(--cs-border);
+  border-radius: 10px;
+  background: var(--cs-surface-soft);
+  font-size: 0.86rem;
+}
+
+.course-scheduling-maintenance-panel h3,
+.course-scheduling-maintenance-panel p,
+.course-scheduling-maintenance-panel ul {
+  margin: 0;
+}
+
+.course-scheduling-readiness-title {
+  font-size: 1.05rem;
+}
+
+.course-scheduling-calendar-toolbar {
+  display: grid;
+  grid-template-columns: auto auto auto;
+  justify-content: start;
+  gap: 10px 18px;
+  align-items: center;
+  margin: 0 0 10px;
+}
+
+.course-scheduling-calendar-toolbar-nav,
+.course-scheduling-calendar-toolbar-center,
+.course-scheduling-calendar-toolbar-views {
+  display: flex;
+  gap: 6px;
+  align-items: center;
+  flex-wrap: nowrap;
+  min-width: 0;
+}
+
+.course-scheduling-calendar-toolbar-center {
+  justify-content: center;
+}
+
+.course-scheduling-calendar-toolbar-views {
+  justify-content: flex-end;
+}
+
+.course-scheduling-calendar-toolbar .course-scheduling-btn,
+.course-scheduling-calendar-toolbar .course-scheduling-input {
+  height: 34px;
+  min-height: 34px;
+  box-sizing: border-box;
+}
+
+.course-scheduling-calendar-toolbar .course-scheduling-input {
+  padding-block: 0;
+}
+
+.course-scheduling-calendar-label {
+  font-size: 0.84rem;
+  color: var(--cs-text-muted);
+  white-space: nowrap;
+}
+
+.course-scheduling-calendar-scroll {
+  overflow: auto;
+  max-height: min(68vh, 720px);
+  max-width: 100%;
+}
+
+.course-scheduling-calendar-table {
+  border-collapse: collapse;
+  width: 100%;
+  table-layout: fixed;
+}
+
+.course-scheduling-calendar-table th,
+.course-scheduling-calendar-table td {
+  border: 1px solid #e6ecf3;
+  padding: 5px;
+  vertical-align: top;
+  font-size: 0.74rem;
+  word-break: break-word;
+}
+
+.course-scheduling-calendar-table thead th {
+  background: var(--cs-surface-soft);
+  position: sticky;
+  top: 0;
+  z-index: 1;
+  font-weight: 700;
+}
+
+.course-scheduling-calendar-instructor {
+  width: 16%;
+  background: var(--cs-surface-soft);
+  position: sticky;
+  right: 0;
+  z-index: 1;
+}
+
+.course-scheduling-calendar-cell.is-selected-day,
+.course-scheduling-calendar-table tr.is-selected-day td {
+  background: #eef6f8;
+}
+
+.course-scheduling-calendar-block {
+  display: grid;
+  gap: 1px;
+  width: 100%;
+  margin: 0 0 4px;
+  padding: 4px 5px;
+  border: 1px solid #c5dde6;
+  border-radius: 6px;
+  background: #eef7fa;
+  text-align: right;
+  cursor: pointer;
+  color: inherit;
+  font: inherit;
+  font-size: 0.72rem;
+}
+
+.course-scheduling-calendar-block--draft {
+  border-style: dashed;
+  background: #fff8ea;
+  border-color: #e8c976;
+}
+
+.course-scheduling-calendar-block-name { font-weight: 700; }
+.course-scheduling-calendar-block-school,
+.course-scheduling-calendar-block-time { color: var(--cs-text-muted); }
+
+.course-scheduling-calendar-fixed-table { width: 100%; }
+.course-scheduling-calendar-fixed-row--draft { opacity: 0.85; }
+
+.course-scheduling-screen [hidden] {
+  display: none !important;
+}
+
+.course-scheduling-overlay {
+  position: fixed;
+  inset: 0;
+  z-index: 40;
+  display: flex;
+  justify-content: center;
+  align-items: flex-start;
+  padding: 64px 18px 18px;
+  background: rgba(15, 23, 42, 0.22);
+}
+
+.course-scheduling-modal,
+.course-scheduling-drawer {
+  display: grid;
+  gap: 10px;
+  position: relative;
+  border: 1px solid var(--cs-border);
+  background: var(--cs-surface);
+  box-shadow: 0 18px 44px rgba(31, 42, 55, 0.2);
+  overflow: auto;
+}
+
+.course-scheduling-modal {
+  width: min(520px, 100%);
+  max-height: calc(100vh - 96px);
+  border-radius: 14px;
+  padding: 18px;
+}
+
+.course-scheduling-overlay--drawer {
+  justify-content: flex-start;
+  align-items: stretch;
+  padding: 0;
+}
+
+.course-scheduling-drawer {
+  width: min(560px, 92vw);
+  min-width: min(480px, 100vw);
+  max-width: 100vw;
+  height: 100vh;
+  border-radius: 0 14px 14px 0;
+  padding: 16px;
+}
+
+.course-scheduling-close {
+  justify-self: start;
+  border: 0;
+  border-radius: 999px;
+  width: 32px;
+  height: 32px;
+  background: var(--cs-surface-soft);
+  color: var(--cs-text);
+  font: inherit;
+  font-size: 1.3rem;
+  line-height: 1;
+  cursor: pointer;
+}
+
+.course-scheduling-drawer .course-scheduling-maintenance-panel {
+  border: 0;
+  background: transparent;
+  padding: 0;
+}
+
+.course-scheduling-readiness-list {
+  display: grid;
+  gap: 8px;
+}
+
+.course-scheduling-readiness-row {
+  display: grid;
+  gap: 3px;
+  padding: 9px 10px;
+  border: 1px solid var(--cs-border);
+  border-radius: 10px;
+  background: var(--cs-surface);
+}
+
+.course-scheduling-readiness-row h4,
+.course-scheduling-readiness-row p {
+  margin: 0;
+}
+
+.course-scheduling-readiness-row p {
+  font-size: 0.8rem;
+  color: var(--cs-text-muted);
+}
+
+.course-scheduling-readiness-actions {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  flex-wrap: wrap;
+  margin-top: 2px;
+}
+
+.course-scheduling-readiness-row .course-scheduling-text-btn {
+  font-size: 0.8rem;
+}
+
+@media (max-width: 1100px) {
+  .course-scheduling-layout--courses {
+    grid-template-columns: minmax(300px, 35%) minmax(0, 1fr);
+  }
+
+  .course-scheduling-calendar-toolbar {
+    grid-template-columns: 1fr;
+    justify-items: stretch;
+  }
+
+  .course-scheduling-calendar-toolbar-nav,
+  .course-scheduling-calendar-toolbar-center,
+  .course-scheduling-calendar-toolbar-views {
+    flex-wrap: wrap;
+    justify-content: flex-start;
+  }
+}
+
+@media (max-width: 900px) {
+  .course-scheduling-layout--courses {
+    grid-template-columns: 1fr;
+  }
+
+  .course-scheduling-courses {
+    max-height: 280px;
+  }
+}
+
+@media (max-width: 720px) {
+  .course-scheduling-tabs {
+    width: 100%;
+  }
+
+  .course-scheduling-tab {
+    flex: 1 1 auto;
+    text-align: center;
+  }
+
+  .course-scheduling-scope {
+    align-items: stretch;
+  }
+
+  .course-scheduling-filter-row,
+  .course-scheduling-filter-row label,
+  .course-scheduling-filter-row .course-scheduling-input {
+    width: 100%;
+  }
+
+  .course-scheduling-filter-row .course-scheduling-input {
+    max-width: none;
+  }
+
+  .course-scheduling-empty-wrap .course-scheduling-btn,
+  .course-scheduling-empty-wrap .course-scheduling-empty-action,
+  .course-scheduling-empty--compact .course-scheduling-empty-action {
+    align-self: center;
+    justify-self: center;
+  }
+
+  .course-scheduling-drawer {
+    width: 100vw;
+    min-width: 0;
+    border-radius: 0;
+  }
+}
+
+@media (max-width: 900px) {
+  .course-scheduling-layout--courses { grid-template-columns: 1fr; }
+  .course-scheduling-courses { max-height: none; }
+  .course-scheduling-detail-facts { grid-template-columns: repeat(2, minmax(150px, 1fr)); }
+  .course-scheduling-calendar-toolbar { grid-template-columns: 1fr; }
+}
+
+/* Compact operational candidate matching layout. */
+.course-scheduling-screen {
+  max-width: min(70vw, 1280px);
+  margin-inline: auto;
+  font-size: 14px;
+}
+
+.course-scheduling-title { font-size: clamp(24px, 2vw, 28px); }
+
+.course-scheduling-detail-header,
+.course-scheduling-result-block {
+  padding: 12px 14px;
+  border: 1px solid var(--cs-border);
+  border-radius: 10px;
+  background: var(--cs-surface);
+}
+
+.course-scheduling-detail-title { font-size: 18px; margin: 0; }
+
+.course-scheduling-detail-facts {
+  display: flex;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: 8px 16px;
+  margin: 8px 0 0;
+}
+
+.course-scheduling-detail-fact {
+  display: inline-flex;
+  align-items: baseline;
+  gap: 5px;
+  min-width: 0;
+}
+
+.course-scheduling-detail-fact dt {
+  color: var(--cs-text-muted);
+  font-size: 12px;
+}
+
+.course-scheduling-detail-fact dd {
+  margin: 0;
+  max-width: 220px;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  font-size: 14px;
+  font-weight: 700;
+}
+
+.course-scheduling-candidates-table-wrap {
+  overflow-x: auto;
+  border: 1px solid var(--cs-border);
+  border-radius: 10px;
+  background: var(--cs-surface);
+}
+
+.course-scheduling-candidates-table {
+  width: 100%;
+  border-collapse: collapse;
+  table-layout: fixed;
+}
+
+.course-scheduling-candidates-table th,
+.course-scheduling-candidates-table td {
+  padding: 8px 10px;
+  border-bottom: 1px solid var(--cs-border);
+  text-align: right;
+  vertical-align: middle;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.course-scheduling-candidates-table th {
+  color: var(--cs-text-muted);
+  background: var(--cs-surface-soft);
+  font-size: 12px;
+  font-weight: 800;
+}
+
+.course-scheduling-candidate-row {
+  min-height: 56px;
+  cursor: pointer;
+}
+
+.course-scheduling-candidate-row.is-selected {
+  background: #edf3f8;
+  box-shadow: inset -3px 0 0 #496a8a;
+}
+
+.course-scheduling-candidate-select { width: 58px; }
+.course-scheduling-candidate-name { width: 190px; }
+.course-scheduling-candidate-score { width: 70px; }
+.course-scheduling-candidate-name strong,
+.course-scheduling-candidate-name span { display: block; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.course-scheduling-candidate-name span { color: var(--cs-text-muted); font-size: 12px; }
+.course-scheduling-candidate-score b { font-size: 16px; color: var(--cs-accent); }
+
+.course-scheduling-candidate-badges {
+  display: inline-flex;
+  gap: 5px;
+  flex-wrap: wrap;
+}
+
+.course-scheduling-mini-check {
+  font-size: 12px;
+  color: var(--cs-text-muted);
+}
+.course-scheduling-mini-check.is-pass { color: var(--cs-ready); }
+.course-scheduling-mini-check.is-fail { color: var(--cs-danger); }
+
+.course-scheduling-rejected {
+  margin-top: 10px;
+  border: 1px solid var(--cs-border);
+  border-radius: 10px;
+  background: var(--cs-surface);
+}
+.course-scheduling-rejected summary { padding: 9px 12px; cursor: pointer; font-weight: 800; }
+.course-scheduling-rejected-list { display: grid; }
+.course-scheduling-rejected-row {
+  display: grid;
+  grid-template-columns: minmax(120px, 220px) 1fr;
+  gap: 10px;
+  padding: 7px 12px;
+  border-top: 1px solid var(--cs-border);
+  font-size: 13px;
+}
+.course-scheduling-rejected-row span { color: var(--cs-danger); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+
+.course-scheduling-selection-note {
+  margin-top: 8px;
+  color: var(--cs-text-muted);
+  font-size: 13px;
+}
+
+.course-scheduling-detail-actions {
+  position: sticky;
+  bottom: 8px;
+  z-index: 1;
+  display: flex;
+  align-items: center;
+  justify-content: flex-start;
+  gap: 8px;
+  margin-top: 10px;
+  padding: 8px;
+  border: 1px solid var(--cs-border);
+  border-radius: 10px;
+  background: rgba(255,255,255,.96);
+  box-shadow: 0 -4px 16px rgba(31,42,55,.08);
+}
+.course-scheduling-btn,
+.course-scheduling-text-btn { min-height: 34px; height: 36px; width: auto; padding: 0 14px; }
+.course-scheduling-btn--primary { background: #173b63; border-color: #173b63; }
+.course-scheduling-btn:disabled { cursor: not-allowed; opacity: .55; }
+
+@media (max-width: 1500px) {
+  .course-scheduling-screen { max-width: min(92vw, 1180px); }
+}
