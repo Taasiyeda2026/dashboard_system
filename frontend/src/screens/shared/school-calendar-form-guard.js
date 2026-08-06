@@ -40,6 +40,73 @@ function refreshMeetingDateDisplay(form) {
   form.dataset.autoEndDate = finalDate;
 }
 
+function clearDeferralNotes(form) {
+  form.querySelectorAll('[data-session-deferral-note]').forEach((note) => note.remove());
+}
+
+function setDeferralNote(picker, skippedWeeks) {
+  if (!skippedWeeks) return;
+  const card = picker.closest('.activity-drawer__date-card');
+  if (!card) return;
+  const note = document.createElement('small');
+  note.dataset.sessionDeferralNote = 'true';
+  note.className = 'ds-muted activity-drawer__date-deferral';
+  note.textContent = skippedWeeks === 1
+    ? 'נדחה בשבוע עקב חג או חופשה'
+    : `נדחה ב־${skippedWeeks} שבועות עקב חג או חופשה`;
+  card.appendChild(note);
+}
+
+export function generateSessionDatesFromFirstMeeting(form, blockedDatesContext = []) {
+  const pickers = meetingPickers(form);
+  const isOneDay = form?.dataset?.isOnce === 'yes';
+  const configuredTotal = Number(form.querySelector('[name="sessions"]')?.value
+    || form.querySelector('[data-session-total]')?.dataset?.sessionTotal
+    || pickers.length);
+  const total = isOneDay ? 1 : Math.min(pickers.length, Math.max(1, Math.floor(configuredTotal || pickers.length)));
+  const firstDate = String(pickers[0]?.value || '').trim();
+  const result = { dates: [], deferred: [], exhausted: false };
+
+  clearDeferralNotes(form);
+  if (!firstDate) {
+    pickers.slice(1).forEach((picker) => {
+      picker.value = '';
+      picker.dataset.prevValue = '';
+    });
+    form.dataset.autoStartDate = '';
+    refreshMeetingDateDisplay(form);
+    return result;
+  }
+
+  let candidate = firstDate;
+  for (let index = 0; index < total; index += 1) {
+    if (index > 0) candidate = addCalendarDays(candidate, 7);
+    let skippedWeeks = 0;
+    while (blockingSchoolCalendarEvent(blockedDatesContext, candidate) && skippedWeeks < 52) {
+      candidate = addCalendarDays(candidate, 7);
+      skippedWeeks += 1;
+    }
+    if (!candidate || blockingSchoolCalendarEvent(blockedDatesContext, candidate)) {
+      result.exhausted = true;
+      break;
+    }
+    pickers[index].value = candidate;
+    pickers[index].dataset.prevValue = candidate;
+    result.dates.push(candidate);
+    if (skippedWeeks) {
+      result.deferred.push({ meeting: index + 1, skippedWeeks });
+      setDeferralNote(pickers[index], skippedWeeks);
+    }
+  }
+  pickers.slice(total).forEach((picker) => {
+    picker.value = '';
+    picker.dataset.prevValue = '';
+  });
+  form.dataset.autoStartDate = result.dates[0] || '';
+  refreshMeetingDateDisplay(form);
+  return result;
+}
+
 async function skipHolidaysInChain(form, changedIndex) {
   if (isSummerActivitySeason(activitySeason(form))) return false;
   const rows = await loadSchoolCalendarRows();
@@ -118,8 +185,23 @@ export function startSchoolCalendarFormGuard() {
     const picker = event.target.closest('input[data-meeting-idx]');
     if (!picker) return;
     const form = picker.closest('[data-drawer-form]');
-    if (!form || !chainModeActive(form)) return;
+    if (!form) return;
     const index = Number(picker.dataset.meetingIdx);
+    if (index === 0) {
+      const requestedFirstDate = String(picker.value || '');
+      if (!requestedFirstDate) {
+        generateSessionDatesFromFirstMeeting(form, []);
+        return;
+      }
+      form.dataset.sessionGenerationRequest = requestedFirstDate;
+      void loadSchoolCalendarRows().then((rows) => {
+        if (form.dataset.sessionGenerationRequest !== requestedFirstDate || String(picker.value || '') !== requestedFirstDate) return;
+        const result = generateSessionDatesFromFirstMeeting(form, isSummerActivitySeason(activitySeason(form)) ? [] : rows);
+        if (result.deferred.length) showToast('רצף המפגשים עודכן ודילג על ימי חופשה', 'info', 2600);
+      });
+      return;
+    }
+    if (!chainModeActive(form)) return;
     void skipHolidaysInChain(form, index).then((changed) => {
       if (changed) showToast('רצף המפגשים עודכן ודילג על ימי חופשה', 'info', 2600);
     });
