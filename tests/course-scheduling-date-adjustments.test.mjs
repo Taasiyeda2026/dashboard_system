@@ -67,7 +67,27 @@ test('migration stores draft proposals separately and applies dates atomically t
   assert.match(sql,/scheduling_daily_sequence_exceeded/);
   assert.match(sql,/scheduling_effective_meetings\(a,p_emp_id\)/);
   assert.match(sql,/create trigger activities_guard_effective_scheduling_calendar/);
+  assert.match(sql,/scheduling_proposed_meeting_count_mismatch/);
+  assert.match(sql,/scheduling_assert_proposed_eligibility/);
+  const trigger=sql.split('create or replace function public.scheduling_guard_activity_calendar_write')[1].split('drop trigger if exists')[0];
+  assert.match(trigger,/activity_season is distinct from 'school_2027'/);
+  assert.match(trigger,/activity_type::text.*not in \('קורס','course','program'\)/s);
+  assert.match(trigger,/status::text.*not in \('פתוח','open'\)/s);
+  assert.match(trigger,/old\.emp_id_2 is distinct from new\.emp_id_2/);
+  assert.match(trigger,/foreach holder in array holders/);
+  assert.doesNotMatch(trigger,/holder:=coalesce/);
   assert.doesNotMatch(sql,/backfill|approval_override/i);
+});
+
+test('SQL validation preserves the official meeting count and proposed-date eligibility gates',async()=>{
+  const sql=await readFile(new URL('../supabase/migrations/20260807120000_course_scheduling_proposed_dates.sql',import.meta.url),'utf8');
+  const validator=sql.split('create or replace function public.scheduling_validate_proposed_meetings')[1].split('revoke all on function public.scheduling_validate_proposed_meetings')[0];
+  assert.match(validator,/generate_series\(1,35\).*official_count/s);
+  assert.match(validator,/jsonb_array_length\(p_meetings\) <> official_count/);
+  const eligibility=sql.split('create or replace function public.scheduling_assert_proposed_eligibility')[1].split('revoke all on function public.scheduling_assert_proposed_eligibility')[0];
+  for(const gate of ['instructor_inactive','scheduling_instructor_profile_incomplete','scheduling_language_mismatch','scheduling_gender_mismatch','scheduling_friday_not_allowed','scheduling_instructor_unavailable']) assert.match(eligibility,new RegExp(gate));
+  assert.match(eligibility,/instructor_availability_exceptions/);
+  assert.match(eligibility,/instructor_availability_rules/);
 });
 
 test('final half overflow confirmation happens before RPC and draft payloads contain dates only',async()=>{

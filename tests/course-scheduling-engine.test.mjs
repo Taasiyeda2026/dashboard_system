@@ -3,7 +3,7 @@ import assert from 'node:assert/strict';
 import { readFile } from 'node:fs/promises';
 import { calculateCourseSchedule, instructorLoad, schedulingCourses, schedulingInstructors } from '../frontend/src/screens/course-scheduling-engine.js';
 import { evaluateInstructor, rankInstructors } from '../frontend/src/screens/instructor-matching-engine.js';
-import { createRouteClient, calculateCandidateTravel } from '../frontend/src/screens/course-scheduling-travel.js';
+import { createRouteClient, calculateCandidateTravel, routeMatrixKey } from '../frontend/src/screens/course-scheduling-travel.js';
 import { courseSchedulingCounts, detailsHtml } from '../frontend/src/screens/course-scheduling.js';
 
 const course = (id, date = '2026-09-06', extra = {}) => ({
@@ -56,6 +56,33 @@ test('filters inactive instructors before matching and route calculation', () =>
   assert.deepEqual(schedulingInstructors([activeInstructor, inactiveInstructor]).map((row) => row.emp_id), ['1']);
   const result = calculateCourseSchedule({ ...baseInput([course('active-only')]), instructors: [activeInstructor, inactiveInstructor] })[0];
   assert.deepEqual(result.checked.map((candidate) => candidate.instructor.emp_id), ['1']);
+});
+
+test('date adjustment keeps the full course and enforces raw travel plus one 15 minute buffer', () => {
+  const target = course('adjusted-full', '2027-01-24', { school: 'יעד', school_address: 'יעד 1', meetings: [
+    { date: '2027-01-24', start_time: '10:00', end_time: '11:00' },
+    { date: '2027-01-31', start_time: '10:00', end_time: '11:00' },
+    { date: '2027-02-07', start_time: '10:00', end_time: '11:00' }
+  ] });
+  const previous = course('previous', '2027-01-31', { emp_id: '1', instructor_assignment_locked: true, school: 'מוצא', school_address: 'מוצא 1', start_time: '09:00', end_time: '09:35', meetings: [{ date: '2027-01-31', start_time: '09:00', end_time: '09:35' }] });
+  const input = {
+    activities: [target, previous], instructors: [instructors[0]], profiles: { 1: profiles[1] },
+    rules: { 1: [{ weekday: 0, available: true, start_time: '08:00', end_time: '16:00' }] },
+    exceptions: { 1: [{ exception_date: '2027-01-24', available: false }] }, assignments: { 1: [previous] }, periodKey: 'first',
+    travel: { 'adjusted-full': { 1: { home: { distance_km: 1, duration_minutes: 2 } } } }
+  };
+  const candidateWith = (routeMatrix) => calculateCourseSchedule({ ...input, routeMatrix })[0].checked[0];
+  const exact = candidateWith({ [routeMatrixKey('מוצא 1', 'יעד 1')]: { distance_km: 1, duration_minutes: 10 } });
+  assert.equal(exact.eligible, true);
+  assert.equal(exact.dateAdjustment.exceedsHalf, true);
+  assert.deepEqual(exact.dateAdjustment.meetings.map((meeting) => meeting.date), ['2027-01-31', '2027-02-07', '2027-02-14']);
+  const oneMinuteShort = { ...previous, end_time: '09:36', meetings: [{ date: '2027-01-31', start_time: '09:00', end_time: '09:36' }] };
+  const short = calculateCourseSchedule({ ...input, activities: [target, oneMinuteShort], assignments: { 1: [oneMinuteShort] }, routeMatrix: { [routeMatrixKey('מוצא 1', 'יעד 1')]: { distance_km: 1, duration_minutes: 10 } } })[0].checked[0];
+  assert.equal(short.eligible, false);
+  assert.ok(short.failures.includes('transition_insufficient'));
+  const unknown = candidateWith({});
+  assert.equal(unknown.eligible, false);
+  assert.ok(unknown.failures.includes('transition_unverified'));
 });
 
 test('global allocation applies course restrictions before balancing courses', () => {

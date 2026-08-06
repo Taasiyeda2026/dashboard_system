@@ -7,12 +7,14 @@ comment on column public.activities.draft_proposed_meetings is 'Ordered proposed
 -- returned by this helper contains dates only.
 create or replace function public.scheduling_validate_proposed_meetings(p_activity_id text, p_meetings jsonb)
 returns jsonb language plpgsql stable security definer set search_path=public as $$
-declare target public.activities; item jsonb; last_date date; canonical jsonb := '[]'::jsonb;
+declare target public.activities; item jsonb; last_date date; canonical jsonb := '[]'::jsonb; official_count integer;
 begin
   select * into target from public.activities where row_id=p_activity_id;
   if not found then raise exception 'activity_not_found'; end if;
   if target.start_time is null or target.end_time is null or target.start_time >= target.end_time then raise exception 'scheduling_activity_hours_missing'; end if;
   if jsonb_typeof(p_meetings) <> 'array' or jsonb_array_length(p_meetings)=0 or jsonb_array_length(p_meetings)>35 then raise exception 'scheduling_proposed_dates_invalid'; end if;
+  select count(*) into official_count from generate_series(1,35)n where nullif(to_jsonb(target)->>('date_'||n),'') is not null;
+  if jsonb_array_length(p_meetings) <> official_count then raise exception 'scheduling_proposed_meeting_count_mismatch'; end if;
   for item in select value from jsonb_array_elements(p_meetings) loop
     if nullif(item->>'date','') is null then raise exception 'scheduling_proposed_dates_invalid'; end if;
     begin perform (item->>'date')::date; exception when others then raise exception 'scheduling_proposed_dates_invalid'; end;
@@ -27,6 +29,43 @@ begin
   return canonical;
 end $$;
 revoke all on function public.scheduling_validate_proposed_meetings(text,jsonb) from public;
+
+-- Pure eligibility validation for proposed dates. It deliberately reads the official
+-- activity hours and the JSON dates without ever writing the activity schedule.
+create or replace function public.scheduling_assert_proposed_eligibility(p_activity_id text,p_emp_id bigint,p_meetings jsonb)
+returns void language plpgsql stable security definer set search_path=public as $$
+declare target public.activities; selected public.contacts_instructors; profile public.instructor_scheduling_profiles;
+  meeting jsonb; availability record; v_weekday integer;
+begin
+  select * into target from public.activities where row_id=p_activity_id;
+  if not found then raise exception 'activity_not_found'; end if;
+  p_meetings:=public.scheduling_validate_proposed_meetings(p_activity_id,p_meetings);
+  select * into selected from public.contacts_instructors where emp_id=p_emp_id;
+  if not found then raise exception 'instructor_not_found'; end if;
+  if lower(coalesce(selected.active::text,'yes')) in ('no','false','0','לא פעיל') then raise exception 'instructor_inactive'; end if;
+  if nullif(btrim(coalesce(selected.address,'')),'') is null then raise exception 'scheduling_instructor_profile_incomplete'; end if;
+  select * into profile from public.instructor_scheduling_profiles where emp_id=p_emp_id;
+  if not found then raise exception 'scheduling_instructor_profile_incomplete'; end if;
+  if nullif(btrim(coalesce(target.instruction_language,'')),'') is not null
+    and not (target.instruction_language=any(coalesce(profile.instruction_languages,'{}'::text[]))) then raise exception 'scheduling_language_mismatch'; end if;
+  if coalesce(target.required_instructor_gender,'any') in ('male','female')
+    and profile.gender is distinct from target.required_instructor_gender then raise exception 'scheduling_gender_mismatch'; end if;
+  for meeting in select value from jsonb_array_elements(p_meetings) loop
+    v_weekday:=extract(dow from (meeting->>'date')::date)::integer;
+    if v_weekday=6 then raise exception 'scheduling_saturday_blocked'; end if;
+    if v_weekday=5 and coalesce(profile.friday_allowed,false) is not true then raise exception 'scheduling_friday_not_allowed'; end if;
+    select x.available,x.start_time,x.end_time into availability from (
+      select e.available,e.start_time,e.end_time,1 priority from public.instructor_availability_exceptions e
+       where e.emp_id=p_emp_id and e.exception_date=(meeting->>'date')::date
+      union all
+      select r.available,r.start_time,r.end_time,2 priority from public.instructor_availability_rules r
+       where r.emp_id=p_emp_id and r.weekday=v_weekday
+    )x order by x.priority limit 1;
+    if not found or availability.available is not true or availability.start_time is null or availability.end_time is null
+      or target.start_time < availability.start_time or target.end_time > availability.end_time then raise exception 'scheduling_instructor_unavailable'; end if;
+  end loop;
+end $$;
+revoke all on function public.scheduling_assert_proposed_eligibility(text,bigint,jsonb) from public;
 
 create or replace function public.scheduling_activity_official_meetings(p_activity public.activities)
 returns jsonb language sql immutable as $$
@@ -135,13 +174,20 @@ revoke all on function public.scheduling_set_activity_meetings(text,jsonb) from 
 -- signatures. It fires only when a calendar holder is created/changed, not for old approved rows.
 create or replace function public.scheduling_guard_activity_calendar_write()
 returns trigger language plpgsql security definer set search_path=public as $$
-declare holder bigint; meetings jsonb;
+declare holder bigint; holders bigint[]:='{}'; meetings jsonb;
 begin
-  holder:=coalesce(nullif(new.draft_emp_id,'')::bigint,new.emp_id::bigint,new.emp_id_2::bigint);
-  if holder is null then return new; end if;
-  meetings:=case when new.draft_emp_id=holder::text and new.draft_proposed_meetings is not null then new.draft_proposed_meetings else public.scheduling_activity_official_meetings(new) end;
-  perform public.scheduling_lock_instructor_for_write(holder);
-  perform public.scheduling_assert_assignment_calendar(new.row_id,holder,meetings);
+  if new.activity_season is distinct from 'school_2027'
+    or lower(btrim(coalesce(new.activity_type::text,''))) not in ('קורס','course','program')
+    or lower(btrim(coalesce(new.status::text,''))) not in ('פתוח','open') then return new; end if;
+  if (old.draft_emp_id is distinct from new.draft_emp_id or old.draft_proposed_meetings is distinct from new.draft_proposed_meetings)
+    and nullif(new.draft_emp_id,'') is not null then holders:=array_append(holders,new.draft_emp_id::bigint); end if;
+  if old.emp_id is distinct from new.emp_id and new.emp_id is not null and not (new.emp_id::bigint=any(holders)) then holders:=array_append(holders,new.emp_id::bigint); end if;
+  if old.emp_id_2 is distinct from new.emp_id_2 and new.emp_id_2 is not null and not (new.emp_id_2::bigint=any(holders)) then holders:=array_append(holders,new.emp_id_2::bigint); end if;
+  foreach holder in array holders loop
+    meetings:=case when new.draft_emp_id=holder::text and new.draft_proposed_meetings is not null then new.draft_proposed_meetings else public.scheduling_activity_official_meetings(new) end;
+    perform public.scheduling_lock_instructor_for_write(holder);
+    perform public.scheduling_assert_assignment_calendar(new.row_id,holder,meetings);
+  end loop;
   return new;
 end $$;
 drop trigger if exists activities_guard_effective_scheduling_calendar on public.activities;
@@ -165,6 +211,7 @@ begin
   if result.activity_season<>'school_2027' or lower(btrim(coalesce(result.status::text,''))) not in ('פתוח','open') then raise exception 'scheduling_activity_not_open'; end if;
   if result.instructor_assignment_locked or nullif(result.emp_id::text,'') is not null then raise exception 'scheduling_assignment_locked'; end if;
   canonical:=public.scheduling_validate_proposed_meetings(p_activity_id,p_proposed_meetings);
+  perform public.scheduling_assert_proposed_eligibility(p_activity_id,p_emp_id,canonical);
   perform public.scheduling_assert_assignment_calendar(p_activity_id,p_emp_id,canonical);
   -- This single update deliberately touches no official date/start/end field, so date-sync
   -- triggers and activity audit observe no temporary official schedule mutation.
@@ -188,6 +235,7 @@ begin
   perform public.scheduling_lock_instructor_for_write(p_emp_id);
   perform 1 from public.activities where row_id=p_activity_id for update;
   canonical:=public.scheduling_validate_proposed_meetings(p_activity_id,p_proposed_meetings);
+  perform public.scheduling_assert_proposed_eligibility(p_activity_id,p_emp_id,canonical);
   perform public.scheduling_assert_assignment_calendar(p_activity_id,p_emp_id,canonical);
   perform public.scheduling_set_activity_meetings(p_activity_id,canonical);
   result:=public.assign_activity_instructor(p_activity_id,p_emp_id,p_instructor_name,p_top_emp_id,p_selected_score,p_top_score,p_decision_type,p_reason);
