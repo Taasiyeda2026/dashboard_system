@@ -2,7 +2,8 @@ import { evaluateInstructor, adjacentActivities, schedulingQualityBand } from '.
 import { activityMeetings, isoWeekKey } from './instructor-scheduling-load.js';
 import { routeMatrixKey } from './course-scheduling-travel.js';
 import { isActivitySchedulingEligible, isSchedulingBlockingAssignment, isSchedulingDraftAssignment } from './shared/activity-scheduling-eligibility.js';
-import { DEFAULT_COURSE_SCHEDULING_PERIOD_KEY, isDateInCourseSchedulingPeriod } from './course-scheduling-periods.js';
+import { DEFAULT_COURSE_SCHEDULING_PERIOD_KEY, isDateInCourseSchedulingPeriod, resolveCourseSchedulingPeriod } from './course-scheduling-periods.js';
+import { proposeDateAdjustments } from './course-scheduling-date-adjustments.js';
 
 const text = (value) => String(value ?? '').trim();
 const minutes = (value) => {
@@ -97,8 +98,10 @@ export function instructorLoad(assignments = [], profile = {}, rules = [], optio
 
 function meetingAssignments(rows = [], options = {}) {
   const periodKey = options.periodKey || DEFAULT_COURSE_SCHEDULING_PERIOD_KEY;
-  return rows.flatMap((activity) => activityMeetings(activity)
-    .filter((meeting) => isDateInCourseSchedulingPeriod(meeting.date, periodKey))
+  return rows.flatMap((activity) => activityMeetings(activity?.draft_emp_id && Array.isArray(activity.draft_proposed_meetings)
+    ? { ...activity, meetings: activity.draft_proposed_meetings }
+    : activity)
+    .filter((meeting) => options.allDates || isDateInCourseSchedulingPeriod(meeting.date, periodKey))
     .map((meeting) => ({
     ...meeting,
     activity_id: idOf(activity),
@@ -241,8 +244,31 @@ function evaluateCandidate({ course, instructor, assignedRows, draftRows, profil
   const empId = text(instructor.emp_id);
   const occupiedRows = [...(assignedRows[empId] || []), ...(draftRows || [])];
   const periodKey = input.periodKey || DEFAULT_COURSE_SCHEDULING_PERIOD_KEY;
-  const periodMeetings = activityMeetings(course).filter((meeting) => isDateInCourseSchedulingPeriod(meeting.date, periodKey));
-  const periodCourse = { ...course, meetings: periodMeetings };
+  const allMeetings = activityMeetings(course);
+  const periodMeetings = allMeetings.filter((meeting) => isDateInCourseSchedulingPeriod(meeting.date, periodKey));
+  const originalPeriodCourse = { ...course, meetings: periodMeetings };
+  const adjustmentInput = {
+    meetings: allMeetings,
+    rules: rules[empId] || [],
+    exceptions: exceptions[empId] || [],
+    schoolCalendar: input.schoolCalendar || [],
+    existingActivities: meetingAssignments(occupiedRows, { periodKey, allDates: true }),
+    halfEnd: resolveCourseSchedulingPeriod(periodKey).end
+  };
+  let adjustment = proposeDateAdjustments(adjustmentInput);
+  if (adjustment?.valid) {
+    const existingMeetings = adjustmentInput.existingActivities;
+    const destination = placeOf(course);
+    const transitions = Object.fromEntries(adjustment.meetings.map((meeting) => {
+      const { previous, next } = adjacentActivities(existingMeetings, meeting);
+      return [meeting.date, {
+        previous: previous ? { ...previous, ...routeLeg(input.routeMatrix || {}, placeOf(previous), destination, sameSchool(previous, course)) } : null,
+        next: next ? { ...next, ...routeLeg(input.routeMatrix || {}, destination, placeOf(next), sameSchool(course, next)) } : null
+      }];
+    }));
+    adjustment = proposeDateAdjustments({ ...adjustmentInput, transitions });
+  }
+  const periodCourse = adjustment?.valid ? { ...course, meetings: adjustment.meetings } : originalPeriodCourse;
   const load = instructorLoad([...occupiedRows, periodCourse], profiles[empId], rules[empId] || [], { periodKey });
   const occupiedMeetings = meetingAssignments(occupiedRows, { periodKey });
   const travel = dynamicTravel(periodCourse, instructor, occupiedMeetings, input);
@@ -261,7 +287,12 @@ function evaluateCandidate({ course, instructor, assignedRows, draftRows, profil
     weeklyWorkDayCount: load.maxWeekDayCount
   });
   // Persist the exact travel object used for scoring so the UI never shows a different route.
-  return { ...result, instructor, load, travel, periodCourse };
+  if (adjustment && !adjustment.valid) {
+    result.failures = [...new Set([...result.failures, adjustment.reason])];
+    result.eligible = false;
+    result.score = null;
+  }
+  return { ...result, instructor, load, travel, periodCourse, originalPeriodCourse, dateAdjustment: adjustment?.valid ? adjustment : null };
 }
 
 function candidateMap({ courses, instructors, profiles = {}, rules = {}, exceptions = {}, assignedRows, input }) {
