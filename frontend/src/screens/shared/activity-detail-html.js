@@ -920,7 +920,10 @@ function blockDates(row, { canEdit = false, canDirectEdit = false, datesLoading 
   const doneFromSchedule = countDoneMeetings(schedule);
   const doneFallback = numericOrNull(row?.meetings_done);
   const done = doneFromSchedule > 0 ? doneFromSchedule : (doneFallback ?? 0);
-  const total = numericOrNull(row?.meetings_total) ?? schedule.length ?? 0;
+  // `sessions` is the persisted activity-level contract.  The dates endpoint can
+  // legitimately return an empty/partial schedule, so it must not collapse an
+  // existing 11-session course back to "0 מתוך 1" while dates are loading.
+  const total = numericOrNull(row?.sessions) ?? numericOrNull(row?.meetings_total) ?? schedule.length ?? 0;
   const progressPct = total > 0 ? Math.min(100, Math.round((done / total) * 100)) : 0;
   const viewChips = buildDateChipsHtml(schedule, false);
   const datePickers = schedule
@@ -1062,7 +1065,7 @@ export function patchDrawerDatesSection(sectionEl, datesData) {
   const doneFromSchedule = countDoneMeetings(schedule);
   const doneFallback = numericOrNull(datesData?.meetings_done);
   const done = doneFromSchedule > 0 ? doneFromSchedule : (doneFallback ?? 0);
-  const total = numericOrNull(datesData?.meetings_total) ?? schedule.length ?? 0;
+  const total = numericOrNull(datesData?.sessions) ?? numericOrNull(datesData?.meetings_total) ?? schedule.length ?? 0;
   const progressPct = total > 0 ? Math.min(100, Math.round((done / total) * 100)) : 0;
   const computedEnd = autoEndDate({ meeting_schedule: schedule }) || String(datesData?.end_date || '');
 

@@ -3288,6 +3288,12 @@ function normalizeProposalAgreementActivityNames(value) {
   return cleanProposalAgreementText(value).split(',').map(cleanProposalAgreementText).filter(Boolean);
 }
 
+function normalizeStoredBoolean(value) {
+  if (value === true || value === 1) return true;
+  if (value === false || value === 0 || value == null) return false;
+  return ['true', '1', 'yes', 'y', 'on'].includes(String(value).trim().toLowerCase());
+}
+
 function normalizeProposalAgreementRow(row = {}) {
   const parsedNotes = parseActivityNamesFromNotes(row.notes);
   const PA_VALID_STATUSES = new Set(['draft', 'sent', 'pending_approval', 'returned_for_changes', 'approved', 'cancelled']);
@@ -3360,7 +3366,7 @@ function normalizeProposalAgreementRow(row = {}) {
     gefen_approval_path: cleanProposalAgreementText(row.gefen_approval_path),
     gefen_approval_file_name: cleanProposalAgreementText(row.gefen_approval_file_name),
     gefen_approval_combined: row.gefen_approval_combined === true,
-    gfen_signed_or_ordered: row.gfen_signed_or_ordered === true,
+    gfen_signed_or_ordered: normalizeStoredBoolean(row.gfen_signed_or_ordered),
     created_at:          cleanProposalAgreementText(row.created_at),
     updated_at:          cleanProposalAgreementText(row.updated_at)
   };

@@ -458,6 +458,34 @@ test('GEFEN signed or ordered marker column renders active checkbox only for GEF
   assert.match(html, /<span class="ds-pa-unavailable" aria-label="לא זמין">—<\/span>/);
 });
 
+test('GEFEN signed or ordered marker normalizes persisted legacy boolean values', async () => {
+  const { normalizeProposalSignedOrOrdered } = await import('../frontend/src/screens/proposals-agreements.js');
+  assert.equal(normalizeProposalSignedOrOrdered(true), true);
+  assert.equal(normalizeProposalSignedOrOrdered(1), true);
+  assert.equal(normalizeProposalSignedOrOrdered('true'), true);
+  assert.equal(normalizeProposalSignedOrOrdered('1'), true);
+  assert.equal(normalizeProposalSignedOrOrdered(false), false);
+  assert.equal(normalizeProposalSignedOrOrdered(0), false);
+  assert.equal(normalizeProposalSignedOrOrdered(null), false);
+
+  const html = proposalsAgreementsTableRowsHtml([{
+    id: 'legacy-signed-1',
+    quote_number: '10172',
+    activity_type_group: 'gefen',
+    gfen_signed_or_ordered: '1',
+    status: 'sent'
+  }], stateFor('admin'));
+  assert.match(html, /data-pa-gfen-signed="legacy-signed-1"[^>]*checked/);
+});
+
+test('GEFEN signed marker persists by proposal id and restores the prior state on failure', async () => {
+  const source = await readFile(new URL('../frontend/src/screens/proposals-agreements.js', import.meta.url), 'utf8');
+  assert.match(source, /updateProposalAgreementGfenSignedOrOrdered\(id, next\)/);
+  assert.match(source, /const id = checkbox\.dataset\.paGfenSigned/);
+  assert.match(source, /checkbox\.checked = previous;[\s\S]{0,180}שמירת סימון חתום \/ הוזמן נכשלה/);
+  assert.match(source, /data\.rows\[idx\] = \{ \.\.\.data\.rows\[idx\], \.\.\.saved/);
+});
+
 test('GEFEN approval generation is a visible table action and not hidden only in the overflow menu', () => {
   const html = proposalsAgreementsTableRowsHtml([{
     id: 'gefen-action-1',
