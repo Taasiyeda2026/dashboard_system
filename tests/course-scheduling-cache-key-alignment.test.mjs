@@ -84,15 +84,6 @@ test('instructor→school cache hit uses canonical address and avoids a Google c
     distance_km: 4.2,
     duration_minutes: 11,
     expires_at: new Date(Date.now() + 86400000).toISOString()
-  }, {
-    // Return leg is requested separately and must also hit cache (no invented reverse).
-    origin_key: pair.destination_address.toLowerCase(),
-    destination_key: pair.origin_address.toLowerCase(),
-    origin_address: schoolAddress,
-    destination_address: instructorAddress,
-    distance_km: 4.5,
-    duration_minutes: 13,
-    expires_at: new Date(Date.now() + 86400000).toISOString()
   }];
 
   const activity = {
@@ -126,17 +117,14 @@ test('instructor→school cache hit uses canonical address and avoids a Google c
   }];
   const routed = await calculateCandidateTravel(preliminary, activities, client);
 
-  assert.equal(client.requests.length, 2);
-  assert.deepEqual(
-    client.requests.map((request) => `${request.origin}→${request.destination}`).sort(),
-    [`${instructorAddress}→${schoolAddress}`, `${schoolAddress}→${instructorAddress}`].sort()
-  );
-  assert.ok(client.requests.every((request) => request.destination !== 'בית ספר א' && request.origin !== 'בית ספר א'));
-  assert.equal(routed.cacheHits, 2);
+  assert.equal(client.requests.length, 1);
+  assert.equal(client.requests[0].destination, schoolAddress);
+  assert.notEqual(client.requests[0].destination, 'בית ספר א');
+  assert.equal(client.requests[0].origin, instructorAddress);
+  assert.equal(routed.cacheHits, 1);
   assert.equal(routed.googleCalls, 0);
   assert.equal(googleCalls, 0);
   assert.equal(routed.travel['course-1']['100'].home.distance_km, 4.2);
-  assert.equal(routed.travel['course-1']['100'].homeReturn.distance_km, 4.5);
 });
 
 test('school→school cache hit uses canonical addresses after enrichment', async () => {

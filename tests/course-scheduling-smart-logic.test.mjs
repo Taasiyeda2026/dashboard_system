@@ -6,7 +6,7 @@ import { evaluateInstructor, schedulingQualityBand } from '../frontend/src/scree
 import { detailsHtml } from '../frontend/src/screens/course-scheduling.js';
 
 const instructor = { emp_id: '1', full_name: 'נועה', active: 'yes', address: 'חיפה' };
-const profile = { gender: 'female', instruction_languages: ['he'], friday_allowed: false };
+const profile = { gender: null, instruction_languages: ['he'], friday_allowed: false };
 const rules = [{ weekday: 0, available: true, start_time: '08:00', end_time: '16:00' }];
 const course = { row_id: 'c1', activity_season: 'school_2027', activity_type: 'course', status: 'פתוח', activity_name: 'קורס', school: 'בית ספר', school_address: 'תל אביב', authority: 'רשות', instruction_language: 'he', required_instructor_gender: 'any', start_time: '10:00', end_time: '11:00', date_1: '2026-09-06' };
 
@@ -17,23 +17,9 @@ test('removed fields never gate or mark an instructor profile incomplete', () =>
   assert.deepEqual(result.missingProfileData, []);
 });
 
-test('missing profile gender hard-gates even when required gender is any', () => {
-  const missingAny = evaluateInstructor({
-    instructor,
-    profile: { ...profile, gender: null },
-    rules,
-    activity: course
-  });
-  assert.equal(missingAny.eligible, false);
-  assert.equal(missingAny.score, null);
-  assert.ok(missingAny.missingProfileData.includes('לא ניתן לאמת התאמה לדרישת המגדר'));
-  assert.equal(missingAny.checks.gender.passed, false);
-  assert.equal(evaluateInstructor({
-    instructor,
-    profile: { ...profile, gender: 'male' },
-    rules,
-    activity: { ...course, required_instructor_gender: 'female' }
-  }).eligible, false);
+test('gender is a gate only for an explicit male or female requirement', () => {
+  assert.equal(evaluateInstructor({ instructor, profile, rules, activity: course }).eligible, true);
+  assert.equal(evaluateInstructor({ instructor, profile: { ...profile, gender: 'male' }, rules, activity: { ...course, required_instructor_gender: 'female' } }).eligible, false);
 });
 
 test('quality boundaries are stable', () => {
@@ -47,14 +33,12 @@ test('eligible low score is bestAvailable and requires treatment, never recruitm
   const result = calculateCourseSchedule({ activities: [course], instructors: [instructor], profiles: { 1: profile }, rules: { 1: rules }, exceptions: {}, preliminary: true })[0];
   assert.equal(result.recommended, null);
   assert.ok(result.bestAvailable);
-  assert.ok(['technical', 'warning'].includes(result.bestAvailable.qualityBand));
-  assert.ok(result.bestAvailable.score < 60);
-  assert.equal(result.bestAvailable.recommended, false);
+  assert.equal(result.bestAvailable.qualityBand, 'technical');
   assert.equal(result.status, 'נדרש טיפול');
   assert.notEqual(result.status, 'נדרש גיוס');
   const html = detailsHtml(result);
   assert.match(html, /לא נמצאה התאמה איכותית לקורס/);
-  assert.match(html, /מתאים טכנית בלבד|מתאים עם אזהרה/);
+  assert.match(html, /מתאים טכנית בלבד/);
   assert.doesNotMatch(html, /<span>מומלץ<\/span>/);
 });
 

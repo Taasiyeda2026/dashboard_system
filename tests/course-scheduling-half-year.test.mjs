@@ -34,17 +34,9 @@ const rules = {
   1: [{ emp_id: '1', weekday: 2, available: true, start_time: '08:00', end_time: '16:00' }],
   2: [{ emp_id: '2', weekday: 2, available: true, start_time: '08:00', end_time: '16:00' }]
 };
-const homeLeg = { distance_km: 5, duration_minutes: 10 };
-const homeReturnLeg = { distance_km: 5.5, duration_minutes: 12 };
 const travel = {
-  c: {
-    1: { home: homeLeg, homeReturn: homeReturnLeg, transitions: {} },
-    2: { home: homeLeg, homeReturn: homeReturnLeg, transitions: {} }
-  },
-  cross: {
-    1: { home: homeLeg, homeReturn: homeReturnLeg, transitions: {} },
-    2: { home: homeLeg, homeReturn: homeReturnLeg, transitions: {} }
-  }
+  c: { 1: { home: { distance_km: 5, duration_minutes: 10 } }, 2: { home: { distance_km: 5, duration_minutes: 10 } } },
+  cross: { 1: { home: { distance_km: 5, duration_minutes: 10 } }, 2: { home: { distance_km: 5, duration_minutes: 10 } } }
 };
 
 test('filters meetings to first and second half-year without assigning 2027-01-30', () => {
@@ -71,13 +63,13 @@ test('authority filter limits engine courses and half A load does not affect hal
   assert.equal((results[0].recommended||results[0].bestAvailable).load.hours,2);
 });
 
-test('stage 3 workload uses actual half hours, not the old 12+8 week split', () => {
+test('stage 3 workload uses actual half hours within the 20-point component', () => {
   const target = course('c', { meetings: [{ date: '2027-02-02', start_time: '10:00', end_time: '12:00' }] });
   const results = calculateCourseSchedule({ activities: [target], instructors, profiles, rules, exceptions: {}, periodKey: 'second', authority: 'רשות א', travel, routeMatrix: {} });
   const selected=results[0].recommended||results[0].bestAvailable;
   assert.ok(selected,'an eligible low-score candidate remains selectable rather than becoming recruitment');
   assert.ok(selected.scoreBreakdown.actualWorkload);
-  assert.equal(selected.scoreBreakdown.actualWorkload.points <= 20, true);
+  assert.ok(selected.scoreBreakdown.actualWorkload.points <= 20);
   assert.equal(selected.projectedHalfHours, 2);
   assert.equal(selected.scoreBreakdown.workload, undefined);
 });

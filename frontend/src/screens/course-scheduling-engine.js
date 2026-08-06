@@ -1,15 +1,18 @@
 import { evaluateInstructor, adjacentActivities, schedulingQualityBand } from './instructor-matching-engine.js';
 import { activityMeetings, isoWeekKey } from './instructor-scheduling-load.js';
 import { routeMatrixKey } from './course-scheduling-travel.js';
-import { isActivitySchedulingEligible, isSchedulingBlockingAssignment, isSchedulingDraftAssignment } from './shared/activity-scheduling-eligibility.js';
+import {
+  hasDraftInstructor,
+  isActivitySchedulingEligible,
+  isSchedulingBlockingAssignment,
+  isSchedulingDraftAssignment
+} from './shared/activity-scheduling-eligibility.js';
 import { DEFAULT_COURSE_SCHEDULING_PERIOD_KEY, isDateInCourseSchedulingPeriod, resolveCourseSchedulingPeriod } from './course-scheduling-periods.js';
 import { proposeDateAdjustments } from './course-scheduling-date-adjustments.js';
 import {
   SCORE_WEIGHTS,
   computeSchedulingScore,
   courseUrgency,
-  isSafeEligibleCandidate,
-  compareOptimizationStates,
   compareCandidatesStable
 } from './course-scheduling-score.js';
 
@@ -22,13 +25,13 @@ const minutes = (value) => {
 };
 const idOf = (row) => text(row?.row_id || row?.RowID || row?.id);
 const empOf = (row) => text(row?.emp_id);
-// Canonical resolved address only — school display names are not travel locations.
 const placeOf = (row = {}) => text(row.school_address);
 
 export function schedulingCourses(rows = [], options = {}) {
   const periodKey = options.periodKey || DEFAULT_COURSE_SCHEDULING_PERIOD_KEY;
   const authority = text(options.authority);
   return rows.filter(isActivitySchedulingEligible)
+    .filter((row) => !hasDraftInstructor(row))
     .filter((row) => !authority || text(row.authority) === authority)
     .filter((row) => activityMeetings(row).some((meeting) => isDateInCourseSchedulingPeriod(meeting.date, periodKey)));
 }
@@ -79,7 +82,7 @@ export function instructorLoad(assignments = [], profile = {}, rules = [], optio
       const week = isoWeekKey(meeting.date);
       hours += duration;
       meetings += 1;
-      workDates.add(text(meeting.date));
+      workDates.add(text(meeting.date).slice(0, 10));
       if (week) {
         weekHours.set(week, (weekHours.get(week) || 0) + duration);
         const weekday = new Date(`${meeting.date}T12:00:00`).getDay();
@@ -117,14 +120,14 @@ function meetingAssignments(rows = [], options = {}) {
     : activity)
     .filter((meeting) => options.allDates || isDateInCourseSchedulingPeriod(meeting.date, periodKey))
     .map((meeting) => ({
-    ...meeting,
-    activity_id: idOf(activity),
-    school: activity.school,
-    school_id: activity.school_id,
-    authority: activity.authority,
-    school_address: activity.school_address,
-    activity_name: activity.activity_name
-  })));
+      ...meeting,
+      activity_id: idOf(activity),
+      school: activity.school,
+      school_id: activity.school_id,
+      authority: activity.authority,
+      school_address: activity.school_address,
+      activity_name: activity.activity_name
+    })));
 }
 
 function assignedRowsByInstructor(rows = [], supplied = {}) {
@@ -143,17 +146,10 @@ function assignedRowsByInstructor(rows = [], supplied = {}) {
     add(text(row.emp_id), row);
     add(text(row.emp_id_2), row);
   }
-  // A saved draft holds its instructor's calendar slot too, so it is never proposed
-  // twice — even though the official activity instructor is not set until approval.
   for (const row of rows.filter(isSchedulingDraftAssignment)) {
     add(text(row.draft_emp_id), row);
   }
   return assigned;
-}
-
-function averageFinite(values = []) {
-  const finite = values.map(Number).filter(Number.isFinite);
-  return finite.length ? finite.reduce((sum, value) => sum + value, 0) / finite.length : 0;
 }
 
 function sameSchool(first = {}, second = {}) {
@@ -185,7 +181,6 @@ function dynamicTravel(course, instructor, existingMeetings, input = {}) {
   const base = input.travel?.[idOf(course)]?.[text(instructor.emp_id)] || null;
   const transitions = {};
   const destination = placeOf(course);
-  const homeAddress = text(instructor.address);
   for (const meeting of activityMeetings(course)) {
     const { previous, next } = adjacentActivities(existingMeetings, meeting);
     transitions[meeting.date] = {
@@ -194,10 +189,7 @@ function dynamicTravel(course, instructor, existingMeetings, input = {}) {
     };
   }
   const home = base?.home || null;
-  // Prefer an explicit return leg; fall back to route matrix school→home, never invent reverse(home).
-  const homeReturn = base?.homeReturn
-    || (homeAddress && destination ? routeLeg(input.routeMatrix || {}, destination, homeAddress) : null)
-    || null;
+  const homeReturn = base?.homeReturn || null;
   const unavailableReason = travelUnavailableReason(course, instructor, home, input);
   return {
     home,
@@ -207,21 +199,7 @@ function dynamicTravel(course, instructor, existingMeetings, input = {}) {
   };
 }
 
-function candidateRequiresHomeRoute(course, existingMeetings = []) {
-  return activityMeetings(course).some((meeting) => {
-    const { previous } = adjacentActivities(existingMeetings, meeting);
-    return !previous;
-  });
-}
-
-function candidateRequiresHomeReturn(course, existingMeetings = []) {
-  return activityMeetings(course).some((meeting) => {
-    const { next } = adjacentActivities(existingMeetings, meeting);
-    return !next;
-  });
-}
-
-/** Activity row used for blocking/load — prefers proposed meetings from a selected candidate. */
+/** Planning-state activity row — prefers proposed meetings of a selected candidate. */
 function draftActivityFromCandidate(course, candidate) {
   if (!course) return null;
   const meetings = (candidate?.proposedMeetings && candidate.proposedMeetings.length)
@@ -241,114 +219,27 @@ function draftActivityFromCandidate(course, candidate) {
   };
 }
 
-function meetingSignature(meetings = []) {
-  return (meetings || [])
-    .map((meeting) => `${text(meeting.date).slice(0, 10)}@${text(meeting.start_time)}-${text(meeting.end_time)}`)
-    .join(',');
+function draftRowsForInstructor(planningDraft, empId, ordered, excludeCourseId = '') {
+  return [...planningDraft.entries()]
+    .filter(([courseId, candidate]) => courseId !== excludeCourseId && text(candidate.instructor?.emp_id) === empId)
+    .map(([courseId, candidate]) => {
+      const course = ordered.find((row) => idOf(row) === courseId);
+      return draftActivityFromCandidate(course, candidate);
+    })
+    .filter(Boolean);
 }
 
-function fairnessVariance(loads = new Map()) {
-  const values = [...loads.values()].map(Number).filter(Number.isFinite);
-  if (!values.length) return 0;
-  const average = averageFinite(values);
-  return values.reduce((sum, value) => sum + ((value - average) ** 2), 0) / values.length;
-}
-
-function buildPreprocessCache({ instructors, assignedRows, profiles, rules, periodKey }) {
-  const activitiesByInstructor = new Map();
-  const activitiesByDate = new Map();
-  const hoursByInstructor = new Map();
-  const workDaysByInstructor = new Map();
-
-  for (const instructor of instructors) {
-    const empId = text(instructor.emp_id);
-    const rows = assignedRows[empId] || [];
-    const load = instructorLoad(rows, profiles[empId], rules[empId] || [], { periodKey });
-    const meetings = meetingAssignments(rows, { periodKey, allDates: true });
-    activitiesByInstructor.set(empId, meetings);
-    hoursByInstructor.set(empId, load.hours);
-    workDaysByInstructor.set(empId, load.workDates || new Set());
-    for (const meeting of meetings) {
-      const date = text(meeting.date).slice(0, 10);
-      if (!activitiesByDate.has(date)) activitiesByDate.set(date, []);
-      activitiesByDate.get(date).push({ ...meeting, emp_id: empId });
-    }
-  }
-
-  return {
-    activitiesByInstructor,
-    activitiesByDate,
-    hoursByInstructor,
-    workDaysByInstructor
-  };
-}
-
-function applyScoreToCandidate(candidate, course, peerProjectedHours = []) {
-  if (!candidate?.eligible) return candidate;
-  const scored = computeSchedulingScore({
-    eligible: true,
-    activity: candidate.periodCourse || course,
-    meetings: activityMeetings(candidate.periodCourse || course),
-    existingActivities: candidate.existingMeetings || [],
-    travel: candidate.travel,
-    workDates: candidate.baselineWorkDates || new Set(),
-    dateAdjustment: candidate.dateAdjustment,
-    currentHalfHours: candidate.currentHalfHours,
-    projectedHalfHours: candidate.projectedHalfHours,
-    peerProjectedHours,
-    activeWorkDays: candidate.activeWorkDays,
-    scoreReasons: candidate.scoreReasons || []
-  });
-  return {
-    ...candidate,
-    score: scored.score,
-    ...schedulingQualityBand(scored.score, true),
-    scoreBreakdown: scored.scoreBreakdown,
-    recommendationReason: scored.recommendationReason,
-    currentHalfHours: scored.currentHalfHours,
-    projectedHalfHours: scored.projectedHalfHours,
-    activeWorkDays: scored.activeWorkDays,
-    relevantTravelMinutes: scored.relevantTravelMinutes,
-    relevantTravelDistance: scored.relevantTravelDistance,
-    dailyTravelMinutes: scored.dailyTravelMinutes,
-    movedMeetingsCount: scored.movedMeetingsCount,
-    totalShiftDays: scored.totalShiftDays,
-    originalEndDate: scored.originalEndDate,
-    proposedEndDate: scored.proposedEndDate,
-    halfOverflow: scored.halfOverflow,
-    opensNewWorkDay: scored.opensNewWorkDay,
-    gapBeforeMinutes: scored.gapBeforeMinutes,
-    gapAfterMinutes: scored.gapAfterMinutes,
-    nonTravelWaitingMinutes: scored.nonTravelWaitingMinutes,
-    hasSameSchoolDay: scored.hasSameSchoolDay,
-    hasSameAuthorityDay: scored.hasSameAuthorityDay,
-    sameSchoolMeetingCount: scored.sameSchoolMeetingCount,
-    sameAuthorityMeetingCount: scored.sameAuthorityMeetingCount,
-    nearbyMeetingCount: scored.nearbyMeetingCount,
-    existingWorkDayMeetingCount: scored.existingWorkDayMeetingCount,
-    newWorkDayMeetingCount: scored.newWorkDayMeetingCount,
-    continuityMeetingCount: scored.continuityMeetingCount,
-    continuityAverage: scored.continuityAverage,
-    homeRouteVerified: !!(candidate.travel?.home
-      && Number.isFinite(Number(candidate.travel.home.duration_minutes))
-      && Number.isFinite(Number(candidate.travel.home.distance_km))),
-    homeReturnVerified: !!(candidate.travel?.homeReturn
-      && Number.isFinite(Number(candidate.travel.homeReturn.duration_minutes))
-      && Number.isFinite(Number(candidate.travel.homeReturn.distance_km)))
-  };
-}
-
-function rescoreWithPeers(candidates = [], course = {}, peerProjectedHours = null) {
-  const safe = candidates.filter((candidate) => isSafeEligibleCandidate(candidate, { preliminary: false }));
-  const peers = peerProjectedHours
-    || safe.map((candidate) => Number(candidate.projectedHalfHours) || 0);
-  return candidates.map((candidate) => {
-    if (!candidate.eligible) return candidate;
-    return applyScoreToCandidate(candidate, course, peers);
-  });
-}
-
-function evaluateCandidate({ course, instructor, assignedRows, draftRows, profiles, rules, exceptions, input, cache }) {
+function evaluateCandidate({
+  course,
+  instructor,
+  assignedRows,
+  draftRows,
+  profiles,
+  rules,
+  exceptions,
+  input,
+  peerProjectedHours = null
+}) {
   const empId = text(instructor.emp_id);
   const occupiedRows = [...(assignedRows[empId] || []), ...(draftRows || [])];
   const periodKey = input.periodKey || DEFAULT_COURSE_SCHEDULING_PERIOD_KEY;
@@ -381,17 +272,7 @@ function evaluateCandidate({ course, instructor, assignedRows, draftRows, profil
   const projectedLoad = instructorLoad([...occupiedRows, periodCourse], profiles[empId], rules[empId] || [], { periodKey });
   const occupiedPeriodMeetings = meetingAssignments(occupiedRows, { periodKey });
   const travel = dynamicTravel(periodCourse, instructor, occupiedPeriodMeetings, input);
-  const validateTravel = !input.preliminary && (input.travel !== undefined || input.routeMatrix !== undefined);
-  // Home/home-return safety applies only when this run is validating travel (final routed calculation).
-  const requiresHomeRoute = validateTravel && candidateRequiresHomeRoute(periodCourse, occupiedPeriodMeetings);
-  const requiresHomeReturn = validateTravel && candidateRequiresHomeReturn(periodCourse, occupiedPeriodMeetings);
-  const homeRouteVerified = !!(travel?.home
-    && Number.isFinite(Number(travel.home.duration_minutes))
-    && Number.isFinite(Number(travel.home.distance_km)));
-  const homeReturnVerified = !!(travel?.homeReturn
-    && Number.isFinite(Number(travel.homeReturn.duration_minutes))
-    && Number.isFinite(Number(travel.homeReturn.distance_km)));
-  const result = evaluateInstructor({
+  const gate = evaluateInstructor({
     instructor,
     profile: profiles[empId],
     rules: rules[empId] || [],
@@ -399,99 +280,130 @@ function evaluateCandidate({ course, instructor, assignedRows, draftRows, profil
     activity: periodCourse,
     existingActivities: occupiedPeriodMeetings,
     travel,
-    validateTravel,
+    validateTravel: !input.preliminary && (input.travel !== undefined || input.routeMatrix !== undefined)
+  });
+  if (adjustment && !adjustment.valid) {
+    gate.failures = [...new Set([...(gate.failures || []), adjustment.reason])];
+    gate.eligible = false;
+    gate.score = null;
+    gate.scoreBreakdown = null;
+  }
+
+  const eligible = !!gate.eligible;
+  const baselineWorkDates = baselineLoad.workDates || new Set();
+  const scored = computeSchedulingScore({
+    eligible,
+    activity: periodCourse,
+    meetings: activityMeetings(periodCourse),
+    existingActivities: occupiedPeriodMeetings,
+    travel,
+    workDates: baselineWorkDates,
     dateAdjustment: adjustment?.valid ? adjustment : null,
     currentHalfHours: baselineLoad.hours,
     projectedHalfHours: projectedLoad.hours,
-    activeWorkDays: projectedLoad.workDays,
-    workDates: cache?.workDaysByInstructor?.get(empId) || baselineLoad.workDates
+    peerProjectedHours: peerProjectedHours || [projectedLoad.hours],
+    activeWorkDays: projectedLoad.workDays
   });
-  if (adjustment && !adjustment.valid) {
-    result.failures = [...new Set([...result.failures, adjustment.reason])];
-    result.eligible = false;
-    result.score = null;
-    result.scoreBreakdown = null;
-  }
+
   return {
-    ...result,
+    ...gate,
+    eligible,
+    score: scored.score,
+    totalScore: scored.totalScore,
+    ...schedulingQualityBand(scored.score, eligible),
+    scoreBreakdown: scored.scoreBreakdown,
+    recommendationReason: scored.recommendationReason,
     instructor,
     load: projectedLoad,
+    baselineWorkDates,
     travel,
     periodCourse,
     originalPeriodCourse,
     existingMeetings: occupiedPeriodMeetings,
-    baselineWorkDates: baselineLoad.workDates || new Set(),
     dateAdjustment: adjustment?.valid ? adjustment : null,
     proposedMeetings: adjustment?.valid ? adjustment.meetings : null,
-    currentHalfHours: baselineLoad.hours,
-    projectedHalfHours: projectedLoad.hours,
-    activeWorkDays: projectedLoad.workDays,
-    requiresHomeRoute,
-    requiresHomeReturn,
-    homeRouteVerified,
-    homeReturnVerified,
-    preliminary: !!input.preliminary
+    currentHalfHours: scored.currentHalfHours,
+    projectedHalfHours: scored.projectedHalfHours,
+    activeWorkDays: scored.activeWorkDays,
+    relevantTravelMinutes: scored.relevantTravelMinutes,
+    relevantTravelDistance: scored.relevantTravelDistance,
+    movedMeetingsCount: scored.movedMeetingsCount,
+    totalShiftDays: scored.totalShiftDays,
+    halfOverflow: scored.halfOverflow,
+    sameSchoolMeetingCount: scored.sameSchoolMeetingCount,
+    sameAuthorityMeetingCount: scored.sameAuthorityMeetingCount,
+    nearbyMeetingCount: scored.nearbyMeetingCount,
+    existingWorkDayMeetingCount: scored.existingWorkDayMeetingCount,
+    newWorkDayMeetingCount: scored.newWorkDayMeetingCount,
+    continuityMeetingCount: scored.continuityMeetingCount,
+    opensNewWorkDay: scored.opensNewWorkDay,
+    nonTravelWaitingMinutes: scored.nonTravelWaitingMinutes
   };
 }
 
-function enrichCandidate(candidate, { eligibleCandidateCount = 0, urgency = null, rank = null, preliminary = false } = {}) {
+function rescoreEligiblePeers(candidates = [], course = {}) {
+  const peers = candidates
+    .filter((candidate) => candidate.eligible)
+    .map((candidate) => Number(candidate.projectedHalfHours) || 0);
+  return candidates.map((candidate) => {
+    if (!candidate.eligible) return candidate;
+    const scored = computeSchedulingScore({
+      eligible: true,
+      activity: candidate.periodCourse || course,
+      meetings: activityMeetings(candidate.periodCourse || course),
+      existingActivities: candidate.existingMeetings || [],
+      travel: candidate.travel,
+      workDates: candidate.baselineWorkDates || new Set(),
+      dateAdjustment: candidate.dateAdjustment,
+      currentHalfHours: candidate.currentHalfHours,
+      projectedHalfHours: candidate.projectedHalfHours,
+      peerProjectedHours: peers.length ? peers : [candidate.projectedHalfHours],
+      activeWorkDays: candidate.activeWorkDays
+    });
+    return {
+      ...candidate,
+      score: scored.score,
+      totalScore: scored.totalScore,
+      ...schedulingQualityBand(scored.score, true),
+      scoreBreakdown: scored.scoreBreakdown,
+      recommendationReason: scored.recommendationReason,
+      sameSchoolMeetingCount: scored.sameSchoolMeetingCount,
+      sameAuthorityMeetingCount: scored.sameAuthorityMeetingCount,
+      nearbyMeetingCount: scored.nearbyMeetingCount,
+      existingWorkDayMeetingCount: scored.existingWorkDayMeetingCount,
+      newWorkDayMeetingCount: scored.newWorkDayMeetingCount,
+      continuityMeetingCount: scored.continuityMeetingCount,
+      opensNewWorkDay: scored.opensNewWorkDay,
+      nonTravelWaitingMinutes: scored.nonTravelWaitingMinutes,
+      relevantTravelMinutes: scored.relevantTravelMinutes,
+      relevantTravelDistance: scored.relevantTravelDistance,
+      movedMeetingsCount: scored.movedMeetingsCount,
+      totalShiftDays: scored.totalShiftDays,
+      halfOverflow: scored.halfOverflow
+    };
+  });
+}
+
+function enrichCandidate(candidate, {
+  eligibleCandidateCount = 0,
+  urgency = null,
+  rank = null
+} = {}) {
   const empId = text(candidate.instructor?.emp_id);
-  const safe = isSafeEligibleCandidate(candidate, { preliminary });
-  const recommended = safe && Number(candidate.score) >= 60;
+  const recommended = !!candidate.eligible && Number(candidate.score) >= 60;
   return {
     ...candidate,
     empId,
     instructorName: candidate.instructor?.full_name || '',
     totalScore: candidate.score,
     recommended,
-    bestAvailable: safe && !recommended,
+    bestAvailable: !!candidate.eligible && !recommended,
     eligibleCandidateCount,
     urgencyBand: urgency?.urgencyBand ?? null,
     daysUntilNextMeeting: urgency?.daysUntilNextMeeting ?? null,
     nextUpcomingMeetingDate: urgency?.nextUpcomingMeetingDate ?? null,
-    rank: safe ? rank : null
+    rank: candidate.eligible ? rank : null
   };
-}
-
-function candidateMap({ courses, instructors, profiles = {}, rules = {}, exceptions = {}, assignedRows, input, cache }) {
-  const periodKey = input.periodKey || DEFAULT_COURSE_SCHEDULING_PERIOD_KEY;
-  const output = new Map();
-  const urgencyByCourse = new Map();
-  const referenceDate = input.referenceDate || input.now || null;
-  const preliminary = !!input.preliminary;
-
-  for (const course of courses) {
-    urgencyByCourse.set(idOf(course), courseUrgency(course, referenceDate));
-    const rawCandidates = instructors.map((instructor) => evaluateCandidate({
-      course,
-      instructor,
-      assignedRows,
-      draftRows: [],
-      profiles,
-      rules,
-      exceptions,
-      input,
-      cache
-    }));
-    const peerHours = rawCandidates
-      .filter((candidate) => isSafeEligibleCandidate(candidate, { preliminary }))
-      .map((candidate) => Number(candidate.projectedHalfHours) || 0);
-    const rescored = rescoreWithPeers(rawCandidates, course, peerHours);
-    const safeFilter = (candidate) => isSafeEligibleCandidate(candidate, { preliminary });
-    const eligibleCount = rescored.filter(safeFilter).length;
-    const urgency = urgencyByCourse.get(idOf(course));
-    const ranked = [...rescored]
-      .filter(safeFilter)
-      .sort((first, second) => (second.score - first.score) || compareCandidatesStable(first, second));
-    const rankMap = new Map(ranked.map((candidate, index) => [text(candidate.instructor.emp_id), index + 1]));
-    output.set(idOf(course), rescored.map((candidate) => enrichCandidate(candidate, {
-      eligibleCandidateCount: eligibleCount,
-      urgency,
-      rank: rankMap.get(text(candidate.instructor?.emp_id)) || null,
-      preliminary
-    })));
-  }
-  return { output, urgencyByCourse, periodKey };
 }
 
 function primaryRejectionReason(checked = []) {
@@ -507,474 +419,34 @@ function primaryRejectionReason(checked = []) {
   return reasons[0];
 }
 
-function draftRowsForInstructor(state, empId, ordered, excludeCourseId = '') {
-  return [...state.draft.entries()]
-    .filter(([courseId, candidate]) => courseId !== excludeCourseId && text(candidate.instructor.emp_id) === empId)
-    .map(([courseId, candidate]) => {
-      const course = ordered.find((row) => idOf(row) === courseId);
-      return draftActivityFromCandidate(course, candidate);
-    })
-    .filter(Boolean);
-}
-
-/**
- * State-aware peer projected hours: re-evaluate each baseline peer against the current draft
- * (including proposedMeetings). Only currently safe/eligible peers contribute.
- */
-function buildStateAwarePeerHours({
+function evaluateCourseCandidates({
   course,
-  maps,
-  assignedRows,
-  state,
-  ordered,
-  profiles,
-  rules,
-  exceptions,
-  input,
-  cache,
-  excludeCourseId = '',
-  evalCache = null
-}) {
-  const hours = [];
-  const courseId = idOf(course);
-  const baselines = maps.get(courseId) || [];
-  for (const baseline of baselines) {
-    const empId = text(baseline.instructor?.emp_id);
-    const draftSig = assignmentSignature(state.draft, empId);
-    const cacheKey = `${courseId}|${empId}|${draftSig}|${excludeCourseId}`;
-    let evaluated = evalCache?.get(cacheKey);
-    if (!evaluated) {
-      evaluated = evaluateCandidate({
-        course,
-        instructor: baseline.instructor,
-        assignedRows,
-        draftRows: draftRowsForInstructor(state, empId, ordered, excludeCourseId || courseId),
-        profiles,
-        rules,
-        exceptions,
-        input,
-        cache
-      });
-      evalCache?.set(cacheKey, evaluated);
-    }
-    if (!isSafeEligibleCandidate(evaluated)) continue;
-    hours.push(Number(evaluated.projectedHalfHours) || 0);
-  }
-  return hours;
-}
-
-function summarizeState(state, ordered, urgencyByCourse, maps) {
-  let urgency7Missed = 0;
-  let urgency14Missed = 0;
-  let sameSchoolMeetingCount = 0;
-  let sameAuthorityMeetingCount = 0;
-  let newWorkDayMeetingCount = 0;
-  let totalTravelMinutes = 0;
-  let totalNonTravelWaiting = 0;
-  let newWorkDaysOpened = 0;
-  let totalShiftDays = 0;
-  let totalScore = 0;
-  let tieProjectedHours = 0;
-  let tieTravel = 0;
-  let tieNewDays = 0;
-  let tieMovedMeetings = 0;
-  const empIds = [];
-  const scarcityMissedByCount = [];
-
-  for (const course of ordered) {
-    const courseId = idOf(course);
-    const urgency = urgencyByCourse.get(courseId) || {};
-    const eligibleCount = (maps.get(courseId) || []).filter((candidate) => isSafeEligibleCandidate(candidate)).length;
-    const selected = state.draft.get(courseId);
-    if (!selected) {
-      if (urgency.urgencyRank === 1) urgency7Missed += 1;
-      else if (urgency.urgencyRank === 2) urgency14Missed += 1;
-      if (eligibleCount > 0) {
-        scarcityMissedByCount[eligibleCount] = (scarcityMissedByCount[eligibleCount] || 0) + 1;
-      }
-      continue;
-    }
-    sameSchoolMeetingCount += Number(selected.sameSchoolMeetingCount) || (selected.hasSameSchoolDay ? 1 : 0);
-    sameAuthorityMeetingCount += Number(selected.sameAuthorityMeetingCount) || (selected.hasSameAuthorityDay ? 1 : 0);
-    newWorkDayMeetingCount += Number(selected.newWorkDayMeetingCount) || (selected.opensNewWorkDay ? 1 : 0);
-    const travelUnknown = selected.relevantTravelMinutes == null
-      || selected.scoreBreakdown?.travelDistance?.note === 'המרחק טרם חושב'
-      || selected.scoreBreakdown?.travelDistance?.note === 'מסלול לא ידוע — ללא ניקוד נסיעה רגיל';
-    totalTravelMinutes += travelUnknown ? 100000 : (Number(selected.dailyTravelMinutes) || 0);
-    totalNonTravelWaiting += Number(selected.nonTravelWaitingMinutes) || 0;
-    newWorkDaysOpened += selected.opensNewWorkDay ? 1 : 0;
-    totalShiftDays += Number(selected.totalShiftDays) || 0;
-    totalScore += Number(selected.score) || 0;
-    tieProjectedHours += Number(selected.projectedHalfHours) || 0;
-    tieTravel += Number(selected.dailyTravelMinutes) || 0;
-    tieNewDays += selected.opensNewWorkDay ? 1 : 0;
-    tieMovedMeetings += Number(selected.movedMeetingsCount) || 0;
-    empIds.push(text(selected.instructor?.emp_id));
-  }
-
-  return {
-    ...state,
-    assignedCount: state.draft.size,
-    urgency7Missed,
-    urgency14Missed,
-    scarcityMissedByCount,
-    sameSchoolMeetingCount,
-    sameAuthorityMeetingCount,
-    newWorkDayMeetingCount,
-    // Keep legacy booleans for older compare fixtures.
-    sameSchoolCount: sameSchoolMeetingCount,
-    sameAuthorityCount: sameAuthorityMeetingCount,
-    totalTravelMinutes,
-    totalNonTravelWaiting,
-    newWorkDaysOpened,
-    totalShiftDays,
-    totalScore,
-    workloadVariance: fairnessVariance(state.loads),
-    tieProjectedHours,
-    tieTravel,
-    tieNewDays,
-    tieMovedMeetings,
-    tieEmpId: empIds.sort().join(',')
-  };
-}
-
-/** Signature includes proposed meeting dates so different adjustments are distinct states. */
-function assignmentSignature(draft, onlyEmpId = '') {
-  return [...draft.entries()]
-    .filter(([, candidate]) => !onlyEmpId || text(candidate.instructor?.emp_id) === onlyEmpId)
-    .map(([courseId, candidate]) => {
-      const meetings = candidate.proposedMeetings || candidate.periodCourse?.meetings || [];
-      return `${courseId}:${text(candidate.instructor?.emp_id)}:${meetingSignature(meetings)}`;
-    })
-    .sort()
-    .join('|');
-}
-
-/**
- * Partition courses into independent components: two courses share a component when they
- * share any baseline-safe instructor. Components have no shared instructors, so no travel /
- * overlap / proposed-date interaction across them — solving separately is exact.
- */
-function independentCourseComponents(ordered, maps) {
-  const parent = ordered.map((_, index) => index);
-  const find = (index) => {
-    while (parent[index] !== index) {
-      parent[index] = parent[parent[index]];
-      index = parent[index];
-    }
-    return index;
-  };
-  const unite = (a, b) => {
-    const rootA = find(a);
-    const rootB = find(b);
-    if (rootA !== rootB) parent[rootB] = rootA;
-  };
-  const instructorCourses = new Map();
-  ordered.forEach((course, index) => {
-    for (const candidate of (maps.get(idOf(course)) || []).filter((row) => isSafeEligibleCandidate(row))) {
-      const empId = text(candidate.instructor?.emp_id);
-      if (!instructorCourses.has(empId)) instructorCourses.set(empId, []);
-      instructorCourses.get(empId).push(index);
-    }
-  });
-  for (const indexes of instructorCourses.values()) {
-    for (let i = 1; i < indexes.length; i += 1) unite(indexes[0], indexes[i]);
-  }
-  const groups = new Map();
-  ordered.forEach((course, index) => {
-    const root = find(index);
-    if (!groups.has(root)) groups.set(root, []);
-    groups.get(root).push(course);
-  });
-  return [...groups.values()];
-}
-
-/**
- * Max-assignment search with admissible upper-bound pruning and memoization.
- * Never uses a fixed beam width. Never prunes using original-date conflicts
- * (date adjustments can move meetings). Time-budgeted for browser safety.
- */
-function optimizeAssignments({
-  ordered,
-  maps,
-  urgencyByCourse,
   instructors,
   assignedRows,
+  planningDraft,
+  ordered,
   profiles,
   rules,
   exceptions,
-  input,
-  cache,
-  baselineLoads,
-  periodKey,
-  timeBudgetMs = 4000
+  input
 }) {
-  // Solve instructor-disjoint components separately first (exact merge).
-  // Share one deadline across components — do not divide the budget into slices that
-  // falsely mark complete components as incomplete.
-  const components = independentCourseComponents(ordered, maps);
-  if (components.length > 1) {
-    const mergedDraft = new Map();
-    const mergedLoads = new Map(baselineLoads);
-    let allComplete = true;
-    let totalNodes = 0;
-    let totalPruned = 0;
-    const deadline = Date.now() + timeBudgetMs;
-    for (const component of components) {
-      const remainingMs = Math.max(50, deadline - Date.now());
-      const partial = optimizeAssignments({
-        ordered: component,
-        maps,
-        urgencyByCourse,
-        instructors,
-        assignedRows,
-        profiles,
-        rules,
-        exceptions,
-        input,
-        cache,
-        baselineLoads,
-        periodKey,
-        timeBudgetMs: remainingMs
-      });
-      for (const [courseId, candidate] of partial.draft.entries()) mergedDraft.set(courseId, candidate);
-      for (const [empId, hours] of partial.loads.entries()) mergedLoads.set(empId, hours);
-      allComplete = allComplete && partial.optimizationComplete !== false;
-      totalNodes += Number(partial.nodesVisited) || 0;
-      totalPruned += Number(partial.branchesPruned) || 0;
-    }
-    const mergedState = { draft: mergedDraft, loads: mergedLoads };
-    const mergedSummary = summarizeState(mergedState, ordered, urgencyByCourse, maps);
-    return {
-      ...mergedSummary,
-      draft: mergedDraft,
-      loads: mergedLoads,
-      optimizationComplete: allComplete,
-      nodesVisited: totalNodes,
-      branchesPruned: totalPruned
-    };
-  }
-
-  const startedAt = Date.now();
-  let nodesVisited = 0;
-  let branchesPruned = 0;
-  let optimizationComplete = true;
-  const draft = new Map();
-  const loads = new Map(baselineLoads);
-  const state = { draft, loads };
-  const evalCache = new Map();
-  let bestSummary = summarizeState(state, ordered, urgencyByCourse, maps);
-  let bestDraft = new Map();
-  let bestLoads = new Map(baselineLoads);
-  const memo = new Set();
-
-  const peerHoursFor = (course) => buildStateAwarePeerHours({
+  const raw = instructors.map((instructor) => evaluateCandidate({
     course,
-    maps,
+    instructor,
     assignedRows,
-    state,
-    ordered,
+    draftRows: draftRowsForInstructor(planningDraft, text(instructor.emp_id), ordered),
     profiles,
     rules,
     exceptions,
-    input,
-    cache,
-    evalCache
-  });
-
-  // Greedy warm-start: admissible lower bound on assignedCount (and a full lex state).
-  {
-    const warmDraft = new Map();
-    const warmLoads = new Map(baselineLoads);
-    const warmState = { draft: warmDraft, loads: warmLoads };
-    for (const course of ordered) {
-      const peerHours = buildStateAwarePeerHours({
-        course,
-        maps,
-        assignedRows,
-        state: warmState,
-        ordered,
-        profiles,
-        rules,
-        exceptions,
-        input,
-        cache,
-        evalCache
-      });
-      const candidates = (maps.get(idOf(course)) || [])
-        .filter((candidate) => isSafeEligibleCandidate(candidate))
-        .sort((first, second) => (second.score - first.score) || compareCandidatesStable(first, second));
-      for (const candidate of candidates) {
-        const empId = text(candidate.instructor.emp_id);
-        const evaluated = applyScoreToCandidate(evaluateCandidate({
-          course,
-          instructor: candidate.instructor,
-          assignedRows,
-          draftRows: draftRowsForInstructor(warmState, empId, ordered),
-          profiles,
-          rules,
-          exceptions,
-          input,
-          cache
-        }), course, peerHours);
-        if (!isSafeEligibleCandidate(evaluated)) continue;
-        warmDraft.set(idOf(course), enrichCandidate(evaluated, {
-          eligibleCandidateCount: candidate.eligibleCandidateCount,
-          urgency: urgencyByCourse.get(idOf(course)),
-          rank: candidate.rank
-        }));
-        warmLoads.set(empId, evaluated.projectedHalfHours);
-        break;
-      }
-    }
-    const warmSummary = summarizeState(warmState, ordered, urgencyByCourse, maps);
-    if (compareOptimizationStates(warmSummary, bestSummary) < 0) {
-      bestSummary = warmSummary;
-      bestDraft = new Map(warmDraft);
-      bestLoads = new Map(warmLoads);
-    }
-  }
-
-  /**
-   * Admissible remaining capacity: number of yet-unprocessed courses that still have at least
-   * one baseline-safe candidate. Does NOT subtract conflict assumptions (date moves may free slots).
-   */
-  const remainingAssignable = (fromIndex) => {
-    let count = 0;
-    for (let index = fromIndex; index < ordered.length; index += 1) {
-      if ((maps.get(idOf(ordered[index])) || []).some((candidate) => isSafeEligibleCandidate(candidate))) {
-        count += 1;
-      }
-    }
-    return count;
-  };
-
-  // Admissible: forced urgency misses among courses already decided unassigned (index < courseIndex).
-  const countForcedMisses = (courseIndex) => {
-    let miss7 = 0;
-    let miss14 = 0;
-    for (let index = 0; index < courseIndex; index += 1) {
-      const courseId = idOf(ordered[index]);
-      if (draft.has(courseId)) continue;
-      const urgency = urgencyByCourse.get(courseId) || {};
-      if (urgency.urgencyRank === 1) miss7 += 1;
-      else if (urgency.urgencyRank === 2) miss14 += 1;
-    }
-    return { miss7, miss14 };
-  };
-
-  const search = (courseIndex) => {
-    nodesVisited += 1;
-    if (Date.now() - startedAt > timeBudgetMs) {
-      optimizationComplete = false;
-      return;
-    }
-
-    // Admissible: assigned + remaining courses that still have ≥1 baseline-safe candidate.
-    // Does not assume original-date conflicts (date adjustments may free slots).
-    const remainingCap = remainingAssignable(courseIndex);
-    if (draft.size + remainingCap < bestSummary.assignedCount) {
-      branchesPruned += 1;
-      return;
-    }
-
-    // Admissible urgency prune when cardinality cannot beat best: current forced misses already worse.
-    if (draft.size + remainingCap === bestSummary.assignedCount) {
-      const { miss7, miss14 } = countForcedMisses(courseIndex);
-      if (miss7 > (bestSummary.urgency7Missed || 0)) {
-        branchesPruned += 1;
-        return;
-      }
-      if (miss7 === (bestSummary.urgency7Missed || 0) && miss14 > (bestSummary.urgency14Missed || 0)) {
-        branchesPruned += 1;
-        return;
-      }
-    }
-
-    if (courseIndex >= ordered.length) {
-      const summary = summarizeState(state, ordered, urgencyByCourse, maps);
-      if (compareOptimizationStates(summary, bestSummary) < 0) {
-        bestSummary = summary;
-        bestDraft = new Map(draft);
-        bestLoads = new Map(loads);
-      }
-      return;
-    }
-
-    // Memo includes proposed meeting signatures via assignmentSignature — distinct adjustments ≠ same state.
-    const memoKey = `${courseIndex}|${assignmentSignature(draft)}`;
-    if (memo.has(memoKey)) {
-      branchesPruned += 1;
-      return;
-    }
-    memo.add(memoKey);
-
-    const course = ordered[courseIndex];
-    const peerHours = peerHoursFor(course);
-    const candidates = (maps.get(idOf(course)) || [])
-      .filter((candidate) => isSafeEligibleCandidate(candidate))
-      .sort((first, second) => (second.score - first.score) || compareCandidatesStable(first, second));
-
-    const exploreUnassigned = () => search(courseIndex + 1);
-    const exploreAssignments = () => {
-      for (const candidate of candidates) {
-        if (!optimizationComplete && Date.now() - startedAt > timeBudgetMs) break;
-        // Admissible cardinality prune only (no original-date conflict assumptions).
-        if (draft.size + remainingCap < bestSummary.assignedCount) {
-          branchesPruned += 1;
-          break;
-        }
-        const empId = text(candidate.instructor.emp_id);
-        const evaluatedRaw = evaluateCandidate({
-          course,
-          instructor: candidate.instructor,
-          assignedRows,
-          draftRows: draftRowsForInstructor(state, empId, ordered),
-          profiles,
-          rules,
-          exceptions,
-          input,
-          cache
-        });
-        const evaluated = applyScoreToCandidate(evaluatedRaw, course, peerHours);
-        if (!isSafeEligibleCandidate(evaluated)) continue;
-
-        const courseId = idOf(course);
-        const previousLoad = loads.has(empId) ? loads.get(empId) : null;
-        draft.set(courseId, enrichCandidate(evaluated, {
-          eligibleCandidateCount: candidate.eligibleCandidateCount,
-          urgency: urgencyByCourse.get(courseId),
-          rank: candidate.rank
-        }));
-        loads.set(empId, evaluated.projectedHalfHours);
-        search(courseIndex + 1);
-        draft.delete(courseId);
-        if (previousLoad == null) loads.delete(empId);
-        else loads.set(empId, previousLoad);
-      }
-    };
-
-    // High branching: try unassigned first to lock a strong cardinality lower bound quickly.
-    if (candidates.length > 20) {
-      exploreUnassigned();
-      exploreAssignments();
-    } else {
-      exploreAssignments();
-      exploreUnassigned();
-    }
-  };
-
-  search(0);
-  return {
-    ...bestSummary,
-    draft: bestDraft,
-    loads: bestLoads,
-    optimizationComplete,
-    nodesVisited,
-    branchesPruned
-  };
+    input
+  }));
+  return rescoreEligiblePeers(raw, course);
 }
 
+/**
+ * Stage 3 sequential planner: order courses by urgency/scarcity, score instructors,
+ * recommend one primary + up to three alternatives. Temporary planning state only.
+ */
 export function calculateCourseSchedule(input = {}) {
   const activities = input.activities || [];
   const periodKey = input.periodKey || DEFAULT_COURSE_SCHEDULING_PERIOD_KEY;
@@ -986,170 +458,135 @@ export function calculateCourseSchedule(input = {}) {
   const exceptions = input.exceptions || {};
   const incomplete = new Map(courses.map((course) => [idOf(course), missingCourseInformation(course, { periodKey })]));
   const ready = courses.filter((course) => !incomplete.get(idOf(course)).length);
-  const cache = buildPreprocessCache({ instructors, assignedRows, profiles, rules, periodKey });
-  // Tests may inject precomputed safe-candidate maps to exercise search without O(courses×instructors) preprocess.
-  const precomputed = input.precomputedCandidateMaps;
-  const { output: maps, urgencyByCourse } = precomputed?.output && precomputed?.urgencyByCourse
-    ? precomputed
-    : candidateMap({
-      courses: ready,
+  const referenceDate = input.referenceDate || input.now || null;
+  const urgencyByCourse = new Map(ready.map((course) => [idOf(course), courseUrgency(course, referenceDate)]));
+
+  // Baseline eligibility counts — against approved/draft only, before planning recommendations.
+  const baselineEligibleCount = new Map();
+  for (const course of ready) {
+    const baseline = evaluateCourseCandidates({
+      course,
       instructors,
+      assignedRows,
+      planningDraft: new Map(),
+      ordered: ready,
       profiles,
       rules,
       exceptions,
-      assignedRows,
-      input,
-      cache
+      input
     });
+    baselineEligibleCount.set(idOf(course), baseline.filter((candidate) => candidate.eligible).length);
+  }
 
   const ordered = [...ready].sort((first, second) => {
     const firstUrgency = urgencyByCourse.get(idOf(first))?.urgencyRank || 4;
     const secondUrgency = urgencyByCourse.get(idOf(second))?.urgencyRank || 4;
     if (firstUrgency !== secondUrgency) return firstUrgency - secondUrgency;
-    const firstEligible = maps.get(idOf(first)).filter((candidate) => isSafeEligibleCandidate(candidate)).length;
-    const secondEligible = maps.get(idOf(second)).filter((candidate) => isSafeEligibleCandidate(candidate)).length;
-    if (firstEligible !== secondEligible) return firstEligible - secondEligible;
+    const firstCount = baselineEligibleCount.get(idOf(first)) || 0;
+    const secondCount = baselineEligibleCount.get(idOf(second)) || 0;
+    if (firstCount !== secondCount) return firstCount - secondCount;
+    const firstDate = urgencyByCourse.get(idOf(first))?.nextUpcomingMeetingDate || '9999-99-99';
+    const secondDate = urgencyByCourse.get(idOf(second))?.nextUpcomingMeetingDate || '9999-99-99';
+    if (firstDate !== secondDate) return firstDate.localeCompare(secondDate);
     return idOf(first).localeCompare(idOf(second));
   });
 
-  const baselineLoads = new Map(instructors.map((instructor) => {
-    const empId = text(instructor.emp_id);
-    return [empId, cache.hoursByInstructor.get(empId) || 0];
-  }));
+  const planningDraft = new Map();
+  const resultsById = new Map();
 
-  const bestState = optimizeAssignments({
-    ordered,
-    maps,
-    urgencyByCourse,
-    instructors,
-    assignedRows,
-    profiles,
-    rules,
-    exceptions,
-    input,
-    cache,
-    baselineLoads,
-    periodKey,
-    timeBudgetMs: Number(input.timeBudgetMs) > 0 ? Number(input.timeBudgetMs) : 4000
-  });
-  const finalEvalCache = new Map();
-
-  const refreshCandidate = (course, instructor, peerHours, excludeCourseId = '') => {
-    const empId = text(instructor.emp_id);
+  for (const course of ordered) {
     const courseId = idOf(course);
-    const cacheKey = `final|${courseId}|${empId}|${assignmentSignature(bestState.draft, empId)}|${excludeCourseId}`;
-    let evaluatedRaw = finalEvalCache.get(cacheKey);
-    if (!evaluatedRaw) {
-      evaluatedRaw = evaluateCandidate({
-        course,
-        instructor,
-        assignedRows,
-        draftRows: draftRowsForInstructor(bestState, empId, ordered, excludeCourseId || courseId),
-        profiles,
-        rules,
-        exceptions,
-        input,
-        cache
-      });
-      finalEvalCache.set(cacheKey, evaluatedRaw);
-    }
-    const evaluated = applyScoreToCandidate(evaluatedRaw, course, peerHours);
-    return evaluated;
-  };
-
-  return courses.map((course) => {
-    const id = idOf(course);
-    const missing = incomplete.get(id);
-    if (missing.length) {
-      return {
-        course,
-        status: 'חסר מידע',
-        missing,
-        recommended: null,
-        alternatives: [],
-        checked: [],
-        optimizationComplete: bestState.optimizationComplete !== false,
-        nodesVisited: bestState.nodesVisited || 0,
-        branchesPruned: bestState.branchesPruned || 0
-      };
-    }
-
-    const peerHours = buildStateAwarePeerHours({
+    const urgency = urgencyByCourse.get(courseId);
+    const stateBeforeCourse = new Map(planningDraft);
+    const evaluated = evaluateCourseCandidates({
       course,
-      maps,
+      instructors,
       assignedRows,
-      state: bestState,
+      planningDraft: stateBeforeCourse,
       ordered,
       profiles,
       rules,
       exceptions,
-      input,
-      cache,
-      excludeCourseId: id,
-      evalCache: finalEvalCache
+      input
     });
-
-    // Re-evaluate every baseline candidate against bestState (not the stale preliminary map).
-    const baselines = maps.get(id) || [];
-    const refreshedChecked = baselines.map((baseline) => {
-      const evaluated = refreshCandidate(course, baseline.instructor, peerHours, id);
-      return evaluated;
-    });
-    const safeEligible = refreshedChecked
-      .filter((candidate) => isSafeEligibleCandidate(candidate))
-      .sort((first, second) => (second.score - first.score) || compareCandidatesStable(first, second));
-    const safeEligibleCount = safeEligible.length;
-    const rankMap = new Map(safeEligible.map((candidate, index) => [text(candidate.instructor.emp_id), index + 1]));
-    const urgency = urgencyByCourse.get(id);
-    const checked = refreshedChecked.map((candidate) => enrichCandidate(candidate, {
-      eligibleCandidateCount: safeEligibleCount,
+    const eligibleSorted = evaluated
+      .filter((candidate) => candidate.eligible)
+      .sort((first, second) => compareCandidatesStable(first, second));
+    const eligibleCandidateCount = eligibleSorted.length;
+    const rankMap = new Map(eligibleSorted.map((candidate, index) => [text(candidate.instructor.emp_id), index + 1]));
+    const checked = evaluated.map((candidate) => enrichCandidate(candidate, {
+      eligibleCandidateCount,
       urgency,
-      rank: rankMap.get(text(candidate.instructor?.emp_id)) || null,
-      preliminary: !!input.preliminary
+      rank: rankMap.get(text(candidate.instructor?.emp_id)) || null
     }));
 
-    const selected = bestState.draft.get(id) || null;
-    const selectedEmp = text(selected?.instructor?.emp_id);
-    const selectedCandidate = selectedEmp
-      ? checked.find((candidate) => text(candidate.instructor?.emp_id) === selectedEmp)
+    const primaryRaw = eligibleSorted[0] || null;
+    const primary = primaryRaw
+      ? enrichCandidate(primaryRaw, {
+        eligibleCandidateCount,
+        urgency,
+        rank: 1
+      })
       : null;
-    const safeSelected = selectedCandidate && isSafeEligibleCandidate(selectedCandidate) ? selectedCandidate : null;
-    const recommended = safeSelected?.score >= 60 ? { ...safeSelected, recommended: true, bestAvailable: false } : null;
-    const bestAvailable = recommended ? null : (safeSelected ? { ...safeSelected, recommended: false, bestAvailable: true } : null);
-    const primary = recommended || bestAvailable;
-    const alternativeLimit = bestAvailable ? 2 : 3;
-    // Refresh all peers first, then filter/sort, then slice — never slice before re-evaluation.
-    const alternatives = checked
-      .filter((candidate) => isSafeEligibleCandidate(candidate) && text(candidate.instructor.emp_id) !== text(primary?.instructor?.emp_id))
-      .sort((first, second) => (second.score - first.score) || compareCandidatesStable(first, second))
-      .slice(0, alternativeLimit)
-      .map((candidate) => ({ ...candidate, recommended: false, bestAvailable: false }));
-    const incompleteProfiles = checked.filter((candidate) => !candidate.failures.length && candidate.missingProfileData.length);
+    const recommended = primary && primary.score >= 60
+      ? { ...primary, recommended: true, bestAvailable: false }
+      : null;
+    const bestAvailable = recommended
+      ? null
+      : (primary ? { ...primary, recommended: false, bestAvailable: true } : null);
+    const alternatives = eligibleSorted
+      .slice(1, 4)
+      .map((candidate, index) => ({
+        ...enrichCandidate(candidate, {
+          eligibleCandidateCount,
+          urgency,
+          rank: index + 2
+        }),
+        recommended: false,
+        bestAvailable: false
+      }));
+    const incompleteProfiles = checked.filter((candidate) => !(candidate.failures || []).length && (candidate.missingProfileData || []).length);
 
-    return {
+    resultsById.set(courseId, {
       course,
       status: recommended
-        ? (recommended.warnings.length ? 'נדרש טיפול' : 'הצעה מוכנה')
+        ? ((recommended.warnings || []).length ? 'נדרש טיפול' : 'הצעה מוכנה')
         : bestAvailable || incompleteProfiles.length ? 'נדרש טיפול' : 'נדרש גיוס',
       recommended,
       bestAvailable,
       alternatives,
       checked,
       incompleteProfiles,
-      eligibleCandidateCount: safeEligibleCount,
+      eligibleCandidateCount,
       urgencyBand: urgency?.urgencyBand ?? null,
       daysUntilNextMeeting: urgency?.daysUntilNextMeeting ?? null,
       nextUpcomingMeetingDate: urgency?.nextUpcomingMeetingDate ?? null,
-      optimizationComplete: bestState.optimizationComplete !== false,
-      nodesVisited: bestState.nodesVisited || 0,
-      branchesPruned: bestState.branchesPruned || 0,
       treatmentReason: bestAvailable
         ? 'נמצאו מדריכים שעומדים בתנאי הסף, אך הציון שלהם נמוך מסף ההמלצה.'
         : !recommended && incompleteProfiles.length
         ? 'לא ניתן להשלים את בדיקת השיבוץ משום שחסרים נתונים בפרופילי מדריכים.'
         : !recommended ? primaryRejectionReason(checked) : ''
-    };
-  });
+    });
+
+    // Add only the primary proposal to temporary planning state for later courses.
+    if (primary) planningDraft.set(courseId, primary);
+  }
+
+  const incompleteResults = courses
+    .filter((course) => incomplete.get(idOf(course)).length)
+    .map((course) => ({
+      course,
+      status: 'חסר מידע',
+      missing: incomplete.get(idOf(course)),
+      recommended: null,
+      bestAvailable: null,
+      alternatives: [],
+      checked: [],
+      eligibleCandidateCount: 0
+    }));
+
+  // Ready courses are returned in planning order; incomplete courses follow.
+  return [...ordered.map((course) => resultsById.get(idOf(course))), ...incompleteResults];
 }
 
 export function preliminaryCourseCandidates(input = {}) {

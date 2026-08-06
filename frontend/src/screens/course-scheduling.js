@@ -489,11 +489,11 @@ export function scoreBreakdownHtml(candidate) {
     breakdown.gapsAndNewDays
   ].filter(Boolean);
   return `<div class="course-scheduling-score-breakdown">
-    <h4>פירוט הציון · ${candidate.score ?? candidate.totalScore ?? '—'}</h4>
+    <h4>פירוט הציון · ${candidate.score ?? '—'}</h4>
     <ul class="course-scheduling-score-list">
       ${rows.map((row) => `<li><span>${escapeHtml(row.label)}</span><b>${Number(row.points) || 0}</b></li>`).join('')}
     </ul>
-    <p class="course-scheduling-score-note">${escapeHtml(breakdown.gateNote || 'פעילות, כתובת, זמינות, שפה ומגדר כאשר נדרש הם תנאי סף ואינם מוסיפים נקודות.')}</p>
+    <p class="course-scheduling-score-note">פעילות, כתובת, זמינות, שפה ומגדר כאשר נדרש הם תנאי סף ואינם מוסיפים נקודות.</p>
   </div>`;
 }
 
@@ -508,13 +508,12 @@ function candidateRowHtml(candidate, { recommended = false, selectedId = '', nam
   const hardBlock = candidateHardBlockReason(candidate);
   const disabled = hardBlock ? ' disabled' : '';
   const tooltip = hardBlock ? ` title="${escapeHtml(hardBlock)}"` : '';
-  const continuityLabel = breakdown.continuityEfficiency?.label || 'אין רציפות בבית הספר או ברשות';
   return `<tr class="course-scheduling-candidate-row${selected}" data-candidate-row="${escapeHtml(id)}">
     <td class="course-scheduling-candidate-select"><input type="radio" name="${escapeHtml(name)}" value="${escapeHtml(id)}"${checked}${disabled}${tooltip}></td>
     <td class="course-scheduling-candidate-name"><strong title="${escapeHtml(candidate.instructor.full_name || id)}">${escapeHtml(candidate.instructor.full_name || id)}</strong><span>${title}</span></td>
-    <td class="course-scheduling-candidate-score"><b>${candidate.score ?? '—'}</b><span class="sr-only"> פירוט הציון ${escapeHtml(candidate.recommendationReason || '')} תנאי סף ואינם מוסיפים נקודות</span></td>
+    <td class="course-scheduling-candidate-score"><b>${candidate.score ?? '—'}</b><span class="sr-only"> פירוט הציון עומס וחלוקה שוויונית ותק תנאי סף ואינם מוסיפים נקודות</span></td>
     <td>${escapeHtml(availabilityLabel(candidate))}</td>
-    <td title="${escapeHtml(continuityLabel)}">התאמה ${escapeHtml(String(continuity))}<span class="sr-only"> ${escapeHtml(continuityLabel)}</span></td>
+    <td title="${escapeHtml(breakdown.continuityEfficiency?.label || 'אין רציפות בבית הספר או ברשות')}">התאמה ${escapeHtml(String(continuity))}<span class="sr-only"> ${escapeHtml(breakdown.continuityEfficiency?.label || 'אין רציפות בבית הספר או ברשות')}</span></td>
     <td title="${escapeHtml(distance)}">${escapeHtml(distance)}</td>
     <td>${candidateConstraintBadgesHtml(candidate, course || {})}</td>
   </tr>`;
@@ -587,7 +586,6 @@ export function instructorsResultsHtml(result, state = {}) {
           ${candidateRowHtml(result.bestAvailable, { selectedId, name: radioName, course: result.course })}
           ${(result.alternatives || []).map((item) => candidateRowHtml(item, { selectedId, name: radioName, course: result.course })).join('')}
         </tbody></table></div>
-        ${scoreBreakdownHtml(result.bestAvailable)}
         ${dateAdjustmentHtml(result.bestAvailable)}
         ${rejectedCandidatesHtml(result)}
         <div class="course-scheduling-selection-note" data-selection-note>${selectedId ? 'נבחר מדריך לשיבוץ ידני' : 'בחרו מדריך כדי להפעיל את הפעולות'}</div>
@@ -621,8 +619,6 @@ export function instructorsResultsHtml(result, state = {}) {
       ${candidateRowHtml(result.recommended, { recommended: true, selectedId, name: radioName, course: result.course })}
       ${visibleAlts.map((item) => candidateRowHtml(item, { selectedId, name: radioName, course: result.course })).join('')}
     </tbody></table></div>
-    ${scoreBreakdownHtml(result.recommended)}
-    ${requirementsFitHtml(result.recommended, result.course)}
     ${dateAdjustmentHtml(result.recommended)}
     ${(hiddenAlts.length || moreChecked.length) ? `<details class="course-scheduling-details" data-more-candidates ${showMore ? 'open' : ''}><summary>הצגת מדריכים נוספים</summary><div class="course-scheduling-candidates-table-wrap"><table class="course-scheduling-candidates-table"><tbody>${[...hiddenAlts, ...moreChecked].map((item) => candidateRowHtml(item, { selectedId, name: radioName, course: result.course })).join('')}</tbody></table></div></details>` : ''}
     ${rejectedCandidatesHtml(result)}
@@ -1189,7 +1185,6 @@ export const courseSchedulingScreen = {
         };
         const scheduling = data.scheduling || {};
         const profiles = Object.fromEntries((scheduling.profiles || []).map((row) => [text(row.emp_id), row]));
-        const referenceDate = today();
         const input = {
           activities: enriched.activities,
           periodKey: selectedPeriodKey(state),
@@ -1198,8 +1193,7 @@ export const courseSchedulingScreen = {
           profiles,
           rules: group(scheduling.rules || [], 'emp_id'),
           exceptions: group(scheduling.exceptions || [], 'emp_id'),
-          schoolCalendar: data.schoolCalendar || [],
-          referenceDate
+          schoolCalendar: data.schoolCalendar || []
         };
         state.courseSchedulingProgressStep = 2;
         rerender();
@@ -1209,7 +1203,12 @@ export const courseSchedulingScreen = {
         const routed = await calculateCandidateTravel(preliminary, enriched.activities);
         state.courseSchedulingResults = calculateCourseSchedule({
           ...input,
-          referenceDate,
+          referenceDate: new Intl.DateTimeFormat('en-CA', {
+            timeZone: 'Asia/Jerusalem',
+            year: 'numeric',
+            month: '2-digit',
+            day: '2-digit'
+          }).format(new Date()),
           travel: routed.travel,
           routeMatrix: routed.routeMatrix,
           travelUnavailableReason: routed.unavailableReason || ''
