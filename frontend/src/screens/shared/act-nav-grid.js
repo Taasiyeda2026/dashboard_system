@@ -18,7 +18,6 @@ function itemLabelHtml(item, counts = {}) {
 export const ACT_SUBNAV_ITEMS = [
   { route: 'activities',    label: 'כל הפעילויות',  icon: '📋' },
   { route: 'operations-management', label: 'ניהול תפעול', icon: '🛠️' },
-  { route: 'course-scheduling', label: 'שיבוצים', icon: '🗓️' },
   { route: 'end-dates',     label: 'תאריכי סיום',   icon: '🏁' },
   { route: 'exceptions',    label: 'חריגות',         icon: '⚠️' },
   { route: 'instructors',   label: 'מדריכים',        icon: '👥' },
@@ -32,6 +31,22 @@ function visibleSubnavItems(availableRoutes) {
   return ACT_SUBNAV_ITEMS.filter((item) => availableRoutes.has(item.route) && !(hasUnifiedClientFile && item.route === 'contacts'));
 }
 
+/** Instructors workspace covers list / scheduling / work-schedule under one main-nav item. */
+export function isInstructorsNavActive(state = {}) {
+  const route = state?.route || '';
+  if (route === 'instructors' || route === 'course-scheduling') return true;
+  return route === 'operations-management' && state?.operationsManagement?.context === 'instructors';
+}
+
+function isNavItemActive(item, state = {}) {
+  const currentRoute = state?.route || '';
+  if (item.route === 'instructors') return isInstructorsNavActive(state);
+  if (item.route === 'operations-management') {
+    return currentRoute === 'operations-management' && state?.operationsManagement?.context !== 'instructors';
+  }
+  return item.route === currentRoute;
+}
+
 /**
  * מחזיר HTML של גריד ניווט הפעילויות.
  * @param {object} state - state.routes, state.route
@@ -39,7 +54,6 @@ function visibleSubnavItems(availableRoutes) {
  */
 export function actNavGridHtml(state, counts = {}) {
   const availableRoutes = new Set(Array.isArray(state?.routes) ? state.routes : []);
-  const currentRoute = state?.route || '';
   const items = visibleSubnavItems(availableRoutes);
   if (!items.length) return '';
   const buttons = items
@@ -47,7 +61,7 @@ export function actNavGridHtml(state, counts = {}) {
       (item) => `
       <button
         type="button"
-        class="ds-act-nav-item${item.route === currentRoute ? ' is-active' : ''}"
+        class="ds-act-nav-item${isNavItemActive(item, state) ? ' is-active' : ''}"
         data-act-subnav="${escapeHtml(item.route)}"
         dir="rtl"
       >
@@ -66,7 +80,6 @@ export function actNavGridHtml(state, counts = {}) {
  */
 export function headerNavGridHtml(state, counts = {}) {
   const availableRoutes = new Set(Array.isArray(state?.routes) ? state.routes : []);
-  const currentRoute = state?.route || '';
   const items = visibleSubnavItems(availableRoutes);
   if (!items.length) return '';
   const buttons = items
@@ -74,7 +87,7 @@ export function headerNavGridHtml(state, counts = {}) {
       (item) => `
       <button
         type="button"
-        class="ds-act-nav-item ds-act-nav-item--header${item.route === currentRoute ? ' is-active' : ''}"
+        class="ds-act-nav-item ds-act-nav-item--header${isNavItemActive(item, state) ? ' is-active' : ''}"
         data-route="${escapeHtml(item.route)}"
         dir="rtl"
       >

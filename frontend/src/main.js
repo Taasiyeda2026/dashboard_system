@@ -1020,7 +1020,8 @@ function shell(content) {
   const hasUnifiedClientFile = effectiveRoutes().includes('proposals-agreements');
   const headerNavHtml = headerNavGridHtml({
     route: state.route,
-    routes: effectiveRoutes().filter((r) => !adminHeaderExclude.has(r) && !HEADER_ALWAYS_EXCLUDE.has(r) && !(hasUnifiedClientFile && r === 'contacts'))
+    routes: effectiveRoutes().filter((r) => !adminHeaderExclude.has(r) && !HEADER_ALWAYS_EXCLUDE.has(r) && !(hasUnifiedClientFile && r === 'contacts')),
+    operationsManagement: state.operationsManagement
   }, { exceptions: exceptionsNavCount(), editRequests: Number(state.openEditRequestsCount) || 0 });
   const headerTechHtml = '';
   const instructorMobileHeader = isInstructorUser
@@ -1430,7 +1431,16 @@ function updateNavActiveClasses() {
     shellNode.setAttribute('data-current-route', String(state.route || ''));
   }
   document.querySelectorAll('[data-route]').forEach((btn) => {
-    btn.classList.toggle('is-active', btn.dataset.route === state.route);
+    const route = btn.dataset.route;
+    let active = route === state.route;
+    if (route === 'instructors') {
+      active = state.route === 'instructors'
+        || state.route === 'course-scheduling'
+        || (state.route === 'operations-management' && state.operationsManagement?.context === 'instructors');
+    } else if (route === 'operations-management') {
+      active = state.route === 'operations-management' && state.operationsManagement?.context !== 'instructors';
+    }
+    btn.classList.toggle('is-active', active);
   });
   updateExceptionNavCount();
   syncGlobalActivityPeriodSelector();

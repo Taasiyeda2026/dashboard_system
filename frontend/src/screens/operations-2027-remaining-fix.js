@@ -71,9 +71,41 @@ function mark2027Root(html) {
 
 function resetHiddenActiveTab(state = {}) {
   if (!is2027State(state)) return;
+  // Instructors work-schedule left operations management; fall back to workshops in 2027 ops context.
+  if (state?.operationsManagement?.context === 'instructors') return;
   if (!HIDDEN_2027_TABS.has(activeOperationsTab(state))) return;
   state.operationsManagement = state.operationsManagement || {};
-  state.operationsManagement.tab = 'instructors';
+  state.operationsManagement.tab = 'workshops';
+}
+
+function install2027TabGuard(state = {}) {
+  const ops = state.operationsManagement;
+  if (!ops || typeof ops !== 'object') return () => {};
+  const descriptor = Object.getOwnPropertyDescriptor(ops, 'tab');
+  if (descriptor && typeof descriptor.set === 'function' && descriptor.get) return () => {};
+
+  let tabValue = ops.tab;
+  Object.defineProperty(ops, 'tab', {
+    configurable: true,
+    enumerable: true,
+    get() { return tabValue; },
+    set(next) {
+      tabValue = next;
+      if (is2027State(state) && ops.context !== 'instructors' && HIDDEN_2027_TABS.has(String(tabValue || '').trim())) {
+        tabValue = 'workshops';
+      }
+    }
+  });
+
+  return () => {
+    const finalTab = ops.tab;
+    Object.defineProperty(ops, 'tab', {
+      configurable: true,
+      enumerable: true,
+      writable: true,
+      value: finalTab
+    });
+  };
 }
 
 function installScreenWrappers() {
@@ -82,8 +114,18 @@ function installScreenWrappers() {
 
   const originalLoad = operationsManagementScreen.load;
   operationsManagementScreen.load = async function wrappedOperationsLoad(context = {}) {
-    const data = await originalLoad.call(this, context);
-    return normalizeWorkshopInventory2027Data(data || {}, context.state || {});
+    const state = context.state || {};
+    // Reset hidden 2027 tabs before originalLoad so tabKey/data match the visible tab.
+    resetHiddenActiveTab(state);
+    // Entry reset inside originalLoad may assign completion_approval again — keep workshops.
+    const releaseTabGuard = install2027TabGuard(state);
+    resetHiddenActiveTab(state);
+    try {
+      const data = await originalLoad.call(this, context);
+      return normalizeWorkshopInventory2027Data(data || {}, state);
+    } finally {
+      releaseTabGuard();
+    }
   };
 
   const originalRender = operationsManagementScreen.render;

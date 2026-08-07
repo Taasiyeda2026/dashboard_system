@@ -78,6 +78,11 @@ import {
   resolveSchoolContact
 } from './shared/contact-responsible.js';
 import { resolveWorkshopStockKey } from './shared/operations-2027-domain.js';
+import {
+  bindInstructorsWorkspaceNav,
+  instructorsWorkspaceHeaderHtml,
+  instructorsWorkspaceNavStylesHtml
+} from './shared/instructors-workspace-nav.js';
 
 const SCOPE = 'operations-management';
 const TAB_INSTRUCTORS = 'instructors';
@@ -101,10 +106,21 @@ function canEditOperationsInventory(state = {}) {
 }
 
 let _opsNeedsEntryReset = false;
+let _opsEntryContext = 'operations';
+
+const OPS_CONTEXT_INSTRUCTORS = 'instructors';
+const OPS_CONTEXT_OPERATIONS = 'operations';
+const OPERATIONS_ONLY_TABS = [TAB_COMPLETION_APPROVAL, TAB_AUTHORITIES, TAB_WORKSHOPS];
 
 function resetOperationsManagementEntry(state) {
   const ops = ensureOpsState(state);
-  ops.tab = TAB_INSTRUCTORS;
+  const context = _opsEntryContext === OPS_CONTEXT_INSTRUCTORS ? OPS_CONTEXT_INSTRUCTORS : OPS_CONTEXT_OPERATIONS;
+  ops.context = context;
+  if (context === OPS_CONTEXT_INSTRUCTORS) {
+    ops.tab = TAB_INSTRUCTORS;
+  } else {
+    ops.tab = TAB_COMPLETION_APPROVAL;
+  }
   try { sessionStorage.removeItem(SUMMER_TRAINING_SESSION_KEY); } catch { /* ignore */ }
 }
 
@@ -114,10 +130,19 @@ function bindOperationsManagementEntryReset() {
   document.addEventListener('click', (event) => {
     const nav = event.target?.closest?.('[data-route]');
     if (!nav) return;
-    if (nav.getAttribute('data-route') === 'operations-management') _opsNeedsEntryReset = true;
+    if (nav.getAttribute('data-route') !== 'operations-management') return;
+    const context = nav.getAttribute('data-ops-context') === OPS_CONTEXT_INSTRUCTORS
+      ? OPS_CONTEXT_INSTRUCTORS
+      : OPS_CONTEXT_OPERATIONS;
+    _opsEntryContext = context;
+    _opsNeedsEntryReset = true;
   }, true);
   document.addEventListener('app:navigate', (event) => {
-    if (event?.detail?.route === 'operations-management') _opsNeedsEntryReset = true;
+    if (event?.detail?.route !== 'operations-management') return;
+    _opsEntryContext = event?.detail?.opsContext === OPS_CONTEXT_INSTRUCTORS
+      ? OPS_CONTEXT_INSTRUCTORS
+      : OPS_CONTEXT_OPERATIONS;
+    _opsNeedsEntryReset = true;
   });
 }
 
@@ -186,7 +211,15 @@ function defaultDateRange(periodKey) {
 function ensureOpsState(state = {}) {
   state.operationsManagement = state.operationsManagement || {};
   const ops = state.operationsManagement;
-  if (!ops.tab || ops.tab === TAB_SUMMER) ops.tab = TAB_INSTRUCTORS;
+  if (ops.context !== OPS_CONTEXT_INSTRUCTORS && ops.context !== OPS_CONTEXT_OPERATIONS) {
+    ops.context = OPS_CONTEXT_OPERATIONS;
+  }
+  if (ops.tab === TAB_SUMMER) ops.tab = TAB_INSTRUCTORS;
+  if (ops.context === OPS_CONTEXT_INSTRUCTORS) {
+    ops.tab = TAB_INSTRUCTORS;
+  } else if (!ops.tab || ops.tab === TAB_INSTRUCTORS || !OPERATIONS_ONLY_TABS.includes(ops.tab)) {
+    ops.tab = TAB_COMPLETION_APPROVAL;
+  }
   const globalPeriod = defaultPeriodKey(state);
   if (ops.period !== globalPeriod) {
     ops.period = globalPeriod;
@@ -617,8 +650,8 @@ function normalizeInventoryUsage(value) {
 }
 
 function tabsHtml(activeTab) {
+  // Work schedule moved to the Instructors workspace — omit it from operations management tabs.
   const tabs = [
-    [TAB_INSTRUCTORS, 'סידור עבודה'],
     [TAB_COMPLETION_APPROVAL, 'אישורי ביצוע'],
     [TAB_AUTHORITIES, 'רשויות'],
     [TAB_WORKSHOPS, 'ציוד ומלאי']
@@ -2950,7 +2983,10 @@ export async function loadOperationsTabData(api, tab, { state } = {}) {
 export const operationsManagementScreen = {
   load: async ({ api, state }) => {
     const ops = ensureOpsState(state || {});
-    const tabKey = operationsTabDataKey(_opsNeedsEntryReset ? TAB_INSTRUCTORS : ops.tab);
+    if (_opsNeedsEntryReset) {
+      resetOperationsManagementEntry(state || {});
+    }
+    const tabKey = operationsTabDataKey(ops.tab);
     const dateFrom = String(ops.dateFrom || '').trim();
     const dateTo = String(ops.dateTo || '').trim();
     const [activities, tabData] = await Promise.all([
@@ -2973,14 +3009,24 @@ export const operationsManagementScreen = {
     const allRows = Array.isArray(data?.rows) ? data.rows : [];
     const prepared = prepareRows(allRows);
     const ops = ensureOpsState(state);
-    const isCompletionApprovalTab = ops.tab === TAB_COMPLETION_APPROVAL;
+    const instructorsContext = ops.context === OPS_CONTEXT_INSTRUCTORS;
+    const isCompletionApprovalTab = !instructorsContext && ops.tab === TAB_COMPLETION_APPROVAL;
     const baseRows = applyBaseFilters(prepared, state);
     const filteredRows = isCompletionApprovalTab ? baseRows : applyAllFilters(baseRows, state);
     const filterRows = ops.tab === TAB_WORKSHOPS
       ? baseRows.filter((row) => activityMatchesAnyOfficialWorkshop(row, extractWorkshopCatalogRows(data?.adminListsData, prepared, data?.workshopStockDistributions || [])))
       : baseRows;
     const activeRows = isCompletionApprovalTab ? baseRows : filteredRows;
-    return `<div class="ds-screen-stack ds-ops-mgmt-screen">${opsManagementStylesHtml()}${dsPageHeader(isCompletionApprovalTab ? 'בקרת אישורי ביצוע לקיץ 2026' : 'ניהול תפעול')}
+    if (instructorsContext) {
+      return `<div class="ds-screen-stack ds-ops-mgmt-screen ds-ops-mgmt-screen--instructors-workspace" data-ops-context="instructors">${opsManagementStylesHtml()}${instructorsWorkspaceNavStylesHtml()}
+      ${instructorsWorkspaceHeaderHtml({ activeTab: 'work-schedule', state })}
+      <h2 class="instructors-workspace-content-title">סידור עבודה</h2>
+      ${topFiltersHtml(filterRows, state)}
+      <div class="ds-ops-mgmt-content">${renderTab(activeRows, state, data, prepared)}</div>
+      ${ops.period === ACTIVITY_SEASON_SCHOOL_2027 ? '' : `<p class="ds-muted ds-ops-mgmt-count no-print" dir="rtl">מציג ${filteredRows.length} פעילויות מתוך ${allRows.length}</p>`}
+    </div>`;
+    }
+    return `<div class="ds-screen-stack ds-ops-mgmt-screen" data-ops-context="operations">${opsManagementStylesHtml()}${dsPageHeader(isCompletionApprovalTab ? 'בקרת אישורי ביצוע לקיץ 2026' : 'ניהול תפעול')}
       ${isCompletionApprovalTab ? '' : topFiltersHtml(filterRows, state)}
       ${tabsHtml(ops.tab)}
       <div class="ds-ops-mgmt-content">${renderTab(activeRows, state, data, prepared)}</div>
@@ -2997,13 +3043,15 @@ export const operationsManagementScreen = {
       _opsNeedsEntryReset = false;
       resetOperationsManagementEntry(state);
     }
+    bindInstructorsWorkspaceNav(root, { state, rerender });
 
     bindSummerContactsModalEvents(root, { ui, api, rows: data?.instructorSchedulePrintContactsRows || [], logPrefix: 'operations-management' });
 
     root.querySelectorAll('[data-ops-tab]').forEach((btn) => {
       btn.addEventListener('click', async () => {
-        ops.tab = btn.getAttribute('data-ops-tab') || TAB_INSTRUCTORS;
-        if (ops.tab === TAB_SUMMER) ops.tab = TAB_INSTRUCTORS;
+        ops.context = OPS_CONTEXT_OPERATIONS;
+        ops.tab = btn.getAttribute('data-ops-tab') || TAB_COMPLETION_APPROVAL;
+        if (ops.tab === TAB_SUMMER || ops.tab === TAB_INSTRUCTORS) ops.tab = TAB_COMPLETION_APPROVAL;
         try { sessionStorage.removeItem(SUMMER_TRAINING_SESSION_KEY); } catch { /* ignore */ }
         document.dispatchEvent(new CustomEvent('ops-mgmt-standard-tab', { detail: { tab: ops.tab } }));
         const tabKey = operationsTabDataKey(ops.tab);

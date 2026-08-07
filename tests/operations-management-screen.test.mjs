@@ -1,7 +1,32 @@
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
 import { readFile } from 'node:fs/promises';
-import {
+
+if (!globalThis.localStorage) {
+  const store = new Map();
+  globalThis.localStorage = {
+    getItem: (key) => (store.has(key) ? store.get(key) : null),
+    setItem: (key, value) => { store.set(String(key), String(value)); },
+    removeItem: (key) => { store.delete(String(key)); }
+  };
+}
+if (!globalThis.sessionStorage) {
+  const store = new Map();
+  globalThis.sessionStorage = {
+    getItem: (key) => (store.has(key) ? store.get(key) : null),
+    setItem: (key, value) => { store.set(String(key), String(value)); },
+    removeItem: (key) => { store.delete(String(key)); }
+  };
+}
+if (!globalThis.document) {
+  globalThis.document = {
+    dispatchEvent() { return true; },
+    addEventListener() {},
+    documentElement: { dataset: {} }
+  };
+}
+
+const {
   getActivitySchoolDisplayName,
   hasActivitySchoolOrFrame,
   getActivityInstructorName,
@@ -19,25 +44,27 @@ import {
   getActivityRequiredInventoryQuantity,
   sumRequiredInventoryQuantitiesFromActivities,
   WORKSHOP_ESTIMATE_PER_ACTIVITY
-} from '../frontend/src/screens/shared/operations-activity-helpers.js';
-import { operationsManagementScreen } from '../frontend/src/screens/operations-management.js';
-import {
+} = await import('../frontend/src/screens/shared/operations-activity-helpers.js');
+const { operationsManagementScreen } = await import('../frontend/src/screens/operations-management.js');
+const {
   buildCompletionApprovals,
   completionApprovalDocumentHtml,
   completionApprovalInstructorOptions,
   completionApprovalPrintCss,
   formatApprovalTime,
   sortApprovalActivitiesByTime
-} from '../frontend/src/screens/shared/activity-completion-approval-print.js';
-import {
+} = await import('../frontend/src/screens/shared/activity-completion-approval-print.js');
+const {
   findMatchingCompletionApprovalUpload
-} from '../frontend/src/screens/shared/completion-approval-status.js';
+} = await import('../frontend/src/screens/shared/completion-approval-status.js');
 
 function baseState(overrides = {}) {
-  return {
+  const base = {
+    activityPeriodTab: 'regular',
     operationsManagement: {
-      tab: 'instructors',
-      period: 'all',
+      tab: 'completion_approval',
+      context: 'operations',
+      period: 'regular',
       dateFrom: '2026-01-01',
       dateTo: '2026-12-31',
       instructor: '__all__',
@@ -46,9 +73,37 @@ function baseState(overrides = {}) {
     },
     listFilters: {
       'operations-management': { q: '', appliedQ: '', status: 'פתוח', visibleCount: 200 }
-    },
-    ...overrides
+    }
   };
+  return {
+    ...base,
+    ...overrides,
+    operationsManagement: {
+      ...base.operationsManagement,
+      ...(overrides.operationsManagement || {})
+    },
+    listFilters: {
+      ...base.listFilters,
+      ...(overrides.listFilters || {})
+    }
+  };
+}
+
+function scheduleState(overrides = {}) {
+  return baseState({
+    ...overrides,
+    operationsManagement: {
+      tab: 'instructors',
+      context: 'instructors',
+      period: 'regular',
+      dateFrom: '2026-01-01',
+      dateTo: '2026-12-31',
+      instructor: '__all__',
+      expandedWorkshop: '',
+      expandedSchool: '',
+      ...(overrides.operationsManagement || {})
+    }
+  });
 }
 
 const TEXT_SCHOOL_ROWS = [
@@ -92,10 +147,17 @@ test('getActivityInstructorNames includes secondary instructor fields', () => {
 });
 
 test('operations management instructor filter and schedule include secondary instructors', () => {
-  const state = baseState();
-  state.operationsManagement.period = 'summer_2026';
-  state.operationsManagement.dateFrom = '2026-07-01';
-  state.operationsManagement.dateTo = '2026-08-31';
+  const state = scheduleState({
+    activityPeriodTab: 'summer_2026',
+    operationsManagement: {
+      tab: 'instructors',
+      context: 'instructors',
+      period: 'summer_2026',
+      dateFrom: '2026-07-01',
+      dateTo: '2026-08-31',
+      instructor: '__all__'
+    }
+  });
   state.listFilters['operations-management'].instructor = 'אפרת אוחיון';
   const rows = [{
     RowID: 'TAMIR-1',
@@ -121,9 +183,9 @@ test('getActivityPrimaryDate uses start_date and meeting dates', () => {
 });
 
 test('getActivityTimeRange formats HH:MM:SS to HH:MM for display and print', () => {
-  assert.equal(getActivityTimeRange({ start_time: '08:15:00', end_time: '09:00:00' }), '08:15-09:00');
-  assert.equal(getActivityTimeRange({ StartTime: '08:15:00', EndTime: '09:00:00' }), '08:15-09:00');
-  assert.equal(getActivityTimeRange({ start_time: '09:00', end_time: '12:30' }), '09:00-12:30');
+  assert.equal(getActivityTimeRange({ start_time: '08:15:00', end_time: '09:00:00' }), '08:15–09:00');
+  assert.equal(getActivityTimeRange({ StartTime: '08:15:00', EndTime: '09:00:00' }), '08:15–09:00');
+  assert.equal(getActivityTimeRange({ start_time: '09:00', end_time: '12:30' }), '09:00–12:30');
   assert.equal(getActivityTimeRange({ start_time: '08:15:00' }), '08:15');
   assert.equal(getActivityTimeRange({}), '');
 });
@@ -181,16 +243,22 @@ test('summer exceptions only include missing instructor or missing date', () => 
 test('operations management render includes menu page structure and tabs', () => {
   const html = operationsManagementScreen.render({ rows: TEXT_SCHOOL_ROWS, workshopStockMap: new Map() }, { state: baseState() });
   assert.match(html, /ניהול תפעול/);
-  assert.match(html, /סידור עבודה/);
+  assert.doesNotMatch(html, /data-ops-tab="instructors"/);
   assert.match(html, /רשויות/);
   assert.match(html, /ציוד ומלאי/);
-  assert.match(html, /טבלת סידור עבודה/);
-  assert.match(html, /הדפס סידור עבודה/);
-  assert.match(html, /ds-filter-panel/);
-  assert.match(html, /ds-ops-mgmt-summary/);
+  assert.match(html, /אישורי ביצוע/);
   assert.match(html, /ds-exceptions-tabs/);
-  assert.match(html, /data-ops-tab="instructors"[^>]*aria-pressed="true"/);
+  assert.match(html, /data-ops-tab="completion_approval"[^>]*aria-pressed="true"/);
   assert.doesNotMatch(html, /סמל מוסד/);
+
+  const scheduleHtml = operationsManagementScreen.render({ rows: TEXT_SCHOOL_ROWS, workshopStockMap: new Map() }, { state: scheduleState() });
+  assert.match(scheduleHtml, /מדריכים/);
+  assert.match(scheduleHtml, /סידור עבודה/);
+  assert.match(scheduleHtml, /טבלת סידור עבודה/);
+  assert.match(scheduleHtml, /הדפס סידור עבודה/);
+  assert.match(scheduleHtml, /ds-filter-panel/);
+  assert.match(scheduleHtml, /ds-ops-mgmt-summary/);
+  assert.doesNotMatch(scheduleHtml, /data-ops-tab="completion_approval"/);
 });
 
 test('work schedule shows only student count column without quantity fallback', async () => {
@@ -221,7 +289,7 @@ test('work schedule shows only student count column without quantity fallback', 
       grade: 'ב'
     }
   ];
-  const html = operationsManagementScreen.render({ rows, workshopStockMap: new Map() }, { state: baseState() });
+  const html = operationsManagementScreen.render({ rows, workshopStockMap: new Map() }, { state: scheduleState() });
   const scheduleHtml = html.match(/<div class="ds-ops-schedule-wrap">[\s\S]*?<p class="ds-ops-mgmt-print-footer/)?.[0] || '';
 
   assert.match(scheduleHtml, />מס׳ תלמידים/);
@@ -840,8 +908,10 @@ test('operations management tabs stay synced with selected tab content', () => {
   const defaultHtml = operationsManagementScreen.render({ rows, workshopStockMap: new Map() }, { state: baseState() });
   const authoritiesHtml = operationsManagementScreen.render({ rows, workshopStockMap: new Map() }, { state: authoritiesState });
   const workshopsHtml = operationsManagementScreen.render({ rows, workshopStockMap: new Map(), adminListsData: { categories: [] } }, { state: workshopsState });
-  assert.match(defaultHtml, /data-ops-tab="instructors"[^>]*aria-pressed="true"/);
-  assert.match(defaultHtml, /טבלת סידור עבודה/);
+  const scheduleHtml = operationsManagementScreen.render({ rows, workshopStockMap: new Map() }, { state: scheduleState() });
+  assert.match(defaultHtml, /data-ops-tab="completion_approval"[^>]*aria-pressed="true"/);
+  assert.doesNotMatch(defaultHtml, /data-ops-tab="instructors"/);
+  assert.match(scheduleHtml, /טבלת סידור עבודה/);
   assert.match(authoritiesHtml, /data-ops-tab="authorities"[^>]*aria-pressed="true"/);
   assert.match(authoritiesHtml, /ds-ops-schools-authority/);
   assert.match(workshopsHtml, /data-ops-tab="workshops"[^>]*aria-pressed="true"/);
@@ -1032,8 +1102,8 @@ test('operations management schedule shows HH:MM time range without seconds', ()
     end_time: '09:00:00',
     instructor_name: 'דני'
   }];
-  const html = operationsManagementScreen.render({ rows, workshopStockMap: new Map() }, { state: baseState() });
-  assert.match(html, />08:15-09:00</);
+  const html = operationsManagementScreen.render({ rows, workshopStockMap: new Map() }, { state: scheduleState() });
+  assert.match(html, />08:15–09:00</);
   assert.doesNotMatch(html, />08:15:00-09:00:00</);
 });
 

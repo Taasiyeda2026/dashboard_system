@@ -13,6 +13,11 @@ import { loadInstructorSeniorityData, saveInstructorContactDetails } from './ins
 import {
   text, activeFlag, assigned, instructorCard, profileHtml, contactForm, constraintsForm, matchingForm
 } from './instructor-workspace-ui.js?v=20260804-instructor-seniority-v1';
+import {
+  bindInstructorsWorkspaceNav,
+  instructorsWorkspaceHeaderHtml,
+  instructorsWorkspaceNavStylesHtml
+} from './shared/instructors-workspace-nav.js';
 
 const ACTIVE_FILTERS = [{ value: 'yes', label: 'פעילים' }, { value: '', label: 'הכול' }, { value: 'no', label: 'לא פעילים' }];
 const ASSIGNMENT_FILTERS = [{ value: '', label: 'כל השיבוצים' }, { value: 'assigned', label: 'משובצים' }, { value: 'unassigned', label: 'לא משובצים' }];
@@ -50,10 +55,6 @@ export function buildInstructorActivityDetailsForMonth(allRows, { empId, instrNa
     });
   });
   return items;
-}
-
-function canEditScheduling(state) {
-  return ['admin', 'operation_manager'].includes(text(state?.user?.role || state?.user?.display_role));
 }
 
 function mergeRows(base, contacts, scheduling, seniorityRows = []) {
@@ -238,16 +239,18 @@ export const instructorsScreen = {
     });
     const missingAddress = (data?.rows || []).filter((row) => activeFlag(row.active) === 'yes' && !text(row.address)).length;
     const body = rows.length ? `<div class="instructors-workspace-grid">${rows.map(instructorCard).join('')}</div>` : dsEmptyState('לא נמצאו מדריכים בהתאם לסינון');
-    return dsScreenStack(`<style>.instructors-workspace-grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(270px,1fr));gap:12px}.instructors-workspace-grid>.ds-card:hover{border-color:#9db9d8!important;box-shadow:0 5px 16px rgba(15,23,42,.08)}@media(max-width:720px){.instructors-workspace-grid{grid-template-columns:1fr}}</style>
-      <header class="ds-page-header"><div><h1 class="ds-page-header__title">מדריכים</h1><p class="ds-page-header__subtitle">פרטי מדריכים, פעילויות, זמינות ואילוצים במקום אחד</p></div>${canEditScheduling(state) ? '<button type="button" class="ds-btn ds-btn--primary" data-route="course-scheduling">שיבוץ קורסים</button>' : ''}</header>
+    return dsScreenStack(`${instructorsWorkspaceNavStylesHtml()}<style>.instructors-workspace-grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(270px,1fr));gap:12px}.instructors-workspace-grid>.ds-card:hover{border-color:#9db9d8!important;box-shadow:0 5px 16px rgba(15,23,42,.08)}@media(max-width:720px){.instructors-workspace-grid{grid-template-columns:1fr}}</style>
+      ${instructorsWorkspaceHeaderHtml({ activeTab: 'list', state })}
+      <h2 class="instructors-workspace-content-title">רשימת מדריכים</h2>
       <div class="ds-screen-top-row" style="display:grid;gap:10px"><div style="display:flex;gap:10px;align-items:center;flex-wrap:wrap"><input class="ds-search-input" data-instructors-search type="search" placeholder="חיפוש לפי שם, מזהה, רשות, בית ספר או מנהל…" value="${escapeHtml(filters.q || '')}" style="flex:1 1 330px;max-width:620px"><span class="ds-badge">${rows.length} מדריכים</span>${missingAddress ? `<span class="ds-status-chip ds-status-chip--warning">${missingAddress} פעילים ללא כתובת</span>` : ''}</div><div style="display:flex;gap:8px;flex-wrap:wrap"><span class="ds-muted">סטטוס:</span>${chips(ACTIVE_FILTERS, filters.active, 'data-instructors-active')}<span class="ds-muted" style="margin-inline-start:10px">שיבוץ:</span>${chips(ASSIGNMENT_FILTERS, filters.assignment, 'data-instructors-assignment')}</div></div>
       ${dsCard({ title: '', body, padded: rows.length === 0 })}<p class="ds-muted">ניהול האילוצים וחישוב הצעות השיבוץ פתוחים לאדמין ולתפעול בלבד.</p>`);
   },
 
   bind({ root, data, state, rerender, api, ui, clearScreenDataCache }) {
     const rows = data?.rows || [];
-    const canEdit = canEditScheduling(state);
+    const canEdit = ['admin', 'operation_manager'].includes(text(state?.user?.role || state?.user?.display_role));
     state.instructorsWorkspace = state.instructorsWorkspace || { q: '', active: 'yes', assignment: '' };
+    bindInstructorsWorkspaceNav(root, { state, rerender });
     let timer;
     root.querySelector('[data-instructors-search]')?.addEventListener('input', (event) => { state.instructorsWorkspace.q = event.target.value || ''; clearTimeout(timer); timer = setTimeout(rerender, 180); });
     root.querySelectorAll('[data-instructors-active]').forEach((button) => button.addEventListener('click', () => { state.instructorsWorkspace.active = button.dataset.instructorsActive || ''; rerender(); }));
