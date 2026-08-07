@@ -2,10 +2,7 @@ import { escapeHtml } from './shared/html.js';
 import {
   buildWorkshopTrainingMatrix as buildWorkshopTrainingMatrixModel
 } from './operations-2027-loading-controller.js';
-import {
-  isWorkshopStockLocationName,
-  workshopHolderStatusLabel
-} from './workshop-stock-location-status.js';
+import { workshopHolderStatusLabel } from './workshop-stock-location-status.js';
 
 // Compatibility entry for the existing feature loader and focused contract tests.
 // The active Operations 2027 UI and loading lifecycle are owned by one controller.
@@ -40,14 +37,14 @@ function signedNumber(value) {
   return Number.isFinite(parsed) ? parsed : 0;
 }
 
-export function correctWorkshopStockLocationStatuses(root = document) {
+export function correctWorkshopHolderStatuses(root = document) {
   if (!root?.querySelectorAll) return 0;
   let changed = 0;
   root.querySelectorAll('.ds-ops-dist-table--instructors tbody tr').forEach((row) => {
     const holderCell = row.querySelector('.ds-ops-dist-col--instructor');
     const statusCell = row.querySelector('.ds-ops-dist-col--status');
     const holder = String(holderCell?.textContent || '').trim();
-    if (!statusCell || !isWorkshopStockLocationName(holder)) return;
+    if (!statusCell || !holder) return;
     const numbers = row.querySelectorAll('.ds-ops-dist-col--number');
     const balance = signedNumber(numbers[numbers.length - 1]?.textContent);
     const label = workshopHolderStatusLabel(holder, balance);
@@ -61,7 +58,7 @@ export function correctWorkshopStockLocationStatuses(root = document) {
 }
 
 if (typeof document !== 'undefined') {
-  const apply = () => correctWorkshopStockLocationStatuses(document);
+  const apply = () => correctWorkshopHolderStatuses(document);
   const observer = new MutationObserver(apply);
   const start = () => {
     apply();
