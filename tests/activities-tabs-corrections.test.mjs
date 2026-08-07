@@ -24,7 +24,8 @@ if (!globalThis.localStorage) {
 const { activitiesScreen } = await import('../frontend/src/screens/activities.js');
 const {
   defaultActivitiesInnerTabForPeriod,
-  nextActivitiesMonth
+  nextActivitiesMonth,
+  preferredMonthForTab
 } = await import('../frontend/src/activities-tabs-corrections.js');
 
 function baseState(innerTab = 'year_all', period = 'regular') {
@@ -123,4 +124,86 @@ test('2027 all activities combines active and closed 2027 rows only', () => {
   assert.match(html, /data-activity-period-tab="year_all"[\s\S]*?<strong>2<\/strong>/);
   assert.match(html, /data-activity-period-tab="school_2027"[\s\S]*?<strong>1<\/strong>/);
   assert.match(html, /data-activity-period-tab="year_archive"[\s\S]*?<strong>1<\/strong>/);
+});
+
+function school2027Rows() {
+  return Array.from({ length: 188 }, (_, index) => ({
+    RowID: `SCHOOL-2027-${index + 1}`,
+    activity_name: `פעילות תשפז ${index + 1}`,
+    activity_type: 'course',
+    activity_family: 'program',
+    activity_season: 'school_2027',
+    start_date: index < 20 ? `2026-09-${String(index + 1).padStart(2, '0')}`
+      : index < 26 ? `2026-10-${String(index - 19).padStart(2, '0')}`
+        : `2026-11-${String((index % 28) + 1).padStart(2, '0')}`,
+    status: 'פתוח'
+  }));
+}
+
+test('2027 annual and monthly tabs keep separate counts and monthly titles', () => {
+  const annualRows = school2027Rows();
+  const allHtml = activitiesScreen.render({ rows: annualRows }, { state: baseState('year_all', 'school_2027') });
+  assert.match(allHtml, /data-activity-period-tab="year_all"[\s\S]*?<strong>188<\/strong>/);
+  assert.match(allHtml, /data-activity-period-tab="school_2027"[\s\S]*?<strong>20<\/strong>/);
+
+  const monthlyState = baseState('school_2027', 'school_2027');
+  monthlyState.activitiesMonthYm = '2026-09';
+  const septemberHtml = activitiesScreen.render({ rows: annualRows }, { state: monthlyState });
+  assert.match(septemberHtml, /data-activity-period-tab="year_all"[\s\S]*?<strong>188<\/strong>/);
+  assert.match(septemberHtml, /data-activity-period-tab="school_2027"[\s\S]*?<strong>20<\/strong>/);
+  assert.match(septemberHtml, /פעילויות תשפ״ז · ספטמבר 2026 · 20 פעילויות/);
+
+  monthlyState.activitiesMonthYm = nextActivitiesMonth(monthlyState, 1);
+  const octoberHtml = activitiesScreen.render({ rows: annualRows }, { state: monthlyState });
+  assert.match(octoberHtml, /data-activity-period-tab="school_2027"[\s\S]*?<strong>6<\/strong>/);
+  assert.match(octoberHtml, /פעילויות תשפ״ז · אוקטובר 2026 · 6 פעילויות/);
+  assert.doesNotMatch(octoberHtml, /מתוך 188/);
+});
+
+test('2027 default month clamps the current calendar month to the school-year range', () => {
+  const monthlyState = baseState('school_2027', 'school_2027');
+  assert.equal(preferredMonthForTab([], monthlyState, new Date(2026, 7, 6)), '2026-09');
+  assert.equal(preferredMonthForTab([], monthlyState, new Date(2026, 9, 15)), '2026-10');
+  assert.equal(preferredMonthForTab([], monthlyState, new Date(2027, 7, 1)), '2027-06');
+});
+
+test('2027 monthly view keeps empty months and does not seek a month containing activities', () => {
+  const monthlyState = baseState('school_2027', 'school_2027');
+  assert.equal(preferredMonthForTab(school2027Rows(), monthlyState, new Date(2026, 11, 15)), '2026-12');
+  monthlyState.activitiesMonthYm = '2026-12';
+  const html = activitiesScreen.render({ rows: school2027Rows() }, { state: monthlyState });
+  assert.match(html, /data-activity-period-tab="school_2027"[\s\S]*?<strong>0<\/strong>/);
+  assert.match(html, /פעילויות תשפ״ז · דצמבר 2026 · 0 פעילויות/);
+  assert.doesNotMatch(html, /פעילות תשפז/);
+  assert.equal(nextActivitiesMonth(monthlyState, -1), '2026-11');
+  assert.equal(nextActivitiesMonth(monthlyState, 1), '2027-01');
+});
+
+test('2027 monthly membership uses actual date points without filling date ranges', () => {
+  const dateRows = [
+    { RowID: 'MEETING-IN-OCTOBER', activity_name: 'מפגש באוקטובר', activity_season: 'school_2027', start_date: '2026-09-01', end_date: '2026-11-30', date_3: '2026-10-12', status: 'פתוח' },
+    { RowID: 'RANGE-ONLY', activity_name: 'טווח בלבד', activity_season: 'school_2027', start_date: '2026-09-02', end_date: '2026-11-29', status: 'פתוח' },
+    { RowID: 'CLOSED-IN-OCTOBER', activity_name: 'סגורה באוקטובר', activity_season: 'school_2027', date_1: '2026-10-05', status: 'סגור' },
+    { RowID: 'CANCELLED-IN-OCTOBER', activity_name: 'מבוטלת באוקטובר', activity_season: 'school_2027', meeting_dates: ['2026-10-06'], status: 'בוטל' }
+  ];
+  const monthlyState = baseState('school_2027', 'school_2027');
+  monthlyState.activitiesMonthYm = '2026-10';
+  const monthlyHtml = activitiesScreen.render({ rows: dateRows }, { state: monthlyState });
+  assert.match(monthlyHtml, /מפגש באוקטובר/);
+  assert.doesNotMatch(monthlyHtml, /טווח בלבד/);
+  assert.doesNotMatch(monthlyHtml, /סגורה באוקטובר/);
+  assert.doesNotMatch(monthlyHtml, /מבוטלת באוקטובר/);
+  assert.match(monthlyHtml, /data-activity-period-tab="school_2027"[\s\S]*?<strong>1<\/strong>/);
+
+  const allHtml = activitiesScreen.render({ rows: dateRows }, { state: baseState('year_all', 'school_2027') });
+  assert.match(allHtml, /מפגש באוקטובר/);
+  assert.match(allHtml, /טווח בלבד/);
+  assert.match(allHtml, /סגורה באוקטובר/);
+  assert.doesNotMatch(allHtml, /מבוטלת באוקטובר/);
+
+  const archiveState = baseState('year_archive', 'school_2027');
+  archiveState.activitiesMonthYm = '2026-10';
+  const archiveHtml = activitiesScreen.render({ rows: dateRows }, { state: archiveState });
+  assert.match(archiveHtml, /סגורה באוקטובר/);
+  assert.doesNotMatch(archiveHtml, /מפגש באוקטובר/);
 });

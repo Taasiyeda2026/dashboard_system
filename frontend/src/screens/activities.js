@@ -30,6 +30,7 @@ import {
   activityTypeDisplayLabel,
   activityTypeMatches,
   normalizeActivityTypeKey,
+  normalizeActivityMeetingsCount,
   normalizeOneDayActivityType,
   getManagerUsers,
   getFilterOptionOverrides,
@@ -712,6 +713,70 @@ const TIME_OPTIONS = Array.from({ length: 48 }, (_, i) => {
 const GENERIC_ONE_DAY_ACTIVITY_NAMES = new Set(['סדנה', 'סדנאות', 'סיור', 'סיורים', 'חדר בריחה', 'חדרי בריחה']);
 function isOneDayActivityTypeValue(value) {
   return Boolean(normalizeOneDayActivityType(value));
+}
+
+export function applyActivityCatalogSelectionToAddForm(form, catalogItem, activityType) {
+  const noInput = form?.querySelector?.('[data-add-activity-no]');
+  const sessionsInput = form?.querySelector?.('[data-add-sessions]');
+  const type = normalizeActivityTypeKey(activityType);
+  if (noInput) noInput.value = String(catalogItem?.gefen_number || catalogItem?.activity_no || '');
+  const meetingsCount = normalizeActivityMeetingsCount(catalogItem?.meetings_count);
+  if ((type === 'course' || type === 'after_school') && sessionsInput && meetingsCount != null) {
+    sessionsInput.value = String(meetingsCount);
+  }
+  return meetingsCount;
+}
+
+function computeNextSessionDate(baseIso, index) {
+  if (!/^\d{4}-\d{2}-\d{2}$/.test(String(baseIso || ''))) return '';
+  const base = new Date(`${baseIso}T00:00:00`);
+  base.setDate(base.getDate() + (index * 7));
+  return `${base.getFullYear()}-${String(base.getMonth() + 1).padStart(2, '0')}-${String(base.getDate()).padStart(2, '0')}`;
+}
+
+export function syncSessionDateRows(form) {
+  const typeValue = String(form.querySelector('[name="activity_type"]')?.value || '').trim();
+  const isOneDay = isOneDayActivityTypeValue(typeValue);
+  const sessionsInput = form.querySelector('[data-add-sessions]');
+  const sessionsField = form.querySelector('[data-field-sessions]');
+  const oneDayDateField = form.querySelector('[data-field-one-day-date]');
+  const startDateField = form.querySelector('[data-field-start-date]');
+  const endDateField = form.querySelector('[data-field-end-date]');
+  const sessionsDatesWrap = form.querySelector('[data-add-date-rows-wrap]');
+  const startDateInput = form.querySelector('[name="start_date"]');
+  const endDateInput = form.querySelector('[name="end_date"]');
+  const oneDayDateInput = form.querySelector('[name="one_day_date"]');
+  if (isOneDay) {
+    const fallbackDate = String(oneDayDateInput?.value || startDateInput?.value || endDateInput?.value || '').trim();
+    if (oneDayDateInput) oneDayDateInput.value = fallbackDate;
+    if (startDateInput) startDateInput.value = fallbackDate;
+    if (endDateInput) endDateInput.value = fallbackDate;
+  }
+  if (oneDayDateField) oneDayDateField.style.display = isOneDay ? '' : 'none';
+  if (startDateField) startDateField.style.display = isOneDay ? 'none' : '';
+  if (endDateField) endDateField.style.display = isOneDay ? 'none' : '';
+  if (sessionsDatesWrap) sessionsDatesWrap.style.display = isOneDay ? 'none' : '';
+  if (sessionsInput) {
+    sessionsInput.value = isOneDay ? '1' : String(sessionsInput.value || '1');
+    sessionsInput.disabled = isOneDay;
+  }
+  if (sessionsField) sessionsField.style.display = isOneDay ? 'none' : '';
+  const sessions = isOneDay ? 1 : Math.max(1, Number(sessionsInput?.value || '1'));
+  const container = form.querySelector('[data-add-date-rows]');
+  if (!container) return;
+  const startDate = String(form.querySelector('[name="start_date"]')?.value || '').trim();
+  const prev = Array.from(container.querySelectorAll('input[data-add-session-date]')).map((input) => String(input.value || '').trim());
+  container.innerHTML = Array.from({ length: sessions }, (_, idx) => {
+    const value = idx === 0 ? (startDate || prev[idx] || '') : (prev[idx] || computeNextSessionDate(startDate, idx));
+    return `<label class="ds-add-date-row"><span>מפגש ${idx + 1}</span><input class="ds-input ds-input--sm" type="date" data-add-session-date="${idx + 1}" value="${escapeHtml(value)}"></label>`;
+  }).join('');
+}
+
+export function bindAddActivitySessionCountSync(form, listenerOptions) {
+  const sessionsInput = form?.querySelector?.('[data-add-sessions]');
+  const sync = () => syncSessionDateRows(form);
+  sessionsInput?.addEventListener('input', sync, listenerOptions);
+  sessionsInput?.addEventListener('change', sync, listenerOptions);
 }
 
 function optionsHtml(values, selected = '', placeholder = '—', labelFn = null) {
@@ -2721,7 +2786,8 @@ export const activitiesScreen = {
       nameSel.disabled = !type;
       nameSel.value = nextValue;
       const hit = list.find((o) => String(o?.label || '').trim() === String(nameSel.value || '').trim());
-      noInput.value = String(hit?.activity_no || '');
+      applyActivityCatalogSelectionToAddForm(form, hit, type);
+      syncSessionDateRows(form);
     }
 
     function updateAddFormByFamily(form) {
@@ -2742,50 +2808,6 @@ export const activitiesScreen = {
       syncSessionDateRows(form);
     }
 
-    function computeNextSessionDate(baseIso, index) {
-      if (!/^\d{4}-\d{2}-\d{2}$/.test(String(baseIso || ''))) return '';
-      const base = new Date(`${baseIso}T00:00:00`);
-      base.setDate(base.getDate() + (index * 7));
-      return `${base.getFullYear()}-${String(base.getMonth() + 1).padStart(2, '0')}-${String(base.getDate()).padStart(2, '0')}`;
-    }
-
-    function syncSessionDateRows(form) {
-      const typeValue = String(form.querySelector('[name="activity_type"]')?.value || '').trim();
-      const isOneDay = isOneDayActivityTypeValue(typeValue);
-      const sessionsInput = form.querySelector('[data-add-sessions]');
-      const sessionsField = form.querySelector('[data-field-sessions]');
-      const oneDayDateField = form.querySelector('[data-field-one-day-date]');
-      const startDateField = form.querySelector('[data-field-start-date]');
-      const endDateField = form.querySelector('[data-field-end-date]');
-      const sessionsDatesWrap = form.querySelector('[data-add-date-rows-wrap]');
-      const startDateInput = form.querySelector('[name="start_date"]');
-      const endDateInput = form.querySelector('[name="end_date"]');
-      const oneDayDateInput = form.querySelector('[name="one_day_date"]');
-      if (isOneDay) {
-        const fallbackDate = String(oneDayDateInput?.value || startDateInput?.value || endDateInput?.value || '').trim();
-        if (oneDayDateInput) oneDayDateInput.value = fallbackDate;
-        if (startDateInput) startDateInput.value = fallbackDate;
-        if (endDateInput) endDateInput.value = fallbackDate;
-      }
-      if (oneDayDateField) oneDayDateField.style.display = isOneDay ? '' : 'none';
-      if (startDateField) startDateField.style.display = isOneDay ? 'none' : '';
-      if (endDateField) endDateField.style.display = isOneDay ? 'none' : '';
-      if (sessionsDatesWrap) sessionsDatesWrap.style.display = isOneDay ? 'none' : '';
-      if (sessionsInput) {
-        sessionsInput.value = isOneDay ? '1' : String(sessionsInput.value || '1');
-        sessionsInput.disabled = isOneDay;
-      }
-      if (sessionsField) sessionsField.style.display = isOneDay ? 'none' : '';
-      const sessions = isOneDay ? 1 : Math.max(1, Number(sessionsInput?.value || '1'));
-      const container = form.querySelector('[data-add-date-rows]');
-      if (!container) return;
-      const startDate = String(form.querySelector('[name="start_date"]')?.value || '').trim();
-      const prev = Array.from(container.querySelectorAll('input[data-add-session-date]')).map((input) => String(input.value || '').trim());
-      container.innerHTML = Array.from({ length: sessions }, (_, idx) => {
-        const value = idx === 0 ? (startDate || prev[idx] || '') : (prev[idx] || computeNextSessionDate(startDate, idx));
-        return `<label class="ds-add-date-row"><span>מפגש ${idx + 1}</span><input class="ds-input ds-input--sm" type="date" data-add-session-date="${idx + 1}" value="${escapeHtml(value)}"></label>`;
-      }).join('');
-    }
 
     function bindAddActivityForm() {
       const modalContent = document.querySelector('.ds-modal__content');
@@ -2803,7 +2825,7 @@ export const activitiesScreen = {
       form.querySelector('[data-add-activity-name]')?.addEventListener('change', () => {
         refreshActivityNameSelect(form);
       }, addActivitySig);
-      form.querySelector('[data-add-sessions]')?.addEventListener('change', () => syncSessionDateRows(form), addActivitySig);
+      bindAddActivitySessionCountSync(form, addActivitySig);
       form.querySelector('[name="start_date"]')?.addEventListener('change', () => syncSessionDateRows(form), addActivitySig);
       form.querySelector('[name="one_day_date"]')?.addEventListener('change', () => syncSessionDateRows(form), addActivitySig);
       form.querySelector('[data-add-date-rows]')?.addEventListener('change', (ev) => {

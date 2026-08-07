@@ -139,6 +139,12 @@ function text(value) {
   return String(value == null ? '' : value).replace(/\s+/g, ' ').trim();
 }
 
+export function normalizeProposalSignedOrOrdered(value) {
+  if (value === true || value === 1) return true;
+  if (value === false || value === 0 || value == null) return false;
+  return ['true', '1', 'yes', 'y', 'on'].includes(String(value).trim().toLowerCase());
+}
+
 function normalizeHebrewQuoteVariants(value) {
   return text(value)
     .replace(/[״"]/g, '\'')
@@ -1370,7 +1376,7 @@ export function proposalsAgreementsTableRowsHtml(rows, state) {
       <td class="ds-pa-col-center">${statusSelectHtml(row, canManage, isAdmin, state)}</td>
       <td class="ds-pa-col-money">${row.total_amount != null ? `₪ ${escapeHtml(formatCurrency(row.total_amount))}` : ''}</td>
       <td class="ds-pa-col-center">${gefenApprovalApplicable ? `<span class="ds-pa-gefen-status-text ds-pa-gefen-status-text--${gefenApprovalGenerated ? 'generated' : 'missing'}">${gefenApprovalGenerated ? 'הופק' : 'חסר'}</span>` : '—'}</td>
-      <td class="ds-pa-gfen-signed-col">${gefenApprovalApplicable ? `<input type="checkbox" class="ds-pa-gfen-signed-check" data-pa-gfen-signed="${escapeHtml(row.id)}" ${row.gfen_signed_or_ordered === true ? 'checked' : ''} aria-label="חתום או הוזמן בגפ״ן להצעה ${escapeHtml(row.quote_number || '')}">` : '<span class="ds-pa-unavailable" aria-label="לא זמין">—</span>'}</td>
+      <td class="ds-pa-gfen-signed-col">${gefenApprovalApplicable ? `<input type="checkbox" class="ds-pa-gfen-signed-check" data-pa-gfen-signed="${escapeHtml(row.id)}" ${normalizeProposalSignedOrOrdered(row.gfen_signed_or_ordered) ? 'checked' : ''} aria-label="חתום או הוזמן בגפ״ן להצעה ${escapeHtml(row.quote_number || '')}">` : '<span class="ds-pa-unavailable" aria-label="לא זמין">—</span>'}</td>
       <td class="ds-pa-actions-cell"><div class="ds-pa-actions-inner ds-pa-actions-inner--clean">${quickActions}${moreMenu}</div></td>
     </tr>`;
   }).join('');
@@ -4040,7 +4046,10 @@ function isGefenApprovalApplicable(row = {}, items = []) {
   return ['gefen', 'tour', COMBINED_INTERNAL_KEY].includes(group);
 }
 
-function gefenApprovalStatusDisplay(row = {}, generated = text(row.gefen_approval_status) === 'generated') {
+function gefenApprovalStatusDisplay(
+  row = {},
+  generated = text(row.gefen_approval_status) === 'generated' && Boolean(text(row.gefen_approval_path))
+) {
   const quoteNumber = text(row.quote_number);
   return `${generated ? 'הופק' : 'חסר'}${quoteNumber ? ` · הצעה ${quoteNumber}` : ''}`;
 }
@@ -6184,7 +6193,7 @@ export const proposalsAgreementsScreen = {
   load: ({ api, state }) => {
     if (!canAccessProposalsAgreements(state)) return Promise.resolve({ rows: [], unauthorized: true });
     // First metadata page only. Additional pages load only on explicit user action.
-    return api.proposalsAgreements({ limit: 50, offset: 0, includeLinkedDocuments: false });
+    return api.proposalsAgreements({ limit: 50, offset: 0, includeLinkedDocuments: true });
   },
   render(data = {}, { state } = {}) {
     if (data?.unauthorized || !canAccessProposalsAgreements(state)) {
@@ -6352,7 +6361,7 @@ export const proposalsAgreementsScreen = {
       clientType: text(data?._query?.clientType),
       sort: text(data?._query?.sort) || 'updated_at_desc',
       limit: Number(data?._limit || 50),
-      includeLinkedDocuments: false
+      includeLinkedDocuments: true
     });
     const mergeProposalPageRows = (incoming = []) => {
       const seen = new Set((data.rows || []).map((row) => text(row?.id)).filter(Boolean));
@@ -9027,7 +9036,7 @@ export const proposalsAgreementsScreen = {
       if (!checkbox) return;
       const id = checkbox.dataset.paGfenSigned;
       const row = data.rows.find((item) => text(item.id) === text(id));
-      const previous = row?.gfen_signed_or_ordered === true;
+      const previous = normalizeProposalSignedOrOrdered(row?.gfen_signed_or_ordered);
       const next = checkbox.checked === true;
       if (!row || !isGefenApprovalApplicable(row) || typeof api.updateProposalAgreementGfenSignedOrOrdered !== 'function') {
         checkbox.checked = previous;

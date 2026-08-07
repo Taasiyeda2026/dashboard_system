@@ -164,6 +164,14 @@ function is2027Root(root) {
   return Boolean(root?.matches?.('[data-ops-year="2027"], .ops-year-2027'));
 }
 
+function resolveOperations2027ScreenRoot(container) {
+  if (!container) return null;
+  if (is2027Root(container)) return container;
+  return container.querySelector?.(
+    '.ds-ops-mgmt-screen[data-ops-year="2027"], .ds-ops-mgmt-screen.ops-year-2027'
+  ) || null;
+}
+
 function activeInstructorRows(rows = []) {
   return rows
     .map((row) => ({
@@ -860,6 +868,12 @@ function bindRenderedTab(root, tabKey) {
   }
 }
 
+function applyOperations2027Labels(root) {
+  if (!is2027Root(root)) return;
+  const workshopsTab = root.querySelector('[data-ops-tab="workshops"]');
+  if (workshopsTab) workshopsTab.textContent = 'מלאי סדנאות';
+}
+
 function bindCustomTabs(root) {
   if (!is2027Root(root)) return;
   ensureStyle();
@@ -886,7 +900,8 @@ function bindCustomTabs(root) {
     button.addEventListener('click', () => {
       activeCustomTab = '';
       renderToken += 1;
-    }, { once: true });
+      setActiveTab(root, '');
+    });
   });
   if (activeCustomTab) renderCustomTab(root, activeCustomTab);
 }
@@ -902,7 +917,12 @@ function installController() {
   const originalBind = operationsManagementScreen.bind;
   operationsManagementScreen.bind = function wrappedOperations2027Bind(context = {}) {
     originalBind.call(this, context);
-    bindCustomTabs(context.root);
+
+    const screenRoot = resolveOperations2027ScreenRoot(context.root);
+    if (!screenRoot) return;
+
+    applyOperations2027Labels(screenRoot);
+    bindCustomTabs(screenRoot);
   };
 }
 

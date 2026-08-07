@@ -163,6 +163,9 @@ export function ensureFeature(name) {
 
     case 'operations':
       return loadOnce('operations', () => Promise.all([
+        // Wait for Supabase auth and retry empty lists catalog on direct
+        // operations-management entry (2027 workshop inventory) without visiting admin-lists first.
+        import('./admin-lists-auth-hotfix.js'),
         import('./screens/operations-summer-training-matrix.js?v=20260805-operations-2027-loading-controller-v1'),
         import('./screens/operations-authorities-cleanup.js?v=20260805-operations-2027-loading-controller-v1'),
         import('./screens/operations-visual-tweaks.js?v=20260720-operations-toolbar-compact-v1'),
@@ -204,7 +207,7 @@ export function preloadScreenModule(route) {
       case 'exceptions':
         return import('./screens/exceptions.js');
       case 'instructors':
-        return import('./screens/instructors.js?v=20260730-instructor-matching-modal-v1');
+        return import('./screens/instructors.js?v=20260807-guides-card-shadow-fix-v1');
       case 'archive':
         return import('./screens/archive.js');
       case 'edit-requests':

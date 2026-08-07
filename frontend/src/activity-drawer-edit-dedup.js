@@ -7,6 +7,7 @@ import {
 const ENHANCED_ATTR = 'data-activity-drawer-inline-layout';
 const POLISHED_ATTR = 'data-activity-drawer-edit-dedup';
 const TEST_FLAG = '__ACTIVITY_DRAWER_EDIT_DEDUP_TEST__';
+const GENERIC_ONE_DAY_ACTIVITY_NAMES = new Set(['סדנה', 'סדנאות', 'סיור', 'סיורים', 'חדר בריחה', 'חדרי בריחה']);
 
 const SEASON_OPTIONS = [
   { value: 'regular', label: '2026' },
@@ -114,6 +115,24 @@ function rebuildActivityNameSelect(form, settings, row) {
   return true;
 }
 
+export function primeLegacyActivityNameForSave(form, row = parseExportRow(form)) {
+  const select = form?.querySelector?.('[data-role="activity-name-select"], [name="activity_name"]');
+  const selectedName = clean(select?.value);
+  const storedName = clean(row?.activity_name);
+  const initialValues = form?._initialValues;
+
+  if (!selectedName || !storedName) return false;
+  if (!GENERIC_ONE_DAY_ACTIVITY_NAMES.has(storedName)) return false;
+  if (GENERIC_ONE_DAY_ACTIVITY_NAMES.has(selectedName)) return false;
+  if (!initialValues || typeof initialValues !== 'object') return false;
+
+  // Legacy rows may store only "סיור"/"סדנה" while the visible catalog choice
+  // comes from program_name. Mark the real selected name as a change so the
+  // save payload repairs activity_name before backend one-day validation runs.
+  initialValues.activity_name = storedName;
+  return true;
+}
+
 export function polishActivityDrawerEditOptions(form, settings = {}) {
   if (!form || !form.hasAttribute(ENHANCED_ATTR)) return false;
   if (form.hasAttribute(POLISHED_ATTR)) return false;
@@ -132,6 +151,12 @@ export function polishActivityDrawerEditOptions(form, settings = {}) {
       activity_name: ''
     });
   });
+
+  form.addEventListener('click', (event) => {
+    if (event.target?.closest?.('[data-action="save-edit"]')) {
+      primeLegacyActivityNameForSave(form, row);
+    }
+  }, true);
 
   form.setAttribute(POLISHED_ATTR, 'true');
   return true;

@@ -1,8 +1,23 @@
-import { evaluateInstructor, adjacentActivities } from './instructor-matching-engine.js';
+import { evaluateInstructor, adjacentActivities, schedulingQualityBand } from './instructor-matching-engine.js';
 import { activityMeetings, isoWeekKey } from './instructor-scheduling-load.js';
 import { routeMatrixKey } from './course-scheduling-travel.js';
-import { isActivitySchedulingEligible, isSchedulingBlockingAssignment, isSchedulingDraftAssignment } from './shared/activity-scheduling-eligibility.js';
-import { DEFAULT_COURSE_SCHEDULING_PERIOD_KEY, isDateInCourseSchedulingPeriod } from './course-scheduling-periods.js';
+import {
+  hasDraftInstructor,
+  isActivitySchedulingEligible,
+  isSchedulingBlockingAssignment,
+  isSchedulingDraftAssignment
+} from './shared/activity-scheduling-eligibility.js';
+import { DEFAULT_COURSE_SCHEDULING_PERIOD_KEY, isDateInCourseSchedulingPeriod, resolveCourseSchedulingPeriod } from './course-scheduling-periods.js';
+import { proposeDateAdjustments } from './course-scheduling-date-adjustments.js';
+import {
+  SCORE_WEIGHTS,
+  computeSchedulingScore,
+  courseUrgency,
+  compareCandidatesStable
+} from './course-scheduling-score.js';
+import { normalizeOperationalDistrict } from './shared/district-normalization.js';
+
+export { SCORE_WEIGHTS, courseUrgency };
 
 const text = (value) => String(value ?? '').trim();
 const minutes = (value) => {
@@ -11,15 +26,25 @@ const minutes = (value) => {
 };
 const idOf = (row) => text(row?.row_id || row?.RowID || row?.id);
 const empOf = (row) => text(row?.emp_id);
-// Canonical resolved address only — school display names are not travel locations.
 const placeOf = (row = {}) => text(row.school_address);
+const districtOf = (row = {}) => normalizeOperationalDistrict(row.district || row.school_district || row.authority_district);
 
 export function schedulingCourses(rows = [], options = {}) {
   const periodKey = options.periodKey || DEFAULT_COURSE_SCHEDULING_PERIOD_KEY;
   const authority = text(options.authority);
+  const district = text(options.district);
+  const includeIncompleteWithoutPeriodMeetings = !!options.includeIncompleteWithoutPeriodMeetings;
   return rows.filter(isActivitySchedulingEligible)
+    .filter((row) => !hasDraftInstructor(row))
     .filter((row) => !authority || text(row.authority) === authority)
-    .filter((row) => activityMeetings(row).some((meeting) => isDateInCourseSchedulingPeriod(meeting.date, periodKey)));
+    .filter((row) => !district || districtOf(row) === district)
+    .filter((row) => {
+      const meetings = activityMeetings(row);
+      if (meetings.some((meeting) => isDateInCourseSchedulingPeriod(meeting.date, periodKey))) return true;
+      // District simulation must still surface courses that lack dates/hours as חסרים נתונים.
+      if (includeIncompleteWithoutPeriodMeetings && !meetings.length) return true;
+      return false;
+    });
 }
 
 export function schedulingInstructors(rows = []) {
@@ -34,7 +59,7 @@ export function missingCourseInformation(activity, options = {}) {
   const meetings = activityMeetings(activity).filter((meeting) => isDateInCourseSchedulingPeriod(meeting.date, periodKey));
   if (!meetings.length) missing.push('תאריכי מפגשים');
   if (!meetings.length || meetings.some((meeting) => !text(meeting.start_time || activity?.start_time) || !text(meeting.end_time || activity?.end_time))) missing.push('שעות');
-  // Missing instruction_language is not a blocker: resolveInstructionLanguage defaults to he.
+  if (!text(activity?.instruction_language)) missing.push('שפת הדרכה');
   return [...new Set(missing)];
 }
 
@@ -60,12 +85,15 @@ export function instructorLoad(assignments = [], profile = {}, rules = [], optio
   const workDates = new Set();
 
   for (const activity of assignments) {
-    for (const meeting of activityMeetings(activity).filter((item) => isDateInCourseSchedulingPeriod(item.date, periodKey))) {
-      const duration = meetingHours(meeting, activity);
+    const source = activity?.draft_emp_id && Array.isArray(activity.draft_proposed_meetings)
+      ? { ...activity, meetings: activity.draft_proposed_meetings }
+      : activity;
+    for (const meeting of activityMeetings(source).filter((item) => isDateInCourseSchedulingPeriod(item.date, periodKey))) {
+      const duration = meetingHours(meeting, source);
       const week = isoWeekKey(meeting.date);
       hours += duration;
       meetings += 1;
-      workDates.add(text(meeting.date));
+      workDates.add(text(meeting.date).slice(0, 10));
       if (week) {
         weekHours.set(week, (weekHours.get(week) || 0) + duration);
         const weekday = new Date(`${meeting.date}T12:00:00`).getDay();
@@ -85,6 +113,7 @@ export function instructorLoad(assignments = [], profile = {}, rules = [], optio
     hours,
     meetings,
     workDays: workDates.size,
+    workDates,
     maxWeekDayCount,
     courseCount: assignments.length,
     availabilityHours: capacity,
@@ -97,16 +126,19 @@ export function instructorLoad(assignments = [], profile = {}, rules = [], optio
 
 function meetingAssignments(rows = [], options = {}) {
   const periodKey = options.periodKey || DEFAULT_COURSE_SCHEDULING_PERIOD_KEY;
-  return rows.flatMap((activity) => activityMeetings(activity)
-    .filter((meeting) => isDateInCourseSchedulingPeriod(meeting.date, periodKey))
+  return rows.flatMap((activity) => activityMeetings(activity?.draft_emp_id && Array.isArray(activity.draft_proposed_meetings)
+    ? { ...activity, meetings: activity.draft_proposed_meetings }
+    : activity)
+    .filter((meeting) => options.allDates || isDateInCourseSchedulingPeriod(meeting.date, periodKey))
     .map((meeting) => ({
-    ...meeting,
-    activity_id: idOf(activity),
-    school: activity.school,
-    authority: activity.authority,
-    school_address: activity.school_address,
-    activity_name: activity.activity_name
-  })));
+      ...meeting,
+      activity_id: idOf(activity),
+      school: activity.school,
+      school_id: activity.school_id,
+      authority: activity.authority,
+      school_address: activity.school_address,
+      activity_name: activity.activity_name
+    })));
 }
 
 function assignedRowsByInstructor(rows = [], supplied = {}) {
@@ -125,17 +157,10 @@ function assignedRowsByInstructor(rows = [], supplied = {}) {
     add(text(row.emp_id), row);
     add(text(row.emp_id_2), row);
   }
-  // A saved draft holds its instructor's calendar slot too, so it is never proposed
-  // twice — even though the official activity instructor is not set until approval.
   for (const row of rows.filter(isSchedulingDraftAssignment)) {
     add(text(row.draft_emp_id), row);
   }
   return assigned;
-}
-
-function averageFinite(values = []) {
-  const finite = values.map(Number).filter(Number.isFinite);
-  return finite.length ? finite.reduce((sum, value) => sum + value, 0) / finite.length : 0;
 }
 
 function sameSchool(first = {}, second = {}) {
@@ -175,120 +200,261 @@ function dynamicTravel(course, instructor, existingMeetings, input = {}) {
     };
   }
   const home = base?.home || null;
+  const homeReturn = base?.homeReturn || null;
   const unavailableReason = travelUnavailableReason(course, instructor, home, input);
   return {
     home,
+    homeReturn,
     transitions,
     ...(unavailableReason ? { unavailableReason } : {})
   };
 }
 
-function fairnessVariance(loads = new Map()) {
-  const values = [...loads.values()].map(Number).filter(Number.isFinite);
-  if (!values.length) return 0;
-  const average = averageFinite(values);
-  return values.reduce((sum, value) => sum + ((value - average) ** 2), 0) / values.length;
+/** Planning-state activity row — prefers proposed meetings of a selected candidate. */
+function draftActivityFromCandidate(course, candidate) {
+  if (!course) return null;
+  const meetings = (candidate?.proposedMeetings && candidate.proposedMeetings.length)
+    ? candidate.proposedMeetings
+    : (candidate?.periodCourse?.meetings && candidate.periodCourse.meetings.length)
+      ? candidate.periodCourse.meetings
+      : activityMeetings(course);
+  return {
+    ...course,
+    meetings,
+    start_time: course.start_time || meetings[0]?.start_time || '',
+    end_time: course.end_time || meetings[0]?.end_time || '',
+    school: course.school,
+    school_id: course.school_id,
+    authority: course.authority,
+    school_address: course.school_address
+  };
 }
 
-
-function courseWeekHours(load = {}, course = {}, periodKey = DEFAULT_COURSE_SCHEDULING_PERIOD_KEY) {
-  const weeks = new Set(activityMeetings(course).filter((meeting) => isDateInCourseSchedulingPeriod(meeting.date, periodKey)).map((meeting) => isoWeekKey(meeting.date)).filter(Boolean));
-  const weekHours = load.weekHours || {};
-  return [...weeks].reduce((sum, week) => sum + (Number(weekHours[week]) || 0), 0);
+/** Internal planning recommendations only (unsaved automatic picks). */
+function planningRowsForInstructor(planningDraft, empId, ordered, excludeCourseId = '') {
+  return [...planningDraft.entries()]
+    .filter(([courseId, candidate]) => courseId !== excludeCourseId && text(candidate.instructor?.emp_id) === empId)
+    .map(([courseId, candidate]) => {
+      const course = ordered.find((row) => idOf(row) === courseId);
+      return draftActivityFromCandidate(course, candidate);
+    })
+    .filter(Boolean);
 }
 
-function linearLowLoadPoints(value, min, max, points) {
-  if (!Number.isFinite(value)) return 0;
-  if (min === max) return points;
-  return Math.max(0, Math.min(points, points * (max - value) / (max - min)));
-}
-
-function applyWorkloadPoints(candidates = [], course = {}, periodKey = DEFAULT_COURSE_SCHEDULING_PERIOD_KEY) {
-  const eligible = candidates.filter((candidate) => candidate.eligible);
-  const totals = eligible.map((candidate) => Number(candidate.load?.hours) || 0);
-  const weeks = eligible.map((candidate) => courseWeekHours(candidate.load, course, periodKey));
-  const minTotal = Math.min(...totals);
-  const maxTotal = Math.max(...totals);
-  const minWeek = Math.min(...weeks);
-  const maxWeek = Math.max(...weeks);
-  return candidates.map((candidate) => {
-    if (!candidate.eligible) return candidate;
-    const totalHours = Number(candidate.load?.hours) || 0;
-    const courseWeeksHours = courseWeekHours(candidate.load, course, periodKey);
-    const totalHoursPoints = linearLowLoadPoints(totalHours, minTotal, maxTotal, 12);
-    const courseWeeksPoints = linearLowLoadPoints(courseWeeksHours, minWeek, maxWeek, 8);
-    const workload = {
-      points: totalHoursPoints + courseWeeksPoints,
-      totalHoursPoints,
-      courseWeeksPoints,
-      totalHours,
-      courseWeeksHours
-    };
-    const baseWithoutWorkload = (candidate.scoreBreakdown?.distance?.points || 0)
-      + (candidate.scoreBreakdown?.continuity?.points || 0)
-      + (candidate.scoreBreakdown?.seniority?.points || 0);
-    return {
-      ...candidate,
-      score: Math.round(baseWithoutWorkload + workload.points),
-      workloadPoints: workload,
-      scoreBreakdown: candidate.scoreBreakdown ? { ...candidate.scoreBreakdown, workload: { ...candidate.scoreBreakdown.workload, ...workload, points: Math.round(workload.points) } } : candidate.scoreBreakdown
-    };
-  });
-}
-
-function evaluateCandidate({ course, instructor, assignedRows, draftRows, profiles, rules, exceptions, input, averageRatio }) {
+function evaluateCandidate({
+  course,
+  instructor,
+  assignedRows,
+  planningRows,
+  profiles,
+  rules,
+  exceptions,
+  input,
+  peerPlannerProjectedHours = null
+}) {
   const empId = text(instructor.emp_id);
-  const occupiedRows = [...(assignedRows[empId] || []), ...(draftRows || [])];
+  // A: persisted schedule only — approved assignments + saved drafts.
+  const persistedRows = [...(assignedRows[empId] || [])];
+  // B: internal planning recommendations — never treated as real activities for hard gates / UI load.
+  const internalPlanningRows = [...(planningRows || [])];
   const periodKey = input.periodKey || DEFAULT_COURSE_SCHEDULING_PERIOD_KEY;
-  const periodMeetings = activityMeetings(course).filter((meeting) => isDateInCourseSchedulingPeriod(meeting.date, periodKey));
-  const periodCourse = { ...course, meetings: periodMeetings };
-  const load = instructorLoad([...occupiedRows, periodCourse], profiles[empId], rules[empId] || [], { periodKey });
-  const occupiedMeetings = meetingAssignments(occupiedRows, { periodKey });
-  const travel = dynamicTravel(periodCourse, instructor, occupiedMeetings, input);
-  const result = evaluateInstructor({
+  const allMeetings = activityMeetings(course);
+  const periodMeetings = allMeetings.filter((meeting) => isDateInCourseSchedulingPeriod(meeting.date, periodKey));
+  const originalPeriodCourse = { ...course, meetings: periodMeetings };
+  const persistedMeetings = meetingAssignments(persistedRows, { periodKey, allDates: true });
+  const planningMeetings = meetingAssignments(internalPlanningRows, { periodKey, allDates: true });
+  const adjustmentInput = {
+    meetings: allMeetings,
+    rules: rules[empId] || [],
+    exceptions: exceptions[empId] || [],
+    schoolCalendar: input.schoolCalendar || [],
+    existingActivities: persistedMeetings,
+    halfEnd: resolveCourseSchedulingPeriod(periodKey).end
+  };
+  let adjustment = proposeDateAdjustments(adjustmentInput);
+  if (adjustment?.valid) {
+    const destination = placeOf(course);
+    const transitions = Object.fromEntries(adjustment.meetings.map((meeting) => {
+      const { previous, next } = adjacentActivities(persistedMeetings, meeting);
+      return [meeting.date, {
+        previous: previous ? { ...previous, ...routeLeg(input.routeMatrix || {}, placeOf(previous), destination, sameSchool(previous, course)) } : null,
+        next: next ? { ...next, ...routeLeg(input.routeMatrix || {}, destination, placeOf(next), sameSchool(course, next)) } : null
+      }];
+    }));
+    adjustment = proposeDateAdjustments({ ...adjustmentInput, transitions });
+  }
+  const periodCourse = adjustment?.valid ? { ...course, meetings: adjustment.meetings } : originalPeriodCourse;
+
+  // User-facing workload / workdays: persisted rows (+ current course for projected) only.
+  const persistedBaselineLoad = instructorLoad(persistedRows, profiles[empId], rules[empId] || [], { periodKey });
+  const persistedProjectedLoad = instructorLoad([...persistedRows, periodCourse], profiles[empId], rules[empId] || [], { periodKey });
+  // Internal planner workload may include earlier automatic recommendations for soft balancing.
+  const plannerBaselineLoad = instructorLoad([...persistedRows, ...internalPlanningRows], profiles[empId], rules[empId] || [], { periodKey });
+  const plannerProjectedLoad = instructorLoad([...persistedRows, ...internalPlanningRows, periodCourse], profiles[empId], rules[empId] || [], { periodKey });
+
+  const persistedPeriodMeetings = meetingAssignments(persistedRows, { periodKey });
+  const plannerPeriodMeetings = meetingAssignments([...persistedRows, ...internalPlanningRows], { periodKey });
+  // Hard-gate travel/neighbors use persisted meetings only.
+  const travel = dynamicTravel(periodCourse, instructor, persistedPeriodMeetings, input);
+  // Soft continuity scoring may see planning recommendations via a separate travel view.
+  const plannerTravel = dynamicTravel(periodCourse, instructor, plannerPeriodMeetings, input);
+  const gate = evaluateInstructor({
     instructor,
     profile: profiles[empId],
     rules: rules[empId] || [],
     exceptions: exceptions[empId] || [],
     activity: periodCourse,
-    existingActivities: occupiedMeetings,
+    existingActivities: persistedPeriodMeetings,
     travel,
-    validateTravel: !input.preliminary && (input.travel !== undefined || input.routeMatrix !== undefined),
-    workloadRatio: load.maxRatio,
-    averageWorkloadRatio: averageRatio,
-    fixedCourseCount: load.courseCount,
-    weeklyWorkDayCount: load.maxWeekDayCount
+    validateTravel: !input.preliminary && (input.travel !== undefined || input.routeMatrix !== undefined)
   });
-  // Persist the exact travel object used for scoring so the UI never shows a different route.
-  return { ...result, instructor, load, travel, periodCourse };
-}
-
-function candidateMap({ courses, instructors, profiles = {}, rules = {}, exceptions = {}, assignedRows, input }) {
-  const periodKey = input.periodKey || DEFAULT_COURSE_SCHEDULING_PERIOD_KEY;
-  const baselineLoads = new Map(instructors.map((instructor) => {
-    const empId = text(instructor.emp_id);
-    return [empId, instructorLoad(assignedRows[empId] || [], profiles[empId], rules[empId] || [], { periodKey }).hours];
-  }));
-  const averageRatio = averageFinite([...baselineLoads.values()]);
-  const output = new Map();
-
-  for (const course of courses) {
-    const rawCandidates = instructors.map((instructor) => evaluateCandidate({
-      course,
-      instructor,
-      assignedRows,
-      draftRows: [],
-      profiles,
-      rules,
-      exceptions,
-      input,
-      averageRatio
-    }));
-    output.set(idOf(course), applyWorkloadPoints(rawCandidates, course, periodKey));
+  if (adjustment && !adjustment.valid) {
+    gate.failures = [...new Set([...(gate.failures || []), adjustment.reason])];
+    gate.eligible = false;
+    gate.score = null;
+    gate.scoreBreakdown = null;
   }
-  return { output, baselineLoads, averageRatio };
+
+  const eligible = !!gate.eligible;
+  // Soft scoring may use planner meetings for continuity / balancing; UI hours stay persisted-only.
+  const plannerWorkDates = plannerBaselineLoad.workDates || new Set();
+  const scored = computeSchedulingScore({
+    eligible,
+    activity: periodCourse,
+    meetings: activityMeetings(periodCourse),
+    existingActivities: plannerPeriodMeetings,
+    travel: plannerTravel,
+    workDates: plannerWorkDates,
+    dateAdjustment: adjustment?.valid ? adjustment : null,
+    currentHalfHours: persistedBaselineLoad.hours,
+    projectedHalfHours: persistedProjectedLoad.hours,
+    plannerProjectedHalfHours: plannerProjectedLoad.hours,
+    peerProjectedHours: peerPlannerProjectedHours || [plannerProjectedLoad.hours],
+    peerPlannerProjectedHours: peerPlannerProjectedHours || [plannerProjectedLoad.hours],
+    activeWorkDays: persistedProjectedLoad.workDays,
+    existingWorkDays: persistedBaselineLoad.workDays,
+    projectedWorkDays: persistedProjectedLoad.workDays
+  });
+
+  return {
+    ...gate,
+    eligible,
+    score: scored.score,
+    totalScore: scored.totalScore,
+    ...schedulingQualityBand(scored.score, eligible),
+    scoreBreakdown: scored.scoreBreakdown,
+    recommendationReason: scored.recommendationReason,
+    instructor,
+    load: persistedProjectedLoad,
+    baselineWorkDates: persistedBaselineLoad.workDates || new Set(),
+    plannerWorkDates,
+    travel,
+    plannerTravel,
+    periodCourse,
+    originalPeriodCourse,
+    // User-facing / hard-gate neighbors: persisted only. Soft scorer keeps planner meetings separately.
+    existingMeetings: persistedPeriodMeetings,
+    plannerMeetings: plannerPeriodMeetings,
+    planningMeetings,
+    persistedRows,
+    planningRows: internalPlanningRows,
+    dateAdjustment: adjustment?.valid ? adjustment : null,
+    proposedMeetings: adjustment?.valid ? adjustment.meetings : null,
+    currentHalfHours: scored.currentHalfHours,
+    projectedHalfHours: scored.projectedHalfHours,
+    plannerCurrentHalfHours: plannerBaselineLoad.hours,
+    plannerProjectedHalfHours: plannerProjectedLoad.hours,
+    activeWorkDays: scored.activeWorkDays,
+    existingWorkDays: scored.existingWorkDays,
+    projectedWorkDays: scored.projectedWorkDays,
+    relevantTravelMinutes: scored.relevantTravelMinutes,
+    relevantTravelDistance: scored.relevantTravelDistance,
+    movedMeetingsCount: scored.movedMeetingsCount,
+    totalShiftDays: scored.totalShiftDays,
+    halfOverflow: scored.halfOverflow,
+    sameSchoolMeetingCount: scored.sameSchoolMeetingCount,
+    sameAuthorityMeetingCount: scored.sameAuthorityMeetingCount,
+    nearbyMeetingCount: scored.nearbyMeetingCount,
+    existingWorkDayMeetingCount: scored.existingWorkDayMeetingCount,
+    newWorkDayMeetingCount: scored.newWorkDayMeetingCount,
+    continuityMeetingCount: scored.continuityMeetingCount,
+    opensNewWorkDay: scored.opensNewWorkDay,
+    nonTravelWaitingMinutes: scored.nonTravelWaitingMinutes
+  };
 }
 
+function rescoreEligiblePeers(candidates = [], course = {}) {
+  // Soft fairness balancing uses internal planner projected hours (may include hidden recommendations).
+  const peers = candidates
+    .filter((candidate) => candidate.eligible)
+    .map((candidate) => Number(candidate.plannerProjectedHalfHours ?? candidate.projectedHalfHours) || 0);
+  return candidates.map((candidate) => {
+    if (!candidate.eligible) return candidate;
+    const scored = computeSchedulingScore({
+      eligible: true,
+      activity: candidate.periodCourse || course,
+      meetings: activityMeetings(candidate.periodCourse || course),
+      existingActivities: candidate.plannerMeetings || candidate.existingMeetings || [],
+      travel: candidate.plannerTravel || candidate.travel,
+      workDates: candidate.plannerWorkDates || candidate.baselineWorkDates || new Set(),
+      dateAdjustment: candidate.dateAdjustment,
+      currentHalfHours: candidate.currentHalfHours,
+      projectedHalfHours: candidate.projectedHalfHours,
+      plannerProjectedHalfHours: candidate.plannerProjectedHalfHours,
+      peerProjectedHours: peers.length ? peers : [candidate.plannerProjectedHalfHours ?? candidate.projectedHalfHours],
+      peerPlannerProjectedHours: peers.length ? peers : [candidate.plannerProjectedHalfHours ?? candidate.projectedHalfHours],
+      activeWorkDays: candidate.projectedWorkDays ?? candidate.activeWorkDays,
+      existingWorkDays: candidate.existingWorkDays,
+      projectedWorkDays: candidate.projectedWorkDays
+    });
+    return {
+      ...candidate,
+      score: scored.score,
+      totalScore: scored.totalScore,
+      ...schedulingQualityBand(scored.score, true),
+      scoreBreakdown: scored.scoreBreakdown,
+      recommendationReason: scored.recommendationReason,
+      sameSchoolMeetingCount: scored.sameSchoolMeetingCount,
+      sameAuthorityMeetingCount: scored.sameAuthorityMeetingCount,
+      nearbyMeetingCount: scored.nearbyMeetingCount,
+      existingWorkDayMeetingCount: scored.existingWorkDayMeetingCount,
+      newWorkDayMeetingCount: scored.newWorkDayMeetingCount,
+      continuityMeetingCount: scored.continuityMeetingCount,
+      opensNewWorkDay: scored.opensNewWorkDay,
+      nonTravelWaitingMinutes: scored.nonTravelWaitingMinutes,
+      relevantTravelMinutes: scored.relevantTravelMinutes,
+      relevantTravelDistance: scored.relevantTravelDistance,
+      movedMeetingsCount: scored.movedMeetingsCount,
+      totalShiftDays: scored.totalShiftDays,
+      halfOverflow: scored.halfOverflow,
+      existingWorkDays: scored.existingWorkDays,
+      projectedWorkDays: scored.projectedWorkDays,
+      activeWorkDays: scored.activeWorkDays
+    };
+  });
+}
+
+function enrichCandidate(candidate, {
+  eligibleCandidateCount = 0,
+  urgency = null,
+  rank = null
+} = {}) {
+  const empId = text(candidate.instructor?.emp_id);
+  const recommended = !!candidate.eligible && Number(candidate.score) >= 60;
+  return {
+    ...candidate,
+    empId,
+    instructorName: candidate.instructor?.full_name || '',
+    totalScore: candidate.score,
+    recommended,
+    bestAvailable: !!candidate.eligible && !recommended,
+    eligibleCandidateCount,
+    urgencyBand: urgency?.urgencyBand ?? null,
+    daysUntilNextMeeting: urgency?.daysUntilNextMeeting ?? null,
+    nextUpcomingMeetingDate: urgency?.nextUpcomingMeetingDate ?? null,
+    rank: candidate.eligible ? rank : null
+  };
+}
 
 function primaryRejectionReason(checked = []) {
   const reasons = checked.flatMap((candidate) => [...(candidate.failures || []), ...(candidate.missingProfileData || [])]);
@@ -303,17 +469,43 @@ function primaryRejectionReason(checked = []) {
   return reasons[0];
 }
 
-function draftRowsForInstructor(state, empId, ordered, excludeCourseId = '') {
-  return [...state.draft.entries()]
-    .filter(([courseId, candidate]) => courseId !== excludeCourseId && text(candidate.instructor.emp_id) === empId)
-    .map(([courseId]) => ordered.find((row) => idOf(row) === courseId))
-    .filter(Boolean);
+function evaluateCourseCandidates({
+  course,
+  instructors,
+  assignedRows,
+  planningDraft,
+  ordered,
+  profiles,
+  rules,
+  exceptions,
+  input
+}) {
+  const raw = instructors.map((instructor) => evaluateCandidate({
+    course,
+    instructor,
+    assignedRows,
+    planningRows: planningRowsForInstructor(planningDraft, text(instructor.emp_id), ordered),
+    profiles,
+    rules,
+    exceptions,
+    input
+  }));
+  return rescoreEligiblePeers(raw, course);
 }
 
+/**
+ * Stage 3 sequential planner: order courses by urgency/scarcity, score instructors,
+ * recommend one primary + up to three alternatives. Temporary planning state only.
+ */
 export function calculateCourseSchedule(input = {}) {
   const activities = input.activities || [];
   const periodKey = input.periodKey || DEFAULT_COURSE_SCHEDULING_PERIOD_KEY;
-  const courses = schedulingCourses(activities, { periodKey, authority: input.authority });
+  const courses = schedulingCourses(activities, {
+    periodKey,
+    authority: input.authority,
+    district: input.district,
+    includeIncompleteWithoutPeriodMeetings: !!input.includeIncompleteWithoutPeriodMeetings
+  });
   const instructors = schedulingInstructors(input.instructors || []);
   const assignedRows = assignedRowsByInstructor(activities, input.assignments || {});
   const profiles = input.profiles || {};
@@ -321,108 +513,136 @@ export function calculateCourseSchedule(input = {}) {
   const exceptions = input.exceptions || {};
   const incomplete = new Map(courses.map((course) => [idOf(course), missingCourseInformation(course, { periodKey })]));
   const ready = courses.filter((course) => !incomplete.get(idOf(course)).length);
-  const { output: maps, baselineLoads, averageRatio } = candidateMap({
-    courses: ready,
-    instructors,
-    profiles,
-    rules,
-    exceptions,
-    assignedRows,
-    input
-  });
+  const referenceDate = input.referenceDate || input.now || null;
+  const urgencyByCourse = new Map(ready.map((course) => [idOf(course), courseUrgency(course, referenceDate)]));
 
-  const ordered = [...ready].sort((first, second) =>
-    maps.get(idOf(first)).filter((candidate) => candidate.eligible).length
-      - maps.get(idOf(second)).filter((candidate) => candidate.eligible).length);
-
-  let states = [{ draft: new Map(), score: 0, loads: new Map(baselineLoads), fairness: fairnessVariance(baselineLoads) }];
-  for (const course of ordered) {
-    const expanded = [];
-    for (const state of states) {
-      expanded.push(state);
-      const candidates = maps.get(idOf(course))
-        .filter((candidate) => candidate.eligible)
-        .sort((first, second) => second.score - first.score);
-
-      for (const candidate of candidates) {
-        const empId = text(candidate.instructor.emp_id);
-        const draftRows = draftRowsForInstructor(state, empId, ordered);
-        const evaluated = applyWorkloadPoints([evaluateCandidate({
-          course,
-          instructor: candidate.instructor,
-          assignedRows,
-          draftRows,
-          profiles,
-          rules,
-          exceptions,
-          input,
-          averageRatio
-        })], course, periodKey)[0];
-        if (!evaluated.eligible) continue;
-
-        const draft = new Map(state.draft);
-        draft.set(idOf(course), evaluated);
-        const loads = new Map(state.loads);
-        loads.set(empId, evaluated.load.maxRatio);
-        expanded.push({
-          draft,
-          loads,
-          fairness: fairnessVariance(loads),
-          score: state.score + evaluated.score
-        });
-      }
-    }
-    states = expanded
-      .sort((first, second) => second.draft.size - first.draft.size || first.fairness - second.fairness || second.score - first.score)
-      .slice(0, 200);
-  }
-
-  const bestState = states[0] || { draft: new Map() };
-  const refreshCandidate = (course, instructor) => {
-    const empId = text(instructor.emp_id);
-    return applyWorkloadPoints([evaluateCandidate({
+  // Baseline eligibility counts — against approved/draft only, before planning recommendations.
+  const baselineEligibleCount = new Map();
+  for (const course of ready) {
+    const baseline = evaluateCourseCandidates({
       course,
-      instructor,
+      instructors,
       assignedRows,
-      draftRows: draftRowsForInstructor(bestState, empId, ordered, idOf(course)),
+      planningDraft: new Map(),
+      ordered: ready,
       profiles,
       rules,
       exceptions,
-      input,
-      averageRatio
-    })], course, periodKey)[0];
-  };
+      input
+    });
+    baselineEligibleCount.set(idOf(course), baseline.filter((candidate) => candidate.eligible).length);
+  }
 
-  return courses.map((course) => {
-    const id = idOf(course);
-    const missing = incomplete.get(id);
-    if (missing.length) return { course, status: 'חסר מידע', missing, recommended: null, alternatives: [], checked: [] };
+  const ordered = [...ready].sort((first, second) => {
+    const firstUrgency = urgencyByCourse.get(idOf(first))?.urgencyRank || 4;
+    const secondUrgency = urgencyByCourse.get(idOf(second))?.urgencyRank || 4;
+    if (firstUrgency !== secondUrgency) return firstUrgency - secondUrgency;
+    const firstCount = baselineEligibleCount.get(idOf(first)) || 0;
+    const secondCount = baselineEligibleCount.get(idOf(second)) || 0;
+    if (firstCount !== secondCount) return firstCount - secondCount;
+    const firstDate = urgencyByCourse.get(idOf(first))?.nextUpcomingMeetingDate || '9999-99-99';
+    const secondDate = urgencyByCourse.get(idOf(second))?.nextUpcomingMeetingDate || '9999-99-99';
+    if (firstDate !== secondDate) return firstDate.localeCompare(secondDate);
+    return idOf(first).localeCompare(idOf(second));
+  });
 
-    const checked = maps.get(id) || [];
-    const selected = bestState.draft.get(id) || null;
-    const recommended = selected ? refreshCandidate(course, selected.instructor) : null;
-    const alternatives = checked
-      .filter((candidate) => candidate.eligible && text(candidate.instructor.emp_id) !== text(recommended?.instructor?.emp_id))
-      .map((candidate) => refreshCandidate(course, candidate.instructor))
+  const planningDraft = new Map();
+  const resultsById = new Map();
+
+  for (const course of ordered) {
+    const courseId = idOf(course);
+    const urgency = urgencyByCourse.get(courseId);
+    const stateBeforeCourse = new Map(planningDraft);
+    const evaluated = evaluateCourseCandidates({
+      course,
+      instructors,
+      assignedRows,
+      planningDraft: stateBeforeCourse,
+      ordered,
+      profiles,
+      rules,
+      exceptions,
+      input
+    });
+    const eligibleSorted = evaluated
       .filter((candidate) => candidate.eligible)
-      .sort((first, second) => second.score - first.score)
-      .slice(0, 3);
-    const incompleteProfiles = checked.filter((candidate) => candidate.missingProfileData.length);
+      .sort((first, second) => compareCandidatesStable(first, second));
+    const eligibleCandidateCount = eligibleSorted.length;
+    const rankMap = new Map(eligibleSorted.map((candidate, index) => [text(candidate.instructor.emp_id), index + 1]));
+    const checked = evaluated.map((candidate) => enrichCandidate(candidate, {
+      eligibleCandidateCount,
+      urgency,
+      rank: rankMap.get(text(candidate.instructor?.emp_id)) || null
+    }));
 
-    return {
+    const primaryRaw = eligibleSorted[0] || null;
+    const primary = primaryRaw
+      ? enrichCandidate(primaryRaw, {
+        eligibleCandidateCount,
+        urgency,
+        rank: 1
+      })
+      : null;
+    const recommended = primary && primary.score >= 60
+      ? { ...primary, recommended: true, bestAvailable: false }
+      : null;
+    const bestAvailable = recommended
+      ? null
+      : (primary ? { ...primary, recommended: false, bestAvailable: true } : null);
+    const alternatives = eligibleSorted
+      .slice(1, 4)
+      .map((candidate, index) => ({
+        ...enrichCandidate(candidate, {
+          eligibleCandidateCount,
+          urgency,
+          rank: index + 2
+        }),
+        recommended: false,
+        bestAvailable: false
+      }));
+    const incompleteProfiles = checked.filter((candidate) => !(candidate.failures || []).length && (candidate.missingProfileData || []).length);
+
+    resultsById.set(courseId, {
       course,
       status: recommended
-        ? (recommended.warnings.length ? 'נדרש טיפול' : 'הצעה מוכנה')
-        : incompleteProfiles.length ? 'נדרש טיפול' : 'נדרש גיוס',
+        ? ((recommended.warnings || []).length ? 'נדרש טיפול' : 'הצעה מוכנה')
+        : bestAvailable || incompleteProfiles.length ? 'נדרש טיפול' : 'נדרש גיוס',
       recommended,
+      bestAvailable,
       alternatives,
       checked,
       incompleteProfiles,
-      treatmentReason: !recommended && incompleteProfiles.length
+      eligibleCandidateCount,
+      urgencyBand: urgency?.urgencyBand ?? null,
+      daysUntilNextMeeting: urgency?.daysUntilNextMeeting ?? null,
+      nextUpcomingMeetingDate: urgency?.nextUpcomingMeetingDate ?? null,
+      treatmentReason: bestAvailable
+        ? 'נמצאו מדריכים שעומדים בתנאי הסף, אך הציון שלהם נמוך מסף ההמלצה.'
+        : !recommended && incompleteProfiles.length
         ? 'לא ניתן להשלים את בדיקת השיבוץ משום שחסרים נתונים בפרופילי מדריכים.'
         : !recommended ? primaryRejectionReason(checked) : ''
-    };
-  });
+    });
+
+    // Final calculation only: temporary recommendations must not block later courses
+    // during preliminary candidate collection (before travel data is loaded).
+    if (!input.preliminary && primary) planningDraft.set(courseId, primary);
+  }
+
+  const incompleteResults = courses
+    .filter((course) => incomplete.get(idOf(course)).length)
+    .map((course) => ({
+      course,
+      status: 'חסר מידע',
+      missing: incomplete.get(idOf(course)),
+      recommended: null,
+      bestAvailable: null,
+      alternatives: [],
+      checked: [],
+      eligibleCandidateCount: 0
+    }));
+
+  // Ready courses are returned in planning order; incomplete courses follow.
+  return [...ordered.map((course) => resultsById.get(idOf(course))), ...incompleteResults];
 }
 
 export function preliminaryCourseCandidates(input = {}) {

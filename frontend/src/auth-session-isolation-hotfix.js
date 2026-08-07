@@ -1,11 +1,16 @@
 import { state } from './state.js';
+import { SCREEN_CACHE_STORAGE_PREFIX } from './cache-persist.js';
 import { supabase } from './supabase-client.js';
 
 const ROUTES_KEY = 'dashboard_routes';
 const USER_KEY = 'dashboard_user';
 const TOKEN_KEY = 'dashboard_token';
 const SESSION_MARKER_KEY = 'ds_session_alive';
-const SCREEN_CACHE_PREFIXES = ['dashboard_screen_cache_v1', 'dashboard_screen_cache:'];
+const SCREEN_CACHE_PREFIXES = [
+  SCREEN_CACHE_STORAGE_PREFIX,
+  'dashboard_screen_cache_v1',
+  'dashboard_screen_cache:'
+];
 const RELOAD_GUARD_KEY = 'dashboard_auth_reconcile_reload';
 const INITIAL_SESSION_RETRY_MS = 1800;
 const CROSS_TAB_RELOAD_DELAY_MS = 300;

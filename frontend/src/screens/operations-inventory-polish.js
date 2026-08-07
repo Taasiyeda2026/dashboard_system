@@ -4,6 +4,7 @@ const PARTICIPANTS_FIELD = 'participants_count';
 const PARTICIPANT_ACTIVITY_TYPES = new Set(['workshop', 'escape_room']);
 const SAVE_NOTICE_DISMISS_MS = 3600;
 const SAVE_STATUS_DISMISS_MS = 3200;
+const WORKSHOP_STOCK_LOCATION_NAMES = new Set(['מלאי עידן', 'מלאי הילה', 'מלאי גיל']);
 
 let participantsUiBound = false;
 let inventoryPolishTimer = null;
@@ -199,6 +200,57 @@ export function removeAdminInventoryShortcut(root = document) {
   root.querySelectorAll?.('[data-ops-open-stock-edit]').forEach((button) => button.remove());
 }
 
+export function isWorkshopStockLocationHolder(holderName) {
+  return WORKSHOP_STOCK_LOCATION_NAMES.has(String(holderName || '').trim());
+}
+
+export function workshopHolderStatus(holderName, balanceValue) {
+  const balance = Number(balanceValue);
+  const normalizedBalance = Number.isFinite(balance) ? balance : 0;
+  if (isWorkshopStockLocationHolder(holderName)) {
+    if (normalizedBalance < 0) return { label: 'חוסר במלאי', tone: 'danger' };
+    if (normalizedBalance > 0) return { label: 'יתרה במלאי', tone: 'info' };
+    return { label: 'אזל מהמלאי', tone: 'muted' };
+  }
+  if (normalizedBalance < 0) return { label: 'חוסר אצל מדריך', tone: 'danger' };
+  if (normalizedBalance > 0) return { label: 'יתרה אצל מדריך', tone: 'info' };
+  return { label: 'אין יתרה אצל מדריך', tone: 'muted' };
+}
+
+function parseWorkshopBalance(value) {
+  const raw = String(value ?? '')
+    .replace(/[−–—]/g, '-')
+    .replace(/[\u200e\u200f\u202a-\u202e\u2066-\u2069]/g, '')
+    .trim();
+  const match = raw.match(/-?\d[\d,]*/);
+  if (!match) return 0;
+  const parsed = Number(match[0].replace(/,/g, ''));
+  return Number.isFinite(parsed) ? parsed : 0;
+}
+
+export function applyWorkshopHolderStatusLabels(root = document) {
+  root.querySelectorAll?.('.ds-ops-dist-table--instructors tbody tr').forEach((row) => {
+    const holderCell = row.querySelector('.ds-ops-dist-col--instructor');
+    const statusCell = row.querySelector('.ds-ops-dist-col--status');
+    const numberCells = row.querySelectorAll('.ds-ops-dist-col--number');
+    if (!holderCell || !statusCell || numberCells.length < 4) return;
+    const holderName = String(holderCell.textContent || '').trim();
+    const balance = parseWorkshopBalance(numberCells[3]?.textContent);
+    const status = workshopHolderStatus(holderName, balance);
+    const className = `ds-ops-workshop-status-text ds-ops-workshop-status-text--${status.tone}`;
+    const current = statusCell.querySelector('.ds-ops-workshop-status-text');
+    if (current) {
+      current.className = className;
+      setTextIfChanged(current, status.label);
+    } else {
+      const span = document.createElement('span');
+      span.className = className;
+      span.textContent = status.label;
+      statusCell.replaceChildren(span);
+    }
+  });
+}
+
 function runInventoryPolish() {
   addInventoryPolishStyle();
   bindParticipantsCountUi();
@@ -207,6 +259,7 @@ function runInventoryPolish() {
   scheduleSaveUiCleanup(document);
   renameInventoryTab();
   removeAdminInventoryShortcut(document);
+  applyWorkshopHolderStatusLabels(document);
 }
 
 function scheduleInventoryPolish() {

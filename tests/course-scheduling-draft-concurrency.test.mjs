@@ -27,6 +27,9 @@ async function setUpDatabase(client) {
   await client.query(schemaMigration);
   const rpcMigration = await readFile(new URL('../supabase/migrations/20260802221000_course_scheduling_interface_rpcs.sql', import.meta.url), 'utf8');
   await client.query(rpcMigration);
+  await client.query('create table if not exists public.school_calendar (start_date date, end_date date, is_active boolean, blocks_scheduling boolean)');
+  const proposedDatesMigration = await readFile(new URL('../supabase/migrations/20260807120000_course_scheduling_proposed_dates.sql', import.meta.url), 'utf8');
+  await client.query(proposedDatesMigration);
 }
 
 async function seedFixtures(client) {
@@ -113,5 +116,46 @@ test('two concurrent draft saves for overlapping courses on the same instructor:
     }
   } finally {
     await pool.end();
+  }
+});
+
+test('proposed-date migration enforces meeting counts and scopes the multi-instructor trigger', async (t) => {
+  if (!connectionString) {
+    t.skip('set SCHEDULING_TEST_DATABASE_URL to a disposable Postgres connection string to run this test');
+    return;
+  }
+  const client = new pg.Client({ connectionString });
+  try {
+    await client.connect();
+    await setUpDatabase(client);
+    await seedFixtures(client);
+    await authenticate(client);
+    await client.query("insert into public.contacts_instructors (emp_id,full_name,active,address) values (2,'דנה','yes','חיפה')");
+    await client.query("update public.activities set date_2='2027-09-08',date_3='2027-09-15',date_4='2027-09-22',date_5='2027-09-29',date_6='2027-10-06',date_7='2027-10-13',date_8='2027-10-20',date_9='2027-10-27',date_10='2027-11-03',date_11='2027-11-10' where row_id='course-a'");
+    const dates=(count)=>Array.from({length:count},(_,index)=>({date:new Date(Date.UTC(2027,8,1+index*7)).toISOString().slice(0,10)}));
+    await assert.rejects(client.query('select public.scheduling_validate_proposed_meetings($1,$2::jsonb)',['course-a',JSON.stringify(dates(10))]),/scheduling_proposed_meeting_count_mismatch/);
+    await assert.rejects(client.query('select public.scheduling_validate_proposed_meetings($1,$2::jsonb)',['course-a',JSON.stringify(dates(12))]),/scheduling_proposed_meeting_count_mismatch/);
+    const accepted=await client.query('select public.scheduling_validate_proposed_meetings($1,$2::jsonb) value',['course-a',JSON.stringify(dates(11))]);
+    assert.equal(accepted.rows[0].value.length,11);
+
+    await client.query('update public.instructor_scheduling_profiles set gender=null where emp_id=1');
+    await assert.rejects(client.query(`select public.scheduling_assert_proposed_eligibility('course-b',1,'[{"date":"2027-09-01"}]'::jsonb)`),/scheduling_instructor_profile_incomplete/);
+    await client.query("update public.instructor_scheduling_profiles set gender='female' where emp_id=1");
+    await client.query("update public.activities set required_instructor_gender='any' where row_id='course-b'");
+    await client.query(`select public.scheduling_assert_proposed_eligibility('course-b',1,'[{"date":"2027-09-01"}]'::jsonb)`);
+    await client.query("update public.activities set required_instructor_gender='male' where row_id='course-b'");
+    await assert.rejects(client.query(`select public.scheduling_assert_proposed_eligibility('course-b',1,'[{"date":"2027-09-01"}]'::jsonb)`),/scheduling_gender_mismatch/);
+    await client.query("update public.activities set required_instructor_gender='female' where row_id='course-b'");
+
+    for (const [id,type,season,status] of [['workshop','סדנה','school_2027','פתוח'],['tour','סיור','school_2027','פתוח'],['old-course','קורס','school_2026','פתוח'],['closed-course','קורס','school_2027','סגור']]) {
+      await client.query(`insert into public.activities(row_id,activity_season,activity_type,status,start_time,end_time,date_1,school,activity_name) values($1,$2,$3,$4,'10:00','11:00','2027-09-01','אחר',$1)`,[id,season,type,status]);
+      await client.query('update public.activities set emp_id=1 where row_id=$1',[id]);
+    }
+    await assert.rejects(client.query(`select public.save_course_assignment_draft_with_dates('workshop',1,'נועה','[{"date":"2027-09-01"}]'::jsonb,null,null,null)`),/scheduling_activity_not_course/);
+    await assert.rejects(client.query(`select public.assign_activity_instructor_with_dates('tour',1,'נועה','[{"date":"2027-09-01"}]'::jsonb,null,null,null,'approved',null)`),/scheduling_activity_not_course/);
+    await client.query("update public.activities set emp_id=2 where row_id='course-b'");
+    await assert.rejects(client.query("update public.activities set emp_id_2=1 where row_id='course-b'"),/scheduling_conflict_detected/);
+  } finally {
+    await client.end().catch(()=>{});
   }
 });

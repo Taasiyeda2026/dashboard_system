@@ -1,17 +1,35 @@
 import { instructionLanguageLabel, profileSpeaksLanguage, resolveInstructionLanguage } from './shared/instruction-language.js';
 
 const LANGUAGE_LABELS = { he: 'עברית', ar: 'ערבית' };
+/** One-way driving-route home→school hard eligibility limit (km). Inclusive at exactly this value. */
+export const MAX_HOME_DISTANCE_KM = 40;
+/** Required gap between consecutive meetings = raw travel minutes + this buffer. Applied once only. */
+export const TRANSITION_BUFFER_MINUTES = 15;
+
 export const DEFAULT_SCHEDULING_PROFILE = Object.freeze({
   gender: null,
   instruction_languages: [],
   friday_allowed: false,
   default_start_time: '08:00',
   default_end_time: '15:00',
-  weekly_target_hours: null,
-  weekly_max_hours: null,
-  preferred_work_days: null,
-  max_fixed_courses: null
+  matching_note: null,
 });
+
+export function homeDistanceLimitFailureMessage(distanceKm) {
+  return `מרחק הנסיעה לבית הספר הוא ${Math.round(Number(distanceKm))} ק״מ ועולה על המגבלה של ${MAX_HOME_DISTANCE_KM} ק״מ`;
+}
+
+export function exceedsHomeDistanceLimit(distanceKm) {
+  const km = Number(distanceKm);
+  return Number.isFinite(km) && km > MAX_HOME_DISTANCE_KM;
+}
+
+export function schedulingQualityBand(score, eligible = true) {
+  if (!eligible || !Number.isFinite(Number(score))) return null;
+  if (Number(score) >= 60) return { qualityBand: 'recommended', qualityLabel: 'מומלץ' };
+  if (Number(score) >= 40) return { qualityBand: 'warning', qualityLabel: 'מתאים עם אזהרה' };
+  return { qualityBand: 'technical', qualityLabel: 'מתאים טכנית בלבד' };
+}
 
 export function normalizeGender(value) {
   const raw = String(value ?? '').trim();
@@ -40,6 +58,14 @@ const minutes = (value) => {
 };
 const same = (a, b) => String(a || '').trim() === String(b || '').trim();
 
+function normText(value) {
+  return String(value ?? '').trim().replace(/\s+/g, ' ').toLocaleLowerCase('he-IL');
+}
+
+function normId(value) {
+  return String(value ?? '').trim();
+}
+
 function meetingRows(activity) {
   const dates = Array.isArray(activity.meetings)
     ? activity.meetings
@@ -59,6 +85,32 @@ function overlaps(a, b) {
 
 function checkResult(passed, label, reason = '') {
   return { passed, label, reason };
+}
+
+/** Shared Hebrew wording for affected-meeting counts (1 = singular). */
+export function formatAffectedMeetingsPhrase(count) {
+  const n = Math.max(0, Math.floor(Number(count) || 0));
+  if (n === 1) return 'משפיע על מפגש אחד';
+  return `משפיע על ${n} מפגשים`;
+}
+
+function formatDisplayDate(value) {
+  const raw = String(value || '').slice(0, 10);
+  const match = raw.match(/^(\d{4})-(\d{2})-(\d{2})$/);
+  if (!match) return '';
+  return `${match[3]}.${match[2]}.${match[1]}`;
+}
+
+/** User-facing persisted-activity reference: name, school, date when available. */
+export function formatPersistedActivityReference(activity = {}, meetingDate = '') {
+  const name = String(activity?.activity_name || '').trim();
+  const school = String(activity?.school || '').trim();
+  const date = formatDisplayDate(meetingDate || activity?.date);
+  const parts = [];
+  if (name) parts.push(name);
+  if (school) parts.push(`בבית ספר ${school}`);
+  if (date) parts.push(`ביום ${date}`);
+  return parts.join(' ');
 }
 
 export function defaultAvailabilityForWeekday(weekday, profile = {}) {
@@ -114,26 +166,27 @@ export function evaluateInstructor({
 
   let languageCheck = checkResult(null, 'שפה', 'לא נבדק');
   if (!profile.instruction_languages.length) {
-    missingProfileData.push('שפות הדרכה');
-    languageCheck = checkResult(null, 'שפה', 'לא נבדק — חסרות שפות הדרכה בפרופיל');
+    missingProfileData.push('לא ניתן לאמת שפת הדרכה');
+    languageCheck = checkResult(false, 'לא ניתן לאמת שפת הדרכה', 'חסרה הגדרת שפת הדרכה בפרופיל');
   } else if (!profileSpeaksLanguage(profile.instruction_languages, language)) {
-    const reason = `המדריך אינו דובר ${LANGUAGE_LABELS[language] || instructionLanguageLabel(language)}, שפת ההדרכה של הקורס`;
-    failures.push(reason);
-    languageCheck = checkResult(false, `${LANGUAGE_LABELS[language] || instructionLanguageLabel(language)} - לא מתאים`, reason);
+    const reason = 'שפת ההדרכה אינה תואמת';
+    failures.push(`${reason}: נדרשת ${LANGUAGE_LABELS[language] || instructionLanguageLabel(language)}`);
+    languageCheck = checkResult(false, `${LANGUAGE_LABELS[language] || instructionLanguageLabel(language)} - לא מתאים`, `${reason}: נדרשת ${LANGUAGE_LABELS[language] || instructionLanguageLabel(language)}`);
   } else {
     languageCheck = checkResult(true, `${LANGUAGE_LABELS[language] || instructionLanguageLabel(language)} - מתאים`, '');
   }
 
   let genderCheck = checkResult(null, 'מגדר', 'לא נבדק');
-  if (requiredGender === 'any') {
-    genderCheck = checkResult(true, 'ללא דרישת מגדר', '');
-  } else if (!profileGender) {
+  // Gender remains a mandatory profile field even when the activity requirement is "any".
+  if (!profileGender) {
     missingProfileData.push('מגדר');
-    genderCheck = checkResult(null, 'מגדר', 'לא נבדק — חסר מגדר בפרופיל');
-  } else if (profileGender !== requiredGender) {
+    genderCheck = checkResult(false, 'חסר מגדר בפרופיל', 'חסר מגדר בפרופיל');
+  } else if (requiredGender !== 'any' && profileGender !== requiredGender) {
     const reason = requiredGender === 'female' ? 'הקורס דורש מדריכה' : 'הקורס דורש מדריך';
     failures.push(reason);
     genderCheck = checkResult(false, femaleInstructor ? 'אינה עומדת בדרישה' : 'אינו עומד בדרישה', reason);
+  } else if (requiredGender === 'any') {
+    genderCheck = checkResult(true, 'ללא דרישת מגדר', '');
   } else {
     genderCheck = checkResult(true, femaleInstructor ? 'עומדת בדרישה' : 'עומד בדרישה', '');
   }
@@ -188,7 +241,11 @@ export function evaluateInstructor({
 
     const { previous, next, day } = adjacentActivities(existingActivities, meeting);
     const conflict = day.find((existing) => overlaps(meeting, existing));
-    if (conflict) addIssue('overlap', String(conflict.activity_name || conflict.school || 'activity'), `חפיפה חוזרת עם ${conflict.activity_name || 'פעילות אחרת'}`, meeting.date);
+    if (conflict) {
+      const conflictRef = formatPersistedActivityReference(conflict, meeting.date);
+      const conflictLabel = conflictRef || conflict.activity_name || 'פעילות אחרת';
+      addIssue('overlap', String(conflict.activity_name || conflict.school || 'activity'), `חפיפה חוזרת עם ${conflictLabel}`, meeting.date);
+    }
 
     const transition = travel?.transitions?.[meeting.date] || {};
     const inspect = (neighbor, leg, direction) => {
@@ -198,8 +255,25 @@ export function evaluateInstructor({
         : minutes(neighbor.start_time) - minutes(meeting.end_time);
       const required = leg?.duration_minutes;
       const label = direction === 'previous' ? 'מהפעילות הקודמת' : 'לפעילות הבאה';
-      if (required == null && !same(neighbor.school, activity.school)) addIssue('unverified_transition', direction, `לא ניתן לאמת זמן מעבר ${label}`, meeting.date);
-      else if (required != null && gap < required) addIssue('insufficient_transition', `${direction}-${required}-${gap}`, `אין זמן מעבר מספיק ${label} (${gap} דקות זמינות, ${required} דקות נסיעה)`, meeting.date);
+      const neighborRef = formatPersistedActivityReference(neighbor, neighbor.date || meeting.date);
+      const sameLocation = same(neighbor.school, activity.school);
+      if (required == null && !sameLocation) {
+        const message = neighborRef
+          ? (direction === 'previous'
+            ? `לא ניתן לאמת זמן מעבר לאחר ${neighborRef}`
+            : `לא ניתן לאמת זמן מעבר לפני ${neighborRef}`)
+          : `לא ניתן לאמת זמן מעבר ${label}`;
+        addIssue('unverified_transition', direction, message, meeting.date);
+      } else if (required != null && !sameLocation && gap < Number(required) + TRANSITION_BUFFER_MINUTES) {
+        // Same-school neighbors do not require the travel buffer; it applies only to real moves.
+        const needed = Number(required) + TRANSITION_BUFFER_MINUTES;
+        const message = neighborRef
+          ? (direction === 'previous'
+            ? `אין זמן מעבר מספיק לאחר ${neighborRef}`
+            : `אין זמן מעבר מספיק לפני ${neighborRef}`)
+          : `אין זמן מעבר מספיק ${label} (${gap} דקות זמינות, ${needed} דקות נדרשות כולל מרווח בטיחות)`;
+        addIssue('insufficient_transition', `${direction}-${required}-${gap}`, message, meeting.date);
+      }
       // A given neighbor relationship counts once: same-school continuity takes priority
       // over same-authority continuity so the two point buckets never double-score it.
       if (same(neighbor.school, activity.school)) {
@@ -239,7 +313,7 @@ export function evaluateInstructor({
   }
 
   for (const issue of issues) {
-    const summary = `${issue.message} — משפיע על ${issue.dates.length} מפגשים.`;
+    const summary = `${issue.message} - ${formatAffectedMeetingsPhrase(issue.dates.length)}`;
     (issue.missing ? missingProfileData : failures).push(summary);
   }
 
@@ -268,22 +342,42 @@ export function evaluateInstructor({
   } else if (travelIssues.length) {
     travelCheck = checkResult(false, 'מרחק', travelIssues[0].message);
   } else if (homeKm != null && Number.isFinite(Number(homeKm)) && homeMinutes != null && Number.isFinite(Number(homeMinutes))) {
-    travelCheck = checkResult(true, `${Math.round(Number(homeKm))} ק״מ, ${Math.round(Number(homeMinutes))} דקות`, '');
+    // Hard gate: one-way home→school driving distance must be ≤ 40 km (evaluated before scoring).
+    if (exceedsHomeDistanceLimit(homeKm)) {
+      const reason = homeDistanceLimitFailureMessage(homeKm);
+      failures.push(reason);
+      travelCheck = checkResult(false, 'מרחק', reason);
+    } else {
+      travelCheck = checkResult(true, `${Math.round(Number(homeKm))} ק״מ, ${Math.round(Number(homeMinutes))} דקות`, '');
+    }
   } else if (travel?.unavailableReason === 'missing_instructor_address') {
-    travelCheck = checkResult(null, 'מרחק', 'חסרה כתובת מדריך');
+    if (!missingProfileData.includes('כתובת')) missingProfileData.push('כתובת');
+    travelCheck = checkResult(false, 'מרחק', 'חסרה כתובת מדריך');
   } else if (travel?.unavailableReason === 'missing_school_address') {
-    travelCheck = checkResult(null, 'מרחק', 'חסרה כתובת בית ספר');
-  } else if (travel?.unavailableReason === 'service_unavailable') {
-    travelCheck = checkResult(null, 'מרחק', 'שירות המרחקים לא היה זמין');
+    missingProfileData.push('כתובת בית הספר');
+    travelCheck = checkResult(false, 'מרחק', 'חסרה כתובת בית ספר');
+  } else if (travel?.unavailableReason === 'service_unavailable' || travel?.unavailableReason === 'not_calculated') {
+    missingProfileData.push('מסלול נסיעה אמין');
+    travelCheck = checkResult(false, 'מרחק', 'שירות המרחקים לא היה זמין');
   } else if (travel && Object.prototype.hasOwnProperty.call(travel, 'home') && travel.home == null) {
-    travelCheck = checkResult(null, 'מרחק', 'לא נמצא מסלול');
+    missingProfileData.push('מסלול נסיעה אמין');
+    travelCheck = checkResult(false, 'מרחק', 'לא נמצא מסלול');
+  } else if (validateTravel && travel && (homeKm == null || homeMinutes == null)) {
+    missingProfileData.push('מסלול נסיעה אמין');
+    travelCheck = checkResult(false, 'מרחק', 'לא נמצא מסלול');
+  }
+
+  if ((workloadRatio != null && averageWorkloadRatio != null && Number(workloadRatio) > Number(averageWorkloadRatio) * 1.5)
+    || (weeklyLoad != null && averageWeeklyLoad != null && Number(weeklyLoad) > Number(averageWeeklyLoad) * 1.5)) {
+    warnings.push('עומס שבועי גבוה ביחס לממוצע');
   }
 
   const checks = {
     gender: genderCheck,
     language: languageCheck,
     availability: availabilityCheck,
-    travel: travelCheck
+    travel: travelCheck,
+    notes: checkResult(true, 'הערות', [activity.scheduling_note, profile.matching_note].filter(Boolean).join(' · '))
   };
 
   // 100-point rubric: distance/travel 40, continuity 30, load/fairness 20,
@@ -312,7 +406,6 @@ export function evaluateInstructor({
     if (travel?.home?.distance_km != null && Number.isFinite(Number(travel.home.distance_km))) {
       const km = Number(travel.home.distance_km);
       scoreReasons.push(`${Math.round(km)} ק״מ מהבית, ${Math.round(Number(travel.home.duration_minutes) || 0)} דקות נסיעה`);
-      if (km > 40 && !sameSchool && !sameAuthority) failures.push('הפעילות הראשונה ביום רחוקה יותר מ-40 ק״מ מהבית');
       distancePoints = Math.max(0, 40 - km);
     } else {
       scoreReasons.push('המרחק טרם חושב');
@@ -337,14 +430,16 @@ export function evaluateInstructor({
         continuity: { points: roundedContinuity, label: continuityLabel },
         workload: { points: roundedWorkload, label: 'עומס וחלוקה שוויונית', totalHoursPoints: workloadBreakdown.totalHoursPoints, courseWeeksPoints: workloadBreakdown.courseWeeksPoints, totalHours: workloadBreakdown.totalHours, courseWeeksHours: workloadBreakdown.courseWeeksHours },
         seniority: { points: roundedSeniority, label: 'ותק' },
-        gateNote: 'זמינות, שפה ומגדר הם תנאי סף ואינם מוסיפים נקודות.'
+        gateNote: 'פעילות, כתובת, זמינות, שפה ומגדר כאשר נדרש הם תנאי סף ואינם מוסיפים נקודות.'
       };
     }
   }
 
+  const eligible = !failures.length && !missingProfileData.length;
   return {
-    eligible: !failures.length && !missingProfileData.length,
+    eligible,
     score,
+    ...schedulingQualityBand(score, eligible),
     failures: [...new Set(failures)],
     missingProfileData: [...new Set(missingProfileData)],
     warnings: [...new Set(warnings)],
@@ -377,9 +472,9 @@ export function rankInstructors(input) {
     })
   }));
   return {
-    recommended: candidates.filter((candidate) => candidate.eligible && !candidate.warnings.length).sort((a, b) => b.score - a.score),
-    exceptions: candidates.filter((candidate) => candidate.eligible && candidate.warnings.length).sort((a, b) => b.score - a.score),
-    incomplete: candidates.filter((candidate) => candidate.missingProfileData.length),
-    rejected: candidates.filter((candidate) => !candidate.eligible && !candidate.missingProfileData.length)
+    recommended: candidates.filter((candidate) => candidate.qualityBand === 'recommended' && !candidate.warnings.length).sort((a, b) => b.score - a.score),
+    exceptions: candidates.filter((candidate) => candidate.eligible && (candidate.qualityBand !== 'recommended' || candidate.warnings.length)).sort((a, b) => b.score - a.score),
+    incomplete: candidates.filter((candidate) => !candidate.failures.length && candidate.missingProfileData.length),
+    rejected: candidates.filter((candidate) => candidate.failures.length)
   };
 }

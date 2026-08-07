@@ -349,9 +349,13 @@ function collectMeetingDateChanges(form, initialValues = {}, changes = {}) {
   }
 
   const snapshot = buildMeetingDatesSnapshot(form);
+  const previousStartDate = String(initialValues.start_date || initialMeetingDateValue(initialValues, 0) || '').slice(0, 10);
+  if (snapshot.startDate !== previousStartDate) {
+    changes.start_date = snapshot.startDate || null;
+  }
   const computedEndDate = isOnce ? snapshot.startDate : snapshot.endDate;
-  if (computedEndDate && computedEndDate !== prevEndDate) {
-    changes.end_date = computedEndDate;
+  if (computedEndDate !== prevEndDate) {
+    changes.end_date = computedEndDate || null;
   }
 }
 

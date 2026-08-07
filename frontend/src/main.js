@@ -571,8 +571,8 @@ const screenLoaders = {
   week: () => import('./screens/week.js').then((m) => m.weekScreen),
   month: () => import('./screens/month.js').then((m) => m.monthScreen),
   exceptions: () => import('./screens/exceptions.js').then((m) => m.exceptionsScreen),
-  instructors: () => import('./screens/instructors.js?v=20260730-instructor-matching-modal-v1').then((m) => m.instructorsScreen),
-  'course-scheduling': () => import('./screens/course-scheduling.js').then((m) => m.courseSchedulingScreen),
+  instructors: () => import('./screens/instructors.js?v=20260807-guides-card-shadow-fix-v1').then((m) => m.instructorsScreen),
+  'course-scheduling': () => import('./screens/course-scheduling.js?v=20260807-guides-page-redesign-v2').then((m) => m.courseSchedulingScreen),
   'instructor-contacts': () => import('./screens/instructor-contacts.js').then((m) => m.instructorContactsScreen),
   contacts: () => import('./screens/contacts.js').then((m) => m.contactsScreen),
   'end-dates': () => import('./screens/end-dates.js').then((m) => m.endDatesScreen),
@@ -1020,7 +1020,8 @@ function shell(content) {
   const hasUnifiedClientFile = effectiveRoutes().includes('proposals-agreements');
   const headerNavHtml = headerNavGridHtml({
     route: state.route,
-    routes: effectiveRoutes().filter((r) => !adminHeaderExclude.has(r) && !HEADER_ALWAYS_EXCLUDE.has(r) && !(hasUnifiedClientFile && r === 'contacts'))
+    routes: effectiveRoutes().filter((r) => !adminHeaderExclude.has(r) && !HEADER_ALWAYS_EXCLUDE.has(r) && !(hasUnifiedClientFile && r === 'contacts')),
+    operationsManagement: state.operationsManagement
   }, { exceptions: exceptionsNavCount(), editRequests: Number(state.openEditRequestsCount) || 0 });
   const headerTechHtml = '';
   const instructorMobileHeader = isInstructorUser
@@ -1430,7 +1431,16 @@ function updateNavActiveClasses() {
     shellNode.setAttribute('data-current-route', String(state.route || ''));
   }
   document.querySelectorAll('[data-route]').forEach((btn) => {
-    btn.classList.toggle('is-active', btn.dataset.route === state.route);
+    const route = btn.dataset.route;
+    let active = route === state.route;
+    if (route === 'instructors') {
+      active = state.route === 'instructors'
+        || state.route === 'course-scheduling'
+        || (state.route === 'operations-management' && state.operationsManagement?.context === 'instructors');
+    } else if (route === 'operations-management') {
+      active = state.route === 'operations-management' && state.operationsManagement?.context !== 'instructors';
+    }
+    btn.classList.toggle('is-active', active);
   });
   updateExceptionNavCount();
   syncGlobalActivityPeriodSelector();

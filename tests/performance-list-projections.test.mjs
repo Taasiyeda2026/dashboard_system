@@ -75,7 +75,7 @@ test('proposals list uses metadata projection, paging, and on-demand detail/deps
   assert.doesNotMatch(apiSource.match(/const PROPOSALS_AGREEMENTS_LIST_COLUMNS = '([^']+)'/)?.[1] || '', /document_snapshot/);
   assert.match(apiSource, /proposalsAgreementsEditorDeps/);
   assert.match(apiSource, /readProposalAgreementDetailFromSupabase/);
-  assert.match(proposalsSource, /limit: 50, offset: 0, includeLinkedDocuments: false/);
+  assert.match(proposalsSource, /limit: 50, offset: 0, includeLinkedDocuments: true/);
   assert.match(proposalsSource, /ensureEditorDeps/);
   assert.match(proposalsSource, /ensureProposalDetailRow/);
   assert.match(proposalsSource, /loadNextProposalPage/);

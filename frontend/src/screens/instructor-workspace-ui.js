@@ -27,24 +27,33 @@ const TYPES = [
   { keys: ['after_school', 'אפטרסקול'], label: 'אפטרסקול', icon: 'after_school' }
 ];
 
+// Longer names must still render in full on one line, so the card shrinks to
+// fit its own name (see .instructor-card in instructors.js) and this only
+// scales the font down as a fallback for names that would otherwise force the
+// card wider than a short name needs to be.
+function instructorCardNameFontSize(name) {
+  const len = name.length;
+  if (len <= 11) return '1rem';
+  if (len <= 14) return '.95rem';
+  if (len <= 17) return '.89rem';
+  if (len <= 20) return '.83rem';
+  if (len <= 24) return '.77rem';
+  return '.7rem';
+}
+
 export function instructorCard(row) {
   const counts = row.activity_type_counts || {};
   const statItems = TYPES.map(({ keys, label, icon }) => {
     const count = keys.reduce((sum, key) => sum + Number(counts[key] || 0), 0);
     if (count === 0) return null;
-    return `<span title="${escapeHtml(label)}" style="display:inline-flex;align-items:center;gap:4px;color:#4a6080"><span aria-hidden="true">${activityTypeIconSvg(icon, 14)}</span><strong style="font-size:.86rem">${count}</strong></span>`;
+    return `<span title="${escapeHtml(label)}" class="instructor-card__stat"><span aria-hidden="true">${activityTypeIconSvg(icon, 13)}</span><strong>${count}</strong></span>`;
   }).filter(Boolean);
   const hasActivity = statItems.length > 0;
-  const missingAddr = !text(row.address);
-  return `<button type="button" class="ds-card" data-instructor-profile="${escapeHtml(row.emp_id)}" data-instructor-card="${escapeHtml(row.emp_id)}" style="text-align:center;padding:0;border:1px solid #dde5f0;background:#fff;cursor:pointer;border-radius:10px;box-shadow:0 1px 5px rgba(15,23,42,.07),0 0 0 1px rgba(15,23,42,.02);width:100%">
-    <span style="display:grid;gap:${hasActivity ? '10px' : '4px'};padding:14px 14px ${hasActivity ? '12px' : '14px'}">
-      <span style="display:grid;gap:2px">
-        <strong style="font-size:.96rem;color:#172235;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;display:block">${escapeHtml(text(row.full_name || row.emp_id) || '—')}</strong>
-        <span style="font-size:.78rem;color:#8494a7">${escapeHtml(row.emp_id || '')}</span>
-        ${missingAddr ? '<span style="font-size:.72rem;color:#b45309;margin-top:2px">⚠ חסרה כתובת</span>' : ''}
-      </span>
-      ${hasActivity ? `<span style="display:flex;gap:12px;align-items:center;justify-content:center;flex-wrap:wrap;border-top:1px solid #edf1f6;padding-top:9px">${statItems.join('')}</span>` : ''}
-    </span>
+  const name = text(row.full_name || row.emp_id) || '—';
+  return `<button type="button" class="instructor-card" data-instructor-profile="${escapeHtml(row.emp_id)}" data-instructor-card="${escapeHtml(row.emp_id)}">
+    <span class="instructor-card__name" style="font-size:${instructorCardNameFontSize(name)}">${escapeHtml(name)}</span>
+    <span class="instructor-card__id">${escapeHtml(row.emp_id || '')}</span>
+    ${hasActivity ? `<span class="instructor-card__stats">${statItems.join('')}</span>` : ''}
   </button>`;
 }
 
