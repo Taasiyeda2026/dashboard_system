@@ -924,17 +924,45 @@ function installController() {
     applyOperations2027Labels(screenRoot);
     bindCustomTabs(screenRoot);
   };
+
+  // Used by main.js to add 2027 tabs to the ops sub-route wrapper (invitations/catalog/certificates).
+  // Tabs click → set activeCustomTab so ops-management restores it, then call navigateCallback.
+  operationsManagementScreen.applyOps2027ToWrapper = function applyOps2027ToWrapper(wrapperRoot, navigateCallback) {
+    if (!is2027Root(wrapperRoot)) return;
+    applyOperations2027Labels(wrapperRoot);
+    const tabs = wrapperRoot.querySelector('.ds-ops-mgmt-tabs');
+    if (!tabs) return;
+    const definitions = [
+      [TAB_WORKSHOP_TRAINING, 'הכשרות סדנאות'],
+      [TAB_COURSE_TRAINING, 'הכשרות קורסים'],
+      [TAB_PRINT_KITS, 'ערכות דפוס']
+    ];
+    definitions.forEach(([tabKey, label]) => {
+      if (tabs.querySelector(`[data-ops-custom-tab="${tabKey}"]`)) return;
+      const button = customTabButton(tabKey, label);
+      tabs.appendChild(button);
+      button.addEventListener('click', (event) => {
+        event.preventDefault();
+        event.stopPropagation();
+        activeCustomTab = tabKey;
+        navigateCallback?.();
+      });
+    });
+  };
 }
+
+// Routes that are visually owned by ops-management — do NOT dispose 2027 cache when navigating among them.
+const OPS_OWNED_ROUTES = new Set(['operations-management', 'invitations', 'catalog', 'certificates']);
 
 function bindRouteDisposal() {
   if (typeof document === 'undefined' || document.documentElement.dataset.ops2027CacheDisposeBound) return;
   document.documentElement.dataset.ops2027CacheDisposeBound = '1';
   document.addEventListener('app:navigate', (event) => {
-    if (String(event?.detail?.route || '') !== 'operations-management') disposeOperations2027LoadingCache();
+    if (!OPS_OWNED_ROUTES.has(String(event?.detail?.route || ''))) disposeOperations2027LoadingCache();
   });
   document.addEventListener('click', (event) => {
     const route = event.target?.closest?.('[data-route]')?.getAttribute?.('data-route');
-    if (route && route !== 'operations-management') disposeOperations2027LoadingCache();
+    if (route && !OPS_OWNED_ROUTES.has(route)) disposeOperations2027LoadingCache();
   }, true);
 }
 

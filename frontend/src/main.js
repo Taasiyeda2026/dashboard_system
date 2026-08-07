@@ -565,6 +565,66 @@ async function refreshPendingApprovedProposalsCount() {
   }
 }
 
+// Routes that are visually owned by ops-management (share its header + tab bar wrapper).
+const OPS_SUB_ROUTES = new Set(['invitations', 'catalog', 'certificates']);
+
+/**
+ * If `route` is an ops sub-route, wraps `markup` with the ops-management visual chrome.
+ * Requires the ops-management screen to already be in loadedScreens (true in practice,
+ * since the user must navigate through ops-management to reach these routes).
+ */
+function wrapWithOpsIfSubRoute(markup, route) {
+  if (!OPS_SUB_ROUTES.has(route)) return markup;
+  const opsScreen = loadedScreens.get('operations-management');
+  if (!opsScreen?.opsSubRouteWrapperHtml) return markup;
+  const is2027 = state.operationsManagement?.period === 'school_2027';
+  return opsScreen.opsSubRouteWrapperHtml(route, markup, { is2027 });
+}
+
+/**
+ * Binds the ops wrapper navigation buttons rendered around sub-route screens.
+ * data-route tabs → app:navigate; data-ops-tab tabs → set tab in state + navigate to ops-management.
+ */
+function bindOpsSubRouteWrapper(screenRoot) {
+  const wrapperRoot = screenRoot.querySelector('.ds-ops-sub-route-screen');
+  if (!wrapperRoot) return;
+  const tabsNav = wrapperRoot.querySelector('.ds-ops-mgmt-tabs');
+  if (!tabsNav) return;
+
+  // Route-link tabs (invitations, catalog, certificates)
+  tabsNav.querySelectorAll('[data-route]').forEach((btn) => {
+    btn.addEventListener('click', () => {
+      const r = btn.getAttribute('data-route');
+      if (r) document.dispatchEvent(new CustomEvent('app:navigate', { detail: { route: r } }));
+    });
+  });
+
+  // Internal ops tabs (completion_approval, authorities, workshops) → go to ops-management with that tab
+  tabsNav.querySelectorAll('[data-ops-tab]').forEach((btn) => {
+    btn.addEventListener('click', () => {
+      const tab = btn.getAttribute('data-ops-tab');
+      if (tab) {
+        state.operationsManagement = state.operationsManagement || {};
+        state.operationsManagement.context = 'operations';
+        state.operationsManagement.tab = tab;
+      }
+      document.dispatchEvent(new CustomEvent('app:navigate', { detail: { route: 'operations-management' } }));
+    });
+  });
+
+  // 2027 custom tabs — added via applyOps2027ToWrapper (click → set activeCustomTab + navigate)
+  if (wrapperRoot.dataset.opsYear === '2027') {
+    const opsScreen = loadedScreens.get('operations-management');
+    if (typeof opsScreen?.applyOps2027ToWrapper === 'function') {
+      opsScreen.applyOps2027ToWrapper(wrapperRoot, () => {
+        state.operationsManagement = state.operationsManagement || {};
+        state.operationsManagement.context = 'operations';
+        document.dispatchEvent(new CustomEvent('app:navigate', { detail: { route: 'operations-management' } }));
+      });
+    }
+  }
+}
+
 const screenLoaders = {
   dashboard: () => import('./screens/dashboard.js').then((m) => m.dashboardScreen),
   activities: () => import('./screens/activities.js').then((m) => m.activitiesScreen),
@@ -1396,7 +1456,7 @@ async function backgroundRefreshScreen(screen, cacheKey) {
       const screenRoot = document.getElementById('screenRoot');
       if (screenRoot) {
         const renderStart = performance.now();
-        screenRoot.innerHTML = screen.render(data, { state });
+        screenRoot.innerHTML = wrapWithOpsIfSubRoute(screen.render(data, { state }), state.route);
         bindScreen(screen, screenRoot, data);
         recordRenderPerf(state.route, 'background-refresh-render', performance.now() - renderStart, {
           cache_key: cacheKey
@@ -1438,7 +1498,8 @@ function updateNavActiveClasses() {
         || state.route === 'course-scheduling'
         || (state.route === 'operations-management' && state.operationsManagement?.context === 'instructors');
     } else if (route === 'operations-management') {
-      active = state.route === 'operations-management' && state.operationsManagement?.context !== 'instructors';
+      active = (state.route === 'operations-management' && state.operationsManagement?.context !== 'instructors')
+        || OPS_SUB_ROUTES.has(state.route);
     }
     btn.classList.toggle('is-active', active);
   });
@@ -1477,7 +1538,7 @@ async function fastRerenderScreen(screen, routeAtBind) {
     if (rerenderToken !== activeNavigationToken) return;
     if (state.route !== routeAtBind) return;
     if (screenDataCacheKey() !== requestedKey) return;
-    screenRoot.innerHTML = screen.render(data, { state });
+    screenRoot.innerHTML = wrapWithOpsIfSubRoute(screen.render(data, { state }), routeAtBind);
     bindScreen(screen, screenRoot, data);
     const cached = state.screenDataCache[requestedKey];
     const fresh = cached && Date.now() - cached.t < screenCacheTtl();
@@ -1497,13 +1558,13 @@ function renderScreenIntoRoot({ route, screen, data, screenRoot, phase, cacheKey
   console.info('[route-render:start]', { route, data_keys: dataKeys });
   const renderStart = performance.now();
   try {
-    const markup = screen.render(data, { state });
+    const markup = wrapWithOpsIfSubRoute(screen.render(data, { state }), route);
     screenRoot.innerHTML = markup;
     const text = (screenRoot.textContent || '').trim();
     if (text === 'טוען נתונים...' && data && typeof data === 'object') {
       // eslint-disable-next-line no-console
       console.warn('[route-render:retry]', { route, reason: 'loading-stuck-after-render' });
-      screenRoot.innerHTML = screen.render(data, { state });
+      screenRoot.innerHTML = wrapWithOpsIfSubRoute(screen.render(data, { state }), route);
     }
     const afterText = (screenRoot.textContent || '').trim();
     if (afterText === 'טוען נתונים...') {
@@ -1568,6 +1629,10 @@ function bindScreen(screen, screenRoot, data) {
     rerenderActivitiesView: () => rerenderActivitiesViewOnly(screen, screenRoot),
     clearScreenDataCache
   });
+  // Bind the shared ops-management wrapper nav for sub-route screens.
+  if (OPS_SUB_ROUTES.has(routeAtBind)) {
+    bindOpsSubRouteWrapper(screenRoot);
+  }
 }
 
 function rerenderActivitiesViewOnly(screen, screenRoot) {

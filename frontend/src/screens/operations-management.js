@@ -678,6 +678,27 @@ function tabsHtml(activeTab, currentRoute = '') {
   </nav>`;
 }
 
+/**
+ * Generates the full ops-management visual wrapper (header + tab bar + content slot)
+ * for sub-route screens (invitations, catalog, certificates) so they share the same chrome.
+ * Called from main.js renderScreenIntoRoot / fastRerenderScreen.
+ */
+export function opsSubRouteWrapperHtml(activeRoute, contentHtml, { is2027 = false } = {}) {
+  const yearAttr = is2027 ? ' data-ops-year="2027"' : '';
+  const yearClass = is2027 ? ' ops-year-2027' : '';
+  return `<div class="ds-screen-stack ds-ops-mgmt-screen ds-ops-sub-route-screen${yearClass}" data-ops-context="operations"${yearAttr}>${opsManagementStylesHtml()}<style>
+.ds-ops-sub-route-screen{display:flex;flex-direction:column;height:100dvh;overflow:hidden}
+.ds-ops-sub-route-content{flex:1;min-height:0;overflow:hidden;position:relative}
+.ds-ops-sub-route-content .invitation-screen-root{display:block;height:100%;overflow:hidden}
+.ds-ops-sub-route-content .invitation-screen-root .app{height:100%!important}
+.ds-ops-sub-route-content .invitation-screen-root .panel{max-height:100%!important;height:100%!important}
+.ds-ops-sub-route-content .invitation-screen-root .preview{height:100%!important}
+.ds-ops-sub-route-content .catalog-embed-screen{height:100%;display:flex;flex-direction:column;min-height:0!important}
+.ds-ops-sub-route-content .catalog-embed-frame-wrap{flex:1;min-height:0;height:0}
+.ds-ops-sub-route-content .catalog-embed-frame{height:100%!important;min-height:0!important}
+</style>${dsPageHeader('ניהול תפעול')}${tabsHtml(null, activeRoute)}<div class="ds-ops-mgmt-content ds-ops-sub-route-content">${contentHtml}</div></div>`;
+}
+
 function summaryKpiHtml(items = []) {
   if (!Array.isArray(items) || !items.length) return '';
   return `<div class="ds-ops-mgmt-summary" dir="rtl">${items.map((item) => {
@@ -3904,6 +3925,10 @@ export const operationsManagementScreen = {
     });
   }
 };
+
+// Expose sub-route wrapper on the screen object so main.js can access it
+// without a direct import (avoiding circular deps with the 2027 controller).
+operationsManagementScreen.opsSubRouteWrapperHtml = opsSubRouteWrapperHtml;
 
 export {
   getActivitySchoolDisplayName,
