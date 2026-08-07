@@ -586,6 +586,11 @@ select {
   background: var(--ds-surface-subtle);
 }
 
+/* Guides (instructors) workspace: page background is white, not the shared subtle-gray shell tone. */
+.app-shell.route-instructors .shell-stage {
+  background: #fff;
+}
+
 .screen-root {
   max-width: 1400px;
   margin-inline: auto;

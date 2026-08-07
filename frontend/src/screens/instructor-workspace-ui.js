@@ -1,5 +1,5 @@
 import { escapeHtml } from './shared/html.js';
-import { dsEmptyState, dsStatusChip } from './shared/layout.js';
+import { dsEmptyState } from './shared/layout.js';
 import { formatDateHe, formatTimeRangeShort } from './shared/format-date.js';
 import { activityTypeIconSvg } from './shared/activity-type-icons.js';
 import { INSTRUCTOR_WEEKDAYS } from './instructor-scheduling-data.js';
@@ -27,20 +27,31 @@ const TYPES = [
   { keys: ['after_school', 'אפטרסקול'], label: 'אפטרסקול', icon: 'after_school' }
 ];
 
+// Longer names must still render in full on one line, so the card shrinks to
+// fit its own name (see .instructor-card in instructors.js) and this only
+// scales the font down as a fallback for names that would otherwise force the
+// card wider than a short name needs to be.
+function instructorCardNameFontSize(name) {
+  const len = name.length;
+  if (len <= 11) return '1rem';
+  if (len <= 14) return '.95rem';
+  if (len <= 17) return '.89rem';
+  if (len <= 20) return '.83rem';
+  if (len <= 24) return '.77rem';
+  return '.7rem';
+}
+
 export function instructorCard(row) {
   const counts = row.activity_type_counts || {};
   const stats = TYPES.map(({ keys, label, icon }) => {
     const count = keys.reduce((sum, key) => sum + Number(counts[key] || 0), 0);
-    return `<span title="${escapeHtml(label)}" style="display:inline-flex;align-items:center;gap:4px;color:#536278"><span aria-hidden="true">${activityTypeIconSvg(icon, 14)}</span><strong>${count}</strong></span>`;
+    return `<span title="${escapeHtml(label)}" class="instructor-card__stat"><span aria-hidden="true">${activityTypeIconSvg(icon, 13)}</span><strong>${count}</strong></span>`;
   }).join('');
-  return `<button type="button" class="ds-card" data-instructor-profile="${escapeHtml(row.emp_id)}" data-instructor-card="${escapeHtml(row.emp_id)}" style="text-align:right;padding:0;border:1px solid #dfe7f1;background:#fff;cursor:pointer;min-height:138px">
-    <span style="display:grid;gap:12px;padding:16px">
-      <span style="display:flex;align-items:flex-start;justify-content:space-between;gap:10px">
-        <span style="display:grid;gap:4px;min-width:0"><strong style="font-size:1.02rem;color:#172235">${escapeHtml(text(row.full_name || row.emp_id) || '—')}</strong><span style="font-size:.82rem;color:#69778b">${escapeHtml(row.emp_id || '')}</span></span>
-        <span style="display:flex;gap:6px;flex-wrap:wrap;justify-content:flex-end">${dsStatusChip(activeFlag(row.active) === 'yes' ? 'פעיל' : 'לא פעיל', activeFlag(row.active) === 'yes' ? 'success' : 'neutral')}${dsStatusChip(assigned(row) ? 'משובץ' : 'לא משובץ', assigned(row) ? 'info' : 'neutral')}${text(row.address) ? '' : '<span class="ds-status-chip ds-status-chip--warning">חסרה כתובת</span>'}</span>
-      </span>
-      <span style="display:flex;gap:13px;align-items:center;flex-wrap:wrap;border-top:1px solid #edf1f6;padding-top:11px">${stats}</span>
-    </span>
+  const name = text(row.full_name || row.emp_id) || '—';
+  return `<button type="button" class="instructor-card" data-instructor-profile="${escapeHtml(row.emp_id)}" data-instructor-card="${escapeHtml(row.emp_id)}">
+    <span class="instructor-card__name" style="font-size:${instructorCardNameFontSize(name)}">${escapeHtml(name)}</span>
+    <span class="instructor-card__id">${escapeHtml(row.emp_id || '')}</span>
+    <span class="instructor-card__stats">${stats}</span>
   </button>`;
 }
 

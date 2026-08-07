@@ -76,7 +76,7 @@ test('instructors workspace tabs render consistently on list and scheduling scre
   assert.match(listHtml, /data-instructors-workspace-tab="scheduling"/);
   assert.match(listHtml, /data-instructors-workspace-tab="work-schedule"/);
   assert.doesNotMatch(listHtml, /data-route="course-scheduling"/);
-  assert.match(listHtml, /ניהול מדריכים, שיבוצים וסידור עבודה במקום אחד/);
+  assert.doesNotMatch(listHtml, /ניהול מדריכים, שיבוצים וסידור עבודה במקום אחד/);
 
   const schedulingState = { ...state, route: 'course-scheduling', courseSchedulingTab: 'courses' };
   const schedulingHtml = courseSchedulingScreen.render({
