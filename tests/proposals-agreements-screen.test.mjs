@@ -434,6 +434,181 @@ test('GEFEN approval status is short plain text in the proposals table', () => {
   assert.match(html, /הפקה מחדש של אישור גפ״ן להצעה 10169/);
 });
 
+test('proposalsAgreementsScreen.load requests includeLinkedDocuments true', async () => {
+  let received = null;
+  const result = await proposalsAgreementsScreen.load({
+    api: {
+      proposalsAgreements: async (options) => {
+        received = options;
+        return { rows: [] };
+      }
+    },
+    state: stateFor('admin')
+  });
+  assert.deepEqual(received, { limit: 50, offset: 0, includeLinkedDocuments: true });
+  assert.deepEqual(result, { rows: [] });
+});
+
+test('GEFEN approval column shows generated for saved and combined linked documents only', () => {
+  const generatedHtml = proposalsAgreementsTableRowsHtml([{
+    id: 'gefen-generated-doc',
+    quote_number: '10301',
+    activity_type_group: 'gefen',
+    gefen_approval_status: 'generated',
+    gefen_approval_path: 'proposal-linked-documents/gefen-generated-doc/approval.pdf',
+    status: 'approved'
+  }], stateFor('admin'));
+  assert.match(generatedHtml, /ds-pa-gefen-status-text--generated">הופק<\/span>/);
+
+  const combinedHtml = proposalsAgreementsTableRowsHtml([{
+    id: 'gefen-combined-doc',
+    quote_number: '10302',
+    activity_type_group: 'gefen',
+    combine_gefen_approval: true,
+    gefen_approval_status: 'generated',
+    gefen_approval_path: 'proposals/gefen-combined-doc/final.pdf',
+    gefen_approval_combined: true,
+    status: 'sent'
+  }], stateFor('admin'));
+  assert.match(combinedHtml, /ds-pa-gefen-status-text--generated">הופק<\/span>/);
+  assert.doesNotMatch(combinedHtml, /ds-pa-gefen-status-text--missing">חסר<\/span>/);
+
+  const missingHtml = proposalsAgreementsTableRowsHtml([{
+    id: 'gefen-missing-doc',
+    quote_number: '10303',
+    activity_type_group: 'gefen',
+    gefen_approval_status: 'missing',
+    gefen_approval_path: '',
+    status: 'approved'
+  }], stateFor('admin'));
+  assert.match(missingHtml, /ds-pa-gefen-status-text--missing">חסר<\/span>/);
+
+  const signedWithoutDocHtml = proposalsAgreementsTableRowsHtml([{
+    id: 'gefen-signed-no-doc',
+    quote_number: '10304',
+    activity_type_group: 'gefen',
+    gfen_signed_or_ordered: true,
+    gefen_approval_status: 'missing',
+    gefen_approval_path: '',
+    status: 'sent'
+  }], stateFor('admin'));
+  assert.match(signedWithoutDocHtml, /ds-pa-gefen-status-text--missing">חסר<\/span>/);
+  assert.doesNotMatch(signedWithoutDocHtml, /ds-pa-gefen-status-text--generated">הופק<\/span>/);
+
+  const generatedWithoutPathHtml = proposalsAgreementsTableRowsHtml([{
+    id: 'gefen-status-without-path',
+    quote_number: '10305',
+    activity_type_group: 'gefen',
+    gefen_approval_status: 'generated',
+    gefen_approval_path: '',
+    status: 'approved'
+  }], stateFor('admin'));
+  assert.match(generatedWithoutPathHtml, /ds-pa-gefen-status-text--missing">חסר<\/span>/);
+});
+
+test('search, filter, and next-page proposal list loads keep includeLinkedDocuments true', async () => {
+  const calls = [];
+  const api = {
+    proposalsAgreements: async (options) => {
+      calls.push({ ...options });
+      return {
+        rows: Array.isArray(options.rows) ? options.rows : [],
+        _hasMore: options.offset === 0,
+        _offset: Number(options.offset || 0),
+        _limit: Number(options.limit || 50),
+        _query: {
+          search: options.search || '',
+          status: options.status || '',
+          authorityId: options.authorityId || '',
+          schoolId: options.schoolId || '',
+          clientType: options.clientType || '',
+          sort: options.sort || 'updated_at_desc'
+        }
+      };
+    }
+  };
+  const seedRow = {
+    id: 'gefen-paging-1',
+    quote_number: '10401',
+    client_authority: 'רשות גפן',
+    school_framework: 'בית ספר גפן',
+    activity_type_group: 'gefen',
+    status: 'approved',
+    proposal_domain: 'Y',
+    gefen_approval_status: 'generated',
+    gefen_approval_path: 'proposal-linked-documents/gefen-paging-1/approval.pdf'
+  };
+  const data = {
+    rows: [seedRow],
+    _hasMore: true,
+    _offset: 0,
+    _limit: 50,
+    _query: { search: '', status: '', authorityId: '', schoolId: '', clientType: '', sort: 'updated_at_desc' }
+  };
+
+  await withJSDOM(proposalsAgreementsScreen.render(data, { state: stateFor('admin') }), async (root, dom) => {
+    proposalsAgreementsScreen.bind({ root, data, state: stateFor('admin'), api });
+
+    const loadMore = root.querySelector('[data-pa-load-more-proposals]');
+    assert.ok(loadMore, 'load-more control should render when more pages exist');
+    loadMore.dispatchEvent(new dom.window.MouseEvent('click', { bubbles: true }));
+    await delay(40);
+    assert.equal(calls.length, 1, 'next page should call proposalsAgreements');
+    assert.equal(calls[0].includeLinkedDocuments, true);
+    assert.equal(calls[0].offset, 50);
+
+    const searchInput = root.querySelector('[data-pa-search]');
+    searchInput.value = 'רשות גפן';
+    searchInput.dispatchEvent(new dom.window.Event('input', { bubbles: true }));
+    await delay(320);
+    assert.equal(calls.length, 2, 'toolbar search should call proposalsAgreements');
+    assert.equal(calls[1].includeLinkedDocuments, true);
+    assert.equal(calls[1].search, 'רשות גפן');
+    assert.equal(calls[1].offset, 0);
+
+    const statusFilter = root.querySelector('[data-pa-filter="status"]');
+    statusFilter.value = 'approved';
+    statusFilter.dispatchEvent(new dom.window.Event('change', { bubbles: true }));
+    await delay(40);
+    assert.equal(calls.length, 3, 'status filter should call proposalsAgreements');
+    assert.equal(calls[2].includeLinkedDocuments, true);
+    assert.equal(calls[2].status, 'approved');
+    assert.equal(calls[2].offset, 0);
+  });
+});
+
+test('opening an existing GEFEN approval document still uses the signed URL', async () => {
+  let requestedId = null;
+  const openedUrls = [];
+  const row = {
+    id: 'gefen-open-existing',
+    quote_number: '10501',
+    activity_type_group: 'gefen',
+    gefen_approval_status: 'generated',
+    gefen_approval_path: 'proposal-linked-documents/gefen-open-existing/approval.pdf',
+    status: 'approved'
+  };
+  const api = {
+    getGefenApprovalSignedUrl: async (id) => {
+      requestedId = id;
+      return { signedUrl: 'https://example.test/gefen-approval.pdf', fileName: 'אישור_גפן_10501.pdf' };
+    }
+  };
+
+  await withJSDOM(proposalsAgreementsScreen.render({ rows: [row] }, { state: stateFor('admin') }), async (root, dom) => {
+    dom.window.open = (url) => {
+      openedUrls.push(url);
+      return { closed: false };
+    };
+    proposalsAgreementsScreen.bind({ root, data: { rows: [row] }, state: stateFor('admin'), api });
+    const viewBtn = root.querySelector('[data-pa-view-gefen-approval="gefen-open-existing"]');
+    assert.ok(viewBtn, 'view GEFEN approval action should exist for generated rows');
+    viewBtn.dispatchEvent(new dom.window.MouseEvent('click', { bubbles: true }));
+    await delay(40);
+    assert.equal(requestedId, 'gefen-open-existing');
+    assert.deepEqual(openedUrls, ['https://example.test/gefen-approval.pdf']);
+  });
+});
 
 test('GEFEN signed or ordered marker column renders active checkbox only for GEFEN rows', () => {
   const html = proposalsAgreementsTableRowsHtml([
