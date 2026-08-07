@@ -314,23 +314,7 @@
 }
 
 .course-scheduling-courses {
-  max-height: calc(100vh - 224px);
-  overflow: auto;
-  scrollbar-width: thin;
-  scrollbar-color: #d5dee8 transparent;
-}
-
-.course-scheduling-courses::-webkit-scrollbar {
-  width: 6px;
-}
-
-.course-scheduling-courses::-webkit-scrollbar-track {
-  background: transparent;
-}
-
-.course-scheduling-courses::-webkit-scrollbar-thumb {
-  background: #d5dee8;
-  border-radius: 999px;
+  overflow: visible;
 }
 
 .course-scheduling-detail {
@@ -1739,4 +1723,165 @@
   flex-wrap: wrap;
   gap: 8px;
   justify-content: flex-start;
+}
+
+/* ——— Scope bar: filter labels (new flat layout) ——— */
+.course-scheduling-filter-label {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  font-size: 0.84rem;
+  font-weight: 700;
+  color: var(--cs-text-muted);
+  white-space: nowrap;
+}
+
+.course-scheduling-filter-label .course-scheduling-input {
+  min-height: 34px;
+}
+
+.course-scheduling-period-range--push {
+  margin-inline-start: auto;
+}
+
+/* ——— Alternatives: compact table rows ——— */
+.cs-alt-table {
+  border: 1px solid var(--cs-border);
+  border-radius: 10px;
+  overflow: hidden;
+}
+
+.cs-alt-table-head {
+  --cs-alt-cols: minmax(0, 1.4fr) minmax(0, .5fr) minmax(0, .9fr) minmax(0, .6fr) auto;
+  display: grid;
+  grid-template-columns: var(--cs-alt-cols);
+  column-gap: 12px;
+  padding: 6px 14px;
+  background: var(--cs-surface-soft);
+  border-bottom: 1px solid var(--cs-border);
+  font-size: 0.74rem;
+  font-weight: 700;
+  color: var(--cs-text-muted);
+  align-items: center;
+}
+
+.cs-alt-row {
+  --cs-alt-cols: minmax(0, 1.4fr) minmax(0, .5fr) minmax(0, .9fr) minmax(0, .6fr) auto;
+  display: grid;
+  grid-template-columns: var(--cs-alt-cols);
+  column-gap: 12px;
+  padding: 10px 14px;
+  border-bottom: 1px solid var(--cs-border);
+  background: var(--cs-surface);
+  align-items: center;
+  cursor: pointer;
+  transition: background 0.1s;
+}
+
+.cs-alt-row:last-child {
+  border-bottom: 0;
+}
+
+.cs-alt-row:hover {
+  background: var(--cs-surface-soft);
+}
+
+.cs-alt-row.is-selected {
+  background: var(--cs-accent-soft);
+}
+
+.cs-alt-row__name {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  font-size: 0.88rem;
+  font-weight: 600;
+  cursor: pointer;
+  min-width: 0;
+}
+
+.cs-alt-row__name input[type="radio"] {
+  flex: 0 0 auto;
+  margin: 0;
+}
+
+.cs-alt-row__name span {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.cs-alt-row__score {
+  font-size: 0.9rem;
+  font-weight: 700;
+  white-space: nowrap;
+}
+
+.cs-alt-row__score small {
+  font-size: 0.74rem;
+  font-weight: 400;
+  color: var(--cs-text-muted);
+}
+
+.cs-alt-row__dist,
+.cs-alt-row__load {
+  font-size: 0.82rem;
+  color: var(--cs-text-muted);
+  white-space: nowrap;
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.cs-alt-row__details {
+  font-size: 0.8rem;
+}
+
+.cs-alt-row__details > summary {
+  cursor: pointer;
+  color: var(--cs-accent);
+  font-size: 0.78rem;
+  white-space: nowrap;
+  font-weight: 700;
+}
+
+.cs-alt-row__details > div {
+  margin-top: 8px;
+  padding-top: 8px;
+  border-top: 1px solid var(--cs-border);
+  grid-column: 1 / -1;
+}
+
+/* ——— Maintenance section: compact collapsible at bottom ——— */
+.cs-maintenance-toggle {
+  border: 1px solid var(--cs-border);
+  border-radius: 10px;
+  background: var(--cs-surface-soft);
+  padding: 10px 14px;
+}
+
+.cs-maintenance-toggle > summary {
+  cursor: pointer;
+  font-size: 0.86rem;
+  font-weight: 700;
+  color: var(--cs-text-muted);
+  list-style: none;
+  display: flex;
+  align-items: center;
+  gap: 6px;
+}
+
+.cs-maintenance-toggle > summary::before {
+  content: '⚙';
+  font-size: 0.9em;
+}
+
+.cs-maintenance-toggle[open] > summary {
+  margin-bottom: 12px;
+  padding-bottom: 10px;
+  border-bottom: 1px solid var(--cs-border);
+}
+
+.cs-maintenance-toggle .course-scheduling-maintenance-tab {
+  margin-top: 0;
 }

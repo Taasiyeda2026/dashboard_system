@@ -205,15 +205,20 @@ function schedulingScopeHtml(allCourses = [], state = {}) {
   const period = resolveCourseSchedulingPeriod(periodKey);
   const periodButtons = periodOptions().map((option) => `<button type="button" class="course-scheduling-tab${option.key === periodKey ? ' is-active' : ''}" data-period-key="${escapeHtml(option.key)}">${escapeHtml(option.label)}</button>`).join('');
   const district = normalizeOperationalDistrict(state.courseSchedulingDistrict || '');
-  const districtOptions = `<label>מחוז<select class="course-scheduling-input" data-district-filter><option value="">כל המחוזות</option>${OPERATIONAL_DISTRICTS.map((item) => `<option value="${escapeHtml(item)}"${item === district ? ' selected' : ''}>${escapeHtml(item)}</option>`).join('')}</select></label>`;
+  const districtSelectHtml = `<option value="">כל המחוזות</option>${OPERATIONAL_DISTRICTS.map((item) => `<option value="${escapeHtml(item)}"${item === district ? ' selected' : ''}>${escapeHtml(item)}</option>`).join('')}`;
   const scopedForAuthority = allCourses.filter((course) => filterMeetingsByCourseSchedulingPeriod(activityMeetings(course), periodKey).length).filter((course) => !district || districtValue(course) === district);
   const selectedAuthority = text(state.courseSchedulingAuthority || '');
-  const authorities = authorityOptions(scopedForAuthority);
-  const authoritySelect = `<label>רשות<select class="course-scheduling-input" data-authority-filter><option value="">כל הרשויות</option>${authorities.map((item) => `<option value="${escapeHtml(item)}"${item === selectedAuthority ? ' selected' : ''}>${escapeHtml(item)}</option>`).join('')}</select></label>`;
-  const periodRange = `${formatDateHeDots(period.start)} עד ${formatDateHeDots(period.end)}`;
+  const authorityList = authorityOptions(scopedForAuthority);
+  const authoritySelectHtml = `<option value="">כל הרשויות</option>${authorityList.map((item) => `<option value="${escapeHtml(item)}"${item === selectedAuthority ? ' selected' : ''}>${escapeHtml(item)}</option>`).join('')}`;
+  const periodRange = `${formatDateHeDots(period.start)} – ${formatDateHeDots(period.end)}`;
   const districtPlanDisabled = !district || !!state.courseSchedulingSimulationLoading;
-  const districtPlanButton = `<button type="button" class="course-scheduling-btn course-scheduling-btn--primary" data-run-district-simulation ${districtPlanDisabled ? 'disabled' : ''} title="${district ? 'הפעלת סימולציית תכנון למחוז הנבחר' : 'יש לבחור מחוז'}">הפעל תכנון מחוזי</button>`;
-  return `<section class="course-scheduling-scope"><div class="course-scheduling-scope-inner"><div class="course-scheduling-tabs course-scheduling-tabs--inner">${periodButtons}</div><p class="course-scheduling-period-range">${escapeHtml(periodRange)}</p><div class="course-scheduling-filter-row">${districtOptions}${authoritySelect}${districtPlanButton}</div></div></section>`;
+  return `<section class="course-scheduling-scope"><div class="course-scheduling-scope-inner">
+    <div class="course-scheduling-tabs course-scheduling-tabs--inner">${periodButtons}</div>
+    <label class="course-scheduling-filter-label">מחוז<select class="course-scheduling-input" data-district-filter>${districtSelectHtml}</select></label>
+    <label class="course-scheduling-filter-label">רשות<select class="course-scheduling-input" data-authority-filter>${authoritySelectHtml}</select></label>
+    <button type="button" class="course-scheduling-btn course-scheduling-btn--primary" data-run-district-simulation ${districtPlanDisabled ? 'disabled' : ''} title="${district ? 'הפעלת סימולציית תכנון למחוז הנבחר' : 'יש לבחור מחוז'}">הפעל תכנון מחוזי</button>
+    <p class="course-scheduling-period-range course-scheduling-period-range--push">${escapeHtml(periodRange)}</p>
+  </div></section>`;
 }
 
 function activeTab(state) {
@@ -640,28 +645,36 @@ function primaryCandidateCardHtml(candidate, {
   </article>`;
 }
 
+function candidateAltDistanceMeta(candidate) {
+  const home = candidate?.travel?.home;
+  const km = home?.distance_km;
+  const minutes = home?.duration_minutes;
+  if (km == null || !Number.isFinite(Number(km))) return '—';
+  const kmStr = `${Math.round(Number(km))} ק״מ`;
+  if (minutes != null && Number.isFinite(Number(minutes))) return `${kmStr} · ${Math.round(Number(minutes))} דק'`;
+  return kmStr;
+}
+
 function alternativeCandidateCardHtml(candidate, { selectedId = '', name = 'course-candidate' } = {}) {
   const id = emp(candidate);
   const checked = id && id === selectedId ? ' checked' : '';
   const selected = id && id === selectedId ? ' is-selected' : '';
   const radioId = `course-candidate-alt-${escapeHtml(id || 'x')}`;
-  return `<article class="course-scheduling-alt-card${selected}" data-candidate-row="${escapeHtml(id)}">
-    <div class="course-scheduling-alt-card__select">
+  const load = candidate?.projectedHalfHours != null && Number.isFinite(Number(candidate.projectedHalfHours))
+    ? formatWorkloadHours(candidate.projectedHalfHours) : '—';
+  return `<div class="cs-alt-row${selected}" data-candidate-row="${escapeHtml(id)}">
+    <label class="cs-alt-row__name" for="${radioId}">
       <input id="${radioId}" type="radio" name="${escapeHtml(name)}" value="${escapeHtml(id)}"${checked}>
-    </div>
-    <div class="course-scheduling-alt-card__body">
-      <div class="course-scheduling-alt-card__topline">
-        <label class="course-scheduling-alt-card__name" for="${radioId}">${escapeHtml(candidate.instructor?.full_name || id)}</label>
-        <div class="course-scheduling-alt-card__score" aria-label="ציון ${candidate.score ?? '—'}/100"><strong>${candidate.score ?? '—'}</strong><span>/100</span></div>
-      </div>
-      ${candidate.qualityLabel ? `<p class="course-scheduling-alt-card__quality">${escapeHtml(candidate.qualityLabel)}</p>` : ''}
-      <div class="course-scheduling-candidate-meta">${candidateMetaLine(candidate)}</div>
-      <details class="course-scheduling-alt-score">
-        <summary>פירוט הציון</summary>
-        ${scoreComponentsHtml(candidate)}
-      </details>
-    </div>
-  </article>`;
+      <span>${escapeHtml(candidate.instructor?.full_name || id)}</span>
+    </label>
+    <span class="cs-alt-row__score" aria-label="ציון ${candidate.score ?? '—'} מתוך 100">${candidate.score ?? '—'}<small>/100</small></span>
+    <span class="cs-alt-row__dist">${escapeHtml(candidateAltDistanceMeta(candidate))}</span>
+    <span class="cs-alt-row__load">${escapeHtml(load)}</span>
+    <details class="cs-alt-row__details">
+      <summary>פירוט</summary>
+      ${scoreComponentsHtml(candidate)}
+    </details>
+  </div>`;
 }
 
 function rejectedCandidatesHtml(result) {
@@ -773,7 +786,12 @@ function candidatesResultsLayoutHtml(result, state, { primary, kind }) {
     ${primaryCandidateCardHtml(primary, { kind, selectedId, name: radioName })}
     ${alternatives.length ? `<section class="course-scheduling-alternatives" data-alternatives>
       <h4>חלופות מתאימות</h4>
-      <div class="course-scheduling-alt-grid">${alternatives.map((item) => alternativeCandidateCardHtml(item, { selectedId, name: radioName })).join('')}</div>
+      <div class="cs-alt-table">
+        <div class="cs-alt-table-head" aria-hidden="true">
+          <span>מדריך</span><span>ציון</span><span>מרחק · נסיעה</span><span>עומס</span><span></span>
+        </div>
+        ${alternatives.map((item) => alternativeCandidateCardHtml(item, { selectedId, name: radioName })).join('')}
+      </div>
     </section>` : ''}
     ${rejectedCandidatesHtml(result)}
     ${resultsActionsHtml(result, selectedId)}
@@ -911,10 +929,7 @@ function assignedDetailHtml(row) {
   return `${selectedCourseMetaHtml(c)}
     <p class="course-scheduling-status-chip is-ready">${STATUS.assigned}</p>
     <p>מדריך משובץ: <b>${escapeHtml(c.instructor_name || c.emp_id)}</b></p>
-    <p class="course-scheduling-muted">הקורס מופיע גם במערכת השבועית.</p>
-    <div class="course-scheduling-detail-actions">
-      <button type="button" class="course-scheduling-btn course-scheduling-btn--secondary" data-switch-tab="calendar">מעבר למערכת שבועית</button>
-    </div>`;
+    <p class="course-scheduling-muted">השיבוץ אושר ומופיע בסידור העבודה.</p>`;
 }
 
 function selectedCoursePanelHtml(row, state) {
@@ -1162,54 +1177,44 @@ export const courseSchedulingScreen = {
     const selectedRow = rowModels.find((row) => row.id === selectedId)
       || (selectedId ? courseRowModel(interfaceCourses.find((course) => idOf(course) === selectedId) || { row_id: selectedId }, resultByCourseId, data.meetingState) : null);
     const readiness = courseSchedulingDataReadiness(data.activities || []);
-    const contentTitle = tab === 'calendar' ? 'מערכת שבועית' : (tab === 'maintenance' ? 'תחזוקה' : 'שיבוצים');
-
     return dsScreenStack(`${instructorsWorkspaceNavStylesHtml()}
-    <div class="course-scheduling-screen" dir="rtl" data-cs-ui="ux-polish-20260805-v1" data-cs-tab="${tab}">
+    <div class="course-scheduling-screen" dir="rtl" data-cs-ui="ux-polish-20260805-v1" data-cs-tab="courses">
       ${instructorsWorkspaceHeaderHtml({ activeTab: 'scheduling', state })}
-      <header class="course-scheduling-header">
-        <div class="course-scheduling-header-copy">
-          <h2 class="course-scheduling-title instructors-workspace-content-title">${contentTitle}</h2>
-          <nav class="course-scheduling-tabs" aria-label="ניווט ממשק השיבוצים">
-        <button type="button" class="course-scheduling-tab${tab === 'courses' ? ' is-active' : ''}" data-switch-tab="courses">קורסים לשיבוץ</button>
-        <button type="button" class="course-scheduling-tab${tab === 'calendar' ? ' is-active' : ''}" data-switch-tab="calendar">מערכת שבועית</button>
-        <button type="button" class="course-scheduling-tab${tab === 'maintenance' ? ' is-active' : ''}" data-switch-tab="maintenance">תחזוקה</button>
-          </nav>
-        </div>
-      </header>
 
       ${schedulingScopeHtml(allInterfaceCourses, state)}
-      ${tab === 'courses' ? (
-        state.courseSchedulingSimulationView
-          ? districtSimulationPanelHtml({
-            rows: state.courseSchedulingSimulationRows || [],
-            counts: state.courseSchedulingSimulationCounts || summarizeDistrictSimulation([]),
-            statusFilter: state.courseSchedulingSimulationStatusFilter || '',
-            selectedId,
-            selectedCourseIds: state.courseSchedulingSimulationSelectedIds,
-            district: normalizeOperationalDistrict(state.courseSchedulingDistrict || ''),
-            loading: !!state.courseSchedulingSimulationLoading,
-            error: state.courseSchedulingSimulationError || '',
-            saving: !!state.courseSchedulingSimulationSaving,
-            confirmSave: !!state.courseSchedulingSimulationConfirmSave,
-            saveResult: state.courseSchedulingSimulationSaveResult || null
-          })
-          : `
-        <section class="course-scheduling-summary">${summaryCardsHtml(interfaceCourses, results, readiness)}</section>
-        <p data-course-scheduling-error class="course-scheduling-alert"${state.courseSchedulingError ? '' : ' hidden'}>${escapeHtml(state.courseSchedulingError || '')}</p>
-        <div class="course-scheduling-layout course-scheduling-layout--courses">
-          <aside class="course-scheduling-courses">${courseListHtml(rowModels, selectedId)}</aside>
-          <section class="course-scheduling-detail" data-course-detail>${
-            !interfaceCourses.length
-              ? `<div class="course-scheduling-empty course-scheduling-empty--center">
-                  <strong>אין קורסים לשיבוץ כרגע</strong>
-                  <p>כשיופיעו קורסים ממתינים, תוכלו לבחור קורס ולהתחיל שיבוץ.</p>
-                </div>`
-              : selectedCoursePanelHtml(selectedRow?.course ? selectedRow : null, state)
-          }</section>
-        </div>
-      `
-      ) : (tab === 'calendar' ? calendarTabHtml({ interfaceCourses, selectedId, state }) : maintenanceTabHtml())}
+      ${state.courseSchedulingSimulationView
+        ? districtSimulationPanelHtml({
+          rows: state.courseSchedulingSimulationRows || [],
+          counts: state.courseSchedulingSimulationCounts || summarizeDistrictSimulation([]),
+          statusFilter: state.courseSchedulingSimulationStatusFilter || '',
+          selectedId,
+          selectedCourseIds: state.courseSchedulingSimulationSelectedIds,
+          district: normalizeOperationalDistrict(state.courseSchedulingDistrict || ''),
+          loading: !!state.courseSchedulingSimulationLoading,
+          error: state.courseSchedulingSimulationError || '',
+          saving: !!state.courseSchedulingSimulationSaving,
+          confirmSave: !!state.courseSchedulingSimulationConfirmSave,
+          saveResult: state.courseSchedulingSimulationSaveResult || null
+        })
+        : `
+      <section class="course-scheduling-summary">${summaryCardsHtml(interfaceCourses, results, readiness)}</section>
+      <p data-course-scheduling-error class="course-scheduling-alert"${state.courseSchedulingError ? '' : ' hidden'}>${escapeHtml(state.courseSchedulingError || '')}</p>
+      <div class="course-scheduling-layout course-scheduling-layout--courses">
+        <aside class="course-scheduling-courses">${courseListHtml(rowModels, selectedId)}</aside>
+        <section class="course-scheduling-detail" data-course-detail>${
+          !interfaceCourses.length
+            ? `<div class="course-scheduling-empty course-scheduling-empty--center">
+                <strong>אין קורסים לשיבוץ כרגע</strong>
+                <p>כשיופיעו קורסים ממתינים, תוכלו לבחור קורס ולהתחיל שיבוץ.</p>
+              </div>`
+            : selectedCoursePanelHtml(selectedRow?.course ? selectedRow : null, state)
+        }</section>
+      </div>
+      <details class="cs-maintenance-toggle">
+        <summary>תחזוקה</summary>
+        ${maintenanceTabHtml()}
+      </details>
+    `}
       ${state.courseSchedulingShowDistanceConfirm ? distanceMaintenanceDialogHtml(state) : ''}
       ${dataReadinessDrawerHtml(data, state)}
     </div>`);
