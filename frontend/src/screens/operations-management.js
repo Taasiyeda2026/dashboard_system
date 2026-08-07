@@ -3125,6 +3125,14 @@ function renderTab(rows, state, data, allPreparedRows = []) {
     return completionApprovalTabHtml(approvalRows, state, data, directory, contactsIndex, summerPrintContactsIndex);
   }
   if (ops.tab === TAB_WORKSHOPS) {
+    // טוען כרגע — הצג spinner
+    if (data?._workshopsLoading) {
+      return `<div dir="rtl" style="padding:32px 16px;text-align:center;color:var(--ds-text-muted,#64748b);font-size:0.9rem;">טוען נתוני מלאי סדנאות…</div>`;
+    }
+    // טרם נלחץ — adminListsData=undefined פירושו שהלשונית טרם נבחרה
+    if (data?.adminListsData === undefined) {
+      return `<div dir="rtl" style="padding:32px 16px;text-align:center;color:var(--ds-text-muted,#64748b);font-size:0.9rem;">לחץ על הלשונית <strong>ציוד ומלאי</strong> לטעינת הנתונים.</div>`;
+    }
     const adminListsData = data?.adminListsData;
     if (adminListsData?.error || adminListsData?._loadError) {
       // eslint-disable-next-line no-console
@@ -3264,18 +3272,29 @@ export const operationsManagementScreen = {
     const tabKey = operationsTabDataKey(ops.tab);
     const dateFrom = String(ops.dateFrom || '').trim();
     const dateTo = String(ops.dateTo || '').trim();
+    // ציוד ומלאי — lazy only: נתונים נטענים רק בלחיצה על הלשונית, לא בכניסה
+    const workshopsDeferred = tabKey === TAB_WORKSHOPS;
     const [activities, tabData] = await Promise.all([
       api.allActivities({
         activity_period: state?.activityPeriodTab,
         startDate: dateFrom,
         endDate: dateTo
       }),
-      loadOperationsTabData(api, tabKey, { state })
+      workshopsDeferred
+        ? Promise.resolve({
+            workshopStockMap: new Map(),
+            adminListsData: undefined,          // undefined = טרם נטען (שונה משגיאה)
+            workshopStockDistributions: [],
+            workshopInventorySourceRows: [],
+            workshopInventoryOpeningBalances: [],
+            workshopInventory2027Rows: []
+          })
+        : loadOperationsTabData(api, tabKey, { state })
     ]);
     return {
       ...activities,
       ...tabData,
-      _loadedOperationsTabs: [tabKey],
+      _loadedOperationsTabs: workshopsDeferred ? [] : [tabKey],
       _operationsTabLoadPromises: new Map()
     };
   },
@@ -3339,6 +3358,11 @@ export const operationsManagementScreen = {
         const tabKey = operationsTabDataKey(ops.tab);
         const loadedTabs = new Set(Array.isArray(data?._loadedOperationsTabs) ? data._loadedOperationsTabs : []);
         if (!loadedTabs.has(tabKey)) {
+          // ציוד ומלאי: הצג loading spinner לפני בקשת Supabase
+          if (tabKey === TAB_WORKSHOPS) {
+            data._workshopsLoading = true;
+            rerender?.();
+          }
           const promises = data._operationsTabLoadPromises instanceof Map ? data._operationsTabLoadPromises : new Map();
           data._operationsTabLoadPromises = promises;
           let request = promises.get(tabKey);
@@ -3351,6 +3375,9 @@ export const operationsManagementScreen = {
             loadedTabs.add(tabKey);
             data._loadedOperationsTabs = [...loadedTabs];
           } catch (_) { /* existing empty-state behavior remains available */ }
+          if (tabKey === TAB_WORKSHOPS) {
+            data._workshopsLoading = false;
+          }
         }
         rerender?.();
       });
