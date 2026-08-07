@@ -6510,15 +6510,16 @@ async function readCatalogProgramsFromSupabase() {
 }
 export const api = {
   login: async (user_id, entry_code) => {
-    // Use focused bootstrap lists (9 categories, ~184 rows) instead of all ~997 rows.
-    // School/authority are loaded separately from dedicated tables (schools, authorities).
-    const [{ userRow: user, profileRow }, listsData, settingsRows, instructorContactsRows, courseMeetingsRows, catalogData] = await Promise.all([
-      loginWithSupabaseAuth(user_id, entry_code),
+    // Auth must complete before any permission-guarded Supabase reads.
+    const { userRow: user, profileRow } = await loginWithSupabaseAuth(user_id, entry_code);
+    // Bootstrap reads run in parallel after auth is established.
+    // school/authority are NOT loaded here — they are lazy-loaded on first demand
+    // via readAuthoritySchoolCatalog() inside api functions that need them.
+    const [listsData, settingsRows, instructorContactsRows, courseMeetingsRows] = await Promise.all([
       readBootstrapListsFromSupabase().catch(() => null),
       readSettingsRowsFromSupabase().catch(() => []),
       readInstructorContactsRowsForBootstrap().catch(() => []),
-      readCourseMeetingsRowsForBootstrap().catch(() => []),
-      readAuthoritySchoolCatalog().catch(() => null)
+      readCourseMeetingsRowsForBootstrap().catch(() => [])
     ]);
     const token = makeSessionToken(user);
     const flat = flattenUserRow(user);
@@ -6554,23 +6555,23 @@ export const api = {
         ...proposalFlags
       },
       ...buildBootstrapFromUser(user, profileRow),
-      client_settings: buildClientSettingsFromLists(listsData, settingsRows, instructorContactsRows, courseMeetingsRows, catalogData)
+      // catalogData = null: school/authority are lazy-loaded on demand, not at login.
+      client_settings: buildClientSettingsFromLists(listsData, settingsRows, instructorContactsRows, courseMeetingsRows, null)
     };
   },
   bootstrap: async () => {
     await waitForSupabaseAuthSession();
-    // Use focused bootstrap lists + dedicated catalog for school/authority.
-    const [{ userRow: user, profileRow }, listsData, settingsRows, instructorContactsRows, courseMeetingsRows, catalogData] = await Promise.all([
+    // school/authority are NOT loaded here — lazy-loaded on first demand.
+    const [{ userRow: user, profileRow }, listsData, settingsRows, instructorContactsRows, courseMeetingsRows] = await Promise.all([
       readCurrentUserBySession(),
       readBootstrapListsFromSupabase().catch(() => null),
       readSettingsRowsFromSupabase().catch(() => []),
       readInstructorContactsRowsForBootstrap().catch(() => []),
-      readCourseMeetingsRowsForBootstrap().catch(() => []),
-      readAuthoritySchoolCatalog().catch(() => null)
+      readCourseMeetingsRowsForBootstrap().catch(() => [])
     ]);
     return {
       ...buildBootstrapFromUser(user, profileRow),
-      client_settings: buildClientSettingsFromLists(listsData, settingsRows, instructorContactsRows, courseMeetingsRows, catalogData)
+      client_settings: buildClientSettingsFromLists(listsData, settingsRows, instructorContactsRows, courseMeetingsRows, null)
     };
   },
   dashboard: (filters) => api.dashboardReadModel(filters || {}),

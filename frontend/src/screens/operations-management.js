@@ -3294,6 +3294,17 @@ export const operationsManagementScreen = {
     const tabKey = operationsTabDataKey(ops.tab);
     const dateFrom = String(ops.dateFrom || '').trim();
     const dateTo = String(ops.dateTo || '').trim();
+
+    // school_2027: לא טוענים allActivities בכניסה.
+    // כל לשונית תטען את הנתונים שלה בלבד בעת לחיצה, דרך ה-2027 controller.
+    if (ops.period === ACTIVITY_SEASON_SCHOOL_2027) {
+      return {
+        rows: [],
+        _loadedOperationsTabs: [],
+        _operationsTabLoadPromises: new Map()
+      };
+    }
+
     // ציוד ומלאי — lazy only: נתונים נטענים רק בלחיצה על הלשונית, לא בכניסה
     const workshopsDeferred = tabKey === TAB_WORKSHOPS;
     const [activities, tabData] = await Promise.all([

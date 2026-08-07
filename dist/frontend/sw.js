@@ -4,18 +4,13 @@
  * API-like requests: network only, never cached. Bump CACHE_VERSION after deploy to drop old caches.
  * CACHE_VERSION is the single manual SW/cache version source; /sw.js imports this file without its own version.
  */
-const CACHE_VERSION = 1408;
+const CACHE_VERSION = 1409;
 const CACHE_PREFIX = 'dashboard-static-v';
 const CACHE_NAME = `${CACHE_PREFIX}${CACHE_VERSION}`;
 
 /** Relative paths from sw.js location — works on any origin/proxy (Replit, deploy, etc). */
 const PRECACHE_URLS = [
-  "./assets/apple-touch-icon-DZF9rhdV.png",
-  "./assets/favicon-D0Y9bj5H.ico",
-  "./assets/index-Bou3Scco.js",
-  "./assets/style-juIvJ0NQ.css",
-  "./index.html",
-  "./manifest.json"
+  './index.html'
 ];
 
 function resolveUrl(path) {
