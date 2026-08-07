@@ -1,5 +1,5 @@
 import { escapeHtml } from './shared/html.js';
-import { dsEmptyState, dsStatusChip } from './shared/layout.js';
+import { dsEmptyState } from './shared/layout.js';
 import { formatDateHe, formatTimeRangeShort } from './shared/format-date.js';
 import { activityTypeIconSvg } from './shared/activity-type-icons.js';
 import { INSTRUCTOR_WEEKDAYS } from './instructor-scheduling-data.js';
@@ -29,17 +29,21 @@ const TYPES = [
 
 export function instructorCard(row) {
   const counts = row.activity_type_counts || {};
-  const stats = TYPES.map(({ keys, label, icon }) => {
+  const statItems = TYPES.map(({ keys, label, icon }) => {
     const count = keys.reduce((sum, key) => sum + Number(counts[key] || 0), 0);
-    return `<span title="${escapeHtml(label)}" style="display:inline-flex;align-items:center;gap:4px;color:#536278"><span aria-hidden="true">${activityTypeIconSvg(icon, 14)}</span><strong>${count}</strong></span>`;
-  }).join('');
-  return `<button type="button" class="ds-card" data-instructor-profile="${escapeHtml(row.emp_id)}" data-instructor-card="${escapeHtml(row.emp_id)}" style="text-align:right;padding:0;border:1px solid #dfe7f1;background:#fff;cursor:pointer;min-height:138px">
-    <span style="display:grid;gap:12px;padding:16px">
-      <span style="display:flex;align-items:flex-start;justify-content:space-between;gap:10px">
-        <span style="display:grid;gap:4px;min-width:0"><strong style="font-size:1.02rem;color:#172235">${escapeHtml(text(row.full_name || row.emp_id) || '—')}</strong><span style="font-size:.82rem;color:#69778b">${escapeHtml(row.emp_id || '')}</span></span>
-        <span style="display:flex;gap:6px;flex-wrap:wrap;justify-content:flex-end">${dsStatusChip(activeFlag(row.active) === 'yes' ? 'פעיל' : 'לא פעיל', activeFlag(row.active) === 'yes' ? 'success' : 'neutral')}${dsStatusChip(assigned(row) ? 'משובץ' : 'לא משובץ', assigned(row) ? 'info' : 'neutral')}${text(row.address) ? '' : '<span class="ds-status-chip ds-status-chip--warning">חסרה כתובת</span>'}</span>
+    if (count === 0) return null;
+    return `<span title="${escapeHtml(label)}" style="display:inline-flex;align-items:center;gap:4px;color:#4a6080"><span aria-hidden="true">${activityTypeIconSvg(icon, 14)}</span><strong style="font-size:.86rem">${count}</strong></span>`;
+  }).filter(Boolean);
+  const hasActivity = statItems.length > 0;
+  const missingAddr = !text(row.address);
+  return `<button type="button" class="ds-card" data-instructor-profile="${escapeHtml(row.emp_id)}" data-instructor-card="${escapeHtml(row.emp_id)}" style="text-align:center;padding:0;border:1px solid #dde5f0;background:#fff;cursor:pointer;border-radius:10px;box-shadow:0 1px 5px rgba(15,23,42,.07),0 0 0 1px rgba(15,23,42,.02);width:100%">
+    <span style="display:grid;gap:${hasActivity ? '10px' : '4px'};padding:14px 14px ${hasActivity ? '12px' : '14px'}">
+      <span style="display:grid;gap:2px">
+        <strong style="font-size:.96rem;color:#172235;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;display:block">${escapeHtml(text(row.full_name || row.emp_id) || '—')}</strong>
+        <span style="font-size:.78rem;color:#8494a7">${escapeHtml(row.emp_id || '')}</span>
+        ${missingAddr ? '<span style="font-size:.72rem;color:#b45309;margin-top:2px">⚠ חסרה כתובת</span>' : ''}
       </span>
-      <span style="display:flex;gap:13px;align-items:center;flex-wrap:wrap;border-top:1px solid #edf1f6;padding-top:11px">${stats}</span>
+      ${hasActivity ? `<span style="display:flex;gap:12px;align-items:center;justify-content:center;flex-wrap:wrap;border-top:1px solid #edf1f6;padding-top:9px">${statItems.join('')}</span>` : ''}
     </span>
   </button>`;
 }

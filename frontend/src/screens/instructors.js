@@ -1,5 +1,5 @@
 import { escapeHtml } from './shared/html.js';
-import { dsCard, dsScreenStack, dsEmptyState } from './shared/layout.js';
+import { dsScreenStack, dsEmptyState } from './shared/layout.js';
 import { showToast } from './shared/toast.js';
 import { activityWorkDrawerHtml, patchDrawerDatesSection } from './shared/activity-detail-html.js';
 import {
@@ -241,11 +241,28 @@ export const instructorsScreen = {
       return !query || searchText(row).includes(query);
     });
     const missingAddress = (data?.rows || []).filter((row) => activeFlag(row.active) === 'yes' && !text(row.address)).length;
-    const body = rows.length ? `<div class="instructors-workspace-grid">${rows.map(instructorCard).join('')}</div>` : dsEmptyState('לא נמצאו מדריכים בהתאם לסינון');
-    return dsScreenStack(`<style>.instructors-workspace-grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(270px,1fr));gap:12px}.instructors-workspace-grid>.ds-card:hover{border-color:#9db9d8!important;box-shadow:0 5px 16px rgba(15,23,42,.08)}@media(max-width:720px){.instructors-workspace-grid{grid-template-columns:1fr}}</style>
-      <header class="ds-page-header"><div><h1 class="ds-page-header__title">מדריכים</h1><p class="ds-page-header__subtitle">פרטי מדריכים, פעילויות, זמינות ואילוצים במקום אחד</p></div>${canEditScheduling(state) ? '<button type="button" class="ds-btn ds-btn--primary" data-route="course-scheduling">שיבוץ קורסים</button>' : ''}</header>
-      <div class="ds-screen-top-row" style="display:grid;gap:10px"><div style="display:flex;gap:10px;align-items:center;flex-wrap:wrap"><input class="ds-search-input" data-instructors-search type="search" placeholder="חיפוש לפי שם, מזהה, רשות, בית ספר או מנהל…" value="${escapeHtml(filters.q || '')}" style="flex:1 1 330px;max-width:620px"><span class="ds-badge">${rows.length} מדריכים</span>${missingAddress ? `<span class="ds-status-chip ds-status-chip--warning">${missingAddress} פעילים ללא כתובת</span>` : ''}</div><div style="display:flex;gap:8px;flex-wrap:wrap"><span class="ds-muted">סטטוס:</span>${chips(ACTIVE_FILTERS, filters.active, 'data-instructors-active')}<span class="ds-muted" style="margin-inline-start:10px">שיבוץ:</span>${chips(ASSIGNMENT_FILTERS, filters.assignment, 'data-instructors-assignment')}</div></div>
-      ${dsCard({ title: '', body, padded: rows.length === 0 })}<p class="ds-muted">ניהול האילוצים וחישוב הצעות השיבוץ פתוחים לאדמין ולתפעול בלבד.</p>`);
+    const gridOrEmpty = rows.length ? `<div class="instructors-workspace-grid">${rows.map(instructorCard).join('')}</div>` : dsEmptyState('לא נמצאו מדריכים בהתאם לסינון');
+    const schedBtn = canEditScheduling(state) ? `<button type="button" class="ds-btn ds-btn--primary ds-btn--sm" data-route="course-scheduling">שיבוץ קורסים</button>` : '';
+    return dsScreenStack(`<style>
+      .instructors-workspace-grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(185px,1fr));gap:9px}
+      .instructors-workspace-grid>.ds-card:hover{border-color:#9db9d8!important;box-shadow:0 4px 14px rgba(15,23,42,.11),0 0 0 1px rgba(15,23,42,.04)!important}
+      @media(max-width:600px){.instructors-workspace-grid{grid-template-columns:repeat(auto-fill,minmax(145px,1fr));gap:7px}}
+      .instr-topbar{display:flex;gap:7px;align-items:center;flex-wrap:wrap;margin-bottom:12px}
+      .instr-sep{width:1px;height:16px;background:#dde5f0;flex-shrink:0;margin:0 1px}
+    </style>
+    <div style="max-width:1080px;margin:0 auto">
+      <div class="instr-topbar">
+        <input class="ds-search-input" data-instructors-search type="search" placeholder="חיפוש לפי שם, מזהה, רשות…" value="${escapeHtml(filters.q || '')}" style="flex:1 1 200px;max-width:320px">
+        <span class="ds-badge">${rows.length}</span>
+        ${missingAddress ? `<span class="ds-status-chip ds-status-chip--warning" style="font-size:.77rem">${missingAddress} ללא כתובת</span>` : ''}
+        <span class="instr-sep"></span>
+        ${chips(ACTIVE_FILTERS, filters.active, 'data-instructors-active')}
+        <span class="instr-sep"></span>
+        ${chips(ASSIGNMENT_FILTERS, filters.assignment, 'data-instructors-assignment')}
+        ${schedBtn ? `<span style="flex:1;min-width:4px"></span>${schedBtn}` : ''}
+      </div>
+      ${gridOrEmpty}
+    </div>`);
   },
 
   bind({ root, data, state, rerender, api, ui, clearScreenDataCache }) {
