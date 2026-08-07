@@ -294,11 +294,15 @@ test('travel is precomputed between two draft courses proposed for the same inst
   assert.equal(routed.routeMatrix['כתובת א→כתובת ב']?.duration_minutes, 12);
 });
 
-test('a missing route between two draft schools safely prevents assigning both to one instructor', () => {
+test('a missing route between two planning recommendations does not hard-block the second course', () => {
   const first = course('a', '2026-09-06', { school: 'א', school_address: 'כתובת א', start_time: '08:00', end_time: '09:00', meetings: [{ date: '2026-09-06', start_time: '08:00', end_time: '09:00' }] });
   const second = course('b', '2026-09-06', { school: 'ב', school_address: 'כתובת ב', start_time: '10:00', end_time: '11:00', meetings: [{ date: '2026-09-06', start_time: '10:00', end_time: '11:00' }] });
   const results = calculateCourseSchedule({ activities: [first, second], instructors: [instructors[0]], profiles: { 1: profiles[1] }, rules: { 1: rules[1] }, exceptions: {}, travel: {}, routeMatrix: {} });
-  assert.equal(results.filter((result) => result.recommended||result.bestAvailable).length,1);
+  // Hidden planningDraft recommendations must not create unverified-transition hard failures.
+  assert.equal(results.filter((result) => result.recommended || result.bestAvailable).length, 2);
+  const secondChecked = results.find((row) => row.course.row_id === 'b')?.checked?.[0];
+  assert.equal(secondChecked?.eligible, true);
+  assert.doesNotMatch((secondChecked?.failures || []).join(' '), /לא ניתן לאמת זמן מעבר|מעבר/);
 });
 
 test('unverified transition between existing schools fails safely', () => {

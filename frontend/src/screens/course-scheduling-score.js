@@ -327,7 +327,8 @@ export function scoreActualWorkload({
 } = {}) {
   const max = SCORE_WEIGHTS.actualWorkload;
   // Soft fairness balancing may use internal planner hours; user-facing values stay persisted-only.
-  const balanceProjected = Number.isFinite(Number(plannerProjectedHalfHours))
+  // Treat null/undefined as "unset" — Number(null) is 0 and must not replace projected hours.
+  const balanceProjected = plannerProjectedHalfHours != null && Number.isFinite(Number(plannerProjectedHalfHours))
     ? Number(plannerProjectedHalfHours)
     : Number(projectedHalfHours);
   const peers = (peerPlannerProjectedHours || peerProjectedHours || []).map(Number).filter(Number.isFinite);
