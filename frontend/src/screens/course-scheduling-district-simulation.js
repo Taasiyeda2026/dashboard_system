@@ -388,6 +388,8 @@ export function runDistrictSchedulingSimulation(input = {}) {
     district,
     // District simulation must not inherit the ordinary authority list filter.
     authority: '',
+    // Include open unassigned courses that lack dates/hours so they appear as חסרים נתונים.
+    includeIncompleteWithoutPeriodMeetings: true,
     // Simulation must never treat itself as a write path.
     preliminary: false
   });

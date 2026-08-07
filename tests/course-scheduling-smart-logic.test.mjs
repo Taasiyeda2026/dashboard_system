@@ -6,7 +6,7 @@ import { evaluateInstructor, schedulingQualityBand } from '../frontend/src/scree
 import { detailsHtml } from '../frontend/src/screens/course-scheduling.js';
 
 const instructor = { emp_id: '1', full_name: 'נועה', active: 'yes', address: 'חיפה' };
-const profile = { gender: null, instruction_languages: ['he'], friday_allowed: false };
+const profile = { gender: 'female', instruction_languages: ['he'], friday_allowed: false };
 const rules = [{ weekday: 0, available: true, start_time: '08:00', end_time: '16:00' }];
 const course = { row_id: 'c1', activity_season: 'school_2027', activity_type: 'course', status: 'פתוח', activity_name: 'קורס', school: 'בית ספר', school_address: 'תל אביב', authority: 'רשות', instruction_language: 'he', required_instructor_gender: 'any', start_time: '10:00', end_time: '11:00', date_1: '2026-09-06' };
 
@@ -17,7 +17,9 @@ test('removed fields never gate or mark an instructor profile incomplete', () =>
   assert.deepEqual(result.missingProfileData, []);
 });
 
-test('gender is a gate only for an explicit male or female requirement', () => {
+test('gender is mandatory even when required gender is any; mismatch remains a hard gate', () => {
+  assert.equal(evaluateInstructor({ instructor, profile: { ...profile, gender: null }, rules, activity: course }).eligible, false);
+  assert.ok(evaluateInstructor({ instructor, profile: { ...profile, gender: null }, rules, activity: course }).missingProfileData.some((item) => /מגדר/.test(item)));
   assert.equal(evaluateInstructor({ instructor, profile, rules, activity: course }).eligible, true);
   assert.equal(evaluateInstructor({ instructor, profile: { ...profile, gender: 'male' }, rules, activity: { ...course, required_instructor_gender: 'female' } }).eligible, false);
 });
@@ -57,7 +59,7 @@ test('no eligible candidate is recruitment while missing-only remains treatment'
 });
 
 test('focused SQL migration removes legacy gates and preserves operational validation', async () => {
-  const sql = await readFile(new URL('../supabase/migrations/20260806191204_simplify_scheduling_gates.sql', import.meta.url), 'utf8');
+  const sql = await readFile(new URL('../supabase/migrations/20260807203000_course_scheduling_e2e_alignment.sql', import.meta.url), 'utf8');
   for (const removed of ['education_levels', 'course_restriction_mode', 'course_ids', 'allowed_instructor_ids', 'blocked_instructor_ids', 'blocked_authorities', 'blocked_schools', 'weekly_target_hours', 'weekly_max_hours', 'preferred_work_days', 'max_fixed_courses']) assert.doesNotMatch(sql, new RegExp(removed));
-  for (const kept of ['instructor_inactive', 'scheduling_language_mismatch', 'scheduling_gender_mismatch', 'scheduling_availability_missing', 'scheduling_conflict_detected', 'scheduling_transition_insufficient', 'scheduling_daily_sequence_exceeded', 'scheduling_instructor_profile_incomplete']) assert.match(sql, new RegExp(kept));
+  for (const kept of ['instructor_inactive', 'scheduling_language_mismatch', 'scheduling_gender_mismatch', 'scheduling_availability_missing', 'scheduling_conflict_detected', 'scheduling_transition_insufficient', 'scheduling_daily_sequence_exceeded', 'scheduling_instructor_profile_incomplete', 'scheduling_home_distance_exceeded', 'scheduling_home_route_unverified']) assert.match(sql, new RegExp(kept));
 });
