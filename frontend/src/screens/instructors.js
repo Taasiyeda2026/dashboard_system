@@ -27,8 +27,8 @@ const INSTRUCTORS_LIST_STYLES = `.instructors-list{display:flex;flex-direction:c
 .instructors-list__toolbar .ds-chip{min-width:72px;justify-content:center}
 .instructors-list__label{margin-inline-start:6px}
 .instructors-workspace-grid{display:flex;flex-wrap:wrap;gap:10px}
-.instructor-card{display:flex;flex-direction:column;align-items:center;justify-content:center;gap:4px;flex:0 0 auto;min-width:132px;max-width:100%;min-height:86px;padding:10px 16px;box-sizing:border-box;text-align:center;background:#fff;border:1px solid #d8dce2;border-radius:var(--ds-radius-md,14px);cursor:pointer;overflow:visible;box-shadow:var(--ds-shadow-sm,0 1px 4px rgba(15,23,42,.08),0 1px 2px rgba(15,23,42,.04));transition:border-color .15s ease,box-shadow .15s ease}
-.instructor-card:hover{border-color:#c3c8d1;box-shadow:var(--ds-shadow-md,0 4px 12px rgba(15,23,42,.1),0 2px 4px rgba(15,23,42,.06))}
+.instructor-card{display:flex;flex-direction:column;align-items:center;justify-content:center;gap:4px;flex:0 0 auto;min-width:132px;max-width:100%;min-height:86px;padding:10px 16px;box-sizing:border-box;text-align:center;background:#fff;border:1px solid #d9e1e8;border-radius:10px;cursor:pointer;overflow:visible;box-shadow:0 2px 6px rgba(15,23,42,.08);transition:box-shadow .15s ease,transform .15s ease}
+.instructor-card:hover{box-shadow:0 3px 8px rgba(15,23,42,.11);transform:translateY(-1px)}
 .instructor-card:focus-visible{outline:none;box-shadow:0 0 0 2px rgba(26,51,88,.22)}
 .instructor-card__name{white-space:nowrap;font-weight:700;color:#172235;line-height:1.25}
 .instructor-card__id{white-space:nowrap;font-size:.72rem;color:#78828f}

@@ -571,7 +571,7 @@ const screenLoaders = {
   week: () => import('./screens/week.js').then((m) => m.weekScreen),
   month: () => import('./screens/month.js').then((m) => m.monthScreen),
   exceptions: () => import('./screens/exceptions.js').then((m) => m.exceptionsScreen),
-  instructors: () => import('./screens/instructors.js?v=20260807-guides-page-redesign-v2').then((m) => m.instructorsScreen),
+  instructors: () => import('./screens/instructors.js?v=20260807-guides-card-shadow-fix-v1').then((m) => m.instructorsScreen),
   'course-scheduling': () => import('./screens/course-scheduling.js?v=20260807-guides-page-redesign-v2').then((m) => m.courseSchedulingScreen),
   'instructor-contacts': () => import('./screens/instructor-contacts.js').then((m) => m.instructorContactsScreen),
   contacts: () => import('./screens/contacts.js').then((m) => m.contactsScreen),
