@@ -1,0 +1,103 @@
+name: Apply course scheduling final consistency v3
+
+on:
+  pull_request:
+    branches: [main]
+
+permissions:
+  contents: write
+
+jobs:
+  apply:
+    if: github.event.pull_request.head.ref == 'fix/course-scheduling-final-consistency-v2' && github.event.pull_request.head.repo.full_name == github.repository
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    services:
+      postgres:
+        image: postgres:16
+        env:
+          POSTGRES_USER: postgres
+          POSTGRES_PASSWORD: postgres
+          POSTGRES_DB: scheduling_test
+        ports:
+          - 5432:5432
+        options: >-
+          --health-cmd "pg_isready -U postgres -d scheduling_test"
+          --health-interval 5s
+          --health-timeout 5s
+          --health-retries 10
+    env:
+      SCHEDULING_TEST_DATABASE_URL: postgresql://postgres:postgres@127.0.0.1:5432/scheduling_test
+    steps:
+      - name: Checkout PR branch
+        uses: actions/checkout@v7
+        with:
+          ref: ${{ github.event.pull_request.head.ref }}
+          fetch-depth: 0
+
+      - name: Apply focused source and cache updates
+        run: |
+          python3 - <<'PY'
+          from pathlib import Path
+          import re
+
+          screen = Path('frontend/src/screens/course-scheduling.js')
+          text = screen.read_text(encoding='utf-8')
+          unsafe = 'לא ניתן לבדוק מרחקים כרגע. ניתן להמשיך לפי זמינות והתאמה בלבד.'
+          safe = 'לא ניתן לאמת מרחקים כרגע. ההצעות מציגות רק מדריכים שאומתו בבטחה, ולא ניתן להשלים שיבוץ ללא מסלול נסיעה אמין.'
+          if unsafe not in text:
+              raise SystemExit('unsafe route fallback message was not found')
+          screen.write_text(text.replace(unsafe, safe), encoding='utf-8')
+
+          config = Path('frontend/src/config.js')
+          text = config.read_text(encoding='utf-8')
+          marker = 'course-scheduling-final-consistency-20260807-v1'
+          if marker not in text:
+              text, count = re.subn(
+                  r"(HOTFIX_VERSION:\s*')([^']*)(')",
+                  lambda match: f"{match.group(1)}{match.group(2)}-{marker}{match.group(3)}",
+                  text,
+                  count=1,
+              )
+              if count != 1:
+                  raise SystemExit('HOTFIX_VERSION was not updated')
+          config.write_text(text, encoding='utf-8')
+
+          sw = Path('frontend/sw.js')
+          text = sw.read_text(encoding='utf-8')
+          text, count = re.subn(r'^const CACHE_VERSION = 1457;$', 'const CACHE_VERSION = 1458;', text, count=1, flags=re.MULTILINE)
+          if count != 1:
+              raise SystemExit('expected CACHE_VERSION 1457')
+          sw.write_text(text, encoding='utf-8')
+
+          Path('.github/workflows/apply-course-scheduling-final-consistency-v3.yml').unlink()
+          PY
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v6
+        with:
+          node-version: '22'
+          cache: npm
+
+      - name: Install dependencies
+        run: npm ci
+
+      - name: Verify frontend and disposable Postgres
+        run: |
+          git fetch --no-tags --depth=1 origin main
+          SCHEDULING_TEST_DATABASE_URL= node --test tests/course-scheduling-*.test.mjs
+          SCHEDULING_TEST_DATABASE_URL= node --test tests/instructor-matching-engine.test.mjs
+          node --test tests/course-scheduling-draft-concurrency.test.mjs
+          node --test tests/course-scheduling-final-consistency-postgres.test.mjs
+          npm run check:changed
+          npm run check:build
+          npm run check:pwa
+          git diff --check
+
+      - name: Commit verified final fix
+        run: |
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add -A
+          git commit -m "Finalize course scheduling consistency and server enforcement"
+          git push origin HEAD:${{ github.event.pull_request.head.ref }}
