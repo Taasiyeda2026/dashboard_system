@@ -28,8 +28,33 @@ export function hasReliableHomeRoute(candidate = {}) {
     && Number.isFinite(Number(home.duration_minutes));
 }
 
+/** Conclusive route/travel hard rejection (known distance >40 km or insufficient known transition). */
+export function isConclusiveRouteFailure(message = '') {
+  const value = text(message);
+  if (!value) return false;
+  if (/אין זמן מעבר מספיק/.test(value)) return true;
+  if (/עולה על המגבלה של\s*40|40\s*ק״מ/.test(value) && /מרחק/.test(value)) return true;
+  return false;
+}
+
+/**
+ * Unresolved route/travel data (home route missing/unavailable, or transition that cannot be verified).
+ * Distinct from conclusive known-route rejections.
+ */
+export function isUnresolvedRouteFailure(message = '') {
+  const value = text(message);
+  if (!value) return false;
+  if (isConclusiveRouteFailure(value)) return false;
+  if (/לא ניתן לאמת זמן מעבר/.test(value)) return true;
+  if (/לא נמצא מסלול|שירות המרחקים לא היה זמין|חסרה כתובת/.test(value)) return true;
+  return false;
+}
+
 function isRouteRelatedFailure(message = '') {
-  return /מרחק|מסלול|40\s*ק״מ|מעבר/.test(text(message));
+  const value = text(message);
+  return isConclusiveRouteFailure(value)
+    || isUnresolvedRouteFailure(value)
+    || /מרחק|מסלול|40\s*ק״מ|מעבר/.test(value);
 }
 
 /** True when the candidate clears language/gender/availability/profile gates (route aside). */
@@ -44,17 +69,32 @@ export function selectedSimulationCandidate(result = {}) {
   return result?.recommended || result?.bestAvailable || null;
 }
 
+/** Home missing/unreliable, or required transition/service route data still unresolved. */
+export function hasUnresolvedRouteIssue(candidate = {}) {
+  if (!hasReliableHomeRoute(candidate)) return true;
+  if (text(candidate?.travel?.unavailableReason)) return true;
+  const failures = Array.isArray(candidate?.failures) ? candidate.failures : [];
+  if (failures.some((failure) => isUnresolvedRouteFailure(failure))) return true;
+  const issues = Array.isArray(candidate?.issues) ? candidate.issues : [];
+  return issues.some((issue) => (
+    text(issue?.kind) === 'unverified_transition'
+    || isUnresolvedRouteFailure(issue?.message || issue?.label || '')
+  ));
+}
+
 /**
  * Route reliability is checked only for candidates who could otherwise cover the course.
  * Rejected hard-gate candidates without calculated routes must not force חסרים נתונים.
+ * Unresolved transition routes (cannot verify) count as missing data; known insufficient
+ * transition time remains a conclusive rejection.
  */
 export function hasUnresolvedRouteBlockingCoverage(result = {}) {
   const selected = selectedSimulationCandidate(result);
-  if (selected) return !hasReliableHomeRoute(selected);
+  if (selected) return hasUnresolvedRouteIssue(selected);
 
   const checked = Array.isArray(result.checked) ? result.checked : [];
   return checked.some((candidate) => (
-    passesNonRouteHardGates(candidate) && !hasReliableHomeRoute(candidate)
+    passesNonRouteHardGates(candidate) && hasUnresolvedRouteIssue(candidate)
   ));
 }
 

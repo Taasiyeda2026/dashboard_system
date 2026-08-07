@@ -8,6 +8,8 @@ import {
   DISTRICT_SIMULATION_STATUSES,
   buildDistrictSimulationRows,
   filterDistrictSimulationRows,
+  isConclusiveRouteFailure,
+  isUnresolvedRouteFailure,
   mapEngineStatusToSimulation,
   resolveDistrictSimulationStatus,
   runDistrictSchedulingSimulation,
@@ -17,6 +19,7 @@ import {
 } from '../frontend/src/screens/course-scheduling-district-simulation.js';
 import { courseSchedulingScreen } from '../frontend/src/screens/course-scheduling.js';
 import { calculateCourseSchedule } from '../frontend/src/screens/course-scheduling-engine.js';
+import { routeMatrixKey } from '../frontend/src/screens/course-scheduling-travel.js';
 
 const weekdayRules = [
   { weekday: 0, available: true, start_time: '08:00', end_time: '16:00' },
@@ -612,4 +615,76 @@ test('final review: reliable selected candidate stays valid despite rejected can
   assert.equal(simulation.rows[0].proposedInstructor, 'הילה מומלצת');
   assert.notEqual(simulation.rows[0].status, DISTRICT_SIMULATION_STATUSES.missing);
   assert.equal(simulation.counts[DISTRICT_SIMULATION_STATUSES.missing], 0);
+});
+
+test('final review: reliable home + unresolved transition route becomes חסרים נתונים', () => {
+  assert.equal(isUnresolvedRouteFailure('לא ניתן לאמת זמן מעבר מהפעילות הקודמת'), true);
+  assert.equal(isConclusiveRouteFailure('לא ניתן לאמת זמן מעבר מהפעילות הקודמת'), false);
+
+  const approvedBefore = course('approved-before', {
+    emp_id: '100',
+    instructor_name: 'הילה רוזן',
+    instructor_assignment_locked: true,
+    status: 'שובץ',
+    school: 'בית ספר קודם',
+    school_id: 'school-prev',
+    school_address: 'רחוב קודם 1, נתניה',
+    meetings: [{ date: '2026-09-06', start_time: '10:00', end_time: '11:00' }]
+  });
+  const openAfter = course('open-unverified-transition', {
+    school: 'בית ספר יעד',
+    school_id: 'school-target',
+    school_address: 'רחוב יעד 2, נתניה',
+    meetings: [{ date: '2026-09-06', start_time: '11:15', end_time: '12:15' }]
+  });
+  const simulation = runDistrictSchedulingSimulation(simulationInput({
+    activities: [openAfter, approvedBefore],
+    travel: travelFor('open-unverified-transition', '100', { distance_km: 8, duration_minutes: 12 }),
+    routeMatrix: {}
+  }));
+  assert.equal(simulation.rows.length, 1);
+  assert.equal(simulation.rows[0].courseId, 'open-unverified-transition');
+  assert.equal(simulation.rows[0].status, DISTRICT_SIMULATION_STATUSES.missing);
+  assert.equal(simulation.rows[0].proposedInstructor, '—');
+  assert.match(simulation.rows[0].reason, /מסלול נסיעה אמין/);
+  const candidate = simulation.results[0]?.checked?.[0];
+  assert.match((candidate?.failures || []).join(' '), /לא ניתן לאמת זמן מעבר/);
+});
+
+test('final review: known insufficient transition remains נדרש גיוס', () => {
+  assert.equal(isConclusiveRouteFailure('אין זמן מעבר מספיק מהפעילות הקודמת'), true);
+  assert.equal(isUnresolvedRouteFailure('אין זמן מעבר מספיק מהפעילות הקודמת'), false);
+
+  const approvedBefore = course('approved-tight', {
+    emp_id: '100',
+    instructor_name: 'הילה רוזן',
+    instructor_assignment_locked: true,
+    status: 'שובץ',
+    school: 'בית ספר קודם',
+    school_id: 'school-prev',
+    school_address: 'רחוב קודם 1, נתניה',
+    meetings: [{ date: '2026-09-06', start_time: '10:00', end_time: '11:00' }]
+  });
+  const openAfter = course('open-insufficient-transition', {
+    school: 'בית ספר יעד',
+    school_id: 'school-target',
+    school_address: 'רחוב יעד 2, נתניה',
+    meetings: [{ date: '2026-09-06', start_time: '11:15', end_time: '12:15' }]
+  });
+  const from = 'רחוב קודם 1, נתניה';
+  const to = 'רחוב יעד 2, נתניה';
+  const simulation = runDistrictSchedulingSimulation(simulationInput({
+    activities: [openAfter, approvedBefore],
+    travel: travelFor('open-insufficient-transition', '100', { distance_km: 8, duration_minutes: 12 }),
+    routeMatrix: {
+      [routeMatrixKey(from, to)]: { distance_km: 12, duration_minutes: 28 },
+      [routeMatrixKey(to, from)]: { distance_km: 12, duration_minutes: 28 }
+    }
+  }));
+  assert.equal(simulation.rows.length, 1);
+  assert.equal(simulation.rows[0].courseId, 'open-insufficient-transition');
+  assert.equal(simulation.rows[0].status, DISTRICT_SIMULATION_STATUSES.recruit);
+  assert.notEqual(simulation.rows[0].status, DISTRICT_SIMULATION_STATUSES.missing);
+  const candidate = simulation.results[0]?.checked?.[0];
+  assert.match((candidate?.failures || []).join(' '), /אין זמן מעבר מספיק/);
 });
