@@ -1,5 +1,6 @@
 import { escapeHtml } from './shared/html.js';
 import { exportActivitiesToExcel } from './shared/excel-export.js';
+import { ensureSchoolAuthorityCatalogInState } from '../school-catalog-bootstrap-hotfix.js';
 import { formatDateHe, formatActivityDateColumnsHe } from './shared/format-date.js';
 import {
   visibleActivityCategoryLabel
@@ -2557,6 +2558,9 @@ export const activitiesScreen = {
 
     async function openActivityDetail(summaryRow) {
       if (!summaryRow || !ui) return;
+      // Ensure school/authority catalog is loaded (deduped, cached) before building settings.
+      // Resolves instantly after the first load; drawer school/authority lists are always full.
+      await ensureSchoolAuthorityCatalogInState(state);
       const cachedDetail = getCachedActivityDetail(summaryRow, state);
       const cachedDates  = getCachedActivityDates(summaryRow, state);
       const canDirectEdit = canDirectManageActivities(state);
@@ -3208,7 +3212,9 @@ export const activitiesScreen = {
 
     const addBtn = root.querySelector('[data-activities-add-btn]');
     if (canAddActivity && ui && addBtn) {
-      addBtn.addEventListener('click', () => {
+      addBtn.addEventListener('click', async () => {
+        // Load school/authority catalog before rendering — deduped and cached after first call.
+        await ensureSchoolAuthorityCatalogInState(state);
         ui.openModal({
           title: isCreateRequestOnly ? 'בקשה להוספת פעילות' : 'הוספת פעילות',
           // חשוב: חלון הוספת פעילות חייב להשתמש ב-client settings האחידים
