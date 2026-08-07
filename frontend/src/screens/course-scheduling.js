@@ -37,6 +37,11 @@ import {
   instructorsWorkspaceHeaderHtml,
   instructorsWorkspaceNavStylesHtml
 } from './shared/instructors-workspace-nav.js';
+import {
+  districtSimulationPanelHtml,
+  runDistrictSchedulingSimulation,
+  summarizeDistrictSimulation
+} from './course-scheduling-district-simulation.js';
 
 export { formatWorkloadHours, MAX_HOME_DISTANCE_KM, formatAffectedMeetingsPhrase };
 
@@ -176,7 +181,9 @@ function schedulingScopeHtml(allCourses = [], state = {}) {
   const authorities = authorityOptions(scopedForAuthority);
   const authoritySelect = `<label>רשות<select class="course-scheduling-input" data-authority-filter><option value="">כל הרשויות</option>${authorities.map((item) => `<option value="${escapeHtml(item)}"${item === selectedAuthority ? ' selected' : ''}>${escapeHtml(item)}</option>`).join('')}</select></label>`;
   const periodRange = `${formatDateHeDots(period.start)} עד ${formatDateHeDots(period.end)}`;
-  return `<section class="course-scheduling-scope"><div class="course-scheduling-scope-inner"><div class="course-scheduling-tabs course-scheduling-tabs--inner">${periodButtons}</div><p class="course-scheduling-period-range">${escapeHtml(periodRange)}</p><div class="course-scheduling-filter-row">${districtOptions}${authoritySelect}</div></div></section>`;
+  const districtPlanDisabled = !district || !!state.courseSchedulingSimulationLoading;
+  const districtPlanButton = `<button type="button" class="course-scheduling-btn course-scheduling-btn--primary" data-run-district-simulation ${districtPlanDisabled ? 'disabled' : ''} title="${district ? 'הפעלת סימולציית תכנון למחוז הנבחר' : 'יש לבחור מחוז'}">הפעל תכנון מחוזי</button>`;
+  return `<section class="course-scheduling-scope"><div class="course-scheduling-scope-inner"><div class="course-scheduling-tabs course-scheduling-tabs--inner">${periodButtons}</div><p class="course-scheduling-period-range">${escapeHtml(periodRange)}</p><div class="course-scheduling-filter-row">${districtOptions}${authoritySelect}${districtPlanButton}</div></div></section>`;
 }
 
 function activeTab(state) {
@@ -1099,7 +1106,18 @@ export const courseSchedulingScreen = {
       </header>
 
       ${schedulingScopeHtml(allInterfaceCourses, state)}
-      ${tab === 'courses' ? `
+      ${tab === 'courses' ? (
+        state.courseSchedulingSimulationView
+          ? districtSimulationPanelHtml({
+            rows: state.courseSchedulingSimulationRows || [],
+            counts: state.courseSchedulingSimulationCounts || summarizeDistrictSimulation([]),
+            statusFilter: state.courseSchedulingSimulationStatusFilter || '',
+            selectedId,
+            district: normalizeOperationalDistrict(state.courseSchedulingDistrict || ''),
+            loading: !!state.courseSchedulingSimulationLoading,
+            error: state.courseSchedulingSimulationError || ''
+          })
+          : `
         <section class="course-scheduling-summary">${summaryCardsHtml(interfaceCourses, results, readiness)}</section>
         <p data-course-scheduling-error class="course-scheduling-alert"${state.courseSchedulingError ? '' : ' hidden'}>${escapeHtml(state.courseSchedulingError || '')}</p>
         <div class="course-scheduling-layout course-scheduling-layout--courses">
@@ -1113,7 +1131,8 @@ export const courseSchedulingScreen = {
               : selectedCoursePanelHtml(selectedRow?.course ? selectedRow : null, state)
           }</section>
         </div>
-      ` : (tab === 'calendar' ? calendarTabHtml({ interfaceCourses, selectedId, state }) : maintenanceTabHtml())}
+      `
+      ) : (tab === 'calendar' ? calendarTabHtml({ interfaceCourses, selectedId, state }) : maintenanceTabHtml())}
       ${state.courseSchedulingShowDistanceConfirm ? distanceMaintenanceDialogHtml(state) : ''}
       ${dataReadinessDrawerHtml(data, state)}
     </div>`);
@@ -1159,10 +1178,21 @@ export const courseSchedulingScreen = {
       document.dispatchEvent(new CustomEvent('app:navigate', { detail: { route: 'activities' } }));
     };
 
+    const clearDistrictSimulation = () => {
+      state.courseSchedulingSimulationView = false;
+      state.courseSchedulingSimulationLoading = false;
+      state.courseSchedulingSimulationError = '';
+      state.courseSchedulingSimulationRows = [];
+      state.courseSchedulingSimulationCounts = null;
+      state.courseSchedulingSimulationResults = [];
+      state.courseSchedulingSimulationStatusFilter = '';
+    };
+
     root.querySelectorAll('[data-period-key]').forEach((button) => button.addEventListener('click', () => {
       state.courseSchedulingPeriodKey = button.dataset.periodKey || DEFAULT_COURSE_SCHEDULING_PERIOD_KEY;
       state.courseSchedulingSelectedId = '';
       state.courseSchedulingResults = [];
+      clearDistrictSimulation();
       rerender();
     }));
     root.querySelector('[data-district-filter]')?.addEventListener('change', (event) => {
@@ -1170,6 +1200,7 @@ export const courseSchedulingScreen = {
       state.courseSchedulingAuthority = '';
       state.courseSchedulingSelectedId = '';
       state.courseSchedulingResults = [];
+      clearDistrictSimulation();
       rerender();
     });
     root.querySelector('[data-authority-filter]')?.addEventListener('change', (event) => {
@@ -1403,6 +1434,126 @@ export const courseSchedulingScreen = {
       button.addEventListener('click', runFindInstructors);
     });
 
+    const runDistrictSimulation = async () => {
+      if (state.courseSchedulingSimulationLoading || state.courseSchedulingLoading) return;
+      const district = normalizeOperationalDistrict(state.courseSchedulingDistrict || '');
+      if (!district) {
+        state.courseSchedulingSimulationError = 'יש לבחור מחוז לפני הפעלת תכנון מחוזי';
+        state.courseSchedulingSimulationView = true;
+        rerender();
+        return;
+      }
+      state.courseSchedulingSimulationLoading = true;
+      state.courseSchedulingSimulationView = true;
+      state.courseSchedulingSimulationError = '';
+      state.courseSchedulingSimulationStatusFilter = '';
+      state.courseSchedulingTab = 'courses';
+      rerender();
+      try {
+        if (data.schoolAddressLookupError) throw new Error(data.schoolAddressLookupError);
+        const enriched = enrichActivitiesWithSchoolAddresses(data.activities || [], data.schoolLocations || []);
+        data.activities = enriched.activities;
+        data.schoolAddressStats = {
+          uniqueSchoolCount: enriched.uniqueSchoolCount,
+          duplicateSchoolCount: enriched.duplicateSchoolCount,
+          missingCount: enriched.missingCount
+        };
+        const scheduling = data.scheduling || {};
+        const profiles = Object.fromEntries((scheduling.profiles || []).map((row) => [text(row.emp_id), row]));
+        const input = {
+          activities: enriched.activities,
+          periodKey: selectedPeriodKey(state),
+          district,
+          authority: text(state.courseSchedulingAuthority || ''),
+          instructors: data.instructors,
+          profiles,
+          rules: group(scheduling.rules || [], 'emp_id'),
+          exceptions: group(scheduling.exceptions || [], 'emp_id'),
+          schoolCalendar: data.schoolCalendar || []
+        };
+        const preliminary = preliminaryCourseCandidates(input);
+        const routed = await calculateCandidateTravel(preliminary, enriched.activities);
+        const simulation = runDistrictSchedulingSimulation({
+          ...input,
+          referenceDate: new Intl.DateTimeFormat('en-CA', {
+            timeZone: 'Asia/Jerusalem',
+            year: 'numeric',
+            month: '2-digit',
+            day: '2-digit'
+          }).format(new Date()),
+          travel: routed.travel,
+          routeMatrix: routed.routeMatrix,
+          travelUnavailableReason: routed.unavailableReason || ''
+        });
+        if (!simulation.ok) {
+          state.courseSchedulingSimulationError = simulation.error || 'הסימולציה נכשלה';
+          state.courseSchedulingSimulationRows = [];
+          state.courseSchedulingSimulationCounts = summarizeDistrictSimulation([]);
+          state.courseSchedulingSimulationResults = [];
+        } else {
+          state.courseSchedulingSimulationRows = simulation.rows;
+          state.courseSchedulingSimulationCounts = simulation.counts;
+          state.courseSchedulingSimulationResults = simulation.results;
+          if (routed.unavailableReason === 'google_key_not_configured') {
+            state.courseSchedulingSimulationError = 'לא ניתן לבדוק מרחקים כרגע. ניתן להמשיך לפי זמינות והתאמה בלבד.';
+          } else if (routed.unavailableReason) {
+            state.courseSchedulingSimulationError = 'חלק מבדיקות המרחק לא הושלמו. ההצעות מציגות רק מדריכים שאומתו בבטחה.';
+          }
+        }
+        // Read-only: never save drafts/assignments and never call assignment RPCs from this path.
+      } catch (error) {
+        state.courseSchedulingSimulationError = `תכנון מחוזי נכשל: ${translateSchedulingRouteError(error.message, error.message)}`;
+        state.courseSchedulingSimulationRows = [];
+        state.courseSchedulingSimulationCounts = summarizeDistrictSimulation([]);
+        state.courseSchedulingSimulationResults = [];
+      } finally {
+        state.courseSchedulingSimulationLoading = false;
+        rerender();
+      }
+    };
+
+    root.querySelector('[data-run-district-simulation]')?.addEventListener('click', runDistrictSimulation);
+    root.querySelector('[data-close-district-simulation]')?.addEventListener('click', () => {
+      clearDistrictSimulation();
+      rerender();
+    });
+    root.querySelector('[data-simulation-status-select]')?.addEventListener('change', (event) => {
+      state.courseSchedulingSimulationStatusFilter = event.target.value || '';
+      rerender();
+    });
+    root.querySelectorAll('[data-simulation-status-filter]').forEach((button) => {
+      button.addEventListener('click', () => {
+        const next = text(button.dataset.simulationStatusFilter);
+        state.courseSchedulingSimulationStatusFilter = state.courseSchedulingSimulationStatusFilter === next ? '' : next;
+        rerender();
+      });
+    });
+    const openSimulationCourseDetail = (courseId) => {
+      const id = text(courseId);
+      if (!id) return;
+      const simulationResult = (state.courseSchedulingSimulationResults || []).find((result) => idOf(result.course) === id);
+      if (simulationResult) {
+        const others = (state.courseSchedulingResults || []).filter((result) => idOf(result.course) !== id);
+        state.courseSchedulingResults = [...others, simulationResult];
+      }
+      state.courseSchedulingSelectedId = id;
+      state.courseSchedulingSelectedCandidateId = emp(simulationResult?.recommended || simulationResult?.bestAvailable) || '';
+      state.courseSchedulingShowAllCandidates = false;
+      state.courseSchedulingTab = 'courses';
+      state.courseSchedulingSimulationView = false;
+      const course = courseById.get(id) || (data.activities || []).find((row) => idOf(row) === id);
+      if (course?.start_date) state.courseSchedulingWeek = course.start_date;
+      rerender();
+    };
+    root.querySelectorAll('[data-simulation-course-row]').forEach((row) => {
+      row.addEventListener('click', () => openSimulationCourseDetail(row.dataset.simulationCourseRow));
+      row.addEventListener('keydown', (event) => {
+        if (event.key !== 'Enter' && event.key !== ' ') return;
+        event.preventDefault();
+        openSimulationCourseDetail(row.dataset.simulationCourseRow);
+      });
+    });
+
     detailRoot.querySelector('[data-assign-course]')?.addEventListener('click', async (event) => {
       if (!canEdit || !selectedCourseId) return;
       const result = resultByCourseId.get(selectedCourseId);
@@ -1559,4 +1710,12 @@ export const courseSchedulingScreen = {
 };
 
 // Keep helper export used by older readiness tests around selection preference.
-export { pickNearestActionableCourse, userFacingStatus, STATUS, restoreCalculationSnapshot, saveCalculationSnapshot };
+export {
+  pickNearestActionableCourse,
+  userFacingStatus,
+  STATUS,
+  restoreCalculationSnapshot,
+  saveCalculationSnapshot,
+  runDistrictSchedulingSimulation,
+  summarizeDistrictSimulation
+};

@@ -15,6 +15,7 @@ import {
   courseUrgency,
   compareCandidatesStable
 } from './course-scheduling-score.js';
+import { normalizeOperationalDistrict } from './shared/district-normalization.js';
 
 export { SCORE_WEIGHTS, courseUrgency };
 
@@ -26,13 +27,16 @@ const minutes = (value) => {
 const idOf = (row) => text(row?.row_id || row?.RowID || row?.id);
 const empOf = (row) => text(row?.emp_id);
 const placeOf = (row = {}) => text(row.school_address);
+const districtOf = (row = {}) => normalizeOperationalDistrict(row.district || row.school_district || row.authority_district);
 
 export function schedulingCourses(rows = [], options = {}) {
   const periodKey = options.periodKey || DEFAULT_COURSE_SCHEDULING_PERIOD_KEY;
   const authority = text(options.authority);
+  const district = text(options.district);
   return rows.filter(isActivitySchedulingEligible)
     .filter((row) => !hasDraftInstructor(row))
     .filter((row) => !authority || text(row.authority) === authority)
+    .filter((row) => !district || districtOf(row) === district)
     .filter((row) => activityMeetings(row).some((meeting) => isDateInCourseSchedulingPeriod(meeting.date, periodKey)));
 }
 
@@ -489,7 +493,11 @@ function evaluateCourseCandidates({
 export function calculateCourseSchedule(input = {}) {
   const activities = input.activities || [];
   const periodKey = input.periodKey || DEFAULT_COURSE_SCHEDULING_PERIOD_KEY;
-  const courses = schedulingCourses(activities, { periodKey, authority: input.authority });
+  const courses = schedulingCourses(activities, {
+    periodKey,
+    authority: input.authority,
+    district: input.district
+  });
   const instructors = schedulingInstructors(input.instructors || []);
   const assignedRows = assignedRowsByInstructor(activities, input.assignments || {});
   const profiles = input.profiles || {};
