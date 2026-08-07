@@ -211,10 +211,27 @@ const COMPLETION_APPROVALS_PAGE_SIZE = 50;
 const SETTINGS_BOOTSTRAP_COLUMNS = 'key,value,description';
 const LISTS_BOOTSTRAP_COLUMNS = 'list_id,category,value,label,active,is_active,category_order,sort_order,activity_no,activity_name,activity_type,type,stock_quantity,stock_group_key,stock_group_name,stock_item_name,stock_label,parent_value';
 const COURSE_MEETINGS_BOOTSTRAP_COLUMNS = 'gefen_number,meetings_count';
+/**
+ * Categories loaded from `lists` at login/bootstrap.
+ * school, authority, workshop_stock and other large/unused categories are excluded:
+ * school (~599 rows) and authority (~159 rows) are loaded on-demand from dedicated tables.
+ * workshop_stock, view_type, activity_status, finance_status are not needed at startup.
+ */
+const BOOTSTRAP_LIST_CATEGORIES = [
+  'grade', 'activity_names', 'funding', 'instructor_users',
+  'activity_manager', 'activity_season', 'one_day_activity_type',
+  'program_activity_type', 'activity_type'
+];
+/** Categories loaded for the workshop inventory tab (replaces full adminLists fetch). */
+const WORKSHOP_LIST_CATEGORIES = ['activity_names', 'workshop_stock'];
 let settingsRowsCache = null;
 let settingsRowsPromise = null;
 let listsRowsCache = null;
 let listsRowsPromise = null;
+let bootstrapListsCache = null;
+let bootstrapListsPromise = null;
+let workshopListsCache = null;
+let workshopListsPromise = null;
 let courseMeetingsRowsCache = null;
 let courseMeetingsRowsPromise = null;
 let instructorContactsCache = null;
@@ -309,6 +326,10 @@ function clearBootstrapReadCaches() {
   settingsRowsPromise = null;
   listsRowsCache = null;
   listsRowsPromise = null;
+  bootstrapListsCache = null;
+  bootstrapListsPromise = null;
+  workshopListsCache = null;
+  workshopListsPromise = null;
   courseMeetingsRowsCache = null;
   courseMeetingsRowsPromise = null;
   instructorEmpIdsCache = null;
@@ -1737,6 +1758,123 @@ async function readListsFromSupabase() {
   return listsRowsPromise;
 }
 
+/**
+ * Filtered lists fetch for login/bootstrap — only the 9 categories needed for
+ * buildClientSettingsFromLists. Reduces ~997 → ~184 rows at startup.
+ * school/authority are loaded separately from dedicated tables via readAuthoritySchoolCatalog().
+ */
+async function readBootstrapListsFromSupabase() {
+  if (!supabase) return null;
+  if (bootstrapListsCache) return bootstrapListsCache;
+  if (bootstrapListsPromise) return bootstrapListsPromise;
+  bootstrapListsPromise = (async () => {
+    try {
+      const result = await supabase
+        .from('lists')
+        .select(LISTS_BOOTSTRAP_COLUMNS)
+        .in('category', BOOTSTRAP_LIST_CATEGORIES)
+        .order('category_order', { ascending: true, nullsFirst: false })
+        .order('sort_order', { ascending: true, nullsFirst: false })
+        .order('category', { ascending: true })
+        .order('value', { ascending: true });
+      if (result.error) {
+        // eslint-disable-next-line no-console
+        console.error('[supabase] Failed to load bootstrap lists:', result.error);
+        return null;
+      }
+      const rows = Array.isArray(result.data) ? result.data : [];
+      const catMap = new Map();
+      for (const row of rows) {
+        const cat = String(row.category || '').trim();
+        if (!cat) continue;
+        const value = String(row.value ?? '').trim();
+        const label = String(row.label ?? value).trim() || value;
+        if (!value) continue;
+        if (!catMap.has(cat)) catMap.set(cat, []);
+        catMap.get(cat).push({ label, value, _row: row, active: row.active });
+      }
+      const categories = [...catMap.entries()].map(([category, items]) => ({ category, items }));
+      bootstrapListsCache = { categories, _source: 'supabase' };
+      return bootstrapListsCache;
+    } catch (error) {
+      // eslint-disable-next-line no-console
+      console.error('[supabase] Unexpected bootstrap lists fetch error:', error);
+      return null;
+    } finally {
+      bootstrapListsPromise = null;
+    }
+  })();
+  return bootstrapListsPromise;
+}
+
+/**
+ * Focused lists fetch for the workshop inventory tab (ציוד ומלאי).
+ * Queries only activity_names + workshop_stock — ~79 rows instead of ~997.
+ */
+async function readWorkshopListsFromSupabase() {
+  if (!supabase) return null;
+  if (workshopListsCache) return workshopListsCache;
+  if (workshopListsPromise) return workshopListsPromise;
+  workshopListsPromise = (async () => {
+    try {
+      const result = await supabase
+        .from('lists')
+        .select(LISTS_BOOTSTRAP_COLUMNS)
+        .in('category', WORKSHOP_LIST_CATEGORIES)
+        .order('sort_order', { ascending: true, nullsFirst: false })
+        .order('value', { ascending: true });
+      if (result.error) {
+        // eslint-disable-next-line no-console
+        console.error('[supabase] Failed to load workshop lists:', result.error);
+        return null;
+      }
+      const rows = Array.isArray(result.data) ? result.data : [];
+      const catMap = new Map();
+      for (const row of rows) {
+        const cat = String(row.category || '').trim();
+        if (!cat) continue;
+        const value = String(row.value ?? '').trim();
+        const label = String(row.label ?? value).trim() || value;
+        if (!value) continue;
+        if (!catMap.has(cat)) catMap.set(cat, []);
+        catMap.get(cat).push({ label, value, _row: row, active: row.active });
+      }
+      const categories = [...catMap.entries()].map(([category, items]) => ({ category, items }));
+      workshopListsCache = { categories, _source: 'supabase' };
+      return workshopListsCache;
+    } catch (error) {
+      // eslint-disable-next-line no-console
+      console.error('[supabase] Unexpected workshop lists fetch error:', error);
+      return null;
+    } finally {
+      workshopListsPromise = null;
+    }
+  })();
+  return workshopListsPromise;
+}
+
+/**
+ * Builds school/authority dropdown values from the dedicated catalog tables
+ * (schools, authorities) rather than from the lists table.
+ * Used to populate client_settings.dropdown_options.school/authority after bootstrap.
+ */
+function buildSchoolAuthorityFromCatalog(catalog) {
+  const schools = Array.isArray(catalog?.schools) ? catalog.schools : [];
+  const authorities = Array.isArray(catalog?.authorities) ? catalog.authorities : [];
+  const activeSchools = schools.filter((s) => isCatalogActive(s?.active));
+  const activeAuthorities = authorities.filter((a) => isCatalogActive(a?.active));
+  const schoolValues = activeSchools.map((s) => normalizeCatalogText(s.school_name)).filter(Boolean);
+  const schoolRecords = activeSchools.map((s) => ({
+    name: normalizeCatalogText(s.school_name),
+    value: normalizeCatalogText(s.school_name),
+    school_id: normalizeCatalogText(s.id || s.semel_mosad || ''),
+    authority_id: normalizeCatalogText(s.authority_id || ''),
+    authority: normalizeCatalogText(s.authority || '')
+  })).filter((s) => s.name);
+  const authorityValues = activeAuthorities.map((a) => normalizeCatalogText(a.authority_name)).filter(Boolean);
+  return { schoolValues, schoolRecords, authorityValues };
+}
+
 
 async function readCourseMeetingsRowsForBootstrap() {
   if (!supabase) return [];
@@ -1769,7 +1907,11 @@ async function readCourseMeetingsRowsForBootstrap() {
  * activity-options.js and the add-activity form.
  * Handles many category name variants so the lists table can use any naming.
  */
-function buildClientSettingsFromLists(listsData, settingsRows = [], instructorContactsRows = [], courseMeetingsRows = []) {
+/**
+ * @param {object|null} catalogData - Optional result from readAuthoritySchoolCatalog().
+ *   When provided, school/authority values come from dedicated tables instead of lists.
+ */
+function buildClientSettingsFromLists(listsData, settingsRows = [], instructorContactsRows = [], courseMeetingsRows = [], catalogData = null) {
   const categories = Array.isArray(listsData?.categories) ? listsData.categories : [];
   const courseMeetingsByStableId = new Map(
     (Array.isArray(courseMeetingsRows) ? courseMeetingsRows : [])
@@ -1805,9 +1947,11 @@ function buildClientSettingsFromLists(listsData, settingsRows = [], instructorCo
   const activityNameItems = getItems('activity_names', 'activity_name', 'activities', 'activity');
   const fundingValues   = getValues('funding', 'fundings');
   const gradeValues     = getValues('grade', 'grades', 'class');
+  // school/authority — prefer dedicated catalog (from schools/authorities tables) when provided;
+  // fall back to lists data for backwards-compatibility when catalogData is not available.
   const schoolItems     = getItems('school', 'schools');
-  const schoolValues    = schoolItems.map((i) => i.value).filter(Boolean);
-  const authorityValues = getValues('authority', 'authorities');
+  let schoolValues    = schoolItems.map((i) => i.value).filter(Boolean);
+  let authorityValues = getValues('authority', 'authorities');
   const activitySeasonItems = getItems('activity_season');
 
   const shortTypes = getValues('one_day_activity_type', 'one_day_types', 'short_activity_type', 'short_activity_types');
@@ -1856,13 +2000,21 @@ function buildClientSettingsFromLists(listsData, settingsRows = [], instructorCo
     };
   });
   const activityTypes = [...new Set(activityNames.map((row) => String(row.activity_type || row.parent_value || row.type || '').trim()).filter(Boolean))];
-  const schoolRecords = schoolItems.map((i) => ({
+  // Use dedicated catalog tables (schools/authorities) when provided — avoids large lists rows.
+  // Fall back to lists-derived values for backwards-compatibility when catalog is unavailable.
+  let schoolRecords = schoolItems.map((i) => ({
     name:        String(i._row?.school || i._row?.school_name || i.label || i.value || '').trim(),
     value:       String(i.value || i._row?.school || i._row?.school_name || '').trim(),
     school_id:   String(i._row?.school_id || i._row?.id || '').trim(),
     authority_id:String(i._row?.authority_id || '').trim(),
     authority:   String(i._row?.authority || '').trim()
   })).filter((school) => school.name || school.value);
+  if (catalogData) {
+    const fromCatalog = buildSchoolAuthorityFromCatalog(catalogData);
+    schoolValues    = fromCatalog.schoolValues;
+    schoolRecords   = fromCatalog.schoolRecords;
+    authorityValues = fromCatalog.authorityValues;
+  }
 
   const managerIsActive = (item) => {
     const row = item?._row && typeof item._row === 'object' ? item._row : item;
@@ -6358,12 +6510,15 @@ async function readCatalogProgramsFromSupabase() {
 }
 export const api = {
   login: async (user_id, entry_code) => {
-    const [{ userRow: user, profileRow }, listsData, settingsRows, instructorContactsRows, courseMeetingsRows] = await Promise.all([
+    // Use focused bootstrap lists (9 categories, ~184 rows) instead of all ~997 rows.
+    // School/authority are loaded separately from dedicated tables (schools, authorities).
+    const [{ userRow: user, profileRow }, listsData, settingsRows, instructorContactsRows, courseMeetingsRows, catalogData] = await Promise.all([
       loginWithSupabaseAuth(user_id, entry_code),
-      readListsFromSupabase().catch(() => null),
+      readBootstrapListsFromSupabase().catch(() => null),
       readSettingsRowsFromSupabase().catch(() => []),
       readInstructorContactsRowsForBootstrap().catch(() => []),
-      readCourseMeetingsRowsForBootstrap().catch(() => [])
+      readCourseMeetingsRowsForBootstrap().catch(() => []),
+      readAuthoritySchoolCatalog().catch(() => null)
     ]);
     const token = makeSessionToken(user);
     const flat = flattenUserRow(user);
@@ -6399,21 +6554,23 @@ export const api = {
         ...proposalFlags
       },
       ...buildBootstrapFromUser(user, profileRow),
-      client_settings: buildClientSettingsFromLists(listsData, settingsRows, instructorContactsRows, courseMeetingsRows)
+      client_settings: buildClientSettingsFromLists(listsData, settingsRows, instructorContactsRows, courseMeetingsRows, catalogData)
     };
   },
   bootstrap: async () => {
     await waitForSupabaseAuthSession();
-    const [{ userRow: user, profileRow }, listsData, settingsRows, instructorContactsRows, courseMeetingsRows] = await Promise.all([
+    // Use focused bootstrap lists + dedicated catalog for school/authority.
+    const [{ userRow: user, profileRow }, listsData, settingsRows, instructorContactsRows, courseMeetingsRows, catalogData] = await Promise.all([
       readCurrentUserBySession(),
-      readListsFromSupabase().catch(() => null),
+      readBootstrapListsFromSupabase().catch(() => null),
       readSettingsRowsFromSupabase().catch(() => []),
       readInstructorContactsRowsForBootstrap().catch(() => []),
-      readCourseMeetingsRowsForBootstrap().catch(() => [])
+      readCourseMeetingsRowsForBootstrap().catch(() => []),
+      readAuthoritySchoolCatalog().catch(() => null)
     ]);
     return {
       ...buildBootstrapFromUser(user, profileRow),
-      client_settings: buildClientSettingsFromLists(listsData, settingsRows, instructorContactsRows, courseMeetingsRows)
+      client_settings: buildClientSettingsFromLists(listsData, settingsRows, instructorContactsRows, courseMeetingsRows, catalogData)
     };
   },
   dashboard: (filters) => api.dashboardReadModel(filters || {}),
@@ -6974,6 +7131,15 @@ export const api = {
     const supabaseData = await readListsFromSupabase();
     if (supabaseData) return supabaseData;
     return buildSupabaseErrorPayload({ categories: [] }, 'admin_lists_supabase_failed');
+  },
+  /**
+   * Focused lists fetch for the workshop inventory tab.
+   * Queries only activity_names + workshop_stock (~79 rows vs ~997 for adminLists).
+   */
+  workshopLists: async () => {
+    const supabaseData = await readWorkshopListsFromSupabase();
+    if (supabaseData) return supabaseData;
+    return buildSupabaseErrorPayload({ categories: [] }, 'workshop_lists_supabase_failed');
   },
 
   workshopStockDistributions: async () => {

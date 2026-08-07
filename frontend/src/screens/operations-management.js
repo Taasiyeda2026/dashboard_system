@@ -3203,8 +3203,9 @@ export async function loadOperationsTabData(api, tab, { state } = {}) {
     const ops = ensureOpsState(state || {});
     const needs2027 = ops.period === ACTIVITY_SEASON_SCHOOL_2027;
     if (needs2027) {
+      // Use focused workshop lists query (activity_names + workshop_stock only, ~79 rows).
       const [lists, openingBalances, school2027Rows] = await Promise.all([
-        api.adminLists().catch((err) => ({ categories: [], _loadError: String(err?.message || 'load_failed') })),
+        (api.workshopLists || api.adminLists).call(api).catch((err) => ({ categories: [], _loadError: String(err?.message || 'load_failed') })),
         api.workshopInventoryOpeningBalances
           ? api.workshopInventoryOpeningBalances({ inventoryYear: 2027 }).catch((err) => ({ rows: [], _loadError: String(err?.message || 'load_failed') }))
           : Promise.resolve({ rows: [] }),
@@ -3222,7 +3223,7 @@ export async function loadOperationsTabData(api, tab, { state } = {}) {
       };
     }
     const [lists, workshopStockDistributions] = await Promise.all([
-      api.adminLists().catch((err) => ({ categories: [], _loadError: String(err?.message || 'load_failed') })),
+      (api.workshopLists || api.adminLists).call(api).catch((err) => ({ categories: [], _loadError: String(err?.message || 'load_failed') })),
       api.workshopStockDistributions
         ? api.workshopStockDistributions().catch((err) => ({ rows: [], _loadError: String(err?.message || 'load_failed') }))
         : Promise.resolve({ rows: [] })
