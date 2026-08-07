@@ -42,7 +42,7 @@ test('school calendar changes revalidate every locked 2027 course', async () => 
 test('cache and hotfix markers are advanced for the final fix', async () => {
   const sw = await readFile(new URL('../frontend/sw.js', import.meta.url), 'utf8');
   const config = await readFile(new URL('../frontend/src/config.js', import.meta.url), 'utf8');
-  assert.match(sw, /const CACHE_VERSION = 1457;/);
+  assert.match(sw, /const CACHE_VERSION = 1458;/);
   assert.match(config, /course-scheduling-final-consistency-20260807-v1/);
 });
 
