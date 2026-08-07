@@ -1,0 +1,1 @@
+- [Scheduling screen redesign](scheduling-redesign.md) — removed inner 3-tab nav; scope bar is now flat flex row; no scrollbar on course list; alternatives are compact table rows; maintenance in <details>
