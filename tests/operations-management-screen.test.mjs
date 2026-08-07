@@ -109,7 +109,7 @@ test('getActivityInstructorNames includes secondary instructor fields', () => {
 });
 
 test('operations management instructor filter and schedule include secondary instructors', () => {
-  const state = baseState();
+  const state = scheduleState();
   state.operationsManagement.period = 'summer_2026';
   state.operationsManagement.dateFrom = '2026-07-01';
   state.operationsManagement.dateTo = '2026-08-31';
@@ -1057,7 +1057,7 @@ test('operations management schedule shows HH:MM time range without seconds', ()
     end_time: '09:00:00',
     instructor_name: 'דני'
   }];
-  const html = operationsManagementScreen.render({ rows, workshopStockMap: new Map() }, { state: baseState() });
+  const html = operationsManagementScreen.render({ rows, workshopStockMap: new Map() }, { state: scheduleState() });
   assert.match(html, />08:15-09:00</);
   assert.doesNotMatch(html, />08:15:00-09:00:00</);
 });
