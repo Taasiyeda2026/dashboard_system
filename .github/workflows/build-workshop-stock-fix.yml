@@ -1,9 +1,10 @@
 name: Apply workshop stock location fix
 
 on:
-  push:
+  pull_request:
     branches:
-      - fix/workshop-stock-location-status
+      - main
+    types: [opened, reopened, synchronize]
 
 permissions:
   contents: write
