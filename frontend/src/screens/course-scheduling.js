@@ -38,6 +38,7 @@ import {
   instructorsWorkspaceNavStylesHtml
 } from './shared/instructors-workspace-nav.js';
 import {
+  DISTRICT_SIMULATION_ROUTE_MISSING_MESSAGE,
   districtSimulationPanelHtml,
   runDistrictSchedulingSimulation,
   summarizeDistrictSimulation
@@ -1207,6 +1208,11 @@ export const courseSchedulingScreen = {
       state.courseSchedulingAuthority = event.target.value;
       state.courseSchedulingSelectedId = '';
       state.courseSchedulingResults = [];
+      // Authority filter applies only to the ordinary course list — reset any open district simulation
+      // so stale district-wide results never appear authority-filtered.
+      if (state.courseSchedulingSimulationView || (state.courseSchedulingSimulationRows || []).length) {
+        clearDistrictSimulation();
+      }
       rerender();
     });
 
@@ -1460,11 +1466,12 @@ export const courseSchedulingScreen = {
         };
         const scheduling = data.scheduling || {};
         const profiles = Object.fromEntries((scheduling.profiles || []).map((row) => [text(row.emp_id), row]));
+        // District simulation scope is half-year + district only. The ordinary authority filter
+        // continues to affect the single-course list, but must not narrow this calculation.
         const input = {
           activities: enriched.activities,
           periodKey: selectedPeriodKey(state),
           district,
-          authority: text(state.courseSchedulingAuthority || ''),
           instructors: data.instructors,
           profiles,
           rules: group(scheduling.rules || [], 'emp_id'),
@@ -1494,10 +1501,8 @@ export const courseSchedulingScreen = {
           state.courseSchedulingSimulationRows = simulation.rows;
           state.courseSchedulingSimulationCounts = simulation.counts;
           state.courseSchedulingSimulationResults = simulation.results;
-          if (routed.unavailableReason === 'google_key_not_configured') {
-            state.courseSchedulingSimulationError = 'לא ניתן לבדוק מרחקים כרגע. ניתן להמשיך לפי זמינות והתאמה בלבד.';
-          } else if (routed.unavailableReason) {
-            state.courseSchedulingSimulationError = 'חלק מבדיקות המרחק לא הושלמו. ההצעות מציגות רק מדריכים שאומתו בבטחה.';
+          if (routed.unavailableReason || simulation.hasRouteMissing) {
+            state.courseSchedulingSimulationError = DISTRICT_SIMULATION_ROUTE_MISSING_MESSAGE;
           }
         }
         // Read-only: never save drafts/assignments and never call assignment RPCs from this path.

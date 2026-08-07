@@ -6,6 +6,7 @@ import {
 } from './course-scheduling-periods.js';
 import { calculateCourseSchedule } from './course-scheduling-engine.js';
 import { normalizeOperationalDistrict } from './shared/district-normalization.js';
+import { exceedsHomeDistanceLimit } from './instructor-matching-engine.js';
 
 export const DISTRICT_SIMULATION_STATUSES = Object.freeze({
   ready: 'הצעה מוכנה',
@@ -15,9 +16,35 @@ export const DISTRICT_SIMULATION_STATUSES = Object.freeze({
 });
 
 export const DISTRICT_SIMULATION_LABEL = 'סימולציה בלבד - השיבוצים טרם נשמרו';
+export const DISTRICT_SIMULATION_ROUTE_MISSING_MESSAGE = 'לא ניתן להשלים קורסים שחסר עבורם מסלול נסיעה אמין. הם סומנו כחסרים נתונים.';
 
 const text = (value) => String(value ?? '').trim();
 const idOf = (row) => text(row?.row_id || row?.RowID || row?.id);
+
+export function hasReliableHomeRoute(candidate = {}) {
+  const home = candidate?.travel?.home;
+  return !!home
+    && Number.isFinite(Number(home.distance_km))
+    && Number.isFinite(Number(home.duration_minutes));
+}
+
+/** True when every checked candidate lacks a verified home→school route. */
+export function allCandidateRoutesUnreliable(result = {}) {
+  const checked = Array.isArray(result.checked) ? result.checked : [];
+  if (!checked.length) {
+    // Engine incomplete-course rows have no checked candidates; treat via missing fields instead.
+    return false;
+  }
+  return checked.every((candidate) => !hasReliableHomeRoute(candidate));
+}
+
+export function hasKnownOverDistanceRejection(result = {}) {
+  const checked = Array.isArray(result.checked) ? result.checked : [];
+  return checked.some((candidate) => {
+    const km = Number(candidate?.travel?.home?.distance_km);
+    return Number.isFinite(km) && exceedsHomeDistanceLimit(km);
+  });
+}
 
 export function mapEngineStatusToSimulation(status) {
   const value = text(status);
@@ -26,6 +53,24 @@ export function mapEngineStatusToSimulation(status) {
   if (value === 'נדרש גיוס') return DISTRICT_SIMULATION_STATUSES.recruit;
   if (value === 'חסר מידע' || value === 'חסרים נתונים') return DISTRICT_SIMULATION_STATUSES.missing;
   return DISTRICT_SIMULATION_STATUSES.review;
+}
+
+/**
+ * Simulation-facing status. Missing/unreliable route data is never recruitment.
+ * A known route above 40 km remains recruitment.
+ */
+export function resolveDistrictSimulationStatus(result = {}) {
+  const engineStatus = text(result.status);
+  if (engineStatus === 'חסר מידע' || engineStatus === 'חסרים נתונים') {
+    return DISTRICT_SIMULATION_STATUSES.missing;
+  }
+  if (allCandidateRoutesUnreliable(result)) {
+    return DISTRICT_SIMULATION_STATUSES.missing;
+  }
+  if (engineStatus === 'נדרש גיוס' && hasKnownOverDistanceRejection(result)) {
+    return DISTRICT_SIMULATION_STATUSES.recruit;
+  }
+  return mapEngineStatusToSimulation(engineStatus);
 }
 
 export function courseScheduleSlot(course = {}, periodKey = DEFAULT_COURSE_SCHEDULING_PERIOD_KEY) {
@@ -44,7 +89,11 @@ export function courseScheduleSlot(course = {}, periodKey = DEFAULT_COURSE_SCHED
 function simulationReason(result = {}, status) {
   if (status === DISTRICT_SIMULATION_STATUSES.missing) {
     const missing = Array.isArray(result.missing) ? result.missing.filter(Boolean) : [];
-    return missing.length ? `חסרים נתונים: ${missing.join(', ')}` : 'חסרים נתונים לשיבוץ';
+    if (missing.length) return `חסרים נתונים: ${missing.join(', ')}`;
+    if (result.missingReliableRoute || allCandidateRoutesUnreliable(result)) {
+      return 'חסרים נתונים: מסלול נסיעה אמין';
+    }
+    return 'חסרים נתונים לשיבוץ';
   }
   if (status === DISTRICT_SIMULATION_STATUSES.recruit) {
     return text(result.treatmentReason) || 'לא נמצא מדריך העומד בתנאי הסף';
@@ -60,7 +109,9 @@ function simulationReason(result = {}, status) {
 
 export function buildDistrictSimulationRow(result = {}, periodKey = DEFAULT_COURSE_SCHEDULING_PERIOD_KEY) {
   const course = result.course || {};
-  const status = mapEngineStatusToSimulation(result.status);
+  const status = resolveDistrictSimulationStatus(result);
+  const missingReliableRoute = status === DISTRICT_SIMULATION_STATUSES.missing && allCandidateRoutesUnreliable(result);
+  const enrichedResult = missingReliableRoute ? { ...result, missingReliableRoute: true } : result;
   const slot = courseScheduleSlot(course, periodKey);
   const candidate = status === DISTRICT_SIMULATION_STATUSES.ready || status === DISTRICT_SIMULATION_STATUSES.review
     ? (result.recommended || result.bestAvailable || null)
@@ -77,7 +128,8 @@ export function buildDistrictSimulationRow(result = {}, periodKey = DEFAULT_COUR
     endTime: slot.endTime || '—',
     proposedInstructor: text(candidate?.instructor?.full_name || candidate?.instructor?.emp_id) || '—',
     score: Number.isFinite(scoreValue) ? scoreValue : null,
-    reason: simulationReason(result, status),
+    reason: simulationReason(enrichedResult, status),
+    missingReliableRoute,
     engineResult: result
   };
 }
@@ -94,7 +146,7 @@ export function summarizeDistrictSimulation(rows = []) {
     [DISTRICT_SIMULATION_STATUSES.missing]: 0
   };
   for (const row of rows || []) {
-    const status = mapEngineStatusToSimulation(row?.status);
+    const status = text(row?.status);
     if (Object.prototype.hasOwnProperty.call(counts, status)) counts[status] += 1;
   }
   return counts;
@@ -108,6 +160,7 @@ export function filterDistrictSimulationRows(rows = [], statusFilter = '') {
 
 /**
  * Read-only district simulation. Does not write drafts, assignments, or call RPCs.
+ * Scope is selected half-year + district only — authority filter is intentionally ignored.
  * Approved and saved-draft courses remain blockers via full activities input, but are
  * excluded from recommendation targets by the engine (district + eligibility filters).
  */
@@ -127,10 +180,13 @@ export function runDistrictSchedulingSimulation(input = {}) {
     ...input,
     periodKey,
     district,
+    // District simulation must not inherit the ordinary authority list filter.
+    authority: '',
     // Simulation must never treat itself as a write path.
     preliminary: false
   });
   const rows = buildDistrictSimulationRows(results, periodKey);
+  const hasRouteMissing = rows.some((row) => row.missingReliableRoute);
   return {
     ok: true,
     error: '',
@@ -138,7 +194,8 @@ export function runDistrictSchedulingSimulation(input = {}) {
     periodKey,
     rows,
     counts: summarizeDistrictSimulation(rows),
-    results
+    results,
+    hasRouteMissing
   };
 }
 

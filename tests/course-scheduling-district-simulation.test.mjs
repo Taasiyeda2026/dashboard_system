@@ -4,16 +4,19 @@ import { readFile } from 'node:fs/promises';
 import { JSDOM } from 'jsdom';
 import {
   DISTRICT_SIMULATION_LABEL,
+  DISTRICT_SIMULATION_ROUTE_MISSING_MESSAGE,
   DISTRICT_SIMULATION_STATUSES,
   buildDistrictSimulationRows,
   filterDistrictSimulationRows,
   mapEngineStatusToSimulation,
+  resolveDistrictSimulationStatus,
   runDistrictSchedulingSimulation,
   summarizeDistrictSimulation,
   courseScheduleSlot,
   districtSimulationPanelHtml
 } from '../frontend/src/screens/course-scheduling-district-simulation.js';
 import { courseSchedulingScreen } from '../frontend/src/screens/course-scheduling.js';
+import { calculateCourseSchedule } from '../frontend/src/screens/course-scheduling-engine.js';
 
 const weekdayRules = [
   { weekday: 0, available: true, start_time: '08:00', end_time: '16:00' },
@@ -78,7 +81,16 @@ function mergeTravel(...parts) {
   return merged;
 }
 
-function simulationInput({ activities, travel, periodKey = 'first', district = 'מרכז', instructors = [instructor] } = {}) {
+function simulationInput({
+  activities,
+  travel,
+  periodKey = 'first',
+  district = 'מרכז',
+  instructors = [instructor],
+  authority,
+  travelUnavailableReason = '',
+  routeMatrix = {}
+} = {}) {
   return {
     activities,
     instructors,
@@ -86,9 +98,11 @@ function simulationInput({ activities, travel, periodKey = 'first', district = '
     rules: Object.fromEntries(instructors.map((row) => [row.emp_id, weekdayRules])),
     exceptions: {},
     travel,
-    routeMatrix: {},
+    routeMatrix,
     periodKey,
     district,
+    ...(authority !== undefined ? { authority } : {}),
+    ...(travelUnavailableReason ? { travelUnavailableReason } : {}),
     referenceDate: '2026-09-01'
   };
 }
@@ -244,11 +258,15 @@ test('8. district simulation path does not call write API or assignment RPCs', a
   assert.doesNotMatch(handler, /save_course_assignment_draft/);
   assert.doesNotMatch(handler, /cancel_course_assignment_draft/);
   assert.doesNotMatch(handler, /saveCalculationSnapshot/);
+  assert.doesNotMatch(handler, /authority:\s*text\(state\.courseSchedulingAuthority/);
+  assert.doesNotMatch(handler, /ניתן להמשיך לפי זמינות והתאמה בלבד/);
+  assert.match(handler, /DISTRICT_SIMULATION_ROUTE_MISSING_MESSAGE/);
 
   const moduleSource = await readFile(new URL('../frontend/src/screens/course-scheduling-district-simulation.js', import.meta.url), 'utf8');
   assert.doesNotMatch(moduleSource, /supabase/);
   assert.doesNotMatch(moduleSource, /\.rpc\(/);
   assert.match(moduleSource, /Read-only district simulation/);
+  assert.match(moduleSource, /authority:\s*''/);
 });
 
 test('9. clicking a simulation row opens the existing course detail', () => {
@@ -334,9 +352,9 @@ test('10. existing single-course scheduling controls remain unchanged', () => {
 
 test('simulation summary cards and status filter cover all four statuses', () => {
   const rows = buildDistrictSimulationRows([
-    { course: course('r1'), status: 'הצעה מוכנה', recommended: { instructor: { full_name: 'א' }, score: 80 } },
-    { course: course('r2'), status: 'נדרש טיפול', bestAvailable: { instructor: { full_name: 'ב' }, score: 45 }, treatmentReason: 'ציון נמוך' },
-    { course: course('r3'), status: 'נדרש גיוס', treatmentReason: 'אין מדריך' },
+    { course: course('r1'), status: 'הצעה מוכנה', recommended: { instructor: { full_name: 'א' }, score: 80 }, checked: [{ travel: { home: { distance_km: 8, duration_minutes: 12 } } }] },
+    { course: course('r2'), status: 'נדרש טיפול', bestAvailable: { instructor: { full_name: 'ב' }, score: 45 }, treatmentReason: 'ציון נמוך', checked: [{ travel: { home: { distance_km: 8, duration_minutes: 12 } } }] },
+    { course: course('r3'), status: 'נדרש גיוס', treatmentReason: 'אין מדריך', checked: [{ travel: { home: { distance_km: 55, duration_minutes: 70 } }, failures: ['מרחק'] }] },
     { course: course('r4'), status: 'חסר מידע', missing: ['כתובת בית הספר'] }
   ]);
   const counts = summarizeDistrictSimulation(rows);
@@ -357,4 +375,126 @@ test('simulation summary cards and status filter cover all four statuses', () =>
   assert.match(panel, /data-simulation-status-filter="נדרש גיוס"/);
   assert.match(panel, /data-simulation-course-row="r3"/);
   assert.doesNotMatch(panel, /data-simulation-course-row="r1"/);
+});
+
+test('review fix 1: district simulation ignores ordinary authority filter and returns both authorities', () => {
+  const authorityA = course('a1', { authority: 'רשות א', district: 'מרכז', school: 'ספר א' });
+  const authorityB = course('b1', { authority: 'רשות ב', district: 'מרכז', school: 'ספר ב' });
+  const otherDistrict = course('c1', { authority: 'רשות ג', district: 'צפון', school: 'ספר ג' });
+  const travel = mergeTravel(travelFor('a1'), travelFor('b1'), travelFor('c1'));
+
+  // Even if the normal screen has an authority selected, district simulation must ignore it.
+  const simulation = runDistrictSchedulingSimulation(simulationInput({
+    activities: [authorityA, authorityB, otherDistrict],
+    travel,
+    district: 'מרכז',
+    authority: 'רשות א'
+  }));
+
+  assert.equal(simulation.ok, true);
+  assert.deepEqual(simulation.rows.map((row) => row.courseId).sort(), ['a1', 'b1']);
+  assert.deepEqual(simulation.rows.map((row) => row.authority).sort(), ['רשות א', 'רשות ב']);
+
+  // Engine direct call with authority would wrongly narrow — simulation wrapper clears it.
+  const authorityNarrowed = calculateCourseSchedule(simulationInput({
+    activities: [authorityA, authorityB, otherDistrict],
+    travel,
+    district: 'מרכז',
+    authority: 'רשות א'
+  }));
+  assert.deepEqual(authorityNarrowed.map((result) => result.course.row_id), ['a1']);
+});
+
+test('review fix 1: changing authority filter resets open district simulation', () => {
+  const open = course('auth-reset');
+  const simulation = runDistrictSchedulingSimulation(simulationInput({
+    activities: [open],
+    travel: travelFor('auth-reset')
+  }));
+  const state = {
+    user: { role: 'admin' },
+    courseSchedulingTab: 'courses',
+    courseSchedulingDistrict: 'מרכז',
+    courseSchedulingAuthority: 'נתניה',
+    courseSchedulingSimulationView: true,
+    courseSchedulingSimulationRows: simulation.rows,
+    courseSchedulingSimulationCounts: simulation.counts,
+    courseSchedulingSimulationResults: simulation.results,
+    courseSchedulingSelectedId: ''
+  };
+  const html = courseSchedulingScreen.render({
+    activities: [open],
+    instructors: [instructor],
+    scheduling: {},
+    meetingState: { loaded: true, approvedDates: new Map(), cancelledDates: new Map(), error: '' }
+  }, { state });
+  const dom = new JSDOM(`<!doctype html><html><body><div id="root">${html}</div></body></html>`, { url: 'https://example.test' });
+  globalThis.window = dom.window;
+  globalThis.document = dom.window.document;
+  const root = document.getElementById('root');
+  courseSchedulingScreen.bind({
+    root,
+    data: {
+      activities: [open],
+      instructors: [instructor],
+      scheduling: {},
+      meetingState: { loaded: true, approvedDates: new Map(), cancelledDates: new Map(), error: '' },
+      schoolLocations: [],
+      schoolCalendar: []
+    },
+    state,
+    rerender: () => {}
+  });
+  const select = root.querySelector('[data-authority-filter]');
+  select.value = '';
+  select.dispatchEvent(new dom.window.Event('change', { bubbles: true }));
+  assert.equal(state.courseSchedulingSimulationView, false);
+  assert.deepEqual(state.courseSchedulingSimulationRows, []);
+  delete globalThis.window;
+  delete globalThis.document;
+});
+
+test('review fix 2: unknown routes become חסרים נתונים; known >40km stays נדרש גיוס; known eligible stays proposal/review', () => {
+  const unknownCourse = course('unknown-route');
+  const farCourse = course('far-route', { school: 'בית ספר רחוק', authority: 'רשות רחוקה' });
+  const nearCourse = course('near-route');
+
+  const unknown = runDistrictSchedulingSimulation(simulationInput({
+    activities: [unknownCourse],
+    travel: { 'unknown-route': { 100: { home: null, transitions: {} } } },
+    travelUnavailableReason: 'google_key_not_configured'
+  }));
+  assert.equal(unknown.rows.length, 1);
+  assert.equal(unknown.rows[0].status, DISTRICT_SIMULATION_STATUSES.missing);
+  assert.equal(unknown.counts[DISTRICT_SIMULATION_STATUSES.recruit], 0);
+  assert.match(unknown.rows[0].reason, /מסלול נסיעה אמין/);
+  assert.equal(unknown.hasRouteMissing, true);
+  assert.equal(
+    resolveDistrictSimulationStatus(unknown.results[0]),
+    DISTRICT_SIMULATION_STATUSES.missing
+  );
+
+  const far = runDistrictSchedulingSimulation(simulationInput({
+    activities: [farCourse],
+    travel: travelFor('far-route', '100', { distance_km: 55, duration_minutes: 70 })
+  }));
+  assert.equal(far.rows.length, 1);
+  assert.equal(far.rows[0].status, DISTRICT_SIMULATION_STATUSES.recruit);
+  assert.equal(far.counts[DISTRICT_SIMULATION_STATUSES.missing], 0);
+  assert.match(far.rows[0].reason, /40|מרחק|גיוס|מדריך/);
+
+  const near = runDistrictSchedulingSimulation(simulationInput({
+    activities: [nearCourse],
+    travel: travelFor('near-route', '100', { distance_km: 8, duration_minutes: 12 })
+  }));
+  assert.equal(near.rows.length, 1);
+  assert.ok(
+    [DISTRICT_SIMULATION_STATUSES.ready, DISTRICT_SIMULATION_STATUSES.review].includes(near.rows[0].status),
+    `expected proposal/review, got ${near.rows[0].status}`
+  );
+  assert.equal(near.counts[DISTRICT_SIMULATION_STATUSES.recruit], 0);
+  assert.equal(near.counts[DISTRICT_SIMULATION_STATUSES.missing], 0);
+
+  assert.match(DISTRICT_SIMULATION_ROUTE_MISSING_MESSAGE, /חסרים נתונים/);
+  assert.doesNotMatch(DISTRICT_SIMULATION_ROUTE_MISSING_MESSAGE, /ניתן להמשיך לפי זמינות/);
 });
