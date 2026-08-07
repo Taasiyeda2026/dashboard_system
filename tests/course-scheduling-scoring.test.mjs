@@ -25,11 +25,12 @@ test('score is capped at 100 and never at the old 120 ceiling', () => {
 
 test('same-school continuity does not also earn the full same-authority bonus (no double counting)', () => {
   const sameSchoolNeighbor = { date: '2026-09-02', start_time: '08:30', end_time: '09:55', school: 'בית ספר א', authority: 'חיפה', activity_name: 'קודמת' };
+  const home = { distance_km: 8, duration_minutes: 12 };
   const withSameSchool = evaluateInstructor({
     instructor, profile, rules, activity, existingActivities: [sameSchoolNeighbor],
-    travel: { home: null, transitions: { '2026-09-02': { previous: { distance_km: 0, duration_minutes: 0 } } } }
+    travel: { home, transitions: { '2026-09-02': { previous: { distance_km: 0, duration_minutes: 0 } } } }
   });
-  const bare = evaluateInstructor({ instructor, profile, rules, activity, travel: { home: null, transitions: {} } });
+  const bare = evaluateInstructor({ instructor, profile, rules, activity, travel: { home, transitions: {} } });
   assert.ok(withSameSchool.score > bare.score, 'same-school continuity should raise the score');
   // A same-school connection is worth at most the 30-point school bucket, never
   // school (30) plus authority (20) for the very same neighbor relationship.
@@ -37,7 +38,14 @@ test('same-school continuity does not also earn the full same-authority bonus (n
 });
 
 test('language, gender and blocks stay gating conditions, never point contributions', () => {
-  const eligible = evaluateInstructor({ instructor, profile, rules, activity });
+  const eligible = evaluateInstructor({
+    instructor,
+    profile,
+    rules,
+    activity,
+    travel: { home: { distance_km: 8, duration_minutes: 12 }, transitions: {} },
+    validateTravel: true
+  });
   assert.equal(eligible.eligible, true);
   const mismatched = evaluateInstructor({ instructor, profile: { ...profile, gender: 'male' }, rules, activity });
   assert.equal(mismatched.eligible, false);

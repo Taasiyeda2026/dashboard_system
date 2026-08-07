@@ -6,7 +6,12 @@ import { loadInstructorSchedulingData } from './instructor-scheduling-data.js';
 import { activityMeetings } from './instructor-scheduling-load.js';
 import { calculateCourseSchedule, preliminaryCourseCandidates } from './course-scheduling-engine.js';
 import { calculateCandidateTravel } from './course-scheduling-travel.js';
-import { loadCourseMeetingState, meetingsCompletedForCourse, courseMeetingStage } from './course-scheduling-meetings.js';
+import {
+  attachCancelledMeetingsToActivities,
+  loadCourseMeetingState,
+  meetingsCompletedForCourse,
+  courseMeetingStage
+} from './course-scheduling-meetings.js';
 import { isCourseSchedulingInterfaceEligible } from './shared/activity-scheduling-eligibility.js';
 import { formatDateHe, formatTimeRangeShort } from './shared/format-date.js';
 import { weekRange, shiftWeek, buildWeekRows, weekCalendarHtml, fixedScheduleHtml, weekNavLabel } from './course-scheduling-calendar.js';
@@ -44,6 +49,7 @@ import {
   defaultSelectedSimulationCourseIds,
   districtSimulationDraftSaveBlockReason,
   districtSimulationPanelHtml,
+  hasReliableHomeRoute,
   isDistrictSimulationRowSelectable,
   normalizeSelectedSimulationCourseIds,
   runDistrictSchedulingSimulation,
@@ -388,9 +394,13 @@ export function candidateHardBlockReason(candidate) {
   if (exceedsHomeDistanceLimit(homeKm)) {
     return homeDistanceLimitFailureMessage(homeKm);
   }
+  // Unknown / unverified home routes are missing data — never selectable for draft or final assign.
+  if (!hasReliableHomeRoute(candidate)) {
+    return distanceUnavailableReason(candidate) || 'חסרים נתונים: מסלול נסיעה אמין';
+  }
   const checks = candidate.checks || {};
   if (checks.language?.passed !== true) return checks.language?.reason || checks.language?.label || 'שפת ההדרכה אינה תואמת';
-  if (checks.gender?.passed === false || (checks.gender?.passed == null && genderRequirementLabel(candidate.periodCourse || {}) !== 'ללא דרישה')) return checks.gender?.reason || checks.gender?.label || 'לא ניתן לאמת התאמה לדרישת המגדר';
+  if (checks.gender?.passed !== true) return checks.gender?.reason || checks.gender?.label || 'חסר מגדר בפרופיל';
   if (!candidate.eligible) return [...(candidate.failures || []), ...(candidate.missingProfileData || [])][0] || 'המועמד אינו עומד בתנאי הסף';
   return '';
 }
@@ -846,11 +856,50 @@ function loadingInstructorsHtml(step = 1) {
   </div>`;
 }
 
+function draftProposedMeetingsFromCourse(course = {}) {
+  const proposed = Array.isArray(course.draft_proposed_meetings) ? course.draft_proposed_meetings : [];
+  if (!proposed.length) return null;
+  const official = activityMeetings(course);
+  const meetings = proposed.map((row, index) => {
+    const original = official[index]?.date || row.original_date || '';
+    const date = text(row.date || row);
+    return {
+      ...row,
+      date,
+      original_date: text(original) || date,
+      moved: !!original && text(original) !== date,
+      start_time: row.start_time || course.start_time,
+      end_time: row.end_time || course.end_time
+    };
+  });
+  const movedCount = meetings.filter((meeting) => meeting.moved).length;
+  const newEndDate = meetings.map((meeting) => meeting.date).filter(Boolean).sort().at(-1) || '';
+  const period = resolveCourseSchedulingPeriod(course.periodKey || DEFAULT_COURSE_SCHEDULING_PERIOD_KEY);
+  return {
+    proposedMeetings: meetings,
+    dateAdjustment: {
+      meetings,
+      movedCount,
+      newEndDate,
+      exceedsHalf: !!period.end && !!newEndDate && newEndDate > period.end,
+      label: 'מועדים מוצעים בטיוטה',
+      reason: 'הטיוטה שומרת מועדים מוצעים עד לאישור סופי'
+    },
+    movedMeetingsCount: movedCount,
+    halfOverflow: !!period.end && !!newEndDate && newEndDate > period.end,
+    proposedEndDate: newEndDate,
+    originalEndDate: official.map((meeting) => meeting.date).filter(Boolean).sort().at(-1) || ''
+  };
+}
+
 function draftDetailHtml(course) {
+  const proposed = draftProposedMeetingsFromCourse(course);
   return `${selectedCourseMetaHtml(course)}
     <p class="course-scheduling-status-chip is-draft">${STATUS.draft}</p>
     <p>מדריך בטיוטה: <b>${escapeHtml(course.draft_instructor_name || course.draft_emp_id)}</b></p>
     <p class="course-scheduling-muted">הטיוטה שומרת את השיבוץ המוצע ואינה מעדכנת את הפעילות עד לאישור.</p>
+    ${proposed ? proposedMeetingsPanelHtml(proposed) : ''}
+    ${proposed ? halfOverflowWarningHtml(proposed) : ''}
     <div class="course-scheduling-detail-actions">
       <button type="button" class="course-scheduling-btn course-scheduling-btn--primary" data-confirm-draft>שבץ מדריך</button>
       <button type="button" class="course-scheduling-btn course-scheduling-btn--secondary" data-cancel-draft>בטל טיוטה</button>
@@ -1074,7 +1123,7 @@ export const courseSchedulingScreen = {
       : '';
     const enriched = enrichActivitiesWithSchoolAddresses(activities?.rows || [], schoolRows);
     return {
-      activities: enriched.activities,
+      activities: attachCancelledMeetingsToActivities(enriched.activities, meetingState),
       instructors: contacts?.rows || [],
       scheduling,
       meetingState,
@@ -1417,7 +1466,8 @@ export const courseSchedulingScreen = {
       try {
         if (data.schoolAddressLookupError) throw new Error(data.schoolAddressLookupError);
         const enriched = enrichActivitiesWithSchoolAddresses(data.activities || [], data.schoolLocations || []);
-        data.activities = enriched.activities;
+        const activitiesWithCancellations = attachCancelledMeetingsToActivities(enriched.activities, data.meetingState);
+        data.activities = activitiesWithCancellations;
         data.schoolAddressStats = {
           uniqueSchoolCount: enriched.uniqueSchoolCount,
           duplicateSchoolCount: enriched.duplicateSchoolCount,
@@ -1426,7 +1476,7 @@ export const courseSchedulingScreen = {
         const scheduling = data.scheduling || {};
         const profiles = Object.fromEntries((scheduling.profiles || []).map((row) => [text(row.emp_id), row]));
         const input = {
-          activities: enriched.activities,
+          activities: activitiesWithCancellations,
           periodKey: selectedPeriodKey(state),
           authority: text(state.courseSchedulingAuthority || ''),
           instructors: data.instructors,
@@ -1440,7 +1490,7 @@ export const courseSchedulingScreen = {
         const preliminary = preliminaryCourseCandidates(input);
         state.courseSchedulingProgressStep = 3;
         rerender();
-        const routed = await calculateCandidateTravel(preliminary, enriched.activities);
+        const routed = await calculateCandidateTravel(preliminary, activitiesWithCancellations);
         state.courseSchedulingResults = calculateCourseSchedule({
           ...input,
           referenceDate: new Intl.DateTimeFormat('en-CA', {
@@ -1494,7 +1544,8 @@ export const courseSchedulingScreen = {
       try {
         if (data.schoolAddressLookupError) throw new Error(data.schoolAddressLookupError);
         const enriched = enrichActivitiesWithSchoolAddresses(data.activities || [], data.schoolLocations || []);
-        data.activities = enriched.activities;
+        const activitiesWithCancellations = attachCancelledMeetingsToActivities(enriched.activities, data.meetingState);
+        data.activities = activitiesWithCancellations;
         data.schoolAddressStats = {
           uniqueSchoolCount: enriched.uniqueSchoolCount,
           duplicateSchoolCount: enriched.duplicateSchoolCount,
@@ -1505,7 +1556,7 @@ export const courseSchedulingScreen = {
         // District simulation scope is half-year + district only. The ordinary authority filter
         // continues to affect the single-course list, but must not narrow this calculation.
         const input = {
-          activities: enriched.activities,
+          activities: activitiesWithCancellations,
           periodKey: selectedPeriodKey(state),
           district,
           instructors: data.instructors,
@@ -1515,7 +1566,7 @@ export const courseSchedulingScreen = {
           schoolCalendar: data.schoolCalendar || []
         };
         const preliminary = preliminaryCourseCandidates(input);
-        const routed = await calculateCandidateTravel(preliminary, enriched.activities);
+        const routed = await calculateCandidateTravel(preliminary, activitiesWithCancellations);
         const simulation = runDistrictSchedulingSimulation({
           ...input,
           referenceDate: new Intl.DateTimeFormat('en-CA', {
@@ -1791,6 +1842,12 @@ export const courseSchedulingScreen = {
       const selectedId = text(state.courseSchedulingSelectedCandidateId)
         || text(detailRoot.querySelector('input[type="radio"][name^="course-candidate"]:checked')?.value);
       const selected = allCandidatesForResult(result).find((item) => emp(item) === selectedId);
+      const liveCourse = (data.activities || []).find((row) => idOf(row) === selectedCourseId) || selectedCourse;
+      if (text(liveCourse?.draft_emp_id)) {
+        showToast('הקורס כבר נשמר כטיוטה', 'error');
+        updateCandidateActions(false);
+        return;
+      }
       const blockReason = actionDisabledReason({ candidate: selected, canEdit });
       if (blockReason) { showToast(blockReason, 'error'); updateCandidateActions(false); return; }
       updateCandidateActions(true);
@@ -1809,12 +1866,19 @@ export const courseSchedulingScreen = {
     detailRoot.querySelector('[data-confirm-draft]')?.addEventListener('click', async (event) => {
       if (!canEdit || !selectedCourse) return;
       const proposedMeetings = Array.isArray(selectedCourse.draft_proposed_meetings) ? selectedCourse.draft_proposed_meetings : null;
-      const proposedEnd = proposedMeetings?.at(-1)?.date || '';
+      const proposedSummary = draftProposedMeetingsFromCourse({ ...selectedCourse, periodKey: selectedPeriodKey(state) });
+      const proposedEnd = proposedSummary?.proposedEndDate || proposedMeetings?.at(-1)?.date || '';
+      const originalEnd = proposedSummary?.originalEndDate || '';
       const halfEnd = resolveCourseSchedulingPeriod(selectedPeriodKey(state))?.end || '';
       const exceedsHalf = !!proposedEnd && !!halfEnd && proposedEnd > halfEnd;
-      const approvalMessage = exceedsHalf
-        ? `המועדים המוצעים חורגים מהמחצית ומסתיימים בתאריך ${formatDateHe(proposedEnd)}. לאשר סופית את שינוי המועדים ואת שיבוץ ${selectedCourse.draft_instructor_name}?`
-        : `לאשר את שיבוץ ${selectedCourse.draft_instructor_name}?`;
+      const movedCount = Number(proposedSummary?.movedMeetingsCount) || 0;
+      let approvalMessage = `לאשר את שיבוץ ${selectedCourse.draft_instructor_name}?`;
+      if (movedCount > 0) {
+        approvalMessage = `הטיוטה כוללת ${movedCount} מועדים מוצעים (סיום מקורי ${formatDateHe(originalEnd) || '—'}, סיום מוצע ${formatDateHe(proposedEnd) || '—'}). לאשר סופית את שינוי המועדים ואת שיבוץ ${selectedCourse.draft_instructor_name}?`;
+      }
+      if (exceedsHalf) {
+        approvalMessage = `המועדים המוצעים חורגים מהמחצית ומסתיימים בתאריך ${formatDateHe(proposedEnd)}. לאשר סופית את שינוי המועדים ואת שיבוץ ${selectedCourse.draft_instructor_name}?`;
+      }
       if (!window.confirm(approvalMessage)) return;
       event.target.disabled = true;
       const empId = Number(selectedCourse.draft_emp_id);

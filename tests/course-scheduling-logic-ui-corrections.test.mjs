@@ -159,7 +159,7 @@ test('5-7: rejected-distance candidate never recommended/bestAvailable/alternati
   assert.doesNotMatch(html, /data-alternatives[\s\S]*data-candidate-row="100"/);
 });
 
-test('8: unknown/null home route remains non-fabricated (unsafe / no invented distance)', () => {
+test('8: unknown/null home route is missing data and not eligible (no invented distance)', () => {
   const result = evaluateInstructor({
     instructor,
     profile,
@@ -168,8 +168,9 @@ test('8: unknown/null home route remains non-fabricated (unsafe / no invented di
     travel: { home: null, transitions: {} },
     validateTravel: true
   });
-  assert.equal(result.eligible, true);
-  assert.equal(result.checks.travel.passed, null);
+  assert.equal(result.eligible, false);
+  assert.ok(result.missingProfileData.some((item) => /מסלול/.test(item)));
+  assert.equal(result.checks.travel.passed, false);
   assert.match(result.checks.travel.reason || result.checks.travel.label, /מסלול|מרחק/);
   assert.equal(exceedsHomeDistanceLimit(null), false);
   assert.equal(exceedsHomeDistanceLimit(undefined), false);

@@ -1,3 +1,5 @@
+import { TRANSITION_BUFFER_MINUTES } from './instructor-matching-engine.js';
+
 const text = (value) => String(value ?? '').slice(0, 10);
 const minutes = (value) => { const [h, m] = String(value || '').split(':').map(Number); return h * 60 + m; };
 const addDays = (value, days) => { const date = new Date(`${text(value)}T12:00:00Z`); date.setUTCDate(date.getUTCDate() + days); return date.toISOString().slice(0, 10); };
@@ -63,8 +65,8 @@ export function proposeDateAdjustments({ meetings = [], rules = [], exceptions =
       if (!neighbor) continue;
       if (neighbor.duration_minutes == null) return { valid: false, reason: 'transition_unverified', meetings: proposed };
       const gap = direction === 'previous' ? minutes(meeting.start_time) - minutes(neighbor.end_time) : minutes(neighbor.start_time) - minutes(meeting.end_time);
-      // Route durations are raw travel times. This is the sole safety-buffer source.
-      if (gap < Number(neighbor.duration_minutes) + 15) return { valid: false, reason: 'transition_insufficient', meetings: proposed };
+      // Route durations are raw travel times. TRANSITION_BUFFER_MINUTES is the sole safety-buffer source.
+      if (gap < Number(neighbor.duration_minutes) + TRANSITION_BUFFER_MINUTES) return { valid: false, reason: 'transition_insufficient', meetings: proposed };
     }
   }
   const newEndDate = proposed.at(-1)?.date || '';
