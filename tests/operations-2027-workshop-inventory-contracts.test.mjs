@@ -190,6 +190,33 @@ test('workshop tab lazy loading loads inventory data once and detail toggles do 
   assert.equal(calls.length, 4);
 });
 
+test('direct operations-management entry for 2027 loads lists catalog auth hotfix without visiting admin-lists', async () => {
+  const featureLoadersSource = await readFile(new URL('../frontend/src/feature-loaders.js', import.meta.url), 'utf8');
+  const hotfixSource = await readFile(new URL('../frontend/src/admin-lists-auth-hotfix.js', import.meta.url), 'utf8');
+  const opsSource = await readFile(new URL('../frontend/src/screens/operations-management.js', import.meta.url), 'utf8');
+
+  const operationsCase = featureLoadersSource.match(/case 'operations':\s*return loadOnce\('operations', \(\) => Promise\.all\(\[([\s\S]*?)\]\)\)/);
+  assert.ok(operationsCase, 'operations feature loader case must exist');
+  assert.match(operationsCase[1], /admin-lists-auth-hotfix\.js/,
+    'operations feature must load admin-lists-auth-hotfix so direct ניהול תפעול entry waits for auth');
+  assert.match(featureLoadersSource, /'operations-management':\s*\['operations'\]/,
+    'operations-management must load via operations feature only, without requiring admin-lists first');
+  assert.doesNotMatch(featureLoadersSource, /'operations-management':\s*\[[^\]]*admin/,
+    'operations-management must not depend on the admin feature/screen visit');
+
+  assert.match(hotfixSource, /waitForSupabaseAuthSession/);
+  assert.match(hotfixSource, /\.from\('lists'\)/);
+  assert.match(hotfixSource, /hasInventoryCatalog/);
+  assert.match(hotfixSource, /activity_names/);
+  assert.match(hotfixSource, /inventory_catalog_missing_after_auth_retry/);
+
+  assert.match(opsSource, /api\.adminLists\(\)/);
+  assert.match(opsSource, /api\.workshopStockDistributions/);
+  assert.match(opsSource, /ACTIVITY_SEASON_SCHOOL_2027/);
+  assert.doesNotMatch(opsSource, /completionApprovalUploads[\s\S]{0,200}admin-lists-auth-hotfix/,
+    'summer completion-approval path must remain untouched by this inventory auth wiring');
+});
+
 test('inventory implementation does not calculate opening stock from DOM cells or add writes/RPC/migrations', async () => {
   const source = await readFile(new URL('../frontend/src/screens/operations-management.js', import.meta.url), 'utf8');
   assert.doesNotMatch(source, /row\.cells\[[25]\]/);
