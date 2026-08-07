@@ -3,6 +3,8 @@ import { instructionLanguageLabel, profileSpeaksLanguage, resolveInstructionLang
 const LANGUAGE_LABELS = { he: 'עברית', ar: 'ערבית' };
 /** One-way driving-route home→school hard eligibility limit (km). Inclusive at exactly this value. */
 export const MAX_HOME_DISTANCE_KM = 40;
+/** Required gap between consecutive meetings = raw travel minutes + this buffer. Applied once only. */
+export const TRANSITION_BUFFER_MINUTES = 15;
 
 export const DEFAULT_SCHEDULING_PROFILE = Object.freeze({
   gender: null,
@@ -175,15 +177,16 @@ export function evaluateInstructor({
   }
 
   let genderCheck = checkResult(null, 'מגדר', 'לא נבדק');
-  if (requiredGender === 'any') {
-    genderCheck = checkResult(true, 'ללא דרישת מגדר', '');
-  } else if (!profileGender) {
-    missingProfileData.push('לא ניתן לאמת התאמה לדרישת המגדר');
-    genderCheck = checkResult(false, 'לא ניתן לאמת התאמה לדרישת המגדר', 'חסר מגדר בפרופיל');
-  } else if (profileGender !== requiredGender) {
+  // Gender remains a mandatory profile field even when the activity requirement is "any".
+  if (!profileGender) {
+    missingProfileData.push('מגדר');
+    genderCheck = checkResult(false, 'חסר מגדר בפרופיל', 'חסר מגדר בפרופיל');
+  } else if (requiredGender !== 'any' && profileGender !== requiredGender) {
     const reason = requiredGender === 'female' ? 'הקורס דורש מדריכה' : 'הקורס דורש מדריך';
     failures.push(reason);
     genderCheck = checkResult(false, femaleInstructor ? 'אינה עומדת בדרישה' : 'אינו עומד בדרישה', reason);
+  } else if (requiredGender === 'any') {
+    genderCheck = checkResult(true, 'ללא דרישת מגדר', '');
   } else {
     genderCheck = checkResult(true, femaleInstructor ? 'עומדת בדרישה' : 'עומד בדרישה', '');
   }
@@ -253,19 +256,22 @@ export function evaluateInstructor({
       const required = leg?.duration_minutes;
       const label = direction === 'previous' ? 'מהפעילות הקודמת' : 'לפעילות הבאה';
       const neighborRef = formatPersistedActivityReference(neighbor, neighbor.date || meeting.date);
-      if (required == null && !same(neighbor.school, activity.school)) {
+      const sameLocation = same(neighbor.school, activity.school);
+      if (required == null && !sameLocation) {
         const message = neighborRef
           ? (direction === 'previous'
             ? `לא ניתן לאמת זמן מעבר לאחר ${neighborRef}`
             : `לא ניתן לאמת זמן מעבר לפני ${neighborRef}`)
           : `לא ניתן לאמת זמן מעבר ${label}`;
         addIssue('unverified_transition', direction, message, meeting.date);
-      } else if (required != null && gap < required) {
+      } else if (required != null && !sameLocation && gap < Number(required) + TRANSITION_BUFFER_MINUTES) {
+        // Same-school neighbors do not require the travel buffer; it applies only to real moves.
+        const needed = Number(required) + TRANSITION_BUFFER_MINUTES;
         const message = neighborRef
           ? (direction === 'previous'
             ? `אין זמן מעבר מספיק לאחר ${neighborRef}`
             : `אין זמן מעבר מספיק לפני ${neighborRef}`)
-          : `אין זמן מעבר מספיק ${label} (${gap} דקות זמינות, ${required} דקות נסיעה)`;
+          : `אין זמן מעבר מספיק ${label} (${gap} דקות זמינות, ${needed} דקות נדרשות כולל מרווח בטיחות)`;
         addIssue('insufficient_transition', `${direction}-${required}-${gap}`, message, meeting.date);
       }
       // A given neighbor relationship counts once: same-school continuity takes priority
@@ -345,13 +351,20 @@ export function evaluateInstructor({
       travelCheck = checkResult(true, `${Math.round(Number(homeKm))} ק״מ, ${Math.round(Number(homeMinutes))} דקות`, '');
     }
   } else if (travel?.unavailableReason === 'missing_instructor_address') {
-    travelCheck = checkResult(null, 'מרחק', 'חסרה כתובת מדריך');
+    if (!missingProfileData.includes('כתובת')) missingProfileData.push('כתובת');
+    travelCheck = checkResult(false, 'מרחק', 'חסרה כתובת מדריך');
   } else if (travel?.unavailableReason === 'missing_school_address') {
-    travelCheck = checkResult(null, 'מרחק', 'חסרה כתובת בית ספר');
-  } else if (travel?.unavailableReason === 'service_unavailable') {
-    travelCheck = checkResult(null, 'מרחק', 'שירות המרחקים לא היה זמין');
+    missingProfileData.push('כתובת בית הספר');
+    travelCheck = checkResult(false, 'מרחק', 'חסרה כתובת בית ספר');
+  } else if (travel?.unavailableReason === 'service_unavailable' || travel?.unavailableReason === 'not_calculated') {
+    missingProfileData.push('מסלול נסיעה אמין');
+    travelCheck = checkResult(false, 'מרחק', 'שירות המרחקים לא היה זמין');
   } else if (travel && Object.prototype.hasOwnProperty.call(travel, 'home') && travel.home == null) {
-    travelCheck = checkResult(null, 'מרחק', 'לא נמצא מסלול');
+    missingProfileData.push('מסלול נסיעה אמין');
+    travelCheck = checkResult(false, 'מרחק', 'לא נמצא מסלול');
+  } else if (validateTravel && travel && (homeKm == null || homeMinutes == null)) {
+    missingProfileData.push('מסלול נסיעה אמין');
+    travelCheck = checkResult(false, 'מרחק', 'לא נמצא מסלול');
   }
 
   if ((workloadRatio != null && averageWorkloadRatio != null && Number(workloadRatio) > Number(averageWorkloadRatio) * 1.5)

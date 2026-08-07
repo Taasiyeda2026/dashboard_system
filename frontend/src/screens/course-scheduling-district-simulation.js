@@ -46,7 +46,7 @@ export function isUnresolvedRouteFailure(message = '') {
   if (!value) return false;
   if (isConclusiveRouteFailure(value)) return false;
   if (/לא ניתן לאמת זמן מעבר/.test(value)) return true;
-  if (/לא נמצא מסלול|שירות המרחקים לא היה זמין|חסרה כתובת/.test(value)) return true;
+  if (/לא נמצא מסלול|שירות המרחקים לא היה זמין|חסרה כתובת|מסלול נסיעה אמין|כתובת בית הספר/.test(value)) return true;
   return false;
 }
 
@@ -54,13 +54,15 @@ function isRouteRelatedFailure(message = '') {
   const value = text(message);
   return isConclusiveRouteFailure(value)
     || isUnresolvedRouteFailure(value)
-    || /מרחק|מסלול|40\s*ק״מ|מעבר/.test(value);
+    || /מרחק|מסלול|40\s*ק״מ|מעבר|כתובת בית הספר/.test(value);
 }
 
 /** True when the candidate clears language/gender/availability/profile gates (route aside). */
 export function passesNonRouteHardGates(candidate = {}) {
   const missing = Array.isArray(candidate?.missingProfileData) ? candidate.missingProfileData.filter(Boolean) : [];
-  if (missing.length) return false;
+  // Route-related missing data (unknown home route / service / school address) must not
+  // disqualify the "otherwise viable" check used for חסרים נתונים classification.
+  if (missing.some((item) => !isRouteRelatedFailure(item))) return false;
   const failures = Array.isArray(candidate?.failures) ? candidate.failures.filter(Boolean) : [];
   return failures.every((failure) => isRouteRelatedFailure(failure));
 }
@@ -75,6 +77,8 @@ export function hasUnresolvedRouteIssue(candidate = {}) {
   if (text(candidate?.travel?.unavailableReason)) return true;
   const failures = Array.isArray(candidate?.failures) ? candidate.failures : [];
   if (failures.some((failure) => isUnresolvedRouteFailure(failure))) return true;
+  const missing = Array.isArray(candidate?.missingProfileData) ? candidate.missingProfileData : [];
+  if (missing.some((item) => isUnresolvedRouteFailure(item) || isRouteRelatedFailure(item))) return true;
   const issues = Array.isArray(candidate?.issues) ? candidate.issues : [];
   return issues.some((issue) => (
     text(issue?.kind) === 'unverified_transition'
@@ -388,6 +392,8 @@ export function runDistrictSchedulingSimulation(input = {}) {
     district,
     // District simulation must not inherit the ordinary authority list filter.
     authority: '',
+    // Include open unassigned courses that lack dates/hours so they appear as חסרים נתונים.
+    includeIncompleteWithoutPeriodMeetings: true,
     // Simulation must never treat itself as a write path.
     preliminary: false
   });

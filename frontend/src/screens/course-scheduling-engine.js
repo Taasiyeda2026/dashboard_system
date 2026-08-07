@@ -33,11 +33,18 @@ export function schedulingCourses(rows = [], options = {}) {
   const periodKey = options.periodKey || DEFAULT_COURSE_SCHEDULING_PERIOD_KEY;
   const authority = text(options.authority);
   const district = text(options.district);
+  const includeIncompleteWithoutPeriodMeetings = !!options.includeIncompleteWithoutPeriodMeetings;
   return rows.filter(isActivitySchedulingEligible)
     .filter((row) => !hasDraftInstructor(row))
     .filter((row) => !authority || text(row.authority) === authority)
     .filter((row) => !district || districtOf(row) === district)
-    .filter((row) => activityMeetings(row).some((meeting) => isDateInCourseSchedulingPeriod(meeting.date, periodKey)));
+    .filter((row) => {
+      const meetings = activityMeetings(row);
+      if (meetings.some((meeting) => isDateInCourseSchedulingPeriod(meeting.date, periodKey))) return true;
+      // District simulation must still surface courses that lack dates/hours as חסרים נתונים.
+      if (includeIncompleteWithoutPeriodMeetings && !meetings.length) return true;
+      return false;
+    });
 }
 
 export function schedulingInstructors(rows = []) {
@@ -496,7 +503,8 @@ export function calculateCourseSchedule(input = {}) {
   const courses = schedulingCourses(activities, {
     periodKey,
     authority: input.authority,
-    district: input.district
+    district: input.district,
+    includeIncompleteWithoutPeriodMeetings: !!input.includeIncompleteWithoutPeriodMeetings
   });
   const instructors = schedulingInstructors(input.instructors || []);
   const assignedRows = assignedRowsByInstructor(activities, input.assignments || {});

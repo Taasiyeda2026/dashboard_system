@@ -440,12 +440,12 @@ test('gender hard gates male, female, and missing profile gender only when requi
   assert.equal(result.checked.find((item) => item.instructor.emp_id === 'f1').score, null);
 
   const missingRequired = evaluateInstructor({ instructor: femaleInstructor, profile: { instruction_languages: ['he'] }, rules: weekdayRules, activity: course019({ required_instructor_gender: 'female' }) });
-  assert.ok(missingRequired.missingProfileData.includes('לא ניתן לאמת התאמה לדרישת המגדר'));
+  assert.ok(missingRequired.missingProfileData.includes('מגדר'));
 
-  // Stage 3 does not change gender-any gating; missing gender is allowed when required is any.
+  // Gender remains mandatory even when the activity requirement is "any".
   const missingAny = evaluateInstructor({ instructor: femaleInstructor, profile: { instruction_languages: ['he'] }, rules: weekdayRules, activity: course019({ required_instructor_gender: 'any' }) });
-  assert.equal(missingAny.checks.gender.passed, true);
-  assert.doesNotMatch(missingAny.missingProfileData.join(' '), /מגדר/);
+  assert.equal(missingAny.checks.gender.passed, false);
+  assert.match(missingAny.missingProfileData.join(' '), /מגדר/);
 });
 
 test('candidate details render primary card, closed rejections, and initially disabled actions with explanation', () => {

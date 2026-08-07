@@ -1,5 +1,5 @@
 import { escapeHtml } from './shared/html.js';
-import { activityMeetings } from './instructor-scheduling-load.js';
+import { schedulingCalendarMeetings } from './instructor-scheduling-load.js';
 import { formatDateHe, formatTimeRangeShort } from './shared/format-date.js';
 
 const text = (value) => String(value ?? '').trim();
@@ -47,6 +47,8 @@ function courseInstructor(course) {
  * assignment whose meetings fall inside the given week, each holding the day-by-day
  * blocks to render. Courses without an instructor yet never appear here — they belong
  * only in the pending-courses list, never on the calendar.
+ * Proposed-date drafts are placed on draft_proposed_meetings, not the official dates.
+ * Cancelled meetings (via activity.cancelled_meeting_dates) are omitted.
  */
 export function buildWeekRows(activities = [], days = []) {
   const daySet = new Set(days);
@@ -54,7 +56,7 @@ export function buildWeekRows(activities = [], days = []) {
   for (const course of activities) {
     const instructor = courseInstructor(course);
     if (!instructor) continue;
-    const meetings = activityMeetings(course).filter((meeting) => daySet.has(text(meeting.date)));
+    const meetings = schedulingCalendarMeetings(course).filter((meeting) => daySet.has(text(meeting.date)));
     if (!meetings.length) continue;
     if (!rows.has(instructor.empId)) rows.set(instructor.empId, { empId: instructor.empId, name: instructor.name, byDay: new Map(days.map((day) => [day, []])) });
     const row = rows.get(instructor.empId);
@@ -64,7 +66,8 @@ export function buildWeekRows(activities = [], days = []) {
         course,
         kind: instructor.kind,
         start: meeting.start_time || course.start_time,
-        end: meeting.end_time || course.end_time
+        end: meeting.end_time || course.end_time,
+        proposedDates: instructor.kind === 'draft' && Array.isArray(course.draft_proposed_meetings) && course.draft_proposed_meetings.length
       });
     }
   }
@@ -102,22 +105,51 @@ export function weekCalendarHtml({ days, rows, selectedCourseId } = {}) {
 /**
  * "מערכת קבועה" (fixed schedule): one block per course per instructor, independent of
  * any specific week, showing weekday + hours + full date range instead of every meeting.
+ * Proposed-date drafts use proposed dates for the displayed range.
  */
 export function fixedScheduleHtml(activities = [], selectedCourseId) {
   const rows = new Map();
   for (const course of activities) {
     const instructor = courseInstructor(course);
     if (!instructor) continue;
-    const meetings = activityMeetings(course);
+    const meetings = schedulingCalendarMeetings(course);
     if (!meetings.length) continue;
     const weekday = new Intl.DateTimeFormat('he-IL', { weekday: 'long' }).format(new Date(`${meetings[0].date}T12:00:00`));
     const dates = meetings.map((meeting) => text(meeting.date)).sort();
+    const official = instructor.kind === 'draft' && Array.isArray(course.draft_proposed_meetings) && course.draft_proposed_meetings.length
+      ? (() => {
+        const officialMeetings = Array.isArray(course.meetings)
+          ? course.meetings
+          : Array.from({ length: 35 }, (_, index) => course[`date_${index + 1}`]).filter(Boolean).map((date) => ({ date }));
+        const officialDates = officialMeetings.map((meeting) => text(meeting.date || meeting)).filter(Boolean).sort();
+        return officialDates.length ? { from: officialDates[0], to: officialDates.at(-1) } : null;
+      })()
+      : null;
     if (!rows.has(instructor.empId)) rows.set(instructor.empId, { empId: instructor.empId, name: instructor.name, items: [] });
-    rows.get(instructor.empId).items.push({ course, kind: instructor.kind, weekday, start: course.start_time, end: course.end_time, from: dates[0], to: dates.at(-1) });
+    rows.get(instructor.empId).items.push({
+      course,
+      kind: instructor.kind,
+      weekday,
+      start: course.start_time,
+      end: course.end_time,
+      from: dates[0],
+      to: dates.at(-1),
+      officialFrom: official?.from || null,
+      officialTo: official?.to || null,
+      usesProposedDates: !!official
+    });
   }
   const sortedRows = [...rows.values()].sort((a, b) => a.name.localeCompare(b.name, 'he'));
   if (!sortedRows.length) return '<p class="course-scheduling-calendar-empty">אין מדריכים משובצים או בטיוטה עדיין.</p>';
-  return `<div class="course-scheduling-calendar-scroll"><table class="ds-table course-scheduling-calendar-fixed-table"><thead><tr><th>מדריך</th><th>יום ושעה</th><th>קורס</th><th>בית ספר</th><th>טווח תאריכים</th></tr></thead><tbody>${sortedRows.map((row) => row.items.map((item, index) => `<tr class="${[item.kind === 'draft' ? 'course-scheduling-calendar-fixed-row--draft' : '', idOf(item.course) === selectedCourseId ? 'is-selected-day' : ''].filter(Boolean).join(' ')}"><td>${index === 0 ? escapeHtml(row.name) : ''}</td><td>${escapeHtml(item.weekday)} <bdi dir="ltr">${escapeHtml(formatTimeRangeShort(item.start, item.end))}</bdi></td><td><button type="button" class="ds-link-btn" data-calendar-course="${escapeHtml(idOf(item.course))}">${escapeHtml(item.course.activity_name || '—')}</button>${item.kind === 'draft' ? ' <span class="ds-status-chip">טיוטה</span>' : ''}</td><td>${escapeHtml(item.course.school || '—')}</td><td><bdi dir="ltr">${escapeHtml(formatDateHe(item.from))}–${escapeHtml(formatDateHe(item.to))}</bdi></td></tr>`).join('')).join('')}</tbody></table></div>`;
+  return `<div class="course-scheduling-calendar-scroll"><table class="ds-table course-scheduling-calendar-fixed-table"><thead><tr><th>מדריך</th><th>יום ושעה</th><th>קורס</th><th>בית ספר</th><th>טווח תאריכים</th></tr></thead><tbody>${sortedRows.map((row) => row.items.map((item, index) => {
+    const rangeLabel = item.usesProposedDates
+      ? `${formatDateHe(item.from)}–${formatDateHe(item.to)} (מוצע)`
+      : `${formatDateHe(item.from)}–${formatDateHe(item.to)}`;
+    const officialNote = item.usesProposedDates && item.officialFrom
+      ? `<div class="course-scheduling-muted" data-official-dates>מקורי: <bdi dir="ltr">${escapeHtml(formatDateHe(item.officialFrom))}–${escapeHtml(formatDateHe(item.officialTo))}</bdi></div>`
+      : '';
+    return `<tr class="${[item.kind === 'draft' ? 'course-scheduling-calendar-fixed-row--draft' : '', idOf(item.course) === selectedCourseId ? 'is-selected-day' : ''].filter(Boolean).join(' ')}"><td>${index === 0 ? escapeHtml(row.name) : ''}</td><td>${escapeHtml(item.weekday)} <bdi dir="ltr">${escapeHtml(formatTimeRangeShort(item.start, item.end))}</bdi></td><td><button type="button" class="ds-link-btn" data-calendar-course="${escapeHtml(idOf(item.course))}">${escapeHtml(item.course.activity_name || '—')}</button>${item.kind === 'draft' ? ' <span class="ds-status-chip">טיוטה</span>' : ''}</td><td>${escapeHtml(item.course.school || '—')}</td><td><bdi dir="ltr">${escapeHtml(rangeLabel)}</bdi>${officialNote}</td></tr>`;
+  }).join('')).join('')}</tbody></table></div>`;
 }
 
 export function weekNavLabel({ start, end } = {}) {
