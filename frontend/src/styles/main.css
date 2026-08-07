@@ -16916,6 +16916,22 @@ details[open] > .ds-fin-acc__summary::before { transform: rotate(90deg); }
   margin: 0.15rem 0 0.35rem;
 }
 
+/* קו הפרדה אנכי עדין בין לשוניות ניהול תפעול */
+.ds-ops-mgmt-tabs .ds-ops-mgmt-tab {
+  position: relative;
+}
+.ds-ops-mgmt-tabs .ds-ops-mgmt-tab + .ds-ops-mgmt-tab::before {
+  content: '';
+  position: absolute;
+  right: -4px;                        /* מרכז ה-gap של 8px בין לשוניות */
+  top: 18%;
+  height: 64%;
+  width: 1px;
+  background: rgba(15, 23, 42, 0.13); /* קו דק ועדין, גלוי על רקע בהיר */
+  border-radius: 1px;
+  pointer-events: none;
+}
+
 .ds-ops-mgmt-content {
   display: grid;
   gap: 0.55rem;
