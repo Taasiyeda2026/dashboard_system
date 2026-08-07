@@ -979,7 +979,7 @@ function enforceCourseSchedulingRoute() {
 }
 
 // מסכי ניהול — נגישים למי שיש לו הרשאה, אך לא מוצגים בסרגל הצד
-const ADMIN_SIDEBAR_HIDDEN_ROUTES = new Set(['admin-home', 'admin-settings', 'admin-lists', 'invitations', 'catalog', 'certificates']);
+const ADMIN_SIDEBAR_HIDDEN_ROUTES = new Set(['admin-home', 'admin-settings', 'admin-lists', 'invitations', 'catalog', 'certificates', 'operations-management']);
 
 function shell(content) {
   enforceProposalsAgreementsRoute();
