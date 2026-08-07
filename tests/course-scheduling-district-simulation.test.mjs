@@ -87,6 +87,7 @@ function simulationInput({
   periodKey = 'first',
   district = 'מרכז',
   instructors = [instructor],
+  profiles,
   authority,
   travelUnavailableReason = '',
   routeMatrix = {}
@@ -94,7 +95,7 @@ function simulationInput({
   return {
     activities,
     instructors,
-    profiles: Object.fromEntries(instructors.map((row) => [row.emp_id, profile])),
+    profiles: profiles || Object.fromEntries(instructors.map((row) => [row.emp_id, profile])),
     rules: Object.fromEntries(instructors.map((row) => [row.emp_id, weekdayRules])),
     exceptions: {},
     travel,
@@ -351,10 +352,27 @@ test('10. existing single-course scheduling controls remain unchanged', () => {
 });
 
 test('simulation summary cards and status filter cover all four statuses', () => {
+  const reliableTravel = { home: { distance_km: 8, duration_minutes: 12 }, transitions: {} };
   const rows = buildDistrictSimulationRows([
-    { course: course('r1'), status: 'הצעה מוכנה', recommended: { instructor: { full_name: 'א' }, score: 80 }, checked: [{ travel: { home: { distance_km: 8, duration_minutes: 12 } } }] },
-    { course: course('r2'), status: 'נדרש טיפול', bestAvailable: { instructor: { full_name: 'ב' }, score: 45 }, treatmentReason: 'ציון נמוך', checked: [{ travel: { home: { distance_km: 8, duration_minutes: 12 } } }] },
-    { course: course('r3'), status: 'נדרש גיוס', treatmentReason: 'אין מדריך', checked: [{ travel: { home: { distance_km: 55, duration_minutes: 70 } }, failures: ['מרחק'] }] },
+    {
+      course: course('r1'),
+      status: 'הצעה מוכנה',
+      recommended: { instructor: { full_name: 'א' }, score: 80, travel: reliableTravel },
+      checked: [{ instructor: { full_name: 'א' }, travel: reliableTravel }]
+    },
+    {
+      course: course('r2'),
+      status: 'נדרש טיפול',
+      bestAvailable: { instructor: { full_name: 'ב' }, score: 45, travel: reliableTravel },
+      treatmentReason: 'ציון נמוך',
+      checked: [{ instructor: { full_name: 'ב' }, travel: reliableTravel }]
+    },
+    {
+      course: course('r3'),
+      status: 'נדרש גיוס',
+      treatmentReason: 'אין מדריך',
+      checked: [{ travel: { home: { distance_km: 55, duration_minutes: 70 } }, failures: ['מרחק הנסיעה לבית הספר הוא 55 ק״מ ועולה על המגבלה של 40 ק״מ'] }]
+    },
     { course: course('r4'), status: 'חסר מידע', missing: ['כתובת בית הספר'] }
   ]);
   const counts = summarizeDistrictSimulation(rows);
@@ -497,4 +515,101 @@ test('review fix 2: unknown routes become חסרים נתונים; known >40km s
 
   assert.match(DISTRICT_SIMULATION_ROUTE_MISSING_MESSAGE, /חסרים נתונים/);
   assert.doesNotMatch(DISTRICT_SIMULATION_ROUTE_MISSING_MESSAGE, /ניתן להמשיך לפי זמינות/);
+});
+
+test('final review: gender-rejected candidates without routes stay נדרש גיוס', () => {
+  const target = course('gender-only', { required_instructor_gender: 'female' });
+  const maleOnly = {
+    emp_id: '200',
+    full_name: 'יוסי כהן',
+    active: 'yes',
+    address: 'כתובת מדריך'
+  };
+  const simulation = runDistrictSchedulingSimulation(simulationInput({
+    activities: [target],
+    instructors: [maleOnly],
+    profiles: {
+      200: { gender: 'male', instruction_languages: ['he'], friday_allowed: false }
+    },
+    travel: { 'gender-only': { 200: { home: null, transitions: {} } } }
+  }));
+  assert.equal(simulation.rows.length, 1);
+  assert.equal(simulation.rows[0].status, DISTRICT_SIMULATION_STATUSES.recruit);
+  assert.notEqual(simulation.rows[0].status, DISTRICT_SIMULATION_STATUSES.missing);
+  assert.equal(simulation.counts[DISTRICT_SIMULATION_STATUSES.missing], 0);
+  assert.equal(simulation.rows[0].proposedInstructor, '—');
+});
+
+test('final review: >40km plus otherwise-viable unknown route becomes חסרים נתונים', () => {
+  const target = course('mixed-route');
+  const farInstructor = {
+    emp_id: '201',
+    full_name: 'רחוקה לוי',
+    active: 'yes',
+    address: 'כתובת רחוקה'
+  };
+  const unknownInstructor = {
+    emp_id: '202',
+    full_name: 'ממתינה למסלול',
+    active: 'yes',
+    address: 'כתובת קרובה'
+  };
+  const simulation = runDistrictSchedulingSimulation(simulationInput({
+    activities: [target],
+    instructors: [farInstructor, unknownInstructor],
+    profiles: {
+      201: { gender: 'female', instruction_languages: ['he'], friday_allowed: false },
+      202: { gender: 'female', instruction_languages: ['he'], friday_allowed: false }
+    },
+    travel: {
+      'mixed-route': {
+        201: { home: { distance_km: 55, duration_minutes: 70 }, transitions: {} },
+        202: { home: null, transitions: {} }
+      }
+    }
+  }));
+  assert.equal(simulation.rows.length, 1);
+  assert.equal(simulation.rows[0].status, DISTRICT_SIMULATION_STATUSES.missing);
+  assert.equal(simulation.rows[0].proposedInstructor, '—');
+  assert.equal(simulation.rows[0].score, null);
+  assert.match(simulation.rows[0].reason, /מסלול נסיעה אמין/);
+  assert.equal(simulation.hasRouteMissing, true);
+});
+
+test('final review: reliable selected candidate stays valid despite rejected candidates without routes', () => {
+  const target = course('reliable-selected');
+  const goodInstructor = {
+    emp_id: '301',
+    full_name: 'הילה מומלצת',
+    active: 'yes',
+    address: 'כתובת טובה'
+  };
+  const rejectedInstructor = {
+    emp_id: '302',
+    full_name: 'נדחה מגדר',
+    active: 'yes',
+    address: 'כתובת אחרת'
+  };
+  const simulation = runDistrictSchedulingSimulation(simulationInput({
+    activities: [target],
+    instructors: [goodInstructor, rejectedInstructor],
+    profiles: {
+      301: { gender: 'female', instruction_languages: ['he'], friday_allowed: false },
+      302: { gender: 'male', instruction_languages: ['he'], friday_allowed: false }
+    },
+    travel: {
+      'reliable-selected': {
+        301: { home: { distance_km: 8, duration_minutes: 12 }, transitions: {} },
+        302: { home: null, transitions: {} }
+      }
+    }
+  }));
+  assert.equal(simulation.rows.length, 1);
+  assert.ok(
+    [DISTRICT_SIMULATION_STATUSES.ready, DISTRICT_SIMULATION_STATUSES.review].includes(simulation.rows[0].status),
+    `expected proposal/review, got ${simulation.rows[0].status}`
+  );
+  assert.equal(simulation.rows[0].proposedInstructor, 'הילה מומלצת');
+  assert.notEqual(simulation.rows[0].status, DISTRICT_SIMULATION_STATUSES.missing);
+  assert.equal(simulation.counts[DISTRICT_SIMULATION_STATUSES.missing], 0);
 });

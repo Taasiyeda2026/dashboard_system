@@ -28,14 +28,39 @@ export function hasReliableHomeRoute(candidate = {}) {
     && Number.isFinite(Number(home.duration_minutes));
 }
 
-/** True when every checked candidate lacks a verified home→school route. */
-export function allCandidateRoutesUnreliable(result = {}) {
+function isRouteRelatedFailure(message = '') {
+  return /מרחק|מסלול|40\s*ק״מ|מעבר/.test(text(message));
+}
+
+/** True when the candidate clears language/gender/availability/profile gates (route aside). */
+export function passesNonRouteHardGates(candidate = {}) {
+  const missing = Array.isArray(candidate?.missingProfileData) ? candidate.missingProfileData.filter(Boolean) : [];
+  if (missing.length) return false;
+  const failures = Array.isArray(candidate?.failures) ? candidate.failures.filter(Boolean) : [];
+  return failures.every((failure) => isRouteRelatedFailure(failure));
+}
+
+export function selectedSimulationCandidate(result = {}) {
+  return result?.recommended || result?.bestAvailable || null;
+}
+
+/**
+ * Route reliability is checked only for candidates who could otherwise cover the course.
+ * Rejected hard-gate candidates without calculated routes must not force חסרים נתונים.
+ */
+export function hasUnresolvedRouteBlockingCoverage(result = {}) {
+  const selected = selectedSimulationCandidate(result);
+  if (selected) return !hasReliableHomeRoute(selected);
+
   const checked = Array.isArray(result.checked) ? result.checked : [];
-  if (!checked.length) {
-    // Engine incomplete-course rows have no checked candidates; treat via missing fields instead.
-    return false;
-  }
-  return checked.every((candidate) => !hasReliableHomeRoute(candidate));
+  return checked.some((candidate) => (
+    passesNonRouteHardGates(candidate) && !hasReliableHomeRoute(candidate)
+  ));
+}
+
+/** @deprecated Prefer hasUnresolvedRouteBlockingCoverage — kept for older test imports. */
+export function allCandidateRoutesUnreliable(result = {}) {
+  return hasUnresolvedRouteBlockingCoverage(result);
 }
 
 export function hasKnownOverDistanceRejection(result = {}) {
@@ -57,18 +82,15 @@ export function mapEngineStatusToSimulation(status) {
 
 /**
  * Simulation-facing status. Missing/unreliable route data is never recruitment.
- * A known route above 40 km remains recruitment.
+ * A known route above 40 km remains a conclusive rejection / recruitment signal.
  */
 export function resolveDistrictSimulationStatus(result = {}) {
   const engineStatus = text(result.status);
   if (engineStatus === 'חסר מידע' || engineStatus === 'חסרים נתונים') {
     return DISTRICT_SIMULATION_STATUSES.missing;
   }
-  if (allCandidateRoutesUnreliable(result)) {
+  if (hasUnresolvedRouteBlockingCoverage(result)) {
     return DISTRICT_SIMULATION_STATUSES.missing;
-  }
-  if (engineStatus === 'נדרש גיוס' && hasKnownOverDistanceRejection(result)) {
-    return DISTRICT_SIMULATION_STATUSES.recruit;
   }
   return mapEngineStatusToSimulation(engineStatus);
 }
@@ -90,7 +112,7 @@ function simulationReason(result = {}, status) {
   if (status === DISTRICT_SIMULATION_STATUSES.missing) {
     const missing = Array.isArray(result.missing) ? result.missing.filter(Boolean) : [];
     if (missing.length) return `חסרים נתונים: ${missing.join(', ')}`;
-    if (result.missingReliableRoute || allCandidateRoutesUnreliable(result)) {
+    if (result.missingReliableRoute || hasUnresolvedRouteBlockingCoverage(result)) {
       return 'חסרים נתונים: מסלול נסיעה אמין';
     }
     return 'חסרים נתונים לשיבוץ';
@@ -103,18 +125,20 @@ function simulationReason(result = {}, status) {
       || ((result.recommended?.warnings || []).length ? result.recommended.warnings.join('; ') : '')
       || 'נדרשת בדיקה נוספת לפני שיבוץ';
   }
-  const candidate = result.recommended || result.bestAvailable;
+  const candidate = selectedSimulationCandidate(result);
   return text(candidate?.qualityLabel) || 'הצעה מוכנה לשיבוץ';
 }
 
 export function buildDistrictSimulationRow(result = {}, periodKey = DEFAULT_COURSE_SCHEDULING_PERIOD_KEY) {
   const course = result.course || {};
   const status = resolveDistrictSimulationStatus(result);
-  const missingReliableRoute = status === DISTRICT_SIMULATION_STATUSES.missing && allCandidateRoutesUnreliable(result);
+  const missingReliableRoute = status === DISTRICT_SIMULATION_STATUSES.missing
+    && hasUnresolvedRouteBlockingCoverage(result);
   const enrichedResult = missingReliableRoute ? { ...result, missingReliableRoute: true } : result;
   const slot = courseScheduleSlot(course, periodKey);
+  // Unresolved selected-route cases must not surface that instructor as a proposal.
   const candidate = status === DISTRICT_SIMULATION_STATUSES.ready || status === DISTRICT_SIMULATION_STATUSES.review
-    ? (result.recommended || result.bestAvailable || null)
+    ? selectedSimulationCandidate(result)
     : null;
   const scoreValue = Number(candidate?.score);
   return {
