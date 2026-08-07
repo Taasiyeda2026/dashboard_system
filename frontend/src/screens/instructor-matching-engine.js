@@ -85,6 +85,32 @@ function checkResult(passed, label, reason = '') {
   return { passed, label, reason };
 }
 
+/** Shared Hebrew wording for affected-meeting counts (1 = singular). */
+export function formatAffectedMeetingsPhrase(count) {
+  const n = Math.max(0, Math.floor(Number(count) || 0));
+  if (n === 1) return 'משפיע על מפגש אחד';
+  return `משפיע על ${n} מפגשים`;
+}
+
+function formatDisplayDate(value) {
+  const raw = String(value || '').slice(0, 10);
+  const match = raw.match(/^(\d{4})-(\d{2})-(\d{2})$/);
+  if (!match) return '';
+  return `${match[3]}.${match[2]}.${match[1]}`;
+}
+
+/** User-facing persisted-activity reference: name, school, date when available. */
+export function formatPersistedActivityReference(activity = {}, meetingDate = '') {
+  const name = String(activity?.activity_name || '').trim();
+  const school = String(activity?.school || '').trim();
+  const date = formatDisplayDate(meetingDate || activity?.date);
+  const parts = [];
+  if (name) parts.push(name);
+  if (school) parts.push(`בבית ספר ${school}`);
+  if (date) parts.push(`ביום ${date}`);
+  return parts.join(' ');
+}
+
 export function defaultAvailabilityForWeekday(weekday, profile = {}) {
   const normalized = normalizeSchedulingProfile(profile);
   return weekday === 6
@@ -212,7 +238,11 @@ export function evaluateInstructor({
 
     const { previous, next, day } = adjacentActivities(existingActivities, meeting);
     const conflict = day.find((existing) => overlaps(meeting, existing));
-    if (conflict) addIssue('overlap', String(conflict.activity_name || conflict.school || 'activity'), `חפיפה חוזרת עם ${conflict.activity_name || 'פעילות אחרת'}`, meeting.date);
+    if (conflict) {
+      const conflictRef = formatPersistedActivityReference(conflict, meeting.date);
+      const conflictLabel = conflictRef || conflict.activity_name || 'פעילות אחרת';
+      addIssue('overlap', String(conflict.activity_name || conflict.school || 'activity'), `חפיפה חוזרת עם ${conflictLabel}`, meeting.date);
+    }
 
     const transition = travel?.transitions?.[meeting.date] || {};
     const inspect = (neighbor, leg, direction) => {
@@ -222,8 +252,22 @@ export function evaluateInstructor({
         : minutes(neighbor.start_time) - minutes(meeting.end_time);
       const required = leg?.duration_minutes;
       const label = direction === 'previous' ? 'מהפעילות הקודמת' : 'לפעילות הבאה';
-      if (required == null && !same(neighbor.school, activity.school)) addIssue('unverified_transition', direction, `לא ניתן לאמת זמן מעבר ${label}`, meeting.date);
-      else if (required != null && gap < required) addIssue('insufficient_transition', `${direction}-${required}-${gap}`, `אין זמן מעבר מספיק ${label} (${gap} דקות זמינות, ${required} דקות נסיעה)`, meeting.date);
+      const neighborRef = formatPersistedActivityReference(neighbor, neighbor.date || meeting.date);
+      if (required == null && !same(neighbor.school, activity.school)) {
+        const message = neighborRef
+          ? (direction === 'previous'
+            ? `לא ניתן לאמת זמן מעבר לאחר ${neighborRef}`
+            : `לא ניתן לאמת זמן מעבר לפני ${neighborRef}`)
+          : `לא ניתן לאמת זמן מעבר ${label}`;
+        addIssue('unverified_transition', direction, message, meeting.date);
+      } else if (required != null && gap < required) {
+        const message = neighborRef
+          ? (direction === 'previous'
+            ? `אין זמן מעבר מספיק לאחר ${neighborRef}`
+            : `אין זמן מעבר מספיק לפני ${neighborRef}`)
+          : `אין זמן מעבר מספיק ${label} (${gap} דקות זמינות, ${required} דקות נסיעה)`;
+        addIssue('insufficient_transition', `${direction}-${required}-${gap}`, message, meeting.date);
+      }
       // A given neighbor relationship counts once: same-school continuity takes priority
       // over same-authority continuity so the two point buckets never double-score it.
       if (same(neighbor.school, activity.school)) {
@@ -263,7 +307,7 @@ export function evaluateInstructor({
   }
 
   for (const issue of issues) {
-    const summary = `${issue.message} — משפיע על ${issue.dates.length} מפגשים.`;
+    const summary = `${issue.message} - ${formatAffectedMeetingsPhrase(issue.dates.length)}`;
     (issue.missing ? missingProfileData : failures).push(summary);
   }
 

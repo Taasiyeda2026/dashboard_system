@@ -29,7 +29,8 @@ import { SCORE_WEIGHTS, formatWorkloadHours } from './course-scheduling-score.js
 import {
   MAX_HOME_DISTANCE_KM,
   exceedsHomeDistanceLimit,
-  homeDistanceLimitFailureMessage
+  homeDistanceLimitFailureMessage,
+  formatAffectedMeetingsPhrase
 } from './instructor-matching-engine.js';
 import {
   bindInstructorsWorkspaceNav,
@@ -37,7 +38,7 @@ import {
   instructorsWorkspaceNavStylesHtml
 } from './shared/instructors-workspace-nav.js';
 
-export { formatWorkloadHours, MAX_HOME_DISTANCE_KM };
+export { formatWorkloadHours, MAX_HOME_DISTANCE_KM, formatAffectedMeetingsPhrase };
 
 const text = (value) => String(value ?? '').trim();
 const emp = (candidate) => text(candidate?.instructor?.emp_id);
@@ -543,13 +544,22 @@ function candidateMetaLine(candidate) {
     ? `עומס לאחר השיבוץ: ${formatWorkloadHours(candidate.projectedHalfHours)}`
     : 'עומס לאחר השיבוץ: —';
   const moved = Number(candidate?.movedMeetingsCount) || 0;
-  const days = Number(candidate?.activeWorkDays);
-  const daysLabel = Number.isFinite(days) ? `ימי עבודה פעילים: ${days}` : 'ימי עבודה פעילים: —';
+  const existingDays = Number(candidate?.existingWorkDays);
+  const projectedDays = Number(
+    candidate?.projectedWorkDays != null ? candidate.projectedWorkDays : candidate?.activeWorkDays
+  );
+  const existingLabel = Number.isFinite(existingDays)
+    ? `ימי עבודה קיימים: ${existingDays}`
+    : 'ימי עבודה קיימים: —';
+  const projectedLabel = Number.isFinite(projectedDays)
+    ? `ימי עבודה לאחר שיבוץ זה: ${projectedDays}`
+    : 'ימי עבודה לאחר שיבוץ זה: —';
   return [
     escapeHtml(distanceLabel(candidate)),
     escapeHtml(load),
     escapeHtml(`מפגשים שהוזזו: ${moved}`),
-    escapeHtml(daysLabel)
+    escapeHtml(existingLabel),
+    escapeHtml(projectedLabel)
   ].map((item) => `<span class="course-scheduling-candidate-meta-item">${item}</span>`).join('');
 }
 
@@ -745,7 +755,7 @@ function incompleteProfilesHtml(result) {
         <p><b>${escapeHtml(candidate.instructor?.full_name || '—')} | ${escapeHtml(emp(candidate))}</b></p>
         ${text(candidate.instructor?.address) ? `<p>${escapeHtml(candidate.instructor.address)}</p>` : ''}
         ${missing.length ? `<p><b>חסר להשלמה:</b> ${escapeHtml(missing.join(' · '))}</p>` : ''}
-        ${issues.map((issue) => `<p>${escapeHtml(issue.message)} — משפיע על ${issue.dates.length} מפגשים.<br>${issue.dates.map((date) => escapeHtml(date)).join(', ')}</p>`).join('')}
+        ${issues.map((issue) => `<p>${escapeHtml(issue.message)} - ${escapeHtml(formatAffectedMeetingsPhrase(issue.dates.length))}<br>${issue.dates.map((date) => escapeHtml(date)).join(', ')}</p>`).join('')}
       </div>`;
     }).join('')}
   </details>`;
