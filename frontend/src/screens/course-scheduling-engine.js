@@ -219,7 +219,8 @@ function draftActivityFromCandidate(course, candidate) {
   };
 }
 
-function draftRowsForInstructor(planningDraft, empId, ordered, excludeCourseId = '') {
+/** Internal planning recommendations only (unsaved automatic picks). */
+function planningRowsForInstructor(planningDraft, empId, ordered, excludeCourseId = '') {
   return [...planningDraft.entries()]
     .filter(([courseId, candidate]) => courseId !== excludeCourseId && text(candidate.instructor?.emp_id) === empId)
     .map(([courseId, candidate]) => {
@@ -233,33 +234,37 @@ function evaluateCandidate({
   course,
   instructor,
   assignedRows,
-  draftRows,
+  planningRows,
   profiles,
   rules,
   exceptions,
   input,
-  peerProjectedHours = null
+  peerPlannerProjectedHours = null
 }) {
   const empId = text(instructor.emp_id);
-  const occupiedRows = [...(assignedRows[empId] || []), ...(draftRows || [])];
+  // A: persisted schedule only — approved assignments + saved drafts.
+  const persistedRows = [...(assignedRows[empId] || [])];
+  // B: internal planning recommendations — never treated as real activities for hard gates / UI load.
+  const internalPlanningRows = [...(planningRows || [])];
   const periodKey = input.periodKey || DEFAULT_COURSE_SCHEDULING_PERIOD_KEY;
   const allMeetings = activityMeetings(course);
   const periodMeetings = allMeetings.filter((meeting) => isDateInCourseSchedulingPeriod(meeting.date, periodKey));
   const originalPeriodCourse = { ...course, meetings: periodMeetings };
-  const existingMeetings = meetingAssignments(occupiedRows, { periodKey, allDates: true });
+  const persistedMeetings = meetingAssignments(persistedRows, { periodKey, allDates: true });
+  const planningMeetings = meetingAssignments(internalPlanningRows, { periodKey, allDates: true });
   const adjustmentInput = {
     meetings: allMeetings,
     rules: rules[empId] || [],
     exceptions: exceptions[empId] || [],
     schoolCalendar: input.schoolCalendar || [],
-    existingActivities: existingMeetings,
+    existingActivities: persistedMeetings,
     halfEnd: resolveCourseSchedulingPeriod(periodKey).end
   };
   let adjustment = proposeDateAdjustments(adjustmentInput);
   if (adjustment?.valid) {
     const destination = placeOf(course);
     const transitions = Object.fromEntries(adjustment.meetings.map((meeting) => {
-      const { previous, next } = adjacentActivities(existingMeetings, meeting);
+      const { previous, next } = adjacentActivities(persistedMeetings, meeting);
       return [meeting.date, {
         previous: previous ? { ...previous, ...routeLeg(input.routeMatrix || {}, placeOf(previous), destination, sameSchool(previous, course)) } : null,
         next: next ? { ...next, ...routeLeg(input.routeMatrix || {}, destination, placeOf(next), sameSchool(course, next)) } : null
@@ -268,17 +273,27 @@ function evaluateCandidate({
     adjustment = proposeDateAdjustments({ ...adjustmentInput, transitions });
   }
   const periodCourse = adjustment?.valid ? { ...course, meetings: adjustment.meetings } : originalPeriodCourse;
-  const baselineLoad = instructorLoad(occupiedRows, profiles[empId], rules[empId] || [], { periodKey });
-  const projectedLoad = instructorLoad([...occupiedRows, periodCourse], profiles[empId], rules[empId] || [], { periodKey });
-  const occupiedPeriodMeetings = meetingAssignments(occupiedRows, { periodKey });
-  const travel = dynamicTravel(periodCourse, instructor, occupiedPeriodMeetings, input);
+
+  // User-facing workload / workdays: persisted rows (+ current course for projected) only.
+  const persistedBaselineLoad = instructorLoad(persistedRows, profiles[empId], rules[empId] || [], { periodKey });
+  const persistedProjectedLoad = instructorLoad([...persistedRows, periodCourse], profiles[empId], rules[empId] || [], { periodKey });
+  // Internal planner workload may include earlier automatic recommendations for soft balancing.
+  const plannerBaselineLoad = instructorLoad([...persistedRows, ...internalPlanningRows], profiles[empId], rules[empId] || [], { periodKey });
+  const plannerProjectedLoad = instructorLoad([...persistedRows, ...internalPlanningRows, periodCourse], profiles[empId], rules[empId] || [], { periodKey });
+
+  const persistedPeriodMeetings = meetingAssignments(persistedRows, { periodKey });
+  const plannerPeriodMeetings = meetingAssignments([...persistedRows, ...internalPlanningRows], { periodKey });
+  // Hard-gate travel/neighbors use persisted meetings only.
+  const travel = dynamicTravel(periodCourse, instructor, persistedPeriodMeetings, input);
+  // Soft continuity scoring may see planning recommendations via a separate travel view.
+  const plannerTravel = dynamicTravel(periodCourse, instructor, plannerPeriodMeetings, input);
   const gate = evaluateInstructor({
     instructor,
     profile: profiles[empId],
     rules: rules[empId] || [],
     exceptions: exceptions[empId] || [],
     activity: periodCourse,
-    existingActivities: occupiedPeriodMeetings,
+    existingActivities: persistedPeriodMeetings,
     travel,
     validateTravel: !input.preliminary && (input.travel !== undefined || input.routeMatrix !== undefined)
   });
@@ -290,19 +305,24 @@ function evaluateCandidate({
   }
 
   const eligible = !!gate.eligible;
-  const baselineWorkDates = baselineLoad.workDates || new Set();
+  // Soft scoring may use planner meetings for continuity / balancing; UI hours stay persisted-only.
+  const plannerWorkDates = plannerBaselineLoad.workDates || new Set();
   const scored = computeSchedulingScore({
     eligible,
     activity: periodCourse,
     meetings: activityMeetings(periodCourse),
-    existingActivities: occupiedPeriodMeetings,
-    travel,
-    workDates: baselineWorkDates,
+    existingActivities: plannerPeriodMeetings,
+    travel: plannerTravel,
+    workDates: plannerWorkDates,
     dateAdjustment: adjustment?.valid ? adjustment : null,
-    currentHalfHours: baselineLoad.hours,
-    projectedHalfHours: projectedLoad.hours,
-    peerProjectedHours: peerProjectedHours || [projectedLoad.hours],
-    activeWorkDays: projectedLoad.workDays
+    currentHalfHours: persistedBaselineLoad.hours,
+    projectedHalfHours: persistedProjectedLoad.hours,
+    plannerProjectedHalfHours: plannerProjectedLoad.hours,
+    peerProjectedHours: peerPlannerProjectedHours || [plannerProjectedLoad.hours],
+    peerPlannerProjectedHours: peerPlannerProjectedHours || [plannerProjectedLoad.hours],
+    activeWorkDays: persistedProjectedLoad.workDays,
+    existingWorkDays: persistedBaselineLoad.workDays,
+    projectedWorkDays: persistedProjectedLoad.workDays
   });
 
   return {
@@ -314,17 +334,28 @@ function evaluateCandidate({
     scoreBreakdown: scored.scoreBreakdown,
     recommendationReason: scored.recommendationReason,
     instructor,
-    load: projectedLoad,
-    baselineWorkDates,
+    load: persistedProjectedLoad,
+    baselineWorkDates: persistedBaselineLoad.workDates || new Set(),
+    plannerWorkDates,
     travel,
+    plannerTravel,
     periodCourse,
     originalPeriodCourse,
-    existingMeetings: occupiedPeriodMeetings,
+    // User-facing / hard-gate neighbors: persisted only. Soft scorer keeps planner meetings separately.
+    existingMeetings: persistedPeriodMeetings,
+    plannerMeetings: plannerPeriodMeetings,
+    planningMeetings,
+    persistedRows,
+    planningRows: internalPlanningRows,
     dateAdjustment: adjustment?.valid ? adjustment : null,
     proposedMeetings: adjustment?.valid ? adjustment.meetings : null,
     currentHalfHours: scored.currentHalfHours,
     projectedHalfHours: scored.projectedHalfHours,
+    plannerCurrentHalfHours: plannerBaselineLoad.hours,
+    plannerProjectedHalfHours: plannerProjectedLoad.hours,
     activeWorkDays: scored.activeWorkDays,
+    existingWorkDays: scored.existingWorkDays,
+    projectedWorkDays: scored.projectedWorkDays,
     relevantTravelMinutes: scored.relevantTravelMinutes,
     relevantTravelDistance: scored.relevantTravelDistance,
     movedMeetingsCount: scored.movedMeetingsCount,
@@ -342,23 +373,28 @@ function evaluateCandidate({
 }
 
 function rescoreEligiblePeers(candidates = [], course = {}) {
+  // Soft fairness balancing uses internal planner projected hours (may include hidden recommendations).
   const peers = candidates
     .filter((candidate) => candidate.eligible)
-    .map((candidate) => Number(candidate.projectedHalfHours) || 0);
+    .map((candidate) => Number(candidate.plannerProjectedHalfHours ?? candidate.projectedHalfHours) || 0);
   return candidates.map((candidate) => {
     if (!candidate.eligible) return candidate;
     const scored = computeSchedulingScore({
       eligible: true,
       activity: candidate.periodCourse || course,
       meetings: activityMeetings(candidate.periodCourse || course),
-      existingActivities: candidate.existingMeetings || [],
-      travel: candidate.travel,
-      workDates: candidate.baselineWorkDates || new Set(),
+      existingActivities: candidate.plannerMeetings || candidate.existingMeetings || [],
+      travel: candidate.plannerTravel || candidate.travel,
+      workDates: candidate.plannerWorkDates || candidate.baselineWorkDates || new Set(),
       dateAdjustment: candidate.dateAdjustment,
       currentHalfHours: candidate.currentHalfHours,
       projectedHalfHours: candidate.projectedHalfHours,
-      peerProjectedHours: peers.length ? peers : [candidate.projectedHalfHours],
-      activeWorkDays: candidate.activeWorkDays
+      plannerProjectedHalfHours: candidate.plannerProjectedHalfHours,
+      peerProjectedHours: peers.length ? peers : [candidate.plannerProjectedHalfHours ?? candidate.projectedHalfHours],
+      peerPlannerProjectedHours: peers.length ? peers : [candidate.plannerProjectedHalfHours ?? candidate.projectedHalfHours],
+      activeWorkDays: candidate.projectedWorkDays ?? candidate.activeWorkDays,
+      existingWorkDays: candidate.existingWorkDays,
+      projectedWorkDays: candidate.projectedWorkDays
     });
     return {
       ...candidate,
@@ -379,7 +415,10 @@ function rescoreEligiblePeers(candidates = [], course = {}) {
       relevantTravelDistance: scored.relevantTravelDistance,
       movedMeetingsCount: scored.movedMeetingsCount,
       totalShiftDays: scored.totalShiftDays,
-      halfOverflow: scored.halfOverflow
+      halfOverflow: scored.halfOverflow,
+      existingWorkDays: scored.existingWorkDays,
+      projectedWorkDays: scored.projectedWorkDays,
+      activeWorkDays: scored.activeWorkDays
     };
   });
 }
@@ -434,7 +473,7 @@ function evaluateCourseCandidates({
     course,
     instructor,
     assignedRows,
-    draftRows: draftRowsForInstructor(planningDraft, text(instructor.emp_id), ordered),
+    planningRows: planningRowsForInstructor(planningDraft, text(instructor.emp_id), ordered),
     profiles,
     rules,
     exceptions,

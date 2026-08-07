@@ -319,19 +319,34 @@ export function scoreActualWorkload({
   projectedHalfHours = 0,
   peerProjectedHours = [],
   currentHalfHours = 0,
-  activeWorkDays = 0
+  activeWorkDays = 0,
+  existingWorkDays = null,
+  projectedWorkDays = null,
+  plannerProjectedHalfHours = null,
+  peerPlannerProjectedHours = null
 } = {}) {
   const max = SCORE_WEIGHTS.actualWorkload;
-  const peers = (peerProjectedHours || []).map(Number).filter(Number.isFinite);
+  // Soft fairness balancing may use internal planner hours; user-facing values stay persisted-only.
+  // Treat null/undefined as "unset" — Number(null) is 0 and must not replace projected hours.
+  const balanceProjected = plannerProjectedHalfHours != null && Number.isFinite(Number(plannerProjectedHalfHours))
+    ? Number(plannerProjectedHalfHours)
+    : Number(projectedHalfHours);
+  const peers = (peerPlannerProjectedHours || peerProjectedHours || []).map(Number).filter(Number.isFinite);
   const projected = Number(projectedHalfHours);
-  if (!peers.length || !Number.isFinite(projected)) {
+  const existingDays = existingWorkDays == null ? null : Number(existingWorkDays);
+  const projectedDays = projectedWorkDays == null
+    ? Number(activeWorkDays) || 0
+    : Number(projectedWorkDays) || 0;
+  if (!peers.length || !Number.isFinite(balanceProjected)) {
     const projectedRounded = Number.isFinite(projected) ? Math.round(projected * 100) / 100 : 0;
     return {
       points: max,
       label: SCORE_COMPONENT_LABELS.actualWorkload,
       currentHalfHours: Number(currentHalfHours) || 0,
       projectedHalfHours: projectedRounded,
-      activeWorkDays: Number(activeWorkDays) || 0,
+      activeWorkDays: projectedDays,
+      existingWorkDays: existingDays == null ? null : (Number.isFinite(existingDays) ? existingDays : 0),
+      projectedWorkDays: projectedDays,
       note: Number.isFinite(projected) ? `${formatWorkloadHours(projectedRounded)} לאחר השיבוץ` : ''
     };
   }
@@ -339,14 +354,16 @@ export function scoreActualWorkload({
   const maxPeer = Math.max(...peers);
   const points = min === maxPeer
     ? max
-    : roundPoints(max * ((maxPeer - projected) / (maxPeer - min)), max);
-  const projectedRounded = Math.round(projected * 100) / 100;
+    : roundPoints(max * ((maxPeer - balanceProjected) / (maxPeer - min)), max);
+  const projectedRounded = Number.isFinite(projected) ? Math.round(projected * 100) / 100 : 0;
   return {
     points,
     label: SCORE_COMPONENT_LABELS.actualWorkload,
     currentHalfHours: Math.round(Number(currentHalfHours) * 100) / 100,
     projectedHalfHours: projectedRounded,
-    activeWorkDays: Number(activeWorkDays) || 0,
+    activeWorkDays: projectedDays,
+    existingWorkDays: existingDays == null ? null : (Number.isFinite(existingDays) ? existingDays : 0),
+    projectedWorkDays: projectedDays,
     note: `${formatWorkloadHours(projectedRounded)} לאחר השיבוץ`
   };
 }
@@ -438,7 +455,11 @@ export function computeSchedulingScore({
   currentHalfHours = 0,
   projectedHalfHours = 0,
   peerProjectedHours = [],
-  activeWorkDays = 0
+  activeWorkDays = 0,
+  existingWorkDays = null,
+  projectedWorkDays = null,
+  plannerProjectedHalfHours = null,
+  peerPlannerProjectedHours = null
 } = {}) {
   if (!eligible) {
     return {
@@ -449,6 +470,8 @@ export function computeSchedulingScore({
       currentHalfHours: null,
       projectedHalfHours: null,
       activeWorkDays: null,
+      existingWorkDays: null,
+      projectedWorkDays: null,
       relevantTravelMinutes: null,
       relevantTravelDistance: null,
       movedMeetingsCount: 0,
@@ -509,11 +532,21 @@ export function computeSchedulingScore({
     relevantTravelDistance: placement.relevantTravelDistance,
     hasKnownRoute
   });
+  const resolvedProjectedWorkDays = projectedWorkDays == null
+    ? Number(activeWorkDays) || 0
+    : Number(projectedWorkDays) || 0;
+  const resolvedExistingWorkDays = existingWorkDays == null
+    ? null
+    : (Number.isFinite(Number(existingWorkDays)) ? Number(existingWorkDays) : 0);
   const actualWorkload = scoreActualWorkload({
     currentHalfHours,
     projectedHalfHours,
     peerProjectedHours,
-    activeWorkDays
+    activeWorkDays: resolvedProjectedWorkDays,
+    existingWorkDays: resolvedExistingWorkDays,
+    projectedWorkDays: resolvedProjectedWorkDays,
+    plannerProjectedHalfHours,
+    peerPlannerProjectedHours
   });
   const originalSchedulePreservation = scoreOriginalSchedulePreservation(dateAdjustment);
   const gapsAndNewDays = noExistingSchedule
@@ -559,6 +592,8 @@ export function computeSchedulingScore({
     currentHalfHours: actualWorkload.currentHalfHours,
     projectedHalfHours: actualWorkload.projectedHalfHours,
     activeWorkDays: actualWorkload.activeWorkDays,
+    existingWorkDays: actualWorkload.existingWorkDays,
+    projectedWorkDays: actualWorkload.projectedWorkDays,
     relevantTravelMinutes: travelDistance.relevantTravelMinutes,
     relevantTravelDistance: travelDistance.relevantTravelDistance,
     movedMeetingsCount: originalSchedulePreservation.movedMeetingsCount,

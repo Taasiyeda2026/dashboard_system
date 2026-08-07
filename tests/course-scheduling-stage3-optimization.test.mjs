@@ -251,6 +251,17 @@ test('workload uses actual hours including approved, draft, planning state and c
   const high = scoreActualWorkload({ projectedHalfHours: 10, peerProjectedHours: [2, 10], currentHalfHours: 9, activeWorkDays: 3 });
   assert.equal(low.points, 20);
   assert.equal(high.points, 0);
+  // Internal planner hours can drive soft fairness without changing user-facing projected hours.
+  const plannerBalanced = scoreActualWorkload({
+    projectedHalfHours: 2,
+    peerProjectedHours: [2, 10],
+    plannerProjectedHalfHours: 10,
+    peerPlannerProjectedHours: [2, 10],
+    currentHalfHours: 1,
+    activeWorkDays: 1
+  });
+  assert.equal(plannerBalanced.points, 0);
+  assert.equal(plannerBalanced.projectedHalfHours, 2);
 
   const openA = course('plan-a', '2026-09-06');
   const openB = course('plan-b', '2026-09-13');
@@ -291,14 +302,14 @@ test('workload uses actual hours including approved, draft, planning state and c
   const second = results.find((row) => row.course.row_id === 'plan-b');
   assert.ok(first?.recommended || first?.bestAvailable);
   assert.ok(second);
-  // Primary of first course blocks conflicting recommendation on second when same slot/instructor.
   const primaryA = first.recommended || first.bestAvailable;
   const primaryB = second.recommended || second.bestAvailable;
+  // Approved/saved-draft hours remain in user-facing load; hidden planning may raise planner load only.
+  if (primaryA?.instructor?.emp_id === '1') {
+    assert.ok(Number(primaryA.currentHalfHours) >= 1);
+  }
   if (primaryA && primaryB && primaryA.instructor.emp_id === primaryB.instructor.emp_id) {
-    assert.notEqual(
-      JSON.stringify(primaryA.proposedMeetings || primaryA.periodCourse?.meetings),
-      JSON.stringify(primaryB.proposedMeetings || primaryB.periodCourse?.meetings)
-    );
+    assert.ok(Number(primaryB.plannerProjectedHalfHours) >= Number(primaryB.projectedHalfHours));
   }
 });
 
@@ -319,7 +330,7 @@ test('original schedule preservation penalties and eligible date-adjusted candid
   assert.equal(adjusted.halfOverflow, true);
 });
 
-test('sequential planning: primary proposal blocks later course; proposedMeetings used; no DB writes', () => {
+test('sequential planning: primary proposal soft-influences later course without hard-blocking; no DB writes', () => {
   const first = course('first', '2026-09-06', {
     school: 'משותף',
     school_id: 'shared',
@@ -355,13 +366,18 @@ test('sequential planning: primary proposal blocks later course; proposedMeeting
   assert.deepEqual(activities, snapshot);
   const firstResult = results.find((row) => row.course.row_id === 'first');
   const secondResult = results.find((row) => row.course.row_id === 'second');
-  assert.ok(firstResult.recommended || firstResult.bestAvailable);
-  assert.equal(secondResult.recommended, null);
-  assert.equal(secondResult.bestAvailable, null);
-  assert.ok(['נדרש גיוס', 'נדרש טיפול'].includes(secondResult.status));
+  const firstPrimary = firstResult.recommended || firstResult.bestAvailable;
+  const secondPrimary = secondResult.recommended || secondResult.bestAvailable;
+  assert.ok(firstPrimary);
+  // Overlapping hidden planningDraft must not create hard ineligibility.
+  assert.ok(secondPrimary);
+  assert.equal(secondPrimary.eligible, true);
+  assert.doesNotMatch((secondResult.checked?.[0]?.failures || []).join(' '), /חפיפה/);
+  assert.ok(Number(secondPrimary.plannerProjectedHalfHours) >= Number(secondPrimary.projectedHalfHours));
+  assert.equal(secondPrimary.existingWorkDays, 0);
 });
 
-test('proposedMeetings from primary block the next course instead of original dates', () => {
+test('proposedMeetings from primary soft-influence next course; persisted rows still gate hard conflicts', () => {
   const first = course('shift-first', '2026-09-06', {
     meetings: [
       { date: '2026-09-06', start_time: '10:00', end_time: '11:00' },
@@ -388,11 +404,10 @@ test('proposedMeetings from primary block the next course instead of original da
   assert.ok(primary?.dateAdjustment?.valid);
   assert.ok(primary.proposedMeetings?.some((meeting) => meeting.date !== '2026-09-06'));
   const secondResult = results.find((row) => row.course.row_id === 'shift-second');
-  // Second course on 2026-09-20 may collide with shifted first meeting if first moved onto that date.
-  if (primary.proposedMeetings.some((meeting) => meeting.date === '2026-09-20')) {
-    assert.equal(secondResult.recommended, null);
-    assert.equal(secondResult.bestAvailable, null);
-  }
+  const secondPrimary = secondResult.recommended || secondResult.bestAvailable;
+  // Even if proposedMeetings land on the same date, hidden planning must not hard-block.
+  assert.ok(secondPrimary?.eligible);
+  assert.equal(secondPrimary.existingWorkDays, 0);
 });
 
 test('recommendation threshold, alternatives cap, and no ineligible in selectable slots', () => {
