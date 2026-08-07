@@ -52,11 +52,29 @@ function aggregatePositiveDistributions(rows = []) {
   return Array.from(byLocation.values());
 }
 
+function normalizeOpeningBalanceRows(rows = []) {
+  return (Array.isArray(rows) ? rows : [])
+    .map((row) => ({
+      ...row,
+      inventory_year: Number(row?.inventory_year ?? row?.inventoryYear ?? 2027),
+      activity_season: String(row?.activity_season || row?.activitySeason || ACTIVITY_SEASON_SCHOOL_2027).trim(),
+      stock_group_key: String(row?.stock_group_key || row?.stockGroupKey || '').trim(),
+      workshop_numbers: String(row?.workshop_numbers || row?.workshopNumbers || '').trim(),
+      workshop_name: String(row?.workshop_name || row?.workshopName || '').trim(),
+      holder_name: String(row?.holder_name || row?.holderName || '').trim(),
+      holder_type: String(row?.holder_type || row?.holderType || '').trim(),
+      opening_quantity: Number(row?.opening_quantity ?? row?.openingQuantity ?? 0) || 0
+    }))
+    .filter((row) => row.stock_group_key && row.holder_name && row.opening_quantity > 0);
+}
+
 export function normalizeWorkshopInventory2027Data(data = {}, state = {}) {
   if (!is2027State(state) || activeOperationsTab(state) !== 'workshops') return data;
   return {
     ...data,
-    workshopStockDistributions: aggregatePositiveDistributions(data?.workshopStockDistributions),
+    // 2027 opening stock comes only from workshop_inventory_opening_balances.
+    workshopStockDistributions: [],
+    workshopInventoryOpeningBalances: normalizeOpeningBalanceRows(data?.workshopInventoryOpeningBalances),
     workshopInventory2027Rows: (Array.isArray(data?.workshopInventory2027Rows) ? data.workshopInventory2027Rows : [])
       .filter(isSchool2027Activity)
   };
