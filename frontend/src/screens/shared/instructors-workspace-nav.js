@@ -3,7 +3,8 @@ import { escapeHtml } from './html.js';
 export const INSTRUCTORS_WORKSPACE_TABS = Object.freeze([
   { id: 'list', label: 'רשימת מדריכים', route: 'instructors' },
   { id: 'scheduling', label: 'שיבוצים', route: 'course-scheduling' },
-  { id: 'work-schedule', label: 'סידור עבודה', route: 'operations-management', opsContext: 'instructors' }
+  { id: 'work-schedule', label: 'סידור עבודה', route: 'operations-management', opsContext: 'instructors' },
+  { id: 'maintenance', label: 'תחזוקה', route: 'course-scheduling' }
 ]);
 
 function availableRoutes(state) {
@@ -18,7 +19,9 @@ function canOpenTab(tab, routes) {
 
 export function resolveInstructorsWorkspaceActiveTab(state = {}) {
   const route = String(state?.route || '').trim();
-  if (route === 'course-scheduling') return 'scheduling';
+  if (route === 'course-scheduling') {
+    return state?.courseSchedulingTab === 'maintenance' ? 'maintenance' : 'scheduling';
+  }
   if (route === 'operations-management' && state?.operationsManagement?.context === 'instructors') return 'work-schedule';
   if (route === 'instructors') return 'list';
   return '';
@@ -80,7 +83,17 @@ export function instructorsWorkspaceNavStylesHtml() {
 }
 
 function prepareTabContext(tab, state) {
-  if (tab.id === 'list' || tab.id === 'scheduling') {
+  if (tab.id === 'maintenance') {
+    if (state.operationsManagement) state.operationsManagement.context = 'operations';
+    state.courseSchedulingTab = 'maintenance';
+    return { route: 'course-scheduling' };
+  }
+  if (tab.id === 'scheduling') {
+    if (state.operationsManagement) state.operationsManagement.context = 'operations';
+    state.courseSchedulingTab = '';
+    return { route: tab.route };
+  }
+  if (tab.id === 'list') {
     if (state.operationsManagement) state.operationsManagement.context = 'operations';
     return { route: tab.route };
   }
@@ -99,6 +112,11 @@ function activateTab(tabId, { state, rerender } = {}) {
 
   // Browser: never set state.route before app:navigate — main.js bails when route === state.route.
   if (typeof document !== 'undefined') {
+    if (state.route === detail.route) {
+      // Already on this route — state was mutated in prepareTabContext; just re-render.
+      rerender?.();
+      return;
+    }
     document.dispatchEvent(new CustomEvent('app:navigate', { detail }));
     return;
   }

@@ -1376,15 +1376,21 @@
   line-height: 1.45;
 }
 .course-scheduling-candidate-meta {
-  display: flex;
-  flex-wrap: wrap;
-  gap: 6px 12px;
-  margin: 0 0 8px;
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 3px 16px;
+  margin: 0 0 10px;
   color: var(--cs-text-muted);
-  font-size: 13px;
+  font-size: 12.5px;
+  padding: 8px 10px;
+  background: var(--cs-surface-soft);
+  border: 1px solid var(--cs-border);
+  border-radius: 7px;
 }
 .course-scheduling-candidate-meta-item {
-  white-space: normal;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
 }
 .course-scheduling-primary-card__breakdown h4,
 .course-scheduling-alternatives > h4,
@@ -1397,7 +1403,8 @@
   margin: 0;
   padding: 0;
   display: grid;
-  gap: 5px;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 6px 16px;
 }
 .course-scheduling-score-bar__head {
   display: flex;

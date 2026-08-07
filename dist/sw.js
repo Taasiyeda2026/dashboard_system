@@ -10,12 +10,7 @@ const CACHE_NAME = `${CACHE_PREFIX}${CACHE_VERSION}`;
 
 /** Relative paths from sw.js location — works on any origin/proxy (Replit, deploy, etc). */
 const PRECACHE_URLS = [
-  "./assets/apple-touch-icon-DZF9rhdV.png",
-  "./assets/favicon-D0Y9bj5H.ico",
-  "./assets/index-DOAmC6QP.js",
-  "./assets/style-CynMn5CP.css",
-  "./index.html",
-  "./manifest.json"
+  './index.html'
 ];
 
 function resolveUrl(path) {

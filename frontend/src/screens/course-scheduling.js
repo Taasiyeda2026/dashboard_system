@@ -765,8 +765,8 @@ function resultsActionsHtml(result, selectedId) {
       <span class="course-scheduling-action-bar__selected" data-selection-note>${note}</span>
       <span class="course-scheduling-action-bar__sep" aria-hidden="true">|</span>
       <div class="course-scheduling-action-bar__buttons">
-        <button type="button" class="course-scheduling-btn course-scheduling-btn--secondary" data-save-draft disabled title="בחרו מדריך כשיר">שמור כטיוטה</button>
         <button type="button" class="course-scheduling-btn course-scheduling-btn--primary" data-assign-course disabled title="בחרו מדריך כשיר">שבץ מדריך</button>
+        <button type="button" class="course-scheduling-btn course-scheduling-btn--secondary" data-save-draft disabled title="בחרו מדריך כשיר">שמור כטיוטה</button>
         <button type="button" class="course-scheduling-text-btn" data-clear-candidate>ביטול</button>
       </div>
     </div>`;
@@ -1178,10 +1178,12 @@ export const courseSchedulingScreen = {
       || (selectedId ? courseRowModel(interfaceCourses.find((course) => idOf(course) === selectedId) || { row_id: selectedId }, resultByCourseId, data.meetingState) : null);
     const readiness = courseSchedulingDataReadiness(data.activities || []);
     return dsScreenStack(`${instructorsWorkspaceNavStylesHtml()}
-    <div class="course-scheduling-screen" dir="rtl" data-cs-ui="ux-polish-20260805-v1" data-cs-tab="courses">
-      ${instructorsWorkspaceHeaderHtml({ activeTab: 'scheduling', state })}
+    <div class="course-scheduling-screen" dir="rtl" data-cs-ui="ux-polish-20260805-v1" data-cs-tab="${escapeHtml(tab)}">
+      ${instructorsWorkspaceHeaderHtml({ activeTab: tab === 'maintenance' ? 'maintenance' : 'scheduling', state })}
 
-      ${schedulingScopeHtml(allInterfaceCourses, state)}
+      ${tab === 'maintenance'
+        ? maintenanceTabHtml()
+        : `${schedulingScopeHtml(allInterfaceCourses, state)}
       ${state.courseSchedulingSimulationView
         ? districtSimulationPanelHtml({
           rows: state.courseSchedulingSimulationRows || [],
@@ -1210,11 +1212,7 @@ export const courseSchedulingScreen = {
             : selectedCoursePanelHtml(selectedRow?.course ? selectedRow : null, state)
         }</section>
       </div>
-      <details class="cs-maintenance-toggle">
-        <summary>תחזוקה</summary>
-        ${maintenanceTabHtml()}
-      </details>
-    `}
+    `}`}
       ${state.courseSchedulingShowDistanceConfirm ? distanceMaintenanceDialogHtml(state) : ''}
       ${dataReadinessDrawerHtml(data, state)}
     </div>`);
