@@ -522,6 +522,8 @@ test('bestAvailable uses review title and never the misleading quality-miss head
   });
   assert.match(html, /ההתאמה הטובה ביותר שנמצאה/);
   assert.equal((html.match(/נדרשת בדיקה/g) || []).length, 1);
+  const badges = [...html.matchAll(/course-scheduling-status-pill[^"]*"[^>]*>([^<]+)/g)].map((m) => m[1]);
+  assert.deepEqual(badges, ['נדרשת בדיקה']);
   assert.doesNotMatch(html, /ההתאמה הטובה ביותר<\/span>/);
   assert.doesNotMatch(html, /מתאים טכנית בלבד/);
   assert.doesNotMatch(html, /לא נמצאה התאמה איכותית לקורס/);

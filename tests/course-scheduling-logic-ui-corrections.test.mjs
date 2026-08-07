@@ -210,15 +210,16 @@ test('10-12: first schedule without half-year history uses neutral continuity 18
 
 test('13-14: second planningDraft course and existing approved/draft use real continuity scoring', () => {
   const first = course('plan-a');
+  // Use non-overlapping weekdays so transition verification is not required between planned courses.
   const second = course('plan-b', {
     school: 'בית ספר ב',
     school_id: 'school-b',
     school_address: 'רחוב אחר 2, נתניה',
-    meetings: Array.from({ length: 4 }, (_, index) => {
-      const date = new Date('2026-09-13T12:00:00Z');
-      date.setUTCDate(date.getUTCDate() + index * 7);
-      return { date: date.toISOString().slice(0, 10), start_time: '12:00', end_time: '13:00' };
-    })
+    meetings: ['2026-09-07', '2026-09-14', '2026-09-21', '2026-09-28'].map((date) => ({
+      date,
+      start_time: '10:00',
+      end_time: '11:00'
+    }))
   });
   const travel = mergeTravel(
     travelFor('plan-a', '100', { distance_km: 6, duration_minutes: 10 }),
@@ -232,6 +233,8 @@ test('13-14: second planningDraft course and existing approved/draft use real co
   const secondPrimary = planned.find((row) => row.course.row_id === 'plan-b');
   const firstPick = firstPrimary.recommended || firstPrimary.bestAvailable;
   const secondPick = secondPrimary.recommended || secondPrimary.bestAvailable;
+  assert.ok(firstPick, 'first course should have a primary candidate');
+  assert.ok(secondPick, 'second course should have a primary candidate');
   assert.equal(firstPick.scoreBreakdown.continuityEfficiency.points, NEUTRAL_CONTINUITY_POINTS);
   assert.equal(firstPick.scoreBreakdown.continuityEfficiency.neutralBaseline, true);
   assert.notEqual(secondPick.scoreBreakdown.continuityEfficiency.neutralBaseline, true);
@@ -252,11 +255,11 @@ test('13-14: second planningDraft course and existing approved/draft use real co
   const approvedPick = withApproved.recommended || withApproved.bestAvailable;
   assert.ok(approvedPick);
   assert.notEqual(approvedPick.scoreBreakdown.continuityEfficiency.neutralBaseline, true);
-  assert.ok(approvedPick.scoreBreakdown.continuityEfficiency.points === 35
-    || approvedPick.scoreBreakdown.continuityEfficiency.points === 26
-    || approvedPick.scoreBreakdown.continuityEfficiency.points === 18
-    || approvedPick.scoreBreakdown.continuityEfficiency.points === 12
-    || approvedPick.scoreBreakdown.continuityEfficiency.points === 0);
+  assert.notEqual(approvedPick.scoreBreakdown.continuityEfficiency.note, NEUTRAL_CONTINUITY_NOTE);
+  // One same-school meeting among several yields a real averaged continuity score (not the empty-schedule baseline).
+  assert.ok((approvedPick.sameSchoolMeetingCount || approvedPick.scoreBreakdown.continuityEfficiency.sameSchoolMeetingCount) >= 1);
+  assert.ok(approvedPick.scoreBreakdown.continuityEfficiency.points > 0);
+  assert.notEqual(approvedPick.scoreBreakdown.continuityEfficiency.points, NEUTRAL_CONTINUITY_POINTS);
 });
 
 test('15: total score weights still equal 100', () => {
@@ -334,8 +337,8 @@ test('18-20: recommended/bestAvailable badges are singular; rejected never in al
     checked: [recommended]
   });
   assert.match(recommendedHtml, /המדריך המומלץ/);
-  assert.equal((recommendedHtml.match(/course-scheduling-status-pill/g) || []).length, 1);
-  assert.match(recommendedHtml, /מומלץ/);
+  const recommendedBadges = [...recommendedHtml.matchAll(/course-scheduling-status-pill[^"]*"[^>]*>([^<]+)/g)].map((m) => m[1]);
+  assert.deepEqual(recommendedBadges, ['מומלץ']);
 
   const bestAvailable = { ...recommended, score: 48, qualityLabel: 'מתאים עם אזהרה' };
   const bestHtml = detailsHtml({
@@ -347,7 +350,8 @@ test('18-20: recommended/bestAvailable badges are singular; rejected never in al
     checked: [bestAvailable]
   });
   assert.match(bestHtml, /ההתאמה הטובה ביותר שנמצאה/);
-  assert.equal((bestHtml.match(/נדרשת בדיקה/g) || []).length, 1);
+  const bestBadges = [...bestHtml.matchAll(/course-scheduling-status-pill[^"]*"[^>]*>([^<]+)/g)].map((m) => m[1]);
+  assert.deepEqual(bestBadges, ['נדרשת בדיקה']);
   assert.doesNotMatch(bestHtml, /מתאים עם אזהרה/);
   assert.doesNotMatch(bestHtml, /ההתאמה הטובה ביותר<\/span>/);
 
@@ -485,15 +489,34 @@ test('24: action buttons remain disabled for an ineligible / over-distance candi
       travel: { passed: false, reason: homeDistanceLimitFailureMessage(135) }
     }
   };
+  const eligible = {
+    instructor: nearbyInstructor,
+    eligible: true,
+    score: 80,
+    projectedHalfHours: 4,
+    movedMeetingsCount: 0,
+    activeWorkDays: 1,
+    scoreBreakdown: {
+      continuityEfficiency: { points: 18, label: 'רציפות ויעילות ביום' },
+      travelDistance: { points: 20, label: 'מרחק ונסיעות' },
+      actualWorkload: { points: 20, label: 'עומס עבודה בפועל' },
+      originalSchedulePreservation: { points: 15, label: 'שמירה על המועדים המקוריים' },
+      gapsAndNewDays: { points: 5, label: 'צמצום חלונות ופתיחת ימי עבודה' }
+    },
+    travel: { home: { distance_km: 8, duration_minutes: 12 } },
+    checks: { language: { passed: true }, gender: { passed: true }, availability: { passed: true } },
+    failures: []
+  };
+  // Stale selection of the rejected-distance candidate must not enable actions.
   const html = detailsHtml({
     course: course('c1', { required_instructor_gender: 'any' }),
-    status: 'נדרש גיוס',
-    recommended: null,
-    bestAvailable: null,
+    status: 'הצעה מוכנה',
+    recommended: eligible,
     alternatives: [],
-    checked: [rejected]
+    checked: [eligible, rejected]
   }, { courseSchedulingSelectedCandidateId: '100' });
   assert.match(html, /data-save-draft disabled/);
   assert.match(html, /data-assign-course disabled/);
+  assert.doesNotMatch(html, /data-rejected-candidate="100"[\s\S]{0,200}type="radio"/);
   assert.match(actionDisabledReason({ candidate: rejected, canEdit: true }), /40 ק״מ/);
 });
