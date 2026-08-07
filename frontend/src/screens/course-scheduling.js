@@ -1357,7 +1357,7 @@ export const courseSchedulingScreen = {
     root.querySelectorAll('[data-open-readiness-course]').forEach((button) => button.addEventListener('click', () => openMissingCourse(button.dataset.openReadinessCourse)));
     root.querySelectorAll('[data-open-instructor-matching],[data-open-instructor-constraints]').forEach((button) => button.addEventListener('click', () => {
       const empId = button.dataset.openInstructorMatching || button.dataset.openInstructorConstraints || '';
-      state.instructorsWorkspace = { ...(state.instructorsWorkspace || {}), q: empId, active: 'yes', assignment: '' };
+      state.instructorsWorkspace = { ...(state.instructorsWorkspace || {}), active: 'yes', assignment: '' };
       state.pendingInstructorEmpId = empId;
       state.pendingInstructorEdit = button.dataset.openInstructorMatching ? 'matching' : 'constraints';
       document.dispatchEvent(new CustomEvent('app:navigate', { detail: { route: 'instructors' } }));
