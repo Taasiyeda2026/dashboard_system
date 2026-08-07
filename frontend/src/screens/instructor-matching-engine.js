@@ -1,6 +1,9 @@
 import { instructionLanguageLabel, profileSpeaksLanguage, resolveInstructionLanguage } from './shared/instruction-language.js';
 
 const LANGUAGE_LABELS = { he: 'עברית', ar: 'ערבית' };
+/** One-way driving-route home→school hard eligibility limit (km). Inclusive at exactly this value. */
+export const MAX_HOME_DISTANCE_KM = 40;
+
 export const DEFAULT_SCHEDULING_PROFILE = Object.freeze({
   gender: null,
   instruction_languages: [],
@@ -9,6 +12,15 @@ export const DEFAULT_SCHEDULING_PROFILE = Object.freeze({
   default_end_time: '15:00',
   matching_note: null,
 });
+
+export function homeDistanceLimitFailureMessage(distanceKm) {
+  return `מרחק הנסיעה לבית הספר הוא ${Math.round(Number(distanceKm))} ק״מ ועולה על המגבלה של ${MAX_HOME_DISTANCE_KM} ק״מ`;
+}
+
+export function exceedsHomeDistanceLimit(distanceKm) {
+  const km = Number(distanceKm);
+  return Number.isFinite(km) && km > MAX_HOME_DISTANCE_KM;
+}
 
 export function schedulingQualityBand(score, eligible = true) {
   if (!eligible || !Number.isFinite(Number(score))) return null;
@@ -280,7 +292,14 @@ export function evaluateInstructor({
   } else if (travelIssues.length) {
     travelCheck = checkResult(false, 'מרחק', travelIssues[0].message);
   } else if (homeKm != null && Number.isFinite(Number(homeKm)) && homeMinutes != null && Number.isFinite(Number(homeMinutes))) {
-    travelCheck = checkResult(true, `${Math.round(Number(homeKm))} ק״מ, ${Math.round(Number(homeMinutes))} דקות`, '');
+    // Hard gate: one-way home→school driving distance must be ≤ 40 km (evaluated before scoring).
+    if (exceedsHomeDistanceLimit(homeKm)) {
+      const reason = homeDistanceLimitFailureMessage(homeKm);
+      failures.push(reason);
+      travelCheck = checkResult(false, 'מרחק', reason);
+    } else {
+      travelCheck = checkResult(true, `${Math.round(Number(homeKm))} ק״מ, ${Math.round(Number(homeMinutes))} דקות`, '');
+    }
   } else if (travel?.unavailableReason === 'missing_instructor_address') {
     travelCheck = checkResult(null, 'מרחק', 'חסרה כתובת מדריך');
   } else if (travel?.unavailableReason === 'missing_school_address') {

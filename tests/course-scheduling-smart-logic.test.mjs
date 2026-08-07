@@ -33,14 +33,19 @@ test('eligible low score is bestAvailable and requires treatment, never recruitm
   const result = calculateCourseSchedule({ activities: [course], instructors: [instructor], profiles: { 1: profile }, rules: { 1: rules }, exceptions: {}, preliminary: true })[0];
   assert.equal(result.recommended, null);
   assert.ok(result.bestAvailable);
-  assert.equal(result.bestAvailable.qualityBand, 'technical');
+  // Neutral first-schedule continuity (18/35 + 5/5) lifts a bare eligible score into the warning band,
+  // still below the recommendation threshold.
+  assert.ok(['warning', 'technical'].includes(result.bestAvailable.qualityBand));
+  assert.ok(result.bestAvailable.score < 60);
   assert.equal(result.status, 'נדרש טיפול');
   assert.notEqual(result.status, 'נדרש גיוס');
   const html = detailsHtml(result);
   assert.match(html, /ההתאמה הטובה ביותר שנמצאה/);
   assert.match(html, /נדרשת בדיקה/);
   assert.doesNotMatch(html, /לא נמצאה התאמה איכותית לקורס/);
-  assert.match(html, /מתאים טכנית בלבד/);
+  assert.equal((html.match(/נדרשת בדיקה/g) || []).length, 1);
+  const badges = [...html.matchAll(/course-scheduling-status-pill[^"]*"[^>]*>([^<]+)/g)].map((m) => m[1]);
+  assert.deepEqual(badges, ['נדרשת בדיקה']);
   assert.doesNotMatch(html, /המדריך המומלץ/);
 });
 

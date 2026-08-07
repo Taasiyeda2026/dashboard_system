@@ -480,9 +480,9 @@ test('candidate details render primary card, closed rejections, and initially di
   assert.match(html, /88<\/strong><span>\/100<\/span>/);
   assert.match(html, /רציפות ויעילות ביום[\s\S]*30 מתוך 35/);
   assert.match(html, /מרחק ונסיעות[\s\S]*20 מתוך 25/);
-  assert.match(html, /עומס בפועל[\s\S]*18 מתוך 20/);
+  assert.match(html, /עומס עבודה בפועל[\s\S]*18 מתוך 20/);
   assert.match(html, /שמירה על המועדים המקוריים[\s\S]*15 מתוך 15/);
-  assert.match(html, /צמצום חלונות וימי עבודה חדשים[\s\S]*5 מתוך 5/);
+  assert.match(html, /צמצום חלונות ופתיחת ימי עבודה[\s\S]*5 מתוך 5/);
   assert.match(html, /לא עברו תנאי סף \(1\)/);
   assert.doesNotMatch(html, /<details class="course-scheduling-rejected"[^>]*open/);
   assert.doesNotMatch(html, /data-rejected-candidate="m1"[\s\S]*type="radio"/);
@@ -521,7 +521,11 @@ test('bestAvailable uses review title and never the misleading quality-miss head
     checked: [bestAvailable]
   });
   assert.match(html, /ההתאמה הטובה ביותר שנמצאה/);
-  assert.match(html, /נדרשת בדיקה/);
+  assert.equal((html.match(/נדרשת בדיקה/g) || []).length, 1);
+  const badges = [...html.matchAll(/course-scheduling-status-pill[^"]*"[^>]*>([^<]+)/g)].map((m) => m[1]);
+  assert.deepEqual(badges, ['נדרשת בדיקה']);
+  assert.doesNotMatch(html, /ההתאמה הטובה ביותר<\/span>/);
+  assert.doesNotMatch(html, /מתאים טכנית בלבד/);
   assert.doesNotMatch(html, /לא נמצאה התאמה איכותית לקורס/);
 });
 
@@ -611,7 +615,8 @@ test('proposed meetings and halfOverflow render from candidate data without reco
     alternatives: [],
     checked: [recommended]
   }, { courseSchedulingSelectedCandidateId: 'f1' });
-  assert.match(selectedHtml, /נבחר: נועה כהן/);
+  assert.match(selectedHtml, /נבחרה: נועה כהן/);
+  assert.match(selectedHtml, /course-scheduling-action-bar/);
   assert.match(selectedHtml, /מועדי הפעילות/);
   assert.match(selectedHtml, /מועד מקורי/);
   assert.match(selectedHtml, /מועד מוצע/);
@@ -639,7 +644,8 @@ test('proposed meetings and halfOverflow render from candidate data without reco
     alternatives: [],
     checked: [unchanged]
   }, { courseSchedulingSelectedCandidateId: 'f1' });
-  assert.match(unchangedHtml, /המועדים נשארים ללא שינוי/);
+  assert.match(unchangedHtml, /מועדי הפעילות נשארים ללא שינוי/);
+  assert.doesNotMatch(unchangedHtml, /course-scheduling-meetings-table/);
   assert.doesNotMatch(unchangedHtml, /data-half-overflow/);
 });
 
