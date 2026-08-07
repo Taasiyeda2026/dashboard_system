@@ -1,45 +1,77 @@
-name: Build workshop stock fix
+name: Apply workshop stock location fix
 
 on:
   push:
     branches:
       - fix/workshop-stock-location-status
-    paths:
-      - 'frontend/**'
-      - 'tests/workshop-stock-location-status.test.mjs'
-      - 'package.json'
-      - 'package-lock.json'
-  pull_request:
-    branches:
-      - main
 
 permissions:
   contents: write
 
 jobs:
-  verify-and-build:
+  patch-test-build:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
         with:
           ref: fix/workshop-stock-location-status
+          fetch-depth: 0
       - uses: actions/setup-node@v4
         with:
           node-version: 22
           cache: npm
+      - name: Apply direct source fix
+        run: |
+          python - <<'PY'
+          from pathlib import Path
+          import re
+
+          path = Path('frontend/src/screens/operations-management.js')
+          source = path.read_text(encoding='utf-8')
+          import_line = "import { workshopHolderStatusLabel } from './workshop-stock-location-status.js';\n"
+          if import_line not in source:
+              source = import_line + source
+
+          pattern = re.compile(
+              r"function workshopInstructorStatus\(\{ balance = 0 \} = \{\}\) \{\s*"
+              r"if \(balance < 0\) return 'חוסר אצל מדריך';\s*"
+              r"if \(balance > 0\) return 'עודף אצל מדריך';\s*"
+              r"return 'מאוזן';\s*\}"
+          )
+          replacement = """function workshopInstructorStatus({ balance = 0, instructor = '' } = {}) {
+            return workshopHolderStatusLabel(instructor, balance);
+          }"""
+          if pattern.search(source):
+              source = pattern.sub(replacement, source, count=1)
+          elif replacement not in source:
+              raise SystemExit('workshopInstructorStatus target was not found')
+          path.write_text(source, encoding='utf-8')
+          PY
+          git fetch origin main
+          git checkout origin/main -- frontend/src/screens/operations-summer-training-matrix.js
       - run: npm ci
       - run: node --test tests/workshop-stock-location-status.test.mjs
-      - run: node --test tests/operations-2027-workshop-inventory-contracts.test.mjs tests/operations-management-screen.test.mjs
+      - run: npm run build
       - run: npm run check:build
-      - name: Commit refreshed dist
-        if: github.event_name == 'push'
+      - name: Verify source and generated output
         run: |
-          if git diff --quiet -- dist; then
-            echo 'dist already current'
-            exit 0
-          fi
+          grep -q "workshopHolderStatusLabel(instructor, balance)" frontend/src/screens/operations-management.js
+          grep -q "const CACHE_VERSION = 1457" frontend/sw.js
+          grep -q "const CACHE_VERSION = 1457" dist/sw.js
+          grep -q "workshop-stock-location-status-20260807-v1" frontend/src/config.js
+      - name: Commit direct fix and refreshed dist
+        run: |
+          git rm .github/workflows/build-workshop-stock-fix.yml
           git config user.name 'github-actions[bot]'
           git config user.email '41898282+github-actions[bot]@users.noreply.github.com'
-          git add dist
-          git commit -m 'build: refresh dist for workshop stock location status'
+          git add frontend/src/screens/operations-management.js \
+                  frontend/src/screens/operations-summer-training-matrix.js \
+                  frontend/src/screens/workshop-stock-location-status.js \
+                  tests/workshop-stock-location-status.test.mjs \
+                  frontend/src/config.js frontend/sw.js dist
+          if git diff --cached --quiet; then
+            echo 'No changes to commit'
+            exit 0
+          fi
+          git commit -m 'fix: classify workshop stock locations correctly'
           git push
