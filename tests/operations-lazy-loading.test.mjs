@@ -30,6 +30,7 @@ function trackedApi(calls) {
     allActivities: hit('allActivities', { rows: [] }),
     adminLists: hit('adminLists', { categories: [] }),
     workshopStockDistributions: hit('workshopStockDistributions', { rows: [] }),
+    workshopInventoryOpeningBalances: hit('workshopInventoryOpeningBalances', { rows: [] }),
     instructorSchedulePrintContacts: hit('instructorSchedulePrintContacts', { rows: [] }),
     completionApprovalUploads: hit('completionApprovalUploads', { rows: [] }),
     schoolContactResponsibles: hit('schoolContactResponsibles', { rows: [] }),
@@ -37,7 +38,7 @@ function trackedApi(calls) {
   };
 }
 
-test('inventory entry loads current activities plus 2026 closing and 2027 inventory dependencies, while deferring approvals', async () => {
+test('inventory entry loads current activities plus independent 2027 opening balances, while deferring approvals', async () => {
   const calls = [];
   const data = await operationsManagementScreen.load({
     api: trackedApi(calls),
@@ -47,13 +48,12 @@ test('inventory entry loads current activities plus 2026 closing and 2027 invent
     'adminLists',
     'allActivities',
     'allActivities',
-    'allActivities',
-    'workshopStockDistributions'
+    'workshopInventoryOpeningBalances'
   ]);
   assert.deepEqual(data._loadedOperationsTabs, ['workshops']);
 });
 
-test('inventory tab loader reads only catalog, distributions, 2026 closing activities and 2027 activities', async () => {
+test('inventory tab loader reads only catalog, opening balances and 2027 activities', async () => {
   const calls = [];
   await loadOperationsTabData(trackedApi(calls), 'workshops', {
     state: { operationsManagement: { period: 'school_2027' } }
@@ -61,8 +61,7 @@ test('inventory tab loader reads only catalog, distributions, 2026 closing activ
   assert.deepEqual(calls.sort(), [
     'adminLists',
     'allActivities',
-    'allActivities',
-    'workshopStockDistributions'
+    'workshopInventoryOpeningBalances'
   ]);
 });
 
@@ -70,7 +69,10 @@ test('schedule entry defers school, contact, print and approval dependencies', a
   const calls = [];
   const data = await operationsManagementScreen.load({
     api: trackedApi(calls),
-    state: { activityPeriodTab: 'school_2027', operationsManagement: { tab: 'instructors' } }
+    state: {
+      activityPeriodTab: 'school_2027',
+      operationsManagement: { tab: 'instructors', context: 'instructors' }
+    }
   });
   assert.deepEqual(calls, ['allActivities']);
   assert.equal(data.schoolsDirectorySource, 'deferred');

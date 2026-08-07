@@ -23,7 +23,7 @@ test('existing operations cleanup remains loaded before the focused 2027 fix', (
 test('2027 workshop inventory data is loaded lazily by the workshops tab only', () => {
   assert.match(managementSource, /operationsTabDataKey\(tab\)/);
   assert.match(managementSource, /if \(key === TAB_WORKSHOPS\)/);
-  assert.match(managementSource, /activity_period: ACTIVITY_SEASON_REGULAR, startDate: WORKSHOPS_SUMMER_FROM, endDate: WORKSHOPS_SUMMER_TO/);
+  assert.match(managementSource, /workshopInventoryOpeningBalances\(\{\s*inventoryYear:\s*2027\s*\}\)/);
   assert.match(managementSource, /activity_period: ACTIVITY_SEASON_SCHOOL_2027, startDate: SCHOOL_2027_FROM, endDate: SCHOOL_2027_TO/);
   assert.doesNotMatch(fixSource, /api\.allActivities\(\{\s*activity_period: ACTIVITY_SEASON_REGULAR/);
 });
@@ -31,16 +31,16 @@ test('2027 workshop inventory data is loaded lazily by the workshops tab only', 
 test('2027 opening stock is calculated in a data model rather than patched from DOM cells', () => {
   assert.match(managementSource, /export function buildWorkshopOpeningStock2027/);
   assert.match(managementSource, /const expectedBalance = group\.openingStock - usedQuantity - requiredQuantity/);
-  assert.match(managementSource, /openingLocations/);
+  assert.match(managementSource, /workshopInventoryOpeningBalances/);
   assert.doesNotMatch(managementSource, /row\.cells\[[25]\]/);
   assert.doesNotMatch(fixSource, /const carryoverHtml = originalRender/);
 });
 
-test('2027 opening stock includes positive closing locations from the 2026 model', () => {
-  assert.match(managementSource, /function positiveOpeningLocationsFromClosingRow/);
-  assert.match(managementSource, /value <= 0/);
-  assert.match(managementSource, /מיקום מלאי הפתיחה/);
-  assert.match(managementSource, /title=\"מקור: יתרת הסגירה של קיץ 2026\"/);
+test('2027 opening stock is independent from 2026 closing balances', () => {
+  assert.doesNotMatch(managementSource, /function positiveOpeningLocationsFromClosingRow/);
+  assert.doesNotMatch(managementSource, /מקור: יתרת הסגירה של קיץ 2026/);
+  assert.match(managementSource, /WORKSHOP_STOCK_LOCATION_NAMES/);
+  assert.match(managementSource, /מלאי גיל/);
 });
 
 test('2027 removes the period field and the two unsupported tabs only', () => {
@@ -111,6 +111,10 @@ test('2027 ops load resets hidden tab before originalLoad so workshops data is f
       apiCalls.push({ method: 'workshopStockDistributions' });
       return { rows: [] };
     },
+    workshopInventoryOpeningBalances: async () => {
+      apiCalls.push({ method: 'workshopInventoryOpeningBalances' });
+      return { rows: [] };
+    },
     completionApprovalUploads: async () => {
       apiCalls.push({ method: 'completionApprovalUploads' });
       return { rows: [] };
@@ -132,8 +136,9 @@ test('2027 ops load resets hidden tab before originalLoad so workshops data is f
   const data = await operationsManagementScreen.load({ api, state });
   assert.equal(state.operationsManagement.tab, 'workshops', 'tab must be workshops before/after load');
   assert.deepEqual(data._loadedOperationsTabs, ['workshops']);
-  assert.ok(apiCalls.some((call) => call.method === 'workshopStockDistributions'), 'workshops data must load');
+  assert.ok(apiCalls.some((call) => call.method === 'workshopInventoryOpeningBalances'), 'workshops opening balances must load');
   assert.ok(apiCalls.some((call) => call.method === 'adminLists'), 'workshops catalog must load');
+  assert.equal(apiCalls.filter((call) => call.method === 'workshopStockDistributions').length, 0, '2027 must not load 2026 distributions');
   assert.equal(
     apiCalls.filter((call) => call.method === 'completionApprovalUploads').length,
     0,
