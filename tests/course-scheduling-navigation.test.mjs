@@ -92,42 +92,128 @@ test('instructors workspace tabs render consistently on list and scheduling scre
   assert.match(schedulingHtml, /<h2 class="course-scheduling-title instructors-workspace-content-title">שיבוצים<\/h2>/);
 });
 
-test('work-schedule tab opens operations-management with instructors context', () => {
-  const events = [];
-  const tabButton = {
-    getAttribute: () => 'work-schedule',
+function makeTabButton(tabId) {
+  return {
+    getAttribute: () => tabId,
     addEventListener(type, handler) {
       if (type === 'click') this._click = handler;
+      if (type === 'keydown') this._keydown = handler;
     },
     click() { this._click?.(); },
     focus() {}
   };
+}
+
+function bindNavWithDocument(state, tabButtons, { onNavigate } = {}) {
+  const events = [];
   globalThis.document = {
     ...globalThis.document,
     dispatchEvent(event) {
       events.push(event);
+      onNavigate?.(event);
       return true;
     },
     querySelectorAll(selector) {
       if (selector !== '[data-instructors-workspace-tab]') return [];
-      return [tabButton];
+      return tabButtons;
     }
   };
+  const root = {
+    querySelectorAll: globalThis.document.querySelectorAll.bind(globalThis.document)
+  };
+  let renderCount = 0;
+  bindInstructorsWorkspaceNav(root, {
+    state,
+    rerender() { renderCount += 1; }
+  });
+  return { events, getRenderCount: () => renderCount };
+}
+
+test('work-schedule tab prepares instructors context and navigates without pre-setting route', () => {
+  const tabButton = makeTabButton('work-schedule');
   const state = {
     routes: ['instructors', 'course-scheduling', 'operations-management'],
     route: 'instructors',
     operationsManagement: { tab: 'completion_approval', context: 'operations' }
   };
-  const root = {
-    querySelectorAll: globalThis.document.querySelectorAll.bind(globalThis.document)
-  };
-  bindInstructorsWorkspaceNav(root, { state, rerender() {} });
+  const { events } = bindNavWithDocument(state, [tabButton]);
   tabButton.click();
-  assert.equal(state.route, 'operations-management');
+  // main.js owns state.route after app:navigate; pre-setting it would skip render.
+  assert.equal(state.route, 'instructors');
   assert.equal(state.operationsManagement.context, 'instructors');
   assert.equal(state.operationsManagement.tab, 'instructors');
   assert.equal(events.at(-1)?.detail?.route, 'operations-management');
   assert.equal(events.at(-1)?.detail?.opsContext, 'instructors');
+});
+
+test('workspace tabs perform a real screen transition via app:navigate for all three tabs', () => {
+  const tabs = [
+    makeTabButton('list'),
+    makeTabButton('scheduling'),
+    makeTabButton('work-schedule')
+  ];
+  const state = {
+    routes: ['instructors', 'course-scheduling', 'operations-management'],
+    effectiveRoutes: ['instructors', 'course-scheduling', 'operations-management'],
+    route: 'instructors',
+    operationsManagement: { tab: 'instructors', context: 'operations' }
+  };
+  const renders = [];
+  const { events } = bindNavWithDocument(state, tabs, {
+    onNavigate(event) {
+      // Mirror main.js: bail if route was already set (the bug), otherwise transition.
+      const route = event?.detail?.route;
+      if (!route || route === state.route) return;
+      state.route = route;
+      renders.push(route);
+    }
+  });
+
+  tabs[1].click(); // scheduling
+  assert.equal(state.route, 'course-scheduling');
+  assert.deepEqual(renders, ['course-scheduling']);
+  assert.equal(events.at(-1)?.detail?.route, 'course-scheduling');
+
+  tabs[2].click(); // work-schedule
+  assert.equal(state.route, 'operations-management');
+  assert.equal(state.operationsManagement.context, 'instructors');
+  assert.deepEqual(renders, ['course-scheduling', 'operations-management']);
+  assert.equal(events.at(-1)?.detail?.opsContext, 'instructors');
+
+  tabs[0].click(); // list
+  assert.equal(state.route, 'instructors');
+  assert.equal(state.operationsManagement.context, 'operations');
+  assert.deepEqual(renders, ['course-scheduling', 'operations-management', 'instructors']);
+});
+
+test('without document, workspace tabs update route and call rerender', () => {
+  const savedDocument = globalThis.document;
+  try {
+    // eslint-disable-next-line no-global-assign
+    globalThis.document = undefined;
+    const state = {
+      routes: ['instructors', 'course-scheduling', 'operations-management'],
+      route: 'instructors',
+      operationsManagement: { tab: 'completion_approval', context: 'operations' }
+    };
+    const tabButton = makeTabButton('scheduling');
+    const root = {
+      querySelectorAll(selector) {
+        if (selector !== '[data-instructors-workspace-tab]') return [];
+        return [tabButton];
+      }
+    };
+    let renderCount = 0;
+    bindInstructorsWorkspaceNav(root, {
+      state,
+      rerender() { renderCount += 1; }
+    });
+    tabButton.click();
+    assert.equal(state.route, 'course-scheduling');
+    assert.equal(renderCount, 1);
+  } finally {
+    globalThis.document = savedDocument;
+  }
 });
 
 test('operations management from main nav hides work-schedule and opens first remaining tab', () => {
@@ -190,6 +276,19 @@ test('workspace tabs respect route permissions', () => {
   });
   assert.match(noOps, /data-instructors-workspace-tab="scheduling"/);
   assert.doesNotMatch(noOps, /data-instructors-workspace-tab="work-schedule"/);
+});
+
+test('effectiveRoutes hides scheduling even when routes still includes course-scheduling', () => {
+  const html = instructorsWorkspaceNavHtml({
+    activeTab: 'list',
+    state: {
+      routes: ['instructors', 'course-scheduling', 'operations-management'],
+      effectiveRoutes: ['instructors', 'operations-management']
+    }
+  });
+  assert.match(html, /data-instructors-workspace-tab="list"/);
+  assert.match(html, /data-instructors-workspace-tab="work-schedule"/);
+  assert.doesNotMatch(html, /data-instructors-workspace-tab="scheduling"/);
 });
 
 test('deep link helpers keep the active instructors workspace tab', () => {

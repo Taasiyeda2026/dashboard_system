@@ -600,16 +600,22 @@ function alternativeCandidateCardHtml(candidate, { selectedId = '', name = 'cour
 }
 
 function rejectedCandidatesHtml(result) {
-  const rejected = (result.checked || []).filter((candidate) => !candidate.eligible || (candidate.failures || []).length);
+  // Hard threshold failures only — incomplete profiles (eligible:false, failures:[]) stay in incompleteProfilesHtml.
+  const rejected = (result.checked || []).filter((candidate) => (candidate.failures || []).length);
   if (!rejected.length) return '';
-  return `<details class="course-scheduling-rejected" data-rejected-candidates><summary>לא עברו תנאי סף (${rejected.length})</summary>
+  const incompleteIds = new Set((result.incompleteProfiles || []).map((candidate) => emp(candidate)).filter(Boolean));
+  const rows = rejected.filter((candidate) => !incompleteIds.has(emp(candidate)));
+  if (!rows.length) return '';
+  return `<details class="course-scheduling-rejected" data-rejected-candidates><summary>לא עברו תנאי סף (${rows.length})</summary>
     <div class="course-scheduling-rejected-list">
-      ${rejected.map((candidate) => {
-        const failures = (candidate.failures || []).length
-          ? candidate.failures
-          : [candidateHardBlockReason(candidate) || 'לא עומד בתנאי הסף'];
+      ${rows.map((candidate) => {
+        const failures = candidate.failures;
         const primary = failures[0] || 'לא עומד בתנאי הסף';
-        const missing = (candidate.missingProfileData || []).filter(Boolean);
+        // Avoid re-printing availability/profile phrases already covered by failure reasons.
+        const missing = (candidate.missingProfileData || []).filter((item) => {
+          const value = text(item);
+          return value && !failures.some((failure) => text(failure).includes(value) || value.includes(text(failure)));
+        });
         return `<div class="course-scheduling-rejected-row" data-rejected-candidate="${escapeHtml(emp(candidate))}">
           <strong>${escapeHtml(candidate.instructor?.full_name || emp(candidate) || '—')}</strong>
           <div class="course-scheduling-rejected-row__details">

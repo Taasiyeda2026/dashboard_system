@@ -9,7 +9,9 @@ export const INSTRUCTORS_WORKSPACE_TABS = Object.freeze([
 ]);
 
 function availableRoutes(state) {
-  return new Set(Array.isArray(state?.routes) ? state.routes : Array.isArray(state?.effectiveRoutes) ? state.effectiveRoutes : []);
+  if (Array.isArray(state?.effectiveRoutes)) return new Set(state.effectiveRoutes);
+  if (Array.isArray(state?.routes)) return new Set(state.routes);
+  return new Set();
 }
 
 function canOpenTab(tab, routes) {
@@ -80,43 +82,31 @@ export function instructorsWorkspaceNavStylesHtml() {
 </style>`;
 }
 
+function prepareTabContext(tab, state) {
+  if (tab.id === 'list' || tab.id === 'scheduling') {
+    if (state.operationsManagement) state.operationsManagement.context = 'operations';
+    return { route: tab.route };
+  }
+  state.operationsManagement = state.operationsManagement || {};
+  state.operationsManagement.context = 'instructors';
+  state.operationsManagement.tab = 'instructors';
+  return { route: 'operations-management', opsContext: 'instructors' };
+}
+
 function activateTab(tabId, { state, rerender } = {}) {
   const routes = availableRoutes(state);
   const tab = INSTRUCTORS_WORKSPACE_TABS.find((item) => item.id === tabId);
   if (!tab || !canOpenTab(tab, routes)) return;
 
-  if (tab.id === 'list') {
-    if (state.operationsManagement) state.operationsManagement.context = 'operations';
-    state.route = 'instructors';
-    if (typeof document !== 'undefined') {
-      document.dispatchEvent(new CustomEvent('app:navigate', { detail: { route: 'instructors' } }));
-      return;
-    }
-    rerender?.();
-    return;
-  }
+  const detail = prepareTabContext(tab, state);
 
-  if (tab.id === 'scheduling') {
-    if (state.operationsManagement) state.operationsManagement.context = 'operations';
-    state.route = 'course-scheduling';
-    if (typeof document !== 'undefined') {
-      document.dispatchEvent(new CustomEvent('app:navigate', { detail: { route: 'course-scheduling' } }));
-      return;
-    }
-    rerender?.();
-    return;
-  }
-
-  state.operationsManagement = state.operationsManagement || {};
-  state.operationsManagement.context = 'instructors';
-  state.operationsManagement.tab = 'instructors';
-  state.route = 'operations-management';
+  // Browser: never set state.route before app:navigate — main.js bails when route === state.route.
   if (typeof document !== 'undefined') {
-    document.dispatchEvent(new CustomEvent('app:navigate', {
-      detail: { route: 'operations-management', opsContext: 'instructors' }
-    }));
+    document.dispatchEvent(new CustomEvent('app:navigate', { detail }));
     return;
   }
+
+  state.route = detail.route;
   rerender?.();
 }
 

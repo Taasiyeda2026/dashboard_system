@@ -660,3 +660,36 @@ test('results layer displays scoreBreakdown points and does not import scoring r
   assert.match(source, /SCORE_WEIGHTS\.gapsAndNewDays/);
   assert.doesNotMatch(source, /scoreCandidate\(|buildCandidateScore\(|calculateCandidateScore\(/);
 });
+
+test('missing-only incomplete profiles stay out of rejectedCandidatesHtml', () => {
+  const incomplete = {
+    instructor: { emp_id: '1500', full_name: 'הילה רוזן', address: 'צה״ל 68, גן יבנה' },
+    eligible: false,
+    score: null,
+    failures: [],
+    missingProfileData: ['לא הוגדרה זמינות שבועית'],
+    issues: [{ missing: true, message: 'לא הוגדרה זמינות', dates: ['2026-09-07'] }]
+  };
+  const hardReject = {
+    instructor: { emp_id: 'm9', full_name: 'נדחה' },
+    eligible: false,
+    score: null,
+    failures: ['שפת ההדרכה אינה תואמת'],
+    missingProfileData: [],
+    issues: []
+  };
+  const html = detailsHtml({
+    course: course019({ required_instructor_gender: 'any' }),
+    status: 'נדרש טיפול',
+    recommended: null,
+    treatmentReason: 'חסרים נתונים בפרופילי מדריכים.',
+    incompleteProfiles: [incomplete],
+    checked: [incomplete, hardReject]
+  });
+  assert.match(html, /פרופילים חסרים להשלמה/);
+  assert.match(html, /הילה רוזן \| 1500/);
+  assert.equal((html.match(/לא הוגדרה זמינות/g) || []).length, 1);
+  assert.doesNotMatch(html, /data-rejected-candidate="1500"/);
+  assert.match(html, /data-rejected-candidate="m9"/);
+  assert.match(html, /לא עברו תנאי סף \(1\)/);
+});

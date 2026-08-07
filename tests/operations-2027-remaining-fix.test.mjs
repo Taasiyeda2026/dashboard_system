@@ -47,5 +47,96 @@ test('2027 removes the period field and the two unsupported tabs only', () => {
   assert.match(fixSource, /HIDDEN_2027_TABS = new Set\(\['authorities', 'completion_approval'\]\)/);
   assert.match(fixSource, /periodControl\?\.closest\?\.\('\.ds-filter-field'\)\?\.remove/);
   assert.match(fixSource, /data-ops-year="2027"/);
-  assert.match(fixSource, /state\.operationsManagement\.tab = 'instructors'/);
+  assert.match(fixSource, /state\.operationsManagement\.tab = 'workshops'/);
+});
+
+test('2027 ops load resets hidden tab before originalLoad so workshops data is fetched', async () => {
+  if (!globalThis.localStorage) {
+    const store = new Map();
+    globalThis.localStorage = {
+      getItem: (key) => (store.has(key) ? store.get(key) : null),
+      setItem: (key, value) => { store.set(String(key), String(value)); },
+      removeItem: (key) => { store.delete(String(key)); }
+    };
+  }
+  if (!globalThis.sessionStorage) {
+    const store = new Map();
+    globalThis.sessionStorage = {
+      getItem: (key) => (store.has(key) ? store.get(key) : null),
+      setItem: (key, value) => { store.set(String(key), String(value)); },
+      removeItem: (key) => { store.delete(String(key)); }
+    };
+  }
+  if (!globalThis.document) {
+    globalThis.document = {
+      dispatchEvent() { return true; },
+      addEventListener() {},
+      documentElement: { dataset: {} },
+      getElementById() { return null; },
+      createElement() { return { textContent: '' }; },
+      head: { appendChild() {} },
+      querySelector() { return null }
+    };
+  }
+
+  const { ACTIVITY_SEASON_SCHOOL_2027 } = await import('../frontend/src/screens/shared/summer-activity.js');
+  const { operationsManagementScreen } = await import('../frontend/src/screens/operations-management.js');
+  await import('../frontend/src/screens/operations-2027-remaining-fix.js');
+
+  const state = {
+    activityPeriodTab: ACTIVITY_SEASON_SCHOOL_2027,
+    user: { role: 'admin' },
+    listFilters: {},
+    operationsManagement: {
+      period: ACTIVITY_SEASON_SCHOOL_2027,
+      tab: 'completion_approval',
+      context: 'operations',
+      dateFrom: '2026-09-01',
+      dateTo: '2027-08-31',
+      instructor: '__all__'
+    }
+  };
+
+  const apiCalls = [];
+  const api = {
+    allActivities: async (query = {}) => {
+      apiCalls.push({ method: 'allActivities', query });
+      return { rows: [] };
+    },
+    adminLists: async () => {
+      apiCalls.push({ method: 'adminLists' });
+      return { categories: [] };
+    },
+    workshopStockDistributions: async () => {
+      apiCalls.push({ method: 'workshopStockDistributions' });
+      return { rows: [] };
+    },
+    completionApprovalUploads: async () => {
+      apiCalls.push({ method: 'completionApprovalUploads' });
+      return { rows: [] };
+    },
+    schoolContactResponsibles: async () => {
+      apiCalls.push({ method: 'schoolContactResponsibles' });
+      return { rows: [] };
+    },
+    photoApprovalUploads: async () => {
+      apiCalls.push({ method: 'photoApprovalUploads' });
+      return { rows: [] };
+    },
+    instructorSchedulePrintContacts: async () => {
+      apiCalls.push({ method: 'instructorSchedulePrintContacts' });
+      return { rows: [] };
+    }
+  };
+
+  const data = await operationsManagementScreen.load({ api, state });
+  assert.equal(state.operationsManagement.tab, 'workshops', 'tab must be workshops before/after load');
+  assert.deepEqual(data._loadedOperationsTabs, ['workshops']);
+  assert.ok(apiCalls.some((call) => call.method === 'workshopStockDistributions'), 'workshops data must load');
+  assert.ok(apiCalls.some((call) => call.method === 'adminLists'), 'workshops catalog must load');
+  assert.equal(
+    apiCalls.filter((call) => call.method === 'completionApprovalUploads').length,
+    0,
+    'completion_approval data must not load for a workshops screen'
+  );
 });
