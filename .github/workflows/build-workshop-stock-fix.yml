@@ -9,6 +9,9 @@ on:
       - 'tests/workshop-stock-location-status.test.mjs'
       - 'package.json'
       - 'package-lock.json'
+  pull_request:
+    branches:
+      - main
 
 permissions:
   contents: write
@@ -29,6 +32,7 @@ jobs:
       - run: node --test tests/operations-2027-workshop-inventory-contracts.test.mjs tests/operations-management-screen.test.mjs
       - run: npm run check:build
       - name: Commit refreshed dist
+        if: github.event_name == 'push'
         run: |
           if git diff --quiet -- dist; then
             echo 'dist already current'
