@@ -201,7 +201,9 @@ export async function calculateCandidateTravel(preliminary, activities, routeCli
   return {
     travel,
     routeMatrix,
-    unavailableReason: routeClient.unavailableReason,
+    unavailableReason: text(routeClient.unavailableReason) === 'google_key_not_configured'
+      ? 'route_service_unavailable'
+      : routeClient.unavailableReason,
     googleCalls: routeClient.googleCalls,
     cacheHits: routeClient.cacheHits,
     requests: routeClient.requests
