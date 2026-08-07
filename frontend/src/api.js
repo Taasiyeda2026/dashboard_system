@@ -102,6 +102,7 @@ const READ_ACTIONS = {
   adminSettings: true,
   adminLists: true,
   workshopStockDistributions: true,
+  workshopInventoryOpeningBalances: true,
   instructorSchedulePrintContacts: true,
   listSheets: true,
   israaProgramTracking: true,
@@ -6980,6 +6981,16 @@ export const api = {
       .from('workshop_stock_distributions')
       .select('*');
     if (error) throw new Error(error.message || 'workshop_stock_distributions_read_failed');
+    return { rows: Array.isArray(data) ? data : [], _source: 'supabase' };
+  },
+  workshopInventoryOpeningBalances: async ({ inventoryYear } = {}) => {
+    const year = Number(inventoryYear);
+    let query = supabase
+      .from('workshop_inventory_opening_balances')
+      .select('inventory_year,activity_season,stock_group_key,workshop_numbers,workshop_name,holder_name,holder_type,opening_quantity');
+    if (Number.isFinite(year) && year > 0) query = query.eq('inventory_year', year);
+    const { data, error } = await query;
+    if (error) throw new Error(error.message || 'workshop_inventory_opening_balances_read_failed');
     return { rows: Array.isArray(data) ? data : [], _source: 'supabase' };
   },
   updateWorkshopStockItems: updateWorkshopStockItemsInSupabase,

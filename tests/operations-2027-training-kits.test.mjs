@@ -31,12 +31,12 @@ test('new 2027 tabs use the existing operations tab structure and pressed state'
   assert.doesNotMatch(controllerSource, /className = 'ds-btn/);
 });
 
-test('2027 workshop inventory remains based on the 2026 closing balance and existing locations', () => {
+test('2027 workshop inventory uses independent opening balances and stock locations', () => {
   assert.match(managementSource, /export function buildWorkshopOpeningStock2027/);
-  assert.match(managementSource, /activity_period: ACTIVITY_SEASON_REGULAR, startDate: WORKSHOPS_SUMMER_FROM, endDate: WORKSHOPS_SUMMER_TO/);
+  assert.match(managementSource, /workshopInventoryOpeningBalances\(\{\s*inventoryYear:\s*2027\s*\}\)/);
   assert.match(managementSource, /activity_period: ACTIVITY_SEASON_SCHOOL_2027, startDate: SCHOOL_2027_FROM, endDate: SCHOOL_2027_TO/);
   assert.match(managementSource, /const expectedBalance = group\.openingStock - usedQuantity - requiredQuantity/);
-  assert.match(managementSource, /מיקום מלאי הפתיחה/);
+  assert.match(managementSource, /WORKSHOP_STOCK_LOCATION_NAMES/);
 });
 
 test('print kit inventory shows only requires_print_kit courses and no requirement toggle', () => {
@@ -62,5 +62,5 @@ test('tables, narrow matrix columns and centered symbols are rendered directly',
 
 test('2027 tabs keep the result count hidden and cache version is refreshed', () => {
   assert.match(managementSource, /ops\.period === ACTIVITY_SEASON_SCHOOL_2027 \? '' : `<p class="ds-muted ds-ops-mgmt-count/);
-  assert.match(swSource, /const CACHE_VERSION = 1423;/);
+  assert.match(swSource, /const CACHE_VERSION = 1454;/);
 });
