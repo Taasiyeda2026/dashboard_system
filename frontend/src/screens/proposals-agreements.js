@@ -4046,7 +4046,10 @@ function isGefenApprovalApplicable(row = {}, items = []) {
   return ['gefen', 'tour', COMBINED_INTERNAL_KEY].includes(group);
 }
 
-function gefenApprovalStatusDisplay(row = {}, generated = text(row.gefen_approval_status) === 'generated') {
+function gefenApprovalStatusDisplay(
+  row = {},
+  generated = text(row.gefen_approval_status) === 'generated' && Boolean(text(row.gefen_approval_path))
+) {
   const quoteNumber = text(row.quote_number);
   return `${generated ? 'הופק' : 'חסר'}${quoteNumber ? ` · הצעה ${quoteNumber}` : ''}`;
 }
@@ -6190,7 +6193,7 @@ export const proposalsAgreementsScreen = {
   load: ({ api, state }) => {
     if (!canAccessProposalsAgreements(state)) return Promise.resolve({ rows: [], unauthorized: true });
     // First metadata page only. Additional pages load only on explicit user action.
-    return api.proposalsAgreements({ limit: 50, offset: 0, includeLinkedDocuments: false });
+    return api.proposalsAgreements({ limit: 50, offset: 0, includeLinkedDocuments: true });
   },
   render(data = {}, { state } = {}) {
     if (data?.unauthorized || !canAccessProposalsAgreements(state)) {
@@ -6358,7 +6361,7 @@ export const proposalsAgreementsScreen = {
       clientType: text(data?._query?.clientType),
       sort: text(data?._query?.sort) || 'updated_at_desc',
       limit: Number(data?._limit || 50),
-      includeLinkedDocuments: false
+      includeLinkedDocuments: true
     });
     const mergeProposalPageRows = (incoming = []) => {
       const seen = new Set((data.rows || []).map((row) => text(row?.id)).filter(Boolean));
