@@ -76,4 +76,6 @@ jobs:
         run: npm ci
 
       - name: Run disposable Postgres scheduling tests
-        run: node --test tests/course-scheduling-draft-concurrency.test.mjs
+        run: |
+          node --test tests/course-scheduling-draft-concurrency.test.mjs
+          node --test tests/course-scheduling-final-consistency-postgres.test.mjs
