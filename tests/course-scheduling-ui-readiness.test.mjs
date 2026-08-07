@@ -65,7 +65,8 @@ test('courses tab auto-selects nearest course and shows its details', () => {
   assert.match(html, /data-switch-tab="courses"/);
   assert.match(html, /data-switch-tab="calendar"/);
   assert.match(html, /data-switch-tab="maintenance"/);
-  assert.match(html, /<h1 class="course-scheduling-title">שיבוצים<\/h1>/);
+  assert.match(html, /<h1 class="ds-page-header__title">מדריכים<\/h1>/);
+  assert.match(html, /<h2 class="course-scheduling-title instructors-workspace-content-title">שיבוצים<\/h2>/);
   assert.doesNotMatch(html, /בחרו קורס, מצאו מדריך מתאים ושמרו כטיוטה או שבצו\./);
   assert.doesNotMatch(html, /course-scheduling-subtitle/);
   assert.match(html, /<b>1<\/b><span>ממתינים לשיבוץ<\/span>/);
@@ -306,7 +307,8 @@ test('calendar tab empty state points users back to courses', async () => {
     scheduling: {},
     meetingState: { loaded: true, approvedDates: new Map(), cancelledDates: new Map(), error: '' }
   }, { state: { user: { role: 'admin' }, courseSchedulingTab: 'calendar', courseSchedulingWeek: '2026-08-02' } });
-  assert.match(html, /<h1 class="course-scheduling-title">מערכת שבועית<\/h1>/);
+  assert.match(html, /<h1 class="ds-page-header__title">מדריכים<\/h1>/);
+  assert.match(html, /<h2 class="course-scheduling-title instructors-workspace-content-title">מערכת שבועית<\/h2>/);
   assert.doesNotMatch(html, /צפו בקורסים ששובצו ובטיוטות לפי שבוע\./);
   assert.doesNotMatch(html, /בחרו קורס, מצאו מדריך מתאים ושמרו כטיוטה או שבצו\./);
   assert.match(html, /data-cs-ui="ux-polish-20260805-v1"/);
@@ -416,6 +418,7 @@ test('cache version and hotfix marker are refreshed for the scheduling layout re
   const branchCache = Number(/const CACHE_VERSION = (\d+);/.exec(branchSw)?.[1] || 0);
   assert.ok(branchCache >= 1412, `expected CACHE_VERSION to include this release, got ${branchCache}`);
   assert.match(branchConfig, /course-scheduling-structural-layout-20260805-v1/);
+  assert.match(branchConfig, /scheduling-stage-4-ui-20260806-v1/);
   assert.ok(branchConfig.includes('HOTFIX_VERSION'));
 });
 

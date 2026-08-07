@@ -36,7 +36,8 @@ import {
 function baseState(overrides = {}) {
   return {
     operationsManagement: {
-      tab: 'instructors',
+      tab: 'completion_approval',
+      context: 'operations',
       period: 'all',
       dateFrom: '2026-01-01',
       dateTo: '2026-12-31',
@@ -49,6 +50,22 @@ function baseState(overrides = {}) {
     },
     ...overrides
   };
+}
+
+function scheduleState(overrides = {}) {
+  return baseState({
+    operationsManagement: {
+      tab: 'instructors',
+      context: 'instructors',
+      period: 'all',
+      dateFrom: '2026-01-01',
+      dateTo: '2026-12-31',
+      instructor: '__all__',
+      expandedWorkshop: '',
+      expandedSchool: ''
+    },
+    ...overrides
+  });
 }
 
 const TEXT_SCHOOL_ROWS = [
@@ -181,16 +198,22 @@ test('summer exceptions only include missing instructor or missing date', () => 
 test('operations management render includes menu page structure and tabs', () => {
   const html = operationsManagementScreen.render({ rows: TEXT_SCHOOL_ROWS, workshopStockMap: new Map() }, { state: baseState() });
   assert.match(html, /ניהול תפעול/);
-  assert.match(html, /סידור עבודה/);
+  assert.doesNotMatch(html, /data-ops-tab="instructors"/);
   assert.match(html, /רשויות/);
   assert.match(html, /ציוד ומלאי/);
-  assert.match(html, /טבלת סידור עבודה/);
-  assert.match(html, /הדפס סידור עבודה/);
-  assert.match(html, /ds-filter-panel/);
-  assert.match(html, /ds-ops-mgmt-summary/);
+  assert.match(html, /אישורי ביצוע/);
   assert.match(html, /ds-exceptions-tabs/);
-  assert.match(html, /data-ops-tab="instructors"[^>]*aria-pressed="true"/);
+  assert.match(html, /data-ops-tab="completion_approval"[^>]*aria-pressed="true"/);
   assert.doesNotMatch(html, /סמל מוסד/);
+
+  const scheduleHtml = operationsManagementScreen.render({ rows: TEXT_SCHOOL_ROWS, workshopStockMap: new Map() }, { state: scheduleState() });
+  assert.match(scheduleHtml, /מדריכים/);
+  assert.match(scheduleHtml, /סידור עבודה/);
+  assert.match(scheduleHtml, /טבלת סידור עבודה/);
+  assert.match(scheduleHtml, /הדפס סידור עבודה/);
+  assert.match(scheduleHtml, /ds-filter-panel/);
+  assert.match(scheduleHtml, /ds-ops-mgmt-summary/);
+  assert.doesNotMatch(scheduleHtml, /data-ops-tab="completion_approval"/);
 });
 
 test('work schedule shows only student count column without quantity fallback', async () => {
@@ -221,7 +244,7 @@ test('work schedule shows only student count column without quantity fallback', 
       grade: 'ב'
     }
   ];
-  const html = operationsManagementScreen.render({ rows, workshopStockMap: new Map() }, { state: baseState() });
+  const html = operationsManagementScreen.render({ rows, workshopStockMap: new Map() }, { state: scheduleState() });
   const scheduleHtml = html.match(/<div class="ds-ops-schedule-wrap">[\s\S]*?<p class="ds-ops-mgmt-print-footer/)?.[0] || '';
 
   assert.match(scheduleHtml, />מס׳ תלמידים/);
@@ -840,8 +863,10 @@ test('operations management tabs stay synced with selected tab content', () => {
   const defaultHtml = operationsManagementScreen.render({ rows, workshopStockMap: new Map() }, { state: baseState() });
   const authoritiesHtml = operationsManagementScreen.render({ rows, workshopStockMap: new Map() }, { state: authoritiesState });
   const workshopsHtml = operationsManagementScreen.render({ rows, workshopStockMap: new Map(), adminListsData: { categories: [] } }, { state: workshopsState });
-  assert.match(defaultHtml, /data-ops-tab="instructors"[^>]*aria-pressed="true"/);
-  assert.match(defaultHtml, /טבלת סידור עבודה/);
+  const scheduleHtml = operationsManagementScreen.render({ rows, workshopStockMap: new Map() }, { state: scheduleState() });
+  assert.match(defaultHtml, /data-ops-tab="completion_approval"[^>]*aria-pressed="true"/);
+  assert.doesNotMatch(defaultHtml, /data-ops-tab="instructors"/);
+  assert.match(scheduleHtml, /טבלת סידור עבודה/);
   assert.match(authoritiesHtml, /data-ops-tab="authorities"[^>]*aria-pressed="true"/);
   assert.match(authoritiesHtml, /ds-ops-schools-authority/);
   assert.match(workshopsHtml, /data-ops-tab="workshops"[^>]*aria-pressed="true"/);

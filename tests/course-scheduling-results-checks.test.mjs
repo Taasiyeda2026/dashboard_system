@@ -1,5 +1,6 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
+import { readFile } from 'node:fs/promises';
 import { calculateCourseSchedule } from '../frontend/src/screens/course-scheduling-engine.js';
 import { evaluateInstructor, normalizeGender } from '../frontend/src/screens/instructor-matching-engine.js';
 import {
@@ -447,13 +448,206 @@ test('gender hard gates male, female, and missing profile gender only when requi
   assert.doesNotMatch(missingAny.missingProfileData.join(' '), /מגדר/);
 });
 
-test('candidate details render compact table, closed rejections, and initially disabled actions with explanation', () => {
-  const recommended = { instructor: femaleInstructor, eligible: true, score: 88, explanation: 'מתאימה', warnings: [], failures: [], missingProfileData: [], issues: [], checks: { language: { passed: true }, gender: { passed: true }, availability: { passed: true } }, scoreBreakdown: { continuityEfficiency: { points: 20, label: 'רציפות באותה רשות באותו יום' } }, travel: { home: travelHome, homeReturn: travelHomeReturn, transitions: {} } };
-  const rejected = { instructor: maleInstructor, eligible: false, score: null, failures: ['שפת ההדרכה אינה תואמת'], missingProfileData: [], checks: { language: { passed: false, reason: 'שפת ההדרכה אינה תואמת' }, gender: { passed: true }, availability: { passed: true } }, travel: { home: travelHome, homeReturn: travelHomeReturn, transitions: {} } };
+test('candidate details render primary card, closed rejections, and initially disabled actions with explanation', () => {
+  const recommended = {
+    instructor: femaleInstructor,
+    eligible: true,
+    score: 88,
+    qualityLabel: 'מומלץ',
+    recommendationReason: 'רציפות יומית גבוהה',
+    explanation: 'מתאימה',
+    warnings: [],
+    failures: [],
+    missingProfileData: [],
+    issues: [],
+    projectedHalfHours: 12,
+    movedMeetingsCount: 0,
+    activeWorkDays: 3,
+    checks: { language: { passed: true }, gender: { passed: true }, availability: { passed: true } },
+    scoreBreakdown: {
+      continuityEfficiency: { points: 30, label: 'רציפות ויעילות ביום' },
+      travelDistance: { points: 20, label: 'מרחק ונסיעות' },
+      actualWorkload: { points: 18, label: 'עומס עבודה בפועל' },
+      originalSchedulePreservation: { points: 15, label: 'שמירה על המועדים המקוריים' },
+      gapsAndNewDays: { points: 5, label: 'צמצום חלונות ופתיחת ימי עבודה' }
+    },
+    travel: { home: travelHome, homeReturn: travelHomeReturn, transitions: {} }
+  };
+  const rejected = { instructor: maleInstructor, eligible: false, score: null, failures: ['שפת ההדרכה אינה תואמת'], missingProfileData: ['לא ניתן לאמת שפת הדרכה'], checks: { language: { passed: false, reason: 'שפת ההדרכה אינה תואמת' }, gender: { passed: true }, availability: { passed: true } }, travel: { home: travelHome, homeReturn: travelHomeReturn, transitions: {} } };
   const html = detailsHtml({ course: course019({ required_instructor_gender: 'any' }), status: 'הצעה מוכנה', recommended, alternatives: [], checked: [recommended, rejected] }, { courseSchedulingSelectedCandidateId: '' });
-  assert.match(html, /course-scheduling-candidates-table/);
+  assert.match(html, /המדריך המומלץ/);
+  assert.match(html, /course-scheduling-primary-card/);
+  assert.match(html, /88<\/strong><span>\/100<\/span>/);
+  assert.match(html, /רציפות ויעילות ביום[\s\S]*30 מתוך 35/);
+  assert.match(html, /מרחק ונסיעות[\s\S]*20 מתוך 25/);
+  assert.match(html, /עומס בפועל[\s\S]*18 מתוך 20/);
+  assert.match(html, /שמירה על המועדים המקוריים[\s\S]*15 מתוך 15/);
+  assert.match(html, /צמצום חלונות וימי עבודה חדשים[\s\S]*5 מתוך 5/);
   assert.match(html, /לא עברו תנאי סף \(1\)/);
   assert.doesNotMatch(html, /<details class="course-scheduling-rejected"[^>]*open/);
+  assert.doesNotMatch(html, /data-rejected-candidate="m1"[\s\S]*type="radio"/);
   assert.match(html, /data-assign-course disabled title="בחרו מדריך כשיר"/);
-  assert.doesNotMatch(html, /course-scheduling-instructor-card/);
+  assert.match(html, /בחרו מדריך כדי להמשיך/);
+  assert.doesNotMatch(html, /course-scheduling-candidates-table/);
+  assert.doesNotMatch(html, /text-overflow:\s*ellipsis/);
+});
+
+test('bestAvailable uses review title and never the misleading quality-miss heading', () => {
+  const bestAvailable = {
+    instructor: femaleInstructor,
+    eligible: true,
+    score: 48,
+    qualityLabel: 'מתאים טכנית בלבד',
+    recommendationReason: 'עומד בתנאי הסף אך הציון נמוך',
+    projectedHalfHours: 10,
+    movedMeetingsCount: 0,
+    activeWorkDays: 2,
+    scoreBreakdown: {
+      continuityEfficiency: { points: 12, label: 'רציפות ויעילות ביום' },
+      travelDistance: { points: 10, label: 'מרחק ונסיעות' },
+      actualWorkload: { points: 12, label: 'עומס עבודה בפועל' },
+      originalSchedulePreservation: { points: 10, label: 'שמירה על המועדים המקוריים' },
+      gapsAndNewDays: { points: 4, label: 'צמצום חלונות ופתיחת ימי עבודה' }
+    },
+    travel: { home: travelHome, homeReturn: travelHomeReturn, transitions: {} },
+    checks: { language: { passed: true }, gender: { passed: true }, availability: { passed: true } }
+  };
+  const html = detailsHtml({
+    course: course019({ required_instructor_gender: 'any' }),
+    status: 'נדרש טיפול',
+    recommended: null,
+    bestAvailable,
+    alternatives: [],
+    checked: [bestAvailable]
+  });
+  assert.match(html, /ההתאמה הטובה ביותר שנמצאה/);
+  assert.match(html, /נדרשת בדיקה/);
+  assert.doesNotMatch(html, /לא נמצאה התאמה איכותית לקורס/);
+});
+
+test('alternatives keep engine order, max three, and exclude ineligible candidates', () => {
+  const mk = (id, name, score, eligible = true) => ({
+    instructor: { emp_id: id, full_name: name, active: 'yes', address: 'נתניה' },
+    eligible,
+    score: eligible ? score : null,
+    qualityLabel: eligible ? 'מתאים עם אזהרה' : '',
+    projectedHalfHours: 8,
+    movedMeetingsCount: 0,
+    activeWorkDays: 1,
+    scoreBreakdown: eligible ? {
+      continuityEfficiency: { points: 20, label: 'רציפות ויעילות ביום' },
+      travelDistance: { points: 15, label: 'מרחק ונסיעות' },
+      actualWorkload: { points: 12, label: 'עומס עבודה בפועל' },
+      originalSchedulePreservation: { points: 10, label: 'שמירה על המועדים המקוריים' },
+      gapsAndNewDays: { points: 3, label: 'צמצום חלונות ופתיחת ימי עבודה' }
+    } : null,
+    travel: { home: travelHome, homeReturn: travelHomeReturn, transitions: {} },
+    checks: { language: { passed: eligible }, gender: { passed: true }, availability: { passed: true } },
+    failures: eligible ? [] : ['שפת ההדרכה אינה תואמת']
+  });
+  const recommended = mk('f1', 'נועה כהן', 88);
+  const alternatives = [mk('a1', 'אלטרנטיבה א', 70), mk('a2', 'אלטרנטיבה ב', 65), mk('a3', 'אלטרנטיבה ג', 62), mk('a4', 'אלטרנטיבה ד', 61), mk('bad', 'פסולה', null, false)];
+  const html = detailsHtml({
+    course: course019({ required_instructor_gender: 'any' }),
+    status: 'הצעה מוכנה',
+    recommended,
+    alternatives,
+    checked: [recommended, ...alternatives]
+  });
+  assert.match(html, /חלופות מתאימות/);
+  assert.equal((html.match(/course-scheduling-alt-card/g) || []).length, 3);
+  assert.ok(html.indexOf('אלטרנטיבה א') < html.indexOf('אלטרנטיבה ב'));
+  assert.ok(html.indexOf('אלטרנטיבה ב') < html.indexOf('אלטרנטיבה ג'));
+  assert.doesNotMatch(html, /אלטרנטיבה ד/);
+  assert.doesNotMatch(html, /course-scheduling-alt-card[\s\S]*פסולה/);
+  assert.match(html, /data-rejected-candidate="bad"/);
+});
+
+test('proposed meetings and halfOverflow render from candidate data without recomputing scores', () => {
+  const recommended = {
+    instructor: femaleInstructor,
+    eligible: true,
+    score: 70,
+    qualityLabel: 'מומלץ',
+    recommendationReason: 'שמירה על המועדים',
+    projectedHalfHours: 11,
+    movedMeetingsCount: 2,
+    totalShiftDays: 14,
+    activeWorkDays: 4,
+    halfOverflow: true,
+    originalEndDate: '2026-10-25',
+    proposedEndDate: '2026-11-08',
+    proposedMeetings: [
+      { date: '2026-09-06', original_date: '2026-09-06', start_time: '10:00', end_time: '11:00', moved: false },
+      { date: '2026-09-20', original_date: '2026-09-13', start_time: '10:00', end_time: '11:00', moved: true }
+    ],
+    dateAdjustment: {
+      valid: true,
+      movedCount: 2,
+      exceedsHalf: true,
+      newEndDate: '2026-11-08',
+      meetings: [
+        { date: '2026-09-06', original_date: '2026-09-06', start_time: '10:00', end_time: '11:00', moved: false },
+        { date: '2026-09-20', original_date: '2026-09-13', start_time: '10:00', end_time: '11:00', moved: true }
+      ]
+    },
+    scoreBreakdown: {
+      continuityEfficiency: { points: 25, label: 'רציפות ויעילות ביום' },
+      travelDistance: { points: 18, label: 'מרחק ונסיעות' },
+      actualWorkload: { points: 14, label: 'עומס עבודה בפועל' },
+      originalSchedulePreservation: { points: 8, label: 'שמירה על המועדים המקוריים', halfOverflow: true },
+      gapsAndNewDays: { points: 5, label: 'צמצום חלונות ופתיחת ימי עבודה' }
+    },
+    travel: { home: travelHome, homeReturn: travelHomeReturn, transitions: {} },
+    checks: { language: { passed: true }, gender: { passed: true }, availability: { passed: true } }
+  };
+  const selectedHtml = detailsHtml({
+    course: course019({ required_instructor_gender: 'any' }),
+    status: 'הצעה מוכנה',
+    recommended,
+    alternatives: [],
+    checked: [recommended]
+  }, { courseSchedulingSelectedCandidateId: 'f1' });
+  assert.match(selectedHtml, /נבחר: נועה כהן/);
+  assert.match(selectedHtml, /מועדי הפעילות/);
+  assert.match(selectedHtml, /מועד מקורי/);
+  assert.match(selectedHtml, /מועד מוצע/);
+  assert.match(selectedHtml, /הוזז/);
+  assert.match(selectedHtml, /המועדים המוצעים חורגים מתקופת המחצית/);
+  assert.match(selectedHtml, /תאריך סיום מקורי/);
+  assert.match(selectedHtml, /תאריך סיום מוצע/);
+  assert.match(selectedHtml, /data-save-draft/);
+  assert.match(selectedHtml, /data-assign-course/);
+  assert.match(selectedHtml, /data-clear-candidate/);
+
+  const unchanged = {
+    ...recommended,
+    movedMeetingsCount: 0,
+    halfOverflow: false,
+    proposedMeetings: [],
+    dateAdjustment: null,
+    originalEndDate: '2026-10-25',
+    proposedEndDate: '2026-10-25'
+  };
+  const unchangedHtml = detailsHtml({
+    course: course019({ required_instructor_gender: 'any' }),
+    status: 'הצעה מוכנה',
+    recommended: unchanged,
+    alternatives: [],
+    checked: [unchanged]
+  }, { courseSchedulingSelectedCandidateId: 'f1' });
+  assert.match(unchangedHtml, /המועדים נשארים ללא שינוי/);
+  assert.doesNotMatch(unchangedHtml, /data-half-overflow/);
+});
+
+test('results layer displays scoreBreakdown points and does not import scoring recompute helpers into markup', async () => {
+  const source = await readFile(new URL('../frontend/src/screens/course-scheduling.js', import.meta.url), 'utf8');
+  assert.match(source, /scoreBreakdown\.continuityEfficiency|breakdown\.continuityEfficiency|SCORE_COMPONENT_DISPLAY/);
+  assert.doesNotMatch(source, /scoreCandidate\(|buildCandidateScore\(|calculateCandidateScore\(/);
+  assert.match(source, /SCORE_WEIGHTS/);
+  assert.match(source, /מתוך 35/);
+  assert.match(source, /מתוך 25/);
+  assert.match(source, /מתוך 20/);
+  assert.match(source, /מתוך 15/);
+  assert.match(source, /מתוך 5/);
 });

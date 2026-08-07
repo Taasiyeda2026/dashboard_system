@@ -71,9 +71,11 @@ function mark2027Root(html) {
 
 function resetHiddenActiveTab(state = {}) {
   if (!is2027State(state)) return;
+  // Instructors work-schedule left operations management; fall back to workshops in 2027 ops context.
+  if (state?.operationsManagement?.context === 'instructors') return;
   if (!HIDDEN_2027_TABS.has(activeOperationsTab(state))) return;
   state.operationsManagement = state.operationsManagement || {};
-  state.operationsManagement.tab = 'instructors';
+  state.operationsManagement.tab = 'workshops';
 }
 
 function installScreenWrappers() {
