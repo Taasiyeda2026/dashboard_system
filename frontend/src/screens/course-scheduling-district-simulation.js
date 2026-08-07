@@ -191,6 +191,7 @@ export function buildDistrictSimulationRow(result = {}, periodKey = DEFAULT_COUR
     startTime: slot.startTime || '—',
     endTime: slot.endTime || '—',
     proposedInstructor: text(candidate?.instructor?.full_name || candidate?.instructor?.emp_id) || '—',
+    proposedInstructorEmpId: text(candidate?.instructor?.emp_id),
     score: Number.isFinite(scoreValue) ? scoreValue : null,
     reason: simulationReason(enrichedResult, status),
     missingReliableRoute,
@@ -222,11 +223,152 @@ export function filterDistrictSimulationRows(rows = [], statusFilter = '') {
   return (rows || []).filter((row) => text(row?.status) === filter);
 }
 
+export function hasValidProposedInstructor(row = {}) {
+  const candidate = selectedSimulationCandidate(row?.engineResult || {});
+  const empId = text(candidate?.instructor?.emp_id || row?.proposedInstructorEmpId);
+  if (!empId) return false;
+  const label = text(row?.proposedInstructor);
+  return !!label && label !== '—';
+}
+
+/**
+ * Selection eligibility for saving simulation proposals as drafts.
+ * Ready/review only, with a valid proposed instructor, and not already assigned/drafted.
+ */
+export function isDistrictSimulationRowSelectable(row = {}, course = null) {
+  const status = text(row?.status);
+  if (status !== DISTRICT_SIMULATION_STATUSES.ready && status !== DISTRICT_SIMULATION_STATUSES.review) {
+    return false;
+  }
+  if (!hasValidProposedInstructor(row)) return false;
+  const source = course || row?.engineResult?.course || {};
+  if (text(source.emp_id)) return false;
+  if (text(source.draft_emp_id)) return false;
+  return true;
+}
+
+export function defaultSelectedSimulationCourseIds(rows = []) {
+  return (rows || [])
+    .filter((row) => (
+      text(row?.status) === DISTRICT_SIMULATION_STATUSES.ready
+      && isDistrictSimulationRowSelectable(row)
+    ))
+    .map((row) => text(row.courseId))
+    .filter(Boolean);
+}
+
+export function normalizeSelectedSimulationCourseIds(rows = [], selectedIds = []) {
+  const selectable = new Set(
+    (rows || [])
+      .filter((row) => isDistrictSimulationRowSelectable(row))
+      .map((row) => text(row.courseId))
+      .filter(Boolean)
+  );
+  return [...new Set((selectedIds || []).map((id) => text(id)).filter((id) => selectable.has(id)))];
+}
+
+export function districtSimulationSaveButtonLabel(selectedCount = 0) {
+  const count = Number(selectedCount) || 0;
+  if (count <= 0) return 'שמור נבחרים כטיוטות';
+  return `שמור ${count} הצעות כטיוטות`;
+}
+
+export function districtSimulationConfirmMessage(selectedCount = 0) {
+  const count = Number(selectedCount) || 0;
+  return `עומדים לשמור ${count} הצעות כטיוטות. השיבוצים עדיין לא יאושרו סופית.`;
+}
+
+export function districtSimulationSaveResultMessage({ saved = 0, failed = 0 } = {}) {
+  return `שמירת הטיוטות הסתיימה: ${Number(saved) || 0} נשמרו, ${Number(failed) || 0} לא נשמרו.`;
+}
+
+export function courseLabelForSimulationRow(row = {}) {
+  return text(row?.school) !== '—' && text(row?.school)
+    ? text(row.school)
+    : (text(row?.courseName) !== '—' ? text(row.courseName) : text(row?.courseId) || 'קורס');
+}
+
+/**
+ * Pre-save safety for one simulation proposal. Does not write.
+ * Returns Hebrew reason when the row must not be saved.
+ */
+export function districtSimulationDraftSaveBlockReason({
+  row,
+  course,
+  instructors = [],
+  candidateHardBlockReason = () => ''
+} = {}) {
+  if (!row) return 'השורה אינה זמינה';
+  const status = text(row.status);
+  if (status === DISTRICT_SIMULATION_STATUSES.recruit || status === DISTRICT_SIMULATION_STATUSES.missing) {
+    return status === DISTRICT_SIMULATION_STATUSES.recruit ? 'נדרש גיוס — לא ניתן לשמור' : 'חסרים נתונים — לא ניתן לשמור';
+  }
+  const liveCourse = course || row?.engineResult?.course || {};
+  if (text(liveCourse.emp_id)) return 'הקורס כבר שובץ';
+  if (text(liveCourse.draft_emp_id)) return 'הקורס כבר נשמר כטיוטה';
+  if (!hasValidProposedInstructor(row)) return 'אין מדריך מוצע תקף';
+  if (!isDistrictSimulationRowSelectable(row, liveCourse)) return 'לא ניתן לבחור שורה זו לשמירה';
+  const candidate = selectedSimulationCandidate(row.engineResult || {});
+  const empId = text(candidate?.instructor?.emp_id || row.proposedInstructorEmpId);
+  const instructorExists = (instructors || []).some((instructor) => text(instructor?.emp_id) === empId);
+  if (!empId || !instructorExists) return 'המדריך אינו זמין עוד';
+  const hardBlock = text(candidateHardBlockReason(candidate));
+  if (hardBlock) return hardBlock;
+  return '';
+}
+
+/**
+ * Apply per-row save outcomes: remove successes, keep failures, refresh counts/selection.
+ */
+export function applyDistrictSimulationSaveOutcome({
+  rows = [],
+  results = [],
+  selectedIds = [],
+  outcomes = []
+} = {}) {
+  const savedIds = new Set(
+    (outcomes || [])
+      .filter((item) => item?.ok)
+      .map((item) => text(item.courseId))
+      .filter(Boolean)
+  );
+  const failures = (outcomes || [])
+    .filter((item) => !item?.ok)
+    .map((item) => ({
+      courseId: text(item.courseId),
+      courseLabel: text(item.courseLabel) || text(item.courseId),
+      reason: text(item.reason) || 'שמירה נכשלה'
+    }));
+  const nextRows = (rows || [])
+    .filter((row) => !savedIds.has(text(row.courseId)))
+    .map((row) => {
+      const failure = failures.find((item) => item.courseId === text(row.courseId));
+      if (!failure) return row;
+      return { ...row, saveFailureReason: failure.reason };
+    });
+  const nextResults = (results || []).filter((result) => !savedIds.has(idOf(result?.course)));
+  const nextSelected = normalizeSelectedSimulationCourseIds(
+    nextRows,
+    (selectedIds || []).filter((id) => !savedIds.has(text(id)))
+  );
+  return {
+    rows: nextRows,
+    results: nextResults,
+    selectedIds: nextSelected,
+    counts: summarizeDistrictSimulation(nextRows),
+    savedCount: savedIds.size,
+    failedCount: failures.length,
+    failures,
+    message: districtSimulationSaveResultMessage({ saved: savedIds.size, failed: failures.length })
+  };
+}
+
 /**
  * Read-only district simulation. Does not write drafts, assignments, or call RPCs.
  * Scope is selected half-year + district only — authority filter is intentionally ignored.
  * Approved and saved-draft courses remain blockers via full activities input, but are
  * excluded from recommendation targets by the engine (district + eligibility filters).
+ * Writes occur only through an explicit confirmed "שמור כטיוטות" action in the screen binder.
  */
 export function runDistrictSchedulingSimulation(input = {}) {
   const district = normalizeOperationalDistrict(input.district);
@@ -279,15 +421,31 @@ export function districtSimulationSummaryCardsHtml(counts = {}) {
   )).join('');
 }
 
-export function districtSimulationTableHtml(rows = [], { statusFilter = '', selectedId = '' } = {}) {
+export function districtSimulationTableHtml(rows = [], {
+  statusFilter = '',
+  selectedId = '',
+  selectedCourseIds = []
+} = {}) {
   const filtered = filterDistrictSimulationRows(rows, statusFilter);
   if (!filtered.length) {
     return `<div class="course-scheduling-empty"><strong>אין תוצאות להצגה</strong><p>שנו את סינון הסטטוס או הפעילו מחדש את התכנון המחוזי.</p></div>`;
   }
+  const selectedSet = new Set((selectedCourseIds || []).map((id) => text(id)));
   const body = filtered.map((row) => {
     const selectedClass = row.courseId && row.courseId === selectedId ? ' is-selected' : '';
-    return `<tr class="course-scheduling-sim-row${selectedClass}" data-simulation-course-row="${escapeHtml(row.courseId)}" role="button" tabindex="0">
-      <td><span class="course-scheduling-status-chip">${escapeHtml(row.status)}</span></td>
+    const selectable = isDistrictSimulationRowSelectable(row);
+    const checked = selectable && selectedSet.has(text(row.courseId));
+    const checkbox = selectable
+      ? `<label class="course-scheduling-sim-check" data-simulation-select-wrap>
+          <input type="checkbox" data-simulation-select-course="${escapeHtml(row.courseId)}"${checked ? ' checked' : ''} aria-label="בחירת הצעה לשמירה כטיוטה">
+        </label>`
+      : `<span class="course-scheduling-sim-check course-scheduling-sim-check--disabled" title="לא ניתן לבחור שורה זו" aria-hidden="true"></span>`;
+    const failure = text(row.saveFailureReason)
+      ? `<div class="course-scheduling-sim-save-failure">${escapeHtml(row.saveFailureReason)}</div>`
+      : '';
+    return `<tr class="course-scheduling-sim-row${selectedClass}${row.saveFailureReason ? ' has-save-failure' : ''}" data-simulation-course-row="${escapeHtml(row.courseId)}" role="button" tabindex="0">
+      <td class="course-scheduling-sim-check-cell" data-simulation-select-cell>${checkbox}</td>
+      <td><span class="course-scheduling-status-chip">${escapeHtml(row.status)}</span>${failure}</td>
       <td>${escapeHtml(row.authority)}</td>
       <td>${escapeHtml(row.school)}</td>
       <td>${escapeHtml(row.courseName)}</td>
@@ -306,6 +464,7 @@ function dsTable(body) {
   return `<table class="course-scheduling-sim-table">
     <thead>
       <tr>
+        <th class="course-scheduling-sim-check-cell">בחירה</th>
         <th>סטטוס</th>
         <th>רשות</th>
         <th>בית ספר</th>
@@ -337,14 +496,45 @@ export function districtSimulationStatusFilterHtml(activeFilter = '') {
   </label>`;
 }
 
+export function districtSimulationSaveResultHtml(result = null) {
+  if (!result?.message) return '';
+  const failures = Array.isArray(result.failures) ? result.failures : [];
+  const failureList = failures.length
+    ? `<ul class="course-scheduling-sim-save-failures">${failures.map((item) => (
+      `<li><strong>${escapeHtml(item.courseLabel || item.courseId || 'קורס')}</strong> - ${escapeHtml(item.reason || 'שמירה נכשלה')}</li>`
+    )).join('')}</ul>`
+    : '';
+  return `<div class="course-scheduling-sim-save-result" data-simulation-save-result role="status">
+    <p>${escapeHtml(result.message)}</p>
+    ${failureList}
+  </div>`;
+}
+
+export function districtSimulationConfirmDialogHtml({ open = false, selectedCount = 0 } = {}) {
+  if (!open) return '';
+  return `<div class="course-scheduling-overlay" data-district-simulation-confirm-overlay>
+    <div class="course-scheduling-modal course-scheduling-sim-confirm" role="dialog" aria-modal="true" aria-labelledby="district-sim-save-confirm-title" data-district-simulation-confirm>
+      <p id="district-sim-save-confirm-title">${escapeHtml(districtSimulationConfirmMessage(selectedCount))}</p>
+      <div class="course-scheduling-sim-confirm-actions">
+        <button type="button" class="course-scheduling-btn course-scheduling-btn--secondary" data-cancel-simulation-draft-save>ביטול</button>
+        <button type="button" class="course-scheduling-btn course-scheduling-btn--primary" data-confirm-simulation-draft-save>שמור כטיוטות</button>
+      </div>
+    </div>
+  </div>`;
+}
+
 export function districtSimulationPanelHtml({
   rows = [],
   counts = {},
   statusFilter = '',
   selectedId = '',
+  selectedCourseIds = null,
   district = '',
   loading = false,
-  error = ''
+  error = '',
+  saving = false,
+  confirmSave = false,
+  saveResult = null
 } = {}) {
   if (loading) {
     return `<section class="course-scheduling-simulation" data-district-simulation-panel>
@@ -352,15 +542,24 @@ export function districtSimulationPanelHtml({
       <div class="course-scheduling-loading" aria-live="polite"><strong>מחשב תכנון מחוזי...</strong></div>
     </section>`;
   }
+  const selectedIds = selectedCourseIds == null
+    ? defaultSelectedSimulationCourseIds(rows)
+    : normalizeSelectedSimulationCourseIds(rows, selectedCourseIds);
+  const selectedCount = selectedIds.length;
+  const saveDisabled = selectedCount === 0 || saving;
+  const saveLabel = saving ? 'שומר טיוטות...' : districtSimulationSaveButtonLabel(selectedCount);
   return `<section class="course-scheduling-simulation" data-district-simulation-panel>
     <p class="course-scheduling-sim-banner" role="status">${escapeHtml(DISTRICT_SIMULATION_LABEL)}</p>
     ${error ? `<p class="course-scheduling-alert">${escapeHtml(error)}</p>` : ''}
+    ${districtSimulationSaveResultHtml(saveResult)}
     <div class="course-scheduling-sim-toolbar">
       <p class="course-scheduling-muted">מחוז ${escapeHtml(district || '—')} · ${rows.length} קורסים בסימולציה</p>
       ${districtSimulationStatusFilterHtml(statusFilter)}
+      <button type="button" class="course-scheduling-btn course-scheduling-btn--primary" data-save-simulation-drafts ${saveDisabled ? 'disabled' : ''}>${escapeHtml(saveLabel)}</button>
       <button type="button" class="course-scheduling-btn course-scheduling-btn--secondary" data-close-district-simulation>חזרה לרשימת הקורסים</button>
     </div>
     <section class="course-scheduling-summary course-scheduling-summary--simulation">${districtSimulationSummaryCardsHtml(counts)}</section>
-    ${districtSimulationTableHtml(rows, { statusFilter, selectedId })}
+    ${districtSimulationTableHtml(rows, { statusFilter, selectedId, selectedCourseIds: selectedIds })}
+    ${districtSimulationConfirmDialogHtml({ open: confirmSave, selectedCount })}
   </section>`;
 }
