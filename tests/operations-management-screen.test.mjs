@@ -308,6 +308,137 @@ test('work schedule shows only student count column without quantity fallback', 
   assert.doesNotMatch(source, /<td class="ds-ops-col--quantity">/);
 });
 
+function weeklyDates(startIso, count) {
+  const dates = [];
+  const start = new Date(`${startIso}T12:00:00Z`);
+  for (let i = 0; i < count; i += 1) {
+    const d = new Date(start);
+    d.setUTCDate(d.getUTCDate() + i * 7);
+    dates.push(d.toISOString().slice(0, 10));
+  }
+  return dates;
+}
+
+function readyCourse2027(overrides = {}) {
+  const dates = overrides.__dates || weeklyDates('2026-09-06', 14);
+  const dateColumns = {};
+  dates.forEach((date, index) => { dateColumns[`date_${index + 1}`] = date; });
+  return {
+    RowID: 'COURSE-2027',
+    activity_season: 'school_2027',
+    activity_type: 'קורס',
+    status: 'פתוח',
+    activity_name: 'קורס רובוטיקה',
+    authority: 'רשות א',
+    school: 'בית ספר א',
+    grade: 'ה',
+    instructor_name: 'דני כהן',
+    sessions: String(dates.length),
+    start_date: dates[0],
+    end_date: dates[dates.length - 1],
+    start_time: '14:00',
+    end_time: '15:30',
+    ...dateColumns,
+    ...overrides
+  };
+}
+
+// ensureOpsState() re-derives ops.period from state.activityPeriodTab on every call
+// (resetting it, and dateFrom/dateTo with it, whenever they disagree) - both must be
+// set to school_2027 together or the schedule silently falls back to the regular period.
+function schedule2027State(overrides = {}) {
+  return scheduleState({
+    ...overrides,
+    activityPeriodTab: 'school_2027',
+    operationsManagement: {
+      period: 'school_2027',
+      dateFrom: '2026-09-01',
+      dateTo: '2027-08-31',
+      ...(overrides.operationsManagement || {})
+    }
+  });
+}
+
+const OLD_SCHEDULE_TABLE_TAG = '<table class="ds-table ds-table--compact ds-ops-mgmt-schedule">';
+const NEW_COURSE_SCHEDULE_TABLE_TAG = '<table class="ds-table ds-table--compact ds-ops-course-schedule-table">';
+
+// The top filter panel lists every candidate value (including not-yet-ready courses)
+// as a selectable option regardless of the ready-courses gate below it, so assertions
+// about which courses the *table* actually includes must check the course-name cell
+// specifically rather than a raw substring search across the whole rendered page.
+function courseNameCellCount(html, name) {
+  const marker = `<td class="ds-ops-course-col--name" title="${name}">`;
+  return html.split(marker).length - 1;
+}
+
+test('school_2027 work schedule shows one compact row per ready course, not one row per meeting', () => {
+  const html = operationsManagementScreen.render({ rows: [readyCourse2027()], workshopStockMap: new Map() }, { state: schedule2027State() });
+  assert.equal(html.includes(NEW_COURSE_SCHEDULE_TABLE_TAG), true);
+  assert.equal(html.includes(OLD_SCHEDULE_TABLE_TAG), false);
+  assert.equal(courseNameCellCount(html, 'קורס רובוטיקה'), 1);
+  assert.match(html, />14 תאריכים</);
+  assert.equal((html.match(/<tr class="ds-ops-course-dates-row"/g) || []).length, 1);
+});
+
+test('school_2027 work schedule excludes courses missing required fields and keeps valid ones', () => {
+  const rows = [
+    readyCourse2027({ RowID: 'OK', activity_name: 'קורס תקין' }),
+    readyCourse2027({ RowID: 'NO-INSTRUCTOR', activity_name: 'קורס בלי מדריך', instructor_name: '', instructor_name_2: '' }),
+    readyCourse2027({ RowID: 'DUP-DATE', activity_name: 'קורס עם תאריך כפול', date_2: weeklyDates('2026-09-06', 14)[0] }),
+    readyCourse2027({ RowID: 'NO-SCHOOL', activity_name: 'קורס בלי בית ספר', school: '', single_school_name: '', legacy_school: '' })
+  ];
+  const html = operationsManagementScreen.render({ rows, workshopStockMap: new Map() }, { state: schedule2027State() });
+  assert.equal(courseNameCellCount(html, 'קורס תקין'), 1);
+  assert.equal(courseNameCellCount(html, 'קורס בלי מדריך'), 0);
+  assert.equal(courseNameCellCount(html, 'קורס עם תאריך כפול'), 0);
+  assert.equal(courseNameCellCount(html, 'קורס בלי בית ספר'), 0);
+});
+
+test('school_2027 work schedule includes a course for its secondary instructor', () => {
+  const rows = [readyCourse2027({ instructor_name: '', instructor_name_2: 'אפרת אוחיון' })];
+  const state = schedule2027State();
+  state.listFilters['operations-management'].instructor = 'אפרת אוחיון';
+  const html = operationsManagementScreen.render({ rows, workshopStockMap: new Map() }, { state });
+  assert.match(html, /קורס רובוטיקה/);
+  assert.match(html, /אפרת אוחיון/);
+});
+
+test('school_2027 work schedule summary counts courses, not meetings', () => {
+  const rows = [
+    readyCourse2027({ RowID: 'A', activity_name: 'קורס א' }),
+    readyCourse2027({
+      RowID: 'B',
+      activity_name: 'קורס ב',
+      __dates: weeklyDates('2026-10-04', 8),
+      sessions: '8',
+      start_date: weeklyDates('2026-10-04', 8)[0],
+      end_date: weeklyDates('2026-10-04', 8)[7]
+    })
+  ];
+  const html = operationsManagementScreen.render({ rows, workshopStockMap: new Map() }, { state: schedule2027State() });
+  assert.match(html, /2 קורסים/);
+  assert.match(html, /22 מפגשים/);
+  assert.doesNotMatch(html, /22 קורסים/);
+});
+
+test('school_2027 branch leaves the regular/summer_2026 per-meeting schedule table untouched', () => {
+  const rows = [{
+    RowID: 'REG-1',
+    status: 'פתוח',
+    authority: 'רשות א',
+    school: 'בית ספר א',
+    activity_name: 'פעילות רגילה',
+    start_date: '2026-07-10',
+    start_time: '08:00',
+    end_time: '09:00',
+    instructor_name: 'דני'
+  }];
+  const html = operationsManagementScreen.render({ rows, workshopStockMap: new Map() }, { state: scheduleState() });
+  assert.equal(html.includes(OLD_SCHEDULE_TABLE_TAG), true);
+  assert.equal(html.includes(NEW_COURSE_SCHEDULE_TABLE_TAG), false);
+  assert.doesNotMatch(html, /data-ops-course-dates-toggle=/);
+});
+
 test('completion approval tab hides general operations filters and uses only approval filters', () => {
   const state = baseState();
   state.operationsManagement.tab = 'completion_approval';

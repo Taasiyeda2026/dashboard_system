@@ -83,6 +83,16 @@ import {
   instructorsWorkspaceHeaderHtml,
   instructorsWorkspaceNavStylesHtml
 } from './shared/instructors-workspace-nav.js';
+import {
+  buildReadyCourseScheduleRows,
+  sortReadyCourseScheduleRows,
+  formatCourseScheduleRangeShort
+} from './shared/instructor-course-schedule-2027.js';
+import {
+  buildCourseSchedulePrintHtml,
+  courseSchedulePrintCss,
+  buildCourseSchedulePrintDocumentTitle
+} from './shared/instructor-course-schedule-print.js';
 
 const SCOPE = 'operations-management';
 const TAB_INSTRUCTORS = 'instructors';
@@ -237,6 +247,7 @@ function ensureOpsState(state = {}) {
     try { ops.workshopStockOverrides = JSON.parse(localStorage.getItem('operationsWorkshopStockOverrides') || '{}'); } catch { ops.workshopStockOverrides = {}; }
   }
   if (!ops.expandedSchool) ops.expandedSchool = '';
+  if (!ops.expandedCourseDates || typeof ops.expandedCourseDates !== 'object') ops.expandedCourseDates = {};
   ops.completionApproval = ops.completionApproval || {};
   if (!ops.completionApproval.instructor) ops.completionApproval.instructor = '';
   if (!ops.completionApproval.dateMode) ops.completionApproval.dateMode = 'all';
@@ -1588,6 +1599,26 @@ function opsManagementStylesHtml() {
     .ds-ops-mgmt-screen .ds-ops-schedule-wrap .ds-table-wrap,
     .ds-ops-mgmt-screen .ds-ops-mgmt-schedule { width:100%; }
     .ds-ops-mgmt-screen .ds-ops-mgmt-summary-line { display:block; margin:0 0 10px; padding:7px 10px; border:1px solid #d8e5ee; border-radius:10px; background:#f8fbfd; color:#334155; font-weight:700; font-size:13px; }
+    /* school_2027 course-level work schedule table — compact, one row per course */
+    .ds-ops-mgmt-screen .ds-ops-course-schedule-table { table-layout:auto; }
+    .ds-ops-mgmt-screen .ds-ops-course-schedule-table th,
+    .ds-ops-mgmt-screen .ds-ops-course-schedule-table td { padding:4px 7px; font-size:12px; line-height:1.3; vertical-align:middle; }
+    .ds-ops-mgmt-screen .ds-ops-course-col--name { max-width:190px; overflow:hidden; text-overflow:ellipsis; white-space:nowrap; text-align:right; }
+    .ds-ops-mgmt-screen .ds-ops-course-col--authority { max-width:100px; overflow:hidden; text-overflow:ellipsis; white-space:nowrap; text-align:right; }
+    .ds-ops-mgmt-screen .ds-ops-course-col--school { max-width:140px; overflow:hidden; text-overflow:ellipsis; white-space:nowrap; text-align:right; }
+    .ds-ops-mgmt-screen .ds-ops-course-col--instructor { max-width:140px; overflow:hidden; text-overflow:ellipsis; white-space:nowrap; text-align:right; }
+    .ds-ops-mgmt-screen .ds-ops-course-col--weekday,
+    .ds-ops-mgmt-screen .ds-ops-course-col--time,
+    .ds-ops-mgmt-screen .ds-ops-course-col--period,
+    .ds-ops-mgmt-screen .ds-ops-course-col--grade,
+    .ds-ops-mgmt-screen .ds-ops-course-col--sessions { white-space:nowrap; text-align:center; }
+    .ds-ops-mgmt-screen .ds-ops-course-col--dates { white-space:nowrap; text-align:center; }
+    .ds-ops-mgmt-screen .ds-ops-course-dates-toggle { border:1px solid #cfe1ec; background:#f8fbfd; color:#0f8fa8; border-radius:999px; padding:3px 10px; font-size:11.5px; font-weight:700; cursor:pointer; white-space:nowrap; }
+    .ds-ops-mgmt-screen .ds-ops-course-dates-toggle:hover { background:#eefaff; border-color:#9db9d8; }
+    .ds-ops-mgmt-screen .ds-ops-course-dates-toggle[aria-expanded="true"] { background:#0f8fa8; border-color:#0f8fa8; color:#fff; }
+    .ds-ops-mgmt-screen .ds-ops-course-dates-row td { background:#f8fbfd !important; padding:8px 12px; }
+    .ds-ops-mgmt-screen .ds-ops-course-dates-list { display:flex; flex-wrap:wrap; gap:5px 16px; margin:0; padding:0; list-style:none; font-size:12px; color:#334155; }
+    .ds-ops-mgmt-screen .ds-ops-course-dates-list li { white-space:nowrap; }
     .ds-ops-mgmt-screen .ds-ops-mgmt-filters { padding:8px 10px; border-radius:12px; }
     .ds-ops-mgmt-screen .ds-ops-mgmt-filters .ds-filter-panel__title { margin:0 0 4px; font-size:13px; line-height:1.2; }
     .ds-ops-mgmt-screen .ds-ops-mgmt-filters__grid { gap:6px; grid-template-columns:repeat(auto-fit,minmax(126px,1fr)); align-items:end; }
@@ -1879,6 +1910,7 @@ function showOpsToast(msg, durationMs = 2500) {
 
 let _schedulePrintContext = null;
 let _schoolsPrintContext = null;
+let _courseSchedulePrintContext2027 = null;
 
 function openOpsPrintWindow({ title = 'הדפסה', bodyHtml = '' } = {}) {
   const printWindow = window.open('', '_blank');
@@ -2075,6 +2107,34 @@ function printInstructorSchedule() {
   setTimeout(() => printWindow.print(), 250);
 }
 
+// school_2027 print path: separate from printInstructorSchedule/buildGroupedScheduleHtml
+// above (summer_2026 + regular), which stay untouched. Requires a specific instructor —
+// "all instructors" never produces a document, per spec.
+function printCourseSchedule2027() {
+  const ctx = _courseSchedulePrintContext2027;
+  const instructorName = String(ctx?.instructorName || '').trim();
+  if (!instructorName) {
+    alert('יש לבחור מדריך לפני הדפסת סידור העבודה.');
+    return;
+  }
+  const rows = ctx?.rows || [];
+  if (!rows.length) {
+    alert('לא נמצאו קורסים מוכנים להדפסה עבור המדריך שנבחר.');
+    return;
+  }
+  const title = buildCourseSchedulePrintDocumentTitle(instructorName);
+  const bodyHtml = buildCourseSchedulePrintHtml({ instructorName, rows });
+  const css = courseSchedulePrintCss();
+  const printWindow = window.open('', '_blank');
+  if (!printWindow) { alert('הדפדפן חסם פתיחת חלון הדפסה. יש לאפשר חלונות קופצים לאתר.'); return; }
+  const html = `<!doctype html><html lang="he" dir="rtl"><head><meta charset="utf-8"><title>${escapeHtml(title)}</title><style>${css}</style></head><body>${bodyHtml}</body></html>`;
+  printWindow.document.open();
+  printWindow.document.write(html);
+  printWindow.document.close();
+  printWindow.focus();
+  setTimeout(() => printWindow.print(), 250);
+}
+
 function printWorkshopsFromDom(root) {
   const table = root.querySelector('.ds-ops-workshops-table');
   if (!table || !table.querySelector('tbody tr')) {
@@ -2194,8 +2254,88 @@ function printSchoolsSchedule() {
   setTimeout(() => printWindow.print(), 250);
 }
 
+function courseScheduleDatesListHtml(dates = []) {
+  return `<ul class="ds-ops-course-dates-list">${dates.map((date) => `<li>${escapeHtml(formatDateHeWithWeekday(date))}</li>`).join('')}</ul>`;
+}
+
+// school_2027 "סידור עבודה": one compact row per ready course (see
+// buildReadyCourseScheduleRows), never one row per meeting. Kept as a
+// separate function from instructorsTabHtml below so the existing
+// summer_2026 / regular per-meeting table and its print path are untouched.
+function courseScheduleTabHtml2027(rows, state) {
+  const ops = ensureOpsState(state);
+  const filters = ensureActivityListFilters(state, SCOPE);
+  const selectedInstructorFilter = String(filters.instructor || '').trim();
+  const readyRows = sortReadyCourseScheduleRows(
+    buildReadyCourseScheduleRows(rows),
+    { instructorSelected: Boolean(selectedInstructorFilter) }
+  );
+  _courseSchedulePrintContext2027 = { rows: readyRows, instructorName: selectedInstructorFilter };
+
+  const totalMeetings = readyRows.reduce((sum, row) => sum + row.dates.length, 0);
+  const schoolsCount = uniqueSorted(readyRows.map((row) => row.school)).length;
+  const authoritiesCount = uniqueSorted(readyRows.map((row) => row.authority)).length;
+  const summaryLine = compactSummaryLineHtml([
+    { label: 'קורסים', value: readyRows.length },
+    { label: 'מפגשים', value: totalMeetings },
+    { label: 'בתי ספר', value: schoolsCount },
+    { label: 'רשויות', value: authoritiesCount }
+  ]);
+
+  const tableRows = readyRows.map((row) => {
+    const isExpanded = Boolean(ops.expandedCourseDates[row.key]);
+    const instructorLabel = row.instructorNames.join(', ');
+    const datesToggleLabel = row.dates.length === 1 ? 'תאריך אחד' : `${row.dates.length} תאריכים`;
+    const mainRow = `<tr>
+      <td class="ds-ops-course-col--name" title="${escapeHtml(row.name)}"><strong>${escapeHtml(row.name)}</strong></td>
+      <td class="ds-ops-course-col--authority" title="${escapeHtml(row.authority)}">${escapeHtml(row.authority)}</td>
+      <td class="ds-ops-course-col--school" title="${escapeHtml(row.school)}">${escapeHtml(row.school)}</td>
+      <td class="ds-ops-course-col--instructor" title="${escapeHtml(instructorLabel)}">${escapeHtml(instructorLabel)}</td>
+      <td class="ds-ops-course-col--weekday">${row.weekday ? escapeHtml(row.weekday) : '<span class="ds-ops-mgmt-cell-muted">—</span>'}</td>
+      <td class="ds-ops-course-col--time">${escapeHtml(row.timeRange || '—')}</td>
+      <td class="ds-ops-course-col--period">${escapeHtml(formatCourseScheduleRangeShort(row.startDate, row.endDate) || '—')}</td>
+      <td class="ds-ops-course-col--grade">${row.grade ? escapeHtml(row.grade) : '<span class="ds-ops-mgmt-cell-muted">—</span>'}</td>
+      <td class="ds-ops-course-col--sessions">${row.sessionsCount}</td>
+      <td class="ds-ops-course-col--dates"><button type="button" class="ds-ops-course-dates-toggle no-print" data-ops-course-dates-toggle="${escapeHtml(row.key)}" aria-expanded="${isExpanded ? 'true' : 'false'}">${escapeHtml(datesToggleLabel)}</button><span class="only-print">${escapeHtml(datesToggleLabel)}</span></td>
+    </tr>`;
+    const datesRow = `<tr class="ds-ops-course-dates-row" data-ops-course-dates-row="${escapeHtml(row.key)}"${isExpanded ? '' : ' hidden'}><td colspan="10">${courseScheduleDatesListHtml(row.dates)}</td></tr>`;
+    return mainRow + datesRow;
+  }).join('');
+
+  const table = readyRows.length
+    ? dsTableWrap(`<table class="ds-table ds-table--compact ds-ops-course-schedule-table"><thead><tr>
+        <th class="ds-ops-course-col--name">שם הקורס</th>
+        <th class="ds-ops-course-col--authority">רשות</th>
+        <th class="ds-ops-course-col--school">בית ספר</th>
+        <th class="ds-ops-course-col--instructor">מדריך</th>
+        <th class="ds-ops-course-col--weekday">יום</th>
+        <th class="ds-ops-course-col--time">שעות</th>
+        <th class="ds-ops-course-col--period">תקופת הקורס</th>
+        <th class="ds-ops-course-col--grade">כיתה</th>
+        <th class="ds-ops-course-col--sessions">מס׳ מפגשים</th>
+        <th class="ds-ops-course-col--dates">תאריכי המפגשים</th>
+      </tr></thead><tbody>${tableRows}</tbody></table>`)
+    : dsEmptyState('לא נמצאו קורסים מוכנים לסידור עבודה בטווח הנבחר');
+
+  const printHeaderTitle = selectedInstructorFilter ? `סידור עבודה — ${selectedInstructorFilter}` : 'סידור עבודה — כל המדריכים';
+
+  return `<section class="ds-ops-mgmt-panel" dir="rtl">
+    ${summaryLine}
+    <div class="ds-ops-mgmt-panel__toolbar no-print">
+      <button type="button" class="ds-btn ds-btn--sm ds-btn--primary" data-ops-print>הדפס סידור עבודה</button>
+    </div>
+    <div class="ds-ops-mgmt-print-header only-print">
+      <h2>${escapeHtml(printHeaderTitle)}</h2>
+    </div>
+    <div class="ds-ops-schedule-wrap">${dsCard({ title: 'טבלת סידור עבודה', badge: String(readyRows.length), body: table, padded: false })}</div>
+  </section>`;
+}
+
 function instructorsTabHtml(rows, state, data = {}, directory = buildSchoolsDirectory([]), contactsIndex = new Map(), allPreparedRows = []) {
   const ops = ensureOpsState(state);
+  if (ops.period === ACTIVITY_SEASON_SCHOOL_2027) {
+    return courseScheduleTabHtml2027(rows, state);
+  }
   const filters = ensureActivityListFilters(state, SCOPE);
   const scheduleRows = buildScheduleRows(rows, state, directory);
   const selectedInstructorFilter = String(filters.instructor || '').trim();
@@ -3312,8 +3452,22 @@ export const operationsManagementScreen = {
     });
 
     root.querySelector('[data-ops-print]')?.addEventListener('click', async () => {
+      if (ops.period === ACTIVITY_SEASON_SCHOOL_2027) {
+        printCourseSchedule2027();
+        return;
+      }
       await refreshSchedulePrintContactsBeforePrint(api);
       printInstructorSchedule();
+    });
+    root.querySelectorAll('[data-ops-course-dates-toggle]').forEach((btn) => {
+      btn.addEventListener('click', () => {
+        const key = btn.getAttribute('data-ops-course-dates-toggle') || '';
+        if (!key) return;
+        ops.expandedCourseDates = ops.expandedCourseDates || {};
+        if (ops.expandedCourseDates[key]) delete ops.expandedCourseDates[key];
+        else ops.expandedCourseDates[key] = true;
+        rerender?.();
+      });
     });
     root.querySelector('[data-ops-print-workshops]')?.addEventListener('click', () => printWorkshopsFromDom(root));
 
