@@ -1,30 +1,7 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
 
-import {
-  ACT_SUBNAV_ITEMS,
-  actNavGridHtml,
-  headerNavGridHtml,
-  isInstructorsNavActive
-} from '../frontend/src/screens/shared/act-nav-grid.js';
-import {
-  bindInstructorsWorkspaceNav,
-  instructorsWorkspaceHeaderHtml,
-  instructorsWorkspaceNavHtml,
-  resolveInstructorsWorkspaceActiveTab
-} from '../frontend/src/screens/shared/instructors-workspace-nav.js';
-import { instructorsScreen } from '../frontend/src/screens/instructors.js';
-import { courseSchedulingScreen } from '../frontend/src/screens/course-scheduling.js';
-import { operationsManagementScreen } from '../frontend/src/screens/operations-management.js';
-
 function ensureBrowserGlobals() {
-  if (!globalThis.document) {
-    globalThis.document = {
-      dispatchEvent() { return true; },
-      addEventListener() {},
-      documentElement: { dataset: {} }
-    };
-  }
   if (!globalThis.sessionStorage) {
     const store = new Map();
     globalThis.sessionStorage = {
@@ -41,8 +18,32 @@ function ensureBrowserGlobals() {
       removeItem: (key) => { store.delete(String(key)); }
     };
   }
+  if (!globalThis.document) {
+    globalThis.document = {
+      dispatchEvent() { return true; },
+      addEventListener() {},
+      documentElement: { dataset: {} },
+      querySelectorAll() { return []; }
+    };
+  }
 }
 ensureBrowserGlobals();
+
+const {
+  ACT_SUBNAV_ITEMS,
+  actNavGridHtml,
+  headerNavGridHtml,
+  isInstructorsNavActive
+} = await import('../frontend/src/screens/shared/act-nav-grid.js');
+const {
+  bindInstructorsWorkspaceNav,
+  instructorsWorkspaceHeaderHtml,
+  instructorsWorkspaceNavHtml,
+  resolveInstructorsWorkspaceActiveTab
+} = await import('../frontend/src/screens/shared/instructors-workspace-nav.js');
+const { instructorsScreen } = await import('../frontend/src/screens/instructors.js');
+const { courseSchedulingScreen } = await import('../frontend/src/screens/course-scheduling.js');
+const { operationsManagementScreen } = await import('../frontend/src/screens/operations-management.js');
 
 test('שיבוצים is removed from the main activities subnav while course-scheduling route remains available', () => {
   const routes = ACT_SUBNAV_ITEMS.map((item) => item.route);
@@ -93,23 +94,23 @@ test('instructors workspace tabs render consistently on list and scheduling scre
 
 test('work-schedule tab opens operations-management with instructors context', () => {
   const events = [];
+  const tabButton = {
+    getAttribute: () => 'work-schedule',
+    addEventListener(type, handler) {
+      if (type === 'click') this._click = handler;
+    },
+    click() { this._click?.(); },
+    focus() {}
+  };
   globalThis.document = {
+    ...globalThis.document,
     dispatchEvent(event) {
       events.push(event);
       return true;
     },
-    addEventListener() {},
-    documentElement: { dataset: {} },
     querySelectorAll(selector) {
       if (selector !== '[data-instructors-workspace-tab]') return [];
-      return [{
-        getAttribute: () => 'work-schedule',
-        addEventListener(type, handler) {
-          if (type === 'click') this._click = handler;
-        },
-        click() { this._click?.(); },
-        focus() {}
-      }];
+      return [tabButton];
     }
   };
   const state = {
@@ -121,7 +122,7 @@ test('work-schedule tab opens operations-management with instructors context', (
     querySelectorAll: globalThis.document.querySelectorAll.bind(globalThis.document)
   };
   bindInstructorsWorkspaceNav(root, { state, rerender() {} });
-  root.querySelectorAll('[data-instructors-workspace-tab]')[0].click();
+  tabButton.click();
   assert.equal(state.route, 'operations-management');
   assert.equal(state.operationsManagement.context, 'instructors');
   assert.equal(state.operationsManagement.tab, 'instructors');
@@ -206,5 +207,5 @@ test('deep link helpers keep the active instructors workspace tab', () => {
     activeTab: 'scheduling',
     state: { routes: ['instructors', 'course-scheduling', 'operations-management'], route: 'course-scheduling' }
   });
-  assert.match(header, /aria-selected="true"[^>]*>שיבוצים<|>שיבוצים<\/button>/);
+  assert.match(header, /data-instructors-workspace-tab="scheduling"[^>]*aria-selected="true"/);
 });

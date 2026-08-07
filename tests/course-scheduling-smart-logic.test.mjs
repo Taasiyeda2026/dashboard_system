@@ -37,9 +37,11 @@ test('eligible low score is bestAvailable and requires treatment, never recruitm
   assert.equal(result.status, 'נדרש טיפול');
   assert.notEqual(result.status, 'נדרש גיוס');
   const html = detailsHtml(result);
-  assert.match(html, /לא נמצאה התאמה איכותית לקורס/);
+  assert.match(html, /ההתאמה הטובה ביותר שנמצאה/);
+  assert.match(html, /נדרשת בדיקה/);
+  assert.doesNotMatch(html, /לא נמצאה התאמה איכותית לקורס/);
   assert.match(html, /מתאים טכנית בלבד/);
-  assert.doesNotMatch(html, /<span>מומלץ<\/span>/);
+  assert.doesNotMatch(html, /המדריך המומלץ/);
 });
 
 test('no eligible candidate is recruitment while missing-only remains treatment', () => {

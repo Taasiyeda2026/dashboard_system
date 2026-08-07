@@ -555,12 +555,15 @@ test('alternatives keep engine order, max three, and exclude ineligible candidat
     checked: [recommended, ...alternatives]
   });
   assert.match(html, /חלופות מתאימות/);
-  assert.equal((html.match(/course-scheduling-alt-card/g) || []).length, 3);
+  assert.equal((html.match(/class="course-scheduling-alt-card(?: is-selected)?"/g) || []).length, 3);
   assert.ok(html.indexOf('אלטרנטיבה א') < html.indexOf('אלטרנטיבה ב'));
   assert.ok(html.indexOf('אלטרנטיבה ב') < html.indexOf('אלטרנטיבה ג'));
   assert.doesNotMatch(html, /אלטרנטיבה ד/);
-  assert.doesNotMatch(html, /course-scheduling-alt-card[\s\S]*פסולה/);
+  const alternativesBlock = html.match(/data-alternatives>[\s\S]*?<\/section>/)?.[0] || '';
+  assert.doesNotMatch(alternativesBlock, /פסולה/);
+  assert.doesNotMatch(alternativesBlock, /data-candidate-row="bad"/);
   assert.match(html, /data-rejected-candidate="bad"/);
+  assert.doesNotMatch(html, /data-rejected-candidate="bad"[\s\S]{0,200}type="radio"/);
 });
 
 test('proposed meetings and halfOverflow render from candidate data without recomputing scores', () => {
@@ -642,12 +645,18 @@ test('proposed meetings and halfOverflow render from candidate data without reco
 
 test('results layer displays scoreBreakdown points and does not import scoring recompute helpers into markup', async () => {
   const source = await readFile(new URL('../frontend/src/screens/course-scheduling.js', import.meta.url), 'utf8');
-  assert.match(source, /scoreBreakdown\.continuityEfficiency|breakdown\.continuityEfficiency|SCORE_COMPONENT_DISPLAY/);
-  assert.doesNotMatch(source, /scoreCandidate\(|buildCandidateScore\(|calculateCandidateScore\(/);
+  assert.match(source, /SCORE_COMPONENT_DISPLAY/);
   assert.match(source, /SCORE_WEIGHTS/);
-  assert.match(source, /מתוך 35/);
-  assert.match(source, /מתוך 25/);
-  assert.match(source, /מתוך 20/);
-  assert.match(source, /מתוך 15/);
-  assert.match(source, /מתוך 5/);
+  assert.match(source, /continuityEfficiency/);
+  assert.match(source, /travelDistance/);
+  assert.match(source, /actualWorkload/);
+  assert.match(source, /originalSchedulePreservation/);
+  assert.match(source, /gapsAndNewDays/);
+  assert.match(source, /\$\{points\} מתוך \$\{max\}/);
+  assert.match(source, /SCORE_WEIGHTS\.continuityEfficiency/);
+  assert.match(source, /SCORE_WEIGHTS\.travelDistance/);
+  assert.match(source, /SCORE_WEIGHTS\.actualWorkload/);
+  assert.match(source, /SCORE_WEIGHTS\.originalSchedulePreservation/);
+  assert.match(source, /SCORE_WEIGHTS\.gapsAndNewDays/);
+  assert.doesNotMatch(source, /scoreCandidate\(|buildCandidateScore\(|calculateCandidateScore\(/);
 });
