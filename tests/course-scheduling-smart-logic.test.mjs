@@ -40,7 +40,8 @@ test('eligible low score is bestAvailable and requires treatment, never recruitm
   assert.match(html, /ההתאמה הטובה ביותר שנמצאה/);
   assert.match(html, /נדרשת בדיקה/);
   assert.doesNotMatch(html, /לא נמצאה התאמה איכותית לקורס/);
-  assert.match(html, /מתאים טכנית בלבד/);
+  assert.equal((html.match(/נדרשת בדיקה/g) || []).length, 1);
+  assert.doesNotMatch(html, /course-scheduling-status-pill(?![^<]*נדרשת בדיקה)[^>]*>מתאים/);
   assert.doesNotMatch(html, /המדריך המומלץ/);
 });
 

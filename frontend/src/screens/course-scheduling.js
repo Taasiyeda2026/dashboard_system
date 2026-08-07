@@ -25,12 +25,19 @@ import { instructionLanguageLabel } from './shared/instruction-language.js';
 import { DEFAULT_COURSE_SCHEDULING_PERIOD_KEY, filterMeetingsByCourseSchedulingPeriod, periodOptions, resolveCourseSchedulingPeriod } from './course-scheduling-periods.js';
 import { OPERATIONAL_DISTRICTS, normalizeOperationalDistrict } from './shared/district-normalization.js';
 import { loadSchoolCalendarRows } from './shared/school-calendar-data.js';
-import { SCORE_WEIGHTS } from './course-scheduling-score.js';
+import { SCORE_WEIGHTS, formatWorkloadHours } from './course-scheduling-score.js';
+import {
+  MAX_HOME_DISTANCE_KM,
+  exceedsHomeDistanceLimit,
+  homeDistanceLimitFailureMessage
+} from './instructor-matching-engine.js';
 import {
   bindInstructorsWorkspaceNav,
   instructorsWorkspaceHeaderHtml,
   instructorsWorkspaceNavStylesHtml
 } from './shared/instructors-workspace-nav.js';
+
+export { formatWorkloadHours, MAX_HOME_DISTANCE_KM };
 
 const text = (value) => String(value ?? '').trim();
 const emp = (candidate) => text(candidate?.instructor?.emp_id);
@@ -341,8 +348,14 @@ function genderRequirementLabel(course = {}) {
   return text(course.required_instructor_gender);
 }
 
-function candidateHardBlockReason(candidate) {
+export function candidateHardBlockReason(candidate) {
   if (!candidate) return 'לא נבחר מועמד';
+  const homeKm = candidate?.travel?.home?.distance_km;
+  // Defensive client gate: never allow draft/assign for a candidate above the hard distance limit,
+  // even if stale state or DOM manipulation marks them selected/eligible.
+  if (exceedsHomeDistanceLimit(homeKm)) {
+    return homeDistanceLimitFailureMessage(homeKm);
+  }
   const checks = candidate.checks || {};
   if (checks.language?.passed !== true) return checks.language?.reason || checks.language?.label || 'שפת ההדרכה אינה תואמת';
   if (checks.gender?.passed === false || (checks.gender?.passed == null && genderRequirementLabel(candidate.periodCourse || {}) !== 'ללא דרישה')) return checks.gender?.reason || checks.gender?.label || 'לא ניתן לאמת התאמה לדרישת המגדר';
@@ -350,7 +363,7 @@ function candidateHardBlockReason(candidate) {
   return '';
 }
 
-function actionDisabledReason({ candidate, busy = false, canEdit = true } = {}) {
+export function actionDisabledReason({ candidate, busy = false, canEdit = true } = {}) {
   if (!canEdit) return 'אין הרשאת עריכה';
   if (busy) return 'פעולה מתבצעת כעת';
   return candidateHardBlockReason(candidate);
@@ -485,9 +498,9 @@ export function requirementsFitHtml(candidate, course = {}) {
 const SCORE_COMPONENT_DISPLAY = [
   { key: 'continuityEfficiency', name: 'רציפות ויעילות ביום', max: SCORE_WEIGHTS.continuityEfficiency },
   { key: 'travelDistance', name: 'מרחק ונסיעות', max: SCORE_WEIGHTS.travelDistance },
-  { key: 'actualWorkload', name: 'עומס בפועל', max: SCORE_WEIGHTS.actualWorkload },
+  { key: 'actualWorkload', name: 'עומס עבודה בפועל', max: SCORE_WEIGHTS.actualWorkload },
   { key: 'originalSchedulePreservation', name: 'שמירה על המועדים המקוריים', max: SCORE_WEIGHTS.originalSchedulePreservation },
-  { key: 'gapsAndNewDays', name: 'צמצום חלונות וימי עבודה חדשים', max: SCORE_WEIGHTS.gapsAndNewDays }
+  { key: 'gapsAndNewDays', name: 'צמצום חלונות ופתיחת ימי עבודה', max: SCORE_WEIGHTS.gapsAndNewDays }
 ];
 
 export function scoreBreakdownHtml(candidate) {
@@ -510,14 +523,16 @@ function scoreComponentsHtml(candidate) {
       const row = breakdown[key] || {};
       const points = Number(row.points) || 0;
       const pct = max > 0 ? Math.max(0, Math.min(100, (points / max) * 100)) : 0;
-      const note = text(row.note || (row.label && row.label !== name ? row.label : ''));
+      // Only show an explanatory line when it adds real information — never repeat the component title.
+      const usefulNote = text(row.note);
+      const showNote = usefulNote && usefulNote !== name;
       return `<li class="course-scheduling-score-bar" data-score-component="${escapeHtml(key)}">
         <div class="course-scheduling-score-bar__head">
           <span class="course-scheduling-score-bar__name">${escapeHtml(name)}</span>
           <b class="course-scheduling-score-bar__value" aria-label="${escapeHtml(name)}: ${points} מתוך ${max}">${points} מתוך ${max}</b>
         </div>
         <div class="course-scheduling-score-bar__track" role="presentation"><span class="course-scheduling-score-bar__fill" style="--score-pct:${pct}%"></span></div>
-        ${note ? `<p class="course-scheduling-score-bar__note">${escapeHtml(note)}</p>` : ''}
+        ${showNote ? `<p class="course-scheduling-score-bar__note">${escapeHtml(usefulNote)}</p>` : ''}
       </li>`;
     }).join('')}
   </ul>`;
@@ -525,7 +540,7 @@ function scoreComponentsHtml(candidate) {
 
 function candidateMetaLine(candidate) {
   const load = candidate?.projectedHalfHours != null && Number.isFinite(Number(candidate.projectedHalfHours))
-    ? `עומס לאחר השיבוץ: ${Math.round(Number(candidate.projectedHalfHours) * 10) / 10} שעות`
+    ? `עומס לאחר השיבוץ: ${formatWorkloadHours(candidate.projectedHalfHours)}`
     : 'עומס לאחר השיבוץ: —';
   const moved = Number(candidate?.movedMeetingsCount) || 0;
   const days = Number(candidate?.activeWorkDays);
@@ -547,7 +562,8 @@ function primaryCandidateCardHtml(candidate, {
   const checked = id && id === selectedId ? ' checked' : '';
   const selected = id && id === selectedId ? ' is-selected' : '';
   const statusLabel = kind === 'recommended' ? 'recommended' : 'bestAvailable';
-  const statusText = kind === 'recommended' ? 'מומלץ' : 'ההתאמה הטובה ביותר';
+  // One clear status badge only — no repeated equivalent pills.
+  const statusText = kind === 'recommended' ? 'מומלץ' : 'נדרשת בדיקה';
   const radioId = `course-candidate-primary-${escapeHtml(id || 'x')}`;
   return `<article class="course-scheduling-primary-card${selected}" data-candidate-row="${escapeHtml(id)}" data-candidate-kind="${statusLabel}">
     <div class="course-scheduling-primary-card__select">
@@ -562,8 +578,6 @@ function primaryCandidateCardHtml(candidate, {
       </div>
       <div class="course-scheduling-primary-card__badges">
         <span class="course-scheduling-status-pill course-scheduling-status-pill--${kind === 'recommended' ? 'ready' : 'review'}">${escapeHtml(statusText)}</span>
-        ${candidate.qualityLabel ? `<span class="course-scheduling-status-pill">${escapeHtml(candidate.qualityLabel)}</span>` : ''}
-        ${kind === 'bestAvailable' ? '<span class="course-scheduling-status-pill course-scheduling-status-pill--review">נדרשת בדיקה</span>' : ''}
       </div>
       ${text(candidate.recommendationReason) ? `<p class="course-scheduling-primary-card__reason">${escapeHtml(candidate.recommendationReason)}</p>` : ''}
       <div class="course-scheduling-candidate-meta">${candidateMetaLine(candidate)}</div>
@@ -609,9 +623,10 @@ function rejectedCandidatesHtml(result) {
   return `<details class="course-scheduling-rejected" data-rejected-candidates><summary>לא עברו תנאי סף (${rows.length})</summary>
     <div class="course-scheduling-rejected-list">
       ${rows.map((candidate) => {
-        const failures = candidate.failures;
+        const failures = candidate.failures || [];
         const primary = failures[0] || 'לא עומד בתנאי הסף';
-        // Avoid re-printing availability/profile phrases already covered by failure reasons.
+        const additionalFailures = failures.slice(1);
+        // Avoid re-printing a missing-profile reason already shown as the primary/additional failure.
         const missing = (candidate.missingProfileData || []).filter((item) => {
           const value = text(item);
           return value && !failures.some((failure) => text(failure).includes(value) || value.includes(text(failure)));
@@ -620,7 +635,7 @@ function rejectedCandidatesHtml(result) {
           <strong>${escapeHtml(candidate.instructor?.full_name || emp(candidate) || '—')}</strong>
           <div class="course-scheduling-rejected-row__details">
             <p class="course-scheduling-rejected-primary">${escapeHtml(primary)}</p>
-            <ul class="course-scheduling-rejected-failures">${failures.map((item) => `<li>${escapeHtml(item)}</li>`).join('')}</ul>
+            ${additionalFailures.length ? `<ul class="course-scheduling-rejected-failures">${additionalFailures.map((item) => `<li>${escapeHtml(item)}</li>`).join('')}</ul>` : ''}
             ${missing.length ? `<p class="course-scheduling-rejected-missing">נתונים חסרים: ${escapeHtml(missing.join(' · '))}</p>` : ''}
           </div>
         </div>`;
@@ -637,10 +652,7 @@ function proposedMeetingsPanelHtml(candidate) {
     || Number(candidate?.dateAdjustment?.movedCount)
     || adjustmentMeetings.filter((meeting) => meeting?.moved).length;
   if (!meetings.length || !movedCount) {
-    return `<section class="course-scheduling-meetings-panel" data-proposed-meetings>
-      <h4>מועדי הפעילות</h4>
-      <p>המועדים נשארים ללא שינוי</p>
-    </section>`;
+    return `<p class="course-scheduling-meetings-unchanged" data-proposed-meetings>מועדי הפעילות נשארים ללא שינוי</p>`;
   }
   const rows = adjustmentMeetings.map((meeting, index) => {
     const moved = !!meeting.moved || text(meeting.original_date) !== text(meeting.date);
@@ -681,15 +693,18 @@ function resultsActionsHtml(result, selectedId) {
     .filter(Boolean)
     .find((item) => emp(item) === selectedId);
   const note = selected
-    ? `נבחר: ${escapeHtml(selected.instructor?.full_name || selectedId)}`
+    ? `נבחרה: ${escapeHtml(selected.instructor?.full_name || selectedId)}`
     : 'בחרו מדריך כדי להמשיך';
   return `${selected ? proposedMeetingsPanelHtml(selected) : ''}
     ${selected ? halfOverflowWarningHtml(selected) : ''}
-    <div class="course-scheduling-selection-note" data-selection-note>${note}</div>
-    <div class="course-scheduling-detail-actions">
-      <button type="button" class="course-scheduling-btn course-scheduling-btn--secondary" data-save-draft disabled title="בחרו מדריך כשיר">שמור כטיוטה</button>
-      <button type="button" class="course-scheduling-btn course-scheduling-btn--primary" data-assign-course disabled title="בחרו מדריך כשיר">שבץ מדריך</button>
-      <button type="button" class="course-scheduling-text-btn" data-clear-candidate>ביטול</button>
+    <div class="course-scheduling-action-bar" data-selection-actions>
+      <span class="course-scheduling-action-bar__selected" data-selection-note>${note}</span>
+      <span class="course-scheduling-action-bar__sep" aria-hidden="true">|</span>
+      <div class="course-scheduling-action-bar__buttons">
+        <button type="button" class="course-scheduling-btn course-scheduling-btn--secondary" data-save-draft disabled title="בחרו מדריך כשיר">שמור כטיוטה</button>
+        <button type="button" class="course-scheduling-btn course-scheduling-btn--primary" data-assign-course disabled title="בחרו מדריך כשיר">שבץ מדריך</button>
+        <button type="button" class="course-scheduling-text-btn" data-clear-candidate>ביטול</button>
+      </div>
     </div>`;
 }
 
@@ -703,7 +718,6 @@ function candidatesResultsLayoutHtml(result, state, { primary, kind }) {
   return `<div class="course-scheduling-result-block" data-course-options>
     <div class="course-scheduling-result-heading">
       <h3>${title}</h3>
-      ${kind === 'bestAvailable' ? '<span class="course-scheduling-status-pill course-scheduling-status-pill--review">נדרשת בדיקה</span>' : ''}
     </div>
     ${primaryCandidateCardHtml(primary, { kind, selectedId, name: radioName })}
     ${alternatives.length ? `<section class="course-scheduling-alternatives" data-alternatives>
@@ -1290,7 +1304,7 @@ export const courseSchedulingScreen = {
         button.setAttribute('aria-disabled', reason ? 'true' : 'false');
       });
       const note = detailRoot.querySelector('[data-selection-note]');
-      if (note) note.textContent = candidate ? `נבחר: ${candidate.instructor?.full_name || emp(candidate)}${reason ? ` — ${reason}` : ''}` : 'בחרו מדריך כדי להמשיך';
+      if (note) note.textContent = candidate ? `נבחרה: ${candidate.instructor?.full_name || emp(candidate)}${reason ? ` — ${reason}` : ''}` : 'בחרו מדריך כדי להמשיך';
     };
     if (typeof detailRoot.addEventListener === 'function') detailRoot.addEventListener('change', (event) => {
       const input = event.target?.closest?.('input[type="radio"][name^="course-candidate"]');

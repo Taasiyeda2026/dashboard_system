@@ -27,6 +27,11 @@ const CONTINUITY_TIERS = Object.freeze({
   noOtherActivity: 0
 });
 
+/** Neutral baseline when the instructor has no half-year schedule yet (not a bonus, not a penalty). */
+export const NEUTRAL_CONTINUITY_POINTS = 18;
+export const NEUTRAL_GAPS_POINTS = 5;
+export const NEUTRAL_CONTINUITY_NOTE = 'טרם קיים סידור עבודה להשוואת רציפות';
+
 const GEOGRAPHIC_NEARBY_MINUTES = 25;
 const TRAVEL_SCORE_CEILING = Object.freeze({ minutes: 90, km: 60 });
 
@@ -36,6 +41,22 @@ const minutesOf = (value) => {
   const [hours, mins] = text(value || '00:00').split(':').map(Number);
   return hours * 60 + mins;
 };
+
+/**
+ * Shared workload-hours display: 3.25 → "3.25 שעות", 3.5 → "3.5 שעות", 3 → "3 שעות".
+ */
+export function formatWorkloadHours(value) {
+  const num = Number(value);
+  if (!Number.isFinite(num)) return '';
+  const fixed = (Math.round(num * 100) / 100).toFixed(2);
+  const trimmed = fixed.replace(/\.?0+$/, '');
+  return `${trimmed} שעות`;
+}
+
+export function hasExistingHalfYearSchedule(existingActivities = [], workDates = new Set()) {
+  const dates = workDates instanceof Set ? workDates : new Set(workDates || []);
+  return (Array.isArray(existingActivities) && existingActivities.length > 0) || dates.size > 0;
+}
 
 function clamp(value, min, max) {
   return Math.max(min, Math.min(max, value));
@@ -281,6 +302,8 @@ export function scoreTravelDistance({
   const minuteFactor = Math.max(0, 1 - (Number(relevantTravelMinutes) / TRAVEL_SCORE_CEILING.minutes));
   const distanceFactor = Math.max(0, 1 - (Number(relevantTravelDistance) / TRAVEL_SCORE_CEILING.km));
   const points = roundPoints(max * Math.min(minuteFactor, distanceFactor), max);
+  const km = Math.round(Number(relevantTravelDistance) || 0);
+  const mins = Math.round(Number(relevantTravelMinutes) || 0);
   return {
     points,
     label: SCORE_COMPONENT_LABELS.travelDistance,
@@ -288,7 +311,7 @@ export function scoreTravelDistance({
     relevantTravelDistance,
     duration_minutes: relevantTravelMinutes,
     distance_km: relevantTravelDistance,
-    note: ''
+    note: `${km} ק״מ וכ-${mins} דקות נסיעה`
   };
 }
 
@@ -302,12 +325,14 @@ export function scoreActualWorkload({
   const peers = (peerProjectedHours || []).map(Number).filter(Number.isFinite);
   const projected = Number(projectedHalfHours);
   if (!peers.length || !Number.isFinite(projected)) {
+    const projectedRounded = Number.isFinite(projected) ? Math.round(projected * 100) / 100 : 0;
     return {
       points: max,
       label: SCORE_COMPONENT_LABELS.actualWorkload,
       currentHalfHours: Number(currentHalfHours) || 0,
-      projectedHalfHours: Number.isFinite(projected) ? projected : 0,
-      activeWorkDays: Number(activeWorkDays) || 0
+      projectedHalfHours: projectedRounded,
+      activeWorkDays: Number(activeWorkDays) || 0,
+      note: Number.isFinite(projected) ? `${formatWorkloadHours(projectedRounded)} לאחר השיבוץ` : ''
     };
   }
   const min = Math.min(...peers);
@@ -315,12 +340,14 @@ export function scoreActualWorkload({
   const points = min === maxPeer
     ? max
     : roundPoints(max * ((maxPeer - projected) / (maxPeer - min)), max);
+  const projectedRounded = Math.round(projected * 100) / 100;
   return {
     points,
     label: SCORE_COMPONENT_LABELS.actualWorkload,
     currentHalfHours: Math.round(Number(currentHalfHours) * 100) / 100,
-    projectedHalfHours: Math.round(projected * 100) / 100,
-    activeWorkDays: Number(activeWorkDays) || 0
+    projectedHalfHours: projectedRounded,
+    activeWorkDays: Number(activeWorkDays) || 0,
+    note: `${formatWorkloadHours(projectedRounded)} לאחר השיבוץ`
   };
 }
 
@@ -334,7 +361,8 @@ export function scoreOriginalSchedulePreservation(dateAdjustment = null) {
       totalShiftDays: 0,
       originalEndDate: null,
       proposedEndDate: null,
-      halfOverflow: false
+      halfOverflow: false,
+      note: 'המועדים נשארים ללא שינוי'
     };
   }
   const meetings = dateAdjustment.meetings || [];
@@ -356,7 +384,10 @@ export function scoreOriginalSchedulePreservation(dateAdjustment = null) {
     totalShiftDays,
     originalEndDate,
     proposedEndDate,
-    halfOverflow
+    halfOverflow,
+    note: movedMeetingsCount
+      ? `${movedMeetingsCount} מפגשים הוזזו`
+      : 'המועדים נשארים ללא שינוי'
   };
 }
 
@@ -383,14 +414,15 @@ export function scoreGapsAndNewDays({
 function buildRecommendationReason({ scoreBreakdown }) {
   const parts = [];
   const continuity = scoreBreakdown?.continuityEfficiency;
-  if (continuity?.points >= 26) parts.push(continuity.label || 'רציפות יומית גבוהה');
+  if (continuity?.note === NEUTRAL_CONTINUITY_NOTE) parts.push(NEUTRAL_CONTINUITY_NOTE);
+  else if (continuity?.points >= 26) parts.push(continuity.label || 'רציפות יומית גבוהה');
   const travel = scoreBreakdown?.travelDistance;
   if (travel?.points >= 15 && travel.duration_minutes != null) {
     parts.push(`${Math.round(Number(travel.distance_km) || 0)} ק״מ, ${Math.round(Number(travel.duration_minutes) || 0)} דקות נסיעה`);
   }
   const workload = scoreBreakdown?.actualWorkload;
   if (workload && workload.projectedHalfHours != null) {
-    parts.push(`עומס חזוי ${workload.projectedHalfHours} שעות במחצית`);
+    parts.push(`עומס חזוי ${formatWorkloadHours(workload.projectedHalfHours)} במחצית`);
   }
   return parts.filter(Boolean).join(' · ') || 'עבר את תנאי הסף';
 }
@@ -446,16 +478,32 @@ export function computeSchedulingScore({
     || Number(placement.relevantTravelDistance) > 0
     || (travel?.home && Number.isFinite(Number(travel.home.duration_minutes)));
 
-  const continuityEfficiency = {
-    points: placement.continuityPoints,
-    label: SCORE_COMPONENT_LABELS.continuityEfficiency,
-    sameSchoolMeetingCount: placement.sameSchoolMeetingCount,
-    sameAuthorityMeetingCount: placement.sameAuthorityMeetingCount,
-    nearbyMeetingCount: placement.nearbyMeetingCount,
-    existingWorkDayMeetingCount: placement.existingWorkDayMeetingCount,
-    continuityMeetingCount: placement.continuityMeetingCount,
-    continuityAverage: placement.continuityAverage
-  };
+  const noExistingSchedule = !hasExistingHalfYearSchedule(existingActivities, workDates);
+  const continuityEfficiency = noExistingSchedule
+    ? {
+      points: NEUTRAL_CONTINUITY_POINTS,
+      label: SCORE_COMPONENT_LABELS.continuityEfficiency,
+      note: NEUTRAL_CONTINUITY_NOTE,
+      sameSchoolMeetingCount: 0,
+      sameAuthorityMeetingCount: 0,
+      nearbyMeetingCount: 0,
+      existingWorkDayMeetingCount: 0,
+      continuityMeetingCount: placement.continuityMeetingCount,
+      continuityAverage: NEUTRAL_CONTINUITY_POINTS,
+      neutralBaseline: true
+    }
+    : {
+      points: placement.continuityPoints,
+      label: SCORE_COMPONENT_LABELS.continuityEfficiency,
+      note: '',
+      sameSchoolMeetingCount: placement.sameSchoolMeetingCount,
+      sameAuthorityMeetingCount: placement.sameAuthorityMeetingCount,
+      nearbyMeetingCount: placement.nearbyMeetingCount,
+      existingWorkDayMeetingCount: placement.existingWorkDayMeetingCount,
+      continuityMeetingCount: placement.continuityMeetingCount,
+      continuityAverage: placement.continuityAverage,
+      neutralBaseline: false
+    };
   const travelDistance = scoreTravelDistance({
     relevantTravelMinutes: placement.relevantTravelMinutes,
     relevantTravelDistance: placement.relevantTravelDistance,
@@ -468,11 +516,26 @@ export function computeSchedulingScore({
     activeWorkDays
   });
   const originalSchedulePreservation = scoreOriginalSchedulePreservation(dateAdjustment);
-  const gapsAndNewDays = scoreGapsAndNewDays({
-    newWorkDayMeetingCount: placement.newWorkDayMeetingCount,
-    continuityMeetingCount: placement.continuityMeetingCount,
-    averageNonTravelWaitingMinutes: placement.averageNonTravelWaitingMinutes
-  });
+  const gapsAndNewDays = noExistingSchedule
+    ? {
+      points: NEUTRAL_GAPS_POINTS,
+      label: SCORE_COMPONENT_LABELS.gapsAndNewDays,
+      note: NEUTRAL_CONTINUITY_NOTE,
+      newWorkDayMeetingCount: placement.newWorkDayMeetingCount,
+      continuityMeetingCount: placement.continuityMeetingCount,
+      averageNonTravelWaitingMinutes: placement.averageNonTravelWaitingMinutes,
+      opensNewWorkDay: placement.opensNewWorkDay,
+      neutralBaseline: true
+    }
+    : {
+      ...scoreGapsAndNewDays({
+        newWorkDayMeetingCount: placement.newWorkDayMeetingCount,
+        continuityMeetingCount: placement.continuityMeetingCount,
+        averageNonTravelWaitingMinutes: placement.averageNonTravelWaitingMinutes
+      }),
+      note: '',
+      neutralBaseline: false
+    };
 
   const totalScore = continuityEfficiency.points
     + travelDistance.points
