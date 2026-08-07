@@ -660,15 +660,21 @@ function normalizeInventoryUsage(value) {
   return Number.isFinite(n) ? n : 0;
 }
 
-function tabsHtml(activeTab) {
+function tabsHtml(activeTab, currentRoute = '') {
   // Work schedule moved to the Instructors workspace — omit it from operations management tabs.
   const tabs = [
     [TAB_COMPLETION_APPROVAL, 'אישורי ביצוע'],
     [TAB_AUTHORITIES, 'רשויות'],
     [TAB_WORKSHOPS, 'ציוד ומלאי']
   ];
+  const routeTabs = [
+    ['invitations', 'הזמנות לאירועים'],
+    ['catalog', 'קטלוג'],
+    ['certificates', 'תעודות']
+  ];
   return `<nav class="ds-exceptions-tabs ds-ops-mgmt-tabs no-print" aria-label="לשוניות ניהול תפעול" dir="rtl">
     ${tabs.map(([key, label]) => `<button type="button" class="ds-exceptions-tab ds-ops-mgmt-tab${activeTab === key ? ' is-active' : ''}" data-ops-tab="${escapeHtml(key)}" aria-pressed="${activeTab === key ? 'true' : 'false'}">${escapeHtml(label)}</button>`).join('')}
+    ${routeTabs.map(([route, label]) => `<button type="button" class="ds-exceptions-tab ds-ops-mgmt-tab${currentRoute === route ? ' is-active' : ''}" data-route="${escapeHtml(route)}" aria-pressed="${currentRoute === route ? 'true' : 'false'}">${escapeHtml(label)}</button>`).join('')}
   </nav>`;
 }
 
@@ -3297,7 +3303,7 @@ export const operationsManagementScreen = {
     }
     return `<div class="ds-screen-stack ds-ops-mgmt-screen" data-ops-context="operations">${opsManagementStylesHtml()}${dsPageHeader(isCompletionApprovalTab ? 'בקרת אישורי ביצוע לקיץ 2026' : 'ניהול תפעול')}
       ${isCompletionApprovalTab ? '' : topFiltersHtml(filterRows, state)}
-      ${tabsHtml(ops.tab)}
+      ${tabsHtml(ops.tab, state.route)}
       <div class="ds-ops-mgmt-content">${renderTab(activeRows, state, data, prepared)}</div>
       ${isCompletionApprovalTab || ops.period === ACTIVITY_SEASON_SCHOOL_2027 ? '' : `<p class="ds-muted ds-ops-mgmt-count no-print" dir="rtl">מציג ${filteredRows.length} פעילויות מתוך ${allRows.length}</p>`}
     </div>`;
@@ -3315,6 +3321,13 @@ export const operationsManagementScreen = {
     bindInstructorsWorkspaceNav(root, { state, rerender });
 
     bindSummerContactsModalEvents(root, { ui, api, rows: data?.instructorSchedulePrintContactsRows || [], logPrefix: 'operations-management' });
+
+    root.querySelectorAll('[data-route]').forEach((btn) => {
+      btn.addEventListener('click', () => {
+        const route = btn.getAttribute('data-route');
+        if (route) document.dispatchEvent(new CustomEvent('app:navigate', { detail: { route } }));
+      });
+    });
 
     root.querySelectorAll('[data-ops-tab]').forEach((btn) => {
       btn.addEventListener('click', async () => {
