@@ -253,8 +253,10 @@ test('9: saved draft meetings participate in transition calculations', async () 
     school: 'בית ספר ב',
     school_id: 'school-b',
     school_address: 'רחוב אחר 2, נתניה',
+    start_time: '09:00',
+    end_time: '10:00',
     meetings: [{ date: '2026-09-06', start_time: '09:00', end_time: '10:00' }],
-    draft_proposed_meetings: [{ date: '2026-09-06' }]
+    draft_proposed_meetings: [{ date: '2026-09-06', start_time: '09:00', end_time: '10:00' }]
   });
   const routeClient = {
     requests: [],

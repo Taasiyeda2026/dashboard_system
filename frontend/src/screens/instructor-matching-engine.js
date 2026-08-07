@@ -256,14 +256,16 @@ export function evaluateInstructor({
       const required = leg?.duration_minutes;
       const label = direction === 'previous' ? 'מהפעילות הקודמת' : 'לפעילות הבאה';
       const neighborRef = formatPersistedActivityReference(neighbor, neighbor.date || meeting.date);
-      if (required == null && !same(neighbor.school, activity.school)) {
+      const sameLocation = same(neighbor.school, activity.school);
+      if (required == null && !sameLocation) {
         const message = neighborRef
           ? (direction === 'previous'
             ? `לא ניתן לאמת זמן מעבר לאחר ${neighborRef}`
             : `לא ניתן לאמת זמן מעבר לפני ${neighborRef}`)
           : `לא ניתן לאמת זמן מעבר ${label}`;
         addIssue('unverified_transition', direction, message, meeting.date);
-      } else if (required != null && gap < Number(required) + TRANSITION_BUFFER_MINUTES) {
+      } else if (required != null && !sameLocation && gap < Number(required) + TRANSITION_BUFFER_MINUTES) {
+        // Same-school neighbors do not require the travel buffer; it applies only to real moves.
         const needed = Number(required) + TRANSITION_BUFFER_MINUTES;
         const message = neighborRef
           ? (direction === 'previous'

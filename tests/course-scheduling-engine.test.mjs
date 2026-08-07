@@ -181,7 +181,7 @@ test('rankInstructors classifies candidates by failures before missing profile d
 
 test('missing profile fields are separate from professional failures and receive no score', () => {
   for (const [field, partial] of [
-    ['לא ניתן לאמת התאמה לדרישת המגדר', { instruction_languages: ['he'] }],
+    ['מגדר', { instruction_languages: ['he'] }],
     ['לא ניתן לאמת שפת הדרכה', { gender: 'female' }]
   ]) {
     const result = evaluateInstructor({ instructor: instructors[0], profile: partial, rules: rules[1], activity: course('missing-profile') });
@@ -297,7 +297,20 @@ test('travel is precomputed between two draft courses proposed for the same inst
 test('a missing route between two planning recommendations does not hard-block the second course', () => {
   const first = course('a', '2026-09-06', { school: 'א', school_address: 'כתובת א', start_time: '08:00', end_time: '09:00', meetings: [{ date: '2026-09-06', start_time: '08:00', end_time: '09:00' }] });
   const second = course('b', '2026-09-06', { school: 'ב', school_address: 'כתובת ב', start_time: '10:00', end_time: '11:00', meetings: [{ date: '2026-09-06', start_time: '10:00', end_time: '11:00' }] });
-  const results = calculateCourseSchedule({ activities: [first, second], instructors: [instructors[0]], profiles: { 1: profiles[1] }, rules: { 1: rules[1] }, exceptions: {}, travel: {}, routeMatrix: {} });
+  const home = { distance_km: 6, duration_minutes: 10 };
+  const results = calculateCourseSchedule({
+    activities: [first, second],
+    instructors: [instructors[0]],
+    profiles: { 1: profiles[1] },
+    rules: { 1: rules[1] },
+    exceptions: {},
+    // Reliable home routes are present; only the inter-recommendation transition is absent.
+    travel: {
+      a: { 1: { home, homeReturn: home, transitions: {} } },
+      b: { 1: { home, homeReturn: home, transitions: {} } }
+    },
+    routeMatrix: {}
+  });
   // Hidden planningDraft recommendations must not create unverified-transition hard failures.
   assert.equal(results.filter((result) => result.recommended || result.bestAvailable).length, 2);
   const secondChecked = results.find((row) => row.course.row_id === 'b')?.checked?.[0];
