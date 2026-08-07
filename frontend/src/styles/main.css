@@ -9923,6 +9923,40 @@ select.ds-input {
   box-shadow: var(--ds-shadow-xs);
 }
 
+/* ===== פעילויות: גובה שורות קומפקטי — כותרות ~38px, שורות ~60-64px ===== */
+/* ספציפיות (0,3,1) — גוברת על (0,2,1) של .ds-activities-screen .ds-table td */
+.ds-activities-screen .ds-table--activities-list th {
+  padding-block: 11px;   /* 11×2 + ~14px טקסט + 2px border ≈ 38px */
+  line-height: 1.2;
+  vertical-align: middle;
+}
+
+.ds-activities-screen .ds-table--activities-list td {
+  padding-block: 8px;    /* 8×2 + תוכן 2-שורות ~41px ≈ 57-62px */
+  height: auto;          /* מבטל את ה-height: 30px מהכלל הפחות ספציפי */
+  vertical-align: middle;
+  line-height: 1.15;
+}
+
+/* צמצום gap בין שם הפעילות לסוגה */
+.ds-activities-screen .ds-table--activities-list .ds-activities-program-cell {
+  gap: 0;
+}
+
+/* תג סטטוס עריכה בתא תוכנית — גובה מצומצם כדי לא לנפח את השורה */
+.ds-activities-screen .ds-table--activities-list .ds-activities-program-cell .ds-chip {
+  min-height: 14px;
+  padding-block: 0;
+  padding-inline: 5px;
+  font-size: 0.58rem;
+  line-height: 1.5;
+}
+
+/* שורת מנהל — ללא margin עליון מיותר */
+.ds-activities-screen .ds-table--activities-list .ds-activities-manager-line {
+  margin-top: 0;
+}
+
 .ds-week-col__head {
   background: #fff;
   border: 1px solid rgba(26, 51, 88, 0.12);
