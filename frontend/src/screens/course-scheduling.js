@@ -39,12 +39,35 @@ import {
 } from './shared/instructors-workspace-nav.js';
 import {
   DISTRICT_SIMULATION_ROUTE_MISSING_MESSAGE,
+  applyDistrictSimulationSaveOutcome,
+  courseLabelForSimulationRow,
+  defaultSelectedSimulationCourseIds,
+  districtSimulationDraftSaveBlockReason,
   districtSimulationPanelHtml,
+  isDistrictSimulationRowSelectable,
+  normalizeSelectedSimulationCourseIds,
   runDistrictSchedulingSimulation,
+  selectedSimulationCandidate,
   summarizeDistrictSimulation
 } from './course-scheduling-district-simulation.js';
 
 export { formatWorkloadHours, MAX_HOME_DISTANCE_KM, formatAffectedMeetingsPhrase };
+
+/** Shared draft-save RPC + payload used by individual-course and district-simulation save paths. */
+export function buildCourseAssignmentDraftRpc({ activityId, selected, topCandidate }) {
+  const proposedMeetings = selected?.dateAdjustment?.meetings?.map(({ date }) => ({ date })) || null;
+  const rpc = proposedMeetings ? 'save_course_assignment_draft_with_dates' : 'save_course_assignment_draft';
+  const payload = {
+    p_activity_id: activityId,
+    p_emp_id: Number(emp(selected)),
+    p_instructor_name: selected?.instructor?.full_name,
+    p_top_emp_id: Number(emp(topCandidate)),
+    p_selected_score: selected?.score,
+    p_top_score: topCandidate?.score,
+    ...(proposedMeetings ? { p_proposed_meetings: proposedMeetings } : {})
+  };
+  return { rpc, payload };
+}
 
 const text = (value) => String(value ?? '').trim();
 const emp = (candidate) => text(candidate?.instructor?.emp_id);
@@ -1114,9 +1137,13 @@ export const courseSchedulingScreen = {
             counts: state.courseSchedulingSimulationCounts || summarizeDistrictSimulation([]),
             statusFilter: state.courseSchedulingSimulationStatusFilter || '',
             selectedId,
+            selectedCourseIds: state.courseSchedulingSimulationSelectedIds,
             district: normalizeOperationalDistrict(state.courseSchedulingDistrict || ''),
             loading: !!state.courseSchedulingSimulationLoading,
-            error: state.courseSchedulingSimulationError || ''
+            error: state.courseSchedulingSimulationError || '',
+            saving: !!state.courseSchedulingSimulationSaving,
+            confirmSave: !!state.courseSchedulingSimulationConfirmSave,
+            saveResult: state.courseSchedulingSimulationSaveResult || null
           })
           : `
         <section class="course-scheduling-summary">${summaryCardsHtml(interfaceCourses, results, readiness)}</section>
@@ -1144,7 +1171,12 @@ export const courseSchedulingScreen = {
     const resultByCourseId = new Map((state.courseSchedulingResults || []).map((result) => [idOf(result.course), result]));
     const allInterfaceCourses = (data.activities || []).filter(isCourseSchedulingInterfaceEligible);
     const interfaceCourses = filteredInterfaceCourses(allInterfaceCourses, state);
-    const courseById = new Map(interfaceCourses.map((course) => [idOf(course), course]));
+    // Include all loaded activities so district draft-save can validate courses outside the authority filter.
+    const courseById = new Map(
+      (data.activities || [])
+        .map((course) => [idOf(course), course])
+        .filter(([id]) => !!id)
+    );
     bindInstructorsWorkspaceNav(root, { state, rerender });
 
     const openMissingCourse = (activityId) => {
@@ -1187,6 +1219,10 @@ export const courseSchedulingScreen = {
       state.courseSchedulingSimulationCounts = null;
       state.courseSchedulingSimulationResults = [];
       state.courseSchedulingSimulationStatusFilter = '';
+      state.courseSchedulingSimulationSelectedIds = [];
+      state.courseSchedulingSimulationSaving = false;
+      state.courseSchedulingSimulationConfirmSave = false;
+      state.courseSchedulingSimulationSaveResult = null;
     };
 
     root.querySelectorAll('[data-period-key]').forEach((button) => button.addEventListener('click', () => {
@@ -1497,20 +1533,27 @@ export const courseSchedulingScreen = {
           state.courseSchedulingSimulationRows = [];
           state.courseSchedulingSimulationCounts = summarizeDistrictSimulation([]);
           state.courseSchedulingSimulationResults = [];
+          state.courseSchedulingSimulationSelectedIds = [];
         } else {
           state.courseSchedulingSimulationRows = simulation.rows;
           state.courseSchedulingSimulationCounts = simulation.counts;
           state.courseSchedulingSimulationResults = simulation.results;
+          state.courseSchedulingSimulationSelectedIds = defaultSelectedSimulationCourseIds(simulation.rows);
           if (routed.unavailableReason || simulation.hasRouteMissing) {
             state.courseSchedulingSimulationError = DISTRICT_SIMULATION_ROUTE_MISSING_MESSAGE;
           }
         }
+        state.courseSchedulingSimulationConfirmSave = false;
+        state.courseSchedulingSimulationSaveResult = null;
         // Read-only: never save drafts/assignments and never call assignment RPCs from this path.
       } catch (error) {
         state.courseSchedulingSimulationError = `תכנון מחוזי נכשל: ${translateSchedulingRouteError(error.message, error.message)}`;
         state.courseSchedulingSimulationRows = [];
         state.courseSchedulingSimulationCounts = summarizeDistrictSimulation([]);
         state.courseSchedulingSimulationResults = [];
+        state.courseSchedulingSimulationSelectedIds = [];
+        state.courseSchedulingSimulationConfirmSave = false;
+        state.courseSchedulingSimulationSaveResult = null;
       } finally {
         state.courseSchedulingSimulationLoading = false;
         rerender();
@@ -1533,6 +1576,141 @@ export const courseSchedulingScreen = {
         rerender();
       });
     });
+    root.querySelectorAll('[data-simulation-select-course]').forEach((input) => {
+      input.addEventListener('click', (event) => event.stopPropagation());
+      input.addEventListener('change', (event) => {
+        event.stopPropagation();
+        const courseId = text(input.dataset.simulationSelectCourse);
+        if (!courseId) return;
+        const row = (state.courseSchedulingSimulationRows || []).find((item) => text(item.courseId) === courseId);
+        if (!isDistrictSimulationRowSelectable(row, courseById.get(courseId))) {
+          input.checked = false;
+          return;
+        }
+        const current = new Set(normalizeSelectedSimulationCourseIds(
+          state.courseSchedulingSimulationRows || [],
+          state.courseSchedulingSimulationSelectedIds || []
+        ));
+        if (input.checked) current.add(courseId);
+        else current.delete(courseId);
+        state.courseSchedulingSimulationSelectedIds = [...current];
+        state.courseSchedulingSimulationSaveResult = null;
+        rerender();
+      });
+    });
+    root.querySelectorAll('[data-simulation-select-cell], [data-simulation-select-wrap]').forEach((node) => {
+      node.addEventListener('click', (event) => event.stopPropagation());
+    });
+    root.querySelector('[data-save-simulation-drafts]')?.addEventListener('click', () => {
+      if (!canEdit || state.courseSchedulingSimulationSaving) return;
+      const selectedIds = normalizeSelectedSimulationCourseIds(
+        state.courseSchedulingSimulationRows || [],
+        state.courseSchedulingSimulationSelectedIds || []
+      );
+      if (!selectedIds.length) return;
+      state.courseSchedulingSimulationSelectedIds = selectedIds;
+      state.courseSchedulingSimulationConfirmSave = true;
+      rerender();
+    });
+    root.querySelector('[data-cancel-simulation-draft-save]')?.addEventListener('click', () => {
+      state.courseSchedulingSimulationConfirmSave = false;
+      rerender();
+    });
+    root.querySelector('[data-district-simulation-confirm-overlay]')?.addEventListener('click', (event) => {
+      if (event.target?.closest?.('[data-district-simulation-confirm]')) return;
+      state.courseSchedulingSimulationConfirmSave = false;
+      rerender();
+    });
+    const saveSelectedSimulationDrafts = async () => {
+      if (!canEdit || state.courseSchedulingSimulationSaving) return;
+      const selectedIds = normalizeSelectedSimulationCourseIds(
+        state.courseSchedulingSimulationRows || [],
+        state.courseSchedulingSimulationSelectedIds || []
+      );
+      if (!selectedIds.length) {
+        state.courseSchedulingSimulationConfirmSave = false;
+        rerender();
+        return;
+      }
+      state.courseSchedulingSimulationConfirmSave = false;
+      state.courseSchedulingSimulationSaving = true;
+      state.courseSchedulingSimulationSaveResult = null;
+      rerender();
+      const instructors = data.instructors || [];
+      const outcomes = [];
+      for (const courseId of selectedIds) {
+        const row = (state.courseSchedulingSimulationRows || []).find((item) => text(item.courseId) === courseId);
+        const course = courseById.get(courseId) || row?.engineResult?.course || null;
+        const courseLabel = courseLabelForSimulationRow(row || { courseId, school: course?.school, courseName: course?.activity_name });
+        const blockReason = districtSimulationDraftSaveBlockReason({
+          row,
+          course,
+          instructors,
+          candidateHardBlockReason
+        });
+        if (blockReason) {
+          outcomes.push({ ok: false, courseId, courseLabel, reason: blockReason });
+          continue;
+        }
+        const engineResult = row.engineResult
+          || (state.courseSchedulingSimulationResults || []).find((result) => idOf(result.course) === courseId);
+        const selected = selectedSimulationCandidate(engineResult || {});
+        const topCandidate = engineResult?.recommended || engineResult?.bestAvailable || selected;
+        if (!selected || !topCandidate) {
+          outcomes.push({ ok: false, courseId, courseLabel, reason: 'אין מדריך מוצע תקף' });
+          continue;
+        }
+        const { rpc, payload } = buildCourseAssignmentDraftRpc({
+          activityId: courseId,
+          selected,
+          topCandidate
+        });
+        const { error } = await supabase.rpc(rpc, payload);
+        if (error) {
+          const message = text(error.message);
+          let reason = message || 'שמירת הטיוטה נכשלה';
+          if (/draft|טיוט/i.test(message)) reason = 'הקורס כבר נשמר כטיוטה';
+          else if (/assigned|שובץ|locked|מאושר/i.test(message)) reason = 'הקורס כבר שובץ';
+          else if (/instructor|מדריך/i.test(message)) reason = 'המדריך אינו זמין עוד';
+          outcomes.push({ ok: false, courseId, courseLabel, reason });
+          continue;
+        }
+        // Reflect the saved draft locally so later rows and the next calculation see it as a blocker.
+        if (course) {
+          course.draft_emp_id = String(payload.p_emp_id);
+          course.draft_instructor_name = payload.p_instructor_name;
+          if (payload.p_proposed_meetings) course.draft_proposed_meetings = payload.p_proposed_meetings;
+        }
+        outcomes.push({ ok: true, courseId, courseLabel });
+      }
+      const applied = applyDistrictSimulationSaveOutcome({
+        rows: state.courseSchedulingSimulationRows || [],
+        results: state.courseSchedulingSimulationResults || [],
+        selectedIds,
+        outcomes
+      });
+      state.courseSchedulingSimulationRows = applied.rows;
+      state.courseSchedulingSimulationResults = applied.results;
+      state.courseSchedulingSimulationCounts = applied.counts;
+      state.courseSchedulingSimulationSelectedIds = applied.selectedIds;
+      state.courseSchedulingSimulationSaveResult = {
+        message: applied.message,
+        failures: applied.failures,
+        saved: applied.savedCount,
+        failed: applied.failedCount
+      };
+      state.courseSchedulingSimulationSaving = false;
+      // Drop stale single-course results for courses that are now drafts.
+      const savedIds = new Set(outcomes.filter((item) => item.ok).map((item) => text(item.courseId)));
+      if (savedIds.size) {
+        state.courseSchedulingResults = (state.courseSchedulingResults || []).filter((result) => !savedIds.has(idOf(result.course)));
+      }
+      clearScreenDataCache?.();
+      rerender();
+    };
+    root.querySelector('[data-confirm-simulation-draft-save]')?.addEventListener('click', () => {
+      saveSelectedSimulationDrafts();
+    });
     const openSimulationCourseDetail = (courseId) => {
       const id = text(courseId);
       if (!id) return;
@@ -1551,9 +1729,13 @@ export const courseSchedulingScreen = {
       rerender();
     };
     root.querySelectorAll('[data-simulation-course-row]').forEach((row) => {
-      row.addEventListener('click', () => openSimulationCourseDetail(row.dataset.simulationCourseRow));
+      row.addEventListener('click', (event) => {
+        if (event.target?.closest?.('[data-simulation-select-cell], [data-simulation-select-course], [data-simulation-select-wrap]')) return;
+        openSimulationCourseDetail(row.dataset.simulationCourseRow);
+      });
       row.addEventListener('keydown', (event) => {
         if (event.key !== 'Enter' && event.key !== ' ') return;
+        if (event.target?.closest?.('[data-simulation-select-cell], [data-simulation-select-course], [data-simulation-select-wrap]')) return;
         event.preventDefault();
         openSimulationCourseDetail(row.dataset.simulationCourseRow);
       });
@@ -1612,16 +1794,12 @@ export const courseSchedulingScreen = {
       const blockReason = actionDisabledReason({ candidate: selected, canEdit });
       if (blockReason) { showToast(blockReason, 'error'); updateCandidateActions(false); return; }
       updateCandidateActions(true);
-      const proposedMeetings = selected.dateAdjustment?.meetings?.map(({ date }) => ({ date })) || null;
-      const { error } = await supabase.rpc(proposedMeetings ? 'save_course_assignment_draft_with_dates' : 'save_course_assignment_draft', {
-        p_activity_id: selectedCourseId,
-        p_emp_id: Number(selectedId),
-        p_instructor_name: selected.instructor.full_name,
-        p_top_emp_id: Number(emp(topCandidate)),
-        p_selected_score: selected.score,
-        p_top_score: topCandidate.score,
-        ...(proposedMeetings ? { p_proposed_meetings: proposedMeetings } : {})
+      const { rpc, payload } = buildCourseAssignmentDraftRpc({
+        activityId: selectedCourseId,
+        selected,
+        topCandidate
       });
+      const { error } = await supabase.rpc(rpc, payload);
       if (error) { showToast(`שמירת הטיוטה נכשלה: ${error.message}`, 'error'); updateCandidateActions(false); return; }
       clearScreenDataCache?.();
       showToast('נשמר כטיוטה', 'success');
