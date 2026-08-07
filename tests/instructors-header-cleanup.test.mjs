@@ -10,7 +10,7 @@ globalThis.queueMicrotask = globalThis.queueMicrotask || dom.window.queueMicrota
 
 const { cleanupInstructorsHeader } = await import('../frontend/src/instructors-header-cleanup.js');
 
-test('instructors page removes the search row and course scheduling button', () => {
+test('instructors page keeps the search row and removes a stray legacy course-scheduling button', () => {
   document.body.innerHTML = `<main id="app">
     <header class="ds-page-header">
       <h1 class="ds-page-header__title">מדריכים</h1>
@@ -22,14 +22,11 @@ test('instructors page removes the search row and course scheduling button', () 
     </div>
   </main>`;
 
-  let inputEvents = 0;
-  document.querySelector('[data-instructors-search]').addEventListener('input', () => { inputEvents += 1; });
-
   assert.equal(cleanupInstructorsHeader(document), true);
-  assert.equal(document.querySelector('[data-instructors-search]'), null);
+  assert.ok(document.querySelector('[data-instructors-search]'), 'the search box is a permanent part of the guides page and must remain');
+  assert.equal(document.querySelector('[data-instructors-search]').value, 'חיפוש ישן', 'an in-progress search value must not be cleared');
   assert.equal(document.querySelector('[data-route="course-scheduling"]'), null);
   assert.ok(document.querySelector('[data-filters-row]'), 'status and assignment filters must remain');
-  assert.equal(inputEvents, 1, 'a persisted search value must be cleared before the control is removed');
 });
 
 test('cleanup does not alter another screen', () => {

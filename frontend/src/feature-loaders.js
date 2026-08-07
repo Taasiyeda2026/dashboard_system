@@ -207,7 +207,7 @@ export function preloadScreenModule(route) {
       case 'exceptions':
         return import('./screens/exceptions.js');
       case 'instructors':
-        return import('./screens/instructors.js?v=20260806-scheduling-quality-tiers-v1');
+        return import('./screens/instructors.js?v=20260807-guides-page-redesign-v1');
       case 'archive':
         return import('./screens/archive.js');
       case 'edit-requests':

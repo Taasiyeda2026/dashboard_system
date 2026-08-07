@@ -13,16 +13,9 @@ export function cleanupInstructorsHeader(root = document) {
   const app = instructorsAppRoot(root);
   if (!app || !isInstructorsScreen(app)) return false;
 
-  const search = app.querySelector('[data-instructors-search]');
-  if (search) {
-    if (String(search.value || '').trim()) {
-      search.value = '';
-      search.dispatchEvent(new Event('input', { bubbles: true }));
-    }
-    const currentSearch = app.querySelector('[data-instructors-search]');
-    currentSearch?.parentElement?.remove();
-  }
-
+  // The guides list search box is a permanent part of the screen — only a
+  // stray legacy course-scheduling button (from markup that predates the
+  // unified instructors workspace) needs to be swept from cached pages.
   app.querySelector('.ds-page-header [data-route="course-scheduling"]')?.remove();
   return true;
 }
