@@ -36,6 +36,16 @@ function baseState() {
   };
 }
 
+async function waitForElement(document, selector, { timeoutMs = 15000 } = {}) {
+  const deadline = Date.now() + timeoutMs;
+  while (Date.now() < deadline) {
+    const element = document.querySelector(selector);
+    if (element) return element;
+    await new Promise((resolve) => setTimeout(resolve, 0));
+  }
+  assert.fail(`Timed out waiting for ${selector}`);
+}
+
 test('activities render: emp_id without name does not show "ללא מדריך"', () => {
   const data = {
     rows: [{
@@ -856,7 +866,7 @@ test('activity edit form refreshes activity_name options and clears stale name w
   }
 });
 
-test('activity add form refreshes activity_name options and clears stale name when activity_type changes', () => {
+test('activity add form refreshes activity_name options and clears stale name when activity_type changes', async () => {
   const settings = activityNameSettings();
   const state = baseState();
   state.activityPeriodTab = 'school_2027';
@@ -866,9 +876,11 @@ test('activity add form refreshes activity_name options and clears stale name wh
   const previousWindow = globalThis.window;
   const previousDocument = globalThis.document;
   const previousAbortController = globalThis.AbortController;
+  const previousFetch = globalThis.fetch;
   globalThis.window = dom.window;
   globalThis.document = dom.window.document;
   globalThis.AbortController = dom.window.AbortController;
+  globalThis.fetch = async () => new Response('[]', { status: 200, headers: { 'content-type': 'application/json' } });
   try {
     const root = dom.window.document.querySelector('#root');
     root.innerHTML = activitiesScreen.render({ rows: [] }, { state });
@@ -892,7 +904,7 @@ test('activity add form refreshes activity_name options and clears stale name wh
     });
 
     root.querySelector('[data-activities-add-btn]').click();
-    const form = dom.window.document.querySelector('[data-add-activity-form]');
+    const form = await waitForElement(dom.window.document, '[data-add-activity-form]');
     const typeSelect = form.querySelector('[data-add-activity-type]');
     const nameSelect = form.querySelector('[data-add-activity-name]');
     const noInput = form.querySelector('[data-add-activity-no]');
@@ -914,6 +926,7 @@ test('activity add form refreshes activity_name options and clears stale name wh
     globalThis.window = previousWindow;
     globalThis.document = previousDocument;
     globalThis.AbortController = previousAbortController;
+    globalThis.fetch = previousFetch;
   }
 });
 
@@ -931,10 +944,12 @@ test('activity add validation clears saving state and does not show duplicate in
   const previousDocument = globalThis.document;
   const previousAbortController = globalThis.AbortController;
   const previousFormData = globalThis.FormData;
+  const previousFetch = globalThis.fetch;
   globalThis.window = dom.window;
   globalThis.document = dom.window.document;
   globalThis.AbortController = dom.window.AbortController;
   globalThis.FormData = dom.window.FormData;
+  globalThis.fetch = async () => new Response('[]', { status: 200, headers: { 'content-type': 'application/json' } });
   let addCalls = 0;
   try {
     const root = dom.window.document.querySelector('#root');
@@ -964,7 +979,7 @@ test('activity add validation clears saving state and does not show duplicate in
     });
 
     root.querySelector('[data-activities-add-btn]').click();
-    const form = dom.window.document.querySelector('[data-add-activity-form]');
+    const form = await waitForElement(dom.window.document, '[data-add-activity-form]');
     const status = form.querySelector('[data-add-activity-status]');
     const submit = dom.window.document.querySelector('[data-add-activity-submit]');
 
@@ -997,6 +1012,7 @@ test('activity add validation clears saving state and does not show duplicate in
     globalThis.document = previousDocument;
     globalThis.AbortController = previousAbortController;
     globalThis.FormData = previousFormData;
+    globalThis.fetch = previousFetch;
   }
 });
 

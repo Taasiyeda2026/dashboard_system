@@ -154,19 +154,19 @@ test('Supabase exceptions read uses a single activities source and computes in c
 
   const block = source.match(/async function readExceptionsFromSupabase[\s\S]*?function syncContactToSupabase/);
   assert.ok(block, 'readExceptionsFromSupabase should exist');
-  assert.match(block[0], /supabase\.from\('activities'\)\.select\('\*'\)/);
+  assert.match(block[0], /supabase\.from\('activities'\)\.select\(ACTIVITY_EXCEPTIONS_COLUMNS\)\.in\('activity_season', activitySeasonQueryValues\(activityPeriod\)\)/);
   assert.match(block[0], /const periodRows = filterRowsByGlobalActivityPeriod\(allRows, activityPeriod\)/);
   assert.match(block[0], /buildExceptionsModelFromRows\(periodRows/);
   assert.match(block[0], /late_end_date_threshold/);
   assert.doesNotMatch(block[0], /missingStartResult|lateEndDateResult/);
 });
 
-test('allActivities export path reads all activities without applying month/date filters', async () => {
+test('allActivities export path delegates filtering and projection to the all-rows reader', async () => {
   const source = await readFile(new URL('../frontend/src/api.js', import.meta.url), 'utf8');
 
-  const match = source.match(/allActivities:\s*async \(\) => \{[\s\S]*?readAllActivitiesRowsSupabase\(\);[\s\S]*?return \{ rows, _source: 'supabase' \};[\s\S]*?\n\s*\},/);
+  const match = source.match(/allActivities:\s*async \(params = \{\}\) => \{[\s\S]*?return \{ rows, _source: 'supabase' \};[\s\S]*?\n\s*\},/);
   assert.ok(match, 'allActivities block should be present before the following API endpoint');
-  assert.match(match[0], /const rows = await readAllActivitiesRowsSupabase\(\);/);
+  assert.match(match[0], /const rows = await readAllActivitiesRowsSupabase\(\{[\s\S]*activityPeriod: params\?\.activity_period[\s\S]*select: params\?\.select[\s\S]*startDate: params\?\.startDate[\s\S]*endDate: params\?\.endDate/);
   assert.doesNotMatch(match[0], /rowMatchesActivitiesFilters|activityHasDateInRange|filters/);
 });
 
@@ -184,12 +184,15 @@ test('ended open summer workshop appears with status and completion approval exc
     instructor_name: 'מדריך קיץ'
   });
 
-  const model = buildExceptionsModelFromRows([row], '2026-07', { include_rows: true });
+  const model = buildExceptionsModelFromRows([row], '2026-07', {
+    include_rows: true,
+    activityPeriod: 'summer_2026'
+  });
   assert.equal(model.totalExceptionRows, 1);
   assert.deepEqual(model.rows[0].exception_types.sort(), ['missing_completion_approval', 'summer_ended_open'].sort());
 });
 
-test('ended summer escape room with missing approval appears even when status is closed', () => {
+test('ended summer escape room with closed status is excluded from active exceptions', () => {
   const row = activeCourse({
     RowID: 'SUMMER-CLOSED-MISSING-APPROVAL',
     activity_type: 'escape_room',
@@ -204,8 +207,8 @@ test('ended summer escape room with missing approval appears even when status is
   });
 
   const model = buildExceptionsModelFromRows([row], '2026-07', { include_rows: true });
-  assert.equal(model.totalExceptionRows, 1);
-  assert.deepEqual(model.rows[0].exception_types, ['missing_completion_approval']);
+  assert.equal(model.totalExceptionRows, 0);
+  assert.deepEqual(model.rows, []);
 });
 
 test('ended summer activity with closed status and uploaded completion approval is not an exception', () => {
@@ -242,7 +245,7 @@ test('completion approval upload with a row id never satisfies a different activ
     activity_type: 'workshop',
     item_type: 'workshop',
     activity_season: 'summer_2026',
-    status: 'בוצע',
+    status: 'פתוח',
     start_date: '2026-06-23',
     end_date: '2026-06-23',
     date_1: '2026-06-23',
@@ -254,6 +257,7 @@ test('completion approval upload with a row id never satisfies a different activ
 
   const model = buildExceptionsModelFromRows([rowA, rowB], '2026-07', {
     include_rows: true,
+    activityPeriod: 'summer_2026',
     completionApprovalUploads: [{
       activity_row_id: 'SAME-DAY-A',
       activity_date: '2026-06-23',
@@ -264,5 +268,7 @@ test('completion approval upload with a row id never satisfies a different activ
     }]
   });
 
-  assert.deepEqual(model.rows.map((row) => row.RowID), ['SAME-DAY-B']);
+  const rowBResult = model.rows.find((row) => row.RowID === 'SAME-DAY-B');
+  assert.ok(rowBResult, 'the upload for row A must not suppress row B');
+  assert.ok(rowBResult.exception_types.includes('missing_completion_approval'));
 });
