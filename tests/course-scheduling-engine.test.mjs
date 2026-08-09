@@ -329,8 +329,8 @@ test('status counters and candidate radio names are isolated per course', () => 
     { status: 'הצעה מוכנה' }, { status: 'נדרש טיפול' }, { status: 'נדרש גיוס' }, { status: 'חסר מידע' }
   ]), { ready: 1, treatment: 1, recruit: 1, missing: 1 });
   const candidate = { instructor: instructors[0], eligible: true, score: 90, explanation: 'מתאימה', warnings: [], failures: [], missingProfileData: [], issues: [] };
-  const firstHtml = detailsHtml({ course: course('first'), status: 'הצעה מוכנה', recommended: candidate, alternatives: [], checked: [candidate] });
-  const secondHtml = detailsHtml({ course: course('second'), status: 'הצעה מוכנה', recommended: candidate, alternatives: [], checked: [candidate] });
+  const firstHtml = detailsHtml({ course: course('first'), status: 'הצעה מוכנה', recommended: candidate, alternatives: [], checked: [candidate] }, { courseSchedulingExpandedCandidateId: '1' });
+  const secondHtml = detailsHtml({ course: course('second'), status: 'הצעה מוכנה', recommended: candidate, alternatives: [], checked: [candidate] }, { courseSchedulingExpandedCandidateId: '1' });
   assert.match(firstHtml, /name="course-candidate-first"/);
   assert.match(secondHtml, /name="course-candidate-second"/);
 });

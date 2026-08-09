@@ -206,7 +206,7 @@ test('10-12: first schedule without half-year history uses neutral continuity 18
   assert.equal(primary.scoreBreakdown.continuityEfficiency.points, NEUTRAL_CONTINUITY_POINTS);
   assert.equal(primary.scoreBreakdown.gapsAndNewDays.points, NEUTRAL_GAPS_POINTS);
   assert.equal(primary.scoreBreakdown.continuityEfficiency.note, NEUTRAL_CONTINUITY_NOTE);
-  assert.match(detailsHtml(result), /טרם קיים סידור עבודה להשוואת רציפות/);
+  assert.match(detailsHtml(result, { courseSchedulingExpandedCandidateId: '100' }), /טרם קיים סידור עבודה להשוואת רציפות/);
 });
 
 test('13-14: second planningDraft course and existing approved/draft use real continuity scoring', () => {
@@ -337,9 +337,10 @@ test('18-20: recommended/bestAvailable badges are singular; rejected never in al
     alternatives: [],
     checked: [recommended]
   });
-  assert.match(recommendedHtml, /המדריך המומלץ/);
+  assert.doesNotMatch(recommendedHtml, /המדריך המומלץ/);
   const recommendedBadges = [...recommendedHtml.matchAll(/course-scheduling-status-pill[^"]*"[^>]*>([^<]+)/g)].map((m) => m[1]);
-  assert.deepEqual(recommendedBadges, ['מומלץ']);
+  assert.deepEqual(recommendedBadges, []);
+  assert.match(recommendedHtml, /course-scheduling-result-status is-positive">מומלץ/);
 
   const bestAvailable = { ...recommended, score: 48, qualityLabel: 'מתאים עם אזהרה' };
   const bestHtml = detailsHtml({
@@ -350,9 +351,10 @@ test('18-20: recommended/bestAvailable badges are singular; rejected never in al
     alternatives: [],
     checked: [bestAvailable]
   });
-  assert.match(bestHtml, /ההתאמה הטובה ביותר שנמצאה/);
+  assert.doesNotMatch(bestHtml, /ההתאמה הטובה ביותר שנמצאה/);
+  assert.match(bestHtml, /course-scheduling-result-status">נדרשת בדיקה/);
   const bestBadges = [...bestHtml.matchAll(/course-scheduling-status-pill[^"]*"[^>]*>([^<]+)/g)].map((m) => m[1]);
-  assert.deepEqual(bestBadges, ['נדרשת בדיקה']);
+  assert.deepEqual(bestBadges, []);
   assert.doesNotMatch(bestHtml, /מתאים עם אזהרה/);
   assert.doesNotMatch(bestHtml, /ההתאמה הטובה ביותר<\/span>/);
 
@@ -471,7 +473,7 @@ test('23: workload hours use identical formatting everywhere', () => {
     },
     alternatives: [],
     checked: []
-  }, { courseSchedulingSelectedCandidateId: '100' });
+  }, { courseSchedulingSelectedCandidateId: '100', courseSchedulingExpandedCandidateId: '100' });
   assert.equal((html.match(/3\.25 שעות/g) || []).length >= 2, true);
   assert.doesNotMatch(html, /3\.3 שעות/);
 });

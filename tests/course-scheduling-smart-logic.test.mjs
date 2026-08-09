@@ -42,12 +42,12 @@ test('eligible low score is bestAvailable and requires treatment, never recruitm
   assert.equal(result.status, 'נדרש טיפול');
   assert.notEqual(result.status, 'נדרש גיוס');
   const html = detailsHtml(result);
-  assert.match(html, /ההתאמה הטובה ביותר שנמצאה/);
-  assert.match(html, /נדרשת בדיקה/);
+  assert.doesNotMatch(html, /ההתאמה הטובה ביותר שנמצאה/);
+  assert.match(html, /course-scheduling-result-status">נדרשת בדיקה/);
   assert.doesNotMatch(html, /לא נמצאה התאמה איכותית לקורס/);
   assert.equal((html.match(/נדרשת בדיקה/g) || []).length, 1);
   const badges = [...html.matchAll(/course-scheduling-status-pill[^"]*"[^>]*>([^<]+)/g)].map((m) => m[1]);
-  assert.deepEqual(badges, ['נדרשת בדיקה']);
+  assert.deepEqual(badges, []);
   assert.doesNotMatch(html, /המדריך המומלץ/);
 });
 
