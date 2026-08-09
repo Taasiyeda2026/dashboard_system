@@ -73,22 +73,17 @@ test('permissions schema JSON: no duplicate headers', async () => {
   assert.deepStrictEqual(dups, [], `duplicate permissions headers found: ${dups.join(', ')}`);
 });
 
-test('flattenUserRow prefers display_role, then falls back to the hebrewRole(role) translation', async () => {
+test('flattenUserRow keeps internal role separate from display_role and display_role_label', async () => {
   const source = await readFile(API_FILE, 'utf8');
   assert.match(source, /const customDisplayRole = String\(userRow\.display_role \|\| ''\)\.trim\(\);/);
   assert.match(source, /const displayRoleLabel = String\(userRow\.display_role_label \|\| customDisplayRole \|\| ''\)\.trim\(\);/);
+  assert.match(source, /role,\n    display_role: displayRoleLabel \|\| hebrewRole\(role\),/);
   assert.match(source, /display_role_label: displayRoleLabel \|\| hebrewRole\(role\)/);
 });
 
-test('internalRoleFromPermissionRow_ example: EXAMPLE_ROW returns Hebrew display_role first', () => {
-  function internalRoleFromPermissionRow_(row) {
-    var display = String((row && row.display_role) || '').trim();
-    var roleCol = String((row && row.role) || '').trim();
-    if (display) return display;
-    return roleCol;
-  }
-  const result = internalRoleFromPermissionRow_(EXAMPLE_ROW);
-  assert.strictEqual(result, 'מנהל מערכת', `must return sheet display_role first, got '${result}'`);
+test('permission row internal role comes only from role', () => {
+  assert.strictEqual(EXAMPLE_ROW.role, 'admin');
+  assert.notStrictEqual(EXAMPLE_ROW.role, EXAMPLE_ROW.display_role);
 });
 
 test('EXAMPLE_ROW: view_admin is yes (not dashboard)', () => {
@@ -129,10 +124,12 @@ test('savePermission: role is handled as its own column, not folded into the gen
   const source = await readFile(API_FILE, 'utf8');
   const fnMatch = source.match(/savePermission: async \(row\) => \{[\s\S]*?return \{ ok: true \};\n  \},/);
   assert.ok(fnMatch, 'savePermission must exist');
-  assert.match(fnMatch[0], /\['user_id', 'role', 'active', 'full_name', 'entry_code', 'emp_id', 'display_role2', 'can_access_personal_reports'\]\.includes\(k\)/,
+  assert.match(fnMatch[0], /\['user_id', 'role', 'display_role', 'display_role_label', 'default_view', 'active', 'full_name', 'entry_code', 'emp_id', 'display_role2', 'can_access_personal_reports'\]\.includes\(k\)/,
     "savePermission must exclude 'role' from the generic permissions patch loop");
   assert.match(fnMatch[0], /const nextRole = row\.role \|\| existing\.data\.role;/);
   assert.match(fnMatch[0], /role: nextRole,/);
+  assert.match(fnMatch[0], /display_role: row\.display_role \?\? row\.display_role_label \?\? existing\.data\.display_role,/);
+  assert.match(fnMatch[0], /default_view: row\.default_view \?\? existing\.data\.default_view,/);
 });
 
 test('addUser: role is written as its own users column in the insert payload', async () => {
@@ -141,4 +138,19 @@ test('addUser: role is written as its own users column in the insert payload', a
   assert.ok(fnMatch, 'addUser must exist');
   assert.match(fnMatch[0], /const role = String\(row\?\.role \|\| 'instructor'\)\.trim\(\);/);
   assert.match(fnMatch[0], /const insert = \{[\s\S]*?role,/);
+  assert.match(fnMatch[0], /display_role: String\(row\?\.display_role \|\| row\?\.display_role_label \|\| hebrewRole\(role\)\)\.trim\(\),/);
+});
+
+test('login projects role as internal code and display_role as display text', async () => {
+  const source = await readFile(API_FILE, 'utf8');
+  const fnMatch = source.match(/login: async \(user_id, entry_code\) => \{[\s\S]*?client_settings: buildClientSettingsFromLists/);
+  assert.ok(fnMatch, 'login must exist');
+  assert.match(fnMatch[0], /role: flat\.role,/);
+  assert.match(fnMatch[0], /display_role: flat\.display_role,/);
+  assert.match(fnMatch[0], /display_role_label: flat\.display_role_label,/);
+});
+
+test('legacy can_edit_request does not grant can_request_edit', async () => {
+  const permissionsSource = await readFile(new URL('../frontend/src/permissions.js', import.meta.url), 'utf8');
+  assert.doesNotMatch(permissionsSource, /can_edit_request/, 'legacy edit capability must not be treated as request submission permission');
 });
