@@ -72,6 +72,30 @@ test('proposals list does not prefetch contacts or recipient catalog', () => {
   assert.match(apiSource, /readContactsSchoolsForProposals\(\)/); // still used by editor deps / contacts API
 });
 
+test('client file list defers linked documents and item eligibility until detail load', () => {
+  const listStart = apiSource.indexOf('async function readProposalsAgreementsFromSupabase');
+  const listEnd = apiSource.indexOf('const USER_PUBLIC_COLUMNS', listStart);
+  const listFn = apiSource.slice(listStart, listEnd);
+  assert.doesNotMatch(listFn, /from\('proposal_agreement_items'\)/);
+  assert.match(listFn, /includeLinkedDocuments\s*\?\s*await readProposalLinkedDocumentsFromSupabase/);
+  assert.match(proposalsSource, /proposalsAgreements\(\{ limit: 50, offset: 0, includeLinkedDocuments: false \}\)/);
+  assert.match(apiSource, /proposalAgreementDetail:[\s\S]*readProposalLinkedDocumentsFromSupabase\(\{ proposalIds: \[row\.id\] \}\)/);
+  assert.match(proposalsSource, /fillProposalDetailItems[\s\S]*api\.readProposalAgreementItems\(id\)/);
+});
+
+test('course scheduling returns primary activities before secondary startup data', () => {
+  const schedulingSource = readFileSync(new URL('../frontend/src/screens/course-scheduling.js', import.meta.url), 'utf8');
+  const loadStart = schedulingSource.indexOf('async load({ api })');
+  const renderStart = schedulingSource.indexOf('\n  render(data', loadStart);
+  const loadFn = schedulingSource.slice(loadStart, renderStart);
+  assert.match(loadFn, /const activitiesPromise = api\.activities/);
+  assert.match(loadFn, /const secondaryDataPromise = Promise\.all/);
+  assert.match(loadFn, /const activities = await activitiesPromise/);
+  assert.doesNotMatch(loadFn, /await Promise\.all\(\[\s*api\.activities/);
+  assert.match(loadFn, /_secondaryDataPromise: secondaryDataPromise\.then/);
+  assert.match(schedulingSource, /data\._secondaryDataPromise\.then[\s\S]*Object\.assign\(data, secondary\)[\s\S]*rerender\(\)/);
+});
+
 test('bootstrap entry stays minimal and feature modules load on demand', () => {
   assert.match(entrySource, /import '\.\/network-request-dedupe\.js';/);
   assert.match(entrySource, /import '\.\/main\.js';/);

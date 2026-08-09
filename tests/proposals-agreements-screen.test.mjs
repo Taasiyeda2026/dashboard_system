@@ -434,7 +434,7 @@ test('GEFEN approval status is short plain text in the proposals table', () => {
   assert.match(html, /הפקה מחדש של אישור גפ״ן להצעה 10169/);
 });
 
-test('proposalsAgreementsScreen.load requests includeLinkedDocuments true', async () => {
+test('proposalsAgreementsScreen.load defers linked documents', async () => {
   let received = null;
   const result = await proposalsAgreementsScreen.load({
     api: {
@@ -445,7 +445,7 @@ test('proposalsAgreementsScreen.load requests includeLinkedDocuments true', asyn
     },
     state: stateFor('admin')
   });
-  assert.deepEqual(received, { limit: 50, offset: 0, includeLinkedDocuments: true });
+  assert.deepEqual(received, { limit: 50, offset: 0, includeLinkedDocuments: false });
   assert.deepEqual(result, { rows: [] });
 });
 
@@ -506,7 +506,7 @@ test('GEFEN approval column shows generated for saved and combined linked docume
   assert.match(generatedWithoutPathHtml, /ds-pa-gefen-status-text--missing">חסר<\/span>/);
 });
 
-test('search, filter, and next-page proposal list loads keep includeLinkedDocuments true', async () => {
+test('search, filter, and next-page proposal list loads defer linked documents', async () => {
   const calls = [];
   const api = {
     proposalsAgreements: async (options) => {
@@ -554,7 +554,7 @@ test('search, filter, and next-page proposal list loads keep includeLinkedDocume
     loadMore.dispatchEvent(new dom.window.MouseEvent('click', { bubbles: true }));
     await delay(40);
     assert.equal(calls.length, 1, 'next page should call proposalsAgreements');
-    assert.equal(calls[0].includeLinkedDocuments, true);
+    assert.equal(calls[0].includeLinkedDocuments, false);
     assert.equal(calls[0].offset, 50);
 
     const searchInput = root.querySelector('[data-pa-search]');
@@ -562,7 +562,7 @@ test('search, filter, and next-page proposal list loads keep includeLinkedDocume
     searchInput.dispatchEvent(new dom.window.Event('input', { bubbles: true }));
     await delay(320);
     assert.equal(calls.length, 2, 'toolbar search should call proposalsAgreements');
-    assert.equal(calls[1].includeLinkedDocuments, true);
+    assert.equal(calls[1].includeLinkedDocuments, false);
     assert.equal(calls[1].search, 'רשות גפן');
     assert.equal(calls[1].offset, 0);
 
@@ -571,7 +571,7 @@ test('search, filter, and next-page proposal list loads keep includeLinkedDocume
     statusFilter.dispatchEvent(new dom.window.Event('change', { bubbles: true }));
     await delay(40);
     assert.equal(calls.length, 3, 'status filter should call proposalsAgreements');
-    assert.equal(calls[2].includeLinkedDocuments, true);
+    assert.equal(calls[2].includeLinkedDocuments, false);
     assert.equal(calls[2].status, 'approved');
     assert.equal(calls[2].offset, 0);
   });

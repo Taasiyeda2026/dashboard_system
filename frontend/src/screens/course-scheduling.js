@@ -1131,43 +1131,65 @@ function distanceDoneMessage(stats = {}, { done = false, stopped = false, errorM
 
 export const courseSchedulingScreen = {
   async load({ api }) {
-    const [activities, contacts, scheduling, meetingState, schoolLocations, schoolCalendar, authResult] = await Promise.all([
-      api.activities({ activity_period: 'school_2027', activity_type: 'all', include_inactive: true, select: 'row_id,district,authority_id,authority,school,school_id,activity_name,catalog_slug,activity_no,proposal_item_id,activity_type,item_type,activity_season,grade,education_level,class_group,sessions,start_time,end_time,instruction_language,required_instructor_gender,scheduling_note,instructor_assignment_status,instructor_assignment_locked,draft_emp_id,draft_instructor_name,draft_created_at,draft_proposed_meetings,emp_id,instructor_name,emp_id_2,instructor_name_2,start_date,end_date,status,date_1,date_2,date_3,date_4,date_5,date_6,date_7,date_8,date_9,date_10,date_11,date_12,date_13,date_14,date_15,date_16,date_17,date_18,date_19,date_20,date_21,date_22,date_23,date_24,date_25,date_26,date_27,date_28,date_29,date_30,date_31,date_32,date_33,date_34,date_35' }),
+    const activitiesPromise = api.activities({ activity_period: 'school_2027', activity_type: 'all', include_inactive: true, select: 'row_id,district,authority_id,authority,school,school_id,activity_name,catalog_slug,activity_no,proposal_item_id,activity_type,item_type,activity_season,grade,education_level,class_group,sessions,start_time,end_time,instruction_language,required_instructor_gender,scheduling_note,instructor_assignment_status,instructor_assignment_locked,draft_emp_id,draft_instructor_name,draft_created_at,draft_proposed_meetings,emp_id,instructor_name,emp_id_2,instructor_name_2,start_date,end_date,status,date_1,date_2,date_3,date_4,date_5,date_6,date_7,date_8,date_9,date_10,date_11,date_12,date_13,date_14,date_15,date_16,date_17,date_18,date_19,date_20,date_21,date_22,date_23,date_24,date_25,date_26,date_27,date_28,date_29,date_30,date_31,date_32,date_33,date_34,date_35' });
+    const secondaryDataPromise = Promise.all([
       api.instructorContacts(),
       loadInstructorSchedulingData(),
       loadCourseMeetingState(),
       supabase.rpc('scheduling_authority_school_locations'),
       loadSchoolCalendarRows(),
       supabase.auth.getSession()
-    ]);
-    const schoolRows = schoolLocations?.data || [];
-    const schoolAddressLookupError = schoolLocations?.error
-      ? translateSchedulingRouteError('school_address_lookup_failed')
-      : '';
-    const enriched = enrichActivitiesWithSchoolAddresses(activities?.rows || [], schoolRows);
-    return {
-      activities: attachCancelledMeetingsToActivities(enriched.activities, meetingState),
-      instructors: contacts?.rows || [],
+    ]).then(([contacts, scheduling, meetingState, schoolLocations, schoolCalendar, authResult]) => ({
+      contacts,
       scheduling,
       meetingState,
-      schoolLocations: schoolRows,
+      schoolLocations,
       schoolCalendar,
-      authSession: (() => {
-        const session = authResult?.data?.session;
-        if (!session?.user?.id) return null;
-        let sessionId = '';
-        try {
-          const payload = JSON.parse(atob(session.access_token.split('.')[1].replaceAll('-', '+').replaceAll('_', '/')));
-          sessionId = text(payload.session_id);
-        } catch { /* an opaque/invalid token must not enable snapshot restore */ }
-        return { user: { id: session.user.id }, sessionId };
-      })(),
-      schoolAddressStats: {
-        uniqueSchoolCount: enriched.uniqueSchoolCount,
-        duplicateSchoolCount: enriched.duplicateSchoolCount,
-        missingCount: enriched.missingCount
-      },
-      schoolAddressLookupError
+      authResult
+    }));
+    const activities = await activitiesPromise;
+    const primaryActivities = activities?.rows || [];
+    return {
+      activities: primaryActivities,
+      instructors: [],
+      scheduling: {},
+      meetingState: {},
+      schoolLocations: [],
+      schoolCalendar: [],
+      authSession: null,
+      schoolAddressStats: { uniqueSchoolCount: 0, duplicateSchoolCount: 0, missingCount: 0 },
+      schoolAddressLookupError: '',
+      _secondaryDataPromise: secondaryDataPromise.then((secondary) => {
+        const schoolRows = secondary.schoolLocations?.data || [];
+        const enriched = enrichActivitiesWithSchoolAddresses(primaryActivities, schoolRows);
+        const session = secondary.authResult?.data?.session;
+        const authSession = (() => {
+          if (!session?.user?.id) return null;
+          let sessionId = '';
+          try {
+            const payload = JSON.parse(atob(session.access_token.split('.')[1].replaceAll('-', '+').replaceAll('_', '/')));
+            sessionId = text(payload.session_id);
+          } catch { /* an opaque/invalid token must not enable snapshot restore */ }
+          return { user: { id: session.user.id }, sessionId };
+        })();
+        return {
+          activities: attachCancelledMeetingsToActivities(enriched.activities, secondary.meetingState),
+          instructors: secondary.contacts?.rows || [],
+          scheduling: secondary.scheduling,
+          meetingState: secondary.meetingState,
+          schoolLocations: schoolRows,
+          schoolCalendar: secondary.schoolCalendar,
+          authSession,
+          schoolAddressStats: {
+            uniqueSchoolCount: enriched.uniqueSchoolCount,
+            duplicateSchoolCount: enriched.duplicateSchoolCount,
+            missingCount: enriched.missingCount
+          },
+          schoolAddressLookupError: secondary.schoolLocations?.error
+            ? translateSchedulingRouteError('school_address_lookup_failed')
+            : ''
+        };
+      }).catch((error) => ({ _secondaryDataError: text(error?.message) || 'secondary_data_load_failed' }))
     };
   },
 
@@ -1229,6 +1251,14 @@ export const courseSchedulingScreen = {
   },
 
   bind({ root, data, state, rerender, clearScreenDataCache }) {
+    if (data._secondaryDataPromise && !data._secondaryDataAttached) {
+      data._secondaryDataAttached = true;
+      data._secondaryDataPromise.then((secondary) => {
+        Object.assign(data, secondary);
+        delete data._secondaryDataPromise;
+        rerender();
+      });
+    }
     const canEdit = ['admin', 'operation_manager'].includes(text(state?.user?.role));
     const resultByCourseId = new Map((state.courseSchedulingResults || []).map((result) => [idOf(result.course), result]));
     const allInterfaceCourses = (data.activities || []).filter(isCourseSchedulingInterfaceEligible);

@@ -867,6 +867,7 @@ Deno.serve(async (req) => {
     .select('*')
     .eq('origin_key', originKey)
     .eq('destination_key', destinationKey)
+    .gt('expires_at', new Date().toISOString())
     .maybeSingle();
   if (cacheReadError) return jsonResponse({ calculated: false, reason: 'cache_read_failed', error: 'cache_read_failed' }, 500);
 

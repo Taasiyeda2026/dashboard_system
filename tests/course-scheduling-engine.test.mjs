@@ -345,11 +345,11 @@ test('course scheduling screen explicitly loads school_2027 and exposes reject/o
   assert.doesNotMatch(source, /CSS\.escape/);
 });
 
-test('scheduling route reuses cached address pairs without an expiry check', async () => {
+test('scheduling route reuses only unexpired cached address pairs', async () => {
   const source = await readFile(new URL('../supabase/functions/scheduling-route/index.ts', import.meta.url), 'utf8');
   assert.match(source, /\.eq\('origin_key', originKey\)/);
   assert.match(source, /\.eq\('destination_key', destinationKey\)/);
-  assert.doesNotMatch(source, /\.gt\('expires_at'/);
+  assert.match(source, /\.gt\('expires_at', new Date\(\)\.toISOString\(\)\)/);
 });
 
 test('acceptance: Hila Rosen 1500 remains incomplete, keeps her address, and groups eight Mondays', () => {

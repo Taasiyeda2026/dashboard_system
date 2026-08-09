@@ -6244,7 +6244,7 @@ export const proposalsAgreementsScreen = {
   load: ({ api, state }) => {
     if (!canAccessProposalsAgreements(state)) return Promise.resolve({ rows: [], unauthorized: true });
     // First metadata page only. Additional pages load only on explicit user action.
-    return api.proposalsAgreements({ limit: 50, offset: 0, includeLinkedDocuments: true });
+    return api.proposalsAgreements({ limit: 50, offset: 0, includeLinkedDocuments: false });
   },
   render(data = {}, { state } = {}) {
     if (data?.unauthorized || !canAccessProposalsAgreements(state)) {
@@ -6412,7 +6412,7 @@ export const proposalsAgreementsScreen = {
       clientType: text(data?._query?.clientType),
       sort: text(data?._query?.sort) || 'updated_at_desc',
       limit: Number(data?._limit || 50),
-      includeLinkedDocuments: true
+      includeLinkedDocuments: false
     });
     const mergeProposalPageRows = (incoming = []) => {
       const seen = new Set((data.rows || []).map((row) => text(row?.id)).filter(Boolean));
