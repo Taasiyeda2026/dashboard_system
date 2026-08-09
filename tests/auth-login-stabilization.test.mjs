@@ -117,6 +117,7 @@ test('USER_PUBLIC_COLUMNS selects granted users table fields only', async () => 
     'role',
     'display_role',
     'display_role2',
+    'default_view',
     'emp_id',
     'is_active',
     'permissions'
