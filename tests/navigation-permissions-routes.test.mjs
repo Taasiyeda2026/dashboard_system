@@ -29,21 +29,27 @@ test('catalog and orders are default routes for requested manager and finance ro
     const routes = extractRoleRoutes(src, role);
     assert.match(routes, /'catalog'/, `${role} should see catalog by default`);
     assert.match(routes, /'orders'/, `${role} should see orders by default`);
-    assert.match(routes, /'edit-requests'/, `${role} should see edit requests for its badge/screen`);
   }
 });
 
 test('edit requests route is available to request submitters while review remains direct-manager only', async () => {
   const src = await readApiSource();
 
-  for (const role of ['activities_manager', 'instructor_manager', 'business_development_manager', 'finance']) {
-    assert.match(extractRoleRoutes(src, role), /'edit-requests'/, `${role} should have edit-requests route for its badge/screen`);
+  for (const role of ['admin', 'operation_manager', 'activities_manager', 'instructor_manager', 'business_development_manager', 'finance']) {
+    assert.doesNotMatch(extractRoleRoutes(src, role), /'edit-requests'/, `${role} must not receive edit-requests from an unrelated role route`);
   }
 
   assert.match(src, /const canReviewRequests = canDirectManageActivities;/, 'review permission should stay limited to admin and operation_manager');
-  assert.match(src, /const canViewEditRequests = canReviewRequests \|\| canRequestEdit \|\| permissionFlagYes\(flat\.view_edit_requests\) \|\| allowedRoutes\.includes\('edit-requests'\);/, 'bootstrap should distinguish viewing edit requests from approving them');
+  assert.match(src, /const canViewEditRequests = canReviewRequests \|\| canRequestEdit \|\| permissionFlagYes\(flat\.view_edit_requests\);/, 'bootstrap should distinguish viewing edit requests from approving them');
   assert.match(src, /if \(canViewEditRequests && !allowedRoutes\.includes\('edit-requests'\)\)/, 'bootstrap should expose edit-requests to users who may view or submit edit requests');
   assert.match(src, /if \(!canReviewEditRequestsUser\(\)\) throw new Error\('forbidden_review_edit_request'\);/, 'review action should keep the server-side non-reviewer guard');
+});
+
+test('operations-management is the active route and legacy operations defaults are normalized', async () => {
+  const src = await readApiSource();
+  assert.doesNotMatch(src, /\['operations'\]/, 'operations must not be emitted as an application route');
+  assert.match(src, /flat\.default_view === 'operations'[\s\S]*?'operations-management'/);
+  assert.match(src, /allowedRoutes\.includes\(requestedDefaultRoute\)/);
 });
 
 test('default permissions grant catalog but not edit-review to requested roles', async () => {
