@@ -206,7 +206,7 @@ test('10-12: first schedule without half-year history uses neutral continuity 18
   assert.equal(primary.scoreBreakdown.continuityEfficiency.points, NEUTRAL_CONTINUITY_POINTS);
   assert.equal(primary.scoreBreakdown.gapsAndNewDays.points, NEUTRAL_GAPS_POINTS);
   assert.equal(primary.scoreBreakdown.continuityEfficiency.note, NEUTRAL_CONTINUITY_NOTE);
-  assert.match(detailsHtml(result), /טרם קיים סידור עבודה להשוואת רציפות/);
+  assert.match(detailsHtml(result, { courseSchedulingExpandedCandidateId: '100' }), /טרם קיים סידור עבודה להשוואת רציפות/);
 });
 
 test('13-14: second planningDraft course and existing approved/draft use real continuity scoring', () => {
@@ -352,7 +352,7 @@ test('18-20: recommended/bestAvailable badges are singular; rejected never in al
   });
   assert.match(bestHtml, /ההתאמה הטובה ביותר שנמצאה/);
   const bestBadges = [...bestHtml.matchAll(/course-scheduling-status-pill[^"]*"[^>]*>([^<]+)/g)].map((m) => m[1]);
-  assert.deepEqual(bestBadges, ['נדרשת בדיקה']);
+  assert.deepEqual(bestBadges, []);
   assert.doesNotMatch(bestHtml, /מתאים עם אזהרה/);
   assert.doesNotMatch(bestHtml, /ההתאמה הטובה ביותר<\/span>/);
 
@@ -471,7 +471,7 @@ test('23: workload hours use identical formatting everywhere', () => {
     },
     alternatives: [],
     checked: []
-  }, { courseSchedulingSelectedCandidateId: '100' });
+  }, { courseSchedulingSelectedCandidateId: '100', courseSchedulingExpandedCandidateId: '100' });
   assert.equal((html.match(/3\.25 שעות/g) || []).length >= 2, true);
   assert.doesNotMatch(html, /3\.3 שעות/);
 });

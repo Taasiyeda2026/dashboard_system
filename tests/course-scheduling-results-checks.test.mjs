@@ -113,7 +113,11 @@ test('cached travel appears on the card with distance and duration', () => {
   assert.ok(primary);
   assert.equal(primary.travel.home.distance_km, 4.2);
   assert.equal(primary.travel.home.duration_minutes, 11);
-  const html = detailsHtml(result);
+  const closedHtml = detailsHtml(result);
+  assert.match(closedHtml, /נועה כהן/);
+  assert.match(closedHtml, /aria-label="ציון /);
+  assert.doesNotMatch(closedHtml, /מרחק מהבית:/);
+  const html = detailsHtml(result, { courseSchedulingExpandedCandidateId: 'f1' });
   assert.match(html, /מרחק מהבית: 4 ק״מ/);
   assert.match(html, /זמן נסיעה משוער: 11 דקות/);
   assert.doesNotMatch(html, /מרחק לא זמין/);
@@ -132,8 +136,9 @@ test('the same travel object is used for scoring and display', () => {
   assert.equal(candidate.scoreBreakdown.travelDistance.distance_km, candidate.relevantTravelDistance);
   assert.equal(candidate.scoreBreakdown.travelDistance.duration_minutes, candidate.relevantTravelMinutes);
   assert.ok(candidate.relevantTravelMinutes > 0);
-  assert.match(detailsHtml(result), /מרחק מהבית: 12 ק״מ/);
-  assert.match(detailsHtml(result), /זמן נסיעה משוער: 22 דקות/);
+  const expandedHtml = detailsHtml(result, { courseSchedulingExpandedCandidateId: 'f1' });
+  assert.match(expandedHtml, /מרחק מהבית: 12 ק״מ/);
+  assert.match(expandedHtml, /זמן נסיעה משוער: 22 דקות/);
 });
 
 test('female-required course never recommends a male instructor', () => {
@@ -421,7 +426,7 @@ test('integration school_2027_019: matching Hebrew females are recommended witho
   assert.ok(primary.scoreBreakdown.gapsAndNewDays);
   assert.equal(primary.scoreBreakdown.seniority, undefined);
   assert.equal(primary.scoreBreakdown.workload, undefined);
-  const html = detailsHtml(result);
+  const html = detailsHtml(result, { courseSchedulingExpandedCandidateId: 'f1' });
   assert.doesNotMatch(html, /שכבת גיל/);
   assert.match(html, /מרחק מהבית: 6 ק״מ/);
   assert.match(html, /זמן נסיעה משוער: 14 דקות/);
@@ -509,7 +514,12 @@ test('candidate details render primary card, closed rejections, and initially di
     travel: { home: travelHome, homeReturn: travelHomeReturn, transitions: {} }
   };
   const rejected = { instructor: maleInstructor, eligible: false, score: null, failures: ['שפת ההדרכה אינה תואמת'], missingProfileData: ['לא ניתן לאמת שפת הדרכה'], checks: { language: { passed: false, reason: 'שפת ההדרכה אינה תואמת' }, gender: { passed: true }, availability: { passed: true } }, travel: { home: travelHome, homeReturn: travelHomeReturn, transitions: {} } };
-  const html = detailsHtml({ course: course019({ required_instructor_gender: 'any' }), status: 'הצעה מוכנה', recommended, alternatives: [], checked: [recommended, rejected] }, { courseSchedulingSelectedCandidateId: '' });
+  const result = { course: course019({ required_instructor_gender: 'any' }), status: 'הצעה מוכנה', recommended, alternatives: [], checked: [recommended, rejected] };
+  const closedHtml = detailsHtml(result, { courseSchedulingSelectedCandidateId: '' });
+  assert.match(closedHtml, /נועה כהן/);
+  assert.match(closedHtml, /88<\/strong><span>\/100<\/span>/);
+  assert.doesNotMatch(closedHtml, /רציפות יומית גבוהה|מרחק מהבית:|עומס לאחר השיבוץ:|פירוט הציון/);
+  const html = detailsHtml(result, { courseSchedulingSelectedCandidateId: '', courseSchedulingExpandedCandidateId: 'f1' });
   assert.match(html, /המדריך המומלץ/);
   assert.match(html, /course-scheduling-primary-card/);
   assert.match(html, /88<\/strong><span>\/100<\/span>/);
@@ -556,9 +566,9 @@ test('bestAvailable uses review title and never the misleading quality-miss head
     checked: [bestAvailable]
   });
   assert.match(html, /ההתאמה הטובה ביותר שנמצאה/);
-  assert.equal((html.match(/נדרשת בדיקה/g) || []).length, 1);
+  assert.equal((html.match(/נדרשת בדיקה/g) || []).length, 0);
   const badges = [...html.matchAll(/course-scheduling-status-pill[^"]*"[^>]*>([^<]+)/g)].map((m) => m[1]);
-  assert.deepEqual(badges, ['נדרשת בדיקה']);
+  assert.deepEqual(badges, []);
   assert.doesNotMatch(html, /ההתאמה הטובה ביותר<\/span>/);
   assert.doesNotMatch(html, /מתאים טכנית בלבד/);
   assert.doesNotMatch(html, /לא נמצאה התאמה איכותית לקורס/);

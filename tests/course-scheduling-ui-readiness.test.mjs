@@ -49,7 +49,7 @@ const openCourse = (overrides = {}) => ({
   ...overrides
 });
 
-test('courses tab auto-selects nearest course and shows its details', () => {
+test('courses start collapsed and render details only after course selection', () => {
   const state = { user: { role: 'admin' }, routes: ['instructors', 'course-scheduling', 'operations-management'] };
   const html = courseSchedulingScreen.render({
     activities: [
@@ -72,11 +72,25 @@ test('courses tab auto-selects nearest course and shows its details', () => {
   assert.match(html, /<b>1<\/b><span>ממתינים לשיבוץ<\/span>/);
   assert.match(html, /<b>0<\/b><span>הצעות מוכנות<\/span>/);
   assert.match(html, /<b>0<\/b><span>טיוטות<\/span>/);
-  assert.equal(state.courseSchedulingSelectedId, 'later');
+  assert.equal(state.courseSchedulingSelectedId, undefined);
   assert.match(html, /data-course-card="later"/);
-  assert.match(html, /course-scheduling-course-card is-selected/);
-  assert.match(html, /מצא מדריכים מתאימים/);
-  assert.doesNotMatch(html, /בחר קורס כדי להתחיל/);
+  assert.doesNotMatch(html, /course-scheduling-course-card is-selected/);
+  assert.doesNotMatch(html, /data-expanded-course-details/);
+  assert.match(html, /בחר קורס כדי להתחיל/);
+
+  state.courseSchedulingSelectedId = 'later';
+  const openedHtml = courseSchedulingScreen.render({
+    activities: [
+      openCourse({ row_id: 'later', start_date: '2026-09-08', start_time: '10:00', date_1: '2026-09-08' }),
+      openCourse({ row_id: 'near', start_date: '2026-08-20', start_time: '10:00', date_1: '2026-08-20' })
+    ],
+    instructors: [], scheduling: {},
+    meetingState: { loaded: true, approvedDates: new Map(), cancelledDates: new Map(), error: '' }
+  }, { state });
+  assert.match(openedHtml, /course-scheduling-course-card is-selected/);
+  assert.match(openedHtml, /data-expanded-course-details/);
+  assert.match(openedHtml, /מצא מדריכים מתאימים/);
+  assert.doesNotMatch(openedHtml, /בחר קורס כדי להתחיל/);
   assert.doesNotMatch(html, /טרם בוצע חישוב/);
   assert.doesNotMatch(html, /בניית ועדכון מאגר מרחקים/);
   assert.doesNotMatch(html, /מוכנות לשיבוץ/);
@@ -180,7 +194,7 @@ test('meeting-state load failure does not dump technical warnings into the main 
     meetingState: { loaded: false, approvedDates: new Map(), cancelledDates: new Map(), error: 'permission denied' }
   }, { state: { user: { role: 'admin' } } });
   assert.match(html, /data-course-card="a"/);
-  assert.match(html, /מצא מדריכים מתאימים/);
+  assert.match(html, /בחר קורס כדי להתחיל/);
   assert.doesNotMatch(html, /permission denied/);
   assert.doesNotMatch(html, /מידע על מפגשים שהתקיימו או בוטלו לא נטען/);
 });
@@ -329,7 +343,7 @@ test('course table renders authority as the second of four compact columns', asy
   }, { state: { user: { role: 'admin' } } });
 
   assert.match(html, /<div class="course-scheduling-compact-table-head"[^>]*><span>בית ספר<\/span><span>רשות<\/span><span>קורס<\/span><span>סטטוס<\/span><\/div>/);
-  assert.match(html, /data-expanded-course-details/);
+  assert.doesNotMatch(html, /data-expanded-course-details/);
   assert.match(html, /course-scheduling-compact-school[^>]*>בית ספר השקמה<\/span>\s*<span class="course-scheduling-compact-cell course-scheduling-compact-authority" title="רשות השרון">רשות השרון<\/span>\s*<strong[^>]*>רובוטיקה<\/strong>/);
   assert.match(html, /course-scheduling-compact-authority" title="—">—<\/span>/);
   assert.match(html, /aria-label="בית ספר השקמה, רשות השרון, רובוטיקה"/);
@@ -338,7 +352,7 @@ test('course table renders authority as the second of four compact columns', asy
 
   const compactCss = await readFile(new URL('../frontend/src/screens/course-scheduling-compact-layout.css', import.meta.url), 'utf8');
   const rowColumnDefinitions = compactCss.match(/--course-scheduling-row-columns:[^;]+;/g) || [];
-  assert.deepEqual(rowColumnDefinitions, ['--course-scheduling-row-columns: minmax(0, 1.2fr) minmax(0, .9fr) minmax(0, 1.2fr) minmax(86px, .62fr);']);
+  assert.deepEqual(rowColumnDefinitions, ['--course-scheduling-row-columns: minmax(0, 1.1fr) minmax(0, .9fr) minmax(0, 1.05fr) minmax(124px, .8fr);']);
   assert.match(compactCss, /\.course-scheduling-compact-authority/);
   assert.doesNotMatch(compactCss, /course-scheduling-compact-action-cell/);
   assert.doesNotMatch(compactCss, /--course-scheduling-row-columns:[^;]*minmax\((?:1[5-9]\d|[2-9]\d\d)px/);

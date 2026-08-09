@@ -144,7 +144,7 @@ test('2: one-meeting current course → existing workdays 0, projected workdays 
   assert.equal(candidate.existingWorkDays, 0);
   assert.equal(candidate.projectedWorkDays, 1);
   assert.equal(candidate.activeWorkDays, 1);
-  const html = detailsHtml(result, { courseSchedulingSelectedCandidateId: '100' });
+  const html = detailsHtml(result, { courseSchedulingSelectedCandidateId: '100', courseSchedulingExpandedCandidateId: '100' });
   assert.match(html, /ימי עבודה קיימים: 0/);
   assert.match(html, /ימי עבודה לאחר שיבוץ זה: 1/);
   assert.doesNotMatch(html, /ימי עבודה פעילים/);
@@ -395,7 +395,8 @@ test('11-13: user-facing workload excludes planningDraft; planner workload may i
   assert.ok(Number(candidate.plannerProjectedHalfHours) > Number(candidate.projectedHalfHours));
   assert.ok(Number(candidate.plannerCurrentHalfHours) >= 3);
   const html = detailsHtml(results.find((row) => row.course.row_id === 'load-current'), {
-    courseSchedulingSelectedCandidateId: '100'
+    courseSchedulingSelectedCandidateId: '100',
+    courseSchedulingExpandedCandidateId: '100'
   });
   assert.match(html, /עומס לאחר השיבוץ: 1 שעות/);
   assert.doesNotMatch(html, /עומס לאחר השיבוץ: 4 שעות/);
