@@ -86,6 +86,7 @@ function prepareTabContext(tab, state) {
   if (tab.id === 'maintenance') {
     if (state.operationsManagement) state.operationsManagement.context = 'operations';
     state.courseSchedulingTab = 'maintenance';
+    state.courseSchedulingDistanceCoverageLoaded = false;
     return { route: 'course-scheduling' };
   }
   if (tab.id === 'scheduling') {

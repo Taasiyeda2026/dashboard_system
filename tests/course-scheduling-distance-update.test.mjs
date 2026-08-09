@@ -24,6 +24,22 @@ const schemaUrl = new URL('../supabase/migrations/20260802220000_course_scheduli
 const readinessMigrationUrl = new URL('../supabase/migrations/20260803193000_course_scheduling_travel_cache_production_readiness.sql', import.meta.url);
 const edgeFunctionUrl = new URL('../supabase/functions/scheduling-route/index.ts', import.meta.url);
 const durableRouteMigrationUrl = new URL('../supabase/migrations/20260809170000_keep_usable_scheduling_routes.sql', import.meta.url);
+const schedulingScreenUrl = new URL('../frontend/src/screens/course-scheduling.js', import.meta.url);
+
+test('maintenance card loads and displays route coverage without opening another window', async () => {
+  const source = await readFile(schedulingScreenUrl, 'utf8');
+  const maintenanceCard = source.split('function maintenanceTabHtml')[1].split('function calendarTabHtml')[0];
+  assert.match(maintenanceCard, /מרחקים קיימים:.*existing_count.*מתוך.*required_count/s);
+  assert.match(maintenanceCard, /חסרים:.*missing_count/s);
+  assert.match(maintenanceCard, /דורשים רענון:.*refresh_required_count/s);
+  assert.match(maintenanceCard, /data-update-distances/);
+  assert.doesNotMatch(maintenanceCard, /cache|TTL|batch|expiration|מטמון|מנות/i);
+
+  const automaticLoad = source.split("if (activeTab(state) === 'maintenance'")[1].split('const openMissingCourse')[0];
+  assert.match(automaticLoad, /loadDistanceCoverage/);
+  assert.match(automaticLoad, /courseSchedulingDistanceStats = coverage/);
+  assert.doesNotMatch(source, /distanceMaintenanceDialogHtml/);
+});
 
 test('the travel cache gains authority/school/address columns instead of a duplicate table', async () => {
   const sql = await readFile(schemaUrl, 'utf8');
@@ -494,12 +510,13 @@ test('distance build progress texts cover success, failures, and stopped states'
 test('course scheduling distance UI exposes only simple coverage and progress copy', async () => {
   const source = await readFile(new URL('../frontend/src/screens/course-scheduling.js', import.meta.url), 'utf8');
   assert.match(source, /function distanceDoneMessage/);
-  assert.match(source, /מרחקים מעודכנים:/);
+  assert.match(source, /מרחקים קיימים:/);
   assert.match(source, /חסרים:/);
+  assert.match(source, /דורשים רענון:/);
   assert.match(source, /מעדכן \$\{processed\} מתוך \$\{total\}/);
   assert.match(source, /כל המרחקים מעודכנים/);
   assert.match(source, /נותרו \$\{remaining\} מסלולים לעדכון/);
-  const dialog = source.split('function distanceMaintenanceDialogHtml')[1].split('function dataReadinessDrawerHtml')[0];
-  assert.doesNotMatch(dialog, /cache|TTL|batch|expiration|מטמון|מנות|פרטים/i);
+  const card = source.split('function maintenanceTabHtml')[1].split('function calendarTabHtml')[0];
+  assert.doesNotMatch(card, /cache|TTL|batch|expiration|מטמון|מנות|פרטים/i);
   assert.match(source, /state\.courseSchedulingDistanceError = info\.error/);
 });
