@@ -149,12 +149,13 @@ test('closed rows are excluded while non-course activities can still have except
   assert.equal(model.counts.missing_start_date, 1);
 });
 
-test('Supabase exceptions read uses a single activities source and computes in code', async () => {
+test('Supabase exceptions read uses a single projected activities source and computes in code', async () => {
   const source = await readFile(new URL('../frontend/src/api.js', import.meta.url), 'utf8');
 
   const block = source.match(/async function readExceptionsFromSupabase[\s\S]*?function syncContactToSupabase/);
   assert.ok(block, 'readExceptionsFromSupabase should exist');
-  assert.match(block[0], /supabase\.from\('activities'\)\.select\('\*'\)/);
+  assert.match(block[0], /supabase\.from\('activities'\)\.select\(ACTIVITY_EXCEPTIONS_COLUMNS\)\.in\('activity_season', activitySeasonQueryValues\(activityPeriod\)\)/);
+  assert.doesNotMatch(block[0], /supabase\.from\('activities'\)\.select\('\*'\)/);
   assert.match(block[0], /const periodRows = filterRowsByGlobalActivityPeriod\(allRows, activityPeriod\)/);
   assert.match(block[0], /buildExceptionsModelFromRows\(periodRows/);
   assert.match(block[0], /late_end_date_threshold/);
@@ -164,9 +165,10 @@ test('Supabase exceptions read uses a single activities source and computes in c
 test('allActivities export path reads all activities without applying month/date filters', async () => {
   const source = await readFile(new URL('../frontend/src/api.js', import.meta.url), 'utf8');
 
-  const match = source.match(/allActivities:\s*async \(\) => \{[\s\S]*?readAllActivitiesRowsSupabase\(\);[\s\S]*?return \{ rows, _source: 'supabase' \};[\s\S]*?\n\s*\},/);
+  const match = source.match(/allActivities:\s*async \(params = \{\}\) => \{[\s\S]*?const rows = await readAllActivitiesRowsSupabase\(\{[\s\S]*?\}\);[\s\S]*?return \{ rows, _source: 'supabase' \};[\s\S]*?\n\s*\},/);
   assert.ok(match, 'allActivities block should be present before the following API endpoint');
-  assert.match(match[0], /const rows = await readAllActivitiesRowsSupabase\(\);/);
+  assert.match(match[0], /activityPeriod: params\?\.activity_period \|\| currentGlobalActivityPeriod\(\)/);
+  assert.match(match[0], /select: params\?\.select \|\| ACTIVITY_OPERATIONS_COLUMNS/);
   assert.doesNotMatch(match[0], /rowMatchesActivitiesFilters|activityHasDateInRange|filters/);
 });
 
@@ -189,7 +191,7 @@ test('ended open summer workshop appears with status and completion approval exc
   assert.deepEqual(model.rows[0].exception_types.sort(), ['missing_completion_approval', 'summer_ended_open'].sort());
 });
 
-test('ended summer escape room with missing approval appears even when status is closed', () => {
+test('closed summer escape room is archived even when completion approval is missing', () => {
   const row = activeCourse({
     RowID: 'SUMMER-CLOSED-MISSING-APPROVAL',
     activity_type: 'escape_room',
@@ -204,8 +206,10 @@ test('ended summer escape room with missing approval appears even when status is
   });
 
   const model = buildExceptionsModelFromRows([row], '2026-07', { include_rows: true });
-  assert.equal(model.totalExceptionRows, 1);
-  assert.deepEqual(model.rows[0].exception_types, ['missing_completion_approval']);
+  assert.equal(model.totalExceptionRows, 0);
+  assert.equal(model.rows.length, 0);
+  assert.equal(model.counts.missing_completion_approval, 0);
+  assert.equal(model.counts.summer_ended_open, 0);
 });
 
 test('ended summer activity with closed status and uploaded completion approval is not an exception', () => {
@@ -242,7 +246,7 @@ test('completion approval upload with a row id never satisfies a different activ
     activity_type: 'workshop',
     item_type: 'workshop',
     activity_season: 'summer_2026',
-    status: 'בוצע',
+    status: 'פתוח',
     start_date: '2026-06-23',
     end_date: '2026-06-23',
     date_1: '2026-06-23',
@@ -264,5 +268,7 @@ test('completion approval upload with a row id never satisfies a different activ
     }]
   });
 
-  assert.deepEqual(model.rows.map((row) => row.RowID), ['SAME-DAY-B']);
+  const byId = new Map(model.rows.map((row) => [row.RowID, row.exception_types]));
+  assert.equal(byId.get('SAME-DAY-A')?.includes('missing_completion_approval'), false);
+  assert.equal(byId.get('SAME-DAY-B')?.includes('missing_completion_approval'), true);
 });
