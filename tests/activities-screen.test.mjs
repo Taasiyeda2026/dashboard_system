@@ -23,7 +23,24 @@ if (!globalThis.localStorage) {
   };
 }
 
+// The activities module creates its Supabase client at import time. Keep this
+// unit-test harness offline and deterministic before that client captures fetch.
+const emptySupabaseListResponse = async () => new Response('[]', {
+  status: 200,
+  headers: { 'Content-Type': 'application/json', 'Content-Range': '0-0/0' }
+});
+globalThis.fetch = emptySupabaseListResponse;
+
 const { activitiesScreen, getActivitiesAccessDebug } = await import('../frontend/src/screens/activities.js');
+
+async function waitForSelector(document, selector, { attempts = 240, intervalMs = 50 } = {}) {
+  for (let attempt = 0; attempt < attempts; attempt += 1) {
+    const node = document.querySelector(selector);
+    if (node) return node;
+    await new Promise((resolve) => setTimeout(resolve, intervalMs));
+  }
+  assert.fail(`Timed out waiting for ${selector}`);
+}
 
 function baseState() {
   return {
@@ -856,7 +873,7 @@ test('activity edit form refreshes activity_name options and clears stale name w
   }
 });
 
-test('activity add form refreshes activity_name options and clears stale name when activity_type changes', () => {
+test('activity add form refreshes activity_name options and clears stale name when activity_type changes', async () => {
   const settings = activityNameSettings();
   const state = baseState();
   state.activityPeriodTab = 'school_2027';
@@ -892,7 +909,9 @@ test('activity add form refreshes activity_name options and clears stale name wh
     });
 
     root.querySelector('[data-activities-add-btn]').click();
-    const form = dom.window.document.querySelector('[data-add-activity-form]');
+    // The production click handler awaits the school/authority catalog before
+    // opening the modal. Keep the JSDOM globals alive until that handler settles.
+    const form = await waitForSelector(dom.window.document, '[data-add-activity-form]');
     const typeSelect = form.querySelector('[data-add-activity-type]');
     const nameSelect = form.querySelector('[data-add-activity-name]');
     const noInput = form.querySelector('[data-add-activity-no]');
@@ -911,6 +930,9 @@ test('activity add form refreshes activity_name options and clears stale name wh
     assert.equal(noInput.value, '');
     assert.doesNotMatch(nameSelect.textContent, /חדר בריחה חלל/);
   } finally {
+    dom.window.document.querySelector('#root')?._addActivityAbort?.abort();
+    dom.window.document.querySelector('#root')?._rowAbort?.abort();
+    dom.window.close();
     globalThis.window = previousWindow;
     globalThis.document = previousDocument;
     globalThis.AbortController = previousAbortController;
@@ -964,7 +986,7 @@ test('activity add validation clears saving state and does not show duplicate in
     });
 
     root.querySelector('[data-activities-add-btn]').click();
-    const form = dom.window.document.querySelector('[data-add-activity-form]');
+    const form = await waitForSelector(dom.window.document, '[data-add-activity-form]');
     const status = form.querySelector('[data-add-activity-status]');
     const submit = dom.window.document.querySelector('[data-add-activity-submit]');
 
@@ -993,6 +1015,9 @@ test('activity add validation clears saving state and does not show duplicate in
     assert.notEqual(form.dataset.saving, 'yes');
     assert.equal(submit.disabled, false);
   } finally {
+    dom.window.document.querySelector('#root')?._addActivityAbort?.abort();
+    dom.window.document.querySelector('#root')?._rowAbort?.abort();
+    dom.window.close();
     globalThis.window = previousWindow;
     globalThis.document = previousDocument;
     globalThis.AbortController = previousAbortController;
