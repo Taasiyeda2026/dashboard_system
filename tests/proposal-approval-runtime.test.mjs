@@ -3,6 +3,9 @@ import assert from 'node:assert/strict';
 import { setTimeout as delay } from 'node:timers/promises';
 import { JSDOM } from 'jsdom';
 
+globalThis.sessionStorage = globalThis.sessionStorage || { getItem: () => null, setItem: () => {}, removeItem: () => {} };
+globalThis.localStorage = globalThis.localStorage || { getItem: () => null, setItem: () => {}, removeItem: () => {} };
+
 globalThis.__PROPOSAL_APPROVAL_RUNTIME_TEST__ = true;
 const runtimeUrl = new URL('../frontend/src/proposal-approval-runtime.js', import.meta.url);
 const {
