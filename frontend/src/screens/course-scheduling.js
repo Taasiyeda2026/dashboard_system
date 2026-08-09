@@ -461,7 +461,7 @@ export function candidateHardBlockReason(candidate) {
 export function actionDisabledReason({ candidate, busy = false, canEdit = true } = {}) {
   if (!canEdit) return 'אין הרשאת עריכה';
   if (busy) return 'פעולה מתבצעת כעת';
-  return candidateHardBlockReason(candidate);
+  return candidate ? '' : 'יש לבחור מדריך';
 }
 
 function candidateConstraintBadgesHtml(candidate, course = {}) {
@@ -1868,12 +1868,6 @@ export const courseSchedulingScreen = {
       const selected = allCandidatesForResult(result).find((item) => emp(item) === selectedId);
       const blockReason = actionDisabledReason({ candidate: selected, canEdit });
       if (blockReason) { showToast(blockReason, 'error'); updateCandidateActions(false); return; }
-      let reason = null;
-      if (selected.score < 60 || selectedId !== emp(result.recommended)) {
-        if (selected.score < 60 && !window.confirm('ציון המדריך נמוך מסף ההמלצה. להמשיך לשיבוץ ידני?')) return;
-        reason = window.prompt('יש להזין נימוק קצר לבחירה הידנית:')?.trim();
-        if (!reason) return;
-      }
       const adjustment = selected.dateAdjustment;
       const approvalMessage = adjustment?.exceedsHalf
         ? `המועדים המוצעים חורגים מהמחצית ומסתיימים בתאריך ${formatDateHe(adjustment.newEndDate)}. לאשר סופית את שינוי המועדים ואת שיבוץ ${selected.instructor.full_name}?`
@@ -1889,7 +1883,7 @@ export const courseSchedulingScreen = {
         p_selected_score: selected.score,
         p_top_score: topCandidate.score,
         p_decision_type: selectedId === emp(result.recommended) ? 'approved' : 'overridden',
-        p_reason: reason,
+        p_reason: null,
         ...(proposedMeetings ? { p_proposed_meetings: proposedMeetings } : {})
       });
       if (error) { showToast(`השיבוץ נכשל: ${error.message}`, 'error'); updateCandidateActions(false); return; }

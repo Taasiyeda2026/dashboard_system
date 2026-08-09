@@ -178,3 +178,26 @@ test('instructor opening reuses the activities screen snapshot when detail rows 
   assert.equal(state.instructorsActivityDetailsCache['EMP-4:2026-05'][0].RowID, 'SHARED-1');
   dom.window.close();
 });
+
+test('instructors list removes search and expands an accurate active-instructor missing-details alert', () => {
+  const state = {};
+  const incomplete = {
+    emp_id: '501', full_name: 'מדריכה חסרה', active: 'yes', address: '',
+    scheduling_profile: null, availability_rules: []
+  };
+  const complete = {
+    emp_id: '502', full_name: 'מדריכה מלאה', active: 'yes', address: 'רחוב 1',
+    scheduling_profile: { gender: 'female', instruction_languages: ['he'] },
+    availability_rules: [{ available: true, start_time: '08:00', end_time: '15:00' }]
+  };
+  const html = instructorsScreen.render({ rows: [incomplete, complete] }, { state });
+  assert.doesNotMatch(html, /data-instructors-search|חיפוש לפי שם/);
+  assert.match(html, /1 מדריכים פעילים עם פרטים חסרים/);
+  assert.match(html, /מדריכה חסרה/);
+  for (const field of ['כתובת', 'שיבוץ', 'מגדר', 'שפה', 'זמינות']) assert.match(html, new RegExp(field));
+  assert.doesNotMatch(html, /<li><strong>מדריכה מלאה<\/strong>/);
+
+  Object.assign(incomplete, complete, { emp_id: '501', full_name: 'מדריכה חסרה' });
+  const refreshed = instructorsScreen.render({ rows: [incomplete, complete] }, { state });
+  assert.doesNotMatch(refreshed, /data-instructors-missing-alert/);
+});
