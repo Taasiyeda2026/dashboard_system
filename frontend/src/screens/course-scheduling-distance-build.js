@@ -37,6 +37,10 @@ export function translateSchedulingRouteError(codeOrMessage, fallback = 'פעו�
 
 export function emptyDistanceBuildStats() {
   return {
+    required_count: 0,
+    existing_count: 0,
+    missing_count: 0,
+    refresh_required_count: 0,
     total_count: 0,
     processed_count: 0,
     inserted_count: 0,
@@ -65,6 +69,9 @@ export function dedupeDistanceBuildFailures(failures = []) {
 export function mergeDistanceBuildStats(acc, batch) {
   const next = { ...acc };
   next.total_count = Number(batch?.total_count) || next.total_count;
+  for (const field of ['required_count', 'existing_count', 'missing_count', 'refresh_required_count']) {
+    if (Number.isFinite(Number(batch?.[field]))) next[field] = Number(batch[field]);
+  }
   next.processed_count += Number(batch?.processed_count) || 0;
   next.inserted_count += Number(batch?.inserted_count) || 0;
   next.renewed_count += Number(batch?.renewed_count) || 0;
@@ -380,6 +387,45 @@ export function isLookupTravelCacheValid(cached, originAddress, destinationAddre
   return isFiniteMetric(cached.distance_km) && isFiniteMetric(cached.duration_minutes);
 }
 
+export function isUsableTravelCacheRow(cached, originAddress, destinationAddress) {
+  if (!cached) return false;
+  const originKey = normalizePlaceKey(originAddress);
+  const destinationKey = normalizePlaceKey(destinationAddress);
+  const cachedOrigin = normalizePlaceKey(cached.origin_address || cached.origin_key);
+  const cachedDestination = normalizePlaceKey(cached.destination_address || cached.destination_key);
+  if (cachedOrigin !== originKey || cachedDestination !== destinationKey) return false;
+  if (!isFiniteMetric(cached.distance_km) || !isFiniteMetric(cached.duration_minutes)) return false;
+  const distance = Number(cached.distance_km);
+  const duration = Number(cached.duration_minutes);
+  if (distance < 0 || duration < 0) return false;
+  if ((distance === 0 || duration === 0) && originKey !== destinationKey) return false;
+  return true;
+}
+
+export function travelCacheRouteState(cached, originAddress, destinationAddress, now = Date.now()) {
+  if (!isUsableTravelCacheRow(cached, originAddress, destinationAddress)) return 'missing';
+  const expiresAt = new Date(String(cached.expires_at || '')).getTime();
+  return Number.isFinite(expiresAt) && expiresAt > now ? 'existing' : 'refresh_required';
+}
+
+export function calculateTravelCoverage(pairs = [], cacheRows = [], now = Date.now()) {
+  const uniquePairs = [...new Map((pairs || []).map((pair) => [travelCacheKey(pair.origin_address, pair.destination_address), pair])).values()];
+  let existingCount = 0;
+  let refreshRequiredCount = 0;
+  for (const pair of uniquePairs) {
+    const cached = findCachedRowForPair(cacheRows, pair);
+    const state = travelCacheRouteState(cached, pair.origin_address, pair.destination_address, now);
+    if (state !== 'missing') existingCount += 1;
+    if (state === 'refresh_required') refreshRequiredCount += 1;
+  }
+  return {
+    required_count: uniquePairs.length,
+    existing_count: existingCount,
+    missing_count: uniquePairs.length - existingCount,
+    refresh_required_count: refreshRequiredCount
+  };
+}
+
 // Pure single-pair cache resolver used by integration tests to prove the consumer
 // hits the same address keys produced by the distance-build repository.
 export function resolveSinglePairFromTravelCache(cacheRows = [], originAddress, destinationAddress, now = Date.now()) {
@@ -393,11 +439,12 @@ export function resolveSinglePairFromTravelCache(cacheRows = [], originAddress, 
     && normalizePlaceKey(row.destination_key || row.destination_address) === destinationKey
   )) || null;
 
-  if (isLookupTravelCacheValid(cached, originAddress, destinationAddress, now)) {
+  if (isUsableTravelCacheRow(cached, originAddress, destinationAddress)) {
     return {
       calculated: true,
       cached: true,
       renewed: false,
+      needs_refresh: travelCacheRouteState(cached, originAddress, destinationAddress, now) === 'refresh_required',
       mapsCall: false,
       distance_km: Number(cached.distance_km),
       duration_minutes: Number(cached.duration_minutes)
@@ -625,6 +672,11 @@ export async function invokeSchedulingRouteBuild(invoke, body) {
     throw err;
   }
   return payload;
+}
+
+export async function loadDistanceCoverage(invoke, scope = 'all') {
+  const coverage = await invokeSchedulingRouteBuild(invoke, { mode: 'coverage', scope });
+  return mergeDistanceBuildStats(emptyDistanceBuildStats(), coverage);
 }
 
 export async function runDistanceBuildLoop({
