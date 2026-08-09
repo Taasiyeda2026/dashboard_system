@@ -79,8 +79,33 @@ test('shared state expands only to its known consumers', () => {
   assert.deepEqual(buildCheckPlan(['frontend/src/state.js']).groups, ['activities', 'calendars', 'dashboard']);
 });
 
-test('api.js selects its application, auth and permission consumers', () => {
-  assert.deepEqual(buildCheckPlan(['frontend/src/api.js']).groups, ['activities', 'auth', 'permissions', 'proposals']);
+function apiPlanFor(changedLine) {
+  const diff = `diff --git a/frontend/src/api.js b/frontend/src/api.js
+--- a/frontend/src/api.js
++++ b/frontend/src/api.js
+@@ -1 +1 @@
+-old API implementation
++${changedLine}
+`;
+  return buildCheckPlan(['frontend/src/api.js'], { getDiff: () => diff });
+}
+
+test('api.js permission changes do not select activities', () => {
+  const plan = apiPlanFor('const display_role = role; permissions.default_view = "edit-requests";');
+  assert.deepEqual(plan.groups, ['permissions']);
+  assert.equal(plan.groups.includes('activities'), false);
+});
+
+test('api.js Activities changes still select activities', () => {
+  assert.deepEqual(apiPlanFor('export async function saveActivity(activity) {}').groups, ['activities']);
+});
+
+test('api.js proposal changes select proposals without activities', () => {
+  assert.deepEqual(apiPlanFor('const proposals = await loadProposals();').groups, ['proposals']);
+});
+
+test('api.js login and user projection changes select auth and permissions only', () => {
+  assert.deepEqual(apiPlanFor('const loginUser = buildUserProjection(session);').groups, ['auth', 'permissions']);
 });
 
 test('main.js without diff context conservatively selects auth and permissions', () => {

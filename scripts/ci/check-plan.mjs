@@ -26,9 +26,6 @@ export const TEST_GROUPS = Object.freeze({
 });
 
 const EXACT_GROUPS = new Map([
-  // api.js contains application writes plus the Supabase Auth login flow and
-  // role/route permission defaults, so changes there need those focused suites too.
-  ['frontend/src/api.js', ['activities', 'auth', 'permissions', 'proposals']],
   ['frontend/src/permissions.js', ['auth', 'permissions']],
   ['frontend/src/supabase-client.js', ['auth', 'db']],
   ['frontend/src/state.js', ['dashboard', 'activities', 'calendars']],
@@ -42,6 +39,28 @@ const EXACT_GROUPS = new Map([
 const MAIN_JS_AUTH_GROUPS = ['auth', 'permissions'];
 const SCREEN_LOADER_LINE_RE = /import\(['"]\.\/screens\/[\w.-]+\.js(?:\?v=[\w-]+)?['"]\)/;
 const VERSION_QUERY_RE = /\?v=[\w-]+/g;
+
+const API_GROUP_RULES = [
+  [/activit(?:y|ies)/i, ['activities']],
+  [/proposals?/i, ['proposals']],
+  [/(?:\brole\b|display_role|permissions?|default_view|edit-requests|can_request_edit|view_edit_requests)/i, ['permissions']],
+  [/(?:auth(?!orit)|login|session|signIn|user[ _]?projection)/i, ['auth', 'permissions']]
+];
+const ALL_API_GROUPS = ['activities', 'auth', 'permissions', 'proposals'];
+
+function getApiGroups(diffText) {
+  if (!diffText) return ALL_API_GROUPS;
+  const changedLines = diffText.split('\n')
+    .filter((line) => (line.startsWith('+') || line.startsWith('-')) && !line.startsWith('+++') && !line.startsWith('---'))
+    .map((line) => line.slice(1))
+    .join('\n');
+  if (!changedLines) return ALL_API_GROUPS;
+  const groups = new Set();
+  for (const [pattern, matches] of API_GROUP_RULES) {
+    if (pattern.test(changedLines)) for (const group of matches) groups.add(group);
+  }
+  return groups.size ? [...groups] : ALL_API_GROUPS;
+}
 
 function isCosmeticScreenLoaderDiff(diffText) {
   if (!diffText) return false;
@@ -99,6 +118,10 @@ export function buildCheckPlan(files, diffContext = {}) {
 
   for (const file of normalized) {
     for (const group of EXACT_GROUPS.get(file) || []) groups.add(group);
+    if (file === 'frontend/src/api.js') {
+      const diff = hasDiffSource ? resolveDiff(file) : null;
+      for (const group of getApiGroups(diff)) groups.add(group);
+    }
     if (file === 'frontend/src/main.js') {
       const diff = hasDiffSource ? resolveDiff(file) : null;
       if (!isCosmeticScreenLoaderDiff(diff)) for (const group of MAIN_JS_AUTH_GROUPS) groups.add(group);
