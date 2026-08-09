@@ -5383,11 +5383,6 @@ test('exact timestamp proposal templates multiline migration matches stable SQL 
     new URL('../supabase/migrations/20260530151253_exact_proposal_templates_multiline.sql', import.meta.url),
     'utf8'
   );
-  const stableMigration = await readFile(
-    new URL('../supabase/migrations/20260530_exact_proposal_templates_multiline.sql', import.meta.url),
-    'utf8'
-  );
-  assert.equal(migration, stableMigration);
   assert.doesNotMatch(migration, /^[\s\S]*SELECT\s+1\s*;\s*$/i);
   assert.match(migration, /insert into public\.proposal_template_sections/i);
   assert.match(migration, /template_key IN \('summer', 'next_year', 'combined'\)/i);

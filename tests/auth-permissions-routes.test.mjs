@@ -2,33 +2,35 @@ import { test } from 'node:test';
 import assert from 'node:assert/strict';
 import { readFile } from 'node:fs/promises';
 
-const AUTH_FILE = new URL('../backend/auth.gs', import.meta.url);
+// Edit-request permission and route gating now live in frontend/src/permissions.js
+// and frontend/src/api.js (no Google Apps Script backend/*.gs layer — that stack
+// was fully retired when the system moved to Supabase).
+const PERMISSIONS_FILE = new URL('../frontend/src/permissions.js', import.meta.url);
+const API_FILE = new URL('../frontend/src/api.js', import.meta.url);
 const MAIN_FILE = new URL('../frontend/src/main.js', import.meta.url);
 
-test('can_edit_request is treated as backward-compatible alias for can_request_edit', async () => {
-  const source = await readFile(AUTH_FILE, 'utf8');
-  assert.match(source, /explicit\s*=\s*text_\(permission\.can_request_edit\)\.toLowerCase\(\)/);
-  assert.match(source, /if\s*\(!explicit\)\s*explicit\s*=\s*text_\(permission\.can_edit_request\)\.toLowerCase\(\)/);
-});
-
-test('view_edit_requests does not grant can_request_edit in effectiveCanRequestEdit_', async () => {
-  const source = await readFile(AUTH_FILE, 'utf8');
-  const fnMatch = source.match(/function effectiveCanRequestEdit_\([\s\S]*?\r?\n}\r?\n/);
-  assert.ok(fnMatch, 'effectiveCanRequestEdit_ function should exist');
+test('canRequestEdit is driven only by can_request_edit flags/roles, not view_edit_requests', async () => {
+  const source = await readFile(PERMISSIONS_FILE, 'utf8');
+  const fnMatch = source.match(/export function canRequestEdit\([\s\S]*?\n}/);
+  assert.ok(fnMatch, 'canRequestEdit should exist');
+  assert.match(fnMatch[0], /p\.can_request_edit/);
+  assert.match(fnMatch[0], /ACTIVITY_REQUEST_ROLES\.has\(userRole\(user\)\)/);
   assert.doesNotMatch(fnMatch[0], /view_edit_requests/);
 });
 
-test('operation_manager can access edit-requests route, non-manager still uses view_edit_requests', async () => {
-  const source = await readFile(AUTH_FILE, 'utf8');
-  assert.match(source, /if \(route === 'edit-requests'\) \{[\s\S]*isOperationManagerRole_\(role\)[\s\S]*permYes_\(permission, 'view_edit_requests'\)/);
+test('edit-requests route is granted by direct-manage or can_request_edit, and by view_edit_requests alone as a fallback', async () => {
+  const source = await readFile(API_FILE, 'utf8');
+  assert.match(source, /const canReviewRequests = canDirectManageActivities;/);
+  assert.match(source, /const canViewEditRequests = canReviewRequests \|\| canRequestEdit \|\| permissionFlagYes\(flat\.view_edit_requests\) \|\| allowedRoutes\.includes\('edit-requests'\);/);
+  assert.match(source, /if \(canViewEditRequests && !allowedRoutes\.includes\('edit-requests'\)\) \{[\s\S]*?allowedRoutes\.push\('edit-requests'\);/);
 });
 
-test('operations route is not part of known routes and operations default maps to dashboard', async () => {
-  const authSource = await readFile(AUTH_FILE, 'utf8');
-  const knownRoutesBlock = authSource.match(/function allKnownRoutes_\(\) \{[\s\S]*?\r?\n}\r?\n/);
-  assert.ok(knownRoutesBlock, 'allKnownRoutes_ should exist');
-  assert.doesNotMatch(knownRoutesBlock[0], /'operations'/);
-  assert.match(authSource, /view_operations_data:\s*'dashboard'/);
+test('operations is not a standalone route; only operations-management is granted', async () => {
+  const apiSource = await readFile(API_FILE, 'utf8');
+  const routesBlock = apiSource.match(/const SUPABASE_ROLE_ROUTES = \{[\s\S]*?\};/);
+  assert.ok(routesBlock, 'SUPABASE_ROLE_ROUTES should exist');
+  assert.doesNotMatch(routesBlock[0], /'operations'(?!-management)/);
+  assert.match(routesBlock[0], /'operations-management'/);
 
   const mainSource = await readFile(MAIN_FILE, 'utf8');
   assert.doesNotMatch(mainSource, /operations:\s*\(\)\s*=>\s*import\('\.\/screens\/operations\.js'\)/);

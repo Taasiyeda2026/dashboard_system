@@ -2,7 +2,7 @@
 import { execFileSync, spawnSync } from 'node:child_process';
 import fs from 'node:fs';
 import path from 'node:path';
-import { buildCheckPlan, collectChangedFiles } from './ci/check-plan.mjs';
+import { buildCheckPlan, collectChangedFiles, collectImportOnlyFiles } from './ci/check-plan.mjs';
 
 const repoRoot = process.cwd();
 const args = new Set(process.argv.slice(2));
@@ -26,7 +26,8 @@ function trackedFrontendFiles() {
 }
 
 const changedFiles = frontendMode ? trackedFrontendFiles() : collectChangedFiles({ repoRoot });
-const plan = buildCheckPlan(changedFiles);
+const importOnlyFiles = frontendMode ? new Set() : collectImportOnlyFiles({ repoRoot, files: changedFiles });
+const plan = buildCheckPlan(changedFiles, { importOnlyFiles });
 
 if (jsonMode) {
   process.stdout.write(`${JSON.stringify(plan)}\n`);

@@ -26,7 +26,9 @@ export const TEST_GROUPS = Object.freeze({
 });
 
 const EXACT_GROUPS = new Map([
-  ['frontend/src/api.js', ['activities', 'proposals']],
+  // api.js also contains the Supabase Auth login flow and the role/route
+  // permission defaults, so it must select auth + permissions too.
+  ['frontend/src/api.js', ['activities', 'auth', 'permissions', 'proposals']],
   ['frontend/src/permissions.js', ['auth', 'permissions']],
   ['frontend/src/supabase-client.js', ['auth', 'db']],
   ['frontend/src/state.js', ['dashboard', 'activities', 'calendars']],
@@ -37,7 +39,9 @@ const EXACT_GROUPS = new Map([
 
 const DOMAIN_RULES = [
   [/activities|activity-/, 'activities'], [/annual-reviews/, 'annualReviews'],
-  [/auth|login|session-security/, 'auth'], [/catalog/, 'catalog'], [/client-|contacts/, 'clients'],
+  // Negative lookahead keeps 'authorities'/'authority' (school authorities catalog,
+  // an operations concern) from being misread as the auth domain.
+  [/auth(?!orit)|login|session-security/, 'auth'], [/catalog/, 'catalog'], [/client-|contacts/, 'clients'],
   [/dashboard/, 'dashboard'], [/edit-requests/, 'editRequests'], [/finance/, 'finance'],
   [/instructor/, 'instructors'], [/operations/, 'operations'], [/permission/, 'permissions'],
   [/proposal|gefen/, 'proposals'], [/course-scheduling|school-2027/, 'scheduling'],
@@ -48,15 +52,56 @@ const DOC_RE = /^(docs\/|.*\.md$|\.github\/deploy-trigger\.txt$)/;
 const BUILD_RE = /^(frontend\/|index\.html$|vite\.config\.js$|package(?:-lock)?\.json$|scripts\/postbuild-dist\.mjs$)/;
 const JS_RE = /\.(?:js|mjs|cjs)$/;
 
-export function buildCheckPlan(files) {
+// A changed JS file selects no test group when every added/removed line is
+// blank, a comment, or an import statement/dynamic import() — i.e. the diff
+// cannot change runtime behavior (e.g. bumping a `?v=` cache-busting suffix).
+const NON_SUBSTANTIVE_DIFF_LINE_RE = /^\s*$|^\s*\/\/|^\s*import\b/;
+
+export function isImportOnlyDiff(diffText) {
+  let sawChange = false;
+  for (const line of (diffText || '').split('\n')) {
+    if (line.startsWith('+++') || line.startsWith('---')) continue;
+    const marker = line[0];
+    if (marker !== '+' && marker !== '-') continue;
+    sawChange = true;
+    if (!NON_SUBSTANTIVE_DIFF_LINE_RE.test(line.slice(1))) return false;
+  }
+  return sawChange;
+}
+
+// Only meaningful with explicit base/head commits (the Quick PR Check range);
+// with no range there is no diff to inspect, so nothing is treated as import-only
+// and the existing (safe, broader) mapping applies unchanged.
+export function collectImportOnlyFiles({ repoRoot = process.cwd(), base, head, files = [] } = {}) {
+  const baseRef = base || process.env.CI_BASE_SHA;
+  const headRef = head || process.env.CI_HEAD_SHA;
+  if (!baseRef || !headRef) return new Set();
+  const result = new Set();
+  for (const file of files) {
+    if (!JS_RE.test(file)) continue;
+    try {
+      const diffText = execFileSync('git', ['diff', '-U0', '--no-color', baseRef, headRef, '--', file], {
+        cwd: repoRoot, encoding: 'utf8'
+      });
+      if (isImportOnlyDiff(diffText)) result.add(file);
+    } catch {
+      // Any git failure leaves the file out of the set, i.e. falls back to the full mapping.
+    }
+  }
+  return result;
+}
+
+export function buildCheckPlan(files, { importOnlyFiles = new Set() } = {}) {
   const normalized = [...new Set(files.map((file) => file.replaceAll(path.sep, '/')))];
   const groups = new Set();
   let postgres = false;
 
   for (const file of normalized) {
-    for (const group of EXACT_GROUPS.get(file) || []) groups.add(group);
-    if (file.startsWith('frontend/src/')) {
-      for (const [pattern, group] of DOMAIN_RULES) if (pattern.test(file)) groups.add(group);
+    if (!importOnlyFiles.has(file)) {
+      for (const group of EXACT_GROUPS.get(file) || []) groups.add(group);
+      if (file.startsWith('frontend/src/') && JS_RE.test(file)) {
+        for (const [pattern, group] of DOMAIN_RULES) if (pattern.test(file)) groups.add(group);
+      }
     }
     if (/^supabase\/(?:migrations|functions)\//.test(file) || /\.sql$/.test(file)) {
       groups.add('db');

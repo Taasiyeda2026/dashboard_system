@@ -454,7 +454,7 @@ test('management actions stay inside admin report detail view', async () => {
 });
 
 test('migration keeps travel rates private and exposes only RPC entry points', async () => {
-  const sql = await readFile(new URL('../supabase/migrations/20260607_personal_reports_employee_travel_rates.sql', import.meta.url), 'utf8');
+  const sql = await readFile(new URL('../supabase/migrations/20260606210608_personal_reports_employee_travel_rates.sql', import.meta.url), 'utf8');
 
   assert.match(sql, /CREATE SCHEMA IF NOT EXISTS private/);
   assert.match(sql, /private\.employee_travel_rates/);
