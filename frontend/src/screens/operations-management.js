@@ -2354,7 +2354,7 @@ function courseScheduleTabHtml2027(rows, state) {
     <div class="ds-ops-mgmt-print-header only-print">
       <h2>${escapeHtml(printHeaderTitle)}</h2>
     </div>
-    <div class="ds-ops-schedule-wrap">${dsCard({ title: 'טבלת סידור עבודה', badge: String(readyRows.length), body: table, padded: false })}</div>
+    <div class="ds-ops-schedule-wrap"><section class="ds-card"><div class="ds-card__body">${table}</div></section></div>
   </section>`;
 }
 
@@ -2415,7 +2415,7 @@ function instructorsTabHtml(rows, state, data = {}, directory = buildSchoolsDire
       <p>טווח תאריכים: ${escapeHtml(formatDateHe(ops.dateFrom))}–${escapeHtml(formatDateHe(ops.dateTo))}</p>
     </div>
     ${directoryNote}
-    <div class="ds-ops-schedule-wrap">${dsCard({ title: 'טבלת סידור עבודה', badge: String(scheduleRows.length), body: table, padded: false })}</div>
+    <div class="ds-ops-schedule-wrap"><section class="ds-card"><div class="ds-card__body">${table}</div></section></div>
     <p class="ds-ops-mgmt-print-footer only-print">יש לבדוק את פרטי הפעילות לפני הגעה. במקרה של שינוי, יש לעדכן את התפעול.</p>
   </section>`;
 }
@@ -3347,7 +3347,6 @@ export const operationsManagementScreen = {
     if (instructorsContext) {
       return `<div class="ds-screen-stack ds-ops-mgmt-screen ds-ops-mgmt-screen--instructors-workspace" data-ops-context="instructors">${opsManagementStylesHtml()}${instructorsWorkspaceNavStylesHtml()}
       ${instructorsWorkspaceHeaderHtml({ activeTab: 'work-schedule', state })}
-      <h2 class="instructors-workspace-content-title">סידור עבודה</h2>
       ${topFiltersHtml(filterRows, state)}
       <div class="ds-ops-mgmt-content">${renderTab(activeRows, state, data, prepared)}</div>
       ${ops.period === ACTIVITY_SEASON_SCHOOL_2027 ? '' : `<p class="ds-muted ds-ops-mgmt-count no-print" dir="rtl">מציג ${filteredRows.length} פעילויות מתוך ${allRows.length}</p>`}

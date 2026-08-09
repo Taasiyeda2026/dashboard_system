@@ -77,6 +77,8 @@ test('instructors workspace tabs render consistently on list and scheduling scre
   assert.match(listHtml, /data-instructors-workspace-tab="work-schedule"/);
   assert.doesNotMatch(listHtml, /data-route="course-scheduling"/);
   assert.doesNotMatch(listHtml, /ניהול מדריכים, שיבוצים וסידור עבודה במקום אחד/);
+  assert.doesNotMatch(listHtml, /<h1[^>]*>מדריכים<\/h1>/);
+  assert.doesNotMatch(listHtml, /<h2[^>]*>רשימת מדריכים<\/h2>/);
 
   const schedulingState = { ...state, route: 'course-scheduling', courseSchedulingTab: 'courses' };
   const schedulingHtml = courseSchedulingScreen.render({
@@ -88,7 +90,7 @@ test('instructors workspace tabs render consistently on list and scheduling scre
   assert.match(schedulingHtml, /data-instructors-workspace-tab="scheduling"[^>]*aria-selected="true"/);
   assert.match(schedulingHtml, /data-instructors-workspace-tab="list"/);
   assert.match(schedulingHtml, /data-instructors-workspace-tab="work-schedule"/);
-  assert.match(schedulingHtml, /<h1 class="ds-page-header__title">מדריכים<\/h1>/);
+  assert.doesNotMatch(schedulingHtml, /<h1 class="ds-page-header__title">מדריכים<\/h1>/);
   assert.doesNotMatch(schedulingHtml, /<h2[^>]*instructors-workspace-content-title/);
   assert.doesNotMatch(schedulingHtml, /data-switch-tab=/);
 });
@@ -255,10 +257,10 @@ test('instructors context keeps the same operations schedule screen under מדר
   };
   const html = operationsManagementScreen.render({ rows: [], workshopStockMap: new Map() }, { state });
   assert.match(html, /data-ops-context="instructors"/);
-  assert.match(html, /<h1 class="ds-page-header__title">מדריכים<\/h1>/);
+  assert.doesNotMatch(html, /<h1 class="ds-page-header__title">מדריכים<\/h1>/);
   assert.match(html, /data-instructors-workspace-tab="work-schedule"[^>]*aria-selected="true"/);
   assert.match(html, /סידור עבודה/);
-  assert.match(html, /טבלת סידור עבודה/);
+  assert.doesNotMatch(html, /טבלת סידור עבודה/);
   assert.doesNotMatch(html, /data-ops-tab="completion_approval"/);
   assert.doesNotMatch(html, /ניהול תפעול/);
 });

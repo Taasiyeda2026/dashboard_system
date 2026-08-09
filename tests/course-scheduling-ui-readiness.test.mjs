@@ -65,7 +65,7 @@ test('courses tab auto-selects nearest course and shows its details', () => {
   assert.match(html, /data-instructors-workspace-tab="scheduling"[^>]*aria-selected="true"/);
   assert.match(html, /data-instructors-workspace-tab="maintenance"/);
   assert.doesNotMatch(html, /data-switch-tab=/);
-  assert.match(html, /<h1 class="ds-page-header__title">מדריכים<\/h1>/);
+  assert.doesNotMatch(html, /<h1 class="ds-page-header__title">מדריכים<\/h1>/);
   assert.doesNotMatch(html, /<h2[^>]*instructors-workspace-content-title/);
   assert.doesNotMatch(html, /בחרו קורס, מצאו מדריך מתאים ושמרו כטיוטה או שבצו\./);
   assert.doesNotMatch(html, /course-scheduling-subtitle/);
@@ -308,7 +308,7 @@ test('removed legacy calendar tab state falls back to the approved courses works
     scheduling: {},
     meetingState: { loaded: true, approvedDates: new Map(), cancelledDates: new Map(), error: '' }
   }, { state: { user: { role: 'admin' }, routes: ['instructors', 'course-scheduling', 'operations-management'], courseSchedulingTab: 'calendar', courseSchedulingWeek: '2026-08-02' } });
-  assert.match(html, /<h1 class="ds-page-header__title">מדריכים<\/h1>/);
+  assert.doesNotMatch(html, /<h1 class="ds-page-header__title">מדריכים<\/h1>/);
   assert.match(html, /data-cs-ui="ux-polish-20260805-v1"/);
   assert.match(html, /data-cs-tab="calendar"/);
   assert.match(html, /data-instructors-workspace-tab="scheduling"[^>]*aria-selected="true"/);
