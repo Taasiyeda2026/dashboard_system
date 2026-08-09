@@ -661,7 +661,7 @@ function primaryCandidateCardHtml(candidate, {
   const selected = id && id === selectedId ? ' is-selected' : '';
   const expanded = id && id === expandedId;
   const statusLabel = kind === 'recommended' ? 'recommended' : 'bestAvailable';
-  // One clear status badge only — no repeated equivalent pills.
+  // One clear text status only — no repeated equivalent pills or badges.
   const statusText = kind === 'recommended' ? 'מומלץ' : 'נדרשת בדיקה';
   const radioId = `course-candidate-primary-${escapeHtml(id || 'x')}`;
   return `<article class="course-scheduling-primary-card${selected}${expanded ? ' is-expanded' : ''}" data-candidate-row="${escapeHtml(id)}" data-candidate-kind="${statusLabel}" aria-expanded="${expanded}">
@@ -671,7 +671,7 @@ function primaryCandidateCardHtml(candidate, {
         <div class="course-scheduling-primary-card__score" aria-label="ציון ${candidate.score ?? '—'}/100">
           <strong>${candidate.score ?? '—'}</strong><span>/100</span>
         </div>
-        ${kind === 'recommended' ? `<span class="course-scheduling-status-pill course-scheduling-status-pill--ready">${escapeHtml(statusText)}</span>` : ''}
+        <span class="course-scheduling-result-status${kind === 'recommended' ? ' is-positive' : ''}">${escapeHtml(statusText)}</span>
       </div>
       ${expanded ? `<div class="course-scheduling-candidate-expanded" data-candidate-expanded>
         <label class="course-scheduling-primary-card__select" for="${radioId}">
@@ -815,16 +815,10 @@ function candidatesResultsLayoutHtml(result, state, { primary, kind }) {
   const expandedId = text(state.courseSchedulingExpandedCandidateId);
   const radioName = `course-candidate-${idOf(result.course)}`;
   const alternatives = (result.alternatives || []).filter((item) => item?.eligible);
-  const title = kind === 'recommended'
-    ? 'המדריך המומלץ'
-    : 'ההתאמה הטובה ביותר שנמצאה';
   return `<div class="course-scheduling-result-block" data-course-options>
-    <div class="course-scheduling-result-heading">
-      <h3>${title}</h3>
-    </div>
     ${primaryCandidateCardHtml(primary, { kind, selectedId, expandedId, name: radioName })}
     ${alternatives.length ? `<section class="course-scheduling-alternatives" data-alternatives>
-      <h4>חלופות מתאימות</h4>
+      <p class="course-scheduling-alternatives-label">חלופות מתאימות</p>
       <div class="cs-alt-table">
         ${alternatives.map((item) => alternativeCandidateCardHtml(item, { selectedId, expandedId, name: radioName })).join('')}
       </div>
@@ -868,9 +862,8 @@ export function instructorsResultsHtml(result, state = {}) {
     return candidatesResultsLayoutHtml(result, state, { primary: result.bestAvailable, kind: 'bestAvailable' });
   }
   if (!result?.recommended && result?.status === 'נדרש גיוס') {
-    return `<div class="course-scheduling-result-block">
-      <h3>לא נמצא מדריך שעומד בתנאי הסף</h3>
-      <p>${escapeHtml(result.treatmentReason || 'כל המדריכים הפעילים והמוכנים נבדקו וחישובי המסלולים הושלמו, אך אף מדריך אינו עומד בכל תנאי הסף.')}</p>
+    return `<div class="course-scheduling-result-block course-scheduling-result-block--negative">
+      <p class="course-scheduling-result-message">${escapeHtml(result.treatmentReason || 'לא נמצא מדריך שעומד בתנאי הסף.')}</p>
       <details class="course-scheduling-details"><summary>הצגת פרטים</summary>
         <p>שפת הדרכה: ${escapeHtml(instructionLanguageLabel(result.course))} · מגדר: ${escapeHtml(result.course.required_instructor_gender || 'ללא')}</p>
       </details>
@@ -880,8 +873,7 @@ export function instructorsResultsHtml(result, state = {}) {
   }
   if (!result?.recommended && result?.status === 'נדרש טיפול') {
     return `<div class="course-scheduling-result-block">
-      <h3>נדרשת בדיקה נוספת</h3>
-      <p>${escapeHtml(result.treatmentReason || 'לא ניתן להציע שיבוץ אוטומטי לקורס זה כרגע.')}</p>
+      <p class="course-scheduling-result-message">${escapeHtml(result.treatmentReason || 'נדרשת בדיקה נוספת לפני שניתן להציע שיבוץ אוטומטי.')}</p>
       ${incompleteProfilesHtml(result)}
       ${rejectedCandidatesHtml(result)}
       <button type="button" class="course-scheduling-btn course-scheduling-btn--secondary" data-open-missing-course>פתח פעילות</button>
