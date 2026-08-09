@@ -318,7 +318,7 @@ test('removed legacy calendar tab state falls back to the approved courses works
   assert.doesNotMatch(html, /data-switch-tab=/);
 });
 
-test('course table renders authority as the second of six compact columns', async () => {
+test('course table renders authority as the second of four compact columns', async () => {
   const html = courseSchedulingScreen.render({
     activities: [
       openCourse({ row_id: 'with-authority', school: 'בית ספר השקמה', authority: 'רשות השרון', activity_name: 'רובוטיקה', date_1: '2026-09-01', start_date: '2026-09-01', start_time: '10:00' }),
@@ -328,12 +328,13 @@ test('course table renders authority as the second of six compact columns', asyn
     meetingState: { loaded: true, approvedDates: new Map(), cancelledDates: new Map(), error: '' }
   }, { state: { user: { role: 'admin' } } });
 
-  assert.match(html, /<div class="course-scheduling-compact-table-head"[^>]*><span>בית ספר<\/span><span>רשות<\/span><span>קורס<\/span><span>מדריך<\/span><span>סטטוס<\/span><span>פעולה<\/span><\/div>/);
+  assert.match(html, /<div class="course-scheduling-compact-table-head"[^>]*><span>בית ספר<\/span><span>רשות<\/span><span>קורס<\/span><span>סטטוס<\/span><\/div>/);
+  assert.match(html, /data-expanded-course-details/);
   assert.match(html, /course-scheduling-compact-school[^>]*>בית ספר השקמה<\/span>\s*<span class="course-scheduling-compact-cell course-scheduling-compact-authority" title="רשות השרון">רשות השרון<\/span>\s*<strong[^>]*>רובוטיקה<\/strong>/);
   assert.match(html, /course-scheduling-compact-authority" title="—">—<\/span>/);
   assert.match(html, /aria-label="בית ספר השקמה, רשות השרון, רובוטיקה"/);
   const row = /<div class="course-scheduling-compact-row[^>]*data-course-card="with-authority"[\s\S]*?<\/div>/.exec(html)?.[0] || '';
-  assert.equal((row.match(/course-scheduling-compact-cell/g) || []).length, 6);
+  assert.equal((row.match(/course-scheduling-compact-cell/g) || []).length, 4);
 
   const compactCss = await readFile(new URL('../frontend/src/screens/course-scheduling-compact-layout.css', import.meta.url), 'utf8');
   assert.match(compactCss, /--course-scheduling-row-columns:\s*minmax\(0,\s*1\.35fr\)[^;]*minmax\(0,\s*\.62fr\);/);

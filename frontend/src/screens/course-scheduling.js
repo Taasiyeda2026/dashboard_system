@@ -407,14 +407,12 @@ function courseListCardHtml(row, selectedId) {
   const school = text(c.school) || '—';
   const authority = text(c.authority) || '—';
   const courseName = text(c.activity_name) || '—';
-  const instructor = instructorCellLabel(row);
   return `<div class="course-scheduling-compact-row course-scheduling-course-card${selectedClass}" data-course-card="${escapeHtml(row.id)}" role="button" tabindex="0" aria-label="${escapeHtml(`${school}, ${authority}, ${courseName}`)}">
     <span class="course-scheduling-compact-cell course-scheduling-compact-school" title="${escapeHtml(school)}">${escapeHtml(school)}</span>
     <span class="course-scheduling-compact-cell course-scheduling-compact-authority" title="${escapeHtml(authority)}">${escapeHtml(authority)}</span>
     <strong class="course-scheduling-compact-cell course-scheduling-compact-course" title="${escapeHtml(courseName)}">${escapeHtml(courseName)}</strong>
-    <span class="course-scheduling-compact-cell course-scheduling-compact-instructor" title="${escapeHtml(instructor)}">${escapeHtml(instructor)}</span>
     <span class="course-scheduling-compact-cell course-scheduling-compact-status"><span class="course-scheduling-status-chip${cardStatusClass(row.statusLabel)}">${escapeHtml(row.statusLabel)}</span></span>
-    <span class="course-scheduling-compact-cell course-scheduling-compact-action-cell"><button type="button" class="course-scheduling-compact-action" data-course-row-action="${escapeHtml(row.id)}">${escapeHtml(actionLabelForRow(row))}</button></span>
+    ${row.id === selectedId ? `<div class="course-scheduling-inline-details" data-expanded-course-details>${selectedCourseMetaHtml(c)}</div>` : ''}
   </div>`;
 }
 
@@ -426,7 +424,7 @@ function courseListHtml(rowModels, selectedId) {
       <p>שיבוצים שבוצעו יופיעו בלשונית המערכת השבועית.</p>
     </div>`;
   }
-  const header = '<div class="course-scheduling-compact-table-head" aria-hidden="true"><span>בית ספר</span><span>רשות</span><span>קורס</span><span>מדריך</span><span>סטטוס</span><span>פעולה</span></div>';
+  const header = '<div class="course-scheduling-compact-table-head" aria-hidden="true"><span>בית ספר</span><span>רשות</span><span>קורס</span><span>סטטוס</span></div>';
   return header + groups.map((group) => `<section class="course-scheduling-course-group"><h3>${escapeHtml(group.label)} <span class="course-scheduling-badge">${group.rows.length}</span></h3>${group.rows.map((row) => courseListCardHtml(row, selectedId)).join('')}</section>`).join('');
 }
 
@@ -823,7 +821,7 @@ function resultsActionsHtml(result, selectedId) {
 function candidatesResultsLayoutHtml(result, state, { primary, kind }) {
   const selectedId = text(state.courseSchedulingSelectedCandidateId);
   const radioName = `course-candidate-${idOf(result.course)}`;
-  const alternatives = (result.alternatives || []).filter((item) => item?.eligible).slice(0, 3);
+  const alternatives = (result.alternatives || []).filter((item) => item?.eligible);
   const title = kind === 'recommended'
     ? 'המדריך המומלץ'
     : 'ההתאמה הטובה ביותר שנמצאה';
@@ -960,8 +958,7 @@ function draftProposedMeetingsFromCourse(course = {}) {
 
 function draftDetailHtml(course) {
   const proposed = draftProposedMeetingsFromCourse(course);
-  return `${selectedCourseMetaHtml(course)}
-    <p class="course-scheduling-status-chip is-draft">${STATUS.draft}</p>
+  return `<p class="course-scheduling-status-chip is-draft">${STATUS.draft}</p>
     <p>מדריך בטיוטה: <b>${escapeHtml(course.draft_instructor_name || course.draft_emp_id)}</b></p>
     <p class="course-scheduling-muted">הטיוטה שומרת את השיבוץ המוצע ואינה מעדכנת את הפעילות עד לאישור.</p>
     ${proposed ? proposedMeetingsPanelHtml(proposed) : ''}
@@ -974,8 +971,7 @@ function draftDetailHtml(course) {
 
 function assignedDetailHtml(row) {
   const c = row.course;
-  return `${selectedCourseMetaHtml(c)}
-    <p class="course-scheduling-status-chip is-ready">${STATUS.assigned}</p>
+  return `<p class="course-scheduling-status-chip is-ready">${STATUS.assigned}</p>
     <p>מדריך משובץ: <b>${escapeHtml(c.instructor_name || c.emp_id)}</b></p>
     <p class="course-scheduling-muted">השיבוץ אושר ומופיע בסידור העבודה.</p>`;
 }
@@ -996,8 +992,7 @@ function selectedCoursePanelHtml(row, state) {
   const findButtonClass = hasSuggestion
     ? 'course-scheduling-btn course-scheduling-btn--secondary'
     : 'course-scheduling-btn course-scheduling-btn--primary course-scheduling-btn--xl';
-  return `${selectedCourseMetaHtml(row.course)}
-    <div class="course-scheduling-primary-action">
+  return `<div class="course-scheduling-primary-action">
       <button type="button" class="${findButtonClass}" data-find-instructors ${finding ? 'disabled' : ''}>
         ${finding ? 'בודק מדריכים...' : (hasSuggestion ? 'בדיקה מחדש של מדריכים' : 'מצא מדריכים מתאימים')}
       </button>
