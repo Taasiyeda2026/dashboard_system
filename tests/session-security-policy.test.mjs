@@ -57,3 +57,11 @@ test('runtime restores personal reports in a locked state after timeout', () => 
   assert.match(runtime, /pagehide/);
   assert.match(entry, /session-security-runtime\.js/);
 });
+
+test('DOM mutations do not count as dashboard activity or create lifecycle timestamps', () => {
+  const runtime = readFileSync(new URL('../frontend/src/session-security-runtime.js', import.meta.url), 'utf8');
+  const observer = runtime.match(/sessionSecurityObserver = new MutationObserver\([\s\S]*?\n  \}\);/)?.[0] || '';
+  assert.ok(observer, 'runtime should keep the observer used by the personal reports lock');
+  assert.doesNotMatch(observer, /recordDashboardActivity|checkDashboardSessionTimeout/);
+  assert.match(observer, /checkPersonalReportsTimeout/);
+});

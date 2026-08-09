@@ -1,6 +1,7 @@
 import { state } from './state.js';
 import { SCREEN_CACHE_STORAGE_PREFIX } from './cache-persist.js';
 import { supabase } from './supabase-client.js';
+import { clearDashboardSessionLifecycle, reconcileDashboardSessionLifecycle } from './session-security-lifecycle.js';
 
 const ROUTES_KEY = 'dashboard_routes';
 const USER_KEY = 'dashboard_user';
@@ -68,6 +69,7 @@ function scheduleReload(reason = 'auth_identity_changed') {
 function clearLocalDashboardIdentity() {
   clearUserScopedDashboardCaches();
   try {
+    clearDashboardSessionLifecycle(localStorage);
     localStorage.removeItem(TOKEN_KEY);
     localStorage.removeItem(USER_KEY);
     sessionStorage.removeItem(SESSION_MARKER_KEY);
@@ -183,6 +185,7 @@ export function installAuthSessionIsolation() {
 
     supabase.auth.onAuthStateChange((event, session) => {
       if (event === 'SIGNED_OUT') {
+        clearDashboardSessionLifecycle(localStorage);
         if (state?.token || localStorage.getItem(TOKEN_KEY)) {
           clearLocalDashboardIdentity();
           scheduleReload('supabase_signed_out');
@@ -190,6 +193,7 @@ export function installAuthSessionIsolation() {
         return;
       }
       if ((event === 'SIGNED_IN' || event === 'TOKEN_REFRESHED' || event === 'INITIAL_SESSION') && session?.user?.id) {
+        reconcileDashboardSessionLifecycle(session, { event });
         reconcileDashboardIdentityWithAuthSession(session, { allowIdentityClear: false });
       }
     });

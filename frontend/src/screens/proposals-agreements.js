@@ -2,6 +2,8 @@ import { escapeHtml } from './shared/html.js';
 import { dsCard, dsEmptyState, dsPageHeader, dsScreenStack, dsTableWrap } from './shared/layout.js';
 import { showToast } from './shared/toast.js';
 import { countPendingApprovedProposals, isProposalApprovedPendingSend } from './shared/proposals-pending-count.js';
+import { isSupabaseSessionExpiredError } from '../session-security-lifecycle.js';
+import { expireDashboardSession } from '../session-security-runtime.js';
 
 export { countPendingApprovedProposals, isProposalApprovedPendingSend };
 
@@ -6190,12 +6192,21 @@ export {
 // ─── Screen ───────────────────────────────────────────────────────────────────
 
 export const proposalsAgreementsScreen = {
-  load: ({ api, state }) => {
+  load: async ({ api, state }) => {
     if (!canAccessProposalsAgreements(state)) return Promise.resolve({ rows: [], unauthorized: true });
     // First metadata page only. Additional pages load only on explicit user action.
-    return api.proposalsAgreements({ limit: 50, offset: 0, includeLinkedDocuments: true });
+    try {
+      return await api.proposalsAgreements({ limit: 50, offset: 0, includeLinkedDocuments: true });
+    } catch (error) {
+      if (!isSupabaseSessionExpiredError(error)) throw error;
+      void expireDashboardSession('session_expired');
+      return { rows: [], sessionExpired: true };
+    }
   },
   render(data = {}, { state } = {}) {
+    if (data?.sessionExpired) {
+      return dsScreenStack(`${dsPageHeader('תיק לקוח')}${dsEmptyState('פג תוקף ההתחברות. יש להתחבר מחדש.')}`);
+    }
     if (data?.unauthorized || !canAccessProposalsAgreements(state)) {
       return dsScreenStack(`${dsPageHeader('תיק לקוח', 'גישה מוגבלת למורשים בלבד')}${dsEmptyState('אין לך הרשאה לצפות במסך זה')}`);
     }

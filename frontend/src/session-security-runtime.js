@@ -4,6 +4,7 @@ import {
   dashboardSessionExpiryReason,
   personalReportsSessionExpired
 } from './session-security-policy.js';
+import { clearDashboardSessionLifecycle } from './session-security-lifecycle.js';
 
 const DASHBOARD_SESSION_STARTED_KEY = 'dashboard_session_started_at';
 const DASHBOARD_LAST_ACTIVITY_KEY = 'dashboard_session_last_activity_at';
@@ -49,11 +50,17 @@ function dashboardSessionExists() {
 
 export function clearDashboardSessionTimeoutState() {
   try {
-    localStorage.removeItem(DASHBOARD_SESSION_STARTED_KEY);
-    localStorage.removeItem(DASHBOARD_LAST_ACTIVITY_KEY);
+    clearDashboardSessionLifecycle(localStorage);
   } catch {
     /* ignore storage failures */
   }
+  lastDashboardActivityWriteAt = 0;
+}
+
+export function resetDashboardSessionTimeoutState(now = Date.now()) {
+  if (!dashboardSessionExists()) return;
+  writeTimestamp(DASHBOARD_SESSION_STARTED_KEY, now);
+  writeTimestamp(DASHBOARD_LAST_ACTIVITY_KEY, now);
   lastDashboardActivityWriteAt = 0;
 }
 
@@ -241,10 +248,9 @@ export function installSessionSecurityRuntime() {
   window.addEventListener('pagehide', resetPersonalReportsRuntimeState);
   window.addEventListener('pageshow', handlePageShow);
 
+  // DOM changes are not user activity and must never create/extend a session.
   sessionSecurityObserver = new MutationObserver(() => {
-    const now = Date.now();
-    checkDashboardSessionTimeout(now);
-    checkPersonalReportsTimeout(now);
+    checkPersonalReportsTimeout(Date.now());
   });
   sessionSecurityObserver.observe(document.documentElement, { childList: true, subtree: true });
 

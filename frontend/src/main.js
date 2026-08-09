@@ -16,6 +16,7 @@ import { waitForSupabaseAuthSession } from './supabase-client.js';
 import { permissionFlagYes as permissionEnabled } from './permissions.js';
 import { countPendingApprovedProposals } from './screens/shared/proposals-pending-count.js';
 import { bootstrapLocalBaselineMonitor } from './local-baseline-monitor.js';
+import { resetDashboardSessionTimeoutState } from './session-security-runtime.js';
 
 const app = document.getElementById('app');
 bootstrapLocalBaselineMonitor({
@@ -43,6 +44,14 @@ let loginShellPerfReported = false;
 let initialRoutePerfReported = false;
 let loginApiDurationMs = 0;
 let loginBootstrapDurationMs = 0;
+const SESSION_EXPIRED_MESSAGE = 'פג תוקף ההתחברות. יש להתחבר מחדש.';
+
+try {
+  if (sessionStorage.getItem('dashboard_session_timeout_reason')) {
+    loginInlineError = SESSION_EXPIRED_MESSAGE;
+    sessionStorage.removeItem('dashboard_session_timeout_reason');
+  }
+} catch { /* ignore storage failures */ }
 
 /** In-flight API request dedup: prevents duplicate calls when navigating quickly. */
 const inflightRequests = new Map();
@@ -2195,6 +2204,7 @@ async function render() {
             firstDashboardSnapshotTimerStarted = false;
             beginPerfTimer('login:setSession');
             setSession({ token: data.token, user: data.user });
+            resetDashboardSessionTimeoutState();
             state.authSessionReady = true;
             state.permissionsReady = true;
             clearFinancePrefsIfUserChanged(data.user?.user_id);
