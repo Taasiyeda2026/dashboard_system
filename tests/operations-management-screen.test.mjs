@@ -254,7 +254,7 @@ test('operations management render includes menu page structure and tabs', () =>
   const scheduleHtml = operationsManagementScreen.render({ rows: TEXT_SCHOOL_ROWS, workshopStockMap: new Map() }, { state: scheduleState() });
   assert.match(scheduleHtml, /מדריכים/);
   assert.match(scheduleHtml, /סידור עבודה/);
-  assert.match(scheduleHtml, /טבלת סידור עבודה/);
+  assert.doesNotMatch(scheduleHtml, /טבלת סידור עבודה/);
   assert.match(scheduleHtml, /הדפס סידור עבודה/);
   assert.match(scheduleHtml, /ds-filter-panel/);
   assert.match(scheduleHtml, /ds-ops-mgmt-summary/);
@@ -1042,7 +1042,7 @@ test('operations management tabs stay synced with selected tab content', () => {
   const scheduleHtml = operationsManagementScreen.render({ rows, workshopStockMap: new Map() }, { state: scheduleState() });
   assert.match(defaultHtml, /data-ops-tab="completion_approval"[^>]*aria-pressed="true"/);
   assert.doesNotMatch(defaultHtml, /data-ops-tab="instructors"/);
-  assert.match(scheduleHtml, /טבלת סידור עבודה/);
+  assert.doesNotMatch(scheduleHtml, /טבלת סידור עבודה/);
   assert.match(authoritiesHtml, /data-ops-tab="authorities"[^>]*aria-pressed="true"/);
   assert.match(authoritiesHtml, /ds-ops-schools-authority/);
   assert.match(workshopsHtml, /data-ops-tab="workshops"[^>]*aria-pressed="true"/);

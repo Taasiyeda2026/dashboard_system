@@ -564,7 +564,7 @@ test('bestAvailable uses review title and never the misleading quality-miss head
   assert.doesNotMatch(html, /לא נמצאה התאמה איכותית לקורס/);
 });
 
-test('alternatives keep engine order, max three, and exclude ineligible candidates', () => {
+test('alternatives keep engine order, show every eligible candidate, and exclude ineligible candidates', () => {
   const mk = (id, name, score, eligible = true) => ({
     instructor: { emp_id: id, full_name: name, active: 'yes', address: 'נתניה' },
     eligible,
@@ -594,10 +594,10 @@ test('alternatives keep engine order, max three, and exclude ineligible candidat
     checked: [recommended, ...alternatives]
   });
   assert.match(html, /חלופות מתאימות/);
-  assert.equal((html.match(/class="cs-alt-row(?: is-selected)?"/g) || []).length, 3);
+  assert.equal((html.match(/class="cs-alt-row(?: is-selected)?"/g) || []).length, 4);
   assert.ok(html.indexOf('אלטרנטיבה א') < html.indexOf('אלטרנטיבה ב'));
   assert.ok(html.indexOf('אלטרנטיבה ב') < html.indexOf('אלטרנטיבה ג'));
-  assert.doesNotMatch(html, /אלטרנטיבה ד/);
+  assert.ok(html.indexOf('אלטרנטיבה ג') < html.indexOf('אלטרנטיבה ד'));
   const alternativesBlock = html.match(/data-alternatives>[\s\S]*?<\/section>/)?.[0] || '';
   assert.doesNotMatch(alternativesBlock, /פסולה/);
   assert.doesNotMatch(alternativesBlock, /data-candidate-row="bad"/);

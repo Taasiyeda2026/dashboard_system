@@ -44,7 +44,7 @@ function createTableHeader(coursesRoot) {
   const header = document.createElement('div');
   header.className = 'course-scheduling-compact-table-head';
   header.setAttribute('aria-hidden', 'true');
-  header.innerHTML = '<span>בית ספר</span><span>רשות</span><span>קורס</span><span>מדריך</span><span>סטטוס</span><span>פעולה</span>';
+  header.innerHTML = '<span>בית ספר</span><span>רשות</span><span>קורס</span><span>סטטוס</span>';
   coursesRoot.prepend(header);
 }
 

@@ -56,28 +56,19 @@ export function instructorsWorkspaceNavHtml({ activeTab = '', state = {} } = {})
   </div>`;
 }
 
-/**
- * Shared page header (H1 + tabs) for the Instructors workspace.
- */
+/** Shared tabs row for the Instructors workspace. */
 export function instructorsWorkspaceHeaderHtml({ activeTab = '', state = {} } = {}) {
-  return `<header class="ds-page-header instructors-workspace-header">
-    <div>
-      <h1 class="ds-page-header__title">מדריכים</h1>
-    </div>
-  </header>
-  ${instructorsWorkspaceNavHtml({ activeTab, state })}`;
+  return instructorsWorkspaceNavHtml({ activeTab, state });
 }
 
 export function instructorsWorkspaceNavStylesHtml() {
   return `<style id="instructors-workspace-nav-styles">
-.instructors-workspace-header{margin-bottom:6px;background:#fff;border-color:#e3e6ea;padding:7px 14px}
 .instructors-workspace-nav{margin:0 0 8px}
 .instructors-workspace-tabs{display:flex;flex-wrap:wrap;gap:8px;border-bottom:1px solid #e5e7eb;padding-bottom:6px}
 .instructors-workspace-tab{appearance:none;border:1px solid #d8dce2;background:#fff;color:#1f2a37;border-radius:999px;padding:7px 14px;min-height:32px;min-width:88px;box-sizing:border-box;font:inherit;font-weight:700;font-size:.82rem;line-height:1.2;cursor:pointer;display:inline-flex;align-items:center;justify-content:center}
 .instructors-workspace-tab:hover{border-color:#b6bcc6;background:#f4f5f7}
 .instructors-workspace-tab.is-active{background:#1f4b7a;border-color:#1f4b7a;color:#fff;box-shadow:inset 0 0 0 1px rgba(255,255,255,.2)}
 .instructors-workspace-tab:focus-visible{outline:2px solid #1f4b7a;outline-offset:2px}
-.instructors-workspace-content-title{margin:0 0 8px;font-size:1.05rem;font-weight:800;color:#1f2a37}
 @media(max-width:720px){.instructors-workspace-tabs{gap:6px}.instructors-workspace-tab{padding:7px 12px;font-size:.8rem}}
 </style>`;
 }
