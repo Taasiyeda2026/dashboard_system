@@ -78,6 +78,8 @@ test('flattenUserRow prefers display_role, then falls back to the hebrewRole(rol
   assert.match(source, /const customDisplayRole = String\(userRow\.display_role \|\| ''\)\.trim\(\);/);
   assert.match(source, /const displayRoleLabel = String\(userRow\.display_role_label \|\| customDisplayRole \|\| ''\)\.trim\(\);/);
   assert.match(source, /display_role_label: displayRoleLabel \|\| hebrewRole\(role\)/);
+  assert.match(source, /role,\n    display_role: customDisplayRole,/);
+  assert.doesNotMatch(source, /display_role: (?:flat\.)?role,/);
 });
 
 test('internalRoleFromPermissionRow_ example: EXAMPLE_ROW returns Hebrew display_role first', () => {
@@ -129,10 +131,12 @@ test('savePermission: role is handled as its own column, not folded into the gen
   const source = await readFile(API_FILE, 'utf8');
   const fnMatch = source.match(/savePermission: async \(row\) => \{[\s\S]*?return \{ ok: true \};\n  \},/);
   assert.ok(fnMatch, 'savePermission must exist');
-  assert.match(fnMatch[0], /\['user_id', 'role', 'active', 'full_name', 'entry_code', 'emp_id', 'display_role2', 'can_access_personal_reports'\]\.includes\(k\)/,
-    "savePermission must exclude 'role' from the generic permissions patch loop");
+  assert.match(fnMatch[0], /\['user_id', 'role', 'display_role', 'default_view', 'active', 'full_name', 'entry_code', 'emp_id', 'display_role2', 'can_access_personal_reports'\]\.includes\(k\)/,
+    'savePermission must exclude dedicated user columns from the generic permissions patch loop');
   assert.match(fnMatch[0], /const nextRole = row\.role \|\| existing\.data\.role;/);
   assert.match(fnMatch[0], /role: nextRole,/);
+  assert.match(fnMatch[0], /display_role: row\.display_role \?\? existing\.data\.display_role,/);
+  assert.match(fnMatch[0], /default_view: row\.default_view \?\? existing\.data\.default_view,/);
 });
 
 test('addUser: role is written as its own users column in the insert payload', async () => {
@@ -141,4 +145,15 @@ test('addUser: role is written as its own users column in the insert payload', a
   assert.ok(fnMatch, 'addUser must exist');
   assert.match(fnMatch[0], /const role = String\(row\?\.role \|\| 'instructor'\)\.trim\(\);/);
   assert.match(fnMatch[0], /const insert = \{[\s\S]*?role,/);
+  assert.match(fnMatch[0], /display_role: String\(row\?\.display_role \|\| ''\)\.trim\(\),/);
+  assert.match(fnMatch[0], /default_view: String\(row\?\.default_view \|\| ''\)\.trim\(\),/);
+});
+
+test('login projection keeps role, display_role, and default_view separate', async () => {
+  const source = await readFile(API_FILE, 'utf8');
+  const fnMatch = source.match(/login: async \(user_id, entry_code\) => \{[\s\S]*?\.\.\.buildBootstrapFromUser\(user, profileRow\),/);
+  assert.ok(fnMatch, 'login must exist');
+  assert.match(fnMatch[0], /role: flat\.role,/);
+  assert.match(fnMatch[0], /display_role: flat\.display_role,/);
+  assert.match(fnMatch[0], /default_view: flat\.default_view,/);
 });

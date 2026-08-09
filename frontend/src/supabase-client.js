@@ -29,7 +29,11 @@ let supabase = null;
 let authSessionWaitPromise = null;
 
 if (supabaseUrl && supabaseAnonKey) {
-  supabase = createClient(supabaseUrl, supabaseAnonKey);
+  try {
+    supabase = createClient(supabaseUrl, supabaseAnonKey);
+  } catch {
+    /* realtime transport unavailable in this environment (e.g. Node 20 without WebSocket) */
+  }
 } else {
   // eslint-disable-next-line no-console
   console.error(

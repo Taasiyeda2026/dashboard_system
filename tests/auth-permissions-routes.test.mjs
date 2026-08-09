@@ -9,19 +9,19 @@ const PERMISSIONS_FILE = new URL('../frontend/src/permissions.js', import.meta.u
 const API_FILE = new URL('../frontend/src/api.js', import.meta.url);
 const MAIN_FILE = new URL('../frontend/src/main.js', import.meta.url);
 
-test('canRequestEdit is driven only by can_request_edit flags/roles, not view_edit_requests', async () => {
+test('canRequestEdit is driven only by can_request_edit flags, not roles or view_edit_requests', async () => {
   const source = await readFile(PERMISSIONS_FILE, 'utf8');
   const fnMatch = source.match(/export function canRequestEdit\([\s\S]*?\n}/);
   assert.ok(fnMatch, 'canRequestEdit should exist');
   assert.match(fnMatch[0], /p\.can_request_edit/);
-  assert.match(fnMatch[0], /ACTIVITY_REQUEST_ROLES\.has\(userRole\(user\)\)/);
+  assert.doesNotMatch(fnMatch[0], /ACTIVITY_REQUEST_ROLES/);
   assert.doesNotMatch(fnMatch[0], /view_edit_requests/);
 });
 
 test('edit-requests route is granted by direct-manage or can_request_edit, and by view_edit_requests alone as a fallback', async () => {
   const source = await readFile(API_FILE, 'utf8');
   assert.match(source, /const canReviewRequests = canDirectManageActivities;/);
-  assert.match(source, /const canViewEditRequests = canReviewRequests \|\| canRequestEdit \|\| permissionFlagYes\(flat\.view_edit_requests\) \|\| allowedRoutes\.includes\('edit-requests'\);/);
+  assert.match(source, /const canViewEditRequests = canReviewRequests \|\| canRequestEdit \|\| permissionFlagYes\(flat\.view_edit_requests\);/);
   assert.match(source, /if \(canViewEditRequests && !allowedRoutes\.includes\('edit-requests'\)\) \{[\s\S]*?allowedRoutes\.push\('edit-requests'\);/);
 });
 

@@ -124,7 +124,6 @@ function isActiveInstructorPilotUser(user = state?.user || {}) {
   return [user.emp_id, user.employee_id, user.user_id].map((v) => String(v || '').trim()).some((id) => ACTIVE_INSTRUCTOR_EMP_IDS.has(id));
 }
 
-const ACTIVITY_REQUEST_ROLES = new Set(['activities_manager', 'instructor_manager', 'business_development_manager']);
 const COMPLETION_APPROVAL_MANAGER_ROLES = new Set(['admin', 'operation_manager', 'domain_manager', 'activities_manager', 'instructor_manager']);
 
 const ACTIVITY_MEETING_DATE_COLUMNS = Array.from({ length: 35 }, (_, index) => `date_${index + 1}`);
@@ -240,7 +239,7 @@ let instructorEmpIdsCache = null;
 let instructorEmpIdsPromise = null;
 
 function assertAdminApi() {
-  const role = String(state?.user?.role || state?.user?.display_role || '').trim();
+  const role = String(state?.user?.role || '').trim();
   if (role !== 'admin') throw new Error('admin_only');
 }
 
@@ -3310,14 +3309,14 @@ function notesWithActivityNames(notes, activity_names) {
 }
 
 function canUseProposalsAgreementsApi() {
-  const role = String(state?.user?.display_role || state?.user?.role || '').trim();
+  const role = String(state?.user?.role || '').trim();
   return PROPOSALS_AGREEMENTS_ALLOWED_ROLES.has(role)
     || permissionFlagYes(state?.user?.view_proposals_agreements)
     || permissionFlagYes(state?.user?.manage_proposals_agreements);
 }
 
 function canManageProposalsAgreementsApi() {
-  const role = String(state?.user?.display_role || state?.user?.role || '').trim();
+  const role = String(state?.user?.role || '').trim();
   return PROPOSALS_AGREEMENTS_MANAGE_ROLES.has(role)
     || permissionFlagYes(state?.user?.manage_proposals_agreements);
 }
@@ -4690,7 +4689,7 @@ async function readProposalsAgreementsFromSupabase({
   };
 }
 
-const USER_PUBLIC_COLUMNS = 'user_id,username,email,name,full_name,role,display_role,display_role2,emp_id,is_active,permissions';
+const USER_PUBLIC_COLUMNS = 'user_id,username,email,name,full_name,role,display_role,display_role2,default_view,emp_id,is_active,permissions';
 const USER_PUBLIC_COLUMNS_EXTENDED = `${USER_PUBLIC_COLUMNS},auth_user_id,auth_email,can_review_requests,view_proposals_agreements,manage_proposals_agreements,approve_proposals_agreements`;
 const PROFILE_PERSONAL_REPORTS_COLUMNS = 'id,is_active,can_access_personal_reports';
 const VALID_SUPABASE_ROLES = new Set(['admin', 'operation_manager', 'authorized_user', 'instructor', 'finance', 'activities_manager', 'domain_manager', 'instructor_manager', 'business_development_manager']);
@@ -4698,7 +4697,7 @@ const VALID_SUPABASE_ROLES = new Set(['admin', 'operation_manager', 'authorized_
 
 const KNOWN_INSTRUCTOR_EMP_IDS = new Set(['1525', '1506', '1527', '1502', '1507', '1509', '1515', '1503', '1511']);
 function isKnownInstructorIdentity(user = {}) {
-  const role = normalizeRoleAlias(user?.role || user?.display_role).toLowerCase();
+  const role = normalizeRoleAlias(user?.role).toLowerCase();
   if (role !== 'instructor') return false;
   return [user.emp_id, user.employee_id, user.user_id, user.username]
     .map((value) => String(value || '').trim())
@@ -4706,14 +4705,14 @@ function isKnownInstructorIdentity(user = {}) {
 }
 
 const SUPABASE_ROLE_ROUTES = {
-  admin: ['dashboard', 'activities', 'archive', 'catalog', 'invitations', 'proposals-agreements', 'week', 'month', 'exceptions', 'instructors', 'instructor-contacts', 'contacts', 'end-dates', 'edit-requests', 'permissions', 'admin-home', 'admin-settings', 'admin-lists', 'finance', 'operations-management', 'certificates'],
-  operation_manager: ['dashboard', 'activities', 'archive', 'catalog', 'invitations', 'proposals-agreements', 'week', 'month', 'exceptions', 'instructors', 'instructor-contacts', 'contacts', 'end-dates', 'edit-requests', 'permissions', 'operations-management', 'certificates'],
+  admin: ['dashboard', 'activities', 'archive', 'catalog', 'invitations', 'proposals-agreements', 'week', 'month', 'exceptions', 'instructors', 'instructor-contacts', 'contacts', 'end-dates', 'permissions', 'admin-home', 'admin-settings', 'admin-lists', 'finance', 'operations-management', 'certificates'],
+  operation_manager: ['dashboard', 'activities', 'archive', 'catalog', 'invitations', 'proposals-agreements', 'week', 'month', 'exceptions', 'instructors', 'instructor-contacts', 'contacts', 'end-dates', 'permissions', 'operations-management', 'certificates'],
   authorized_user: ['dashboard', 'activities', 'archive', 'week', 'month', 'exceptions', 'instructors', 'instructor-contacts', 'contacts', 'end-dates', 'certificates'],
-  finance: ['dashboard', 'activities', 'archive', 'catalog', 'orders', 'week', 'month', 'exceptions', 'instructors', 'instructor-contacts', 'contacts', 'end-dates', 'edit-requests', 'certificates'],
-  activities_manager: ['dashboard', 'activities', 'archive', 'catalog', 'orders', 'week', 'month', 'exceptions', 'instructors', 'instructor-contacts', 'contacts', 'end-dates', 'edit-requests', 'operations-management', 'certificates'],
+  finance: ['dashboard', 'activities', 'archive', 'catalog', 'orders', 'week', 'month', 'exceptions', 'instructors', 'instructor-contacts', 'contacts', 'end-dates', 'certificates'],
+  activities_manager: ['dashboard', 'activities', 'archive', 'catalog', 'orders', 'week', 'month', 'exceptions', 'instructors', 'instructor-contacts', 'contacts', 'end-dates', 'operations-management', 'certificates'],
   domain_manager: ['dashboard', 'activities', 'archive', 'catalog', 'invitations', 'proposals-agreements', 'week', 'month', 'exceptions', 'instructors', 'instructor-contacts', 'contacts', 'end-dates', 'certificates'],
-  business_development_manager: ['dashboard', 'activities', 'archive', 'proposals-agreements', 'catalog', 'invitations', 'week', 'month', 'exceptions', 'instructors', 'instructor-contacts', 'contacts', 'end-dates', 'edit-requests', 'certificates'],
-  instructor_manager: ['dashboard', 'activities', 'archive', 'catalog', 'orders', 'week', 'month', 'exceptions', 'instructors', 'instructor-contacts', 'contacts', 'end-dates', 'edit-requests', 'certificates'],
+  business_development_manager: ['dashboard', 'activities', 'archive', 'proposals-agreements', 'catalog', 'invitations', 'week', 'month', 'exceptions', 'instructors', 'instructor-contacts', 'contacts', 'end-dates', 'certificates'],
+  instructor_manager: ['dashboard', 'activities', 'archive', 'catalog', 'orders', 'week', 'month', 'exceptions', 'instructors', 'instructor-contacts', 'contacts', 'end-dates', 'certificates'],
   instructor: ['instructor-calendar', 'my-data', 'instructor-completion-approvals', 'instructor-guidelines']
 };
 
@@ -4728,7 +4727,7 @@ function normalizeSupabaseRole(role) {
 }
 
 function canManagePersonalReportsUser(user = {}) {
-  const role = String(user?.display_role || user?.role || '').trim().toLowerCase();
+  const role = String(user?.role || '').trim().toLowerCase();
   if (role === 'admin') return true;
   return permissionFlagYes(user?.personal_reports_manager);
 }
@@ -4887,9 +4886,10 @@ function flattenUserRow(userRow = {}) {
     name: String(userRow.name || '').trim(),
     full_name: String(userRow.full_name || userRow.name || ''),
     role,
-    display_role: role,
+    display_role: customDisplayRole,
     display_role_label: displayRoleLabel || hebrewRole(role),
     display_role2: displayRole2,
+    default_view: String(userRow.default_view || '').trim(),
     emp_id: String(userRow.emp_id || userRow.user_id || ''),
     auth_user_id: String(userRow.auth_user_id || ''),
     active: userRow.is_active ? 'yes' : 'no',
@@ -4946,7 +4946,7 @@ function buildBootstrapFromUser(userRow, profileRow = null) {
     permissionFlagYes(flat.manage_proposals_agreements)
   ) { if (!allowedRoutes.includes('proposals-agreements')) allowedRoutes.push('proposals-agreements'); }
   const canReviewRequests = canDirectManageActivities;
-  const canViewEditRequests = canReviewRequests || canRequestEdit || permissionFlagYes(flat.view_edit_requests) || allowedRoutes.includes('edit-requests');
+  const canViewEditRequests = canReviewRequests || canRequestEdit || permissionFlagYes(flat.view_edit_requests);
   if (canViewEditRequests && !allowedRoutes.includes('edit-requests')) {
     allowedRoutes.push('edit-requests');
   }
@@ -4984,7 +4984,10 @@ function buildBootstrapFromUser(userRow, profileRow = null) {
   }
   return {
     routes: [...allowedRoutes],
-    default_route: allowedRoutes[0] || 'my-data',
+    default_route: (() => {
+      const preferred = flat.default_view === 'operations' ? 'operations-management' : flat.default_view;
+      return allowedRoutes.includes(preferred) ? preferred : (allowedRoutes[0] || 'my-data');
+    })(),
     has_finance_access: hasFinanceAccess,
     has_personal_reports_access: hasPersonalReportsAccess,
     has_personal_reports_manager: hasPersonalReportsManager,
@@ -6544,7 +6547,8 @@ export const api = {
         email: String(flat.email || user.email || '').trim(),
         auth_email: String(flat.auth_email || '').trim(),
         role: flat.role,
-        display_role: flat.role,
+        display_role: flat.display_role,
+        default_view: flat.default_view,
         display_role_label: flat.display_role_label,
         display_role2: flat.display_role2,
         full_name: flat.full_name,
@@ -8167,7 +8171,7 @@ export const api = {
     if (existing.error || !existing.data) throw new Error('user_not_found');
     const permissions = { ...(existing.data.permissions || {}) };
     Object.entries(row || {}).forEach(([k, v]) => {
-      if (['user_id', 'role', 'active', 'full_name', 'entry_code', 'emp_id', 'display_role2', 'can_access_personal_reports'].includes(k)) return;
+      if (['user_id', 'role', 'display_role', 'default_view', 'active', 'full_name', 'entry_code', 'emp_id', 'display_role2', 'can_access_personal_reports'].includes(k)) return;
       permissions[k] = v;
     });
     const nextRole = row.role || existing.data.role;
@@ -8186,6 +8190,8 @@ export const api = {
     }
     const patch = {
       role: nextRole,
+      display_role: row.display_role ?? existing.data.display_role,
+      default_view: row.default_view ?? existing.data.default_view,
       is_active: String(row.active || '').toLowerCase() !== 'no',
       name: row.full_name ?? existing.data.name,
       emp_id: row.emp_id ?? existing.data.emp_id,
@@ -8219,6 +8225,8 @@ export const api = {
       email: null,
       name: String(row?.full_name || '').trim(),
       role,
+      display_role: String(row?.display_role || '').trim(),
+      default_view: String(row?.default_view || '').trim(),
       emp_id: String(row?.user_id || '').trim(),
       is_active: true,
       entry_code: String(row?.entry_code || '').trim(),

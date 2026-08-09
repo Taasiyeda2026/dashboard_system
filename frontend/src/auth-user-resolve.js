@@ -1,5 +1,3 @@
-import { supabase } from './supabase-client.js';
-
 export const AUTH_USER_PUBLIC_COLUMNS = 'user_id,username,email,name,full_name,role,display_role,display_role2,emp_id,is_active,permissions';
 export const AUTH_USER_PUBLIC_COLUMNS_EXTENDED = `${AUTH_USER_PUBLIC_COLUMNS},auth_user_id,auth_email,can_review_requests,view_proposals_agreements,manage_proposals_agreements,approve_proposals_agreements`;
 
@@ -193,9 +191,10 @@ async function resolveActiveUserRowWithColumns(options, columns) {
     attemptOrder: attempts.map((attempt) => attempt.matchedBy)
   });
 
+  const _supabase = options.supabase ?? (await import('./supabase-client.js')).supabase;
   for (const attempt of attempts) {
     const result = await fetchActiveUserRowByFilters(
-      options.supabase || supabase,
+      _supabase,
       columns,
       attempt.filters,
       attempt
