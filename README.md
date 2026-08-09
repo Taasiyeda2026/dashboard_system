@@ -89,7 +89,7 @@ npx serve dist -l 5000
 
 `dist/` הוא מקור האמת להרצה ולפריסה. אין להגיש את root כאתר production, כי זה עלול לעקוף את פלט ה-build ולחשוף קבצים לא מעודכנים.
 
-אחרי כל שינוי ב-JS, CSS או Service Worker:
+לקראת פריסה של שינוי ב-JS, CSS או Service Worker (ולא כאימות מקומי אוטומטי לכל עריכה):
 
 1. העלו את `CACHE_VERSION` ב-`frontend/sw.js` בלבד.
 2. הריצו `npm run build`.
@@ -112,7 +112,11 @@ npm run check:changed
 - `npm run check:build` — build מלא באמצעות `npm run build`.
 - `npm run test:all:legacy` — suite מלא של `tests/*.test.mjs`. יש להריץ רק כשמבקשים במפורש או כשמתקנים את בדיקות ה-legacy.
 
-מדיניות עבודה: במשימות רגילות של Cursor או Codex לא מריצים `npm run test:all:legacy` כברירת מחדל. מריצים בדיקות ממוקדות לפי הקבצים ששונו, וכן `npm run check:build` כאשר יש שינוי בפרונט, ב-Service Worker או בקובצי build.
+מדיניות עבודה: **Minimum relevant validation only.** במשימות רגילות של Cursor או Codex לא מריצים `npm run test:all:legacy` או Full Regression. בוחרים בדיקה לפי ההתנהגות ששונתה בפועל, ולא רק לפי שם קובץ או תחום. כאשר השתנו רק תרחישים בודדים בקובץ בדיקות גדול, **Prefer test-name-pattern over entire large test files when only specific scenarios changed.**
+
+אין להריץ build לשינוי שאינו דורש build validation, ואין להריץ בדיקות עסקיות לשינוי CSS, טקסט או cache marker בלבד. שינוי DB/RPC/migration נבדק רק בבדיקות ה-DB הרלוונטיות; מרחיבים כיסוי רק בשינוי רחב או בתלות משותפת אמיתית. **No test is required when the change has no meaningful automated test coverage.** במקרה כזה אפשר להסתפק ב-`node --check`, ב-`git diff --check`, בבדיקה ידנית/ויזואלית ממוקדת, או ללא בדיקה נוספת בשינוי תיעוד בלבד.
+
+**Do not rerun an already-passing test or suite unless relevant code changed after that run.** הכלל חל גם על subsets של הרצה שכבר עברה, syntax, build, PWA, DB, E2E ו-Quick PR checks. בסיום העבודה אפשר להריץ `npm run ci:quick` פעם אחת אם הוא רלוונטי; אין להריץ לפניו ידנית את אותם checks אלא אם הם נדרשו ל-debugging. בדוח הסיום מציינים מה נבדק, מדוע, כמה test cases הורצו, ואם הייתה הרצה חוזרת—מדוע הייתה הכרחית.
 
 ---
 
