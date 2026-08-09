@@ -25,8 +25,10 @@ function trackedFrontendFiles() {
   }).trim().split(/\r?\n/).filter(Boolean);
 }
 
-const changedFiles = frontendMode ? trackedFrontendFiles() : collectChangedFiles({ repoRoot });
-const plan = buildCheckPlan(changedFiles);
+const ciBase = process.env.CI_BASE_SHA;
+const ciHead = process.env.CI_HEAD_SHA;
+const changedFiles = frontendMode ? trackedFrontendFiles() : collectChangedFiles({ repoRoot, base: ciBase, head: ciHead });
+const plan = frontendMode ? buildCheckPlan(changedFiles) : buildCheckPlan(changedFiles, { repoRoot, base: ciBase, head: ciHead });
 
 if (jsonMode) {
   process.stdout.write(`${JSON.stringify(plan)}\n`);

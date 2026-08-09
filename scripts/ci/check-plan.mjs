@@ -30,10 +30,47 @@ const EXACT_GROUPS = new Map([
   ['frontend/src/permissions.js', ['auth', 'permissions']],
   ['frontend/src/supabase-client.js', ['auth', 'db']],
   ['frontend/src/state.js', ['dashboard', 'activities', 'calendars']],
-  ['frontend/src/main.js', ['auth', 'permissions']],
   ['frontend/sw.js', ['pwa']],
   ['sw.js', ['pwa']]
 ]);
+
+// main.js mixes real auth/permission routing with the per-screen cache-busting
+// `?v=` query strings bumped on nearly every frontend change. Only the former
+// needs the auth/permissions suites; a diff limited to loader version strings does not.
+const MAIN_JS_AUTH_GROUPS = ['auth', 'permissions'];
+const SCREEN_LOADER_LINE_RE = /import\(['"]\.\/screens\/[\w.-]+\.js(?:\?v=[\w-]+)?['"]\)/;
+const VERSION_QUERY_RE = /\?v=[\w-]+/g;
+
+function isCosmeticScreenLoaderDiff(diffText) {
+  if (!diffText) return false;
+  const removed = [];
+  const added = [];
+  for (const line of diffText.split('\n')) {
+    if (line.startsWith('---') || line.startsWith('+++')) continue;
+    if (line.startsWith('-')) removed.push(line.slice(1));
+    else if (line.startsWith('+')) added.push(line.slice(1));
+  }
+  if (!removed.length && !added.length) return false;
+  const allLoaderLines = [...removed, ...added].every((line) => SCREEN_LOADER_LINE_RE.test(line));
+  if (!allLoaderLines) return false;
+  const normalize = (lines) => lines.map((line) => line.replace(VERSION_QUERY_RE, '?v=')).sort();
+  const normalizedRemoved = normalize(removed);
+  const normalizedAdded = normalize(added);
+  return normalizedRemoved.length === normalizedAdded.length
+    && normalizedRemoved.every((line, index) => line === normalizedAdded[index]);
+}
+
+export function getFileDiff(file, { repoRoot = process.cwd(), base, head } = {}) {
+  try {
+    if (base && head) {
+      return execFileSync('git', ['diff', '--unified=0', base, head, '--', file], { cwd: repoRoot, encoding: 'utf8' });
+    }
+    const working = execFileSync('git', ['diff', '--unified=0', 'HEAD', '--', file], { cwd: repoRoot, encoding: 'utf8' });
+    return working;
+  } catch {
+    return null;
+  }
+}
 
 const DOMAIN_RULES = [
   [/activities|activity-/, 'activities'], [/annual-reviews/, 'annualReviews'],
@@ -48,13 +85,21 @@ const DOC_RE = /^(docs\/|.*\.md$|\.github\/deploy-trigger\.txt$)/;
 const BUILD_RE = /^(frontend\/|index\.html$|vite\.config\.js$|package(?:-lock)?\.json$|scripts\/postbuild-dist\.mjs$)/;
 const JS_RE = /\.(?:js|mjs|cjs)$/;
 
-export function buildCheckPlan(files) {
+export function buildCheckPlan(files, diffContext = {}) {
+  const { repoRoot = process.cwd(), base, head, getDiff } = diffContext;
+  const hasDiffSource = typeof getDiff === 'function' || Boolean(base && head);
+  const resolveDiff = (file) => (typeof getDiff === 'function' ? getDiff(file) : getFileDiff(file, { repoRoot, base, head }));
+
   const normalized = [...new Set(files.map((file) => file.replaceAll(path.sep, '/')))];
   const groups = new Set();
   let postgres = false;
 
   for (const file of normalized) {
     for (const group of EXACT_GROUPS.get(file) || []) groups.add(group);
+    if (file === 'frontend/src/main.js') {
+      const diff = hasDiffSource ? resolveDiff(file) : null;
+      if (!isCosmeticScreenLoaderDiff(diff)) for (const group of MAIN_JS_AUTH_GROUPS) groups.add(group);
+    }
     if (file.startsWith('frontend/src/')) {
       for (const [pattern, group] of DOMAIN_RULES) if (pattern.test(file)) groups.add(group);
     }
