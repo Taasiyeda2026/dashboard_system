@@ -14,6 +14,8 @@
     "check:frontend": "node scripts/check_changed.mjs --frontend",
     "check:build": "npm run build",
     "check:pwa": "node --test tests/service-worker-pwa-cache.test.mjs",
+    "check:ci-plan": "node --test tests/ci-check-plan.test.mjs",
+    "ci:quick": "node scripts/check_changed.mjs --run-plan",
     "test:e2e": "playwright test -c e2e/playwright.config.mjs",
     "test:e2e:smoke": "playwright test -c e2e/playwright.smoke.config.mjs",
     "test:e2e:baseline": "E2E_UPDATE_BASELINE=1 playwright test -c e2e/playwright.config.mjs e2e/tests/04-performance.spec.mjs",
