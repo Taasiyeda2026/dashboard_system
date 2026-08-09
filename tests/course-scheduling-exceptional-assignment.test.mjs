@@ -5,6 +5,7 @@ import { readFile } from 'node:fs/promises';
 const schemaUrl = new URL('../supabase/migrations/20260802220000_course_scheduling_interface_schema.sql', import.meta.url);
 const rpcUrl = new URL('../supabase/migrations/20260802221000_course_scheduling_interface_rpcs.sql', import.meta.url);
 const alignmentUrl = new URL('../supabase/migrations/20260807203000_course_scheduling_e2e_alignment.sql', import.meta.url);
+const contractSyncUrl = new URL('../supabase/migrations/20260809180000_course_scheduling_contract_sync.sql', import.meta.url);
 
 test('assign_activity_instructor no longer runs the old all-or-nothing validator', async () => {
   const sql = await readFile(rpcUrl, 'utf8');
@@ -37,16 +38,13 @@ test('hard, physically-impossible conditions always raise regardless of decision
   }
 });
 
-test('a locked course (2+ meetings) can only be changed through the separate operational-replacement action', async () => {
-  const sql = await readFile(rpcUrl, 'utf8');
-  assert.match(sql, /if meetings_done >= 2 then raise exception 'scheduling_course_locked_for_reassignment'/);
-  assert.match(sql, /create or replace function public\.replace_locked_course_instructor/);
-  assert.match(sql, /previous_emp_id, previous_instructor_name, effective_from/);
-});
-
-test('a single completed meeting always requires an explicit reason to change the instructor', async () => {
-  const sql = await readFile(rpcUrl, 'utf8');
-  assert.match(sql, /meetings_done >= 1 or p_decision_type in \('overridden','exception_approved'\)/);
+test('completed meeting count never locks or adds a reason requirement to instructor replacement', async () => {
+  const sql = await readFile(contractSyncUrl, 'utf8');
+  const replacement = sql.split('function public.reassign_locked_course_instructor')[1]
+    .split('function public.scheduling_course_instructor_violations')[0];
+  assert.doesNotMatch(replacement, /meetings_done\s*>?=/);
+  assert.doesNotMatch(replacement, /scheduling_course_locked_for_reassignment/);
+  assert.match(replacement, /meetings_completed_at_decision/);
 });
 
 test('meetings-completed reuses existing completion-approval and cancellation data, not a new counter', async () => {

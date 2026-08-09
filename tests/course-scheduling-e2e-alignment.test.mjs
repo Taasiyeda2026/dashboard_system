@@ -521,3 +521,22 @@ test('30: no new route, tab, table or parallel assignment model is introduced', 
   );
   assert.deepEqual(enriched[0].cancelled_meeting_dates, ['2026-09-06']);
 });
+
+test('31: proposed dates owned by another instructor do not block this instructor', () => {
+  const open = course('open-for-100', {
+    meetings: [{ date: '2026-09-20', start_time: '10:00', end_time: '11:00' }]
+  });
+  const otherInstructorDraft = course('draft-for-200', {
+    draft_emp_id: '200',
+    draft_instructor_name: 'מדריך אחר',
+    meetings: [{ date: '2026-09-06', start_time: '10:00', end_time: '11:00' }],
+    draft_proposed_meetings: [{ date: '2026-09-20', start_time: '10:00', end_time: '11:00' }]
+  });
+  const result = calculateCourseSchedule(scheduleInput({
+    activities: [open, otherInstructorDraft],
+    travel: travelFor('open-for-100', '100', { distance_km: 8, duration_minutes: 12 })
+  })).find((row) => row.course.row_id === 'open-for-100');
+  const candidate = (result.checked || []).find((item) => item.instructor.emp_id === '100');
+  assert.equal(candidate.eligible, true);
+  assert.ok(!candidate.failures.some((item) => /חפיפה|מעבר/.test(item)));
+});
