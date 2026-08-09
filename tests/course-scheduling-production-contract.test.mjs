@@ -56,6 +56,7 @@ test('runtime contract verifies live RPC signatures and trigger targets', async 
 });
 
 const contractSyncUrl = new URL('../supabase/migrations/20260809180000_course_scheduling_contract_sync.sql', import.meta.url);
+const legacyCleanupUrl = new URL('../supabase/migrations/20260809200000_course_scheduling_legacy_cleanup.sql', import.meta.url);
 
 test('focused contract sync makes completed meetings audit-only for replacement', async () => {
   const sql = await readFile(contractSyncUrl, 'utf8');
@@ -112,4 +113,21 @@ test('contract sync is idempotent and contains no activity data mutation or back
   assert.doesNotMatch(sql, /insert into public\.activities/i);
   assert.doesNotMatch(sql, /delete from public\.activities/i);
   assert.doesNotMatch(sql, /update public\.activities[\s\S]*set\s+status/i);
+});
+
+test('revalidation delegates decisions to the canonical assignment validator', async () => {
+  const sql = await readFile(legacyCleanupUrl, 'utf8');
+  const revalidation = sql.split('function public.scheduling_locked_course_validation_reason')[1]
+    .split('revoke all')[0];
+  assert.match(revalidation, /scheduling_course_instructor_violations\(p_activity_id, target\.emp_id, false\)/);
+  assert.doesNotMatch(revalidation, /instruction_languages|friday_allowed|instructor_availability|cached_travel|effective_meetings/);
+  assert.doesNotMatch(sql, /update\s+public\.activities|insert\s+into\s+public\.activities|delete\s+from\s+public\.activities/i);
+});
+
+test('obsolete proposed-date cancellation wrapper is removed', async () => {
+  const sql = await readFile(legacyCleanupUrl, 'utf8');
+  const frontend = await readFile(new URL('../frontend/src/screens/course-scheduling.js', import.meta.url), 'utf8');
+  assert.match(sql, /drop function if exists public\.cancel_course_assignment_draft_with_dates\(text\)/);
+  assert.doesNotMatch(frontend, /cancel_course_assignment_draft_with_dates/);
+  assert.match(frontend, /rpc\('cancel_course_assignment_draft'/);
 });

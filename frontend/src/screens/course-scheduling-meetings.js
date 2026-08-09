@@ -113,10 +113,3 @@ export function meetingsCompletedForCourse(course, meetingState = {}, now = new 
   }
   return completed;
 }
-
-// Completed meetings affect the reason/audit context only; they never lock an
-// operational instructor change or close the course automatically.
-export function courseMeetingStage(meetingsCompleted) {
-  if (meetingsCompleted >= 1) return 'one_completed';
-  return 'not_started';
-}
