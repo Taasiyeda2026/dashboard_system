@@ -1053,28 +1053,6 @@ function dataReadinessHtml(data, state = {}) {
   </div>`;
 }
 
-function distanceMaintenanceDialogHtml(state) {
-  const distanceBusy = !!state.courseSchedulingDistanceLoading;
-  const doneMessage = text(state.courseSchedulingDistanceDoneMessage);
-  const doneError = !!state.courseSchedulingDistanceError;
-  const stats = state.courseSchedulingDistanceStats || {};
-  const required = Number(stats.required_count) || 0;
-  const existing = Number(stats.existing_count) || 0;
-  const missing = Number(stats.missing_count) || 0;
-  return `<div class="course-scheduling-overlay" data-course-scheduling-overlay>
-    <section class="course-scheduling-modal" role="dialog" aria-modal="true" aria-labelledby="course-scheduling-distance-title">
-      <button type="button" class="course-scheduling-close" data-close-course-scheduling-overlay aria-label="סגירה">×</button>
-      <h3 id="course-scheduling-distance-title">עדכון מרחקים</h3>
-      <p>מרחקים מעודכנים: ${existing} מתוך ${required}</p>
-      <p>חסרים: ${missing}</p>
-      <div class="course-scheduling-detail-actions">
-        <button type="button" class="course-scheduling-btn course-scheduling-btn--primary" data-update-distances ${distanceBusy ? 'disabled' : ''}>${distanceBusy ? 'מעדכן מרחקים...' : 'עדכן מרחקים'}</button>
-      </div>
-      ${doneMessage ? `<p class="${doneError ? 'course-scheduling-alert' : 'course-scheduling-success'}">${escapeHtml(doneMessage)}</p>` : ''}
-    </section>
-  </div>`;
-}
-
 function dataReadinessDrawerHtml(data, state = {}) {
   if (!state.courseSchedulingShowDataReadiness) return '';
   return `<div class="course-scheduling-overlay course-scheduling-overlay--drawer" data-course-scheduling-overlay>
@@ -1085,12 +1063,24 @@ function dataReadinessDrawerHtml(data, state = {}) {
   </div>`;
 }
 
-function maintenanceTabHtml() {
+function maintenanceTabHtml(state) {
+  const distanceBusy = !!state.courseSchedulingDistanceLoading;
+  const coverageLoading = !!state.courseSchedulingDistanceCoverageLoading;
+  const stats = state.courseSchedulingDistanceStats || {};
+  const count = (key) => coverageLoading && stats[key] == null ? '…' : Number(stats[key]) || 0;
+  const doneMessage = text(state.courseSchedulingDistanceDoneMessage);
+  const doneError = !!state.courseSchedulingDistanceError;
   return `<section class="course-scheduling-maintenance-tab" aria-labelledby="course-scheduling-maintenance-heading">
     <h2 id="course-scheduling-maintenance-heading" class="course-scheduling-visually-hidden">פעולות תחזוקה</h2>
     <article class="course-scheduling-maintenance-card">
-      <div><h3>עדכון מרחקים</h3><p>חישוב ועדכון מרחקי הנסיעה בין כתובות המדריכים לבתי הספר.</p></div>
-      <button type="button" class="course-scheduling-btn course-scheduling-btn--primary" data-maintenance-action="distances">עדכן מרחקים</button>
+      <div>
+        <h3>עדכון מרחקים</h3>
+        <p>מרחקים קיימים: ${count('existing_count')} מתוך ${count('required_count')}</p>
+        <p>חסרים: ${count('missing_count')}</p>
+        <p>דורשים רענון: ${count('refresh_required_count')}</p>
+        ${doneMessage ? `<p class="${doneError ? 'course-scheduling-alert' : 'course-scheduling-success'}">${escapeHtml(doneMessage)}</p>` : ''}
+      </div>
+      <button type="button" class="course-scheduling-btn course-scheduling-btn--primary" data-update-distances ${distanceBusy || coverageLoading ? 'disabled' : ''}>${distanceBusy ? 'מעדכן מרחקים...' : 'עדכן מרחקים'}</button>
     </article>
     <article class="course-scheduling-maintenance-card">
       <div><h3>בדיקת נתונים</h3><p>איתור פעילויות, מדריכים או כתובות שחסר בהם מידע הנדרש לשיבוץ.</p></div>
@@ -1245,7 +1235,7 @@ export const courseSchedulingScreen = {
       ${instructorsWorkspaceHeaderHtml({ activeTab: tab === 'maintenance' ? 'maintenance' : 'scheduling', state })}
 
       ${tab === 'maintenance'
-        ? maintenanceTabHtml()
+        ? maintenanceTabHtml(state)
         : `${schedulingScopeHtml(allInterfaceCourses, state)}
       ${state.courseSchedulingSimulationView
         ? districtSimulationPanelHtml({
@@ -1276,7 +1266,6 @@ export const courseSchedulingScreen = {
         }</section>
       </div>
     `}`}
-      ${state.courseSchedulingShowDistanceConfirm ? distanceMaintenanceDialogHtml(state) : ''}
       ${dataReadinessDrawerHtml(data, state)}
     </div>`);
   },
@@ -1293,6 +1282,27 @@ export const courseSchedulingScreen = {
         .filter(([id]) => !!id)
     );
     bindInstructorsWorkspaceNav(root, { state, rerender });
+
+    if (activeTab(state) === 'maintenance'
+      && !state.courseSchedulingDistanceCoverageLoaded
+      && !state.courseSchedulingDistanceCoverageLoading) {
+      state.courseSchedulingDistanceCoverageLoading = true;
+      loadDistanceCoverage((body) => supabase.functions.invoke('scheduling-route', { body }))
+        .then((coverage) => {
+          state.courseSchedulingDistanceStats = coverage;
+          state.courseSchedulingDistanceError = false;
+          state.courseSchedulingDistanceDoneMessage = '';
+        })
+        .catch((error) => {
+          state.courseSchedulingDistanceError = true;
+          state.courseSchedulingDistanceDoneMessage = translateSchedulingRouteError(error.code || error.message, error.message);
+        })
+        .finally(() => {
+          state.courseSchedulingDistanceCoverageLoading = false;
+          state.courseSchedulingDistanceCoverageLoaded = true;
+          rerender();
+        });
+    }
 
     const openMissingCourse = (activityId) => {
       try { sessionStorage.setItem(PENDING_ACTIVITY_STORAGE_KEY, activityId); } catch { /* storage may be unavailable */ }
@@ -1431,23 +1441,9 @@ export const courseSchedulingScreen = {
 
     root.querySelectorAll('[data-maintenance-action]').forEach((button) => {
       button.addEventListener('click', async () => {
-        if (button.dataset.maintenanceAction === 'distances') {
-          state.courseSchedulingShowDistanceConfirm = true;
-          state.courseSchedulingShowDataReadiness = false;
-          state.courseSchedulingDistanceDoneMessage = '';
-          try {
-            state.courseSchedulingDistanceStats = await loadDistanceCoverage(
-              (body) => supabase.functions.invoke('scheduling-route', { body })
-            );
-          } catch (error) {
-            state.courseSchedulingDistanceError = true;
-            state.courseSchedulingDistanceDoneMessage = translateSchedulingRouteError(error.code || error.message, error.message);
-          }
-        } else {
-          state.courseSchedulingShowDataReadiness = true;
-          state.courseSchedulingShowDistanceConfirm = false;
-          state.courseSchedulingReadinessTab = 'courses';
-        }
+        state.courseSchedulingShowDataReadiness = true;
+        state.courseSchedulingShowDistanceConfirm = false;
+        state.courseSchedulingReadinessTab = 'courses';
         rerender();
       });
     });
