@@ -3932,6 +3932,13 @@ function sanitizeProposalAgreementPayload(payload = {}, groupLookup = proposalGr
   );
 }
 
+export async function recoverIdempotentProposalInsert(error, submissionId, readExisting) {
+  if (error?.code !== '23505' || !uuidOrNull(submissionId) || typeof readExisting !== 'function') return null;
+  const { data, error: existingError } = await readExisting(submissionId);
+  if (existingError || !data) return null;
+  return { ok: true, row: normalizeProposalAgreementRow(data) };
+}
+
 
 function proposalContactMatches(existing = {}, next = {}, original = {}) {
   const existingId = cleanProposalAgreementText(existing.id);
@@ -7182,14 +7189,12 @@ export const api = {
       .insert(insert)
       .select(PROPOSALS_AGREEMENTS_COLUMNS)
       .single();
-    if (error?.code === '23505' && submissionId) {
-      const { data: existing, error: existingError } = await supabase
+    const recovered = await recoverIdempotentProposalInsert(error, submissionId, (id) => supabase
         .from('proposals_agreements')
         .select(PROPOSALS_AGREEMENTS_COLUMNS)
-        .eq('id', submissionId)
-        .single();
-      if (!existingError && existing) return { ok: true, row: normalizeProposalAgreementRow(existing) };
-    }
+        .eq('id', id)
+        .single());
+    if (recovered) return recovered;
     if (error) throw new Error(error.message || 'proposals_agreement_add_failed');
     return { ok: true, row: normalizeProposalAgreementRow(data) };
   },

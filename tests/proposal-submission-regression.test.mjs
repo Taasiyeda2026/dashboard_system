@@ -167,3 +167,23 @@ test('screen timeout clears saving state and a responsive retry reuses the same 
     dom.window.close();
   }
 });
+
+test('addProposalAgreement 23505 recovery rereads and returns the same idempotent proposal', async () => {
+  const { recoverIdempotentProposalInsert } = await import('../frontend/src/api.js');
+  const submissionId = '11111111-1111-4111-8111-111111111111';
+  const created = { id: submissionId, status: 'draft', client_authority: 'רשות בדיקה' };
+  let rereads = 0;
+  const result = await recoverIdempotentProposalInsert(
+    { code: '23505', message: 'duplicate key value violates unique constraint' },
+    submissionId,
+    async (id) => {
+      rereads += 1;
+      assert.equal(id, submissionId);
+      return { data: created, error: null };
+    }
+  );
+  assert.equal(rereads, 1);
+  assert.equal(result.ok, true);
+  assert.equal(result.row.id, submissionId);
+  assert.equal(result.row.client_authority, created.client_authority);
+});
