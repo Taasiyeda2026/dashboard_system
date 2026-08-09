@@ -5,6 +5,7 @@ import {
   buildGoogleAddressQuery,
   buildInstructorSchoolPairs,
   buildSchoolSchoolPairs,
+  calculateTravelCoverage,
   classifyTravelCachePair,
   dedupeAuthoritySchools,
   dedupeDistanceBuildFailures,
@@ -22,6 +23,7 @@ import {
 const schemaUrl = new URL('../supabase/migrations/20260802220000_course_scheduling_interface_schema.sql', import.meta.url);
 const readinessMigrationUrl = new URL('../supabase/migrations/20260803193000_course_scheduling_travel_cache_production_readiness.sql', import.meta.url);
 const edgeFunctionUrl = new URL('../supabase/functions/scheduling-route/index.ts', import.meta.url);
+const durableRouteMigrationUrl = new URL('../supabase/migrations/20260809170000_keep_usable_scheduling_routes.sql', import.meta.url);
 
 test('the travel cache gains authority/school/address columns instead of a duplicate table', async () => {
   const sql = await readFile(schemaUrl, 'utf8');
@@ -225,6 +227,64 @@ test('edge function counts inserted/renewed only after upsert and continues afte
   assert.match(ts, /failed_count/);
   assert.match(ts, /next_cursor/);
   assert.match(ts, /remaining_count/);
+});
+
+test('coverage distinguishes missing routes from usable routes requiring refresh', () => {
+  const now = Date.now();
+  const pairs = [
+    { origin_address: 'א', destination_address: 'ב' },
+    { origin_address: 'ג', destination_address: 'ד' },
+    { origin_address: 'ה', destination_address: 'ו' }
+  ];
+  const cacheRows = [
+    { origin_key: 'א', destination_key: 'ב', origin_address: 'א', destination_address: 'ב', distance_km: 3, duration_minutes: 8, expires_at: new Date(now + 1000).toISOString() },
+    { origin_key: 'ג', destination_key: 'ד', origin_address: 'ג', destination_address: 'ד', distance_km: 4, duration_minutes: 9, expires_at: new Date(now - 1000).toISOString() }
+  ];
+  assert.deepEqual(calculateTravelCoverage(pairs, cacheRows, now), {
+    required_count: 3,
+    existing_count: 2,
+    missing_count: 1,
+    refresh_required_count: 1
+  });
+});
+
+test('coverage rejects null, negative, and improper zero metrics without counting historical rows', () => {
+  const pairs = [{ origin_address: 'א', destination_address: 'ב' }];
+  for (const row of [
+    { distance_km: null, duration_minutes: 5 },
+    { distance_km: 5, duration_minutes: null },
+    { distance_km: -1, duration_minutes: 5 },
+    { distance_km: 5, duration_minutes: -1 },
+    { distance_km: 0, duration_minutes: 5 },
+    { distance_km: 5, duration_minutes: 0 }
+  ]) {
+    const coverage = calculateTravelCoverage(pairs, [{ origin_key: 'א', destination_key: 'ב', origin_address: 'א', destination_address: 'ב', expires_at: new Date(Date.now() + 10000).toISOString(), ...row }]);
+    assert.equal(coverage.missing_count, 1);
+    assert.equal(coverage.existing_count, 0);
+  }
+  const withHistorical = calculateTravelCoverage(pairs, [
+    { origin_key: 'ישן', destination_key: 'מסלול', origin_address: 'ישן', destination_address: 'מסלול', distance_km: 2, duration_minutes: 5 },
+    { origin_key: 'א', destination_key: 'ב', origin_address: 'א', destination_address: 'ב', distance_km: 2, duration_minutes: 5 }
+  ]);
+  assert.equal(withHistorical.required_count, 1);
+  assert.equal(withHistorical.existing_count, 1);
+});
+
+test('address replacement persists the new route before deleting the obsolete key', async () => {
+  const ts = await readFile(edgeFunctionUrl, 'utf8');
+  const replace = ts.split('async function replaceCacheRow')[1].split('async function loadAuthoritySchools')[0];
+  assert.ok(replace.indexOf(".upsert(row)") < replace.indexOf(".delete()"));
+  assert.match(replace, /failed Google call or failed upsert therefore cannot erase/);
+});
+
+test('durable-route migration keeps usable expired rows and validates route metrics', async () => {
+  const sql = await readFile(durableRouteMigrationUrl, 'utf8');
+  assert.match(sql, /create or replace function public\.scheduling_cached_travel_distance_km/);
+  assert.doesNotMatch(sql, /expires_at\s*>\s*now\(\)/i);
+  assert.match(sql, /distance_km is not null/);
+  assert.match(sql, /duration_minutes is not null/);
+  assert.match(sql, /distance_km >= 0/);
+  assert.match(sql, /duration_minutes >= 0/);
 });
 
 test('edge function responses do not include instructor street addresses in failures', async () => {
@@ -431,10 +491,15 @@ test('distance build progress texts cover success, failures, and stopped states'
   assert.match(stopped, /נעצרה וניתן להמשיך בהרצה נוספת/);
 });
 
-test('course scheduling screen treats completed builds with failures as an error/warning', async () => {
+test('course scheduling distance UI exposes only simple coverage and progress copy', async () => {
   const source = await readFile(new URL('../frontend/src/screens/course-scheduling.js', import.meta.url), 'utf8');
   assert.match(source, /function distanceDoneMessage/);
-  assert.match(source, /const failed = Number\(stats\.failed_count\) \|\| 0;/);
+  assert.match(source, /מרחקים מעודכנים:/);
+  assert.match(source, /חסרים:/);
+  assert.match(source, /מעדכן \$\{processed\} מתוך \$\{total\}/);
+  assert.match(source, /כל המרחקים מעודכנים/);
+  assert.match(source, /נותרו \$\{remaining\} מסלולים לעדכון/);
+  const dialog = source.split('function distanceMaintenanceDialogHtml')[1].split('function dataReadinessDrawerHtml')[0];
+  assert.doesNotMatch(dialog, /cache|TTL|batch|expiration|מטמון|מנות|פרטים/i);
   assert.match(source, /state\.courseSchedulingDistanceError = info\.error/);
-  assert.doesNotMatch(source, /failed_count \|\| 0\) > 0 && !result\.done/);
 });

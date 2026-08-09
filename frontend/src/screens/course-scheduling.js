@@ -24,6 +24,7 @@ import {
   instructorReadinessRows,
   MISSING_SCHEDULE_FILTER_STORAGE_KEY,
   pickNearestActionableCourse,
+  loadDistanceCoverage,
   runDistanceBuildLoop,
   translateSchedulingRouteError
 } from './course-scheduling-distance-build.js';
@@ -1056,17 +1057,20 @@ function distanceMaintenanceDialogHtml(state) {
   const distanceBusy = !!state.courseSchedulingDistanceLoading;
   const doneMessage = text(state.courseSchedulingDistanceDoneMessage);
   const doneError = !!state.courseSchedulingDistanceError;
+  const stats = state.courseSchedulingDistanceStats || {};
+  const required = Number(stats.required_count) || 0;
+  const existing = Number(stats.existing_count) || 0;
+  const missing = Number(stats.missing_count) || 0;
   return `<div class="course-scheduling-overlay" data-course-scheduling-overlay>
     <section class="course-scheduling-modal" role="dialog" aria-modal="true" aria-labelledby="course-scheduling-distance-title">
       <button type="button" class="course-scheduling-close" data-close-course-scheduling-overlay aria-label="סגירה">×</button>
       <h3 id="course-scheduling-distance-title">עדכון מרחקים</h3>
-      <p>פעולה זו מעדכנת את זמני הנסיעה בין כתובות המדריכים ובתי הספר. בדרך כלל אין צורך להפעיל אותה לפני כל שיבוץ.</p>
+      <p>מרחקים מעודכנים: ${existing} מתוך ${required}</p>
+      <p>חסרים: ${missing}</p>
       <div class="course-scheduling-detail-actions">
         <button type="button" class="course-scheduling-btn course-scheduling-btn--primary" data-update-distances ${distanceBusy ? 'disabled' : ''}>${distanceBusy ? 'מעדכן מרחקים...' : 'עדכן מרחקים'}</button>
-        ${distanceBusy ? '<button type="button" class="course-scheduling-btn course-scheduling-btn--secondary" data-stop-distance-build>עצור</button>' : ''}
       </div>
-      ${doneMessage ? `<p class="${doneError ? 'course-scheduling-alert' : 'course-scheduling-success'}">${escapeHtml(doneMessage)}</p>
-        ${text(state.courseSchedulingDistanceDetails) ? `<details class="course-scheduling-details"><summary>הצגת פרטים</summary><p>${escapeHtml(state.courseSchedulingDistanceDetails)}</p></details>` : ''}` : ''}
+      ${doneMessage ? `<p class="${doneError ? 'course-scheduling-alert' : 'course-scheduling-success'}">${escapeHtml(doneMessage)}</p>` : ''}
     </section>
   </div>`;
 }
@@ -1161,17 +1165,13 @@ function clickActivityRowWhenReady(rowId, attempts = 40) {
 
 function distanceDoneMessage(stats = {}, { done = false, stopped = false, errorMessage = '' } = {}) {
   if (errorMessage) return { message: 'עדכון המרחקים נכשל', details: errorMessage, error: true };
-  const failed = Number(stats.failed_count) || 0;
+  const remaining = (Number(stats.missing_count) || 0) + (Number(stats.refresh_required_count) || 0);
   if (stopped) return { message: 'עדכון המרחקים הופסק', details: '', error: false };
-  if (failed > 0) {
-    return {
-      message: `העדכון הסתיים עם ${failed} כתובות שלא זוהו`,
-      details: `עובדו ${Number(stats.processed_count) || 0} זוגות · עודכנו ${Number(stats.inserted_count) || 0}`,
-      error: true
-    };
-  }
-  if (done) return { message: 'מאגר המרחקים עודכן בהצלחה', details: '', error: false };
-  return { message: 'מעדכן מרחקים...', details: '', error: false };
+  if (done && remaining > 0) return { message: `נותרו ${remaining} מסלולים לעדכון`, details: '', error: true };
+  if (done) return { message: 'כל המרחקים מעודכנים', details: '', error: false };
+  const processed = (Number(stats.inserted_count) || 0) + (Number(stats.renewed_count) || 0) + (Number(stats.failed_count) || 0);
+  const total = Number(stats.action_required_count) || processed + remaining;
+  return { message: `מעדכן ${processed} מתוך ${total}...`, details: '', error: false };
 }
 
 export const courseSchedulingScreen = {
@@ -1430,10 +1430,19 @@ export const courseSchedulingScreen = {
     }));
 
     root.querySelectorAll('[data-maintenance-action]').forEach((button) => {
-      button.addEventListener('click', () => {
+      button.addEventListener('click', async () => {
         if (button.dataset.maintenanceAction === 'distances') {
           state.courseSchedulingShowDistanceConfirm = true;
           state.courseSchedulingShowDataReadiness = false;
+          state.courseSchedulingDistanceDoneMessage = '';
+          try {
+            state.courseSchedulingDistanceStats = await loadDistanceCoverage(
+              (body) => supabase.functions.invoke('scheduling-route', { body })
+            );
+          } catch (error) {
+            state.courseSchedulingDistanceError = true;
+            state.courseSchedulingDistanceDoneMessage = translateSchedulingRouteError(error.code || error.message, error.message);
+          }
         } else {
           state.courseSchedulingShowDataReadiness = true;
           state.courseSchedulingShowDistanceConfirm = false;
@@ -1976,10 +1985,6 @@ export const courseSchedulingScreen = {
       rerender();
     });
 
-    root.querySelector('[data-stop-distance-build]')?.addEventListener('click', () => {
-      state.courseSchedulingDistanceStopRequested = true;
-    });
-
     root.querySelector('[data-update-distances]')?.addEventListener('click', async () => {
       if (state.courseSchedulingDistanceLoading) return;
       state.courseSchedulingDistanceLoading = true;
@@ -1989,6 +1994,13 @@ export const courseSchedulingScreen = {
       state.courseSchedulingDistanceDetails = '';
       rerender();
       try {
+        const initialCoverage = await loadDistanceCoverage(
+          (body) => supabase.functions.invoke('scheduling-route', { body })
+        );
+        state.courseSchedulingDistanceStats = {
+          ...initialCoverage,
+          action_required_count: initialCoverage.missing_count + initialCoverage.refresh_required_count
+        };
         const result = await runDistanceBuildLoop({
           invoke: (body) => supabase.functions.invoke('scheduling-route', { body }),
           scope: 'all',
@@ -1996,15 +2008,22 @@ export const courseSchedulingScreen = {
           shouldStop: () => !!state.courseSchedulingDistanceStopRequested,
           onProgress: async ({ stats, done, stopped }) => {
             const info = distanceDoneMessage(stats, { done, stopped });
-            state.courseSchedulingDistanceStats = stats;
+            state.courseSchedulingDistanceStats = {
+              ...stats,
+              action_required_count: state.courseSchedulingDistanceStats.action_required_count
+            };
             state.courseSchedulingDistanceDoneMessage = info.message;
             state.courseSchedulingDistanceDetails = info.details;
             state.courseSchedulingDistanceError = info.error;
             rerender();
           }
         });
-        const info = distanceDoneMessage(result.stats, { done: result.done, stopped: result.stopped });
-        state.courseSchedulingDistanceStats = result.stats;
+        const finalCoverage = await loadDistanceCoverage(
+          (body) => supabase.functions.invoke('scheduling-route', { body })
+        );
+        const finalStats = { ...result.stats, ...finalCoverage };
+        const info = distanceDoneMessage(finalStats, { done: result.done, stopped: result.stopped });
+        state.courseSchedulingDistanceStats = finalStats;
         state.courseSchedulingDistanceDoneMessage = info.message;
         state.courseSchedulingDistanceDetails = info.details;
         state.courseSchedulingDistanceError = info.error;

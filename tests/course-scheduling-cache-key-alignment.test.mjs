@@ -317,7 +317,7 @@ test('valid single-pair cache hit returns cached=true without a Google call', ()
   assert.equal(isLookupTravelCacheValid(rows[0], origin, destination, now), true);
 });
 
-test('expired cache row is not treated as valid even when distance/duration are numeric', () => {
+test('expired usable cache row remains available to scheduling and is marked for refresh', () => {
   const origin = 'א';
   const destination = 'ב';
   const now = Date.now();
@@ -332,9 +332,10 @@ test('expired cache row is not treated as valid even when distance/duration are 
   };
   assert.equal(isLookupTravelCacheValid(expired, origin, destination, now), false);
   const resolved = resolveSinglePairFromTravelCache([expired], origin, destination, now);
-  assert.equal(resolved.cached, false);
-  assert.equal(resolved.mapsCall, true);
-  assert.equal(resolved.renewed, true);
+  assert.equal(resolved.cached, true);
+  assert.equal(resolved.mapsCall, false);
+  assert.equal(resolved.needs_refresh, true);
+  assert.equal(resolved.distance_km, 4);
 });
 
 test('invalid distance or duration forces a single-pair recompute', () => {
@@ -388,15 +389,15 @@ test('same-address pair never calls Google and is cached on the second lookup af
   assert.equal(second.distance_km, 0);
 });
 
-test('edge function single-pair path validates expiry before returning cached=true', async () => {
+test('edge function single-pair path returns usable expired data without Google', async () => {
   const ts = await readFile(edgeFunctionUrl, 'utf8');
   assert.match(ts, /function isLookupCacheValid/);
-  assert.match(ts, /if \(isLookupCacheValid\(cached, origin, destination\)\)/);
+  assert.match(ts, /needs_refresh: needsRefresh\(cached\)/);
   assert.match(ts, /renewed: hadPrevious/);
   assert.match(ts, /provider: 'same_school'/);
   const serveTail = ts.split("const origin = text(payload.origin);")[1] || '';
   assert.doesNotMatch(serveTail, /if \(cached\) return jsonResponse\(\{ calculated: true, cached: true, \.\.\.cached \}\)/);
-  const validReturn = serveTail.indexOf('isLookupCacheValid(cached, origin, destination)');
+  const validReturn = serveTail.indexOf('cached && hasUsableMetrics(cached)');
   const googleCall = serveTail.indexOf('computeRoute(origin, destination, key)');
   const sameSchool = serveTail.indexOf("provider: 'same_school'");
   assert.ok(validReturn > -1 && sameSchool > validReturn && googleCall > sameSchool);
