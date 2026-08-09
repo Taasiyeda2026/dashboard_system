@@ -18,17 +18,36 @@ Keep the working context small. For every task, inspect and edit only the files 
 
 ## Agent Testing Policy
 
-Do not run the full legacy test suite by default.
+**Minimum relevant validation only.** Before every command, ask whether it adds coverage that has not already passed since the last relevant code change. It is valid to run no automated test when none meaningfully covers the change.
 
-Default verification for Cursor/Codex tasks:
+Mandatory execution rules:
 
-- For changed JavaScript files, run `npm run check:changed` or `node --check <changed-file>` on the files touched by the task.
-- For a changed screen, run only the relevant screen test file when it exists, for example `node --test tests/proposals-agreements-screen.test.mjs`.
-- For frontend, build, Service Worker, or `dist` changes, run `npm run check:build`.
+- Do not run the full legacy suite or Full Regression during an ordinary task. Use them only when explicitly requested or when repairing that suite/workflow itself.
+- **Do not rerun an already-passing test or suite unless relevant code changed after that run.** This applies to syntax checks, builds, PWA, DB, E2E, Quick PR checks, and every subset of a previously passing command.
+- Do not rerun four or five files in slightly different combinations for extra assurance. If `a`, `b`, and `c` passed together, do not rerun `a` and `b` unless relevant code changed afterward.
+- **Prefer test-name-pattern over entire large test files when only specific scenarios changed.** When one to three cases changed, use `node --test --test-name-pattern="<relevant cases>" tests/<file>.test.mjs` rather than the whole file.
+- Do not select a test merely because its filename or domain resembles the changed file. Select it only when its assertions exercise the changed behavior.
+- Do not run a build unless the change needs build validation. Do not run business tests for CSS-only, text-only, or cache-marker-only changes.
+- **No test is required when the change has no meaningful automated test coverage.** Documentation-only changes may need no further validation; otherwise `node --check`, `git diff --check`, or a focused manual/visual check may be sufficient.
+
+Validation by change type:
+
+- **Text only:** use syntax or a pinpoint check only when the edited context requires it; otherwise no automated test.
+- **CSS only:** use a build or focused UI/manual check only when needed; never run business-logic tests for CSS.
+- **Cache/version only:** use only the relevant PWA/cache check when needed.
+- **Single function:** run only test cases for that function or behavior, preferably with `--test-name-pattern`.
+- **Focused UI behavior:** run only cases that assert the changed interaction or rendering behavior.
+- **Business logic:** run only the cases for the specific rule or behavior changed.
+- **DB/RPC/migration:** run only the directly relevant DB contract or migration checks.
+- **Broad change or genuine shared dependency:** expand coverage only according to dependencies actually affected, not merely because a shared filename changed.
+
+Local workflow and final CI:
+
+- During development, run only the smallest checks needed for feedback and debugging.
+- After changes are complete, `npm run ci:quick` may be run once, and only when relevant. Do not first run everything it will cover manually unless that was necessary for debugging.
+- Before any rerun, determine whether relevant code changed since the passing run and record the reason if a rerun is genuinely necessary.
 - For every deployable frontend update, verify both the `HOTFIX_VERSION` release marker and the incremented `CACHE_VERSION` before opening or merging the pull request.
 - When Service Worker files change, bump/verify `CACHE_VERSION` in `frontend/sw.js` only; root `sw.js` has no manual version.
-- For proposal-template changes, run syntax checks plus the focused proposal multiline/template tests only.
-- Do not run unrelated backend or legacy tests for frontend-only changes.
 
 Legacy full suite:
 
@@ -38,7 +57,10 @@ Legacy full suite:
 
 Reporting:
 
-- Summarize changed files, focused checks run, whether `npm run check:build` passed, and whether SW/cache was updated when applicable.
+- Report what was checked, why each check was selected, and how many test cases actually ran.
+- Report any repeated command and why the rerun was necessary; omit duplicate entries when there was no separate run.
+- State whether a build was required and run, and whether SW/cache was updated, only when applicable.
+- Do not run checks merely to make the final report longer.
 - If a relevant focused check fails, fix it or report it.
 - If an unrelated legacy check fails, mention it briefly and do not spend time debugging it unless requested.
 
