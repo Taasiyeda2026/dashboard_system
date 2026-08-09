@@ -40,7 +40,7 @@
 
 .course-scheduling-compact-table-head,
 .course-scheduling-compact-row {
-  --course-scheduling-row-columns: minmax(0, 1.35fr) minmax(0, .9fr) minmax(0, 1.3fr) minmax(0, .85fr) minmax(0, .58fr) minmax(0, .62fr);
+  --course-scheduling-row-columns: minmax(0, 1.2fr) minmax(0, .9fr) minmax(0, 1.2fr) minmax(86px, .62fr);
   display: grid;
   grid-template-columns: var(--course-scheduling-row-columns);
   align-items: center;
@@ -64,8 +64,7 @@
 .course-scheduling-compact-authority { font-size: 0.82rem; color: var(--cs-text-muted); }
 .course-scheduling-compact-course { font-size: 0.86rem; font-weight: 650; color: var(--cs-text); }
 .course-scheduling-compact-instructor { font-size: 0.82rem; color: var(--cs-text-muted); }
-.course-scheduling-compact-status,
-.course-scheduling-compact-action-cell { justify-content: center; }
+.course-scheduling-compact-status { justify-content: center; }
 .course-scheduling-screen.is-compact-symmetric-layout .course-scheduling-status-chip { display: inline-flex; align-items: center; justify-content: center; max-width: 100%; min-height: 24px; margin: 0; padding: 3px 8px; border-radius: 999px; font-size: 0.72rem; line-height: 1; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
 .course-scheduling-compact-action { width: max-content; max-width: 100%; min-width: 0; min-height: 32px; height: 34px; padding: 0 8px; border: 1px solid var(--cs-accent); border-radius: 6px; background: var(--cs-surface); color: var(--cs-accent); font: inherit; font-size: 0.78rem; font-weight: 700; line-height: 1; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; cursor: pointer; }
 .course-scheduling-compact-action:hover { background: var(--cs-accent-soft); }
@@ -77,7 +76,7 @@
 .course-scheduling-screen.is-compact-symmetric-layout .course-scheduling-result-block,
 .course-scheduling-screen.is-compact-symmetric-layout .course-scheduling-details { border-radius: 8px; }
 @media (max-width: 1400px) { .course-scheduling-screen.is-compact-symmetric-layout { width: min(88%, 1160px); } }
-@media (max-width: 900px) { .course-scheduling-screen.is-compact-symmetric-layout { width: 100%; } .course-scheduling-screen.is-compact-symmetric-layout .course-scheduling-scope-inner { grid-template-columns: repeat(2, minmax(0, 1fr)); } .course-scheduling-compact-table-head { display: none; } .course-scheduling-compact-row { height: auto; min-height: 58px; grid-template-columns: minmax(0, 1fr) auto; gap: 7px 12px; padding-block: 10px; } .course-scheduling-compact-cell { grid-column: 1; min-height: 0; } .course-scheduling-compact-status { justify-content: flex-start; } .course-scheduling-compact-action-cell { grid-column: 2; grid-row: 1 / span 5; } }
+@media (max-width: 900px) { .course-scheduling-screen.is-compact-symmetric-layout { width: 100%; } .course-scheduling-screen.is-compact-symmetric-layout .course-scheduling-scope-inner { grid-template-columns: repeat(2, minmax(0, 1fr)); } .course-scheduling-compact-table-head { display: none; } .course-scheduling-compact-row { height: auto; min-height: 58px; grid-template-columns: minmax(0, 1fr) auto; gap: 7px 12px; padding-block: 10px; } .course-scheduling-compact-cell { grid-column: 1; min-height: 0; } .course-scheduling-compact-status { justify-content: flex-start; } }
 @media (max-width: 620px) { .course-scheduling-screen.is-compact-symmetric-layout .course-scheduling-summary, .course-scheduling-screen.is-compact-symmetric-layout .course-scheduling-scope-inner { grid-template-columns: 1fr; } .course-scheduling-screen.is-compact-symmetric-layout .course-scheduling-summary-card { border-inline-start: 0; border-top: 1px solid var(--cs-border); } .course-scheduling-screen.is-compact-symmetric-layout .course-scheduling-summary-card:first-child { border-top: 0; } }
 
 /* Operational split view: selected course stays visible on the right while matching stays on the left. */
@@ -117,11 +116,6 @@
 
 .course-scheduling-screen.is-compact-symmetric-layout .course-scheduling-primary-action {
   display: flex;
-}
-
-.course-scheduling-compact-table-head,
-.course-scheduling-compact-row {
-  --course-scheduling-row-columns: minmax(0, 1.2fr) minmax(0, .9fr) minmax(0, 1.2fr) minmax(86px, .62fr);
 }
 
 .course-scheduling-compact-row {

@@ -337,9 +337,10 @@ test('course table renders authority as the second of four compact columns', asy
   assert.equal((row.match(/course-scheduling-compact-cell/g) || []).length, 4);
 
   const compactCss = await readFile(new URL('../frontend/src/screens/course-scheduling-compact-layout.css', import.meta.url), 'utf8');
-  assert.match(compactCss, /--course-scheduling-row-columns:\s*minmax\(0,\s*1\.35fr\)[^;]*minmax\(0,\s*\.62fr\);/);
+  const rowColumnDefinitions = compactCss.match(/--course-scheduling-row-columns:[^;]+;/g) || [];
+  assert.deepEqual(rowColumnDefinitions, ['--course-scheduling-row-columns: minmax(0, 1.2fr) minmax(0, .9fr) minmax(0, 1.2fr) minmax(86px, .62fr);']);
   assert.match(compactCss, /\.course-scheduling-compact-authority/);
-  assert.match(compactCss, /grid-row:\s*1\s*\/\s*span\s*5/);
+  assert.doesNotMatch(compactCss, /course-scheduling-compact-action-cell/);
   assert.doesNotMatch(compactCss, /--course-scheduling-row-columns:[^;]*minmax\((?:1[5-9]\d|[2-9]\d\d)px/);
 });
 
