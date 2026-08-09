@@ -37,11 +37,11 @@ test('a manually cancelled date is excluded even though it is in the past', () =
   assert.equal(meetingsCompletedForCourse(course([yesterday, twoWeeksAgo]), state), 1);
 });
 
-test('two or more completed meetings lock the course out of automatic replacement', () => {
+test('two or more completed meetings do not lock instructor replacement', () => {
   const state = loadedState();
   assert.equal(meetingsCompletedForCourse(course([twoWeeksAgo, yesterday]), state), 2);
-  assert.equal(courseMeetingStage(2), 'locked');
-  assert.equal(courseMeetingStage(5), 'locked');
+  assert.equal(courseMeetingStage(2), 'one_completed');
+  assert.equal(courseMeetingStage(5), 'one_completed');
 });
 
 test('start date alone is never used as a stand-in for meetings completed', () => {

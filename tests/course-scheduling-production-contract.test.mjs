@@ -54,3 +54,30 @@ test('runtime contract verifies live RPC signatures and trigger targets', async 
   assert.match(sql, /left join pg_proc target_function/);
   assert.match(sql, /grant execute on function public\.scheduling_runtime_contract\(\) to authenticated/);
 });
+
+const contractSyncUrl = new URL('../supabase/migrations/20260809180000_course_scheduling_contract_sync.sql', import.meta.url);
+
+test('focused contract sync preserves owned drafts and removes meeting-count replacement lock', async () => {
+  const sql = await readFile(contractSyncUrl, 'utf8');
+  const effective = sql.split('function public.scheduling_effective_meetings')[1]
+    .split('revoke all on function public.scheduling_effective_meetings')[0];
+  assert.match(effective, /p_activity\.draft_emp_id = p_emp_id::text/);
+  assert.match(effective, /p_activity\.draft_proposed_meetings is not null/);
+  assert.match(effective, /course_meeting_cancellations/);
+
+  const replacement = sql.split('function public.reassign_locked_course_instructor')[1];
+  assert.match(replacement, /scheduling_course_instructor_violations\(p_activity_id, p_new_emp_id, false\)/);
+  assert.match(replacement, /scheduling_course_meetings_completed\(p_activity_id\)/);
+  assert.doesNotMatch(replacement, /scheduling_course_locked_for_reassignment/);
+  assert.doesNotMatch(replacement, /meetings_done\s*>?=\s*2/);
+  assert.doesNotMatch(replacement, /status\s*=\s*'(?:סגור|closed)'/i);
+});
+
+test('contract sync is idempotent and contains no activity data mutation or backfill', async () => {
+  const sql = await readFile(contractSyncUrl, 'utf8');
+  assert.match(sql, /create or replace function public\.scheduling_effective_meetings/);
+  assert.match(sql, /create or replace function public\.reassign_locked_course_instructor/);
+  assert.doesNotMatch(sql, /insert into public\.activities/i);
+  assert.doesNotMatch(sql, /delete from public\.activities/i);
+  assert.doesNotMatch(sql, /update public\.activities[\s\S]*set\s+status/i);
+});
