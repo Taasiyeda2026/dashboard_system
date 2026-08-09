@@ -74,29 +74,15 @@ test('status failure surfaces an error without starting another submit', async (
   ]);
 });
 
-test('visual timeout releases UI but retains the original flight and prevents a late duplicate insert', async () => {
-  let resolveSave;
-  const deferredSave = { promise: new Promise((resolve) => { resolveSave = resolve; }) };
-  const mock = submissionMock({ items: [{ item_name: 'GEFEN' }], deferredSave });
+test('a never-settling operation times out and releases the single-flight runner', async () => {
   const runner = createProposalApprovalSubmissionRunner();
-  const ui = { disabled: true, error: '' };
-  const options = {
-    ...mock.api,
-    items: mock.items,
-    timeoutOptions: { timeoutMs: 5, onTimeout: (message) => { ui.disabled = false; ui.error = message; } }
-  };
-  const first = runner.run(options);
-  await delay(15);
-  assert.equal(ui.disabled, false);
-  assert.match(ui.error, /עדיין מתבצעת/);
-  const second = runner.run(options);
-  assert.strictEqual(second, first, 'retry joins the active flight instead of inserting again');
+  const mock = submissionMock({ items: [{ item_name: 'GEFEN' }], deferredSave: { promise: new Promise(() => {}) } });
+  await assert.rejects(
+    runner.run({ ...mock.api, items: mock.items, timeoutOptions: { timeoutMs: 5 } }),
+    /לא הושלם בזמן/
+  );
+  assert.equal(runner.isActive(), false);
   assert.deepEqual(mock.calls, [['proposal', 'draft']]);
-  resolveSave({ ok: true, row: { id: 'proposal-id', status: 'draft' } });
-  await first;
-  assert.deepEqual(mock.calls, [
-    ['proposal', 'draft'], ['items', 'proposal-id', 1], ['status', 'proposal-id', 'pending_approval']
-  ]);
 });
 
 test('double click shares one flight: one proposal save, one item save, one status update', async () => {
@@ -109,4 +95,75 @@ test('double click shares one flight: one proposal save, one item save, one stat
   assert.deepEqual(mock.calls, [
     ['proposal', 'draft'], ['items', 'proposal-id', 2], ['status', 'proposal-id', 'pending_approval']
   ]);
+});
+
+import { JSDOM } from 'jsdom';
+
+test('screen timeout clears saving state and a responsive retry reuses the same insert identity', async () => {
+  const manager = { user: { role: 'operation_manager', manage_proposals_agreements: true } };
+  const data = {
+    rows: [], contactOptions: [], activityNameOptions: [],
+    proposalActivityGroups: [{ group_key: 'gefen', display_name: 'גפן', is_active: true }],
+    proposalActivityPricing: []
+  };
+  const { proposalsAgreementsScreen } = await import('../frontend/src/screens/proposals-agreements.js');
+  const dom = new JSDOM(`<main id="root">${proposalsAgreementsScreen.render(data, { state: manager })}</main>`, { url: 'https://example.test/' });
+  const savedGlobals = { window: globalThis.window, document: globalThis.document, FormData: globalThis.FormData, AbortController: globalThis.AbortController, requestAnimationFrame: globalThis.requestAnimationFrame, cancelAnimationFrame: globalThis.cancelAnimationFrame, Event: globalThis.Event, CustomEvent: globalThis.CustomEvent };
+  globalThis.window = dom.window;
+  globalThis.document = dom.window.document;
+  globalThis.FormData = dom.window.FormData;
+  globalThis.AbortController = dom.window.AbortController;
+  globalThis.requestAnimationFrame = (callback) => dom.window.setTimeout(callback, 0);
+  globalThis.cancelAnimationFrame = (handle) => dom.window.clearTimeout(handle);
+  globalThis.Event = dom.window.Event;
+  globalThis.CustomEvent = dom.window.CustomEvent;
+  globalThis.__PROPOSAL_SUBMISSION_TIMEOUT_MS__ = 5;
+  const root = dom.window.document.getElementById('root');
+  const submissionIds = [];
+  try {
+    proposalsAgreementsScreen.bind({
+      root, data, state: manager,
+      api: {
+        addProposalAgreement: (payload) => {
+          submissionIds.push(payload._submission_id);
+          if (submissionIds.length === 1) return new Promise(() => {});
+          return Promise.resolve({ ok: true, row: { ...payload, id: payload._submission_id, status: 'draft' } });
+        },
+        saveProposalAgreementItems: async () => ({ ok: true }),
+        updateProposalAgreementStatus: async (id, status) => ({ ok: true, row: { id, status } })
+      }
+    });
+    root.querySelector('[data-pa-tab="new"]').dispatchEvent(new dom.window.MouseEvent('click', { bubbles: true }));
+    await delay(25);
+    const form = root.querySelector('[data-pa-form]');
+    form.querySelector('[data-pa-type-btn="gefen"]')?.dispatchEvent(new dom.window.MouseEvent('click', { bubbles: true }));
+    await delay(10);
+    form.querySelector('[data-pa-add-item]')?.dispatchEvent(new dom.window.MouseEvent('click', { bubbles: true }));
+    await delay(5);
+    const set = (selector, value) => { const element = form.querySelector(selector); assert.ok(element, selector); element.value = value; };
+    set('[name="client_authority"]', 'רשות בדיקה');
+    set('[name="school_framework"]', 'בית ספר בדיקה');
+    set('[name="contact_source_authority_id"]', '100');
+    set('[name="contact_source_school_id"]', '200');
+    set('[name="activity_type_group"]', 'gefen');
+    set('[data-pa-item-row] [name="item_name"]', 'פעילות גפן');
+    set('[data-pa-item-qty]', '1');
+    set('[data-pa-item-price]', '100');
+    form.querySelector('[data-pa-item-price]').dispatchEvent(new dom.window.Event('input', { bubbles: true }));
+    const button = form.querySelector('[data-pa-save-pending]');
+    button.dispatchEvent(new dom.window.MouseEvent('click', { bubbles: true }));
+    await delay(20);
+    assert.equal(form.dataset.saving, '');
+    assert.equal(button.disabled, false);
+    assert.match(form.querySelector('[data-pa-form-error]').textContent, /לא הושלם בזמן/);
+    button.dispatchEvent(new dom.window.MouseEvent('click', { bubbles: true }));
+    await delay(30);
+    assert.equal(submissionIds.length, 2, 'the second click is handled rather than silently ignored');
+    assert.equal(new Set(submissionIds).size, 1, 'both attempts use one idempotent insert identity');
+    assert.equal(root.querySelector('[data-pa-form]'), null, 'successful retry completes and closes the form');
+  } finally {
+    delete globalThis.__PROPOSAL_SUBMISSION_TIMEOUT_MS__;
+    Object.assign(globalThis, savedGlobals);
+    dom.window.close();
+  }
 });

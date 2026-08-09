@@ -5913,14 +5913,14 @@ const PROPOSAL_APPROVAL_STEP_TIMEOUT_MS = 15000;
 
 export async function settleProposalApprovalStep(operation, stepLabel, options = {}) {
   const timeoutMs = Number(options.timeoutMs) || PROPOSAL_APPROVAL_STEP_TIMEOUT_MS;
-  const promise = Promise.resolve().then(typeof operation === 'function' ? operation : () => operation);
   let timer;
   try {
-    // Do not abandon a mutation after the visual timeout. The original request keeps
-    // owning the single flight, so a late response can never be followed by a second
-    // insert. The UI may be released by onTimeout while this promise remains active.
-    timer = setTimeout(() => options.onTimeout?.(`${stepLabel} מתארך מהרגיל. הפעולה עדיין מתבצעת ואין צורך ללחוץ שוב.`), timeoutMs);
-    const result = await promise;
+    const result = await Promise.race([
+      Promise.resolve().then(typeof operation === 'function' ? operation : () => operation),
+      new Promise((_, reject) => {
+        timer = setTimeout(() => reject(new Error(`${stepLabel} לא הושלם בזמן. ניתן לנסות שוב ללא יצירת הצעה כפולה.`)), timeoutMs);
+      })
+    ]);
     if (!result || result.ok === false) {
       throw new Error(text(result?.error?.message || result?.message) || `${stepLabel} נכשל. ניתן לנסות שוב.`);
     }
@@ -5928,6 +5928,14 @@ export async function settleProposalApprovalStep(operation, stepLabel, options =
   } finally {
     clearTimeout(timer);
   }
+}
+
+function proposalSubmissionId(form) {
+  if (text(form?.dataset?.paSubmissionId)) return text(form.dataset.paSubmissionId);
+  const generated = globalThis.crypto?.randomUUID?.()
+    || `00000000-0000-4000-8000-${Date.now().toString(16).padStart(12, '0').slice(-12)}`;
+  if (form?.dataset) form.dataset.paSubmissionId = generated;
+  return generated;
 }
 
 export async function runProposalApprovalSubmission({ saveProposal, saveItems, updateStatus, items = [], timeoutOptions = {} }) {
@@ -8693,18 +8701,16 @@ export const proposalsAgreementsScreen = {
         let savedId;
         let submittedStatusResult = null;
         const timeoutOptions = {
-          onTimeout: (message) => {
-            allBtns.forEach((button) => { button.disabled = false; });
-            if (errorEl) errorEl.textContent = message;
-            showToast(message, 'error');
-          }
+          timeoutMs: Number(globalThis.__PROPOSAL_SUBMISSION_TIMEOUT_MS__) || undefined
         };
         if (submittingForApproval) {
           if (typeof api.saveProposalAgreementItems !== 'function' || typeof api.updateProposalAgreementStatus !== 'function') {
             throw new Error('שליחת ההצעה לאישור אינה זמינה. יש לרענן את המסך ולנסות שוב.');
           }
           const submitted = await approvalSubmissionRunner.run({
-            saveProposal: () => mode === 'edit' ? api.updateProposalAgreement(id, payload) : api.addProposalAgreement(payload),
+            saveProposal: () => mode === 'edit'
+              ? api.updateProposalAgreement(id, payload)
+              : api.addProposalAgreement({ ...payload, _submission_id: proposalSubmissionId(form) }),
             saveItems: api.saveProposalAgreementItems,
             updateStatus: api.updateProposalAgreementStatus,
             items,
