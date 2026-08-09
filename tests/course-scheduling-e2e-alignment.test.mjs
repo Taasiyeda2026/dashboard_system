@@ -140,7 +140,7 @@ test('3-4: unknown route cannot be saved as draft or finally assigned', () => {
   };
   assert.equal(hasReliableHomeRoute(stale), false);
   assert.match(candidateHardBlockReason(stale), /מסלול|כתובת|מרחק/);
-  assert.match(actionDisabledReason({ candidate: stale, canEdit: true }), /מסלול|כתובת|מרחק/);
+  assert.equal(actionDisabledReason({ candidate: stale, canEdit: true }), '');
 });
 
 test('5-6: exactly 40 km accepted; more than 40 km rejected by client and server migration', async () => {

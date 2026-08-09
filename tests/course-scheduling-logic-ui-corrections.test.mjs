@@ -176,7 +176,7 @@ test('8: unknown/null home route is missing data and not eligible (no invented d
   assert.equal(exceedsHomeDistanceLimit(undefined), false);
 });
 
-test('9: draft save and final assignment hard-block stale selected candidates above 40 km', () => {
+test('9: recommendation still flags distance while a manager can persist a manual choice', () => {
   const stale = {
     instructor,
     eligible: true,
@@ -186,7 +186,7 @@ test('9: draft save and final assignment hard-block stale selected candidates ab
   };
   const reason = candidateHardBlockReason(stale);
   assert.match(reason, /מרחק הנסיעה לבית הספר הוא 55 ק״מ ועולה על המגבלה של 40 ק״מ/);
-  assert.match(actionDisabledReason({ candidate: stale, canEdit: true }), /40 ק״מ/);
+  assert.equal(actionDisabledReason({ candidate: stale, canEdit: true }), '');
   assert.equal(actionDisabledReason({
     candidate: {
       ...stale,
@@ -519,5 +519,5 @@ test('24: action buttons remain disabled for an ineligible / over-distance candi
   assert.match(html, /data-save-draft disabled/);
   assert.match(html, /data-assign-course disabled/);
   assert.doesNotMatch(html, /data-rejected-candidate="100"[\s\S]{0,200}type="radio"/);
-  assert.match(actionDisabledReason({ candidate: rejected, canEdit: true }), /40 ק״מ/);
+  assert.equal(actionDisabledReason({ candidate: rejected, canEdit: true }), '');
 });

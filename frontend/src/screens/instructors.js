@@ -24,6 +24,10 @@ const ASSIGNMENT_FILTERS = [{ value: '', label: 'כל השיבוצים' }, { val
 
 const INSTRUCTORS_LIST_STYLES = `.instructors-list{display:flex;flex-direction:column;gap:8px}
 .instructors-list__toolbar{display:flex;align-items:center;gap:8px;flex-wrap:wrap;padding-bottom:8px;border-bottom:1px solid #edeff2}
+.instructors-missing{border:1px solid #e8c36a;background:#fff9e8;border-radius:10px;padding:10px 12px}
+.instructors-missing>summary{cursor:pointer;font-weight:700;color:#744d00}
+.instructors-missing__list{display:grid;gap:6px;margin:10px 0 0;padding:0;list-style:none}
+.instructors-missing__list li{display:flex;justify-content:space-between;gap:12px;padding-top:6px;border-top:1px solid #f0dfb4}
 .instructors-list__toolbar .ds-chip{min-width:72px;justify-content:center}
 .instructors-list__label{margin-inline-start:6px}
 .instructors-workspace-grid{display:grid;grid-template-columns:repeat(5,minmax(0,1fr));gap:12px;justify-content:center}
@@ -109,6 +113,27 @@ function replaceScheduling(row, scheduling) {
   row.scheduling_profile = (scheduling.profiles || []).find((item) => text(item.emp_id) === text(row.emp_id)) || null;
   row.availability_rules = (scheduling.rules || []).filter((item) => text(item.emp_id) === text(row.emp_id));
   row.availability_exceptions = (scheduling.exceptions || []).filter((item) => text(item.emp_id) === text(row.emp_id));
+}
+
+export function instructorMissingWorkDetails(row = {}) {
+  const missing = [];
+  const profile = row.scheduling_profile;
+  const rules = Array.isArray(row.availability_rules) ? row.availability_rules : [];
+  if (!text(row.address)) missing.push('כתובת');
+  if (!profile) missing.push('שיבוץ');
+  if (!text(profile?.gender)) missing.push('מגדר');
+  if (!Array.isArray(profile?.instruction_languages) || !profile.instruction_languages.length) missing.push('שפה');
+  if (!rules.some((rule) => rule?.available && text(rule.start_time) && text(rule.end_time) && text(rule.start_time) < text(rule.end_time))) missing.push('זמינות');
+  return missing;
+}
+
+function missingWorkAlertHtml(rows = []) {
+  const incomplete = rows.filter((row) => activeFlag(row.active) === 'yes')
+    .map((row) => ({ row, missing: instructorMissingWorkDetails(row) }))
+    .filter((item) => item.missing.length);
+  if (!incomplete.length) return '';
+  return `<details class="instructors-missing" data-instructors-missing-alert><summary>${incomplete.length} מדריכים פעילים עם פרטים חסרים</summary>
+    <ul class="instructors-missing__list">${incomplete.map(({ row, missing }) => `<li><strong>${escapeHtml(row.full_name || row.emp_id)}</strong><span>חסר: ${escapeHtml(missing.join(' · '))}</span></li>`).join('')}</ul></details>`;
 }
 
 export function bindInstructorMatchingModal(modalRoot, { row, saveProfile, onSuccess } = {}) {
@@ -234,29 +259,26 @@ export function bindInstructorConstraintsModal(modalRoot, {
 
 export const instructorsScreen = {
   async load({ api }) {
-    // List entry: instructor cards + contacts only. Scheduling rules/exceptions load on open.
-    const [base, contacts, seniorityRows] = await Promise.all([api.instructors(), api.instructorContacts(), loadInstructorSeniorityData()]);
-    return { ...base, rows: mergeRows(base, contacts, null, seniorityRows), scheduling: null, _schedulingLoaded: false };
+    const [base, contacts, seniorityRows, scheduling] = await Promise.all([api.instructors(), api.instructorContacts(), loadInstructorSeniorityData(), loadInstructorSchedulingData()]);
+    return { ...base, rows: mergeRows(base, contacts, scheduling, seniorityRows), scheduling, _schedulingLoaded: !!scheduling?.loaded };
   },
 
   render(data, { state } = {}) {
     state.instructorsWorkspace = state.instructorsWorkspace || { q: '', active: 'yes', assignment: '' };
     const filters = state.instructorsWorkspace;
-    const query = text(filters.q).toLowerCase();
     const rows = (data?.rows || []).filter((row) => {
       if (filters.active && activeFlag(row.active) !== filters.active) return false;
       if (filters.assignment === 'assigned' && !assigned(row)) return false;
       if (filters.assignment === 'unassigned' && assigned(row)) return false;
-      return !query || searchText(row).includes(query);
+      return true;
     });
-    const missingAddress = (data?.rows || []).filter((row) => activeFlag(row.active) === 'yes' && !text(row.address)).length;
     const body = rows.length ? `<div class="instructors-workspace-grid">${rows.map(instructorCard).join('')}</div>` : dsEmptyState('לא נמצאו מדריכים בהתאם לסינון');
     return dsScreenStack(`${instructorsWorkspaceNavStylesHtml()}<style>${INSTRUCTORS_LIST_STYLES}</style>
       <div class="instructors-list">
         ${instructorsWorkspaceHeaderHtml({ activeTab: 'list', state })}
+        ${missingWorkAlertHtml(data?.rows || [])}
         <div class="instructors-list__toolbar">
-          <input class="ds-search-input" data-instructors-search type="search" placeholder="חיפוש לפי שם, מזהה, רשות…" value="${escapeHtml(filters.q || '')}" style="flex:1 1 180px;max-width:300px">
-          <span class="ds-badge">${rows.length}</span>${missingAddress ? `<span class="ds-status-chip ds-status-chip--warning">${missingAddress} ללא כתובת</span>` : ''}
+          <span class="ds-badge">${rows.length}</span>
           <span class="ds-muted">סטטוס:</span>${chips(ACTIVE_FILTERS, filters.active, 'data-instructors-active')}<span class="ds-muted instructors-list__label">שיבוץ:</span>${chips(ASSIGNMENT_FILTERS, filters.assignment, 'data-instructors-assignment')}
         </div>
         ${body}
@@ -268,8 +290,6 @@ export const instructorsScreen = {
     const canEdit = ['admin', 'operation_manager'].includes(text(state?.user?.role || state?.user?.display_role));
     state.instructorsWorkspace = state.instructorsWorkspace || { q: '', active: 'yes', assignment: '' };
     bindInstructorsWorkspaceNav(root, { state, rerender });
-    let _searchTimer;
-    root.querySelector('[data-instructors-search]')?.addEventListener('input', (event) => { state.instructorsWorkspace.q = event.target.value || ''; clearTimeout(_searchTimer); _searchTimer = setTimeout(rerender, 180); });
     root.querySelectorAll('[data-instructors-active]').forEach((button) => button.addEventListener('click', () => { state.instructorsWorkspace.active = button.dataset.instructorsActive || ''; rerender(); }));
     root.querySelectorAll('[data-instructors-assignment]').forEach((button) => button.addEventListener('click', () => { state.instructorsWorkspace.assignment = button.dataset.instructorsAssignment || ''; rerender(); }));
     // Compatibility for older cached markup that still contains the former "אנשי קשר מדריכים" route button.
