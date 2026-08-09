@@ -117,6 +117,19 @@ test('api.js proposal changes select proposals without activities', () => {
   assert.deepEqual(apiPlanFor('const proposals = await loadProposals();').groups, ['proposals']);
 });
 
+test('api.js role route removal does not select proposals for an unchanged proposals route', () => {
+  const diff = `diff --git a/frontend/src/api.js b/frontend/src/api.js
+--- a/frontend/src/api.js
++++ b/frontend/src/api.js
+@@ -1 +1 @@
+-  finance: ['dashboard', 'proposals-agreements', 'edit-requests'],
++  finance: ['dashboard', 'proposals-agreements'],
+`;
+  const plan = buildCheckPlan(['frontend/src/api.js'], { getDiff: () => diff });
+  assert.equal(plan.groups.includes('proposals'), false);
+  assert.deepEqual(plan.groups, ['permissions']);
+});
+
 test('api.js login and user projection changes select auth and permissions only', () => {
   assert.deepEqual(apiPlanFor('const loginUser = buildUserProjection(session);').groups, ['auth', 'permissions']);
 });

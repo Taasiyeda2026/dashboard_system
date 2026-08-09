@@ -42,7 +42,7 @@ const VERSION_QUERY_RE = /\?v=[\w-]+/g;
 
 const API_GROUP_RULES = [
   [/(?:addActivity|saveActivity|updateActivity|deleteActivity|activityDetail|\.from\(['"]activities['"]\)|activities_(?:read|write|insert|update|delete))/i, ['activities']],
-  [/proposals?/i, ['proposals']],
+  [/(?:loadProposal|saveProposal|readProposal|getProposal|buildProposal|normalizeProposal|upsertProposal|proposalRow|proposalItem|proposalAgreement|proposalWorkflow|proposalPdf|proposalTemplate)/i, ['proposals']],
   [/(?:\brole\b|display_role|permissions?|default_view|edit-requests|can_request_edit|view_edit_requests)/i, ['permissions']],
   [/(?:auth(?!orit)|login|session|signIn|user[ _]?projection)/i, ['auth', 'permissions']]
 ];
