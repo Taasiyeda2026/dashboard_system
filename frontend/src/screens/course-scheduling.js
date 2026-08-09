@@ -487,8 +487,6 @@ function dateAdjustmentHtml(candidate) {
 function courseFactRows(course) {
   const meetings = filterMeetingsByCourseSchedulingPeriod(activityMeetings(course), course?.periodKey || DEFAULT_COURSE_SCHEDULING_PERIOD_KEY);
   return [
-    ['בית ספר', escapeHtml(course.school || '—')],
-    ['קורס', escapeHtml(course.activity_name || '—')],
     ['תאריך ושעה', `${courseDayTimeHtml(course)}`],
     ['שפת הדרכה', escapeHtml(instructionLanguageLabel(course))],
     ['דרישת מגדר', escapeHtml(genderRequirementLabel(course))]
@@ -503,9 +501,6 @@ function specialRequirementTagsHtml(course) {
 
 function selectedCourseMetaHtml(course) {
   return `<header class="course-scheduling-detail-header">
-    <div class="course-scheduling-detail-title-row">
-      <h2 class="course-scheduling-detail-title">${escapeHtml(course.activity_name || '—')}</h2>
-    </div>
     <dl class="course-scheduling-detail-facts">${courseFactRows(course).map(([label, value]) => `<div class="course-scheduling-detail-fact"><dt>${escapeHtml(label)}</dt><dd>${value}</dd></div>`).join('')}</dl>
     ${specialRequirementTagsHtml(course)}
   </header>`;
@@ -658,35 +653,35 @@ function candidateMetaLine(candidate) {
 function primaryCandidateCardHtml(candidate, {
   kind = 'recommended',
   selectedId = '',
+  expandedId = '',
   name = 'course-candidate'
 } = {}) {
   const id = emp(candidate);
   const checked = id && id === selectedId ? ' checked' : '';
   const selected = id && id === selectedId ? ' is-selected' : '';
+  const expanded = id && id === expandedId;
   const statusLabel = kind === 'recommended' ? 'recommended' : 'bestAvailable';
   // One clear status badge only — no repeated equivalent pills.
   const statusText = kind === 'recommended' ? 'מומלץ' : 'נדרשת בדיקה';
   const radioId = `course-candidate-primary-${escapeHtml(id || 'x')}`;
-  return `<article class="course-scheduling-primary-card${selected}" data-candidate-row="${escapeHtml(id)}" data-candidate-kind="${statusLabel}">
-    <div class="course-scheduling-primary-card__select">
-      <input id="${radioId}" type="radio" name="${escapeHtml(name)}" value="${escapeHtml(id)}"${checked}>
-    </div>
+  return `<article class="course-scheduling-primary-card${selected}${expanded ? ' is-expanded' : ''}" data-candidate-row="${escapeHtml(id)}" data-candidate-kind="${statusLabel}" aria-expanded="${expanded}">
     <div class="course-scheduling-primary-card__body">
       <div class="course-scheduling-primary-card__topline">
-        <label class="course-scheduling-primary-card__name" for="${radioId}">${escapeHtml(candidate.instructor?.full_name || id)}</label>
+        <span class="course-scheduling-primary-card__name">${escapeHtml(candidate.instructor?.full_name || id)}</span>
         <div class="course-scheduling-primary-card__score" aria-label="ציון ${candidate.score ?? '—'}/100">
           <strong>${candidate.score ?? '—'}</strong><span>/100</span>
         </div>
+        ${kind === 'recommended' ? `<span class="course-scheduling-status-pill course-scheduling-status-pill--ready">${escapeHtml(statusText)}</span>` : ''}
       </div>
-      <div class="course-scheduling-primary-card__badges">
-        <span class="course-scheduling-status-pill course-scheduling-status-pill--${kind === 'recommended' ? 'ready' : 'review'}">${escapeHtml(statusText)}</span>
-      </div>
-      ${text(candidate.recommendationReason) ? `<p class="course-scheduling-primary-card__reason">${escapeHtml(candidate.recommendationReason)}</p>` : ''}
-      <div class="course-scheduling-candidate-meta">${candidateMetaLine(candidate)}</div>
-      <div class="course-scheduling-primary-card__breakdown">
-        <h4>פירוט הציון</h4>
-        ${scoreComponentsHtml(candidate)}
-      </div>
+      ${expanded ? `<div class="course-scheduling-candidate-expanded" data-candidate-expanded>
+        <label class="course-scheduling-primary-card__select" for="${radioId}">
+          <input id="${radioId}" type="radio" name="${escapeHtml(name)}" value="${escapeHtml(id)}"${checked}> בחירת מדריך
+        </label>
+        ${text(candidate.recommendationReason) ? `<p class="course-scheduling-primary-card__reason">${escapeHtml(candidate.recommendationReason)}</p>` : ''}
+        <div class="course-scheduling-candidate-meta">${candidateMetaLine(candidate)}</div>
+        ${requirementsFitHtml(candidate)}
+        <div class="course-scheduling-primary-card__breakdown"><h4>פירוט הציון</h4>${scoreComponentsHtml(candidate)}</div>
+      </div>` : ''}
     </div>
   </article>`;
 }
@@ -701,25 +696,22 @@ function candidateAltDistanceMeta(candidate) {
   return kmStr;
 }
 
-function alternativeCandidateCardHtml(candidate, { selectedId = '', name = 'course-candidate' } = {}) {
+function alternativeCandidateCardHtml(candidate, { selectedId = '', expandedId = '', name = 'course-candidate' } = {}) {
   const id = emp(candidate);
   const checked = id && id === selectedId ? ' checked' : '';
   const selected = id && id === selectedId ? ' is-selected' : '';
+  const expanded = id && id === expandedId;
   const radioId = `course-candidate-alt-${escapeHtml(id || 'x')}`;
-  const load = candidate?.projectedHalfHours != null && Number.isFinite(Number(candidate.projectedHalfHours))
-    ? formatWorkloadHours(candidate.projectedHalfHours) : '—';
-  return `<div class="cs-alt-row${selected}" data-candidate-row="${escapeHtml(id)}">
-    <label class="cs-alt-row__name" for="${radioId}">
-      <input id="${radioId}" type="radio" name="${escapeHtml(name)}" value="${escapeHtml(id)}"${checked}>
-      <span>${escapeHtml(candidate.instructor?.full_name || id)}</span>
-    </label>
+  return `<div class="cs-alt-row${selected}${expanded ? ' is-expanded' : ''}" data-candidate-row="${escapeHtml(id)}" aria-expanded="${expanded}">
+    <span class="cs-alt-row__name">${escapeHtml(candidate.instructor?.full_name || id)}</span>
     <span class="cs-alt-row__score" aria-label="ציון ${candidate.score ?? '—'} מתוך 100">${candidate.score ?? '—'}<small>/100</small></span>
-    <span class="cs-alt-row__dist">${escapeHtml(candidateAltDistanceMeta(candidate))}</span>
-    <span class="cs-alt-row__load">${escapeHtml(load)}</span>
-    <details class="cs-alt-row__details">
-      <summary>פירוט</summary>
-      ${scoreComponentsHtml(candidate)}
-    </details>
+    ${expanded ? `<div class="cs-alt-row__details course-scheduling-candidate-expanded" data-candidate-expanded>
+      <label for="${radioId}"><input id="${radioId}" type="radio" name="${escapeHtml(name)}" value="${escapeHtml(id)}"${checked}> בחירת מדריך</label>
+      ${text(candidate.recommendationReason) ? `<p class="course-scheduling-primary-card__reason">${escapeHtml(candidate.recommendationReason)}</p>` : ''}
+      <div class="course-scheduling-candidate-meta">${candidateMetaLine(candidate)}</div>
+      ${requirementsFitHtml(candidate)}
+      <div class="course-scheduling-primary-card__breakdown"><h4>פירוט הציון</h4>${scoreComponentsHtml(candidate)}</div>
+    </div>` : ''}
   </div>`;
 }
 
@@ -820,6 +812,7 @@ function resultsActionsHtml(result, selectedId) {
 
 function candidatesResultsLayoutHtml(result, state, { primary, kind }) {
   const selectedId = text(state.courseSchedulingSelectedCandidateId);
+  const expandedId = text(state.courseSchedulingExpandedCandidateId);
   const radioName = `course-candidate-${idOf(result.course)}`;
   const alternatives = (result.alternatives || []).filter((item) => item?.eligible);
   const title = kind === 'recommended'
@@ -829,14 +822,11 @@ function candidatesResultsLayoutHtml(result, state, { primary, kind }) {
     <div class="course-scheduling-result-heading">
       <h3>${title}</h3>
     </div>
-    ${primaryCandidateCardHtml(primary, { kind, selectedId, name: radioName })}
+    ${primaryCandidateCardHtml(primary, { kind, selectedId, expandedId, name: radioName })}
     ${alternatives.length ? `<section class="course-scheduling-alternatives" data-alternatives>
       <h4>חלופות מתאימות</h4>
       <div class="cs-alt-table">
-        <div class="cs-alt-table-head" aria-hidden="true">
-          <span>מדריך</span><span>ציון</span><span>מרחק · נסיעה</span><span>עומס</span><span></span>
-        </div>
-        ${alternatives.map((item) => alternativeCandidateCardHtml(item, { selectedId, name: radioName })).join('')}
+        ${alternatives.map((item) => alternativeCandidateCardHtml(item, { selectedId, expandedId, name: radioName })).join('')}
       </div>
     </section>` : ''}
     ${rejectedCandidatesHtml(result)}
@@ -1209,13 +1199,6 @@ export const courseSchedulingScreen = {
     const resultByCourseId = new Map(results.map((result) => [idOf(result.course), result]));
     const rowModels = interfaceCourses.map((course) => courseRowModel(course, resultByCourseId));
     const tab = activeTab(state);
-    if (tab === 'courses' && !text(state.courseSchedulingSelectedId) && rowModels.length) {
-      const nearest = pickNearestActionableCourse(rowModels, today()) || rowModels[0];
-      if (nearest) {
-        state.courseSchedulingSelectedId = nearest.id;
-        state.courseSchedulingWeek = nearest.course?.start_date || state.courseSchedulingWeek;
-      }
-    }
     const selectedId = state.courseSchedulingSelectedId || '';
     const selectedRow = rowModels.find((row) => row.id === selectedId)
       || (selectedId ? courseRowModel(interfaceCourses.find((course) => idOf(course) === selectedId) || { row_id: selectedId }, resultByCourseId) : null);
@@ -1381,8 +1364,10 @@ export const courseSchedulingScreen = {
     root.querySelectorAll('[data-course-card]').forEach((button) => {
       button.addEventListener('click', (event) => {
         if (event.target.closest('[data-course-row-action]')) return;
-        state.courseSchedulingSelectedId = button.dataset.courseCard;
+        const nextId = button.dataset.courseCard;
+        state.courseSchedulingSelectedId = state.courseSchedulingSelectedId === nextId ? '' : nextId;
         state.courseSchedulingSelectedCandidateId = '';
+        state.courseSchedulingExpandedCandidateId = '';
         state.courseSchedulingShowAllCandidates = false;
         state.courseSchedulingTab = 'courses';
         const course = courseById.get(state.courseSchedulingSelectedId);
@@ -1508,12 +1493,10 @@ export const courseSchedulingScreen = {
     });
     if (typeof detailRoot.addEventListener === 'function') detailRoot.addEventListener('click', (event) => {
       const row = event.target?.closest?.('[data-candidate-row]');
-      if (!row || event.target?.matches?.('input,button,a,summary,label')) return;
-      const radio = row.querySelector('input[type="radio"]');
-      if (radio && !radio.disabled) {
-        radio.checked = true;
-        radio.dispatchEvent(new Event('change', { bubbles: true }));
-      }
+      if (!row || event.target?.closest?.('[data-candidate-expanded]') || event.target?.matches?.('input,button,a,label')) return;
+      const nextId = text(row.dataset.candidateRow);
+      state.courseSchedulingExpandedCandidateId = state.courseSchedulingExpandedCandidateId === nextId ? '' : nextId;
+      rerender();
     });
     updateCandidateActions(false);
 
@@ -1523,6 +1506,7 @@ export const courseSchedulingScreen = {
       state.courseSchedulingError = '';
       state.courseSchedulingProgressStep = 1;
       state.courseSchedulingSelectedCandidateId = '';
+      state.courseSchedulingExpandedCandidateId = '';
       rerender();
       try {
         if (data.schoolAddressLookupError) throw new Error(data.schoolAddressLookupError);
