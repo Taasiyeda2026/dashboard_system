@@ -40,6 +40,13 @@ test('CSS remains build-validated without selecting business suites', () => {
   assert.deepEqual(plan.tests, []);
 });
 
+test('CSS named after a business domain still only build-validates', () => {
+  const plan = buildCheckPlan(['frontend/src/screens/course-scheduling-neutral-colors.css']);
+  assert.equal(plan.build, true);
+  assert.deepEqual(plan.groups, []);
+  assert.deepEqual(plan.tests, []);
+});
+
 test('one screen selects only its focused module group', () => {
   const plan = buildCheckPlan(['frontend/src/screens/finance.js']);
   assert.deepEqual(plan.groups, ['finance']);
@@ -48,6 +55,11 @@ test('one screen selects only its focused module group', () => {
 
 test('module logic selects the matching logic suite', () => {
   assert.deepEqual(buildCheckPlan(['frontend/src/screens/course-scheduling-score.js']).groups, ['scheduling']);
+});
+
+test('authority catalog filenames are not misread as auth', () => {
+  const plan = buildCheckPlan(['frontend/src/screens/operations-authorities-cleanup.js']);
+  assert.deepEqual(plan.groups, ['operations']);
 });
 
 test('ordinary SQL selects DB guards, while scheduling SQL also requests Postgres', () => {
@@ -65,6 +77,10 @@ test('Service Worker selects only PWA checks', () => {
 
 test('shared state expands only to its known consumers', () => {
   assert.deepEqual(buildCheckPlan(['frontend/src/state.js']).groups, ['activities', 'calendars', 'dashboard']);
+});
+
+test('api.js selects its application, auth and permission consumers', () => {
+  assert.deepEqual(buildCheckPlan(['frontend/src/api.js']).groups, ['activities', 'auth', 'permissions', 'proposals']);
 });
 
 test('main.js without diff context conservatively selects auth and permissions', () => {

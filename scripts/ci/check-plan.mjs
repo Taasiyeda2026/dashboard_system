@@ -26,7 +26,9 @@ export const TEST_GROUPS = Object.freeze({
 });
 
 const EXACT_GROUPS = new Map([
-  ['frontend/src/api.js', ['activities', 'proposals']],
+  // api.js contains application writes plus the Supabase Auth login flow and
+  // role/route permission defaults, so changes there need those focused suites too.
+  ['frontend/src/api.js', ['activities', 'auth', 'permissions', 'proposals']],
   ['frontend/src/permissions.js', ['auth', 'permissions']],
   ['frontend/src/supabase-client.js', ['auth', 'db']],
   ['frontend/src/state.js', ['dashboard', 'activities', 'calendars']],
@@ -74,7 +76,8 @@ export function getFileDiff(file, { repoRoot = process.cwd(), base, head } = {})
 
 const DOMAIN_RULES = [
   [/activities|activity-/, 'activities'], [/annual-reviews/, 'annualReviews'],
-  [/auth|login|session-security/, 'auth'], [/catalog/, 'catalog'], [/client-|contacts/, 'clients'],
+  // Do not read school authority/authorities filenames as the auth domain.
+  [/auth(?!orit)|login|session-security/, 'auth'], [/catalog/, 'catalog'], [/client-|contacts/, 'clients'],
   [/dashboard/, 'dashboard'], [/edit-requests/, 'editRequests'], [/finance/, 'finance'],
   [/instructor/, 'instructors'], [/operations/, 'operations'], [/permission/, 'permissions'],
   [/proposal|gefen/, 'proposals'], [/course-scheduling|school-2027/, 'scheduling'],
@@ -100,7 +103,9 @@ export function buildCheckPlan(files, diffContext = {}) {
       const diff = hasDiffSource ? resolveDiff(file) : null;
       if (!isCosmeticScreenLoaderDiff(diff)) for (const group of MAIN_JS_AUTH_GROUPS) groups.add(group);
     }
-    if (file.startsWith('frontend/src/')) {
+    // CSS and other non-JS frontend assets are build-validated, but should not
+    // select business suites merely because their filename contains a domain word.
+    if (file.startsWith('frontend/src/') && JS_RE.test(file)) {
       for (const [pattern, group] of DOMAIN_RULES) if (pattern.test(file)) groups.add(group);
     }
     if (/^supabase\/(?:migrations|functions)\//.test(file) || /\.sql$/.test(file)) {

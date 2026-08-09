@@ -97,7 +97,7 @@ test('proposals_agreements indexes guard activity_type vs activity_type_group', 
 });
 
 test('personal reports policies use drop before create in access migration', async () => {
-  const sql = await readFile(new URL('../supabase/migrations/20260608_personal_reports_access_permission.sql', import.meta.url), 'utf8');
+  const sql = await readFile(new URL('../supabase/migrations/20260603_personal_reports_module.sql', import.meta.url), 'utf8');
   assert.match(sql, /DROP POLICY IF EXISTS "reports_select_own" ON public\.personal_reports;/);
   assert.match(sql, /CREATE POLICY "reports_select_own" ON public\.personal_reports/);
 });
