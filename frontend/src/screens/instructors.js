@@ -20,16 +20,14 @@ import {
 } from './shared/instructors-workspace-nav.js';
 
 const ACTIVE_FILTERS = [{ value: 'yes', label: 'פעילים' }, { value: '', label: 'הכול' }, { value: 'no', label: 'לא פעילים' }];
-const ASSIGNMENT_FILTERS = [{ value: '', label: 'כל השיבוצים' }, { value: 'assigned', label: 'משובצים' }, { value: 'unassigned', label: 'לא משובצים' }];
 
 const INSTRUCTORS_LIST_STYLES = `.instructors-list{display:flex;flex-direction:column;gap:8px}
 .instructors-list__toolbar{display:flex;align-items:center;gap:8px;flex-wrap:wrap;padding-bottom:8px;border-bottom:1px solid #edeff2}
-.instructors-missing{border:1px solid #e8c36a;background:#fff9e8;border-radius:10px;padding:10px 12px}
-.instructors-missing>summary{cursor:pointer;font-weight:700;color:#744d00}
-.instructors-missing__list{display:grid;gap:6px;margin:10px 0 0;padding:0;list-style:none}
-.instructors-missing__list li{display:flex;justify-content:space-between;gap:12px;padding-top:6px;border-top:1px solid #f0dfb4}
+.instructors-missing{align-self:flex-start;width:fit-content;max-width:min(420px,100%);background:color-mix(in srgb, var(--ds-accent) 7%, var(--ds-surface));border:1px solid color-mix(in srgb, var(--ds-accent) 30%, transparent);border-radius:8px;padding:4px 10px}
+.instructors-missing>summary{cursor:pointer;font-weight:700;font-size:.8rem;color:color-mix(in srgb, var(--ds-accent) 68%, #000);white-space:nowrap}
+.instructors-missing__list{display:grid;gap:4px;margin:6px 0 0;padding:0;list-style:none}
+.instructors-missing__list li{display:flex;justify-content:space-between;gap:12px;padding-top:4px;border-top:1px solid color-mix(in srgb, var(--ds-accent) 16%, transparent);font-size:.78rem;color:color-mix(in srgb, var(--ds-accent) 68%, #000)}
 .instructors-list__toolbar .ds-chip{min-width:72px;justify-content:center}
-.instructors-list__label{margin-inline-start:6px}
 .instructors-workspace-grid{display:grid;grid-template-columns:repeat(5,minmax(0,1fr));gap:12px;justify-content:center}
 .instructor-card{display:flex;flex-direction:column;align-items:center;justify-content:center;gap:4px;width:100%;min-height:86px;padding:12px 10px;box-sizing:border-box;text-align:center;background:#fff;border:1px solid #d9e1e8;border-radius:10px;cursor:pointer;overflow:hidden;box-shadow:0 2px 6px rgba(15,23,42,.08);transition:box-shadow .15s ease,transform .15s ease}
 .instructor-card:hover{box-shadow:0 3px 8px rgba(15,23,42,.11);transform:translateY(-1px)}
@@ -279,7 +277,7 @@ export const instructorsScreen = {
         ${missingWorkAlertHtml(data?.rows || [])}
         <div class="instructors-list__toolbar">
           <span class="ds-badge">${rows.length}</span>
-          <span class="ds-muted">סטטוס:</span>${chips(ACTIVE_FILTERS, filters.active, 'data-instructors-active')}<span class="ds-muted instructors-list__label">שיבוץ:</span>${chips(ASSIGNMENT_FILTERS, filters.assignment, 'data-instructors-assignment')}
+          <span class="ds-muted">סטטוס:</span>${chips(ACTIVE_FILTERS, filters.active, 'data-instructors-active')}
         </div>
         ${body}
       </div>`);
@@ -291,7 +289,6 @@ export const instructorsScreen = {
     state.instructorsWorkspace = state.instructorsWorkspace || { q: '', active: 'yes', assignment: '' };
     bindInstructorsWorkspaceNav(root, { state, rerender });
     root.querySelectorAll('[data-instructors-active]').forEach((button) => button.addEventListener('click', () => { state.instructorsWorkspace.active = button.dataset.instructorsActive || ''; rerender(); }));
-    root.querySelectorAll('[data-instructors-assignment]').forEach((button) => button.addEventListener('click', () => { state.instructorsWorkspace.assignment = button.dataset.instructorsAssignment || ''; rerender(); }));
     // Compatibility for older cached markup that still contains the former "אנשי קשר מדריכים" route button.
     root.querySelector('[data-route="instructor-contacts"]')?.addEventListener('click', (event) => {
       event.preventDefault();
