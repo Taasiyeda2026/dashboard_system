@@ -23,7 +23,8 @@
     "sync:sheet-to-supabase:once": "node scripts/sync_supabase_from_sheets_once.mjs",
     "migrate:users-to-auth:once": "node scripts/migrate_users_to_auth_once.mjs",
     "sync:catalog-to-pricing": "node scripts/sync_catalog_workshops_to_pricing.mjs",
-    "sync:catalog-to-pricing:dry": "SYNC_DRY_RUN=1 node scripts/sync_catalog_workshops_to_pricing.mjs"
+    "sync:catalog-to-pricing:dry": "SYNC_DRY_RUN=1 node scripts/sync_catalog_workshops_to_pricing.mjs",
+    "verify:scheduling:production": "node scripts/verify-scheduling-production-contract.mjs"
   },
   "keywords": [],
   "author": "",

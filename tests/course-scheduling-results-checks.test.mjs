@@ -315,7 +315,9 @@ test('new snapshot stores and restores travel and checks', () => {
     courseSchedulingResults: calculated,
     courseSchedulingCalculatedAt: 'עכשיו'
   };
-  saveCalculationSnapshot(state, [course019()]);
+  const context = { userId: 'user-a', sessionId: 'session-a', dataFingerprint: 'input-a' };
+  const now = Date.parse('2026-08-09T10:00:00Z');
+  saveCalculationSnapshot(state, [course019()], context, now);
   const stored = JSON.parse(memory.get(SCHEDULING_SNAPSHOT_KEY));
   assert.equal(stored.schemaVersion, SCHEDULING_SNAPSHOT_SCHEMA_VERSION);
   const storedPrimary = stored.results[0].recommended || stored.results[0].bestAvailable;
@@ -323,11 +325,44 @@ test('new snapshot stores and restores travel and checks', () => {
   assert.ok(storedPrimary.checks.gender);
 
   const restored = {};
-  restoreCalculationSnapshot(restored, [course019()]);
+  restoreCalculationSnapshot(restored, [course019()], context, now + 1000);
   assert.equal(restored.courseSchedulingResults.length, 1);
   const restoredPrimary = restored.courseSchedulingResults[0].recommended || restored.courseSchedulingResults[0].bestAvailable;
   assert.equal(restoredPrimary.travel.home.duration_minutes, 11);
   assert.equal(restoredPrimary.checks.language.passed, true);
+
+  const anotherUser = {};
+  restoreCalculationSnapshot(anotherUser, [course019()], { ...context, userId: 'user-b' }, now + 2000);
+  assert.equal((anotherUser.courseSchedulingResults || []).length, 0);
+});
+
+test('snapshot is rejected after its TTL or scheduling input fingerprint changes', () => {
+  const memory = new Map();
+  globalThis.localStorage = {
+    getItem: (key) => (memory.has(key) ? memory.get(key) : null),
+    setItem: (key, value) => { memory.set(key, String(value)); },
+    removeItem: (key) => { memory.delete(key); }
+  };
+  const context = { userId: 'user-a', sessionId: 'session-a', dataFingerprint: 'input-a' };
+  const now = Date.parse('2026-08-09T10:00:00Z');
+  const state = {
+    courseSchedulingResults: calculateCourseSchedule(baseInput(
+      [femaleInstructor],
+      { f1: matchingProfile },
+      travelFor('school_2027_019', 'f1')
+    )),
+    courseSchedulingCalculatedAt: 'עכשיו'
+  };
+
+  saveCalculationSnapshot(state, [course019()], context, now);
+  const changed = {};
+  restoreCalculationSnapshot(changed, [course019()], { ...context, dataFingerprint: 'input-b' }, now + 1000);
+  assert.equal((changed.courseSchedulingResults || []).length, 0);
+
+  saveCalculationSnapshot(state, [course019()], context, now);
+  const expired = {};
+  restoreCalculationSnapshot(expired, [course019()], context, now + 30 * 60 * 1000 + 1);
+  assert.equal((expired.courseSchedulingResults || []).length, 0);
 });
 
 test('integration school_2027_019: matching Hebrew females are recommended without age gating and distance is scored', () => {
@@ -559,7 +594,7 @@ test('alternatives keep engine order, max three, and exclude ineligible candidat
     checked: [recommended, ...alternatives]
   });
   assert.match(html, /חלופות מתאימות/);
-  assert.equal((html.match(/class="course-scheduling-alt-card(?: is-selected)?"/g) || []).length, 3);
+  assert.equal((html.match(/class="cs-alt-row(?: is-selected)?"/g) || []).length, 3);
   assert.ok(html.indexOf('אלטרנטיבה א') < html.indexOf('אלטרנטיבה ב'));
   assert.ok(html.indexOf('אלטרנטיבה ב') < html.indexOf('אלטרנטיבה ג'));
   assert.doesNotMatch(html, /אלטרנטיבה ד/);

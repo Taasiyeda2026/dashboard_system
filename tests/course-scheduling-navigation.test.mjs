@@ -89,7 +89,8 @@ test('instructors workspace tabs render consistently on list and scheduling scre
   assert.match(schedulingHtml, /data-instructors-workspace-tab="list"/);
   assert.match(schedulingHtml, /data-instructors-workspace-tab="work-schedule"/);
   assert.match(schedulingHtml, /<h1 class="ds-page-header__title">מדריכים<\/h1>/);
-  assert.match(schedulingHtml, /<h2 class="course-scheduling-title instructors-workspace-content-title">שיבוצים<\/h2>/);
+  assert.doesNotMatch(schedulingHtml, /<h2[^>]*instructors-workspace-content-title/);
+  assert.doesNotMatch(schedulingHtml, /data-switch-tab=/);
 });
 
 function makeTabButton(tabId) {
