@@ -2,6 +2,7 @@ import { api } from './api.js';
 import { config } from './config.js';
 import { ACTIVE_ACTIVITY_SEASON, globalActivityPeriodLabel, globalActivityPeriodFullLabel, globalActivityPeriodOptions, normalizeGlobalActivityPeriod } from './screens/shared/summer-activity.js';
 import { state, setSession, defaultClientSettings, setGlobalActivityPeriod, setArchiveActivityPeriod } from './state.js';
+import { resetDashboardSessionTimeoutState } from './session-security-runtime.js';
 import { SCREEN_CACHE_STORAGE_PREFIX, persistCacheEntry, deletePersistedCacheEntry, deletePersistedCacheByPrefixes } from './cache-persist.js';
 import { escapeHtml } from './screens/shared/html.js';
 import { hebrewRole, translateApiErrorForUser } from './screens/shared/ui-hebrew.js';
@@ -35,7 +36,13 @@ const systemLogoSrc = new URL('../assets/logo_system.png', import.meta.url).href
 
 let isMobileNavOpen = false;
 let lastRenderedRoute = null;
-let loginInlineError = '';
+let loginInlineError = (() => {
+  try {
+    const reason = sessionStorage.getItem('dashboard_session_timeout_reason');
+    sessionStorage.removeItem('dashboard_session_timeout_reason');
+    return reason ? 'פג תוקף ההתחברות. יש להתחבר מחדש.' : '';
+  } catch { return ''; }
+})();
 let hasMountedAuthenticatedShell = false;
 const ui = createSharedInteractionLayer();
 let loginPerfStartMs = 0;
@@ -2119,6 +2126,9 @@ async function render() {
             firstLoadTimerStarted = false;
             firstDashboardSnapshotTimerStarted = false;
             beginPerfTimer('login:setSession');
+            resetDashboardSessionTimeoutState({
+              user: { id: data.user?.auth_user_id, last_sign_in_at: new Date().toISOString() }
+            });
             setSession({ token: data.token, user: data.user });
             state.authSessionReady = true;
             state.permissionsReady = true;
