@@ -5909,6 +5909,56 @@ function payloadFromForm(form) {
   return payload;
 }
 
+const PROPOSAL_APPROVAL_STEP_TIMEOUT_MS = 15000;
+
+export async function settleProposalApprovalStep(operation, stepLabel, options = {}) {
+  const timeoutMs = Number(options.timeoutMs) || PROPOSAL_APPROVAL_STEP_TIMEOUT_MS;
+  let timer;
+  try {
+    const result = await Promise.race([
+      Promise.resolve().then(typeof operation === 'function' ? operation : () => operation),
+      new Promise((_, reject) => {
+        timer = setTimeout(() => reject(new Error(`${stepLabel} לא הושלם בזמן. ניתן לנסות שוב ללא יצירת הצעה כפולה.`)), timeoutMs);
+      })
+    ]);
+    if (!result || result.ok === false) {
+      throw new Error(text(result?.error?.message || result?.message) || `${stepLabel} נכשל. ניתן לנסות שוב.`);
+    }
+    return result;
+  } finally {
+    clearTimeout(timer);
+  }
+}
+
+function proposalSubmissionId(form) {
+  if (text(form?.dataset?.paSubmissionId)) return text(form.dataset.paSubmissionId);
+  const generated = globalThis.crypto?.randomUUID?.()
+    || `00000000-0000-4000-8000-${Date.now().toString(16).padStart(12, '0').slice(-12)}`;
+  if (form?.dataset) form.dataset.paSubmissionId = generated;
+  return generated;
+}
+
+export async function runProposalApprovalSubmission({ saveProposal, saveItems, updateStatus, items = [], timeoutOptions = {} }) {
+  const proposalResult = await settleProposalApprovalStep(saveProposal, 'שמירת ההצעה', timeoutOptions);
+  const savedId = text(proposalResult?.row?.id);
+  if (!savedId) throw new Error('שמירת ההצעה לא החזירה מזהה. לא בוצעה שליחה לאישור.');
+  await settleProposalApprovalStep(() => saveItems(savedId, items), 'שמירת פריטי ההצעה', timeoutOptions);
+  const statusResult = await settleProposalApprovalStep(() => updateStatus(savedId, 'pending_approval'), 'שליחת ההצעה לאישור', timeoutOptions);
+  return { proposalResult, statusResult, savedId };
+}
+
+export function createProposalApprovalSubmissionRunner() {
+  let active = null;
+  return {
+    run(options) {
+      if (active) return active;
+      active = runProposalApprovalSubmission(options).finally(() => { active = null; });
+      return active;
+    },
+    isActive: () => Boolean(active)
+  };
+}
+
 function proposalItemHasCatalogIdentity(item = {}) {
   return Boolean(
     text(item.source_pricing_key || item.sourcePricingKey) ||
@@ -8601,6 +8651,7 @@ export const proposalsAgreementsScreen = {
 
 
     // ── Save ──────────────────────────────────────────────────────────────────
+    const approvalSubmissionRunner = createProposalApprovalSubmissionRunner();
     const saveForm = async (form, statusOverride, signatureMeta = null) => {
       const errorEl = form.querySelector('[data-pa-form-error]');
       if (form.dataset.saving === 'yes') return;
@@ -8611,7 +8662,10 @@ export const proposalsAgreementsScreen = {
       // Always set status explicitly — 'draft' is the safe default
       const targetStatus = statusOverride || 'draft';
       const approvingWithSignature = targetStatus === 'approved';
-      payload.status = approvingWithSignature ? 'pending_approval' : targetStatus;
+      // Submit in three ordered steps: draft, items, then one status transition.
+      // A failed item write must never leave an incomplete proposal awaiting approval.
+      const submittingForApproval = targetStatus === 'pending_approval';
+      payload.status = submittingForApproval ? 'draft' : (approvingWithSignature ? 'pending_approval' : targetStatus);
       if (signatureMeta && typeof signatureMeta === 'object' && !approvingWithSignature) payload.signature_meta = signatureMeta;
       const isPending = targetStatus === 'sent' || targetStatus === 'pending_approval';
 
@@ -8642,20 +8696,47 @@ export const proposalsAgreementsScreen = {
         }
       }
       try {
-        const result = mode === 'edit'
-          ? await api.updateProposalAgreement(id, payload)
-          : await api.addProposalAgreement(payload);
-        const savedId = text(result?.row?.id || id);
         const items = Array.isArray(payload._items) ? payload._items : filterItemsByProposalType(extractItemsFromForm(form), payload.activity_type_group);
-        if (savedId && typeof api.saveProposalAgreementItems === 'function') {
-          await api.saveProposalAgreementItems(savedId, items);
+        let result;
+        let savedId;
+        let submittedStatusResult = null;
+        const timeoutOptions = {
+          timeoutMs: Number(globalThis.__PROPOSAL_SUBMISSION_TIMEOUT_MS__) || undefined
+        };
+        if (submittingForApproval) {
+          if (typeof api.saveProposalAgreementItems !== 'function' || typeof api.updateProposalAgreementStatus !== 'function') {
+            throw new Error('שליחת ההצעה לאישור אינה זמינה. יש לרענן את המסך ולנסות שוב.');
+          }
+          const submitted = await approvalSubmissionRunner.run({
+            saveProposal: () => mode === 'edit'
+              ? api.updateProposalAgreement(id, payload)
+              : api.addProposalAgreement({ ...payload, _submission_id: proposalSubmissionId(form) }),
+            saveItems: api.saveProposalAgreementItems,
+            updateStatus: api.updateProposalAgreementStatus,
+            items,
+            timeoutOptions
+          });
+          result = submitted.proposalResult;
+          savedId = submitted.savedId;
+          submittedStatusResult = submitted.statusResult;
+        } else {
+          result = await settleProposalApprovalStep(
+            () => mode === 'edit' ? api.updateProposalAgreement(id, payload) : api.addProposalAgreement(payload),
+            'שמירת ההצעה',
+            timeoutOptions
+          );
+          savedId = text(result?.row?.id || id);
+          if (savedId && typeof api.saveProposalAgreementItems === 'function') {
+            await settleProposalApprovalStep(() => api.saveProposalAgreementItems(savedId, items), 'שמירת פריטי ההצעה', timeoutOptions);
+          }
         }
         let finalRow = result?.row || { ...payload, id: savedId };
-        if (approvingWithSignature && savedId) {
+        if (submittingForApproval && savedId) {
+          finalRow = submittedStatusResult?.row || { ...finalRow, status: 'pending_approval' };
+          showToast('ההצעה נשמרה ונשלחה לאישור', 'success');
+        } else if (approvingWithSignature && savedId) {
           finalRow = await approveProposalWithSignature(savedId, signatureMeta || defaultSignatureMeta());
           showToast('ההצעה אושרה ונחתמה', 'success');
-        } else if (targetStatus === 'pending_approval') {
-          showToast('ההצעה נשמרה ונשלחה לאישור', 'success');
         } else if (targetStatus === 'draft') {
           showToast('הטיוטה נשמרה בהצלחה', 'success');
         }
@@ -8672,7 +8753,9 @@ export const proposalsAgreementsScreen = {
       } catch (err) {
         console.error('[proposal save failed]', err);
         if (await handleSupabaseSessionFailure(err)) return false;
-        if (errorEl) errorEl.textContent = 'לא ניתן היה לשמור את ההצעה. הפרטים נשארו בטופס וניתן לנסות שוב.';
+        const detail = text(err?.message);
+        if (errorEl) errorEl.textContent = detail || 'לא ניתן היה לשמור את ההצעה. הפרטים נשארו בטופס וניתן לנסות שוב.';
+        showToast(detail || 'לא ניתן היה להשלים את שליחת ההצעה לאישור. הפרטים נשארו בטופס וניתן לנסות שוב.', 'error');
         return false;
       } finally {
         if (form.isConnected) {
