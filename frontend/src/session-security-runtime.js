@@ -4,6 +4,10 @@ import {
   dashboardSessionExpiryReason,
   personalReportsSessionExpired
 } from './session-security-policy.js';
+import {
+  clearDashboardSessionLifecycle,
+  startDashboardSession
+} from './session-security-lifecycle.js';
 
 const DASHBOARD_SESSION_STARTED_KEY = 'dashboard_session_started_at';
 const DASHBOARD_LAST_ACTIVITY_KEY = 'dashboard_session_last_activity_at';
@@ -48,13 +52,13 @@ function dashboardSessionExists() {
 }
 
 export function clearDashboardSessionTimeoutState() {
-  try {
-    localStorage.removeItem(DASHBOARD_SESSION_STARTED_KEY);
-    localStorage.removeItem(DASHBOARD_LAST_ACTIVITY_KEY);
-  } catch {
-    /* ignore storage failures */
-  }
+  clearDashboardSessionLifecycle();
   lastDashboardActivityWriteAt = 0;
+}
+
+export function resetDashboardSessionTimeoutState(session, now = Date.now()) {
+  startDashboardSession(session, { now, force: true });
+  lastDashboardActivityWriteAt = now;
 }
 
 function ensureDashboardSessionTimestamps(now = Date.now()) {
@@ -104,6 +108,19 @@ export async function expireDashboardSession(reason = 'inactivity_timeout') {
   try { localStorage.removeItem(DASHBOARD_ROUTES_KEY); } catch { /* ignore */ }
 
   if (typeof window !== 'undefined') window.location.reload();
+}
+
+export async function handleSupabaseSessionFailure(error) {
+  if (dashboardLogoutInProgress) return true;
+  const message = String(error?.message || error?.details || error || '').toLowerCase();
+  const looksAuthRelated = error?.status === 401
+    || /jwt|session|not authenticated|auth session missing|permission denied|row-level security/.test(message);
+  if (!looksAuthRelated || !supabase) return false;
+  let session = null;
+  try { session = (await supabase.auth.getSession())?.data?.session || null; } catch { /* treat as missing */ }
+  if (session?.user?.id) return false;
+  await expireDashboardSession('auth_session_expired');
+  return true;
 }
 
 export function checkDashboardSessionTimeout(now = Date.now()) {

@@ -57,3 +57,21 @@ test('runtime restores personal reports in a locked state after timeout', () => 
   assert.match(runtime, /pagehide/);
   assert.match(entry, /session-security-runtime\.js/);
 });
+
+test('DOM observation only checks a session and does not manufacture activity or a new session start', () => {
+  const runtime = readFileSync(new URL('../frontend/src/session-security-runtime.js', import.meta.url), 'utf8');
+  const observerBody = runtime.match(/sessionSecurityObserver = new MutationObserver\(\(\) => \{([\s\S]*?)\n  \}\);/)?.[1] || '';
+  assert.match(observerBody, /checkDashboardSessionTimeout/);
+  assert.doesNotMatch(observerBody, /recordDashboardActivity|resetDashboardSessionTimeoutState|startDashboardSession/);
+});
+
+test('expired Supabase proposal requests use the shared logout path and login expiry message', () => {
+  const runtime = readFileSync(new URL('../frontend/src/session-security-runtime.js', import.meta.url), 'utf8');
+  const proposals = readFileSync(new URL('../frontend/src/screens/proposals-agreements.js', import.meta.url), 'utf8');
+  const main = readFileSync(new URL('../frontend/src/main.js', import.meta.url), 'utf8');
+  assert.match(runtime, /handleSupabaseSessionFailure/);
+  assert.match(runtime, /await expireDashboardSession\('auth_session_expired'\)/);
+  assert.match(proposals, /await handleSupabaseSessionFailure\(error\)/);
+  assert.match(proposals, /await handleSupabaseSessionFailure\(err\)/);
+  assert.match(main, /פג תוקף ההתחברות\. יש להתחבר מחדש\./);
+});

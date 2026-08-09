@@ -2,6 +2,7 @@ import { escapeHtml } from './shared/html.js';
 import { dsCard, dsEmptyState, dsPageHeader, dsScreenStack, dsTableWrap } from './shared/layout.js';
 import { showToast } from './shared/toast.js';
 import { countPendingApprovedProposals, isProposalApprovedPendingSend } from './shared/proposals-pending-count.js';
+import { handleSupabaseSessionFailure } from '../session-security-runtime.js';
 
 export { countPendingApprovedProposals, isProposalApprovedPendingSend };
 
@@ -6352,7 +6353,7 @@ export const proposalsAgreementsScreen = {
     // Start immutable editor lookups as soon as the proposals screen is bound.
     // Opening the editor still awaits the same memoized request, but no longer
     // pays the full cold-network latency after the user's click.
-    void ensureEditorDeps().catch(() => {});
+    void ensureEditorDeps().catch((error) => { void handleSupabaseSessionFailure(error); });
     const currentListQuery = () => ({
       search: text(data?._query?.search),
       status: text(data?._query?.status),
@@ -7986,6 +7987,7 @@ export const proposalsAgreementsScreen = {
         await ensureEditorDeps();
         if (mode === 'edit' && text(row.id)) row = await ensureProposalDetailRow(row);
       } catch (error) {
+        if (await handleSupabaseSessionFailure(error)) return;
         const errorBackLabel = originMode === 'all-proposals' ? 'חזרה לכל ההצעות' : 'חזרה לתיק הלקוח';
         formHost.innerHTML = `<div class="ds-empty ds-pa-editor-load-error" role="alert"><strong>לא הצלחנו לטעון את נתוני ההצעה.</strong><span>ניתן לחזור ולנסות שוב.</span><button type="button" class="ds-btn ds-btn--primary" data-pa-cancel-form>← ${errorBackLabel}</button></div>`;
         return;
@@ -7997,7 +7999,10 @@ export const proposalsAgreementsScreen = {
           if (typeof api.readProposalAgreementItems === 'function') {
             items = await api.readProposalAgreementItems(text(row.id));
           }
-        } catch { items = []; }
+        } catch (error) {
+          if (await handleSupabaseSessionFailure(error)) return;
+          items = [];
+        }
       }
       items = proposalItemsWithFallback(items, row);
       const backLabel = originMode === 'all-proposals' ? 'חזרה לכל ההצעות' : 'חזרה לתיק הלקוח';
@@ -8666,6 +8671,7 @@ export const proposalsAgreementsScreen = {
         }
       } catch (err) {
         console.error('[proposal save failed]', err);
+        if (await handleSupabaseSessionFailure(err)) return false;
         if (errorEl) errorEl.textContent = 'לא ניתן היה לשמור את ההצעה. הפרטים נשארו בטופס וניתן לנסות שוב.';
         return false;
       } finally {
