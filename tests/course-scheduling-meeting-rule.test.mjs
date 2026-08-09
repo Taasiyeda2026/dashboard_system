@@ -1,6 +1,6 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
-import { meetingsCompletedForCourse, courseMeetingStage } from '../frontend/src/screens/course-scheduling-meetings.js';
+import { meetingsCompletedForCourse } from '../frontend/src/screens/course-scheduling-meetings.js';
 
 const yesterday = new Date(Date.now() - 86400000).toISOString().slice(0, 10);
 const twoWeeksAgo = new Date(Date.now() - 14 * 86400000).toISOString().slice(0, 10);
@@ -18,13 +18,11 @@ const loadedState = (overrides = {}) => ({
 test('a course with only future meetings has completed zero meetings', () => {
   const state = loadedState();
   assert.equal(meetingsCompletedForCourse(course([tomorrow]), state), 0);
-  assert.equal(courseMeetingStage(0), 'not_started');
 });
 
 test('a past meeting counts once it is not marked cancelled, without needing an approval', () => {
   const state = loadedState();
   assert.equal(meetingsCompletedForCourse(course([yesterday]), state), 1);
-  assert.equal(courseMeetingStage(1), 'one_completed');
 });
 
 test('an approved completion upload counts even if the priority order is checked first', () => {
@@ -40,8 +38,6 @@ test('a manually cancelled date is excluded even though it is in the past', () =
 test('two or more completed meetings do not lock instructor replacement', () => {
   const state = loadedState();
   assert.equal(meetingsCompletedForCourse(course([twoWeeksAgo, yesterday]), state), 2);
-  assert.equal(courseMeetingStage(2), 'one_completed');
-  assert.equal(courseMeetingStage(5), 'one_completed');
 });
 
 test('start date alone is never used as a stand-in for meetings completed', () => {

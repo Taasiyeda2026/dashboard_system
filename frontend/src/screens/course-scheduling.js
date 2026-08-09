@@ -9,9 +9,7 @@ import { calculateCandidateTravel } from './course-scheduling-travel.js';
 import {
   attachCancelledMeetingsToActivities,
   loadCourseMeetingState,
-  israelTodayIso,
-  meetingsCompletedForCourse,
-  courseMeetingStage
+  israelTodayIso
 } from './course-scheduling-meetings.js';
 import { isCourseSchedulingInterfaceEligible } from './shared/activity-scheduling-eligibility.js';
 import { formatDateHe, formatTimeRangeShort } from './shared/format-date.js';
@@ -334,13 +332,10 @@ export function compactMeetingsHtml(activity) {
   return `${meetings.length} מפגשים · ${dateRange} · ${escapeHtml(weekdays.join(', '))} · ${timeRange}`;
 }
 
-function courseRowModel(course, resultByCourseId, meetingState) {
+function courseRowModel(course, resultByCourseId) {
   const id = idOf(course);
   const isAssigned = !!text(course.emp_id);
   const hasDraft = !isAssigned && !!text(course.draft_emp_id);
-  const meetingsCompleted = isAssigned ? meetingsCompletedForCourse(course, meetingState) : 0;
-  const meetingStateLoaded = meetingState?.loaded !== false;
-  const stage = isAssigned && meetingsCompleted != null ? courseMeetingStage(meetingsCompleted) : null;
   const result = resultByCourseId.get(id) || null;
   let bucket = null;
   let statusLabel = STATUS.waiting;
@@ -366,7 +361,7 @@ function courseRowModel(course, resultByCourseId, meetingState) {
     statusLabel = STATUS.ready;
   }
 
-  return { course, id, result, isAssigned, hasDraft, meetingsCompleted, meetingStateLoaded, stage, bucket, statusLabel };
+  return { course, id, result, isAssigned, hasDraft, bucket, statusLabel };
 }
 
 const LIST_GROUPS = [
@@ -1217,7 +1212,7 @@ export const courseSchedulingScreen = {
     restoreCalculationSnapshot(state, interfaceCourses, schedulingSnapshotContext(data));
     const results = state.courseSchedulingResults || [];
     const resultByCourseId = new Map(results.map((result) => [idOf(result.course), result]));
-    const rowModels = interfaceCourses.map((course) => courseRowModel(course, resultByCourseId, data.meetingState));
+    const rowModels = interfaceCourses.map((course) => courseRowModel(course, resultByCourseId));
     const tab = activeTab(state);
     if (tab === 'courses' && !text(state.courseSchedulingSelectedId) && rowModels.length) {
       const nearest = pickNearestActionableCourse(rowModels, today()) || rowModels[0];
@@ -1228,7 +1223,7 @@ export const courseSchedulingScreen = {
     }
     const selectedId = state.courseSchedulingSelectedId || '';
     const selectedRow = rowModels.find((row) => row.id === selectedId)
-      || (selectedId ? courseRowModel(interfaceCourses.find((course) => idOf(course) === selectedId) || { row_id: selectedId }, resultByCourseId, data.meetingState) : null);
+      || (selectedId ? courseRowModel(interfaceCourses.find((course) => idOf(course) === selectedId) || { row_id: selectedId }, resultByCourseId) : null);
     const readiness = courseSchedulingDataReadiness(data.activities || []);
     return dsScreenStack(`${instructorsWorkspaceNavStylesHtml()}
     <div class="course-scheduling-screen" dir="rtl" data-cs-ui="ux-polish-20260805-v1" data-cs-tab="${escapeHtml(tab)}">
