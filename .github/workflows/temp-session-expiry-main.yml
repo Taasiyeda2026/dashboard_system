@@ -4,6 +4,9 @@ on:
   push:
     branches:
       - fix/session-expiry-main-20260809
+  pull_request:
+    branches:
+      - main
 
 permissions:
   contents: write
@@ -16,6 +19,7 @@ jobs:
       - uses: actions/checkout@v4
         with:
           fetch-depth: 0
+          ref: fix/session-expiry-main-20260809
 
       - name: Apply exact session fix onto current main
         shell: bash
@@ -39,7 +43,6 @@ jobs:
                   raise SystemExit(f'{label}: expected exactly one match, found {count}')
               return text.replace(old, new, 1)
 
-          # Preserve the current main config and only add the release marker.
           path = Path('frontend/src/config.js')
           text = path.read_text()
           marker = '-session-expiry-proposal-recovery-20260809-v1'
@@ -50,7 +53,6 @@ jobs:
               text = text[:match.end(1)] + marker + text[match.end(1):]
           path.write_text(text)
 
-          # Keep the current service worker implementation and apply the task cache release.
           path = Path('frontend/sw.js')
           text = path.read_text()
           text, count = re.subn(r'const CACHE_VERSION = \d+;', 'const CACHE_VERSION = 1439;', text, count=1)
@@ -58,86 +60,44 @@ jobs:
               raise SystemExit(f'sw: expected one CACHE_VERSION, found {count}')
           path.write_text(text)
 
-          # Apply only the three main.js changes from the task to current main.
           path = Path('frontend/src/main.js')
           text = path.read_text()
           state_import = "import { state, setSession, defaultClientSettings, setGlobalActivityPeriod, setArchiveActivityPeriod } from './state.js';"
-          text = replace_once(
-              text,
-              state_import,
-              state_import + "\nimport { resetDashboardSessionTimeoutState } from './session-security-runtime.js';",
-              'main import'
-          )
-          text = replace_once(
-              text,
-              "let loginInlineError = '';",
-              """let loginInlineError = (() => {
+          text = replace_once(text, state_import, state_import + "\nimport { resetDashboardSessionTimeoutState } from './session-security-runtime.js';", 'main import')
+          text = replace_once(text, "let loginInlineError = '';", """let loginInlineError = (() => {
   try {
     const reason = sessionStorage.getItem('dashboard_session_timeout_reason');
     sessionStorage.removeItem('dashboard_session_timeout_reason');
     return reason ? 'פג תוקף ההתחברות. יש להתחבר מחדש.' : '';
   } catch { return ''; }
-})();""",
-              'main login expiry message'
-          )
-          text = replace_once(
-              text,
-              """            beginPerfTimer('login:setSession');
-            setSession({ token: data.token, user: data.user });""",
-              """            beginPerfTimer('login:setSession');
+})();""", 'main login expiry message')
+          text = replace_once(text, """            beginPerfTimer('login:setSession');
+            setSession({ token: data.token, user: data.user });""", """            beginPerfTimer('login:setSession');
             resetDashboardSessionTimeoutState({
               user: { id: data.user?.auth_user_id, last_sign_in_at: new Date().toISOString() }
             });
-            setSession({ token: data.token, user: data.user });""",
-              'main login reset'
-          )
+            setSession({ token: data.token, user: data.user });""", 'main login reset')
           path.write_text(text)
 
-          # Apply only the proposal session-expiry handling from the task.
           path = Path('frontend/src/screens/proposals-agreements.js')
           text = path.read_text()
           pending_import = "import { countPendingApprovedProposals, isProposalApprovedPendingSend } from './shared/proposals-pending-count.js';"
-          text = replace_once(
-              text,
-              pending_import,
-              pending_import + "\nimport { handleSupabaseSessionFailure } from '../session-security-runtime.js';",
-              'proposal import'
-          )
-          text = replace_once(
-              text,
-              "    void ensureEditorDeps().catch(() => {});",
-              "    void ensureEditorDeps().catch((error) => { void handleSupabaseSessionFailure(error); });",
-              'proposal editor deps'
-          )
-          text = replace_once(
-              text,
-              """      } catch (error) {
-        const errorBackLabel = originMode === 'all-proposals' ? 'חזרה לכל ההצעות' : 'חזרה לתיק הלקוח';""",
-              """      } catch (error) {
+          text = replace_once(text, pending_import, pending_import + "\nimport { handleSupabaseSessionFailure } from '../session-security-runtime.js';", 'proposal import')
+          text = replace_once(text, "    void ensureEditorDeps().catch(() => {});", "    void ensureEditorDeps().catch((error) => { void handleSupabaseSessionFailure(error); });", 'proposal editor deps')
+          text = replace_once(text, """      } catch (error) {
+        const errorBackLabel = originMode === 'all-proposals' ? 'חזרה לכל ההצעות' : 'חזרה לתיק הלקוח';""", """      } catch (error) {
         if (await handleSupabaseSessionFailure(error)) return;
-        const errorBackLabel = originMode === 'all-proposals' ? 'חזרה לכל ההצעות' : 'חזרה לתיק הלקוח';""",
-              'proposal editor load failure'
-          )
-          text = replace_once(
-              text,
-              "        } catch { items = []; }",
-              """        } catch (error) {
+        const errorBackLabel = originMode === 'all-proposals' ? 'חזרה לכל ההצעות' : 'חזרה לתיק הלקוח';""", 'proposal editor load failure')
+          text = replace_once(text, "        } catch { items = []; }", """        } catch (error) {
           if (await handleSupabaseSessionFailure(error)) return;
           items = [];
-        }""",
-              'proposal items failure'
-          )
-          text = replace_once(
-              text,
-              """      } catch (err) {
+        }""", 'proposal items failure')
+          text = replace_once(text, """      } catch (err) {
         console.error('[proposal save failed]', err);
-        if (errorEl) errorEl.textContent = 'לא ניתן היה לשמור את ההצעה. הפרטים נשארו בטופס וניתן לנסות שוב.';""",
-              """      } catch (err) {
+        if (errorEl) errorEl.textContent = 'לא ניתן היה לשמור את ההצעה. הפרטים נשארו בטופס וניתן לנסות שוב.';""", """      } catch (err) {
         console.error('[proposal save failed]', err);
         if (await handleSupabaseSessionFailure(err)) return false;
-        if (errorEl) errorEl.textContent = 'לא ניתן היה לשמור את ההצעה. הפרטים נשארו בטופס וניתן לנסות שוב.';""",
-              'proposal save failure'
-          )
+        if (errorEl) errorEl.textContent = 'לא ניתן היה לשמור את ההצעה. הפרטים נשארו בטופס וניתן לנסות שוב.';""", 'proposal save failure')
           path.write_text(text)
           PY
 
