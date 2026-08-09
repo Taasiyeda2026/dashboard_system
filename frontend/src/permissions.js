@@ -13,12 +13,6 @@ function userPermissions(user = {}) {
   return { ...nested, ...user };
 }
 
-function userRole(user = {}) {
-  return String(user?.role || '').trim();
-}
-
-const ACTIVITY_REQUEST_ROLES = new Set(['activities_manager', 'instructor_manager', 'business_development_manager']);
-
 export function canEditDirect(user = {}) {
   const p = userPermissions(user);
   return permissionFlagYes(firstDefined(p.can_edit_direct, p.permissions?.can_edit_direct));
@@ -31,8 +25,7 @@ export function canAddActivityDirect(user = {}) {
 
 export function canRequestEdit(user = {}) {
   const p = userPermissions(user);
-  return permissionFlagYes(firstDefined(p.can_request_edit, p.can_request_edit_2, p.permissions?.can_request_edit, p.permissions?.can_request_edit_2))
-    || ACTIVITY_REQUEST_ROLES.has(userRole(user));
+  return permissionFlagYes(firstDefined(p.can_request_edit, p.can_request_edit_2, p.permissions?.can_request_edit, p.permissions?.can_request_edit_2));
 }
 
 export function canRequestCreateActivity(user = {}) {

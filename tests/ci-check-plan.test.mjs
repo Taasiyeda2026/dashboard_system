@@ -96,6 +96,19 @@ test('api.js permission changes do not select activities', () => {
   assert.equal(plan.groups.includes('activities'), false);
 });
 
+test('api.js role route removal does not select activities for an unchanged activities route', () => {
+  const diff = `diff --git a/frontend/src/api.js b/frontend/src/api.js
+--- a/frontend/src/api.js
++++ b/frontend/src/api.js
+@@ -1 +1 @@
+-  finance: ['dashboard', 'activities', 'edit-requests'],
++  finance: ['dashboard', 'activities'],
+`;
+  const plan = buildCheckPlan(['frontend/src/api.js'], { getDiff: () => diff });
+  assert.deepEqual(plan.groups, ['permissions']);
+  assert.equal(plan.groups.includes('activities'), false);
+});
+
 test('api.js Activities changes still select activities', () => {
   assert.deepEqual(apiPlanFor('export async function saveActivity(activity) {}').groups, ['activities']);
 });

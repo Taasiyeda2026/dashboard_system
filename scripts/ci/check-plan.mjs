@@ -41,7 +41,7 @@ const SCREEN_LOADER_LINE_RE = /import\(['"]\.\/screens\/[\w.-]+\.js(?:\?v=[\w-]+
 const VERSION_QUERY_RE = /\?v=[\w-]+/g;
 
 const API_GROUP_RULES = [
-  [/activit(?:y|ies)/i, ['activities']],
+  [/(?:addActivity|saveActivity|updateActivity|deleteActivity|activityDetail|\.from\(['"]activities['"]\)|activities_(?:read|write|insert|update|delete))/i, ['activities']],
   [/proposals?/i, ['proposals']],
   [/(?:\brole\b|display_role|permissions?|default_view|edit-requests|can_request_edit|view_edit_requests)/i, ['permissions']],
   [/(?:auth(?!orit)|login|session|signIn|user[ _]?projection)/i, ['auth', 'permissions']]
