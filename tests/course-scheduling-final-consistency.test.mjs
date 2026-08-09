@@ -41,5 +41,5 @@ test('school calendar changes revalidate locked courses', async () => {
 
 test('service worker cache is advanced', async () => {
   const sw = await readFile(new URL('../frontend/sw.js', import.meta.url), 'utf8');
-  assert.match(sw, /const CACHE_VERSION = 1412;/);
+  assert.match(sw, /const CACHE_VERSION = 1413;/);
 });

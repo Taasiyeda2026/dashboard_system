@@ -1969,7 +1969,7 @@ export const courseSchedulingScreen = {
       if (!canEdit || !selectedCourseId) return;
       if (!window.confirm('לבטל את הטיוטה?')) return;
       event.target.disabled = true;
-      const { error } = await supabase.rpc(selectedCourse.draft_proposed_meetings ? 'cancel_course_assignment_draft_with_dates' : 'cancel_course_assignment_draft', { p_activity_id: selectedCourseId });
+      const { error } = await supabase.rpc('cancel_course_assignment_draft', { p_activity_id: selectedCourseId });
       if (error) { showToast(`ביטול הטיוטה נכשל: ${error.message}`, 'error'); event.target.disabled = false; return; }
       clearScreenDataCache?.();
       showToast('הטיוטה בוטלה', 'success');
