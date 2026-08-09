@@ -1,45 +1,112 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
-import { readFile } from 'node:fs/promises';
+import { setTimeout as delay } from 'node:timers/promises';
 
 globalThis.sessionStorage = { getItem: () => null, setItem: () => {}, removeItem: () => {} };
 globalThis.localStorage = { getItem: () => null, setItem: () => {}, removeItem: () => {} };
 
-const screenUrl = new URL('../frontend/src/screens/proposals-agreements.js', import.meta.url);
-const { settleProposalApprovalStep } = await import(screenUrl);
+const {
+  createProposalApprovalSubmissionRunner,
+  runProposalApprovalSubmission
+} = await import('../frontend/src/screens/proposals-agreements.js');
 
-const regressionFixtures = [
-  { quote_number: '10214', client_authority: 'רשות אשכול', school_framework: 'שחר אשכול', items: [{ item_name: 'פעילות גפ״ן' }] },
-  { quote_number: '10219', client_authority: 'שדרות', school_framework: 'דרור', items: [{ item_name: 'פעילות א' }, { item_name: 'פעילות ב' }, { item_name: 'פעילות ג' }] }
-];
+function submissionMock({ items, failAt = '', deferredSave = null } = {}) {
+  const calls = [];
+  const api = {
+    saveProposal: async () => {
+      calls.push(['proposal', 'draft']);
+      if (failAt === 'proposal') throw new Error('שמירת ההצעה נכשלה');
+      if (deferredSave) return deferredSave.promise;
+      return { ok: true, row: { id: 'proposal-id', status: 'draft' } };
+    },
+    saveItems: async (id, savedItems) => {
+      calls.push(['items', id, savedItems.length]);
+      if (failAt === 'items') throw new Error('שמירת פריטי ההצעה נכשלה');
+      return { ok: true, items: savedItems };
+    },
+    updateStatus: async (id, status) => {
+      calls.push(['status', id, status]);
+      if (failAt === 'status') throw new Error('שינוי הסטטוס נכשל');
+      return { ok: true, row: { id, status } };
+    }
+  };
+  return { calls, api, items };
+}
 
-test('approval step accepts the one-item and multi-item 10214/10219 structures', async () => {
-  for (const fixture of regressionFixtures) {
-    let calls = 0;
-    const result = await settleProposalApprovalStep(Promise.resolve({ ok: true, items: fixture.items }), 'שמירת פריטי ההצעה', 25);
-    calls += 1;
-    assert.equal(result.items.length, fixture.items.length);
-    assert.equal(calls, 1);
-  }
+for (const itemCount of [1, 2]) {
+  test(`GEFEN submission with ${itemCount} item(s) runs draft, items, pending exactly once`, async () => {
+    const mock = submissionMock({ items: Array.from({ length: itemCount }, (_, i) => ({ item_name: `GEFEN ${i + 1}` })) });
+    const result = await runProposalApprovalSubmission({ ...mock.api, items: mock.items });
+    assert.equal(result.statusResult.row.status, 'pending_approval');
+    assert.deepEqual(mock.calls, [
+      ['proposal', 'draft'],
+      ['items', 'proposal-id', itemCount],
+      ['status', 'proposal-id', 'pending_approval']
+    ]);
+  });
+}
+
+test('proposal failure stops items and status and releases the caller UI', async () => {
+  const ui = { disabled: true, error: '' };
+  const mock = submissionMock({ items: [{ item_name: 'GEFEN' }], failAt: 'proposal' });
+  await assert.rejects(runProposalApprovalSubmission({ ...mock.api, items: mock.items }), /שמירת ההצעה נכשלה/)
+    .finally(() => { ui.disabled = false; ui.error = 'שמירת ההצעה נכשלה'; });
+  assert.deepEqual(mock.calls, [['proposal', 'draft']]);
+  assert.equal(ui.disabled, false);
+  assert.match(ui.error, /נכשלה/);
 });
 
-test('approval step exposes proposal and item failures instead of swallowing them', async () => {
-  await assert.rejects(settleProposalApprovalStep(Promise.reject(new Error('שמירת ההצעה נכשלה')), 'שמירת ההצעה', 25), /שמירת ההצעה נכשלה/);
-  await assert.rejects(settleProposalApprovalStep(Promise.resolve({ ok: false, message: 'שמירת פריטי ההצעה נכשלה' }), 'שמירת פריטי ההצעה', 25), /שמירת פריטי ההצעה נכשלה/);
+test('items failure stops status and releases the caller UI', async () => {
+  const ui = { disabled: true };
+  const mock = submissionMock({ items: [{ item_name: 'GEFEN' }], failAt: 'items' });
+  await assert.rejects(runProposalApprovalSubmission({ ...mock.api, items: mock.items }), /שמירת פריטי ההצעה נכשלה/)
+    .finally(() => { ui.disabled = false; });
+  assert.deepEqual(mock.calls, [['proposal', 'draft'], ['items', 'proposal-id', 1]]);
+  assert.equal(ui.disabled, false);
 });
 
-test('a hung approval promise has a finite timeout', async () => {
-  await assert.rejects(settleProposalApprovalStep(new Promise(() => {}), 'שליחת ההצעה לאישור', 5), /לא הושלם בזמן/);
+test('status failure surfaces an error without starting another submit', async () => {
+  const runner = createProposalApprovalSubmissionRunner();
+  const mock = submissionMock({ items: [{ item_name: 'GEFEN' }], failAt: 'status' });
+  await assert.rejects(runner.run({ ...mock.api, items: mock.items }), /שינוי הסטטוס נכשל/);
+  assert.deepEqual(mock.calls, [
+    ['proposal', 'draft'], ['items', 'proposal-id', 1], ['status', 'proposal-id', 'pending_approval']
+  ]);
 });
 
-test('submission source enforces single flight and ordered draft-items-status writes', async () => {
-  const source = await readFile(screenUrl, 'utf8');
-  assert.match(source, /if \(form\.dataset\.saving === 'yes'\) return;/);
-  assert.match(source, /payload\.status = \(approvingWithSignature \|\| submittingForApproval\) \? 'draft' : targetStatus;/);
-  const saveStart = source.indexOf("'שמירת ההצעה'");
-  const itemsStart = source.indexOf("'שמירת פריטי ההצעה'", saveStart);
-  const statusStart = source.indexOf("api.updateProposalAgreementStatus(savedId, 'pending_approval')", itemsStart);
-  assert.ok(saveStart > 0 && itemsStart > saveStart && statusStart > itemsStart);
-  assert.match(source, /finally \{[\s\S]*form\.dataset\.saving = '';[\s\S]*b\.disabled = false;/);
-  assert.doesNotMatch(source, /MutationObserver[\s\S]{0,300}saveForm/);
+test('visual timeout releases UI but retains the original flight and prevents a late duplicate insert', async () => {
+  let resolveSave;
+  const deferredSave = { promise: new Promise((resolve) => { resolveSave = resolve; }) };
+  const mock = submissionMock({ items: [{ item_name: 'GEFEN' }], deferredSave });
+  const runner = createProposalApprovalSubmissionRunner();
+  const ui = { disabled: true, error: '' };
+  const options = {
+    ...mock.api,
+    items: mock.items,
+    timeoutOptions: { timeoutMs: 5, onTimeout: (message) => { ui.disabled = false; ui.error = message; } }
+  };
+  const first = runner.run(options);
+  await delay(15);
+  assert.equal(ui.disabled, false);
+  assert.match(ui.error, /עדיין מתבצעת/);
+  const second = runner.run(options);
+  assert.strictEqual(second, first, 'retry joins the active flight instead of inserting again');
+  assert.deepEqual(mock.calls, [['proposal', 'draft']]);
+  resolveSave({ ok: true, row: { id: 'proposal-id', status: 'draft' } });
+  await first;
+  assert.deepEqual(mock.calls, [
+    ['proposal', 'draft'], ['items', 'proposal-id', 1], ['status', 'proposal-id', 'pending_approval']
+  ]);
+});
+
+test('double click shares one flight: one proposal save, one item save, one status update', async () => {
+  const runner = createProposalApprovalSubmissionRunner();
+  const mock = submissionMock({ items: [{ item_name: 'A' }, { item_name: 'B' }] });
+  const options = { ...mock.api, items: mock.items };
+  const [first, second] = [runner.run(options), runner.run(options)];
+  assert.strictEqual(first, second);
+  await Promise.all([first, second]);
+  assert.deepEqual(mock.calls, [
+    ['proposal', 'draft'], ['items', 'proposal-id', 2], ['status', 'proposal-id', 'pending_approval']
+  ]);
 });
