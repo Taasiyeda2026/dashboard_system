@@ -11,7 +11,7 @@ import {
 } from './instructor-scheduling-data.js';
 import { loadInstructorSeniorityData, saveInstructorContactDetails } from './instructor-contact-data.js';
 import {
-  text, activeFlag, assigned, instructorCard, profileHtml, contactForm, constraintsForm, matchingForm
+  text, activeFlag, instructorCard, profileHtml, contactForm, constraintsForm, matchingForm
 } from './instructor-workspace-ui.js?v=20260807-guides-card-redesign-v1';
 import {
   bindInstructorsWorkspaceNav,
@@ -266,8 +266,6 @@ export const instructorsScreen = {
     const filters = state.instructorsWorkspace;
     const rows = (data?.rows || []).filter((row) => {
       if (filters.active && activeFlag(row.active) !== filters.active) return false;
-      if (filters.assignment === 'assigned' && !assigned(row)) return false;
-      if (filters.assignment === 'unassigned' && assigned(row)) return false;
       return true;
     });
     const body = rows.length ? `<div class="instructors-workspace-grid">${rows.map(instructorCard).join('')}</div>` : dsEmptyState('לא נמצאו מדריכים בהתאם לסינון');
