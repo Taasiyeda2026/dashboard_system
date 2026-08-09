@@ -520,7 +520,8 @@ test('candidate details render primary card, closed rejections, and initially di
   assert.match(closedHtml, /88<\/strong><span>\/100<\/span>/);
   assert.doesNotMatch(closedHtml, /רציפות יומית גבוהה|מרחק מהבית:|עומס לאחר השיבוץ:|פירוט הציון/);
   const html = detailsHtml(result, { courseSchedulingSelectedCandidateId: '', courseSchedulingExpandedCandidateId: 'f1' });
-  assert.match(html, /המדריך המומלץ/);
+  assert.doesNotMatch(html, /המדריך המומלץ/);
+  assert.match(html, /course-scheduling-result-status is-positive">מומלץ/);
   assert.match(html, /course-scheduling-primary-card/);
   assert.match(html, /88<\/strong><span>\/100<\/span>/);
   assert.match(html, /רציפות ויעילות ביום[\s\S]*30 מתוך 35/);
@@ -565,8 +566,9 @@ test('bestAvailable uses review title and never the misleading quality-miss head
     alternatives: [],
     checked: [bestAvailable]
   });
-  assert.match(html, /ההתאמה הטובה ביותר שנמצאה/);
-  assert.equal((html.match(/נדרשת בדיקה/g) || []).length, 0);
+  assert.doesNotMatch(html, /ההתאמה הטובה ביותר שנמצאה/);
+  assert.match(html, /course-scheduling-result-status">נדרשת בדיקה/);
+  assert.equal((html.match(/נדרשת בדיקה/g) || []).length, 1);
   const badges = [...html.matchAll(/course-scheduling-status-pill[^"]*"[^>]*>([^<]+)/g)].map((m) => m[1]);
   assert.deepEqual(badges, []);
   assert.doesNotMatch(html, /ההתאמה הטובה ביותר<\/span>/);

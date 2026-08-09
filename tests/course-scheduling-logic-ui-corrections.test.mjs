@@ -337,9 +337,10 @@ test('18-20: recommended/bestAvailable badges are singular; rejected never in al
     alternatives: [],
     checked: [recommended]
   });
-  assert.match(recommendedHtml, /המדריך המומלץ/);
+  assert.doesNotMatch(recommendedHtml, /המדריך המומלץ/);
   const recommendedBadges = [...recommendedHtml.matchAll(/course-scheduling-status-pill[^"]*"[^>]*>([^<]+)/g)].map((m) => m[1]);
-  assert.deepEqual(recommendedBadges, ['מומלץ']);
+  assert.deepEqual(recommendedBadges, []);
+  assert.match(recommendedHtml, /course-scheduling-result-status is-positive">מומלץ/);
 
   const bestAvailable = { ...recommended, score: 48, qualityLabel: 'מתאים עם אזהרה' };
   const bestHtml = detailsHtml({
@@ -350,7 +351,8 @@ test('18-20: recommended/bestAvailable badges are singular; rejected never in al
     alternatives: [],
     checked: [bestAvailable]
   });
-  assert.match(bestHtml, /ההתאמה הטובה ביותר שנמצאה/);
+  assert.doesNotMatch(bestHtml, /ההתאמה הטובה ביותר שנמצאה/);
+  assert.match(bestHtml, /course-scheduling-result-status">נדרשת בדיקה/);
   const bestBadges = [...bestHtml.matchAll(/course-scheduling-status-pill[^"]*"[^>]*>([^<]+)/g)].map((m) => m[1]);
   assert.deepEqual(bestBadges, []);
   assert.doesNotMatch(bestHtml, /מתאים עם אזהרה/);
