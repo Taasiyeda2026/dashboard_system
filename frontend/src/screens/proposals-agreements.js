@@ -5909,6 +5909,26 @@ function payloadFromForm(form) {
   return payload;
 }
 
+const PROPOSAL_APPROVAL_STEP_TIMEOUT_MS = 15000;
+
+export async function settleProposalApprovalStep(promise, stepLabel, timeoutMs = PROPOSAL_APPROVAL_STEP_TIMEOUT_MS) {
+  let timer;
+  try {
+    const result = await Promise.race([
+      Promise.resolve(promise),
+      new Promise((_, reject) => {
+        timer = setTimeout(() => reject(new Error(`${stepLabel} לא הושלם בזמן. יש לבדוק את החיבור ולנסות שוב.`)), timeoutMs);
+      })
+    ]);
+    if (!result || result.ok === false) {
+      throw new Error(text(result?.error?.message || result?.message) || `${stepLabel} נכשל. ניתן לנסות שוב.`);
+    }
+    return result;
+  } finally {
+    clearTimeout(timer);
+  }
+}
+
 function proposalItemHasCatalogIdentity(item = {}) {
   return Boolean(
     text(item.source_pricing_key || item.sourcePricingKey) ||
@@ -8611,7 +8631,10 @@ export const proposalsAgreementsScreen = {
       // Always set status explicitly — 'draft' is the safe default
       const targetStatus = statusOverride || 'draft';
       const approvingWithSignature = targetStatus === 'approved';
-      payload.status = approvingWithSignature ? 'pending_approval' : targetStatus;
+      // Submit in three ordered steps: draft, items, then one status transition.
+      // A failed item write must never leave an incomplete proposal awaiting approval.
+      const submittingForApproval = targetStatus === 'pending_approval';
+      payload.status = (approvingWithSignature || submittingForApproval) ? 'draft' : targetStatus;
       if (signatureMeta && typeof signatureMeta === 'object' && !approvingWithSignature) payload.signature_meta = signatureMeta;
       const isPending = targetStatus === 'sent' || targetStatus === 'pending_approval';
 
@@ -8642,20 +8665,27 @@ export const proposalsAgreementsScreen = {
         }
       }
       try {
-        const result = mode === 'edit'
-          ? await api.updateProposalAgreement(id, payload)
-          : await api.addProposalAgreement(payload);
+        const result = await settleProposalApprovalStep(
+          mode === 'edit' ? api.updateProposalAgreement(id, payload) : api.addProposalAgreement(payload),
+          'שמירת ההצעה'
+        );
         const savedId = text(result?.row?.id || id);
         const items = Array.isArray(payload._items) ? payload._items : filterItemsByProposalType(extractItemsFromForm(form), payload.activity_type_group);
         if (savedId && typeof api.saveProposalAgreementItems === 'function') {
-          await api.saveProposalAgreementItems(savedId, items);
+          await settleProposalApprovalStep(api.saveProposalAgreementItems(savedId, items), 'שמירת פריטי ההצעה');
         }
         let finalRow = result?.row || { ...payload, id: savedId };
-        if (approvingWithSignature && savedId) {
+        if (submittingForApproval && savedId) {
+          if (typeof api.updateProposalAgreementStatus !== 'function') throw new Error('שינוי סטטוס ההצעה אינו זמין. יש לרענן את המסך ולנסות שוב.');
+          const statusResult = await settleProposalApprovalStep(
+            api.updateProposalAgreementStatus(savedId, 'pending_approval'),
+            'שליחת ההצעה לאישור'
+          );
+          finalRow = statusResult.row || { ...finalRow, status: 'pending_approval' };
+          showToast('ההצעה נשמרה ונשלחה לאישור', 'success');
+        } else if (approvingWithSignature && savedId) {
           finalRow = await approveProposalWithSignature(savedId, signatureMeta || defaultSignatureMeta());
           showToast('ההצעה אושרה ונחתמה', 'success');
-        } else if (targetStatus === 'pending_approval') {
-          showToast('ההצעה נשמרה ונשלחה לאישור', 'success');
         } else if (targetStatus === 'draft') {
           showToast('הטיוטה נשמרה בהצלחה', 'success');
         }
@@ -8672,7 +8702,9 @@ export const proposalsAgreementsScreen = {
       } catch (err) {
         console.error('[proposal save failed]', err);
         if (await handleSupabaseSessionFailure(err)) return false;
-        if (errorEl) errorEl.textContent = 'לא ניתן היה לשמור את ההצעה. הפרטים נשארו בטופס וניתן לנסות שוב.';
+        const detail = text(err?.message);
+        if (errorEl) errorEl.textContent = detail || 'לא ניתן היה לשמור את ההצעה. הפרטים נשארו בטופס וניתן לנסות שוב.';
+        showToast(detail || 'לא ניתן היה להשלים את שליחת ההצעה לאישור. הפרטים נשארו בטופס וניתן לנסות שוב.', 'error');
         return false;
       } finally {
         if (form.isConnected) {
