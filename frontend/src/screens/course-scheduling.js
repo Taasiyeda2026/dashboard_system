@@ -9,6 +9,7 @@ import { calculateCandidateTravel } from './course-scheduling-travel.js';
 import {
   attachCancelledMeetingsToActivities,
   loadCourseMeetingState,
+  israelTodayIso,
   meetingsCompletedForCourse,
   courseMeetingStage
 } from './course-scheduling-meetings.js';
@@ -83,11 +84,12 @@ const group = (rows, key) => rows.reduce((output, row) => {
   return output;
 }, {});
 const idOf = (row) => text(row.row_id || row.RowID || row.id);
-const today = () => new Date().toISOString().slice(0, 10);
+const today = () => israelTodayIso();
 const formatDateHeDots = (value) => formatDateHe(value).replaceAll('/', '.');
 export const PENDING_ACTIVITY_STORAGE_KEY = 'dashboard:pending-course-activity-id';
 export const SCHEDULING_SNAPSHOT_KEY = 'dashboard:course-scheduling-calculation-v2';
-export const SCHEDULING_SNAPSHOT_SCHEMA_VERSION = 3;
+export const SCHEDULING_SNAPSHOT_SCHEMA_VERSION = 4;
+export const SCHEDULING_SNAPSHOT_TTL_MS = 30 * 60 * 1000;
 const LEGACY_SCHEDULING_SNAPSHOT_KEYS = [
   'dashboard:course-scheduling-calculation-v1'
 ];
@@ -125,14 +127,56 @@ function snapshotHasTravelAndChecks(results = []) {
   });
 }
 
-function restoreCalculationSnapshot(state, courses) {
+function stableSchedulingValue(value) {
+  if (Array.isArray(value)) return value.map(stableSchedulingValue);
+  if (value && typeof value === 'object') {
+    return Object.fromEntries(Object.keys(value).sort().map((key) => [key, stableSchedulingValue(value[key])]));
+  }
+  return value;
+}
+
+function schedulingFingerprint(value) {
+  const input = JSON.stringify(stableSchedulingValue(value));
+  let hash = 2166136261;
+  for (let index = 0; index < input.length; index += 1) {
+    hash ^= input.charCodeAt(index);
+    hash = Math.imul(hash, 16777619);
+  }
+  return (hash >>> 0).toString(36);
+}
+
+function schedulingSnapshotContext(data = {}) {
+  const session = data.authSession || {};
+  const userId = text(session.user?.id);
+  const sessionId = text(session.sessionId);
+  if (!userId || !sessionId) return null;
+  return {
+    userId,
+    sessionId,
+    dataFingerprint: schedulingFingerprint({
+      activities: data.activities || [],
+      instructors: data.instructors || [],
+      scheduling: data.scheduling || {},
+      schoolCalendar: data.schoolCalendar || []
+    })
+  };
+}
+
+function restoreCalculationSnapshot(state, courses, context = null, now = Date.now()) {
   if ((state.courseSchedulingResults || []).length) return;
   if (typeof localStorage === 'undefined') return;
   clearLegacySchedulingSnapshots();
   try {
     const snapshot = JSON.parse(localStorage.getItem(SCHEDULING_SNAPSHOT_KEY) || 'null');
     if (!snapshot || !Array.isArray(snapshot.results)) return;
-    if (Number(snapshot.schemaVersion) !== SCHEDULING_SNAPSHOT_SCHEMA_VERSION) {
+    const contextMatches = context
+      && snapshot.userId === context.userId
+      && snapshot.sessionId === context.sessionId
+      && snapshot.dataFingerprint === context.dataFingerprint;
+    const fresh = Number.isFinite(Number(snapshot.savedAt))
+      && now - Number(snapshot.savedAt) >= 0
+      && now - Number(snapshot.savedAt) <= SCHEDULING_SNAPSHOT_TTL_MS;
+    if (Number(snapshot.schemaVersion) !== SCHEDULING_SNAPSHOT_SCHEMA_VERSION || !contextMatches || !fresh) {
       localStorage.removeItem(SCHEDULING_SNAPSHOT_KEY);
       return;
     }
@@ -153,8 +197,9 @@ function restoreCalculationSnapshot(state, courses) {
   }
 }
 
-function saveCalculationSnapshot(state, courses) {
+function saveCalculationSnapshot(state, courses, context = null, now = Date.now()) {
   if (typeof localStorage === 'undefined') return;
+  if (!context?.userId || !context?.sessionId || !context?.dataFingerprint) return;
   try {
     const courseById = new Map(courses.map((course) => [idOf(course), course]));
     const results = (state.courseSchedulingResults || []).filter((result) => {
@@ -163,6 +208,10 @@ function saveCalculationSnapshot(state, courses) {
     });
     localStorage.setItem(SCHEDULING_SNAPSHOT_KEY, JSON.stringify({
       schemaVersion: SCHEDULING_SNAPSHOT_SCHEMA_VERSION,
+      savedAt: now,
+      userId: context.userId,
+      sessionId: context.sessionId,
+      dataFingerprint: context.dataFingerprint,
       calculatedAt: state.courseSchedulingCalculatedAt || '',
       results
     }));
@@ -194,7 +243,10 @@ function filteredInterfaceCourses(courses = [], state = {}) {
   const district = text(state.courseSchedulingDistrict || '');
   const authority = text(state.courseSchedulingAuthority || '');
   return courses
-    .filter((course) => filterMeetingsByCourseSchedulingPeriod(activityMeetings(course), periodKey).length)
+    .filter((course) => {
+      const meetings = activityMeetings(course);
+      return meetings.length === 0 || filterMeetingsByCourseSchedulingPeriod(meetings, periodKey).length;
+    })
     .filter((course) => !district || districtValue(course) === district)
     .filter((course) => !authority || text(course.authority) === authority)
     .map((course) => withSelectedPeriod(course, state));
@@ -1124,13 +1176,14 @@ function distanceDoneMessage(stats = {}, { done = false, stopped = false, errorM
 
 export const courseSchedulingScreen = {
   async load({ api }) {
-    const [activities, contacts, scheduling, meetingState, schoolLocations, schoolCalendar] = await Promise.all([
+    const [activities, contacts, scheduling, meetingState, schoolLocations, schoolCalendar, authResult] = await Promise.all([
       api.activities({ activity_period: 'school_2027', activity_type: 'all', include_inactive: true, select: 'row_id,district,authority_id,authority,school,school_id,activity_name,catalog_slug,activity_no,proposal_item_id,activity_type,item_type,activity_season,grade,education_level,class_group,sessions,start_time,end_time,instruction_language,required_instructor_gender,scheduling_note,instructor_assignment_status,instructor_assignment_locked,draft_emp_id,draft_instructor_name,draft_created_at,draft_proposed_meetings,emp_id,instructor_name,emp_id_2,instructor_name_2,start_date,end_date,status,date_1,date_2,date_3,date_4,date_5,date_6,date_7,date_8,date_9,date_10,date_11,date_12,date_13,date_14,date_15,date_16,date_17,date_18,date_19,date_20,date_21,date_22,date_23,date_24,date_25,date_26,date_27,date_28,date_29,date_30,date_31,date_32,date_33,date_34,date_35' }),
       api.instructorContacts(),
       loadInstructorSchedulingData(),
       loadCourseMeetingState(),
       supabase.rpc('scheduling_authority_school_locations'),
-      loadSchoolCalendarRows()
+      loadSchoolCalendarRows(),
+      supabase.auth.getSession()
     ]);
     const schoolRows = schoolLocations?.data || [];
     const schoolAddressLookupError = schoolLocations?.error
@@ -1144,6 +1197,16 @@ export const courseSchedulingScreen = {
       meetingState,
       schoolLocations: schoolRows,
       schoolCalendar,
+      authSession: (() => {
+        const session = authResult?.data?.session;
+        if (!session?.user?.id) return null;
+        let sessionId = '';
+        try {
+          const payload = JSON.parse(atob(session.access_token.split('.')[1].replaceAll('-', '+').replaceAll('_', '/')));
+          sessionId = text(payload.session_id);
+        } catch { /* an opaque/invalid token must not enable snapshot restore */ }
+        return { user: { id: session.user.id }, sessionId };
+      })(),
       schoolAddressStats: {
         uniqueSchoolCount: enriched.uniqueSchoolCount,
         duplicateSchoolCount: enriched.duplicateSchoolCount,
@@ -1161,7 +1224,7 @@ export const courseSchedulingScreen = {
 
     const allInterfaceCourses = (data.activities || []).filter(isCourseSchedulingInterfaceEligible);
     const interfaceCourses = filteredInterfaceCourses(allInterfaceCourses, state);
-    restoreCalculationSnapshot(state, interfaceCourses);
+    restoreCalculationSnapshot(state, interfaceCourses, schedulingSnapshotContext(data));
     const results = state.courseSchedulingResults || [];
     const resultByCourseId = new Map(results.map((result) => [idOf(result.course), result]));
     const rowModels = interfaceCourses.map((course) => courseRowModel(course, resultByCourseId, data.meetingState));
@@ -1516,7 +1579,7 @@ export const courseSchedulingScreen = {
         if (selectedResult?.recommended || selectedResult?.bestAvailable) {
           state.courseSchedulingSelectedCandidateId = emp(selectedResult.recommended || selectedResult.bestAvailable);
         }
-        saveCalculationSnapshot(state, interfaceCourses);
+        saveCalculationSnapshot(state, interfaceCourses, schedulingSnapshotContext(data));
       } catch (error) {
         state.courseSchedulingError = `איתור המדריכים נכשל: ${translateSchedulingRouteError(error.message, error.message)}`;
       } finally {
