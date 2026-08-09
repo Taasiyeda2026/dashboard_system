@@ -1,0 +1,166 @@
+name: Prepare session expiry fix merge
+
+on:
+  push:
+    branches:
+      - fix/session-expiry-main-20260809
+
+permissions:
+  contents: write
+
+jobs:
+  apply-session-fix:
+    if: github.actor != 'github-actions[bot]'
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Apply exact session fix onto current main
+        shell: bash
+        run: |
+          set -euo pipefail
+          git fetch origin codex/fix-session-management-issue-in-proposals-screen
+          git checkout FETCH_HEAD -- \
+            frontend/src/auth-session-isolation-hotfix.js \
+            frontend/src/session-security-lifecycle.js \
+            frontend/src/session-security-runtime.js \
+            tests/session-security-lifecycle.test.mjs \
+            tests/session-security-policy.test.mjs
+
+          python3 - <<'PY'
+          from pathlib import Path
+          import re
+
+          def replace_once(text, old, new, label):
+              count = text.count(old)
+              if count != 1:
+                  raise SystemExit(f'{label}: expected exactly one match, found {count}')
+              return text.replace(old, new, 1)
+
+          # Preserve the current main config and only add the release marker.
+          path = Path('frontend/src/config.js')
+          text = path.read_text()
+          marker = '-session-expiry-proposal-recovery-20260809-v1'
+          if marker not in text:
+              match = re.search(r"(HOTFIX_VERSION:\s*'[^']*)(')", text)
+              if not match:
+                  raise SystemExit('config: HOTFIX_VERSION not found')
+              text = text[:match.end(1)] + marker + text[match.end(1):]
+          path.write_text(text)
+
+          # Keep the current service worker implementation and apply the task cache release.
+          path = Path('frontend/sw.js')
+          text = path.read_text()
+          text, count = re.subn(r'const CACHE_VERSION = \d+;', 'const CACHE_VERSION = 1439;', text, count=1)
+          if count != 1:
+              raise SystemExit(f'sw: expected one CACHE_VERSION, found {count}')
+          path.write_text(text)
+
+          # Apply only the three main.js changes from the task to current main.
+          path = Path('frontend/src/main.js')
+          text = path.read_text()
+          state_import = "import { state, setSession, defaultClientSettings, setGlobalActivityPeriod, setArchiveActivityPeriod } from './state.js';"
+          text = replace_once(
+              text,
+              state_import,
+              state_import + "\nimport { resetDashboardSessionTimeoutState } from './session-security-runtime.js';",
+              'main import'
+          )
+          text = replace_once(
+              text,
+              "let loginInlineError = '';",
+              """let loginInlineError = (() => {
+  try {
+    const reason = sessionStorage.getItem('dashboard_session_timeout_reason');
+    sessionStorage.removeItem('dashboard_session_timeout_reason');
+    return reason ? 'פג תוקף ההתחברות. יש להתחבר מחדש.' : '';
+  } catch { return ''; }
+})();""",
+              'main login expiry message'
+          )
+          text = replace_once(
+              text,
+              """            beginPerfTimer('login:setSession');
+            setSession({ token: data.token, user: data.user });""",
+              """            beginPerfTimer('login:setSession');
+            resetDashboardSessionTimeoutState({
+              user: { id: data.user?.auth_user_id, last_sign_in_at: new Date().toISOString() }
+            });
+            setSession({ token: data.token, user: data.user });""",
+              'main login reset'
+          )
+          path.write_text(text)
+
+          # Apply only the proposal session-expiry handling from the task.
+          path = Path('frontend/src/screens/proposals-agreements.js')
+          text = path.read_text()
+          pending_import = "import { countPendingApprovedProposals, isProposalApprovedPendingSend } from './shared/proposals-pending-count.js';"
+          text = replace_once(
+              text,
+              pending_import,
+              pending_import + "\nimport { handleSupabaseSessionFailure } from '../session-security-runtime.js';",
+              'proposal import'
+          )
+          text = replace_once(
+              text,
+              "    void ensureEditorDeps().catch(() => {});",
+              "    void ensureEditorDeps().catch((error) => { void handleSupabaseSessionFailure(error); });",
+              'proposal editor deps'
+          )
+          text = replace_once(
+              text,
+              """      } catch (error) {
+        const errorBackLabel = originMode === 'all-proposals' ? 'חזרה לכל ההצעות' : 'חזרה לתיק הלקוח';""",
+              """      } catch (error) {
+        if (await handleSupabaseSessionFailure(error)) return;
+        const errorBackLabel = originMode === 'all-proposals' ? 'חזרה לכל ההצעות' : 'חזרה לתיק הלקוח';""",
+              'proposal editor load failure'
+          )
+          text = replace_once(
+              text,
+              "        } catch { items = []; }",
+              """        } catch (error) {
+          if (await handleSupabaseSessionFailure(error)) return;
+          items = [];
+        }""",
+              'proposal items failure'
+          )
+          text = replace_once(
+              text,
+              """      } catch (err) {
+        console.error('[proposal save failed]', err);
+        if (errorEl) errorEl.textContent = 'לא ניתן היה לשמור את ההצעה. הפרטים נשארו בטופס וניתן לנסות שוב.';""",
+              """      } catch (err) {
+        console.error('[proposal save failed]', err);
+        if (await handleSupabaseSessionFailure(err)) return false;
+        if (errorEl) errorEl.textContent = 'לא ניתן היה לשמור את ההצעה. הפרטים נשארו בטופס וניתן לנסות שוב.';""",
+              'proposal save failure'
+          )
+          path.write_text(text)
+          PY
+
+      - name: Validate focused tests and build
+        shell: bash
+        run: |
+          set -euo pipefail
+          node --test tests/session-security-lifecycle.test.mjs tests/session-security-policy.test.mjs
+          node --check frontend/src/session-security-lifecycle.js
+          node --check frontend/src/session-security-runtime.js
+          node --check frontend/src/auth-session-isolation-hotfix.js
+          node --check frontend/src/main.js
+          node --check frontend/src/screens/proposals-agreements.js
+          npm run check:build
+          git diff --check
+
+      - name: Commit clean task diff
+        shell: bash
+        run: |
+          set -euo pipefail
+          git config user.name 'github-actions[bot]'
+          git config user.email '41898282+github-actions[bot]@users.noreply.github.com'
+          git rm .github/workflows/temp-session-expiry-main.yml
+          git add -A
+          git commit -m 'Fix proposal session expiry recovery'
+          git push origin HEAD:fix/session-expiry-main-20260809
