@@ -54,3 +54,62 @@ test('runtime contract verifies live RPC signatures and trigger targets', async 
   assert.match(sql, /left join pg_proc target_function/);
   assert.match(sql, /grant execute on function public\.scheduling_runtime_contract\(\) to authenticated/);
 });
+
+const contractSyncUrl = new URL('../supabase/migrations/20260809180000_course_scheduling_contract_sync.sql', import.meta.url);
+
+test('focused contract sync makes completed meetings audit-only for replacement', async () => {
+  const sql = await readFile(contractSyncUrl, 'utf8');
+  const replacement = sql.split('function public.reassign_locked_course_instructor')[1]
+    .split('create or replace function public.scheduling_course_instructor_violations')[0];
+  assert.match(replacement, /scheduling_course_instructor_violations\(p_activity_id, p_new_emp_id, false\)/);
+  assert.match(replacement, /meetings_done := public\.scheduling_course_meetings_completed\(p_activity_id\)/);
+  assert.match(replacement, /meetings_completed_at_decision/);
+  assert.doesNotMatch(replacement, /meetings_done\s*>?=/);
+  assert.doesNotMatch(replacement, /scheduling_course_locked_for_reassignment/);
+  assert.doesNotMatch(replacement, /status\s*=\s*'(?:סגור|closed)'/i);
+});
+
+test('initial validation and revalidation use one effective calendar contract', async () => {
+  const sql = await readFile(contractSyncUrl, 'utf8');
+  const conflict = sql.split('function public.scheduling_course_conflict_exists')[1]
+    .split('function public.scheduling_course_instructor_violations')[0];
+  assert.equal((conflict.match(/scheduling_effective_meetings/g) || []).length, 2);
+  assert.doesNotMatch(conflict, /generate_series\(1,\s*35\)|date_' \|\| n/);
+
+  const calendarAssert = sql.split('function public.scheduling_assert_assignment_calendar')[1]
+    .split('function public.scheduling_course_instructor_violations')[0];
+  assert.ok((calendarAssert.match(/scheduling_effective_meetings\(a,/g) || []).length >= 2);
+  assert.match(calendarAssert, /course_meeting_cancellations/);
+  assert.equal((calendarAssert.match(/scheduling_cached_travel_minutes/g) || []).length, 2);
+  assert.equal((calendarAssert.match(/required_minutes \+ 15/g) || []).length, 2);
+  assert.doesNotMatch(calendarAssert, /generate_series\(1,\s*35\)|date_' \|\| n|required_minutes \+ 15 \+ 15/);
+
+  const validation = sql.split('function public.scheduling_course_instructor_violations')[1]
+    .split('function public.scheduling_locked_course_validation_reason')[0];
+  const revalidation = sql.split('function public.scheduling_locked_course_validation_reason')[1];
+
+  for (const body of [validation, revalidation]) {
+    assert.match(body, /scheduling_effective_meetings\(target,/);
+    assert.ok((body.match(/scheduling_effective_meetings\(a,/g) || []).length >= 3);
+    assert.doesNotMatch(body, /generate_series\(1,\s*35\)/);
+    assert.doesNotMatch(body, /date_' \|\| n/);
+    assert.equal((body.match(/scheduling_cached_travel_minutes/g) || []).length, 2);
+    assert.equal((body.match(/required_minutes \+ 15/g) || []).length, 2);
+    assert.doesNotMatch(body, /required_minutes \+ 15 \+ 15/);
+  }
+});
+
+test('contract sync is idempotent and contains no activity data mutation or backfill', async () => {
+  const sql = await readFile(contractSyncUrl, 'utf8');
+  for (const functionName of [
+    'scheduling_effective_meetings',
+    'reassign_locked_course_instructor',
+    'scheduling_course_conflict_exists',
+    'scheduling_assert_assignment_calendar',
+    'scheduling_course_instructor_violations',
+    'scheduling_locked_course_validation_reason'
+  ]) assert.match(sql, new RegExp(`create or replace function public\.${functionName}`));
+  assert.doesNotMatch(sql, /insert into public\.activities/i);
+  assert.doesNotMatch(sql, /delete from public\.activities/i);
+  assert.doesNotMatch(sql, /update public\.activities[\s\S]*set\s+status/i);
+});

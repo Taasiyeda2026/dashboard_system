@@ -114,11 +114,9 @@ export function meetingsCompletedForCourse(course, meetingState = {}, now = new 
   return completed;
 }
 
-// The three-tier rule from spec section 11: 0 meetings -> regular change allowed,
-// 1 -> significant-improvement change with an explicit warning, 2+ -> locked, only the
-// separate "operational replacement" action may change the instructor.
+// Completed meetings affect the reason/audit context only; they never lock an
+// operational instructor change or close the course automatically.
 export function courseMeetingStage(meetingsCompleted) {
-  if (meetingsCompleted >= 2) return 'locked';
-  if (meetingsCompleted === 1) return 'one_completed';
+  if (meetingsCompleted >= 1) return 'one_completed';
   return 'not_started';
 }
