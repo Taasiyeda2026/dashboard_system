@@ -871,7 +871,7 @@ Deno.serve(async (req) => {
   if (cacheReadError) return jsonResponse({ calculated: false, reason: 'cache_read_failed', error: 'cache_read_failed' }, 500);
 
   const hadPrevious = !!cached;
-  if (cached && hasUsableMetrics(cached) && (!text(cached.origin_address) || text(cached.origin_address) === origin)
+  if (cached && !needsRefresh(cached) && hasUsableMetrics(cached) && (!text(cached.origin_address) || text(cached.origin_address) === origin)
     && (!text(cached.destination_address) || text(cached.destination_address) === destination)) {
     return jsonResponse({
       calculated: true,

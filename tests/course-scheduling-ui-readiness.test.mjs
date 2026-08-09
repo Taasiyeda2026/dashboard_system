@@ -469,3 +469,17 @@ test('course scheduling load requests district and authority_id projection', asy
   assert.match(source, /select:\s*'[^']*\bauthority\b[^']*'/s);
   assert.match(source, /select:\s*'[^']*\bschool\b[^']*'/s);
 });
+
+test('scheduling first paint is gated only by the course list', async () => {
+  const source = await readFile(new URL('../frontend/src/screens/course-scheduling.js', import.meta.url), 'utf8');
+  const loadStart = source.indexOf('async load({ api })');
+  const loadEnd = source.indexOf('\n  render(data', loadStart);
+  const loader = source.slice(loadStart, loadEnd);
+  const primaryAwait = loader.indexOf('const activities = await api.activities');
+  const secondaryStart = loader.indexOf('const secondaryPromise = Promise.all');
+  const returned = loader.indexOf('return {', secondaryStart);
+  assert.ok(primaryAwait >= 0 && secondaryStart > primaryAwait && returned > secondaryStart);
+  assert.doesNotMatch(loader.slice(0, secondaryStart), /loadInstructorSchedulingData|loadCourseMeetingState|scheduling_authority_school_locations|loadSchoolCalendarRows|getSession/);
+  assert.match(loader, /_secondaryPromise:\s*secondaryPromise/);
+  assert.match(source, /await ensureSecondaryReady\(\);[\s\S]*?calculateCandidateTravel/);
+});

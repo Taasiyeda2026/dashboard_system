@@ -345,11 +345,11 @@ test('course scheduling screen explicitly loads school_2027 and exposes reject/o
   assert.doesNotMatch(source, /CSS\.escape/);
 });
 
-test('scheduling route reuses cached address pairs without an expiry check', async () => {
+test('scheduling route accepts only non-expired cached address pairs', async () => {
   const source = await readFile(new URL('../supabase/functions/scheduling-route/index.ts', import.meta.url), 'utf8');
   assert.match(source, /\.eq\('origin_key', originKey\)/);
   assert.match(source, /\.eq\('destination_key', destinationKey\)/);
-  assert.doesNotMatch(source, /\.gt\('expires_at'/);
+  assert.match(source, /cached && !needsRefresh\(cached\) && hasUsableMetrics\(cached\)/);
 });
 
 test('acceptance: Hila Rosen 1500 remains incomplete, keeps her address, and groups eight Mondays', () => {
@@ -372,4 +372,36 @@ test('acceptance: Hila Rosen 1500 remains incomplete, keeps her address, and gro
   assert.doesNotMatch(html, /חסר להשלמה:<\/b> כתובת/);
   assert.equal((html.match(/לא הוגדרה זמינות/g) || []).length, 1);
   assert.match(html, /משפיע על 8 מפגשים/);
+});
+
+test('route clients deduplicate the same in-flight and resolved route across calculations', async () => {
+  let calls = 0;
+  const invoke = async () => {
+    calls += 1;
+    await new Promise((resolve) => setTimeout(resolve, 5));
+    return { data: { calculated: true, cached: true, distance_km: 4, duration_minutes: 9 }, error: null };
+  };
+  const first = createRouteClient({ invoke });
+  const second = createRouteClient({ invoke });
+  const [a, b] = await Promise.all([
+    first.request('dedupe-origin-20260809', 'dedupe-destination-20260809'),
+    second.request('dedupe-origin-20260809', 'dedupe-destination-20260809')
+  ]);
+  assert.deepEqual(a, b);
+  assert.equal(calls, 1);
+  await createRouteClient({ invoke }).request('dedupe-origin-20260809', 'dedupe-destination-20260809');
+  assert.equal(calls, 1);
+});
+
+test('valid persisted route bypasses scheduling-route invocation', async () => {
+  let calls = 0;
+  const client = createRouteClient({
+    lookup: async () => ({ distance_km: 2.5, duration_minutes: 6, cached: true }),
+    invoke: async () => { calls += 1; return { data: null, error: new Error('must not run') }; }
+  });
+  const route = await client.request('persisted-origin-20260809', 'persisted-destination-20260809');
+  assert.equal(route.distance_km, 2.5);
+  assert.equal(client.cacheHits, 1);
+  assert.equal(calls, 0);
+  assert.equal(client.requests.length, 0);
 });

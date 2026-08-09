@@ -6412,7 +6412,8 @@ export const proposalsAgreementsScreen = {
       clientType: text(data?._query?.clientType),
       sort: text(data?._query?.sort) || 'updated_at_desc',
       limit: Number(data?._limit || 50),
-      includeLinkedDocuments: true
+      // Linked documents are detail data and must not hold up list pagination/search.
+      includeLinkedDocuments: false
     });
     const mergeProposalPageRows = (incoming = []) => {
       const seen = new Set((data.rows || []).map((row) => text(row?.id)).filter(Boolean));

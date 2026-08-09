@@ -1131,43 +1131,27 @@ function distanceDoneMessage(stats = {}, { done = false, stopped = false, errorM
 
 export const courseSchedulingScreen = {
   async load({ api }) {
-    const [activities, contacts, scheduling, meetingState, schoolLocations, schoolCalendar, authResult] = await Promise.all([
-      api.activities({ activity_period: 'school_2027', activity_type: 'all', include_inactive: true, select: 'row_id,district,authority_id,authority,school,school_id,activity_name,catalog_slug,activity_no,proposal_item_id,activity_type,item_type,activity_season,grade,education_level,class_group,sessions,start_time,end_time,instruction_language,required_instructor_gender,scheduling_note,instructor_assignment_status,instructor_assignment_locked,draft_emp_id,draft_instructor_name,draft_created_at,draft_proposed_meetings,emp_id,instructor_name,emp_id_2,instructor_name_2,start_date,end_date,status,date_1,date_2,date_3,date_4,date_5,date_6,date_7,date_8,date_9,date_10,date_11,date_12,date_13,date_14,date_15,date_16,date_17,date_18,date_19,date_20,date_21,date_22,date_23,date_24,date_25,date_26,date_27,date_28,date_29,date_30,date_31,date_32,date_33,date_34,date_35' }),
+    // Only the course projection gates first paint. All matching/detail sources are
+    // started afterwards and are awaited only by actions that actually need them.
+    const activities = await api.activities({ activity_period: 'school_2027', activity_type: 'all', include_inactive: true, select: 'row_id,district,authority_id,authority,school,school_id,activity_name,catalog_slug,activity_no,proposal_item_id,activity_type,item_type,activity_season,grade,education_level,class_group,sessions,start_time,end_time,instruction_language,required_instructor_gender,scheduling_note,instructor_assignment_status,instructor_assignment_locked,draft_emp_id,draft_instructor_name,draft_created_at,draft_proposed_meetings,emp_id,instructor_name,emp_id_2,instructor_name_2,start_date,end_date,status,date_1,date_2,date_3,date_4,date_5,date_6,date_7,date_8,date_9,date_10,date_11,date_12,date_13,date_14,date_15,date_16,date_17,date_18,date_19,date_20,date_21,date_22,date_23,date_24,date_25,date_26,date_27,date_28,date_29,date_30,date_31,date_32,date_33,date_34,date_35' });
+    const secondaryPromise = Promise.all([
       api.instructorContacts(),
       loadInstructorSchedulingData(),
       loadCourseMeetingState(),
       supabase.rpc('scheduling_authority_school_locations'),
       loadSchoolCalendarRows(),
       supabase.auth.getSession()
-    ]);
-    const schoolRows = schoolLocations?.data || [];
-    const schoolAddressLookupError = schoolLocations?.error
-      ? translateSchedulingRouteError('school_address_lookup_failed')
-      : '';
-    const enriched = enrichActivitiesWithSchoolAddresses(activities?.rows || [], schoolRows);
+    ]).then(([contacts, scheduling, meetingState, schoolLocations, schoolCalendar, authResult]) => ({
+      contacts, scheduling, meetingState, schoolLocations, schoolCalendar, authResult
+    }));
+    // Attach a rejection handler immediately; consumers still receive the same rejection.
+    secondaryPromise.catch(() => {});
     return {
-      activities: attachCancelledMeetingsToActivities(enriched.activities, meetingState),
-      instructors: contacts?.rows || [],
-      scheduling,
-      meetingState,
-      schoolLocations: schoolRows,
-      schoolCalendar,
-      authSession: (() => {
-        const session = authResult?.data?.session;
-        if (!session?.user?.id) return null;
-        let sessionId = '';
-        try {
-          const payload = JSON.parse(atob(session.access_token.split('.')[1].replaceAll('-', '+').replaceAll('_', '/')));
-          sessionId = text(payload.session_id);
-        } catch { /* an opaque/invalid token must not enable snapshot restore */ }
-        return { user: { id: session.user.id }, sessionId };
-      })(),
-      schoolAddressStats: {
-        uniqueSchoolCount: enriched.uniqueSchoolCount,
-        duplicateSchoolCount: enriched.duplicateSchoolCount,
-        missingCount: enriched.missingCount
-      },
-      schoolAddressLookupError
+      activities: activities?.rows || [], instructors: [], scheduling: {},
+      meetingState: { loaded: false, approvedDates: new Map(), cancelledDates: new Map(), error: '' },
+      schoolLocations: [], schoolCalendar: [], authSession: null,
+      schoolAddressStats: { uniqueSchoolCount: 0, duplicateSchoolCount: 0, missingCount: 0 },
+      schoolAddressLookupError: '', _secondaryPromise: secondaryPromise, _secondaryLoaded: false
     };
   },
 
@@ -1229,6 +1213,31 @@ export const courseSchedulingScreen = {
   },
 
   bind({ root, data, state, rerender, clearScreenDataCache }) {
+    const ensureSecondaryReady = async () => {
+      if (data._secondaryLoaded || !data._secondaryPromise) return;
+      const { contacts, scheduling, meetingState, schoolLocations, schoolCalendar, authResult } = await data._secondaryPromise;
+      const schoolRows = schoolLocations?.data || [];
+      const enriched = enrichActivitiesWithSchoolAddresses(data.activities || [], schoolRows);
+      data.activities = attachCancelledMeetingsToActivities(enriched.activities, meetingState);
+      data.instructors = contacts?.rows || [];
+      data.scheduling = scheduling;
+      data.meetingState = meetingState;
+      data.schoolLocations = schoolRows;
+      data.schoolCalendar = schoolCalendar;
+      data.schoolAddressStats = { uniqueSchoolCount: enriched.uniqueSchoolCount, duplicateSchoolCount: enriched.duplicateSchoolCount, missingCount: enriched.missingCount };
+      data.schoolAddressLookupError = schoolLocations?.error ? translateSchedulingRouteError('school_address_lookup_failed') : '';
+      const session = authResult?.data?.session;
+      if (session?.user?.id) {
+        let sessionId = '';
+        try { sessionId = text(JSON.parse(atob(session.access_token.split('.')[1].replaceAll('-', '+').replaceAll('_', '/'))).session_id); } catch { /* opaque token */ }
+        data.authSession = { user: { id: session.user.id }, sessionId };
+      }
+      data._secondaryLoaded = true;
+    };
+    if (!data._secondaryBindStarted) {
+      data._secondaryBindStarted = true;
+      void ensureSecondaryReady().then(rerender).catch(() => { data._secondaryLoaded = true; });
+    }
     const canEdit = ['admin', 'operation_manager'].includes(text(state?.user?.role));
     const resultByCourseId = new Map((state.courseSchedulingResults || []).map((result) => [idOf(result.course), result]));
     const allInterfaceCourses = (data.activities || []).filter(isCourseSchedulingInterfaceEligible);
@@ -1494,6 +1503,7 @@ export const courseSchedulingScreen = {
       state.courseSchedulingExpandedCandidateId = '';
       rerender();
       try {
+        await ensureSecondaryReady();
         if (data.schoolAddressLookupError) throw new Error(data.schoolAddressLookupError);
         const enriched = enrichActivitiesWithSchoolAddresses(data.activities || [], data.schoolLocations || []);
         const activitiesWithCancellations = attachCancelledMeetingsToActivities(enriched.activities, data.meetingState);
@@ -1572,6 +1582,7 @@ export const courseSchedulingScreen = {
       state.courseSchedulingTab = 'courses';
       rerender();
       try {
+        await ensureSecondaryReady();
         if (data.schoolAddressLookupError) throw new Error(data.schoolAddressLookupError);
         const enriched = enrichActivitiesWithSchoolAddresses(data.activities || [], data.schoolLocations || []);
         const activitiesWithCancellations = attachCancelledMeetingsToActivities(enriched.activities, data.meetingState);

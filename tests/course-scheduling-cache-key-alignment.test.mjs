@@ -389,7 +389,7 @@ test('same-address pair never calls Google and is cached on the second lookup af
   assert.equal(second.distance_km, 0);
 });
 
-test('edge function single-pair path returns usable expired data without Google', async () => {
+test('edge function single-pair path recomputes expired data', async () => {
   const ts = await readFile(edgeFunctionUrl, 'utf8');
   assert.match(ts, /function isLookupCacheValid/);
   assert.match(ts, /needs_refresh: needsRefresh\(cached\)/);
@@ -397,7 +397,7 @@ test('edge function single-pair path returns usable expired data without Google'
   assert.match(ts, /provider: 'same_school'/);
   const serveTail = ts.split("const origin = text(payload.origin);")[1] || '';
   assert.doesNotMatch(serveTail, /if \(cached\) return jsonResponse\(\{ calculated: true, cached: true, \.\.\.cached \}\)/);
-  const validReturn = serveTail.indexOf('cached && hasUsableMetrics(cached)');
+  const validReturn = serveTail.indexOf('cached && !needsRefresh(cached) && hasUsableMetrics(cached)');
   const googleCall = serveTail.indexOf('computeRoute(origin, destination, key)');
   const sameSchool = serveTail.indexOf("provider: 'same_school'");
   assert.ok(validReturn > -1 && sameSchool > validReturn && googleCall > sameSchool);

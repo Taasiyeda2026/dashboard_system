@@ -4608,25 +4608,6 @@ async function readProposalsAgreementsFromSupabase({
   const rawRows = Array.isArray(paResult.data) ? paResult.data : [];
   noteProposalRead('rows', rawRows, null);
   const pageIds = rawRows.map((row) => cleanProposalAgreementText(row?.id)).filter(Boolean);
-  const gefenEligibilityByProposalId = new Map();
-  if (pageIds.length) {
-    const { data: eligibilityRows, error: eligibilityError } = await supabase
-      .from('proposal_agreement_items')
-      .select('proposal_agreement_id,proposal_group,item_type,gefen_number,proposal_display_mode')
-      .in('proposal_agreement_id', pageIds);
-    if (eligibilityError) throw new Error(eligibilityError.message || 'proposal_gefen_eligibility_read_failed');
-    pageIds.forEach((id) => gefenEligibilityByProposalId.set(id, false));
-    (Array.isArray(eligibilityRows) ? eligibilityRows : []).forEach((item) => {
-      const proposalId = cleanProposalAgreementText(item?.proposal_agreement_id);
-      const group = cleanProposalAgreementText(item?.proposal_group).toLowerCase();
-      const displayMode = cleanProposalAgreementText(item?.proposal_display_mode).toLowerCase();
-      const hasGefenNumber = Boolean(cleanProposalAgreementText(item?.gefen_number));
-      const isWorkshop = group === 'next_year_workshops' || /סדנ|workshop/i.test(cleanProposalAgreementText(item?.item_type));
-      if (proposalId && hasGefenNumber && !isWorkshop && displayMode !== 'bundle_child') {
-        gefenEligibilityByProposalId.set(proposalId, true);
-      }
-    });
-  }
   const proposalLinkedDocuments = includeLinkedDocuments
     ? await readProposalLinkedDocumentsFromSupabase({ proposalIds: pageIds })
     : [];
@@ -4651,7 +4632,9 @@ async function readProposalsAgreementsFromSupabase({
           gefen_approval_path: cleanProposalAgreementText(linked?.file_path),
           gefen_approval_file_name: cleanProposalAgreementText(linked?.file_name),
           gefen_approval_combined: linked?.combined_with_proposal === true,
-          gefen_approval_applicable: gefenEligibilityByProposalId.get(row.id) === true
+          // Item-derived eligibility is intentionally resolved with proposal detail.
+          // The first list page must not wait for proposal_agreement_items.
+          gefen_approval_applicable: false
         };
       }),
     activityNameOptions: [],

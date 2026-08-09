@@ -28,7 +28,36 @@ export function routeMatrixKey(origin, destination) {
   return `${normalizePlace(origin)}→${normalizePlace(destination)}`;
 }
 
-export function createRouteClient({ invoke = (body) => supabase.functions.invoke('scheduling-route', { body }), concurrency = 4 } = {}) {
+// Shared for the lifetime of the scheduling workspace so overlapping or repeat
+// calculations never invoke the route service twice for an already resolved leg.
+const resolvedRoutePromises = new Map();
+
+async function readValidPersistedRoute(origin, destination) {
+  const now = new Date().toISOString();
+  const { data, error } = await supabase
+    .from('scheduling_travel_cache')
+    .select('origin_key,destination_key,origin_address,destination_address,distance_km,duration_minutes,expires_at')
+    .eq('origin_key', normalizePlace(origin))
+    .eq('destination_key', normalizePlace(destination))
+    .gt('expires_at', now)
+    .maybeSingle();
+  if (error || !data) return null;
+  if (text(data.origin_address) && text(data.origin_address) !== text(origin)) return null;
+  if (text(data.destination_address) && text(data.destination_address) !== text(destination)) return null;
+  const distance = Number(data.distance_km);
+  const duration = Number(data.duration_minutes);
+  if (!Number.isFinite(distance) || distance < 0 || !Number.isFinite(duration) || duration < 0) return null;
+  return { distance_km: distance, duration_minutes: duration, cached: true };
+}
+
+export function createRouteClient(options = {}) {
+  const invoke = options.invoke || ((body) => supabase.functions.invoke('scheduling-route', { body }));
+  const concurrency = options.concurrency ?? 4;
+  // Custom invokers (tests/adapters) retain their own cache contract. The live
+  // client checks the table first so a valid persisted route avoids Edge entirely.
+  const lookup = options.lookup === undefined
+    ? (options.invoke ? null : readValidPersistedRoute)
+    : options.lookup;
   const cache = new Map();
   let active = 0;
   const queue = [];
@@ -55,11 +84,23 @@ export function createRouteClient({ invoke = (body) => supabase.functions.invoke
     if (!text(origin) || !text(destination)) return Promise.resolve(null);
     const cacheKey = routeMatrixKey(origin, destination);
     if (cache.has(cacheKey)) return cache.get(cacheKey);
+    if (resolvedRoutePromises.has(cacheKey)) {
+      const shared = resolvedRoutePromises.get(cacheKey);
+      cache.set(cacheKey, shared);
+      return shared;
+    }
     const promise = new Promise((resolve, reject) => {
       queue.push({
         resolve,
         reject,
         run: async () => {
+          if (lookup) {
+            const persisted = await lookup(origin, destination);
+            if (persisted) {
+              cacheHits += 1;
+              return persisted;
+            }
+          }
           requests.push({ origin: text(origin), destination: text(destination) });
           const { data, error } = await invoke({ origin, destination });
           if (error || !data?.calculated) {
@@ -78,6 +119,10 @@ export function createRouteClient({ invoke = (body) => supabase.functions.invoke
       pump();
     });
     cache.set(cacheKey, promise);
+    resolvedRoutePromises.set(cacheKey, promise);
+    promise.then((route) => {
+      if (!route) resolvedRoutePromises.delete(cacheKey);
+    }, () => resolvedRoutePromises.delete(cacheKey));
     return promise;
   };
 

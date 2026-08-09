@@ -93,7 +93,7 @@ test('bootstrap entry stays minimal and feature modules load on demand', () => {
 });
 
 test('index.html keeps a single app entry and no screen hotfix scripts', () => {
-  assert.match(indexSource, /main-with-proposal-pdf-hotfix\.js\?v=20260802-e2e-gate-fixes-v1/);
+  assert.match(indexSource, /main-with-proposal-pdf-hotfix\.js\?v=[^\"']+/);
   assert.doesNotMatch(indexSource, /dashboard-kpi-corrections\.js/);
   assert.doesNotMatch(indexSource, /proposal-editor-compact-fixes\.js/);
   assert.doesNotMatch(indexSource, /client-file-layout-polish\.js/);
@@ -109,4 +109,17 @@ test('progressive warmup never loads screen data into cache', () => {
   assert.doesNotMatch(warmupSource, /warmRoute\s*\(/);
   assert.match(warmupSource, /__DS_DISABLE_SCREEN_DATA_WARMUP__\s*=\s*true/);
   assert.match(warmupSource, /preloadScreenModule/);
+});
+
+test('client-file first page does not wait for item eligibility or linked documents', () => {
+  const start = apiSource.indexOf('async function readProposalsAgreementsFromSupabase');
+  const end = apiSource.indexOf('async function readProposalsPendingApprovedCountFromSupabase', start) > start
+    ? apiSource.indexOf('const USER_PUBLIC_COLUMNS', start)
+    : apiSource.indexOf('const USER_PUBLIC_COLUMNS', start);
+  const listLoader = apiSource.slice(start, end);
+  assert.doesNotMatch(listLoader, /eligibilityRows/);
+  assert.doesNotMatch(listLoader, /\.from\('proposal_agreement_items'\)/);
+  assert.match(listLoader, /includeLinkedDocuments\s*=\s*false/);
+  assert.match(listLoader, /range\(pageOffset, pageOffset \+ pageSize - 1\)/);
+  assert.match(proposalsSource, /includeLinkedDocuments:\s*false/);
 });
