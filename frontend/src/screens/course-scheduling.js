@@ -493,16 +493,9 @@ function courseFactRows(course) {
   ];
 }
 
-function specialRequirementTagsHtml(course) {
-  if (genderRequirementLabel(course) === 'ללא דרישה') return '';
-  const label = genderRequirementLabel(course) === 'מדריכה' ? 'נדרשת מדריכה' : 'נדרש מדריך';
-  return `<div class="course-scheduling-requirement-tags"><span class="course-scheduling-requirement-tag">${escapeHtml(label)}</span></div>`;
-}
-
 function selectedCourseMetaHtml(course) {
   return `<header class="course-scheduling-detail-header">
     <dl class="course-scheduling-detail-facts">${courseFactRows(course).map(([label, value]) => `<div class="course-scheduling-detail-fact"><dt>${escapeHtml(label)}</dt><dd>${value}</dd></div>`).join('')}</dl>
-    ${specialRequirementTagsHtml(course)}
   </header>`;
 }
 

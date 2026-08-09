@@ -455,23 +455,6 @@
   color: var(--cs-text);
 }
 
-.course-scheduling-requirement-tags {
-  display: flex;
-  flex-wrap: wrap;
-  gap: 6px;
-}
-
-.course-scheduling-requirement-tag {
-  display: inline-flex;
-  align-items: center;
-  padding: 2px 9px;
-  border-radius: 999px;
-  background: var(--cs-accent-soft);
-  color: var(--cs-accent);
-  font-size: 0.74rem;
-  font-weight: 700;
-}
-
 .course-scheduling-primary-action {
   display: flex;
   justify-content: flex-start;

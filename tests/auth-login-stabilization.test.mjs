@@ -225,7 +225,7 @@ test('login resolver supports instructor employee-number login after username mi
 
 
 test('login lookup migration syncs auth emails and matches username before user_id before emp_id', async () => {
-  const migrationPath = new URL('../supabase/migrations/20260629120000_sync_auth_email_and_login_lookup_ids.sql', import.meta.url);
+  const migrationPath = new URL('../supabase/migrations/20260629120100_sync_auth_email_and_login_lookup_ids.sql', import.meta.url);
   const sql = await readFile(migrationPath, 'utf8');
   const normalized = sql.toLowerCase();
 
