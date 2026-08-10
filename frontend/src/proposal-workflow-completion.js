@@ -366,12 +366,25 @@ function normalizeNextYearActivityIntro(documentRoot) {
   return true;
 }
 
+function isGefenProposalDocument(documentRoot) {
+  return Boolean(
+    documentRoot?.closest?.('.pa-gefen-combined-document')
+    || documentRoot?.matches?.('.pa-gefen-approval-document')
+    || documentRoot?.querySelector?.('.pa-gefen-course-table, .pa-gefen-approval-table')
+  );
+}
+
 export function normalizeProposalWorkflowDocument(root = document) {
   normalizeNextYearWorkshopTables(root);
   const documents = [];
   if (root?.matches?.('.proposal-document')) documents.push(root);
   root?.querySelectorAll?.('.proposal-document').forEach((documentRoot) => documents.push(documentRoot));
   documents.forEach((documentRoot) => {
+    // This runtime exists to normalize תשפ״ז course/workshop documents. GEFEN
+    // previews use their own tables and must never be rewritten by the generic
+    // next-year splitter; doing so can trigger a heavy observer/render cascade
+    // when a second GEFEN course is selected.
+    if (isGefenProposalDocument(documentRoot)) return;
     splitGenericNextYearTable(documentRoot);
     normalizeNextYearActivityIntro(documentRoot);
   });
