@@ -1334,7 +1334,8 @@ function normalizeEntryForPersistentCache(cacheKey, entry) {
   if (!entry || typeof entry !== 'object') return null;
   const payload = entry.data;
   if (cacheKey.startsWith('activities:') && payload && Array.isArray(payload.rows)) {
-    return { ...entry, data: { ...payload, rows: payload.rows.slice(0, 60) } };
+    // Persist up to 80 rows (≈79 KB with full date-column payload, within MAX_PERSISTED_CACHE_ENTRY_BYTES).
+    return { ...entry, data: { ...payload, rows: payload.rows.slice(0, 80) } };
   }
   if (cacheKey.startsWith('week:') || cacheKey.startsWith('month:')) {
     if (payload && Array.isArray(payload.rows)) {
@@ -1385,6 +1386,16 @@ async function loadScreenDataWithCache(screen) {
     if (routePerfEnabled) {
       const dur = Math.round((typeof performance !== 'undefined' ? performance.now() : Date.now()) - routePerfStart);
       console.info('[route-load]', { route: routeName, duration_ms: dur, cache_hit: true, fallback_used: false, source: 'memory-cache-swr' });
+    }
+    if (routeName === 'activities') {
+      const ageS = Math.round((Date.now() - (hit.storedAt || hit.t || 0)) / 1000);
+      // eslint-disable-next-line no-console
+      console.info('[activities:perf]', {
+        event: 'first-paint',
+        source: hit.restoredFromStorage ? 'localStorage' : 'memory',
+        rows: hit.data?.rows?.length ?? 0,
+        age_s: ageS
+      });
     }
     return hit.data;
   }
@@ -1455,6 +1466,10 @@ async function backgroundRefreshScreen(screen, cacheKey) {
     maybePersistScreenCacheEntry(cacheKey, entry);
     if (cacheKey === 'exceptions') updateExceptionNavCount();
     if (cacheKey === 'proposals-agreements') syncPendingApprovedProposalsCountFromRows(data?.rows);
+    if (cacheKey.startsWith('activities:')) {
+      // eslint-disable-next-line no-console
+      console.info('[activities:perf]', { event: 'fresh-data-ready', rows: data?.rows?.length ?? 0 });
+    }
     if (
       activeNavigationToken === guardedToken &&
       state.route === guardedRoute &&
@@ -2208,6 +2223,11 @@ async function render() {
             state.authSessionReady = true;
             state.permissionsReady = true;
             clearFinancePrefsIfUserChanged(data.user?.user_id);
+            // Restore this user's persisted screen cache so the first navigation
+            // (e.g. activities) can show stale-while-revalidate data immediately
+            // instead of waiting for a full Supabase fetch.
+            // Must run after setSession() so _storageKey() resolves to <user_id>.
+            restoreScreenCacheFromStorage();
             endPerfTimer('login:setSession');
             beginPerfTimer('login:applyBootstrap');
             const bootstrapApplyStartMs = performance.now();
