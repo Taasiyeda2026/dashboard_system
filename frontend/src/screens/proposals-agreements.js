@@ -1959,6 +1959,21 @@ function sortSummerPricingOptions(pricingOptions = []) {
 
 function itemRowHtml(item = {}, idx = 0, pricingOptions = [], options = {}) {
   item = normalizeProposalItemRow(item, options.groupKey || '');
+  const initialPricingKey = text(item.pricing_option_key || item.pricing_activity_no || item.activity_no || item.pricing_activity_name || item.item_name);
+  const initialPricingRow = (Array.isArray(pricingOptions) ? pricingOptions : []).find((row, optionIdx) => {
+    const optionKey = pricingOptionKey(row, optionIdx);
+    return [optionKey, text(row.activity_no), text(row.activity_name), publicActivityName(row.activity_name)].includes(initialPricingKey);
+  });
+  if (initialPricingRow) {
+    item = {
+      ...item,
+      item_name: text(item.item_name) || publicActivityLabelFromRow(initialPricingRow),
+      activity_no: text(item.activity_no || item.pricing_activity_no) || text(initialPricingRow.activity_no),
+      pricing_option_key: text(item.pricing_option_key) || pricingOptionKey(initialPricingRow),
+      item_type: text(item.item_type) || text(initialPricingRow.item_type),
+      gefen_number: text(item.gefen_number) || text(initialPricingRow.gefen_number)
+    };
+  }
   const n = (v) => (v != null && v !== '' && !isNaN(Number(v))) ? escapeHtml(String(v)) : '';
   const calcTotal = (Number(proposalField(item, 'quantity', 'quantity')) || 0) && (Number(proposalField(item, 'unit_price', 'unitPrice')) || 0)
     ? String(((Number(proposalField(item, 'quantity', 'quantity')) || 0) * (Number(proposalField(item, 'unit_price', 'unitPrice')) || 0)).toFixed(2))
@@ -2424,8 +2439,16 @@ function extractItemsFromForm(form) {
 
     // Resolve the pricing row picked in the select so saved items always carry
     // the catalog item_name / pricing_key / unit_price instead of relying on free text.
-    const optionKey = isManualCourseRow ? '' : (fieldText('pricing_option_key') || pricingSelectVal);
-    const pricingRow = isManualCourseRow ? null : lookupPricingRow({ optionKey, activityNo: fieldText('activity_no'), itemName: editedName });
+    const optionKey = isManualCourseRow ? '' : fieldText('pricing_option_key');
+    const pricingRowByOptionKey = isManualCourseRow ? null : lookupPricingRow({ optionKey });
+    const pricingRowByActivityNo = isManualCourseRow || pricingRowByOptionKey
+      ? null
+      : lookupPricingRow({ activityNo: fieldText('activity_no') });
+    const pricingRowBySelection = isManualCourseRow || pricingRowByOptionKey || pricingRowByActivityNo
+      ? null
+      : lookupPricingRow({ optionKey: pricingSelectVal });
+    const pricingRow = pricingRowByOptionKey || pricingRowByActivityNo || pricingRowBySelection;
+    const resolvedOptionKey = pricingRowByOptionKey ? optionKey : (pricingRowBySelection ? pricingSelectVal : optionKey);
     const pricingName = publicActivityLabelFromRow(pricingRow || {});
 
     const itemName = editedName || pricingName;
@@ -2445,7 +2468,7 @@ function extractItemsFromForm(form) {
     const extracted = {
       activity_no:            isManualCourseRow ? '' : (fieldText('activity_no') || text(pricingRow?.activity_no)),
       pricing_activity_no:    isManualCourseRow ? '' : (fieldText('activity_no') || text(pricingRow?.activity_no)),
-      pricing_option_key:     isManualCourseRow ? '' : text(optionKey),
+      pricing_option_key:     isManualCourseRow ? '' : text(resolvedOptionKey || pricingSelectVal),
       item_name:              itemName,
       item_type:              isManualCourseRow ? '' : (fieldText('item_type') || text(pricingRow?.item_type)),
       gefen_number:           isManualCourseRow ? '' : (fieldText('gefen_number') || text(pricingRow?.gefen_number)),
