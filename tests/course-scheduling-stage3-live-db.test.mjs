@@ -47,7 +47,10 @@ async function setUpDatabase(client) {
     await client.query(`do $$ begin if not exists (select 1 from pg_roles where rolname = '${role}') then create role ${role}; end if; end $$;`);
   }
 
-  // Extra tables that some migrations reference but do not create themselves
+  // school_calendar is referenced by some migrations but not created by any of them.
+  // course_meeting_cancellations and course_meeting_instructor_history are created by
+  // 20260802221000 and 20260802220000 respectively — do NOT pre-create them here or
+  // their "CREATE TABLE IF NOT EXISTS" will silently leave the wrong column layout.
   await client.query(`
     create table if not exists public.school_calendar (
       start_date date, end_date date,
@@ -55,18 +58,6 @@ async function setUpDatabase(client) {
       school_day_end_time time,
       is_active boolean not null default true,
       blocks_scheduling boolean not null default false
-    );
-    create table if not exists public.course_meeting_cancellations (
-      activity_id text not null,
-      meeting_date date not null,
-      reason text,
-      cancelled_by uuid
-    );
-    create table if not exists public.course_meeting_instructor_history (
-      id uuid primary key default gen_random_uuid(),
-      activity_id text not null,
-      meeting_date date not null,
-      origin_instructor_emp_id text
     );
   `);
 
@@ -77,7 +68,7 @@ async function setUpDatabase(client) {
 }
 
 // ─── fixed test fixtures ──────────────────────────────────────────────────────
-// Course: 2027-09-07 (Monday, weekday 1), 10:00–11:00, school 'school א', authority 'חיפה'.
+// Course: 2027-09-06 (Monday DOW=1, verified via psql), 10:00–11:00, school 'school א', authority 'חיפה'.
 // Instructor: emp_id=1 'נועה', address='תל אביב', female, Hebrew.
 // Availability (base): weekday=1 (Monday), 08:00–17:00.
 // Travel cache: תל אביב → 'school א, חיפה' = 5 km.
@@ -98,7 +89,7 @@ async function seedFixtures(client) {
     insert into public.instructor_availability_rules (emp_id, weekday, available, start_time, end_time)
     values (1, 1, true, '08:00', '17:00');
 
-    -- Course: Mon 2027-09-07, 10:00–11:00
+    -- Course: Mon 2027-09-06 (DOW=1), 10:00–11:00
     insert into public.activities (
       row_id, activity_season, activity_type, status,
       start_time, end_time, date_1,
@@ -107,7 +98,7 @@ async function seedFixtures(client) {
       education_level, activity_no, activity_name
     ) values (
       'course-a', 'school_2027', 'קורס', 'פתוח',
-      '10:00', '11:00', '2027-09-07',
+      '10:00', '11:00', '2027-09-06',
       'school א', 100, 'חיפה', 10,
       'he', 'female',
       'elementary', 'A1', 'קורס A'
@@ -214,7 +205,7 @@ test('live-db: draft valid → conflicting assignment added → confirm-draft is
         emp_id, instructor_name, instructor_assignment_locked, instructor_assignment_status
       ) values (
         'course-b', 'school_2027', 'קורס', 'פתוח',
-        '10:30', '11:30', '2027-09-07',
+        '10:30', '11:30', '2027-09-06',
         'school ב', 101, 'חיפה', 10,
         'he', 'female',
         'elementary', 'B1', 'קורס B',
