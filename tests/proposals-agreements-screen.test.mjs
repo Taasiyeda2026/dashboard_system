@@ -4302,6 +4302,48 @@ test('approved proposal has no edit document button', async () => {
   });
 });
 
+test('edit document first action loads editor templates before creating section fields', async () => {
+  const row = { ...sampleRows[0], status: 'draft', activity_type_group: 'summer', custom_document_sections: [] };
+  const loadedSection = {
+    template_key: 'summer',
+    section_key: 'intro',
+    section_title: 'פתיח שנטען',
+    section_body: 'תוכן שנטען לפי דרישה'
+  };
+  const data = { rows: [row], proposalTemplateSections: [] };
+  let editorDepsCalls = 0;
+
+  await withJSDOM(proposalsAgreementsScreen.render(data, { state: stateFor('admin') }), async (root, dom) => {
+    proposalsAgreementsScreen.bind({
+      root,
+      data,
+      state: stateFor('admin'),
+      api: {
+        readProposalAgreementItems: async () => [],
+        proposalsAgreementsEditorDeps: async () => {
+          editorDepsCalls += 1;
+          return { proposalTemplateSections: [loadedSection] };
+        }
+      }
+    });
+
+    assert.equal(editorDepsCalls, 0, 'binding the list must not preload editor dependencies');
+    root.querySelector(`[data-pa-row-id="${row.id}"]`)?.dispatchEvent(new dom.window.MouseEvent('click', { bubbles: true }));
+    await delay(20);
+    const editDocumentButton = root.querySelector(`[data-pa-edit-document="${row.id}"]`);
+    assert.ok(editDocumentButton);
+    editDocumentButton.dispatchEvent(new dom.window.MouseEvent('click', { bubbles: true }));
+    await delay(20);
+
+    assert.equal(editorDepsCalls, 1);
+    assert.deepEqual(data.proposalTemplateSections, [loadedSection]);
+    const editor = root.querySelector('[data-pa-doc-edit-wrap]');
+    assert.ok(editor);
+    assert.match(editor.textContent, /פתיח שנטען/);
+    assert.equal(editor.querySelector('[data-pa-doc-body="intro"]')?.value, 'תוכן שנטען לפי דרישה');
+  });
+});
+
 test('summer proposal preview keeps prices out of activity section and expands bundle children in cost table', async () => {
   const row = {
     ...sampleRows[0],
