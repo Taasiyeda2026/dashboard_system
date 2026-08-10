@@ -85,6 +85,8 @@ let latestNavigationRoute = '';
 let activeRouteTransitionLabel = null;
 const activeConsoleTimers = new Set();
 let shellEventsBound = false;
+/** Timestamp (performance.now()) when the most recent navigation to the activities route began. */
+let activitiesNavStartMs = 0;
 const STABILITY_HOTFIX_DISABLE_BACKGROUND_REFRESH = false;
 const STABILITY_HOTFIX_DISABLE_PERSISTENT_SCREEN_CACHE = false;
 /** Single switch: off = unregister all SW and skip registration (no stale shell risk during incidents). */
@@ -1208,9 +1210,12 @@ function buildScreenDataCacheKey(route, cacheState = state) {
   // Bump when activities list projection columns change (e.g. funding) so stale
   // cached rows without the new fields are not reused.
   const projection = 'p3';
+  // p4: stores all rows without row-count truncation (compact per-row shape).
+  // Old p3 entries (slice(0,60/80) rows) are intentionally excluded.
+  const activitiesProjection = 'p4';
   const withActivityPeriod = (base) => `${base}:period:${activityPeriod}:proj:${projection}`;
   if (route === 'activities') {
-    return `activities:periods:proj:${projection}`;
+    return `activities:periods:proj:${activitiesProjection}`;
   }
   if (route === 'dashboard') {
     const ym = cacheState.dashboardMonthYm && /^\d{4}-\d{2}$/.test(cacheState.dashboardMonthYm) ? cacheState.dashboardMonthYm : 'default';
@@ -1313,6 +1318,9 @@ function logProposalsAgreementsContactOptions(data) {
 }
 
 const MAX_PERSISTED_CACHE_ENTRY_BYTES = 80000;
+// Activities stores all rows (no slice); allow up to 400 KB so large deployments fit.
+// localStorage quota is 5–10 MB per origin; other cache entries are small (<80 KB each).
+const MAX_PERSISTED_ACTIVITIES_BYTES = 400 * 1024;
 
 function shouldPersistScreenCacheEntry(key, entry) {
   const cacheKey = String(key || '');
@@ -1324,18 +1332,35 @@ function shouldPersistScreenCacheEntry(key, entry) {
   try {
     const normalized = normalizeEntryForPersistentCache(cacheKey, entry);
     if (!normalized) return false;
-    return JSON.stringify(normalized).length <= MAX_PERSISTED_CACHE_ENTRY_BYTES;
+    const limit = cacheKey.startsWith('activities:')
+      ? MAX_PERSISTED_ACTIVITIES_BYTES
+      : MAX_PERSISTED_CACHE_ENTRY_BYTES;
+    return JSON.stringify(normalized).length <= limit;
   } catch {
     return false;
   }
+}
+
+function compactActivityRowForPersistence(row) {
+  if (!row || typeof row !== 'object') return row;
+  // Strip computed/duplicate per-row fields that inflate storage but are not
+  // needed for list display, counts, search, or client-side filtering:
+  //   date_cols   — exact alias of meeting_dates; code prefers meeting_dates first
+  //   meeting_schedule — array of {date,performed} used only in the drawer
+  //   _debug      — internal debug object
+  // All 35 date_1..date_35 columns and meeting_dates are kept for month filtering.
+  // eslint-disable-next-line no-unused-vars
+  const { date_cols, meeting_schedule, _debug, ...compact } = row;
+  return compact;
 }
 
 function normalizeEntryForPersistentCache(cacheKey, entry) {
   if (!entry || typeof entry !== 'object') return null;
   const payload = entry.data;
   if (cacheKey.startsWith('activities:') && payload && Array.isArray(payload.rows)) {
-    // Persist up to 80 rows (≈79 KB with full date-column payload, within MAX_PERSISTED_CACHE_ENTRY_BYTES).
-    return { ...entry, data: { ...payload, rows: payload.rows.slice(0, 80) } };
+    // Store ALL rows (no slice) so counts/search/filter are correct on first paint.
+    // Strip redundant computed fields per row to reduce size without losing fidelity.
+    return { ...entry, data: { ...payload, rows: payload.rows.map(compactActivityRowForPersistence) } };
   }
   if (cacheKey.startsWith('week:') || cacheKey.startsWith('month:')) {
     if (payload && Array.isArray(payload.rows)) {
@@ -1348,7 +1373,11 @@ function normalizeEntryForPersistentCache(cacheKey, entry) {
 function maybePersistScreenCacheEntry(key, entry) {
   if (STABILITY_HOTFIX_DISABLE_PERSISTENT_SCREEN_CACHE) return;
   if (!shouldPersistScreenCacheEntry(key, entry)) return;
-  persistCacheEntry(key, normalizeEntryForPersistentCache(String(key || ''), entry));
+  const normalized = normalizeEntryForPersistentCache(String(key || ''), entry);
+  const opts = String(key || '').startsWith('activities:')
+    ? { maxBytes: MAX_PERSISTED_ACTIVITIES_BYTES }
+    : undefined;
+  persistCacheEntry(key, normalized, opts);
 }
 /**
  * Returns cached data immediately if available and fresh (within TTL).
@@ -1389,12 +1418,16 @@ async function loadScreenDataWithCache(screen) {
     }
     if (routeName === 'activities') {
       const ageS = Math.round((Date.now() - (hit.storedAt || hit.t || 0)) / 1000);
+      const firstPaintMs = activitiesNavStartMs
+        ? Math.round(performance.now() - activitiesNavStartMs)
+        : null;
       // eslint-disable-next-line no-console
       console.info('[activities:perf]', {
         event: 'first-paint',
         source: hit.restoredFromStorage ? 'localStorage' : 'memory',
         rows: hit.data?.rows?.length ?? 0,
-        age_s: ageS
+        age_s: ageS,
+        first_paint_ms: firstPaintMs
       });
     }
     return hit.data;
@@ -1467,8 +1500,15 @@ async function backgroundRefreshScreen(screen, cacheKey) {
     if (cacheKey === 'exceptions') updateExceptionNavCount();
     if (cacheKey === 'proposals-agreements') syncPendingApprovedProposalsCountFromRows(data?.rows);
     if (cacheKey.startsWith('activities:')) {
+      const freshDataMs = activitiesNavStartMs
+        ? Math.round(performance.now() - activitiesNavStartMs)
+        : null;
       // eslint-disable-next-line no-console
-      console.info('[activities:perf]', { event: 'fresh-data-ready', rows: data?.rows?.length ?? 0 });
+      console.info('[activities:perf]', {
+        event: 'fresh-data-ready',
+        rows: data?.rows?.length ?? 0,
+        total_ms: freshDataMs
+      });
     }
     if (
       activeNavigationToken === guardedToken &&
@@ -1818,6 +1858,7 @@ async function mountScreen() {
   beginPerfTimer('route:transition');
   beginPerfTimer(transitionLabel);
   const mountStartMs = performance.now();
+  if (requestedRoute === 'activities') activitiesNavStartMs = mountStartMs;
   if (isDesktopViewport()) {
     isMobileNavOpen = false;
     document.body.classList.remove('is-shell-nav-open');

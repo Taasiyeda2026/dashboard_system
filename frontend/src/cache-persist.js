@@ -12,11 +12,11 @@ function storageKey() {
   return `${SCREEN_CACHE_STORAGE_PREFIX}:${uid}`;
 }
 
-export function persistCacheEntry(key, entry) {
+export function persistCacheEntry(key, entry, { maxBytes = PERSIST_MAX_BYTES } = {}) {
   if (PERSIST_BLOCKED_PREFIXES.some((p) => key.startsWith(p))) return;
   try {
     const serialized = JSON.stringify(entry);
-    if (serialized.length > PERSIST_MAX_BYTES) return;
+    if (serialized.length > maxBytes) return;
     const raw = localStorage.getItem(storageKey());
     const stored = raw ? JSON.parse(raw) : {};
     stored[key] = entry;
