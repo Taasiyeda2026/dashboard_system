@@ -81,3 +81,4 @@ jobs:
           cache: npm
       - run: npm ci
       - run: node --test tests/course-scheduling-draft-concurrency.test.mjs
+      - run: node --test tests/course-scheduling-stage3-live-db.test.mjs

@@ -33,7 +33,9 @@ const migrations = [
   '../supabase/migrations/20260807120000_course_scheduling_proposed_dates.sql',
   '../supabase/migrations/20260807203000_course_scheduling_e2e_alignment.sql',
   '../supabase/migrations/20260809180000_course_scheduling_contract_sync.sql',
+  '../supabase/migrations/20260809200000_course_scheduling_legacy_cleanup.sql',
   '../supabase/migrations/20260809210000_manual_instructor_choice_authoritative.sql',
+  '../supabase/migrations/20260810204500_course_scheduling_stage2_server_sync.sql',
   '../supabase/migrations/20260810230000_course_scheduling_stage3_validation.sql',
 ].map(p => new URL(p, import.meta.url));
 
@@ -303,5 +305,134 @@ test("live-db: activity edit invalidates existing assignment → edit saved, emp
       'נדרש טיפול',
       "status must be 'נדרש טיפול' after edit invalidates the assignment"
     );
+  });
+});
+
+// ─── test 5: proposed dates override — official Saturday, proposed Monday ─────
+// The official date is a Saturday (DOW=6, no availability) but the proposed meetings
+// list a valid Monday.  save_course_assignment_draft_with_dates must use the proposed
+// dates for the violations check and succeed.
+
+test('live-db: proposed dates (Monday) override invalid official date (Saturday) → draft saved', async (t) => {
+  if (!connectionString) {
+    t.skip('set SCHEDULING_TEST_DATABASE_URL to a disposable Postgres connection string to run this test');
+    return;
+  }
+
+  await withFreshDb(async (client) => {
+    // Insert a course whose only official date is Saturday 2027-09-04 (DOW=6).
+    // With official dates the violations check would fail (Saturday blocked).
+    await client.query(`
+      insert into public.activities (
+        row_id, activity_season, activity_type, status,
+        start_time, end_time, date_1,
+        school, school_id, authority, authority_id,
+        instruction_language, required_instructor_gender,
+        education_level, activity_no, activity_name
+      ) values (
+        'course-pd', 'school_2027', 'קורס', 'פתוח',
+        '10:00', '11:00', '2027-09-04',
+        'school א', 100, 'חיפה', 10,
+        'he', 'female',
+        'elementary', 'PD1', 'קורס Proposed Dates'
+      );
+    `);
+
+    // Proposed meetings: the same count (1) but date shifted to Monday 2027-09-06.
+    const proposedMeetings = JSON.stringify([{ date: '2027-09-06' }]);
+
+    const { rows: [result] } = await client.query(
+      'select public.save_course_assignment_draft_with_dates($1, $2, $3, $4::jsonb, null, null, null)',
+      ['course-pd', 1, 'נועה', proposedMeetings]
+    );
+    assert.ok(result, 'draft save must succeed when proposed dates are valid even if official date is Saturday');
+
+    const { rows: [saved] } = await client.query(
+      "select draft_emp_id, draft_proposed_meetings from public.activities where row_id='course-pd'"
+    );
+    assert.equal(saved.draft_emp_id, '1', 'draft_emp_id must be written');
+    assert.ok(saved.draft_proposed_meetings, 'draft_proposed_meetings must be written');
+    const meetings = typeof saved.draft_proposed_meetings === 'string'
+      ? JSON.parse(saved.draft_proposed_meetings)
+      : saved.draft_proposed_meetings;
+    assert.equal(meetings[0]?.date, '2027-09-06', 'canonical proposed date must be the Monday date');
+  });
+});
+
+// ─── test 6: proposed dates — official date valid but proposed creates conflict ─
+// The official date is a valid Monday but the proposed meetings select a different
+// Monday on which the instructor already has a locked assignment.
+// save_course_assignment_draft_with_dates must fail with scheduling_conflict_detected.
+
+test('live-db: proposed dates valid-officially but conflicting → draft rejected', async (t) => {
+  if (!connectionString) {
+    t.skip('set SCHEDULING_TEST_DATABASE_URL to a disposable Postgres connection string to run this test');
+    return;
+  }
+
+  await withFreshDb(async (client) => {
+    // seed instructor availability for the second Monday (2027-09-13) too — same rule covers it.
+    // (weekday=1 rule already covers all Mondays; no extra insert needed.)
+
+    // Insert course-pd with a valid official Monday 2027-09-06.
+    await client.query(`
+      insert into public.activities (
+        row_id, activity_season, activity_type, status,
+        start_time, end_time, date_1,
+        school, school_id, authority, authority_id,
+        instruction_language, required_instructor_gender,
+        education_level, activity_no, activity_name
+      ) values (
+        'course-pd', 'school_2027', 'קורס', 'פתוח',
+        '10:00', '11:00', '2027-09-06',
+        'school א', 100, 'חיפה', 10,
+        'he', 'female',
+        'elementary', 'PD2', 'קורס Proposed Dates 2'
+      );
+    `);
+
+    // Add a locked assignment for the same instructor on the NEXT Monday 2027-09-13.
+    await client.query(`
+      insert into public.activities (
+        row_id, activity_season, activity_type, status,
+        start_time, end_time, date_1,
+        school, school_id, authority, authority_id,
+        instruction_language, required_instructor_gender,
+        education_level, activity_no, activity_name,
+        emp_id, instructor_name, instructor_assignment_locked, instructor_assignment_status
+      ) values (
+        'course-conflict', 'school_2027', 'קורס', 'פתוח',
+        '10:00', '11:00', '2027-09-13',
+        'school א', 100, 'חיפה', 10,
+        'he', 'female',
+        'elementary', 'CF1', 'קורס מתנגש',
+        1, 'נועה', true, 'שובץ'
+      );
+    `);
+
+    // Propose to move course-pd to 2027-09-13 — the same day course-conflict is locked.
+    const proposedMeetings = JSON.stringify([{ date: '2027-09-13' }]);
+
+    await assert.rejects(
+      client.query(
+        'select public.save_course_assignment_draft_with_dates($1, $2, $3, $4::jsonb, null, null, null)',
+        ['course-pd', 1, 'נועה', proposedMeetings]
+      ),
+      (err) => {
+        assert.match(
+          err.message,
+          /scheduling_conflict_detected/,
+          `expected conflict rejection on proposed date, got: ${err.message}`
+        );
+        return true;
+      }
+    );
+
+    // No draft must have been committed — the transaction must have rolled back.
+    const { rows: [state] } = await client.query(
+      "select draft_emp_id, draft_proposed_meetings from public.activities where row_id='course-pd'"
+    );
+    assert.equal(state.draft_emp_id, null, 'draft_emp_id must remain null after rejected draft');
+    assert.equal(state.draft_proposed_meetings, null, 'draft_proposed_meetings must remain null after rejection');
   });
 });

@@ -109,18 +109,30 @@ begin
   if result.instructor_assignment_locked or nullif(result.emp_id::text,'') is not null then raise exception 'scheduling_assignment_locked'; end if;
   if nullif(btrim(coalesce(result.draft_emp_id,'')),'') is not null then raise exception 'הקורס כבר נשמר כטיוטה'; end if;
   canonical := public.scheduling_validate_proposed_meetings(p_activity_id, p_proposed_meetings);
-  -- Fresh validation using the proposed (canonical) meetings.
+
+  -- Pre-write draft fields so scheduling_effective_meetings(target, p_emp_id) reads the
+  -- canonical proposed dates — not the official dates — during the violations check below.
+  -- scheduling_effective_meetings uses draft_proposed_meetings only when draft_emp_id = p_emp_id.
+  -- draft_instructor_name must be set together with draft_emp_id to satisfy the
+  -- activities_guard_effective_scheduling_calendar BEFORE-UPDATE trigger (identity check).
+  -- If violations raise an exception the transaction rolls back all three writes automatically.
+  update public.activities
+  set draft_proposed_meetings   = canonical,
+      draft_emp_id              = p_emp_id::text,
+      draft_instructor_name     = selected_instructor.full_name
+  where row_id = p_activity_id;
+
+  -- Fresh validation against canonical (proposed) dates.
   violations := public.scheduling_course_instructor_violations(p_activity_id, p_emp_id, false);
   if coalesce(array_length(violations, 1), 0) > 0 then
     raise exception '%', violations[1];
   end if;
+
+  -- Validation passed: write the remaining draft fields.
   update public.activities
-  set draft_emp_id=p_emp_id::text,
-      draft_instructor_name=selected_instructor.full_name,
-      draft_created_at=now(),
-      draft_created_by=auth.uid(),
-      draft_proposed_meetings=canonical
-  where row_id=p_activity_id returning * into result;
+  set draft_created_at  = now(),
+      draft_created_by  = auth.uid()
+  where row_id = p_activity_id returning * into result;
   insert into public.instructor_assignment_audit(
     activity_id, selected_emp_id, selected_instructor_name, top_recommended_emp_id,
     selected_score, top_score, decision_type, reason, previous_status, new_status
@@ -335,17 +347,22 @@ begin
     set instructor_assignment_status = next_status
     where row_id = p_activity_id;
 
-    insert into public.instructor_assignment_audit(
-      activity_id, selected_emp_id, selected_instructor_name,
-      decision_type, reason, previous_status, new_status,
-      bypassed_constraints, meetings_completed_at_decision
-    ) values (
-      p_activity_id,
-      coalesce(target.emp_id::text, target.emp_id_2::text),
-      coalesce(target.instructor_name, target.instructor_name_2),
-      'revalidated', audit_reason, prior_status, next_status,
-      '{}', 0
-    );
+    -- Only insert the audit record when running in an authenticated session.
+    -- Triggers and migrations run without auth.uid(); omitting the record prevents
+    -- a NOT NULL violation on selected_by and does not block the activity edit.
+    if auth.uid() is not null then
+      insert into public.instructor_assignment_audit(
+        activity_id, selected_emp_id, selected_instructor_name,
+        decision_type, reason, previous_status, new_status,
+        bypassed_constraints, meetings_completed_at_decision
+      ) values (
+        p_activity_id,
+        coalesce(target.emp_id::text, target.emp_id_2::text),
+        coalesce(target.instructor_name, target.instructor_name_2),
+        'revalidated', audit_reason, prior_status, next_status,
+        '{}', 0
+      );
+    end if;
   end if;
 
   return next_status;
