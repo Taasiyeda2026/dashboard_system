@@ -6379,8 +6379,6 @@ export const proposalsAgreementsScreen = {
         data._contactsLoaded = true;
         return;
       }
-      // eslint-disable-next-line no-console
-      console.info('[pa:contacts-load]', { source, triggered_by: 'user-action' });
       if (typeof api.proposalsAgreementsContacts === 'function') {
         const contacts = await api.proposalsAgreementsContacts();
         syncContactOptions(contacts?.contactOptions, contacts?.contactOptionsError);
