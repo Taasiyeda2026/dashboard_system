@@ -218,3 +218,11 @@ test('atomic item RPC rejects blank item_name before deleting or inserting rows'
   assert.ok(guard >= 0 && guard < deletion && deletion < insertion);
   assert.match(sql, /nullif\(btrim\(item->>'item_name'\), ''\) is null/);
 });
+
+test('atomic item RPC revokes default execution before granting authenticated access', async () => {
+  const { readFile } = await import('node:fs/promises');
+  const sql = await readFile(new URL('../supabase/migrations/20260810100000_current_app_user_rpc.sql', import.meta.url), 'utf8');
+  assert.match(sql, /revoke all on function public\.save_proposal_agreement_items_atomic\(uuid, jsonb\) from public;/i);
+  assert.match(sql, /revoke all on function public\.save_proposal_agreement_items_atomic\(uuid, jsonb\) from anon;/i);
+  assert.match(sql, /grant execute on function public\.save_proposal_agreement_items_atomic\(uuid, jsonb\) to authenticated;/i);
+});

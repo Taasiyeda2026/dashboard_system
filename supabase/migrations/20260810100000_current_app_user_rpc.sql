@@ -84,4 +84,6 @@ begin
 end;
 $$;
 
+revoke all on function public.save_proposal_agreement_items_atomic(uuid, jsonb) from public;
+revoke all on function public.save_proposal_agreement_items_atomic(uuid, jsonb) from anon;
 grant execute on function public.save_proposal_agreement_items_atomic(uuid, jsonb) to authenticated;
