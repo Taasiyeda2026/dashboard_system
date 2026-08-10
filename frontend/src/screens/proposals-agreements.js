@@ -8881,114 +8881,10 @@ export const proposalsAgreementsScreen = {
         }, rowGroup);
       }
     }, { signal });
-    root.addEventListener('change', async (event) => {
-
-      const rowStatusSelect = event.target.closest?.('[data-pa-row-status]');
-      if (rowStatusSelect) {
-        if (!canManage) return;
-        const id = text(rowStatusSelect.dataset.paStatusId);
-        const previousStatus = text(rowStatusSelect.dataset.paPreviousStatus) || 'draft';
-        const newStatus = text(rowStatusSelect.value);
-        if (!id || !newStatus || newStatus === previousStatus) return;
-        if (normalizeProposalStatus(previousStatus) === 'sent') {
-          rowStatusSelect.value = previousStatus;
-          showToast('הצעה שנשלחה נעולה ולא ניתן לשנות את סטטוסה.', 'error');
-          return;
-        }
-        if (newStatus === 'approved' && !canApproveProposalsAgreements(state)) {
-          rowStatusSelect.value = previousStatus;
-          showToast('אין הרשאה לאשר ולחתום הצעות מחיר', 'error');
-          return;
-        }
-        if (newStatus === 'approved') {
-          rowStatusSelect.value = previousStatus;
-          const row = data.rows.find((r) => text(r.id) === id);
-          if (!row) return;
-          let items = [];
-          try { if (typeof api.readProposalAgreementItems === 'function') items = await api.readProposalAgreementItems(id); } catch { items = []; }
-          await openPreview(row, items, {
-            signatureMode: true,
-            onSignatureConfirm: async (signatureMeta, closeOverlay) => {
-              rowStatusSelect.disabled = true;
-              try {
-                const savedApproval = await approveProposalWithSignature(id, signatureMeta);
-                replaceLocalRow(data, savedApproval);
-                refreshTable();
-                closeOverlay?.();
-                showToast('ההצעה אושרה ונחתמה', 'success');
-              } catch (err) {
-                throw err;
-              } finally {
-                if (rowStatusSelect.isConnected) rowStatusSelect.disabled = false;
-              }
-            }
-          });
-          return;
-        }
-        if (newStatus === 'sent') {
-          rowStatusSelect.value = previousStatus;
-          const row = data.rows.find((r) => text(r.id) === id);
-          if (!row || !canTransitionProposalStatus(row, 'sent', state)) {
-            showToast('אין הרשאה או שהמעבר אינו מותר בסטטוס הנוכחי.', 'error');
-            return;
-          }
-          let items = [];
-          try { if (typeof api.readProposalAgreementItems === 'function') items = await api.readProposalAgreementItems(id); } catch { items = []; }
-          await openSendProposalDialog(row, items);
-          return;
-        }
-        rowStatusSelect.disabled = true;
-        try {
-          const result = await api.updateProposalAgreementStatus(id, newStatus, '');
-          replaceLocalRow(data, result?.row || { id, status: newStatus, approval_note: '', updated_at: new Date().toISOString() });
-          refreshTable();
-          showToast('סטטוס ההצעה עודכן בהצלחה', 'success');
-        } catch (err) {
-          rowStatusSelect.value = previousStatus;
-          rowStatusSelect.disabled = false;
-          showToast('שגיאה בעדכון סטטוס ההצעה', 'error');
-          console.error('[proposal status update failed]', err);
-        }
-        return;
-      }
-
-      // ── Activity type filter ──────────────────────────────────────────────
-      const activityTypeFilter = event.target.closest?.('[data-pa-activity-type-filter]');
-      if (activityTypeFilter) {
-        const form = activityTypeFilter.closest('[data-pa-form]');
-        if (!form) return;
-        const selectedActivityType = text(activityTypeFilter.value);
-        const contractType = text(form.querySelector('[name="activity_type_group"]')?.value);
-        const basePricing = filterPricingByProposalType(proposalActivityPricing, contractType);
-        const filteredPricing = filterPricingByActivityType(basePricing, selectedActivityType);
-        form.querySelectorAll('[data-pa-pricing-select]').forEach((sel) => {
-          const itemRow = sel.closest('[data-pa-item-row]');
-          const rowGroup = text(itemRow?.dataset?.paRowGroup);
-          const currentVal = text(sel.value);
-          sel.innerHTML = buildPricingSelectOptionsHtml(filteredPricing, currentVal, {
-            allowManualCourse: formAllowsManualCourse(form),
-            groupKey: rowGroup
-          });
-        });
-        return;
-      }
-
-
-      // ── Bundle child checkbox selection ───────────────────────────────────
-      const bundleChildCheck = event.target.closest?.('[data-pa-bundle-child-check]');
-      if (bundleChildCheck) {
-        const itemRow = bundleChildCheck.closest('[data-pa-item-row]');
-        if (!itemRow) return;
-        let pickedData = {};
-        try { pickedData = JSON.parse(itemRow.dataset.paBundlePicked || '{}'); } catch { pickedData = {}; }
-        updateBundlePreviewSummary(itemRow);
-        applyBundleParentToRow(itemRow, pickedData, { keepGeneral: false });
-        return;
-      }
-
-      // ── Pricing select ────────────────────────────────────────────────────
-      const pricingSelect = event.target.closest?.('[data-pa-pricing-select]');
-      if (!pricingSelect) return;
+    // A single capture-phase owner handles every pricing row, including rows
+    // appended after the form was opened. Capture prevents another runtime's
+    // bubbling listener from interrupting hydration before it reaches the screen.
+    const handlePricingSelection = (pricingSelect) => {
       const itemRow = pricingSelect.closest('[data-pa-item-row]');
       const form = pricingSelect.closest('[data-pa-form]');
       const selectedKey = text(pricingSelect.value);
@@ -9124,6 +9020,118 @@ export const proposalsAgreementsScreen = {
       calcItemRow(itemRow);
       if (form) calcGrandTotal(form);
       if (form) updateProposalStepper(form);
+    };
+
+    root.addEventListener('change', (event) => {
+      const pricingSelect = event.target.closest?.('[data-pa-pricing-select]');
+      if (pricingSelect) handlePricingSelection(pricingSelect);
+    }, { signal, capture: true });
+
+    root.addEventListener('change', async (event) => {
+
+      const rowStatusSelect = event.target.closest?.('[data-pa-row-status]');
+      if (rowStatusSelect) {
+        if (!canManage) return;
+        const id = text(rowStatusSelect.dataset.paStatusId);
+        const previousStatus = text(rowStatusSelect.dataset.paPreviousStatus) || 'draft';
+        const newStatus = text(rowStatusSelect.value);
+        if (!id || !newStatus || newStatus === previousStatus) return;
+        if (normalizeProposalStatus(previousStatus) === 'sent') {
+          rowStatusSelect.value = previousStatus;
+          showToast('הצעה שנשלחה נעולה ולא ניתן לשנות את סטטוסה.', 'error');
+          return;
+        }
+        if (newStatus === 'approved' && !canApproveProposalsAgreements(state)) {
+          rowStatusSelect.value = previousStatus;
+          showToast('אין הרשאה לאשר ולחתום הצעות מחיר', 'error');
+          return;
+        }
+        if (newStatus === 'approved') {
+          rowStatusSelect.value = previousStatus;
+          const row = data.rows.find((r) => text(r.id) === id);
+          if (!row) return;
+          let items = [];
+          try { if (typeof api.readProposalAgreementItems === 'function') items = await api.readProposalAgreementItems(id); } catch { items = []; }
+          await openPreview(row, items, {
+            signatureMode: true,
+            onSignatureConfirm: async (signatureMeta, closeOverlay) => {
+              rowStatusSelect.disabled = true;
+              try {
+                const savedApproval = await approveProposalWithSignature(id, signatureMeta);
+                replaceLocalRow(data, savedApproval);
+                refreshTable();
+                closeOverlay?.();
+                showToast('ההצעה אושרה ונחתמה', 'success');
+              } catch (err) {
+                throw err;
+              } finally {
+                if (rowStatusSelect.isConnected) rowStatusSelect.disabled = false;
+              }
+            }
+          });
+          return;
+        }
+        if (newStatus === 'sent') {
+          rowStatusSelect.value = previousStatus;
+          const row = data.rows.find((r) => text(r.id) === id);
+          if (!row || !canTransitionProposalStatus(row, 'sent', state)) {
+            showToast('אין הרשאה או שהמעבר אינו מותר בסטטוס הנוכחי.', 'error');
+            return;
+          }
+          let items = [];
+          try { if (typeof api.readProposalAgreementItems === 'function') items = await api.readProposalAgreementItems(id); } catch { items = []; }
+          await openSendProposalDialog(row, items);
+          return;
+        }
+        rowStatusSelect.disabled = true;
+        try {
+          const result = await api.updateProposalAgreementStatus(id, newStatus, '');
+          replaceLocalRow(data, result?.row || { id, status: newStatus, approval_note: '', updated_at: new Date().toISOString() });
+          refreshTable();
+          showToast('סטטוס ההצעה עודכן בהצלחה', 'success');
+        } catch (err) {
+          rowStatusSelect.value = previousStatus;
+          rowStatusSelect.disabled = false;
+          showToast('שגיאה בעדכון סטטוס ההצעה', 'error');
+          console.error('[proposal status update failed]', err);
+        }
+        return;
+      }
+
+      // ── Activity type filter ──────────────────────────────────────────────
+      const activityTypeFilter = event.target.closest?.('[data-pa-activity-type-filter]');
+      if (activityTypeFilter) {
+        const form = activityTypeFilter.closest('[data-pa-form]');
+        if (!form) return;
+        const selectedActivityType = text(activityTypeFilter.value);
+        const contractType = text(form.querySelector('[name="activity_type_group"]')?.value);
+        const basePricing = filterPricingByProposalType(proposalActivityPricing, contractType);
+        const filteredPricing = filterPricingByActivityType(basePricing, selectedActivityType);
+        form.querySelectorAll('[data-pa-pricing-select]').forEach((sel) => {
+          const itemRow = sel.closest('[data-pa-item-row]');
+          const rowGroup = text(itemRow?.dataset?.paRowGroup);
+          const currentVal = text(sel.value);
+          sel.innerHTML = buildPricingSelectOptionsHtml(filteredPricing, currentVal, {
+            allowManualCourse: formAllowsManualCourse(form),
+            groupKey: rowGroup
+          });
+        });
+        return;
+      }
+
+
+      // ── Bundle child checkbox selection ───────────────────────────────────
+      const bundleChildCheck = event.target.closest?.('[data-pa-bundle-child-check]');
+      if (bundleChildCheck) {
+        const itemRow = bundleChildCheck.closest('[data-pa-item-row]');
+        if (!itemRow) return;
+        let pickedData = {};
+        try { pickedData = JSON.parse(itemRow.dataset.paBundlePicked || '{}'); } catch { pickedData = {}; }
+        updateBundlePreviewSummary(itemRow);
+        applyBundleParentToRow(itemRow, pickedData, { keepGeneral: false });
+        return;
+      }
+
     }, { signal });
 
     root.addEventListener('submit', async (event) => {

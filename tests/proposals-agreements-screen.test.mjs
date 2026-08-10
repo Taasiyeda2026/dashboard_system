@@ -35,6 +35,7 @@ async function withJSDOM(html, fn) {
     document: globalThis.document,
     window: globalThis.window,
     FormData: globalThis.FormData,
+    Event: globalThis.Event,
     AbortController: globalThis.AbortController,
     requestAnimationFrame: globalThis.requestAnimationFrame,
     cancelAnimationFrame: globalThis.cancelAnimationFrame
@@ -42,6 +43,7 @@ async function withJSDOM(html, fn) {
   globalThis.window = dom.window;
   globalThis.document = dom.window.document;
   globalThis.FormData = dom.window.FormData;
+  globalThis.Event = dom.window.Event;
   globalThis.AbortController = dom.window.AbortController;
   globalThis.requestAnimationFrame = (callback) => dom.window.setTimeout(() => callback(dom.window.performance.now()), 0);
   globalThis.cancelAnimationFrame = (handle) => dom.window.clearTimeout(handle);
@@ -53,6 +55,7 @@ async function withJSDOM(html, fn) {
     globalThis.document = saved.document;
     globalThis.window = saved.window;
     globalThis.FormData = saved.FormData;
+    globalThis.Event = saved.Event;
     globalThis.AbortController = saved.AbortController;
     globalThis.requestAnimationFrame = saved.requestAnimationFrame;
     globalThis.cancelAnimationFrame = saved.cancelAnimationFrame;
@@ -3496,6 +3499,51 @@ test('add item row button appends a new row to the items table', async () => {
       form.querySelector('[data-pa-add-item]').dispatchEvent(new dom.window.MouseEvent('click', { bubbles: true }));
 
       assert.equal(form.querySelectorAll('[data-pa-item-row]').length, before + 1, 'one more row should be added');
+    }
+  );
+});
+
+test('GEFEN pricing selection hydrates newly added rows and refreshes totals', async () => {
+  const pricing = [
+    { activity_no: '6089', activity_name: 'ביומימיקרי', item_type: 'קורס', proposal_group: 'gefen', unit_price: 9900, gefen_number: '6089' },
+    { activity_no: '7000', activity_name: 'רובוטיקה', item_type: 'קורס', proposal_group: 'gefen', unit_price: 8500, gefen_number: '7000' }
+  ];
+  const data = { rows: [], contactOptions: [], proposalActivityPricing: pricing };
+
+  await withJSDOM(
+    proposalsAgreementsScreen.render(data, { state: stateFor('admin') }),
+    async (root, dom) => {
+      proposalsAgreementsScreen.bind({ root, data, state: stateFor('admin'), api: {} });
+      root.querySelector('[data-pa-tab="new"]')?.dispatchEvent(new dom.window.MouseEvent('click', { bubbles: true }));
+      await delay(20);
+      const form = root.querySelector('[data-pa-form]');
+      assert.ok(form, 'new proposal form should open');
+      const gefenButton = Array.from(form.querySelectorAll('[data-pa-type-btn]'))
+        .find((button) => /גפ["״']?ן/.test(button.textContent));
+      assert.ok(gefenButton, 'the real GEFEN card labelled גפ״ן should be available');
+      gefenButton.dispatchEvent(new dom.window.MouseEvent('click', { bubbles: true }));
+
+      const selectCourse = (row, activityNo) => {
+        const select = row.querySelector('[data-pa-pricing-select]');
+        const option = Array.from(select.options).find((candidate) => candidate.value.startsWith(`${activityNo}||`));
+        assert.ok(option, `course ${activityNo} should be selectable`);
+        select.value = option.value;
+        select.dispatchEvent(new dom.window.Event('change', { bubbles: true }));
+      };
+
+      let rows = form.querySelectorAll('[data-pa-item-row]');
+      selectCourse(rows[0], '6089');
+      form.querySelector('[data-pa-add-item]').dispatchEvent(new dom.window.MouseEvent('click', { bubbles: true }));
+      rows = form.querySelectorAll('[data-pa-item-row]');
+      selectCourse(rows[1], '7000');
+
+      assert.equal(rows[1].querySelector('[name="item_name"]').value, 'רובוטיקה');
+      assert.equal(rows[1].querySelector('[name="unit_price"]').value, '8500');
+      assert.equal(rows[1].querySelector('[name="activity_no"]').value, '7000');
+      assert.equal(rows[1].querySelector('[name="gefen_number"]').value, '7000');
+      assert.equal(rows[1].querySelector('[data-pa-item-total]').value, '8500.00');
+      assert.match(form.querySelector('[data-pa-grand-total]').textContent, /18[,.]?400/);
+      await delay(20);
     }
   );
 });
