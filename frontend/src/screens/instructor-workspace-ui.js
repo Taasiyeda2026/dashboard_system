@@ -41,7 +41,11 @@ function instructorCardNameFontSize(name) {
   return '.7rem';
 }
 
-export function instructorCard(row) {
+function employeeFileIconSvg() {
+  return '<svg viewBox="0 0 24 24" width="19" height="19" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M3.5 7.5h6l2-2h9v13h-17z"/><path d="M3.5 9h17"/><path d="M8 14h8"/></svg>';
+}
+
+export function instructorCard(row, { canViewEmployeeFiles = false } = {}) {
   const counts = row.activity_type_counts || {};
   const statItems = TYPES.map(({ keys, label, icon }) => {
     const count = keys.reduce((sum, key) => sum + Number(counts[key] || 0), 0);
@@ -50,11 +54,14 @@ export function instructorCard(row) {
   }).filter(Boolean);
   const hasActivity = statItems.length > 0;
   const name = text(row.full_name || row.emp_id) || '—';
-  return `<button type="button" class="instructor-card" data-instructor-profile="${escapeHtml(row.emp_id)}" data-instructor-card="${escapeHtml(row.emp_id)}">
+  const employeeFileAction = canViewEmployeeFiles && activeFlag(row.active) === 'yes'
+    ? `<button type="button" class="instructor-card__employee-file-action instructor-card__employee-file-action--${escapeHtml(row.scheduling_profile?.gender || 'neutral')}" data-instructor-employee-file="${escapeHtml(row.emp_id)}" title="תיק עובד" aria-label="תיק עובד">${employeeFileIconSvg()}</button>`
+    : '';
+  return `<article class="instructor-card-shell"><button type="button" class="instructor-card instructor-card__profile-action" data-instructor-profile="${escapeHtml(row.emp_id)}" data-instructor-card="${escapeHtml(row.emp_id)}">
     <span class="instructor-card__name" style="font-size:${instructorCardNameFontSize(name)}">${escapeHtml(name)}</span>
     <span class="instructor-card__id">${escapeHtml(row.emp_id || '')}</span>
     ${hasActivity ? `<span class="instructor-card__stats">${statItems.join('')}</span>` : ''}
-  </button>`;
+  </button>${employeeFileAction}</article>`;
 }
 
 function field(label, value, dir = 'rtl') {

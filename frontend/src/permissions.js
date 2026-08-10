@@ -4,6 +4,12 @@ export function permissionFlagYes(value) {
   return ['yes', 'true', '1'].includes(String(value || '').trim().toLowerCase());
 }
 
+export function canViewEmployeeFiles(user = {}) {
+  const nested = user?.permissions && typeof user.permissions === 'object' ? user.permissions : {};
+  const explicit = user?.view_employee_files ?? nested.view_employee_files;
+  return permissionFlagYes(explicit);
+}
+
 function firstDefined(...values) {
   return values.find((value) => value !== undefined && value !== null && String(value).trim() !== '');
 }

@@ -6707,6 +6707,16 @@ export const api = {
     if (supabaseData) return supabaseData;
     return buildSupabaseErrorPayload({ rows: [] }, 'instructor_contacts_supabase_failed');
   },
+  instructorEmployeeFile: async ({ empId, schoolYear = '2027' } = {}) => {
+    const numericEmpId = Number(String(empId || '').trim());
+    if (!Number.isSafeInteger(numericEmpId) || numericEmpId <= 0) throw new Error('invalid_employee_file_emp_id');
+    const { data, error } = await supabase.rpc('get_instructor_employee_file_snapshot', {
+      p_emp_id: numericEmpId,
+      p_school_year: String(schoolYear || '2027').trim()
+    });
+    if (error) throw new Error(error.message || 'employee_file_snapshot_failed');
+    return data || { mapped: false, components: [] };
+  },
   contacts: async (params = {}) => {
     const supabaseData = await readContactsFromSupabase(params || {});
     if (supabaseData) return supabaseData;
@@ -7098,14 +7108,14 @@ export const api = {
     return {
       rows,
       roleDefaults: {
-        admin: { can_add_activity: 'yes', can_edit_direct: 'yes', can_request_edit: 'yes', can_review_requests: 'yes', view_admin: 'yes', view_permissions: 'yes', view_catalog: 'yes', view_orders: 'yes', view_proposals: 'yes', view_israa_management: 'yes', can_access_personal_reports: 'yes' },
-        operation_manager: { can_add_activity: 'yes', can_edit_direct: 'yes', can_request_edit: 'yes', can_review_requests: 'yes', view_admin: 'no', view_permissions: 'no', view_catalog: 'yes', view_orders: 'yes', view_proposals: 'yes', view_israa_management: 'no', can_access_personal_reports: 'yes' },
+        admin: { can_add_activity: 'yes', can_edit_direct: 'yes', can_request_edit: 'yes', can_review_requests: 'yes', view_admin: 'yes', view_permissions: 'yes', view_catalog: 'yes', view_orders: 'yes', view_proposals: 'yes', view_israa_management: 'yes', view_employee_files: 'yes', can_access_personal_reports: 'yes' },
+        operation_manager: { can_add_activity: 'yes', can_edit_direct: 'yes', can_request_edit: 'yes', can_review_requests: 'yes', view_admin: 'no', view_permissions: 'no', view_catalog: 'yes', view_orders: 'yes', view_proposals: 'yes', view_israa_management: 'no', view_employee_files: 'yes', can_access_personal_reports: 'yes' },
         authorized_user: { can_add_activity: 'yes', can_edit_direct: 'no', can_request_edit: 'yes', can_review_requests: 'no', view_admin: 'no', view_permissions: 'no', view_proposals: 'no', view_israa_management: 'no', can_access_personal_reports: 'yes' },
-        finance: { can_add_activity: 'no', can_edit_direct: 'no', can_request_edit: 'no', can_review_requests: 'no', view_admin: 'no', view_permissions: 'no', finance_access: 'yes', view_finance: 'yes', view_catalog: 'yes', view_orders: 'yes', view_proposals: 'no', view_israa_management: 'no', can_access_personal_reports: 'yes' },
-        activities_manager: { can_add_activity: 'yes', can_edit_direct: 'no', can_request_edit: 'yes', can_review_requests: 'no', view_admin: 'no', view_permissions: 'no', view_catalog: 'yes', view_orders: 'yes', view_proposals: 'no', view_israa_management: 'no', can_access_personal_reports: 'yes' },
-        domain_manager: { can_add_activity: 'no', can_edit_direct: 'no', can_request_edit: 'no', can_review_requests: 'no', view_admin: 'no', view_permissions: 'no', view_catalog: 'yes', view_orders: 'yes', view_proposals: 'yes', view_israa_management: 'no', can_access_personal_reports: 'yes' },
-        business_development_manager: { can_add_activity: 'yes', can_edit_direct: 'no', can_request_edit: 'yes', can_review_requests: 'no', view_admin: 'no', view_permissions: 'no', view_catalog: 'yes', view_orders: 'yes', view_proposals: 'yes', view_israa_management: 'no', finance_access: 'no', can_access_personal_reports: 'yes' },
-        instructor_manager: { can_add_activity: 'yes', can_edit_direct: 'no', can_request_edit: 'yes', can_review_requests: 'no', view_admin: 'no', view_permissions: 'no', view_catalog: 'yes', view_orders: 'yes', view_proposals: 'no', view_israa_management: 'no', can_access_personal_reports: 'yes' },
+        finance: { can_add_activity: 'no', can_edit_direct: 'no', can_request_edit: 'no', can_review_requests: 'no', view_admin: 'no', view_permissions: 'no', finance_access: 'yes', view_finance: 'yes', view_catalog: 'yes', view_orders: 'yes', view_proposals: 'no', view_israa_management: 'no', view_employee_files: 'yes', can_access_personal_reports: 'yes' },
+        activities_manager: { can_add_activity: 'yes', can_edit_direct: 'no', can_request_edit: 'yes', can_review_requests: 'no', view_admin: 'no', view_permissions: 'no', view_catalog: 'yes', view_orders: 'yes', view_proposals: 'no', view_israa_management: 'no', view_employee_files: 'yes', can_access_personal_reports: 'yes' },
+        domain_manager: { can_add_activity: 'no', can_edit_direct: 'no', can_request_edit: 'no', can_review_requests: 'no', view_admin: 'no', view_permissions: 'no', view_catalog: 'yes', view_orders: 'yes', view_proposals: 'yes', view_israa_management: 'no', view_employee_files: 'yes', can_access_personal_reports: 'yes' },
+        business_development_manager: { can_add_activity: 'yes', can_edit_direct: 'no', can_request_edit: 'yes', can_review_requests: 'no', view_admin: 'no', view_permissions: 'no', view_catalog: 'yes', view_orders: 'yes', view_proposals: 'yes', view_israa_management: 'no', finance_access: 'no', view_employee_files: 'yes', can_access_personal_reports: 'yes' },
+        instructor_manager: { can_add_activity: 'yes', can_edit_direct: 'no', can_request_edit: 'yes', can_review_requests: 'no', view_admin: 'no', view_permissions: 'no', view_catalog: 'yes', view_orders: 'yes', view_proposals: 'no', view_israa_management: 'no', view_employee_files: 'yes', can_access_personal_reports: 'yes' },
         instructor: { can_add_activity: 'no', can_edit_direct: 'no', can_request_edit: 'no', can_review_requests: 'no', view_admin: 'no', view_permissions: 'no', view_proposals: 'no', view_israa_management: 'no', can_access_personal_reports: 'yes' }
       }
     };
@@ -8221,9 +8231,11 @@ export const api = {
   },
   addUser: async (row) => {
     const role = String(row?.role || 'instructor').trim();
+    const employeeFilesDefault = ['admin', 'operation_manager', 'finance', 'activities_manager', 'domain_manager', 'business_development_manager', 'instructor_manager'].includes(role) ? 'yes' : 'no';
     const permissions = role === 'business_development_manager'
       ? { can_add_activity: 'yes', can_edit_direct: 'no', can_request_edit: 'yes', can_review_requests: 'no', view_admin: 'no', view_permissions: 'no', view_catalog: 'yes', view_orders: 'yes', finance_access: 'no' }
       : { can_request_edit: 'yes' };
+    permissions.view_employee_files = employeeFilesDefault;
     const insert = {
       user_id: String(row?.user_id || '').trim(),
       email: null,
