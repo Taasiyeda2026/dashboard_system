@@ -7,10 +7,11 @@ import {
 } from '../frontend/src/screens/shared/activity-scheduling-eligibility.js';
 import { calculateCourseSchedule, schedulingCourses, schedulingInstructors } from '../frontend/src/screens/course-scheduling-engine.js';
 import { SCORE_WEIGHTS } from '../frontend/src/screens/course-scheduling-score.js';
+import { enrichActivitiesWithSchoolAddresses } from '../frontend/src/screens/course-scheduling-distance-build.js';
 
 const readyCourse = {
   row_id: 'c1', activity_season: 'school_2027', activity_type: 'program', status: 'פתוח',
-  activity_name: 'רובוטיקה', school: 'בית ספר', school_address: 'רחוב 1',
+  activity_name: 'רובוטיקה', school_id: 101, school: 'בית ספר', school_address: 'רחוב 1',
   start_time: '09:00', end_time: '10:00', date_1: '2027-01-04', instruction_language: 'he'
 };
 const instructor = { emp_id: '1', full_name: 'מדריכה', active: 'yes', address: 'בית' };
@@ -23,7 +24,9 @@ const activityCases = [
   ['ללא שעת סיום', { end_time: '' }],
   ['עם שעות שוות', { end_time: '09:00' }],
   ['עם שעות הפוכות', { end_time: '08:59' }],
-  ['ללא בית ספר', { school: '' }],
+  ['עם שעה לא חוקית', { start_time: '25:00' }],
+  ['עם דקות לא חוקיות', { end_time: '10:75' }],
+  ['ללא מזהה בית ספר', { school_id: null }],
   ['ללא כתובת בית ספר', { school_address: '' }],
   ['ללא שפת הדרכה', { instruction_language: '' }]
 ];
@@ -40,6 +43,21 @@ test('stage 1 activity readiness admits only complete valid courses to both UI a
   }
 });
 
+test('school readiness resolves address by school_id only and rejects a name-only match', () => {
+  const schools = [{ school_id: 101, school_name: 'בית ספר', authority_name: 'רשות', address: 'רחוב 1' }];
+  const byId = enrichActivitiesWithSchoolAddresses([{ ...readyCourse, school: '' }], schools).activities[0];
+  assert.equal(isSchedulingReadyActivity(byId), true);
+  const byNameOnly = enrichActivitiesWithSchoolAddresses([{ ...readyCourse, school_id: null, authority: 'רשות' }], schools).activities[0];
+  assert.equal(byNameOnly.school_address, '');
+  assert.equal(isSchedulingReadyActivity(byNameOnly), false);
+});
+
+test('a course with every meeting cancelled is excluded', () => {
+  const cancelled = { ...readyCourse, cancelled_meeting_dates: ['2027-01-04'] };
+  assert.equal(isSchedulingReadyActivity(cancelled), false);
+  assert.deepEqual(schedulingCourses([cancelled]), []);
+});
+
 test('stage 1 instructor readiness admits only active complete profiles with valid availability', () => {
   assert.equal(isSchedulingReadyInstructor(instructor, profile, rules), true);
   assert.deepEqual(schedulingInstructors([instructor], { 1: profile }, { 1: rules }).map((row) => row.emp_id), ['1']);
@@ -49,7 +67,10 @@ test('stage 1 instructor readiness admits only active complete profiles with val
     ['ללא שפה', instructor, { ...profile, instruction_languages: [] }, rules],
     ['ללא מגדר', instructor, { ...profile, gender: '' }, rules],
     ['ללא זמינות', instructor, profile, []],
-    ['עם זמינות הפוכה', instructor, profile, [{ ...rules[0], start_time: '15:00', end_time: '14:00' }]]
+    ['עם זמינות הפוכה', instructor, profile, [{ ...rules[0], start_time: '15:00', end_time: '14:00' }]],
+    ['עם יום שבוע חסר', instructor, profile, [{ ...rules[0], weekday: null }]],
+    ['עם יום שבוע לא חוקי', instructor, profile, [{ ...rules[0], weekday: 7 }]],
+    ['עם דקות לא חוקיות', instructor, profile, [{ ...rules[0], end_time: '14:99' }]]
   ];
   for (const [label, row, candidateProfile, candidateRules] of cases) {
     assert.equal(isSchedulingReadyInstructor(row, candidateProfile, candidateRules), false, label);

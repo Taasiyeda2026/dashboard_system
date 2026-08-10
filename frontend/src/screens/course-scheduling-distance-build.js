@@ -337,10 +337,6 @@ export function resolveCanonicalSchoolAddress(activity = {}, lookup) {
   if (schoolId != null && Number.isFinite(schoolId) && lookup?.bySchoolId?.has(schoolId)) {
     return text(lookup.bySchoolId.get(schoolId).address);
   }
-  const nameKey = `${normalizePlaceKey(activity.authority || activity.authority_name || '')}|${normalizePlaceKey(activity.school || activity.school_name || '')}`;
-  if (nameKey !== '|' && lookup?.byAuthorityAndName?.has(nameKey)) {
-    return text(lookup.byAuthorityAndName.get(nameKey).address);
-  }
   return '';
 }
 

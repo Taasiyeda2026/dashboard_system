@@ -14,6 +14,7 @@ const course = (id, date = '2026-09-06', extra = {}) => ({
   activity_season: 'school_2027',
   status: 'פתוח',
   school: `בית ספר ${id}`,
+  school_id: 100,
   school_address: `רחוב ${id}, חיפה`,
   authority: 'חיפה',
   instruction_language: 'he',
@@ -64,7 +65,7 @@ test('date adjustment keeps the full course and enforces raw travel plus one 15 
     { date: '2027-01-31', start_time: '10:00', end_time: '11:00' },
     { date: '2027-02-07', start_time: '10:00', end_time: '11:00' }
   ] });
-  const previous = course('previous', '2027-01-31', { emp_id: '1', instructor_assignment_locked: true, school: 'מוצא', school_address: 'מוצא 1', start_time: '09:00', end_time: '09:35', meetings: [{ date: '2027-01-31', start_time: '09:00', end_time: '09:35' }] });
+  const previous = course('previous', '2027-01-31', { emp_id: '1', instructor_assignment_locked: true, school_id: 101, school: 'מוצא', school_address: 'מוצא 1', start_time: '09:00', end_time: '09:35', meetings: [{ date: '2027-01-31', start_time: '09:00', end_time: '09:35' }] });
   const input = {
     activities: [target, previous], instructors: [instructors[0]], profiles: { 1: profiles[1] },
     rules: { 1: [{ weekday: 0, available: true, start_time: '08:00', end_time: '16:00' }] },
