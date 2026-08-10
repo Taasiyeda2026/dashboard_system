@@ -2034,6 +2034,27 @@ export const activitiesScreen = {
 
   bind({ root, data, state, rerender, rerenderActivitiesView, ui, api, clearScreenDataCache }) {
 
+    // ── Row-height measurement ──────────────────────────────────────────────
+    // Runs once per bind, after the first rAF so layout is complete.
+    // Logs [activities:row-height] with min/max/median px from actual TRs.
+    // Remove when no longer needed for diagnosis.
+    (function measureRowHeights() {
+      if (typeof requestAnimationFrame !== 'function') return;
+      requestAnimationFrame(() => {
+        try {
+          const trs = Array.from(root?.querySelectorAll?.('.ds-activities-row') ?? []);
+          if (!trs.length) return;
+          const heights = trs.map((tr) => Math.round(tr.getBoundingClientRect().height));
+          heights.sort((a, b) => a - b);
+          const min = heights[0];
+          const max = heights[heights.length - 1];
+          const mid = heights[Math.floor(heights.length / 2)];
+          // eslint-disable-next-line no-console
+          console.info('[activities:row-height]', { min, median: mid, max, rows: heights.length });
+        } catch { /* non-fatal */ }
+      });
+    }());
+
     (function showOverdueWarningIfNeeded() {
       if (!root) return;
       const today = new Date();

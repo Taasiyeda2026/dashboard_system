@@ -7,17 +7,16 @@ function installStyles() {
     #app .ds-table--activities-list td.ds-activities-col--instructor {
       min-width: 190px !important;
       width: 190px !important;
-      overflow: visible !important;
+      overflow: hidden !important;
     }
     #app .ds-table--activities-list .ds-activities-instructor-wrap,
     #app .ds-table--activities-list .ds-activities-instructor-name {
       display: block !important;
       width: 100% !important;
-      max-width: none !important;
-      overflow: visible !important;
-      text-overflow: clip !important;
-      white-space: normal !important;
-      word-break: normal !important;
+      max-width: 100% !important;
+      overflow: hidden !important;
+      text-overflow: ellipsis !important;
+      white-space: nowrap !important;
       line-height: 1.35 !important;
     }
     #app .ds-table--activities-list .ds-chip--instructor-empty {
@@ -29,18 +28,18 @@ function installStyles() {
       white-space: nowrap !important;
     }
     #app .ds-table--activities-list .ds-contact-popover-btn {
-      display: grid !important;
-      grid-template-columns: minmax(0, 1fr) !important;
-      gap: 3px !important;
+      display: block !important;
       width: 100% !important;
       min-width: 0 !important;
+      max-width: 100% !important;
       padding: 0 !important;
       border: 0 !important;
       background: transparent !important;
       text-align: right !important;
       line-height: 1.25 !important;
-      white-space: normal !important;
-      overflow: visible !important;
+      white-space: nowrap !important;
+      overflow: hidden !important;
+      text-overflow: ellipsis !important;
       cursor: pointer !important;
     }
     #app .ds-table--activities-list .ds-contact-popover-btn > span:first-child {
@@ -52,18 +51,8 @@ function installStyles() {
       text-overflow: ellipsis !important;
       white-space: nowrap !important;
     }
-    #app .ds-table--activities-list .ds-contact-popover-btn .ds-activities-contact-phone {
-      display: block !important;
-      direction: ltr !important;
-      unicode-bidi: isolate !important;
-      width: 100% !important;
-      color: #0284c7 !important;
-      font-size: 12px !important;
-      font-weight: 500 !important;
-      text-align: right !important;
-      overflow: visible !important;
-      text-overflow: clip !important;
-      white-space: nowrap !important;
+    #app .ds-table--activities-list .ds-activities-contact-phone {
+      display: none !important;
     }
     .ds-modal.ds-modal--scheduling {
       width: min(430px, calc(100vw - 32px)) !important;

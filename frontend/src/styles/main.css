@@ -9932,9 +9932,9 @@ select.ds-input {
 }
 
 .ds-activities-screen .ds-table--activities-list td {
-  padding-block: 9px;   /* 9×2 + ~14px טקסט ≈ 32px */
+  padding-block: 2px;
   vertical-align: middle;
-  line-height: 1.15;
+  line-height: 1.2;
 }
 
 /* צמצום gap בין שם הפעילות לסוגה */
