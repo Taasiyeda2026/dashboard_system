@@ -3,7 +3,8 @@ import { activityMeetings, isoWeekKey } from './instructor-scheduling-load.js';
 import { routeMatrixKey } from './course-scheduling-travel.js';
 import {
   hasDraftInstructor,
-  isActivitySchedulingEligible,
+  isSchedulingReadyActivity,
+  isSchedulingReadyInstructor,
   isSchedulingBlockingAssignment,
   isSchedulingDraftAssignment
 } from './shared/activity-scheduling-eligibility.js';
@@ -34,7 +35,7 @@ export function schedulingCourses(rows = [], options = {}) {
   const authority = text(options.authority);
   const district = text(options.district);
   const includeIncompleteWithoutPeriodMeetings = !!options.includeIncompleteWithoutPeriodMeetings;
-  return rows.filter(isActivitySchedulingEligible)
+  return rows.filter(isSchedulingReadyActivity)
     .filter((row) => !hasDraftInstructor(row))
     .filter((row) => !authority || text(row.authority) === authority)
     .filter((row) => !district || districtOf(row) === district)
@@ -47,8 +48,12 @@ export function schedulingCourses(rows = [], options = {}) {
     });
 }
 
-export function schedulingInstructors(rows = []) {
-  return rows.filter((row) => text(row?.active).toLowerCase() === 'yes');
+export function schedulingInstructors(rows = [], profiles = {}, rules = {}) {
+  return rows.filter((row) => isSchedulingReadyInstructor(
+    row,
+    profiles[text(row?.emp_id)] || null,
+    rules[text(row?.emp_id)] || []
+  ));
 }
 
 export function missingCourseInformation(activity, options = {}) {
@@ -506,10 +511,10 @@ export function calculateCourseSchedule(input = {}) {
     district: input.district,
     includeIncompleteWithoutPeriodMeetings: !!input.includeIncompleteWithoutPeriodMeetings
   });
-  const instructors = schedulingInstructors(input.instructors || []);
-  const assignedRows = assignedRowsByInstructor(activities, input.assignments || {});
   const profiles = input.profiles || {};
   const rules = input.rules || {};
+  const instructors = schedulingInstructors(input.instructors || [], profiles, rules);
+  const assignedRows = assignedRowsByInstructor(activities, input.assignments || {});
   const exceptions = input.exceptions || {};
   const incomplete = new Map(courses.map((course) => [idOf(course), missingCourseInformation(course, { periodKey })]));
   const ready = courses.filter((course) => !incomplete.get(idOf(course)).length);

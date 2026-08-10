@@ -15,12 +15,7 @@ import { isCourseSchedulingInterfaceEligible } from './shared/activity-schedulin
 import { formatDateHe, formatTimeRangeShort } from './shared/format-date.js';
 import { weekRange, shiftWeek, buildWeekRows, weekCalendarHtml, fixedScheduleHtml, weekNavLabel } from './course-scheduling-calendar.js';
 import {
-  collectMissingScheduleCourseIds,
-  courseSchedulingDataReadiness,
-  courseReadinessRows,
   enrichActivitiesWithSchoolAddresses,
-  instructorReadinessRows,
-  MISSING_SCHEDULE_FILTER_STORAGE_KEY,
   pickNearestActionableCourse,
   loadDistanceCoverage,
   runDistanceBuildLoop,
@@ -374,15 +369,13 @@ const LIST_GROUPS = [
   { key: 'treatment', label: 'נדרשת בדיקה' }
 ];
 
-function summaryCardsHtml(interfaceCourses, results, readiness = {}) {
+function summaryCardsHtml(interfaceCourses, results) {
   const waiting = interfaceCourses.filter((course) => !text(course.emp_id) && !text(course.draft_emp_id)).length;
   const drafts = interfaceCourses.filter((course) => !text(course.emp_id) && text(course.draft_emp_id)).length;
   const ready = results.filter((result) => result.status === 'הצעה מוכנה').length;
-  const missing = Number(readiness.missingScheduleCount) || 0;
   return `<article class="course-scheduling-summary-card course-scheduling-summary-card--waiting"><b>${waiting}</b><span>ממתינים לשיבוץ</span></article>
     <article class="course-scheduling-summary-card course-scheduling-summary-card--ready"><b>${ready}</b><span>הצעות מוכנות</span></article>
-    <article class="course-scheduling-summary-card course-scheduling-summary-card--draft"><b>${drafts}</b><span>טיוטות</span></article>
-    <button type="button" class="course-scheduling-summary-card course-scheduling-summary-card--missing course-scheduling-summary-card--button" data-open-readiness-drawer><b>${missing}</b><span>חסרי מידע</span></button>`;
+    <article class="course-scheduling-summary-card course-scheduling-summary-card--draft"><b>${drafts}</b><span>טיוטות</span></article>`;
 }
 
 function instructorCellLabel(row) {
@@ -975,59 +968,6 @@ function selectedCoursePanelHtml(row, state) {
     ${finding ? loadingInstructorsHtml(state.courseSchedulingProgressStep || 1) : instructorsResultsHtml(result, state)}`;
 }
 
-function readinessValue(value, fallback = '—') {
-  return text(value) || fallback;
-}
-
-function courseReadinessListHtml(rows = []) {
-  if (!rows.length) return '<p class="course-scheduling-muted">כל הקורסים הפתוחים מוכנים לשיבוץ.</p>';
-  return rows.map(({ course, missing }) => `<article class="course-scheduling-readiness-row">
-    <h4>${escapeHtml(readinessValue(course.activity_name || course.program_name || course.name || course.title))}</h4>
-    <p>${escapeHtml(readinessValue(course.school))} · ${escapeHtml(readinessValue(course.authority))}</p>
-    <p><b>חסר להשלמה:</b> ${escapeHtml(missing.join(' · '))}</p>
-    <div class="course-scheduling-readiness-actions">
-      <button type="button" class="course-scheduling-btn course-scheduling-btn--secondary course-scheduling-btn--sm" data-open-readiness-course="${escapeHtml(idOf(course))}">השלמת פרטים</button>
-    </div>
-  </article>`).join('');
-}
-
-function instructorReadinessListHtml(rows = []) {
-  if (!rows.length) return '<p class="course-scheduling-muted">כל המדריכים הפעילים מוכנים לשיבוץ.</p>';
-  return rows.map(({ instructor, missing }) => `<article class="course-scheduling-readiness-row">
-    <h4>${escapeHtml(readinessValue(instructor.full_name || instructor.emp_id))}</h4>
-    ${text(instructor.address) ? `<p>${escapeHtml(instructor.address)}</p>` : ''}
-    <p><b>חסר להשלמה:</b> ${escapeHtml(missing.join(' · '))}</p>
-    <div class="course-scheduling-readiness-actions">
-      <button type="button" class="course-scheduling-btn course-scheduling-btn--secondary course-scheduling-btn--sm" data-open-instructor-matching="${escapeHtml(text(instructor.emp_id))}">עריכת התאמה</button>
-      <button type="button" class="course-scheduling-text-btn" data-open-instructor-constraints="${escapeHtml(text(instructor.emp_id))}">עדכון זמינות ואילוצים</button>
-    </div>
-  </article>`).join('');
-}
-
-function dataReadinessHtml(data, state = {}) {
-  const courseRows = courseReadinessRows(data?.activities || []);
-  const instructorRows = instructorReadinessRows(data || {});
-  const tab = state.courseSchedulingReadinessTab === 'instructors' ? 'instructors' : 'courses';
-  return `<div class="course-scheduling-maintenance-panel course-scheduling-readiness" data-readiness-panel>
-    <h3 id="course-scheduling-readiness-title" class="course-scheduling-readiness-title">מוכנות לשיבוץ</h3>
-    <nav class="course-scheduling-tabs course-scheduling-tabs--inner" aria-label="מוכנות לשיבוץ">
-      <button type="button" class="course-scheduling-tab${tab === 'courses' ? ' is-active' : ''}" data-readiness-tab="courses">קורסים להשלמה (${courseRows.length})</button>
-      <button type="button" class="course-scheduling-tab${tab === 'instructors' ? ' is-active' : ''}" data-readiness-tab="instructors">מדריכים להשלמה (${instructorRows.length})</button>
-    </nav>
-    <div class="course-scheduling-readiness-list">${tab === 'courses' ? courseReadinessListHtml(courseRows) : instructorReadinessListHtml(instructorRows)}</div>
-  </div>`;
-}
-
-function dataReadinessDrawerHtml(data, state = {}) {
-  if (!state.courseSchedulingShowDataReadiness) return '';
-  return `<div class="course-scheduling-overlay course-scheduling-overlay--drawer" data-course-scheduling-overlay>
-    <aside class="course-scheduling-drawer" role="dialog" aria-modal="true" aria-labelledby="course-scheduling-readiness-title">
-      <button type="button" class="course-scheduling-close" data-close-course-scheduling-overlay aria-label="סגירה">×</button>
-      ${dataReadinessHtml(data, state)}
-    </aside>
-  </div>`;
-}
-
 function maintenanceTabHtml(state) {
   const distanceBusy = !!state.courseSchedulingDistanceLoading;
   const coverageLoading = !!state.courseSchedulingDistanceCoverageLoading;
@@ -1046,10 +986,6 @@ function maintenanceTabHtml(state) {
         ${doneMessage ? `<p class="${doneError ? 'course-scheduling-alert' : 'course-scheduling-success'}">${escapeHtml(doneMessage)}</p>` : ''}
       </div>
       <button type="button" class="course-scheduling-btn course-scheduling-btn--primary" data-update-distances ${distanceBusy || coverageLoading ? 'disabled' : ''}>${distanceBusy ? 'מעדכן מרחקים...' : 'עדכן מרחקים'}</button>
-    </article>
-    <article class="course-scheduling-maintenance-card">
-      <div><h3>בדיקת נתונים</h3><p>איתור פעילויות, מדריכים או כתובות שחסר בהם מידע הנדרש לשיבוץ.</p></div>
-      <button type="button" class="course-scheduling-btn course-scheduling-btn--secondary" data-maintenance-action="readiness">פתח בדיקת נתונים</button>
     </article>
   </section>`;
 }
@@ -1187,7 +1123,6 @@ export const courseSchedulingScreen = {
     const selectedId = state.courseSchedulingSelectedId || '';
     const selectedRow = rowModels.find((row) => row.id === selectedId)
       || (selectedId ? courseRowModel(interfaceCourses.find((course) => idOf(course) === selectedId) || { row_id: selectedId }, resultByCourseId) : null);
-    const readiness = courseSchedulingDataReadiness(data.activities || []);
     return dsScreenStack(`${instructorsWorkspaceNavStylesHtml()}
     <div class="course-scheduling-screen" dir="rtl" data-cs-ui="ux-polish-20260805-v1" data-cs-tab="${escapeHtml(tab)}">
       ${instructorsWorkspaceHeaderHtml({ activeTab: tab === 'maintenance' ? 'maintenance' : 'scheduling', state })}
@@ -1210,7 +1145,7 @@ export const courseSchedulingScreen = {
           saveResult: state.courseSchedulingSimulationSaveResult || null
         })
         : `
-      <section class="course-scheduling-summary">${summaryCardsHtml(interfaceCourses, results, readiness)}</section>
+      <section class="course-scheduling-summary">${summaryCardsHtml(interfaceCourses, results)}</section>
       <p data-course-scheduling-error class="course-scheduling-alert"${state.courseSchedulingError ? '' : ' hidden'}>${escapeHtml(state.courseSchedulingError || '')}</p>
       <div class="course-scheduling-layout course-scheduling-layout--courses">
         <aside class="course-scheduling-courses">${courseListHtml(rowModels, selectedId)}</aside>
@@ -1224,7 +1159,6 @@ export const courseSchedulingScreen = {
         }</section>
       </div>
     `}`}
-      ${dataReadinessDrawerHtml(data, state)}
     </div>`);
   },
 
@@ -1273,27 +1207,6 @@ export const courseSchedulingScreen = {
       document.dispatchEvent(new CustomEvent('app:navigate', { detail: { route: 'activities' } }));
       clickActivityRowWhenReady(activityId);
     };
-
-    const openMissingScheduleCourses = () => {
-      const missingIds = collectMissingScheduleCourseIds(data.activities || []);
-      try {
-        sessionStorage.setItem(MISSING_SCHEDULE_FILTER_STORAGE_KEY, JSON.stringify(missingIds));
-      } catch { /* storage may be unavailable */ }
-      state.activitiesMissingScheduleOnly = true;
-      state.activityPeriodTab = 'school_2027';
-      state.activitiesInnerTab = 'year_all';
-      state.activitiesMonthYm = '';
-      state.allActivitiesStatusFilter = 'all';
-      state.listFilters ||= {};
-      state.listFilters.activities = {
-        ...(state.listFilters.activities || {}),
-        q: '',
-        appliedQ: '',
-        visibleCount: 10000
-      };
-      document.dispatchEvent(new CustomEvent('app:navigate', { detail: { route: 'activities' } }));
-    };
-
     const clearDistrictSimulation = () => {
       state.courseSchedulingSimulationView = false;
       state.courseSchedulingSimulationLoading = false;
@@ -1341,7 +1254,6 @@ export const courseSchedulingScreen = {
           ? button.dataset.switchTab
           : 'courses';
         state.courseSchedulingShowDistanceConfirm = false;
-        state.courseSchedulingShowDataReadiness = false;
         rerender();
       });
     });
@@ -1378,45 +1290,13 @@ export const courseSchedulingScreen = {
       });
     });
 
-    root.querySelectorAll('[data-open-readiness-drawer]').forEach((button) => button.addEventListener('click', () => {
-      state.courseSchedulingShowDataReadiness = true;
-      state.courseSchedulingShowDistanceConfirm = false;
-      state.courseSchedulingReadinessTab = 'courses';
-      rerender();
-    }));
-    root.querySelector('[data-open-missing-schedule-courses]')?.addEventListener('click', openMissingScheduleCourses);
-
-    root.querySelectorAll('[data-readiness-tab]').forEach((button) => button.addEventListener('click', () => {
-      state.courseSchedulingReadinessTab = button.dataset.readinessTab === 'instructors' ? 'instructors' : 'courses';
-      rerender();
-    }));
-    root.querySelectorAll('[data-open-readiness-course]').forEach((button) => button.addEventListener('click', () => openMissingCourse(button.dataset.openReadinessCourse)));
-    root.querySelectorAll('[data-open-instructor-matching],[data-open-instructor-constraints]').forEach((button) => button.addEventListener('click', () => {
-      const empId = button.dataset.openInstructorMatching || button.dataset.openInstructorConstraints || '';
-      state.instructorsWorkspace = { ...(state.instructorsWorkspace || {}), active: 'yes', assignment: '' };
-      state.pendingInstructorEmpId = empId;
-      state.pendingInstructorEdit = button.dataset.openInstructorMatching ? 'matching' : 'constraints';
-      document.dispatchEvent(new CustomEvent('app:navigate', { detail: { route: 'instructors' } }));
-    }));
-
-    root.querySelectorAll('[data-maintenance-action]').forEach((button) => {
-      button.addEventListener('click', async () => {
-        state.courseSchedulingShowDataReadiness = true;
-        state.courseSchedulingShowDistanceConfirm = false;
-        state.courseSchedulingReadinessTab = 'courses';
-        rerender();
-      });
-    });
-
     root.querySelectorAll('[data-close-course-scheduling-overlay]').forEach((button) => button.addEventListener('click', () => {
       state.courseSchedulingShowDistanceConfirm = false;
-      state.courseSchedulingShowDataReadiness = false;
       rerender();
     }));
     root.querySelectorAll('[data-course-scheduling-overlay]').forEach((overlay) => overlay.addEventListener('click', (event) => {
       if (event.target === overlay) {
         state.courseSchedulingShowDistanceConfirm = false;
-        state.courseSchedulingShowDataReadiness = false;
         rerender();
       }
     }));
