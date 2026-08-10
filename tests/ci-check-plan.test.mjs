@@ -57,6 +57,14 @@ test('module logic selects the matching logic suite', () => {
   assert.deepEqual(buildCheckPlan(['frontend/src/screens/course-scheduling-score.js']).groups, ['scheduling']);
 });
 
+test('instructor matching engine selects scheduling checks, not instructor UI', () => {
+  const plan = buildCheckPlan(['frontend/src/screens/instructor-matching-engine.js']);
+  assert.deepEqual(plan.groups, ['scheduling']);
+  assert.ok(plan.tests.includes('tests/course-scheduling-stage2-matching.test.mjs'));
+  assert.ok(plan.tests.includes('tests/course-scheduling-stage2-server-sync.test.mjs'));
+  assert.equal(plan.tests.includes('tests/instructor-area-screen.test.mjs'), false);
+});
+
 test('authority catalog filenames are not misread as auth', () => {
   const plan = buildCheckPlan(['frontend/src/screens/operations-authorities-cleanup.js']);
   assert.deepEqual(plan.groups, ['operations']);

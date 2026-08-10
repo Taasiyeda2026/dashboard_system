@@ -7,12 +7,12 @@ const profile = { gender: 'female', instruction_languages: ['he'], education_lev
 const rules = [{ weekday: 3, available: true, start_time: '08:00', end_time: '16:00' }];
 const activity = {
   activity_name: 'קורס מדעים', instruction_language: 'he', required_instructor_gender: 'female', education_level: 'elementary',
-  start_time: '10:00', end_time: '11:00', school: 'בית ספר א', authority: 'חיפה',
+  start_time: '10:00', end_time: '11:00', school: 'בית ספר א', school_id: 'SCHOOL-A', authority: 'חיפה',
   meetings: [{ date: '2026-09-02', start_time: '10:00', end_time: '11:00' }] // Wednesday, matches weekday 3
 };
 
 test('score is capped at 100 and never at the old 120 ceiling', () => {
-  const previous = { date: '2026-09-02', start_time: '08:30', end_time: '09:55', school: 'בית ספר א', authority: 'חיפה', activity_name: 'קודמת' };
+  const previous = { date: '2026-09-02', start_time: '08:30', end_time: '09:55', school: 'בית ספר א', school_id: 'SCHOOL-A', authority: 'חיפה', activity_name: 'קודמת' };
   const result = evaluateInstructor({
     instructor, profile, rules, activity,
     existingActivities: [previous],
@@ -24,7 +24,7 @@ test('score is capped at 100 and never at the old 120 ceiling', () => {
 });
 
 test('same-school continuity does not also earn the full same-authority bonus (no double counting)', () => {
-  const sameSchoolNeighbor = { date: '2026-09-02', start_time: '08:30', end_time: '09:55', school: 'בית ספר א', authority: 'חיפה', activity_name: 'קודמת' };
+  const sameSchoolNeighbor = { date: '2026-09-02', start_time: '08:30', end_time: '09:55', school: 'בית ספר א', school_id: 'SCHOOL-A', authority: 'חיפה', activity_name: 'קודמת' };
   const home = { distance_km: 8, duration_minutes: 12 };
   const withSameSchool = evaluateInstructor({
     instructor, profile, rules, activity, existingActivities: [sameSchoolNeighbor],
