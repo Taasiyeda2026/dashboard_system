@@ -1653,7 +1653,19 @@ function renderScreenIntoRoot({ route, screen, data, screenRoot, phase, cacheKey
     throw err;
   }
 }
-function clearScreenDataCache() {
+/**
+ * Invalidates all activity-related caches (activities:*, week:*, month:*) plus
+ * the current screen's cache entry when applicable.
+ *
+ * MUST be called only after a true data mutation (add / save / delete / approve).
+ * Do NOT call for UI-only actions (tab switch, month navigation, filter, search,
+ * visibleCount change) — those must rerender from the already-loaded rows in
+ * state.screenDataCache without touching persisted or in-memory cache entries.
+ *
+ * Previously named clearScreenDataCache. The old name is kept as an alias on the
+ * bind arg so existing screens do not require simultaneous updates.
+ */
+function invalidateActivityDataCaches() {
   const deletedKeys = [];
   // Always purge week, month and activities caches — any activity mutation can affect
   // these views regardless of which screen initiated the save.
@@ -1675,6 +1687,8 @@ function clearScreenDataCache() {
   }
   deletedKeys.forEach(persistCacheDelete);
 }
+// Backward-compatible alias — screens still receive this name via the bind arg.
+const clearScreenDataCache = invalidateActivityDataCaches;
 
 function bindScreen(screen, screenRoot, data) {
   const routeAtBind = state.route;

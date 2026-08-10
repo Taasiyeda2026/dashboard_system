@@ -2761,7 +2761,11 @@ export const activitiesScreen = {
     root.querySelectorAll('[data-activity-period-tab]').forEach((btn) => {
       btn.addEventListener('click', () => {
         state.activitiesInnerTab = normalizeActivitiesInnerTab(btn.getAttribute('data-activity-period-tab'), state.activityPeriodTab);
-        clearScreenDataCache?.();
+        // Do NOT call clearScreenDataCache / invalidateActivityDataCaches here.
+        // Switching inner tabs is a UI-only action (same data, different view).
+        // Invalidating the cache here caused a full network re-fetch on every
+        // tab switch, defeating stale-while-revalidate (cache_hit always false).
+        // Cache invalidation belongs only in true data mutations (add/save/delete).
         state.activitiesSummerShowAll = false;
         if (activityPeriodUsesMonthNavigation(state)) {
           ensureActivityPeriodMonth(state, activitiesRows, { force: true });
