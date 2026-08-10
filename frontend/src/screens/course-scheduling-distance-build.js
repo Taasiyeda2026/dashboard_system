@@ -1,4 +1,10 @@
-import { SCHEDULING_SEASON, BLOCKED_SCHEDULING_STATUSES, normalizeSchedulingStatus } from './shared/activity-scheduling-eligibility.js';
+import {
+  SCHEDULING_SEASON,
+  BLOCKED_SCHEDULING_STATUSES,
+  isCourseSchedulingReady,
+  isInstructorSchedulingReady,
+  normalizeSchedulingStatus
+} from './shared/activity-scheduling-eligibility.js';
 
 const text = (value) => String(value ?? '').trim();
 
@@ -239,6 +245,8 @@ export function instructorReadinessRows(data = {}) {
     })
     .filter((row) => row.missing.length);
 }
+
+export { isCourseSchedulingReady, isInstructorSchedulingReady };
 
 export function pickNearestActionableCourse(rowModels = [], todayStr = new Date().toISOString().slice(0, 10)) {
   const actionable = (rowModels || []).filter((row) => row?.bucket && row?.course);

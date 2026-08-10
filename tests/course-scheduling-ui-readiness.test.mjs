@@ -43,7 +43,9 @@ const openCourse = (overrides = {}) => ({
   start_time: overrides.start_time ?? '',
   end_time: '11:00',
   school: 'בית ספר',
+  school_address: 'רחוב 1',
   authority: 'רשות',
+  instruction_language: 'he',
   activity_name: overrides.activity_name || 'קורס בדיקה',
   date_1: overrides.date_1 || overrides.start_date || '',
   ...overrides
@@ -199,7 +201,7 @@ test('meeting-state load failure does not dump technical warnings into the main 
   assert.doesNotMatch(html, /מידע על מפגשים שהתקיימו או בוטלו לא נטען/);
 });
 
-test('missing-info count appears once as a compact clickable counter, not a wide banner', () => {
+test('incomplete activities stay outside the scheduling UI without completion lists', () => {
   const baseState = { user: { role: 'admin' } };
   const data = {
     activities: [
@@ -212,28 +214,14 @@ test('missing-info count appears once as a compact clickable counter, not a wide
     meetingState: { loaded: true, approvedDates: new Map(), cancelledDates: new Map(), error: '' }
   };
   const compact = courseSchedulingScreen.render(data, { state: baseState });
-  // The old wide alert strip (and its separate "הצגת הקורסים" link) must be gone entirely.
-  assert.doesNotMatch(compact, /course-scheduling-alert-compact/);
-  assert.doesNotMatch(compact, /קורסים חסרים פרטים ואינם משתתפים בשיבוץ/);
-  assert.doesNotMatch(compact, /הצגת הקורסים/);
-  // The count shows exactly once, inside the compact clickable "חסרי מידע" counter.
-  assert.match(compact, /course-scheduling-summary-card--missing/);
-  assert.match(compact, /data-open-readiness-drawer/);
-  const missingCountMatches = compact.match(/<b>2<\/b><span>חסרי מידע<\/span>/g) || [];
-  assert.equal(missingCountMatches.length, 1);
-  assert.doesNotMatch(compact, /3 קורסים פתוחים/);
-  assert.doesNotMatch(compact, /חסר תאריך התחלה/);
+  assert.match(compact, /data-course-card="ready"/);
+  assert.doesNotMatch(compact, /data-course-card="missing-date"/);
+  assert.doesNotMatch(compact, /data-course-card="missing-time"/);
+  assert.doesNotMatch(compact, /חסרי מידע|קורסים להשלמה|מדריכים להשלמה|חסר להשלמה/);
+  assert.doesNotMatch(compact, /data-open-readiness-drawer|data-open-readiness-course/);
 
   const expanded = courseSchedulingScreen.render(data, { state: { ...baseState, courseSchedulingShowDataReadiness: true } });
-  assert.match(expanded, /course-scheduling-drawer/);
-  assert.match(expanded, /מוכנות לשיבוץ/);
-  // Exactly one visible heading carries the drawer title — no duplicate h-tag and no duplicate hidden span.
-  const headingMatches = expanded.match(/<h[1-6][^>]*>מוכנות לשיבוץ<\/h[1-6]>/g) || [];
-  assert.equal(headingMatches.length, 1);
-  assert.doesNotMatch(expanded, /<span[^>]*hidden[^>]*>מוכנות לשיבוץ</);
-  assert.match(expanded, /תאריכי המפגשים/);
-  assert.match(expanded, /שעת התחלה/);
-  assert.match(expanded, /data-open-readiness-course/);
+  assert.doesNotMatch(expanded, /course-scheduling-drawer|מוכנות לשיבוץ|חסר להשלמה/);
 });
 
 test('opening missing activities stores only missing course ids and filters the activities list', () => {

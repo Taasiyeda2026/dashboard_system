@@ -4,6 +4,7 @@ import { routeMatrixKey } from './course-scheduling-travel.js';
 import {
   hasDraftInstructor,
   isActivitySchedulingEligible,
+  isInstructorSchedulingReady,
   isSchedulingBlockingAssignment,
   isSchedulingDraftAssignment
 } from './shared/activity-scheduling-eligibility.js';
@@ -47,8 +48,11 @@ export function schedulingCourses(rows = [], options = {}) {
     });
 }
 
-export function schedulingInstructors(rows = []) {
-  return rows.filter((row) => text(row?.active).toLowerCase() === 'yes');
+export function schedulingInstructors(rows = [], profiles = {}, rules = {}) {
+  return rows.filter((row) => {
+    const empId = text(row?.emp_id);
+    return isInstructorSchedulingReady(row, profiles[empId], rules[empId] || []);
+  });
 }
 
 export function missingCourseInformation(activity, options = {}) {
@@ -506,10 +510,10 @@ export function calculateCourseSchedule(input = {}) {
     district: input.district,
     includeIncompleteWithoutPeriodMeetings: !!input.includeIncompleteWithoutPeriodMeetings
   });
-  const instructors = schedulingInstructors(input.instructors || []);
-  const assignedRows = assignedRowsByInstructor(activities, input.assignments || {});
   const profiles = input.profiles || {};
   const rules = input.rules || {};
+  const instructors = schedulingInstructors(input.instructors || [], profiles, rules);
+  const assignedRows = assignedRowsByInstructor(activities, input.assignments || {});
   const exceptions = input.exceptions || {};
   const incomplete = new Map(courses.map((course) => [idOf(course), missingCourseInformation(course, { periodKey })]));
   const ready = courses.filter((course) => !incomplete.get(idOf(course)).length);
@@ -628,21 +632,7 @@ export function calculateCourseSchedule(input = {}) {
     if (!input.preliminary && primary) planningDraft.set(courseId, primary);
   }
 
-  const incompleteResults = courses
-    .filter((course) => incomplete.get(idOf(course)).length)
-    .map((course) => ({
-      course,
-      status: 'חסר מידע',
-      missing: incomplete.get(idOf(course)),
-      recommended: null,
-      bestAvailable: null,
-      alternatives: [],
-      checked: [],
-      eligibleCandidateCount: 0
-    }));
-
-  // Ready courses are returned in planning order; incomplete courses follow.
-  return [...ordered.map((course) => resultsById.get(idOf(course))), ...incompleteResults];
+  return ordered.map((course) => resultsById.get(idOf(course)));
 }
 
 export function preliminaryCourseCandidates(input = {}) {

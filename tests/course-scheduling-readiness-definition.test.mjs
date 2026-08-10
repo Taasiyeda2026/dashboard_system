@@ -7,12 +7,16 @@ import {
 } from '../frontend/src/screens/course-scheduling-distance-build.js';
 import { availabilityHours, instructorLoad, calculateCourseSchedule } from '../frontend/src/screens/course-scheduling-engine.js';
 import { evaluateInstructor } from '../frontend/src/screens/instructor-matching-engine.js';
+import {
+  isCourseSchedulingReady,
+  isInstructorSchedulingReady
+} from '../frontend/src/screens/shared/activity-scheduling-eligibility.js';
 
 const readyCourse = {
   row_id: 'c1', activity_season: 'school_2027', activity_type: 'program', status: 'פתוח',
   activity_name: 'רובוטיקה', authority: 'רשות', school: 'בית ספר', school_address: 'רחוב 1',
   grade: '', start_time: '09:00', end_time: '10:00', date_1: '2027-01-04',
-  instruction_language: '', required_instructor_gender: '', activity_manager: ''
+  instruction_language: 'he', required_instructor_gender: '', activity_manager: ''
 };
 const rules = [{ emp_id: 1, weekday: 1, available: true, start_time: '08:00', end_time: '14:00' }];
 const primaryCandidate = (result) => result.recommended || result.bestAvailable;
@@ -35,6 +39,35 @@ test('instructor readiness ignores manual workload quota fields', () => {
   assert.deepEqual(instructorReadinessMissingFields(instructor, { ...matchingProfile }, rules), []);
   assert.deepEqual(instructorReadinessMissingFields(instructor, { ...matchingProfile, education_levels: [] }, rules), []);
   assert.deepEqual(instructorReadinessMissingFields(instructor, { ...matchingProfile, gender: null }, rules), ['מגדר']);
+});
+
+test('activity readiness excludes every incomplete or invalid scheduling input without mutation', () => {
+  const snapshot = structuredClone(readyCourse);
+  assert.equal(isCourseSchedulingReady(readyCourse), true);
+  for (const invalid of [
+    { date_1: '' },
+    { start_time: '' },
+    { end_time: '' },
+    { start_time: '11:00', end_time: '10:00' },
+    { start_time: '10:00', end_time: '10:00' },
+    { school: '' },
+    { school_address: '' },
+    { instruction_language: '' }
+  ]) {
+    assert.equal(isCourseSchedulingReady({ ...readyCourse, ...invalid }), false);
+  }
+  assert.deepEqual(readyCourse, snapshot);
+});
+
+test('instructor readiness admits only active complete profiles with valid availability without mutation', () => {
+  const original = { instructor: structuredClone(instructor), profile: structuredClone(matchingProfile), rules: structuredClone(rules) };
+  assert.equal(isInstructorSchedulingReady(instructor, matchingProfile, rules), true);
+  assert.equal(isInstructorSchedulingReady({ ...instructor, active: 'no' }, matchingProfile, rules), false);
+  assert.equal(isInstructorSchedulingReady({ ...instructor, address: '' }, matchingProfile, rules), false);
+  assert.equal(isInstructorSchedulingReady(instructor, { ...matchingProfile, instruction_languages: [] }, rules), false);
+  assert.equal(isInstructorSchedulingReady(instructor, matchingProfile, []), false);
+  assert.equal(isInstructorSchedulingReady(instructor, matchingProfile, [{ ...rules[0], end_time: '07:00' }]), false);
+  assert.deepEqual({ instructor, profile: matchingProfile, rules }, original);
 });
 
 test('language and gender are absolute gates and rejected candidates are not alternatives', () => {

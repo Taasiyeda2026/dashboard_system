@@ -23,26 +23,68 @@ export function isSchedulingBlockingAssignment(activity = {}) {
 }
 
 export function isActivitySchedulingEligible(activity) {
-  if (!activity || String(activity.activity_season ?? '').trim() !== SCHEDULING_SEASON) return false;
-  const status = normalizeSchedulingStatus(activity.status ?? activity.activity_status);
-  const type = String(activity.activity_type ?? activity.type ?? '').trim().toLocaleLowerCase('he-IL');
-  const isCourse = ['קורס', 'course', 'program'].includes(type);
-  const isOpen = ['פתוח', 'open'].includes(status);
-  return isCourse && isOpen && !BLOCKED_SCHEDULING_STATUSES.has(status) && !hasAssignedInstructor(activity);
+  return isCourseSchedulingReady(activity) && !hasAssignedInstructor(activity);
 }
 
-// Entry criteria for the scheduling interface itself (spec section 4): a course only
-// needs a start date and a start time to appear. Missing everything else (address,
-// language, availability...) surfaces as a warning inside the interface instead of
-// hiding the course. This is intentionally broader than isActivitySchedulingEligible
-// above, which still gates the narrower "open and not yet assigned" matching flow.
-export function isCourseSchedulingInterfaceEligible(activity) {
+const text = (value) => String(value ?? '').trim();
+const minutes = (value) => {
+  if (!/^\d{1,2}:\d{2}(?::\d{2})?$/.test(text(value))) return Number.NaN;
+  const [hours, mins] = text(value).split(':').map(Number);
+  if (hours > 23 || mins > 59) return Number.NaN;
+  return hours * 60 + mins;
+};
+
+function schedulingMeetings(activity = {}) {
+  if (Array.isArray(activity.meetings) && activity.meetings.length) {
+    return activity.meetings.filter((meeting) => text(typeof meeting === 'string' ? meeting : meeting?.date));
+  }
+  return Array.from({ length: 35 }, (_, index) => activity[`date_${index + 1}`])
+    .filter((date) => text(date))
+    .map((date) => ({ date }));
+}
+
+/** Single source of truth for activity data readiness (not matching policy). */
+export function isCourseSchedulingReady(activity) {
   if (!activity || String(activity.activity_season ?? '').trim() !== SCHEDULING_SEASON) return false;
   const type = String(activity.activity_type ?? activity.type ?? '').trim().toLocaleLowerCase('he-IL');
   if (!['קורס', 'course', 'program'].includes(type)) return false;
   const status = normalizeSchedulingStatus(activity.status ?? activity.activity_status);
-  if (BLOCKED_SCHEDULING_STATUSES.has(status)) return false;
-  return !!String(activity.start_date ?? '').trim() && !!String(activity.start_time ?? '').trim();
+  if (!['פתוח', 'open'].includes(status) || BLOCKED_SCHEDULING_STATUSES.has(status)) return false;
+  if (!text(activity.activity_name || activity.program_name || activity.name || activity.title)) return false;
+  if (!text(activity.school) || !text(activity.school_address) || !text(activity.instruction_language)) return false;
+  const start = minutes(activity.start_time);
+  const end = minutes(activity.end_time);
+  if (!Number.isFinite(start) || !Number.isFinite(end) || end <= start) return false;
+  const meetings = schedulingMeetings(activity);
+  return meetings.length > 0 && meetings.every((meeting) => {
+    const meetingStart = minutes(meeting?.start_time || activity.start_time);
+    const meetingEnd = minutes(meeting?.end_time || activity.end_time);
+    return Number.isFinite(meetingStart) && Number.isFinite(meetingEnd) && meetingEnd > meetingStart;
+  });
+}
+
+export function isCourseSchedulingInterfaceEligible(activity) {
+  return isCourseSchedulingReady(activity);
+}
+
+function hasValidAvailabilityRule(rule = {}) {
+  const start = minutes(rule.start_time);
+  const end = minutes(rule.end_time);
+  return !!rule.available && Number.isInteger(Number(rule.weekday))
+    && Number(rule.weekday) >= 0 && Number(rule.weekday) <= 6
+    && Number.isFinite(start) && Number.isFinite(end) && end > start;
+}
+
+/** Single source of truth for instructor data readiness (not course matching). */
+export function isInstructorSchedulingReady(instructor, profile, rules = []) {
+  const active = text(instructor?.active).toLowerCase();
+  if (!['yes', 'true', '1'].includes(active)) return false;
+  return !!text(instructor?.address)
+    && !!text(profile?.gender)
+    && Array.isArray(profile?.instruction_languages)
+    && profile.instruction_languages.some((language) => text(language))
+    && Array.isArray(rules)
+    && rules.some(hasValidAvailabilityRule);
 }
 
 // A draft holds an instructor's calendar slot (spec section 21) without finalizing the
