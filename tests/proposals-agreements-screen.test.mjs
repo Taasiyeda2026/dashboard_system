@@ -3503,17 +3503,28 @@ test('add item row button appends a new row to the items table', async () => {
   );
 });
 
-test('GEFEN pricing selection hydrates newly added rows and refreshes totals', async () => {
+test('GEFEN pricing loaded on editor open hydrates initial and newly added rows and refreshes totals', async () => {
   const pricing = [
     { activity_no: '6089', activity_name: 'ביומימיקרי', item_type: 'קורס', proposal_group: 'gefen', unit_price: 9900, gefen_number: '6089' },
     { activity_no: '7000', activity_name: 'רובוטיקה', item_type: 'קורס', proposal_group: 'gefen', unit_price: 8500, gefen_number: '7000' }
   ];
-  const data = { rows: [], contactOptions: [], proposalActivityPricing: pricing };
+  const data = { rows: [], contactOptions: [] };
 
   await withJSDOM(
     proposalsAgreementsScreen.render(data, { state: stateFor('admin') }),
     async (root, dom) => {
-      proposalsAgreementsScreen.bind({ root, data, state: stateFor('admin'), api: {} });
+      let editorDepsCalls = 0;
+      proposalsAgreementsScreen.bind({
+        root,
+        data,
+        state: stateFor('admin'),
+        api: {
+          proposalsAgreementsEditorDeps: async () => {
+            editorDepsCalls += 1;
+            return { activityNameOptions: [], contactOptions: [], proposalActivityPricing: pricing };
+          }
+        }
+      });
       root.querySelector('[data-pa-tab="new"]')?.dispatchEvent(new dom.window.MouseEvent('click', { bubbles: true }));
       await delay(20);
       const form = root.querySelector('[data-pa-form]');
@@ -3533,6 +3544,11 @@ test('GEFEN pricing selection hydrates newly added rows and refreshes totals', a
 
       let rows = form.querySelectorAll('[data-pa-item-row]');
       selectCourse(rows[0], '6089');
+      assert.equal(editorDepsCalls, 1);
+      assert.equal(rows[0].querySelector('[name="item_name"]').value, 'ביומימיקרי');
+      assert.equal(rows[0].querySelector('[name="unit_price"]').value, '9900');
+      assert.equal(rows[0].querySelector('[data-pa-item-total]').value, '9900.00');
+      assert.match(form.querySelector('[data-pa-grand-total]').textContent, /9[,.]?900/);
       form.querySelector('[data-pa-add-item]').dispatchEvent(new dom.window.MouseEvent('click', { bubbles: true }));
       rows = form.querySelectorAll('[data-pa-item-row]');
       selectCourse(rows[1], '7000');

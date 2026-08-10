@@ -210,6 +210,83 @@ test('real proposal regression path remains stable without saving data or PDFs',
   await tracker.persist('proposal-focused-pdf-intercept');
 });
 
+test('GEFEN second added row keeps its native selection without a render cascade', async ({ page }) => {
+  test.setTimeout(180_000);
+  await page.goto('/');
+  await waitForAppShell(page);
+  await navigateToScreen(page, 'proposals-agreements');
+  await waitForScreenReady(page, 'proposals-agreements');
+  await page.locator('[data-pa-client-all-proposals]:visible').first().click();
+  await page.locator('[data-pa-tab="new"]:visible').first().click();
+
+  const form = page.locator('[data-pa-form]:visible').first();
+  await expect(form).toBeVisible();
+  await form.locator('[data-pa-type-btn="gefen"]').click();
+
+  const rows = form.locator('[data-pa-item-row]');
+  const firstSelect = rows.first().locator('[data-pa-pricing-select]');
+  const biomimicry = await firstSelect.locator('option').evaluateAll((options) =>
+    options.find((option) => /6089/.test(option.value) && /ביומימיקרי/.test(option.textContent || ''))?.value || '');
+  expect(biomimicry).not.toBe('');
+  await firstSelect.selectOption(biomimicry);
+  await expect(rows.first().locator('[data-pa-item-price]')).toHaveValue('9900');
+  await expect(form.locator('[data-pa-grand-total]')).toContainText('9,900');
+
+  await form.locator('[data-pa-add-item]').click();
+  await expect(rows).toHaveCount(2);
+  const secondRow = rows.nth(1);
+  const secondSelect = secondRow.locator('[data-pa-pricing-select]');
+  const secondCourse = await secondSelect.locator('option').evaluateAll((options) =>
+    options.find((option) => option.value && !/6089/.test(option.value) && /₪\s*[1-9]/.test(option.textContent || ''))?.value || '');
+  expect(secondCourse).not.toBe('');
+
+  const probe = await secondRow.evaluate((row) => {
+    const select = row.querySelector('[data-pa-pricing-select]');
+    const state = { before: select.value, changes: 0, inputs: 0, mutations: 0, rowsRemoved: 0, selectsRemoved: 0 };
+    const onChange = (event) => { if (event.target === select) state.changes += 1; };
+    const onInput = (event) => { if (event.target === select) state.inputs += 1; };
+    document.addEventListener('change', onChange, true);
+    document.addEventListener('input', onInput, true);
+    const observer = new MutationObserver((records) => {
+      state.mutations += records.length;
+      records.forEach((record) => record.removedNodes.forEach((node) => {
+        if (node === row || node.contains?.(row)) state.rowsRemoved += 1;
+        if (node === select || node.contains?.(select)) state.selectsRemoved += 1;
+      }));
+    });
+    observer.observe(row.closest('[data-pa-form]'), { childList: true, subtree: true });
+    window.__gefenSecondRowProbe = { row, select, state, observer, onChange, onInput };
+    return state;
+  });
+  expect(probe.before).toBe('');
+
+  await secondSelect.selectOption(secondCourse);
+  await expect(secondSelect).toHaveValue(secondCourse);
+  await expect(secondRow.locator('[name="item_name"]')).not.toHaveValue('');
+  await expect(secondRow.locator('[data-pa-item-price]')).not.toHaveValue('');
+  await expect(secondRow.locator('[name="gefen_number"]')).not.toHaveValue('');
+  await expect.poll(async () => amountOf(await form.locator('[data-pa-grand-total]').innerText())).toBeGreaterThan(9900);
+  await page.waitForTimeout(3000);
+
+  const result = await page.evaluate(() => {
+    const probe = window.__gefenSecondRowProbe;
+    probe.observer.disconnect();
+    document.removeEventListener('change', probe.onChange, true);
+    document.removeEventListener('input', probe.onInput, true);
+    return {
+      ...probe.state,
+      after: probe.select.value,
+      sameRow: probe.row.isConnected && probe.select.closest('[data-pa-item-row]') === probe.row,
+      sameSelect: probe.select.isConnected,
+      responsive: true
+    };
+  });
+  expect(result).toMatchObject({ after: secondCourse, changes: 1, inputs: 0, rowsRemoved: 0, selectsRemoved: 0, sameRow: true, sameSelect: true, responsive: true });
+  expect(result.mutations).toBeLessThan(100);
+  await shot(page, 'proposal-gefen-second-row-selection.png', form.locator('[data-pa-items-host]'));
+  await form.locator('[data-pa-cancel-form]').first().click();
+});
+
 test('a workshop-only next-year proposal prices, totals and previews correctly with nothing else on the form', async ({ page, tracker }) => {
   // Regression coverage for a reported bug: selecting a workshop as the very
   // first and only item on a brand-new תשפ״ז proposal left "סה״כ סדנאות" and
