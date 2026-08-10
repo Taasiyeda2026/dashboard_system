@@ -27,6 +27,11 @@ as $$
 declare
   v_status text;
 begin
+  if auth.uid() is null or not public.app_can_use_proposals_agreements() then
+    raise exception 'proposal_agreement_items_forbidden'
+      using errcode = '42501';
+  end if;
+
   select status into v_status
   from public.proposals_agreements
   where proposals_agreements.id = p_proposal_id

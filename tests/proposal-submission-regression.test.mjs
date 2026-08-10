@@ -226,3 +226,22 @@ test('atomic item RPC revokes default execution before granting authenticated ac
   assert.match(sql, /revoke all on function public\.save_proposal_agreement_items_atomic\(uuid, jsonb\) from anon;/i);
   assert.match(sql, /grant execute on function public\.save_proposal_agreement_items_atomic\(uuid, jsonb\) to authenticated;/i);
 });
+
+test('atomic item RPC authorizes the authenticated proposal user before touching data', async () => {
+  const { readFile } = await import('node:fs/promises');
+  const sql = await readFile(new URL('../supabase/migrations/20260810100000_current_app_user_rpc.sql', import.meta.url), 'utf8');
+  const authorization = sql.indexOf('if auth.uid() is null or not public.app_can_use_proposals_agreements()');
+  const rowLock = sql.indexOf('select status into v_status');
+  const deletion = sql.indexOf('delete from public.proposal_agreement_items');
+  assert.ok(authorization >= 0 && authorization < rowLock && rowLock < deletion);
+  assert.match(sql, /proposal_agreement_items_forbidden[\s\S]*errcode = '42501'/);
+});
+
+test('atomic item migration is safe to reapply over a partially installed fix', async () => {
+  const { readFile } = await import('node:fs/promises');
+  const sql = await readFile(new URL('../supabase/migrations/20260810100000_current_app_user_rpc.sql', import.meta.url), 'utf8');
+  assert.match(sql, /create or replace function public\.get_current_app_user\(\)/i);
+  assert.match(sql, /create or replace function public\.save_proposal_agreement_items_atomic\(/i);
+  assert.doesNotMatch(sql, /drop table|truncate|alter table|update public\.proposal_agreement_items/i);
+  assert.match(sql, /delete from public\.proposal_agreement_items[\s\S]*insert into public\.proposal_agreement_items/);
+});
