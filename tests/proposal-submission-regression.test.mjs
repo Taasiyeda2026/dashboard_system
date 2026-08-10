@@ -187,3 +187,34 @@ test('addProposalAgreement 23505 recovery rereads and returns the same idempoten
   assert.equal(result.row.id, submissionId);
   assert.equal(result.row.client_authority, created.client_authority);
 });
+
+test('GEFEN Biomimicry item keeps item_name through submission', async () => {
+  const mock = submissionMock({ items: [{ item_name: 'ביומימיקרי', gefen_number: '6089' }] });
+  let savedItems;
+  mock.api.saveItems = async (id, items) => {
+    savedItems = items;
+    mock.calls.push(['items', id, items.length]);
+    return { ok: true, items };
+  };
+  await runProposalApprovalSubmission({ ...mock.api, items: mock.items });
+  assert.equal(savedItems[0].item_name, 'ביומימיקרי');
+});
+
+test('missing item_name is rejected before proposal or item persistence', async () => {
+  const mock = submissionMock({ items: [{ item_name: '', unit_price: 9900 }] });
+  await assert.rejects(
+    runProposalApprovalSubmission({ ...mock.api, items: mock.items }),
+    /חסר שם פעילות בשורה 1/
+  );
+  assert.deepEqual(mock.calls, []);
+});
+
+test('atomic item RPC rejects blank item_name before deleting or inserting rows', async () => {
+  const { readFile } = await import('node:fs/promises');
+  const sql = await readFile(new URL('../supabase/migrations/20260810100000_current_app_user_rpc.sql', import.meta.url), 'utf8');
+  const guard = sql.indexOf("raise exception 'proposal_item_name_required'");
+  const deletion = sql.indexOf('delete from public.proposal_agreement_items');
+  const insertion = sql.indexOf('insert into public.proposal_agreement_items');
+  assert.ok(guard >= 0 && guard < deletion && deletion < insertion);
+  assert.match(sql, /nullif\(btrim\(item->>'item_name'\), ''\) is null/);
+});

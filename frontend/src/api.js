@@ -7732,6 +7732,10 @@ export const api = {
         }
         return row;
       });
+    const missingItemNameIndex = validItems.findIndex((item) => !cleanProposalAgreementText(item.item_name));
+    if (missingItemNameIndex >= 0) {
+      throw new Error(`חסר שם פעילות בשורה ${missingItemNameIndex + 1}. שמירת פריטי ההצעה לא בוצעה.`);
+    }
     const { data, error } = await supabase.rpc('save_proposal_agreement_items_atomic', {
       p_proposal_id: rowId,
       p_items: validItems
