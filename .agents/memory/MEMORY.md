@@ -1,2 +1,3 @@
 - [Scheduling screen redesign](scheduling-redesign.md) — removed inner 3-tab nav; scope bar is now flat flex row; no scrollbar on course list; alternatives are compact table rows; maintenance now 4th workspace tab
 - [SW version rules](sw-version-rules.md) — baseline v1400; never go below; single source frontend/sw.js; dist files copied after build
+- [Scheduling matching pipeline](scheduling-matching-pipeline.md) — cancelled meetings, school_id, planningDraft, enforce_end_time — key design facts for the matching engine
