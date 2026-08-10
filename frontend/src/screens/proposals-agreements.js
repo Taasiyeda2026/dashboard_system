@@ -6244,7 +6244,8 @@ export const proposalsAgreementsScreen = {
   load: ({ api, state }) => {
     if (!canAccessProposalsAgreements(state)) return Promise.resolve({ rows: [], unauthorized: true });
     // First metadata page only. Additional pages load only on explicit user action.
-    return api.proposalsAgreements({ limit: 50, offset: 0, includeLinkedDocuments: true });
+    // Load list metadata only. Linked documents load when the user opens a proposal.
+    return api.proposalsAgreements({ limit: 50, offset: 0, includeLinkedDocuments: false });
   },
   render(data = {}, { state } = {}) {
     if (data?.unauthorized || !canAccessProposalsAgreements(state)) {
@@ -6400,10 +6401,10 @@ export const proposalsAgreementsScreen = {
       }).finally(() => { editorDepsPromise = null; });
       return editorDepsPromise;
     };
-    // Start immutable editor lookups as soon as the proposals screen is bound.
-    // Opening the editor still awaits the same memoized request, but no longer
-    // pays the full cold-network latency after the user's click.
-    void ensureEditorDeps().catch((error) => { void handleSupabaseSessionFailure(error); });
+    // ensureEditorDeps() is NOT started automatically on screen bind.
+    // It is called on demand only when the user triggers an action that needs it:
+    // new proposal, edit, PDF generation, preview, or send.
+    // This avoids a heavy background fetch that competes with the initial list load.
     const currentListQuery = () => ({
       search: text(data?._query?.search),
       status: text(data?._query?.status),
@@ -6412,7 +6413,8 @@ export const proposalsAgreementsScreen = {
       clientType: text(data?._query?.clientType),
       sort: text(data?._query?.sort) || 'updated_at_desc',
       limit: Number(data?._limit || 50),
-      includeLinkedDocuments: true
+      // Linked documents are not needed for the list view (load on proposal open).
+      includeLinkedDocuments: false
     });
     const mergeProposalPageRows = (incoming = []) => {
       const seen = new Set((data.rows || []).map((row) => text(row?.id)).filter(Boolean));
