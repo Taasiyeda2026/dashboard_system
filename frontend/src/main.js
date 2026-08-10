@@ -1191,7 +1191,18 @@ function setMobileNavOpen(open) {
   shellNode.classList.toggle('is-mobile-nav-open', isMobileNavOpen);
   const drawer = shellNode.querySelector('.shell-sidebar');
   if (drawer) {
-    drawer.setAttribute('aria-hidden', !isDesktopViewport() && !isMobileNavOpen ? 'true' : 'false');
+    const nextAriaHidden = !isDesktopViewport() && !isMobileNavOpen ? 'true' : 'false';
+    // Move focus out of the sidebar before aria-hiding it; otherwise the browser
+    // logs "Blocked aria-hidden on an element because its descendant retained focus".
+    if (nextAriaHidden === 'true' && drawer.contains(document.activeElement)) {
+      const menuBtn = shellNode.querySelector('#mobileMenuBtn');
+      if (menuBtn) {
+        menuBtn.focus({ preventScroll: true });
+      } else if (document.activeElement instanceof HTMLElement) {
+        document.activeElement.blur();
+      }
+    }
+    drawer.setAttribute('aria-hidden', nextAriaHidden);
   }
   const menuBtn = shellNode.querySelector('#mobileMenuBtn');
   if (menuBtn) {

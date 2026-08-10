@@ -628,6 +628,14 @@ export function clientFacingProposalTypeLabel(row = {}, items = []) {
   if (key && PROPOSAL_GROUP_DISPLAY_FALLBACKS[key]) return PROPOSAL_GROUP_DISPLAY_FALLBACKS[key];
   const raw = text(row.activity_type_group || row.proposal_group || row.document_type || row.template_key);
   if (raw) {
+    // 'combined' (COMBINED_INTERNAL_KEY) is a known internal key for multi-group proposals.
+    // It is intentionally not a user-facing proposal type and should silently return '—'.
+    // Also suppress for known Hebrew aliases that resolve to COMBINED_INTERNAL_KEY.
+    if (
+      raw === COMBINED_INTERNAL_KEY
+      || PROPOSAL_GROUP_LEGACY_ALIASES[raw] === COMBINED_INTERNAL_KEY
+      || PROPOSAL_GROUP_LEGACY_ALIASES[normalizeHebrewQuoteVariants(raw)] === COMBINED_INTERNAL_KEY
+    ) return '—';
     // eslint-disable-next-line no-console
     console.warn('[client-file] unknown proposal type value', raw);
   }

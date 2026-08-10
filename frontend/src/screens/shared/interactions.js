@@ -64,6 +64,10 @@ export function createSharedInteractionLayer() {
   let modalOpen = false;
   let onDrawerClose = null;
   let onModalClose = null;
+  // Track the element that had focus when the drawer/modal was opened,
+  // so we can return focus to it on close (avoids "Blocked aria-hidden" warnings).
+  let drawerOpener = null;
+  let modalOpener = null;
 
   function onGlobalEscape(event) {
     if (event.key !== 'Escape') return;
@@ -187,6 +191,8 @@ export function createSharedInteractionLayer() {
     drawer.scrollTop = 0;
     contentNode.scrollTop = 0;
     onDrawerClose = typeof onClose === 'function' ? onClose : null;
+    // Save the opener so focus can be returned when the drawer closes.
+    drawerOpener = document.activeElement instanceof HTMLElement ? document.activeElement : null;
 
     drawerOpen = true;
     drawer.setAttribute('aria-hidden', 'false');
@@ -209,6 +215,15 @@ export function createSharedInteractionLayer() {
     if (!drawer) return;
 
     drawerOpen = false;
+    // Return focus before aria-hiding to avoid "Blocked aria-hidden" browser warnings.
+    if (drawer.contains(document.activeElement)) {
+      if (drawerOpener && document.body.contains(drawerOpener)) {
+        drawerOpener.focus({ preventScroll: true });
+      } else if (document.activeElement instanceof HTMLElement) {
+        document.activeElement.blur();
+      }
+    }
+    drawerOpener = null;
     drawer.setAttribute('aria-hidden', 'true');
 
     const cb = onDrawerClose;
@@ -266,6 +281,8 @@ export function createSharedInteractionLayer() {
     footerNode.hidden = !actions;
 
     onModalClose = typeof onClose === 'function' ? onClose : null;
+    // Save the opener so focus can be returned when the modal closes.
+    modalOpener = document.activeElement instanceof HTMLElement ? document.activeElement : null;
 
     modalOpen = true;
     modal.setAttribute('aria-hidden', 'false');
@@ -283,6 +300,15 @@ export function createSharedInteractionLayer() {
     if (!modal) return;
 
     modalOpen = false;
+    // Return focus before aria-hiding to avoid "Blocked aria-hidden" browser warnings.
+    if (modal.contains(document.activeElement)) {
+      if (modalOpener && document.body.contains(modalOpener)) {
+        modalOpener.focus({ preventScroll: true });
+      } else if (document.activeElement instanceof HTMLElement) {
+        document.activeElement.blur();
+      }
+    }
+    modalOpener = null;
     modal.setAttribute('aria-hidden', 'true');
     clearModalVariant(modal);
 
