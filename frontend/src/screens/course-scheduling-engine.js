@@ -9,7 +9,7 @@ import {
   isSchedulingDraftAssignment
 } from './shared/activity-scheduling-eligibility.js';
 import { DEFAULT_COURSE_SCHEDULING_PERIOD_KEY, isDateInCourseSchedulingPeriod, resolveCourseSchedulingPeriod } from './course-scheduling-periods.js';
-import { proposeDateAdjustments } from './course-scheduling-date-adjustments.js';
+import { effectiveEndTime, proposeDateAdjustments } from './course-scheduling-date-adjustments.js';
 import {
   SCORE_WEIGHTS,
   computeSchedulingScore,
@@ -131,12 +131,14 @@ export function instructorLoad(assignments = [], profile = {}, rules = [], optio
 
 function meetingAssignments(rows = [], options = {}) {
   const periodKey = options.periodKey || DEFAULT_COURSE_SCHEDULING_PERIOD_KEY;
+  const schoolCalendar = options.schoolCalendar || [];
   return rows.flatMap((activity) => activityMeetings(activity?.draft_emp_id && Array.isArray(activity.draft_proposed_meetings)
     ? { ...activity, meetings: activity.draft_proposed_meetings }
     : activity)
     .filter((meeting) => options.allDates || isDateInCourseSchedulingPeriod(meeting.date, periodKey))
     .map((meeting) => ({
       ...meeting,
+      end_time: effectiveEndTime(text(meeting.date).slice(0, 10), meeting.end_time || activity.end_time, schoolCalendar),
       activity_id: idOf(activity),
       school: activity.school,
       school_id: activity.school_id,
@@ -171,8 +173,7 @@ function assignedRowsByInstructor(rows = [], supplied = {}) {
 function sameSchool(first = {}, second = {}) {
   const firstId = text(first.school_id);
   const secondId = text(second.school_id);
-  if (firstId && secondId) return firstId === secondId;
-  return text(first.school).toLocaleLowerCase('he-IL') === text(second.school).toLocaleLowerCase('he-IL');
+  return !!(firstId && secondId && firstId === secondId);
 }
 
 function routeLeg(routeMatrix = {}, origin, destination, sameLocation = false) {
@@ -266,8 +267,9 @@ function evaluateCandidate({
   const allMeetings = activityMeetings(course);
   const periodMeetings = allMeetings.filter((meeting) => isDateInCourseSchedulingPeriod(meeting.date, periodKey));
   const originalPeriodCourse = { ...course, meetings: periodMeetings };
-  const persistedMeetings = meetingAssignments(persistedRows, { periodKey, allDates: true });
-  const planningMeetings = meetingAssignments(internalPlanningRows, { periodKey, allDates: true });
+  const meetingOptions = { periodKey, allDates: true, schoolCalendar: input.schoolCalendar || [] };
+  const persistedMeetings = meetingAssignments(persistedRows, meetingOptions);
+  const planningMeetings = meetingAssignments(internalPlanningRows, meetingOptions);
   const adjustmentInput = {
     meetings: allMeetings,
     rules: rules[empId] || [],
@@ -297,13 +299,13 @@ function evaluateCandidate({
   const plannerBaselineLoad = instructorLoad([...persistedRows, ...internalPlanningRows], profiles[empId], rules[empId] || [], { periodKey });
   const plannerProjectedLoad = instructorLoad([...persistedRows, ...internalPlanningRows, periodCourse], profiles[empId], rules[empId] || [], { periodKey });
 
-  const persistedPeriodMeetings = meetingAssignments(persistedRows, { periodKey });
-  const plannerPeriodMeetings = meetingAssignments([...persistedRows, ...internalPlanningRows], { periodKey });
+  const persistedPeriodMeetings = meetingAssignments(persistedRows, { periodKey, schoolCalendar: input.schoolCalendar || [] });
+  const plannerPeriodMeetings = meetingAssignments([...persistedRows, ...internalPlanningRows], { periodKey, schoolCalendar: input.schoolCalendar || [] });
   // Hard-gate must inspect every active meeting of the course, not only those inside
   // the selected half-year window.  The period filter is for display/planning only.
   // allMeetingsCourse: when a date adjustment is valid its meetings already span the
   // full adjusted schedule; otherwise fall back to all non-cancelled course meetings.
-  const plannerAllMeetings = meetingAssignments([...persistedRows, ...internalPlanningRows], { periodKey, allDates: true });
+  const plannerAllMeetings = meetingAssignments([...persistedRows, ...internalPlanningRows], meetingOptions);
   const allMeetingsCourse = adjustment?.valid ? periodCourse : { ...course, meetings: allMeetings };
   const gateTravel = dynamicTravel(allMeetingsCourse, instructor, plannerAllMeetings, input);
   // Persisted-period travel is kept for UI display.  Planner-period travel feeds soft scoring.
