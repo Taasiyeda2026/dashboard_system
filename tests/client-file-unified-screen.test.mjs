@@ -411,6 +411,29 @@ test('proposal type labels never expose combined or technical aliases', () => {
   assert.ok(!labels.includes('tour'));
 });
 
+test('combined does not produce console.warn; truly unknown values do', () => {
+  const warnings = [];
+  const origWarn = console.warn;
+  console.warn = (...args) => warnings.push(args.join(' '));
+  try {
+    // Known internal combined values — must return '—' silently (no warn).
+    assert.equal(clientFacingProposalTypeLabel({ activity_type_group: 'combined' }), '—');
+    assert.equal(clientFacingProposalTypeLabel({ activity_type_group: 'הצעה משולבת' }), '—');
+    assert.equal(clientFacingProposalTypeLabel({ activity_type_group: 'קיץ תשפ״ו ושנת הלימודים תשפ״ז' }), '—');
+    assert.equal(warnings.length, 0, `expected no warnings for combined values, got: ${warnings.join(', ')}`);
+
+    // Truly unknown value — must still warn.
+    assert.equal(clientFacingProposalTypeLabel({ activity_type_group: 'weird_unknown_type' }), '—');
+    assert.equal(warnings.length, 1, 'expected exactly one warning for weird_unknown_type');
+    assert.ok(
+      warnings[0].includes('weird_unknown_type'),
+      `warning should mention the unknown value, got: ${warnings[0]}`
+    );
+  } finally {
+    console.warn = origWarn;
+  }
+});
+
 test('semantic duplicates collapse to the PDF canonical row', () => {
   const items = sampleItems();
   const base = {
