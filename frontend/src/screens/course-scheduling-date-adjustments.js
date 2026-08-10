@@ -13,14 +13,21 @@ const overlaps = (a, b) => minutes(a.start_time) < minutes(b.end_time) && minute
  */
 function effectiveEndTime(date, originalEndTime, schoolCalendar) {
   let cap = null;
+  let capMinutes = null;
   for (const row of schoolCalendar) {
     if (!row.enforce_end_time || !row.school_day_end_time || row.is_active === false) continue;
     const start = String(row.start_date || '').slice(0, 10);
     const end = String(row.end_date || row.start_date || '').slice(0, 10);
     if (!start || date < start || date > end) continue;
-    if (cap === null || row.school_day_end_time < cap) cap = row.school_day_end_time;
+    const rowCapMinutes = minutes(row.school_day_end_time);
+    if (!Number.isFinite(rowCapMinutes)) continue;
+    if (cap === null || rowCapMinutes < capMinutes) {
+      cap = row.school_day_end_time;
+      capMinutes = rowCapMinutes;
+    }
   }
-  return (cap && cap < String(originalEndTime || '')) ? cap : originalEndTime;
+  const originalMinutes = minutes(originalEndTime);
+  return (cap && Number.isFinite(originalMinutes) && capMinutes < originalMinutes) ? cap : originalEndTime;
 }
 
 export function blockedSchoolDates(rows = []) {
@@ -100,13 +107,14 @@ export function proposeDateAdjustments({ meetings = [], rules = [], exceptions =
   let previousDate = '';
   for (let index = 0; index < ordered.length; index += 1) {
     const original = ordered[index];
+    const nominalEndTime = meetings[index]?.end_time || original.end_time;
     if (index < firstBlocked) { proposed.push({ ...original, original_date: original.date, moved: false }); previousDate = original.date; continue; }
     let candidate = addDays(original.date, 7);
     if (previousDate && candidate <= previousDate) candidate = addDays(previousDate, 7);
     let guard = 0;
     while (guard++ < 5200) {
-      // Also apply enforce_end_time cap to the candidate date when searching for a new slot.
-      const candidateEndTime = effectiveEndTime(candidate, original.end_time, schoolCalendar);
+      // Apply a cap for the candidate date from the original uncapped meeting end.
+      const candidateEndTime = effectiveEndTime(candidate, nominalEndTime, schoolCalendar);
       const row = { ...original, date: candidate, end_time: candidateEndTime };
       const exception = exceptionMap.get(candidate);
       if (weekday(candidate) !== 6 && !blockedDates.has(candidate) && weeklyAllows(row, rules)
@@ -114,7 +122,7 @@ export function proposeDateAdjustments({ meetings = [], rules = [], exceptions =
       candidate = addDays(candidate, 7);
     }
     if (guard >= 5200) return { valid: false, reason: 'adjustment_search_exhausted', meetings: [] };
-    const candidateEndTime = effectiveEndTime(candidate, original.end_time, schoolCalendar);
+    const candidateEndTime = effectiveEndTime(candidate, nominalEndTime, schoolCalendar);
     proposed.push({ ...original, original_date: original.date, date: candidate, end_time: candidateEndTime, moved: candidate !== original.date });
     previousDate = candidate;
   }
