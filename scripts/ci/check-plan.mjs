@@ -18,7 +18,12 @@ export const TEST_GROUPS = Object.freeze({
   permissions: ['tests/navigation-permissions-routes.test.mjs', 'tests/permissions-role-column-alignment.test.mjs'],
   proposals: ['tests/proposal-submission-regression.test.mjs', 'tests/proposal-workflow-completion.test.mjs'],
   pwa: ['tests/service-worker-pwa-cache.test.mjs'],
-  scheduling: ['tests/course-scheduling-engine.test.mjs', 'tests/course-scheduling-scoring.test.mjs'],
+  scheduling: [
+    'tests/course-scheduling-engine.test.mjs',
+    'tests/course-scheduling-scoring.test.mjs',
+    'tests/course-scheduling-stage2-matching.test.mjs',
+    'tests/course-scheduling-stage2-server-sync.test.mjs'
+  ],
   // This group runs in the conditional Postgres job, not in the dependency-free job.
   schedulingDb: [],
   summerFeedback: ['tests/summer-feedback.test.mjs'],
@@ -29,6 +34,7 @@ const EXACT_GROUPS = new Map([
   ['frontend/src/permissions.js', ['auth', 'permissions']],
   ['frontend/src/supabase-client.js', ['auth', 'db']],
   ['frontend/src/state.js', ['dashboard', 'activities', 'calendars']],
+  ['frontend/src/screens/instructor-matching-engine.js', ['scheduling']],
   ['frontend/sw.js', ['pwa']],
   ['sw.js', ['pwa']]
 ]);
@@ -117,7 +123,8 @@ export function buildCheckPlan(files, diffContext = {}) {
   let postgres = false;
 
   for (const file of normalized) {
-    for (const group of EXACT_GROUPS.get(file) || []) groups.add(group);
+    const exactGroups = EXACT_GROUPS.get(file) || [];
+    for (const group of exactGroups) groups.add(group);
     if (file === 'frontend/src/api.js') {
       const diff = hasDiffSource ? resolveDiff(file) : null;
       for (const group of getApiGroups(diff)) groups.add(group);
@@ -128,7 +135,9 @@ export function buildCheckPlan(files, diffContext = {}) {
     }
     // CSS and other non-JS frontend assets are build-validated, but should not
     // select business suites merely because their filename contains a domain word.
-    if (file.startsWith('frontend/src/') && JS_RE.test(file)) {
+    // Exact mappings are authoritative for ambiguous cross-domain modules such as
+    // instructor-matching-engine.js, whose behavior belongs to scheduling, not instructor UI.
+    if (file.startsWith('frontend/src/') && JS_RE.test(file) && !exactGroups.length) {
       for (const [pattern, group] of DOMAIN_RULES) if (pattern.test(file)) groups.add(group);
     }
     if (/^supabase\/(?:migrations|functions)\//.test(file) || /\.sql$/.test(file)) {
