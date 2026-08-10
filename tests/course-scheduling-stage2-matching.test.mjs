@@ -490,6 +490,39 @@ test('enforce_end_time: no cap needed returns null as before', () => {
   assert.equal(result, null, 'when end_time is already within the school day, result must be null');
 });
 
+test('enforce_end_time: capped end_time changes the overlap outcome — not just the returned value', () => {
+  // Proves that enforce_end_time actually affects the overlap check result, not only the
+  // returned end_time field.  Without the cap the overlap causes proposed_overlap (valid: false);
+  // with the cap the meeting is short enough to avoid the conflict (valid: true).
+  //
+  // Setup:
+  //   Meeting: 2026-10-11 (Sunday) 10:00–15:00, exception marks that date unavailable
+  //     → proposeDateAdjustments moves it to the next Sunday: 2026-10-18
+  //   Existing activity on 2026-10-18: 14:00–15:00
+  //     Without cap the adjusted meeting (10:00–15:00) overlaps → proposed_overlap → invalid
+  //     With enforce_end_time (school day ends 13:00) the adjusted meeting is 10:00–13:00
+  //       → no overlap with 14:00–15:00 → valid
+  const meetings = [{ date: '2026-10-11', start_time: '10:00', end_time: '15:00' }];
+  const rules = [{ weekday: 0, available: true, start_time: '08:00', end_time: '17:00' }];
+  const exceptions = [{ exception_date: '2026-10-11', available: false }];
+  const existingActivities = [{ date: '2026-10-18', start_time: '14:00', end_time: '15:00' }];
+
+  // Without enforce_end_time: uncapped end_time 15:00 → overlaps 14:00–15:00 on adjusted date
+  const withoutCap = proposeDateAdjustments({ meetings, rules, exceptions, schoolCalendar: [], existingActivities });
+  assert.ok(withoutCap != null, 'adjustment must be triggered (exception blocks original date)');
+  assert.equal(withoutCap.valid, false, 'without cap: 10:00–15:00 overlaps 14:00–15:00 → invalid');
+  assert.equal(withoutCap.reason, 'proposed_overlap', 'failure reason must be proposed_overlap');
+
+  // With enforce_end_time on 2026-10-18: end_time capped to 13:00 → no overlap → valid
+  const withCap = proposeDateAdjustments({ meetings, rules, exceptions, schoolCalendar: [{
+    start_date: '2026-10-18', end_date: '2026-10-18', school_day_end_time: '13:00',
+    blocks_scheduling: false, enforce_end_time: true, is_active: true, show_on_main_calendar: true
+  }], existingActivities });
+  assert.ok(withCap?.valid === true, 'with cap: 10:00–13:00 does not overlap 14:00–15:00 → valid');
+  const moved = withCap.meetings.find((m) => m.date === '2026-10-18');
+  assert.equal(moved?.end_time, '13:00', 'adjusted meeting end_time must be the capped value');
+});
+
 test('enforce_end_time: cap is also applied when a date adjustment is triggered simultaneously', () => {
   // The meeting needs to move (exception blocks the original date) AND the target date
   // falls under an enforce_end_time constraint.
