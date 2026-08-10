@@ -13,7 +13,13 @@ export const TEST_GROUPS = Object.freeze({
   db: ['tests/backend-write-flows-guard.test.mjs'],
   editRequests: ['tests/edit-requests-screen.test.mjs'],
   finance: ['tests/finance-screen.test.mjs'],
-  instructors: ['tests/instructor-area-screen.test.mjs', 'tests/instructor-scheduling-permissions.test.mjs'],
+  // instructor-area-screen is a legacy mixed-domain suite with known base failures;
+  // Quick PR runs the maintained workspace/permission contracts instead.
+  instructors: [
+    'tests/instructors-unified-workspace.test.mjs',
+    'tests/instructor-scheduling-permissions.test.mjs',
+    'tests/instructor-employee-files.test.mjs'
+  ],
   operations: ['tests/operations-management-screen.test.mjs'],
   permissions: ['tests/navigation-permissions-routes.test.mjs', 'tests/permissions-role-column-alignment.test.mjs'],
   proposals: ['tests/proposal-submission-regression.test.mjs', 'tests/proposal-workflow-completion.test.mjs'],

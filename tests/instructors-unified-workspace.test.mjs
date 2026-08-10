@@ -30,14 +30,14 @@ test('unified instructors screen includes active assigned and unassigned instruc
   assert.match(html, /מדריך משובץ/);
   assert.match(html, /מדריך לא משובץ/);
   assert.doesNotMatch(html, /מדריך לא פעיל/);
-  assert.match(html, /לא משובץ/);
-  assert.match(html, /1 פעילים ללא כתובת/);
+  assert.match(html, /2 מדריכים פעילים עם פרטים חסרים/);
+  assert.match(html, /מדריך לא משובץ[\s\S]*חסר: כתובת/);
 });
 
-test('assignment filter can isolate unassigned instructors', () => {
+test('retired assignment filter state does not hide active instructors', () => {
   const state = { instructorsWorkspace: { q: '', active: 'yes', assignment: 'unassigned' } };
   const html = instructorsScreen.render({ rows: rows(), scheduling: { loaded: true } }, { state });
-  assert.doesNotMatch(html, /מדריך משובץ/);
+  assert.match(html, /מדריך משובץ/);
   assert.match(html, /מדריך לא משובץ/);
 });
 
