@@ -16,7 +16,7 @@ export const TEST_GROUPS = Object.freeze({
   instructors: ['tests/instructor-area-screen.test.mjs', 'tests/instructor-scheduling-permissions.test.mjs'],
   operations: ['tests/operations-management-screen.test.mjs'],
   permissions: ['tests/navigation-permissions-routes.test.mjs', 'tests/permissions-role-column-alignment.test.mjs'],
-  proposals: ['tests/proposals-agreements-screen.test.mjs', 'tests/proposal-workflow-completion.test.mjs'],
+  proposals: ['tests/proposal-submission-regression.test.mjs', 'tests/proposal-workflow-completion.test.mjs'],
   pwa: ['tests/service-worker-pwa-cache.test.mjs'],
   scheduling: ['tests/course-scheduling-engine.test.mjs', 'tests/course-scheduling-scoring.test.mjs'],
   // This group runs in the conditional Postgres job, not in the dependency-free job.

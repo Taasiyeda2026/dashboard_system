@@ -397,3 +397,39 @@ test('view-only user keeps stable drawer field rendering and no manage or approv
   assert.doesNotMatch(html, /data-pa-edit-row/);
   assert.doesNotMatch(html, /חתום ואשר/);
 });
+
+test('authenticated operation manager resolves only own profile through scoped RPC', async () => {
+  const authUserId = '00000000-0000-4000-8000-000000000077';
+  let directUsersReads = 0;
+  const ownRow = {
+    user_id: 'eden', auth_user_id: authUserId, role: 'operation_manager', is_active: true,
+    view_proposals_agreements: true, manage_proposals_agreements: true, permissions: {}
+  };
+  const supabase = {
+    rpc: async (name) => {
+      assert.equal(name, 'get_current_app_user');
+      return { data: [ownRow], error: null };
+    },
+    from: () => {
+      directUsersReads += 1;
+      throw new Error('users must not be read directly when own-profile RPC succeeds');
+    }
+  };
+  const result = await resolveActiveUserRowAfterAuth({ supabase, authUserId, authEmail: 'eden@example.com' });
+  assert.equal(result.matchedBy, 'current_app_user_rpc');
+  assert.equal(result.userRow.user_id, 'eden');
+  assert.equal(directUsersReads, 0);
+  const flat = flattenUserRow(result.userRow);
+  withUser(flat, () => {
+    assert.equal(canAccessProposalsAgreements({ user: flat, effectiveRoutes: ['proposals-agreements'] }), true);
+    assert.equal(canManageProposalsAgreementsApi(), true);
+  });
+});
+
+test('current-user RPC migration scopes profile by auth.uid without broad users SELECT', async () => {
+  const sql = await readFile(new URL('../supabase/migrations/20260810100000_current_app_user_rpc.sql', import.meta.url), 'utf8');
+  assert.match(sql, /get_current_app_user/);
+  assert.match(sql, /from public\.current_app_user/);
+  assert.match(sql, /revoke all on function public\.get_current_app_user\(\) from public, anon/);
+  assert.doesNotMatch(sql, /grant select[^;]+public\.users/is);
+});

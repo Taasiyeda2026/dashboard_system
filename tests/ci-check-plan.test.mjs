@@ -114,7 +114,10 @@ test('api.js Activities changes still select activities', () => {
 });
 
 test('api.js proposal changes select proposals without activities', () => {
-  assert.deepEqual(apiPlanFor('const proposals = await loadProposals();').groups, ['proposals']);
+  const plan = apiPlanFor('const proposals = await loadProposals();');
+  assert.deepEqual(plan.groups, ['proposals']);
+  assert.ok(plan.tests.includes('tests/proposal-submission-regression.test.mjs'));
+  assert.ok(!plan.tests.includes('tests/proposals-agreements-screen.test.mjs'));
 });
 
 test('api.js role route removal does not select proposals for an unchanged proposals route', () => {

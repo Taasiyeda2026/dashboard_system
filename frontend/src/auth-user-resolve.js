@@ -192,6 +192,19 @@ async function resolveActiveUserRowWithColumns(options, columns) {
   });
 
   const _supabase = options.supabase ?? (await import('./supabase-client.js')).supabase;
+  if (authUserId && typeof _supabase?.rpc === 'function') {
+    const { data: ownRows, error: ownError } = await _supabase.rpc('get_current_app_user');
+    const ownRow = Array.isArray(ownRows) ? ownRows[0] : ownRows;
+    if (!ownError && ownRow?.is_active !== false && authUserIdMatchesRow(authUserId, ownRow)) {
+      return {
+        userRow: ownRow,
+        matchedBy: 'current_app_user_rpc',
+        missingColumnError: false,
+        status: 'found',
+        attempts: [{ matchedBy: 'current_app_user_rpc', filters: { auth_user_id: authUserId }, dataCount: 1, error: null, skippedReason: '' }]
+      };
+    }
+  }
   for (const attempt of attempts) {
     const result = await fetchActiveUserRowByFilters(
       _supabase,

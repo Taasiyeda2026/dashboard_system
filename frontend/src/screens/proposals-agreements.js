@@ -2426,7 +2426,7 @@ function extractItemsFromForm(form) {
     // the catalog item_name / pricing_key / unit_price instead of relying on free text.
     const optionKey = isManualCourseRow ? '' : (fieldText('pricing_option_key') || pricingSelectVal);
     const pricingRow = isManualCourseRow ? null : lookupPricingRow({ optionKey, activityNo: fieldText('activity_no'), itemName: editedName });
-    const pricingName = publicActivityName(pricingRow?.activity_name);
+    const pricingName = publicActivityLabelFromRow(pricingRow || {});
 
     const itemName = editedName || pricingName;
     const quantity = fieldNumber('quantity') ?? 1;
@@ -5947,6 +5947,10 @@ function proposalSubmissionId(form) {
 }
 
 export async function runProposalApprovalSubmission({ saveProposal, saveItems, updateStatus, items = [], timeoutOptions = {} }) {
+  const invalidItemIndex = (Array.isArray(items) ? items : []).findIndex((item) => !text(item?.item_name ?? item?.itemName));
+  if (invalidItemIndex >= 0) {
+    throw new Error(`חסר שם פעילות בשורה ${invalidItemIndex + 1}. יש לבחור פעילות לפני שמירת ההצעה.`);
+  }
   const proposalResult = await settleProposalApprovalStep(saveProposal, 'שמירת ההצעה', timeoutOptions);
   const savedId = text(proposalResult?.row?.id);
   if (!savedId) throw new Error('שמירת ההצעה לא החזירה מזהה. לא בוצעה שליחה לאישור.');
@@ -9040,7 +9044,8 @@ export const proposalsAgreementsScreen = {
       };
       setValue('pricing_option_key', selectedKey);
       setValue('activity_no', picked.activity_no || '');
-      setValue('item_name', publicActivityName(picked.activity_name) || '');
+      const pickedItemName = publicActivityLabelFromRow(picked);
+      setValue('item_name', pickedItemName);
       setValue('item_type', picked.item_type || '');
       setValue('gefen_number', picked.gefen_number || '');
       setValue('gefen_number_display', picked.gefen_number || '');
@@ -9056,8 +9061,8 @@ export const proposalsAgreementsScreen = {
       setValue('item_selected_bundle_items', '[]');
       const compactName = itemRow.querySelector('[data-pa-item-compact-name]');
       if (compactName) {
-        compactName.textContent = publicActivityName(picked.activity_name) || 'בחרו פעילות';
-        compactName.title = publicActivityName(picked.activity_name) || '';
+        compactName.textContent = pickedItemName || 'בחרו פעילות';
+        compactName.title = pickedItemName;
       }
       const compactQty = itemRow.querySelector('[data-pa-item-compact-qty]');
       if (compactQty) compactQty.textContent = `כמות: ${text(itemRow.querySelector('[data-pa-item-qty]')?.value) || '1'}`;
@@ -9076,7 +9081,7 @@ export const proposalsAgreementsScreen = {
           unit_price: getNum('unit_price'),
           proposal_group: rowGroup
         }, rowGroup);
-        infoStrip.hidden = !publicActivityName(picked.activity_name);
+        infoStrip.hidden = !pickedItemName;
       }
 
       calcItemRow(itemRow);
