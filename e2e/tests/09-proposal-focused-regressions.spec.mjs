@@ -64,6 +64,93 @@ async function expectSelectedLabelMatchesInternalPrice(row) {
   expect(internalPrice).toBe(labelPrice);
 }
 
+async function selectGefenCourse(row, matcher) {
+  const select = row.locator('[data-pa-pricing-select]');
+  const value = await select.locator('option').evaluateAll((options, source) => {
+    const pattern = new RegExp(source, 'i');
+    return options.find((option) => option.value && !option.value.startsWith('__') && pattern.test(`${option.value} ${option.textContent || ''}`))?.value || '';
+  }, matcher.source);
+  expect(value, `expected Gefen option matching ${matcher}`).not.toBe('');
+  await select.selectOption(value, { timeout: 10_000 });
+  return value;
+}
+
+test('Gefen stays responsive while selecting, replacing, removing and re-adding multiple courses', async ({ page, tracker }) => {
+  test.setTimeout(180_000);
+  tracker.resetScreen('proposal-gefen-multi-row-responsiveness');
+  const pageErrors = [];
+  page.on('pageerror', (error) => pageErrors.push(error.message));
+  await page.goto('/');
+  await waitForAppShell(page);
+  await navigateToScreen(page, 'proposals-agreements');
+  await waitForScreenReady(page, 'proposals-agreements');
+  await page.locator('[data-pa-tab="new"]:visible').first().click();
+  const form = page.locator('[data-pa-form]:visible').first();
+  await expect(form).toBeVisible();
+  await form.locator('[data-pa-type-btn="gefen"]').click();
+
+  await form.evaluate((element) => {
+    window.__gefenRegressionCounters = { change: 0, input: 0, previewMutations: 0 };
+    element.addEventListener('change', (event) => {
+      if (event.target?.matches?.('[data-pa-pricing-select]')) window.__gefenRegressionCounters.change += 1;
+    }, true);
+    element.addEventListener('input', (event) => {
+      if (event.target?.matches?.('[data-pa-item-price]')) window.__gefenRegressionCounters.input += 1;
+    }, true);
+    const preview = element.querySelector('[data-pa-live-preview]');
+    if (preview) new MutationObserver(() => { window.__gefenRegressionCounters.previewMutations += 1; })
+      .observe(preview, { childList: true, subtree: true });
+  });
+
+  const add = form.locator('[data-pa-add-item]:visible').first();
+  await add.click();
+  let rows = form.locator('[data-pa-item-row]');
+  await expect(rows).toHaveCount(1);
+  await selectGefenCourse(rows.nth(0), /6089|ביומימיקרי/);
+  await expectSelectedLabelMatchesInternalPrice(rows.nth(0));
+
+  await add.click();
+  await expect(rows).toHaveCount(2);
+  const secondAlternative = await rows.nth(1).locator('[data-pa-pricing-select] option').evaluateAll((options) =>
+    options.find((option) => option.value && !option.value.startsWith('__') && !/6089|ביומימיקרי/.test(`${option.value} ${option.textContent || ''}`))?.value || '');
+  expect(secondAlternative).not.toBe('');
+  await rows.nth(1).locator('[data-pa-pricing-select]').selectOption(secondAlternative, { timeout: 10_000 });
+  await expectSelectedLabelMatchesInternalPrice(rows.nth(1));
+
+  await add.click();
+  await expect(rows).toHaveCount(3);
+  await selectGefenCourse(rows.nth(2), /6089|ביומימיקרי/);
+  await expectSelectedLabelMatchesInternalPrice(rows.nth(2));
+
+  await selectGefenCourse(rows.nth(1), /6089|ביומימיקרי/);
+  await rows.nth(0).locator('[data-pa-pricing-select]').selectOption(secondAlternative, { timeout: 10_000 });
+  await expectSelectedLabelMatchesInternalPrice(rows.nth(0));
+  const expectedTotal = await rows.evaluateAll((items) => items.reduce((sum, row) => {
+    const qty = Number(row.querySelector('[data-pa-item-qty]')?.value) || 0;
+    const price = Number(row.querySelector('[data-pa-item-price]')?.value) || 0;
+    return sum + qty * price;
+  }, 0));
+  await expect.poll(async () => amountOf(await form.locator('[data-pa-grand-total]').innerText())).toBe(expectedTotal);
+  await expect(form.locator('[data-pa-live-preview] .proposal-document')).toHaveCount(1);
+
+  page.on('dialog', (dialog) => dialog.accept());
+  await rows.nth(1).locator('[data-pa-remove-item]').click();
+  await expect(rows).toHaveCount(2);
+  await add.click();
+  await expect(rows).toHaveCount(3);
+  const readdedAlternative = await firstPositivePriceOption(rows.nth(2).locator('[data-pa-pricing-select]'));
+  await rows.nth(2).locator('[data-pa-pricing-select]').selectOption(readdedAlternative, { timeout: 10_000 });
+  await expectSelectedLabelMatchesInternalPrice(rows.nth(2));
+
+  const counters = await page.evaluate(() => window.__gefenRegressionCounters);
+  expect(counters.change).toBe(7);
+  expect(counters.input).toBeLessThanOrEqual(1);
+  expect(counters.previewMutations).toBeLessThanOrEqual(12);
+  expect(pageErrors).toEqual([]);
+  await tracker.persist('proposal-gefen-multi-row-responsiveness');
+  assertNoTransportErrors(tracker);
+});
+
 test('real proposal regression path remains stable without saving data or PDFs', async ({ page, tracker }) => {
   test.setTimeout(300_000);
   tracker.resetScreen('proposal-focused-regressions');

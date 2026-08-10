@@ -4,6 +4,7 @@ import {
   augmentNextYearPricingRows,
   normalizeNextYearWorkshopTables
 } from './proposal-next-year-workshops.js';
+import { isCoreOwnedGefenPricingTarget } from './proposal-workflow-ui-integrity.js';
 
 const PATCH_KEY = Symbol.for('taasiyeda.proposalWorkflowCompletion');
 const NEXT_YEAR_ALIASES = new Set(['next_year', 'שנה הבאה', 'שנת הלימודים תשפ״ז', 'תוכניות תשפ״ז', 'תשפ״ז']);
@@ -154,6 +155,9 @@ export function calculateFormTotals(form) {
 function proposalFormEvent(event) {
   const target = event.target;
   if (!target?.matches?.('[data-pa-item-qty], [data-pa-item-price], [data-pa-discount-value], [data-pa-discount-type], [data-pa-pricing-select]')) return;
+  // Gefen's native editor listener owns hydration/totals/preview. Running this
+  // second calculator in the same event chain caused repeated DOM mutations.
+  if (isCoreOwnedGefenPricingTarget(target)) return;
   const form = target.closest('[data-pa-form]');
   if (form) queueMicrotask(() => calculateFormTotals(form));
 }

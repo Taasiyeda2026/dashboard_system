@@ -17,6 +17,15 @@ function normalized(value) {
   return text(value).replace(/[״"׳'`]/g, '').toLowerCase();
 }
 
+/** Gefen editor hydration/totals/preview are owned by proposals-agreements.js. */
+export function isCoreOwnedGefenPricingTarget(target) {
+  const form = target?.closest?.('[data-pa-form]');
+  const row = target?.closest?.('[data-pa-item-row]');
+  const type = normalized(form?.querySelector?.('[name="activity_type_group"]')?.value);
+  const group = normalized(row?.dataset?.paRowGroup || row?.querySelector?.('[name="proposal_group"]')?.value);
+  return type === 'gefen' || type === 'גפן' || group === 'gefen' || group === 'גפן';
+}
+
 function numberValue(value) {
   const number = Number(String(value == null ? '' : value).replace(/[^0-9.-]/g, ''));
   return Number.isFinite(number) ? number : 0;
@@ -347,6 +356,10 @@ function installDomRuntime(scope) {
 
   const editorEvent = (event) => {
     if (!event.target?.matches?.('[data-pa-item-qty], [data-pa-item-price], [data-pa-pricing-select], [data-pa-discount-type], [data-pa-discount-value]')) return;
+    // The screen module is the sole owner of Gefen selection hydration, totals and
+    // its coalesced live preview. In particular, do not synthesize another input
+    // event from this delegated listener.
+    if (isCoreOwnedGefenPricingTarget(event.target)) return;
     const form = event.target.closest('[data-pa-form]');
     const row = event.target.closest('[data-pa-item-row]');
     // next_year_courses/next_year_workshops rows and forms are owned exclusively by
